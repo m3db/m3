@@ -26,12 +26,12 @@ import (
 	"io"
 	"time"
 
-	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/clock"
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -579,7 +579,7 @@ func (b *dbBufferBucket) discardMerged() discardMergedResult {
 		// Already merged as a single encoder
 		encoder := b.encoders[0].encoder
 		newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-		newBlock.Reset(b.start, encoder.Discard())
+		newBlock.ResetWired(b.start, encoder.Discard())
 		b.encoders = b.encoders[:0]
 		return discardMergedResult{newBlock, 0}
 	}
@@ -599,7 +599,7 @@ func (b *dbBufferBucket) discardMerged() discardMergedResult {
 	if len(b.bootstrapped) > 0 {
 		unretrieved := 0
 		for i := range b.bootstrapped {
-			if !b.bootstrapped[i].IsRetrieved() {
+			if !b.bootstrapped[i].IsWired() {
 				unretrieved++
 			}
 		}
@@ -644,7 +644,7 @@ func (b *dbBufferBucket) discardMerged() discardMergedResult {
 	iter.Close()
 
 	newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	newBlock.Reset(b.start, encoder.Discard())
+	newBlock.ResetWired(b.start, encoder.Discard())
 
 	return discardMergedResult{newBlock, merges}
 }

@@ -28,10 +28,10 @@ import (
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
-	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
@@ -45,6 +45,8 @@ const (
 	bootstrapped
 )
 
+var nilID = ts.StringID("")
+
 var (
 	// ErrSeriesAllDatapointsExpired is returned on tick when all datapoints are expired
 	ErrSeriesAllDatapointsExpired = errors.New("series datapoints are all expired")
@@ -55,7 +57,12 @@ var (
 	errSeriesNotBootstrapped  = errors.New("series is not yet bootstrapped")
 )
 
-var nilID = ts.BinaryID(checked.NewBytes(nil, nil))
+func checkedID(id ts.ID) ts.ID {
+	if id == nil {
+		return nilID
+	}
+	return id
+}
 
 type dbSeries struct {
 	sync.RWMutex
@@ -88,7 +95,7 @@ func newPooledDatabaseSeries(pool DatabaseSeriesPool, opts Options) DatabaseSeri
 
 func newDatabaseSeries(id ts.ID, opts Options) *dbSeries {
 	series := &dbSeries{
-		id:     id,
+		id:     checkedID(id),
 		opts:   opts,
 		blocks: block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()),
 		bs:     bootstrapNotStarted,
@@ -112,7 +119,7 @@ func (s *dbSeries) ID() ts.ID {
 	return id
 }
 
-func (s *dbSeries) Tick() (TickResult, error) {
+func (s *dbSeries) Tick(runopts runtime.Options) (TickResult, error) {
 	var r TickResult
 
 	s.Lock()
@@ -124,7 +131,7 @@ func (s *dbSeries) Tick() (TickResult, error) {
 	drain := s.buffer.DrainAndReset()
 	r.MergedOutOfOrderBlocks = drain.mergedOutOfOrderBlocks
 
-	update := s.updateBlocksWithLock()
+	update := s.updateBlocksWithLock(runopts)
 	r.TickStatus = update.TickStatus
 	r.MadeExpiredBlocks, r.MadeUnwiredBlocks =
 		update.madeExpiredBlocks, update.madeUnwiredBlocks
@@ -143,15 +150,20 @@ type updateBlocksResult struct {
 	madeUnwiredBlocks int
 }
 
-func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
+func (s *dbSeries) updateBlocksWithLock(
+	runopts runtime.Options,
+) updateBlocksResult {
 	var (
-		result       updateBlocksResult
-		now          = s.opts.ClockOptions().NowFn()()
-		ropts        = s.opts.RetentionOptions()
-		retriever    = s.blockRetriever
-		checkUnwire  = retriever != nil && ropts.BlockDataExpiry()
-		expireCutoff = now.Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
-		wiredTimeout = ropts.BlockDataExpiryAfterNotAccessedPeriod()
+		result          updateBlocksResult
+		now             = s.opts.ClockOptions().NowFn()()
+		ropts           = s.opts.RetentionOptions()
+		retriever       = s.blockRetriever
+		canUnwire       = retriever != nil
+		wiredTimeout    = runopts.WiredBlockExpiryAfterNotAccessedPeriod()
+		wiredTimeExpiry = wiredTimeout > 0
+		expireCutoff    = now.
+				Add(-ropts.RetentionPeriod()).
+				Truncate(ropts.BlockSize())
 	)
 	for start, currBlock := range s.blocks.AllBlocks() {
 		if start.Before(expireCutoff) {
@@ -163,34 +175,38 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 
 		result.ActiveBlocks++
 
-		if !currBlock.IsRetrieved() {
+		if !currBlock.IsWired() {
 			result.UnwiredBlocks++
 			continue
 		}
 
-		var unwired bool
-		if checkUnwire {
+		result.WiredBlocks++
+
+		// If we don't have a retriever or the block is not retrievable yet
+		// there's nothing we can do about unwiring this block
+		if !canUnwire || !retriever.IsBlockRetrievable(start) {
+			continue
+		}
+
+		// Make this block able to be unwired if retriever hasn't been set yet
+		if !currBlock.IsRetrievable() {
+			// NB(r): Each block needs shared ref to the series ID
+			// or else each block needs to have a copy of the ID
+			currBlock.SetRetrievable(retriever, s.id)
+		}
+
+		// If we are performing timed unwiring then check the last access time
+		if wiredTimeExpiry {
 			sinceLastAccessed := now.Sub(currBlock.LastAccessTime())
-			if sinceLastAccessed >= wiredTimeout &&
-				retriever.IsBlockRetrievable(start) {
-				// NB(r): Each block needs shared ref to the series ID
-				// or else each block needs to have a copy of the ID
-				id := s.id
+			if sinceLastAccessed >= wiredTimeout {
 				metadata := block.RetrievableBlockMetadata{
-					ID:       id,
+					ID:       s.id,
 					Length:   currBlock.Len(),
 					Checksum: currBlock.Checksum(),
 				}
-				currBlock.ResetRetrievable(start, retriever, metadata)
-
-				unwired = true
+				currBlock.ResetUnwired(start, retriever, metadata)
 				result.madeUnwiredBlocks++
 			}
-		}
-		if unwired {
-			result.UnwiredBlocks++
-		} else {
-			result.WiredBlocks++
 		}
 	}
 
@@ -399,9 +415,11 @@ func (s *dbSeries) mergeBlock(
 		return
 	}
 
-	// We are performing this in a lock, cannot wait for the existing
-	// block potentially to be retrieved from disk, lazily merge the stream.
-	newBlock.Merge(existingBlock)
+	if err := newBlock.Merge(existingBlock); err != nil {
+		s.log().Errorf("series buffer drain merge error: %v", err)
+		return
+	}
+
 	blocks.AddBlock(newBlock)
 }
 
@@ -461,7 +479,7 @@ func (s *dbSeries) newBootstrapBlockError(
 	b block.DatabaseBlock,
 	err error,
 ) error {
-	msgFmt := "bootstrap series error occurred for %s block at %s: %v"
+	msgFmt := "series bootstrap error occurred for %s block at %s: %v"
 	renamed := fmt.Errorf(msgFmt, s.id.String(), b.StartTime().String(), err)
 	return xerrors.NewRenamedError(err, renamed)
 }
@@ -513,7 +531,7 @@ func (s *dbSeries) Close() {
 	// Since series are purged so infrequently the overhead
 	// of not releasing back an ID to a pool is amortized over
 	// a long period of time.
-	s.id = nil
+	s.id = nilID
 	s.buffer.Reset()
 	s.blocks.Close()
 
@@ -530,7 +548,7 @@ func (s *dbSeries) Reset(
 	s.Lock()
 	defer s.Unlock()
 
-	s.id = id
+	s.id = checkedID(id)
 	s.buffer.Reset()
 	s.blocks.RemoveAll()
 	if seriesBootstrapped {

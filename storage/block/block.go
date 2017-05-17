@@ -33,8 +33,7 @@ import (
 )
 
 var (
-	errReadFromClosedBlock         = errors.New("attempt to read from a closed block")
-	errRetrievableBlockNoRetriever = errors.New("attempt to read from a retrievable block with no retriever")
+	errReadFromClosedBlock = errors.New("attempt to read from a closed block")
 
 	timeZero = time.Time{}
 )
@@ -42,8 +41,9 @@ var (
 type dbBlock struct {
 	sync.RWMutex
 
-	opts          Options
-	ctx           context.Context
+	opts Options
+	ctx  context.Context
+
 	startUnixNano int64
 	segment       ts.Segment
 	length        int
@@ -51,30 +51,48 @@ type dbBlock struct {
 
 	accessedUnixNano int64
 
-	mergeTarget DatabaseBlock
-
 	retriever  DatabaseShardBlockRetriever
 	retrieveID ts.ID
+
+	// For use in a list of blocks, notably for the wired list. The
+	// doubly linked list pointers are on the block themselves to avoid
+	// creating a heap allocated struct per block.
+	// NB(r): Beware that the list controls the synchronization of these
+	// fields to avoid unnecessary lock contention.
+	// They should never be read or mutated by the block itself.
+	next                      *dbBlock
+	prev                      *dbBlock
+	nextPrevUpdatedAtUnixNano int64
+
+	// onStreamDoneFinalizer allows the on stream done completion fn
+	// to be passed to the context register finalizer method without
+	// a binding allocation as we do the binding allocation at creation
+	onStreamDoneFinalizer context.Finalizer
 
 	closed bool
 }
 
-// NewDatabaseBlock creates a new DatabaseBlock instance.
-func NewDatabaseBlock(start time.Time, segment ts.Segment, opts Options) DatabaseBlock {
+// NewWiredDatabaseBlock creates a new wired block.
+func NewWiredDatabaseBlock(
+	start time.Time,
+	segment ts.Segment,
+	opts Options,
+) DatabaseBlock {
 	b := &dbBlock{
 		opts:          opts,
 		ctx:           opts.ContextPool().Get(),
 		startUnixNano: start.UnixNano(),
 		closed:        false,
 	}
+	b.onStreamDoneFinalizer = context.FinalizerFn(b.updateWiredList)
 	if segment.Len() > 0 {
 		b.resetSegmentWithLock(segment)
 	}
 	return b
 }
 
-// NewRetrievableDatabaseBlock creates a new retrievable DatabaseBlock instance.
-func NewRetrievableDatabaseBlock(
+// NewUnwiredDatabaseBlock creates a new unwired block.
+func NewUnwiredDatabaseBlock(
 	start time.Time,
 	retriever DatabaseShardBlockRetriever,
 	metadata RetrievableBlockMetadata,
@@ -86,6 +104,7 @@ func NewRetrievableDatabaseBlock(
 		startUnixNano: start.UnixNano(),
 		closed:        false,
 	}
+	b.onStreamDoneFinalizer = context.FinalizerFn(b.updateWiredList)
 	b.resetRetrievableWithLock(retriever, metadata)
 	return b
 }
@@ -141,6 +160,43 @@ func (b *dbBlock) OnRetrieveBlock(
 	b.resetSegmentWithLock(segment)
 }
 
+func (b *dbBlock) updateWiredList() {
+	if list := b.opts.WiredList(); list != nil {
+		list.update(b)
+	}
+}
+
+func (b *dbBlock) isWiredWithLock() bool {
+	return !b.segment.Empty()
+}
+
+func (b *dbBlock) isRetrievableWithLock() bool {
+	return b.retriever != nil && b.retrieveID != nil
+}
+
+type wiredListEntry struct {
+	start      time.Time
+	length     int
+	checksum   uint32
+	wired      bool
+	retriever  DatabaseShardBlockRetriever
+	retrieveID ts.ID
+}
+
+func (b *dbBlock) wiredListEntry() wiredListEntry {
+	b.RLock()
+	result := wiredListEntry{
+		start:      b.startWithLock(),
+		length:     b.length,
+		checksum:   b.checksum,
+		wired:      b.isWiredWithLock(),
+		retriever:  b.retriever,
+		retrieveID: b.retrieveID,
+	}
+	b.RUnlock()
+	return result
+}
+
 func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	b.RLock()
 	defer b.RUnlock()
@@ -151,10 +207,26 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 
 	b.ctx.DependsOn(blocker)
 
+	reader, err := b.readerWithLock()
+	if err != nil {
+		return nil, err
+	}
+
 	// Use an int64 to avoid needing a write lock for
 	// the high frequency stream method
 	atomic.StoreInt64(&b.accessedUnixNano, b.now().UnixNano())
 
+	// Register the finalizer for the stream
+	blocker.RegisterFinalizer(reader)
+
+	// Asynchronously update the wired list LRU at the end
+	// of a read to avoid lock contention on read
+	blocker.RegisterFinalizer(b.onStreamDoneFinalizer)
+
+	return reader, nil
+}
+
+func (b *dbBlock) readerWithLock() (xio.SegmentReader, error) {
 	// If the block retrieve ID is set then it must be retrieved
 	var (
 		stream xio.SegmentReader
@@ -172,54 +244,110 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 		stream.Reset(ts.NewSegment(b.segment.Head, b.segment.Tail, ts.FinalizeNone))
 	}
 
-	if b.mergeTarget != nil {
-		var mergeStream xio.SegmentReader
-		mergeStream, err = b.mergeTarget.Stream(blocker)
-		if err != nil {
-			stream.Finalize()
-			return nil, err
-		}
-		// Return a lazily merged stream
-		// TODO(r): once merged reset this block with the contents of it
-		stream = newDatabaseMergedBlockReader(b.startWithLock(), stream, mergeStream, b.opts)
-	}
-
-	// Register the finalizer for the stream
-	blocker.RegisterFinalizer(stream)
-
 	return stream, nil
 }
 
-func (b *dbBlock) IsRetrieved() bool {
+func (b *dbBlock) IsWired() bool {
 	b.RLock()
-	retrieved := b.retriever == nil
+	result := b.isWiredWithLock()
 	b.RUnlock()
-	return retrieved
+	return result
 }
 
-func (b *dbBlock) Merge(other DatabaseBlock) {
+func (b *dbBlock) IsRetrievable() bool {
+	b.RLock()
+	result := b.isRetrievableWithLock()
+	b.RUnlock()
+	return result
+}
+
+func (b *dbBlock) SetRetrievable(
+	retriever DatabaseShardBlockRetriever,
+	retrieveID ts.ID,
+) {
 	b.Lock()
-	b.resetMergeTargetWithLock()
-	b.mergeTarget = other
+	b.resetRetrievableWithLock(retriever, RetrievableBlockMetadata{
+		ID:       retrieveID,
+		Length:   b.length,
+		Checksum: b.checksum,
+	})
 	b.Unlock()
 }
 
-func (b *dbBlock) Reset(start time.Time, segment ts.Segment) {
+func (b *dbBlock) Merge(other DatabaseBlock) error {
 	b.Lock()
 	defer b.Unlock()
-	b.resetNewBlockStartWithLock(start)
+
+	reader, err := b.readerWithLock()
+	if err != nil {
+		return err
+	}
+
+	ctx := b.opts.ContextPool().Get()
+	defer ctx.Close()
+
+	targetReader, err := other.Stream(ctx)
+	if err != nil {
+		return err
+	}
+
+	mergedReader := newDatabaseMergedBlockReader(b.startWithLock(),
+		reader, targetReader, b.opts)
+
+	segment, err := mergedReader.Segment()
+	if err != nil {
+		return err
+	}
+
+	// NB(r): If there was a current retriever and retrieve ID
+	// they are invalid now as they reference a different
+	// set of data.
+	b.retriever = nil
+	b.retrieveID = nil
+
 	b.resetSegmentWithLock(segment)
+
+	return nil
 }
 
-func (b *dbBlock) ResetRetrievable(
+func (b *dbBlock) ResetWired(
+	start time.Time,
+	segment ts.Segment,
+) {
+	b.Lock()
+	b.resetNewBlockStartWithLock(start)
+	b.resetSegmentWithLock(segment)
+	b.Unlock()
+}
+
+func (b *dbBlock) ResetUnwired(
 	start time.Time,
 	retriever DatabaseShardBlockRetriever,
 	metadata RetrievableBlockMetadata,
 ) {
 	b.Lock()
-	defer b.Unlock()
 	b.resetNewBlockStartWithLock(start)
 	b.resetRetrievableWithLock(retriever, metadata)
+	b.Unlock()
+}
+
+func (b *dbBlock) unwire() bool {
+	b.Lock()
+	defer b.Unlock()
+
+	if !b.isWiredWithLock() || !b.isRetrievableWithLock() {
+		// If already unwired or not retrievable
+		return false
+	}
+
+	b.resetNewBlockStartWithLock(b.startWithLock())
+	b.resetRetrievableWithLock(b.retriever, RetrievableBlockMetadata{
+		ID:       b.retrieveID,
+		Length:   b.length,
+		Checksum: b.checksum,
+	})
+
+	return true
 }
 
 func (b *dbBlock) resetNewBlockStartWithLock(start time.Time) {
@@ -229,7 +357,6 @@ func (b *dbBlock) resetNewBlockStartWithLock(start time.Time) {
 	b.ctx = b.opts.ContextPool().Get()
 	b.startUnixNano = start.UnixNano()
 	b.closed = false
-	b.resetMergeTargetWithLock()
 	atomic.StoreInt64(&b.accessedUnixNano, b.now().UnixNano())
 }
 
@@ -238,10 +365,10 @@ func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {
 	b.length = seg.Len()
 	b.checksum = digest.SegmentChecksum(seg)
 
-	b.retriever = nil
-	b.retrieveID = nil
-
 	b.ctx.RegisterFinalizer(&seg)
+
+	// Trigger update of the wired list
+	b.updateWiredList()
 }
 
 func (b *dbBlock) resetRetrievableWithLock(
@@ -254,6 +381,9 @@ func (b *dbBlock) resetRetrievableWithLock(
 
 	b.retriever = retriever
 	b.retrieveID = metadata.ID
+
+	// Trigger update of the wired list
+	b.updateWiredList()
 }
 
 func (b *dbBlock) Close() {
@@ -266,6 +396,11 @@ func (b *dbBlock) Close() {
 
 	b.closed = true
 
+	// Trigger update of the wired list
+	b.retriever = nil
+	b.retrieveID = nil
+	b.updateWiredList()
+
 	// NB(xichen): we use the worker pool to close the context instead doing
 	// an asychronous context close to explicitly control the context closing
 	// concurrency. This is particularly important during a node removal because
@@ -276,17 +411,9 @@ func (b *dbBlock) Close() {
 	// from within the same goroutine.
 	b.opts.CloseContextWorkers().Go(b.ctx.BlockingClose)
 
-	b.resetMergeTargetWithLock()
 	if pool := b.opts.DatabaseBlockPool(); pool != nil {
 		pool.Put(b)
 	}
-}
-
-func (b *dbBlock) resetMergeTargetWithLock() {
-	if b.mergeTarget != nil {
-		b.mergeTarget.Close()
-	}
-	b.mergeTarget = nil
 }
 
 type databaseSeriesBlocks struct {
@@ -296,7 +423,7 @@ type databaseSeriesBlocks struct {
 	max   time.Time
 }
 
-// NewDatabaseSeriesBlocks creates a databaseSeriesBlocks instance.
+// NewDatabaseSeriesBlocks returns a new map container of blocks.
 func NewDatabaseSeriesBlocks(capacity int, opts Options) DatabaseSeriesBlocks {
 	return &databaseSeriesBlocks{
 		opts:  opts,

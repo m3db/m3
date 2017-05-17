@@ -45,9 +45,9 @@ func TestResultAddMergesExistingShardResults(t *testing.T) {
 	start := time.Now().Truncate(blockSize)
 
 	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(1*blockSize), ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(2*blockSize), ts.Segment{}, blopts),
+		block.NewWiredDatabaseBlock(start, ts.Segment{}, blopts),
+		block.NewWiredDatabaseBlock(start.Add(1*blockSize), ts.Segment{}, blopts),
+		block.NewWiredDatabaseBlock(start.Add(2*blockSize), ts.Segment{}, blopts),
 	}
 
 	srs := []ShardResult{
@@ -143,9 +143,9 @@ func TestResultAddResult(t *testing.T) {
 	start := time.Now().Truncate(blockSize)
 
 	blocks := []block.DatabaseBlock{
-		block.NewDatabaseBlock(start, ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(1*blockSize), ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(2*blockSize), ts.Segment{}, blopts),
+		block.NewWiredDatabaseBlock(start, ts.Segment{}, blopts),
+		block.NewWiredDatabaseBlock(start.Add(1*blockSize), ts.Segment{}, blopts),
+		block.NewWiredDatabaseBlock(start.Add(2*blockSize), ts.Segment{}, blopts),
 	}
 
 	srs := []ShardResult{
@@ -202,7 +202,7 @@ func TestShardResultIsEmpty(t *testing.T) {
 	sr := NewShardResult(0, opts)
 	require.True(t, sr.IsEmpty())
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(time.Now(), ts.Segment{})
+	block.ResetWired(time.Now(), ts.Segment{})
 	sr.AddBlock(ts.StringID("foo"), block)
 	require.False(t, sr.IsEmpty())
 }
@@ -221,7 +221,7 @@ func TestShardResultAddBlock(t *testing.T) {
 	}
 	for _, input := range inputs {
 		block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-		block.Reset(input.timestamp, ts.Segment{})
+		block.ResetWired(input.timestamp, ts.Segment{})
 		sr.AddBlock(ts.StringID(input.id), block)
 	}
 	allSeries := sr.AllSeries()
@@ -246,7 +246,7 @@ func TestShardResultAddSeries(t *testing.T) {
 	}
 	moreSeries := block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	block.Reset(start, ts.Segment{})
+	block.ResetWired(start, ts.Segment{})
 	moreSeries.AddBlock(block)
 	sr.AddSeries(ts.StringID("foo"), moreSeries)
 	allSeries := sr.AllSeries()

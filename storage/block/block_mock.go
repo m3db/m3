@@ -328,38 +328,58 @@ func (_mr *_MockDatabaseBlockRecorder) Stream(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stream", arg0)
 }
 
-func (_m *MockDatabaseBlock) Merge(other DatabaseBlock) {
-	_m.ctrl.Call(_m, "Merge", other)
+func (_m *MockDatabaseBlock) Merge(other DatabaseBlock) error {
+	ret := _m.ctrl.Call(_m, "Merge", other)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 func (_mr *_MockDatabaseBlockRecorder) Merge(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Merge", arg0)
 }
 
-func (_m *MockDatabaseBlock) IsRetrieved() bool {
-	ret := _m.ctrl.Call(_m, "IsRetrieved")
+func (_m *MockDatabaseBlock) IsWired() bool {
+	ret := _m.ctrl.Call(_m, "IsWired")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-func (_mr *_MockDatabaseBlockRecorder) IsRetrieved() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsRetrieved")
+func (_mr *_MockDatabaseBlockRecorder) IsWired() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsWired")
 }
 
-func (_m *MockDatabaseBlock) Reset(startTime time.Time, segment ts.Segment) {
-	_m.ctrl.Call(_m, "Reset", startTime, segment)
+func (_m *MockDatabaseBlock) IsRetrievable() bool {
+	ret := _m.ctrl.Call(_m, "IsRetrievable")
+	ret0, _ := ret[0].(bool)
+	return ret0
 }
 
-func (_mr *_MockDatabaseBlockRecorder) Reset(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1)
+func (_mr *_MockDatabaseBlockRecorder) IsRetrievable() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsRetrievable")
 }
 
-func (_m *MockDatabaseBlock) ResetRetrievable(startTime time.Time, retriever DatabaseShardBlockRetriever, metadata RetrievableBlockMetadata) {
-	_m.ctrl.Call(_m, "ResetRetrievable", startTime, retriever, metadata)
+func (_m *MockDatabaseBlock) SetRetrievable(retriever DatabaseShardBlockRetriever, retrieveID ts.ID) {
+	_m.ctrl.Call(_m, "SetRetrievable", retriever, retrieveID)
 }
 
-func (_mr *_MockDatabaseBlockRecorder) ResetRetrievable(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ResetRetrievable", arg0, arg1, arg2)
+func (_mr *_MockDatabaseBlockRecorder) SetRetrievable(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRetrievable", arg0, arg1)
+}
+
+func (_m *MockDatabaseBlock) ResetWired(startTime time.Time, segment ts.Segment) {
+	_m.ctrl.Call(_m, "ResetWired", startTime, segment)
+}
+
+func (_mr *_MockDatabaseBlockRecorder) ResetWired(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ResetWired", arg0, arg1)
+}
+
+func (_m *MockDatabaseBlock) ResetUnwired(startTime time.Time, retriever DatabaseShardBlockRetriever, metadata RetrievableBlockMetadata) {
+	_m.ctrl.Call(_m, "ResetUnwired", startTime, retriever, metadata)
+}
+
+func (_mr *_MockDatabaseBlockRecorder) ResetUnwired(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ResetUnwired", arg0, arg1, arg2)
 }
 
 func (_m *MockDatabaseBlock) Close() {
@@ -842,6 +862,26 @@ func (_m *MockOptions) DatabaseBlockAllocSize() int {
 
 func (_mr *_MockOptionsRecorder) DatabaseBlockAllocSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "DatabaseBlockAllocSize")
+}
+
+func (_m *MockOptions) SetWiredList(value *WiredList) Options {
+	ret := _m.ctrl.Call(_m, "SetWiredList", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetWiredList(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWiredList", arg0)
+}
+
+func (_m *MockOptions) WiredList() *WiredList {
+	ret := _m.ctrl.Call(_m, "WiredList")
+	ret0, _ := ret[0].(*WiredList)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) WiredList() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WiredList")
 }
 
 func (_m *MockOptions) SetCloseContextWorkers(value sync.WorkerPool) Options {

@@ -253,7 +253,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 
 					if retriever == nil {
 						seg := ts.NewSegment(data, nil, ts.FinalizeHead)
-						seriesBlock.Reset(start, seg)
+						seriesBlock.ResetWired(start, seg)
 					} else {
 						data.IncRef()
 						length := data.Len()
@@ -266,7 +266,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 							Length:   length,
 							Checksum: checksum,
 						}
-						seriesBlock.ResetRetrievable(start, shardRetriever, metadata)
+						seriesBlock.ResetUnwired(start, shardRetriever, metadata)
 					}
 
 					resultLock.Lock()

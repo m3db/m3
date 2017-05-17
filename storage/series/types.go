@@ -23,14 +23,15 @@ package series
 import (
 	"time"
 
-	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -41,7 +42,7 @@ type DatabaseSeries interface {
 	ID() ts.ID
 
 	// Tick executes any updates to ensure buffer drains, blocks are flushed, etc
-	Tick() (TickResult, error)
+	Tick(runopts runtime.Options) (TickResult, error)
 
 	// Write writes a new value
 	Write(

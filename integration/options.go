@@ -164,10 +164,10 @@ type testOptions interface {
 	UseTChannelClientForTruncation() bool
 
 	// SetDatabaseBlockRetrieverManager sets the block retriever manager to
-	// use when bootstrapping retrievable blocks instead of blocks
+	// use when bootstrapping unwired blocks instead of wired blocks
 	// containing data.
-	// If you don't wish to bootstrap retrievable blocks instead of
-	// blocks containing data then do not set this manager.
+	// If you don't wish to bootstrap unwired blocks and instead bootstrap
+	// wired blocks containing data then do not set this manager.
 	// You can opt into which namespace you wish to have this enabled for
 	// by returning nil instead of a result when creating a new block retriever
 	// for a namespace from the manager.
@@ -176,7 +176,7 @@ type testOptions interface {
 	) testOptions
 
 	// NewBlockRetrieverFn returns the new block retriever constructor to
-	// use when bootstrapping retrievable blocks instead of blocks
+	// use when bootstrapping unwired blocks instead of wired blocks
 	// containing data.
 	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
 

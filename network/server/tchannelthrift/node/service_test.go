@@ -620,3 +620,66 @@ func TestServiceSetWriteNewSeriesAsync(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, true, setResp.WriteNewSeriesAsync)
 }
+
+func TestServiceSetMaxWiredBlocks(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	runtimeOpts := runtime.NewOptions().
+		SetMaxWiredBlocks(100)
+	runtimeOptsMgr := runtime.NewOptionsManager(runtimeOpts)
+	opts := testServiceOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(opts).AnyTimes()
+
+	service := NewService(mockDB, nil).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	getResp, err := service.GetMaxWiredBlocks(tctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(100), getResp.MaxWiredBlocks)
+
+	req := &rpc.NodeSetMaxWiredBlocksRequest{
+		MaxWiredBlocks: 200,
+	}
+	setResp, err := service.SetMaxWiredBlocks(tctx, req)
+	require.NoError(t, err)
+	assert.Equal(t, int64(200), setResp.MaxWiredBlocks)
+}
+
+func TestServiceSetWiredBlockExpiryAfterNotAccessedPeriod(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	runtimeOpts := runtime.NewOptions().
+		SetWiredBlockExpiryAfterNotAccessedPeriod(0)
+	runtimeOptsMgr := runtime.NewOptionsManager(runtimeOpts)
+	opts := testServiceOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(opts).AnyTimes()
+
+	service := NewService(mockDB, nil).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	getResp, err := service.GetWiredBlockExpiryAfterNotAccessedPeriod(tctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), getResp.Duration)
+	assert.Equal(t, rpc.DurationType_SECONDS, getResp.DurationType)
+
+	req := &rpc.NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest{
+		Duration:     int64((5 * time.Minute) / time.Second),
+		DurationType: rpc.DurationType_SECONDS,
+	}
+	setResp, err := service.SetWiredBlockExpiryAfterNotAccessedPeriod(tctx, req)
+	require.NoError(t, err)
+	assert.Equal(t, int64(300), setResp.Duration)
+	assert.Equal(t, rpc.DurationType_SECONDS, setResp.DurationType)
+}

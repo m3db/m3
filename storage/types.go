@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"time"
 
-	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist"
@@ -40,6 +39,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	xcounter "github.com/m3db/m3db/x/counter"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"

@@ -106,7 +106,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	end := start.Add(ropts.BlockSize())
 
 	goodResult := result.NewShardResult(0, opts.ResultOptions())
-	fooBlock := block.NewDatabaseBlock(start, ts.Segment{}, testBlockOpts)
+	fooBlock := block.NewWiredDatabaseBlock(start, ts.Segment{}, testBlockOpts)
 	goodResult.AddBlock(ts.StringID("foo"), fooBlock)
 	badErr := fmt.Errorf("an error")
 
@@ -163,17 +163,17 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 	end := start.Add(2 * ropts.BlockSize())
 
 	firstResult := result.NewShardResult(0, opts.ResultOptions())
-	fooBlock := block.NewDatabaseBlock(start,
+	fooBlock := block.NewWiredDatabaseBlock(start,
 		ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
-	barBlock := block.NewDatabaseBlock(start.Add(ropts.BlockSize()),
+	barBlock := block.NewWiredDatabaseBlock(start.Add(ropts.BlockSize()),
 		ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
 	firstResult.AddBlock(ts.StringID("foo"), fooBlock)
 	firstResult.AddBlock(ts.StringID("bar"), barBlock)
 
 	secondResult := result.NewShardResult(0, opts.ResultOptions())
-	bazBlock := block.NewDatabaseBlock(start,
+	bazBlock := block.NewWiredDatabaseBlock(start,
 		ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
 	secondResult.AddBlock(ts.StringID("baz"), bazBlock)
@@ -293,17 +293,17 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 	block, ok := r.ShardResults()[0].BlockAt(ts.StringID("foo"), start)
 	require.True(t, ok)
 	assert.Equal(t, fooBlock, block)
-	assert.False(t, fooBlock.IsRetrieved())
+	assert.False(t, fooBlock.IsWired())
 
 	block, ok = r.ShardResults()[0].BlockAt(ts.StringID("bar"), start.Add(ropts.BlockSize()))
 	require.True(t, ok)
 	assert.Equal(t, barBlock, block)
-	assert.False(t, barBlock.IsRetrieved())
+	assert.False(t, barBlock.IsWired())
 
 	block, ok = r.ShardResults()[1].BlockAt(ts.StringID("baz"), start)
 	require.True(t, ok)
 	assert.Equal(t, bazBlock, block)
-	assert.False(t, bazBlock.IsRetrieved())
+	assert.False(t, bazBlock.IsWired())
 
 	assert.Equal(t, map[string]int{
 		"foo": 1, "bar": 1, "baz": 1,
@@ -341,14 +341,14 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 	secondResult := result.NewShardResult(0, opts.ResultOptions())
 	secondResult.AddBlock(ts.StringID("bar"), barBlock)
 
-	bazBlock := block.NewDatabaseBlock(start,
+	bazBlock := block.NewWiredDatabaseBlock(start,
 		ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
 
 	thirdResult := result.NewShardResult(0, opts.ResultOptions())
 	thirdResult.AddBlock(ts.StringID("baz"), bazBlock)
 
-	quxBlock := block.NewDatabaseBlock(start,
+	quxBlock := block.NewWiredDatabaseBlock(start,
 		ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
 		testBlockOpts)
 

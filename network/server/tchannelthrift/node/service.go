@@ -26,7 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
@@ -37,6 +36,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
@@ -630,6 +630,52 @@ func (s *service) SetWriteNewSeriesAsync(
 	set := runtimeOptsMgr.Get().SetWriteNewSeriesAsync(req.WriteNewSeriesAsync)
 	runtimeOptsMgr.Update(set)
 	return s.GetWriteNewSeriesAsync(ctx)
+}
+
+func (s *service) GetMaxWiredBlocks(
+	ctx thrift.Context,
+) (*rpc.NodeMaxWiredBlocksResult_, error) {
+	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
+	value := runtimeOptsMgr.Get().MaxWiredBlocks()
+	return &rpc.NodeMaxWiredBlocksResult_{
+		MaxWiredBlocks: int64(value),
+	}, nil
+}
+
+func (s *service) SetMaxWiredBlocks(
+	ctx thrift.Context,
+	req *rpc.NodeSetMaxWiredBlocksRequest,
+) (*rpc.NodeMaxWiredBlocksResult_, error) {
+	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
+	set := runtimeOptsMgr.Get().SetMaxWiredBlocks(int(req.MaxWiredBlocks))
+	runtimeOptsMgr.Update(set)
+	return s.GetMaxWiredBlocks(ctx)
+}
+
+func (s *service) GetWiredBlockExpiryAfterNotAccessedPeriod(
+	ctx thrift.Context,
+) (*rpc.NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, error) {
+	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
+	value := runtimeOptsMgr.Get().WiredBlockExpiryAfterNotAccessedPeriod()
+	return &rpc.NodeWiredBlockExpiryAfterNotAccessedPeriodResult_{
+		Duration:     int64(value / time.Second),
+		DurationType: rpc.DurationType_SECONDS,
+	}, nil
+}
+
+func (s *service) SetWiredBlockExpiryAfterNotAccessedPeriod(
+	ctx thrift.Context,
+	req *rpc.NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest,
+) (*rpc.NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, error) {
+	value, err := convert.ToDuration(req.Duration, req.DurationType)
+	if err != nil {
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
+	set := runtimeOptsMgr.Get().SetWiredBlockExpiryAfterNotAccessedPeriod(value)
+	runtimeOptsMgr.Update(set)
+	return s.GetWiredBlockExpiryAfterNotAccessedPeriod(ctx)
 }
 
 func (s *service) isOverloaded() bool {

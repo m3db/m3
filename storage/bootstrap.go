@@ -25,8 +25,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"

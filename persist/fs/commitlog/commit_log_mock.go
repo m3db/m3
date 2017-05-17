@@ -25,11 +25,11 @@ package commitlog
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
 	fs "github.com/m3db/m3db/persist/fs"
 	retention "github.com/m3db/m3db/retention"
 	ts "github.com/m3db/m3db/ts"
+	clock "github.com/m3db/m3x/clock"
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
 	time0 "github.com/m3db/m3x/time"

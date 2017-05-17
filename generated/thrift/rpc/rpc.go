@@ -104,6 +104,74 @@ func (p *TimeType) Value() (driver.Value, error) {
 	return int64(*p), nil
 }
 
+type DurationType int64
+
+const (
+	DurationType_SECONDS      DurationType = 0
+	DurationType_MICROSECONDS DurationType = 1
+	DurationType_MILLISECONDS DurationType = 2
+	DurationType_NANOSECONDS  DurationType = 3
+)
+
+func (p DurationType) String() string {
+	switch p {
+	case DurationType_SECONDS:
+		return "SECONDS"
+	case DurationType_MICROSECONDS:
+		return "MICROSECONDS"
+	case DurationType_MILLISECONDS:
+		return "MILLISECONDS"
+	case DurationType_NANOSECONDS:
+		return "NANOSECONDS"
+	}
+	return "<UNSET>"
+}
+
+func DurationTypeFromString(s string) (DurationType, error) {
+	switch s {
+	case "SECONDS":
+		return DurationType_SECONDS, nil
+	case "MICROSECONDS":
+		return DurationType_MICROSECONDS, nil
+	case "MILLISECONDS":
+		return DurationType_MILLISECONDS, nil
+	case "NANOSECONDS":
+		return DurationType_NANOSECONDS, nil
+	}
+	return DurationType(0), fmt.Errorf("not a valid DurationType string")
+}
+
+func DurationTypePtr(v DurationType) *DurationType { return &v }
+
+func (p DurationType) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+func (p *DurationType) UnmarshalText(text []byte) error {
+	q, err := DurationTypeFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*p = q
+	return nil
+}
+
+func (p *DurationType) Scan(value interface{}) error {
+	v, ok := value.(int64)
+	if !ok {
+		return errors.New("Scan value is not int64")
+	}
+	*p = DurationType(v)
+	return nil
+}
+
+func (p *DurationType) Value() (driver.Value, error) {
+	if p == nil {
+		return nil, nil
+	}
+	return int64(*p), nil
+}
+
 type ErrorType int64
 
 const (
@@ -5386,6 +5454,489 @@ func (p *NodeSetWriteNewSeriesAsyncRequest) String() string {
 }
 
 // Attributes:
+//  - MaxWiredBlocks
+type NodeMaxWiredBlocksResult_ struct {
+	MaxWiredBlocks int64 `thrift:"maxWiredBlocks,1,required" db:"maxWiredBlocks" json:"maxWiredBlocks"`
+}
+
+func NewNodeMaxWiredBlocksResult_() *NodeMaxWiredBlocksResult_ {
+	return &NodeMaxWiredBlocksResult_{}
+}
+
+func (p *NodeMaxWiredBlocksResult_) GetMaxWiredBlocks() int64 {
+	return p.MaxWiredBlocks
+}
+func (p *NodeMaxWiredBlocksResult_) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	var issetMaxWiredBlocks bool = false
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+			issetMaxWiredBlocks = true
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	if !issetMaxWiredBlocks {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field MaxWiredBlocks is not set"))
+	}
+	return nil
+}
+
+func (p *NodeMaxWiredBlocksResult_) ReadField1(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.MaxWiredBlocks = v
+	}
+	return nil
+}
+
+func (p *NodeMaxWiredBlocksResult_) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("NodeMaxWiredBlocksResult"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeMaxWiredBlocksResult_) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("maxWiredBlocks", thrift.I64, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:maxWiredBlocks: ", p), err)
+	}
+	if err := oprot.WriteI64(int64(p.MaxWiredBlocks)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.maxWiredBlocks (1) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:maxWiredBlocks: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeMaxWiredBlocksResult_) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeMaxWiredBlocksResult_(%+v)", *p)
+}
+
+// Attributes:
+//  - MaxWiredBlocks
+type NodeSetMaxWiredBlocksRequest struct {
+	MaxWiredBlocks int64 `thrift:"maxWiredBlocks,1,required" db:"maxWiredBlocks" json:"maxWiredBlocks"`
+}
+
+func NewNodeSetMaxWiredBlocksRequest() *NodeSetMaxWiredBlocksRequest {
+	return &NodeSetMaxWiredBlocksRequest{}
+}
+
+func (p *NodeSetMaxWiredBlocksRequest) GetMaxWiredBlocks() int64 {
+	return p.MaxWiredBlocks
+}
+func (p *NodeSetMaxWiredBlocksRequest) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	var issetMaxWiredBlocks bool = false
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+			issetMaxWiredBlocks = true
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	if !issetMaxWiredBlocks {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field MaxWiredBlocks is not set"))
+	}
+	return nil
+}
+
+func (p *NodeSetMaxWiredBlocksRequest) ReadField1(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.MaxWiredBlocks = v
+	}
+	return nil
+}
+
+func (p *NodeSetMaxWiredBlocksRequest) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("NodeSetMaxWiredBlocksRequest"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeSetMaxWiredBlocksRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("maxWiredBlocks", thrift.I64, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:maxWiredBlocks: ", p), err)
+	}
+	if err := oprot.WriteI64(int64(p.MaxWiredBlocks)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.maxWiredBlocks (1) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:maxWiredBlocks: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeSetMaxWiredBlocksRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeSetMaxWiredBlocksRequest(%+v)", *p)
+}
+
+// Attributes:
+//  - Duration
+//  - DurationType
+type NodeWiredBlockExpiryAfterNotAccessedPeriodResult_ struct {
+	Duration     int64        `thrift:"duration,1,required" db:"duration" json:"duration"`
+	DurationType DurationType `thrift:"durationType,2,required" db:"durationType" json:"durationType"`
+}
+
+func NewNodeWiredBlockExpiryAfterNotAccessedPeriodResult_() *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_ {
+	return &NodeWiredBlockExpiryAfterNotAccessedPeriodResult_{}
+}
+
+func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) GetDuration() int64 {
+	return p.Duration
+}
+
+func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) GetDurationType() DurationType {
+	return p.DurationType
+}
+func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	var issetDuration bool = false
+	var issetDurationType bool = false
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+			issetDuration = true
+		case 2:
+			if err := p.ReadField2(iprot); err != nil {
+				return err
+			}
+			issetDurationType = true
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	if !issetDuration {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Duration is not set"))
+	}
+	if !issetDurationType {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field DurationType is not set"))
+	}
+	return nil
+}
+
+func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) ReadField1(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.Duration = v
+	}
+	return nil
+}
+
+func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) ReadField2(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI32(); err != nil {
+		return thrift.PrependError("error reading field 2: ", err)
+	} else {
+		temp := DurationType(v)
+		p.DurationType = temp
+	}
+	return nil
+}
+
+func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("NodeWiredBlockExpiryAfterNotAccessedPeriodResult"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("duration", thrift.I64, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:duration: ", p), err)
+	}
+	if err := oprot.WriteI64(int64(p.Duration)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.duration (1) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:duration: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) writeField2(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("durationType", thrift.I32, 2); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:durationType: ", p), err)
+	}
+	if err := oprot.WriteI32(int32(p.DurationType)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.durationType (2) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:durationType: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeWiredBlockExpiryAfterNotAccessedPeriodResult_(%+v)", *p)
+}
+
+// Attributes:
+//  - Duration
+//  - DurationType
+type NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest struct {
+	Duration     int64        `thrift:"duration,1,required" db:"duration" json:"duration"`
+	DurationType DurationType `thrift:"durationType,2" db:"durationType" json:"durationType,omitempty"`
+}
+
+func NewNodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest() *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest {
+	return &NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest{
+		DurationType: 0,
+	}
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) GetDuration() int64 {
+	return p.Duration
+}
+
+var NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest_DurationType_DEFAULT DurationType = 0
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) GetDurationType() DurationType {
+	return p.DurationType
+}
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) IsSetDurationType() bool {
+	return p.DurationType != NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest_DurationType_DEFAULT
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	var issetDuration bool = false
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+			issetDuration = true
+		case 2:
+			if err := p.ReadField2(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	if !issetDuration {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Duration is not set"))
+	}
+	return nil
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) ReadField1(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.Duration = v
+	}
+	return nil
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) ReadField2(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI32(); err != nil {
+		return thrift.PrependError("error reading field 2: ", err)
+	} else {
+		temp := DurationType(v)
+		p.DurationType = temp
+	}
+	return nil
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("duration", thrift.I64, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:duration: ", p), err)
+	}
+	if err := oprot.WriteI64(int64(p.Duration)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.duration (1) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:duration: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDurationType() {
+		if err := oprot.WriteFieldBegin("durationType", thrift.I32, 2); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:durationType: ", p), err)
+		}
+		if err := oprot.WriteI32(int32(p.DurationType)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.durationType (2) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 2:durationType: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest(%+v)", *p)
+}
+
+// Attributes:
 //  - Ok
 //  - Status
 type HealthResult_ struct {
@@ -5556,6 +6107,14 @@ type Node interface {
 	// Parameters:
 	//  - Req
 	SetWriteNewSeriesAsync(req *NodeSetWriteNewSeriesAsyncRequest) (r *NodeWriteNewSeriesAsyncResult_, err error)
+	GetMaxWiredBlocks() (r *NodeMaxWiredBlocksResult_, err error)
+	// Parameters:
+	//  - Req
+	SetMaxWiredBlocks(req *NodeSetMaxWiredBlocksRequest) (r *NodeMaxWiredBlocksResult_, err error)
+	GetWiredBlockExpiryAfterNotAccessedPeriod() (r *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, err error)
+	// Parameters:
+	//  - Req
+	SetWiredBlockExpiryAfterNotAccessedPeriod(req *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) (r *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, err error)
 }
 
 type NodeClient struct {
@@ -6618,6 +7177,322 @@ func (p *NodeClient) recvSetWriteNewSeriesAsync() (value *NodeWriteNewSeriesAsyn
 	return
 }
 
+func (p *NodeClient) GetMaxWiredBlocks() (r *NodeMaxWiredBlocksResult_, err error) {
+	if err = p.sendGetMaxWiredBlocks(); err != nil {
+		return
+	}
+	return p.recvGetMaxWiredBlocks()
+}
+
+func (p *NodeClient) sendGetMaxWiredBlocks() (err error) {
+	oprot := p.OutputProtocol
+	if oprot == nil {
+		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.OutputProtocol = oprot
+	}
+	p.SeqId++
+	if err = oprot.WriteMessageBegin("getMaxWiredBlocks", thrift.CALL, p.SeqId); err != nil {
+		return
+	}
+	args := NodeGetMaxWiredBlocksArgs{}
+	if err = args.Write(oprot); err != nil {
+		return
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return
+	}
+	return oprot.Flush()
+}
+
+func (p *NodeClient) recvGetMaxWiredBlocks() (value *NodeMaxWiredBlocksResult_, err error) {
+	iprot := p.InputProtocol
+	if iprot == nil {
+		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.InputProtocol = iprot
+	}
+	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
+	if err != nil {
+		return
+	}
+	if method != "getMaxWiredBlocks" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "getMaxWiredBlocks failed: wrong method name")
+		return
+	}
+	if p.SeqId != seqId {
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "getMaxWiredBlocks failed: out of sequence response")
+		return
+	}
+	if mTypeId == thrift.EXCEPTION {
+		error39 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error40 error
+		error40, err = error39.Read(iprot)
+		if err != nil {
+			return
+		}
+		if err = iprot.ReadMessageEnd(); err != nil {
+			return
+		}
+		err = error40
+		return
+	}
+	if mTypeId != thrift.REPLY {
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "getMaxWiredBlocks failed: invalid message type")
+		return
+	}
+	result := NodeGetMaxWiredBlocksResult{}
+	if err = result.Read(iprot); err != nil {
+		return
+	}
+	if err = iprot.ReadMessageEnd(); err != nil {
+		return
+	}
+	if result.Err != nil {
+		err = result.Err
+		return
+	}
+	value = result.GetSuccess()
+	return
+}
+
+// Parameters:
+//  - Req
+func (p *NodeClient) SetMaxWiredBlocks(req *NodeSetMaxWiredBlocksRequest) (r *NodeMaxWiredBlocksResult_, err error) {
+	if err = p.sendSetMaxWiredBlocks(req); err != nil {
+		return
+	}
+	return p.recvSetMaxWiredBlocks()
+}
+
+func (p *NodeClient) sendSetMaxWiredBlocks(req *NodeSetMaxWiredBlocksRequest) (err error) {
+	oprot := p.OutputProtocol
+	if oprot == nil {
+		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.OutputProtocol = oprot
+	}
+	p.SeqId++
+	if err = oprot.WriteMessageBegin("setMaxWiredBlocks", thrift.CALL, p.SeqId); err != nil {
+		return
+	}
+	args := NodeSetMaxWiredBlocksArgs{
+		Req: req,
+	}
+	if err = args.Write(oprot); err != nil {
+		return
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return
+	}
+	return oprot.Flush()
+}
+
+func (p *NodeClient) recvSetMaxWiredBlocks() (value *NodeMaxWiredBlocksResult_, err error) {
+	iprot := p.InputProtocol
+	if iprot == nil {
+		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.InputProtocol = iprot
+	}
+	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
+	if err != nil {
+		return
+	}
+	if method != "setMaxWiredBlocks" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "setMaxWiredBlocks failed: wrong method name")
+		return
+	}
+	if p.SeqId != seqId {
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "setMaxWiredBlocks failed: out of sequence response")
+		return
+	}
+	if mTypeId == thrift.EXCEPTION {
+		error41 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error42 error
+		error42, err = error41.Read(iprot)
+		if err != nil {
+			return
+		}
+		if err = iprot.ReadMessageEnd(); err != nil {
+			return
+		}
+		err = error42
+		return
+	}
+	if mTypeId != thrift.REPLY {
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "setMaxWiredBlocks failed: invalid message type")
+		return
+	}
+	result := NodeSetMaxWiredBlocksResult{}
+	if err = result.Read(iprot); err != nil {
+		return
+	}
+	if err = iprot.ReadMessageEnd(); err != nil {
+		return
+	}
+	if result.Err != nil {
+		err = result.Err
+		return
+	}
+	value = result.GetSuccess()
+	return
+}
+
+func (p *NodeClient) GetWiredBlockExpiryAfterNotAccessedPeriod() (r *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, err error) {
+	if err = p.sendGetWiredBlockExpiryAfterNotAccessedPeriod(); err != nil {
+		return
+	}
+	return p.recvGetWiredBlockExpiryAfterNotAccessedPeriod()
+}
+
+func (p *NodeClient) sendGetWiredBlockExpiryAfterNotAccessedPeriod() (err error) {
+	oprot := p.OutputProtocol
+	if oprot == nil {
+		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.OutputProtocol = oprot
+	}
+	p.SeqId++
+	if err = oprot.WriteMessageBegin("getWiredBlockExpiryAfterNotAccessedPeriod", thrift.CALL, p.SeqId); err != nil {
+		return
+	}
+	args := NodeGetWiredBlockExpiryAfterNotAccessedPeriodArgs{}
+	if err = args.Write(oprot); err != nil {
+		return
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return
+	}
+	return oprot.Flush()
+}
+
+func (p *NodeClient) recvGetWiredBlockExpiryAfterNotAccessedPeriod() (value *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, err error) {
+	iprot := p.InputProtocol
+	if iprot == nil {
+		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.InputProtocol = iprot
+	}
+	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
+	if err != nil {
+		return
+	}
+	if method != "getWiredBlockExpiryAfterNotAccessedPeriod" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "getWiredBlockExpiryAfterNotAccessedPeriod failed: wrong method name")
+		return
+	}
+	if p.SeqId != seqId {
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "getWiredBlockExpiryAfterNotAccessedPeriod failed: out of sequence response")
+		return
+	}
+	if mTypeId == thrift.EXCEPTION {
+		error43 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error44 error
+		error44, err = error43.Read(iprot)
+		if err != nil {
+			return
+		}
+		if err = iprot.ReadMessageEnd(); err != nil {
+			return
+		}
+		err = error44
+		return
+	}
+	if mTypeId != thrift.REPLY {
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "getWiredBlockExpiryAfterNotAccessedPeriod failed: invalid message type")
+		return
+	}
+	result := NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult{}
+	if err = result.Read(iprot); err != nil {
+		return
+	}
+	if err = iprot.ReadMessageEnd(); err != nil {
+		return
+	}
+	if result.Err != nil {
+		err = result.Err
+		return
+	}
+	value = result.GetSuccess()
+	return
+}
+
+// Parameters:
+//  - Req
+func (p *NodeClient) SetWiredBlockExpiryAfterNotAccessedPeriod(req *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) (r *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, err error) {
+	if err = p.sendSetWiredBlockExpiryAfterNotAccessedPeriod(req); err != nil {
+		return
+	}
+	return p.recvSetWiredBlockExpiryAfterNotAccessedPeriod()
+}
+
+func (p *NodeClient) sendSetWiredBlockExpiryAfterNotAccessedPeriod(req *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) (err error) {
+	oprot := p.OutputProtocol
+	if oprot == nil {
+		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.OutputProtocol = oprot
+	}
+	p.SeqId++
+	if err = oprot.WriteMessageBegin("setWiredBlockExpiryAfterNotAccessedPeriod", thrift.CALL, p.SeqId); err != nil {
+		return
+	}
+	args := NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs{
+		Req: req,
+	}
+	if err = args.Write(oprot); err != nil {
+		return
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return
+	}
+	return oprot.Flush()
+}
+
+func (p *NodeClient) recvSetWiredBlockExpiryAfterNotAccessedPeriod() (value *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, err error) {
+	iprot := p.InputProtocol
+	if iprot == nil {
+		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.InputProtocol = iprot
+	}
+	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
+	if err != nil {
+		return
+	}
+	if method != "setWiredBlockExpiryAfterNotAccessedPeriod" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "setWiredBlockExpiryAfterNotAccessedPeriod failed: wrong method name")
+		return
+	}
+	if p.SeqId != seqId {
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "setWiredBlockExpiryAfterNotAccessedPeriod failed: out of sequence response")
+		return
+	}
+	if mTypeId == thrift.EXCEPTION {
+		error45 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error46 error
+		error46, err = error45.Read(iprot)
+		if err != nil {
+			return
+		}
+		if err = iprot.ReadMessageEnd(); err != nil {
+			return
+		}
+		err = error46
+		return
+	}
+	if mTypeId != thrift.REPLY {
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "setWiredBlockExpiryAfterNotAccessedPeriod failed: invalid message type")
+		return
+	}
+	result := NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult{}
+	if err = result.Read(iprot); err != nil {
+		return
+	}
+	if err = iprot.ReadMessageEnd(); err != nil {
+		return
+	}
+	if result.Err != nil {
+		err = result.Err
+		return
+	}
+	value = result.GetSuccess()
+	return
+}
+
 type NodeProcessor struct {
 	processorMap map[string]thrift.TProcessorFunction
 	handler      Node
@@ -6638,21 +7513,25 @@ func (p *NodeProcessor) ProcessorMap() map[string]thrift.TProcessorFunction {
 
 func NewNodeProcessor(handler Node) *NodeProcessor {
 
-	self39 := &NodeProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
-	self39.processorMap["fetch"] = &nodeProcessorFetch{handler: handler}
-	self39.processorMap["write"] = &nodeProcessorWrite{handler: handler}
-	self39.processorMap["fetchBatchRaw"] = &nodeProcessorFetchBatchRaw{handler: handler}
-	self39.processorMap["fetchBlocksRaw"] = &nodeProcessorFetchBlocksRaw{handler: handler}
-	self39.processorMap["fetchBlocksMetadataRaw"] = &nodeProcessorFetchBlocksMetadataRaw{handler: handler}
-	self39.processorMap["writeBatchRaw"] = &nodeProcessorWriteBatchRaw{handler: handler}
-	self39.processorMap["repair"] = &nodeProcessorRepair{handler: handler}
-	self39.processorMap["truncate"] = &nodeProcessorTruncate{handler: handler}
-	self39.processorMap["health"] = &nodeProcessorHealth{handler: handler}
-	self39.processorMap["getPersistRateLimit"] = &nodeProcessorGetPersistRateLimit{handler: handler}
-	self39.processorMap["setPersistRateLimit"] = &nodeProcessorSetPersistRateLimit{handler: handler}
-	self39.processorMap["getWriteNewSeriesAsync"] = &nodeProcessorGetWriteNewSeriesAsync{handler: handler}
-	self39.processorMap["setWriteNewSeriesAsync"] = &nodeProcessorSetWriteNewSeriesAsync{handler: handler}
-	return self39
+	self47 := &NodeProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
+	self47.processorMap["fetch"] = &nodeProcessorFetch{handler: handler}
+	self47.processorMap["write"] = &nodeProcessorWrite{handler: handler}
+	self47.processorMap["fetchBatchRaw"] = &nodeProcessorFetchBatchRaw{handler: handler}
+	self47.processorMap["fetchBlocksRaw"] = &nodeProcessorFetchBlocksRaw{handler: handler}
+	self47.processorMap["fetchBlocksMetadataRaw"] = &nodeProcessorFetchBlocksMetadataRaw{handler: handler}
+	self47.processorMap["writeBatchRaw"] = &nodeProcessorWriteBatchRaw{handler: handler}
+	self47.processorMap["repair"] = &nodeProcessorRepair{handler: handler}
+	self47.processorMap["truncate"] = &nodeProcessorTruncate{handler: handler}
+	self47.processorMap["health"] = &nodeProcessorHealth{handler: handler}
+	self47.processorMap["getPersistRateLimit"] = &nodeProcessorGetPersistRateLimit{handler: handler}
+	self47.processorMap["setPersistRateLimit"] = &nodeProcessorSetPersistRateLimit{handler: handler}
+	self47.processorMap["getWriteNewSeriesAsync"] = &nodeProcessorGetWriteNewSeriesAsync{handler: handler}
+	self47.processorMap["setWriteNewSeriesAsync"] = &nodeProcessorSetWriteNewSeriesAsync{handler: handler}
+	self47.processorMap["getMaxWiredBlocks"] = &nodeProcessorGetMaxWiredBlocks{handler: handler}
+	self47.processorMap["setMaxWiredBlocks"] = &nodeProcessorSetMaxWiredBlocks{handler: handler}
+	self47.processorMap["getWiredBlockExpiryAfterNotAccessedPeriod"] = &nodeProcessorGetWiredBlockExpiryAfterNotAccessedPeriod{handler: handler}
+	self47.processorMap["setWiredBlockExpiryAfterNotAccessedPeriod"] = &nodeProcessorSetWiredBlockExpiryAfterNotAccessedPeriod{handler: handler}
+	return self47
 }
 
 func (p *NodeProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
@@ -6665,12 +7544,12 @@ func (p *NodeProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, er
 	}
 	iprot.Skip(thrift.STRUCT)
 	iprot.ReadMessageEnd()
-	x40 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
+	x48 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
 	oprot.WriteMessageBegin(name, thrift.EXCEPTION, seqId)
-	x40.Write(oprot)
+	x48.Write(oprot)
 	oprot.WriteMessageEnd()
 	oprot.Flush()
-	return false, x40
+	return false, x48
 
 }
 
@@ -7337,6 +8216,218 @@ func (p *nodeProcessorSetWriteNewSeriesAsync) Process(seqId int32, iprot, oprot 
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("setWriteNewSeriesAsync", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type nodeProcessorGetMaxWiredBlocks struct {
+	handler Node
+}
+
+func (p *nodeProcessorGetMaxWiredBlocks) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := NodeGetMaxWiredBlocksArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("getMaxWiredBlocks", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush()
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	result := NodeGetMaxWiredBlocksResult{}
+	var retval *NodeMaxWiredBlocksResult_
+	var err2 error
+	if retval, err2 = p.handler.GetMaxWiredBlocks(); err2 != nil {
+		switch v := err2.(type) {
+		case *Error:
+			result.Err = v
+		default:
+			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing getMaxWiredBlocks: "+err2.Error())
+			oprot.WriteMessageBegin("getMaxWiredBlocks", thrift.EXCEPTION, seqId)
+			x.Write(oprot)
+			oprot.WriteMessageEnd()
+			oprot.Flush()
+			return true, err2
+		}
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("getMaxWiredBlocks", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type nodeProcessorSetMaxWiredBlocks struct {
+	handler Node
+}
+
+func (p *nodeProcessorSetMaxWiredBlocks) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := NodeSetMaxWiredBlocksArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("setMaxWiredBlocks", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush()
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	result := NodeSetMaxWiredBlocksResult{}
+	var retval *NodeMaxWiredBlocksResult_
+	var err2 error
+	if retval, err2 = p.handler.SetMaxWiredBlocks(args.Req); err2 != nil {
+		switch v := err2.(type) {
+		case *Error:
+			result.Err = v
+		default:
+			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing setMaxWiredBlocks: "+err2.Error())
+			oprot.WriteMessageBegin("setMaxWiredBlocks", thrift.EXCEPTION, seqId)
+			x.Write(oprot)
+			oprot.WriteMessageEnd()
+			oprot.Flush()
+			return true, err2
+		}
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("setMaxWiredBlocks", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type nodeProcessorGetWiredBlockExpiryAfterNotAccessedPeriod struct {
+	handler Node
+}
+
+func (p *nodeProcessorGetWiredBlockExpiryAfterNotAccessedPeriod) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := NodeGetWiredBlockExpiryAfterNotAccessedPeriodArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("getWiredBlockExpiryAfterNotAccessedPeriod", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush()
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	result := NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult{}
+	var retval *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_
+	var err2 error
+	if retval, err2 = p.handler.GetWiredBlockExpiryAfterNotAccessedPeriod(); err2 != nil {
+		switch v := err2.(type) {
+		case *Error:
+			result.Err = v
+		default:
+			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing getWiredBlockExpiryAfterNotAccessedPeriod: "+err2.Error())
+			oprot.WriteMessageBegin("getWiredBlockExpiryAfterNotAccessedPeriod", thrift.EXCEPTION, seqId)
+			x.Write(oprot)
+			oprot.WriteMessageEnd()
+			oprot.Flush()
+			return true, err2
+		}
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("getWiredBlockExpiryAfterNotAccessedPeriod", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type nodeProcessorSetWiredBlockExpiryAfterNotAccessedPeriod struct {
+	handler Node
+}
+
+func (p *nodeProcessorSetWiredBlockExpiryAfterNotAccessedPeriod) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("setWiredBlockExpiryAfterNotAccessedPeriod", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush()
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	result := NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult{}
+	var retval *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_
+	var err2 error
+	if retval, err2 = p.handler.SetWiredBlockExpiryAfterNotAccessedPeriod(args.Req); err2 != nil {
+		switch v := err2.(type) {
+		case *Error:
+			result.Err = v
+		default:
+			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing setWiredBlockExpiryAfterNotAccessedPeriod: "+err2.Error())
+			oprot.WriteMessageBegin("setWiredBlockExpiryAfterNotAccessedPeriod", thrift.EXCEPTION, seqId)
+			x.Write(oprot)
+			oprot.WriteMessageEnd()
+			oprot.Flush()
+			return true, err2
+		}
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("setWiredBlockExpiryAfterNotAccessedPeriod", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -10304,6 +11395,920 @@ func (p *NodeSetWriteNewSeriesAsyncResult) String() string {
 	return fmt.Sprintf("NodeSetWriteNewSeriesAsyncResult(%+v)", *p)
 }
 
+type NodeGetMaxWiredBlocksArgs struct {
+}
+
+func NewNodeGetMaxWiredBlocksArgs() *NodeGetMaxWiredBlocksArgs {
+	return &NodeGetMaxWiredBlocksArgs{}
+}
+
+func (p *NodeGetMaxWiredBlocksArgs) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		if err := iprot.Skip(fieldTypeId); err != nil {
+			return err
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeGetMaxWiredBlocksArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("getMaxWiredBlocks_args"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeGetMaxWiredBlocksArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeGetMaxWiredBlocksArgs(%+v)", *p)
+}
+
+// Attributes:
+//  - Success
+//  - Err
+type NodeGetMaxWiredBlocksResult struct {
+	Success *NodeMaxWiredBlocksResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
+	Err     *Error                     `thrift:"err,1" db:"err" json:"err,omitempty"`
+}
+
+func NewNodeGetMaxWiredBlocksResult() *NodeGetMaxWiredBlocksResult {
+	return &NodeGetMaxWiredBlocksResult{}
+}
+
+var NodeGetMaxWiredBlocksResult_Success_DEFAULT *NodeMaxWiredBlocksResult_
+
+func (p *NodeGetMaxWiredBlocksResult) GetSuccess() *NodeMaxWiredBlocksResult_ {
+	if !p.IsSetSuccess() {
+		return NodeGetMaxWiredBlocksResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var NodeGetMaxWiredBlocksResult_Err_DEFAULT *Error
+
+func (p *NodeGetMaxWiredBlocksResult) GetErr() *Error {
+	if !p.IsSetErr() {
+		return NodeGetMaxWiredBlocksResult_Err_DEFAULT
+	}
+	return p.Err
+}
+func (p *NodeGetMaxWiredBlocksResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *NodeGetMaxWiredBlocksResult) IsSetErr() bool {
+	return p.Err != nil
+}
+
+func (p *NodeGetMaxWiredBlocksResult) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 0:
+			if err := p.ReadField0(iprot); err != nil {
+				return err
+			}
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeGetMaxWiredBlocksResult) ReadField0(iprot thrift.TProtocol) error {
+	p.Success = &NodeMaxWiredBlocksResult_{}
+	if err := p.Success.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
+	}
+	return nil
+}
+
+func (p *NodeGetMaxWiredBlocksResult) ReadField1(iprot thrift.TProtocol) error {
+	p.Err = &Error{
+		Type: 0,
+	}
+	if err := p.Err.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
+	}
+	return nil
+}
+
+func (p *NodeGetMaxWiredBlocksResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("getMaxWiredBlocks_result"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField0(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeGetMaxWiredBlocksResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Success), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 0:success: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeGetMaxWiredBlocksResult) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErr() {
+		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
+		}
+		if err := p.Err.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:err: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeGetMaxWiredBlocksResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeGetMaxWiredBlocksResult(%+v)", *p)
+}
+
+// Attributes:
+//  - Req
+type NodeSetMaxWiredBlocksArgs struct {
+	Req *NodeSetMaxWiredBlocksRequest `thrift:"req,1" db:"req" json:"req"`
+}
+
+func NewNodeSetMaxWiredBlocksArgs() *NodeSetMaxWiredBlocksArgs {
+	return &NodeSetMaxWiredBlocksArgs{}
+}
+
+var NodeSetMaxWiredBlocksArgs_Req_DEFAULT *NodeSetMaxWiredBlocksRequest
+
+func (p *NodeSetMaxWiredBlocksArgs) GetReq() *NodeSetMaxWiredBlocksRequest {
+	if !p.IsSetReq() {
+		return NodeSetMaxWiredBlocksArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+func (p *NodeSetMaxWiredBlocksArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *NodeSetMaxWiredBlocksArgs) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeSetMaxWiredBlocksArgs) ReadField1(iprot thrift.TProtocol) error {
+	p.Req = &NodeSetMaxWiredBlocksRequest{}
+	if err := p.Req.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
+	}
+	return nil
+}
+
+func (p *NodeSetMaxWiredBlocksArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("setMaxWiredBlocks_args"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeSetMaxWiredBlocksArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("req", thrift.STRUCT, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:req: ", p), err)
+	}
+	if err := p.Req.Write(oprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Req), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:req: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeSetMaxWiredBlocksArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeSetMaxWiredBlocksArgs(%+v)", *p)
+}
+
+// Attributes:
+//  - Success
+//  - Err
+type NodeSetMaxWiredBlocksResult struct {
+	Success *NodeMaxWiredBlocksResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
+	Err     *Error                     `thrift:"err,1" db:"err" json:"err,omitempty"`
+}
+
+func NewNodeSetMaxWiredBlocksResult() *NodeSetMaxWiredBlocksResult {
+	return &NodeSetMaxWiredBlocksResult{}
+}
+
+var NodeSetMaxWiredBlocksResult_Success_DEFAULT *NodeMaxWiredBlocksResult_
+
+func (p *NodeSetMaxWiredBlocksResult) GetSuccess() *NodeMaxWiredBlocksResult_ {
+	if !p.IsSetSuccess() {
+		return NodeSetMaxWiredBlocksResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var NodeSetMaxWiredBlocksResult_Err_DEFAULT *Error
+
+func (p *NodeSetMaxWiredBlocksResult) GetErr() *Error {
+	if !p.IsSetErr() {
+		return NodeSetMaxWiredBlocksResult_Err_DEFAULT
+	}
+	return p.Err
+}
+func (p *NodeSetMaxWiredBlocksResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *NodeSetMaxWiredBlocksResult) IsSetErr() bool {
+	return p.Err != nil
+}
+
+func (p *NodeSetMaxWiredBlocksResult) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 0:
+			if err := p.ReadField0(iprot); err != nil {
+				return err
+			}
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeSetMaxWiredBlocksResult) ReadField0(iprot thrift.TProtocol) error {
+	p.Success = &NodeMaxWiredBlocksResult_{}
+	if err := p.Success.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
+	}
+	return nil
+}
+
+func (p *NodeSetMaxWiredBlocksResult) ReadField1(iprot thrift.TProtocol) error {
+	p.Err = &Error{
+		Type: 0,
+	}
+	if err := p.Err.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
+	}
+	return nil
+}
+
+func (p *NodeSetMaxWiredBlocksResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("setMaxWiredBlocks_result"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField0(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeSetMaxWiredBlocksResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Success), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 0:success: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeSetMaxWiredBlocksResult) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErr() {
+		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
+		}
+		if err := p.Err.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:err: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeSetMaxWiredBlocksResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeSetMaxWiredBlocksResult(%+v)", *p)
+}
+
+type NodeGetWiredBlockExpiryAfterNotAccessedPeriodArgs struct {
+}
+
+func NewNodeGetWiredBlockExpiryAfterNotAccessedPeriodArgs() *NodeGetWiredBlockExpiryAfterNotAccessedPeriodArgs {
+	return &NodeGetWiredBlockExpiryAfterNotAccessedPeriodArgs{}
+}
+
+func (p *NodeGetWiredBlockExpiryAfterNotAccessedPeriodArgs) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		if err := iprot.Skip(fieldTypeId); err != nil {
+			return err
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeGetWiredBlockExpiryAfterNotAccessedPeriodArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("getWiredBlockExpiryAfterNotAccessedPeriod_args"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeGetWiredBlockExpiryAfterNotAccessedPeriodArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeGetWiredBlockExpiryAfterNotAccessedPeriodArgs(%+v)", *p)
+}
+
+// Attributes:
+//  - Success
+//  - Err
+type NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult struct {
+	Success *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
+	Err     *Error                                             `thrift:"err,1" db:"err" json:"err,omitempty"`
+}
+
+func NewNodeGetWiredBlockExpiryAfterNotAccessedPeriodResult() *NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult {
+	return &NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult{}
+}
+
+var NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult_Success_DEFAULT *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_
+
+func (p *NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult) GetSuccess() *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_ {
+	if !p.IsSetSuccess() {
+		return NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult_Err_DEFAULT *Error
+
+func (p *NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult) GetErr() *Error {
+	if !p.IsSetErr() {
+		return NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult_Err_DEFAULT
+	}
+	return p.Err
+}
+func (p *NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult) IsSetErr() bool {
+	return p.Err != nil
+}
+
+func (p *NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 0:
+			if err := p.ReadField0(iprot); err != nil {
+				return err
+			}
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult) ReadField0(iprot thrift.TProtocol) error {
+	p.Success = &NodeWiredBlockExpiryAfterNotAccessedPeriodResult_{}
+	if err := p.Success.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
+	}
+	return nil
+}
+
+func (p *NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult) ReadField1(iprot thrift.TProtocol) error {
+	p.Err = &Error{
+		Type: 0,
+	}
+	if err := p.Err.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
+	}
+	return nil
+}
+
+func (p *NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("getWiredBlockExpiryAfterNotAccessedPeriod_result"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField0(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Success), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 0:success: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErr() {
+		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
+		}
+		if err := p.Err.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:err: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult(%+v)", *p)
+}
+
+// Attributes:
+//  - Req
+type NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs struct {
+	Req *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest `thrift:"req,1" db:"req" json:"req"`
+}
+
+func NewNodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs() *NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs {
+	return &NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs{}
+}
+
+var NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs_Req_DEFAULT *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs) GetReq() *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest {
+	if !p.IsSetReq() {
+		return NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs) ReadField1(iprot thrift.TProtocol) error {
+	p.Req = &NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest{
+		DurationType: 0,
+	}
+	if err := p.Req.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
+	}
+	return nil
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("setWiredBlockExpiryAfterNotAccessedPeriod_args"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("req", thrift.STRUCT, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:req: ", p), err)
+	}
+	if err := p.Req.Write(oprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Req), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:req: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs(%+v)", *p)
+}
+
+// Attributes:
+//  - Success
+//  - Err
+type NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult struct {
+	Success *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
+	Err     *Error                                             `thrift:"err,1" db:"err" json:"err,omitempty"`
+}
+
+func NewNodeSetWiredBlockExpiryAfterNotAccessedPeriodResult() *NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult {
+	return &NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult{}
+}
+
+var NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult_Success_DEFAULT *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult) GetSuccess() *NodeWiredBlockExpiryAfterNotAccessedPeriodResult_ {
+	if !p.IsSetSuccess() {
+		return NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult_Err_DEFAULT *Error
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult) GetErr() *Error {
+	if !p.IsSetErr() {
+		return NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult_Err_DEFAULT
+	}
+	return p.Err
+}
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult) IsSetErr() bool {
+	return p.Err != nil
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 0:
+			if err := p.ReadField0(iprot); err != nil {
+				return err
+			}
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult) ReadField0(iprot thrift.TProtocol) error {
+	p.Success = &NodeWiredBlockExpiryAfterNotAccessedPeriodResult_{}
+	if err := p.Success.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
+	}
+	return nil
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult) ReadField1(iprot thrift.TProtocol) error {
+	p.Err = &Error{
+		Type: 0,
+	}
+	if err := p.Err.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
+	}
+	return nil
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("setWiredBlockExpiryAfterNotAccessedPeriod_result"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField0(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Success), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 0:success: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErr() {
+		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
+		}
+		if err := p.Err.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:err: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult(%+v)", *p)
+}
+
 type Cluster interface {
 	Health() (r *HealthResult_, err error)
 	// Parameters:
@@ -10389,16 +12394,16 @@ func (p *ClusterClient) recvHealth() (value *HealthResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error95 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error96 error
-		error96, err = error95.Read(iprot)
+		error115 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error116 error
+		error116, err = error115.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error96
+		err = error116
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -10470,16 +12475,16 @@ func (p *ClusterClient) recvWrite() (err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error97 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error98 error
-		error98, err = error97.Read(iprot)
+		error117 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error118 error
+		error118, err = error117.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error98
+		err = error118
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -10550,16 +12555,16 @@ func (p *ClusterClient) recvFetch() (value *FetchResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error99 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error100 error
-		error100, err = error99.Read(iprot)
+		error119 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error120 error
+		error120, err = error119.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error100
+		err = error120
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -10631,16 +12636,16 @@ func (p *ClusterClient) recvTruncate() (value *TruncateResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error101 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error102 error
-		error102, err = error101.Read(iprot)
+		error121 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error122 error
+		error122, err = error121.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error102
+		err = error122
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -10682,12 +12687,12 @@ func (p *ClusterProcessor) ProcessorMap() map[string]thrift.TProcessorFunction {
 
 func NewClusterProcessor(handler Cluster) *ClusterProcessor {
 
-	self103 := &ClusterProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
-	self103.processorMap["health"] = &clusterProcessorHealth{handler: handler}
-	self103.processorMap["write"] = &clusterProcessorWrite{handler: handler}
-	self103.processorMap["fetch"] = &clusterProcessorFetch{handler: handler}
-	self103.processorMap["truncate"] = &clusterProcessorTruncate{handler: handler}
-	return self103
+	self123 := &ClusterProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
+	self123.processorMap["health"] = &clusterProcessorHealth{handler: handler}
+	self123.processorMap["write"] = &clusterProcessorWrite{handler: handler}
+	self123.processorMap["fetch"] = &clusterProcessorFetch{handler: handler}
+	self123.processorMap["truncate"] = &clusterProcessorTruncate{handler: handler}
+	return self123
 }
 
 func (p *ClusterProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
@@ -10700,12 +12705,12 @@ func (p *ClusterProcessor) Process(iprot, oprot thrift.TProtocol) (success bool,
 	}
 	iprot.Skip(thrift.STRUCT)
 	iprot.ReadMessageEnd()
-	x104 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
+	x124 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
 	oprot.WriteMessageBegin(name, thrift.EXCEPTION, seqId)
-	x104.Write(oprot)
+	x124.Write(oprot)
 	oprot.WriteMessageEnd()
 	oprot.Flush()
-	return false, x104
+	return false, x124
 
 }
 

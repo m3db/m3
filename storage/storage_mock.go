@@ -25,7 +25,6 @@ package storage
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
 	encoding "github.com/m3db/m3db/encoding"
 	persist "github.com/m3db/m3db/persist"
@@ -41,6 +40,7 @@ import (
 	ts "github.com/m3db/m3db/ts"
 	counter "github.com/m3db/m3db/x/counter"
 	io "github.com/m3db/m3db/x/io"
+	clock "github.com/m3db/m3x/clock"
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
 	time0 "github.com/m3db/m3x/time"

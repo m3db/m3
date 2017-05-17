@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/series"
@@ -421,7 +422,8 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	defer shard.Close()
 	id := ts.StringID("foo")
 	s := addMockSeries(ctrl, shard, id, 0)
-	s.EXPECT().Tick().Do(func() {
+	runopts := runtime.NewOptions()
+	s.EXPECT().Tick(runopts).Do(func(_ runtime.Options) {
 		// Emulate a write taking place just after tick for this series
 		s.EXPECT().Write(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 
@@ -450,7 +452,8 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	defer shard.Close()
 	id := ts.StringID("foo")
 	s := addMockSeries(ctrl, shard, id, 0)
-	s.EXPECT().Tick().Do(func() {
+	runopts := runtime.NewOptions()
+	s.EXPECT().Tick(runopts).Do(func(_ runtime.Options) {
 		// Emulate a write taking place and staying open just after tick for this series
 		var err error
 		entry, err = shard.writableSeries(id)

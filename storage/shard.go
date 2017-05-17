@@ -29,7 +29,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
@@ -42,6 +41,7 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/clock"
 	xclose "github.com/m3db/m3x/close"
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
@@ -365,6 +365,7 @@ func (s *dbShard) tickAndExpire(
 		perEntrySoftDeadline = softDeadline / time.Duration(size)
 	}
 	start := s.nowFn()
+	runopts := s.opts.RuntimeOptionsManager().Get()
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		if i > 0 && i%s.tickSleepIfAheadEvery == 0 {
 			// NB(xichen): if the tick is cancelled, we bail out immediately.
@@ -385,7 +386,7 @@ func (s *dbShard) tickAndExpire(
 		)
 		switch policy {
 		case tickPolicyRegular:
-			result, err = entry.series.Tick()
+			result, err = entry.series.Tick(runopts)
 		case tickPolicyForceExpiry:
 			err = series.ErrSeriesAllDatapointsExpired
 		}

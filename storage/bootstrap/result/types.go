@@ -23,10 +23,10 @@ package result
 import (
 	"time"
 
-	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
 )

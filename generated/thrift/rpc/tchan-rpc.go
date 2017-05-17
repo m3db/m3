@@ -46,11 +46,15 @@ type TChanNode interface {
 	FetchBatchRaw(ctx thrift.Context, req *FetchBatchRawRequest) (*FetchBatchRawResult_, error)
 	FetchBlocksMetadataRaw(ctx thrift.Context, req *FetchBlocksMetadataRawRequest) (*FetchBlocksMetadataRawResult_, error)
 	FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRawRequest) (*FetchBlocksRawResult_, error)
+	GetMaxWiredBlocks(ctx thrift.Context) (*NodeMaxWiredBlocksResult_, error)
 	GetPersistRateLimit(ctx thrift.Context) (*NodePersistRateLimitResult_, error)
+	GetWiredBlockExpiryAfterNotAccessedPeriod(ctx thrift.Context) (*NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, error)
 	GetWriteNewSeriesAsync(ctx thrift.Context) (*NodeWriteNewSeriesAsyncResult_, error)
 	Health(ctx thrift.Context) (*NodeHealthResult_, error)
 	Repair(ctx thrift.Context) error
+	SetMaxWiredBlocks(ctx thrift.Context, req *NodeSetMaxWiredBlocksRequest) (*NodeMaxWiredBlocksResult_, error)
 	SetPersistRateLimit(ctx thrift.Context, req *NodeSetPersistRateLimitRequest) (*NodePersistRateLimitResult_, error)
+	SetWiredBlockExpiryAfterNotAccessedPeriod(ctx thrift.Context, req *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) (*NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, error)
 	SetWriteNewSeriesAsync(ctx thrift.Context, req *NodeSetWriteNewSeriesAsyncRequest) (*NodeWriteNewSeriesAsyncResult_, error)
 	Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error)
 	Write(ctx thrift.Context, req *WriteRequest) error
@@ -363,10 +367,36 @@ func (c *tchanNodeClient) FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRaw
 	return resp.GetSuccess(), err
 }
 
+func (c *tchanNodeClient) GetMaxWiredBlocks(ctx thrift.Context) (*NodeMaxWiredBlocksResult_, error) {
+	var resp NodeGetMaxWiredBlocksResult
+	args := NodeGetMaxWiredBlocksArgs{}
+	success, err := c.client.Call(ctx, c.thriftService, "getMaxWiredBlocks", &args, &resp)
+	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
 func (c *tchanNodeClient) GetPersistRateLimit(ctx thrift.Context) (*NodePersistRateLimitResult_, error) {
 	var resp NodeGetPersistRateLimitResult
 	args := NodeGetPersistRateLimitArgs{}
 	success, err := c.client.Call(ctx, c.thriftService, "getPersistRateLimit", &args, &resp)
+	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
+func (c *tchanNodeClient) GetWiredBlockExpiryAfterNotAccessedPeriod(ctx thrift.Context) (*NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, error) {
+	var resp NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult
+	args := NodeGetWiredBlockExpiryAfterNotAccessedPeriodArgs{}
+	success, err := c.client.Call(ctx, c.thriftService, "getWiredBlockExpiryAfterNotAccessedPeriod", &args, &resp)
 	if err == nil && !success {
 		if e := resp.Err; e != nil {
 			err = e
@@ -415,12 +445,42 @@ func (c *tchanNodeClient) Repair(ctx thrift.Context) error {
 	return err
 }
 
+func (c *tchanNodeClient) SetMaxWiredBlocks(ctx thrift.Context, req *NodeSetMaxWiredBlocksRequest) (*NodeMaxWiredBlocksResult_, error) {
+	var resp NodeSetMaxWiredBlocksResult
+	args := NodeSetMaxWiredBlocksArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "setMaxWiredBlocks", &args, &resp)
+	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
 func (c *tchanNodeClient) SetPersistRateLimit(ctx thrift.Context, req *NodeSetPersistRateLimitRequest) (*NodePersistRateLimitResult_, error) {
 	var resp NodeSetPersistRateLimitResult
 	args := NodeSetPersistRateLimitArgs{
 		Req: req,
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "setPersistRateLimit", &args, &resp)
+	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
+func (c *tchanNodeClient) SetWiredBlockExpiryAfterNotAccessedPeriod(ctx thrift.Context, req *NodeSetWiredBlockExpiryAfterNotAccessedPeriodRequest) (*NodeWiredBlockExpiryAfterNotAccessedPeriodResult_, error) {
+	var resp NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult
+	args := NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "setWiredBlockExpiryAfterNotAccessedPeriod", &args, &resp)
 	if err == nil && !success {
 		if e := resp.Err; e != nil {
 			err = e
@@ -512,11 +572,15 @@ func (s *tchanNodeServer) Methods() []string {
 		"fetchBatchRaw",
 		"fetchBlocksMetadataRaw",
 		"fetchBlocksRaw",
+		"getMaxWiredBlocks",
 		"getPersistRateLimit",
+		"getWiredBlockExpiryAfterNotAccessedPeriod",
 		"getWriteNewSeriesAsync",
 		"health",
 		"repair",
+		"setMaxWiredBlocks",
 		"setPersistRateLimit",
+		"setWiredBlockExpiryAfterNotAccessedPeriod",
 		"setWriteNewSeriesAsync",
 		"truncate",
 		"write",
@@ -534,16 +598,24 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleFetchBlocksMetadataRaw(ctx, protocol)
 	case "fetchBlocksRaw":
 		return s.handleFetchBlocksRaw(ctx, protocol)
+	case "getMaxWiredBlocks":
+		return s.handleGetMaxWiredBlocks(ctx, protocol)
 	case "getPersistRateLimit":
 		return s.handleGetPersistRateLimit(ctx, protocol)
+	case "getWiredBlockExpiryAfterNotAccessedPeriod":
+		return s.handleGetWiredBlockExpiryAfterNotAccessedPeriod(ctx, protocol)
 	case "getWriteNewSeriesAsync":
 		return s.handleGetWriteNewSeriesAsync(ctx, protocol)
 	case "health":
 		return s.handleHealth(ctx, protocol)
 	case "repair":
 		return s.handleRepair(ctx, protocol)
+	case "setMaxWiredBlocks":
+		return s.handleSetMaxWiredBlocks(ctx, protocol)
 	case "setPersistRateLimit":
 		return s.handleSetPersistRateLimit(ctx, protocol)
+	case "setWiredBlockExpiryAfterNotAccessedPeriod":
+		return s.handleSetWiredBlockExpiryAfterNotAccessedPeriod(ctx, protocol)
 	case "setWriteNewSeriesAsync":
 		return s.handleSetWriteNewSeriesAsync(ctx, protocol)
 	case "truncate":
@@ -670,6 +742,34 @@ func (s *tchanNodeServer) handleFetchBlocksRaw(ctx thrift.Context, protocol athr
 	return err == nil, &res, nil
 }
 
+func (s *tchanNodeServer) handleGetMaxWiredBlocks(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeGetMaxWiredBlocksArgs
+	var res NodeGetMaxWiredBlocksResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.GetMaxWiredBlocks(ctx)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
 func (s *tchanNodeServer) handleGetPersistRateLimit(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
 	var req NodeGetPersistRateLimitArgs
 	var res NodeGetPersistRateLimitResult
@@ -680,6 +780,34 @@ func (s *tchanNodeServer) handleGetPersistRateLimit(ctx thrift.Context, protocol
 
 	r, err :=
 		s.handler.GetPersistRateLimit(ctx)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleGetWiredBlockExpiryAfterNotAccessedPeriod(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeGetWiredBlockExpiryAfterNotAccessedPeriodArgs
+	var res NodeGetWiredBlockExpiryAfterNotAccessedPeriodResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.GetWiredBlockExpiryAfterNotAccessedPeriod(ctx)
 
 	if err != nil {
 		switch v := err.(type) {
@@ -781,6 +909,34 @@ func (s *tchanNodeServer) handleRepair(ctx thrift.Context, protocol athrift.TPro
 	return err == nil, &res, nil
 }
 
+func (s *tchanNodeServer) handleSetMaxWiredBlocks(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeSetMaxWiredBlocksArgs
+	var res NodeSetMaxWiredBlocksResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.SetMaxWiredBlocks(ctx, req.Req)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
 func (s *tchanNodeServer) handleSetPersistRateLimit(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
 	var req NodeSetPersistRateLimitArgs
 	var res NodeSetPersistRateLimitResult
@@ -791,6 +947,34 @@ func (s *tchanNodeServer) handleSetPersistRateLimit(ctx thrift.Context, protocol
 
 	r, err :=
 		s.handler.SetPersistRateLimit(ctx, req.Req)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleSetWiredBlockExpiryAfterNotAccessedPeriod(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeSetWiredBlockExpiryAfterNotAccessedPeriodArgs
+	var res NodeSetWiredBlockExpiryAfterNotAccessedPeriodResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.SetWiredBlockExpiryAfterNotAccessedPeriod(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {

@@ -33,14 +33,15 @@ import (
 )
 
 var (
-	errUnknownTimeType = errors.New("unknown time type")
-	errUnknownUnit     = errors.New("unknown unit")
-	timeZero           time.Time
+	errUnknownTimeType     = errors.New("unknown time type")
+	errUnknownDurationType = errors.New("unknown duration type")
+	errUnknownUnit         = errors.New("unknown unit")
+	timeZero               time.Time
 )
 
 // ToTime converts a value to a time
 func ToTime(value int64, timeType rpc.TimeType) (time.Time, error) {
-	unit, err := ToDuration(timeType)
+	unit, err := DurationFromTimeType(timeType)
 	if err != nil {
 		return timeZero, err
 	}
@@ -49,15 +50,30 @@ func ToTime(value int64, timeType rpc.TimeType) (time.Time, error) {
 
 // ToValue converts a time to a value
 func ToValue(t time.Time, timeType rpc.TimeType) (int64, error) {
-	unit, err := ToDuration(timeType)
+	unit, err := DurationFromTimeType(timeType)
 	if err != nil {
 		return 0, err
 	}
 	return xtime.ToNormalizedTime(t, unit), nil
 }
 
-// ToDuration converts a time type to a duration
-func ToDuration(timeType rpc.TimeType) (time.Duration, error) {
+// ToDuration converts a value to a duration
+func ToDuration(duration int64, durationType rpc.DurationType) (time.Duration, error) {
+	switch durationType {
+	case rpc.DurationType_SECONDS:
+		return time.Duration(duration) * time.Second, nil
+	case rpc.DurationType_MILLISECONDS:
+		return time.Duration(duration) * time.Millisecond, nil
+	case rpc.DurationType_MICROSECONDS:
+		return time.Duration(duration) * time.Microsecond, nil
+	case rpc.DurationType_NANOSECONDS:
+		return time.Duration(duration) * time.Nanosecond, nil
+	}
+	return 0, errUnknownDurationType
+}
+
+// DurationFromTimeType converts a time type to a duration
+func DurationFromTimeType(timeType rpc.TimeType) (time.Duration, error) {
 	unit, err := ToUnit(timeType)
 	if err != nil {
 		return 0, err

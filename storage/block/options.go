@@ -46,6 +46,7 @@ const (
 type options struct {
 	clockOpts               clock.Options
 	databaseBlockAllocSize  int
+	wiredList               *WiredList
 	closeContextWorkers     xsync.WorkerPool
 	databaseBlockPool       DatabaseBlockPool
 	contextPool             context.Pool
@@ -74,7 +75,7 @@ func NewOptions() Options {
 	}
 	o.closeContextWorkers.Init()
 	o.databaseBlockPool.Init(func() DatabaseBlock {
-		return NewDatabaseBlock(timeZero, ts.Segment{}, o)
+		return NewWiredDatabaseBlock(timeZero, ts.Segment{}, o)
 	})
 	o.encoderPool.Init(func() encoding.Encoder {
 		return encoding.NewNullEncoder()
@@ -102,6 +103,16 @@ func (o *options) SetClockOptions(value clock.Options) Options {
 
 func (o *options) ClockOptions() clock.Options {
 	return o.clockOpts
+}
+
+func (o *options) SetWiredList(value *WiredList) Options {
+	opts := *o
+	opts.wiredList = value
+	return &opts
+}
+
+func (o *options) WiredList() *WiredList {
+	return o.wiredList
 }
 
 func (o *options) SetDatabaseBlockAllocSize(value int) Options {

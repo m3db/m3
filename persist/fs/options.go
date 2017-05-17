@@ -24,10 +24,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 )
 

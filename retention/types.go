@@ -55,18 +55,4 @@ type Options interface {
 
 	// BufferDrain returns the bufferDrain
 	BufferDrain() time.Duration
-
-	// SetBlockDataExpiry sets the block data expiry mode
-	SetBlockDataExpiry(on bool) Options
-
-	// BlockDataExpiry returns the block data expiry mode
-	BlockDataExpiry() bool
-
-	// SetBlockDataExpiryAfterNotAccessedPeriod sets the period that blocks data should
-	// be expired after not being accessed for a given duration
-	SetBlockDataExpiryAfterNotAccessedPeriod(period time.Duration) Options
-
-	// BlockDataExpiryAfterNotAccessedPeriod returns the period that blocks data should
-	// be expired after not being accessed for a given duration
-	BlockDataExpiryAfterNotAccessedPeriod() time.Duration
 }

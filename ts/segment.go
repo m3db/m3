@@ -72,6 +72,11 @@ func NewSegment(
 	}
 }
 
+// Empty returns whether this segment is empty.
+func (s *Segment) Empty() bool {
+	return s.Head == nil && s.Tail == nil
+}
+
 // Len returns the length of the head and tail.
 func (s *Segment) Len() int {
 	var total int

@@ -147,20 +147,32 @@ type DatabaseBlock interface {
 	// Stream returns the encoded byte stream.
 	Stream(blocker context.Context) (xio.SegmentReader, error)
 
-	// Merge will merge the current block with the specified block
-	// when this block is read. Note: calling this twice
-	// will simply overwrite the target for the block to merge with
-	// rather than merging three blocks together.
-	Merge(other DatabaseBlock)
+	// Merge will merge the current block with the specified block.
+	Merge(other DatabaseBlock) error
 
-	// IsRetrieved returns whether the block is already retrieved.
-	IsRetrieved() bool
+	// IsWired returns whether the block is wired in memory and
+	// doesn't require to be retrieved when asked to read the contents.
+	IsWired() bool
 
-	// Reset resets the block start time and the segment.
-	Reset(startTime time.Time, segment ts.Segment)
+	// IsRetrievable returns whether the block is retrievable, regardless
+	// of whether it is currently wired or unwired.
+	IsRetrievable() bool
 
-	// ResetRetrievable resets the block to become retrievable.
-	ResetRetrievable(
+	// SetRetrievable sets the block retriever and metadata to use
+	// when retrieving this block.
+	SetRetrievable(
+		retriever DatabaseShardBlockRetriever,
+		retrieveID ts.ID,
+	)
+
+	// ResetWired resets the block as wired with the contents in the segment.
+	ResetWired(
+		startTime time.Time,
+		segment ts.Segment,
+	)
+
+	// ResetUnwired resets the block as unwired and able to be retrieved.
+	ResetUnwired(
 		startTime time.Time,
 		retriever DatabaseShardBlockRetriever,
 		metadata RetrievableBlockMetadata,
@@ -317,11 +329,17 @@ type Options interface {
 	// ClockOptions returns the clock options
 	ClockOptions() clock.Options
 
-	// SetDatabaseBlockAllocSize sets the databaseBlockAllocSize
+	// SetDatabaseBlockAllocSize sets the database block alloc size
 	SetDatabaseBlockAllocSize(value int) Options
 
-	// DatabaseBlockAllocSize returns the databaseBlockAllocSize
+	// DatabaseBlockAllocSize returns the database block alloc size
 	DatabaseBlockAllocSize() int
+
+	// SetWiredList sets the database block wired list
+	SetWiredList(value *WiredList) Options
+
+	// WiredList returns the database block wired list
+	WiredList() *WiredList
 
 	// SetCloseContextWorkers sets the workers for closing contexts
 	SetCloseContextWorkers(value xsync.WorkerPool) Options

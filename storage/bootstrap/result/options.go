@@ -21,9 +21,9 @@
 package result
 
 import (
-	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 )
 
