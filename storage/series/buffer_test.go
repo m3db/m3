@@ -498,7 +498,7 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 	assert.Equal(t, 1, len(res))
 	assert.Equal(t, b.start, res[0].Start)
 	assert.Equal(t, expectedSize, res[0].Size)
-	assert.Equal(t, uint32(0), res[0].Checksum) // checksum is never available for buffer block
+	assert.Equal(t, (*uint32)(nil), res[0].Checksum) // checksum is never available for buffer block
 	assert.True(t, expectedLastRead.Equal(res[0].LastRead))
 }
 

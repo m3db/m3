@@ -441,18 +441,22 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	expected := []struct {
 		start    time.Time
 		size     int64
-		checksum uint32
+		checksum *uint32
 		lastRead time.Time
 		hasError bool
 	}{
-		{starts[0], expectedSize, expectedChecksum, expectedLastRead, false},
-		{starts[2], 0, 0, time.Time{}, false},
+		{starts[0], expectedSize, &expectedChecksum, expectedLastRead, false},
+		{starts[2], 0, nil, time.Time{}, false},
 	}
 	require.Equal(t, len(expected), len(metadata))
 	for i := 0; i < len(expected); i++ {
 		require.Equal(t, expected[i].start, metadata[i].Start)
 		require.Equal(t, expected[i].size, metadata[i].Size)
-		require.Equal(t, expected[i].checksum, metadata[i].Checksum)
+		if expected[i].checksum == nil {
+			require.Nil(t, metadata[i].Checksum)
+		} else {
+			require.Equal(t, *expected[i].checksum, *metadata[i].Checksum)
+		}
 		require.True(t, expected[i].lastRead.Equal(metadata[i].LastRead))
 		if expected[i].hasError {
 			require.Error(t, metadata[i].Err)

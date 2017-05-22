@@ -45,9 +45,9 @@ func TestSortFetchBlockResultByTimeAscending(t *testing.T) {
 func TestSortFetchBlockMetadataResultByTimeAscending(t *testing.T) {
 	now := time.Now()
 	inputs := []FetchBlockMetadataResult{
-		NewFetchBlockMetadataResult(now, nil, nil, nil),
-		NewFetchBlockMetadataResult(now.Add(time.Second), nil, nil, nil),
-		NewFetchBlockMetadataResult(now.Add(-time.Second), nil, nil, nil),
+		NewFetchBlockMetadataResult(now, 0, nil, time.Time{}, nil),
+		NewFetchBlockMetadataResult(now.Add(time.Second), 0, nil, time.Time{}, nil),
+		NewFetchBlockMetadataResult(now.Add(-time.Second), 0, nil, time.Time{}, nil),
 	}
 	expected := []FetchBlockMetadataResult{inputs[2], inputs[0], inputs[1]}
 	res := newPooledFetchBlockMetadataResults(nil, nil)
@@ -67,16 +67,17 @@ func TestFilteredBlocksMetadataIter(t *testing.T) {
 	now := time.Now()
 	sizes := []int64{1, 2, 3}
 	checksums := []uint32{6, 7, 8}
+	lastRead := now.Add(-100 * time.Millisecond)
 	inputs := []FetchBlocksMetadataResult{
 		NewFetchBlocksMetadataResult(ts.StringID("foo"), newPooledFetchBlockMetadataResults(
 			[]FetchBlockMetadataResult{
-				NewFetchBlockMetadataResult(now.Add(-time.Second), &sizes[0], &checksums[0], nil),
+				NewFetchBlockMetadataResult(now.Add(-time.Second), sizes[0], &checksums[0], lastRead, nil),
 			}, nil)),
 		NewFetchBlocksMetadataResult(ts.StringID("bar"), newPooledFetchBlockMetadataResults(
 			[]FetchBlockMetadataResult{
-				NewFetchBlockMetadataResult(now, &sizes[1], &checksums[1], nil),
-				NewFetchBlockMetadataResult(now.Add(time.Second), &sizes[2], &checksums[2], errors.New("foo")),
-				NewFetchBlockMetadataResult(now.Add(2*time.Second), nil, nil, nil),
+				NewFetchBlockMetadataResult(now, sizes[1], &checksums[1], lastRead, nil),
+				NewFetchBlockMetadataResult(now.Add(time.Second), sizes[2], &checksums[2], lastRead, errors.New("foo")),
+				NewFetchBlockMetadataResult(now.Add(2*time.Second), 0, nil, lastRead, nil),
 			}, nil)),
 	}
 	res := newPooledFetchBlocksMetadataResults(nil, nil)
@@ -90,9 +91,9 @@ func TestFilteredBlocksMetadataIter(t *testing.T) {
 		actual = append(actual, testValue{id.String(), metadata})
 	}
 	expected := []testValue{
-		{"foo", NewMetadata(now.Add(-time.Second), sizes[0], &checksums[0])},
-		{"bar", NewMetadata(now, sizes[1], &checksums[1])},
-		{"bar", NewMetadata(now.Add(2*time.Second), int64(0), nil)},
+		{"foo", NewMetadata(now.Add(-time.Second), sizes[0], &checksums[0], lastRead)},
+		{"bar", NewMetadata(now, sizes[1], &checksums[1], lastRead)},
+		{"bar", NewMetadata(now.Add(2*time.Second), int64(0), nil, lastRead)},
 	}
 	require.Equal(t, expected, actual)
 }

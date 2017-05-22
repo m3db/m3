@@ -131,9 +131,9 @@ func TestReplicaMetadataComparerAddLocalMetadata(t *testing.T) {
 		id   ts.ID
 		meta block.Metadata
 	}{
-		{ts.StringID("foo"), block.NewMetadata(now, int64(0), new(uint32))},
-		{ts.StringID("foo"), block.NewMetadata(now.Add(time.Second), int64(2), new(uint32))},
-		{ts.StringID("bar"), block.NewMetadata(now, int64(4), nil)},
+		{ts.StringID("foo"), block.NewMetadata(now, int64(0), new(uint32), time.Time{})},
+		{ts.StringID("foo"), block.NewMetadata(now.Add(time.Second), int64(2), new(uint32), time.Time{})},
+		{ts.StringID("bar"), block.NewMetadata(now, int64(4), nil, time.Time{})},
 	}
 
 	gomock.InOrder(
@@ -167,10 +167,30 @@ func TestReplicaMetadataComparerAddPeerMetadata(t *testing.T) {
 		host topology.Host
 		meta block.BlocksMetadata
 	}{
-		{topology.NewHost("1", "addr1"), block.NewBlocksMetadata(ts.StringID("foo"), []block.Metadata{block.NewMetadata(now, int64(0), new(uint32))})},
-		{topology.NewHost("1", "addr1"), block.NewBlocksMetadata(ts.StringID("foo"), []block.Metadata{block.NewMetadata(now.Add(time.Second), int64(1), new(uint32))})},
-		{topology.NewHost("2", "addr2"), block.NewBlocksMetadata(ts.StringID("foo"), []block.Metadata{block.NewMetadata(now, int64(2), nil)})},
-		{topology.NewHost("2", "addr2"), block.NewBlocksMetadata(ts.StringID("bar"), []block.Metadata{block.NewMetadata(now.Add(time.Second), int64(3), nil)})},
+		{
+			host: topology.NewHost("1", "addr1"),
+			meta: block.NewBlocksMetadata(ts.StringID("foo"), []block.Metadata{
+				block.NewMetadata(now, int64(0), new(uint32), time.Time{}),
+			}),
+		},
+		{
+			host: topology.NewHost("1", "addr1"),
+			meta: block.NewBlocksMetadata(ts.StringID("foo"), []block.Metadata{
+				block.NewMetadata(now.Add(time.Second), int64(1), new(uint32), time.Time{}),
+			}),
+		},
+		{
+			host: topology.NewHost("2", "addr2"),
+			meta: block.NewBlocksMetadata(ts.StringID("foo"), []block.Metadata{
+				block.NewMetadata(now, int64(2), nil, time.Time{}),
+			}),
+		},
+		{
+			host: topology.NewHost("2", "addr2"),
+			meta: block.NewBlocksMetadata(ts.StringID("bar"), []block.Metadata{
+				block.NewMetadata(now.Add(time.Second), int64(3), nil, time.Time{}),
+			}),
+		},
 	}
 	expectedErr := errors.New("some error")
 

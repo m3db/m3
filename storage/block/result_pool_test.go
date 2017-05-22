@@ -24,8 +24,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +39,7 @@ func TestFetchBlockMetadataResultsPoolResetOnPut(t *testing.T) {
 	res := p.Get()
 
 	// Make res non-empty
-	res.Add(NewFetchBlockMetadataResult(time.Now(), nil, nil, nil))
+	res.Add(NewFetchBlockMetadataResult(time.Now(), 0, nil, time.Time{}, nil))
 	require.Equal(t, 1, len(res.Results()))
 
 	// Return res to pool
@@ -57,7 +57,7 @@ func TestFetchBlockMetadataResultsPoolRejectLargeSliceOnPut(t *testing.T) {
 	// Make res a large slice
 	iter := 1024
 	for i := 0; i < iter; i++ {
-		res.Add(NewFetchBlockMetadataResult(time.Now(), nil, nil, nil))
+		res.Add(NewFetchBlockMetadataResult(time.Now(), 0, nil, time.Time{}, nil))
 	}
 	require.True(t, cap(res.Results()) > 64)
 

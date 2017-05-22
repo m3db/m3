@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
@@ -202,7 +203,12 @@ func TestNamespaceFetchBlocksMetadataShardNotOwned(t *testing.T) {
 	}
 	start := time.Now()
 	end := start.Add(time.Hour)
-	_, _, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0].ID(), start, end, 100, 0, true, true)
+	opts := block.FetchBlocksMetadataOptions{
+		IncludeSizes:     true,
+		IncludeChecksums: true,
+		IncludeLastRead:  true,
+	}
+	_, _, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0].ID(), start, end, 100, 0, opts)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 0", err.Error())
 }
@@ -215,33 +221,35 @@ func TestNamespaceFetchBlocksMetadataShardOwned(t *testing.T) {
 	defer ctx.Close()
 
 	var (
-		start            = time.Now()
-		end              = start.Add(time.Hour)
-		limit            = int64(100)
-		pageToken        = int64(0)
-		includeSizes     = true
-		includeChecksums = true
-		nextPageToken    = int64(100)
+		start         = time.Now()
+		end           = start.Add(time.Hour)
+		limit         = int64(100)
+		pageToken     = int64(0)
+		nextPageToken = int64(100)
+		opts          = block.FetchBlocksMetadataOptions{
+			IncludeSizes:     true,
+			IncludeChecksums: true,
+			IncludeLastRead:  true,
+		}
 	)
 
 	ns := newTestNamespace(t)
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().
-		FetchBlocksMetadata(ctx, start, end, limit, pageToken,
-			includeSizes, includeChecksums).
+		FetchBlocksMetadata(ctx, start, end, limit, pageToken, opts).
 		Return(nil, &nextPageToken)
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	shard.EXPECT().IsBootstrapped().Return(true)
 	res, npt, err := ns.FetchBlocksMetadata(ctx, testShardIDs[0].ID(),
-		start, end, limit, pageToken, includeSizes, includeChecksums)
+		start, end, limit, pageToken, opts)
 	require.Nil(t, res)
 	require.Equal(t, npt, &nextPageToken)
 	require.NoError(t, err)
 
 	shard.EXPECT().IsBootstrapped().Return(false)
 	_, _, err = ns.FetchBlocksMetadata(ctx, testShardIDs[0].ID(),
-		start, end, limit, pageToken, includeSizes, includeChecksums)
+		start, end, limit, pageToken, opts)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))

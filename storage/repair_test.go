@@ -238,23 +238,34 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		start           = now
 		end             = now.Add(rtopts.BlockSize())
 		repairTimeRange = xtime.Range{Start: start, End: end}
+		fetchOpts       = block.FetchBlocksMetadataOptions{
+			IncludeSizes:     true,
+			IncludeChecksums: true,
+			IncludeLastRead:  false,
+		}
 	)
 
 	sizes := []int64{1, 2, 3}
 	checksums := []uint32{4, 5, 6}
+	lastRead := now.Add(-time.Minute)
 	shardID := uint32(0)
 	shard := NewMockdatabaseShard(ctrl)
 
 	expectedResults := block.NewFetchBlocksMetadataResults()
 	results := block.NewFetchBlockMetadataResults()
-	results.Add(block.NewFetchBlockMetadataResult(now.Add(30*time.Minute), &sizes[0], &checksums[0], nil))
-	results.Add(block.NewFetchBlockMetadataResult(now.Add(time.Hour), &sizes[1], &checksums[1], nil))
+	results.Add(block.NewFetchBlockMetadataResult(now.Add(30*time.Minute),
+		sizes[0], &checksums[0], lastRead, nil))
+	results.Add(block.NewFetchBlockMetadataResult(now.Add(time.Hour),
+		sizes[1], &checksums[1], lastRead, nil))
 	expectedResults.Add(block.NewFetchBlocksMetadataResult(ts.StringID("foo"), results))
 	results = block.NewFetchBlockMetadataResults()
-	results.Add(block.NewFetchBlockMetadataResult(now.Add(30*time.Minute), &sizes[2], &checksums[2], nil))
+	results.Add(block.NewFetchBlockMetadataResult(now.Add(30*time.Minute),
+		sizes[2], &checksums[2], lastRead, nil))
 	expectedResults.Add(block.NewFetchBlocksMetadataResult(ts.StringID("bar"), results))
+
+	any := gomock.Any()
 	shard.EXPECT().
-		FetchBlocksMetadata(gomock.Any(), start, end, gomock.Any(), int64(0), true, true).
+		FetchBlocksMetadata(any, start, end, any, int64(0), fetchOpts).
 		Return(expectedResults, nil)
 	shard.EXPECT().ID().Return(shardID).AnyTimes()
 
@@ -264,11 +275,11 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		meta block.BlocksMetadata
 	}{
 		{topology.NewHost("1", "addr1"), block.NewBlocksMetadata(ts.StringID("foo"), []block.Metadata{
-			block.NewMetadata(now.Add(30*time.Minute), sizes[0], &checksums[0]),
-			block.NewMetadata(now.Add(time.Hour), sizes[0], &checksums[1]),
+			block.NewMetadata(now.Add(30*time.Minute), sizes[0], &checksums[0], lastRead),
+			block.NewMetadata(now.Add(time.Hour), sizes[0], &checksums[1], lastRead),
 		})},
 		{topology.NewHost("1", "addr1"), block.NewBlocksMetadata(ts.StringID("bar"), []block.Metadata{
-			block.NewMetadata(now.Add(30*time.Minute), sizes[2], &checksums[2]),
+			block.NewMetadata(now.Add(30*time.Minute), sizes[2], &checksums[2], lastRead),
 		})},
 	}
 
