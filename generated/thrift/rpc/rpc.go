@@ -802,7 +802,7 @@ func (p *FetchResult_) ReadField1(iprot thrift.TProtocol) error {
 	p.Datapoints = tSlice
 	for i := 0; i < size; i++ {
 		_elem1 := &Datapoint{
-			TimestampType: 0,
+			TimestampTimeType: 0,
 		}
 		if err := _elem1.Read(iprot); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", _elem1), err)
@@ -865,17 +865,17 @@ func (p *FetchResult_) String() string {
 //  - Timestamp
 //  - Value
 //  - Annotation
-//  - TimestampType
+//  - TimestampTimeType
 type Datapoint struct {
-	Timestamp     int64    `thrift:"timestamp,1,required" db:"timestamp" json:"timestamp"`
-	Value         float64  `thrift:"value,2,required" db:"value" json:"value"`
-	Annotation    []byte   `thrift:"annotation,3" db:"annotation" json:"annotation,omitempty"`
-	TimestampType TimeType `thrift:"timestampType,4" db:"timestampType" json:"timestampType,omitempty"`
+	Timestamp         int64    `thrift:"timestamp,1,required" db:"timestamp" json:"timestamp"`
+	Value             float64  `thrift:"value,2,required" db:"value" json:"value"`
+	Annotation        []byte   `thrift:"annotation,3" db:"annotation" json:"annotation,omitempty"`
+	TimestampTimeType TimeType `thrift:"timestampTimeType,4" db:"timestampTimeType" json:"timestampTimeType,omitempty"`
 }
 
 func NewDatapoint() *Datapoint {
 	return &Datapoint{
-		TimestampType: 0,
+		TimestampTimeType: 0,
 	}
 }
 
@@ -893,17 +893,17 @@ func (p *Datapoint) GetAnnotation() []byte {
 	return p.Annotation
 }
 
-var Datapoint_TimestampType_DEFAULT TimeType = 0
+var Datapoint_TimestampTimeType_DEFAULT TimeType = 0
 
-func (p *Datapoint) GetTimestampType() TimeType {
-	return p.TimestampType
+func (p *Datapoint) GetTimestampTimeType() TimeType {
+	return p.TimestampTimeType
 }
 func (p *Datapoint) IsSetAnnotation() bool {
 	return p.Annotation != nil
 }
 
-func (p *Datapoint) IsSetTimestampType() bool {
-	return p.TimestampType != Datapoint_TimestampType_DEFAULT
+func (p *Datapoint) IsSetTimestampTimeType() bool {
+	return p.TimestampTimeType != Datapoint_TimestampTimeType_DEFAULT
 }
 
 func (p *Datapoint) Read(iprot thrift.TProtocol) error {
@@ -994,7 +994,7 @@ func (p *Datapoint) ReadField4(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field 4: ", err)
 	} else {
 		temp := TimeType(v)
-		p.TimestampType = temp
+		p.TimestampTimeType = temp
 	}
 	return nil
 }
@@ -1068,15 +1068,15 @@ func (p *Datapoint) writeField3(oprot thrift.TProtocol) (err error) {
 }
 
 func (p *Datapoint) writeField4(oprot thrift.TProtocol) (err error) {
-	if p.IsSetTimestampType() {
-		if err := oprot.WriteFieldBegin("timestampType", thrift.I32, 4); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:timestampType: ", p), err)
+	if p.IsSetTimestampTimeType() {
+		if err := oprot.WriteFieldBegin("timestampTimeType", thrift.I32, 4); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:timestampTimeType: ", p), err)
 		}
-		if err := oprot.WriteI32(int32(p.TimestampType)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.timestampType (4) field write error: ", p), err)
+		if err := oprot.WriteI32(int32(p.TimestampTimeType)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.timestampTimeType (4) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:timestampType: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:timestampTimeType: ", p), err)
 		}
 	}
 	return err
@@ -1200,7 +1200,7 @@ func (p *WriteRequest) ReadField2(iprot thrift.TProtocol) error {
 
 func (p *WriteRequest) ReadField3(iprot thrift.TProtocol) error {
 	p.Datapoint = &Datapoint{
-		TimestampType: 0,
+		TimestampTimeType: 0,
 	}
 	if err := p.Datapoint.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Datapoint), err)
@@ -1283,18 +1283,18 @@ func (p *WriteRequest) String() string {
 //  - RangeEnd
 //  - NameSpace
 //  - Ids
-//  - RangeType
+//  - RangeTimeType
 type FetchBatchRawRequest struct {
-	RangeStart int64    `thrift:"rangeStart,1,required" db:"rangeStart" json:"rangeStart"`
-	RangeEnd   int64    `thrift:"rangeEnd,2,required" db:"rangeEnd" json:"rangeEnd"`
-	NameSpace  []byte   `thrift:"nameSpace,3,required" db:"nameSpace" json:"nameSpace"`
-	Ids        [][]byte `thrift:"ids,4,required" db:"ids" json:"ids"`
-	RangeType  TimeType `thrift:"rangeType,5" db:"rangeType" json:"rangeType,omitempty"`
+	RangeStart    int64    `thrift:"rangeStart,1,required" db:"rangeStart" json:"rangeStart"`
+	RangeEnd      int64    `thrift:"rangeEnd,2,required" db:"rangeEnd" json:"rangeEnd"`
+	NameSpace     []byte   `thrift:"nameSpace,3,required" db:"nameSpace" json:"nameSpace"`
+	Ids           [][]byte `thrift:"ids,4,required" db:"ids" json:"ids"`
+	RangeTimeType TimeType `thrift:"rangeTimeType,5" db:"rangeTimeType" json:"rangeTimeType,omitempty"`
 }
 
 func NewFetchBatchRawRequest() *FetchBatchRawRequest {
 	return &FetchBatchRawRequest{
-		RangeType: 0,
+		RangeTimeType: 0,
 	}
 }
 
@@ -1314,13 +1314,13 @@ func (p *FetchBatchRawRequest) GetIds() [][]byte {
 	return p.Ids
 }
 
-var FetchBatchRawRequest_RangeType_DEFAULT TimeType = 0
+var FetchBatchRawRequest_RangeTimeType_DEFAULT TimeType = 0
 
-func (p *FetchBatchRawRequest) GetRangeType() TimeType {
-	return p.RangeType
+func (p *FetchBatchRawRequest) GetRangeTimeType() TimeType {
+	return p.RangeTimeType
 }
-func (p *FetchBatchRawRequest) IsSetRangeType() bool {
-	return p.RangeType != FetchBatchRawRequest_RangeType_DEFAULT
+func (p *FetchBatchRawRequest) IsSetRangeTimeType() bool {
+	return p.RangeTimeType != FetchBatchRawRequest_RangeTimeType_DEFAULT
 }
 
 func (p *FetchBatchRawRequest) Read(iprot thrift.TProtocol) error {
@@ -1447,7 +1447,7 @@ func (p *FetchBatchRawRequest) ReadField5(iprot thrift.TProtocol) error {
 		return thrift.PrependError("error reading field 5: ", err)
 	} else {
 		temp := TimeType(v)
-		p.RangeType = temp
+		p.RangeTimeType = temp
 	}
 	return nil
 }
@@ -1543,15 +1543,15 @@ func (p *FetchBatchRawRequest) writeField4(oprot thrift.TProtocol) (err error) {
 }
 
 func (p *FetchBatchRawRequest) writeField5(oprot thrift.TProtocol) (err error) {
-	if p.IsSetRangeType() {
-		if err := oprot.WriteFieldBegin("rangeType", thrift.I32, 5); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 5:rangeType: ", p), err)
+	if p.IsSetRangeTimeType() {
+		if err := oprot.WriteFieldBegin("rangeTimeType", thrift.I32, 5); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 5:rangeTimeType: ", p), err)
 		}
-		if err := oprot.WriteI32(int32(p.RangeType)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.rangeType (5) field write error: ", p), err)
+		if err := oprot.WriteI32(int32(p.RangeTimeType)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.rangeTimeType (5) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 5:rangeType: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 5:rangeTimeType: ", p), err)
 		}
 	}
 	return err
@@ -3031,6 +3031,7 @@ func (p *Block) String() string {
 //  - PageToken
 //  - IncludeSizes
 //  - IncludeChecksums
+//  - IncludeLastRead
 type FetchBlocksMetadataRawRequest struct {
 	NameSpace        []byte `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
 	Shard            int32  `thrift:"shard,2,required" db:"shard" json:"shard"`
@@ -3040,6 +3041,7 @@ type FetchBlocksMetadataRawRequest struct {
 	PageToken        *int64 `thrift:"pageToken,6" db:"pageToken" json:"pageToken,omitempty"`
 	IncludeSizes     *bool  `thrift:"includeSizes,7" db:"includeSizes" json:"includeSizes,omitempty"`
 	IncludeChecksums *bool  `thrift:"includeChecksums,8" db:"includeChecksums" json:"includeChecksums,omitempty"`
+	IncludeLastRead  *bool  `thrift:"includeLastRead,9" db:"includeLastRead" json:"includeLastRead,omitempty"`
 }
 
 func NewFetchBlocksMetadataRawRequest() *FetchBlocksMetadataRawRequest {
@@ -3092,6 +3094,15 @@ func (p *FetchBlocksMetadataRawRequest) GetIncludeChecksums() bool {
 	}
 	return *p.IncludeChecksums
 }
+
+var FetchBlocksMetadataRawRequest_IncludeLastRead_DEFAULT bool
+
+func (p *FetchBlocksMetadataRawRequest) GetIncludeLastRead() bool {
+	if !p.IsSetIncludeLastRead() {
+		return FetchBlocksMetadataRawRequest_IncludeLastRead_DEFAULT
+	}
+	return *p.IncludeLastRead
+}
 func (p *FetchBlocksMetadataRawRequest) IsSetPageToken() bool {
 	return p.PageToken != nil
 }
@@ -3102,6 +3113,10 @@ func (p *FetchBlocksMetadataRawRequest) IsSetIncludeSizes() bool {
 
 func (p *FetchBlocksMetadataRawRequest) IsSetIncludeChecksums() bool {
 	return p.IncludeChecksums != nil
+}
+
+func (p *FetchBlocksMetadataRawRequest) IsSetIncludeLastRead() bool {
+	return p.IncludeLastRead != nil
 }
 
 func (p *FetchBlocksMetadataRawRequest) Read(iprot thrift.TProtocol) error {
@@ -3159,6 +3174,10 @@ func (p *FetchBlocksMetadataRawRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 8:
 			if err := p.ReadField8(iprot); err != nil {
+				return err
+			}
+		case 9:
+			if err := p.ReadField9(iprot); err != nil {
 				return err
 			}
 		default:
@@ -3263,6 +3282,15 @@ func (p *FetchBlocksMetadataRawRequest) ReadField8(iprot thrift.TProtocol) error
 	return nil
 }
 
+func (p *FetchBlocksMetadataRawRequest) ReadField9(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBool(); err != nil {
+		return thrift.PrependError("error reading field 9: ", err)
+	} else {
+		p.IncludeLastRead = &v
+	}
+	return nil
+}
+
 func (p *FetchBlocksMetadataRawRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("FetchBlocksMetadataRawRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -3290,6 +3318,9 @@ func (p *FetchBlocksMetadataRawRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField8(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField9(oprot); err != nil {
 			return err
 		}
 	}
@@ -3407,6 +3438,21 @@ func (p *FetchBlocksMetadataRawRequest) writeField8(oprot thrift.TProtocol) (err
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 8:includeChecksums: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *FetchBlocksMetadataRawRequest) writeField9(oprot thrift.TProtocol) (err error) {
+	if p.IsSetIncludeLastRead() {
+		if err := oprot.WriteFieldBegin("includeLastRead", thrift.BOOL, 9); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 9:includeLastRead: ", p), err)
+		}
+		if err := oprot.WriteBool(bool(*p.IncludeLastRead)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.includeLastRead (9) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 9:includeLastRead: ", p), err)
 		}
 	}
 	return err
@@ -3667,7 +3713,9 @@ func (p *BlocksMetadata) ReadField2(iprot thrift.TProtocol) error {
 	tSlice := make([]*BlockMetadata, 0, size)
 	p.Blocks = tSlice
 	for i := 0; i < size; i++ {
-		_elem11 := &BlockMetadata{}
+		_elem11 := &BlockMetadata{
+			LastReadTimeType: 0,
+		}
 		if err := _elem11.Read(iprot); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", _elem11), err)
 		}
@@ -3746,15 +3794,21 @@ func (p *BlocksMetadata) String() string {
 //  - Start
 //  - Size
 //  - Checksum
+//  - LastRead
+//  - LastReadTimeType
 type BlockMetadata struct {
-	Err      *Error `thrift:"err,1" db:"err" json:"err,omitempty"`
-	Start    int64  `thrift:"start,2,required" db:"start" json:"start"`
-	Size     *int64 `thrift:"size,3" db:"size" json:"size,omitempty"`
-	Checksum *int64 `thrift:"checksum,4" db:"checksum" json:"checksum,omitempty"`
+	Err              *Error   `thrift:"err,1" db:"err" json:"err,omitempty"`
+	Start            int64    `thrift:"start,2,required" db:"start" json:"start"`
+	Size             *int64   `thrift:"size,3" db:"size" json:"size,omitempty"`
+	Checksum         *int64   `thrift:"checksum,4" db:"checksum" json:"checksum,omitempty"`
+	LastRead         *int64   `thrift:"lastRead,5" db:"lastRead" json:"lastRead,omitempty"`
+	LastReadTimeType TimeType `thrift:"lastReadTimeType,6" db:"lastReadTimeType" json:"lastReadTimeType,omitempty"`
 }
 
 func NewBlockMetadata() *BlockMetadata {
-	return &BlockMetadata{}
+	return &BlockMetadata{
+		LastReadTimeType: 0,
+	}
 }
 
 var BlockMetadata_Err_DEFAULT *Error
@@ -3787,6 +3841,21 @@ func (p *BlockMetadata) GetChecksum() int64 {
 	}
 	return *p.Checksum
 }
+
+var BlockMetadata_LastRead_DEFAULT int64
+
+func (p *BlockMetadata) GetLastRead() int64 {
+	if !p.IsSetLastRead() {
+		return BlockMetadata_LastRead_DEFAULT
+	}
+	return *p.LastRead
+}
+
+var BlockMetadata_LastReadTimeType_DEFAULT TimeType = 0
+
+func (p *BlockMetadata) GetLastReadTimeType() TimeType {
+	return p.LastReadTimeType
+}
 func (p *BlockMetadata) IsSetErr() bool {
 	return p.Err != nil
 }
@@ -3797,6 +3866,14 @@ func (p *BlockMetadata) IsSetSize() bool {
 
 func (p *BlockMetadata) IsSetChecksum() bool {
 	return p.Checksum != nil
+}
+
+func (p *BlockMetadata) IsSetLastRead() bool {
+	return p.LastRead != nil
+}
+
+func (p *BlockMetadata) IsSetLastReadTimeType() bool {
+	return p.LastReadTimeType != BlockMetadata_LastReadTimeType_DEFAULT
 }
 
 func (p *BlockMetadata) Read(iprot thrift.TProtocol) error {
@@ -3830,6 +3907,14 @@ func (p *BlockMetadata) Read(iprot thrift.TProtocol) error {
 			}
 		case 4:
 			if err := p.ReadField4(iprot); err != nil {
+				return err
+			}
+		case 5:
+			if err := p.ReadField5(iprot); err != nil {
+				return err
+			}
+		case 6:
+			if err := p.ReadField6(iprot); err != nil {
 				return err
 			}
 		default:
@@ -3887,6 +3972,25 @@ func (p *BlockMetadata) ReadField4(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *BlockMetadata) ReadField5(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 5: ", err)
+	} else {
+		p.LastRead = &v
+	}
+	return nil
+}
+
+func (p *BlockMetadata) ReadField6(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI32(); err != nil {
+		return thrift.PrependError("error reading field 6: ", err)
+	} else {
+		temp := TimeType(v)
+		p.LastReadTimeType = temp
+	}
+	return nil
+}
+
 func (p *BlockMetadata) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("BlockMetadata"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -3902,6 +4006,12 @@ func (p *BlockMetadata) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField4(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField5(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField6(oprot); err != nil {
 			return err
 		}
 	}
@@ -3967,6 +4077,36 @@ func (p *BlockMetadata) writeField4(oprot thrift.TProtocol) (err error) {
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:checksum: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *BlockMetadata) writeField5(oprot thrift.TProtocol) (err error) {
+	if p.IsSetLastRead() {
+		if err := oprot.WriteFieldBegin("lastRead", thrift.I64, 5); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 5:lastRead: ", p), err)
+		}
+		if err := oprot.WriteI64(int64(*p.LastRead)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.lastRead (5) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 5:lastRead: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *BlockMetadata) writeField6(oprot thrift.TProtocol) (err error) {
+	if p.IsSetLastReadTimeType() {
+		if err := oprot.WriteFieldBegin("lastReadTimeType", thrift.I32, 6); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 6:lastReadTimeType: ", p), err)
+		}
+		if err := oprot.WriteI32(int32(p.LastReadTimeType)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.lastReadTimeType (6) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 6:lastReadTimeType: ", p), err)
 		}
 	}
 	return err
@@ -4224,7 +4364,7 @@ func (p *WriteBatchRawRequestElement) ReadField1(iprot thrift.TProtocol) error {
 
 func (p *WriteBatchRawRequestElement) ReadField2(iprot thrift.TProtocol) error {
 	p.Datapoint = &Datapoint{
-		TimestampType: 0,
+		TimestampTimeType: 0,
 	}
 	if err := p.Datapoint.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Datapoint), err)
@@ -7874,7 +8014,7 @@ func (p *NodeFetchBatchRawArgs) Read(iprot thrift.TProtocol) error {
 
 func (p *NodeFetchBatchRawArgs) ReadField1(iprot thrift.TProtocol) error {
 	p.Req = &FetchBatchRawRequest{
-		RangeType: 0,
+		RangeTimeType: 0,
 	}
 	if err := p.Req.Read(iprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)

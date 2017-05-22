@@ -27,11 +27,17 @@ import (
 )
 
 // NewMetadata creates a new block metadata
-func NewMetadata(start time.Time, size int64, checksum *uint32) Metadata {
+func NewMetadata(
+	start time.Time,
+	size int64,
+	checksum *uint32,
+	lastRead time.Time,
+) Metadata {
 	return Metadata{
 		Start:    start,
 		Size:     size,
 		Checksum: checksum,
+		LastRead: lastRead,
 	}
 }
 

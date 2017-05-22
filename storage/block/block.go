@@ -42,14 +42,14 @@ var (
 type dbBlock struct {
 	sync.RWMutex
 
-	opts          Options
-	ctx           context.Context
-	startUnixNano int64
-	segment       ts.Segment
-	length        int
-	checksum      uint32
+	opts           Options
+	ctx            context.Context
+	startUnixNanos int64
+	segment        ts.Segment
+	length         int
+	checksum       uint32
 
-	accessedUnixNano int64
+	lastReadUnixNanos int64
 
 	mergeTarget DatabaseBlock
 
@@ -62,10 +62,10 @@ type dbBlock struct {
 // NewDatabaseBlock creates a new DatabaseBlock instance.
 func NewDatabaseBlock(start time.Time, segment ts.Segment, opts Options) DatabaseBlock {
 	b := &dbBlock{
-		opts:          opts,
-		ctx:           opts.ContextPool().Get(),
-		startUnixNano: start.UnixNano(),
-		closed:        false,
+		opts:           opts,
+		ctx:            opts.ContextPool().Get(),
+		startUnixNanos: start.UnixNano(),
+		closed:         false,
 	}
 	if segment.Len() > 0 {
 		b.resetSegmentWithLock(segment)
@@ -81,10 +81,10 @@ func NewRetrievableDatabaseBlock(
 	opts Options,
 ) DatabaseBlock {
 	b := &dbBlock{
-		opts:          opts,
-		ctx:           opts.ContextPool().Get(),
-		startUnixNano: start.UnixNano(),
-		closed:        false,
+		opts:           opts,
+		ctx:            opts.ContextPool().Get(),
+		startUnixNanos: start.UnixNano(),
+		closed:         false,
 	}
 	b.resetRetrievableWithLock(retriever, metadata)
 	return b
@@ -103,11 +103,18 @@ func (b *dbBlock) StartTime() time.Time {
 }
 
 func (b *dbBlock) startWithLock() time.Time {
-	return time.Unix(0, b.startUnixNano)
+	return time.Unix(0, b.startUnixNanos)
 }
 
-func (b *dbBlock) LastAccessTime() time.Time {
-	return time.Unix(0, atomic.LoadInt64(&b.accessedUnixNano))
+func (b *dbBlock) SetLastReadTime(value time.Time) {
+	// Use an int64 to avoid needing a write lock for
+	// this high frequency called method (i.e. each individual
+	// read needing a write lock would be excessive)
+	atomic.StoreInt64(&b.lastReadUnixNanos, value.UnixNano())
+}
+
+func (b *dbBlock) LastReadTime() time.Time {
+	return time.Unix(0, atomic.LoadInt64(&b.lastReadUnixNanos))
 }
 
 func (b *dbBlock) Len() int {
@@ -150,10 +157,6 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	}
 
 	b.ctx.DependsOn(blocker)
-
-	// Use an int64 to avoid needing a write lock for
-	// the high frequency stream method
-	atomic.StoreInt64(&b.accessedUnixNano, b.now().UnixNano())
 
 	// If the block retrieve ID is set then it must be retrieved
 	var (
@@ -227,10 +230,10 @@ func (b *dbBlock) resetNewBlockStartWithLock(start time.Time) {
 		b.ctx.Close()
 	}
 	b.ctx = b.opts.ContextPool().Get()
-	b.startUnixNano = start.UnixNano()
+	b.startUnixNanos = start.UnixNano()
+	atomic.StoreInt64(&b.lastReadUnixNanos, 0)
 	b.closed = false
 	b.resetMergeTargetWithLock()
-	atomic.StoreInt64(&b.accessedUnixNano, b.now().UnixNano())
 }
 
 func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {

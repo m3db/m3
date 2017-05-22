@@ -38,6 +38,7 @@ type Metadata struct {
 	Start    time.Time
 	Size     int64
 	Checksum *uint32
+	LastRead time.Time
 }
 
 // BlocksMetadata contains blocks metadata from a peer
@@ -80,11 +81,19 @@ type FetchBlockResult interface {
 	Checksum() *uint32
 }
 
+// FetchBlocksMetadataOptions are options used when fetching blocks metadata.
+type FetchBlocksMetadataOptions struct {
+	IncludeSizes     bool
+	IncludeChecksums bool
+	IncludeLastRead  bool
+}
+
 // FetchBlockMetadataResult captures the block start time, the block size, and any errors encountered
 type FetchBlockMetadataResult struct {
 	Start    time.Time
-	Size     *int64
+	Size     int64
 	Checksum *uint32
+	LastRead time.Time
 	Err      error
 }
 
@@ -135,8 +144,11 @@ type DatabaseBlock interface {
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
-	// LastAccessTime returns the last access time of the block.
-	LastAccessTime() time.Time
+	// SetLastReadTime sets the last read time of the block.
+	SetLastReadTime(value time.Time)
+
+	// LastReadTime returns the last read time of the block.
+	LastReadTime() time.Time
 
 	// Len returns the block length.
 	Len() int

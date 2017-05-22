@@ -59,14 +59,16 @@ func SortFetchBlockResultByTimeAscending(results []FetchBlockResult) {
 // NewFetchBlockMetadataResult creates a new fetch block metadata result.
 func NewFetchBlockMetadataResult(
 	start time.Time,
-	size *int64,
+	size int64,
 	checksum *uint32,
+	lastRead time.Time,
 	err error,
 ) FetchBlockMetadataResult {
 	return FetchBlockMetadataResult{
 		Start:    start,
 		Size:     size,
 		Checksum: checksum,
+		LastRead: lastRead,
 		Err:      err,
 	}
 }
@@ -203,11 +205,7 @@ func (it *filteredBlocksMetadataIter) Next() bool {
 	}
 	it.id = it.res[it.resIdx].ID
 	block := blocks[it.blockIdx]
-	size := int64(0)
-	if block.Size != nil {
-		size = *block.Size
-	}
-	it.metadata = NewMetadata(block.Start, size, block.Checksum)
+	it.metadata = NewMetadata(block.Start, block.Size, block.Checksum, block.LastRead)
 	it.blockIdx++
 	return true
 }

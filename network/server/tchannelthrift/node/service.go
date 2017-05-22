@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
@@ -228,8 +229,8 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
 
-	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeType)
-	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeType)
+	start, rangeStartErr := convert.ToTime(req.RangeStart, req.RangeTimeType)
+	end, rangeEndErr := convert.ToTime(req.RangeEnd, req.RangeTimeType)
 
 	if rangeStartErr != nil || rangeEndErr != nil {
 		s.metrics.fetchBatchRaw.ReportNonRetryableErrors(len(req.Ids))
@@ -390,21 +391,21 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 		pageToken = *req.PageToken
 	}
 
-	var includeSizes bool
+	var opts block.FetchBlocksMetadataOptions
 	if req.IncludeSizes != nil {
-		includeSizes = *req.IncludeSizes
+		opts.IncludeSizes = *req.IncludeSizes
 	}
-
-	var includeChecksums bool
 	if req.IncludeChecksums != nil {
-		includeChecksums = *req.IncludeChecksums
+		opts.IncludeChecksums = *req.IncludeChecksums
+	}
+	if req.IncludeLastRead != nil {
+		opts.IncludeLastRead = *req.IncludeLastRead
 	}
 
 	nsID := s.newID(ctx, req.NameSpace)
 
-	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx,
-		nsID, uint32(req.Shard), start, end,
-		req.Limit, pageToken, includeSizes, includeChecksums)
+	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx, nsID,
+		uint32(req.Shard), start, end, req.Limit, pageToken, opts)
 	if err != nil {
 		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
@@ -428,12 +429,25 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 
 		for _, fetchedMetadataBlock := range fetchedMetadataBlocks {
 			blockMetadata := s.blockMetadataPool.Get()
-			blockMetadata.Start = xtime.ToNanoseconds(fetchedMetadataBlock.Start)
-			blockMetadata.Size = fetchedMetadataBlock.Size
 
-			if checksum := fetchedMetadataBlock.Checksum; checksum != nil {
-				value := int64(*checksum)
-				blockMetadata.Checksum = &value
+			blockMetadata.Start = xtime.ToNanoseconds(fetchedMetadataBlock.Start)
+
+			if opts.IncludeSizes {
+				size := fetchedMetadataBlock.Size
+				blockMetadata.Size = &size
+			}
+
+			if opts.IncludeChecksums {
+				if checksum := fetchedMetadataBlock.Checksum; checksum != nil {
+					value := int64(*checksum)
+					blockMetadata.Checksum = &value
+				}
+			}
+
+			if opts.IncludeLastRead {
+				lastRead := fetchedMetadataBlock.LastRead.UnixNano()
+				blockMetadata.LastRead = &lastRead
+				blockMetadata.LastReadTimeType = rpc.TimeType_UNIX_NANOSECONDS
 			}
 
 			if err := fetchedMetadataBlock.Err; err != nil {
@@ -461,7 +475,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	}
 
 	dp := req.Datapoint
-	unit, unitErr := convert.ToUnit(dp.TimestampType)
+	unit, unitErr := convert.ToUnit(dp.TimestampTimeType)
 
 	if unitErr != nil {
 		s.metrics.write.ReportError(s.nowFn().Sub(callStart))
@@ -500,7 +514,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		nonRetryableErrors int
 	)
 	for i, elem := range req.Elements {
-		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampType)
+		unit, unitErr := convert.ToUnit(elem.Datapoint.TimestampTimeType)
 		if unitErr != nil {
 			nonRetryableErrors++
 			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, unitErr))

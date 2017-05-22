@@ -324,8 +324,7 @@ func (d *db) FetchBlocksMetadata(
 	start, end time.Time,
 	limit int64,
 	pageToken int64,
-	includeSizes bool,
-	includeChecksums bool,
+	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, *int64, error) {
 	callStart := d.nowFn()
 	n, err := d.namespaceFor(namespace)
@@ -335,8 +334,11 @@ func (d *db) FetchBlocksMetadata(
 		return nil, nil, res
 	}
 
-	res, ptr, err := n.FetchBlocksMetadata(ctx, shardID, start, end, limit, pageToken, includeSizes, includeChecksums)
-	d.metrics.fetchBlocksMetadata.ReportSuccessOrError(err, d.nowFn().Sub(callStart))
+	res, ptr, err := n.FetchBlocksMetadata(ctx, shardID, start, end, limit,
+		pageToken, opts)
+
+	duration := d.nowFn().Sub(callStart)
+	d.metrics.fetchBlocksMetadata.ReportSuccessOrError(err, duration)
 	return res, ptr, err
 }
 

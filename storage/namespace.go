@@ -363,15 +363,14 @@ func (n *dbNamespace) FetchBlocksMetadata(
 	start, end time.Time,
 	limit int64,
 	pageToken int64,
-	includeSizes bool,
-	includeChecksums bool,
+	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, *int64, error) {
 	shard, err := n.readableShardAt(shardID)
 	if err != nil {
 		return nil, nil, err
 	}
 	res, nextPageToken := shard.FetchBlocksMetadata(ctx, start, end, limit,
-		pageToken, includeSizes, includeChecksums)
+		pageToken, opts)
 	return res, nextPageToken, nil
 }
 

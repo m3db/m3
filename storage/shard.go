@@ -723,8 +723,7 @@ func (s *dbShard) FetchBlocksMetadata(
 	start, end time.Time,
 	limit int64,
 	pageToken int64,
-	includeSizes bool,
-	includeChecksums bool,
+	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, *int64) {
 	var (
 		res            = s.opts.FetchBlocksMetadataResultsPool().Get()
@@ -748,21 +747,21 @@ func (s *dbShard) FetchBlocksMetadata(
 		// Use a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching the metadata for this series.
 		tmpCtx.Reset()
-		blocksMetadata := entry.series.FetchBlocksMetadata(tmpCtx, start, end, includeSizes, includeChecksums)
+		metadata := entry.series.FetchBlocksMetadata(tmpCtx, start, end, opts)
 		tmpCtx.BlockingClose()
 
 		// If the blocksMetadata is empty, the series have no data within the specified
 		// time range so we don't return it to the client
-		if len(blocksMetadata.Blocks.Results()) == 0 {
-			if blocksMetadata.ID != nil {
-				blocksMetadata.ID.Finalize()
+		if len(metadata.Blocks.Results()) == 0 {
+			if metadata.ID != nil {
+				metadata.ID.Finalize()
 			}
-			blocksMetadata.Blocks.Close()
+			metadata.Blocks.Close()
 			return true
 		}
 
 		// Otherwise add it to the result which takes care of closing the metadata
-		res.Add(blocksMetadata)
+		res.Add(metadata)
 
 		return true
 	})
