@@ -56,9 +56,9 @@ func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, names
 			elem := &rpc.WriteBatchRawRequestElement{
 				ID: series.ID.Data().Get(),
 				Datapoint: &rpc.Datapoint{
-					Timestamp:     xtime.ToNormalizedTime(dp.Timestamp, time.Second),
-					Value:         dp.Value,
-					TimestampType: rpc.TimeType_UNIX_SECONDS,
+					Timestamp:         xtime.ToNormalizedTime(dp.Timestamp, time.Second),
+					Value:             dp.Value,
+					TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
 				},
 			}
 			elems = append(elems, elem)
