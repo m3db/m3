@@ -435,23 +435,31 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 			if opts.IncludeSizes {
 				size := fetchedMetadataBlock.Size
 				blockMetadata.Size = &size
+			} else {
+				blockMetadata.Size = nil
 			}
 
-			if opts.IncludeChecksums {
-				if checksum := fetchedMetadataBlock.Checksum; checksum != nil {
-					value := int64(*checksum)
-					blockMetadata.Checksum = &value
-				}
+			checksum := fetchedMetadataBlock.Checksum
+			if opts.IncludeChecksums && checksum != nil {
+				value := int64(*checksum)
+				blockMetadata.Checksum = &value
+			} else {
+				blockMetadata.Checksum = nil
 			}
 
 			if opts.IncludeLastRead {
 				lastRead := fetchedMetadataBlock.LastRead.UnixNano()
 				blockMetadata.LastRead = &lastRead
 				blockMetadata.LastReadTimeType = rpc.TimeType_UNIX_NANOSECONDS
+			} else {
+				blockMetadata.LastRead = nil
+				blockMetadata.LastReadTimeType = rpc.TimeType(0)
 			}
 
 			if err := fetchedMetadataBlock.Err; err != nil {
 				blockMetadata.Err = convert.ToRPCError(err)
+			} else {
+				blockMetadata.Err = nil
 			}
 
 			blocksMetadata.Blocks = append(blocksMetadata.Blocks, blockMetadata)

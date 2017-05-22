@@ -66,7 +66,7 @@ func TestSessionWrite(t *testing.T) {
 		assert.Equal(t, w.id, string(write.request.ID))
 		assert.Equal(t, w.value, write.request.Datapoint.Value)
 		assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
-		assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampType)
+		assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
 		assert.NotNil(t, write.completionFn)
 	}})
 

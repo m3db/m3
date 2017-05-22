@@ -49,16 +49,17 @@ func TestPeerBlocksMetadataIter(t *testing.T) {
 	peer := newHostQueue(h, nil, nil, opts)
 	now := time.Now()
 	checksums := []uint32{1, 2, 3}
+	lastRead := now.Add(-100 * time.Millisecond)
 	inputs := []blocksMetadata{
 		{peer: peer, id: ts.StringID("foo"), blocks: []blockMetadata{
 			{start: now, size: int64(1), checksum: &checksums[0]},
-			{start: now.Add(time.Second), size: int64(2), checksum: &checksums[1]},
+			{start: now.Add(time.Second), size: int64(2), checksum: &checksums[1], lastRead: lastRead},
 		}},
 		{peer: peer, id: ts.StringID("bar"), blocks: []blockMetadata{
-			{start: now, size: int64(3), checksum: &checksums[2]},
+			{start: now, size: int64(3), checksum: &checksums[2], lastRead: lastRead},
 		}},
 		{peer: peer, id: ts.StringID("baz"), blocks: []blockMetadata{
-			{start: now, size: int64(4), checksum: nil},
+			{start: now, size: int64(4), checksum: nil, lastRead: lastRead},
 		}},
 	}
 
@@ -76,7 +77,7 @@ func TestPeerBlocksMetadataIter(t *testing.T) {
 		host, blocks := it.Current()
 		var m []block.Metadata
 		for _, b := range blocks.Blocks {
-			m = append(m, block.NewMetadata(b.Start, b.Size, b.Checksum))
+			m = append(m, block.NewMetadata(b.Start, b.Size, b.Checksum, b.LastRead))
 		}
 		actualBlocks := block.NewBlocksMetadata(blocks.ID, m)
 		actual = append(actual, testHostBlocks{host, actualBlocks})
@@ -84,14 +85,18 @@ func TestPeerBlocksMetadataIter(t *testing.T) {
 
 	expected := []testHostBlocks{
 		{h, block.NewBlocksMetadata(ts.StringID("foo"), []block.Metadata{
-			block.NewMetadata(inputs[0].blocks[0].start, inputs[0].blocks[0].size, inputs[0].blocks[0].checksum),
-			block.NewMetadata(inputs[0].blocks[1].start, inputs[0].blocks[1].size, inputs[0].blocks[1].checksum),
+			block.NewMetadata(inputs[0].blocks[0].start, inputs[0].blocks[0].size,
+				inputs[0].blocks[0].checksum, inputs[0].blocks[0].lastRead),
+			block.NewMetadata(inputs[0].blocks[1].start, inputs[0].blocks[1].size,
+				inputs[0].blocks[1].checksum, inputs[0].blocks[1].lastRead),
 		})},
 		{h, block.NewBlocksMetadata(ts.StringID("bar"), []block.Metadata{
-			block.NewMetadata(inputs[1].blocks[0].start, inputs[1].blocks[0].size, inputs[1].blocks[0].checksum),
+			block.NewMetadata(inputs[1].blocks[0].start, inputs[1].blocks[0].size,
+				inputs[1].blocks[0].checksum, inputs[1].blocks[0].lastRead),
 		})},
 		{h, block.NewBlocksMetadata(ts.StringID("baz"), []block.Metadata{
-			block.NewMetadata(inputs[2].blocks[0].start, inputs[2].blocks[0].size, inputs[2].blocks[0].checksum),
+			block.NewMetadata(inputs[2].blocks[0].start, inputs[2].blocks[0].size,
+				inputs[2].blocks[0].checksum, inputs[2].blocks[0].lastRead),
 		})},
 	}
 
