@@ -386,14 +386,12 @@ func (b *dbBuffer) FetchBlocksMetadata(
 		if opts.IncludeSizes {
 			resultSize = size
 		}
-		// NB(r): Ignore if opts.IncludeChecksum because we avoid
-		// calculating checksum since block is open and is being mutated
 		var resultLastRead time.Time
 		if opts.IncludeLastRead {
 			resultLastRead = bucket.lastRead()
 		}
-		// NB(xichen): intentionally returning nil checksums for buckets
-		// because they haven't been flushed yet
+		// NB(r): Ignore if opts.IncludeChecksum because we avoid
+		// calculating checksum since block is open and is being mutated
 		res.Add(block.FetchBlockMetadataResult{
 			Start:    bucket.start,
 			Size:     resultSize,
