@@ -79,7 +79,7 @@ struct Datapoint {
 	1: required i64 timestamp
 	2: required double value
 	3: optional binary annotation
-	4: optional TimeType timestampType = TimeType.UNIX_SECONDS
+	4: optional TimeType timestampTimeType = TimeType.UNIX_SECONDS
 }
 
 struct WriteRequest {
@@ -93,7 +93,7 @@ struct FetchBatchRawRequest {
 	2: required i64 rangeEnd
 	3: required binary nameSpace
 	4: required list<binary> ids
-	5: optional TimeType rangeType = TimeType.UNIX_SECONDS
+	5: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
 }
 
 struct FetchBatchRawResult {
@@ -151,6 +151,7 @@ struct FetchBlocksMetadataRawRequest {
 	6: optional i64 pageToken
 	7: optional bool includeSizes
 	8: optional bool includeChecksums
+	9: optional bool includeLastRead
 }
 
 struct FetchBlocksMetadataRawResult {
@@ -168,6 +169,8 @@ struct BlockMetadata {
 	2: required i64 start
 	3: optional i64 size
 	4: optional i64 checksum
+	5: optional i64 lastRead
+	6: optional TimeType lastReadTimeType = TimeType.UNIX_SECONDS
 }
 
 struct WriteBatchRawRequest {

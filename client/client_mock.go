@@ -84,6 +84,16 @@ func (_mr *_MockClientRecorder) DefaultSession() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "DefaultSession")
 }
 
+func (_m *MockClient) DefaultSessionActive() bool {
+	ret := _m.ctrl.Call(_m, "DefaultSessionActive")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockClientRecorder) DefaultSessionActive() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DefaultSessionActive")
+}
+
 // Mock of Session interface
 type MockSession struct {
 	ctrl     *gomock.Controller
@@ -199,6 +209,16 @@ func (_m *MockAdminClient) DefaultSession() (Session, error) {
 
 func (_mr *_MockAdminClientRecorder) DefaultSession() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "DefaultSession")
+}
+
+func (_m *MockAdminClient) DefaultSessionActive() bool {
+	ret := _m.ctrl.Call(_m, "DefaultSessionActive")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockAdminClientRecorder) DefaultSessionActive() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "DefaultSessionActive")
 }
 
 func (_m *MockAdminClient) NewAdminSession() (AdminSession, error) {

@@ -287,14 +287,22 @@ func (_mr *_MockDatabaseBlockRecorder) StartTime() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "StartTime")
 }
 
-func (_m *MockDatabaseBlock) LastAccessTime() time.Time {
-	ret := _m.ctrl.Call(_m, "LastAccessTime")
+func (_m *MockDatabaseBlock) SetLastReadTime(value time.Time) {
+	_m.ctrl.Call(_m, "SetLastReadTime", value)
+}
+
+func (_mr *_MockDatabaseBlockRecorder) SetLastReadTime(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetLastReadTime", arg0)
+}
+
+func (_m *MockDatabaseBlock) LastReadTime() time.Time {
+	ret := _m.ctrl.Call(_m, "LastReadTime")
 	ret0, _ := ret[0].(time.Time)
 	return ret0
 }
 
-func (_mr *_MockDatabaseBlockRecorder) LastAccessTime() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "LastAccessTime")
+func (_mr *_MockDatabaseBlockRecorder) LastReadTime() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "LastReadTime")
 }
 
 func (_m *MockDatabaseBlock) Len() int {

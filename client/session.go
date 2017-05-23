@@ -750,7 +750,7 @@ func (s *session) writeAttempt(
 	state.op.request.ID = tsID.Data().Get()
 	state.op.request.Datapoint.Value = value
 	state.op.request.Datapoint.Timestamp = timestamp
-	state.op.request.Datapoint.TimestampType = timeType
+	state.op.request.Datapoint.TimestampTimeType = timeType
 	state.op.request.Datapoint.Annotation = annotation
 	state.op.completionFn = state.completionFn
 
@@ -1012,7 +1012,7 @@ func (s *session) fetchAllAttempt(
 				fetchBatchOpsByHostIdx[hostIdx] = append(fetchBatchOpsByHostIdx[hostIdx], f)
 				f.request.RangeStart = rangeStart
 				f.request.RangeEnd = rangeEnd
-				f.request.RangeType = rpc.TimeType_UNIX_NANOSECONDS
+				f.request.RangeTimeType = rpc.TimeType_UNIX_NANOSECONDS
 			}
 
 			// Append IDWithNamespace to this request
@@ -1359,6 +1359,7 @@ func (s *session) FetchBlocksFromPeers(
 						start:    rb.Start,
 						size:     rb.Size,
 						checksum: rb.Checksum,
+						lastRead: rb.LastRead,
 					},
 				},
 			}
@@ -1439,6 +1440,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 				SetJitter(true))
 		optionIncludeSizes     = true
 		optionIncludeChecksums = true
+		optionIncludeLastRead  = true
 		moreResults            = true
 	)
 	// Declare before loop to avoid redeclaring each iteration
@@ -1453,6 +1455,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 		req.PageToken = pageToken
 		req.IncludeSizes = &optionIncludeSizes
 		req.IncludeChecksums = &optionIncludeChecksums
+		req.IncludeLastRead = &optionIncludeLastRead
 
 		m.metadataFetchBatchCall.Inc(1)
 		result, err := client.FetchBlocksMetadataRaw(tctx, req)
@@ -1488,12 +1491,9 @@ func (s *session) streamBlocksMetadataFromPeer(
 					continue
 				}
 
-				if b.Size == nil {
-					s.log.WithFields(
-						xlog.NewLogField("id", elem.ID),
-						xlog.NewLogField("start", blockStart),
-					).Warnf("stream blocks metadata requested block size and not returned")
-					continue
+				var size int64
+				if b.Size != nil {
+					size = *b.Size
 				}
 
 				var pChecksum *uint32
@@ -1502,10 +1502,19 @@ func (s *session) streamBlocksMetadataFromPeer(
 					pChecksum = &value
 				}
 
+				var lastRead time.Time
+				if b.LastRead != nil {
+					value, err := convert.ToTime(*b.LastRead, b.LastReadTimeType)
+					if err == nil {
+						lastRead = value
+					}
+				}
+
 				blockMetas = append(blockMetas, blockMetadata{
 					start:    blockStart,
-					size:     *b.Size,
+					size:     size,
 					checksum: pChecksum,
+					lastRead: lastRead,
 				})
 			}
 			ch <- blocksMetadata{
@@ -2743,6 +2752,7 @@ type blockMetadata struct {
 	start     time.Time
 	size      int64
 	checksum  *uint32
+	lastRead  time.Time
 	reattempt blockMetadataReattempt
 }
 
@@ -2831,7 +2841,7 @@ func (it *metadataIter) Next() bool {
 	}
 	it.blocks = it.blocks[:0]
 	for _, b := range m.blocks {
-		bm := block.NewMetadata(b.start, b.size, b.checksum)
+		bm := block.NewMetadata(b.start, b.size, b.checksum, b.lastRead)
 		it.blocks = append(it.blocks, bm)
 	}
 	it.metadata = block.NewBlocksMetadata(m.id, it.blocks)

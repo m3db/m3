@@ -105,6 +105,11 @@ func (s *dbSeries) log() xlog.Logger {
 	return log
 }
 
+func (s *dbSeries) now() time.Time {
+	nowFn := s.opts.ClockOptions().NowFn()
+	return nowFn()
+}
+
 func (s *dbSeries) ID() ts.ID {
 	s.RLock()
 	id := s.id
@@ -146,7 +151,7 @@ type updateBlocksResult struct {
 func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 	var (
 		result       updateBlocksResult
-		now          = s.opts.ClockOptions().NowFn()()
+		now          = s.now()
 		ropts        = s.opts.RetentionOptions()
 		retriever    = s.blockRetriever
 		checkUnwire  = retriever != nil && ropts.BlockDataExpiry()
@@ -170,8 +175,8 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 
 		var unwired bool
 		if checkUnwire {
-			sinceLastAccessed := now.Sub(currBlock.LastAccessTime())
-			if sinceLastAccessed >= wiredTimeout &&
+			sinceLastRead := now.Sub(currBlock.LastReadTime())
+			if sinceLastRead >= wiredTimeout &&
 				retriever.IsBlockRetrievable(start) {
 				// NB(r): Each block needs shared ref to the series ID
 				// or else each block needs to have a copy of the ID
@@ -252,6 +257,8 @@ func (s *dbSeries) ReadEncoded(
 		alignedEnd = alignedEnd.Add(-1 * blockSize)
 	}
 
+	now := s.now()
+
 	s.RLock()
 	defer s.RUnlock()
 
@@ -271,6 +278,8 @@ func (s *dbSeries) ReadEncoded(
 				}
 				if stream != nil {
 					results = append(results, []xio.SegmentReader{stream})
+					// NB(r): Mark this block as read now
+					block.SetLastReadTime(now)
 				}
 			}
 		}
@@ -319,8 +328,7 @@ func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 func (s *dbSeries) FetchBlocksMetadata(
 	ctx context.Context,
 	start, end time.Time,
-	includeSizes bool,
-	includeChecksums bool,
+	opts block.FetchBlocksMetadataOptions,
 ) block.FetchBlocksMetadataResult {
 	blockSize := s.opts.RetentionOptions().BlockSize()
 	res := s.opts.FetchBlockMetadataResultsPool().Get()
@@ -336,23 +344,31 @@ func (s *dbSeries) FetchBlocksMetadata(
 			continue
 		}
 		var (
-			pSize     *int64
-			pChecksum *uint32
+			size     int64
+			checksum *uint32
+			lastRead time.Time
 		)
-		if includeSizes {
-			size := int64(b.Len())
-			pSize = &size
+		if opts.IncludeSizes {
+			size = int64(b.Len())
 		}
-		if includeChecksums {
-			checksum := b.Checksum()
-			pChecksum = &checksum
+		if opts.IncludeChecksums {
+			v := b.Checksum()
+			checksum = &v
 		}
-		res.Add(block.NewFetchBlockMetadataResult(t, pSize, pChecksum, nil))
+		if opts.IncludeLastRead {
+			lastRead = b.LastReadTime()
+		}
+		res.Add(block.FetchBlockMetadataResult{
+			Start:    t,
+			Size:     size,
+			Checksum: checksum,
+			LastRead: lastRead,
+		})
 	}
 
 	// Iterate over the encoders in the database buffer
 	if !s.buffer.IsEmpty() {
-		bufferResults := s.buffer.FetchBlocksMetadata(ctx, start, end, includeSizes, includeChecksums)
+		bufferResults := s.buffer.FetchBlocksMetadata(ctx, start, end, opts)
 		for _, result := range bufferResults.Results() {
 			res.Add(result)
 		}

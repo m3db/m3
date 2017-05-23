@@ -475,6 +475,9 @@ func TestBufferFetchBlocks(t *testing.T) {
 func TestBufferFetchBlocksMetadata(t *testing.T) {
 	b, opts, _ := newTestBufferBucketWithData(t)
 
+	expectedLastRead := time.Now()
+	b.lastReadUnixNanos = expectedLastRead.UnixNano()
+
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
@@ -486,10 +489,17 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 
 	expectedSize := int64(b.streamsLen())
 
-	res := buffer.FetchBlocksMetadata(ctx, start, end, true, true).Results()
-	require.Equal(t, 1, len(res))
-	require.Equal(t, b.start, res[0].Start)
-	require.Equal(t, expectedSize, *res[0].Size)
+	fetchOpts := block.FetchBlocksMetadataOptions{
+		IncludeSizes:     true,
+		IncludeChecksums: true,
+		IncludeLastRead:  true,
+	}
+	res := buffer.FetchBlocksMetadata(ctx, start, end, fetchOpts).Results()
+	assert.Equal(t, 1, len(res))
+	assert.Equal(t, b.start, res[0].Start)
+	assert.Equal(t, expectedSize, res[0].Size)
+	assert.Equal(t, (*uint32)(nil), res[0].Checksum) // checksum is never available for buffer block
+	assert.True(t, expectedLastRead.Equal(res[0].LastRead))
 }
 
 func TestBufferReadEncodedValidAfterDrain(t *testing.T) {

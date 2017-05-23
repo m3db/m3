@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	nchannel "github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/sync"
@@ -56,9 +57,9 @@ func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, names
 			elem := &rpc.WriteBatchRawRequestElement{
 				ID: series.ID.Data().Get(),
 				Datapoint: &rpc.Datapoint{
-					Timestamp:     xtime.ToNormalizedTime(dp.Timestamp, time.Second),
-					Value:         dp.Value,
-					TimestampType: rpc.TimeType_UNIX_SECONDS,
+					Timestamp:         xtime.ToNormalizedTime(dp.Timestamp, time.Second),
+					Value:             dp.Value,
+					TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
 				},
 			}
 			elems = append(elems, elem)
@@ -101,11 +102,10 @@ func m3dbClient(opts client.Options) (client.Client, error) {
 
 // m3dbClientWriteBatch writes a data map using an m3db client.
 func m3dbClientWriteBatch(client client.Client, workerPool xsync.WorkerPool, namespace ts.ID, seriesList seriesList) error {
-	session, err := client.NewSession()
+	session, err := client.DefaultSession()
 	if err != nil {
 		return err
 	}
-	defer session.Close()
 
 	var (
 		errCh = make(chan error, 1)
@@ -141,11 +141,10 @@ func m3dbClientWriteBatch(client client.Client, workerPool xsync.WorkerPool, nam
 
 // m3dbClientFetch fulfills a fetch request using an m3db client.
 func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]ts.Datapoint, error) {
-	session, err := client.NewSession()
+	session, err := client.DefaultSession()
 	if err != nil {
 		return nil, err
 	}
-	defer session.Close()
 
 	iter, err := session.Fetch(
 		req.NameSpace,
@@ -171,11 +170,10 @@ func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]ts.Datapoin
 
 // m3dbClientTruncate fulfills a truncation request using an m3db client.
 func m3dbClientTruncate(c client.Client, req *rpc.TruncateRequest) (int64, error) {
-	session, err := c.NewSession()
+	session, err := c.DefaultSession()
 	if err != nil {
 		return 0, err
 	}
-	defer session.Close()
 
 	adminSession, ok := session.(client.AdminSession)
 	if !ok {
@@ -183,4 +181,47 @@ func m3dbClientTruncate(c client.Client, req *rpc.TruncateRequest) (int64, error
 	}
 
 	return adminSession.Truncate(ts.BinaryID(checked.NewBytes(req.NameSpace, nil)))
+}
+
+func m3dbClientFetchBlocksMetadata(
+	c client.AdminClient,
+	namespace ts.ID,
+	shards []uint32,
+	start, end time.Time,
+) (map[uint32][]block.ReplicaMetadata, error) {
+	session, err := c.DefaultAdminSession()
+	if err != nil {
+		return nil, err
+	}
+
+	metadatasByShard := make(map[uint32][]block.ReplicaMetadata, 10)
+
+	// iterate over all shards
+	for _, shardID := range shards {
+		var metadatas []block.ReplicaMetadata
+		iter, err := session.FetchBlocksMetadataFromPeers(namespace, shardID, start, end)
+		if err != nil {
+			return nil, err
+		}
+
+		for iter.Next() {
+			host, blocksMetadata := iter.Current()
+			for _, blockMetadata := range blocksMetadata.Blocks {
+				metadatas = append(metadatas, block.ReplicaMetadata{
+					Metadata: blockMetadata,
+					Host:     host,
+					ID:       blocksMetadata.ID,
+				})
+			}
+		}
+		if err := iter.Err(); err != nil {
+			return nil, err
+		}
+
+		if metadatas != nil {
+			metadatasByShard[shardID] = metadatas
+		}
+	}
+
+	return metadatasByShard, nil
 }

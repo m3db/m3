@@ -192,11 +192,11 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 
 	ids := [][]byte{[]byte("foo"), []byte("bar")}
 	r, err := service.FetchBatchRaw(tctx, &rpc.FetchBatchRawRequest{
-		RangeStart: start.Unix(),
-		RangeEnd:   end.Unix(),
-		RangeType:  rpc.TimeType_UNIX_SECONDS,
-		NameSpace:  []byte(nsID),
-		Ids:        ids,
+		RangeStart:    start.Unix(),
+		RangeEnd:      end.Unix(),
+		RangeTimeType: rpc.TimeType_UNIX_SECONDS,
+		NameSpace:     []byte(nsID),
+		Ids:           ids,
 	})
 	require.NoError(t, err)
 
@@ -360,6 +360,7 @@ func TestServiceFetchBlocksMetadataRaw(t *testing.T) {
 	nextPageToken := &next
 	includeSizes := true
 	includeChecksums := true
+	includeLastRead := true
 
 	nsID := "metrics"
 
@@ -367,14 +368,15 @@ func TestServiceFetchBlocksMetadataRaw(t *testing.T) {
 		start    time.Time
 		size     int64
 		checksum uint32
+		lastRead time.Time
 	}{
 		"foo": {
-			{start.Add(0 * time.Hour), 16, 111},
-			{start.Add(2 * time.Hour), 32, 222},
+			{start.Add(0 * time.Hour), 16, 111, time.Now().Add(-time.Minute)},
+			{start.Add(2 * time.Hour), 32, 222, time.Time{}},
 		},
 		"bar": {
-			{start.Add(0 * time.Hour), 32, 222},
-			{start.Add(2 * time.Hour), 64, 333},
+			{start.Add(0 * time.Hour), 32, 222, time.Time{}},
+			{start.Add(2 * time.Hour), 64, 333, time.Now().Add(-time.Minute)},
 		},
 	}
 	ids := make([][]byte, 0, len(series))
@@ -390,16 +392,22 @@ func TestServiceFetchBlocksMetadataRaw(t *testing.T) {
 			entry := v
 			blocks.Add(block.FetchBlockMetadataResult{
 				Start:    entry.start,
-				Size:     &entry.size,
+				Size:     entry.size,
 				Checksum: &entry.checksum,
+				LastRead: entry.lastRead,
 				Err:      nil,
 			})
 		}
 		mockResult.Add(metadata)
 	}
+	opts := block.FetchBlocksMetadataOptions{
+		IncludeSizes:     includeSizes,
+		IncludeChecksums: includeChecksums,
+		IncludeLastRead:  includeLastRead,
+	}
 	mockDB.EXPECT().
 		FetchBlocksMetadata(ctx, ts.NewIDMatcher(nsID), uint32(0), start, end,
-			limit, pageToken, includeSizes, includeChecksums).
+			limit, pageToken, opts).
 		Return(mockResult, nextPageToken, nil)
 
 	r, err := service.FetchBlocksMetadataRaw(tctx, &rpc.FetchBlocksMetadataRawRequest{
@@ -411,6 +419,7 @@ func TestServiceFetchBlocksMetadataRaw(t *testing.T) {
 		PageToken:        &pageToken,
 		IncludeSizes:     &includeSizes,
 		IncludeChecksums: &includeChecksums,
+		IncludeLastRead:  &includeLastRead,
 	})
 	require.NoError(t, err)
 
@@ -426,6 +435,7 @@ func TestServiceFetchBlocksMetadataRaw(t *testing.T) {
 			assert.Equal(t, expectBlock.start.UnixNano(), block.Start)
 			require.NotNil(t, block.Size)
 			require.NotNil(t, block.Checksum)
+			require.NotNil(t, block.LastRead)
 		}
 	}
 }
@@ -458,9 +468,9 @@ func TestServiceWrite(t *testing.T) {
 		NameSpace: nsID,
 		ID:        id,
 		Datapoint: &rpc.Datapoint{
-			Timestamp:     at.Unix(),
-			TimestampType: rpc.TimeType_UNIX_SECONDS,
-			Value:         value,
+			Timestamp:         at.Unix(),
+			TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
+			Value:             value,
 		},
 	})
 	require.NoError(t, err)
@@ -500,9 +510,9 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 		elem := &rpc.WriteBatchRawRequestElement{
 			ID: []byte(w.id),
 			Datapoint: &rpc.Datapoint{
-				Timestamp:     w.t.Unix(),
-				TimestampType: rpc.TimeType_UNIX_SECONDS,
-				Value:         w.v,
+				Timestamp:         w.t.Unix(),
+				TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
+				Value:             w.v,
 			},
 		}
 		elements = append(elements, elem)

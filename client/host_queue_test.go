@@ -691,9 +691,9 @@ func testWriteOp(
 	w.namespace = ts.StringID(namespace)
 	w.request.ID = []byte(id)
 	w.request.Datapoint = &rpc.Datapoint{
-		Value:         value,
-		Timestamp:     timestamp,
-		TimestampType: timeType,
+		Value:             value,
+		Timestamp:         timestamp,
+		TimestampTimeType: timeType,
 	}
 	w.completionFn = completionFn
 	return w

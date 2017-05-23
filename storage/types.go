@@ -100,8 +100,7 @@ type Database interface {
 		start, end time.Time,
 		limit int64,
 		pageToken int64,
-		includeSizes bool,
-		includeChecksums bool,
+		opts block.FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResults, *int64, error)
 
 	// Bootstrap bootstraps the database.
@@ -190,8 +189,7 @@ type databaseNamespace interface {
 		start, end time.Time,
 		limit int64,
 		pageToken int64,
-		includeSizes bool,
-		includeChecksums bool,
+		opts block.FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResults, *int64, error)
 
 	// Bootstrap performs bootstrapping
@@ -265,8 +263,7 @@ type databaseShard interface {
 		start, end time.Time,
 		limit int64,
 		pageToken int64,
-		includeSizes bool,
-		includeChecksums bool,
+		opts block.FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResults, *int64)
 
 	Bootstrap(

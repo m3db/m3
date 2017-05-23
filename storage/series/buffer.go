@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -80,8 +81,7 @@ type databaseBuffer interface {
 	FetchBlocksMetadata(
 		ctx context.Context,
 		start, end time.Time,
-		includeSizes bool,
-		includeChecksums bool,
+		opts block.FetchBlocksMetadataOptions,
 	) block.FetchBlockMetadataResults
 
 	IsEmpty() bool
@@ -240,6 +240,10 @@ func bucketDrainAndReset(now time.Time, b *dbBuffer, idx int, start time.Time) i
 			mergedOutOfOrderBlocks = 1
 		}
 		if merged.block.Len() > 0 {
+			// If this block was read mark it as such
+			if lastRead := b.buckets[idx].lastRead(); !lastRead.IsZero() {
+				merged.block.SetLastReadTime(lastRead)
+			}
 			b.drainFn(merged.block)
 		} else {
 			log := b.opts.InstrumentOptions().Logger()
@@ -306,7 +310,7 @@ func (b *dbBuffer) computedForEachBucketAsc(
 
 func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xio.SegmentReader {
 	// TODO(r): pool these results arrays
-	var results [][]xio.SegmentReader
+	var res [][]xio.SegmentReader
 	b.forEachBucketAsc(func(bucket *dbBufferBucket) {
 		if !bucket.canRead() {
 			return
@@ -318,10 +322,18 @@ func (b *dbBuffer) ReadEncoded(ctx context.Context, start, end time.Time) [][]xi
 			return
 		}
 
-		results = append(results, bucket.streams(ctx))
+		res = append(res, bucket.streams(ctx))
+
+		// NB(r): Store the last read time, should not set this when
+		// calling FetchBlocks as a read is differentiated from
+		// a FetchBlocks call. One is initiated by an external
+		// entity and the other is used for streaming blocks between
+		// the storage nodes. This distinction is important as this
+		// data is important for use with understanding access patterns, etc.
+		bucket.setLastRead(b.nowFn())
 	})
 
-	return results
+	return res
 }
 
 func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult {
@@ -354,8 +366,7 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 func (b *dbBuffer) FetchBlocksMetadata(
 	ctx context.Context,
 	start, end time.Time,
-	includeSizes bool,
-	includeChecksums bool,
+	opts block.FetchBlocksMetadataOptions,
 ) block.FetchBlockMetadataResults {
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	res := b.opts.FetchBlockMetadataResultsPool().Get()
@@ -371,13 +382,21 @@ func (b *dbBuffer) FetchBlocksMetadata(
 		if size == 0 {
 			return
 		}
-		var pSize *int64
-		if includeSizes {
-			pSize = &size
+		var resultSize int64
+		if opts.IncludeSizes {
+			resultSize = size
 		}
-		// NB(xichen): intentionally returning nil checksums for buckets
-		// because they haven't been flushed yet
-		res.Add(block.NewFetchBlockMetadataResult(bucket.start, pSize, nil, nil))
+		var resultLastRead time.Time
+		if opts.IncludeLastRead {
+			resultLastRead = bucket.lastRead()
+		}
+		// NB(r): Ignore if opts.IncludeChecksum because we avoid
+		// calculating checksum since block is open and is being mutated
+		res.Add(block.FetchBlockMetadataResult{
+			Start:    bucket.start,
+			Size:     resultSize,
+			LastRead: resultLastRead,
+		})
 	})
 
 	return res
@@ -386,13 +405,14 @@ func (b *dbBuffer) FetchBlocksMetadata(
 type dbBufferBucketStreamFn func(stream xio.SegmentReader)
 
 type dbBufferBucket struct {
-	ctx          context.Context
-	opts         Options
-	start        time.Time
-	encoders     []inOrderEncoder
-	bootstrapped []block.DatabaseBlock
-	empty        bool
-	drained      bool
+	ctx               context.Context
+	opts              Options
+	start             time.Time
+	encoders          []inOrderEncoder
+	bootstrapped      []block.DatabaseBlock
+	lastReadUnixNanos int64
+	empty             bool
+	drained           bool
 }
 
 type inOrderEncoder struct {
@@ -419,6 +439,7 @@ func (b *dbBufferBucket) resetTo(
 		encoder:     encoder,
 	})
 	b.bootstrapped = nil
+	atomic.StoreInt64(&b.lastReadUnixNanos, 0)
 	b.empty = true
 	b.drained = false
 }
@@ -538,6 +559,14 @@ func (b *dbBufferBucket) streamsLen() int {
 		length += b.encoders[i].encoder.StreamLen()
 	}
 	return length
+}
+
+func (b *dbBufferBucket) setLastRead(value time.Time) {
+	atomic.StoreInt64(&b.lastReadUnixNanos, value.UnixNano())
+}
+
+func (b *dbBufferBucket) lastRead() time.Time {
+	return time.Unix(0, atomic.LoadInt64(&b.lastReadUnixNanos))
 }
 
 func (b *dbBufferBucket) resetEncoders() {

@@ -153,7 +153,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 		return tterrors.NewBadRequestError(fmt.Errorf("requires datapoint"))
 	}
 	dp := req.Datapoint
-	unit, unitErr := convert.ToUnit(dp.TimestampType)
+	unit, unitErr := convert.ToUnit(dp.TimestampTimeType)
 	if unitErr != nil {
 		return tterrors.NewBadRequestError(unitErr)
 	}

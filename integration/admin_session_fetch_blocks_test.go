@@ -44,8 +44,8 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	testSetup.storageOpts =
-		testSetup.storageOpts.SetRetentionOptions(testSetup.storageOpts.RetentionOptions().
+	testSetup.storageOpts = testSetup.storageOpts.SetRetentionOptions(
+		testSetup.storageOpts.RetentionOptions().
 			SetBufferDrain(time.Second).
 			SetRetentionPeriod(6 * time.Hour))
 	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
@@ -72,9 +72,10 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
 	}
 	for _, input := range inputData {
-		testSetup.setNowFn(input.start)
-		testData := generateTestData(input.metricNames, input.numPoints, input.start)
-		seriesMaps[input.start] = testData
+		start := input.start
+		testSetup.setNowFn(start)
+		testData := generateTestData(input.metricNames, input.numPoints, start)
+		seriesMaps[start] = testData
 		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
 	}
 	log.Debug("test data is now written")
@@ -85,8 +86,14 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	time.Sleep(testSetup.storageOpts.RetentionOptions().BufferDrain() * 4)
 
 	// Retrieve written data using the AdminSession APIs (FetchMetadataBlocksFromPeers/FetchBlocksFromPeers)
-	metadatasByShard := retrieveAllBlocksMetadata(t, testSetup, testNamespaces[0], now, later)
-	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, testNamespaces[0], metadatasByShard)
+	adminClient := testSetup.m3dbAdminClient
+	metadatasByShard, err := m3dbClientFetchBlocksMetadata(adminClient,
+		testNamespaces[0], testSetup.shardSet.AllIDs(), now, later)
+	require.NoError(t, err)
+	require.NotEmpty(t, metadatasByShard)
+
+	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup,
+		testNamespaces[0], metadatasByShard)
 
 	// Verify retrieved data matches what we've written
 	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
@@ -188,48 +195,4 @@ func testSetupToSeriesMaps(
 		require.NoError(t, blocksIter.Err())
 	}
 	return seriesMap
-}
-
-func retrieveAllBlocksMetadata(
-	t *testing.T,
-	testSetup *testSetup,
-	namespace ts.ID,
-	start time.Time,
-	end time.Time,
-) map[uint32][]block.ReplicaMetadata {
-	session, err := testSetup.m3dbAdminClient.DefaultAdminSession()
-	require.NoError(t, err)
-	require.NotNil(t, session)
-
-	metadatasByShard := make(map[uint32][]block.ReplicaMetadata, 10)
-
-	// iterate over all shards
-	for _, shardID := range testSetup.shardSet.AllIDs() {
-		var metadatas []block.ReplicaMetadata
-		iter, err := session.FetchBlocksMetadataFromPeers(namespace, shardID, start, end)
-		require.NoError(t, err)
-
-		for iter.Next() {
-			host, blocksMetadata := iter.Current()
-			for _, blockMetadata := range blocksMetadata.Blocks {
-				metadatas = append(metadatas, block.ReplicaMetadata{
-					Metadata: block.Metadata{
-						Start:    blockMetadata.Start,
-						Checksum: blockMetadata.Checksum,
-						Size:     blockMetadata.Size,
-					},
-					Host: host,
-					ID:   blocksMetadata.ID,
-				})
-			}
-		}
-		require.NoError(t, iter.Err())
-
-		if metadatas != nil {
-			metadatasByShard[shardID] = metadatas
-		}
-	}
-
-	require.NotEmpty(t, metadatasByShard)
-	return metadatasByShard
 }

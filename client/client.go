@@ -101,3 +101,9 @@ func (c *client) NewAdminSession() (AdminSession, error) {
 func (c *client) DefaultAdminSession() (AdminSession, error) {
 	return c.defaultSession()
 }
+
+func (c *client) DefaultSessionActive() bool {
+	c.Lock()
+	defer c.Unlock()
+	return c.session != nil
+}
