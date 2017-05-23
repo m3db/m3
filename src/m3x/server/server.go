@@ -49,6 +49,9 @@ type Handler interface {
 	// Handle handles the data received on the connection, this function
 	// should be blocking until the connection is closed or received error.
 	Handle(conn net.Conn)
+
+	// Close closes the handler.
+	Close()
 }
 
 type serverMetrics struct {
@@ -144,6 +147,7 @@ func (s *server) Close() {
 		return
 	}
 	s.closed = true
+
 	close(s.closedChan)
 	openConns := make([]net.Conn, len(s.conns))
 	copy(openConns, s.conns)
@@ -161,6 +165,9 @@ func (s *server) Close() {
 
 	// Wait for all connection handlers to finish.
 	s.wgConns.Wait()
+
+	// Close the handler.
+	s.handler.Close()
 }
 
 func (s *server) addConnection(conn net.Conn) bool {
