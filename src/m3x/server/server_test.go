@@ -90,8 +90,11 @@ func TestServerListenAndClose(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
+	require.False(t, h.isClosed())
+
 	s.Close()
 
+	require.True(t, h.isClosed())
 	require.Equal(t, int32(numClients), atomic.LoadInt32(numAdded))
 	require.Equal(t, int32(numClients), atomic.LoadInt32(numRemoved))
 	require.Equal(t, numClients, h.called())
@@ -101,9 +104,9 @@ func TestServerListenAndClose(t *testing.T) {
 type mockHandler struct {
 	sync.Mutex
 
-	n                  int
-	received           []string
-	handleConnectionFn func(conn net.Conn)
+	n        int
+	closed   bool
+	received []string
 }
 
 func newMockHandler() *mockHandler { return &mockHandler{} }
@@ -116,6 +119,19 @@ func (h *mockHandler) Handle(conn net.Conn) {
 	h.n++
 	h.received = append(h.received, string(b[:n]))
 	h.Unlock()
+}
+
+func (h *mockHandler) Close() {
+	h.Lock()
+	h.closed = true
+	h.Unlock()
+}
+
+func (h *mockHandler) isClosed() bool {
+	h.Lock()
+	defer h.Unlock()
+
+	return h.closed
 }
 
 func (h *mockHandler) called() int {
