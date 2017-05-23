@@ -44,6 +44,10 @@ func ToTime(value int64, timeType rpc.TimeType) (time.Time, error) {
 	if err != nil {
 		return timeZero, err
 	}
+	// NB(r): Doesn't matter what unit is if we have zero of them.
+	if value == 0 {
+		return timeZero, nil
+	}
 	return xtime.FromNormalizedTime(value, unit), nil
 }
 

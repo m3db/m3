@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	nchannel "github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/sync"
@@ -183,4 +184,48 @@ func m3dbClientTruncate(c client.Client, req *rpc.TruncateRequest) (int64, error
 	}
 
 	return adminSession.Truncate(ts.BinaryID(checked.NewBytes(req.NameSpace, nil)))
+}
+
+func m3dbClientFetchBlocksMetadata(
+	c client.AdminClient,
+	namespace ts.ID,
+	shards []uint32,
+	start, end time.Time,
+) (map[uint32][]block.ReplicaMetadata, error) {
+	session, err := c.NewAdminSession()
+	if err != nil {
+		return nil, err
+	}
+	defer session.Close()
+
+	metadatasByShard := make(map[uint32][]block.ReplicaMetadata, 10)
+
+	// iterate over all shards
+	for _, shardID := range shards {
+		var metadatas []block.ReplicaMetadata
+		iter, err := session.FetchBlocksMetadataFromPeers(namespace, shardID, start, end)
+		if err != nil {
+			return nil, err
+		}
+
+		for iter.Next() {
+			host, blocksMetadata := iter.Current()
+			for _, blockMetadata := range blocksMetadata.Blocks {
+				metadatas = append(metadatas, block.ReplicaMetadata{
+					Metadata: blockMetadata,
+					Host:     host,
+					ID:       blocksMetadata.ID,
+				})
+			}
+		}
+		if err := iter.Err(); err != nil {
+			return nil, err
+		}
+
+		if metadatas != nil {
+			metadatasByShard[shardID] = metadatas
+		}
+	}
+
+	return metadatasByShard, nil
 }
