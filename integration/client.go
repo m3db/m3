@@ -102,11 +102,10 @@ func m3dbClient(opts client.Options) (client.Client, error) {
 
 // m3dbClientWriteBatch writes a data map using an m3db client.
 func m3dbClientWriteBatch(client client.Client, workerPool xsync.WorkerPool, namespace ts.ID, seriesList seriesList) error {
-	session, err := client.NewSession()
+	session, err := client.DefaultSession()
 	if err != nil {
 		return err
 	}
-	defer session.Close()
 
 	var (
 		errCh = make(chan error, 1)
@@ -142,11 +141,10 @@ func m3dbClientWriteBatch(client client.Client, workerPool xsync.WorkerPool, nam
 
 // m3dbClientFetch fulfills a fetch request using an m3db client.
 func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]ts.Datapoint, error) {
-	session, err := client.NewSession()
+	session, err := client.DefaultSession()
 	if err != nil {
 		return nil, err
 	}
-	defer session.Close()
 
 	iter, err := session.Fetch(
 		req.NameSpace,
@@ -172,11 +170,10 @@ func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]ts.Datapoin
 
 // m3dbClientTruncate fulfills a truncation request using an m3db client.
 func m3dbClientTruncate(c client.Client, req *rpc.TruncateRequest) (int64, error) {
-	session, err := c.NewSession()
+	session, err := c.DefaultSession()
 	if err != nil {
 		return 0, err
 	}
-	defer session.Close()
 
 	adminSession, ok := session.(client.AdminSession)
 	if !ok {
@@ -192,11 +189,10 @@ func m3dbClientFetchBlocksMetadata(
 	shards []uint32,
 	start, end time.Time,
 ) (map[uint32][]block.ReplicaMetadata, error) {
-	session, err := c.NewAdminSession()
+	session, err := c.DefaultAdminSession()
 	if err != nil {
 		return nil, err
 	}
-	defer session.Close()
 
 	metadatasByShard := make(map[uint32][]block.ReplicaMetadata, 10)
 

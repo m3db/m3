@@ -118,6 +118,9 @@ type Client interface {
 
 	// DefaultSession creates a default session that gets reused
 	DefaultSession() (Session, error)
+
+	// DefaultSessionActive returns whether the default session is active
+	DefaultSessionActive() bool
 }
 
 // Session can write and read to a cluster
