@@ -38,7 +38,7 @@ func NewShardAwareDeploymentPlanner(options placement.DeploymentOptions) placeme
 	return shardAwareDeploymentPlanner{options: options}
 }
 
-func (dp shardAwareDeploymentPlanner) DeploymentSteps(p services.ServicePlacement) [][]services.PlacementInstance {
+func (dp shardAwareDeploymentPlanner) DeploymentSteps(p services.Placement) [][]services.PlacementInstance {
 	instances := p.Instances()
 	sort.Sort(placement.ByIDAscending(instances))
 	var steps sortableSteps

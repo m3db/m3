@@ -21,9 +21,21 @@
 package shard
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
+
+	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
+)
+
+var (
+	errNilShardProto          = errors.New("nil shard proto")
+	errInvalidShardState      = errors.New("invalid shard state")
+	errInvalidProtoShardState = errors.New("invalid proto shard state")
+
+	defaultShardState      State
+	defaultProtoShardState placementproto.ShardState
 )
 
 // State represents the state of a shard
@@ -39,6 +51,20 @@ const (
 	// Leaving represents a shard that is intending to be removed
 	Leaving
 )
+
+// NewShardStateFromProto creates new shard state from proto.
+func NewShardStateFromProto(state placementproto.ShardState) (State, error) {
+	switch state {
+	case placementproto.ShardState_INITIALIZING:
+		return Initializing, nil
+	case placementproto.ShardState_AVAILABLE:
+		return Available, nil
+	case placementproto.ShardState_LEAVING:
+		return Leaving, nil
+	default:
+		return defaultShardState, errInvalidProtoShardState
+	}
+}
 
 // States returns all the possible states
 func States() []State {
@@ -69,6 +95,18 @@ type Shard interface {
 
 // NewShard returns a new Shard
 func NewShard(id uint32) Shard { return &shard{id: id, state: Unknown} }
+
+// NewShardFromProto create a new shard from proto.
+func NewShardFromProto(shard *placementproto.Shard) (Shard, error) {
+	state, err := NewShardStateFromProto(shard.State)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewShard(shard.Id).
+		SetState(state).
+		SetSourceID(shard.SourceId), nil
+}
 
 type shard struct {
 	id       uint32
@@ -140,6 +178,19 @@ func NewShards(ss []Shard) Shards {
 		shardMap[s.ID()] = s
 	}
 	return shards{shardsMap: shardMap}
+}
+
+// NewShardsFromProto creates a new set of shards from proto.
+func NewShardsFromProto(shards []*placementproto.Shard) (Shards, error) {
+	allShards := make([]Shard, 0, len(shards))
+	for _, s := range shards {
+		shard, err := NewShardFromProto(s)
+		if err != nil {
+			return nil, err
+		}
+		allShards = append(allShards, shard)
+	}
+	return NewShards(allShards), nil
 }
 
 type shards struct {
@@ -215,3 +266,10 @@ func (s shards) String() string {
 	}
 	return fmt.Sprintf("[%s]", strings.Join(strs, ", "))
 }
+
+// ShardsByIDAscending sorts shards by their ids in ascending order.
+type ShardsByIDAscending []*placementproto.Shard
+
+func (su ShardsByIDAscending) Len() int           { return len(su) }
+func (su ShardsByIDAscending) Less(i, j int) bool { return su[i].Id < su[j].Id }
+func (su ShardsByIDAscending) Swap(i, j int)      { su[i], su[j] = su[j], su[i] }

@@ -25,7 +25,9 @@ package services
 
 import (
 	gomock "github.com/golang/mock/gomock"
+	kv "github.com/m3db/m3cluster/kv"
 	shard "github.com/m3db/m3cluster/shard"
+	clock "github.com/m3db/m3x/clock"
 	instrument "github.com/m3db/m3x/instrument"
 	watch "github.com/m3db/m3x/watch"
 	time "time"
@@ -757,9 +759,9 @@ func (_m *MockPlacementService) EXPECT() *_MockPlacementServiceRecorder {
 	return _m.recorder
 }
 
-func (_m *MockPlacementService) BuildInitialPlacement(instances []PlacementInstance, numShards int, rf int) (ServicePlacement, error) {
+func (_m *MockPlacementService) BuildInitialPlacement(instances []PlacementInstance, numShards int, rf int) (Placement, error) {
 	ret := _m.ctrl.Call(_m, "BuildInitialPlacement", instances, numShards, rf)
-	ret0, _ := ret[0].(ServicePlacement)
+	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -768,9 +770,9 @@ func (_mr *_MockPlacementServiceRecorder) BuildInitialPlacement(arg0, arg1, arg2
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BuildInitialPlacement", arg0, arg1, arg2)
 }
 
-func (_m *MockPlacementService) AddReplica() (ServicePlacement, error) {
+func (_m *MockPlacementService) AddReplica() (Placement, error) {
 	ret := _m.ctrl.Call(_m, "AddReplica")
-	ret0, _ := ret[0].(ServicePlacement)
+	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -779,9 +781,9 @@ func (_mr *_MockPlacementServiceRecorder) AddReplica() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AddReplica")
 }
 
-func (_m *MockPlacementService) AddInstance(candidates []PlacementInstance) (ServicePlacement, PlacementInstance, error) {
+func (_m *MockPlacementService) AddInstance(candidates []PlacementInstance) (Placement, PlacementInstance, error) {
 	ret := _m.ctrl.Call(_m, "AddInstance", candidates)
-	ret0, _ := ret[0].(ServicePlacement)
+	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(PlacementInstance)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -791,9 +793,9 @@ func (_mr *_MockPlacementServiceRecorder) AddInstance(arg0 interface{}) *gomock.
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AddInstance", arg0)
 }
 
-func (_m *MockPlacementService) RemoveInstance(leavingInstanceID string) (ServicePlacement, error) {
+func (_m *MockPlacementService) RemoveInstance(leavingInstanceID string) (Placement, error) {
 	ret := _m.ctrl.Call(_m, "RemoveInstance", leavingInstanceID)
-	ret0, _ := ret[0].(ServicePlacement)
+	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -802,9 +804,9 @@ func (_mr *_MockPlacementServiceRecorder) RemoveInstance(arg0 interface{}) *gomo
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "RemoveInstance", arg0)
 }
 
-func (_m *MockPlacementService) ReplaceInstance(leavingInstanceID string, candidates []PlacementInstance) (ServicePlacement, []PlacementInstance, error) {
+func (_m *MockPlacementService) ReplaceInstance(leavingInstanceID string, candidates []PlacementInstance) (Placement, []PlacementInstance, error) {
 	ret := _m.ctrl.Call(_m, "ReplaceInstance", leavingInstanceID, candidates)
-	ret0, _ := ret[0].(ServicePlacement)
+	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].([]PlacementInstance)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -834,9 +836,9 @@ func (_mr *_MockPlacementServiceRecorder) MarkInstanceAvailable(arg0 interface{}
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "MarkInstanceAvailable", arg0)
 }
 
-func (_m *MockPlacementService) Placement() (ServicePlacement, int, error) {
+func (_m *MockPlacementService) Placement() (Placement, int, error) {
 	ret := _m.ctrl.Call(_m, "Placement")
-	ret0, _ := ret[0].(ServicePlacement)
+	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].(int)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
@@ -846,7 +848,7 @@ func (_mr *_MockPlacementServiceRecorder) Placement() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Placement")
 }
 
-func (_m *MockPlacementService) SetPlacement(p ServicePlacement) error {
+func (_m *MockPlacementService) SetPlacement(p Placement) error {
 	ret := _m.ctrl.Call(_m, "SetPlacement", p)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -1007,165 +1009,564 @@ func (_mr *_MockPlacementOptionsRecorder) SetValidZone(arg0 interface{}) *gomock
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetValidZone", arg0)
 }
 
-// Mock of ServicePlacement interface
-type MockServicePlacement struct {
+// Mock of StagedPlacementWatcher interface
+type MockStagedPlacementWatcher struct {
 	ctrl     *gomock.Controller
-	recorder *_MockServicePlacementRecorder
+	recorder *_MockStagedPlacementWatcherRecorder
 }
 
-// Recorder for MockServicePlacement (not exported)
-type _MockServicePlacementRecorder struct {
-	mock *MockServicePlacement
+// Recorder for MockStagedPlacementWatcher (not exported)
+type _MockStagedPlacementWatcherRecorder struct {
+	mock *MockStagedPlacementWatcher
 }
 
-func NewMockServicePlacement(ctrl *gomock.Controller) *MockServicePlacement {
-	mock := &MockServicePlacement{ctrl: ctrl}
-	mock.recorder = &_MockServicePlacementRecorder{mock}
+func NewMockStagedPlacementWatcher(ctrl *gomock.Controller) *MockStagedPlacementWatcher {
+	mock := &MockStagedPlacementWatcher{ctrl: ctrl}
+	mock.recorder = &_MockStagedPlacementWatcherRecorder{mock}
 	return mock
 }
 
-func (_m *MockServicePlacement) EXPECT() *_MockServicePlacementRecorder {
+func (_m *MockStagedPlacementWatcher) EXPECT() *_MockStagedPlacementWatcherRecorder {
 	return _m.recorder
 }
 
-func (_m *MockServicePlacement) Instances() []PlacementInstance {
+func (_m *MockStagedPlacementWatcher) Watch() error {
+	ret := _m.ctrl.Call(_m, "Watch")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementWatcherRecorder) Watch() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Watch")
+}
+
+func (_m *MockStagedPlacementWatcher) ActiveStagedPlacement() (ActiveStagedPlacement, DoneFn, error) {
+	ret := _m.ctrl.Call(_m, "ActiveStagedPlacement")
+	ret0, _ := ret[0].(ActiveStagedPlacement)
+	ret1, _ := ret[1].(DoneFn)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockStagedPlacementWatcherRecorder) ActiveStagedPlacement() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ActiveStagedPlacement")
+}
+
+func (_m *MockStagedPlacementWatcher) Unwatch() error {
+	ret := _m.ctrl.Call(_m, "Unwatch")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementWatcherRecorder) Unwatch() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Unwatch")
+}
+
+// Mock of StagedPlacementWatcherOptions interface
+type MockStagedPlacementWatcherOptions struct {
+	ctrl     *gomock.Controller
+	recorder *_MockStagedPlacementWatcherOptionsRecorder
+}
+
+// Recorder for MockStagedPlacementWatcherOptions (not exported)
+type _MockStagedPlacementWatcherOptionsRecorder struct {
+	mock *MockStagedPlacementWatcherOptions
+}
+
+func NewMockStagedPlacementWatcherOptions(ctrl *gomock.Controller) *MockStagedPlacementWatcherOptions {
+	mock := &MockStagedPlacementWatcherOptions{ctrl: ctrl}
+	mock.recorder = &_MockStagedPlacementWatcherOptionsRecorder{mock}
+	return mock
+}
+
+func (_m *MockStagedPlacementWatcherOptions) EXPECT() *_MockStagedPlacementWatcherOptionsRecorder {
+	return _m.recorder
+}
+
+func (_m *MockStagedPlacementWatcherOptions) SetClockOptions(value clock.Options) StagedPlacementWatcherOptions {
+	ret := _m.ctrl.Call(_m, "SetClockOptions", value)
+	ret0, _ := ret[0].(StagedPlacementWatcherOptions)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementWatcherOptionsRecorder) SetClockOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetClockOptions", arg0)
+}
+
+func (_m *MockStagedPlacementWatcherOptions) ClockOptions() clock.Options {
+	ret := _m.ctrl.Call(_m, "ClockOptions")
+	ret0, _ := ret[0].(clock.Options)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementWatcherOptionsRecorder) ClockOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClockOptions")
+}
+
+func (_m *MockStagedPlacementWatcherOptions) SetInstrumentOptions(value instrument.Options) StagedPlacementWatcherOptions {
+	ret := _m.ctrl.Call(_m, "SetInstrumentOptions", value)
+	ret0, _ := ret[0].(StagedPlacementWatcherOptions)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementWatcherOptionsRecorder) SetInstrumentOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInstrumentOptions", arg0)
+}
+
+func (_m *MockStagedPlacementWatcherOptions) InstrumentOptions() instrument.Options {
+	ret := _m.ctrl.Call(_m, "InstrumentOptions")
+	ret0, _ := ret[0].(instrument.Options)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementWatcherOptionsRecorder) InstrumentOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions")
+}
+
+func (_m *MockStagedPlacementWatcherOptions) SetActiveStagedPlacementOptions(value ActiveStagedPlacementOptions) StagedPlacementWatcherOptions {
+	ret := _m.ctrl.Call(_m, "SetActiveStagedPlacementOptions", value)
+	ret0, _ := ret[0].(StagedPlacementWatcherOptions)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementWatcherOptionsRecorder) SetActiveStagedPlacementOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetActiveStagedPlacementOptions", arg0)
+}
+
+func (_m *MockStagedPlacementWatcherOptions) ActiveStagedPlacementOptions() ActiveStagedPlacementOptions {
+	ret := _m.ctrl.Call(_m, "ActiveStagedPlacementOptions")
+	ret0, _ := ret[0].(ActiveStagedPlacementOptions)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementWatcherOptionsRecorder) ActiveStagedPlacementOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ActiveStagedPlacementOptions")
+}
+
+func (_m *MockStagedPlacementWatcherOptions) SetStagedPlacementKey(value string) StagedPlacementWatcherOptions {
+	ret := _m.ctrl.Call(_m, "SetStagedPlacementKey", value)
+	ret0, _ := ret[0].(StagedPlacementWatcherOptions)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementWatcherOptionsRecorder) SetStagedPlacementKey(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetStagedPlacementKey", arg0)
+}
+
+func (_m *MockStagedPlacementWatcherOptions) StagedPlacementKey() string {
+	ret := _m.ctrl.Call(_m, "StagedPlacementKey")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementWatcherOptionsRecorder) StagedPlacementKey() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "StagedPlacementKey")
+}
+
+func (_m *MockStagedPlacementWatcherOptions) SetStagedPlacementStore(store kv.Store) StagedPlacementWatcherOptions {
+	ret := _m.ctrl.Call(_m, "SetStagedPlacementStore", store)
+	ret0, _ := ret[0].(StagedPlacementWatcherOptions)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementWatcherOptionsRecorder) SetStagedPlacementStore(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetStagedPlacementStore", arg0)
+}
+
+func (_m *MockStagedPlacementWatcherOptions) StagedPlacementStore() kv.Store {
+	ret := _m.ctrl.Call(_m, "StagedPlacementStore")
+	ret0, _ := ret[0].(kv.Store)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementWatcherOptionsRecorder) StagedPlacementStore() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "StagedPlacementStore")
+}
+
+func (_m *MockStagedPlacementWatcherOptions) SetInitWatchTimeout(value time.Duration) StagedPlacementWatcherOptions {
+	ret := _m.ctrl.Call(_m, "SetInitWatchTimeout", value)
+	ret0, _ := ret[0].(StagedPlacementWatcherOptions)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementWatcherOptionsRecorder) SetInitWatchTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInitWatchTimeout", arg0)
+}
+
+func (_m *MockStagedPlacementWatcherOptions) InitWatchTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "InitWatchTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementWatcherOptionsRecorder) InitWatchTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "InitWatchTimeout")
+}
+
+// Mock of ActiveStagedPlacement interface
+type MockActiveStagedPlacement struct {
+	ctrl     *gomock.Controller
+	recorder *_MockActiveStagedPlacementRecorder
+}
+
+// Recorder for MockActiveStagedPlacement (not exported)
+type _MockActiveStagedPlacementRecorder struct {
+	mock *MockActiveStagedPlacement
+}
+
+func NewMockActiveStagedPlacement(ctrl *gomock.Controller) *MockActiveStagedPlacement {
+	mock := &MockActiveStagedPlacement{ctrl: ctrl}
+	mock.recorder = &_MockActiveStagedPlacementRecorder{mock}
+	return mock
+}
+
+func (_m *MockActiveStagedPlacement) EXPECT() *_MockActiveStagedPlacementRecorder {
+	return _m.recorder
+}
+
+func (_m *MockActiveStagedPlacement) ActivePlacement() (Placement, DoneFn, error) {
+	ret := _m.ctrl.Call(_m, "ActivePlacement")
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(DoneFn)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockActiveStagedPlacementRecorder) ActivePlacement() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ActivePlacement")
+}
+
+func (_m *MockActiveStagedPlacement) Close() error {
+	ret := _m.ctrl.Call(_m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockActiveStagedPlacementRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
+// Mock of ActiveStagedPlacementOptions interface
+type MockActiveStagedPlacementOptions struct {
+	ctrl     *gomock.Controller
+	recorder *_MockActiveStagedPlacementOptionsRecorder
+}
+
+// Recorder for MockActiveStagedPlacementOptions (not exported)
+type _MockActiveStagedPlacementOptionsRecorder struct {
+	mock *MockActiveStagedPlacementOptions
+}
+
+func NewMockActiveStagedPlacementOptions(ctrl *gomock.Controller) *MockActiveStagedPlacementOptions {
+	mock := &MockActiveStagedPlacementOptions{ctrl: ctrl}
+	mock.recorder = &_MockActiveStagedPlacementOptionsRecorder{mock}
+	return mock
+}
+
+func (_m *MockActiveStagedPlacementOptions) EXPECT() *_MockActiveStagedPlacementOptionsRecorder {
+	return _m.recorder
+}
+
+func (_m *MockActiveStagedPlacementOptions) SetClockOptions(value clock.Options) ActiveStagedPlacementOptions {
+	ret := _m.ctrl.Call(_m, "SetClockOptions", value)
+	ret0, _ := ret[0].(ActiveStagedPlacementOptions)
+	return ret0
+}
+
+func (_mr *_MockActiveStagedPlacementOptionsRecorder) SetClockOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetClockOptions", arg0)
+}
+
+func (_m *MockActiveStagedPlacementOptions) ClockOptions() clock.Options {
+	ret := _m.ctrl.Call(_m, "ClockOptions")
+	ret0, _ := ret[0].(clock.Options)
+	return ret0
+}
+
+func (_mr *_MockActiveStagedPlacementOptionsRecorder) ClockOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ClockOptions")
+}
+
+func (_m *MockActiveStagedPlacementOptions) SetOnPlacementsAddedFn(value OnPlacementsAddedFn) ActiveStagedPlacementOptions {
+	ret := _m.ctrl.Call(_m, "SetOnPlacementsAddedFn", value)
+	ret0, _ := ret[0].(ActiveStagedPlacementOptions)
+	return ret0
+}
+
+func (_mr *_MockActiveStagedPlacementOptionsRecorder) SetOnPlacementsAddedFn(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetOnPlacementsAddedFn", arg0)
+}
+
+func (_m *MockActiveStagedPlacementOptions) OnPlacementsAddedFn() OnPlacementsAddedFn {
+	ret := _m.ctrl.Call(_m, "OnPlacementsAddedFn")
+	ret0, _ := ret[0].(OnPlacementsAddedFn)
+	return ret0
+}
+
+func (_mr *_MockActiveStagedPlacementOptionsRecorder) OnPlacementsAddedFn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "OnPlacementsAddedFn")
+}
+
+func (_m *MockActiveStagedPlacementOptions) SetOnPlacementsRemovedFn(value OnPlacementsRemovedFn) ActiveStagedPlacementOptions {
+	ret := _m.ctrl.Call(_m, "SetOnPlacementsRemovedFn", value)
+	ret0, _ := ret[0].(ActiveStagedPlacementOptions)
+	return ret0
+}
+
+func (_mr *_MockActiveStagedPlacementOptionsRecorder) SetOnPlacementsRemovedFn(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetOnPlacementsRemovedFn", arg0)
+}
+
+func (_m *MockActiveStagedPlacementOptions) OnPlacementsRemovedFn() OnPlacementsRemovedFn {
+	ret := _m.ctrl.Call(_m, "OnPlacementsRemovedFn")
+	ret0, _ := ret[0].(OnPlacementsRemovedFn)
+	return ret0
+}
+
+func (_mr *_MockActiveStagedPlacementOptionsRecorder) OnPlacementsRemovedFn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "OnPlacementsRemovedFn")
+}
+
+// Mock of StagedPlacement interface
+type MockStagedPlacement struct {
+	ctrl     *gomock.Controller
+	recorder *_MockStagedPlacementRecorder
+}
+
+// Recorder for MockStagedPlacement (not exported)
+type _MockStagedPlacementRecorder struct {
+	mock *MockStagedPlacement
+}
+
+func NewMockStagedPlacement(ctrl *gomock.Controller) *MockStagedPlacement {
+	mock := &MockStagedPlacement{ctrl: ctrl}
+	mock.recorder = &_MockStagedPlacementRecorder{mock}
+	return mock
+}
+
+func (_m *MockStagedPlacement) EXPECT() *_MockStagedPlacementRecorder {
+	return _m.recorder
+}
+
+func (_m *MockStagedPlacement) Version() int {
+	ret := _m.ctrl.Call(_m, "Version")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementRecorder) Version() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Version")
+}
+
+func (_m *MockStagedPlacement) Placements() []Placement {
+	ret := _m.ctrl.Call(_m, "Placements")
+	ret0, _ := ret[0].([]Placement)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementRecorder) Placements() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Placements")
+}
+
+func (_m *MockStagedPlacement) ActiveStagedPlacement(timeNanos int64) ActiveStagedPlacement {
+	ret := _m.ctrl.Call(_m, "ActiveStagedPlacement", timeNanos)
+	ret0, _ := ret[0].(ActiveStagedPlacement)
+	return ret0
+}
+
+func (_mr *_MockStagedPlacementRecorder) ActiveStagedPlacement(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ActiveStagedPlacement", arg0)
+}
+
+// Mock of Placement interface
+type MockPlacement struct {
+	ctrl     *gomock.Controller
+	recorder *_MockPlacementRecorder
+}
+
+// Recorder for MockPlacement (not exported)
+type _MockPlacementRecorder struct {
+	mock *MockPlacement
+}
+
+func NewMockPlacement(ctrl *gomock.Controller) *MockPlacement {
+	mock := &MockPlacement{ctrl: ctrl}
+	mock.recorder = &_MockPlacementRecorder{mock}
+	return mock
+}
+
+func (_m *MockPlacement) EXPECT() *_MockPlacementRecorder {
+	return _m.recorder
+}
+
+func (_m *MockPlacement) InstancesForShard(shard uint32) []PlacementInstance {
+	ret := _m.ctrl.Call(_m, "InstancesForShard", shard)
+	ret0, _ := ret[0].([]PlacementInstance)
+	return ret0
+}
+
+func (_mr *_MockPlacementRecorder) InstancesForShard(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstancesForShard", arg0)
+}
+
+func (_m *MockPlacement) Instances() []PlacementInstance {
 	ret := _m.ctrl.Call(_m, "Instances")
 	ret0, _ := ret[0].([]PlacementInstance)
 	return ret0
 }
 
-func (_mr *_MockServicePlacementRecorder) Instances() *gomock.Call {
+func (_mr *_MockPlacementRecorder) Instances() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Instances")
 }
 
-func (_m *MockServicePlacement) SetInstances(instances []PlacementInstance) ServicePlacement {
+func (_m *MockPlacement) SetInstances(instances []PlacementInstance) Placement {
 	ret := _m.ctrl.Call(_m, "SetInstances", instances)
-	ret0, _ := ret[0].(ServicePlacement)
+	ret0, _ := ret[0].(Placement)
 	return ret0
 }
 
-func (_mr *_MockServicePlacementRecorder) SetInstances(arg0 interface{}) *gomock.Call {
+func (_mr *_MockPlacementRecorder) SetInstances(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInstances", arg0)
 }
 
-func (_m *MockServicePlacement) NumInstances() int {
+func (_m *MockPlacement) NumInstances() int {
 	ret := _m.ctrl.Call(_m, "NumInstances")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockServicePlacementRecorder) NumInstances() *gomock.Call {
+func (_mr *_MockPlacementRecorder) NumInstances() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "NumInstances")
 }
 
-func (_m *MockServicePlacement) Instance(id string) (PlacementInstance, bool) {
+func (_m *MockPlacement) Instance(id string) (PlacementInstance, bool) {
 	ret := _m.ctrl.Call(_m, "Instance", id)
 	ret0, _ := ret[0].(PlacementInstance)
 	ret1, _ := ret[1].(bool)
 	return ret0, ret1
 }
 
-func (_mr *_MockServicePlacementRecorder) Instance(arg0 interface{}) *gomock.Call {
+func (_mr *_MockPlacementRecorder) Instance(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Instance", arg0)
 }
 
-func (_m *MockServicePlacement) ReplicaFactor() int {
+func (_m *MockPlacement) ReplicaFactor() int {
 	ret := _m.ctrl.Call(_m, "ReplicaFactor")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockServicePlacementRecorder) ReplicaFactor() *gomock.Call {
+func (_mr *_MockPlacementRecorder) ReplicaFactor() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReplicaFactor")
 }
 
-func (_m *MockServicePlacement) SetReplicaFactor(rf int) ServicePlacement {
+func (_m *MockPlacement) SetReplicaFactor(rf int) Placement {
 	ret := _m.ctrl.Call(_m, "SetReplicaFactor", rf)
-	ret0, _ := ret[0].(ServicePlacement)
+	ret0, _ := ret[0].(Placement)
 	return ret0
 }
 
-func (_mr *_MockServicePlacementRecorder) SetReplicaFactor(arg0 interface{}) *gomock.Call {
+func (_mr *_MockPlacementRecorder) SetReplicaFactor(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetReplicaFactor", arg0)
 }
 
-func (_m *MockServicePlacement) Shards() []uint32 {
+func (_m *MockPlacement) Shards() []uint32 {
 	ret := _m.ctrl.Call(_m, "Shards")
 	ret0, _ := ret[0].([]uint32)
 	return ret0
 }
 
-func (_mr *_MockServicePlacementRecorder) Shards() *gomock.Call {
+func (_mr *_MockPlacementRecorder) Shards() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Shards")
 }
 
-func (_m *MockServicePlacement) SetShards(s []uint32) ServicePlacement {
+func (_m *MockPlacement) SetShards(s []uint32) Placement {
 	ret := _m.ctrl.Call(_m, "SetShards", s)
-	ret0, _ := ret[0].(ServicePlacement)
+	ret0, _ := ret[0].(Placement)
 	return ret0
 }
 
-func (_mr *_MockServicePlacementRecorder) SetShards(arg0 interface{}) *gomock.Call {
+func (_mr *_MockPlacementRecorder) SetShards(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetShards", arg0)
 }
 
-func (_m *MockServicePlacement) NumShards() int {
+func (_m *MockPlacement) NumShards() int {
 	ret := _m.ctrl.Call(_m, "NumShards")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockServicePlacementRecorder) NumShards() *gomock.Call {
+func (_mr *_MockPlacementRecorder) NumShards() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "NumShards")
 }
 
-func (_m *MockServicePlacement) IsSharded() bool {
+func (_m *MockPlacement) IsSharded() bool {
 	ret := _m.ctrl.Call(_m, "IsSharded")
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-func (_mr *_MockServicePlacementRecorder) IsSharded() *gomock.Call {
+func (_mr *_MockPlacementRecorder) IsSharded() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsSharded")
 }
 
-func (_m *MockServicePlacement) SetIsSharded(v bool) ServicePlacement {
+func (_m *MockPlacement) SetIsSharded(v bool) Placement {
 	ret := _m.ctrl.Call(_m, "SetIsSharded", v)
-	ret0, _ := ret[0].(ServicePlacement)
+	ret0, _ := ret[0].(Placement)
 	return ret0
 }
 
-func (_mr *_MockServicePlacementRecorder) SetIsSharded(arg0 interface{}) *gomock.Call {
+func (_mr *_MockPlacementRecorder) SetIsSharded(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIsSharded", arg0)
 }
 
-func (_m *MockServicePlacement) String() string {
+func (_m *MockPlacement) CutoverNanos() int64 {
+	ret := _m.ctrl.Call(_m, "CutoverNanos")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+func (_mr *_MockPlacementRecorder) CutoverNanos() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CutoverNanos")
+}
+
+func (_m *MockPlacement) SetCutoverNanos(cutoverNanos int64) Placement {
+	ret := _m.ctrl.Call(_m, "SetCutoverNanos", cutoverNanos)
+	ret0, _ := ret[0].(Placement)
+	return ret0
+}
+
+func (_mr *_MockPlacementRecorder) SetCutoverNanos(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetCutoverNanos", arg0)
+}
+
+func (_m *MockPlacement) String() string {
 	ret := _m.ctrl.Call(_m, "String")
 	ret0, _ := ret[0].(string)
 	return ret0
 }
 
-func (_mr *_MockServicePlacementRecorder) String() *gomock.Call {
+func (_mr *_MockPlacementRecorder) String() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "String")
 }
 
-func (_m *MockServicePlacement) GetVersion() int {
+func (_m *MockPlacement) GetVersion() int {
 	ret := _m.ctrl.Call(_m, "GetVersion")
 	ret0, _ := ret[0].(int)
 	return ret0
 }
 
-func (_mr *_MockServicePlacementRecorder) GetVersion() *gomock.Call {
+func (_mr *_MockPlacementRecorder) GetVersion() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetVersion")
 }
 
-func (_m *MockServicePlacement) SetVersion(v int) ServicePlacement {
+func (_m *MockPlacement) SetVersion(v int) Placement {
 	ret := _m.ctrl.Call(_m, "SetVersion", v)
-	ret0, _ := ret[0].(ServicePlacement)
+	ret0, _ := ret[0].(Placement)
 	return ret0
 }
 
-func (_mr *_MockServicePlacementRecorder) SetVersion(arg0 interface{}) *gomock.Call {
+func (_mr *_MockPlacementRecorder) SetVersion(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetVersion", arg0)
 }
 

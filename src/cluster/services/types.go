@@ -23,7 +23,9 @@ package services
 import (
 	"time"
 
+	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	xwatch "github.com/m3db/m3x/watch"
 )
@@ -175,20 +177,20 @@ type Metadata interface {
 // all write or update operations will persist the generated placement before returning success
 type PlacementService interface {
 	// BuildInitialPlacement initialize a placement
-	BuildInitialPlacement(instances []PlacementInstance, numShards int, rf int) (ServicePlacement, error)
+	BuildInitialPlacement(instances []PlacementInstance, numShards int, rf int) (Placement, error)
 
 	// AddReplica up the replica factor by 1 in the placement
-	AddReplica() (ServicePlacement, error)
+	AddReplica() (Placement, error)
 
 	// AddInstance picks an instance from the candidate list to the placement
-	AddInstance(candidates []PlacementInstance) (newPlacement ServicePlacement, usedInstance PlacementInstance, err error)
+	AddInstance(candidates []PlacementInstance) (newPlacement Placement, usedInstance PlacementInstance, err error)
 
 	// RemoveInstance removes an instance from the placement
-	RemoveInstance(leavingInstanceID string) (ServicePlacement, error)
+	RemoveInstance(leavingInstanceID string) (Placement, error)
 
 	// ReplaceInstance picks instances from the candidate list to replace an instance in current placement
 	ReplaceInstance(leavingInstanceID string, candidates []PlacementInstance) (
-		newPlacement ServicePlacement, usedInstances []PlacementInstance, err error)
+		newPlacement Placement, usedInstances []PlacementInstance, err error)
 
 	// MarkShardAvailable marks the state of a shard as available
 	MarkShardAvailable(instanceID string, shardID uint32) error
@@ -197,10 +199,10 @@ type PlacementService interface {
 	MarkInstanceAvailable(instanceID string) error
 
 	// Placement returns the persisted placement with version
-	Placement() (ServicePlacement, int, error)
+	Placement() (Placement, int, error)
 
 	// SetPlacement persists the placement
-	SetPlacement(p ServicePlacement) error
+	SetPlacement(p Placement) error
 
 	// Delete deletes the placement
 	Delete() error
@@ -243,31 +245,151 @@ type PlacementOptions interface {
 	SetValidZone(z string) PlacementOptions
 }
 
-// ServicePlacement describes how instances are placed in a service
-type ServicePlacement interface {
-	// Instances returns all Instances in the placement
+// DoneFn is called when caller is done using the resource.
+type DoneFn func()
+
+// StagedPlacementWatcher watches for updates to staged placement.
+type StagedPlacementWatcher interface {
+	// Watch starts watching the updates.
+	Watch() error
+
+	// ActiveStagedPlacement returns the currently active staged placement, the
+	// callback function when the caller is done using the active staged placement,
+	// and any errors encountered.
+	ActiveStagedPlacement() (ActiveStagedPlacement, DoneFn, error)
+
+	// Unwatch stops watching the updates.
+	Unwatch() error
+}
+
+// StagedPlacementWatcherOptions provide a set of staged placement watcher options.
+type StagedPlacementWatcherOptions interface {
+	// SetClockOptions sets the clock options.
+	SetClockOptions(value clock.Options) StagedPlacementWatcherOptions
+
+	// ClockOptions returns the clock options.
+	ClockOptions() clock.Options
+
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) StagedPlacementWatcherOptions
+
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
+
+	// SetActiveStagedPlacementOptions sets the active staged placement options.
+	SetActiveStagedPlacementOptions(value ActiveStagedPlacementOptions) StagedPlacementWatcherOptions
+
+	// ActiveStagedPlacementOptions returns the active staged placement options.
+	ActiveStagedPlacementOptions() ActiveStagedPlacementOptions
+
+	// SetStagedPlacementKey sets the kv key to watch for staged placement.
+	SetStagedPlacementKey(value string) StagedPlacementWatcherOptions
+
+	// StagedPlacementKey returns the kv key to watch for staged placement.
+	StagedPlacementKey() string
+
+	// SetStagedPlacementStore sets the staged placement store.
+	SetStagedPlacementStore(store kv.Store) StagedPlacementWatcherOptions
+
+	// StagedPlacementStore returns the staged placement store.
+	StagedPlacementStore() kv.Store
+
+	// SetInitWatchTimeout sets the initial watch timeout.
+	SetInitWatchTimeout(value time.Duration) StagedPlacementWatcherOptions
+
+	// InitWatchTimeout returns the initial watch timeout.
+	InitWatchTimeout() time.Duration
+}
+
+// ActiveStagedPlacement describes active staged placement.
+type ActiveStagedPlacement interface {
+	// ActivePlacement returns the currently active placement for a given time, the callback
+	// function when the caller is done using the placement, and any errors encountered.
+	ActivePlacement() (Placement, DoneFn, error)
+
+	// Close closes the active staged placement.
+	Close() error
+}
+
+// OnPlacementsAddedFn is called when placements are added.
+type OnPlacementsAddedFn func(placements []Placement)
+
+// OnPlacementsRemovedFn is called when placements are removed.
+type OnPlacementsRemovedFn func(placements []Placement)
+
+// ActiveStagedPlacementOptions provide a set of options for active staged placement.
+type ActiveStagedPlacementOptions interface {
+	// SetClockOptions sets the clock options.
+	SetClockOptions(value clock.Options) ActiveStagedPlacementOptions
+
+	// ClockOptions returns the clock options.
+	ClockOptions() clock.Options
+
+	// SetOnPlacementsAddedFn sets the callback function for adding placement.
+	SetOnPlacementsAddedFn(value OnPlacementsAddedFn) ActiveStagedPlacementOptions
+
+	// OnPlacementsAddedFn returns the callback function for adding placement.
+	OnPlacementsAddedFn() OnPlacementsAddedFn
+
+	// SetOnPlacementsRemovedFn sets the callback function for removing placement.
+	SetOnPlacementsRemovedFn(value OnPlacementsRemovedFn) ActiveStagedPlacementOptions
+
+	// OnPlacementsRemovedFn returns the callback function for removing placement.
+	OnPlacementsRemovedFn() OnPlacementsRemovedFn
+}
+
+// StagedPlacement describes a series of placements applied in staged fashion.
+type StagedPlacement interface {
+	// ActiveStagedPlacement returns the active staged placement for a given time.
+	ActiveStagedPlacement(timeNanos int64) ActiveStagedPlacement
+
+	// Version returns the version of the staged placement.
+	Version() int
+
+	// SetVersion sets the version of the staged placement.
+	SetVersion(version int) StagedPlacement
+
+	// Placements return the placements in the staged placement.
+	Placements() []Placement
+
+	// SetPlacements sets the placements in the staged placement.
+	SetPlacements(placements []Placement) StagedPlacement
+
+	// ActiveStagedPlacementOptions returns the active staged placement options.
+	ActiveStagedPlacementOptions() ActiveStagedPlacementOptions
+
+	// SetActiveStagedPlacementOptions sets the active staged placement options.
+	SetActiveStagedPlacementOptions(opts ActiveStagedPlacementOptions) StagedPlacement
+}
+
+// Placement describes how instances are placed in a service
+type Placement interface {
+	// InstancesForShard returns the instances for a given shard id.
+	InstancesForShard(shard uint32) []PlacementInstance
+
+	// Instances returns all instances in the placement
 	Instances() []PlacementInstance
 
-	// SetInstances sets the Instances
-	SetInstances(instances []PlacementInstance) ServicePlacement
+	// SetInstances sets the instances
+	SetInstances(instances []PlacementInstance) Placement
 
 	// NumInstances returns the number of instances in the placement
 	NumInstances() int
 
-	// Instance returns the Instance for the requested id
+	// Instance returns the instance for the requested id
 	Instance(id string) (PlacementInstance, bool)
 
 	// ReplicaFactor returns the replica factor in the placement
 	ReplicaFactor() int
 
 	// SetReplicaFactor sets the ReplicaFactor
-	SetReplicaFactor(rf int) ServicePlacement
+	SetReplicaFactor(rf int) Placement
 
 	// Shards returns all the unique shard ids for a replica
 	Shards() []uint32
 
 	// SetShards sets the unique shard ids for a replica
-	SetShards(s []uint32) ServicePlacement
+	SetShards(s []uint32) Placement
 
 	// ShardsLen returns the number of shards in a replica
 	NumShards() int
@@ -276,7 +398,13 @@ type ServicePlacement interface {
 	IsSharded() bool
 
 	// SetIsSharded() sets IsSharded
-	SetIsSharded(v bool) ServicePlacement
+	SetIsSharded(v bool) Placement
+
+	// CutoverNanos returns the cutover time in nanoseconds.
+	CutoverNanos() int64
+
+	// SetCutoverNanos sets the cutover time in nanoseconds.
+	SetCutoverNanos(cutoverNanos int64) Placement
 
 	// String returns a description of the placement
 	String() string
@@ -289,7 +417,7 @@ type ServicePlacement interface {
 	// is determined by the backing MVCC store, calling this method has no
 	// effect in terms of the updated ServicePlacement that is written back
 	// to the MVCC store.
-	SetVersion(v int) ServicePlacement
+	SetVersion(v int) Placement
 }
 
 // PlacementInstance represents an instance in a service placement

@@ -62,7 +62,7 @@ func (ps placementService) BuildInitialPlacement(
 	instances []services.PlacementInstance,
 	numShards int,
 	rf int,
-) (services.ServicePlacement, error) {
+) (services.Placement, error) {
 	if numShards < 0 {
 		return nil, fmt.Errorf("could not build initial placement, invalid numShards %d", numShards)
 	}
@@ -108,7 +108,7 @@ func (ps placementService) initPlacement(
 	instances []services.PlacementInstance,
 	ids []uint32,
 	rf int,
-) (services.ServicePlacement, error) {
+) (services.Placement, error) {
 	p, err := ps.algo.InitialPlacement(instances, ids)
 	if err != nil {
 		return nil, err
@@ -123,7 +123,7 @@ func (ps placementService) initPlacement(
 	return p, nil
 }
 
-func (ps placementService) AddReplica() (services.ServicePlacement, error) {
+func (ps placementService) AddReplica() (services.Placement, error) {
 	p, v, err := ps.ss.Placement(ps.service)
 	if err != nil {
 		return nil, err
@@ -147,7 +147,7 @@ func (ps placementService) AddReplica() (services.ServicePlacement, error) {
 
 func (ps placementService) AddInstance(
 	candidates []services.PlacementInstance,
-) (services.ServicePlacement, services.PlacementInstance, error) {
+) (services.Placement, services.PlacementInstance, error) {
 	p, v, err := ps.ss.Placement(ps.service)
 	if err != nil {
 		return nil, nil, err
@@ -178,7 +178,7 @@ func (ps placementService) AddInstance(
 	return p, addingInstance, ps.ss.CheckAndSet(ps.service, p, v)
 }
 
-func (ps placementService) RemoveInstance(instanceID string) (services.ServicePlacement, error) {
+func (ps placementService) RemoveInstance(instanceID string) (services.Placement, error) {
 	p, v, err := ps.ss.Placement(ps.service)
 	if err != nil {
 		return nil, err
@@ -207,7 +207,7 @@ func (ps placementService) RemoveInstance(instanceID string) (services.ServicePl
 func (ps placementService) ReplaceInstance(
 	leavingInstanceID string,
 	candidates []services.PlacementInstance,
-) (services.ServicePlacement, []services.PlacementInstance, error) {
+) (services.Placement, []services.PlacementInstance, error) {
 	p, v, err := ps.ss.Placement(ps.service)
 	if err != nil {
 		return nil, nil, err
@@ -293,11 +293,11 @@ func (ps placementService) MarkInstanceAvailable(instanceID string) error {
 	return ps.ss.CheckAndSet(ps.service, p, v)
 }
 
-func (ps placementService) Placement() (services.ServicePlacement, int, error) {
+func (ps placementService) Placement() (services.Placement, int, error) {
 	return ps.ss.Placement(ps.service)
 }
 
-func (ps placementService) SetPlacement(p services.ServicePlacement) error {
+func (ps placementService) SetPlacement(p services.Placement) error {
 	if err := placement.Validate(p); err != nil {
 		return err
 	}
@@ -334,7 +334,7 @@ func (ps placementService) validateInitInstances(instances []services.PlacementI
 }
 
 func (ps placementService) findAddingInstance(
-	p services.ServicePlacement,
+	p services.Placement,
 	candidates []services.PlacementInstance,
 	opts services.PlacementOptions,
 ) (services.PlacementInstance, error) {
@@ -377,7 +377,7 @@ func (ps placementService) findAddingInstance(
 }
 
 func (ps placementService) findReplaceInstance(
-	p services.ServicePlacement,
+	p services.Placement,
 	candidates []services.PlacementInstance,
 	leaving services.PlacementInstance,
 ) ([]services.PlacementInstance, error) {
@@ -420,7 +420,7 @@ func (ps placementService) findReplaceInstance(
 }
 
 func getValidCandidates(
-	p services.ServicePlacement,
+	p services.Placement,
 	candidates []services.PlacementInstance,
 	opts services.PlacementOptions,
 ) []services.PlacementInstance {
@@ -439,7 +439,7 @@ func getValidCandidates(
 }
 
 func filterZones(
-	p services.ServicePlacement,
+	p services.Placement,
 	candidates []services.PlacementInstance,
 	opts services.PlacementOptions,
 ) []services.PlacementInstance {

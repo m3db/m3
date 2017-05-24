@@ -68,7 +68,7 @@ type PlacementHelper interface {
 	Optimize(t optimizeType)
 
 	// GeneratePlacement generates a placement
-	GeneratePlacement(t includeInstanceType) services.ServicePlacement
+	GeneratePlacement(t includeInstanceType) services.Placement
 }
 
 type placementHelper struct {
@@ -84,7 +84,7 @@ type placementHelper struct {
 }
 
 // NewPlacementHelper returns a placement helper
-func NewPlacementHelper(p services.ServicePlacement, opts services.PlacementOptions) PlacementHelper {
+func NewPlacementHelper(p services.Placement, opts services.PlacementOptions) PlacementHelper {
 	return newHelper(p, p.ReplicaFactor(), opts)
 }
 
@@ -97,11 +97,11 @@ func newInitHelper(instances []services.PlacementInstance, ids []uint32, opts se
 	return newHelper(emptyPlacement, emptyPlacement.ReplicaFactor()+1, opts)
 }
 
-func newAddReplicaHelper(p services.ServicePlacement, opts services.PlacementOptions) PlacementHelper {
+func newAddReplicaHelper(p services.Placement, opts services.PlacementOptions) PlacementHelper {
 	return newHelper(p, p.ReplicaFactor()+1, opts)
 }
 
-func newAddInstanceHelper(p services.ServicePlacement, i services.PlacementInstance, opts services.PlacementOptions) PlacementHelper {
+func newAddInstanceHelper(p services.Placement, i services.PlacementInstance, opts services.PlacementOptions) PlacementHelper {
 	p = placement.NewPlacement().
 		SetInstances(append(p.Instances(), i)).
 		SetShards(p.Shards()).
@@ -111,7 +111,7 @@ func newAddInstanceHelper(p services.ServicePlacement, i services.PlacementInsta
 }
 
 func newRemoveInstanceHelper(
-	p services.ServicePlacement,
+	p services.Placement,
 	instanceID string,
 	opts services.PlacementOptions,
 ) (PlacementHelper, services.PlacementInstance, error) {
@@ -123,7 +123,7 @@ func newRemoveInstanceHelper(
 }
 
 func newReplaceInstanceHelper(
-	p services.ServicePlacement,
+	p services.Placement,
 	instanceID string,
 	addingInstances []services.PlacementInstance,
 	opts services.PlacementOptions,
@@ -143,7 +143,7 @@ func newReplaceInstanceHelper(
 	return newHelper(p, p.ReplicaFactor(), opts), leavingInstance, newAddingInstances, nil
 }
 
-func newHelper(p services.ServicePlacement, targetRF int, opts services.PlacementOptions) PlacementHelper {
+func newHelper(p services.Placement, targetRF int, opts services.PlacementOptions) PlacementHelper {
 	ph := &placementHelper{
 		rf:           targetRF,
 		instances:    make(map[string]services.PlacementInstance, p.NumInstances()),
@@ -308,7 +308,7 @@ func (ph *placementHelper) buildInstanceHeap(instances []services.PlacementInsta
 	return newHeap(instances, availableCapacityAscending, ph.targetLoad, ph.rackToWeightMap)
 }
 
-func (ph *placementHelper) GeneratePlacement(t includeInstanceType) services.ServicePlacement {
+func (ph *placementHelper) GeneratePlacement(t includeInstanceType) services.Placement {
 	var instances []services.PlacementInstance
 
 	switch t {
@@ -663,7 +663,7 @@ func isRackOverWeight(rackWeight, totalWeight uint32, rf int) bool {
 	return float64(rackWeight)/float64(totalWeight) >= 1.0/float64(rf)
 }
 
-func addInstanceToPlacement(p services.ServicePlacement, i services.PlacementInstance, allowEmpty bool) (services.ServicePlacement, services.PlacementInstance, error) {
+func addInstanceToPlacement(p services.Placement, i services.PlacementInstance, allowEmpty bool) (services.Placement, services.PlacementInstance, error) {
 	if _, exist := p.Instance(i.ID()); exist {
 		return nil, nil, errAddingInstanceAlreadyExist
 	}
@@ -679,7 +679,7 @@ func addInstanceToPlacement(p services.ServicePlacement, i services.PlacementIns
 	return p, instance, nil
 }
 
-func removeInstanceFromPlacement(p services.ServicePlacement, id string) (services.ServicePlacement, services.PlacementInstance, error) {
+func removeInstanceFromPlacement(p services.Placement, id string) (services.Placement, services.PlacementInstance, error) {
 	leavingInstance, exist := p.Instance(id)
 	if !exist {
 		return nil, nil, fmt.Errorf("instance %s does not exist in placement", id)
