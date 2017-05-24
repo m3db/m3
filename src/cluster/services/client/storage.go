@@ -39,7 +39,7 @@ func newPlacementStorage(opts Options) (placement.Storage, error) {
 	}, nil
 }
 
-func (s *client) Set(sid services.ServiceID, p services.ServicePlacement) error {
+func (s *client) Set(sid services.ServiceID, p services.Placement) error {
 	if err := validateServiceID(sid); err != nil {
 		return err
 	}
@@ -55,7 +55,7 @@ func (s *client) Set(sid services.ServiceID, p services.ServicePlacement) error 
 	return err
 }
 
-func (s *client) CheckAndSet(sid services.ServiceID, p services.ServicePlacement, version int) error {
+func (s *client) CheckAndSet(sid services.ServiceID, p services.Placement, version int) error {
 	if err := validateServiceID(sid); err != nil {
 		return err
 	}
@@ -78,7 +78,7 @@ func (s *client) CheckAndSet(sid services.ServiceID, p services.ServicePlacement
 	return err
 }
 
-func (s *client) SetIfNotExist(sid services.ServiceID, p services.ServicePlacement) error {
+func (s *client) SetIfNotExist(sid services.ServiceID, p services.Placement) error {
 	if err := validateServiceID(sid); err != nil {
 		return err
 	}
@@ -114,7 +114,7 @@ func (s *client) Delete(sid services.ServiceID) error {
 	return err
 }
 
-func (s *client) Placement(sid services.ServiceID) (services.ServicePlacement, int, error) {
+func (s *client) Placement(sid services.ServiceID) (services.Placement, int, error) {
 	if err := validateServiceID(sid); err != nil {
 		return nil, 0, err
 	}
@@ -129,7 +129,7 @@ func (s *client) Placement(sid services.ServiceID) (services.ServicePlacement, i
 		return nil, 0, err
 	}
 
-	p, err := util.PlacementFromProto(placementProto)
+	p, err := placement.NewPlacementFromProto(&placementProto)
 	if p != nil {
 		p.SetVersion(v.Version())
 	}

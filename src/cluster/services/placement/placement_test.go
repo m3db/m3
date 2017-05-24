@@ -25,9 +25,12 @@ import (
 	"sort"
 	"testing"
 
+	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
+	"github.com/m3db/m3cluster/proto/util"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/instrument"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -69,6 +72,8 @@ func TestPlacement(t *testing.T) {
 	assert.False(t, p.IsSharded())
 	p = p.SetIsSharded(true)
 	assert.True(t, p.IsSharded())
+	p = p.SetCutoverNanos(1234)
+	assert.Equal(t, int64(1234), p.CutoverNanos())
 	assert.NoError(t, Validate(p))
 
 	i, exist := p.Instance("i6")
@@ -84,6 +89,18 @@ func TestPlacement(t *testing.T) {
 	is := p.Instances()
 	sort.Sort(ByIDAscending(is))
 	assert.Equal(t, instances, is)
+
+	expectedInstancesByShard := map[uint32][]services.PlacementInstance{
+		1: {i1, i3, i5},
+		2: {i1, i4, i6},
+		3: {i1, i3, i6},
+		4: {i2, i4, i6},
+		5: {i2, i3, i5},
+		6: {i2, i4, i5},
+	}
+	for _, shard := range ids {
+		assert.Equal(t, expectedInstancesByShard[shard], p.InstancesForShard(shard))
+	}
 }
 
 func TestValidateGood(t *testing.T) {
@@ -482,4 +499,143 @@ func TestMarkAllAsAvailable(t *testing.T) {
 		SetReplicaFactor(2)
 	_, err = MarkAllShardsAsAvailable(p)
 	assert.Contains(t, err.Error(), "does not exist in placement")
+}
+
+func TestConvertBetweenProtoAndPlacement(t *testing.T) {
+	protoShards := getProtoShards([]uint32{0, 1, 2})
+	placementProto := &placementproto.Placement{
+		Instances: map[string]*placementproto.Instance{
+			"i1": &placementproto.Instance{
+				Id:       "i1",
+				Rack:     "r1",
+				Zone:     "z1",
+				Endpoint: "e1",
+				Weight:   1,
+				Shards:   protoShards,
+			},
+			"i2": &placementproto.Instance{
+				Id:       "i2",
+				Rack:     "r2",
+				Zone:     "z1",
+				Endpoint: "e2",
+				Weight:   1,
+				Shards:   protoShards,
+			},
+		},
+		ReplicaFactor: 2,
+		NumShards:     3,
+		IsSharded:     true,
+		CutoverTime:   1234,
+	}
+
+	p, err := NewPlacementFromProto(placementProto)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, p.NumInstances())
+	assert.Equal(t, 2, p.ReplicaFactor())
+	assert.True(t, p.IsSharded())
+	assert.Equal(t, []uint32{0, 1, 2}, p.Shards())
+	assert.Equal(t, int64(1234), p.CutoverNanos())
+
+	placementProtoNew, err := util.PlacementToProto(p)
+	assert.NoError(t, err)
+	assert.Equal(t, placementProto.ReplicaFactor, placementProtoNew.ReplicaFactor)
+	assert.Equal(t, placementProto.NumShards, placementProtoNew.NumShards)
+	assert.Equal(t, placementProto.CutoverTime, placementProtoNew.CutoverTime)
+	for id, h := range placementProto.Instances {
+		i1 := placementProtoNew.Instances[id]
+		assert.Equal(t, h.Id, i1.Id)
+		assert.Equal(t, h.Rack, i1.Rack)
+		assert.Equal(t, h.Zone, i1.Zone)
+		assert.Equal(t, h.Weight, i1.Weight)
+		assert.Equal(t, h.Shards, i1.Shards)
+	}
+}
+
+func TestPlacementInstanceFromProto(t *testing.T) {
+	protoShardsUnsorted := getProtoShards([]uint32{2, 1, 0})
+
+	instanceProto := &placementproto.Instance{
+		Id:       "i1",
+		Rack:     "r1",
+		Zone:     "z1",
+		Endpoint: "e1",
+		Weight:   1,
+		Shards:   protoShardsUnsorted,
+	}
+
+	instance, err := NewInstanceFromProto(instanceProto)
+	assert.NoError(t, err)
+
+	instanceShards := instance.Shards()
+
+	// assert.Equal can't compare shards due to pointer types, we check them
+	// manually
+	instance.SetShards(shard.NewShards(nil))
+
+	expShards := shard.NewShards([]shard.Shard{
+		shard.NewShard(0).SetSourceID("i1").SetState(shard.Available),
+		shard.NewShard(1).SetSourceID("i1").SetState(shard.Available),
+		shard.NewShard(2).SetSourceID("i1").SetState(shard.Available),
+	})
+
+	expInstance := NewInstance().
+		SetID("i1").
+		SetRack("r1").
+		SetZone("z1").
+		SetEndpoint("e1").
+		SetWeight(1)
+
+	assert.Equal(t, expInstance, instance)
+	assert.Equal(t, expShards.AllIDs(), instanceShards.AllIDs())
+
+	instanceProto.Shards[0].State = placementproto.ShardState(1000)
+	instance, err = NewInstanceFromProto(instanceProto)
+	assert.Error(t, err)
+	assert.Nil(t, instance)
+}
+
+func TestPlacementInstanceToProto(t *testing.T) {
+	shards := shard.NewShards([]shard.Shard{
+		shard.NewShard(2).SetSourceID("i1").SetState(shard.Available),
+		shard.NewShard(1).SetSourceID("i1").SetState(shard.Available),
+		shard.NewShard(0).SetSourceID("i1").SetState(shard.Available),
+	})
+
+	instance := NewInstance().
+		SetID("i1").
+		SetRack("r1").
+		SetZone("z1").
+		SetEndpoint("e1").
+		SetWeight(1).
+		SetShards(shards)
+
+	instanceProto, err := util.PlacementInstanceToProto(instance)
+	assert.NoError(t, err)
+
+	protoShards := getProtoShards([]uint32{0, 1, 2})
+	for _, s := range protoShards {
+		s.SourceId = "i1"
+	}
+
+	expInstance := &placementproto.Instance{
+		Id:       "i1",
+		Rack:     "r1",
+		Zone:     "z1",
+		Endpoint: "e1",
+		Weight:   1,
+		Shards:   protoShards,
+	}
+
+	assert.Equal(t, expInstance, instanceProto)
+}
+
+func getProtoShards(ids []uint32) []*placementproto.Shard {
+	r := make([]*placementproto.Shard, len(ids))
+	for i, id := range ids {
+		r[i] = &placementproto.Shard{
+			Id:    id,
+			State: placementproto.ShardState_AVAILABLE,
+		}
+	}
+	return r
 }

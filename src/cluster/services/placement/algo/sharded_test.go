@@ -1055,13 +1055,13 @@ func TestShardedAlgoOnNonShardedPlacement(t *testing.T) {
 	assert.Equal(t, errShardedAlgoOnNotShardedPlacement, err)
 }
 
-func markAllShardsAsAvailable(t *testing.T, p services.ServicePlacement) services.ServicePlacement {
+func markAllShardsAsAvailable(t *testing.T, p services.Placement) services.Placement {
 	p, err := placement.MarkAllShardsAsAvailable(p)
 	assert.NoError(t, err)
 	return p
 }
 
-func validateDistribution(t *testing.T, p services.ServicePlacement, expectPeakOverAvg float64, testCase string) {
+func validateDistribution(t *testing.T, p services.Placement, expectPeakOverAvg float64, testCase string) {
 	assert.NoError(t, placement.Validate(p), "placement validation failed")
 	ph := NewPlacementHelper(p, placement.NewOptions()).(*placementHelper)
 	total := 0

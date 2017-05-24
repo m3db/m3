@@ -25,44 +25,44 @@ import "github.com/m3db/m3cluster/services"
 // Algorithm places shards on instances
 type Algorithm interface {
 	// InitPlacement initialize a sharding placement with replica factor = 1
-	InitialPlacement(instances []services.PlacementInstance, shards []uint32) (services.ServicePlacement, error)
+	InitialPlacement(instances []services.PlacementInstance, shards []uint32) (services.Placement, error)
 
 	// AddReplica up the replica factor by 1 in the placement
-	AddReplica(p services.ServicePlacement) (services.ServicePlacement, error)
+	AddReplica(p services.Placement) (services.Placement, error)
 
 	// AddInstance adds a instance to the placement
-	AddInstance(p services.ServicePlacement, i services.PlacementInstance) (services.ServicePlacement, error)
+	AddInstance(p services.Placement, i services.PlacementInstance) (services.Placement, error)
 
 	// RemoveInstance removes a instance from the placement
-	RemoveInstance(p services.ServicePlacement, leavingInstanceID string) (services.ServicePlacement, error)
+	RemoveInstance(p services.Placement, leavingInstanceID string) (services.Placement, error)
 
 	// ReplaceInstance replace a instance with new instances
-	ReplaceInstance(p services.ServicePlacement, leavingInstanceID string, addingInstances []services.PlacementInstance) (services.ServicePlacement, error)
+	ReplaceInstance(p services.Placement, leavingInstanceID string, addingInstances []services.PlacementInstance) (services.Placement, error)
 }
 
 // DeploymentPlanner generates deployment steps for a placement
 type DeploymentPlanner interface {
 	// DeploymentSteps returns the deployment steps
-	DeploymentSteps(p services.ServicePlacement) [][]services.PlacementInstance
+	DeploymentSteps(p services.Placement) [][]services.PlacementInstance
 }
 
 // Storage provides read and write access to service placement
 type Storage interface {
 	// Set writes a placement for a service
-	Set(service services.ServiceID, p services.ServicePlacement) error
+	Set(service services.ServiceID, p services.Placement) error
 
 	// CheckAndSet writes a placement for a service if the current version
 	// matches the expected version
-	CheckAndSet(service services.ServiceID, p services.ServicePlacement, version int) error
+	CheckAndSet(service services.ServiceID, p services.Placement, version int) error
 
 	// SetIfNotExist writes a placement for a service
-	SetIfNotExist(service services.ServiceID, p services.ServicePlacement) error
+	SetIfNotExist(service services.ServiceID, p services.Placement) error
 
 	// Delete deletes the placement for a service
 	Delete(service services.ServiceID) error
 
 	// Placement reads placement and version for a service
-	Placement(service services.ServiceID) (services.ServicePlacement, int, error)
+	Placement(service services.ServiceID) (services.Placement, int, error)
 }
 
 // DeploymentOptions provides options for DeploymentPlanner

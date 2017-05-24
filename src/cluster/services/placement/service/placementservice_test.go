@@ -987,7 +987,7 @@ func TestFilterZones(t *testing.T) {
 	_, _ = i2, i3
 
 	tests := map[*struct {
-		p          services.ServicePlacement
+		p          services.Placement
 		candidates []services.PlacementInstance
 		opts       services.PlacementOptions
 	}][]services.PlacementInstance{
@@ -1031,23 +1031,23 @@ func TestFilterZones(t *testing.T) {
 
 type errorAlgorithm struct{}
 
-func (errorAlgorithm) InitialPlacement(instances []services.PlacementInstance, ids []uint32) (services.ServicePlacement, error) {
+func (errorAlgorithm) InitialPlacement(instances []services.PlacementInstance, ids []uint32) (services.Placement, error) {
 	return nil, errors.New("error in errorAlgorithm")
 }
 
-func (errorAlgorithm) AddReplica(p services.ServicePlacement) (services.ServicePlacement, error) {
+func (errorAlgorithm) AddReplica(p services.Placement) (services.Placement, error) {
 	return nil, errors.New("error in errorAlgorithm")
 }
 
-func (errorAlgorithm) AddInstance(p services.ServicePlacement, h services.PlacementInstance) (services.ServicePlacement, error) {
+func (errorAlgorithm) AddInstance(p services.Placement, h services.PlacementInstance) (services.Placement, error) {
 	return nil, errors.New("error in errorAlgorithm")
 }
 
-func (errorAlgorithm) RemoveInstance(p services.ServicePlacement, h services.PlacementInstance) (services.ServicePlacement, error) {
+func (errorAlgorithm) RemoveInstance(p services.Placement, h services.PlacementInstance) (services.Placement, error) {
 	return nil, errors.New("error in errorAlgorithm")
 }
 
-func (errorAlgorithm) ReplaceInstance(p services.ServicePlacement, leavingInstance services.PlacementInstance, addingInstance []services.PlacementInstance) (services.ServicePlacement, error) {
+func (errorAlgorithm) ReplaceInstance(p services.Placement, leavingInstance services.PlacementInstance, addingInstance []services.PlacementInstance) (services.Placement, error) {
 	return nil, errors.New("error in errorAlgorithm")
 }
 
@@ -1055,15 +1055,15 @@ func (errorAlgorithm) ReplaceInstance(p services.ServicePlacement, leavingInstan
 type mockStorage struct {
 	sync.Mutex
 
-	m       map[string]services.ServicePlacement
+	m       map[string]services.Placement
 	version int
 }
 
 func NewMockStorage() placement.Storage {
-	return &mockStorage{m: map[string]services.ServicePlacement{}}
+	return &mockStorage{m: map[string]services.Placement{}}
 }
 
-func (ms *mockStorage) Set(service services.ServiceID, p services.ServicePlacement) error {
+func (ms *mockStorage) Set(service services.ServiceID, p services.Placement) error {
 	ms.Lock()
 	defer ms.Unlock()
 
@@ -1073,7 +1073,7 @@ func (ms *mockStorage) Set(service services.ServiceID, p services.ServicePlaceme
 	return nil
 }
 
-func (ms *mockStorage) CheckAndSet(service services.ServiceID, p services.ServicePlacement, v int) error {
+func (ms *mockStorage) CheckAndSet(service services.ServiceID, p services.Placement, v int) error {
 	ms.Lock()
 	defer ms.Unlock()
 
@@ -1087,7 +1087,7 @@ func (ms *mockStorage) CheckAndSet(service services.ServiceID, p services.Servic
 	return nil
 }
 
-func (ms *mockStorage) SetIfNotExist(service services.ServiceID, p services.ServicePlacement) error {
+func (ms *mockStorage) SetIfNotExist(service services.ServiceID, p services.Placement) error {
 	ms.Lock()
 	defer ms.Unlock()
 
@@ -1112,7 +1112,7 @@ func (ms *mockStorage) Delete(service services.ServiceID) error {
 	return nil
 }
 
-func (ms *mockStorage) Placement(service services.ServiceID) (services.ServicePlacement, int, error) {
+func (ms *mockStorage) Placement(service services.ServiceID) (services.Placement, int, error) {
 	ms.Lock()
 	defer ms.Unlock()
 

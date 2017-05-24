@@ -42,7 +42,7 @@ func newNonShardedAlgorithm() placement.Algorithm {
 func (a nonShardedAlgorithm) InitialPlacement(
 	instances []services.PlacementInstance,
 	shards []uint32,
-) (services.ServicePlacement, error) {
+) (services.Placement, error) {
 	if len(shards) > 0 {
 		return nil, errShardsOnNonShardedAlgo
 	}
@@ -54,7 +54,7 @@ func (a nonShardedAlgorithm) InitialPlacement(
 		SetIsSharded(false), nil
 }
 
-func (a nonShardedAlgorithm) AddReplica(p services.ServicePlacement) (services.ServicePlacement, error) {
+func (a nonShardedAlgorithm) AddReplica(p services.Placement) (services.Placement, error) {
 	if p.IsSharded() {
 		return nil, errNonShardedAlgoOnShardedPlacement
 	}
@@ -66,7 +66,7 @@ func (a nonShardedAlgorithm) AddReplica(p services.ServicePlacement) (services.S
 		SetIsSharded(p.IsSharded()), nil
 }
 
-func (a nonShardedAlgorithm) RemoveInstance(p services.ServicePlacement, instanceID string) (services.ServicePlacement, error) {
+func (a nonShardedAlgorithm) RemoveInstance(p services.Placement, instanceID string) (services.Placement, error) {
 	if p.IsSharded() {
 		return nil, errNonShardedAlgoOnShardedPlacement
 	}
@@ -87,9 +87,9 @@ func (a nonShardedAlgorithm) RemoveInstance(p services.ServicePlacement, instanc
 }
 
 func (a nonShardedAlgorithm) AddInstance(
-	p services.ServicePlacement,
+	p services.Placement,
 	i services.PlacementInstance,
-) (services.ServicePlacement, error) {
+) (services.Placement, error) {
 	if p.IsSharded() {
 		return nil, errNonShardedAlgoOnShardedPlacement
 	}
@@ -108,10 +108,10 @@ func (a nonShardedAlgorithm) AddInstance(
 }
 
 func (a nonShardedAlgorithm) ReplaceInstance(
-	p services.ServicePlacement,
+	p services.Placement,
 	instanceID string,
 	addingInstances []services.PlacementInstance,
-) (services.ServicePlacement, error) {
+) (services.Placement, error) {
 	var err error
 	for _, instance := range addingInstances {
 		p, err = a.AddInstance(p, instance)

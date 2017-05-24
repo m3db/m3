@@ -43,7 +43,7 @@ func newShardedAlgorithm(opts services.PlacementOptions) placement.Algorithm {
 	return rackAwarePlacementAlgorithm{opts: opts}
 }
 
-func (a rackAwarePlacementAlgorithm) InitialPlacement(instances []services.PlacementInstance, shards []uint32) (services.ServicePlacement, error) {
+func (a rackAwarePlacementAlgorithm) InitialPlacement(instances []services.PlacementInstance, shards []uint32) (services.Placement, error) {
 	ph := newInitHelper(placement.CloneInstances(instances), shards, a.opts)
 
 	if err := ph.PlaceShards(newShards(shards), nil, ph.Instances()); err != nil {
@@ -52,7 +52,7 @@ func (a rackAwarePlacementAlgorithm) InitialPlacement(instances []services.Place
 	return ph.GeneratePlacement(nonEmptyOnly), nil
 }
 
-func (a rackAwarePlacementAlgorithm) AddReplica(p services.ServicePlacement) (services.ServicePlacement, error) {
+func (a rackAwarePlacementAlgorithm) AddReplica(p services.Placement) (services.Placement, error) {
 	if !p.IsSharded() {
 		return nil, errShardedAlgoOnNotShardedPlacement
 	}
@@ -68,7 +68,7 @@ func (a rackAwarePlacementAlgorithm) AddReplica(p services.ServicePlacement) (se
 	return ph.GeneratePlacement(nonEmptyOnly), nil
 }
 
-func (a rackAwarePlacementAlgorithm) RemoveInstance(p services.ServicePlacement, instanceID string) (services.ServicePlacement, error) {
+func (a rackAwarePlacementAlgorithm) RemoveInstance(p services.Placement, instanceID string) (services.Placement, error) {
 	if !p.IsSharded() {
 		return nil, errShardedAlgoOnNotShardedPlacement
 	}
@@ -88,9 +88,9 @@ func (a rackAwarePlacementAlgorithm) RemoveInstance(p services.ServicePlacement,
 }
 
 func (a rackAwarePlacementAlgorithm) AddInstance(
-	p services.ServicePlacement,
+	p services.Placement,
 	addingInstance services.PlacementInstance,
-) (services.ServicePlacement, error) {
+) (services.Placement, error) {
 	if !p.IsSharded() {
 		return nil, errShardedAlgoOnNotShardedPlacement
 	}
@@ -112,10 +112,10 @@ func (a rackAwarePlacementAlgorithm) AddInstance(
 }
 
 func (a rackAwarePlacementAlgorithm) ReplaceInstance(
-	p services.ServicePlacement,
+	p services.Placement,
 	instanceID string,
 	addingInstances []services.PlacementInstance,
-) (services.ServicePlacement, error) {
+) (services.Placement, error) {
 	if !p.IsSharded() {
 		return nil, errShardedAlgoOnNotShardedPlacement
 	}

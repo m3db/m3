@@ -26,13 +26,44 @@ import (
 	"strings"
 	"time"
 
+	metadataproto "github.com/m3db/m3cluster/generated/proto/metadata"
+	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
 	"github.com/m3db/m3cluster/shard"
 )
 
-var errInstanceNotFound = errors.New("instance not found")
+var (
+	errInstanceNotFound          = errors.New("instance not found")
+	errNilPlacementProto         = errors.New("nil placement proto")
+	errNilPlacementInstanceProto = errors.New("nil placement instance proto")
+	errNilMetadataProto          = errors.New("nil metadata proto")
+)
 
 // NewService creates a new Service
 func NewService() Service { return new(service) }
+
+// NewServiceFromProto takes the data from a placement and a service id and
+// returns the corresponding Service object.
+func NewServiceFromProto(
+	p *placementproto.Placement,
+	sid ServiceID,
+) (Service, error) {
+	if p == nil {
+		return nil, errNilPlacementProto
+	}
+	r := make([]ServiceInstance, 0, len(p.Instances))
+	for _, instance := range p.Instances {
+		instance, err := NewServiceInstanceFromProto(instance, sid)
+		if err != nil {
+			return nil, err
+		}
+		r = append(r, instance)
+	}
+
+	return NewService().
+		SetReplication(NewServiceReplication().SetReplicas(int(p.ReplicaFactor))).
+		SetSharding(NewServiceSharding().SetNumShards(int(p.NumShards)).SetIsSharded(p.IsSharded)).
+		SetInstances(r), nil
+}
 
 type service struct {
 	instances   []ServiceInstance
@@ -80,6 +111,25 @@ func (s *serviceSharding) SetIsSharded(v bool) ServiceSharding { s.isSharded = v
 
 // NewServiceInstance creates a new ServiceInstance
 func NewServiceInstance() ServiceInstance { return new(serviceInstance) }
+
+// NewServiceInstanceFromProto creates a new service instance from proto.
+func NewServiceInstanceFromProto(
+	instance *placementproto.Instance,
+	sid ServiceID,
+) (ServiceInstance, error) {
+	if instance == nil {
+		return nil, errNilPlacementInstanceProto
+	}
+	shards, err := shard.NewShardsFromProto(instance.Shards)
+	if err != nil {
+		return nil, err
+	}
+	return NewServiceInstance().
+		SetServiceID(sid).
+		SetInstanceID(instance.Id).
+		SetEndpoint(instance.Endpoint).
+		SetShards(shards), nil
+}
 
 type serviceInstance struct {
 	service  ServiceID
@@ -152,6 +202,18 @@ func (qo *queryOptions) SetIncludeUnhealthy(h bool) QueryOptions { qo.includeUnh
 // NewMetadata creates new Metadata
 func NewMetadata() Metadata { return new(metadata) }
 
+// NewMetadataFromProto converts a Metadata proto message to an instance of
+// Metadata.
+func NewMetadataFromProto(m *metadataproto.Metadata) (Metadata, error) {
+	if m == nil {
+		return nil, errNilMetadataProto
+	}
+	return NewMetadata().
+		SetPort(m.Port).
+		SetLivenessInterval(time.Duration(m.LivenessInterval)).
+		SetHeartbeatInterval(time.Duration(m.HeartbeatInterval)), nil
+}
+
 type metadata struct {
 	port              uint32
 	livenessInterval  time.Duration
@@ -162,14 +224,17 @@ func (m *metadata) Port() uint32                     { return m.port }
 func (m *metadata) LivenessInterval() time.Duration  { return m.livenessInterval }
 func (m *metadata) HeartbeatInterval() time.Duration { return m.heartbeatInterval }
 func (m *metadata) SetPort(p uint32) Metadata        { m.port = p; return m }
+
 func (m *metadata) SetLivenessInterval(l time.Duration) Metadata {
 	m.livenessInterval = l
 	return m
 }
+
 func (m *metadata) SetHeartbeatInterval(l time.Duration) Metadata {
 	m.heartbeatInterval = l
 	return m
 }
+
 func (m *metadata) String() string {
 	return fmt.Sprintf("[port: %d, livenessInterval: %v, heartbeatInterval: %v]",
 		m.port,

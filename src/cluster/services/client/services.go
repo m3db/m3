@@ -92,7 +92,7 @@ func (c *client) Metadata(sid services.ServiceID) (services.Metadata, error) {
 		return nil, err
 	}
 
-	return util.MetadataFromProto(mp), nil
+	return services.NewMetadataFromProto(&mp)
 }
 
 func (c *client) SetMetadata(sid services.ServiceID, meta services.Metadata) error {
@@ -507,7 +507,7 @@ func getServiceFromValue(value kv.Value, sid services.ServiceID) (services.Servi
 		return nil, err
 	}
 
-	return util.ServiceFromProto(placement, sid)
+	return services.NewServiceFromProto(&placement, sid)
 }
 
 func waitForInitValue(kvStore kv.Store, w kv.ValueWatch, sid services.ServiceID, timeout time.Duration) (kv.Value, error) {
