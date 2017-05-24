@@ -24,6 +24,8 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3collector/backend"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -46,21 +48,39 @@ const (
 type server struct {
 	sync.RWMutex
 
-	opts      ServerOptions
-	writerMgr instanceWriterManager
-	topology  topology
-	state     serverState
+	opts             ServerOptions
+	writerMgr        instanceWriterManager
+	shardFn          ShardFn
+	placementWatcher services.StagedPlacementWatcher
+	state            serverState
 }
 
 // NewServer creates a new server.
 func NewServer(opts ServerOptions) backend.Server {
 	writerMgr := newInstanceWriterManager(opts)
-	s := &server{
-		opts:      opts,
-		writerMgr: writerMgr,
-		topology:  newTopology(writerMgr, opts),
+	onPlacementsAddedFn := func(placements []services.Placement) {
+		for _, placement := range placements {
+			writerMgr.AddInstances(placement.Instances())
+		}
 	}
-	return s
+	onPlacementsRemovedFn := func(placements []services.Placement) {
+		for _, placement := range placements {
+			writerMgr.RemoveInstances(placement.Instances())
+		}
+	}
+	activeStagedPlacementOpts := placement.NewActiveStagedPlacementOptions().
+		SetClockOptions(opts.ClockOptions()).
+		SetOnPlacementsAddedFn(onPlacementsAddedFn).
+		SetOnPlacementsRemovedFn(onPlacementsRemovedFn)
+	placementWatcherOpts := opts.StagedPlacementWatcherOptions().SetActiveStagedPlacementOptions(activeStagedPlacementOpts)
+	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
+
+	return &server{
+		opts:             opts,
+		writerMgr:        writerMgr,
+		shardFn:          opts.ShardFn(),
+		placementWatcher: placementWatcher,
+	}
 }
 
 func (s *server) Open() error {
@@ -71,7 +91,7 @@ func (s *server) Open() error {
 		return errServerIsOpenOrClosed
 	}
 	s.state = serverOpen
-	return s.topology.Open()
+	return s.placementWatcher.Watch()
 }
 
 func (s *server) WriteCounterWithPoliciesList(
@@ -84,14 +104,7 @@ func (s *server) WriteCounterWithPoliciesList(
 		ID:         id,
 		CounterVal: val,
 	}
-	s.RLock()
-	if s.state != serverOpen {
-		s.RUnlock()
-		return errServerIsNotOpenOrClosed
-	}
-	err := s.topology.Route(mu, pl)
-	s.RUnlock()
-	return err
+	return s.write(id, mu, pl)
 }
 
 func (s *server) WriteBatchTimerWithPoliciesList(
@@ -104,14 +117,7 @@ func (s *server) WriteBatchTimerWithPoliciesList(
 		ID:            id,
 		BatchTimerVal: val,
 	}
-	s.RLock()
-	if s.state != serverOpen {
-		s.RUnlock()
-		return errServerIsNotOpenOrClosed
-	}
-	err := s.topology.Route(mu, pl)
-	s.RUnlock()
-	return err
+	return s.write(id, mu, pl)
 }
 
 func (s *server) WriteGaugeWithPoliciesList(
@@ -124,14 +130,7 @@ func (s *server) WriteGaugeWithPoliciesList(
 		ID:       id,
 		GaugeVal: val,
 	}
-	s.RLock()
-	if s.state != serverOpen {
-		s.RUnlock()
-		return errServerIsNotOpenOrClosed
-	}
-	err := s.topology.Route(mu, pl)
-	s.RUnlock()
-	return err
+	return s.write(id, mu, pl)
 }
 
 func (s *server) Flush() error {
@@ -153,6 +152,37 @@ func (s *server) Close() error {
 		return errServerIsNotOpenOrClosed
 	}
 	s.state = serverClosed
-	s.topology.Close()
+	s.placementWatcher.Unwatch()
 	return s.writerMgr.Close()
+}
+
+func (s *server) write(
+	id []byte,
+	mu unaggregated.MetricUnion,
+	pl policy.PoliciesList,
+) error {
+	s.RLock()
+	if s.state != serverOpen {
+		s.RUnlock()
+		return errServerIsNotOpenOrClosed
+	}
+	stagedPlacement, onStagedPlacementDoneFn, err := s.placementWatcher.ActiveStagedPlacement()
+	if err != nil {
+		s.RUnlock()
+		return err
+	}
+	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
+	if err != nil {
+		onStagedPlacementDoneFn()
+		s.RUnlock()
+		return err
+	}
+	numShards := placement.NumShards()
+	shard := s.shardFn(id, numShards)
+	instances := placement.InstancesForShard(shard)
+	err = s.writerMgr.WriteTo(instances, shard, mu, pl)
+	onPlacementDoneFn()
+	onStagedPlacementDoneFn()
+	s.RUnlock()
+	return err
 }

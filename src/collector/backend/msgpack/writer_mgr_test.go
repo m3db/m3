@@ -24,6 +24,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 
@@ -41,7 +43,7 @@ func TestWriterManagerAddInstancesSingleRef(t *testing.T) {
 
 	// Add instance lists twice and assert the writer refcount matches expectation.
 	for i := 0; i < 2; i++ {
-		require.NoError(t, mgr.AddInstances([]instance{testPlacementInstance}))
+		require.NoError(t, mgr.AddInstances([]services.PlacementInstance{testPlacementInstance}))
 	}
 	require.Equal(t, 1, len(mgr.writers))
 	w, exists := mgr.writers[testPlacementInstance.ID()]
@@ -60,19 +62,21 @@ func TestWriterManagerRemoveInstancesSuccess(t *testing.T) {
 
 	// Add instance lists twice.
 	for i := 0; i < 2; i++ {
-		require.NoError(t, mgr.AddInstances([]instance{testPlacementInstance}))
+		require.NoError(t, mgr.AddInstances([]services.PlacementInstance{testPlacementInstance}))
 	}
 	require.Equal(t, 1, len(mgr.writers))
 
 	// Remove the instance list once and assert they are not closed.
-	require.NoError(t, mgr.RemoveInstances([]instance{testPlacementInstance}))
+	require.NoError(t, mgr.RemoveInstances([]services.PlacementInstance{testPlacementInstance}))
 	require.Equal(t, 1, len(mgr.writers))
 	w := mgr.writers[testPlacementInstance.ID()].instanceWriter.(*writer)
 	require.False(t, w.closed)
 
 	// Remove the instance list again and assert the writer is now removed.
-	nonexistent := newInstance("nonexistent", "")
-	toRemove := append([]instance{nonexistent, testPlacementInstance})
+	nonexistent := placement.NewInstance().
+		SetID("nonexistent").
+		SetEndpoint("nonexistentAddress")
+	toRemove := append([]services.PlacementInstance{nonexistent, testPlacementInstance})
 	require.NoError(t, mgr.RemoveInstances(toRemove))
 	require.Equal(t, 0, len(mgr.writers))
 	require.True(t, w.closed)
@@ -81,22 +85,24 @@ func TestWriterManagerRemoveInstancesSuccess(t *testing.T) {
 func TestWriterManagerWriteToClosed(t *testing.T) {
 	mgr := newInstanceWriterManager(testServerOptions()).(*writerManager)
 	mgr.closed = true
-	err := mgr.WriteTo([]instance{testPlacementInstance}, 0, testCounter, testPoliciesList)
+	err := mgr.WriteTo([]services.PlacementInstance{testPlacementInstance}, 0, testCounter, testPoliciesList)
 	require.Equal(t, errInstanceWriterManagerClosed, err)
 }
 
 func TestWriterManagerWriteToNoInstances(t *testing.T) {
 	mgr := newInstanceWriterManager(testServerOptions()).(*writerManager)
 	mgr.closed = false
-	err := mgr.WriteTo([]instance{testPlacementInstance}, 0, testCounter, testPoliciesList)
+	err := mgr.WriteTo([]services.PlacementInstance{testPlacementInstance}, 0, testCounter, testPoliciesList)
 	require.Error(t, err)
 }
 
 func TestWriterManagerWriteToSuccess(t *testing.T) {
 	var (
-		instances = []instance{
+		instances = []services.PlacementInstance{
 			testPlacementInstance,
-			newInstance("foo", "fooAddr"),
+			placement.NewInstance().
+				SetID("foo").
+				SetEndpoint("fooAddr"),
 		}
 		shardRes uint32
 		muRes    unaggregated.MetricUnion
@@ -139,9 +145,11 @@ func TestWriterManagerFlushClosed(t *testing.T) {
 func TestWriterManagerFlushPartialError(t *testing.T) {
 	var (
 		numFlushes int
-		instances  = []instance{
+		instances  = []services.PlacementInstance{
 			testPlacementInstance,
-			newInstance("foo", "fooAddr"),
+			placement.NewInstance().
+				SetID("foo").
+				SetEndpoint("fooAddr"),
 		}
 	)
 
@@ -172,7 +180,7 @@ func TestWriterManagerCloseSuccess(t *testing.T) {
 	mgr := newInstanceWriterManager(testServerOptions()).(*writerManager)
 
 	// Add instance list and close.
-	require.NoError(t, mgr.AddInstances([]instance{testPlacementInstance}))
+	require.NoError(t, mgr.AddInstances([]services.PlacementInstance{testPlacementInstance}))
 	require.NoError(t, mgr.Close())
 	require.True(t, mgr.closed)
 	for _, w := range mgr.writers {

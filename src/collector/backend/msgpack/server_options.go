@@ -21,9 +21,13 @@
 package msgpack
 
 import (
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
+
+	"github.com/spaolacci/murmur3"
 )
 
 const (
@@ -31,25 +35,34 @@ const (
 	defaultInstanceQueueSize = 4096
 )
 
+// ShardFn maps a id to a shard given the total number of shards.
+type ShardFn func(id []byte, numShards int) uint32
+
 // ServerOptions provide a set of server options.
 type ServerOptions interface {
-	// SetInstrumentOptions sets the instrument options.
-	SetInstrumentOptions(value instrument.Options) ServerOptions
-
-	// InstrumentOptions returns the instrument options.
-	InstrumentOptions() instrument.Options
-
 	// SetClockOptions sets the clock options.
 	SetClockOptions(value clock.Options) ServerOptions
 
 	// ClockOptions returns the clock options.
 	ClockOptions() clock.Options
 
-	// SetTopologyOptions sets the topology options.
-	SetTopologyOptions(value TopologyOptions) ServerOptions
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) ServerOptions
 
-	// TopologyOptions returns the topology options.
-	TopologyOptions() TopologyOptions
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
+
+	// SetShardFn sets the sharding function.
+	SetShardFn(value ShardFn) ServerOptions
+
+	// ShardFn returns the sharding function.
+	ShardFn() ShardFn
+
+	// SetStagedPlacementWatcherOptions sets the staged placement watcher options.
+	SetStagedPlacementWatcherOptions(value services.StagedPlacementWatcherOptions) ServerOptions
+
+	// StagedPlacementWatcherOptions returns the staged placement watcher options.
+	StagedPlacementWatcherOptions() services.StagedPlacementWatcherOptions
 
 	// SetConnectionOptions sets the connection options.
 	SetConnectionOptions(value ConnectionOptions) ServerOptions
@@ -77,9 +90,10 @@ type ServerOptions interface {
 }
 
 type serverOptions struct {
-	instrumentOpts    instrument.Options
 	clockOpts         clock.Options
-	topologyOpts      TopologyOptions
+	instrumentOpts    instrument.Options
+	shardFn           ShardFn
+	watcherOpts       services.StagedPlacementWatcherOptions
 	connOpts          ConnectionOptions
 	flushSize         int
 	instanceQueueSize int
@@ -93,24 +107,15 @@ func NewServerOptions() ServerOptions {
 		return msgpack.NewPooledBufferedEncoder(encoderPool)
 	})
 	return &serverOptions{
-		instrumentOpts:    instrument.NewOptions(),
 		clockOpts:         clock.NewOptions(),
-		topologyOpts:      NewTopologyOptions(),
+		instrumentOpts:    instrument.NewOptions(),
+		shardFn:           defaultShardFn,
+		watcherOpts:       placement.NewStagedPlacementWatcherOptions(),
 		connOpts:          NewConnectionOptions(),
 		flushSize:         defaultFlushSize,
 		instanceQueueSize: defaultInstanceQueueSize,
 		encoderPool:       encoderPool,
 	}
-}
-
-func (o *serverOptions) SetInstrumentOptions(value instrument.Options) ServerOptions {
-	opts := *o
-	opts.instrumentOpts = value
-	return &opts
-}
-
-func (o *serverOptions) InstrumentOptions() instrument.Options {
-	return o.instrumentOpts
 }
 
 func (o *serverOptions) SetClockOptions(value clock.Options) ServerOptions {
@@ -123,14 +128,34 @@ func (o *serverOptions) ClockOptions() clock.Options {
 	return o.clockOpts
 }
 
-func (o *serverOptions) SetTopologyOptions(value TopologyOptions) ServerOptions {
+func (o *serverOptions) SetInstrumentOptions(value instrument.Options) ServerOptions {
 	opts := *o
-	opts.topologyOpts = value
+	opts.instrumentOpts = value
 	return &opts
 }
 
-func (o *serverOptions) TopologyOptions() TopologyOptions {
-	return o.topologyOpts
+func (o *serverOptions) InstrumentOptions() instrument.Options {
+	return o.instrumentOpts
+}
+
+func (o *serverOptions) SetShardFn(value ShardFn) ServerOptions {
+	opts := *o
+	opts.shardFn = value
+	return &opts
+}
+
+func (o *serverOptions) ShardFn() ShardFn {
+	return o.shardFn
+}
+
+func (o *serverOptions) SetStagedPlacementWatcherOptions(value services.StagedPlacementWatcherOptions) ServerOptions {
+	opts := *o
+	opts.watcherOpts = value
+	return &opts
+}
+
+func (o *serverOptions) StagedPlacementWatcherOptions() services.StagedPlacementWatcherOptions {
+	return o.watcherOpts
 }
 
 func (o *serverOptions) SetConnectionOptions(value ConnectionOptions) ServerOptions {
@@ -171,4 +196,8 @@ func (o *serverOptions) SetBufferedEncoderPool(value msgpack.BufferedEncoderPool
 
 func (o *serverOptions) BufferedEncoderPool() msgpack.BufferedEncoderPool {
 	return o.encoderPool
+}
+
+func defaultShardFn(id []byte, numShards int) uint32 {
+	return murmur3.Sum32(id) % uint32(numShards)
 }
