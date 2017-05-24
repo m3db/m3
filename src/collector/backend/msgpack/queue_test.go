@@ -26,9 +26,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	testPlacementInstance = placement.NewInstance().
+		SetID("testInstanceID").
+		SetEndpoint("testInstanceAddress")
 )
 
 func TestInstanceQueueEnqueueClosed(t *testing.T) {

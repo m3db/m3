@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/errors"
@@ -37,14 +38,14 @@ var (
 // instanceWriterManager manages instance writers.
 type instanceWriterManager interface {
 	// AddInstances adds instances.
-	AddInstances(instances []instance) error
+	AddInstances(instances []services.PlacementInstance) error
 
 	// RemoveInstances removes instancess.
-	RemoveInstances(instances []instance) error
+	RemoveInstances(instances []services.PlacementInstance) error
 
 	// WriteTo writes a metric alongside its policies list to target instances.
 	WriteTo(
-		instances []instance,
+		instances []services.PlacementInstance,
 		shard uint32,
 		mu unaggregated.MetricUnion,
 		pl policy.PoliciesList,
@@ -72,7 +73,7 @@ func newInstanceWriterManager(opts ServerOptions) instanceWriterManager {
 	}
 }
 
-func (mgr *writerManager) AddInstances(instances []instance) error {
+func (mgr *writerManager) AddInstances(instances []services.PlacementInstance) error {
 	mgr.Lock()
 	defer mgr.Unlock()
 
@@ -91,7 +92,7 @@ func (mgr *writerManager) AddInstances(instances []instance) error {
 	return nil
 }
 
-func (mgr *writerManager) RemoveInstances(instances []instance) error {
+func (mgr *writerManager) RemoveInstances(instances []services.PlacementInstance) error {
 	mgr.Lock()
 	defer mgr.Unlock()
 
@@ -112,7 +113,7 @@ func (mgr *writerManager) RemoveInstances(instances []instance) error {
 }
 
 func (mgr *writerManager) WriteTo(
-	instances []instance,
+	instances []services.PlacementInstance,
 	shard uint32,
 	mu unaggregated.MetricUnion,
 	pl policy.PoliciesList,

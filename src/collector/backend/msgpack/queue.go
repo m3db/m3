@@ -24,6 +24,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/log"
 )
@@ -48,7 +49,7 @@ type queue struct {
 	sync.RWMutex
 
 	log      xlog.Logger
-	instance instance
+	instance services.PlacementInstance
 	conn     *connection
 	bufCh    chan msgpack.Buffer
 	closed   bool
@@ -56,8 +57,8 @@ type queue struct {
 	writeFn writeFn
 }
 
-func newInstanceQueue(instance instance, opts ServerOptions) instanceQueue {
-	conn := newConnection(instance.Address(), opts.ConnectionOptions())
+func newInstanceQueue(instance services.PlacementInstance, opts ServerOptions) instanceQueue {
+	conn := newConnection(instance.Endpoint(), opts.ConnectionOptions())
 	q := &queue{
 		log:      opts.InstrumentOptions().Logger(),
 		instance: instance,
@@ -106,7 +107,7 @@ func (q *queue) drain() {
 	for buf := range q.bufCh {
 		if err := q.writeFn(buf.Bytes()); err != nil {
 			q.log.WithFields(
-				xlog.NewLogField("instance", q.instance.String()),
+				xlog.NewLogField("instance", q.instance.Endpoint()),
 				xlog.NewLogErrField(err),
 			).Error("write data error")
 		}
