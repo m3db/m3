@@ -206,10 +206,15 @@ func writeCommitLogs(
 	wg := sync.WaitGroup{}
 
 	getAllWrites := func() int {
+		result := int64(0)
 		snapshot := scope.Snapshot()
 		counters := snapshot.Counters()
-		result := counters["commitlog.writes.success"].Value() +
-			counters["commitlog.writes.errors"].Value()
+		if c, ok := counters["commitlog.writes.success"]; ok {
+			result += c.Value()
+		}
+		if c, ok := counters["commitlog.writes.errors"]; ok {
+			result += c.Value()
+		}
 		return int(result)
 	}
 
