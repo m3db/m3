@@ -25,12 +25,31 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
+	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 )
+
+// Aggregator aggregates different types of metrics.
+type Aggregator interface {
+	// Open opens the aggregator.
+	Open() error
+
+	// AddMetricWithPoliciesList adds a metric with policies list for aggregation.
+	AddMetricWithPoliciesList(
+		mu unaggregated.MetricUnion,
+		pl policy.PoliciesList,
+	) error
+
+	// Close closes the aggregator.
+	Close() error
+}
+
+// ShardFn maps a id to a shard given the total number of shards.
+type ShardFn func(id []byte, numShards int) uint32
 
 // CounterElemAlloc allocates a new counter element
 type CounterElemAlloc func() *CounterElem
@@ -90,18 +109,6 @@ type EntryPool interface {
 
 	// Put returns a entry to the pool
 	Put(value *Entry)
-}
-
-// Aggregator aggregates different types of metrics.
-type Aggregator interface {
-	// AddMetricWithPoliciesList adds a metric with policies list for aggregation.
-	AddMetricWithPoliciesList(
-		mu unaggregated.MetricUnion,
-		pl policy.PoliciesList,
-	) error
-
-	// Close closes the aggregator.
-	Close()
 }
 
 // QuantileSuffixFn returns the byte-slice suffix for a quantile value
@@ -198,6 +205,12 @@ type Options interface {
 	// GaugePrefix returns the prefix for gauges
 	GaugePrefix() []byte
 
+	// SetTimeLock sets the time lock
+	SetTimeLock(value *sync.RWMutex) Options
+
+	// TimeLock returns the time lock
+	TimeLock() *sync.RWMutex
+
 	// SetClockOptions sets the clock options
 	SetClockOptions(value clock.Options) Options
 
@@ -216,11 +229,23 @@ type Options interface {
 	// StreamOptions returns the stream options
 	StreamOptions() cm.Options
 
-	// SetTimeLock sets the time lock
-	SetTimeLock(value *sync.RWMutex) Options
+	// SetStagedPlacementWatcherOptions sets the staged placement watcher options.
+	SetStagedPlacementWatcherOptions(value services.StagedPlacementWatcherOptions) Options
 
-	// TimeLock returns the time lock
-	TimeLock() *sync.RWMutex
+	// StagedPlacementWatcherOptions returns the staged placement watcher options.
+	StagedPlacementWatcherOptions() services.StagedPlacementWatcherOptions
+
+	// SetInstanceID sets the current instance id.
+	SetInstanceID(value string) Options
+
+	// InstanceID returns the current instance id.
+	InstanceID() string
+
+	// SetShardFn sets the sharding function.
+	SetShardFn(value ShardFn) Options
+
+	// ShardFn returns the sharding function.
+	ShardFn() ShardFn
 
 	// SetMinFlushInterval sets the minimum flush interval
 	SetMinFlushInterval(value time.Duration) Options

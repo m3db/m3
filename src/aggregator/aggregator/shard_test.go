@@ -18,27 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+package aggregator
 
 import (
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
+	"testing"
+
+	"github.com/m3db/m3metrics/metric/unaggregated"
+	"github.com/m3db/m3metrics/policy"
+	"github.com/stretchr/testify/require"
 )
 
-// Configuration contains top-level configuration.
-type Configuration struct {
-	// Logging configuration.
-	Logging xlog.Configuration `yaml:"logging"`
+func TestAggregatorShard(t *testing.T) {
+	shard := newAggregatorShard(0, testOptions().SetEntryCheckInterval(0))
+	require.Equal(t, uint32(0), shard.ID())
 
-	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
+	var (
+		resultMu           unaggregated.MetricUnion
+		resultPoliciesList policy.PoliciesList
+	)
+	shard.addMetricWithPoliciesListFn = func(
+		mu unaggregated.MetricUnion,
+		pl policy.PoliciesList,
+	) error {
+		resultMu = mu
+		resultPoliciesList = pl
+		return nil
+	}
 
-	// Msgpack server configuration.
-	Msgpack MsgpackServerConfiguration `yaml:"msgpack"`
+	require.NoError(t, shard.AddMetricWithPoliciesList(testValidMetric, testPoliciesList))
+	require.Equal(t, testValidMetric, resultMu)
+	require.Equal(t, testPoliciesList, resultPoliciesList)
 
-	// HTTP server configuration.
-	HTTP HTTPServerConfiguration `yaml:"http"`
+	// Close the shard.
+	shard.Close()
 
-	// Aggregator configuration.
-	Aggregator AggregatorConfiguration `yaml:"aggregator"`
+	// Adding a metric to a closed shard should result in an error.
+	err := shard.AddMetricWithPoliciesList(testValidMetric, testPoliciesList)
+	require.Equal(t, errAggregatorShardClosed, err)
+
+	// Assert the shard is closed.
+	require.True(t, shard.closed)
 }

@@ -53,11 +53,6 @@ var (
 		policy.NewPolicy(10*time.Second, xtime.Second, 48*time.Hour),
 		policy.NewPolicy(time.Minute, xtime.Minute, 720*time.Hour),
 	}
-	testInvalidID     = id.RawID("testInvalid")
-	testInvalidMetric = unaggregated.MetricUnion{
-		Type: unaggregated.UnknownType,
-		ID:   testInvalidID,
-	}
 )
 
 func TestEntryIncDecWriter(t *testing.T) {

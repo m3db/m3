@@ -46,6 +46,8 @@ func NewAggregator() Aggregator {
 	return &mockAggregator{}
 }
 
+func (agg *mockAggregator) Open() error { return nil }
+
 func (agg *mockAggregator) AddMetricWithPoliciesList(
 	mu unaggregated.MetricUnion,
 	pl policy.PoliciesList,
@@ -86,7 +88,7 @@ func (agg *mockAggregator) AddMetricWithPoliciesList(
 	return nil
 }
 
-func (agg *mockAggregator) Close() {}
+func (agg *mockAggregator) Close() error { return nil }
 
 func (agg *mockAggregator) NumMetricsAdded() int {
 	agg.RLock()

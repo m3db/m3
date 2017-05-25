@@ -23,7 +23,6 @@ package aggregator
 import (
 	"container/list"
 	"errors"
-	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,10 +33,6 @@ import (
 	"github.com/m3db/m3x/errors"
 
 	"github.com/uber-go/tally"
-)
-
-const (
-	uninitializedCutoverNanos = math.MinInt64
 )
 
 var (

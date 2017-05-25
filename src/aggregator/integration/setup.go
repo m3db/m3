@@ -32,6 +32,11 @@ import (
 	httpserver "github.com/m3db/m3aggregator/server/http"
 	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
+	"github.com/m3db/m3cluster/kv/mem"
+	"github.com/m3db/m3cluster/proto/util"
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/services/placement"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
@@ -45,7 +50,7 @@ var (
 	errServerStopTimedOut  = errors.New("server took too long to stop")
 )
 
-// nowSetterFn is the function that sets the current time
+// nowSetterFn is the function that sets the current time.
 type nowSetterFn func(t time.Time)
 
 type testSetup struct {
@@ -63,7 +68,7 @@ type testSetup struct {
 	results           *[]aggregated.MetricWithPolicy
 	resultLock        *sync.Mutex
 
-	// Signals
+	// Signals.
 	doneCh   chan struct{}
 	closedCh chan struct{}
 }
@@ -73,23 +78,23 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		opts = newTestOptions()
 	}
 
-	// Set up the msgpack server address
+	// Set up the msgpack server address.
 	msgpackAddr := *msgpackAddrArg
 	if addr := opts.MsgpackAddr(); addr != "" {
 		msgpackAddr = addr
 	}
 
-	// Set up the http server address
+	// Set up the http server address.
 	httpAddr := *httpAddrArg
 	if addr := opts.HTTPAddr(); addr != "" {
 		httpAddr = addr
 	}
 
-	// Set up worker pool
+	// Set up worker pool.
 	workerPool := xsync.NewWorkerPool(opts.WorkerPoolSize())
 	workerPool.Init()
 
-	// Set up getter and setter for now
+	// Set up getter and setter for now.
 	var lock sync.RWMutex
 	now := time.Now().Truncate(time.Hour)
 	getNowFn := func() time.Time {
@@ -104,11 +109,11 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		lock.Unlock()
 	}
 
-	// Create the server options
+	// Create the server options.
 	msgpackServerOpts := msgpackserver.NewOptions()
 	httpServerOpts := httpserver.NewOptions()
 
-	// Creating the aggregator options
+	// Creating the aggregator options.
 	aggregatorOpts := aggregator.NewOptions()
 	clockOpts := aggregatorOpts.ClockOptions()
 	aggregatorOpts = aggregatorOpts.SetClockOptions(clockOpts.SetNowFn(getNowFn))
@@ -118,7 +123,38 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	})
 	aggregatorOpts = aggregatorOpts.SetEntryPool(entryPool)
 
-	// Creating the processor options
+	// Set up placement watcher.
+	shardSet := make([]shard.Shard, opts.NumShards())
+	for i := 0; i < opts.NumShards(); i++ {
+		shardSet[i] = shard.NewShard(uint32(i)).SetState(shard.Initializing)
+	}
+	shards := shard.NewShards(shardSet)
+	instance := placement.NewInstance().
+		SetID(opts.InstanceID()).
+		SetShards(shards)
+	testPlacement := placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{instance}).
+		SetShards(shards.AllIDs())
+	stagedPlacement := placement.NewStagedPlacement().
+		SetPlacements([]services.Placement{testPlacement})
+	stagedPlacementProto, err := util.StagedPlacementToProto(stagedPlacement)
+	if err != nil {
+		return nil, err
+	}
+	placementKey := opts.PlacementKVKey()
+	placementStore := mem.NewStore()
+	_, err = placementStore.SetIfNotExists(placementKey, stagedPlacementProto)
+	if err != nil {
+		return nil, err
+	}
+	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
+		SetStagedPlacementKey(placementKey).
+		SetStagedPlacementStore(placementStore)
+	aggregatorOpts = aggregatorOpts.
+		SetInstanceID(opts.InstanceID()).
+		SetStagedPlacementWatcherOptions(placementWatcherOpts)
+
+	// Set up the handler.
 	var (
 		results    []aggregated.MetricWithPolicy
 		resultLock sync.Mutex
@@ -133,6 +169,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		return nil
 	}
 	handler := handler.NewDecodingHandler(handleFn)
+	aggregatorOpts = aggregatorOpts.SetFlushHandler(handler)
 
 	return &testSetup{
 		opts:              opts,
@@ -170,9 +207,11 @@ func (ts *testSetup) waitUntilServerIsUp() error {
 func (ts *testSetup) startServer() error {
 	errCh := make(chan error, 1)
 
-	// Creating the aggregator
-	ts.aggregatorOpts = ts.aggregatorOpts.SetFlushHandler(ts.handler)
+	// Creating the aggregator.
 	ts.aggregator = aggregator.NewAggregator(ts.aggregatorOpts)
+	if err := ts.aggregator.Open(); err != nil {
+		return err
+	}
 
 	go func() {
 		if err := serve.Serve(
