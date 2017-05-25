@@ -12,7 +12,7 @@ import:
   - gomock
 
 - package: github.com/golang/protobuf
-  version: bf531ff1a004f24ee53329dfd5ce0b41bfdc17df
+  version: 3852dcfda249c2097355a6aabb199a28d97b30df
   subpackages:
   - proto
 
@@ -25,7 +25,7 @@ import:
   - require
 
 - package: github.com/uber/tchannel-go
-  version: 8d570ed87acb2661d390c096215260f3f9e9b931
+  version: 5d979b31a7405a676919fca637bb2f715fb9ed65
   subpackages:
   - thrift
 
@@ -36,16 +36,16 @@ import:
   version: 5c3c0fce48842b2c0bbaa99b4e61b0175d84b47c
 
 - package: github.com/uber-go/tally
-  version: v1.1.0
+  version: v3.0.0
 
 - package: github.com/m3db/m3cluster
-  version: 1054ce5875f3f13519cfc1c4e816c06bab8587fe
+  version: 2eb541bb4b0883e27c78f7594f0eda09f8bf9665
   subpackages:
   - client
   - services
 
 - package: github.com/m3db/m3x
-  version: 2adc966acde14c9f0cc04c3eaeb338c5f9673a74
+  version: bd6be18ffb184691512eb442561b16a59c15d797
   vcs: git
   subpackages:
   - checked
@@ -63,3 +63,9 @@ import:
 
 - package: google.golang.org/appengine/datastore
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
+
+- package: github.com/m3db/m3em
+  version: c7991e36f84c32e25e1cc7759d4779a319414578
+
+- package: github.com/spf13/cobra
+  version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
