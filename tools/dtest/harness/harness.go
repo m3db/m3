@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/tools/dtest/config"
+	m3dbnode "github.com/m3db/m3db/x/m3em/node"
 
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/services"
@@ -22,7 +23,6 @@ import (
 	"github.com/m3db/m3em/cluster"
 	hb "github.com/m3db/m3em/generated/proto/heartbeat"
 	"github.com/m3db/m3em/node"
-	m3dbnode "github.com/m3db/m3em/node/m3db"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"

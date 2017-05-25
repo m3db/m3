@@ -6,9 +6,8 @@ import (
 
 	"github.com/m3db/m3db/tools/dtest/harness"
 	"github.com/m3db/m3db/tools/dtest/util"
+	m3dbnode "github.com/m3db/m3db/x/m3em/node"
 
-	m3dbnode "github.com/m3db/m3em/node/m3db"
-	m3dbutil "github.com/m3db/m3em/node/m3db/util"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/log"
 	"github.com/spf13/cobra"
@@ -49,7 +48,7 @@ func removeDownNodeDTest(cmd *cobra.Command, args []string) {
 	logger.Infof("started cluster with %d nodes", numNodes)
 
 	logger.Infof("waiting until all instances are bootstrapped")
-	watcher := m3dbutil.NewM3DBNodesWatcher(nodes)
+	watcher := util.NewM3DBNodesWatcher(nodes)
 	allBootstrapped := watcher.WaitUntilAll(m3dbnode.Node.Bootstrapped, dt.BootstrapTimeout())
 	panicIf(!allBootstrapped, fmt.Sprintf("unable to bootstrap all nodes, err = %v", watcher.PendingAsError()))
 	logger.Infof("all nodes bootstrapped successfully!")

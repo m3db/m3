@@ -3,8 +3,9 @@ package util
 import (
 	"fmt"
 
+	m3dbnode "github.com/m3db/m3db/x/m3em/node"
+
 	"github.com/m3db/m3em/node"
-	m3dbnode "github.com/m3db/m3em/node/m3db"
 )
 
 // AsM3DBNodes returns casts a slice of ServiceNodes into M3DBNodes
