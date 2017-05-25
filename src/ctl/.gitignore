@@ -1,0 +1,23 @@
+*.out
+*.test
+*.xml
+*.swp
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.cov
+*.html
+test.log
+
+# glide manages this
+vendor/
+
+# Build binaries
+bin/
+
+# Debug binaries
+debug
+debug.test
+
