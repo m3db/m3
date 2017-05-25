@@ -39,6 +39,9 @@ type Server interface {
 	// handles data from those connections.
 	ListenAndServe() error
 
+	// Serve accepts and handles incoming connections on the listener l.
+	Serve(l net.Listener) error
+
 	// Close closes the server.
 	Close()
 }
@@ -116,6 +119,13 @@ func (s *server) ListenAndServe() error {
 		return err
 	}
 	s.listener = listener
+	go s.serve()
+	return nil
+}
+
+func (s *server) Serve(l net.Listener) error {
+	s.address = l.Addr().String()
+	s.listener = l
 	go s.serve()
 	return nil
 }

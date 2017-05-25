@@ -101,6 +101,20 @@ func TestServerListenAndClose(t *testing.T) {
 	require.Equal(t, expectedRes, h.res())
 }
 
+func TestServe(t *testing.T) {
+	s, _, _, _ := testServer(testListenAddress)
+
+	l, err := net.Listen("tcp", testListenAddress)
+	require.NoError(t, err)
+
+	err = s.Serve(l)
+	require.NoError(t, err)
+	require.Equal(t, l, s.listener)
+	require.Equal(t, l.Addr().String(), s.address)
+
+	s.Close()
+}
+
 type mockHandler struct {
 	sync.Mutex
 
