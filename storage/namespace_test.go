@@ -512,7 +512,7 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 	dopts := testDatabaseOptions()
 
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
-	scope, closer := tally.NewRootScope("", nil, reporter, time.Millisecond, tally.DefaultSeparator)
+	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
 	defer closer.Close()
 
 	dopts = dopts.SetInstrumentOptions(dopts.InstrumentOptions().

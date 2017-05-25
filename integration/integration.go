@@ -245,7 +245,7 @@ func newDefaultBootstrappableTestSetups(
 		logger = logger.WithFields(xlog.NewLogField("instance", instance))
 		iopts := setup.storageOpts.InstrumentOptions().SetLogger(logger)
 		if testStatsReporter != nil {
-			scope, _ := tally.NewRootScope("", nil, testStatsReporter, 100*time.Millisecond, tally.DefaultSeparator)
+			scope, _ := tally.NewRootScope(tally.ScopeOptions{Reporter: testStatsReporter}, 100*time.Millisecond)
 			iopts = iopts.SetMetricsScope(scope)
 		}
 		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(iopts)
