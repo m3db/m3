@@ -27,37 +27,58 @@ const (
 	defaultClientBatchSize          = 1440
 	defaultClientConnectTimeout     = time.Second
 	defaultWorkerPoolSize           = 4
+	defaultInstanceID               = "localhost:6000"
+	defaultNumShards                = 1024
+	defaultPlacementKVKey           = "placement"
 )
 
 type testOptions interface {
-	// SetMsgpackAddr sets the msgpack server address
+	// SetMsgpackAddr sets the msgpack server address.
 	SetMsgpackAddr(value string) testOptions
 
-	// MsgpackAddr returns the msgpack server address
+	// MsgpackAddr returns the msgpack server address.
 	MsgpackAddr() string
 
-	// SetHTTPAddr sets the http server address
+	// SetHTTPAddr sets the http server address.
 	SetHTTPAddr(value string) testOptions
 
-	// HTTPAddr returns the http server address
+	// HTTPAddr returns the http server address.
 	HTTPAddr() string
 
-	// SetClientBatchSize sets the client-side batch size
+	// SetInstanceID sets the instance id.
+	SetInstanceID(value string) testOptions
+
+	// InstanceID returns the instance id.
+	InstanceID() string
+
+	// SetNumShards sets the number of shards.
+	SetNumShards(value int) testOptions
+
+	// NumShards returns the number of shards.
+	NumShards() int
+
+	// SetPlacementKVKey sets the placement kv key.
+	SetPlacementKVKey(value string) testOptions
+
+	// PlacementKVKey returns the placement kv key.
+	PlacementKVKey() string
+
+	// SetClientBatchSize sets the client-side batch size.
 	SetClientBatchSize(value int) testOptions
 
-	// ClientBatchSize returns the client-side batch size
+	// ClientBatchSize returns the client-side batch size.
 	ClientBatchSize() int
 
-	// SetClientConnectTimeout sets the client-side connect timeout
+	// SetClientConnectTimeout sets the client-side connect timeout.
 	SetClientConnectTimeout(value time.Duration) testOptions
 
-	// ClientConnectTimeout returns the client-side connect timeout
+	// ClientConnectTimeout returns the client-side connect timeout.
 	ClientConnectTimeout() time.Duration
 
-	// SetServerStateChangeTimeout sets the client connect timeout
+	// SetServerStateChangeTimeout sets the client connect timeout.
 	SetServerStateChangeTimeout(value time.Duration) testOptions
 
-	// ServerStateChangeTimeout returns the client connect timeout
+	// ServerStateChangeTimeout returns the client connect timeout.
 	ServerStateChangeTimeout() time.Duration
 
 	// SetWorkerPoolSize sets the number of workers in the worker pool.
@@ -70,6 +91,9 @@ type testOptions interface {
 type options struct {
 	msgpackAddr              string
 	httpAddr                 string
+	instanceID               string
+	numShards                int
+	placementKVKey           string
 	serverStateChangeTimeout time.Duration
 	workerPoolSize           int
 	clientBatchSize          int
@@ -78,6 +102,9 @@ type options struct {
 
 func newTestOptions() testOptions {
 	return &options{
+		instanceID:               defaultInstanceID,
+		numShards:                defaultNumShards,
+		placementKVKey:           defaultPlacementKVKey,
 		serverStateChangeTimeout: defaultServerStateChangeTimeout,
 		workerPoolSize:           defaultWorkerPoolSize,
 		clientBatchSize:          defaultClientBatchSize,
@@ -103,6 +130,36 @@ func (o *options) SetHTTPAddr(value string) testOptions {
 
 func (o *options) HTTPAddr() string {
 	return o.httpAddr
+}
+
+func (o *options) SetInstanceID(value string) testOptions {
+	opts := *o
+	opts.instanceID = value
+	return &opts
+}
+
+func (o *options) InstanceID() string {
+	return o.instanceID
+}
+
+func (o *options) SetNumShards(value int) testOptions {
+	opts := *o
+	opts.numShards = value
+	return &opts
+}
+
+func (o *options) NumShards() int {
+	return o.numShards
+}
+
+func (o *options) SetPlacementKVKey(value string) testOptions {
+	opts := *o
+	opts.placementKVKey = value
+	return &opts
+}
+
+func (o *options) PlacementKVKey() string {
+	return o.placementKVKey
 }
 
 func (o *options) SetClientBatchSize(value int) testOptions {

@@ -23,22 +23,32 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net"
+	"os"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/aggregator/handler"
+	"github.com/m3db/m3cluster/client"
+	etcdclient "github.com/m3db/m3cluster/client/etcd"
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
+
+	"github.com/spaolacci/murmur3"
 )
 
 var (
 	errUnknownQuantileSuffixFnType   = errors.New("unknown quantile suffix function type")
 	errUnknownFlushHandlerType       = errors.New("unknown flush handler type")
+	errNoKVClientConfiguration       = errors.New("no kv client configuration")
 	errNoForwardHandlerConfiguration = errors.New("no forward flush configuration")
 	emptyPolicy                      policy.Policy
 )
@@ -87,6 +97,15 @@ type AggregatorConfiguration struct {
 	// Stream configuration for computing quantiles.
 	Stream streamConfiguration `yaml:"stream"`
 
+	// Client configuration for key value store.
+	KVClient kvClientConfiguration `yaml:"kvClient" validate:"nonzero"`
+
+	// Placement watcher configuration for watching placement updates.
+	PlacementWatcher placementWatcherConfiguration `yaml:"placementWatcher"`
+
+	// Sharding function type.
+	ShardFnType *shardFnType `yaml:"shardFnType"`
+
 	// Minimum flush interval across all resolutions.
 	MinFlushInterval time.Duration `yaml:"minFlushInterval"`
 
@@ -108,9 +127,6 @@ type AggregatorConfiguration struct {
 	// Default policies.
 	DefaultPolicies []policy.Policy `yaml:"defaultPolicies" validate:"nonzero"`
 
-	// Pool of entries.
-	EntryPool pool.ObjectPoolConfiguration `yaml:"entryPool"`
-
 	// Pool of counter elements.
 	CounterElemPool pool.ObjectPoolConfiguration `yaml:"counterElemPool"`
 
@@ -120,12 +136,16 @@ type AggregatorConfiguration struct {
 	// Pool of gauge elements.
 	GaugeElemPool pool.ObjectPoolConfiguration `yaml:"gaugeElemPool"`
 
+	// Pool of entries.
+	EntryPool pool.ObjectPoolConfiguration `yaml:"entryPool"`
+
 	// Pool of buffered encoders.
 	BufferedEncoderPool pool.ObjectPoolConfiguration `yaml:"bufferedEncoderPool"`
 }
 
 // NewAggregatorOptions creates a new set of aggregator options.
 func (c *AggregatorConfiguration) NewAggregatorOptions(
+	address string,
 	instrumentOpts instrument.Options,
 ) (aggregator.Options, error) {
 	scope := instrumentOpts.MetricsScope()
@@ -160,7 +180,40 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	}
 	opts = opts.SetStreamOptions(streamOpts)
 
-	// Set flushing options.
+	// Set instance id.
+	instanceID, err := instanceID(address)
+	if err != nil {
+		return nil, err
+	}
+	opts = opts.SetInstanceID(instanceID)
+
+	// Create kv client.
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("kvClient"))
+	client, err := c.KVClient.NewKVClient(iOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set placement watcher options.
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("placement-watcher"))
+	watcherOpts, err := c.PlacementWatcher.NewPlacementWatcherOptions(iOpts, client)
+	if err != nil {
+		return nil, err
+	}
+	opts = opts.SetStagedPlacementWatcherOptions(watcherOpts)
+
+	// Set sharding function.
+	shardFnType := defaultShardFn
+	if c.ShardFnType != nil {
+		shardFnType = *c.ShardFnType
+	}
+	shardFn, err := shardFnType.ShardFn()
+	if err != nil {
+		return nil, err
+	}
+	opts = opts.SetShardFn(shardFn)
+
+	// Set flushing handler.
 	if c.MinFlushInterval != 0 {
 		opts = opts.SetMinFlushInterval(c.MinFlushInterval)
 	}
@@ -191,13 +244,6 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	sort.Sort(policy.ByResolutionAsc(policies))
 	opts = opts.SetDefaultPolicies(policies)
 
-	// Set entry pool.
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("entry-pool"))
-	entryPoolOpts := c.EntryPool.NewObjectPoolOptions(iOpts)
-	entryPool := aggregator.NewEntryPool(entryPoolOpts)
-	opts = opts.SetEntryPool(entryPool)
-	entryPool.Init(func() *aggregator.Entry { return aggregator.NewEntry(nil, opts) })
-
 	// Set counter elem pool.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("counter-elem-pool"))
 	counterElemPoolOpts := c.CounterElemPool.NewObjectPoolOptions(iOpts)
@@ -218,6 +264,13 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	gaugeElemPool := aggregator.NewGaugeElemPool(gaugeElemPoolOpts)
 	opts = opts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem { return aggregator.NewGaugeElem(nil, emptyPolicy, opts) })
+
+	// Set entry pool.
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("entry-pool"))
+	entryPoolOpts := c.EntryPool.NewObjectPoolOptions(iOpts)
+	entryPool := aggregator.NewEntryPool(entryPoolOpts)
+	opts = opts.SetEntryPool(entryPool)
+	entryPool.Init(func() *aggregator.Entry { return aggregator.NewEntry(nil, opts) })
 
 	// Set buffered encoder pool.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("buffered-encoder-pool"))
@@ -293,6 +346,97 @@ func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options
 		return nil, err
 	}
 	return opts, nil
+}
+
+// TODO(xichen): add configuration for in-memory client with pre-populated data
+// for different namespaces so we can start up m3aggregator without a real etcd cluster.
+type kvClientConfiguration struct {
+	Etcd *etcdclient.Configuration `yaml:"etcd"`
+}
+
+func (c *kvClientConfiguration) NewKVClient(instrumentOpts instrument.Options) (client.Client, error) {
+	if c.Etcd == nil {
+		return nil, errNoKVClientConfiguration
+	}
+	return c.Etcd.NewClient(instrumentOpts)
+}
+
+type placementWatcherConfiguration struct {
+	// Placement kv namespace.
+	Namespace string `yaml:"namespace" validate:"nonzero"`
+
+	// Placement key.
+	Key string `yaml:"key" validate:"nonzero"`
+
+	// Initial watch timeout.
+	InitWatchTimeout time.Duration `yaml:"initWatchTimeout"`
+}
+
+func (c *placementWatcherConfiguration) NewPlacementWatcherOptions(
+	instrumentOpts instrument.Options,
+	client client.Client,
+) (services.StagedPlacementWatcherOptions, error) {
+	store, err := client.Store(c.Namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	opts := placement.NewStagedPlacementWatcherOptions().
+		SetInstrumentOptions(instrumentOpts).
+		SetStagedPlacementKey(c.Key).
+		SetStagedPlacementStore(store)
+	if c.InitWatchTimeout != 0 {
+		opts = opts.SetInitWatchTimeout(c.InitWatchTimeout)
+	}
+	return opts, nil
+}
+
+type shardFnType string
+
+// List of supported sharding function types.
+const (
+	unknownShardFn  shardFnType = "unknown"
+	murmur32ShardFn shardFnType = "murmur32"
+
+	defaultShardFn = murmur32ShardFn
+)
+
+var (
+	validShardFnTypes = []shardFnType{
+		murmur32ShardFn,
+	}
+)
+
+func (t *shardFnType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	if str == "" {
+		*t = defaultShardFn
+		return nil
+	}
+	validTypes := make([]string, 0, len(validShardFnTypes))
+	for _, valid := range validShardFnTypes {
+		if str == string(valid) {
+			*t = valid
+			return nil
+		}
+		validTypes = append(validTypes, string(valid))
+	}
+	return fmt.Errorf("invalid shrading function type '%s' valid types are: %s",
+		str, strings.Join(validTypes, ", "))
+}
+
+func (t shardFnType) ShardFn() (aggregator.ShardFn, error) {
+	switch t {
+	case murmur32ShardFn:
+		return func(id []byte, numShards int) uint32 {
+			return murmur3.Sum32(id) % uint32(numShards)
+		}, nil
+	default:
+		return nil, fmt.Errorf("unrecognized hash gen type %v", t)
+	}
 }
 
 // flushHandlerConfiguration contains configuration for flushing metrics.
@@ -384,4 +528,16 @@ func setMetricPrefixOrSuffix(
 		return opts
 	}
 	return fn([]byte(str))
+}
+
+func instanceID(address string) (string, error) {
+	hostName, err := os.Hostname()
+	if err != nil {
+		return "", fmt.Errorf("error determining host name: %v", err)
+	}
+	_, port, err := net.SplitHostPort(address)
+	if err != nil {
+		return "", fmt.Errorf("error parse msgpack server address %s: %v", address, err)
+	}
+	return net.JoinHostPort(hostName, port), nil
 }

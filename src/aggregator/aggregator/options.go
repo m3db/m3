@@ -26,11 +26,15 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
+
+	"github.com/spaolacci/murmur3"
 )
 
 var (
@@ -46,6 +50,7 @@ var (
 	defaultTimerStdevSuffix       = []byte(".stdev")
 	defaultTimerMedianSuffix      = []byte(".median")
 	defaultGaugePrefix            = []byte("gauges.")
+	defaultInstanceID             = "localhost"
 	defaultMinFlushInterval       = 5 * time.Second
 	defaultMaxFlushSize           = 1440
 	defaultEntryTTL               = 24 * time.Hour
@@ -58,7 +63,7 @@ var (
 )
 
 type options struct {
-	// Base options
+	// Base options.
 	metricPrefix           []byte
 	counterPrefix          []byte
 	timerPrefix            []byte
@@ -72,10 +77,13 @@ type options struct {
 	timerMedianSuffix      []byte
 	timerQuantileSuffixFn  QuantileSuffixFn
 	gaugePrefix            []byte
+	timeLock               *sync.RWMutex
 	clockOpts              clock.Options
 	instrumentOpts         instrument.Options
 	streamOpts             cm.Options
-	timeLock               *sync.RWMutex
+	placementWatcherOpts   services.StagedPlacementWatcherOptions
+	instanceID             string
+	shardFn                ShardFn
 	minFlushInterval       time.Duration
 	maxFlushSize           int
 	flushHandler           Handler
@@ -89,7 +97,7 @@ type options struct {
 	gaugeElemPool          GaugeElemPool
 	bufferedEncoderPool    msgpack.BufferedEncoderPool
 
-	// Derived options
+	// Derived options.
 	fullCounterPrefix     []byte
 	fullTimerPrefix       []byte
 	fullGaugePrefix       []byte
@@ -97,7 +105,7 @@ type options struct {
 	timerQuantileSuffixes [][]byte
 }
 
-// NewOptions create a new set of options
+// NewOptions create a new set of options.
 func NewOptions() Options {
 	o := &options{
 		metricPrefix:           defaultMetricPrefix,
@@ -113,10 +121,13 @@ func NewOptions() Options {
 		timerMedianSuffix:      defaultTimerMedianSuffix,
 		timerQuantileSuffixFn:  defaultTimerQuantileSuffixFn,
 		gaugePrefix:            defaultGaugePrefix,
+		timeLock:               &sync.RWMutex{},
 		clockOpts:              clock.NewOptions(),
 		instrumentOpts:         instrument.NewOptions(),
 		streamOpts:             cm.NewOptions(),
-		timeLock:               &sync.RWMutex{},
+		placementWatcherOpts:   placement.NewStagedPlacementWatcherOptions(),
+		instanceID:             defaultInstanceID,
+		shardFn:                defaultShardFn,
 		minFlushInterval:       defaultMinFlushInterval,
 		maxFlushSize:           defaultMaxFlushSize,
 		entryTTL:               defaultEntryTTL,
@@ -125,10 +136,10 @@ func NewOptions() Options {
 		defaultPolicies:        defaultDefaultPolicies,
 	}
 
-	// Initialize pools
+	// Initialize pools.
 	o.initPools()
 
-	// Compute derived options
+	// Compute derived options.
 	o.computeAllDerived()
 
 	return o
@@ -269,6 +280,16 @@ func (o *options) GaugePrefix() []byte {
 	return o.gaugePrefix
 }
 
+func (o *options) SetTimeLock(value *sync.RWMutex) Options {
+	opts := *o
+	opts.timeLock = value
+	return &opts
+}
+
+func (o *options) TimeLock() *sync.RWMutex {
+	return o.timeLock
+}
+
 func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value
@@ -300,14 +321,34 @@ func (o *options) StreamOptions() cm.Options {
 	return o.streamOpts
 }
 
-func (o *options) SetTimeLock(value *sync.RWMutex) Options {
+func (o *options) SetStagedPlacementWatcherOptions(value services.StagedPlacementWatcherOptions) Options {
 	opts := *o
-	opts.timeLock = value
+	opts.placementWatcherOpts = value
 	return &opts
 }
 
-func (o *options) TimeLock() *sync.RWMutex {
-	return o.timeLock
+func (o *options) StagedPlacementWatcherOptions() services.StagedPlacementWatcherOptions {
+	return o.placementWatcherOpts
+}
+
+func (o *options) SetInstanceID(value string) Options {
+	opts := *o
+	opts.instanceID = value
+	return &opts
+}
+
+func (o *options) InstanceID() string {
+	return o.instanceID
+}
+
+func (o *options) SetShardFn(value ShardFn) Options {
+	opts := *o
+	opts.shardFn = value
+	return &opts
+}
+
+func (o *options) ShardFn() ShardFn {
+	return o.shardFn
 }
 
 func (o *options) SetMinFlushInterval(value time.Duration) Options {
@@ -519,7 +560,11 @@ func (o *options) computeFullGaugePrefix() {
 	o.fullGaugePrefix = fullGaugePrefix
 }
 
-// By default we use e.g. ".p50", ".p95", ".p99" for the 50th/95th/99th percentile
+// By default we use e.g. ".p50", ".p95", ".p99" for the 50th/95th/99th percentile.
 func defaultTimerQuantileSuffixFn(quantile float64) []byte {
 	return []byte(fmt.Sprintf(".p%0.0f", quantile*100))
+}
+
+func defaultShardFn(id []byte, numShards int) uint32 {
+	return murmur3.Sum32(id) % uint32(numShards)
 }

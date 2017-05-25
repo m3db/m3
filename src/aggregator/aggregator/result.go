@@ -18,27 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+package aggregator
 
-import (
-	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
-)
+import "time"
 
-// Configuration contains top-level configuration.
-type Configuration struct {
-	// Logging configuration.
-	Logging xlog.Configuration `yaml:"logging"`
+type tickResult struct {
+	ActiveEntries  int
+	ExpiredEntries int
+	ActiveElems    map[time.Duration]int
+}
 
-	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
-
-	// Msgpack server configuration.
-	Msgpack MsgpackServerConfiguration `yaml:"msgpack"`
-
-	// HTTP server configuration.
-	HTTP HTTPServerConfiguration `yaml:"http"`
-
-	// Aggregator configuration.
-	Aggregator AggregatorConfiguration `yaml:"aggregator"`
+// merge merges two tick results. Both input results may become
+// invalid after merge is called.
+func (r tickResult) merge(other tickResult) tickResult {
+	res := tickResult{
+		ActiveEntries:  r.ActiveEntries + other.ActiveEntries,
+		ExpiredEntries: r.ExpiredEntries + other.ExpiredEntries,
+	}
+	if len(r.ActiveElems) == 0 {
+		res.ActiveElems = other.ActiveElems
+		return res
+	}
+	if len(other.ActiveElems) == 0 {
+		res.ActiveElems = r.ActiveElems
+		return res
+	}
+	for dur, val := range other.ActiveElems {
+		r.ActiveElems[dur] += val
+	}
+	res.ActiveElems = r.ActiveElems
+	return res
 }

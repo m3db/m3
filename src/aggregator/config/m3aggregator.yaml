@@ -46,22 +46,23 @@ aggregator:
           capacity: 32
         - count: 1024
           capacity: 16
+  shardFnType: murmur32
   minFlushInterval: 5s
   maxFlushSize: 1440
   flush:
     type: logging
-  entryTTL: 24h
-  entryCheckInterval: 1h
+  entryTTL: 6h
+  entryCheckInterval: 10m
   defaultPolicies:
     - 10s:2d
     - 1m:40d
-  entryPool:
-    size: 4096
   counterElemPool:
     size: 4096
   timerElemPool:
     size: 4096
   gaugeElemPool:
+    size: 4096
+  entryPool:
     size: 4096
   bufferedEncoderPool:
     size: 4096

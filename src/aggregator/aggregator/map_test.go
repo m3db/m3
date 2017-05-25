@@ -115,13 +115,8 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 		SetEntryTTL(ttl)
 
 	m := newMetricMap(opts)
-	var waitIntervals []time.Duration
-	m.waitForFn = func(d time.Duration) <-chan time.Time {
-		waitIntervals = append(waitIntervals, d)
-		c := make(chan time.Time)
-		close(c)
-		return c
-	}
+	var sleepIntervals []time.Duration
+	m.sleepFn = func(d time.Duration) { sleepIntervals = append(sleepIntervals, d) }
 
 	// Insert some live entries and some expired entries.
 	numEntries := 100
@@ -141,12 +136,12 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 	}
 
 	// Delete expired entries.
-	m.DeleteExpired(opts.EntryCheckInterval())
+	m.deleteExpired(opts.EntryCheckInterval())
 
 	// Assert there should be only half of the entries left.
 	require.Equal(t, numEntries/2, len(m.entries))
 	require.Equal(t, numEntries/2, m.entryList.Len())
-	require.True(t, len(waitIntervals) > 0)
+	require.True(t, len(sleepIntervals) > 0)
 	for k, v := range m.entries {
 		e := v.Value.(hashedEntry)
 		require.Equal(t, k, e.idHash)

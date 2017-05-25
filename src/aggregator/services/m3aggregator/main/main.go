@@ -74,23 +74,26 @@ func main() {
 		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
 		SetReportInterval(cfg.Metrics.ReportInterval())
 
-	// Create the aggregator.
-	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("aggregator"))
-	aggregatorOpts, err := cfg.Aggregator.NewAggregatorOptions(iOpts)
-	if err != nil {
-		logger.Fatalf("error creating aggregator options: %v", err)
-	}
-	aggregator := aggregator.NewAggregator(aggregatorOpts)
-
 	// Create the msgpack server options.
 	msgpackAddr := cfg.Msgpack.ListenAddress
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("msgpack-server"))
+	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("msgpack-server"))
 	msgpackServerOpts := cfg.Msgpack.NewMsgpackServerOptions(iOpts)
 
 	// Create the http server options.
 	httpAddr := cfg.HTTP.ListenAddress
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("http-server"))
 	httpServerOpts := cfg.HTTP.NewHTTPServerOptions(iOpts)
+
+	// Create the aggregator.
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("aggregator"))
+	aggregatorOpts, err := cfg.Aggregator.NewAggregatorOptions(msgpackAddr, iOpts)
+	if err != nil {
+		logger.Fatalf("error creating aggregator options: %v", err)
+	}
+	aggregator := aggregator.NewAggregator(aggregatorOpts)
+	if err := aggregator.Open(); err != nil {
+		logger.Fatalf("error opening the aggregator: %v", err)
+	}
 
 	doneCh := make(chan struct{})
 	closedCh := make(chan struct{})

@@ -22,10 +22,14 @@ package aggregator
 
 import (
 	"errors"
+	"fmt"
+	"math"
 	"sync"
-	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/services/placement"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
@@ -34,77 +38,170 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var (
-	errAggregatorClosed  = errors.New("aggregator is closed")
-	errInvalidMetricType = errors.New("invalid metric type")
+const (
+	uninitializedCutoverNanos = math.MinInt64
 )
 
+var (
+	errAggregatorIsOpenOrClosed    = errors.New("aggregator is already open or closed")
+	errAggregatorIsNotOpenOrClosed = errors.New("aggregator is not open or closed")
+	errInvalidMetricType           = errors.New("invalid metric type")
+	errActivePlacementChanged      = errors.New("active placement has changed")
+)
+
+type aggregatorTickMetrics struct {
+	scope          tally.Scope
+	duration       tally.Timer
+	activeEntries  tally.Gauge
+	expiredEntries tally.Counter
+	activeElems    map[time.Duration]tally.Gauge
+}
+
+func newAggregatorTickMetrics(scope tally.Scope) aggregatorTickMetrics {
+	return aggregatorTickMetrics{
+		scope:          scope,
+		duration:       scope.Timer("duration"),
+		activeEntries:  scope.Gauge("active-entries"),
+		expiredEntries: scope.Counter("expired-entries"),
+		activeElems:    make(map[time.Duration]tally.Gauge),
+	}
+}
+
+func (m aggregatorTickMetrics) Report(tickResult tickResult, duration time.Duration) {
+	m.duration.Record(duration)
+	m.activeEntries.Update(float64(tickResult.ActiveEntries))
+	m.expiredEntries.Inc(int64(tickResult.ExpiredEntries))
+	for dur, val := range tickResult.ActiveElems {
+		gauge, exists := m.activeElems[dur]
+		if !exists {
+			gauge = m.scope.Tagged(
+				map[string]string{"resolution": dur.String()},
+			).Gauge("active-elems")
+			m.activeElems[dur] = gauge
+		}
+		gauge.Update(float64(val))
+	}
+}
+
+type aggregatorShardMetrics struct {
+	add   tally.Counter
+	close tally.Counter
+	owned tally.Gauge
+}
+
+func newAggregatorShardMetrics(scope tally.Scope) aggregatorShardMetrics {
+	return aggregatorShardMetrics{
+		add:   scope.Counter("add"),
+		close: scope.Counter("close"),
+		owned: scope.Gauge("owned"),
+	}
+}
+
 type aggregatorMetrics struct {
-	tickDuration              tally.Timer
-	tickExpired               tally.Counter
 	counters                  tally.Counter
 	timers                    tally.Counter
 	gauges                    tally.Counter
 	invalidMetricTypes        tally.Counter
 	addMetricWithPoliciesList instrument.MethodMetrics
+	shards                    aggregatorShardMetrics
+	tick                      aggregatorTickMetrics
 }
 
 func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMetrics {
+	shardsScope := scope.SubScope("shards")
 	tickScope := scope.SubScope("tick")
 	return aggregatorMetrics{
-		tickDuration:              tickScope.Timer("duration"),
-		tickExpired:               tickScope.Counter("expired"),
 		counters:                  scope.Counter("counters"),
 		timers:                    scope.Counter("timers"),
 		gauges:                    scope.Counter("gauges"),
 		invalidMetricTypes:        scope.Counter("invalid-metric-types"),
 		addMetricWithPoliciesList: instrument.NewMethodMetrics(scope, "addMetricWithPoliciesList", samplingRate),
+		shards: newAggregatorShardMetrics(shardsScope),
+		tick:   newAggregatorTickMetrics(tickScope),
 	}
 }
 
-type addMetricWithPoliciesListFn func(mu unaggregated.MetricUnion, pl policy.PoliciesList) error
+type updateShardsType int
 
-type waitForFn func(d time.Duration) <-chan time.Time
+const (
+	noUpdateShards updateShardsType = iota
+	updateShards
+)
+
+type aggregatorState int
+
+const (
+	aggregatorNotOpen aggregatorState = iota
+	aggregatorOpen
+	aggregatorClosed
+)
+
+type sleepFn func(d time.Duration)
 
 // aggregator stores aggregations of different types of metrics (e.g., counter,
 // timer, gauges) and periodically flushes them out.
 type aggregator struct {
-	opts                        Options
-	nowFn                       clock.NowFn
-	checkInterval               time.Duration
-	closed                      int32
-	doneCh                      chan struct{}
-	wg                          sync.WaitGroup
-	metricMap                   *metricMap
-	addMetricWithPoliciesListFn addMetricWithPoliciesListFn
-	waitForFn                   waitForFn
-	metrics                     aggregatorMetrics
+	sync.RWMutex
+
+	opts          Options
+	nowFn         clock.NowFn
+	instanceID    string
+	shardFn       ShardFn
+	checkInterval time.Duration
+	handler       Handler
+
+	shardIDs              []uint32
+	shards                []*aggregatorShard
+	placementWatcher      services.StagedPlacementWatcher
+	placementCutoverNanos int64
+	state                 aggregatorState
+	metrics               aggregatorMetrics
+	doneCh                chan struct{}
+	wg                    sync.WaitGroup
+	sleepFn               sleepFn
 }
 
 // NewAggregator creates a new aggregator.
 func NewAggregator(opts Options) Aggregator {
-	doneCh := make(chan struct{})
+	placementWatcherOpts := opts.StagedPlacementWatcherOptions()
+	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
 	iOpts := opts.InstrumentOptions()
-	agg := &aggregator{
-		opts:          opts,
-		nowFn:         opts.ClockOptions().NowFn(),
-		checkInterval: opts.EntryCheckInterval(),
-		doneCh:        doneCh,
-		metricMap:     newMetricMap(opts),
-		metrics:       newAggregatorMetrics(iOpts.MetricsScope(), iOpts.MetricsSamplingRate()),
-	}
-	agg.addMetricWithPoliciesListFn = agg.metricMap.AddMetricWithPoliciesList
-	agg.waitForFn = time.After
+	metrics := newAggregatorMetrics(iOpts.MetricsScope(), iOpts.MetricsSamplingRate())
 
+	return &aggregator{
+		opts:                  opts,
+		nowFn:                 opts.ClockOptions().NowFn(),
+		instanceID:            opts.InstanceID(),
+		shardFn:               opts.ShardFn(),
+		checkInterval:         opts.EntryCheckInterval(),
+		handler:               opts.FlushHandler(),
+		placementWatcher:      placementWatcher,
+		placementCutoverNanos: uninitializedCutoverNanos,
+		metrics:               metrics,
+		doneCh:                make(chan struct{}),
+		sleepFn:               time.Sleep,
+	}
+}
+
+func (agg *aggregator) Open() error {
+	agg.Lock()
+	defer agg.Unlock()
+
+	if agg.state != aggregatorNotOpen {
+		return errAggregatorIsOpenOrClosed
+	}
+	if err := agg.placementWatcher.Watch(); err != nil {
+		return err
+	}
+	if err := agg.initShardsWithLock(); err != nil {
+		return err
+	}
 	if agg.checkInterval > 0 {
 		agg.wg.Add(1)
 		go agg.tick()
 	}
-
-	agg.wg.Add(1)
-	go agg.reportMetrics()
-
-	return agg
+	agg.state = aggregatorOpen
+	return nil
 }
 
 func (agg *aggregator) AddMetricWithPoliciesList(
@@ -112,38 +209,193 @@ func (agg *aggregator) AddMetricWithPoliciesList(
 	pl policy.PoliciesList,
 ) error {
 	callStart := agg.nowFn()
-	if atomic.LoadInt32(&agg.closed) == 1 {
+	if err := agg.checkMetricType(mu.Type); err != nil {
 		agg.metrics.addMetricWithPoliciesList.ReportError(agg.nowFn().Sub(callStart))
-		return errAggregatorClosed
+		return err
 	}
-	switch mu.Type {
-	case unaggregated.CounterType:
-		agg.metrics.counters.Inc(1)
-	case unaggregated.BatchTimerType:
-		agg.metrics.timers.Inc(1)
-	case unaggregated.GaugeType:
-		agg.metrics.gauges.Inc(1)
-	default:
-		agg.metrics.invalidMetricTypes.Inc(1)
+	shard, err := agg.shardFor(mu.ID)
+	if err != nil {
 		agg.metrics.addMetricWithPoliciesList.ReportError(agg.nowFn().Sub(callStart))
-		return errInvalidMetricType
+		return err
 	}
-	err := agg.addMetricWithPoliciesListFn(mu, pl)
+	err = shard.AddMetricWithPoliciesList(mu, pl)
 	agg.metrics.addMetricWithPoliciesList.ReportSuccessOrError(err, agg.nowFn().Sub(callStart))
 	return err
 }
 
-func (agg *aggregator) Close() {
-	if !atomic.CompareAndSwapInt32(&agg.closed, 0, 1) {
-		return
+func (agg *aggregator) Close() error {
+	agg.Lock()
+	defer agg.Unlock()
+
+	if agg.state != aggregatorOpen {
+		return errAggregatorIsNotOpenOrClosed
+	}
+	agg.state = aggregatorClosed
+	close(agg.doneCh)
+	for _, shardID := range agg.shardIDs {
+		agg.shards[shardID].Close()
+	}
+	agg.handler.Close()
+	return nil
+}
+
+func (agg *aggregator) shardFor(id id.RawID) (*aggregatorShard, error) {
+	agg.RLock()
+	shard, err := agg.shardForWithLock(id, noUpdateShards)
+	if err == nil || err != errActivePlacementChanged {
+		agg.RUnlock()
+		return shard, err
+	}
+	agg.RUnlock()
+
+	agg.Lock()
+	shard, err = agg.shardForWithLock(id, updateShards)
+	agg.Unlock()
+
+	return shard, err
+}
+
+func (agg *aggregator) shardForWithLock(id id.RawID, updateShardsType updateShardsType) (*aggregatorShard, error) {
+	if agg.state != aggregatorOpen {
+		return nil, errAggregatorIsNotOpenOrClosed
+	}
+	stagedPlacement, onStagedPlacementDoneFn, err := agg.placementWatcher.ActiveStagedPlacement()
+	if err != nil {
+		return nil, err
+	}
+	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
+	if err != nil {
+		onStagedPlacementDoneFn()
+		return nil, err
+	}
+	shard, err := agg.findOrUpdateShardWithLock(id, placement, updateShardsType)
+	onPlacementDoneFn()
+	onStagedPlacementDoneFn()
+	return shard, err
+}
+
+func (agg *aggregator) findOrUpdateShardWithLock(
+	id id.RawID,
+	placement services.Placement,
+	updateShardsType updateShardsType,
+) (*aggregatorShard, error) {
+	if agg.shouldUpdateShardsWithLock(placement) {
+		if updateShardsType == noUpdateShards {
+			return nil, errActivePlacementChanged
+		}
+		if err := agg.updateShardsWithLock(placement); err != nil {
+			return nil, err
+		}
+	}
+	numShards := placement.NumShards()
+	shardID := agg.shardFn([]byte(id), numShards)
+	if int(shardID) >= len(agg.shards) || agg.shards[shardID] == nil {
+		return nil, fmt.Errorf("not responsible for shard %d", shardID)
+	}
+	return agg.shards[shardID], nil
+}
+
+func (agg *aggregator) initShardsWithLock() error {
+	stagedPlacement, onStagedPlacementDoneFn, err := agg.placementWatcher.ActiveStagedPlacement()
+	if err != nil {
+		return err
+	}
+	defer onStagedPlacementDoneFn()
+
+	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
+	if err != nil {
+		return err
+	}
+	defer onPlacementDoneFn()
+
+	return agg.updateShardsWithLock(placement)
+}
+
+func (agg *aggregator) updateShardsWithLock(newPlacement services.Placement) error {
+	// If someone has already updated the shards ahead of us, do nothing.
+	if !agg.shouldUpdateShardsWithLock(newPlacement) {
+		return nil
+	}
+	instance, found := newPlacement.Instance(agg.instanceID)
+	if !found {
+		return fmt.Errorf("instance %s not found in the placement", agg.instanceID)
 	}
 
-	// Waiting for the ticking goroutine to return.
-	close(agg.doneCh)
-	agg.wg.Wait()
+	var (
+		newShards = instance.Shards()
+		incoming  []*aggregatorShard
+		closing   []*aggregatorShard
+	)
+	for _, shard := range agg.shards {
+		if shard == nil {
+			continue
+		}
+		if !newShards.Contains(shard.ID()) {
+			closing = append(closing, shard)
+		}
+	}
+	// NB(xichen): shard ids are guaranteed to be sorted in ascending order.
+	newShardIDs := newShards.AllIDs()
+	if len(newShardIDs) > 0 {
+		newShardLen := newShardIDs[len(newShardIDs)-1] + 1
+		incoming = make([]*aggregatorShard, newShardLen)
+	}
+	for _, shardID := range newShardIDs {
+		if int(shardID) < len(agg.shards) && agg.shards[shardID] != nil {
+			incoming[shardID] = agg.shards[shardID]
+		} else {
+			incoming[shardID] = newAggregatorShard(shardID, agg.opts)
+			agg.metrics.shards.add.Inc(1)
+		}
+	}
+	agg.shardIDs = newShardIDs
+	agg.shards = incoming
+	agg.placementCutoverNanos = newPlacement.CutoverNanos()
 
-	// Closing metric map.
-	agg.metricMap.Close()
+	// NB(xichen): asynchronously closing the shards to avoid blocking writes.
+	// Additionally, because each shard write happens while holding the shard
+	// read lock, the shard may only close itself after all its pending writes
+	// are finished.
+	for _, shard := range closing {
+		shard := shard
+		go func() {
+			shard.Close()
+			agg.metrics.shards.close.Inc(1)
+		}()
+	}
+
+	return nil
+}
+
+func (agg *aggregator) shouldUpdateShardsWithLock(newPlacement services.Placement) bool {
+	return agg.placementCutoverNanos < newPlacement.CutoverNanos()
+}
+
+func (agg *aggregator) checkMetricType(metricType unaggregated.Type) error {
+	switch metricType {
+	case unaggregated.CounterType:
+		agg.metrics.counters.Inc(1)
+		return nil
+	case unaggregated.BatchTimerType:
+		agg.metrics.timers.Inc(1)
+		return nil
+	case unaggregated.GaugeType:
+		agg.metrics.gauges.Inc(1)
+		return nil
+	default:
+		agg.metrics.invalidMetricTypes.Inc(1)
+		return errInvalidMetricType
+	}
+}
+
+func (agg *aggregator) ownedShards() []*aggregatorShard {
+	agg.RLock()
+	ownedShards := make([]*aggregatorShard, len(agg.shardIDs))
+	for i, shardID := range agg.shardIDs {
+		ownedShards[i] = agg.shards[shardID]
+	}
+	agg.RUnlock()
+	return ownedShards
 }
 
 func (agg *aggregator) tick() {
@@ -160,34 +412,24 @@ func (agg *aggregator) tick() {
 }
 
 func (agg *aggregator) tickInternal() {
-	start := agg.nowFn()
-	tickExpired := agg.metricMap.DeleteExpired(agg.checkInterval)
-	tickDuration := agg.nowFn().Sub(start)
-	agg.metrics.tickExpired.Inc(tickExpired)
-	agg.metrics.tickDuration.Record(tickDuration)
-	if tickDuration < agg.checkInterval {
-		// NB(xichen): use a channel here instead of sleeping in case
-		// server needs to close and we don't tick frequently enough.
-		select {
-		case <-agg.waitForFn(agg.checkInterval - tickDuration):
-		case <-agg.doneCh:
-		}
+	ownedShards := agg.ownedShards()
+	numShards := len(ownedShards)
+	agg.metrics.shards.owned.Update(float64(numShards))
+	if numShards == 0 {
+		return
 	}
-}
-
-func (agg *aggregator) reportMetrics() {
-	defer agg.wg.Done()
-
-	reportInterval := agg.opts.InstrumentOptions().ReportInterval()
-	t := time.NewTicker(reportInterval)
-
-	for {
-		select {
-		case <-t.C:
-			agg.metricMap.reportMetrics()
-		case <-agg.doneCh:
-			t.Stop()
-			return
-		}
+	var (
+		start                = agg.nowFn()
+		perShardTickDuration = agg.checkInterval / time.Duration(numShards)
+		tickResult           tickResult
+	)
+	for _, shard := range ownedShards {
+		shardTickResult := shard.Tick(perShardTickDuration)
+		tickResult = tickResult.merge(shardTickResult)
+	}
+	tickDuration := agg.nowFn().Sub(start)
+	agg.metrics.tick.Report(tickResult, tickDuration)
+	if tickDuration < agg.checkInterval {
+		agg.sleepFn(agg.checkInterval - tickDuration)
 	}
 }
