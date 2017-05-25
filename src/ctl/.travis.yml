@@ -1,0 +1,14 @@
+language: go
+go:
+  - 1.7
+install: make install-ci
+env:
+ # Set higher timeouts and package name for travis
+ - TEST_TIMEOUT_SCALE=20 PACKAGE=github.com/m3db/m3ctl
+sudo: required
+dist: trusty
+script:
+ - make lint
+ - make test-ci-unit
+ - make test-ci-integration
+ - make m3ctl
