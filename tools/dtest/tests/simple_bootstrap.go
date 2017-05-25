@@ -49,8 +49,7 @@ func simpleBootstrapDTest(cmd *cobra.Command, args []string) {
 
 	logger.Infof("waiting until all instances are bootstrapped")
 	watcher := m3dbutil.NewM3DBNodesWatcher(nodes)
-	if ok := watcher.WaitUntilAll(m3dbnode.Node.Bootstrapped, dt.BootstrapTimeout()); !ok {
-		panic(fmt.Errorf("unable to bootstrap all nodes, err = %v", watcher.PendingAsError()))
-	}
+	allBootstrapped := watcher.WaitUntilAll(m3dbnode.Node.Bootstrapped, dt.BootstrapTimeout())
+	panicIf(!allBootstrapped, fmt.Sprintf("unable to bootstrap all nodes, err = %v", watcher.PendingAsError()))
 	logger.Infof("all nodes bootstrapped successfully!")
 }

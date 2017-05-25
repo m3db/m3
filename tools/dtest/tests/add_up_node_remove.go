@@ -55,9 +55,8 @@ func addUpNodeRemoveDTest(cmd *cobra.Command, args []string) {
 
 	logger.Infof("waiting until all instances are bootstrapped")
 	watcher := m3dbutil.NewM3DBNodesWatcher(m3dbnodes)
-	if ok := watcher.WaitUntilAll(m3dbnode.Node.Bootstrapped, dt.BootstrapTimeout()); !ok {
-		panic(fmt.Errorf("unable to bootstrap all nodes, err = %v", watcher.PendingAsError()))
-	}
+	allBootstrapped := watcher.WaitUntilAll(m3dbnode.Node.Bootstrapped, dt.BootstrapTimeout())
+	panicIf(!allBootstrapped, fmt.Sprintf("unable to bootstrap all nodes, err = %v", watcher.PendingAsError()))
 	logger.Infof("all nodes bootstrapped successfully!")
 
 	// get a spare, ensure it's up and add to the cluster
@@ -85,9 +84,7 @@ func addUpNodeRemoveDTest(cmd *cobra.Command, args []string) {
 	logger.Infof("waiting till any shards are bootstrapped on new node")
 	timeout := dt.BootstrapTimeout() / 10
 	anyBootstrapped := xclock.WaitUntil(func() bool { return dt.AnyInstanceShardHasState(spare.ID(), shard.Available) }, timeout)
-	if !anyBootstrapped {
-		panic("all shards not available")
-	}
+	panicIf(!anyBootstrapped, "all shards not available")
 
 	// remove the node once it has a shard available
 	logger.Infof("node has at least 1 shard available. removing node")
