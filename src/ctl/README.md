@@ -6,6 +6,7 @@ Configuration controller for the M3DB ecosystem. Provides an http API to perform
 the various configs for M3DB compontents.
 
 <hr>
+
 This project is released under the [MIT License](LICENSE.md).
 
 [doc-img]: https://godoc.org/github.com/m3db/m3ggregator?status.svg
