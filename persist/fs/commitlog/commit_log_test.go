@@ -207,12 +207,15 @@ func writeCommitLogs(
 
 	getAllWrites := func() int {
 		result := int64(0)
-		snapshot := scope.Snapshot()
-		counters := snapshot.Counters()
-		if c, ok := counters["commitlog.writes.success"]; ok {
+		counters := scope.Snapshot().Counters()
+
+		successID := tally.KeyForPrefixedStringMap("commitlog.writes.success", nil)
+		if c, ok := counters[successID]; ok {
 			result += c.Value()
 		}
-		if c, ok := counters["commitlog.writes.errors"]; ok {
+
+		errorsID := tally.KeyForPrefixedStringMap("commitlog.writes.errors", nil)
+		if c, ok := counters[errorsID]; ok {
 			result += c.Value()
 		}
 		return int(result)
