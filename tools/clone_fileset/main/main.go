@@ -4,7 +4,8 @@ import (
 	"flag"
 	"os"
 
-	"github.com/m3db/m3db/tools/clone_fileset/clone"
+	"github.com/m3db/m3db/persist/fs/clone"
+
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 )
