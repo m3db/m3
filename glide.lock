@@ -1,5 +1,10 @@
+<<<<<<< HEAD
 hash: 10afe22415b8b61e8321b9f0ddffec024d357afa18c9181443217a06054a8cfd
 updated: 2017-05-28T20:40:07.429600657-04:00
+=======
+hash: 525f66fcb77009dc288cef4fb2deeb02fa8373f30ae4d4c3f2fba4537d32a1c5
+updated: 2017-05-25T22:36:40.801174712-04:00
+>>>>>>> 5999464... pickup latest m3em
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -69,7 +74,7 @@ imports:
   - services/placement/service
   - shard
 - name: github.com/m3db/m3em
-  version: 3a5ddcb4eb4a41f23ac1074fe646c2588da67048
+  version: 7752c74c30fffa011386244134c622922ff9db50
   subpackages:
   - build
   - cluster
