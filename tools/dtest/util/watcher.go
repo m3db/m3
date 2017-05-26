@@ -23,6 +23,7 @@ package util
 import (
 	"bytes"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -79,6 +80,7 @@ func (nw *nodesWatcher) Pending() []m3dbnode.Node {
 		pending = append(pending, node)
 	}
 
+	sort.Sort(m3dbnodesByID(pending))
 	return pending
 }
 
@@ -118,6 +120,7 @@ func (nw *nodesWatcher) WaitUntilAll(p M3DBNodePredicate, timeout time.Duration)
 		go func(m3dbNode m3dbnode.Node) {
 			defer wg.Done()
 			if cond := xclock.WaitUntil(func() bool { return p(m3dbNode) }, timeout); cond {
+				nw.logger.Infof("%s finished bootstrapping", m3dbNode.ID())
 				nw.removeInstance(m3dbNode.ID())
 			}
 		}(m3dbNode)
@@ -159,4 +162,18 @@ func (nw *nodesWatcher) WaitUntilAll(p M3DBNodePredicate, timeout time.Duration)
 	// report if all nodes completed
 	numPending, _ := nw.pendingStatus()
 	return numPending == 0
+}
+
+type m3dbnodesByID []m3dbnode.Node
+
+func (n m3dbnodesByID) Len() int {
+	return len(n)
+}
+
+func (n m3dbnodesByID) Less(i, j int) bool {
+	return n[i].ID() < n[j].ID()
+}
+
+func (n m3dbnodesByID) Swap(i, j int) {
+	n[i], n[j] = n[j], n[i]
 }
