@@ -2,6 +2,7 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 hash: 10afe22415b8b61e8321b9f0ddffec024d357afa18c9181443217a06054a8cfd
 updated: 2017-05-28T20:40:07.429600657-04:00
 =======
@@ -20,6 +21,10 @@ updated: 2017-05-26T14:08:05.202867566-04:00
 hash: 4b898288a5106fa252adfca3279541f5c569351842d22798295a1c0d80428e8b
 updated: 2017-05-26T14:12:39.117071734-04:00
 >>>>>>> b6756f7... update m3em
+=======
+hash: d8f25b4f2fcc928d6b1497dfbeff88841755c5e0b9d74942003c6de20f744c7e
+updated: 2017-05-26T14:51:35.797616838-04:00
+>>>>>>> 04a1ca3... add todos
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -89,7 +94,7 @@ imports:
   - services/placement/service
   - shard
 - name: github.com/m3db/m3em
-  version: 728fabd17663239a7cc4c97016f15ce759322ee1
+  version: 38ad33049404a478fa6e21b55eca77d8ae844357
   subpackages:
   - build
   - cluster

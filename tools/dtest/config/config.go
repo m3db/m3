@@ -27,6 +27,9 @@ type Configuration struct {
 	KV    etcdclient.Configuration `yaml:"kv"`
 }
 
+// TODO(prateek): merge DTest/M3EM
+// TODO(prateek): make config structs for options in m3em
+
 // M3EMConfig is a list of m3em environment settings
 type M3EMConfig struct {
 	HeartbeatPort int                 `yaml:"heartbeatPort" validate:"nonzero"`
