@@ -21,6 +21,7 @@
 package util
 
 import (
+	"bytes"
 	"fmt"
 	"sync"
 	"time"
@@ -28,33 +29,45 @@ import (
 	m3dbnode "github.com/m3db/m3db/x/m3em/node"
 
 	xclock "github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/log"
 )
 
 type nodesWatcher struct {
 	sync.Mutex
-	pending map[string]m3dbnode.Node
+	pending           map[string]m3dbnode.Node
+	logger            xlog.Logger
+	reportingInterval time.Duration
 }
 
 // NewM3DBNodesWatcher creates a new M3DBNodeWatcher
-func NewM3DBNodesWatcher(nodes []m3dbnode.Node) M3DBNodesWatcher {
+func NewM3DBNodesWatcher(
+	nodes []m3dbnode.Node,
+	logger xlog.Logger,
+	reportingInterval time.Duration,
+) M3DBNodesWatcher {
 	watcher := &nodesWatcher{
-		pending: make(map[string]m3dbnode.Node, len(nodes)),
+		pending:           make(map[string]m3dbnode.Node, len(nodes)),
+		logger:            logger,
+		reportingInterval: reportingInterval,
 	}
 	for _, node := range nodes {
-		watcher.addInstance(node)
+		watcher.addInstanceWithLock(node)
 	}
 	return watcher
 }
 
-func (nw *nodesWatcher) addInstance(node m3dbnode.Node) {
-	nw.Lock()
+func (nw *nodesWatcher) addInstanceWithLock(node m3dbnode.Node) {
 	nw.pending[node.ID()] = node
-	nw.Unlock()
 }
 
-func (nw *nodesWatcher) removeInstanceWithLock(id string) {
+func (nw *nodesWatcher) removeInstance(id string) {
+	nw.Lock()
+	defer nw.Unlock()
 	delete(nw.pending, id)
+}
+
+func (nw *nodesWatcher) Close() error {
+	return nil
 }
 
 func (nw *nodesWatcher) Pending() []m3dbnode.Node {
@@ -69,52 +82,81 @@ func (nw *nodesWatcher) Pending() []m3dbnode.Node {
 	return pending
 }
 
-func (nw *nodesWatcher) PendingAsError() error {
+func (nw *nodesWatcher) pendingStatus() (int, string) {
 	nw.Lock()
 	defer nw.Unlock()
-	var multiErr xerrors.MultiError
+
+	numPending := 0
+	var buffer bytes.Buffer
 	for _, node := range nw.pending {
-		multiErr = multiErr.Add(fmt.Errorf("node not bootstrapped: %v", node.ID()))
+		numPending++
+		if numPending == 1 {
+			buffer.WriteString(node.ID())
+		} else {
+			buffer.WriteString(fmt.Sprintf(", %s", node.ID()))
+		}
 	}
-	return multiErr.FinalError()
+
+	return numPending, buffer.String()
+}
+
+func (nw *nodesWatcher) PendingAsError() error {
+	numPending, pendingString := nw.pendingStatus()
+	if numPending == 0 {
+		return nil
+	}
+	return fmt.Errorf("%d nodes not bootstrapped: %s", numPending, pendingString)
 }
 
 func (nw *nodesWatcher) WaitUntilAll(p M3DBNodePredicate, timeout time.Duration) bool {
-	nw.Lock()
-	defer nw.Unlock()
+	// kick of go-routines to check condition for each pending node
+	pending := nw.Pending()
 	var wg sync.WaitGroup
-	for id := range nw.pending {
-		wg.Add(1)
-		m3dbNode := nw.pending[id]
+	wg.Add(len(pending))
+	for i := range pending {
+		m3dbNode := pending[i]
 		go func(m3dbNode m3dbnode.Node) {
 			defer wg.Done()
 			if cond := xclock.WaitUntil(func() bool { return p(m3dbNode) }, timeout); cond {
-				nw.removeInstanceWithLock(m3dbNode.ID())
+				nw.removeInstance(m3dbNode.ID())
 			}
 		}(m3dbNode)
 	}
+
+	// kick of a go-routine to log information
+	doneCh := make(chan struct{})
+	closeCh := make(chan struct{})
+	reporter := time.NewTicker(nw.reportingInterval)
+	defer func() {
+		reporter.Stop()
+		close(closeCh)
+		close(doneCh)
+	}()
+	go func() {
+		for {
+			select {
+			case <-closeCh:
+				doneCh <- struct{}{}
+				return
+			case <-reporter.C:
+				numPending, pendingString := nw.pendingStatus()
+				nw.logger.Infof("%d instances remaining: [%v]", numPending, pendingString)
+				if numPending == 0 {
+					doneCh <- struct{}{}
+					return
+				}
+			}
+		}
+	}()
+
+	// wait until all nodes complete or timeout
 	wg.Wait()
-	return len(nw.pending) == 0
-}
 
-func (nw *nodesWatcher) WaitUntilAny(p M3DBNodePredicate, timeout time.Duration) bool {
-	nw.Lock()
-	defer nw.Unlock()
-	anyCh := make(chan struct{})
-	for id := range nw.pending {
-		m3dbNode := nw.pending[id]
-		go func(m3dbNode m3dbnode.Node) {
-			if cond := xclock.WaitUntil(func() bool { return p(m3dbNode) }, timeout); cond {
-				nw.removeInstanceWithLock(m3dbNode.ID())
-				anyCh <- struct{}{}
-			}
-		}(m3dbNode)
-	}
-	select {
-	case <-anyCh:
-		return true
+	// cleanup
+	closeCh <- struct{}{}
+	<-doneCh
 
-	case <-time.After(timeout):
-		return false
-	}
+	// report if all nodes completed
+	numPending, _ := nw.pendingStatus()
+	return numPending == 0
 }

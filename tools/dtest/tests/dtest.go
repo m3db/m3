@@ -3,11 +3,14 @@ package dtests
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/m3db/m3db/tools/dtest/config"
 
 	"github.com/spf13/cobra"
 )
+
+const defaultBootstrapStatusReportingInterval = time.Minute
 
 var (
 	// DTestCmd represents the base command when called without any subcommands

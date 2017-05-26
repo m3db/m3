@@ -21,6 +21,7 @@
 package util
 
 import (
+	"io"
 	"time"
 
 	m3dbnode "github.com/m3db/m3db/x/m3em/node"
@@ -32,15 +33,12 @@ type M3DBNodePredicate func(m3dbnode.Node) bool
 // M3DBNodesWatcher makes it easy to monitor observable properties
 // of M3DB ServiceNodes
 type M3DBNodesWatcher interface {
+	io.Closer
+
 	// WaitUntilAll allows you to specify a predicate which must be satisfied
 	// on all monitored Nodes within the timeout provided. It returns a flag
 	// indicating if this occurred succesfully
 	WaitUntilAll(p M3DBNodePredicate, timeout time.Duration) bool
-
-	// WaitUntilAny allows you to specify a predicate which must be satisfied
-	// on any of the monitored Nodes within the timeout provided. It returns a
-	// flag indicating if this occurred succesfully
-	WaitUntilAny(p M3DBNodePredicate, timeout time.Duration) bool
 
 	// Pending returns the list of nodes which have not satisfied the
 	// predicate satisfied

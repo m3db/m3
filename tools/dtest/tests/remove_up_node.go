@@ -48,7 +48,7 @@ func removeUpNodeDTest(cmd *cobra.Command, args []string) {
 	logger.Infof("started cluster with %d nodes", numNodes)
 
 	logger.Infof("waiting until all instances are bootstrapped")
-	watcher := util.NewM3DBNodesWatcher(nodes)
+	watcher := util.NewM3DBNodesWatcher(nodes, logger, defaultBootstrapStatusReportingInterval)
 	allBootstrapped := watcher.WaitUntilAll(m3dbnode.Node.Bootstrapped, dt.BootstrapTimeout())
 	panicIf(!allBootstrapped, fmt.Sprintf("unable to bootstrap all nodes, err = %v", watcher.PendingAsError()))
 	logger.Infof("all nodes bootstrapped successfully!")

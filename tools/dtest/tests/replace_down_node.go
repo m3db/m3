@@ -52,7 +52,7 @@ func replaceDownNodeDTest(cmd *cobra.Command, args []string) {
 	panicIfErr(err, "unable to cast to m3dbnodes")
 
 	logger.Infof("waiting until all instances are bootstrapped")
-	watcher := util.NewM3DBNodesWatcher(m3dbnodes)
+	watcher := util.NewM3DBNodesWatcher(m3dbnodes, logger, defaultBootstrapStatusReportingInterval)
 	allBootstrapped := watcher.WaitUntilAll(m3dbnode.Node.Bootstrapped, dt.BootstrapTimeout())
 	panicIf(!allBootstrapped, fmt.Sprintf("unable to bootstrap all nodes, err = %v", watcher.PendingAsError()))
 	logger.Infof("all nodes bootstrapped successfully!")
