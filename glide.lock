@@ -1,6 +1,7 @@
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 hash: 10afe22415b8b61e8321b9f0ddffec024d357afa18c9181443217a06054a8cfd
 updated: 2017-05-28T20:40:07.429600657-04:00
 =======
@@ -15,6 +16,10 @@ updated: 2017-05-26T11:22:30.419437783-04:00
 hash: d0c8fc0f9f4b7a6e2fa10bb3996bae3e978b7e649ab4257e213618b3a2aed5b4
 updated: 2017-05-26T14:08:05.202867566-04:00
 >>>>>>> f641ac7... update glide deps
+=======
+hash: 4b898288a5106fa252adfca3279541f5c569351842d22798295a1c0d80428e8b
+updated: 2017-05-26T14:12:39.117071734-04:00
+>>>>>>> b6756f7... update m3em
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -84,7 +89,7 @@ imports:
   - services/placement/service
   - shard
 - name: github.com/m3db/m3em
-  version: 7891d4f650e9bd75c62b369ee1c5d2bcf4fda55d
+  version: 728fabd17663239a7cc4c97016f15ce759322ee1
   subpackages:
   - build
   - cluster
