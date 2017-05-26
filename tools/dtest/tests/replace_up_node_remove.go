@@ -64,7 +64,14 @@ func replaceUpNodeRemoveDTest(cmd *cobra.Command, args []string) {
 	replacementNodes, err := testCluster.ReplaceNode(nodeToReplace)
 	panicIfErr(err, "unable to replace node")
 	panicIf(len(replacementNodes) < 1, "no replacement nodes returned")
-	logger.Infof("replaced node with: %+v", nodeToReplace.ID(), replacementNodes)
+	logger.Infof("replaced node with: %+v", replacementNodes)
+
+	logger.Infof("starting replacement nodes")
+	// starting replacement nodes
+	for _, n := range replacementNodes {
+		panicIfErr(n.Start(), "unable to start node")
+	}
+	logger.Infof("started replacement nodes")
 
 	// NB(prateek): ideally we'd like to wait until the node begins bootstrapping, but we don't
 	// have a way to capture that node status. The rpc endpoint in m3dbnode only captures bootstrap
