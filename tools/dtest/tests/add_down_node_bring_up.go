@@ -6,6 +6,7 @@ import (
 
 	"github.com/m3db/m3db/tools/dtest/harness"
 	"github.com/m3db/m3db/tools/dtest/util"
+	"github.com/m3db/m3db/x/m3em/convert"
 	m3dbnode "github.com/m3db/m3db/x/m3em/node"
 
 	"github.com/m3db/m3em/node"
@@ -49,7 +50,7 @@ func addDownNodeAndBringUpDTest(cmd *cobra.Command, args []string) {
 	panicIfErr(testCluster.Start(), "unable to start nodes")
 	logger.Infof("started cluster with %d nodes", numNodes)
 
-	m3dbnodes, err := util.AsM3DBNodes(setupNodes)
+	m3dbnodes, err := convert.AsM3DBNodes(setupNodes)
 	panicIfErr(err, "unable to cast to m3dbnodes")
 
 	logger.Infof("waiting until all instances are bootstrapped")

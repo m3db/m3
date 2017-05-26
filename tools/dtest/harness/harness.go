@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/tools/dtest/config"
+	"github.com/m3db/m3db/x/m3em/convert"
 	m3dbnode "github.com/m3db/m3db/x/m3em/node"
 
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
@@ -62,7 +63,6 @@ func New(cliOpts *config.CLIOpts, logger xlog.Logger) *DTestHarness {
 		logger.Fatalf("unable to read configuration file: %v", err.Error())
 	}
 	dt.conf = conf
-
 	dt.startPProfServer()
 
 	pSvc, err := placementService(dt.m3dbServiceID(),
@@ -90,6 +90,17 @@ func New(cliOpts *config.CLIOpts, logger xlog.Logger) *DTestHarness {
 		SetSessionToken(cliOpts.SessionToken).
 		SetSessionOverride(cliOpts.SessionOverride).
 		SetNumShards(conf.DTest.NumShards)
+
+	if cliOpts.InitialReset {
+		svcNodes, err := convert.AsServiceNodes(nodes)
+		if err != nil {
+			logger.Fatalf("unable to cast nodes: %v", err)
+		}
+		exec := node.NewConcurrentExecutor(svcNodes, dt.clusterOpts.NodeConcurrency(), dt.clusterOpts.NodeOperationTimeout(), func(n node.ServiceNode) error { return n.Teardown() })
+		if err := exec.Run(); err != nil {
+			logger.Fatalf("unable to reset nodes: %v", err)
+		}
+	}
 
 	return dt
 }

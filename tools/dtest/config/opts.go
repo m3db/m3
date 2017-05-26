@@ -27,6 +27,11 @@ type CLIOpts struct {
 
 	// SessionToken specifies the token used during remote operations
 	SessionToken string
+
+	// InitialReset specifies if a Teardown() call should be made to remote
+	// agents before running a test. It's useful to reset a running agent
+	// in the event of an earlier run crashing.
+	InitialReset bool
 }
 
 // RegisterFlags registers all the common flags
@@ -38,6 +43,7 @@ func (c *CLIOpts) RegisterFlags(cmd *cobra.Command) {
 	pf.BoolVarP(&c.SessionOverride, "session-override", "s", true, "Session Override")
 	pf.StringVarP(&c.SessionToken, "session-token", "t", "dtest", "Session Token")
 	pf.IntVarP(&c.NumNodes, "num-nodes", "n", 0, "Num Nodes to use in DTest")
+	pf.BoolVarP(&c.InitialReset, "initial-reset", "r", false, "Initial Reset")
 }
 
 // Validate validates the set options
