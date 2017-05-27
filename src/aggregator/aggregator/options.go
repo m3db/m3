@@ -84,6 +84,7 @@ type options struct {
 	placementWatcherOpts   services.StagedPlacementWatcherOptions
 	instanceID             string
 	shardFn                ShardFn
+	flushManager           FlushManager
 	minFlushInterval       time.Duration
 	maxFlushSize           int
 	flushHandler           Handler
@@ -349,6 +350,16 @@ func (o *options) SetShardFn(value ShardFn) Options {
 
 func (o *options) ShardFn() ShardFn {
 	return o.shardFn
+}
+
+func (o *options) SetFlushManager(value FlushManager) Options {
+	opts := *o
+	opts.flushManager = value
+	return &opts
+}
+
+func (o *options) FlushManager() FlushManager {
+	return o.flushManager
 }
 
 func (o *options) SetMinFlushInterval(value time.Duration) Options {

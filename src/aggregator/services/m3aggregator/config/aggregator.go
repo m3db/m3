@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -105,6 +106,9 @@ type AggregatorConfiguration struct {
 
 	// Sharding function type.
 	ShardFnType *shardFnType `yaml:"shardFnType"`
+
+	// Flush manager.
+	FlushManager flushManagerConfiguration `yaml:"flushManager"`
 
 	// Minimum flush interval across all resolutions.
 	MinFlushInterval time.Duration `yaml:"minFlushInterval"`
@@ -213,6 +217,11 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	}
 	opts = opts.SetShardFn(shardFn)
 
+	// Set flush manager.
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("flush-manager"))
+	flushManager := c.FlushManager.NewFlushManager(iOpts)
+	opts = opts.SetFlushManager(flushManager)
+
 	// Set flushing handler.
 	if c.MinFlushInterval != 0 {
 		opts = opts.SetMinFlushInterval(c.MinFlushInterval)
@@ -258,7 +267,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	opts = opts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem { return aggregator.NewTimerElem(nil, emptyPolicy, opts) })
 
-	// Set gauge eleme pool.
+	// Set gauge elem pool.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("gauge-elem-pool"))
 	gaugeElemPoolOpts := c.GaugeElemPool.NewObjectPoolOptions(iOpts)
 	gaugeElemPool := aggregator.NewGaugeElemPool(gaugeElemPoolOpts)
@@ -439,6 +448,34 @@ func (t shardFnType) ShardFn() (aggregator.ShardFn, error) {
 	}
 }
 
+type flushManagerConfiguration struct {
+	// How frequently the flush manager checks for next flush.
+	CheckEvery time.Duration `yaml:"checkEvery"`
+
+	// Whether jittering is enabled.
+	JitterEnabled *bool `yaml:"jitterEnabled"`
+
+	// Number of workers per CPU.
+	NumWorkersPerCPU float64 `yaml:"numWorkersPerCPU" validate:"min=0.0,max=1.0"`
+}
+
+func (c flushManagerConfiguration) NewFlushManager(
+	instrumentOpts instrument.Options,
+) aggregator.FlushManager {
+	opts := aggregator.NewFlushManagerOptions().SetInstrumentOptions(instrumentOpts)
+	if c.CheckEvery != 0 {
+		opts = opts.SetCheckEvery(c.CheckEvery)
+	}
+	if c.JitterEnabled != nil {
+		opts = opts.SetJitterEnabled(*c.JitterEnabled)
+	}
+	if c.NumWorkersPerCPU != 0 {
+		workerPoolSize := int(float64(runtime.NumCPU()) * c.NumWorkersPerCPU)
+		opts = opts.SetWorkerPoolSize(workerPoolSize)
+	}
+	return aggregator.NewFlushManager(opts)
+}
+
 // flushHandlerConfiguration contains configuration for flushing metrics.
 type flushHandlerConfiguration struct {
 	// Flushing handler type.
@@ -478,7 +515,7 @@ type forwardHandlerConfiguration struct {
 	ConnectTimeout time.Duration `yaml:"connectTimeout"`
 
 	// Connection keep alive.
-	ConnectionKeepAlive bool `yaml:"connectionKeepAlive"`
+	ConnectionKeepAlive *bool `yaml:"connectionKeepAlive"`
 
 	// Reconnect retrier.
 	ReconnectRetrier xretry.Configuration `yaml:"reconnect"`
@@ -487,15 +524,16 @@ type forwardHandlerConfiguration struct {
 func (c *forwardHandlerConfiguration) NewHandler(
 	instrumentOpts instrument.Options,
 ) (aggregator.Handler, error) {
-	opts := handler.NewForwardHandlerOptions().
-		SetInstrumentOptions(instrumentOpts).
-		SetConnectionKeepAlive(c.ConnectionKeepAlive)
+	opts := handler.NewForwardHandlerOptions().SetInstrumentOptions(instrumentOpts)
 
 	if c.QueueSize != 0 {
 		opts = opts.SetQueueSize(c.QueueSize)
 	}
 	if c.ConnectTimeout != 0 {
 		opts = opts.SetConnectTimeout(c.ConnectTimeout)
+	}
+	if c.ConnectionKeepAlive != nil {
+		opts = opts.SetConnectionKeepAlive(*c.ConnectionKeepAlive)
 	}
 
 	scope := instrumentOpts.MetricsScope().SubScope("reconnect")

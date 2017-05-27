@@ -247,6 +247,12 @@ type Options interface {
 	// ShardFn returns the sharding function.
 	ShardFn() ShardFn
 
+	// SetFlushManager sets the flush manager.
+	SetFlushManager(value FlushManager) Options
+
+	// FlushManager returns the flush manager.
+	FlushManager() FlushManager
+
 	// SetMinFlushInterval sets the minimum flush interval
 	SetMinFlushInterval(value time.Duration) Options
 

@@ -661,7 +661,7 @@ func testEntry() (*Entry, *metricLists, *time.Time) {
 	}
 
 	e := NewEntry(nil, opts)
-	e.ResetSetData(lists)
+	e.ResetSetData(lists, opts)
 
 	return e, lists, &now
 }

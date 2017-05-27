@@ -93,13 +93,9 @@ func TestMetricListTick(t *testing.T) {
 		SetMinFlushInterval(0).
 		SetMaxFlushSize(100).
 		SetFlushHandler(handler)
+
 	l := newMetricList(0, opts)
 	l.resolution = testPolicy.Resolution().Window
-	l.waitForFn = func(time.Duration) <-chan time.Time {
-		c := make(chan time.Time)
-		close(c)
-		return c
-	}
 
 	// Intentionally cause a one-time error during encoding.
 	var count int
@@ -125,6 +121,7 @@ func TestMetricListTick(t *testing.T) {
 			metric: testGauge,
 		},
 	}
+
 	for _, ep := range elemPairs {
 		require.NoError(t, ep.elem.AddMetric(nowTs, ep.metric))
 		require.NoError(t, ep.elem.AddMetric(nowTs.Add(testPolicy.Resolution().Window), ep.metric))
@@ -133,7 +130,7 @@ func TestMetricListTick(t *testing.T) {
 	}
 
 	// Force a flush.
-	l.flushInternal()
+	l.Flush()
 
 	// Assert nothing has been collected.
 	bufferLock.Lock()
@@ -146,7 +143,7 @@ func TestMetricListTick(t *testing.T) {
 		atomic.StoreInt64(&now, nowTs.UnixNano())
 
 		// Force a flush.
-		l.flushInternal()
+		l.Flush()
 
 		var expected []testAggMetric
 		alignedStart := nowTs.Truncate(testPolicy.Resolution().Window).UnixNano()
@@ -172,7 +169,7 @@ func TestMetricListTick(t *testing.T) {
 	atomic.StoreInt64(&now, nowTs.UnixNano())
 
 	// Force a flush.
-	l.flushInternal()
+	l.Flush()
 
 	// Assert nothing has been collected.
 	bufferLock.Lock()
@@ -186,7 +183,7 @@ func TestMetricListTick(t *testing.T) {
 	}
 
 	// Force a flush.
-	l.flushInternal()
+	l.Flush()
 
 	// Assert all elements have been collected.
 	require.Equal(t, 0, l.aggregations.Len())

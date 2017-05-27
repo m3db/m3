@@ -63,7 +63,7 @@ func (c *MsgpackServerConfiguration) NewMsgpackServerOptions(
 // unaggregatedIteratorConfiguration contains configuration for unaggregated iterator.
 type unaggregatedIteratorConfiguration struct {
 	// Whether to ignore encoded data streams whose version is higher than the current known version.
-	IgnoreHigherVersion bool `yaml:"ignoreHigherVersion"`
+	IgnoreHigherVersion *bool `yaml:"ignoreHigherVersion"`
 
 	// Reader buffer size.
 	ReaderBufferSize int `yaml:"readerBufferSize"`
@@ -83,8 +83,10 @@ func (c *unaggregatedIteratorConfiguration) NewUnaggregatedIteratorPool(
 	instrumentOpts instrument.Options,
 ) msgpackp.UnaggregatedIteratorPool {
 	scope := instrumentOpts.MetricsScope()
-	opts := msgpackp.NewUnaggregatedIteratorOptions().SetIgnoreHigherVersion(c.IgnoreHigherVersion)
-
+	opts := msgpackp.NewUnaggregatedIteratorOptions()
+	if c.IgnoreHigherVersion != nil {
+		opts = opts.SetIgnoreHigherVersion(*c.IgnoreHigherVersion)
+	}
 	if c.ReaderBufferSize != 0 {
 		opts = opts.SetReaderBufferSize(c.ReaderBufferSize)
 	}
@@ -101,7 +103,7 @@ func (c *unaggregatedIteratorConfiguration) NewUnaggregatedIteratorPool(
 	largeFloatsPool.Init()
 
 	// Set iterator pool.
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("unaggreagted-iterator-pool"))
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("unaggregated-iterator-pool"))
 	iteratorPoolOpts := c.IteratorPool.NewObjectPoolOptions(iOpts)
 	iteratorPool := msgpackp.NewUnaggregatedIteratorPool(iteratorPoolOpts)
 	opts = opts.SetIteratorPool(iteratorPool)

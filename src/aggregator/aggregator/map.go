@@ -195,7 +195,7 @@ func (m *metricMap) findOrCreate(mid id.RawID) *Entry {
 	entry, found := m.lookupEntryWithLock(idHash)
 	if !found {
 		entry = m.entryPool.Get()
-		entry.ResetSetData(m.metricLists)
+		entry.ResetSetData(m.metricLists, m.opts)
 		m.entries[idHash] = m.entryList.PushBack(hashedEntry{
 			idHash: idHash,
 			entry:  entry,

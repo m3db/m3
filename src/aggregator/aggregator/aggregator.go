@@ -148,7 +148,8 @@ type aggregator struct {
 	instanceID    string
 	shardFn       ShardFn
 	checkInterval time.Duration
-	handler       Handler
+	flushManager  FlushManager
+	flushHandler  Handler
 
 	shardIDs              []uint32
 	shards                []*aggregatorShard
@@ -174,7 +175,8 @@ func NewAggregator(opts Options) Aggregator {
 		instanceID:            opts.InstanceID(),
 		shardFn:               opts.ShardFn(),
 		checkInterval:         opts.EntryCheckInterval(),
-		handler:               opts.FlushHandler(),
+		flushManager:          opts.FlushManager(),
+		flushHandler:          opts.FlushHandler(),
 		placementWatcher:      placementWatcher,
 		placementCutoverNanos: uninitializedCutoverNanos,
 		metrics:               metrics,
@@ -235,7 +237,8 @@ func (agg *aggregator) Close() error {
 	for _, shardID := range agg.shardIDs {
 		agg.shards[shardID].Close()
 	}
-	agg.handler.Close()
+	agg.flushManager.Close()
+	agg.flushHandler.Close()
 	return nil
 }
 
