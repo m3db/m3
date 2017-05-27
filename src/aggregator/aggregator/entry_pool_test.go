@@ -37,7 +37,7 @@ func TestEntryPool(t *testing.T) {
 	// Retrieve an entry from the pool.
 	entry := p.Get()
 	lists := &metricLists{}
-	entry.ResetSetData(&metricLists{})
+	entry.ResetSetData(&metricLists{}, testOptions())
 	require.Equal(t, lists, entry.lists)
 
 	// Put the entry back to pool.

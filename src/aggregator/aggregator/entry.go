@@ -62,6 +62,7 @@ func newEntryMetrics(scope tally.Scope) entryMetrics {
 type Entry struct {
 	sync.RWMutex
 
+	closed                 bool
 	opts                   Options
 	hasDefaultPoliciesList bool
 	useDefaultPolicies     bool
@@ -71,7 +72,6 @@ type Entry struct {
 	numWriters             int32
 	lastAccessNanos        int64
 	aggregations           map[policy.Policy]*list.Element
-	closed                 bool
 	metrics                entryMetrics
 }
 
@@ -79,11 +79,10 @@ type Entry struct {
 func NewEntry(lists *metricLists, opts Options) *Entry {
 	scope := opts.InstrumentOptions().MetricsScope().SubScope("entry")
 	e := &Entry{
-		opts:         opts,
 		aggregations: make(map[policy.Policy]*list.Element),
 		metrics:      newEntryMetrics(scope),
 	}
-	e.ResetSetData(lists)
+	e.ResetSetData(lists, opts)
 	return e
 }
 
@@ -94,8 +93,11 @@ func (e *Entry) IncWriter() { atomic.AddInt32(&e.numWriters, 1) }
 func (e *Entry) DecWriter() { atomic.AddInt32(&e.numWriters, -1) }
 
 // ResetSetData resets the entry and sets initial data.
-func (e *Entry) ResetSetData(lists *metricLists) {
+// NB(xichen): we need to reset the options here to use the correct
+// time lock contained in the options.
+func (e *Entry) ResetSetData(lists *metricLists, opts Options) {
 	e.closed = false
+	e.opts = opts
 	e.hasDefaultPoliciesList = false
 	e.useDefaultPolicies = false
 	e.cutoverNanos = uninitializedCutoverNanos

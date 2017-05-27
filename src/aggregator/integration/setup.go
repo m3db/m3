@@ -122,6 +122,8 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		return aggregator.NewEntry(nil, aggregatorOpts)
 	})
 	aggregatorOpts = aggregatorOpts.SetEntryPool(entryPool)
+	flushManager := aggregator.NewFlushManager(nil)
+	aggregatorOpts = aggregatorOpts.SetFlushManager(flushManager)
 
 	// Set up placement watcher.
 	shardSet := make([]shard.Shard, opts.NumShards())

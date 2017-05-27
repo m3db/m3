@@ -26,47 +26,6 @@ metrics:
     includeHost: true
   samplingRate: 0.01
 
-aggregator:
-  stream:
-    eps: 0.001
-    quantiles:
-      - 0.5
-      - 0.95
-      - 0.99
-    capacity: 32
-    streamPool:
-      size: 4096
-    samplePool:
-      size: 4096
-    floatsPool:
-      buckets:
-        - count: 4096
-          capacity: 16
-        - count: 2048
-          capacity: 32
-        - count: 1024
-          capacity: 16
-  shardFnType: murmur32
-  minFlushInterval: 5s
-  maxFlushSize: 1440
-  flush:
-    type: logging
-  entryTTL: 6h
-  entryCheckInterval: 10m
-  defaultPolicies:
-    - 10s:2d
-    - 1m:40d
-  counterElemPool:
-    size: 4096
-  timerElemPool:
-    size: 4096
-  gaugeElemPool:
-    size: 4096
-  entryPool:
-    size: 4096
-  bufferedEncoderPool:
-    size: 4096
-
 msgpack:
   listenAddress: 0.0.0.0:6000
   retry:
@@ -100,3 +59,51 @@ http:
   listenAddress: 0.0.0.0:6001
   readTimeout: 45s
   writeTimeout: 45s
+
+aggregator:
+  stream:
+    eps: 0.001
+    quantiles:
+      - 0.5
+      - 0.95
+      - 0.99
+    capacity: 32
+    streamPool:
+      size: 4096
+    samplePool:
+      size: 4096
+    floatsPool:
+      buckets:
+        - count: 4096
+          capacity: 16
+        - count: 2048
+          capacity: 32
+        - count: 1024
+          capacity: 16
+  placementWatcher:
+    namespace: /m3aggregator
+    key: placement
+  shardFnType: murmur32
+  flushManager:
+    checkEvery: 1s
+    jitterEnabled: true
+    numWorkersPerCPU: 0.125
+  minFlushInterval: 5s
+  maxFlushSize: 1440
+  flush:
+    type: logging
+  entryTTL: 6h
+  entryCheckInterval: 10m
+  defaultPolicies:
+    - 10s:2d
+    - 1m:40d
+  counterElemPool:
+    size: 4096
+  timerElemPool:
+    size: 4096
+  gaugeElemPool:
+    size: 4096
+  entryPool:
+    size: 4096
+  bufferedEncoderPool:
+    size: 4096

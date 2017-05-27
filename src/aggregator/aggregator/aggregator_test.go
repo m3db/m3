@@ -240,7 +240,23 @@ func testStagedPlacementProtoWithCustomShards(
 }
 
 func testOptions() Options {
-	return NewOptions().SetFlushHandler(&mockHandler{
-		handleFn: func(msgpack.Buffer) error { return nil },
-	})
+	return NewOptions().
+		SetFlushManager(&mockFlushManager{
+			registerFn: func(flusher PeriodicFlusher) error { return nil },
+		}).
+		SetFlushHandler(&mockHandler{
+			handleFn: func(msgpack.Buffer) error { return nil },
+		})
 }
+
+type registerFn func(flusher PeriodicFlusher) error
+
+type mockFlushManager struct {
+	registerFn registerFn
+}
+
+func (mgr *mockFlushManager) Register(flusher PeriodicFlusher) error {
+	return mgr.registerFn(flusher)
+}
+
+func (mgr *mockFlushManager) Close() {}

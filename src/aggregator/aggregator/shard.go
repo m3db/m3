@@ -45,6 +45,10 @@ type aggregatorShard struct {
 }
 
 func newAggregatorShard(shard uint32, opts Options) *aggregatorShard {
+	// NB(xichen): instead of sharding a global time lock, each shard has
+	// its own time lock to ensure for an aggregation window, all metrics
+	// owned by the shard are aggregated before they are flushed.
+	opts = opts.SetTimeLock(&sync.RWMutex{})
 	s := &aggregatorShard{
 		shard:     shard,
 		metricMap: newMetricMap(opts),

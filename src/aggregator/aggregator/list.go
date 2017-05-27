@@ -61,34 +61,29 @@ func newMetricListMetrics(scope tally.Scope) metricListMetrics {
 }
 
 type encodeFn func(mp aggregated.ChunkedMetricWithPolicy) error
-type waitForFn func(d time.Duration) <-chan time.Time
 
 // metricList stores aggregated metrics at a given resolution
 // and flushes aggregations periodically.
 type metricList struct {
 	sync.RWMutex
 
-	opts         Options
-	nowFn        clock.NowFn
-	log          xlog.Logger
-	timeLock     *sync.RWMutex
-	maxFlushSize int
-	flushHandler Handler
-	encoderPool  msgpack.BufferedEncoderPool
-
+	opts          Options
+	nowFn         clock.NowFn
+	log           xlog.Logger
+	timeLock      *sync.RWMutex
+	maxFlushSize  int
+	flushHandler  Handler
+	encoderPool   msgpack.BufferedEncoderPool
 	resolution    time.Duration
 	flushInterval time.Duration
-	aggregations  *list.List
-	timer         *time.Timer
-	encoder       msgpack.AggregatedEncoder
-	toCollect     []*list.Element
-	closed        bool
-	doneCh        chan struct{}
-	wgFlush       sync.WaitGroup
-	encodeFn      encodeFn
-	aggMetricFn   aggMetricFn
-	waitForFn     waitForFn
-	metrics       metricListMetrics
+
+	aggregations *list.List
+	encoder      msgpack.AggregatedEncoder
+	toCollect    []*list.Element
+	closed       bool
+	encodeFn     encodeFn
+	aggMetricFn  aggMetricFn
+	metrics      metricListMetrics
 }
 
 func newMetricList(resolution time.Duration, opts Options) *metricList {
@@ -115,23 +110,20 @@ func newMetricList(resolution time.Duration, opts Options) *metricList {
 		resolution:    resolution,
 		flushInterval: flushInterval,
 		aggregations:  list.New(),
-		timer:         time.NewTimer(0),
 		encoder:       msgpack.NewAggregatedEncoder(encoderPool.Get()),
-		doneCh:        make(chan struct{}),
 		metrics:       newMetricListMetrics(scope),
 	}
 	l.encodeFn = l.encoder.EncodeChunkedMetricWithPolicy
 	l.aggMetricFn = l.processAggregatedMetric
-	l.waitForFn = time.After
 
-	// Start flushing periodically.
-	if l.flushInterval > 0 {
-		l.wgFlush.Add(1)
-		go l.flush()
-	}
+	flushMgr := opts.FlushManager()
+	flushMgr.Register(l)
 
 	return l
 }
+
+// FlushInterval returns the flush interval of the list.
+func (l *metricList) FlushInterval() time.Duration { return l.flushInterval }
 
 // Resolution returns the resolution of the list.
 func (l *metricList) Resolution() time.Duration { return l.resolution }
@@ -163,33 +155,15 @@ func (l *metricList) PushBack(value interface{}) (*list.Element, error) {
 // Close closes the list.
 func (l *metricList) Close() {
 	l.Lock()
+	defer l.Unlock()
+
 	if l.closed {
-		l.Unlock()
 		return
 	}
 	l.closed = true
-	l.Unlock()
-
-	// Waiting for the ticking goroutine to finish.
-	close(l.doneCh)
-	l.wgFlush.Wait()
 }
 
-// flush flushes out aggregated metrics.
-func (l *metricList) flush() {
-	defer l.wgFlush.Done()
-
-	for {
-		select {
-		case <-l.doneCh:
-			return
-		default:
-			l.flushInternal()
-		}
-	}
-}
-
-func (l *metricList) flushInternal() {
+func (l *metricList) Flush() {
 	// NB(xichen): it is important to determine ticking start time within the time lock
 	// because this ensures all the actions before `start` have completed if those actions
 	// are protected by the same read lock.
@@ -241,14 +215,6 @@ func (l *metricList) flushInternal() {
 	l.metrics.flushCollected.Inc(int64(numCollected))
 	flushDuration := l.nowFn().Sub(start)
 	l.metrics.flushDuration.Record(flushDuration)
-	if flushDuration < l.flushInterval {
-		// NB(xichen): use a channel here instead of sleeping in case
-		// server needs to close and we don't tick frequently enough.
-		select {
-		case <-l.waitForFn(l.flushInterval - flushDuration):
-		case <-l.doneCh:
-		}
-	}
 }
 
 func (l *metricList) processAggregatedMetric(
