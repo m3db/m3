@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/integration/generate"
 	nchannel "github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
@@ -50,7 +51,7 @@ func tchannelClient(address string) (*tchannel.Channel, rpc.TChanNode, error) {
 }
 
 // tchannelClientWriteBatch writes a data map using a tchannel client.
-func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, namespace ts.ID, seriesList seriesList) error {
+func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, namespace ts.ID, seriesList generate.SeriesBlock) error {
 	var elems []*rpc.WriteBatchRawRequestElement
 	for _, series := range seriesList {
 		for _, dp := range series.Data {
@@ -101,7 +102,7 @@ func m3dbClient(opts client.Options) (client.Client, error) {
 }
 
 // m3dbClientWriteBatch writes a data map using an m3db client.
-func m3dbClientWriteBatch(client client.Client, workerPool xsync.WorkerPool, namespace ts.ID, seriesList seriesList) error {
+func m3dbClientWriteBatch(client client.Client, workerPool xsync.WorkerPool, namespace ts.ID, seriesList generate.SeriesBlock) error {
 	session, err := client.DefaultSession()
 	if err != nil {
 		return err

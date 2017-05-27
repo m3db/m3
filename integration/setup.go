@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/integration/fake"
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/services/m3dbnode/server"
@@ -336,7 +337,7 @@ func (ts *testSetup) stopServer() error {
 	return nil
 }
 
-func (ts *testSetup) writeBatch(namespace ts.ID, seriesList seriesList) error {
+func (ts *testSetup) writeBatch(namespace ts.ID, seriesList generate.SeriesBlock) error {
 	if ts.opts.UseTChannelClientForWriting() {
 		return tchannelClientWriteBatch(ts.tchannelClient, ts.opts.WriteRequestTimeout(), namespace, seriesList)
 	}

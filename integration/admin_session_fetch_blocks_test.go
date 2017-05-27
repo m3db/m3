@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	"github.com/stretchr/testify/require"
@@ -62,19 +63,15 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 
 	// Write test data
 	now := testSetup.getNowFn()
-	seriesMaps := make(map[time.Time]seriesList)
-	inputData := []struct {
-		metricNames []string
-		numPoints   int
-		start       time.Time
-	}{
+	seriesMaps := make(map[time.Time]generate.SeriesBlock)
+	inputData := []generate.BlockConfig{
 		{[]string{"foo", "bar"}, 100, now},
 		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
 	}
 	for _, input := range inputData {
-		start := input.start
+		start := input.Start
 		testSetup.setNowFn(start)
-		testData := generateTestData(input.metricNames, input.numPoints, start)
+		testData := generate.Block(input)
 		seriesMaps[start] = testData
 		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
 	}
@@ -101,8 +98,8 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 
 func verifySeriesMapsEqual(
 	t *testing.T,
-	expectedSeriesMap map[time.Time]seriesList,
-	observedSeriesMap map[time.Time]seriesList,
+	expectedSeriesMap map[time.Time]generate.SeriesBlock,
+	observedSeriesMap map[time.Time]generate.SeriesBlock,
 ) {
 	// ensure same length
 	require.Equal(t, len(expectedSeriesMap), len(observedSeriesMap))
@@ -153,8 +150,8 @@ func testSetupToSeriesMaps(
 	testSetup *testSetup,
 	namespace ts.ID,
 	metadatasByShard map[uint32][]block.ReplicaMetadata,
-) map[time.Time]seriesList {
-	seriesMap := make(map[time.Time]seriesList)
+) map[time.Time]generate.SeriesBlock {
+	seriesMap := make(map[time.Time]generate.SeriesBlock)
 	resultOpts := newDefaulTestResultOptions(testSetup.storageOpts,
 		testSetup.storageOpts.InstrumentOptions())
 	iterPool := testSetup.storageOpts.ReaderIteratorPool()
@@ -186,7 +183,7 @@ func testSetupToSeriesMaps(
 
 			firstTs := datapoints[0].Timestamp
 			seriesMapList, _ := seriesMap[firstTs]
-			seriesMapList = append(seriesMapList, series{
+			seriesMapList = append(seriesMapList, generate.Series{
 				ID:   id,
 				Data: datapoints,
 			})

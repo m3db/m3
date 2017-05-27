@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
@@ -56,6 +57,7 @@ const (
 	multiAddrPortEach  = 4
 )
 
+// TODO: refactor and use m3x/clock ...
 type conditionFn func() bool
 
 func waitUntil(fn conditionFn, timeout time.Duration) bool {
@@ -265,17 +267,11 @@ func newDefaultBootstrappableTestSetups(
 	}
 }
 
-type testData struct {
-	ids       []string
-	numPoints int
-	start     time.Time
-}
-
 func writeTestDataToDisk(
 	t *testing.T,
 	namespace ts.ID,
 	setup *testSetup,
-	seriesMaps map[time.Time]seriesList,
+	seriesMaps map[time.Time]generate.SeriesBlock,
 ) error {
 	storageOpts := setup.storageOpts
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
@@ -325,12 +321,12 @@ func writeToDisk(
 	encoder encoding.Encoder,
 	start time.Time,
 	namespace ts.ID,
-	seriesList seriesList,
+	seriesList generate.SeriesBlock,
 ) error {
-	seriesPerShard := make(map[uint32][]series)
+	seriesPerShard := make(map[uint32][]generate.Series)
 	for _, shard := range shardSet.AllIDs() {
 		// Ensure we write out block files for each shard even if there's no data
-		seriesPerShard[shard] = make([]series, 0)
+		seriesPerShard[shard] = make([]generate.Series, 0)
 	}
 	for _, s := range seriesList {
 		shard := shardSet.Lookup(s.ID)

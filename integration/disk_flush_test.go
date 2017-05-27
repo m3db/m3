@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
@@ -45,7 +46,7 @@ func waitUntilDataFlushed(
 	filePathPrefix string,
 	shardSet sharding.ShardSet,
 	namespace ts.ID,
-	testData map[time.Time]seriesList,
+	testData map[time.Time]generate.SeriesBlock,
 	timeout time.Duration,
 ) error {
 	dataFlushed := func() bool {
@@ -72,14 +73,14 @@ func verifyForTime(
 	iteratorPool encoding.ReaderIteratorPool,
 	timestamp time.Time,
 	namespace ts.ID,
-	expected seriesList,
+	expected generate.SeriesBlock,
 ) {
 	shards := make(map[uint32]struct{})
 	for _, series := range expected {
 		shard := shardSet.Lookup(series.ID)
 		shards[shard] = struct{}{}
 	}
-	actual := make(seriesList, 0, len(expected))
+	actual := make(generate.SeriesBlock, 0, len(expected))
 	for shard := range shards {
 		require.NoError(t, reader.Open(namespace, shard, timestamp))
 		for i := 0; i < reader.Entries(); i++ {
@@ -98,7 +99,7 @@ func verifyForTime(
 			require.NoError(t, it.Err())
 			it.Close()
 
-			actual = append(actual, series{
+			actual = append(actual, generate.Series{
 				ID:   id,
 				Data: datapoints,
 			})
@@ -117,7 +118,7 @@ func verifyFlushed(
 	shardSet sharding.ShardSet,
 	opts storage.Options,
 	namespace ts.ID,
-	seriesMaps map[time.Time]seriesList,
+	seriesMaps map[time.Time]generate.SeriesBlock,
 ) {
 	fsOpts := opts.CommitLogOptions().FilesystemOptions()
 	reader := fs.NewReader(fsOpts.FilePathPrefix(), fsOpts.ReaderBufferSize(), opts.BytesPool(), nil)
@@ -159,19 +160,15 @@ func TestDiskFlush(t *testing.T) {
 
 	// Write test data
 	now := testSetup.getNowFn()
-	seriesMaps := make(map[time.Time]seriesList)
-	inputData := []struct {
-		metricNames []string
-		numPoints   int
-		start       time.Time
-	}{
+	seriesMaps := make(map[time.Time]generate.SeriesBlock)
+	inputData := []generate.BlockConfig{
 		{[]string{"foo", "bar"}, 100, now},
 		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
 	}
 	for _, input := range inputData {
-		testSetup.setNowFn(input.start)
-		testData := generateTestData(input.metricNames, input.numPoints, input.start)
-		seriesMaps[input.start] = testData
+		testSetup.setNowFn(input.Start)
+		testData := generate.Block(input)
+		seriesMaps[input.Start] = testData
 		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
 	}
 	log.Debug("test data is now written")

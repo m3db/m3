@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
@@ -62,14 +63,14 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 	// Write test data alternating missing data for left/right nodes
 	now := setups[0].getNowFn()
 	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
-	seriesMaps := generateTestDataByStart([]testData{
-		{ids: []string{"foo", "bar"}, numPoints: 180, start: now.Add(-blockSize)},
-		{ids: []string{"foo", "baz"}, numPoints: 90, start: now},
+	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		{[]string{"foo", "bar"}, 180, now.Add(-blockSize)},
+		{[]string{"foo", "baz"}, 90, now},
 	})
-	left := make(map[time.Time]seriesList)
-	right := make(map[time.Time]seriesList)
+	left := make(map[time.Time]generate.SeriesBlock)
+	right := make(map[time.Time]generate.SeriesBlock)
 	shouldMissData := false
-	appendSeries := func(target map[time.Time]seriesList, start time.Time, s series) {
+	appendSeries := func(target map[time.Time]generate.SeriesBlock, start time.Time, s generate.Series) {
 		if shouldMissData {
 			var dataWithMissing []ts.Datapoint
 			for i := range s.Data {
@@ -78,7 +79,7 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 				}
 				dataWithMissing = append(dataWithMissing, s.Data[i])
 			}
-			target[start] = append(target[start], series{ID: s.ID, Data: dataWithMissing})
+			target[start] = append(target[start], generate.Series{ID: s.ID, Data: dataWithMissing})
 		} else {
 			target[start] = append(target[start], s)
 		}

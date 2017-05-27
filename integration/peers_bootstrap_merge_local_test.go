@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	xmetrics "github.com/m3db/m3db/x/metrics"
@@ -65,12 +66,12 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 	cutoverAt := now.Add(retentionOpts.BufferFuture())
 	completeAt := now.Add(180 * time.Second)
 	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
-	seriesMaps := generateTestDataByStart([]testData{
-		{ids: []string{"foo", "bar"}, numPoints: 180, start: now.Add(-blockSize)},
-		{ids: []string{"foo", "baz"}, numPoints: int(completeAt.Sub(now) / time.Second), start: now},
+	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		{[]string{"foo", "bar"}, 180, now.Add(-blockSize)},
+		{[]string{"foo", "baz"}, int(completeAt.Sub(now) / time.Second), now},
 	})
-	firstNodeSeriesMaps := map[time.Time]seriesList{}
-	directWritesSeriesMaps := map[time.Time]seriesList{}
+	firstNodeSeriesMaps := map[time.Time]generate.SeriesBlock{}
+	directWritesSeriesMaps := map[time.Time]generate.SeriesBlock{}
 	for start, s := range seriesMaps {
 		for i := range s {
 			isPartialSeries := start.Equal(now)
@@ -80,8 +81,8 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 				continue
 			}
 
-			firstNodeSeries := series{ID: s[i].ID}
-			directWritesSeries := series{ID: s[i].ID}
+			firstNodeSeries := generate.Series{ID: s[i].ID}
+			directWritesSeries := generate.Series{ID: s[i].ID}
 			for j := range s[i].Data {
 				if s[i].Data[j].Timestamp.Before(cutoverAt) {
 					// If partial series and before cutover then splice between first node and second node

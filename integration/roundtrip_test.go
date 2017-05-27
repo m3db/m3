@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/stretchr/testify/require"
 )
 
@@ -58,19 +59,15 @@ func TestRoundtrip(t *testing.T) {
 
 	// Write test data
 	now := testSetup.getNowFn()
-	seriesMaps := make(map[time.Time]seriesList)
-	inputData := []struct {
-		metricNames []string
-		numPoints   int
-		start       time.Time
-	}{
+	seriesMaps := make(map[time.Time]generate.SeriesBlock)
+	inputData := []generate.BlockConfig{
 		{[]string{"foo", "bar"}, 100, now},
 		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
 	}
 	for _, input := range inputData {
-		testSetup.setNowFn(input.start)
-		testData := generateTestData(input.metricNames, input.numPoints, input.start)
-		seriesMaps[input.start] = testData
+		testSetup.setNowFn(input.Start)
+		testData := generate.Block(input)
+		seriesMaps[input.Start] = testData
 		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
 	}
 	log.Debug("test data is now written")
