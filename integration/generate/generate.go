@@ -9,7 +9,7 @@ import (
 	"github.com/m3db/m3db/ts"
 )
 
-// BlockConfig represents the configuration to generate a SeriesList
+// BlockConfig represents the configuration to generate a SeriesBlock
 type BlockConfig struct {
 	IDs       []string
 	NumPoints int
