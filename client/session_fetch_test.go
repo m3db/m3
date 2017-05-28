@@ -272,7 +272,7 @@ func testFetchConsistencyLevel(
 	reporterOpts := xmetrics.NewTestStatsReporterOptions().
 		SetCaptureEvents(true)
 	reporter := xmetrics.NewTestStatsReporter(reporterOpts)
-	scope, closer := tally.NewRootScope("", nil, reporter, time.Millisecond, tally.DefaultSeparator)
+	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
 	defer closer.Close()
 
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().

@@ -71,6 +71,11 @@ type M3ClusterKVStore interface {
 	kv.Store
 }
 
+// M3ClusterTxnStore is a fake m3cluster txn store
+type M3ClusterTxnStore interface {
+	kv.TxnStore
+}
+
 // NewM3ClusterClient creates a new fake m3cluster client
 func NewM3ClusterClient(
 	services M3ClusterServices,
@@ -82,6 +87,7 @@ func NewM3ClusterClient(
 type m3ClusterClient struct {
 	services M3ClusterServices
 	kvStore  M3ClusterKVStore
+	txnStore M3ClusterTxnStore
 }
 
 func (c *m3ClusterClient) Services() (services.Services, error) {
@@ -90,6 +96,10 @@ func (c *m3ClusterClient) Services() (services.Services, error) {
 
 func (c *m3ClusterClient) KV() (kv.Store, error) {
 	return c.kvStore, nil
+}
+
+func (c *m3ClusterClient) Txn() (kv.TxnStore, error) {
+	return c.txnStore, nil
 }
 
 // NewM3ClusterServices creates a new fake m3cluster services
@@ -149,6 +159,12 @@ func (s *m3ClusterServices) Unadvertise(
 	id string,
 ) error {
 	return fmt.Errorf("not implemented")
+}
+
+func (s *m3ClusterServices) HeartbeatService(
+	service services.ServiceID,
+) (services.HeartbeatService, error) {
+	return nil, fmt.Errorf("not implemented")
 }
 
 func (s *m3ClusterServices) Query(
@@ -224,8 +240,8 @@ func (s *m3ClusterPlacementService) AddReplica() (
 }
 func (s *m3ClusterPlacementService) AddInstance(
 	candidates []services.PlacementInstance,
-) (services.ServicePlacement, error) {
-	return nil, fmt.Errorf("not implemented")
+) (services.ServicePlacement, services.PlacementInstance, error) {
+	return nil, nil, fmt.Errorf("not implemented")
 }
 func (s *m3ClusterPlacementService) RemoveInstance(
 	leavingInstanceID string,
@@ -234,8 +250,8 @@ func (s *m3ClusterPlacementService) RemoveInstance(
 }
 func (s *m3ClusterPlacementService) ReplaceInstance(
 	leavingInstanceID string, candidates []services.PlacementInstance,
-) (services.ServicePlacement, error) {
-	return nil, fmt.Errorf("not implemented")
+) (services.ServicePlacement, []services.PlacementInstance, error) {
+	return nil, nil, fmt.Errorf("not implemented")
 }
 func (s *m3ClusterPlacementService) MarkShardAvailable(
 	instanceID string, shardID uint32,

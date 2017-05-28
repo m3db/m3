@@ -131,6 +131,15 @@ func (w testWrite) assert(
 	assert.Equal(t, w.a, annotation)
 }
 
+func snapshotCounterValue(
+	scope tally.TestScope,
+	counter string,
+) (tally.CounterSnapshot, bool) {
+	counters := scope.Snapshot().Counters()
+	c, ok := counters[tally.KeyForPrefixedStringMap(counter, nil)]
+	return c, ok
+}
+
 type mockCommitLogWriter struct {
 	openFn  func(start time.Time, duration time.Duration) error
 	writeFn func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error
@@ -206,10 +215,15 @@ func writeCommitLogs(
 	wg := sync.WaitGroup{}
 
 	getAllWrites := func() int {
-		snapshot := scope.Snapshot()
-		counters := snapshot.Counters()
-		result := counters["commitlog.writes.success"].Value() +
-			counters["commitlog.writes.errors"].Value()
+		result := int64(0)
+		success, ok := snapshotCounterValue(scope, "commitlog.writes.success")
+		if ok {
+			result += success.Value()
+		}
+		errors, ok := snapshotCounterValue(scope, "commitlog.writes.errors")
+		if ok {
+			result += errors.Value()
+		}
 		return int(result)
 	}
 
@@ -487,7 +501,9 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	wg.Wait()
 
 	// Check stats
-	assert.Equal(t, int64(1), scope.Snapshot().Counters()["commitlog.writes.errors"].Value())
+	errors, ok := snapshotCounterValue(scope, "commitlog.writes.errors")
+	assert.True(t, ok)
+	assert.Equal(t, int64(1), errors.Value())
 }
 
 func TestCommitLogFailOnOpenError(t *testing.T) {
@@ -537,9 +553,13 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	wg.Wait()
 
 	// Check stats
-	counters := scope.Snapshot().Counters()
-	assert.Equal(t, int64(1), counters["commitlog.writes.errors"].Value())
-	assert.Equal(t, int64(1), counters["commitlog.writes.open-errors"].Value())
+	errors, ok := snapshotCounterValue(scope, "commitlog.writes.errors")
+	assert.True(t, ok)
+	assert.Equal(t, int64(1), errors.Value())
+
+	openErrors, ok := snapshotCounterValue(scope, "commitlog.writes.open-errors")
+	assert.True(t, ok)
+	assert.Equal(t, int64(1), openErrors.Value())
 }
 
 func TestCommitLogFailOnFlushError(t *testing.T) {
@@ -579,7 +599,11 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	wg.Wait()
 
 	// Check stats
-	counters := scope.Snapshot().Counters()
-	assert.Equal(t, int64(1), counters["commitlog.writes.errors"].Value())
-	assert.Equal(t, int64(1), counters["commitlog.writes.flush-errors"].Value())
+	errors, ok := snapshotCounterValue(scope, "commitlog.writes.errors")
+	assert.True(t, ok)
+	assert.Equal(t, int64(1), errors.Value())
+
+	flushErrors, ok := snapshotCounterValue(scope, "commitlog.writes.flush-errors")
+	assert.True(t, ok)
+	assert.Equal(t, int64(1), flushErrors.Value())
 }

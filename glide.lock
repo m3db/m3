@@ -1,5 +1,5 @@
-hash: 6d155e34454932674b0773ad9668f14d4d0f58cc74a1a56f0bd8efa364a158ce
-updated: 2017-02-20T17:31:51.03659332-05:00
+hash: 475d22f5db82006a615bb66ec9b0196b1fbe813cfa869da71899615d1f7fafe5
+updated: 2017-05-28T19:02:29.881683466-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -11,24 +11,30 @@ imports:
   - spew
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
+- name: github.com/go-ole/go-ole
+  version: de8695c8edbf8236f30d6e1376e20b198a028d42
+  subpackages:
+  - oleutil
 - name: github.com/golang/mock
   version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
-  version: bf531ff1a004f24ee53329dfd5ce0b41bfdc17df
+  version: 3852dcfda249c2097355a6aabb199a28d97b30df
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: 1054ce5875f3f13519cfc1c4e816c06bab8587fe
+  version: 2eb541bb4b0883e27c78f7594f0eda09f8bf9665
   subpackages:
   - client
   - kv
   - services
   - services/placement
   - shard
+- name: github.com/m3db/m3em
+  version: c7991e36f84c32e25e1cc7759d4779a319414578
 - name: github.com/m3db/m3x
-  version: 2adc966acde14c9f0cc04c3eaeb338c5f9673a74
+  version: bd6be18ffb184691512eb442561b16a59c15d797
   vcs: git
   subpackages:
   - checked
@@ -38,6 +44,7 @@ imports:
   - instrument
   - log
   - pool
+  - process
   - retry
   - sync
   - time
@@ -52,8 +59,23 @@ imports:
   version: 792786c7400a136282c1664665ae0a8db921c6c2
   subpackages:
   - difflib
+- name: github.com/shirou/gopsutil
+  version: b62e301a8b9958eebb7299683eb57fab229a9501
+  subpackages:
+  - cpu
+  - host
+  - internal/common
+  - mem
+  - net
+  - process
+- name: github.com/shirou/w32
+  version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
 - name: github.com/spaolacci/murmur3
   version: 0d12bf811670bf6a1a63828dfbd003eded177fce
+- name: github.com/spf13/cobra
+  version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
+- name: github.com/StackExchange/wmi
+  version: e542ed97d15e640bdc14b5c12162d59e8fc67324
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
@@ -62,14 +84,21 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 43c1379c0577ac1eb74f9f3869cea07191c9992b
-- name: github.com/uber/tchannel-go
-  version: 8d570ed87acb2661d390c096215260f3f9e9b931
+  version: 4b9d9de43ffcb0b7efe67dab2a92c2d58dbf16ab
   subpackages:
+  - m3
+  - m3/customtransports
+  - m3/thrift
+  - m3/thriftudp
+- name: github.com/uber/tchannel-go
+  version: 5d979b31a7405a676919fca637bb2f715fb9ed65
+  subpackages:
+  - internal/argreader
   - relay
   - thrift
   - thrift/gen-go/meta
   - tnet
+  - tos
   - trand
   - typed
 - name: github.com/willf/bitset
@@ -77,7 +106,12 @@ imports:
 - name: golang.org/x/net
   version: 61557ac0112b576429a0df080e1c2cef5dfbb642
   subpackages:
+  - bpf
   - context
+  - internal/iana
+  - internal/netreflect
+  - ipv4
+  - ipv6
 - name: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
   subpackages:

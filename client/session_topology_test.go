@@ -94,7 +94,8 @@ func TestSessionTopologyChangeCreatesNewClosesOldHostQueues(t *testing.T) {
 		SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 
-	scope := tally.NewTestScope("", nil)
+	var testScopeTags map[string]string
+	scope := tally.NewTestScope("", testScopeTags)
 
 	opts := newSessionTestOptions().
 		SetTopologyInitializer(topoInit)
@@ -145,8 +146,9 @@ func TestSessionTopologyChangeCreatesNewClosesOldHostQueues(t *testing.T) {
 	svcs.NotifyServiceUpdate("m3db")
 
 	// Wait for topology to be processed
+	testScopeCounterKey := tally.KeyForPrefixedStringMap("topology.updated-success", testScopeTags)
 	for {
-		updated, ok := scope.Snapshot().Counters()["topology.updated-success"]
+		updated, ok := scope.Snapshot().Counters()[testScopeCounterKey]
 		if ok && updated.Value() > 0 {
 			break
 		}

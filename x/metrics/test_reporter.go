@@ -121,6 +121,28 @@ func (r *testStatsReporter) ReportTimer(name string, tags map[string]string, int
 	r.Unlock()
 }
 
+func (r *testStatsReporter) ReportHistogramValueSamples(
+	name string,
+	tags map[string]string,
+	buckets tally.Buckets,
+	bucketLowerBound,
+	bucketUpperBound float64,
+	samples int64,
+) {
+	// TODO: implement
+}
+
+func (r *testStatsReporter) ReportHistogramDurationSamples(
+	name string,
+	tags map[string]string,
+	buckets tally.Buckets,
+	bucketLowerBound,
+	bucketUpperBound time.Duration,
+	samples int64,
+) {
+	// TODO: implement
+}
+
 func (r *testStatsReporter) Capabilities() tally.Capabilities {
 	return r
 }

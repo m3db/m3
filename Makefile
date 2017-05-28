@@ -33,10 +33,10 @@ VENDOR_ENV := GO15VENDOREXPERIMENT=1
 SERVICES := \
 	m3dbnode
 
-TOOLS :=              \
+TOOLS :=         \
 	read_ids       \
 	read_index_ids \
-	clone_fileset
+	clone_fileset  \
 
 setup:
 	mkdir -p $(BUILD)
@@ -73,6 +73,9 @@ tools-linux-amd64:
 
 $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 $(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
+
+all: lint test-ci-unit test-ci-integration services tools
+	@echo Made all successfully
 
 install-license-bin: install-vendor
 	@echo Installing node modules
@@ -142,4 +145,4 @@ clean:
 	@rm -f *.html *.xml *.out *.test
 
 .DEFAULT_GOAL := test
-.PHONY: test test-xml test-internal testhtml clean
+.PHONY: test test-xml test-internal testhtml clean all
