@@ -77,7 +77,7 @@ func TestLastReadAfterPeerBootstrap(t *testing.T) {
 		{[]string{"foo", "baz"}, 50, now.Add(-2 * blockSize)},
 		{[]string{"foo", "qux"}, 50, now.Add(-1 * blockSize)},
 	})
-	err := writeTestDataToDisk(t, namesp.ID(), setups[0], seriesMaps)
+	err := writeTestDataToDisk(namesp.ID(), setups[0], seriesMaps)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper

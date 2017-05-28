@@ -74,8 +74,8 @@ func TestFilesystemBootstrap(t *testing.T) {
 		{[]string{"foo", "bar"}, 100, now.Add(-blockSize)},
 		{[]string{"foo", "baz"}, 50, now},
 	})
-	require.NoError(t, writeTestDataToDisk(t, testNamespaces[0], setup, seriesMaps))
-	require.NoError(t, writeTestDataToDisk(t, testNamespaces[1], setup, nil))
+	require.NoError(t, writeTestDataToDisk(testNamespaces[0], setup, seriesMaps))
+	require.NoError(t, writeTestDataToDisk(testNamespaces[1], setup, nil))
 
 	// Start the server with filesystem bootstrapper
 	log := setup.storageOpts.InstrumentOptions().Logger()

@@ -268,7 +268,6 @@ func newDefaultBootstrappableTestSetups(
 }
 
 func writeTestDataToDisk(
-	t *testing.T,
 	namespace ts.ID,
 	setup *testSetup,
 	seriesMaps map[time.Time]generate.SeriesBlock,
@@ -296,7 +295,7 @@ func writeTestDataToDisk(
 	}
 
 	for start, data := range seriesMaps {
-		err := writeToDisk(t, writer, setup.shardSet, encoder, start, namespace, data)
+		err := writeToDisk(writer, setup.shardSet, encoder, start, namespace, data)
 		if err != nil {
 			return err
 		}
@@ -305,7 +304,7 @@ func writeTestDataToDisk(
 
 	// Write remaining files even for empty start periods to avoid unfulfilled ranges
 	for start := range starts {
-		err := writeToDisk(t, writer, setup.shardSet, encoder, start, namespace, nil)
+		err := writeToDisk(writer, setup.shardSet, encoder, start, namespace, nil)
 		if err != nil {
 			return err
 		}
@@ -315,7 +314,6 @@ func writeTestDataToDisk(
 }
 
 func writeToDisk(
-	t *testing.T,
 	writer fs.FileSetWriter,
 	shardSet sharding.ShardSet,
 	encoder encoding.Encoder,
@@ -345,7 +343,9 @@ func writeToDisk(
 				}
 			}
 			stream := encoder.Stream()
-			require.NotNil(t, stream)
+			if stream == nil {
+				return fmt.Errorf("nil stream")
+			}
 			segment, err := stream.Segment()
 			if err != nil {
 				return err
