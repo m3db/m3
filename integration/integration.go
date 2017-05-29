@@ -267,30 +267,42 @@ func newDefaultBootstrappableTestSetups(
 	}
 }
 
+func generatorOpts(setup *testSetup) generate.Options {
+	var (
+		storageOpts = setup.storageOpts
+		fsOpts      = storageOpts.CommitLogOptions().FilesystemOptions()
+		opts        = generate.NewOptions()
+		co          = opts.ClockOptions().SetNowFn(setup.getNowFn)
+	)
+
+	return opts.
+		SetClockOptions(co).
+		SetRetentionPeriod(storageOpts.RetentionOptions().RetentionPeriod()).
+		SetBlockSize(storageOpts.RetentionOptions().BlockSize()).
+		SetFilePathPrefix(fsOpts.FilePathPrefix()).
+		SetNewFileMode(fsOpts.NewFileMode()).
+		SetNewDirectoryMode(fsOpts.NewDirectoryMode()).
+		SetWriterBufferSize(fsOpts.WriterBufferSize()).
+		SetEncoderPool(storageOpts.EncoderPool())
+}
+
 func writeTestDataToDisk(
 	namespace ts.ID,
 	setup *testSetup,
 	seriesMaps map[time.Time]generate.SeriesBlock,
 ) error {
-	storageOpts := setup.storageOpts
-	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
-	writerBufferSize := fsOpts.WriterBufferSize()
-	blockSize := storageOpts.RetentionOptions().BlockSize()
-	retentionPeriod := storageOpts.RetentionOptions().RetentionPeriod()
-	filePathPrefix := fsOpts.FilePathPrefix()
-	newFileMode := fsOpts.NewFileMode()
-	newDirectoryMode := fsOpts.NewDirectoryMode()
-	writer := fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
-	encoder := storageOpts.EncoderPool().Get()
+	gOpts := generatorOpts(setup)
+	writer := fs.NewWriter(gOpts.BlockSize(), gOpts.FilePathPrefix(), gOpts.WriterBufferSize(), gOpts.NewFileMode(), gOpts.NewDirectoryMode())
+	encoder := gOpts.EncoderPool().Get()
 
-	currStart := setup.getNowFn().Truncate(blockSize)
-	retentionStart := currStart.Add(-retentionPeriod)
+	currStart := gOpts.ClockOptions().NowFn()().Truncate(gOpts.BlockSize())
+	retentionStart := currStart.Add(-gOpts.RetentionPeriod())
 	isValidStart := func(start time.Time) bool {
 		return start.Equal(retentionStart) || start.After(retentionStart)
 	}
 
 	starts := make(map[time.Time]struct{})
-	for start := currStart; isValidStart(start); start = start.Add(-blockSize) {
+	for start := currStart; isValidStart(start); start = start.Add(-gOpts.BlockSize()) {
 		starts[start] = struct{}{}
 	}
 

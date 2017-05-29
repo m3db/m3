@@ -9,27 +9,11 @@ import (
 	"github.com/m3db/m3db/ts"
 )
 
-// BlockConfig represents the configuration to generate a SeriesBlock
-type BlockConfig struct {
-	IDs       []string
-	NumPoints int
-	Start     time.Time
-}
-
-// SeriesBlock is a collection of Series'
-type SeriesBlock []Series
-
 // Making SeriesBlock sortable
 func (l SeriesBlock) Len() int      { return len(l) }
 func (l SeriesBlock) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
 func (l SeriesBlock) Less(i, j int) bool {
 	return bytes.Compare(l[i].ID.Data().Get(), l[j].ID.Data().Get()) < 0
-}
-
-// Series represents a generated series of data
-type Series struct {
-	ID   ts.ID
-	Data []ts.Datapoint
 }
 
 // Block generates a SeriesBlock based on provided config
@@ -58,7 +42,7 @@ func Block(conf BlockConfig) SeriesBlock {
 
 // BlocksByStart generates a map of SeriesBlocks keyed by Start time
 // for the provided configs
-func BlocksByStart(confs []BlockConfig) map[time.Time]SeriesBlock {
+func BlocksByStart(confs []BlockConfig) SeriesBlocksByStart {
 	seriesMaps := make(map[time.Time]SeriesBlock)
 	for _, conf := range confs {
 		seriesMaps[conf.Start] = Block(conf)
