@@ -27,10 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/integration/generate"
-	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
@@ -42,10 +39,8 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xmetrics "github.com/m3db/m3db/x/metrics"
-	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/time"
 	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3cluster/shard"
@@ -267,114 +262,13 @@ func newDefaultBootstrappableTestSetups(
 	}
 }
 
-func generatorOpts(setup *testSetup) generate.Options {
-	var (
-		storageOpts = setup.storageOpts
-		fsOpts      = storageOpts.CommitLogOptions().FilesystemOptions()
-		opts        = generate.NewOptions()
-		co          = opts.ClockOptions().SetNowFn(setup.getNowFn)
-	)
-
-	return opts.
-		SetClockOptions(co).
-		SetRetentionPeriod(storageOpts.RetentionOptions().RetentionPeriod()).
-		SetBlockSize(storageOpts.RetentionOptions().BlockSize()).
-		SetFilePathPrefix(fsOpts.FilePathPrefix()).
-		SetNewFileMode(fsOpts.NewFileMode()).
-		SetNewDirectoryMode(fsOpts.NewDirectoryMode()).
-		SetWriterBufferSize(fsOpts.WriterBufferSize()).
-		SetEncoderPool(storageOpts.EncoderPool())
-}
-
 func writeTestDataToDisk(
 	namespace ts.ID,
 	setup *testSetup,
 	seriesMaps map[time.Time]generate.SeriesBlock,
 ) error {
-	gOpts := generatorOpts(setup)
-	writer := fs.NewWriter(gOpts.BlockSize(), gOpts.FilePathPrefix(), gOpts.WriterBufferSize(), gOpts.NewFileMode(), gOpts.NewDirectoryMode())
-	encoder := gOpts.EncoderPool().Get()
-
-	currStart := gOpts.ClockOptions().NowFn()().Truncate(gOpts.BlockSize())
-	retentionStart := currStart.Add(-gOpts.RetentionPeriod())
-	isValidStart := func(start time.Time) bool {
-		return start.Equal(retentionStart) || start.After(retentionStart)
-	}
-
-	starts := make(map[time.Time]struct{})
-	for start := currStart; isValidStart(start); start = start.Add(-gOpts.BlockSize()) {
-		starts[start] = struct{}{}
-	}
-
-	for start, data := range seriesMaps {
-		err := writeToDisk(writer, setup.shardSet, encoder, start, namespace, data)
-		if err != nil {
-			return err
-		}
-		delete(starts, start)
-	}
-
-	// Write remaining files even for empty start periods to avoid unfulfilled ranges
-	for start := range starts {
-		err := writeToDisk(writer, setup.shardSet, encoder, start, namespace, nil)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func writeToDisk(
-	writer fs.FileSetWriter,
-	shardSet sharding.ShardSet,
-	encoder encoding.Encoder,
-	start time.Time,
-	namespace ts.ID,
-	seriesList generate.SeriesBlock,
-) error {
-	seriesPerShard := make(map[uint32][]generate.Series)
-	for _, shard := range shardSet.AllIDs() {
-		// Ensure we write out block files for each shard even if there's no data
-		seriesPerShard[shard] = make([]generate.Series, 0)
-	}
-	for _, s := range seriesList {
-		shard := shardSet.Lookup(s.ID)
-		seriesPerShard[shard] = append(seriesPerShard[shard], s)
-	}
-	data := make([]checked.Bytes, 2)
-	for shard, seriesList := range seriesPerShard {
-		if err := writer.Open(namespace, shard, start); err != nil {
-			return err
-		}
-		for _, series := range seriesList {
-			encoder.Reset(start, 0)
-			for _, dp := range series.Data {
-				if err := encoder.Encode(dp, xtime.Second, nil); err != nil {
-					return err
-				}
-			}
-			stream := encoder.Stream()
-			if stream == nil {
-				return fmt.Errorf("nil stream")
-			}
-			segment, err := stream.Segment()
-			if err != nil {
-				return err
-			}
-			data[0] = segment.Head
-			data[1] = segment.Tail
-			checksum := digest.SegmentChecksum(segment)
-			if err := writer.WriteAll(series.ID, data, checksum); err != nil {
-				return err
-			}
-		}
-		if err := writer.Close(); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	writer := generate.NewWriter(setup.generatorOptions())
+	return writer.Write(namespace, setup.shardSet, seriesMaps)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {

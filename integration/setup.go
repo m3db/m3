@@ -227,6 +227,25 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}, nil
 }
 
+func (ts *testSetup) generatorOptions() generate.Options {
+	var (
+		storageOpts = ts.storageOpts
+		fsOpts      = storageOpts.CommitLogOptions().FilesystemOptions()
+		opts        = generate.NewOptions()
+		co          = opts.ClockOptions().SetNowFn(ts.getNowFn)
+	)
+
+	return opts.
+		SetClockOptions(co).
+		SetRetentionPeriod(storageOpts.RetentionOptions().RetentionPeriod()).
+		SetBlockSize(storageOpts.RetentionOptions().BlockSize()).
+		SetFilePathPrefix(fsOpts.FilePathPrefix()).
+		SetNewFileMode(fsOpts.NewFileMode()).
+		SetNewDirectoryMode(fsOpts.NewDirectoryMode()).
+		SetWriterBufferSize(fsOpts.WriterBufferSize()).
+		SetEncoderPool(storageOpts.EncoderPool())
+}
+
 func (ts *testSetup) serverIsUp() bool {
 	resp, err := ts.health()
 	return err == nil && resp.Bootstrapped

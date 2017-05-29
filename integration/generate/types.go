@@ -6,6 +6,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/ts"
 )
 
@@ -31,7 +32,7 @@ type SeriesBlocksByStart map[time.Time]SeriesBlock
 // Writer writes generated data to disk
 type Writer interface {
 	// Write writes the data
-	Write(ns ts.ID, data SeriesBlocksByStart) error
+	Write(ns ts.ID, shards sharding.ShardSet, data SeriesBlocksByStart) error
 }
 
 // Options represent the parameters needed for the Writer
