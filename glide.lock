@@ -1,30 +1,5 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-hash: 10afe22415b8b61e8321b9f0ddffec024d357afa18c9181443217a06054a8cfd
-updated: 2017-05-28T20:40:07.429600657-04:00
-=======
-hash: 525f66fcb77009dc288cef4fb2deeb02fa8373f30ae4d4c3f2fba4537d32a1c5
-updated: 2017-05-25T22:36:40.801174712-04:00
->>>>>>> 5999464... pickup latest m3em
-=======
-hash: f89bdb7ca9e2a697a3ae6a7a8777824b3a9a9069ace1efeeef268e10588aaf25
-updated: 2017-05-26T11:22:30.419437783-04:00
->>>>>>> db8ae88... update m3em deps
-=======
-hash: d0c8fc0f9f4b7a6e2fa10bb3996bae3e978b7e649ab4257e213618b3a2aed5b4
-updated: 2017-05-26T14:08:05.202867566-04:00
->>>>>>> f641ac7... update glide deps
-=======
-hash: 4b898288a5106fa252adfca3279541f5c569351842d22798295a1c0d80428e8b
-updated: 2017-05-26T14:12:39.117071734-04:00
->>>>>>> b6756f7... update m3em
-=======
-hash: d8f25b4f2fcc928d6b1497dfbeff88841755c5e0b9d74942003c6de20f744c7e
-updated: 2017-05-26T14:51:35.797616838-04:00
->>>>>>> 04a1ca3... add todos
+hash: 11c84571ef3b9b53e44f4237a03d2a8394cee04799e6c8d2043120ca9d385254
+updated: 2017-05-28T20:42:58.797511498-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
