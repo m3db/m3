@@ -33,23 +33,23 @@ type Options interface {
 	// InstrumentOptions returns the instrument options
 	InstrumentOptions() instrument.Options
 
-	// SetRetrier sets the retrier for accepting connections
-	SetRetrier(value xretry.Retrier) Options
+	// SetRetryOptions sets the retry options
+	SetRetryOptions(value xretry.Options) Options
 
-	// Retrier returns the retrier for accepting connections
-	Retrier() xretry.Retrier
+	// RetryOptions returns the retry options
+	RetryOptions() xretry.Options
 }
 
 type options struct {
 	instrumentOpts instrument.Options
-	retrier        xretry.Retrier
+	retryOpts      xretry.Options
 }
 
 // NewOptions creates a new set of server options
 func NewOptions() Options {
 	return &options{
 		instrumentOpts: instrument.NewOptions(),
-		retrier:        xretry.NewRetrier(xretry.NewOptions()),
+		retryOpts:      xretry.NewOptions(),
 	}
 }
 
@@ -63,12 +63,12 @@ func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) SetRetrier(value xretry.Retrier) Options {
+func (o *options) SetRetryOptions(value xretry.Options) Options {
 	opts := *o
-	opts.retrier = value
+	opts.retryOpts = value
 	return &opts
 }
 
-func (o *options) Retrier() xretry.Retrier {
-	return o.retrier
+func (o *options) RetryOptions() xretry.Options {
+	return o.retryOpts
 }

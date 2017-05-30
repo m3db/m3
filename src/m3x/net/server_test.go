@@ -40,12 +40,11 @@ func TestStartAcceptLoop(t *testing.T) {
 		wgClient       sync.WaitGroup
 		wgServer       sync.WaitGroup
 		numConnections = 10
-		retrier        = xretry.NewRetrier(xretry.NewOptions())
 	)
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.Nil(t, err)
-	connCh, errCh := StartAcceptLoop(l, retrier)
+	connCh, errCh := StartForeverAcceptLoop(l, xretry.NewOptions())
 
 	wgServer.Add(1)
 	go func() {

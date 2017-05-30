@@ -35,11 +35,11 @@ import (
 // Server is a server capable of listening to incoming traffic and closing itself
 // when it's shut down.
 type Server interface {
-	// ListenAndServe starts listening to new incoming connections and
+	// ListenAndServe forever listens to new incoming connections and
 	// handles data from those connections.
 	ListenAndServe() error
 
-	// Serve accepts and handles incoming connections on the listener l.
+	// Serve accepts and handles incoming connections on the listener l forever.
 	Serve(l net.Listener) error
 
 	// Close closes the server.
@@ -94,6 +94,7 @@ type server struct {
 func NewServer(address string, handler Handler, opts Options) Server {
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope()
+
 	s := &server{
 		address:    address,
 		opts:       opts,
@@ -131,7 +132,7 @@ func (s *server) Serve(l net.Listener) error {
 }
 
 func (s *server) serve() error {
-	connCh, errCh := xnet.StartAcceptLoop(s.listener, s.opts.Retrier())
+	connCh, errCh := xnet.StartForeverAcceptLoop(s.listener, s.opts.RetryOptions())
 	for conn := range connCh {
 		conn := conn
 		if !s.addConnectionFn(conn) {

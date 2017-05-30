@@ -30,11 +30,12 @@ import (
 // StartAcceptLoop starts an accept loop for the given listener,
 // returning accepted connections via a channel while handling
 // temporary network errors. Fatal errors are returned via the
-// error channel with the listener closed on return
-func StartAcceptLoop(l net.Listener, retrier xretry.Retrier) (<-chan net.Conn, <-chan error) {
+// error channel with the listener closed on return.
+func StartAcceptLoop(l net.Listener, rOpts xretry.Options) (<-chan net.Conn, <-chan error) {
 	var (
-		connCh = make(chan net.Conn)
-		errCh  = make(chan error)
+		connCh  = make(chan net.Conn)
+		errCh   = make(chan error)
+		retrier = xretry.NewRetrier(rOpts)
 	)
 
 	go func() {
@@ -65,4 +66,13 @@ func StartAcceptLoop(l net.Listener, retrier xretry.Retrier) (<-chan net.Conn, <
 	}()
 
 	return connCh, errCh
+}
+
+// StartForeverAcceptLoop starts an accept loop for the
+// given listener that retries forever, returning
+// accepted connections via a channel while handling
+// temporary network errors. Fatal errors are returned via the
+// error channel with the listener closed on return.
+func StartForeverAcceptLoop(l net.Listener, rOpts xretry.Options) (<-chan net.Conn, <-chan error) {
+	return StartAcceptLoop(l, rOpts.SetForever(true))
 }
