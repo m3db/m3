@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
@@ -71,12 +72,12 @@ func TestLastReadAfterPeerBootstrap(t *testing.T) {
 	now := setups[0].getNowFn() // now is already truncate to block size
 	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
 	start, end := now.Add(-3*blockSize), now
-	seriesMaps := generateTestDataByStart([]testData{
-		{ids: []string{"foo", "bar"}, numPoints: 50, start: now.Add(-3 * blockSize)},
-		{ids: []string{"foo", "baz"}, numPoints: 50, start: now.Add(-2 * blockSize)},
-		{ids: []string{"foo", "qux"}, numPoints: 50, start: now.Add(-1 * blockSize)},
+	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		{[]string{"foo", "bar"}, 50, now.Add(-3 * blockSize)},
+		{[]string{"foo", "baz"}, 50, now.Add(-2 * blockSize)},
+		{[]string{"foo", "qux"}, 50, now.Add(-1 * blockSize)},
 	})
-	err := writeTestDataToDisk(t, namesp.ID(), setups[0], seriesMaps)
+	err := writeTestDataToDisk(namesp.ID(), setups[0], seriesMaps)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper

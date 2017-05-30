@@ -27,9 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
@@ -41,10 +39,8 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xmetrics "github.com/m3db/m3db/x/metrics"
-	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/time"
 	"github.com/uber-go/tally"
 
 	"github.com/m3db/m3cluster/shard"
@@ -56,6 +52,7 @@ const (
 	multiAddrPortEach  = 4
 )
 
+// TODO: refactor and use m3x/clock ...
 type conditionFn func() bool
 
 func waitUntil(fn conditionFn, timeout time.Duration) bool {
@@ -265,108 +262,13 @@ func newDefaultBootstrappableTestSetups(
 	}
 }
 
-type testData struct {
-	ids       []string
-	numPoints int
-	start     time.Time
-}
-
 func writeTestDataToDisk(
-	t *testing.T,
 	namespace ts.ID,
 	setup *testSetup,
-	seriesMaps map[time.Time]seriesList,
+	seriesMaps map[time.Time]generate.SeriesBlock,
 ) error {
-	storageOpts := setup.storageOpts
-	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
-	writerBufferSize := fsOpts.WriterBufferSize()
-	blockSize := storageOpts.RetentionOptions().BlockSize()
-	retentionPeriod := storageOpts.RetentionOptions().RetentionPeriod()
-	filePathPrefix := fsOpts.FilePathPrefix()
-	newFileMode := fsOpts.NewFileMode()
-	newDirectoryMode := fsOpts.NewDirectoryMode()
-	writer := fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
-	encoder := storageOpts.EncoderPool().Get()
-
-	currStart := setup.getNowFn().Truncate(blockSize)
-	retentionStart := currStart.Add(-retentionPeriod)
-	isValidStart := func(start time.Time) bool {
-		return start.Equal(retentionStart) || start.After(retentionStart)
-	}
-
-	starts := make(map[time.Time]struct{})
-	for start := currStart; isValidStart(start); start = start.Add(-blockSize) {
-		starts[start] = struct{}{}
-	}
-
-	for start, data := range seriesMaps {
-		err := writeToDisk(t, writer, setup.shardSet, encoder, start, namespace, data)
-		if err != nil {
-			return err
-		}
-		delete(starts, start)
-	}
-
-	// Write remaining files even for empty start periods to avoid unfulfilled ranges
-	for start := range starts {
-		err := writeToDisk(t, writer, setup.shardSet, encoder, start, namespace, nil)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func writeToDisk(
-	t *testing.T,
-	writer fs.FileSetWriter,
-	shardSet sharding.ShardSet,
-	encoder encoding.Encoder,
-	start time.Time,
-	namespace ts.ID,
-	seriesList seriesList,
-) error {
-	seriesPerShard := make(map[uint32][]series)
-	for _, shard := range shardSet.AllIDs() {
-		// Ensure we write out block files for each shard even if there's no data
-		seriesPerShard[shard] = make([]series, 0)
-	}
-	for _, s := range seriesList {
-		shard := shardSet.Lookup(s.ID)
-		seriesPerShard[shard] = append(seriesPerShard[shard], s)
-	}
-	data := make([]checked.Bytes, 2)
-	for shard, seriesList := range seriesPerShard {
-		if err := writer.Open(namespace, shard, start); err != nil {
-			return err
-		}
-		for _, series := range seriesList {
-			encoder.Reset(start, 0)
-			for _, dp := range series.Data {
-				if err := encoder.Encode(dp, xtime.Second, nil); err != nil {
-					return err
-				}
-			}
-			stream := encoder.Stream()
-			require.NotNil(t, stream)
-			segment, err := stream.Segment()
-			if err != nil {
-				return err
-			}
-			data[0] = segment.Head
-			data[1] = segment.Tail
-			checksum := digest.SegmentChecksum(segment)
-			if err := writer.WriteAll(series.ID, data, checksum); err != nil {
-				return err
-			}
-		}
-		if err := writer.Close(); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	writer := generate.NewWriter(setup.generatorOptions())
+	return writer.Write(namespace, setup.shardSet, seriesMaps)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {

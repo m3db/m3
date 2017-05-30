@@ -21,28 +21,19 @@
 package integration
 
 import (
-	"bytes"
 	"encoding/json"
-	"math/rand"
 	"os"
 	"sort"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/encoding/testgen"
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
-
-type series struct {
-	ID   ts.ID
-	Data []ts.Datapoint
-}
-
-type seriesList []series
 
 type readableSeries struct {
 	ID   string
@@ -50,44 +41,6 @@ type readableSeries struct {
 }
 
 type readableSeriesList []readableSeries
-
-func (l seriesList) Len() int      { return len(l) }
-func (l seriesList) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
-func (l seriesList) Less(i, j int) bool {
-	return bytes.Compare(l[i].ID.Data().Get(), l[j].ID.Data().Get()) < 0
-}
-
-func generateTestData(names []string, numPoints int, start time.Time) seriesList {
-	if numPoints <= 0 {
-		return nil
-	}
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	testData := make(seriesList, len(names))
-	for i, name := range names {
-		datapoints := make([]ts.Datapoint, 0, numPoints)
-		for j := 0; j < numPoints; j++ {
-			timestamp := start.Add(time.Duration(j) * time.Second)
-			datapoints = append(datapoints, ts.Datapoint{
-				Timestamp: timestamp,
-				Value:     testgen.GenerateFloatVal(r, 3, 1),
-			})
-		}
-		testData[i] = series{
-			ID:   ts.StringID(name),
-			Data: datapoints,
-		}
-	}
-	return testData
-}
-
-func generateTestDataByStart(input []testData) map[time.Time]seriesList {
-	seriesMaps := make(map[time.Time]seriesList)
-	for _, data := range input {
-		generated := generateTestData(data.ids, data.numPoints, data.start)
-		seriesMaps[data.start] = generated
-	}
-	return seriesMaps
-}
 
 func toDatapoints(fetched *rpc.FetchResult_) []ts.Datapoint {
 	converted := make([]ts.Datapoint, len(fetched.Datapoints))
@@ -105,11 +58,11 @@ func verifySeriesMapForRange(
 	ts *testSetup,
 	start, end time.Time,
 	namespace ts.ID,
-	expected seriesList,
+	expected generate.SeriesBlock,
 	expectedDebugFilePath string,
 	actualDebugFilePath string,
 ) {
-	actual := make(seriesList, len(expected))
+	actual := make(generate.SeriesBlock, len(expected))
 	req := rpc.NewFetchRequest()
 	for i := range expected {
 		s := &expected[i]
@@ -120,7 +73,7 @@ func verifySeriesMapForRange(
 		req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 		fetched, err := ts.fetch(req)
 		require.NoError(t, err)
-		actual[i] = series{
+		actual[i] = generate.Series{
 			ID:   s.ID,
 			Data: fetched,
 		}
@@ -136,7 +89,7 @@ func verifySeriesMapForRange(
 	require.Equal(t, expected, actual)
 }
 
-func writeVerifyDebugOutput(t *testing.T, filePath string, start, end time.Time, series seriesList) {
+func writeVerifyDebugOutput(t *testing.T, filePath string, start, end time.Time, series generate.SeriesBlock) {
 	w, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, os.ModeAppend)
 	require.NoError(t, err)
 
@@ -165,7 +118,7 @@ func verifySeriesMaps(
 	t *testing.T,
 	ts *testSetup,
 	namespace ts.ID,
-	seriesMaps map[time.Time]seriesList,
+	seriesMaps map[time.Time]generate.SeriesBlock,
 ) {
 	debugFilePathPrefix := ts.opts.VerifySeriesDebugFilePathPrefix()
 	expectedDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, "expected.log")
@@ -193,8 +146,8 @@ func createFileIfPrefixSet(t *testing.T, prefix, suffix string) string {
 
 func compareSeriesList(
 	t *testing.T,
-	expected seriesList,
-	actual seriesList,
+	expected generate.SeriesBlock,
+	actual generate.SeriesBlock,
 ) {
 	sort.Sort(expected)
 	sort.Sort(actual)

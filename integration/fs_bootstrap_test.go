@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
@@ -69,12 +70,12 @@ func TestFilesystemBootstrap(t *testing.T) {
 	// Write test data
 	now := setup.getNowFn()
 	blockSize := setup.storageOpts.RetentionOptions().BlockSize()
-	seriesMaps := generateTestDataByStart([]testData{
-		{ids: []string{"foo", "bar"}, numPoints: 100, start: now.Add(-blockSize)},
-		{ids: []string{"foo", "baz"}, numPoints: 50, start: now},
+	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		{[]string{"foo", "bar"}, 100, now.Add(-blockSize)},
+		{[]string{"foo", "baz"}, 50, now},
 	})
-	require.NoError(t, writeTestDataToDisk(t, testNamespaces[0], setup, seriesMaps))
-	require.NoError(t, writeTestDataToDisk(t, testNamespaces[1], setup, nil))
+	require.NoError(t, writeTestDataToDisk(testNamespaces[0], setup, seriesMaps))
+	require.NoError(t, writeTestDataToDisk(testNamespaces[1], setup, nil))
 
 	// Start the server with filesystem bootstrapper
 	log := setup.storageOpts.InstrumentOptions().Logger()

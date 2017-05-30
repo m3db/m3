@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/integration/fake"
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
@@ -121,22 +122,22 @@ func TestClusterAddOneNode(t *testing.T) {
 
 	now := setups[0].getNowFn()
 	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
-	seriesMaps := generateTestDataByStart([]testData{
-		{ids: []string{ids[0].str, ids[1].str}, numPoints: 180, start: now.Add(-blockSize)},
-		{ids: []string{ids[0].str, ids[2].str}, numPoints: 90, start: now},
+	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		{[]string{ids[0].str, ids[1].str}, 180, now.Add(-blockSize)},
+		{[]string{ids[0].str, ids[2].str}, 90, now},
 	})
-	err = writeTestDataToDisk(t, namesp.ID(), setups[0], seriesMaps)
+	err = writeTestDataToDisk(namesp.ID(), setups[0], seriesMaps)
 	require.NoError(t, err)
 
 	// Prepare verfication of data on nodes
-	expectedSeriesMaps := make([]map[time.Time]seriesList, 2)
+	expectedSeriesMaps := make([]map[time.Time]generate.SeriesBlock, 2)
 	expectedSeriesIDs := make([]map[string]struct{}, 2)
 	for i := range expectedSeriesMaps {
-		expectedSeriesMaps[i] = make(map[time.Time]seriesList)
+		expectedSeriesMaps[i] = make(map[time.Time]generate.SeriesBlock)
 		expectedSeriesIDs[i] = make(map[string]struct{})
 	}
 	for start, series := range seriesMaps {
-		list := make([]seriesList, 2)
+		list := make([]generate.SeriesBlock, 2)
 		for j := range series {
 			if shardSet.Lookup(series[j].ID) < 512 {
 				list[0] = append(list[0], series[j])

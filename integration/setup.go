@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/integration/fake"
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/services/m3dbnode/server"
@@ -226,6 +227,25 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}, nil
 }
 
+func (ts *testSetup) generatorOptions() generate.Options {
+	var (
+		storageOpts = ts.storageOpts
+		fsOpts      = storageOpts.CommitLogOptions().FilesystemOptions()
+		opts        = generate.NewOptions()
+		co          = opts.ClockOptions().SetNowFn(ts.getNowFn)
+	)
+
+	return opts.
+		SetClockOptions(co).
+		SetRetentionPeriod(storageOpts.RetentionOptions().RetentionPeriod()).
+		SetBlockSize(storageOpts.RetentionOptions().BlockSize()).
+		SetFilePathPrefix(fsOpts.FilePathPrefix()).
+		SetNewFileMode(fsOpts.NewFileMode()).
+		SetNewDirectoryMode(fsOpts.NewDirectoryMode()).
+		SetWriterBufferSize(fsOpts.WriterBufferSize()).
+		SetEncoderPool(storageOpts.EncoderPool())
+}
+
 func (ts *testSetup) serverIsUp() bool {
 	resp, err := ts.health()
 	return err == nil && resp.Bootstrapped
@@ -336,7 +356,7 @@ func (ts *testSetup) stopServer() error {
 	return nil
 }
 
-func (ts *testSetup) writeBatch(namespace ts.ID, seriesList seriesList) error {
+func (ts *testSetup) writeBatch(namespace ts.ID, seriesList generate.SeriesBlock) error {
 	if ts.opts.UseTChannelClientForWriting() {
 		return tchannelClientWriteBatch(ts.tchannelClient, ts.opts.WriteRequestTimeout(), namespace, seriesList)
 	}

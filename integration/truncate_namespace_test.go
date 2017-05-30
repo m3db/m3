@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
@@ -62,20 +63,18 @@ func TestTruncateNamespace(t *testing.T) {
 
 	// Write test data
 	now := testSetup.getNowFn()
-	seriesMaps := make(map[time.Time]seriesList)
+	seriesMaps := make(map[time.Time]generate.SeriesBlock)
 	inputData := []struct {
 		namespace ts.ID
-		ids       []string
-		numPoints int
-		start     time.Time
+		conf      generate.BlockConfig
 	}{
-		{testNamespaces[0], []string{"foo"}, 100, now},
-		{testNamespaces[1], []string{"bar"}, 50, now.Add(blockSize)},
+		{testNamespaces[0], generate.BlockConfig{[]string{"foo"}, 100, now}},
+		{testNamespaces[1], generate.BlockConfig{[]string{"bar"}, 50, now.Add(blockSize)}},
 	}
 	for _, input := range inputData {
-		testSetup.setNowFn(input.start)
-		testData := generateTestData(input.ids, input.numPoints, input.start)
-		seriesMaps[input.start] = testData
+		testSetup.setNowFn(input.conf.Start)
+		testData := generate.Block(input.conf)
+		seriesMaps[input.conf.Start] = testData
 		require.NoError(t, testSetup.writeBatch(input.namespace, testData))
 	}
 	log.Debug("test data is now written")

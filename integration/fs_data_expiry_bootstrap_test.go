@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
@@ -98,10 +99,10 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	// Write test data
 	now := setup.getNowFn()
 	blockSize := setup.storageOpts.RetentionOptions().BlockSize()
-	seriesMaps := generateTestDataByStart([]testData{
-		{ids: []string{"foo", "bar"}, numPoints: 100, start: now.Add(-blockSize)},
+	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		{[]string{"foo", "bar"}, 100, now.Add(-blockSize)},
 	})
-	require.NoError(t, writeTestDataToDisk(t, namesp.ID(), setup, seriesMaps))
+	require.NoError(t, writeTestDataToDisk(namesp.ID(), setup, seriesMaps))
 
 	// Start the server with filesystem bootstrapper
 	log.Debug("filesystem data expiry bootstrap test")

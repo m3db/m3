@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	xlog "github.com/m3db/m3x/log"
@@ -77,11 +78,11 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 
 	now := setups[0].getNowFn()
 	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
-	seriesMaps := generateTestDataByStart([]testData{
-		{ids: shardIDs, numPoints: 3, start: now.Add(-blockSize)},
-		{ids: shardIDs, numPoints: 3, start: now},
+	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		{shardIDs, 3, now.Add(-blockSize)},
+		{shardIDs, 3, now},
 	})
-	err := writeTestDataToDisk(t, namesp.ID(), setups[0], seriesMaps)
+	err := writeTestDataToDisk(namesp.ID(), setups[0], seriesMaps)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper
