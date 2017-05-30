@@ -97,7 +97,11 @@ func (r *reporter) ReportCounter(id id.ID, value int64) error {
 	multiErr := xerrors.NewMultiError()
 	matchRes := r.matcher.Match(id)
 	earliestNanos := r.nowFn().Add(-r.maxNegativeSkew).UnixNano()
-	if err := r.server.WriteCounterWithPoliciesList(id.Bytes(), value, matchRes.MappingsAt(earliestNanos)); err != nil {
+	if err := r.server.WriteCounterWithPoliciesList(
+		id.Bytes(),
+		value,
+		matchRes.MappingsAt(earliestNanos),
+	); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 	for idx := 0; idx < matchRes.NumRollups(); idx++ {
@@ -119,7 +123,11 @@ func (r *reporter) ReportBatchTimer(id id.ID, value []float64) error {
 	multiErr := xerrors.NewMultiError()
 	matchRes := r.matcher.Match(id)
 	earliestNanos := r.nowFn().Add(-r.maxNegativeSkew).UnixNano()
-	if err := r.server.WriteBatchTimerWithPoliciesList(id.Bytes(), value, matchRes.MappingsAt(earliestNanos)); err != nil {
+	if err := r.server.WriteBatchTimerWithPoliciesList(
+		id.Bytes(),
+		value,
+		matchRes.MappingsAt(earliestNanos),
+	); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 	for idx := 0; idx < matchRes.NumRollups(); idx++ {
@@ -141,7 +149,11 @@ func (r *reporter) ReportGauge(id id.ID, value float64) error {
 	multiErr := xerrors.NewMultiError()
 	matchRes := r.matcher.Match(id)
 	earliestNanos := r.nowFn().Add(-r.maxNegativeSkew).UnixNano()
-	if err := r.server.WriteGaugeWithPoliciesList(id.Bytes(), value, matchRes.MappingsAt(earliestNanos)); err != nil {
+	if err := r.server.WriteGaugeWithPoliciesList(
+		id.Bytes(),
+		value,
+		matchRes.MappingsAt(earliestNanos),
+	); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 	for idx := 0; idx < matchRes.NumRollups(); idx++ {

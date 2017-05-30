@@ -35,21 +35,25 @@ import (
 )
 
 var (
-	testMappingPoliciesList = policy.PoliciesList{
+	compressor                 = policy.NewAggregationIDCompressor()
+	compressedUpper, _         = compressor.Compress(policy.AggregationTypes{policy.Upper})
+	compressedP9999, _         = compressor.Compress(policy.AggregationTypes{policy.P9999})
+	compressedUpperAndP9999, _ = compressor.Compress(policy.AggregationTypes{policy.Upper, policy.P9999})
+	testMappingPoliciesList    = policy.PoliciesList{
 		policy.NewStagedPolicies(
 			100,
 			false,
 			[]policy.Policy{
-				policy.NewPolicy(20*time.Second, xtime.Second, 6*time.Hour),
-				policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
-				policy.NewPolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
+				policy.NewPolicy(policy.NewStoragePolicy(20*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+				policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), compressedUpper),
+				policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour), policy.DefaultAggregationID),
 			},
 		),
 		policy.NewStagedPolicies(
 			200,
 			true,
 			[]policy.Policy{
-				policy.NewPolicy(time.Second, xtime.Second, time.Hour),
+				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), compressedUpperAndP9999),
 			},
 		),
 	}
@@ -65,16 +69,16 @@ var (
 					100,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(20*time.Second, xtime.Second, 6*time.Hour),
-						policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
-						policy.NewPolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
+						policy.NewPolicy(policy.NewStoragePolicy(20*time.Second, xtime.Second, 6*time.Hour), compressedUpperAndP9999),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour), policy.DefaultAggregationID),
 					},
 				),
 				policy.NewStagedPolicies(
 					200,
 					true,
 					[]policy.Policy{
-						policy.NewPolicy(time.Second, xtime.Second, time.Hour),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), compressedP9999),
 					},
 				),
 			},
