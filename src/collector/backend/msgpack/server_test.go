@@ -58,16 +58,16 @@ var (
 			100,
 			false,
 			[]policy.Policy{
-				policy.NewPolicy(20*time.Second, xtime.Second, 6*time.Hour),
-				policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
-				policy.NewPolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour),
+				policy.NewPolicy(policy.NewStoragePolicy(20*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+				policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), policy.DefaultAggregationID),
+				policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 25*24*time.Hour), policy.DefaultAggregationID),
 			},
 		),
 		policy.NewStagedPolicies(
 			200,
 			true,
 			[]policy.Policy{
-				policy.NewPolicy(time.Second, xtime.Second, time.Hour),
+				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), policy.DefaultAggregationID),
 			},
 		),
 	}

@@ -5,9 +5,7 @@ import:
   subpackages:
   - kv
 - package: github.com/m3db/m3metrics
-  version: 3c14edcda9b13b04861e12260ed37650df0c85e3
-  subpackages:
-  - policy
+  version: 50509ad160d4017adf2c88267827a3d7462362ba
 - package: github.com/m3db/m3x
   version: bd6be18ffb184691512eb442561b16a59c15d797
   subpackages:
@@ -34,5 +32,7 @@ import:
   version: e542ed97d15e640bdc14b5c12162d59e8fc67324
 - package: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
+- package: github.com/willf/bitset
+  version: 988f4f24992fc745de53c42df0da6581e42a6686
 - package: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
