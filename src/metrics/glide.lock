@@ -1,5 +1,5 @@
 hash: 07a1a24c24370b50b8cb4f21bdd6fd9b1b787f00c87b1f3f95715f93d84594f2
-updated: 2017-05-09T23:04:21.133965573-04:00
+updated: 2017-05-26T12:06:55.555982654-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -50,6 +50,8 @@ imports:
   - m3/customtransports
   - m3/thrift
   - m3/thriftudp
+- name: github.com/willf/bitset
+  version: 988f4f24992fc745de53c42df0da6581e42a6686
 - name: golang.org/x/net
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
   subpackages:

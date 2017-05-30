@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -36,72 +37,12 @@ func TestPolicyString(t *testing.T) {
 		p        Policy
 		expected string
 	}{
-		{p: NewPolicy(10*time.Second, xtime.Second, time.Hour), expected: "10s@1s:1h0m0s"},
-		{p: NewPolicy(time.Minute, xtime.Minute, 12*time.Hour), expected: "1m0s@1m:12h0m0s"},
+		{p: NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, time.Hour), DefaultAggregationID), expected: "10s@1s:1h0m0s"},
+		{p: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), mustCompress(Mean, P999)), expected: "1m0s@1m:12h0m0s|Mean,P999"},
+		{p: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), mustCompress(Mean)), expected: "1m0s@1m:12h0m0s|Mean"},
 	}
 	for _, input := range inputs {
 		require.Equal(t, input.expected, input.p.String())
-	}
-}
-
-func TestParsePolicy(t *testing.T) {
-	inputs := []struct {
-		str      string
-		expected Policy
-	}{
-		{
-			str:      "1s:1h",
-			expected: NewPolicy(time.Second, xtime.Second, time.Hour),
-		},
-		{
-			str:      "10s:1d",
-			expected: NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
-		},
-		{
-			str:      "60s:24h",
-			expected: NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-		},
-		{
-			str:      "1m:1d",
-			expected: NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-		},
-		{
-			str:      "1s@1s:1h",
-			expected: NewPolicy(time.Second, xtime.Second, time.Hour),
-		},
-		{
-			str:      "10s@1s:1d",
-			expected: NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
-		},
-		{
-			str:      "60s@1s:24h",
-			expected: NewPolicy(time.Minute, xtime.Second, 24*time.Hour),
-		},
-		{
-			str:      "1m@1m:1d",
-			expected: NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-		},
-	}
-	for _, input := range inputs {
-		res, err := ParsePolicy(input.str)
-		require.NoError(t, err)
-		require.Equal(t, input.expected, res)
-	}
-}
-
-func TestParsePolicyErrors(t *testing.T) {
-	inputs := []string{
-		"1s:1s:1s",
-		"0s:1d",
-		"10seconds:1s",
-		"10seconds@1s:1d",
-		"10s@2s:1d",
-		"0.1s@1s:1d",
-		"10s@2minutes:2d",
-	}
-	for _, input := range inputs {
-		_, err := ParsePolicy(input)
-		require.Error(t, err)
 	}
 }
 
@@ -112,35 +53,23 @@ func TestPolicyUnmarshalYAML(t *testing.T) {
 	}{
 		{
 			str:      "1s:1h",
-			expected: NewPolicy(time.Second, xtime.Second, time.Hour),
+			expected: NewPolicy(NewStoragePolicy(time.Second, xtime.Second, time.Hour), DefaultAggregationID),
 		},
 		{
-			str:      "10s:1d",
-			expected: NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+			str:      "10s:1d|Mean",
+			expected: NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), mustCompress(Mean)),
 		},
 		{
-			str:      "60s:24h",
-			expected: NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+			str:      "60s:24h|Mean,Count",
+			expected: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), mustCompress(Mean, Count)),
 		},
 		{
-			str:      "1m:1d",
-			expected: NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+			str:      "1m:1d|Count,Mean",
+			expected: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), mustCompress(Mean, Count)),
 		},
 		{
-			str:      "1s@1s:1h",
-			expected: NewPolicy(time.Second, xtime.Second, time.Hour),
-		},
-		{
-			str:      "10s@1s:1d",
-			expected: NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
-		},
-		{
-			str:      "60s@1s:24h",
-			expected: NewPolicy(time.Minute, xtime.Second, 24*time.Hour),
-		},
-		{
-			str:      "1m@1m:1d",
-			expected: NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
+			str:      "1s@1s:1h|P999,P9999",
+			expected: NewPolicy(NewStoragePolicy(time.Second, xtime.Second, time.Hour), mustCompress(P999, P9999)),
 		},
 	}
 	for _, input := range inputs {
@@ -152,13 +81,14 @@ func TestPolicyUnmarshalYAML(t *testing.T) {
 
 func TestPolicyUnmarshalYAMLErrors(t *testing.T) {
 	inputs := []string{
-		"1s:1s:1s",
-		"0s:1d",
-		"10seconds:1s",
-		"10seconds@1s:1d",
-		"10s@2s:1d",
-		"0.1s@1s:1d",
-		"10s@2minutes:2d",
+		"|",
+		"|Mean",
+		"1s:1h|",
+		"1s:1h||",
+		"1s:1h|P99|",
+		"1s:1h|P",
+		"1s:1h|Meann",
+		"1s:1h|Mean,",
 	}
 	for _, input := range inputs {
 		var p Policy
@@ -166,169 +96,61 @@ func TestPolicyUnmarshalYAMLErrors(t *testing.T) {
 	}
 }
 
+func TestNewPoliciesFromSchema(t *testing.T) {
+	input := []*schema.Policy{
+		&schema.Policy{
+			StoragePolicy: &schema.StoragePolicy{
+				Resolution: &schema.Resolution{
+					WindowSize: int64(10 * time.Second),
+					Precision:  int64(time.Second),
+				},
+				Retention: &schema.Retention{
+					Period: int64(24 * time.Hour),
+				},
+			},
+			AggregationTypes: []schema.AggregationType{
+				schema.AggregationType_MEAN,
+				schema.AggregationType_P999,
+			},
+		},
+		&schema.Policy{
+			StoragePolicy: &schema.StoragePolicy{
+				Resolution: &schema.Resolution{
+					WindowSize: int64(time.Minute),
+					Precision:  int64(time.Minute),
+				},
+				Retention: &schema.Retention{
+					Period: int64(240 * time.Hour),
+				},
+			},
+			AggregationTypes: []schema.AggregationType{
+				schema.AggregationType_MEAN,
+				schema.AggregationType_P9999,
+			},
+		},
+	}
+
+	res, err := NewPoliciesFromSchema(input)
+	require.NoError(t, err)
+	require.Equal(t, []Policy{
+		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), mustCompress(Mean, P999)),
+		NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 240*time.Hour), mustCompress(Mean, P9999)),
+	}, res)
+}
+
 func TestPoliciesByResolutionAsc(t *testing.T) {
 	inputs := []Policy{
-		NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
-		NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-		NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-		NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
-		NewPolicy(time.Minute, xtime.Minute, time.Hour),
-		NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-		NewPolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
+		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), DefaultAggregationID),
+		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), DefaultAggregationID),
+		NewPolicy(NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), DefaultAggregationID),
+		NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), DefaultAggregationID),
+		NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), DefaultAggregationID),
+		NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), AggregationID{100}),
+		NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), DefaultAggregationID),
+		NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), AggregationID{100}),
 	}
-	expected := []Policy{inputs[2], inputs[0], inputs[1], inputs[5], inputs[4], inputs[3], inputs[6]}
+	expected := []Policy{inputs[2], inputs[0], inputs[1], inputs[5], inputs[4], inputs[3], inputs[7], inputs[6], inputs[8]}
 	sort.Sort(ByResolutionAsc(inputs))
 	require.Equal(t, expected, inputs)
-}
-
-func TestStagedPoliciesHasDefaultPolicies(t *testing.T) {
-	sp := NewStagedPolicies(testNowNanos, true, nil)
-	require.Equal(t, testNowNanos, sp.CutoverNanos)
-	_, isDefault := sp.Policies()
-	require.True(t, isDefault)
-}
-
-func TestStagedPoliciesHasCustomPolicies(t *testing.T) {
-	policies := []Policy{
-		NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
-		NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-	}
-	sp := NewStagedPolicies(testNowNanos, false, policies)
-	require.Equal(t, testNowNanos, sp.CutoverNanos)
-	actual, isDefault := sp.Policies()
-	require.False(t, isDefault)
-	require.Equal(t, policies, actual)
-}
-
-func TestStagedPoliciesSamePoliciesDefaultPolicies(t *testing.T) {
-	inputs := []struct {
-		sp       [2]StagedPolicies
-		expected bool
-	}{
-		{
-			sp: [2]StagedPolicies{
-				NewStagedPolicies(0, false, nil),
-				NewStagedPolicies(0, true, []Policy{}),
-			},
-			expected: true,
-		},
-		{
-			sp: [2]StagedPolicies{
-				NewStagedPolicies(0, false, nil),
-				NewStagedPolicies(0, true, []Policy{
-					NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
-					NewPolicy(time.Minute, xtime.Minute, 12*time.Hour),
-				}),
-			},
-			expected: false,
-		},
-		{
-			sp: [2]StagedPolicies{
-				NewStagedPolicies(1000, false, []Policy{
-					NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
-					NewPolicy(time.Minute, xtime.Minute, 12*time.Hour),
-				}),
-				NewStagedPolicies(0, true, []Policy{
-					NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
-					NewPolicy(time.Minute, xtime.Minute, 12*time.Hour),
-				}),
-			},
-			expected: true,
-		},
-		{
-			sp: [2]StagedPolicies{
-				NewStagedPolicies(1000, false, []Policy{
-					NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
-					NewPolicy(time.Minute, xtime.Minute, 12*time.Hour),
-				}),
-				NewStagedPolicies(0, true, []Policy{
-					NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
-					NewPolicy(time.Minute, xtime.Minute, 12*time.Hour),
-					NewPolicy(10*time.Minute, xtime.Minute, 24*time.Hour),
-				}),
-			},
-			expected: false,
-		},
-		{
-			sp: [2]StagedPolicies{
-				NewStagedPolicies(0, true, []Policy{
-					NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
-					NewPolicy(time.Minute, xtime.Minute, 12*time.Hour),
-					NewPolicy(10*time.Minute, xtime.Minute, 24*time.Hour),
-				}),
-				NewStagedPolicies(1000, false, []Policy{
-					NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
-					NewPolicy(time.Minute, xtime.Minute, 12*time.Hour),
-				}),
-			},
-			expected: false,
-		},
-	}
-	for _, input := range inputs {
-		require.Equal(t, input.expected, input.sp[0].SamePolicies(input.sp[1]))
-	}
-}
-
-func TestStagedPoliciesIsEmpty(t *testing.T) {
-	inputs := []struct {
-		sp       StagedPolicies
-		expected bool
-	}{
-		{
-			sp:       NewStagedPolicies(0, false, nil),
-			expected: true,
-		},
-		{
-			sp:       NewStagedPolicies(0, false, []Policy{}),
-			expected: true,
-		},
-		{
-			sp:       NewStagedPolicies(100, false, nil),
-			expected: false,
-		},
-		{
-			sp:       NewStagedPolicies(0, true, nil),
-			expected: false,
-		},
-		{
-			sp: NewStagedPolicies(0, true, []Policy{
-				NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
-				NewPolicy(time.Minute, xtime.Minute, 12*time.Hour),
-			}),
-			expected: false,
-		},
-	}
-	for _, input := range inputs {
-		require.Equal(t, input.expected, input.sp.IsDefault())
-	}
-}
-
-func TestPoliciesListIsDefault(t *testing.T) {
-	inputs := []struct {
-		pl       PoliciesList
-		expected bool
-	}{
-		{
-			pl:       DefaultPoliciesList,
-			expected: true,
-		},
-		{
-			pl:       []StagedPolicies{},
-			expected: false,
-		},
-		{
-			pl: []StagedPolicies{NewStagedPolicies(0, true, []Policy{
-				NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
-				NewPolicy(time.Minute, xtime.Minute, 12*time.Hour),
-			})},
-			expected: false,
-		},
-		{
-			pl:       []StagedPolicies{DefaultStagedPolicies, DefaultStagedPolicies},
-			expected: false,
-		},
-	}
-	for _, input := range inputs {
-		require.Equal(t, input.expected, input.pl.IsDefault())
-	}
 }

@@ -18,42 +18,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-syntax = "proto3";
-package schema;
+package policy
 
-message Resolution {
-  int64 window_size = 1;
-  int64 precision = 2;
-}
+import (
+	"testing"
 
-message Retention {
-  int64 period = 1;
-}
+	"github.com/m3db/m3x/pool"
+	"github.com/stretchr/testify/require"
+)
 
-message StoragePolicy {
-  Resolution resolution = 1;
-  Retention retention = 2;
-}
+func TestAggregationTypesPool(t *testing.T) {
+	p := NewAggregationTypesPool(pool.NewObjectPoolOptions().SetSize(1))
+	p.Init(func() AggregationTypes {
+		return make(AggregationTypes, 0, totalAggregationTypes)
+	})
 
-message Policy {
-  StoragePolicy storage_policy = 1;
-  repeated AggregationType aggregation_types = 2;
-}
+	aggTypes := p.Get()
+	require.Equal(t, totalAggregationTypes, cap(aggTypes))
+	require.Equal(t, 0, len(aggTypes))
+	aggTypes = append(aggTypes, P9999)
 
-enum AggregationType {
-  UNKNOWN = 0;
-  LAST = 1;
-  LOWER = 2;
-  UPPER = 3;
-  MEAN = 4;
-  MEDIAN = 5;
-  COUNT = 6;
-  SUM = 7;
-  SUMSQ = 8;
-  STDEV = 9;
-  P50 = 10;
-  P95 = 11;
-  P99 = 12;
-  P999 = 13;
-  P9999 = 14;
+	p.Put(aggTypes)
+
+	aggTypes2 := p.Get()
+	require.Equal(t, totalAggregationTypes, cap(aggTypes2))
+	require.Equal(t, 0, len(aggTypes2))
+
+	aggTypes2 = append(aggTypes2, Last)
+	require.Equal(t, aggTypes[0], aggTypes2[0])
+	require.Equal(t, aggTypes, aggTypes2)
+
+	aggTypes3 := p.Get()
+	require.NotEqual(t, aggTypes, aggTypes3)
 }

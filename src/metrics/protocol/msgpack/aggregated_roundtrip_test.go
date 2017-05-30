@@ -55,12 +55,12 @@ var (
 		TimeNanos: time.Now().UnixNano(),
 		Value:     678.90,
 	}
-	testPolicy = policy.NewPolicy(time.Second, xtime.Second, time.Hour)
+	testPolicy = policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour)
 )
 
 type metricWithPolicy struct {
 	metric interface{}
-	policy policy.Policy
+	policy policy.StoragePolicy
 }
 
 func testAggregatedEncoder(t *testing.T) AggregatedEncoder {
@@ -71,22 +71,22 @@ func testAggregatedIterator(t *testing.T, reader io.Reader) AggregatedIterator {
 	return NewAggregatedIterator(reader, NewAggregatedIteratorOptions())
 }
 
-func testAggregatedEncode(t *testing.T, encoder AggregatedEncoder, m interface{}, p policy.Policy) error {
+func testAggregatedEncode(t *testing.T, encoder AggregatedEncoder, m interface{}, p policy.StoragePolicy) error {
 	switch m := m.(type) {
 	case aggregated.Metric:
-		return encoder.EncodeMetricWithPolicy(aggregated.MetricWithPolicy{
-			Metric: m,
-			Policy: p,
+		return encoder.EncodeMetricWithStoragePolicy(aggregated.MetricWithStoragePolicy{
+			Metric:        m,
+			StoragePolicy: p,
 		})
 	case aggregated.ChunkedMetric:
-		return encoder.EncodeChunkedMetricWithPolicy(aggregated.ChunkedMetricWithPolicy{
+		return encoder.EncodeChunkedMetricWithStoragePolicy(aggregated.ChunkedMetricWithStoragePolicy{
 			ChunkedMetric: m,
-			Policy:        p,
+			StoragePolicy: p,
 		})
 	case aggregated.RawMetric:
-		return encoder.EncodeRawMetricWithPolicy(aggregated.RawMetricWithPolicy{
-			RawMetric: m,
-			Policy:    p,
+		return encoder.EncodeRawMetricWithStoragePolicy(aggregated.RawMetricWithStoragePolicy{
+			RawMetric:     m,
+			StoragePolicy: p,
 		})
 	default:
 		return fmt.Errorf("unrecognized metric type: %T", m)

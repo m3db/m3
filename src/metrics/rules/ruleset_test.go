@@ -34,6 +34,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	compressor                = policy.NewAggregationIDCompressor()
+	compressedUpper, _        = compressor.Compress(policy.AggregationTypes{policy.Upper})
+	compressedCount, _        = compressor.Compress(policy.AggregationTypes{policy.Count})
+	compressedLower, _        = compressor.Compress(policy.AggregationTypes{policy.Lower})
+	compressedMean, _         = compressor.Compress(policy.AggregationTypes{policy.Mean})
+	compressedP999, _         = compressor.Compress(policy.AggregationTypes{policy.P999})
+	compressedCountAndMean, _ = compressor.Compress(policy.AggregationTypes{policy.Count, policy.Mean})
+)
+
 func TestActiveRuleSetMatchMappingRules(t *testing.T) {
 	inputs := []testMappingsData{
 		{
@@ -46,9 +56,10 @@ func TestActiveRuleSetMatchMappingRules(t *testing.T) {
 					22000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-						policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-						policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 					},
 				),
 			},
@@ -63,8 +74,9 @@ func TestActiveRuleSetMatchMappingRules(t *testing.T) {
 					35000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-						policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 					},
 				),
 			},
@@ -79,7 +91,7 @@ func TestActiveRuleSetMatchMappingRules(t *testing.T) {
 					24000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
 					},
 				),
 			},
@@ -101,32 +113,53 @@ func TestActiveRuleSetMatchMappingRules(t *testing.T) {
 					10000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), compressedCount),
+					},
+				),
+				policy.NewStagedPolicies(
+					15000,
+					false,
+					[]policy.Policy{
+						// different policies same resolution, merge aggregation types
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), compressedCountAndMean),
 					},
 				),
 				policy.NewStagedPolicies(
 					20000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-						policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), compressedMean),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 					},
 				),
 				policy.NewStagedPolicies(
 					22000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-						policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-						policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+					},
+				),
+				policy.NewStagedPolicies(
+					30000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 					},
 				),
 				policy.NewStagedPolicies(
 					34000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-						policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 					},
 				),
 			},
@@ -142,7 +175,7 @@ func TestActiveRuleSetMatchMappingRules(t *testing.T) {
 					24000,
 					false,
 					[]policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
 					},
 				),
 			},
@@ -180,9 +213,10 @@ func TestActiveRuleSetMatchRollupRules(t *testing.T) {
 							22000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-								policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-								policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 							},
 						),
 					},
@@ -194,7 +228,7 @@ func TestActiveRuleSetMatchRollupRules(t *testing.T) {
 							22000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
 							},
 						),
 					},
@@ -214,7 +248,7 @@ func TestActiveRuleSetMatchRollupRules(t *testing.T) {
 							24000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 							},
 						),
 					},
@@ -241,49 +275,63 @@ func TestActiveRuleSetMatchRollupRules(t *testing.T) {
 							10000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
 							},
 						),
 						policy.NewStagedPolicies(
 							20000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-								policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 							},
 						),
 						policy.NewStagedPolicies(
 							22000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-								policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-								policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+							},
+						),
+						policy.NewStagedPolicies(
+							30000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 							},
 						),
 						policy.NewStagedPolicies(
 							34000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-								policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 							},
 						),
 						policy.NewStagedPolicies(
 							35000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-								policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
-								policy.NewPolicy(45*time.Second, xtime.Second, 12*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(45*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 							},
 						),
 						policy.NewStagedPolicies(
 							38000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
-								policy.NewPolicy(45*time.Second, xtime.Second, 12*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(45*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
 							},
 						),
 					},
@@ -295,7 +343,7 @@ func TestActiveRuleSetMatchRollupRules(t *testing.T) {
 							22000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
 							},
 						),
 						policy.NewStagedPolicies(
@@ -382,9 +430,11 @@ func TestRuleSetActiveSet(t *testing.T) {
 							22000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-								policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-								policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), compressedUpper),
+								// the aggregation type came in from policy merging
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), compressedLower),
+								policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 							},
 						),
 					},
@@ -399,8 +449,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 							35000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-								policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 							},
 						),
 					},
@@ -415,7 +466,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 							24000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), compressedP999),
 							},
 						),
 					},
@@ -442,9 +493,10 @@ func TestRuleSetActiveSet(t *testing.T) {
 									22000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-										policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-										policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+										policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 									},
 								),
 							},
@@ -456,7 +508,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 									22000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+										policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
 									},
 								),
 							},
@@ -476,7 +528,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 									24000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 									},
 								),
 							},
@@ -505,8 +557,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 							35000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-								policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 							},
 						),
 					},
@@ -521,7 +574,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 							24000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), compressedP999),
 							},
 						),
 					},
@@ -548,8 +601,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 									35000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-										policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+										policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 									},
 								),
 							},
@@ -569,7 +623,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 									24000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 									},
 								),
 							},
@@ -598,7 +652,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 							100000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 							},
 						),
 					},
@@ -613,7 +669,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 							24000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), compressedP999),
 							},
 						),
 					},
@@ -640,8 +696,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 									100000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-										policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+										policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 									},
 								),
 							},
@@ -653,7 +710,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 									100000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 									},
 								),
 							},
@@ -673,7 +730,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 									24000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 									},
 								),
 							},
@@ -736,7 +793,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 10000,
 				filter:       filter1,
 				policies: []policy.Policy{
-					policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), compressedCount),
 				},
 			},
 			&mappingRuleSnapshot{
@@ -745,9 +802,9 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 20000,
 				filter:       filter1,
 				policies: []policy.Policy{
-					policy.NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
-					policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
-					policy.NewPolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 				},
 			},
 			&mappingRuleSnapshot{
@@ -756,7 +813,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 30000,
 				filter:       filter1,
 				policies: []policy.Policy{
-					policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+					policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
 				},
 			},
 		},
@@ -771,7 +828,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 15000,
 				filter:       filter1,
 				policies: []policy.Policy{
-					policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), compressedMean),
 				},
 			},
 			&mappingRuleSnapshot{
@@ -780,8 +837,8 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 22000,
 				filter:       filter1,
 				policies: []policy.Policy{
-					policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-					policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 				},
 			},
 			&mappingRuleSnapshot{
@@ -803,9 +860,9 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 22000,
 				filter:       filter1,
 				policies: []policy.Policy{
-					policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-					policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-					policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 				},
 			},
 			&mappingRuleSnapshot{
@@ -814,8 +871,8 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 34000,
 				filter:       filter1,
 				policies: []policy.Policy{
-					policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-					policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 				},
 			},
 		},
@@ -830,7 +887,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 24000,
 				filter:       filter2,
 				policies: []policy.Policy{
-					policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
 				},
 			},
 		},
@@ -845,7 +902,7 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				cutoverNanos: 100000,
 				filter:       filter1,
 				policies: []policy.Policy{
-					policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
 				},
 			},
 		},
@@ -886,7 +943,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
 						},
 					},
 				},
@@ -901,9 +958,9 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
-							policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
-							policy.NewPolicy(10*time.Minute, xtime.Minute, 48*time.Hour),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 						},
 					},
 				},
@@ -918,7 +975,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(30*time.Second, xtime.Second, 6*time.Hour),
+							policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
 						},
 					},
 				},
@@ -939,7 +996,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
 						},
 					},
 				},
@@ -954,8 +1011,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-							policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 						},
 					},
 				},
@@ -970,7 +1027,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(45*time.Second, xtime.Second, 12*time.Hour),
+							policy.NewPolicy(policy.NewStoragePolicy(45*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
 						},
 					},
 				},
@@ -991,16 +1048,16 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-							policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-							policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 						},
 					},
 					{
 						Name: b("rName2"),
 						Tags: [][]byte{b("rtagName1")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
 						},
 					},
 				},
@@ -1015,8 +1072,8 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName1"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(10*time.Second, xtime.Second, 2*time.Hour),
-							policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 						},
 					},
 				},
@@ -1044,7 +1101,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName3"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 						},
 					},
 				},
@@ -1065,7 +1122,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 						Name: b("rName3"),
 						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 						Policies: []policy.Policy{
-							policy.NewPolicy(time.Minute, xtime.Minute, time.Hour),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 						},
 					},
 				},
@@ -1114,12 +1171,14 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
-							Resolution: &schema.Resolution{
-								WindowSize: int64(10 * time.Second),
-								Precision:  int64(time.Second),
-							},
-							Retention: &schema.Retention{
-								Period: int64(24 * time.Hour),
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(10 * time.Second),
+									Precision:  int64(time.Second),
+								},
+								Retention: &schema.Retention{
+									Period: int64(24 * time.Hour),
+								},
 							},
 						},
 					},
@@ -1131,30 +1190,36 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
-							Resolution: &schema.Resolution{
-								WindowSize: int64(10 * time.Second),
-								Precision:  int64(time.Second),
-							},
-							Retention: &schema.Retention{
-								Period: int64(6 * time.Hour),
-							},
-						},
-						&schema.Policy{
-							Resolution: &schema.Resolution{
-								WindowSize: int64(5 * time.Minute),
-								Precision:  int64(time.Minute),
-							},
-							Retention: &schema.Retention{
-								Period: int64(48 * time.Hour),
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(10 * time.Second),
+									Precision:  int64(time.Second),
+								},
+								Retention: &schema.Retention{
+									Period: int64(6 * time.Hour),
+								},
 							},
 						},
 						&schema.Policy{
-							Resolution: &schema.Resolution{
-								WindowSize: int64(10 * time.Minute),
-								Precision:  int64(time.Minute),
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(5 * time.Minute),
+									Precision:  int64(time.Minute),
+								},
+								Retention: &schema.Retention{
+									Period: int64(48 * time.Hour),
+								},
 							},
-							Retention: &schema.Retention{
-								Period: int64(48 * time.Hour),
+						},
+						&schema.Policy{
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(10 * time.Minute),
+									Precision:  int64(time.Minute),
+								},
+								Retention: &schema.Retention{
+									Period: int64(48 * time.Hour),
+								},
 							},
 						},
 					},
@@ -1166,12 +1231,14 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
-							Resolution: &schema.Resolution{
-								WindowSize: int64(30 * time.Second),
-								Precision:  int64(time.Second),
-							},
-							Retention: &schema.Retention{
-								Period: int64(6 * time.Hour),
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(30 * time.Second),
+									Precision:  int64(time.Second),
+								},
+								Retention: &schema.Retention{
+									Period: int64(6 * time.Hour),
+								},
 							},
 						},
 					},
@@ -1188,12 +1255,14 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
-							Resolution: &schema.Resolution{
-								WindowSize: int64(10 * time.Second),
-								Precision:  int64(time.Second),
-							},
-							Retention: &schema.Retention{
-								Period: int64(12 * time.Hour),
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(10 * time.Second),
+									Precision:  int64(time.Second),
+								},
+								Retention: &schema.Retention{
+									Period: int64(12 * time.Hour),
+								},
 							},
 						},
 					},
@@ -1205,21 +1274,28 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
-							Resolution: &schema.Resolution{
-								WindowSize: int64(10 * time.Second),
-								Precision:  int64(time.Second),
-							},
-							Retention: &schema.Retention{
-								Period: int64(2 * time.Hour),
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(10 * time.Second),
+									Precision:  int64(time.Second),
+								},
+								Retention: &schema.Retention{
+									Period: int64(2 * time.Hour),
+								},
 							},
 						},
 						&schema.Policy{
-							Resolution: &schema.Resolution{
-								WindowSize: int64(time.Minute),
-								Precision:  int64(time.Minute),
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(time.Minute),
+									Precision:  int64(time.Minute),
+								},
+								Retention: &schema.Retention{
+									Period: int64(time.Hour),
+								},
 							},
-							Retention: &schema.Retention{
-								Period: int64(time.Hour),
+							AggregationTypes: []schema.AggregationType{
+								schema.AggregationType_LOWER,
 							},
 						},
 					},
@@ -1243,30 +1319,39 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
-							Resolution: &schema.Resolution{
-								WindowSize: int64(10 * time.Second),
-								Precision:  int64(time.Second),
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(10 * time.Second),
+									Precision:  int64(time.Second),
+								},
+								Retention: &schema.Retention{
+									Period: int64(12 * time.Hour),
+								},
 							},
-							Retention: &schema.Retention{
-								Period: int64(12 * time.Hour),
-							},
-						},
-						&schema.Policy{
-							Resolution: &schema.Resolution{
-								WindowSize: int64(time.Minute),
-								Precision:  int64(time.Minute),
-							},
-							Retention: &schema.Retention{
-								Period: int64(24 * time.Hour),
+							AggregationTypes: []schema.AggregationType{
+								schema.AggregationType_UPPER,
 							},
 						},
 						&schema.Policy{
-							Resolution: &schema.Resolution{
-								WindowSize: int64(5 * time.Minute),
-								Precision:  int64(time.Minute),
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(time.Minute),
+									Precision:  int64(time.Minute),
+								},
+								Retention: &schema.Retention{
+									Period: int64(24 * time.Hour),
+								},
 							},
-							Retention: &schema.Retention{
-								Period: int64(48 * time.Hour),
+						},
+						&schema.Policy{
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(5 * time.Minute),
+									Precision:  int64(time.Minute),
+								},
+								Retention: &schema.Retention{
+									Period: int64(48 * time.Hour),
+								},
 							},
 						},
 					},
@@ -1278,21 +1363,25 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
-							Resolution: &schema.Resolution{
-								WindowSize: int64(10 * time.Second),
-								Precision:  int64(time.Second),
-							},
-							Retention: &schema.Retention{
-								Period: int64(2 * time.Hour),
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(10 * time.Second),
+									Precision:  int64(time.Second),
+								},
+								Retention: &schema.Retention{
+									Period: int64(2 * time.Hour),
+								},
 							},
 						},
 						&schema.Policy{
-							Resolution: &schema.Resolution{
-								WindowSize: int64(time.Minute),
-								Precision:  int64(time.Minute),
-							},
-							Retention: &schema.Retention{
-								Period: int64(time.Hour),
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(time.Minute),
+									Precision:  int64(time.Minute),
+								},
+								Retention: &schema.Retention{
+									Period: int64(time.Hour),
+								},
 							},
 						},
 					},
@@ -1309,12 +1398,17 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					TagFilters:  map[string]string{"mtagName1": "mtagValue2"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
-							Resolution: &schema.Resolution{
-								WindowSize: int64(10 * time.Second),
-								Precision:  int64(time.Second),
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(10 * time.Second),
+									Precision:  int64(time.Second),
+								},
+								Retention: &schema.Retention{
+									Period: int64(24 * time.Hour),
+								},
 							},
-							Retention: &schema.Retention{
-								Period: int64(24 * time.Hour),
+							AggregationTypes: []schema.AggregationType{
+								schema.AggregationType_P999,
 							},
 						},
 					},
@@ -1331,12 +1425,14 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
-							Resolution: &schema.Resolution{
-								WindowSize: int64(10 * time.Second),
-								Precision:  int64(time.Second),
-							},
-							Retention: &schema.Retention{
-								Period: int64(24 * time.Hour),
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(10 * time.Second),
+									Precision:  int64(time.Second),
+								},
+								Retention: &schema.Retention{
+									Period: int64(24 * time.Hour),
+								},
 							},
 						},
 					},
@@ -1365,12 +1461,14 @@ func testRollupRulesConfig() []*schema.RollupRule {
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*schema.Policy{
 								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(10 * time.Second),
-										Precision:  int64(time.Second),
-									},
-									Retention: &schema.Retention{
-										Period: int64(24 * time.Hour),
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: &schema.Retention{
+											Period: int64(24 * time.Hour),
+										},
 									},
 								},
 							},
@@ -1391,30 +1489,36 @@ func testRollupRulesConfig() []*schema.RollupRule {
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*schema.Policy{
 								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(10 * time.Second),
-										Precision:  int64(time.Second),
-									},
-									Retention: &schema.Retention{
-										Period: int64(6 * time.Hour),
-									},
-								},
-								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(5 * time.Minute),
-										Precision:  int64(time.Minute),
-									},
-									Retention: &schema.Retention{
-										Period: int64(48 * time.Hour),
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: &schema.Retention{
+											Period: int64(6 * time.Hour),
+										},
 									},
 								},
 								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(10 * time.Minute),
-										Precision:  int64(time.Minute),
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(5 * time.Minute),
+											Precision:  int64(time.Minute),
+										},
+										Retention: &schema.Retention{
+											Period: int64(48 * time.Hour),
+										},
 									},
-									Retention: &schema.Retention{
-										Period: int64(48 * time.Hour),
+								},
+								&schema.Policy{
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(10 * time.Minute),
+											Precision:  int64(time.Minute),
+										},
+										Retention: &schema.Retention{
+											Period: int64(48 * time.Hour),
+										},
 									},
 								},
 							},
@@ -1435,12 +1539,14 @@ func testRollupRulesConfig() []*schema.RollupRule {
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*schema.Policy{
 								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(30 * time.Second),
-										Precision:  int64(time.Second),
-									},
-									Retention: &schema.Retention{
-										Period: int64(6 * time.Hour),
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(30 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: &schema.Retention{
+											Period: int64(6 * time.Hour),
+										},
 									},
 								},
 							},
@@ -1466,12 +1572,14 @@ func testRollupRulesConfig() []*schema.RollupRule {
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*schema.Policy{
 								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(10 * time.Second),
-										Precision:  int64(time.Second),
-									},
-									Retention: &schema.Retention{
-										Period: int64(12 * time.Hour),
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: &schema.Retention{
+											Period: int64(12 * time.Hour),
+										},
 									},
 								},
 							},
@@ -1492,21 +1600,25 @@ func testRollupRulesConfig() []*schema.RollupRule {
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*schema.Policy{
 								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(10 * time.Second),
-										Precision:  int64(time.Second),
-									},
-									Retention: &schema.Retention{
-										Period: int64(2 * time.Hour),
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: &schema.Retention{
+											Period: int64(2 * time.Hour),
+										},
 									},
 								},
 								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(time.Minute),
-										Precision:  int64(time.Minute),
-									},
-									Retention: &schema.Retention{
-										Period: int64(time.Hour),
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(time.Minute),
+											Precision:  int64(time.Minute),
+										},
+										Retention: &schema.Retention{
+											Period: int64(time.Hour),
+										},
 									},
 								},
 							},
@@ -1542,30 +1654,36 @@ func testRollupRulesConfig() []*schema.RollupRule {
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*schema.Policy{
 								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(10 * time.Second),
-										Precision:  int64(time.Second),
-									},
-									Retention: &schema.Retention{
-										Period: int64(12 * time.Hour),
-									},
-								},
-								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(time.Minute),
-										Precision:  int64(time.Minute),
-									},
-									Retention: &schema.Retention{
-										Period: int64(24 * time.Hour),
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: &schema.Retention{
+											Period: int64(12 * time.Hour),
+										},
 									},
 								},
 								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(5 * time.Minute),
-										Precision:  int64(time.Minute),
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(time.Minute),
+											Precision:  int64(time.Minute),
+										},
+										Retention: &schema.Retention{
+											Period: int64(24 * time.Hour),
+										},
 									},
-									Retention: &schema.Retention{
-										Period: int64(48 * time.Hour),
+								},
+								&schema.Policy{
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(5 * time.Minute),
+											Precision:  int64(time.Minute),
+										},
+										Retention: &schema.Retention{
+											Period: int64(48 * time.Hour),
+										},
 									},
 								},
 							},
@@ -1575,12 +1693,14 @@ func testRollupRulesConfig() []*schema.RollupRule {
 							Tags: []string{"rtagName1"},
 							Policies: []*schema.Policy{
 								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(10 * time.Second),
-										Precision:  int64(time.Second),
-									},
-									Retention: &schema.Retention{
-										Period: int64(24 * time.Hour),
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: &schema.Retention{
+											Period: int64(24 * time.Hour),
+										},
 									},
 								},
 							},
@@ -1601,21 +1721,25 @@ func testRollupRulesConfig() []*schema.RollupRule {
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*schema.Policy{
 								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(10 * time.Second),
-										Precision:  int64(time.Second),
-									},
-									Retention: &schema.Retention{
-										Period: int64(2 * time.Hour),
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: &schema.Retention{
+											Period: int64(2 * time.Hour),
+										},
 									},
 								},
 								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(time.Minute),
-										Precision:  int64(time.Minute),
-									},
-									Retention: &schema.Retention{
-										Period: int64(time.Hour),
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(time.Minute),
+											Precision:  int64(time.Minute),
+										},
+										Retention: &schema.Retention{
+											Period: int64(time.Hour),
+										},
 									},
 								},
 							},
@@ -1640,12 +1764,14 @@ func testRollupRulesConfig() []*schema.RollupRule {
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*schema.Policy{
 								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(time.Minute),
-										Precision:  int64(time.Minute),
-									},
-									Retention: &schema.Retention{
-										Period: int64(time.Hour),
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(time.Minute),
+											Precision:  int64(time.Minute),
+										},
+										Retention: &schema.Retention{
+											Period: int64(time.Hour),
+										},
 									},
 								},
 							},
@@ -1671,12 +1797,14 @@ func testRollupRulesConfig() []*schema.RollupRule {
 							Tags: []string{"rtagName1", "rtagName2"},
 							Policies: []*schema.Policy{
 								&schema.Policy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(time.Minute),
-										Precision:  int64(time.Minute),
-									},
-									Retention: &schema.Retention{
-										Period: int64(time.Hour),
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(time.Minute),
+											Precision:  int64(time.Minute),
+										},
+										Retention: &schema.Retention{
+											Period: int64(time.Hour),
+										},
 									},
 								},
 							},

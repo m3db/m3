@@ -235,11 +235,13 @@ type mockBaseIterator struct {
 	decodeFloat64Fn  decodeFloat64Fn
 }
 
-func (it *mockBaseIterator) reset(reader io.Reader)       {}
-func (it *mockBaseIterator) err() error                   { return it.itErr }
-func (it *mockBaseIterator) setErr(err error)             { it.itErr = err }
-func (it *mockBaseIterator) reader() bufReader            { return it.bufReader }
-func (it *mockBaseIterator) decodePolicy() policy.Policy  { return policy.EmptyPolicy }
+func (it *mockBaseIterator) reset(reader io.Reader) {}
+func (it *mockBaseIterator) err() error             { return it.itErr }
+func (it *mockBaseIterator) setErr(err error)       { it.itErr = err }
+func (it *mockBaseIterator) reader() bufReader      { return it.bufReader }
+func (it *mockBaseIterator) decodeStoragePolicy() policy.StoragePolicy {
+	return policy.DefaultStoragePolicy
+}
 func (it *mockBaseIterator) decodeVersion() int           { return it.decodeVersionFn() }
 func (it *mockBaseIterator) decodeObjectType() objectType { return unknownType }
 func (it *mockBaseIterator) decodeNumObjectFields() int   { return 0 }
@@ -251,6 +253,9 @@ func (it *mockBaseIterator) decodeBytes() []byte          { return nil }
 func (it *mockBaseIterator) decodeBytesLen() int          { return it.decodeBytesLenFn() }
 func (it *mockBaseIterator) decodeArrayLen() int          { return 0 }
 func (it *mockBaseIterator) skip(numFields int)           {}
+func (it *mockBaseIterator) decodePolicy() policy.Policy {
+	return policy.DefaultPolicy
+}
 
 func (it *mockBaseIterator) checkNumFieldsForType(objType objectType) (int, int, bool) {
 	return 0, 0, true

@@ -45,12 +45,17 @@ var (
 				},
 				Policies: []*schema.Policy{
 					&schema.Policy{
-						Resolution: &schema.Resolution{
-							WindowSize: int64(10 * time.Second),
-							Precision:  int64(time.Second),
+						StoragePolicy: &schema.StoragePolicy{
+							Resolution: &schema.Resolution{
+								WindowSize: int64(10 * time.Second),
+								Precision:  int64(time.Second),
+							},
+							Retention: &schema.Retention{
+								Period: int64(24 * time.Hour),
+							},
 						},
-						Retention: &schema.Retention{
-							Period: int64(24 * time.Hour),
+						AggregationTypes: []schema.AggregationType{
+							schema.AggregationType_P999,
 						},
 					},
 				},
@@ -65,21 +70,25 @@ var (
 				},
 				Policies: []*schema.Policy{
 					&schema.Policy{
-						Resolution: &schema.Resolution{
-							WindowSize: int64(time.Minute),
-							Precision:  int64(time.Minute),
-						},
-						Retention: &schema.Retention{
-							Period: int64(24 * time.Hour),
+						StoragePolicy: &schema.StoragePolicy{
+							Resolution: &schema.Resolution{
+								WindowSize: int64(time.Minute),
+								Precision:  int64(time.Minute),
+							},
+							Retention: &schema.Retention{
+								Period: int64(24 * time.Hour),
+							},
 						},
 					},
 					&schema.Policy{
-						Resolution: &schema.Resolution{
-							WindowSize: int64(5 * time.Minute),
-							Precision:  int64(time.Minute),
-						},
-						Retention: &schema.Retention{
-							Period: int64(48 * time.Hour),
+						StoragePolicy: &schema.StoragePolicy{
+							Resolution: &schema.Resolution{
+								WindowSize: int64(5 * time.Minute),
+								Precision:  int64(time.Minute),
+							},
+							Retention: &schema.Retention{
+								Period: int64(48 * time.Hour),
+							},
 						},
 					},
 				},
@@ -113,7 +122,7 @@ func TestNewMappingRule(t *testing.T) {
 			tombstoned:   false,
 			cutoverNanos: 12345,
 			policies: []policy.Policy{
-				policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+				policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), compressedP999),
 			},
 		},
 		{
@@ -121,8 +130,8 @@ func TestNewMappingRule(t *testing.T) {
 			tombstoned:   true,
 			cutoverNanos: 67890,
 			policies: []policy.Policy{
-				policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-				policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+				policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+				policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 			},
 		},
 	}

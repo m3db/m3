@@ -25,55 +25,59 @@ import (
 	"github.com/m3db/m3metrics/policy"
 )
 
-type encodePolicyFn func(p policy.Policy)
 type encodeVarintFn func(value int64)
 type encodeBoolFn func(value bool)
 type encodeFloat64Fn func(value float64)
 type encodeBytesFn func(value []byte)
 type encodeBytesLenFn func(value int)
 type encodeArrayLenFn func(value int)
+type encodeStoragePolicyFn func(p policy.StoragePolicy)
+type encodePolicyFn func(p policy.Policy)
 
 // baseEncoder is the base encoder that provides common encoding APIs.
 type baseEncoder struct {
-	bufEncoder       BufferedEncoder
-	encodeErr        error
-	encodePolicyFn   encodePolicyFn
-	encodeVarintFn   encodeVarintFn
-	encodeBoolFn     encodeBoolFn
-	encodeFloat64Fn  encodeFloat64Fn
-	encodeBytesFn    encodeBytesFn
-	encodeBytesLenFn encodeBytesLenFn
-	encodeArrayLenFn encodeArrayLenFn
+	bufEncoder            BufferedEncoder
+	encodeErr             error
+	encodeVarintFn        encodeVarintFn
+	encodeBoolFn          encodeBoolFn
+	encodeFloat64Fn       encodeFloat64Fn
+	encodeBytesFn         encodeBytesFn
+	encodeBytesLenFn      encodeBytesLenFn
+	encodeArrayLenFn      encodeArrayLenFn
+	encodeStoragePolicyFn encodeStoragePolicyFn
+	encodePolicyFn        encodePolicyFn
 }
 
 func newBaseEncoder(encoder BufferedEncoder) encoderBase {
 	enc := &baseEncoder{bufEncoder: encoder}
 
-	enc.encodePolicyFn = enc.encodePolicyInternal
 	enc.encodeVarintFn = enc.encodeVarintInternal
 	enc.encodeBoolFn = enc.encodeBoolInternal
 	enc.encodeFloat64Fn = enc.encodeFloat64Internal
 	enc.encodeBytesFn = enc.encodeBytesInternal
 	enc.encodeBytesLenFn = enc.encodeBytesLenInternal
 	enc.encodeArrayLenFn = enc.encodeArrayLenInternal
+	enc.encodeStoragePolicyFn = enc.encodeStoragePolicyInternal
+	enc.encodePolicyFn = enc.encodePolicyInternal
 
 	return enc
 }
 
-func (enc *baseEncoder) encoder() BufferedEncoder            { return enc.bufEncoder }
-func (enc *baseEncoder) err() error                          { return enc.encodeErr }
-func (enc *baseEncoder) resetData()                          { enc.bufEncoder.Reset() }
-func (enc *baseEncoder) encodePolicy(p policy.Policy)        { enc.encodePolicyFn(p) }
-func (enc *baseEncoder) encodeVersion(version int)           { enc.encodeVarint(int64(version)) }
-func (enc *baseEncoder) encodeObjectType(objType objectType) { enc.encodeVarint(int64(objType)) }
-func (enc *baseEncoder) encodeNumObjectFields(numFields int) { enc.encodeArrayLen(numFields) }
-func (enc *baseEncoder) encodeRawID(id id.RawID)             { enc.encodeBytes([]byte(id)) }
-func (enc *baseEncoder) encodeVarint(value int64)            { enc.encodeVarintFn(value) }
-func (enc *baseEncoder) encodeBool(value bool)               { enc.encodeBoolFn(value) }
-func (enc *baseEncoder) encodeFloat64(value float64)         { enc.encodeFloat64Fn(value) }
-func (enc *baseEncoder) encodeBytes(value []byte)            { enc.encodeBytesFn(value) }
-func (enc *baseEncoder) encodeBytesLen(value int)            { enc.encodeBytesLenFn(value) }
-func (enc *baseEncoder) encodeArrayLen(value int)            { enc.encodeArrayLenFn(value) }
+func (enc *baseEncoder) encoder() BufferedEncoder                   { return enc.bufEncoder }
+func (enc *baseEncoder) err() error                                 { return enc.encodeErr }
+func (enc *baseEncoder) resetData()                                 { enc.bufEncoder.Reset() }
+func (enc *baseEncoder) encodeVersion(version int)                  { enc.encodeVarint(int64(version)) }
+func (enc *baseEncoder) encodeObjectType(objType objectType)        { enc.encodeVarint(int64(objType)) }
+func (enc *baseEncoder) encodeNumObjectFields(numFields int)        { enc.encodeArrayLen(numFields) }
+func (enc *baseEncoder) encodeRawID(id id.RawID)                    { enc.encodeBytes([]byte(id)) }
+func (enc *baseEncoder) encodeVarint(value int64)                   { enc.encodeVarintFn(value) }
+func (enc *baseEncoder) encodeBool(value bool)                      { enc.encodeBoolFn(value) }
+func (enc *baseEncoder) encodeFloat64(value float64)                { enc.encodeFloat64Fn(value) }
+func (enc *baseEncoder) encodeBytes(value []byte)                   { enc.encodeBytesFn(value) }
+func (enc *baseEncoder) encodeBytesLen(value int)                   { enc.encodeBytesLenFn(value) }
+func (enc *baseEncoder) encodeArrayLen(value int)                   { enc.encodeArrayLenFn(value) }
+func (enc *baseEncoder) encodeStoragePolicy(p policy.StoragePolicy) { enc.encodeStoragePolicyFn(p) }
+func (enc *baseEncoder) encodePolicy(p policy.Policy)               { enc.encodePolicyFn(p) }
 
 func (enc *baseEncoder) reset(encoder BufferedEncoder) {
 	enc.bufEncoder = encoder
@@ -89,6 +93,35 @@ func (enc *baseEncoder) encodeChunkedID(id id.ChunkedID) {
 
 func (enc *baseEncoder) encodePolicyInternal(p policy.Policy) {
 	enc.encodeNumObjectFields(numFieldsForType(policyType))
+	enc.encodeStoragePolicyFn(p.StoragePolicy)
+	enc.encodeCompressedAggregationTypes(p.AggregationID)
+}
+
+func (enc *baseEncoder) encodeCompressedAggregationTypes(aggTypes policy.AggregationID) {
+	if aggTypes.IsDefault() {
+		enc.encodeNumObjectFields(numFieldsForType(defaultAggregationID))
+		enc.encodeObjectType(defaultAggregationID)
+		return
+	}
+
+	if policy.AggregationIDLen == 1 {
+		enc.encodeNumObjectFields(numFieldsForType(shortAggregationID))
+		enc.encodeObjectType(shortAggregationID)
+		enc.encodeVarintFn(int64(aggTypes[0]))
+		return
+	}
+
+	// NB(cw): Only reachable after we start to support more than 63 aggregation types
+	enc.encodeNumObjectFields(numFieldsForType(longAggregationID))
+	enc.encodeObjectType(longAggregationID)
+	enc.encodeArrayLen(policy.AggregationIDLen)
+	for _, v := range aggTypes {
+		enc.encodeVarint(int64(v))
+	}
+}
+
+func (enc *baseEncoder) encodeStoragePolicyInternal(p policy.StoragePolicy) {
+	enc.encodeNumObjectFields(numFieldsForType(storagePolicyType))
 	enc.encodeResolution(p.Resolution())
 	enc.encodeRetention(p.Retention())
 }

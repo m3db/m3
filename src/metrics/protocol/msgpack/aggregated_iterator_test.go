@@ -107,10 +107,10 @@ func TestAggregatedIteratorDecodeRawMetricMoreFieldsThanExpected(t *testing.T) {
 	enc := testAggregatedEncoder(t).(*aggregatedEncoder)
 
 	// Pretend we added an extra int field to the raw metric with policy object.
-	enc.encodeRawMetricWithPolicyFn = func(data []byte, p policy.Policy) {
-		enc.encodeNumObjectFields(numFieldsForType(rawMetricWithPolicyType) + 1)
+	enc.encodeRawMetricWithStoragePolicyFn = func(data []byte, p policy.StoragePolicy) {
+		enc.encodeNumObjectFields(numFieldsForType(rawMetricWithStoragePolicyType) + 1)
 		enc.encodeRawMetricFn(data)
-		enc.encodePolicy(p)
+		enc.encodeStoragePolicy(p)
 	}
 	testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy)
 	enc.encodeVarint(0)

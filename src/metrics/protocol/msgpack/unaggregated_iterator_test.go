@@ -449,7 +449,7 @@ func TestUnaggregatedIteratorDecodePolicyWithCustomResolution(t *testing.T) {
 				time.Now().UnixNano(),
 				false,
 				[]policy.Policy{
-					policy.NewPolicy(3*time.Second, xtime.Second, time.Hour),
+					policy.NewPolicy(policy.NewStoragePolicy(3*time.Second, xtime.Second, time.Hour), policy.DefaultAggregationID),
 				},
 			),
 		},
@@ -471,7 +471,7 @@ func TestUnaggregatedIteratorDecodePolicyWithCustomRetention(t *testing.T) {
 				time.Now().UnixNano(),
 				false,
 				[]policy.Policy{
-					policy.NewPolicy(time.Second, xtime.Second, 289*time.Hour),
+					policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, 289*time.Hour), policy.DefaultAggregationID),
 				},
 			),
 		},
@@ -493,7 +493,7 @@ func TestUnaggregatedIteratorDecodePolicyMoreFieldsThanExpected(t *testing.T) {
 				time.Now().UnixNano(),
 				true,
 				[]policy.Policy{
-					policy.NewPolicy(time.Second, xtime.Second, time.Hour),
+					policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), policy.DefaultAggregationID),
 				},
 			),
 		},
@@ -502,8 +502,8 @@ func TestUnaggregatedIteratorDecodePolicyMoreFieldsThanExpected(t *testing.T) {
 	baseEncoder := enc.encoderBase.(*baseEncoder)
 
 	// Pretend we added an extra int field to the policy object.
-	baseEncoder.encodePolicyFn = func(p policy.Policy) {
-		baseEncoder.encodeNumObjectFields(numFieldsForType(policyType) + 1)
+	baseEncoder.encodeStoragePolicyFn = func(p policy.StoragePolicy) {
+		baseEncoder.encodeNumObjectFields(numFieldsForType(storagePolicyType) + 1)
 		baseEncoder.encodeResolution(p.Resolution())
 		baseEncoder.encodeRetention(p.Retention())
 		baseEncoder.encodeVarint(0)

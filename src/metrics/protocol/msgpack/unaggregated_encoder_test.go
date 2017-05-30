@@ -190,7 +190,7 @@ func TestUnaggregatedEncodeArrayLenError(t *testing.T) {
 			time.Now().UnixNano(),
 			false,
 			[]policy.Policy{
-				policy.NewPolicy(time.Second, xtime.Second, time.Hour),
+				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), policy.DefaultAggregationID),
 			},
 		),
 	}
@@ -228,8 +228,35 @@ func testCapturingUnaggregatedEncoder(t *testing.T) (UnaggregatedEncoder, *[]int
 	return encoder, result
 }
 
-func expectedResultsForPolicy(t *testing.T, p policy.Policy) []interface{} {
+func expectedResultsForUnaggregatedPolicy(t *testing.T, p policy.Policy) []interface{} {
 	results := []interface{}{numFieldsForType(policyType)}
+
+	results = append(results, expectedResultsForPolicy(t, p.StoragePolicy)...)
+	return append(results, expectedResultsForCompressedAggregationTypes(t, p.AggregationID)...)
+}
+
+func expectedResultsForCompressedAggregationTypes(t *testing.T, compressed policy.AggregationID) []interface{} {
+	results := []interface{}{}
+
+	if compressed.IsDefault() {
+		return append(results, numFieldsForType(defaultAggregationID), int64(defaultAggregationID))
+	}
+
+	if len(compressed) == 1 {
+		return append(results, numFieldsForType(shortAggregationID), int64(shortAggregationID), int64(compressed[0]))
+	}
+
+	results = append(results, numFieldsForType(longAggregationID), int64(longAggregationID), int64(len(compressed)))
+
+	for _, code := range compressed {
+		results = append(results, code)
+	}
+
+	return results
+}
+
+func expectedResultsForPolicy(t *testing.T, p policy.StoragePolicy) []interface{} {
+	results := []interface{}{numFieldsForType(storagePolicyType)}
 
 	resolutionValue, err := policy.ValueFromResolution(p.Resolution())
 	if err == nil {
@@ -274,7 +301,7 @@ func expectedResultsForStagedPolicies(t *testing.T, sp policy.StagedPolicies) []
 		len(policies),
 	}
 	for _, p := range policies {
-		results = append(results, expectedResultsForPolicy(t, p)...)
+		results = append(results, expectedResultsForUnaggregatedPolicy(t, p)...)
 	}
 	return results
 }
