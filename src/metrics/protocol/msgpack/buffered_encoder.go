@@ -41,7 +41,14 @@ func NewBufferedEncoder() BufferedEncoder {
 
 // NewPooledBufferedEncoder creates a new pooled buffered encoder.
 func NewPooledBufferedEncoder(p BufferedEncoderPool) BufferedEncoder {
+	return NewPooledBufferedEncoderSize(p, 0)
+}
+
+// NewPooledBufferedEncoderSize creates a new pooled buffered encoder
+// with an initial buffer size.
+func NewPooledBufferedEncoderSize(p BufferedEncoderPool, size int) BufferedEncoder {
 	var enc bufferedEncoder
+	enc.buf.Grow(size)
 	enc.Encoder = msgpack.NewEncoder(&enc.buf)
 	enc.pool = p
 	return &enc
