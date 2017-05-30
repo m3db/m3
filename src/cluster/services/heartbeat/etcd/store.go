@@ -278,7 +278,7 @@ func (c *client) Watch() (xwatch.Watch, error) {
 	return w, err
 }
 
-func (c *client) update(key string) error {
+func (c *client) update(key string, events []*clientv3.Event) error {
 	var (
 		newValue []string
 		err      error

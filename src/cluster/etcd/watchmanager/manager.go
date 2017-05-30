@@ -107,7 +107,7 @@ func (w *manager) Watch(key string) {
 
 				// NB(cw) when we failed to create a etcd watch channel
 				// we do a get for now and will try to recreate the watch chan later
-				if err = w.updateFn(key); err != nil {
+				if err = w.updateFn(key, nil); err != nil {
 					w.logger.Errorf("failed to get value for key %s: %v", key, err)
 				}
 				// avoid recreating watch channel too frequently
@@ -139,7 +139,7 @@ func (w *manager) Watch(key string) {
 				// we still take this chance to attemp a Get() for the latest value
 			}
 
-			if err = w.updateFn(key); err != nil {
+			if err = w.updateFn(key, r.Events); err != nil {
 				w.logger.Errorf("received notification for key %s, but failed to get value: %v", key, err)
 			}
 		case <-ticker:

@@ -157,7 +157,7 @@ func TestWatchNoLeader(t *testing.T) {
 	opts := NewOptions().
 		SetWatcher(ec.Watcher).
 		SetUpdateFn(
-			func(string) error {
+			func(string, []*clientv3.Event) error {
 				atomic.AddInt32(&updateCalled, 1)
 				return nil
 			},
@@ -231,7 +231,7 @@ func testSetup(t *testing.T) (*manager, *clientv3.Client, *int32, *int32, chan s
 	doneCh := make(chan struct{}, 1)
 	opts := NewOptions().
 		SetWatcher(ec.Watcher).
-		SetUpdateFn(func(string) error {
+		SetUpdateFn(func(string, []*clientv3.Event) error {
 			atomic.AddInt32(&updateCalled, 1)
 			return nil
 		}).

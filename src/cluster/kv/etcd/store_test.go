@@ -358,6 +358,18 @@ func TestWatchFromNotExist(t *testing.T) {
 	w.Close()
 }
 
+func TestGetFromKvNotFound(t *testing.T) {
+	ec, opts, closeFn := testStore(t)
+	defer closeFn()
+	store, err := NewStore(ec, ec, opts)
+	c := store.(*client)
+	_, err = c.Set("foo", genProto("bar1"))
+
+	val, err := c.getFromKVStore("foo2")
+	require.Nil(t, val)
+	require.Nil(t, err)
+}
+
 func TestMultipleWatchesFromExist(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
