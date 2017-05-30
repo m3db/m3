@@ -35,7 +35,7 @@ type WatchManager interface {
 }
 
 // UpdateFn is called when an event on the watch channel happens
-type UpdateFn func(key string) error
+type UpdateFn func(key string, events []*clientv3.Event) error
 
 // TickAndStopFn is called every once a while
 // to check and stop the watch if needed
