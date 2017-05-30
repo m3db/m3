@@ -44,17 +44,17 @@ func TestMatchResult(t *testing.T) {
 				12345,
 				false,
 				[]policy.Policy{
-					policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-					policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-					policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 				},
 			),
 			policy.NewStagedPolicies(
 				23456,
 				true,
 				[]policy.Policy{
-					policy.NewPolicy(30*time.Second, xtime.Second, 10*time.Hour),
-					policy.NewPolicy(2*time.Minute, xtime.Minute, 48*time.Hour),
+					policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 10*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(2*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 				},
 			),
 		}
@@ -66,17 +66,17 @@ func TestMatchResult(t *testing.T) {
 						12345,
 						false,
 						[]policy.Policy{
-							policy.NewPolicy(10*time.Second, xtime.Second, 12*time.Hour),
-							policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-							policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 						},
 					),
 					policy.NewStagedPolicies(
 						23456,
 						false,
 						[]policy.Policy{
-							policy.NewPolicy(30*time.Second, xtime.Second, 10*time.Hour),
-							policy.NewPolicy(2*time.Minute, xtime.Minute, 48*time.Hour),
+							policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 10*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(2*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 						},
 					),
 				},
@@ -120,8 +120,8 @@ func TestMatchResult(t *testing.T) {
 					23456,
 					true,
 					[]policy.Policy{
-						policy.NewPolicy(30*time.Second, xtime.Second, 10*time.Hour),
-						policy.NewPolicy(2*time.Minute, xtime.Minute, 48*time.Hour),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 10*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(2*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 					},
 				),
 			},
@@ -133,8 +133,8 @@ func TestMatchResult(t *testing.T) {
 							23456,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(30*time.Second, xtime.Second, 10*time.Hour),
-								policy.NewPolicy(2*time.Minute, xtime.Minute, 48*time.Hour),
+								policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 10*time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(2*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 							},
 						),
 					},

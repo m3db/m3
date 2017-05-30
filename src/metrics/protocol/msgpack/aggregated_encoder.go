@@ -25,7 +25,7 @@ import (
 	"github.com/m3db/m3metrics/policy"
 )
 
-type encodeRawMetricWithPolicyFn func(data []byte, p policy.Policy)
+type encodeRawMetricWithStoragePolicyFn func(data []byte, p policy.StoragePolicy)
 type encodeRawMetricFn func(data []byte)
 type encodeMetricAsRawFn func(m aggregated.Metric) []byte
 type encodeChunkedMetricAsRawFn func(m aggregated.ChunkedMetric) []byte
@@ -35,12 +35,12 @@ type encodeChunkedMetricAsRawFn func(m aggregated.ChunkedMetric) []byte
 type aggregatedEncoder struct {
 	encoderBase
 
-	buf                         encoderBase
-	encodeRootObjectFn          encodeRootObjectFn
-	encodeRawMetricWithPolicyFn encodeRawMetricWithPolicyFn
-	encodeRawMetricFn           encodeRawMetricFn
-	encodeMetricAsRawFn         encodeMetricAsRawFn
-	encodeChunkedMetricAsRawFn  encodeChunkedMetricAsRawFn
+	buf                                encoderBase
+	encodeRootObjectFn                 encodeRootObjectFn
+	encodeRawMetricWithStoragePolicyFn encodeRawMetricWithStoragePolicyFn
+	encodeRawMetricFn                  encodeRawMetricFn
+	encodeMetricAsRawFn                encodeMetricAsRawFn
+	encodeChunkedMetricAsRawFn         encodeChunkedMetricAsRawFn
 }
 
 // NewAggregatedEncoder creates an aggregated encoder.
@@ -51,7 +51,7 @@ func NewAggregatedEncoder(encoder BufferedEncoder) AggregatedEncoder {
 	}
 
 	enc.encodeRootObjectFn = enc.encodeRootObject
-	enc.encodeRawMetricWithPolicyFn = enc.encodeRawMetricWithPolicy
+	enc.encodeRawMetricWithStoragePolicyFn = enc.encodeRawMetricWithStoragePolicy
 	enc.encodeRawMetricFn = enc.encodeRawMetric
 	enc.encodeMetricAsRawFn = enc.encodeMetricAsRaw
 	enc.encodeChunkedMetricAsRawFn = enc.encodeChunkedMetricAsRaw
@@ -64,32 +64,32 @@ func (enc *aggregatedEncoder) Reset(encoder BufferedEncoder) { enc.reset(encoder
 
 // NB(xichen): we encode metric as a raw metric so the decoder can inspect the encoded byte stream
 // and apply filters to the encode bytes as needed without fully decoding the entire payload.
-func (enc *aggregatedEncoder) EncodeMetricWithPolicy(mp aggregated.MetricWithPolicy) error {
+func (enc *aggregatedEncoder) EncodeMetricWithStoragePolicy(mp aggregated.MetricWithStoragePolicy) error {
 	if err := enc.err(); err != nil {
 		return err
 	}
-	enc.encodeRootObjectFn(rawMetricWithPolicyType)
+	enc.encodeRootObjectFn(rawMetricWithStoragePolicyType)
 	data := enc.encodeMetricAsRawFn(mp.Metric)
-	enc.encodeRawMetricWithPolicyFn(data, mp.Policy)
+	enc.encodeRawMetricWithStoragePolicyFn(data, mp.StoragePolicy)
 	return enc.err()
 }
 
-func (enc *aggregatedEncoder) EncodeChunkedMetricWithPolicy(cmp aggregated.ChunkedMetricWithPolicy) error {
+func (enc *aggregatedEncoder) EncodeChunkedMetricWithStoragePolicy(cmp aggregated.ChunkedMetricWithStoragePolicy) error {
 	if err := enc.err(); err != nil {
 		return err
 	}
-	enc.encodeRootObjectFn(rawMetricWithPolicyType)
+	enc.encodeRootObjectFn(rawMetricWithStoragePolicyType)
 	data := enc.encodeChunkedMetricAsRawFn(cmp.ChunkedMetric)
-	enc.encodeRawMetricWithPolicyFn(data, cmp.Policy)
+	enc.encodeRawMetricWithStoragePolicyFn(data, cmp.StoragePolicy)
 	return enc.err()
 }
 
-func (enc *aggregatedEncoder) EncodeRawMetricWithPolicy(rp aggregated.RawMetricWithPolicy) error {
+func (enc *aggregatedEncoder) EncodeRawMetricWithStoragePolicy(rp aggregated.RawMetricWithStoragePolicy) error {
 	if err := enc.err(); err != nil {
 		return err
 	}
-	enc.encodeRootObjectFn(rawMetricWithPolicyType)
-	enc.encodeRawMetricWithPolicyFn(rp.RawMetric.Bytes(), rp.Policy)
+	enc.encodeRootObjectFn(rawMetricWithStoragePolicyType)
+	enc.encodeRawMetricWithStoragePolicyFn(rp.RawMetric.Bytes(), rp.StoragePolicy)
 	return enc.err()
 }
 
@@ -122,10 +122,10 @@ func (enc *aggregatedEncoder) encodeMetricProlog() {
 	enc.buf.encodeNumObjectFields(numFieldsForType(metricType))
 }
 
-func (enc *aggregatedEncoder) encodeRawMetricWithPolicy(data []byte, p policy.Policy) {
-	enc.encodeNumObjectFields(numFieldsForType(rawMetricWithPolicyType))
+func (enc *aggregatedEncoder) encodeRawMetricWithStoragePolicy(data []byte, p policy.StoragePolicy) {
+	enc.encodeNumObjectFields(numFieldsForType(rawMetricWithStoragePolicyType))
 	enc.encodeRawMetricFn(data)
-	enc.encodePolicy(p)
+	enc.encodeStoragePolicy(p)
 }
 
 func (enc *aggregatedEncoder) encodeRawMetric(data []byte) {

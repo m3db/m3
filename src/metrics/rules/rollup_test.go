@@ -49,12 +49,14 @@ var (
 						Tags: []string{"rtagName1", "rtagName2"},
 						Policies: []*schema.Policy{
 							&schema.Policy{
-								Resolution: &schema.Resolution{
-									WindowSize: int64(10 * time.Second),
-									Precision:  int64(time.Second),
-								},
-								Retention: &schema.Retention{
-									Period: int64(24 * time.Hour),
+								StoragePolicy: &schema.StoragePolicy{
+									Resolution: &schema.Resolution{
+										WindowSize: int64(10 * time.Second),
+										Precision:  int64(time.Second),
+									},
+									Retention: &schema.Retention{
+										Period: int64(24 * time.Hour),
+									},
 								},
 							},
 						},
@@ -75,21 +77,28 @@ var (
 						Tags: []string{"rtagName1", "rtagName2"},
 						Policies: []*schema.Policy{
 							&schema.Policy{
-								Resolution: &schema.Resolution{
-									WindowSize: int64(time.Minute),
-									Precision:  int64(time.Minute),
-								},
-								Retention: &schema.Retention{
-									Period: int64(24 * time.Hour),
+								StoragePolicy: &schema.StoragePolicy{
+									Resolution: &schema.Resolution{
+										WindowSize: int64(time.Minute),
+										Precision:  int64(time.Minute),
+									},
+									Retention: &schema.Retention{
+										Period: int64(24 * time.Hour),
+									},
 								},
 							},
 							&schema.Policy{
-								Resolution: &schema.Resolution{
-									WindowSize: int64(5 * time.Minute),
-									Precision:  int64(time.Minute),
+								StoragePolicy: &schema.StoragePolicy{
+									Resolution: &schema.Resolution{
+										WindowSize: int64(5 * time.Minute),
+										Precision:  int64(time.Minute),
+									},
+									Retention: &schema.Retention{
+										Period: int64(48 * time.Hour),
+									},
 								},
-								Retention: &schema.Retention{
-									Period: int64(48 * time.Hour),
+								AggregationTypes: []schema.AggregationType{
+									schema.AggregationType_MEAN,
 								},
 							},
 						},
@@ -114,7 +123,7 @@ func TestNewRollupTargetNilPolicySchema(t *testing.T) {
 
 func TestRollupTargetSameTransform(t *testing.T) {
 	policies := []policy.Policy{
-		policy.NewPolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), policy.DefaultAggregationID),
 	}
 	target := rollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2")}
 	inputs := []testRollupTargetData{
@@ -138,7 +147,7 @@ func TestRollupTargetSameTransform(t *testing.T) {
 
 func TestRollupTargetClone(t *testing.T) {
 	policies := []policy.Policy{
-		policy.NewPolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), policy.DefaultAggregationID),
 	}
 	target := rollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2"), Policies: policies}
 	cloned := target.clone()
@@ -148,7 +157,7 @@ func TestRollupTargetClone(t *testing.T) {
 
 	// Change references in the cloned object should not mutate the original object.
 	cloned.Tags[0] = b("bar3")
-	cloned.Policies[0] = policy.EmptyPolicy
+	cloned.Policies[0] = policy.DefaultPolicy
 	require.Equal(t, target.Tags, bs("bar1", "bar2"))
 	require.Equal(t, target.Policies, policies)
 }
@@ -183,7 +192,7 @@ func TestRollupRuleValidSchema(t *testing.T) {
 					Name: b("rName1"),
 					Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 					Policies: []policy.Policy{
-						policy.NewPolicy(10*time.Second, xtime.Second, 24*time.Hour),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
 					},
 				},
 			},
@@ -197,8 +206,8 @@ func TestRollupRuleValidSchema(t *testing.T) {
 					Name: b("rName1"),
 					Tags: [][]byte{b("rtagName1"), b("rtagName2")},
 					Policies: []policy.Policy{
-						policy.NewPolicy(time.Minute, xtime.Minute, 24*time.Hour),
-						policy.NewPolicy(5*time.Minute, xtime.Minute, 48*time.Hour),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), compressedMean),
 					},
 				},
 			},

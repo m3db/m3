@@ -74,25 +74,25 @@ type RawMetric interface {
 	Reset(data []byte)
 }
 
-// MetricWithPolicy is a metric with applicable policy.
-type MetricWithPolicy struct {
+// MetricWithStoragePolicy is a metric with applicable storage policy.
+type MetricWithStoragePolicy struct {
 	Metric
-	policy.Policy
+	policy.StoragePolicy
 }
 
-// String is the string representation of a metric with policy.
-func (mp MetricWithPolicy) String() string {
-	return fmt.Sprintf("{metric:%s,policy:%s}", mp.Metric.String(), mp.Policy.String())
+// String is the string representation of a metric with storage policy.
+func (mp MetricWithStoragePolicy) String() string {
+	return fmt.Sprintf("{metric:%s,policy:%s}", mp.Metric.String(), mp.StoragePolicy.String())
 }
 
-// ChunkedMetricWithPolicy is a chunked metric with applicable policy.
-type ChunkedMetricWithPolicy struct {
+// ChunkedMetricWithStoragePolicy is a chunked metric with applicable storage policy.
+type ChunkedMetricWithStoragePolicy struct {
 	ChunkedMetric
-	policy.Policy
+	policy.StoragePolicy
 }
 
-// RawMetricWithPolicy is a raw metric with applicable policy.
-type RawMetricWithPolicy struct {
+// RawMetricWithStoragePolicy is a raw metric with applicable storage policy.
+type RawMetricWithStoragePolicy struct {
 	RawMetric
-	policy.Policy
+	policy.StoragePolicy
 }

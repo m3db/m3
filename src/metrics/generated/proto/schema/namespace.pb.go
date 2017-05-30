@@ -36,6 +36,7 @@ It has these top-level messages:
 	Namespaces
 	Resolution
 	Retention
+	StoragePolicy
 	Policy
 	MappingRuleSnapshot
 	MappingRule

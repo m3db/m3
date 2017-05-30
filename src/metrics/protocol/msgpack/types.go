@@ -102,6 +102,9 @@ type encoderBase interface {
 	// resetData resets the encoder data.
 	resetData()
 
+	// encodeStoragePolicy encodes a storage policy.
+	encodeStoragePolicy(p policy.StoragePolicy)
+
 	// encodePolicy encodes a policy.
 	encodePolicy(p policy.Policy)
 
@@ -152,6 +155,9 @@ type iteratorBase interface {
 
 	// reader returns the buffered reader.
 	reader() bufReader
+
+	// decodeStoragePolicy decodes a storage policy.
+	decodeStoragePolicy() policy.StoragePolicy
 
 	// decodePolicy decodes a policy.
 	decodePolicy() policy.Policy
@@ -302,14 +308,14 @@ type UnaggregatedIteratorPool interface {
 
 // AggregatedEncoder is an encoder for encoding aggregated metrics.
 type AggregatedEncoder interface {
-	// EncodeMetricWithPolicy encodes a metric with an applicable policy.
-	EncodeMetricWithPolicy(mp aggregated.MetricWithPolicy) error
+	// EncodeMetricWithStoragePolicy encodes a metric with an applicable storage policy.
+	EncodeMetricWithStoragePolicy(mp aggregated.MetricWithStoragePolicy) error
 
-	// EncodeChunkedMetricWithPolicy encodes a chunked metric with an applicable policy.
-	EncodeChunkedMetricWithPolicy(cmp aggregated.ChunkedMetricWithPolicy) error
+	// EncodeChunkedMetricWithStoragePolicy encodes a chunked metric with an applicable storage policy.
+	EncodeChunkedMetricWithStoragePolicy(cmp aggregated.ChunkedMetricWithStoragePolicy) error
 
-	// EncodeRawMetricWithPolicy encodes a raw metric with an applicable policy.
-	EncodeRawMetricWithPolicy(rp aggregated.RawMetricWithPolicy) error
+	// EncodeRawMetricWithStoragePolicy encodes a raw metric with an applicable storage policy.
+	EncodeRawMetricWithStoragePolicy(rp aggregated.RawMetricWithStoragePolicy) error
 
 	// Encoder returns the encoder.
 	Encoder() BufferedEncoder
@@ -324,7 +330,7 @@ type AggregatedIterator interface {
 	Next() bool
 
 	// Value returns the current raw metric and the applicable policy.
-	Value() (aggregated.RawMetric, policy.Policy)
+	Value() (aggregated.RawMetric, policy.StoragePolicy)
 
 	// Err returns the error encountered during decoding, if any.
 	Err() error

@@ -43,7 +43,7 @@ const (
 	counterWithPoliciesListType
 	batchTimerWithPoliciesListType
 	gaugeWithPoliciesListType
-	rawMetricWithPolicyType
+	rawMetricWithStoragePolicyType
 
 	// Object types not exposed to the encoder interface.
 	counterType
@@ -53,11 +53,15 @@ const (
 	defaultPoliciesListType
 	customPoliciesListType
 	stagedPoliciesType
-	policyType
+	storagePolicyType
 	knownResolutionType
 	unknownResolutionType
 	knownRetentionType
 	unknownRetentionType
+	defaultAggregationID
+	shortAggregationID
+	longAggregationID
+	policyType
 
 	// Total number of object types.
 	numObjectTypes = iota
@@ -68,7 +72,7 @@ const (
 	numCounterWithPoliciesListFields    = 2
 	numBatchTimerWithPoliciesListFields = 2
 	numGaugeWithPoliciesListFields      = 2
-	numRawMetricWithPolicyFields        = 2
+	numRawMetricWithStoragePolicyFields = 2
 	numCounterFields                    = 2
 	numBatchTimerFields                 = 2
 	numGaugeFields                      = 2
@@ -76,11 +80,15 @@ const (
 	numDefaultStagedPoliciesListFields  = 1
 	numCustomStagedPoliciesListFields   = 2
 	numStagedPoliciesFields             = 3
-	numPolicyFields                     = 2
+	numStoragePolicyFields              = 2
 	numKnownResolutionFields            = 2
 	numUnknownResolutionFields          = 3
 	numKnownRetentionFields             = 2
 	numUnknownRetentionFields           = 2
+	numDefaultAggregationIDFields       = 1
+	numShortAggregationIDFields         = 2
+	numLongAggregationIDFields          = 2
+	numPolicyFields                     = 2
 )
 
 // NB(xichen): use a slice instead of a map to avoid lookup overhead.
@@ -101,7 +109,7 @@ func init() {
 	setNumFieldsForType(counterWithPoliciesListType, numCounterWithPoliciesListFields)
 	setNumFieldsForType(batchTimerWithPoliciesListType, numBatchTimerWithPoliciesListFields)
 	setNumFieldsForType(gaugeWithPoliciesListType, numGaugeWithPoliciesListFields)
-	setNumFieldsForType(rawMetricWithPolicyType, numRawMetricWithPolicyFields)
+	setNumFieldsForType(rawMetricWithStoragePolicyType, numRawMetricWithStoragePolicyFields)
 	setNumFieldsForType(counterType, numCounterFields)
 	setNumFieldsForType(batchTimerType, numBatchTimerFields)
 	setNumFieldsForType(gaugeType, numGaugeFields)
@@ -109,9 +117,13 @@ func init() {
 	setNumFieldsForType(defaultPoliciesListType, numDefaultStagedPoliciesListFields)
 	setNumFieldsForType(customPoliciesListType, numCustomStagedPoliciesListFields)
 	setNumFieldsForType(stagedPoliciesType, numStagedPoliciesFields)
-	setNumFieldsForType(policyType, numPolicyFields)
+	setNumFieldsForType(storagePolicyType, numStoragePolicyFields)
 	setNumFieldsForType(knownResolutionType, numKnownResolutionFields)
 	setNumFieldsForType(unknownResolutionType, numUnknownResolutionFields)
 	setNumFieldsForType(knownRetentionType, numKnownRetentionFields)
 	setNumFieldsForType(unknownRetentionType, numKnownRetentionFields)
+	setNumFieldsForType(defaultAggregationID, numDefaultAggregationIDFields)
+	setNumFieldsForType(shortAggregationID, numShortAggregationIDFields)
+	setNumFieldsForType(longAggregationID, numLongAggregationIDFields)
+	setNumFieldsForType(policyType, numPolicyFields)
 }

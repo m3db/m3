@@ -30,8 +30,8 @@ import (
 var (
 	testNowNanos = time.Now().UnixNano()
 	testPolicies = []Policy{
-		NewPolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
-		NewPolicy(time.Minute, xtime.Minute, 30*24*time.Hour),
+		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), DefaultAggregationID),
+		NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 30*24*time.Hour), DefaultAggregationID),
 	}
 )
 

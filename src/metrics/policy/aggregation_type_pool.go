@@ -18,42 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-syntax = "proto3";
-package schema;
+package policy
 
-message Resolution {
-  int64 window_size = 1;
-  int64 precision = 2;
+import "github.com/m3db/m3x/pool"
+
+// AggregationTypesAlloc allocates new aggregation types.
+type AggregationTypesAlloc func() AggregationTypes
+
+// AggregationTypesPool provides a pool of aggregation types.
+type AggregationTypesPool interface {
+	// Init initializes the aggregation types pool.
+	Init(alloc AggregationTypesAlloc)
+
+	// Get gets an empty list of aggregation types from the pool.
+	Get() AggregationTypes
+
+	// Put returns aggregation types to the pool.
+	Put(value AggregationTypes)
 }
 
-message Retention {
-  int64 period = 1;
+type aggTypesPool struct {
+	pool pool.ObjectPool
 }
 
-message StoragePolicy {
-  Resolution resolution = 1;
-  Retention retention = 2;
+// NewAggregationTypesPool creates a new pool for aggregation types.
+func NewAggregationTypesPool(opts pool.ObjectPoolOptions) AggregationTypesPool {
+	return &aggTypesPool{pool: pool.NewObjectPool(opts)}
 }
 
-message Policy {
-  StoragePolicy storage_policy = 1;
-  repeated AggregationType aggregation_types = 2;
+func (p *aggTypesPool) Init(alloc AggregationTypesAlloc) {
+	p.pool.Init(func() interface{} {
+		return alloc()
+	})
 }
 
-enum AggregationType {
-  UNKNOWN = 0;
-  LAST = 1;
-  LOWER = 2;
-  UPPER = 3;
-  MEAN = 4;
-  MEDIAN = 5;
-  COUNT = 6;
-  SUM = 7;
-  SUMSQ = 8;
-  STDEV = 9;
-  P50 = 10;
-  P95 = 11;
-  P99 = 12;
-  P999 = 13;
-  P9999 = 14;
+func (p *aggTypesPool) Get() AggregationTypes {
+	return p.pool.Get().(AggregationTypes)
+}
+
+func (p *aggTypesPool) Put(value AggregationTypes) {
+	p.pool.Put(value[:0])
 }
