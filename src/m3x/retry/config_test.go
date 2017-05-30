@@ -29,19 +29,21 @@ import (
 )
 
 func TestRetryConfig(t *testing.T) {
+	b1 := true
+	b2 := false
 	cfg := Configuration{
 		InitialBackoff: time.Second,
 		BackoffFactor:  2.0,
 		MaxBackoff:     time.Minute,
 		MaxRetries:     3,
-		Forever:        true,
-		Jitter:         true,
+		Forever:        &b1,
+		Jitter:         &b2,
 	}
 	retrier := cfg.NewRetrier(tally.NoopScope).(*retrier)
 	require.Equal(t, time.Second, retrier.initialBackoff)
 	require.Equal(t, 2.0, retrier.backoffFactor)
 	require.Equal(t, time.Minute, retrier.maxBackoff)
 	require.Equal(t, 3, retrier.maxRetries)
-	require.True(t, retrier.forever)
-	require.True(t, retrier.jitter)
+	require.Equal(t, b1, retrier.forever)
+	require.Equal(t, b2, retrier.jitter)
 }
