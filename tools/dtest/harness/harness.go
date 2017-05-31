@@ -40,7 +40,7 @@ type DTestHarness struct {
 
 	closing          int32
 	closers          []closeFn
-	cliOpts          *config.CLIOpts
+	cliOpts          *config.Args
 	conf             *config.Configuration
 	iopts            instrument.Options
 	logger           xlog.Logger
@@ -51,7 +51,7 @@ type DTestHarness struct {
 }
 
 // New constructs a new DTestHarness
-func New(cliOpts *config.CLIOpts, logger xlog.Logger) *DTestHarness {
+func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
 	dt := &DTestHarness{
 		cliOpts: cliOpts,
 		logger:  logger,

@@ -19,7 +19,7 @@ var (
 		Short: "Command line tool to execute m3db dtests",
 	}
 
-	globalCLIOpts = &config.CLIOpts{}
+	globalArgs = &config.Args{}
 )
 
 // Run executes the m3admin command.
@@ -42,7 +42,7 @@ func init() {
 		replaceUpNodeRemoveTestCmd,
 	)
 
-	globalCLIOpts.RegisterFlags(DTestCmd)
+	globalArgs.RegisterFlags(DTestCmd)
 }
 
 func printUsage(cmd *cobra.Command) {

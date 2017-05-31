@@ -7,8 +7,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// CLIOpts represents the CLI options to be set during a dtest
-type CLIOpts struct {
+// Args represents the CLI arguments to be set during a dtest
+type Args struct {
 	// M3DBBuildPath specifies the local fs path to the m3db binary
 	M3DBBuildPath string
 
@@ -35,30 +35,30 @@ type CLIOpts struct {
 }
 
 // RegisterFlags registers all the common flags
-func (c *CLIOpts) RegisterFlags(cmd *cobra.Command) {
+func (a *Args) RegisterFlags(cmd *cobra.Command) {
 	pf := cmd.PersistentFlags()
-	pf.StringVarP(&c.M3DBBuildPath, "m3db-build", "b", "", "M3DB Binary")
-	pf.StringVarP(&c.M3DBConfigPath, "m3db-config", "f", "", "M3DB Configuration File")
-	pf.StringVarP(&c.M3EMConfigPath, "m3em-config", "c", "", "M3EM Configuration File")
-	pf.BoolVarP(&c.SessionOverride, "session-override", "s", true, "Session Override")
-	pf.StringVarP(&c.SessionToken, "session-token", "t", "dtest", "Session Token")
-	pf.IntVarP(&c.NumNodes, "num-nodes", "n", 0, "Num Nodes to use in DTest")
-	pf.BoolVarP(&c.InitialReset, "initial-reset", "r", false, "Initial Reset")
+	pf.StringVarP(&a.M3DBBuildPath, "m3db-build", "b", "", "M3DB Binary")
+	pf.StringVarP(&a.M3DBConfigPath, "m3db-config", "f", "", "M3DB Configuration File")
+	pf.StringVarP(&a.M3EMConfigPath, "m3em-config", "c", "", "M3EM Configuration File")
+	pf.BoolVarP(&a.SessionOverride, "session-override", "s", true, "Session Override")
+	pf.StringVarP(&a.SessionToken, "session-token", "t", "dtest", "Session Token")
+	pf.IntVarP(&a.NumNodes, "num-nodes", "n", 0, "Num Nodes to use in DTest")
+	pf.BoolVarP(&a.InitialReset, "initial-reset", "r", false, "Initial Reset")
 }
 
 // Validate validates the set options
-func (c *CLIOpts) Validate() error {
+func (a *Args) Validate() error {
 	var me xerrors.MultiError
-	if c.M3DBBuildPath == "" {
+	if a.M3DBBuildPath == "" {
 		me = me.Add(fmt.Errorf("m3db-build not specified"))
 	}
-	if c.M3DBConfigPath == "" {
+	if a.M3DBConfigPath == "" {
 		me = me.Add(fmt.Errorf("m3db-config not specified"))
 	}
-	if c.M3EMConfigPath == "" {
+	if a.M3EMConfigPath == "" {
 		me = me.Add(fmt.Errorf("m3em-config not specified"))
 	}
-	if c.SessionToken == "" {
+	if a.SessionToken == "" {
 		me = me.Add(fmt.Errorf("session-token not specified"))
 	}
 	return me.FinalError()

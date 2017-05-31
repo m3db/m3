@@ -27,14 +27,14 @@ TODO(prateek): write up`,
 )
 
 func addUpNodeRemoveDTest(cmd *cobra.Command, args []string) {
-	if err := globalCLIOpts.Validate(); err != nil {
+	if err := globalArgs.Validate(); err != nil {
 		printUsage(cmd)
 		return
 	}
 	logger := xlog.NewLogger(os.Stdout)
 	logger.Infof("============== %v  ==============", cmd.Name())
 
-	dt := harness.New(globalCLIOpts, logger)
+	dt := harness.New(globalArgs, logger)
 	dt.SetClusterOptions(dt.ClusterOptions().
 		SetNodeListener(util.NewPanicListener()))
 	defer dt.Close()
