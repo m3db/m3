@@ -84,7 +84,7 @@ func (mc *M3EMConfig) M3DBNodes(opts node.Options, numNodes int) ([]m3dbnode.Nod
 			break
 		}
 
-		pi := inst.asServicePI(mc.M3DBPort)
+		pi := inst.newServicesPlacementInstance(mc.M3DBPort)
 		newOpts := opts.
 			SetOperatorClientFn(inst.operatorClientFn(mc.AgentPort)).
 			SetInstrumentOptions(opts.InstrumentOptions().SetLogger(
@@ -119,7 +119,7 @@ func (pi *PlacementInstance) operatorClientFn(agentPort int) node.OperatorClient
 	}
 }
 
-func (pi *PlacementInstance) asServicePI(m3dbPort int) services.PlacementInstance {
+func (pi *PlacementInstance) newServicesPlacementInstance(m3dbPort int) services.PlacementInstance {
 	endpoint := fmt.Sprintf("%s:%d", pi.Hostname, m3dbPort)
 	return placement.NewInstance().
 		SetID(pi.ID).

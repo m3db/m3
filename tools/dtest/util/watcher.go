@@ -27,7 +27,7 @@ import (
 	"sync"
 	"time"
 
-	m3dbnode "github.com/m3db/m3db/x/m3em/node"
+	m3emnode "github.com/m3db/m3db/x/m3em/node"
 
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/log"
@@ -35,19 +35,19 @@ import (
 
 type nodesWatcher struct {
 	sync.Mutex
-	pending           map[string]m3dbnode.Node
+	pending           map[string]m3emnode.Node
 	logger            xlog.Logger
 	reportingInterval time.Duration
 }
 
 // NewM3DBNodesWatcher creates a new M3DBNodeWatcher
 func NewM3DBNodesWatcher(
-	nodes []m3dbnode.Node,
+	nodes []m3emnode.Node,
 	logger xlog.Logger,
 	reportingInterval time.Duration,
 ) M3DBNodesWatcher {
 	watcher := &nodesWatcher{
-		pending:           make(map[string]m3dbnode.Node, len(nodes)),
+		pending:           make(map[string]m3emnode.Node, len(nodes)),
 		logger:            logger,
 		reportingInterval: reportingInterval,
 	}
@@ -57,7 +57,7 @@ func NewM3DBNodesWatcher(
 	return watcher
 }
 
-func (nw *nodesWatcher) addInstanceWithLock(node m3dbnode.Node) {
+func (nw *nodesWatcher) addInstanceWithLock(node m3emnode.Node) {
 	nw.pending[node.ID()] = node
 }
 
@@ -71,11 +71,11 @@ func (nw *nodesWatcher) Close() error {
 	return nil
 }
 
-func (nw *nodesWatcher) Pending() []m3dbnode.Node {
+func (nw *nodesWatcher) Pending() []m3emnode.Node {
 	nw.Lock()
 	defer nw.Unlock()
 
-	pending := make([]m3dbnode.Node, 0, len(nw.pending))
+	pending := make([]m3emnode.Node, 0, len(nw.pending))
 	for _, node := range nw.pending {
 		pending = append(pending, node)
 	}
@@ -117,7 +117,7 @@ func (nw *nodesWatcher) WaitUntilAll(p M3DBNodePredicate, timeout time.Duration)
 	wg.Add(len(pending))
 	for i := range pending {
 		m3dbNode := pending[i]
-		go func(m3dbNode m3dbnode.Node) {
+		go func(m3dbNode m3emnode.Node) {
 			defer wg.Done()
 			if cond := xclock.WaitUntil(func() bool { return p(m3dbNode) }, timeout); cond {
 				nw.logger.Infof("%s finished bootstrapping", m3dbNode.ID())
@@ -164,7 +164,7 @@ func (nw *nodesWatcher) WaitUntilAll(p M3DBNodePredicate, timeout time.Duration)
 	return numPending == 0
 }
 
-type m3dbnodesByID []m3dbnode.Node
+type m3dbnodesByID []m3emnode.Node
 
 func (n m3dbnodesByID) Len() int {
 	return len(n)

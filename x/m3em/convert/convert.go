@@ -3,16 +3,16 @@ package convert
 import (
 	"fmt"
 
-	m3dbnode "github.com/m3db/m3db/x/m3em/node"
+	m3emnode "github.com/m3db/m3db/x/m3em/node"
 
 	"github.com/m3db/m3em/node"
 )
 
 // AsM3DBNodes returns casts a slice of ServiceNodes into M3DBNodes
-func AsM3DBNodes(nodes []node.ServiceNode) ([]m3dbnode.Node, error) {
-	m3dbnodes := make([]m3dbnode.Node, 0, len(nodes))
+func AsM3DBNodes(nodes []node.ServiceNode) ([]m3emnode.Node, error) {
+	m3dbnodes := make([]m3emnode.Node, 0, len(nodes))
 	for _, n := range nodes {
-		mn, ok := n.(m3dbnode.Node)
+		mn, ok := n.(m3emnode.Node)
 		if !ok {
 			return nil, fmt.Errorf("unable to cast: %v to m3dbnode", n.String())
 		}
@@ -22,7 +22,7 @@ func AsM3DBNodes(nodes []node.ServiceNode) ([]m3dbnode.Node, error) {
 }
 
 // AsServiceNodes returns casts a slice M3DBNodes into ServiceNodes
-func AsServiceNodes(nodes []m3dbnode.Node) ([]node.ServiceNode, error) {
+func AsServiceNodes(nodes []m3emnode.Node) ([]node.ServiceNode, error) {
 	serviceNodes := make([]node.ServiceNode, 0, len(nodes))
 	for _, mn := range nodes {
 		n, ok := mn.(node.ServiceNode)

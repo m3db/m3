@@ -14,7 +14,7 @@ import (
 
 	"github.com/m3db/m3db/tools/dtest/config"
 	"github.com/m3db/m3db/x/m3em/convert"
-	m3dbnode "github.com/m3db/m3db/x/m3em/node"
+	m3emnode "github.com/m3db/m3db/x/m3em/node"
 
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/services"
@@ -47,7 +47,7 @@ type DTestHarness struct {
 	placementService services.PlacementService
 	nodeOpts         node.Options
 	clusterOpts      cluster.Options
-	nodes            []m3dbnode.Node
+	nodes            []m3emnode.Node
 }
 
 // New constructs a new DTestHarness
@@ -127,7 +127,7 @@ func (dt *DTestHarness) Close() error {
 }
 
 // Nodes returns the M3DBNode(s)
-func (dt *DTestHarness) Nodes() []m3dbnode.Node {
+func (dt *DTestHarness) Nodes() []m3emnode.Node {
 	return dt.nodes
 }
 
@@ -299,7 +299,7 @@ func newConfig(logger xlog.Logger, filename string) build.ServiceConfiguration {
 	if err != nil {
 		logger.Fatalf("unable to read: %v, err: %v", filename, err)
 	}
-	conf := build.NewServiceConfig("m3dbnode.yaml", bytes)
+	conf := build.NewServiceConfig("m3emnode.yaml", bytes)
 	logger.Infof("read service config from: %v", filename)
 	return conf
 }

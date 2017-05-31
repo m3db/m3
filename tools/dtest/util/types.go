@@ -24,11 +24,11 @@ import (
 	"io"
 	"time"
 
-	m3dbnode "github.com/m3db/m3db/x/m3em/node"
+	m3emnode "github.com/m3db/m3db/x/m3em/node"
 )
 
 // M3DBNodePredicate is a predicate on a M3DB ServiceNode
-type M3DBNodePredicate func(m3dbnode.Node) bool
+type M3DBNodePredicate func(m3emnode.Node) bool
 
 // M3DBNodesWatcher makes it easy to monitor observable properties
 // of M3DB ServiceNodes
@@ -42,7 +42,7 @@ type M3DBNodesWatcher interface {
 
 	// Pending returns the list of nodes which have not satisfied the
 	// predicate satisfied
-	Pending() []m3dbnode.Node
+	Pending() []m3emnode.Node
 
 	// PendingAsError returns the list of pending nodes wrapped as an
 	// error

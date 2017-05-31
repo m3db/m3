@@ -6,7 +6,7 @@ import (
 
 	"github.com/m3db/m3db/tools/dtest/harness"
 	"github.com/m3db/m3db/tools/dtest/util"
-	m3dbnode "github.com/m3db/m3db/x/m3em/node"
+	m3emnode "github.com/m3db/m3db/x/m3em/node"
 
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/log"
@@ -49,7 +49,7 @@ func removeUpNodeDTest(cmd *cobra.Command, args []string) {
 
 	logger.Infof("waiting until all instances are bootstrapped")
 	watcher := util.NewM3DBNodesWatcher(nodes, logger, defaultBootstrapStatusReportingInterval)
-	allBootstrapped := watcher.WaitUntilAll(m3dbnode.Node.Bootstrapped, dt.BootstrapTimeout())
+	allBootstrapped := watcher.WaitUntilAll(m3emnode.Node.Bootstrapped, dt.BootstrapTimeout())
 	panicIf(!allBootstrapped, fmt.Sprintf("unable to bootstrap all nodes, err = %v", watcher.PendingAsError()))
 	logger.Infof("all nodes bootstrapped successfully!")
 
