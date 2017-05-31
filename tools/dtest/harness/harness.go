@@ -96,7 +96,13 @@ func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
 		if err != nil {
 			logger.Fatalf("unable to cast nodes: %v", err)
 		}
-		exec := node.NewConcurrentExecutor(svcNodes, dt.clusterOpts.NodeConcurrency(), dt.clusterOpts.NodeOperationTimeout(), func(n node.ServiceNode) error { return n.Teardown() })
+
+		var (
+			concurrency = dt.clusterOpts.NodeConcurrency()
+			timeout     = dt.clusterOpts.NodeOperationTimeout()
+			teardownFn  = func(n node.ServiceNode) error { return n.Teardown() }
+			exec        = node.NewConcurrentExecutor(svcNodes, concurrency, timeout, teardownFn)
+		)
 		if err := exec.Run(); err != nil {
 			logger.Fatalf("unable to reset nodes: %v", err)
 		}
