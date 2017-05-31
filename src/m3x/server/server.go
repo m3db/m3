@@ -119,9 +119,8 @@ func (s *server) ListenAndServe() error {
 	if err != nil {
 		return err
 	}
-	s.listener = listener
-	go s.serve()
-	return nil
+
+	return s.Serve(listener)
 }
 
 func (s *server) Serve(l net.Listener) error {

@@ -50,7 +50,7 @@ type Configuration struct {
 
 // NewOptions creates a new retry options based on the configuration.
 func (c Configuration) NewOptions(scope tally.Scope) Options {
-	opts := NewOptions()
+	opts := NewOptions().SetMetricsScope(scope)
 	if c.InitialBackoff != 0 {
 		opts = opts.SetInitialBackoff(c.InitialBackoff)
 	}
