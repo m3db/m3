@@ -2,7 +2,6 @@ package dtests
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/m3db/m3db/tools/dtest/harness"
 	"github.com/m3db/m3db/tools/dtest/util"
@@ -10,7 +9,6 @@ import (
 	m3emnode "github.com/m3db/m3db/x/m3em/node"
 
 	xclock "github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/log"
 	"github.com/spf13/cobra"
 )
 
@@ -30,9 +28,8 @@ func replaceDownNodeDTest(cmd *cobra.Command, args []string) {
 		printUsage(cmd)
 		return
 	}
-	logger := xlog.NewLogger(os.Stdout)
-	logger.Infof("============== %v  ==============", cmd.Name())
 
+	logger := newLogger(cmd)
 	dt := harness.New(globalArgs, logger)
 	dt.SetClusterOptions(dt.ClusterOptions().
 		SetNodeListener(util.NewPanicListener()))

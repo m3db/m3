@@ -7,6 +7,7 @@ import (
 
 	"github.com/m3db/m3db/tools/dtest/config"
 
+	"github.com/m3db/m3x/log"
 	"github.com/spf13/cobra"
 )
 
@@ -63,4 +64,10 @@ func panicIfErr(err error, msg string) {
 	}
 	errStr := err.Error()
 	panic(fmt.Errorf("%s: %s", msg, errStr))
+}
+
+func newLogger(cmd *cobra.Command) xlog.Logger {
+	logger := xlog.NewLogger(os.Stdout)
+	logger.Infof("============== %v ==============", cmd.Name())
+	return logger
 }
