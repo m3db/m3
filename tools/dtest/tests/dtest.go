@@ -23,7 +23,7 @@ var (
 	globalArgs = &config.Args{}
 )
 
-// Run executes the m3admin command.
+// Run executes the dtest command.
 func Run() {
 	if err := DTestCmd.Execute(); err != nil {
 		fmt.Println(err)

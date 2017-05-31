@@ -40,12 +40,12 @@ type nodesWatcher struct {
 	reportingInterval time.Duration
 }
 
-// NewM3DBNodesWatcher creates a new M3DBNodeWatcher
-func NewM3DBNodesWatcher(
+// NewNodesWatcher creates a new NodeWatcher
+func NewNodesWatcher(
 	nodes []m3emnode.Node,
 	logger xlog.Logger,
 	reportingInterval time.Duration,
-) M3DBNodesWatcher {
+) NodesWatcher {
 	watcher := &nodesWatcher{
 		pending:           make(map[string]m3emnode.Node, len(nodes)),
 		logger:            logger,
@@ -110,7 +110,7 @@ func (nw *nodesWatcher) PendingAsError() error {
 	return fmt.Errorf("%d nodes not bootstrapped: %s", numPending, pendingString)
 }
 
-func (nw *nodesWatcher) WaitUntilAll(p M3DBNodePredicate, timeout time.Duration) bool {
+func (nw *nodesWatcher) WaitUntilAll(p NodePredicate, timeout time.Duration) bool {
 	// kick of go-routines to check condition for each pending node
 	pending := nw.Pending()
 	var wg sync.WaitGroup
