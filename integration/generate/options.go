@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/encoding/m3tsz"
 )
 
 const (
@@ -62,6 +63,12 @@ type options struct {
 
 // NewOptions creates a new set of fs options
 func NewOptions() Options {
+	encoderPool := encoding.NewEncoderPool(nil)
+	encodingOpts := encoding.NewOptions().SetEncoderPool(encoderPool)
+	encoderPool.Init(func() encoding.Encoder {
+		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+	})
+
 	return &options{
 		clockOpts:        clock.NewOptions(),
 		retentionPeriod:  defaultRetentionPeriod,
@@ -70,7 +77,7 @@ func NewOptions() Options {
 		newFileMode:      defaultNewFileMode,
 		newDirectoryMode: defaultNewDirectoryMode,
 		writerBufferSize: defaultWriterBufferSize,
-		encoderPool:      encoding.NewEncoderPool(nil),
+		encoderPool:      encoderPool,
 	}
 }
 

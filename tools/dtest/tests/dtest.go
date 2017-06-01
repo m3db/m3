@@ -33,6 +33,7 @@ func Run() {
 
 func init() {
 	DTestCmd.AddCommand(
+		seededBootstrapTestCmd,
 		simpleBootstrapTestCmd,
 		removeUpNodeTestCmd,
 		replaceUpNodeTestCmd,
