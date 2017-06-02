@@ -227,7 +227,7 @@ func toExpectedResults(
 					case unaggregated.CounterType:
 						values = aggregation.NewCounter()
 					case unaggregated.BatchTimerType:
-						values = aggregation.NewTimer(opts.StreamOptions())
+						values = aggregation.NewTimer(opts.TimerQuantiles(), opts.StreamOptions())
 					case unaggregated.GaugeType:
 						values = aggregation.NewGauge()
 					default:

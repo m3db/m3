@@ -482,7 +482,7 @@ func testStreamOptions(t *testing.T, size int) (cm.Options, cm.StreamPool, *int)
 	streamOpts := cm.NewOptions().SetStreamPool(p)
 	p.Init(func() cm.Stream {
 		numAlloc++
-		return cm.NewStream(streamOpts)
+		return cm.NewStream(nil, streamOpts)
 	})
 	require.Equal(t, numAlloc, len(testAlignedStarts)-1)
 	return streamOpts, p, &numAlloc
@@ -504,7 +504,7 @@ func testCounterElem() *CounterElem {
 func testTimerElem(opts Options) *TimerElem {
 	e := NewTimerElem(testBatchTimerID, testPolicy, opts)
 	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
-		timer := aggregation.NewTimer(opts.StreamOptions())
+		timer := aggregation.NewTimer(opts.TimerQuantiles(), opts.StreamOptions())
 		timer.AddBatch(testBatchTimer.BatchTimerVal)
 		e.values = append(e.values, timedTimer{
 			timeNanos: aligned,

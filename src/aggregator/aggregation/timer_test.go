@@ -28,8 +28,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	quantiles = []float64{0.5, 0.95, 0.99}
+)
+
 func TestTimer(t *testing.T) {
-	timer := Timer{stream: cm.NewStream(cm.NewOptions())}
+	timer := Timer{stream: cm.NewStream(quantiles, cm.NewOptions())}
 
 	// Assert the state of an empty timer
 	require.Equal(t, int64(0), timer.Count())

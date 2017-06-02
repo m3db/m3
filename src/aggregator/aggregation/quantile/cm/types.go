@@ -63,8 +63,8 @@ type Stream interface {
 	// Close closes the stream
 	Close()
 
-	// Reset resets the stream
-	Reset()
+	// ResetSetData resets the stream and sets data
+	ResetSetData(quantiles []float64)
 }
 
 // StreamAlloc allocates a stream
@@ -89,12 +89,6 @@ type Options interface {
 
 	// Eps returns the desired epsilon for errors
 	Eps() float64
-
-	// SetQuantiles sets the quantiles to be computed
-	SetQuantiles(value []float64) Options
-
-	// Quantiles returns the quantiles to be computed
-	Quantiles() []float64
 
 	// SetCapacity sets the initial heap capacity
 	SetCapacity(value int) Options

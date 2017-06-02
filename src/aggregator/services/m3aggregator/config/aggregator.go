@@ -89,6 +89,9 @@ type AggregatorConfiguration struct {
 	// Timer median metric suffix.
 	TimerMedianSuffix string `yaml:"timerMedianSuffix"`
 
+	// Target quantiles to compute.
+	TimerQuantiles []float64 `yaml:"timerQuantiles"`
+
 	// Timer quantile suffix function type.
 	TimerQuantileSuffixFnType string `yaml:"timerQuantileSuffixFnType"`
 
@@ -174,7 +177,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	if err != nil {
 		return nil, err
 	}
-	opts = opts.SetTimerQuantileSuffixFn(quantileSuffixFn)
+	opts = opts.SetTimerQuantileSuffixFn(quantileSuffixFn).SetTimerQuantiles(c.TimerQuantiles)
 
 	// Set stream options.
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("stream"))
@@ -288,6 +291,10 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	opts = opts.SetBufferedEncoderPool(bufferedEncoderPool)
 	bufferedEncoderPool.Init(func() msgpack.BufferedEncoder { return msgpack.NewPooledBufferedEncoder(bufferedEncoderPool) })
 
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	return opts, nil
 }
 
@@ -310,9 +317,6 @@ type streamConfiguration struct {
 	// Error epsilon for quantile computation.
 	Eps float64 `yaml:"eps"`
 
-	// Target quantiles to compute.
-	Quantiles []float64 `yaml:"quantiles"`
-
 	// Initial heap capacity for quantile computation.
 	Capacity int `yaml:"capacity"`
 
@@ -330,7 +334,6 @@ func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options
 	scope := instrumentOpts.MetricsScope()
 	opts := cm.NewOptions().
 		SetEps(c.Eps).
-		SetQuantiles(c.Quantiles).
 		SetCapacity(c.Capacity)
 
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("sample-pool"))
@@ -349,7 +352,7 @@ func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options
 	streamPoolOpts := c.StreamPool.NewObjectPoolOptions(iOpts)
 	streamPool := cm.NewStreamPool(streamPoolOpts)
 	opts = opts.SetStreamPool(streamPool)
-	streamPool.Init(func() cm.Stream { return cm.NewStream(opts) })
+	streamPool.Init(func() cm.Stream { return cm.NewStream(nil, opts) })
 
 	if err := opts.Validate(); err != nil {
 		return nil, err

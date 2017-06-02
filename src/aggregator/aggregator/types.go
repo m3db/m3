@@ -125,6 +125,9 @@ type Handler interface {
 
 // Options provide a set of base and derived options for the aggregator
 type Options interface {
+	// Validate validates the options
+	Validate() error
+
 	/// Read-write base options
 
 	// SetMetricPrefix sets the common prefix for all metric types
@@ -144,6 +147,12 @@ type Options interface {
 
 	// TimerPrefix returns the prefix for timers
 	TimerPrefix() []byte
+
+	// SetTimerQuantiles sets the timer quantiles
+	SetTimerQuantiles(quantiles []float64) Options
+
+	// TimerQuantiles returns the quantiles for timers
+	TimerQuantiles() []float64
 
 	// SetTimerSumSuffix sets the sum suffix for timers
 	SetTimerSumSuffix(value []byte) Options
@@ -335,9 +344,6 @@ type Options interface {
 
 	// FullGaugePrefix returns the full prefix for gauges
 	FullGaugePrefix() []byte
-
-	// TimerQuantiles returns the quantiles for timers
-	TimerQuantiles() []float64
 
 	// TimerQuantileSuffixes returns the quantile suffixes for timers
 	TimerQuantileSuffixes() [][]byte

@@ -63,10 +63,6 @@ http:
 aggregator:
   stream:
     eps: 0.001
-    quantiles:
-      - 0.5
-      - 0.95
-      - 0.99
     capacity: 32
     streamPool:
       size: 4096
@@ -80,6 +76,10 @@ aggregator:
           capacity: 32
         - count: 1024
           capacity: 16
+  timerQuantiles:
+    - 0.5
+    - 0.95
+    - 0.99
   placementWatcher:
     namespace: /m3aggregator
     key: placement
