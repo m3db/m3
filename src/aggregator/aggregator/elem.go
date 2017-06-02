@@ -375,7 +375,7 @@ func (e *TimerElem) findOrInsertWithLock(alignedStart int64) int {
 	copy(e.values[left+1:numValues+1], e.values[left:numValues])
 	e.values[left] = timedTimer{
 		timeNanos: alignedStart,
-		timer:     aggregation.NewTimer(e.opts.StreamOptions()),
+		timer:     aggregation.NewTimer(e.opts.TimerQuantiles(), e.opts.StreamOptions()),
 	}
 	return left
 }

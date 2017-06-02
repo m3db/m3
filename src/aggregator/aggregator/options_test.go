@@ -47,8 +47,18 @@ func validateDerivedPrefix(
 	require.Equal(t, expected, full)
 }
 
+func TestOptionsValidateInvalidQuantiles(t *testing.T) {
+	opts := NewOptions().SetTimerQuantiles(nil)
+	require.Equal(t, errInvalidQuantiles, opts.Validate())
+
+	opts = opts.SetTimerQuantiles([]float64{minQuantile - 1})
+	require.Equal(t, errInvalidQuantiles, opts.Validate())
+
+	opts = opts.SetTimerQuantiles([]float64{maxQuantile + 1})
+	require.Equal(t, errInvalidQuantiles, opts.Validate())
+}
+
 func validateQuantiles(t *testing.T, o Options) {
-	require.Equal(t, o.StreamOptions().Quantiles(), o.TimerQuantiles())
 	suffixFn := o.TimerQuantileSuffixFn()
 	suffixes := o.TimerQuantileSuffixes()
 	for i, q := range o.TimerQuantiles() {
@@ -166,6 +176,11 @@ func TestOptionsSetTimerMedianSuffix(t *testing.T) {
 	require.Equal(t, newMedianSuffix, o.TimerMedianSuffix())
 }
 
+func TestOptionsSetTimerQuantile(t *testing.T) {
+	o := NewOptions().SetTimerQuantiles([]float64{0.1, 0.5, 0.7})
+	validateQuantiles(t, o)
+}
+
 func TestOptionsSetTimerQuantileSuffixFn(t *testing.T) {
 	fn := func(q float64) []byte { return []byte(fmt.Sprintf("%1.2f", q)) }
 	o := NewOptions().SetTimerQuantileSuffixFn(fn)
@@ -193,7 +208,7 @@ func TestSetInstrumentOptions(t *testing.T) {
 }
 
 func TestSetStreamOptions(t *testing.T) {
-	value := cm.NewOptions().SetQuantiles([]float64{0.1, 0.3, 0.5, 0.95, 0.97, 0.99})
+	value := cm.NewOptions()
 	o := NewOptions().SetStreamOptions(value)
 	require.Equal(t, value, o.StreamOptions())
 	validateQuantiles(t, o)

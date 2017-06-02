@@ -30,28 +30,23 @@ import (
 const (
 	minEps          = 0.0
 	maxEps          = 0.5
-	minQuantile     = 0.0
-	maxQuantile     = 1.0
 	defaultEps      = 1e-3
 	defaultCapacity = 16
 )
 
 var (
-	defaultQuantiles = []float64{0.5, 0.95, 0.99}
-	defaultBuckets   = []pool.Bucket{
+	defaultBuckets = []pool.Bucket{
 		{Capacity: 16, Count: 4096},
 	}
 
-	errInvalidEps       = fmt.Errorf("epsilon value must be between %f and %f", minEps, maxEps)
-	errInvalidQuantiles = fmt.Errorf("quantiles must be nonempty and between %f and %f", minQuantile, maxQuantile)
-	errNoSamplePool     = errors.New("no sample pool set")
-	errNoFloatsPool     = errors.New("no floats pool set")
-	errNoStreamPool     = errors.New("no stream pool set")
+	errInvalidEps   = fmt.Errorf("epsilon value must be between %f and %f", minEps, maxEps)
+	errNoSamplePool = errors.New("no sample pool set")
+	errNoFloatsPool = errors.New("no floats pool set")
+	errNoStreamPool = errors.New("no stream pool set")
 )
 
 type options struct {
 	eps        float64
-	quantiles  []float64
 	capacity   int
 	streamPool StreamPool
 	samplePool SamplePool
@@ -61,9 +56,8 @@ type options struct {
 // NewOptions creates a new options
 func NewOptions() Options {
 	o := &options{
-		eps:       defaultEps,
-		quantiles: defaultQuantiles,
-		capacity:  defaultCapacity,
+		eps:      defaultEps,
+		capacity: defaultCapacity,
 	}
 
 	o.initPools()
@@ -78,16 +72,6 @@ func (o *options) SetEps(value float64) Options {
 
 func (o *options) Eps() float64 {
 	return o.eps
-}
-
-func (o *options) SetQuantiles(value []float64) Options {
-	opts := *o
-	opts.quantiles = value
-	return &opts
-}
-
-func (o *options) Quantiles() []float64 {
-	return o.quantiles
 }
 
 func (o *options) SetCapacity(value int) Options {
@@ -134,9 +118,6 @@ func (o *options) Validate() error {
 	if o.eps <= minEps || o.eps >= maxEps {
 		return errInvalidEps
 	}
-	if len(o.quantiles) == 0 {
-		return errInvalidQuantiles
-	}
 	if o.streamPool == nil {
 		return errNoStreamPool
 	}
@@ -145,11 +126,6 @@ func (o *options) Validate() error {
 	}
 	if o.floatsPool == nil {
 		return errNoFloatsPool
-	}
-	for _, quantile := range o.quantiles {
-		if quantile <= minQuantile || quantile >= maxQuantile {
-			return errInvalidQuantiles
-		}
 	}
 	return nil
 }
@@ -162,5 +138,5 @@ func (o *options) initPools() {
 	o.floatsPool.Init()
 
 	o.streamPool = NewStreamPool(nil)
-	o.streamPool.Init(func() Stream { return NewStream(o) })
+	o.streamPool.Init(func() Stream { return NewStream(nil, o) })
 }

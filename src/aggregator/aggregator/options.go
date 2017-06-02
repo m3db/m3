@@ -37,6 +37,11 @@ import (
 	"github.com/spaolacci/murmur3"
 )
 
+const (
+	minQuantile = 0.0
+	maxQuantile = 1.0
+)
+
 var (
 	defaultMetricPrefix           = []byte("stats.")
 	defaultCounterPrefix          = []byte("counts.")
@@ -60,6 +65,9 @@ var (
 		policy.NewPolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
 		policy.NewPolicy(time.Minute, xtime.Minute, 40*24*time.Hour),
 	}
+	defaultTimerQuantiles = []float64{0.5, 0.95, 0.99}
+
+	errInvalidQuantiles = fmt.Errorf("quantiles must be nonempty and between %f and %f", minQuantile, maxQuantile)
 )
 
 type options struct {
@@ -75,6 +83,7 @@ type options struct {
 	timerCountSuffix       []byte
 	timerStdevSuffix       []byte
 	timerMedianSuffix      []byte
+	timerQuantiles         []float64
 	timerQuantileSuffixFn  QuantileSuffixFn
 	gaugePrefix            []byte
 	timeLock               *sync.RWMutex
@@ -102,7 +111,6 @@ type options struct {
 	fullCounterPrefix     []byte
 	fullTimerPrefix       []byte
 	fullGaugePrefix       []byte
-	timerQuantiles        []float64
 	timerQuantileSuffixes [][]byte
 }
 
@@ -120,6 +128,7 @@ func NewOptions() Options {
 		timerCountSuffix:       defaultTimerCountSuffix,
 		timerStdevSuffix:       defaultTimerStdevSuffix,
 		timerMedianSuffix:      defaultTimerMedianSuffix,
+		timerQuantiles:         defaultTimerQuantiles,
 		timerQuantileSuffixFn:  defaultTimerQuantileSuffixFn,
 		gaugePrefix:            defaultGaugePrefix,
 		timeLock:               &sync.RWMutex{},
@@ -144,6 +153,18 @@ func NewOptions() Options {
 	o.computeAllDerived()
 
 	return o
+}
+
+func (o *options) Validate() error {
+	if len(o.timerQuantiles) == 0 {
+		return errInvalidQuantiles
+	}
+	for _, quantile := range o.timerQuantiles {
+		if quantile <= minQuantile || quantile >= maxQuantile {
+			return errInvalidQuantiles
+		}
+	}
+	return nil
 }
 
 func (o *options) SetMetricPrefix(value []byte) Options {
@@ -177,6 +198,17 @@ func (o *options) SetTimerPrefix(value []byte) Options {
 
 func (o *options) TimerPrefix() []byte {
 	return o.timerPrefix
+}
+
+func (o *options) SetTimerQuantiles(quantiles []float64) Options {
+	opts := *o
+	opts.timerQuantiles = quantiles
+	opts.computeTimerQuantilesSuffixes()
+	return &opts
+}
+
+func (o *options) TimerQuantiles() []float64 {
+	return o.timerQuantiles
 }
 
 func (o *options) SetTimerSumSuffix(value []byte) Options {
@@ -262,7 +294,7 @@ func (o *options) TimerMedianSuffix() []byte {
 func (o *options) SetTimerQuantileSuffixFn(value QuantileSuffixFn) Options {
 	opts := *o
 	opts.timerQuantileSuffixFn = value
-	opts.computeTimerQuantilesAndSuffixes()
+	opts.computeTimerQuantilesSuffixes()
 	return &opts
 }
 
@@ -314,7 +346,6 @@ func (o *options) InstrumentOptions() instrument.Options {
 func (o *options) SetStreamOptions(value cm.Options) Options {
 	opts := *o
 	opts.streamOpts = value
-	opts.computeTimerQuantilesAndSuffixes()
 	return &opts
 }
 
@@ -494,10 +525,6 @@ func (o *options) FullGaugePrefix() []byte {
 	return o.fullGaugePrefix
 }
 
-func (o *options) TimerQuantiles() []float64 {
-	return o.timerQuantiles
-}
-
 func (o *options) TimerQuantileSuffixes() [][]byte {
 	return o.timerQuantileSuffixes
 }
@@ -532,7 +559,7 @@ func (o *options) initPools() {
 
 func (o *options) computeAllDerived() {
 	o.computeFullPrefixes()
-	o.computeTimerQuantilesAndSuffixes()
+	o.computeTimerQuantilesSuffixes()
 }
 
 func (o *options) computeFullPrefixes() {
@@ -541,8 +568,7 @@ func (o *options) computeFullPrefixes() {
 	o.computeFullGaugePrefix()
 }
 
-func (o *options) computeTimerQuantilesAndSuffixes() {
-	o.timerQuantiles = o.streamOpts.Quantiles()
+func (o *options) computeTimerQuantilesSuffixes() {
 	suffixes := make([][]byte, len(o.timerQuantiles))
 	for i, q := range o.timerQuantiles {
 		suffixes[i] = o.timerQuantileSuffixFn(q)

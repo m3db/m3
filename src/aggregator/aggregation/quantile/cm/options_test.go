@@ -42,17 +42,6 @@ func TestOptionsValidateInvalidEps(t *testing.T) {
 	require.Equal(t, errInvalidEps, opts.Validate())
 }
 
-func TestOptionsValidateInvalidQuantiles(t *testing.T) {
-	opts := testOpts.SetQuantiles(nil)
-	require.Equal(t, errInvalidQuantiles, opts.Validate())
-
-	opts = testOpts.SetQuantiles([]float64{minQuantile - 1})
-	require.Equal(t, errInvalidQuantiles, opts.Validate())
-
-	opts = testOpts.SetQuantiles([]float64{maxQuantile + 1})
-	require.Equal(t, errInvalidQuantiles, opts.Validate())
-}
-
 func TestOptionsValidateNoSamplePool(t *testing.T) {
 	opts := testOpts.SetSamplePool(nil)
 	require.Equal(t, errNoSamplePool, opts.Validate())

@@ -35,9 +35,11 @@ type Timer struct {
 }
 
 // NewTimer creates a new timer
-func NewTimer(opts cm.Options) Timer {
+func NewTimer(quantiles []float64, opts cm.Options) Timer {
+	stream := opts.StreamPool().Get()
+	stream.ResetSetData(quantiles)
 	return Timer{
-		stream: opts.StreamPool().Get(),
+		stream: stream,
 	}
 }
 
