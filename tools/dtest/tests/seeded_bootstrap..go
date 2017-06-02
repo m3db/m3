@@ -83,9 +83,10 @@ func seededBootstrapDTest(cmd *cobra.Command, args []string) {
 	transferDataExecutor := node.NewConcurrentExecutor(setupNodes, concurrency, timeout, func(n node.ServiceNode) error {
 		for _, file := range localFiles {
 			base := path.Base(file.Name())
+			srcPath := path.Join(fakeShardDir, base)
 			paths := generatePaths(placement, n, outputNamespace, base)
 			logger.Debugf("transferring %s to host %s, at paths: %v", base, n.ID(), paths)
-			if err := n.TransferLocalFile(file.Name(), paths, true); err != nil {
+			if err := n.TransferLocalFile(srcPath, paths, true); err != nil {
 				return err
 			}
 		}
