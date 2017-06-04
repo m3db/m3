@@ -28,10 +28,11 @@ import (
 )
 
 const (
-	minEps          = 0.0
-	maxEps          = 0.5
-	defaultEps      = 1e-3
-	defaultCapacity = 16
+	minEps            = 0.0
+	maxEps            = 0.5
+	defaultEps        = 1e-3
+	defaultCapacity   = 16
+	defaultFlushEvery = 0
 )
 
 var (
@@ -40,7 +41,6 @@ var (
 	}
 
 	errInvalidEps   = fmt.Errorf("epsilon value must be between %f and %f", minEps, maxEps)
-	errNoSamplePool = errors.New("no sample pool set")
 	errNoFloatsPool = errors.New("no floats pool set")
 	errNoStreamPool = errors.New("no stream pool set")
 )
@@ -48,6 +48,7 @@ var (
 type options struct {
 	eps        float64
 	capacity   int
+	flushEvery int
 	streamPool StreamPool
 	samplePool SamplePool
 	floatsPool pool.FloatsPool
@@ -56,8 +57,9 @@ type options struct {
 // NewOptions creates a new options
 func NewOptions() Options {
 	o := &options{
-		eps:      defaultEps,
-		capacity: defaultCapacity,
+		eps:        defaultEps,
+		capacity:   defaultCapacity,
+		flushEvery: defaultFlushEvery,
 	}
 
 	o.initPools()
@@ -82,6 +84,16 @@ func (o *options) SetCapacity(value int) Options {
 
 func (o *options) Capacity() int {
 	return o.capacity
+}
+
+func (o *options) SetFlushEvery(value int) Options {
+	opts := *o
+	opts.flushEvery = value
+	return &opts
+}
+
+func (o *options) FlushEvery() int {
+	return o.flushEvery
 }
 
 func (o *options) SetStreamPool(value StreamPool) Options {
@@ -121,9 +133,6 @@ func (o *options) Validate() error {
 	if o.streamPool == nil {
 		return errNoStreamPool
 	}
-	if o.samplePool == nil {
-		return errNoSamplePool
-	}
 	if o.floatsPool == nil {
 		return errNoFloatsPool
 	}
@@ -131,9 +140,6 @@ func (o *options) Validate() error {
 }
 
 func (o *options) initPools() {
-	o.samplePool = NewSamplePool(nil)
-	o.samplePool.Init()
-
 	o.floatsPool = pool.NewFloatsPool(defaultBuckets, nil)
 	o.floatsPool.Init()
 

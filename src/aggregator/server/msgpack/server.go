@@ -36,6 +36,10 @@ import (
 	"github.com/uber-go/tally"
 )
 
+const (
+	unknownRemoteHostAddress = "<unknown>"
+)
+
 type serverMetrics struct {
 	openConnections tally.Gauge
 	addMetricErrors tally.Counter
@@ -205,7 +209,14 @@ func (s *server) handleConnection(conn net.Conn) {
 	// If there is an error during decoding, it's likely due to a broken connection
 	// and therefore we ignore the EOF error
 	if err := it.Err(); err != nil && err != io.EOF {
-		s.log.Errorf("decode error: %v", err)
+		remoteAddress := unknownRemoteHostAddress
+		if remoteAddr := conn.RemoteAddr(); remoteAddr != nil {
+			remoteAddress = remoteAddr.String()
+		}
+		s.log.WithFields(
+			xlog.NewLogField("remoteAddress", remoteAddress),
+			xlog.NewLogErrField(err),
+		).Error("decode error")
 		s.metrics.decodeErrors.Inc(1)
 	}
 }

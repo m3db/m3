@@ -99,6 +99,8 @@ func newMetricList(resolution time.Duration, opts Options) *metricList {
 		map[string]string{"resolution": resolution.String()},
 	)
 	encoderPool := opts.BufferedEncoderPool()
+	encoder := encoderPool.Get()
+	encoder.Reset()
 	l := &metricList{
 		opts:          opts,
 		nowFn:         opts.ClockOptions().NowFn(),
@@ -110,7 +112,7 @@ func newMetricList(resolution time.Duration, opts Options) *metricList {
 		resolution:    resolution,
 		flushInterval: flushInterval,
 		aggregations:  list.New(),
-		encoder:       msgpack.NewAggregatedEncoder(encoderPool.Get()),
+		encoder:       msgpack.NewAggregatedEncoder(encoder),
 		metrics:       newMetricListMetrics(scope),
 	}
 	l.encodeFn = l.encoder.EncodeChunkedMetricWithPolicy

@@ -38,16 +38,14 @@ type Timer struct {
 func NewTimer(quantiles []float64, opts cm.Options) Timer {
 	stream := opts.StreamPool().Get()
 	stream.ResetSetData(quantiles)
-	return Timer{
-		stream: stream,
-	}
+	return Timer{stream: stream}
 }
 
 // Add adds a timer value
 func (t *Timer) Add(value float64) {
 	t.count++
 	t.sum += value
-	t.sumSq += math.Pow(value, 2)
+	t.sumSq += value * value
 	t.stream.Add(value)
 }
 
@@ -95,7 +93,7 @@ func (t *Timer) Mean() float64 {
 
 // Stdev returns the standard deviation timer value
 func (t *Timer) Stdev() float64 {
-	num := float64(t.count)*t.sumSq - math.Pow(t.sum, 2)
+	num := float64(t.count)*t.sumSq - t.sum*t.sum
 	div := t.count * (t.count - 1)
 	if div == 0 {
 		return 0.0

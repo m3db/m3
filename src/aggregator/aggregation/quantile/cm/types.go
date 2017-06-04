@@ -96,6 +96,16 @@ type Options interface {
 	// Capacity returns the initial heap capacity
 	Capacity() int
 
+	// SetFlushEvery sets how frequently the underlying stream is flushed
+	// to reduce processing time when computing aggregated statistics from
+	// the stream.
+	SetFlushEvery(value int) Options
+
+	// FlushEvery returns how frequently the underlying stream is flushed
+	// to reduce processing time when computing aggregated statistics from
+	// the stream.
+	FlushEvery() int
+
 	// SetStreamPool sets the stream pool
 	SetStreamPool(value StreamPool) Options
 

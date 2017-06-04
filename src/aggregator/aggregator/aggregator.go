@@ -100,6 +100,7 @@ func newAggregatorShardMetrics(scope tally.Scope) aggregatorShardMetrics {
 type aggregatorMetrics struct {
 	counters                  tally.Counter
 	timers                    tally.Counter
+	timerBatches              tally.Counter
 	gauges                    tally.Counter
 	invalidMetricTypes        tally.Counter
 	addMetricWithPoliciesList instrument.MethodMetrics
@@ -113,6 +114,7 @@ func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMet
 	return aggregatorMetrics{
 		counters:                  scope.Counter("counters"),
 		timers:                    scope.Counter("timers"),
+		timerBatches:              scope.Counter("timer-batches"),
 		gauges:                    scope.Counter("gauges"),
 		invalidMetricTypes:        scope.Counter("invalid-metric-types"),
 		addMetricWithPoliciesList: instrument.NewMethodMetrics(scope, "addMetricWithPoliciesList", samplingRate),
@@ -211,7 +213,7 @@ func (agg *aggregator) AddMetricWithPoliciesList(
 	pl policy.PoliciesList,
 ) error {
 	callStart := agg.nowFn()
-	if err := agg.checkMetricType(mu.Type); err != nil {
+	if err := agg.checkMetricType(mu); err != nil {
 		agg.metrics.addMetricWithPoliciesList.ReportError(agg.nowFn().Sub(callStart))
 		return err
 	}
@@ -374,13 +376,14 @@ func (agg *aggregator) shouldUpdateShardsWithLock(newPlacement services.Placemen
 	return agg.placementCutoverNanos < newPlacement.CutoverNanos()
 }
 
-func (agg *aggregator) checkMetricType(metricType unaggregated.Type) error {
-	switch metricType {
+func (agg *aggregator) checkMetricType(mu unaggregated.MetricUnion) error {
+	switch mu.Type {
 	case unaggregated.CounterType:
 		agg.metrics.counters.Inc(1)
 		return nil
 	case unaggregated.BatchTimerType:
-		agg.metrics.timers.Inc(1)
+		agg.metrics.timerBatches.Inc(1)
+		agg.metrics.timers.Inc(int64(len(mu.BatchTimerVal)))
 		return nil
 	case unaggregated.GaugeType:
 		agg.metrics.gauges.Inc(1)
