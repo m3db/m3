@@ -31,7 +31,12 @@ import (
 )
 
 const (
-	defaultFlushSize         = 1440
+	defaultFlushSize = 1440
+
+	// defaultMaxTimerBatchSize is the default maximum timer batch size.
+	// By default there is no limit on the timer batch size.
+	defaultMaxTimerBatchSize = 0
+
 	defaultInstanceQueueSize = 4096
 )
 
@@ -76,6 +81,12 @@ type ServerOptions interface {
 	// FlushSize returns the buffer size to trigger a flush.
 	FlushSize() int
 
+	// SetMaxTimerBatchSize sets the maximum timer batch size.
+	SetMaxTimerBatchSize(value int) ServerOptions
+
+	// MaxTimerBatchSize returns the maximum timer batch size.
+	MaxTimerBatchSize() int
+
 	// SetInstanceQueueSize sets the instance queue size.
 	SetInstanceQueueSize(value int) ServerOptions
 
@@ -96,6 +107,7 @@ type serverOptions struct {
 	watcherOpts       services.StagedPlacementWatcherOptions
 	connOpts          ConnectionOptions
 	flushSize         int
+	maxTimerBatchSize int
 	instanceQueueSize int
 	encoderPool       msgpack.BufferedEncoderPool
 }
@@ -113,6 +125,7 @@ func NewServerOptions() ServerOptions {
 		watcherOpts:       placement.NewStagedPlacementWatcherOptions(),
 		connOpts:          NewConnectionOptions(),
 		flushSize:         defaultFlushSize,
+		maxTimerBatchSize: defaultMaxTimerBatchSize,
 		instanceQueueSize: defaultInstanceQueueSize,
 		encoderPool:       encoderPool,
 	}
@@ -176,6 +189,16 @@ func (o *serverOptions) SetFlushSize(value int) ServerOptions {
 
 func (o *serverOptions) FlushSize() int {
 	return o.flushSize
+}
+
+func (o *serverOptions) SetMaxTimerBatchSize(value int) ServerOptions {
+	opts := *o
+	opts.maxTimerBatchSize = value
+	return &opts
+}
+
+func (o *serverOptions) MaxTimerBatchSize() int {
+	return o.maxTimerBatchSize
 }
 
 func (o *serverOptions) SetInstanceQueueSize(value int) ServerOptions {

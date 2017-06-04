@@ -481,7 +481,8 @@ func testServerOptions() ServerOptions {
 		SetConnectionOptions(testConnectionOptions()).
 		SetInstrumentOptions(instrument.NewOptions()).
 		SetShardFn(func(id []byte, numShards int) uint32 { return 1 }).
-		SetInstanceQueueSize(10)
+		SetInstanceQueueSize(10).
+		SetMaxTimerBatchSize(140)
 }
 
 type watchFn func() error
