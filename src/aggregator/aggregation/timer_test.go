@@ -25,15 +25,38 @@ import (
 	"testing"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
+	"github.com/m3db/m3x/pool"
+
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	quantiles = []float64{0.5, 0.95, 0.99}
+	testQuantiles = []float64{0.5, 0.95, 0.99}
 )
 
-func TestTimer(t *testing.T) {
-	timer := Timer{stream: cm.NewStream(quantiles, cm.NewOptions())}
+func TestCreateTimerResetStream(t *testing.T) {
+	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
+	streamPool := cm.NewStreamPool(poolOpts)
+	streamOpts := cm.NewOptions().SetStreamPool(streamPool)
+	streamPool.Init(func() cm.Stream { return cm.NewStream(nil, streamOpts) })
+
+	// Add a value to the timer and close the timer, which returns the
+	// underlying stream to the pool.
+	timer := NewTimer(testQuantiles, streamOpts)
+	timer.Add(1.0)
+	require.Equal(t, 1.0, timer.Min())
+	timer.Close()
+
+	// Create a new timer and assert the underlying stream has been closed.
+	timer = NewTimer(testQuantiles, streamOpts)
+	timer.Add(1.0)
+	require.Equal(t, 1.0, timer.Min())
+	timer.Close()
+	require.Equal(t, 0.0, timer.stream.Min())
+}
+
+func TestTimerAggregations(t *testing.T) {
+	timer := Timer{stream: cm.NewStream(testQuantiles, cm.NewOptions())}
 
 	// Assert the state of an empty timer
 	require.Equal(t, int64(0), timer.Count())

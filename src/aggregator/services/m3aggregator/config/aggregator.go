@@ -46,6 +46,10 @@ import (
 	"github.com/spaolacci/murmur3"
 )
 
+const (
+	initialBufferSizeGrowthFactor = 2
+)
+
 var (
 	errUnknownQuantileSuffixFnType   = errors.New("unknown quantile suffix function type")
 	errUnknownFlushHandlerType       = errors.New("unknown flush handler type")
@@ -285,11 +289,16 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	entryPool.Init(func() *aggregator.Entry { return aggregator.NewEntry(nil, opts) })
 
 	// Set buffered encoder pool.
+	// NB(xichen): we preallocate a bit over the maximum flush size as a safety measure
+	// because we might write past the max flush size and rewind it during flushing.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("buffered-encoder-pool"))
 	bufferedEncoderPoolOpts := c.BufferedEncoderPool.NewObjectPoolOptions(iOpts)
 	bufferedEncoderPool := msgpack.NewBufferedEncoderPool(bufferedEncoderPoolOpts)
 	opts = opts.SetBufferedEncoderPool(bufferedEncoderPool)
-	bufferedEncoderPool.Init(func() msgpack.BufferedEncoder { return msgpack.NewPooledBufferedEncoder(bufferedEncoderPool) })
+	initialBufferSize := c.MaxFlushSize * initialBufferSizeGrowthFactor
+	bufferedEncoderPool.Init(func() msgpack.BufferedEncoder {
+		return msgpack.NewPooledBufferedEncoderSize(bufferedEncoderPool, initialBufferSize)
+	})
 
 	if err := opts.Validate(); err != nil {
 		return nil, err
@@ -320,11 +329,14 @@ type streamConfiguration struct {
 	// Initial heap capacity for quantile computation.
 	Capacity int `yaml:"capacity"`
 
+	// Flush frequency.
+	FlushEvery int `yaml:"flushEvery"`
+
 	// Pool of streams.
 	StreamPool pool.ObjectPoolConfiguration `yaml:"streamPool"`
 
 	// Pool of metric samples.
-	SamplePool pool.ObjectPoolConfiguration `yaml:"samplePool"`
+	SamplePool *pool.ObjectPoolConfiguration `yaml:"samplePool"`
 
 	// Pool of float slices.
 	FloatsPool pool.BucketizedPoolConfiguration `yaml:"floatsPool"`
@@ -336,13 +348,19 @@ func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options
 		SetEps(c.Eps).
 		SetCapacity(c.Capacity)
 
-	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("sample-pool"))
-	samplePoolOpts := c.SamplePool.NewObjectPoolOptions(iOpts)
-	samplePool := cm.NewSamplePool(samplePoolOpts)
-	opts = opts.SetSamplePool(samplePool)
-	samplePool.Init()
+	if c.FlushEvery != 0 {
+		opts = opts.SetFlushEvery(c.FlushEvery)
+	}
 
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("floats-pool"))
+	if c.SamplePool != nil {
+		iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("sample-pool"))
+		samplePoolOpts := c.SamplePool.NewObjectPoolOptions(iOpts)
+		samplePool := cm.NewSamplePool(samplePoolOpts)
+		opts = opts.SetSamplePool(samplePool)
+		samplePool.Init()
+	}
+
+	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("floats-pool"))
 	floatsPoolOpts := c.FloatsPool.NewObjectPoolOptions(iOpts)
 	floatsPool := pool.NewFloatsPool(c.FloatsPool.NewBuckets(), floatsPoolOpts)
 	opts = opts.SetFloatsPool(floatsPool)
