@@ -42,6 +42,9 @@ services-linux-amd64:
 
 $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 
+all: lint test-ci-unit services
+	@echo Made all successfully
+
 lint:
 	@which golint > /dev/null || go get -u github.com/golang/lint/golint
 	$(lint_check)
