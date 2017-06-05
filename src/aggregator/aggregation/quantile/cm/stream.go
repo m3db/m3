@@ -42,24 +42,26 @@ type releaseSampleFn func(*Sample)
 
 // stream represents a data stream
 type stream struct {
-	eps             float64         // desired epsilon for errors
-	quantiles       []float64       // sorted target quantiles
-	capacity        int             // stream capacity
-	flushEvery      int             // stream flushing frequency
-	streamPool      StreamPool      // pool of streams
-	floatsPool      pool.FloatsPool // pool of float64 slices
-	acquireSampleFn acquireSampleFn // function to acquire samples
-	releaseSampleFn releaseSampleFn // function to release samples
+	eps                    float64         // desired epsilon for errors
+	quantiles              []float64       // sorted target quantiles
+	capacity               int             // stream capacity
+	insertAndCompressEvery int             // stream insertion and compression frequency
+	flushEvery             int             // stream flushing frequency
+	streamPool             StreamPool      // pool of streams
+	floatsPool             pool.FloatsPool // pool of float64 slices
+	acquireSampleFn        acquireSampleFn // function to acquire samples
+	releaseSampleFn        releaseSampleFn // function to release samples
 
-	closed          bool       // whether the stream is closed
-	numAdded        int        // number of values added
-	numValues       int64      // number of values inserted into the sorted stream
-	bufLess         minHeap    // sample buffer whose value is less than that at the insertion cursor
-	bufMore         minHeap    // sample buffer whose value is more than that at the insertion cursor
-	samples         sampleList // sample list
-	insertCursor    *Sample    // insertion cursor
-	compressCursor  *Sample    // compression cursor
-	compressMinRank int64      // compression min rank
+	closed                   bool       // whether the stream is closed
+	insertAndCompressCounter int        // insertion and compression counter
+	flushCounter             int        // flush frequency counter
+	numValues                int64      // number of values inserted into the sorted stream
+	bufLess                  minHeap    // sample buffer whose value is less than that at the insertion cursor
+	bufMore                  minHeap    // sample buffer whose value is more than that at the insertion cursor
+	samples                  sampleList // sample list
+	insertCursor             *Sample    // insertion cursor
+	compressCursor           *Sample    // compression cursor
+	compressMinRank          int64      // compression min rank
 }
 
 // NewStream creates a new sample stream
@@ -102,14 +104,20 @@ func NewStream(quantiles []float64, opts Options) Stream {
 
 func (s *stream) Add(value float64) {
 	s.addToBuffer(value)
-	s.insert()
-	s.compress()
-	s.numAdded++
 
-	// Flush the stream if we have accumulated enough data points.
-	if s.numAdded == s.flushEvery {
+	s.insertAndCompressCounter++
+	if s.insertAndCompressCounter == s.insertAndCompressEvery {
+		for i := 0; i < s.insertAndCompressEvery; i++ {
+			s.insert()
+			s.compress()
+		}
+		s.insertAndCompressCounter = 0
+	}
+
+	s.flushCounter++
+	if s.flushCounter == s.flushEvery {
 		s.Flush()
-		s.numAdded = 0
+		s.flushCounter = 0
 	}
 }
 
@@ -169,7 +177,8 @@ func (s *stream) Quantile(q float64) float64 {
 func (s *stream) ResetSetData(quantiles []float64) {
 	s.quantiles = quantiles
 	s.closed = false
-	s.numAdded = 0
+	s.insertAndCompressCounter = 0
+	s.flushCounter = 0
 	s.numValues = 0
 	s.bufLess = minHeap(s.floatsPool.Get(s.capacity))
 	s.bufMore = minHeap(s.floatsPool.Get(s.capacity))

@@ -81,8 +81,23 @@ type metricElem interface {
 	Close()
 }
 
+type timedCounter struct {
+	timeNanos int64
+	counter   *aggregation.LockedCounter
+}
+
+type timedTimer struct {
+	timeNanos int64
+	timer     *aggregation.LockedTimer
+}
+
+type timedGauge struct {
+	timeNanos int64
+	gauge     *aggregation.LockedGauge
+}
+
 type elemBase struct {
-	sync.Mutex
+	sync.RWMutex
 
 	opts       Options
 	id         id.RawID
@@ -91,40 +106,28 @@ type elemBase struct {
 	closed     bool
 }
 
-type timedCounter struct {
-	timeNanos int64
-	counter   aggregation.Counter
-}
-
-type timedTimer struct {
-	timeNanos int64
-	timer     aggregation.Timer
-}
-
-type timedGauge struct {
-	timeNanos int64
-	gauge     aggregation.Gauge
-}
-
 // CounterElem is the counter element
 type CounterElem struct {
 	elemBase
 
-	values []timedCounter // aggregated counters sorted by time in ascending order
+	values    []timedCounter // aggregated counters sorted by time in ascending order
+	toConsume []timedCounter
 }
 
 // TimerElem is the timer element
 type TimerElem struct {
 	elemBase
 
-	values []timedTimer // aggregated timers sorted by time in ascending order
+	values    []timedTimer // aggregated timers sorted by time in ascending order
+	toConsume []timedTimer
 }
 
 // GaugeElem is the gauge element
 type GaugeElem struct {
 	elemBase
 
-	values []timedGauge // aggregated gauges sorted by time in ascending order
+	values    []timedGauge // aggregated gauges sorted by time in ascending order
+	toConsume []timedGauge
 }
 
 // ResetSetData resets the counter and sets data.
@@ -137,9 +140,9 @@ func (e *elemBase) ResetSetData(id id.RawID, policy policy.Policy) {
 
 // ID returns the metric id.
 func (e *elemBase) ID() id.RawID {
-	e.Lock()
+	e.RLock()
 	id := e.id
-	e.Unlock()
+	e.RUnlock()
 	return id
 }
 
@@ -166,20 +169,19 @@ func NewCounterElem(id id.RawID, policy policy.Policy, opts Options) *CounterEle
 // AddMetric adds a new counter value
 func (e *CounterElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) error {
 	alignedStart := timestamp.Truncate(e.policy.Resolution().Window).UnixNano()
-	e.Lock()
-	if e.closed {
-		e.Unlock()
-		return errCounterElemClosed
+	counter, err := e.findOrCreate(alignedStart)
+	if err != nil {
+		return err
 	}
-	idx := e.findOrInsertWithLock(alignedStart)
-	e.values[idx].counter.Add(mu.CounterVal)
-	e.Unlock()
+	counter.Lock()
+	counter.Add(mu.CounterVal)
+	counter.Unlock()
 	return nil
 }
 
 // Consume processes values before a given time and discards
 // them afterwards, returning whether the element can be collected
-// after discarding the values
+// after discarding the values.
 func (e *CounterElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 	e.Lock()
 	if e.closed {
@@ -192,17 +194,27 @@ func (e *CounterElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 		if e.values[idx].timeNanos >= earlierThanNanos {
 			break
 		}
-		endAtNanos := e.values[idx].timeNanos + int64(e.policy.Resolution().Window)
-		e.processValue(endAtNanos, e.values[idx].counter, fn)
 		idx++
 	}
+	e.toConsume = e.toConsume[:0]
 	if idx > 0 {
 		// Shift remaining values to the left and shrink the values slice
+		e.toConsume = append(e.toConsume, e.values[:idx]...)
 		n := copy(e.values[0:], e.values[idx:])
 		e.values = e.values[:n]
 	}
 	canCollect := len(e.values) == 0 && e.tombstoned
 	e.Unlock()
+
+	// Process the counters.
+	for i := range e.toConsume {
+		endAtNanos := e.toConsume[i].timeNanos + int64(e.policy.Resolution().Window)
+		e.toConsume[i].counter.Lock()
+		e.processValue(endAtNanos, e.toConsume[i].counter.Counter, fn)
+		e.toConsume[i].counter.Unlock()
+		e.toConsume[i] = emptyTimedCounter
+	}
+
 	return canCollect
 }
 
@@ -216,21 +228,62 @@ func (e *CounterElem) Close() {
 	e.closed = true
 	e.id = nil
 	e.values = e.values[:0]
+	e.toConsume = e.toConsume[:0]
 	pool := e.opts.CounterElemPool()
 	e.Unlock()
 
 	pool.Put(e)
 }
 
-// findOrInsertWithLock finds the element index whose timestamp matches
-// the start time passed in, or inserts one if it doesn't exist while
-// maintaining the time ascending order of the values. The returned index
-// is always valid.
-func (e *CounterElem) findOrInsertWithLock(alignedStart int64) int {
+// findOrCreate finds the counter for a given time, or creates one
+// if it doesn't exist.
+func (e *CounterElem) findOrCreate(alignedStart int64) (*aggregation.LockedCounter, error) {
+	e.RLock()
+	if e.closed {
+		e.RUnlock()
+		return nil, errCounterElemClosed
+	}
+	idx, found := e.indexOfWithLock(alignedStart)
+	if found {
+		counter := e.values[idx].counter
+		e.RUnlock()
+		return counter, nil
+	}
+	e.RUnlock()
+
+	e.Lock()
+	if e.closed {
+		e.Unlock()
+		return nil, errCounterElemClosed
+	}
+	idx, found = e.indexOfWithLock(alignedStart)
+	if found {
+		counter := e.values[idx].counter
+		e.Unlock()
+		return counter, nil
+	}
+
+	// If not found, create a new counter.
+	numValues := len(e.values)
+	e.values = append(e.values, emptyTimedCounter)
+	copy(e.values[idx+1:numValues+1], e.values[idx:numValues])
+	e.values[idx] = timedCounter{
+		timeNanos: alignedStart,
+		counter:   aggregation.NewLockedCounter(),
+	}
+	counter := e.values[idx].counter
+	e.Unlock()
+	return counter, nil
+}
+
+// indexOfWithLock finds the smallest element index whose timestamp
+// is no smaller than the start time passed in, and true if it's an
+// exact match, false otherwise.
+func (e *CounterElem) indexOfWithLock(alignedStart int64) (int, bool) {
 	numValues := len(e.values)
 	// Optimize for the common case
 	if numValues > 0 && e.values[numValues-1].timeNanos == alignedStart {
-		return numValues - 1
+		return numValues - 1, true
 	}
 	// Binary search for the unusual case. We intentionally do not
 	// use the sort.Search() function because it requires passing
@@ -247,17 +300,9 @@ func (e *CounterElem) findOrInsertWithLock(alignedStart int64) int {
 	// If the current timestamp is equal to or larger than the target time,
 	// return the index as is
 	if left < numValues && e.values[left].timeNanos == alignedStart {
-		return left
+		return left, true
 	}
-	// Otherwise we need to insert a new item
-	e.values = append(e.values, emptyTimedCounter)
-	// NB(xichen): it is ok if the source and the destination overlap
-	copy(e.values[left+1:numValues+1], e.values[left:numValues])
-	e.values[left] = timedCounter{
-		timeNanos: alignedStart,
-		counter:   aggregation.NewCounter(),
-	}
-	return left
+	return left, false
 }
 
 func (e *CounterElem) processValue(timeNanos int64, agg aggregation.Counter, fn aggMetricFn) {
@@ -275,14 +320,13 @@ func NewTimerElem(id id.RawID, policy policy.Policy, opts Options) *TimerElem {
 // AddMetric adds a new batch of timer values
 func (e *TimerElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) error {
 	alignedStart := timestamp.Truncate(e.policy.Resolution().Window).UnixNano()
-	e.Lock()
-	if e.closed {
-		e.Unlock()
-		return errTimerElemClosed
+	timer, err := e.findOrCreate(alignedStart)
+	if err != nil {
+		return err
 	}
-	idx := e.findOrInsertWithLock(alignedStart)
-	e.values[idx].timer.AddBatch(mu.BatchTimerVal)
-	e.Unlock()
+	timer.Lock()
+	timer.AddBatch(mu.BatchTimerVal)
+	timer.Unlock()
 	return nil
 }
 
@@ -301,14 +345,12 @@ func (e *TimerElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 		if e.values[idx].timeNanos >= earlierThanNanos {
 			break
 		}
-		endAtNanos := e.values[idx].timeNanos + int64(e.policy.Resolution().Window)
-		e.processValue(endAtNanos, e.values[idx].timer, fn)
-		// Close the timer after it's processed
-		e.values[idx].timer.Close()
 		idx++
 	}
+	e.toConsume = e.toConsume[:0]
 	if idx > 0 {
 		// Shift remaining values to the left and shrink the values slice
+		e.toConsume = append(e.toConsume, e.values[:idx]...)
 		n := copy(e.values[0:], e.values[idx:])
 		// Clear out the invalid timer items to avoid holding onto the underlying streams
 		for i := n; i < len(e.values); i++ {
@@ -318,6 +360,18 @@ func (e *TimerElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 	}
 	canCollect := len(e.values) == 0 && e.tombstoned
 	e.Unlock()
+
+	// Process the timers.
+	for i := range e.toConsume {
+		endAtNanos := e.toConsume[i].timeNanos + int64(e.policy.Resolution().Window)
+		e.toConsume[i].timer.Lock()
+		e.processValue(endAtNanos, e.toConsume[i].timer.Timer, fn)
+		e.toConsume[i].timer.Unlock()
+		// Close the timer after it's processed.
+		e.toConsume[i].timer.Close()
+		e.toConsume[i] = emptyTimedTimer
+	}
+
 	return canCollect
 }
 
@@ -336,21 +390,63 @@ func (e *TimerElem) Close() {
 		e.values[idx] = emptyTimedTimer
 	}
 	e.values = e.values[:0]
+	e.toConsume = e.toConsume[:0]
 	pool := e.opts.TimerElemPool()
 	e.Unlock()
 
 	pool.Put(e)
 }
 
-// findOrInsertWithLock finds the element index whose timestamp matches
-// the start time passed in, or inserts one if it doesn't exist while
-// maintaining the time ascending order of the values. The returned index
-// is always valid.
-func (e *TimerElem) findOrInsertWithLock(alignedStart int64) int {
+// findOrCreate finds the timer for a given time, or creates one
+// if it doesn't exist.
+func (e *TimerElem) findOrCreate(alignedStart int64) (*aggregation.LockedTimer, error) {
+	e.RLock()
+	if e.closed {
+		e.RUnlock()
+		return nil, errTimerElemClosed
+	}
+	idx, found := e.indexOfWithLock(alignedStart)
+	if found {
+		timer := e.values[idx].timer
+		e.RUnlock()
+		return timer, nil
+	}
+	e.RUnlock()
+
+	e.Lock()
+	if e.closed {
+		e.Unlock()
+		return nil, errTimerElemClosed
+	}
+	idx, found = e.indexOfWithLock(alignedStart)
+	if found {
+		timer := e.values[idx].timer
+		e.Unlock()
+		return timer, nil
+	}
+
+	// If not found, create a new timer.
+	numValues := len(e.values)
+	e.values = append(e.values, emptyTimedTimer)
+	copy(e.values[idx+1:numValues+1], e.values[idx:numValues])
+	newTimer := aggregation.NewTimer(e.opts.TimerQuantiles(), e.opts.StreamOptions())
+	e.values[idx] = timedTimer{
+		timeNanos: alignedStart,
+		timer:     aggregation.NewLockedTimer(newTimer),
+	}
+	timer := e.values[idx].timer
+	e.Unlock()
+	return timer, nil
+}
+
+// indexOfWithLock finds the smallest element index whose timestamp
+// is no smaller than the start time passed in, and true if it's an
+// exact match, false otherwise.
+func (e *TimerElem) indexOfWithLock(alignedStart int64) (int, bool) {
 	numValues := len(e.values)
 	// Optimize for the common case
 	if numValues > 0 && e.values[numValues-1].timeNanos == alignedStart {
-		return numValues - 1
+		return numValues - 1, true
 	}
 	// Binary search for the unusual case. We intentionally do not
 	// use the sort.Search() function because it requires passing
@@ -367,17 +463,9 @@ func (e *TimerElem) findOrInsertWithLock(alignedStart int64) int {
 	// If the current timestamp is equal to or larger than the target time,
 	// return the index as is
 	if left < numValues && e.values[left].timeNanos == alignedStart {
-		return left
+		return left, true
 	}
-	// Otherwise we need to insert a new item
-	e.values = append(e.values, emptyTimedTimer)
-	// NB(xichen): it is ok if the source and the destination overlap
-	copy(e.values[left+1:numValues+1], e.values[left:numValues])
-	e.values[left] = timedTimer{
-		timeNanos: alignedStart,
-		timer:     aggregation.NewTimer(e.opts.TimerQuantiles(), e.opts.StreamOptions()),
-	}
-	return left
+	return left, false
 }
 
 func (e *TimerElem) processValue(timeNanos int64, agg aggregation.Timer, fn aggMetricFn) {
@@ -421,14 +509,13 @@ func NewGaugeElem(id id.RawID, policy policy.Policy, opts Options) *GaugeElem {
 // AddMetric adds a new gauge value
 func (e *GaugeElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) error {
 	alignedStart := timestamp.Truncate(e.policy.Resolution().Window).UnixNano()
-	e.Lock()
-	if e.closed {
-		e.Unlock()
-		return errGaugeElemClosed
+	gauge, err := e.findOrCreate(alignedStart)
+	if err != nil {
+		return err
 	}
-	idx := e.findOrInsertWithLock(alignedStart)
-	e.values[idx].gauge.Set(mu.GaugeVal)
-	e.Unlock()
+	gauge.Lock()
+	gauge.Set(mu.GaugeVal)
+	gauge.Unlock()
 	return nil
 }
 
@@ -447,17 +534,26 @@ func (e *GaugeElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 		if e.values[idx].timeNanos >= earlierThanNanos {
 			break
 		}
-		endAtNanos := e.values[idx].timeNanos + int64(e.policy.Resolution().Window)
-		e.processValue(endAtNanos, e.values[idx].gauge, fn)
 		idx++
 	}
+	e.toConsume = e.toConsume[:0]
 	if idx > 0 {
 		// Shift remaining values to the left and shrink the values slice
+		e.toConsume = append(e.toConsume, e.values[:idx]...)
 		n := copy(e.values[0:], e.values[idx:])
 		e.values = e.values[:n]
 	}
 	canCollect := len(e.values) == 0 && e.tombstoned
 	e.Unlock()
+
+	for i := range e.toConsume {
+		endAtNanos := e.toConsume[i].timeNanos + int64(e.policy.Resolution().Window)
+		e.toConsume[i].gauge.Lock()
+		e.processValue(endAtNanos, e.toConsume[i].gauge.Gauge, fn)
+		e.toConsume[i].gauge.Unlock()
+		e.toConsume[i] = emptyTimedGauge
+	}
+
 	return canCollect
 }
 
@@ -471,21 +567,62 @@ func (e *GaugeElem) Close() {
 	e.closed = true
 	e.id = nil
 	e.values = e.values[:0]
+	e.toConsume = e.toConsume[:0]
 	pool := e.opts.GaugeElemPool()
 	e.Unlock()
 
 	pool.Put(e)
 }
 
-// findOrInsertWithLock finds the element index whose timestamp matches
-// the start time passed in, or inserts one if it doesn't exist while
-// maintaining the time ascending order of the values. The returned index
-// is always valid.
-func (e *GaugeElem) findOrInsertWithLock(alignedStart int64) int {
+// findOrCreate finds the gauge for a given time, or creates one
+// if it doesn't exist.
+func (e *GaugeElem) findOrCreate(alignedStart int64) (*aggregation.LockedGauge, error) {
+	e.RLock()
+	if e.closed {
+		e.RUnlock()
+		return nil, errGaugeElemClosed
+	}
+	idx, found := e.indexOfWithLock(alignedStart)
+	if found {
+		gauge := e.values[idx].gauge
+		e.RUnlock()
+		return gauge, nil
+	}
+	e.RUnlock()
+
+	e.Lock()
+	if e.closed {
+		e.Unlock()
+		return nil, errGaugeElemClosed
+	}
+	idx, found = e.indexOfWithLock(alignedStart)
+	if found {
+		gauge := e.values[idx].gauge
+		e.Unlock()
+		return gauge, nil
+	}
+
+	// If not found, create a new gauge.
+	numValues := len(e.values)
+	e.values = append(e.values, emptyTimedGauge)
+	copy(e.values[idx+1:numValues+1], e.values[idx:numValues])
+	e.values[idx] = timedGauge{
+		timeNanos: alignedStart,
+		gauge:     aggregation.NewLockedGauge(),
+	}
+	gauge := e.values[idx].gauge
+	e.Unlock()
+	return gauge, nil
+}
+
+// indexOfWithLock finds the smallest element index whose timestamp
+// is no smaller than the start time passed in, and true if it's an
+// exact match, false otherwise.
+func (e *GaugeElem) indexOfWithLock(alignedStart int64) (int, bool) {
 	numValues := len(e.values)
 	// Optimize for the common case
 	if numValues > 0 && e.values[numValues-1].timeNanos == alignedStart {
-		return numValues - 1
+		return numValues - 1, true
 	}
 	// Binary search for the unusual case. We intentionally do not
 	// use the sort.Search() function because it requires passing
@@ -502,17 +639,9 @@ func (e *GaugeElem) findOrInsertWithLock(alignedStart int64) int {
 	// If the current timestamp is equal to or larger than the target time,
 	// return the index as is
 	if left < numValues && e.values[left].timeNanos == alignedStart {
-		return left
+		return left, true
 	}
-	// Otherwise we need to insert a new item
-	e.values = append(e.values, emptyTimedGauge)
-	// NB(xichen): it is ok if the source and the destination overlap
-	copy(e.values[left+1:numValues+1], e.values[left:numValues])
-	e.values[left] = timedGauge{
-		timeNanos: alignedStart,
-		gauge:     aggregation.NewGauge(),
-	}
-	return left
+	return left, false
 }
 
 func (e *GaugeElem) processValue(timeNanos int64, agg aggregation.Gauge, fn aggMetricFn) {

@@ -43,25 +43,26 @@ const (
 )
 
 var (
-	defaultMetricPrefix           = []byte("stats.")
-	defaultCounterPrefix          = []byte("counts.")
-	defaultTimerPrefix            = []byte("timers.")
-	defaultTimerSumSuffix         = []byte(".sum")
-	defaultTimerSumSqSuffix       = []byte(".sum_sq")
-	defaultTimerMeanSuffix        = []byte(".mean")
-	defaultTimerLowerSuffix       = []byte(".lower")
-	defaultTimerUpperSuffix       = []byte(".upper")
-	defaultTimerCountSuffix       = []byte(".count")
-	defaultTimerStdevSuffix       = []byte(".stdev")
-	defaultTimerMedianSuffix      = []byte(".median")
-	defaultGaugePrefix            = []byte("gauges.")
-	defaultInstanceID             = "localhost"
-	defaultMinFlushInterval       = 5 * time.Second
-	defaultMaxFlushSize           = 1440
-	defaultEntryTTL               = 24 * time.Hour
-	defaultEntryCheckInterval     = time.Hour
-	defaultEntryCheckBatchPercent = 0.01
-	defaultDefaultPolicies        = []policy.Policy{
+	defaultMetricPrefix              = []byte("stats.")
+	defaultCounterPrefix             = []byte("counts.")
+	defaultTimerPrefix               = []byte("timers.")
+	defaultTimerSumSuffix            = []byte(".sum")
+	defaultTimerSumSqSuffix          = []byte(".sum_sq")
+	defaultTimerMeanSuffix           = []byte(".mean")
+	defaultTimerLowerSuffix          = []byte(".lower")
+	defaultTimerUpperSuffix          = []byte(".upper")
+	defaultTimerCountSuffix          = []byte(".count")
+	defaultTimerStdevSuffix          = []byte(".stdev")
+	defaultTimerMedianSuffix         = []byte(".median")
+	defaultGaugePrefix               = []byte("gauges.")
+	defaultInstanceID                = "localhost"
+	defaultMinFlushInterval          = 5 * time.Second
+	defaultMaxFlushSize              = 1440
+	defaultEntryTTL                  = 24 * time.Hour
+	defaultEntryCheckInterval        = time.Hour
+	defaultEntryCheckBatchPercent    = 0.01
+	defaultMaxTimerBatchSizePerWrite = 0
+	defaultDefaultPolicies           = []policy.Policy{
 		policy.NewPolicy(10*time.Second, xtime.Second, 2*24*time.Hour),
 		policy.NewPolicy(time.Minute, xtime.Minute, 40*24*time.Hour),
 	}
@@ -72,40 +73,41 @@ var (
 
 type options struct {
 	// Base options.
-	metricPrefix           []byte
-	counterPrefix          []byte
-	timerPrefix            []byte
-	timerSumSuffix         []byte
-	timerSumSqSuffix       []byte
-	timerMeanSuffix        []byte
-	timerLowerSuffix       []byte
-	timerUpperSuffix       []byte
-	timerCountSuffix       []byte
-	timerStdevSuffix       []byte
-	timerMedianSuffix      []byte
-	timerQuantiles         []float64
-	timerQuantileSuffixFn  QuantileSuffixFn
-	gaugePrefix            []byte
-	timeLock               *sync.RWMutex
-	clockOpts              clock.Options
-	instrumentOpts         instrument.Options
-	streamOpts             cm.Options
-	placementWatcherOpts   services.StagedPlacementWatcherOptions
-	instanceID             string
-	shardFn                ShardFn
-	flushManager           FlushManager
-	minFlushInterval       time.Duration
-	maxFlushSize           int
-	flushHandler           Handler
-	entryTTL               time.Duration
-	entryCheckInterval     time.Duration
-	entryCheckBatchPercent float64
-	defaultPolicies        []policy.Policy
-	entryPool              EntryPool
-	counterElemPool        CounterElemPool
-	timerElemPool          TimerElemPool
-	gaugeElemPool          GaugeElemPool
-	bufferedEncoderPool    msgpack.BufferedEncoderPool
+	metricPrefix              []byte
+	counterPrefix             []byte
+	timerPrefix               []byte
+	timerSumSuffix            []byte
+	timerSumSqSuffix          []byte
+	timerMeanSuffix           []byte
+	timerLowerSuffix          []byte
+	timerUpperSuffix          []byte
+	timerCountSuffix          []byte
+	timerStdevSuffix          []byte
+	timerMedianSuffix         []byte
+	timerQuantiles            []float64
+	timerQuantileSuffixFn     QuantileSuffixFn
+	gaugePrefix               []byte
+	timeLock                  *sync.RWMutex
+	clockOpts                 clock.Options
+	instrumentOpts            instrument.Options
+	streamOpts                cm.Options
+	placementWatcherOpts      services.StagedPlacementWatcherOptions
+	instanceID                string
+	shardFn                   ShardFn
+	flushManager              FlushManager
+	minFlushInterval          time.Duration
+	maxFlushSize              int
+	flushHandler              Handler
+	entryTTL                  time.Duration
+	entryCheckInterval        time.Duration
+	entryCheckBatchPercent    float64
+	maxTimerBatchSizePerWrite int
+	defaultPolicies           []policy.Policy
+	entryPool                 EntryPool
+	counterElemPool           CounterElemPool
+	timerElemPool             TimerElemPool
+	gaugeElemPool             GaugeElemPool
+	bufferedEncoderPool       msgpack.BufferedEncoderPool
 
 	// Derived options.
 	fullCounterPrefix     []byte
@@ -117,33 +119,34 @@ type options struct {
 // NewOptions create a new set of options.
 func NewOptions() Options {
 	o := &options{
-		metricPrefix:           defaultMetricPrefix,
-		counterPrefix:          defaultCounterPrefix,
-		timerPrefix:            defaultTimerPrefix,
-		timerSumSuffix:         defaultTimerSumSuffix,
-		timerSumSqSuffix:       defaultTimerSumSqSuffix,
-		timerMeanSuffix:        defaultTimerMeanSuffix,
-		timerLowerSuffix:       defaultTimerLowerSuffix,
-		timerUpperSuffix:       defaultTimerUpperSuffix,
-		timerCountSuffix:       defaultTimerCountSuffix,
-		timerStdevSuffix:       defaultTimerStdevSuffix,
-		timerMedianSuffix:      defaultTimerMedianSuffix,
-		timerQuantiles:         defaultTimerQuantiles,
-		timerQuantileSuffixFn:  defaultTimerQuantileSuffixFn,
-		gaugePrefix:            defaultGaugePrefix,
-		timeLock:               &sync.RWMutex{},
-		clockOpts:              clock.NewOptions(),
-		instrumentOpts:         instrument.NewOptions(),
-		streamOpts:             cm.NewOptions(),
-		placementWatcherOpts:   placement.NewStagedPlacementWatcherOptions(),
-		instanceID:             defaultInstanceID,
-		shardFn:                defaultShardFn,
-		minFlushInterval:       defaultMinFlushInterval,
-		maxFlushSize:           defaultMaxFlushSize,
-		entryTTL:               defaultEntryTTL,
-		entryCheckInterval:     defaultEntryCheckInterval,
-		entryCheckBatchPercent: defaultEntryCheckBatchPercent,
-		defaultPolicies:        defaultDefaultPolicies,
+		metricPrefix:              defaultMetricPrefix,
+		counterPrefix:             defaultCounterPrefix,
+		timerPrefix:               defaultTimerPrefix,
+		timerSumSuffix:            defaultTimerSumSuffix,
+		timerSumSqSuffix:          defaultTimerSumSqSuffix,
+		timerMeanSuffix:           defaultTimerMeanSuffix,
+		timerLowerSuffix:          defaultTimerLowerSuffix,
+		timerUpperSuffix:          defaultTimerUpperSuffix,
+		timerCountSuffix:          defaultTimerCountSuffix,
+		timerStdevSuffix:          defaultTimerStdevSuffix,
+		timerMedianSuffix:         defaultTimerMedianSuffix,
+		timerQuantiles:            defaultTimerQuantiles,
+		timerQuantileSuffixFn:     defaultTimerQuantileSuffixFn,
+		gaugePrefix:               defaultGaugePrefix,
+		timeLock:                  &sync.RWMutex{},
+		clockOpts:                 clock.NewOptions(),
+		instrumentOpts:            instrument.NewOptions(),
+		streamOpts:                cm.NewOptions(),
+		placementWatcherOpts:      placement.NewStagedPlacementWatcherOptions(),
+		instanceID:                defaultInstanceID,
+		shardFn:                   defaultShardFn,
+		minFlushInterval:          defaultMinFlushInterval,
+		maxFlushSize:              defaultMaxFlushSize,
+		entryTTL:                  defaultEntryTTL,
+		entryCheckInterval:        defaultEntryCheckInterval,
+		entryCheckBatchPercent:    defaultEntryCheckBatchPercent,
+		maxTimerBatchSizePerWrite: defaultMaxTimerBatchSizePerWrite,
+		defaultPolicies:           defaultDefaultPolicies,
 	}
 
 	// Initialize pools.
@@ -198,17 +201,6 @@ func (o *options) SetTimerPrefix(value []byte) Options {
 
 func (o *options) TimerPrefix() []byte {
 	return o.timerPrefix
-}
-
-func (o *options) SetTimerQuantiles(quantiles []float64) Options {
-	opts := *o
-	opts.timerQuantiles = quantiles
-	opts.computeTimerQuantilesSuffixes()
-	return &opts
-}
-
-func (o *options) TimerQuantiles() []float64 {
-	return o.timerQuantiles
 }
 
 func (o *options) SetTimerSumSuffix(value []byte) Options {
@@ -289,6 +281,17 @@ func (o *options) SetTimerMedianSuffix(value []byte) Options {
 
 func (o *options) TimerMedianSuffix() []byte {
 	return o.timerMedianSuffix
+}
+
+func (o *options) SetTimerQuantiles(quantiles []float64) Options {
+	opts := *o
+	opts.timerQuantiles = quantiles
+	opts.computeTimerQuantilesSuffixes()
+	return &opts
+}
+
+func (o *options) TimerQuantiles() []float64 {
+	return o.timerQuantiles
 }
 
 func (o *options) SetTimerQuantileSuffixFn(value QuantileSuffixFn) Options {
@@ -453,6 +456,26 @@ func (o *options) EntryCheckBatchPercent() float64 {
 	return o.entryCheckBatchPercent
 }
 
+func (o *options) SetMaxTimerBatchSizePerWrite(value int) Options {
+	opts := *o
+	opts.maxTimerBatchSizePerWrite = value
+	return &opts
+}
+
+func (o *options) MaxTimerBatchSizePerWrite() int {
+	return o.maxTimerBatchSizePerWrite
+}
+
+func (o *options) SetDefaultPolicies(value []policy.Policy) Options {
+	opts := *o
+	opts.defaultPolicies = value
+	return &opts
+}
+
+func (o *options) DefaultPolicies() []policy.Policy {
+	return o.defaultPolicies
+}
+
 func (o *options) SetEntryPool(value EntryPool) Options {
 	opts := *o
 	opts.entryPool = value
@@ -501,16 +524,6 @@ func (o *options) SetBufferedEncoderPool(value msgpack.BufferedEncoderPool) Opti
 
 func (o *options) BufferedEncoderPool() msgpack.BufferedEncoderPool {
 	return o.bufferedEncoderPool
-}
-
-func (o *options) SetDefaultPolicies(value []policy.Policy) Options {
-	opts := *o
-	opts.defaultPolicies = value
-	return &opts
-}
-
-func (o *options) DefaultPolicies() []policy.Policy {
-	return o.defaultPolicies
 }
 
 func (o *options) FullCounterPrefix() []byte {

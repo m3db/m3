@@ -121,7 +121,7 @@ func TestCounterElemAddMetric(t *testing.T) {
 	require.Equal(t, errCounterElemClosed, e.AddMetric(testTimestamps[2], testCounter))
 }
 
-func TestCounterElemReadAndDiscard(t *testing.T) {
+func TestCounterElemConsume(t *testing.T) {
 	e := testCounterElem()
 
 	// Read and discard values before an early-enough time
@@ -183,12 +183,13 @@ func TestCounterFindOrInsert(t *testing.T) {
 		{index: 1, data: []int64{10, 15, 20}},
 	}
 	for idx, input := range inputs {
-		res := e.findOrInsertWithLock(input)
+		res, err := e.findOrCreate(input)
+		require.NoError(t, err)
 		var times []int64
 		for _, v := range e.values {
 			times = append(times, v.timeNanos)
 		}
-		require.Equal(t, expected[idx].index, res)
+		require.Equal(t, e.values[expected[idx].index].counter, res)
 		require.Equal(t, expected[idx].data, times)
 	}
 }
@@ -237,7 +238,7 @@ func TestTimerElemAddMetric(t *testing.T) {
 	require.Equal(t, errTimerElemClosed, e.AddMetric(testTimestamps[2], testBatchTimer))
 }
 
-func TestTimerElemReadAndDiscard(t *testing.T) {
+func TestTimerElemConsume(t *testing.T) {
 	// Set up stream options
 	streamOpts, p, numAlloc := testStreamOptions(t, len(testAlignedStarts)-1)
 
@@ -318,12 +319,13 @@ func TestTimerFindOrInsert(t *testing.T) {
 		{index: 1, data: []int64{10, 15, 20}},
 	}
 	for idx, input := range inputs {
-		res := e.findOrInsertWithLock(input)
+		res, err := e.findOrCreate(input)
+		require.NoError(t, err)
 		var times []int64
 		for _, v := range e.values {
 			times = append(times, v.timeNanos)
 		}
-		require.Equal(t, expected[idx].index, res)
+		require.Equal(t, e.values[expected[idx].index].timer, res)
 		require.Equal(t, expected[idx].data, times)
 	}
 }
@@ -357,7 +359,7 @@ func TestGaugeElemAddMetric(t *testing.T) {
 	require.Equal(t, errGaugeElemClosed, e.AddMetric(testTimestamps[2], testGauge))
 }
 
-func TestGaugeElemReadAndDiscard(t *testing.T) {
+func TestGaugeElemConsume(t *testing.T) {
 	e := testGaugeElem()
 
 	// Read and discard values before an early-enough time
@@ -420,12 +422,13 @@ func TestGaugeFindOrInsert(t *testing.T) {
 		{index: 1, data: []int64{10, 15, 20}},
 	}
 	for idx, input := range inputs {
-		res := e.findOrInsertWithLock(input)
+		res, err := e.findOrCreate(input)
+		require.NoError(t, err)
 		var times []int64
 		for _, v := range e.values {
 			times = append(times, v.timeNanos)
 		}
-		require.Equal(t, expected[idx].index, res)
+		require.Equal(t, e.values[expected[idx].index].gauge, res)
 		require.Equal(t, expected[idx].data, times)
 	}
 }
@@ -491,7 +494,7 @@ func testStreamOptions(t *testing.T, size int) (cm.Options, cm.StreamPool, *int)
 func testCounterElem() *CounterElem {
 	e := NewCounterElem(testCounterID, testPolicy, testOptions())
 	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
-		counter := aggregation.NewCounter()
+		counter := aggregation.NewLockedCounter()
 		counter.Add(testCounter.CounterVal)
 		e.values = append(e.values, timedCounter{
 			timeNanos: aligned,
@@ -504,7 +507,8 @@ func testCounterElem() *CounterElem {
 func testTimerElem(opts Options) *TimerElem {
 	e := NewTimerElem(testBatchTimerID, testPolicy, opts)
 	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
-		timer := aggregation.NewTimer(opts.TimerQuantiles(), opts.StreamOptions())
+		newTimer := aggregation.NewTimer(opts.TimerQuantiles(), opts.StreamOptions())
+		timer := aggregation.NewLockedTimer(newTimer)
 		timer.AddBatch(testBatchTimer.BatchTimerVal)
 		e.values = append(e.values, timedTimer{
 			timeNanos: aligned,
@@ -517,7 +521,7 @@ func testTimerElem(opts Options) *TimerElem {
 func testGaugeElem() *GaugeElem {
 	e := NewGaugeElem(testGaugeID, testPolicy, testOptions())
 	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
-		gauge := aggregation.NewGauge()
+		gauge := aggregation.NewLockedGauge()
 		gauge.Set(testGauge.GaugeVal)
 		e.values = append(e.values, timedGauge{
 			timeNanos: aligned,

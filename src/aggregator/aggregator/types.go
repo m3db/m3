@@ -148,12 +148,6 @@ type Options interface {
 	// TimerPrefix returns the prefix for timers
 	TimerPrefix() []byte
 
-	// SetTimerQuantiles sets the timer quantiles
-	SetTimerQuantiles(quantiles []float64) Options
-
-	// TimerQuantiles returns the quantiles for timers
-	TimerQuantiles() []float64
-
 	// SetTimerSumSuffix sets the sum suffix for timers
 	SetTimerSumSuffix(value []byte) Options
 
@@ -201,6 +195,12 @@ type Options interface {
 
 	// TimerMedianSuffix returns the median suffix for timers
 	TimerMedianSuffix() []byte
+
+	// SetTimerQuantiles sets the timer quantiles
+	SetTimerQuantiles(quantiles []float64) Options
+
+	// TimerQuantiles returns the quantiles for timers
+	TimerQuantiles() []float64
 
 	// SetTimerQuantileSuffixFn sets the quantile suffix function for timers
 	SetTimerQuantileSuffixFn(value QuantileSuffixFn) Options
@@ -297,6 +297,12 @@ type Options interface {
 
 	// EntryCheckBatchPercent returns the batch percentage for checking expired entries
 	EntryCheckBatchPercent() float64
+
+	// SetMaxTimerBatchSizePerWrite sets the maximum timer batch size for each batched write.
+	SetMaxTimerBatchSizePerWrite(value int) Options
+
+	// MaxTimerBatchSizePerWrite returns the maximum timer batch size for each batched write.
+	MaxTimerBatchSizePerWrite() int
 
 	// SetDefaultPolicies sets the default policies
 	SetDefaultPolicies(value []policy.Policy) Options

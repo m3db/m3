@@ -20,20 +20,34 @@
 
 package aggregation
 
+import "sync"
+
 var (
 	emptyGauge Gauge
 )
 
-// Gauge aggregates gauge values
+// Gauge aggregates gauge values.
 type Gauge struct {
 	value float64 // latest value received
 }
 
-// NewGauge creates a new gauge
+// NewGauge creates a new gauge.
 func NewGauge() Gauge { return emptyGauge }
 
-// Set sets the gauge value
+// Set sets the gauge value.
 func (g *Gauge) Set(value float64) { g.value = value }
 
-// Value returns the latest value
+// Value returns the latest value.
 func (g *Gauge) Value() float64 { return g.value }
+
+// LockedGauge is a locked gauge.
+type LockedGauge struct {
+	sync.Mutex
+	Gauge
+}
+
+// NewLockedGauge creates a new locked gauge.
+func NewLockedGauge() *LockedGauge { return &LockedGauge{} }
+
+// Reset resets the locked gauge.
+func (lg *LockedGauge) Reset() { lg.Gauge = emptyGauge }

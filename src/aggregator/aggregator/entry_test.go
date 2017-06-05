@@ -113,12 +113,44 @@ func TestEntryAddBatchTimerWithPoolAlloc(t *testing.T) {
 		BatchTimerVal: input,
 		TimerValPool:  timerValPool,
 	}
-	e, _, now := testEntry()
-	require.NoError(t, e.addMetricWithLock(*now, bt))
+	e, _, _ := testEntry()
+	require.NoError(t, e.AddMetricWithPoliciesList(bt, policy.DefaultPoliciesList))
 
 	// Assert the timer values have been returned to pool.
 	vals := timerValPool.Get(10)
 	require.Equal(t, []float64{1.0, 3.5, 2.2, 6.5, 4.8}, vals[:5])
+}
+
+func TestEntryAddBatchTimerWithTimerBatchSizeLimit(t *testing.T) {
+	e, _, now := testEntry()
+	*now = time.Unix(105, 0)
+	e.opts = e.opts.SetMaxTimerBatchSizePerWrite(2).SetDefaultPolicies(testDefaultPolicies)
+
+	bt := unaggregated.MetricUnion{
+		Type:          unaggregated.BatchTimerType,
+		ID:            testBatchTimerID,
+		BatchTimerVal: []float64{1.0, 3.5, 2.2, 6.5, 4.8},
+	}
+	require.NoError(t, e.AddMetricWithPoliciesList(bt, policy.DefaultPoliciesList))
+	require.Equal(t, 2, len(e.aggregations))
+	for _, p := range testDefaultPolicies {
+		elem := e.aggregations[p].Value.(*TimerElem)
+		require.Equal(t, 1, len(elem.values))
+		require.Equal(t, 18.0, elem.values[0].timer.Sum())
+	}
+}
+
+func TestEntryAddBatchTimerWithTimerBatchSizeLimitError(t *testing.T) {
+	e, _, _ := testEntry()
+	e.opts = e.opts.SetMaxTimerBatchSizePerWrite(2)
+	e.closed = true
+
+	bt := unaggregated.MetricUnion{
+		Type:          unaggregated.BatchTimerType,
+		ID:            testBatchTimerID,
+		BatchTimerVal: []float64{1.0, 3.5, 2.2, 6.5, 4.8},
+	}
+	require.Equal(t, errEntryClosed, e.AddMetricWithPoliciesList(bt, policy.DefaultPoliciesList))
 }
 
 func TestEntryHasPolicyChangesWithLockDifferentLength(t *testing.T) {

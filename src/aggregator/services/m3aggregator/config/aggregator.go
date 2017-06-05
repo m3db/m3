@@ -135,6 +135,9 @@ type AggregatorConfiguration struct {
 	// EntryCheckBatchPercent determines the percentage of entries checked in a batch.
 	EntryCheckBatchPercent float64 `yaml:"entryCheckBatchPercent" validate:"min=0.0,max=1.0"`
 
+	// MaxTimerBatchSizePerWrite determines the maximum timer batch size for each batched write.
+	MaxTimerBatchSizePerWrite int `yaml:"maxTimerBatchSizePerWrite" validate:"min=0"`
+
 	// Default policies.
 	DefaultPolicies []policy.Policy `yaml:"defaultPolicies" validate:"nonzero"`
 
@@ -176,12 +179,13 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	opts = setMetricPrefixOrSuffix(opts, c.TimerMedianSuffix, opts.SetTimerMedianSuffix)
 	opts = setMetricPrefixOrSuffix(opts, c.GaugePrefix, opts.SetGaugePrefix)
 
-	// Set timer quantile suffix function.
+	// Set timer quantiles and quantile suffix function.
+	opts = opts.SetTimerQuantiles(c.TimerQuantiles)
 	quantileSuffixFn, err := c.parseTimerQuantileSuffixFn()
 	if err != nil {
 		return nil, err
 	}
-	opts = opts.SetTimerQuantileSuffixFn(quantileSuffixFn).SetTimerQuantiles(c.TimerQuantiles)
+	opts = opts.SetTimerQuantileSuffixFn(quantileSuffixFn)
 
 	// Set stream options.
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("stream"))
@@ -252,6 +256,9 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	}
 	if c.EntryCheckBatchPercent != 0.0 {
 		opts = opts.SetEntryCheckBatchPercent(c.EntryCheckBatchPercent)
+	}
+	if c.MaxTimerBatchSizePerWrite != 0 {
+		opts = opts.SetMaxTimerBatchSizePerWrite(c.MaxTimerBatchSizePerWrite)
 	}
 
 	// Set default policies.
@@ -329,6 +336,9 @@ type streamConfiguration struct {
 	// Initial heap capacity for quantile computation.
 	Capacity int `yaml:"capacity"`
 
+	// Insertion and compression frequency.
+	InsertAndCompressEvery int `yaml:"insertAndCompressEvery"`
+
 	// Flush frequency.
 	FlushEvery int `yaml:"flushEvery"`
 
@@ -348,6 +358,9 @@ func (c *streamConfiguration) NewStreamOptions(instrumentOpts instrument.Options
 		SetEps(c.Eps).
 		SetCapacity(c.Capacity)
 
+	if c.InsertAndCompressEvery != 0 {
+		opts = opts.SetInsertAndCompressEvery(c.InsertAndCompressEvery)
+	}
 	if c.FlushEvery != 0 {
 		opts = opts.SetFlushEvery(c.FlushEvery)
 	}
