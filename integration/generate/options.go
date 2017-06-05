@@ -44,6 +44,9 @@ const (
 
 	// defaultNewDirectoryMode is the file mode used for new directories by default
 	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0755)
+
+	// defaultWriteEmptyShards is the writeEmptyShards value by default
+	defaultWriteEmptyShards = true
 )
 
 var (
@@ -58,6 +61,7 @@ type options struct {
 	newFileMode      os.FileMode
 	newDirectoryMode os.FileMode
 	writerBufferSize int
+	writeEmptyShards bool
 	encoderPool      encoding.EncoderPool
 }
 
@@ -77,6 +81,7 @@ func NewOptions() Options {
 		newFileMode:      defaultNewFileMode,
 		newDirectoryMode: defaultNewDirectoryMode,
 		writerBufferSize: defaultWriterBufferSize,
+		writeEmptyShards: defaultWriteEmptyShards,
 		encoderPool:      encoderPool,
 	}
 }
@@ -149,6 +154,16 @@ func (o *options) SetWriterBufferSize(value int) Options {
 
 func (o *options) WriterBufferSize() int {
 	return o.writerBufferSize
+}
+
+func (o *options) SetWriteEmptyShards(value bool) Options {
+	opts := *o
+	opts.writeEmptyShards = value
+	return &opts
+}
+
+func (o *options) WriteEmptyShards() bool {
+	return o.writeEmptyShards
 }
 
 func (o *options) SetEncoderPool(value encoding.EncoderPool) Options {

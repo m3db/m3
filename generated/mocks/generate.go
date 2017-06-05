@@ -22,6 +22,7 @@
 //go:generate sh -c "mockgen -package=fs -destination=$GOPATH/src/$PACKAGE/persist/fs/fs_mock.go $PACKAGE/persist/fs FileSetWriter,FileSetReader"
 //go:generate sh -c "mockgen -package=xio -destination=$GOPATH/src/$PACKAGE/x/io/io_mock.go $PACKAGE/x/io ReaderSliceReader,SegmentReader"
 //go:generate sh -c "mockgen -package=series -destination=$GOPATH/src/$PACKAGE/storage/series/series_mock.go $PACKAGE/storage/series DatabaseSeries"
+//go:generate sh -c "mockgen -package=sharding -destination=$GOPATH/src/$PACKAGE/sharding/mocks/sharding_mock.go $PACKAGE/sharding ShardSet"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode)
 //go:generate sh -c "mockgen -package=encoding -destination=$GOPATH/src/$PACKAGE/encoding/encoding_mock.go -source=$GOPATH/src/$PACKAGE/encoding/types.go"

@@ -54,13 +54,16 @@ func NewGenerator(opts Options) Generator {
 }
 
 func (g *generator) Generate(namespace ts.ID, shard uint32) error {
-	shardSet := &fakeShardSet{shard}
-	gOpts := g.opts.GenerateOptions()
-
-	var blockConfigs []generate.BlockConfig
-	now := gOpts.ClockOptions().NowFn()().Truncate(gOpts.BlockSize())
-	earliest := now.Add(-1 * gOpts.RetentionPeriod())
-	for start := now; !start.Before(earliest); start = start.Add(-gOpts.BlockSize()) {
+	var (
+		shardSet     = &fakeShardSet{shard}
+		gOpts        = g.opts.GenerateOptions()
+		blockSize    = gOpts.BlockSize()
+		now          = gOpts.ClockOptions().NowFn()().Truncate(blockSize)
+		start        = now.Add(-blockSize)
+		earliest     = now.Add(-1 * gOpts.RetentionPeriod())
+		blockConfigs []generate.BlockConfig
+	)
+	for start := start; !start.Before(earliest); start = start.Add(-gOpts.BlockSize()) {
 		blockConfigs = append(blockConfigs, g.generateConf(start))
 	}
 	g.logger.Debug("created block configs")
