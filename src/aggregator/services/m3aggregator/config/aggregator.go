@@ -240,7 +240,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	if c.MaxFlushSize != 0 {
 		opts = opts.SetMaxFlushSize(c.MaxFlushSize)
 	}
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("flush"))
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("flush-handler"))
 	flushHandler, err := c.Flush.NewHandler(iOpts)
 	if err != nil {
 		return nil, err
@@ -522,16 +522,19 @@ type flushHandlerConfiguration struct {
 func (c *flushHandlerConfiguration) NewHandler(
 	instrumentOpts instrument.Options,
 ) (aggregator.Handler, error) {
+	scope := instrumentOpts.MetricsScope()
 	switch handler.Type(c.Type) {
 	case handler.BlackholeHandler:
 		return handler.NewBlackholeHandler(), nil
 	case handler.LoggingHandler:
-		return handler.NewLoggingHandler(instrumentOpts), nil
+		iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("logging"))
+		return handler.NewLoggingHandler(iOpts), nil
 	case handler.ForwardHandler:
 		if c.Forward == nil {
 			return nil, errNoForwardHandlerConfiguration
 		}
-		return c.Forward.NewHandler(instrumentOpts)
+		iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("forward"))
+		return c.Forward.NewHandler(iOpts)
 	default:
 		return nil, errUnknownFlushHandlerType
 	}

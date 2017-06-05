@@ -24,12 +24,15 @@ import (
 	"errors"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"
+
+	"github.com/uber-go/tally"
 )
 
 const (
@@ -53,6 +56,34 @@ type tryConnectFn func(addr string) (*net.TCPConn, error)
 type dialWithTimeoutFn func(protocol string, addr string, timeout time.Duration) (net.Conn, error)
 type writeToConnFn func(conn *net.TCPConn, data []byte) (int, error)
 
+type forwardHandlerMetrics struct {
+	connectTimeouts  tally.Counter
+	connectSuccesses tally.Counter
+	enqueueErrors    tally.Counter
+	enqueueSuccesses tally.Counter
+	currentDropped   tally.Counter
+	oldestdDropped   tally.Counter
+	writeSuccesses   tally.Counter
+	writeErrors      tally.Counter
+	openConnections  tally.Gauge
+	queueSize        tally.Gauge
+}
+
+func newForwardHandlerMetrics(scope tally.Scope) forwardHandlerMetrics {
+	return forwardHandlerMetrics{
+		connectTimeouts:  scope.Counter("connect-timeouts"),
+		connectSuccesses: scope.Counter("connect-successes"),
+		enqueueErrors:    scope.Counter("enqueue-errors"),
+		enqueueSuccesses: scope.Counter("enqueue-successes"),
+		currentDropped:   scope.Counter("current-dropped"),
+		oldestdDropped:   scope.Counter("oldest-dropped"),
+		writeSuccesses:   scope.Counter("write-successes"),
+		writeErrors:      scope.Counter("write-errors"),
+		openConnections:  scope.Gauge("open-connections"),
+		queueSize:        scope.Gauge("queue-size"),
+	}
+}
+
 type forwardHandler struct {
 	sync.RWMutex
 
@@ -61,17 +92,20 @@ type forwardHandler struct {
 	connectTimeout      time.Duration
 	connectionKeepAlive bool
 	reconnectRetrier    xretry.Retrier
+	reportInterval      time.Duration
 
-	bufCh             chan msgpack.Buffer
-	tryConnectFn      tryConnectFn
-	dialWithTimeoutFn dialWithTimeoutFn
-	writeToConnFn     writeToConnFn
-	wg                sync.WaitGroup
-	closed            bool
+	bufCh              chan msgpack.Buffer
+	wg                 sync.WaitGroup
+	closed             bool
+	closedCh           chan struct{}
+	metrics            forwardHandlerMetrics
+	numOpenConnections int32
+	tryConnectFn       tryConnectFn
+	dialWithTimeoutFn  dialWithTimeoutFn
+	writeToConnFn      writeToConnFn
 }
 
 // NewForwardHandler creates a new forwarding handler.
-// TODO(xichen): add metrics.
 func NewForwardHandler(
 	servers []string,
 	opts ForwardHandlerOptions,
@@ -99,6 +133,7 @@ func (h *forwardHandler) Close() {
 	}
 	h.closed = true
 	close(h.bufCh)
+	close(h.closedCh)
 	h.Unlock()
 
 	// Wait for the queue to be drained.
@@ -122,8 +157,11 @@ func (h *forwardHandler) initConnections(servers []string) {
 func (h *forwardHandler) tryConnect(addr string) (*net.TCPConn, error) {
 	conn, err := h.dialWithTimeoutFn(tcpProtocol, addr, h.connectTimeout)
 	if err != nil {
+		h.metrics.connectTimeouts.Inc(1)
 		return nil, err
 	}
+	atomic.AddInt32(&h.numOpenConnections, 1)
+	h.metrics.connectSuccesses.Inc(1)
 	tcpConn := conn.(*net.TCPConn)
 	tcpConn.SetKeepAlive(h.connectionKeepAlive)
 	return tcpConn, nil
@@ -133,18 +171,21 @@ func (h *forwardHandler) enqueue(buffer msgpack.Buffer, dropType dropType) error
 	h.RLock()
 	if h.closed {
 		h.RUnlock()
+		h.metrics.enqueueErrors.Inc(1)
 		return errHandlerClosed
 	}
 	for {
 		select {
 		case h.bufCh <- buffer:
 			h.RUnlock()
+			h.metrics.enqueueSuccesses.Inc(1)
 			return nil
 		default:
-			// TODO(xichen): add metrics for dropping current.
 			if dropType == dropCurrent {
 				h.RUnlock()
 				buffer.Close()
+				h.metrics.enqueueErrors.Inc(1)
+				h.metrics.currentDropped.Inc(1)
 				return errBufferQueueFull
 			}
 		}
@@ -152,8 +193,8 @@ func (h *forwardHandler) enqueue(buffer msgpack.Buffer, dropType dropType) error
 		// Drop oldest in queue to make room for new buffer.
 		select {
 		case buf := <-h.bufCh:
-			// TODO(xichen): add metrics for discarding buffer.
 			buf.Close()
+			h.metrics.oldestdDropped.Inc(1)
 		default:
 		}
 	}
@@ -190,13 +231,16 @@ func (h *forwardHandler) forwardToConn(addr string, conn *net.TCPConn) {
 			buf, ok := <-h.bufCh
 			if !ok {
 				conn.Close()
+				atomic.AddInt32(&h.numOpenConnections, -1)
 				return
 			}
 			_, writeErr := h.writeToConnFn(conn, buf.Bytes())
 			if writeErr == nil {
+				h.metrics.writeSuccesses.Inc(1)
 				buf.Close()
 				continue
 			}
+			h.metrics.writeErrors.Inc(1)
 			h.log.WithFields(
 				xlog.NewLogField("address", addr),
 				xlog.NewLogErrField(writeErr),
@@ -214,7 +258,22 @@ func (h *forwardHandler) forwardToConn(addr string, conn *net.TCPConn) {
 			// Close and reset the connection.
 			conn.Close()
 			conn = nil
+			atomic.AddInt32(&h.numOpenConnections, -1)
 			break
+		}
+	}
+}
+
+func (h *forwardHandler) reportMetrics() {
+	t := time.NewTicker(h.reportInterval)
+	for {
+		select {
+		case <-h.closedCh:
+			t.Stop()
+			return
+		case <-t.C:
+			h.metrics.openConnections.Update(float64(atomic.LoadInt32(&h.numOpenConnections)))
+			h.metrics.queueSize.Update(float64(len(h.bufCh)))
 		}
 	}
 }
@@ -224,13 +283,17 @@ func newForwardHandler(servers []string, opts ForwardHandlerOptions) (*forwardHa
 		return nil, errEmptyServerList
 	}
 
+	instrumentOpts := opts.InstrumentOptions()
 	h := &forwardHandler{
 		servers:             servers,
-		log:                 opts.InstrumentOptions().Logger(),
+		log:                 instrumentOpts.Logger(),
 		connectTimeout:      opts.ConnectTimeout(),
 		connectionKeepAlive: opts.ConnectionKeepAlive(),
 		reconnectRetrier:    opts.ReconnectRetrier(),
+		reportInterval:      instrumentOpts.ReportInterval(),
 		bufCh:               make(chan msgpack.Buffer, opts.QueueSize()),
+		closedCh:            make(chan struct{}),
+		metrics:             newForwardHandlerMetrics(instrumentOpts.MetricsScope()),
 		dialWithTimeoutFn:   net.DialTimeout,
 		writeToConnFn:       writeToConn,
 	}
