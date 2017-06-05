@@ -7,16 +7,17 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/tools/dtest/harness"
 	"github.com/m3db/m3db/tools/dtest/util"
 	"github.com/m3db/m3db/tools/dtest/util/bootstrap"
 	"github.com/m3db/m3db/ts"
 	m3emnode "github.com/m3db/m3db/x/m3em/node"
+
+	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3em/node"
 	"github.com/m3db/m3x/instrument"
-
-	"github.com/m3db/m3db/integration/generate"
 	"github.com/spf13/cobra"
 )
 
@@ -31,6 +32,12 @@ TODO(prateek): write up`,
 
 const agentM3DBDataDir = "m3db-data/data"
 
+func delayedNowFn(delay time.Duration) clock.NowFn {
+	return func() time.Time {
+		return time.Now().Add(-1 * delay)
+	}
+}
+
 func seededBootstrapDTest(cmd *cobra.Command, args []string) {
 	if err := globalArgs.Validate(); err != nil {
 		printUsage(cmd)
@@ -41,8 +48,11 @@ func seededBootstrapDTest(cmd *cobra.Command, args []string) {
 		logger       = newLogger(cmd)
 		iopts        = instrument.NewOptions().SetLogger(logger)
 		generateOpts = generate.NewOptions().
-				SetRetentionPeriod(4 * time.Hour).
-				SetBlockSize(2 * time.Hour)
+				SetClockOptions(clock.NewOptions().
+					SetNowFn(delayedNowFn(6 * time.Hour)),
+			).
+			SetRetentionPeriod(4 * time.Hour).
+			SetBlockSize(2 * time.Hour)
 
 		bootstrapDataOpts = bootstrap.NewOptions().
 					SetInstrumentOptions(iopts).

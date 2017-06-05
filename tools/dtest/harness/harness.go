@@ -305,7 +305,7 @@ func newConfig(logger xlog.Logger, filename string) build.ServiceConfiguration {
 	if err != nil {
 		logger.Fatalf("unable to read: %v, err: %v", filename, err)
 	}
-	conf := build.NewServiceConfig("m3emnode.yaml", bytes)
+	conf := build.NewServiceConfig("m3dbnode.yaml", bytes)
 	logger.Infof("read service config from: %v", filename)
 	return conf
 }
