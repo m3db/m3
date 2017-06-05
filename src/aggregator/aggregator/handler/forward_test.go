@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/retry"
+	"github.com/uber-go/tally"
 
 	"github.com/stretchr/testify/require"
 )
@@ -236,7 +237,7 @@ func TestForwardHandlerClose(t *testing.T) {
 
 func TestTryConnectTimeout(t *testing.T) {
 	errTimeout := errors.New("error timing out")
-	h := &forwardHandler{}
+	h := &forwardHandler{metrics: newForwardHandlerMetrics(tally.NoopScope)}
 	h.dialWithTimeoutFn = func(string, string, time.Duration) (net.Conn, error) {
 		return nil, errTimeout
 	}
@@ -245,7 +246,7 @@ func TestTryConnectTimeout(t *testing.T) {
 }
 
 func TestTryConnectSuccess(t *testing.T) {
-	h := &forwardHandler{}
+	h := &forwardHandler{metrics: newForwardHandlerMetrics(tally.NoopScope)}
 	h.dialWithTimeoutFn = func(string, string, time.Duration) (net.Conn, error) {
 		return &net.TCPConn{}, nil
 	}
