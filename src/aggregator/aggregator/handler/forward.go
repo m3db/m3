@@ -116,6 +116,8 @@ func NewForwardHandler(
 	}
 
 	h.initConnections(servers)
+	go h.reportMetrics()
+
 	return h, nil
 }
 
