@@ -96,6 +96,16 @@ type Options interface {
 	// Capacity returns the initial heap capacity
 	Capacity() int
 
+	// SetInsertAndCompressEvery sets how frequently the timer values are
+	// inserted into the stream and compressed to reduce write latency for
+	// high frequency timers.
+	SetInsertAndCompressEvery(value int) Options
+
+	// InsertAndCompressEvery returns how frequently the timer values are
+	// inserted into the stream and compressed to reduce write latency for
+	// high frequency timers.
+	InsertAndCompressEvery() int
+
 	// SetFlushEvery sets how frequently the underlying stream is flushed
 	// to reduce processing time when computing aggregated statistics from
 	// the stream.

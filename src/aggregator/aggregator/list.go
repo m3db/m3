@@ -166,14 +166,16 @@ func (l *metricList) Close() {
 }
 
 func (l *metricList) Flush() {
+	flushStart := l.nowFn()
+
 	// NB(xichen): it is important to determine ticking start time within the time lock
 	// because this ensures all the actions before `start` have completed if those actions
 	// are protected by the same read lock.
 	l.timeLock.Lock()
-	start := l.nowFn()
+	consumeStart := l.nowFn()
 	resolution := l.resolution
 	l.timeLock.Unlock()
-	alignedStartNanos := start.Truncate(resolution).UnixNano()
+	alignedStartNanos := consumeStart.Truncate(resolution).UnixNano()
 
 	// Reset states reused across ticks.
 	l.toCollect = l.toCollect[:0]
@@ -215,7 +217,7 @@ func (l *metricList) Flush() {
 	l.Unlock()
 
 	l.metrics.flushCollected.Inc(int64(numCollected))
-	flushDuration := l.nowFn().Sub(start)
+	flushDuration := l.nowFn().Sub(flushStart)
 	l.metrics.flushDuration.Record(flushDuration)
 }
 

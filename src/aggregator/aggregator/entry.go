@@ -112,6 +112,53 @@ func (e *Entry) AddMetricWithPoliciesList(
 	mu unaggregated.MetricUnion,
 	pl policy.PoliciesList,
 ) error {
+	switch mu.Type {
+	case unaggregated.BatchTimerType:
+		err := e.writeBatchTimerWithPoliciesList(mu, pl)
+		if mu.BatchTimerVal != nil && mu.TimerValPool != nil {
+			mu.TimerValPool.Put(mu.BatchTimerVal)
+		}
+		return err
+	default:
+		return e.addMetricWithPoliciesList(mu, pl)
+	}
+}
+
+func (e *Entry) writeBatchTimerWithPoliciesList(
+	mu unaggregated.MetricUnion,
+	pl policy.PoliciesList,
+) error {
+	// If there is no limit on the maximum batch size per write, write
+	// all timers at once.
+	maxTimerBatchSizePerWrite := e.opts.MaxTimerBatchSizePerWrite()
+	if maxTimerBatchSizePerWrite == 0 {
+		return e.addMetricWithPoliciesList(mu, pl)
+	}
+
+	// Otherwise, honor maximum timer batch size.
+	var (
+		timerValues    = mu.BatchTimerVal
+		numTimerValues = len(timerValues)
+		start, end     int
+	)
+	for start = 0; start < numTimerValues; start = end {
+		end = start + maxTimerBatchSizePerWrite
+		if end > numTimerValues {
+			end = numTimerValues
+		}
+		splitTimer := mu
+		splitTimer.BatchTimerVal = timerValues[start:end]
+		if err := e.addMetricWithPoliciesList(splitTimer, pl); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (e *Entry) addMetricWithPoliciesList(
+	mu unaggregated.MetricUnion,
+	pl policy.PoliciesList,
+) error {
 	timeLock := e.opts.TimeLock()
 	timeLock.RLock()
 
@@ -400,10 +447,6 @@ func (e *Entry) addMetricWithLock(timestamp time.Time, mu unaggregated.MetricUni
 		if err := elem.Value.(metricElem).AddMetric(timestamp, mu); err != nil {
 			multiErr = multiErr.Add(err)
 		}
-	}
-	// If the timer values were allocated from a pool, return them to the pool.
-	if mu.Type == unaggregated.BatchTimerType && mu.BatchTimerVal != nil && mu.TimerValPool != nil {
-		mu.TimerValPool.Put(mu.BatchTimerVal)
 	}
 	return multiErr.FinalError()
 }

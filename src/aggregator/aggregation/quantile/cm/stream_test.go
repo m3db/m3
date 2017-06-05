@@ -31,7 +31,8 @@ import (
 )
 
 const (
-	testFlushEvery = 100
+	testInsertAndCompressEvery = 100
+	testFlushEvery             = 1000
 )
 
 var (
@@ -96,43 +97,91 @@ func TestStreamWithThreeSamples(t *testing.T) {
 	}
 }
 
-func TestStreamWithIncreasingSamplesNoPeriodicFlush(t *testing.T) {
+func TestStreamWithIncreasingSamplesNoPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
 	opts := testStreamOptions()
 	testStreamWithIncreasingSamples(t, opts)
 }
 
-func TestStreamWithIncreasingSamplesWithPeriodicFlush(t *testing.T) {
+func TestStreamWithIncreasingSamplesPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+	opts := testStreamOptions().SetInsertAndCompressEvery(testInsertAndCompressEvery)
+	testStreamWithIncreasingSamples(t, opts)
+}
+
+func TestStreamWithIncreasingSamplesNoPeriodicInsertCompressPeriodicFlush(t *testing.T) {
 	opts := testStreamOptions().SetFlushEvery(testFlushEvery)
 	testStreamWithIncreasingSamples(t, opts)
 }
 
-func TestStreamWithDecreasingSamplesNoPeriodicFlush(t *testing.T) {
+func TestStreamWithIncreasingSamplesPeriodicInsertCompressPeriodicFlush(t *testing.T) {
+	opts := testStreamOptions().
+		SetInsertAndCompressEvery(testInsertAndCompressEvery).
+		SetFlushEvery(testFlushEvery)
+	testStreamWithIncreasingSamples(t, opts)
+}
+
+func TestStreamWithDecreasingSamplesNoPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
 	opts := testStreamOptions()
 	testStreamWithDecreasingSamples(t, opts)
 }
 
-func TestStreamWithDecreasingSamplesWithPeriodicFlush(t *testing.T) {
+func TestStreamWithDecreasingSamplesPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+	opts := testStreamOptions().SetInsertAndCompressEvery(testInsertAndCompressEvery)
+	testStreamWithDecreasingSamples(t, opts)
+}
+
+func TestStreamWithDecreasingSamplesNoPeriodicInsertCompressPeriodicFlush(t *testing.T) {
 	opts := testStreamOptions().SetFlushEvery(testFlushEvery)
 	testStreamWithDecreasingSamples(t, opts)
 }
 
-func TestStreamWithRandomSamplesNoPeriodicFlush(t *testing.T) {
+func TestStreamWithDecreasingSamplesPeriodicInsertCompressPeriodicFlush(t *testing.T) {
+	opts := testStreamOptions().
+		SetInsertAndCompressEvery(testInsertAndCompressEvery).
+		SetFlushEvery(testFlushEvery)
+	testStreamWithDecreasingSamples(t, opts)
+}
+
+func TestStreamWithRandomSamplesNoPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
 	opts := testStreamOptions()
 	testStreamWithRandomSamples(t, opts)
 }
 
-func TestStreamWithRandomSamplesWithPeriodicFlush(t *testing.T) {
+func TestStreamWithRandomSamplesPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+	opts := testStreamOptions().SetInsertAndCompressEvery(testInsertAndCompressEvery)
+	testStreamWithRandomSamples(t, opts)
+}
+
+func TestStreamWithRandomSamplesNoPeriodicInsertCompressPeriodicFlush(t *testing.T) {
 	opts := testStreamOptions().SetFlushEvery(testFlushEvery)
 	testStreamWithRandomSamples(t, opts)
 }
 
-func TestStreamWithSkewedDistributionNoPeriodicFlush(t *testing.T) {
+func TestStreamWithRandomSamplesPeriodicInsertCompressPeriodicFlush(t *testing.T) {
+	opts := testStreamOptions().
+		SetInsertAndCompressEvery(testInsertAndCompressEvery).
+		SetFlushEvery(testFlushEvery)
+	testStreamWithRandomSamples(t, opts)
+}
+
+func TestStreamWithSkewedDistributionNoPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
 	opts := testStreamOptions()
 	testStreamWithSkewedDistribution(t, opts)
 }
 
-func TestStreamWithSkewedDistributionWithPeriodicFlush(t *testing.T) {
+func TestStreamWithSkewedDistributionPeriodicInsertCompressNoPeriodicFlush(t *testing.T) {
+	opts := testStreamOptions().SetInsertAndCompressEvery(testInsertAndCompressEvery)
+	testStreamWithSkewedDistribution(t, opts)
+}
+
+func TestStreamWithSkewedDistributionNoPeriodicInsertCompressPeriodicFlush(t *testing.T) {
 	opts := testStreamOptions().SetFlushEvery(testFlushEvery)
+	testStreamWithSkewedDistribution(t, opts)
+}
+
+func TestStreamWithSkewedDistributionPeriodicInsertCompressPeriodicFlush(t *testing.T) {
+	opts := testStreamOptions().
+		SetInsertAndCompressEvery(testInsertAndCompressEvery).
+		SetFlushEvery(testFlushEvery)
 	testStreamWithSkewedDistribution(t, opts)
 }
 

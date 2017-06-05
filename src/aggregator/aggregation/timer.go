@@ -22,6 +22,7 @@ package aggregation
 
 import (
 	"math"
+	"sync"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 )
@@ -105,3 +106,15 @@ func (t *Timer) Stdev() float64 {
 func (t *Timer) Close() {
 	t.stream.Close()
 }
+
+// LockedTimer is a locked timer.
+type LockedTimer struct {
+	sync.Mutex
+	Timer
+}
+
+// NewLockedTimer creates a new locked timer.
+func NewLockedTimer(timer Timer) *LockedTimer { return &LockedTimer{Timer: timer} }
+
+// Reset resets the locked timer.
+func (lt *LockedTimer) Reset(timer Timer) { lt.Timer = timer }

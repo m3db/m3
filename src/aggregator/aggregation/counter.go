@@ -20,20 +20,34 @@
 
 package aggregation
 
+import "sync"
+
 var (
 	emptyCounter Counter
 )
 
-// Counter aggregates counter values
+// Counter aggregates counter values.
 type Counter struct {
 	sum int64 // Sum of the values received
 }
 
-// NewCounter creates a new counter
+// NewCounter creates a new counter.
 func NewCounter() Counter { return emptyCounter }
 
-// Add adds a counter value
+// Add adds a counter value.
 func (c *Counter) Add(value int64) { c.sum += value }
 
-// Sum returns the sum of counter values
+// Sum returns the sum of counter values.
 func (c *Counter) Sum() int64 { return c.sum }
+
+// LockedCounter is a locked counter.
+type LockedCounter struct {
+	sync.Mutex
+	Counter
+}
+
+// NewLockedCounter creates a new locked counter.
+func NewLockedCounter() *LockedCounter { return &LockedCounter{} }
+
+// Reset resets the locked counter.
+func (lc *LockedCounter) Reset() { lc.Counter = emptyCounter }

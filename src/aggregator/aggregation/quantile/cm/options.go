@@ -28,10 +28,16 @@ import (
 )
 
 const (
-	minEps            = 0.0
-	maxEps            = 0.5
-	defaultEps        = 1e-3
-	defaultCapacity   = 16
+	minEps          = 0.0
+	maxEps          = 0.5
+	defaultEps      = 1e-3
+	defaultCapacity = 16
+
+	// By default the timer values are inserted and the underlying
+	// streams are compressed every time the value is added.
+	defaultInsertAndCompressEvery = 1
+
+	// By default the stream is not flushed when values are added.
 	defaultFlushEvery = 0
 )
 
@@ -46,20 +52,22 @@ var (
 )
 
 type options struct {
-	eps        float64
-	capacity   int
-	flushEvery int
-	streamPool StreamPool
-	samplePool SamplePool
-	floatsPool pool.FloatsPool
+	eps                    float64
+	capacity               int
+	insertAndCompressEvery int
+	flushEvery             int
+	streamPool             StreamPool
+	samplePool             SamplePool
+	floatsPool             pool.FloatsPool
 }
 
 // NewOptions creates a new options
 func NewOptions() Options {
 	o := &options{
-		eps:        defaultEps,
-		capacity:   defaultCapacity,
-		flushEvery: defaultFlushEvery,
+		eps:                    defaultEps,
+		capacity:               defaultCapacity,
+		insertAndCompressEvery: defaultInsertAndCompressEvery,
+		flushEvery:             defaultFlushEvery,
 	}
 
 	o.initPools()
@@ -84,6 +92,16 @@ func (o *options) SetCapacity(value int) Options {
 
 func (o *options) Capacity() int {
 	return o.capacity
+}
+
+func (o *options) SetInsertAndCompressEvery(value int) Options {
+	opts := *o
+	opts.insertAndCompressEvery = value
+	return &opts
+}
+
+func (o *options) InsertAndCompressEvery() int {
+	return o.insertAndCompressEvery
 }
 
 func (o *options) SetFlushEvery(value int) Options {
