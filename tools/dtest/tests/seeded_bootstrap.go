@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path"
+	"strconv"
 	"time"
 
 	"github.com/m3db/m3cluster/services"
@@ -28,6 +29,8 @@ TODO(prateek): write up`,
 	Run: seededBootstrapDTest,
 }
 
+const agentM3DBDataDir = "m3db-data/data"
+
 func seededBootstrapDTest(cmd *cobra.Command, args []string) {
 	if err := globalArgs.Validate(); err != nil {
 		printUsage(cmd)
@@ -38,8 +41,8 @@ func seededBootstrapDTest(cmd *cobra.Command, args []string) {
 		logger       = newLogger(cmd)
 		iopts        = instrument.NewOptions().SetLogger(logger)
 		generateOpts = generate.NewOptions().
-				SetRetentionPeriod(2 * time.Hour).
-				SetBlockSize(1 * time.Hour)
+				SetRetentionPeriod(4 * time.Hour).
+				SetBlockSize(2 * time.Hour)
 
 		bootstrapDataOpts = bootstrap.NewOptions().
 					SetInstrumentOptions(iopts).
@@ -57,6 +60,11 @@ func seededBootstrapDTest(cmd *cobra.Command, args []string) {
 	logger.Infof("generated data")
 	// TODO(prateek): cleanup locally generated data
 
+	generatedDataPath := path.Join(generateOpts.FilePathPrefix(), "data")
+	fakeShardDir := newShardDir(generatedDataPath, outputNamespace, shardNum)
+	localFiles, err := ioutil.ReadDir(fakeShardDir)
+	panicIfErr(err, "unable to list local shard directory")
+
 	dt := harness.New(globalArgs, logger)
 	co := dt.ClusterOptions().SetNodeListener(util.NewPanicListener())
 	dt.SetClusterOptions(co)
@@ -69,10 +77,6 @@ func seededBootstrapDTest(cmd *cobra.Command, args []string) {
 	setupNodes, err := testCluster.Setup(numNodes)
 	panicIfErr(err, "unable to setup cluster")
 	logger.Infof("setup cluster with %d nodes", numNodes)
-
-	fakeShardDir := newShardDir(generateOpts.FilePathPrefix(), outputNamespace, shardNum)
-	localFiles, err := ioutil.ReadDir(fakeShardDir)
-	panicIfErr(err, "unable to list local shard directory")
 
 	// transfer the generated data to the remote hosts
 	var (
@@ -106,7 +110,7 @@ func seededBootstrapDTest(cmd *cobra.Command, args []string) {
 }
 
 func newShardDir(prefix string, ns ts.ID, shard uint32) string {
-	return path.Join(prefix, ns.String(), string(shard))
+	return path.Join(prefix, ns.String(), strconv.FormatUint(uint64(shard), 10))
 }
 
 func generatePaths(placement services.ServicePlacement, n node.ServiceNode, ns ts.ID, file string) []string {
@@ -117,7 +121,7 @@ func generatePaths(placement services.ServicePlacement, n node.ServiceNode, ns t
 	}
 	shards := pi.Shards().AllIDs()
 	for _, s := range shards {
-		paths = append(paths, path.Join("/var/m3em-agent/m3db-data", ns.String(), string(s), file))
+		paths = append(paths, path.Join(newShardDir(agentM3DBDataDir, ns, s), file))
 	}
 	return paths
 }
