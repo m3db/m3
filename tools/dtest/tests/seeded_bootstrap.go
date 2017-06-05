@@ -48,11 +48,8 @@ func seededBootstrapDTest(cmd *cobra.Command, args []string) {
 		logger       = newLogger(cmd)
 		iopts        = instrument.NewOptions().SetLogger(logger)
 		generateOpts = generate.NewOptions().
-				SetClockOptions(clock.NewOptions().
-					SetNowFn(delayedNowFn(6 * time.Hour)),
-			).
-			SetRetentionPeriod(4 * time.Hour).
-			SetBlockSize(2 * time.Hour)
+				SetRetentionPeriod(24 * time.Hour).
+				SetBlockSize(2 * time.Hour)
 
 		bootstrapDataOpts = bootstrap.NewOptions().
 					SetInstrumentOptions(iopts).
