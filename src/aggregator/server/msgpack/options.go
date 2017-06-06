@@ -26,9 +26,30 @@ import (
 	"github.com/m3db/m3x/retry"
 )
 
+// Options provide a set of server options
+type Options interface {
+	// SetInstrumentOptions sets the instrument options
+	SetInstrumentOptions(value instrument.Options) Options
+
+	// InstrumentOptions returns the instrument options
+	InstrumentOptions() instrument.Options
+
+	// SetRetryOptions sets the retry options for accepting connections
+	SetRetryOptions(value xretry.Options) Options
+
+	// RetryOptions returns the retry options for accepting connections
+	RetryOptions() xretry.Options
+
+	// SetIteratorPool sets the iterator pool
+	SetIteratorPool(value msgpack.UnaggregatedIteratorPool) Options
+
+	// IteratorPool returns the iterator pool
+	IteratorPool() msgpack.UnaggregatedIteratorPool
+}
+
 type options struct {
 	instrumentOpts instrument.Options
-	retrier        xretry.Retrier
+	retryOpts      xretry.Options
 	iteratorPool   msgpack.UnaggregatedIteratorPool
 }
 
@@ -42,7 +63,7 @@ func NewOptions() Options {
 
 	return &options{
 		instrumentOpts: instrument.NewOptions(),
-		retrier:        xretry.NewRetrier(xretry.NewOptions()),
+		retryOpts:      xretry.NewOptions(),
 		iteratorPool:   iteratorPool,
 	}
 }
@@ -57,14 +78,14 @@ func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) SetRetrier(value xretry.Retrier) Options {
+func (o *options) SetRetryOptions(value xretry.Options) Options {
 	opts := *o
-	opts.retrier = value
+	opts.retryOpts = value
 	return &opts
 }
 
-func (o *options) Retrier() xretry.Retrier {
-	return o.retrier
+func (o *options) RetryOptions() xretry.Options {
+	return o.retryOpts
 }
 
 func (o *options) SetIteratorPool(value msgpack.UnaggregatedIteratorPool) Options {
