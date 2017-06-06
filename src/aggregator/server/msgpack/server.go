@@ -24,14 +24,11 @@ import (
 	"io"
 	"net"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
-	networkserver "github.com/m3db/m3aggregator/server"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/net"
+	"github.com/m3db/m3x/server"
 
 	"github.com/uber-go/tally"
 )
@@ -40,159 +37,60 @@ const (
 	unknownRemoteHostAddress = "<unknown>"
 )
 
-type serverMetrics struct {
-	openConnections tally.Gauge
+// NewServer creates a new msgpack server.
+func NewServer(address string, aggregator aggregator.Aggregator, opts Options) xserver.Server {
+	iOpts := opts.InstrumentOptions()
+	scope := iOpts.MetricsScope()
+
+	handlerInstrumentOpts := iOpts.SetMetricsScope(scope.Tagged(map[string]string{"handler": "msgpack"}))
+	handler := NewHandler(aggregator, opts.SetInstrumentOptions(handlerInstrumentOpts))
+
+	serverInstrumentOpts := iOpts.SetMetricsScope(scope.Tagged(map[string]string{"server": "msgpack"}))
+	serverOpts := xserver.NewOptions().SetInstrumentOptions(serverInstrumentOpts).SetRetryOptions(opts.RetryOptions())
+
+	return xserver.NewServer(address, handler, serverOpts)
+}
+
+type handlerMetrics struct {
 	addMetricErrors tally.Counter
 	decodeErrors    tally.Counter
 }
 
-func newServerMetrics(scope tally.Scope) serverMetrics {
-	return serverMetrics{
-		openConnections: scope.Gauge("open-connections"),
+func newHandlerMetrics(scope tally.Scope) handlerMetrics {
+	return handlerMetrics{
 		addMetricErrors: scope.Counter("add-metric-errors"),
 		decodeErrors:    scope.Counter("decode-errors"),
 	}
 }
 
-type addConnectionFn func(conn net.Conn) bool
-type removeConnectionFn func(conn net.Conn)
-type handleConnectionFn func(conn net.Conn)
-
-// server is a msgpack based server that receives incoming connections containing
-// msgpack-encoded traffic and delegates to the processor to process incoming data
-type server struct {
+type handler struct {
 	sync.Mutex
 
-	address      string
 	aggregator   aggregator.Aggregator
-	listener     net.Listener
 	opts         Options
 	log          xlog.Logger
 	iteratorPool msgpack.UnaggregatedIteratorPool
-
-	closed   int32
-	numConns int32
-	conns    []net.Conn
-	wgConns  sync.WaitGroup
-	metrics  serverMetrics
-
-	addConnectionFn    addConnectionFn
-	removeConnectionFn removeConnectionFn
-	handleConnectionFn handleConnectionFn
+	metrics      handlerMetrics
 }
 
-// NewServer creates a new msgpack server
-func NewServer(address string, aggregator aggregator.Aggregator, opts Options) networkserver.Server {
-	instrumentOpts := opts.InstrumentOptions()
-	scope := instrumentOpts.MetricsScope().SubScope("server")
-	s := &server{
-		address:      address,
+// NewHandler creates a new msgpack handler.
+func NewHandler(aggregator aggregator.Aggregator, opts Options) xserver.Handler {
+	iOpts := opts.InstrumentOptions()
+	return &handler{
 		aggregator:   aggregator,
 		opts:         opts,
-		log:          instrumentOpts.Logger(),
+		log:          iOpts.Logger(),
 		iteratorPool: opts.IteratorPool(),
-		metrics:      newServerMetrics(scope),
-	}
-
-	// Set up the connection functions
-	s.addConnectionFn = s.addConnection
-	s.removeConnectionFn = s.removeConnection
-	s.handleConnectionFn = s.handleConnection
-
-	// Start reporting metrics
-	go s.reportMetrics()
-
-	return s
-}
-
-func (s *server) ListenAndServe() error {
-	listener, err := net.Listen("tcp", s.address)
-	if err != nil {
-		return err
-	}
-	s.listener = listener
-	go s.serve()
-	return nil
-}
-
-func (s *server) serve() error {
-	connCh, errCh := xnet.StartAcceptLoop(s.listener, s.opts.Retrier())
-	for conn := range connCh {
-		if !s.addConnectionFn(conn) {
-			conn.Close()
-		} else {
-			s.wgConns.Add(1)
-			go s.handleConnectionFn(conn)
-		}
-	}
-	return <-errCh
-}
-
-func (s *server) Close() {
-	s.Lock()
-	if atomic.LoadInt32(&s.closed) == 1 {
-		s.Unlock()
-		return
-	}
-	atomic.StoreInt32(&s.closed, 1)
-	openConns := make([]net.Conn, len(s.conns))
-	copy(openConns, s.conns)
-	s.Unlock()
-
-	// Close all open connections
-	for _, conn := range openConns {
-		conn.Close()
-	}
-
-	// Close the listener
-	if s.listener != nil {
-		s.listener.Close()
-	}
-
-	// Wait for all connection handlers to finish
-	s.wgConns.Wait()
-}
-
-func (s *server) addConnection(conn net.Conn) bool {
-	s.Lock()
-	defer s.Unlock()
-
-	if atomic.LoadInt32(&s.closed) == 1 {
-		return false
-	}
-	s.conns = append(s.conns, conn)
-	atomic.AddInt32(&s.numConns, 1)
-	return true
-}
-
-func (s *server) removeConnection(conn net.Conn) {
-	s.Lock()
-	defer s.Unlock()
-
-	numConns := len(s.conns)
-	for i := 0; i < numConns; i++ {
-		if s.conns[i] == conn {
-			// Move the last connection to i and reduce the number of connections by 1
-			s.conns[i] = s.conns[numConns-1]
-			s.conns = s.conns[:numConns-1]
-			atomic.AddInt32(&s.numConns, -1)
-			return
-		}
+		metrics:      newHandlerMetrics(iOpts.MetricsScope()),
 	}
 }
 
-func (s *server) handleConnection(conn net.Conn) {
-	defer func() {
-		conn.Close()
-		s.removeConnectionFn(conn)
-		s.wgConns.Done()
-	}()
-
+func (s *handler) Handle(conn net.Conn) {
 	it := s.iteratorPool.Get()
 	it.Reset(conn)
 	defer it.Close()
 
-	// Iterate over the incoming metrics stream and queue up metrics
+	// Iterate over the incoming metrics stream and queue up metrics.
 	for it.Next() {
 		metric := it.Metric()
 		policiesList := it.PoliciesList()
@@ -207,7 +105,7 @@ func (s *server) handleConnection(conn net.Conn) {
 	}
 
 	// If there is an error during decoding, it's likely due to a broken connection
-	// and therefore we ignore the EOF error
+	// and therefore we ignore the EOF error.
 	if err := it.Err(); err != nil && err != io.EOF {
 		remoteAddress := unknownRemoteHostAddress
 		if remoteAddr := conn.RemoteAddr(); remoteAddr != nil {
@@ -221,15 +119,8 @@ func (s *server) handleConnection(conn net.Conn) {
 	}
 }
 
-func (s *server) reportMetrics() {
-	interval := s.opts.InstrumentOptions().ReportInterval()
-	t := time.Tick(interval)
-
-	for {
-		<-t
-		if atomic.LoadInt32(&s.closed) == 1 {
-			return
-		}
-		s.metrics.openConnections.Update(float64(atomic.LoadInt32(&s.numConns)))
-	}
+func (s *handler) Close() {
+	// NB(cw) Do not close s.aggregator here because it's shared between
+	// the msgpack server and the http server, and it will be closed on
+	// exit signal.
 }

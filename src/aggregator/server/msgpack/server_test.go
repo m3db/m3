@@ -23,7 +23,6 @@ package msgpack
 import (
 	"net"
 	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -32,6 +31,7 @@ import (
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3x/server"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -93,42 +93,13 @@ func testServerOptions() Options {
 	opts := NewOptions()
 	return opts.
 		SetIteratorPool(iteratorPool).
-		SetRetrier(xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(2))).
+		SetRetryOptions(xretry.NewOptions().SetMaxRetries(2)).
 		SetInstrumentOptions(opts.InstrumentOptions().SetReportInterval(time.Second))
 }
 
-func testServer(addr string) (*server, mock.Aggregator, *int32, *int32, *int32) {
-	var (
-		numAdded   int32
-		numRemoved int32
-		numHandled int32
-	)
-
-	opts := testServerOptions()
+func TestHandleUnaggregatedMsgpack(t *testing.T) {
 	agg := mock.NewAggregator()
-	s := NewServer(addr, agg, opts).(*server)
-
-	s.addConnectionFn = func(conn net.Conn) bool {
-		atomic.AddInt32(&numAdded, 1)
-		ret := s.addConnection(conn)
-		return ret
-	}
-
-	s.removeConnectionFn = func(conn net.Conn) {
-		atomic.AddInt32(&numRemoved, 1)
-		s.removeConnection(conn)
-	}
-
-	s.handleConnectionFn = func(conn net.Conn) {
-		atomic.AddInt32(&numHandled, 1)
-		s.handleConnection(conn)
-	}
-
-	return s, agg, &numAdded, &numRemoved, &numHandled
-}
-
-func TestServerListenAndClose(t *testing.T) {
-	s, agg, numAdded, numRemoved, numHandled := testServer(testListenAddress)
+	h := NewHandler(agg, testServerOptions())
 
 	var (
 		numClients     = 9
@@ -136,10 +107,12 @@ func TestServerListenAndClose(t *testing.T) {
 		expectedResult mock.SnapshotResult
 	)
 
-	// Start server
-	err := s.ListenAndServe()
+	listener, err := net.Listen("tcp", testListenAddress)
 	require.NoError(t, err)
-	listenAddr := s.listener.Addr().String()
+
+	s := xserver.NewServer(testListenAddress, h, xserver.NewOptions())
+	// Start server
+	require.NoError(t, s.Serve(listener))
 
 	// Now establish multiple connections and send data to the server
 	for i := 0; i < numClients; i++ {
@@ -153,7 +126,7 @@ func TestServerListenAndClose(t *testing.T) {
 		go func() {
 			defer wgClient.Done()
 
-			conn, err := net.Dial("tcp", listenAddr)
+			conn, err := net.Dial("tcp", listener.Addr().String())
 			require.NoError(t, err)
 
 			encoder := msgpack.NewUnaggregatedEncoder(msgpack.NewPooledBufferedEncoder(nil))
@@ -168,16 +141,11 @@ func TestServerListenAndClose(t *testing.T) {
 
 	// Wait for all metrics to be processed
 	for agg.NumMetricsAdded() < numClients*3 {
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 	}
 
 	// Close the server
 	s.Close()
-
-	// Assert the number of connections match expectations
-	require.Equal(t, int32(numClients), atomic.LoadInt32(numAdded))
-	require.Equal(t, int32(numClients), atomic.LoadInt32(numRemoved))
-	require.Equal(t, int32(numClients), atomic.LoadInt32(numHandled))
 
 	// Assert the snapshot match expectations
 	require.Equal(t, expectedResult, agg.Snapshot())

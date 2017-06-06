@@ -49,9 +49,9 @@ func (c *MsgpackServerConfiguration) NewMsgpackServerOptions(
 ) msgpack.Options {
 	opts := msgpack.NewOptions().SetInstrumentOptions(instrumentOpts)
 
-	// Set retrier.
-	retrier := c.Retry.NewRetrier(instrumentOpts.MetricsScope())
-	opts = opts.SetRetrier(retrier)
+	// Set retry options.
+	retryOpts := c.Retry.NewOptions(instrumentOpts.MetricsScope())
+	opts = opts.SetRetryOptions(retryOpts)
 
 	// Set unaggregated iterator pool.
 	iteratorPool := c.Iterator.NewUnaggregatedIteratorPool(instrumentOpts)

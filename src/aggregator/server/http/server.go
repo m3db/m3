@@ -25,8 +25,8 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3aggregator/aggregator"
-	networkserver "github.com/m3db/m3aggregator/server"
 	"github.com/m3db/m3x/pprof"
+	"github.com/m3db/m3x/server"
 )
 
 // server is an http server receiving incoming metrics traffic
@@ -38,7 +38,7 @@ type server struct {
 }
 
 // NewServer creates a new http server
-func NewServer(address string, aggregator aggregator.Aggregator, opts Options) networkserver.Server {
+func NewServer(address string, aggregator aggregator.Aggregator, opts Options) xserver.Server {
 	return &server{
 		opts:       opts,
 		address:    address,
@@ -47,6 +47,15 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) n
 }
 
 func (s *server) ListenAndServe() error {
+	listener, err := net.Listen("tcp", s.address)
+	if err != nil {
+		return err
+	}
+
+	return s.Serve(listener)
+}
+
+func (s *server) Serve(l net.Listener) error {
 	mux := http.NewServeMux()
 	if err := registerHandlers(mux, s.aggregator); err != nil {
 		return err
@@ -58,14 +67,11 @@ func (s *server) ListenAndServe() error {
 		WriteTimeout: s.opts.WriteTimeout(),
 	}
 
-	listener, err := net.Listen("tcp", s.address)
-	if err != nil {
-		return err
-	}
-	s.listener = listener
+	s.listener = l
+	s.address = l.Addr().String()
 
 	go func() {
-		server.Serve(listener)
+		server.Serve(l)
 	}()
 
 	return nil
