@@ -19,10 +19,10 @@
 // THE SOFTWARE.
 
 // mockgen rules for generating mocks using reflection mode
-//go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/$PACKAGE/client/mock_client.go $PACKAGE/client Client"
+//go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/$PACKAGE/client/client_mock.go $PACKAGE/client Client"
 
 // mockgen rules for generating mocks using file mode
-//go:generate sh -c "mockgen -package=services -destination=$GOPATH/src/$PACKAGE/services/mock_services.go -source=$GOPATH/src/$PACKAGE/services/types.go"
-//go:generate sh -c "mockgen -package=kv -destination=$GOPATH/src/$PACKAGE/kv/mock_store.go -source=$GOPATH/src/$PACKAGE/kv/types.go"
+//go:generate sh -c "mockgen -package=services -destination=$GOPATH/src/$PACKAGE/services/services_mock.go -source=$GOPATH/src/$PACKAGE/services/types.go"
+//go:generate sh -c "mockgen -package=kv -destination=$GOPATH/src/$PACKAGE/kv/store_mock.go -source=$GOPATH/src/$PACKAGE/kv/types.go"
 
 package mocks
