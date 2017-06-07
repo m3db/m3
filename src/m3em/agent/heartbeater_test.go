@@ -26,16 +26,16 @@ import (
 	"time"
 
 	hb "github.com/m3db/m3em/generated/proto/heartbeat"
+	xgrpc "github.com/m3db/m3em/x/grpc"
 
 	"github.com/m3db/m3x/instrument"
 	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 )
 
 func TestInvalidMessageType(t *testing.T) {
 	hbService := &mockHeartbeatServer{}
 	hbListener, err := net.Listen("tcp", "127.0.0.1:0")
-	hbServer := grpc.NewServer(grpc.MaxConcurrentStreams(16384))
+	hbServer := xgrpc.NewServer(nil)
 	require.NoError(t, err)
 	hb.RegisterHeartbeaterServer(hbServer, hbService)
 	go hbServer.Serve(hbListener)

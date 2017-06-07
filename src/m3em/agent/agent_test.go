@@ -32,12 +32,12 @@ import (
 	"github.com/m3db/m3em/generated/proto/m3em"
 	"github.com/m3db/m3em/os/exec"
 	mockexec "github.com/m3db/m3em/os/exec/mocks"
+	xgrpc "github.com/m3db/m3em/x/grpc"
 
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/stretchr/testify/require"
 	context "golang.org/x/net/context"
-	"google.golang.org/grpc"
 )
 
 func newTempDir(t *testing.T) string {
@@ -103,7 +103,7 @@ func TestProgramCrashNotify(t *testing.T) {
 
 	hbService := &mockHeartbeatServer{}
 	hbListener, err := net.Listen("tcp", "127.0.0.1:0")
-	hbServer := grpc.NewServer(grpc.MaxConcurrentStreams(16384))
+	hbServer := xgrpc.NewServer(nil)
 	hb.RegisterHeartbeaterServer(hbServer, hbService)
 	require.NoError(t, err)
 	go hbServer.Serve(hbListener)
@@ -237,7 +237,7 @@ func TestSetupOverrite(t *testing.T) {
 	hbService := &mockHeartbeatServer{}
 	hbListener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	hbServer := grpc.NewServer(grpc.MaxConcurrentStreams(16384))
+	hbServer := xgrpc.NewServer(nil)
 	hb.RegisterHeartbeaterServer(hbServer, hbService)
 	go hbServer.Serve(hbListener)
 	defer hbServer.Stop()
@@ -266,7 +266,7 @@ func TestSetupOverrite(t *testing.T) {
 	newHbService := &mockHeartbeatServer{}
 	newHbListener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	newHbServer := grpc.NewServer(grpc.MaxConcurrentStreams(16384))
+	newHbServer := xgrpc.NewServer(nil)
 	hb.RegisterHeartbeaterServer(newHbServer, newHbService)
 	go newHbServer.Serve(newHbListener)
 	defer newHbServer.Stop()
@@ -308,7 +308,7 @@ func TestClientReconnect(t *testing.T) {
 	// holding onto address as we'll need to open the listener again
 	listenAddress := hbListener.Addr().String()
 
-	hbServer := grpc.NewServer(grpc.MaxConcurrentStreams(16384))
+	hbServer := xgrpc.NewServer(nil)
 	hb.RegisterHeartbeaterServer(hbServer, hbService)
 	go hbServer.Serve(hbListener)
 
@@ -340,7 +340,7 @@ func TestClientReconnect(t *testing.T) {
 	hbService = &mockHeartbeatServer{}
 	hbListener, err = net.Listen("tcp", listenAddress)
 	require.NoError(t, err)
-	hbServer = grpc.NewServer(grpc.MaxConcurrentStreams(16384))
+	hbServer = xgrpc.NewServer(nil)
 	hb.RegisterHeartbeaterServer(hbServer, hbService)
 	go hbServer.Serve(hbListener)
 	defer hbServer.Stop()

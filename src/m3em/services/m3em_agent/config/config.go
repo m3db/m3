@@ -21,7 +21,12 @@
 package agentmain
 
 import (
+	"io/ioutil"
+
+	xgrpc "github.com/m3db/m3em/x/grpc"
+
 	tallym3 "github.com/uber-go/tally/m3"
+	"google.golang.org/grpc/credentials"
 )
 
 // Configuration is a collection of knobs to configure m3em_agent processes
@@ -54,6 +59,34 @@ type MetricsConfiguration struct {
 
 // ServerConfiguration is a collection of knobs to control grpc server configuration
 type ServerConfiguration struct {
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
-	DebugAddress  string `yaml:"debugAddress"  validate:"nonzero"`
+	ListenAddress string            `yaml:"listenAddress" validate:"nonzero"`
+	DebugAddress  string            `yaml:"debugAddress"  validate:"nonzero"`
+	TLS           *TLSConfiguration `yaml:"tls"`
+}
+
+// TLSConfiguration are the resources required for TLS Communication
+type TLSConfiguration struct {
+	CACrtPath     string `yaml:"caCrt" validate:"nonzero"`
+	ServerCrtPath string `yaml:"serverCrt" validate:"nonzero"`
+	ServerKeyPath string `yaml:"serverKey" validate:"nonzero"`
+}
+
+// Credentials returns the TransportCredentials corresponding to the provided struct
+func (t TLSConfiguration) Credentials() (credentials.TransportCredentials, error) {
+	caCrt, err := ioutil.ReadFile(t.CACrtPath)
+	if err != nil {
+		return nil, err
+	}
+
+	serverCrt, err := ioutil.ReadFile(t.ServerCrtPath)
+	if err != nil {
+		return nil, err
+	}
+
+	serverKey, err := ioutil.ReadFile(t.ServerKeyPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return xgrpc.NewServerCredentials(caCrt, serverCrt, serverKey)
 }

@@ -79,7 +79,7 @@ test-ci-unit: test-internal
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "\x1b[31mCoveralls failed\x1b[m"
 
 test-ci-integration:
-	@$(VENDOR_ENV) $(test_ci_integration)
+	@$(VENDOR_ENV) TEST_TLS_COMMUNICATION=true $(test_ci_integration)
 
 all-gen: proto-gen mock-gen
 
