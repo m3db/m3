@@ -5,6 +5,7 @@
 A time series database.
 
 <hr>
+
 This project is released under the [MIT License](LICENSE.md).
 
 [doc-img]: https://godoc.org/github.com/m3db/m3db?status.svg
