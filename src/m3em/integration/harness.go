@@ -26,6 +26,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -34,13 +35,16 @@ import (
 	"github.com/m3db/m3em/agent"
 	hb "github.com/m3db/m3em/generated/proto/heartbeat"
 	"github.com/m3db/m3em/generated/proto/m3em"
+	"github.com/m3db/m3em/integration/resources"
 	"github.com/m3db/m3em/node"
+	xgrpc "github.com/m3db/m3em/x/grpc"
 
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 type closeFn func() error
@@ -77,6 +81,13 @@ func newTestHarness(t *testing.T) *testHarness {
 func newTestHarnessWithHearbeatOptions(t *testing.T, hbOpts node.HeartbeatOptions) *testHarness {
 	logger := xlog.NewLogger(os.Stderr)
 
+	useTLS := strings.ToLower(os.Getenv("TEST_TLS_COMMUNICATION")) == "true"
+	if useTLS {
+		logger.Infof("Using TLS for RPC")
+	} else {
+		logger.Infof("Not using TLS for RPC")
+	}
+
 	th := &testHarness{
 		t:      t,
 		logger: logger,
@@ -96,6 +107,12 @@ func newTestHarnessWithHearbeatOptions(t *testing.T, hbOpts node.HeartbeatOption
 		return agentListener.Close()
 	})
 
+	var serverCreds credentials.TransportCredentials
+	if useTLS {
+		serverCreds, err = resources.ServerTransportCredentials()
+		require.NoError(th.t, err)
+	}
+
 	// create agent (service|server)
 	th.agentOptions = agent.NewOptions(th.iopts).
 		SetWorkingDirectory(newSubDir(t, th.harnessDir, "agent-wd")).
@@ -103,7 +120,7 @@ func newTestHarnessWithHearbeatOptions(t *testing.T, hbOpts node.HeartbeatOption
 	service, err := agent.New(th.agentOptions)
 	require.NoError(t, err)
 	th.agentService = service
-	th.agentServer = grpc.NewServer(grpc.MaxConcurrentStreams(16384))
+	th.agentServer = xgrpc.NewServer(serverCreds)
 	m3em.RegisterOperatorServer(th.agentServer, service)
 	th.addCloser(func() error {
 		th.agentServer.GracefulStop()
@@ -120,7 +137,7 @@ func newTestHarnessWithHearbeatOptions(t *testing.T, hbOpts node.HeartbeatOption
 		})
 
 		hbRouter := node.NewHeartbeatRouter(heartbeatListener.Addr().String())
-		hbServer := grpc.NewServer(grpc.MaxConcurrentStreams(16384))
+		hbServer := xgrpc.NewServer(nil)
 		hb.RegisterHeartbeaterServer(hbServer, hbRouter)
 		th.heartbeatServer = hbServer
 		th.addCloser(func() error {
@@ -134,7 +151,7 @@ func newTestHarnessWithHearbeatOptions(t *testing.T, hbOpts node.HeartbeatOption
 	}
 
 	// create options to communicate with agent
-	th.nodeOptions = th.newNodeOptions(hbOpts)
+	th.nodeOptions = th.newNodeOptions(hbOpts, useTLS)
 	svc := placement.NewInstance()
 	node, err := node.New(svc, th.nodeOptions)
 	require.NoError(t, err)
@@ -208,8 +225,25 @@ func testHeartbeatOptions() node.HeartbeatOptions {
 		SetInterval(time.Second)
 }
 
-func (th *testHarness) newNodeOptions(hbOpts node.HeartbeatOptions) node.Options {
+func (th *testHarness) newNodeOptions(hbOpts node.HeartbeatOptions, useTLS bool) node.Options {
 	return node.NewOptions(th.iopts).
 		SetHeartbeatOptions(hbOpts).
-		SetOperatorClientFn(testOperatorClientFn(th.agentListener.Addr().String()))
+		SetOperatorClientFn(th.testOperatorClientFn(useTLS))
+}
+
+func (th *testHarness) testOperatorClientFn(useTLS bool) node.OperatorClientFn {
+	endpoint := th.agentListener.Addr().String()
+	dialOpt := grpc.WithInsecure()
+	if useTLS {
+		tc, err := resources.ClientTransportCredentials()
+		require.NoError(th.t, err)
+		dialOpt = grpc.WithTransportCredentials(tc)
+	}
+	return func() (*grpc.ClientConn, m3em.OperatorClient, error) {
+		conn, err := grpc.Dial(endpoint, dialOpt)
+		if err != nil {
+			return nil, nil, err
+		}
+		return conn, m3em.NewOperatorClient(conn), err
+	}
 }
