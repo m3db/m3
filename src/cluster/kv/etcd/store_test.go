@@ -23,6 +23,7 @@ package etcd
 import (
 	"fmt"
 	"io/ioutil"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -272,18 +273,21 @@ func TestWatchLastVersion(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, w.Get())
 
+	var errs int32
 	lastVersion := 100
 	go func() {
 		for i := 1; i <= lastVersion; i++ {
 			_, err := store.Set("foo", genProto(fmt.Sprintf("bar%d", i)))
-			require.NoError(t, err)
+			if err != nil {
+				atomic.AddInt32(&errs, 1)
+			}
 		}
 	}()
 
 	for {
 		<-w.C()
 		value := w.Get()
-		if value.Version() == lastVersion {
+		if value.Version() == lastVersion-int(atomic.LoadInt32(&errs)) {
 			break
 		}
 	}
