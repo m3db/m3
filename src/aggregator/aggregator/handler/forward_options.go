@@ -23,18 +23,26 @@ package handler
 import (
 	"time"
 
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"
 )
 
 const (
-	defaultQueueSize           = 65536
-	defaultConnectTimeout      = 2 * time.Second
-	defaultConnectionKeepAlive = true
+	defaultQueueSize              = 65536
+	defaultConnectTimeout         = 2 * time.Second
+	defaultConnectionKeepAlive    = true
+	defaultConnectionWriteTimeout = 250 * time.Millisecond
 )
 
 // ForwardHandlerOptions provide a set of options for the forwarding handler.
 type ForwardHandlerOptions interface {
+	// SetClockOptions sets the clock options.
+	SetClockOptions(value clock.Options) ForwardHandlerOptions
+
+	// ClockOptions returns the clock options.
+	ClockOptions() clock.Options
+
 	// SetInstrumentOptions sets the instrument options.
 	SetInstrumentOptions(value instrument.Options) ForwardHandlerOptions
 
@@ -59,6 +67,12 @@ type ForwardHandlerOptions interface {
 	// ConnectionKeepAlive returns the connection keepAlive.
 	ConnectionKeepAlive() bool
 
+	// SetConnectionWriteTimeout sets the connection write timeout.
+	SetConnectionWriteTimeout(value time.Duration) ForwardHandlerOptions
+
+	// ConnectionWriteTimeout returns the connection write timeout.
+	ConnectionWriteTimeout() time.Duration
+
 	// SetReconnectRetrier sets the reconnect retrier.
 	SetReconnectRetrier(value xretry.Retrier) ForwardHandlerOptions
 
@@ -67,22 +81,36 @@ type ForwardHandlerOptions interface {
 }
 
 type forwardHandlerOptions struct {
-	instrumentOpts      instrument.Options
-	queueSize           int
-	connectTimeout      time.Duration
-	connectionKeepAlive bool
-	reconnectRetrier    xretry.Retrier
+	clockOpts              clock.Options
+	instrumentOpts         instrument.Options
+	queueSize              int
+	connectTimeout         time.Duration
+	connectionKeepAlive    bool
+	connectionWriteTimeout time.Duration
+	reconnectRetrier       xretry.Retrier
 }
 
 // NewForwardHandlerOptions create a new set of forward handler options.
 func NewForwardHandlerOptions() ForwardHandlerOptions {
 	return &forwardHandlerOptions{
-		instrumentOpts:      instrument.NewOptions(),
-		queueSize:           defaultQueueSize,
-		connectTimeout:      defaultConnectTimeout,
-		connectionKeepAlive: defaultConnectionKeepAlive,
-		reconnectRetrier:    xretry.NewRetrier(xretry.NewOptions()),
+		clockOpts:              clock.NewOptions(),
+		instrumentOpts:         instrument.NewOptions(),
+		queueSize:              defaultQueueSize,
+		connectTimeout:         defaultConnectTimeout,
+		connectionKeepAlive:    defaultConnectionKeepAlive,
+		connectionWriteTimeout: defaultConnectionWriteTimeout,
+		reconnectRetrier:       xretry.NewRetrier(xretry.NewOptions()),
 	}
+}
+
+func (o *forwardHandlerOptions) SetClockOptions(value clock.Options) ForwardHandlerOptions {
+	opts := *o
+	opts.clockOpts = value
+	return &opts
+}
+
+func (o *forwardHandlerOptions) ClockOptions() clock.Options {
+	return o.clockOpts
 }
 
 func (o *forwardHandlerOptions) SetInstrumentOptions(value instrument.Options) ForwardHandlerOptions {
@@ -123,6 +151,16 @@ func (o *forwardHandlerOptions) SetConnectionKeepAlive(value bool) ForwardHandle
 
 func (o *forwardHandlerOptions) ConnectionKeepAlive() bool {
 	return o.connectionKeepAlive
+}
+
+func (o *forwardHandlerOptions) SetConnectionWriteTimeout(value time.Duration) ForwardHandlerOptions {
+	opts := *o
+	opts.connectionWriteTimeout = value
+	return &opts
+}
+
+func (o *forwardHandlerOptions) ConnectionWriteTimeout() time.Duration {
+	return o.connectionWriteTimeout
 }
 
 func (o *forwardHandlerOptions) SetReconnectRetrier(value xretry.Retrier) ForwardHandlerOptions {
