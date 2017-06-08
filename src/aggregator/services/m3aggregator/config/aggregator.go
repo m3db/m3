@@ -554,6 +554,9 @@ type forwardHandlerConfiguration struct {
 	// Connection keep alive.
 	ConnectionKeepAlive *bool `yaml:"connectionKeepAlive"`
 
+	// Connection write timeout.
+	ConnectionWriteTimeout time.Duration `yaml:"connectionWriteTimeout"`
+
 	// Reconnect retrier.
 	ReconnectRetrier xretry.Configuration `yaml:"reconnect"`
 }
@@ -571,6 +574,9 @@ func (c *forwardHandlerConfiguration) NewHandler(
 	}
 	if c.ConnectionKeepAlive != nil {
 		opts = opts.SetConnectionKeepAlive(*c.ConnectionKeepAlive)
+	}
+	if c.ConnectionWriteTimeout != 0 {
+		opts = opts.SetConnectionWriteTimeout(c.ConnectionWriteTimeout)
 	}
 
 	scope := instrumentOpts.MetricsScope().SubScope("reconnect")

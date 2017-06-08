@@ -29,6 +29,7 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/protocol/msgpack"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"
 
@@ -87,12 +88,14 @@ func newForwardHandlerMetrics(scope tally.Scope) forwardHandlerMetrics {
 type forwardHandler struct {
 	sync.RWMutex
 
-	servers             []string
-	log                 xlog.Logger
-	connectTimeout      time.Duration
-	connectionKeepAlive bool
-	reconnectRetrier    xretry.Retrier
-	reportInterval      time.Duration
+	servers                []string
+	log                    xlog.Logger
+	nowFn                  clock.NowFn
+	connectTimeout         time.Duration
+	connectionKeepAlive    bool
+	connectionWriteTimeout time.Duration
+	reconnectRetrier       xretry.Retrier
+	reportInterval         time.Duration
 
 	bufCh              chan msgpack.Buffer
 	wg                 sync.WaitGroup
@@ -266,6 +269,11 @@ func (h *forwardHandler) forwardToConn(addr string, conn *net.TCPConn) {
 	}
 }
 
+func (h *forwardHandler) writeToConn(conn *net.TCPConn, data []byte) (int, error) {
+	conn.SetWriteDeadline(h.nowFn().Add(h.connectionWriteTimeout))
+	return conn.Write(data)
+}
+
 func (h *forwardHandler) reportMetrics() {
 	t := time.NewTicker(h.reportInterval)
 	for {
@@ -287,22 +295,20 @@ func newForwardHandler(servers []string, opts ForwardHandlerOptions) (*forwardHa
 
 	instrumentOpts := opts.InstrumentOptions()
 	h := &forwardHandler{
-		servers:             servers,
-		log:                 instrumentOpts.Logger(),
-		connectTimeout:      opts.ConnectTimeout(),
-		connectionKeepAlive: opts.ConnectionKeepAlive(),
-		reconnectRetrier:    opts.ReconnectRetrier(),
-		reportInterval:      instrumentOpts.ReportInterval(),
-		bufCh:               make(chan msgpack.Buffer, opts.QueueSize()),
-		closedCh:            make(chan struct{}),
-		metrics:             newForwardHandlerMetrics(instrumentOpts.MetricsScope()),
-		dialWithTimeoutFn:   net.DialTimeout,
-		writeToConnFn:       writeToConn,
+		servers:                servers,
+		log:                    instrumentOpts.Logger(),
+		nowFn:                  opts.ClockOptions().NowFn(),
+		connectTimeout:         opts.ConnectTimeout(),
+		connectionKeepAlive:    opts.ConnectionKeepAlive(),
+		connectionWriteTimeout: opts.ConnectionWriteTimeout(),
+		reconnectRetrier:       opts.ReconnectRetrier(),
+		reportInterval:         instrumentOpts.ReportInterval(),
+		bufCh:                  make(chan msgpack.Buffer, opts.QueueSize()),
+		closedCh:               make(chan struct{}),
+		metrics:                newForwardHandlerMetrics(instrumentOpts.MetricsScope()),
+		dialWithTimeoutFn:      net.DialTimeout,
 	}
 	h.tryConnectFn = h.tryConnect
+	h.writeToConnFn = h.writeToConn
 	return h, nil
-}
-
-func writeToConn(conn *net.TCPConn, data []byte) (int, error) {
-	return conn.Write(data)
 }
