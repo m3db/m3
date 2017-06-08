@@ -23,6 +23,7 @@ package policy
 import (
 	"testing"
 
+	"github.com/m3db/m3x/pool"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,17 +36,6 @@ func TestAggregationTypesIsDefault(t *testing.T) {
 	require.True(t, DefaultAggregationTypes.IsDefault())
 
 	require.False(t, AggregationTypes{Upper}.IsDefault())
-}
-
-func TestCompressedAggregationTypesIsDefault(t *testing.T) {
-	var id AggregationID
-	require.True(t, id.IsDefault())
-
-	id[0] = 8
-	require.False(t, id.IsDefault())
-
-	id[0] = 0
-	require.True(t, id.IsDefault())
 }
 
 func TestParseParseAggregationTypes(t *testing.T) {
@@ -67,6 +57,45 @@ func TestParseParseAggregationTypes(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, input.expected, res)
 	}
+}
+
+func TestQuantiles(t *testing.T) {
+	res := AggregationTypes{Median, P95, P99}.PooledQuantiles(nil)
+	require.Equal(t, []float64{0.5, 0.95, 0.99}, res)
+
+	p := pool.NewFloatsPool(
+		[]pool.Bucket{
+			pool.Bucket{Capacity: 10, Count: 1},
+		},
+		nil,
+	)
+	p.Init()
+	res = AggregationTypes{Median, P95, P99}.PooledQuantiles(p)
+	require.Equal(t, []float64{0.5, 0.95, 0.99}, res)
+
+	p.Put(res)
+
+	res2 := AggregationTypes{P90, P95, P99}.PooledQuantiles(p)
+	require.Equal(t, []float64{0.9, 0.95, 0.99}, res2)
+	require.Equal(t, res, res2)
+	p.Put(res2)
+
+	res3 := AggregationTypes{Count}.PooledQuantiles(p)
+	require.Nil(t, res3)
+
+	res4 := AggregationTypes{P10, P20, P30, P40, P50, Median, P60, P70, P80, P90, P95, P99, P999, P9999}.PooledQuantiles(p)
+	require.Equal(t, []float64{0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 0.999, 0.9999}, res4)
+}
+
+func TestCompressedAggregationTypesIsDefault(t *testing.T) {
+	var id AggregationID
+	require.True(t, id.IsDefault())
+
+	id[0] = 8
+	require.False(t, id.IsDefault())
+
+	id[0] = 0
+	require.True(t, id.IsDefault())
 }
 
 func TestCompressedAggregationTypesMerge(t *testing.T) {

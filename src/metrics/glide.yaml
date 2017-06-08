@@ -41,6 +41,8 @@ import:
   - m3/customtransports
   - m3/thrift
   - m3/thriftudp
+- package: github.com/willf/bitset
+  version: 988f4f24992fc745de53c42df0da6581e42a6686
 - package: golang.org/x/net
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
   subpackages:
