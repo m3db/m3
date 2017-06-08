@@ -40,8 +40,8 @@ func TestAggregationIDCompressRoundTrip(t *testing.T) {
 		{[]AggregationType{Last}, []AggregationType{Last}, false},
 		{[]AggregationType{P999, P9999}, []AggregationType{P999, P9999}, false},
 		{[]AggregationType{1, 5, 9, 3, 2}, []AggregationType{1, 2, 3, 5, 9}, false},
-		// 20 is an Unknown aggregation type.
-		{[]AggregationType{10, 20}, DefaultAggregationTypes, true},
+		// 50 is an Unknown aggregation type.
+		{[]AggregationType{10, 50}, DefaultAggregationTypes, true},
 	}
 
 	p := NewAggregationTypesPool(pool.NewObjectPoolOptions().SetSize(1))
