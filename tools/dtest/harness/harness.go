@@ -14,8 +14,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"google.golang.org/grpc"
-
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
@@ -32,6 +30,7 @@ import (
 	"github.com/m3db/m3em/cluster"
 	hb "github.com/m3db/m3em/generated/proto/heartbeat"
 	"github.com/m3db/m3em/node"
+	xgrpc "github.com/m3db/m3em/x/grpc"
 	m3xclock "github.com/m3db/m3x/clock"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
@@ -421,7 +420,7 @@ func (dt *DTestHarness) newHeartbeatRouter() node.HeartbeatRouter {
 
 	externalAddress := fmt.Sprintf("%s:%d", hostname, hbPort)
 	hbRouter := node.NewHeartbeatRouter(externalAddress)
-	hbServer := grpc.NewServer(grpc.MaxConcurrentStreams(16384))
+	hbServer := xgrpc.NewServer(nil)
 	hb.RegisterHeartbeaterServer(hbServer, hbRouter)
 	go func() {
 		err := hbServer.Serve(listener)
