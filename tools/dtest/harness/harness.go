@@ -302,7 +302,6 @@ func (dt *DTestHarness) seedWithConfig(nodes []node.ServiceNode, seedConf config
 	if err := transferDataExecutor.Run(); err != nil {
 		return fmt.Errorf("unable to transfer generated data, err: %v", err)
 	}
-	dt.logger.Infof("seeded nodes!")
 
 	return nil
 }
