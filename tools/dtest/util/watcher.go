@@ -79,7 +79,7 @@ func (nw *nodesWatcher) Pending() []m3emnode.Node {
 		pending = append(pending, node)
 	}
 
-	sort.Sort(m3dbnodesByID(pending))
+	sort.Sort(nodesByID(pending))
 	return pending
 }
 
@@ -115,14 +115,14 @@ func (nw *nodesWatcher) WaitUntilAll(p NodePredicate, timeout time.Duration) boo
 	var wg sync.WaitGroup
 	wg.Add(len(pending))
 	for i := range pending {
-		m3dbNode := pending[i]
-		go func(m3dbNode m3emnode.Node) {
+		n := pending[i]
+		go func(node m3emnode.Node) {
 			defer wg.Done()
-			if cond := xclock.WaitUntil(func() bool { return p(m3dbNode) }, timeout); cond {
-				nw.logger.Infof("%s finished bootstrapping", m3dbNode.ID())
-				nw.removeInstance(m3dbNode.ID())
+			if cond := xclock.WaitUntil(func() bool { return p(node) }, timeout); cond {
+				nw.logger.Infof("%s finished bootstrapping", node.ID())
+				nw.removeInstance(node.ID())
 			}
-		}(m3dbNode)
+		}(n)
 	}
 
 	// kick of a go-routine to log information
@@ -163,16 +163,16 @@ func (nw *nodesWatcher) WaitUntilAll(p NodePredicate, timeout time.Duration) boo
 	return numPending == 0
 }
 
-type m3dbnodesByID []m3emnode.Node
+type nodesByID []m3emnode.Node
 
-func (n m3dbnodesByID) Len() int {
+func (n nodesByID) Len() int {
 	return len(n)
 }
 
-func (n m3dbnodesByID) Less(i, j int) bool {
+func (n nodesByID) Less(i, j int) bool {
 	return n[i].ID() < n[j].ID()
 }
 
-func (n m3dbnodesByID) Swap(i, j int) {
+func (n nodesByID) Swap(i, j int) {
 	n[i], n[j] = n[j], n[i]
 }
