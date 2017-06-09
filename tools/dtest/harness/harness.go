@@ -86,7 +86,7 @@ func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
 	})
 
 	// parse configuration
-	conf, err := config.New(cliOpts.M3EMConfigPath)
+	conf, err := config.New(cliOpts.DTestConfigPath)
 	if err != nil {
 		logger.Fatalf("unable to read configuration file: %v", err.Error())
 	}
@@ -119,8 +119,8 @@ func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
 	co := conf.M3EM.Cluster.Options(dt.iopts)
 	dt.clusterOpts = co.
 		SetPlacementService(pSvc).
-		SetServiceBuild(newBuild(logger, cliOpts.M3DBBuildPath)).
-		SetServiceConfig(newConfig(logger, cliOpts.M3DBConfigPath)).
+		SetServiceBuild(newBuild(logger, cliOpts.NodeBuildPath)).
+		SetServiceConfig(newConfig(logger, cliOpts.NodeConfigPath)).
 		SetSessionToken(cliOpts.SessionToken).
 		SetSessionOverride(cliOpts.SessionOverride).
 		SetNodeListener(util.NewPullLogsAndPanicListener(logger, dt.harnessDir))
