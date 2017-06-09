@@ -11,7 +11,7 @@ import (
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
-	m3dbnode "github.com/m3db/m3db/x/m3em/node"
+	m3emnode "github.com/m3db/m3db/x/m3em/node"
 	"github.com/m3db/m3em/cluster"
 	"github.com/m3db/m3em/generated/proto/m3em"
 	"github.com/m3db/m3em/node"
@@ -103,8 +103,8 @@ func New(m3emConfigPath string) (*Configuration, error) {
 	return &conf, nil
 }
 
-// Nodes returns a slice of m3dbnode.Nodes per the config provided
-func (c *Configuration) Nodes(opts node.Options, numNodes int) ([]m3dbnode.Node, error) {
+// Nodes returns a slice of m3emnode.Nodes per the config provided
+func (c *Configuration) Nodes(opts node.Options, numNodes int) ([]m3emnode.Node, error) {
 	// use all nodes if numNodes is zero
 	if numNodes <= 0 {
 		numNodes = len(c.DTest.Instances)
@@ -112,7 +112,7 @@ func (c *Configuration) Nodes(opts node.Options, numNodes int) ([]m3dbnode.Node,
 
 	var (
 		logger  = opts.InstrumentOptions().Logger()
-		nodes   = make([]m3dbnode.Node, 0, len(c.DTest.Instances))
+		nodes   = make([]m3emnode.Node, 0, len(c.DTest.Instances))
 		nodeNum = 0
 	)
 
@@ -137,8 +137,8 @@ func (c *Configuration) Nodes(opts node.Options, numNodes int) ([]m3dbnode.Node,
 			return nil, fmt.Errorf("unable to create service node for %+v, error: %v", inst, err)
 		}
 
-		m3dbNodeOpts := m3dbnode.NewOptions(newOpts.InstrumentOptions()).SetNodeOptions(newOpts)
-		m3dbNode, err := m3dbnode.New(svcNode, m3dbNodeOpts)
+		m3dbNodeOpts := m3emnode.NewOptions(newOpts.InstrumentOptions()).SetNodeOptions(newOpts)
+		m3dbNode, err := m3emnode.New(svcNode, m3dbNodeOpts)
 		if err != nil {
 			return nil, fmt.Errorf("unable to create m3db node for %+v, error: %v", inst, err)
 		}
