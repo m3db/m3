@@ -70,6 +70,7 @@ func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
 		return os.RemoveAll(dir)
 	})
 
+	// parse configuration
 	conf, err := config.New(cliOpts.M3EMConfigPath)
 	if err != nil {
 		logger.Fatalf("unable to read configuration file: %v", err.Error())
@@ -77,6 +78,7 @@ func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
 	dt.conf = conf
 	dt.startPProfServer()
 
+	// make placement service
 	pSvc, err := placementService(dt.m3dbServiceID(),
 		conf.KV.NewOptions(), defaultPlacementOptions(dt.iopts))
 	if err != nil {
@@ -84,44 +86,52 @@ func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
 	}
 	dt.placementService = pSvc
 
+	// set default node options
 	no := conf.M3EM.Node.Options(dt.iopts)
 	dt.nodeOpts = no.SetHeartbeatOptions(
 		no.HeartbeatOptions().
 			SetEnabled(true).
 			SetHeartbeatRouter(dt.newHeartbeatRouter()))
 
-	nodes, err := dt.conf.M3EM.M3DBNodes(dt.nodeOpts, cliOpts.NumNodes)
+	// parse node configurations
+	nodes, err := dt.conf.Nodes(dt.nodeOpts, cliOpts.NumNodes)
 	if err != nil {
 		logger.Fatalf("unable to create m3db nodes: %v", err)
 	}
 	dt.nodes = nodes
 
-	dt.clusterOpts = cluster.NewOptions(pSvc, dt.iopts).
+	// default cluster options
+	co := conf.M3EM.Cluster.Options(dt.iopts)
+	dt.clusterOpts = co.
+		SetPlacementService(pSvc).
 		SetServiceBuild(newBuild(logger, cliOpts.M3DBBuildPath)).
 		SetServiceConfig(newConfig(logger, cliOpts.M3DBConfigPath)).
 		SetSessionToken(cliOpts.SessionToken).
 		SetSessionOverride(cliOpts.SessionOverride).
-		SetNumShards(conf.DTest.NumShards).
 		SetNodeListener(util.NewPullLogsAndPanicListener(logger, dt.harnessDir))
 
 	if cliOpts.InitialReset {
-		svcNodes, err := convert.AsServiceNodes(nodes)
-		if err != nil {
-			logger.Fatalf("unable to cast nodes: %v", err)
-		}
-
-		var (
-			concurrency = dt.clusterOpts.NodeConcurrency()
-			timeout     = dt.clusterOpts.NodeOperationTimeout()
-			teardownFn  = func(n node.ServiceNode) error { return n.Teardown() }
-			exec        = node.NewConcurrentExecutor(svcNodes, concurrency, timeout, teardownFn)
-		)
-		if err := exec.Run(); err != nil {
-			logger.Fatalf("unable to reset nodes: %v", err)
-		}
+		dt.initialReset()
 	}
 
 	return dt
+}
+
+func (dt *DTestHarness) initialReset() {
+	svcNodes, err := convert.AsServiceNodes(dt.nodes)
+	if err != nil {
+		dt.logger.Fatalf("unable to cast nodes: %v", err)
+	}
+
+	var (
+		concurrency = dt.clusterOpts.NodeConcurrency()
+		timeout     = dt.clusterOpts.NodeOperationTimeout()
+		teardownFn  = func(n node.ServiceNode) error { return n.Teardown() }
+		exec        = node.NewConcurrentExecutor(svcNodes, concurrency, timeout, teardownFn)
+	)
+	if err := exec.Run(); err != nil {
+		dt.logger.Fatalf("unable to reset nodes: %v", err)
+	}
 }
 
 func (dt *DTestHarness) startPProfServer() {
@@ -177,7 +187,7 @@ func (dt *DTestHarness) SetClusterOptions(co cluster.Options) {
 
 // BootstrapTimeout returns the bootstrap timeout configued
 func (dt *DTestHarness) BootstrapTimeout() time.Duration {
-	return time.Duration(dt.Configuration().DTest.BootstrapTimeoutMins) * time.Minute
+	return dt.Configuration().DTest.BootstrapTimeout
 }
 
 func (dt *DTestHarness) m3dbNodesAsServiceNodes() []node.ServiceNode {
@@ -276,7 +286,7 @@ func (dt *DTestHarness) addCloser(fn closeFn) {
 
 func (dt *DTestHarness) m3dbServiceID() services.ServiceID {
 	return services.NewServiceID().
-		SetName(dt.conf.M3EM.M3DBServiceID).
+		SetName(dt.conf.DTest.M3DBServiceID).
 		SetEnvironment(dt.conf.KV.Env).
 		SetZone(dt.conf.KV.Zone)
 }
@@ -320,5 +330,8 @@ func newConfig(logger xlog.Logger, filename string) build.ServiceConfiguration {
 	}
 	conf := build.NewServiceConfig("m3dbnode.yaml", bytes)
 	logger.Infof("read service config from: %v", filename)
+	// TODO(prateek): once the struct is OSS-ed, parse M3DB configuration and ensure the following fields are accurately set
+	// - kv (env|zone)
+	// - data directory
 	return conf
 }
