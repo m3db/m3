@@ -275,12 +275,10 @@ func (dt *DTestHarness) seedWithConfig(nodes []node.ServiceNode, seedConf config
 
 	generator := seed.NewGenerator(seedDataOpts)
 	outputNamespace := ts.StringID(seedConf.Namespace)
-	dt.logger.Infof("generating data to bootstrap with")
 
 	if err := generator.Generate(outputNamespace, seedConf.LocalShardNum); err != nil {
 		return fmt.Errorf("unable to generate data: %v", err)
 	}
-	dt.logger.Infof("generated data")
 
 	generatedDataPath := path.Join(generateOpts.FilePathPrefix(), "data")
 	fakeShardDir := newShardDir(generatedDataPath, outputNamespace, seedConf.LocalShardNum)

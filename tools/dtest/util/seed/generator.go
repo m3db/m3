@@ -76,7 +76,7 @@ func (g *generator) Generate(namespace ts.ID, shard uint32) error {
 		return fmt.Errorf("unable to write data: %v", err)
 	}
 
-	g.logger.Debug("finished writing data")
+	g.logger.Debug("data written to local fs")
 	return nil
 }
 
