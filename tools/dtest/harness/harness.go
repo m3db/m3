@@ -21,6 +21,7 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/shard"
+	xclock "github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/tools/dtest/config"
 	"github.com/m3db/m3db/tools/dtest/util"
@@ -32,7 +33,7 @@ import (
 	"github.com/m3db/m3em/cluster"
 	hb "github.com/m3db/m3em/generated/proto/heartbeat"
 	"github.com/m3db/m3em/node"
-	xclock "github.com/m3db/m3x/clock"
+	m3xclock "github.com/m3db/m3x/clock"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
@@ -243,6 +244,16 @@ func (dt *DTestHarness) Seed(nodes []node.ServiceNode) error {
 	return nil
 }
 
+func delayedNowFn(delay time.Duration) xclock.NowFn {
+	if delay == 0 {
+		return time.Now
+	}
+
+	return func() time.Time {
+		return time.Now().Add(-delay)
+	}
+}
+
 func (dt *DTestHarness) seedWithConfig(nodes []node.ServiceNode, seedConf config.SeedConfig) error {
 	dt.logger.Infof("Seeding data with configuration: %+v", seedConf)
 
@@ -255,7 +266,8 @@ func (dt *DTestHarness) seedWithConfig(nodes []node.ServiceNode, seedConf config
 	generateOpts := generate.NewOptions().
 		SetRetentionPeriod(seedConf.Retention).
 		SetBlockSize(seedConf.BlockSize).
-		SetFilePathPrefix(seedDir)
+		SetFilePathPrefix(seedDir).
+		SetClockOptions(xclock.NewOptions().SetNowFn(delayedNowFn(seedConf.Delay)))
 
 	seedDataOpts := seed.NewOptions().
 		SetInstrumentOptions(iopts).
@@ -288,7 +300,6 @@ func (dt *DTestHarness) seedWithConfig(nodes []node.ServiceNode, seedConf config
 				base := path.Base(file.Name())
 				srcPath := path.Join(fakeShardDir, base)
 				paths := generatePaths(placement, n, outputNamespace, base)
-				dt.logger.Debugf("transferring %s to node %s, at paths: %v", base, n.ID(), paths)
 				if err := n.TransferLocalFile(srcPath, paths, true); err != nil {
 					return err
 				}
@@ -338,7 +349,7 @@ func (dt *DTestHarness) WaitUntilAllBootstrapped(nodes []m3emnode.Node) error {
 // available, or the configured bootstrap timeout period; whichever is sooner. It returns
 // an error indicating if all the nodes finished bootstrapping.
 func (dt *DTestHarness) WaitUntilAllShardsAvailable() error {
-	allAvailable := xclock.WaitUntil(dt.AllShardsAvailable, dt.BootstrapTimeout())
+	allAvailable := m3xclock.WaitUntil(dt.AllShardsAvailable, dt.BootstrapTimeout())
 	if !allAvailable {
 		return fmt.Errorf("all shards not available")
 	}
