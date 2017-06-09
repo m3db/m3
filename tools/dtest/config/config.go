@@ -29,13 +29,14 @@ type Configuration struct {
 
 // DTestConfig is a collection of DTest configs
 type DTestConfig struct {
-	DebugPort        int                 `yaml:"debugPort" validate:"nonzero"`
-	BootstrapTimeout time.Duration       `yaml:"bootstrapTimeout" validate:"nonzero"`
-	M3DBPort         int                 `yaml:"m3dbPort" validate:"nonzero"`
-	M3DBServiceID    string              `yaml:"m3dbServiceID" validate:"nonzero"`
-	M3DBDataDir      string              `yaml:"m3dbDataDir" validate:"nonzero"` // path relative to m3em agent working directory
-	Seeds            []SeedConfig        `yaml:"seeds"`
-	Instances        []PlacementInstance `yaml:"instances" validate:"min=1"`
+	DebugPort               int                 `yaml:"debugPort" validate:"nonzero"`
+	BootstrapTimeout        time.Duration       `yaml:"bootstrapTimeout" validate:"nonzero"`
+	BootstrapReportInterval time.Duration       `yaml:"bootstrapReportInterval" validate:"nonzero"`
+	M3DBPort                int                 `yaml:"m3dbPort" validate:"nonzero"`
+	M3DBServiceID           string              `yaml:"m3dbServiceID" validate:"nonzero"`
+	M3DBDataDir             string              `yaml:"m3dbDataDir" validate:"nonzero"` // path relative to m3em agent working directory
+	Seeds                   []SeedConfig        `yaml:"seeds"`
+	Instances               []PlacementInstance `yaml:"instances" validate:"min=1"`
 }
 
 // SeedConfig is a collection of Seed Data configurations

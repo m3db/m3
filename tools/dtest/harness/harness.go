@@ -1,16 +1,15 @@
 package harness
 
 import (
-	// pprof import
-	_ "net/http/pprof"
-	"path"
-	"strconv"
-
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
+	// _ is used for pprof
+	_ "net/http/pprof"
 	"os"
+	"path"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -41,8 +40,8 @@ import (
 )
 
 const (
-	defaultBootstrapStatusReportingInterval = time.Minute
-	agentM3DBDataDir                        = "m3db-data/data"
+	buildFilename  = "m3dbnode"
+	configFilename = "m3dbnode.yaml"
 )
 
 type closeFn func() error
@@ -289,6 +288,7 @@ func (dt *DTestHarness) seedWithConfig(nodes []node.ServiceNode, seedConf config
 
 	// transfer the generated data to the remote hosts
 	var (
+		dataDir      = dt.conf.DTest.M3DBDataDir
 		co           = dt.ClusterOptions()
 		placement    = dt.Cluster().Placement()
 		concurrency  = co.NodeConcurrency()
@@ -297,7 +297,7 @@ func (dt *DTestHarness) seedWithConfig(nodes []node.ServiceNode, seedConf config
 			for _, file := range localFiles {
 				base := path.Base(file.Name())
 				srcPath := path.Join(fakeShardDir, base)
-				paths := generatePaths(placement, n, outputNamespace, base)
+				paths := generatePaths(placement, n, outputNamespace, base, dataDir)
 				if err := n.TransferLocalFile(srcPath, paths, true); err != nil {
 					return err
 				}
@@ -319,7 +319,13 @@ func newShardDir(prefix string, ns ts.ID, shard uint32) string {
 	return path.Join(prefix, ns.String(), strconv.FormatUint(uint64(shard), 10))
 }
 
-func generatePaths(placement services.ServicePlacement, n node.ServiceNode, ns ts.ID, file string) []string {
+func generatePaths(
+	placement services.ServicePlacement,
+	n node.ServiceNode,
+	ns ts.ID,
+	file string,
+	agentM3DBDataDir string,
+) []string {
 	paths := []string{}
 	pi, ok := placement.Instance(n.ID())
 	if !ok {
@@ -336,7 +342,7 @@ func generatePaths(placement services.ServicePlacement, n node.ServiceNode, ns t
 // the configured bootstrap timeout period; whichever is sooner. It returns an error
 // indicating if all the nodes finished bootstrapping.
 func (dt *DTestHarness) WaitUntilAllBootstrapped(nodes []m3emnode.Node) error {
-	watcher := util.NewNodesWatcher(nodes, dt.logger, defaultBootstrapStatusReportingInterval)
+	watcher := util.NewNodesWatcher(nodes, dt.logger, dt.conf.DTest.BootstrapReportInterval)
 	if allBootstrapped := watcher.WaitUntilAll(m3emnode.Node.Bootstrapped, dt.BootstrapTimeout()); !allBootstrapped {
 		return fmt.Errorf("unable to bootstrap all nodes, err = %v", watcher.PendingAsError())
 	}
@@ -473,7 +479,7 @@ func defaultPlacementOptions(iopts instrument.Options) services.PlacementOptions
 }
 
 func newBuild(logger xlog.Logger, filename string) build.ServiceBuild {
-	bld := build.NewServiceBuild("m3dbnode", filename)
+	bld := build.NewServiceBuild(buildFilename, filename)
 	logger.Infof("marking service build: %+v", bld)
 	return bld
 }
@@ -483,7 +489,7 @@ func newConfig(logger xlog.Logger, filename string) build.ServiceConfiguration {
 	if err != nil {
 		logger.Fatalf("unable to read: %v, err: %v", filename, err)
 	}
-	conf := build.NewServiceConfig("m3dbnode.yaml", bytes)
+	conf := build.NewServiceConfig(configFilename, bytes)
 	logger.Infof("read service config from: %v", filename)
 	// TODO(prateek): once the struct is OSS-ed, parse M3DB configuration,
 	// and ensure the following fields are correctly overriden/line up from dtest|m3em configs
