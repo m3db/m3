@@ -32,9 +32,9 @@ type DTestConfig struct {
 	DebugPort               int                 `yaml:"debugPort" validate:"nonzero"`
 	BootstrapTimeout        time.Duration       `yaml:"bootstrapTimeout" validate:"nonzero"`
 	BootstrapReportInterval time.Duration       `yaml:"bootstrapReportInterval" validate:"nonzero"`
-	M3DBPort                int                 `yaml:"m3dbPort" validate:"nonzero"`
-	M3DBServiceID           string              `yaml:"m3dbServiceID" validate:"nonzero"`
-	M3DBDataDir             string              `yaml:"m3dbDataDir" validate:"nonzero"` // path relative to m3em agent working directory
+	NodePort                int                 `yaml:"nodePort" validate:"nonzero"`
+	ServiceID               string              `yaml:"serviceID" validate:"nonzero"`
+	DataDir                 string              `yaml:"dataDir" validate:"nonzero"` // path relative to m3em agent working directory
 	Seeds                   []SeedConfig        `yaml:"seeds"`
 	Instances               []PlacementInstance `yaml:"instances" validate:"min=1"`
 }
@@ -122,7 +122,7 @@ func (c *Configuration) Nodes(opts node.Options, numNodes int) ([]m3emnode.Node,
 			break
 		}
 
-		pi := inst.newServicesPlacementInstance(c.DTest.M3DBPort)
+		pi := inst.newServicesPlacementInstance(c.DTest.NodePort)
 		clientFn, err := inst.operatorClientFn(c.M3EM.AgentPort, c.M3EM.AgentTLS)
 		if err != nil {
 			return nil, fmt.Errorf("unable to create operationClientFn for %+v, error: %v", inst, err)
@@ -138,12 +138,12 @@ func (c *Configuration) Nodes(opts node.Options, numNodes int) ([]m3emnode.Node,
 			return nil, fmt.Errorf("unable to create service node for %+v, error: %v", inst, err)
 		}
 
-		m3dbNodeOpts := m3emnode.NewOptions(newOpts.InstrumentOptions()).SetNodeOptions(newOpts)
-		m3dbNode, err := m3emnode.New(svcNode, m3dbNodeOpts)
+		nodeOpts := m3emnode.NewOptions(newOpts.InstrumentOptions()).SetNodeOptions(newOpts)
+		n, err := m3emnode.New(svcNode, nodeOpts)
 		if err != nil {
-			return nil, fmt.Errorf("unable to create m3db node for %+v, error: %v", inst, err)
+			return nil, fmt.Errorf("unable to create m3emnode for %+v, error: %v", inst, err)
 		}
-		nodes = append(nodes, m3dbNode)
+		nodes = append(nodes, n)
 
 		nodeNum++
 	}
@@ -172,8 +172,8 @@ func (pi *PlacementInstance) operatorClientFn(agentPort int, tlsConfig *TLSConfi
 	}, nil
 }
 
-func (pi *PlacementInstance) newServicesPlacementInstance(m3dbPort int) services.PlacementInstance {
-	endpoint := fmt.Sprintf("%s:%d", pi.Hostname, m3dbPort)
+func (pi *PlacementInstance) newServicesPlacementInstance(nodePort int) services.PlacementInstance {
+	endpoint := fmt.Sprintf("%s:%d", pi.Hostname, nodePort)
 	return placement.NewInstance().
 		SetID(pi.ID).
 		SetRack(pi.Rack).

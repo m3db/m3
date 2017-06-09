@@ -29,7 +29,7 @@ func simpleBootstrapDTest(cmd *cobra.Command, args []string) {
 	numNodes := len(nodes)
 	testCluster := dt.Cluster()
 
-	_, err := testCluster.Setup(numNodes)
+	setupNodes, err := testCluster.Setup(numNodes)
 	panicIfErr(err, "unable to setup cluster")
 	logger.Infof("setup cluster with %d nodes", numNodes)
 
@@ -37,6 +37,6 @@ func simpleBootstrapDTest(cmd *cobra.Command, args []string) {
 	logger.Infof("started cluster with %d nodes", numNodes)
 
 	logger.Infof("waiting until all instances are bootstrapped")
-	panicIfErr(dt.WaitUntilAllBootstrapped(nodes), "unable to bootstrap all nodes")
+	panicIfErr(dt.WaitUntilAllBootstrapped(setupNodes), "unable to bootstrap all nodes")
 	logger.Infof("all nodes bootstrapped successfully!")
 }

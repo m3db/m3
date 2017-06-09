@@ -4,7 +4,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/m3db/m3db/tools/dtest/harness"
-	"github.com/m3db/m3db/x/m3em/convert"
 	"github.com/m3db/m3em/node"
 )
 
@@ -44,11 +43,8 @@ func addDownNodeAndBringUpDTest(cmd *cobra.Command, args []string) {
 	panicIfErr(testCluster.Start(), "unable to start nodes")
 	logger.Infof("started cluster with %d nodes", numNodes)
 
-	m3dbnodes, err := convert.AsM3DBNodes(setupNodes)
-	panicIfErr(err, "unable to cast to m3dbnodes")
-
 	logger.Infof("waiting until all instances are bootstrapped")
-	panicIfErr(dt.WaitUntilAllBootstrapped(m3dbnodes), "unable to bootstrap all nodes")
+	panicIfErr(dt.WaitUntilAllBootstrapped(setupNodes), "unable to bootstrap all nodes")
 	logger.Infof("all nodes bootstrapped successfully!")
 
 	// get a spare, ensure it's down and add to the cluster

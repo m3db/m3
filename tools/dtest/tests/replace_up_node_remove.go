@@ -5,7 +5,6 @@ import (
 
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/tools/dtest/harness"
-	"github.com/m3db/m3db/x/m3em/convert"
 	xclock "github.com/m3db/m3x/clock"
 )
 
@@ -47,15 +46,12 @@ func replaceUpNodeRemoveDTest(cmd *cobra.Command, args []string) {
 	panicIfErr(testCluster.Start(), "unable to start nodes")
 	logger.Infof("started cluster with %d nodes", numNodes)
 
-	m3dbnodes, err := convert.AsM3DBNodes(setupNodes)
-	panicIfErr(err, "unable to cast to m3dbnodes")
-
 	logger.Infof("waiting until all instances are bootstrapped")
-	panicIfErr(dt.WaitUntilAllBootstrapped(m3dbnodes), "unable to bootstrap all nodes")
+	panicIfErr(dt.WaitUntilAllBootstrapped(setupNodes), "unable to bootstrap all nodes")
 	logger.Infof("all nodes bootstrapped successfully!")
 
 	// pick first node from cluster
-	nodeToReplace := m3dbnodes[0]
+	nodeToReplace := setupNodes[0]
 	logger.Infof("replacing node: %v", nodeToReplace.ID())
 	replacementNodes, err := testCluster.ReplaceNode(nodeToReplace)
 	panicIfErr(err, "unable to replace node")

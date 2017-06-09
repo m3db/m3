@@ -94,7 +94,7 @@ func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
 	dt.startPProfServer()
 
 	// make placement service
-	pSvc, err := placementService(dt.m3dbServiceID(),
+	pSvc, err := placementService(dt.serviceID(),
 		conf.KV.NewOptions(), defaultPlacementOptions(dt.iopts))
 	if err != nil {
 		logger.Fatalf("unable to create placement service %v", err)
@@ -111,7 +111,7 @@ func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
 	// parse node configurations
 	nodes, err := dt.conf.Nodes(dt.nodeOpts, cliOpts.NumNodes)
 	if err != nil {
-		logger.Fatalf("unable to create m3db nodes: %v", err)
+		logger.Fatalf("unable to create m3emnodes: %v", err)
 	}
 	dt.nodes = nodes
 
@@ -170,7 +170,7 @@ func (dt *DTestHarness) Close() error {
 	return multiErr.FinalError()
 }
 
-// Nodes returns the M3DBNode(s)
+// Nodes returns the m3emnode.Node(s)
 func (dt *DTestHarness) Nodes() []m3emnode.Node {
 	return dt.nodes
 }
@@ -188,7 +188,12 @@ func (dt *DTestHarness) Cluster() cluster.Cluster {
 		return cluster
 	}
 
-	testCluster, err := cluster.New(dt.m3dbNodesAsServiceNodes(), dt.clusterOpts)
+	svcNodes, err := convert.AsServiceNodes(dt.nodes)
+	if err != nil {
+		dt.logger.Fatalf("unable to cast nodes: %v", err)
+	}
+
+	testCluster, err := cluster.New(svcNodes, dt.clusterOpts)
 	if err != nil {
 		dt.logger.Fatalf("unable to create cluster: %v", err)
 	}
@@ -210,15 +215,6 @@ func (dt *DTestHarness) SetClusterOptions(co cluster.Options) {
 // BootstrapTimeout returns the bootstrap timeout configued
 func (dt *DTestHarness) BootstrapTimeout() time.Duration {
 	return dt.Configuration().DTest.BootstrapTimeout
-}
-
-func (dt *DTestHarness) m3dbNodesAsServiceNodes() []node.ServiceNode {
-	numNodes := len(dt.nodes)
-	nodes := make([]node.ServiceNode, 0, numNodes)
-	for _, n := range dt.nodes {
-		nodes = append(nodes, n.(node.ServiceNode))
-	}
-	return nodes
 }
 
 // Seed seeds the cluster nodes within the placement with data
@@ -288,7 +284,7 @@ func (dt *DTestHarness) seedWithConfig(nodes []node.ServiceNode, seedConf config
 
 	// transfer the generated data to the remote hosts
 	var (
-		dataDir      = dt.conf.DTest.M3DBDataDir
+		dataDir      = dt.conf.DTest.DataDir
 		co           = dt.ClusterOptions()
 		placement    = dt.Cluster().Placement()
 		concurrency  = co.NodeConcurrency()
@@ -324,7 +320,7 @@ func generatePaths(
 	n node.ServiceNode,
 	ns ts.ID,
 	file string,
-	agentM3DBDataDir string,
+	dataDir string,
 ) []string {
 	paths := []string{}
 	pi, ok := placement.Instance(n.ID())
@@ -333,7 +329,7 @@ func generatePaths(
 	}
 	shards := pi.Shards().AllIDs()
 	for _, s := range shards {
-		paths = append(paths, path.Join(newShardDir(agentM3DBDataDir, ns, s), file))
+		paths = append(paths, path.Join(newShardDir(dataDir, ns, s), file))
 	}
 	return paths
 }
@@ -341,8 +337,13 @@ func generatePaths(
 // WaitUntilAllBootstrapped waits until all the provided nodes are bootstrapped, or
 // the configured bootstrap timeout period; whichever is sooner. It returns an error
 // indicating if all the nodes finished bootstrapping.
-func (dt *DTestHarness) WaitUntilAllBootstrapped(nodes []m3emnode.Node) error {
-	watcher := util.NewNodesWatcher(nodes, dt.logger, dt.conf.DTest.BootstrapReportInterval)
+func (dt *DTestHarness) WaitUntilAllBootstrapped(nodes []node.ServiceNode) error {
+	m3emnodes, err := convert.AsM3DBNodes(nodes)
+	if err != nil {
+		return fmt.Errorf("unable to cast nodes: %v", err)
+	}
+
+	watcher := util.NewNodesWatcher(m3emnodes, dt.logger, dt.conf.DTest.BootstrapReportInterval)
 	if allBootstrapped := watcher.WaitUntilAll(m3emnode.Node.Bootstrapped, dt.BootstrapTimeout()); !allBootstrapped {
 		return fmt.Errorf("unable to bootstrap all nodes, err = %v", watcher.PendingAsError())
 	}
@@ -445,9 +446,9 @@ func (dt *DTestHarness) addCloser(fn closeFn) {
 	dt.closers = append(dt.closers, fn)
 }
 
-func (dt *DTestHarness) m3dbServiceID() services.ServiceID {
+func (dt *DTestHarness) serviceID() services.ServiceID {
 	return services.NewServiceID().
-		SetName(dt.conf.DTest.M3DBServiceID).
+		SetName(dt.conf.DTest.ServiceID).
 		SetEnvironment(dt.conf.KV.Env).
 		SetZone(dt.conf.KV.Zone)
 }
