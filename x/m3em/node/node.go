@@ -37,8 +37,8 @@ type m3emNode struct {
 	sync.Mutex
 	node.ServiceNode
 
-	opts   Options
-	client m3dbrpc.TChanNode
+	opts      Options
+	rpcClient m3dbrpc.TChanNode
 }
 
 // New constructs a new m3emNode
@@ -52,11 +52,11 @@ func New(svcNode node.ServiceNode, opts Options) (Node, error) {
 	}, nil
 }
 
-func (n *m3emNode) thriftClient() (m3dbrpc.TChanNode, error) {
+func (n *m3emNode) client() (m3dbrpc.TChanNode, error) {
 	n.Lock()
 	defer n.Unlock()
-	if n.client != nil {
-		return n.client, nil
+	if n.rpcClient != nil {
+		return n.rpcClient, nil
 	}
 	channel, err := tchannel.NewChannel("Client", nil)
 	if err != nil {
@@ -65,14 +65,14 @@ func (n *m3emNode) thriftClient() (m3dbrpc.TChanNode, error) {
 	endpoint := &thrift.ClientOptions{HostPort: n.Endpoint()}
 	thriftClient := thrift.NewClient(channel, m3dbchannel.ChannelName, endpoint)
 	client := m3dbrpc.NewTChanNodeClient(thriftClient)
-	n.client = client
-	return n.client, nil
+	n.rpcClient = client
+	return n.rpcClient, nil
 }
 
 func (n *m3emNode) Health() (NodeHealth, error) {
 	healthResult := NodeHealth{}
 
-	client, err := n.thriftClient()
+	client, err := n.client()
 	if err != nil {
 		return healthResult, err
 	}

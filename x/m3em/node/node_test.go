@@ -23,15 +23,14 @@ package m3db
 import (
 	"testing"
 
-	"github.com/m3db/m3em/generated/proto/m3em"
-	"github.com/m3db/m3em/node"
-	mocknode "github.com/m3db/m3em/node/mocks"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 
 	m3dbrpc "github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3em/generated/proto/m3em"
+	"github.com/m3db/m3em/node"
+	mocknode "github.com/m3db/m3em/node/mocks"
 )
 
 func newTestOptions() Options {
@@ -58,7 +57,7 @@ func TestHealthEndpoint(t *testing.T) {
 	nodeInterface, err := New(mockNode, opts)
 	require.NoError(t, err)
 	testNode := nodeInterface.(*m3emNode)
-	testNode.client = mockClient
+	testNode.rpcClient = mockClient
 
 	health, err := testNode.Health()
 	require.NoError(t, err)
