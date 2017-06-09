@@ -3,15 +3,12 @@ package dtests
 import (
 	"fmt"
 	"os"
-	"time"
+
+	"github.com/spf13/cobra"
 
 	"github.com/m3db/m3db/tools/dtest/config"
-
 	"github.com/m3db/m3x/log"
-	"github.com/spf13/cobra"
 )
-
-const defaultBootstrapStatusReportingInterval = time.Minute
 
 var (
 	// DTestCmd represents the base command when called without any subcommands
@@ -33,6 +30,7 @@ func Run() {
 
 func init() {
 	DTestCmd.AddCommand(
+		seededBootstrapTestCmd,
 		simpleBootstrapTestCmd,
 		removeUpNodeTestCmd,
 		replaceUpNodeTestCmd,

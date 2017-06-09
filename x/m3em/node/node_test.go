@@ -23,14 +23,14 @@ package m3db
 import (
 	"testing"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+
+	m3dbrpc "github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3em/generated/proto/m3em"
 	"github.com/m3db/m3em/node"
 	mocknode "github.com/m3db/m3em/node/mocks"
-
-	"github.com/golang/mock/gomock"
-	m3dbrpc "github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 )
 
 func newTestOptions() Options {
@@ -44,8 +44,8 @@ func newTestOptions() Options {
 func TestHealthEndpoint(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockM3DBClient := m3dbrpc.NewMockTChanNode(ctrl)
-	mockM3DBClient.EXPECT().Health(gomock.Any()).Return(&m3dbrpc.NodeHealthResult_{
+	mockClient := m3dbrpc.NewMockTChanNode(ctrl)
+	mockClient.EXPECT().Health(gomock.Any()).Return(&m3dbrpc.NodeHealthResult_{
 		Bootstrapped: true,
 		Ok:           false,
 		Status:       "NOT_OK",
@@ -56,8 +56,8 @@ func TestHealthEndpoint(t *testing.T) {
 
 	nodeInterface, err := New(mockNode, opts)
 	require.NoError(t, err)
-	testNode := nodeInterface.(*m3dbNode)
-	testNode.m3dbClient = mockM3DBClient
+	testNode := nodeInterface.(*m3emNode)
+	testNode.rpcClient = mockClient
 
 	health, err := testNode.Health()
 	require.NoError(t, err)

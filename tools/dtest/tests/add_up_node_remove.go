@@ -1,25 +1,33 @@
 package dtests
 
 import (
-	"fmt"
-
-	"github.com/m3db/m3db/tools/dtest/harness"
-	"github.com/m3db/m3db/tools/dtest/util"
-	"github.com/m3db/m3db/x/m3em/convert"
-	m3emnode "github.com/m3db/m3db/x/m3em/node"
+	"github.com/spf13/cobra"
 
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3db/tools/dtest/harness"
 	xclock "github.com/m3db/m3x/clock"
-	"github.com/spf13/cobra"
 )
 
 var (
 	addUpNodeRemoveTestCmd = &cobra.Command{
 		Use:   "add_up_node_remove",
 		Short: "Run a dtest where a node that is UP, is added to the cluster. Node is removed as it begins bootstrapping.",
-		Long:  "",
+		Long: `
+		Perform the following operations on the provided set of nodes:
+			(1) Create a new cluster placement using all but one of the provided nodes.
+			(2) Seed the nodes used in (1), with initial data on their respective file-systems.
+			(3) The nodes from (1) are started, and wait until they are bootstrapped.
+			(4) The one unused node's process is started.
+			(5) Add the node from (4) to the cluster placement.
+			(6) Wait until any shard on the node from (4) is marked as available.
+			(7) Remove the node from (4), from the cluster placement.
+`,
 		Example: `
-TODO(prateek): write up`,
+		./dtest add_up_node_remove                  \
+						--m3db-build  path/to/m3dbnode      \
+						--m3db-config path/to/m3dbnode.yaml \
+						--m3em-config path/to/dtest.yaml    \
+`,
 		Run: addUpNodeRemoveDTest,
 	}
 )
@@ -32,28 +40,27 @@ func addUpNodeRemoveDTest(cmd *cobra.Command, args []string) {
 
 	logger := newLogger(cmd)
 	dt := harness.New(globalArgs, logger)
-	dt.SetClusterOptions(dt.ClusterOptions().
-		SetNodeListener(util.NewPanicListener()))
 	defer dt.Close()
 
 	nodes := dt.Nodes()
 	numNodes := len(nodes) - 1 // leaving one spare
 	testCluster := dt.Cluster()
 
+	logger.Infof("setting up cluster")
 	setupNodes, err := testCluster.Setup(numNodes)
 	panicIfErr(err, "unable to setup cluster")
 	logger.Infof("setup cluster with %d nodes", numNodes)
 
+	logger.Infof("seeding nodes with initial data")
+	panicIfErr(dt.Seed(setupNodes), "unable to seed nodes")
+	logger.Infof("seeded nodes")
+
+	logger.Infof("starting cluster")
 	panicIfErr(testCluster.Start(), "unable to start nodes")
 	logger.Infof("started cluster with %d nodes", numNodes)
 
-	m3dbnodes, err := convert.AsM3DBNodes(setupNodes)
-	panicIfErr(err, "unable to cast to m3dbnodes")
-
 	logger.Infof("waiting until all instances are bootstrapped")
-	watcher := util.NewNodesWatcher(m3dbnodes, logger, defaultBootstrapStatusReportingInterval)
-	allBootstrapped := watcher.WaitUntilAll(m3emnode.Node.Bootstrapped, dt.BootstrapTimeout())
-	panicIf(!allBootstrapped, fmt.Sprintf("unable to bootstrap all nodes, err = %v", watcher.PendingAsError()))
+	panicIfErr(dt.WaitUntilAllBootstrapped(setupNodes), "unable to bootstrap all nodes")
 	logger.Infof("all nodes bootstrapped successfully!")
 
 	// get a spare, ensure it's up and add to the cluster

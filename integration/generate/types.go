@@ -79,6 +79,12 @@ type Options interface {
 	// WriterBufferSize returns the buffer size for writing TSDB files
 	WriterBufferSize() int
 
+	// SetWriteEmptyShards sets whether writes are done even for empty start periods
+	SetWriteEmptyShards(bool) Options
+
+	// WriteEmptyShards returns whether writes are done even for empty start periods
+	WriteEmptyShards() bool
+
 	// SetEncoderPool sets the contextPool
 	SetEncoderPool(value encoding.EncoderPool) Options
 

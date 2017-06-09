@@ -1,5 +1,5 @@
-hash: 11c84571ef3b9b53e44f4237a03d2a8394cee04799e6c8d2043120ca9d385254
-updated: 2017-05-28T20:42:58.797511498-04:00
+hash: da7d0f254167eb396d3d419950ca553da8fabd7bec70b0e2f94e086731addf3d
+updated: 2017-06-09T17:46:10.420972332-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -69,15 +69,17 @@ imports:
   - services/placement/service
   - shard
 - name: github.com/m3db/m3em
-  version: 38ad33049404a478fa6e21b55eca77d8ae844357
+  version: b2df2120f842f90e734eb8048bcc5b02cd8e199b
   subpackages:
   - build
+  - checksum
   - cluster
   - generated/proto/heartbeat
   - generated/proto/m3em
   - node
   - node/mocks
   - os/fs
+  - x/grpc
 - name: github.com/m3db/m3x
   version: bd6be18ffb184691512eb442561b16a59c15d797
   vcs: git

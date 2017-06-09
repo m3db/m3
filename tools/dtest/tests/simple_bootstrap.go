@@ -1,21 +1,25 @@
 package dtests
 
 import (
-	"fmt"
+	"github.com/spf13/cobra"
 
 	"github.com/m3db/m3db/tools/dtest/harness"
-	"github.com/m3db/m3db/tools/dtest/util"
-	m3emnode "github.com/m3db/m3db/x/m3em/node"
-
-	"github.com/spf13/cobra"
 )
 
 var simpleBootstrapTestCmd = &cobra.Command{
 	Use:   "simple",
 	Short: "Run a dtest where all the provided nodes are configured & bootstrapped",
-	Long:  "",
+	Long: `
+		Perform the following operations on the provided set of nodes:
+			(1) Create a new cluster placement using all of the provided nodes.
+			(2) The nodes from (1) are started, and wait until they are bootstrapped.
+`,
 	Example: `
-TODO(prateek): write up`,
+		./dtest simple                              \
+						--m3db-build  path/to/m3dbnode      \
+						--m3db-config path/to/m3dbnode.yaml \
+						--m3em-config path/to/dtest.yaml    \
+`,
 	Run: simpleBootstrapDTest,
 }
 
@@ -27,15 +31,13 @@ func simpleBootstrapDTest(cmd *cobra.Command, args []string) {
 
 	logger := newLogger(cmd)
 	dt := harness.New(globalArgs, logger)
-	dt.SetClusterOptions(dt.ClusterOptions().
-		SetNodeListener(util.NewPanicListener()))
 	defer dt.Close()
 
 	nodes := dt.Nodes()
 	numNodes := len(nodes)
 	testCluster := dt.Cluster()
 
-	_, err := testCluster.Setup(numNodes)
+	setupNodes, err := testCluster.Setup(numNodes)
 	panicIfErr(err, "unable to setup cluster")
 	logger.Infof("setup cluster with %d nodes", numNodes)
 
@@ -43,8 +45,6 @@ func simpleBootstrapDTest(cmd *cobra.Command, args []string) {
 	logger.Infof("started cluster with %d nodes", numNodes)
 
 	logger.Infof("waiting until all instances are bootstrapped")
-	watcher := util.NewNodesWatcher(nodes, logger, defaultBootstrapStatusReportingInterval)
-	allBootstrapped := watcher.WaitUntilAll(m3emnode.Node.Bootstrapped, dt.BootstrapTimeout())
-	panicIf(!allBootstrapped, fmt.Sprintf("unable to bootstrap all nodes, err = %v", watcher.PendingAsError()))
+	panicIfErr(dt.WaitUntilAllBootstrapped(setupNodes), "unable to bootstrap all nodes")
 	logger.Infof("all nodes bootstrapped successfully!")
 }
