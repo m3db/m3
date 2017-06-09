@@ -65,7 +65,7 @@ import:
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 
 - package: github.com/m3db/m3em
-  version: 269444ef55f708dc68cbec5efdf1e4653181ac18
+  version: 00f8b396d5a41b16d5a6caa17677ab98c5be7e2a
 
 - package: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
