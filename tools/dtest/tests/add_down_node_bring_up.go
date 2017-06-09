@@ -13,19 +13,14 @@ var (
 		Short: "Run a dtest where a node that is DOWN, is added to the cluster. Node is then brought up.",
 		Long: `
 		Perform the following operations on the provided set of nodes:
-			(1) Create a new cluster placement using all but one of the provided nodes.
-			(2) Seed the nodes used in (1), with initial data on their respective file-systems.
-			(3) The nodes from (1) are started, and wait until they are bootstrapped.
-			(4) Add the one unused node to the cluster placement, and start the process.
-			(5) Wait until all the shards in the placement are marked as available.
+		(1) Create a new cluster placement using all but one of the provided nodes.
+		(2) Seed the nodes used in (1), with initial data on their respective file-systems.
+		(3) Start the the nodes from (1), and wait until they are bootstrapped.
+		(4) Add the one unused node to the cluster placement, and start it's process.
+		(5) Wait until all the shards in the cluster placement are marked as available.
 `,
-		Example: `
-		./dtest add_down_node_bring_up              \
-						--m3db-build  path/to/m3dbnode      \
-						--m3db-config path/to/m3dbnode.yaml \
-						--m3em-config path/to/dtest.yaml    \
-`,
-		Run: addDownNodeAndBringUpDTest,
+		Example: `./dtest add_down_node_bring_up --m3db-build path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --m3em-config path/to/dtest.yaml`,
+		Run:     addDownNodeAndBringUpDTest,
 	}
 )
 

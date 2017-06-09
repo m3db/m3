@@ -14,21 +14,16 @@ var (
 		Short: "Run a dtest where a node that is UP is replaced from the cluster. The replacing Node is removed as it begins bootstrapping.",
 		Long: `
 		Perform the following operations on the provided set of nodes:
-			(1) Create a new cluster placement using all but one of the provided nodes.
-			(2) Seed the nodes used in (1), with initial data on their respective file-systems.
-			(3) The nodes from (1) are started, and wait until they are bootstrapped.
-			(4) One node in the cluster is replaced with the unused node in the cluster placement.
-			(5) The joining node's process is started.
-			(6) Wait until any shard on the joining node is marked as available.
-			(7) The joining node is removed from the cluster placement.
+		(1) Create a new cluster placement using all but one of the provided nodes.
+		(2) Seed the nodes used in (1), with initial data on their respective file-systems.
+		(3) Start the nodes from (1), and wait until they are bootstrapped.
+		(4) Replace any node in the cluster with the unused node in the cluster placement.
+		(5) Start the joining node's process.
+		(6) Wait until any shard on the joining node is marked as available.
+		(7) Remove the joining node from the cluster placement.
 `,
-		Example: `
-		./dtest replace_up_node_remove              \
-						--m3db-build  path/to/m3dbnode      \
-						--m3db-config path/to/m3dbnode.yaml \
-						--m3em-config path/to/dtest.yaml    \
-`,
-		Run: replaceUpNodeRemoveDTest,
+		Example: `./dtest replace_up_node_remove --m3db-build path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --m3em-config path/to/dtest.yaml`,
+		Run:     replaceUpNodeRemoveDTest,
 	}
 )
 
