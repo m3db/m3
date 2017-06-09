@@ -491,7 +491,7 @@ func newConfig(logger xlog.Logger, filename string) build.ServiceConfiguration {
 	}
 	conf := build.NewServiceConfig(configFilename, bytes)
 	logger.Infof("read service config from: %v", filename)
-	// TODO(prateek): once the struct is OSS-ed, parse M3DB configuration,
+	// TODO(prateek): once the main struct is OSS-ed, parse M3DB configuration,
 	// and ensure the following fields are correctly overriden/line up from dtest|m3em configs
 	// - kv (env|zone)
 	// - data directory
