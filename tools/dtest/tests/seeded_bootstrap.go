@@ -66,8 +66,7 @@ func seededBootstrapDTest(cmd *cobra.Command, args []string) {
 	panicIfErr(err, "unable to list local shard directory")
 
 	dt := harness.New(globalArgs, logger)
-	co := dt.ClusterOptions().SetNodeListener(util.NewPanicListener())
-	dt.SetClusterOptions(co)
+	co := dt.ClusterOptions()
 	defer dt.Close()
 
 	nodes := dt.Nodes()

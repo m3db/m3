@@ -27,8 +27,6 @@ func simpleBootstrapDTest(cmd *cobra.Command, args []string) {
 
 	logger := newLogger(cmd)
 	dt := harness.New(globalArgs, logger)
-	dt.SetClusterOptions(dt.ClusterOptions().
-		SetNodeListener(util.NewPanicListener()))
 	defer dt.Close()
 
 	nodes := dt.Nodes()

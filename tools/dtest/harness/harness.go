@@ -19,6 +19,7 @@ import (
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/tools/dtest/config"
+	"github.com/m3db/m3db/tools/dtest/util"
 	"github.com/m3db/m3db/x/m3em/convert"
 	m3emnode "github.com/m3db/m3db/x/m3em/node"
 	"github.com/m3db/m3em/build"
@@ -42,6 +43,7 @@ type DTestHarness struct {
 	closers          []closeFn
 	cliOpts          *config.Args
 	conf             *config.Configuration
+	harnessDir       string
 	iopts            instrument.Options
 	logger           xlog.Logger
 	placementService services.PlacementService
@@ -57,6 +59,16 @@ func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
 		logger:  logger,
 		iopts:   instrument.NewOptions().SetLogger(logger),
 	}
+
+	// create temporary directory for use on local host
+	dir, err := ioutil.TempDir("", "dtest")
+	if err != nil {
+		logger.Fatalf("unable to create temp dir: %v", err.Error())
+	}
+	dt.harnessDir = dir
+	dt.addCloser(func() error {
+		return os.RemoveAll(dir)
+	})
 
 	conf, err := config.New(cliOpts.M3EMConfigPath)
 	if err != nil {
@@ -89,7 +101,8 @@ func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
 		SetServiceConfig(newConfig(logger, cliOpts.M3DBConfigPath)).
 		SetSessionToken(cliOpts.SessionToken).
 		SetSessionOverride(cliOpts.SessionOverride).
-		SetNumShards(conf.DTest.NumShards)
+		SetNumShards(conf.DTest.NumShards).
+		SetNodeListener(util.NewPullLogsAndPanicListener(logger, dt.harnessDir))
 
 	if cliOpts.InitialReset {
 		svcNodes, err := convert.AsServiceNodes(nodes)
