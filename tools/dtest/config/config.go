@@ -33,6 +33,7 @@ type DTestConfig struct {
 	BootstrapTimeout time.Duration       `yaml:"bootstrapTimeout" validate:"nonzero"`
 	M3DBPort         int                 `yaml:"m3dbPort" validate:"nonzero"`
 	M3DBServiceID    string              `yaml:"m3dbServiceID" validate:"nonzero"`
+	M3DBDataDir      string              `yaml:"m3dbDataDir" validate:"nonzero"` // path relative to m3em agent working directory
 	Seeds            []SeedConfig        `yaml:"seeds"`
 	Instances        []PlacementInstance `yaml:"instances" validate:"min=1"`
 }
@@ -41,18 +42,9 @@ type DTestConfig struct {
 type SeedConfig struct {
 	Namespace     string        `yaml:"namespace" validate:"nonzero"`
 	LocalShardNum uint32        `yaml:"localShardNum" validate:"nonzero"`
-	Retention     time.Duration `yaml:"retention"`
-	BlockSize     time.Duration `yaml:"blockSize"`
+	Retention     time.Duration `yaml:"retention" validate:"nonzero"`
+	BlockSize     time.Duration `yaml:"blockSize" validate:"nonzero"`
 	Delay         time.Duration `yaml:"delay"`
-}
-
-// M3EMConfig is a list of m3em environment settings
-type M3EMConfig struct {
-	AgentPort     int                   `yaml:"agentPort" validate:"nonzero"`
-	AgentTLS      *TLSConfiguration     `yaml:"agentTLS"`
-	HeartbeatPort int                   `yaml:"heartbeatPort" validate:"nonzero"`
-	Node          node.Configuration    `yaml:"node"`
-	Cluster       cluster.Configuration `yaml:"cluster"`
 }
 
 // PlacementInstance is a config for a services.PlacementInstance
@@ -62,6 +54,15 @@ type PlacementInstance struct {
 	Zone     string `yaml:"zone" validate:"nonzero"`
 	Weight   uint32 `yaml:"weight" validate:"nonzero"`
 	Hostname string `yaml:"hostname" validate:"nonzero"`
+}
+
+// M3EMConfig is a list of m3em environment settings
+type M3EMConfig struct {
+	AgentPort     int                   `yaml:"agentPort" validate:"nonzero"`
+	AgentTLS      *TLSConfiguration     `yaml:"agentTLS"`
+	HeartbeatPort int                   `yaml:"heartbeatPort" validate:"nonzero"`
+	Node          node.Configuration    `yaml:"node"`
+	Cluster       cluster.Configuration `yaml:"cluster"`
 }
 
 // TLSConfiguration are the resources required for TLS Communication

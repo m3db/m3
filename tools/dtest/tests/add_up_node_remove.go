@@ -1,15 +1,11 @@
 package dtests
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/tools/dtest/harness"
-	"github.com/m3db/m3db/tools/dtest/util"
 	"github.com/m3db/m3db/x/m3em/convert"
-	m3emnode "github.com/m3db/m3db/x/m3em/node"
 	xclock "github.com/m3db/m3x/clock"
 )
 
@@ -49,9 +45,7 @@ func addUpNodeRemoveDTest(cmd *cobra.Command, args []string) {
 	panicIfErr(err, "unable to cast to m3dbnodes")
 
 	logger.Infof("waiting until all instances are bootstrapped")
-	watcher := util.NewNodesWatcher(m3dbnodes, logger, defaultBootstrapStatusReportingInterval)
-	allBootstrapped := watcher.WaitUntilAll(m3emnode.Node.Bootstrapped, dt.BootstrapTimeout())
-	panicIf(!allBootstrapped, fmt.Sprintf("unable to bootstrap all nodes, err = %v", watcher.PendingAsError()))
+	panicIfErr(dt.WaitUntilAllBootstrapped(m3dbnodes), "unable to bootstrap all nodes")
 	logger.Infof("all nodes bootstrapped successfully!")
 
 	// get a spare, ensure it's up and add to the cluster

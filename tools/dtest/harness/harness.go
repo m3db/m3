@@ -3,12 +3,15 @@ package harness
 import (
 	// pprof import
 	_ "net/http/pprof"
+	"path"
+	"strconv"
 
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -18,18 +21,27 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/tools/dtest/config"
 	"github.com/m3db/m3db/tools/dtest/util"
+	"github.com/m3db/m3db/tools/dtest/util/seed"
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/m3em/convert"
 	m3emnode "github.com/m3db/m3db/x/m3em/node"
 	"github.com/m3db/m3em/build"
 	"github.com/m3db/m3em/cluster"
 	hb "github.com/m3db/m3em/generated/proto/heartbeat"
 	"github.com/m3db/m3em/node"
+	xclock "github.com/m3db/m3x/clock"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
 	xtcp "github.com/m3db/m3x/tcp"
+)
+
+const (
+	defaultBootstrapStatusReportingInterval = time.Minute
+	agentM3DBDataDir                        = "m3db-data/data"
 )
 
 type closeFn func() error
@@ -38,6 +50,9 @@ type closeFn func() error
 // resources used for DTests.
 type DTestHarness struct {
 	io.Closer
+
+	sync.Mutex
+	cluster cluster.Cluster
 
 	closing          int32
 	closers          []closeFn
@@ -167,11 +182,18 @@ func (dt *DTestHarness) Configuration() *config.Configuration {
 
 // Cluster constructs a cluster based on the options set in the harness
 func (dt *DTestHarness) Cluster() cluster.Cluster {
+	dt.Lock()
+	defer dt.Unlock()
+	if cluster := dt.cluster; cluster != nil {
+		return cluster
+	}
+
 	testCluster, err := cluster.New(dt.m3dbNodesAsServiceNodes(), dt.clusterOpts)
 	if err != nil {
 		dt.logger.Fatalf("unable to create cluster: %v", err)
 	}
 	dt.addCloser(testCluster.Teardown)
+	dt.cluster = testCluster
 	return testCluster
 }
 
@@ -197,6 +219,131 @@ func (dt *DTestHarness) m3dbNodesAsServiceNodes() []node.ServiceNode {
 		nodes = append(nodes, n.(node.ServiceNode))
 	}
 	return nodes
+}
+
+// Seed seeds the cluster nodes within the placement with data
+func (dt *DTestHarness) Seed(nodes []node.ServiceNode) error {
+	c := dt.Cluster()
+	if c.Status() == cluster.ClusterStatusUninitialized {
+		return fmt.Errorf("cluster must be Setup() prior to seeding it with data")
+	}
+
+	seedConfigs := dt.conf.DTest.Seeds
+	if len(seedConfigs) == 0 {
+		dt.logger.Infof("No seed configurations provided, skipping.")
+		return nil
+	}
+
+	for _, conf := range seedConfigs {
+		if err := dt.seedWithConfig(nodes, conf); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (dt *DTestHarness) seedWithConfig(nodes []node.ServiceNode, seedConf config.SeedConfig) error {
+	dt.logger.Infof("Seeding data with configuration: %+v", seedConf)
+
+	seedDir := path.Join(dt.harnessDir, "seed", seedConf.Namespace)
+	if err := os.MkdirAll(seedDir, os.FileMode(0755)|os.ModeDir); err != nil {
+		return fmt.Errorf("unable to create seed dir: %v", err)
+	}
+
+	iopts := instrument.NewOptions().SetLogger(dt.logger)
+	generateOpts := generate.NewOptions().
+		SetRetentionPeriod(seedConf.Retention).
+		SetBlockSize(seedConf.BlockSize).
+		SetFilePathPrefix(seedDir)
+
+	seedDataOpts := seed.NewOptions().
+		SetInstrumentOptions(iopts).
+		SetGenerateOptions(generateOpts)
+
+	generator := seed.NewGenerator(seedDataOpts)
+	outputNamespace := ts.StringID(seedConf.Namespace)
+	dt.logger.Infof("generating data to bootstrap with")
+
+	if err := generator.Generate(outputNamespace, seedConf.LocalShardNum); err != nil {
+		return fmt.Errorf("unable to generate data: %v", err)
+	}
+	dt.logger.Infof("generated data")
+
+	generatedDataPath := path.Join(generateOpts.FilePathPrefix(), "data")
+	fakeShardDir := newShardDir(generatedDataPath, outputNamespace, seedConf.LocalShardNum)
+	localFiles, err := ioutil.ReadDir(fakeShardDir)
+	if err != nil {
+		return fmt.Errorf("unable to list local shard directory, err: %v", err)
+	}
+
+	// transfer the generated data to the remote hosts
+	var (
+		co           = dt.ClusterOptions()
+		placement    = dt.Cluster().Placement()
+		concurrency  = co.NodeConcurrency()
+		timeout      = co.NodeOperationTimeout()
+		transferFunc = func(n node.ServiceNode) error {
+			for _, file := range localFiles {
+				base := path.Base(file.Name())
+				srcPath := path.Join(fakeShardDir, base)
+				paths := generatePaths(placement, n, outputNamespace, base)
+				dt.logger.Debugf("transferring %s to node %s, at paths: %v", base, n.ID(), paths)
+				if err := n.TransferLocalFile(srcPath, paths, true); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	)
+
+	dt.logger.Infof("transferring data to nodes")
+	transferDataExecutor := node.NewConcurrentExecutor(nodes, concurrency, timeout, transferFunc)
+	if err := transferDataExecutor.Run(); err != nil {
+		return fmt.Errorf("unable to transfer generated data, err: %v", err)
+	}
+	dt.logger.Infof("seeded nodes!")
+
+	return nil
+}
+
+func newShardDir(prefix string, ns ts.ID, shard uint32) string {
+	return path.Join(prefix, ns.String(), strconv.FormatUint(uint64(shard), 10))
+}
+
+func generatePaths(placement services.ServicePlacement, n node.ServiceNode, ns ts.ID, file string) []string {
+	paths := []string{}
+	pi, ok := placement.Instance(n.ID())
+	if !ok {
+		return paths
+	}
+	shards := pi.Shards().AllIDs()
+	for _, s := range shards {
+		paths = append(paths, path.Join(newShardDir(agentM3DBDataDir, ns, s), file))
+	}
+	return paths
+}
+
+// WaitUntilAllBootstrapped waits until all the provided nodes are bootstrapped, or
+// the configured bootstrap timeout period; whichever is sooner. It returns an error
+// indicating if all the nodes finished bootstrapping.
+func (dt *DTestHarness) WaitUntilAllBootstrapped(nodes []m3emnode.Node) error {
+	watcher := util.NewNodesWatcher(nodes, dt.logger, defaultBootstrapStatusReportingInterval)
+	if allBootstrapped := watcher.WaitUntilAll(m3emnode.Node.Bootstrapped, dt.BootstrapTimeout()); !allBootstrapped {
+		return fmt.Errorf("unable to bootstrap all nodes, err = %v", watcher.PendingAsError())
+	}
+	return nil
+}
+
+// WaitUntilAllShardsAvailable waits until the placement service has all shards marked
+// available, or the configured bootstrap timeout period; whichever is sooner. It returns
+// an error indicating if all the nodes finished bootstrapping.
+func (dt *DTestHarness) WaitUntilAllShardsAvailable() error {
+	allAvailable := xclock.WaitUntil(dt.AllShardsAvailable, dt.BootstrapTimeout())
+	if !allAvailable {
+		return fmt.Errorf("all shards not available")
+	}
+	return nil
 }
 
 // AllShardsAvailable returns if the placement service has all shards marked available
@@ -330,8 +477,10 @@ func newConfig(logger xlog.Logger, filename string) build.ServiceConfiguration {
 	}
 	conf := build.NewServiceConfig("m3dbnode.yaml", bytes)
 	logger.Infof("read service config from: %v", filename)
-	// TODO(prateek): once the struct is OSS-ed, parse M3DB configuration and ensure the following fields are accurately set
+	// TODO(prateek): once the struct is OSS-ed, parse M3DB configuration,
+	// and ensure the following fields are correctly overriden/line up from dtest|m3em configs
 	// - kv (env|zone)
 	// - data directory
+	// - seed data configuration for block size, retention
 	return conf
 }

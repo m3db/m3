@@ -1,14 +1,9 @@
 package dtests
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	"github.com/m3db/m3db/tools/dtest/harness"
-	"github.com/m3db/m3db/tools/dtest/util"
-	m3emnode "github.com/m3db/m3db/x/m3em/node"
-	xclock "github.com/m3db/m3x/clock"
 )
 
 var removeDownNodeTestCmd = &cobra.Command{
@@ -42,9 +37,7 @@ func removeDownNodeDTest(cmd *cobra.Command, args []string) {
 	logger.Infof("started cluster with %d nodes", numNodes)
 
 	logger.Infof("waiting until all instances are bootstrapped")
-	watcher := util.NewNodesWatcher(nodes, logger, defaultBootstrapStatusReportingInterval)
-	allBootstrapped := watcher.WaitUntilAll(m3emnode.Node.Bootstrapped, dt.BootstrapTimeout())
-	panicIf(!allBootstrapped, fmt.Sprintf("unable to bootstrap all nodes, err = %v", watcher.PendingAsError()))
+	panicIfErr(dt.WaitUntilAllBootstrapped(nodes), "unable to bootstrap all nodes")
 	logger.Infof("all nodes bootstrapped successfully!")
 
 	// stop first node in the cluster
@@ -60,7 +53,6 @@ func removeDownNodeDTest(cmd *cobra.Command, args []string) {
 
 	// wait until all shards are marked available again
 	logger.Infof("waiting till all shards are available")
-	allAvailable := xclock.WaitUntil(dt.AllShardsAvailable, dt.BootstrapTimeout())
-	panicIf(!allAvailable, "all shards not available")
+	panicIfErr(dt.WaitUntilAllShardsAvailable(), "all shards not available")
 	logger.Infof("all shards available!")
 }
