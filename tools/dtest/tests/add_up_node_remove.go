@@ -12,9 +12,22 @@ var (
 	addUpNodeRemoveTestCmd = &cobra.Command{
 		Use:   "add_up_node_remove",
 		Short: "Run a dtest where a node that is UP, is added to the cluster. Node is removed as it begins bootstrapping.",
-		Long:  "",
+		Long: `
+		Perform the following operations on the provided set of nodes:
+			(1) Create a new cluster placement using all but one of the provided nodes.
+			(2) Seed the nodes used in (1), with initial data on their respective file-systems.
+			(3) The nodes from (1) are started, and wait until they are bootstrapped.
+			(4) The one unused node's process is started.
+			(5) Add the node from (4) to the cluster placement.
+			(6) Wait until any shard on the node from (4) is marked as available.
+			(7) Remove the node from (4), from the cluster placement.
+`,
 		Example: `
-TODO(prateek): write up`,
+		./dtest add_up_node_remove                  \
+						--m3db-build  path/to/m3dbnode      \
+						--m3db-config path/to/m3dbnode.yaml \
+						--m3em-config path/to/dtest.yaml    \
+`,
 		Run: addUpNodeRemoveDTest,
 	}
 )

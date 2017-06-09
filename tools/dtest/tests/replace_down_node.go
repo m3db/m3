@@ -10,9 +10,21 @@ var (
 	replaceDownNodeTestCmd = &cobra.Command{
 		Use:   "replace_down_node",
 		Short: "Run a dtest where a node that is DOWN, is replaced from the cluster. Node is left DOWN.",
-		Long:  "",
+		Long: `
+		Perform the following operations on the provided set of nodes:
+			(1) Create a new cluster placement using all but one of the provided nodes.
+			(2) Seed the nodes used in (1), with initial data on their respective file-systems.
+			(3) The nodes from (1) are started, and wait until they are bootstrapped.
+			(4) One node in the cluster has it's process stopped.
+			(5) The node from (4) is replaced with the unused node in the cluster placement.
+			(6) Wait until all the shards in the placement are marked as available.
+`,
 		Example: `
-TODO(prateek): write up`,
+		./dtest replace_down_node                   \
+						--m3db-build  path/to/m3dbnode      \
+						--m3db-config path/to/m3dbnode.yaml \
+						--m3em-config path/to/dtest.yaml    \
+`,
 		Run: replaceDownNodeDTest,
 	}
 )

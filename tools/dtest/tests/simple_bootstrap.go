@@ -9,9 +9,17 @@ import (
 var simpleBootstrapTestCmd = &cobra.Command{
 	Use:   "simple",
 	Short: "Run a dtest where all the provided nodes are configured & bootstrapped",
-	Long:  "",
+	Long: `
+		Perform the following operations on the provided set of nodes:
+			(1) Create a new cluster placement using all of the provided nodes.
+			(2) The nodes from (1) are started, and wait until they are bootstrapped.
+`,
 	Example: `
-TODO(prateek): write up`,
+		./dtest simple                              \
+						--m3db-build  path/to/m3dbnode      \
+						--m3db-config path/to/m3dbnode.yaml \
+						--m3em-config path/to/dtest.yaml    \
+`,
 	Run: simpleBootstrapDTest,
 }
 

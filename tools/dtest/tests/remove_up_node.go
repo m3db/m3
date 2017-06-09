@@ -9,9 +9,20 @@ import (
 var removeUpNodeTestCmd = &cobra.Command{
 	Use:   "remove_up_node",
 	Short: "Run a dtest where a node that is UP, is removed from the cluster. Node is left UP.",
-	Long:  "",
+	Long: `
+		Perform the following operations on the provided set of nodes:
+			(1) Create a new cluster placement using all the provided nodes.
+			(2) Seed the nodes used in (1), with initial data on their respective file-systems.
+			(3) The nodes from (1) are started, and wait until they are bootstrapped.
+			(4) One node is removed from the cluster placement.
+			(5) Wait until all the shards in the placement are marked as available.
+`,
 	Example: `
-TODO(prateek): write up`,
+		./dtest remove_up_node                      \
+						--m3db-build  path/to/m3dbnode      \
+						--m3db-config path/to/m3dbnode.yaml \
+						--m3em-config path/to/dtest.yaml    \
+`,
 	Run: removeUpNodeDTest,
 }
 
