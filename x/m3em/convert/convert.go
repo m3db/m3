@@ -8,8 +8,8 @@ import (
 	"github.com/m3db/m3em/node"
 )
 
-// AsM3DBNodes returns casts a slice of ServiceNodes into M3DBNodes
-func AsM3DBNodes(nodes []node.ServiceNode) ([]m3emnode.Node, error) {
+// AsNodes returns casts a slice of ServiceNodes into m3emnode.Nodes
+func AsNodes(nodes []node.ServiceNode) ([]m3emnode.Node, error) {
 	m3dbnodes := make([]m3emnode.Node, 0, len(nodes))
 	for _, n := range nodes {
 		mn, ok := n.(m3emnode.Node)
@@ -21,7 +21,7 @@ func AsM3DBNodes(nodes []node.ServiceNode) ([]m3emnode.Node, error) {
 	return m3dbnodes, nil
 }
 
-// AsServiceNodes returns casts a slice M3DBNodes into ServiceNodes
+// AsServiceNodes returns casts a slice m3emnode.Nodes into ServiceNodes
 func AsServiceNodes(nodes []m3emnode.Node) ([]node.ServiceNode, error) {
 	serviceNodes := make([]node.ServiceNode, 0, len(nodes))
 	for _, mn := range nodes {

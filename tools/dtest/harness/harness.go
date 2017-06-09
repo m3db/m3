@@ -338,7 +338,7 @@ func generatePaths(
 // the configured bootstrap timeout period; whichever is sooner. It returns an error
 // indicating if all the nodes finished bootstrapping.
 func (dt *DTestHarness) WaitUntilAllBootstrapped(nodes []node.ServiceNode) error {
-	m3emnodes, err := convert.AsM3DBNodes(nodes)
+	m3emnodes, err := convert.AsNodes(nodes)
 	if err != nil {
 		return fmt.Errorf("unable to cast nodes: %v", err)
 	}
