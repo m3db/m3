@@ -12,14 +12,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3db/tools/dtest/config"
-	"github.com/m3db/m3db/x/m3em/convert"
-	m3emnode "github.com/m3db/m3db/x/m3em/node"
+	"google.golang.org/grpc"
 
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3db/tools/dtest/config"
+	"github.com/m3db/m3db/x/m3em/convert"
+	m3emnode "github.com/m3db/m3db/x/m3em/node"
 	"github.com/m3db/m3em/build"
 	"github.com/m3db/m3em/cluster"
 	hb "github.com/m3db/m3em/generated/proto/heartbeat"
@@ -28,7 +29,6 @@ import (
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
 	xtcp "github.com/m3db/m3x/tcp"
-	"google.golang.org/grpc"
 )
 
 type closeFn func() error

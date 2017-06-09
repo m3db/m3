@@ -4,16 +4,16 @@ import (
 	"fmt"
 	"time"
 
-	m3dbnode "github.com/m3db/m3db/x/m3em/node"
+	"google.golang.org/grpc"
 
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
+	m3dbnode "github.com/m3db/m3db/x/m3em/node"
 	"github.com/m3db/m3em/generated/proto/m3em"
 	"github.com/m3db/m3em/node"
 	"github.com/m3db/m3x/config"
 	xlog "github.com/m3db/m3x/log"
-	"google.golang.org/grpc"
 )
 
 var (

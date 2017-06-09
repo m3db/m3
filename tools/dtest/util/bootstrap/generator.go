@@ -5,11 +5,10 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/ts"
-
-	"github.com/m3db/m3cluster/shard"
 	xlog "github.com/m3db/m3x/log"
 )
 

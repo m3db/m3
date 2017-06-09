@@ -7,18 +7,17 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/m3db/m3db/clock"
+	"github.com/spf13/cobra"
+
+	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/tools/dtest/harness"
 	"github.com/m3db/m3db/tools/dtest/util"
 	"github.com/m3db/m3db/tools/dtest/util/bootstrap"
 	"github.com/m3db/m3db/ts"
 	m3emnode "github.com/m3db/m3db/x/m3em/node"
-
-	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3em/node"
 	"github.com/m3db/m3x/instrument"
-	"github.com/spf13/cobra"
 )
 
 var seededBootstrapTestCmd = &cobra.Command{
@@ -31,12 +30,6 @@ TODO(prateek): write up`,
 }
 
 const agentM3DBDataDir = "m3db-data/data"
-
-func delayedNowFn(delay time.Duration) clock.NowFn {
-	return func() time.Time {
-		return time.Now().Add(-1 * delay)
-	}
-}
 
 func seededBootstrapDTest(cmd *cobra.Command, args []string) {
 	if err := globalArgs.Validate(); err != nil {
@@ -65,7 +58,7 @@ func seededBootstrapDTest(cmd *cobra.Command, args []string) {
 		logger.Fatalf("unable to generate data: %v", err)
 	}
 	logger.Infof("generated data")
-	// TODO(prateek): cleanup locally generated data
+	// TODO(prateek): set filepathprefix; cleanup locally generated data
 
 	generatedDataPath := path.Join(generateOpts.FilePathPrefix(), "data")
 	fakeShardDir := newShardDir(generatedDataPath, outputNamespace, shardNum)

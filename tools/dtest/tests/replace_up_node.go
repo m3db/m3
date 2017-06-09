@@ -3,13 +3,13 @@ package dtests
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/m3db/m3db/tools/dtest/harness"
 	"github.com/m3db/m3db/tools/dtest/util"
 	"github.com/m3db/m3db/x/m3em/convert"
 	m3emnode "github.com/m3db/m3db/x/m3em/node"
-
 	xclock "github.com/m3db/m3x/clock"
-	"github.com/spf13/cobra"
 )
 
 var (

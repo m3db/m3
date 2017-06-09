@@ -28,7 +28,6 @@ import (
 	"time"
 
 	m3emnode "github.com/m3db/m3db/x/m3em/node"
-
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/log"
 )
