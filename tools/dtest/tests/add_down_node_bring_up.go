@@ -32,9 +32,14 @@ func addDownNodeAndBringUpDTest(cmd *cobra.Command, args []string) {
 	numNodes := len(nodes) - 1 // leaving one spare
 	testCluster := dt.Cluster()
 
+	logger.Infof("setting up cluster")
 	setupNodes, err := testCluster.Setup(numNodes)
 	panicIfErr(err, "unable to setup cluster")
 	logger.Infof("setup cluster with %d nodes", numNodes)
+
+	logger.Infof("seeding nodes with initial data")
+	panicIfErr(dt.Seed(setupNodes), "unable to seed nodes")
+	logger.Infof("seeded nodes")
 
 	panicIfErr(testCluster.Start(), "unable to start nodes")
 	logger.Infof("started cluster with %d nodes", numNodes)
