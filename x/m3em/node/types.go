@@ -35,12 +35,6 @@ type Node interface {
 
 	// Bootstrapped returns whether the node is bootstrapped
 	Bootstrapped() bool
-
-	// TODO(prateek): add more m3db service endpoints in ServiceNode
-	// - query service observable properties (nowFn, detailed_status)
-	// - set nowFn offset
-	// - logs
-	// - metrics
 }
 
 // NodeHealth provides Health information for a M3DB node

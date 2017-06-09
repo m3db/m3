@@ -10,15 +10,15 @@ import (
 
 // AsNodes returns casts a slice of ServiceNodes into m3emnode.Nodes
 func AsNodes(nodes []node.ServiceNode) ([]m3emnode.Node, error) {
-	m3dbnodes := make([]m3emnode.Node, 0, len(nodes))
+	m3emnodes := make([]m3emnode.Node, 0, len(nodes))
 	for _, n := range nodes {
 		mn, ok := n.(m3emnode.Node)
 		if !ok {
 			return nil, fmt.Errorf("unable to cast: %v to m3dbnode", n.String())
 		}
-		m3dbnodes = append(m3dbnodes, mn)
+		m3emnodes = append(m3emnodes, mn)
 	}
-	return m3dbnodes, nil
+	return m3emnodes, nil
 }
 
 // AsServiceNodes returns casts a slice m3emnode.Nodes into ServiceNodes

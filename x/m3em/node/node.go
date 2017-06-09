@@ -26,36 +26,37 @@ import (
 
 	"github.com/m3db/m3em/node"
 
-	m3dbrpc "github.com/m3db/m3db/generated/thrift/rpc"
-	m3dbchannel "github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
 	tchannel "github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
+
+	m3dbrpc "github.com/m3db/m3db/generated/thrift/rpc"
+	m3dbchannel "github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
 )
 
-type m3dbNode struct {
+type m3emNode struct {
 	sync.Mutex
 	node.ServiceNode
 
-	opts       Options
-	m3dbClient m3dbrpc.TChanNode
+	opts   Options
+	client m3dbrpc.TChanNode
 }
 
-// New constructs a new M3DBNode
+// New constructs a new m3emNode
 func New(svcNode node.ServiceNode, opts Options) (Node, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	return &m3dbNode{
+	return &m3emNode{
 		ServiceNode: svcNode,
 		opts:        opts,
 	}, nil
 }
 
-func (n *m3dbNode) thriftClient() (m3dbrpc.TChanNode, error) {
+func (n *m3emNode) thriftClient() (m3dbrpc.TChanNode, error) {
 	n.Lock()
 	defer n.Unlock()
-	if n.m3dbClient != nil {
-		return n.m3dbClient, nil
+	if n.client != nil {
+		return n.client, nil
 	}
 	channel, err := tchannel.NewChannel("Client", nil)
 	if err != nil {
@@ -64,11 +65,11 @@ func (n *m3dbNode) thriftClient() (m3dbrpc.TChanNode, error) {
 	endpoint := &thrift.ClientOptions{HostPort: n.Endpoint()}
 	thriftClient := thrift.NewClient(channel, m3dbchannel.ChannelName, endpoint)
 	client := m3dbrpc.NewTChanNodeClient(thriftClient)
-	n.m3dbClient = client
-	return n.m3dbClient, nil
+	n.client = client
+	return n.client, nil
 }
 
-func (n *m3dbNode) Health() (NodeHealth, error) {
+func (n *m3emNode) Health() (NodeHealth, error) {
 	healthResult := NodeHealth{}
 
 	client, err := n.thriftClient()
@@ -93,7 +94,7 @@ func (n *m3dbNode) Health() (NodeHealth, error) {
 	return healthResult, err
 }
 
-func (n *m3dbNode) Bootstrapped() bool {
+func (n *m3emNode) Bootstrapped() bool {
 	health, err := n.Health()
 	if err != nil {
 		return false
