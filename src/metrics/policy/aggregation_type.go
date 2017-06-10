@@ -217,6 +217,21 @@ func NewAggregationTypesFromSchema(input []schema.AggregationType) (AggregationT
 	return res, nil
 }
 
+// UnmarshalYAML unmarshals aggregation types from a string.
+func (aggTypes *AggregationTypes) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	parsed, err := ParseAggregationTypes(str)
+	if err != nil {
+		return err
+	}
+	*aggTypes = parsed
+	return nil
+}
+
 // IsDefault checks if the AggregationTypes is the default aggregation type.
 func (aggTypes AggregationTypes) IsDefault() bool {
 	return len(aggTypes) == 0

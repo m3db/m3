@@ -24,7 +24,9 @@ import (
 	"testing"
 
 	"github.com/m3db/m3x/pool"
+
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
 func TestAggregationTypeIsValid(t *testing.T) {
@@ -38,7 +40,56 @@ func TestAggregationTypesIsDefault(t *testing.T) {
 	require.False(t, AggregationTypes{Upper}.IsDefault())
 }
 
-func TestParseParseAggregationTypes(t *testing.T) {
+func TestAggregationTypesUnmarshalYAML(t *testing.T) {
+	inputs := []struct {
+		str         string
+		expected    AggregationTypes
+		expectedErr bool
+	}{
+		{
+			str:      "Lower",
+			expected: AggregationTypes{Lower},
+		},
+		{
+			str:      "Mean,Upper,P99,P9999",
+			expected: AggregationTypes{Mean, Upper, P99, P9999},
+		},
+		{
+			str:         "Lower,Upper,P99,P9999,P100",
+			expectedErr: true,
+		},
+		{
+			str:         "Lower,Upper,P99,P9999,P100",
+			expectedErr: true,
+		},
+		{
+			str:         ",Mean",
+			expectedErr: true,
+		},
+		{
+			str:         "Mean,",
+			expectedErr: true,
+		},
+		{
+			str:         ",Mean,",
+			expectedErr: true,
+		},
+	}
+	for _, input := range inputs {
+		var aggtypes AggregationTypes
+		err := yaml.Unmarshal([]byte(input.str), &aggtypes)
+
+		if input.expectedErr {
+			require.Error(t, err)
+			continue
+		}
+
+		require.NoError(t, err)
+		require.Equal(t, input.expected, aggtypes)
+	}
+}
+
+func TestParseAggregationTypes(t *testing.T) {
 	inputs := []struct {
 		str      string
 		expected AggregationTypes
