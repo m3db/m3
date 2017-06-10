@@ -70,24 +70,19 @@ func (p *pullLogAndPanicListener) OnProcessTerminate(inst node.ServiceNode, desc
 	logMsg := fmt.Sprintf("Received process termination notification for instanace id = %v, msg = %v.", inst.ID(), desc)
 	p.logger.Errorf("%s. Attempting to retrieve logs.", logMsg)
 
-	// first retrieve stderr, and output it
-	stderrPath := p.newLogPath(inst, stderrExtension)
-	truncated, err := inst.GetRemoteOutput(node.RemoteProcessStderr, stderrPath)
-	if err != nil {
-		p.logger.Errorf("Unable to retrieve stderr logs, err = %v", err)
-	} else {
-		p.outputRetrievedFile(inst.ID(), stderrExtension, stderrPath, truncated)
+	retrieveAndOutput := func(extension string, outputType node.RemoteOutputType) {
+		outputPath := p.newLogPath(inst, extension)
+		truncated, err := inst.GetRemoteOutput(outputType, outputPath)
+		if err != nil {
+			p.logger.Errorf("Unable to retrieve %s logs, err = %v", extension, err)
+		} else {
+			p.outputRetrievedFile(inst.ID(), extension, outputPath, truncated)
+		}
 	}
 
-	// then do the same for stdout
-	stdoutPath := p.newLogPath(inst, stdoutExtension)
-	truncated, err = inst.GetRemoteOutput(node.RemoteProcessStdout, stdoutPath)
-	if err != nil {
-		p.logger.Errorf("Unable to retrieve stdout logs, err = %v", err)
-	} else {
-		p.outputRetrievedFile(inst.ID(), stdoutExtension, stdoutPath, truncated)
-	}
-
+	// retrieve and output: stderr, and stdout
+	retrieveAndOutput(stderrExtension, node.RemoteProcessStderr)
+	retrieveAndOutput(stdoutExtension, node.RemoteProcessStdout)
 	panic(fmt.Sprintf("%v. Terminating test early.", logMsg))
 }
 
