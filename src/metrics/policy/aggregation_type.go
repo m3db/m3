@@ -267,11 +267,15 @@ func (aggTypes AggregationTypes) IsValidForTimer() bool {
 
 // PooledQuantiles returns all the quantiles found in the list
 // of aggregation types. Using a floats pool if available.
-func (aggTypes AggregationTypes) PooledQuantiles(p pool.FloatsPool) []float64 {
+//
+// A boolean will also be returned to indicate whether the
+// returned float slice is from the pool.
+func (aggTypes AggregationTypes) PooledQuantiles(p pool.FloatsPool) ([]float64, bool) {
 	var (
 		res         []float64
 		initialized bool
 		medianAdded bool
+		pooled      bool
 	)
 	for _, aggType := range aggTypes {
 		q, ok := aggType.Quantile()
@@ -290,12 +294,13 @@ func (aggTypes AggregationTypes) PooledQuantiles(p pool.FloatsPool) []float64 {
 				res = make([]float64, 0, len(aggTypes))
 			} else {
 				res = p.Get(len(aggTypes))
+				pooled = true
 			}
 			initialized = true
 		}
 		res = append(res, q)
 	}
-	return res
+	return res, pooled
 }
 
 // ParseAggregationTypes parses a list of aggregation types in the form of type1,type2,type3.
