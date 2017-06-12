@@ -92,6 +92,9 @@ func NewPooledAggregationIDDecompressor(pool AggregationTypesPool) AggregationID
 }
 
 func (c *aggregationIDDecompressor) Decompress(id AggregationID) (AggregationTypes, error) {
+	if id.IsDefault() {
+		return DefaultAggregationTypes, nil
+	}
 	// NB(cw) it's guaranteed that len(c.buf) == len(id) == AggregationIDLen, we need to copy
 	// the words from id into a slice to be used in bitset.
 	for i := range id {

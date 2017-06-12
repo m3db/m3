@@ -34,7 +34,7 @@ func TestAggregationIDCompressRoundTrip(t *testing.T) {
 		result    AggregationTypes
 		expectErr bool
 	}{
-		{DefaultAggregationTypes, AggregationTypes{}, false},
+		{DefaultAggregationTypes, DefaultAggregationTypes, false},
 		{[]AggregationType{Unknown}, DefaultAggregationTypes, true},
 		{[]AggregationType{Lower, Upper}, []AggregationType{Lower, Upper}, false},
 		{[]AggregationType{Last}, []AggregationType{Last}, false},
