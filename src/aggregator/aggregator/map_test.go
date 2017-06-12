@@ -56,39 +56,68 @@ func TestMetricMapAddMetricWithPoliciesList(t *testing.T) {
 	policies := testDefaultPoliciesList
 
 	// Add a counter metric and assert there is one entry afterwards.
+	key := entryKey{
+		metricType: unaggregated.CounterType,
+		idHash:     xid.HashFn(testCounterID),
+	}
 	require.NoError(t, m.AddMetricWithPoliciesList(testCounter, policies))
 	require.Equal(t, 1, len(m.entries))
 	require.Equal(t, 1, m.entryList.Len())
-	idHash := xid.HashFn(testCounterID)
-	elem, exists := m.entries[idHash]
+
+	elem, exists := m.entries[key]
 	require.True(t, exists)
 	entry := elem.Value.(hashedEntry)
 	require.Equal(t, int32(0), atomic.LoadInt32(&entry.entry.numWriters))
-	require.Equal(t, idHash, entry.idHash)
+	require.Equal(t, key, entry.key)
 	require.Equal(t, 2, m.metricLists.Len())
 
 	// Add the same counter and assert there is still one entry.
 	require.NoError(t, m.AddMetricWithPoliciesList(testCounter, policies))
 	require.Equal(t, 1, len(m.entries))
 	require.Equal(t, 1, m.entryList.Len())
-	elem2, exists := m.entries[idHash]
+	elem2, exists := m.entries[key]
 	require.True(t, exists)
 	entry2 := elem2.Value.(hashedEntry)
 	require.Equal(t, entry, entry2)
 	require.Equal(t, int32(0), atomic.LoadInt32(&entry2.entry.numWriters))
 	require.Equal(t, 2, m.metricLists.Len())
 
-	// Add a different metric and assert there are now two entries.
+	// Add a metric with different type and assert there are
+	// now two entries.
+	key2 := entryKey{
+		metricType: unaggregated.GaugeType,
+		idHash:     xid.HashFn(testCounterID),
+	}
+	metricWithDifferentType := unaggregated.MetricUnion{
+		Type:     unaggregated.GaugeType,
+		ID:       testCounterID,
+		GaugeVal: 123.456,
+	}
 	require.NoError(t, m.AddMetricWithPoliciesList(
-		unaggregated.MetricUnion{
-			Type:     unaggregated.GaugeType,
-			ID:       []byte("bar"),
-			GaugeVal: 123.456,
-		},
+		metricWithDifferentType,
 		testCustomPoliciesList,
 	))
 	require.Equal(t, 2, len(m.entries))
 	require.Equal(t, 2, m.entryList.Len())
+	require.Equal(t, 3, m.metricLists.Len())
+	e1, exists1 := m.entries[key]
+	e2, exists2 := m.entries[key2]
+	require.True(t, exists1)
+	require.True(t, exists2)
+	require.NotEqual(t, e1, e2)
+
+	// Add a metric with a different id and assert there are now three entries.
+	metricWithDifferentID := unaggregated.MetricUnion{
+		Type:     unaggregated.GaugeType,
+		ID:       []byte("bar"),
+		GaugeVal: 123.456,
+	}
+	require.NoError(t, m.AddMetricWithPoliciesList(
+		metricWithDifferentID,
+		testCustomPoliciesList,
+	))
+	require.Equal(t, 3, len(m.entries))
+	require.Equal(t, 3, m.entryList.Len())
 	require.Equal(t, 3, m.metricLists.Len())
 }
 
@@ -121,16 +150,19 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 	// Insert some live entries and some expired entries.
 	numEntries := 100
 	for i := 0; i < numEntries; i++ {
-		idHash := xid.HashFn([]byte(fmt.Sprintf("%d", i)))
+		key := entryKey{
+			metricType: unaggregated.CounterType,
+			idHash:     xid.HashFn([]byte(fmt.Sprintf("%d", i))),
+		}
 		if i%2 == 0 {
-			m.entries[idHash] = m.entryList.PushBack(hashedEntry{
-				idHash: idHash,
-				entry:  NewEntry(m.metricLists, liveEntryOpts),
+			m.entries[key] = m.entryList.PushBack(hashedEntry{
+				key:   key,
+				entry: NewEntry(m.metricLists, liveEntryOpts),
 			})
 		} else {
-			m.entries[idHash] = m.entryList.PushBack(hashedEntry{
-				idHash: idHash,
-				entry:  NewEntry(m.metricLists, expiredEntryOpts),
+			m.entries[key] = m.entryList.PushBack(hashedEntry{
+				key:   key,
+				entry: NewEntry(m.metricLists, expiredEntryOpts),
 			})
 		}
 	}
@@ -144,7 +176,7 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 	require.True(t, len(sleepIntervals) > 0)
 	for k, v := range m.entries {
 		e := v.Value.(hashedEntry)
-		require.Equal(t, k, e.idHash)
+		require.Equal(t, k, e.key)
 		require.NotNil(t, e.entry)
 	}
 }
