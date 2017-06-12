@@ -26,7 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
@@ -38,9 +37,14 @@ var (
 	emptyHashedEntry hashedEntry
 )
 
+type entryKey struct {
+	metricType unaggregated.Type
+	idHash     xid.Hash
+}
+
 type hashedEntry struct {
-	idHash xid.Hash
-	entry  *Entry
+	key   entryKey
+	entry *Entry
 }
 
 type metricMapMetrics struct {
@@ -64,7 +68,7 @@ type metricMap struct {
 	batchPercent float64
 
 	metricLists *metricLists
-	entries     map[xid.Hash]*list.Element
+	entries     map[entryKey]*list.Element
 	entryList   *list.List
 	sleepFn     sleepFn
 	metrics     metricMapMetrics
@@ -80,7 +84,7 @@ func newMetricMap(opts Options) *metricMap {
 		entryPool:    opts.EntryPool(),
 		batchPercent: opts.EntryCheckBatchPercent(),
 		metricLists:  metricLists,
-		entries:      make(map[xid.Hash]*list.Element),
+		entries:      make(map[entryKey]*list.Element),
 		entryList:    list.New(),
 		sleepFn:      time.Sleep,
 		metrics:      newMetricMapMetrics(scope),
@@ -91,7 +95,11 @@ func (m *metricMap) AddMetricWithPoliciesList(
 	mu unaggregated.MetricUnion,
 	pl policy.PoliciesList,
 ) error {
-	e := m.findOrCreate(mu.ID)
+	entryKey := entryKey{
+		metricType: mu.Type,
+		idHash:     xid.HashFn(mu.ID),
+	}
+	e := m.findOrCreate(entryKey)
 	err := e.AddMetricWithPoliciesList(mu, pl)
 	e.DecWriter()
 	return err
@@ -178,10 +186,9 @@ func (m *metricMap) Close() {
 	m.metricLists.Close()
 }
 
-func (m *metricMap) findOrCreate(mid id.RawID) *Entry {
-	idHash := xid.HashFn(mid)
+func (m *metricMap) findOrCreate(key entryKey) *Entry {
 	m.RLock()
-	if entry, found := m.lookupEntryWithLock(idHash); found {
+	if entry, found := m.lookupEntryWithLock(key); found {
 		// NB(xichen): it is important to increase number of writers
 		// within a lock so we can account for active writers
 		// when deleting expired entries.
@@ -192,13 +199,13 @@ func (m *metricMap) findOrCreate(mid id.RawID) *Entry {
 	m.RUnlock()
 
 	m.Lock()
-	entry, found := m.lookupEntryWithLock(idHash)
+	entry, found := m.lookupEntryWithLock(key)
 	if !found {
 		entry = m.entryPool.Get()
 		entry.ResetSetData(m.metricLists, m.opts)
-		m.entries[idHash] = m.entryList.PushBack(hashedEntry{
-			idHash: idHash,
-			entry:  entry,
+		m.entries[key] = m.entryList.PushBack(hashedEntry{
+			key:   key,
+			entry: entry,
 		})
 		m.metrics.newEntries.Inc(1)
 	}
@@ -208,8 +215,8 @@ func (m *metricMap) findOrCreate(mid id.RawID) *Entry {
 	return entry
 }
 
-func (m *metricMap) lookupEntryWithLock(hash xid.Hash) (*Entry, bool) {
-	elem, exists := m.entries[hash]
+func (m *metricMap) lookupEntryWithLock(key entryKey) (*Entry, bool) {
+	elem, exists := m.entries[key]
 	if !exists {
 		return nil, false
 	}
@@ -224,8 +231,8 @@ func (m *metricMap) purgeExpired(now time.Time, entries []hashedEntry) int {
 	m.Lock()
 	for i := range entries {
 		if entries[i].entry.TryExpire(now) {
-			elem := m.entries[entries[i].idHash]
-			delete(m.entries, entries[i].idHash)
+			elem := m.entries[entries[i].key]
+			delete(m.entries, entries[i].key)
 			elem.Value = nil
 			m.entryList.Remove(elem)
 			numExpired++

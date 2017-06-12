@@ -26,10 +26,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/metric/unaggregated"
+
 	"github.com/stretchr/testify/require"
 )
 
-func TestPolicyChange(t *testing.T) {
+func TestSameIDMultiType(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
@@ -46,7 +48,7 @@ func TestPolicyChange(t *testing.T) {
 
 	// Start the server
 	log := testSetup.aggregatorOpts.InstrumentOptions().Logger()
-	log.Info("test policy change")
+	log.Info("test one client sending multiple types of metrics")
 	require.NoError(t, testSetup.startServer())
 	log.Info("server is now up")
 
@@ -54,8 +56,8 @@ func TestPolicyChange(t *testing.T) {
 		idPrefix = "foo"
 		numIDs   = 100
 		start    = testSetup.getNowFn()
-		middle   = start.Add(4 * time.Second)
-		end      = start.Add(10 * time.Second)
+		mid      = start.Add(4 * time.Second)
+		stop     = start.Add(10 * time.Second)
 		interval = time.Second
 	)
 	client := testSetup.newClient()
@@ -63,34 +65,52 @@ func TestPolicyChange(t *testing.T) {
 	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
-	input1 := generateTestData(t, start, middle, interval, ids, roundRobinMetricTypeFn, testPoliciesList)
-	input2 := generateTestData(t, middle, end, interval, ids, roundRobinMetricTypeFn, testUpdatedPoliciesList)
-	for _, input := range []testDatasetWithPoliciesList{input1, input2} {
-		for _, data := range input.dataset {
-			testSetup.setNowFn(data.timestamp)
-			for _, mu := range data.metrics {
-				require.NoError(t, client.write(mu, input.policiesList))
+	metricTypeFn := func(ts time.Time, idx int) unaggregated.Type {
+		if ts.Before(mid) {
+			switch idx % 3 {
+			case 0:
+				return unaggregated.CounterType
+			case 1:
+				return unaggregated.BatchTimerType
+			default:
+				return unaggregated.GaugeType
 			}
-			require.NoError(t, client.flush())
-
-			// Give server some time to process the incoming packets
-			time.Sleep(100 * time.Millisecond)
+		} else {
+			switch idx % 3 {
+			case 0:
+				return unaggregated.BatchTimerType
+			case 1:
+				return unaggregated.GaugeType
+			default:
+				return unaggregated.CounterType
+			}
 		}
+	}
+
+	input := generateTestData(t, start, stop, interval, ids, metricTypeFn, testPoliciesList)
+	for _, data := range input.dataset {
+		testSetup.setNowFn(data.timestamp)
+		for _, mu := range data.metrics {
+			require.NoError(t, client.write(mu, input.policiesList))
+		}
+		require.NoError(t, client.flush())
+
+		// Give server some time to process the incoming packets
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	// Move time forward and wait for ticking to happen. The sleep time
 	// must be the longer than the lowest resolution across all policies.
-	finalTime := end.Add(time.Second)
+	finalTime := stop.Add(time.Second)
 	testSetup.setNowFn(finalTime)
-	time.Sleep(6 * time.Second)
+	time.Sleep(4 * time.Second)
 
 	// Stop the server
 	require.NoError(t, testSetup.stopServer())
 	log.Info("server is now down")
 
 	// Validate results
-	expected := toExpectedResults(t, finalTime, input1, testSetup.aggregatorOpts)
-	expected = append(expected, toExpectedResults(t, finalTime, input2, testSetup.aggregatorOpts)...)
+	expected := toExpectedResults(t, finalTime, input, testSetup.aggregatorOpts)
 	actual := testSetup.sortedResults()
 	require.Equal(t, expected, actual)
 }
