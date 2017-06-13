@@ -174,11 +174,13 @@ echo -ne "testing random output"`)
 	require.True(t, success)
 
 	expectedStderrFile := path.Join(tempDir, fmt.Sprintf("%s.%s", basePath, defaultStderrSuffix))
+	require.Equal(t, expectedStderrFile, pm.StderrPath())
 	stderrContents, err := ioutil.ReadFile(expectedStderrFile)
 	require.NoError(t, err)
 	require.Equal(t, []byte{}, stderrContents, string(stderrContents))
 
 	expectedStdoutFile := path.Join(tempDir, fmt.Sprintf("%s.%s", basePath, defaultStdoutSuffix))
+	require.Equal(t, expectedStdoutFile, pm.StdoutPath())
 	stdoutContents, err := ioutil.ReadFile(expectedStdoutFile)
 	require.NoError(t, err)
 	require.Equal(t, []byte("testing random output"), stdoutContents)
@@ -214,11 +216,13 @@ func TestStderrOutput(t *testing.T) {
 	require.True(t, success)
 
 	expectedStdoutFile := path.Join(tempDir, fmt.Sprintf("%s.%s", basePath, defaultStdoutSuffix))
+	require.Equal(t, expectedStdoutFile, pm.StdoutPath())
 	stdoutContents, err := ioutil.ReadFile(expectedStdoutFile)
 	require.NoError(t, err)
 	require.Equal(t, []byte{}, stdoutContents)
 
 	expectedStderrFile := path.Join(tempDir, fmt.Sprintf("%s.%s", basePath, defaultStderrSuffix))
+	require.Equal(t, expectedStderrFile, pm.StderrPath())
 	stderrContents, err := ioutil.ReadFile(expectedStderrFile)
 	require.NoError(t, err)
 	require.Equal(t, []byte("testing random output"), stderrContents)
@@ -255,11 +259,13 @@ func TestFailingExec(t *testing.T) {
 	require.True(t, success)
 
 	expectedStdoutFile := path.Join(tempDir, fmt.Sprintf("%s.%s", basePath, defaultStdoutSuffix))
+	require.Equal(t, expectedStdoutFile, pm.StdoutPath())
 	stdoutContents, err := ioutil.ReadFile(expectedStdoutFile)
 	require.NoError(t, err)
 	require.Equal(t, []byte("testing random output"), stdoutContents)
 
 	expectedStderrFile := path.Join(tempDir, fmt.Sprintf("%s.%s", basePath, defaultStderrSuffix))
+	require.Equal(t, expectedStderrFile, pm.StderrPath())
 	stderrContents, err := ioutil.ReadFile(expectedStderrFile)
 	require.NoError(t, err)
 	require.Equal(t, []byte{}, stderrContents)
@@ -309,11 +315,13 @@ func TestStop(t *testing.T) {
 	require.NoError(t, pm.Err())
 
 	expectedStdoutFile := path.Join(tempDir, fmt.Sprintf("%s.%s", basePath, defaultStdoutSuffix))
+	require.Equal(t, expectedStdoutFile, pm.StdoutPath())
 	stdoutContents, err := ioutil.ReadFile(expectedStdoutFile)
 	require.NoError(t, err)
 	require.Equal(t, []byte("testing random output"), stdoutContents)
 
 	expectedStderrFile := path.Join(tempDir, fmt.Sprintf("%s.%s", basePath, defaultStderrSuffix))
+	require.Equal(t, expectedStderrFile, pm.StderrPath())
 	stderrContents, err := ioutil.ReadFile(expectedStderrFile)
 	require.NoError(t, err)
 	require.Equal(t, []byte{}, stderrContents)

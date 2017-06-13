@@ -134,3 +134,23 @@ func (_m *MockProcessMonitor) Close() error {
 func (_mr *_MockProcessMonitorRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
+
+func (_m *MockProcessMonitor) StdoutPath() string {
+	ret := _m.ctrl.Call(_m, "StdoutPath")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockProcessMonitorRecorder) StdoutPath() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "StdoutPath")
+}
+
+func (_m *MockProcessMonitor) StderrPath() string {
+	ret := _m.ctrl.Call(_m, "StderrPath")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockProcessMonitorRecorder) StderrPath() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "StderrPath")
+}

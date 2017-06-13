@@ -79,6 +79,19 @@ const (
 	StatusError
 )
 
+// RemoteOutputType describes the various outputs available on the remote agents
+type RemoteOutputType int
+
+const (
+	// RemoteProcessStdout refers to the remote process stdout
+	RemoteProcessStdout RemoteOutputType = iota
+
+	// RemoteProcessStderr refers to the remote process stderr
+	RemoteProcessStderr
+
+	// TODO(prateek): capture agent remote logs
+)
+
 // ServiceNode represents an executable service node. This object controls both the service
 // and resources on the host running the service (e.g. fs, processes, etc.)
 type ServiceNode interface {
@@ -121,17 +134,14 @@ type ServiceNode interface {
 	// e.g. if the remote agent has working directory /var/m3em-agent, and we make the call:
 	// svcNode.TransferLocalFile("some/local/file/path/id", []string{"path/id", "another/path/id"})
 	//
-	// upon success, there will be two new files under the remote agent working directory
-	//
+	// upon success, there will be two new files under the remote agent working directory:
 	// /var/m3em-agent/
 	// /var/m3em-agent/path/id          <-- same contents as "some/local/file/path/id"
 	// /var/m3em-agent/another/path/id  <-- same contents as "some/local/file/path/id"
 	TransferLocalFile(localSrc string, destPaths []string, overwrite bool) error
 
-	// TODO(prateek): add operator operations for -
-	// CleanDataDirectory() error
-	// ListDataDirectory(recursive bool, includeContents bool) ([]DirEntry, error)
-	// log directory operations
+	// GetRemoteOutput transfers the specified remote file to the specified path
+	GetRemoteOutput(t RemoteOutputType, localDest string) (truncated bool, err error)
 }
 
 // ServiceNodeFn performs an operation on a given ServiceNode
@@ -205,6 +215,14 @@ type Options interface {
 
 	// TransferBufferSize returns the bytes buffer size used during file transfer
 	TransferBufferSize() int
+
+	// SetMaxPullSize sets the max bytes retrieved from remote agents when
+	// fetching output files
+	SetMaxPullSize(int64) Options
+
+	// MaxPullSize returns the max bytes retrieved from remote agents when
+	// fetching output files
+	MaxPullSize() int64
 
 	// SetHeartbeatOptions sets the HeartbeatOptions
 	SetHeartbeatOptions(HeartbeatOptions) Options

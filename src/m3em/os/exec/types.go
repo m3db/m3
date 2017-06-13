@@ -90,4 +90,10 @@ type ProcessMonitor interface {
 
 	// Close releases any held resources
 	Close() error
+
+	// StdoutPath returns the path to the process stdout file
+	StdoutPath() string
+
+	// StderrPath returns the path to the process stderr file
+	StderrPath() string
 }

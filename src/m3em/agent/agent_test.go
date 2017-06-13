@@ -21,6 +21,7 @@
 package agent
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -349,4 +350,66 @@ func TestClientReconnect(t *testing.T) {
 	time.Sleep(2 * time.Second)
 	beats = hbService.heartbeats()
 	require.NotEmpty(t, beats)
+}
+
+func TestPullFile(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	tempDir := newTempDir(t)
+	defer os.RemoveAll(tempDir)
+
+	opts := newTestOptions(t, tempDir)
+	testAgent, err := New(opts)
+	require.NoError(t, err)
+	opAgent, ok := testAgent.(*opAgent)
+	require.True(t, ok)
+
+	var (
+		testStdoutPath = fmt.Sprintf("%s/some-path", tempDir)
+		testChunkSize  = 5
+		testMaxSize    = 10
+		testBytes      []byte
+		expectedBytes  []byte
+	)
+
+	// create testBytes 2x allowable amount
+	for i := 0; i < testMaxSize; i++ {
+		testBytes = append(testBytes, byte('a'))
+	}
+	for i := 0; i < testMaxSize; i++ {
+		testBytes = append(testBytes, byte('b'))
+		expectedBytes = append(expectedBytes, byte('b'))
+	}
+
+	// create file with testBytes contents
+	require.NoError(t, ioutil.WriteFile(testStdoutPath, testBytes, os.FileMode(0666)))
+	pm := mockexec.NewMockProcessMonitor(ctrl)
+	pullServer := m3em.NewMockOperator_PullFileServer(ctrl)
+
+	pm.EXPECT().StdoutPath().Return(testStdoutPath)
+	gomock.InOrder(
+		pullServer.EXPECT().Send(&m3em.PullFileResponse{
+			Data: &m3em.DataChunk{
+				Bytes: expectedBytes[testChunkSize:],
+				Idx:   1,
+			},
+			Truncated: true,
+		}).Return(nil),
+		pullServer.EXPECT().Send(&m3em.PullFileResponse{
+			Data: &m3em.DataChunk{
+				Bytes: expectedBytes[testChunkSize:],
+				Idx:   2,
+			},
+			Truncated: true,
+		}).Return(nil),
+	)
+
+	opAgent.processMonitor = pm
+	opAgent.token = "setup-token"
+	require.Nil(t, opAgent.PullFile(&m3em.PullFileRequest{
+		ChunkSize: int64(testChunkSize),
+		MaxSize:   int64(testMaxSize),
+		FileType:  m3em.PullFileType_PULL_FILE_TYPE_SERVICE_STDOUT,
+	}, pullServer))
 }

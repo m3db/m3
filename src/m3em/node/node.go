@@ -23,6 +23,9 @@ package node
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/m3db/m3em/build"
@@ -181,7 +184,7 @@ func (i *svcNode) Setup(
 		}
 		return i.transferFile(transferOpts{
 			targets:   []string{bld.ID()},
-			fileType:  m3em.FileType_SERVICE_BINARY,
+			fileType:  m3em.PushFileType_PUSH_FILE_TYPE_SERVICE_BINARY,
 			overwrite: force,
 			iter:      iter,
 		})
@@ -196,7 +199,7 @@ func (i *svcNode) Setup(
 		}
 		return i.transferFile(transferOpts{
 			targets:   []string{conf.ID()},
-			fileType:  m3em.FileType_SERVICE_CONFIG,
+			fileType:  m3em.PushFileType_PUSH_FILE_TYPE_SERVICE_CONFIG,
 			overwrite: force,
 			iter:      iter,
 		})
@@ -210,7 +213,7 @@ func (i *svcNode) Setup(
 
 type transferOpts struct {
 	targets   []string
-	fileType  m3em.FileType
+	fileType  m3em.PushFileType
 	iter      fs.FileReaderIter
 	overwrite bool
 }
@@ -220,14 +223,14 @@ func (i *svcNode) transferFile(
 ) error {
 	defer t.iter.Close()
 	ctx := context.Background()
-	stream, err := i.client.Transfer(ctx)
+	stream, err := i.client.PushFile(ctx)
 	if err != nil {
 		return err
 	}
 	chunkIdx := 0
 	for ; t.iter.Next(); chunkIdx++ {
 		bytes := t.iter.Current()
-		request := &m3em.TransferRequest{
+		request := &m3em.PushFileRequest{
 			Type:        t.fileType,
 			TargetPaths: t.targets,
 			Overwrite:   t.overwrite,
@@ -282,7 +285,7 @@ func (i *svcNode) TransferLocalFile(
 		}
 		return i.transferFile(transferOpts{
 			targets:   destPaths,
-			fileType:  m3em.FileType_DATA_FILE,
+			fileType:  m3em.PushFileType_PUSH_FILE_TYPE_DATA_FILE,
 			overwrite: overwrite,
 			iter:      iter,
 		})
@@ -291,6 +294,95 @@ func (i *svcNode) TransferLocalFile(
 	}
 
 	return nil
+}
+
+func (i *svcNode) pullRemoteFile(t m3em.PullFileType, fd *os.File) (bool, error) {
+	ctx := context.Background()
+
+	// resetting file in case this a retry
+	if err := fd.Truncate(0); err != nil {
+		return false, err
+	}
+
+	// create streaming client
+	client, err := i.client.PullFile(ctx, &m3em.PullFileRequest{
+		ChunkSize: int64(i.opts.TransferBufferSize()),
+		MaxSize:   i.opts.MaxPullSize(),
+		FileType:  t,
+	})
+	if err != nil {
+		return false, err
+	}
+
+	// iterate through responses
+	truncated := false
+	for {
+		response, err := client.Recv()
+		switch err {
+		case nil: // this Recv was successful, and we have more to read
+			truncated = response.Truncated
+			if _, writeErr := fd.Write(response.Data.Bytes); writeErr != nil {
+				return truncated, writeErr
+			}
+
+		case io.EOF: // no more to read, indicate success
+			return truncated, nil
+
+		default: // unexpected error, indicate failure
+			return truncated, err
+		}
+	}
+}
+
+func toM3EMPullType(t RemoteOutputType) (m3em.PullFileType, error) {
+	switch t {
+	case RemoteProcessStderr:
+		return m3em.PullFileType_PULL_FILE_TYPE_SERVICE_STDERR, nil
+
+	case RemoteProcessStdout:
+		return m3em.PullFileType_PULL_FILE_TYPE_SERVICE_STDOUT, nil
+
+	default:
+		return m3em.PullFileType_PULL_FILE_TYPE_UNKNOWN, fmt.Errorf("unknown output type: %v", t)
+	}
+}
+
+func (i *svcNode) GetRemoteOutput(
+	t RemoteOutputType,
+	localDest string,
+) (bool, error) {
+	i.Lock()
+	defer i.Unlock()
+
+	if i.status != StatusSetup && i.status != StatusRunning {
+		return false, errUnableToTransferFile
+	}
+
+	mType, err := toM3EMPullType(t)
+	if err != nil {
+		return false, err
+	}
+
+	// create base directory for specified remote path if it doesn't exist
+	base := filepath.Dir(localDest)
+	if err := os.MkdirAll(base, os.FileMode(0755)|os.ModeDir); err != nil {
+		return false, err
+	}
+
+	fd, err := os.OpenFile(localDest, os.O_CREATE|os.O_WRONLY, os.FileMode(0666))
+	if err != nil {
+		return false, err
+	}
+
+	truncated := false
+	if retryErr := i.opts.Retrier().Attempt(func() error {
+		truncated, err = i.pullRemoteFile(mType, fd)
+		return err
+	}); retryErr != nil {
+		return truncated, fmt.Errorf("unable to get remote output: %v", retryErr)
+	}
+
+	return truncated, fd.Close()
 }
 
 func (i *svcNode) Teardown() error {

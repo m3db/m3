@@ -92,6 +92,8 @@ type processMonitor struct {
 	sync.Mutex
 	cmd        *oexec.Cmd
 	cancelFunc context.CancelFunc
+	stdoutPath string
+	stderrPath string
 	stdoutFd   *os.File
 	stderrFd   *os.File
 	startFn    startFn
@@ -117,12 +119,14 @@ func NewProcessMonitor(cmd Cmd, pl ProcessListener) (ProcessMonitor, error) {
 	}
 
 	base := filepath.Base(cmd.Path)
-	stdoutWriter, err := newWriter(cmd.OutputDir, base, defaultStdoutSuffix)
+	stdoutPath := outputPath(cmd.OutputDir, base, defaultStdoutSuffix)
+	stdoutWriter, err := newWriter(stdoutPath)
 	if err != nil {
 		return nil, fmt.Errorf("unable to open stdout writer: %v", err)
 	}
 
-	stderrWriter, err := newWriter(cmd.OutputDir, base, defaultStderrSuffix)
+	stderrPath := outputPath(cmd.OutputDir, base, defaultStderrSuffix)
+	stderrWriter, err := newWriter(stderrPath)
 	if err != nil {
 		stdoutWriter.Close()
 		return nil, fmt.Errorf("unable to open stderr writer: %v", err)
@@ -140,6 +144,8 @@ func NewProcessMonitor(cmd Cmd, pl ProcessListener) (ProcessMonitor, error) {
 		listener:   pl,
 		stdoutFd:   stdoutWriter,
 		stderrFd:   stderrWriter,
+		stdoutPath: stdoutPath,
+		stderrPath: stderrPath,
 		cancelFunc: cancel,
 		cmd:        ocmd,
 	}
@@ -258,8 +264,19 @@ func (pm *processMonitor) Close() error {
 	return multiErr.FinalError()
 }
 
-func newWriter(outputDir string, prefix string, suffix string) (*os.File, error) {
-	outputPath := path.Join(outputDir, fmt.Sprintf("%s.%s", prefix, suffix))
+func (pm *processMonitor) StdoutPath() string {
+	return pm.stdoutPath
+}
+
+func (pm *processMonitor) StderrPath() string {
+	return pm.stderrPath
+}
+
+func outputPath(outputDir string, prefix string, suffix string) string {
+	return path.Join(outputDir, fmt.Sprintf("%s.%s", prefix, suffix))
+}
+
+func newWriter(outputPath string) (*os.File, error) {
 	fd, err := os.OpenFile(outputPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0755)
 	if err != nil {
 		return nil, err
