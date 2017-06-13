@@ -46,7 +46,7 @@ func TestWatcherConfiguration(t *testing.T) {
 
 	mem := mem.NewStore()
 	m.EXPECT().Store(cfg.Namespace).Return(mem, nil)
-	opts, err := cfg.NewOptions(instrument.NewOptions(), m)
+	opts, err := cfg.NewOptions(m, instrument.NewOptions())
 	require.NoError(t, err)
 
 	require.Equal(t, cfg.Key, opts.StagedPlacementKey())
