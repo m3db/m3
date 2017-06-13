@@ -51,7 +51,7 @@ type aggMetricFn func(
 	idSuffix []byte,
 	timeNanos int64,
 	value float64,
-	policy policy.Policy,
+	sp policy.StoragePolicy,
 )
 
 type newMetricElemFn func() metricElem
@@ -61,8 +61,8 @@ type metricElem interface {
 	// ID returns the metric id.
 	ID() id.RawID
 
-	// ResetSetData resets the counter and sets data
-	ResetSetData(id id.RawID, policy policy.Policy)
+	// ResetSetData resets the element and sets data
+	ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes)
 
 	// AddMetric adds a new metric value
 	// TODO(xichen): a value union would suffice here
@@ -101,7 +101,9 @@ type elemBase struct {
 
 	opts       Options
 	id         id.RawID
-	policy     policy.Policy
+	sp         policy.StoragePolicy
+	aggTypes   policy.AggregationTypes
+	aggOpts    aggregation.Options
 	tombstoned bool
 	closed     bool
 }
@@ -118,6 +120,10 @@ type CounterElem struct {
 type TimerElem struct {
 	elemBase
 
+	isAggTypesPooled  bool
+	isQuantilesPooled bool
+	quantiles         []float64
+
 	values    []timedTimer // aggregated timers sorted by time in ascending order
 	toConsume []timedTimer
 }
@@ -130,10 +136,19 @@ type GaugeElem struct {
 	toConsume []timedGauge
 }
 
+func newElemBase(opts Options) elemBase {
+	return elemBase{
+		opts:    opts,
+		aggOpts: aggregation.NewOptions(),
+	}
+}
+
 // ResetSetData resets the counter and sets data.
-func (e *elemBase) ResetSetData(id id.RawID, policy policy.Policy) {
+func (e *elemBase) ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes) {
 	e.id = id
-	e.policy = policy
+	e.sp = sp
+	e.aggTypes = aggTypes
+	e.aggOpts.ResetSetData(aggTypes)
 	e.tombstoned = false
 	e.closed = false
 }
@@ -159,22 +174,24 @@ func (e *elemBase) MarkAsTombstoned() {
 }
 
 // NewCounterElem creates a new counter element
-func NewCounterElem(id id.RawID, policy policy.Policy, opts Options) *CounterElem {
-	return &CounterElem{
-		elemBase: elemBase{opts: opts, id: id, policy: policy},
+func NewCounterElem(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes, opts Options) *CounterElem {
+	e := &CounterElem{
+		elemBase: newElemBase(opts),
 		values:   make([]timedCounter, 0, defaultNumValues), // in most cases values will have two entries
 	}
+	e.ResetSetData(id, sp, aggTypes)
+	return e
 }
 
 // AddMetric adds a new counter value
 func (e *CounterElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) error {
-	alignedStart := timestamp.Truncate(e.policy.Resolution().Window).UnixNano()
+	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
 	counter, err := e.findOrCreate(alignedStart)
 	if err != nil {
 		return err
 	}
 	counter.Lock()
-	counter.Add(mu.CounterVal)
+	counter.Update(mu.CounterVal)
 	counter.Unlock()
 	return nil
 }
@@ -208,7 +225,7 @@ func (e *CounterElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 
 	// Process the counters.
 	for i := range e.toConsume {
-		endAtNanos := e.toConsume[i].timeNanos + int64(e.policy.Resolution().Window)
+		endAtNanos := e.toConsume[i].timeNanos + int64(e.sp.Resolution().Window)
 		e.toConsume[i].counter.Lock()
 		e.processValue(endAtNanos, e.toConsume[i].counter.Counter, fn)
 		e.toConsume[i].counter.Unlock()
@@ -229,9 +246,11 @@ func (e *CounterElem) Close() {
 	e.id = nil
 	e.values = e.values[:0]
 	e.toConsume = e.toConsume[:0]
+	aggTypesPool := e.opts.AggregationTypesPool()
 	pool := e.opts.CounterElemPool()
 	e.Unlock()
 
+	aggTypesPool.Put(e.aggTypes)
 	pool.Put(e)
 }
 
@@ -269,7 +288,7 @@ func (e *CounterElem) findOrCreate(alignedStart int64) (*aggregation.LockedCount
 	copy(e.values[idx+1:numValues+1], e.values[idx:numValues])
 	e.values[idx] = timedCounter{
 		timeNanos: alignedStart,
-		counter:   aggregation.NewLockedCounter(),
+		counter:   aggregation.NewLockedCounter(aggregation.NewCounter(e.aggOpts)),
 	}
 	counter := e.values[idx].counter
 	e.Unlock()
@@ -306,20 +325,55 @@ func (e *CounterElem) indexOfWithLock(alignedStart int64) (int, bool) {
 }
 
 func (e *CounterElem) processValue(timeNanos int64, agg aggregation.Counter, fn aggMetricFn) {
-	fn(e.opts.FullCounterPrefix(), e.id, nil, timeNanos, float64(agg.Sum()), e.policy)
-}
+	var fullCounterPrefix = e.opts.FullCounterPrefix()
+	if e.aggOpts.UseDefaultAggregation {
+		// No suffix for default aggregations.
+		// TODO(cw) Make aggregation types for Counter configurable.
+		fn(fullCounterPrefix, e.id, e.suffix(policy.Sum), timeNanos, float64(agg.Sum()), e.sp)
+		return
+	}
 
-// NewTimerElem creates a new timer element
-func NewTimerElem(id id.RawID, policy policy.Policy, opts Options) *TimerElem {
-	return &TimerElem{
-		elemBase: elemBase{opts: opts, id: id, policy: policy},
-		values:   make([]timedTimer, 0, defaultNumValues), // in most cases values will have two entries
+	for _, aggType := range e.aggTypes {
+		fn(fullCounterPrefix, e.id, e.suffix(aggType), timeNanos, agg.ValueOf(aggType), e.sp)
 	}
 }
 
-// AddMetric adds a new batch of timer values
+// NB(cw) suffix overrides default suffixes to not add
+// suffix for default Counter metrics for backward compatibility reasons.
+func (e *CounterElem) suffix(aggType policy.AggregationType) []byte {
+	if aggType == policy.Sum {
+		return nil
+	}
+	return e.opts.Suffix(aggType)
+}
+
+// NewTimerElem creates a new timer element.
+func NewTimerElem(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes, opts Options) *TimerElem {
+	e := &TimerElem{
+		elemBase: newElemBase(opts),
+		values:   make([]timedTimer, 0, defaultNumValues), // in most cases values will have two entries
+	}
+	e.ResetSetData(id, sp, aggTypes)
+	return e
+}
+
+// ResetSetData overrides elemBase.ResetData, to include quantile update for timer elements.
+func (e *TimerElem) ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes) {
+	if aggTypes.IsDefault() {
+		aggTypes = e.opts.DefaultTimerAggregationTypes()
+		e.isAggTypesPooled = false
+		e.quantiles, e.isQuantilesPooled = e.opts.TimerQuantiles(), false
+	} else {
+		e.isAggTypesPooled = true
+		e.quantiles, e.isQuantilesPooled = aggTypes.PooledQuantiles(e.opts.QuantilesPool())
+	}
+
+	e.elemBase.ResetSetData(id, sp, aggTypes)
+}
+
+// AddMetric adds a new batch of timer values.
 func (e *TimerElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) error {
-	alignedStart := timestamp.Truncate(e.policy.Resolution().Window).UnixNano()
+	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
 	timer, err := e.findOrCreate(alignedStart)
 	if err != nil {
 		return err
@@ -332,7 +386,7 @@ func (e *TimerElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) 
 
 // Consume processes values before a given time and discards
 // them afterwards, returning whether the element can be collected
-// after discarding the values
+// after discarding the values.
 func (e *TimerElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 	e.Lock()
 	if e.closed {
@@ -341,7 +395,7 @@ func (e *TimerElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 	}
 	idx := 0
 	for range e.values {
-		// Bail as soon as the timestamp is no later than the target time
+		// Bail as soon as the timestamp is no later than the target time.
 		if e.values[idx].timeNanos >= earlierThanNanos {
 			break
 		}
@@ -349,10 +403,10 @@ func (e *TimerElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 	}
 	e.toConsume = e.toConsume[:0]
 	if idx > 0 {
-		// Shift remaining values to the left and shrink the values slice
+		// Shift remaining values to the left and shrink the values slice.
 		e.toConsume = append(e.toConsume, e.values[:idx]...)
 		n := copy(e.values[0:], e.values[idx:])
-		// Clear out the invalid timer items to avoid holding onto the underlying streams
+		// Clear out the invalid timer items to avoid holding onto the underlying streams.
 		for i := n; i < len(e.values); i++ {
 			e.values[i] = emptyTimedTimer
 		}
@@ -363,7 +417,7 @@ func (e *TimerElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 
 	// Process the timers.
 	for i := range e.toConsume {
-		endAtNanos := e.toConsume[i].timeNanos + int64(e.policy.Resolution().Window)
+		endAtNanos := e.toConsume[i].timeNanos + int64(e.sp.Resolution().Window)
 		e.toConsume[i].timer.Lock()
 		e.processValue(endAtNanos, e.toConsume[i].timer.Timer, fn)
 		e.toConsume[i].timer.Unlock()
@@ -375,7 +429,7 @@ func (e *TimerElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 	return canCollect
 }
 
-// Close closes the timer element
+// Close closes the timer element.
 func (e *TimerElem) Close() {
 	e.Lock()
 	if e.closed {
@@ -391,9 +445,17 @@ func (e *TimerElem) Close() {
 	}
 	e.values = e.values[:0]
 	e.toConsume = e.toConsume[:0]
+	quantileFloatsPool := e.opts.QuantilesPool()
+	aggTypesPool := e.opts.AggregationTypesPool()
 	pool := e.opts.TimerElemPool()
 	e.Unlock()
 
+	if e.isQuantilesPooled {
+		quantileFloatsPool.Put(e.quantiles)
+	}
+	if e.isAggTypesPooled {
+		aggTypesPool.Put(e.aggTypes)
+	}
 	pool.Put(e)
 }
 
@@ -429,7 +491,7 @@ func (e *TimerElem) findOrCreate(alignedStart int64) (*aggregation.LockedTimer, 
 	numValues := len(e.values)
 	e.values = append(e.values, emptyTimedTimer)
 	copy(e.values[idx+1:numValues+1], e.values[idx:numValues])
-	newTimer := aggregation.NewTimer(e.opts.TimerQuantiles(), e.opts.StreamOptions())
+	newTimer := aggregation.NewTimer(e.opts.TimerQuantiles(), e.opts.StreamOptions(), e.aggOpts)
 	e.values[idx] = timedTimer{
 		timeNanos: alignedStart,
 		timer:     aggregation.NewLockedTimer(newTimer),
@@ -469,52 +531,41 @@ func (e *TimerElem) indexOfWithLock(alignedStart int64) (int, bool) {
 }
 
 func (e *TimerElem) processValue(timeNanos int64, agg aggregation.Timer, fn aggMetricFn) {
-	var (
-		fullTimerPrefix   = e.opts.FullTimerPrefix()
-		timerSumSuffix    = e.opts.TimerSumSuffix()
-		timerSumSqSuffix  = e.opts.TimerSumSqSuffix()
-		timerMeanSuffix   = e.opts.TimerMeanSuffix()
-		timerLowerSuffix  = e.opts.TimerLowerSuffix()
-		timerUpperSuffix  = e.opts.TimerUpperSuffix()
-		timerCountSuffix  = e.opts.TimerCountSuffix()
-		timerStdevSuffix  = e.opts.TimerStdevSuffix()
-		timerMedianSuffix = e.opts.TimerMedianSuffix()
-		quantiles         = e.opts.TimerQuantiles()
-		quantileSuffixes  = e.opts.TimerQuantileSuffixes()
-	)
-	fn(fullTimerPrefix, e.id, timerSumSuffix, timeNanos, agg.Sum(), e.policy)
-	fn(fullTimerPrefix, e.id, timerSumSqSuffix, timeNanos, agg.SumSq(), e.policy)
-	fn(fullTimerPrefix, e.id, timerMeanSuffix, timeNanos, agg.Mean(), e.policy)
-	fn(fullTimerPrefix, e.id, timerLowerSuffix, timeNanos, agg.Min(), e.policy)
-	fn(fullTimerPrefix, e.id, timerUpperSuffix, timeNanos, agg.Max(), e.policy)
-	fn(fullTimerPrefix, e.id, timerCountSuffix, timeNanos, float64(agg.Count()), e.policy)
-	fn(fullTimerPrefix, e.id, timerStdevSuffix, timeNanos, agg.Stdev(), e.policy)
-	for idx, q := range quantiles {
-		v := agg.Quantile(q)
-		if q == 0.5 {
-			fn(fullTimerPrefix, e.id, timerMedianSuffix, timeNanos, v, e.policy)
+	fullTimerPrefix := e.opts.FullTimerPrefix()
+	if e.aggOpts.UseDefaultAggregation {
+		// NB(cw) Use default suffix slice for faster look up.
+		suffixes := e.opts.DefaultTimerAggregationSuffixes()
+		aggTypes := e.opts.DefaultTimerAggregationTypes()
+		for i, aggType := range aggTypes {
+			fn(fullTimerPrefix, e.id, suffixes[i], timeNanos, agg.ValueOf(aggType), e.sp)
 		}
-		fn(fullTimerPrefix, e.id, quantileSuffixes[idx], timeNanos, v, e.policy)
+		return
+	}
+
+	for _, aggType := range e.aggTypes {
+		fn(fullTimerPrefix, e.id, e.opts.Suffix(aggType), timeNanos, agg.ValueOf(aggType), e.sp)
 	}
 }
 
 // NewGaugeElem creates a new gauge element
-func NewGaugeElem(id id.RawID, policy policy.Policy, opts Options) *GaugeElem {
-	return &GaugeElem{
-		elemBase: elemBase{opts: opts, id: id, policy: policy},
+func NewGaugeElem(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes, opts Options) *GaugeElem {
+	e := &GaugeElem{
+		elemBase: newElemBase(opts),
 		values:   make([]timedGauge, 0, defaultNumValues), // in most cases values will have two entries
 	}
+	e.ResetSetData(id, sp, aggTypes)
+	return e
 }
 
 // AddMetric adds a new gauge value
 func (e *GaugeElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) error {
-	alignedStart := timestamp.Truncate(e.policy.Resolution().Window).UnixNano()
+	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
 	gauge, err := e.findOrCreate(alignedStart)
 	if err != nil {
 		return err
 	}
 	gauge.Lock()
-	gauge.Set(mu.GaugeVal)
+	gauge.Update(mu.GaugeVal)
 	gauge.Unlock()
 	return nil
 }
@@ -547,7 +598,7 @@ func (e *GaugeElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 	e.Unlock()
 
 	for i := range e.toConsume {
-		endAtNanos := e.toConsume[i].timeNanos + int64(e.policy.Resolution().Window)
+		endAtNanos := e.toConsume[i].timeNanos + int64(e.sp.Resolution().Window)
 		e.toConsume[i].gauge.Lock()
 		e.processValue(endAtNanos, e.toConsume[i].gauge.Gauge, fn)
 		e.toConsume[i].gauge.Unlock()
@@ -568,9 +619,11 @@ func (e *GaugeElem) Close() {
 	e.id = nil
 	e.values = e.values[:0]
 	e.toConsume = e.toConsume[:0]
+	aggTypesPool := e.opts.AggregationTypesPool()
 	pool := e.opts.GaugeElemPool()
 	e.Unlock()
 
+	aggTypesPool.Put(e.aggTypes)
 	pool.Put(e)
 }
 
@@ -608,7 +661,7 @@ func (e *GaugeElem) findOrCreate(alignedStart int64) (*aggregation.LockedGauge, 
 	copy(e.values[idx+1:numValues+1], e.values[idx:numValues])
 	e.values[idx] = timedGauge{
 		timeNanos: alignedStart,
-		gauge:     aggregation.NewLockedGauge(),
+		gauge:     aggregation.NewLockedGauge(aggregation.NewGauge(e.aggOpts)),
 	}
 	gauge := e.values[idx].gauge
 	e.Unlock()
@@ -645,5 +698,24 @@ func (e *GaugeElem) indexOfWithLock(alignedStart int64) (int, bool) {
 }
 
 func (e *GaugeElem) processValue(timeNanos int64, agg aggregation.Gauge, fn aggMetricFn) {
-	fn(e.opts.FullGaugePrefix(), e.id, nil, timeNanos, agg.Value(), e.policy)
+	var fullGaugePrefix = e.opts.FullGaugePrefix()
+	if e.aggOpts.UseDefaultAggregation {
+		// No suffix for default aggregations.
+		// TODO(cw) Make aggregation types for Gauge configurable.
+		fn(fullGaugePrefix, e.id, e.suffix(policy.Last), timeNanos, agg.Last(), e.sp)
+		return
+	}
+
+	for _, aggType := range e.aggTypes {
+		fn(fullGaugePrefix, e.id, e.suffix(aggType), timeNanos, agg.ValueOf(aggType), e.sp)
+	}
+}
+
+// NB(cw) suffix overrides default suffixes to not add
+// suffix for default Gauge metrics for backward compatibility reasons.
+func (e *GaugeElem) suffix(aggType policy.AggregationType) []byte {
+	if aggType == policy.Last {
+		return nil
+	}
+	return e.opts.Suffix(aggType)
 }

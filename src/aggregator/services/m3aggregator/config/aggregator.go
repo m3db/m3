@@ -55,7 +55,6 @@ var (
 	errUnknownFlushHandlerType       = errors.New("unknown flush handler type")
 	errNoKVClientConfiguration       = errors.New("no kv client configuration")
 	errNoForwardHandlerConfiguration = errors.New("no forward flush configuration")
-	emptyPolicy                      policy.Policy
 )
 
 // AggregatorConfiguration contains aggregator configuration.
@@ -69,32 +68,35 @@ type AggregatorConfiguration struct {
 	// Timer metric prefix.
 	TimerPrefix string `yaml:"timerPrefix"`
 
-	// Timer sum metric suffix.
-	TimerSumSuffix string `yaml:"timerSumSuffix"`
+	// Metric suffix for aggregation type last.
+	AggregationLastSuffix string `yaml:"aggregationLastSuffix"`
 
-	// Timer sum square metric suffix.
-	TimerSumSqSuffix string `yaml:"timerSumSqSuffix"`
+	// Metric suffix for aggregation type sum.
+	AggregationSumSuffix string `yaml:"aggregationSumSuffix"`
 
-	// Timer sum mean metric suffix.
-	TimerMeanSuffix string `yaml:"timerMeanSuffix"`
+	// Metric suffix for aggregation type sum square.
+	AggregationSumSqSuffix string `yaml:"aggregationSumSqSuffix"`
 
-	// Timer lower metric suffix.
-	TimerLowerSuffix string `yaml:"timerLowerSuffix"`
+	// Metric suffix for aggregation type mean.
+	AggregationMeanSuffix string `yaml:"aggregationMeanSuffix"`
 
-	// Timer upper metric suffix.
-	TimerUpperSuffix string `yaml:"timerUpperSuffix"`
+	// Metric suffix for aggregation type lower.
+	AggregationLowerSuffix string `yaml:"aggregationLowerSuffix"`
 
-	// Timer count metric suffix.
-	TimerCountSuffix string `yaml:"timerCountSuffix"`
+	// Metric suffix for aggregation type upper.
+	AggregationUpperSuffix string `yaml:"aggregationUpperSuffix"`
 
-	// Timer standard deviation metric suffix.
-	TimerStdevSuffix string `yaml:"timerStdevSuffix"`
+	// Metric suffix for aggregation type count.
+	AggregationCountSuffix string `yaml:"aggregationCountSuffix"`
 
-	// Timer median metric suffix.
-	TimerMedianSuffix string `yaml:"timerMedianSuffix"`
+	// Metric suffix for aggregation type standard deviation.
+	AggregationStdevSuffix string `yaml:"aggregationStdevSuffix"`
+
+	// Metric suffix for aggregation type median.
+	AggregationMedianSuffix string `yaml:"aggregationMedianSuffix"`
 
 	// Target quantiles to compute.
-	TimerQuantiles []float64 `yaml:"timerQuantiles"`
+	TimerAggregationTypes policy.AggregationTypes `yaml:"timerAggregationTypes"`
 
 	// Timer quantile suffix function type.
 	TimerQuantileSuffixFnType string `yaml:"timerQuantileSuffixFnType"`
@@ -155,6 +157,12 @@ type AggregatorConfiguration struct {
 
 	// Pool of buffered encoders.
 	BufferedEncoderPool pool.ObjectPoolConfiguration `yaml:"bufferedEncoderPool"`
+
+	// Pool of aggregation types.
+	AggregationTypesPool pool.ObjectPoolConfiguration `yaml:"aggregationTypesPool"`
+
+	// Pool of quantile slices.
+	QuantilesPool pool.BucketizedPoolConfiguration `yaml:"quantilesPool"`
 }
 
 // NewAggregatorOptions creates a new set of aggregator options.
@@ -169,19 +177,20 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	opts = setMetricPrefixOrSuffix(opts, c.MetricPrefix, opts.SetMetricPrefix)
 	opts = setMetricPrefixOrSuffix(opts, c.CounterPrefix, opts.SetCounterPrefix)
 	opts = setMetricPrefixOrSuffix(opts, c.TimerPrefix, opts.SetTimerPrefix)
-	opts = setMetricPrefixOrSuffix(opts, c.TimerSumSuffix, opts.SetTimerSumSuffix)
-	opts = setMetricPrefixOrSuffix(opts, c.TimerSumSqSuffix, opts.SetTimerSumSqSuffix)
-	opts = setMetricPrefixOrSuffix(opts, c.TimerMeanSuffix, opts.SetTimerMeanSuffix)
-	opts = setMetricPrefixOrSuffix(opts, c.TimerLowerSuffix, opts.SetTimerLowerSuffix)
-	opts = setMetricPrefixOrSuffix(opts, c.TimerUpperSuffix, opts.SetTimerUpperSuffix)
-	opts = setMetricPrefixOrSuffix(opts, c.TimerCountSuffix, opts.SetTimerCountSuffix)
-	opts = setMetricPrefixOrSuffix(opts, c.TimerStdevSuffix, opts.SetTimerStdevSuffix)
-	opts = setMetricPrefixOrSuffix(opts, c.TimerMedianSuffix, opts.SetTimerMedianSuffix)
+	opts = setMetricPrefixOrSuffix(opts, c.AggregationLastSuffix, opts.SetAggregationLastSuffix)
+	opts = setMetricPrefixOrSuffix(opts, c.AggregationSumSuffix, opts.SetAggregationSumSuffix)
+	opts = setMetricPrefixOrSuffix(opts, c.AggregationSumSqSuffix, opts.SetAggregationSumSqSuffix)
+	opts = setMetricPrefixOrSuffix(opts, c.AggregationMeanSuffix, opts.SetAggregationMeanSuffix)
+	opts = setMetricPrefixOrSuffix(opts, c.AggregationLowerSuffix, opts.SetAggregationLowerSuffix)
+	opts = setMetricPrefixOrSuffix(opts, c.AggregationUpperSuffix, opts.SetAggregationUpperSuffix)
+	opts = setMetricPrefixOrSuffix(opts, c.AggregationCountSuffix, opts.SetAggregationCountSuffix)
+	opts = setMetricPrefixOrSuffix(opts, c.AggregationStdevSuffix, opts.SetAggregationStdevSuffix)
+	opts = setMetricPrefixOrSuffix(opts, c.AggregationMedianSuffix, opts.SetAggregationMedianSuffix)
 	opts = setMetricPrefixOrSuffix(opts, c.GaugePrefix, opts.SetGaugePrefix)
 
 	// Set timer quantiles and quantile suffix function.
-	opts = opts.SetTimerQuantiles(c.TimerQuantiles)
-	quantileSuffixFn, err := c.parseTimerQuantileSuffixFn()
+	opts = opts.SetDefaultTimerAggregationTypes(c.TimerAggregationTypes)
+	quantileSuffixFn, err := c.parseTimerQuantileSuffixFn(opts)
 	if err != nil {
 		return nil, err
 	}
@@ -272,21 +281,27 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	counterElemPoolOpts := c.CounterElemPool.NewObjectPoolOptions(iOpts)
 	counterElemPool := aggregator.NewCounterElemPool(counterElemPoolOpts)
 	opts = opts.SetCounterElemPool(counterElemPool)
-	counterElemPool.Init(func() *aggregator.CounterElem { return aggregator.NewCounterElem(nil, emptyPolicy, opts) })
+	counterElemPool.Init(func() *aggregator.CounterElem {
+		return aggregator.NewCounterElem(nil, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, opts)
+	})
 
 	// Set timer elem pool.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("timer-elem-pool"))
 	timerElemPoolOpts := c.TimerElemPool.NewObjectPoolOptions(iOpts)
 	timerElemPool := aggregator.NewTimerElemPool(timerElemPoolOpts)
 	opts = opts.SetTimerElemPool(timerElemPool)
-	timerElemPool.Init(func() *aggregator.TimerElem { return aggregator.NewTimerElem(nil, emptyPolicy, opts) })
+	timerElemPool.Init(func() *aggregator.TimerElem {
+		return aggregator.NewTimerElem(nil, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, opts)
+	})
 
 	// Set gauge elem pool.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("gauge-elem-pool"))
 	gaugeElemPoolOpts := c.GaugeElemPool.NewObjectPoolOptions(iOpts)
 	gaugeElemPool := aggregator.NewGaugeElemPool(gaugeElemPoolOpts)
 	opts = opts.SetGaugeElemPool(gaugeElemPool)
-	gaugeElemPool.Init(func() *aggregator.GaugeElem { return aggregator.NewGaugeElem(nil, emptyPolicy, opts) })
+	gaugeElemPool.Init(func() *aggregator.GaugeElem {
+		return aggregator.NewGaugeElem(nil, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, opts)
+	})
 
 	// Set entry pool.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("entry-pool"))
@@ -307,22 +322,36 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		return msgpack.NewPooledBufferedEncoderSize(bufferedEncoderPool, initialBufferSize)
 	})
 
-	if err := opts.Validate(); err != nil {
-		return nil, err
-	}
+	// Set aggregation types pool.
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("aggregation-types-pool"))
+	aggTypesPoolOpts := c.AggregationTypesPool.NewObjectPoolOptions(iOpts)
+	aggTypesPool := policy.NewAggregationTypesPool(aggTypesPoolOpts)
+	opts = opts.SetAggregationTypesPool(aggTypesPool)
+	aggTypesPool.Init(func() policy.AggregationTypes {
+		return make(policy.AggregationTypes, 0, len(policy.ValidAggregationTypes))
+	})
+
+	// Set quantiles pool.
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("quantile-pool"))
+	quantilesPool := pool.NewFloatsPool(
+		c.QuantilesPool.NewBuckets(),
+		c.QuantilesPool.NewObjectPoolOptions(iOpts),
+	)
+	opts = opts.SetQuantilesPool(quantilesPool)
+	quantilesPool.Init()
 
 	return opts, nil
 }
 
 // parseTimerQuantileSuffixFn parses the quantile suffix function type.
-func (c *AggregatorConfiguration) parseTimerQuantileSuffixFn() (aggregator.QuantileSuffixFn, error) {
+func (c *AggregatorConfiguration) parseTimerQuantileSuffixFn(opts aggregator.Options) (aggregator.QuantileSuffixFn, error) {
 	fnType := defaultQuantileSuffixType
 	if c.TimerQuantileSuffixFnType != "" {
 		fnType = timerQuantileSuffixFnType(c.TimerQuantileSuffixFnType)
 	}
 	switch fnType {
 	case defaultQuantileSuffixType:
-		return defaultTimerQuantileSuffixFn, nil
+		return opts.TimerQuantileSuffixFn(), nil
 	default:
 		return nil, errUnknownQuantileSuffixFnType
 	}
@@ -593,10 +622,6 @@ type timerQuantileSuffixFnType string
 const (
 	defaultQuantileSuffixType timerQuantileSuffixFnType = "default"
 )
-
-func defaultTimerQuantileSuffixFn(quantile float64) []byte {
-	return []byte(fmt.Sprintf(".p%0.0f", quantile*100))
-}
 
 type metricPrefixOrSuffixSetter func(prefixOrSuffix []byte) aggregator.Options
 

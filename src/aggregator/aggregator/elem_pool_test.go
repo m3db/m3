@@ -32,14 +32,14 @@ import (
 func TestCounterElemPool(t *testing.T) {
 	p := NewCounterElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *CounterElem {
-		return NewCounterElem(nil, policy.Policy{}, testOptions())
+		return NewCounterElem(nil, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, testOptions())
 	})
 
 	// Retrieve an element from the pool.
 	element := p.Get()
-	element.ResetSetData(testCounterID, testPolicy)
+	element.ResetSetData(testCounterID, testStoragePolicy, policy.DefaultAggregationTypes)
 	require.Equal(t, testCounterID, element.id)
-	require.Equal(t, testPolicy, element.policy)
+	require.Equal(t, testStoragePolicy, element.sp)
 
 	// Put the element back to pool.
 	p.Put(element)
@@ -47,20 +47,20 @@ func TestCounterElemPool(t *testing.T) {
 	// Retrieve the element and assert it's the same element.
 	element = p.Get()
 	require.Equal(t, testCounterID, element.id)
-	require.Equal(t, testPolicy, element.policy)
+	require.Equal(t, testStoragePolicy, element.sp)
 }
 
 func TestTimerElemPool(t *testing.T) {
 	p := NewTimerElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *TimerElem {
-		return NewTimerElem(nil, policy.Policy{}, testOptions())
+		return NewTimerElem(nil, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, testOptions())
 	})
 
 	// Retrieve an element from the pool.
 	element := p.Get()
-	element.ResetSetData(testBatchTimerID, testPolicy)
+	element.ResetSetData(testBatchTimerID, testStoragePolicy, policy.DefaultAggregationTypes)
 	require.Equal(t, testBatchTimerID, element.id)
-	require.Equal(t, testPolicy, element.policy)
+	require.Equal(t, testStoragePolicy, element.sp)
 
 	// Put the element back to pool.
 	p.Put(element)
@@ -68,20 +68,20 @@ func TestTimerElemPool(t *testing.T) {
 	// Retrieve the element and assert it's the same element.
 	element = p.Get()
 	require.Equal(t, testBatchTimerID, element.id)
-	require.Equal(t, testPolicy, element.policy)
+	require.Equal(t, testStoragePolicy, element.sp)
 }
 
 func TestGaugeElemPool(t *testing.T) {
 	p := NewGaugeElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *GaugeElem {
-		return NewGaugeElem(nil, policy.Policy{}, testOptions())
+		return NewGaugeElem(nil, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, testOptions())
 	})
 
 	// Retrieve an element from the pool.
 	element := p.Get()
-	element.ResetSetData(testGaugeID, testPolicy)
+	element.ResetSetData(testGaugeID, testStoragePolicy, policy.DefaultAggregationTypes)
 	require.Equal(t, testGaugeID, element.id)
-	require.Equal(t, testPolicy, element.policy)
+	require.Equal(t, testStoragePolicy, element.sp)
 
 	// Put the element back to pool.
 	p.Put(element)
@@ -89,5 +89,5 @@ func TestGaugeElemPool(t *testing.T) {
 	// Retrieve the element and assert it's the same element.
 	element = p.Get()
 	require.Equal(t, testGaugeID, element.id)
-	require.Equal(t, testPolicy, element.policy)
+	require.Equal(t, testStoragePolicy, element.sp)
 }

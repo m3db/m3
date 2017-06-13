@@ -18,49 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package aggregation
 
 import (
-	"io"
+	"math"
 
-	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/protocol/msgpack"
 )
 
-// HandleFunc handles an aggregated metric alongside the policy.
-type HandleFunc func(metric aggregated.Metric, policy policy.StoragePolicy) error
-
-type decodingHandler struct {
-	handle HandleFunc
+func stdev(count int64, sumSq, sum float64) float64 {
+	div := count * (count - 1)
+	if div == 0 {
+		return 0.0
+	}
+	num := float64(count)*sumSq - sum*sum
+	return math.Sqrt(num / float64(div))
 }
 
-// NewDecodingHandler creates a new decoding handler with a custom handle function.
-func NewDecodingHandler(handle HandleFunc) aggregator.Handler {
-	return decodingHandler{handle: handle}
-}
-
-func (h decodingHandler) Handle(buffer msgpack.Buffer) error {
-	defer buffer.Close()
-
-	iter := msgpack.NewAggregatedIterator(buffer.Buffer(), msgpack.NewAggregatedIteratorOptions())
-	defer iter.Close()
-
-	for iter.Next() {
-		rawMetric, sp := iter.Value()
-		metric, err := rawMetric.Metric()
-		if err != nil {
-			return err
-		}
-		if err := h.handle(metric, sp); err != nil {
-			return err
+func isExpensive(aggTypes policy.AggregationTypes) bool {
+	for _, aggType := range aggTypes {
+		if aggType == policy.SumSq || aggType == policy.Stdev {
+			return true
 		}
 	}
-	if err := iter.Err(); err != nil && err != io.EOF {
-		return err
-	}
-	return nil
+	return false
 }
-
-func (h decodingHandler) Close() {}

@@ -18,49 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package aggregation
 
 import (
-	"io"
+	"testing"
 
-	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/protocol/msgpack"
+
+	"github.com/stretchr/testify/require"
 )
 
-// HandleFunc handles an aggregated metric alongside the policy.
-type HandleFunc func(metric aggregated.Metric, policy policy.StoragePolicy) error
+func TestOptions(t *testing.T) {
+	o := NewOptions()
+	require.True(t, o.UseDefaultAggregation)
+	require.False(t, o.HasExpensiveAggregations)
 
-type decodingHandler struct {
-	handle HandleFunc
+	o.ResetSetData(nil)
+	require.True(t, o.UseDefaultAggregation)
+	require.False(t, o.HasExpensiveAggregations)
+
+	o.ResetSetData(policy.AggregationTypes{policy.Sum})
+	require.False(t, o.UseDefaultAggregation)
+	require.False(t, o.HasExpensiveAggregations)
+
+	o.ResetSetData(policy.AggregationTypes{policy.Sum, policy.SumSq})
+	require.False(t, o.UseDefaultAggregation)
+	require.True(t, o.HasExpensiveAggregations)
 }
-
-// NewDecodingHandler creates a new decoding handler with a custom handle function.
-func NewDecodingHandler(handle HandleFunc) aggregator.Handler {
-	return decodingHandler{handle: handle}
-}
-
-func (h decodingHandler) Handle(buffer msgpack.Buffer) error {
-	defer buffer.Close()
-
-	iter := msgpack.NewAggregatedIterator(buffer.Buffer(), msgpack.NewAggregatedIteratorOptions())
-	defer iter.Close()
-
-	for iter.Next() {
-		rawMetric, sp := iter.Value()
-		metric, err := rawMetric.Metric()
-		if err != nil {
-			return err
-		}
-		if err := h.handle(metric, sp); err != nil {
-			return err
-		}
-	}
-	if err := iter.Err(); err != nil && err != io.EOF {
-		return err
-	}
-	return nil
-}
-
-func (h decodingHandler) Close() {}

@@ -1,5 +1,5 @@
-hash: 8684f0f57cb932b0e6f3772a625acf2dd317dd6715e280ddf080f7e0f0960a14
-updated: 2017-06-05T16:54:23.653931756-04:00
+hash: a94c0cdad9218489653503407c1c21907c1f5200ca0c55cfa53e92518a034d0d
+updated: 2017-06-13T14:50:04.13721398-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -68,7 +68,7 @@ imports:
   - services/placement/service
   - shard
 - name: github.com/m3db/m3metrics
-  version: 18bc01a7057d55b78e528236e0e9db297bcd4fa3
+  version: 45037302bdeb70797fde141e228d7c639adac708
   subpackages:
   - generated/proto/schema
   - metric/aggregated
@@ -151,6 +151,8 @@ imports:
   - m3/customtransports
   - m3/thrift
   - m3/thriftudp
+- name: github.com/willf/bitset
+  version: 988f4f24992fc745de53c42df0da6581e42a6686
 - name: golang.org/x/net
   version: 3b993948b6f0e651ffb58ba135d8538a68b1cddf
   subpackages:

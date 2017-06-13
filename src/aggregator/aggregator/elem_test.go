@@ -36,11 +36,13 @@ import (
 )
 
 var (
-	testCounterID    = id.RawID("testCounter")
-	testBatchTimerID = id.RawID("testBatchTimer")
-	testGaugeID      = id.RawID("testGauge")
-	testPolicy       = policy.NewPolicy(10*time.Second, xtime.Second, 6*time.Hour)
-	testTimestamps   = []time.Time{
+	testCounterID             = id.RawID("testCounter")
+	testBatchTimerID          = id.RawID("testBatchTimer")
+	testGaugeID               = id.RawID("testGauge")
+	testStoragePolicy         = policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour)
+	testAggregationTypes      = policy.AggregationTypes{policy.Mean, policy.Sum}
+	testTimerAggregationTypes = policy.AggregationTypes{policy.Mean, policy.P99}
+	testTimestamps            = []time.Time{
 		time.Unix(216, 0), time.Unix(217, 0), time.Unix(221, 0),
 	}
 	testAlignedStarts = []int64{
@@ -61,21 +63,97 @@ var (
 		ID:       testGaugeID,
 		GaugeVal: 123.456,
 	}
+	suffixMap = map[policy.AggregationType][]byte{
+		policy.Last:   []byte(".last"),
+		policy.Lower:  []byte(".lower"),
+		policy.Upper:  []byte(".upper"),
+		policy.Mean:   []byte(".mean"),
+		policy.Median: []byte(".median"),
+		policy.Count:  []byte(".count"),
+		policy.Sum:    []byte(".sum"),
+		policy.SumSq:  []byte(".sum_sq"),
+		policy.Stdev:  []byte(".stdev"),
+		policy.P10:    []byte(".p10"),
+		policy.P20:    []byte(".p20"),
+		policy.P30:    []byte(".p30"),
+		policy.P40:    []byte(".p40"),
+		policy.P50:    []byte(".p50"),
+		policy.P60:    []byte(".p60"),
+		policy.P70:    []byte(".p70"),
+		policy.P80:    []byte(".p80"),
+		policy.P90:    []byte(".p90"),
+		policy.P95:    []byte(".p95"),
+		policy.P99:    []byte(".p99"),
+		policy.P999:   []byte(".p999"),
+		policy.P9999:  []byte(".p9999"),
+	}
 )
 
 func TestElemBaseID(t *testing.T) {
 	e := &elemBase{}
-	e.ResetSetData(testCounterID, testPolicy)
+	e.ResetSetData(testCounterID, testStoragePolicy, policy.DefaultAggregationTypes)
 	require.Equal(t, testCounterID, e.ID())
 }
 
 func TestElemBaseResetSetData(t *testing.T) {
 	e := &elemBase{}
-	e.ResetSetData(testCounterID, testPolicy)
+	e.ResetSetData(testCounterID, testStoragePolicy, testAggregationTypes)
 	require.Equal(t, testCounterID, e.id)
-	require.Equal(t, testPolicy, e.policy)
+	require.Equal(t, testStoragePolicy, e.sp)
 	require.False(t, e.tombstoned)
 	require.False(t, e.closed)
+	require.False(t, e.aggOpts.UseDefaultAggregation)
+	require.False(t, e.aggOpts.HasExpensiveAggregations)
+}
+
+func TestCounterResetSetData(t *testing.T) {
+	ce := &CounterElem{}
+
+	sp := policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour)
+	ce.ResetSetData(testCounterID, sp, policy.AggregationTypes{policy.SumSq})
+
+	require.Equal(t, testCounterID, ce.id)
+	require.Equal(t, sp, ce.sp)
+	require.Equal(t, policy.AggregationTypes{policy.SumSq}, ce.aggTypes)
+	require.False(t, ce.tombstoned)
+	require.False(t, ce.closed)
+	require.False(t, ce.aggOpts.UseDefaultAggregation)
+	require.True(t, ce.aggOpts.HasExpensiveAggregations)
+}
+
+func TestTimerResetSetData(t *testing.T) {
+	te := NewTimerElem(nil, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, NewOptions())
+	require.False(t, te.isQuantilesPooled)
+	require.False(t, te.isAggTypesPooled)
+
+	sp := policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour)
+	te.ResetSetData(testBatchTimerID, sp, policy.AggregationTypes{policy.Upper, policy.P999})
+
+	require.Equal(t, testBatchTimerID, te.id)
+	require.Equal(t, sp, te.sp)
+	require.Equal(t, policy.AggregationTypes{policy.Upper, policy.P999}, te.aggTypes)
+	require.False(t, te.tombstoned)
+	require.False(t, te.closed)
+	require.False(t, te.aggOpts.UseDefaultAggregation)
+	require.False(t, te.aggOpts.HasExpensiveAggregations)
+	require.Equal(t, []float64{0.999}, te.quantiles)
+	require.True(t, te.isQuantilesPooled)
+	require.True(t, te.isAggTypesPooled)
+}
+
+func TestGaugeResetSetData(t *testing.T) {
+	ge := &GaugeElem{}
+
+	sp := policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour)
+	ge.ResetSetData(testGaugeID, sp, policy.DefaultAggregationTypes)
+
+	require.Equal(t, testGaugeID, ge.id)
+	require.Equal(t, sp, ge.sp)
+	require.Equal(t, policy.DefaultAggregationTypes, ge.aggTypes)
+	require.False(t, ge.tombstoned)
+	require.False(t, ge.closed)
+	require.True(t, ge.aggOpts.UseDefaultAggregation)
+	require.False(t, ge.aggOpts.HasExpensiveAggregations)
 }
 
 func TestElemBaseMarkAsTombStoned(t *testing.T) {
@@ -93,13 +171,14 @@ func TestElemBaseMarkAsTombStoned(t *testing.T) {
 }
 
 func TestCounterElemAddMetric(t *testing.T) {
-	e := NewCounterElem(testCounterID, testPolicy, testOptions())
+	e := NewCounterElem(testCounterID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions())
 
 	// Add a counter metric
 	require.NoError(t, e.AddMetric(testTimestamps[0], testCounter))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
 	require.Equal(t, testCounter.CounterVal, e.values[0].counter.Sum())
+	require.Equal(t, int64(0), e.values[0].counter.Count())
 
 	// Add the counter metric at slightly different time
 	// but still within the same aggregation interval
@@ -107,6 +186,7 @@ func TestCounterElemAddMetric(t *testing.T) {
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
 	require.Equal(t, 2*testCounter.CounterVal, e.values[0].counter.Sum())
+	require.Equal(t, int64(0), e.values[0].counter.Count())
 
 	// Add the counter metric in the next aggregation interval
 	require.NoError(t, e.AddMetric(testTimestamps[2], testCounter))
@@ -115,14 +195,47 @@ func TestCounterElemAddMetric(t *testing.T) {
 		require.Equal(t, testAlignedStarts[i], e.values[i].timeNanos)
 	}
 	require.Equal(t, testCounter.CounterVal, e.values[1].counter.Sum())
+	require.Equal(t, int64(0), e.values[0].counter.Count())
 
 	// Adding the counter metric to a closed element results in an error
 	e.closed = true
 	require.Equal(t, errCounterElemClosed, e.AddMetric(testTimestamps[2], testCounter))
 }
 
-func TestCounterElemConsume(t *testing.T) {
-	e := testCounterElem()
+func TestCounterElemAddMetricWithCustomAggregation(t *testing.T) {
+	e := NewCounterElem(testCounterID, testStoragePolicy, testAggregationTypes, testOptions())
+
+	// Add a counter metric
+	require.NoError(t, e.AddMetric(testTimestamps[0], testCounter))
+	require.Equal(t, 1, len(e.values))
+	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
+	require.Equal(t, testCounter.CounterVal, e.values[0].counter.Sum())
+	require.Equal(t, testCounter.CounterVal, e.values[0].counter.Max())
+
+	// Add the counter metric at slightly different time
+	// but still within the same aggregation interval
+	require.NoError(t, e.AddMetric(testTimestamps[1], testCounter))
+	require.Equal(t, 1, len(e.values))
+	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
+	require.Equal(t, 2*testCounter.CounterVal, e.values[0].counter.Sum())
+	require.Equal(t, testCounter.CounterVal, e.values[0].counter.Max())
+
+	// Add the counter metric in the next aggregation interval
+	require.NoError(t, e.AddMetric(testTimestamps[2], testCounter))
+	require.Equal(t, 2, len(e.values))
+	for i := 0; i < len(e.values); i++ {
+		require.Equal(t, testAlignedStarts[i], e.values[i].timeNanos)
+	}
+	require.Equal(t, testCounter.CounterVal, e.values[1].counter.Sum())
+	require.Equal(t, testCounter.CounterVal, e.values[0].counter.Max())
+
+	// Adding the counter metric to a closed element results in an error
+	e.closed = true
+	require.Equal(t, errCounterElemClosed, e.AddMetric(testTimestamps[2], testCounter))
+}
+
+func TestCounterElemReadAndDiscard(t *testing.T) {
+	e := testCounterElem(policy.DefaultAggregationTypes)
 
 	// Read and discard values before an early-enough time
 	fn, res := testAggMetricFn()
@@ -133,13 +246,48 @@ func TestCounterElemConsume(t *testing.T) {
 	// Read and discard one value
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[1], fn))
-	require.Equal(t, expectedAggMetricsForCounter(testAlignedStarts[1], testPolicy), *res)
+	require.Equal(t, expectedAggMetricsForCounter(testAlignedStarts[1], testStoragePolicy, policy.DefaultAggregationTypes), *res)
 	require.Equal(t, 1, len(e.values))
 
 	// Read and discard all values
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
-	require.Equal(t, expectedAggMetricsForCounter(testAlignedStarts[2], testPolicy), *res)
+	require.Equal(t, expectedAggMetricsForCounter(testAlignedStarts[2], testStoragePolicy, policy.DefaultAggregationTypes), *res)
+	require.Equal(t, 0, len(e.values))
+
+	// Tombstone the element and discard all values
+	e.tombstoned = true
+	fn, res = testAggMetricFn()
+	require.True(t, e.Consume(testAlignedStarts[2], fn))
+	require.Equal(t, 0, len(*res))
+	require.Equal(t, 0, len(e.values))
+
+	// Reading and discarding values from a closed element is no op
+	e.closed = true
+	fn, res = testAggMetricFn()
+	require.False(t, e.Consume(testAlignedStarts[2], fn))
+	require.Equal(t, 0, len(e.values))
+}
+
+func TestCounterElemReadAndDiscardWithCustomAggregation(t *testing.T) {
+	e := testCounterElem(testAggregationTypes)
+
+	// Read and discard values before an early-enough time
+	fn, res := testAggMetricFn()
+	require.False(t, e.Consume(0, fn))
+	require.Equal(t, 0, len(*res))
+	require.Equal(t, 2, len(e.values))
+
+	// Read and discard one value
+	fn, res = testAggMetricFn()
+	require.False(t, e.Consume(testAlignedStarts[1], fn))
+	require.Equal(t, expectedAggMetricsForCounter(testAlignedStarts[1], testStoragePolicy, testAggregationTypes), *res)
+	require.Equal(t, 1, len(e.values))
+
+	// Read and discard all values
+	fn, res = testAggMetricFn()
+	require.False(t, e.Consume(testAlignedStarts[2], fn))
+	require.Equal(t, expectedAggMetricsForCounter(testAlignedStarts[2], testStoragePolicy, testAggregationTypes), *res)
 	require.Equal(t, 0, len(e.values))
 
 	// Tombstone the element and discard all values
@@ -157,7 +305,7 @@ func TestCounterElemConsume(t *testing.T) {
 }
 
 func TestCounterElemClose(t *testing.T) {
-	e := testCounterElem()
+	e := testCounterElem(policy.DefaultAggregationTypes)
 	require.False(t, e.closed)
 
 	// Closing the element
@@ -173,7 +321,7 @@ func TestCounterElemClose(t *testing.T) {
 }
 
 func TestCounterFindOrInsert(t *testing.T) {
-	e := NewCounterElem(testCounterID, testPolicy, testOptions())
+	e := NewCounterElem(testCounterID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions())
 	inputs := []int64{10, 10, 20, 10, 15}
 	expected := []testIndexData{
 		{index: 0, data: []int64{10}},
@@ -194,8 +342,12 @@ func TestCounterFindOrInsert(t *testing.T) {
 	}
 }
 
+func TestCounterSuffix(t *testing.T) {
+	require.Nil(t, NewCounterElem(testCounterID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions()).suffix(policy.Sum))
+}
+
 func TestTimerElemAddMetric(t *testing.T) {
-	e := NewTimerElem(testBatchTimerID, testPolicy, testOptions())
+	e := NewTimerElem(testBatchTimerID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions())
 
 	// Add a timer metric
 	require.NoError(t, e.AddMetric(testTimestamps[0], testBatchTimer))
@@ -244,7 +396,7 @@ func TestTimerElemConsume(t *testing.T) {
 
 	// Verify the pool is big enough to supply all the streams
 	opts := testOptions().SetStreamOptions(streamOpts)
-	e := testTimerElem(opts)
+	e := testTimerElem(policy.DefaultAggregationTypes, opts)
 	verifyStreamPoolSize(t, p, 0, numAlloc)
 
 	// Read and discard values before an early-enough time
@@ -256,13 +408,57 @@ func TestTimerElemConsume(t *testing.T) {
 	// Read and discard one value
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[1], fn))
-	require.Equal(t, expectedAggMetricsForTimer(testAlignedStarts[1], testPolicy), *res)
+	require.Equal(t, expectedAggMetricsForTimer(testAlignedStarts[1], testStoragePolicy, policy.DefaultAggregationTypes), *res)
 	require.Equal(t, 1, len(e.values))
 
 	// Read and discard all values
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
-	require.Equal(t, expectedAggMetricsForTimer(testAlignedStarts[2], testPolicy), *res)
+	require.Equal(t, expectedAggMetricsForTimer(testAlignedStarts[2], testStoragePolicy, policy.DefaultAggregationTypes), *res)
+	require.Equal(t, 0, len(e.values))
+
+	// Tombstone the element and discard all values
+	e.tombstoned = true
+	fn, res = testAggMetricFn()
+	require.True(t, e.Consume(testAlignedStarts[2], fn))
+	require.Equal(t, 0, len(*res))
+	require.Equal(t, 0, len(e.values))
+
+	// Reading and discarding values from a closed element is no op
+	e.closed = true
+	fn, res = testAggMetricFn()
+	require.False(t, e.Consume(testAlignedStarts[2], fn))
+	require.Equal(t, 0, len(e.values))
+
+	// Verify the streams have been returned to pool
+	verifyStreamPoolSize(t, p, len(testAlignedStarts)-1, numAlloc)
+}
+
+func TestTimerElemReadAndDiscardWithCustomAggregation(t *testing.T) {
+	// Set up stream options
+	streamOpts, p, numAlloc := testStreamOptions(t, len(testAlignedStarts)-1)
+
+	// Verify the pool is big enough to supply all the streams
+	opts := testOptions().SetStreamOptions(streamOpts)
+	e := testTimerElem(testTimerAggregationTypes, opts)
+	verifyStreamPoolSize(t, p, 0, numAlloc)
+
+	// Read and discard values before an early-enough time
+	fn, res := testAggMetricFn()
+	require.False(t, e.Consume(0, fn))
+	require.Equal(t, 0, len(*res))
+	require.Equal(t, 2, len(e.values))
+
+	// Read and discard one value
+	fn, res = testAggMetricFn()
+	require.False(t, e.Consume(testAlignedStarts[1], fn))
+	require.Equal(t, expectedAggMetricsForTimer(testAlignedStarts[1], testStoragePolicy, testTimerAggregationTypes), *res)
+	require.Equal(t, 1, len(e.values))
+
+	// Read and discard all values
+	fn, res = testAggMetricFn()
+	require.False(t, e.Consume(testAlignedStarts[2], fn))
+	require.Equal(t, expectedAggMetricsForTimer(testAlignedStarts[2], testStoragePolicy, testTimerAggregationTypes), *res)
 	require.Equal(t, 0, len(e.values))
 
 	// Tombstone the element and discard all values
@@ -288,7 +484,7 @@ func TestTimerElemClose(t *testing.T) {
 
 	// Verify the pool is big enough to supply all the streams
 	opts := testOptions().SetStreamOptions(streamOpts)
-	e := testTimerElem(opts)
+	e := testTimerElem(policy.DefaultAggregationTypes, opts)
 	verifyStreamPoolSize(t, p, 0, numAlloc)
 
 	require.False(t, e.closed)
@@ -309,7 +505,7 @@ func TestTimerElemClose(t *testing.T) {
 }
 
 func TestTimerFindOrInsert(t *testing.T) {
-	e := NewTimerElem(testBatchTimerID, testPolicy, testOptions())
+	e := NewTimerElem(testBatchTimerID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions())
 	inputs := []int64{10, 10, 20, 10, 15}
 	expected := []testIndexData{
 		{index: 0, data: []int64{10}},
@@ -331,20 +527,22 @@ func TestTimerFindOrInsert(t *testing.T) {
 }
 
 func TestGaugeElemAddMetric(t *testing.T) {
-	e := NewGaugeElem(testGaugeID, testPolicy, testOptions())
+	e := NewGaugeElem(testGaugeID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions())
 
 	// Add a gauge metric
 	require.NoError(t, e.AddMetric(testTimestamps[0], testGauge))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
-	require.Equal(t, testGauge.GaugeVal, e.values[0].gauge.Value())
+	require.Equal(t, testGauge.GaugeVal, e.values[0].gauge.Last())
+	require.Equal(t, 0.0, e.values[0].gauge.Mean())
 
 	// Add the gauge metric at slightly different time
 	// but still within the same aggregation interval
 	require.NoError(t, e.AddMetric(testTimestamps[1], testGauge))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
-	require.Equal(t, testGauge.GaugeVal, e.values[0].gauge.Value())
+	require.Equal(t, testGauge.GaugeVal, e.values[0].gauge.Last())
+	require.Equal(t, 0.0, e.values[0].gauge.Mean())
 
 	// Add the gauge metric in the next aggregation interval
 	require.NoError(t, e.AddMetric(testTimestamps[2], testGauge))
@@ -352,15 +550,49 @@ func TestGaugeElemAddMetric(t *testing.T) {
 	for i := 0; i < len(e.values); i++ {
 		require.Equal(t, testAlignedStarts[i], e.values[i].timeNanos)
 	}
-	require.Equal(t, testGauge.GaugeVal, e.values[1].gauge.Value())
+	require.Equal(t, testGauge.GaugeVal, e.values[1].gauge.Last())
+	require.Equal(t, 0.0, e.values[0].gauge.Mean())
 
 	// Adding the gauge metric to a closed element results in an error
 	e.closed = true
 	require.Equal(t, errGaugeElemClosed, e.AddMetric(testTimestamps[2], testGauge))
 }
 
-func TestGaugeElemConsume(t *testing.T) {
-	e := testGaugeElem()
+func TestGaugeElemAddMetricWithCustomAggregation(t *testing.T) {
+	e := NewGaugeElem(testGaugeID, testStoragePolicy, testAggregationTypes, testOptions())
+
+	// Add a gauge metric
+	require.NoError(t, e.AddMetric(testTimestamps[0], testGauge))
+	require.Equal(t, 1, len(e.values))
+	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
+	require.Equal(t, testGauge.GaugeVal, e.values[0].gauge.Last())
+	require.Equal(t, testGauge.GaugeVal, e.values[0].gauge.Sum())
+	require.Equal(t, testGauge.GaugeVal, e.values[0].gauge.Mean())
+
+	// Add the gauge metric at slightly different time
+	// but still within the same aggregation interval
+	require.NoError(t, e.AddMetric(testTimestamps[1], testGauge))
+	require.Equal(t, 1, len(e.values))
+	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
+	require.Equal(t, testGauge.GaugeVal, e.values[0].gauge.Last())
+	require.Equal(t, testGauge.GaugeVal, e.values[0].gauge.Max())
+
+	// Add the gauge metric in the next aggregation interval
+	require.NoError(t, e.AddMetric(testTimestamps[2], testGauge))
+	require.Equal(t, 2, len(e.values))
+	for i := 0; i < len(e.values); i++ {
+		require.Equal(t, testAlignedStarts[i], e.values[i].timeNanos)
+	}
+	require.Equal(t, testGauge.GaugeVal, e.values[1].gauge.Last())
+	require.Equal(t, testGauge.GaugeVal, e.values[1].gauge.Max())
+
+	// Adding the gauge metric to a closed element results in an error
+	e.closed = true
+	require.Equal(t, errGaugeElemClosed, e.AddMetric(testTimestamps[2], testGauge))
+}
+
+func TestGaugeElemReadAndDiscard(t *testing.T) {
+	e := testGaugeElem(policy.DefaultAggregationTypes)
 
 	// Read and discard values before an early-enough time
 	fn, res := testAggMetricFn()
@@ -371,13 +603,49 @@ func TestGaugeElemConsume(t *testing.T) {
 	// Read and discard one value
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[1], fn))
-	require.Equal(t, expectedAggMetricsForGauge(testAlignedStarts[1], testPolicy), *res)
+	require.Equal(t, expectedAggMetricsForGauge(testAlignedStarts[1], testStoragePolicy, policy.DefaultAggregationTypes), *res)
 	require.Equal(t, 1, len(e.values))
 
 	// Read and discard all values
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
-	require.Equal(t, expectedAggMetricsForGauge(testAlignedStarts[2], testPolicy), *res)
+	require.Equal(t, expectedAggMetricsForGauge(testAlignedStarts[2], testStoragePolicy, policy.DefaultAggregationTypes), *res)
+	require.Equal(t, 0, len(e.values))
+
+	// Tombstone the element and discard all values
+	e.tombstoned = true
+	fn, res = testAggMetricFn()
+	require.True(t, e.Consume(testAlignedStarts[2], fn))
+	require.Equal(t, 0, len(*res))
+	require.Equal(t, 0, len(e.values))
+	require.Equal(t, 0, len(e.values))
+
+	// Reading and discarding values from a closed element is no op
+	e.closed = true
+	fn, res = testAggMetricFn()
+	require.False(t, e.Consume(testAlignedStarts[2], fn))
+	require.Equal(t, 0, len(e.values))
+}
+
+func TestGaugeElemReadAndDiscardWithCustomAggregation(t *testing.T) {
+	e := testGaugeElem(testAggregationTypes)
+
+	// Read and discard values before an early-enough time
+	fn, res := testAggMetricFn()
+	require.False(t, e.Consume(0, fn))
+	require.Equal(t, 0, len(*res))
+	require.Equal(t, 2, len(e.values))
+
+	// Read and discard one value
+	fn, res = testAggMetricFn()
+	require.False(t, e.Consume(testAlignedStarts[1], fn))
+	require.Equal(t, expectedAggMetricsForGauge(testAlignedStarts[1], testStoragePolicy, testAggregationTypes), *res)
+	require.Equal(t, 1, len(e.values))
+
+	// Read and discard all values
+	fn, res = testAggMetricFn()
+	require.False(t, e.Consume(testAlignedStarts[2], fn))
+	require.Equal(t, expectedAggMetricsForGauge(testAlignedStarts[2], testStoragePolicy, testAggregationTypes), *res)
 	require.Equal(t, 0, len(e.values))
 
 	// Tombstone the element and discard all values
@@ -396,7 +664,7 @@ func TestGaugeElemConsume(t *testing.T) {
 }
 
 func TestGaugeElemClose(t *testing.T) {
-	e := testGaugeElem()
+	e := testGaugeElem(policy.DefaultAggregationTypes)
 	require.False(t, e.closed)
 
 	// Closing the element
@@ -412,7 +680,7 @@ func TestGaugeElemClose(t *testing.T) {
 }
 
 func TestGaugeFindOrInsert(t *testing.T) {
-	e := NewGaugeElem(testGaugeID, testPolicy, testOptions())
+	e := NewGaugeElem(testGaugeID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions())
 	inputs := []int64{10, 10, 20, 10, 15}
 	expected := []testIndexData{
 		{index: 0, data: []int64{10}},
@@ -433,14 +701,18 @@ func TestGaugeFindOrInsert(t *testing.T) {
 	}
 }
 
+func TestGaugeSuffix(t *testing.T) {
+	require.Nil(t, NewGaugeElem(testGaugeID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions()).suffix(policy.Last))
+}
+
 type testIndexData struct {
 	index int
 	data  []int64
 }
 
 type testSuffixAndValue struct {
-	suffix []byte
-	value  float64
+	aggType policy.AggregationType
+	value   float64
 }
 
 type testAggMetric struct {
@@ -449,7 +721,7 @@ type testAggMetric struct {
 	idSuffix  []byte
 	timeNanos int64
 	value     float64
-	policy    policy.Policy
+	sp        policy.StoragePolicy
 }
 
 type testAggMetricsByTimeAscending []testAggMetric
@@ -466,7 +738,7 @@ func testAggMetricFn() (aggMetricFn, *[]testAggMetric) {
 		idSuffix []byte,
 		timeNanos int64,
 		value float64,
-		policy policy.Policy,
+		sp policy.StoragePolicy,
 	) {
 		result = append(result, testAggMetric{
 			idPrefix:  idPrefix,
@@ -474,7 +746,7 @@ func testAggMetricFn() (aggMetricFn, *[]testAggMetric) {
 			idSuffix:  idSuffix,
 			timeNanos: timeNanos,
 			value:     value,
-			policy:    policy,
+			sp:        sp,
 		})
 	}, &result
 }
@@ -491,11 +763,11 @@ func testStreamOptions(t *testing.T, size int) (cm.Options, cm.StreamPool, *int)
 	return streamOpts, p, &numAlloc
 }
 
-func testCounterElem() *CounterElem {
-	e := NewCounterElem(testCounterID, testPolicy, testOptions())
+func testCounterElem(aggTypes policy.AggregationTypes) *CounterElem {
+	e := NewCounterElem(testCounterID, testStoragePolicy, aggTypes, testOptions())
 	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
-		counter := aggregation.NewLockedCounter()
-		counter.Add(testCounter.CounterVal)
+		counter := aggregation.NewLockedCounter(aggregation.NewCounter(e.aggOpts))
+		counter.Update(testCounter.CounterVal)
 		e.values = append(e.values, timedCounter{
 			timeNanos: aligned,
 			counter:   counter,
@@ -504,10 +776,10 @@ func testCounterElem() *CounterElem {
 	return e
 }
 
-func testTimerElem(opts Options) *TimerElem {
-	e := NewTimerElem(testBatchTimerID, testPolicy, opts)
+func testTimerElem(aggTypes policy.AggregationTypes, opts Options) *TimerElem {
+	e := NewTimerElem(testBatchTimerID, testStoragePolicy, aggTypes, opts)
 	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
-		newTimer := aggregation.NewTimer(opts.TimerQuantiles(), opts.StreamOptions())
+		newTimer := aggregation.NewTimer(opts.TimerQuantiles(), opts.StreamOptions(), e.aggOpts)
 		timer := aggregation.NewLockedTimer(newTimer)
 		timer.AddBatch(testBatchTimer.BatchTimerVal)
 		e.values = append(e.values, timedTimer{
@@ -518,11 +790,11 @@ func testTimerElem(opts Options) *TimerElem {
 	return e
 }
 
-func testGaugeElem() *GaugeElem {
-	e := NewGaugeElem(testGaugeID, testPolicy, testOptions())
+func testGaugeElem(aggTypes policy.AggregationTypes) *GaugeElem {
+	e := NewGaugeElem(testGaugeID, testStoragePolicy, aggTypes, testOptions())
 	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
-		gauge := aggregation.NewLockedGauge()
-		gauge.Set(testGauge.GaugeVal)
+		gauge := aggregation.NewLockedGauge(aggregation.NewGauge(e.aggOpts))
+		gauge.Update(testGauge.GaugeVal)
 		e.values = append(e.values, timedGauge{
 			timeNanos: aligned,
 			gauge:     gauge,
@@ -531,10 +803,37 @@ func testGaugeElem() *GaugeElem {
 	return e
 }
 
+func expectCounterSuffix(aggType policy.AggregationType) []byte {
+	return NewCounterElem(testCounterID, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, NewOptions()).suffix(aggType)
+}
+
+func expectTimerSuffix(aggType policy.AggregationType) []byte {
+	return NewOptions().Suffix(aggType)
+}
+
+func expectGaugeSuffix(aggType policy.AggregationType) []byte {
+	return NewGaugeElem(testGaugeID, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, NewOptions()).suffix(aggType)
+}
+
 func expectedAggMetricsForCounter(
 	timeNanos int64,
-	policy policy.Policy,
+	sp policy.StoragePolicy,
+	aggTypes policy.AggregationTypes,
 ) []testAggMetric {
+	if !aggTypes.IsDefault() {
+		var res []testAggMetric
+		for _, aggType := range aggTypes {
+			res = append(res, testAggMetric{
+				idPrefix:  []byte("stats.counts."),
+				id:        testCounterID,
+				idSuffix:  expectCounterSuffix(aggType),
+				timeNanos: timeNanos,
+				value:     float64(testCounter.CounterVal),
+				sp:        sp,
+			})
+		}
+		return res
+	}
 	return []testAggMetric{
 		{
 			idPrefix:  []byte("stats.counts."),
@@ -542,37 +841,57 @@ func expectedAggMetricsForCounter(
 			idSuffix:  nil,
 			timeNanos: timeNanos,
 			value:     float64(testCounter.CounterVal),
-			policy:    policy,
+			sp:        sp,
 		},
 	}
 }
 
 func expectedAggMetricsForTimer(
 	timeNanos int64,
-	policy policy.Policy,
+	sp policy.StoragePolicy,
+	aggTypes policy.AggregationTypes,
 ) []testAggMetric {
+	// this needs to be a list as the order of the result matters in some test
 	data := []testSuffixAndValue{
-		{[]byte(".sum"), 18.0},
-		{[]byte(".sum_sq"), 83.38},
-		{[]byte(".mean"), 3.6},
-		{[]byte(".lower"), 1.0},
-		{[]byte(".upper"), 6.5},
-		{[]byte(".count"), 5.0},
-		{[]byte(".stdev"), 2.15522620622523},
-		{[]byte(".median"), 3.5},
-		{[]byte(".p50"), 3.5},
-		{[]byte(".p95"), 6.5},
-		{[]byte(".p99"), 6.5},
+		{policy.Sum, 18.0},
+		{policy.SumSq, 83.38},
+		{policy.Mean, 3.6},
+		{policy.Lower, 1.0},
+		{policy.Upper, 6.5},
+		{policy.Count, 5.0},
+		{policy.Stdev, 2.15522620622523},
+		{policy.Median, 3.5},
+		{policy.P50, 3.5},
+		{policy.P95, 6.5},
+		{policy.P99, 6.5},
 	}
 	var expected []testAggMetric
+	if !aggTypes.IsDefault() {
+		for _, aggType := range aggTypes {
+			for _, d := range data {
+				if d.aggType == aggType {
+					expected = append(expected, testAggMetric{
+						idPrefix:  []byte("stats.timers."),
+						id:        testBatchTimerID,
+						idSuffix:  expectTimerSuffix(aggType),
+						timeNanos: timeNanos,
+						value:     d.value,
+						sp:        sp,
+					})
+				}
+			}
+		}
+		return expected
+	}
+
 	for _, d := range data {
 		expected = append(expected, testAggMetric{
 			idPrefix:  []byte("stats.timers."),
 			id:        testBatchTimerID,
-			idSuffix:  d.suffix,
+			idSuffix:  expectTimerSuffix(d.aggType),
 			timeNanos: timeNanos,
 			value:     d.value,
-			policy:    policy,
+			sp:        sp,
 		})
 	}
 	return expected
@@ -580,8 +899,23 @@ func expectedAggMetricsForTimer(
 
 func expectedAggMetricsForGauge(
 	timeNanos int64,
-	policy policy.Policy,
+	sp policy.StoragePolicy,
+	aggTypes policy.AggregationTypes,
 ) []testAggMetric {
+	if !aggTypes.IsDefault() {
+		var res []testAggMetric
+		for _, aggType := range aggTypes {
+			res = append(res, testAggMetric{
+				idPrefix:  []byte("stats.gauges."),
+				id:        testGaugeID,
+				idSuffix:  expectGaugeSuffix(aggType),
+				timeNanos: timeNanos,
+				value:     float64(testGauge.GaugeVal),
+				sp:        sp,
+			})
+		}
+		return res
+	}
 	return []testAggMetric{
 		{
 			idPrefix:  []byte("stats.gauges."),
@@ -589,7 +923,7 @@ func expectedAggMetricsForGauge(
 			idSuffix:  nil,
 			timeNanos: timeNanos,
 			value:     float64(testGauge.GaugeVal),
-			policy:    policy,
+			sp:        sp,
 		},
 	}
 }

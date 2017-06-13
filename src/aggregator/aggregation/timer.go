@@ -21,70 +21,78 @@
 package aggregation
 
 import (
-	"math"
 	"sync"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
+	"github.com/m3db/m3metrics/policy"
 )
 
-// Timer aggregates timer values. Timer APIs are not thread-safe
+// Timer aggregates timer values. Timer APIs are not thread-safe.
 type Timer struct {
-	count  int64     // number of values received
-	sum    float64   // sum of the values
-	sumSq  float64   // sum of squared values
-	stream cm.Stream // stream of values received
+	Options
+
+	count  int64     // Number of values received.
+	sum    float64   // Sum of the values.
+	sumSq  float64   // Sum of squared values.
+	stream cm.Stream // Stream of values received.
 }
 
 // NewTimer creates a new timer
-func NewTimer(quantiles []float64, opts cm.Options) Timer {
-	stream := opts.StreamPool().Get()
+func NewTimer(quantiles []float64, streamOpts cm.Options, opts Options) Timer {
+	stream := streamOpts.StreamPool().Get()
 	stream.ResetSetData(quantiles)
-	return Timer{stream: stream}
+	return Timer{
+		Options: opts,
+		stream:  stream,
+	}
 }
 
-// Add adds a timer value
+// Add adds a timer value.
 func (t *Timer) Add(value float64) {
 	t.count++
 	t.sum += value
-	t.sumSq += value * value
 	t.stream.Add(value)
+
+	if t.HasExpensiveAggregations {
+		t.sumSq += value * value
+	}
 }
 
-// AddBatch adds a batch of timer values
+// AddBatch adds a batch of timer values.
 func (t *Timer) AddBatch(values []float64) {
 	for _, v := range values {
 		t.Add(v)
 	}
 }
 
-// Quantile returns the value at a given quantile
+// Quantile returns the value at a given quantile.
 func (t *Timer) Quantile(q float64) float64 {
 	t.stream.Flush()
 	return t.stream.Quantile(q)
 }
 
-// Count returns the number of values received
+// Count returns the number of values received.
 func (t *Timer) Count() int64 { return t.count }
 
-// Min returns the minimum timer value
+// Min returns the minimum timer value.
 func (t *Timer) Min() float64 {
 	t.stream.Flush()
 	return t.stream.Min()
 }
 
-// Max returns the maximum timer value
+// Max returns the maximum timer value.
 func (t *Timer) Max() float64 {
 	t.stream.Flush()
 	return t.stream.Max()
 }
 
-// Sum returns the sum of timer values
+// Sum returns the sum of timer values.
 func (t *Timer) Sum() float64 { return t.sum }
 
-// SumSq returns the squared sum of timer values
+// SumSq returns the squared sum of timer values.
 func (t *Timer) SumSq() float64 { return t.sumSq }
 
-// Mean returns the mean timer value
+// Mean returns the mean timer value.
 func (t *Timer) Mean() float64 {
 	if t.count == 0 {
 		return 0.0
@@ -92,14 +100,34 @@ func (t *Timer) Mean() float64 {
 	return t.sum / float64(t.count)
 }
 
-// Stdev returns the standard deviation timer value
+// Stdev returns the standard deviation timer value.
 func (t *Timer) Stdev() float64 {
-	num := float64(t.count)*t.sumSq - t.sum*t.sum
-	div := t.count * (t.count - 1)
-	if div == 0 {
-		return 0.0
+	return stdev(t.count, t.sumSq, t.sum)
+}
+
+// ValueOf returns the value for the aggregation type.
+func (t *Timer) ValueOf(aggType policy.AggregationType) float64 {
+	if q, ok := aggType.Quantile(); ok {
+		return t.Quantile(q)
 	}
-	return math.Sqrt(num / float64(div))
+
+	switch aggType {
+	case policy.Lower:
+		return t.Min()
+	case policy.Upper:
+		return t.Max()
+	case policy.Mean:
+		return t.Mean()
+	case policy.Count:
+		return float64(t.Count())
+	case policy.Sum:
+		return t.Sum()
+	case policy.SumSq:
+		return t.SumSq()
+	case policy.Stdev:
+		return t.Stdev()
+	}
+	return 0
 }
 
 // Close closes the timer

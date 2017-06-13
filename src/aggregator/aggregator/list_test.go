@@ -39,7 +39,7 @@ import (
 
 func TestMetricListPushBack(t *testing.T) {
 	l := newMetricList(time.Second, testOptions())
-	elem := NewCounterElem(nil, policy.Policy{}, l.opts)
+	elem := NewCounterElem(nil, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, l.opts)
 
 	// Push a counter to the list
 	e, err := l.PushBack(elem)
@@ -95,36 +95,36 @@ func TestMetricListTick(t *testing.T) {
 		SetFlushHandler(handler)
 
 	l := newMetricList(0, opts)
-	l.resolution = testPolicy.Resolution().Window
+	l.resolution = testStoragePolicy.Resolution().Window
 
 	// Intentionally cause a one-time error during encoding.
 	var count int
-	l.encodeFn = func(mp aggregated.ChunkedMetricWithPolicy) error {
+	l.encodeFn = func(mp aggregated.ChunkedMetricWithStoragePolicy) error {
 		if count == 0 {
 			count++
 			return errors.New("foo")
 		}
-		return l.encoder.EncodeChunkedMetricWithPolicy(mp)
+		return l.encoder.EncodeChunkedMetricWithStoragePolicy(mp)
 	}
 
 	elemPairs := []testElemPair{
 		{
-			elem:   NewCounterElem(testCounterID, testPolicy, opts),
+			elem:   NewCounterElem(testCounterID, testStoragePolicy, policy.DefaultAggregationTypes, opts),
 			metric: testCounter,
 		},
 		{
-			elem:   NewTimerElem(testBatchTimerID, testPolicy, opts),
+			elem:   NewTimerElem(testBatchTimerID, testStoragePolicy, policy.DefaultAggregationTypes, opts),
 			metric: testBatchTimer,
 		},
 		{
-			elem:   NewGaugeElem(testGaugeID, testPolicy, opts),
+			elem:   NewGaugeElem(testGaugeID, testStoragePolicy, policy.DefaultAggregationTypes, opts),
 			metric: testGauge,
 		},
 	}
 
 	for _, ep := range elemPairs {
 		require.NoError(t, ep.elem.AddMetric(nowTs, ep.metric))
-		require.NoError(t, ep.elem.AddMetric(nowTs.Add(testPolicy.Resolution().Window), ep.metric))
+		require.NoError(t, ep.elem.AddMetric(nowTs.Add(testStoragePolicy.Resolution().Window), ep.metric))
 		_, err := l.PushBack(ep.elem)
 		require.NoError(t, err)
 	}
@@ -139,17 +139,17 @@ func TestMetricListTick(t *testing.T) {
 
 	for i := 0; i < 2; i++ {
 		// Move the time forward by one aggregation interval.
-		nowTs = nowTs.Add(testPolicy.Resolution().Window)
+		nowTs = nowTs.Add(testStoragePolicy.Resolution().Window)
 		atomic.StoreInt64(&now, nowTs.UnixNano())
 
 		// Force a flush.
 		l.Flush()
 
 		var expected []testAggMetric
-		alignedStart := nowTs.Truncate(testPolicy.Resolution().Window).UnixNano()
-		expected = append(expected, expectedAggMetricsForCounter(alignedStart, testPolicy)...)
-		expected = append(expected, expectedAggMetricsForTimer(alignedStart, testPolicy)...)
-		expected = append(expected, expectedAggMetricsForGauge(alignedStart, testPolicy)...)
+		alignedStart := nowTs.Truncate(testStoragePolicy.Resolution().Window).UnixNano()
+		expected = append(expected, expectedAggMetricsForCounter(alignedStart, testStoragePolicy, policy.DefaultAggregationTypes)...)
+		expected = append(expected, expectedAggMetricsForTimer(alignedStart, testStoragePolicy, policy.DefaultAggregationTypes)...)
+		expected = append(expected, expectedAggMetricsForGauge(alignedStart, testStoragePolicy, policy.DefaultAggregationTypes)...)
 
 		// Skip the first item because we intentionally triggered
 		// an encoder error when encoding the first item.
@@ -165,7 +165,7 @@ func TestMetricListTick(t *testing.T) {
 	}
 
 	// Move the time forward by one aggregation interval.
-	nowTs = nowTs.Add(testPolicy.Resolution().Window)
+	nowTs = nowTs.Add(testStoragePolicy.Resolution().Window)
 	atomic.StoreInt64(&now, nowTs.UnixNano())
 
 	// Force a flush.
@@ -226,17 +226,17 @@ func validateBuffers(
 	expected []testAggMetric,
 	buffers []msgpack.Buffer,
 ) {
-	var decoded []aggregated.MetricWithPolicy
+	var decoded []aggregated.MetricWithStoragePolicy
 	it := msgpack.NewAggregatedIterator(nil, nil)
 	for _, b := range buffers {
 		it.Reset(b.Buffer())
 		for it.Next() {
-			rm, p := it.Value()
+			rm, sp := it.Value()
 			m, err := rm.Metric()
 			require.NoError(t, err)
-			decoded = append(decoded, aggregated.MetricWithPolicy{
-				Metric: m,
-				Policy: p,
+			decoded = append(decoded, aggregated.MetricWithStoragePolicy{
+				Metric:        m,
+				StoragePolicy: sp,
 			})
 		}
 		require.Equal(t, io.EOF, it.Err())
@@ -252,7 +252,7 @@ func validateBuffers(
 		require.Equal(t, expectedID, []byte(decoded[i].ID))
 		require.Equal(t, expected[i].timeNanos, decoded[i].TimeNanos)
 		require.Equal(t, expected[i].value, decoded[i].Value)
-		require.Equal(t, expected[i].policy, decoded[i].Policy)
+		require.Equal(t, expected[i].sp, decoded[i].StoragePolicy)
 	}
 }
 
