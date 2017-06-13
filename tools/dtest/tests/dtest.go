@@ -39,6 +39,7 @@ func init() {
 		removeDownNodeTestCmd,
 		addUpNodeRemoveTestCmd,
 		replaceUpNodeRemoveTestCmd,
+		replaceUpNodeRemoveUnseededTestCmd,
 	)
 
 	globalArgs.RegisterFlags(DTestCmd)
