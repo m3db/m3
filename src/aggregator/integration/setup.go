@@ -65,7 +65,7 @@ type testSetup struct {
 	getNowFn          clock.NowFn
 	setNowFn          nowSetterFn
 	workerPool        xsync.WorkerPool
-	results           *[]aggregated.MetricWithPolicy
+	results           *[]aggregated.MetricWithStoragePolicy
 	resultLock        *sync.Mutex
 
 	// Signals.
@@ -158,14 +158,14 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 
 	// Set up the handler.
 	var (
-		results    []aggregated.MetricWithPolicy
+		results    []aggregated.MetricWithStoragePolicy
 		resultLock sync.Mutex
 	)
-	handleFn := func(metric aggregated.Metric, policy policy.Policy) error {
+	handleFn := func(metric aggregated.Metric, sp policy.StoragePolicy) error {
 		resultLock.Lock()
-		results = append(results, aggregated.MetricWithPolicy{
-			Metric: metric,
-			Policy: policy,
+		results = append(results, aggregated.MetricWithStoragePolicy{
+			Metric:        metric,
+			StoragePolicy: sp,
 		})
 		resultLock.Unlock()
 		return nil
@@ -242,7 +242,7 @@ func (ts *testSetup) startServer() error {
 	return <-errCh
 }
 
-func (ts *testSetup) sortedResults() []aggregated.MetricWithPolicy {
+func (ts *testSetup) sortedResults() []aggregated.MetricWithStoragePolicy {
 	sort.Sort(byTimeIDPolicyAscending(*ts.results))
 	return *ts.results
 }

@@ -23,6 +23,7 @@ package aggregator
 import (
 	"container/list"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -73,6 +74,9 @@ type Entry struct {
 	lastAccessNanos        int64
 	aggregations           map[policy.Policy]*list.Element
 	metrics                entryMetrics
+	// The entry keeps a decompressor to reuse the bitset in it, so we can
+	// save some heap allocations.
+	decompressor policy.AggregationIDDecompressor
 }
 
 // NewEntry creates a new entry.
@@ -81,6 +85,7 @@ func NewEntry(lists *metricLists, opts Options) *Entry {
 	e := &Entry{
 		aggregations: make(map[policy.Policy]*list.Element),
 		metrics:      newEntryMetrics(scope),
+		decompressor: policy.NewPooledAggregationIDDecompressor(opts.AggregationTypesPool()),
 	}
 	e.ResetSetData(lists, opts)
 	return e
@@ -395,23 +400,37 @@ func (e *Entry) updatePoliciesWithLock(
 
 	// We should update the policies first.
 	newAggregations := make(map[policy.Policy]*list.Element, len(policies))
-	for _, policy := range policies {
-		if elem, exists := e.aggregations[policy]; exists {
-			newAggregations[policy] = elem
+	for _, p := range policies {
+		if elem, exists := e.aggregations[p]; exists {
+			newAggregations[p] = elem
 		} else {
+			aggTypes, err := e.decompressor.Decompress(p.AggregationID)
+			if err != nil {
+				return err
+			}
+
 			var newElem metricElem
 			switch typ {
 			case unaggregated.CounterType:
+				if !aggTypes.IsValidForCounter() {
+					return fmt.Errorf("invalid aggregation types %s for Counter", aggTypes.String())
+				}
 				newElem = e.opts.CounterElemPool().Get()
 			case unaggregated.BatchTimerType:
+				if !aggTypes.IsValidForTimer() {
+					return fmt.Errorf("invalid aggregation types %s for Timer", aggTypes.String())
+				}
 				newElem = e.opts.TimerElemPool().Get()
 			case unaggregated.GaugeType:
+				if !aggTypes.IsValidForGauge() {
+					return fmt.Errorf("invalid aggregation types %s for Gauge", aggTypes.String())
+				}
 				newElem = e.opts.GaugeElemPool().Get()
 			default:
 				return errInvalidMetricType
 			}
-			newElem.ResetSetData(elemID, policy)
-			list, err := e.lists.FindOrCreate(policy.Resolution().Window)
+			newElem.ResetSetData(elemID, p.StoragePolicy, aggTypes)
+			list, err := e.lists.FindOrCreate(p.Resolution().Window)
 			if err != nil {
 				return err
 			}
@@ -419,7 +438,7 @@ func (e *Entry) updatePoliciesWithLock(
 			if err != nil {
 				return err
 			}
-			newAggregations[policy] = newListElem
+			newAggregations[p] = newListElem
 		}
 	}
 

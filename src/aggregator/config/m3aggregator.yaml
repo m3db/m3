@@ -75,7 +75,7 @@ aggregator:
         - count: 2048
           capacity: 32
         - count: 1024
-          capacity: 16
+          capacity: 64
   timerQuantiles:
     - 0.5
     - 0.95
@@ -97,6 +97,8 @@ aggregator:
   defaultPolicies:
     - 10s:2d
     - 1m:40d
+  aggregationTypesPool:
+    size: 1024
   counterElemPool:
     size: 4096
   timerElemPool:
@@ -107,3 +109,9 @@ aggregator:
     size: 4096
   bufferedEncoderPool:
     size: 4096
+  quantilesPool:
+    buckets:
+      - count: 256
+        capacity: 4
+      - count: 128
+        capacity: 8

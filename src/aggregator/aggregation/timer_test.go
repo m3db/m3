@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
+	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/require"
@@ -42,13 +43,13 @@ func TestCreateTimerResetStream(t *testing.T) {
 
 	// Add a value to the timer and close the timer, which returns the
 	// underlying stream to the pool.
-	timer := NewTimer(testQuantiles, streamOpts)
+	timer := NewTimer(testQuantiles, streamOpts, NewOptions())
 	timer.Add(1.0)
 	require.Equal(t, 1.0, timer.Min())
 	timer.Close()
 
 	// Create a new timer and assert the underlying stream has been closed.
-	timer = NewTimer(testQuantiles, streamOpts)
+	timer = NewTimer(testQuantiles, streamOpts, NewOptions())
 	timer.Add(1.0)
 	require.Equal(t, 1.0, timer.Min())
 	timer.Close()
@@ -56,7 +57,22 @@ func TestCreateTimerResetStream(t *testing.T) {
 }
 
 func TestTimerAggregations(t *testing.T) {
-	timer := Timer{stream: cm.NewStream(testQuantiles, cm.NewOptions())}
+	opts := NewOptions()
+	opts.ResetSetData(policy.AggregationTypes{
+		policy.Sum,
+		policy.SumSq,
+		policy.Mean,
+		policy.Lower,
+		policy.Upper,
+		policy.Count,
+		policy.Stdev,
+		policy.Median,
+		policy.P50,
+		policy.P95,
+		policy.P99,
+	})
+
+	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
 
 	// Assert the state of an empty timer
 	require.Equal(t, int64(0), timer.Count())
@@ -87,6 +103,35 @@ func TestTimerAggregations(t *testing.T) {
 	require.True(t, timer.Quantile(0.95) >= 94 && timer.Quantile(0.95) <= 96)
 	require.True(t, timer.Quantile(0.99) >= 98 && timer.Quantile(0.99) <= 100)
 
+	for aggType := range policy.ValidAggregationTypes {
+		v := timer.ValueOf(aggType)
+		switch aggType {
+		case policy.Last:
+			require.Equal(t, 0.0, v)
+		case policy.Lower:
+			require.Equal(t, 1.0, v)
+		case policy.Upper:
+			require.Equal(t, 100.0, v)
+		case policy.Mean:
+			require.Equal(t, 50.5, v)
+		case policy.Median:
+			require.Equal(t, 50.0, v)
+		case policy.Count:
+			require.Equal(t, 100.0, v)
+		case policy.Sum:
+			require.Equal(t, 5050.0, v)
+		case policy.SumSq:
+			require.Equal(t, 338350.0, v)
+		case policy.Stdev:
+			require.InDelta(t, 29.01149, v, 0.001)
+		case policy.P50:
+			require.Equal(t, 50.0, v)
+		case policy.P95:
+			require.Equal(t, 95.0, v)
+		case policy.P99:
+			require.True(t, v >= 99 && v <= 100)
+		}
+	}
 	// Closing the timer should close the underlying stream
 	timer.Close()
 	require.Equal(t, 0.0, timer.stream.Quantile(0.5))

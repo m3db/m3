@@ -39,19 +39,21 @@ import (
 
 var (
 	testPoliciesVersion = 2
+	compressor          = policy.NewAggregationIDCompressor()
+	compressedUpper, _  = compressor.Compress(policy.AggregationTypes{policy.Upper})
 	testPolicies        = []policy.Policy{
-		policy.NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
-		policy.NewPolicy(time.Minute, xtime.Minute, 2*24*time.Hour),
-		policy.NewPolicy(10*time.Minute, xtime.Minute, 30*24*time.Hour),
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+		policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), compressedUpper),
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 30*24*time.Hour), policy.DefaultAggregationID),
 	}
 	testNewPolicies = []policy.Policy{
-		policy.NewPolicy(10*time.Second, xtime.Second, 6*time.Hour),
-		policy.NewPolicy(time.Minute, xtime.Minute, 7*24*time.Hour),
-		policy.NewPolicy(5*time.Minute, xtime.Minute, 7*24*time.Hour),
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+		policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 7*24*time.Hour), policy.DefaultAggregationID),
+		policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 7*24*time.Hour), policy.DefaultAggregationID),
 	}
 	testDefaultPolicies = []policy.Policy{
-		policy.NewPolicy(10*time.Second, xtime.Second, 48*time.Hour),
-		policy.NewPolicy(time.Minute, xtime.Minute, 720*time.Hour),
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 48*time.Hour), policy.DefaultAggregationID),
+		policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 720*time.Hour), policy.DefaultAggregationID),
 	}
 )
 
@@ -165,7 +167,7 @@ func TestEntryHasPolicyChangesWithLockSameLengthDifferentPolicies(t *testing.T) 
 			resolution := p.Resolution()
 			retention := p.Retention()
 			newRetention := time.Duration(retention) - time.Second
-			p = policy.NewPolicy(resolution.Window, resolution.Precision, newRetention)
+			p = policy.NewPolicy(policy.NewStoragePolicy(resolution.Window, resolution.Precision, newRetention), policy.DefaultAggregationID)
 		}
 		e.aggregations[p] = &list.Element{}
 	}
@@ -386,9 +388,9 @@ func TestEntryAddMetricWithPoliciesListDifferentTombstone(t *testing.T) {
 		lists            *metricLists
 	)
 
-	deletedPolicies := make(map[policy.Policy]struct{})
+	deletedPolicies := make(map[policy.StoragePolicy]struct{})
 	for _, policy := range testPolicies {
-		deletedPolicies[policy] = struct{}{}
+		deletedPolicies[policy.StoragePolicy] = struct{}{}
 	}
 	preAddFn := func(e *Entry, now *time.Time) {
 		*now = time.Unix(0, nowNanos)
@@ -468,9 +470,9 @@ func TestEntryAddMetricWithPoliciesListDifferentCutoverDifferentPolicies(t *test
 		lists            *metricLists
 	)
 
-	deletedPolicies := make(map[policy.Policy]struct{})
-	deletedPolicies[testPolicies[1]] = struct{}{}
-	deletedPolicies[testPolicies[2]] = struct{}{}
+	deletedPolicies := make(map[policy.StoragePolicy]struct{})
+	deletedPolicies[testPolicies[1].StoragePolicy] = struct{}{}
+	deletedPolicies[testPolicies[2].StoragePolicy] = struct{}{}
 
 	preAddFn := func(e *Entry, now *time.Time) {
 		*now = time.Unix(0, nowNanos)
@@ -573,6 +575,39 @@ func TestEntryAddMetricWithPoliciesListWithPolicyUpdateIDOwnsID(t *testing.T) {
 		t, withPrepopulation, prePopulatePolicies, ownsID,
 		preAddFn, inputPoliciesList, postAddFn, expectedPolicies,
 	)
+}
+
+func TestEntryAddMetricWithPoliciesListWithInvalidAggregationType(t *testing.T) {
+	compressor := policy.NewAggregationIDCompressor()
+	compressedMin, err := compressor.Compress(policy.AggregationTypes{policy.Lower})
+	require.NoError(t, err)
+	compressedLast, err := compressor.Compress(policy.AggregationTypes{policy.Last})
+	require.NoError(t, err)
+	compressedP9999, err := compressor.Compress(policy.AggregationTypes{policy.P9999})
+	require.NoError(t, err)
+
+	e, _, _ := testEntry()
+
+	require.NoError(t, e.AddMetricWithPoliciesList(testCounter, policy.PoliciesList{policy.NewStagedPolicies(0, false, []policy.Policy{
+		policy.NewPolicy(policy.DefaultStoragePolicy, compressedMin),
+	})}))
+	require.Error(t, e.AddMetricWithPoliciesList(testCounter, policy.PoliciesList{policy.NewStagedPolicies(0, false, []policy.Policy{
+		policy.NewPolicy(policy.DefaultStoragePolicy, compressedP9999),
+	})}))
+
+	require.NoError(t, e.AddMetricWithPoliciesList(testGauge, policy.PoliciesList{policy.NewStagedPolicies(0, false, []policy.Policy{
+		policy.NewPolicy(policy.DefaultStoragePolicy, compressedMin),
+	})}))
+	require.Error(t, e.AddMetricWithPoliciesList(testGauge, policy.PoliciesList{policy.NewStagedPolicies(0, false, []policy.Policy{
+		policy.NewPolicy(policy.DefaultStoragePolicy, compressedP9999),
+	})}))
+
+	require.NoError(t, e.AddMetricWithPoliciesList(testBatchTimer, policy.PoliciesList{policy.NewStagedPolicies(0, false, []policy.Policy{
+		policy.NewPolicy(policy.DefaultStoragePolicy, compressedMin),
+	})}))
+	require.Error(t, e.AddMetricWithPoliciesList(testBatchTimer, policy.PoliciesList{policy.NewStagedPolicies(0, false, []policy.Policy{
+		policy.NewPolicy(policy.DefaultStoragePolicy, compressedLast),
+	})}))
 }
 
 func TestEntryAddMetricsWithPoliciesListError(t *testing.T) {
@@ -704,7 +739,7 @@ func populateTestAggregations(
 	policies []policy.Policy,
 	typ unaggregated.Type,
 ) {
-	for _, policy := range policies {
+	for _, p := range policies {
 		var (
 			newElem metricElem
 			testID  id.RawID
@@ -722,31 +757,31 @@ func populateTestAggregations(
 		default:
 			require.Fail(t, fmt.Sprintf("unrecognized metric type: %v", typ))
 		}
-		newElem.ResetSetData(testID, policy)
-		list, err := e.lists.FindOrCreate(policy.Resolution().Window)
+		newElem.ResetSetData(testID, p.StoragePolicy, policy.DefaultAggregationTypes)
+		list, err := e.lists.FindOrCreate(p.Resolution().Window)
 		require.NoError(t, err)
 		newListElem, err := list.PushBack(newElem)
 		require.NoError(t, err)
-		e.aggregations[policy] = newListElem
+		e.aggregations[p] = newListElem
 	}
 }
 
-func checkElemTombstoned(t *testing.T, elem metricElem, deleted map[policy.Policy]struct{}) {
+func checkElemTombstoned(t *testing.T, elem metricElem, deleted map[policy.StoragePolicy]struct{}) {
 	switch elem := elem.(type) {
 	case *CounterElem:
-		if _, exists := deleted[elem.policy]; exists {
+		if _, exists := deleted[elem.sp]; exists {
 			require.True(t, elem.tombstoned)
 		} else {
 			require.False(t, elem.tombstoned)
 		}
 	case *TimerElem:
-		if _, exists := deleted[elem.policy]; exists {
+		if _, exists := deleted[elem.sp]; exists {
 			require.True(t, elem.tombstoned)
 		} else {
 			require.False(t, elem.tombstoned)
 		}
 	case *GaugeElem:
-		if _, exists := deleted[elem.policy]; exists {
+		if _, exists := deleted[elem.sp]; exists {
 			require.True(t, elem.tombstoned)
 		} else {
 			require.False(t, elem.tombstoned)
@@ -797,7 +832,7 @@ func testEntryAddMetricWithPoliciesList(
 				aggregations := elem.Value.(*GaugeElem).values
 				require.Equal(t, 1, len(aggregations))
 				require.Equal(t, alignedStart.UnixNano(), aggregations[0].timeNanos)
-				require.Equal(t, 123.456, aggregations[0].gauge.Value())
+				require.Equal(t, 123.456, aggregations[0].gauge.Last())
 			},
 		},
 	}

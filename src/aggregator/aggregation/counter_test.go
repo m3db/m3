@@ -23,13 +23,53 @@ package aggregation
 import (
 	"testing"
 
+	"github.com/m3db/m3metrics/policy"
+
 	"github.com/stretchr/testify/require"
 )
 
-func TestCounter(t *testing.T) {
-	var c Counter
+func TestCounterDefaultAggregationType(t *testing.T) {
+	c := NewCounter(NewOptions())
 	for i := 1; i <= 100; i++ {
-		c.Add(int64(i))
+		c.Update(int64(i))
 	}
 	require.Equal(t, int64(5050), c.Sum())
+	require.Equal(t, float64(5050), c.ValueOf(policy.Sum))
+	require.Equal(t, float64(0), c.ValueOf(policy.Count))
+	require.Equal(t, float64(0), c.ValueOf(policy.Mean))
+}
+
+func TestCounterCustomAggregationType(t *testing.T) {
+	opts := NewOptions()
+	opts.UseDefaultAggregation = false
+	opts.HasExpensiveAggregations = true
+
+	c := NewCounter(opts)
+
+	for i := 1; i <= 100; i++ {
+		c.Update(int64(i))
+	}
+	require.Equal(t, int64(5050), c.Sum())
+	for aggType := range policy.ValidAggregationTypes {
+		v := c.ValueOf(aggType)
+		switch aggType {
+		case policy.Lower:
+			require.Equal(t, float64(1), v)
+		case policy.Upper:
+			require.Equal(t, float64(100), v)
+		case policy.Mean:
+			require.Equal(t, 50.5, v)
+		case policy.Count:
+			require.Equal(t, float64(100), v)
+		case policy.Sum:
+			require.Equal(t, float64(5050), v)
+		case policy.SumSq:
+			require.Equal(t, float64(338350), v)
+		case policy.Stdev:
+			require.InDelta(t, 29.01149, v, 0.001)
+		default:
+			require.Equal(t, float64(0), v)
+			require.False(t, aggType.IsValidForCounter())
+		}
+	}
 }

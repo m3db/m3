@@ -60,7 +60,7 @@ func newMetricListMetrics(scope tally.Scope) metricListMetrics {
 	}
 }
 
-type encodeFn func(mp aggregated.ChunkedMetricWithPolicy) error
+type encodeFn func(mp aggregated.ChunkedMetricWithStoragePolicy) error
 
 // metricList stores aggregated metrics at a given resolution
 // and flushes aggregations periodically.
@@ -115,7 +115,7 @@ func newMetricList(resolution time.Duration, opts Options) *metricList {
 		encoder:       msgpack.NewAggregatedEncoder(encoder),
 		metrics:       newMetricListMetrics(scope),
 	}
-	l.encodeFn = l.encoder.EncodeChunkedMetricWithPolicy
+	l.encodeFn = l.encoder.EncodeChunkedMetricWithStoragePolicy
 	l.aggMetricFn = l.processAggregatedMetric
 
 	flushMgr := opts.FlushManager()
@@ -227,12 +227,12 @@ func (l *metricList) processAggregatedMetric(
 	idSuffix []byte,
 	timeNanos int64,
 	value float64,
-	policy policy.Policy,
+	sp policy.StoragePolicy,
 ) {
 	encoder := l.encoder.Encoder()
 	buffer := encoder.Buffer()
 	sizeBefore := buffer.Len()
-	if err := l.encodeFn(aggregated.ChunkedMetricWithPolicy{
+	if err := l.encodeFn(aggregated.ChunkedMetricWithStoragePolicy{
 		ChunkedMetric: aggregated.ChunkedMetric{
 			ChunkedID: metricID.ChunkedID{
 				Prefix: idPrefix,
@@ -242,7 +242,7 @@ func (l *metricList) processAggregatedMetric(
 			TimeNanos: timeNanos,
 			Value:     value,
 		},
-		Policy: policy,
+		StoragePolicy: sp,
 	}); err != nil {
 		l.log.WithFields(
 			xlog.NewLogField("idPrefix", string(idPrefix)),
@@ -250,7 +250,7 @@ func (l *metricList) processAggregatedMetric(
 			xlog.NewLogField("idSuffix", string(idSuffix)),
 			xlog.NewLogField("timestamp", time.Unix(0, timeNanos).String()),
 			xlog.NewLogField("value", value),
-			xlog.NewLogField("policy", policy.String()),
+			xlog.NewLogField("policy", sp.String()),
 			xlog.NewLogErrField(err),
 		).Error("encode metric with policy error")
 		l.metrics.encodeErrors.Inc(1)
