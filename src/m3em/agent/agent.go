@@ -21,6 +21,7 @@
 package agent
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -437,7 +438,7 @@ func (o *opAgent) pathsRelativeToWorkingDir(
 }
 
 func (o *opAgent) initFile(
-	fileType m3em.FileType,
+	fileType m3em.PushFileType,
 	targets []string,
 	overwrite bool,
 ) (*multiWriter, error) {
@@ -445,7 +446,7 @@ func (o *opAgent) initFile(
 		return nil, errNoValidTargetsSpecified
 	}
 
-	if len(targets) > 1 && fileType != m3em.FileType_DATA_FILE {
+	if len(targets) > 1 && fileType != m3em.PushFileType_PUSH_FILE_TYPE_DATA_FILE {
 		return nil, errOnlyDataFileMultiTarget
 	}
 
@@ -460,7 +461,7 @@ func (o *opAgent) initFile(
 	}
 
 	fileMode := o.opts.NewFileMode()
-	if fileType == m3em.FileType_SERVICE_BINARY {
+	if fileType == m3em.PushFileType_PUSH_FILE_TYPE_SERVICE_BINARY {
 		fileMode = os.FileMode(0755)
 	}
 
@@ -469,10 +470,10 @@ func (o *opAgent) initFile(
 }
 
 func (o *opAgent) markFileDone(
-	fileType m3em.FileType,
+	fileType m3em.PushFileType,
 	mw *multiWriter,
 ) error {
-	if len(mw.fds) != 1 && (fileType == m3em.FileType_SERVICE_BINARY || fileType == m3em.FileType_SERVICE_CONFIG) {
+	if len(mw.fds) != 1 && (fileType == m3em.PushFileType_PUSH_FILE_TYPE_SERVICE_BINARY || fileType == m3em.PushFileType_PUSH_FILE_TYPE_SERVICE_CONFIG) {
 		// should never happen
 		return fmt.Errorf("internal error: multiple targets for binary/config")
 	}
@@ -484,25 +485,26 @@ func (o *opAgent) markFileDone(
 	o.Lock()
 	defer o.Unlock()
 
-	if fileType == m3em.FileType_SERVICE_BINARY {
+	if fileType == m3em.PushFileType_PUSH_FILE_TYPE_SERVICE_BINARY {
 		o.executablePath = mw.fds[0].Name()
 	}
 
-	if fileType == m3em.FileType_SERVICE_CONFIG {
+	if fileType == m3em.PushFileType_PUSH_FILE_TYPE_SERVICE_CONFIG {
 		o.configPath = mw.fds[0].Name()
 	}
 
 	return nil
 }
 
-func (o *opAgent) Transfer(stream m3em.Operator_TransferServer) error {
-	o.logger.Infof("received Transfer()")
+// PullFile receives a file from the caller to be stored locally on the agent
+func (o *opAgent) PushFile(stream m3em.Operator_PushFileServer) error {
+	o.logger.Infof("received PushFile()")
 	var (
 		checksum     = checksum.NewAccumulator()
 		numChunks    = 0
 		lastChunkIdx = int32(0)
 		fileHandle   *multiWriter
-		fileType     = m3em.FileType_UNKNOWN
+		fileType     = m3em.PushFileType_PUSH_FILE_TYPE_UNKNOWN
 		err          error
 	)
 
@@ -564,10 +566,114 @@ func (o *opAgent) Transfer(stream m3em.Operator_TransferServer) error {
 		return err
 	}
 
-	return stream.SendAndClose(&m3em.TransferResponse{
+	return stream.SendAndClose(&m3em.PushFileResponse{
 		FileChecksum:   checksum.Current(),
 		NumChunksRecvd: int32(numChunks),
 	})
+}
+
+func validatePullFileRequest(request *m3em.PullFileRequest) error {
+	if request == nil {
+		return grpc.Errorf(codes.InvalidArgument, "nil request")
+	}
+
+	if request.ChunkSize <= 0 {
+		return grpc.Errorf(codes.InvalidArgument, "chunkSize must be a positive integer")
+	}
+
+	if request.MaxSize < 0 {
+		return grpc.Errorf(codes.InvalidArgument, "maxSize must be a non-negative integer")
+	}
+
+	return nil
+}
+
+// PullFile sends a local agent file to the caller
+func (o *opAgent) PullFile(request *m3em.PullFileRequest, stream m3em.Operator_PullFileServer) error {
+	if err := validatePullFileRequest(request); err != nil {
+		return err
+	}
+	o.logger.Infof("received PullFile(): %+v", *request)
+
+	o.RLock()
+	defer o.RUnlock()
+
+	if !o.isSetupWithLock() {
+		return grpc.Errorf(codes.InvalidArgument, "agent has not been setup, unable to transfer file")
+	}
+
+	pm := o.processMonitor
+	if pm == nil {
+		return grpc.Errorf(codes.InvalidArgument, "no process running, unable to transfer file")
+	}
+
+	switch fileType := request.GetFileType(); fileType {
+	case m3em.PullFileType_PULL_FILE_TYPE_SERVICE_STDERR:
+		return o.sendLocalFileWithRLock(pm.StderrPath(), request.ChunkSize, request.MaxSize, stream)
+
+	case m3em.PullFileType_PULL_FILE_TYPE_SERVICE_STDOUT:
+		return o.sendLocalFileWithRLock(pm.StdoutPath(), request.ChunkSize, request.MaxSize, stream)
+
+	default:
+		return grpc.Errorf(codes.InvalidArgument, "received unknown pull file: %v", fileType)
+	}
+}
+
+func (o *opAgent) sendLocalFileWithRLock(localPath string, chunkSize int64, maxBytes int64, stream m3em.Operator_PullFileServer) error {
+	fi, err := os.Stat(localPath)
+	if err != nil {
+		return grpc.Errorf(codes.InvalidArgument, "unable to find file: %v", err)
+	}
+
+	fd, err := os.Open(localPath)
+	if err != nil {
+		return grpc.Errorf(codes.InvalidArgument, "unable to open file: %v", err)
+	}
+
+	var (
+		reader    = bufio.NewReaderSize(fd, int(chunkSize))
+		buf       = make([]byte, chunkSize)
+		chunkIdx  = 1
+		truncated = false
+	)
+
+	// check if we need to seek ahead or if we are sending all the bytes
+	if maxBytes > 0 && fi.Size() > maxBytes {
+		offset := fi.Size() - maxBytes
+		if _, err := fd.Seek(offset, 0 /* relative to start of file */); err != nil {
+			return grpc.Errorf(codes.Internal, "unable to seek file: %v", err)
+		}
+		truncated = true
+	}
+
+	for {
+		n, err := reader.Read(buf)
+		switch err {
+		case io.EOF:
+			// i.e. streamed through the file, we can indicate we're done
+			return nil
+
+		case nil:
+			// i.e. this read succeeded, send it and continue as we can read more data
+			if streamErr := stream.Send(&m3em.PullFileResponse{
+				Data: &m3em.DataChunk{
+					Bytes: buf[:n],
+					Idx:   int32(chunkIdx),
+				},
+				Truncated: truncated,
+			}); streamErr != nil {
+				return grpc.Errorf(codes.Internal, "unable to send chunk: %v", streamErr.Error())
+			}
+
+		default:
+			// i.e. something broke
+			return grpc.Errorf(codes.Unavailable, "unable to read file: %v", err.Error())
+		}
+
+		// increment idx
+		chunkIdx++
+	}
+
 }
 
 type opAgentMetrics struct {

@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3em/build"
+	"github.com/m3db/m3em/node"
 
 	"github.com/stretchr/testify/require"
 )
@@ -51,24 +52,32 @@ func TestProcessExecution(t *testing.T) {
 	testConfigID := "target-file.conf"
 	testConfig := build.NewServiceConfig(testConfigID, confContents)
 
-	node := th.nodeService
+	svcNode := th.nodeService
 	th.Start()
 	defer th.Close()
 
 	// get the files transferred over
-	require.NoError(t, node.Setup(testBinary, testConfig, "tok", false))
+	require.NoError(t, svcNode.Setup(testBinary, testConfig, "tok", false))
 
 	// execute the build
-	require.NoError(t, node.Start())
-	stopped := waitUntilAgentFinished(th.agentService, time.Second)
+	require.NoError(t, svcNode.Start())
+	stopped := waitUntilAgentFinished(th.agentService, 2*time.Second)
 	require.True(t, stopped)
 
-	stderrFile := path.Join(th.agentOptions.WorkingDirectory(), fmt.Sprintf("%s.err", testBuildID))
+	// get remote process stderr and ensure it is as expected
+	stderrFile := path.Join(th.harnessDir, fmt.Sprintf("remote-process/%s.err", testBuildID))
+	trunc, err := svcNode.GetRemoteOutput(node.RemoteProcessStderr, stderrFile)
+	require.False(t, trunc)
+	require.NoError(t, err)
 	stderrContents, err := ioutil.ReadFile(stderrFile)
 	require.NoError(t, err)
 	require.Equal(t, []byte{}, stderrContents, string(stderrContents))
 
-	stdoutFile := path.Join(th.agentOptions.WorkingDirectory(), fmt.Sprintf("%s.out", testBuildID))
+	// get remote process stdout and ensure it is as expected
+	stdoutFile := path.Join(th.harnessDir, fmt.Sprintf("remote-process/%s.out", testBuildID))
+	trunc, err = svcNode.GetRemoteOutput(node.RemoteProcessStdout, stdoutFile)
+	require.False(t, trunc)
+	require.NoError(t, err)
 	stdoutContents, err := ioutil.ReadFile(stdoutFile)
 	require.NoError(t, err)
 	require.Equal(t, []byte("testing random output"), stdoutContents)

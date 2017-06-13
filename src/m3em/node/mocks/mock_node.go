@@ -83,6 +83,17 @@ func (_mr *_MockServiceNodeRecorder) Endpoint() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Endpoint")
 }
 
+func (_m *MockServiceNode) GetRemoteOutput(_param0 node.RemoteOutputType, _param1 string) (bool, error) {
+	ret := _m.ctrl.Call(_m, "GetRemoteOutput", _param0, _param1)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockServiceNodeRecorder) GetRemoteOutput(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetRemoteOutput", arg0, arg1)
+}
+
 func (_m *MockServiceNode) ID() string {
 	ret := _m.ctrl.Call(_m, "ID")
 	ret0, _ := ret[0].(string)
@@ -314,6 +325,16 @@ func (_mr *_MockOptionsRecorder) InstrumentOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions")
 }
 
+func (_m *MockOptions) MaxPullSize() int64 {
+	ret := _m.ctrl.Call(_m, "MaxPullSize")
+	ret0, _ := ret[0].(int64)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) MaxPullSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MaxPullSize")
+}
+
 func (_m *MockOptions) OperationTimeout() time.Duration {
 	ret := _m.ctrl.Call(_m, "OperationTimeout")
 	ret0, _ := ret[0].(time.Duration)
@@ -362,6 +383,16 @@ func (_m *MockOptions) SetInstrumentOptions(_param0 instrument.Options) node.Opt
 
 func (_mr *_MockOptionsRecorder) SetInstrumentOptions(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInstrumentOptions", arg0)
+}
+
+func (_m *MockOptions) SetMaxPullSize(_param0 int64) node.Options {
+	ret := _m.ctrl.Call(_m, "SetMaxPullSize", _param0)
+	ret0, _ := ret[0].(node.Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetMaxPullSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetMaxPullSize", arg0)
 }
 
 func (_m *MockOptions) SetOperationTimeout(_param0 time.Duration) node.Options {

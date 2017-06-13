@@ -30,7 +30,8 @@ import (
 
 var (
 	defaultNodeOptTimeout     = 90 * time.Second
-	defaultTransferBufferSize = 1024 * 1024 /* 1 MB */
+	defaultTransferBufferSize = 1024 * 1024       /* 1 MB */
+	defaultMaxPullSize        = int64(1024 * 100) /* 100 KB*/
 	fourMegaBytes             = 4 * 1024 * 1024
 )
 
@@ -38,6 +39,7 @@ type nodeOpts struct {
 	iopts              instrument.Options
 	operationTimeout   time.Duration
 	transferBufferSize int
+	maxPullSize        int64
 	retrier            xretry.Retrier
 	hOpts              HeartbeatOptions
 	opClientFn         OperatorClientFn
@@ -54,6 +56,7 @@ func NewOptions(
 		iopts:              opts,
 		operationTimeout:   defaultNodeOptTimeout,
 		transferBufferSize: defaultTransferBufferSize,
+		maxPullSize:        defaultMaxPullSize,
 		retrier:            xretry.NewRetrier(xretry.NewOptions()),
 		hOpts:              NewHeartbeatOptions(),
 	}
@@ -63,6 +66,10 @@ func (o *nodeOpts) Validate() error {
 	// grpc max message size (by default, 4MB). see also: https://github.com/grpc/grpc-go/issues/746
 	if o.transferBufferSize >= fourMegaBytes {
 		return fmt.Errorf("TransferBufferSize must be < 4MB")
+	}
+
+	if o.maxPullSize < 0 {
+		return fmt.Errorf("MaxPullSize must be >= 0")
 	}
 
 	if o.opClientFn == nil {
@@ -106,6 +113,15 @@ func (o *nodeOpts) SetTransferBufferSize(sz int) Options {
 
 func (o *nodeOpts) TransferBufferSize() int {
 	return o.transferBufferSize
+}
+
+func (o *nodeOpts) SetMaxPullSize(sz int64) Options {
+	o.maxPullSize = sz
+	return o
+}
+
+func (o *nodeOpts) MaxPullSize() int64 {
+	return o.maxPullSize
 }
 
 func (o *nodeOpts) SetHeartbeatOptions(ho HeartbeatOptions) Options {

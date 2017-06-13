@@ -24,18 +24,11 @@ package m3em;
 
 service Operator {
   rpc Setup(SetupRequest)              returns (SetupResponse);
-  rpc Transfer(stream TransferRequest) returns (TransferResponse);
   rpc Start(StartRequest)              returns (StartResponse);
   rpc Stop(StopRequest)                returns (StopResponse);
   rpc Teardown(TeardownRequest)        returns (TeardownResponse);
-}
-
-enum FileType {
-  UNKNOWN        = 0;
-  SERVICE_BINARY = 1;
-  SERVICE_CONFIG = 2;
-  DATA_FILE      = 3;
-  // log file
+  rpc PullFile(PullFileRequest)        returns (stream PullFileResponse);
+  rpc PushFile(stream PushFileRequest) returns (PushFileResponse);
 }
 
 message SetupRequest {
@@ -48,26 +41,6 @@ message SetupRequest {
 }
 
 message SetupResponse {
-}
-
-// TransferRequest(s) are used to transfer files from the master to
-// remote agents.
-message TransferRequest {
-           FileType  type         = 1;
-           bool      overwrite    = 2;
-  // target_paths indicate the copies, and relative paths to copy the file to
-  repeated string    target_paths = 3;
-           DataChunk data         = 4;
-}
-
-message DataChunk {
-  int32  idx   = 1;
-  bytes  bytes = 2;
-}
-
-message TransferResponse {
-  uint32 file_checksum    = 1;
-  int32  num_chunks_recvd = 2;
 }
 
 message StartRequest {
@@ -86,4 +59,56 @@ message TeardownRequest {
 }
 
 message TeardownResponse {
+}
+
+// PullFileRequest(s) are used to transfer files from remote agents to the master.
+message PullFileRequest {
+  PullFileType file_type  = 1;
+  int64        chunk_size = 2; // DataChunk bytes size used if multiple messages
+  int64        max_size   = 3; // if the file is larger than `max_size`, the last
+                               // `max_size` bytes are returned. if 0, the entire
+}
+
+message PullFileResponse {
+  DataChunk data      = 1;
+  bool      truncated = 2; // indicates if the data chunks comprise the entire contents
+                           // of the file
+}
+
+enum PullFileType {
+  PULL_FILE_TYPE_UNKNOWN        = 0;
+  PULL_FILE_TYPE_SERVICE_STDOUT = 1;
+  PULL_FILE_TYPE_SERVICE_STDERR = 2;
+}
+
+enum PullFileContentType {
+  PULL_FILE_CONTENT_TYPE_UNKNOWN = 0;
+  PULL_FILE_CONTENT_TYPE_LAST    = 1;
+  PULL_FILE_CONTENT_TYPE_FULL    = 2;
+}
+
+// PushFileRequest(s) are used to transfer files from the master to remote agents.
+message PushFileRequest {
+           PushFileType type         = 1;
+           bool         overwrite    = 2;
+           DataChunk    data         = 3;
+  repeated string       target_paths = 4; // target_paths indicate the copies, and
+                                          // relative paths to copy the file to
+}
+
+message PushFileResponse {
+  uint32 file_checksum    = 1;
+  int32  num_chunks_recvd = 2;
+}
+
+message DataChunk {
+  int32  idx   = 1;
+  bytes  bytes = 2;
+}
+
+enum PushFileType {
+  PUSH_FILE_TYPE_UNKNOWN        = 0;
+  PUSH_FILE_TYPE_SERVICE_BINARY = 1;
+  PUSH_FILE_TYPE_SERVICE_CONFIG = 2;
+  PUSH_FILE_TYPE_DATA_FILE      = 3;
 }

@@ -29,7 +29,7 @@
 //- delete the vendor prefix due to https://github.com/golang/mock/issues/30
 //go:generate sed -i "" s@github.com/m3db/m3em/vendor/@@g $GOPATH/src/$PACKAGE/node/mocks/mock_node.go
 // (2) m3em proto package mocks
-//go:generate sh -c "mockgen -package=m3em -destination=$GOPATH/src/$PACKAGE/generated/proto/m3em/mock_m3em.go github.com/m3db/m3em/generated/proto/m3em OperatorClient,Operator_TransferClient"
+//go:generate sh -c "mockgen -package=m3em -destination=$GOPATH/src/$PACKAGE/generated/proto/m3em/mock_m3em.go github.com/m3db/m3em/generated/proto/m3em OperatorClient,Operator_PushFileClient,Operator_PullFileClient,Operator_PullFileServer"
 //- delete the vendor prefix due to https://github.com/golang/mock/issues/30
 //go:generate sed -i "" s@github.com/m3db/m3em/vendor/@@g $GOPATH/src/$PACKAGE/generated/proto/m3em/mock_m3em.go
 //- mockgen creates a circle by importing the package within itself
