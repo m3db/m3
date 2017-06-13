@@ -42,8 +42,8 @@ type WatcherConfiguration struct {
 
 // NewOptions creates a placement watcher option.
 func (c *WatcherConfiguration) NewOptions(
-	instrumentOpts instrument.Options,
 	client client.Client,
+	instrumentOpts instrument.Options,
 ) (services.StagedPlacementWatcherOptions, error) {
 	store, err := client.Store(c.Namespace)
 	if err != nil {
