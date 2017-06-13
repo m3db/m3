@@ -47,7 +47,7 @@ func NewAggregationIDCompressor() AggregationIDCompressor {
 	// NB(cw): If we start to support more than 64 types, the library will
 	// expand the underlying word list itself.
 	return &aggregationIDCompressor{
-		bs: bitset.New(totalAggregationTypes),
+		bs: bitset.New(MaxAggregationTypeID),
 	}
 }
 
@@ -57,7 +57,7 @@ func (c *aggregationIDCompressor) Compress(aggTypes AggregationTypes) (Aggregati
 		if !aggType.IsValid() {
 			return DefaultAggregationID, fmt.Errorf("could not compress invalid AggregationType %v", aggType)
 		}
-		c.bs.Set(uint(aggType))
+		c.bs.Set(uint(aggType.ID()))
 	}
 
 	codes := c.bs.Bytes()
@@ -83,7 +83,7 @@ func NewAggregationIDDecompressor() AggregationIDDecompressor {
 
 // NewPooledAggregationIDDecompressor returns a new pooled AggregationTypeDecompressor.
 func NewPooledAggregationIDDecompressor(pool AggregationTypesPool) AggregationIDDecompressor {
-	bs := bitset.New(totalAggregationTypes)
+	bs := bitset.New(MaxAggregationTypeID)
 	return &aggregationIDDecompressor{
 		bs:   bs,
 		buf:  bs.Bytes(),
@@ -103,7 +103,7 @@ func (c *aggregationIDDecompressor) Decompress(id AggregationID) (AggregationTyp
 
 	var res AggregationTypes
 	if c.pool == nil {
-		res = make(AggregationTypes, 0, totalAggregationTypes)
+		res = make(AggregationTypes, 0, MaxAggregationTypeID)
 	} else {
 		res = c.pool.Get()
 	}

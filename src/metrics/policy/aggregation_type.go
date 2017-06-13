@@ -54,13 +54,20 @@ const (
 	P999
 	P9999
 
-	totalAggregationTypes = iota
+	nextAggregationTypeID = iota
 )
 
 const (
+	// MaxAggregationTypeID is the largest id of all the valid aggregation types.
+	// NB(cw) MaxAggregationTypeID is guaranteed to be greater or equal
+	// to len(ValidAggregationTypes).
+	// Iff ids of all the valid aggregation types are consecutive,
+	// MaxAggregationTypeID == len(ValidAggregationTypes).
+	MaxAggregationTypeID = nextAggregationTypeID - 1
+
 	// AggregationIDLen is the length of the AggregationID.
-	// The AggregationIDLen will be 1 when totalAggregationTypes <= 64.
-	AggregationIDLen = (totalAggregationTypes-1)/64 + 1
+	// The AggregationIDLen will be 1 when MaxAggregationTypeID <= 63.
+	AggregationIDLen = (MaxAggregationTypeID)/64 + 1
 
 	aggregationTypesSeparator = ","
 )
@@ -104,7 +111,7 @@ var (
 )
 
 func init() {
-	aggregationTypeStringMap = make(map[string]AggregationType, totalAggregationTypes)
+	aggregationTypeStringMap = make(map[string]AggregationType, MaxAggregationTypeID)
 	for aggType := range ValidAggregationTypes {
 		aggregationTypeStringMap[aggType.String()] = aggType
 	}
@@ -120,6 +127,11 @@ func NewAggregationTypeFromSchema(input schema.AggregationType) (AggregationType
 		return Unknown, fmt.Errorf("invalid aggregation type from schema: %s", input)
 	}
 	return aggType, nil
+}
+
+// ID returns the id of the AggregationType.
+func (a AggregationType) ID() int {
+	return int(a)
 }
 
 // IsValid checks if an AggregationType is valid.

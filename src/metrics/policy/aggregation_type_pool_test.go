@@ -30,18 +30,18 @@ import (
 func TestAggregationTypesPool(t *testing.T) {
 	p := NewAggregationTypesPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() AggregationTypes {
-		return make(AggregationTypes, 0, totalAggregationTypes)
+		return make(AggregationTypes, 0, MaxAggregationTypeID)
 	})
 
 	aggTypes := p.Get()
-	require.Equal(t, totalAggregationTypes, cap(aggTypes))
+	require.Equal(t, MaxAggregationTypeID, cap(aggTypes))
 	require.Equal(t, 0, len(aggTypes))
 	aggTypes = append(aggTypes, P9999)
 
 	p.Put(aggTypes)
 
 	aggTypes2 := p.Get()
-	require.Equal(t, totalAggregationTypes, cap(aggTypes2))
+	require.Equal(t, MaxAggregationTypeID, cap(aggTypes2))
 	require.Equal(t, 0, len(aggTypes2))
 
 	aggTypes2 = append(aggTypes2, Last)

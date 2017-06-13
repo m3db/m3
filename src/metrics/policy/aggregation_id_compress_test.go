@@ -46,7 +46,7 @@ func TestAggregationIDCompressRoundTrip(t *testing.T) {
 
 	p := NewAggregationTypesPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() AggregationTypes {
-		return make(AggregationTypes, 0, totalAggregationTypes)
+		return make(AggregationTypes, 0, MaxAggregationTypeID)
 	})
 	compressor, decompressor := NewAggregationIDCompressor(), NewPooledAggregationIDDecompressor(p)
 	for _, test := range testcases {
