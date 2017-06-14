@@ -18,15 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package aggregator
 
-// Type is the handler type.
-type Type string
+import (
+	"testing"
 
-// A list of supported handler types.
-const (
-	BlackholeHandler Type = "blackhole"
-	LoggingHandler   Type = "logging"
-	ForwardHandler   Type = "forward"
-	BroadcastHandler Type = "broadcast"
+	"github.com/m3db/m3metrics/protocol/msgpack"
+
+	"github.com/stretchr/testify/require"
 )
+
+func TestRefCountedBufferNilBuffer(t *testing.T) {
+	b := NewRefCountedBuffer(nil)
+	require.Equal(t, int32(1), b.n)
+	require.NotPanics(t, func() { b.DecRef() })
+	require.Equal(t, int32(0), b.n)
+}
+
+func TestRefCountedBufferNonNilBuffer(t *testing.T) {
+	numIter := 10
+	b := NewRefCountedBuffer(msgpack.NewBufferedEncoder())
+	for i := 0; i < numIter; i++ {
+		b.IncRef()
+	}
+	for i := 0; i < numIter; i++ {
+		b.DecRef()
+	}
+	require.NotPanics(t, func() { b.DecRef() })
+	require.Equal(t, int32(0), b.n)
+}
+
+func TestRefCountInvalidRefCountPanics(t *testing.T) {
+	b := NewRefCountedBuffer(nil)
+	require.NotPanics(t, func() { b.DecRef() })
+	require.Panics(t, func() { b.DecRef() })
+}

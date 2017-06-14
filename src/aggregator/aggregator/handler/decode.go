@@ -41,10 +41,10 @@ func NewDecodingHandler(handle HandleFunc) aggregator.Handler {
 	return decodingHandler{handle: handle}
 }
 
-func (h decodingHandler) Handle(buffer msgpack.Buffer) error {
-	defer buffer.Close()
+func (h decodingHandler) Handle(buffer *aggregator.RefCountedBuffer) error {
+	defer buffer.DecRef()
 
-	iter := msgpack.NewAggregatedIterator(buffer.Buffer(), msgpack.NewAggregatedIteratorOptions())
+	iter := msgpack.NewAggregatedIterator(buffer.Buffer().Buffer(), msgpack.NewAggregatedIteratorOptions())
 	defer iter.Close()
 
 	for iter.Next() {

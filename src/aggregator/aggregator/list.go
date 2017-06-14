@@ -200,7 +200,7 @@ func (l *metricList) Flush() {
 		newEncoder := l.encoderPool.Get()
 		newEncoder.Reset()
 		l.encoder.Reset(newEncoder)
-		if err := l.flushHandler.Handle(encoder); err != nil {
+		if err := l.flushHandler.Handle(NewRefCountedBuffer(encoder)); err != nil {
 			l.log.Errorf("flushing metrics error: %v", err)
 			l.metrics.flushErrors.Inc(1)
 		} else {
@@ -273,7 +273,7 @@ func (l *metricList) processAggregatedMetric(
 	encoder2.Buffer().Write(data[sizeBefore:sizeAfter])
 	l.encoder.Reset(encoder2)
 	buffer.Truncate(sizeBefore)
-	if err := l.flushHandler.Handle(encoder); err != nil {
+	if err := l.flushHandler.Handle(NewRefCountedBuffer(encoder)); err != nil {
 		l.log.Errorf("flushing metrics error: %v", err)
 		l.metrics.flushErrors.Inc(1)
 	} else {

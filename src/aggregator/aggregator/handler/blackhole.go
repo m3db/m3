@@ -20,18 +20,15 @@
 
 package handler
 
-import (
-	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3metrics/protocol/msgpack"
-)
+import "github.com/m3db/m3aggregator/aggregator"
 
 type blackholeHandler struct{}
 
 // NewBlackholeHandler creates a new blackhole handler.
 func NewBlackholeHandler() aggregator.Handler { return blackholeHandler{} }
 
-func (h blackholeHandler) Handle(buffer msgpack.Buffer) error {
-	buffer.Close()
+func (h blackholeHandler) Handle(buffer *aggregator.RefCountedBuffer) error {
+	buffer.DecRef()
 	return nil
 }
 

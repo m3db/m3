@@ -118,7 +118,8 @@ type QuantileSuffixFn func(quantile float64) []byte
 // Handler handles encoded streams containing aggregated metrics alongside their policies.
 type Handler interface {
 	// Handle processes aggregated metrics and policies encoded in the buffer.
-	Handle(buffer msgpack.Buffer) error
+	// The handler is responsible for decrementing the refcount when it's done with the buffer.
+	Handle(buffer *RefCountedBuffer) error
 
 	// Close closes the handler.
 	Close()

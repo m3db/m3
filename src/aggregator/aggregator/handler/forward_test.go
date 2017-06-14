@@ -27,11 +27,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/retry"
-	"github.com/uber-go/tally"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 const (
@@ -39,42 +40,40 @@ const (
 )
 
 func TestNewForwardHandlerEmptyServerList(t *testing.T) {
-	_, err := NewForwardHandler(nil, testForwardHandlerOptions())
+	_, err := newForwardHandler(nil, testForwardHandlerOptions())
 	require.Equal(t, errEmptyServerList, err)
 }
 
 func TestForwardHandlerHandleClosed(t *testing.T) {
-	h, err := NewForwardHandler([]string{testFakeServerAddr}, testForwardHandlerOptions())
+	h, err := newForwardHandler([]string{testFakeServerAddr}, testForwardHandlerOptions())
 	require.NoError(t, err)
 
 	h.Close()
-	require.Equal(t, errHandlerClosed, h.Handle(nil))
+	require.Equal(t, errHandlerClosed, h.Handle(testRefCountedBuffer()))
 }
 
 func TestForwardHandlerHandleQueueFull(t *testing.T) {
 	opts := testForwardHandlerOptions().SetQueueSize(3)
-	h, err := NewForwardHandler([]string{testFakeServerAddr}, opts)
+	handler, err := newForwardHandler([]string{testFakeServerAddr}, opts)
 	require.NoError(t, err)
 
 	// Fill up the queue.
-	handler := h.(*forwardHandler)
 	for i := 0; i < 10; i++ {
 		select {
-		case handler.bufCh <- msgpack.NewBufferedEncoder():
+		case handler.bufCh <- testRefCountedBuffer():
 		default:
 		}
 	}
 
 	// Handle the buffer and expect it to be queued.
-	require.NoError(t, handler.Handle(msgpack.NewBufferedEncoder()))
+	require.NoError(t, handler.Handle(testRefCountedBuffer()))
 }
 
 func TestForwardHandlerForwardToConnNoConnectionClosed(t *testing.T) {
 	opts := testForwardHandlerOptions().SetQueueSize(3)
-	h, err := NewForwardHandler([]string{testFakeServerAddr}, opts)
+	handler, err := newForwardHandler([]string{testFakeServerAddr}, opts)
 	require.NoError(t, err)
 	// Queue up a nil buffer and close the handler.
-	handler := h.(*forwardHandler)
 	handler.bufCh <- nil
 	handler.Close()
 }
@@ -111,8 +110,8 @@ func TestForwardHandlerForwardToConnWithConnectionClosed(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		data := []byte{byte(i), byte(i + 1)}
 		expected = append(expected, data)
-		buf := msgpack.NewBufferedEncoder()
-		_, err := buf.Buffer().Write(data)
+		buf := testRefCountedBuffer()
+		_, err := buf.Buffer().Buffer().Write(data)
 		require.NoError(t, err)
 		require.NoError(t, h.Handle(buf))
 	}
@@ -155,8 +154,8 @@ func TestForwardHandlerForwardToConnReenqueueSuccess(t *testing.T) {
 	}
 
 	// Enqueue some buffers.
-	buf := msgpack.NewBufferedEncoder()
-	_, err = buf.Buffer().Write([]byte{0x3, 0x4, 0x5})
+	buf := testRefCountedBuffer()
+	_, err = buf.Buffer().Buffer().Write([]byte{0x3, 0x4, 0x5})
 	require.NoError(t, err)
 	require.NoError(t, h.Handle(buf))
 
@@ -192,8 +191,8 @@ func TestForwardHandlerForwardToConnReenqueueQueueFull(t *testing.T) {
 	h.writeToConnFn = func(conn *net.TCPConn, data []byte) (int, error) {
 		if atomic.AddInt32(&numWrites, 1) == 1 {
 			// Fill up the queue.
-			buf := msgpack.NewBufferedEncoder()
-			_, err = buf.Buffer().Write([]byte{0x1, 0x2})
+			buf := testRefCountedBuffer()
+			_, err = buf.Buffer().Buffer().Write([]byte{0x1, 0x2})
 			require.NoError(t, err)
 			h.bufCh <- buf
 			return 0, errWrite
@@ -208,8 +207,8 @@ func TestForwardHandlerForwardToConnReenqueueQueueFull(t *testing.T) {
 	}
 
 	// Enqueue some buffers.
-	buf := msgpack.NewBufferedEncoder()
-	_, err = buf.Buffer().Write([]byte{0x3, 0x4, 0x5})
+	buf := testRefCountedBuffer()
+	_, err = buf.Buffer().Buffer().Write([]byte{0x3, 0x4, 0x5})
 	require.NoError(t, err)
 	require.NoError(t, h.Handle(buf))
 
@@ -223,16 +222,16 @@ func TestForwardHandlerForwardToConnReenqueueQueueFull(t *testing.T) {
 }
 
 func TestForwardHandlerClose(t *testing.T) {
-	h, err := NewForwardHandler([]string{testFakeServerAddr}, testForwardHandlerOptions())
+	handler, err := newForwardHandler([]string{testFakeServerAddr}, testForwardHandlerOptions())
 	require.NoError(t, err)
 
 	// Close the handler sets the flag.
-	h.Close()
-	require.True(t, h.(*forwardHandler).closed)
+	handler.Close()
+	require.True(t, handler.closed)
 
 	// Close the handler a second time is a no op.
-	h.Close()
-	require.True(t, h.(*forwardHandler).closed)
+	handler.Close()
+	require.True(t, handler.closed)
 }
 
 func TestTryConnectTimeout(t *testing.T) {
@@ -252,6 +251,10 @@ func TestTryConnectSuccess(t *testing.T) {
 	}
 	_, err := h.tryConnect(testFakeServerAddr)
 	require.NoError(t, err)
+}
+
+func testRefCountedBuffer() *aggregator.RefCountedBuffer {
+	return aggregator.NewRefCountedBuffer(msgpack.NewBufferedEncoder())
 }
 
 func testForwardHandlerOptions() ForwardHandlerOptions {

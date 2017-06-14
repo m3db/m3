@@ -70,12 +70,12 @@ func TestMetricListClose(t *testing.T) {
 	require.True(t, l.closed)
 }
 
-func TestMetricListTick(t *testing.T) {
+func TestMetricListFlush(t *testing.T) {
 	var (
 		bufferLock sync.Mutex
-		buffers    []msgpack.Buffer
+		buffers    []*RefCountedBuffer
 	)
-	flushFn := func(buffer msgpack.Buffer) error {
+	flushFn := func(buffer *RefCountedBuffer) error {
 		bufferLock.Lock()
 		buffers = append(buffers, buffer)
 		bufferLock.Unlock()
@@ -224,12 +224,12 @@ type testElemPair struct {
 func validateBuffers(
 	t *testing.T,
 	expected []testAggMetric,
-	buffers []msgpack.Buffer,
+	buffers []*RefCountedBuffer,
 ) {
 	var decoded []aggregated.MetricWithStoragePolicy
 	it := msgpack.NewAggregatedIterator(nil, nil)
 	for _, b := range buffers {
-		it.Reset(b.Buffer())
+		it.Reset(b.Buffer().Buffer())
 		for it.Next() {
 			rm, sp := it.Value()
 			m, err := rm.Metric()
@@ -239,6 +239,7 @@ func validateBuffers(
 				StoragePolicy: sp,
 			})
 		}
+		b.DecRef()
 		require.Equal(t, io.EOF, it.Err())
 	}
 
@@ -256,11 +257,11 @@ func validateBuffers(
 	}
 }
 
-type handleFn func(buffer msgpack.Buffer) error
+type handleFn func(buffer *RefCountedBuffer) error
 
 type mockHandler struct {
 	handleFn handleFn
 }
 
-func (h *mockHandler) Handle(buffer msgpack.Buffer) error { return h.handleFn(buffer) }
-func (h *mockHandler) Close()                             {}
+func (h *mockHandler) Handle(buffer *RefCountedBuffer) error { return h.handleFn(buffer) }
+func (h *mockHandler) Close()                                {}
