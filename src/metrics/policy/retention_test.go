@@ -39,21 +39,22 @@ func TestValidRetentionValue(t *testing.T) {
 		ThirtyDays,
 		FourtyFiveDays,
 	}
-	expected := []Retention{
-		Retention(time.Hour),
-		Retention(6 * time.Hour),
-		Retention(12 * time.Hour),
-		Retention(24 * time.Hour),
-		Retention(2 * 24 * time.Hour),
-		Retention(7 * 24 * time.Hour),
-		Retention(14 * 24 * time.Hour),
-		Retention(30 * 24 * time.Hour),
-		Retention(45 * 24 * time.Hour),
+	expected := []time.Duration{
+		time.Hour,
+		6 * time.Hour,
+		12 * time.Hour,
+		24 * time.Hour,
+		2 * 24 * time.Hour,
+		7 * 24 * time.Hour,
+		14 * 24 * time.Hour,
+		30 * 24 * time.Hour,
+		45 * 24 * time.Hour,
 	}
 	for i, value := range inputs {
 		retention, err := value.Retention()
 		require.NoError(t, err)
-		require.Equal(t, expected[i], retention)
+		require.Equal(t, expected[i], retention.Duration())
+		require.Equal(t, Retention(expected[i]), retention)
 		require.True(t, value.IsValid())
 	}
 }

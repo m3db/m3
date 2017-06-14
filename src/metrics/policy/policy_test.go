@@ -138,6 +138,98 @@ func TestNewPoliciesFromSchema(t *testing.T) {
 	}, res)
 }
 
+func TestParsePolicyIntoSchema(t *testing.T) {
+	inputs := []struct {
+		str      string
+		expected *schema.Policy
+	}{
+		{
+			str: "1s:1h",
+			expected: &schema.Policy{
+				StoragePolicy: &schema.StoragePolicy{
+					Resolution: &schema.Resolution{
+						WindowSize: time.Second.Nanoseconds(),
+						Precision:  time.Second.Nanoseconds(),
+					},
+					Retention: &schema.Retention{
+						Period: time.Hour.Nanoseconds(),
+					},
+				},
+				AggregationTypes: []schema.AggregationType{},
+			},
+		},
+		{
+			str: "1s:1h|Mean",
+			expected: &schema.Policy{
+				StoragePolicy: &schema.StoragePolicy{
+					Resolution: &schema.Resolution{
+						WindowSize: time.Second.Nanoseconds(),
+						Precision:  time.Second.Nanoseconds(),
+					},
+					Retention: &schema.Retention{
+						Period: time.Hour.Nanoseconds(),
+					},
+				},
+				AggregationTypes: []schema.AggregationType{schema.AggregationType_MEAN},
+			},
+		},
+		{
+			str: "60s:24h|Mean,Count",
+			expected: &schema.Policy{
+				StoragePolicy: &schema.StoragePolicy{
+					Resolution: &schema.Resolution{
+						WindowSize: time.Minute.Nanoseconds(),
+						Precision:  time.Minute.Nanoseconds(),
+					},
+					Retention: &schema.Retention{
+						Period: 24 * time.Hour.Nanoseconds(),
+					},
+				},
+				AggregationTypes: []schema.AggregationType{schema.AggregationType_MEAN, schema.AggregationType_COUNT},
+			},
+		},
+		{
+			str: "1m:1d|Count,Mean",
+			expected: &schema.Policy{
+				StoragePolicy: &schema.StoragePolicy{
+					Resolution: &schema.Resolution{
+						WindowSize: time.Minute.Nanoseconds(),
+						Precision:  time.Minute.Nanoseconds(),
+					},
+					Retention: &schema.Retention{
+						Period: 24 * time.Hour.Nanoseconds(),
+					},
+				},
+				AggregationTypes: []schema.AggregationType{schema.AggregationType_MEAN, schema.AggregationType_COUNT},
+			},
+		},
+		{
+			str: "1m@1s:1h|P999,P9999",
+			expected: &schema.Policy{
+				StoragePolicy: &schema.StoragePolicy{
+					Resolution: &schema.Resolution{
+						WindowSize: time.Minute.Nanoseconds(),
+						Precision:  time.Second.Nanoseconds(),
+					},
+					Retention: &schema.Retention{
+						Period: time.Hour.Nanoseconds(),
+					},
+				},
+				AggregationTypes: []schema.AggregationType{schema.AggregationType_P999, schema.AggregationType_P9999},
+			},
+		},
+	}
+
+	for _, input := range inputs {
+		p, err := ParsePolicy(input.str)
+		require.NoError(t, err)
+
+		sp, err := p.Schema()
+		require.NoError(t, err)
+		require.Equal(t, input.expected, sp)
+	}
+}
+
 func TestPoliciesByResolutionAsc(t *testing.T) {
 	inputs := []Policy{
 		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
