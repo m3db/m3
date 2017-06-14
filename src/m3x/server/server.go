@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/net"
+	"github.com/m3db/m3x/retry"
 
 	"github.com/uber-go/tally"
 )
@@ -73,10 +74,12 @@ type removeConnectionFn func(conn net.Conn)
 type server struct {
 	sync.Mutex
 
-	address  string
-	listener net.Listener
-	opts     Options
-	log      xlog.Logger
+	address                string
+	listener               net.Listener
+	log                    xlog.Logger
+	retryOpts              xretry.Options
+	reportInterval         time.Duration
+	tcpConnectionKeepAlive bool
 
 	closed     bool
 	closedChan chan struct{}
@@ -96,12 +99,14 @@ func NewServer(address string, handler Handler, opts Options) Server {
 	scope := instrumentOpts.MetricsScope()
 
 	s := &server{
-		address:    address,
-		opts:       opts,
-		log:        instrumentOpts.Logger(),
-		closedChan: make(chan struct{}),
-		metrics:    newServerMetrics(scope),
-		handler:    handler,
+		address:                address,
+		log:                    instrumentOpts.Logger(),
+		retryOpts:              opts.RetryOptions(),
+		reportInterval:         instrumentOpts.ReportInterval(),
+		tcpConnectionKeepAlive: opts.TCPConnectionKeepAlive(),
+		closedChan:             make(chan struct{}),
+		metrics:                newServerMetrics(scope),
+		handler:                handler,
 	}
 
 	// Set up the connection functions.
@@ -131,9 +136,12 @@ func (s *server) Serve(l net.Listener) error {
 }
 
 func (s *server) serve() error {
-	connCh, errCh := xnet.StartForeverAcceptLoop(s.listener, s.opts.RetryOptions())
+	connCh, errCh := xnet.StartForeverAcceptLoop(s.listener, s.retryOpts)
 	for conn := range connCh {
 		conn := conn
+		if tcpConn, ok := conn.(*net.TCPConn); ok {
+			tcpConn.SetKeepAlive(s.tcpConnectionKeepAlive)
+		}
 		if !s.addConnectionFn(conn) {
 			conn.Close()
 		} else {
@@ -209,7 +217,7 @@ func (s *server) removeConnection(conn net.Conn) {
 }
 
 func (s *server) reportMetrics() {
-	t := time.NewTicker(s.opts.InstrumentOptions().ReportInterval())
+	t := time.NewTicker(s.reportInterval)
 
 	for {
 		select {

@@ -25,6 +25,10 @@ import (
 	"github.com/m3db/m3x/retry"
 )
 
+const (
+	defaultTCPConnectionKeepAlive = true
+)
+
 // Options provide a set of server options
 type Options interface {
 	// SetInstrumentOptions sets the instrument options
@@ -38,18 +42,26 @@ type Options interface {
 
 	// RetryOptions returns the retry options
 	RetryOptions() xretry.Options
+
+	// SetTCPConnectionKeepAlive sets the keep alive state for tcp connections.
+	SetTCPConnectionKeepAlive(value bool) Options
+
+	// TCPConnectionKeepAlive returns the keep alive state for tcp connections.
+	TCPConnectionKeepAlive() bool
 }
 
 type options struct {
-	instrumentOpts instrument.Options
-	retryOpts      xretry.Options
+	instrumentOpts         instrument.Options
+	retryOpts              xretry.Options
+	tcpConnectionKeepAlive bool
 }
 
 // NewOptions creates a new set of server options
 func NewOptions() Options {
 	return &options{
-		instrumentOpts: instrument.NewOptions(),
-		retryOpts:      xretry.NewOptions(),
+		instrumentOpts:         instrument.NewOptions(),
+		retryOpts:              xretry.NewOptions(),
+		tcpConnectionKeepAlive: defaultTCPConnectionKeepAlive,
 	}
 }
 
@@ -71,4 +83,14 @@ func (o *options) SetRetryOptions(value xretry.Options) Options {
 
 func (o *options) RetryOptions() xretry.Options {
 	return o.retryOpts
+}
+
+func (o *options) SetTCPConnectionKeepAlive(value bool) Options {
+	opts := *o
+	opts.tcpConnectionKeepAlive = value
+	return &opts
+}
+
+func (o *options) TCPConnectionKeepAlive() bool {
+	return o.tcpConnectionKeepAlive
 }
