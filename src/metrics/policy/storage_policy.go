@@ -90,6 +90,24 @@ func (p StoragePolicy) Retention() Retention {
 	return p.retention
 }
 
+// Schema returns the schema of the storage policy.
+func (p StoragePolicy) Schema() (*schema.StoragePolicy, error) {
+	precision, err := p.Resolution().Precision.Value()
+	if err != nil {
+		return nil, err
+	}
+
+	return &schema.StoragePolicy{
+		Resolution: &schema.Resolution{
+			WindowSize: p.Resolution().Window.Nanoseconds(),
+			Precision:  precision.Nanoseconds(),
+		},
+		Retention: &schema.Retention{
+			Period: p.Retention().Duration().Nanoseconds(),
+		},
+	}, nil
+}
+
 // UnmarshalYAML unmarshals a storage policy value from a string.
 func (p *StoragePolicy) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string

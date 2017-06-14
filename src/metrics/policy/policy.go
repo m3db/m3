@@ -122,6 +122,29 @@ func (p Policy) String() string {
 	return p.StoragePolicy.String() + policyAggregationTypeSeparator + p.AggregationID.String()
 }
 
+// Schema returns the schema of the policy.
+func (p Policy) Schema() (*schema.Policy, error) {
+	sp, err := p.StoragePolicy.Schema()
+	if err != nil {
+		return nil, err
+	}
+
+	aggTypes, err := NewAggregationIDDecompressor().Decompress(p.AggregationID)
+	if err != nil {
+		return nil, err
+	}
+
+	schemaAggTypes, err := aggTypes.Schema()
+	if err != nil {
+		return nil, err
+	}
+
+	return &schema.Policy{
+		StoragePolicy:    sp,
+		AggregationTypes: schemaAggTypes,
+	}, nil
+}
+
 // NewPoliciesFromSchema creates multiple new policies from given schema policies.
 func NewPoliciesFromSchema(policies []*schema.Policy) ([]Policy, error) {
 	res := make([]Policy, 0, len(policies))
