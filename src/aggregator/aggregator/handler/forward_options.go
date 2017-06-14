@@ -99,7 +99,7 @@ func NewForwardHandlerOptions() ForwardHandlerOptions {
 		connectTimeout:         defaultConnectTimeout,
 		connectionKeepAlive:    defaultConnectionKeepAlive,
 		connectionWriteTimeout: defaultConnectionWriteTimeout,
-		reconnectRetrier:       xretry.NewRetrier(xretry.NewOptions()),
+		reconnectRetrier:       xretry.NewRetrier(xretry.NewOptions().SetForever(true)),
 	}
 }
 

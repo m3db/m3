@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"
@@ -97,7 +96,7 @@ type forwardHandler struct {
 	reconnectRetrier       xretry.Retrier
 	reportInterval         time.Duration
 
-	bufCh              chan msgpack.Buffer
+	bufCh              chan *aggregator.RefCountedBuffer
 	wg                 sync.WaitGroup
 	closed             bool
 	closedCh           chan struct{}
@@ -124,7 +123,7 @@ func NewForwardHandler(
 	return h, nil
 }
 
-func (h *forwardHandler) Handle(buffer msgpack.Buffer) error {
+func (h *forwardHandler) Handle(buffer *aggregator.RefCountedBuffer) error {
 	// NB(xichen): the buffer contains newly flushed data so it's preferrable to keep
 	// it and drop the oldest buffer in queue in case the queue is full.
 	return h.enqueue(buffer, dropOldestInQueue)
@@ -172,10 +171,11 @@ func (h *forwardHandler) tryConnect(addr string) (*net.TCPConn, error) {
 	return tcpConn, nil
 }
 
-func (h *forwardHandler) enqueue(buffer msgpack.Buffer, dropType dropType) error {
+func (h *forwardHandler) enqueue(buffer *aggregator.RefCountedBuffer, dropType dropType) error {
 	h.RLock()
 	if h.closed {
 		h.RUnlock()
+		buffer.DecRef()
 		h.metrics.enqueueErrors.Inc(1)
 		return errHandlerClosed
 	}
@@ -188,7 +188,7 @@ func (h *forwardHandler) enqueue(buffer msgpack.Buffer, dropType dropType) error
 		default:
 			if dropType == dropCurrent {
 				h.RUnlock()
-				buffer.Close()
+				buffer.DecRef()
 				h.metrics.enqueueErrors.Inc(1)
 				h.metrics.currentDropped.Inc(1)
 				return errBufferQueueFull
@@ -198,7 +198,7 @@ func (h *forwardHandler) enqueue(buffer msgpack.Buffer, dropType dropType) error
 		// Drop oldest in queue to make room for new buffer.
 		select {
 		case buf := <-h.bufCh:
-			buf.Close()
+			buf.DecRef()
 			h.metrics.oldestdDropped.Inc(1)
 		default:
 		}
@@ -239,10 +239,10 @@ func (h *forwardHandler) forwardToConn(addr string, conn *net.TCPConn) {
 				atomic.AddInt32(&h.numOpenConnections, -1)
 				return
 			}
-			_, writeErr := h.writeToConnFn(conn, buf.Bytes())
+			_, writeErr := h.writeToConnFn(conn, buf.Buffer().Bytes())
 			if writeErr == nil {
 				h.metrics.writeSuccesses.Inc(1)
-				buf.Close()
+				buf.DecRef()
 				continue
 			}
 			h.metrics.writeErrors.Inc(1)
@@ -303,7 +303,7 @@ func newForwardHandler(servers []string, opts ForwardHandlerOptions) (*forwardHa
 		connectionWriteTimeout: opts.ConnectionWriteTimeout(),
 		reconnectRetrier:       opts.ReconnectRetrier(),
 		reportInterval:         instrumentOpts.ReportInterval(),
-		bufCh:                  make(chan msgpack.Buffer, opts.QueueSize()),
+		bufCh:                  make(chan *aggregator.RefCountedBuffer, opts.QueueSize()),
 		closedCh:               make(chan struct{}),
 		metrics:                newForwardHandlerMetrics(instrumentOpts.MetricsScope()),
 		dialWithTimeoutFn:      net.DialTimeout,

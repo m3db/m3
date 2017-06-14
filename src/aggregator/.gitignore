@@ -9,6 +9,7 @@
 *.iws
 *.cov
 *.html
+.DS_Store
 test.log
 
 # glide manages this

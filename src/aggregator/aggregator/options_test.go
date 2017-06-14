@@ -21,7 +21,6 @@
 package aggregator
 
 import (
-	"bytes"
 	"fmt"
 	"sync"
 	"testing"
@@ -261,16 +260,18 @@ func TestSetMaxFlushSize(t *testing.T) {
 }
 
 func TestSetFlushHandler(t *testing.T) {
-	var b *bytes.Buffer
-	buf := msgpack.NewPooledBufferedEncoder(nil)
-	fn := func(buf msgpack.Buffer) error {
-		b = buf.Buffer()
+	var b *RefCountedBuffer
+	fn := func(buf *RefCountedBuffer) error {
+		b = buf
 		return nil
 	}
 	value := &mockHandler{handleFn: fn}
 	o := NewOptions().SetFlushHandler(value)
+
+	buf := NewRefCountedBuffer(msgpack.NewPooledBufferedEncoder(nil))
+	defer buf.DecRef()
 	require.NoError(t, o.FlushHandler().Handle(buf))
-	require.Equal(t, b, buf.Buffer())
+	require.Equal(t, b, buf)
 }
 
 func TestSetEntryTTL(t *testing.T) {

@@ -41,7 +41,6 @@ import (
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/retry"
 
 	"github.com/spaolacci/murmur3"
 )
@@ -126,7 +125,7 @@ type AggregatorConfiguration struct {
 	MaxFlushSize int `yaml:"maxFlushSize"`
 
 	// Flushing handler configuration.
-	Flush flushHandlerConfiguration `yaml:"flush"`
+	Flush *handler.FlushHandlerConfiguration `yaml:"flush"`
 
 	// EntryTTL determines how long an entry remains alive before it may be expired due to inactivity.
 	EntryTTL time.Duration `yaml:"entryTTL"`
@@ -537,82 +536,6 @@ func (c flushManagerConfiguration) NewFlushManager(
 		opts = opts.SetWorkerPoolSize(workerPoolSize)
 	}
 	return aggregator.NewFlushManager(opts)
-}
-
-// flushHandlerConfiguration contains configuration for flushing metrics.
-type flushHandlerConfiguration struct {
-	// Flushing handler type.
-	Type string `yaml:"type" validate:"regexp=(^blackhole$|^logging$|^forward$)"`
-
-	// Forward handler configuration.
-	Forward *forwardHandlerConfiguration `yaml:"forward"`
-}
-
-func (c *flushHandlerConfiguration) NewHandler(
-	instrumentOpts instrument.Options,
-) (aggregator.Handler, error) {
-	scope := instrumentOpts.MetricsScope()
-	switch handler.Type(c.Type) {
-	case handler.BlackholeHandler:
-		return handler.NewBlackholeHandler(), nil
-	case handler.LoggingHandler:
-		iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("logging"))
-		return handler.NewLoggingHandler(iOpts), nil
-	case handler.ForwardHandler:
-		if c.Forward == nil {
-			return nil, errNoForwardHandlerConfiguration
-		}
-		iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("forward"))
-		return c.Forward.NewHandler(iOpts)
-	default:
-		return nil, errUnknownFlushHandlerType
-	}
-}
-
-// forwardHandlerConfiguration contains configuration for forward handler.
-type forwardHandlerConfiguration struct {
-	// Server address list.
-	Servers []string `yaml:"servers"`
-
-	// Buffer queue size.
-	QueueSize int `yaml:"queueSize"`
-
-	// Connection timeout.
-	ConnectTimeout time.Duration `yaml:"connectTimeout"`
-
-	// Connection keep alive.
-	ConnectionKeepAlive *bool `yaml:"connectionKeepAlive"`
-
-	// Connection write timeout.
-	ConnectionWriteTimeout time.Duration `yaml:"connectionWriteTimeout"`
-
-	// Reconnect retrier.
-	ReconnectRetrier xretry.Configuration `yaml:"reconnect"`
-}
-
-func (c *forwardHandlerConfiguration) NewHandler(
-	instrumentOpts instrument.Options,
-) (aggregator.Handler, error) {
-	opts := handler.NewForwardHandlerOptions().SetInstrumentOptions(instrumentOpts)
-
-	if c.QueueSize != 0 {
-		opts = opts.SetQueueSize(c.QueueSize)
-	}
-	if c.ConnectTimeout != 0 {
-		opts = opts.SetConnectTimeout(c.ConnectTimeout)
-	}
-	if c.ConnectionKeepAlive != nil {
-		opts = opts.SetConnectionKeepAlive(*c.ConnectionKeepAlive)
-	}
-	if c.ConnectionWriteTimeout != 0 {
-		opts = opts.SetConnectionWriteTimeout(c.ConnectionWriteTimeout)
-	}
-
-	scope := instrumentOpts.MetricsScope().SubScope("reconnect")
-	retrier := c.ReconnectRetrier.NewRetrier(scope)
-	opts = opts.SetReconnectRetrier(retrier)
-
-	return handler.NewForwardHandler(c.Servers, opts)
 }
 
 // timerQuantileSuffixFnType is the timer quantile suffix function type.

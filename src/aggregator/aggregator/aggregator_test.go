@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -245,7 +244,10 @@ func testOptions() Options {
 			registerFn: func(flusher PeriodicFlusher) error { return nil },
 		}).
 		SetFlushHandler(&mockHandler{
-			handleFn: func(msgpack.Buffer) error { return nil },
+			handleFn: func(buf *RefCountedBuffer) error {
+				buf.DecRef()
+				return nil
+			},
 		})
 }
 

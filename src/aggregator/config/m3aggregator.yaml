@@ -91,7 +91,11 @@ aggregator:
   minFlushInterval: 5s
   maxFlushSize: 1440
   flush:
-    type: logging
+    type: broadcast
+    broadcast:
+      handlers:
+        - type: logging
+        - type: blackhole
   entryTTL: 6h
   entryCheckInterval: 10m
   defaultPolicies:

@@ -20,13 +20,35 @@
 
 package handler
 
-// Type is the handler type.
-type Type string
-
-// A list of supported handler types.
-const (
-	BlackholeHandler Type = "blackhole"
-	LoggingHandler   Type = "logging"
-	ForwardHandler   Type = "forward"
-	BroadcastHandler Type = "broadcast"
+import (
+	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3x/errors"
 )
+
+type broadcastHandler struct {
+	handlers []aggregator.Handler
+}
+
+// NewBroadcastHandler creates a new Handler that routes a
+// msgpack buffer to a list of handlers.
+func NewBroadcastHandler(handlers []aggregator.Handler) aggregator.Handler {
+	return &broadcastHandler{handlers: handlers}
+}
+
+func (b *broadcastHandler) Handle(buffer *aggregator.RefCountedBuffer) error {
+	multiErr := xerrors.NewMultiError()
+	for _, h := range b.handlers {
+		buffer.IncRef()
+		if err := h.Handle(buffer); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+	buffer.DecRef()
+	return multiErr.FinalError()
+}
+
+func (b *broadcastHandler) Close() {
+	for _, h := range b.handlers {
+		h.Close()
+	}
+}
