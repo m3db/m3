@@ -37,6 +37,7 @@ TOOLS :=         \
 	read_ids       \
 	read_index_ids \
 	clone_fileset  \
+	dtest          \
 
 setup:
 	mkdir -p $(BUILD)

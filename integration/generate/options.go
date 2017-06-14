@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/encoding/m3tsz"
 )
 
 const (
@@ -43,6 +44,9 @@ const (
 
 	// defaultNewDirectoryMode is the file mode used for new directories by default
 	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0755)
+
+	// defaultWriteEmptyShards is the writeEmptyShards value by default
+	defaultWriteEmptyShards = true
 )
 
 var (
@@ -57,11 +61,18 @@ type options struct {
 	newFileMode      os.FileMode
 	newDirectoryMode os.FileMode
 	writerBufferSize int
+	writeEmptyShards bool
 	encoderPool      encoding.EncoderPool
 }
 
 // NewOptions creates a new set of fs options
 func NewOptions() Options {
+	encoderPool := encoding.NewEncoderPool(nil)
+	encodingOpts := encoding.NewOptions().SetEncoderPool(encoderPool)
+	encoderPool.Init(func() encoding.Encoder {
+		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+	})
+
 	return &options{
 		clockOpts:        clock.NewOptions(),
 		retentionPeriod:  defaultRetentionPeriod,
@@ -70,7 +81,8 @@ func NewOptions() Options {
 		newFileMode:      defaultNewFileMode,
 		newDirectoryMode: defaultNewDirectoryMode,
 		writerBufferSize: defaultWriterBufferSize,
-		encoderPool:      encoding.NewEncoderPool(nil),
+		writeEmptyShards: defaultWriteEmptyShards,
+		encoderPool:      encoderPool,
 	}
 }
 
@@ -142,6 +154,16 @@ func (o *options) SetWriterBufferSize(value int) Options {
 
 func (o *options) WriterBufferSize() int {
 	return o.writerBufferSize
+}
+
+func (o *options) SetWriteEmptyShards(value bool) Options {
+	opts := *o
+	opts.writeEmptyShards = value
+	return &opts
+}
+
+func (o *options) WriteEmptyShards() bool {
+	return o.writeEmptyShards
 }
 
 func (o *options) SetEncoderPool(value encoding.EncoderPool) Options {
