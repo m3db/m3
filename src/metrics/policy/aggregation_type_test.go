@@ -40,6 +40,39 @@ func TestAggregationTypeMaxID(t *testing.T) {
 	require.Equal(t, MaxAggregationTypeID, len(ValidAggregationTypes))
 }
 
+func TestAggregationTypeUnmarshalYAML(t *testing.T) {
+	inputs := []struct {
+		str         string
+		expected    AggregationType
+		expectedErr bool
+	}{
+		{
+			str:      "Lower",
+			expected: Lower,
+		},
+		{
+			str:         "Mean,",
+			expectedErr: true,
+		},
+		{
+			str:         "asd",
+			expectedErr: true,
+		},
+	}
+	for _, input := range inputs {
+		var aggtype AggregationType
+		err := yaml.Unmarshal([]byte(input.str), &aggtype)
+
+		if input.expectedErr {
+			require.Error(t, err)
+			continue
+		}
+
+		require.NoError(t, err)
+		require.Equal(t, input.expected, aggtype)
+	}
+}
+
 func TestAggregationTypesIsDefault(t *testing.T) {
 	require.True(t, DefaultAggregationTypes.IsDefault())
 
