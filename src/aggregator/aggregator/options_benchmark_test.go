@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package aggregation
+package aggregator
 
-import "github.com/m3db/m3metrics/policy"
+import "testing"
 
-var (
-	defaultOptions = Options{UseDefaultAggregation: true, HasExpensiveAggregations: false}
-)
+func BenchmarkSuffixSlice(b *testing.B) {
+	opts := NewOptions()
+	var a []byte
 
-// Options is the options for aggregations.
-type Options struct {
-	// UseDefaultAggregation means only default aggregation types are enabled.
-	// TODO(cw) Remove this once we start to support default aggregation types
-	// for Counter ang Gauge.
-	UseDefaultAggregation bool
-	// HasExpensiveAggregations means expensive (multiplication／division)
-	// aggregation types are enabled.
-	HasExpensiveAggregations bool
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		aggTypes := opts.DefaultTimerAggregationTypes()
+		suffixes := opts.DefaultTimerAggregationSuffixes()
+		for i := range aggTypes {
+			a = suffixes[i]
+		}
+	}
+	b.StopTimer()
+	// For compiler's sake.
+	a[0] = byte('b')
 }
 
-// NewOptions creates a new aggregation options.
-func NewOptions() Options {
-	return defaultOptions
-}
+func BenchmarkSuffixFn(b *testing.B) {
+	opts := NewOptions()
+	var a []byte
 
-// ResetSetData resets the aggregation options.
-func (o *Options) ResetSetData(aggTypes policy.AggregationTypes) {
-	o.UseDefaultAggregation = aggTypes.IsDefault()
-	o.HasExpensiveAggregations = isExpensive(aggTypes)
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		aggTypes := opts.DefaultTimerAggregationTypes()
+		for _, aggType := range aggTypes {
+			a = opts.Suffix(aggType)
+		}
+	}
+	b.StopTimer()
+	// For compiler's sake.
+	a[0] = byte('b')
 }

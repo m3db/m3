@@ -20,30 +20,46 @@
 
 package aggregation
 
-import "github.com/m3db/m3metrics/policy"
+import (
+	"testing"
 
-var (
-	defaultOptions = Options{UseDefaultAggregation: true, HasExpensiveAggregations: false}
+	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 )
 
-// Options is the options for aggregations.
-type Options struct {
-	// UseDefaultAggregation means only default aggregation types are enabled.
-	// TODO(cw) Remove this once we start to support default aggregation types
-	// for Counter ang Gauge.
-	UseDefaultAggregation bool
-	// HasExpensiveAggregations means expensive (multiplication／division)
-	// aggregation types are enabled.
-	HasExpensiveAggregations bool
+func getTimer() Timer {
+	opts := NewOptions()
+	opts.ResetSetData(testAggTypes)
+
+	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
+
+	for i := 1; i <= 100; i++ {
+		timer.Add(float64(i))
+	}
+	return timer
 }
 
-// NewOptions creates a new aggregation options.
-func NewOptions() Options {
-	return defaultOptions
+func BenchmarkTimerValues(b *testing.B) {
+	timer := getTimer()
+	for n := 0; n < b.N; n++ {
+		timer.Sum()
+		timer.SumSq()
+		timer.Mean()
+		timer.Min()
+		timer.Max()
+		timer.Count()
+		timer.Stdev()
+		timer.Quantile(0.5)
+		timer.Quantile(0.5)
+		timer.Quantile(0.95)
+		timer.Quantile(0.99)
+	}
 }
 
-// ResetSetData resets the aggregation options.
-func (o *Options) ResetSetData(aggTypes policy.AggregationTypes) {
-	o.UseDefaultAggregation = aggTypes.IsDefault()
-	o.HasExpensiveAggregations = isExpensive(aggTypes)
+func BenchmarkTimerValueOf(b *testing.B) {
+	timer := getTimer()
+	for n := 0; n < b.N; n++ {
+		for _, aggType := range testAggTypes {
+			timer.ValueOf(aggType)
+		}
+	}
 }
