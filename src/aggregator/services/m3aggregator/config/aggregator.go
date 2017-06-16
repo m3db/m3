@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3aggregator/aggregator/handler"
 	"github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
-	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
@@ -110,7 +109,7 @@ type AggregatorConfiguration struct {
 	KVClient kvClientConfiguration `yaml:"kvClient" validate:"nonzero"`
 
 	// Placement watcher configuration for watching placement updates.
-	PlacementWatcher placementWatcherConfiguration `yaml:"placementWatcher"`
+	PlacementWatcher placement.WatcherConfiguration `yaml:"placementWatcher"`
 
 	// Sharding function type.
 	ShardFnType *shardFnType `yaml:"shardFnType"`
@@ -219,7 +218,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 
 	// Set placement watcher options.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("placement-watcher"))
-	watcherOpts, err := c.PlacementWatcher.NewPlacementWatcherOptions(iOpts, client)
+	watcherOpts, err := c.PlacementWatcher.NewOptions(client, iOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -430,36 +429,6 @@ func (c *kvClientConfiguration) NewKVClient(instrumentOpts instrument.Options) (
 		return nil, errNoKVClientConfiguration
 	}
 	return c.Etcd.NewClient(instrumentOpts)
-}
-
-type placementWatcherConfiguration struct {
-	// Placement kv namespace.
-	Namespace string `yaml:"namespace" validate:"nonzero"`
-
-	// Placement key.
-	Key string `yaml:"key" validate:"nonzero"`
-
-	// Initial watch timeout.
-	InitWatchTimeout time.Duration `yaml:"initWatchTimeout"`
-}
-
-func (c *placementWatcherConfiguration) NewPlacementWatcherOptions(
-	instrumentOpts instrument.Options,
-	client client.Client,
-) (services.StagedPlacementWatcherOptions, error) {
-	store, err := client.Store(c.Namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	opts := placement.NewStagedPlacementWatcherOptions().
-		SetInstrumentOptions(instrumentOpts).
-		SetStagedPlacementKey(c.Key).
-		SetStagedPlacementStore(store)
-	if c.InitWatchTimeout != 0 {
-		opts = opts.SetInitWatchTimeout(c.InitWatchTimeout)
-	}
-	return opts, nil
 }
 
 type shardFnType string
