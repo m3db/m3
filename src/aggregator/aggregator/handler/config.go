@@ -63,7 +63,7 @@ func (c *FlushHandlerConfiguration) NewHandler(
 		if c.Forward == nil {
 			return nil, errNoForwardHandlerConfiguration
 		}
-		scope = scope.SubScope("forward").SubScope(c.Forward.Name)
+		scope = scope.SubScope("forward").Tagged(map[string]string{"forward-target": c.Forward.Name})
 		logger := iOpts.Logger().WithFields(xlog.NewLogField("forward-target", c.Forward.Name))
 		return c.Forward.NewHandler(iOpts.SetMetricsScope(scope).SetLogger(logger))
 	case BroadcastHandler:
