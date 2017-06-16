@@ -94,9 +94,8 @@ type db struct {
 	state    databaseState
 	mediator databaseMediator
 
-	created      uint64
-	tickDeadline time.Duration
-	bootstraps   int
+	created    uint64
+	bootstraps int
 
 	scope   tally.Scope
 	metrics databaseMetrics
@@ -134,7 +133,6 @@ func NewDatabase(
 	d := &db{
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
-		tickDeadline: opts.RetentionOptions().BufferDrain(),
 		scope:        scope,
 		metrics:      newDatabaseMetrics(scope, iopts.MetricsSamplingRate()),
 		errors:       xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
