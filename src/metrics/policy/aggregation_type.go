@@ -213,6 +213,21 @@ func (a AggregationType) Schema() (schema.AggregationType, error) {
 	return s, nil
 }
 
+// UnmarshalYAML unmarshals aggregation type from a string.
+func (a *AggregationType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	parsed, err := ParseAggregationType(str)
+	if err != nil {
+		return err
+	}
+	*a = parsed
+	return nil
+}
+
 func validateSchemaAggregationType(a schema.AggregationType) error {
 	_, ok := schema.AggregationType_name[int32(a)]
 	if !ok {
