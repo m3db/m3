@@ -41,6 +41,36 @@ func TestNewRollupID(t *testing.T) {
 	require.Equal(t, expected, NewRollupID(name, tagPairs))
 }
 
+func TestIsRollupIDNilIterator(t *testing.T) {
+	inputs := []struct {
+		id       []byte
+		expected bool
+	}{
+		{id: []byte("m3+foo+a1=b1,m3_rollup=true,a2=b2"), expected: true},
+		{id: []byte("foo.bar.baz"), expected: false},
+		{id: []byte("m3+foo+a1=b1,a2=b2"), expected: false},
+	}
+	for _, input := range inputs {
+		require.Equal(t, input.expected, IsRollupID(input.id, nil))
+	}
+}
+
+func TestIsRollupIDExternalIterator(t *testing.T) {
+	inputs := []struct {
+		id       []byte
+		expected bool
+	}{
+		{id: []byte("m3+foo+a1=b1,m3_rollup=true,a2=b2"), expected: true},
+		{id: []byte("foo.bar.baz"), expected: false},
+		{id: []byte("m3+foo+a1=b1,a2=b2"), expected: false},
+	}
+	it := NewSortedTagIterator(nil)
+	defer it.Close()
+	for _, input := range inputs {
+		require.Equal(t, input.expected, IsRollupID(input.id, it))
+	}
+}
+
 func TestMetricIDTagValue(t *testing.T) {
 	iterPool := id.NewSortedTagIteratorPool(nil)
 	iterPool.Init(func() id.SortedTagIterator {

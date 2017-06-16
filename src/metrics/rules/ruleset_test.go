@@ -44,12 +44,13 @@ var (
 	compressedCountAndMean, _ = compressor.Compress(policy.AggregationTypes{policy.Count, policy.Mean})
 )
 
-func TestActiveRuleSetMatchMappingRules(t *testing.T) {
+func TestActiveRuleSetMappingPoliciesForNonRollupID(t *testing.T) {
 	inputs := []testMappingsData{
 		{
 			id:            "mtagName1=mtagValue1",
-			matchFrom:     time.Unix(0, 25000),
-			matchTo:       time.Unix(0, 25001),
+			matchFrom:     25000,
+			matchTo:       25001,
+			matchMode:     Forward,
 			expireAtNanos: 30000,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
@@ -66,8 +67,9 @@ func TestActiveRuleSetMatchMappingRules(t *testing.T) {
 		},
 		{
 			id:            "mtagName1=mtagValue1",
-			matchFrom:     time.Unix(0, 35000),
-			matchTo:       time.Unix(0, 35001),
+			matchFrom:     35000,
+			matchTo:       35001,
+			matchMode:     Forward,
 			expireAtNanos: 100000,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
@@ -83,8 +85,9 @@ func TestActiveRuleSetMatchMappingRules(t *testing.T) {
 		},
 		{
 			id:            "mtagName1=mtagValue2",
-			matchFrom:     time.Unix(0, 25000),
-			matchTo:       time.Unix(0, 25001),
+			matchFrom:     25000,
+			matchTo:       25001,
+			matchMode:     Forward,
 			expireAtNanos: 30000,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
@@ -98,15 +101,17 @@ func TestActiveRuleSetMatchMappingRules(t *testing.T) {
 		},
 		{
 			id:            "mtagName1=mtagValue3",
-			matchFrom:     time.Unix(0, 25000),
-			matchTo:       time.Unix(0, 25001),
+			matchFrom:     25000,
+			matchTo:       25001,
+			matchMode:     Forward,
 			expireAtNanos: 30000,
 			result:        policy.DefaultPoliciesList,
 		},
 		{
 			id:            "mtagName1=mtagValue1",
-			matchFrom:     time.Unix(0, 10000),
-			matchTo:       time.Unix(0, 40000),
+			matchFrom:     10000,
+			matchTo:       40000,
+			matchMode:     Forward,
 			expireAtNanos: 100000,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
@@ -166,8 +171,9 @@ func TestActiveRuleSetMatchMappingRules(t *testing.T) {
 		},
 		{
 			id:            "mtagName1=mtagValue2",
-			matchFrom:     time.Unix(0, 10000),
-			matchTo:       time.Unix(0, 40000),
+			matchFrom:     10000,
+			matchTo:       40000,
+			matchMode:     Forward,
 			expireAtNanos: 100000,
 			result: policy.PoliciesList{
 				policy.DefaultStagedPolicies,
@@ -188,22 +194,86 @@ func TestActiveRuleSetMatchMappingRules(t *testing.T) {
 		nil,
 		testTagsFilterOptions(),
 		mockNewID,
+		nil,
 	)
 	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 100000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
 	for _, input := range inputs {
-		res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo)
+		res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo, input.matchMode)
 		require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 		require.Equal(t, input.result, res.MappingsAt(0))
 	}
 }
 
-func TestActiveRuleSetMatchRollupRules(t *testing.T) {
+func TestActiveRuleSetMappingPoliciesForRollupID(t *testing.T) {
+	inputs := []testMappingsData{
+		{
+			id:            "rName4|rtagName1=rtagValue2",
+			matchFrom:     25000,
+			matchTo:       25001,
+			matchMode:     Reverse,
+			expireAtNanos: 30000,
+			result: policy.PoliciesList{
+				policy.NewStagedPolicies(
+					24000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), policy.DefaultAggregationID),
+					},
+				),
+			},
+		},
+		{
+			id:            "rName4|rtagName2=rtagValue2",
+			matchFrom:     25000,
+			matchTo:       25001,
+			matchMode:     Reverse,
+			expireAtNanos: 30000,
+			result:        nil,
+		},
+		{
+			id:            "rName4|rtagName1=rtagValue2",
+			matchFrom:     10000,
+			matchTo:       10001,
+			matchMode:     Reverse,
+			expireAtNanos: 15000,
+			result:        nil,
+		},
+		{
+			id:            "rName3|rtagName1=rtagValue2",
+			matchFrom:     25000,
+			matchTo:       25001,
+			matchMode:     Reverse,
+			expireAtNanos: 30000,
+			result:        nil,
+		},
+	}
+
+	rollupRules := testRollupRules(t)
+	as := newActiveRuleSet(
+		nil,
+		rollupRules,
+		testTagsFilterOptions(),
+		mockNewID,
+		func([]byte, []byte) bool { return true },
+	)
+	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 100000}
+	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
+	for _, input := range inputs {
+		res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo, input.matchMode)
+		require.Equal(t, input.expireAtNanos, res.expireAtNanos)
+		require.Equal(t, input.result, res.MappingsAt(0))
+		require.Nil(t, res.rollups)
+	}
+}
+
+func TestActiveRuleSetRollupResults(t *testing.T) {
 	inputs := []testRollupResultsData{
 		{
 			id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
-			matchFrom:     time.Unix(0, 25000),
-			matchTo:       time.Unix(0, 25001),
+			matchFrom:     25000,
+			matchTo:       25001,
+			matchMode:     Forward,
 			expireAtNanos: 30000,
 			result: []RollupResult{
 				{
@@ -237,18 +307,19 @@ func TestActiveRuleSetMatchRollupRules(t *testing.T) {
 		},
 		{
 			id:            "rtagName1=rtagValue2",
-			matchFrom:     time.Unix(0, 25000),
-			matchTo:       time.Unix(0, 25001),
+			matchFrom:     25000,
+			matchTo:       25001,
+			matchMode:     Forward,
 			expireAtNanos: 30000,
 			result: []RollupResult{
 				{
-					ID: b("rName3|rtagName1=rtagValue2"),
+					ID: b("rName4|rtagName1=rtagValue2"),
 					PoliciesList: policy.PoliciesList{
 						policy.NewStagedPolicies(
 							24000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), policy.DefaultAggregationID),
 							},
 						),
 					},
@@ -257,15 +328,17 @@ func TestActiveRuleSetMatchRollupRules(t *testing.T) {
 		},
 		{
 			id:            "rtagName5=rtagValue5",
-			matchFrom:     time.Unix(0, 25000),
-			matchTo:       time.Unix(0, 25001),
+			matchFrom:     25000,
+			matchTo:       25001,
+			matchMode:     Forward,
 			expireAtNanos: 30000,
 			result:        []RollupResult{},
 		},
 		{
 			id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
-			matchFrom:     time.Unix(0, 10000),
-			matchTo:       time.Unix(0, 40000),
+			matchFrom:     10000,
+			matchTo:       40000,
+			matchMode:     Forward,
 			expireAtNanos: 100000,
 			result: []RollupResult{
 				{
@@ -363,11 +436,12 @@ func TestActiveRuleSetMatchRollupRules(t *testing.T) {
 		rollupRules,
 		testTagsFilterOptions(),
 		mockNewID,
+		nil,
 	)
 	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 100000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
 	for _, input := range inputs {
-		res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo)
+		res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo, input.matchMode)
 		require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 		require.Equal(t, len(input.result), res.NumRollups())
 		for i := 0; i < len(input.result); i++ {
@@ -422,8 +496,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 			mappingInputs: []testMappingsData{
 				{
 					id:            "mtagName1=mtagValue1",
-					matchFrom:     time.Unix(0, 25000),
-					matchTo:       time.Unix(0, 25001),
+					matchFrom:     25000,
+					matchTo:       25001,
+					matchMode:     Forward,
 					expireAtNanos: 30000,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -441,8 +516,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 				},
 				{
 					id:            "mtagName1=mtagValue1",
-					matchFrom:     time.Unix(0, 35000),
-					matchTo:       time.Unix(0, 35001),
+					matchFrom:     35000,
+					matchTo:       35001,
+					matchMode:     Forward,
 					expireAtNanos: 100000,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -458,8 +534,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 				},
 				{
 					id:            "mtagName1=mtagValue2",
-					matchFrom:     time.Unix(0, 25000),
-					matchTo:       time.Unix(0, 25001),
+					matchFrom:     25000,
+					matchTo:       25001,
+					matchMode:     Forward,
 					expireAtNanos: 30000,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -473,8 +550,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 				},
 				{
 					id:            "mtagName1=mtagValue3",
-					matchFrom:     time.Unix(0, 25000),
-					matchTo:       time.Unix(0, 25001),
+					matchFrom:     25000,
+					matchTo:       25001,
+					matchMode:     Forward,
 					expireAtNanos: 30000,
 					result:        policy.DefaultPoliciesList,
 				},
@@ -482,8 +560,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 			rollupInputs: []testRollupResultsData{
 				{
 					id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
-					matchFrom:     time.Unix(0, 25000),
-					matchTo:       time.Unix(0, 25001),
+					matchFrom:     25000,
+					matchTo:       25001,
+					matchMode:     Forward,
 					expireAtNanos: 30000,
 					result: []RollupResult{
 						{
@@ -517,18 +596,19 @@ func TestRuleSetActiveSet(t *testing.T) {
 				},
 				{
 					id:            "rtagName1=rtagValue2",
-					matchFrom:     time.Unix(0, 25000),
-					matchTo:       time.Unix(0, 25001),
+					matchFrom:     25000,
+					matchTo:       25001,
+					matchMode:     Forward,
 					expireAtNanos: 30000,
 					result: []RollupResult{
 						{
-							ID: b("rName3|rtagName1=rtagValue2"),
+							ID: b("rName4|rtagName1=rtagValue2"),
 							PoliciesList: policy.PoliciesList{
 								policy.NewStagedPolicies(
 									24000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), policy.DefaultAggregationID),
 									},
 								),
 							},
@@ -537,8 +617,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 				},
 				{
 					id:            "rtagName5=rtagValue5",
-					matchFrom:     time.Unix(0, 25000),
-					matchTo:       time.Unix(0, 25001),
+					matchFrom:     25000,
+					matchTo:       25001,
+					matchMode:     Forward,
 					expireAtNanos: 30000,
 					result:        []RollupResult{},
 				},
@@ -549,8 +630,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 			mappingInputs: []testMappingsData{
 				{
 					id:            "mtagName1=mtagValue1",
-					matchFrom:     time.Unix(0, 35000),
-					matchTo:       time.Unix(0, 35001),
+					matchFrom:     35000,
+					matchTo:       35001,
+					matchMode:     Forward,
 					expireAtNanos: 100000,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -566,8 +648,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 				},
 				{
 					id:            "mtagName1=mtagValue2",
-					matchFrom:     time.Unix(0, 35000),
-					matchTo:       time.Unix(0, 35001),
+					matchFrom:     35000,
+					matchTo:       35001,
+					matchMode:     Forward,
 					expireAtNanos: 100000,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -581,8 +664,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 				},
 				{
 					id:            "mtagName1=mtagValue3",
-					matchFrom:     time.Unix(0, 35000),
-					matchTo:       time.Unix(0, 35001),
+					matchFrom:     35000,
+					matchTo:       35001,
+					matchMode:     Forward,
 					expireAtNanos: 100000,
 					result:        policy.DefaultPoliciesList,
 				},
@@ -590,8 +674,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 			rollupInputs: []testRollupResultsData{
 				{
 					id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
-					matchFrom:     time.Unix(0, 35000),
-					matchTo:       time.Unix(0, 35001),
+					matchFrom:     35000,
+					matchTo:       35001,
+					matchMode:     Forward,
 					expireAtNanos: 100000,
 					result: []RollupResult{
 						{
@@ -612,18 +697,19 @@ func TestRuleSetActiveSet(t *testing.T) {
 				},
 				{
 					id:            "rtagName1=rtagValue2",
-					matchFrom:     time.Unix(0, 35000),
-					matchTo:       time.Unix(0, 35001),
+					matchFrom:     35000,
+					matchTo:       35001,
+					matchMode:     Forward,
 					expireAtNanos: 100000,
 					result: []RollupResult{
 						{
-							ID: b("rName3|rtagName1=rtagValue2"),
+							ID: b("rName4|rtagName1=rtagValue2"),
 							PoliciesList: policy.PoliciesList{
 								policy.NewStagedPolicies(
 									24000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), policy.DefaultAggregationID),
 									},
 								),
 							},
@@ -632,8 +718,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 				},
 				{
 					id:            "rtagName5=rtagValue5",
-					matchFrom:     time.Unix(0, 35000),
-					matchTo:       time.Unix(0, 35001),
+					matchFrom:     35000,
+					matchTo:       35001,
+					matchMode:     Forward,
 					expireAtNanos: 100000,
 					result:        []RollupResult{},
 				},
@@ -644,8 +731,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 			mappingInputs: []testMappingsData{
 				{
 					id:            "mtagName1=mtagValue1",
-					matchFrom:     time.Unix(0, 250000),
-					matchTo:       time.Unix(0, 250001),
+					matchFrom:     250000,
+					matchTo:       250001,
+					matchMode:     Forward,
 					expireAtNanos: timeNanosMax,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -661,8 +749,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 				},
 				{
 					id:            "mtagName1=mtagValue2",
-					matchFrom:     time.Unix(0, 250000),
-					matchTo:       time.Unix(0, 250001),
+					matchFrom:     250000,
+					matchTo:       250001,
+					matchMode:     Forward,
 					expireAtNanos: timeNanosMax,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -676,8 +765,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 				},
 				{
 					id:            "mtagName1=mtagValue3",
-					matchFrom:     time.Unix(0, 250000),
-					matchTo:       time.Unix(0, 250001),
+					matchFrom:     250000,
+					matchTo:       250001,
+					matchMode:     Forward,
 					expireAtNanos: timeNanosMax,
 					result:        policy.DefaultPoliciesList,
 				},
@@ -685,8 +775,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 			rollupInputs: []testRollupResultsData{
 				{
 					id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
-					matchFrom:     time.Unix(0, 250000),
-					matchTo:       time.Unix(0, 250001),
+					matchFrom:     250000,
+					matchTo:       250001,
+					matchMode:     Forward,
 					expireAtNanos: timeNanosMax,
 					result: []RollupResult{
 						{
@@ -719,18 +810,19 @@ func TestRuleSetActiveSet(t *testing.T) {
 				},
 				{
 					id:            "rtagName1=rtagValue2",
-					matchFrom:     time.Unix(0, 250000),
-					matchTo:       time.Unix(0, 250001),
+					matchFrom:     250000,
+					matchTo:       250001,
+					matchMode:     Forward,
 					expireAtNanos: timeNanosMax,
 					result: []RollupResult{
 						{
-							ID: b("rName3|rtagName1=rtagValue2"),
+							ID: b("rName4|rtagName1=rtagValue2"),
 							PoliciesList: policy.PoliciesList{
 								policy.NewStagedPolicies(
 									24000,
 									false,
 									[]policy.Policy{
-										policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+										policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), policy.DefaultAggregationID),
 									},
 								),
 							},
@@ -739,8 +831,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 				},
 				{
 					id:            "rtagName5=rtagValue5",
-					matchFrom:     time.Unix(0, 250000),
-					matchTo:       time.Unix(0, 250001),
+					matchFrom:     250000,
+					matchTo:       250001,
+					matchMode:     Forward,
 					expireAtNanos: timeNanosMax,
 					result:        []RollupResult{},
 				},
@@ -751,12 +844,12 @@ func TestRuleSetActiveSet(t *testing.T) {
 	for _, inputs := range allInputs {
 		as := newRuleSet.ActiveSet(inputs.activeSetTime)
 		for _, input := range inputs.mappingInputs {
-			res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo)
+			res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo, input.matchMode)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.Equal(t, input.result, res.MappingsAt(0))
 		}
 		for _, input := range inputs.rollupInputs {
-			res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo)
+			res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo, input.matchMode)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.Equal(t, len(input.result), res.NumRollups())
 			for i := 0; i < len(input.result); i++ {
@@ -1115,6 +1208,27 @@ func testRollupRules(t *testing.T) []*rollupRule {
 			&rollupRuleSnapshot{
 				name:         "rollupRule5.snapshot1",
 				tombstoned:   false,
+				cutoverNanos: 24000,
+				filter:       filter2,
+				targets: []rollupTarget{
+					{
+						Name: b("rName4"),
+						Tags: [][]byte{b("rtagName1")},
+						Policies: []policy.Policy{
+							policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), policy.DefaultAggregationID),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	rollupRule6 := &rollupRule{
+		uuid: "rollupRule6",
+		snapshots: []*rollupRuleSnapshot{
+			&rollupRuleSnapshot{
+				name:         "rollupRule6.snapshot1",
+				tombstoned:   false,
 				cutoverNanos: 100000,
 				filter:       filter1,
 				targets: []rollupTarget{
@@ -1130,33 +1244,7 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		},
 	}
 
-	return []*rollupRule{rollupRule1, rollupRule2, rollupRule3, rollupRule4, rollupRule5}
-}
-
-func testRuleSetOptions() Options {
-	return NewOptions().
-		SetTagsFilterOptions(testTagsFilterOptions()).
-		SetNewRollupIDFn(mockNewID)
-}
-
-func mockNewID(name []byte, tags []id.TagPair) []byte {
-	if len(tags) == 0 {
-		return name
-	}
-	var buf bytes.Buffer
-	buf.Write(name)
-	if len(tags) > 0 {
-		buf.WriteString("|")
-		for idx, p := range tags {
-			buf.Write(p.Name)
-			buf.WriteString("=")
-			buf.Write(p.Value)
-			if idx < len(tags)-1 {
-				buf.WriteString(",")
-			}
-		}
-	}
-	return buf.Bytes()
+	return []*rollupRule{rollupRule1, rollupRule2, rollupRule3, rollupRule4, rollupRule5, rollupRule6}
 }
 
 func testMappingRulesConfig() []*schema.MappingRule {
@@ -1786,6 +1874,38 @@ func testRollupRulesConfig() []*schema.RollupRule {
 				&schema.RollupRuleSnapshot{
 					Name:        "rollupRule5.snapshot1",
 					Tombstoned:  false,
+					CutoverTime: 24000,
+					TagFilters: map[string]string{
+						"rtagName1": "rtagValue2",
+					},
+					Targets: []*schema.RollupTarget{
+						&schema.RollupTarget{
+							Name: "rName4",
+							Tags: []string{"rtagName1"},
+							Policies: []*schema.Policy{
+								&schema.Policy{
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: &schema.Retention{
+											Period: int64(time.Minute),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		&schema.RollupRule{
+			Uuid: "rollupRule6",
+			Snapshots: []*schema.RollupRuleSnapshot{
+				&schema.RollupRuleSnapshot{
+					Name:        "rollupRule6.snapshot1",
+					Tombstoned:  false,
 					CutoverTime: 100000,
 					TagFilters: map[string]string{
 						"rtagName1": "rtagValue1",
@@ -1816,26 +1936,60 @@ func testRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
+func testRuleSetOptions() Options {
+	return NewOptions().
+		SetTagsFilterOptions(testTagsFilterOptions()).
+		SetNewRollupIDFn(mockNewID)
+}
+
+func mockNewID(name []byte, tags []id.TagPair) []byte {
+	if len(tags) == 0 {
+		return name
+	}
+	var buf bytes.Buffer
+	buf.Write(name)
+	if len(tags) > 0 {
+		buf.WriteString("|")
+		for idx, p := range tags {
+			buf.Write(p.Name)
+			buf.WriteString("=")
+			buf.Write(p.Value)
+			if idx < len(tags)-1 {
+				buf.WriteString(",")
+			}
+		}
+	}
+	return buf.Bytes()
+}
+
 func testTagsFilterOptions() filters.TagsFilterOptions {
 	return filters.TagsFilterOptions{
-		NameTagKey:          []byte("name"),
-		NameAndTagsFn:       func(b []byte) ([]byte, []byte, error) { return nil, b, nil },
+		NameTagKey: []byte("name"),
+		NameAndTagsFn: func(b []byte) ([]byte, []byte, error) {
+			idx := bytes.Index(b, []byte("|"))
+			if idx == -1 {
+				return nil, b, nil
+			}
+			return b[:idx], b[idx+1:], nil
+		},
 		SortedTagIteratorFn: filters.NewMockSortedTagIterator,
 	}
 }
 
 type testMappingsData struct {
 	id            string
-	matchFrom     time.Time
-	matchTo       time.Time
+	matchFrom     int64
+	matchTo       int64
+	matchMode     MatchMode
 	expireAtNanos int64
 	result        policy.PoliciesList
 }
 
 type testRollupResultsData struct {
 	id            string
-	matchFrom     time.Time
-	matchTo       time.Time
+	matchFrom     int64
+	matchTo       int64
+	matchMode     MatchMode
 	expireAtNanos int64
 	result        []RollupResult
 }
