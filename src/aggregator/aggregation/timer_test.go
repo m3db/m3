@@ -33,6 +33,19 @@ import (
 
 var (
 	testQuantiles = []float64{0.5, 0.95, 0.99}
+	testAggTypes  = policy.AggregationTypes{
+		policy.Sum,
+		policy.SumSq,
+		policy.Mean,
+		policy.Lower,
+		policy.Upper,
+		policy.Count,
+		policy.Stdev,
+		policy.Median,
+		policy.P50,
+		policy.P95,
+		policy.P99,
+	}
 )
 
 func TestCreateTimerResetStream(t *testing.T) {
@@ -58,19 +71,7 @@ func TestCreateTimerResetStream(t *testing.T) {
 
 func TestTimerAggregations(t *testing.T) {
 	opts := NewOptions()
-	opts.ResetSetData(policy.AggregationTypes{
-		policy.Sum,
-		policy.SumSq,
-		policy.Mean,
-		policy.Lower,
-		policy.Upper,
-		policy.Count,
-		policy.Stdev,
-		policy.Median,
-		policy.P50,
-		policy.P95,
-		policy.P99,
-	})
+	opts.ResetSetData(testAggTypes)
 
 	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
 

@@ -125,6 +125,8 @@ func TestTimerResetSetData(t *testing.T) {
 	te := NewTimerElem(nil, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, NewOptions())
 	require.False(t, te.isQuantilesPooled)
 	require.False(t, te.isAggTypesPooled)
+	require.True(t, te.aggOpts.HasExpensiveAggregations)
+	require.True(t, te.aggTypes.IsDefault())
 
 	sp := policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour)
 	te.ResetSetData(testBatchTimerID, sp, policy.AggregationTypes{policy.Upper, policy.P999})

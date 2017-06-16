@@ -359,16 +359,18 @@ func NewTimerElem(id id.RawID, sp policy.StoragePolicy, aggTypes policy.Aggregat
 
 // ResetSetData overrides elemBase.ResetData, to include quantile update for timer elements.
 func (e *TimerElem) ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes) {
+	e.elemBase.ResetSetData(id, sp, aggTypes)
+
 	if aggTypes.IsDefault() {
-		aggTypes = e.opts.DefaultTimerAggregationTypes()
+		// TODO(cw) Remove UseDefaultAggregation in aggregation opts and
+		// store it in elemBase.
+		e.aggOpts.ResetSetData(e.opts.DefaultTimerAggregationTypes())
 		e.isAggTypesPooled = false
 		e.quantiles, e.isQuantilesPooled = e.opts.TimerQuantiles(), false
 	} else {
 		e.isAggTypesPooled = true
 		e.quantiles, e.isQuantilesPooled = aggTypes.PooledQuantiles(e.opts.QuantilesPool())
 	}
-
-	e.elemBase.ResetSetData(id, sp, aggTypes)
 }
 
 // AddMetric adds a new batch of timer values.
@@ -491,7 +493,7 @@ func (e *TimerElem) findOrCreate(alignedStart int64) (*aggregation.LockedTimer, 
 	numValues := len(e.values)
 	e.values = append(e.values, emptyTimedTimer)
 	copy(e.values[idx+1:numValues+1], e.values[idx:numValues])
-	newTimer := aggregation.NewTimer(e.opts.TimerQuantiles(), e.opts.StreamOptions(), e.aggOpts)
+	newTimer := aggregation.NewTimer(e.quantiles, e.opts.StreamOptions(), e.aggOpts)
 	e.values[idx] = timedTimer{
 		timeNanos: alignedStart,
 		timer:     aggregation.NewLockedTimer(newTimer),
@@ -532,7 +534,7 @@ func (e *TimerElem) indexOfWithLock(alignedStart int64) (int, bool) {
 
 func (e *TimerElem) processValue(timeNanos int64, agg aggregation.Timer, fn aggMetricFn) {
 	fullTimerPrefix := e.opts.FullTimerPrefix()
-	if e.aggOpts.UseDefaultAggregation {
+	if e.aggTypes.IsDefault() {
 		// NB(cw) Use default suffix slice for faster look up.
 		suffixes := e.opts.DefaultTimerAggregationSuffixes()
 		aggTypes := e.opts.DefaultTimerAggregationTypes()
