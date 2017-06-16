@@ -38,11 +38,18 @@ type Options interface {
 
 	// NewRollupIDFn returns the new rollup id function.
 	NewRollupIDFn() id.NewIDFn
+
+	// SetIsRollupIDFn sets the function that determines whether an id is a rollup id.
+	SetIsRollupIDFn(value id.MatchIDFn) Options
+
+	// IsRollupIDFn returns the function that determines whether an id is a rollup id.
+	IsRollupIDFn() id.MatchIDFn
 }
 
 type options struct {
 	tagsFilterOpts filters.TagsFilterOptions
 	newRollupIDFn  id.NewIDFn
+	isRollupIDFn   id.MatchIDFn
 }
 
 // NewOptions creates a new set of options.
@@ -68,4 +75,14 @@ func (o *options) SetNewRollupIDFn(value id.NewIDFn) Options {
 
 func (o *options) NewRollupIDFn() id.NewIDFn {
 	return o.newRollupIDFn
+}
+
+func (o *options) SetIsRollupIDFn(value id.MatchIDFn) Options {
+	opts := *o
+	opts.isRollupIDFn = value
+	return &opts
+}
+
+func (o *options) IsRollupIDFn() id.MatchIDFn {
+	return o.isRollupIDFn
 }
