@@ -1,5 +1,5 @@
-hash: f10b3342146216907e1997fa1d160a907bff58ee32111921082def55af03dabc
-updated: 2017-06-16T10:15:45.880393478-04:00
+hash: bda96988b0fe7e4a268da8920983d802d8e78c8d83a73aeafabcc078af3ef24a
+updated: 2017-06-16T13:10:22.903973262-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -48,7 +48,7 @@ imports:
   - runtime/internal
   - utilities
 - name: github.com/m3db/m3cluster
-  version: b596a86b06f37c9150ea352d6ec1549ed19f304b
+  version: 4b5c64d5fdcde721bf249a531359aeb3b9162806
   subpackages:
   - client
   - client/etcd
