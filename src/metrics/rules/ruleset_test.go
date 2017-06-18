@@ -50,7 +50,7 @@ func TestActiveRuleSetMappingPoliciesForNonRollupID(t *testing.T) {
 			id:            "mtagName1=mtagValue1",
 			matchFrom:     25000,
 			matchTo:       25001,
-			matchMode:     Forward,
+			matchMode:     ForwardMatch,
 			expireAtNanos: 30000,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
@@ -69,7 +69,7 @@ func TestActiveRuleSetMappingPoliciesForNonRollupID(t *testing.T) {
 			id:            "mtagName1=mtagValue1",
 			matchFrom:     35000,
 			matchTo:       35001,
-			matchMode:     Forward,
+			matchMode:     ForwardMatch,
 			expireAtNanos: 100000,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
@@ -87,7 +87,7 @@ func TestActiveRuleSetMappingPoliciesForNonRollupID(t *testing.T) {
 			id:            "mtagName1=mtagValue2",
 			matchFrom:     25000,
 			matchTo:       25001,
-			matchMode:     Forward,
+			matchMode:     ForwardMatch,
 			expireAtNanos: 30000,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
@@ -103,7 +103,7 @@ func TestActiveRuleSetMappingPoliciesForNonRollupID(t *testing.T) {
 			id:            "mtagName1=mtagValue3",
 			matchFrom:     25000,
 			matchTo:       25001,
-			matchMode:     Forward,
+			matchMode:     ForwardMatch,
 			expireAtNanos: 30000,
 			result:        policy.DefaultPoliciesList,
 		},
@@ -111,7 +111,7 @@ func TestActiveRuleSetMappingPoliciesForNonRollupID(t *testing.T) {
 			id:            "mtagName1=mtagValue1",
 			matchFrom:     10000,
 			matchTo:       40000,
-			matchMode:     Forward,
+			matchMode:     ForwardMatch,
 			expireAtNanos: 100000,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
@@ -173,7 +173,7 @@ func TestActiveRuleSetMappingPoliciesForNonRollupID(t *testing.T) {
 			id:            "mtagName1=mtagValue2",
 			matchFrom:     10000,
 			matchTo:       40000,
-			matchMode:     Forward,
+			matchMode:     ForwardMatch,
 			expireAtNanos: 100000,
 			result: policy.PoliciesList{
 				policy.DefaultStagedPolicies,
@@ -211,7 +211,7 @@ func TestActiveRuleSetMappingPoliciesForRollupID(t *testing.T) {
 			id:            "rName4|rtagName1=rtagValue2",
 			matchFrom:     25000,
 			matchTo:       25001,
-			matchMode:     Reverse,
+			matchMode:     ReverseMatch,
 			expireAtNanos: 30000,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
@@ -227,7 +227,7 @@ func TestActiveRuleSetMappingPoliciesForRollupID(t *testing.T) {
 			id:            "rName4|rtagName2=rtagValue2",
 			matchFrom:     25000,
 			matchTo:       25001,
-			matchMode:     Reverse,
+			matchMode:     ReverseMatch,
 			expireAtNanos: 30000,
 			result:        nil,
 		},
@@ -235,7 +235,7 @@ func TestActiveRuleSetMappingPoliciesForRollupID(t *testing.T) {
 			id:            "rName4|rtagName1=rtagValue2",
 			matchFrom:     10000,
 			matchTo:       10001,
-			matchMode:     Reverse,
+			matchMode:     ReverseMatch,
 			expireAtNanos: 15000,
 			result:        nil,
 		},
@@ -243,7 +243,7 @@ func TestActiveRuleSetMappingPoliciesForRollupID(t *testing.T) {
 			id:            "rName3|rtagName1=rtagValue2",
 			matchFrom:     25000,
 			matchTo:       25001,
-			matchMode:     Reverse,
+			matchMode:     ReverseMatch,
 			expireAtNanos: 30000,
 			result:        nil,
 		},
@@ -273,7 +273,7 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 			id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
 			matchFrom:     25000,
 			matchTo:       25001,
-			matchMode:     Forward,
+			matchMode:     ForwardMatch,
 			expireAtNanos: 30000,
 			result: []RollupResult{
 				{
@@ -309,7 +309,7 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 			id:            "rtagName1=rtagValue2",
 			matchFrom:     25000,
 			matchTo:       25001,
-			matchMode:     Forward,
+			matchMode:     ForwardMatch,
 			expireAtNanos: 30000,
 			result: []RollupResult{
 				{
@@ -330,7 +330,7 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 			id:            "rtagName5=rtagValue5",
 			matchFrom:     25000,
 			matchTo:       25001,
-			matchMode:     Forward,
+			matchMode:     ForwardMatch,
 			expireAtNanos: 30000,
 			result:        []RollupResult{},
 		},
@@ -338,7 +338,7 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 			id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
 			matchFrom:     10000,
 			matchTo:       40000,
-			matchMode:     Forward,
+			matchMode:     ForwardMatch,
 			expireAtNanos: 100000,
 			result: []RollupResult{
 				{
@@ -498,7 +498,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue1",
 					matchFrom:     25000,
 					matchTo:       25001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: 30000,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -518,7 +518,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue1",
 					matchFrom:     35000,
 					matchTo:       35001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: 100000,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -536,7 +536,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue2",
 					matchFrom:     25000,
 					matchTo:       25001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: 30000,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -552,7 +552,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue3",
 					matchFrom:     25000,
 					matchTo:       25001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: 30000,
 					result:        policy.DefaultPoliciesList,
 				},
@@ -562,7 +562,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
 					matchFrom:     25000,
 					matchTo:       25001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: 30000,
 					result: []RollupResult{
 						{
@@ -598,7 +598,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName1=rtagValue2",
 					matchFrom:     25000,
 					matchTo:       25001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: 30000,
 					result: []RollupResult{
 						{
@@ -619,7 +619,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName5=rtagValue5",
 					matchFrom:     25000,
 					matchTo:       25001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: 30000,
 					result:        []RollupResult{},
 				},
@@ -632,7 +632,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue1",
 					matchFrom:     35000,
 					matchTo:       35001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: 100000,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -650,7 +650,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue2",
 					matchFrom:     35000,
 					matchTo:       35001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: 100000,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -666,7 +666,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue3",
 					matchFrom:     35000,
 					matchTo:       35001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: 100000,
 					result:        policy.DefaultPoliciesList,
 				},
@@ -676,7 +676,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
 					matchFrom:     35000,
 					matchTo:       35001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: 100000,
 					result: []RollupResult{
 						{
@@ -699,7 +699,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName1=rtagValue2",
 					matchFrom:     35000,
 					matchTo:       35001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: 100000,
 					result: []RollupResult{
 						{
@@ -720,7 +720,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName5=rtagValue5",
 					matchFrom:     35000,
 					matchTo:       35001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: 100000,
 					result:        []RollupResult{},
 				},
@@ -733,7 +733,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue1",
 					matchFrom:     250000,
 					matchTo:       250001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: timeNanosMax,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -751,7 +751,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue2",
 					matchFrom:     250000,
 					matchTo:       250001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: timeNanosMax,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -767,7 +767,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue3",
 					matchFrom:     250000,
 					matchTo:       250001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: timeNanosMax,
 					result:        policy.DefaultPoliciesList,
 				},
@@ -777,7 +777,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
 					matchFrom:     250000,
 					matchTo:       250001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: timeNanosMax,
 					result: []RollupResult{
 						{
@@ -812,7 +812,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName1=rtagValue2",
 					matchFrom:     250000,
 					matchTo:       250001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: timeNanosMax,
 					result: []RollupResult{
 						{
@@ -833,7 +833,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName5=rtagValue5",
 					matchFrom:     250000,
 					matchTo:       250001,
-					matchMode:     Forward,
+					matchMode:     ForwardMatch,
 					expireAtNanos: timeNanosMax,
 					result:        []RollupResult{},
 				},
