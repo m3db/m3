@@ -46,14 +46,14 @@ type MatchMode int
 
 // List of supported match modes.
 const (
-	// When performing matches in Forward mode, the matcher matches the given id against
+	// When performing matches in ForwardMatch mode, the matcher matches the given id against
 	// both the mapping rules and rollup rules to find out the applicable mapping policies
 	// and rollup policies.
-	Forward MatchMode = iota
+	ForwardMatch MatchMode = iota
 
-	// When performing matches in Reverse mode, the matcher find the applicable mapping
+	// When performing matches in ReverseMatch mode, the matcher find the applicable mapping
 	// policies for the given id.
-	Reverse
+	ReverseMatch
 )
 
 // Matcher matches metrics against rules to determine applicable policies.
@@ -113,7 +113,7 @@ func (as *activeRuleSet) MatchAll(
 	fromNanos, toNanos int64,
 	matchMode MatchMode,
 ) MatchResult {
-	if matchMode == Forward {
+	if matchMode == ForwardMatch {
 		return as.matchAllForward(id, fromNanos, toNanos)
 	}
 	return as.matchAllReverse(id, fromNanos, toNanos)
