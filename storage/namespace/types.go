@@ -20,7 +20,10 @@
 
 package namespace
 
-import "github.com/m3db/m3db/ts"
+import (
+	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/ts"
+)
 
 // Options controls namespace behavior
 type Options interface {
@@ -53,6 +56,12 @@ type Options interface {
 
 	// NeedsRepair returns whether the data for this namespace needs to be repaired
 	NeedsRepair() bool
+
+	// SetRetentionOptions sets the retention options for this namespace
+	SetRetentionOptions(value retention.Options) Options
+
+	// RetentionOptions returns the retention options for this namespace
+	RetentionOptions() retention.Options
 }
 
 // Metadata represents namespace metadata information
@@ -62,4 +71,11 @@ type Metadata interface {
 
 	// Options is the namespace options
 	Options() Options
+}
+
+// Registry is mapping from known namespaces' ID to their Metadata
+type Registry interface {
+
+	// Get gets the metadata for the provided namespace
+	Get(ts.ID) (Metadata, bool)
 }

@@ -20,6 +20,10 @@
 
 package namespace
 
+import (
+	"github.com/m3db/m3db/retention"
+)
+
 const (
 	// Namespace requires bootstrapping by default
 	defaultNeedsBootstrap = true
@@ -43,6 +47,7 @@ type options struct {
 	writesToCommitLog   bool
 	needsFilesetCleanup bool
 	needsRepair         bool
+	retentionOpts       retention.Options
 }
 
 // NewOptions creates a new namespace options
@@ -53,6 +58,7 @@ func NewOptions() Options {
 		writesToCommitLog:   defaultWritesToCommitLog,
 		needsFilesetCleanup: defaultNeedsFilesetCleanup,
 		needsRepair:         defaultNeedsRepair,
+		retentionOpts:       retention.NewOptions(),
 	}
 }
 
@@ -104,4 +110,14 @@ func (o *options) SetNeedsRepair(value bool) Options {
 
 func (o *options) NeedsRepair() bool {
 	return o.needsRepair
+}
+
+func (o *options) SetRetentionOptions(value retention.Options) Options {
+	opts := *o
+	opts.retentionOpts = value
+	return &opts
+}
+
+func (o *options) RetentionOptions() retention.Options {
+	return o.retentionOpts
 }
