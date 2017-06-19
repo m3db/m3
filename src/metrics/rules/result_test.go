@@ -31,7 +31,7 @@ import (
 )
 
 func TestMatchResultHasExpired(t *testing.T) {
-	r := NewMatchResult(1000, nil, nil)
+	r := NewMatchResult(0, 1000, nil, nil)
 	require.False(t, r.HasExpired(0))
 	require.True(t, r.HasExpired(1000))
 }
@@ -149,7 +149,7 @@ func TestMatchResult(t *testing.T) {
 		},
 	}
 
-	res := NewMatchResult(testExpireAtNanos, testResultMappings, testResultRollups)
+	res := NewMatchResult(0, testExpireAtNanos, testResultMappings, testResultRollups)
 	for _, input := range inputs {
 		require.Equal(t, input.expectedMappings, res.MappingsAt(input.matchAtNanos))
 		require.Equal(t, len(input.expectedRollups), res.NumRollups())

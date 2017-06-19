@@ -63,6 +63,7 @@ type Matcher interface {
 }
 
 type activeRuleSet struct {
+	version         int
 	mappingRules    []*mappingRule
 	rollupRules     []*rollupRule
 	cutoverTimesAsc []int64
@@ -72,6 +73,7 @@ type activeRuleSet struct {
 }
 
 func newActiveRuleSet(
+	version int,
 	mappingRules []*mappingRule,
 	rollupRules []*rollupRule,
 	tagFilterOpts filters.TagsFilterOptions,
@@ -97,6 +99,7 @@ func newActiveRuleSet(
 	sort.Sort(int64Asc(cutoverTimesAsc))
 
 	return &activeRuleSet{
+		version:         version,
 		mappingRules:    mappingRules,
 		rollupRules:     rollupRules,
 		cutoverTimesAsc: cutoverTimesAsc,
@@ -137,7 +140,7 @@ func (as *activeRuleSet) matchAllForward(id []byte, fromNanos, toNanos int64) Ma
 
 	// The result expires when it reaches the first cutover time after toNanos among all
 	// active rules because the metric may then be matched against a different set of rules.
-	return NewMatchResult(nextCutoverNanos, currMappingResults, currRollupResults)
+	return NewMatchResult(as.version, nextCutoverNanos, currMappingResults, currRollupResults)
 }
 
 func (as *activeRuleSet) matchAllReverse(id []byte, fromNanos, toNanos int64) MatchResult {
@@ -167,7 +170,7 @@ func (as *activeRuleSet) matchAllReverse(id []byte, fromNanos, toNanos int64) Ma
 
 	// The result expires when it reaches the first cutover time after toNanos among all
 	// active rules because the metric may then be matched against a different set of rules.
-	return NewMatchResult(nextCutoverNanos, currMappingResults, nil)
+	return NewMatchResult(as.version, nextCutoverNanos, currMappingResults, nil)
 }
 
 func (as *activeRuleSet) reverseMappingsFor(
@@ -489,6 +492,7 @@ func (rs *ruleSet) ActiveSet(t time.Time) Matcher {
 		rollupRules = append(rollupRules, activeRule)
 	}
 	return newActiveRuleSet(
+		rs.version,
 		mappingRules,
 		rollupRules,
 		rs.tagsFilterOpts,

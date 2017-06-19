@@ -23,12 +23,13 @@ package rules
 import (
 	"bytes"
 
+	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3metrics/policy"
 )
 
 var (
 	// EmptyMatchResult is the result when no matches were found.
-	EmptyMatchResult  = NewMatchResult(timeNanosMax, policy.DefaultPoliciesList, nil)
+	EmptyMatchResult  = NewMatchResult(kv.UninitializedVersion, timeNanosMax, policy.DefaultPoliciesList, nil)
 	emptyRollupResult RollupResult
 )
 
@@ -47,6 +48,7 @@ func (a RollupResultsByIDAsc) Less(i, j int) bool { return bytes.Compare(a[i].ID
 
 // MatchResult represents a match result.
 type MatchResult struct {
+	version       int
 	expireAtNanos int64
 	mappings      policy.PoliciesList
 	rollups       []RollupResult
@@ -54,16 +56,21 @@ type MatchResult struct {
 
 // NewMatchResult creates a new match result.
 func NewMatchResult(
+	version int,
 	expireAtNanos int64,
 	mappings policy.PoliciesList,
 	rollups []RollupResult,
 ) MatchResult {
 	return MatchResult{
+		version:       version,
 		expireAtNanos: expireAtNanos,
 		mappings:      mappings,
 		rollups:       rollups,
 	}
 }
+
+// Version returns the version of the match result.
+func (r *MatchResult) Version() int { return r.version }
 
 // HasExpired returns whether the match result has expired for a given time.
 func (r *MatchResult) HasExpired(timeNanos int64) bool { return r.expireAtNanos <= timeNanos }

@@ -190,6 +190,7 @@ func TestActiveRuleSetMappingPoliciesForNonRollupID(t *testing.T) {
 
 	mappingRules := testMappingRules(t)
 	as := newActiveRuleSet(
+		0,
 		mappingRules,
 		nil,
 		testTagsFilterOptions(),
@@ -251,6 +252,7 @@ func TestActiveRuleSetMappingPoliciesForRollupID(t *testing.T) {
 
 	rollupRules := testRollupRules(t)
 	as := newActiveRuleSet(
+		0,
 		nil,
 		rollupRules,
 		testTagsFilterOptions(),
@@ -432,6 +434,7 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 
 	rollupRules := testRollupRules(t)
 	as := newActiveRuleSet(
+		0,
 		nil,
 		rollupRules,
 		testTagsFilterOptions(),

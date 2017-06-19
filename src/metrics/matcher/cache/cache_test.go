@@ -92,7 +92,7 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateAll(t *testing.T) {
 	source := newMockSource()
 	input := []testValue{
 		{namespace: testValues[1].namespace, id: testValues[0].id, result: testValues[0].result},
-		{namespace: testValues[1].namespace, id: testValues[1].id, result: rules.NewMatchResult(now.Add(time.Second).UnixNano(), nil, nil)},
+		{namespace: testValues[1].namespace, id: testValues[1].id, result: rules.NewMatchResult(0, now.Add(time.Second).UnixNano(), nil, nil)},
 	}
 	populateCache(c, input, now, source, populateBoth)
 	require.Equal(t, 2, len(c.namespaces[testValues[1].nsHash()].elems))
@@ -104,7 +104,7 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateAll(t *testing.T) {
 		idHash     = testValues[1].idHash()
 		newVersion = 3
 	)
-	result := rules.NewMatchResult(math.MaxInt64, testMappingPoliciesList, testRollupResults)
+	result := rules.NewMatchResult(0, math.MaxInt64, testMappingPoliciesList, testRollupResults)
 	source.setVersion(newVersion)
 	source.setResult(id, result)
 
@@ -150,7 +150,7 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateAllNoEviction(t *testing.
 		idHash     = testValues[1].idHash()
 		newVersion = 3
 	)
-	result := rules.NewMatchResult(math.MaxInt64, testMappingPoliciesList, testRollupResults)
+	result := rules.NewMatchResult(0, math.MaxInt64, testMappingPoliciesList, testRollupResults)
 	source.setVersion(newVersion)
 	source.setResult(id, result)
 
@@ -195,7 +195,7 @@ func TestCacheMatchIDCachedInvalidSourceValidInvalidateOneNoEviction(t *testing.
 		idHash     = testValues[1].idHash()
 		newVersion = 3
 	)
-	result := rules.NewMatchResult(math.MaxInt64, testMappingPoliciesList, testRollupResults)
+	result := rules.NewMatchResult(0, math.MaxInt64, testMappingPoliciesList, testRollupResults)
 	source.setVersion(newVersion)
 	source.setResult(id, result)
 
@@ -239,7 +239,7 @@ func TestCacheMatchIDCachedInvalidSourceValidWithEviction(t *testing.T) {
 	populateCache(c, input, now, source, populateBoth)
 
 	newVersion := 3
-	newResult := rules.NewMatchResult(math.MaxInt64, testMappingPoliciesList, testRollupResults)
+	newResult := rules.NewMatchResult(0, math.MaxInt64, testMappingPoliciesList, testRollupResults)
 	source.setVersion(newVersion)
 	for _, id := range []string{"foo", "bar", "baz", "cat", "lol"} {
 		source.setResult([]byte(id), newResult)
@@ -337,7 +337,7 @@ func TestCacheMatchParallel(t *testing.T) {
 
 	newVersion := 3
 	nowNanos := time.Now().UnixNano()
-	newResult := rules.NewMatchResult(nowNanos, testMappingPoliciesList, testRollupResults)
+	newResult := rules.NewMatchResult(0, nowNanos, testMappingPoliciesList, testRollupResults)
 	source.setVersion(newVersion)
 	for _, id := range []string{"foo", "baz"} {
 		source.setResult([]byte(id), newResult)
