@@ -81,12 +81,12 @@ var (
 		},
 	}
 	testValidResults = []rules.MatchResult{
-		rules.NewMatchResult(math.MaxInt64, nil, nil),
-		rules.NewMatchResult(math.MaxInt64, testMappingPoliciesList, testRollupResults),
+		rules.NewMatchResult(0, math.MaxInt64, nil, nil),
+		rules.NewMatchResult(0, math.MaxInt64, testMappingPoliciesList, testRollupResults),
 	}
 	testExpiredResults = []rules.MatchResult{
-		rules.NewMatchResult(0, nil, nil),
-		rules.NewMatchResult(0, testMappingPoliciesList, testRollupResults),
+		rules.NewMatchResult(0, 0, nil, nil),
+		rules.NewMatchResult(0, 0, testMappingPoliciesList, testRollupResults),
 	}
 )
 
