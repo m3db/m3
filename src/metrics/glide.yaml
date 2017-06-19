@@ -5,6 +5,12 @@ import:
   subpackages:
   - pool
   - time
+- package: github.com/m3db/m3cluster
+  version: b596a86b06f37c9150ea352d6ec1549ed19f304b
+  subpackages:
+  - kv
+  - kv/mem
+  - kv/util/runtime
 - package: gopkg.in/vmihailenco/msgpack.v2
   version: a1382b1ce0c749733b814157c245e02cc1f41076
 - package: github.com/apache/thrift
@@ -60,3 +66,8 @@ testImport:
   version: d77da356e56a7428ad25149ca77381849a6a5232
   subpackages:
   - require
+- package: github.com/golang/mock
+  version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  subpackages:
+  - gomock
+  - mockgen
