@@ -98,7 +98,7 @@ func TestReporterReportCounterPartialError(t *testing.T) {
 	)
 	reporter := NewReporter(
 		&mockMatcher{
-			matchFn: func(id.ID) rules.MatchResult { return testMatchResult },
+			matchFn: func(id.ID, int64, int64) rules.MatchResult { return testMatchResult },
 		},
 		&mockServer{
 			writeCounterWithPoliciesListFn: func(id []byte, val int64, pl policy.PoliciesList) error {
@@ -127,7 +127,7 @@ func TestReporterReportBatchTimerPartialError(t *testing.T) {
 	)
 	reporter := NewReporter(
 		&mockMatcher{
-			matchFn: func(id.ID) rules.MatchResult { return testMatchResult },
+			matchFn: func(id.ID, int64, int64) rules.MatchResult { return testMatchResult },
 		},
 		&mockServer{
 			writeBatchTimerWithPoliciesListFn: func(id []byte, val []float64, pl policy.PoliciesList) error {
@@ -156,7 +156,7 @@ func TestReporterReportGaugePartialError(t *testing.T) {
 	)
 	reporter := NewReporter(
 		&mockMatcher{
-			matchFn: func(id.ID) rules.MatchResult { return testMatchResult },
+			matchFn: func(id.ID, int64, int64) rules.MatchResult { return testMatchResult },
 		},
 		&mockServer{
 			writeGaugeWithPoliciesListFn: func(id []byte, val float64, pl policy.PoliciesList) error {
@@ -200,14 +200,17 @@ type mockID []byte
 func (mid mockID) Bytes() []byte                          { return mid }
 func (mid mockID) TagValue(tagName []byte) ([]byte, bool) { return nil, false }
 
-type matchFn func(id id.ID) rules.MatchResult
+type matchFn func(id id.ID, fromNanos, toNanos int64) rules.MatchResult
 
 type mockMatcher struct {
 	matchFn matchFn
 }
 
-func (mm *mockMatcher) Match(id id.ID) rules.MatchResult { return mm.matchFn(id) }
-func (mm *mockMatcher) Close() error                     { return errors.New("error closing matcher") }
+func (mm *mockMatcher) Match(id id.ID, fromNanos, toNanos int64) rules.MatchResult {
+	return mm.matchFn(id, fromNanos, toNanos)
+}
+
+func (mm *mockMatcher) Close() error { return errors.New("error closing matcher") }
 
 type writeCounterWithPoliciesListFn func(id []byte, val int64, pl policy.PoliciesList) error
 type writeBatchTimerWithPoliciesListFn func(id []byte, val []float64, pl policy.PoliciesList) error
