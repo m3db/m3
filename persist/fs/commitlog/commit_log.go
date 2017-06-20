@@ -300,6 +300,7 @@ func (l *commitLog) openWriter(now time.Time) error {
 		l.writer = l.newCommitLogWriterFn(l.onFlush, l.opts)
 	}
 
+	// TODO(prateek): commit log writer is using it's blockSize as "duration". Does this need to be { Max(blockSize) for all known namespaces }
 	blockSize := l.opts.RetentionOptions().BlockSize()
 	start := now.Truncate(blockSize)
 
