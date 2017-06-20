@@ -98,7 +98,7 @@ func (s *commitLogSource) Read(
 		unmerged    = make(map[uint32]map[ts.Hash]encoderMap)
 		bopts       = s.opts.ResultOptions()
 		blopts      = bopts.DatabaseBlockOptions()
-		blockSize   = bopts.RetentionOptions().BlockSize()
+		blockSize   = bopts.RetentionOptions().BlockSize() // TODO(prateek): should this be namespace blockSize or commitlog blockSize
 		encoderPool = bopts.DatabaseBlockOptions().EncoderPool()
 		errs        = 0
 	)

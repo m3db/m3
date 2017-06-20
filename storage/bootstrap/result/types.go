@@ -103,6 +103,7 @@ type Options interface {
 	// InstrumentOptions returns the instrumentation options
 	InstrumentOptions() instrument.Options
 
+	// TODO(prateek): result doesn't seem to need retention, can we get rid of it.
 	// SetRetentionOptions sets the retention options
 	SetRetentionOptions(value retention.Options) Options
 
