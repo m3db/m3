@@ -62,7 +62,6 @@ func TestRegistryConfig(t *testing.T) {
 }
 
 func TestMetadataConfig(t *testing.T) {
-	// metadata configuration
 	var (
 		id                  = "someLongString"
 		needsBootstrap      = true

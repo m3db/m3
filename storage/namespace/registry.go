@@ -26,16 +26,26 @@ import (
 
 type registry struct {
 	namespaces map[ts.Hash]Metadata
+	ids        []ts.ID
+	metadatas  []Metadata
 }
 
 // NewRegistry returns a new registry containing provided metadatas
 func NewRegistry(metadatas []Metadata) Registry {
-	ns := make(map[ts.Hash]Metadata, len(metadatas))
+	var (
+		ns          = make(map[ts.Hash]Metadata, len(metadatas))
+		ids         = make([]ts.ID, 0, len(metadatas))
+		nsMetadatas = make([]Metadata, 0, len(metadatas))
+	)
 	for _, m := range metadatas {
+		ids = append(ids, m.ID())
+		nsMetadatas = append(nsMetadatas, m)
 		ns[m.ID().Hash()] = m
 	}
 	return &registry{
 		namespaces: ns,
+		ids:        ids,
+		metadatas:  nsMetadatas,
 	}
 }
 
@@ -43,4 +53,12 @@ func (r *registry) Get(namespace ts.ID) (Metadata, bool) {
 	idHash := namespace.Hash()
 	metadata, ok := r.namespaces[idHash]
 	return metadata, ok
+}
+
+func (r *registry) IDs() []ts.ID {
+	return r.ids
+}
+
+func (r *registry) Metadatas() []Metadata {
+	return r.metadatas
 }
