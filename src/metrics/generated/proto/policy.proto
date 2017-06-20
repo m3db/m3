@@ -43,8 +43,8 @@ message Policy {
 enum AggregationType {
   UNKNOWN = 0;
   LAST = 1;
-  LOWER = 2;
-  UPPER = 3;
+  MIN = 2;
+  MAX = 3;
   MEAN = 4;
   MEDIAN = 5;
   COUNT = 6;

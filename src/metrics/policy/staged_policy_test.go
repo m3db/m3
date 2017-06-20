@@ -62,10 +62,10 @@ func TestStagedPoliciesSamePoliciesDefaultPolicies(t *testing.T) {
 		{
 			sp: [2]StagedPolicies{
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Lower, Upper)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Min, Max)),
 				}),
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Upper, Lower)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Max, Min)),
 				}),
 			},
 			expected: true,
@@ -73,7 +73,7 @@ func TestStagedPoliciesSamePoliciesDefaultPolicies(t *testing.T) {
 		{
 			sp: [2]StagedPolicies{
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Upper)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Max)),
 				}),
 				NewStagedPolicies(0, false, []Policy{
 					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Last)),
@@ -84,10 +84,10 @@ func TestStagedPoliciesSamePoliciesDefaultPolicies(t *testing.T) {
 		{
 			sp: [2]StagedPolicies{
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Upper)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Max)),
 				}),
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Upper, Lower)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Max, Min)),
 				}),
 			},
 			expected: false,

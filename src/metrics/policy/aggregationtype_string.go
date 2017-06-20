@@ -4,9 +4,9 @@ package policy
 
 import "fmt"
 
-const _AggregationType_name = "UnknownLastLowerUpperMeanMedianCountSumSumSqStdevP10P20P30P40P50P60P70P80P90P95P99P999P9999"
+const _AggregationType_name = "UnknownLastMinMaxMeanMedianCountSumSumSqStdevP10P20P30P40P50P60P70P80P90P95P99P999P9999"
 
-var _AggregationType_index = [...]uint8{0, 7, 11, 16, 21, 25, 31, 36, 39, 44, 49, 52, 55, 58, 61, 64, 67, 70, 73, 76, 79, 82, 86, 91}
+var _AggregationType_index = [...]uint8{0, 7, 11, 14, 17, 21, 27, 32, 35, 40, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 82, 87}
 
 func (i AggregationType) String() string {
 	if i < 0 || i >= AggregationType(len(_AggregationType_index)-1) {

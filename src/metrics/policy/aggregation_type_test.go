@@ -47,8 +47,8 @@ func TestAggregationTypeUnmarshalYAML(t *testing.T) {
 		expectedErr bool
 	}{
 		{
-			str:      "Lower",
-			expected: Lower,
+			str:      "Min",
+			expected: Min,
 		},
 		{
 			str:         "Mean,",
@@ -76,7 +76,7 @@ func TestAggregationTypeUnmarshalYAML(t *testing.T) {
 func TestAggregationTypesIsDefault(t *testing.T) {
 	require.True(t, DefaultAggregationTypes.IsDefault())
 
-	require.False(t, AggregationTypes{Upper}.IsDefault())
+	require.False(t, AggregationTypes{Max}.IsDefault())
 }
 
 func TestAggregationTypesUnmarshalYAML(t *testing.T) {
@@ -86,19 +86,19 @@ func TestAggregationTypesUnmarshalYAML(t *testing.T) {
 		expectedErr bool
 	}{
 		{
-			str:      "Lower",
-			expected: AggregationTypes{Lower},
+			str:      "Min",
+			expected: AggregationTypes{Min},
 		},
 		{
-			str:      "Mean,Upper,P99,P9999",
-			expected: AggregationTypes{Mean, Upper, P99, P9999},
+			str:      "Mean,Max,P99,P9999",
+			expected: AggregationTypes{Mean, Max, P99, P9999},
 		},
 		{
-			str:         "Lower,Upper,P99,P9999,P100",
+			str:         "Min,Max,P99,P9999,P100",
 			expectedErr: true,
 		},
 		{
-			str:         "Lower,Upper,P99,P9999,P100",
+			str:         "Min,Max,P99,P9999,P100",
 			expectedErr: true,
 		},
 		{
@@ -134,12 +134,12 @@ func TestParseAggregationTypes(t *testing.T) {
 		expected AggregationTypes
 	}{
 		{
-			str:      "Lower",
-			expected: AggregationTypes{Lower},
+			str:      "Min",
+			expected: AggregationTypes{Min},
 		},
 		{
-			str:      "Lower,Upper",
-			expected: AggregationTypes{Lower, Upper},
+			str:      "Min,Max",
+			expected: AggregationTypes{Min, Max},
 		},
 	}
 	for _, input := range inputs {
@@ -203,9 +203,9 @@ func TestCompressedAggregationTypesMerge(t *testing.T) {
 		{DefaultAggregationID, DefaultAggregationID, DefaultAggregationID, false},
 		{mustCompress(Mean), DefaultAggregationID, mustCompress(Mean), false},
 		{DefaultAggregationID, mustCompress(Mean), mustCompress(Mean), true},
-		{mustCompress(Lower), mustCompress(Upper), mustCompress(Lower, Upper), true},
-		{mustCompress(Lower), mustCompress(Lower, Upper), mustCompress(Lower, Upper), true},
-		{mustCompress(Lower, Upper), mustCompress(Lower), mustCompress(Lower, Upper), false},
+		{mustCompress(Min), mustCompress(Max), mustCompress(Min, Max), true},
+		{mustCompress(Min), mustCompress(Min, Max), mustCompress(Min, Max), true},
+		{mustCompress(Min, Max), mustCompress(Min), mustCompress(Min, Max), false},
 	}
 
 	for _, test := range testcases {

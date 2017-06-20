@@ -36,9 +36,9 @@ import (
 
 var (
 	compressor                = policy.NewAggregationIDCompressor()
-	compressedUpper, _        = compressor.Compress(policy.AggregationTypes{policy.Upper})
+	compressedMax, _          = compressor.Compress(policy.AggregationTypes{policy.Max})
 	compressedCount, _        = compressor.Compress(policy.AggregationTypes{policy.Count})
-	compressedLower, _        = compressor.Compress(policy.AggregationTypes{policy.Lower})
+	compressedMin, _          = compressor.Compress(policy.AggregationTypes{policy.Min})
 	compressedMean, _         = compressor.Compress(policy.AggregationTypes{policy.Mean})
 	compressedP999, _         = compressor.Compress(policy.AggregationTypes{policy.P999})
 	compressedCountAndMean, _ = compressor.Compress(policy.AggregationTypes{policy.Count, policy.Mean})
@@ -508,9 +508,9 @@ func TestRuleSetActiveSet(t *testing.T) {
 							22000,
 							false,
 							[]policy.Policy{
-								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), compressedUpper),
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), compressedMax),
 								// the aggregation type came in from policy merging
-								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), compressedLower),
+								policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), compressedMin),
 								policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 								policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
 							},
@@ -1386,7 +1386,7 @@ func testMappingRulesConfig() []*schema.MappingRule {
 								},
 							},
 							AggregationTypes: []schema.AggregationType{
-								schema.AggregationType_LOWER,
+								schema.AggregationType_MIN,
 							},
 						},
 					},
@@ -1420,7 +1420,7 @@ func testMappingRulesConfig() []*schema.MappingRule {
 								},
 							},
 							AggregationTypes: []schema.AggregationType{
-								schema.AggregationType_UPPER,
+								schema.AggregationType_MAX,
 							},
 						},
 						&schema.Policy{
