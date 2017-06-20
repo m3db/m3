@@ -32,8 +32,8 @@ import (
 const (
 	Unknown AggregationType = iota
 	Last
-	Lower
-	Upper
+	Min
+	Max
 	Mean
 	Median
 	Count
@@ -84,8 +84,8 @@ var (
 	// ValidAggregationTypes is the list of all the valid aggregation types
 	ValidAggregationTypes = map[AggregationType]struct{}{
 		Last:   emptyStruct,
-		Lower:  emptyStruct,
-		Upper:  emptyStruct,
+		Min:    emptyStruct,
+		Max:    emptyStruct,
 		Mean:   emptyStruct,
 		Median: emptyStruct,
 		Count:  emptyStruct,
@@ -143,7 +143,7 @@ func (a AggregationType) IsValid() bool {
 // IsValidForGauge if an AggregationType is valid for Gauge.
 func (a AggregationType) IsValidForGauge() bool {
 	switch a {
-	case Last, Lower, Upper, Mean, Count, Sum, SumSq, Stdev:
+	case Last, Min, Max, Mean, Count, Sum, SumSq, Stdev:
 		return true
 	default:
 		return false
@@ -153,7 +153,7 @@ func (a AggregationType) IsValidForGauge() bool {
 // IsValidForCounter if an AggregationType is valid for Counter.
 func (a AggregationType) IsValidForCounter() bool {
 	switch a {
-	case Lower, Upper, Mean, Count, Sum, SumSq, Stdev:
+	case Min, Max, Mean, Count, Sum, SumSq, Stdev:
 		return true
 	default:
 		return false

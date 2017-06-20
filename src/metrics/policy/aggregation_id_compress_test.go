@@ -36,7 +36,7 @@ func TestAggregationIDCompressRoundTrip(t *testing.T) {
 	}{
 		{DefaultAggregationTypes, DefaultAggregationTypes, false},
 		{[]AggregationType{Unknown}, DefaultAggregationTypes, true},
-		{[]AggregationType{Lower, Upper}, []AggregationType{Lower, Upper}, false},
+		{[]AggregationType{Min, Max}, []AggregationType{Min, Max}, false},
 		{[]AggregationType{Last}, []AggregationType{Last}, false},
 		{[]AggregationType{P999, P9999}, []AggregationType{P999, P9999}, false},
 		{[]AggregationType{1, 5, 9, 3, 2}, []AggregationType{1, 2, 3, 5, 9}, false},
@@ -66,7 +66,7 @@ func TestAggregationIDDecompressError(t *testing.T) {
 	_, err := decompressor.Decompress([AggregationIDLen]uint64{1}) // aggregation type: Unknown.
 	require.Error(t, err)
 
-	max, err := compressor.Compress([]AggregationType{Last, Lower, Upper, Mean, Median, Count, Sum, SumSq, Stdev, P95, P99, P999, P9999})
+	max, err := compressor.Compress([]AggregationType{Last, Min, Max, Mean, Median, Count, Sum, SumSq, Stdev, P95, P99, P999, P9999})
 	require.NoError(t, err)
 
 	max[0] = max[0] << 1
