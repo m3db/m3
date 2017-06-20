@@ -30,21 +30,22 @@ import (
 
 func TestCounterDefaultAggregationType(t *testing.T) {
 	c := NewCounter(NewOptions())
+	require.False(t, c.HasExpensiveAggregations)
 	for i := 1; i <= 100; i++ {
 		c.Update(int64(i))
 	}
 	require.Equal(t, int64(5050), c.Sum())
-	require.Equal(t, float64(5050), c.ValueOf(policy.Sum))
-	require.Equal(t, float64(0), c.ValueOf(policy.Count))
-	require.Equal(t, float64(0), c.ValueOf(policy.Mean))
+	require.Equal(t, 5050.0, c.ValueOf(policy.Sum))
+	require.Equal(t, 100.0, c.ValueOf(policy.Count))
+	require.Equal(t, 50.5, c.ValueOf(policy.Mean))
 }
 
 func TestCounterCustomAggregationType(t *testing.T) {
 	opts := NewOptions()
-	opts.UseDefaultAggregation = false
 	opts.HasExpensiveAggregations = true
 
 	c := NewCounter(opts)
+	require.True(t, c.HasExpensiveAggregations)
 
 	for i := 1; i <= 100; i++ {
 		c.Update(int64(i))
@@ -53,9 +54,9 @@ func TestCounterCustomAggregationType(t *testing.T) {
 	for aggType := range policy.ValidAggregationTypes {
 		v := c.ValueOf(aggType)
 		switch aggType {
-		case policy.Lower:
+		case policy.Min:
 			require.Equal(t, float64(1), v)
-		case policy.Upper:
+		case policy.Max:
 			require.Equal(t, float64(100), v)
 		case policy.Mean:
 			require.Equal(t, 50.5, v)

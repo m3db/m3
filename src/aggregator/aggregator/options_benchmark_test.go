@@ -47,7 +47,7 @@ func BenchmarkSuffixFn(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		aggTypes := opts.DefaultTimerAggregationTypes()
 		for _, aggType := range aggTypes {
-			a = opts.Suffix(aggType)
+			a = opts.SuffixForTimer(aggType)
 		}
 	}
 	b.StopTimer()

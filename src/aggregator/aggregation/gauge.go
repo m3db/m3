@@ -55,9 +55,6 @@ func NewGauge(opts Options) Gauge {
 // Update updates the gauge value.
 func (g *Gauge) Update(value float64) {
 	g.last = value
-	if g.UseDefaultAggregation {
-		return
-	}
 
 	g.sum += value
 	g.count++
@@ -109,9 +106,9 @@ func (g *Gauge) ValueOf(aggType policy.AggregationType) float64 {
 	switch aggType {
 	case policy.Last:
 		return g.Last()
-	case policy.Lower:
+	case policy.Min:
 		return g.Min()
-	case policy.Upper:
+	case policy.Max:
 		return g.Max()
 	case policy.Mean:
 		return g.Mean()

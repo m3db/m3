@@ -40,10 +40,10 @@ import (
 var (
 	testPoliciesVersion = 2
 	compressor          = policy.NewAggregationIDCompressor()
-	compressedUpper, _  = compressor.Compress(policy.AggregationTypes{policy.Upper})
+	compressedMax, _    = compressor.Compress(policy.AggregationTypes{policy.Max})
 	testPolicies        = []policy.Policy{
 		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
-		policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), compressedUpper),
+		policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), compressedMax),
 		policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 30*24*time.Hour), policy.DefaultAggregationID),
 	}
 	testNewPolicies = []policy.Policy{
@@ -579,7 +579,7 @@ func TestEntryAddMetricWithPoliciesListWithPolicyUpdateIDOwnsID(t *testing.T) {
 
 func TestEntryAddMetricWithPoliciesListWithInvalidAggregationType(t *testing.T) {
 	compressor := policy.NewAggregationIDCompressor()
-	compressedMin, err := compressor.Compress(policy.AggregationTypes{policy.Lower})
+	compressedMin, err := compressor.Compress(policy.AggregationTypes{policy.Min})
 	require.NoError(t, err)
 	compressedLast, err := compressor.Compress(policy.AggregationTypes{policy.Last})
 	require.NoError(t, err)

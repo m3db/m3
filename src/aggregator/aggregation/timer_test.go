@@ -37,8 +37,8 @@ var (
 		policy.Sum,
 		policy.SumSq,
 		policy.Mean,
-		policy.Lower,
-		policy.Upper,
+		policy.Min,
+		policy.Max,
 		policy.Count,
 		policy.Stdev,
 		policy.Median,
@@ -75,7 +75,8 @@ func TestTimerAggregations(t *testing.T) {
 
 	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
 
-	// Assert the state of an empty timer
+	// Assert the state of an empty timer.
+	require.True(t, timer.HasExpensiveAggregations)
 	require.Equal(t, int64(0), timer.Count())
 	require.Equal(t, 0.0, timer.Sum())
 	require.Equal(t, 0.0, timer.SumSq())
@@ -87,12 +88,12 @@ func TestTimerAggregations(t *testing.T) {
 	require.Equal(t, 0.0, timer.Quantile(0.95))
 	require.Equal(t, 0.0, timer.Quantile(0.99))
 
-	// Add values
+	// Add values.
 	for i := 1; i <= 100; i++ {
 		timer.Add(float64(i))
 	}
 
-	// Validate the timer values match expectations
+	// Validate the timer values match expectations.
 	require.Equal(t, int64(100), timer.Count())
 	require.Equal(t, 5050.0, timer.Sum())
 	require.Equal(t, 338350.0, timer.SumSq())
@@ -109,9 +110,9 @@ func TestTimerAggregations(t *testing.T) {
 		switch aggType {
 		case policy.Last:
 			require.Equal(t, 0.0, v)
-		case policy.Lower:
+		case policy.Min:
 			require.Equal(t, 1.0, v)
-		case policy.Upper:
+		case policy.Max:
 			require.Equal(t, 100.0, v)
 		case policy.Mean:
 			require.Equal(t, 50.5, v)
@@ -133,10 +134,38 @@ func TestTimerAggregations(t *testing.T) {
 			require.True(t, v >= 99 && v <= 100)
 		}
 	}
-	// Closing the timer should close the underlying stream
+	// Closing the timer should close the underlying stream.
 	timer.Close()
 	require.Equal(t, 0.0, timer.stream.Quantile(0.5))
 
-	// Closing the timer a second time should be a no op
+	// Closing the timer a second time should be a no op.
+	timer.Close()
+}
+
+func TestTimerAggregationsNotExpensive(t *testing.T) {
+	opts := NewOptions()
+	opts.ResetSetData(policy.AggregationTypes{policy.Sum})
+
+	timer := NewTimer(testQuantiles, cm.NewOptions(), opts)
+
+	// Assert the state of an empty timer.
+	require.False(t, timer.HasExpensiveAggregations)
+
+	// Add values.
+	for i := 1; i <= 100; i++ {
+		timer.Add(float64(i))
+	}
+
+	// All Non expensive calculations should be performed.
+	require.Equal(t, int64(100), timer.Count())
+	require.Equal(t, 5050.0, timer.Sum())
+	require.Equal(t, 1.0, timer.Min())
+	require.Equal(t, 100.0, timer.Max())
+	require.Equal(t, 50.5, timer.Mean())
+
+	// Expensive calculations are not performed.
+	require.Equal(t, 0.0, timer.SumSq())
+
+	// Closing the timer a second time should be a no op.
 	timer.Close()
 }

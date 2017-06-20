@@ -129,6 +129,24 @@ type Handler interface {
 type Options interface {
 	/// Read-write base options
 
+	// SetDefaultCounterAggregationTypes sets the counter aggregation types.
+	SetDefaultCounterAggregationTypes(value policy.AggregationTypes) Options
+
+	// DefaultCounterAggregationTypes returns the aggregation types for counters.
+	DefaultCounterAggregationTypes() policy.AggregationTypes
+
+	// SetDefaultTimerAggregationTypes sets the timer aggregation types.
+	SetDefaultTimerAggregationTypes(value policy.AggregationTypes) Options
+
+	// DefaultTimerAggregationTypes returns the aggregation types for timers.
+	DefaultTimerAggregationTypes() policy.AggregationTypes
+
+	// SetDefaultGaugeAggregationTypes sets the gauge aggregation types.
+	SetDefaultGaugeAggregationTypes(value policy.AggregationTypes) Options
+
+	// DefaultGaugeAggregationTypes returns the aggregation types for gauges.
+	DefaultGaugeAggregationTypes() policy.AggregationTypes
+
 	// SetMetricPrefix sets the common prefix for all metric types
 	SetMetricPrefix(value []byte) Options
 
@@ -147,23 +165,29 @@ type Options interface {
 	// TimerPrefix returns the prefix for timers
 	TimerPrefix() []byte
 
+	// SetGaugePrefix sets the prefix for gauges
+	SetGaugePrefix(value []byte) Options
+
+	// GaugePrefix returns the prefix for gauges
+	GaugePrefix() []byte
+
 	// SetAggregationLastSuffix sets the suffix for aggregation type last.
 	SetAggregationLastSuffix(value []byte) Options
 
 	// AggregationLastSuffix returns the suffix for aggregation type last.
 	AggregationLastSuffix() []byte
 
-	// SetAggregationLowerSuffix sets the suffix for aggregation type lower.
-	SetAggregationLowerSuffix(value []byte) Options
+	// SetAggregationMinSuffix sets the suffix for aggregation type min.
+	SetAggregationMinSuffix(value []byte) Options
 
-	// AggregationLowerSuffix returns the suffix for aggregation type lower.
-	AggregationLowerSuffix() []byte
+	// AggregationMinSuffix returns the suffix for aggregation type min.
+	AggregationMinSuffix() []byte
 
-	// SetAggregationUpperSuffix sets the suffix for aggregation type upper.
-	SetAggregationUpperSuffix(value []byte) Options
+	// SetAggregationMaxSuffix sets the suffix for aggregation type max.
+	SetAggregationMaxSuffix(value []byte) Options
 
-	// AggregationUpperSuffix returns the suffix for aggregation type upper.
-	AggregationUpperSuffix() []byte
+	// AggregationMaxSuffix returns the suffix for aggregation type max.
+	AggregationMaxSuffix() []byte
 
 	// SetAggregationMeanSuffix sets the suffix for aggregation type mean.
 	SetAggregationMeanSuffix(value []byte) Options
@@ -201,23 +225,11 @@ type Options interface {
 	// AggregationStdevSuffix returns the suffix for aggregation type standard deviation.
 	AggregationStdevSuffix() []byte
 
-	// SetDefaultTimerAggregationTypes sets the timer aggregation types.
-	SetDefaultTimerAggregationTypes(aggTypes policy.AggregationTypes) Options
-
-	// DefaultTimerAggregationTypes returns the aggregation types for timers.
-	DefaultTimerAggregationTypes() policy.AggregationTypes
-
 	// SetTimerQuantileSuffixFn sets the quantile suffix function for timers.
 	SetTimerQuantileSuffixFn(value QuantileSuffixFn) Options
 
 	// TimerQuantileSuffixFn returns the quantile suffix function for timers.
 	TimerQuantileSuffixFn() QuantileSuffixFn
-
-	// SetGaugePrefix sets the prefix for gauges
-	SetGaugePrefix(value []byte) Options
-
-	// GaugePrefix returns the prefix for gauges
-	GaugePrefix() []byte
 
 	// SetTimeLock sets the time lock
 	SetTimeLock(value *sync.RWMutex) Options
@@ -357,7 +369,18 @@ type Options interface {
 	// QuantilesPool returns the timer quantiles pool.
 	QuantilesPool() pool.FloatsPool
 
-	/// Read-only derived options
+	/// Write-only options.
+
+	// SetCounterSuffixOverride sets the overrides for counter suffixes.
+	SetCounterSuffixOverride(m map[policy.AggregationType][]byte) Options
+
+	// SetTimerSuffixOverride sets the overrides for timer suffixes.
+	SetTimerSuffixOverride(m map[policy.AggregationType][]byte) Options
+
+	// SetGaugeSuffixOverride sets the overrides for gauge suffixes.
+	SetGaugeSuffixOverride(m map[policy.AggregationType][]byte) Options
+
+	/// Read-only derived options.
 
 	// FullCounterPrefix returns the full prefix for counters
 	FullCounterPrefix() []byte
@@ -371,10 +394,24 @@ type Options interface {
 	// TimerQuantiles returns the quantiles for timers.
 	TimerQuantiles() []float64
 
+	// DefaultCounterAggregationSuffixes returns the suffix for
+	// default counter aggregation types.
+	DefaultCounterAggregationSuffixes() [][]byte
+
 	// DefaultTimerAggregationSuffixes returns the suffix for
 	// default timer aggregation types.
 	DefaultTimerAggregationSuffixes() [][]byte
 
-	// Suffix returns the suffix for the aggregation type
-	Suffix(aggType policy.AggregationType) []byte
+	// DefaultGaugeAggregationSuffixes returns the suffix for
+	// default gauge aggregation types.
+	DefaultGaugeAggregationSuffixes() [][]byte
+
+	// Suffix returns the suffix for the aggregation type for counters.
+	SuffixForCounter(value policy.AggregationType) []byte
+
+	// Suffix returns the suffix for the aggregation type for timers.
+	SuffixForTimer(value policy.AggregationType) []byte
+
+	// Suffix returns the suffix for the aggregation type for gauges.
+	SuffixForGauge(value policy.AggregationType) []byte
 }

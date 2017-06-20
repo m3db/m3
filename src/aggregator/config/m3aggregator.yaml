@@ -61,18 +61,29 @@ http:
   writeTimeout: 45s
 
 aggregator:
+  counterAggregationTypes: 
+    - Sum
   timerAggregationTypes: 
-  - Sum
-  - SumSq
-  - Mean
-  - Lower
-  - Upper
-  - Count
-  - Stdev
-  - Median
-  - P50
-  - P95
-  - P99
+    - Sum
+    - SumSq
+    - Mean
+    - Min
+    - Max
+    - Count
+    - Stdev
+    - Median
+    - P50
+    - P95
+    - P99
+  gaugeAggregationTypes: 
+    - Last
+  counterSuffixOverride:
+    Sum: ""
+  timerSuffixOverride:
+    Min: ".lower"
+    Max: ".upper"
+  gaugeSuffixOverride:
+    Last: ""
   stream:
     eps: 0.001
     capacity: 32

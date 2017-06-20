@@ -30,18 +30,14 @@ import (
 
 func TestOptions(t *testing.T) {
 	o := NewOptions()
-	require.True(t, o.UseDefaultAggregation)
 	require.False(t, o.HasExpensiveAggregations)
 
 	o.ResetSetData(nil)
-	require.True(t, o.UseDefaultAggregation)
 	require.False(t, o.HasExpensiveAggregations)
 
 	o.ResetSetData(policy.AggregationTypes{policy.Sum})
-	require.False(t, o.UseDefaultAggregation)
 	require.False(t, o.HasExpensiveAggregations)
 
 	o.ResetSetData(policy.AggregationTypes{policy.Sum, policy.SumSq})
-	require.False(t, o.UseDefaultAggregation)
 	require.True(t, o.HasExpensiveAggregations)
 }

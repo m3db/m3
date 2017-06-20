@@ -112,9 +112,9 @@ func (t *Timer) ValueOf(aggType policy.AggregationType) float64 {
 	}
 
 	switch aggType {
-	case policy.Lower:
+	case policy.Min:
 		return t.Min()
-	case policy.Upper:
+	case policy.Max:
 		return t.Max()
 	case policy.Mean:
 		return t.Mean()
