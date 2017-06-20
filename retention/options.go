@@ -37,9 +37,6 @@ const (
 	// defaultBufferPast is the default buffer past limit
 	defaultBufferPast = 10 * time.Minute
 
-	// defaultBufferDrain is the default buffer drain
-	defaultBufferDrain = 2 * time.Minute
-
 	// defaultDataExpiry is the default bool for whether data expiry is on
 	defaultDataExpiry = true
 
@@ -64,7 +61,6 @@ func NewOptions() Options {
 		blockSize:                        defaultBlockSize,
 		bufferFuture:                     defaultBufferFuture,
 		bufferPast:                       defaultBufferPast,
-		bufferDrain:                      defaultBufferDrain,
 		dataExpiry:                       defaultDataExpiry,
 		dataExpiryAfterNotAccessedPeriod: defaultDataExpiryAfterNotAccessedPeriod,
 	}
@@ -108,16 +104,6 @@ func (o *options) SetBufferPast(value time.Duration) Options {
 
 func (o *options) BufferPast() time.Duration {
 	return o.bufferPast
-}
-
-func (o *options) SetBufferDrain(value time.Duration) Options {
-	opts := *o
-	opts.bufferDrain = value
-	return &opts
-}
-
-func (o *options) BufferDrain() time.Duration {
-	return o.bufferDrain
 }
 
 func (o *options) SetBlockDataExpiry(value bool) Options {

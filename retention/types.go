@@ -50,12 +50,6 @@ type Options interface {
 	// BufferPast returns the bufferPast
 	BufferPast() time.Duration
 
-	// SetBufferDrain sets the bufferDrain
-	SetBufferDrain(value time.Duration) Options
-
-	// BufferDrain returns the bufferDrain
-	BufferDrain() time.Duration
-
 	// SetBlockDataExpiry sets the block data expiry mode
 	SetBlockDataExpiry(on bool) Options
 
