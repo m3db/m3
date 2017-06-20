@@ -33,7 +33,6 @@ func TestConfigurationAssignment(t *testing.T) {
 		blockSize                             = 2 * time.Hour
 		bufferFuture                          = 3 * time.Hour
 		bufferPast                            = 4 * time.Hour
-		bufferDrain                           = 5 * time.Hour
 		blockDataExpiry                       = true
 		blockDataExpiryAfterNotAccessedPeriod = 6 * time.Hour
 		config                                = &Configuration{
@@ -41,7 +40,6 @@ func TestConfigurationAssignment(t *testing.T) {
 			BlockSize:                             &blockSize,
 			BufferFuture:                          &bufferFuture,
 			BufferPast:                            &bufferPast,
-			BufferDrain:                           &bufferDrain,
 			BlockDataExpiry:                       &blockDataExpiry,
 			BlockDataExpiryAfterNotAccessedPeriod: &blockDataExpiryAfterNotAccessedPeriod,
 		}
@@ -52,7 +50,6 @@ func TestConfigurationAssignment(t *testing.T) {
 	require.Equal(t, blockSize, opts.BlockSize())
 	require.Equal(t, bufferFuture, opts.BufferFuture())
 	require.Equal(t, bufferPast, opts.BufferPast())
-	require.Equal(t, bufferDrain, opts.BufferDrain())
 	require.Equal(t, blockDataExpiry, opts.BlockDataExpiry())
 	require.Equal(t, blockDataExpiryAfterNotAccessedPeriod, opts.BlockDataExpiryAfterNotAccessedPeriod())
 }

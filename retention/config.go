@@ -26,13 +26,12 @@ import (
 
 // Configuration is the set of knobs to configure retention options
 type Configuration struct {
-	RetentionPeriod                       *time.Duration
-	BlockSize                             *time.Duration
-	BufferFuture                          *time.Duration
-	BufferPast                            *time.Duration
-	BufferDrain                           *time.Duration
-	BlockDataExpiry                       *bool
-	BlockDataExpiryAfterNotAccessedPeriod *time.Duration
+	RetentionPeriod                       *time.Duration `yaml:"retentionPeriod"`
+	BlockSize                             *time.Duration `yaml:"blockSize"`
+	BufferFuture                          *time.Duration `yaml:"bufferFuture"`
+	BufferPast                            *time.Duration `yaml:"bufferPast"`
+	BlockDataExpiry                       *bool          `yaml:"blockDataExpiry"`
+	BlockDataExpiryAfterNotAccessedPeriod *time.Duration `yaml:"blockDataExpiryAfterNotAccessedPeriod"`
 }
 
 // Options returns `Options` corresponding to the provided struct values
@@ -49,9 +48,6 @@ func (c *Configuration) Options() Options {
 	}
 	if v := c.BufferPast; v != nil {
 		opts = opts.SetBufferPast(*v)
-	}
-	if v := c.BufferDrain; v != nil {
-		opts = opts.SetBufferDrain(*v)
 	}
 	if v := c.BlockDataExpiry; v != nil {
 		opts = opts.SetBlockDataExpiry(*v)
