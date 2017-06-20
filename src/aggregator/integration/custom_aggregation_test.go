@@ -34,15 +34,15 @@ import (
 
 var (
 	compressor                             = policy.NewAggregationIDCompressor()
-	compressedLower, _                     = compressor.Compress(policy.AggregationTypes{policy.Lower})
-	compressedLowerAndUpper, _             = compressor.Compress(policy.AggregationTypes{policy.Lower, policy.Upper})
+	compressedMin, _                       = compressor.Compress(policy.AggregationTypes{policy.Min})
+	compressedMinAndMax, _                 = compressor.Compress(policy.AggregationTypes{policy.Min, policy.Max})
 	testPoliciesListWithCustomAggregation1 = policy.PoliciesList{
 		policy.NewStagedPolicies(
 			0,
 			false,
 			[]policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), compressedLower),
-				policy.NewPolicy(policy.NewStoragePolicy(2*time.Second, xtime.Second, 6*time.Hour), compressedLower),
+				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), compressedMin),
+				policy.NewPolicy(policy.NewStoragePolicy(2*time.Second, xtime.Second, 6*time.Hour), compressedMin),
 			},
 		),
 	}
@@ -52,8 +52,8 @@ var (
 			0,
 			false,
 			[]policy.Policy{
-				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), compressedLowerAndUpper),
-				policy.NewPolicy(policy.NewStoragePolicy(3*time.Second, xtime.Second, 24*time.Hour), compressedLowerAndUpper),
+				policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), compressedMinAndMax),
+				policy.NewPolicy(policy.NewStoragePolicy(3*time.Second, xtime.Second, 24*time.Hour), compressedMinAndMax),
 			},
 		),
 	}

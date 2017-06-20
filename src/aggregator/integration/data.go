@@ -66,8 +66,8 @@ var (
 		policy.Sum,
 		policy.SumSq,
 		policy.Mean,
-		policy.Lower,
-		policy.Upper,
+		policy.Min,
+		policy.Max,
 		policy.Count,
 		policy.Stdev,
 		policy.Median,
@@ -256,7 +256,9 @@ func toExpectedResults(
 				if !exists {
 					switch mu.Type {
 					case unaggregated.CounterType:
-						// TODO(cw) Get default aggregation types for Counter.
+						if aggTypes.IsDefault() {
+							aggTypes = opts.DefaultCounterAggregationTypes()
+						}
 						aggregationOpts.ResetSetData(aggTypes)
 						values = aggregation.NewCounter(aggregationOpts)
 					case unaggregated.BatchTimerType:
@@ -266,7 +268,9 @@ func toExpectedResults(
 						aggregationOpts.ResetSetData(aggTypes)
 						values = aggregation.NewTimer(opts.TimerQuantiles(), opts.StreamOptions(), aggregationOpts)
 					case unaggregated.GaugeType:
-						// TODO(cw) Get default aggregation types for Gauge.
+						if aggTypes.IsDefault() {
+							aggTypes = opts.DefaultGaugeAggregationTypes()
+						}
 						aggregationOpts.ResetSetData(aggTypes)
 						values = aggregation.NewGauge(aggregationOpts)
 					default:
@@ -342,12 +346,11 @@ func toAggregatedMetrics(
 	case aggregation.Counter:
 		var fullCounterPrefix = opts.FullCounterPrefix()
 		if aggTypes.IsDefault() {
-			fn(fullCounterPrefix, id, nil, timeNanos, float64(values.Sum()), sp)
-			break
+			aggTypes = opts.DefaultCounterAggregationTypes()
 		}
 
 		for _, aggType := range aggTypes {
-			fn(fullCounterPrefix, id, opts.Suffix(aggType), timeNanos, values.ValueOf(aggType), sp)
+			fn(fullCounterPrefix, id, opts.SuffixForCounter(aggType), timeNanos, values.ValueOf(aggType), sp)
 		}
 	case aggregation.Timer:
 		var fullTimerPrefix = opts.FullTimerPrefix()
@@ -356,17 +359,16 @@ func toAggregatedMetrics(
 		}
 
 		for _, aggType := range aggTypes {
-			fn(fullTimerPrefix, id, opts.Suffix(aggType), timeNanos, values.ValueOf(aggType), sp)
+			fn(fullTimerPrefix, id, opts.SuffixForTimer(aggType), timeNanos, values.ValueOf(aggType), sp)
 		}
 	case aggregation.Gauge:
 		var fullGaugePrefix = opts.FullGaugePrefix()
 		if aggTypes.IsDefault() {
-			fn(fullGaugePrefix, id, nil, timeNanos, values.Last(), sp)
-			break
+			aggTypes = opts.DefaultGaugeAggregationTypes()
 		}
 
 		for _, aggType := range aggTypes {
-			fn(fullGaugePrefix, id, opts.Suffix(aggType), timeNanos, values.ValueOf(aggType), sp)
+			fn(fullGaugePrefix, id, opts.SuffixForGauge(aggType), timeNanos, values.ValueOf(aggType), sp)
 		}
 	default:
 		require.Fail(t, fmt.Sprintf("unrecognized aggregation type %T", values))

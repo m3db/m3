@@ -50,9 +50,6 @@ func NewCounter(opts Options) Counter {
 // Update updates the counter value.
 func (c *Counter) Update(value int64) {
 	c.sum += value
-	if c.UseDefaultAggregation {
-		return
-	}
 
 	c.count++
 	if c.max < value {
@@ -98,9 +95,9 @@ func (c *Counter) Max() int64 { return c.max }
 // ValueOf returns the value for the aggregation type.
 func (c *Counter) ValueOf(aggType policy.AggregationType) float64 {
 	switch aggType {
-	case policy.Lower:
+	case policy.Min:
 		return float64(c.Min())
-	case policy.Upper:
+	case policy.Max:
 		return float64(c.Max())
 	case policy.Mean:
 		return c.Mean()

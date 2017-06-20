@@ -23,15 +23,11 @@ package aggregation
 import "github.com/m3db/m3metrics/policy"
 
 var (
-	defaultOptions = Options{UseDefaultAggregation: true, HasExpensiveAggregations: false}
+	defaultOptions Options
 )
 
 // Options is the options for aggregations.
 type Options struct {
-	// UseDefaultAggregation means only default aggregation types are enabled.
-	// TODO(cw) Remove this once we start to support default aggregation types
-	// for Counter ang Gauge.
-	UseDefaultAggregation bool
 	// HasExpensiveAggregations means expensive (multiplication／division)
 	// aggregation types are enabled.
 	HasExpensiveAggregations bool
@@ -44,6 +40,5 @@ func NewOptions() Options {
 
 // ResetSetData resets the aggregation options.
 func (o *Options) ResetSetData(aggTypes policy.AggregationTypes) {
-	o.UseDefaultAggregation = aggTypes.IsDefault()
 	o.HasExpensiveAggregations = isExpensive(aggTypes)
 }
