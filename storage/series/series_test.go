@@ -67,7 +67,6 @@ func newSeriesTestOptions() Options {
 			SetBlockSize(2 * time.Minute).
 			SetBufferFuture(10 * time.Second).
 			SetBufferPast(10 * time.Second).
-			SetBufferDrain(30 * time.Second).
 			SetRetentionPeriod(time.Hour)).
 		SetDatabaseBlockOptions(opts.
 			DatabaseBlockOptions().

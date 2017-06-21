@@ -137,7 +137,11 @@ func newTestDatabase(t *testing.T, bs bootstrapState) *db {
 		SetRepairTimeJitter(time.Duration(0)).
 		SetRepairCheckInterval(time.Duration(0)))
 
-	database, err := NewDatabase(nil, opts)
+	shards := sharding.NewShards([]uint32{0, 1}, shard.Available)
+	shardSet, err := sharding.NewShardSet(shards, nil)
+	require.NoError(t, err)
+
+	database, err := NewDatabase(shardSet, opts)
 	require.NoError(t, err)
 	d := database.(*db)
 	m := d.mediator.(*mediator)
@@ -214,7 +218,7 @@ func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {
 	d := newTestDatabase(t, bootstrapped)
 	now := time.Now()
 	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
-	res, err := d.FetchBlocks(ctx, ts.StringID("testns1"), 0, ts.StringID("foo"), starts)
+	res, err := d.FetchBlocks(ctx, ts.StringID("non-existent-ns"), 0, ts.StringID("foo"), starts)
 	require.Nil(t, res)
 	require.True(t, xerrors.IsInvalidParams(err))
 }

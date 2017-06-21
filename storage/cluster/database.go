@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
-	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	xlog "github.com/m3db/m3x/log"
 
@@ -46,7 +45,6 @@ var (
 )
 
 type newStorageDatabaseFn func(
-	namespaces []namespace.Metadata,
 	shardSet sharding.ShardSet,
 	opts storage.Options,
 ) (storage.Database, error)
@@ -85,7 +83,6 @@ type clusterDB struct {
 
 // NewDatabase creates a new clustered time series database
 func NewDatabase(
-	namespaces []namespace.Metadata,
 	hostID string,
 	topoInit topology.Initializer,
 	opts storage.Options,
@@ -117,7 +114,7 @@ func NewDatabase(
 	}
 
 	shardSet := d.hostOrEmptyShardSet(watch.Get())
-	db, err := newStorageDatabase(namespaces, shardSet, opts)
+	db, err := newStorageDatabase(shardSet, opts)
 	if err != nil {
 		return nil, err
 	}

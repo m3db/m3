@@ -59,8 +59,7 @@ func newBufferTestOptions() Options {
 		SetRetentionOptions(opts.RetentionOptions().
 			SetBlockSize(2 * time.Minute).
 			SetBufferFuture(10 * time.Second).
-			SetBufferPast(10 * time.Second).
-			SetBufferDrain(30 * time.Second)).
+			SetBufferPast(10 * time.Second)).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions().
 			SetContextPool(opts.ContextPool()).
 			SetEncoderPool(opts.EncoderPool()))

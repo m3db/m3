@@ -25,6 +25,8 @@ import (
 	"testing"
 
 	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
@@ -32,7 +34,6 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/watch"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -51,7 +52,6 @@ func mockNewStorageDatabase(
 		mock = storage.NewMockDatabase(ctrl)
 	}
 	restore := setNewStorageDatabase(func(
-		namespaces []namespace.Metadata,
 		shardSet sharding.ShardSet,
 		opts storage.Options,
 	) (storage.Database, error) {
