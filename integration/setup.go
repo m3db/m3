@@ -177,7 +177,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	var lock sync.RWMutex
-	now := time.Now().Truncate(truncateSize) // TODO(prateek):can this be removed -> .Truncate(storageOpts.RetentionOptions().BlockSize())
+	now := time.Now().Truncate(truncateSize)
 	getNowFn := func() time.Time {
 		lock.RLock()
 		t := now
