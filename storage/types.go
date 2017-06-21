@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
@@ -129,6 +130,9 @@ type database interface {
 
 // Namespace is a time series database namespace
 type Namespace interface {
+	// Options returns the namespace options
+	Options() namespace.Options
+
 	// ID returns the ID of the namespace
 	ID() ts.ID
 
@@ -309,12 +313,6 @@ type databaseFlushManager interface {
 	// NeedsFlush returns true if the data for a given time have been flushed.
 	NeedsFlush(t time.Time) bool
 
-	// FlushTimeStart is the earliest flushable time.
-	FlushTimeStart(t time.Time) time.Time
-
-	// FlushTimeEnd is the latest flushable time.
-	FlushTimeEnd(t time.Time) time.Time
-
 	// Flush flushes in-memory data to persistent storage.
 	Flush(t time.Time) error
 
@@ -459,11 +457,11 @@ type Options interface {
 	// InstrumentOptions returns the instrumentation options
 	InstrumentOptions() instrument.Options
 
-	// SetRetentionOptions sets the retention options
-	SetRetentionOptions(value retention.Options) Options
+	// SetRegistry sets the namespace registry
+	SetRegistry(value namespace.Registry) Options
 
-	// RetentionOptions returns the retention options
-	RetentionOptions() retention.Options
+	// Registry returns the namespace registry
+	Registry() namespace.Registry
 
 	// SetDatabaseBlockOptions sets the database block options
 	SetDatabaseBlockOptions(value block.Options) Options
@@ -530,6 +528,12 @@ type Options interface {
 
 	// PersistManager returns the persistence manager
 	PersistManager() persist.Manager
+
+	// SetTickFrequency sets the frequency of ticking
+	SetTickFrequency(value time.Duration) Options
+
+	// TickFrequency returns the frequency of ticking
+	TickFrequency() time.Duration
 
 	// SetMaxFlushRetries sets the maximum number of retries when data flushing fails
 	SetMaxFlushRetries(value int) Options
