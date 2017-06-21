@@ -43,31 +43,33 @@ func TestNewRollupID(t *testing.T) {
 
 func TestIsRollupIDNilIterator(t *testing.T) {
 	inputs := []struct {
-		id       []byte
+		name     []byte
+		tags     []byte
 		expected bool
 	}{
-		{id: []byte("m3+foo+a1=b1,m3_rollup=true,a2=b2"), expected: true},
-		{id: []byte("foo.bar.baz"), expected: false},
-		{id: []byte("m3+foo+a1=b1,a2=b2"), expected: false},
+		{name: []byte("foo"), tags: []byte("a1=b1,m3_rollup=true,a2=b2"), expected: true},
+		{name: []byte("foo.bar.baz"), expected: false},
+		{name: []byte("foo"), tags: []byte("a1=b1,a2=b2"), expected: false},
 	}
 	for _, input := range inputs {
-		require.Equal(t, input.expected, IsRollupID(input.id, nil))
+		require.Equal(t, input.expected, IsRollupID(input.name, input.tags, nil), string(input.tags))
 	}
 }
 
 func TestIsRollupIDExternalIterator(t *testing.T) {
 	inputs := []struct {
-		id       []byte
+		name     []byte
+		tags     []byte
 		expected bool
 	}{
-		{id: []byte("m3+foo+a1=b1,m3_rollup=true,a2=b2"), expected: true},
-		{id: []byte("foo.bar.baz"), expected: false},
-		{id: []byte("m3+foo+a1=b1,a2=b2"), expected: false},
+		{name: []byte("foo"), tags: []byte("a1=b1,m3_rollup=true,a2=b2"), expected: true},
+		{name: []byte("foo.bar.baz"), expected: false},
+		{name: []byte("foo"), tags: []byte("a1=b1,a2=b2"), expected: false},
 	}
 	it := NewSortedTagIterator(nil)
 	defer it.Close()
 	for _, input := range inputs {
-		require.Equal(t, input.expected, IsRollupID(input.id, it))
+		require.Equal(t, input.expected, IsRollupID(input.name, input.tags, it))
 	}
 }
 
