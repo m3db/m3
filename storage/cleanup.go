@@ -142,6 +142,23 @@ func (m *cleanupManager) commitLogTimeRange(t time.Time) (time.Time, time.Time) 
 
 // commitLogTimes returns the earliest time before which the commit logs are expired,
 // as well as a list of times we need to clean up commit log files for.
+// TODO(prateek): need to rework this code to better handle commitLogTimes
+// consider a database running with two namespaces, and the following case
+//
+//           | RetentionPeriod | BlockSize
+// ns1       |      30d        |   6h
+// commitLog |      24h        |   2h
+// ns2       |      8h         |   30m
+//
+// blocks for each depictied over time (flowing left --> right):
+// time-label: t0  t1  t2  t3
+//  ns1        *           *       [each * is 6h]
+//  commitlog  .   .   .   .   .   [each . is 2h]
+//  ns2        ,,,,,,,,,,,,,,,,,   [each , is 30min]
+//
+//  we cannot remove commitlog blocks at t0, t1, and t2 until ns1 block at t0
+// is written safely. The same applies to all of the ns2 blocks between period
+// [t0,t3).
 func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
 	var (
 		ropts            = m.opts.CommitLogOptions().RetentionOptions()

@@ -90,3 +90,7 @@ func TestFlushManagerFlushTimeEnd(t *testing.T) {
 		require.Equal(t, input.expected, end)
 	}
 }
+
+func TestFlushManagerNamespaceFlushTimes(t *testing.T) {
+	// TODO(prateek): write this test
+}

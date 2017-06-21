@@ -126,7 +126,7 @@ func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time)
 
 	// NB(xichen): could preallocate slice here.
 	var flushTimes []time.Time
-	for t := latest; !t.Before(earliest); t = t.Add(blockSize) {
+	for t := latest; !t.Before(earliest); t = t.Add(-blockSize) {
 		if ns.NeedsFlush(t) {
 			flushTimes = append(flushTimes, t)
 		}

@@ -160,6 +160,10 @@ func newDatabaseNamespace(
 	}
 
 	iops := opts.InstrumentOptions()
+	logger := iops.Logger().WithFields(xlog.NewLogField("namespace", id.String()))
+	iops = iops.SetLogger(logger)
+	opts = opts.SetInstrumentOptions(iops)
+
 	scope := iops.MetricsScope().SubScope("database").
 		Tagged(map[string]string{
 			"namespace": id.String(),
@@ -179,7 +183,7 @@ func newDatabaseNamespace(
 		nopts:                  nopts,
 		seriesOpts:             seriesOpts,
 		nowFn:                  opts.ClockOptions().NowFn(),
-		log:                    opts.InstrumentOptions().Logger(),
+		log:                    logger,
 		increasingIndex:        increasingIndex,
 		writeCommitLogFn:       fn,
 		tickWorkers:            tickWorkers,
@@ -265,7 +269,6 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		go func() {
 			if err := shard.Close(); err != nil {
 				n.log.WithFields(
-					xlog.NewLogField("namespace", n.id.String()),
 					xlog.NewLogField("shard", shard.ID()),
 				).Errorf("error occurred closing shard: %v", err)
 				n.metrics.shards.closeErrors.Inc(1)
@@ -532,6 +535,16 @@ func (n *dbNamespace) Flush(
 }
 
 func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
+	// NB(prateek): we only need to flush for blockStart if it aligns with
+	// our blockSize. if not, can break out early.
+	// TODO(prateek): should we instead go through this logic with the aligned
+	// timestamp instead of short circuiting?
+	bs := n.nopts.RetentionOptions().BlockSize()
+	aligned := blockStart.Truncate(bs)
+	if aligned != blockStart {
+		return false
+	}
+
 	// NB(r): Essentially if all are success, we don't need to flush, if any
 	// are failed with the minimum num failures less than max retries then
 	// we need to flush - otherwise if any in progress we can't flush and if

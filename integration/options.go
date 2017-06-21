@@ -228,7 +228,7 @@ type options struct {
 func newTestOptions() testOptions {
 	var namespaces []namespace.Metadata
 	for _, ns := range testNamespaces {
-		namespaces = append(namespaces, namespace.NewMetadata(ns, namespace.NewOptions()))
+		namespaces = append(namespaces, namespace.NewMetadata(ns, namespace.NewOptions().SetNeedsRepair(false)))
 	}
 	return &options{
 		namespaces:                     namespaces,
