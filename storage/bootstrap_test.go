@@ -70,8 +70,8 @@ func TestDatabaseBootstrapTargetRanges(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
-	ns, ok := opts.Registry().Get(defaultTestNamespaceID)
-	require.True(t, ok)
+	ns, err := opts.Registry().Get(defaultTestNamespaceID)
+	require.NoError(t, err)
 	ropts := ns.Options().RetentionOptions()
 	now := time.Now().Truncate(ropts.BlockSize()).Add(8 * time.Minute)
 	opts = opts.

@@ -25,6 +25,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 )
 
 // Options represents the options for bootstrapping from peers
@@ -84,4 +85,10 @@ type Options interface {
 	// NewBlockRetrieverFn returns the block retriever manager to
 	// pass to newly flushed blocks when performing an incremental bootstrap run.
 	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
+
+	// SetRegistry sets the namespace registry.
+	SetRegistry(value namespace.Registry) Options
+
+	// Registry returns the namespace registry.
+	Registry() namespace.Registry
 }

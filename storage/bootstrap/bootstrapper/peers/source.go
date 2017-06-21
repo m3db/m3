@@ -83,6 +83,12 @@ func (s *peersSource) Read(
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {
+	// early terminate if we don't know about the specified namespace
+	_, err := s.opts.Registry().Get(namespace)
+	if err != nil {
+		return nil, err
+	}
+
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
@@ -230,8 +236,13 @@ func (s *peersSource) incrementalFlush(
 	shardResult result.ShardResult,
 	tr xtime.Range,
 ) error {
+	nsMetadata, err := s.opts.Registry().Get(namespace)
+	if err != nil {
+		return err
+	}
+
 	var (
-		ropts          = s.opts.ResultOptions().RetentionOptions()
+		ropts          = nsMetadata.Options().RetentionOptions()
 		blockSize      = ropts.BlockSize()
 		shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
 		tmpCtx         = context.NewContext()

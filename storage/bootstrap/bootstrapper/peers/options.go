@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 )
 
 var (
@@ -44,6 +45,7 @@ type options struct {
 	incrementalPersistMaxQueueSize int
 	persistManager                 persist.Manager
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
+	namespaceRegistry              namespace.Registry
 }
 
 // NewOptions creates new bootstrap options
@@ -53,6 +55,7 @@ func NewOptions() Options {
 		defaultShardConcurrency:        defaultDefaultShardConcurrency,
 		incrementalShardConcurrency:    defaultIncrementalShardConcurrency,
 		incrementalPersistMaxQueueSize: defaultIncrementalPersistMaxQueueSize,
+		namespaceRegistry:              namespace.NewRegistry(nil),
 	}
 }
 
@@ -126,4 +129,14 @@ func (o *options) SetDatabaseBlockRetrieverManager(
 
 func (o *options) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager {
 	return o.blockRetrieverManager
+}
+
+func (o *options) SetRegistry(value namespace.Registry) Options {
+	opts := *o
+	opts.namespaceRegistry = value
+	return &opts
+}
+
+func (o *options) Registry() namespace.Registry {
+	return o.namespaceRegistry
 }

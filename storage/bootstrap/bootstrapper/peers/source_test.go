@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
@@ -41,21 +42,28 @@ import (
 )
 
 var (
-	testNamespace          = ts.StringID("testnamespace")
+	testNamespace         = ts.StringID("testnamespace")
+	testNamespaceMetadata = namespace.NewMetadata(testNamespace, namespace.NewOptions())
+	testRegistry          = namespace.NewRegistry([]namespace.Metadata{testNamespaceMetadata})
+
 	testDefaultRunOpts     = bootstrap.NewRunOptions().SetIncremental(false)
 	testIncrementalRunOpts = bootstrap.NewRunOptions().SetIncremental(true)
 	testBlockOpts          = block.NewOptions()
 )
 
+func newTestOptions() Options {
+	return NewOptions().SetRegistry(testRegistry)
+}
+
 func TestPeersSourceCan(t *testing.T) {
-	src := newPeersSource(NewOptions())
+	src := newPeersSource(newTestOptions())
 
 	assert.True(t, src.Can(bootstrap.BootstrapSequential))
 	assert.False(t, src.Can(bootstrap.BootstrapParallel))
 }
 
 func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
-	src := newPeersSource(NewOptions())
+	src := newPeersSource(newTestOptions())
 
 	target := result.ShardTimeRanges{}
 	available := src.Available(testNamespace, target)
@@ -70,8 +78,8 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := NewOptions()
-	ropts := opts.ResultOptions().RetentionOptions()
+	opts := newTestOptions()
+	ropts := testNamespaceMetadata.Options().RetentionOptions()
 
 	expectedErr := fmt.Errorf("an error")
 
@@ -99,8 +107,8 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := NewOptions()
-	ropts := opts.ResultOptions().RetentionOptions()
+	opts := newTestOptions()
+	ropts := testNamespaceMetadata.Options().RetentionOptions()
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	end := start.Add(ropts.BlockSize())
@@ -156,8 +164,8 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := NewOptions()
-	ropts := opts.ResultOptions().RetentionOptions()
+	opts := newTestOptions()
+	ropts := testNamespaceMetadata.Options().RetentionOptions()
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	end := start.Add(2 * ropts.BlockSize())
@@ -318,8 +326,8 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := NewOptions()
-	ropts := opts.ResultOptions().RetentionOptions()
+	opts := newTestOptions()
+	ropts := testNamespaceMetadata.Options().RetentionOptions()
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	end := start.Add(ropts.BlockSize())

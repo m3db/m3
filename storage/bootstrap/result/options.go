@@ -22,7 +22,6 @@ package result
 
 import (
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3x/instrument"
 )
@@ -34,7 +33,6 @@ const (
 type options struct {
 	clockOpts      clock.Options
 	instrumentOpts instrument.Options
-	retentionOpts  retention.Options
 	blockOpts      block.Options
 	newBlocksLen   int
 }
@@ -44,7 +42,6 @@ func NewOptions() Options {
 	return &options{
 		clockOpts:      clock.NewOptions(),
 		instrumentOpts: instrument.NewOptions(),
-		retentionOpts:  retention.NewOptions(),
 		blockOpts:      block.NewOptions(),
 		newBlocksLen:   defaultNewBlocksLen,
 	}
@@ -68,16 +65,6 @@ func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 
 func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
-}
-
-func (o *options) SetRetentionOptions(value retention.Options) Options {
-	opts := *o
-	opts.retentionOpts = value
-	return &opts
-}
-
-func (o *options) RetentionOptions() retention.Options {
-	return o.retentionOpts
 }
 
 func (o *options) SetDatabaseBlockOptions(value block.Options) Options {

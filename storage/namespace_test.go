@@ -570,18 +570,18 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		shards     = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
-		dopts      = testDatabaseOptions()
-		testNs, ok = dopts.Registry().Get(defaultTestNamespaceID)
+		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
+		dopts  = testDatabaseOptions()
 	)
-	require.True(t, ok)
+	testNs, err := dopts.Registry().Get(defaultTestNamespaceID)
+	require.NoError(t, err)
 
 	var (
-		ropts         = testNs.Options().RetentionOptions()
-		metadata      = namespace.NewMetadata(testNs.ID(), testNs.Options())
-		hashFn        = func(identifier ts.ID) uint32 { return shards[0].ID() }
-		shardSet, err = sharding.NewShardSet(shards, hashFn)
+		ropts    = testNs.Options().RetentionOptions()
+		metadata = namespace.NewMetadata(testNs.ID(), testNs.Options())
+		hashFn   = func(identifier ts.ID) uint32 { return shards[0].ID() }
 	)
+	shardSet, err := sharding.NewShardSet(shards, hashFn)
 	require.NoError(t, err)
 
 	at := time.Unix(0, 0).Add(2 * ropts.RetentionPeriod())
@@ -609,17 +609,17 @@ func TestNamespaceNeedsFlushCountsLeastNumFailures(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		shards     = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
-		dopts      = testDatabaseOptions().SetMaxFlushRetries(2)
-		testNs, ok = dopts.Registry().Get(defaultTestNamespaceID)
+		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
+		dopts  = testDatabaseOptions().SetMaxFlushRetries(2)
 	)
-	require.True(t, ok)
+	testNs, err := dopts.Registry().Get(defaultTestNamespaceID)
+	require.NoError(t, err)
 
 	var (
-		ropts         = testNs.Options().RetentionOptions()
-		hashFn        = func(identifier ts.ID) uint32 { return shards[0].ID() }
-		shardSet, err = sharding.NewShardSet(shards, hashFn)
+		ropts  = testNs.Options().RetentionOptions()
+		hashFn = func(identifier ts.ID) uint32 { return shards[0].ID() }
 	)
+	shardSet, err := sharding.NewShardSet(shards, hashFn)
 	require.NoError(t, err)
 
 	maxRetries := 2
@@ -661,17 +661,17 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		shards     = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
-		dopts      = testDatabaseOptions()
-		testNs, ok = dopts.Registry().Get(defaultTestNamespaceID)
+		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
+		dopts  = testDatabaseOptions()
 	)
-	require.True(t, ok)
+	testNs, err := dopts.Registry().Get(defaultTestNamespaceID)
+	require.NoError(t, err)
 
 	var (
-		ropts         = testNs.Options().RetentionOptions()
-		hashFn        = func(identifier ts.ID) uint32 { return shards[0].ID() }
-		shardSet, err = sharding.NewShardSet(shards, hashFn)
+		ropts  = testNs.Options().RetentionOptions()
+		hashFn = func(identifier ts.ID) uint32 { return shards[0].ID() }
 	)
+	shardSet, err := sharding.NewShardSet(shards, hashFn)
 	require.NoError(t, err)
 
 	at := time.Unix(0, 0).Add(2 * ropts.RetentionPeriod())
@@ -710,17 +710,17 @@ func TestNamespaceNeedsFlushInProgress(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		shards     = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
-		dopts      = testDatabaseOptions()
-		testNs, ok = dopts.Registry().Get(defaultTestNamespaceID)
+		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
+		dopts  = testDatabaseOptions()
 	)
-	require.True(t, ok)
+	testNs, err := dopts.Registry().Get(defaultTestNamespaceID)
+	require.NoError(t, err)
 
 	var (
-		ropts         = testNs.Options().RetentionOptions()
-		hashFn        = func(identifier ts.ID) uint32 { return shards[0].ID() }
-		shardSet, err = sharding.NewShardSet(shards, hashFn)
+		ropts  = testNs.Options().RetentionOptions()
+		hashFn = func(identifier ts.ID) uint32 { return shards[0].ID() }
 	)
+	shardSet, err := sharding.NewShardSet(shards, hashFn)
 	require.NoError(t, err)
 
 	at := time.Unix(0, 0).Add(2 * ropts.RetentionPeriod())

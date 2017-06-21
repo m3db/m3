@@ -110,7 +110,7 @@ func TestReadOrderedValues(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	blockSize := opts.ResultOptions().RetentionOptions().BlockSize()
+	blockSize := opts.CommitLogOptions().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now
@@ -153,7 +153,7 @@ func TestReadUnorderedValues(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	blockSize := opts.ResultOptions().RetentionOptions().BlockSize()
+	blockSize := opts.CommitLogOptions().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now
@@ -193,7 +193,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	blockSize := opts.ResultOptions().RetentionOptions().BlockSize()
+	blockSize := opts.CommitLogOptions().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now
@@ -244,7 +244,7 @@ func requireShardResults(
 ) {
 	// First create what result should be constructed for test values
 	bopts := opts.ResultOptions()
-	ropts := bopts.RetentionOptions()
+	ropts := opts.CommitLogOptions().RetentionOptions()
 	blopts := bopts.DatabaseBlockOptions()
 	blockSize := ropts.BlockSize()
 

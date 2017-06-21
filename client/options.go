@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
@@ -197,6 +198,7 @@ type options struct {
 	fetchSeriesBlocksMetadataBatchTimeout   time.Duration
 	fetchSeriesBlocksBatchTimeout           time.Duration
 	fetchSeriesBlocksBatchConcurrency       int
+	namespaceRegistry                       namespace.Registry
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -261,6 +263,7 @@ func newOptions() *options {
 		fetchSeriesBlocksMetadataBatchTimeout:   defaultFetchSeriesBlocksMetadataBatchTimeout,
 		fetchSeriesBlocksBatchTimeout:           defaultFetchSeriesBlocksBatchTimeout,
 		fetchSeriesBlocksBatchConcurrency:       defaultFetchSeriesBlocksBatchConcurrency,
+		namespaceRegistry:                       namespace.NewRegistry(nil),
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
@@ -681,4 +684,14 @@ func (o *options) SetFetchSeriesBlocksBatchConcurrency(value int) AdminOptions {
 
 func (o *options) FetchSeriesBlocksBatchConcurrency() int {
 	return o.fetchSeriesBlocksBatchConcurrency
+}
+
+func (o *options) SetRegistry(value namespace.Registry) AdminOptions {
+	opts := *o
+	opts.namespaceRegistry = value
+	return &opts
+}
+
+func (o *options) Registry() namespace.Registry {
+	return o.namespaceRegistry
 }

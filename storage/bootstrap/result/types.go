@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
@@ -102,13 +101,6 @@ type Options interface {
 
 	// InstrumentOptions returns the instrumentation options
 	InstrumentOptions() instrument.Options
-
-	// TODO(prateek): result doesn't seem to need retention, can we get rid of it.
-	// SetRetentionOptions sets the retention options
-	SetRetentionOptions(value retention.Options) Options
-
-	// RetentionOptions returns the retention options
-	RetentionOptions() retention.Options
 
 	// SetDatabaseBlockOptions sets the database block options
 	SetDatabaseBlockOptions(value block.Options) Options
