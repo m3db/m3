@@ -33,6 +33,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/uber-go/tally"
+	"github.com/uber/tchannel-go/thrift"
+
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
@@ -51,9 +54,6 @@ import (
 	xretry "github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
-
-	"github.com/uber-go/tally"
-	"github.com/uber/tchannel-go/thrift"
 )
 
 const (
