@@ -55,15 +55,15 @@ var (
 )
 
 func newTestNamespace(t *testing.T) *dbNamespace {
-	testNamespaceOnce.Do(func() {
-		metadata := namespace.NewMetadata(defaultTestNamespaceID, defaultTestNamespaceOptions)
-		hashFn := func(identifier ts.ID) uint32 { return testShardIDs[0].ID() }
-		shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
-		require.NoError(t, err)
-		dopts := testDatabaseOptions()
-		testNamespaceSingleton = newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts).(*dbNamespace)
-	})
-	return testNamespaceSingleton
+	// testNamespaceOnce.Do(func() {
+	metadata := namespace.NewMetadata(defaultTestNamespaceID, defaultTestNamespaceOptions)
+	hashFn := func(identifier ts.ID) uint32 { return testShardIDs[0].ID() }
+	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
+	require.NoError(t, err)
+	dopts := testDatabaseOptions()
+	return newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts).(*dbNamespace)
+	// })
+	// return testNamespaceSingleton
 }
 
 func TestNamespaceName(t *testing.T) {
