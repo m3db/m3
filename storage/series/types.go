@@ -88,6 +88,7 @@ type DatabaseSeries interface {
 		id ts.ID,
 		bootstrapped bool,
 		blockRetriever QueryableBlockRetriever,
+		opts Options,
 	)
 }
 

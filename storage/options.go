@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -77,12 +78,16 @@ var (
 	timeZero time.Time
 )
 
-// NewSeriesOptionsFromOptions creates a new set of database series options from options
-func NewSeriesOptionsFromOptions(opts Options) series.Options {
+// NewSeriesOptionsFromOptions creates a new set of database series options from provided options.
+func NewSeriesOptionsFromOptions(opts Options, ropts retention.Options) series.Options {
+	if ropts == nil {
+		ropts = retention.NewOptions()
+	}
+
 	return series.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions()).
-		// SetRetentionOptions(opts.RetentionOptions()). TODO(prateek): figure this out
+		SetRetentionOptions(ropts).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
 		SetContextPool(opts.ContextPool()).
 		SetEncoderPool(opts.EncoderPool()).
@@ -107,7 +112,7 @@ type options struct {
 	newDecoderFn                   encoding.NewDecoderFn
 	bootstrapProcess               bootstrap.Process
 	persistManager                 persist.Manager
-	tickInterval                  time.Duration
+	tickInterval                   time.Duration
 	maxFlushRetries                int
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 	contextPool                    context.Pool
@@ -145,7 +150,7 @@ func NewOptions() Options {
 		fileOpOpts:                     NewFileOpOptions(),
 		bootstrapProcess:               defaultBootstrapProcess,
 		persistManager:                 fs.NewPersistManager(fs.NewOptions()),
-		tickInterval:                  defaultTickInterval,
+		tickInterval:                   defaultTickInterval,
 		maxFlushRetries:                defaultMaxFlushRetries,
 		contextPool:                    context.NewPool(nil, nil),
 		seriesPool:                     series.NewDatabaseSeriesPool(series.NewOptions(), nil),
@@ -165,7 +170,7 @@ func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value
 	opts.commitLogOpts = opts.commitLogOpts.SetClockOptions(value)
-	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
+	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts, nil), nil)
 	return &opts
 }
 
@@ -177,7 +182,7 @@ func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 	opts := *o
 	opts.instrumentOpts = value
 	opts.commitLogOpts = opts.commitLogOpts.SetInstrumentOptions(value)
-	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
+	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts, nil), nil)
 	return &opts
 }
 
@@ -198,7 +203,7 @@ func (o *options) Registry() namespace.Registry {
 func (o *options) SetDatabaseBlockOptions(value block.Options) Options {
 	opts := *o
 	opts.blockOpts = value
-	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
+	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts, nil), nil)
 	return &opts
 }
 
@@ -341,7 +346,7 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 		SetReaderIteratorPool(readerIteratorPool).
 		SetMultiReaderIteratorPool(multiReaderIteratorPool)
 
-	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
+	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts, nil), nil)
 
 	return &opts
 }

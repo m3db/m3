@@ -82,6 +82,7 @@ type dbShard struct {
 	sync.RWMutex
 	block.DatabaseBlockRetriever
 	opts                    Options
+	seriesOpts              series.Options
 	nowFn                   clock.NowFn
 	state                   dbShardState
 	namespaceID             ts.ID
@@ -169,12 +170,14 @@ func newDatabaseShard(
 	writeCommitLogFn writeCommitLogFn,
 	needsBootstrap bool,
 	opts Options,
+	seriesOpts series.Options,
 ) databaseShard {
 	scope := opts.InstrumentOptions().MetricsScope().
 		SubScope("dbshard")
 
 	d := &dbShard{
 		opts:                  opts,
+		seriesOpts:            seriesOpts,
 		nowFn:                 opts.ClockOptions().NowFn(),
 		state:                 dbShardStateOpen,
 		namespaceID:           namespace.ID(),
@@ -643,7 +646,7 @@ func (s *dbShard) enqueueInsertSeries(
 ) (enqueueInsertResult, error) {
 	series := s.seriesPool.Get()
 	seriesID := s.identifierPool.Clone(id)
-	series.Reset(seriesID, s.newSeriesBootstrapped, s.seriesBlockRetriever)
+	series.Reset(seriesID, s.newSeriesBootstrapped, s.seriesBlockRetriever, s.seriesOpts)
 
 	uniqueIndex := s.increasingIndex.nextIndex()
 	insert := dbShardInsert{

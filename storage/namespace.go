@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
@@ -67,6 +68,7 @@ type dbNamespace struct {
 	opts           Options
 	runtimeOptsMgr m3dbruntime.OptionsManager
 	nopts          namespace.Options
+	seriesOpts     series.Options
 	nowFn          clock.NowFn
 	log            xlog.Logger
 	bs             bootstrapState
@@ -167,12 +169,15 @@ func newDatabaseNamespace(
 	tickWorkers := xsync.NewWorkerPool(tickWorkersConcurrency)
 	tickWorkers.Init()
 
+	seriesOpts := NewSeriesOptionsFromOptions(opts, metadata.Options().RetentionOptions())
+
 	n := &dbNamespace{
 		id:                     id,
 		shardSet:               shardSet,
 		blockRetriever:         blockRetriever,
 		opts:                   opts,
 		nopts:                  nopts,
+		seriesOpts:             seriesOpts,
 		nowFn:                  opts.ClockOptions().NowFn(),
 		log:                    opts.InstrumentOptions().Logger(),
 		increasingIndex:        increasingIndex,
@@ -242,7 +247,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		} else {
 			needsBootstrap := n.nopts.NeedsBootstrap()
 			n.shards[shard] = newDatabaseShard(n, shard, n.blockRetriever,
-				n.increasingIndex, n.writeCommitLogFn, needsBootstrap, n.opts)
+				n.increasingIndex, n.writeCommitLogFn, needsBootstrap, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
 		}
 	}
@@ -747,7 +752,7 @@ func (n *dbNamespace) initShards(needBootstrap bool) {
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
 		dbShards[shard] = newDatabaseShard(n, shard, n.blockRetriever,
-			n.increasingIndex, n.writeCommitLogFn, needBootstrap, n.opts)
+			n.increasingIndex, n.writeCommitLogFn, needBootstrap, n.opts, n.seriesOpts)
 	}
 	n.shards = dbShards
 	n.Unlock()

@@ -26,6 +26,7 @@ package series
 import (
 	gomock "github.com/golang/mock/gomock"
 	context "github.com/m3db/m3db/context"
+	retention "github.com/m3db/m3db/retention"
 	block "github.com/m3db/m3db/storage/block"
 	io "github.com/m3db/m3db/x/io"
 	time0 "github.com/m3db/m3x/time"
@@ -154,10 +155,10 @@ func (_mr *_MockdatabaseBufferRecorder) Bootstrap(arg0 interface{}) *gomock.Call
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0)
 }
 
-func (_m *MockdatabaseBuffer) Reset() {
-	_m.ctrl.Call(_m, "Reset")
+func (_m *MockdatabaseBuffer) Reset(ropts retention.Options) {
+	_m.ctrl.Call(_m, "Reset", ropts)
 }
 
-func (_mr *_MockdatabaseBufferRecorder) Reset() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset")
+func (_mr *_MockdatabaseBufferRecorder) Reset(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0)
 }

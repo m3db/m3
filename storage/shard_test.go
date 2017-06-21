@@ -54,8 +54,9 @@ func (i *testIncreasingIndex) nextIndex() uint64 {
 
 func testDatabaseShard(t *testing.T, opts Options) *dbShard {
 	ns := newTestNamespace(t)
+	seriesOpts := NewSeriesOptionsFromOptions(opts, ns.Options().RetentionOptions())
 	return newDatabaseShard(ns, 0, nil,
-		&testIncreasingIndex{}, commitLogWriteNoOp, true, opts).(*dbShard)
+		&testIncreasingIndex{}, commitLogWriteNoOp, true, opts, seriesOpts).(*dbShard)
 }
 
 func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ts.ID, index uint64) *series.MockDatabaseSeries {
@@ -68,8 +69,10 @@ func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ts.ID, index uint
 
 func TestShardDontNeedBootstrap(t *testing.T) {
 	opts := testDatabaseOptions()
-	shard := newDatabaseShard(newTestNamespace(t), 0, nil,
-		&testIncreasingIndex{}, commitLogWriteNoOp, false, opts).(*dbShard)
+	testNs := newTestNamespace(t)
+	seriesOpts := NewSeriesOptionsFromOptions(opts, testNs.Options().RetentionOptions())
+	shard := newDatabaseShard(testNs, 0, nil,
+		&testIncreasingIndex{}, commitLogWriteNoOp, false, opts, seriesOpts).(*dbShard)
 	defer shard.Close()
 
 	require.Equal(t, bootstrapped, shard.bs)
@@ -311,7 +314,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 }
 
 func addTestSeries(shard *dbShard, id ts.ID) series.DatabaseSeries {
-	series := series.NewDatabaseSeries(id, NewSeriesOptionsFromOptions(shard.opts))
+	series := series.NewDatabaseSeries(id, shard.seriesOpts)
 	series.Bootstrap(nil)
 	shard.Lock()
 	shard.lookup[id.Hash()] = shard.list.PushBack(&dbShardEntry{series: series})

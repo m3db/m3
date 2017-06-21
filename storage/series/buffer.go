@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
@@ -96,7 +97,7 @@ type databaseBuffer interface {
 
 	Bootstrap(bl block.DatabaseBlock) error
 
-	Reset()
+	Reset(ropts retention.Options)
 }
 
 type bufferStats struct {
@@ -123,18 +124,18 @@ type databaseBufferDrainFn func(b block.DatabaseBlock)
 
 func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts Options) databaseBuffer {
 	b := &dbBuffer{
-		opts:         opts,
-		nowFn:        opts.ClockOptions().NowFn(),
-		drainFn:      drainFn,
-		blockSize:    opts.RetentionOptions().BlockSize(),
-		bufferPast:   opts.RetentionOptions().BufferPast(),
-		bufferFuture: opts.RetentionOptions().BufferFuture(),
+		opts:    opts,
+		nowFn:   opts.ClockOptions().NowFn(),
+		drainFn: drainFn,
 	}
-	b.Reset()
+	b.Reset(opts.RetentionOptions())
 	return b
 }
 
-func (b *dbBuffer) Reset() {
+func (b *dbBuffer) Reset(ropts retention.Options) {
+	b.blockSize = ropts.BlockSize()
+	b.bufferPast = ropts.BufferPast()
+	b.bufferFuture = ropts.BufferFuture()
 	// Avoid capturing any variables with callback
 	b.computedForEachBucketAsc(computeAndResetBucketIdx, bucketResetStart)
 }

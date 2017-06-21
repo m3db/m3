@@ -487,7 +487,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 	)
 
 	series := NewDatabaseSeries(id, opts).(*dbSeries)
-	series.Reset(id, true, nil)
+	series.Reset(id, true, nil, opts)
 
 	for iter := 0; iter < numBlocks; iter++ {
 		start := now
