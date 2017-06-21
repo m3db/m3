@@ -5,7 +5,7 @@ import:
   subpackages:
   - kv
 - package: github.com/m3db/m3metrics
-  version: 63f437f75e076ac85705b42290b8fbb0d2172a13
+  version: 6ede27981b53b4ffa226c111a57326666942455c
 - package: github.com/m3db/m3x
   version: bd6be18ffb184691512eb442561b16a59c15d797
   subpackages:
