@@ -1446,23 +1446,23 @@ func (_mr *_MockOptionsRecorder) InstrumentOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions")
 }
 
-func (_m *MockOptions) SetRegistry(value namespace.Registry) Options {
+func (_m *MockOptions) SetNamespaceRegistry(value namespace.Registry) Options {
 	ret := _m.ctrl.Call(_m, "SetRegistry", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) SetRegistry(arg0 interface{}) *gomock.Call {
+func (_mr *_MockOptionsRecorder) SetNamespaceRegistry(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRegistry", arg0)
 }
 
-func (_m *MockOptions) Registry() namespace.Registry {
+func (_m *MockOptions) NamespaceRegistry() namespace.Registry {
 	ret := _m.ctrl.Call(_m, "Registry")
 	ret0, _ := ret[0].(namespace.Registry)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) Registry() *gomock.Call {
+func (_mr *_MockOptionsRecorder) NamespaceRegistry() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Registry")
 }
 

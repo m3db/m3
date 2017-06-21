@@ -246,7 +246,7 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksBatchSize = opts.FetchSeriesBlocksBatchSize()
 		s.streamBlocksMetadataBatchTimeout = opts.FetchSeriesBlocksMetadataBatchTimeout()
 		s.streamBlocksBatchTimeout = opts.FetchSeriesBlocksBatchTimeout()
-		s.namespaceRegistry = opts.Registry()
+		s.namespaceRegistry = opts.NamespaceRegistry()
 	}
 
 	return s, nil

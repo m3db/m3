@@ -106,7 +106,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	storageOpts := storage.NewOptions().
-		SetRegistry(namespace.NewRegistry(opts.Namespaces())).
+		SetNamespaceRegistry(namespace.NewRegistry(opts.Namespaces())).
 		SetTickInterval(opts.TickInterval())
 
 	nativePooling := strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"
@@ -324,7 +324,7 @@ func (ts *testSetup) setRetentionOnNamespace(ropts retention.Options, ns namespa
 	// update testSetup properties
 	ts.opts = ts.opts.SetNamespaces(newMetadatas)
 	newRegisty := namespace.NewRegistry(newMetadatas)
-	ts.storageOpts = ts.storageOpts.SetRegistry(newRegisty)
+	ts.storageOpts = ts.storageOpts.SetNamespaceRegistry(newRegisty)
 	return nil
 }
 

@@ -40,7 +40,7 @@ import (
 
 func newTestDatabase(hostid string, topoInit topology.Initializer) (Database, error) {
 	registry := namespace.NewRegistry(testNamespaces)
-	opts := storage.NewOptions().SetRegistry(registry)
+	opts := storage.NewOptions().SetNamespaceRegistry(registry)
 	return NewDatabase(hostid, topoInit, opts)
 }
 

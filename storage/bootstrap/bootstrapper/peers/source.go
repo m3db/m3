@@ -84,7 +84,7 @@ func (s *peersSource) Read(
 	opts bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {
 	// early terminate if we don't know about the specified namespace
-	_, err := s.opts.Registry().Get(namespace)
+	_, err := s.opts.NamespaceRegistry().Get(namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +236,7 @@ func (s *peersSource) incrementalFlush(
 	shardResult result.ShardResult,
 	tr xtime.Range,
 ) error {
-	nsMetadata, err := s.opts.Registry().Get(namespace)
+	nsMetadata, err := s.opts.NamespaceRegistry().Get(namespace)
 	if err != nil {
 		return err
 	}

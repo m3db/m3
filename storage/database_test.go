@@ -115,7 +115,7 @@ var (
 					SetMaxFlushRetries(3).
 					SetFileOpOptions(NewFileOpOptions().SetJitter(0)).
 					SetTickInterval(10 * time.Minute).
-					SetRegistry(
+					SetNamespaceRegistry(
 			namespace.NewRegistry([]namespace.Metadata{
 				namespace.NewMetadata(defaultTestNamespaceID,
 					namespace.NewOptions().

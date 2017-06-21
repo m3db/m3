@@ -131,12 +131,12 @@ func (o *options) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverMa
 	return o.blockRetrieverManager
 }
 
-func (o *options) SetRegistry(value namespace.Registry) Options {
+func (o *options) SetNamespaceRegistry(value namespace.Registry) Options {
 	opts := *o
 	opts.namespaceRegistry = value
 	return &opts
 }
 
-func (o *options) Registry() namespace.Registry {
+func (o *options) NamespaceRegistry() namespace.Registry {
 	return o.namespaceRegistry
 }

@@ -52,7 +52,7 @@ var (
 )
 
 func newTestOptions() Options {
-	return NewOptions().SetRegistry(testRegistry)
+	return NewOptions().SetNamespaceRegistry(testRegistry)
 }
 
 func TestPeersSourceCan(t *testing.T) {

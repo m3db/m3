@@ -686,12 +686,12 @@ func (o *options) FetchSeriesBlocksBatchConcurrency() int {
 	return o.fetchSeriesBlocksBatchConcurrency
 }
 
-func (o *options) SetRegistry(value namespace.Registry) AdminOptions {
+func (o *options) SetNamespaceRegistry(value namespace.Registry) AdminOptions {
 	opts := *o
 	opts.namespaceRegistry = value
 	return &opts
 }
 
-func (o *options) Registry() namespace.Registry {
+func (o *options) NamespaceRegistry() namespace.Registry {
 	return o.namespaceRegistry
 }

@@ -86,9 +86,9 @@ type Options interface {
 	// pass to newly flushed blocks when performing an incremental bootstrap run.
 	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
 
-	// SetRegistry sets the namespace registry.
-	SetRegistry(value namespace.Registry) Options
+	// SetNamespaceRegistry sets the namespace registry.
+	SetNamespaceRegistry(value namespace.Registry) Options
 
-	// Registry returns the namespace registry.
-	Registry() namespace.Registry
+	// NamespaceRegistry returns the namespace registry.
+	NamespaceRegistry() namespace.Registry
 }

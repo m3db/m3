@@ -45,7 +45,7 @@ func TestRegistryConfig(t *testing.T) {
 		}
 	)
 
-	reg := config.Registry()
+	reg := config.NamespaceRegistry()
 
 	md, err := reg.Get(ts.StringID("abc"))
 	require.NoError(t, err)

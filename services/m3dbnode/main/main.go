@@ -63,7 +63,7 @@ func main() {
 
 	namespaces := server.DefaultNamespaces()
 	registry := namespace.NewRegistry(namespaces)
-	storageOpts := storage.NewOptions().SetRegistry(registry)
+	storageOpts := storage.NewOptions().SetNamespaceRegistry(registry)
 
 	log := storageOpts.InstrumentOptions().Logger()
 	topoInit, err := server.DefaultTopologyInitializer(id, tchannelNodeAddr)

@@ -188,13 +188,13 @@ func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) SetRegistry(value namespace.Registry) Options {
+func (o *options) SetNamespaceRegistry(value namespace.Registry) Options {
 	opts := *o
 	opts.registry = value
 	return &opts
 }
 
-func (o *options) Registry() namespace.Registry {
+func (o *options) NamespaceRegistry() namespace.Registry {
 	return o.registry
 }
 

@@ -85,7 +85,7 @@ func newSessionTestAdminOptions() AdminOptions {
 		SetFetchSeriesBlocksMetadataBatchTimeout(time.Second).
 		SetFetchSeriesBlocksBatchTimeout(time.Second).
 		SetFetchSeriesBlocksBatchConcurrency(4).
-		SetRegistry(registry)
+		SetNamespaceRegistry(registry)
 }
 
 func newResultTestOptions() result.Options {
@@ -1290,7 +1290,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	// Attempt stream blocks
 	bopts := result.NewOptions()
 	m := session.streamFromPeersMetricsForShard(0, resultTypeTest)
-	nsMetadata, err := opts.Registry().Get(nsID)
+	nsMetadata, err := opts.NamespaceRegistry().Get(nsID)
 	require.NoError(t, err)
 	session.streamBlocksBatchFromPeer(nsMetadata, 0, peer, batch, bopts, nil, enqueueCh, retrier, m)
 
@@ -1406,7 +1406,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 
 		// Attempt stream blocks
 	bopts := result.NewOptions()
-	nsMetadata, err := opts.Registry().Get(nsID)
+	nsMetadata, err := opts.NamespaceRegistry().Get(nsID)
 	require.NoError(t, err)
 	m := session.streamFromPeersMetricsForShard(0, resultTypeTest)
 	r := newBulkBlocksResult(opts, bopts)
@@ -1549,7 +1549,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 
 	// Attempt stream blocks
 	bopts := result.NewOptions()
-	nsMetadata, err := opts.Registry().Get(nsID)
+	nsMetadata, err := opts.NamespaceRegistry().Get(nsID)
 	require.NoError(t, err)
 	m := session.streamFromPeersMetricsForShard(0, resultTypeTest)
 	r := newBulkBlocksResult(opts, bopts)

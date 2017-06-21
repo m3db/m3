@@ -60,7 +60,7 @@ func TestFilesystemBootstrap(t *testing.T) {
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 	filePathPrefix := fsOpts.FilePathPrefix()
 	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-	bsOpts := result.NewOptions().SetRetentionOptions(ropts)
+	bsOpts := result.NewOptions()
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts)
@@ -76,11 +76,11 @@ func TestFilesystemBootstrap(t *testing.T) {
 		{[]string{"foo", "bar"}, 100, now.Add(-blockSize)},
 		{[]string{"foo", "baz"}, 50, now},
 	})
-	testNs, ok := setup.storageOpts.Registry().Get(testNamespaces[0])
-	require.True(t, ok)
+	testNs, err := setup.storageOpts.NamespaceRegistry().Get(testNamespaces[0])
+	require.NoError(t, err)
 	require.NoError(t, writeTestDataToDisk(testNs, setup, seriesMaps))
-	testNs, ok = setup.storageOpts.Registry().Get(testNamespaces[1])
-	require.True(t, ok)
+	testNs, err = setup.storageOpts.NamespaceRegistry().Get(testNamespaces[1])
+	require.NoError(t, err)
 	require.NoError(t, writeTestDataToDisk(testNs, setup, nil))
 
 	// Start the server with filesystem bootstrapper

@@ -42,7 +42,7 @@ type MetadataConfiguration struct {
 }
 
 // Registry returns a Registry corresponding to the receiver struct
-func (rc *RegistryConfiguration) Registry() Registry {
+func (rc *RegistryConfiguration) NamespaceRegistry() Registry {
 	metadatas := make([]Metadata, 0, len(rc.Metadatas))
 	for _, m := range rc.Metadatas {
 		metadatas = append(metadatas, m.Metadata())

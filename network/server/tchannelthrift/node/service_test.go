@@ -48,7 +48,7 @@ var (
 	testNamespaceMetadata = namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
 	testRegistry          = namespace.NewRegistry([]namespace.Metadata{testNamespaceMetadata})
 	testServiceOpts       = storage.NewOptions().
-				SetRegistry(testRegistry)
+				SetNamespaceRegistry(testRegistry)
 )
 
 func TestServiceHealth(t *testing.T) {

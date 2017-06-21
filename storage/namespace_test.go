@@ -573,7 +573,7 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
 		dopts  = testDatabaseOptions()
 	)
-	testNs, err := dopts.Registry().Get(defaultTestNamespaceID)
+	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNamespaceID)
 	require.NoError(t, err)
 
 	var (
@@ -612,7 +612,7 @@ func TestNamespaceNeedsFlushCountsLeastNumFailures(t *testing.T) {
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
 		dopts  = testDatabaseOptions().SetMaxFlushRetries(2)
 	)
-	testNs, err := dopts.Registry().Get(defaultTestNamespaceID)
+	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNamespaceID)
 	require.NoError(t, err)
 
 	var (
@@ -664,7 +664,7 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
 		dopts  = testDatabaseOptions()
 	)
-	testNs, err := dopts.Registry().Get(defaultTestNamespaceID)
+	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNamespaceID)
 	require.NoError(t, err)
 
 	var (
@@ -713,7 +713,7 @@ func TestNamespaceNeedsFlushInProgress(t *testing.T) {
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
 		dopts  = testDatabaseOptions()
 	)
-	testNs, err := dopts.Registry().Get(defaultTestNamespaceID)
+	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNamespaceID)
 	require.NoError(t, err)
 
 	var (

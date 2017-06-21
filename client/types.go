@@ -571,9 +571,9 @@ type AdminOptions interface {
 	// FetchSeriesBlocksBatchConcurrency gets the concurrency for fetching series blocks in batch
 	FetchSeriesBlocksBatchConcurrency() int
 
-	// SetRegistry sets the namespace registry
-	SetRegistry(value namespace.Registry) AdminOptions
+	// SetNamespaceRegistry sets the namespace registry
+	SetNamespaceRegistry(value namespace.Registry) AdminOptions
 
-	// Registry returns the namespace registry
-	Registry() namespace.Registry
+	// NamespaceRegistry returns the namespace registry
+	NamespaceRegistry() namespace.Registry
 }

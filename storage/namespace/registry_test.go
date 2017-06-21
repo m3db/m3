@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3db/ts"
 )
 
-func TestEmptyRegistry(t *testing.T) {
+func TestEmptyNamespaceRegistry(t *testing.T) {
 	emptyRegistry := NewRegistry(nil)
 	require.Empty(t, emptyRegistry.IDs())
 	require.Empty(t, emptyRegistry.Metadatas())

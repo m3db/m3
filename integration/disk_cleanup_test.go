@@ -51,8 +51,8 @@ func createWriter(storageOpts storage.Options, ropts retention.Options) fs.FileS
 }
 
 func createFilesetFiles(t *testing.T, storageOpts storage.Options, namespace ts.ID, shard uint32, fileTimes []time.Time) {
-	md, ok := storageOpts.Registry().Get(namespace)
-	require.True(t, ok)
+	md, err := storageOpts.NamespaceRegistry().Get(namespace)
+	require.NoError(t, err)
 	writer := createWriter(storageOpts, md.Options().RetentionOptions())
 	for _, start := range fileTimes {
 		require.NoError(t, writer.Open(namespace, shard, start))

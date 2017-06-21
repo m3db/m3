@@ -85,7 +85,7 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 	filePathPrefix := fsOpts.FilePathPrefix()
 	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-	bsOpts := result.NewOptions().SetRetentionOptions(ropts)
+	bsOpts := result.NewOptions()
 	bfsOpts := bfs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).

@@ -311,9 +311,9 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 
 	nsID := s.newID(ctx, req.NameSpace)
 	// check if the namespace if known
-	nsMetadata, ok := s.db.Options().Registry().Get(nsID)
-	if !ok {
-		return nil, tterrors.NewBadRequestError(fmt.Errorf("unknown namespace: %v", nsID.String()))
+	nsMetadata, err := s.db.Options().NamespaceRegistry().Get(nsID)
+	if err != nil {
+		return nil, tterrors.NewBadRequestError(err)
 	}
 
 	res := rpc.NewFetchBlocksRawResult_()
