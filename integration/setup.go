@@ -168,7 +168,8 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	workerPool := xsync.NewWorkerPool(opts.WorkerPoolSize())
 	workerPool.Init()
 
-	// Set up getter and setter for now
+	// BlockSizes are specified per namespace, make best effort at finding
+	// a value to align `now` for all of them.
 	truncateSize, guess := guessBestTruncateBlockSize(opts.Namespaces())
 	if guess {
 		storageOpts.InstrumentOptions().Logger().Warnf(
@@ -176,6 +177,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 			truncateSize.String())
 	}
 
+	// Set up getter and setter for now
 	var lock sync.RWMutex
 	now := time.Now().Truncate(truncateSize)
 	getNowFn := func() time.Time {
@@ -276,7 +278,7 @@ func guessBestTruncateBlockSize(mds []namespace.Metadata) (time.Duration, bool) 
 		return guess, false
 	}
 
-	// other wise, we are guessing
+	// otherwise, we are guessing
 	return guess, true
 }
 
