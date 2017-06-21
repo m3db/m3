@@ -332,6 +332,7 @@ type databaseCleanupManager interface {
 // FileOpOptions control the database file operations behavior
 type FileOpOptions interface {
 	// SetRetentionOptions sets the retention options
+	// TODO(prateek): does this need to be removed too
 	SetRetentionOptions(value retention.Options) FileOpOptions
 
 	// RetentionOptions returns the retention options
@@ -529,11 +530,11 @@ type Options interface {
 	// PersistManager returns the persistence manager
 	PersistManager() persist.Manager
 
-	// SetTickFrequency sets the frequency of ticking
-	SetTickFrequency(value time.Duration) Options
+	// SetTickInterval sets the interval taken to tick
+	SetTickInterval(value time.Duration) Options
 
-	// TickFrequency returns the frequency of ticking
-	TickFrequency() time.Duration
+	// TickInterval returns the interval taken to tick
+	TickInterval() time.Duration
 
 	// SetMaxFlushRetries sets the maximum number of retries when data flushing fails
 	SetMaxFlushRetries(value int) Options

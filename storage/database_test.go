@@ -109,7 +109,7 @@ var defaultTestRetentionOptions = retention.NewOptions().
 var defaultTestDatabaseOptions = NewOptions().
 	SetMaxFlushRetries(3).
 	SetFileOpOptions(NewFileOpOptions().SetJitter(0)).
-	SetTickFrequency(10 * time.Minute).
+	SetTickInterval(10 * time.Minute).
 	SetRegistry(
 		namespace.NewRegistry([]namespace.Metadata{
 			namespace.NewMetadata(defaultTestNamespaceID,

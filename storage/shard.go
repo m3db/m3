@@ -340,7 +340,7 @@ func (s *dbShard) Close() error {
 	// causes the GC to impact performance when closing shards the deadline
 	// should be increased.
 	cancellable := context.NewNoOpCanncellable()
-	softDeadline := s.opts.TickFrequency()
+	softDeadline := s.opts.TickInterval()
 	s.tickAndExpire(cancellable, softDeadline, tickPolicyForceExpiry)
 
 	return nil

@@ -1686,24 +1686,24 @@ func (_mr *_MockOptionsRecorder) PersistManager() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "PersistManager")
 }
 
-func (_m *MockOptions) SetTickFrequency(value time0.Duration) Options {
-	ret := _m.ctrl.Call(_m, "SetTickFrequency", value)
+func (_m *MockOptions) SetTickInterval(value time0.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetTickInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) SetTickFrequency(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetTickFrequency", arg0)
+func (_mr *_MockOptionsRecorder) SetTickInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetTickInterval", arg0)
 }
 
-func (_m *MockOptions) TickFrequency() time0.Duration {
-	ret := _m.ctrl.Call(_m, "TickFrequency")
+func (_m *MockOptions) TickInterval() time0.Duration {
+	ret := _m.ctrl.Call(_m, "TickInterval")
 	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) TickFrequency() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "TickFrequency")
+func (_mr *_MockOptionsRecorder) TickInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TickInterval")
 }
 
 func (_m *MockOptions) SetMaxFlushRetries(value int) Options {

@@ -66,8 +66,8 @@ const (
 	// defaultErrorThresholdForLoad is the default error threshold for considering server overloaded
 	defaultErrorThresholdForLoad = 1000
 
-	// defaultTickFrequency is the default tick frequency
-	defaultTickFrequency = 2 * time.Minute
+	// defaultTickInterval is the default tick interval
+	defaultTickInterval = 2 * time.Minute
 )
 
 var (
@@ -107,7 +107,7 @@ type options struct {
 	newDecoderFn                   encoding.NewDecoderFn
 	bootstrapProcess               bootstrap.Process
 	persistManager                 persist.Manager
-	tickFrequency                  time.Duration
+	tickInterval                  time.Duration
 	maxFlushRetries                int
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 	contextPool                    context.Pool
@@ -145,7 +145,7 @@ func NewOptions() Options {
 		fileOpOpts:                     NewFileOpOptions(),
 		bootstrapProcess:               defaultBootstrapProcess,
 		persistManager:                 fs.NewPersistManager(fs.NewOptions()),
-		tickFrequency:                  defaultTickFrequency,
+		tickInterval:                  defaultTickInterval,
 		maxFlushRetries:                defaultMaxFlushRetries,
 		contextPool:                    context.NewPool(nil, nil),
 		seriesPool:                     series.NewDatabaseSeriesPool(series.NewOptions(), nil),
@@ -386,14 +386,14 @@ func (o *options) PersistManager() persist.Manager {
 	return o.persistManager
 }
 
-func (o *options) SetTickFrequency(value time.Duration) Options {
+func (o *options) SetTickInterval(value time.Duration) Options {
 	opts := *o
-	opts.tickFrequency = value
+	opts.tickInterval = value
 	return &opts
 }
 
-func (o *options) TickFrequency() time.Duration {
-	return o.tickFrequency
+func (o *options) TickInterval() time.Duration {
+	return o.tickInterval
 }
 
 func (o *options) SetMaxFlushRetries(value int) Options {
