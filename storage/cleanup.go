@@ -159,6 +159,8 @@ func (m *cleanupManager) commitLogTimeRange(t time.Time) (time.Time, time.Time) 
 //  we cannot remove commitlog blocks at t0, t1, and t2 until ns1 block at t0
 // is written safely. The same applies to all of the ns2 blocks between period
 // [t0,t3).
+// TODO(prateek): databaseNamespace.NeedsFlush will need to take a [start, end] or [start, duration]
+// to answer the question accurately.
 func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
 	var (
 		ropts            = m.opts.CommitLogOptions().RetentionOptions()
