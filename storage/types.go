@@ -557,6 +557,12 @@ type Options interface {
 	// ContextPool returns the contextPool
 	ContextPool() context.Pool
 
+	// SetSeriesOptions sets the series options
+	SetSeriesOptions(value series.Options) Options
+
+	// SeriesOptions returns the series options
+	SeriesOptions() series.Options
+
 	// SetDatabaseSeriesPool sets the database series pool
 	SetDatabaseSeriesPool(value series.DatabaseSeriesPool) Options
 
