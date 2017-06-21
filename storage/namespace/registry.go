@@ -21,6 +21,8 @@
 package namespace
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3db/ts"
 )
 
@@ -49,10 +51,13 @@ func NewRegistry(metadatas []Metadata) Registry {
 	}
 }
 
-func (r *registry) Get(namespace ts.ID) (Metadata, bool) {
+func (r *registry) Get(namespace ts.ID) (Metadata, error) {
 	idHash := namespace.Hash()
 	metadata, ok := r.namespaces[idHash]
-	return metadata, ok
+	if !ok {
+		return nil, fmt.Errorf("unable to location namespace (%v) in registry", namespace.String())
+	}
+	return metadata, nil
 }
 
 func (r *registry) IDs() []ts.ID {

@@ -47,18 +47,18 @@ func TestRegistryConfig(t *testing.T) {
 
 	reg := config.Registry()
 
-	md, ok := reg.Get(ts.StringID("abc"))
-	require.True(t, ok)
+	md, err := reg.Get(ts.StringID("abc"))
+	require.NoError(t, err)
 	require.Equal(t, config.Metadatas[0].Metadata().ID().String(), md.ID().String())
 	require.Equal(t, config.Metadatas[0].Metadata().Options(), md.Options())
 
-	md, ok = reg.Get(ts.StringID("cde"))
-	require.True(t, ok)
+	md, err = reg.Get(ts.StringID("cde"))
+	require.NoError(t, err)
 	require.Equal(t, config.Metadatas[1].Metadata().ID().String(), md.ID().String())
 	require.Equal(t, config.Metadatas[1].Metadata().Options(), md.Options())
 
-	_, ok = reg.Get(ts.StringID("otherstring"))
-	require.False(t, ok)
+	_, err = reg.Get(ts.StringID("otherstring"))
+	require.Error(t, err)
 }
 
 func TestMetadataConfig(t *testing.T) {

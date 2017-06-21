@@ -32,8 +32,8 @@ func TestEmptyRegistry(t *testing.T) {
 	emptyRegistry := NewRegistry(nil)
 	require.Empty(t, emptyRegistry.IDs())
 	require.Empty(t, emptyRegistry.Metadatas())
-	_, ok := emptyRegistry.Get(ts.StringID("someString"))
-	require.False(t, ok)
+	_, err := emptyRegistry.Get(ts.StringID("someString"))
+	require.Error(t, err)
 }
 
 func TestSingleElement(t *testing.T) {

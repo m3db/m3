@@ -77,7 +77,7 @@ type Metadata interface {
 type Registry interface {
 
 	// Get gets the metadata for the provided namespace
-	Get(ts.ID) (Metadata, bool)
+	Get(ts.ID) (Metadata, error)
 
 	// IDs returns the ID of known namespaces
 	IDs() []ts.ID
