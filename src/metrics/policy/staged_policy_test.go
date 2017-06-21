@@ -21,6 +21,7 @@
 package policy
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -210,5 +211,57 @@ func TestPoliciesListIsDefault(t *testing.T) {
 	}
 	for _, input := range inputs {
 		require.Equal(t, input.expected, input.pl.IsDefault())
+	}
+}
+
+func TestPoliciesListJSONMarshaling(t *testing.T) {
+	inputs := []struct {
+		pl       PoliciesList
+		expected string
+	}{
+		{
+			pl:       PoliciesList{},
+			expected: "[]",
+		},
+		{
+			pl:       DefaultPoliciesList,
+			expected: `[{"cutoverNanos":0,"tombstoned":false,"policies":null}]`,
+		},
+		{
+			pl: PoliciesList{
+				NewStagedPolicies(
+					0,
+					false,
+					[]Policy{
+						NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
+						NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), mustCompress(Count, Mean)),
+					},
+				),
+				NewStagedPolicies(
+					100,
+					true,
+					[]Policy{
+						NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Sum)),
+					},
+				),
+				NewStagedPolicies(
+					200,
+					false,
+					[]Policy{},
+				),
+			},
+			expected: `[{"cutoverNanos":0,"tombstoned":false,"policies":["10s@1s:6h0m0s","1m0s@1m:24h0m0s|Mean,Count"]},` +
+				`{"cutoverNanos":100,"tombstoned":true,"policies":["10s@1s:6h0m0s|Sum"]},` +
+				`{"cutoverNanos":200,"tombstoned":false,"policies":[]}]`,
+		},
+	}
+	for _, input := range inputs {
+		b, err := json.Marshal(input.pl)
+		require.NoError(t, err)
+		require.Equal(t, input.expected, string(b))
+		var unmarshalled PoliciesList
+		err = json.Unmarshal(b, &unmarshalled)
+		require.NoError(t, err)
+		require.Equal(t, input.pl, unmarshalled)
 	}
 }

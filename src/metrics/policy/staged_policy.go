@@ -21,9 +21,8 @@
 package policy
 
 import (
-	"bytes"
+	"encoding/json"
 	"fmt"
-	"time"
 )
 
 var (
@@ -88,20 +87,50 @@ func (p StagedPolicies) SamePolicies(other StagedPolicies) bool {
 
 // String is the representation of staged policies.
 func (p StagedPolicies) String() string {
-	var buf bytes.Buffer
-	buf.WriteString(fmt.Sprintf("{cutover:%s,tombstoned:%v,policies:[", time.Unix(0, p.CutoverNanos).String(), p.Tombstoned))
-	for i := range p.policies {
-		buf.WriteString(p.policies[i].String())
-		if i < len(p.policies)-1 {
-			buf.WriteString(",")
-		}
+	b, err := json.Marshal(p)
+	if err != nil {
+		return fmt.Sprintf("[invalid staged policies: %v]", err)
 	}
-	buf.WriteString("]}")
-	return buf.String()
+	return string(b)
 }
 
 func (p StagedPolicies) hasDefaultPolicies() bool {
 	return len(p.policies) == 0
+}
+
+// MarshalJSON returns the JSON encoding of staged policies.
+func (p StagedPolicies) MarshalJSON() ([]byte, error) {
+	return json.Marshal(newStagedPoliciesJSON(p))
+}
+
+// UnmarshalJSON unmarshals JSON-encoded data into staged policies.
+func (p *StagedPolicies) UnmarshalJSON(data []byte) error {
+	var spj stagedPoliciesJSON
+	err := json.Unmarshal(data, &spj)
+	if err != nil {
+		return err
+	}
+	*p = spj.StagedPolicies()
+	return nil
+}
+
+// stagedPoliciesJSON is used for marshaling and unmarshaling staged policies.
+type stagedPoliciesJSON struct {
+	CutoverNanos int64    `json:"cutoverNanos"`
+	Tombstoned   bool     `json:"tombstoned"`
+	Policies     []Policy `json:"policies"`
+}
+
+func newStagedPoliciesJSON(sp StagedPolicies) stagedPoliciesJSON {
+	return stagedPoliciesJSON{
+		CutoverNanos: sp.CutoverNanos,
+		Tombstoned:   sp.Tombstoned,
+		Policies:     sp.policies,
+	}
+}
+
+func (spj stagedPoliciesJSON) StagedPolicies() StagedPolicies {
+	return NewStagedPolicies(spj.CutoverNanos, spj.Tombstoned, spj.Policies)
 }
 
 // PoliciesList is a list of staged policies.
@@ -110,4 +139,13 @@ type PoliciesList []StagedPolicies
 // IsDefault determines whether this is a default policies list.
 func (l PoliciesList) IsDefault() bool {
 	return len(l) == 1 && l[0].IsDefault()
+}
+
+// VersionedPoliciesList is a versioned policies list.
+type VersionedPoliciesList struct {
+	// Version is the version associcated with the policies in the list.
+	Version int `json:"version"`
+
+	// PoliciesList contains the list of staged policies.
+	PoliciesList PoliciesList `json:"policiesList"`
 }
