@@ -169,8 +169,14 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	workerPool.Init()
 
 	// Set up getter and setter for now
+	truncateSize, guess := guessBestTruncateBlockSize(opts.Namespaces())
+	if guess {
+		storageOpts.InstrumentOptions().Logger().Infof(
+			"Unable to find a single blockSize from known retention periods, guessing: %v", truncateSize.String())
+	}
+
 	var lock sync.RWMutex
-	now := time.Now() // TODO(prateek):can this be removed -> .Truncate(storageOpts.RetentionOptions().BlockSize())
+	now := time.Now().Truncate(truncateSize) // TODO(prateek):can this be removed -> .Truncate(storageOpts.RetentionOptions().BlockSize())
 	getNowFn := func() time.Time {
 		lock.RLock()
 		t := now
@@ -227,6 +233,50 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		doneCh:          make(chan struct{}),
 		closedCh:        make(chan struct{}),
 	}, nil
+}
+
+// guestBestTruncateBlockSize guesses for the best block size to truncate testSetup's nowFn
+func guessBestTruncateBlockSize(mds []namespace.Metadata) (time.Duration, bool) {
+	// gcd of a set of numbers
+	gcdRemainder := func(a, b int64) int64 {
+		for b != 0 {
+			a, b = b, a%b
+		}
+		return a
+	}
+
+	// default guess
+	if len(mds) == 0 {
+		return time.Hour, true
+	}
+
+	// get all known blocksizes
+	blockSizes := make(map[int64]struct{})
+	for _, md := range mds {
+		bs := md.Options().RetentionOptions().BlockSize().Nanoseconds()
+		blockSizes[bs] = struct{}{}
+	}
+
+	// find the gcd of all known blockSizes
+	set := false
+	var gcd int64
+	for i := range blockSizes {
+		if !set {
+			gcd = i
+			set = true
+		} else {
+			gcd = gcdRemainder(gcd, i)
+		}
+	}
+
+	guess := time.Duration(gcd) * time.Nanosecond
+	// if there's only a single value, we are not guessing
+	if len(blockSizes) == 1 {
+		return guess, false
+	}
+
+	// other wise, we are guessing
+	return guess, true
 }
 
 func (ts *testSetup) generatorOptions(ropts retention.Options) generate.Options {
