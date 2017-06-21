@@ -22,6 +22,7 @@ package policy
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/m3db/m3metrics/generated/proto/schema"
@@ -70,6 +71,58 @@ func NewPolicyFromSchema(p *schema.Policy) (Policy, error) {
 
 }
 
+// Schema returns the schema of the policy.
+func (p Policy) Schema() (*schema.Policy, error) {
+	sp, err := p.StoragePolicy.Schema()
+	if err != nil {
+		return nil, err
+	}
+
+	aggTypes, err := NewAggregationIDDecompressor().Decompress(p.AggregationID)
+	if err != nil {
+		return nil, err
+	}
+
+	schemaAggTypes, err := aggTypes.Schema()
+	if err != nil {
+		return nil, err
+	}
+
+	return &schema.Policy{
+		StoragePolicy:    sp,
+		AggregationTypes: schemaAggTypes,
+	}, nil
+}
+
+// String is the string representation of a policy.
+func (p Policy) String() string {
+	if p.AggregationID.IsDefault() {
+		return p.StoragePolicy.String()
+	}
+	return p.StoragePolicy.String() + policyAggregationTypeSeparator + p.AggregationID.String()
+}
+
+// MarshalJSON returns the JSON encoding of a policy.
+func (p Policy) MarshalJSON() ([]byte, error) {
+	marshalled := strconv.Quote(p.String())
+	return []byte(marshalled), nil
+}
+
+// UnmarshalJSON unmarshals JSON-encoded data into staged a policy.
+func (p *Policy) UnmarshalJSON(data []byte) error {
+	str := string(data)
+	unquoted, err := strconv.Unquote(str)
+	if err != nil {
+		return err
+	}
+	parsed, err := ParsePolicy(unquoted)
+	if err != nil {
+		return err
+	}
+	*p = parsed
+	return nil
+}
+
 // UnmarshalYAML unmarshals a policy value from a string.
 func (p *Policy) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
@@ -112,37 +165,6 @@ func ParsePolicy(str string) (Policy, error) {
 	}
 
 	return NewPolicy(p, id), nil
-}
-
-// String is the string representation of a policy.
-func (p Policy) String() string {
-	if p.AggregationID.IsDefault() {
-		return p.StoragePolicy.String()
-	}
-	return p.StoragePolicy.String() + policyAggregationTypeSeparator + p.AggregationID.String()
-}
-
-// Schema returns the schema of the policy.
-func (p Policy) Schema() (*schema.Policy, error) {
-	sp, err := p.StoragePolicy.Schema()
-	if err != nil {
-		return nil, err
-	}
-
-	aggTypes, err := NewAggregationIDDecompressor().Decompress(p.AggregationID)
-	if err != nil {
-		return nil, err
-	}
-
-	schemaAggTypes, err := aggTypes.Schema()
-	if err != nil {
-		return nil, err
-	}
-
-	return &schema.Policy{
-		StoragePolicy:    sp,
-		AggregationTypes: schemaAggTypes,
-	}, nil
 }
 
 // NewPoliciesFromSchema creates multiple new policies from given schema policies.
