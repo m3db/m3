@@ -31,10 +31,11 @@ import (
 	"github.com/m3db/m3db/topology"
 	xtime "github.com/m3db/m3x/time"
 
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/shard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/shard"
 )
 
 func TestNormalQuorumOnlyOneUp(t *testing.T) {
@@ -176,8 +177,12 @@ func makeTestWrite(
 	instances []services.ServiceInstance,
 ) (testSetups, closeFn, testWriteFn) {
 
+	nsOpts := namespace.NewOptions()
 	nspaces := []namespace.Metadata{
-		namespace.NewMetadata(testNamespaces[0], namespace.NewOptions()),
+		namespace.NewMetadata(testNamespaces[0],
+			nsOpts.SetRetentionOptions(
+				nsOpts.RetentionOptions().
+					SetRetentionPeriod(6*time.Hour))),
 	}
 
 	nodes, topoInit, closeFn := newNodes(t, instances, nspaces)

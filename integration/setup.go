@@ -459,7 +459,9 @@ func newNodes(
 ) (testSetups, topology.Initializer, closeFn) {
 
 	log := xlog.SimpleLogger
-	opts := newTestOptions().SetNamespaces(nspaces)
+	opts := newTestOptions().
+		SetNamespaces(nspaces).
+		SetTickInterval(3 * time.Second)
 
 	// NB(bl): We set replication to 3 to mimic production. This can be made
 	// into a variable if needed.
@@ -474,10 +476,6 @@ func newNodes(
 	topoOpts := topology.NewDynamicOptions().
 		SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
 	topoInit := topology.NewDynamicInitializer(topoOpts)
-	// TODO(prateek): do we need the options below
-	// retentionOpts := retention.NewOptions().
-	// 	SetRetentionPeriod(6 * time.Hour).
-	// 	SetBufferDrain(3 * time.Second)
 
 	nodeOpt := bootstrappableTestSetupOptions{
 		disablePeersBootstrapper: true,
