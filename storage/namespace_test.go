@@ -50,7 +50,7 @@ import (
 var testShardIDs = sharding.NewShards([]uint32{0, 1}, shard.Available)
 
 func newTestNamespace(t *testing.T) *dbNamespace {
-	metadata := namespace.NewMetadata(defaultTestNamespaceID, namespace.NewOptions())
+	metadata := namespace.NewMetadata(defaultTestNamespaceID, defaultTestNamespaceOptions)
 	hashFn := func(identifier ts.ID) uint32 { return testShardIDs[0].ID() }
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)

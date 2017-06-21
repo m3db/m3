@@ -100,22 +100,28 @@ func (d *mockDatabase) FetchBlocksMetadata(
 	return nil, nil, nil
 }
 
-var defaultTestNamespaceID = ts.StringID("testns1")
-var defaultTestRetentionOptions = retention.NewOptions().
-	SetBufferFuture(10 * time.Minute).
-	SetBufferPast(10 * time.Minute).
-	SetBlockSize(2 * time.Hour).
-	SetRetentionPeriod(2 * 24 * time.Hour)
-var defaultTestDatabaseOptions = NewOptions().
-	SetMaxFlushRetries(3).
-	SetFileOpOptions(NewFileOpOptions().SetJitter(0)).
-	SetTickInterval(10 * time.Minute).
-	SetRegistry(
-		namespace.NewRegistry([]namespace.Metadata{
-			namespace.NewMetadata(defaultTestNamespaceID,
-				namespace.NewOptions().
-					SetRetentionOptions(defaultTestRetentionOptions)),
-		}))
+var (
+	defaultTestNamespaceID      = ts.StringID("testns1")
+	defaultTestRetentionOptions = retention.NewOptions().
+					SetBufferFuture(10 * time.Minute).
+					SetBufferPast(10 * time.Minute).
+					SetBlockSize(2 * time.Hour).
+					SetRetentionPeriod(2 * 24 * time.Hour)
+
+	defaultTestNamespaceOptions = namespace.NewOptions().
+					SetRetentionOptions(defaultTestRetentionOptions)
+
+	defaultTestDatabaseOptions = NewOptions().
+					SetMaxFlushRetries(3).
+					SetFileOpOptions(NewFileOpOptions().SetJitter(0)).
+					SetTickInterval(10 * time.Minute).
+					SetRegistry(
+			namespace.NewRegistry([]namespace.Metadata{
+				namespace.NewMetadata(defaultTestNamespaceID,
+					namespace.NewOptions().
+						SetRetentionOptions(defaultTestRetentionOptions)),
+			}))
+)
 
 func testDatabaseOptions() Options {
 	// NB(r): We don't need to recreate the options multiple
