@@ -55,7 +55,6 @@ type cleanupManager struct {
 	status                  tally.Gauge
 }
 
-// TODO(prateek): can we remove the coupling with databaseFlushManager here
 func newCleanupManager(database database, fm databaseFlushManager, scope tally.Scope) databaseCleanupManager {
 	opts := database.Options()
 	filePathPrefix := opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
