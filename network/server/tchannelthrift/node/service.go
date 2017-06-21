@@ -310,13 +310,18 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 	ctx := tchannelthrift.Context(tctx)
 
 	nsID := s.newID(ctx, req.NameSpace)
+	// check if the namespace if known
+	nsMetadata, ok := s.db.Options().Registry().Get(nsID)
+	if !ok {
+		return nil, tterrors.NewBadRequestError(fmt.Errorf("unknown namespace: %v", nsID.String()))
+	}
 
 	res := rpc.NewFetchBlocksRawResult_()
 	res.Elements = make([]*rpc.Blocks, len(req.Elements))
 
 	// Preallocate starts to maximum size since at least one element will likely
 	// be fetching most blocks for peer bootstrapping
-	ropts := s.db.Options().RetentionOptions()
+	ropts := nsMetadata.Options().RetentionOptions()
 	blockStarts := make([]time.Time, 0, ropts.RetentionPeriod()/ropts.BlockSize())
 
 	for i, request := range req.Elements {

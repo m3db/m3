@@ -29,19 +29,27 @@ import (
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3db/digest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/tchannel-go/thrift"
+
+	"github.com/m3db/m3db/digest"
 )
 
 // Create test service opts once to avoid recreating a lot of default pools, etc
-var testServiceOpts = storage.NewOptions()
+var (
+	testNamespaceID       = ts.StringID("metrics")
+	testNamespaceMetadata = namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
+	testRegistry          = namespace.NewRegistry([]namespace.Metadata{testNamespaceMetadata})
+	testServiceOpts       = storage.NewOptions().
+				SetRegistry(testRegistry)
+)
 
 func TestServiceHealth(t *testing.T) {
 	ctrl := gomock.NewController(t)

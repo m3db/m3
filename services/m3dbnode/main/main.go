@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/cluster"
+	"github.com/m3db/m3db/storage/namespace"
 )
 
 var (
@@ -60,11 +61,9 @@ func main() {
 	httpNodeAddr := *httpNodeAddrArg
 	tchannelNodeAddr := *tchannelNodeAddrArg
 
-	storageOpts := storage.NewOptions()
-	fileOpOpts := storageOpts.FileOpOptions().
-		SetRetentionOptions(storageOpts.RetentionOptions())
-	storageOpts = storageOpts.
-		SetFileOpOptions(fileOpOpts)
+	namespaces := server.DefaultNamespaces()
+	registry := namespace.NewRegistry(namespaces)
+	storageOpts := storage.NewOptions().SetRegistry(registry)
 
 	log := storageOpts.InstrumentOptions().Logger()
 	topoInit, err := server.DefaultTopologyInitializer(id, tchannelNodeAddr)
@@ -89,9 +88,7 @@ func main() {
 	storageOpts = storageOpts.
 		SetRepairOptions(repairOpts)
 
-	namespaces := server.DefaultNamespaces()
-
-	db, err := cluster.NewDatabase(namespaces, id, topoInit, storageOpts)
+	db, err := cluster.NewDatabase(id, topoInit, storageOpts)
 	if err != nil {
 		log.Fatalf("could not create database: %v", err)
 	}
