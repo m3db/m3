@@ -28,19 +28,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/ts"
-	"github.com/stretchr/testify/require"
 )
 
 var (
 	errDataCleanupTimedOut = errors.New("cleaning up data files took too long")
 )
 
-func createWriter(storageOpts storage.Options) fs.FileSetWriter {
+func createWriter(storageOpts storage.Options, ropts retention.Options) fs.FileSetWriter {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
-	blockSize := storageOpts.RetentionOptions().BlockSize()
+	blockSize := ropts.BlockSize()
 	filePathPrefix := fsOpts.FilePathPrefix()
 	writerBufferSize := fsOpts.WriterBufferSize()
 	newFileMode := fsOpts.NewFileMode()
@@ -49,7 +51,9 @@ func createWriter(storageOpts storage.Options) fs.FileSetWriter {
 }
 
 func createFilesetFiles(t *testing.T, storageOpts storage.Options, namespace ts.ID, shard uint32, fileTimes []time.Time) {
-	writer := createWriter(storageOpts)
+	md, ok := storageOpts.Registry().Get(namespace)
+	require.True(t, ok)
+	writer := createWriter(storageOpts, md.Options().RetentionOptions())
 	for _, start := range fileTimes {
 		require.NoError(t, writer.Open(namespace, shard, start))
 		require.NoError(t, writer.Close())
@@ -86,19 +90,19 @@ func TestDiskCleanup(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	testSetup, err := newTestSetup(newTestOptions())
+	tickInterval := 3 * time.Second
+	testSetup, err := newTestSetup(newTestOptions().SetTickInterval(tickInterval))
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	testSetup.storageOpts =
-		testSetup.storageOpts.
-			SetRetentionOptions(testSetup.storageOpts.RetentionOptions().
-				SetBufferDrain(3 * time.Second).
-				SetRetentionPeriod(6 * time.Hour))
+	var (
+		ropts           = retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
+		blockSize       = ropts.BlockSize()
+		retentionPeriod = ropts.RetentionPeriod()
+	)
+	require.NoError(t, testSetup.setRetentionOnAll(ropts))
 
-	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-	retentionPeriod := testSetup.storageOpts.RetentionOptions().RetentionPeriod()
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
@@ -129,6 +133,6 @@ func TestDiskCleanup(t *testing.T) {
 	testSetup.setNowFn(newNow)
 
 	// Check if files have been deleted
-	waitTimeout := testSetup.storageOpts.RetentionOptions().BufferDrain() * 4
+	waitTimeout := tickInterval * 4
 	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, waitTimeout))
 }

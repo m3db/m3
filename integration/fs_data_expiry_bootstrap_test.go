@@ -47,10 +47,20 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	}
 	// Test setup
 	var (
-		log    = xlog.SimpleLogger
-		namesp = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
-		opts   = newTestOptions().
-			SetNamespaces([]namespace.Metadata{namesp})
+		tickInterval = 3 * time.Second
+		log          = xlog.SimpleLogger
+		ropts        = retention.NewOptions().
+				SetRetentionPeriod(6 * time.Hour).
+				SetBlockSize(2 * time.Hour).
+				SetBufferPast(10 * time.Minute).
+				SetBufferFuture(2 * time.Minute).
+				SetBlockDataExpiry(true)
+		blockSize = ropts.BlockSize()
+		namesp    = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().
+				SetRetentionOptions(ropts))
+		opts = newTestOptions().
+			SetNamespaces([]namespace.Metadata{namesp}).
+			SetTickInterval(tickInterval)
 		setup *testSetup
 		err   error
 	)
@@ -72,19 +82,10 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	require.NoError(t, err)
 	defer setup.close()
 
-	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(6 * time.Hour).
-		SetBlockSize(2 * time.Hour).
-		SetBufferPast(10 * time.Minute).
-		SetBufferFuture(2 * time.Minute).
-		SetBufferDrain(3 * time.Second).
-		SetBlockDataExpiry(true)
-
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 	filePathPrefix := fsOpts.FilePathPrefix()
 	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-	bsOpts := result.NewOptions().
-		SetRetentionOptions(setup.storageOpts.RetentionOptions())
+	bsOpts := result.NewOptions().SetRetentionOptions(ropts)
 	bfsOpts := bfs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
@@ -93,16 +94,14 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	process := bootstrap.NewProcess(bs, bsOpts)
 
 	setup.storageOpts = setup.storageOpts.
-		SetRetentionOptions(retentionOpts).
 		SetBootstrapProcess(process)
 
 	// Write test data
 	now := setup.getNowFn()
-	blockSize := setup.storageOpts.RetentionOptions().BlockSize()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{[]string{"foo", "bar"}, 100, now.Add(-blockSize)},
 	})
-	require.NoError(t, writeTestDataToDisk(namesp.ID(), setup, seriesMaps))
+	require.NoError(t, writeTestDataToDisk(namesp, setup, seriesMaps))
 
 	// Start the server with filesystem bootstrapper
 	log.Debug("filesystem data expiry bootstrap test")

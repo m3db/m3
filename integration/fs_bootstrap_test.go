@@ -42,21 +42,25 @@ func TestFilesystemBootstrap(t *testing.T) {
 	}
 
 	// Test setup
-	opts := newTestOptions()
+	tickInterval := 3 * time.Second
+	opts := newTestOptions().
+		SetTickInterval(tickInterval)
 
 	setup, err := newTestSetup(opts)
 	require.NoError(t, err)
 	defer setup.close()
 
-	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(2 * time.Hour).
-		SetBufferDrain(3 * time.Second)
+	var (
+		ropts     = retention.NewOptions().SetRetentionPeriod(2 * time.Hour)
+		blockSize = ropts.BlockSize()
+	)
+	setup.storageOpts = setup.storageOpts.SetTickInterval(tickInterval)
+	require.NoError(t, setup.setRetentionOnAll(ropts))
 
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 	filePathPrefix := fsOpts.FilePathPrefix()
 	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-	bsOpts := result.NewOptions().
-		SetRetentionOptions(setup.storageOpts.RetentionOptions())
+	bsOpts := result.NewOptions().SetRetentionOptions(ropts)
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts)
@@ -64,18 +68,20 @@ func TestFilesystemBootstrap(t *testing.T) {
 	process := bootstrap.NewProcess(bs, bsOpts)
 
 	setup.storageOpts = setup.storageOpts.
-		SetRetentionOptions(retentionOpts).
 		SetBootstrapProcess(process)
 
 	// Write test data
 	now := setup.getNowFn()
-	blockSize := setup.storageOpts.RetentionOptions().BlockSize()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{[]string{"foo", "bar"}, 100, now.Add(-blockSize)},
 		{[]string{"foo", "baz"}, 50, now},
 	})
-	require.NoError(t, writeTestDataToDisk(testNamespaces[0], setup, seriesMaps))
-	require.NoError(t, writeTestDataToDisk(testNamespaces[1], setup, nil))
+	testNs, ok := setup.storageOpts.Registry().Get(testNamespaces[0])
+	require.True(t, ok)
+	require.NoError(t, writeTestDataToDisk(testNs, setup, seriesMaps))
+	testNs, ok = setup.storageOpts.Registry().Get(testNamespaces[1])
+	require.True(t, ok)
+	require.NoError(t, writeTestDataToDisk(testNs, setup, nil))
 
 	// Start the server with filesystem bootstrapper
 	log := setup.storageOpts.InstrumentOptions().Logger()

@@ -28,6 +28,7 @@ import (
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/integration/generate"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
@@ -39,15 +40,14 @@ func TestTruncateNamespace(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	testSetup, err := newTestSetup(newTestOptions())
+	tickInterval := time.Second
+	testSetup, err := newTestSetup(newTestOptions().SetTickInterval(tickInterval))
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	testSetup.storageOpts =
-		testSetup.storageOpts.SetRetentionOptions(testSetup.storageOpts.RetentionOptions().
-			SetBufferDrain(time.Second).
-			SetRetentionPeriod(6 * time.Hour))
-	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
+	ropts := retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
+	blockSize := ropts.BlockSize()
+	require.NoError(t, testSetup.setRetentionOnAll(ropts))
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()

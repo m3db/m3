@@ -105,7 +105,9 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		opts = newTestOptions()
 	}
 
-	storageOpts := storage.NewOptions()
+	storageOpts := storage.NewOptions().
+		SetRegistry(namespace.NewRegistry(opts.Namespaces())).
+		SetTickInterval(opts.TickInterval())
 
 	nativePooling := strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"
 	if nativePooling {
@@ -168,7 +170,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 
 	// Set up getter and setter for now
 	var lock sync.RWMutex
-	now := time.Now().Truncate(storageOpts.RetentionOptions().BlockSize())
+	now := time.Now() // TODO(prateek):can this be removed -> .Truncate(storageOpts.RetentionOptions().BlockSize())
 	getNowFn := func() time.Time {
 		lock.RLock()
 		t := now
@@ -227,7 +229,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}, nil
 }
 
-func (ts *testSetup) generatorOptions() generate.Options {
+func (ts *testSetup) generatorOptions(ropts retention.Options) generate.Options {
 	var (
 		storageOpts = ts.storageOpts
 		fsOpts      = storageOpts.CommitLogOptions().FilesystemOptions()
@@ -237,13 +239,49 @@ func (ts *testSetup) generatorOptions() generate.Options {
 
 	return opts.
 		SetClockOptions(co).
-		SetRetentionPeriod(storageOpts.RetentionOptions().RetentionPeriod()).
-		SetBlockSize(storageOpts.RetentionOptions().BlockSize()).
+		SetRetentionPeriod(ropts.RetentionPeriod()).
+		SetBlockSize(ropts.BlockSize()).
 		SetFilePathPrefix(fsOpts.FilePathPrefix()).
 		SetNewFileMode(fsOpts.NewFileMode()).
 		SetNewDirectoryMode(fsOpts.NewDirectoryMode()).
 		SetWriterBufferSize(fsOpts.WriterBufferSize()).
 		SetEncoderPool(storageOpts.EncoderPool())
+}
+
+func (ts *testSetup) setRetentionOnNamespace(ropts retention.Options, ns namespace.Metadata) error {
+	// construct new metadata with modified opts
+	newMetadata := namespace.NewMetadata(ns.ID(), ns.Options().SetRetentionOptions(ropts))
+
+	// create new list of metadatas with the modified id updated
+	newMetadatas := []namespace.Metadata{}
+	oldMetadatas := ts.opts.Namespaces()
+	found := false
+	for _, n := range oldMetadatas {
+		if n.ID().Equal(ns.ID()) {
+			newMetadatas = append(newMetadatas, newMetadata)
+			found = true
+		} else {
+			newMetadatas = append(newMetadatas, n)
+		}
+	}
+	if !found {
+		return fmt.Errorf("unable to find any namespace with specified id: %v", ns.ID().String())
+	}
+
+	// update testSetup properties
+	ts.opts = ts.opts.SetNamespaces(newMetadatas)
+	newRegisty := namespace.NewRegistry(newMetadatas)
+	ts.storageOpts = ts.storageOpts.SetRegistry(newRegisty)
+	return nil
+}
+
+func (ts *testSetup) setRetentionOnAll(ropts retention.Options) error {
+	for _, ns := range ts.opts.Namespaces() {
+		if err := ts.setRetentionOnNamespace(ropts, ns); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (ts *testSetup) serverIsUp() bool {
@@ -300,8 +338,7 @@ func (ts *testSetup) startServer() error {
 	}
 
 	var err error
-	ts.db, err = cluster.NewDatabase(ts.namespaces,
-		ts.hostID, ts.topoInit, ts.storageOpts)
+	ts.db, err = cluster.NewDatabase(ts.hostID, ts.topoInit, ts.storageOpts)
 	if err != nil {
 		return err
 	}
@@ -437,9 +474,10 @@ func newNodes(
 	topoOpts := topology.NewDynamicOptions().
 		SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
 	topoInit := topology.NewDynamicInitializer(topoOpts)
-	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(6 * time.Hour).
-		SetBufferDrain(3 * time.Second)
+	// TODO(prateek): do we need the options below
+	// retentionOpts := retention.NewOptions().
+	// 	SetRetentionPeriod(6 * time.Hour).
+	// 	SetBufferDrain(3 * time.Second)
 
 	nodeOpt := bootstrappableTestSetupOptions{
 		disablePeersBootstrapper: true,
@@ -451,7 +489,7 @@ func newNodes(
 		nodeOpts[i] = nodeOpt
 	}
 
-	nodes, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, nodeOpts)
+	nodes, closeFn := newDefaultBootstrappableTestSetups(t, opts, nodeOpts)
 
 	nodeClose := func() { // Clean up running servers at end of test
 		log.Debug("servers closing")

@@ -50,6 +50,9 @@ const (
 	// defaultWorkerPoolSize is the default number of workers in the worker pool.
 	defaultWorkerPoolSize = 10
 
+	// defaultTickInterval is the default tick interval.
+	defaultTickInterval = 3 * time.Second
+
 	// defaultUseTChannelClientForReading determines whether we use the tchannel client for reading by default.
 	defaultUseTChannelClientForReading = true
 
@@ -76,6 +79,12 @@ type testOptions interface {
 
 	// ID returns the node ID.
 	ID() string
+
+	// SetTickInterval sets the tick interval.
+	SetTickInterval(value time.Duration) testOptions
+
+	// TickInterval returns the tick interval.
+	TickInterval() time.Duration
 
 	// SetHTTPClusterAddr sets the http cluster address.
 	SetHTTPClusterAddr(value string) testOptions
@@ -196,6 +205,7 @@ type testOptions interface {
 type options struct {
 	namespaces                         []namespace.Metadata
 	id                                 string
+	tickInterval                       time.Duration
 	httpClusterAddr                    string
 	tchannelClusterAddr                string
 	httpNodeAddr                       string
@@ -221,8 +231,9 @@ func newTestOptions() testOptions {
 		namespaces = append(namespaces, namespace.NewMetadata(ns, namespace.NewOptions()))
 	}
 	return &options{
-		namespaces: namespaces,
-		id:         defaultID,
+		namespaces:                     namespaces,
+		id:                             defaultID,
+		tickInterval:                   defaultTickInterval,
 		serverStateChangeTimeout:       defaultServerStateChangeTimeout,
 		clusterConnectionTimeout:       defaultClusterConnectionTimeout,
 		readRequestTimeout:             defaultReadRequestTimeout,
@@ -254,6 +265,16 @@ func (o *options) SetID(value string) testOptions {
 
 func (o *options) ID() string {
 	return o.id
+}
+
+func (o *options) SetTickInterval(value time.Duration) testOptions {
+	opts := *o
+	opts.tickInterval = value
+	return &opts
+}
+
+func (o *options) TickInterval() time.Duration {
+	return o.tickInterval
 }
 
 func (o *options) SetHTTPClusterAddr(value string) testOptions {

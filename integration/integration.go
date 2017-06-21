@@ -26,9 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/integration/generate"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -36,15 +37,15 @@ import (
 	bfs "github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/ts"
 	xmetrics "github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/uber-go/tally"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3cluster/shard"
-	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -154,14 +155,13 @@ func newDefaulTestResultOptions(
 	return result.NewOptions().
 		SetClockOptions(storageOpts.ClockOptions()).
 		SetInstrumentOptions(instrumentOpts).
-		SetRetentionOptions(storageOpts.RetentionOptions()).
+		// SetRetentionOptions(storageOpts.RetentionOptions()). TODO(prateek): what needs to be done for this
 		SetDatabaseBlockOptions(storageOpts.DatabaseBlockOptions())
 }
 
 func newDefaultBootstrappableTestSetups(
 	t *testing.T,
 	opts testOptions,
-	retentionOpts retention.Options,
 	setupOpts []bootstrappableTestSetupOptions,
 ) (testSetups, closeFn) {
 	var (
@@ -193,9 +193,6 @@ func newDefaultBootstrappableTestSetups(
 
 		setup, err := newTestSetup(instanceOpts)
 		require.NoError(t, err)
-
-		setup.storageOpts = setup.storageOpts.
-			SetRetentionOptions(retentionOpts)
 
 		instrumentOpts := setup.storageOpts.InstrumentOptions()
 
@@ -263,12 +260,13 @@ func newDefaultBootstrappableTestSetups(
 }
 
 func writeTestDataToDisk(
-	namespace ts.ID,
+	metadata namespace.Metadata,
 	setup *testSetup,
 	seriesMaps map[time.Time]generate.SeriesBlock,
 ) error {
-	writer := generate.NewWriter(setup.generatorOptions())
-	return writer.Write(namespace, setup.shardSet, seriesMaps)
+	ropts := metadata.Options().RetentionOptions()
+	writer := generate.NewWriter(setup.generatorOptions(ropts))
+	return writer.Write(metadata.ID(), setup.shardSet, seriesMaps)
 }
 
 func concatShards(a, b shard.Shards) shard.Shards {

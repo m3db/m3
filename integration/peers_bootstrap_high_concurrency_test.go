@@ -82,7 +82,7 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 		{shardIDs, 3, now.Add(-blockSize)},
 		{shardIDs, 3, now},
 	})
-	err := writeTestDataToDisk(namesp.ID(), setups[0], seriesMaps)
+	err := writeTestDataToDisk(namesp, setups[0], seriesMaps)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper

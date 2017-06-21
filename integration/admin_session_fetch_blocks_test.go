@@ -26,11 +26,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/integration/generate"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
-	"github.com/stretchr/testify/require"
 )
 
 // This test writes data, and retrieves it using AdminSession endpoints
@@ -40,16 +42,18 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
+
 	// Test setup
-	testSetup, err := newTestSetup(newTestOptions())
+	tickInterval := time.Second
+	testSetup, err := newTestSetup(newTestOptions().SetTickInterval(tickInterval))
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	testSetup.storageOpts = testSetup.storageOpts.SetRetentionOptions(
-		testSetup.storageOpts.RetentionOptions().
-			SetBufferDrain(time.Second).
-			SetRetentionPeriod(6 * time.Hour))
-	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
+	var (
+		ropts     = retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
+		blockSize = ropts.BlockSize()
+	)
+	require.NoError(t, testSetup.setRetentionOnAll(ropts))
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
@@ -80,7 +84,7 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
 	later := testSetup.getNowFn()
-	time.Sleep(testSetup.storageOpts.RetentionOptions().BufferDrain() * 4)
+	time.Sleep(tickInterval * 4)
 
 	// Retrieve written data using the AdminSession APIs (FetchMetadataBlocksFromPeers/FetchBlocksFromPeers)
 	adminClient := testSetup.m3dbAdminClient

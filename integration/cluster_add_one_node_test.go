@@ -34,9 +34,10 @@ import (
 	"github.com/m3db/m3db/ts"
 	xlog "github.com/m3db/m3x/log"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/stretchr/testify/require"
 )
 
 func TestClusterAddOneNode(t *testing.T) {
@@ -47,9 +48,17 @@ func TestClusterAddOneNode(t *testing.T) {
 	// Test setups
 	log := xlog.SimpleLogger
 
-	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
+	namesp := namespace.NewMetadata(testNamespaces[0],
+		namespace.NewOptions().SetRetentionOptions(
+			retention.NewOptions().
+				SetRetentionPeriod(6*time.Hour).
+				SetBlockSize(2*time.Hour).
+				SetBufferPast(10*time.Minute).
+				SetBufferFuture(2*time.Minute)))
+
 	opts := newTestOptions().
-		SetNamespaces([]namespace.Metadata{namesp})
+		SetNamespaces([]namespace.Metadata{namesp}).
+		SetTickInterval(3 * time.Second)
 
 	instances := struct {
 		start []services.ServiceInstance
@@ -84,12 +93,6 @@ func TestClusterAddOneNode(t *testing.T) {
 	topoOpts := topology.NewDynamicOptions().
 		SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
 	topoInit := topology.NewDynamicInitializer(topoOpts)
-	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(6 * time.Hour).
-		SetBlockSize(2 * time.Hour).
-		SetBufferPast(10 * time.Minute).
-		SetBufferFuture(2 * time.Minute).
-		SetBufferDrain(3 * time.Second)
 	setupOpts := []bootstrappableTestSetupOptions{
 		{
 			disablePeersBootstrapper: true,
@@ -100,7 +103,7 @@ func TestClusterAddOneNode(t *testing.T) {
 			topologyInitializer:      topoInit,
 		},
 	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
+	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
 	// Write test data for first node
@@ -121,12 +124,12 @@ func TestClusterAddOneNode(t *testing.T) {
 	}
 
 	now := setups[0].getNowFn()
-	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
+	blockSize := namesp.Options().RetentionOptions().BlockSize()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{[]string{ids[0].str, ids[1].str}, 180, now.Add(-blockSize)},
 		{[]string{ids[0].str, ids[2].str}, 90, now},
 	})
-	err = writeTestDataToDisk(namesp.ID(), setups[0], seriesMaps)
+	err = writeTestDataToDisk(namesp, setups[0], seriesMaps)
 	require.NoError(t, err)
 
 	// Prepare verfication of data on nodes

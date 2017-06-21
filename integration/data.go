@@ -124,9 +124,13 @@ func verifySeriesMaps(
 	expectedDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, "expected.log")
 	actualDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, "actual.log")
 
+	nsMetadata, ok := ts.storageOpts.Registry().Get(namespace)
+	require.True(t, ok)
+	nsOpts := nsMetadata.Options()
+
 	for timestamp, sm := range seriesMaps {
 		start := timestamp
-		end := timestamp.Add(ts.storageOpts.RetentionOptions().BlockSize())
+		end := timestamp.Add(nsOpts.RetentionOptions().BlockSize())
 		verifySeriesMapForRange(
 			t, ts, start, end, namespace, sm,
 			expectedDebugFilePath, actualDebugFilePath)

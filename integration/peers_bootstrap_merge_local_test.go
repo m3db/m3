@@ -42,30 +42,32 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 
 	// Test setups
 	log := xlog.SimpleLogger
-	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
-	opts := newTestOptions().
-		SetNamespaces([]namespace.Metadata{namesp}).SetVerifySeriesDebugFilePathPrefix("/tmp/")
-
-	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
-
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(6 * time.Hour).
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
-		SetBufferFuture(2 * time.Minute).
-		SetBufferDrain(3 * time.Second)
+		SetBufferFuture(2 * time.Minute)
+	namesp := namespace.NewMetadata(testNamespaces[0],
+		namespace.NewOptions().SetRetentionOptions(retentionOpts))
+	opts := newTestOptions().
+		SetNamespaces([]namespace.Metadata{namesp}).
+		SetVerifySeriesDebugFilePathPrefix("/tmp/").
+		SetTickInterval(3 * time.Second)
+
+	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: false, testStatsReporter: reporter},
 	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
+	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
 	// Write test data for first node, ensure to overflow past
 	now := setups[0].getNowFn()
 	cutoverAt := now.Add(retentionOpts.BufferFuture())
 	completeAt := now.Add(180 * time.Second)
-	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
+	blockSize := retentionOpts.BlockSize()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{[]string{"foo", "bar"}, 180, now.Add(-blockSize)},
 		{[]string{"foo", "baz"}, int(completeAt.Sub(now) / time.Second), now},
@@ -127,7 +129,7 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 	require.Equal(t, 120, len(directWritesSeriesMaps[now][1].Data))
 
 	// Write data to first node
-	err := writeTestDataToDisk(namesp.ID(), setups[0], firstNodeSeriesMaps)
+	err := writeTestDataToDisk(namesp, setups[0], firstNodeSeriesMaps)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper

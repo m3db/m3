@@ -26,8 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/integration/generate"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3db/integration/generate"
+	"github.com/m3db/m3db/retention"
 )
 
 func TestRoundtrip(t *testing.T) {
@@ -35,15 +37,15 @@ func TestRoundtrip(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	testSetup, err := newTestSetup(newTestOptions())
+	tickInterval := time.Second
+	testOpts := newTestOptions().SetTickInterval(tickInterval)
+	testSetup, err := newTestSetup(testOpts)
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	testSetup.storageOpts =
-		testSetup.storageOpts.SetRetentionOptions(testSetup.storageOpts.RetentionOptions().
-			SetBufferDrain(time.Second).
-			SetRetentionPeriod(6 * time.Hour))
-	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
+	ropts := retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
+	blockSize := ropts.BlockSize()
+	require.NoError(t, testSetup.setRetentionOnAll(ropts))
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
@@ -74,7 +76,7 @@ func TestRoundtrip(t *testing.T) {
 
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	time.Sleep(testSetup.storageOpts.RetentionOptions().BufferDrain() * 4)
+	time.Sleep(tickInterval * 4)
 
 	// Verify in-memory data match what we've written
 	verifySeriesMaps(t, testSetup, testNamespaces[0], seriesMaps)
