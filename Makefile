@@ -111,7 +111,7 @@ lint:
 
 test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
-	@$(VENDOR_ENV) $(test) $(coverfile) | tee $(test_log)
+	@$(VENDOR_ENV) NPROC=1 $(test) $(coverfile) | tee $(test_log)
 
 # Do not test native pooling for now due to slow travis builds
 test-integration:
