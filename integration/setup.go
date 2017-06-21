@@ -171,8 +171,9 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	// Set up getter and setter for now
 	truncateSize, guess := guessBestTruncateBlockSize(opts.Namespaces())
 	if guess {
-		storageOpts.InstrumentOptions().Logger().Infof(
-			"Unable to find a single blockSize from known retention periods, guessing: %v", truncateSize.String())
+		storageOpts.InstrumentOptions().Logger().Warnf(
+			"Unable to find a single blockSize from known retention periods, guessing: %v",
+			truncateSize.String())
 	}
 
 	var lock sync.RWMutex
