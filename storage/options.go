@@ -128,8 +128,6 @@ type options struct {
 }
 
 // NewOptions creates a new set of storage options with defaults
-// TODO(r): add an "IsValid()" method and ensure buffer future and buffer past are
-// less than blocksize and check when opening database
 func NewOptions() Options {
 	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
