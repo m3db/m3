@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
@@ -331,13 +330,6 @@ type databaseCleanupManager interface {
 
 // FileOpOptions control the database file operations behavior
 type FileOpOptions interface {
-	// SetRetentionOptions sets the retention options
-	// TODO(prateek): does this need to be removed too
-	SetRetentionOptions(value retention.Options) FileOpOptions
-
-	// RetentionOptions returns the retention options
-	RetentionOptions() retention.Options
-
 	// SetJitter sets the jitter for database file operations
 	SetJitter(value time.Duration) FileOpOptions
 
