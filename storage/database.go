@@ -27,20 +27,19 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
-	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/counter"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
-
-	"github.com/uber-go/tally"
 )
 
 var (
@@ -123,7 +122,6 @@ func newDatabaseMetrics(scope tally.Scope, samplingRate float64) databaseMetrics
 
 // NewDatabase creates a new time series database
 func NewDatabase(
-	namespaces []namespace.Metadata,
 	shardSet sharding.ShardSet,
 	opts Options,
 ) (Database, error) {
@@ -140,6 +138,7 @@ func NewDatabase(
 		errThreshold: opts.ErrorThresholdForLoad(),
 	}
 
+	// TODO(prateek): investigate commit log metrics for multiple namespaces
 	d.commitLog = commitlog.NewCommitLog(opts.CommitLogOptions())
 	if err := d.commitLog.Open(); err != nil {
 		return nil, err
@@ -156,22 +155,27 @@ func NewDatabase(
 		return nil, errCommitLogStrategyUnknown
 	}
 
-	ns := make(map[ts.Hash]databaseNamespace, len(namespaces))
-	blockRetrieverMgr := opts.DatabaseBlockRetrieverManager()
+	var (
+		namespaces        = opts.Registry().Metadatas()
+		ns                = make(map[ts.Hash]databaseNamespace, len(namespaces))
+		blockRetrieverMgr = opts.DatabaseBlockRetrieverManager()
+	)
 	for _, n := range namespaces {
-		if _, exists := ns[n.ID().Hash()]; exists {
+		var (
+			idHash          = n.ID().Hash()
+			blockRetriever  block.DatabaseBlockRetriever
+			newRetrieverErr error
+		)
+		if _, exists := ns[idHash]; exists {
 			return nil, errDuplicateNamespaces
 		}
-		var blockRetriever block.DatabaseBlockRetriever
 		if blockRetrieverMgr != nil {
-			var newRetrieverErr error
-			blockRetriever, newRetrieverErr =
-				blockRetrieverMgr.Retriever(n.ID())
+			blockRetriever, newRetrieverErr = blockRetrieverMgr.Retriever(n.ID())
 			if newRetrieverErr != nil {
 				return nil, newRetrieverErr
 			}
 		}
-		ns[n.ID().Hash()] = newDatabaseNamespace(n, shardSet, blockRetriever,
+		ns[idHash] = newDatabaseNamespace(n, shardSet, blockRetriever,
 			d, d.writeCommitLogFn, d.opts)
 	}
 	d.namespaces = ns

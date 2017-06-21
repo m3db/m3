@@ -25,11 +25,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/ts"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/ts"
 )
 
 func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
@@ -44,11 +45,12 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 			return now
 		}))
 
-	namespace := NewMockdatabaseNamespace(ctrl)
-	namespace.EXPECT().Bootstrap(nil, gomock.Any()).Return(fmt.Errorf("an error"))
-	namespace.EXPECT().ID().Return(ts.StringID("test"))
+	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().Options().Return(namespace.NewOptions())
+	ns.EXPECT().Bootstrap(nil, gomock.Any()).Return(fmt.Errorf("an error"))
+	ns.EXPECT().ID().Return(ts.StringID("test"))
 	namespaces := map[string]databaseNamespace{
-		"test": namespace,
+		"test": ns,
 	}
 
 	db := &mockDatabase{namespaces: namespaces, opts: opts}
@@ -68,13 +70,9 @@ func TestDatabaseBootstrapTargetRanges(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
-	opts = opts.SetRetentionOptions(opts.RetentionOptions().
-		SetBufferFuture(10 * time.Minute).
-		SetBufferPast(10 * time.Minute).
-		SetBufferDrain(10 * time.Minute).
-		SetBlockSize(2 * time.Hour).
-		SetRetentionPeriod(2 * 24 * time.Hour))
-	ropts := opts.RetentionOptions()
+	ns, ok := opts.Registry().Get(defaultTestNamespaceID)
+	require.True(t, ok)
+	ropts := ns.Options().RetentionOptions()
 	now := time.Now().Truncate(ropts.BlockSize()).Add(8 * time.Minute)
 	opts = opts.
 		SetBootstrapProcess(nil).
@@ -84,7 +82,7 @@ func TestDatabaseBootstrapTargetRanges(t *testing.T) {
 
 	db := &mockDatabase{opts: opts}
 	bsm := newBootstrapManager(db, nil, opts).(*bootstrapManager)
-	ranges := bsm.targetRanges(now)
+	ranges := bsm.targetRanges(now, ropts)
 
 	var all [][]time.Time
 	for _, target := range ranges {

@@ -187,6 +187,10 @@ func newDatabaseNamespace(
 	return n
 }
 
+func (n *dbNamespace) Options() namespace.Options {
+	return n.nopts
+}
+
 func (n *dbNamespace) ID() ts.ID {
 	return n.id
 }
@@ -237,7 +241,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 			n.shards[shard] = existing[shard]
 		} else {
 			needsBootstrap := n.nopts.NeedsBootstrap()
-			n.shards[shard] = newDatabaseShard(n.id, shard, n.blockRetriever,
+			n.shards[shard] = newDatabaseShard(n, shard, n.blockRetriever,
 				n.increasingIndex, n.writeCommitLogFn, needsBootstrap, n.opts)
 			n.metrics.shards.add.Inc(1)
 		}
@@ -742,7 +746,7 @@ func (n *dbNamespace) initShards(needBootstrap bool) {
 	shards := n.shardSet.AllIDs()
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
-		dbShards[shard] = newDatabaseShard(n.id, shard, n.blockRetriever,
+		dbShards[shard] = newDatabaseShard(n, shard, n.blockRetriever,
 			n.increasingIndex, n.writeCommitLogFn, needBootstrap, n.opts)
 	}
 	n.shards = dbShards

@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/ts"
@@ -53,15 +52,13 @@ var (
 type recordFn func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult)
 
 type shardRepairer struct {
-	opts      Options
-	rpopts    repair.Options
-	rtopts    retention.Options
-	client    client.AdminClient
-	recordFn  recordFn
-	logger    xlog.Logger
-	scope     tally.Scope
-	nowFn     clock.NowFn
-	blockSize time.Duration
+	opts     Options
+	rpopts   repair.Options
+	client   client.AdminClient
+	recordFn recordFn
+	logger   xlog.Logger
+	scope    tally.Scope
+	nowFn    clock.NowFn
 }
 
 func newShardRepairer(opts Options, rpopts repair.Options) (databaseShardRepairer, error) {
@@ -72,17 +69,14 @@ func newShardRepairer(opts Options, rpopts repair.Options) (databaseShardRepaire
 
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("database.repair").Tagged(map[string]string{"host": hostname})
-	rtopts := opts.RetentionOptions()
 
 	r := shardRepairer{
-		opts:      opts,
-		rpopts:    rpopts,
-		rtopts:    rtopts,
-		client:    rpopts.AdminClient(),
-		logger:    iopts.Logger(),
-		scope:     scope,
-		nowFn:     opts.ClockOptions().NowFn(),
-		blockSize: rtopts.BlockSize(),
+		opts:   opts,
+		rpopts: rpopts,
+		client: rpopts.AdminClient(),
+		logger: iopts.Logger(),
+		scope:  scope,
+		nowFn:  opts.ClockOptions().NowFn(),
 	}
 	r.recordFn = r.recordDifferences
 
@@ -191,9 +185,8 @@ type dbRepairer struct {
 
 	database      database
 	ropts         repair.Options
-	rtopts        retention.Options
 	shardRepairer databaseShardRepairer
-	repairStates  map[time.Time]repairState
+	repairStates  map[time.Time]repairState // TODO(prateek): make this ns specific
 
 	repairFn            repairFn
 	sleepFn             sleepFn
@@ -234,7 +227,6 @@ func newDatabaseRepairer(database database, opts Options) (databaseRepairer, err
 	r := &dbRepairer{
 		database:            database,
 		ropts:               ropts,
-		rtopts:              opts.RetentionOptions(),
 		shardRepairer:       shardRepairer,
 		repairStates:        make(map[time.Time]repairState),
 		sleepFn:             time.Sleep,
@@ -287,12 +279,13 @@ func (r *dbRepairer) run() {
 	}
 }
 
-func (r *dbRepairer) repairTimeRanges() xtime.Ranges {
+func (r *dbRepairer) namespaceRepairTimeRanges(ns databaseNamespace) xtime.Ranges {
 	var (
 		now       = r.nowFn()
-		blockSize = r.rtopts.BlockSize()
-		start     = now.Add(-r.rtopts.RetentionPeriod()).Truncate(blockSize)
-		end       = now.Add(-r.rtopts.BufferPast()).Truncate(blockSize)
+		rtopts    = ns.Options().RetentionOptions()
+		blockSize = rtopts.BlockSize()
+		start     = now.Add(-rtopts.RetentionPeriod()).Truncate(blockSize)
+		end       = now.Add(-rtopts.BufferPast()).Truncate(blockSize)
 	)
 
 	targetRanges := xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end})
@@ -341,23 +334,31 @@ func (r *dbRepairer) Repair() error {
 		atomic.StoreInt32(&r.running, 0)
 	}()
 
-	multiErr := xerrors.NewMultiError()
-	blockSize := r.rtopts.BlockSize()
-	iter := r.repairTimeRanges().Iter()
-	for iter.Next() {
-		tr := iter.Value()
-		err := r.repairWithTimeRange(tr)
-		for t := tr.Start; t.Before(tr.End); t = t.Add(blockSize) {
-			repairState := r.repairStates[t]
-			if err == nil {
-				repairState.Status = repairSuccess
-			} else {
-				repairState.Status = repairFailed
-				repairState.NumFailures++
+	var (
+		multiErr   = xerrors.NewMultiError()
+		namespaces = r.database.getOwnedNamespaces()
+	)
+	for _, n := range namespaces {
+		var (
+			rtopts    = n.Options().RetentionOptions()
+			blockSize = rtopts.BlockSize()
+			iter      = r.namespaceRepairTimeRanges(n).Iter()
+		)
+		for iter.Next() {
+			tr := iter.Value()
+			err := r.repairNamespaceWithTimeRange(n, tr)
+			for t := tr.Start; t.Before(tr.End); t = t.Add(blockSize) {
+				repairState := r.repairStates[t]
+				if err == nil {
+					repairState.Status = repairSuccess
+				} else {
+					repairState.Status = repairFailed
+					repairState.NumFailures++
+				}
+				r.repairStates[t] = repairState
 			}
-			r.repairStates[t] = repairState
+			multiErr = multiErr.Add(err)
 		}
-		multiErr = multiErr.Add(err)
 	}
 
 	return multiErr.FinalError()
@@ -371,16 +372,11 @@ func (r *dbRepairer) Report() {
 	}
 }
 
-func (r *dbRepairer) repairWithTimeRange(tr xtime.Range) error {
-	multiErr := xerrors.NewMultiError()
-	namespaces := r.database.getOwnedNamespaces()
-	for _, n := range namespaces {
-		if err := n.Repair(r.shardRepairer, tr); err != nil {
-			detailedErr := fmt.Errorf("namespace %s failed to repair time range %v: %v", n.ID().String(), tr, err)
-			multiErr = multiErr.Add(detailedErr)
-		}
+func (r *dbRepairer) repairNamespaceWithTimeRange(n databaseNamespace, tr xtime.Range) error {
+	if err := n.Repair(r.shardRepairer, tr); err != nil {
+		return fmt.Errorf("namespace %s failed to repair time range %v: %v", n.ID().String(), tr, err)
 	}
-	return multiErr.FinalError()
+	return nil
 }
 
 var noOpRepairer databaseRepairer = repairerNoOp{}

@@ -29,6 +29,9 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/storage/namespace"
 )
 
 func testCleanupManager(ctrl *gomock.Controller) (*mockDatabase, *MockdatabaseFlushManager, *cleanupManager) {
@@ -41,10 +44,17 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ts := time.Unix(36000, 0)
+	ts := time.Unix(28800, 0)
+	rOpts := retention.NewOptions().
+		SetRetentionPeriod(14400 * time.Second).
+		SetBufferPast(0 * time.Second).
+		SetBlockSize(7200 * time.Second)
+	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts)
 	start := time.Unix(14400, 0)
-	end := time.Unix(28800, 0)
+	// end := time.Unix(28800, 0)
 	db, fm, mgr := testCleanupManager(ctrl)
+	mgr.opts = mgr.opts.SetCommitLogOptions(
+		mgr.opts.CommitLogOptions().SetRetentionOptions(rOpts))
 
 	inputs := []struct {
 		name string
@@ -57,6 +67,7 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	namespaces := make(map[string]databaseNamespace)
 	for _, input := range inputs {
 		ns := NewMockdatabaseNamespace(ctrl)
+		ns.EXPECT().Options().Return(nsOpts)
 		ns.EXPECT().CleanupFileset(start).Return(input.err)
 		namespaces[input.name] = ns
 	}
@@ -78,16 +89,12 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	}
 
 	gomock.InOrder(
-		fm.EXPECT().FlushTimeStart(ts).Return(start),
-		fm.EXPECT().FlushTimeStart(ts).Return(start),
-		fm.EXPECT().FlushTimeEnd(ts).Return(end),
-		fm.EXPECT().NeedsFlush(time.Unix(14400, 0)).Return(false),
-		fm.EXPECT().NeedsFlush(time.Unix(21600, 0)).Return(false),
-		fm.EXPECT().NeedsFlush(time.Unix(28800, 0)).Return(false),
 		fm.EXPECT().NeedsFlush(time.Unix(7200, 0)).Return(false),
 		fm.EXPECT().NeedsFlush(time.Unix(14400, 0)).Return(false),
 		fm.EXPECT().NeedsFlush(time.Unix(21600, 0)).Return(false),
-		fm.EXPECT().NeedsFlush(time.Unix(0, 0)).Return(true),
+		fm.EXPECT().NeedsFlush(time.Unix(0, 0)).Return(false),
+		fm.EXPECT().NeedsFlush(time.Unix(7200, 0)).Return(false),
+		fm.EXPECT().NeedsFlush(time.Unix(14400, 0)).Return(false),
 	)
 
 	require.Error(t, mgr.Cleanup(ts))
@@ -98,12 +105,17 @@ func TestCleanupManagerCommitLogTimeRange(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	_, fm, mgr := testCleanupManager(ctrl)
-	ts := time.Unix(21600, 0)
-	start := time.Unix(7200, 0)
-	end := time.Unix(14400, 0)
-	fm.EXPECT().FlushTimeStart(ts).Return(start)
-	fm.EXPECT().FlushTimeEnd(ts).Return(end)
+	var (
+		ts    = time.Unix(25200, 0)
+		rOpts = retention.NewOptions().
+			SetRetentionPeriod(18000 * time.Second).
+			SetBufferPast(0 * time.Second).
+			SetBlockSize(7200 * time.Second)
+		_, _, mgr = testCleanupManager(ctrl)
+	)
+
+	mgr.opts = mgr.opts.SetCommitLogOptions(
+		mgr.opts.CommitLogOptions().SetRetentionOptions(rOpts))
 	cs, ce := mgr.commitLogTimeRange(ts)
 	require.Equal(t, time.Unix(0, 0), cs)
 	require.Equal(t, time.Unix(7200, 0), ce)

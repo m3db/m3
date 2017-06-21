@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
@@ -99,15 +100,22 @@ func (d *mockDatabase) FetchBlocksMetadata(
 	return nil, nil, nil
 }
 
+var defaultTestNamespaceID = ts.StringID("testns1")
+var defaultTestRetentionOptions = retention.NewOptions().
+	SetBufferFuture(10 * time.Minute).
+	SetBufferPast(10 * time.Minute).
+	SetBlockSize(2 * time.Hour).
+	SetRetentionPeriod(2 * 24 * time.Hour)
 var defaultTestDatabaseOptions = NewOptions().
 	SetMaxFlushRetries(3).
 	SetFileOpOptions(NewFileOpOptions().SetJitter(0)).
-	SetRetentionOptions(retention.NewOptions().
-		SetBufferFuture(10 * time.Minute).
-		SetBufferPast(10 * time.Minute).
-		SetBufferDrain(10 * time.Minute).
-		SetBlockSize(2 * time.Hour).
-		SetRetentionPeriod(2 * 24 * time.Hour))
+	SetTickFrequency(10 * time.Minute).
+	SetRegistry(
+		namespace.NewRegistry([]namespace.Metadata{
+			namespace.NewMetadata(defaultTestNamespaceID,
+				namespace.NewOptions().
+					SetRetentionOptions(defaultTestRetentionOptions)),
+		}))
 
 func testDatabaseOptions() Options {
 	// NB(r): We don't need to recreate the options multiple
@@ -129,7 +137,7 @@ func newTestDatabase(t *testing.T, bs bootstrapState) *db {
 		SetRepairTimeJitter(time.Duration(0)).
 		SetRepairCheckInterval(time.Duration(0)))
 
-	database, err := NewDatabase(nil, nil, opts)
+	database, err := NewDatabase(nil, opts)
 	require.NoError(t, err)
 	d := database.(*db)
 	m := d.mediator.(*mediator)

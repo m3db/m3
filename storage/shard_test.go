@@ -52,8 +52,9 @@ func (i *testIncreasingIndex) nextIndex() uint64 {
 	return created - 1
 }
 
-func testDatabaseShard(opts Options) *dbShard {
-	return newDatabaseShard(ts.StringID("namespace"), 0, nil,
+func testDatabaseShard(t *testing.T, opts Options) *dbShard {
+	ns := newTestNamespace(t)
+	return newDatabaseShard(ns, 0, nil,
 		&testIncreasingIndex{}, commitLogWriteNoOp, true, opts).(*dbShard)
 }
 
@@ -67,7 +68,7 @@ func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ts.ID, index uint
 
 func TestShardDontNeedBootstrap(t *testing.T) {
 	opts := testDatabaseOptions()
-	shard := newDatabaseShard(ts.StringID("namespace"), 0, nil,
+	shard := newDatabaseShard(newTestNamespace(t), 0, nil,
 		&testIncreasingIndex{}, commitLogWriteNoOp, false, opts).(*dbShard)
 	defer shard.Close()
 
@@ -84,12 +85,10 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 	opts := testDatabaseOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
-	ropts := opts.RetentionOptions()
+	ropts := defaultTestRetentionOptions
+	earliest, latest := retention.FlushTimeStart(ropts, now), retention.FlushTimeEnd(ropts, now)
 
-	earliest := retention.FlushTimeStart(ropts, now)
-	latest := retention.FlushTimeEnd(ropts, now)
-
-	s := testDatabaseShard(opts)
+	s := testDatabaseShard(t, opts)
 	defer s.Close()
 
 	notStarted := fileOpState{Status: fileOpNotStarted}
@@ -103,7 +102,7 @@ func TestShardBootstrapWithError(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
-	s := testDatabaseShard(opts)
+	s := testDatabaseShard(t, opts)
 	defer s.Close()
 
 	fooSeries := series.NewMockDatabaseSeries(ctrl)
@@ -138,10 +137,10 @@ func TestShardBootstrapWithError(t *testing.T) {
 }
 
 func TestShardFlushDuringBootstrap(t *testing.T) {
-	s := testDatabaseShard(testDatabaseOptions())
+	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
 	s.bs = bootstrapping
-	err := s.Flush(testNamespaceID, time.Now(), nil)
+	err := s.Flush(defaultTestNamespaceID, time.Now(), nil)
 	require.Equal(t, err, errShardNotBootstrappedToFlush)
 }
 
@@ -149,15 +148,15 @@ func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	s := testDatabaseShard(testDatabaseOptions())
+	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
 	s.bs = bootstrapped
 	blockStart := time.Unix(21600, 0)
 	flush := persist.NewMockFlush(ctrl)
 	prepared := persist.PreparedPersist{Persist: nil}
-	flush.EXPECT().Prepare(testNamespaceID, s.shard, blockStart).Return(prepared, nil)
+	flush.EXPECT().Prepare(defaultTestNamespaceID, s.shard, blockStart).Return(prepared, nil)
 
-	err := s.Flush(testNamespaceID, blockStart, flush)
+	err := s.Flush(defaultTestNamespaceID, blockStart, flush)
 	require.Nil(t, err)
 
 	flushState := s.FlushState(blockStart)
@@ -174,16 +173,16 @@ func TestShardFlushNoPersistFuncWithError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	s := testDatabaseShard(testDatabaseOptions())
+	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
 	s.bs = bootstrapped
 	blockStart := time.Unix(21600, 0)
 	flush := persist.NewMockFlush(ctrl)
 	prepared := persist.PreparedPersist{}
 	expectedErr := errors.New("some error")
-	flush.EXPECT().Prepare(testNamespaceID, s.shard, blockStart).Return(prepared, expectedErr)
+	flush.EXPECT().Prepare(defaultTestNamespaceID, s.shard, blockStart).Return(prepared, expectedErr)
 
-	actualErr := s.Flush(testNamespaceID, blockStart, flush)
+	actualErr := s.Flush(defaultTestNamespaceID, blockStart, flush)
 	require.NotNil(t, actualErr)
 	require.Equal(t, "some error", actualErr.Error())
 
@@ -200,7 +199,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 
 	blockStart := time.Unix(21600, 0)
 
-	s := testDatabaseShard(testDatabaseOptions())
+	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
 	s.bs = bootstrapped
 	s.flushState.statesByTime[blockStart] = fileOpState{
@@ -215,7 +214,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		Close:   func() error { closed = true; return nil },
 	}
 	expectedErr := errors.New("error foo")
-	flush.EXPECT().Prepare(testNamespaceID, s.shard, blockStart).Return(prepared, expectedErr)
+	flush.EXPECT().Prepare(defaultTestNamespaceID, s.shard, blockStart).Return(prepared, expectedErr)
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
@@ -236,7 +235,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		s.list.PushBack(&dbShardEntry{series: series})
 	}
 
-	err := s.Flush(testNamespaceID, blockStart, flush)
+	err := s.Flush(defaultTestNamespaceID, blockStart, flush)
 
 	require.Equal(t, len(flushed), 2)
 	for i := 0; i < 2; i++ {
@@ -261,7 +260,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 
 	blockStart := time.Unix(21600, 0)
 
-	s := testDatabaseShard(testDatabaseOptions())
+	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
 	s.bs = bootstrapped
 	s.flushState.statesByTime[blockStart] = fileOpState{
@@ -276,7 +275,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		Close:   func() error { closed = true; return nil },
 	}
 
-	flush.EXPECT().Prepare(testNamespaceID, s.shard, blockStart).Return(prepared, nil)
+	flush.EXPECT().Prepare(defaultTestNamespaceID, s.shard, blockStart).Return(prepared, nil)
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
@@ -293,7 +292,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		s.list.PushBack(&dbShardEntry{series: series})
 	}
 
-	err := s.Flush(testNamespaceID, blockStart, flush)
+	err := s.Flush(defaultTestNamespaceID, blockStart, flush)
 
 	require.Equal(t, len(flushed), 2)
 	for i := 0; i < 2; i++ {
@@ -338,10 +337,10 @@ func TestShardTick(t *testing.T) {
 	opts := testDatabaseOptions()
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
-	earliestFlush := retention.FlushTimeStart(opts.RetentionOptions(), now)
-	beforeEarliestFlush := earliestFlush.Add(-opts.RetentionOptions().BlockSize())
+	earliestFlush := retention.FlushTimeStart(defaultTestRetentionOptions, now)
+	beforeEarliestFlush := earliestFlush.Add(-defaultTestRetentionOptions.BlockSize())
 
-	shard := testDatabaseShard(opts)
+	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 
 	// Also check that it expires flush states by time
@@ -384,7 +383,7 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
-	shard := testDatabaseShard(opts)
+	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 
 	addTestSeries(shard, ts.StringID("foo"))
@@ -399,7 +398,7 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 // This tests the scenario where a non-empty series is not expired.
 func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	opts := testDatabaseOptions()
-	shard := testDatabaseShard(opts)
+	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
@@ -417,7 +416,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptions()
-	shard := testDatabaseShard(opts)
+	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	id := ts.StringID("foo")
 	s := addMockSeries(ctrl, shard, id, 0)
@@ -446,7 +445,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	var entry *dbShardEntry
 
 	opts := testDatabaseOptions()
-	shard := testDatabaseShard(opts)
+	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	id := ts.StringID("foo")
 	s := addMockSeries(ctrl, shard, id, 0)
@@ -468,7 +467,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 
 func TestForEachShardEntry(t *testing.T) {
 	opts := testDatabaseOptions()
-	shard := testDatabaseShard(opts)
+	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	for i := 0; i < 10; i++ {
 		addTestSeries(shard, ts.StringID(fmt.Sprintf("foo.%d", i)))
@@ -493,7 +492,7 @@ func TestShardFetchBlocksIDNotExists(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
-	shard := testDatabaseShard(opts)
+	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	fetched, err := shard.FetchBlocks(ctx, ts.StringID("foo"), nil)
 	require.NoError(t, err)
@@ -508,7 +507,7 @@ func TestShardFetchBlocksIDExists(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
-	shard := testDatabaseShard(opts)
+	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	id := ts.StringID("foo")
 	series := addMockSeries(ctrl, shard, id, 0)
@@ -529,10 +528,10 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
-	shard := testDatabaseShard(opts)
+	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	start := time.Now()
-	end := start.Add(opts.RetentionOptions().BlockSize())
+	end := start.Add(defaultTestRetentionOptions.BlockSize())
 	ids := make([]ts.ID, 0, 5)
 	fetchOpts := block.FetchBlocksMetadataOptions{
 		IncludeSizes:     true,
@@ -568,7 +567,7 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 
 func TestShardCleanupFileset(t *testing.T) {
 	opts := testDatabaseOptions()
-	shard := testDatabaseShard(opts)
+	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	shard.filesetBeforeFn = func(_ string, namespace ts.ID, shardID uint32, t time.Time) ([]string, error) {
 		return []string{namespace.String(), strconv.Itoa(int(shardID))}, nil
@@ -578,6 +577,6 @@ func TestShardCleanupFileset(t *testing.T) {
 		deletedFiles = append(deletedFiles, files...)
 		return nil
 	}
-	require.NoError(t, shard.CleanupFileset(testNamespaceID, time.Now()))
-	require.Equal(t, []string{testNamespaceID.String(), "0"}, deletedFiles)
+	require.NoError(t, shard.CleanupFileset(defaultTestNamespaceID, time.Now()))
+	require.Equal(t, []string{defaultTestNamespaceID.String(), "0"}, deletedFiles)
 }

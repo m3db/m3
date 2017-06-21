@@ -38,7 +38,7 @@ func TestFlushManagerNeedsFlush(t *testing.T) {
 
 	db := newMockDatabase()
 	db.namespaces = map[string]databaseNamespace{
-		"testns": namespace,
+		defaultTestNamespaceID.String(): namespace,
 	}
 
 	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
@@ -65,10 +65,12 @@ func TestFlushManagerFlushTimeStart(t *testing.T) {
 		{time.Unix(86400*2+7200, 0), time.Unix(7200, 0)},
 		{time.Unix(86400*2+10800, 0), time.Unix(7200, 0)},
 	}
+
 	database := newMockDatabase()
 	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
 	for _, input := range inputs {
-		require.Equal(t, input.expected, fm.FlushTimeStart(input.ts))
+		start, _ := fm.flushRange(defaultTestRetentionOptions, input.ts)
+		require.Equal(t, input.expected, start)
 	}
 }
 
@@ -84,6 +86,7 @@ func TestFlushManagerFlushTimeEnd(t *testing.T) {
 	database := newMockDatabase()
 	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
 	for _, input := range inputs {
-		require.Equal(t, input.expected, fm.FlushTimeEnd(input.ts))
+		_, end := fm.flushRange(defaultTestRetentionOptions, input.ts)
+		require.Equal(t, input.expected, end)
 	}
 }

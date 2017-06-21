@@ -31,10 +31,10 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
@@ -65,6 +65,9 @@ const (
 
 	// defaultErrorThresholdForLoad is the default error threshold for considering server overloaded
 	defaultErrorThresholdForLoad = 1000
+
+	// defaultTickFrequency is the default tick frequency
+	defaultTickFrequency = 2 * time.Minute
 )
 
 var (
@@ -79,7 +82,7 @@ func NewSeriesOptionsFromOptions(opts Options) series.Options {
 	return series.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions()).
-		SetRetentionOptions(opts.RetentionOptions()).
+		// SetRetentionOptions(opts.RetentionOptions()). TODO(prateek): figure this out
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
 		SetContextPool(opts.ContextPool()).
 		SetEncoderPool(opts.EncoderPool()).
@@ -90,7 +93,7 @@ func NewSeriesOptionsFromOptions(opts Options) series.Options {
 type options struct {
 	clockOpts                      clock.Options
 	instrumentOpts                 instrument.Options
-	retentionOpts                  retention.Options
+	registry                       namespace.Registry
 	blockOpts                      block.Options
 	commitLogOpts                  commitlog.Options
 	runtimeOptsMgr                 runtime.OptionsManager
@@ -104,6 +107,7 @@ type options struct {
 	newDecoderFn                   encoding.NewDecoderFn
 	bootstrapProcess               bootstrap.Process
 	persistManager                 persist.Manager
+	tickFrequency                  time.Duration
 	maxFlushRetries                int
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 	contextPool                    context.Pool
@@ -129,7 +133,7 @@ func NewOptions() Options {
 	o := &options{
 		clockOpts:                      clock.NewOptions(),
 		instrumentOpts:                 instrument.NewOptions(),
-		retentionOpts:                  retention.NewOptions(),
+		registry:                       namespace.NewRegistry(nil),
 		blockOpts:                      block.NewOptions(),
 		commitLogOpts:                  commitlog.NewOptions(),
 		runtimeOptsMgr:                 runtime.NewOptionsManager(runtime.NewOptions()),
@@ -141,6 +145,7 @@ func NewOptions() Options {
 		fileOpOpts:                     NewFileOpOptions(),
 		bootstrapProcess:               defaultBootstrapProcess,
 		persistManager:                 fs.NewPersistManager(fs.NewOptions()),
+		tickFrequency:                  defaultTickFrequency,
 		maxFlushRetries:                defaultMaxFlushRetries,
 		contextPool:                    context.NewPool(nil, nil),
 		seriesPool:                     series.NewDatabaseSeriesPool(series.NewOptions(), nil),
@@ -180,16 +185,14 @@ func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) SetRetentionOptions(value retention.Options) Options {
+func (o *options) SetRegistry(value namespace.Registry) Options {
 	opts := *o
-	opts.retentionOpts = value
-	opts.commitLogOpts = opts.commitLogOpts.SetRetentionOptions(value)
-	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
+	opts.registry = value
 	return &opts
 }
 
-func (o *options) RetentionOptions() retention.Options {
-	return o.retentionOpts
+func (o *options) Registry() namespace.Registry {
+	return o.registry
 }
 
 func (o *options) SetDatabaseBlockOptions(value block.Options) Options {
@@ -381,6 +384,16 @@ func (o *options) SetPersistManager(value persist.Manager) Options {
 
 func (o *options) PersistManager() persist.Manager {
 	return o.persistManager
+}
+
+func (o *options) SetTickFrequency(value time.Duration) Options {
+	opts := *o
+	opts.tickFrequency = value
+	return &opts
+}
+
+func (o *options) TickFrequency() time.Duration {
+	return o.tickFrequency
 }
 
 func (o *options) SetMaxFlushRetries(value int) Options {

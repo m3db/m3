@@ -44,7 +44,6 @@ type flushManager struct {
 	database        database
 	opts            Options
 	nowFn           clock.NowFn
-	blockSize       time.Duration
 	pm              persist.Manager
 	flushInProgress bool
 	status          tally.Gauge
@@ -53,39 +52,29 @@ type flushManager struct {
 func newFlushManager(database database, scope tally.Scope) databaseFlushManager {
 	opts := database.Options()
 	return &flushManager{
-		database:  database,
-		opts:      opts,
-		nowFn:     opts.ClockOptions().NowFn(),
-		blockSize: opts.RetentionOptions().BlockSize(),
-		pm:        opts.PersistManager(),
-		status:    scope.Gauge("flush"),
+		database: database,
+		opts:     opts,
+		nowFn:    opts.ClockOptions().NowFn(),
+		pm:       opts.PersistManager(),
+		status:   scope.Gauge("flush"),
 	}
 }
 
 func (m *flushManager) NeedsFlush(t time.Time) bool {
 	namespaces := m.database.getOwnedNamespaces()
 	for _, n := range namespaces {
-		if n.NeedsFlush(t) {
+		if n.NeedsFlush(t) { // TODO(prateek): <- this auto creates a flush state for the queried time, need to reconsider
 			return true
 		}
 	}
 	return false
 }
 
-func (m *flushManager) FlushTimeStart(t time.Time) time.Time {
-	return retention.FlushTimeStart(m.opts.RetentionOptions(), t)
-}
-
-func (m *flushManager) FlushTimeEnd(t time.Time) time.Time {
-	return retention.FlushTimeEnd(m.opts.RetentionOptions(), t)
+func (m *flushManager) flushRange(ropts retention.Options, t time.Time) (time.Time, time.Time) {
+	return retention.FlushTimeStart(ropts, t), retention.FlushTimeEnd(ropts, t)
 }
 
 func (m *flushManager) Flush(curr time.Time) error {
-	timesToFlush := m.flushTimes(curr)
-	if len(timesToFlush) == 0 {
-		return nil
-	}
-
 	flush, err := m.pm.StartFlush()
 	if err != nil {
 		return err
@@ -108,10 +97,9 @@ func (m *flushManager) Flush(curr time.Time) error {
 	}()
 
 	multiErr := xerrors.NewMultiError()
-	for _, flushTime := range timesToFlush {
-		if err := m.flushWithTime(flushTime, flush); err != nil {
-			multiErr = multiErr.Add(err)
-		}
+	for _, ns := range m.database.getOwnedNamespaces() {
+		flushTimes := m.namespaceFlushTimes(ns, curr)
+		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, flushTimes, flush))
 	}
 
 	return multiErr.FinalError()
@@ -129,13 +117,17 @@ func (m *flushManager) Report() {
 	}
 }
 
-func (m *flushManager) flushTimes(curr time.Time) []time.Time {
-	earliest, latest := m.FlushTimeStart(curr), m.FlushTimeEnd(curr)
+func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time) []time.Time {
+	var (
+		rOpts            = ns.Options().RetentionOptions()
+		blockSize        = rOpts.BlockSize()
+		earliest, latest = m.flushRange(rOpts, curr)
+	)
 
 	// NB(xichen): could preallocate slice here.
 	var flushTimes []time.Time
-	for t := latest; !t.Before(earliest); t = t.Add(-m.blockSize) {
-		if m.NeedsFlush(t) {
+	for t := latest; !t.Before(earliest); t = t.Add(blockSize) {
+		if ns.NeedsFlush(t) {
 			flushTimes = append(flushTimes, t)
 		}
 	}
@@ -143,17 +135,17 @@ func (m *flushManager) flushTimes(curr time.Time) []time.Time {
 	return flushTimes
 }
 
-// flushWithTime flushes in-memory data across all namespaces for a given
+// flushWithTime flushes in-memory data for a given namespace, at a given
 // time, returning any error encountered during flushing
-func (m *flushManager) flushWithTime(t time.Time, flush persist.Flush) error {
+func (m *flushManager) flushNamespaceWithTimes(ns databaseNamespace, times []time.Time, flush persist.Flush) error {
 	multiErr := xerrors.NewMultiError()
-	namespaces := m.database.getOwnedNamespaces()
-	for _, n := range namespaces {
+	for _, t := range times {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := n.Flush(t, flush); err != nil {
+		// TODO(prateek): add metrics for observability per namespace here
+		if err := ns.Flush(t, flush); err != nil {
 			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v",
-				n.ID().String(), err)
+				ns.ID().String(), err)
 			multiErr = multiErr.Add(detailedErr)
 		}
 	}

@@ -84,7 +84,8 @@ type dbShard struct {
 	opts                    Options
 	nowFn                   clock.NowFn
 	state                   dbShardState
-	namespace               ts.ID
+	namespaceID             ts.ID
+	namespace               databaseNamespace
 	seriesBlockRetriever    series.QueryableBlockRetriever
 	shard                   uint32
 	increasingIndex         increasingIndex
@@ -161,7 +162,7 @@ func newShardFlushState() shardFlushState {
 }
 
 func newDatabaseShard(
-	namespace ts.ID,
+	namespace databaseNamespace,
 	shard uint32,
 	blockRetriever block.DatabaseBlockRetriever,
 	increasingIndex increasingIndex,
@@ -176,6 +177,7 @@ func newDatabaseShard(
 		opts:                  opts,
 		nowFn:                 opts.ClockOptions().NowFn(),
 		state:                 dbShardStateOpen,
+		namespaceID:           namespace.ID(),
 		namespace:             namespace,
 		shard:                 shard,
 		increasingIndex:       increasingIndex,
@@ -253,7 +255,6 @@ func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
 	}
 	panic(fmt.Errorf("shard queried is retrievable with bad flush state %d",
 		flushState.Status))
-	return false
 }
 
 func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
@@ -339,7 +340,7 @@ func (s *dbShard) Close() error {
 	// causes the GC to impact performance when closing shards the deadline
 	// should be increased.
 	cancellable := context.NewNoOpCanncellable()
-	softDeadline := s.opts.RetentionOptions().BufferDrain()
+	softDeadline := s.opts.TickFrequency()
 	s.tickAndExpire(cancellable, softDeadline, tickPolicyForceExpiry)
 
 	return nil
@@ -539,7 +540,7 @@ func (s *dbShard) Write(
 	// Write commit log
 	series := commitlog.Series{
 		UniqueIndex: commitLogSeriesUniqueIndex,
-		Namespace:   s.namespace,
+		Namespace:   s.namespaceID,
 		ID:          commitLogSeriesID,
 		Shard:       s.shard,
 	}
@@ -911,7 +912,7 @@ func (s *dbShard) markFlushStateFail(blockStart time.Time) {
 func (s *dbShard) removeAnyFlushStatesTooEarly() {
 	s.flushState.Lock()
 	now := s.nowFn()
-	earliestFlush := retention.FlushTimeStart(s.opts.RetentionOptions(), now)
+	earliestFlush := retention.FlushTimeStart(s.namespace.Options().RetentionOptions(), now)
 	for t := range s.flushState.statesByTime {
 		if t.Before(earliestFlush) {
 			delete(s.flushState.statesByTime, t)

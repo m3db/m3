@@ -47,12 +47,10 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var testNamespaceID = ts.StringID("testNs")
-
 var testShardIDs = sharding.NewShards([]uint32{0, 1}, shard.Available)
 
 func newTestNamespace(t *testing.T) *dbNamespace {
-	metadata := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
+	metadata := namespace.NewMetadata(defaultTestNamespaceID, namespace.NewOptions())
 	hashFn := func(identifier ts.ID) uint32 { return testShardIDs[0].ID() }
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)
@@ -62,7 +60,7 @@ func newTestNamespace(t *testing.T) *dbNamespace {
 
 func TestNamespaceName(t *testing.T) {
 	ns := newTestNamespace(t)
-	require.True(t, testNamespaceID.Equal(ns.ID()))
+	require.True(t, defaultTestNamespaceID.Equal(ns.ID()))
 }
 
 func TestNamespaceTick(t *testing.T) {
@@ -379,7 +377,7 @@ func TestNamespaceFlushAllShards(t *testing.T) {
 	errs := []error{nil, errors.New("foo")}
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().Flush(ts.NewIDMatcher(testNamespaceID.String()), blockStart, nil).Return(errs[i])
+		shard.EXPECT().Flush(ts.NewIDMatcher(defaultTestNamespaceID.String()), blockStart, nil).Return(errs[i])
 		if errs[i] != nil {
 			shard.EXPECT().ID().Return(testShardIDs[i].ID())
 		}
@@ -410,7 +408,7 @@ func TestNamespaceCleanupFilesetAllShards(t *testing.T) {
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().
-			CleanupFileset(ts.NewIDMatcher(testNamespaceID.String()), earliestToRetain).
+			CleanupFileset(ts.NewIDMatcher(defaultTestNamespaceID.String()), earliestToRetain).
 			Return(errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
@@ -460,7 +458,7 @@ func TestNamespaceRepair(t *testing.T) {
 			}
 		}
 		shard.EXPECT().
-			Repair(gomock.Any(), ts.NewIDMatcher(testNamespaceID.String()), repairTimeRange, repairer).
+			Repair(gomock.Any(), ts.NewIDMatcher(defaultTestNamespaceID.String()), repairTimeRange, repairer).
 			Return(res, errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
@@ -505,7 +503,7 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 	closingErrors := shard.NewShards([]shard.Shard{shards[3]})
 	adding := shard.NewShards([]shard.Shard{shards[4]})
 
-	metadata := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
+	metadata := namespace.NewMetadata(defaultTestNamespaceID, namespace.NewOptions())
 	hashFn := func(identifier ts.ID) uint32 { return shards[0].ID() }
 	shardSet, err := sharding.NewShardSet(prevAssignment.All(), hashFn)
 	require.NoError(t, err)
@@ -569,15 +567,20 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	shards := sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
+	var (
+		shards     = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
+		dopts      = testDatabaseOptions()
+		testNs, ok = dopts.Registry().Get(defaultTestNamespaceID)
+	)
+	require.True(t, ok)
 
-	metadata := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
-	hashFn := func(identifier ts.ID) uint32 { return shards[0].ID() }
-	shardSet, err := sharding.NewShardSet(shards, hashFn)
+	var (
+		ropts         = testNs.Options().RetentionOptions()
+		metadata      = namespace.NewMetadata(testNs.ID(), testNs.Options())
+		hashFn        = func(identifier ts.ID) uint32 { return shards[0].ID() }
+		shardSet, err = sharding.NewShardSet(shards, hashFn)
+	)
 	require.NoError(t, err)
-
-	dopts := testDatabaseOptions()
-	ropts := dopts.RetentionOptions()
 
 	at := time.Unix(0, 0).Add(2 * ropts.RetentionPeriod())
 	dopts = dopts.SetClockOptions(dopts.ClockOptions().SetNowFn(func() time.Time {
@@ -603,19 +606,21 @@ func TestNamespaceNeedsFlushCountsLeastNumFailures(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	shards := sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
+	var (
+		shards     = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
+		dopts      = testDatabaseOptions().SetMaxFlushRetries(2)
+		testNs, ok = dopts.Registry().Get(defaultTestNamespaceID)
+	)
+	require.True(t, ok)
 
-	metadata := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
-	hashFn := func(identifier ts.ID) uint32 { return shards[0].ID() }
-	shardSet, err := sharding.NewShardSet(shards, hashFn)
+	var (
+		ropts         = testNs.Options().RetentionOptions()
+		hashFn        = func(identifier ts.ID) uint32 { return shards[0].ID() }
+		shardSet, err = sharding.NewShardSet(shards, hashFn)
+	)
 	require.NoError(t, err)
 
 	maxRetries := 2
-
-	dopts := testDatabaseOptions()
-	dopts = dopts.SetMaxFlushRetries(2)
-	ropts := dopts.RetentionOptions()
-
 	at := time.Unix(0, 0).Add(2 * ropts.RetentionPeriod())
 	dopts = dopts.SetClockOptions(dopts.ClockOptions().SetNowFn(func() time.Time {
 		return at
@@ -623,7 +628,7 @@ func TestNamespaceNeedsFlushCountsLeastNumFailures(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts).(*dbNamespace)
+	ns := newDatabaseNamespace(testNs, shardSet, nil, nil, nil, dopts).(*dbNamespace)
 	for _, s := range shards {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().ID().Return(s.ID()).AnyTimes()
@@ -653,15 +658,19 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	shards := sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
+	var (
+		shards     = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
+		dopts      = testDatabaseOptions()
+		testNs, ok = dopts.Registry().Get(defaultTestNamespaceID)
+	)
+	require.True(t, ok)
 
-	metadata := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
-	hashFn := func(identifier ts.ID) uint32 { return shards[0].ID() }
-	shardSet, err := sharding.NewShardSet(shards, hashFn)
+	var (
+		ropts         = testNs.Options().RetentionOptions()
+		hashFn        = func(identifier ts.ID) uint32 { return shards[0].ID() }
+		shardSet, err = sharding.NewShardSet(shards, hashFn)
+	)
 	require.NoError(t, err)
-
-	dopts := testDatabaseOptions()
-	ropts := dopts.RetentionOptions()
 
 	at := time.Unix(0, 0).Add(2 * ropts.RetentionPeriod())
 	dopts = dopts.SetClockOptions(dopts.ClockOptions().SetNowFn(func() time.Time {
@@ -670,7 +679,7 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts).(*dbNamespace)
+	ns := newDatabaseNamespace(testNs, shardSet, nil, nil, nil, dopts).(*dbNamespace)
 	for _, s := range shards {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().ID().Return(s.ID()).AnyTimes()
@@ -698,15 +707,19 @@ func TestNamespaceNeedsFlushInProgress(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	shards := sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
+	var (
+		shards     = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
+		dopts      = testDatabaseOptions()
+		testNs, ok = dopts.Registry().Get(defaultTestNamespaceID)
+	)
+	require.True(t, ok)
 
-	metadata := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
-	hashFn := func(identifier ts.ID) uint32 { return shards[0].ID() }
-	shardSet, err := sharding.NewShardSet(shards, hashFn)
+	var (
+		ropts         = testNs.Options().RetentionOptions()
+		hashFn        = func(identifier ts.ID) uint32 { return shards[0].ID() }
+		shardSet, err = sharding.NewShardSet(shards, hashFn)
+	)
 	require.NoError(t, err)
-
-	dopts := testDatabaseOptions()
-	ropts := dopts.RetentionOptions()
 
 	at := time.Unix(0, 0).Add(2 * ropts.RetentionPeriod())
 	dopts = dopts.SetClockOptions(dopts.ClockOptions().SetNowFn(func() time.Time {
@@ -715,7 +728,7 @@ func TestNamespaceNeedsFlushInProgress(t *testing.T) {
 
 	blockStart := retention.FlushTimeEnd(ropts, at)
 
-	ns := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts).(*dbNamespace)
+	ns := newDatabaseNamespace(testNs, shardSet, nil, nil, nil, dopts).(*dbNamespace)
 	for _, s := range shards {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().ID().Return(s.ID()).AnyTimes()

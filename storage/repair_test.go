@@ -228,7 +228,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 	opts := testDatabaseOptions()
 	copts := opts.ClockOptions()
 	iopts := opts.InstrumentOptions()
-	rtopts := opts.RetentionOptions()
+	rtopts := defaultTestRetentionOptions
 	opts = opts.
 		SetClockOptions(copts.SetNowFn(nowFn)).
 		SetInstrumentOptions(iopts.SetMetricsScope(tally.NoopScope))
@@ -359,7 +359,8 @@ func TestRepairerRepairTimes(t *testing.T) {
 		r.repairStates[input.bs] = input.rs
 	}
 
-	res := r.repairTimeRanges()
+	testNs := newTestNamespace(t)
+	res := r.namespaceRepairTimeRanges(testNs)
 	expectedRanges := xtime.NewRanges().
 		AddRange(xtime.Range{Start: time.Unix(14400, 0), End: time.Unix(28800, 0)}).
 		AddRange(xtime.Range{Start: time.Unix(50400, 0), End: time.Unix(187200, 0)})
@@ -389,12 +390,14 @@ func TestRepairerRepairWithTime(t *testing.T) {
 	for _, input := range inputs {
 		ns := NewMockdatabaseNamespace(ctrl)
 		ns.EXPECT().Repair(gomock.Not(nil), repairTimeRange).Return(input.err)
-		if input.err != nil {
+
+		if input.err == nil {
+			require.NoError(t, r.repairNamespaceWithTimeRange(ns, repairTimeRange))
+		} else {
 			ns.EXPECT().ID().Return(ts.StringID(input.name))
+			require.Error(t, r.repairNamespaceWithTimeRange(ns, repairTimeRange))
 		}
 		namespaces[input.name] = ns
 	}
 	database.namespaces = namespaces
-
-	require.Error(t, r.repairWithTimeRange(repairTimeRange))
 }

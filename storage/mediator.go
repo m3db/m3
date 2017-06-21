@@ -178,7 +178,7 @@ func (m *mediator) ongoingTick() {
 			// NB(xichen): if we attempt to tick while another tick
 			// is in progress, throttle a little to avoid constantly
 			// checking whether the ongoing tick is finished
-			err := m.Tick(m.opts.RetentionOptions().BufferDrain(), asyncRun, noForce)
+			err := m.Tick(m.opts.TickFrequency(), asyncRun, noForce)
 			if err == errTickInProgress {
 				m.sleepFn(tickCheckInterval)
 			}
