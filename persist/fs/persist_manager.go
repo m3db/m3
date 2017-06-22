@@ -22,7 +22,6 @@ package fs
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 
@@ -244,12 +243,6 @@ func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time
 
 	// if activeNamespace is different from input namespace, close existing writer
 	if pm.activeNamespace != namespace {
-		// only close writer if it exists
-		if pm.writer != nil {
-			if err := pm.writer.Close(); err != nil {
-				return prepared, fmt.Errorf("unable to close existing writer: %v", err)
-			}
-		}
 		// create new writer and update properties
 		writer := pm.newWriterFn(nsMetadata.Options().RetentionOptions().BlockSize())
 		pm.writer = writer

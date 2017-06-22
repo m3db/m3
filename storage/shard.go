@@ -845,16 +845,11 @@ func (s *dbShard) Flush(
 	prepared, err := flush.Prepare(namespace, s.ID(), blockStart)
 	multiErr = multiErr.Add(err)
 
+	// No action is necessary therefore we bail out early and there is no need to close.
 	if prepared.Persist == nil {
-		// No action is necessary therefore we bail out early and there is no need to close.
-		if err := multiErr.FinalError(); err != nil {
-			s.markFlushStateFail(blockStart)
-			return err
-		}
-		// NB(r): Need to mark this state as success so IsBlockRetrievable can
+		// NB(r): Need to mark state without mulitErr as success so IsBlockRetrievable can
 		// return true when querying if a block is retrievable for this time
-		s.markFlushStateSuccess(blockStart)
-		return nil
+		return s.markFlushStateSuccessOrError(blockStart, multiErr.FinalError())
 	}
 
 	// If we encounter an error when persisting a series, we continue regardless.
@@ -874,16 +869,7 @@ func (s *dbShard) Flush(
 		multiErr = multiErr.Add(err)
 	}
 
-	resultErr := multiErr.FinalError()
-
-	// Track flush state for block state
-	if resultErr == nil {
-		s.markFlushStateSuccess(blockStart)
-	} else {
-		s.markFlushStateFail(blockStart)
-	}
-
-	return resultErr
+	return s.markFlushStateSuccessOrError(blockStart, multiErr.FinalError())
 }
 
 func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
@@ -895,6 +881,16 @@ func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
 	}
 	s.flushState.RUnlock()
 	return state
+}
+
+func (s *dbShard) markFlushStateSuccessOrError(blockStart time.Time, err error) error {
+	// Track flush state for block state
+	if err == nil {
+		s.markFlushStateSuccess(blockStart)
+	} else {
+		s.markFlushStateFail(blockStart)
+	}
+	return err
 }
 
 func (s *dbShard) markFlushStateSuccess(blockStart time.Time) {

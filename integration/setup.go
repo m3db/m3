@@ -207,7 +207,9 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		return nil, err
 	}
 
-	fsOpts := fs.NewOptions().SetFilePathPrefix(filePathPrefix)
+	fsOpts := fs.NewOptions().
+		SetFilePathPrefix(filePathPrefix).
+		SetNamespaceRegistry(nsRegistry)
 
 	storageOpts = storageOpts.SetCommitLogOptions(storageOpts.CommitLogOptions().SetFilesystemOptions(fsOpts))
 
