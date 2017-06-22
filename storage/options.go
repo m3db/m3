@@ -75,7 +75,8 @@ var (
 	// defaultBootstrapProcess is the default bootstrap for the database
 	defaultBootstrapProcess = bootstrap.NewNoOpProcess()
 
-	defaultPoolOptions = pool.NewObjectPoolOptions().SetSize(16)
+	// defaultPoolOptions are the pool options used by default
+	defaultPoolOptions pool.ObjectPoolOptions
 
 	timeZero time.Time
 )
@@ -117,6 +118,7 @@ type options struct {
 	tickInterval                   time.Duration
 	maxFlushRetries                int
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
+	poolOpts                       pool.ObjectPoolOptions
 	contextPool                    context.Pool
 	seriesOpts                     series.Options
 	seriesPool                     series.DatabaseSeriesPool
@@ -132,8 +134,12 @@ type options struct {
 
 // NewOptions creates a new set of storage options with defaults
 func NewOptions() Options {
-	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
-		return pool.NewBytesPool(s, nil)
+	return newOptions(defaultPoolOptions)
+}
+
+func newOptions(poolOpts pool.ObjectPoolOptions) Options {
+	bytesPool := pool.NewCheckedBytesPool(nil, poolOpts, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, poolOpts)
 	})
 	bytesPool.Init()
 	seriesOpts := series.NewOptions()
@@ -154,17 +160,18 @@ func NewOptions() Options {
 		persistManager:                 fs.NewPersistManager(fs.NewOptions()),
 		tickInterval:                   defaultTickInterval,
 		maxFlushRetries:                defaultMaxFlushRetries,
-		contextPool:                    context.NewPool(defaultPoolOptions, defaultPoolOptions),
+		poolOpts:                       poolOpts,
+		contextPool:                    context.NewPool(poolOpts, poolOpts),
 		seriesOpts:                     seriesOpts,
-		seriesPool:                     series.NewDatabaseSeriesPool(seriesOpts, defaultPoolOptions),
+		seriesPool:                     series.NewDatabaseSeriesPool(seriesOpts, poolOpts),
 		bytesPool:                      bytesPool,
-		encoderPool:                    encoding.NewEncoderPool(defaultPoolOptions),
-		segmentReaderPool:              xio.NewSegmentReaderPool(defaultPoolOptions),
-		readerIteratorPool:             encoding.NewReaderIteratorPool(defaultPoolOptions),
-		multiReaderIteratorPool:        encoding.NewMultiReaderIteratorPool(defaultPoolOptions),
-		identifierPool:                 ts.NewIdentifierPool(bytesPool, defaultPoolOptions),
-		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(defaultPoolOptions, 0),
-		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(defaultPoolOptions, 0),
+		encoderPool:                    encoding.NewEncoderPool(poolOpts),
+		segmentReaderPool:              xio.NewSegmentReaderPool(poolOpts),
+		readerIteratorPool:             encoding.NewReaderIteratorPool(poolOpts),
+		multiReaderIteratorPool:        encoding.NewMultiReaderIteratorPool(poolOpts),
+		identifierPool:                 ts.NewIdentifierPool(bytesPool, poolOpts),
+		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(poolOpts, 0),
+		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -174,7 +181,7 @@ func (o *options) SetClockOptions(value clock.Options) Options {
 	opts.clockOpts = value
 	opts.commitLogOpts = opts.commitLogOpts.SetClockOptions(value)
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
-	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, nil)
+	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, opts.poolOpts)
 	return &opts
 }
 
@@ -187,7 +194,7 @@ func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 	opts.instrumentOpts = value
 	opts.commitLogOpts = opts.commitLogOpts.SetInstrumentOptions(value)
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
-	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, defaultPoolOptions)
+	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, opts.poolOpts)
 	return &opts
 }
 
@@ -209,7 +216,7 @@ func (o *options) SetDatabaseBlockOptions(value block.Options) Options {
 	opts := *o
 	opts.blockOpts = value
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
-	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, defaultPoolOptions)
+	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, opts.poolOpts)
 	return &opts
 }
 
@@ -305,20 +312,20 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 		Count:    defaultBytesPoolBucketCount,
 	}}
 	newBackingBytesPool := func(s []pool.Bucket) pool.BytesPool {
-		return pool.NewBytesPool(s, defaultPoolOptions)
+		return pool.NewBytesPool(s, opts.poolOpts)
 	}
-	bytesPool := pool.NewCheckedBytesPool(buckets, defaultPoolOptions, newBackingBytesPool)
+	bytesPool := pool.NewCheckedBytesPool(buckets, o.poolOpts, newBackingBytesPool)
 	bytesPool.Init()
 	opts.bytesPool = bytesPool
 
 	// initialize context pool
-	opts.contextPool = context.NewPool(defaultPoolOptions, defaultPoolOptions)
+	opts.contextPool = context.NewPool(opts.poolOpts, opts.poolOpts)
 
-	encoderPool := encoding.NewEncoderPool(defaultPoolOptions)
-	readerIteratorPool := encoding.NewReaderIteratorPool(defaultPoolOptions)
+	encoderPool := encoding.NewEncoderPool(opts.poolOpts)
+	readerIteratorPool := encoding.NewReaderIteratorPool(opts.poolOpts)
 
 	// initialize segment reader pool
-	segmentReaderPool := xio.NewSegmentReaderPool(defaultPoolOptions)
+	segmentReaderPool := xio.NewSegmentReaderPool(opts.poolOpts)
 	segmentReaderPool.Init()
 	opts.segmentReaderPool = segmentReaderPool
 
@@ -341,7 +348,7 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	opts.readerIteratorPool = readerIteratorPool
 
 	// initialize multi reader iterator pool
-	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(defaultPoolOptions)
+	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(opts.poolOpts)
 	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
@@ -354,7 +361,7 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 		SetBytesPool(bytesPool)
 
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
-	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, defaultPoolOptions)
+	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, opts.poolOpts)
 	return &opts
 }
 

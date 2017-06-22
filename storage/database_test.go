@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -111,11 +112,12 @@ var (
 	defaultTestNamespaceOptions = namespace.NewOptions().
 					SetRetentionOptions(defaultTestRetentionOptions)
 
-	defaultTestDatabaseOptions = NewOptions().
-					SetMaxFlushRetries(3).
-					SetFileOpOptions(NewFileOpOptions().SetJitter(0)).
-					SetTickInterval(10 * time.Minute).
-					SetNamespaceRegistry(
+	defaultTestDatabaseOptions = newOptions(
+		pool.NewObjectPoolOptions().SetSize(16)).
+		SetMaxFlushRetries(3).
+		SetFileOpOptions(NewFileOpOptions().SetJitter(0)).
+		SetTickInterval(10 * time.Minute).
+		SetNamespaceRegistry(
 			namespace.NewRegistry([]namespace.Metadata{
 				namespace.NewMetadata(defaultTestNamespaceID,
 					namespace.NewOptions().
