@@ -55,7 +55,7 @@ func (r *registry) Get(namespace ts.ID) (Metadata, error) {
 	idHash := namespace.Hash()
 	metadata, ok := r.namespaces[idHash]
 	if !ok {
-		return nil, fmt.Errorf("unable to location namespace (%v) in registry", namespace.String())
+		return nil, fmt.Errorf("unable to find namespace (%v) in registry", namespace.String())
 	}
 	return metadata, nil
 }

@@ -105,8 +105,9 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		opts = newTestOptions()
 	}
 
+	nsRegistry := namespace.NewRegistry(opts.Namespaces())
 	storageOpts := storage.NewOptions().
-		SetNamespaceRegistry(namespace.NewRegistry(opts.Namespaces())).
+		SetNamespaceRegistry(nsRegistry).
 		SetTickInterval(opts.TickInterval())
 
 	nativePooling := strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"
@@ -152,6 +153,12 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
 		SetWriteConsistencyLevel(opts.WriteConsistencyLevel())
 
+	adminOpts, ok := clientOpts.(client.AdminOptions)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast to admin options")
+	}
+	adminOpts = adminOpts.SetNamespaceRegistry(nsRegistry)
+
 	// Set up tchannel client
 	channel, tc, err := tchannelClient(tchannelNodeAddr)
 	if err != nil {
@@ -159,7 +166,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	// Set up m3db client
-	mc, err := m3dbClient(clientOpts)
+	mc, err := m3dbClient(adminOpts)
 	if err != nil {
 		return nil, err
 	}
