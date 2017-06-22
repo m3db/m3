@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -35,9 +36,16 @@ import (
 	"github.com/m3db/m3x/log"
 )
 
+const (
+	portEnvVar = "M3CTL_PORT"
+)
+
 type serverConfig struct {
-	// ListenAddress is the HTTP server listening address.
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
+	// Host is the host name the HTTP server shoud listen on.
+	Host string `yaml:"host" validate:"nonzero"`
+
+	// Port is the port the HTTP server should listen on.
+	Port int `yaml:"port"`
 
 	// ReadTimeout is the HTTP server read timeout.
 	ReadTimeout time.Duration `yaml:"readTimeout"`
@@ -46,8 +54,7 @@ type serverConfig struct {
 	WriteTimeout time.Duration `yaml:"writeTimeout"`
 }
 
-// NewHTTPServerOptions create a new set of http server options.
-func (c *serverConfig) NewHTTPServerOptions(
+func (c *serverConfig) newHTTPServerOptions(
 	instrumentOpts instrument.Options,
 ) server.Options {
 	opts := server.NewOptions().SetInstrumentOptions(instrumentOpts)
@@ -100,6 +107,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	envPort := os.Getenv(portEnvVar)
+
+	if envPort != "" {
+		if p, err := strconv.Atoi(envPort); err == nil {
+			logger.Infof("Using env supplied port var: %s=%d", portEnvVar, p)
+			cfg.HTTP.Port = p
+		} else {
+			logger.Fatalf("%s (%s) is not a valid port number", envPort, portEnvVar)
+		}
+	}
+
+	if cfg.HTTP.Port == 0 {
+		logger.Fatalf("No valid port configured. Can't start.")
+	}
+
 	scope, closer, err := cfg.Metrics.NewRootScope()
 	if err != nil {
 		logger.Fatalf("error creating metrics root scope: %v", err)
@@ -112,8 +134,8 @@ func main() {
 		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
 		SetReportInterval(cfg.Metrics.ReportInterval())
 
-	listenAddr := cfg.HTTP.ListenAddress
-	serverOpts := cfg.HTTP.NewHTTPServerOptions(instrumentOpts)
+	listenAddr := fmt.Sprintf("%s:%d", cfg.HTTP.Host, cfg.HTTP.Port)
+	serverOpts := cfg.HTTP.newHTTPServerOptions(instrumentOpts)
 
 	doneCh := make(chan struct{})
 
