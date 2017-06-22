@@ -294,3 +294,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		assert.NoError(t, flush.Done())
 	}
 }
+
+func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
+	// TODO(prateek): test namespace switching causing writer to open/close
+}
