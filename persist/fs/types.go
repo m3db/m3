@@ -27,9 +27,9 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
@@ -150,11 +150,11 @@ type Options interface {
 	// InstrumentOptions returns the instrumentation options
 	InstrumentOptions() instrument.Options
 
-	// SetRetentionOptions sets the retention options
-	SetRetentionOptions(value retention.Options) Options
+	// SetNamespaceRegistry sets the namespace registry
+	SetNamespaceRegistry(value namespace.Registry) Options
 
-	// RetentionOptions returns the retention options
-	RetentionOptions() retention.Options
+	// NamespaceRegistry returns the namespace registry
+	NamespaceRegistry() namespace.Registry
 
 	// SetRuntimeOptionsManager sets the runtime options manager
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options

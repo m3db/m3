@@ -22,6 +22,7 @@ package fs
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -55,16 +56,20 @@ var (
 
 type sleepFn func(time.Duration)
 
+type newWriterFn func(time.Duration) FileSetWriter
+
 // persistManager is responsible for persisting series segments onto local filesystem.
 // It is not thread-safe.
 type persistManager struct {
 	sync.RWMutex
 
-	opts           Options
-	filePathPrefix string
-	nowFn          clock.NowFn
-	sleepFn        sleepFn
-	writer         FileSetWriter
+	opts            Options
+	filePathPrefix  string
+	nowFn           clock.NowFn
+	sleepFn         sleepFn
+	newWriterFn     newWriterFn
+	writer          FileSetWriter
+	activeNamespace ts.ID
 	// segmentHolder is a two-item slice that's reused to hold pointers to the
 	// head and the tail of each segment so we don't need to allocate memory
 	// and gc it shortly after.
@@ -97,24 +102,27 @@ func newPersistManagerMetrics(scope tally.Scope) persistManagerMetrics {
 // NewPersistManager creates a new filesystem persist manager
 func NewPersistManager(opts Options) persist.Manager {
 	filePathPrefix := opts.FilePathPrefix()
-	writerBufferSize := opts.WriterBufferSize()
-	blockSize := opts.RetentionOptions().BlockSize()
-	newFileMode := opts.NewFileMode()
-	newDirectoryMode := opts.NewDirectoryMode()
-	writer := NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 	scope := opts.InstrumentOptions().MetricsScope().SubScope("persist")
 	pm := &persistManager{
 		opts:           opts,
 		filePathPrefix: filePathPrefix,
 		nowFn:          opts.ClockOptions().NowFn(),
 		sleepFn:        time.Sleep,
-		writer:         writer,
 		segmentHolder:  make([]checked.Bytes, 2),
 		status:         persistManagerIdle,
 		metrics:        newPersistManagerMetrics(scope),
 	}
+	pm.newWriterFn = pm.newWriter
 	opts.RuntimeOptionsManager().RegisterListener(pm)
 	return pm
+}
+
+func (pm *persistManager) newWriter(blockSize time.Duration) FileSetWriter {
+	opts := pm.opts
+	writerBufferSize := opts.WriterBufferSize()
+	newFileMode := opts.NewFileMode()
+	newDirectoryMode := opts.NewDirectoryMode()
+	return NewWriter(blockSize, pm.filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 }
 
 func (pm *persistManager) persist(
@@ -166,6 +174,7 @@ func (pm *persistManager) close() error {
 	return pm.writer.Close()
 }
 
+// StartFlush is called by the databaseFlushManager to begin the flush process
 func (pm *persistManager) StartFlush() (persist.Flush, error) {
 	pm.Lock()
 	defer pm.Unlock()
@@ -178,6 +187,7 @@ func (pm *persistManager) StartFlush() (persist.Flush, error) {
 	return pm, nil
 }
 
+// Done is called by the databaseFlushManager to finish the flush process
 func (pm *persistManager) Done() error {
 	pm.Lock()
 	defer pm.Unlock()
@@ -203,15 +213,25 @@ func (pm *persistManager) reset() {
 	pm.bytesWritten = 0
 	pm.worked = 0
 	pm.slept = 0
+	pm.activeNamespace = nil
+	pm.writer = nil
 }
 
 func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (persist.PreparedPersist, error) {
 	var prepared persist.PreparedPersist
 
-	pm.RLock()
-	status := pm.status
-	pm.RUnlock()
-	if status != persistManagerFlushing {
+	// check if namespace is known
+	nsMetadata, err := pm.opts.NamespaceRegistry().Get(namespace)
+	if err != nil {
+		return prepared, err
+	}
+
+	// accquire lock
+	pm.Lock()
+	defer pm.Unlock()
+
+	// ensure StartFlush has been called
+	if status := pm.status; status != persistManagerFlushing {
 		return prepared, errPersistManagerCannotPrepareNotFlushing
 	}
 
@@ -221,6 +241,21 @@ func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time
 	if FilesetExistsAt(pm.filePathPrefix, namespace, shard, blockStart) {
 		return prepared, nil
 	}
+
+	// if activeNamespace is different from input namespace, close existing writer
+	if pm.activeNamespace != namespace {
+		// only close writer if it exists
+		if pm.writer != nil {
+			if err := pm.writer.Close(); err != nil {
+				return prepared, fmt.Errorf("unable to close existing writer: %v", err)
+			}
+		}
+		// create new writer and update properties
+		writer := pm.newWriterFn(nsMetadata.Options().RetentionOptions().BlockSize())
+		pm.writer = writer
+		pm.activeNamespace = namespace
+	}
+
 	if err := pm.writer.Open(namespace, shard, blockStart); err != nil {
 		return prepared, err
 	}

@@ -26,8 +26,8 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -52,31 +52,31 @@ var (
 )
 
 type options struct {
-	clockOpts        clock.Options
-	instrumentOpts   instrument.Options
-	retentionOpts    retention.Options
-	runtimeOptsMgr   runtime.OptionsManager
-	decodingOpts     msgpack.DecodingOptions
-	filePathPrefix   string
-	newFileMode      os.FileMode
-	newDirectoryMode os.FileMode
-	writerBufferSize int
-	readerBufferSize int
+	clockOpts         clock.Options
+	instrumentOpts    instrument.Options
+	namespaceRegistry namespace.Registry
+	runtimeOptsMgr    runtime.OptionsManager
+	decodingOpts      msgpack.DecodingOptions
+	filePathPrefix    string
+	newFileMode       os.FileMode
+	newDirectoryMode  os.FileMode
+	writerBufferSize  int
+	readerBufferSize  int
 }
 
 // NewOptions creates a new set of fs options
 func NewOptions() Options {
 	return &options{
-		clockOpts:        clock.NewOptions(),
-		instrumentOpts:   instrument.NewOptions(),
-		retentionOpts:    retention.NewOptions(),
-		runtimeOptsMgr:   runtime.NewOptionsManager(runtime.NewOptions()),
-		decodingOpts:     msgpack.NewDecodingOptions(),
-		filePathPrefix:   defaultFilePathPrefix,
-		newFileMode:      defaultNewFileMode,
-		newDirectoryMode: defaultNewDirectoryMode,
-		writerBufferSize: defaultWriterBufferSize,
-		readerBufferSize: defaultReaderBufferSize,
+		clockOpts:         clock.NewOptions(),
+		instrumentOpts:    instrument.NewOptions(),
+		namespaceRegistry: namespace.NewRegistry(nil),
+		runtimeOptsMgr:    runtime.NewOptionsManager(runtime.NewOptions()),
+		decodingOpts:      msgpack.NewDecodingOptions(),
+		filePathPrefix:    defaultFilePathPrefix,
+		newFileMode:       defaultNewFileMode,
+		newDirectoryMode:  defaultNewDirectoryMode,
+		writerBufferSize:  defaultWriterBufferSize,
+		readerBufferSize:  defaultReaderBufferSize,
 	}
 }
 
@@ -100,14 +100,14 @@ func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) SetRetentionOptions(value retention.Options) Options {
+func (o *options) SetNamespaceRegistry(value namespace.Registry) Options {
 	opts := *o
-	opts.retentionOpts = value
+	opts.namespaceRegistry = value
 	return &opts
 }
 
-func (o *options) RetentionOptions() retention.Options {
-	return o.retentionOpts
+func (o *options) NamespaceRegistry() namespace.Registry {
+	return o.namespaceRegistry
 }
 
 func (o *options) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {

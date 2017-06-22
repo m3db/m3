@@ -31,14 +31,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/ts"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/ts"
 )
 
-var testNamespaceID = ts.StringID("testNs")
+var (
+	testNamespaceID       = ts.StringID("testNs")
+	testNamespaceMetadata = namespace.NewMetadata(
+		testNamespaceID,
+		namespace.NewOptions().SetRetentionOptions(
+			retention.NewOptions().SetBlockSize(2*time.Hour)),
+	)
+	testNamespaceRegistry = namespace.NewRegistry(
+		[]namespace.Metadata{testNamespaceMetadata})
+)
 
 func createTempFile(t *testing.T) *os.File {
 	fd, err := ioutil.TempFile("", "testfile")

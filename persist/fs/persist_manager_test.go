@@ -26,14 +26,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/checked"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 )
 
 func createShardDir(t *testing.T, prefix string, namespace ts.ID, shard uint32) string {
@@ -52,14 +51,13 @@ func testManager(
 	opts := NewOptions().
 		SetFilePathPrefix(dir).
 		SetWriterBufferSize(10).
-		SetRetentionOptions(
-			retention.NewOptions().
-				SetBlockSize(2 * time.Hour))
+		SetNamespaceRegistry(testNamespaceRegistry)
 
 	writer := NewMockFileSetWriter(ctrl)
-
 	manager := NewPersistManager(opts).(*persistManager)
-	manager.writer = writer
+	manager.newWriterFn = func(time.Duration) FileSetWriter {
+		return writer
+	}
 
 	return manager, writer, opts
 }
@@ -102,6 +100,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 	expectedErr := errors.New("foo")
+
 	writer.EXPECT().Open(testNamespaceID, shard, blockStart).Return(expectedErr)
 
 	flush, err := pm.StartFlush()
@@ -162,23 +161,16 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	require.Equal(t, int64(104), pm.bytesWritten)
 }
 
-func TestPersistenceManagerClose(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	pm, writer, _ := testManager(t, ctrl)
-	defer os.RemoveAll(pm.filePathPrefix)
-
-	writer.EXPECT().Close()
-	pm.close()
-}
-
 func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	pm, writer, _ := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
+
+	shard := uint32(0)
+	blockStart := time.Unix(1000, 0)
+	writer.EXPECT().Open(testNamespaceID, shard, blockStart).Return(nil)
 
 	var (
 		now      time.Time
@@ -202,13 +194,17 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 		assert.NoError(t, flush.Done())
 	}()
 
+	// prepare the flush
+	prepared, err := flush.Prepare(testNamespaceID, shard, blockStart)
+	require.NoError(t, err)
+
 	// Start persistence
 	now = time.Now()
-	require.NoError(t, pm.persist(id, segment, checksum))
+	require.NoError(t, prepared.Persist(id, segment, checksum))
 
 	// Advance time and write again
 	now = now.Add(time.Millisecond)
-	require.NoError(t, pm.persist(id, segment, checksum))
+	require.NoError(t, prepared.Persist(id, segment, checksum))
 
 	// Check there is no rate limiting
 	require.Equal(t, time.Duration(0), slept)
@@ -221,6 +217,9 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 
 	pm, writer, opts := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
+
+	shard := uint32(0)
+	blockStart := time.Unix(1000, 0)
 
 	var (
 		now      time.Time
@@ -236,6 +235,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
 
+	writer.EXPECT().Open(testNamespaceID, shard, blockStart).Return(nil).Times(iter)
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).AnyTimes()
 	writer.EXPECT().Close().Times(iter)
 
@@ -264,28 +264,32 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		flush, err := pm.StartFlush()
 		require.NoError(t, err)
 
+		// prepare the flush
+		prepared, err := flush.Prepare(testNamespaceID, shard, blockStart)
+		require.NoError(t, err)
+
 		// Start persistence
 		now = time.Now()
-		require.NoError(t, pm.persist(id, segment, checksum))
+		require.NoError(t, prepared.Persist(id, segment, checksum))
 
 		// Assert we don't rate limit if the count is not enough yet
-		require.NoError(t, pm.persist(id, segment, checksum))
+		require.NoError(t, prepared.Persist(id, segment, checksum))
 		require.Equal(t, time.Duration(0), slept)
 
 		// Advance time and check we rate limit if the disk throughput exceeds the limit
 		now = now.Add(time.Microsecond)
-		require.NoError(t, pm.persist(id, segment, checksum))
+		require.NoError(t, prepared.Persist(id, segment, checksum))
 		require.Equal(t, time.Duration(1861), slept)
 
 		// Advance time and check we don't rate limit if the disk throughput is below the limit
-		require.NoError(t, pm.persist(id, segment, checksum))
+		require.NoError(t, prepared.Persist(id, segment, checksum))
 		now = now.Add(time.Second - time.Microsecond)
-		require.NoError(t, pm.persist(id, segment, checksum))
+		require.NoError(t, prepared.Persist(id, segment, checksum))
 		require.Equal(t, time.Duration(1861), slept)
 
 		require.Equal(t, int64(15), pm.bytesWritten)
 
-		pm.close()
+		require.NoError(t, prepared.Close())
 
 		assert.NoError(t, flush.Done())
 	}
