@@ -26,6 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/context"
@@ -39,10 +43,6 @@ import (
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type mockDatabase struct {
