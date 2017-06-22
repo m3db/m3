@@ -56,7 +56,7 @@ const (
 	defaultBytesPoolBucketCapacity = 256
 
 	// defaultBytesPoolBucketCount is the default count of elements for the default bytes pool bucket
-	defaultBytesPoolBucketCount = 4096
+	defaultBytesPoolBucketCount = 32
 
 	// defaultRepairEnabled enables repair by default
 	defaultRepairEnabled = true
@@ -74,6 +74,8 @@ const (
 var (
 	// defaultBootstrapProcess is the default bootstrap for the database
 	defaultBootstrapProcess = bootstrap.NewNoOpProcess()
+
+	defaultPoolOptions = pool.NewObjectPoolOptions().SetSize(16)
 
 	timeZero time.Time
 )
@@ -152,17 +154,17 @@ func NewOptions() Options {
 		persistManager:                 fs.NewPersistManager(fs.NewOptions()),
 		tickInterval:                   defaultTickInterval,
 		maxFlushRetries:                defaultMaxFlushRetries,
-		contextPool:                    context.NewPool(nil, nil),
+		contextPool:                    context.NewPool(defaultPoolOptions, defaultPoolOptions),
 		seriesOpts:                     seriesOpts,
-		seriesPool:                     series.NewDatabaseSeriesPool(seriesOpts, nil),
+		seriesPool:                     series.NewDatabaseSeriesPool(seriesOpts, defaultPoolOptions),
 		bytesPool:                      bytesPool,
-		encoderPool:                    encoding.NewEncoderPool(nil),
-		segmentReaderPool:              xio.NewSegmentReaderPool(nil),
-		readerIteratorPool:             encoding.NewReaderIteratorPool(nil),
-		multiReaderIteratorPool:        encoding.NewMultiReaderIteratorPool(nil),
-		identifierPool:                 ts.NewIdentifierPool(bytesPool, nil),
-		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(nil, 0),
-		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(nil, 0),
+		encoderPool:                    encoding.NewEncoderPool(defaultPoolOptions),
+		segmentReaderPool:              xio.NewSegmentReaderPool(defaultPoolOptions),
+		readerIteratorPool:             encoding.NewReaderIteratorPool(defaultPoolOptions),
+		multiReaderIteratorPool:        encoding.NewMultiReaderIteratorPool(defaultPoolOptions),
+		identifierPool:                 ts.NewIdentifierPool(bytesPool, defaultPoolOptions),
+		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(defaultPoolOptions, 0),
+		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(defaultPoolOptions, 0),
 	}
 	return o.SetEncodingM3TSZPooled()
 }
@@ -185,7 +187,7 @@ func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 	opts.instrumentOpts = value
 	opts.commitLogOpts = opts.commitLogOpts.SetInstrumentOptions(value)
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
-	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, nil)
+	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, defaultPoolOptions)
 	return &opts
 }
 
@@ -207,7 +209,7 @@ func (o *options) SetDatabaseBlockOptions(value block.Options) Options {
 	opts := *o
 	opts.blockOpts = value
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
-	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, nil)
+	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, defaultPoolOptions)
 	return &opts
 }
 
@@ -303,20 +305,20 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 		Count:    defaultBytesPoolBucketCount,
 	}}
 	newBackingBytesPool := func(s []pool.Bucket) pool.BytesPool {
-		return pool.NewBytesPool(s, nil)
+		return pool.NewBytesPool(s, defaultPoolOptions)
 	}
-	bytesPool := pool.NewCheckedBytesPool(buckets, nil, newBackingBytesPool)
+	bytesPool := pool.NewCheckedBytesPool(buckets, defaultPoolOptions, newBackingBytesPool)
 	bytesPool.Init()
 	opts.bytesPool = bytesPool
 
 	// initialize context pool
-	opts.contextPool = context.NewPool(nil, nil)
+	opts.contextPool = context.NewPool(defaultPoolOptions, defaultPoolOptions)
 
-	encoderPool := encoding.NewEncoderPool(nil)
-	readerIteratorPool := encoding.NewReaderIteratorPool(nil)
+	encoderPool := encoding.NewEncoderPool(defaultPoolOptions)
+	readerIteratorPool := encoding.NewReaderIteratorPool(defaultPoolOptions)
 
 	// initialize segment reader pool
-	segmentReaderPool := xio.NewSegmentReaderPool(nil)
+	segmentReaderPool := xio.NewSegmentReaderPool(defaultPoolOptions)
 	segmentReaderPool.Init()
 	opts.segmentReaderPool = segmentReaderPool
 
@@ -339,7 +341,7 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	opts.readerIteratorPool = readerIteratorPool
 
 	// initialize multi reader iterator pool
-	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
+	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(defaultPoolOptions)
 	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
@@ -348,10 +350,11 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	opts.blockOpts = opts.blockOpts.
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(readerIteratorPool).
-		SetMultiReaderIteratorPool(multiReaderIteratorPool)
+		SetMultiReaderIteratorPool(multiReaderIteratorPool).
+		SetBytesPool(bytesPool)
 
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
-	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, nil)
+	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, defaultPoolOptions)
 	return &opts
 }
 
