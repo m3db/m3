@@ -73,17 +73,26 @@ func (r *registry) Validate() error {
 	if len(r.metadatas) == 0 {
 		return fmt.Errorf("no namespaces listed in NamespaceRegistry")
 	}
-	// TODO(prateek): ensure ids are unique
 
 	var multiErr xerrors.MultiError
-	for _, md := range r.metadatas {
-		opts := md.Options()
-		if err := opts.Validate(); err != nil {
+
+	idsMap := make(map[ts.Hash]struct{})
+	for _, id := range r.ids {
+		if _, ok := idsMap[id.Hash()]; ok {
 			multiErr = multiErr.Add(fmt.Errorf(
-				"unable to validate options for namespace = %v, err: %v",
+				"namespace ids must be unique, duplicate found: %v", id.String()))
+		}
+		idsMap[id.Hash()] = struct{}{}
+	}
+
+	for _, md := range r.metadatas {
+		if err := md.Validate(); err != nil {
+			multiErr = multiErr.Add(fmt.Errorf(
+				"unable to validate metadata for namespace = %v, err: %v",
 				md.ID().String(), err))
 		}
 	}
+
 	return multiErr.FinalError()
 }
 

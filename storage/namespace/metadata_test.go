@@ -21,10 +21,14 @@
 package namespace
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/golang/mock/gomock"
+
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
 )
 
@@ -69,4 +73,27 @@ func TestMetadataEqualsRetentionOptsDiffer(t *testing.T) {
 	md2 := NewMetadata(testID, testOpts2)
 	require.False(t, md1.Equal(md2))
 	require.False(t, md2.Equal(md1))
+}
+
+func TestMetadataValidateEmptyID(t *testing.T) {
+	testID := ts.StringID("")
+	testOpts1 := NewOptions()
+	md1 := NewMetadata(testID, testOpts1)
+	require.Error(t, md1.Validate())
+}
+
+func TestMetadataValidateRetentionErr(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockROpts := retention.NewMockOptions(ctrl)
+	testID := ts.StringID("some-string")
+	testOpts1 := NewOptions().SetRetentionOptions(mockROpts)
+	md1 := NewMetadata(testID, testOpts1)
+
+	mockROpts.EXPECT().Validate().Return(nil)
+	require.NoError(t, md1.Validate())
+
+	mockROpts.EXPECT().Validate().Return(fmt.Errorf("some-error"))
+	require.Error(t, md1.Validate())
 }

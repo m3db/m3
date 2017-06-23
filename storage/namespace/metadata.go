@@ -21,6 +21,8 @@
 package namespace
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 )
@@ -33,23 +35,31 @@ type metadata struct {
 // NewMetadata creates a new namespace metadata
 func NewMetadata(id ts.ID, opts Options) Metadata {
 	copiedID := checked.NewBytes(append([]byte(nil), id.Data().Get()...), nil)
-	return metadata{
+	return &metadata{
 		id:   ts.BinaryID(copiedID),
 		opts: opts,
 	}
 }
 
-func (m metadata) ID() ts.ID {
+func (m *metadata) ID() ts.ID {
 	return m.id
 }
 
-func (m metadata) Options() Options {
+func (m *metadata) Options() Options {
 	return m.opts
 }
 
-func (m metadata) Equal(value Metadata) bool {
+func (m *metadata) Equal(value Metadata) bool {
 	if !m.id.Equal(value.ID()) {
 		return false
 	}
 	return m.Options().Equal(value.Options())
+}
+
+func (m *metadata) Validate() error {
+	if m.id.String() == "" {
+		return fmt.Errorf("namespace id is not set")
+	}
+
+	return m.Options().Validate()
 }

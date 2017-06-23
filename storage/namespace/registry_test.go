@@ -21,8 +21,10 @@
 package namespace
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3db/ts"
@@ -97,4 +99,42 @@ func TestRegistryEqualsTrue(t *testing.T) {
 	r2 := testRegistry()
 	require.True(t, r1.Equal(r2))
 	require.True(t, r2.Equal(r1))
+}
+
+func TestRegistryValidateSimple(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		opts      = NewMockOptions(ctrl)
+		id        = ts.StringID("someID")
+		metadatas = []Metadata{
+			NewMetadata(id, opts),
+		}
+		reg = NewRegistry(metadatas)
+	)
+
+	opts.EXPECT().Validate().Return(nil)
+	require.NoError(t, reg.Validate())
+
+	opts.EXPECT().Validate().Return(fmt.Errorf("test error in options"))
+	require.Error(t, reg.Validate())
+}
+
+func TestRegistryValidateDuplicateID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		opts      = NewMockOptions(ctrl)
+		id        = ts.StringID("someID")
+		metadatas = []Metadata{
+			NewMetadata(id, opts),
+			NewMetadata(id, opts),
+		}
+		reg = NewRegistry(metadatas)
+	)
+
+	opts.EXPECT().Validate().Return(nil).AnyTimes()
+	require.Error(t, reg.Validate())
 }
