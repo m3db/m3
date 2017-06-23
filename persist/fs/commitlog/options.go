@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 )
@@ -80,49 +81,66 @@ func NewOptions() Options {
 }
 
 func (o *options) Validate() error {
+	var multiErr xerrors.MultiError
 	if o.FlushInterval() <= 0 {
-		return fmt.Errorf("flush interval must be positive")
+		multiErr = multiErr.Add(
+			fmt.Errorf("flush interval must be positive"))
 	}
 
 	// TODO(pratek): does strategy/flush size need to be checked here
 
 	if err := o.retentionOpts.Validate(); err != nil {
-		return fmt.Errorf("invalid commit log retention options: %v", err)
+		multiErr = multiErr.Add(
+			fmt.Errorf("invalid commit log retention options: %v", err))
 	}
 
 	fsOpts := o.FilesystemOptions()
 	if err := fsOpts.Validate(); err != nil {
-		return fmt.Errorf("invalid commit log fs options: %v", err)
+		multiErr = multiErr.Add(
+			fmt.Errorf("invalid commit log fs options: %v", err))
+	}
+
+	// short circuit checking detailed errors per namespace until
+	// top level objects are OK
+	if err := multiErr.FinalError(); err != nil {
+		return err
 	}
 
 	blockSize := o.retentionOpts.BlockSize()
+	retentionPeriod := o.retentionOpts.RetentionPeriod()
 
 	// ensure all namespaces in the registry have retention options compatible
-	// with the commit log retention options
-	registry := fsOpts.NamespaceRegistry()
-
-	mds := registry.Metadatas()
-	for _, md := range mds {
+	// with the commit log retention options. i.e. these constraints are met:
+	//   (1) no namespace block size is smaller than commit log block size
+	//   (2) all namespace block sizes are divisible by the commit log block size
+	//   (3) no namespace retention period is smaller than commit log retention period
+	metadatas := fsOpts.NamespaceRegistry().Metadatas()
+	for _, md := range metadatas {
 		id := md.ID()
 		ropts := md.Options().RetentionOptions()
 
 		nsBlockSize := ropts.BlockSize()
 		if nsBlockSize < blockSize {
-			return fmt.Errorf(
+			multiErr = multiErr.Add(fmt.Errorf(
 				"namespace %s has a block size [%v] smaller than that of the commit log [%v]",
-				id.String(), nsBlockSize.String(), blockSize.String(),
-			)
+				id.String(), nsBlockSize.String(), blockSize.String()))
 		}
 
 		if mod := nsBlockSize.Nanoseconds() % blockSize.Nanoseconds(); mod != 0 {
-			return fmt.Errorf(
+			multiErr = multiErr.Add(fmt.Errorf(
 				"namespace %s has a block size [%v] not divisible by that of the commit log [%v]",
-				id.String(), nsBlockSize.String(), blockSize.String(),
-			)
+				id.String(), nsBlockSize.String(), blockSize.String()))
+		}
+
+		nsRetentionPeriod := ropts.RetentionPeriod()
+		if nsRetentionPeriod < retentionPeriod {
+			multiErr = multiErr.Add(fmt.Errorf(
+				"namespace %s has a retention period [%v] smaller than that of the commit log [%v]",
+				id.String(), nsRetentionPeriod.String(), retentionPeriod.String()))
 		}
 	}
 
-	return nil
+	return multiErr.FinalError()
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {
