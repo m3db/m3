@@ -67,3 +67,33 @@ func (r *registry) IDs() []ts.ID {
 func (r *registry) Metadatas() []Metadata {
 	return r.metadatas
 }
+
+func (r *registry) Equal(value Registry) bool {
+	// short circuit ptr equals
+	if value == r {
+		return true
+	}
+
+	ourIds := r.IDs()
+	theirIds := value.IDs()
+	if len(ourIds) != len(theirIds) {
+		return false
+	}
+
+	// O(n**2) test, not a big deal because this is only 3-5 elements
+	for _, id := range ourIds {
+		found := false
+		for _, oID := range theirIds {
+			if id.Equal(oID) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	// TODO(prateek): test metadata + options, add tests
+
+	return true
+}

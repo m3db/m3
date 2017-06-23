@@ -71,6 +71,9 @@ type Metadata interface {
 
 	// Options is the namespace options
 	Options() Options
+
+	// Equal returns true if the provide value is equal to this one Equal(value Metadata) bool
+	// TODO(prateek): ^ remove?
 }
 
 // Registry is mapping from known namespaces' ID to their Metadata
@@ -84,4 +87,7 @@ type Registry interface {
 
 	// Metadatas returns the metadata of known namespaces
 	Metadatas() []Metadata
+
+	// Equal returns true if the provide value is equal to this one
+	Equal(value Registry) bool
 }

@@ -48,7 +48,7 @@ const (
 var (
 	errBufferFutureTooLarge    = fmt.Errorf("buffer future must be smaller than block size")
 	errBufferPastTooLarge      = fmt.Errorf("buffer past must be smaller than block size")
-	errRetentionPeriodTooSmall = fmt.Errorf("retention period must be bigger than block size")
+	errRetentionPeriodTooSmall = fmt.Errorf("retention period must not be smaller than block size")
 )
 
 type options struct {
@@ -80,7 +80,7 @@ func (o *options) Validate() error {
 	if o.bufferPast >= o.blockSize {
 		return errBufferPastTooLarge
 	}
-	if o.retentionPeriod <= o.blockSize {
+	if o.retentionPeriod < o.blockSize {
 		return errRetentionPeriodTooSmall
 	}
 	return nil
