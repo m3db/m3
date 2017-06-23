@@ -21,6 +21,7 @@
 package retention
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -44,6 +45,12 @@ const (
 	defaultDataExpiryAfterNotAccessedPeriod = 5 * time.Minute
 )
 
+var (
+	errBufferFutureTooLarge    = fmt.Errorf("buffer future must be smaller than block size")
+	errBufferPastTooLarge      = fmt.Errorf("buffer past must be smaller than block size")
+	errRetentionPeriodTooSmall = fmt.Errorf("retention period must be bigger than block size")
+)
+
 type options struct {
 	retentionPeriod                  time.Duration
 	blockSize                        time.Duration
@@ -64,6 +71,20 @@ func NewOptions() Options {
 		dataExpiry:                       defaultDataExpiry,
 		dataExpiryAfterNotAccessedPeriod: defaultDataExpiryAfterNotAccessedPeriod,
 	}
+}
+
+func (o *options) Validate() error {
+	if o.bufferFuture >= o.blockSize {
+		return errBufferFutureTooLarge
+	}
+	if o.bufferPast >= o.blockSize {
+		return errBufferPastTooLarge
+	}
+	if o.retentionPeriod <= o.blockSize {
+		return errRetentionPeriodTooSmall
+	}
+	return nil
+	// TODO(prateek): check "retention.Options.Validate()" where applicable
 }
 
 func (o *options) SetRetentionPeriod(value time.Duration) Options {

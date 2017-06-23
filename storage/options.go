@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"fmt"
 	"io"
 	"time"
 
@@ -177,12 +178,44 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 }
 
 func (o *options) Validate() error {
+	clOpts := o.CommitLogOptions()
+	clROpts := clOpts.RetentionOptions()
+	clBlockSize := clROpts.BlockSize()
+	if err := clOpts.Validate(); err != nil {
+		return fmt.Errorf("unable to validate commit log options: %v", err)
+	}
+
+	registry := o.NamespaceRegistry()
+	mds := registry.Metadatas()
+	if len(mds) == 0 {
+		return fmt.Errorf("no namespaces listed in NamespaceRegistry")
+	}
+
+	for _, md := range mds {
+		id := md.ID()
+		ropts := md.Options().RetentionOptions()
+		if err := ropts.Validate(); err != nil {
+			return fmt.Errorf(
+				"unable to validate namespace = %s retention options, err: %v", id.String(), err)
+		}
+
+		nsBlockSize := ropts.BlockSize()
+		if nsBlockSize < clBlockSize {
+			return fmt.Errorf(
+				"namespace %s has a block size [%v] smaller than that of the commit log [%v]",
+				id.String(), nsBlockSize.String(), clBlockSize.String(),
+			)
+		}
+
+		if mod := nsBlockSize.Nanoseconds() % clBlockSize.Nanoseconds(); mod != 0 {
+			return fmt.Errorf(
+				"namespace %s has a block size [%v] not divisible by that of the commit log [%v]",
+				id.String(), nsBlockSize.String(), clBlockSize.String(),
+			)
+		}
+	}
+
 	// TODO(prateek): check the following constraints for Options.Validate()
-	//   (1) namespace registry has at least one item
-	//   (2) call validate on all namespace retention options, commit log retention opts
-	// 		  (a) check retention period > block size for all retention opts
-	//   (3) commit log block size has to be <= the block size of all namespaces
-	//   (4) commit log block size has to be a divisor of the block size of all namespaces
 	//   (5) FileOpOptions().Jitter needs to be smaller than commit log block size
 	return nil
 }

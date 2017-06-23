@@ -78,6 +78,11 @@ func NewOptions() Options {
 	return o
 }
 
+func (o *options) Validate() error {
+	// TODO(pratek): does strategy/flush size need to be checked here
+	return o.retentionOpts.Validate()
+}
+
 func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value

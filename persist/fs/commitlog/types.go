@@ -110,6 +110,9 @@ type Series struct {
 
 // Options represents the options for the commit log
 type Options interface {
+	// Validate validates the Options
+	Validate() error
+
 	// SetClockOptions sets the clock options
 	SetClockOptions(value clock.Options) Options
 

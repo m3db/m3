@@ -25,9 +25,10 @@ import (
 )
 
 // Options represents the options for retention
-// TODO(prateek): add "Validate()" method and ensure buffer future and buffer past are
-// less than blocksize; check where applicable
 type Options interface {
+	// Validate validates the options
+	Validate() error
+
 	// SetRetentionPeriod sets how long we intend to keep data in memory
 	SetRetentionPeriod(value time.Duration) Options
 
