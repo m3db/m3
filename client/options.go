@@ -263,7 +263,7 @@ func newOptions() *options {
 		fetchSeriesBlocksMetadataBatchTimeout:   defaultFetchSeriesBlocksMetadataBatchTimeout,
 		fetchSeriesBlocksBatchTimeout:           defaultFetchSeriesBlocksBatchTimeout,
 		fetchSeriesBlocksBatchConcurrency:       defaultFetchSeriesBlocksBatchConcurrency,
-		namespaceRegistry:                       namespace.NewRegistry(nil),
+		namespaceRegistry:                       nil,
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
@@ -275,6 +275,15 @@ func (o *options) Validate() error {
 	if o.readerIteratorAllocate == nil {
 		return errNoReaderIteratorAllocateSet
 	}
+	// NB(prateek): NamespaceRegistry is only required by AdminOptions. But Options and
+	// AdminOptions both share the same underlying struct. So we workaround this by
+	// only indicating failure if namespaceRegistry has been set. The cost of doing it this
+	// way is we have to check the namespaceRegistry whenever we use it in the AdminSession,
+	// and we fail later in the runtime, at AdminSession method execution time, rather than
+	// at AdminSession construction time.
+	// TODO(prateek): We could fix this by splitting the two objects Options, and AdminOptions.
+	// When I tried to do that, it caused a lot of cascading changes and my PR was already massive.
+	// We should fix this in a separate PR.
 	if o.namespaceRegistry != nil {
 		if err := o.namespaceRegistry.Validate(); err != nil {
 			return err

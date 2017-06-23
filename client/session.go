@@ -1241,13 +1241,21 @@ func (s *session) FetchBlocksMetadataFromPeers(
 	return newMetadataIter(metadataCh, errCh), nil
 }
 
+func (s *session) namespaceMetadata(id ts.ID) (namespace.Metadata, error) {
+	registry := s.namespaceRegistry
+	if registry == nil {
+		return nil, fmt.Errorf("namespace registry not set")
+	}
+	return registry.Get(id)
+}
+
 func (s *session) FetchBootstrapBlocksFromPeers(
 	namespace ts.ID,
 	shard uint32,
 	start, end time.Time,
 	opts result.Options,
 ) (result.ShardResult, error) {
-	nsMetadata, err := s.namespaceRegistry.Get(namespace)
+	nsMetadata, err := s.namespaceMetadata(namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -1315,7 +1323,7 @@ func (s *session) FetchBlocksFromPeers(
 	metadatas []block.ReplicaMetadata,
 	opts result.Options,
 ) (PeerBlocksIter, error) {
-	nsMetadata, err := s.namespaceRegistry.Get(namespace)
+	nsMetadata, err := s.namespaceMetadata(namespace)
 	if err != nil {
 		return nil, err
 	}
