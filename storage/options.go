@@ -57,7 +57,7 @@ const (
 	defaultBytesPoolBucketCapacity = 256
 
 	// defaultBytesPoolBucketCount is the default count of elements for the default bytes pool bucket
-	defaultBytesPoolBucketCount = 32
+	defaultBytesPoolBucketCount = 4096
 
 	// defaultRepairEnabled enables repair by default
 	defaultRepairEnabled = true
