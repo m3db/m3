@@ -199,8 +199,18 @@ func (o *options) Validate() error {
 		return fmt.Errorf("commit log fs options namespace registry differs from storage options namespace registry")
 	}
 
-	// TODO(prateek): check the following constraints for Options.Validate()
-	//   (5) FileOpOptions().Jitter needs to be smaller than commit log block size
+	// NB(prateek): FileOpOptions.Jitter needs to be smaller than block size for all
+	// known retention periods. We rely on commit log Validate to ensure it has the
+	// smallest block size of all the known namespaces, and here only check if the
+	// Jitter is greater than the commit log's block size.
+	if o.fileOpOpts.Jitter() >= clOpts.RetentionOptions().BlockSize() {
+		return fmt.Errorf("file op options jitter needs to be smaller than commit log block size")
+	}
+
+	if o.tickInterval <= 0 {
+		return fmt.Errorf("tick interval must be a positive duration")
+	}
+
 	return nil
 }
 

@@ -20,13 +20,9 @@
 
 package storage
 
-import (
-	"errors"
-	"time"
-)
+import "time"
 
 var (
-	errJitterTooBig     = errors.New("file op jitter is not smaller than block size")
 	defaultFileOpJitter = 5 * time.Minute
 )
 
@@ -49,12 +45,4 @@ func (o *fileOpOptions) SetJitter(value time.Duration) FileOpOptions {
 
 func (o *fileOpOptions) Jitter() time.Duration {
 	return o.jitter
-}
-
-func (o *fileOpOptions) Validate() error {
-	// TODO(prateek): does this need to be done across all namespace retentions
-	// if o.jitter >= o.retentionOpts.BlockSize() {
-	// 	return errJitterTooBig
-	// }
-	return nil
 }

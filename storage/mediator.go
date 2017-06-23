@@ -89,10 +89,7 @@ func newMediator(database database, opts Options) (databaseMediator, error) {
 		closedCh: make(chan struct{}),
 	}
 
-	fsm, err := newFileSystemManager(database, opts)
-	if err != nil {
-		return nil, err
-	}
+	fsm := newFileSystemManager(database, opts)
 	d.databaseFileSystemManager = fsm
 
 	d.databaseRepairer = newNoopDatabaseRepairer()

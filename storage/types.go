@@ -331,9 +331,6 @@ type databaseCleanupManager interface {
 
 // FileOpOptions control the database file operations behavior
 type FileOpOptions interface {
-	// Validate validates the options
-	Validate() error
-
 	// SetJitter sets the jitter for database file operations
 	SetJitter(value time.Duration) FileOpOptions
 

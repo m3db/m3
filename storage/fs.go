@@ -73,11 +73,8 @@ type fileSystemManager struct {
 func newFileSystemManager(
 	database database,
 	opts Options,
-) (databaseFileSystemManager, error) {
+) databaseFileSystemManager {
 	fileOpts := opts.FileOpOptions()
-	if err := fileOpts.Validate(); err != nil {
-		return nil, err
-	}
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope().SubScope("fs")
 	fm := newFlushManager(database, scope)
@@ -100,7 +97,7 @@ func newFileSystemManager(
 		jitter:   jitter,
 		status:   fileOpNotStarted,
 		enabled:  true,
-	}, nil
+	}
 }
 
 func (m *fileSystemManager) Disable() fileOpStatus {
