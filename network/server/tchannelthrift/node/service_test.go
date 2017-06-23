@@ -24,6 +24,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber/tchannel-go/thrift"
+
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/runtime"
@@ -33,13 +39,6 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber/tchannel-go/thrift"
-
-	"github.com/m3db/m3db/digest"
 )
 
 // Create test service opts once to avoid recreating a lot of default pools, etc
