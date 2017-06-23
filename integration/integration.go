@@ -26,8 +26,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/sharding"
@@ -42,10 +44,6 @@ import (
 	xmetrics "github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
-
-	"github.com/stretchr/testify/require"
-
-	"github.com/m3db/m3cluster/shard"
 )
 
 const (
