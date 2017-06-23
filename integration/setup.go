@@ -211,7 +211,8 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		SetFilePathPrefix(filePathPrefix).
 		SetNamespaceRegistry(nsRegistry)
 
-	storageOpts = storageOpts.SetCommitLogOptions(storageOpts.CommitLogOptions().SetFilesystemOptions(fsOpts))
+	storageOpts = storageOpts.SetCommitLogOptions(
+		storageOpts.CommitLogOptions().SetFilesystemOptions(fsOpts))
 
 	// Set up persistence manager
 	storageOpts = storageOpts.SetPersistManager(fs.NewPersistManager(fsOpts))
@@ -343,8 +344,11 @@ func (ts *testSetup) setRetentionOnAll(ropts retention.Options) error {
 			return err
 		}
 	}
-	// TODO(prateek): should this set commit log retention options too, if not,
-	// rename the method to `setRetentionOnAllNamespaces` or some such.
+
+	ts.storageOpts = ts.storageOpts.SetCommitLogOptions(
+		ts.storageOpts.CommitLogOptions().SetFilesystemOptions(
+			ts.storageOpts.CommitLogOptions().FilesystemOptions().
+				SetNamespaceRegistry(ts.storageOpts.NamespaceRegistry())))
 	return nil
 }
 
