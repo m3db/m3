@@ -136,6 +136,10 @@ func TestDiskCleanup(t *testing.T) {
 	newNow := now.Add(retentionPeriod).Add(2 * blockSize)
 	testSetup.setNowFn(newNow)
 
+	// TODO(prateek): this test is funky. if we consider the time we are setting
+	// as the current time, we're deleting data within the retention period.
+	// Should the cleanup code be updated to respect the clock?
+
 	// Check if files have been deleted
 	waitTimeout := tickInterval * 4
 	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, waitTimeout))
