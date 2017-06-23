@@ -311,44 +311,30 @@ func (ts *testSetup) generatorOptions(ropts retention.Options) generate.Options 
 		SetEncoderPool(storageOpts.EncoderPool())
 }
 
-func (ts *testSetup) setRetentionOnNamespace(ropts retention.Options, ns namespace.Metadata) error {
-	// construct new metadata with modified opts
-	newMetadata := namespace.NewMetadata(ns.ID(), ns.Options().SetRetentionOptions(ropts))
-
+func (ts *testSetup) setRetentionOnAll(ropts retention.Options) error {
 	// create new list of metadatas with the modified id updated
 	newMetadatas := []namespace.Metadata{}
 	oldMetadatas := ts.opts.Namespaces()
-	found := false
-	for _, n := range oldMetadatas {
-		if n.ID().Equal(ns.ID()) {
-			newMetadatas = append(newMetadatas, newMetadata)
-			found = true
-		} else {
-			newMetadatas = append(newMetadatas, n)
-		}
-	}
-	if !found {
-		return fmt.Errorf("unable to find any namespace with specified id: %v", ns.ID().String())
+
+	for _, ns := range oldMetadatas {
+		// construct new metadata with modified opts
+		newMetadatas = append(newMetadatas,
+			namespace.NewMetadata(ns.ID(), ns.Options().SetRetentionOptions(ropts)))
 	}
 
 	// update testSetup properties
-	ts.opts = ts.opts.SetNamespaces(newMetadatas)
 	newRegisty := namespace.NewRegistry(newMetadatas)
-	ts.storageOpts = ts.storageOpts.SetNamespaceRegistry(newRegisty)
-	return nil
-}
+	clOpts := ts.storageOpts.CommitLogOptions()
+	fsOpts := clOpts.FilesystemOptions()
+	ts.storageOpts = ts.storageOpts.
+		SetNamespaceRegistry(newRegisty).
+		SetCommitLogOptions(
+			clOpts.SetRetentionOptions(ropts).
+				SetFilesystemOptions(
+					fsOpts.SetNamespaceRegistry(newRegisty)))
+	ts.opts = ts.opts.SetNamespaces(newMetadatas)
+	ts.namespaces = newMetadatas
 
-func (ts *testSetup) setRetentionOnAll(ropts retention.Options) error {
-	for _, ns := range ts.opts.Namespaces() {
-		if err := ts.setRetentionOnNamespace(ropts, ns); err != nil {
-			return err
-		}
-	}
-
-	ts.storageOpts = ts.storageOpts.SetCommitLogOptions(
-		ts.storageOpts.CommitLogOptions().SetFilesystemOptions(
-			ts.storageOpts.CommitLogOptions().FilesystemOptions().
-				SetNamespaceRegistry(ts.storageOpts.NamespaceRegistry())))
 	return nil
 }
 

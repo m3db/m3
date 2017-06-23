@@ -102,9 +102,6 @@ func TestDiskCleanup(t *testing.T) {
 	)
 	require.NoError(t, testSetup.setRetentionOnAll(ropts))
 
-	testSetup.storageOpts = testSetup.storageOpts.SetCommitLogOptions(
-		testSetup.storageOpts.CommitLogOptions().
-			SetRetentionOptions(ropts))
 
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
