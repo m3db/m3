@@ -20,7 +20,10 @@
 
 package client
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 type client struct {
 	sync.Mutex
@@ -47,6 +50,15 @@ func newClient(opts Options) (*client, error) {
 		return nil, err
 	}
 	return &client{opts: opts, newSessionFn: newSession}, nil
+}
+
+func (c *client) Options() (AdminOptions, error) {
+	aOpts, ok := c.opts.(AdminOptions)
+	var err error
+	if !ok {
+		err = fmt.Errorf("unable to cast options to admin options")
+	}
+	return aOpts, err
 }
 
 func (c *client) newSession() (AdminSession, error) {

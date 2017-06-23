@@ -191,9 +191,8 @@ func (o *options) Validate() error {
 		return fmt.Errorf("namespace registry not set")
 	}
 
-	mds := registry.Metadatas()
-	if len(mds) == 0 {
-		return fmt.Errorf("no namespaces listed in NamespaceRegistry")
+	if err := registry.Validate(); err != nil {
+		return fmt.Errorf("unable to validate namespace registry, err: %v", err)
 	}
 
 	// ensure all namespace registries are the same
@@ -202,13 +201,10 @@ func (o *options) Validate() error {
 		return fmt.Errorf("commit log option's fs options do not have the same registry as that defined at the top level")
 	}
 
+	mds := registry.Metadatas()
 	for _, md := range mds {
 		id := md.ID()
 		ropts := md.Options().RetentionOptions()
-		if err := ropts.Validate(); err != nil {
-			return fmt.Errorf(
-				"unable to validate namespace = %s retention options, err: %v", id.String(), err)
-		}
 
 		nsBlockSize := ropts.BlockSize()
 		if nsBlockSize < clBlockSize {

@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/errors"
 )
 
 type registry struct {
@@ -66,6 +67,23 @@ func (r *registry) IDs() []ts.ID {
 
 func (r *registry) Metadatas() []Metadata {
 	return r.metadatas
+}
+
+func (r *registry) Validate() error {
+	if len(r.metadatas) == 0 {
+		return fmt.Errorf("no namespaces listed in NamespaceRegistry")
+	}
+
+	var multiErr xerrors.MultiError
+	for _, md := range r.metadatas {
+		opts := md.Options()
+		if err := opts.Validate(); err != nil {
+			multiErr = multiErr.Add(fmt.Errorf(
+				"unable to validate options for namespace = %v, err: %v",
+				md.ID().String(), err))
+		}
+	}
+	return multiErr.FinalError()
 }
 
 func (r *registry) Equal(value Registry) bool {

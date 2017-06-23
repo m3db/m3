@@ -80,6 +80,10 @@ func NewOptions() Options {
 	}
 }
 
+func (o *options) Validate() error {
+	return o.namespaceRegistry.Validate()
+}
+
 func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value

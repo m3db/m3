@@ -148,6 +148,9 @@ type Session interface {
 type AdminClient interface {
 	Client
 
+	// Options returns the admin options
+	Options() (AdminOptions, error)
+
 	// NewSession creates a new session
 	NewAdminSession() (AdminSession, error)
 
@@ -576,6 +579,4 @@ type AdminOptions interface {
 
 	// NamespaceRegistry returns the namespace registry
 	NamespaceRegistry() namespace.Registry
-
-	// TODO(prateek): add Validate and ensure namespaceRegistry has at one element
 }

@@ -38,6 +38,10 @@ func NewOptions() Options {
 	}
 }
 
+func (o *options) Validate() error {
+	return o.commitLogOpts.Validate()
+}
+
 func (o *options) SetResultOptions(value result.Options) Options {
 	opts := *o
 	opts.resultOpts = value

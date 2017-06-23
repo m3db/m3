@@ -275,6 +275,11 @@ func (o *options) Validate() error {
 	if o.readerIteratorAllocate == nil {
 		return errNoReaderIteratorAllocateSet
 	}
+	if o.namespaceRegistry != nil {
+		if err := o.namespaceRegistry.Validate(); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

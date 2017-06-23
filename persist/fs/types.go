@@ -138,6 +138,9 @@ type RetrievableBlockSegmentReader interface {
 
 // Options represents the options for filesystem persistence
 type Options interface {
+	// Validate validates the options
+	Validate() error
+
 	// SetClockOptions sets the clock options
 	SetClockOptions(value clock.Options) Options
 

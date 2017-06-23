@@ -21,6 +21,7 @@
 package peers
 
 import (
+	"fmt"
 	"math"
 	"runtime"
 
@@ -57,6 +58,34 @@ func NewOptions() Options {
 		incrementalPersistMaxQueueSize: defaultIncrementalPersistMaxQueueSize,
 		namespaceRegistry:              namespace.NewRegistry(nil),
 	}
+}
+
+func (o *options) Validate() error {
+	registry := o.namespaceRegistry
+	if registry == nil {
+		return fmt.Errorf("namespace registry not set")
+	}
+
+	client := o.client
+	if client == nil {
+		return fmt.Errorf("admin client not set")
+	}
+
+	adminOpts, err := o.client.Options()
+	if err != nil {
+		return fmt.Errorf("unable to retrieve admin session namespace registry, err: %v", err)
+	}
+
+	if err := adminOpts.Validate(); err != nil {
+		return fmt.Errorf("unable to validate admin session options, err: %v", err)
+	}
+
+	adminOptionsRegistry := adminOpts.NamespaceRegistry()
+	if !registry.Equal(adminOptionsRegistry) {
+		return fmt.Errorf("admin options namespace registry not the same as namespace registry")
+	}
+
+	return nil
 }
 
 func (o *options) SetResultOptions(value result.Options) Options {

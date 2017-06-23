@@ -61,6 +61,11 @@ func NewOptions() Options {
 		retentionOpts:       retention.NewOptions(),
 	}
 }
+
+func (o *options) Validate() error {
+	return o.retentionOpts.Validate()
+}
+
 func (o *options) Equal(value Options) bool {
 	return o.needsBootstrap == value.NeedsBootstrap() &&
 		o.needsFlush == value.NeedsFlush() &&

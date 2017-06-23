@@ -27,6 +27,9 @@ import (
 
 // Options controls namespace behavior
 type Options interface {
+	// Validate validates the registry
+	Validate() error
+
 	// Equal returns true if the provide value is equal to this one
 	Equal(value Options) bool
 
@@ -81,6 +84,9 @@ type Metadata interface {
 
 // Registry is mapping from known namespaces' ID to their Metadata
 type Registry interface {
+	// Validate validates the registry
+	Validate() error
+
 	// Equal returns true if the provide value is equal to this one
 	Equal(value Registry) bool
 
