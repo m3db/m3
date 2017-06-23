@@ -185,10 +185,17 @@ func (o *options) Validate() error {
 		return fmt.Errorf("unable to validate commit log options: %v", err)
 	}
 
+	// check if registry has at least one element
 	registry := o.NamespaceRegistry()
 	mds := registry.Metadatas()
 	if len(mds) == 0 {
 		return fmt.Errorf("no namespaces listed in NamespaceRegistry")
+	}
+
+	// ensure all namespace registries are the same
+	clRegisry := o.CommitLogOptions().FilesystemOptions().NamespaceRegistry()
+	if registry != clRegisry {
+		return fmt.Errorf("commit log option's fs options do not have the same registry as that defined at the top level")
 	}
 
 	for _, md := range mds {

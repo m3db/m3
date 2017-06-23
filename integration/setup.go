@@ -343,6 +343,8 @@ func (ts *testSetup) setRetentionOnAll(ropts retention.Options) error {
 			return err
 		}
 	}
+	// TODO(prateek): should this set commit log retention options too, if not,
+	// rename the method to `setRetentionOnAllNamespaces` or some such.
 	return nil
 }
 

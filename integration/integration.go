@@ -155,7 +155,6 @@ func newDefaulTestResultOptions(
 	return result.NewOptions().
 		SetClockOptions(storageOpts.ClockOptions()).
 		SetInstrumentOptions(instrumentOpts).
-		// SetRetentionOptions(storageOpts.RetentionOptions()). TODO(prateek): what needs to be done for this
 		SetDatabaseBlockOptions(storageOpts.DatabaseBlockOptions())
 }
 
@@ -201,7 +200,8 @@ func newDefaultBootstrappableTestSetups(
 
 		var adminClient client.AdminClient
 		if usingPeersBoostrapper {
-			adminOpts := client.NewAdminOptions()
+			adminOpts := client.NewAdminOptions().
+				SetNamespaceRegistry(namespace.NewRegistry(opts.Namespaces()))
 			if bootstrapBlocksBatchSize > 0 {
 				adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(bootstrapBlocksBatchSize)
 			}
