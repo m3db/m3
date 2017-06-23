@@ -198,7 +198,7 @@ func (o *options) Validate() error {
 	// ensure all namespace registries are the same
 	clRegisry := o.CommitLogOptions().FilesystemOptions().NamespaceRegistry()
 	if !registry.Equal(clRegisry) {
-		return fmt.Errorf("commit log option's fs options do not have the same registry as that defined at the top level")
+		return fmt.Errorf("commit log fs options namespace registry differs from storage options namespace registry")
 	}
 
 	mds := registry.Metadatas()

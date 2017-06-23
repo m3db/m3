@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3db/ts"
 )
 
-func TestEmptyNamespaceRegistry(t *testing.T) {
+func TestRegistryEmptyNamespaceRegistry(t *testing.T) {
 	emptyRegistry := NewRegistry(nil)
 	require.Empty(t, emptyRegistry.IDs())
 	require.Empty(t, emptyRegistry.Metadatas())
@@ -36,7 +36,7 @@ func TestEmptyNamespaceRegistry(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestSingleElement(t *testing.T) {
+func TestRegistrySingleElement(t *testing.T) {
 	var (
 		opts      = NewOptions()
 		id        = ts.StringID("someID")
@@ -53,7 +53,7 @@ func TestSingleElement(t *testing.T) {
 	require.Equal(t, opts, md.Options())
 }
 
-func TestMultipleElements(t *testing.T) {
+func TestRegistryMultipleElements(t *testing.T) {
 	var (
 		opts1     = NewOptions()
 		opts2     = opts1.SetNeedsRepair(true)
@@ -74,4 +74,27 @@ func TestMultipleElements(t *testing.T) {
 	mds := registry.Metadatas()
 	require.True(t, id1.Equal(mds[0].ID()) || id1.Equal(mds[1].ID()))
 	require.True(t, id2.Equal(mds[0].ID()) || id2.Equal(mds[1].ID()))
+}
+
+func testRegistry() Registry {
+	var (
+		opts1     = NewOptions()
+		opts2     = opts1.SetNeedsRepair(true)
+		id1       = ts.StringID("someID1")
+		id2       = ts.StringID("someID2")
+		metadatas = []Metadata{
+			NewMetadata(id1, opts1),
+			NewMetadata(id2, opts2),
+		}
+	)
+	return NewRegistry(metadatas)
+}
+
+func TestRegistryEqualsTrue(t *testing.T) {
+	r1 := testRegistry()
+	require.True(t, r1.Equal(r1))
+
+	r2 := testRegistry()
+	require.True(t, r1.Equal(r2))
+	require.True(t, r2.Equal(r1))
 }
