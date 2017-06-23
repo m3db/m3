@@ -73,6 +73,7 @@ func (r *registry) Validate() error {
 	if len(r.metadatas) == 0 {
 		return fmt.Errorf("no namespaces listed in NamespaceRegistry")
 	}
+	// TODO(prateek): ensure ids are unique
 
 	var multiErr xerrors.MultiError
 	for _, md := range r.metadatas {
@@ -111,7 +112,6 @@ func (r *registry) Equal(value Registry) bool {
 			return false
 		}
 	}
-	// TODO(prateek): test metadata + options, add tests
 
 	return true
 }
