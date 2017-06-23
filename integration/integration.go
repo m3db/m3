@@ -183,6 +183,7 @@ func newDefaultBootstrappableTestSetups(
 			topologyInitializer        = setupOpts[i].topologyInitializer
 			testStatsReporter          = setupOpts[i].testStatsReporter
 			instanceOpts               = newMultiAddrTestOptions(opts, instance)
+			nsRegistry                 = namespace.NewRegistry(opts.Namespaces())
 		)
 
 		if topologyInitializer != nil {
@@ -194,14 +195,22 @@ func newDefaultBootstrappableTestSetups(
 		require.NoError(t, err)
 
 		instrumentOpts := setup.storageOpts.InstrumentOptions()
+		logger := instrumentOpts.Logger()
+		logger = logger.WithFields(xlog.NewLogField("instance", instance))
+		instrumentOpts = instrumentOpts.SetLogger(logger)
+		if testStatsReporter != nil {
+			scope, _ := tally.NewRootScope(tally.ScopeOptions{Reporter: testStatsReporter}, 100*time.Millisecond)
+			instrumentOpts = instrumentOpts.SetMetricsScope(scope)
+		}
 
 		bsOpts := newDefaulTestResultOptions(setup.storageOpts, instrumentOpts)
 		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+		var peersBootstrapper bootstrap.Bootstrapper
 
-		var adminClient client.AdminClient
 		if usingPeersBoostrapper {
+			var adminClient client.AdminClient
 			adminOpts := client.NewAdminOptions().
-				SetNamespaceRegistry(namespace.NewRegistry(opts.Namespaces()))
+				SetNamespaceRegistry(nsRegistry)
 			if bootstrapBlocksBatchSize > 0 {
 				adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(bootstrapBlocksBatchSize)
 			}
@@ -210,39 +219,30 @@ func newDefaultBootstrappableTestSetups(
 			}
 			adminClient = newMultiAddrAdminClient(
 				t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
+			peersOpts := peers.NewOptions().
+				SetResultOptions(bsOpts).
+				SetAdminClient(adminClient).
+				SetNamespaceRegistry(nsRegistry)
+
+			peersBootstrapper, err = peers.NewPeersBootstrapper(peersOpts, noOpAll)
+			require.NoError(t, err)
+		} else {
+			peersBootstrapper = noOpAll
 		}
-
-		peersOpts := peers.NewOptions().
-			SetResultOptions(bsOpts).
-			SetAdminClient(adminClient)
-
-		peersBootstrapper := peers.NewPeersBootstrapper(peersOpts, noOpAll)
 
 		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 		filePathPrefix := fsOpts.FilePathPrefix()
-
 		bfsOpts := bfs.NewOptions().
 			SetResultOptions(bsOpts).
 			SetFilesystemOptions(fsOpts)
 
-		var fsBootstrapper bootstrap.Bootstrapper
-		if usingPeersBoostrapper {
-			fsBootstrapper = bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, peersBootstrapper)
-		} else {
-			fsBootstrapper = bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
-		}
+		fsBootstrapper, err := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, peersBootstrapper)
+		require.NoError(t, err)
 
 		setup.storageOpts = setup.storageOpts.
 			SetBootstrapProcess(bootstrap.NewProcess(fsBootstrapper, bsOpts))
 
-		logger := setup.storageOpts.InstrumentOptions().Logger()
-		logger = logger.WithFields(xlog.NewLogField("instance", instance))
-		iopts := setup.storageOpts.InstrumentOptions().SetLogger(logger)
-		if testStatsReporter != nil {
-			scope, _ := tally.NewRootScope(tally.ScopeOptions{Reporter: testStatsReporter}, 100*time.Millisecond)
-			iopts = iopts.SetMetricsScope(scope)
-		}
-		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(iopts)
+		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(instrumentOpts)
 
 		setups = append(setups, setup)
 		appendCleanupFn(func() {

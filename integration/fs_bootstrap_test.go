@@ -64,7 +64,8 @@ func TestFilesystemBootstrap(t *testing.T) {
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts)
-	bs := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
+	bs, err := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
+	require.NoError(t, err)
 	process := bootstrap.NewProcess(bs, bsOpts)
 
 	setup.storageOpts = setup.storageOpts.
