@@ -185,12 +185,12 @@ func (o *options) EvictionBatchSize() int {
 
 func (o *options) SetDeletionBatchSize(value int) Options {
 	opts := *o
-	opts.evictionBatchSize = value
+	opts.deletionBatchSize = value
 	return &opts
 }
 
 func (o *options) DeletionBatchSize() int {
-	return o.evictionBatchSize
+	return o.deletionBatchSize
 }
 
 func (o *options) SetInvalidationMode(value InvalidationMode) Options {

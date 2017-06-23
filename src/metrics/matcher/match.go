@@ -21,10 +21,8 @@
 package matcher
 
 import (
-	"github.com/m3db/m3cluster/kv/util/runtime"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/rules"
-	"github.com/m3db/m3x/log"
 )
 
 // Matcher matches rules against metric IDs.
@@ -63,23 +61,10 @@ func NewMatcher(cache Cache, opts Options) (Matcher, error) {
 		})
 	key := opts.NamespacesKey()
 	namespaces := NewNamespaces(key, namespacesOpts)
-	if err := namespaces.Watch(); err != nil {
-		errCreateWatch, ok := err.(runtime.CreateWatchError)
-		if ok {
-			scope.Counter("create-watch-errors").Inc(1)
-			return nil, errCreateWatch
-		}
-		// NB(xichen): we managed to watch the key but weren't able
-		// to initialize the value. In this case, log the error instead
-		// to be more resilient to error conditions preventing process
-		// from starting up.
-		scope.Counter("init-watch-errors").Inc(1)
-		log := opts.InstrumentOptions().Logger()
-		log.WithFields(
-			xlog.NewLogField("key", key),
-			xlog.NewLogErrField(err),
-		).Error("error initializing namespaces values")
+	if err := namespaces.Open(); err != nil {
+		return nil, err
 	}
+
 	return &matcher{
 		opts:             opts,
 		namespaceTag:     opts.NamespaceTag(),
