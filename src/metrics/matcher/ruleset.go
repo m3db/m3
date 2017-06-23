@@ -72,6 +72,7 @@ type ruleSet struct {
 	sync.RWMutex
 	runtime.Value
 
+	matchMode          rules.MatchMode
 	namespace          []byte
 	key                string
 	store              kv.Store
@@ -98,8 +99,9 @@ func newRuleSet(
 	r := &ruleSet{
 		namespace:          namespace,
 		key:                key,
-		store:              opts.KVStore(),
 		opts:               opts,
+		matchMode:          opts.MatchMode(),
+		store:              opts.KVStore(),
 		nowFn:              opts.ClockOptions().NowFn(),
 		matchRangePast:     opts.MatchRangePast(),
 		ruleSetOpts:        opts.RuleSetOptions(),
@@ -154,7 +156,7 @@ func (r *ruleSet) Match(id []byte, fromNanos, toNanos int64) rules.MatchResult {
 		r.metrics.nilMatcher.Inc(1)
 		return rules.EmptyMatchResult
 	}
-	res := r.matcher.MatchAll(id, fromNanos, toNanos, rules.ForwardMatch)
+	res := r.matcher.MatchAll(id, fromNanos, toNanos, r.matchMode)
 	r.RUnlock()
 	r.metrics.match.ReportSuccess(r.nowFn().Sub(callStart))
 	return res

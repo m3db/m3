@@ -57,8 +57,14 @@ type OnNamespaceRemovedFn func(namespace []byte)
 // OnRuleSetUpdatedFn is called when a ruleset is updated.
 type OnRuleSetUpdatedFn func(namespace []byte, ruleSet RuleSet)
 
-// Options provide a set of options for the msgpack-based reporter.
+// Options provide a set of options for the matcher.
 type Options interface {
+	// SetMatchMode sets the match mode.
+	SetMatchMode(value rules.MatchMode) Options
+
+	// MatchMode returns the match mode.
+	MatchMode() rules.MatchMode
+
 	// SetClockOptions sets the clock options.
 	SetClockOptions(value clock.Options) Options
 
@@ -139,6 +145,7 @@ type Options interface {
 }
 
 type options struct {
+	matchMode            rules.MatchMode
 	clockOpts            clock.Options
 	instrumentOpts       instrument.Options
 	ruleSetOpts          rules.Options
@@ -157,6 +164,7 @@ type options struct {
 // NewOptions creates a new set of options.
 func NewOptions() Options {
 	return &options{
+		matchMode:        rules.ForwardMatch,
 		clockOpts:        clock.NewOptions(),
 		instrumentOpts:   instrument.NewOptions(),
 		ruleSetOpts:      rules.NewOptions(),
@@ -168,6 +176,16 @@ func NewOptions() Options {
 		defaultNamespace: defaultDefaultNamespace,
 		matchRangePast:   defaultMatchRangePast,
 	}
+}
+
+func (o *options) SetMatchMode(value rules.MatchMode) Options {
+	opts := *o
+	opts.matchMode = value
+	return &opts
+}
+
+func (o *options) MatchMode() rules.MatchMode {
+	return o.matchMode
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {
