@@ -204,8 +204,9 @@ type databaseNamespace interface {
 	// Flush flushes in-memory data
 	Flush(blockStart time.Time, flush persist.Flush) error
 
-	// NeedsFlush returns true if the namespace needs a flush for a block start.
-	NeedsFlush(blockStart time.Time) bool
+	// NeedsFlush returns true if the namespace needs a flush for the
+	// period [ start, end ]
+	NeedsFlush(start time.Time, end time.Time) bool
 
 	// CleanupFileset cleans up fileset files
 	CleanupFileset(earliestToRetain time.Time) error
@@ -310,7 +311,7 @@ type databaseBootstrapManager interface {
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
 	// NeedsFlush returns true if the data for a given time have been flushed.
-	NeedsFlush(t time.Time) bool
+	NeedsFlush(start time.Time, end time.Time) bool
 
 	// Flush flushes in-memory data to persistent storage.
 	Flush(t time.Time) error
@@ -330,14 +331,14 @@ type databaseCleanupManager interface {
 
 // FileOpOptions control the database file operations behavior
 type FileOpOptions interface {
+	// Validate validates the options
+	Validate() error
+
 	// SetJitter sets the jitter for database file operations
 	SetJitter(value time.Duration) FileOpOptions
 
 	// Jitter returns the jitter for database file operations
 	Jitter() time.Duration
-
-	// Validate validates the options
-	Validate() error
 }
 
 // databaseFileSystemManager manages the database related filesystem activities.
@@ -435,6 +436,9 @@ type databaseMediator interface {
 
 // Options represents the options for storage
 type Options interface {
+	// Validate validates assumptions baked into the code
+	Validate() error
+
 	// SetEncodingM3TSZPooled sets m3tsz encoding with pooling
 	SetEncodingM3TSZPooled() Options
 

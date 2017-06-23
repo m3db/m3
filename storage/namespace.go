@@ -517,6 +517,13 @@ func (n *dbNamespace) Flush(
 		return nil
 	}
 
+	// check if blockStart is aligned with the namespace's retention options
+	bs := n.nopts.RetentionOptions().BlockSize()
+	truncated := blockStart.Truncate(bs)
+	if truncated != blockStart {
+		return fmt.Errorf("failed to flush at time %v, not aligned to blockSize", blockStart.String())
+	}
+
 	multiErr := xerrors.NewMultiError()
 	shards := n.getOwnedShards()
 	for _, shard := range shards {
@@ -534,15 +541,21 @@ func (n *dbNamespace) Flush(
 	return res
 }
 
-func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
-	// NB(prateek): we only need to flush for blockStart if it aligns with
-	// our blockSize. if not, can break out early.
-	// TODO(prateek): should we instead go through this logic with the aligned
-	// timestamp instead of short circuiting?
-	bs := n.nopts.RetentionOptions().BlockSize()
-	aligned := blockStart.Truncate(bs)
-	if aligned != blockStart {
+func (n *dbNamespace) NeedsFlush(start time.Time, end time.Time) bool {
+	// don't need to flush for bad input
+	if start.After(end) {
 		return false
+	}
+
+	// find all blockStarts for the given range
+	var (
+		blockSize   = n.nopts.RetentionOptions().BlockSize()
+		startBlock  = start.Truncate(blockSize)
+		endBlock    = end.Truncate(blockSize).Add(blockSize)
+		blockStarts []time.Time
+	)
+	for t := startBlock; t.Before(endBlock); t = t.Add(blockSize) {
+		blockStarts = append(blockStarts, t)
 	}
 
 	// NB(r): Essentially if all are success, we don't need to flush, if any
@@ -559,8 +572,10 @@ func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
 		if shard == nil {
 			continue
 		}
-		if shard.FlushState(blockStart).Status == fileOpInProgress {
-			return false
+		for _, blockStart := range blockStarts {
+			if shard.FlushState(blockStart).Status == fileOpInProgress {
+				return false
+			}
 		}
 	}
 
@@ -569,12 +584,14 @@ func (n *dbNamespace) NeedsFlush(blockStart time.Time) bool {
 		if shard == nil {
 			continue
 		}
-		state := shard.FlushState(blockStart)
-		if state.Status == fileOpNotStarted {
-			return true
-		}
-		if state.Status == fileOpFailed && state.NumFailures < maxRetries {
-			return true
+		for _, blockStart := range blockStarts {
+			state := shard.FlushState(blockStart)
+			if state.Status == fileOpNotStarted {
+				return true
+			}
+			if state.Status == fileOpFailed && state.NumFailures < maxRetries {
+				return true
+			}
 		}
 	}
 

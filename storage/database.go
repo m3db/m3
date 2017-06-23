@@ -125,6 +125,10 @@ func NewDatabase(
 	shardSet sharding.ShardSet,
 	opts Options,
 ) (Database, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid options: %v", err)
+	}
+
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("database")
 

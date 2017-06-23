@@ -60,10 +60,10 @@ func newFlushManager(database database, scope tally.Scope) databaseFlushManager 
 	}
 }
 
-func (m *flushManager) NeedsFlush(t time.Time) bool {
+func (m *flushManager) NeedsFlush(start time.Time, end time.Time) bool {
 	namespaces := m.database.getOwnedNamespaces()
 	for _, n := range namespaces {
-		if n.NeedsFlush(t) { // TODO(prateek): <- this auto creates a flush state for the queried time, need to reconsider
+		if n.NeedsFlush(start, end) {
 			return true
 		}
 	}
@@ -127,7 +127,7 @@ func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time)
 	// NB(xichen): could preallocate slice here.
 	var flushTimes []time.Time
 	for t := latest; !t.Before(earliest); t = t.Add(-blockSize) {
-		if ns.NeedsFlush(t) {
+		if ns.NeedsFlush(t, t.Add(blockSize)) {
 			flushTimes = append(flushTimes, t)
 		}
 	}

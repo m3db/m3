@@ -44,14 +44,12 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ts := time.Unix(28800, 0)
+	ts := tf(36000)
 	rOpts := retention.NewOptions().
-		SetRetentionPeriod(14400 * time.Second).
+		SetRetentionPeriod(21600 * time.Second).
 		SetBufferPast(0 * time.Second).
 		SetBlockSize(7200 * time.Second)
 	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts)
-	start := time.Unix(14400, 0)
-	// end := time.Unix(28800, 0)
 	db, fm, mgr := testCleanupManager(ctrl)
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().SetRetentionOptions(rOpts))
@@ -64,10 +62,12 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		{"bar", errors.New("some other error")},
 		{"baz", nil},
 	}
+
+	start := tf(14400)
 	namespaces := make(map[string]databaseNamespace)
 	for _, input := range inputs {
 		ns := NewMockdatabaseNamespace(ctrl)
-		ns.EXPECT().Options().Return(nsOpts)
+		ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 		ns.EXPECT().CleanupFileset(start).Return(input.err)
 		namespaces[input.name] = ns
 	}
@@ -77,7 +77,7 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		return []string{"foo", "bar"}, errors.New("error1")
 	}
 	mgr.commitLogFilesForTimeFn = func(_ string, t time.Time) ([]string, error) {
-		if t == time.Unix(14400, 0) {
+		if t == tf(14400) {
 			return []string{"baz"}, nil
 		}
 		return nil, errors.New("error" + strconv.Itoa(int(t.Unix())))
@@ -89,14 +89,10 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	}
 
 	gomock.InOrder(
-		fm.EXPECT().NeedsFlush(time.Unix(7200, 0)).Return(false),
-		fm.EXPECT().NeedsFlush(time.Unix(14400, 0)).Return(false),
-		fm.EXPECT().NeedsFlush(time.Unix(21600, 0)).Return(false),
-		fm.EXPECT().NeedsFlush(time.Unix(0, 0)).Return(false),
-		fm.EXPECT().NeedsFlush(time.Unix(7200, 0)).Return(false),
-		fm.EXPECT().NeedsFlush(time.Unix(14400, 0)).Return(false),
+		fm.EXPECT().NeedsFlush(tf(14400), tf(28800)).Return(false),
+		fm.EXPECT().NeedsFlush(tf(7200), tf(21600)).Return(false),
+		fm.EXPECT().NeedsFlush(tf(0), tf(14400)).Return(false),
 	)
-
 	require.Error(t, mgr.Cleanup(ts))
 	require.Equal(t, []string{"foo", "bar", "baz"}, deletedFiles)
 }
@@ -119,4 +115,131 @@ func TestCleanupManagerCommitLogTimeRange(t *testing.T) {
 	cs, ce := mgr.commitLogTimeRange(ts)
 	require.Equal(t, time.Unix(0, 0), cs)
 	require.Equal(t, time.Unix(7200, 0), ce)
+}
+
+// The following tests exercise commitLogTimes(). Consider the following situation:
+//
+// Commit Log Retention Options:
+// - Retention Period: 30 seconds
+// - BlockSize: 10 seconds
+// - BufferPast: 0 seconds
+//
+// - Current Time: 50 seconds
+//
+// name:    a    b    c    d    e
+//       |    |xxxx|xxxx|xxxx|    |
+//    t: 0    10   20   30   40   50
+//
+// we can potentially flush blocks starting [10, 30], i.e. b, c, d
+// so for each, we check the surround two blocks in the fs manager to see
+// if any namespace still requires to be flushed for that period. If so,
+// we cannot remove the data for it. We should get back all the times
+// we can delete data for.
+func newCleanupManagerCommitLogTimesTest(t *testing.T, ctrl *gomock.Controller) (
+	*MockdatabaseFlushManager,
+	*cleanupManager,
+) {
+	var (
+		rOpts = retention.NewOptions().
+			SetRetentionPeriod(30 * time.Second).
+			SetBufferPast(0 * time.Second).
+			SetBlockSize(10 * time.Second)
+		_, fm, mgr = testCleanupManager(ctrl)
+	)
+	mgr.opts = mgr.opts.SetCommitLogOptions(
+		mgr.opts.CommitLogOptions().SetRetentionOptions(rOpts))
+
+	return fm, mgr
+}
+
+func TestCleanupManagerCommitLogTimesAllFlushed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
+	currentTime := tf(50)
+
+	gomock.InOrder(
+		fm.EXPECT().NeedsFlush(tf(20), tf(40)).Return(false),
+		fm.EXPECT().NeedsFlush(tf(10), tf(30)).Return(false),
+		fm.EXPECT().NeedsFlush(tf(0), tf(20)).Return(false),
+	)
+
+	earliest, times := mgr.commitLogTimes(currentTime)
+	require.Equal(t, tf(10), earliest)
+	require.Equal(t, 3, len(times))
+	require.True(t, contains(times, tf(10)))
+	require.True(t, contains(times, tf(20)))
+	require.True(t, contains(times, tf(30)))
+}
+
+func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
+	currentTime := tf(50)
+
+	gomock.InOrder(
+		fm.EXPECT().NeedsFlush(tf(20), tf(40)).Return(false),
+		fm.EXPECT().NeedsFlush(tf(10), tf(30)).Return(true),
+		fm.EXPECT().NeedsFlush(tf(0), tf(20)).Return(false),
+	)
+
+	earliest, times := mgr.commitLogTimes(currentTime)
+	require.Equal(t, tf(10), earliest)
+	require.Equal(t, 2, len(times))
+	require.True(t, contains(times, tf(10)))
+	require.True(t, contains(times, tf(30)))
+}
+
+func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
+	currentTime := tf(50)
+
+	gomock.InOrder(
+		fm.EXPECT().NeedsFlush(tf(20), tf(40)).Return(true),
+		fm.EXPECT().NeedsFlush(tf(10), tf(30)).Return(false),
+		fm.EXPECT().NeedsFlush(tf(0), tf(20)).Return(false),
+	)
+
+	earliest, times := mgr.commitLogTimes(currentTime)
+	require.Equal(t, tf(10), earliest)
+	require.Equal(t, 2, len(times))
+	require.True(t, contains(times, tf(20)))
+	require.True(t, contains(times, tf(10)))
+}
+
+func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
+	currentTime := tf(50)
+
+	gomock.InOrder(
+		fm.EXPECT().NeedsFlush(tf(20), tf(40)).Return(true),
+		fm.EXPECT().NeedsFlush(tf(10), tf(30)).Return(true),
+		fm.EXPECT().NeedsFlush(tf(0), tf(20)).Return(true),
+	)
+
+	earliest, times := mgr.commitLogTimes(currentTime)
+	require.Equal(t, tf(10), earliest)
+	require.Equal(t, 0, len(times))
+}
+
+func tf(s int64) time.Time {
+	return time.Unix(s, 0)
+}
+
+func contains(arr []time.Time, t time.Time) bool {
+	for _, at := range arr {
+		if at.Equal(t) {
+			return true
+		}
+	}
+	return false
 }

@@ -372,10 +372,10 @@ func TestNamespaceFlushAllShards(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	blockStart := time.Now()
-
 	ns := newTestNamespace(t)
 	ns.bs = bootstrapped
+	blockStart := time.Now().Truncate(ns.Options().RetentionOptions().BlockSize())
+
 	errs := []error{nil, errors.New("foo")}
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
@@ -565,6 +565,175 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 	}
 }
 
+type needsFlushTestCase struct {
+	shardNum   uint32
+	needsFlush map[time.Time]bool
+}
+
+func newNeedsFlushNamespace(t *testing.T, shardNumbers []uint32) *dbNamespace {
+	shards := sharding.NewShards(shardNumbers, shard.Available)
+	dopts := testDatabaseOptions()
+	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNamespaceID)
+	require.NoError(t, err)
+
+	var (
+		ropts    = testNs.Options().RetentionOptions()
+		metadata = namespace.NewMetadata(testNs.ID(), testNs.Options())
+		hashFn   = func(identifier ts.ID) uint32 { return shards[0].ID() }
+	)
+	shardSet, err := sharding.NewShardSet(shards, hashFn)
+	require.NoError(t, err)
+
+	at := time.Unix(0, 0).Add(2 * ropts.RetentionPeriod())
+	dopts = dopts.SetClockOptions(dopts.ClockOptions().SetNowFn(func() time.Time {
+		return at
+	}))
+
+	return newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts).(*dbNamespace)
+}
+
+func setShardExpects(ns *dbNamespace, ctrl *gomock.Controller, cases []needsFlushTestCase) {
+	for _, cs := range cases {
+		shard := NewMockdatabaseShard(ctrl)
+		shard.EXPECT().ID().Return(cs.shardNum).AnyTimes()
+		for t, needFlush := range cs.needsFlush {
+			if needFlush {
+				shard.EXPECT().FlushState(t).Return(fileOpState{
+					Status: fileOpNotStarted,
+				}).AnyTimes()
+			} else {
+				shard.EXPECT().FlushState(t).Return(fileOpState{
+					Status: fileOpSuccess,
+				}).AnyTimes()
+			}
+		}
+		ns.shards[cs.shardNum] = shard
+	}
+}
+
+func TestNamespaceNeedsFlushRange(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		shards    = []uint32{0, 2, 4}
+		ns        = newNeedsFlushNamespace(t, shards)
+		ropts     = ns.Options().RetentionOptions()
+		blockSize = ropts.BlockSize()
+		t1        = retention.FlushTimeEnd(ropts, ns.opts.ClockOptions().NowFn()())
+		t0        = t1.Add(-blockSize)
+	)
+
+	inputCases := []needsFlushTestCase{
+		{0, map[time.Time]bool{t0: false, t1: true}},
+		{2, map[time.Time]bool{t0: false, t1: true}},
+		{4, map[time.Time]bool{t0: false, t1: true}},
+	}
+
+	setShardExpects(ns, ctrl, inputCases)
+	assert.False(t, ns.NeedsFlush(t0, t0))
+	assert.True(t, ns.NeedsFlush(t0, t1))
+	assert.True(t, ns.NeedsFlush(t1, t1))
+	assert.False(t, ns.NeedsFlush(t1, t0))
+}
+
+func TestNamespaceNeedsFlushRangeMultipleShardConflict(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		shards    = []uint32{0, 2, 4}
+		ns        = newNeedsFlushNamespace(t, shards)
+		ropts     = ns.Options().RetentionOptions()
+		blockSize = ropts.BlockSize()
+		t2        = retention.FlushTimeEnd(ropts, ns.opts.ClockOptions().NowFn()())
+		t1        = t2.Add(-blockSize)
+		t0        = t1.Add(-blockSize)
+	)
+
+	inputCases := []needsFlushTestCase{
+		{0, map[time.Time]bool{t0: false, t1: true, t2: true}},
+		{2, map[time.Time]bool{t0: true, t1: false, t2: true}},
+		{4, map[time.Time]bool{t0: false, t1: true, t2: true}},
+	}
+
+	setShardExpects(ns, ctrl, inputCases)
+	assert.True(t, ns.NeedsFlush(t0, t0))
+	assert.True(t, ns.NeedsFlush(t1, t1))
+	assert.True(t, ns.NeedsFlush(t2, t2))
+	assert.True(t, ns.NeedsFlush(t0, t1))
+	assert.True(t, ns.NeedsFlush(t0, t2))
+	assert.True(t, ns.NeedsFlush(t1, t2))
+	assert.False(t, ns.NeedsFlush(t2, t1))
+	assert.False(t, ns.NeedsFlush(t2, t0))
+}
+func TestNamespaceNeedsFlushRangeSingleShardConflict(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		shards    = []uint32{0, 2, 4}
+		ns        = newNeedsFlushNamespace(t, shards)
+		ropts     = ns.Options().RetentionOptions()
+		blockSize = ropts.BlockSize()
+		t2        = retention.FlushTimeEnd(ropts, ns.opts.ClockOptions().NowFn()())
+		t1        = t2.Add(-blockSize)
+		t0        = t1.Add(-blockSize)
+	)
+
+	inputCases := []needsFlushTestCase{
+		{0, map[time.Time]bool{t0: false, t1: false, t2: true}},
+		{2, map[time.Time]bool{t0: true, t1: false, t2: true}},
+		{4, map[time.Time]bool{t0: false, t1: false, t2: true}},
+	}
+
+	setShardExpects(ns, ctrl, inputCases)
+	assert.True(t, ns.NeedsFlush(t0, t0))
+	assert.False(t, ns.NeedsFlush(t1, t1))
+	assert.True(t, ns.NeedsFlush(t2, t2))
+	assert.True(t, ns.NeedsFlush(t0, t1))
+	assert.True(t, ns.NeedsFlush(t0, t2))
+	assert.True(t, ns.NeedsFlush(t1, t2))
+	assert.False(t, ns.NeedsFlush(t2, t1))
+	assert.False(t, ns.NeedsFlush(t2, t0))
+}
+
+func TestNamespaceNeedsFlushRangeSingleShardConflictUnalignedInput(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var (
+		shards    = []uint32{0, 2, 4}
+		ns        = newNeedsFlushNamespace(t, shards)
+		ropts     = ns.Options().RetentionOptions()
+		blockSize = ropts.BlockSize()
+		halfBlock = time.Duration(blockSize.Nanoseconds()/2) * time.Nanosecond
+		t2        = retention.FlushTimeEnd(ropts, ns.opts.ClockOptions().NowFn()())
+		t1        = t2.Add(-blockSize)
+		t0        = t1.Add(-blockSize)
+	)
+
+	inputCases := []needsFlushTestCase{
+		{0, map[time.Time]bool{t0: false, t1: false, t2: true}},
+		{2, map[time.Time]bool{t0: true, t1: false, t2: true}},
+		{4, map[time.Time]bool{t0: false, t1: false, t2: true}},
+	}
+	setShardExpects(ns, ctrl, inputCases)
+
+	var (
+		t0Plus  = t0.Add(halfBlock)
+		t1Minus = t1.Add(-halfBlock)
+		t1Plus  = t1.Add(halfBlock)
+		t2Minus = t2.Add(-halfBlock)
+	)
+
+	assert.True(t, ns.NeedsFlush(t0, t0Plus))
+	assert.True(t, ns.NeedsFlush(t0Plus, t1Minus))
+	assert.True(t, ns.NeedsFlush(t1Minus, t1Plus))
+	assert.False(t, ns.NeedsFlush(t1Plus, t1Plus))
+	assert.False(t, ns.NeedsFlush(t1Plus, t2Minus))
+}
+
 func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -601,7 +770,7 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 		ns.shards[s.ID()] = shard
 	}
 
-	assert.False(t, ns.NeedsFlush(blockStart))
+	assert.False(t, ns.NeedsFlush(blockStart, blockStart))
 }
 
 func TestNamespaceNeedsFlushCountsLeastNumFailures(t *testing.T) {
@@ -653,7 +822,7 @@ func TestNamespaceNeedsFlushCountsLeastNumFailures(t *testing.T) {
 		ns.shards[s.ID()] = shard
 	}
 
-	assert.True(t, ns.NeedsFlush(blockStart))
+	assert.True(t, ns.NeedsFlush(blockStart, blockStart))
 }
 
 func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
@@ -702,7 +871,7 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 		ns.shards[s.ID()] = shard
 	}
 
-	assert.True(t, ns.NeedsFlush(blockStart))
+	assert.True(t, ns.NeedsFlush(blockStart, blockStart))
 }
 
 func TestNamespaceNeedsFlushInProgress(t *testing.T) {
@@ -747,7 +916,7 @@ func TestNamespaceNeedsFlushInProgress(t *testing.T) {
 		ns.shards[s.ID()] = shard
 	}
 
-	assert.False(t, ns.NeedsFlush(blockStart))
+	assert.False(t, ns.NeedsFlush(blockStart, blockStart))
 }
 
 func waitForStats(

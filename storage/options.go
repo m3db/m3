@@ -176,6 +176,17 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	return o.SetEncodingM3TSZPooled()
 }
 
+func (o *options) Validate() error {
+	// TODO(prateek): check the following constraints for Options.Validate()
+	//   (1) namespace registry has at least one item
+	//   (2) call validate on all namespace retention options, commit log retention opts
+	// 		  (a) check retention period > block size for all retention opts
+	//   (3) commit log block size has to be <= the block size of all namespaces
+	//   (4) commit log block size has to be a divisor of the block size of all namespaces
+	//   (5) FileOpOptions().Jitter needs to be smaller than commit log block size
+	return nil
+}
+
 func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value

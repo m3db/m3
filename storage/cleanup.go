@@ -25,12 +25,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3x/errors"
-
-	"github.com/uber-go/tally"
 )
 
 type commitLogFilesBeforeFn func(commitLogsDir string, t time.Time) ([]string, error)
@@ -142,25 +142,24 @@ func (m *cleanupManager) commitLogTimeRange(t time.Time) (time.Time, time.Time) 
 
 // commitLogTimes returns the earliest time before which the commit logs are expired,
 // as well as a list of times we need to clean up commit log files for.
-// TODO(prateek): need to rework to better handle commitLogTimes
+// TODO(prateek): move this to a new integration test
 // Consider a database running with two namespaces, and the following retention opts:
 //
 //           | RetentionPeriod | BlockSize
 // ns1       |      30d        |   6h
-// commitLog |      24h        |   2h
-// ns2       |      8h         |   30m
+// ns2       |      8h         |   2h
+// commitLog |      24h        |   30m
 //
 // blocks for each depictied over time (flowing left --> right):
+//
 // time-label: t0  t1  t2  t3
-//  ns1        *           *       [each * is 6h]
-//  commitlog  .   .   .   .   .   [each . is 2h]
-//  ns2        ,,,,,,,,,,,,,,,,,   [each , is 30min]
+//  ns1        *           *       [blocksize * is 6h]
+//  ns2        .   .   .   .   .   [blocksize . is 2h]
+//  commitlog  ,,,,,,,,,,,,,,,,,   [blocksize , is 30min]
 //
 //  we cannot remove commitlog blocks at t0, t1, and t2 until ns1 block at t0
 // is written safely. The same applies to all of the ns2 blocks between period
 // [t0,t3).
-// TODO(prateek): databaseNamespace.NeedsFlush will need to take a [start, end] or
-// [start, duration] to answer the question accurately.
 func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
 	var (
 		ropts            = m.opts.CommitLogOptions().RetentionOptions()
@@ -169,23 +168,15 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
 	)
 
 	// TODO(xichen): preallocate the slice here
-	var commitLogTimes []time.Time
-	for commitLogTime := latest; !commitLogTime.Before(earliest); commitLogTime = commitLogTime.Add(-blockSize) {
-		hasFlushedAll := true
-		leftBlockStart := commitLogTime.Add(-blockSize)
-		rightBlockStart := commitLogTime.Add(blockSize)
-		for blockStart := leftBlockStart; !blockStart.After(rightBlockStart); blockStart = blockStart.Add(blockSize) {
-			if m.fm.NeedsFlush(blockStart) {
-				hasFlushedAll = false
-				break
-			}
-		}
-		if hasFlushedAll {
-			commitLogTimes = append(commitLogTimes, commitLogTime)
+	var times []time.Time
+	for t := latest; !t.Before(earliest); t = t.Add(-blockSize) {
+		leftBlockStart, rightBlockStart := t.Add(-blockSize), t.Add(blockSize)
+		if anyPendingFlushes := m.fm.NeedsFlush(leftBlockStart, rightBlockStart); !anyPendingFlushes {
+			times = append(times, t)
 		}
 	}
 
-	return earliest, commitLogTimes
+	return earliest, times
 }
 
 func (m *cleanupManager) cleanupCommitLogs(earliestToRetain time.Time, cleanupTimes []time.Time) error {

@@ -25,35 +25,97 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
-
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
+
+	"github.com/m3db/m3db/storage/namespace"
 )
 
-func TestFlushManagerNeedsFlush(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
+func newMultipleFlushManagerNeedsFlush(t *testing.T, ctrl *gomock.Controller) (
+	*flushManager,
+	*MockdatabaseNamespace,
+	*MockdatabaseNamespace,
+) {
+	options := namespace.NewOptions()
 	namespace := NewMockdatabaseNamespace(ctrl)
+	namespace.EXPECT().Options().Return(options).AnyTimes()
+	otherNamespace := NewMockdatabaseNamespace(ctrl)
+	otherNamespace.EXPECT().Options().Return(options).AnyTimes()
 
 	db := newMockDatabase()
 	db.namespaces = map[string]databaseNamespace{
 		defaultTestNamespaceID.String(): namespace,
+		"someString":                    otherNamespace,
 	}
 
 	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
 
+	return fm, namespace, otherNamespace
+}
+
+func TestFlushManagerNeedsFlushSingle(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
 	now := time.Now()
 
-	namespace.EXPECT().
-		NeedsFlush(now).
-		Return(true)
-	require.True(t, fm.NeedsFlush(now))
+	// short circuit second ns for this test case
+	ns2.EXPECT().NeedsFlush(now, now).Return(false).AnyTimes()
 
-	namespace.EXPECT().
-		NeedsFlush(now).
-		Return(false)
-	require.False(t, fm.NeedsFlush(now))
+	ns1.EXPECT().NeedsFlush(now, now).Return(true)
+	require.True(t, fm.NeedsFlush(now, now))
+
+	ns1.EXPECT().NeedsFlush(now, now).Return(false)
+	require.False(t, fm.NeedsFlush(now, now))
+}
+
+func TestFlushManagerNeedsFlushMultipleAllFalse(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
+	now := time.Now()
+
+	ns2.EXPECT().NeedsFlush(now, now).Return(false)
+	ns1.EXPECT().NeedsFlush(now, now).Return(false)
+	require.False(t, fm.NeedsFlush(now, now))
+}
+
+func TestFlushManagerNeedsFlushMultipleAllTrue(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
+	now := time.Now()
+
+	ns2.EXPECT().NeedsFlush(now, now).Return(true).AnyTimes()
+	ns1.EXPECT().NeedsFlush(now, now).Return(true).AnyTimes()
+	require.True(t, fm.NeedsFlush(now, now))
+}
+
+func TestFlushManagerNeedsFlushMultipleSingleTrueA(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
+	now := time.Now()
+
+	ns1.EXPECT().NeedsFlush(now, now).Return(false).AnyTimes()
+	ns2.EXPECT().NeedsFlush(now, now).Return(true)
+	require.True(t, fm.NeedsFlush(now, now))
+}
+
+func TestFlushManagerNeedsFlushMultipleSingleTrueb(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
+	now := time.Now()
+
+	ns1.EXPECT().NeedsFlush(now, now).Return(true)
+	ns2.EXPECT().NeedsFlush(now, now).Return(false).AnyTimes()
+	require.True(t, fm.NeedsFlush(now, now))
 }
 
 func TestFlushManagerFlushTimeStart(t *testing.T) {

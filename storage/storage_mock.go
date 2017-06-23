@@ -30,7 +30,6 @@ import (
 	encoding "github.com/m3db/m3db/encoding"
 	persist "github.com/m3db/m3db/persist"
 	commitlog "github.com/m3db/m3db/persist/fs/commitlog"
-	retention "github.com/m3db/m3db/retention"
 	runtime "github.com/m3db/m3db/runtime"
 	sharding "github.com/m3db/m3db/sharding"
 	block "github.com/m3db/m3db/storage/block"
@@ -588,14 +587,14 @@ func (_mr *_MockdatabaseNamespaceRecorder) Flush(arg0, arg1 interface{}) *gomock
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0, arg1)
 }
 
-func (_m *MockdatabaseNamespace) NeedsFlush(blockStart time0.Time) bool {
-	ret := _m.ctrl.Call(_m, "NeedsFlush", blockStart)
+func (_m *MockdatabaseNamespace) NeedsFlush(start time0.Time, end time0.Time) bool {
+	ret := _m.ctrl.Call(_m, "NeedsFlush", start, end)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-func (_mr *_MockdatabaseNamespaceRecorder) NeedsFlush(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NeedsFlush", arg0)
+func (_mr *_MockdatabaseNamespaceRecorder) NeedsFlush(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NeedsFlush", arg0, arg1)
 }
 
 func (_m *MockdatabaseNamespace) CleanupFileset(earliestToRetain time0.Time) error {
@@ -915,14 +914,14 @@ func (_m *MockdatabaseFlushManager) EXPECT() *_MockdatabaseFlushManagerRecorder 
 	return _m.recorder
 }
 
-func (_m *MockdatabaseFlushManager) NeedsFlush(t time0.Time) bool {
-	ret := _m.ctrl.Call(_m, "NeedsFlush", t)
+func (_m *MockdatabaseFlushManager) NeedsFlush(start time0.Time, end time0.Time) bool {
+	ret := _m.ctrl.Call(_m, "NeedsFlush", start, end)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
 
-func (_mr *_MockdatabaseFlushManagerRecorder) NeedsFlush(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NeedsFlush", arg0)
+func (_mr *_MockdatabaseFlushManagerRecorder) NeedsFlush(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NeedsFlush", arg0, arg1)
 }
 
 func (_m *MockdatabaseFlushManager) Flush(t time0.Time) error {
@@ -1001,26 +1000,6 @@ func NewMockFileOpOptions(ctrl *gomock.Controller) *MockFileOpOptions {
 
 func (_m *MockFileOpOptions) EXPECT() *_MockFileOpOptionsRecorder {
 	return _m.recorder
-}
-
-func (_m *MockFileOpOptions) SetRetentionOptions(value retention.Options) FileOpOptions {
-	ret := _m.ctrl.Call(_m, "SetRetentionOptions", value)
-	ret0, _ := ret[0].(FileOpOptions)
-	return ret0
-}
-
-func (_mr *_MockFileOpOptionsRecorder) SetRetentionOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRetentionOptions", arg0)
-}
-
-func (_m *MockFileOpOptions) RetentionOptions() retention.Options {
-	ret := _m.ctrl.Call(_m, "RetentionOptions")
-	ret0, _ := ret[0].(retention.Options)
-	return ret0
-}
-
-func (_mr *_MockFileOpOptionsRecorder) RetentionOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "RetentionOptions")
 }
 
 func (_m *MockFileOpOptions) SetJitter(value time0.Duration) FileOpOptions {
@@ -1447,23 +1426,23 @@ func (_mr *_MockOptionsRecorder) InstrumentOptions() *gomock.Call {
 }
 
 func (_m *MockOptions) SetNamespaceRegistry(value namespace.Registry) Options {
-	ret := _m.ctrl.Call(_m, "SetRegistry", value)
+	ret := _m.ctrl.Call(_m, "SetNamespaceRegistry", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
 func (_mr *_MockOptionsRecorder) SetNamespaceRegistry(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRegistry", arg0)
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNamespaceRegistry", arg0)
 }
 
 func (_m *MockOptions) NamespaceRegistry() namespace.Registry {
-	ret := _m.ctrl.Call(_m, "Registry")
+	ret := _m.ctrl.Call(_m, "NamespaceRegistry")
 	ret0, _ := ret[0].(namespace.Registry)
 	return ret0
 }
 
 func (_mr *_MockOptionsRecorder) NamespaceRegistry() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Registry")
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NamespaceRegistry")
 }
 
 func (_m *MockOptions) SetDatabaseBlockOptions(value block.Options) Options {
@@ -1764,6 +1743,26 @@ func (_m *MockOptions) ContextPool() context.Pool {
 
 func (_mr *_MockOptionsRecorder) ContextPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ContextPool")
+}
+
+func (_m *MockOptions) SetSeriesOptions(value series.Options) Options {
+	ret := _m.ctrl.Call(_m, "SetSeriesOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetSeriesOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetSeriesOptions", arg0)
+}
+
+func (_m *MockOptions) SeriesOptions() series.Options {
+	ret := _m.ctrl.Call(_m, "SeriesOptions")
+	ret0, _ := ret[0].(series.Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SeriesOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SeriesOptions")
 }
 
 func (_m *MockOptions) SetDatabaseSeriesPool(value series.DatabaseSeriesPool) Options {
