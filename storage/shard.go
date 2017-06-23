@@ -29,6 +29,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
@@ -38,6 +40,7 @@ import (
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
@@ -45,8 +48,6 @@ import (
 	xclose "github.com/m3db/m3x/close"
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
-
-	"github.com/uber-go/tally"
 )
 
 const (
@@ -85,8 +86,7 @@ type dbShard struct {
 	seriesOpts              series.Options
 	nowFn                   clock.NowFn
 	state                   dbShardState
-	namespaceID             ts.ID
-	namespace               databaseNamespace
+	nsMetadata              namespace.Metadata
 	seriesBlockRetriever    series.QueryableBlockRetriever
 	shard                   uint32
 	increasingIndex         increasingIndex
@@ -163,7 +163,7 @@ func newShardFlushState() shardFlushState {
 }
 
 func newDatabaseShard(
-	namespace databaseNamespace,
+	namespaceMetadata namespace.Metadata,
 	shard uint32,
 	blockRetriever block.DatabaseBlockRetriever,
 	increasingIndex increasingIndex,
@@ -180,8 +180,7 @@ func newDatabaseShard(
 		seriesOpts:            seriesOpts,
 		nowFn:                 opts.ClockOptions().NowFn(),
 		state:                 dbShardStateOpen,
-		namespaceID:           namespace.ID(),
-		namespace:             namespace,
+		nsMetadata:            namespaceMetadata,
 		shard:                 shard,
 		increasingIndex:       increasingIndex,
 		seriesPool:            opts.DatabaseSeriesPool(),
@@ -543,7 +542,7 @@ func (s *dbShard) Write(
 	// Write commit log
 	series := commitlog.Series{
 		UniqueIndex: commitLogSeriesUniqueIndex,
-		Namespace:   s.namespaceID,
+		Namespace:   s.nsMetadata.ID(),
 		ID:          commitLogSeriesID,
 		Shard:       s.shard,
 	}
@@ -911,7 +910,7 @@ func (s *dbShard) markFlushStateFail(blockStart time.Time) {
 func (s *dbShard) removeAnyFlushStatesTooEarly() {
 	s.flushState.Lock()
 	now := s.nowFn()
-	earliestFlush := retention.FlushTimeStart(s.namespace.Options().RetentionOptions(), now)
+	earliestFlush := retention.FlushTimeStart(s.nsMetadata.Options().RetentionOptions(), now)
 	for t := range s.flushState.statesByTime {
 		if t.Before(earliestFlush) {
 			delete(s.flushState.statesByTime, t)
