@@ -74,17 +74,17 @@ func (r *registry) Equal(value Registry) bool {
 		return true
 	}
 
-	ourIds := r.IDs()
-	theirIds := value.IDs()
-	if len(ourIds) != len(theirIds) {
+	ourMds := r.Metadatas()
+	theirMds := value.Metadatas()
+	if len(ourMds) != len(theirMds) {
 		return false
 	}
 
 	// O(n**2) test, not a big deal because this is only 3-5 elements
-	for _, id := range ourIds {
+	for _, om := range ourMds {
 		found := false
-		for _, oID := range theirIds {
-			if id.Equal(oID) {
+		for _, tm := range theirMds {
+			if om.Equal(tm) {
 				found = true
 				break
 			}

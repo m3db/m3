@@ -61,6 +61,14 @@ func NewOptions() Options {
 		retentionOpts:       retention.NewOptions(),
 	}
 }
+func (o *options) Equal(value Options) bool {
+	return o.needsBootstrap == value.NeedsBootstrap() &&
+		o.needsFlush == value.NeedsFlush() &&
+		o.writesToCommitLog == value.WritesToCommitLog() &&
+		o.needsFilesetCleanup == value.NeedsFilesetCleanup() &&
+		o.needsRepair == value.NeedsRepair() &&
+		o.retentionOpts.Equal(value.RetentionOptions())
+}
 
 func (o *options) SetNeedsBootstrap(value bool) Options {
 	opts := *o

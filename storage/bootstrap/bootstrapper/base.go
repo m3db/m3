@@ -99,8 +99,8 @@ func (b *baseBootstrapper) Bootstrap(
 	min, max := available.MinMax()
 	logFields := []xlog.LogField{
 		xlog.NewLogField("source", b.name),
-		xlog.NewLogField("from", min),
-		xlog.NewLogField("to", max),
+		xlog.NewLogField("from", min.String()),
+		xlog.NewLogField("to", max.String()),
 		xlog.NewLogField("range", max.Sub(min).String()),
 		xlog.NewLogField("shards", len(available)),
 	}

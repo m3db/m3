@@ -29,6 +29,9 @@ type Options interface {
 	// Validate validates the options
 	Validate() error
 
+	// Equal returns a flag indicating if the other value is the same as this one
+	Equal(value Options) bool
+
 	// SetRetentionPeriod sets how long we intend to keep data in memory
 	SetRetentionPeriod(value time.Duration) Options
 

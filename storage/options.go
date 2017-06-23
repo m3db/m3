@@ -187,6 +187,10 @@ func (o *options) Validate() error {
 
 	// check if registry has at least one element
 	registry := o.NamespaceRegistry()
+	if registry == nil {
+		return fmt.Errorf("namespace registry not set")
+	}
+
 	mds := registry.Metadatas()
 	if len(mds) == 0 {
 		return fmt.Errorf("no namespaces listed in NamespaceRegistry")

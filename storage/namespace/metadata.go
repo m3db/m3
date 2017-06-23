@@ -46,3 +46,10 @@ func (m metadata) ID() ts.ID {
 func (m metadata) Options() Options {
 	return m.opts
 }
+
+func (m metadata) Equal(value Metadata) bool {
+	if !m.id.Equal(value.ID()) {
+		return false
+	}
+	return m.Options().Equal(value.Options())
+}

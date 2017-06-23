@@ -27,6 +27,9 @@ import (
 
 // Options controls namespace behavior
 type Options interface {
+	// Equal returns true if the provide value is equal to this one
+	Equal(value Options) bool
+
 	// SetNeedsBootstrap sets whether this namespace requires bootstrapping
 	SetNeedsBootstrap(value bool) Options
 
@@ -66,18 +69,20 @@ type Options interface {
 
 // Metadata represents namespace metadata information
 type Metadata interface {
+	// Equal returns true if the provide value is equal to this one
+	Equal(value Metadata) bool
+
 	// ID is the ID of the namespace
 	ID() ts.ID
 
 	// Options is the namespace options
 	Options() Options
-
-	// Equal returns true if the provide value is equal to this one Equal(value Metadata) bool
-	// TODO(prateek): ^ remove?
 }
 
 // Registry is mapping from known namespaces' ID to their Metadata
 type Registry interface {
+	// Equal returns true if the provide value is equal to this one
+	Equal(value Registry) bool
 
 	// Get gets the metadata for the provided namespace
 	Get(ts.ID) (Metadata, error)
@@ -87,7 +92,4 @@ type Registry interface {
 
 	// Metadatas returns the metadata of known namespaces
 	Metadatas() []Metadata
-
-	// Equal returns true if the provide value is equal to this one
-	Equal(value Registry) bool
 }

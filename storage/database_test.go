@@ -112,17 +112,23 @@ var (
 	defaultTestNamespaceOptions = namespace.NewOptions().
 					SetRetentionOptions(defaultTestRetentionOptions)
 
-	defaultTestDatabaseOptions = newOptions(
-		pool.NewObjectPoolOptions().SetSize(16)).
-		SetMaxFlushRetries(3).
-		SetFileOpOptions(NewFileOpOptions().SetJitter(0)).
-		SetTickInterval(10 * time.Minute).
-		SetNamespaceRegistry(
-			namespace.NewRegistry([]namespace.Metadata{
-				namespace.NewMetadata(defaultTestNamespaceID,
-					namespace.NewOptions().
-						SetRetentionOptions(defaultTestRetentionOptions)),
-			}))
+	defaultTestNamespaceRegistry = namespace.NewRegistry([]namespace.Metadata{
+		namespace.NewMetadata(
+			defaultTestNamespaceID,
+			namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOptions),
+		)})
+
+	_opts = newOptions(pool.NewObjectPoolOptions().SetSize(16))
+
+	defaultTestDatabaseOptions = _opts.
+					SetMaxFlushRetries(3).
+					SetFileOpOptions(NewFileOpOptions().SetJitter(0)).
+					SetTickInterval(10 * time.Minute).
+					SetNamespaceRegistry(defaultTestNamespaceRegistry).
+					SetCommitLogOptions(_opts.CommitLogOptions().
+						SetRetentionOptions(defaultTestRetentionOptions).
+						SetFilesystemOptions(_opts.CommitLogOptions().
+							FilesystemOptions().SetNamespaceRegistry(defaultTestNamespaceRegistry)))
 )
 
 func testDatabaseOptions() Options {

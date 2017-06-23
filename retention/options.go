@@ -87,6 +87,15 @@ func (o *options) Validate() error {
 	// TODO(prateek): check "retention.Options.Validate()" where applicable
 }
 
+func (o *options) Equal(value Options) bool {
+	return o.retentionPeriod == value.RetentionPeriod() &&
+		o.blockSize == value.BlockSize() &&
+		o.bufferFuture == value.BufferFuture() &&
+		o.bufferPast == value.BufferPast() &&
+		o.dataExpiry == value.BlockDataExpiry() &&
+		o.dataExpiryAfterNotAccessedPeriod == value.BlockDataExpiryAfterNotAccessedPeriod()
+}
+
 func (o *options) SetRetentionPeriod(value time.Duration) Options {
 	opts := *o
 	opts.retentionPeriod = value
