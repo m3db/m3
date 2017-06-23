@@ -151,7 +151,7 @@ func newDatabaseNamespace(
 	increasingIndex increasingIndex,
 	writeCommitLogFn writeCommitLogFn,
 	opts Options,
-) databaseNamespace {
+) (databaseNamespace, error) {
 	id := metadata.ID()
 	nopts := metadata.Options()
 	fn := writeCommitLogFn
@@ -174,6 +174,11 @@ func newDatabaseNamespace(
 	tickWorkers.Init()
 
 	seriesOpts := NewSeriesOptionsFromOptions(opts, metadata.Options().RetentionOptions())
+	if err := seriesOpts.Validate(); err != nil {
+		return nil, fmt.Errorf(
+			"unable to create namespace %v, invalid series options: %v",
+			metadata.ID().String(), err)
+	}
 
 	n := &dbNamespace{
 		id:                     id,
@@ -193,7 +198,7 @@ func newDatabaseNamespace(
 
 	n.initShards(nopts.NeedsBootstrap())
 
-	return n
+	return n, nil
 }
 
 func (n *dbNamespace) Options() namespace.Options {

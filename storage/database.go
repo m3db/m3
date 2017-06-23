@@ -179,8 +179,13 @@ func NewDatabase(
 				return nil, newRetrieverErr
 			}
 		}
-		ns[idHash] = newDatabaseNamespace(n, shardSet, blockRetriever,
+
+		newNs, err := newDatabaseNamespace(n, shardSet, blockRetriever,
 			d, d.writeCommitLogFn, d.opts)
+		if err != nil {
+			return nil, err
+		}
+		ns[idHash] = newNs
 	}
 	d.namespaces = ns
 

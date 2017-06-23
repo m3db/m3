@@ -139,6 +139,9 @@ type DatabaseSeriesPool interface {
 
 // Options represents the options for series
 type Options interface {
+	// Validate validates the options
+	Validate() error
+
 	// SetClockOptions sets the clock options
 	SetClockOptions(value clock.Options) Options
 

@@ -178,48 +178,25 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 }
 
 func (o *options) Validate() error {
-	clOpts := o.CommitLogOptions()
-	clROpts := clOpts.RetentionOptions()
-	clBlockSize := clROpts.BlockSize()
-	if err := clOpts.Validate(); err != nil {
-		return fmt.Errorf("unable to validate commit log options: %v", err)
-	}
-
-	// check if registry has at least one element
+	// validate namespace registry
 	registry := o.NamespaceRegistry()
 	if registry == nil {
 		return fmt.Errorf("namespace registry not set")
 	}
-
 	if err := registry.Validate(); err != nil {
 		return fmt.Errorf("unable to validate namespace registry, err: %v", err)
+	}
+
+	// validate commit log options
+	clOpts := o.CommitLogOptions()
+	if err := clOpts.Validate(); err != nil {
+		return fmt.Errorf("unable to validate commit log options: %v", err)
 	}
 
 	// ensure all namespace registries are the same
 	clRegisry := o.CommitLogOptions().FilesystemOptions().NamespaceRegistry()
 	if !registry.Equal(clRegisry) {
 		return fmt.Errorf("commit log fs options namespace registry differs from storage options namespace registry")
-	}
-
-	mds := registry.Metadatas()
-	for _, md := range mds {
-		id := md.ID()
-		ropts := md.Options().RetentionOptions()
-
-		nsBlockSize := ropts.BlockSize()
-		if nsBlockSize < clBlockSize {
-			return fmt.Errorf(
-				"namespace %s has a block size [%v] smaller than that of the commit log [%v]",
-				id.String(), nsBlockSize.String(), clBlockSize.String(),
-			)
-		}
-
-		if mod := nsBlockSize.Nanoseconds() % clBlockSize.Nanoseconds(); mod != 0 {
-			return fmt.Errorf(
-				"namespace %s has a block size [%v] not divisible by that of the commit log [%v]",
-				id.String(), nsBlockSize.String(), clBlockSize.String(),
-			)
-		}
 	}
 
 	// TODO(prateek): check the following constraints for Options.Validate()

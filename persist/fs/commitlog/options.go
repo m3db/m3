@@ -21,6 +21,7 @@
 package commitlog
 
 import (
+	"fmt"
 	"runtime"
 	"time"
 
@@ -79,8 +80,49 @@ func NewOptions() Options {
 }
 
 func (o *options) Validate() error {
+	if o.FlushInterval() <= 0 {
+		return fmt.Errorf("flush interval must be positive")
+	}
+
 	// TODO(pratek): does strategy/flush size need to be checked here
-	return o.retentionOpts.Validate()
+
+	if err := o.retentionOpts.Validate(); err != nil {
+		return fmt.Errorf("invalid commit log retention options: %v", err)
+	}
+
+	fsOpts := o.FilesystemOptions()
+	if err := fsOpts.Validate(); err != nil {
+		return fmt.Errorf("invalid commit log fs options: %v", err)
+	}
+
+	blockSize := o.retentionOpts.BlockSize()
+
+	// ensure all namespaces in the registry have retention options compatible
+	// with the commit log retention options
+	registry := fsOpts.NamespaceRegistry()
+
+	mds := registry.Metadatas()
+	for _, md := range mds {
+		id := md.ID()
+		ropts := md.Options().RetentionOptions()
+
+		nsBlockSize := ropts.BlockSize()
+		if nsBlockSize < blockSize {
+			return fmt.Errorf(
+				"namespace %s has a block size [%v] smaller than that of the commit log [%v]",
+				id.String(), nsBlockSize.String(), blockSize.String(),
+			)
+		}
+
+		if mod := nsBlockSize.Nanoseconds() % blockSize.Nanoseconds(); mod != 0 {
+			return fmt.Errorf(
+				"namespace %s has a block size [%v] not divisible by that of the commit log [%v]",
+				id.String(), nsBlockSize.String(), blockSize.String(),
+			)
+		}
+	}
+
+	return nil
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {
