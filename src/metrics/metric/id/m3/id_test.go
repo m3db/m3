@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3metrics/metric/id"
+	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/require"
 )
@@ -66,10 +67,12 @@ func TestIsRollupIDExternalIterator(t *testing.T) {
 		{name: []byte("foo.bar.baz"), expected: false},
 		{name: []byte("foo"), tags: []byte("a1=b1,a2=b2"), expected: false},
 	}
-	it := NewSortedTagIterator(nil)
-	defer it.Close()
+	p := id.NewSortedTagIteratorPool(pool.NewObjectPoolOptions())
+	p.Init(func() id.SortedTagIterator {
+		return NewPooledSortedTagIterator(nil, p)
+	})
 	for _, input := range inputs {
-		require.Equal(t, input.expected, IsRollupID(input.name, input.tags, it))
+		require.Equal(t, input.expected, IsRollupID(input.name, input.tags, p))
 	}
 }
 
