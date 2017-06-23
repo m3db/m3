@@ -75,6 +75,7 @@ func TestRuleSetMatchWithMatcher(t *testing.T) {
 	require.Equal(t, []byte("foo"), mockMatcher.id)
 	require.Equal(t, fromNanos, mockMatcher.fromNanos)
 	require.Equal(t, toNanos, mockMatcher.toNanos)
+	require.Equal(t, rules.ReverseMatch, mockMatcher.mode)
 }
 
 func TestToRuleSetNilValue(t *testing.T) {
@@ -139,6 +140,7 @@ type mockMatcher struct {
 	id        []byte
 	fromNanos int64
 	toNanos   int64
+	mode      rules.MatchMode
 	res       rules.MatchResult
 }
 
@@ -150,6 +152,7 @@ func (mm *mockMatcher) MatchAll(
 	mm.id = id
 	mm.fromNanos = fromNanos
 	mm.toNanos = toNanos
+	mm.mode = matchMode
 	return mm.res
 }
 
@@ -174,6 +177,7 @@ func testRuleSet() (kv.Store, Cache, *ruleSet, Options) {
 		SetInitWatchTimeout(100 * time.Millisecond).
 		SetKVStore(store).
 		SetRuleSetKeyFn(func(ns []byte) string { return fmt.Sprintf("/rules/%s", ns) }).
-		SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) { cache.Register(namespace, ruleSet) })
+		SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) { cache.Register(namespace, ruleSet) }).
+		SetMatchMode(rules.ReverseMatch)
 	return store, cache, newRuleSet(testNamespace, testNamespacesKey, opts).(*ruleSet), opts
 }
