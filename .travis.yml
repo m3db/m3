@@ -8,14 +8,12 @@ env:
   global:
     - TEST_TIMEOUT_SCALE=20
     - PACKAGE=github.com/m3db/m3db
-    - INTEGRATION_TEST_TOTAL=3
-    - UNIT_TEST_TOTAL=3
+    - INTEGRATION_TEST_TOTAL=2
+    - UNIT_TEST_TOTAL=2
   matrix:
     - MAKE_TARGET="lint test-ci-unit"   UNIT_TEST_NUM=0
     - MAKE_TARGET="lint test-ci-unit"   UNIT_TEST_NUM=1
-    - MAKE_TARGET="lint test-ci-unit"   UNIT_TEST_NUM=2
     - MAKE_TARGET="test-ci-integration" INTEGRATION_TEST_NUM=0
     - MAKE_TARGET="test-ci-integration" INTEGRATION_TEST_NUM=1
-    - MAKE_TARGET="test-ci-integration" INTEGRATION_TEST_NUM=2
     - MAKE_TARGET="services tools"
 script: "make $MAKE_TARGET"
