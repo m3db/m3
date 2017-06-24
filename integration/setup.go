@@ -250,12 +250,15 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 
 // guestBestTruncateBlockSize guesses for the best block size to truncate testSetup's nowFn
 func guessBestTruncateBlockSize(mds []namespace.Metadata) (time.Duration, bool) {
-	// gcd of a set of numbers
-	gcdRemainder := func(a, b int64) int64 {
-		for b != 0 {
+	// gcd of a pair of numbers
+	gcd := func(a, b int64) int64 {
+		for b > 0 {
 			a, b = b, a%b
 		}
 		return a
+	}
+	lcm := func(a, b int64) int64 {
+		return a * b / gcd(a, b)
 	}
 
 	// default guess
@@ -266,23 +269,22 @@ func guessBestTruncateBlockSize(mds []namespace.Metadata) (time.Duration, bool) 
 	// get all known blocksizes
 	blockSizes := make(map[int64]struct{})
 	for _, md := range mds {
-		bs := md.Options().RetentionOptions().BlockSize().Nanoseconds()
+		bs := md.Options().RetentionOptions().BlockSize().Nanoseconds() / 1000 / 1000
 		blockSizes[bs] = struct{}{}
 	}
 
-	// find the gcd of all known blockSizes
-	set := false
-	var gcd int64
+	first := true
+	var l int64
 	for i := range blockSizes {
-		if !set {
-			gcd = i
-			set = true
+		if first {
+			l = i
+			first = false
 		} else {
-			gcd = gcdRemainder(gcd, i)
+			l = lcm(l, i)
 		}
 	}
 
-	guess := time.Duration(gcd) * time.Nanosecond
+	guess := time.Duration(l) * time.Millisecond
 	// if there's only a single value, we are not guessing
 	if len(blockSizes) == 1 {
 		return guess, false

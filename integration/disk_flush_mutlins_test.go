@@ -62,9 +62,8 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 	testSetup.storageOpts = testSetup.storageOpts.SetCommitLogOptions(clOpts.SetRetentionOptions(clROpts))
 	filePathPrefix := clOpts.FilesystemOptions().FilePathPrefix()
 
-	// align to lcm of ns block sizes
-	now := testSetup.getNowFn().Truncate(6 * time.Hour)
-	testSetup.setNowFn(now)
+	// it's aligned to lcm of ns block sizes
+	now := testSetup.getNowFn()
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
