@@ -34,36 +34,44 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 )
 
-func TestFilesystemBootstrap(t *testing.T) {
+func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
 	// Test setup
-	tickInterval := 3 * time.Second
-	opts := newTestOptions().
-		SetTickInterval(tickInterval)
+	var (
+		tickInterval       = 3 * time.Second
+		commitLogBlockSize = time.Hour
+		clROpts            = retention.NewOptions().SetRetentionPeriod(6 * time.Hour).SetBlockSize(commitLogBlockSize)
+		ns1BlockSize       = 2 * time.Hour
+		ns1ROpts           = clROpts.SetBlockSize(ns1BlockSize)
+		ns2BlockSize       = 3 * time.Hour
+		ns2ROpts           = clROpts.SetBlockSize(ns2BlockSize)
+
+		ns1  = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ns1ROpts))
+		ns2  = namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ns2ROpts))
+		opts = newTestOptions().SetTickInterval(tickInterval).SetNamespaces([]namespace.Metadata{ns1, ns2})
+	)
 
 	setup, err := newTestSetup(opts)
 	require.NoError(t, err)
 	defer setup.close()
 
-	var (
-		ropts     = retention.NewOptions().SetRetentionPeriod(2 * time.Hour)
-		blockSize = ropts.BlockSize()
-	)
-	setup.storageOpts = setup.storageOpts.SetTickInterval(tickInterval)
-	require.NoError(t, setup.setRetentionOnAll(ropts))
-
+	clOpts := setup.storageOpts.CommitLogOptions()
+	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(clOpts.SetRetentionOptions(clROpts))
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 	filePathPrefix := fsOpts.FilePathPrefix()
+
 	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
 	bsOpts := result.NewOptions()
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts)
+
 	bs, err := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
 	require.NoError(t, err)
 	process := bootstrap.NewProcess(bs, bsOpts)
@@ -71,32 +79,36 @@ func TestFilesystemBootstrap(t *testing.T) {
 	setup.storageOpts = setup.storageOpts.
 		SetBootstrapProcess(process)
 
+	log := setup.storageOpts.InstrumentOptions().Logger()
+
+	log.Info("generating data")
 	// Write test data
 	now := setup.getNowFn()
-	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{[]string{"foo", "bar"}, 100, now.Add(-blockSize)},
+	ns1SeriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		{[]string{"foo", "bar"}, 100, now.Add(-ns1BlockSize)},
 		{[]string{"foo", "baz"}, 50, now},
 	})
-	testNs, err := setup.storageOpts.NamespaceRegistry().Get(testNamespaces[0])
-	require.NoError(t, err)
-	require.NoError(t, writeTestDataToDisk(testNs, setup, seriesMaps))
-	testNs, err = setup.storageOpts.NamespaceRegistry().Get(testNamespaces[1])
-	require.NoError(t, err)
-	require.NoError(t, writeTestDataToDisk(testNs, setup, nil))
+	ns2SeriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		{[]string{"bar", "baz"}, 100, now.Add(-2 * ns2BlockSize)},
+		{[]string{"foo", "bar"}, 100, now.Add(-ns2BlockSize)},
+		{[]string{"foo", "baz"}, 50, now},
+	})
+	require.NoError(t, writeTestDataToDisk(ns1, setup, ns1SeriesMaps))
+	require.NoError(t, writeTestDataToDisk(ns2, setup, ns2SeriesMaps))
+	log.Info("generated data")
 
 	// Start the server with filesystem bootstrapper
-	log := setup.storageOpts.InstrumentOptions().Logger()
-	log.Debug("filesystem bootstrap test")
+	log.Info("filesystem bootstrap test")
 	require.NoError(t, setup.startServer())
-	log.Debug("server is now up")
+	log.Info("server is now up")
 
 	// Stop the server
 	defer func() {
 		require.NoError(t, setup.stopServer())
-		log.Debug("server is now down")
+		log.Info("server is now down")
 	}()
 
 	// Verify in-memory data match what we expect
-	verifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
-	verifySeriesMaps(t, setup, testNamespaces[1], nil)
+	verifySeriesMaps(t, setup, testNamespaces[0], ns1SeriesMaps)
+	verifySeriesMaps(t, setup, testNamespaces[1], ns2SeriesMaps)
 }
