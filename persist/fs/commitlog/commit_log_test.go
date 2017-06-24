@@ -30,17 +30,19 @@ import (
 	"testing"
 	"time"
 
+	mclock "github.com/facebookgo/clock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
-	"github.com/uber-go/tally"
-
-	mclock "github.com/facebookgo/clock"
-	"github.com/stretchr/testify/assert"
 )
 
 type overrides struct {
@@ -68,11 +70,18 @@ func newTestOptions(
 
 	scope := tally.NewTestScope("", nil)
 
+	ropts := retention.NewOptions().SetBlockSize(2 * time.Hour)
+	testNs := namespace.NewMetadata(ts.StringID("a"),
+		namespace.NewOptions().SetRetentionOptions(ropts))
+	reg := namespace.NewRegistry([]namespace.Metadata{testNs})
+
 	opts := NewOptions().
 		SetClockOptions(clock.NewOptions().SetNowFn(c.Now)).
 		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
-		SetFilesystemOptions(fs.NewOptions().SetFilePathPrefix(dir)).
-		SetRetentionOptions(retention.NewOptions().SetBlockSize(2 * time.Hour)).
+		SetFilesystemOptions(fs.NewOptions().
+			SetFilePathPrefix(dir).
+			SetNamespaceRegistry(reg)).
+		SetRetentionOptions(ropts).
 		SetFlushSize(4096).
 		SetFlushInterval(100 * time.Millisecond).
 		SetBacklogQueueSize(1024)
@@ -186,7 +195,9 @@ func (w *mockCommitLogWriter) Close() error {
 }
 
 func newTestCommitLog(t *testing.T, opts Options) *commitLog {
-	commitLog := NewCommitLog(opts).(*commitLog)
+	commitLogI, err := NewCommitLog(opts)
+	require.NoError(t, err)
+	commitLog := commitLogI.(*commitLog)
 	assert.NoError(t, commitLog.Open())
 
 	// Ensure files present
@@ -461,7 +472,9 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	opts, scope := newTestOptions(t, overrides{})
 	defer cleanup(t, opts)
 
-	commitLog := NewCommitLog(opts).(*commitLog)
+	commitLogI, err := NewCommitLog(opts)
+	require.NoError(t, err)
+	commitLog := commitLogI.(*commitLog)
 	writer := newMockCommitLogWriter()
 
 	writer.writeFn = func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
@@ -510,7 +523,9 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	opts, scope := newTestOptions(t, overrides{})
 	defer cleanup(t, opts)
 
-	commitLog := NewCommitLog(opts).(*commitLog)
+	commitLogI, err := NewCommitLog(opts)
+	require.NoError(t, err)
+	commitLog := commitLogI.(*commitLog)
 	writer := newMockCommitLogWriter()
 
 	var opens int64
@@ -566,7 +581,9 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	opts, scope := newTestOptions(t, overrides{})
 	defer cleanup(t, opts)
 
-	commitLog := NewCommitLog(opts).(*commitLog)
+	commitLogI, err := NewCommitLog(opts)
+	require.NoError(t, err)
+	commitLog := commitLogI.(*commitLog)
 	writer := newMockCommitLogWriter()
 
 	var flushes int64

@@ -82,9 +82,9 @@ func NewOptions() Options {
 
 func (o *options) Validate() error {
 	var multiErr xerrors.MultiError
-	if o.FlushInterval() <= 0 {
+	if o.FlushInterval() < 0 {
 		multiErr = multiErr.Add(
-			fmt.Errorf("flush interval must be positive"))
+			fmt.Errorf("flush interval must non-negative"))
 	}
 
 	// TODO(pratek): does strategy/flush size need to be checked here

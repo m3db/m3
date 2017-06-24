@@ -105,7 +105,10 @@ type commitLogWrite struct {
 }
 
 // NewCommitLog creates a new commit log
-func NewCommitLog(opts Options) CommitLog {
+func NewCommitLog(opts Options) (CommitLog, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
 	iopts := opts.InstrumentOptions().SetMetricsScope(
 		opts.InstrumentOptions().MetricsScope().SubScope("commitlog"))
 	scope := iopts.MetricsScope()
@@ -129,7 +132,7 @@ func NewCommitLog(opts Options) CommitLog {
 		closeErr:             make(chan error),
 	}
 
-	return commitLog
+	return commitLog, nil
 }
 
 func (l *commitLog) Open() error {

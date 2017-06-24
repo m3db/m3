@@ -143,10 +143,14 @@ func NewDatabase(
 	}
 
 	// TODO(prateek): investigate commit log metrics for multiple namespaces
-	d.commitLog = commitlog.NewCommitLog(opts.CommitLogOptions())
-	if err := d.commitLog.Open(); err != nil {
+	commitLog, err := commitlog.NewCommitLog(opts.CommitLogOptions())
+	if err != nil {
 		return nil, err
 	}
+	if err := commitLog.Open(); err != nil {
+		return nil, err
+	}
+	d.commitLog = commitLog
 
 	// TODO(r): instead of binding the method here simply bind the method
 	// in the commit log itself and just call "Write()" always
