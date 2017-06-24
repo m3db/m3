@@ -23,67 +23,13 @@
 package integration
 
 import (
-	"errors"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/storage"
-	"github.com/m3db/m3db/ts"
 )
-
-var (
-	errDataCleanupTimedOut = errors.New("cleaning up data files took too long")
-)
-
-func createWriter(storageOpts storage.Options, ropts retention.Options) fs.FileSetWriter {
-	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
-	blockSize := ropts.BlockSize()
-	filePathPrefix := fsOpts.FilePathPrefix()
-	writerBufferSize := fsOpts.WriterBufferSize()
-	newFileMode := fsOpts.NewFileMode()
-	newDirectoryMode := fsOpts.NewDirectoryMode()
-	return fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
-}
-
-func createFilesetFiles(t *testing.T, storageOpts storage.Options, namespace ts.ID, shard uint32, fileTimes []time.Time) {
-	md, err := storageOpts.NamespaceRegistry().Get(namespace)
-	require.NoError(t, err)
-	writer := createWriter(storageOpts, md.Options().RetentionOptions())
-	for _, start := range fileTimes {
-		require.NoError(t, writer.Open(namespace, shard, start))
-		require.NoError(t, writer.Close())
-	}
-}
-
-func createCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time) {
-	for _, start := range fileTimes {
-		commitLogFile, _ := fs.NextCommitLogsFile(filePathPrefix, start)
-		_, err := os.Create(commitLogFile)
-		require.NoError(t, err)
-	}
-}
-
-func waitUntilDataCleanedUp(filePathPrefix string, namespace ts.ID, shard uint32, toDelete time.Time, timeout time.Duration) error {
-	dataCleanedUp := func() bool {
-		if fs.FilesetExistsAt(filePathPrefix, namespace, shard, toDelete) {
-			return false
-		}
-		_, index := fs.NextCommitLogsFile(filePathPrefix, toDelete)
-		if index != 0 {
-			return false
-		}
-		return true
-	}
-	if waitUntil(dataCleanedUp, timeout) {
-		return nil
-	}
-	return errDataCleanupTimedOut
-}
 
 func TestDiskCleanup(t *testing.T) {
 	if testing.Short() {
@@ -101,7 +47,6 @@ func TestDiskCleanup(t *testing.T) {
 		retentionPeriod = ropts.RetentionPeriod()
 	)
 	require.NoError(t, testSetup.setRetentionOnAll(ropts))
-
 
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
@@ -132,10 +77,6 @@ func TestDiskCleanup(t *testing.T) {
 	// and commit logs at now will be deleted
 	newNow := now.Add(retentionPeriod).Add(2 * blockSize)
 	testSetup.setNowFn(newNow)
-
-	// TODO(prateek): this test is funky. if we consider the time we are setting
-	// as the current time, we're deleting data within the retention period.
-	// Should the cleanup code be updated to respect the clock?
 
 	// Check if files have been deleted
 	waitTimeout := tickInterval * 4

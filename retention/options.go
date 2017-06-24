@@ -46,6 +46,9 @@ const (
 )
 
 var (
+	errBufferFutureNonNegative = fmt.Errorf("buffer future must be non-negative")
+	errBufferPastNonNegative   = fmt.Errorf("buffer past must be non-negative")
+	errBlockSizePositive       = fmt.Errorf("block size must positive")
 	errBufferFutureTooLarge    = fmt.Errorf("buffer future must be smaller than block size")
 	errBufferPastTooLarge      = fmt.Errorf("buffer past must be smaller than block size")
 	errRetentionPeriodTooSmall = fmt.Errorf("retention period must not be smaller than block size")
@@ -74,6 +77,15 @@ func NewOptions() Options {
 }
 
 func (o *options) Validate() error {
+	if o.bufferFuture < 0 {
+		return errBufferFutureNonNegative
+	}
+	if o.bufferPast < 0 {
+		return errBufferPastNonNegative
+	}
+	if o.blockSize <= 0 {
+		return errBlockSizePositive
+	}
 	if o.bufferFuture >= o.blockSize {
 		return errBufferFutureTooLarge
 	}
@@ -84,7 +96,6 @@ func (o *options) Validate() error {
 		return errRetentionPeriodTooSmall
 	}
 	return nil
-	// TODO(prateek): check "retention.Options.Validate()" where applicable
 }
 
 func (o *options) Equal(value Options) bool {
