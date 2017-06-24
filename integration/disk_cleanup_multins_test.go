@@ -112,9 +112,15 @@ func TestDiskCleanupMultipleNamespaces(t *testing.T) {
 	ns2Times := getTimes(now, end, ns2BlockSize)
 
 	// notice that ns2Times are the same as t0, t1, .. markers in the description above
+	// files to remove
 	commitLogTimesToRemove := getTimes(now, ns2Times[2].Add(-commitLogBlockSize), commitLogBlockSize)
 	ns1TimesToRemove := []time.Time{ns2Times[0]}
 	ns2TimesToRemove := getTimes(now, ns2Times[3], ns2BlockSize)
+
+	// files to retain
+	commitLogTimesToRetain := getTimes(ns2Times[2], end, commitLogBlockSize)
+	ns1TimesToRetain := getTimes(now.Add(ns1BlockSize), end, ns1BlockSize)
+	ns2TimesToRetain := getTimes(ns2Times[3].Add(ns2BlockSize), end, ns2BlockSize)
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
@@ -139,7 +145,7 @@ func TestDiskCleanupMultipleNamespaces(t *testing.T) {
 	// Move now forward by 12 hours, and see if the expected files have been deleted
 	testSetup.setNowFn(end)
 
-	// Check if files have been deleted
+	// Check if expected files have been deleted
 	waitTimeout := tickInterval * 4
 	require.NoError(t, waitUntilDataCleanedUpExtended(
 		[]cleanupTimesFileset{
@@ -162,4 +168,33 @@ func TestDiskCleanupMultipleNamespaces(t *testing.T) {
 		},
 		waitTimeout,
 	))
+
+	// check files we still expect exist
+	ns1ExpectedFiles := cleanupTimesFileset{
+		filePathPrefix: filePathPrefix,
+		namespace:      testNamespaces[0],
+		shard:          shard,
+		times:          ns1TimesToRetain,
+	}
+	if !ns1ExpectedFiles.allExist() {
+		require.Fail(t, "ns1 expected fileset files do not exist")
+	}
+
+	ns2ExpectedFiles := cleanupTimesFileset{
+		filePathPrefix: filePathPrefix,
+		namespace:      testNamespaces[1],
+		shard:          shard,
+		times:          ns2TimesToRetain,
+	}
+	if !ns2ExpectedFiles.allExist() {
+		require.Fail(t, "ns2 expected fileset files do not exist")
+	}
+
+	commitLogFilesToRetain := cleanupTimesCommitLog{
+		filePathPrefix: filePathPrefix,
+		times:          commitLogTimesToRetain,
+	}
+	if !commitLogFilesToRetain.allExist() {
+		require.Fail(t, "commit log expected files do not exist")
+	}
 }

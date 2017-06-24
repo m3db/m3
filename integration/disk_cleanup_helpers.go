@@ -73,11 +73,49 @@ type cleanupTimesCommitLog struct {
 	times          []time.Time
 }
 
+func (c *cleanupTimesCommitLog) anyExist() bool {
+	for _, t := range c.times {
+		_, index := fs.NextCommitLogsFile(c.filePathPrefix, t)
+		if index != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *cleanupTimesCommitLog) allExist() bool {
+	for _, t := range c.times {
+		_, index := fs.NextCommitLogsFile(c.filePathPrefix, t)
+		if index == 0 {
+			return false
+		}
+	}
+	return true
+}
+
 type cleanupTimesFileset struct {
 	filePathPrefix string
 	namespace      ts.ID
 	shard          uint32
 	times          []time.Time
+}
+
+func (fset *cleanupTimesFileset) anyExist() bool {
+	for _, t := range fset.times {
+		if fs.FilesetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t) {
+			return true
+		}
+	}
+	return false
+}
+
+func (fset *cleanupTimesFileset) allExist() bool {
+	for _, t := range fset.times {
+		if !fs.FilesetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t) {
+			return false
+		}
+	}
+	return true
 }
 
 func waitUntilDataCleanedUpExtended(
@@ -86,17 +124,12 @@ func waitUntilDataCleanedUpExtended(
 	timeout time.Duration,
 ) error {
 	dataCleanedUp := func() bool {
-		for _, fset := range filesetFiles {
-			for _, t := range fset.times {
-				if fs.FilesetExistsAt(fset.filePathPrefix, fset.namespace, fset.shard, t) {
-					return false
-				}
-			}
+		if commitlog.anyExist() {
+			return false
 		}
 
-		for _, t := range commitlog.times {
-			_, index := fs.NextCommitLogsFile(commitlog.filePathPrefix, t)
-			if index != 0 {
+		for _, fset := range filesetFiles {
+			if fset.anyExist() {
 				return false
 			}
 		}
