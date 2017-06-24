@@ -23,6 +23,15 @@ type Series struct {
 	Data []ts.Datapoint
 }
 
+// SeriesDataPoint represents a single data point of a generated series of data
+type SeriesDataPoint struct {
+	ts.Datapoint
+	ID ts.ID
+}
+
+// SeriesDataPointsByTime are a sorted list of SeriesDataPoints
+type SeriesDataPointsByTime []SeriesDataPoint
+
 // SeriesBlock is a collection of Series'
 type SeriesBlock []Series
 

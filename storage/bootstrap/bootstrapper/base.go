@@ -103,6 +103,7 @@ func (b *baseBootstrapper) Bootstrap(
 		xlog.NewLogField("to", max.String()),
 		xlog.NewLogField("range", max.Sub(min).String()),
 		xlog.NewLogField("shards", len(available)),
+		xlog.NewLogField("namespace", namespace.String()),
 	}
 	b.log.WithFields(logFields...).Infof("bootstrapping from source starting")
 
