@@ -56,38 +56,26 @@ import (
 //
 // NB(prateek): the 30m offset in the times above is due to one commit log block on
 // either side of the namespace block potentially having data for the block it stradles.
-func TestDiskCleanupMultipleNamespaces(t *testing.T) {
+func TestDiskCleanupMultipleNamespace(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
 	// Test setup
 	var (
-		tickInterval = 3 * time.Second
-
+		tickInterval       = 3 * time.Second
 		commitLogBlockSize = 30 * time.Minute
-		clROpts            = retention.NewOptions().
-					SetRetentionPeriod(8 * time.Hour).
-					SetBlockSize(commitLogBlockSize)
+		clROpts            = retention.NewOptions().SetRetentionPeriod(8 * time.Hour).SetBlockSize(commitLogBlockSize)
+		ns1BlockSize       = 4 * time.Hour
+		ns1ROpts           = clROpts.SetRetentionPeriod(8 * time.Hour).SetBlockSize(ns1BlockSize)
+		ns2BlockSize       = 2 * time.Hour
+		ns2ROpts           = clROpts.SetRetentionPeriod(6 * time.Hour).SetBlockSize(ns2BlockSize)
 
-		ns1BlockSize = 4 * time.Hour
-		ns1ROpts     = clROpts.
-				SetRetentionPeriod(8 * time.Hour).
-				SetBlockSize(ns1BlockSize)
+		ns1 = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ns1ROpts))
+		ns2 = namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ns2ROpts))
 
-		ns2BlockSize = 2 * time.Hour
-		ns2ROpts     = clROpts.
-				SetRetentionPeriod(6 * time.Hour).
-				SetBlockSize(ns2BlockSize)
-
-		ns1 = namespace.NewMetadata(testNamespaces[0],
-			namespace.NewOptions().SetRetentionOptions(ns1ROpts))
-		ns2 = namespace.NewMetadata(testNamespaces[1],
-			namespace.NewOptions().SetRetentionOptions(ns2ROpts))
-
-		opts = newTestOptions().
-			SetNamespaces([]namespace.Metadata{ns1, ns2}).
-			SetTickInterval(tickInterval)
+		opts = newTestOptions().SetTickInterval(tickInterval).
+			SetNamespaces([]namespace.Metadata{ns1, ns2})
 	)
 
 	// Test setup
