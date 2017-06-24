@@ -1,12 +1,14 @@
 language: go
 go:
   - 1.7
-install: make install-ci
-env:
- # Set higher timeouts for Travis
- - TEST_TIMEOUT_SCALE=20 PACKAGE=github.com/m3db/m3db
 sudo: required
 dist: trusty
-script:
- - make all
-
+install: make install-ci
+env:
+  global:
+    - TEST_TIMEOUT_SCALE=20 PACKAGE=github.com/m3db/m3db
+  matrix:
+    - MAKE_TARGET="lint test-ci-unit"
+    - MAKE_TARGET="test-ci-integration"
+    - MAKE_TARGET="services tools"
+script: "make $MAKE_TARGET"
