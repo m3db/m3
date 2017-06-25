@@ -180,8 +180,19 @@ func TestCommitLogBootstrap(t *testing.T) {
 		log.Debug("server is now down")
 	}()
 
-	// Verify in-memory data match what we expect
+	metadatasByShard := testSetupMetadatas(t, setup, testNamespaces[0], now.Add(-2*blockSize), now)
+	observedSeriesMaps := testSetupToSeriesMaps(t, setup, testNamespaces[0], metadatasByShard)
+	// Verify retrieved data matches what we've written
+	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
+
 	emptySeriesMaps := make(generate.SeriesBlocksByStart)
+
+	// metadatasByShard2 := testSetupMetadatas(t, setup, testNamespaces[1], now.Add(-2*blockSize), now)
+	// observedSeriesMaps2 := testSetupToSeriesMaps(t, setup, testNamespaces[1], metadatasByShard2)
+	// verifySeriesMapsEqual(t, emptySeriesMaps, observedSeriesMaps2)
+
+	// Verify in-memory data match what we expect
+	verifySeriesMaps(t, setup, testNamespaces[0], emptySeriesMaps)
 	verifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
 	verifySeriesMaps(t, setup, testNamespaces[1], emptySeriesMaps)
 	verifySeriesMaps(t, setup, testNamespaces[1], seriesMaps) // TODO(prateek): <- wtf, this and the line above work

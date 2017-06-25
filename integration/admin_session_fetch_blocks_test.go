@@ -86,18 +86,28 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	later := testSetup.getNowFn()
 	time.Sleep(tickInterval * 4)
 
-	// Retrieve written data using the AdminSession APIs (FetchMetadataBlocksFromPeers/FetchBlocksFromPeers)
-	adminClient := testSetup.m3dbAdminClient
-	metadatasByShard, err := m3dbClientFetchBlocksMetadata(adminClient,
-		testNamespaces[0], testSetup.shardSet.AllIDs(), now, later)
-	require.NoError(t, err)
-	require.NotEmpty(t, metadatasByShard)
-
-	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup,
-		testNamespaces[0], metadatasByShard)
+	metadatasByShard := testSetupMetadatas(t, testSetup, testNamespaces[0], now, later)
+	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, testNamespaces[0], metadatasByShard)
 
 	// Verify retrieved data matches what we've written
 	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
+}
+
+func testSetupMetadatas(
+	t *testing.T,
+	testSetup *testSetup,
+	namespace ts.ID,
+	start time.Time,
+	end time.Time,
+) map[uint32][]block.ReplicaMetadata {
+	// Retrieve written data using the AdminSession APIs
+	// FetchMetadataBlocksFromPeers/FetchBlocksFromPeers
+	adminClient := testSetup.m3dbAdminClient
+	metadatasByShard, err := m3dbClientFetchBlocksMetadata(
+		adminClient, namespace, testSetup.shardSet.AllIDs(), start, end)
+	require.NoError(t, err)
+	require.NotEmpty(t, metadatasByShard)
+	return metadatasByShard
 }
 
 func verifySeriesMapsEqual(
