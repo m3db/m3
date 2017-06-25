@@ -282,7 +282,7 @@ func (o *options) Validate() error {
 	// and we fail later in the runtime, at AdminSession method execution time, rather than
 	// at AdminSession construction time.
 	// TODO(prateek): We could fix this by splitting the two objects Options, and AdminOptions.
-	// When I tried to do that, it caused a lot of cascading changes and my PR was already massive.
+	// When I tried to do that, it caused a lot of cascading changes and my PR was already big.
 	// We should fix this in a separate PR.
 	if o.namespaceRegistry != nil {
 		if err := o.namespaceRegistry.Validate(); err != nil {
