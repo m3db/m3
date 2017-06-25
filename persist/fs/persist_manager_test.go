@@ -294,5 +294,31 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 }
 
 func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
-	// TODO(prateek): test namespace switching causing writer to open/close
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	pm, writer, _ := testManager(t, ctrl)
+	defer os.RemoveAll(pm.filePathPrefix)
+
+	shard := uint32(0)
+	blockStart := time.Unix(1000, 0)
+
+	flush, err := pm.StartFlush()
+	require.NoError(t, err)
+
+	defer func() {
+		assert.NoError(t, flush.Done())
+	}()
+
+	writer.EXPECT().Open(testNamespaceID, testBlockSize, shard, blockStart).Return(nil)
+	prepared, err := flush.Prepare(testNamespaceID, shard, blockStart)
+	require.NoError(t, err)
+	require.NotNil(t, prepared.Persist)
+	require.NotNil(t, prepared.Close)
+
+	writer.EXPECT().Open(testNamespace2ID, testBlockSize, shard, blockStart).Return(nil)
+	prepared, err = flush.Prepare(testNamespace2ID, shard, blockStart)
+	require.NoError(t, err)
+	require.NotNil(t, prepared.Persist)
+	require.NotNil(t, prepared.Close)
 }
