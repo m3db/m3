@@ -131,7 +131,8 @@ func TestCommitLogBootstrap(t *testing.T) {
 		ropts     = retention.NewOptions().SetRetentionPeriod(12 * time.Hour)
 		blockSize = ropts.BlockSize()
 		ns1       = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
-		opts      = newTestOptions().SetNamespaces([]namespace.Metadata{ns1})
+		ns2       = namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ropts))
+		opts      = newTestOptions().SetNamespaces([]namespace.Metadata{ns1, ns2})
 	)
 	setup, err := newTestSetup(opts)
 	require.NoError(t, err)
@@ -180,6 +181,8 @@ func TestCommitLogBootstrap(t *testing.T) {
 	}()
 
 	// Verify in-memory data match what we expect
+	emptySeriesMaps := make(generate.SeriesBlocksByStart)
 	verifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)
-	// verifySeriesMaps(t, setup, testNamespaces[1], nil) // TODO(prateek): resolves the commit log issue
+	verifySeriesMaps(t, setup, testNamespaces[1], emptySeriesMaps)
+	verifySeriesMaps(t, setup, testNamespaces[1], seriesMaps) // TODO(prateek): <- wtf, this and the line above work
 }

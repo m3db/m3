@@ -22,6 +22,7 @@ package integration
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"sort"
 	"testing"
@@ -121,8 +122,8 @@ func verifySeriesMaps(
 	seriesMaps map[time.Time]generate.SeriesBlock,
 ) {
 	debugFilePathPrefix := ts.opts.VerifySeriesDebugFilePathPrefix()
-	expectedDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, "expected.log")
-	actualDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, "actual.log")
+	expectedDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, fmt.Sprintf("%s-expected.log", namespace.String()))
+	actualDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, fmt.Sprintf("%s-actual.log", namespace.String()))
 
 	nsMetadata, err := ts.storageOpts.NamespaceRegistry().Get(namespace)
 	require.NoError(t, err)
