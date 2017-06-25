@@ -70,10 +70,6 @@ func (m *flushManager) NeedsFlush(start time.Time, end time.Time) bool {
 	return false
 }
 
-func (m *flushManager) flushRange(ropts retention.Options, t time.Time) (time.Time, time.Time) {
-	return retention.FlushTimeStart(ropts, t), retention.FlushTimeEnd(ropts, t)
-}
-
 func (m *flushManager) Flush(curr time.Time) error {
 	flush, err := m.pm.StartFlush()
 	if err != nil {
@@ -115,6 +111,10 @@ func (m *flushManager) Report() {
 	} else {
 		m.status.Update(0)
 	}
+}
+
+func (m *flushManager) flushRange(ropts retention.Options, t time.Time) (time.Time, time.Time) {
+	return retention.FlushTimeStart(ropts, t), retention.FlushTimeEnd(ropts, t)
 }
 
 func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time) []time.Time {

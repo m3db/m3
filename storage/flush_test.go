@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"sort"
 	"testing"
 	"time"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 )
 
@@ -94,7 +96,7 @@ func TestFlushManagerNeedsFlushMultipleAllTrue(t *testing.T) {
 	require.True(t, fm.NeedsFlush(now, now))
 }
 
-func TestFlushManagerNeedsFlushMultipleSingleTrueA(t *testing.T) {
+func TestFlushManagerNeedsFlushMultipleSingleTrueFirst(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -106,7 +108,7 @@ func TestFlushManagerNeedsFlushMultipleSingleTrueA(t *testing.T) {
 	require.True(t, fm.NeedsFlush(now, now))
 }
 
-func TestFlushManagerNeedsFlushMultipleSingleTrueb(t *testing.T) {
+func TestFlushManagerNeedsFlushMultipleSingleTrueSecond(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -153,6 +155,74 @@ func TestFlushManagerFlushTimeEnd(t *testing.T) {
 	}
 }
 
-func TestFlushManagerNamespaceFlushTimes(t *testing.T) {
-	// TODO(prateek): write this test
+func TestFlushManagerNamespaceFlushTimesNoNeedFlush(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, ns1, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
+	now := time.Now()
+
+	ns1.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
+	flushTimes := fm.namespaceFlushTimes(ns1, now)
+	require.Empty(t, flushTimes)
 }
+
+func TestFlushManagerNamespaceFlushTimesAllNeedFlush(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, ns1, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
+	now := time.Now()
+
+	ns1.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(true).AnyTimes()
+	times := fm.namespaceFlushTimes(ns1, now)
+	sort.Sort(timesInOrder(times))
+
+	blockSize := ns1.Options().RetentionOptions().BlockSize()
+	start := retention.FlushTimeStart(ns1.Options().RetentionOptions(), now)
+	end := retention.FlushTimeEnd(ns1.Options().RetentionOptions(), now)
+
+	require.Equal(t, numIntervals(start, end, blockSize), len(times))
+	for i, ti := range times {
+		require.Equal(t, start.Add(time.Duration(i)*blockSize), ti)
+	}
+}
+
+func TestFlushManagerNamespaceFlushTimesSomeNeedFlush(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fm, ns1, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
+	now := time.Now()
+
+	blockSize := ns1.Options().RetentionOptions().BlockSize()
+	start := retention.FlushTimeStart(ns1.Options().RetentionOptions(), now)
+	end := retention.FlushTimeEnd(ns1.Options().RetentionOptions(), now)
+	num := numIntervals(start, end, blockSize)
+
+	var expectedTimes []time.Time
+	for i := 0; i < num; i++ {
+		st := start.Add(time.Duration(i) * blockSize)
+		en := st.Add(blockSize)
+
+		// skip 1/3 of input
+		if i%3 == 0 {
+			ns1.EXPECT().NeedsFlush(st, en).Return(false)
+			continue
+		}
+
+		ns1.EXPECT().NeedsFlush(st, en).Return(true)
+		expectedTimes = append(expectedTimes, st)
+	}
+
+	times := fm.namespaceFlushTimes(ns1, now)
+	require.NotEmpty(t, times)
+	sort.Sort(timesInOrder(times))
+	require.Equal(t, expectedTimes, times)
+}
+
+type timesInOrder []time.Time
+
+func (a timesInOrder) Len() int           { return len(a) }
+func (a timesInOrder) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a timesInOrder) Less(i, j int) bool { return a[i].Before(a[j]) }

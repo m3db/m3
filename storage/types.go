@@ -205,7 +205,7 @@ type databaseNamespace interface {
 	Flush(blockStart time.Time, flush persist.Flush) error
 
 	// NeedsFlush returns true if the namespace needs a flush for the
-	// period [ start, end ]
+	// period: [start, end] (both inclusive).
 	NeedsFlush(start time.Time, end time.Time) bool
 
 	// CleanupFileset cleans up fileset files
