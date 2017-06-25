@@ -61,10 +61,10 @@ func (w *writer) Write(namespace ts.ID, shardSet sharding.ShardSet, seriesMaps S
 		starts[start] = struct{}{}
 	}
 
-	writer := fs.NewWriter(blockSize, gOpts.FilePathPrefix(), gOpts.WriterBufferSize(), gOpts.NewFileMode(), gOpts.NewDirectoryMode())
+	writer := fs.NewWriter(gOpts.FilePathPrefix(), gOpts.WriterBufferSize(), gOpts.NewFileMode(), gOpts.NewDirectoryMode())
 	encoder := gOpts.EncoderPool().Get()
 	for start, data := range seriesMaps {
-		err := writeToDisk(writer, shardSet, encoder, start, namespace, data)
+		err := writeToDisk(writer, shardSet, encoder, start, namespace, blockSize, data)
 		if err != nil {
 			return err
 		}
@@ -74,7 +74,7 @@ func (w *writer) Write(namespace ts.ID, shardSet sharding.ShardSet, seriesMaps S
 	// Write remaining files even for empty start periods to avoid unfulfilled ranges
 	if w.opts.WriteEmptyShards() {
 		for start := range starts {
-			err := writeToDisk(writer, shardSet, encoder, start, namespace, nil)
+			err := writeToDisk(writer, shardSet, encoder, start, namespace, blockSize, nil)
 			if err != nil {
 				return err
 			}
@@ -90,6 +90,7 @@ func writeToDisk(
 	encoder encoding.Encoder,
 	start time.Time,
 	namespace ts.ID,
+	blockSize time.Duration,
 	seriesList SeriesBlock,
 ) error {
 	seriesPerShard := make(map[uint32][]Series)
@@ -103,7 +104,7 @@ func writeToDisk(
 	}
 	data := make([]checked.Bytes, 2)
 	for shard, seriesList := range seriesPerShard {
-		if err := writer.Open(namespace, shard, start); err != nil {
+		if err := writer.Open(namespace, blockSize, shard, start); err != nil {
 			return err
 		}
 		for _, series := range seriesList {

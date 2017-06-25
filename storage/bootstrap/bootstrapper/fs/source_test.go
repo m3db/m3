@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
+
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
@@ -114,8 +115,8 @@ func writeGoodFiles(t *testing.T, dir string, namespace ts.ID, shard uint32) {
 }
 
 func writeTSDBFiles(t *testing.T, dir string, namespace ts.ID, shard uint32, start time.Time, id string, data []byte) {
-	w := fs.NewWriter(testBlockSize, dir, testWriterBufferSize, testFileMode, testDirMode)
-	require.NoError(t, w.Open(namespace, shard, start))
+	w := fs.NewWriter(dir, testWriterBufferSize, testFileMode, testDirMode)
+	require.NoError(t, w.Open(namespace, testBlockSize, shard, start))
 
 	bytes := checked.NewBytes(data, nil)
 	bytes.IncRef()

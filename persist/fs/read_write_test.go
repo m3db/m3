@@ -28,12 +28,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/time"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type testEntry struct {
@@ -42,14 +43,13 @@ type testEntry struct {
 }
 
 func newTestWriter(filePathPrefix string) FileSetWriter {
-	blockSize := testBlockSize
 	newFileMode := defaultNewFileMode
 	newDirectoryMode := defaultNewDirectoryMode
-	return NewWriter(blockSize, filePathPrefix, testWriterBufferSize, newFileMode, newDirectoryMode)
+	return NewWriter(filePathPrefix, testWriterBufferSize, newFileMode, newDirectoryMode)
 }
 
 func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
-	err := w.Open(testNamespaceID, shard, timestamp)
+	err := w.Open(testNamespaceID, testBlockSize, shard, timestamp)
 	assert.NoError(t, err)
 
 	for i := range entries {
@@ -166,7 +166,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	}
 	w := newTestWriter(filePathPrefix)
 	shard := uint32(0)
-	require.NoError(t, w.Open(testNamespaceID, shard, testWriterStart))
+	require.NoError(t, w.Open(testNamespaceID, testBlockSize, shard, testWriterStart))
 
 	require.NoError(t, w.Write(
 		ts.StringID(entries[0].id),
@@ -201,7 +201,7 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	}
 
 	w := newTestWriter(filePathPrefix)
-	err := w.Open(testNamespaceID, 0, testWriterStart)
+	err := w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	w.WriteAll(ts.StringID("foo"), []checked.Bytes{

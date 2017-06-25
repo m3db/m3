@@ -27,8 +27,8 @@ func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duratio
 		return fmt.Errorf("unable to read source fileset: %v", err)
 	}
 
-	writer := fs.NewWriter(destBlocksize, dest.PathPrefix, c.opts.BufferSize(), c.opts.FileMode(), c.opts.DirMode())
-	if err := writer.Open(ts.StringID(dest.Namespace), dest.Shard, dest.Blockstart); err != nil {
+	writer := fs.NewWriter(dest.PathPrefix, c.opts.BufferSize(), c.opts.FileMode(), c.opts.DirMode())
+	if err := writer.Open(ts.StringID(dest.Namespace), destBlocksize, dest.Shard, dest.Blockstart); err != nil {
 		return fmt.Errorf("unable to open fileset writer: %v", err)
 	}
 

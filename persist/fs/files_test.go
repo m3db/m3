@@ -42,13 +42,17 @@ import (
 
 var (
 	testNamespaceID       = ts.StringID("testNs")
-	testNamespaceMetadata = namespace.NewMetadata(
-		testNamespaceID,
+	testNamespace2ID      = ts.StringID("testNs2")
+	testNamespaceMetadata = namespace.NewMetadata(testNamespaceID,
 		namespace.NewOptions().SetRetentionOptions(
-			retention.NewOptions().SetBlockSize(2*time.Hour)),
+			retention.NewOptions().SetBlockSize(testBlockSize)),
+	)
+	testNamespace2Metadata = namespace.NewMetadata(testNamespace2ID,
+		namespace.NewOptions().SetRetentionOptions(
+			retention.NewOptions().SetBlockSize(testBlockSize)),
 	)
 	testNamespaceRegistry = namespace.NewRegistry(
-		[]namespace.Metadata{testNamespaceMetadata})
+		[]namespace.Metadata{testNamespaceMetadata, testNamespace2Metadata})
 )
 
 func createTempFile(t *testing.T) *os.File {

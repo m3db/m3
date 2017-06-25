@@ -31,7 +31,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/ts"
 )
@@ -40,22 +39,22 @@ var (
 	errDataCleanupTimedOut = errors.New("cleaning up data files took too long")
 )
 
-func createWriter(storageOpts storage.Options, ropts retention.Options) fs.FileSetWriter {
+func createWriter(storageOpts storage.Options) fs.FileSetWriter {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
-	blockSize := ropts.BlockSize()
 	filePathPrefix := fsOpts.FilePathPrefix()
 	writerBufferSize := fsOpts.WriterBufferSize()
 	newFileMode := fsOpts.NewFileMode()
 	newDirectoryMode := fsOpts.NewDirectoryMode()
-	return fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
+	return fs.NewWriter(filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 }
 
 func createFilesetFiles(t *testing.T, storageOpts storage.Options, namespace ts.ID, shard uint32, fileTimes []time.Time) {
 	md, err := storageOpts.NamespaceRegistry().Get(namespace)
 	require.NoError(t, err)
-	writer := createWriter(storageOpts, md.Options().RetentionOptions())
+	rOpts := md.Options().RetentionOptions()
+	writer := createWriter(storageOpts)
 	for _, start := range fileTimes {
-		require.NoError(t, writer.Open(namespace, shard, start))
+		require.NoError(t, writer.Open(namespace, rOpts.BlockSize(), shard, start))
 		require.NoError(t, writer.Close())
 	}
 }

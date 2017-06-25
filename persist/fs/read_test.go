@@ -74,7 +74,7 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
@@ -97,7 +97,7 @@ func TestReadCorruptIndexEntry(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	assert.NoError(t, w.Write(
@@ -127,7 +127,7 @@ func TestReadDataError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 
@@ -164,7 +164,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 
@@ -197,7 +197,7 @@ func TestReadBadMarker(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	// Copy the marker out
@@ -237,7 +237,7 @@ func TestReadWrongIdx(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	assert.NoError(t, w.Write(
@@ -279,7 +279,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 
 	w := newTestWriter(filePathPrefix)
 	shard := uint32(0)
-	err := w.Open(testNamespaceID, shard, testWriterStart)
+	err := w.Open(testNamespaceID, testBlockSize, shard, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
@@ -302,7 +302,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	shardDir := ShardDirPath(filePathPrefix, testNamespaceID, shard)
 
 	w := newTestWriter(filePathPrefix)
-	assert.NoError(t, w.Open(testNamespaceID, uint32(shard), start))
+	assert.NoError(t, w.Open(testNamespaceID, testBlockSize, uint32(shard), start))
 
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),
@@ -386,7 +386,7 @@ func TestReadValidate(t *testing.T) {
 	shard := uint32(0)
 	start := time.Unix(1000, 0)
 	w := newTestWriter(filePathPrefix)
-	require.NoError(t, w.Open(testNamespaceID, shard, start))
+	require.NoError(t, w.Open(testNamespaceID, testBlockSize, shard, start))
 
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),

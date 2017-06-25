@@ -55,9 +55,7 @@ func testManager(
 
 	writer := NewMockFileSetWriter(ctrl)
 	manager := NewPersistManager(opts).(*persistManager)
-	manager.newWriterFn = func(time.Duration) FileSetWriter {
-		return writer
-	}
+	manager.writer = writer
 
 	return manager, writer, opts
 }
@@ -101,7 +99,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	blockStart := time.Unix(1000, 0)
 	expectedErr := errors.New("foo")
 
-	writer.EXPECT().Open(testNamespaceID, shard, blockStart).Return(expectedErr)
+	writer.EXPECT().Open(testNamespaceID, testBlockSize, shard, blockStart).Return(expectedErr)
 
 	flush, err := pm.StartFlush()
 	require.NoError(t, err)
@@ -125,7 +123,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	writer.EXPECT().Open(testNamespaceID, shard, blockStart).Return(nil)
+	writer.EXPECT().Open(testNamespaceID, testBlockSize, shard, blockStart).Return(nil)
 
 	var (
 		id       = ts.StringID("foo")
@@ -170,7 +168,7 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	writer.EXPECT().Open(testNamespaceID, shard, blockStart).Return(nil)
+	writer.EXPECT().Open(testNamespaceID, testBlockSize, shard, blockStart).Return(nil)
 
 	var (
 		now      time.Time
@@ -235,7 +233,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
 
-	writer.EXPECT().Open(testNamespaceID, shard, blockStart).Return(nil).Times(iter)
+	writer.EXPECT().Open(testNamespaceID, testBlockSize, shard, blockStart).Return(nil).Times(iter)
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).AnyTimes()
 	writer.EXPECT().Close().Times(iter)
 

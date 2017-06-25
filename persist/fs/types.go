@@ -43,7 +43,7 @@ type FileSetWriter interface {
 	io.Closer
 
 	// Open opens the files for writing data to the given shard in the given namespace
-	Open(namespace ts.ID, shard uint32, start time.Time) error
+	Open(namespace ts.ID, blockSize time.Duration, shard uint32, start time.Time) error
 
 	// Write will write the id and data pair and returns an error on a write error
 	Write(id ts.ID, data checked.Bytes, checksum uint32) error

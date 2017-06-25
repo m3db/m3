@@ -55,7 +55,7 @@ func TestSeekEmptyIndex(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
@@ -78,7 +78,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 
@@ -111,7 +111,7 @@ func TestSeekBadMarker(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	// Copy the marker out
@@ -151,7 +151,7 @@ func TestIDs(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ts.StringID("foo1"),
@@ -195,7 +195,7 @@ func TestSeek(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ts.StringID("foo1"),
@@ -253,7 +253,7 @@ func TestReuseSeeker(t *testing.T) {
 
 	w := newTestWriter(filePathPrefix)
 
-	err = w.Open(testNamespaceID, 0, testWriterStart.Add(-time.Hour))
+	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart.Add(-time.Hour))
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),
@@ -261,7 +261,7 @@ func TestReuseSeeker(t *testing.T) {
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Close())
 
-	err = w.Open(testNamespaceID, 0, testWriterStart)
+	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),

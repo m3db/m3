@@ -56,14 +56,12 @@ type writer struct {
 
 // NewWriter returns a new writer for a filePathPrefix
 func NewWriter(
-	blockSize time.Duration,
 	filePathPrefix string,
 	bufferSize int,
 	newFileMode os.FileMode,
 	newDirectoryMode os.FileMode,
 ) FileSetWriter {
 	return &writer{
-		blockSize:                  blockSize,
 		filePathPrefix:             filePathPrefix,
 		newFileMode:                newFileMode,
 		newDirectoryMode:           newDirectoryMode,
@@ -80,11 +78,17 @@ func NewWriter(
 // Open initializes the internal state for writing to the given shard,
 // specifically creating the shard directory if it doesn't exist, and
 // opening / truncating files associated with that shard for writing.
-func (w *writer) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
+func (w *writer) Open(
+	namespace ts.ID,
+	blockSize time.Duration,
+	shard uint32,
+	blockStart time.Time,
+) error {
 	shardDir := ShardDirPath(w.filePathPrefix, namespace, shard)
 	if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 		return err
 	}
+	w.blockSize = blockSize
 	w.start = blockStart
 	w.currIdx = 0
 	w.currOffset = 0

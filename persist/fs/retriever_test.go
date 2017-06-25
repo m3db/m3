@@ -84,7 +84,7 @@ func newOpenTestWriter(
 	start time.Time,
 ) (FileSetWriter, testCleanupFn) {
 	w := newTestWriter(fsOpts.FilePathPrefix())
-	err := w.Open(testNamespaceID, shard, start)
+	err := w.Open(testNamespaceID, testBlockSize, shard, start)
 	require.NoError(t, err)
 	return w, func() {
 		assert.NoError(t, w.Close())
