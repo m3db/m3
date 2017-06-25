@@ -356,7 +356,7 @@ func TestRepairerRepairTimes(t *testing.T) {
 	require.NoError(t, err)
 	r := repairer.(*dbRepairer)
 	for _, input := range inputTimes {
-		r.repairStates[input.bs] = input.rs
+		r.repairStates.set(defaultTestNamespaceID, input.bs, input.rs)
 	}
 
 	testNs := newTestNamespace(t)
@@ -400,4 +400,8 @@ func TestRepairerRepairWithTime(t *testing.T) {
 		namespaces[input.name] = ns
 	}
 	database.namespaces = namespaces
+}
+
+func TestRepairerMultipleNamespaces(t *testing.T) {
+	// TODO(prateek): write unit tests for multiple namespaces in the repairer
 }

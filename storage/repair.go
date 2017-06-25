@@ -180,13 +180,49 @@ type repairState struct {
 	NumFailures int
 }
 
+type namespaceRepairStateByTime map[time.Time]repairState
+
+type repairStatesByTime map[ts.Hash]namespaceRepairStateByTime
+
+func newRepairStates() repairStatesByTime {
+	return make(repairStatesByTime)
+}
+
+func (r repairStatesByTime) get(
+	namespace ts.ID,
+	t time.Time,
+) (repairState, bool) {
+	var rs repairState
+
+	nsRepairState, ok := r[namespace.Hash()]
+	if !ok {
+		return rs, false
+	}
+
+	rs, ok = nsRepairState[t]
+	return rs, ok
+}
+
+func (r repairStatesByTime) set(
+	namespace ts.ID,
+	t time.Time,
+	state repairState,
+) {
+	nsRepairState, ok := r[namespace.Hash()]
+	if !ok {
+		nsRepairState = make(namespaceRepairStateByTime)
+	}
+	nsRepairState[t] = state
+	r[namespace.Hash()] = nsRepairState
+}
+
 type dbRepairer struct {
 	sync.Mutex
 
 	database      database
 	ropts         repair.Options
 	shardRepairer databaseShardRepairer
-	repairStates  map[time.Time]repairState // TODO(prateek): make this ns specific
+	repairStates  repairStatesByTime
 
 	repairFn            repairFn
 	sleepFn             sleepFn
@@ -228,7 +264,7 @@ func newDatabaseRepairer(database database, opts Options) (databaseRepairer, err
 		database:            database,
 		ropts:               ropts,
 		shardRepairer:       shardRepairer,
-		repairStates:        make(map[time.Time]repairState),
+		repairStates:        newRepairStates(),
 		sleepFn:             time.Sleep,
 		nowFn:               nowFn,
 		logger:              opts.InstrumentOptions().Logger(),
@@ -289,8 +325,8 @@ func (r *dbRepairer) namespaceRepairTimeRanges(ns databaseNamespace) xtime.Range
 	)
 
 	targetRanges := xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end})
-	for t := range r.repairStates {
-		if !r.needsRepair(t) {
+	for t := range r.repairStates[ns.ID().Hash()] {
+		if !r.needsRepair(ns.ID(), t) {
 			targetRanges = targetRanges.RemoveRange(xtime.Range{Start: t, End: t.Add(blockSize)})
 		}
 	}
@@ -298,8 +334,8 @@ func (r *dbRepairer) namespaceRepairTimeRanges(ns databaseNamespace) xtime.Range
 	return targetRanges
 }
 
-func (r *dbRepairer) needsRepair(t time.Time) bool {
-	repairState, exists := r.repairStates[t]
+func (r *dbRepairer) needsRepair(ns ts.ID, t time.Time) bool {
+	repairState, exists := r.repairStates.get(ns, t)
 	if !exists {
 		return true
 	}
@@ -348,14 +384,14 @@ func (r *dbRepairer) Repair() error {
 			tr := iter.Value()
 			err := r.repairNamespaceWithTimeRange(n, tr)
 			for t := tr.Start; t.Before(tr.End); t = t.Add(blockSize) {
-				repairState := r.repairStates[t]
+				repairState, _ := r.repairStates.get(n.ID(), t)
 				if err == nil {
 					repairState.Status = repairSuccess
 				} else {
 					repairState.Status = repairFailed
 					repairState.NumFailures++
 				}
-				r.repairStates[t] = repairState
+				r.repairStates.set(n.ID(), t, repairState)
 			}
 			multiErr = multiErr.Add(err)
 		}
