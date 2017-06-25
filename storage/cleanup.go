@@ -149,7 +149,7 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
 		earliest, latest = m.commitLogTimeRange(t)
 	)
 	// NB(prateek): this logic of polling the namespaces across the commit log's entire
-	// retention history could get expensive for if commit logs are retained for long periods.
+	// retention history could get expensive if commit logs are retained for long periods.
 	// e.g. if we retain them for 40 days, with a block 2 hours; then every time
 	// we try to flush we are going to be polling each namespace, for each shard, for 480
 	// distinct blockstarts. Say we have 2 namespaces, each with 8192 shards, that's ~10M map lookups.
