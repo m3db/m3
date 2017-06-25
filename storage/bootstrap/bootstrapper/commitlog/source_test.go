@@ -414,4 +414,4 @@ func (i *testCommitLogIterator) Close() {
 	i.closed = true
 }
 
-// TODO(prateek): create unit test for namespace testing
+// TODO(prateek): create unit test for multiple namespace, with same and different retention periods
