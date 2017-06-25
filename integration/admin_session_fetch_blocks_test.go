@@ -106,7 +106,6 @@ func testSetupMetadatas(
 	metadatasByShard, err := m3dbClientFetchBlocksMetadata(
 		adminClient, namespace, testSetup.shardSet.AllIDs(), start, end)
 	require.NoError(t, err)
-	require.NotEmpty(t, metadatasByShard)
 	return metadatasByShard
 }
 

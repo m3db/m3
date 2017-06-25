@@ -124,9 +124,9 @@ func TestReadOrderedValues(t *testing.T) {
 		End:   end,
 	})
 
-	foo := commitlog.Series{Shard: 0, ID: ts.StringID("foo")}
-	bar := commitlog.Series{Shard: 1, ID: ts.StringID("bar")}
-	baz := commitlog.Series{Shard: 2, ID: ts.StringID("baz")}
+	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ts.StringID("foo")}
+	bar := commitlog.Series{Namespace: testNamespaceID, Shard: 1, ID: ts.StringID("bar")}
+	baz := commitlog.Series{Namespace: testNamespaceID, Shard: 2, ID: ts.StringID("baz")}
 
 	values := []testValue{
 		{foo, start, 1.0, xtime.Second, nil},
@@ -167,7 +167,7 @@ func TestReadUnorderedValues(t *testing.T) {
 		End:   end,
 	})
 
-	foo := commitlog.Series{Shard: 0, ID: ts.StringID("foo")}
+	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ts.StringID("foo")}
 
 	values := []testValue{
 		{foo, start.Add(10 * time.Minute), 1.0, xtime.Second, nil},
@@ -207,7 +207,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 		End:   end,
 	})
 
-	foo := commitlog.Series{Shard: 0, ID: ts.StringID("foo")}
+	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ts.StringID("foo")}
 
 	values := []testValue{
 		{foo, start.Add(-1 * time.Minute), 1.0, xtime.Nanosecond, nil},
@@ -413,3 +413,5 @@ func (i *testCommitLogIterator) Err() error {
 func (i *testCommitLogIterator) Close() {
 	i.closed = true
 }
+
+// TODO(prateek): create unit test for namespace testing

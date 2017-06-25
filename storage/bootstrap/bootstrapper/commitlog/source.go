@@ -105,12 +105,10 @@ func (s *commitLogSource) Read(
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
 
-		// TODO(prateek): unittests fail because of this
-		// resolves https://github.com/m3db/m3db/issues/308
-		// // check if the series belongs to current namespace being bootstrapped
-		// if !series.Namespace.Equal(namespace) {
-		// 	continue
-		// }
+		// check if the series belongs to current namespace being bootstrapped
+		if !namespace.Equal(series.Namespace) {
+			continue
+		}
 
 		ranges, ok := shardsTimeRanges[series.Shard]
 		if !ok {
