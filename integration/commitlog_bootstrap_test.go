@@ -1,4 +1,4 @@
-// +build integration_disabled
+// +build integration
 
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -36,7 +35,6 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3db/storage/bootstrap/bootstrapper/commitlog"
-	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
@@ -65,7 +63,6 @@ func writeCommitLog(
 	t *testing.T,
 	s *testSetup,
 	data generate.SeriesBlocksByStart,
-	shard uint32,
 	namespace ts.ID,
 ) {
 	indexes := computeMetricIndexes(data)
@@ -76,6 +73,7 @@ func writeCommitLog(
 	ctx := context.NewContext()
 
 	var (
+		shardSet  = s.shardSet
 		points    = generate.ToPointsByTime(data) // points are sorted in chronological order
 		blockSize = opts.RetentionOptions().BlockSize()
 		commitLog commitlog.CommitLog
@@ -112,30 +110,15 @@ func writeCommitLog(
 		idx, ok := indexes[point.ID.String()]
 		require.True(t, ok)
 		cId := commitlog.Series{
-			ID:          point.ID,
 			Namespace:   namespace,
-			Shard:       shard,
+			Shard:       shardSet.Lookup(point.ID),
+			ID:          point.ID,
 			UniqueIndex: idx,
 		}
-		// println(fmt.Sprintf("write: [ Series = %+v, datapoint = %+v ]", cId, point))
 		require.NoError(t, commitLog.WriteBehind(ctx, cId, point.Datapoint, xtime.Second, nil))
 	}
 
 	closeCommitLogFn()
-}
-
-func readCommitLog(
-	t *testing.T,
-	s *testSetup,
-) {
-	iter, err := commitlog.NewIterator(s.storageOpts.CommitLogOptions())
-	require.NoError(t, err)
-	defer iter.Close()
-	for iter.Next() {
-		cId, dp, _, _ := iter.Current()
-		println(fmt.Sprintf("read: [ Series = %+v, datapoint = %+v ]", cId, dp))
-	}
-	require.NoError(t, iter.Err())
 }
 
 func TestCommitLogBootstrap(t *testing.T) {
@@ -160,7 +143,7 @@ func TestCommitLogBootstrap(t *testing.T) {
 	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
 
 	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-	bsOpts := result.NewOptions()
+	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
 	bclOpts := bcl.NewOptions().
 		SetResultOptions(bsOpts).
 		SetCommitLogOptions(commitLogOpts)
@@ -174,22 +157,16 @@ func TestCommitLogBootstrap(t *testing.T) {
 
 	// Write test data
 	log.Info("generating data")
-	shard := uint32(0)
 	now := setup.getNowFn()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{[]string{"foo"}, 2 /* was 20 */, now.Add(-2 * blockSize)},
-		// {[]string{"foo", "bar"}, 2 /* was 20 */, now.Add(-2 * blockSize)},
-		// {[]string{"bar", "baz"}, 5 /* was 50 */, now.Add(-blockSize)},
+		{[]string{"foo", "bar"}, 20, now.Add(-2 * blockSize)},
+		{[]string{"bar", "baz"}, 50, now.Add(-blockSize)},
 	})
 	_, err = setup.storageOpts.NamespaceRegistry().Get(testNamespaces[0])
 	require.NoError(t, err)
 	log.Info("writing data")
-	writeCommitLog(t, setup, seriesMaps, shard, testNamespaces[0])
+	writeCommitLog(t, setup, seriesMaps, testNamespaces[0])
 	log.Info("written data")
-
-	// log.Infof("reading data")
-	// readCommitLog(t, setup)
-	// log.Infof("read data")
 
 	setup.setNowFn(now)
 	// Start the server with filesystem bootstrapper
@@ -201,11 +178,6 @@ func TestCommitLogBootstrap(t *testing.T) {
 		require.NoError(t, setup.stopServer())
 		log.Debug("server is now down")
 	}()
-
-	bootstrapped := waitUntil(func() bool {
-		return setup.db.IsBootstrapped()
-	}, time.Second*5)
-	require.True(t, bootstrapped)
 
 	// Verify in-memory data match what we expect
 	verifySeriesMaps(t, setup, testNamespaces[0], seriesMaps)

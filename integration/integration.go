@@ -148,11 +148,10 @@ type closeFn func()
 
 func newDefaulTestResultOptions(
 	storageOpts storage.Options,
-	instrumentOpts instrument.Options,
 ) result.Options {
 	return result.NewOptions().
 		SetClockOptions(storageOpts.ClockOptions()).
-		SetInstrumentOptions(instrumentOpts).
+		SetInstrumentOptions(storageOpts.InstrumentOptions()).
 		SetDatabaseBlockOptions(storageOpts.DatabaseBlockOptions())
 }
 
@@ -200,8 +199,9 @@ func newDefaultBootstrappableTestSetups(
 			scope, _ := tally.NewRootScope(tally.ScopeOptions{Reporter: testStatsReporter}, 100*time.Millisecond)
 			instrumentOpts = instrumentOpts.SetMetricsScope(scope)
 		}
+		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(instrumentOpts)
 
-		bsOpts := newDefaulTestResultOptions(setup.storageOpts, instrumentOpts)
+		bsOpts := newDefaulTestResultOptions(setup.storageOpts)
 		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
 		var peersBootstrapper bootstrap.Bootstrapper
 
@@ -239,8 +239,6 @@ func newDefaultBootstrappableTestSetups(
 
 		setup.storageOpts = setup.storageOpts.
 			SetBootstrapProcess(bootstrap.NewProcess(fsBootstrapper, bsOpts))
-
-		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(instrumentOpts)
 
 		setups = append(setups, setup)
 		appendCleanupFn(func() {

@@ -156,8 +156,7 @@ func testSetupToSeriesMaps(
 	metadatasByShard map[uint32][]block.ReplicaMetadata,
 ) map[time.Time]generate.SeriesBlock {
 	seriesMap := make(map[time.Time]generate.SeriesBlock)
-	resultOpts := newDefaulTestResultOptions(testSetup.storageOpts,
-		testSetup.storageOpts.InstrumentOptions())
+	resultOpts := newDefaulTestResultOptions(testSetup.storageOpts)
 	iterPool := testSetup.storageOpts.ReaderIteratorPool()
 	session, err := testSetup.m3dbAdminClient.DefaultAdminSession()
 	require.NoError(t, err)
