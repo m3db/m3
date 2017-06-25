@@ -221,7 +221,7 @@ func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time
 	// ensure StartFlush has been called
 	pm.RLock()
 	status := pm.status
-	pm.Unlock()
+	pm.RUnlock()
 
 	if status != persistManagerFlushing {
 		return prepared, errPersistManagerCannotPrepareNotFlushing
