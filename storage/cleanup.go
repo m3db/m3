@@ -148,20 +148,18 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
 		blockSize        = ropts.BlockSize()
 		earliest, latest = m.commitLogTimeRange(t)
 	)
-	// TODO(prateek): this logic of polling the namespaces across the commit log's entire
-	// retention history could get expensive for long retention periods. e.g. if we retain
-	// some namespace for 40 days, with commit log block size of 2 hours; then every time
+	// NB(prateek): this logic of polling the namespaces across the commit log's entire
+	// retention history could get expensive for if commit logs are retained for long periods.
+	// e.g. if we retain them for 40 days, with a block 2 hours; then every time
 	// we try to flush we are going to be polling each namespace, for each shard, for 480
-	// distinct blockstarts. Say 2 namespaces, each with 8192 shards. ~10M map lookups.
-	// If we cared about 100% correctness, we would optimize this by retaining an interval tree
-	// of pending flush periods per namespace, or some such.
-	//
-	// For our use case, it would probably be easier to just say we only retain a commit log
-	// for the past 1-2 days or something. And live with the rare chance that we loose all the
-	// fileset files (or don't create) them, after that period.
+	// distinct blockstarts. Say we have 2 namespaces, each with 8192 shards, that's ~10M map lookups.
+	// If we cared about 100% correctness, we would optimize this by retaining a smarter data
+	// structure (e.g. interval tree), but for our use-case, it's safe to assume that commit logs
+	// are only retained for a period of 1-2 days (at most), after we which we'd live we with the
+	// data loss.
 
-	// TODO(xichen): preallocate the slice here
-	var times []time.Time
+	numIntervals := latest.Sub(earliest).Nanoseconds() / blockSize.Nanoseconds()
+	times := make([]time.Time, 0, numIntervals)
 	for t := latest; !t.Before(earliest); t = t.Add(-blockSize) {
 		leftBlockStart, rightBlockStart := t.Add(-blockSize), t.Add(blockSize)
 		if anyPendingFlushes := m.fm.NeedsFlush(leftBlockStart, rightBlockStart); !anyPendingFlushes {

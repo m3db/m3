@@ -107,7 +107,6 @@ func (o *options) Validate() error {
 	}
 
 	blockSize := o.retentionOpts.BlockSize()
-	retentionPeriod := o.retentionOpts.RetentionPeriod()
 
 	// NB(prateek): ensure all namespaces in the registry have retention options
 	// compatible with the commit log retention options. i.e. these constraints are met:
@@ -116,16 +115,6 @@ func (o *options) Validate() error {
 	//   (2) all namespace block sizes are divisible by the commit log block size
 	// Rationale: together these properties make it easier to reason about which commit
 	// log block can be removed, or is needed to bootstrap a namespace.
-	//
-	//   (3) no namespace retention period is larger than commit log retention period
-	// Rationale: in the worst case, we would have no fileset files, and would need to
-	// re-read the entire history of operations off the commit log. This requires we
-	// retain commit logs for the entire retention period of all namespaces. We can obviously
-	// delete the commit log blocks once we have fileset files covering the corresponding blocks.
-	//
-	// That said, this is probably too theorectical a condition for our usecase. We should just
-	// mandate a minimum retention of 1-2 days for the commit log and live with what holes arise
-	// after that.
 	metadatas := fsOpts.NamespaceRegistry().Metadatas()
 	for _, md := range metadatas {
 		id := md.ID()
@@ -142,13 +131,6 @@ func (o *options) Validate() error {
 			multiErr = multiErr.Add(fmt.Errorf(
 				"namespace %s has a block size [%v] not divisible by that of the commit log [%v]",
 				id.String(), nsBlockSize.String(), blockSize.String()))
-		}
-
-		nsRetentionPeriod := ropts.RetentionPeriod()
-		if nsRetentionPeriod > retentionPeriod {
-			multiErr = multiErr.Add(fmt.Errorf(
-				"namespace %s has a retention period [%v] larger than that of the commit log [%v]",
-				id.String(), nsRetentionPeriod.String(), retentionPeriod.String()))
 		}
 	}
 
