@@ -27,5 +27,5 @@ func numIntervals(startInclusive, endInclusive time.Time, window time.Duration) 
 		return 0
 	}
 
-	return int(endInclusive.Sub(startInclusive).Nanoseconds() / window.Nanoseconds())
+	return 1 + int(endInclusive.Sub(startInclusive).Nanoseconds()/window.Nanoseconds())
 }
