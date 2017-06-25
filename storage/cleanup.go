@@ -158,8 +158,7 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
 	// are only retained for a period of 1-2 days (at most), after we which we'd live we with the
 	// data loss.
 
-	numIntervals := latest.Sub(earliest).Nanoseconds() / blockSize.Nanoseconds()
-	times := make([]time.Time, 0, numIntervals)
+	times := make([]time.Time, 0, numIntervals(earliest, latest, blockSize))
 	for t := latest; !t.Before(earliest); t = t.Add(-blockSize) {
 		leftBlockStart, rightBlockStart := t.Add(-blockSize), t.Add(blockSize)
 		if anyPendingFlushes := m.fm.NeedsFlush(leftBlockStart, rightBlockStart); !anyPendingFlushes {
