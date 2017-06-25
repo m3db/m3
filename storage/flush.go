@@ -124,8 +124,7 @@ func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time)
 		earliest, latest = m.flushRange(rOpts, curr)
 	)
 
-	// NB(xichen): could preallocate slice here.
-	var flushTimes []time.Time
+	flushTimes := make([]time.Time, 0, numIntervals(earliest, latest, blockSize))
 	for t := latest; !t.Before(earliest); t = t.Add(-blockSize) {
 		if ns.NeedsFlush(t, t.Add(blockSize)) {
 			flushTimes = append(flushTimes, t)
