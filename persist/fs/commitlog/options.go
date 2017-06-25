@@ -87,8 +87,6 @@ func (o *options) Validate() error {
 			fmt.Errorf("flush interval must non-negative"))
 	}
 
-	// TODO(pratek): does strategy/flush size need to be checked here
-
 	if err := o.retentionOpts.Validate(); err != nil {
 		multiErr = multiErr.Add(
 			fmt.Errorf("invalid commit log retention options: %v", err))
