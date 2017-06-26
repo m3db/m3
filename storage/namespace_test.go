@@ -52,7 +52,7 @@ var (
 )
 
 func newTestNamespace(t *testing.T) *dbNamespace {
-	metadata := namespace.NewMetadata(defaultTestNamespaceID, defaultTestNamespaceOptions)
+	metadata := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	hashFn := func(identifier ts.ID) uint32 { return testShardIDs[0].ID() }
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)
@@ -64,7 +64,7 @@ func newTestNamespace(t *testing.T) *dbNamespace {
 
 func TestNamespaceName(t *testing.T) {
 	ns := newTestNamespace(t)
-	require.True(t, defaultTestNamespaceID.Equal(ns.ID()))
+	require.True(t, defaultTestNs1ID.Equal(ns.ID()))
 }
 
 func TestNamespaceTick(t *testing.T) {
@@ -381,7 +381,7 @@ func TestNamespaceFlushAllShards(t *testing.T) {
 	errs := []error{nil, errors.New("foo")}
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().Flush(ts.NewIDMatcher(defaultTestNamespaceID.String()), blockStart, nil).Return(errs[i])
+		shard.EXPECT().Flush(ts.NewIDMatcher(defaultTestNs1ID.String()), blockStart, nil).Return(errs[i])
 		if errs[i] != nil {
 			shard.EXPECT().ID().Return(testShardIDs[i].ID())
 		}
@@ -412,7 +412,7 @@ func TestNamespaceCleanupFilesetAllShards(t *testing.T) {
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().
-			CleanupFileset(ts.NewIDMatcher(defaultTestNamespaceID.String()), earliestToRetain).
+			CleanupFileset(ts.NewIDMatcher(defaultTestNs1ID.String()), earliestToRetain).
 			Return(errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
@@ -462,7 +462,7 @@ func TestNamespaceRepair(t *testing.T) {
 			}
 		}
 		shard.EXPECT().
-			Repair(gomock.Any(), ts.NewIDMatcher(defaultTestNamespaceID.String()), repairTimeRange, repairer).
+			Repair(gomock.Any(), ts.NewIDMatcher(defaultTestNs1ID.String()), repairTimeRange, repairer).
 			Return(res, errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
@@ -507,7 +507,7 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 	closingErrors := shard.NewShards([]shard.Shard{shards[3]})
 	adding := shard.NewShards([]shard.Shard{shards[4]})
 
-	metadata := namespace.NewMetadata(defaultTestNamespaceID, namespace.NewOptions())
+	metadata := namespace.NewMetadata(defaultTestNs1ID, namespace.NewOptions())
 	hashFn := func(identifier ts.ID) uint32 { return shards[0].ID() }
 	shardSet, err := sharding.NewShardSet(prevAssignment.All(), hashFn)
 	require.NoError(t, err)
@@ -577,7 +577,7 @@ type needsFlushTestCase struct {
 func newNeedsFlushNamespace(t *testing.T, shardNumbers []uint32) *dbNamespace {
 	shards := sharding.NewShards(shardNumbers, shard.Available)
 	dopts := testDatabaseOptions()
-	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNamespaceID)
+	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNs1ID)
 	require.NoError(t, err)
 
 	var (
@@ -748,7 +748,7 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
 		dopts  = testDatabaseOptions()
 	)
-	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNamespaceID)
+	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNs1ID)
 	require.NoError(t, err)
 
 	var (
@@ -790,7 +790,7 @@ func TestNamespaceNeedsFlushCountsLeastNumFailures(t *testing.T) {
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
 		dopts  = testDatabaseOptions().SetMaxFlushRetries(2)
 	)
-	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNamespaceID)
+	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNs1ID)
 	require.NoError(t, err)
 
 	var (
@@ -844,7 +844,7 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
 		dopts  = testDatabaseOptions()
 	)
-	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNamespaceID)
+	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNs1ID)
 	require.NoError(t, err)
 
 	var (
@@ -895,7 +895,7 @@ func TestNamespaceNeedsFlushInProgress(t *testing.T) {
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
 		dopts  = testDatabaseOptions()
 	)
-	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNamespaceID)
+	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNs1ID)
 	require.NoError(t, err)
 
 	var (

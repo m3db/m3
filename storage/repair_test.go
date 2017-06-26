@@ -228,7 +228,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 	opts := testDatabaseOptions()
 	copts := opts.ClockOptions()
 	iopts := opts.InstrumentOptions()
-	rtopts := defaultTestRetentionOptions
+	rtopts := defaultTestRetentionOpts
 	opts = opts.
 		SetClockOptions(copts.SetNowFn(nowFn)).
 		SetInstrumentOptions(iopts.SetMetricsScope(tally.NoopScope))
@@ -356,7 +356,7 @@ func TestRepairerRepairTimes(t *testing.T) {
 	require.NoError(t, err)
 	r := repairer.(*dbRepairer)
 	for _, input := range inputTimes {
-		r.repairStates.set(defaultTestNamespaceID, input.bs, input.rs)
+		r.repairStates.set(defaultTestNs1ID, input.bs, input.rs)
 	}
 
 	testNs := newTestNamespace(t)

@@ -102,21 +102,26 @@ func (d *mockDatabase) FetchBlocksMetadata(
 }
 
 var (
-	defaultTestNamespaceID      = ts.StringID("testns1")
-	defaultTestRetentionOptions = retention.NewOptions().
+	defaultTestNs1ID         = ts.StringID("testns1")
+	defaultTestNs2ID         = ts.StringID("testns2")
+	defaultTestRetentionOpts = retention.NewOptions().
 					SetBufferFuture(10 * time.Minute).
 					SetBufferPast(10 * time.Minute).
 					SetBlockSize(2 * time.Hour).
 					SetRetentionPeriod(2 * 24 * time.Hour)
+	defaultTestNs2RetentionOpts = retention.NewOptions().
+					SetBufferFuture(10 * time.Minute).
+					SetBufferPast(10 * time.Minute).
+					SetBlockSize(4 * time.Hour).
+					SetRetentionPeriod(2 * 24 * time.Hour)
 
-	defaultTestNamespaceOptions = namespace.NewOptions().
-					SetRetentionOptions(defaultTestRetentionOptions)
+	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
+	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
 
 	defaultTestNamespaceRegistry = namespace.NewRegistry([]namespace.Metadata{
-		namespace.NewMetadata(
-			defaultTestNamespaceID,
-			namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOptions),
-		)})
+		namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts),
+		namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts),
+	})
 
 	_opts = newOptions(pool.NewObjectPoolOptions().SetSize(16))
 
@@ -127,7 +132,7 @@ var (
 					SetTickInterval(10 * time.Minute).
 					SetNamespaceRegistry(defaultTestNamespaceRegistry).
 					SetCommitLogOptions(_opts.CommitLogOptions().
-						SetRetentionOptions(defaultTestRetentionOptions).
+						SetRetentionOptions(defaultTestRetentionOpts).
 						SetFilesystemOptions(_opts.CommitLogOptions().
 							FilesystemOptions().SetNamespaceRegistry(defaultTestNamespaceRegistry)))
 )

@@ -46,7 +46,7 @@ func newMultipleFlushManagerNeedsFlush(t *testing.T, ctrl *gomock.Controller) (
 
 	db := newMockDatabase()
 	db.namespaces = map[string]databaseNamespace{
-		defaultTestNamespaceID.String(): namespace,
+		defaultTestNs1ID.String(): namespace,
 		"someString":                    otherNamespace,
 	}
 
@@ -133,7 +133,7 @@ func TestFlushManagerFlushTimeStart(t *testing.T) {
 	database := newMockDatabase()
 	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
 	for _, input := range inputs {
-		start, _ := fm.flushRange(defaultTestRetentionOptions, input.ts)
+		start, _ := fm.flushRange(defaultTestRetentionOpts, input.ts)
 		require.Equal(t, input.expected, start)
 	}
 }
@@ -150,7 +150,7 @@ func TestFlushManagerFlushTimeEnd(t *testing.T) {
 	database := newMockDatabase()
 	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
 	for _, input := range inputs {
-		_, end := fm.flushRange(defaultTestRetentionOptions, input.ts)
+		_, end := fm.flushRange(defaultTestRetentionOpts, input.ts)
 		require.Equal(t, input.expected, end)
 	}
 }

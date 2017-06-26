@@ -50,11 +50,11 @@ func TestOptionsValidateNilRegistry(t *testing.T) {
 }
 
 func TestOptionsValidateDifferentRetentionsSameNamespaces(t *testing.T) {
-	newRetentionOpts := defaultTestRetentionOptions.
-		SetBlockSize(defaultTestRetentionOptions.BlockSize() * 2)
+	newRetentionOpts := defaultTestRetentionOpts.
+		SetBlockSize(defaultTestRetentionOpts.BlockSize() * 2)
 	newNsOpts := namespace.NewOptions().SetRetentionOptions(newRetentionOpts)
 	newRegistry := namespace.NewRegistry([]namespace.Metadata{
-		namespace.NewMetadata(defaultTestNamespaceID, newNsOpts)})
+		namespace.NewMetadata(defaultTestNs1ID, newNsOpts)})
 
 	dbOpts := testDatabaseOptions().
 		SetNamespaceRegistry(newRegistry)
@@ -62,7 +62,7 @@ func TestOptionsValidateDifferentRetentionsSameNamespaces(t *testing.T) {
 }
 
 func TestOptionsValidateRegistryDifferentNamespaces(t *testing.T) {
-	newNsOpts := namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOptions)
+	newNsOpts := namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
 	newRegistry := namespace.NewRegistry([]namespace.Metadata{
 		namespace.NewMetadata(ts.StringID("someString"), newNsOpts)})
 
