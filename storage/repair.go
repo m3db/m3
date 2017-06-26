@@ -339,7 +339,17 @@ func (r *dbRepairer) needsRepair(ns ts.ID, t time.Time) bool {
 	if !exists {
 		return true
 	}
-	return repairState.Status == repairFailed && repairState.NumFailures < r.repairMaxRetries
+	return repairState.Status == repairNotStarted ||
+		(repairState.Status == repairFailed && repairState.NumFailures < r.repairMaxRetries)
+}
+
+func (r *dbRepairer) setRepairState(ns ts.ID, t time.Time) bool {
+	repairState, exists := r.repairStates.get(ns, t)
+	if !exists {
+		return true
+	}
+	return repairState.Status == repairNotStarted ||
+		(repairState.Status == repairFailed && repairState.NumFailures < r.repairMaxRetries)
 }
 
 func (r *dbRepairer) Start() {
@@ -370,33 +380,13 @@ func (r *dbRepairer) Repair() error {
 		atomic.StoreInt32(&r.running, 0)
 	}()
 
-	var (
-		multiErr   = xerrors.NewMultiError()
-		namespaces = r.database.getOwnedNamespaces()
-	)
-	for _, n := range namespaces {
-		var (
-			rtopts    = n.Options().RetentionOptions()
-			blockSize = rtopts.BlockSize()
-			iter      = r.namespaceRepairTimeRanges(n).Iter()
-		)
+	multiErr := xerrors.NewMultiError()
+	for _, n := range r.database.getOwnedNamespaces() {
+		iter := r.namespaceRepairTimeRanges(n).Iter()
 		for iter.Next() {
-			tr := iter.Value()
-			err := r.repairNamespaceWithTimeRange(n, tr)
-			for t := tr.Start; t.Before(tr.End); t = t.Add(blockSize) {
-				repairState, _ := r.repairStates.get(n.ID(), t)
-				if err == nil {
-					repairState.Status = repairSuccess
-				} else {
-					repairState.Status = repairFailed
-					repairState.NumFailures++
-				}
-				r.repairStates.set(n.ID(), t, repairState)
-			}
-			multiErr = multiErr.Add(err)
+			multiErr = multiErr.Add(r.repairNamespaceWithTimeRange(n, iter.Value()))
 		}
 	}
-
 	return multiErr.FinalError()
 }
 
@@ -409,10 +399,30 @@ func (r *dbRepairer) Report() {
 }
 
 func (r *dbRepairer) repairNamespaceWithTimeRange(n databaseNamespace, tr xtime.Range) error {
-	if err := n.Repair(r.shardRepairer, tr); err != nil {
-		return fmt.Errorf("namespace %s failed to repair time range %v: %v", n.ID().String(), tr, err)
+	var (
+		rtopts    = n.Options().RetentionOptions()
+		blockSize = rtopts.BlockSize()
+		err       error
+	)
+
+	// repair the namespace
+	if err = n.Repair(r.shardRepairer, tr); err != nil {
+		err = fmt.Errorf("namespace %s failed to repair time range %v: %v", n.ID().String(), tr, err)
 	}
-	return nil
+
+	// update repairer state
+	for t := tr.Start; t.Before(tr.End); t = t.Add(blockSize) {
+		repairState, _ := r.repairStates.get(n.ID(), t)
+		if err == nil {
+			repairState.Status = repairSuccess
+		} else {
+			repairState.Status = repairFailed
+			repairState.NumFailures++
+		}
+		r.repairStates.set(n.ID(), t, repairState)
+	}
+
+	return err
 }
 
 var noOpRepairer databaseRepairer = repairerNoOp{}

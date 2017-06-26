@@ -26,17 +26,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
-
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func TestDatabaseRepairerStartStop(t *testing.T) {
@@ -354,6 +356,7 @@ func TestRepairerRepairTimes(t *testing.T) {
 	res := r.namespaceRepairTimeRanges(testNs)
 	expectedRanges := xtime.NewRanges().
 		AddRange(xtime.Range{Start: time.Unix(14400, 0), End: time.Unix(28800, 0)}).
+		AddRange(xtime.Range{Start: time.Unix(36000, 0), End: time.Unix(43200, 0)}).
 		AddRange(xtime.Range{Start: time.Unix(50400, 0), End: time.Unix(187200, 0)})
 	require.Equal(t, expectedRanges, res)
 }
@@ -380,21 +383,29 @@ func TestRepairerRepairWithTime(t *testing.T) {
 	namespaces := make(map[string]databaseNamespace)
 	for _, input := range inputs {
 		ns := NewMockdatabaseNamespace(ctrl)
+		id := ts.StringID(input.name)
+		ropts := retention.NewOptions()
+		nsOpts := namespace.NewMockOptions(ctrl)
+		nsOpts.EXPECT().RetentionOptions().Return(ropts)
+		ns.EXPECT().Options().Return(nsOpts)
 		ns.EXPECT().Repair(gomock.Not(nil), repairTimeRange).Return(input.err)
-
+		ns.EXPECT().ID().Return(id).AnyTimes()
+		err := r.repairNamespaceWithTimeRange(ns, repairTimeRange)
+		rs, ok := r.repairStates.get(id, time.Unix(7200, 0))
+		require.True(t, ok)
 		if input.err == nil {
-			require.NoError(t, r.repairNamespaceWithTimeRange(ns, repairTimeRange))
+			require.NoError(t, err)
+			require.Equal(t, repairState{Status: repairSuccess}, rs)
 		} else {
-			ns.EXPECT().ID().Return(ts.StringID(input.name))
-			require.Error(t, r.repairNamespaceWithTimeRange(ns, repairTimeRange))
+			require.Error(t, err)
+			require.Equal(t, repairState{Status: repairFailed, NumFailures: 1}, rs)
 		}
 		namespaces[input.name] = ns
 	}
 	database.namespaces = namespaces
 }
 
-// TODO(prateek): write unit tests for multiple namespaces in the repairer
-func TestRepairerMultipleNamespaces(t *testing.T) {
+func TestRepairerTimesMultipleNamespaces(t *testing.T) {
 	// tf2(i) returns the start time of the i_th 2 hour block since epoch
 	tf2 := func(i int) time.Time {
 		return time.Unix(int64(i*7200), 0)
@@ -439,16 +450,15 @@ func TestRepairerMultipleNamespaces(t *testing.T) {
 	res := r.namespaceRepairTimeRanges(testNs1)
 	expectedRanges := xtime.NewRanges().
 		AddRange(xtime.Range{Start: tf2(2), End: tf2(4)}).
+		AddRange(xtime.Range{Start: tf2(5), End: tf2(6)}).
 		AddRange(xtime.Range{Start: tf2(7), End: tf2(26)})
 	require.Equal(t, expectedRanges, res)
 
-	// testNs2 := newTestNamespaceWithIDOpts(t, defaultTestNs2ID, defaultTestNs2Opts)
-	// res = r.namespaceRepairTimeRanges(testNs2)
-	// expectedRanges = xtime.NewRanges().
-	// 	AddRange(xtime.Range{Start: tf4(1), End: tf4(2)}).
-	// 	AddRange(xtime.Range{Start: tf4(3), End: tf4(3)}).
-	// 	AddRange(xtime.Range{Start: tf4(4), End: tf4(4)}).
-	// 	AddRange(xtime.Range{Start: tf4(5), End: tf4(6)})
-	// AddRange(xtime.Range{Start: tf4(7), End: tf4(13)})
-	// require.Equal(t, expectedRanges, res)
+	testNs2 := newTestNamespaceWithIDOpts(t, defaultTestNs2ID, defaultTestNs2Opts)
+	res = r.namespaceRepairTimeRanges(testNs2)
+	expectedRanges = xtime.NewRanges().
+		AddRange(xtime.Range{Start: tf4(1), End: tf4(2)}).
+		AddRange(xtime.Range{Start: tf4(3), End: tf4(6)}).
+		AddRange(xtime.Range{Start: tf4(7), End: tf4(13)})
+	require.Equal(t, expectedRanges, res)
 }
