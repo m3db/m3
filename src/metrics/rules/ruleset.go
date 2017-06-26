@@ -23,6 +23,7 @@ package rules
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math"
 	"sort"
 	"time"
@@ -42,19 +43,45 @@ var (
 )
 
 // MatchMode determines how match is performed.
-type MatchMode int
+type MatchMode string
 
 // List of supported match modes.
 const (
 	// When performing matches in ForwardMatch mode, the matcher matches the given id against
 	// both the mapping rules and rollup rules to find out the applicable mapping policies
 	// and rollup policies.
-	ForwardMatch MatchMode = iota
+	ForwardMatch MatchMode = "forward"
 
 	// When performing matches in ReverseMatch mode, the matcher find the applicable mapping
 	// policies for the given id.
-	ReverseMatch
+	ReverseMatch MatchMode = "reverse"
 )
+
+// UnmarshalYAML unmarshals match mode from a string.
+func (m *MatchMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+
+	parsed, err := parseMatchMode(str)
+	if err != nil {
+		return err
+	}
+
+	*m = parsed
+	return nil
+}
+
+func parseMatchMode(value string) (MatchMode, error) {
+	mode := MatchMode(value)
+	switch mode {
+	case ForwardMatch, ReverseMatch:
+		return mode, nil
+	default:
+		return mode, fmt.Errorf("unknown match mode: %s", value)
+	}
+}
 
 // Matcher matches metrics against rules to determine applicable policies.
 type Matcher interface {

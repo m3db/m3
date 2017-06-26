@@ -27,6 +27,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv/mem"
+	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 
@@ -41,6 +42,7 @@ func TestConfigurationNewNamespaces(t *testing.T) {
 		NamespaceTag:     "NamespaceTag",
 		DefaultNamespace: "DefaultNamespace",
 		NameTagKey:       "NameTagKey",
+		MatchMode:        "forward",
 	}
 
 	ctrl := gomock.NewController(t)
@@ -57,4 +59,5 @@ func TestConfigurationNewNamespaces(t *testing.T) {
 	require.Equal(t, cfg.NamespacesKey, opts.NamespacesKey())
 	require.Equal(t, []byte(cfg.NamespaceTag), opts.NamespaceTag())
 	require.Equal(t, []byte(cfg.DefaultNamespace), opts.DefaultNamespace())
+	require.Equal(t, rules.ForwardMatch, opts.MatchMode())
 }
