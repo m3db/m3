@@ -46,7 +46,7 @@ type options struct {
 // NewOptions creates new database series options
 func NewOptions() Options {
 	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{
-		pool.Bucket{Count: 0, Capacity: 128},
+		pool.Bucket{Count: 4096, Capacity: 128},
 	}, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})
