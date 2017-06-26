@@ -149,6 +149,49 @@ func TestReadOrderedValues(t *testing.T) {
 	requireShardResults(t, values[:4], res.ShardResults(), opts)
 }
 
+func TestReadNamespaceFiltering(t *testing.T) {
+	opts := testOptions()
+	src := newCommitLogSource(opts).(*commitLogSource)
+
+	blockSize := opts.CommitLogOptions().RetentionOptions().BlockSize()
+	now := time.Now()
+	start := now.Truncate(blockSize).Add(-blockSize)
+	end := now
+
+	// Request a little after the start of data, because always reading full blocks
+	// it should return the entire block beginning from "start"
+	require.True(t, blockSize >= time.Hour)
+	ranges := xtime.NewRanges()
+	ranges = ranges.AddRange(xtime.Range{
+		Start: start.Add(time.Minute),
+		End:   end,
+	})
+
+	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ts.StringID("foo")}
+	bar := commitlog.Series{Namespace: testNamespaceID, Shard: 1, ID: ts.StringID("bar")}
+	baz := commitlog.Series{Namespace: ts.StringID("someID"), Shard: 0, ID: ts.StringID("baz")}
+
+	values := []testValue{
+		{foo, start, 1.0, xtime.Second, nil},
+		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
+		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
+		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, nil},
+		// "baz" is in another namespace should not be returned
+		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, nil},
+	}
+	src.newIteratorFn = func(_ commitlog.Options) (commitlog.Iterator, error) {
+		return newTestCommitLogIterator(values, nil), nil
+	}
+
+	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
+	res, err := src.Read(testNamespaceID, targetRanges, testDefaultRunOpts)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.Equal(t, 2, len(res.ShardResults()))
+	require.Equal(t, 0, len(res.Unfulfilled()))
+	requireShardResults(t, values[:4], res.ShardResults(), opts)
+}
+
 func TestReadUnorderedValues(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts).(*commitLogSource)
@@ -413,5 +456,3 @@ func (i *testCommitLogIterator) Err() error {
 func (i *testCommitLogIterator) Close() {
 	i.closed = true
 }
-
-// TODO(prateek): create unit test for multiple namespace, with same and different retention periods
