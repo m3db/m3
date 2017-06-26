@@ -133,8 +133,9 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	}
 	writeCommitLog(t, setup, commitlogSeriesMaps, ns1.ID())
 
+	log.Info("moving time forward and starting server")
 	setup.setNowFn(t3)
-	// Start the server with filesystem bootstrapper
+	// Start the server
 	require.NoError(t, setup.startServer())
 	log.Debug("server is now up")
 
@@ -144,5 +145,6 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		log.Debug("server is now down")
 	}()
 
+	log.Info("vaildating bootstrapped data")
 	verifySeriesMaps(t, setup, ns1.ID(), seriesMaps)
 }
