@@ -199,6 +199,25 @@ func (o *options) Validate() error {
 		return fmt.Errorf("commit log fs options namespace registry differs from storage options namespace registry")
 	}
 
+	if o.RepairEnabled() {
+		rOpts := o.RepairOptions()
+		if rOpts == nil {
+			return fmt.Errorf("repair options not set")
+		}
+		if err := rOpts.Validate(); err != nil {
+			return fmt.Errorf("unable to validate repair options, err: %v", err)
+		}
+		adminClient := rOpts.AdminClient()
+		opts, err := adminClient.Options()
+		if err != nil {
+			return fmt.Errorf("unable to retrieve repair options admin client options, err: %v", err)
+		}
+		ns := opts.NamespaceRegistry()
+		if !registry.Equal(ns) {
+			return fmt.Errorf("repair admin client namespace registry differs from storage options namespace registry")
+		}
+	}
+
 	// NB(prateek): FileOpOptions.Jitter needs to be smaller than block size for all
 	// known retention periods. We rely on commit log Validate to ensure it has the
 	// smallest block size of all the known namespaces, and here only check if the

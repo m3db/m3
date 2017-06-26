@@ -121,6 +121,7 @@ var (
 	_opts = newOptions(pool.NewObjectPoolOptions().SetSize(16))
 
 	defaultTestDatabaseOptions = _opts.
+					SetRepairEnabled(false).
 					SetMaxFlushRetries(3).
 					SetFileOpOptions(NewFileOpOptions().SetJitter(0)).
 					SetTickInterval(10 * time.Minute).
@@ -138,18 +139,28 @@ func testDatabaseOptions() Options {
 	// several times.
 	return defaultTestDatabaseOptions
 }
+func testDatabaseOptionsWithRepair(ctrl *gomock.Controller) Options {
+	opts := testDatabaseOptions()
+
+	mockAdminClient := client.NewMockAdminClient(ctrl)
+	mockAdminOpts := client.NewMockAdminOptions(ctrl)
+	mockAdminOpts.EXPECT().NamespaceRegistry().Return(opts.NamespaceRegistry())
+	mockAdminClient.EXPECT().Options().Return(mockAdminOpts, nil)
+	opts = opts.SetRepairEnabled(true).
+		SetRepairOptions(repair.NewOptions().
+			SetAdminClient(mockAdminClient).
+			SetRepairInterval(time.Duration(0)).
+			SetRepairTimeOffset(time.Duration(0)).
+			SetRepairTimeJitter(time.Duration(0)).
+			SetRepairCheckInterval(time.Duration(0)))
+	return opts
+}
 
 func newTestDatabase(t *testing.T, bs bootstrapState) *db {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions()
-	opts = opts.SetRepairOptions(repair.NewOptions().
-		SetAdminClient(client.NewMockAdminClient(ctrl)).
-		SetRepairInterval(time.Duration(0)).
-		SetRepairTimeOffset(time.Duration(0)).
-		SetRepairTimeJitter(time.Duration(0)).
-		SetRepairCheckInterval(time.Duration(0)))
+	opts := testDatabaseOptionsWithRepair(ctrl)
 
 	shards := sharding.NewShards([]uint32{0, 1}, shard.Available)
 	shardSet, err := sharding.NewShardSet(shards, nil)
