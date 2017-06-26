@@ -22,7 +22,127 @@
 
 package integration
 
-// TODO(prateek): add integration test for the following cases:
-// (1) fs + commit log bootstrap merging of data
-//    - missing chunk of fileset data that's recovered using the commit log
-// (2) differrent retention namespaces + commit log use-case
+import (
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/m3db/m3db/integration/generate"
+	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
+	bcl "github.com/m3db/m3db/storage/bootstrap/bootstrapper/commitlog"
+	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
+	"github.com/m3db/m3db/storage/namespace"
+)
+
+// Consider a database running with a single namespaces, and the following retention opts:
+//
+//           | BlockSize | Retention Period
+// ns1       |    2h     |      8h
+// commitLog |   15m     |      8h
+//
+// We have a block for each of the two at each marker in the diagram below.
+//
+// time (flowing left --> right):
+// time-label: t0  t1  t2  t3
+//  ns1        .   .          [blocksize . is 2h]
+//  commitlog      ,,,,,,,,,  [blocksize , is 30min]
+//
+// The test creates the blocks below, and verifies the bootstrappers are able to merge the data
+// successfully.
+// - ns1 block at t0 and t1
+// - commit log blocks from [t1, t3]
+func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
+	// Test setup
+	var (
+		tickInterval       = 3 * time.Second
+		commitLogBlockSize = 15 * time.Minute
+		clROpts            = retention.NewOptions().SetRetentionPeriod(8 * time.Hour).SetBlockSize(commitLogBlockSize)
+		ns1BlockSize       = 2 * time.Hour
+		ns1ROpts           = clROpts.SetRetentionPeriod(8 * time.Hour).SetBlockSize(ns1BlockSize)
+		ns1                = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ns1ROpts))
+
+		opts = newTestOptions().
+			SetTickInterval(tickInterval).
+			SetCommitLogRetention(clROpts).
+			SetNamespaces([]namespace.Metadata{ns1})
+	)
+
+	// Test setup
+	setup, err := newTestSetup(opts)
+	require.NoError(t, err)
+	defer setup.close()
+
+	commitLogOpts := setup.storageOpts.CommitLogOptions().
+		SetFlushInterval(defaultIntegrationTestFlushInterval)
+	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
+
+	// commit log bootstrapper
+	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
+	bclOpts := bcl.NewOptions().
+		SetResultOptions(bsOpts).
+		SetCommitLogOptions(commitLogOpts)
+	commitLogBootstrapper, err := bcl.NewCommitLogBootstrapper(bclOpts, noOpAll)
+	require.NoError(t, err)
+	// fs bootstrapper
+	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
+	filePathPrefix := fsOpts.FilePathPrefix()
+	bfsOpts := fs.NewOptions().
+		SetResultOptions(bsOpts).
+		SetFilesystemOptions(fsOpts)
+	fsBootstrapper, err := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, commitLogBootstrapper)
+	require.NoError(t, err)
+
+	// bootstrapper storage opts
+	process := bootstrap.NewProcess(fsBootstrapper, bsOpts)
+	setup.storageOpts = setup.storageOpts.SetBootstrapProcess(process)
+
+	log := setup.storageOpts.InstrumentOptions().Logger()
+	log.Info("commit log + fs merge bootstrap test")
+
+	// generate and write test data
+	var (
+		t0 = setup.getNowFn()
+		t1 = t0.Add(ns1BlockSize)
+		t2 = t1.Add(ns1BlockSize)
+		t3 = t2.Add(ns1BlockSize)
+	)
+	blockConfigs := []generate.BlockConfig{
+		{[]string{"foo", "bar"}, 20, t0},
+		{[]string{"nah", "baz"}, 50, t1},
+		{[]string{"hax", "ord"}, 30, t2},
+	}
+	log.Info("generating data")
+	seriesMaps := generate.BlocksByStart(blockConfigs)
+	log.Info("generated data")
+
+	log.Info("writing filesets")
+	fsSeriesMaps := generate.SeriesBlocksByStart{
+		t0: seriesMaps[t0],
+		t1: seriesMaps[t1],
+	}
+	require.NoError(t, writeTestDataToDisk(ns1, setup, fsSeriesMaps))
+
+	log.Info("writing commit logs")
+	commitlogSeriesMaps := generate.SeriesBlocksByStart{
+		t1: seriesMaps[t1],
+		t2: seriesMaps[t2],
+	}
+	writeCommitLog(t, setup, commitlogSeriesMaps, ns1.ID())
+
+	setup.setNowFn(t3)
+	// Start the server with filesystem bootstrapper
+	require.NoError(t, setup.startServer())
+	log.Debug("server is now up")
+
+	// Stop the server
+	defer func() {
+		require.NoError(t, setup.stopServer())
+		log.Debug("server is now down")
+	}()
+
+	verifySeriesMaps(t, setup, ns1.ID(), seriesMaps)
+}
