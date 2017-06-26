@@ -40,8 +40,9 @@ import (
 )
 
 var (
-	testNamespaceID    = ts.StringID("testnamespace")
-	testDefaultRunOpts = bootstrap.NewRunOptions().SetIncremental(true)
+	testNamespaceID       = ts.StringID("testnamespace")
+	testDefaultRunOpts    = bootstrap.NewRunOptions().SetIncremental(true)
+	minCommitLogRetention = 10 * time.Minute
 )
 
 func testOptions() Options {
@@ -117,6 +118,7 @@ func TestReadOrderedValues(t *testing.T) {
 
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
+	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.NewRanges()
 	ranges = ranges.AddRange(xtime.Range{
 		Start: start.Add(time.Minute),
@@ -159,6 +161,7 @@ func TestReadNamespaceFiltering(t *testing.T) {
 
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
+	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.NewRanges()
 	ranges = ranges.AddRange(xtime.Range{
 		Start: start.Add(time.Minute),
@@ -201,6 +204,7 @@ func TestReadUnorderedValues(t *testing.T) {
 
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
+	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.NewRanges()
 	ranges = ranges.AddRange(xtime.Range{
 		Start: start.Add(time.Minute),
@@ -240,6 +244,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
+	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.NewRanges()
 	ranges = ranges.AddRange(xtime.Range{
 		Start: start.Add(time.Minute),
