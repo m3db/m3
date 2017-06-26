@@ -52,7 +52,11 @@ var (
 )
 
 func newTestNamespace(t *testing.T) *dbNamespace {
-	metadata := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	return newTestNamespaceWithIDOpts(t, defaultTestNs1ID, defaultTestNs1Opts)
+}
+
+func newTestNamespaceWithIDOpts(t *testing.T, nsID ts.ID, opts namespace.Options) *dbNamespace {
+	metadata := namespace.NewMetadata(nsID, opts)
 	hashFn := func(identifier ts.ID) uint32 { return testShardIDs[0].ID() }
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)

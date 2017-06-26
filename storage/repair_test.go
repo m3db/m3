@@ -395,10 +395,13 @@ func TestRepairerRepairWithTime(t *testing.T) {
 
 // TODO(prateek): write unit tests for multiple namespaces in the repairer
 func TestRepairerMultipleNamespaces(t *testing.T) {
-	// tf(i) returns the start time of the i_th 2 hour block since epoch
-	tf := func(i int) time.Time {
-		secondsInTwoHours := 7200
-		return time.Unix(int64(i*secondsInTwoHours), 0)
+	// tf2(i) returns the start time of the i_th 2 hour block since epoch
+	tf2 := func(i int) time.Time {
+		return time.Unix(int64(i*7200), 0)
+	}
+	// tf4(i) returns the start time of the i_th 4 hour block since epoch
+	tf4 := func(i int) time.Time {
+		return tf2(2 * i)
 	}
 
 	ctrl := gomock.NewController(t)
@@ -416,14 +419,14 @@ func TestRepairerMultipleNamespaces(t *testing.T) {
 		bs time.Time
 		rs repairState
 	}{
-		{defaultTestNs1ID, tf(2), repairState{repairFailed, 2}},
-		{defaultTestNs1ID, tf(4), repairState{repairFailed, 3}},
-		{defaultTestNs1ID, tf(5), repairState{repairNotStarted, 0}},
-		{defaultTestNs1ID, tf(6), repairState{repairSuccess, 1}},
-		{defaultTestNs2ID, tf(0), repairState{repairFailed, 1}},
-		{defaultTestNs2ID, tf(4), repairState{repairFailed, 3}},
-		{defaultTestNs2ID, tf(8), repairState{repairNotStarted, 0}},
-		{defaultTestNs2ID, tf(12), repairState{repairSuccess, 1}},
+		{defaultTestNs1ID, tf2(2), repairState{repairFailed, 2}},
+		{defaultTestNs1ID, tf2(4), repairState{repairFailed, 3}},
+		{defaultTestNs1ID, tf2(5), repairState{repairNotStarted, 0}},
+		{defaultTestNs1ID, tf2(6), repairState{repairSuccess, 1}},
+		{defaultTestNs2ID, tf4(1), repairState{repairFailed, 1}},
+		{defaultTestNs2ID, tf4(2), repairState{repairFailed, 3}},
+		{defaultTestNs2ID, tf4(4), repairState{repairNotStarted, 0}},
+		{defaultTestNs2ID, tf4(6), repairState{repairSuccess, 1}},
 	}
 	repairer, err := newDatabaseRepairer(database, database.opts)
 	require.NoError(t, err)
@@ -432,10 +435,20 @@ func TestRepairerMultipleNamespaces(t *testing.T) {
 		r.repairStates.set(input.ns, input.bs, input.rs)
 	}
 
-	testNs := newTestNamespace(t)
-	res := r.namespaceRepairTimeRanges(testNs)
+	testNs1 := newTestNamespaceWithIDOpts(t, defaultTestNs1ID, defaultTestNs1Opts)
+	res := r.namespaceRepairTimeRanges(testNs1)
 	expectedRanges := xtime.NewRanges().
-		AddRange(xtime.Range{Start: tf(2), End: tf(4)}).
-		AddRange(xtime.Range{Start: tf(7), End: tf(26)})
+		AddRange(xtime.Range{Start: tf2(2), End: tf2(4)}).
+		AddRange(xtime.Range{Start: tf2(7), End: tf2(26)})
 	require.Equal(t, expectedRanges, res)
+
+	// testNs2 := newTestNamespaceWithIDOpts(t, defaultTestNs2ID, defaultTestNs2Opts)
+	// res = r.namespaceRepairTimeRanges(testNs2)
+	// expectedRanges = xtime.NewRanges().
+	// 	AddRange(xtime.Range{Start: tf4(1), End: tf4(2)}).
+	// 	AddRange(xtime.Range{Start: tf4(3), End: tf4(3)}).
+	// 	AddRange(xtime.Range{Start: tf4(4), End: tf4(4)}).
+	// 	AddRange(xtime.Range{Start: tf4(5), End: tf4(6)})
+	// AddRange(xtime.Range{Start: tf4(7), End: tf4(13)})
+	// require.Equal(t, expectedRanges, res)
 }
