@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -43,6 +44,39 @@ var (
 	compressedP999, _         = compressor.Compress(policy.AggregationTypes{policy.P999})
 	compressedCountAndMean, _ = compressor.Compress(policy.AggregationTypes{policy.Count, policy.Mean})
 )
+
+func TestMatchModeUnmarshalYAML(t *testing.T) {
+	inputs := []struct {
+		str         string
+		expected    MatchMode
+		expectedErr bool
+	}{
+		{
+			str:      "forward",
+			expected: ForwardMatch,
+		},
+		{
+			str:      "reverse",
+			expected: ReverseMatch,
+		},
+		{
+			str:         "bad",
+			expectedErr: true,
+		},
+	}
+	for _, input := range inputs {
+		var m MatchMode
+		err := yaml.Unmarshal([]byte(input.str), &m)
+
+		if input.expectedErr {
+			require.Error(t, err)
+			continue
+		}
+
+		require.NoError(t, err)
+		require.Equal(t, input.expected, m)
+	}
+}
 
 func TestActiveRuleSetMappingPoliciesForNonRollupID(t *testing.T) {
 	inputs := []testMappingsData{

@@ -44,6 +44,7 @@ type Configuration struct {
 	DefaultNamespace      string                       `yaml:"defaultNamespace" validate:"nonzero"`
 	NameTagKey            string                       `yaml:"nameTagKey" validate:"nonzero"`
 	SortedTagIteratorPool pool.ObjectPoolConfiguration `yaml:"sortedTagIteratorPool"`
+	MatchMode             rules.MatchMode              `yaml:"matchMode"`
 }
 
 // NewNamespaces creates a matcher.Namespaces.
@@ -128,7 +129,8 @@ func (cfg *Configuration) NewOptions(
 		SetNamespacesKey(cfg.NamespacesKey).
 		SetRuleSetKeyFn(ruleSetKeyFn).
 		SetNamespaceTag([]byte(cfg.NamespaceTag)).
-		SetDefaultNamespace([]byte(cfg.DefaultNamespace))
+		SetDefaultNamespace([]byte(cfg.DefaultNamespace)).
+		SetMatchMode(cfg.MatchMode)
 
 	if cfg.InitWatchTimeout != 0 {
 		opts = opts.SetInitWatchTimeout(cfg.InitWatchTimeout)
