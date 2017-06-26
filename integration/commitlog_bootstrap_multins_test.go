@@ -36,26 +36,38 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 )
 
-func TestCommitLogBootstrap(t *testing.T) {
+func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
+
 	}
 
 	// Test setup
 	var (
-		ropts     = retention.NewOptions().SetRetentionPeriod(12 * time.Hour)
-		blockSize = ropts.BlockSize()
-		ns1       = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
-		ns2       = namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ropts))
-		opts      = newTestOptions().SetNamespaces([]namespace.Metadata{ns1, ns2})
+		tickInterval       = 3 * time.Second
+		commitLogBlockSize = 15 * time.Minute
+		clROpts            = retention.NewOptions().SetRetentionPeriod(48 * time.Hour).SetBlockSize(commitLogBlockSize)
+		ns1BlockSize       = time.Hour
+		ns1ROpts           = clROpts.SetRetentionPeriod(48 * time.Hour).SetBlockSize(ns1BlockSize)
+		ns2BlockSize       = 30 * time.Minute
+		ns2ROpts           = clROpts.SetRetentionPeriod(48 * time.Hour).SetBlockSize(ns2BlockSize)
+
+		ns1 = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ns1ROpts))
+		ns2 = namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ns2ROpts))
+
+		opts = newTestOptions().
+			SetTickInterval(tickInterval).
+			SetCommitLogRetention(clROpts).
+			SetNamespaces([]namespace.Metadata{ns1, ns2})
 	)
+
+	// Test setup
 	setup, err := newTestSetup(opts)
 	require.NoError(t, err)
 	defer setup.close()
 
 	commitLogOpts := setup.storageOpts.CommitLogOptions().
-		SetFlushInterval(defaultIntegrationTestFlushInterval).
-		SetRetentionOptions(ropts)
+		SetFlushInterval(defaultIntegrationTestFlushInterval)
 	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
 
 	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
@@ -69,22 +81,37 @@ func TestCommitLogBootstrap(t *testing.T) {
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcess(process)
 
 	log := setup.storageOpts.InstrumentOptions().Logger()
-	log.Info("commit log bootstrap test")
 
-	// Write test data
-	log.Info("generating data")
+	// Write test data for ns1
+	log.Info("generating data - ns1")
 	now := setup.getNowFn()
-	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{[]string{"foo", "bar"}, 20, now.Add(-2 * blockSize)},
-		{[]string{"bar", "baz"}, 50, now.Add(-blockSize)},
+	ns1SeriesMap := generate.BlocksByStart([]generate.BlockConfig{
+		{[]string{"foo", "bar"}, 20, now.Add(ns1BlockSize)},
+		{[]string{"bar", "baz"}, 50, now.Add(2 * ns1BlockSize)},
+		{[]string{"and", "one"}, 40, now.Add(3 * ns1BlockSize)},
 	})
 	_, err = setup.storageOpts.NamespaceRegistry().Get(testNamespaces[0])
 	require.NoError(t, err)
-	log.Info("writing data")
-	writeCommitLog(t, setup, seriesMaps, testNamespaces[0])
-	log.Info("written data")
+	log.Info("writing data - ns1")
+	writeCommitLog(t, setup, ns1SeriesMap, testNamespaces[0])
+	log.Info("written data - ns1")
 
-	setup.setNowFn(now)
+	// Write test data for ns2
+	log.Info("generating data - ns2")
+	ns2SeriesMap := generate.BlocksByStart([]generate.BlockConfig{
+		{[]string{"abc", "def"}, 20, now.Add(ns2BlockSize)},
+		{[]string{"xyz", "lmn"}, 50, now.Add(2 * ns2BlockSize)},
+		{[]string{"cat", "hax"}, 80, now.Add(3 * ns2BlockSize)},
+		{[]string{"why", "this"}, 40, now.Add(4 * ns2BlockSize)},
+	})
+	_, err = setup.storageOpts.NamespaceRegistry().Get(testNamespaces[1])
+	require.NoError(t, err)
+	log.Info("writing data - ns2")
+	writeCommitLog(t, setup, ns2SeriesMap, testNamespaces[1])
+	log.Info("written data - ns2")
+
+	later := now.Add(4 * ns1BlockSize)
+	setup.setNowFn(later)
 	// Start the server with filesystem bootstrapper
 	require.NoError(t, setup.startServer())
 	log.Debug("server is now up")
@@ -95,14 +122,17 @@ func TestCommitLogBootstrap(t *testing.T) {
 		log.Debug("server is now down")
 	}()
 
-	// Verify in-memory data match what we expect
-	metadatasByShard := testSetupMetadatas(t, setup, testNamespaces[0], now.Add(-2*blockSize), now)
-	observedSeriesMaps := testSetupToSeriesMaps(t, setup, testNamespaces[0], metadatasByShard)
-	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
+	log.Info("waiting until data is bootstrapped")
+	bootstrapped := waitUntil(func() bool { return setup.db.IsBootstrapped() }, 20*time.Second)
+	require.True(t, bootstrapped)
+	log.Info("data bootstrapped")
 
 	// Verify in-memory data match what we expect
-	emptySeriesMaps := make(generate.SeriesBlocksByStart)
-	metadatasByShard2 := testSetupMetadatas(t, setup, testNamespaces[1], now.Add(-2*blockSize), now)
-	observedSeriesMaps2 := testSetupToSeriesMaps(t, setup, testNamespaces[1], metadatasByShard2)
-	verifySeriesMapsEqual(t, emptySeriesMaps, observedSeriesMaps2)
+	log.Info("verifying ns1 data")
+	verifySeriesMaps(t, setup, testNamespaces[0], ns1SeriesMap)
+	log.Info("verified ns1 data")
+
+	log.Info("verifying ns2 data")
+	verifySeriesMaps(t, setup, testNamespaces[1], ns2SeriesMap)
+	log.Info("verified ns2 data")
 }
