@@ -66,7 +66,7 @@ func NewOptions() Options {
 	o := &options{
 		clockOpts:        clock.NewOptions(),
 		instrumentOpts:   instrument.NewOptions(),
-		retentionOpts:    retention.NewOptions(),
+		retentionOpts:    defaultRetentionOptions(),
 		fsOpts:           fs.NewOptions(),
 		strategy:         defaultStrategy,
 		flushSize:        defaultFlushSize,
@@ -78,6 +78,11 @@ func NewOptions() Options {
 	}
 	o.bytesPool.Init()
 	return o
+}
+
+func defaultRetentionOptions() retention.Options {
+	return retention.NewOptions().
+		SetBlockSize(15 * time.Minute)
 }
 
 func (o *options) Validate() error {
@@ -96,40 +101,6 @@ func (o *options) Validate() error {
 	if err := fsOpts.Validate(); err != nil {
 		multiErr = multiErr.Add(
 			fmt.Errorf("invalid commit log fs options: %v", err))
-	}
-
-	// short circuit checking detailed errors per namespace until
-	// top level objects are OK
-	if err := multiErr.FinalError(); err != nil {
-		return err
-	}
-
-	blockSize := o.retentionOpts.BlockSize()
-
-	// NB(prateek): ensure all namespaces in the registry have retention options
-	// compatible with the commit log retention options. i.e. these constraints are met:
-	//
-	//   (1) no namespace block size is smaller than commit log block size
-	//   (2) all namespace block sizes are divisible by the commit log block size
-	// Rationale: together these properties make it easier to reason about which commit
-	// log block can be removed, or is needed to bootstrap a namespace.
-	metadatas := fsOpts.NamespaceRegistry().Metadatas()
-	for _, md := range metadatas {
-		id := md.ID()
-		ropts := md.Options().RetentionOptions()
-
-		nsBlockSize := ropts.BlockSize()
-		if nsBlockSize < blockSize {
-			multiErr = multiErr.Add(fmt.Errorf(
-				"namespace %s has a block size [%v] smaller than that of the commit log [%v]",
-				id.String(), nsBlockSize.String(), blockSize.String()))
-		}
-
-		if mod := nsBlockSize.Nanoseconds() % blockSize.Nanoseconds(); mod != 0 {
-			multiErr = multiErr.Add(fmt.Errorf(
-				"namespace %s has a block size [%v] not divisible by that of the commit log [%v]",
-				id.String(), nsBlockSize.String(), blockSize.String()))
-		}
 	}
 
 	return multiErr.FinalError()
