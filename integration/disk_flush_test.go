@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/integration/generate"
-	"github.com/m3db/m3db/retention"
 
 	"github.com/stretchr/testify/require"
 )
@@ -37,17 +36,14 @@ func TestDiskFlush(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	tickInterval := 3 * time.Second
-	testSetup, err := newTestSetup(newTestOptions().SetTickInterval(tickInterval))
+	testOpts := newTestOptions()
+	testSetup, err := newTestSetup(testOpts)
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	var (
-		ropts     = retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
-		blockSize = ropts.BlockSize()
-	)
-	require.NoError(t, testSetup.setRetentionOnAll(ropts))
-
+	md, err := testSetup.storageOpts.NamespaceRegistry().Get(testNamespaces[0])
+	require.NoError(t, err)
+	blockSize := md.Options().RetentionOptions().BlockSize()
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// Start the server
@@ -81,7 +77,7 @@ func TestDiskFlush(t *testing.T) {
 	// are flushed to disk asynchronously, need to poll to check
 	// when data are written.
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	waitTimeout := tickInterval * 10
+	waitTimeout := testOpts.TickInterval() * 10
 	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], seriesMaps, waitTimeout))
 
 	// Verify on-disk data match what we expect

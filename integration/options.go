@@ -23,6 +23,7 @@ package integration
 import (
 	"time"
 
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
@@ -67,12 +68,22 @@ const (
 	defaultWriteConsistencyLevel = topology.ConsistencyLevelMajority
 )
 
+var (
+	defaultIntegrationTestRetentionOpts = retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
+)
+
 type testOptions interface {
 	// SetNamespaces sets the namespaces.
 	SetNamespaces(value []namespace.Metadata) testOptions
 
 	// Namespaces returns the namespaces.
 	Namespaces() []namespace.Metadata
+
+	// SetCommitLogRetention sets the commit log retention options
+	SetCommitLogRetention(ropts retention.Options) testOptions
+
+	// CommitLogRetention returns the commit log retention options
+	CommitLogRetention() retention.Options
 
 	// SetID sets the node ID.
 	SetID(value string) testOptions
@@ -204,6 +215,7 @@ type testOptions interface {
 
 type options struct {
 	namespaces                         []namespace.Metadata
+	commitlogRetentionOpts             retention.Options
 	id                                 string
 	tickInterval                       time.Duration
 	httpClusterAddr                    string
@@ -227,11 +239,13 @@ type options struct {
 
 func newTestOptions() testOptions {
 	var namespaces []namespace.Metadata
+	nsOpts := namespace.NewOptions().SetNeedsRepair(false).SetRetentionOptions(defaultIntegrationTestRetentionOpts)
 	for _, ns := range testNamespaces {
-		namespaces = append(namespaces, namespace.NewMetadata(ns, namespace.NewOptions().SetNeedsRepair(false)))
+		namespaces = append(namespaces, namespace.NewMetadata(ns, nsOpts))
 	}
 	return &options{
-		namespaces:                     namespaces,
+		namespaces:             namespaces,
+		commitlogRetentionOpts: defaultIntegrationTestRetentionOpts,
 		id:                             defaultID,
 		tickInterval:                   defaultTickInterval,
 		serverStateChangeTimeout:       defaultServerStateChangeTimeout,
@@ -255,6 +269,16 @@ func (o *options) SetNamespaces(value []namespace.Metadata) testOptions {
 
 func (o *options) Namespaces() []namespace.Metadata {
 	return o.namespaces
+}
+
+func (o *options) SetCommitLogRetention(value retention.Options) testOptions {
+	opts := *o
+	opts.commitlogRetentionOpts = value
+	return &opts
+}
+
+func (o *options) CommitLogRetention() retention.Options {
+	return o.commitlogRetentionOpts
 }
 
 func (o *options) SetID(value string) testOptions {

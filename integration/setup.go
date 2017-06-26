@@ -166,7 +166,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	// Set up m3db client
-	mc, err := m3dbClient(adminOpts)
+	adminClient, err := m3dbAdminClient(adminOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -212,13 +212,14 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		SetNamespaceRegistry(nsRegistry)
 
 	storageOpts = storageOpts.SetCommitLogOptions(
-		storageOpts.CommitLogOptions().SetFilesystemOptions(fsOpts))
+		storageOpts.CommitLogOptions().
+			SetFilesystemOptions(fsOpts).
+			SetRetentionOptions(opts.CommitLogRetention()))
 
 	// Set up persistence manager
 	storageOpts = storageOpts.SetPersistManager(fs.NewPersistManager(fsOpts))
 
 	// Set up repair options
-	adminClient := mc.(client.AdminClient)
 	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(adminClient))
 
 	// Set up block retriever manager
@@ -237,7 +238,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		getNowFn:        getNowFn,
 		setNowFn:        setNowFn,
 		tchannelClient:  tc,
-		m3dbClient:      mc,
+		m3dbClient:      adminClient.(client.Client),
 		m3dbAdminClient: adminClient,
 		workerPool:      workerPool,
 		channel:         channel,
@@ -311,33 +312,6 @@ func (ts *testSetup) generatorOptions(ropts retention.Options) generate.Options 
 		SetNewDirectoryMode(fsOpts.NewDirectoryMode()).
 		SetWriterBufferSize(fsOpts.WriterBufferSize()).
 		SetEncoderPool(storageOpts.EncoderPool())
-}
-
-func (ts *testSetup) setRetentionOnAll(ropts retention.Options) error {
-	// create new list of metadatas with the modified id updated
-	newMetadatas := []namespace.Metadata{}
-	oldMetadatas := ts.opts.Namespaces()
-
-	for _, ns := range oldMetadatas {
-		// construct new metadata with modified opts
-		newMetadatas = append(newMetadatas,
-			namespace.NewMetadata(ns.ID(), ns.Options().SetRetentionOptions(ropts)))
-	}
-
-	// update testSetup properties
-	newRegisty := namespace.NewRegistry(newMetadatas)
-	clOpts := ts.storageOpts.CommitLogOptions()
-	fsOpts := clOpts.FilesystemOptions()
-	ts.storageOpts = ts.storageOpts.
-		SetNamespaceRegistry(newRegisty).
-		SetCommitLogOptions(
-			clOpts.SetRetentionOptions(ropts).
-				SetFilesystemOptions(
-					fsOpts.SetNamespaceRegistry(newRegisty)))
-	ts.opts = ts.opts.SetNamespaces(newMetadatas)
-	ts.namespaces = newMetadatas
-
-	return nil
 }
 
 func (ts *testSetup) serverIsUp() bool {

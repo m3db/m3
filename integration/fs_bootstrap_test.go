@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 )
 
 func TestFilesystemBootstrap(t *testing.T) {
@@ -41,21 +42,23 @@ func TestFilesystemBootstrap(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
-	// Test setup
-	tickInterval := 3 * time.Second
-	opts := newTestOptions().
-		SetTickInterval(tickInterval)
+	var (
+		tickInterval = 3 * time.Second
+		blockSize    = 2 * time.Hour
+		rOpts        = retention.NewOptions().SetRetentionPeriod(2 * time.Hour).SetBlockSize(blockSize)
+		ns1          = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(rOpts))
+		ns2          = namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(rOpts))
 
+		opts = newTestOptions().
+			SetTickInterval(tickInterval).
+			SetNamespaces([]namespace.Metadata{ns1, ns2}).
+			SetCommitLogRetention(rOpts)
+	)
+
+	// Test setup
 	setup, err := newTestSetup(opts)
 	require.NoError(t, err)
 	defer setup.close()
-
-	var (
-		ropts     = retention.NewOptions().SetRetentionPeriod(2 * time.Hour)
-		blockSize = ropts.BlockSize()
-	)
-	setup.storageOpts = setup.storageOpts.SetTickInterval(tickInterval)
-	require.NoError(t, setup.setRetentionOnAll(ropts))
 
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 	filePathPrefix := fsOpts.FilePathPrefix()

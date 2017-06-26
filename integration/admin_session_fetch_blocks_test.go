@@ -30,7 +30,6 @@ import (
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/integration/generate"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 )
@@ -49,11 +48,9 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	var (
-		ropts     = retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
-		blockSize = ropts.BlockSize()
-	)
-	require.NoError(t, testSetup.setRetentionOnAll(ropts))
+	md, err := testSetup.storageOpts.NamespaceRegistry().Get(testNamespaces[0])
+	require.NoError(t, err)
+	blockSize := md.Options().RetentionOptions().BlockSize()
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()

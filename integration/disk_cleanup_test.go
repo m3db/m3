@@ -27,8 +27,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"github.com/m3db/m3db/retention"
 )
 
 func TestDiskCleanup(t *testing.T) {
@@ -36,18 +34,15 @@ func TestDiskCleanup(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	tickInterval := 3 * time.Second
-	testSetup, err := newTestSetup(newTestOptions().SetTickInterval(tickInterval))
+	testOpts := newTestOptions()
+	testSetup, err := newTestSetup(testOpts)
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	var (
-		ropts           = retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
-		blockSize       = ropts.BlockSize()
-		retentionPeriod = ropts.RetentionPeriod()
-	)
-	require.NoError(t, testSetup.setRetentionOnAll(ropts))
-
+	md, err := testSetup.storageOpts.NamespaceRegistry().Get(testNamespaces[0])
+	require.NoError(t, err)
+	blockSize := md.Options().RetentionOptions().BlockSize()
+	retentionPeriod := md.Options().RetentionOptions().RetentionPeriod()
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// Start the server
@@ -79,6 +74,6 @@ func TestDiskCleanup(t *testing.T) {
 	testSetup.setNowFn(newNow)
 
 	// Check if files have been deleted
-	waitTimeout := tickInterval * 4
+	waitTimeout := testOpts.TickInterval() * 4
 	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, waitTimeout))
 }

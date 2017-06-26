@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/m3db/m3db/integration/generate"
-	"github.com/m3db/m3db/retention"
 )
 
 func TestRoundtrip(t *testing.T) {
@@ -43,9 +42,7 @@ func TestRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	ropts := retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
-	blockSize := ropts.BlockSize()
-	require.NoError(t, testSetup.setRetentionOnAll(ropts))
+	blockSize := testOpts.CommitLogRetention().BlockSize()
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()

@@ -74,7 +74,9 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 		ns1 = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ns1ROpts))
 		ns2 = namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ns2ROpts))
 
-		opts = newTestOptions().SetTickInterval(tickInterval).
+		opts = newTestOptions().
+			SetTickInterval(tickInterval).
+			SetCommitLogRetention(clROpts).
 			SetNamespaces([]namespace.Metadata{ns1, ns2})
 	)
 
@@ -83,9 +85,7 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	clOpts := testSetup.storageOpts.CommitLogOptions()
-	testSetup.storageOpts = testSetup.storageOpts.SetCommitLogOptions(clOpts.SetRetentionOptions(clROpts))
-	filePathPrefix := clOpts.FilesystemOptions().FilePathPrefix()
+	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// align to largest block size
 	now := testSetup.getNowFn().Truncate(ns1BlockSize)

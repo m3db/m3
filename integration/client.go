@@ -97,8 +97,8 @@ func tchannelClientHealth(client rpc.TChanNode) (*rpc.NodeHealthResult_, error) 
 	return client.Health(ctx)
 }
 
-func m3dbClient(opts client.Options) (client.Client, error) {
-	return client.NewClient(opts)
+func m3dbAdminClient(opts client.AdminOptions) (client.AdminClient, error) {
+	return client.NewAdminClient(opts)
 }
 
 // m3dbClientWriteBatch writes a data map using an m3db client.
