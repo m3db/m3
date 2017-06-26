@@ -39,15 +39,6 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func testRepairOptions(ctrl *gomock.Controller) repair.Options {
-	return repair.NewOptions().
-		SetAdminClient(client.NewMockAdminClient(ctrl)).
-		SetRepairInterval(time.Second).
-		SetRepairTimeOffset(500 * time.Millisecond).
-		SetRepairTimeJitter(300 * time.Millisecond).
-		SetRepairCheckInterval(100 * time.Millisecond)
-}
-
 func TestDatabaseRepairerStartStop(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -402,6 +393,49 @@ func TestRepairerRepairWithTime(t *testing.T) {
 	database.namespaces = namespaces
 }
 
+// TODO(prateek): write unit tests for multiple namespaces in the repairer
 func TestRepairerMultipleNamespaces(t *testing.T) {
-	// TODO(prateek): write unit tests for multiple namespaces in the repairer
+	// tf(i) returns the start time of the i_th 2 hour block since epoch
+	tf := func(i int) time.Time {
+		secondsInTwoHours := 7200
+		return time.Unix(int64(i*secondsInTwoHours), 0)
+	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	database := newMockDatabase()
+	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
+
+	now := time.Unix(188000, 0)
+	clockOpts := database.opts.ClockOptions()
+	database.opts = database.opts.SetClockOptions(clockOpts.SetNowFn(func() time.Time { return now }))
+
+	inputTimes := []struct {
+		ns ts.ID
+		bs time.Time
+		rs repairState
+	}{
+		{defaultTestNs1ID, tf(2), repairState{repairFailed, 2}},
+		{defaultTestNs1ID, tf(4), repairState{repairFailed, 3}},
+		{defaultTestNs1ID, tf(5), repairState{repairNotStarted, 0}},
+		{defaultTestNs1ID, tf(6), repairState{repairSuccess, 1}},
+		{defaultTestNs2ID, tf(0), repairState{repairFailed, 1}},
+		{defaultTestNs2ID, tf(4), repairState{repairFailed, 3}},
+		{defaultTestNs2ID, tf(8), repairState{repairNotStarted, 0}},
+		{defaultTestNs2ID, tf(12), repairState{repairSuccess, 1}},
+	}
+	repairer, err := newDatabaseRepairer(database, database.opts)
+	require.NoError(t, err)
+	r := repairer.(*dbRepairer)
+	for _, input := range inputTimes {
+		r.repairStates.set(input.ns, input.bs, input.rs)
+	}
+
+	testNs := newTestNamespace(t)
+	res := r.namespaceRepairTimeRanges(testNs)
+	expectedRanges := xtime.NewRanges().
+		AddRange(xtime.Range{Start: tf(2), End: tf(4)}).
+		AddRange(xtime.Range{Start: tf(7), End: tf(26)})
+	require.Equal(t, expectedRanges, res)
 }

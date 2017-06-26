@@ -144,20 +144,25 @@ func testDatabaseOptions() Options {
 	// several times.
 	return defaultTestDatabaseOptions
 }
-func testDatabaseOptionsWithRepair(ctrl *gomock.Controller) Options {
-	opts := testDatabaseOptions()
 
+func testRepairOptions(ctrl *gomock.Controller) repair.Options {
 	mockAdminClient := client.NewMockAdminClient(ctrl)
 	mockAdminOpts := client.NewMockAdminOptions(ctrl)
-	mockAdminOpts.EXPECT().NamespaceRegistry().Return(opts.NamespaceRegistry())
-	mockAdminClient.EXPECT().Options().Return(mockAdminOpts, nil)
+	mockAdminOpts.EXPECT().NamespaceRegistry().Return(testDatabaseOptions().NamespaceRegistry()).AnyTimes()
+	mockAdminClient.EXPECT().Options().Return(mockAdminOpts, nil).AnyTimes()
+
+	return repair.NewOptions().
+		SetAdminClient(mockAdminClient).
+		SetRepairInterval(time.Second).
+		SetRepairTimeOffset(500 * time.Millisecond).
+		SetRepairTimeJitter(300 * time.Millisecond).
+		SetRepairCheckInterval(100 * time.Millisecond)
+}
+
+func testDatabaseOptionsWithRepair(ctrl *gomock.Controller) Options {
+	opts := testDatabaseOptions()
 	opts = opts.SetRepairEnabled(true).
-		SetRepairOptions(repair.NewOptions().
-			SetAdminClient(mockAdminClient).
-			SetRepairInterval(time.Duration(0)).
-			SetRepairTimeOffset(time.Duration(0)).
-			SetRepairTimeJitter(time.Duration(0)).
-			SetRepairCheckInterval(time.Duration(0)))
+		SetRepairOptions(testRepairOptions(ctrl))
 	return opts
 }
 
