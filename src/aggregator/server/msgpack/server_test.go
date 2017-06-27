@@ -93,7 +93,7 @@ func testServerOptions() Options {
 	opts := NewOptions()
 	return opts.
 		SetIteratorPool(iteratorPool).
-		SetRetryOptions(xretry.NewOptions().SetMaxRetries(2)).
+		SetServerOptions(xserver.NewOptions().SetRetryOptions(xretry.NewOptions().SetMaxRetries(2))).
 		SetInstrumentOptions(opts.InstrumentOptions().SetReportInterval(time.Second))
 }
 

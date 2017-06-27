@@ -28,6 +28,8 @@ metrics:
 
 msgpack:
   listenAddress: 0.0.0.0:6000
+  keepAliveEnabled: true
+  keepAlivePeriod: 1m
   retry:
     initialBackoff: 5ms
     backoffFactor: 2.0
@@ -61,9 +63,9 @@ http:
   writeTimeout: 45s
 
 aggregator:
-  counterAggregationTypes: 
+  counterAggregationTypes:
     - Sum
-  timerAggregationTypes: 
+  timerAggregationTypes:
     - Sum
     - SumSq
     - Mean
@@ -75,7 +77,7 @@ aggregator:
     - P50
     - P95
     - P99
-  gaugeAggregationTypes: 
+  gaugeAggregationTypes:
     - Last
   counterSuffixOverride:
     Sum: ""

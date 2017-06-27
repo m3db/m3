@@ -76,12 +76,14 @@ func main() {
 
 	// Create the msgpack server options.
 	msgpackAddr := cfg.Msgpack.ListenAddress
-	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("msgpack-server"))
+	msgpackServerScope := scope.SubScope("msgpack-server").Tagged(map[string]string{"server": "msgpack"})
+	iOpts := instrumentOpts.SetMetricsScope(msgpackServerScope)
 	msgpackServerOpts := cfg.Msgpack.NewMsgpackServerOptions(iOpts)
 
 	// Create the http server options.
 	httpAddr := cfg.HTTP.ListenAddress
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("http-server"))
+	httpServerScope := scope.SubScope("http-server").Tagged(map[string]string{"server": "http"})
+	iOpts = instrumentOpts.SetMetricsScope(httpServerScope)
 	httpServerOpts := cfg.HTTP.NewHTTPServerOptions(iOpts)
 
 	// Create the aggregator.

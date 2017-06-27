@@ -40,15 +40,9 @@ const (
 // NewServer creates a new msgpack server.
 func NewServer(address string, aggregator aggregator.Aggregator, opts Options) xserver.Server {
 	iOpts := opts.InstrumentOptions()
-	scope := iOpts.MetricsScope()
-
-	handlerInstrumentOpts := iOpts.SetMetricsScope(scope.Tagged(map[string]string{"handler": "msgpack"}))
-	handler := NewHandler(aggregator, opts.SetInstrumentOptions(handlerInstrumentOpts))
-
-	serverInstrumentOpts := iOpts.SetMetricsScope(scope.Tagged(map[string]string{"server": "msgpack"}))
-	serverOpts := xserver.NewOptions().SetInstrumentOptions(serverInstrumentOpts).SetRetryOptions(opts.RetryOptions())
-
-	return xserver.NewServer(address, handler, serverOpts)
+	handlerScope := iOpts.MetricsScope().Tagged(map[string]string{"handler": "msgpack"})
+	handler := NewHandler(aggregator, opts.SetInstrumentOptions(iOpts.SetMetricsScope(handlerScope)))
+	return xserver.NewServer(address, handler, opts.ServerOptions())
 }
 
 type handlerMetrics struct {
