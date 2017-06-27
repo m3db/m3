@@ -23,7 +23,12 @@ package msgpack
 import (
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3x/server"
+)
+
+const (
+	defaultKeepAliveEnabled = true
+	defaultKeepAlivePeriod  = 0
 )
 
 // Options provide a set of server options
@@ -34,11 +39,11 @@ type Options interface {
 	// InstrumentOptions returns the instrument options
 	InstrumentOptions() instrument.Options
 
-	// SetRetryOptions sets the retry options for accepting connections
-	SetRetryOptions(value xretry.Options) Options
+	// SetServerOptions sets the server options.
+	SetServerOptions(value xserver.Options) Options
 
-	// RetryOptions returns the retry options for accepting connections
-	RetryOptions() xretry.Options
+	// ServerOptiosn returns the server options.
+	ServerOptions() xserver.Options
 
 	// SetIteratorPool sets the iterator pool
 	SetIteratorPool(value msgpack.UnaggregatedIteratorPool) Options
@@ -49,7 +54,7 @@ type Options interface {
 
 type options struct {
 	instrumentOpts instrument.Options
-	retryOpts      xretry.Options
+	serverOpts     xserver.Options
 	iteratorPool   msgpack.UnaggregatedIteratorPool
 }
 
@@ -63,7 +68,7 @@ func NewOptions() Options {
 
 	return &options{
 		instrumentOpts: instrument.NewOptions(),
-		retryOpts:      xretry.NewOptions(),
+		serverOpts:     xserver.NewOptions(),
 		iteratorPool:   iteratorPool,
 	}
 }
@@ -78,14 +83,14 @@ func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) SetRetryOptions(value xretry.Options) Options {
+func (o *options) SetServerOptions(value xserver.Options) Options {
 	opts := *o
-	opts.retryOpts = value
+	opts.serverOpts = value
 	return &opts
 }
 
-func (o *options) RetryOptions() xretry.Options {
-	return o.retryOpts
+func (o *options) ServerOptions() xserver.Options {
+	return o.serverOpts
 }
 
 func (o *options) SetIteratorPool(value msgpack.UnaggregatedIteratorPool) Options {

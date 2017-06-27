@@ -29,12 +29,19 @@ import (
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3x/server"
 )
 
 // MsgpackServerConfiguration contains msgpack server configuration.
 type MsgpackServerConfiguration struct {
 	// Msgpack server listening address.
 	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
+
+	// Whether keep alives are enabled on connections.
+	KeepAliveEnabled *bool `yaml:"keepAliveEnabled"`
+
+	// KeepAlive period.
+	KeepAlivePeriod time.Duration `yaml:"keepAlivePeriod"`
 
 	// Retry mechanism configuration.
 	Retry xretry.Configuration `yaml:"retry"`
@@ -49,9 +56,17 @@ func (c *MsgpackServerConfiguration) NewMsgpackServerOptions(
 ) msgpack.Options {
 	opts := msgpack.NewOptions().SetInstrumentOptions(instrumentOpts)
 
-	// Set retry options.
-	retryOpts := c.Retry.NewOptions(instrumentOpts.MetricsScope())
-	opts = opts.SetRetryOptions(retryOpts)
+	// Set server options.
+	serverOpts := xserver.NewOptions().
+		SetInstrumentOptions(instrumentOpts).
+		SetRetryOptions(c.Retry.NewOptions(instrumentOpts.MetricsScope()))
+	if c.KeepAliveEnabled != nil {
+		serverOpts = serverOpts.SetTCPConnectionKeepAlive(*c.KeepAliveEnabled)
+	}
+	if c.KeepAlivePeriod != 0 {
+		serverOpts = serverOpts.SetTCPConnectionKeepAlivePeriod(c.KeepAlivePeriod)
+	}
+	opts = opts.SetServerOptions(serverOpts)
 
 	// Set unaggregated iterator pool.
 	iteratorPool := c.Iterator.NewUnaggregatedIteratorPool(instrumentOpts)
