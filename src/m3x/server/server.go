@@ -74,12 +74,13 @@ type removeConnectionFn func(conn net.Conn)
 type server struct {
 	sync.Mutex
 
-	address                string
-	listener               net.Listener
-	log                    xlog.Logger
-	retryOpts              xretry.Options
-	reportInterval         time.Duration
-	tcpConnectionKeepAlive bool
+	address                      string
+	listener                     net.Listener
+	log                          xlog.Logger
+	retryOpts                    xretry.Options
+	reportInterval               time.Duration
+	tcpConnectionKeepAlive       bool
+	tcpConnectionKeepAlivePeriod time.Duration
 
 	closed     bool
 	closedChan chan struct{}
@@ -99,14 +100,15 @@ func NewServer(address string, handler Handler, opts Options) Server {
 	scope := instrumentOpts.MetricsScope()
 
 	s := &server{
-		address:                address,
-		log:                    instrumentOpts.Logger(),
-		retryOpts:              opts.RetryOptions(),
-		reportInterval:         instrumentOpts.ReportInterval(),
-		tcpConnectionKeepAlive: opts.TCPConnectionKeepAlive(),
-		closedChan:             make(chan struct{}),
-		metrics:                newServerMetrics(scope),
-		handler:                handler,
+		address:                      address,
+		log:                          instrumentOpts.Logger(),
+		retryOpts:                    opts.RetryOptions(),
+		reportInterval:               instrumentOpts.ReportInterval(),
+		tcpConnectionKeepAlive:       opts.TCPConnectionKeepAlive(),
+		tcpConnectionKeepAlivePeriod: opts.TCPConnectionKeepAlivePeriod(),
+		closedChan:                   make(chan struct{}),
+		metrics:                      newServerMetrics(scope),
+		handler:                      handler,
 	}
 
 	// Set up the connection functions.
@@ -141,6 +143,9 @@ func (s *server) serve() error {
 		conn := conn
 		if tcpConn, ok := conn.(*net.TCPConn); ok {
 			tcpConn.SetKeepAlive(s.tcpConnectionKeepAlive)
+			if s.tcpConnectionKeepAlivePeriod != 0 {
+				tcpConn.SetKeepAlivePeriod(s.tcpConnectionKeepAlivePeriod)
+			}
 		}
 		if !s.addConnectionFn(conn) {
 			conn.Close()
