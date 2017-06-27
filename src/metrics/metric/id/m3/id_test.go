@@ -127,6 +127,12 @@ func TestNameAndTags(t *testing.T) {
 		expectedErr  error
 	}{
 		{
+			id:           []byte("stats.m3+foo+tagName1=tagValue1"),
+			expectedName: []byte("foo"),
+			expectedTags: []byte("tagName1=tagValue1"),
+			expectedErr:  nil,
+		},
+		{
 			id:           []byte("m3+foo+tagName1=tagValue1"),
 			expectedName: []byte("foo"),
 			expectedTags: []byte("tagName1=tagValue1"),
@@ -140,6 +146,12 @@ func TestNameAndTags(t *testing.T) {
 		},
 		{
 			id:           []byte("illformed"),
+			expectedName: nil,
+			expectedTags: nil,
+			expectedErr:  errInvalidM3Metric,
+		},
+		{
+			id:           []byte("m34+illformed+tagName1=tagValue1"),
 			expectedName: nil,
 			expectedTags: nil,
 			expectedErr:  errInvalidM3Metric,

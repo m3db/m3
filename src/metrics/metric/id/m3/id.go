@@ -135,7 +135,7 @@ func (id metricID) TagValue(tagName []byte) ([]byte, bool) {
 // NameAndTags returns the name and the tags of the given id.
 func NameAndTags(id []byte) ([]byte, []byte, error) {
 	firstSplitterIdx := bytes.IndexByte(id, componentSplitter)
-	if !bytes.Equal(m3Prefix, id[:firstSplitterIdx+1]) {
+	if !bytes.HasSuffix(id[:firstSplitterIdx+1], m3Prefix) {
 		return nil, nil, errInvalidM3Metric
 	}
 	secondSplitterIdx := bytes.IndexByte(id[firstSplitterIdx+1:], componentSplitter)
