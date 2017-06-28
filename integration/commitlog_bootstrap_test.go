@@ -97,12 +97,12 @@ func TestCommitLogBootstrap(t *testing.T) {
 
 	// Verify in-memory data match what we expect
 	metadatasByShard := testSetupMetadatas(t, setup, testNamespaces[0], now.Add(-2*blockSize), now)
-	observedSeriesMaps := testSetupToSeriesMaps(t, setup, testNamespaces[0], metadatasByShard)
+	observedSeriesMaps := testSetupToSeriesMaps(t, setup, ns1, metadatasByShard)
 	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
 
 	// Verify in-memory data match what we expect
 	emptySeriesMaps := make(generate.SeriesBlocksByStart)
 	metadatasByShard2 := testSetupMetadatas(t, setup, testNamespaces[1], now.Add(-2*blockSize), now)
-	observedSeriesMaps2 := testSetupToSeriesMaps(t, setup, testNamespaces[1], metadatasByShard2)
+	observedSeriesMaps2 := testSetupToSeriesMaps(t, setup, ns2, metadatasByShard2)
 	verifySeriesMapsEqual(t, emptySeriesMaps, observedSeriesMaps2)
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 )
 
@@ -84,7 +85,7 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	time.Sleep(tickInterval * 4)
 
 	metadatasByShard := testSetupMetadatas(t, testSetup, testNamespaces[0], now, later)
-	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, testNamespaces[0], metadatasByShard)
+	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, md, metadatasByShard)
 
 	// Verify retrieved data matches what we've written
 	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
@@ -158,7 +159,7 @@ func verifySeriesMapsEqual(
 func testSetupToSeriesMaps(
 	t *testing.T,
 	testSetup *testSetup,
-	namespace ts.ID,
+	nsMetadata namespace.Metadata,
 	metadatasByShard map[uint32][]block.ReplicaMetadata,
 ) map[time.Time]generate.SeriesBlock {
 	seriesMap := make(map[time.Time]generate.SeriesBlock)
@@ -169,7 +170,7 @@ func testSetupToSeriesMaps(
 	require.NotNil(t, session)
 
 	for shardID, metadatas := range metadatasByShard {
-		blocksIter, err := session.FetchBlocksFromPeers(namespace, shardID, metadatas, resultOpts)
+		blocksIter, err := session.FetchBlocksFromPeers(nsMetadata, shardID, metadatas, resultOpts)
 		require.NoError(t, err)
 		require.NotNil(t, blocksIter)
 
