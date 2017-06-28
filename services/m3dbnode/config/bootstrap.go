@@ -46,8 +46,8 @@ type filesystemConfiguration struct {
 	NumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
 }
 
-// Configuration captures the configuration for bootstrappers.
-type Configuration struct {
+// BootstrapConfiguration captures the configuration for bootstrappers.
+type BootstrapConfiguration struct {
 	// Bootstrappers is the list of bootstrappers, ordered by precedence in descending order
 	Bootstrappers []string `yaml:"bootstrappers" validate:"nonzero"`
 
@@ -55,7 +55,7 @@ type Configuration struct {
 	FilesystemConfiguration *filesystemConfiguration `yaml:"fs"`
 }
 
-func (bsc Configuration) numProcessors() int {
+func (bsc BootstrapConfiguration) numProcessors() int {
 	if bsc.FilesystemConfiguration == nil {
 		return defaultNumProcessors
 	}
@@ -69,7 +69,7 @@ func (bsc Configuration) numProcessors() int {
 }
 
 // New creates a bootstrap process based on the bootstrap configuration.
-func (bsc Configuration) New(
+func (bsc BootstrapConfiguration) New(
 	opts storage.Options,
 	adminClient client.AdminClient,
 	blockRetrieverMgr block.DatabaseBlockRetrieverManager,
