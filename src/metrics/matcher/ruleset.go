@@ -185,7 +185,7 @@ func (r *ruleSet) process(value interface{}) error {
 	r.version = ruleSet.Version()
 	r.cutoverNanos = ruleSet.CutoverNanos()
 	r.tombstoned = ruleSet.TombStoned()
-	r.matcher = ruleSet.ActiveSet(r.nowFn().Add(-r.matchRangePast))
+	r.matcher = ruleSet.ActiveSet(r.nowFn().Add(-r.matchRangePast).UnixNano())
 	if r.onRuleSetUpdatedFn != nil {
 		r.onRuleSetUpdatedFn(r.namespace, r)
 	}

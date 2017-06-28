@@ -43,6 +43,7 @@ type Configuration struct {
 	NamespaceTag          string                       `yaml:"namespaceTag" validate:"nonzero"`
 	DefaultNamespace      string                       `yaml:"defaultNamespace" validate:"nonzero"`
 	NameTagKey            string                       `yaml:"nameTagKey" validate:"nonzero"`
+	MatchRangePast        *time.Duration               `yaml:"matchRangePast"`
 	SortedTagIteratorPool pool.ObjectPoolConfiguration `yaml:"sortedTagIteratorPool"`
 	MatchMode             rules.MatchMode              `yaml:"matchMode"`
 }
@@ -134,6 +135,9 @@ func (cfg *Configuration) NewOptions(
 
 	if cfg.InitWatchTimeout != 0 {
 		opts = opts.SetInitWatchTimeout(cfg.InitWatchTimeout)
+	}
+	if cfg.MatchRangePast != nil {
+		opts = opts.SetMatchRangePast(*cfg.MatchRangePast)
 	}
 
 	return opts, nil

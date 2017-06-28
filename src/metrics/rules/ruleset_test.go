@@ -879,7 +879,7 @@ func TestRuleSetActiveSet(t *testing.T) {
 	}
 
 	for _, inputs := range allInputs {
-		as := newRuleSet.ActiveSet(inputs.activeSetTime)
+		as := newRuleSet.ActiveSet(inputs.activeSetTime.UnixNano())
 		for _, input := range inputs.mappingInputs {
 			res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo, input.matchMode)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)

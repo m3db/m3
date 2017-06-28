@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"math"
 	"sort"
-	"time"
 
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
@@ -445,7 +444,7 @@ type RuleSet interface {
 	TombStoned() bool
 
 	// ActiveSet returns the active ruleset at a given time.
-	ActiveSet(t time.Time) Matcher
+	ActiveSet(timeNanos int64) Matcher
 }
 
 type ruleSet struct {
@@ -506,8 +505,7 @@ func (rs *ruleSet) Version() int        { return rs.version }
 func (rs *ruleSet) CutoverNanos() int64 { return rs.cutoverNanos }
 func (rs *ruleSet) TombStoned() bool    { return rs.tombstoned }
 
-func (rs *ruleSet) ActiveSet(t time.Time) Matcher {
-	timeNanos := t.UnixNano()
+func (rs *ruleSet) ActiveSet(timeNanos int64) Matcher {
 	mappingRules := make([]*mappingRule, 0, len(rs.mappingRules))
 	for _, mappingRule := range rs.mappingRules {
 		activeRule := mappingRule.ActiveRule(timeNanos)

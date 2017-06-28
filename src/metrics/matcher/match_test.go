@@ -111,7 +111,8 @@ func testMatcher(t *testing.T, cache Cache) Matcher {
 			SetNamespaceTag([]byte("namespace")).
 			SetDefaultNamespace([]byte("default")).
 			SetRuleSetKeyFn(defaultRuleSetKeyFn).
-			SetRuleSetOptions(rules.NewOptions())
+			SetRuleSetOptions(rules.NewOptions()).
+			SetMatchRangePast(0)
 		proto = &schema.Namespaces{
 			Namespaces: []*schema.Namespace{
 				&schema.Namespace{
