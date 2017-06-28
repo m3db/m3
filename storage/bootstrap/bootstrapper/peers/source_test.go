@@ -120,11 +120,11 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(ts.NewIDMatcher(testNamespace.String()),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata),
 			uint32(0), start, end, gomock.Any()).
 		Return(goodResult, nil)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(ts.NewIDMatcher(testNamespace.String()),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata),
 			uint32(1), start, end, gomock.Any()).
 		Return(nil, badErr)
 
@@ -188,11 +188,11 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(ts.NewIDMatcher(testNamespace.String()),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata),
 			uint32(0), start, end, gomock.Any()).
 		Return(firstResult, nil)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(ts.NewIDMatcher(testNamespace.String()),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata),
 			uint32(1), start, end, gomock.Any()).
 		Return(secondResult, nil)
 
@@ -365,19 +365,19 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(ts.NewIDMatcher(testNamespace.String()),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata),
 			uint32(0), start, end, gomock.Any()).
 		Return(firstResult, nil)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(ts.NewIDMatcher(testNamespace.String()),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata),
 			uint32(1), start, end, gomock.Any()).
 		Return(secondResult, nil)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(ts.NewIDMatcher(testNamespace.String()),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata),
 			uint32(2), start, end, gomock.Any()).
 		Return(thirdResult, nil)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(ts.NewIDMatcher(testNamespace.String()),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata),
 			uint32(3), start, end, gomock.Any()).
 		Return(fourthResult, nil)
 

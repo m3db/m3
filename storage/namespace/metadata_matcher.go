@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,32 +18,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package peers
+package namespace
 
 import (
-	"testing"
+	"fmt"
 
 	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-
-	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/storage/namespace"
 )
 
-func TestNewPeersBootstrapperInvalidOpts(t *testing.T) {
-	_, err := NewPeersBootstrapper(NewOptions(), nil)
-	assert.Error(t, err)
+// MetadataMatcher is a gomock.Matcher that matches metadata
+type MetadataMatcher interface {
+	gomock.Matcher
 }
 
-func TestNewPeersBootstrapper(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
+// NewMetadataMatcher returns a new MetadataMatcher
+func NewMetadataMatcher(md Metadata) MetadataMatcher {
+	return &mdMatcher{md: md}
+}
 
-	opts := NewOptions().
-		SetAdminClient(client.NewMockAdminClient(ctrl)).
-		SetNamespaceRegistry(namespace.NewRegistry(nil))
+type mdMatcher struct {
+	md Metadata
+}
 
-	b, err := NewPeersBootstrapper(opts, nil)
-	assert.NoError(t, err)
-	assert.Equal(t, PeersBootstrapperName, b.String())
+func (m *mdMatcher) Matches(x interface{}) bool {
+	omd, ok := x.(Metadata)
+	if !ok {
+		return false
+	}
+	return m.md.Equal(omd)
+}
+
+func (m *mdMatcher) String() string {
+	return fmt.Sprintf("metadata [ id = %s ]", m.md.ID().String())
 }

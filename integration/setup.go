@@ -157,7 +157,6 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	if !ok {
 		return nil, fmt.Errorf("unable to cast to admin options")
 	}
-	adminOpts = adminOpts.SetNamespaceRegistry(nsRegistry)
 
 	// Set up tchannel client
 	channel, tc, err := tchannelClient(tchannelNodeAddr)

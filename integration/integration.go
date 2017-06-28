@@ -206,16 +206,14 @@ func newDefaultBootstrappableTestSetups(
 		var peersBootstrapper bootstrap.Bootstrapper
 
 		if usingPeersBoostrapper {
-			var adminClient client.AdminClient
-			adminOpts := client.NewAdminOptions().
-				SetNamespaceRegistry(nsRegistry)
+			adminOpts := client.NewAdminOptions()
 			if bootstrapBlocksBatchSize > 0 {
 				adminOpts = adminOpts.SetFetchSeriesBlocksBatchSize(bootstrapBlocksBatchSize)
 			}
 			if bootstrapBlocksConcurrency > 0 {
 				adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
 			}
-			adminClient = newMultiAddrAdminClient(
+			adminClient := newMultiAddrAdminClient(
 				t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
 			peersOpts := peers.NewOptions().
 				SetResultOptions(bsOpts).

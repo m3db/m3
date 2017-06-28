@@ -71,20 +71,6 @@ func (o *options) Validate() error {
 		return fmt.Errorf("admin client not set")
 	}
 
-	adminOpts, err := o.client.Options()
-	if err != nil {
-		return fmt.Errorf("unable to retrieve admin session namespace registry, err: %v", err)
-	}
-
-	if err := adminOpts.Validate(); err != nil {
-		return fmt.Errorf("unable to validate admin session options, err: %v", err)
-	}
-
-	adminOptionsRegistry := adminOpts.NamespaceRegistry()
-	if !registry.Equal(adminOptionsRegistry) {
-		return fmt.Errorf("admin options namespace registry not the same as namespace registry")
-	}
-
 	return nil
 }
 

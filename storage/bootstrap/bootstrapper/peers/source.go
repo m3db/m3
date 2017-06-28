@@ -84,7 +84,7 @@ func (s *peersSource) Read(
 	opts bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {
 	// early terminate if we don't know about the specified namespace
-	_, err := s.opts.NamespaceRegistry().Get(namespace)
+	nsMetadata, err := s.opts.NamespaceRegistry().Get(namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func (s *peersSource) Read(
 			for it.Next() {
 				currRange := it.Value()
 
-				shardResult, err := session.FetchBootstrapBlocksFromPeers(namespace,
+				shardResult, err := session.FetchBootstrapBlocksFromPeers(nsMetadata,
 					shard, currRange.Start, currRange.End, bopts)
 
 				if err == nil && incremental {
