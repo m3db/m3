@@ -97,7 +97,6 @@ type session struct {
 	sync.RWMutex
 
 	opts                             Options
-	namespaceRegistry                namespace.Registry
 	scope                            tally.Scope
 	nowFn                            clock.NowFn
 	log                              xlog.Logger
@@ -202,7 +201,6 @@ func newSession(opts Options) (clientSession, error) {
 
 	s := &session{
 		opts:                 opts,
-		namespaceRegistry:    namespace.NewRegistry(nil),
 		scope:                scope,
 		nowFn:                opts.ClockOptions().NowFn(),
 		log:                  opts.InstrumentOptions().Logger(),
@@ -246,7 +244,6 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksBatchSize = opts.FetchSeriesBlocksBatchSize()
 		s.streamBlocksMetadataBatchTimeout = opts.FetchSeriesBlocksMetadataBatchTimeout()
 		s.streamBlocksBatchTimeout = opts.FetchSeriesBlocksBatchTimeout()
-		s.namespaceRegistry = opts.NamespaceRegistry()
 	}
 
 	return s, nil
@@ -1241,25 +1238,12 @@ func (s *session) FetchBlocksMetadataFromPeers(
 	return newMetadataIter(metadataCh, errCh), nil
 }
 
-func (s *session) namespaceMetadata(id ts.ID) (namespace.Metadata, error) {
-	registry := s.namespaceRegistry
-	if registry == nil {
-		return nil, fmt.Errorf("namespace registry not set")
-	}
-	return registry.Get(id)
-}
-
 func (s *session) FetchBootstrapBlocksFromPeers(
-	namespace ts.ID,
+	nsMetadata namespace.Metadata,
 	shard uint32,
 	start, end time.Time,
 	opts result.Options,
 ) (result.ShardResult, error) {
-	nsMetadata, err := s.namespaceMetadata(namespace)
-	if err != nil {
-		return nil, err
-	}
-
 	var (
 		result   = newBulkBlocksResult(s.opts, opts)
 		complete = int64(0)
@@ -1294,7 +1278,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	// be returned from this routine as long as one peer succeeds completely
 	metadataCh := make(chan blocksMetadata, 4096)
 	go func() {
-		err := s.streamBlocksMetadataFromPeers(namespace, shard, peers,
+		err := s.streamBlocksMetadataFromPeers(nsMetadata.ID(), shard, peers,
 			start, end, metadataCh, m)
 
 		close(metadataCh)
@@ -1318,15 +1302,11 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 }
 
 func (s *session) FetchBlocksFromPeers(
-	namespace ts.ID,
+	nsMetadata namespace.Metadata,
 	shard uint32,
 	metadatas []block.ReplicaMetadata,
 	opts result.Options,
 ) (PeerBlocksIter, error) {
-	nsMetadata, err := s.namespaceMetadata(namespace)
-	if err != nil {
-		return nil, err
-	}
 
 	var (
 		logger   = opts.InstrumentOptions().Logger()

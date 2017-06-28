@@ -23,6 +23,8 @@ package client
 import (
 	"time"
 
+	tchannel "github.com/uber/tchannel-go"
+
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
@@ -36,8 +38,6 @@ import (
 	"github.com/m3db/m3x/pool"
 	xretry "github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
-
-	tchannel "github.com/uber/tchannel-go"
 )
 
 // ConnectConsistencyLevel is the consistency level for connecting to a cluster
@@ -148,9 +148,6 @@ type Session interface {
 type AdminClient interface {
 	Client
 
-	// Options returns the admin options
-	Options() (AdminOptions, error)
-
 	// NewSession creates a new session
 	NewAdminSession() (AdminSession, error)
 
@@ -209,7 +206,7 @@ type AdminSession interface {
 	// FetchBootstrapBlocksFromPeers will fetch the most fulfilled block
 	// for each series in a best effort method from available peers
 	FetchBootstrapBlocksFromPeers(
-		namespace ts.ID,
+		namespace namespace.Metadata,
 		shard uint32,
 		start, end time.Time,
 		opts result.Options,
@@ -218,7 +215,7 @@ type AdminSession interface {
 	// FetchBlocksFromPeers will fetch the required blocks from the
 	// peers specified
 	FetchBlocksFromPeers(
-		namespace ts.ID,
+		namespace namespace.Metadata,
 		shard uint32,
 		metadatas []block.ReplicaMetadata,
 		opts result.Options,
@@ -573,10 +570,4 @@ type AdminOptions interface {
 
 	// FetchSeriesBlocksBatchConcurrency gets the concurrency for fetching series blocks in batch
 	FetchSeriesBlocksBatchConcurrency() int
-
-	// SetNamespaceRegistry sets the namespace registry
-	SetNamespaceRegistry(value namespace.Registry) AdminOptions
-
-	// NamespaceRegistry returns the namespace registry
-	NamespaceRegistry() namespace.Registry
 }

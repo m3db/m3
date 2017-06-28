@@ -53,13 +53,17 @@ import (
 )
 
 var (
-	timeZero  = time.Time{}
-	blockSize = 2 * time.Hour
-	nsID      = ts.StringID("testNs1")
-	fooID     = ts.StringID("foo")
-	barID     = ts.StringID("bar")
-	bazID     = ts.StringID("baz")
-	testHost  = topology.NewHost("testhost", "testhost:9000")
+	timeZero   = time.Time{}
+	blockSize  = 2 * time.Hour
+	nsID       = ts.StringID("testNs1")
+	nsMetadata = namespace.NewMetadata(nsID, namespace.NewOptions().
+			SetRetentionOptions(retention.NewOptions().
+				SetBlockSize(blockSize).
+				SetRetentionPeriod(48*blockSize)))
+	fooID    = ts.StringID("foo")
+	barID    = ts.StringID("bar")
+	bazID    = ts.StringID("baz")
+	testHost = topology.NewHost("testhost", "testhost:9000")
 )
 
 func newSessionTestMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
@@ -71,10 +75,6 @@ func newSessionTestMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 }
 
 func newSessionTestAdminOptions() AdminOptions {
-	ropts := retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
-	nsOpts := namespace.NewOptions().SetRetentionOptions(ropts)
-	nsMetadata := namespace.NewMetadata(nsID, nsOpts)
-	registry := namespace.NewRegistry([]namespace.Metadata{nsMetadata})
 
 	opts := applySessionTestOptions(NewAdminOptions()).(AdminOptions)
 	hostShardSets := sessionTestHostAndShards(sessionTestShardSet())
@@ -84,8 +84,7 @@ func newSessionTestAdminOptions() AdminOptions {
 		SetFetchSeriesBlocksBatchSize(2).
 		SetFetchSeriesBlocksMetadataBatchTimeout(time.Second).
 		SetFetchSeriesBlocksBatchTimeout(time.Second).
-		SetFetchSeriesBlocksBatchConcurrency(4).
-		SetNamespaceRegistry(registry)
+		SetFetchSeriesBlocksBatchConcurrency(4)
 }
 
 func newResultTestOptions() result.Options {
@@ -212,7 +211,7 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	rangeStart := start
 	rangeEnd := start.Add(blockSize * (24 - 1))
 	bootstrapOpts := newResultTestOptions()
-	result, err := session.FetchBootstrapBlocksFromPeers(nsID, 0, rangeStart, rangeEnd, bootstrapOpts)
+	result, err := session.FetchBootstrapBlocksFromPeers(nsMetadata, 0, rangeStart, rangeEnd, bootstrapOpts)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
@@ -311,7 +310,7 @@ func fetchBlocksFromPeersTestsHelper(
 	}()
 	blockReplicasMetadata := testBlocksToBlockReplicasMetadata(t, peerBlocks, mockHostQueues[1:])
 	bootstrapOpts := newResultTestOptions()
-	result, err := session.FetchBlocksFromPeers(nsID, 0, blockReplicasMetadata, bootstrapOpts)
+	result, err := session.FetchBlocksFromPeers(nsMetadata, 0, blockReplicasMetadata, bootstrapOpts)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
@@ -1290,8 +1289,6 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	// Attempt stream blocks
 	bopts := result.NewOptions()
 	m := session.streamFromPeersMetricsForShard(0, resultTypeTest)
-	nsMetadata, err := opts.NamespaceRegistry().Get(nsID)
-	require.NoError(t, err)
 	session.streamBlocksBatchFromPeer(nsMetadata, 0, peer, batch, bopts, nil, enqueueCh, retrier, m)
 
 	// Assert result
@@ -1406,8 +1403,6 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 
 		// Attempt stream blocks
 	bopts := result.NewOptions()
-	nsMetadata, err := opts.NamespaceRegistry().Get(nsID)
-	require.NoError(t, err)
 	m := session.streamFromPeersMetricsForShard(0, resultTypeTest)
 	r := newBulkBlocksResult(opts, bopts)
 	session.streamBlocksBatchFromPeer(nsMetadata, 0, peer, batch, bopts, r, enqueueCh, retrier, m)
@@ -1549,8 +1544,6 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 
 	// Attempt stream blocks
 	bopts := result.NewOptions()
-	nsMetadata, err := opts.NamespaceRegistry().Get(nsID)
-	require.NoError(t, err)
 	m := session.streamFromPeersMetricsForShard(0, resultTypeTest)
 	r := newBulkBlocksResult(opts, bopts)
 	session.streamBlocksBatchFromPeer(nsMetadata, 0, peer, batch, bopts, r, enqueueCh, retrier, m)
