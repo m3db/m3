@@ -164,11 +164,11 @@ type mockRuleSet struct {
 	matcher      *mockMatcher
 }
 
-func (r mockRuleSet) Namespace() []byte                   { return []byte(r.namespace) }
-func (r mockRuleSet) Version() int                        { return r.version }
-func (r mockRuleSet) CutoverNanos() int64                 { return r.cutoverNanos }
-func (r mockRuleSet) TombStoned() bool                    { return r.tombstoned }
-func (r mockRuleSet) ActiveSet(t time.Time) rules.Matcher { return r.matcher }
+func (r mockRuleSet) Namespace() []byte                       { return []byte(r.namespace) }
+func (r mockRuleSet) Version() int                            { return r.version }
+func (r mockRuleSet) CutoverNanos() int64                     { return r.cutoverNanos }
+func (r mockRuleSet) TombStoned() bool                        { return r.tombstoned }
+func (r mockRuleSet) ActiveSet(timeNanos int64) rules.Matcher { return r.matcher }
 
 func testRuleSet() (kv.Store, Cache, *ruleSet, Options) {
 	store := mem.NewStore()
@@ -178,6 +178,7 @@ func testRuleSet() (kv.Store, Cache, *ruleSet, Options) {
 		SetKVStore(store).
 		SetRuleSetKeyFn(func(ns []byte) string { return fmt.Sprintf("/rules/%s", ns) }).
 		SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) { cache.Register(namespace, ruleSet) }).
-		SetMatchMode(rules.ReverseMatch)
+		SetMatchMode(rules.ReverseMatch).
+		SetMatchRangePast(0)
 	return store, cache, newRuleSet(testNamespace, testNamespacesKey, opts).(*ruleSet), opts
 }

@@ -22,6 +22,7 @@ package matcher
 
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/m3db/m3cluster/kv"
@@ -37,7 +38,7 @@ const (
 	defaultValueRetryExpiry = 3 * time.Hour
 	defaultNamespacesKey    = "/namespaces"
 	defaultRuleSetKeyFormat = "/ruleset/%s"
-	defaultMatchRangePast   = 0
+	defaultMatchRangePast   = time.Duration(math.MaxInt64)
 )
 
 var (

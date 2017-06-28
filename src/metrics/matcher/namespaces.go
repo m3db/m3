@@ -273,8 +273,8 @@ func (n *namespaces) process(value interface{}) error {
 			continue
 		}
 		// Process the namespaces not in the incoming update.
-		earliest := n.nowFn().Add(-n.matchRangePast)
-		if ruleSet.Tombstoned() && ruleSet.CutoverNanos() <= earliest.UnixNano() {
+		earliestNanos := n.nowFn().Add(-n.matchRangePast).UnixNano()
+		if ruleSet.Tombstoned() && ruleSet.CutoverNanos() <= earliestNanos {
 			if n.onNamespaceRemovedFn != nil {
 				n.onNamespaceRemovedFn(ruleSet.Namespace())
 			}

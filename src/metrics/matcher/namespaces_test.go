@@ -221,6 +221,7 @@ func testNamespaces() (kv.Store, Cache, *namespaces, Options) {
 		SetInitWatchTimeout(100 * time.Millisecond).
 		SetKVStore(store).
 		SetNamespacesKey(testNamespacesKey).
+		SetMatchRangePast(0).
 		SetOnNamespaceAddedFn(func(namespace []byte, ruleSet RuleSet) {
 			cache.Register(namespace, ruleSet)
 		}).
