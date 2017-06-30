@@ -37,8 +37,8 @@ import (
 )
 
 var (
-	// defaultNumProcessors is the default number of processors
-	defaultNumProcessors = int(math.Ceil(float64(runtime.NumCPU()) / 2))
+	// defaultNumProcessorsPerCPU is the default number of processors per CPU
+	defaultNumProcessorsPerCPU = 0.5
 )
 
 type filesystemConfiguration struct {
@@ -56,16 +56,11 @@ type BootstrapConfiguration struct {
 }
 
 func (bsc BootstrapConfiguration) numProcessors() int {
-	if bsc.FilesystemConfiguration == nil {
-		return defaultNumProcessors
+	np := defaultNumProcessorsPerCPU
+	if bsc.FilesystemConfiguration != nil {
+		np = bsc.FilesystemConfiguration.NumProcessorsPerCPU
 	}
-
-	numProcessorsPerCPU := bsc.FilesystemConfiguration.NumProcessorsPerCPU
-	if numProcessorsPerCPU <= 0.0 {
-		return defaultNumProcessors
-	}
-
-	return int(math.Ceil(float64(runtime.NumCPU()) * numProcessorsPerCPU))
+	return int(math.Ceil(float64(runtime.NumCPU()) * np))
 }
 
 // New creates a bootstrap process based on the bootstrap configuration.
