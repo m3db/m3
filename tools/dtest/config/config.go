@@ -5,9 +5,6 @@ import (
 	"io/ioutil"
 	"time"
 
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
@@ -18,6 +15,9 @@ import (
 	"github.com/m3db/m3em/x/grpc"
 	"github.com/m3db/m3x/config"
 	xlog "github.com/m3db/m3x/log"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 // Configuration is a collection of knobs to control test behavior

@@ -33,9 +33,9 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xlog "github.com/m3db/m3x/log"
-
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
+
 	"github.com/stretchr/testify/require"
 )
 

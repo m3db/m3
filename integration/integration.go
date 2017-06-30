@@ -41,9 +41,9 @@ import (
 	xmetrics "github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3cluster/shard"
+
+	"github.com/uber-go/tally"
 	"github.com/stretchr/testify/require"
 )
 

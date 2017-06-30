@@ -1,9 +1,9 @@
 package dtests
 
 import (
-	"github.com/spf13/cobra"
-
 	"github.com/m3db/m3db/tools/dtest/harness"
+
+	"github.com/spf13/cobra"
 )
 
 var removeDownNodeTestCmd = &cobra.Command{

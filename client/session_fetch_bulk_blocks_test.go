@@ -44,9 +44,9 @@ import (
 	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/sync"
 	"github.com/m3db/m3x/time"
+	"github.com/m3db/m3db/storage/block"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3db/storage/block"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

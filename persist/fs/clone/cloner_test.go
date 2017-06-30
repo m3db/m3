@@ -12,6 +12,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+
 	"github.com/stretchr/testify/require"
 )
 

@@ -24,7 +24,8 @@
 package block
 
 import (
-	gomock "github.com/golang/mock/gomock"
+	time "time"
+
 	context "github.com/m3db/m3db/context"
 	encoding "github.com/m3db/m3db/encoding"
 	ts "github.com/m3db/m3db/ts"
@@ -32,7 +33,8 @@ import (
 	clock "github.com/m3db/m3x/clock"
 	pool "github.com/m3db/m3x/pool"
 	sync "github.com/m3db/m3x/sync"
-	time "time"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of FilteredBlocksMetadataIter interface
