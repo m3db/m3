@@ -20,12 +20,27 @@
 
 package storage
 
-import "time"
+import (
+	"testing"
+	"time"
 
-func numIntervals(startInclusive, endInclusive time.Time, window time.Duration) int {
-	if window == 0 || endInclusive.Before(startInclusive) {
-		return 0
-	}
+	"github.com/stretchr/testify/require"
+)
 
-	return 1 + int((endInclusive.Sub(startInclusive))/window)
+func TestNumIntervals(t *testing.T) {
+
+	var (
+		bs = 10
+		tf = func(i int) time.Time {
+			return time.Unix(int64(bs*i), 0)
+		}
+	)
+
+	w := time.Second * time.Duration(bs)
+	t0 := tf(0)
+	t1 := tf(1)
+
+	require.Equal(t, 0, numIntervals(t1, t0, w))
+	require.Equal(t, 1, numIntervals(t0, t0, w))
+	require.Equal(t, 2, numIntervals(t0, t1, w))
 }

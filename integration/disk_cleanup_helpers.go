@@ -161,7 +161,7 @@ func waitUntilDataCleanedUp(filePathPrefix string, namespace ts.ID, shard uint32
 
 func getTimes(start time.Time, end time.Time, intervalSize time.Duration) []time.Time {
 	totalPeriod := end.Sub(start)
-	numPeriods := int(totalPeriod.Nanoseconds() / intervalSize.Nanoseconds())
+	numPeriods := int(totalPeriod / intervalSize)
 
 	times := make([]time.Time, 0, numPeriods)
 	for i := 0; i < numPeriods; i++ {
