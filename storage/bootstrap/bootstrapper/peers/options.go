@@ -21,7 +21,7 @@
 package peers
 
 import (
-	"fmt"
+	"errors"
 	"math"
 	"runtime"
 
@@ -36,6 +36,11 @@ var (
 	defaultDefaultShardConcurrency        = runtime.NumCPU()
 	defaultIncrementalShardConcurrency    = int(math.Max(1, float64(runtime.NumCPU())/2))
 	defaultIncrementalPersistMaxQueueSize = 0
+)
+
+var (
+	errNamespaceRegistryNotSet = errors.New("namespace registry not set")
+	errAdminClientNotSet       = errors.New("admin client not set")
 )
 
 type options struct {
@@ -63,12 +68,12 @@ func NewOptions() Options {
 func (o *options) Validate() error {
 	registry := o.namespaceRegistry
 	if registry == nil {
-		return fmt.Errorf("namespace registry not set")
+		return errNamespaceRegistryNotSet
 	}
 
 	client := o.client
 	if client == nil {
-		return fmt.Errorf("admin client not set")
+		return errAdminClientNotSet
 	}
 
 	return nil

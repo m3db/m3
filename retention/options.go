@@ -21,7 +21,7 @@
 package retention
 
 import (
-	"fmt"
+	"errors"
 	"time"
 )
 
@@ -46,12 +46,12 @@ const (
 )
 
 var (
-	errBufferFutureNonNegative = fmt.Errorf("buffer future must be non-negative")
-	errBufferPastNonNegative   = fmt.Errorf("buffer past must be non-negative")
-	errBlockSizePositive       = fmt.Errorf("block size must positive")
-	errBufferFutureTooLarge    = fmt.Errorf("buffer future must be smaller than block size")
-	errBufferPastTooLarge      = fmt.Errorf("buffer past must be smaller than block size")
-	errRetentionPeriodTooSmall = fmt.Errorf("retention period must not be smaller than block size")
+	errBufferFutureNonNegative = errors.New("buffer future must be non-negative")
+	errBufferPastNonNegative   = errors.New("buffer past must be non-negative")
+	errBlockSizePositive       = errors.New("block size must positive")
+	errBufferFutureTooLarge    = errors.New("buffer future must be smaller than block size")
+	errBufferPastTooLarge      = errors.New("buffer past must be smaller than block size")
+	errRetentionPeriodTooSmall = errors.New("retention period must not be smaller than block size")
 )
 
 type options struct {
