@@ -233,9 +233,7 @@ func newDefaultBootstrappableTestSetups(
 			SetResultOptions(bsOpts).
 			SetFilesystemOptions(fsOpts)
 
-		fsBootstrapper, err := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, peersBootstrapper)
-		require.NoError(t, err)
-
+		fsBootstrapper := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, peersBootstrapper)
 		setup.storageOpts = setup.storageOpts.
 			SetBootstrapProcess(bootstrap.NewProcess(fsBootstrapper, bsOpts))
 
