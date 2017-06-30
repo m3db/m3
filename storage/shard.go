@@ -828,7 +828,6 @@ func (s *dbShard) Bootstrap(
 }
 
 func (s *dbShard) Flush(
-	namespace ts.ID,
 	blockStart time.Time,
 	flush persist.Flush,
 ) error {
@@ -841,7 +840,7 @@ func (s *dbShard) Flush(
 	s.RUnlock()
 
 	var multiErr xerrors.MultiError
-	prepared, err := flush.Prepare(namespace, s.ID(), blockStart)
+	prepared, err := flush.Prepare(s.nsMetadata, s.ID(), blockStart)
 	multiErr = multiErr.Add(err)
 
 	// No action is necessary therefore we bail out early and there is no need to close.
@@ -919,12 +918,14 @@ func (s *dbShard) removeAnyFlushStatesTooEarly() {
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) CleanupFileset(namespace ts.ID, earliestToRetain time.Time) error {
+func (s *dbShard) CleanupFileset(earliestToRetain time.Time) error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	multiErr := xerrors.NewMultiError()
-	expired, err := s.filesetBeforeFn(filePathPrefix, namespace, s.ID(), earliestToRetain)
+	expired, err := s.filesetBeforeFn(filePathPrefix, s.nsMetadata.ID(), s.ID(), earliestToRetain)
 	if err != nil {
-		detailedErr := fmt.Errorf("encountered errors when getting fileset files for prefix %s namespace %s shard %d: %v", filePathPrefix, namespace, s.ID(), err)
+		detailedErr :=
+			fmt.Errorf("encountered errors when getting fileset files for prefix %s namespace %s shard %d: %v",
+				filePathPrefix, s.nsMetadata.ID(), s.ID(), err)
 		multiErr = multiErr.Add(detailedErr)
 	}
 	if err := s.deleteFilesFn(expired); err != nil {
@@ -935,9 +936,8 @@ func (s *dbShard) CleanupFileset(namespace ts.ID, earliestToRetain time.Time) er
 
 func (s *dbShard) Repair(
 	ctx context.Context,
-	namespace ts.ID,
 	tr xtime.Range,
 	repairer databaseShardRepairer,
 ) (repair.MetadataComparisonResult, error) {
-	return repairer.Repair(ctx, namespace, tr, s)
+	return repairer.Repair(ctx, s.nsMetadata.ID(), tr, s)
 }

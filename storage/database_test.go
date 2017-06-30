@@ -144,12 +144,9 @@ func testDatabaseOptions(t *testing.T) Options {
 	// times as they are immutable - we save considerable
 	// memory by doing this avoiding creating default pools
 	// several times.
-	commitlogOpts := defaultTestDatabaseOptions.CommitLogOptions()
 	reg := defaultTestNamespaceRegistry(t)
 	return defaultTestDatabaseOptions.
-		SetNamespaceRegistry(reg).
-		SetCommitLogOptions(commitlogOpts.SetFilesystemOptions(
-			commitlogOpts.FilesystemOptions().SetNamespaceRegistry(reg)))
+		SetNamespaceRegistry(reg)
 }
 
 func testRepairOptions(ctrl *gomock.Controller) repair.Options {

@@ -537,7 +537,7 @@ func (n *dbNamespace) Flush(
 	for _, shard := range shards {
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := shard.Flush(n.id, blockStart, flush); err != nil {
+		if err := shard.Flush(blockStart, flush); err != nil {
 			detailedErr := fmt.Errorf("shard %d failed to flush data: %v",
 				shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
@@ -615,7 +615,7 @@ func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {
 	multiErr := xerrors.NewMultiError()
 	shards := n.getOwnedShards()
 	for _, shard := range shards {
-		if err := shard.CleanupFileset(n.id, earliestToRetain); err != nil {
+		if err := shard.CleanupFileset(earliestToRetain); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -684,7 +684,7 @@ func (n *dbNamespace) Repair(
 			ctx := n.opts.ContextPool().Get()
 			defer ctx.Close()
 
-			metadataRes, err := shard.Repair(ctx, n.id, tr, repairer)
+			metadataRes, err := shard.Repair(ctx, tr, repairer)
 
 			mutex.Lock()
 			if err != nil {

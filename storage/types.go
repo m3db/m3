@@ -276,9 +276,8 @@ type databaseShard interface {
 		bootstrappedSeries map[ts.Hash]result.DatabaseSeriesBlocks,
 	) error
 
-	// Flush flushes the series in this shard.
+	// Flush flushes the series' in this shard.
 	Flush(
-		namespace ts.ID,
 		blockStart time.Time,
 		flush persist.Flush,
 	) error
@@ -287,12 +286,11 @@ type databaseShard interface {
 	FlushState(blockStart time.Time) fileOpState
 
 	// CleanupFileset cleans up fileset files
-	CleanupFileset(namespace ts.ID, earliestToRetain time.Time) error
+	CleanupFileset(earliestToRetain time.Time) error
 
 	// Repair repairs the shard data for a given time
 	Repair(
 		ctx context.Context,
-		namespace ts.ID,
 		tr xtime.Range,
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)

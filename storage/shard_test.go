@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
@@ -143,7 +144,7 @@ func TestShardFlushDuringBootstrap(t *testing.T) {
 	s := testDatabaseShard(t, testDatabaseOptions(t))
 	defer s.Close()
 	s.bs = bootstrapping
-	err := s.Flush(defaultTestNs1ID, time.Now(), nil)
+	err := s.Flush(time.Now(), nil)
 	require.Equal(t, err, errShardNotBootstrappedToFlush)
 }
 
@@ -157,9 +158,10 @@ func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 	blockStart := time.Unix(21600, 0)
 	flush := persist.NewMockFlush(ctrl)
 	prepared := persist.PreparedPersist{Persist: nil}
-	flush.EXPECT().Prepare(defaultTestNs1ID, s.shard, blockStart).Return(prepared, nil)
+	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.nsMetadata),
+		s.shard, blockStart).Return(prepared, nil)
 
-	err := s.Flush(defaultTestNs1ID, blockStart, flush)
+	err := s.Flush(blockStart, flush)
 	require.Nil(t, err)
 
 	flushState := s.FlushState(blockStart)
@@ -183,9 +185,11 @@ func TestShardFlushNoPersistFuncWithError(t *testing.T) {
 	flush := persist.NewMockFlush(ctrl)
 	prepared := persist.PreparedPersist{}
 	expectedErr := errors.New("some error")
-	flush.EXPECT().Prepare(defaultTestNs1ID, s.shard, blockStart).Return(prepared, expectedErr)
 
-	actualErr := s.Flush(defaultTestNs1ID, blockStart, flush)
+	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.nsMetadata),
+		s.shard, blockStart).Return(prepared, expectedErr)
+
+	actualErr := s.Flush(blockStart, flush)
 	require.NotNil(t, actualErr)
 	require.Equal(t, "some error", actualErr.Error())
 
@@ -217,7 +221,8 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		Close:   func() error { closed = true; return nil },
 	}
 	expectedErr := errors.New("error foo")
-	flush.EXPECT().Prepare(defaultTestNs1ID, s.shard, blockStart).Return(prepared, expectedErr)
+	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.nsMetadata),
+		s.shard, blockStart).Return(prepared, expectedErr)
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
@@ -238,7 +243,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		s.list.PushBack(&dbShardEntry{series: series})
 	}
 
-	err := s.Flush(defaultTestNs1ID, blockStart, flush)
+	err := s.Flush(blockStart, flush)
 
 	require.Equal(t, len(flushed), 2)
 	for i := 0; i < 2; i++ {
@@ -278,7 +283,8 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		Close:   func() error { closed = true; return nil },
 	}
 
-	flush.EXPECT().Prepare(defaultTestNs1ID, s.shard, blockStart).Return(prepared, nil)
+	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.nsMetadata),
+		s.shard, blockStart).Return(prepared, nil)
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
@@ -295,7 +301,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		s.list.PushBack(&dbShardEntry{series: series})
 	}
 
-	err := s.Flush(defaultTestNs1ID, blockStart, flush)
+	err := s.Flush(blockStart, flush)
 
 	require.Equal(t, len(flushed), 2)
 	for i := 0; i < 2; i++ {
@@ -580,6 +586,6 @@ func TestShardCleanupFileset(t *testing.T) {
 		deletedFiles = append(deletedFiles, files...)
 		return nil
 	}
-	require.NoError(t, shard.CleanupFileset(defaultTestNs1ID, time.Now()))
+	require.NoError(t, shard.CleanupFileset(time.Now()))
 	require.Equal(t, []string{defaultTestNs1ID.String(), "0"}, deletedFiles)
 }

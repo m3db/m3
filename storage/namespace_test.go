@@ -384,7 +384,7 @@ func TestNamespaceFlushAllShards(t *testing.T) {
 	errs := []error{nil, errors.New("foo")}
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().Flush(ts.NewIDMatcher(defaultTestNs1ID.String()), blockStart, nil).Return(errs[i])
+		shard.EXPECT().Flush(blockStart, nil).Return(errs[i])
 		if errs[i] != nil {
 			shard.EXPECT().ID().Return(testShardIDs[i].ID())
 		}
@@ -412,9 +412,7 @@ func TestNamespaceCleanupFilesetAllShards(t *testing.T) {
 	errs := []error{nil, errors.New("foo")}
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().
-			CleanupFileset(ts.NewIDMatcher(defaultTestNs1ID.String()), earliestToRetain).
-			Return(errs[i])
+		shard.EXPECT().CleanupFileset(earliestToRetain).Return(errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
@@ -463,7 +461,7 @@ func TestNamespaceRepair(t *testing.T) {
 			}
 		}
 		shard.EXPECT().
-			Repair(gomock.Any(), ts.NewIDMatcher(defaultTestNs1ID.String()), repairTimeRange, repairer).
+			Repair(gomock.Any(), repairTimeRange, repairer).
 			Return(res, errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 	}

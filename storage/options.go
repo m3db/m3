@@ -201,12 +201,6 @@ func (o *options) Validate() error {
 		return fmt.Errorf("unable to validate commit log options: %v", err)
 	}
 
-	// ensure all namespace registries are the same
-	clRegisry := o.CommitLogOptions().FilesystemOptions().NamespaceRegistry()
-	if !registry.Equal(clRegisry) {
-		return fmt.Errorf("commit log fs options namespace registry differs from storage options namespace registry")
-	}
-
 	// validate repair options
 	if o.RepairEnabled() {
 		rOpts := o.RepairOptions()
