@@ -343,15 +343,6 @@ func (r *dbRepairer) needsRepair(ns ts.ID, t time.Time) bool {
 		(repairState.Status == repairFailed && repairState.NumFailures < r.repairMaxRetries)
 }
 
-func (r *dbRepairer) setRepairState(ns ts.ID, t time.Time) bool {
-	repairState, exists := r.repairStatesByNs.repairStates(ns, t)
-	if !exists {
-		return true
-	}
-	return repairState.Status == repairNotStarted ||
-		(repairState.Status == repairFailed && repairState.NumFailures < r.repairMaxRetries)
-}
-
 func (r *dbRepairer) Start() {
 	if r.repairInterval <= 0 {
 		return
