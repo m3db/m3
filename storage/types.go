@@ -310,8 +310,9 @@ type databaseBootstrapManager interface {
 
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
-	// NeedsFlush returns true if the data for a given time have been flushed.
-	NeedsFlush(start time.Time, end time.Time) bool
+	// NeedsFlush returns true if any registered namespaces require a flush
+	// in the time period specified: [startInclusive, endInclusive].
+	NeedsFlush(startInclusive time.Time, endInclusive time.Time) bool
 
 	// Flush flushes in-memory data to persistent storage.
 	Flush(t time.Time) error

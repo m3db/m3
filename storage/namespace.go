@@ -550,17 +550,17 @@ func (n *dbNamespace) Flush(
 	return res
 }
 
-func (n *dbNamespace) NeedsFlush(start time.Time, end time.Time) bool {
+func (n *dbNamespace) NeedsFlush(startInclusive time.Time, endInclusive time.Time) bool {
 	// don't need to flush for bad input
-	if start.After(end) {
+	if startInclusive.After(endInclusive) {
 		return false
 	}
 
 	// find all blockStarts for the given range
 	var (
 		blockSize   = n.Options().RetentionOptions().BlockSize()
-		startBlock  = start.Truncate(blockSize)
-		endBlock    = end.Truncate(blockSize).Add(blockSize)
+		startBlock  = startInclusive.Truncate(blockSize)
+		endBlock    = endInclusive.Truncate(blockSize).Add(blockSize)
 		blockStarts []time.Time
 	)
 	for t := startBlock; t.Before(endBlock); t = t.Add(blockSize) {

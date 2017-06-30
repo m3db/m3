@@ -60,10 +60,10 @@ func newFlushManager(database database, scope tally.Scope) databaseFlushManager 
 	}
 }
 
-func (m *flushManager) NeedsFlush(start time.Time, end time.Time) bool {
+func (m *flushManager) NeedsFlush(startInclusive time.Time, endInclusive time.Time) bool {
 	namespaces := m.database.getOwnedNamespaces()
 	for _, n := range namespaces {
-		if n.NeedsFlush(start, end) {
+		if n.NeedsFlush(startInclusive, endInclusive) {
 			return true
 		}
 	}
