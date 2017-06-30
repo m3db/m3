@@ -236,6 +236,7 @@ func (s *peersSource) incrementalFlush(
 	shardResult result.ShardResult,
 	tr xtime.Range,
 ) error {
+	// TODO(prateek): see if this can be removed too
 	nsMetadata, err := s.opts.NamespaceRegistry().Get(namespace)
 	if err != nil {
 		return err
@@ -248,7 +249,7 @@ func (s *peersSource) incrementalFlush(
 		tmpCtx         = context.NewContext()
 	)
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
-		prepared, err := flush.Prepare(namespace, shard, start)
+		prepared, err := flush.Prepare(nsMetadata, shard, start)
 		if err != nil {
 			return err
 		}

@@ -21,8 +21,6 @@
 package fs
 
 import (
-	"fmt"
-
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
 )
@@ -41,16 +39,12 @@ func NewFileSystemBootstrapper(
 	prefix string,
 	opts Options,
 	next bootstrap.Bootstrapper,
-) (bootstrap.Bootstrapper, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, fmt.Errorf("unable to validate options: %v", err)
-	}
-
+) bootstrap.Bootstrapper {
 	src := newFileSystemSource(prefix, opts)
 	b := &fileSystemBootstrapper{}
 	b.Bootstrapper = bootstrapper.NewBaseBootstrapper(b.String(),
 		src, opts.ResultOptions(), next)
-	return b, nil
+	return b
 }
 
 func (fsb *fileSystemBootstrapper) String() string {

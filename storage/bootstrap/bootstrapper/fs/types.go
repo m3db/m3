@@ -28,9 +28,6 @@ import (
 
 // Options represents the options for bootstrapping from the filesystem.
 type Options interface {
-	// Validate validates the options
-	Validate() error
-
 	// SetResultOptions sets the instrumentation options.
 	SetResultOptions(value result.Options) Options
 
