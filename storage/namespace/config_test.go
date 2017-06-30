@@ -96,7 +96,7 @@ func TestMetadataConfig(t *testing.T) {
 
 func TestRegistryConfigFromBytes(t *testing.T) {
 	yamlBytes := []byte(`
-metadata:
+metadatas:
   - id: "testmetrics"
     needsBootstrap: false
     needsFlush: false

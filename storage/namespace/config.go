@@ -27,7 +27,7 @@ import (
 
 // RegistryConfiguration is the configuration for a registry of namespaces
 type RegistryConfiguration struct {
-	Metadatas []MetadataConfiguration `yaml:"metadata" validate:"nonzero"`
+	Metadatas []MetadataConfiguration `yaml:"metadatas" validate:"nonzero"`
 }
 
 // MetadataConfiguration is the configuration for a single namespace
