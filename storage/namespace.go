@@ -68,6 +68,7 @@ type dbNamespace struct {
 	opts           Options
 	runtimeOptsMgr m3dbruntime.OptionsManager
 	metadata       namespace.Metadata
+	nopts          namespace.Options
 	seriesOpts     series.Options
 	nowFn          clock.NowFn
 	log            xlog.Logger
@@ -191,6 +192,7 @@ func newDatabaseNamespace(
 		blockRetriever:         blockRetriever,
 		opts:                   opts,
 		metadata:               metadata,
+		nopts:                  metadata.Options(),
 		seriesOpts:             seriesOpts,
 		nowFn:                  opts.ClockOptions().NowFn(),
 		log:                    logger,
@@ -207,7 +209,7 @@ func newDatabaseNamespace(
 }
 
 func (n *dbNamespace) Options() namespace.Options {
-	return n.metadata.Options()
+	return n.nopts
 }
 
 func (n *dbNamespace) ID() ts.ID {
@@ -235,9 +237,10 @@ func (n *dbNamespace) Shards() []Shard {
 
 func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	var (
-		incoming = make(map[uint32]struct{}, len(shardSet.All()))
-		existing []databaseShard
-		closing  []databaseShard
+		needsBootstrap = n.nopts.NeedsBootstrap()
+		incoming       = make(map[uint32]struct{}, len(shardSet.All()))
+		existing       []databaseShard
+		closing        []databaseShard
 	)
 	for _, shard := range shardSet.AllIDs() {
 		incoming[shard] = struct{}{}
@@ -259,7 +262,6 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		if int(shard) < len(existing) && existing[shard] != nil {
 			n.shards[shard] = existing[shard]
 		} else {
-			needsBootstrap := n.Options().NeedsBootstrap()
 			n.shards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
 				n.increasingIndex, n.writeCommitLogFn, needsBootstrap, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
@@ -420,7 +422,7 @@ func (n *dbNamespace) Bootstrap(
 		n.metrics.bootstrapEnd.Inc(1)
 	}()
 
-	if !n.Options().NeedsBootstrap() {
+	if !n.nopts.NeedsBootstrap() {
 		n.metrics.bootstrap.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
@@ -521,13 +523,13 @@ func (n *dbNamespace) Flush(
 	}
 	n.RUnlock()
 
-	if !n.Options().NeedsFlush() {
+	if !n.nopts.NeedsFlush() {
 		n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
 
 	// check if blockStart is aligned with the namespace's retention options
-	bs := n.Options().RetentionOptions().BlockSize()
+	bs := n.nopts.RetentionOptions().BlockSize()
 	truncated := blockStart.Truncate(bs)
 	if truncated != blockStart {
 		return fmt.Errorf("failed to flush at time %v, not aligned to blockSize", blockStart.String())
@@ -558,7 +560,7 @@ func (n *dbNamespace) NeedsFlush(startInclusive time.Time, endInclusive time.Tim
 
 	// find all blockStarts for the given range
 	var (
-		blockSize   = n.Options().RetentionOptions().BlockSize()
+		blockSize   = n.nopts.RetentionOptions().BlockSize()
 		startBlock  = startInclusive.Truncate(blockSize)
 		endBlock    = endInclusive.Truncate(blockSize).Add(blockSize)
 		blockStarts []time.Time
@@ -609,7 +611,7 @@ func (n *dbNamespace) NeedsFlush(startInclusive time.Time, endInclusive time.Tim
 }
 
 func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {
-	if !n.Options().NeedsFilesetCleanup() {
+	if !n.nopts.NeedsFilesetCleanup() {
 		return nil
 	}
 
@@ -648,7 +650,7 @@ func (n *dbNamespace) Repair(
 	repairer databaseShardRepairer,
 	tr xtime.Range,
 ) error {
-	if !n.Options().NeedsRepair() {
+	if !n.nopts.NeedsRepair() {
 		return nil
 	}
 

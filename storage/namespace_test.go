@@ -269,7 +269,9 @@ func TestNamespaceBootstrapBootstrapping(t *testing.T) {
 
 func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
 	ns := newTestNamespace(t)
-	ns.metadata = namespace.NewMetadata(ns.ID(), ns.metadata.Options().SetNeedsBootstrap(false))
+	newOpts := ns.metadata.Options().SetNeedsBootstrap(false)
+	ns.metadata = namespace.NewMetadata(ns.ID(), newOpts)
+	ns.nopts = newOpts
 	require.NoError(t, ns.Bootstrap(nil, nil))
 	require.Equal(t, bootstrapped, ns.bs)
 }
@@ -367,7 +369,9 @@ func TestNamespaceFlushNotBootstrapped(t *testing.T) {
 func TestNamespaceFlushDontNeedFlush(t *testing.T) {
 	ns := newTestNamespace(t)
 	ns.bs = bootstrapped
-	ns.metadata = namespace.NewMetadata(ns.ID(), ns.metadata.Options().SetNeedsFlush(false))
+	newOpts := ns.metadata.Options().SetNeedsFlush(false)
+	ns.metadata = namespace.NewMetadata(ns.ID(), newOpts)
+	ns.nopts = newOpts
 	require.NoError(t, ns.Flush(time.Now(), nil))
 }
 
