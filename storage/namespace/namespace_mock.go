@@ -24,10 +24,9 @@
 package namespace
 
 import (
+	gomock "github.com/golang/mock/gomock"
 	retention "github.com/m3db/m3db/retention"
 	ts "github.com/m3db/m3db/ts"
-
-	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of Options interface
@@ -212,16 +211,6 @@ func (_m *MockMetadata) EXPECT() *_MockMetadataRecorder {
 	return _m.recorder
 }
 
-func (_m *MockMetadata) Validate() error {
-	ret := _m.ctrl.Call(_m, "Validate")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockMetadataRecorder) Validate() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
-}
-
 func (_m *MockMetadata) Equal(value Metadata) bool {
 	ret := _m.ctrl.Call(_m, "Equal", value)
 	ret0, _ := ret[0].(bool)
@@ -271,16 +260,6 @@ func NewMockRegistry(ctrl *gomock.Controller) *MockRegistry {
 
 func (_m *MockRegistry) EXPECT() *_MockRegistryRecorder {
 	return _m.recorder
-}
-
-func (_m *MockRegistry) Validate() error {
-	ret := _m.ctrl.Call(_m, "Validate")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockRegistryRecorder) Validate() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
 }
 
 func (_m *MockRegistry) Equal(value Registry) bool {

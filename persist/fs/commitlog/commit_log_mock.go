@@ -24,8 +24,7 @@
 package commitlog
 
 import (
-	time "time"
-
+	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
 	fs "github.com/m3db/m3db/persist/fs"
@@ -34,8 +33,7 @@ import (
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
 	time0 "github.com/m3db/m3x/time"
-
-	gomock "github.com/golang/mock/gomock"
+	time "time"
 )
 
 // Mock of CommitLog interface
@@ -191,6 +189,16 @@ func NewMockOptions(ctrl *gomock.Controller) *MockOptions {
 
 func (_m *MockOptions) EXPECT() *_MockOptionsRecorder {
 	return _m.recorder
+}
+
+func (_m *MockOptions) Validate() error {
+	ret := _m.ctrl.Call(_m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) Validate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
 }
 
 func (_m *MockOptions) SetClockOptions(value clock.Options) Options {

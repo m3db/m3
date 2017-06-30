@@ -24,11 +24,9 @@
 package persist
 
 import (
-	time "time"
-
-	ts "github.com/m3db/m3db/ts"
-
 	gomock "github.com/golang/mock/gomock"
+	namespace "github.com/m3db/m3db/storage/namespace"
+	time "time"
 )
 
 // Mock of Manager interface
@@ -84,8 +82,8 @@ func (_m *MockFlush) EXPECT() *_MockFlushRecorder {
 	return _m.recorder
 }
 
-func (_m *MockFlush) Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (PreparedPersist, error) {
-	ret := _m.ctrl.Call(_m, "Prepare", namespace, shard, blockStart)
+func (_m *MockFlush) Prepare(ns namespace.Metadata, shard uint32, blockStart time.Time) (PreparedPersist, error) {
+	ret := _m.ctrl.Call(_m, "Prepare", ns, shard, blockStart)
 	ret0, _ := ret[0].(PreparedPersist)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1

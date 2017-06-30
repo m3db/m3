@@ -24,8 +24,7 @@
 package storage
 
 import (
-	time0 "time"
-
+	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
 	encoding "github.com/m3db/m3db/encoding"
@@ -45,8 +44,7 @@ import (
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
 	time "github.com/m3db/m3x/time"
-
-	gomock "github.com/golang/mock/gomock"
+	time0 "time"
 )
 
 // Mock of Database interface
@@ -805,14 +803,14 @@ func (_mr *_MockdatabaseShardRecorder) Bootstrap(arg0 interface{}) *gomock.Call 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0)
 }
 
-func (_m *MockdatabaseShard) Flush(namespace ts.ID, blockStart time0.Time, flush persist.Flush) error {
-	ret := _m.ctrl.Call(_m, "Flush", namespace, blockStart, flush)
+func (_m *MockdatabaseShard) Flush(blockStart time0.Time, flush persist.Flush) error {
+	ret := _m.ctrl.Call(_m, "Flush", blockStart, flush)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseShardRecorder) Flush(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0, arg1, arg2)
+func (_mr *_MockdatabaseShardRecorder) Flush(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0, arg1)
 }
 
 func (_m *MockdatabaseShard) FlushState(blockStart time0.Time) fileOpState {
@@ -825,25 +823,25 @@ func (_mr *_MockdatabaseShardRecorder) FlushState(arg0 interface{}) *gomock.Call
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FlushState", arg0)
 }
 
-func (_m *MockdatabaseShard) CleanupFileset(namespace ts.ID, earliestToRetain time0.Time) error {
-	ret := _m.ctrl.Call(_m, "CleanupFileset", namespace, earliestToRetain)
+func (_m *MockdatabaseShard) CleanupFileset(earliestToRetain time0.Time) error {
+	ret := _m.ctrl.Call(_m, "CleanupFileset", earliestToRetain)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseShardRecorder) CleanupFileset(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "CleanupFileset", arg0, arg1)
+func (_mr *_MockdatabaseShardRecorder) CleanupFileset(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CleanupFileset", arg0)
 }
 
-func (_m *MockdatabaseShard) Repair(ctx context.Context, namespace ts.ID, tr time.Range, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
-	ret := _m.ctrl.Call(_m, "Repair", ctx, namespace, tr, repairer)
+func (_m *MockdatabaseShard) Repair(ctx context.Context, tr time.Range, repairer databaseShardRepairer) (repair.MetadataComparisonResult, error) {
+	ret := _m.ctrl.Call(_m, "Repair", ctx, tr, repairer)
 	ret0, _ := ret[0].(repair.MetadataComparisonResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockdatabaseShardRecorder) Repair(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair", arg0, arg1, arg2, arg3)
+func (_mr *_MockdatabaseShardRecorder) Repair(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair", arg0, arg1, arg2)
 }
 
 // Mock of databaseBootstrapManager interface
@@ -916,8 +914,8 @@ func (_m *MockdatabaseFlushManager) EXPECT() *_MockdatabaseFlushManagerRecorder 
 	return _m.recorder
 }
 
-func (_m *MockdatabaseFlushManager) NeedsFlush(start time0.Time, end time0.Time) bool {
-	ret := _m.ctrl.Call(_m, "NeedsFlush", start, end)
+func (_m *MockdatabaseFlushManager) NeedsFlush(startInclusive time0.Time, endInclusive time0.Time) bool {
+	ret := _m.ctrl.Call(_m, "NeedsFlush", startInclusive, endInclusive)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
@@ -1022,16 +1020,6 @@ func (_m *MockFileOpOptions) Jitter() time0.Duration {
 
 func (_mr *_MockFileOpOptionsRecorder) Jitter() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Jitter")
-}
-
-func (_m *MockFileOpOptions) Validate() error {
-	ret := _m.ctrl.Call(_m, "Validate")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockFileOpOptionsRecorder) Validate() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
 }
 
 // Mock of databaseFileSystemManager interface
@@ -1375,6 +1363,16 @@ func NewMockOptions(ctrl *gomock.Controller) *MockOptions {
 
 func (_m *MockOptions) EXPECT() *_MockOptionsRecorder {
 	return _m.recorder
+}
+
+func (_m *MockOptions) Validate() error {
+	ret := _m.ctrl.Call(_m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) Validate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
 }
 
 func (_m *MockOptions) SetEncodingM3TSZPooled() Options {
