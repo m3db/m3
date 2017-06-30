@@ -26,29 +26,21 @@ import (
 
 // Configuration is the set of knobs to configure retention options
 type Configuration struct {
-	RetentionPeriod                       *time.Duration `yaml:"retentionPeriod"`
-	BlockSize                             *time.Duration `yaml:"blockSize"`
-	BufferFuture                          *time.Duration `yaml:"bufferFuture"`
-	BufferPast                            *time.Duration `yaml:"bufferPast"`
+	RetentionPeriod                       time.Duration  `yaml:"retentionPeriod" validate:"nonzero"`
+	BlockSize                             time.Duration  `yaml:"blockSize" validate:"nonzero"`
+	BufferFuture                          time.Duration  `yaml:"bufferFuture" validate:"nonzero"`
+	BufferPast                            time.Duration  `yaml:"bufferPast" validate:"nonzero"`
 	BlockDataExpiry                       *bool          `yaml:"blockDataExpiry"`
 	BlockDataExpiryAfterNotAccessedPeriod *time.Duration `yaml:"blockDataExpiryAfterNotAccessedPeriod"`
 }
 
 // Options returns `Options` corresponding to the provided struct values
 func (c *Configuration) Options() Options {
-	opts := NewOptions()
-	if v := c.RetentionPeriod; v != nil {
-		opts = opts.SetRetentionPeriod(*v)
-	}
-	if v := c.BlockSize; v != nil {
-		opts = opts.SetBlockSize(*v)
-	}
-	if v := c.BufferFuture; v != nil {
-		opts = opts.SetBufferFuture(*v)
-	}
-	if v := c.BufferPast; v != nil {
-		opts = opts.SetBufferPast(*v)
-	}
+	opts := NewOptions().
+		SetRetentionPeriod(c.RetentionPeriod).
+		SetBlockSize(c.BlockSize).
+		SetBufferFuture(c.BufferFuture).
+		SetBufferPast(c.BufferPast)
 	if v := c.BlockDataExpiry; v != nil {
 		opts = opts.SetBlockDataExpiry(*v)
 	}

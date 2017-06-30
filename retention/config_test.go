@@ -36,10 +36,10 @@ func TestConfigurationAssignment(t *testing.T) {
 		blockDataExpiry                       = true
 		blockDataExpiryAfterNotAccessedPeriod = 6 * time.Hour
 		config                                = &Configuration{
-			RetentionPeriod:                       &retentionPeriod,
-			BlockSize:                             &blockSize,
-			BufferFuture:                          &bufferFuture,
-			BufferPast:                            &bufferPast,
+			RetentionPeriod:                       retentionPeriod,
+			BlockSize:                             blockSize,
+			BufferFuture:                          bufferFuture,
+			BufferPast:                            bufferPast,
 			BlockDataExpiry:                       &blockDataExpiry,
 			BlockDataExpiryAfterNotAccessedPeriod: &blockDataExpiryAfterNotAccessedPeriod,
 		}

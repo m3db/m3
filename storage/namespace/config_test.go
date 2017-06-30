@@ -78,7 +78,7 @@ func TestMetadataConfig(t *testing.T) {
 			WritesToCommitLog:   &writesToCommitLog,
 			NeedsFilesetCleanup: &needsFilesetCleanup,
 			NeedsRepair:         &needsRepair,
-			Retention:           &retention,
+			Retention:           retention,
 		}
 	)
 

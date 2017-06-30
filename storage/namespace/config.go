@@ -32,13 +32,13 @@ type RegistryConfiguration struct {
 
 // MetadataConfiguration is the configuration for a single namespace
 type MetadataConfiguration struct {
-	ID                  string                   `yaml:"id" validate:"nonzero"`
-	NeedsBootstrap      *bool                    `yaml:"needsBootstrap"`
-	NeedsFlush          *bool                    `yaml:"needsFlush"`
-	WritesToCommitLog   *bool                    `yaml:"writesToCommitLog"`
-	NeedsFilesetCleanup *bool                    `yaml:"needsFilesetCleanup"`
-	NeedsRepair         *bool                    `yaml:"needsRepair"`
-	Retention           *retention.Configuration `yaml:"retention"`
+	ID                  string                  `yaml:"id" validate:"nonzero"`
+	NeedsBootstrap      *bool                   `yaml:"needsBootstrap"`
+	NeedsFlush          *bool                   `yaml:"needsFlush"`
+	WritesToCommitLog   *bool                   `yaml:"writesToCommitLog"`
+	NeedsFilesetCleanup *bool                   `yaml:"needsFilesetCleanup"`
+	NeedsRepair         *bool                   `yaml:"needsRepair"`
+	Retention           retention.Configuration `yaml:"retention" validate:"nonzero"`
 }
 
 // Registry returns a Registry corresponding to the receiver struct
@@ -52,7 +52,8 @@ func (rc *RegistryConfiguration) Registry() Registry {
 
 // Metadata returns a Metadata corresponding to the receiver struct
 func (mc *MetadataConfiguration) Metadata() Metadata {
-	opts := NewOptions()
+	ropts := mc.Retention.Options()
+	opts := NewOptions().SetRetentionOptions(ropts)
 	if v := mc.NeedsBootstrap; v != nil {
 		opts = opts.SetNeedsBootstrap(*v)
 	}
@@ -67,9 +68,6 @@ func (mc *MetadataConfiguration) Metadata() Metadata {
 	}
 	if v := mc.NeedsRepair; v != nil {
 		opts = opts.SetNeedsRepair(*v)
-	}
-	if v := mc.Retention; v != nil {
-		opts = opts.SetRetentionOptions(v.Options())
 	}
 	return NewMetadata(ts.StringID(mc.ID), opts)
 }
