@@ -38,25 +38,42 @@ func TestRegistryConfig(t *testing.T) {
 			Metadatas: []MetadataConfiguration{
 				MetadataConfiguration{
 					ID: "abc",
+					Retention: retention.Configuration{
+						BlockSize:       time.Hour,
+						RetentionPeriod: time.Hour,
+						BufferFuture:    time.Minute,
+						BufferPast:      time.Minute,
+					},
 				},
 				MetadataConfiguration{
 					ID:             "cde",
 					NeedsBootstrap: &needsBootstrap,
+					Retention: retention.Configuration{
+						BlockSize:       time.Hour,
+						RetentionPeriod: time.Hour,
+						BufferFuture:    time.Minute,
+						BufferPast:      time.Minute,
+					},
 				},
 			},
 		}
 	)
 
-	reg := config.Registry()
+	reg, err := config.Registry()
+	require.NoError(t, err)
 	md, err := reg.Get(ts.StringID("abc"))
 	require.NoError(t, err)
-	require.Equal(t, config.Metadatas[0].Metadata().ID().String(), md.ID().String())
-	require.Equal(t, config.Metadatas[0].Metadata().Options(), md.Options())
+	mdd, err := config.Metadatas[0].Metadata()
+	require.NoError(t, err)
+	require.Equal(t, mdd.ID().String(), md.ID().String())
+	require.Equal(t, mdd.Options(), md.Options())
 
 	md, err = reg.Get(ts.StringID("cde"))
 	require.NoError(t, err)
-	require.Equal(t, config.Metadatas[1].Metadata().ID().String(), md.ID().String())
-	require.Equal(t, config.Metadatas[1].Metadata().Options(), md.Options())
+	mdd, err = config.Metadatas[1].Metadata()
+	require.NoError(t, err)
+	require.Equal(t, mdd.ID().String(), md.ID().String())
+	require.Equal(t, mdd.Options(), md.Options())
 
 	_, err = reg.Get(ts.StringID("otherstring"))
 	require.Error(t, err)
@@ -70,8 +87,13 @@ func TestMetadataConfig(t *testing.T) {
 		writesToCommitLog   = true
 		needsFilesetCleanup = false
 		needsRepair         = false
-		retention           = retention.Configuration{}
-		config              = &MetadataConfiguration{
+		retention           = retention.Configuration{
+			BlockSize:       time.Hour,
+			RetentionPeriod: time.Hour,
+			BufferFuture:    time.Minute,
+			BufferPast:      time.Minute,
+		}
+		config = &MetadataConfiguration{
 			ID:                  id,
 			NeedsBootstrap:      &needsBootstrap,
 			NeedsFlush:          &needsFlush,
@@ -82,7 +104,8 @@ func TestMetadataConfig(t *testing.T) {
 		}
 	)
 
-	metadata := config.Metadata()
+	metadata, err := config.Metadata()
+	require.NoError(t, err)
 	require.Equal(t, id, metadata.ID().String())
 
 	opts := metadata.Options()
@@ -135,7 +158,8 @@ metadatas:
 	var conf RegistryConfiguration
 	require.NoError(t, yaml.Unmarshal(yamlBytes, &conf))
 
-	reg := conf.Registry()
+	reg, err := conf.Registry()
+	require.NoError(t, err)
 	mds := reg.Metadatas()
 	require.Equal(t, 3, len(mds))
 

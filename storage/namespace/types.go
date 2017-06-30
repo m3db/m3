@@ -72,9 +72,6 @@ type Options interface {
 
 // Metadata represents namespace metadata information
 type Metadata interface {
-	// Validate validates the metadata
-	Validate() error
-
 	// Equal returns true if the provide value is equal to this one
 	Equal(value Metadata) bool
 
@@ -87,9 +84,6 @@ type Metadata interface {
 
 // Registry is mapping from known namespaces' ID to their Metadata
 type Registry interface {
-	// Validate validates the registry
-	Validate() error
-
 	// Equal returns true if the provide value is equal to this one
 	Equal(value Registry) bool
 

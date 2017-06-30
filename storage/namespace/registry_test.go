@@ -21,7 +21,6 @@
 package namespace
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/m3db/m3db/ts"
@@ -31,22 +30,20 @@ import (
 )
 
 func TestRegistryEmptyNamespaceRegistry(t *testing.T) {
-	emptyRegistry := NewRegistry(nil)
-	require.Empty(t, emptyRegistry.IDs())
-	require.Empty(t, emptyRegistry.Metadatas())
-	_, err := emptyRegistry.Get(ts.StringID("someString"))
+	_, err := NewRegistry(nil)
 	require.Error(t, err)
 }
 
 func TestRegistrySingleElement(t *testing.T) {
 	var (
-		opts      = NewOptions()
-		id        = ts.StringID("someID")
-		metadatas = []Metadata{
-			NewMetadata(id, opts),
-		}
-		registry = NewRegistry(metadatas)
+		opts = NewOptions()
+		id   = ts.StringID("someID")
 	)
+	md1, err := NewMetadata(id, opts)
+	require.NoError(t, err)
+	metadatas := []Metadata{md1}
+	registry, err := NewRegistry(metadatas)
+	require.NoError(t, err)
 	require.Equal(t, 1, len(registry.IDs()))
 	require.Equal(t, id.String(), registry.IDs()[0].String())
 	require.Equal(t, 1, len(registry.Metadatas()))
@@ -57,16 +54,19 @@ func TestRegistrySingleElement(t *testing.T) {
 
 func TestRegistryMultipleElements(t *testing.T) {
 	var (
-		opts1     = NewOptions()
-		opts2     = opts1.SetNeedsRepair(true)
-		id1       = ts.StringID("someID1")
-		id2       = ts.StringID("someID2")
-		metadatas = []Metadata{
-			NewMetadata(id1, opts1),
-			NewMetadata(id2, opts2),
-		}
-		registry = NewRegistry(metadatas)
+		opts1 = NewOptions()
+		opts2 = opts1.SetNeedsRepair(true)
+		id1   = ts.StringID("someID1")
+		id2   = ts.StringID("someID2")
 	)
+	md1, err := NewMetadata(id1, opts1)
+	require.NoError(t, err)
+	md2, err := NewMetadata(id2, opts2)
+	require.NoError(t, err)
+	metadatas := []Metadata{md1, md2}
+	registry, err := NewRegistry(metadatas)
+	require.NoError(t, err)
+
 	require.Equal(t, 2, len(registry.IDs()))
 	ids := registry.IDs()
 	require.True(t, ids[0].Equal(id1) || ids[1].Equal(id1))
@@ -78,47 +78,30 @@ func TestRegistryMultipleElements(t *testing.T) {
 	require.True(t, id2.Equal(mds[0].ID()) || id2.Equal(mds[1].ID()))
 }
 
-func testRegistry() Registry {
+func testRegistry(t *testing.T) Registry {
 	var (
-		opts1     = NewOptions()
-		opts2     = opts1.SetNeedsRepair(true)
-		id1       = ts.StringID("someID1")
-		id2       = ts.StringID("someID2")
-		metadatas = []Metadata{
-			NewMetadata(id1, opts1),
-			NewMetadata(id2, opts2),
-		}
+		opts1 = NewOptions()
+		opts2 = opts1.SetNeedsRepair(true)
+		id1   = ts.StringID("someID1")
+		id2   = ts.StringID("someID2")
 	)
-	return NewRegistry(metadatas)
+	md1, err := NewMetadata(id1, opts1)
+	require.NoError(t, err)
+	md2, err := NewMetadata(id2, opts2)
+	require.NoError(t, err)
+	metadatas := []Metadata{md1, md2}
+	reg, err := NewRegistry(metadatas)
+	require.NoError(t, err)
+	return reg
 }
 
 func TestRegistryEqualsTrue(t *testing.T) {
-	r1 := testRegistry()
+	r1 := testRegistry(t)
 	require.True(t, r1.Equal(r1))
 
-	r2 := testRegistry()
+	r2 := testRegistry(t)
 	require.True(t, r1.Equal(r2))
 	require.True(t, r2.Equal(r1))
-}
-
-func TestRegistryValidateSimple(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		opts      = NewMockOptions(ctrl)
-		id        = ts.StringID("someID")
-		metadatas = []Metadata{
-			NewMetadata(id, opts),
-		}
-		reg = NewRegistry(metadatas)
-	)
-
-	opts.EXPECT().Validate().Return(nil)
-	require.NoError(t, reg.Validate())
-
-	opts.EXPECT().Validate().Return(fmt.Errorf("test error in options"))
-	require.Error(t, reg.Validate())
 }
 
 func TestRegistryValidateDuplicateID(t *testing.T) {
@@ -126,15 +109,18 @@ func TestRegistryValidateDuplicateID(t *testing.T) {
 	defer ctrl.Finish()
 
 	var (
-		opts      = NewMockOptions(ctrl)
-		id        = ts.StringID("someID")
-		metadatas = []Metadata{
-			NewMetadata(id, opts),
-			NewMetadata(id, opts),
-		}
-		reg = NewRegistry(metadatas)
+		opts = NewMockOptions(ctrl)
+		id   = ts.StringID("someID")
 	)
-
 	opts.EXPECT().Validate().Return(nil).AnyTimes()
-	require.Error(t, reg.Validate())
+
+	md1, err := NewMetadata(id, opts)
+	require.NoError(t, err)
+
+	md2, err := NewMetadata(id, opts)
+	require.NoError(t, err)
+
+	metadatas := []Metadata{md1, md2}
+	_, err = NewRegistry(metadatas)
+	require.Error(t, err)
 }

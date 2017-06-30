@@ -35,8 +35,10 @@ func TestMetadataEqualsTrue(t *testing.T) {
 
 	testID := ts.StringID("some-string")
 	testOpts := NewOptions()
-	md1 := NewMetadata(testID, testOpts)
-	md2 := NewMetadata(testID, testOpts)
+	md1, err := NewMetadata(testID, testOpts)
+	require.NoError(t, err)
+	md2, err := NewMetadata(testID, testOpts)
+	require.NoError(t, err)
 
 	require.True(t, md1.Equal(md1))
 	require.True(t, md1.Equal(md2))
@@ -47,8 +49,10 @@ func TestMetadataEqualsIDsDiffer(t *testing.T) {
 	testID1 := ts.StringID("some-string-1")
 	testID2 := ts.StringID("some-string-2")
 	testOpts := NewOptions()
-	md1 := NewMetadata(testID1, testOpts)
-	md2 := NewMetadata(testID2, testOpts)
+	md1, err := NewMetadata(testID1, testOpts)
+	require.NoError(t, err)
+	md2, err := NewMetadata(testID2, testOpts)
+	require.NoError(t, err)
 	require.False(t, md1.Equal(md2))
 	require.False(t, md2.Equal(md1))
 }
@@ -57,8 +61,10 @@ func TestMetadataEqualsOptsDiffer(t *testing.T) {
 	testID := ts.StringID("some-string")
 	testOpts1 := NewOptions()
 	testOpts2 := testOpts1.SetNeedsBootstrap(!testOpts1.NeedsBootstrap())
-	md1 := NewMetadata(testID, testOpts1)
-	md2 := NewMetadata(testID, testOpts2)
+	md1, err := NewMetadata(testID, testOpts1)
+	require.NoError(t, err)
+	md2, err := NewMetadata(testID, testOpts2)
+	require.NoError(t, err)
 	require.False(t, md1.Equal(md2))
 	require.False(t, md2.Equal(md1))
 }
@@ -68,8 +74,10 @@ func TestMetadataEqualsRetentionOptsDiffer(t *testing.T) {
 	testOpts1 := NewOptions()
 	ropts := testOpts1.RetentionOptions()
 	testOpts2 := testOpts1.SetRetentionOptions(ropts.SetBlockSize(ropts.BlockSize() * 2))
-	md1 := NewMetadata(testID, testOpts1)
-	md2 := NewMetadata(testID, testOpts2)
+	md1, err := NewMetadata(testID, testOpts1)
+	require.NoError(t, err)
+	md2, err := NewMetadata(testID, testOpts2)
+	require.NoError(t, err)
 	require.False(t, md1.Equal(md2))
 	require.False(t, md2.Equal(md1))
 }
@@ -77,8 +85,8 @@ func TestMetadataEqualsRetentionOptsDiffer(t *testing.T) {
 func TestMetadataValidateEmptyID(t *testing.T) {
 	testID := ts.StringID("")
 	testOpts1 := NewOptions()
-	md1 := NewMetadata(testID, testOpts1)
-	require.Error(t, md1.Validate())
+	_, err := NewMetadata(testID, testOpts1)
+	require.Error(t, err)
 }
 
 func TestMetadataValidateRetentionErr(t *testing.T) {
@@ -88,11 +96,12 @@ func TestMetadataValidateRetentionErr(t *testing.T) {
 	mockROpts := retention.NewMockOptions(ctrl)
 	testID := ts.StringID("some-string")
 	testOpts1 := NewOptions().SetRetentionOptions(mockROpts)
-	md1 := NewMetadata(testID, testOpts1)
 
 	mockROpts.EXPECT().Validate().Return(nil)
-	require.NoError(t, md1.Validate())
+	_, err := NewMetadata(testID, testOpts1)
+	require.NoError(t, err)
 
 	mockROpts.EXPECT().Validate().Return(fmt.Errorf("some-error"))
-	require.Error(t, md1.Validate())
+	_, err = NewMetadata(testID, testOpts1)
+	require.Error(t, err)
 }

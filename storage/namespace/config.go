@@ -21,6 +21,8 @@
 package namespace
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
 )
@@ -42,16 +44,20 @@ type MetadataConfiguration struct {
 }
 
 // Registry returns a Registry corresponding to the receiver struct
-func (rc *RegistryConfiguration) Registry() Registry {
+func (rc *RegistryConfiguration) Registry() (Registry, error) {
 	metadatas := make([]Metadata, 0, len(rc.Metadatas))
 	for _, m := range rc.Metadatas {
-		metadatas = append(metadatas, m.Metadata())
+		md, err := m.Metadata()
+		if err != nil {
+			return nil, fmt.Errorf("unable to construct metadata for [%+v], err: %v", m, err)
+		}
+		metadatas = append(metadatas, md)
 	}
 	return NewRegistry(metadatas)
 }
 
 // Metadata returns a Metadata corresponding to the receiver struct
-func (mc *MetadataConfiguration) Metadata() Metadata {
+func (mc *MetadataConfiguration) Metadata() (Metadata, error) {
 	ropts := mc.Retention.Options()
 	opts := NewOptions().SetRetentionOptions(ropts)
 	if v := mc.NeedsBootstrap; v != nil {

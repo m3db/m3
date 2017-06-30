@@ -21,10 +21,15 @@
 package namespace
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/errors"
+)
+
+var (
+	errEmptyMetadatas = errors.New("no namespace metadata provided")
 )
 
 type registry struct {
@@ -34,22 +39,36 @@ type registry struct {
 }
 
 // NewRegistry returns a new registry containing provided metadatas
-func NewRegistry(metadatas []Metadata) Registry {
+func NewRegistry(metadatas []Metadata) (Registry, error) {
+	if len(metadatas) == 0 {
+		return nil, errEmptyMetadatas
+	}
+
 	var (
 		ns          = make(map[ts.Hash]Metadata, len(metadatas))
 		ids         = make([]ts.ID, 0, len(metadatas))
 		nsMetadatas = make([]Metadata, 0, len(metadatas))
+		idsMap      = make(map[ts.Hash]struct{})
+		multiErr    xerrors.MultiError
 	)
 	for _, m := range metadatas {
-		ids = append(ids, m.ID())
+		id := m.ID()
+		ids = append(ids, id)
 		nsMetadatas = append(nsMetadatas, m)
-		ns[m.ID().Hash()] = m
+		ns[id.Hash()] = m
+
+		if _, ok := idsMap[id.Hash()]; ok {
+			multiErr = multiErr.Add(fmt.Errorf(
+				"namespace ids must be unique, duplicate found: %v", id.String()))
+		}
+		idsMap[id.Hash()] = struct{}{}
 	}
+
 	return &registry{
 		namespaces: ns,
 		ids:        ids,
 		metadatas:  nsMetadatas,
-	}
+	}, multiErr.FinalError()
 }
 
 func (r *registry) Get(namespace ts.ID) (Metadata, error) {
@@ -67,33 +86,6 @@ func (r *registry) IDs() []ts.ID {
 
 func (r *registry) Metadatas() []Metadata {
 	return r.metadatas
-}
-
-func (r *registry) Validate() error {
-	if len(r.metadatas) == 0 {
-		return fmt.Errorf("no namespaces listed in NamespaceRegistry")
-	}
-
-	var multiErr xerrors.MultiError
-
-	idsMap := make(map[ts.Hash]struct{})
-	for _, id := range r.ids {
-		if _, ok := idsMap[id.Hash()]; ok {
-			multiErr = multiErr.Add(fmt.Errorf(
-				"namespace ids must be unique, duplicate found: %v", id.String()))
-		}
-		idsMap[id.Hash()] = struct{}{}
-	}
-
-	for _, md := range r.metadatas {
-		if err := md.Validate(); err != nil {
-			multiErr = multiErr.Add(fmt.Errorf(
-				"unable to validate metadata for namespace = %v, err: %v",
-				md.ID().String(), err))
-		}
-	}
-
-	return multiErr.FinalError()
 }
 
 func (r *registry) Equal(value Registry) bool {
