@@ -25,10 +25,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 

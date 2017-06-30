@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
 
+	"github.com/uber-go/tally"
 	mclock "github.com/facebookgo/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

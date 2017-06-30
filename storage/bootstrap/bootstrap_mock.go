@@ -24,9 +24,10 @@
 package bootstrap
 
 import (
-	gomock "github.com/golang/mock/gomock"
 	result "github.com/m3db/m3db/storage/bootstrap/result"
 	ts "github.com/m3db/m3db/ts"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of Process interface

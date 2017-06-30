@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	m3emnode "github.com/m3db/m3db/x/m3em/node"
-
 	"github.com/m3db/m3em/node"
 )
 

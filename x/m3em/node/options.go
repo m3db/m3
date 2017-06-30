@@ -24,7 +24,6 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3em/node"
-
 	"github.com/m3db/m3x/instrument"
 )
 

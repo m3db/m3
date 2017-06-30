@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
-
 	"github.com/m3db/m3db/digest"
 )
 

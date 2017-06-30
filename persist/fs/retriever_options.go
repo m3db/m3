@@ -22,7 +22,6 @@ package fs
 
 import (
 	"github.com/m3db/m3db/x/io"
-
 	"github.com/m3db/m3x/pool"
 )
 

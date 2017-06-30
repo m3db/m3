@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/ts"
+
 	"github.com/stretchr/testify/assert"
 )
 

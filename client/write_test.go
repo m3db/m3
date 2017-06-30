@@ -28,10 +28,10 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/topology"
-
-	"github.com/golang/mock/gomock"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	xerrors "github.com/m3db/m3x/errors"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
