@@ -23,11 +23,11 @@ package peers
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/assert"
-
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage/namespace"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewPeersBootstrapperInvalidOpts(t *testing.T) {

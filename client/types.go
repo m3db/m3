@@ -23,8 +23,6 @@ package client
 import (
 	"time"
 
-	tchannel "github.com/uber/tchannel-go"
-
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
@@ -38,6 +36,8 @@ import (
 	"github.com/m3db/m3x/pool"
 	xretry "github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
+
+	tchannel "github.com/uber/tchannel-go"
 )
 
 // ConnectConsistencyLevel is the consistency level for connecting to a cluster

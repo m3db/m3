@@ -26,10 +26,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
+
+	"github.com/stretchr/testify/require"
 )
 
 // Consider a database running with two namespaces, and the following retention opts:

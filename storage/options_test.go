@@ -23,11 +23,11 @@ package storage
 import (
 	"testing"
 
-	"github.com/golang/mock/gomock"
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+
+	"github.com/golang/mock/gomock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestOptionsValidateDefaults(t *testing.T) {

@@ -25,12 +25,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/storage/namespace"
+
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
-
-	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/storage/namespace"
 )
 
 func newMultipleFlushManagerNeedsFlush(t *testing.T, ctrl *gomock.Controller) (

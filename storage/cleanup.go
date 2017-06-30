@@ -25,12 +25,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3x/errors"
+
+	"github.com/uber-go/tally"
 )
 
 type commitLogFilesBeforeFn func(commitLogsDir string, t time.Time) ([]string, error)

@@ -26,8 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -35,6 +33,8 @@ import (
 	bcl "github.com/m3db/m3db/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/namespace"
+
+	"github.com/stretchr/testify/require"
 )
 
 // Consider a database running with a single namespaces, and the following retention opts:

@@ -24,9 +24,10 @@
 package namespace
 
 import (
-	gomock "github.com/golang/mock/gomock"
 	retention "github.com/m3db/m3db/retention"
 	ts "github.com/m3db/m3db/ts"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of Options interface

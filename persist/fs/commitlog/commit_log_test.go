@@ -30,11 +30,6 @@ import (
 	"testing"
 	"time"
 
-	mclock "github.com/facebookgo/clock"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
@@ -43,6 +38,11 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
+
+	mclock "github.com/facebookgo/clock"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 type overrides struct {

@@ -27,12 +27,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	xlog "github.com/m3db/m3x/log"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestPeersBootstrapHighConcurrency(t *testing.T) {
