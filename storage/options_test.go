@@ -23,9 +23,6 @@ package storage
 import (
 	"testing"
 
-	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/ts"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
@@ -46,31 +43,5 @@ func TestOptionsValidateDefaultRepair(t *testing.T) {
 func TestOptionsValidateNilRegistry(t *testing.T) {
 	dbOpts := testDatabaseOptions(t).
 		SetNamespaceRegistry(nil)
-	require.Error(t, dbOpts.Validate())
-}
-
-func TestOptionsValidateDifferentRetentionsSameNamespaces(t *testing.T) {
-	newRetentionOpts := defaultTestRetentionOpts.
-		SetBlockSize(defaultTestRetentionOpts.BlockSize() * 2)
-	newNsOpts := namespace.NewOptions().SetRetentionOptions(newRetentionOpts)
-	nsMetadata, err := namespace.NewMetadata(defaultTestNs1ID, newNsOpts)
-	require.NoError(t, err)
-	newRegistry, err := namespace.NewRegistry([]namespace.Metadata{nsMetadata})
-	require.NoError(t, err)
-
-	dbOpts := testDatabaseOptions(t).
-		SetNamespaceRegistry(newRegistry)
-	require.Error(t, dbOpts.Validate())
-}
-
-func TestOptionsValidateRegistryDifferentNamespaces(t *testing.T) {
-	newNsOpts := namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
-	nsMetadata, err := namespace.NewMetadata(ts.StringID("someString"), newNsOpts)
-	require.NoError(t, err)
-	newRegistry, err := namespace.NewRegistry([]namespace.Metadata{nsMetadata})
-	require.NoError(t, err)
-
-	dbOpts := testDatabaseOptions(t).
-		SetNamespaceRegistry(newRegistry)
 	require.Error(t, dbOpts.Validate())
 }
