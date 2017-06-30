@@ -50,10 +50,7 @@ func (m *metadata) Options() Options {
 }
 
 func (m *metadata) Equal(value Metadata) bool {
-	if !m.id.Equal(value.ID()) {
-		return false
-	}
-	return m.Options().Equal(value.Options())
+	return m.id.Equal(value.ID()) && m.Options().Equal(value.Options())
 }
 
 func (m *metadata) Validate() error {
