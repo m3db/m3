@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -80,6 +81,13 @@ var (
 	defaultPoolOptions pool.ObjectPoolOptions
 
 	timeZero time.Time
+)
+
+var (
+	errNamespaceRegistryNotSet = errors.New("namespace registry not set")
+	errRepairOptionsNotSet     = errors.New("repair enabled but repair options are not set")
+	errFileJitterTooSmall      = errors.New("file op options jitter needs to be smaller than commit log block size")
+	errTickIntervalNegative    = errors.New("tick interval must be a positive duration")
 )
 
 // NewSeriesOptionsFromOptions creates a new set of database series options from provided options.
@@ -178,10 +186,14 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 }
 
 func (o *options) Validate() error {
+	if o.tickInterval <= 0 {
+		return errTickIntervalNegative
+	}
+
 	// validate namespace registry
 	registry := o.NamespaceRegistry()
 	if registry == nil {
-		return fmt.Errorf("namespace registry not set")
+		return errNamespaceRegistryNotSet
 	}
 	if err := registry.Validate(); err != nil {
 		return fmt.Errorf("unable to validate namespace registry, err: %v", err)
@@ -203,7 +215,7 @@ func (o *options) Validate() error {
 	if o.RepairEnabled() {
 		rOpts := o.RepairOptions()
 		if rOpts == nil {
-			return fmt.Errorf("repair options not set")
+			return errRepairOptionsNotSet
 		}
 		if err := rOpts.Validate(); err != nil {
 			return fmt.Errorf("unable to validate repair options, err: %v", err)
@@ -211,15 +223,10 @@ func (o *options) Validate() error {
 	}
 
 	// NB(prateek): FileOpOptions.Jitter needs to be smaller than block size for all
-	// known retention periods. We rely on commit log Validate to ensure it has the
-	// smallest block size of all the known namespaces, and here only check if the
-	// Jitter is greater than the commit log's block size.
+	// known retention periods.
+	// TODO(prateek): address this concern when we have dynamic namespaces
 	if o.fileOpOpts.Jitter() >= clOpts.RetentionOptions().BlockSize() {
-		return fmt.Errorf("file op options jitter needs to be smaller than commit log block size")
-	}
-
-	if o.tickInterval <= 0 {
-		return fmt.Errorf("tick interval must be a positive duration")
+		return errFileJitterTooSmall
 	}
 
 	return nil

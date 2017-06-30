@@ -21,6 +21,7 @@
 package commitlog
 
 import (
+	"errors"
 	"fmt"
 	"runtime"
 	"time"
@@ -28,7 +29,6 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 )
@@ -47,6 +47,8 @@ const (
 var (
 	// defaultBacklogQueueSize is the default commit log backlog queue size
 	defaultBacklogQueueSize = 1024 * runtime.NumCPU()
+
+	errFlushIntervalNonNegative = errors.New("flush interval must be non-negative")
 )
 
 type options struct {
@@ -86,24 +88,20 @@ func defaultRetentionOptions() retention.Options {
 }
 
 func (o *options) Validate() error {
-	var multiErr xerrors.MultiError
 	if o.FlushInterval() < 0 {
-		multiErr = multiErr.Add(
-			fmt.Errorf("flush interval must non-negative"))
+		return errFlushIntervalNonNegative
 	}
 
 	if err := o.retentionOpts.Validate(); err != nil {
-		multiErr = multiErr.Add(
-			fmt.Errorf("invalid commit log retention options: %v", err))
+		return fmt.Errorf("invalid commit log retention options: %v", err)
 	}
 
 	fsOpts := o.FilesystemOptions()
 	if err := fsOpts.Validate(); err != nil {
-		multiErr = multiErr.Add(
-			fmt.Errorf("invalid commit log fs options: %v", err))
+		return fmt.Errorf("invalid commit log fs options: %v", err)
 	}
 
-	return multiErr.FinalError()
+	return nil
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {
