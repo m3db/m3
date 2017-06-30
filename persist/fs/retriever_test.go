@@ -108,13 +108,13 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 				// NB(r): Try to make sure same req structs are reused frequently
 				// to surface any race issues that might occur with pooling.
 				SetSize(fetchConcurrency / 2)),
-		fsOpts: NewOptions().SetNamespaceRegistry(testNamespaceRegistry),
+		fsOpts: NewOptions().SetNamespaceRegistry(testNamespaceRegistry(t)),
 	}
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
 	defer cleanup()
 
 	fsopts := retriever.fsOpts
-	ropts := testNamespaceMetadata.Options().RetentionOptions()
+	ropts := testNs1Metadata(t).Options().RetentionOptions()
 
 	now := time.Now().Truncate(ropts.BlockSize())
 	min, max := now.Add(-6*ropts.BlockSize()), now.Add(-ropts.BlockSize())

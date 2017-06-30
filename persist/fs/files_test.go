@@ -41,18 +41,25 @@ import (
 )
 
 var (
-	testNamespaceID       = ts.StringID("testNs")
-	testNamespace2ID      = ts.StringID("testNs2")
-	testNamespaceMetadata = namespace.NewMetadata(testNamespaceID,
-		namespace.NewOptions().SetRetentionOptions(
-			retention.NewOptions().SetBlockSize(testBlockSize)),
-	)
-	testNamespace2Metadata = namespace.NewMetadata(testNamespace2ID,
-		namespace.NewOptions().SetRetentionOptions(
-			retention.NewOptions().SetBlockSize(testBlockSize)),
-	)
-	testNamespaceRegistry = namespace.NewRegistry(
-		[]namespace.Metadata{testNamespaceMetadata, testNamespace2Metadata})
+	testNamespaceID  = ts.StringID("testNs")
+	testNamespace2ID = ts.StringID("testNs2")
+	testNs1Metadata  = func(t *testing.T) namespace.Metadata {
+		md, err := namespace.NewMetadata(testNamespaceID, namespace.NewOptions().SetRetentionOptions(
+			retention.NewOptions().SetBlockSize(testBlockSize)))
+		require.NoError(t, err)
+		return md
+	}
+	testNs2Metadata = func(t *testing.T) namespace.Metadata {
+		md, err := namespace.NewMetadata(testNamespace2ID, namespace.NewOptions().SetRetentionOptions(
+			retention.NewOptions().SetBlockSize(testBlockSize)))
+		require.NoError(t, err)
+		return md
+	}
+	testNamespaceRegistry = func(t *testing.T) namespace.Registry {
+		reg, err := namespace.NewRegistry([]namespace.Metadata{testNs1Metadata(t), testNs2Metadata(t)})
+		require.NoError(t, err)
+		return reg
+	}
 )
 
 func createTempFile(t *testing.T) *os.File {

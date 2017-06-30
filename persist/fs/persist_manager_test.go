@@ -51,7 +51,7 @@ func testManager(
 	opts := NewOptions().
 		SetFilePathPrefix(dir).
 		SetWriterBufferSize(10).
-		SetNamespaceRegistry(testNamespaceRegistry)
+		SetNamespaceRegistry(testNamespaceRegistry(t))
 
 	writer := NewMockFileSetWriter(ctrl)
 	manager := NewPersistManager(opts).(*persistManager)

@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"errors"
 	"os"
 	"time"
 
@@ -46,9 +47,10 @@ const (
 )
 
 var (
-	defaultFilePathPrefix   = os.TempDir()
-	defaultNewFileMode      = os.FileMode(0666)
-	defaultNewDirectoryMode = os.ModeDir | os.FileMode(0755)
+	defaultFilePathPrefix      = os.TempDir()
+	defaultNewFileMode         = os.FileMode(0666)
+	defaultNewDirectoryMode    = os.ModeDir | os.FileMode(0755)
+	errNamespaceRegistryNotSet = errors.New("namespace registry not set")
 )
 
 type options struct {
@@ -67,21 +69,24 @@ type options struct {
 // NewOptions creates a new set of fs options
 func NewOptions() Options {
 	return &options{
-		clockOpts:         clock.NewOptions(),
-		instrumentOpts:    instrument.NewOptions(),
-		namespaceRegistry: namespace.NewRegistry(nil),
-		runtimeOptsMgr:    runtime.NewOptionsManager(runtime.NewOptions()),
-		decodingOpts:      msgpack.NewDecodingOptions(),
-		filePathPrefix:    defaultFilePathPrefix,
-		newFileMode:       defaultNewFileMode,
-		newDirectoryMode:  defaultNewDirectoryMode,
-		writerBufferSize:  defaultWriterBufferSize,
-		readerBufferSize:  defaultReaderBufferSize,
+		clockOpts:        clock.NewOptions(),
+		instrumentOpts:   instrument.NewOptions(),
+		runtimeOptsMgr:   runtime.NewOptionsManager(runtime.NewOptions()),
+		decodingOpts:     msgpack.NewDecodingOptions(),
+		filePathPrefix:   defaultFilePathPrefix,
+		newFileMode:      defaultNewFileMode,
+		newDirectoryMode: defaultNewDirectoryMode,
+		writerBufferSize: defaultWriterBufferSize,
+		readerBufferSize: defaultReaderBufferSize,
 	}
 }
 
 func (o *options) Validate() error {
-	return o.namespaceRegistry.Validate()
+	if o.namespaceRegistry == nil {
+		return errNamespaceRegistryNotSet
+	}
+
+	return nil
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {
