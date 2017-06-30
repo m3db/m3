@@ -461,7 +461,6 @@ func (n *dbNamespace) Bootstrap(
 		numSeries += len(r.AllSeries())
 	}
 	n.log.WithFields(
-		xlog.NewLogField("namespace", n.id.String()),
 		xlog.NewLogField("numShards", len(shards)),
 		xlog.NewLogField("numSeries", numSeries),
 	).Infof("bootstrap data fetched now initializing shards with series blocks")
@@ -711,7 +710,6 @@ func (n *dbNamespace) Repair(
 	wg.Wait()
 
 	n.log.WithFields(
-		xlog.NewLogField("namespace", n.id.String()),
 		xlog.NewLogField("repairTimeRange", tr.String()),
 		xlog.NewLogField("numTotalShards", len(shards)),
 		xlog.NewLogField("numShardsRepaired", numShardsRepaired),
