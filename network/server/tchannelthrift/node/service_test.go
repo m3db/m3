@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3x/time"
-	"github.com/m3db/m3db/digest"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
