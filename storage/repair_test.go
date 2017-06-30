@@ -349,7 +349,7 @@ func TestRepairerRepairTimes(t *testing.T) {
 	require.NoError(t, err)
 	r := repairer.(*dbRepairer)
 	for _, input := range inputTimes {
-		r.repairStates.set(defaultTestNs1ID, input.bs, input.rs)
+		r.repairStatesByNs.setRepairState(defaultTestNs1ID, input.bs, input.rs)
 	}
 
 	testNs := newTestNamespace(t)
@@ -391,7 +391,7 @@ func TestRepairerRepairWithTime(t *testing.T) {
 		ns.EXPECT().Repair(gomock.Not(nil), repairTimeRange).Return(input.err)
 		ns.EXPECT().ID().Return(id).AnyTimes()
 		err := r.repairNamespaceWithTimeRange(ns, repairTimeRange)
-		rs, ok := r.repairStates.get(id, time.Unix(7200, 0))
+		rs, ok := r.repairStatesByNs.repairStates(id, time.Unix(7200, 0))
 		require.True(t, ok)
 		if input.err == nil {
 			require.NoError(t, err)
@@ -443,7 +443,7 @@ func TestRepairerTimesMultipleNamespaces(t *testing.T) {
 	require.NoError(t, err)
 	r := repairer.(*dbRepairer)
 	for _, input := range inputTimes {
-		r.repairStates.set(input.ns, input.bs, input.rs)
+		r.repairStatesByNs.setRepairState(input.ns, input.bs, input.rs)
 	}
 
 	testNs1 := newTestNamespaceWithIDOpts(t, defaultTestNs1ID, defaultTestNs1Opts)
