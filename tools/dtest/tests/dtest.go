@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
-
 	"github.com/m3db/m3db/tools/dtest/config"
 	"github.com/m3db/m3x/log"
+
+	"github.com/spf13/cobra"
 )
 
 var (

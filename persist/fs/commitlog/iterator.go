@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
+
 	"github.com/uber-go/tally"
 )
 

@@ -9,6 +9,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
+
 	"github.com/pborman/getopt"
 )
 

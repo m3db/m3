@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/ts"
+
 	"github.com/stretchr/testify/require"
 )
 

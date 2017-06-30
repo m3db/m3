@@ -24,7 +24,8 @@
 package client
 
 import (
-	gomock "github.com/golang/mock/gomock"
+	time0 "time"
+
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
 	encoding "github.com/m3db/m3db/encoding"
@@ -37,8 +38,9 @@ import (
 	pool "github.com/m3db/m3x/pool"
 	retry "github.com/m3db/m3x/retry"
 	time "github.com/m3db/m3x/time"
+
+	gomock "github.com/golang/mock/gomock"
 	tchannel_go "github.com/uber/tchannel-go"
-	time0 "time"
 )
 
 // Mock of Client interface

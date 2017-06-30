@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/integration/generate"
+
 	"github.com/stretchr/testify/require"
 )
 

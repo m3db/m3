@@ -30,9 +30,9 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	xtime "github.com/m3db/m3x/time"
-
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
