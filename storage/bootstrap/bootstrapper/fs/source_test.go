@@ -46,7 +46,7 @@ import (
 
 var (
 	testShard            = uint32(0)
-	testNamespaceID      = ts.StringID("testNs")
+	testNs1ID      = ts.StringID("testNs")
 	testStart            = time.Now()
 	testBlockSize        = 2 * time.Hour
 	testFileMode         = os.FileMode(0666)
@@ -144,14 +144,14 @@ func validateTimeRanges(t *testing.T, tr xtime.Ranges, expected []xtime.Range) {
 
 func TestAvailableEmptyRangeError(t *testing.T) {
 	src := newFileSystemSource("foo", NewOptions())
-	res := src.Available(testNamespaceID, map[uint32]xtime.Ranges{0: nil})
+	res := src.Available(testNs1ID, map[uint32]xtime.Ranges{0: nil})
 	require.NotNil(t, res)
 	require.True(t, res.IsEmpty())
 }
 
 func TestAvailablePatternError(t *testing.T) {
 	src := newFileSystemSource("[[", NewOptions())
-	res := src.Available(testNamespaceID, testShardTimeRanges())
+	res := src.Available(testNs1ID, testShardTimeRanges())
 	require.NotNil(t, res)
 	require.True(t, res.IsEmpty())
 }
@@ -161,12 +161,12 @@ func TestAvailableReadInfoError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNamespaceID, shard, testStart, "foo", []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", []byte{0x1})
 	// Intentionally corrupt the info file
-	writeInfoFile(t, dir, testNamespaceID, shard, testStart, []byte{0x1, 0x2})
+	writeInfoFile(t, dir, testNs1ID, shard, testStart, []byte{0x1, 0x2})
 
 	src := newFileSystemSource(dir, NewOptions())
-	res := src.Available(testNamespaceID, testShardTimeRanges())
+	res := src.Available(testNs1ID, testShardTimeRanges())
 	require.NotNil(t, res)
 	require.True(t, res.IsEmpty())
 }
@@ -176,12 +176,12 @@ func TestAvailableDigestOfDigestMismatch(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNamespaceID, shard, testStart, "foo", []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", []byte{0x1})
 	// Intentionally corrupt the digest file
-	writeDigestFile(t, dir, testNamespaceID, shard, testStart, nil)
+	writeDigestFile(t, dir, testNs1ID, shard, testStart, nil)
 
 	src := newFileSystemSource(dir, NewOptions())
-	res := src.Available(testNamespaceID, testShardTimeRanges())
+	res := src.Available(testNs1ID, testShardTimeRanges())
 	require.NotNil(t, res)
 	require.True(t, res.IsEmpty())
 }
@@ -191,10 +191,10 @@ func TestAvailableTimeRangeFilter(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeGoodFiles(t, dir, testNamespaceID, shard)
+	writeGoodFiles(t, dir, testNs1ID, shard)
 
 	src := newFileSystemSource(dir, NewOptions())
-	res := src.Available(testNamespaceID, testShardTimeRanges())
+	res := src.Available(testNs1ID, testShardTimeRanges())
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res))
 	require.NotNil(t, res[testShard])
@@ -211,12 +211,12 @@ func TestAvailableTimeRangePartialError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeGoodFiles(t, dir, testNamespaceID, shard)
+	writeGoodFiles(t, dir, testNs1ID, shard)
 	// Intentionally write a corrupted info file
-	writeInfoFile(t, dir, testNamespaceID, shard, testStart.Add(4*time.Hour), []byte{0x1, 0x2})
+	writeInfoFile(t, dir, testNs1ID, shard, testStart.Add(4*time.Hour), []byte{0x1, 0x2})
 
 	src := newFileSystemSource(dir, NewOptions())
-	res := src.Available(testNamespaceID, testShardTimeRanges())
+	res := src.Available(testNs1ID, testShardTimeRanges())
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res))
 	require.NotNil(t, res[testShard])
@@ -230,14 +230,14 @@ func TestAvailableTimeRangePartialError(t *testing.T) {
 
 func TestReadEmptyRangeErr(t *testing.T) {
 	src := newFileSystemSource("foo", NewOptions())
-	res, err := src.Read(testNamespaceID, nil, testDefaultRunOpts)
+	res, err := src.Read(testNs1ID, nil, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.Nil(t, res)
 }
 
 func TestReadPatternError(t *testing.T) {
 	src := newFileSystemSource("[[", NewOptions())
-	res, err := src.Read(testNamespaceID,
+	res, err := src.Read(testNs1ID,
 		map[uint32]xtime.Ranges{testShard: xtime.NewRanges()},
 		testDefaultRunOpts)
 	require.NoError(t, err)
@@ -249,7 +249,7 @@ func TestReadNilTimeRanges(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeGoodFiles(t, dir, testNamespaceID, shard)
+	writeGoodFiles(t, dir, testNs1ID, shard)
 
 	src := newFileSystemSource(dir, NewOptions())
 
@@ -264,12 +264,12 @@ func TestReadOpenFileError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNamespaceID, shard, testStart, "foo", []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", []byte{0x1})
 	// Intentionally truncate the info file
-	writeInfoFile(t, dir, testNamespaceID, shard, testStart, nil)
+	writeInfoFile(t, dir, testNs1ID, shard, testStart, nil)
 
 	src := newFileSystemSource(dir, NewOptions())
-	res, err := src.Read(testNamespaceID, testShardTimeRanges(),
+	res, err := src.Read(testNs1ID, testShardTimeRanges(),
 		testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
@@ -287,13 +287,13 @@ func TestReadDataCorruptionError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNamespaceID, shard, testStart, "foo", []byte{0x1})
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", []byte{0x1})
 	// Intentionally corrupt the data file
-	writeDataFile(t, dir, testNamespaceID, shard, testStart, []byte{0x1})
+	writeDataFile(t, dir, testNs1ID, shard, testStart, []byte{0x1})
 
 	src := newFileSystemSource(dir, NewOptions())
 	strs := testShardTimeRanges()
-	res, err := src.Read(testNamespaceID, strs, testDefaultRunOpts)
+	res, err := src.Read(testNs1ID, strs, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 0, len(res.ShardResults()))
@@ -314,7 +314,7 @@ func validateReadResults(
 		},
 	}
 
-	res, err := src.Read(testNamespaceID, strs, testDefaultRunOpts)
+	res, err := src.Read(testNs1ID, strs, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.NotNil(t, res.ShardResults())
@@ -353,7 +353,7 @@ func TestReadTimeFilter(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	writeGoodFiles(t, dir, testNamespaceID, testShard)
+	writeGoodFiles(t, dir, testNs1ID, testShard)
 
 	src := newFileSystemSource(dir, NewOptions())
 	validateReadResults(t, src, dir, testShardTimeRanges())
@@ -363,9 +363,9 @@ func TestReadPartialError(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
 
-	writeGoodFiles(t, dir, testNamespaceID, testShard)
+	writeGoodFiles(t, dir, testNs1ID, testShard)
 	// Intentionally corrupt the data file
-	writeDataFile(t, dir, testNamespaceID, testShard, testStart.Add(4*time.Hour), []byte{0x1})
+	writeDataFile(t, dir, testNs1ID, testShard, testStart.Add(4*time.Hour), []byte{0x1})
 
 	src := newFileSystemSource(dir, NewOptions())
 	validateReadResults(t, src, dir, testShardTimeRanges())
@@ -390,10 +390,10 @@ func TestReadValidateError(t *testing.T) {
 	}
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNamespaceID, shard, testStart,
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
 	reader.EXPECT().
-		Open(testNamespaceID, shard, testStart).
+		Open(testNs1ID, shard, testStart).
 		Return(nil)
 	reader.EXPECT().
 		Range().
@@ -406,7 +406,7 @@ func TestReadValidateError(t *testing.T) {
 	reader.EXPECT().Validate().Return(errors.New("foo"))
 	reader.EXPECT().Close().Return(nil)
 
-	res, err := src.Read(testNamespaceID, testShardTimeRanges(),
+	res, err := src.Read(testNs1ID, testShardTimeRanges(),
 		testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
@@ -439,11 +439,11 @@ func TestReadDeleteOnError(t *testing.T) {
 	}
 
 	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNamespaceID, shard, testStart,
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
 
 	gomock.InOrder(
-		reader.EXPECT().Open(testNamespaceID, shard, testStart).Return(nil),
+		reader.EXPECT().Open(testNs1ID, shard, testStart).Return(nil),
 		reader.EXPECT().
 			Range().
 			Return(xtime.Range{
@@ -467,7 +467,7 @@ func TestReadDeleteOnError(t *testing.T) {
 		reader.EXPECT().Close().Return(nil),
 	)
 
-	res, err := src.Read(testNamespaceID, testShardTimeRanges(),
+	res, err := src.Read(testNs1ID, testShardTimeRanges(),
 		testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)

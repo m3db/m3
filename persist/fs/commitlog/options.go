@@ -96,11 +96,6 @@ func (o *options) Validate() error {
 		return fmt.Errorf("invalid commit log retention options: %v", err)
 	}
 
-	fsOpts := o.FilesystemOptions()
-	if err := fsOpts.Validate(); err != nil {
-		return fmt.Errorf("invalid commit log fs options: %v", err)
-	}
-
 	return nil
 }
 

@@ -67,9 +67,9 @@ func newOpenTestBlockRetriever(
 		retriever.newSeekerMgrFn = opts.newSeekerMgrFn
 	}
 
-	nsPath := NamespaceDirPath(filePathPrefix, testNamespaceID)
+	nsPath := NamespaceDirPath(filePathPrefix, testNs1ID)
 	require.NoError(t, os.MkdirAll(nsPath, opts.fsOpts.NewDirectoryMode()))
-	require.NoError(t, retriever.Open(testNamespaceID))
+	require.NoError(t, retriever.Open(testNs1Metadata(t)))
 
 	return retriever, func() {
 		assert.NoError(t, retriever.Close())
@@ -84,7 +84,7 @@ func newOpenTestWriter(
 	start time.Time,
 ) (FileSetWriter, testCleanupFn) {
 	w := newTestWriter(fsOpts.FilePathPrefix())
-	err := w.Open(testNamespaceID, testBlockSize, shard, start)
+	err := w.Open(testNs1ID, testBlockSize, shard, start)
 	require.NoError(t, err)
 	return w, func() {
 		assert.NoError(t, w.Close())
@@ -108,7 +108,7 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 				// NB(r): Try to make sure same req structs are reused frequently
 				// to surface any race issues that might occur with pooling.
 				SetSize(fetchConcurrency / 2)),
-		fsOpts: NewOptions().SetNamespaceRegistry(testNamespaceRegistry(t)),
+		fsOpts: NewOptions(),
 	}
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
 	defer cleanup()

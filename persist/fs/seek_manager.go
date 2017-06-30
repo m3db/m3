@@ -100,14 +100,8 @@ func NewSeekerManager(
 }
 
 func (m *seekerManager) Open(
-	namespace ts.ID,
+	nsMetadata namespace.Metadata,
 ) error {
-	// check if namespace is known
-	nsMetadata, err := m.opts.NamespaceRegistry().Get(namespace)
-	if err != nil {
-		return err
-	}
-
 	m.Lock()
 	defer m.Unlock()
 
@@ -115,7 +109,7 @@ func (m *seekerManager) Open(
 		return errSeekerManagerAlreadyOpenOrClosed
 	}
 
-	m.namespace = namespace
+	m.namespace = nsMetadata.ID()
 	m.namespaceMetadata = nsMetadata
 	m.status = seekerManagerOpen
 

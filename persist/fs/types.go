@@ -112,7 +112,7 @@ type FileSetSeekerManager interface {
 	io.Closer
 
 	// Open opens the seekers for a given namespace.
-	Open(namespace ts.ID) error
+	Open(md namespace.Metadata) error
 
 	// CacheShardIndices will pre-parse the indexes for given shards
 	// to improve times when seeking to a block.
@@ -128,7 +128,7 @@ type BlockRetriever interface {
 	block.DatabaseBlockRetriever
 
 	// Open the block retriever to retrieve from a namespace
-	Open(namespace ts.ID) error
+	Open(md namespace.Metadata) error
 }
 
 // RetrievableBlockSegmentReader is a retrievable block reader
@@ -138,9 +138,6 @@ type RetrievableBlockSegmentReader interface {
 
 // Options represents the options for filesystem persistence
 type Options interface {
-	// Validate validates the options
-	Validate() error
-
 	// SetClockOptions sets the clock options
 	SetClockOptions(value clock.Options) Options
 
@@ -152,12 +149,6 @@ type Options interface {
 
 	// InstrumentOptions returns the instrumentation options
 	InstrumentOptions() instrument.Options
-
-	// SetNamespaceRegistry sets the namespace registry
-	SetNamespaceRegistry(value namespace.Registry) Options
-
-	// NamespaceRegistry returns the namespace registry
-	NamespaceRegistry() namespace.Registry
 
 	// SetRuntimeOptionsManager sets the runtime options manager
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options

@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
@@ -71,18 +70,11 @@ func newTestOptions(
 	scope := tally.NewTestScope("", nil)
 
 	ropts := retention.NewOptions().SetBlockSize(2 * time.Hour)
-	testNs, err := namespace.NewMetadata(ts.StringID("a"),
-		namespace.NewOptions().SetRetentionOptions(ropts))
-	require.NoError(t, err)
-	reg, err := namespace.NewRegistry([]namespace.Metadata{testNs})
-	require.NoError(t, err)
 
 	opts := NewOptions().
 		SetClockOptions(clock.NewOptions().SetNowFn(c.Now)).
 		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
-		SetFilesystemOptions(fs.NewOptions().
-			SetFilePathPrefix(dir).
-			SetNamespaceRegistry(reg)).
+		SetFilesystemOptions(fs.NewOptions().SetFilePathPrefix(dir)).
 		SetRetentionOptions(ropts).
 		SetFlushSize(4096).
 		SetFlushInterval(100 * time.Millisecond).

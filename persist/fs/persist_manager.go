@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 
@@ -209,14 +210,16 @@ func (pm *persistManager) reset() {
 	pm.slept = 0
 }
 
-func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (persist.PreparedPersist, error) {
-	var prepared persist.PreparedPersist
+func (pm *persistManager) Prepare(
+	nsMetadata namespace.Metadata,
+	shard uint32,
+	blockStart time.Time,
+) (persist.PreparedPersist, error) {
 
-	// check if namespace is known
-	nsMetadata, err := pm.opts.NamespaceRegistry().Get(namespace)
-	if err != nil {
-		return prepared, err
-	}
+	var (
+		nsID     = nsMetadata.ID()
+		prepared persist.PreparedPersist
+	)
 
 	// ensure StartFlush has been called
 	pm.RLock()
@@ -230,12 +233,12 @@ func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time
 	// NB(xichen): if the checkpoint file for blockStart already exists, bail.
 	// This allows us to retry failed flushing attempts because they wouldn't
 	// have created the checkpoint file.
-	if FilesetExistsAt(pm.filePathPrefix, namespace, shard, blockStart) {
+	if FilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart) {
 		return prepared, nil
 	}
 
 	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
-	if err := pm.writer.Open(namespace, blockSize, shard, blockStart); err != nil {
+	if err := pm.writer.Open(nsID, blockSize, shard, blockStart); err != nil {
 		return prepared, err
 	}
 

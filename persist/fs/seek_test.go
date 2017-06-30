@@ -55,12 +55,12 @@ func TestSeekEmptyIndex(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
+	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNamespaceID, 0, testWriterStart)
+	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, s.Entries())
 	_, err = s.Seek(ts.StringID("foo"))
@@ -78,7 +78,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
+	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 
@@ -92,7 +92,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	assert.NoError(t, os.Truncate(dataFile, 1))
 
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNamespaceID, 0, testWriterStart)
+	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	_, err = s.Seek(ts.StringID("foo"))
@@ -111,7 +111,7 @@ func TestSeekBadMarker(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
+	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	// Copy the marker out
@@ -132,7 +132,7 @@ func TestSeekBadMarker(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNamespaceID, 0, testWriterStart)
+	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	_, err = s.Seek(ts.StringID("foo"))
@@ -151,7 +151,7 @@ func TestIDs(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
+	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ts.StringID("foo1"),
@@ -168,7 +168,7 @@ func TestIDs(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNamespaceID, 0, testWriterStart)
+	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	contains := func(list []ts.ID, s ts.ID) bool {
@@ -195,7 +195,7 @@ func TestSeek(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(filePathPrefix)
-	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
+	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ts.StringID("foo1"),
@@ -212,7 +212,7 @@ func TestSeek(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNamespaceID, 0, testWriterStart)
+	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	data, err := s.Seek(ts.StringID("foo3"))
@@ -253,7 +253,7 @@ func TestReuseSeeker(t *testing.T) {
 
 	w := newTestWriter(filePathPrefix)
 
-	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart.Add(-time.Hour))
+	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart.Add(-time.Hour))
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),
@@ -261,7 +261,7 @@ func TestReuseSeeker(t *testing.T) {
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Close())
 
-	err = w.Open(testNamespaceID, testBlockSize, 0, testWriterStart)
+	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),
@@ -270,7 +270,7 @@ func TestReuseSeeker(t *testing.T) {
 	assert.NoError(t, w.Close())
 
 	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNamespaceID, 0, testWriterStart.Add(-time.Hour))
+	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour))
 	assert.NoError(t, err)
 
 	data, err := s.Seek(ts.StringID("foo"))
@@ -280,7 +280,7 @@ func TestReuseSeeker(t *testing.T) {
 	defer data.DecRef()
 	assert.Equal(t, []byte{1, 2, 1}, data.Get())
 
-	err = s.Open(testNamespaceID, 0, testWriterStart)
+	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	data, err = s.Seek(ts.StringID("foo"))

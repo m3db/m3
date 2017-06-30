@@ -41,24 +41,19 @@ import (
 )
 
 var (
-	testNamespaceID  = ts.StringID("testNs")
-	testNamespace2ID = ts.StringID("testNs2")
-	testNs1Metadata  = func(t *testing.T) namespace.Metadata {
-		md, err := namespace.NewMetadata(testNamespaceID, namespace.NewOptions().SetRetentionOptions(
+	testNs1ID       = ts.StringID("testNs")
+	testNs2ID       = ts.StringID("testNs2")
+	testNs1Metadata = func(t *testing.T) namespace.Metadata {
+		md, err := namespace.NewMetadata(testNs1ID, namespace.NewOptions().SetRetentionOptions(
 			retention.NewOptions().SetBlockSize(testBlockSize)))
 		require.NoError(t, err)
 		return md
 	}
 	testNs2Metadata = func(t *testing.T) namespace.Metadata {
-		md, err := namespace.NewMetadata(testNamespace2ID, namespace.NewOptions().SetRetentionOptions(
+		md, err := namespace.NewMetadata(testNs2ID, namespace.NewOptions().SetRetentionOptions(
 			retention.NewOptions().SetBlockSize(testBlockSize)))
 		require.NoError(t, err)
 		return md
-	}
-	testNamespaceRegistry = func(t *testing.T) namespace.Registry {
-		reg, err := namespace.NewRegistry([]namespace.Metadata{testNs1Metadata(t), testNs2Metadata(t)})
-		require.NoError(t, err)
-		return reg
 	}
 )
 
@@ -181,7 +176,7 @@ func TestForEachInfoFile(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	shardDir := ShardDirPath(dir, testNamespaceID, shard)
+	shardDir := ShardDirPath(dir, testNs1ID, shard)
 	require.NoError(t, os.MkdirAll(shardDir, os.ModeDir|os.FileMode(0755)))
 
 	blockStart := time.Unix(0, 0)
@@ -230,7 +225,7 @@ func TestForEachInfoFile(t *testing.T) {
 
 	var fnames []string
 	var res []byte
-	forEachInfoFile(dir, testNamespaceID, shard, testReaderBufferSize, func(fname string, data []byte) {
+	forEachInfoFile(dir, testNs1ID, shard, testReaderBufferSize, func(fname string, data []byte) {
 		fnames = append(fnames, fname)
 		res = append(res, data...)
 	})
@@ -289,27 +284,27 @@ func TestFileExists(t *testing.T) {
 
 	shard := uint32(10)
 	start := time.Now()
-	shardDir := ShardDirPath(dir, testNamespaceID, shard)
+	shardDir := ShardDirPath(dir, testNs1ID, shard)
 	err := os.MkdirAll(shardDir, defaultNewDirectoryMode)
 	require.NoError(t, err)
 
 	infoFilePath := filesetPathFromTime(shardDir, start, infoFileSuffix)
 	createDataFile(t, shardDir, start, infoFileSuffix, nil)
 	require.True(t, FileExists(infoFilePath))
-	require.False(t, FilesetExistsAt(dir, testNamespaceID, uint32(shard), start))
+	require.False(t, FilesetExistsAt(dir, testNs1ID, uint32(shard), start))
 
 	checkpointFilePath := filesetPathFromTime(shardDir, start, checkpointFileSuffix)
 	createDataFile(t, shardDir, start, checkpointFileSuffix, nil)
 	require.True(t, FileExists(checkpointFilePath))
-	require.True(t, FilesetExistsAt(dir, testNamespaceID, uint32(shard), start))
+	require.True(t, FilesetExistsAt(dir, testNs1ID, uint32(shard), start))
 
 	os.Remove(infoFilePath)
 	require.False(t, FileExists(infoFilePath))
 }
 
 func TestShardDirPath(t *testing.T) {
-	require.Equal(t, "foo/bar/data/testNs/12", ShardDirPath("foo/bar", testNamespaceID, 12))
-	require.Equal(t, "foo/bar/data/testNs/12", ShardDirPath("foo/bar/", testNamespaceID, 12))
+	require.Equal(t, "foo/bar/data/testNs/12", ShardDirPath("foo/bar", testNs1ID, 12))
+	require.Equal(t, "foo/bar/data/testNs/12", ShardDirPath("foo/bar/", testNs1ID, 12))
 }
 
 func TestFilePathFromTime(t *testing.T) {
@@ -332,16 +327,16 @@ func TestFilePathFromTime(t *testing.T) {
 
 func TestFilesetFilesBefore(t *testing.T) {
 	shard := uint32(0)
-	dir := createInfoFiles(t, testNamespaceID, shard, 20)
+	dir := createInfoFiles(t, testNs1ID, shard, 20)
 	defer os.RemoveAll(dir)
 
 	cutoffIter := 8
 	cutoff := time.Unix(0, int64(cutoffIter))
-	res, err := FilesetBefore(dir, testNamespaceID, shard, cutoff)
+	res, err := FilesetBefore(dir, testNs1ID, shard, cutoff)
 	require.NoError(t, err)
 	require.Equal(t, cutoffIter, len(res))
 
-	shardDir := path.Join(dir, dataDirName, testNamespaceID.String(), strconv.Itoa(int(shard)))
+	shardDir := path.Join(dir, dataDirName, testNs1ID.String(), strconv.Itoa(int(shard)))
 	for i := 0; i < len(res); i++ {
 		ts := time.Unix(0, int64(i))
 		require.Equal(t, filesetPathFromTime(shardDir, ts, infoFileSuffix), res[i])
