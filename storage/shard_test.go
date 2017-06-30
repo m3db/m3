@@ -68,7 +68,7 @@ func addMockSeries(ctrl *gomock.Controller, shard *dbShard, id ts.ID, index uint
 }
 
 func TestShardDontNeedBootstrap(t *testing.T) {
-	opts := testDatabaseOptions()
+	opts := testDatabaseOptions(t)
 	testNs := newTestNamespace(t)
 	seriesOpts := NewSeriesOptionsFromOptions(opts, testNs.Options().RetentionOptions())
 	shard := newDatabaseShard(testNs.metadata, 0, nil,
@@ -85,7 +85,7 @@ func TestShardFlushStateNotStarted(t *testing.T) {
 		return now
 	}
 
-	opts := testDatabaseOptions()
+	opts := testDatabaseOptions(t)
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	ropts := defaultTestRetentionOpts
@@ -104,7 +104,7 @@ func TestShardBootstrapWithError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions()
+	opts := testDatabaseOptions(t)
 	s := testDatabaseShard(t, opts)
 	defer s.Close()
 
@@ -140,7 +140,7 @@ func TestShardBootstrapWithError(t *testing.T) {
 }
 
 func TestShardFlushDuringBootstrap(t *testing.T) {
-	s := testDatabaseShard(t, testDatabaseOptions())
+	s := testDatabaseShard(t, testDatabaseOptions(t))
 	defer s.Close()
 	s.bs = bootstrapping
 	err := s.Flush(defaultTestNs1ID, time.Now(), nil)
@@ -151,7 +151,7 @@ func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	s := testDatabaseShard(t, testDatabaseOptions())
+	s := testDatabaseShard(t, testDatabaseOptions(t))
 	defer s.Close()
 	s.bs = bootstrapped
 	blockStart := time.Unix(21600, 0)
@@ -176,7 +176,7 @@ func TestShardFlushNoPersistFuncWithError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	s := testDatabaseShard(t, testDatabaseOptions())
+	s := testDatabaseShard(t, testDatabaseOptions(t))
 	defer s.Close()
 	s.bs = bootstrapped
 	blockStart := time.Unix(21600, 0)
@@ -202,7 +202,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 
 	blockStart := time.Unix(21600, 0)
 
-	s := testDatabaseShard(t, testDatabaseOptions())
+	s := testDatabaseShard(t, testDatabaseOptions(t))
 	defer s.Close()
 	s.bs = bootstrapped
 	s.flushState.statesByTime[blockStart] = fileOpState{
@@ -263,7 +263,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 
 	blockStart := time.Unix(21600, 0)
 
-	s := testDatabaseShard(t, testDatabaseOptions())
+	s := testDatabaseShard(t, testDatabaseOptions(t))
 	defer s.Close()
 	s.bs = bootstrapped
 	s.flushState.statesByTime[blockStart] = fileOpState{
@@ -337,7 +337,7 @@ func TestShardTick(t *testing.T) {
 		nowLock.Unlock()
 	}
 
-	opts := testDatabaseOptions()
+	opts := testDatabaseOptions(t)
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(nowFn))
 
 	earliestFlush := retention.FlushTimeStart(defaultTestRetentionOpts, now)
@@ -385,7 +385,7 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions()
+	opts := testDatabaseOptions(t)
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 
@@ -400,7 +400,7 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 
 // This tests the scenario where a non-empty series is not expired.
 func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
-	opts := testDatabaseOptions()
+	opts := testDatabaseOptions(t)
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	ctx := opts.ContextPool().Get()
@@ -418,7 +418,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions()
+	opts := testDatabaseOptions(t)
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	id := ts.StringID("foo")
@@ -447,7 +447,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 
 	var entry *dbShardEntry
 
-	opts := testDatabaseOptions()
+	opts := testDatabaseOptions(t)
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	id := ts.StringID("foo")
@@ -469,7 +469,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 }
 
 func TestForEachShardEntry(t *testing.T) {
-	opts := testDatabaseOptions()
+	opts := testDatabaseOptions(t)
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	for i := 0; i < 10; i++ {
@@ -491,7 +491,7 @@ func TestForEachShardEntry(t *testing.T) {
 }
 
 func TestShardFetchBlocksIDNotExists(t *testing.T) {
-	opts := testDatabaseOptions()
+	opts := testDatabaseOptions(t)
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
@@ -506,7 +506,7 @@ func TestShardFetchBlocksIDExists(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions()
+	opts := testDatabaseOptions(t)
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
@@ -527,7 +527,7 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions()
+	opts := testDatabaseOptions(t)
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
@@ -569,7 +569,7 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 }
 
 func TestShardCleanupFileset(t *testing.T) {
-	opts := testDatabaseOptions()
+	opts := testDatabaseOptions(t)
 	shard := testDatabaseShard(t, opts)
 	defer shard.Close()
 	shard.filesetBeforeFn = func(_ string, namespace ts.ID, shardID uint32, t time.Time) ([]string, error) {

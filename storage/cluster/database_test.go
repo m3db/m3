@@ -30,14 +30,19 @@ import (
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3db/ts"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newTestDatabase(hostid string, topoInit topology.Initializer) (Database, error) {
-	registry := namespace.NewRegistry(testNamespaces)
+func newTestDatabase(t *testing.T, hostid string, topoInit topology.Initializer) (Database, error) {
+	testNamespace, err := namespace.NewMetadata(ts.StringID("foo"), namespace.NewOptions())
+	require.NoError(t, err)
+	testNamespaces := []namespace.Metadata{testNamespace}
+	registry, err := namespace.NewRegistry(testNamespaces)
+	require.NoError(t, err)
 	opts := storage.NewOptions().SetNamespaceRegistry(registry)
 	return NewDatabase(hostid, topoInit, opts)
 }
@@ -58,7 +63,7 @@ func TestDatabaseOpenClose(t *testing.T) {
 
 	topoInit, _ := newMockTopoInit(t, ctrl, viewsCh)
 
-	db, err := newTestDatabase("testhost", topoInit)
+	db, err := newTestDatabase(t, "testhost", topoInit)
 	require.NoError(t, err)
 
 	mockStorageDB.EXPECT().Open().Return(nil)
@@ -87,7 +92,7 @@ func TestDatabaseMarksShardAsAvailableOnReshard(t *testing.T) {
 
 	topoInit, props := newMockTopoInit(t, ctrl, viewsCh)
 
-	db, err := newTestDatabase("testhost0", topoInit)
+	db, err := newTestDatabase(t, "testhost0", topoInit)
 	require.NoError(t, err)
 
 	// Now open the cluster database
@@ -185,7 +190,7 @@ func TestDatabaseOpenUpdatesShardSetBeforeOpen(t *testing.T) {
 
 	topoInit, props := newMockTopoInit(t, ctrl, viewsCh)
 
-	db, err := newTestDatabase("testhost0", topoInit)
+	db, err := newTestDatabase(t, "testhost0", topoInit)
 	require.NoError(t, err)
 
 	updatedView := map[string][]shard.Shard{
@@ -253,7 +258,7 @@ func TestDatabaseEmptyShardSet(t *testing.T) {
 
 	topoInit, _ := newMockTopoInit(t, ctrl, viewsCh)
 
-	_, err := newTestDatabase("testhost_not_in_placement", topoInit)
+	_, err := newTestDatabase(t, "testhost_not_in_placement", topoInit)
 	require.NoError(t, err)
 }
 
@@ -273,7 +278,7 @@ func TestDatabaseOpenTwiceError(t *testing.T) {
 
 	topoInit, _ := newMockTopoInit(t, ctrl, viewsCh)
 
-	db, err := newTestDatabase("testhost", topoInit)
+	db, err := newTestDatabase(t, "testhost", topoInit)
 	require.NoError(t, err)
 
 	mockStorageDB.EXPECT().Open().Return(nil).AnyTimes()
@@ -306,7 +311,7 @@ func TestDatabaseCloseTwiceError(t *testing.T) {
 
 	topoInit, _ := newMockTopoInit(t, ctrl, viewsCh)
 
-	db, err := newTestDatabase("testhost", topoInit)
+	db, err := newTestDatabase(t, "testhost", topoInit)
 	require.NoError(t, err)
 
 	mockStorageDB.EXPECT().Open().Return(nil)
@@ -339,7 +344,7 @@ func TestDatabaseOpenCanRetry(t *testing.T) {
 
 	topoInit, _ := newMockTopoInit(t, ctrl, viewsCh)
 
-	db, err := newTestDatabase("testhost", topoInit)
+	db, err := newTestDatabase(t, "testhost", topoInit)
 	require.NoError(t, err)
 
 	expectedErr := fmt.Errorf("an error")
@@ -375,7 +380,7 @@ func TestDatabaseCloseCanRetry(t *testing.T) {
 
 	topoInit, _ := newMockTopoInit(t, ctrl, viewsCh)
 
-	db, err := newTestDatabase("testhost", topoInit)
+	db, err := newTestDatabase(t, "testhost", topoInit)
 	require.NoError(t, err)
 
 	mockStorageDB.EXPECT().Open().Return(nil)

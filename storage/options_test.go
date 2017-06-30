@@ -31,7 +31,7 @@ import (
 )
 
 func TestOptionsValidateDefaults(t *testing.T) {
-	dbOpts := testDatabaseOptions()
+	dbOpts := testDatabaseOptions(t)
 	require.NoError(t, dbOpts.Validate())
 }
 
@@ -39,12 +39,12 @@ func TestOptionsValidateDefaultRepair(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	dbOpts := testDatabaseOptionsWithRepair(ctrl)
+	dbOpts := testDatabaseOptionsWithRepair(t, ctrl)
 	require.NoError(t, dbOpts.Validate())
 }
 
 func TestOptionsValidateNilRegistry(t *testing.T) {
-	dbOpts := testDatabaseOptions().
+	dbOpts := testDatabaseOptions(t).
 		SetNamespaceRegistry(nil)
 	require.Error(t, dbOpts.Validate())
 }
@@ -53,20 +53,24 @@ func TestOptionsValidateDifferentRetentionsSameNamespaces(t *testing.T) {
 	newRetentionOpts := defaultTestRetentionOpts.
 		SetBlockSize(defaultTestRetentionOpts.BlockSize() * 2)
 	newNsOpts := namespace.NewOptions().SetRetentionOptions(newRetentionOpts)
-	newRegistry := namespace.NewRegistry([]namespace.Metadata{
-		namespace.NewMetadata(defaultTestNs1ID, newNsOpts)})
+	nsMetadata, err := namespace.NewMetadata(defaultTestNs1ID, newNsOpts)
+	require.NoError(t, err)
+	newRegistry, err := namespace.NewRegistry([]namespace.Metadata{nsMetadata})
+	require.NoError(t, err)
 
-	dbOpts := testDatabaseOptions().
+	dbOpts := testDatabaseOptions(t).
 		SetNamespaceRegistry(newRegistry)
 	require.Error(t, dbOpts.Validate())
 }
 
 func TestOptionsValidateRegistryDifferentNamespaces(t *testing.T) {
 	newNsOpts := namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
-	newRegistry := namespace.NewRegistry([]namespace.Metadata{
-		namespace.NewMetadata(ts.StringID("someString"), newNsOpts)})
+	nsMetadata, err := namespace.NewMetadata(ts.StringID("someString"), newNsOpts)
+	require.NoError(t, err)
+	newRegistry, err := namespace.NewRegistry([]namespace.Metadata{nsMetadata})
+	require.NoError(t, err)
 
-	dbOpts := testDatabaseOptions().
+	dbOpts := testDatabaseOptions(t).
 		SetNamespaceRegistry(newRegistry)
 	require.Error(t, dbOpts.Validate())
 }

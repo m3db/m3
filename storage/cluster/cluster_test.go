@@ -27,19 +27,11 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
-	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/watch"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
-)
-
-var (
-	testNamespace = namespace.NewMetadata(ts.StringID("foo"),
-		namespace.NewOptions())
-	testNamespaces = []namespace.Metadata{testNamespace}
 )
 
 type restoreFn func()

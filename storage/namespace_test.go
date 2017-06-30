@@ -56,11 +56,12 @@ func newTestNamespace(t *testing.T) *dbNamespace {
 }
 
 func newTestNamespaceWithIDOpts(t *testing.T, nsID ts.ID, opts namespace.Options) *dbNamespace {
-	metadata := namespace.NewMetadata(nsID, opts)
+	metadata, err := namespace.NewMetadata(nsID, opts)
+	require.NoError(t, err)
 	hashFn := func(identifier ts.ID) uint32 { return testShardIDs[0].ID() }
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)
-	dopts := testDatabaseOptions()
+	dopts := testDatabaseOptions(t)
 	ns, err := newDatabaseNamespace(metadata, shardSet, nil, nil, nil, dopts)
 	require.NoError(t, err)
 	return ns.(*dbNamespace)
@@ -268,10 +269,7 @@ func TestNamespaceBootstrapBootstrapping(t *testing.T) {
 }
 
 func TestNamespaceBootstrapDontNeedBootstrap(t *testing.T) {
-	ns := newTestNamespace(t)
-	newOpts := ns.metadata.Options().SetNeedsBootstrap(false)
-	ns.metadata = namespace.NewMetadata(ns.ID(), newOpts)
-	ns.nopts = newOpts
+	ns := newTestNamespaceWithIDOpts(t, defaultTestNs1ID, namespace.NewOptions().SetNeedsBootstrap(false))
 	require.NoError(t, ns.Bootstrap(nil, nil))
 	require.Equal(t, bootstrapped, ns.bs)
 }
@@ -367,11 +365,8 @@ func TestNamespaceFlushNotBootstrapped(t *testing.T) {
 }
 
 func TestNamespaceFlushDontNeedFlush(t *testing.T) {
-	ns := newTestNamespace(t)
+	ns := newTestNamespaceWithIDOpts(t, defaultTestNs1ID, namespace.NewOptions().SetNeedsFlush(false))
 	ns.bs = bootstrapped
-	newOpts := ns.metadata.Options().SetNeedsFlush(false)
-	ns.metadata = namespace.NewMetadata(ns.ID(), newOpts)
-	ns.nopts = newOpts
 	require.NoError(t, ns.Flush(time.Now(), nil))
 }
 
@@ -400,9 +395,7 @@ func TestNamespaceFlushAllShards(t *testing.T) {
 }
 
 func TestNamespaceCleanupFilesetDontNeedCleanup(t *testing.T) {
-	ns := newTestNamespace(t)
-	ns.metadata = namespace.NewMetadata(ns.ID(), ns.metadata.Options().SetNeedsFilesetCleanup(false))
-
+	ns := newTestNamespaceWithIDOpts(t, defaultTestNs1ID, namespace.NewOptions().SetNeedsFilesetCleanup(false))
 	require.NoError(t, ns.CleanupFileset(time.Now()))
 }
 
@@ -515,11 +508,12 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 	closingErrors := shard.NewShards([]shard.Shard{shards[3]})
 	adding := shard.NewShards([]shard.Shard{shards[4]})
 
-	metadata := namespace.NewMetadata(defaultTestNs1ID, namespace.NewOptions())
+	metadata, err := namespace.NewMetadata(defaultTestNs1ID, namespace.NewOptions())
+	require.NoError(t, err)
 	hashFn := func(identifier ts.ID) uint32 { return shards[0].ID() }
 	shardSet, err := sharding.NewShardSet(prevAssignment.All(), hashFn)
 	require.NoError(t, err)
-	dopts := testDatabaseOptions()
+	dopts := testDatabaseOptions(t)
 
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
@@ -584,15 +578,16 @@ type needsFlushTestCase struct {
 
 func newNeedsFlushNamespace(t *testing.T, shardNumbers []uint32) *dbNamespace {
 	shards := sharding.NewShards(shardNumbers, shard.Available)
-	dopts := testDatabaseOptions()
+	dopts := testDatabaseOptions(t)
 	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNs1ID)
 	require.NoError(t, err)
 
 	var (
-		ropts    = testNs.Options().RetentionOptions()
-		metadata = namespace.NewMetadata(testNs.ID(), testNs.Options())
-		hashFn   = func(identifier ts.ID) uint32 { return shards[0].ID() }
+		ropts  = testNs.Options().RetentionOptions()
+		hashFn = func(identifier ts.ID) uint32 { return shards[0].ID() }
 	)
+	metadata, err := namespace.NewMetadata(testNs.ID(), testNs.Options())
+	require.NoError(t, err)
 	shardSet, err := sharding.NewShardSet(shards, hashFn)
 	require.NoError(t, err)
 
@@ -754,16 +749,17 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 
 	var (
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
-		dopts  = testDatabaseOptions()
+		dopts  = testDatabaseOptions(t)
 	)
 	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNs1ID)
 	require.NoError(t, err)
 
 	var (
-		ropts    = testNs.Options().RetentionOptions()
-		metadata = namespace.NewMetadata(testNs.ID(), testNs.Options())
-		hashFn   = func(identifier ts.ID) uint32 { return shards[0].ID() }
+		ropts  = testNs.Options().RetentionOptions()
+		hashFn = func(identifier ts.ID) uint32 { return shards[0].ID() }
 	)
+	metadata, err := namespace.NewMetadata(testNs.ID(), testNs.Options())
+	require.NoError(t, err)
 	shardSet, err := sharding.NewShardSet(shards, hashFn)
 	require.NoError(t, err)
 
@@ -796,7 +792,7 @@ func TestNamespaceNeedsFlushCountsLeastNumFailures(t *testing.T) {
 
 	var (
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
-		dopts  = testDatabaseOptions().SetMaxFlushRetries(2)
+		dopts  = testDatabaseOptions(t).SetMaxFlushRetries(2)
 	)
 	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNs1ID)
 	require.NoError(t, err)
@@ -850,7 +846,7 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 
 	var (
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
-		dopts  = testDatabaseOptions()
+		dopts  = testDatabaseOptions(t)
 	)
 	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNs1ID)
 	require.NoError(t, err)
@@ -901,7 +897,7 @@ func TestNamespaceNeedsFlushInProgress(t *testing.T) {
 
 	var (
 		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
-		dopts  = testDatabaseOptions()
+		dopts  = testDatabaseOptions(t)
 	)
 	testNs, err := dopts.NamespaceRegistry().Get(defaultTestNs1ID)
 	require.NoError(t, err)

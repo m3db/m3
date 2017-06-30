@@ -51,7 +51,7 @@ type mockDatabase struct {
 	bs         bootstrapState
 }
 
-func newMockDatabase() *mockDatabase { return &mockDatabase{opts: testDatabaseOptions()} }
+func newMockDatabase(t *testing.T) *mockDatabase { return &mockDatabase{opts: testDatabaseOptions(t)} }
 
 func (d *mockDatabase) Options() Options                          { return d.opts }
 func (d *mockDatabase) AssignShardSet(shardSet sharding.ShardSet) {}
@@ -118,10 +118,15 @@ var (
 	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
 	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
 
-	defaultTestNamespaceRegistry = namespace.NewRegistry([]namespace.Metadata{
-		namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts),
-		namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts),
-	})
+	defaultTestNamespaceRegistry = func(t *testing.T) namespace.Registry {
+		md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+		require.NoError(t, err)
+		md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
+		require.NoError(t, err)
+		reg, err := namespace.NewRegistry([]namespace.Metadata{md1, md2})
+		require.NoError(t, err)
+		return reg
+	}
 
 	_opts = newOptions(pool.NewObjectPoolOptions().SetSize(16))
 
@@ -130,19 +135,21 @@ var (
 					SetMaxFlushRetries(3).
 					SetFileOpOptions(NewFileOpOptions().SetJitter(0)).
 					SetTickInterval(10 * time.Minute).
-					SetNamespaceRegistry(defaultTestNamespaceRegistry).
 					SetCommitLogOptions(_opts.CommitLogOptions().
-						SetRetentionOptions(defaultTestRetentionOpts).
-						SetFilesystemOptions(_opts.CommitLogOptions().
-							FilesystemOptions().SetNamespaceRegistry(defaultTestNamespaceRegistry)))
+						SetRetentionOptions(defaultTestRetentionOpts))
 )
 
-func testDatabaseOptions() Options {
+func testDatabaseOptions(t *testing.T) Options {
 	// NB(r): We don't need to recreate the options multiple
 	// times as they are immutable - we save considerable
 	// memory by doing this avoiding creating default pools
 	// several times.
-	return defaultTestDatabaseOptions
+	commitlogOpts := defaultTestDatabaseOptions.CommitLogOptions()
+	reg := defaultTestNamespaceRegistry(t)
+	return defaultTestDatabaseOptions.
+		SetNamespaceRegistry(reg).
+		SetCommitLogOptions(commitlogOpts.SetFilesystemOptions(
+			commitlogOpts.FilesystemOptions().SetNamespaceRegistry(reg)))
 }
 
 func testRepairOptions(ctrl *gomock.Controller) repair.Options {
@@ -154,8 +161,8 @@ func testRepairOptions(ctrl *gomock.Controller) repair.Options {
 		SetRepairCheckInterval(100 * time.Millisecond)
 }
 
-func testDatabaseOptionsWithRepair(ctrl *gomock.Controller) Options {
-	opts := testDatabaseOptions()
+func testDatabaseOptionsWithRepair(t *testing.T, ctrl *gomock.Controller) Options {
+	opts := testDatabaseOptions(t)
 	opts = opts.SetRepairEnabled(true).
 		SetRepairOptions(testRepairOptions(ctrl))
 	return opts
@@ -165,7 +172,7 @@ func newTestDatabase(t *testing.T, bs bootstrapState) *db {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptionsWithRepair(ctrl)
+	opts := testDatabaseOptionsWithRepair(t, ctrl)
 
 	shards := sharding.NewShards([]uint32{0, 1}, shard.Available)
 	shardSet, err := sharding.NewShardSet(shards, nil)

@@ -30,8 +30,8 @@ import (
 )
 
 func TestFileSystemManagerShouldRunDuringBootstrap(t *testing.T) {
-	database := newMockDatabase()
-	fsm := newFileSystemManager(database, testDatabaseOptions())
+	database := newMockDatabase(t)
+	fsm := newFileSystemManager(database, testDatabaseOptions(t))
 	mgr := fsm.(*fileSystemManager)
 	require.False(t, mgr.shouldRunWithLock())
 	database.bs = bootstrapped
@@ -39,9 +39,9 @@ func TestFileSystemManagerShouldRunDuringBootstrap(t *testing.T) {
 }
 
 func TestFileSystemManagerShouldRunWhileRunning(t *testing.T) {
-	database := newMockDatabase()
+	database := newMockDatabase(t)
 	database.bs = bootstrapped
-	fsm := newFileSystemManager(database, testDatabaseOptions())
+	fsm := newFileSystemManager(database, testDatabaseOptions(t))
 	mgr := fsm.(*fileSystemManager)
 	require.True(t, mgr.shouldRunWithLock())
 	mgr.status = fileOpInProgress
@@ -49,9 +49,9 @@ func TestFileSystemManagerShouldRunWhileRunning(t *testing.T) {
 }
 
 func TestFileSystemManagerShouldRunEnableDisable(t *testing.T) {
-	database := newMockDatabase()
+	database := newMockDatabase(t)
 	database.bs = bootstrapped
-	fsm := newFileSystemManager(database, testDatabaseOptions())
+	fsm := newFileSystemManager(database, testDatabaseOptions(t))
 	mgr := fsm.(*fileSystemManager)
 	require.True(t, mgr.shouldRunWithLock())
 	require.NotEqual(t, fileOpInProgress, mgr.Disable())
@@ -64,11 +64,11 @@ func TestFileSystemManagerRun(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	database := newMockDatabase()
+	database := newMockDatabase(t)
 	database.bs = bootstrapped
 	fm := NewMockdatabaseFlushManager(ctrl)
 	cm := NewMockdatabaseCleanupManager(ctrl)
-	fsm := newFileSystemManager(database, testDatabaseOptions())
+	fsm := newFileSystemManager(database, testDatabaseOptions(t))
 	mgr := fsm.(*fileSystemManager)
 	mgr.databaseFlushManager = fm
 	mgr.databaseCleanupManager = cm

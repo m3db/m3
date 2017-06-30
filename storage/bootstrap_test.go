@@ -37,7 +37,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions()
+	opts := testDatabaseOptions(t)
 	now := time.Now()
 	opts = opts.
 		SetBootstrapProcess(nil).
@@ -69,7 +69,7 @@ func TestDatabaseBootstrapTargetRanges(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions()
+	opts := testDatabaseOptions(t)
 	ns, err := opts.NamespaceRegistry().Get(defaultTestNs1ID)
 	require.NoError(t, err)
 	ropts := ns.Options().RetentionOptions()

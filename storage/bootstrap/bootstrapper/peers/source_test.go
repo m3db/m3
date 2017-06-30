@@ -43,27 +43,35 @@ import (
 
 var (
 	testNamespace         = ts.StringID("testnamespace")
-	testNamespaceMetadata = namespace.NewMetadata(testNamespace, namespace.NewOptions())
-	testRegistry          = namespace.NewRegistry([]namespace.Metadata{testNamespaceMetadata})
+	testNamespaceMetadata = func(t *testing.T) namespace.Metadata {
+		ns, err := namespace.NewMetadata(testNamespace, namespace.NewOptions())
+		require.NoError(t, err)
+		return ns
+	}
+	testRegistry = func(t *testing.T) namespace.Registry {
+		reg, err := namespace.NewRegistry([]namespace.Metadata{testNamespaceMetadata(t)})
+		require.NoError(t, err)
+		return reg
+	}
 
 	testDefaultRunOpts     = bootstrap.NewRunOptions().SetIncremental(false)
 	testIncrementalRunOpts = bootstrap.NewRunOptions().SetIncremental(true)
 	testBlockOpts          = block.NewOptions()
 )
 
-func newTestOptions() Options {
-	return NewOptions().SetNamespaceRegistry(testRegistry)
+func newTestOptions(t *testing.T) Options {
+	return NewOptions().SetNamespaceRegistry(testRegistry(t))
 }
 
 func TestPeersSourceCan(t *testing.T) {
-	src := newPeersSource(newTestOptions())
+	src := newPeersSource(newTestOptions(t))
 
 	assert.True(t, src.Can(bootstrap.BootstrapSequential))
 	assert.False(t, src.Can(bootstrap.BootstrapParallel))
 }
 
 func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
-	src := newPeersSource(newTestOptions())
+	src := newPeersSource(newTestOptions(t))
 
 	target := result.ShardTimeRanges{}
 	available := src.Available(testNamespace, target)
@@ -78,8 +86,8 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newTestOptions()
-	ropts := testNamespaceMetadata.Options().RetentionOptions()
+	opts := newTestOptions(t)
+	ropts := testNamespaceMetadata(t).Options().RetentionOptions()
 
 	expectedErr := fmt.Errorf("an error")
 
@@ -107,8 +115,8 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newTestOptions()
-	ropts := testNamespaceMetadata.Options().RetentionOptions()
+	opts := newTestOptions(t)
+	ropts := testNamespaceMetadata(t).Options().RetentionOptions()
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	end := start.Add(ropts.BlockSize())
@@ -120,11 +128,11 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata(t)),
 			uint32(0), start, end, gomock.Any()).
 		Return(goodResult, nil)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata(t)),
 			uint32(1), start, end, gomock.Any()).
 		Return(nil, badErr)
 
@@ -164,8 +172,8 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newTestOptions()
-	ropts := testNamespaceMetadata.Options().RetentionOptions()
+	opts := newTestOptions(t)
+	ropts := testNamespaceMetadata(t).Options().RetentionOptions()
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	end := start.Add(2 * ropts.BlockSize())
@@ -188,11 +196,11 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata(t)),
 			uint32(0), start, end, gomock.Any()).
 		Return(firstResult, nil)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata(t)),
 			uint32(1), start, end, gomock.Any()).
 		Return(secondResult, nil)
 
@@ -326,8 +334,8 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newTestOptions()
-	ropts := testNamespaceMetadata.Options().RetentionOptions()
+	opts := newTestOptions(t)
+	ropts := testNamespaceMetadata(t).Options().RetentionOptions()
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	end := start.Add(ropts.BlockSize())
@@ -365,19 +373,19 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata(t)),
 			uint32(0), start, end, gomock.Any()).
 		Return(firstResult, nil)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata(t)),
 			uint32(1), start, end, gomock.Any()).
 		Return(secondResult, nil)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata(t)),
 			uint32(2), start, end, gomock.Any()).
 		Return(thirdResult, nil)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata(t)),
 			uint32(3), start, end, gomock.Any()).
 		Return(fourthResult, nil)
 

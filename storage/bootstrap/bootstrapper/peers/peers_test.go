@@ -24,7 +24,6 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/storage/namespace"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -39,9 +38,8 @@ func TestNewPeersBootstrapper(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := NewOptions().
-		SetAdminClient(client.NewMockAdminClient(ctrl)).
-		SetNamespaceRegistry(namespace.NewRegistry(nil))
+	opts := newTestOptions(t).
+		SetAdminClient(client.NewMockAdminClient(ctrl))
 
 	b, err := NewPeersBootstrapper(opts, nil)
 	assert.NoError(t, err)
