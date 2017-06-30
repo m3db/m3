@@ -177,15 +177,12 @@ func makeTestWrite(
 ) (testSetups, closeFn, testWriteFn) {
 
 	nsOpts := namespace.NewOptions()
-	nspaces := []namespace.Metadata{
-		namespace.NewMetadata(testNamespaces[0],
-			nsOpts.SetRetentionOptions(
-				nsOpts.RetentionOptions().
-					SetRetentionPeriod(6*time.Hour))),
-	}
+	md, err := namespace.NewMetadata(testNamespaces[0],
+		nsOpts.SetRetentionOptions(nsOpts.RetentionOptions().SetRetentionPeriod(6*time.Hour)))
+	require.NoError(t, err)
 
+	nspaces := []namespace.Metadata{md}
 	nodes, topoInit, closeFn := newNodes(t, instances, nspaces)
-
 	now := nodes[0].getNowFn()
 
 	clientopts := client.NewOptions().

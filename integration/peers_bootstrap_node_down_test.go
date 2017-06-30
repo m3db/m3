@@ -49,7 +49,7 @@ func TestPeersBootstrapNodeDown(t *testing.T) {
 
 	namesp := namespace.NewMetadata(testNamespaces[0],
 		namespace.NewOptions().SetRetentionOptions(retentionOpts))
-	opts := newTestOptions().
+	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp})
 
 	setupOpts := []bootstrappableTestSetupOptions{

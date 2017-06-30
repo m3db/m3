@@ -49,7 +49,7 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 		SetBufferFuture(2 * time.Minute)
 	namesp := namespace.NewMetadata(testNamespaces[0],
 		namespace.NewOptions().SetRetentionOptions(retentionOpts))
-	opts := newTestOptions().
+	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp})
 
 	batchSize := 16

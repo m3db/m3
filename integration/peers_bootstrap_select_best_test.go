@@ -47,9 +47,9 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
-	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().
-		SetRetentionOptions(retentionOpts))
-	opts := newTestOptions().
+	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(retentionOpts))
+	require.NoError(t, err)
+	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp}).
 		SetTickInterval(3 * time.Second)
 

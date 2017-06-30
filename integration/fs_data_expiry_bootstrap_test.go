@@ -56,14 +56,15 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 				SetBufferFuture(2 * time.Minute).
 				SetBlockDataExpiry(true)
 		blockSize = ropts.BlockSize()
-		namesp    = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().
-				SetRetentionOptions(ropts))
-		opts = newTestOptions().
-			SetNamespaces([]namespace.Metadata{namesp}).
-			SetTickInterval(tickInterval)
-		setup *testSetup
-		err   error
+		setup     *testSetup
+		err       error
 	)
+	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
+	require.NoError(t, err)
+
+	opts := newTestOptions(t).
+		SetNamespaces([]namespace.Metadata{namesp}).
+		SetTickInterval(tickInterval)
 
 	retrieverOpts := fs.NewBlockRetrieverOptions()
 
@@ -78,7 +79,7 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 
 	opts = opts.SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
 
-	setup, err = newTestSetup(opts)
+	setup, err = newTestSetup(t, opts)
 	require.NoError(t, err)
 	defer setup.close()
 

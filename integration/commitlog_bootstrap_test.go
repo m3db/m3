@@ -45,11 +45,14 @@ func TestCommitLogBootstrap(t *testing.T) {
 	var (
 		ropts     = retention.NewOptions().SetRetentionPeriod(12 * time.Hour)
 		blockSize = ropts.BlockSize()
-		ns1       = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
-		ns2       = namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ropts))
-		opts      = newTestOptions().SetNamespaces([]namespace.Metadata{ns1, ns2})
 	)
-	setup, err := newTestSetup(opts)
+	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
+	require.NoError(t, err)
+	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ropts))
+	require.NoError(t, err)
+	opts := newTestOptions(t).SetNamespaces([]namespace.Metadata{ns1, ns2})
+
+	setup, err := newTestSetup(t, opts)
 	require.NoError(t, err)
 	defer setup.close()
 

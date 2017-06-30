@@ -36,8 +36,8 @@ func TestDiskFlush(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	testOpts := newTestOptions()
-	testSetup, err := newTestSetup(testOpts)
+	testOpts := newTestOptions(t)
+	testSetup, err := newTestSetup(t, testOpts)
 	require.NoError(t, err)
 	defer testSetup.close()
 

@@ -37,8 +37,8 @@ func TestRoundtrip(t *testing.T) {
 	}
 	// Test setup
 	tickInterval := time.Second
-	testOpts := newTestOptions().SetTickInterval(tickInterval)
-	testSetup, err := newTestSetup(testOpts)
+	testOpts := newTestOptions(t).SetTickInterval(tickInterval)
+	testSetup, err := newTestSetup(t, testOpts)
 	require.NoError(t, err)
 	defer testSetup.close()
 

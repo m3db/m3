@@ -100,12 +100,13 @@ type testSetup struct {
 	closedCh chan struct{}
 }
 
-func newTestSetup(opts testOptions) (*testSetup, error) {
+func newTestSetup(t *testing.T, opts testOptions) (*testSetup, error) {
 	if opts == nil {
-		opts = newTestOptions()
+		opts = newTestOptions(t)
 	}
 
-	nsRegistry := namespace.NewRegistry(opts.Namespaces())
+	nsRegistry, err := namespace.NewRegistry(opts.Namespaces())
+	require.NoError(t, err)
 	storageOpts := storage.NewOptions().
 		SetNamespaceRegistry(nsRegistry).
 		SetTickInterval(opts.TickInterval())
@@ -488,7 +489,7 @@ func newNodes(
 ) (testSetups, topology.Initializer, closeFn) {
 
 	log := xlog.SimpleLogger
-	opts := newTestOptions().
+	opts := newTestOptions(t).
 		SetNamespaces(nspaces).
 		SetTickInterval(3 * time.Second)
 

@@ -46,9 +46,9 @@ func TestPeersBootstrapSimple(t *testing.T) {
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
-	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().
-		SetRetentionOptions(retentionOpts))
-	opts := newTestOptions().
+	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(retentionOpts))
+	require.NoError(t, err)
+	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp}).
 		SetTickInterval(3 * time.Second)
 
@@ -66,8 +66,7 @@ func TestPeersBootstrapSimple(t *testing.T) {
 		{[]string{"foo", "bar"}, 180, now.Add(-blockSize)},
 		{[]string{"foo", "baz"}, 90, now},
 	})
-	err := writeTestDataToDisk(namesp, setups[0], seriesMaps)
-	require.NoError(t, err)
+	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps))
 
 	// Start the first server with filesystem bootstrapper
 	require.NoError(t, setups[0].startServer())

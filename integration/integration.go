@@ -180,15 +180,16 @@ func newDefaultBootstrappableTestSetups(
 			topologyInitializer        = setupOpts[i].topologyInitializer
 			testStatsReporter          = setupOpts[i].testStatsReporter
 			instanceOpts               = newMultiAddrTestOptions(opts, instance)
-			nsRegistry                 = namespace.NewRegistry(opts.Namespaces())
 		)
+		nsRegistry, err := namespace.NewRegistry(opts.Namespaces())
+		require.NoError(t, err)
 
 		if topologyInitializer != nil {
 			instanceOpts = instanceOpts.
 				SetClusterDatabaseTopologyInitializer(topologyInitializer)
 		}
 
-		setup, err := newTestSetup(instanceOpts)
+		setup, err := newTestSetup(t, instanceOpts)
 		require.NoError(t, err)
 
 		instrumentOpts := setup.storageOpts.InstrumentOptions()

@@ -47,9 +47,10 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
-	namesp := namespace.NewMetadata(testNamespaces[0],
+	namesp, err := namespace.NewMetadata(testNamespaces[0],
 		namespace.NewOptions().SetRetentionOptions(retentionOpts))
-	opts := newTestOptions().
+	require.NoError(t, err)
+	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp}).
 		SetVerifySeriesDebugFilePathPrefix("/tmp/").
 		SetTickInterval(3 * time.Second)
@@ -129,7 +130,7 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 	require.Equal(t, 120, len(directWritesSeriesMaps[now][1].Data))
 
 	// Write data to first node
-	err := writeTestDataToDisk(namesp, setups[0], firstNodeSeriesMaps)
+	err = writeTestDataToDisk(namesp, setups[0], firstNodeSeriesMaps)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper

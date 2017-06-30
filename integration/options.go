@@ -21,12 +21,14 @@
 package integration
 
 import (
+	"testing"
 	"time"
 
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -237,11 +239,13 @@ type options struct {
 	writeConsistencyLevel              topology.ConsistencyLevel
 }
 
-func newTestOptions() testOptions {
+func newTestOptions(t *testing.T) testOptions {
 	var namespaces []namespace.Metadata
 	nsOpts := namespace.NewOptions().SetNeedsRepair(false).SetRetentionOptions(defaultIntegrationTestRetentionOpts)
 	for _, ns := range testNamespaces {
-		namespaces = append(namespaces, namespace.NewMetadata(ns, nsOpts))
+		md, err := namespace.NewMetadata(ns, nsOpts)
+		require.NoError(t, err)
+		namespaces = append(namespaces, md)
 	}
 	return &options{
 		namespaces:             namespaces,

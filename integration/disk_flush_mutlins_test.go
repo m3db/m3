@@ -47,14 +47,16 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 		ns1ROpts           = clROpts.SetBlockSize(ns1BlockSize)
 		ns2BlockSize       = 3 * time.Hour
 		ns2ROpts           = clROpts.SetBlockSize(ns2BlockSize)
-
-		ns1  = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ns1ROpts))
-		ns2  = namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ns2ROpts))
-		opts = newTestOptions().SetTickInterval(tickInterval).SetNamespaces([]namespace.Metadata{ns1, ns2})
 	)
 
+	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ns1ROpts))
+	require.NoError(t, err)
+	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ns2ROpts))
+	require.NoError(t, err)
+	opts := newTestOptions(t).SetTickInterval(tickInterval).SetNamespaces([]namespace.Metadata{ns1, ns2})
+
 	// Test setup
-	testSetup, err := newTestSetup(opts)
+	testSetup, err := newTestSetup(t, opts)
 	require.NoError(t, err)
 	defer testSetup.close()
 

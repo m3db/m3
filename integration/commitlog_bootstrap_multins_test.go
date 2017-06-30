@@ -51,18 +51,20 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 		ns1ROpts           = clROpts.SetRetentionPeriod(48 * time.Hour).SetBlockSize(ns1BlockSize)
 		ns2BlockSize       = 30 * time.Minute
 		ns2ROpts           = clROpts.SetRetentionPeriod(48 * time.Hour).SetBlockSize(ns2BlockSize)
-
-		ns1 = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ns1ROpts))
-		ns2 = namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ns2ROpts))
-
-		opts = newTestOptions().
-			SetTickInterval(tickInterval).
-			SetCommitLogRetention(clROpts).
-			SetNamespaces([]namespace.Metadata{ns1, ns2})
 	)
 
+	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ns1ROpts))
+	require.NoError(t, err)
+	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ns2ROpts))
+	require.NoError(t, err)
+
+	opts := newTestOptions(t).
+		SetTickInterval(tickInterval).
+		SetCommitLogRetention(clROpts).
+		SetNamespaces([]namespace.Metadata{ns1, ns2})
+
 	// Test setup
-	setup, err := newTestSetup(opts)
+	setup, err := newTestSetup(t, opts)
 	require.NoError(t, err)
 	defer setup.close()
 

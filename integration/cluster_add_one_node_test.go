@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/integration/fake"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
@@ -33,8 +35,6 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/shard"
 
 	"github.com/stretchr/testify/require"
 )
@@ -47,15 +47,15 @@ func TestClusterAddOneNode(t *testing.T) {
 	// Test setups
 	log := xlog.SimpleLogger
 
-	namesp := namespace.NewMetadata(testNamespaces[0],
+	namesp, err := namespace.NewMetadata(testNamespaces[0],
 		namespace.NewOptions().SetRetentionOptions(
 			retention.NewOptions().
 				SetRetentionPeriod(6*time.Hour).
 				SetBlockSize(2*time.Hour).
 				SetBufferPast(10*time.Minute).
 				SetBufferFuture(2*time.Minute)))
-
-	opts := newTestOptions().
+	require.NoError(t, err)
+	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp}).
 		SetTickInterval(3 * time.Second)
 

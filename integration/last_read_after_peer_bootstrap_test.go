@@ -56,9 +56,10 @@ func TestLastReadAfterPeerBootstrap(t *testing.T) {
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
 
-	namesp := namespace.NewMetadata(testNamespaces[0],
+	namesp, err := namespace.NewMetadata(testNamespaces[0],
 		namespace.NewOptions().SetRetentionOptions(ropts))
-	opts := newTestOptions().
+	require.NoError(t, err)
+	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp}).
 		SetTickInterval(time.Minute)
 
@@ -78,7 +79,7 @@ func TestLastReadAfterPeerBootstrap(t *testing.T) {
 		{[]string{"foo", "baz"}, 50, now.Add(-2 * blockSize)},
 		{[]string{"foo", "qux"}, 50, now.Add(-1 * blockSize)},
 	})
-	err := writeTestDataToDisk(namesp, setups[0], seriesMaps)
+	err = writeTestDataToDisk(namesp, setups[0], seriesMaps)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper
