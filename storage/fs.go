@@ -80,6 +80,8 @@ func newFileSystemManager(
 	fm := newFlushManager(database, scope)
 	cm := newCleanupManager(database, fm, scope)
 
+	// TODO(prateek): we're not using jitter anywhere, fix that.
+	// Was last used during PR #188, sha1: 1c7ab039
 	var jitter time.Duration
 	if maxJitter := fileOpts.Jitter(); maxJitter > 0 {
 		nowFn := opts.ClockOptions().NowFn()
