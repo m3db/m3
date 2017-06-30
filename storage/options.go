@@ -155,7 +155,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	o := &options{
 		clockOpts:                      clock.NewOptions(),
 		instrumentOpts:                 instrument.NewOptions(),
-		registry:                       namespace.NewRegistry(nil),
 		blockOpts:                      block.NewOptions(),
 		commitLogOpts:                  commitlog.NewOptions(),
 		runtimeOptsMgr:                 runtime.NewOptionsManager(runtime.NewOptions()),
@@ -194,9 +193,6 @@ func (o *options) Validate() error {
 	registry := o.NamespaceRegistry()
 	if registry == nil {
 		return errNamespaceRegistryNotSet
-	}
-	if err := registry.Validate(); err != nil {
-		return fmt.Errorf("unable to validate namespace registry, err: %v", err)
 	}
 
 	// validate commit log options

@@ -61,21 +61,16 @@ func NewOptions() Options {
 		defaultShardConcurrency:        defaultDefaultShardConcurrency,
 		incrementalShardConcurrency:    defaultIncrementalShardConcurrency,
 		incrementalPersistMaxQueueSize: defaultIncrementalPersistMaxQueueSize,
-		namespaceRegistry:              namespace.NewRegistry(nil),
 	}
 }
 
 func (o *options) Validate() error {
-	registry := o.namespaceRegistry
-	if registry == nil {
+	if registry := o.namespaceRegistry; registry == nil {
 		return errNamespaceRegistryNotSet
 	}
-
-	client := o.client
-	if client == nil {
+	if client := o.client; client == nil {
 		return errAdminClientNotSet
 	}
-
 	return nil
 }
 

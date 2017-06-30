@@ -43,16 +43,19 @@ import (
 
 // Create test service opts once to avoid recreating a lot of default pools, etc
 var (
-	testNamespaceID       = ts.StringID("metrics")
-	testNamespaceMetadata = namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
-	testRegistry          = namespace.NewRegistry([]namespace.Metadata{testNamespaceMetadata})
-	testServiceOpts       = storage.NewOptions().
-				SetNamespaceRegistry(testRegistry)
+	testNamespaceID = ts.StringID("metrics")
+	testServiceOpts = storage.NewOptions()
 )
 
 func TestServiceHealth(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+
+	testNamespaceMetadata, err := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
+	require.NoError(t, err)
+	testRegistry, err := namespace.NewRegistry([]namespace.Metadata{testNamespaceMetadata})
+	require.NoError(t, err)
+	testServiceOpts = testServiceOpts.SetNamespaceRegistry(testRegistry)
 
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()

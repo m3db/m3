@@ -71,9 +71,11 @@ func newTestOptions(
 	scope := tally.NewTestScope("", nil)
 
 	ropts := retention.NewOptions().SetBlockSize(2 * time.Hour)
-	testNs := namespace.NewMetadata(ts.StringID("a"),
+	testNs, err := namespace.NewMetadata(ts.StringID("a"),
 		namespace.NewOptions().SetRetentionOptions(ropts))
-	reg := namespace.NewRegistry([]namespace.Metadata{testNs})
+	require.NoError(t, err)
+	reg, err := namespace.NewRegistry([]namespace.Metadata{testNs})
+	require.NoError(t, err)
 
 	opts := NewOptions().
 		SetClockOptions(clock.NewOptions().SetNowFn(c.Now)).

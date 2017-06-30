@@ -61,11 +61,20 @@ func main() {
 	httpNodeAddr := *httpNodeAddrArg
 	tchannelNodeAddr := *tchannelNodeAddrArg
 
-	namespaces := server.DefaultNamespaces()
-	registry := namespace.NewRegistry(namespaces)
-	storageOpts := storage.NewOptions().SetNamespaceRegistry(registry)
-
+	storageOpts := storage.NewOptions()
 	log := storageOpts.InstrumentOptions().Logger()
+
+	namespaces, err := server.DefaultNamespaces()
+	if err != nil {
+		log.Fatalf("could not create default namespaces: %v", err)
+	}
+
+	registry, err := namespace.NewRegistry(namespaces)
+	if err != nil {
+		log.Fatalf("could not create namespace registry: %v", err)
+	}
+	storageOpts = storageOpts.SetNamespaceRegistry(registry)
+
 	topoInit, err := server.DefaultTopologyInitializer(id, tchannelNodeAddr)
 	if err != nil {
 		log.Fatalf("could not create topology initializer: %v", err)

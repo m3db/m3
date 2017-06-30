@@ -153,14 +153,11 @@ func newDatabaseNamespace(
 	writeCommitLogFn writeCommitLogFn,
 	opts Options,
 ) (databaseNamespace, error) {
-	if err := metadata.Validate(); err != nil {
-		return nil, err
-	}
-
-	nopts := metadata.Options()
-
-	id := metadata.ID()
-	fn := writeCommitLogFn
+	var (
+		nopts = metadata.Options()
+		id    = metadata.ID()
+		fn    = writeCommitLogFn
+	)
 	if !nopts.WritesToCommitLog() {
 		fn = commitLogWriteNoOp
 	}
