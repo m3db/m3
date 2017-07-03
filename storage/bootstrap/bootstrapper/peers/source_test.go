@@ -169,11 +169,13 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 }
 
 func TestPeersSourceIncrementalRun(t *testing.T) {
+	// TODO(prateek): this test is broked, un broked it
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	testNsMd := testNamespaceMetadata(t)
 	opts := newTestOptions(t)
-	ropts := testNamespaceMetadata(t).Options().RetentionOptions()
+	ropts := testNsMd.Options().RetentionOptions()
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	end := start.Add(2 * ropts.BlockSize())
@@ -196,11 +198,11 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata(t)),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
 			uint32(0), start, end, gomock.Any()).
 		Return(firstResult, nil)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata(t)),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
 			uint32(1), start, end, gomock.Any()).
 		Return(secondResult, nil)
 
@@ -217,7 +219,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 	mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
 	mockRetrieverMgr.EXPECT().
-		Retriever(ts.NewIDMatcher(testNamespace.String())).
+		Retriever(ts.NewIDMatcher(testNsMd.ID().String())).
 		Return(mockRetriever, nil)
 
 	opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
@@ -227,7 +229,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 	persists := make(map[string]int)
 	closes := make(map[string]int)
 	mockFlush.EXPECT().
-		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(0), start).
+		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(0), start).
 		Return(persist.PreparedPersist{
 			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
 				persists["foo"]++
@@ -242,7 +244,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 			},
 		}, nil)
 	mockFlush.EXPECT().
-		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(0), start.Add(ropts.BlockSize())).
+		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(0), start.Add(ropts.BlockSize())).
 		Return(persist.PreparedPersist{
 			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
 				persists["bar"]++
@@ -257,7 +259,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 			},
 		}, nil)
 	mockFlush.EXPECT().
-		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(1), start).
+		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(1), start).
 		Return(persist.PreparedPersist{
 			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
 				persists["baz"]++
@@ -272,7 +274,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 			},
 		}, nil)
 	mockFlush.EXPECT().
-		Prepare(ts.NewIDMatcher(testNamespace.String()), uint32(1), start.Add(ropts.BlockSize())).
+		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(1), start.Add(ropts.BlockSize())).
 		Return(persist.PreparedPersist{
 			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
 				assert.Fail(t, "no expected shard 1 second block")
