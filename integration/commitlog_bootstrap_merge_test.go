@@ -93,9 +93,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts)
-	fsBootstrapper, err := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, commitLogBootstrapper)
-	require.NoError(t, err)
-
+	fsBootstrapper := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, commitLogBootstrapper)
 	// bootstrapper storage opts
 	process := bootstrap.NewProcess(fsBootstrapper, bsOpts)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcess(process)

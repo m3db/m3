@@ -69,9 +69,10 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	retrieverOpts := fs.NewBlockRetrieverOptions()
 
 	blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
-		func(namespace ts.ID) (block.DatabaseBlockRetriever, error) {
+		func(ns ts.ID) (block.DatabaseBlockRetriever, error) {
+			require.True(t, ns.Equal(namesp.ID()))
 			retriever := fs.NewBlockRetriever(retrieverOpts, setup.fsOpts)
-			if err := retriever.Open(namespace); err != nil {
+			if err := retriever.Open(namesp); err != nil {
 				return nil, err
 			}
 			return retriever, nil
@@ -91,8 +92,7 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
 		SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
-	bs, err := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
-	require.NoError(t, err)
+	bs := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
 	process := bootstrap.NewProcess(bs, bsOpts)
 
 	setup.storageOpts = setup.storageOpts.

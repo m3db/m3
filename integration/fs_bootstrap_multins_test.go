@@ -74,8 +74,7 @@ func TestFilesystemBootstrapMultipleNamespaces(t *testing.T) {
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts)
 
-	bs, err := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
-	require.NoError(t, err)
+	bs := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
 	process := bootstrap.NewProcess(bs, bsOpts)
 
 	setup.storageOpts = setup.storageOpts.
