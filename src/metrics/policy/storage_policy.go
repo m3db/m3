@@ -35,8 +35,8 @@ const (
 )
 
 var (
-	// DefaultStoragePolicy represents a default storage policy.
-	DefaultStoragePolicy StoragePolicy
+	// EmptyStoragePolicy represents an empty storage policy.
+	EmptyStoragePolicy StoragePolicy
 
 	errNilStoragePolicySchema     = errors.New("nil storage policy schema")
 	errInvalidStoragePolicyString = errors.New("invalid storage policy string")
@@ -63,12 +63,12 @@ func NewStoragePolicy(window time.Duration, precision xtime.Unit, retention time
 // NewStoragePolicyFromSchema creates a new storage policy from a schema storage policy.
 func NewStoragePolicyFromSchema(p *schema.StoragePolicy) (StoragePolicy, error) {
 	if p == nil {
-		return DefaultStoragePolicy, errNilStoragePolicySchema
+		return EmptyStoragePolicy, errNilStoragePolicySchema
 	}
 	precision := time.Duration(p.Resolution.Precision)
 	unit, err := xtime.UnitFromDuration(precision)
 	if err != nil {
-		return DefaultStoragePolicy, err
+		return EmptyStoragePolicy, err
 	}
 
 	return NewStoragePolicy(time.Duration(p.Resolution.WindowSize), unit, time.Duration(p.Retention.Period)), nil
@@ -126,16 +126,26 @@ func (p *StoragePolicy) UnmarshalYAML(unmarshal func(interface{}) error) error {
 func ParseStoragePolicy(str string) (StoragePolicy, error) {
 	parts := strings.Split(str, resolutionRetentionSeparator)
 	if len(parts) != 2 {
-		return DefaultStoragePolicy, errInvalidStoragePolicyString
+		return EmptyStoragePolicy, errInvalidStoragePolicyString
 	}
 	resolution, err := ParseResolution(parts[0])
 	if err != nil {
-		return DefaultStoragePolicy, err
+		return EmptyStoragePolicy, err
 	}
 	retentionDuration, err := xtime.ParseExtendedDuration(parts[1])
 	if err != nil {
-		return DefaultStoragePolicy, err
+		return EmptyStoragePolicy, err
 	}
 	retention := Retention(retentionDuration)
 	return StoragePolicy{resolution: resolution, retention: retention}, nil
+}
+
+// MustParseStoragePolicy parses a storage policy in the form of resolution:retention,
+// and panics if the input string is invalid.
+func MustParseStoragePolicy(str string) StoragePolicy {
+	sp, err := ParseStoragePolicy(str)
+	if err != nil {
+		panic(fmt.Errorf("invalid storage policy string %s: %v", str, err))
+	}
+	return sp
 }

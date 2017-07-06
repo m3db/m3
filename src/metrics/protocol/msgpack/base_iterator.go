@@ -119,7 +119,7 @@ func (it *baseIterator) decodeCompressedAggregationTypes() policy.AggregationID 
 func (it *baseIterator) decodeStoragePolicy() policy.StoragePolicy {
 	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(storagePolicyType)
 	if !ok {
-		return policy.DefaultStoragePolicy
+		return policy.EmptyStoragePolicy
 	}
 	resolution := it.decodeResolution()
 	retention := it.decodeRetention()
