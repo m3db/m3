@@ -150,6 +150,31 @@ func TestStoragePolicyUnmarshalYAML(t *testing.T) {
 	}
 }
 
+func TestMustParseStoragePolicy(t *testing.T) {
+	inputs := []struct {
+		str         string
+		shouldPanic bool
+		expected    StoragePolicy
+	}{
+		{
+			str:         "1s:1h",
+			shouldPanic: false,
+			expected:    NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+		},
+		{
+			str:         "10seconds:1d",
+			shouldPanic: true,
+		},
+	}
+	for _, input := range inputs {
+		if input.shouldPanic {
+			require.Panics(t, func() { MustParseStoragePolicy(input.str) })
+		} else {
+			require.Equal(t, input.expected, MustParseStoragePolicy(input.str))
+		}
+	}
+}
+
 func TestStoragePolicyUnmarshalYAMLErrors(t *testing.T) {
 	inputs := []string{
 		"1s:1s:1s",

@@ -240,7 +240,7 @@ func (it *mockBaseIterator) err() error             { return it.itErr }
 func (it *mockBaseIterator) setErr(err error)       { it.itErr = err }
 func (it *mockBaseIterator) reader() bufReader      { return it.bufReader }
 func (it *mockBaseIterator) decodeStoragePolicy() policy.StoragePolicy {
-	return policy.DefaultStoragePolicy
+	return policy.EmptyStoragePolicy
 }
 func (it *mockBaseIterator) decodeVersion() int           { return it.decodeVersionFn() }
 func (it *mockBaseIterator) decodeObjectType() objectType { return unknownType }
