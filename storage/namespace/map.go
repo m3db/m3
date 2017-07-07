@@ -32,14 +32,14 @@ var (
 	errEmptyMetadatas = errors.New("no namespace metadata provided")
 )
 
-type registry struct {
+type nsMap struct {
 	namespaces map[ts.Hash]Metadata
 	ids        []ts.ID
 	metadatas  []Metadata
 }
 
-// NewRegistry returns a new registry containing provided metadatas
-func NewRegistry(metadatas []Metadata) (Registry, error) {
+// NewMap returns a new registry containing provided metadatas
+func NewMap(metadatas []Metadata) (Map, error) {
 	if len(metadatas) == 0 {
 		return nil, errEmptyMetadatas
 	}
@@ -64,14 +64,14 @@ func NewRegistry(metadatas []Metadata) (Registry, error) {
 		idsMap[id.Hash()] = struct{}{}
 	}
 
-	return &registry{
+	return &nsMap{
 		namespaces: ns,
 		ids:        ids,
 		metadatas:  nsMetadatas,
 	}, multiErr.FinalError()
 }
 
-func (r *registry) Get(namespace ts.ID) (Metadata, error) {
+func (r *nsMap) Get(namespace ts.ID) (Metadata, error) {
 	idHash := namespace.Hash()
 	metadata, ok := r.namespaces[idHash]
 	if !ok {
@@ -80,15 +80,15 @@ func (r *registry) Get(namespace ts.ID) (Metadata, error) {
 	return metadata, nil
 }
 
-func (r *registry) IDs() []ts.ID {
+func (r *nsMap) IDs() []ts.ID {
 	return r.ids
 }
 
-func (r *registry) Metadatas() []Metadata {
+func (r *nsMap) Metadatas() []Metadata {
 	return r.metadatas
 }
 
-func (r *registry) Equal(value Registry) bool {
+func (r *nsMap) Equal(value Map) bool {
 	// short circuit ptr equals
 	if value == r {
 		return true

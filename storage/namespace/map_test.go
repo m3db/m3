@@ -29,12 +29,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRegistryEmptyNamespaceRegistry(t *testing.T) {
-	_, err := NewRegistry(nil)
+func TestMapEmpty(t *testing.T) {
+	_, err := NewMap(nil)
 	require.Error(t, err)
 }
 
-func TestRegistrySingleElement(t *testing.T) {
+func TestMapSingleElement(t *testing.T) {
 	var (
 		opts = NewOptions()
 		id   = ts.StringID("someID")
@@ -42,17 +42,17 @@ func TestRegistrySingleElement(t *testing.T) {
 	md1, err := NewMetadata(id, opts)
 	require.NoError(t, err)
 	metadatas := []Metadata{md1}
-	registry, err := NewRegistry(metadatas)
+	nsMap, err := NewMap(metadatas)
 	require.NoError(t, err)
-	require.Equal(t, 1, len(registry.IDs()))
-	require.Equal(t, id.String(), registry.IDs()[0].String())
-	require.Equal(t, 1, len(registry.Metadatas()))
-	md := registry.Metadatas()[0]
+	require.Equal(t, 1, len(nsMap.IDs()))
+	require.Equal(t, id.String(), nsMap.IDs()[0].String())
+	require.Equal(t, 1, len(nsMap.Metadatas()))
+	md := nsMap.Metadatas()[0]
 	require.Equal(t, id.String(), md.ID().String())
 	require.Equal(t, opts, md.Options())
 }
 
-func TestRegistryMultipleElements(t *testing.T) {
+func TestMapMultipleElements(t *testing.T) {
 	var (
 		opts1 = NewOptions()
 		opts2 = opts1.SetNeedsRepair(true)
@@ -64,21 +64,21 @@ func TestRegistryMultipleElements(t *testing.T) {
 	md2, err := NewMetadata(id2, opts2)
 	require.NoError(t, err)
 	metadatas := []Metadata{md1, md2}
-	registry, err := NewRegistry(metadatas)
+	nsMap, err := NewMap(metadatas)
 	require.NoError(t, err)
 
-	require.Equal(t, 2, len(registry.IDs()))
-	ids := registry.IDs()
+	require.Equal(t, 2, len(nsMap.IDs()))
+	ids := nsMap.IDs()
 	require.True(t, ids[0].Equal(id1) || ids[1].Equal(id1))
 	require.True(t, ids[0].Equal(id2) || ids[1].Equal(id2))
 
-	require.Equal(t, 2, len(registry.Metadatas()))
-	mds := registry.Metadatas()
+	require.Equal(t, 2, len(nsMap.Metadatas()))
+	mds := nsMap.Metadatas()
 	require.True(t, id1.Equal(mds[0].ID()) || id1.Equal(mds[1].ID()))
 	require.True(t, id2.Equal(mds[0].ID()) || id2.Equal(mds[1].ID()))
 }
 
-func testRegistry(t *testing.T) Registry {
+func testMap(t *testing.T) Map {
 	var (
 		opts1 = NewOptions()
 		opts2 = opts1.SetNeedsRepair(true)
@@ -90,21 +90,21 @@ func testRegistry(t *testing.T) Registry {
 	md2, err := NewMetadata(id2, opts2)
 	require.NoError(t, err)
 	metadatas := []Metadata{md1, md2}
-	reg, err := NewRegistry(metadatas)
+	reg, err := NewMap(metadatas)
 	require.NoError(t, err)
 	return reg
 }
 
-func TestRegistryEqualsTrue(t *testing.T) {
-	r1 := testRegistry(t)
+func TestMapEqualsTrue(t *testing.T) {
+	r1 := testMap(t)
 	require.True(t, r1.Equal(r1))
 
-	r2 := testRegistry(t)
+	r2 := testMap(t)
 	require.True(t, r1.Equal(r2))
 	require.True(t, r2.Equal(r1))
 }
 
-func TestRegistryValidateDuplicateID(t *testing.T) {
+func TestMapValidateDuplicateID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -121,6 +121,6 @@ func TestRegistryValidateDuplicateID(t *testing.T) {
 	require.NoError(t, err)
 
 	metadatas := []Metadata{md1, md2}
-	_, err = NewRegistry(metadatas)
+	_, err = NewMap(metadatas)
 	require.Error(t, err)
 }

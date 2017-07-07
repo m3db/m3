@@ -27,8 +27,8 @@ import (
 	"github.com/m3db/m3db/ts"
 )
 
-// RegistryConfiguration is the configuration for a registry of namespaces
-type RegistryConfiguration struct {
+// MapConfiguration is the configuration for a registry of namespaces
+type MapConfiguration struct {
 	Metadatas []MetadataConfiguration `yaml:"metadatas" validate:"nonzero"`
 }
 
@@ -43,17 +43,17 @@ type MetadataConfiguration struct {
 	Retention           retention.Configuration `yaml:"retention" validate:"nonzero"`
 }
 
-// Registry returns a Registry corresponding to the receiver struct
-func (rc *RegistryConfiguration) Registry() (Registry, error) {
-	metadatas := make([]Metadata, 0, len(rc.Metadatas))
-	for _, m := range rc.Metadatas {
+// Map returns a Map corresponding to the receiver struct
+func (m *MapConfiguration) Map() (Map, error) {
+	metadatas := make([]Metadata, 0, len(m.Metadatas))
+	for _, m := range m.Metadatas {
 		md, err := m.Metadata()
 		if err != nil {
 			return nil, fmt.Errorf("unable to construct metadata for [%+v], err: %v", m, err)
 		}
 		metadatas = append(metadatas, md)
 	}
-	return NewRegistry(metadatas)
+	return NewMap(metadatas)
 }
 
 // Metadata returns a Metadata corresponding to the receiver struct

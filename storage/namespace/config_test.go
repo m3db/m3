@@ -34,7 +34,7 @@ import (
 func TestRegistryConfig(t *testing.T) {
 	var (
 		needsBootstrap = false
-		config         = &RegistryConfiguration{
+		config         = &MapConfiguration{
 			Metadatas: []MetadataConfiguration{
 				MetadataConfiguration{
 					ID: "abc",
@@ -59,23 +59,23 @@ func TestRegistryConfig(t *testing.T) {
 		}
 	)
 
-	reg, err := config.Registry()
+	nsMap, err := config.Map()
 	require.NoError(t, err)
-	md, err := reg.Get(ts.StringID("abc"))
+	md, err := nsMap.Get(ts.StringID("abc"))
 	require.NoError(t, err)
 	mdd, err := config.Metadatas[0].Metadata()
 	require.NoError(t, err)
 	require.Equal(t, mdd.ID().String(), md.ID().String())
 	require.Equal(t, mdd.Options(), md.Options())
 
-	md, err = reg.Get(ts.StringID("cde"))
+	md, err = nsMap.Get(ts.StringID("cde"))
 	require.NoError(t, err)
 	mdd, err = config.Metadatas[1].Metadata()
 	require.NoError(t, err)
 	require.Equal(t, mdd.ID().String(), md.ID().String())
 	require.Equal(t, mdd.Options(), md.Options())
 
-	_, err = reg.Get(ts.StringID("otherstring"))
+	_, err = nsMap.Get(ts.StringID("otherstring"))
 	require.Error(t, err)
 }
 
@@ -155,16 +155,16 @@ metadatas:
       bufferPast: 10m
 `)
 
-	var conf RegistryConfiguration
+	var conf MapConfiguration
 	require.NoError(t, yaml.Unmarshal(yamlBytes, &conf))
 
-	reg, err := conf.Registry()
+	nsMap, err := conf.Map()
 	require.NoError(t, err)
-	mds := reg.Metadatas()
+	mds := nsMap.Metadatas()
 	require.Equal(t, 3, len(mds))
 
 	testmetrics := ts.StringID("testmetrics")
-	ns, err := reg.Get(testmetrics)
+	ns, err := nsMap.Get(testmetrics)
 	require.NoError(t, err)
 	require.True(t, ns.ID().Equal(testmetrics))
 	opts := ns.Options()
@@ -181,7 +181,7 @@ metadatas:
 	require.True(t, testRetentionOpts.Equal(opts.RetentionOptions()))
 
 	metrics2d := ts.StringID("metrics-10s:2d")
-	ns, err = reg.Get(metrics2d)
+	ns, err = nsMap.Get(metrics2d)
 	require.NoError(t, err)
 	require.True(t, ns.ID().Equal(metrics2d))
 	opts = ns.Options()
@@ -198,7 +198,7 @@ metadatas:
 	require.True(t, testRetentionOpts.Equal(opts.RetentionOptions()))
 
 	metrics40d := ts.StringID("metrics-1m:40d")
-	ns, err = reg.Get(metrics40d)
+	ns, err = nsMap.Get(metrics40d)
 	require.NoError(t, err)
 	require.True(t, ns.ID().Equal(metrics40d))
 	opts = ns.Options()
