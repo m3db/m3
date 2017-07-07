@@ -628,6 +628,16 @@ func (_mr *_MockdatabaseNamespaceRecorder) Repair(arg0, arg1 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair", arg0, arg1)
 }
 
+func (_m *MockdatabaseNamespace) Close() error {
+	ret := _m.ctrl.Call(_m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
 // Mock of Shard interface
 type MockShard struct {
 	ctrl     *gomock.Controller
@@ -728,16 +738,6 @@ func (_m *MockdatabaseShard) IsBootstrapped() bool {
 
 func (_mr *_MockdatabaseShardRecorder) IsBootstrapped() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsBootstrapped")
-}
-
-func (_m *MockdatabaseShard) Close() error {
-	ret := _m.ctrl.Call(_m, "Close")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockdatabaseShardRecorder) Close() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
 func (_m *MockdatabaseShard) Tick(c context.Cancellable, softDeadline time0.Duration) tickResult {
@@ -842,6 +842,16 @@ func (_m *MockdatabaseShard) Repair(ctx context.Context, tr time.Range, repairer
 
 func (_mr *_MockdatabaseShardRecorder) Repair(arg0, arg1, arg2 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair", arg0, arg1, arg2)
+}
+
+func (_m *MockdatabaseShard) Close() error {
+	ret := _m.ctrl.Call(_m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseShardRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
 // Mock of databaseBootstrapManager interface

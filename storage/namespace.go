@@ -794,3 +794,7 @@ func (n *dbNamespace) initShards(needBootstrap bool) {
 	n.shards = dbShards
 	n.Unlock()
 }
+
+func (n *dbNamespace) Close() error {
+	panic("not implemented")
+}

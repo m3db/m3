@@ -48,30 +48,42 @@ var (
 		require.NoError(t, err)
 		return ns
 	}
-	testRegistry = func(t *testing.T) namespace.Registry {
-		reg, err := namespace.NewRegistry([]namespace.Metadata{testNamespaceMetadata(t)})
-		require.NoError(t, err)
-		return reg
-	}
 
 	testDefaultRunOpts     = bootstrap.NewRunOptions().SetIncremental(false)
 	testIncrementalRunOpts = bootstrap.NewRunOptions().SetIncremental(true)
 	testBlockOpts          = block.NewOptions()
 )
 
-func newTestOptions(t *testing.T) Options {
-	return NewOptions().SetNamespaceRegistry(testRegistry(t))
+func newTestRegistry(t *testing.T, ctrl *gomock.Controller) namespace.Registry {
+	reg := namespace.NewMockRegistry(ctrl)
+	reg.EXPECT().Close().Return(nil).AnyTimes()
+
+	nsMap, err := namespace.NewMap([]namespace.Metadata{testNamespaceMetadata(t)})
+	require.NoError(t, err)
+	reg.EXPECT().Map().Return(nsMap).AnyTimes()
+	return reg
+
+}
+
+func newTestOptions(t *testing.T, ctrl *gomock.Controller) Options {
+	return NewOptions().SetNamespaceRegistry(newTestRegistry(t, ctrl))
 }
 
 func TestPeersSourceCan(t *testing.T) {
-	src := newPeersSource(newTestOptions(t))
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	src := newPeersSource(newTestOptions(t, ctrl))
 
 	assert.True(t, src.Can(bootstrap.BootstrapSequential))
 	assert.False(t, src.Can(bootstrap.BootstrapParallel))
 }
 
 func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
-	src := newPeersSource(newTestOptions(t))
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	src := newPeersSource(newTestOptions(t, ctrl))
 
 	target := result.ShardTimeRanges{}
 	available := src.Available(testNamespace, target)
@@ -86,7 +98,7 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newTestOptions(t)
+	opts := newTestOptions(t, ctrl)
 	ropts := testNamespaceMetadata(t).Options().RetentionOptions()
 
 	expectedErr := fmt.Errorf("an error")
@@ -115,7 +127,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newTestOptions(t)
+	opts := newTestOptions(t, ctrl)
 	ropts := testNamespaceMetadata(t).Options().RetentionOptions()
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
@@ -174,7 +186,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 	defer ctrl.Finish()
 
 	testNsMd := testNamespaceMetadata(t)
-	opts := newTestOptions(t)
+	opts := newTestOptions(t, ctrl)
 	ropts := testNsMd.Options().RetentionOptions()
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
@@ -337,7 +349,7 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 	defer ctrl.Finish()
 
 	testNsMd := testNamespaceMetadata(t)
-	opts := newTestOptions(t)
+	opts := newTestOptions(t, ctrl)
 	ropts := testNsMd.Options().RetentionOptions()
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())

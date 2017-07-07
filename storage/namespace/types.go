@@ -21,8 +21,6 @@
 package namespace
 
 import (
-	"io"
-
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
 )
@@ -101,22 +99,24 @@ type Map interface {
 
 // Watch is a watch on a namespace Map
 type Watch interface {
-	io.Closer
-
 	// C is the notification channel for when a value becomes available
 	C() <-chan struct{}
 
 	// Get the current namespace map
 	Map() Map
+
+	// Close closes the watch
+	Close() error
 }
 
 // Registry is an un-changing container for a Map
 type Registry interface {
-	io.Closer
-
 	// Get the current namespace map
 	Map() Map
 
 	// Watch for the Registry changes
 	Watch() (Watch, error)
+
+	// Close closes the registry
+	Close() error
 }

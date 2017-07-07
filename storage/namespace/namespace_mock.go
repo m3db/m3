@@ -241,6 +241,119 @@ func (_mr *_MockMetadataRecorder) Options() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Options")
 }
 
+// Mock of Map interface
+type MockMap struct {
+	ctrl     *gomock.Controller
+	recorder *_MockMapRecorder
+}
+
+// Recorder for MockMap (not exported)
+type _MockMapRecorder struct {
+	mock *MockMap
+}
+
+func NewMockMap(ctrl *gomock.Controller) *MockMap {
+	mock := &MockMap{ctrl: ctrl}
+	mock.recorder = &_MockMapRecorder{mock}
+	return mock
+}
+
+func (_m *MockMap) EXPECT() *_MockMapRecorder {
+	return _m.recorder
+}
+
+func (_m *MockMap) Equal(value Map) bool {
+	ret := _m.ctrl.Call(_m, "Equal", value)
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockMapRecorder) Equal(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Equal", arg0)
+}
+
+func (_m *MockMap) Get(_param0 ts.ID) (Metadata, error) {
+	ret := _m.ctrl.Call(_m, "Get", _param0)
+	ret0, _ := ret[0].(Metadata)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockMapRecorder) Get(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Get", arg0)
+}
+
+func (_m *MockMap) IDs() []ts.ID {
+	ret := _m.ctrl.Call(_m, "IDs")
+	ret0, _ := ret[0].([]ts.ID)
+	return ret0
+}
+
+func (_mr *_MockMapRecorder) IDs() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IDs")
+}
+
+func (_m *MockMap) Metadatas() []Metadata {
+	ret := _m.ctrl.Call(_m, "Metadatas")
+	ret0, _ := ret[0].([]Metadata)
+	return ret0
+}
+
+func (_mr *_MockMapRecorder) Metadatas() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Metadatas")
+}
+
+// Mock of Watch interface
+type MockWatch struct {
+	ctrl     *gomock.Controller
+	recorder *_MockWatchRecorder
+}
+
+// Recorder for MockWatch (not exported)
+type _MockWatchRecorder struct {
+	mock *MockWatch
+}
+
+func NewMockWatch(ctrl *gomock.Controller) *MockWatch {
+	mock := &MockWatch{ctrl: ctrl}
+	mock.recorder = &_MockWatchRecorder{mock}
+	return mock
+}
+
+func (_m *MockWatch) EXPECT() *_MockWatchRecorder {
+	return _m.recorder
+}
+
+func (_m *MockWatch) C() <-chan struct{} {
+	ret := _m.ctrl.Call(_m, "C")
+	ret0, _ := ret[0].(<-chan struct{})
+	return ret0
+}
+
+func (_mr *_MockWatchRecorder) C() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "C")
+}
+
+func (_m *MockWatch) Map() Map {
+	ret := _m.ctrl.Call(_m, "Map")
+	ret0, _ := ret[0].(Map)
+	return ret0
+}
+
+func (_mr *_MockWatchRecorder) Map() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Map")
+}
+
+func (_m *MockWatch) Close() error {
+	ret := _m.ctrl.Call(_m, "Close")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockWatchRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
 // Mock of Registry interface
 type MockRegistry struct {
 	ctrl     *gomock.Controller
@@ -262,43 +375,33 @@ func (_m *MockRegistry) EXPECT() *_MockRegistryRecorder {
 	return _m.recorder
 }
 
-func (_m *MockRegistry) Equal(value Registry) bool {
-	ret := _m.ctrl.Call(_m, "Equal", value)
-	ret0, _ := ret[0].(bool)
+func (_m *MockRegistry) Map() Map {
+	ret := _m.ctrl.Call(_m, "Map")
+	ret0, _ := ret[0].(Map)
 	return ret0
 }
 
-func (_mr *_MockRegistryRecorder) Equal(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Equal", arg0)
+func (_mr *_MockRegistryRecorder) Map() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Map")
 }
 
-func (_m *MockRegistry) Get(_param0 ts.ID) (Metadata, error) {
-	ret := _m.ctrl.Call(_m, "Get", _param0)
-	ret0, _ := ret[0].(Metadata)
+func (_m *MockRegistry) Watch() (Watch, error) {
+	ret := _m.ctrl.Call(_m, "Watch")
+	ret0, _ := ret[0].(Watch)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockRegistryRecorder) Get(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Get", arg0)
+func (_mr *_MockRegistryRecorder) Watch() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Watch")
 }
 
-func (_m *MockRegistry) IDs() []ts.ID {
-	ret := _m.ctrl.Call(_m, "IDs")
-	ret0, _ := ret[0].([]ts.ID)
+func (_m *MockRegistry) Close() error {
+	ret := _m.ctrl.Call(_m, "Close")
+	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockRegistryRecorder) IDs() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "IDs")
-}
-
-func (_m *MockRegistry) Metadatas() []Metadata {
-	ret := _m.ctrl.Call(_m, "Metadatas")
-	ret0, _ := ret[0].([]Metadata)
-	return ret0
-}
-
-func (_mr *_MockRegistryRecorder) Metadatas() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Metadatas")
+func (_mr *_MockRegistryRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
