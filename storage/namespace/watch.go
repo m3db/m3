@@ -24,35 +24,29 @@ import (
 	"github.com/m3db/m3x/watch"
 )
 
-type staticReg struct {
-	xwatch.Watchable
+type mapWatch struct {
+	xwatch.Watch
 }
 
-// NewStaticRegistry returns a new static registry
-func NewStaticRegistry(metadatas []Metadata) (Registry, error) {
-	m, err := NewMap(metadatas)
-	if err != nil {
-		return nil, err
+// NewWatch creates a new watch on a topology map
+// from a generic watch that watches a Map
+func NewWatch(w xwatch.Watch) Watch {
+	return &mapWatch{w}
+}
+
+func (w *mapWatch) C() <-chan struct{} {
+	return w.Watch.C()
+}
+
+func (w *mapWatch) Get() Map {
+	value := w.Watch.Get()
+	if value == nil {
+		return nil
 	}
-	reg := &staticReg{xwatch.NewWatchable()}
-	if err := reg.Update(m); err != nil {
-		return nil, err
-	}
-	return reg, nil
+	return value.(Map)
 }
 
-func (r *staticReg) Map() Map {
-	return r.Get().(Map)
-}
-
-func (r *staticReg) Watch() (Watch, error) {
-	_, w, err := r.Watchable.Watch()
-	if err != nil {
-		return nil, err
-	}
-	return NewWatch(w), nil
-}
-
-func (r *staticReg) Close() error {
-	return r.Close()
+func (w *mapWatch) Close() error {
+	w.Watch.Close()
+	return nil
 }

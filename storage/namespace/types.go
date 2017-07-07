@@ -103,7 +103,7 @@ type Watch interface {
 	C() <-chan struct{}
 
 	// Get the current namespace map
-	Map() Map
+	Get() Map
 
 	// Close closes the watch
 	Close() error
