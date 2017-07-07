@@ -39,7 +39,7 @@ func TestDiskCleanup(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	md, err := testSetup.storageOpts.NamespaceRegistry().Get(testNamespaces[0])
+	md, err := testSetup.storageOpts.NamespaceRegistry().Map().Get(testNamespaces[0])
 	require.NoError(t, err)
 	blockSize := md.Options().RetentionOptions().BlockSize()
 	retentionPeriod := md.Options().RetentionOptions().RetentionPeriod()

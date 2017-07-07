@@ -53,8 +53,10 @@ func TestServiceHealth(t *testing.T) {
 
 	testNamespaceMetadata, err := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
 	require.NoError(t, err)
-	testRegistry, err := namespace.NewRegistry([]namespace.Metadata{testNamespaceMetadata})
+	nsMap, err := namespace.NewMap([]namespace.Metadata{testNamespaceMetadata})
 	require.NoError(t, err)
+	testRegistry := namespace.NewMockRegistry(ctrl)
+	testRegistry.EXPECT().Map().Return(nsMap).AnyTimes()
 	testServiceOpts = testServiceOpts.SetNamespaceRegistry(testRegistry)
 
 	mockDB := storage.NewMockDatabase(ctrl)

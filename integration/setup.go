@@ -105,7 +105,7 @@ func newTestSetup(t *testing.T, opts testOptions) (*testSetup, error) {
 		opts = newTestOptions(t)
 	}
 
-	nsRegistry, err := namespace.NewRegistry(opts.Namespaces())
+	nsRegistry, err := namespace.NewStaticRegistry(opts.Namespaces())
 	require.NoError(t, err)
 	storageOpts := storage.NewOptions().
 		SetNamespaceRegistry(nsRegistry).

@@ -81,7 +81,7 @@ func TestCommitLogBootstrap(t *testing.T) {
 		{[]string{"foo", "bar"}, 20, now.Add(-2 * blockSize)},
 		{[]string{"bar", "baz"}, 50, now.Add(-blockSize)},
 	})
-	_, err = setup.storageOpts.NamespaceRegistry().Get(testNamespaces[0])
+	_, err = setup.storageOpts.NamespaceRegistry().Map().Get(testNamespaces[0])
 	require.NoError(t, err)
 	log.Info("writing data")
 	writeCommitLog(t, setup, seriesMaps, testNamespaces[0])

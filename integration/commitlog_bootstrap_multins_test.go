@@ -92,7 +92,7 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 		{[]string{"bar", "baz"}, 50, now.Add(2 * ns1BlockSize)},
 		{[]string{"and", "one"}, 40, now.Add(3 * ns1BlockSize)},
 	})
-	_, err = setup.storageOpts.NamespaceRegistry().Get(testNamespaces[0])
+	_, err = setup.storageOpts.NamespaceRegistry().Map().Get(testNamespaces[0])
 	require.NoError(t, err)
 	log.Info("writing data - ns1")
 	writeCommitLog(t, setup, ns1SeriesMap, testNamespaces[0])
@@ -106,7 +106,7 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 		{[]string{"cat", "hax"}, 80, now.Add(3 * ns2BlockSize)},
 		{[]string{"why", "this"}, 40, now.Add(4 * ns2BlockSize)},
 	})
-	_, err = setup.storageOpts.NamespaceRegistry().Get(testNamespaces[1])
+	_, err = setup.storageOpts.NamespaceRegistry().Map().Get(testNamespaces[1])
 	require.NoError(t, err)
 	log.Info("writing data - ns2")
 	writeCommitLog(t, setup, ns2SeriesMap, testNamespaces[1])

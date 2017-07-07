@@ -181,7 +181,7 @@ func newDefaultBootstrappableTestSetups(
 			testStatsReporter          = setupOpts[i].testStatsReporter
 			instanceOpts               = newMultiAddrTestOptions(opts, instance)
 		)
-		nsRegistry, err := namespace.NewRegistry(opts.Namespaces())
+		nsRegistry, err := namespace.NewStaticRegistry(opts.Namespaces())
 		require.NoError(t, err)
 
 		if topologyInitializer != nil {

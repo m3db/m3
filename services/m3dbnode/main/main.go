@@ -69,7 +69,7 @@ func main() {
 		log.Fatalf("could not create default namespaces: %v", err)
 	}
 
-	registry, err := namespace.NewRegistry(namespaces)
+	registry, err := namespace.NewStaticRegistry(namespaces)
 	if err != nil {
 		log.Fatalf("could not create namespace registry: %v", err)
 	}

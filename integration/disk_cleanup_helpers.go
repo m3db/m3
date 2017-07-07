@@ -49,7 +49,7 @@ func createWriter(storageOpts storage.Options) fs.FileSetWriter {
 }
 
 func createFilesetFiles(t *testing.T, storageOpts storage.Options, namespace ts.ID, shard uint32, fileTimes []time.Time) {
-	md, err := storageOpts.NamespaceRegistry().Get(namespace)
+	md, err := storageOpts.NamespaceRegistry().Map().Get(namespace)
 	require.NoError(t, err)
 	rOpts := md.Options().RetentionOptions()
 	writer := createWriter(storageOpts)

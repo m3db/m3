@@ -81,10 +81,10 @@ func TestFilesystemBootstrap(t *testing.T) {
 		{[]string{"foo", "bar"}, 100, now.Add(-blockSize)},
 		{[]string{"foo", "baz"}, 50, now},
 	})
-	testNs, err := setup.storageOpts.NamespaceRegistry().Get(testNamespaces[0])
+	testNs, err := setup.storageOpts.NamespaceRegistry().Map().Get(testNamespaces[0])
 	require.NoError(t, err)
 	require.NoError(t, writeTestDataToDisk(testNs, setup, seriesMaps))
-	testNs, err = setup.storageOpts.NamespaceRegistry().Get(testNamespaces[1])
+	testNs, err = setup.storageOpts.NamespaceRegistry().Map().Get(testNamespaces[1])
 	require.NoError(t, err)
 	require.NoError(t, writeTestDataToDisk(testNs, setup, nil))
 
