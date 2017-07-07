@@ -29,9 +29,7 @@ type staticReg struct {
 }
 
 // NewStaticRegistry returns a new static registry
-func NewStaticRegistry(
-	metadatas []Metadata,
-) (Registry, error) {
+func NewStaticRegistry(metadatas []Metadata) (Registry, error) {
 	m, err := NewMap(metadatas)
 	if err != nil {
 		return nil, err
