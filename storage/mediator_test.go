@@ -29,7 +29,9 @@ import (
 )
 
 func TestDatabaseMediatorOpenClose(t *testing.T) {
-	opts := testDatabaseOptions(t).SetRepairEnabled(false)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	opts := testDatabaseOptions(t, ctrl).SetRepairEnabled(false)
 	now := time.Now()
 	opts = opts.
 		SetBootstrapProcess(nil).
@@ -54,7 +56,7 @@ func TestDatabaseMediatorDisableFileOps(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions(t).SetRepairEnabled(false)
+	opts := testDatabaseOptions(t, ctrl).SetRepairEnabled(false)
 	now := time.Now()
 	opts = opts.
 		SetBootstrapProcess(nil).

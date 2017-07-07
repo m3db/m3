@@ -51,7 +51,9 @@ type mockDatabase struct {
 	bs         bootstrapState
 }
 
-func newMockDatabase(t *testing.T) *mockDatabase { return &mockDatabase{opts: testDatabaseOptions(t)} }
+func newMockDatabase(t *testing.T, ctrl *gomock.Controller) *mockDatabase {
+	return &mockDatabase{opts: testDatabaseOptions(t, ctrl)}
+}
 
 func (d *mockDatabase) Options() Options                          { return d.opts }
 func (d *mockDatabase) AssignShardSet(shardSet sharding.ShardSet) {}
@@ -118,16 +120,6 @@ var (
 	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
 	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
 
-	defaultTestNamespaceRegistry = func(t *testing.T) namespace.Registry {
-		md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
-		require.NoError(t, err)
-		md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
-		require.NoError(t, err)
-		reg, err := namespace.NewRegistry([]namespace.Metadata{md1, md2})
-		require.NoError(t, err)
-		return reg
-	}
-
 	_opts = newOptions(pool.NewObjectPoolOptions().SetSize(16))
 
 	defaultTestDatabaseOptions = _opts.
@@ -139,14 +131,25 @@ var (
 						SetRetentionOptions(defaultTestRetentionOpts))
 )
 
-func testDatabaseOptions(t *testing.T) Options {
+func testNamespaceRegistry(t *testing.T, ctrl *gomock.Controller) namespace.Registry {
+	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2})
+	require.NoError(t, err)
+	reg := namespace.NewMockRegistry(ctrl)
+	reg.EXPECT().Map().Return(nsMap).AnyTimes()
+	return reg
+}
+
+func testDatabaseOptions(t *testing.T, ctrl *gomock.Controller) Options {
 	// NB(r): We don't need to recreate the options multiple
 	// times as they are immutable - we save considerable
 	// memory by doing this avoiding creating default pools
 	// several times.
-	reg := defaultTestNamespaceRegistry(t)
 	return defaultTestDatabaseOptions.
-		SetNamespaceRegistry(reg)
+		SetNamespaceRegistry(testNamespaceRegistry(t, ctrl))
 }
 
 func testRepairOptions(ctrl *gomock.Controller) repair.Options {
@@ -159,7 +162,7 @@ func testRepairOptions(ctrl *gomock.Controller) repair.Options {
 }
 
 func testDatabaseOptionsWithRepair(t *testing.T, ctrl *gomock.Controller) Options {
-	opts := testDatabaseOptions(t)
+	opts := testDatabaseOptions(t, ctrl)
 	opts = opts.SetRepairEnabled(true).
 		SetRepairOptions(testRepairOptions(ctrl))
 	return opts

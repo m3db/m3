@@ -28,7 +28,9 @@ import (
 )
 
 func TestOptionsValidateDefaults(t *testing.T) {
-	dbOpts := testDatabaseOptions(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	dbOpts := testDatabaseOptions(t, ctrl)
 	require.NoError(t, dbOpts.Validate())
 }
 
@@ -41,7 +43,9 @@ func TestOptionsValidateDefaultRepair(t *testing.T) {
 }
 
 func TestOptionsValidateNilRegistry(t *testing.T) {
-	dbOpts := testDatabaseOptions(t).
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	dbOpts := testDatabaseOptions(t, ctrl).
 		SetNamespaceRegistry(nil)
 	require.Error(t, dbOpts.Validate())
 }

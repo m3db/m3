@@ -28,22 +28,19 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
-	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/ts"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func newTestDatabase(t *testing.T, hostid string, topoInit topology.Initializer) (Database, error) {
-	testNamespace, err := namespace.NewMetadata(ts.StringID("foo"), namespace.NewOptions())
-	require.NoError(t, err)
-	testNamespaces := []namespace.Metadata{testNamespace}
-	registry, err := namespace.NewRegistry(testNamespaces)
-	require.NoError(t, err)
-	opts := storage.NewOptions().SetNamespaceRegistry(registry)
+func newTestDatabase(
+	t *testing.T,
+	hostid string,
+	topoInit topology.Initializer,
+) (Database, error) {
+	opts := storage.NewOptions()
 	return NewDatabase(hostid, topoInit, opts)
 }
 

@@ -164,7 +164,7 @@ func NewDatabase(
 	}
 
 	var (
-		namespaces        = opts.NamespaceRegistry().Metadatas()
+		namespaces        = opts.NamespaceRegistry().Map().Metadatas()
 		ns                = make(map[ts.Hash]databaseNamespace, len(namespaces))
 		blockRetrieverMgr = opts.DatabaseBlockRetrieverManager()
 	)
