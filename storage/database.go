@@ -276,16 +276,13 @@ func (d *db) Write(
 	annotation []byte,
 ) error {
 	callStart := d.nowFn()
-	d.RLock()
-	n, exists := d.namespaces[namespace.Hash()]
-	d.RUnlock()
-
-	if !exists {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
 		d.metrics.write.ReportError(d.nowFn().Sub(callStart))
-		return fmt.Errorf("no such namespace %s", namespace)
+		return err
 	}
 
-	err := n.Write(ctx, id, timestamp, value, unit, annotation)
+	err = n.Write(ctx, id, timestamp, value, unit, annotation)
 	if err == commitlog.ErrCommitLogQueueFull {
 		d.errors.Record(1)
 	}
