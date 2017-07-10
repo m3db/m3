@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/counter"
 	xio "github.com/m3db/m3db/x/io"
@@ -86,6 +87,8 @@ type db struct {
 	opts  Options
 	nowFn clock.NowFn
 
+	shardSet         sharding.ShardSet
+	nsWatch          namespace.Watch
 	namespaces       map[ts.Hash]databaseNamespace
 	commitLog        commitlog.CommitLog
 	writeCommitLogFn writeCommitLogFn
@@ -129,12 +132,19 @@ func NewDatabase(
 		return nil, fmt.Errorf("invalid options: %v", err)
 	}
 
+	nsWatch, err := opts.NamespaceRegistry().Watch()
+	if err != nil {
+		return nil, err
+	}
+
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("database")
 
 	d := &db{
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
+		shardSet:     shardSet,
+		nsWatch:      nsWatch,
 		scope:        scope,
 		metrics:      newDatabaseMetrics(scope, iopts.MetricsSamplingRate()),
 		errors:       xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
@@ -163,35 +173,9 @@ func NewDatabase(
 		return nil, errCommitLogStrategyUnknown
 	}
 
-	var (
-		namespaces        = opts.NamespaceRegistry().Map().Metadatas()
-		ns                = make(map[ts.Hash]databaseNamespace, len(namespaces))
-		blockRetrieverMgr = opts.DatabaseBlockRetrieverManager()
-	)
-	for _, n := range namespaces {
-		var (
-			idHash          = n.ID().Hash()
-			blockRetriever  block.DatabaseBlockRetriever
-			newRetrieverErr error
-		)
-		if _, exists := ns[idHash]; exists {
-			return nil, errDuplicateNamespaces
-		}
-		if blockRetrieverMgr != nil {
-			blockRetriever, newRetrieverErr = blockRetrieverMgr.Retriever(n.ID())
-			if newRetrieverErr != nil {
-				return nil, newRetrieverErr
-			}
-		}
-
-		newNs, err := newDatabaseNamespace(n, shardSet, blockRetriever,
-			d, d.writeCommitLogFn, d.opts)
-		if err != nil {
-			return nil, err
-		}
-		ns[idHash] = newNs
+	if err := d.assignNamespacesWithLock(nsWatch.Get().Metadatas()); err != nil {
+		return nil, err
 	}
-	d.namespaces = ns
 
 	mediator, err := newMediator(d,
 		opts.SetInstrumentOptions(iopts.SetMetricsScope(scope)))
@@ -203,14 +187,47 @@ func NewDatabase(
 	return d, nil
 }
 
+func (d *db) assignNamespacesWithLock(namespaces []namespace.Metadata) error {
+	var (
+		ns                = make(map[ts.Hash]databaseNamespace, len(namespaces))
+		blockRetrieverMgr = d.opts.DatabaseBlockRetrieverManager()
+	)
+	for _, n := range namespaces {
+		var (
+			idHash          = n.ID().Hash()
+			blockRetriever  block.DatabaseBlockRetriever
+			newRetrieverErr error
+		)
+		if _, exists := ns[idHash]; exists {
+			return errDuplicateNamespaces
+		}
+		if blockRetrieverMgr != nil {
+			blockRetriever, newRetrieverErr = blockRetrieverMgr.Retriever(n.ID())
+			if newRetrieverErr != nil {
+				return newRetrieverErr
+			}
+		}
+
+		newNs, err := newDatabaseNamespace(n, d.shardSet, blockRetriever,
+			d, d.writeCommitLogFn, d.opts)
+		if err != nil {
+			return err
+		}
+		ns[idHash] = newNs
+	}
+	d.namespaces = ns
+	return nil
+}
+
 func (d *db) Options() Options {
 	// Options are immutable safe to pass the current reference
 	return d.opts
 }
 
 func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
-	d.RLock()
-	defer d.RUnlock()
+	d.Lock()
+	defer d.Unlock()
+	d.shardSet = shardSet
 	for _, ns := range d.namespaces {
 		ns.AssignShardSet(shardSet)
 	}

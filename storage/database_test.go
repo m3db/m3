@@ -139,7 +139,9 @@ func testNamespaceRegistry(t *testing.T, ctrl *gomock.Controller) namespace.Regi
 	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2})
 	require.NoError(t, err)
 	reg := namespace.NewMockRegistry(ctrl)
-	reg.EXPECT().Map().Return(nsMap).AnyTimes()
+	mockWatch := namespace.NewMockWatch(ctrl)
+	mockWatch.EXPECT().Get().Return(nsMap).AnyTimes()
+	reg.EXPECT().Watch().Return(mockWatch, nil).AnyTimes()
 	return reg
 }
 

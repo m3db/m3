@@ -334,14 +334,14 @@ func (_mr *_MockWatchRecorder) C() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "C")
 }
 
-func (_m *MockWatch) Map() Map {
-	ret := _m.ctrl.Call(_m, "Map")
+func (_m *MockWatch) Get() Map {
+	ret := _m.ctrl.Call(_m, "Get")
 	ret0, _ := ret[0].(Map)
 	return ret0
 }
 
-func (_mr *_MockWatchRecorder) Map() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Map")
+func (_mr *_MockWatchRecorder) Get() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Get")
 }
 
 func (_m *MockWatch) Close() error {
