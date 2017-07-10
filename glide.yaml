@@ -65,7 +65,8 @@ import:
 - package: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
 
-testImport:
+# NB(prateek): ideally, the following dependencies would be under testImport, but
+# Glide doesn't like that. https://github.com/Masterminds/glide/issues/597
 
 - package: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a

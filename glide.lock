@@ -1,5 +1,5 @@
-hash: db31f8e4a8d2ef268db1a74eb24a5ad032ca5976a338f897dbba09394ff27049
-updated: 2017-06-19T13:23:16.778444112-04:00
+hash: 6f507b5f7aec31ec364052a3af57e79226eaf21ff89d384d38a26800c4a1ba3e
+updated: 2017-07-10T18:10:36.494479225-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -20,11 +20,13 @@ imports:
   - mvcc/mvccpb
   - pkg/tlsutil
 - name: github.com/davecgh/go-spew
-  version: 346938d642f2ec3594ed81d874461961cd0faa76
+  version: 782f4967f2dc4564575ca782fe2d04090b5faca8
   subpackages:
   - spew
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
+- name: github.com/fortytw2/leaktest
+  version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/go-ole/go-ole
