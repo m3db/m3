@@ -27,7 +27,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
@@ -808,21 +807,12 @@ func (n *dbNamespace) initShards(needBootstrap bool) {
 }
 
 func (n *dbNamespace) Close() error {
-	emptyShardSet, err := newEmptyShardSet()
-	if err != nil {
-		n.log.Errorf("error occurred closing namespace: %v", err)
-	}
-
 	n.Lock()
 	shards := n.shards
 	n.shards = shards[:0]
-	n.shardSet = emptyShardSet
+	n.shardSet = sharding.NewEmptyShardSet(sharding.DefaultHashGen(1))
 	n.Unlock()
 
 	n.closeShards(shards)
 	return nil
-}
-
-func newEmptyShardSet() (sharding.ShardSet, error) {
-	return sharding.NewShardSet([]shard.Shard{}, sharding.DefaultHashGen(1))
 }
