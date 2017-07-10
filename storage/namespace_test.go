@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/retention"
@@ -966,6 +967,29 @@ func TestNamespaceNeedsFlushInProgress(t *testing.T) {
 	}
 
 	assert.False(t, ns.NeedsFlush(blockStart, blockStart))
+}
+
+func TestNamespaceCloseWithShard(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	// mock namespace + 1 shard
+	ns := newTestNamespace(t, ctrl)
+	shard := NewMockdatabaseShard(ctrl)
+	shard.EXPECT().Close().Return(nil)
+	ns.shards[testShardIDs[0].ID()] = shard
+	// set close() to run synchronously
+	ns.closeRunType = syncRun
+
+	// Close and ensure no goroutines are leaked
+	require.NoError(t, ns.Close())
+	leaktest.Check(t)()
+
+	// And the namespace no long owns any shards
+	require.Empty(t, ns.getOwnedShards())
 }
 
 func waitForStats(

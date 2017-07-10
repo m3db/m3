@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
@@ -73,6 +74,7 @@ type dbNamespace struct {
 	nowFn          clock.NowFn
 	log            xlog.Logger
 	bs             bootstrapState
+	closeRunType   runType
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
@@ -172,7 +174,7 @@ func newDatabaseNamespace(
 			"namespace": id.String(), // TODO(prateek): sanitize id(?)
 		})
 
-	tickWorkersConcurrency := int(math.Max(1, float64(runtime.NumCPU())/8))
+	tickWorkersConcurrency := int(math.Max(1, float64(runtime.NumCPU())/8)) // TODO(prateek): drive this using options
 	tickWorkers := xsync.NewWorkerPool(tickWorkersConcurrency)
 	tickWorkers.Init()
 
@@ -193,6 +195,7 @@ func newDatabaseNamespace(
 		seriesOpts:             seriesOpts,
 		nowFn:                  opts.ClockOptions().NowFn(),
 		log:                    logger,
+		closeRunType:           asyncRun,
 		increasingIndex:        increasingIndex,
 		writeCommitLogFn:       fn,
 		tickWorkers:            tickWorkers,
@@ -265,7 +268,10 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		}
 	}
 	n.Unlock()
+	n.closeShards(closing)
+}
 
+func (n *dbNamespace) closeShards(shards []databaseShard) {
 	// NB(r): There is a shard close deadline that controls how fast each
 	// shard closes set in the options.  To make sure this is the single
 	// point of control for determining how impactful closing shards may
@@ -273,9 +279,12 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	// up a goroutine per shard that we need to close and rely on the self
 	// throttling of each shard as determined by the close shard deadline to
 	// gate the impact.
-	for _, shard := range closing {
+	for _, shard := range shards {
 		shard := shard
-		go func() {
+		if shard == nil {
+			continue
+		}
+		closeFn := func() {
 			if err := shard.Close(); err != nil {
 				n.log.WithFields(
 					xlog.NewLogField("shard", shard.ID()),
@@ -284,7 +293,12 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 			} else {
 				n.metrics.shards.close.Inc(1)
 			}
-		}()
+		}
+		if n.closeRunType == syncRun {
+			closeFn()
+		} else {
+			go closeFn()
+		}
 	}
 }
 
@@ -452,7 +466,7 @@ func (n *dbNamespace) Bootstrap(
 	n.metrics.bootstrap.Success.Inc(1)
 
 	// Bootstrap shards using at least half the CPUs available
-	workers := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
+	workers := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2))) // TODO(prateek): drive this using options
 	workers.Init()
 
 	numSeries := 0
@@ -796,5 +810,21 @@ func (n *dbNamespace) initShards(needBootstrap bool) {
 }
 
 func (n *dbNamespace) Close() error {
-	panic("not implemented")
+	emptyShardSet, err := newEmptyShardSet()
+	if err != nil {
+		n.log.Errorf("error occurred closing namespace: %v", err)
+	}
+
+	n.Lock()
+	shards := n.shards
+	n.shards = shards[:0]
+	n.shardSet = emptyShardSet
+	n.Unlock()
+
+	n.closeShards(shards)
+	return nil
+}
+
+func newEmptyShardSet() (sharding.ShardSet, error) {
+	return sharding.NewShardSet([]shard.Shard{}, sharding.DefaultHashGen(1))
 }
