@@ -279,25 +279,23 @@ func (n *dbNamespace) closeShards(shards []databaseShard) {
 	// up a goroutine per shard that we need to close and rely on the self
 	// throttling of each shard as determined by the close shard deadline to
 	// gate the impact.
+	closeFn := func(shard databaseShard) {
+		if err := shard.Close(); err != nil {
+			n.log.WithFields(xlog.NewLogField("shard", shard.ID())).Errorf("error occurred closing shard: %v", err)
+			n.metrics.shards.closeErrors.Inc(1)
+		} else {
+			n.metrics.shards.close.Inc(1)
+		}
+	}
 	for _, shard := range shards {
-		shard := shard
-		if shard == nil {
+		dbShard := shard
+		if dbShard == nil {
 			continue
 		}
-		closeFn := func() {
-			if err := shard.Close(); err != nil {
-				n.log.WithFields(
-					xlog.NewLogField("shard", shard.ID()),
-				).Errorf("error occurred closing shard: %v", err)
-				n.metrics.shards.closeErrors.Inc(1)
-			} else {
-				n.metrics.shards.close.Inc(1)
-			}
-		}
 		if n.closeRunType == syncRun {
-			closeFn()
+			closeFn(dbShard)
 		} else {
-			go closeFn()
+			go closeFn(dbShard)
 		}
 	}
 }
