@@ -170,16 +170,24 @@ func NewDatabase(
 		return nil, errCommitLogStrategyUnknown
 	}
 
-	nsMap := opts.NamespaceRegistry().Map()
-	if err := d.updateOwnedNamespaces(nsMap); err != nil {
-		return nil, err
-	}
-
-	nsWatch, err := newDatabaseNamespaceWatch(d, opts)
+	nsInit := opts.NamespaceInitializer()
+	nsReg, err := nsInit.Init()
 	if err != nil {
 		return nil, err
 	}
-	d.nsWatch = nsWatch
+
+	watch, err := nsReg.Watch()
+	if err != nil {
+		return nil, err
+	}
+
+	<-watch.C() // wait till first value is received
+
+	nsMap := watch.Get()
+	if err := d.updateOwnedNamespaces(nsMap); err != nil {
+		return nil, err
+	}
+	d.nsWatch = newDatabaseNamespaceWatch(d, watch, iopts)
 
 	mediator, err := newMediator(d,
 		opts.SetInstrumentOptions(iopts.SetMetricsScope(scope)))
@@ -451,7 +459,7 @@ func (d *db) Close() error {
 
 	// close all open namespaces
 	var multiErr xerrors.MultiError
-	for _, ns := range d.getOwnedNamespaces() {
+	for _, ns := range d.namespaces {
 		multiErr = multiErr.Add(ns.Close())
 	}
 	if err := multiErr.FinalError(); err != nil {

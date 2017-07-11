@@ -33,14 +33,14 @@ func TestOptionsValidateDefaults(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockRegistry := namespace.NewMockRegistry(ctrl)
+	mockInit := namespace.NewMockInitializer(ctrl)
 	dbOpts := testDatabaseOptions(t).
-		SetNamespaceRegistry(mockRegistry)
+		SetNamespaceInitializer(mockInit)
 	require.NoError(t, dbOpts.Validate())
 }
 
 func TestOptionsValidateNilRegistry(t *testing.T) {
 	dbOpts := testDatabaseOptions(t).
-		SetNamespaceRegistry(nil)
+		SetNamespaceInitializer(nil)
 	require.Error(t, dbOpts.Validate())
 }

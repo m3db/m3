@@ -120,3 +120,9 @@ type Registry interface {
 	// Close closes the registry
 	Close() error
 }
+
+// Initializer can init new instances of namespace registries
+type Initializer interface {
+	// Init will return a new Registry
+	Init() (Registry, error)
+}

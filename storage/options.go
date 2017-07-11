@@ -84,10 +84,10 @@ var (
 )
 
 var (
-	errNamespaceRegistryNotSet = errors.New("namespace registry not set")
-	errRepairOptionsNotSet     = errors.New("repair enabled but repair options are not set")
-	errFileJitterTooSmall      = errors.New("file op options jitter needs to be smaller than commit log block size")
-	errTickIntervalNegative    = errors.New("tick interval must be a positive duration")
+	errNamespaceInitializerNotSet = errors.New("namespace registry initializer not set")
+	errRepairOptionsNotSet        = errors.New("repair enabled but repair options are not set")
+	errFileJitterTooSmall         = errors.New("file op options jitter needs to be smaller than commit log block size")
+	errTickIntervalNegative       = errors.New("tick interval must be a positive duration")
 )
 
 // NewSeriesOptionsFromOptions creates a new set of database series options from provided options.
@@ -110,7 +110,7 @@ func NewSeriesOptionsFromOptions(opts Options, ropts retention.Options) series.O
 type options struct {
 	clockOpts                      clock.Options
 	instrumentOpts                 instrument.Options
-	registry                       namespace.Registry
+	nsRegistryInitializer          namespace.Initializer
 	blockOpts                      block.Options
 	commitLogOpts                  commitlog.Options
 	runtimeOptsMgr                 runtime.OptionsManager
@@ -190,9 +190,9 @@ func (o *options) Validate() error {
 	}
 
 	// validate namespace registry
-	registry := o.NamespaceRegistry()
-	if registry == nil {
-		return errNamespaceRegistryNotSet
+	init := o.NamespaceInitializer()
+	if init == nil {
+		return errNamespaceInitializerNotSet
 	}
 
 	// validate commit log options
@@ -248,14 +248,14 @@ func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) SetNamespaceRegistry(value namespace.Registry) Options {
+func (o *options) SetNamespaceInitializer(value namespace.Initializer) Options {
 	opts := *o
-	opts.registry = value
+	opts.nsRegistryInitializer = value
 	return &opts
 }
 
-func (o *options) NamespaceRegistry() namespace.Registry {
-	return o.registry
+func (o *options) NamespaceInitializer() namespace.Initializer {
+	return o.nsRegistryInitializer
 }
 
 func (o *options) SetDatabaseBlockOptions(value block.Options) Options {

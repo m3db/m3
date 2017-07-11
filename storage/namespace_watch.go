@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"
@@ -43,9 +44,8 @@ type dbNamespaceWatch struct {
 	doneCh   chan struct{}
 	closedCh chan struct{}
 
-	db    database
-	log   xlog.Logger
-	scope tally.Scope
+	db  database
+	log xlog.Logger
 
 	metrics dbNamespaceWatchMetrics
 }
@@ -57,28 +57,26 @@ type dbNamespaceWatchMetrics struct {
 
 func newWatchMetrics(
 	scope tally.Scope,
-) *dbNamespaceWatchMetrics {
+) dbNamespaceWatchMetrics {
 	nsScope := scope.SubScope("database.nswatch")
-	return &dbNamespaceWatchMetrics{
+	return dbNamespaceWatchMetrics{
 		activeNamespaces: nsScope.Gauge("active"),
 		updates:          nsScope.Counter("updates"),
 	}
-
 }
 
 func newDatabaseNamespaceWatch(
 	db database,
-	opts Options,
-) (databaseNamespaceWatch, error) {
-	w, err := opts.NamespaceRegistry().Watch()
-	if err != nil {
-		return nil, err
-	}
-	// TODO(prateek): wire up metrics
+	w namespace.Watch,
+	iopts instrument.Options,
+) databaseNamespaceWatch {
+	scope := iopts.MetricsScope()
 	return &dbNamespaceWatch{
-		watch: w,
-		db:    db,
-	}, nil
+		watch:   w,
+		db:      db,
+		log:     iopts.Logger(),
+		metrics: newWatchMetrics(scope),
+	}
 }
 
 // TODO(prateek): write tests for databaseNamespaceWatch
@@ -89,14 +87,6 @@ func (w *dbNamespaceWatch) Start() error {
 
 	if w.watching {
 		return errAlreadyWatching
-	}
-
-	// check for updates to namespace watch since creation
-	select {
-	case <-w.watch.C(): // i.e. pending update
-		w.metrics.updates.Inc(1)
-		w.db.updateOwnedNamespaces(w.watch.Get())
-	default: // no updates
 	}
 
 	w.doneCh = make(chan struct{}, 1)
@@ -163,6 +153,11 @@ func (w *dbNamespaceWatch) Stop() error {
 }
 
 func (w *dbNamespaceWatch) Close() error {
-	w.Stop()
-	return w.watch.Close()
+	w.Lock()
+	watching := w.watching
+	w.Unlock()
+	if watching {
+		return w.Stop()
+	}
+	return nil
 }

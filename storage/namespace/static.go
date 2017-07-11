@@ -24,6 +24,21 @@ import (
 	"github.com/m3db/m3x/watch"
 )
 
+type staticInit struct {
+	metadatas []Metadata
+}
+
+// NewStaticInitializer returns a new static registry initializer
+func NewStaticInitializer(metadatas []Metadata) Initializer {
+	return &staticInit{
+		metadatas: metadatas,
+	}
+}
+
+func (i *staticInit) Init() (Registry, error) {
+	return NewStaticRegistry(i.metadatas)
+}
+
 type staticReg struct {
 	xwatch.Watchable
 }
