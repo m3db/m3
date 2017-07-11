@@ -181,7 +181,6 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 }
 
 func TestPeersSourceIncrementalRun(t *testing.T) {
-	// TODO(prateek): this test is broked, un broked it
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

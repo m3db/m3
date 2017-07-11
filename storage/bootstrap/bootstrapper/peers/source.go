@@ -236,7 +236,6 @@ func (s *peersSource) incrementalFlush(
 	shardResult result.ShardResult,
 	tr xtime.Range,
 ) error {
-	// TODO(prateek): see if this can be removed too
 	nsMetadata, err := s.opts.NamespaceRegistry().Map().Get(namespace)
 	if err != nil {
 		return err
