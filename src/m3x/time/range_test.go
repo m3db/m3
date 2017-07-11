@@ -104,6 +104,38 @@ func TestRangeIsEmpty(t *testing.T) {
 	require.False(t, r.IsEmpty())
 }
 
+func TestEqual(t *testing.T) {
+	inputs := []struct {
+		a, b     Range
+		expected bool
+	}{
+		{
+			a:        Range{Start: time.Unix(12, 0), End: time.Unix(34, 0)},
+			b:        Range{Start: time.Unix(12, 0), End: time.Unix(34, 0)},
+			expected: true,
+		},
+		{
+			a:        Range{Start: time.Unix(12, 0), End: time.Unix(34, 0)},
+			b:        Range{Start: time.Unix(12, 0).UTC(), End: time.Unix(34, 0).UTC()},
+			expected: true,
+		},
+		{
+			a:        Range{Start: time.Unix(12, 0), End: time.Unix(34, 0)},
+			b:        Range{Start: time.Unix(13, 0), End: time.Unix(34, 0)},
+			expected: false,
+		},
+		{
+			a:        Range{Start: time.Unix(12, 0), End: time.Unix(34, 0)},
+			b:        Range{Start: time.Unix(12, 0), End: time.Unix(36, 0)},
+			expected: false,
+		},
+	}
+	for _, input := range inputs {
+		require.Equal(t, input.expected, input.a.Equal(input.b))
+		require.Equal(t, input.expected, input.b.Equal(input.a))
+	}
+}
+
 func TestRangeBefore(t *testing.T) {
 	input := testInput()
 	expected := []bool{

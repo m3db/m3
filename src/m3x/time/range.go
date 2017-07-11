@@ -36,6 +36,11 @@ func (r Range) IsEmpty() bool {
 	return r.Start == r.End
 }
 
+// Equal returns whether two time ranges are equal.
+func (r Range) Equal(other Range) bool {
+	return r.Start.Equal(other.Start) && r.End.Equal(other.End)
+}
+
 // Before determines whether r is before other.
 func (r Range) Before(other Range) bool {
 	return !r.End.After(other.Start)
