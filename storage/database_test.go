@@ -52,9 +52,7 @@ type mockDatabase struct {
 	bs         bootstrapState
 }
 
-func newMockDatabase(t *testing.T, ctrl *gomock.Controller) *mockDatabase {
-	return &mockDatabase{opts: testDatabaseOptions(t, ctrl)}
-}
+func newMockDatabase(t *testing.T) *mockDatabase { return &mockDatabase{opts: testDatabaseOptions(t)} }
 
 func (d *mockDatabase) Options() Options                          { return d.opts }
 func (d *mockDatabase) AssignShardSet(shardSet sharding.ShardSet) {}
@@ -178,12 +176,17 @@ func testNamespaceRegistry(t *testing.T, ctrl *gomock.Controller) namespace.Regi
 	return reg
 }
 
-func testDatabaseOptions(t *testing.T, ctrl *gomock.Controller) Options {
+func testDatabaseOptions(t *testing.T) Options {
 	// NB(r): We don't need to recreate the options multiple
 	// times as they are immutable - we save considerable
 	// memory by doing this avoiding creating default pools
 	// several times.
-	return defaultTestDatabaseOptions.
+	return defaultTestDatabaseOptions
+}
+
+// TODO(prateek): investigate who's using this function, and why
+func testDatabaseOptionsWithRegistry(t *testing.T, ctrl *gomock.Controller) Options {
+	return testDatabaseOptions(t).
 		SetNamespaceRegistry(testNamespaceRegistry(t, ctrl))
 }
 
@@ -197,7 +200,7 @@ func testRepairOptions(ctrl *gomock.Controller) repair.Options {
 }
 
 func testDatabaseOptionsWithRepair(t *testing.T, ctrl *gomock.Controller) Options {
-	opts := testDatabaseOptions(t, ctrl)
+	opts := testDatabaseOptionsWithRegistry(t, ctrl)
 	opts = opts.SetRepairEnabled(true).
 		SetRepairOptions(testRepairOptions(ctrl))
 	return opts
@@ -208,7 +211,6 @@ func newTestDatabase(t *testing.T, bs bootstrapState) *db {
 	defer ctrl.Finish()
 
 	opts := testDatabaseOptionsWithRepair(t, ctrl)
-
 	shards := sharding.NewShards([]uint32{0, 1}, shard.Available)
 	shardSet, err := sharding.NewShardSet(shards, nil)
 	require.NoError(t, err)

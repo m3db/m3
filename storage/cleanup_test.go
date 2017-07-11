@@ -35,7 +35,7 @@ import (
 )
 
 func testCleanupManager(t *testing.T, ctrl *gomock.Controller) (*mockDatabase, *MockdatabaseFlushManager, *cleanupManager) {
-	db := newMockDatabase(t, ctrl)
+	db := newMockDatabase(t)
 	fm := NewMockdatabaseFlushManager(ctrl)
 	return db, fm, newCleanupManager(db, fm, tally.NoopScope).(*cleanupManager)
 }

@@ -45,7 +45,7 @@ func TestDatabaseRepairerStartStop(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockDatabase := newMockDatabase(t, ctrl)
+	mockDatabase := newMockDatabase(t)
 	mockDatabase.opts = mockDatabase.opts.SetRepairOptions(testRepairOptions(ctrl))
 
 	databaseRepairer, err := newDatabaseRepairer(mockDatabase, mockDatabase.opts)
@@ -103,7 +103,7 @@ func TestDatabaseRepairerHaveNotReachedOffset(t *testing.T) {
 	)
 
 	nowFn := func() time.Time { return now }
-	mockDatabase := newMockDatabase(t, ctrl)
+	mockDatabase := newMockDatabase(t)
 	clockOpts := mockDatabase.opts.ClockOptions().SetNowFn(nowFn)
 	repairOpts := testRepairOptions(ctrl).
 		SetRepairInterval(repairInterval).
@@ -158,7 +158,7 @@ func TestDatabaseRepairerOnlyOncePerInterval(t *testing.T) {
 		}
 	}
 
-	mockDatabase := newMockDatabase(t, ctrl)
+	mockDatabase := newMockDatabase(t)
 	clockOpts := mockDatabase.opts.ClockOptions().SetNowFn(nowFn)
 	repairOpts := testRepairOptions(ctrl).
 		SetRepairInterval(repairInterval).
@@ -192,7 +192,7 @@ func TestDatabaseRepairerRepairNotBootstrapped(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockDatabase := newMockDatabase(t, ctrl)
+	mockDatabase := newMockDatabase(t)
 	mockDatabase.opts = mockDatabase.opts.SetRepairOptions(testRepairOptions(ctrl))
 
 	databaseRepairer, err := newDatabaseRepairer(mockDatabase, mockDatabase.opts)
@@ -218,7 +218,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 
 	now := time.Now()
 	nowFn := func() time.Time { return now }
-	opts := testDatabaseOptions(t, ctrl)
+	opts := testDatabaseOptions(t)
 	copts := opts.ClockOptions()
 	iopts := opts.InstrumentOptions()
 	rtopts := defaultTestRetentionOpts
@@ -330,7 +330,7 @@ func TestRepairerRepairTimes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	database := newMockDatabase(t, ctrl)
+	database := newMockDatabase(t)
 	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
 	now := time.Unix(188000, 0)
 	clockOpts := database.opts.ClockOptions()
@@ -352,7 +352,7 @@ func TestRepairerRepairTimes(t *testing.T) {
 		r.repairStatesByNs.setRepairState(defaultTestNs1ID, input.bs, input.rs)
 	}
 
-	testNs := newTestNamespace(t, ctrl)
+	testNs := newTestNamespace(t)
 	res := r.namespaceRepairTimeRanges(testNs)
 	expectedRanges := xtime.NewRanges().
 		AddRange(xtime.Range{Start: time.Unix(14400, 0), End: time.Unix(28800, 0)}).
@@ -366,7 +366,7 @@ func TestRepairerRepairWithTime(t *testing.T) {
 	defer ctrl.Finish()
 
 	repairTimeRange := xtime.Range{Start: time.Unix(7200, 0), End: time.Unix(14400, 0)}
-	database := newMockDatabase(t, ctrl)
+	database := newMockDatabase(t)
 	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
 	repairer, err := newDatabaseRepairer(database, database.opts)
 	require.NoError(t, err)
@@ -418,7 +418,7 @@ func TestRepairerTimesMultipleNamespaces(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	database := newMockDatabase(t, ctrl)
+	database := newMockDatabase(t)
 	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
 
 	now := time.Unix(188000, 0)
@@ -446,7 +446,7 @@ func TestRepairerTimesMultipleNamespaces(t *testing.T) {
 		r.repairStatesByNs.setRepairState(input.ns, input.bs, input.rs)
 	}
 
-	testNs1 := newTestNamespaceWithIDOpts(t, ctrl, defaultTestNs1ID, defaultTestNs1Opts)
+	testNs1 := newTestNamespaceWithIDOpts(t, defaultTestNs1ID, defaultTestNs1Opts)
 	res := r.namespaceRepairTimeRanges(testNs1)
 	expectedRanges := xtime.NewRanges().
 		AddRange(xtime.Range{Start: tf2(2), End: tf2(4)}).
@@ -454,7 +454,7 @@ func TestRepairerTimesMultipleNamespaces(t *testing.T) {
 		AddRange(xtime.Range{Start: tf2(7), End: tf2(26)})
 	require.Equal(t, expectedRanges, res)
 
-	testNs2 := newTestNamespaceWithIDOpts(t, ctrl, defaultTestNs2ID, defaultTestNs2Opts)
+	testNs2 := newTestNamespaceWithIDOpts(t, defaultTestNs2ID, defaultTestNs2Opts)
 	res = r.namespaceRepairTimeRanges(testNs2)
 	expectedRanges = xtime.NewRanges().
 		AddRange(xtime.Range{Start: tf4(1), End: tf4(2)}).

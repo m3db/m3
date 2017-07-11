@@ -36,7 +36,7 @@ func TestTickManagerTickNormalFlow(t *testing.T) {
 	defer ctrl.Finish()
 
 	d := time.Minute
-	opts := testDatabaseOptions(t, ctrl)
+	opts := testDatabaseOptions(t)
 	c := context.NewCancellable()
 
 	namespace := NewMockdatabaseNamespace(ctrl)
@@ -63,7 +63,7 @@ func TestTickManagerTickCancelled(t *testing.T) {
 	ch1 := make(chan struct{})
 	ch2 := make(chan struct{})
 	d := time.Minute
-	opts := testDatabaseOptions(t, ctrl)
+	opts := testDatabaseOptions(t)
 	c := context.NewCancellable()
 
 	namespace := NewMockdatabaseNamespace(ctrl)
@@ -104,7 +104,7 @@ func TestTickManagerNonForcedTickDuringOngoingTick(t *testing.T) {
 	ch1 := make(chan struct{})
 	ch2 := make(chan struct{})
 	d := time.Minute
-	opts := testDatabaseOptions(t, ctrl)
+	opts := testDatabaseOptions(t)
 	c := context.NewCancellable()
 
 	namespace := NewMockdatabaseNamespace(ctrl)
@@ -147,7 +147,7 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 	ch1 := make(chan struct{})
 	ch2 := make(chan struct{})
 	d := time.Minute
-	opts := testDatabaseOptions(t, ctrl)
+	opts := testDatabaseOptions(t)
 	c := context.NewCancellable()
 
 	namespace := NewMockdatabaseNamespace(ctrl)

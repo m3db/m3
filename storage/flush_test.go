@@ -44,7 +44,7 @@ func newMultipleFlushManagerNeedsFlush(t *testing.T, ctrl *gomock.Controller) (
 	otherNamespace := NewMockdatabaseNamespace(ctrl)
 	otherNamespace.EXPECT().Options().Return(options).AnyTimes()
 
-	db := newMockDatabase(t, ctrl)
+	db := newMockDatabase(t)
 	db.namespaces = map[string]databaseNamespace{
 		defaultTestNs1ID.String(): namespace,
 		"someString":              otherNamespace,
@@ -121,9 +121,6 @@ func TestFlushManagerNeedsFlushMultipleSingleTrueSecond(t *testing.T) {
 }
 
 func TestFlushManagerFlushTimeStart(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	inputs := []struct {
 		ts       time.Time
 		expected time.Time
@@ -133,7 +130,7 @@ func TestFlushManagerFlushTimeStart(t *testing.T) {
 		{time.Unix(86400*2+10800, 0), time.Unix(7200, 0)},
 	}
 
-	database := newMockDatabase(t, ctrl)
+	database := newMockDatabase(t)
 	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
 	for _, input := range inputs {
 		start, _ := fm.flushRange(defaultTestRetentionOpts, input.ts)
@@ -142,9 +139,6 @@ func TestFlushManagerFlushTimeStart(t *testing.T) {
 }
 
 func TestFlushManagerFlushTimeEnd(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
 	inputs := []struct {
 		ts       time.Time
 		expected time.Time
@@ -153,7 +147,7 @@ func TestFlushManagerFlushTimeEnd(t *testing.T) {
 		{time.Unix(8000, 0), time.Unix(0, 0)},
 		{time.Unix(15200, 0), time.Unix(7200, 0)},
 	}
-	database := newMockDatabase(t, ctrl)
+	database := newMockDatabase(t)
 	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
 	for _, input := range inputs {
 		_, end := fm.flushRange(defaultTestRetentionOpts, input.ts)
