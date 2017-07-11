@@ -105,10 +105,8 @@ func newTestSetup(t *testing.T, opts testOptions) (*testSetup, error) {
 		opts = newTestOptions(t)
 	}
 
-	nsRegistry, err := namespace.NewStaticRegistry(opts.Namespaces())
-	require.NoError(t, err)
 	storageOpts := storage.NewOptions().
-		SetNamespaceRegistry(nsRegistry).
+		SetNamespaceInitializer(namespace.NewStaticInitializer(opts.Namespaces())).
 		SetTickInterval(opts.TickInterval())
 
 	nativePooling := strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"

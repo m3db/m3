@@ -125,8 +125,8 @@ func verifySeriesMaps(
 	expectedDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, fmt.Sprintf("%s-expected.log", namespace.String()))
 	actualDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, fmt.Sprintf("%s-actual.log", namespace.String()))
 
-	nsMetadata, err := ts.storageOpts.NamespaceRegistry().Map().Get(namespace)
-	require.NoError(t, err)
+	nsMetadata, ok := ts.db.Namespace(namespace)
+	require.True(t, ok)
 	nsOpts := nsMetadata.Options()
 
 	for timestamp, sm := range seriesMaps {

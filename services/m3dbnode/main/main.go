@@ -69,12 +69,7 @@ func main() {
 		log.Fatalf("could not create default namespaces: %v", err)
 	}
 
-	registry, err := namespace.NewStaticRegistry(namespaces)
-	if err != nil {
-		log.Fatalf("could not create namespace registry: %v", err)
-	}
-	storageOpts = storageOpts.SetNamespaceRegistry(registry)
-
+	storageOpts = storageOpts.SetNamespaceInitializer(namespace.NewStaticInitializer(namespaces))
 	topoInit, err := server.DefaultTopologyInitializer(id, tchannelNodeAddr)
 	if err != nil {
 		log.Fatalf("could not create topology initializer: %v", err)

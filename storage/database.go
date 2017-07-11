@@ -412,6 +412,13 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	}
 }
 
+func (d *db) Namespace(id ts.ID) (Namespace, bool) {
+	d.RLock()
+	defer d.RUnlock()
+	ns, ok := d.namespaces[id.Hash()]
+	return ns, ok
+}
+
 func (d *db) Namespaces() []Namespace {
 	d.RLock()
 	defer d.RUnlock()
