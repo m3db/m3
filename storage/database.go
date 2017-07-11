@@ -181,7 +181,7 @@ func NewDatabase(
 		return nil, err
 	}
 
-	<-watch.C() // wait till first value is received
+	<-watch.C() // wait till first value is recieved
 
 	nsMap := watch.Get()
 	if err := d.updateOwnedNamespaces(nsMap); err != nil {
