@@ -33,11 +33,12 @@ VENDOR_ENV := GO15VENDOREXPERIMENT=1
 SERVICES := \
 	m3dbnode
 
-TOOLS :=         \
-	read_ids       \
-	read_index_ids \
-	clone_fileset  \
-	dtest          \
+TOOLS :=               \
+	read_ids             \
+	read_index_ids       \
+	clone_fileset        \
+	dtest                \
+	bootstrap_commitlogs \
 
 setup:
 	mkdir -p $(BUILD)
