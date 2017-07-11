@@ -328,6 +328,9 @@ func (d *db) newDatabaseNamespace(
 type tsIDs []ts.ID
 
 func (t tsIDs) String() (string, error) {
+	if len(t) == 0 {
+		return "[]", nil
+	}
 	var buf bytes.Buffer
 	for idx, id := range t {
 		if idx != 0 {
@@ -345,6 +348,9 @@ func (t tsIDs) String() (string, error) {
 type metadatas []namespace.Metadata
 
 func (m metadatas) String() (string, error) {
+	if len(m) == 0 {
+		return "[]", nil
+	}
 	var buf bytes.Buffer
 	for idx, md := range m {
 		if idx != 0 {
