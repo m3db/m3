@@ -23,6 +23,8 @@ package storage
 import (
 	"testing"
 
+	"github.com/m3db/m3db/storage/namespace"
+
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
@@ -30,15 +32,10 @@ import (
 func TestOptionsValidateDefaults(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	dbOpts := testDatabaseOptionsWithRegistry(t, ctrl)
-	require.NoError(t, dbOpts.Validate())
-}
 
-func TestOptionsValidateDefaultRepair(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	dbOpts := testDatabaseOptionsWithRepair(t, ctrl)
+	mockRegistry := namespace.NewMockRegistry(ctrl)
+	dbOpts := testDatabaseOptions(t).
+		SetNamespaceRegistry(mockRegistry)
 	require.NoError(t, dbOpts.Validate())
 }
 
