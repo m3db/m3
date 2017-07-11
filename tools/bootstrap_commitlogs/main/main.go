@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"io"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"strconv"
 	"strings"
@@ -32,6 +34,7 @@ var (
 	bootstrapRetentionArg = flag.String("retention", "48h", "Retention")
 	shardsCountArg        = flag.Int("shards-count", 8192, "Shards count - set number too bootstrap all shards in range")
 	shardsArg             = flag.String("shards", "", "Shards - set comma separated list of shards")
+	debugListenAddressArg = flag.String("debug-listen-address", "", "Debug listen address - if set will expose pprof, i.e. ':8080'")
 )
 
 func main() {
@@ -51,9 +54,20 @@ func main() {
 		bootstrapRetention = *bootstrapRetentionArg
 		shardsCount        = *shardsCountArg
 		shards             = *shardsArg
+		debugListenAddress = *debugListenAddressArg
 	)
 
 	log := xlog.NewLogger(os.Stderr)
+
+	if debugListenAddress != "" {
+		go func() {
+			err := http.ListenAndServe(debugListenAddress, http.DefaultServeMux)
+			if err != nil {
+				log.Errorf("could not start debug listen server at '%s': %v", debugListenAddress, err)
+			}
+		}()
+	}
+
 	shardTimeRanges := result.ShardTimeRanges{}
 
 	blockSizeLen, err := time.ParseDuration(blockSize)
