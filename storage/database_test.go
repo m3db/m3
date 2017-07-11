@@ -66,6 +66,7 @@ func (d *mockDatabase) IsOverloaded() bool                        { return false
 func (d *mockDatabase) Repair() error                             { return nil }
 func (d *mockDatabase) Truncate(namespace ts.ID) (int64, error)   { return 0, nil }
 func (d *mockDatabase) flush(t time.Time, async bool)             {}
+func (d *mockDatabase) updateOwnedNamespaces(namespace.Map) error { return nil }
 
 func (d *mockDatabase) getOwnedNamespaces() []databaseNamespace {
 	namespaces := make([]databaseNamespace, 0, len(d.namespaces))
@@ -142,6 +143,7 @@ func testNamespaceRegistry(t *testing.T, ctrl *gomock.Controller) namespace.Regi
 	mockWatch := namespace.NewMockWatch(ctrl)
 	mockWatch.EXPECT().Get().Return(nsMap).AnyTimes()
 	reg.EXPECT().Watch().Return(mockWatch, nil).AnyTimes()
+	reg.EXPECT().Map().Return(nsMap).AnyTimes()
 	return reg
 }
 
