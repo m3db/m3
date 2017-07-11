@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
+	"github.com/m3db/m3x/watch"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -131,6 +132,36 @@ var (
 					SetCommitLogOptions(_opts.CommitLogOptions().
 						SetRetentionOptions(defaultTestRetentionOpts))
 )
+
+func newMockDynamicNamespaceRegsitry(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	nsMapCh chan namespace.Map,
+) namespace.Registry {
+	propCh := make(chan struct{}, 10)
+	watch := xwatch.NewWatchable()
+	go func() {
+		for {
+			v, ok := <-nsMapCh
+			if !ok { // closed channel
+				close(propCh)
+				return
+			}
+
+			watch.Update(v)
+			propCh <- struct{}{}
+		}
+	}()
+
+	_, w, err := watch.Watch()
+	require.NoError(t, err)
+
+	nsWatch := namespace.NewWatch(w)
+	reg := namespace.NewMockRegistry(ctrl)
+	reg.EXPECT().Watch().Return(nsWatch, nil).AnyTimes()
+	reg.EXPECT().Map().Return(nsWatch.Get()).AnyTimes()
+	return reg
+}
 
 func testNamespaceRegistry(t *testing.T, ctrl *gomock.Controller) namespace.Registry {
 	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
