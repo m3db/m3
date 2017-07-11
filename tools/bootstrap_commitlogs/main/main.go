@@ -31,6 +31,7 @@ var (
 	pathPrefixArg         = flag.String("path-prefix", "/var/lib/m3db", "Path prefix")
 	namespaceArg          = flag.String("namespace", "metrics", "Namespace")
 	blockSizeArg          = flag.String("block-size", "2h", "Block size")
+	flushSizeArg          = flag.Int("flush-size", 524288, "Flush size of commit log")
 	bootstrapRetentionArg = flag.String("retention", "48h", "Retention")
 	shardsCountArg        = flag.Int("shards-count", 8192, "Shards count - set number too bootstrap all shards in range")
 	shardsArg             = flag.String("shards", "", "Shards - set comma separated list of shards")
@@ -51,6 +52,7 @@ func main() {
 		pathPrefix         = *pathPrefixArg
 		namespace          = *namespaceArg
 		blockSize          = *blockSizeArg
+		flushSize          = *flushSizeArg
 		bootstrapRetention = *bootstrapRetentionArg
 		shardsCount        = *shardsCountArg
 		shards             = *shardsArg
@@ -177,7 +179,8 @@ func main() {
 	commitLogOpts := commitlog.NewOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetRetentionOptions(retentionOpts).
-		SetFilesystemOptions(fsOpts)
+		SetFilesystemOptions(fsOpts).
+		SetFlushSize(flushSize)
 
 	opts := commitlogsrc.NewOptions().
 		SetResultOptions(resultOpts).
