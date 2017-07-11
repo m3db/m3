@@ -39,8 +39,7 @@ func TestDiskCleanup(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	md, err := testSetup.storageOpts.NamespaceRegistry().Map().Get(testNamespaces[0])
-	require.NoError(t, err)
+	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
 	blockSize := md.Options().RetentionOptions().BlockSize()
 	retentionPeriod := md.Options().RetentionOptions().RetentionPeriod()
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
@@ -65,7 +64,7 @@ func TestDiskCleanup(t *testing.T) {
 	for i := 0; i < numTimes; i++ {
 		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
 	}
-	createFilesetFiles(t, testSetup.storageOpts, testNamespaces[0], shard, fileTimes)
+	createFilesetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
 	createCommitLogs(t, filePathPrefix, fileTimes)
 
 	// Move now forward by retentionPeriod + 2 * blockSize so fileset files

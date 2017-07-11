@@ -30,6 +30,7 @@ import (
 
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 
 	"github.com/stretchr/testify/require"
@@ -48,13 +49,11 @@ func createWriter(storageOpts storage.Options) fs.FileSetWriter {
 	return fs.NewWriter(filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 }
 
-func createFilesetFiles(t *testing.T, storageOpts storage.Options, namespace ts.ID, shard uint32, fileTimes []time.Time) {
-	md, err := storageOpts.NamespaceRegistry().Map().Get(namespace)
-	require.NoError(t, err)
+func createFilesetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []time.Time) {
 	rOpts := md.Options().RetentionOptions()
 	writer := createWriter(storageOpts)
 	for _, start := range fileTimes {
-		require.NoError(t, writer.Open(namespace, rOpts.BlockSize(), shard, start))
+		require.NoError(t, writer.Open(md.ID(), rOpts.BlockSize(), shard, start))
 		require.NoError(t, writer.Close())
 	}
 }

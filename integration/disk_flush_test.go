@@ -41,8 +41,7 @@ func TestDiskFlush(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	md, err := testSetup.storageOpts.NamespaceRegistry().Map().Get(testNamespaces[0])
-	require.NoError(t, err)
+	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
 	blockSize := md.Options().RetentionOptions().BlockSize()
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 

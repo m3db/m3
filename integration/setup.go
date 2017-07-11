@@ -75,6 +75,7 @@ var (
 type nowSetterFn func(t time.Time)
 
 type testSetup struct {
+	t               *testing.T
 	opts            testOptions
 	db              cluster.Database
 	storageOpts     storage.Options
@@ -225,6 +226,7 @@ func newTestSetup(t *testing.T, opts testOptions) (*testSetup, error) {
 	}
 
 	return &testSetup{
+		t:               t,
 		opts:            opts,
 		storageOpts:     storageOpts,
 		fsOpts:          fsOpts,
@@ -290,6 +292,16 @@ func guessBestTruncateBlockSize(mds []namespace.Metadata) (time.Duration, bool) 
 
 	// otherwise, we are guessing
 	return guess, true
+}
+
+func (ts *testSetup) namespaceMetadataOrFail(id ts.ID) namespace.Metadata {
+	for _, md := range ts.namespaces {
+		if md.ID().Equal(id) {
+			return md
+		}
+	}
+	require.FailNow(ts.t, "unable to find namespace", id.String())
+	return nil
 }
 
 func (ts *testSetup) generatorOptions(ropts retention.Options) generate.Options {
