@@ -191,6 +191,7 @@ func NewDatabase(
 	return d, nil
 }
 
+// TODO(prateek): write tests for this
 func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
 	d.Lock()
 	defer d.Unlock()
