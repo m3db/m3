@@ -280,7 +280,9 @@ func (n *dbNamespace) closeShards(shards []databaseShard) {
 	// gate the impact.
 	closeFn := func(shard databaseShard) {
 		if err := shard.Close(); err != nil {
-			n.log.WithFields(xlog.NewLogField("shard", shard.ID())).Errorf("error occurred closing shard: %v", err)
+			n.log.
+				WithFields(xlog.NewLogField("shard", shard.ID())).
+				Errorf("error occurred closing shard: %v", err)
 			n.metrics.shards.closeErrors.Inc(1)
 		} else {
 			n.metrics.shards.close.Inc(1)

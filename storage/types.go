@@ -125,6 +125,9 @@ type database interface {
 
 	// getOwnedNamespaces returns the namespaces this database owns.
 	getOwnedNamespaces() []databaseNamespace
+
+	// updateOwnedNamespaces updates the namespaces this database owns.
+	updateOwnedNamespaces(namespaces namespace.Map) error
 }
 
 // Namespace is a time series database namespace
@@ -433,6 +436,18 @@ type databaseMediator interface {
 
 	// Report reports runtime information
 	Report()
+}
+
+// databaseNamespaceWatch watches for namespace updates.
+type databaseNamespaceWatch interface {
+	// Start starts the namespace watch.
+	Start() error
+
+	// Stop stops the namespace watch.
+	Stop() error
+
+	// close stops the watch, and releases any held resources.
+	Close() error
 }
 
 // Options represents the options for storage

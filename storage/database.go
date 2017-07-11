@@ -38,7 +38,10 @@ import (
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
+	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
+
+	"bytes"
 
 	"github.com/uber-go/tally"
 )
@@ -87,8 +90,8 @@ type db struct {
 	opts  Options
 	nowFn clock.NowFn
 
+	nsWatch          databaseNamespaceWatch
 	shardSet         sharding.ShardSet
-	nsWatch          namespace.Watch
 	namespaces       map[ts.Hash]databaseNamespace
 	commitLog        commitlog.CommitLog
 	writeCommitLogFn writeCommitLogFn
@@ -132,11 +135,6 @@ func NewDatabase(
 		return nil, fmt.Errorf("invalid options: %v", err)
 	}
 
-	nsWatch, err := opts.NamespaceRegistry().Watch()
-	if err != nil {
-		return nil, err
-	}
-
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("database")
 
@@ -144,7 +142,7 @@ func NewDatabase(
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
 		shardSet:     shardSet,
-		nsWatch:      nsWatch,
+		namespaces:   make(map[ts.Hash]databaseNamespace),
 		scope:        scope,
 		metrics:      newDatabaseMetrics(scope, iopts.MetricsSamplingRate()),
 		errors:       xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
@@ -173,9 +171,16 @@ func NewDatabase(
 		return nil, errCommitLogStrategyUnknown
 	}
 
-	if err := d.assignNamespacesWithLock(nsWatch.Get().Metadatas()); err != nil {
+	nsMap := opts.NamespaceRegistry().Map()
+	if err := d.updateOwnedNamespaces(nsMap); err != nil {
 		return nil, err
 	}
+
+	nsWatch, err := newDatabaseNamespaceWatch(d, opts)
+	if err != nil {
+		return nil, err
+	}
+	d.nsWatch = nsWatch
 
 	mediator, err := newMediator(d,
 		opts.SetInstrumentOptions(iopts.SetMetricsScope(scope)))
@@ -187,36 +192,171 @@ func NewDatabase(
 	return d, nil
 }
 
-func (d *db) assignNamespacesWithLock(namespaces []namespace.Metadata) error {
+func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
+	d.Lock()
+	defer d.Unlock()
+
 	var (
-		ns                = make(map[ts.Hash]databaseNamespace, len(namespaces))
-		blockRetrieverMgr = d.opts.DatabaseBlockRetrieverManager()
+		existing = d.namespaces
+		removes  []ts.ID
+		adds     []namespace.Metadata
+		updates  []namespace.Metadata
 	)
-	for _, n := range namespaces {
-		var (
-			idHash          = n.ID().Hash()
-			blockRetriever  block.DatabaseBlockRetriever
-			newRetrieverErr error
-		)
-		if _, exists := ns[idHash]; exists {
-			return errDuplicateNamespaces
-		}
-		if blockRetrieverMgr != nil {
-			blockRetriever, newRetrieverErr = blockRetrieverMgr.Retriever(n.ID())
-			if newRetrieverErr != nil {
-				return newRetrieverErr
-			}
+
+	// check if existing namespaces exist in newNamespaces
+	for _, ns := range existing {
+		newMd, err := newNamespaces.Get(ns.ID())
+
+		// if a namespace doesn't exist in newNamespaces, mark for removal
+		if err != nil {
+			removes = append(removes, ns.ID())
+			continue
 		}
 
-		newNs, err := newDatabaseNamespace(n, d.shardSet, blockRetriever,
-			d, d.writeCommitLogFn, d.opts)
+		// if namespace exists in newNamespaces, check if options are the same
+		optionsSame := newMd.Options().Equal(ns.Options())
+
+		// if options are the same, we don't need to do anything
+		if optionsSame {
+			continue
+		}
+
+		// if options are not the same, we mark for updates
+		updates = append(updates, newMd)
+	}
+
+	// check for any namespaces that need to be added
+	for _, ns := range newNamespaces.Metadatas() {
+		_, exists := d.namespaces[ns.ID().Hash()]
+		if !exists {
+			adds = append(adds, ns)
+		}
+	}
+
+	removalString, err := tsIDs(removes).String()
+	if err != nil {
+		return fmt.Errorf("unable to format removal, err = %v", err)
+	}
+
+	addString, err := metadatas(adds).String()
+	if err != nil {
+		return fmt.Errorf("unable to format adds, err = %v", err)
+	}
+
+	updateString, err := metadatas(updates).String()
+	if err != nil {
+		return fmt.Errorf("unable to format updates, err = %v", err)
+	}
+
+	// log scheduled operation
+	log := d.opts.InstrumentOptions().Logger()
+	log.WithFields(
+		xlog.NewLogField("removals", removalString),
+		xlog.NewLogField("adds", addString),
+		xlog.NewLogField("updates", updateString),
+	).Infof("updating database namespaces")
+
+	// NB(prateek): namespaces updates in properties are first closed,
+	// and then re-added.
+	for _, ns := range updates {
+		removes = append(removes, ns.ID())
+		adds = append(adds, ns)
+	}
+
+	// remove any namespaces marked for removal
+	if err := d.removeNamespacesWithLock(removes); err != nil {
+		return err
+	}
+
+	// add any namespaces marked for addition
+	return d.addNamespacesWithLock(adds)
+}
+
+func (d *db) removeNamespacesWithLock(ids []ts.ID) error {
+	for _, id := range ids {
+		// ensure namespace exists
+		ns, ok := d.namespaces[id.Hash()]
+		if !ok { // should never happen
+			return fmt.Errorf("unknown namespace marked for removal: %v", id.String())
+		}
+		// close namespace and remove from database
+		if err := ns.Close(); err != nil {
+			return fmt.Errorf("unable to close namespace [ id = %v, err = %v ]",
+				id.String(), err)
+		}
+		delete(d.namespaces, id.Hash())
+	}
+	return nil
+}
+
+func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
+	for _, n := range namespaces {
+		// ensure namespace doesn't exist
+		_, ok := d.namespaces[n.ID().Hash()]
+		if ok { // should never happen
+			return fmt.Errorf("existing namespace marked for addition: %v", n.ID().String())
+		}
+
+		// create and add to the database
+		newNs, err := d.newDatabaseNamespace(n)
 		if err != nil {
 			return err
 		}
-		ns[idHash] = newNs
+		d.namespaces[n.ID().Hash()] = newNs
 	}
-	d.namespaces = ns
 	return nil
+}
+
+func (d *db) newDatabaseNamespace(
+	md namespace.Metadata,
+) (databaseNamespace, error) {
+	brm := d.opts.DatabaseBlockRetrieverManager()
+	if brm == nil {
+		return newDatabaseNamespace(md, d.shardSet, nil,
+			d, d.writeCommitLogFn, d.opts)
+	}
+
+	blockRetriever, err := brm.Retriever(md.ID())
+	if err != nil {
+		return nil, err
+	}
+
+	return newDatabaseNamespace(md, d.shardSet, blockRetriever,
+		d, d.writeCommitLogFn, d.opts)
+}
+
+type tsIDs []ts.ID
+
+func (t tsIDs) String() (string, error) {
+	var buf bytes.Buffer
+	for idx, id := range t {
+		if idx != 0 {
+			if _, err := buf.WriteString(", "); err != nil {
+				return "", err
+			}
+		}
+		if _, err := buf.WriteString(id.String()); err != nil {
+			return "", err
+		}
+	}
+	return buf.String(), nil
+}
+
+type metadatas []namespace.Metadata
+
+func (m metadatas) String() (string, error) {
+	var buf bytes.Buffer
+	for idx, md := range m {
+		if idx != 0 {
+			if _, err := buf.WriteString(", "); err != nil {
+				return "", err
+			}
+		}
+		if _, err := buf.WriteString(md.ID().String()); err != nil {
+			return "", err
+		}
+	}
+	return buf.String(), nil
 }
 
 func (d *db) Options() Options {
@@ -252,10 +392,16 @@ func (d *db) Namespaces() []Namespace {
 func (d *db) Open() error {
 	d.Lock()
 	defer d.Unlock()
+	// check if db has already been opened
 	if d.state != databaseNotOpen {
 		return errDatabaseAlreadyOpen
 	}
 	d.state = databaseOpen
+
+	// start namespace watch
+	if err := d.nsWatch.Start(); err != nil {
+		return err
+	}
 
 	return d.mediator.Open()
 }
@@ -263,6 +409,8 @@ func (d *db) Open() error {
 func (d *db) Close() error {
 	d.Lock()
 	defer d.Unlock()
+
+	// ensure database is open
 	if d.state == databaseNotOpen {
 		return errDatabaseNotOpen
 	}
@@ -271,10 +419,22 @@ func (d *db) Close() error {
 	}
 	d.state = databaseClosed
 
-	// For now just remove all namespaces, in future this could be made more explicit.  However
-	// this is nice as we do not need to do any other branching now in write/read methods.
+	// stop listening for namespace changes
+	if err := d.nsWatch.Close(); err != nil {
+		return err
+	}
+
+	// close all open namespaces
+	var multiErr xerrors.MultiError
+	for _, ns := range d.getOwnedNamespaces() {
+		multiErr = multiErr.Add(ns.Close())
+	}
+	if err := multiErr.FinalError(); err != nil {
+		return err
+	}
 	d.namespaces = nil
 
+	// close the mediator
 	if err := d.mediator.Close(); err != nil {
 		return err
 	}
