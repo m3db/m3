@@ -93,5 +93,5 @@ type Options interface {
 	SetNamespaceRegistry(value namespace.Registry) Options
 
 	// NamespaceRegistry returns the namespace registry.
-	NamespaceRegistry() namespace.Registry
+	NamespaceRegistry() namespace.Registry // TODO(prateek): get rid of this
 }

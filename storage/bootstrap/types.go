@@ -38,7 +38,7 @@ type Process interface {
 
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
 	Run(
-		namespace ts.ID,
+		namespace ts.ID, // TODO(prateek): make this use a ns metadata construct instead
 		shards []uint32,
 		targetRanges []TargetRange,
 	) (result.BootstrapResult, error)
@@ -89,7 +89,7 @@ type Bootstrapper interface {
 	// should only return an error should it want to entirely cancel the bootstrapping of the
 	// node, i.e. non-recoverable situation like not being able to read from the filesystem.
 	Bootstrap(
-		namespace ts.ID,
+		namespace ts.ID, // TODO(prateek): make this use a ns metadata construct instead
 		shardsTimeRanges result.ShardTimeRanges,
 		opts RunOptions,
 	) (result.BootstrapResult, error)
@@ -104,7 +104,7 @@ type Source interface {
 
 	// Available returns what time ranges are available for a given set of shards.
 	Available(
-		namespace ts.ID,
+		namespace ts.ID, // TODO(prateek): make this use a ns metadata construct instead
 		shardsTimeRanges result.ShardTimeRanges,
 	) result.ShardTimeRanges
 
@@ -113,7 +113,7 @@ type Source interface {
 	// an error should it want to entirely cancel the bootstrapping of the node,
 	// i.e. non-recoverable situation like not being able to read from the filesystem.
 	Read(
-		namespace ts.ID,
+		namespace ts.ID, // TODO(prateek): make this use a ns metadata construct instead
 		shardsTimeRanges result.ShardTimeRanges,
 		opts RunOptions,
 	) (result.BootstrapResult, error)

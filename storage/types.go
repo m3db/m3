@@ -56,6 +56,9 @@ type Database interface {
 	// Namespaces returns the namespaces
 	Namespaces() []Namespace
 
+	// Namespace returns the specified namespace
+	Namespace(ns ts.ID) (Namespace, bool)
+
 	// Open will open the database for writing and reading
 	Open() error
 
