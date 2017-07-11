@@ -192,10 +192,7 @@ func NewDatabase(
 }
 
 // TODO(prateek): write tests for this
-func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
-	d.Lock()
-	defer d.Unlock()
-
+func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ts.ID, []namespace.Metadata, []namespace.Metadata) {
 	var (
 		existing = d.namespaces
 		removes  []ts.ID
@@ -233,6 +230,41 @@ func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
 		}
 	}
 
+	return removes, adds, updates
+}
+
+// TODO(prateek): write tests for this
+func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
+	d.Lock()
+	defer d.Unlock()
+
+	removes, adds, updates := d.namespaceDeltaWithLock(newNamespaces)
+	if err := d.logNamespaceUpdate(removes, adds, updates); err != nil {
+		return fmt.Errorf("unable to log namespace updates: %v", err)
+	}
+
+	// NB(prateek): namespaces updates in properties are first closed,
+	// and then re-added.
+	// TODO(prateek): updates need to be handled better, the current implementation
+	// suffers two problems:
+	// (1) it's too expensive to flush all the data, and re-bootstrap it for a namespace
+	// (2) we stop accepting writes during the period between when a namespace is removed
+	// and when it's added back.
+	for _, ns := range updates {
+		removes = append(removes, ns.ID())
+		adds = append(adds, ns)
+	}
+
+	// remove any namespaces marked for removal
+	if err := d.removeNamespacesWithLock(removes); err != nil {
+		return err
+	}
+
+	// add any namespaces marked for addition
+	return d.addNamespacesWithLock(adds)
+}
+
+func (d *db) logNamespaceUpdate(removes []ts.ID, adds, updates []namespace.Metadata) error {
 	removalString, err := tsIDs(removes).String()
 	if err != nil {
 		return fmt.Errorf("unable to format removal, err = %v", err)
@@ -256,20 +288,7 @@ func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
 		xlog.NewLogField("updates", updateString),
 	).Infof("updating database namespaces")
 
-	// NB(prateek): namespaces updates in properties are first closed,
-	// and then re-added.
-	for _, ns := range updates {
-		removes = append(removes, ns.ID())
-		adds = append(adds, ns)
-	}
-
-	// remove any namespaces marked for removal
-	if err := d.removeNamespacesWithLock(removes); err != nil {
-		return err
-	}
-
-	// add any namespaces marked for addition
-	return d.addNamespacesWithLock(adds)
+	return nil
 }
 
 func (d *db) removeNamespacesWithLock(ids []ts.ID) error {
