@@ -603,3 +603,50 @@ func TestDatabaseAddNamespace(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, md1.Options(), ns3.Options())
 }
+
+func TestDatabaseUpdateNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	require.NoError(t, d.Open())
+	defer func() {
+		require.NoError(t, d.Close())
+		close(mapCh)
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	// retrieve the update channel to track propatation
+	updateCh := d.opts.NamespaceInitializer().(*mockNsInitializer).updateCh
+
+	// check initial namespaces
+	nses := d.Namespaces()
+	require.Len(t, nses, 2)
+
+	// construct new namespace Map
+	ropts := defaultTestNs1Opts.RetentionOptions().SetRetentionPeriod(2000 * time.Hour)
+	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts.SetRetentionOptions(ropts))
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2})
+	require.NoError(t, err)
+
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	<-updateCh
+	<-updateCh
+	time.Sleep(10 * time.Millisecond)
+
+	// ensure the expected namespaces exist
+	nses = d.Namespaces()
+	require.Len(t, nses, 2)
+	ns1, ok := d.Namespace(defaultTestNs1ID)
+	require.True(t, ok)
+	require.Equal(t, md1.Options(), ns1.Options())
+	ns2, ok := d.Namespace(defaultTestNs2ID)
+	require.True(t, ok)
+	require.Equal(t, md2.Options(), ns2.Options())
+}

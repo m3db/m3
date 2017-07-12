@@ -199,7 +199,6 @@ func NewDatabase(
 	return d, nil
 }
 
-// TODO(prateek): write tests for this
 func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ts.ID, []namespace.Metadata, []namespace.Metadata) {
 	var (
 		existing = d.namespaces
