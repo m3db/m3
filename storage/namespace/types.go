@@ -111,9 +111,6 @@ type Watch interface {
 
 // Registry is an un-changing container for a Map
 type Registry interface {
-	// Get the current namespace map
-	Map() Map
-
 	// Watch for the Registry changes
 	Watch() (Watch, error)
 

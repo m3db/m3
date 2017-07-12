@@ -241,7 +241,6 @@ func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ts.ID, []nam
 	return removes, adds, updates
 }
 
-// TODO(prateek): write tests for this
 func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
 	d.Lock()
 	defer d.Unlock()

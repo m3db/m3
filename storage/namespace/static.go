@@ -56,10 +56,6 @@ func NewStaticRegistry(metadatas []Metadata) (Registry, error) {
 	return reg, nil
 }
 
-func (r *staticReg) Map() Map {
-	return r.Get().(Map)
-}
-
 func (r *staticReg) Watch() (Watch, error) {
 	_, w, err := r.Watchable.Watch()
 	if err != nil {

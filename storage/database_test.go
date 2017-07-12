@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3x/time"
 	"github.com/m3db/m3x/watch"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -135,11 +136,21 @@ var (
 
 type nsMapCh chan namespace.Map
 
+type mockNsInitializer struct {
+	registry *namespace.MockRegistry
+	updateCh chan struct{}
+}
+
+func (mi *mockNsInitializer) Init() (namespace.Registry, error) {
+	return mi.registry, nil
+}
+
 func newMockNsInitializer(
 	t *testing.T,
 	ctrl *gomock.Controller,
 	nsMapCh nsMapCh,
 ) namespace.Initializer {
+	updateCh := make(chan struct{}, 10)
 	watch := xwatch.NewWatchable()
 	go func() {
 		for {
@@ -149,21 +160,21 @@ func newMockNsInitializer(
 			}
 
 			watch.Update(v)
+			updateCh <- struct{}{}
 		}
 	}()
 
 	_, w, err := watch.Watch()
 	require.NoError(t, err)
 
-	var nsMap namespace.Map
 	nsWatch := namespace.NewWatch(w)
 	reg := namespace.NewMockRegistry(ctrl)
 	reg.EXPECT().Watch().Return(nsWatch, nil).AnyTimes()
-	reg.EXPECT().Map().Do(func() { nsMap = nsWatch.Get() }).Return(nsMap).AnyTimes()
 
-	init := namespace.NewMockInitializer(ctrl)
-	init.EXPECT().Init().Return(reg, nil)
-	return init
+	return &mockNsInitializer{
+		registry: reg,
+		updateCh: updateCh,
+	}
 }
 
 func testNamespaceMap(t *testing.T) namespace.Map {
@@ -236,6 +247,7 @@ func TestDatabaseOpen(t *testing.T) {
 	d, mapCh := newTestDatabase(t, ctrl, bootstrapNotStarted)
 	defer func() {
 		close(mapCh)
+		leaktest.CheckTimeout(t, time.Second)()
 	}()
 	require.NoError(t, d.Open())
 	require.Equal(t, errDatabaseAlreadyOpen, d.Open())
@@ -249,6 +261,7 @@ func TestDatabaseClose(t *testing.T) {
 	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
 	defer func() {
 		close(mapCh)
+		leaktest.CheckTimeout(t, time.Second)()
 	}()
 	require.NoError(t, d.Open())
 	require.NoError(t, d.Close())
@@ -498,4 +511,95 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	d.AssignShardSet(shardSet)
 
 	wg.Wait()
+}
+
+func TestDatabaseRemoveNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	require.NoError(t, d.Open())
+	defer func() {
+		require.NoError(t, d.Close())
+		close(mapCh)
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	// retrieve the update channel to track propatation
+	updateCh := d.opts.NamespaceInitializer().(*mockNsInitializer).updateCh
+
+	// check initial namespaces
+	nses := d.Namespaces()
+	require.Len(t, nses, 2)
+
+	// construct new namespace Map
+	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1})
+	require.NoError(t, err)
+
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	<-updateCh
+	<-updateCh
+	time.Sleep(10 * time.Millisecond)
+
+	// now check the expected ns exists
+	nses = d.Namespaces()
+	require.Len(t, nses, 1)
+	require.True(t, defaultTestNs1ID.Equal(nses[0].ID()))
+	require.Equal(t, md1.Options(), nses[0].Options())
+}
+
+func TestDatabaseAddNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	require.NoError(t, d.Open())
+	defer func() {
+		require.NoError(t, d.Close())
+		close(mapCh)
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	// retrieve the update channel to track propatation
+	updateCh := d.opts.NamespaceInitializer().(*mockNsInitializer).updateCh
+
+	// check initial namespaces
+	nses := d.Namespaces()
+	require.Len(t, nses, 2)
+
+	// construct new namespace Map
+	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
+	require.NoError(t, err)
+	md3, err := namespace.NewMetadata(ts.StringID("and1"), defaultTestNs1Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2, md3})
+	require.NoError(t, err)
+
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	<-updateCh
+	<-updateCh
+	time.Sleep(10 * time.Millisecond)
+
+	// ensure the expected namespaces exist
+	nses = d.Namespaces()
+	require.Len(t, nses, 3)
+	ns1, ok := d.Namespace(defaultTestNs1ID)
+	require.True(t, ok)
+	require.Equal(t, md1.Options(), ns1.Options())
+	ns2, ok := d.Namespace(defaultTestNs2ID)
+	require.True(t, ok)
+	require.Equal(t, md2.Options(), ns2.Options())
+	ns3, ok := d.Namespace(ts.StringID("and1"))
+	require.True(t, ok)
+	require.Equal(t, md1.Options(), ns3.Options())
 }
