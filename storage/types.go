@@ -473,10 +473,10 @@ type Options interface {
 	// InstrumentOptions returns the instrumentation options
 	InstrumentOptions() instrument.Options
 
-	// SetNamespaceRegistry sets the namespace registry initializer
+	// SetNamespaceInitializer sets the namespace registry initializer
 	SetNamespaceInitializer(value namespace.Initializer) Options
 
-	// NamespaceRegistry returns the namespace registry initializer
+	// NamespacInitializer returns the namespace registry initializer
 	NamespaceInitializer() namespace.Initializer
 
 	// SetDatabaseBlockOptions sets the database block options
