@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
+
 	"github.com/stretchr/testify/require"
 )
 

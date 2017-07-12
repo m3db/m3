@@ -27,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fortytw2/leaktest"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/retention"
@@ -42,6 +41,7 @@ import (
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/time"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
