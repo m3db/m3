@@ -38,7 +38,7 @@ func TestNewPeersBootstrapper(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newTestOptions(t, ctrl).
+	opts := NewOptions().
 		SetAdminClient(client.NewMockAdminClient(ctrl))
 
 	b, err := NewPeersBootstrapper(opts, nil)

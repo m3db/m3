@@ -54,25 +54,15 @@ var (
 	testBlockOpts          = block.NewOptions()
 )
 
-func newTestOptions(t *testing.T, ctrl *gomock.Controller) Options {
-	return NewOptions()
-}
-
 func TestPeersSourceCan(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	src := newPeersSource(newTestOptions(t, ctrl))
+	src := newPeersSource(NewOptions())
 
 	assert.True(t, src.Can(bootstrap.BootstrapSequential))
 	assert.False(t, src.Can(bootstrap.BootstrapParallel))
 }
 
 func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	src := newPeersSource(newTestOptions(t, ctrl))
+	src := newPeersSource(NewOptions())
 	nsMetdata := testNamespaceMetadata(t)
 
 	target := result.ShardTimeRanges{}
@@ -88,7 +78,6 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newTestOptions(t, ctrl)
 	nsMetadata := testNamespaceMetadata(t)
 	ropts := nsMetadata.Options().RetentionOptions()
 
@@ -97,8 +86,7 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	mockAdminClient := client.NewMockAdminClient(ctrl)
 	mockAdminClient.EXPECT().DefaultAdminSession().Return(nil, expectedErr)
 
-	opts = opts.SetAdminClient(mockAdminClient)
-
+	opts := NewOptions().SetAdminClient(mockAdminClient)
 	src := newPeersSource(opts)
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
@@ -118,7 +106,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newTestOptions(t, ctrl)
+	opts := NewOptions()
 	nsMetadata := testNamespaceMetadata(t)
 	ropts := nsMetadata.Options().RetentionOptions()
 
@@ -177,7 +165,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 	defer ctrl.Finish()
 
 	testNsMd := testNamespaceMetadata(t)
-	opts := newTestOptions(t, ctrl)
+	opts := NewOptions()
 	ropts := testNsMd.Options().RetentionOptions()
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
@@ -339,8 +327,8 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	opts := NewOptions()
 	testNsMd := testNamespaceMetadata(t)
-	opts := newTestOptions(t, ctrl)
 	ropts := testNsMd.Options().RetentionOptions()
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
