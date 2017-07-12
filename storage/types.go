@@ -160,6 +160,9 @@ func (n NamespacesByID) Less(i, j int) bool {
 type databaseNamespace interface {
 	Namespace
 
+	// Close will release the namespace resources and close the namespace
+	Close() error
+
 	// AssignShardSet sets the shard set assignment and returns immediately
 	AssignShardSet(shardSet sharding.ShardSet)
 
@@ -224,9 +227,6 @@ type databaseNamespace interface {
 
 	// Repair repairs the namespace data for a given time range
 	Repair(repairer databaseShardRepairer, tr xtime.Range) error
-
-	// Close closes the namespace and releases any resources.
-	Close() error
 }
 
 // Shard is a time series database shard
@@ -243,6 +243,9 @@ type Shard interface {
 
 type databaseShard interface {
 	Shard
+
+	// Close will release the shard resources and close the shard
+	Close() error
 
 	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
 	Tick(c context.Cancellable, softDeadline time.Duration) tickResult
@@ -300,9 +303,6 @@ type databaseShard interface {
 		tr xtime.Range,
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)
-
-	// Close closes the shard and releases any resources.
-	Close() error
 }
 
 // databaseBootstrapManager manages the bootstrap process.
