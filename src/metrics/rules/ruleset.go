@@ -445,6 +445,8 @@ type RuleSet interface {
 
 	// ActiveSet returns the active ruleset at a given time.
 	ActiveSet(timeNanos int64) Matcher
+
+	Schema() (*schema.RuleSet, error)
 }
 
 type ruleSet struct {
@@ -524,6 +526,40 @@ func (rs *ruleSet) ActiveSet(timeNanos int64) Matcher {
 		rs.newRollupIDFn,
 		rs.isRollupIDFn,
 	)
+}
+
+// Schema returns the protobuf representation fo a ruleset
+func (rs ruleSet) Schema() (*schema.RuleSet, error) {
+	res := &schema.RuleSet{
+		Uuid:          rs.uuid,
+		Namespace:     string(rs.namespace),
+		CreatedAt:     rs.createdAtNanos,
+		LastUpdatedAt: rs.lastUpdatedAtNanos,
+		Tombstoned:    rs.tombstoned,
+		CutoverTime:   rs.cutoverNanos,
+	}
+
+	mappingRules := make([]*schema.MappingRule, len(rs.mappingRules))
+	for i, m := range rs.mappingRules {
+		mr, err := m.Schema()
+		if err != nil {
+			return nil, err
+		}
+		mappingRules[i] = mr
+	}
+	res.MappingRules = mappingRules
+
+	rollupRules := make([]*schema.RollupRule, len(rs.rollupRules))
+	for i, r := range rs.rollupRules {
+		rr, err := r.Schema()
+		if err != nil {
+			return nil, err
+		}
+		rollupRules[i] = rr
+	}
+	res.RollupRules = rollupRules
+
+	return res, nil
 }
 
 // resolvePolicies resolves the conflicts among policies if any, following the rules below:

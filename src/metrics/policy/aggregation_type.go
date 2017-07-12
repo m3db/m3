@@ -364,6 +364,12 @@ func (aggTypes AggregationTypes) PooledQuantiles(p pool.FloatsPool) ([]float64, 
 
 // Schema returns the schema of the aggregation types.
 func (aggTypes AggregationTypes) Schema() ([]schema.AggregationType, error) {
+	// This is the same as returning an empty slice from the functionality perspective.
+	// It makes creating testing fixtures much simpler.
+	if aggTypes == nil {
+		return nil, nil
+	}
+
 	res := make([]schema.AggregationType, len(aggTypes))
 	for i, aggType := range aggTypes {
 		s, err := aggType.Schema()

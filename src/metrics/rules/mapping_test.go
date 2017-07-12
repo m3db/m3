@@ -182,3 +182,20 @@ func TestMappingRuleActiveRuleFound_First(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, mr, mr.ActiveRule(20000))
 }
+
+func TestMappingRuleSnapshotSchema(t *testing.T) {
+	expectedSchema := testMappingRuleSchema.Snapshots[0]
+	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	require.NoError(t, err)
+	schema, err := mr.snapshots[0].Schema()
+	require.NoError(t, err)
+	require.EqualValues(t, expectedSchema, schema)
+}
+
+func TestMappingRuleSchema(t *testing.T) {
+	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	require.NoError(t, err)
+	schema, err := mr.Schema()
+	require.NoError(t, err)
+	require.Equal(t, testMappingRuleSchema, schema)
+}

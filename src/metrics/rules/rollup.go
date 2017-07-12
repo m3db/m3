@@ -94,6 +94,25 @@ func (t *rollupTarget) clone() rollupTarget {
 	}
 }
 
+func (t rollupTarget) Schema() (*schema.RollupTarget, error) {
+	res := &schema.RollupTarget{
+		Name: string(t.Name),
+	}
+
+	policies := make([]*schema.Policy, len(t.Policies))
+	for i, p := range t.Policies {
+		policy, err := p.Schema()
+		if err != nil {
+			return nil, err
+		}
+		policies[i] = policy
+	}
+	res.Policies = policies
+	res.Tags = stringArrayFromBytesArray(t.Tags)
+
+	return res, nil
+}
+
 // rollupRuleSnapshot defines a rule snapshot such that if a metric matches the
 // provided filters, it is rolled up using the provided list of rollup targets.
 type rollupRuleSnapshot struct {
@@ -102,6 +121,7 @@ type rollupRuleSnapshot struct {
 	cutoverNanos int64
 	filter       filters.Filter
 	targets      []rollupTarget
+	rawFilters   map[string]string
 }
 
 func newRollupRuleSnapshot(
@@ -129,7 +149,30 @@ func newRollupRuleSnapshot(
 		cutoverNanos: r.CutoverTime,
 		filter:       filter,
 		targets:      targets,
+		rawFilters:   r.TagFilters,
 	}, nil
+}
+
+// Schema returns the given MappingRuleSnapshot in protobuf form.
+func (rrs rollupRuleSnapshot) Schema() (*schema.RollupRuleSnapshot, error) {
+	res := &schema.RollupRuleSnapshot{
+		Name:        rrs.name,
+		Tombstoned:  rrs.tombstoned,
+		CutoverTime: rrs.cutoverNanos,
+		TagFilters:  rrs.rawFilters,
+	}
+
+	targets := make([]*schema.RollupTarget, len(rrs.targets))
+	for i, t := range rrs.targets {
+		target, err := t.Schema()
+		if err != nil {
+			return nil, err
+		}
+		targets[i] = target
+	}
+	res.Targets = targets
+
+	return res, nil
 }
 
 // rollupRule stores rollup rule snapshots.
@@ -187,10 +230,37 @@ func (rc *rollupRule) activeIndex(timeNanos int64) int {
 	return idx
 }
 
+// Schema returns the given RollupRule in protobuf form.
+func (rc rollupRule) Schema() (*schema.RollupRule, error) {
+	res := &schema.RollupRule{
+		Uuid: rc.uuid,
+	}
+
+	snapshots := make([]*schema.RollupRuleSnapshot, len(rc.snapshots))
+	for i, s := range rc.snapshots {
+		snapshot, err := s.Schema()
+		if err != nil {
+			return nil, err
+		}
+		snapshots[i] = snapshot
+	}
+	res.Snapshots = snapshots
+
+	return res, nil
+}
+
 func bytesArrayFromStringArray(values []string) [][]byte {
 	result := make([][]byte, len(values))
 	for i, str := range values {
 		result[i] = []byte(str)
+	}
+	return result
+}
+
+func stringArrayFromBytesArray(values [][]byte) []string {
+	result := make([]string, len(values))
+	for i, bytes := range values {
+		result[i] = string(bytes)
 	}
 	return result
 }
