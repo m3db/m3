@@ -55,7 +55,7 @@ type mockDatabase struct {
 	updateNsMap namespace.Map
 }
 
-func newMockDatabase(t *testing.T) *mockDatabase { return &mockDatabase{opts: testDatabaseOptions(t)} }
+func newMockDatabase() *mockDatabase { return &mockDatabase{opts: testDatabaseOptions()} }
 
 func (d *mockDatabase) Options() Options                          { return d.opts }
 func (d *mockDatabase) AssignShardSet(shardSet sharding.ShardSet) {}
@@ -200,7 +200,7 @@ func testNamespaceMap(t *testing.T) namespace.Map {
 	return nsMap
 }
 
-func testDatabaseOptions(t *testing.T) Options {
+func testDatabaseOptions() Options {
 	// NB(r): We don't need to recreate the options multiple
 	// times as they are immutable - we save considerable
 	// memory by doing this avoiding creating default pools
@@ -221,7 +221,7 @@ func newTestDatabase(t *testing.T, ctrl *gomock.Controller, bs bootstrapState) (
 	mapCh := make(nsMapCh, 10)
 	mapCh <- testNamespaceMap(t)
 
-	opts := testDatabaseOptions(t).
+	opts := testDatabaseOptions().
 		SetRepairEnabled(true).
 		SetRepairOptions(testRepairOptions(ctrl)).
 		SetNamespaceInitializer(newMockNsInitializer(t, ctrl, mapCh))

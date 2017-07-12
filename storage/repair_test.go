@@ -45,7 +45,7 @@ func TestDatabaseRepairerStartStop(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockDatabase := newMockDatabase(t)
+	mockDatabase := newMockDatabase()
 	mockDatabase.opts = mockDatabase.opts.SetRepairOptions(testRepairOptions(ctrl))
 
 	databaseRepairer, err := newDatabaseRepairer(mockDatabase, mockDatabase.opts)
@@ -103,7 +103,7 @@ func TestDatabaseRepairerHaveNotReachedOffset(t *testing.T) {
 	)
 
 	nowFn := func() time.Time { return now }
-	mockDatabase := newMockDatabase(t)
+	mockDatabase := newMockDatabase()
 	clockOpts := mockDatabase.opts.ClockOptions().SetNowFn(nowFn)
 	repairOpts := testRepairOptions(ctrl).
 		SetRepairInterval(repairInterval).
@@ -158,7 +158,7 @@ func TestDatabaseRepairerOnlyOncePerInterval(t *testing.T) {
 		}
 	}
 
-	mockDatabase := newMockDatabase(t)
+	mockDatabase := newMockDatabase()
 	clockOpts := mockDatabase.opts.ClockOptions().SetNowFn(nowFn)
 	repairOpts := testRepairOptions(ctrl).
 		SetRepairInterval(repairInterval).
@@ -192,7 +192,7 @@ func TestDatabaseRepairerRepairNotBootstrapped(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockDatabase := newMockDatabase(t)
+	mockDatabase := newMockDatabase()
 	mockDatabase.opts = mockDatabase.opts.SetRepairOptions(testRepairOptions(ctrl))
 
 	databaseRepairer, err := newDatabaseRepairer(mockDatabase, mockDatabase.opts)
@@ -218,7 +218,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 
 	now := time.Now()
 	nowFn := func() time.Time { return now }
-	opts := testDatabaseOptions(t)
+	opts := testDatabaseOptions()
 	copts := opts.ClockOptions()
 	iopts := opts.InstrumentOptions()
 	rtopts := defaultTestRetentionOpts
@@ -330,7 +330,7 @@ func TestRepairerRepairTimes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	database := newMockDatabase(t)
+	database := newMockDatabase()
 	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
 	now := time.Unix(188000, 0)
 	clockOpts := database.opts.ClockOptions()
@@ -366,7 +366,7 @@ func TestRepairerRepairWithTime(t *testing.T) {
 	defer ctrl.Finish()
 
 	repairTimeRange := xtime.Range{Start: time.Unix(7200, 0), End: time.Unix(14400, 0)}
-	database := newMockDatabase(t)
+	database := newMockDatabase()
 	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
 	repairer, err := newDatabaseRepairer(database, database.opts)
 	require.NoError(t, err)
@@ -418,7 +418,7 @@ func TestRepairerTimesMultipleNamespaces(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	database := newMockDatabase(t)
+	database := newMockDatabase()
 	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
 
 	now := time.Unix(188000, 0)

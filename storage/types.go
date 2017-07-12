@@ -476,7 +476,7 @@ type Options interface {
 	// SetNamespaceInitializer sets the namespace registry initializer
 	SetNamespaceInitializer(value namespace.Initializer) Options
 
-	// NamespacInitializer returns the namespace registry initializer
+	// NamespaceInitializer returns the namespace registry initializer
 	NamespaceInitializer() namespace.Initializer
 
 	// SetDatabaseBlockOptions sets the database block options

@@ -41,7 +41,7 @@ func newTestNamespaceWatch(t *testing.T, ctrl *gomock.Controller) (
 
 	// NB: Can't use golang.Mock generated database here because we need to use
 	// EXPECT on unexported methods, which fails due to: https://github.com/golang/mock/issues/52
-	mockDB := newMockDatabase(t)
+	mockDB := newMockDatabase()
 	mockWatch := namespace.NewMockWatch(ctrl)
 
 	return newDatabaseNamespaceWatch(mockDB, mockWatch, iopts), mockDB, mockWatch
