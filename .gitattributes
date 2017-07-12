@@ -1,0 +1,7 @@
+# mocked files
+mock_*.go binary
+*_mock.go binary
+
+# source files
+*.go text
+*.md text
