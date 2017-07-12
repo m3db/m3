@@ -80,8 +80,6 @@ func newFileSystemManager(
 	fm := newFlushManager(database, scope)
 	cm := newCleanupManager(database, fm, scope)
 
-	// TODO(prateek): we're not using jitter anywhere, fix that.
-	// Was last used during PR #188, sha1: 1c7ab039
 	var jitter time.Duration
 	if maxJitter := fileOpts.Jitter(); maxJitter > 0 {
 		nowFn := opts.ClockOptions().NowFn()
@@ -136,11 +134,12 @@ func (m *fileSystemManager) Run(t time.Time, runType runType, forceType forceTyp
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	flushFn := func() {
-		if err := m.Cleanup(t); err != nil {
-			m.log.Errorf("error when cleaning up data for time %v: %v", t, err)
+		jitteredTime := t.Add(-m.jitter)
+		if err := m.Cleanup(jitteredTime); err != nil {
+			m.log.Errorf("error when cleaning up data for time %v: %v", jitteredTime, err)
 		}
-		if err := m.Flush(t); err != nil {
-			m.log.Errorf("error when flushing data for time %v: %v", t, err)
+		if err := m.Flush(jitteredTime); err != nil {
+			m.log.Errorf("error when flushing data for time %v: %v", jitteredTime, err)
 		}
 		m.Lock()
 		m.status = fileOpNotStarted
