@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
@@ -78,12 +79,12 @@ func (s *fileSystemSource) Can(strategy bootstrap.Strategy) bool {
 }
 
 func (s *fileSystemSource) Available(
-	namespace ts.ID,
+	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
 	result := make(map[uint32]xtime.Ranges)
 	for shard, ranges := range shardsTimeRanges {
-		result[shard] = s.shardAvailability(namespace, shard, ranges)
+		result[shard] = s.shardAvailability(md.ID(), shard, ranges)
 	}
 	return result
 }
@@ -352,10 +353,12 @@ func (s *fileSystemSource) bootstrapFromReaders(
 }
 
 func (s *fileSystemSource) Read(
-	namespace ts.ID,
+	md namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	_ bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {
+	nsID := md.ID()
+
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
@@ -364,17 +367,17 @@ func (s *fileSystemSource) Read(
 	blockRetrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 	if blockRetrieverMgr != nil {
 		s.log.WithFields(
-			xlog.NewLogField("namespace", namespace.String()),
+			xlog.NewLogField("namespace", nsID.String()),
 		).Infof("filesystem bootstrapper resolving block retriever")
 
 		var err error
-		blockRetriever, err = blockRetrieverMgr.Retriever(namespace)
+		blockRetriever, err = blockRetrieverMgr.Retriever(nsID)
 		if err != nil {
 			return nil, err
 		}
 
 		s.log.WithFields(
-			xlog.NewLogField("namespace", namespace.String()),
+			xlog.NewLogField("namespace", nsID.String()),
 			xlog.NewLogField("shards", len(shardsTimeRanges)),
 		).Infof("filesystem bootstrapper caching block retriever shard indices")
 
@@ -403,7 +406,7 @@ func (s *fileSystemSource) Read(
 		)
 	})
 	readersCh := make(chan shardReaders)
-	go s.enqueueReaders(namespace, shardsTimeRanges, readerPool, readersCh)
+	go s.enqueueReaders(nsID, shardsTimeRanges, readerPool, readersCh)
 	return s.bootstrapFromReaders(readerPool, blockRetriever, readersCh), nil
 }
 

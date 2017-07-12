@@ -54,19 +54,8 @@ var (
 	testBlockOpts          = block.NewOptions()
 )
 
-func newTestRegistry(t *testing.T, ctrl *gomock.Controller) namespace.Registry {
-	reg := namespace.NewMockRegistry(ctrl)
-	reg.EXPECT().Close().Return(nil).AnyTimes()
-
-	nsMap, err := namespace.NewMap([]namespace.Metadata{testNamespaceMetadata(t)})
-	require.NoError(t, err)
-	reg.EXPECT().Map().Return(nsMap).AnyTimes()
-	return reg
-
-}
-
 func newTestOptions(t *testing.T, ctrl *gomock.Controller) Options {
-	return NewOptions().SetNamespaceRegistry(newTestRegistry(t, ctrl))
+	return NewOptions()
 }
 
 func TestPeersSourceCan(t *testing.T) {
@@ -84,12 +73,13 @@ func TestPeersSourceEmptyShardTimeRanges(t *testing.T) {
 	defer ctrl.Finish()
 
 	src := newPeersSource(newTestOptions(t, ctrl))
+	nsMetdata := testNamespaceMetadata(t)
 
 	target := result.ShardTimeRanges{}
-	available := src.Available(testNamespace, target)
+	available := src.Available(nsMetdata, target)
 	assert.Equal(t, target, available)
 
-	r, err := src.Read(testNamespace, target, testDefaultRunOpts)
+	r, err := src.Read(nsMetdata, target, testDefaultRunOpts)
 	assert.NoError(t, err)
 	assert.Nil(t, r)
 }
@@ -99,7 +89,8 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := newTestOptions(t, ctrl)
-	ropts := testNamespaceMetadata(t).Options().RetentionOptions()
+	nsMetadata := testNamespaceMetadata(t)
+	ropts := nsMetadata.Options().RetentionOptions()
 
 	expectedErr := fmt.Errorf("an error")
 
@@ -118,7 +109,7 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 		1: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
 	}
 
-	_, err := src.Read(testNamespace, target, testDefaultRunOpts)
+	_, err := src.Read(nsMetadata, target, testDefaultRunOpts)
 	require.Error(t, err)
 	assert.Equal(t, expectedErr, err)
 }
@@ -128,7 +119,8 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	defer ctrl.Finish()
 
 	opts := newTestOptions(t, ctrl)
-	ropts := testNamespaceMetadata(t).Options().RetentionOptions()
+	nsMetadata := testNamespaceMetadata(t)
+	ropts := nsMetadata.Options().RetentionOptions()
 
 	start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 	end := start.Add(ropts.BlockSize())
@@ -140,11 +132,11 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata(t)),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(nsMetadata),
 			uint32(0), start, end, gomock.Any()).
 		Return(goodResult, nil)
 	mockAdminSession.EXPECT().
-		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNamespaceMetadata(t)),
+		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(nsMetadata),
 			uint32(1), start, end, gomock.Any()).
 		Return(nil, badErr)
 
@@ -160,7 +152,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 		1: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
 	}
 
-	r, err := src.Read(testNamespace, target, testDefaultRunOpts)
+	r, err := src.Read(nsMetadata, target, testDefaultRunOpts)
 	assert.NoError(t, err)
 
 	assert.Equal(t, 1, len(r.ShardResults()))
@@ -309,7 +301,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		1: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
 	}
 
-	r, err := src.Read(testNamespace, target, testIncrementalRunOpts)
+	r, err := src.Read(testNsMd, target, testIncrementalRunOpts)
 	assert.NoError(t, err)
 
 	assert.Equal(t, 2, len(r.ShardResults()))
@@ -485,7 +477,7 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 		3: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
 	}
 
-	r, err := src.Read(testNamespace, target, testIncrementalRunOpts)
+	r, err := src.Read(testNsMd, target, testIncrementalRunOpts)
 	assert.NoError(t, err)
 
 	assert.Equal(t, 4, len(r.ShardResults()))

@@ -22,7 +22,7 @@ package bootstrap
 
 import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/storage/namespace"
 )
 
 type noOpBootstrapProcess struct{}
@@ -40,7 +40,7 @@ func (b *noOpBootstrapProcess) Bootstrapper() Bootstrapper {
 }
 
 func (b *noOpBootstrapProcess) Run(
-	namespace ts.ID,
+	ns namespace.Metadata,
 	shards []uint32,
 	targetRanges []TargetRange,
 ) (result.BootstrapResult, error) {

@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
-	"github.com/m3db/m3db/storage/namespace"
 )
 
 var (
@@ -39,8 +38,7 @@ var (
 )
 
 var (
-	errNamespaceRegistryNotSet = errors.New("namespace registry not set")
-	errAdminClientNotSet       = errors.New("admin client not set")
+	errAdminClientNotSet = errors.New("admin client not set")
 )
 
 type options struct {
@@ -51,7 +49,6 @@ type options struct {
 	incrementalPersistMaxQueueSize int
 	persistManager                 persist.Manager
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
-	namespaceRegistry              namespace.Registry
 }
 
 // NewOptions creates new bootstrap options
@@ -65,9 +62,6 @@ func NewOptions() Options {
 }
 
 func (o *options) Validate() error {
-	if registry := o.namespaceRegistry; registry == nil {
-		return errNamespaceRegistryNotSet
-	}
 	if client := o.client; client == nil {
 		return errAdminClientNotSet
 	}
@@ -144,14 +138,4 @@ func (o *options) SetDatabaseBlockRetrieverManager(
 
 func (o *options) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager {
 	return o.blockRetrieverManager
-}
-
-func (o *options) SetNamespaceRegistry(value namespace.Registry) Options {
-	opts := *o
-	opts.namespaceRegistry = value
-	return &opts
-}
-
-func (o *options) NamespaceRegistry() namespace.Registry {
-	return o.namespaceRegistry
 }

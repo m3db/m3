@@ -181,8 +181,6 @@ func newDefaultBootstrappableTestSetups(
 			testStatsReporter          = setupOpts[i].testStatsReporter
 			instanceOpts               = newMultiAddrTestOptions(opts, instance)
 		)
-		nsRegistry, err := namespace.NewStaticRegistry(opts.Namespaces())
-		require.NoError(t, err)
 
 		if topologyInitializer != nil {
 			instanceOpts = instanceOpts.
@@ -218,8 +216,7 @@ func newDefaultBootstrappableTestSetups(
 				t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
 			peersOpts := peers.NewOptions().
 				SetResultOptions(bsOpts).
-				SetAdminClient(adminClient).
-				SetNamespaceRegistry(nsRegistry)
+				SetAdminClient(adminClient)
 
 			peersBootstrapper, err = peers.NewPeersBootstrapper(peersOpts, noOpAll)
 			require.NoError(t, err)

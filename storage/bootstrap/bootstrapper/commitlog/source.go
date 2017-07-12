@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
@@ -69,7 +70,7 @@ func (s *commitLogSource) Can(strategy bootstrap.Strategy) bool {
 }
 
 func (s *commitLogSource) Available(
-	namespace ts.ID,
+	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
 	// Commit log bootstrapper is a last ditch effort, so fulfill all
@@ -79,7 +80,7 @@ func (s *commitLogSource) Available(
 }
 
 func (s *commitLogSource) Read(
-	namespace ts.ID,
+	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	_ bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {
@@ -95,6 +96,7 @@ func (s *commitLogSource) Read(
 	defer iter.Close()
 
 	var (
+		namespace   = ns.ID()
 		unmerged    = make(map[uint32]map[ts.Hash]encoderMap)
 		bopts       = s.opts.ResultOptions()
 		blopts      = bopts.DatabaseBlockOptions()

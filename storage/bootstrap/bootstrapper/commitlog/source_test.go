@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
@@ -44,6 +45,12 @@ var (
 	testDefaultRunOpts    = bootstrap.NewRunOptions().SetIncremental(true)
 	minCommitLogRetention = 10 * time.Minute
 )
+
+func testNsMetadata(t *testing.T) namespace.Metadata {
+	md, err := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
+	require.NoError(t, err)
+	return md
+}
 
 func testOptions() Options {
 	opts := NewOptions()
@@ -73,7 +80,7 @@ func testOptions() Options {
 func TestAvailableEmptyRangeError(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts)
-	res := src.Available(testNamespaceID, result.ShardTimeRanges{})
+	res := src.Available(testNsMetadata(t), result.ShardTimeRanges{})
 	require.True(t, result.ShardTimeRanges{}.Equal(res))
 }
 
@@ -82,7 +89,7 @@ func TestReadEmpty(t *testing.T) {
 
 	src := newCommitLogSource(opts)
 
-	res, err := src.Read(testNamespaceID, result.ShardTimeRanges{},
+	res, err := src.Read(testNsMetadata(t), result.ShardTimeRanges{},
 		testDefaultRunOpts)
 	require.Nil(t, res)
 	require.Nil(t, err)
@@ -101,7 +108,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 		Start: time.Now(),
 		End:   time.Now().Add(time.Hour),
 	})
-	res, err := src.Read(testNamespaceID, result.ShardTimeRanges{0: ranges},
+	res, err := src.Read(testNsMetadata(t), result.ShardTimeRanges{0: ranges},
 		testDefaultRunOpts)
 	require.Error(t, err)
 	require.Nil(t, res)
@@ -142,7 +149,7 @@ func TestReadOrderedValues(t *testing.T) {
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.Read(testNamespaceID, targetRanges, testDefaultRunOpts)
+	res, err := src.Read(testNsMetadata(t), targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
@@ -185,7 +192,7 @@ func TestReadNamespaceFiltering(t *testing.T) {
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.Read(testNamespaceID, targetRanges, testDefaultRunOpts)
+	res, err := src.Read(testNsMetadata(t), targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
@@ -225,7 +232,7 @@ func TestReadUnorderedValues(t *testing.T) {
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.Read(testNamespaceID, targetRanges, testDefaultRunOpts)
+	res, err := src.Read(testNsMetadata(t), targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
@@ -264,7 +271,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.Read(testNamespaceID, targetRanges, testDefaultRunOpts)
+	res, err := src.Read(testNsMetadata(t), targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))

@@ -33,8 +33,10 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
@@ -46,7 +48,7 @@ import (
 
 var (
 	testShard            = uint32(0)
-	testNs1ID      = ts.StringID("testNs")
+	testNs1ID            = ts.StringID("testNs")
 	testStart            = time.Now()
 	testBlockSize        = 2 * time.Hour
 	testFileMode         = os.FileMode(0666)
@@ -54,6 +56,13 @@ var (
 	testWriterBufferSize = 10
 	testDefaultRunOpts   = bootstrap.NewRunOptions().SetIncremental(false)
 )
+
+func testNsMetadata(t *testing.T) namespace.Metadata {
+	ropts := retention.NewOptions().SetBlockSize(testBlockSize)
+	md, err := namespace.NewMetadata(testNs1ID, namespace.NewOptions().SetRetentionOptions(ropts))
+	require.NoError(t, err)
+	return md
+}
 
 func createTempDir(t *testing.T) string {
 	dir, err := ioutil.TempDir("", "foo")
@@ -144,14 +153,14 @@ func validateTimeRanges(t *testing.T, tr xtime.Ranges, expected []xtime.Range) {
 
 func TestAvailableEmptyRangeError(t *testing.T) {
 	src := newFileSystemSource("foo", NewOptions())
-	res := src.Available(testNs1ID, map[uint32]xtime.Ranges{0: nil})
+	res := src.Available(testNsMetadata(t), map[uint32]xtime.Ranges{0: nil})
 	require.NotNil(t, res)
 	require.True(t, res.IsEmpty())
 }
 
 func TestAvailablePatternError(t *testing.T) {
 	src := newFileSystemSource("[[", NewOptions())
-	res := src.Available(testNs1ID, testShardTimeRanges())
+	res := src.Available(testNsMetadata(t), testShardTimeRanges())
 	require.NotNil(t, res)
 	require.True(t, res.IsEmpty())
 }
@@ -166,7 +175,7 @@ func TestAvailableReadInfoError(t *testing.T) {
 	writeInfoFile(t, dir, testNs1ID, shard, testStart, []byte{0x1, 0x2})
 
 	src := newFileSystemSource(dir, NewOptions())
-	res := src.Available(testNs1ID, testShardTimeRanges())
+	res := src.Available(testNsMetadata(t), testShardTimeRanges())
 	require.NotNil(t, res)
 	require.True(t, res.IsEmpty())
 }
@@ -181,7 +190,7 @@ func TestAvailableDigestOfDigestMismatch(t *testing.T) {
 	writeDigestFile(t, dir, testNs1ID, shard, testStart, nil)
 
 	src := newFileSystemSource(dir, NewOptions())
-	res := src.Available(testNs1ID, testShardTimeRanges())
+	res := src.Available(testNsMetadata(t), testShardTimeRanges())
 	require.NotNil(t, res)
 	require.True(t, res.IsEmpty())
 }
@@ -194,7 +203,7 @@ func TestAvailableTimeRangeFilter(t *testing.T) {
 	writeGoodFiles(t, dir, testNs1ID, shard)
 
 	src := newFileSystemSource(dir, NewOptions())
-	res := src.Available(testNs1ID, testShardTimeRanges())
+	res := src.Available(testNsMetadata(t), testShardTimeRanges())
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res))
 	require.NotNil(t, res[testShard])
@@ -216,7 +225,7 @@ func TestAvailableTimeRangePartialError(t *testing.T) {
 	writeInfoFile(t, dir, testNs1ID, shard, testStart.Add(4*time.Hour), []byte{0x1, 0x2})
 
 	src := newFileSystemSource(dir, NewOptions())
-	res := src.Available(testNs1ID, testShardTimeRanges())
+	res := src.Available(testNsMetadata(t), testShardTimeRanges())
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res))
 	require.NotNil(t, res[testShard])
@@ -230,14 +239,14 @@ func TestAvailableTimeRangePartialError(t *testing.T) {
 
 func TestReadEmptyRangeErr(t *testing.T) {
 	src := newFileSystemSource("foo", NewOptions())
-	res, err := src.Read(testNs1ID, nil, testDefaultRunOpts)
+	res, err := src.Read(testNsMetadata(t), nil, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.Nil(t, res)
 }
 
 func TestReadPatternError(t *testing.T) {
 	src := newFileSystemSource("[[", NewOptions())
-	res, err := src.Read(testNs1ID,
+	res, err := src.Read(testNsMetadata(t),
 		map[uint32]xtime.Ranges{testShard: xtime.NewRanges()},
 		testDefaultRunOpts)
 	require.NoError(t, err)
@@ -269,7 +278,7 @@ func TestReadOpenFileError(t *testing.T) {
 	writeInfoFile(t, dir, testNs1ID, shard, testStart, nil)
 
 	src := newFileSystemSource(dir, NewOptions())
-	res, err := src.Read(testNs1ID, testShardTimeRanges(),
+	res, err := src.Read(testNsMetadata(t), testShardTimeRanges(),
 		testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
@@ -293,7 +302,7 @@ func TestReadDataCorruptionError(t *testing.T) {
 
 	src := newFileSystemSource(dir, NewOptions())
 	strs := testShardTimeRanges()
-	res, err := src.Read(testNs1ID, strs, testDefaultRunOpts)
+	res, err := src.Read(testNsMetadata(t), strs, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 0, len(res.ShardResults()))
@@ -314,7 +323,7 @@ func validateReadResults(
 		},
 	}
 
-	res, err := src.Read(testNs1ID, strs, testDefaultRunOpts)
+	res, err := src.Read(testNsMetadata(t), strs, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.NotNil(t, res.ShardResults())
@@ -389,11 +398,12 @@ func TestReadValidateError(t *testing.T) {
 		return reader
 	}
 
+	idMatcher := ts.NewIDMatcher(testNs1ID.String())
 	shard := uint32(0)
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
 	reader.EXPECT().
-		Open(testNs1ID, shard, testStart).
+		Open(idMatcher, shard, testStart).
 		Return(nil)
 	reader.EXPECT().
 		Range().
@@ -406,7 +416,7 @@ func TestReadValidateError(t *testing.T) {
 	reader.EXPECT().Validate().Return(errors.New("foo"))
 	reader.EXPECT().Close().Return(nil)
 
-	res, err := src.Read(testNs1ID, testShardTimeRanges(),
+	res, err := src.Read(testNsMetadata(t), testShardTimeRanges(),
 		testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
@@ -442,8 +452,9 @@ func TestReadDeleteOnError(t *testing.T) {
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
 
+	idMatcher := ts.NewIDMatcher(testNs1ID.String())
 	gomock.InOrder(
-		reader.EXPECT().Open(testNs1ID, shard, testStart).Return(nil),
+		reader.EXPECT().Open(idMatcher, shard, testStart).Return(nil),
 		reader.EXPECT().
 			Range().
 			Return(xtime.Range{
@@ -467,7 +478,7 @@ func TestReadDeleteOnError(t *testing.T) {
 		reader.EXPECT().Close().Return(nil),
 	)
 
-	res, err := src.Read(testNs1ID, testShardTimeRanges(),
+	res, err := src.Read(testNsMetadata(t), testShardTimeRanges(),
 		testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)

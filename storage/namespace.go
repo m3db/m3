@@ -456,7 +456,7 @@ func (n *dbNamespace) Bootstrap(
 		shardIDs[i] = shard.ID()
 	}
 
-	bootstrapResult, err := process.Run(n.id, shardIDs, targetRanges)
+	bootstrapResult, err := process.Run(n.metadata, shardIDs, targetRanges)
 	if err != nil {
 		n.log.Errorf("bootstrap for namespace %s aborted due to error: %v",
 			n.id.String(), err)

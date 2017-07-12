@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/sync"
@@ -42,7 +43,7 @@ type peersSource struct {
 }
 
 type incrementalFlush struct {
-	namespace         ts.ID
+	nsMetadata        namespace.Metadata
 	shard             uint32
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 	shardResult       result.ShardResult
@@ -71,7 +72,7 @@ func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
 }
 
 func (s *peersSource) Available(
-	namespace ts.ID,
+	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
 	// Peers should be able to fulfill all data
@@ -79,21 +80,16 @@ func (s *peersSource) Available(
 }
 
 func (s *peersSource) Read(
-	namespace ts.ID,
+	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {
-	// early terminate if we don't know about the specified namespace
-	nsMetadata, err := s.opts.NamespaceRegistry().Map().Get(namespace)
-	if err != nil {
-		return nil, err
-	}
-
 	if shardsTimeRanges.IsEmpty() {
 		return nil, nil
 	}
 
 	var (
+		namespace         = nsMetadata.ID()
 		blockRetriever    block.DatabaseBlockRetriever
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 		persistFlush      persist.Flush
@@ -161,7 +157,7 @@ func (s *peersSource) Read(
 			defer incrementalWg.Done()
 
 			for flush := range incrementalQueue {
-				err := s.incrementalFlush(persistFlush, flush.namespace,
+				err := s.incrementalFlush(persistFlush, flush.nsMetadata,
 					flush.shard, flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
 				if err != nil {
 					s.log.WithFields(
@@ -189,7 +185,7 @@ func (s *peersSource) Read(
 
 				if err == nil && incremental {
 					incrementalQueue <- incrementalFlush{
-						namespace:         namespace,
+						nsMetadata:        nsMetadata,
 						shard:             shard,
 						shardRetrieverMgr: shardRetrieverMgr,
 						shardResult:       shardResult,
@@ -230,17 +226,12 @@ func (s *peersSource) Read(
 
 func (s *peersSource) incrementalFlush(
 	flush persist.Flush,
-	namespace ts.ID,
+	nsMetadata namespace.Metadata,
 	shard uint32,
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
 	shardResult result.ShardResult,
 	tr xtime.Range,
 ) error {
-	nsMetadata, err := s.opts.NamespaceRegistry().Map().Get(namespace)
-	if err != nil {
-		return err
-	}
-
 	var (
 		ropts          = nsMetadata.Options().RetentionOptions()
 		blockSize      = ropts.BlockSize()
