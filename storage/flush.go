@@ -93,7 +93,8 @@ func (m *flushManager) Flush(curr time.Time) error {
 	}()
 
 	multiErr := xerrors.NewMultiError()
-	for _, ns := range m.database.getOwnedNamespaces() {
+	namespaces := m.database.getOwnedNamespaces()
+	for _, ns := range namespaces {
 		flushTimes := m.namespaceFlushTimes(ns, curr)
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, flushTimes, flush))
 	}
