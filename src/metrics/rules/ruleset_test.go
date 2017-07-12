@@ -513,6 +513,28 @@ func TestRuleSetProperties(t *testing.T) {
 	require.Equal(t, false, ruleSet.TombStoned())
 }
 
+func TestRuleSetSchema(t *testing.T) {
+	opts := testRuleSetOptions()
+	version := 1
+
+	expectedRs := &schema.RuleSet{
+		Uuid:          "ruleset",
+		Namespace:     "namespace",
+		CreatedAt:     1234,
+		LastUpdatedAt: 5678,
+		Tombstoned:    false,
+		CutoverTime:   34923,
+		MappingRules:  testMappingRulesConfig(),
+		RollupRules:   testRollupRulesConfig(),
+	}
+
+	rs, err := NewRuleSet(version, expectedRs, opts)
+	require.NoError(t, err)
+	res, err := rs.Schema()
+	require.NoError(t, err)
+	require.Equal(t, expectedRs, res)
+}
+
 func TestRuleSetActiveSet(t *testing.T) {
 	opts := testRuleSetOptions()
 	version := 1
@@ -1430,7 +1452,7 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					Tombstoned:  true,
 					CutoverTime: 35000,
 					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
-					Policies:    nil,
+					Policies:    []*schema.Policy{},
 				},
 			},
 		},
@@ -1758,7 +1780,7 @@ func testRollupRulesConfig() []*schema.RollupRule {
 						"rtagName1": "rtagValue1",
 						"rtagName2": "rtagValue2",
 					},
-					Targets: nil,
+					Targets: []*schema.RollupTarget{},
 				},
 			},
 		},

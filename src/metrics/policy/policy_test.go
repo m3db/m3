@@ -155,7 +155,6 @@ func TestParsePolicyIntoSchema(t *testing.T) {
 						Period: time.Hour.Nanoseconds(),
 					},
 				},
-				AggregationTypes: []schema.AggregationType{},
 			},
 		},
 		{
@@ -226,7 +225,7 @@ func TestParsePolicyIntoSchema(t *testing.T) {
 
 		sp, err := p.Schema()
 		require.NoError(t, err)
-		require.Equal(t, input.expected, sp)
+		require.Equal(t, input.expected, sp, input.str)
 	}
 }
 

@@ -40,6 +40,7 @@ type mappingRuleSnapshot struct {
 	tombstoned   bool
 	cutoverNanos int64
 	filter       filters.Filter
+	rawFilters   map[string]string
 	policies     []policy.Policy
 }
 
@@ -64,7 +65,30 @@ func newMappingRuleSnapshot(
 		cutoverNanos: r.CutoverTime,
 		filter:       filter,
 		policies:     policies,
+		rawFilters:   r.TagFilters,
 	}, nil
+}
+
+// Schema returns the given MappingRuleSnapshot in protobuf form.
+func (mrs mappingRuleSnapshot) Schema() (*schema.MappingRuleSnapshot, error) {
+	res := &schema.MappingRuleSnapshot{
+		Name:        mrs.name,
+		Tombstoned:  mrs.tombstoned,
+		CutoverTime: mrs.cutoverNanos,
+		TagFilters:  mrs.rawFilters,
+	}
+
+	policies := make([]*schema.Policy, len(mrs.policies))
+	for i, p := range mrs.policies {
+		policy, err := p.Schema()
+		if err != nil {
+			return nil, err
+		}
+		policies[i] = policy
+	}
+	res.Policies = policies
+
+	return res, nil
 }
 
 // mappingRule stores mapping rule snapshots.
@@ -122,4 +146,23 @@ func (mc *mappingRule) activeIndex(timeNanos int64) int {
 		idx--
 	}
 	return idx
+}
+
+// Schema returns the given MappingRule in protobuf form.
+func (mc mappingRule) Schema() (*schema.MappingRule, error) {
+	res := &schema.MappingRule{
+		Uuid: mc.uuid,
+	}
+
+	snapshots := make([]*schema.MappingRuleSnapshot, len(mc.snapshots))
+	for i, s := range mc.snapshots {
+		snapshot, err := s.Schema()
+		if err != nil {
+			return nil, err
+		}
+		snapshots[i] = snapshot
+	}
+	res.Snapshots = snapshots
+
+	return res, nil
 }

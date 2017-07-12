@@ -127,3 +127,78 @@ func TestNewNamespacesValidSchema(t *testing.T) {
 	}
 	require.Equal(t, expected, ns.Namespaces())
 }
+
+func TestNamespaceSchema(t *testing.T) {
+	testNs := &schema.Namespace{
+		Name: "foo",
+		Snapshots: []*schema.NamespaceSnapshot{
+			&schema.NamespaceSnapshot{
+				ForRulesetVersion: 123,
+				Tombstoned:        false,
+			},
+			&schema.NamespaceSnapshot{
+				ForRulesetVersion: 456,
+				Tombstoned:        true,
+			},
+		},
+	}
+
+	ns, err := newNameSpace(testNs)
+
+	require.NoError(t, err)
+	res, err := ns.Schema()
+
+	require.Equal(t, testNs, res)
+}
+
+func TestNamespaceSchemaNoSnapshots(t *testing.T) {
+	badNs := Namespace{
+		name: []byte("foo"),
+	}
+	res, err := badNs.Schema()
+	require.EqualError(t, err, errNilNamespaceSnapshot.Error())
+	require.Nil(t, res)
+}
+
+func TestNamespaceSnapshotSchema(t *testing.T) {
+	s := NamespaceSnapshot{
+		forRuleSetVersion: 3,
+		tombstoned:        false,
+	}
+	sSchema := &schema.NamespaceSnapshot{
+		ForRulesetVersion: 3,
+		Tombstoned:        false,
+	}
+
+	res := s.Schema()
+
+	require.Equal(t, sSchema, res)
+}
+
+func TestNamespacesSchema(t *testing.T) {
+	testNss := &schema.Namespaces{
+		Namespaces: []*schema.Namespace{
+			&schema.Namespace{
+				Name: "foo",
+				Snapshots: []*schema.NamespaceSnapshot{
+					&schema.NamespaceSnapshot{ForRulesetVersion: 123, Tombstoned: false},
+					&schema.NamespaceSnapshot{ForRulesetVersion: 4, Tombstoned: false},
+				},
+			},
+			&schema.Namespace{
+				Name: "foo2",
+				Snapshots: []*schema.NamespaceSnapshot{
+					&schema.NamespaceSnapshot{ForRulesetVersion: 123, Tombstoned: false},
+					&schema.NamespaceSnapshot{ForRulesetVersion: 4, Tombstoned: false},
+				},
+			},
+		},
+	}
+
+	nss, err := NewNamespaces(1, testNss)
+	require.NoError(t, err)
+
+	res, err := nss.Schema()
+	require.NoError(t, err)
+	require.Equal(t, testNss, res)
+}

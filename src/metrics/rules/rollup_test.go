@@ -253,3 +253,29 @@ type testRollupTargetData struct {
 	target rollupTarget
 	result bool
 }
+
+func TestRollupTargetSchema(t *testing.T) {
+	expectedSchema := testRollupRuleSchema.Snapshots[0].Targets[0]
+	rt, err := newRollupTarget(expectedSchema)
+	require.NoError(t, err)
+	schema, err := rt.Schema()
+	require.NoError(t, err)
+	require.EqualValues(t, expectedSchema, schema)
+}
+
+func TestRollupRuleSnapshotSchema(t *testing.T) {
+	expectedSchema := testRollupRuleSchema.Snapshots[0]
+	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	require.NoError(t, err)
+	schema, err := rr.snapshots[0].Schema()
+	require.NoError(t, err)
+	require.EqualValues(t, expectedSchema, schema)
+}
+
+func TestRollupRuleSchema(t *testing.T) {
+	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	require.NoError(t, err)
+	schema, err := rr.Schema()
+	require.NoError(t, err)
+	require.Equal(t, testRollupRuleSchema, schema)
+}
