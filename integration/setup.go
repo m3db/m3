@@ -471,10 +471,10 @@ type testSetups []*testSetup
 func (ts testSetups) parallel(fn func(s *testSetup)) {
 	var wg sync.WaitGroup
 	for _, setup := range ts {
-		setup := setup
+		s := setup
 		wg.Add(1)
 		go func() {
-			fn(setup)
+			fn(s)
 			wg.Done()
 		}()
 	}
