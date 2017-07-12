@@ -249,6 +249,9 @@ func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
 		return fmt.Errorf("unable to log namespace updates: %v", err)
 	}
 
+	// TODO(prateek): do we need to pause bg processing (repairs/bootstrapping/etc) while
+	// we're changing active namespaces?
+
 	// TODO(prateek): namepace updates need to be handled better, the current implementation
 	// updates namespaces by closing and re-creating them.
 	// This suffers two problems:
@@ -268,6 +271,8 @@ func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
 
 	// add any namespaces marked for addition
 	return d.addNamespacesWithLock(adds)
+
+	// TODO(prateek): queueBootstrap() here?
 }
 
 func (d *db) logNamespaceUpdate(removes []ts.ID, adds, updates []namespace.Metadata) error {
@@ -402,6 +407,10 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	for _, ns := range d.namespaces {
 		ns.AssignShardSet(shardSet)
 	}
+	d.queueBootstrap()
+}
+
+func (d *db) queueBootstrap() {
 	// NB(r): Trigger another bootstrap, if already bootstrapping this will
 	// enqueue a new bootstrap to execute before the current bootstrap
 	// completes
@@ -462,6 +471,11 @@ func (d *db) Close() error {
 		return err
 	}
 
+	// close the mediator
+	if err := d.mediator.Close(); err != nil {
+		return err
+	}
+
 	// close all open namespaces
 	var multiErr xerrors.MultiError
 	for _, ns := range d.namespaces {
@@ -471,11 +485,6 @@ func (d *db) Close() error {
 		return err
 	}
 	d.namespaces = nil
-
-	// close the mediator
-	if err := d.mediator.Close(); err != nil {
-		return err
-	}
 
 	// Finally close the commit log
 	return d.commitLog.Close()
