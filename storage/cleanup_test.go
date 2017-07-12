@@ -34,7 +34,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func testCleanupManager(t *testing.T, ctrl *gomock.Controller) (*mockDatabase, *MockdatabaseFlushManager, *cleanupManager) {
+func testCleanupManager(ctrl *gomock.Controller) (*mockDatabase, *MockdatabaseFlushManager, *cleanupManager) {
 	db := newMockDatabase()
 	fm := NewMockdatabaseFlushManager(ctrl)
 	return db, fm, newCleanupManager(db, fm, tally.NoopScope).(*cleanupManager)
@@ -50,7 +50,7 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		SetBufferPast(0 * time.Second).
 		SetBlockSize(7200 * time.Second)
 	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts)
-	db, fm, mgr := testCleanupManager(t, ctrl)
+	db, fm, mgr := testCleanupManager(ctrl)
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().SetRetentionOptions(rOpts))
 
@@ -107,7 +107,7 @@ func TestCleanupManagerCommitLogTimeRange(t *testing.T) {
 			SetRetentionPeriod(18000 * time.Second).
 			SetBufferPast(0 * time.Second).
 			SetBlockSize(7200 * time.Second)
-		_, _, mgr = testCleanupManager(t, ctrl)
+		_, _, mgr = testCleanupManager(ctrl)
 	)
 
 	mgr.opts = mgr.opts.SetCommitLogOptions(
@@ -144,7 +144,7 @@ func newCleanupManagerCommitLogTimesTest(t *testing.T, ctrl *gomock.Controller) 
 			SetRetentionPeriod(30 * time.Second).
 			SetBufferPast(0 * time.Second).
 			SetBlockSize(10 * time.Second)
-		_, fm, mgr = testCleanupManager(t, ctrl)
+		_, fm, mgr = testCleanupManager(ctrl)
 	)
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().SetRetentionOptions(rOpts))
