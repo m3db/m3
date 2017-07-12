@@ -82,7 +82,6 @@ func newFileSystemManager(
 		log:      instrumentOpts.Logger(),
 		database: database,
 		opts:     opts,
-		jitter:   jitter,
 		status:   fileOpNotStarted,
 		enabled:  true,
 	}

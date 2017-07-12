@@ -214,13 +214,13 @@ func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
 
 	// TODO(prateek): namepace updates need to be handled better, the current implementation
 	// updates namespaces by closing and re-creating them.
-	// This suffers two problems:
+	// There are a few problems with this approach:
 	// (1) it's too expensive to flush all the data, and re-bootstrap it for a namespace
 	// (2) we stop accepting writes during the period between when a namespace is removed
 	// until it's added back. This is worse when you consider a KV update can propagate
 	// to all nodes at the same time.
 	// (3): we are not controlling bg processing (repairs/bootstrapping/etc) whilst updating
-	// active namespaces. This means removes
+	// active namespaces.
 	for _, ns := range updates {
 		removes = append(removes, ns.ID())
 		adds = append(adds, ns)
