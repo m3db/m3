@@ -141,7 +141,6 @@ var (
 	defaultTestDatabaseOptions = _opts.
 					SetRepairEnabled(false).
 					SetMaxFlushRetries(3).
-					SetFileOpOptions(NewFileOpOptions().SetJitter(0)).
 					SetTickInterval(10 * time.Minute).
 					SetCommitLogOptions(_opts.CommitLogOptions().
 						SetRetentionOptions(defaultTestRetentionOpts))

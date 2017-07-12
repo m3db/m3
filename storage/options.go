@@ -119,7 +119,6 @@ type options struct {
 	errThresholdForLoad            int64
 	repairEnabled                  bool
 	repairOpts                     repair.Options
-	fileOpOpts                     FileOpOptions
 	newEncoderFn                   encoding.NewEncoderFn
 	newDecoderFn                   encoding.NewDecoderFn
 	bootstrapProcess               bootstrap.Process
@@ -163,7 +162,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		errThresholdForLoad:            defaultErrorThresholdForLoad,
 		repairEnabled:                  defaultRepairEnabled,
 		repairOpts:                     repair.NewOptions(),
-		fileOpOpts:                     NewFileOpOptions(),
 		bootstrapProcess:               defaultBootstrapProcess,
 		persistManager:                 fs.NewPersistManager(fs.NewOptions()),
 		tickInterval:                   defaultTickInterval,
@@ -210,13 +208,6 @@ func (o *options) Validate() error {
 		if err := rOpts.Validate(); err != nil {
 			return fmt.Errorf("unable to validate repair options, err: %v", err)
 		}
-	}
-
-	// NB(prateek): FileOpOptions.Jitter needs to be smaller than block size for all
-	// known retention periods.
-	// TODO(prateek): address this concern when we have dynamic namespaces
-	if o.fileOpOpts.Jitter() >= clOpts.RetentionOptions().BlockSize() {
-		return errFileJitterTooSmall
 	}
 
 	return nil
@@ -338,16 +329,6 @@ func (o *options) SetRepairOptions(value repair.Options) Options {
 
 func (o *options) RepairOptions() repair.Options {
 	return o.repairOpts
-}
-
-func (o *options) SetFileOpOptions(value FileOpOptions) Options {
-	opts := *o
-	opts.fileOpOpts = value
-	return &opts
-}
-
-func (o *options) FileOpOptions() FileOpOptions {
-	return o.fileOpOpts
 }
 
 func (o *options) SetEncodingM3TSZPooled() Options {

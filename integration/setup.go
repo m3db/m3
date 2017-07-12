@@ -108,8 +108,7 @@ func newTestSetup(t *testing.T, opts testOptions) (*testSetup, error) {
 
 	storageOpts := storage.NewOptions().
 		SetNamespaceInitializer(namespace.NewStaticInitializer(opts.Namespaces())).
-		SetTickInterval(opts.TickInterval()).
-		SetFileOpOptions(storage.NewFileOpOptions().SetJitter(0)) // no jittering during integration tests by default
+		SetTickInterval(opts.TickInterval())
 
 	nativePooling := strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"
 	if nativePooling {

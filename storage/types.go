@@ -339,15 +339,6 @@ type databaseCleanupManager interface {
 	Report()
 }
 
-// FileOpOptions control the database file operations behavior
-type FileOpOptions interface {
-	// SetJitter sets the jitter for database file operations
-	SetJitter(value time.Duration) FileOpOptions
-
-	// Jitter returns the jitter for database file operations
-	Jitter() time.Duration
-}
-
 // databaseFileSystemManager manages the database related filesystem activities.
 type databaseFileSystemManager interface {
 	// Cleanup cleans up data not needed in the persistent storage.
@@ -526,12 +517,6 @@ type Options interface {
 
 	// RepairOptions returns the repair options
 	RepairOptions() repair.Options
-
-	// SetFileOpOptions sets the file op options
-	SetFileOpOptions(value FileOpOptions) Options
-
-	// FileOpOptions returns the repair options
-	FileOpOptions() FileOpOptions
 
 	// SetBootstrapProcess sets the bootstrap process for the database
 	SetBootstrapProcess(value bootstrap.Process) Options

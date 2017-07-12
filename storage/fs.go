@@ -21,8 +21,6 @@
 package storage
 
 import (
-	"math"
-	"math/rand"
 	"sync"
 	"time"
 
@@ -65,7 +63,6 @@ type fileSystemManager struct {
 	log      xlog.Logger
 	database database
 	opts     Options
-	jitter   time.Duration
 	status   fileOpStatus
 	enabled  bool
 }
@@ -74,19 +71,10 @@ func newFileSystemManager(
 	database database,
 	opts Options,
 ) databaseFileSystemManager {
-	fileOpts := opts.FileOpOptions()
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope().SubScope("fs")
 	fm := newFlushManager(database, scope)
 	cm := newCleanupManager(database, fm, scope)
-
-	var jitter time.Duration
-	if maxJitter := fileOpts.Jitter(); maxJitter > 0 {
-		nowFn := opts.ClockOptions().NowFn()
-		src := rand.NewSource(nowFn().UnixNano())
-		jitter = time.Duration(float64(maxJitter) *
-			(float64(src.Int63()) / float64(math.MaxInt64)))
-	}
 
 	return &fileSystemManager{
 		databaseFlushManager:   fm,
@@ -134,12 +122,11 @@ func (m *fileSystemManager) Run(t time.Time, runType runType, forceType forceTyp
 
 	// NB(xichen): perform data cleanup and flushing sequentially to minimize the impact of disk seeks.
 	flushFn := func() {
-		jitteredTime := t.Add(-m.jitter)
-		if err := m.Cleanup(jitteredTime); err != nil {
-			m.log.Errorf("error when cleaning up data for time %v: %v", jitteredTime, err)
+		if err := m.Cleanup(t); err != nil {
+			m.log.Errorf("error when cleaning up data for time %v: %v", t, err)
 		}
-		if err := m.Flush(jitteredTime); err != nil {
-			m.log.Errorf("error when flushing data for time %v: %v", jitteredTime, err)
+		if err := m.Flush(t); err != nil {
+			m.log.Errorf("error when flushing data for time %v: %v", t, err)
 		}
 		m.Lock()
 		m.status = fileOpNotStarted
