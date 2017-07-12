@@ -251,13 +251,13 @@ func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
 		return fmt.Errorf("unable to log namespace updates: %v", err)
 	}
 
-	// NB(prateek): namespaces updates in properties are first closed,
-	// and then re-added.
-	// TODO(prateek): updates need to be handled better, the current implementation
-	// suffers two problems:
+	// TODO(prateek): namepace updates need to be handled better, the current implementation
+	// updates them namespacesby closing and re-creating them.
+	// This suffers two problems:
 	// (1) it's too expensive to flush all the data, and re-bootstrap it for a namespace
 	// (2) we stop accepting writes during the period between when a namespace is removed
-	// and when it's added back.
+	// and when it's added back. This is worse when you consider a KV update can be propagated
+	// to all nodes at the same time.
 	for _, ns := range updates {
 		removes = append(removes, ns.ID())
 		adds = append(adds, ns)
