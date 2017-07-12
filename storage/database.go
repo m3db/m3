@@ -103,6 +103,7 @@ type db struct {
 
 	scope   tally.Scope
 	metrics databaseMetrics
+	log     xlog.Logger
 
 	errors       xcounter.FrequencyCounter
 	errWindow    time.Duration
@@ -144,6 +145,7 @@ func NewDatabase(
 		namespaces:   make(map[ts.Hash]databaseNamespace),
 		scope:        scope,
 		metrics:      newDatabaseMetrics(scope, iopts.MetricsSamplingRate()),
+		log:          iopts.Logger(),
 		errors:       xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
 		errWindow:    opts.ErrorWindowForLoad(),
 		errThreshold: opts.ErrorThresholdForLoad(),
@@ -199,6 +201,52 @@ func NewDatabase(
 	return d, nil
 }
 
+func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
+	d.Lock()
+	defer d.Unlock()
+
+	removes, adds, updates := d.namespaceDeltaWithLock(newNamespaces)
+	if err := d.logNamespaceUpdate(removes, adds, updates); err != nil {
+		enrichedErr := fmt.Errorf("unable to log namespace updates: %v", err)
+		d.log.Errorf("%v", enrichedErr)
+		return enrichedErr
+	}
+
+	// TODO(prateek): namepace updates need to be handled better, the current implementation
+	// updates namespaces by closing and re-creating them.
+	// This suffers two problems:
+	// (1) it's too expensive to flush all the data, and re-bootstrap it for a namespace
+	// (2) we stop accepting writes during the period between when a namespace is removed
+	// until it's added back. This is worse when you consider a KV update can propagate
+	// to all nodes at the same time.
+	// (3): we are not controlling bg processing (repairs/bootstrapping/etc) whilst updating
+	// active namespaces. This means removes
+	for _, ns := range updates {
+		removes = append(removes, ns.ID())
+		adds = append(adds, ns)
+	}
+
+	// remove any namespaces marked for removal
+	if err := d.removeNamespacesWithLock(removes); err != nil {
+		enrichedErr := fmt.Errorf("unable to remove namespaces: %v", err)
+		d.log.Errorf("%v", enrichedErr)
+		return enrichedErr
+	}
+
+	// add any namespaces marked for addition
+	if err := d.addNamespacesWithLock(adds); err != nil {
+		enrichedErr := fmt.Errorf("unable to add namespaces: %v", err)
+		d.log.Errorf("%v", enrichedErr)
+		return err
+	}
+
+	// TODO(prateek): we need to always queue a bootstrap here, but this function does a
+	// check if `d.bootstraps > 0`. Why?
+	d.queueBootstrapWithLock()
+
+	return nil
+}
+
 func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ts.ID, []namespace.Metadata, []namespace.Metadata) {
 	var (
 		existing = d.namespaces
@@ -240,41 +288,6 @@ func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ts.ID, []nam
 	return removes, adds, updates
 }
 
-func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
-	d.Lock()
-	defer d.Unlock()
-
-	removes, adds, updates := d.namespaceDeltaWithLock(newNamespaces)
-	if err := d.logNamespaceUpdate(removes, adds, updates); err != nil {
-		return fmt.Errorf("unable to log namespace updates: %v", err)
-	}
-
-	// TODO(prateek): do we need to pause bg processing (repairs/bootstrapping/etc) while
-	// we're changing active namespaces?
-
-	// TODO(prateek): namepace updates need to be handled better, the current implementation
-	// updates namespaces by closing and re-creating them.
-	// This suffers two problems:
-	// (1) it's too expensive to flush all the data, and re-bootstrap it for a namespace
-	// (2) we stop accepting writes during the period between when a namespace is removed
-	// and when it's added back. This is worse when you consider a KV update can be propagated
-	// to all nodes at the same time.
-	for _, ns := range updates {
-		removes = append(removes, ns.ID())
-		adds = append(adds, ns)
-	}
-
-	// remove any namespaces marked for removal
-	if err := d.removeNamespacesWithLock(removes); err != nil {
-		return err
-	}
-
-	// add any namespaces marked for addition
-	return d.addNamespacesWithLock(adds)
-
-	// TODO(prateek): queueBootstrap() here?
-}
-
 func (d *db) logNamespaceUpdate(removes []ts.ID, adds, updates []namespace.Metadata) error {
 	removalString, err := tsIDs(removes).String()
 	if err != nil {
@@ -292,8 +305,7 @@ func (d *db) logNamespaceUpdate(removes []ts.ID, adds, updates []namespace.Metad
 	}
 
 	// log scheduled operation
-	log := d.opts.InstrumentOptions().Logger()
-	log.WithFields(
+	d.log.WithFields(
 		xlog.NewLogField("removals", removalString),
 		xlog.NewLogField("adds", addString),
 		xlog.NewLogField("updates", updateString),
@@ -407,10 +419,10 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	for _, ns := range d.namespaces {
 		ns.AssignShardSet(shardSet)
 	}
-	d.queueBootstrap()
+	d.queueBootstrapWithLock()
 }
 
-func (d *db) queueBootstrap() {
+func (d *db) queueBootstrapWithLock() {
 	// NB(r): Trigger another bootstrap, if already bootstrapping this will
 	// enqueue a new bootstrap to execute before the current bootstrap
 	// completes
