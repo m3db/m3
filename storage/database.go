@@ -250,7 +250,7 @@ func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
 	}
 
 	// TODO(prateek): namepace updates need to be handled better, the current implementation
-	// updates them namespacesby closing and re-creating them.
+	// updates namespaces by closing and re-creating them.
 	// This suffers two problems:
 	// (1) it's too expensive to flush all the data, and re-bootstrap it for a namespace
 	// (2) we stop accepting writes during the period between when a namespace is removed
