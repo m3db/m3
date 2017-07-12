@@ -27,7 +27,7 @@ import (
 
 // Options controls namespace behavior
 type Options interface {
-	// Validate validates the registry
+	// Validate validates the options
 	Validate() error
 
 	// Equal returns true if the provide value is equal to this one
