@@ -56,8 +56,6 @@ var (
 
 type sleepFn func(time.Duration)
 
-type newWriterFn func(time.Duration) FileSetWriter
-
 // persistManager is responsible for persisting series segments onto local filesystem.
 // It is not thread-safe.
 type persistManager struct {
