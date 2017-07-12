@@ -34,7 +34,7 @@ import (
 
 var (
 	errAlreadyWatching = errors.New("database is already watching namespace updates")
-	errNotWatching     = errors.New("databse is not watching for namespace updates")
+	errNotWatching     = errors.New("database is not watching for namespace updates")
 )
 
 type dbNamespaceWatch struct {
@@ -79,8 +79,6 @@ func newDatabaseNamespaceWatch(
 	}
 }
 
-// TODO(prateek): write tests for databaseNamespaceWatch
-
 func (w *dbNamespaceWatch) Start() error {
 	w.Lock()
 	defer w.Unlock()
@@ -89,6 +87,7 @@ func (w *dbNamespaceWatch) Start() error {
 		return errAlreadyWatching
 	}
 
+	w.watching = true
 	w.doneCh = make(chan struct{}, 1)
 	w.closedCh = make(chan struct{}, 1)
 
@@ -101,7 +100,7 @@ func (w *dbNamespaceWatch) startWatch() {
 	reportClosingCh := make(chan struct{}, 1)
 	reportClosedCh := make(chan struct{}, 1)
 	go func() {
-		ticker := time.NewTicker(5 * time.Second)
+		ticker := time.NewTicker(1 * time.Second)
 		for {
 			select {
 			case <-ticker.C:
@@ -126,14 +125,18 @@ func (w *dbNamespaceWatch) startWatch() {
 			return
 		case <-w.watch.C():
 			w.metrics.updates.Inc(1)
-			w.db.updateOwnedNamespaces(w.watch.Get())
+			newMap := w.watch.Get()
+			w.db.updateOwnedNamespaces(newMap)
 		}
 	}
 }
 
 func (w *dbNamespaceWatch) reportMetrics() {
-	mds := w.watch.Get().Metadatas()
-	w.metrics.activeNamespaces.Update(float64(len(mds)))
+	m := w.watch.Get()
+	if m == nil {
+		w.metrics.activeNamespaces.Update(0)
+	}
+	w.metrics.activeNamespaces.Update(float64(len(m.Metadatas())))
 }
 
 func (w *dbNamespaceWatch) Stop() error {
@@ -145,7 +148,6 @@ func (w *dbNamespaceWatch) Stop() error {
 	}
 
 	w.watching = false
-
 	close(w.doneCh)
 	<-w.closedCh
 
