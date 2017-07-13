@@ -172,31 +172,35 @@ func NewDatabase(
 		return nil, errCommitLogStrategyUnknown
 	}
 
-	nsInit := opts.NamespaceInitializer()
-	nsReg, err := nsInit.Init()
-	if err != nil {
-		return nil, err
-	}
-
-	watch, err := nsReg.Watch()
-	if err != nil {
-		return nil, err
-	}
-
-	<-watch.C() // wait till first value is recieved
-
-	nsMap := watch.Get()
-	if err := d.updateOwnedNamespaces(nsMap); err != nil {
-		return nil, err
-	}
-	d.nsWatch = newDatabaseNamespaceWatch(d, watch, iopts)
-
 	mediator, err := newMediator(d,
 		opts.SetInstrumentOptions(iopts.SetMetricsScope(scope)))
 	if err != nil {
 		return nil, err
 	}
 	d.mediator = mediator
+
+	// initialize namespaces
+	nsInit := opts.NamespaceInitializer()
+	nsReg, err := nsInit.Init()
+	if err != nil {
+		return nil, err
+	}
+
+	// get a namespace watch
+	watch, err := nsReg.Watch()
+	if err != nil {
+		return nil, err
+	}
+
+	// wait till first value is recieved
+	<-watch.C()
+	d.nsWatch = newDatabaseNamespaceWatch(d, watch, iopts)
+
+	// update with initial values
+	nsMap := watch.Get()
+	if err := d.updateOwnedNamespaces(nsMap); err != nil {
+		return nil, err
+	}
 
 	return d, nil
 }
@@ -240,9 +244,10 @@ func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
 		return err
 	}
 
-	// TODO(prateek): we need to always queue a bootstrap here, but this function does a
-	// check if `d.bootstraps > 0`. Why?
-	d.queueBootstrapWithLock()
+	// enqueue bootstraps if new namespaces
+	if len(adds) > 0 || len(updates) > 0 {
+		d.queueBootstrapWithLock()
+	}
 
 	return nil
 }
