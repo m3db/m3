@@ -22,6 +22,7 @@ package storage
 
 import (
 	"errors"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -218,6 +219,7 @@ func (m *bootstrapManager) bootstrap() error {
 		m.log.WithFields(
 			xlog.NewLogField("namespace", namespace.ID().String()),
 			xlog.NewLogField("duration", end.Sub(start).String()),
+			xlog.NewLogField("stack", string(debug.Stack())),
 		).Info("bootstrap finished")
 	}
 
