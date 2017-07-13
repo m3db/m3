@@ -124,6 +124,12 @@ func (w *dbNamespaceWatch) startWatch() {
 			close(w.closedCh)
 			return
 		case <-w.watch.C():
+			w.Lock()
+			if !w.watching {
+				continue
+			}
+			w.Unlock()
+
 			w.metrics.updates.Inc(1)
 			newMap := w.watch.Get()
 			w.db.updateOwnedNamespaces(newMap)
