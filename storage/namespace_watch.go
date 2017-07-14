@@ -39,14 +39,14 @@ var (
 
 type dbNamespaceWatch struct {
 	sync.Mutex
+
 	watching bool
 	watch    namespace.Watch
 	doneCh   chan struct{}
 	closedCh chan struct{}
 
-	db  database
-	log xlog.Logger
-
+	db      database
+	log     xlog.Logger
 	metrics dbNamespaceWatchMetrics
 }
 

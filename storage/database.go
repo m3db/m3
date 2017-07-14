@@ -432,7 +432,12 @@ func (d *db) queueBootstrapWithLock() {
 	// enqueue a new bootstrap to execute before the current bootstrap
 	// completes
 	if d.bootstraps > 0 {
-		go d.mediator.Bootstrap()
+		d.log.Errorf("queuing bootstraps")
+		go func() {
+			if err := d.mediator.Bootstrap(); err != nil {
+				d.log.Errorf("error while bootstrapping: %v", err)
+			}
+		}()
 	}
 }
 

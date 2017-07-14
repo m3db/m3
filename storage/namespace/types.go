@@ -21,8 +21,12 @@
 package namespace
 
 import (
+	"time"
+
+	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/instrument"
 )
 
 // Options controls namespace behavior
@@ -122,4 +126,36 @@ type Registry interface {
 type Initializer interface {
 	// Init will return a new Registry
 	Init() (Registry, error)
+}
+
+// DynamicOptions is a set of options for dynamic namespace registry
+type DynamicOptions interface {
+	// Validate validates the options
+	Validate() error
+
+	// SetInstrumentOptions sets the instrumentation options
+	SetInstrumentOptions(value instrument.Options) DynamicOptions
+
+	// InstrumentOptions returns the instrumentation options
+	InstrumentOptions() instrument.Options
+
+	// SetConfigServiceClient sets the client of ConfigService
+	SetConfigServiceClient(c client.Client) DynamicOptions
+
+	// ConfigServiceClient returns the client of ConfigService
+	ConfigServiceClient() client.Client
+
+	// SetNamespaceRegistryKey sets the kv-store key used for the
+	// NamespaceRegistry
+	SetNamespaceRegistryKey(k string) DynamicOptions
+
+	// NamespaceRegistryKey returns the kv-store key used for the
+	// NamespaceRegistry
+	NamespaceRegistryKey() string
+
+	// SetInitTimeout sets the waiting time for dynamic topology to be initialized
+	SetInitTimeout(value time.Duration) DynamicOptions
+
+	// InitTimeout returns the waiting time for dynamic topology to be initialized
+	InitTimeout() time.Duration
 }
