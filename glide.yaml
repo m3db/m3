@@ -30,7 +30,7 @@ import:
   - thrift
 
 - package: gopkg.in/vmihailenco/msgpack.v2
-  version: master
+  version: f4f8982de4ef0de18be76456617cc3f5d8d8141e
 
 - package: github.com/willf/bitset
   version: 5c3c0fce48842b2c0bbaa99b4e61b0175d84b47c
