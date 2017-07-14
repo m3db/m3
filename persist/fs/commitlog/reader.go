@@ -86,6 +86,7 @@ type reader struct {
 	outBufs            []chan *readResponse
 	cancelCtx          context.Context
 	cancelFunc         context.CancelFunc
+	shutdownChan       chan error
 	metadataDecoder    encoding.Decoder
 	metadataLookup     map[uint64]Series
 	metadataLookupLock sync.Mutex
@@ -114,6 +115,7 @@ func newCommitLogReader(opts Options) commitLogReader {
 		outBufs:            outBufs,
 		cancelCtx:          cancelCtx,
 		cancelFunc:         cancelFunc,
+		shutdownChan:       make(chan error),
 		metadataDecoder:    msgpack.NewDecoder(decodingOpts),
 		metadataLookup:     make(map[uint64]Series),
 		metadataLookupLock: sync.Mutex{},
@@ -171,6 +173,7 @@ func (r *reader) readLoop() {
 			for _, decoderBuf := range r.decoderBufs {
 				close(decoderBuf)
 			}
+			r.shutdownChan <- r.close()
 			return
 		default:
 			data, err := r.readChunk()
@@ -302,17 +305,21 @@ func (r *reader) readInfo() (schema.LogInfo, error) {
 }
 
 func (r *reader) Close() error {
+	// Shutdown the readLoop goroutine which will shut down the decoderLoops
+	// and close the fd
+	r.cancelFunc()
+
+	return <-r.shutdownChan
+}
+
+func (r *reader) close() error {
 	if r.chunkReader.fd == nil {
 		return nil
 	}
-
-	if err := r.chunkReader.fd.Close(); err != nil {
+	err := r.chunkReader.fd.Close()
+	if err != nil {
 		return err
 	}
-
-	// Shutdown the readLoop goroutine which will shut down the decoderLoops
-	r.cancelFunc()
-
 	r.chunkReader.fd = nil
 	r.metadataLookup = make(map[uint64]Series)
 	return nil
