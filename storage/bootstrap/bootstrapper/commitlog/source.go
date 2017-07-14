@@ -123,51 +123,9 @@ func (s *commitLogSource) Read(
 		encoderChans = append(encoderChans, make(chan encoderArg, 1000))
 	}
 
-	// One routine to handle IO
-	go func() {
-		for iter.Next() {
-			series, dp, unit, annotation := iter.Current()
-			ranges, ok := shardsTimeRanges[series.Shard]
-			if !ok {
-				// Not bootstrapping this shard
-				continue
-			}
-
-			blockStart := dp.Timestamp.Truncate(blockSize)
-			blockEnd := blockStart.Add(blockSize)
-			blockRange := xtime.Range{
-				Start: blockStart,
-				End:   blockEnd,
-			}
-			if !ranges.Overlaps(blockRange) {
-				// Data in this block does not match the requested ranges
-				continue
-			}
-
-			// Distribute work such that each encoder goroutine is responsible for
-			// approximately numShards / numConc shards. This also means that all
-			// datapoints for a given shard/series will be processed in a serialized
-			// manner.
-			encoderChans[series.Shard%numConc] <- struct {
-				series     commitlog.Series
-				dp         ts.Datapoint
-				unit       xtime.Unit
-				annotation ts.Annotation
-				blockStart time.Time
-			}{
-				series:     series,
-				dp:         dp,
-				unit:       unit,
-				annotation: annotation,
-				blockStart: blockStart,
-			}
-		}
-		for _, encoderChan := range encoderChans {
-			close(encoderChan)
-		}
-	}()
-
-	// numConc routines to handle M3TSZ encoding
+	// Spin up numConc background go-routines to handle M3TSZ encoding. This must
+	// happen before we start reading to prevent infinitely blocking writes to
+	// the encoderChans.
 	wg := sync.WaitGroup{}
 	workerErrs := make([]int, numConc, numConc)
 	for workerNum, encoderChan := range encoderChans {
@@ -228,6 +186,47 @@ func (s *commitLogSource) Read(
 			}
 			wg.Done()
 		}(workerNum, encoderChan)
+	}
+
+	for iter.Next() {
+		series, dp, unit, annotation := iter.Current()
+		ranges, ok := shardsTimeRanges[series.Shard]
+		if !ok {
+			// Not bootstrapping this shard
+			continue
+		}
+
+		blockStart := dp.Timestamp.Truncate(blockSize)
+		blockEnd := blockStart.Add(blockSize)
+		blockRange := xtime.Range{
+			Start: blockStart,
+			End:   blockEnd,
+		}
+		if !ranges.Overlaps(blockRange) {
+			// Data in this block does not match the requested ranges
+			continue
+		}
+
+		// Distribute work such that each encoder goroutine is responsible for
+		// approximately numShards / numConc shards. This also means that all
+		// datapoints for a given shard/series will be processed in a serialized
+		// manner.
+		encoderChans[series.Shard%numConc] <- struct {
+			series     commitlog.Series
+			dp         ts.Datapoint
+			unit       xtime.Unit
+			annotation ts.Annotation
+			blockStart time.Time
+		}{
+			series:     series,
+			dp:         dp,
+			unit:       unit,
+			annotation: annotation,
+			blockStart: blockStart,
+		}
+	}
+	for _, encoderChan := range encoderChans {
+		close(encoderChan)
 	}
 
 	// Block until all data has been read and encoded by the worker goroutines
