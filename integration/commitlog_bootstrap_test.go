@@ -90,7 +90,9 @@ func TestCommitLogBootstrap(t *testing.T) {
 		}
 
 		blockConfig = append(blockConfig, generate.BlockConfig{
-			IDs: name, NumPoints: rand.Intn(100) + 1, Start: now.Add(-2 * blockSize).Add(time.Duration(i) * time.Minute),
+			IDs: name,
+			NumPoints: rand.Intn(100) + 1,
+			Start: now.Add(-2 * blockSize).Add(time.Duration(i) * time.Minute),
 		}
 	}
 	seriesMaps := generate.BlocksByStart(blockConfig)
