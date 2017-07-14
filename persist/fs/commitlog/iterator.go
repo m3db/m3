@@ -67,6 +67,7 @@ func NewIterator(opts Options) (Iterator, error) {
 	iops := opts.InstrumentOptions()
 	iops = iops.SetMetricsScope(iops.MetricsScope().SubScope("iterator"))
 	fsopts := opts.FilesystemOptions()
+	// Get a list of all the commit log files in a specified DIR
 	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
 	if err != nil {
 		return nil, err
@@ -95,6 +96,7 @@ func (i *iterator) Next() bool {
 	var err error
 	i.read.series, i.read.datapoint, i.read.unit, i.read.annotation, err = i.reader.Read()
 	if err == io.EOF {
+		i.reader.Close()
 		// Try the next reader
 		i.reader = nil
 		return i.Next()
@@ -146,6 +148,8 @@ func (i *iterator) nextReader() bool {
 		i.reader = nil
 	}
 
+	// Shift list of files to read left <--
+	// Basically popping off the left side until its empty
 	file := i.files[0]
 	i.files = i.files[1:]
 

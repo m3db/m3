@@ -22,9 +22,11 @@ package commitlog
 
 import (
 	"bufio"
+	"context"
 	"encoding/binary"
 	"errors"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3db/digest"
@@ -57,28 +59,67 @@ type commitLogReader interface {
 	Close() error
 }
 
+type readResponse struct {
+	series     Series
+	datapoint  ts.Datapoint
+	unit       xtime.Unit
+	annotation ts.Annotation
+	resultErr  error
+}
+
+type decoderArg struct {
+	bytes []byte
+	err   error
+}
+
+// TODO: Add to options
+var numConc = 4
+
 type reader struct {
-	opts            Options
-	bytesPool       pool.CheckedBytesPool
-	chunkReader     *chunkReader
-	sizeBuffer      []byte
-	dataBuffer      []byte
-	logDecoder      encoding.Decoder
-	metadataDecoder encoding.Decoder
-	metadataLookup  map[uint64]Series
+	opts               Options
+	bytesPool          pool.CheckedBytesPool
+	chunkReader        *chunkReader
+	sizeBuffer         []byte
+	dataBuffer         []byte
+	logDecoder         encoding.Decoder
+	decoderBufs        []chan decoderArg
+	outBufs            []chan *readResponse
+	cancelCtx          context.Context
+	cancelFunc         context.CancelFunc
+	metadataDecoder    encoding.Decoder
+	metadataLookup     map[uint64]Series
+	metadataLookupLock sync.Mutex
+	nextIndex          int
 }
 
 func newCommitLogReader(opts Options) commitLogReader {
 	decodingOpts := opts.FilesystemOptions().DecodingOptions()
-	return &reader{
-		opts:            opts,
-		bytesPool:       opts.BytesPool(),
-		chunkReader:     newChunkReader(opts.FlushSize()),
-		sizeBuffer:      make([]byte, binary.MaxVarintLen64),
-		logDecoder:      msgpack.NewDecoder(decodingOpts),
-		metadataDecoder: msgpack.NewDecoder(decodingOpts),
-		metadataLookup:  make(map[uint64]Series),
+	cancelCtx, cancelFunc := context.WithCancel(context.Background())
+	decoderBufs := []chan decoderArg{}
+	for i := 0; i < numConc; i++ {
+		decoderBufs = append(decoderBufs, make(chan decoderArg, 100))
 	}
+	outBufs := []chan *readResponse{}
+	for i := 0; i < numConc; i++ {
+		outBufs = append(outBufs, make(chan *readResponse, 100))
+	}
+
+	reader := &reader{
+		opts:               opts,
+		bytesPool:          opts.BytesPool(),
+		chunkReader:        newChunkReader(opts.FlushSize()),
+		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
+		logDecoder:         msgpack.NewDecoder(decodingOpts),
+		decoderBufs:        decoderBufs,
+		outBufs:            outBufs,
+		cancelCtx:          cancelCtx,
+		cancelFunc:         cancelFunc,
+		metadataDecoder:    msgpack.NewDecoder(decodingOpts),
+		metadataLookup:     make(map[uint64]Series),
+		metadataLookupLock: sync.Mutex{},
+		nextIndex:          0,
+	}
+	return reader
 }
 
 func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
@@ -100,6 +141,12 @@ func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
 	start := time.Unix(0, info.Start)
 	duration := time.Duration(info.Duration)
 	index := int(info.Index)
+
+	go r.readLoop()
+	// go r.mergeLoop()
+	for i, decoderBuf := range r.decoderBufs {
+		go r.decoderLoop(decoderBuf, r.outBufs[i])
+	}
 	return start, duration, index, nil
 }
 
@@ -110,52 +157,119 @@ func (r *reader) Read() (
 	annotation ts.Annotation,
 	resultErr error,
 ) {
-	entry, err := r.readEntry()
-	if err != nil {
-		resultErr = err
-		return
-	}
+	rr := <-r.outBufs[r.nextIndex%numConc]
+	r.nextIndex++
+	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.resultErr
+}
 
-	if len(entry.Metadata) != 0 {
-		r.metadataDecoder.Reset(entry.Metadata)
-		decoded, err := r.metadataDecoder.DecodeLogMetadata()
-		if err != nil {
-			resultErr = err
+func (r *reader) readLoop() {
+	index := 0
+	for {
+		select {
+		case <-r.cancelCtx.Done():
+			for _, decoderBuf := range r.decoderBufs {
+				close(decoderBuf)
+			}
 			return
-		}
+		default:
+			data, err := r.readChunk()
+			// TODO: Special case if err == io.EOF here?
 
-		id := r.bytesPool.Get(len(decoded.ID))
-		id.IncRef()
-		defer id.DecRef()
-		id.AppendAll(decoded.ID)
-
-		namespace := r.bytesPool.Get(len(decoded.Namespace))
-		namespace.IncRef()
-		defer namespace.DecRef()
-		namespace.AppendAll(decoded.Namespace)
-
-		r.metadataLookup[entry.Index] = Series{
-			UniqueIndex: entry.Index,
-			ID:          ts.BinaryID(id),
-			Namespace:   ts.BinaryID(namespace),
-			Shard:       uint32(decoded.Shard),
+			// Distribute the decoding work in round-robin fashion so that when we
+			// read round-robin, we get the data back in the original order.
+			r.decoderBufs[index%numConc] <- decoderArg{
+				bytes: data,
+				err:   err,
+			}
+			index++
 		}
 	}
+}
 
-	metadata, ok := r.metadataLookup[entry.Index]
-	if !ok {
-		resultErr = errCommitLogReaderMissingLogMetadata
-		return
-	}
+func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan *readResponse) {
+	decodingOpts := r.opts.FilesystemOptions().DecodingOptions()
+	decoder := msgpack.NewDecoder(decodingOpts)
+	metadataDecoder := msgpack.NewDecoder(decodingOpts)
 
-	series = metadata
-	datapoint = ts.Datapoint{
-		Timestamp: time.Unix(0, entry.Timestamp),
-		Value:     entry.Value,
+	for arg := range inBuf {
+		readResponse := &readResponse{}
+		if arg.err != nil {
+			readResponse.resultErr = arg.err
+			outBuf <- readResponse
+			continue
+		}
+		decoder.Reset(arg.bytes)
+		entry, err := decoder.DecodeLogEntry()
+		if err != nil {
+			readResponse.resultErr = err
+			outBuf <- readResponse
+			continue
+		}
+
+		if len(entry.Metadata) != 0 {
+			metadataDecoder.Reset(entry.Metadata)
+			decoded, err := metadataDecoder.DecodeLogMetadata()
+			if err != nil {
+				readResponse.resultErr = err
+				outBuf <- readResponse
+				continue
+			}
+
+			id := r.bytesPool.Get(len(decoded.ID))
+			id.IncRef()
+			id.AppendAll(decoded.ID)
+
+			namespace := r.bytesPool.Get(len(decoded.Namespace))
+			namespace.IncRef()
+			namespace.AppendAll(decoded.Namespace)
+
+			r.metadataLookupLock.Lock()
+			r.metadataLookup[entry.Index] = Series{
+				UniqueIndex: entry.Index,
+				ID:          ts.BinaryID(id),
+				Namespace:   ts.BinaryID(namespace),
+				Shard:       uint32(decoded.Shard),
+			}
+			r.metadataLookupLock.Unlock()
+			namespace.DecRef()
+			id.DecRef()
+		}
+
+		numMetadataMiss := 0
+		var metadata Series
+		var ok bool
+		for true {
+			r.metadataLookupLock.Lock()
+			metadata, ok = r.metadataLookup[entry.Index]
+			r.metadataLookupLock.Unlock()
+
+			if ok {
+				break
+			}
+
+			// Race condition where the metadata is currently being processed by
+			// another decoderLoop goroutine, but that routine has not updated the
+			// metadataLookup map yet.
+			if !ok && numMetadataMiss < 3 {
+				numMetadataMiss++
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+
+			readResponse.resultErr = errCommitLogReaderMissingLogMetadata
+			outBuf <- readResponse
+			break
+		}
+
+		readResponse.series = metadata
+		readResponse.datapoint = ts.Datapoint{
+			Timestamp: time.Unix(0, entry.Timestamp),
+			Value:     entry.Value,
+		}
+		readResponse.unit = xtime.Unit(byte(entry.Unit))
+		readResponse.annotation = entry.Annotation
+		outBuf <- readResponse
 	}
-	unit = xtime.Unit(byte(entry.Unit))
-	annotation = entry.Annotation
-	return
 }
 
 func (r *reader) readChunk() ([]byte, error) {
@@ -165,16 +279,10 @@ func (r *reader) readChunk() ([]byte, error) {
 		return nil, err
 	}
 
-	// Extend buffer as necessary
-	if len(r.dataBuffer) < int(size) {
-		diff := int(size) - len(r.dataBuffer)
-		for i := 0; i < diff; i++ {
-			r.dataBuffer = append(r.dataBuffer, 0)
-		}
-	}
+	newBuf := make([]byte, size, size)
 
 	// Size the target buffer for reading and unmarshalling
-	buffer := r.dataBuffer[:size]
+	buffer := newBuf[:size]
 
 	// Read message
 	if _, err := r.chunkReader.Read(buffer); err != nil {
@@ -192,15 +300,6 @@ func (r *reader) readInfo() (schema.LogInfo, error) {
 	return r.logDecoder.DecodeLogInfo()
 }
 
-func (r *reader) readEntry() (schema.LogEntry, error) {
-	data, err := r.readChunk()
-	if err != nil {
-		return emptyLogEntry, err
-	}
-	r.logDecoder.Reset(data)
-	return r.logDecoder.DecodeLogEntry()
-}
-
 func (r *reader) Close() error {
 	if r.chunkReader.fd == nil {
 		return nil
@@ -209,6 +308,9 @@ func (r *reader) Close() error {
 	if err := r.chunkReader.fd.Close(); err != nil {
 		return err
 	}
+
+	// Shutdown the readLoop goroutine which will shut down the decoderLoops
+	r.cancelFunc()
 
 	r.chunkReader.fd = nil
 	r.metadataLookup = make(map[uint64]Series)
@@ -318,6 +420,7 @@ func (r *chunkReader) Read(p []byte) (int, error) {
 	return read, err
 }
 
+// Doesn't modify anthing, maybe this is more like peek?
 func (r *chunkReader) ReadByte() (c byte, err error) {
 	if _, err := r.Read(r.charBuff); err != nil {
 		return byte(0), err

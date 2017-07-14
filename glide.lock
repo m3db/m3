@@ -1,5 +1,5 @@
-hash: db31f8e4a8d2ef268db1a74eb24a5ad032ca5976a338f897dbba09394ff27049
-updated: 2017-06-19T13:23:16.778444112-04:00
+hash: 496a8a8e24eb8ea51ddd2c4f7b91fd756a967fb5febd8535e873940efc3b13f5
+updated: 2017-07-13T10:05:34.240038157-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -216,7 +216,7 @@ imports:
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
 - name: gopkg.in/vmihailenco/msgpack.v2
-  version: a1382b1ce0c749733b814157c245e02cc1f41076
+  version: f4f8982de4ef0de18be76456617cc3f5d8d8141e
   subpackages:
   - codes
 - name: gopkg.in/yaml.v2
