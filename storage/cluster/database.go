@@ -198,17 +198,25 @@ func (d *clusterDB) activeTopologyWatch() {
 		}
 	}()
 
+	defer func() {
+		// Issue closing signal to report channel
+		close(reportClosingCh)
+		// Wait for report channel to close
+		<-reportClosedCh
+		// Signal all closed
+		close(d.closedCh)
+	}()
+
 	for {
 		select {
 		case <-d.doneCh:
-			// Issue closing signal to report channel
-			close(reportClosingCh)
-			// Wait for report channel to close
-			<-reportClosedCh
-			// Signal all closed
-			close(d.closedCh)
 			return
-		case <-d.watch.C():
+		case _, ok := <-d.watch.C():
+			// NB(prateek): cluster/Database shares the topology with client/Session, so we
+			// explicitly check if the watch channel has been closed
+			if !ok {
+				return
+			}
 			shardSet := d.hostOrEmptyShardSet(d.watch.Get())
 			d.Database.AssignShardSet(shardSet)
 		}

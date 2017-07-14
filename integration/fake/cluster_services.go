@@ -334,6 +334,7 @@ func (s *m3ClusterService) SetReplication(
 	r services.ServiceReplication,
 ) services.Service {
 	s.Lock()
+	defer s.Unlock()
 	s.replication = r
 	return s
 }
@@ -341,6 +342,7 @@ func (s *m3ClusterService) SetReplication(
 func (s *m3ClusterService) SetSharding(
 	ss services.ServiceSharding,
 ) services.Service {
+	s.Lock()
 	defer s.Unlock()
 	s.sharding = ss
 	return s
