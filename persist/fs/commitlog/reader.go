@@ -143,7 +143,6 @@ func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
 	index := int(info.Index)
 
 	go r.readLoop()
-	// go r.mergeLoop()
 	for i, decoderBuf := range r.decoderBufs {
 		go r.decoderLoop(decoderBuf, r.outBufs[i])
 	}
@@ -157,6 +156,8 @@ func (r *reader) Read() (
 	annotation ts.Annotation,
 	resultErr error,
 ) {
+	// Data is written into these channels in round-robin fashion, so reading them
+	// one at a time in the same order results in an ordered stream.
 	rr := <-r.outBufs[r.nextIndex%numConc]
 	r.nextIndex++
 	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.resultErr
@@ -420,7 +421,6 @@ func (r *chunkReader) Read(p []byte) (int, error) {
 	return read, err
 }
 
-// Doesn't modify anthing, maybe this is more like peek?
 func (r *chunkReader) ReadByte() (c byte, err error) {
 	if _, err := r.Read(r.charBuff); err != nil {
 		return byte(0), err

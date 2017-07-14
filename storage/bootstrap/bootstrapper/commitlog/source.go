@@ -331,7 +331,7 @@ func (s *commitLogSource) Read(
 	wg.Wait()
 
 	endMergeTime := time.Now()
-	s.log.Errorf("Complete merge took: %f\n", endMergeTime.Sub(startMergeTime).Seconds())
+	s.log.Infof("Complete merge took: %fs\n", endMergeTime.Sub(startMergeTime).Seconds())
 	errSum = 0
 	for _, numErrs := range shardErrs {
 		errSum += numErrs
