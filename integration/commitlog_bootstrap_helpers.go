@@ -103,6 +103,9 @@ func writeCommitLog(
 		// write this point
 		idx, ok := indexes[point.ID.String()]
 		require.True(t, ok)
+		// fmt.Println("ID: ", point.ID)
+		// fmt.Println("Shard: ", shardSet.Lookup(point.ID))
+		// fmt.Println("-------------------------------------")
 		cId := commitlog.Series{
 			Namespace:   namespace,
 			Shard:       shardSet.Lookup(point.ID),

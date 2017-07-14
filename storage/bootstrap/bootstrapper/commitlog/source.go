@@ -49,7 +49,7 @@ type encoder struct {
 	enc         encoding.Encoder
 }
 
-type encoderMap struct {
+type encodersByTime struct {
 	id ts.ID
 	// int64 instead of time.Time because there is an optimized map access pattern
 	// for i64's
@@ -109,7 +109,7 @@ func (s *commitLogSource) Read(
 
 	var (
 		numShards = len(shardsTimeRanges)
-		unmerged  = make([]map[ts.Hash]encoderMap, numShards, numShards)
+		unmerged  = make([]map[ts.Hash]encodersByTime, numShards, numShards)
 		// TODO: Add to opts
 		numConc     = uint32(4)
 		bopts       = s.opts.ResultOptions()
@@ -142,13 +142,13 @@ func (s *commitLogSource) Read(
 
 				unmergedShard := unmerged[series.Shard]
 				if unmergedShard == nil {
-					unmergedShard = make(map[ts.Hash]encoderMap)
+					unmergedShard = make(map[ts.Hash]encodersByTime)
 					unmerged[series.Shard] = unmergedShard
 				}
 
 				unmergedSeries, ok := unmergedShard[series.ID.Hash()]
 				if !ok {
-					unmergedSeries = encoderMap{
+					unmergedSeries = encodersByTime{
 						id:       series.ID,
 						encoders: make(map[int64][]encoder)}
 					unmergedShard[series.ID.Hash()] = unmergedSeries
@@ -242,21 +242,20 @@ func (s *commitLogSource) Read(
 		s.log.Errorf("error reading commit log: %v", err)
 	}
 
-	startMergeTime := time.Now()
 	shardErrs := make([]int, numShards, numShards)
 	shardEmptyErrs := make([]int, numShards, numShards)
 	bootstrapResult := result.NewBootstrapResult()
 	blocksPool := bopts.DatabaseBlockOptions().DatabaseBlockPool()
 	multiReaderIteratorPool := blopts.MultiReaderIteratorPool()
 	// Controls how many shards can be merged in parallel
-	mergeSemaphore := make(chan bool, numConc)
+	mergeSemaphore := make(chan bool, 4)
 	bootstrapResultLock := sync.Mutex{}
 	wg = sync.WaitGroup{}
 
 	for shard, unmergedShard := range unmerged {
 		mergeSemaphore <- true
 		wg.Add(1)
-		go func(shard int, unmergedShard map[ts.Hash]encoderMap) {
+		go func(shard int, unmergedShard map[ts.Hash]encodersByTime) {
 			shardResult := result.NewShardResult(len(unmergedShard), s.opts.ResultOptions())
 			for _, unmergedBlocks := range unmergedShard {
 				blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders), blopts)
@@ -329,8 +328,6 @@ func (s *commitLogSource) Read(
 	// Wait for all merge goroutines to complete
 	wg.Wait()
 
-	endMergeTime := time.Now()
-	s.log.Infof("Complete merge took: %fs\n", endMergeTime.Sub(startMergeTime).Seconds())
 	errSum = 0
 	for _, numErrs := range shardErrs {
 		errSum += numErrs
