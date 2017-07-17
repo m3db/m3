@@ -643,7 +643,7 @@ func (d *db) ownedNamespacesWithLock() []databaseNamespace {
 
 func (d *db) getOwnedNamespaces() []databaseNamespace {
 	d.RLock()
-	d.RUnlock()
+	defer d.RUnlock()
 	return d.ownedNamespacesWithLock()
 }
 
