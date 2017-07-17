@@ -460,8 +460,8 @@ func newNodes(
 				require.NoError(t, s.stopServer())
 			}
 		})
-		log.Debug("servers are now down")
 		closeFn()
+		log.Debug("servers are now down")
 	}
 
 	return nodes, topoInit, nodeClose
