@@ -62,7 +62,7 @@ func (i *dynamicInitializer) Init() (namespace.Registry, error) {
 		return nil, err
 	}
 
-	reg, err := newDynamicRegistry(i.opts)
+	reg, err := newRegistry(i.opts)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ type dynamicRegistry struct {
 	logger    xlog.Logger
 }
 
-func newDynamicRegistry(opts namespace.DynamicOptions) (namespace.Registry, error) {
+func newRegistry(opts namespace.DynamicOptions) (namespace.Registry, error) {
 	kvStore, err := opts.ConfigServiceClient().KV()
 	if err != nil {
 		return nil, err
