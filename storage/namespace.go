@@ -270,7 +270,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	n.closeShards(closing)
 }
 
-func (n *dbNamespace) closeShards(shards []databaseShard) {
+func (n *dbNamespace) closeShards(shards []databaseShard) { // TODO(prateek): take blocking close option
 	// NB(r): There is a shard close deadline that controls how fast each
 	// shard closes set in the options.  To make sure this is the single
 	// point of control for determining how impactful closing shards may
@@ -814,7 +814,7 @@ func (n *dbNamespace) Close() error {
 	n.shards = shards[:0]
 	n.shardSet = sharding.NewEmptyShardSet(sharding.DefaultHashGen(1))
 	n.Unlock()
-
+	// TODO(prateek): can't remove ns in production because gc pressure is too high; open issue
 	n.closeShards(shards)
 	return nil
 }

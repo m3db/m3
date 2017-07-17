@@ -65,6 +65,9 @@ type Database interface {
 	// Close will close the database for writing and reading
 	Close() error
 
+	// TODO(prateek):
+	// Terminate() error
+
 	// Write value to the database for an ID
 	Write(
 		ctx context.Context,
