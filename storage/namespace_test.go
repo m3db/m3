@@ -951,8 +951,6 @@ func TestNamespaceCloseWithShard(t *testing.T) {
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().Close().Return(nil)
 	ns.shards[testShardIDs[0].ID()] = shard
-	// set close() to run synchronously
-	ns.closeRunType = syncRun
 
 	// Close and ensure no goroutines are leaked
 	require.NoError(t, ns.Close())
