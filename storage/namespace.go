@@ -169,7 +169,7 @@ func newDatabaseNamespace(
 
 	scope := iops.MetricsScope().SubScope("database").
 		Tagged(map[string]string{
-			"namespace": id.String(), // TODO(prateek): sanitize id(?)
+			"namespace": sanitizeIdentifierForMetrics(id.String()),
 		})
 
 	tickWorkersConcurrency := int(math.Max(1, float64(runtime.NumCPU())/8)) // TODO(prateek): drive this using options

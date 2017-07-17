@@ -20,12 +20,21 @@
 
 package storage
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
+// numIntervals returns the number of intervals between [start, end] for a given
+// windowSize.
 func numIntervals(startInclusive, endInclusive time.Time, window time.Duration) int {
 	if window == 0 || endInclusive.Before(startInclusive) {
 		return 0
 	}
 
 	return 1 + int((endInclusive.Sub(startInclusive))/window)
+}
+
+func sanitizeIdentifierForMetrics(input string) string {
+	return strings.Replace(input, ":", "_", -1)
 }
