@@ -46,6 +46,7 @@ import (
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/cluster"
 	"github.com/m3db/m3db/storage/namespace"
+	staticns "github.com/m3db/m3db/storage/namespace/static"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xlog "github.com/m3db/m3x/log"
@@ -107,8 +108,9 @@ func newTestSetup(t *testing.T, opts testOptions) (*testSetup, error) {
 	}
 
 	storageOpts := storage.NewOptions().
-		SetNamespaceInitializer(namespace.NewStaticInitializer(opts.Namespaces())).
-		SetTickInterval(opts.TickInterval())
+		SetTickInterval(opts.TickInterval()).
+		SetNamespaceInitializer(
+			staticns.NewInitializer(opts.Namespaces()))
 
 	nativePooling := strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"
 	if nativePooling {
