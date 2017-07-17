@@ -216,27 +216,6 @@ func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
 		return enrichedErr
 	}
 
-	// TODO(prateek): namepace updates need to be handled better, the current implementation
-	// updates namespaces by closing and re-creating them.
-	// There are a few problems with this approach:
-	// (1) it's too expensive to flush all the data, and re-bootstrap it for a namespace
-	// (2) we stop accepting writes during the period between when a namespace is removed
-	// until it's added back. This is worse when you consider a KV update can propagate
-	// to all nodes at the same time.
-	// (3): we are not controlling bg processing (repairs/bootstrapping/etc) whilst updating
-	// active namespaces.
-	for _, ns := range updates {
-		removes = append(removes, ns.ID())
-		adds = append(adds, ns)
-	}
-
-	// remove any namespaces marked for removal
-	if err := d.removeNamespacesWithLock(removes); err != nil {
-		enrichedErr := fmt.Errorf("unable to remove namespaces: %v", err)
-		d.log.Errorf("%v", enrichedErr)
-		return enrichedErr
-	}
-
 	// add any namespaces marked for addition
 	if err := d.addNamespacesWithLock(adds); err != nil {
 		enrichedErr := fmt.Errorf("unable to add namespaces: %v", err)
@@ -244,8 +223,23 @@ func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
 		return err
 	}
 
+	// TODO(prateek): create issue for this ~ namepace updates need to be handled better,
+	// the current implementation updates namespaces by closing and re-creating them.
+	// There are a few problems with this approach:
+	// (1) it's too expensive to flush all the data, and re-bootstrap it for a namespace
+	// (2) we stop accepting writes during the period between when a namespace is removed
+	// until it's added back. This is worse when you consider a KV update can propagate
+	// to all nodes at the same time.
+	// (3): we are not controlling bg processing (repairs/bootstrapping/etc) whilst updating
+	// active namespaces.
+
+	// log that updates and removals are skipped
+	if len(removes) > 0 || len(updates) > 0 {
+		d.log.Warnf("Skipping namespace removals and updates, restart process if you want changes to take effect.")
+	}
+
 	// enqueue bootstraps if new namespaces
-	if len(adds) > 0 || len(updates) > 0 {
+	if len(adds) > 0 {
 		d.queueBootstrapWithLock()
 	}
 
@@ -316,23 +310,6 @@ func (d *db) logNamespaceUpdate(removes []ts.ID, adds, updates []namespace.Metad
 		xlog.NewLogField("updates", updateString),
 	).Infof("updating database namespaces")
 
-	return nil
-}
-
-func (d *db) removeNamespacesWithLock(ids []ts.ID) error {
-	for _, id := range ids {
-		// ensure namespace exists
-		ns, ok := d.namespaces[id.Hash()]
-		if !ok { // should never happen
-			return fmt.Errorf("unknown namespace marked for removal: %v", id.String())
-		}
-		// close namespace and remove from database
-		if err := ns.Close(); err != nil {
-			return fmt.Errorf("unable to close namespace [ id = %v, err = %v ]",
-				id.String(), err)
-		}
-		delete(d.namespaces, id.Hash())
-	}
 	return nil
 }
 
@@ -432,7 +409,6 @@ func (d *db) queueBootstrapWithLock() {
 	// enqueue a new bootstrap to execute before the current bootstrap
 	// completes
 	if d.bootstraps > 0 {
-		d.log.Errorf("queuing bootstraps")
 		go func() {
 			if err := d.mediator.Bootstrap(); err != nil {
 				d.log.Errorf("error while bootstrapping: %v", err)

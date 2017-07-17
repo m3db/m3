@@ -560,9 +560,7 @@ func TestDatabaseRemoveNamespace(t *testing.T) {
 
 	// now check the expected ns exists
 	nses = d.Namespaces()
-	require.Len(t, nses, 1)
-	require.True(t, defaultTestNs1ID.Equal(nses[0].ID()))
-	require.Equal(t, md1.Options(), nses[0].Options())
+	require.Len(t, nses, 2)
 }
 
 func TestDatabaseAddNamespace(t *testing.T) {
@@ -652,13 +650,13 @@ func TestDatabaseUpdateNamespace(t *testing.T) {
 	<-updateCh
 	time.Sleep(10 * time.Millisecond)
 
-	// ensure the expected namespaces exist
+	// ensure the namespaces have old properties
 	nses = d.Namespaces()
 	require.Len(t, nses, 2)
 	ns1, ok := d.Namespace(defaultTestNs1ID)
 	require.True(t, ok)
-	require.Equal(t, md1.Options(), ns1.Options())
+	require.Equal(t, defaultTestNs1Opts, ns1.Options())
 	ns2, ok := d.Namespace(defaultTestNs2ID)
 	require.True(t, ok)
-	require.Equal(t, md2.Options(), ns2.Options())
+	require.Equal(t, defaultTestNs2Opts, ns2.Options())
 }
