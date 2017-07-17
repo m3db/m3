@@ -127,6 +127,16 @@ func (_mr *_MockDatabaseRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
+func (_m *MockDatabase) Terminate() error {
+	ret := _m.ctrl.Call(_m, "Terminate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockDatabaseRecorder) Terminate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Terminate")
+}
+
 func (_m *MockDatabase) Write(ctx context.Context, namespace ts.ID, id ts.ID, timestamp time0.Time, value float64, unit time.Unit, annotation []byte) error {
 	ret := _m.ctrl.Call(_m, "Write", ctx, namespace, id, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
@@ -300,6 +310,16 @@ func (_m *Mockdatabase) Close() error {
 
 func (_mr *_MockdatabaseRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
+func (_m *Mockdatabase) Terminate() error {
+	ret := _m.ctrl.Call(_m, "Terminate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseRecorder) Terminate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Terminate")
 }
 
 func (_m *Mockdatabase) Write(ctx context.Context, namespace ts.ID, id ts.ID, timestamp time0.Time, value float64, unit time.Unit, annotation []byte) error {
