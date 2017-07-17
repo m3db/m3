@@ -23,6 +23,7 @@ package commitlog
 import (
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/m3db/m3db/encoding"
@@ -48,9 +49,21 @@ type encoder struct {
 	enc         encoding.Encoder
 }
 
-type encoderMap struct {
-	id       ts.ID
-	encoders map[time.Time][]encoder
+type encodersByTime struct {
+	id ts.ID
+	// int64 instead of time.Time because there is an optimized map access pattern
+	// for i64's
+	encoders map[int64][]encoder
+}
+
+// encoderArg contains all the information a worker go-routine needs to encode
+// a data point as M3TSZ
+type encoderArg struct {
+	series     commitlog.Series
+	dp         ts.Datapoint
+	unit       xtime.Unit
+	annotation ts.Annotation
+	blockStart time.Time
 }
 
 func newCommitLogSource(opts Options) bootstrap.Source {
@@ -95,13 +108,86 @@ func (s *commitLogSource) Read(
 	defer iter.Close()
 
 	var (
-		unmerged    = make(map[uint32]map[ts.Hash]encoderMap)
+		numShards = len(shardsTimeRanges)
+		unmerged  = make([]map[ts.Hash]encodersByTime, numShards, numShards)
+		// TODO: Add to opts
+		numConc     = uint32(4)
 		bopts       = s.opts.ResultOptions()
 		blopts      = bopts.DatabaseBlockOptions()
 		blockSize   = bopts.RetentionOptions().BlockSize()
 		encoderPool = bopts.DatabaseBlockOptions().EncoderPool()
-		errs        = 0
 	)
+
+	encoderChans := []chan encoderArg{}
+	for i := uint32(0); i < numConc; i++ {
+		encoderChans = append(encoderChans, make(chan encoderArg, 1000))
+	}
+
+	// Spin up numConc background go-routines to handle M3TSZ encoding. This must
+	// happen before we start reading to prevent infinitely blocking writes to
+	// the encoderChans.
+	wg := sync.WaitGroup{}
+	workerErrs := make([]int, numConc, numConc)
+	for workerNum, encoderChan := range encoderChans {
+		wg.Add(1)
+		go func(workerNum int, ec <-chan encoderArg) {
+			for arg := range ec {
+				var (
+					series     = arg.series
+					dp         = arg.dp
+					unit       = arg.unit
+					annotation = arg.annotation
+					blockStart = arg.blockStart
+				)
+
+				unmergedShard := unmerged[series.Shard]
+				if unmergedShard == nil {
+					unmergedShard = make(map[ts.Hash]encodersByTime)
+					unmerged[series.Shard] = unmergedShard
+				}
+
+				unmergedSeries, ok := unmergedShard[series.ID.Hash()]
+				if !ok {
+					unmergedSeries = encodersByTime{
+						id:       series.ID,
+						encoders: make(map[int64][]encoder)}
+					unmergedShard[series.ID.Hash()] = unmergedSeries
+				}
+
+				var (
+					err           error
+					unmergedBlock = unmergedSeries.encoders[blockStart.UnixNano()]
+					wroteExisting = false
+				)
+				for i := range unmergedBlock {
+					if unmergedBlock[i].lastWriteAt.Before(dp.Timestamp) {
+						unmergedBlock[i].lastWriteAt = dp.Timestamp
+						err = unmergedBlock[i].enc.Encode(dp, unit, annotation)
+						wroteExisting = true
+						break
+					}
+				}
+				if !wroteExisting {
+					enc := encoderPool.Get()
+					enc.Reset(blockStart, blopts.DatabaseBlockAllocSize())
+
+					err = enc.Encode(dp, unit, annotation)
+					if err == nil {
+						unmergedBlock = append(unmergedBlock, encoder{
+							lastWriteAt: dp.Timestamp,
+							enc:         enc,
+						})
+						unmergedSeries.encoders[blockStart.UnixNano()] = unmergedBlock
+					}
+				}
+				if err != nil {
+					workerErrs[workerNum]++
+				}
+			}
+			wg.Done()
+		}(workerNum, encoderChan)
+	}
+
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
 		ranges, ok := shardsTimeRanges[series.Shard]
@@ -121,129 +207,141 @@ func (s *commitLogSource) Read(
 			continue
 		}
 
-		unmergedShard, ok := unmerged[series.Shard]
-		if !ok {
-			unmergedShard = make(map[ts.Hash]encoderMap)
-			unmerged[series.Shard] = unmergedShard
-		}
-
-		unmergedSeries, ok := unmergedShard[series.ID.Hash()]
-		if !ok {
-			unmergedSeries = encoderMap{
-				id:       series.ID,
-				encoders: make(map[time.Time][]encoder)}
-			unmergedShard[series.ID.Hash()] = unmergedSeries
-		}
-
-		var (
-			err           error
-			unmergedBlock = unmergedSeries.encoders[blockStart]
-			wroteExisting = false
-		)
-		for i := range unmergedBlock {
-			if unmergedBlock[i].lastWriteAt.Before(dp.Timestamp) {
-				unmergedBlock[i].lastWriteAt = dp.Timestamp
-				err = unmergedBlock[i].enc.Encode(dp, unit, annotation)
-				wroteExisting = true
-				break
-			}
-		}
-		if !wroteExisting {
-			enc := encoderPool.Get()
-			enc.Reset(blockStart, blopts.DatabaseBlockAllocSize())
-
-			err = enc.Encode(dp, unit, annotation)
-			if err == nil {
-				unmergedBlock = append(unmergedBlock, encoder{
-					lastWriteAt: dp.Timestamp,
-					enc:         enc,
-				})
-				unmergedSeries.encoders[blockStart] = unmergedBlock
-			}
-		}
-		if err != nil {
-			errs++
+		// Distribute work such that each encoder goroutine is responsible for
+		// approximately numShards / numConc shards. This also means that all
+		// datapoints for a given shard/series will be processed in a serialized
+		// manner.
+		encoderChans[series.Shard%numConc] <- struct {
+			series     commitlog.Series
+			dp         ts.Datapoint
+			unit       xtime.Unit
+			annotation ts.Annotation
+			blockStart time.Time
+		}{
+			series:     series,
+			dp:         dp,
+			unit:       unit,
+			annotation: annotation,
+			blockStart: blockStart,
 		}
 	}
-	if errs > 0 {
-		s.log.Errorf("error bootstrapping from commit log: %d block encode errors", errs)
+	for _, encoderChan := range encoderChans {
+		close(encoderChan)
+	}
+
+	// Block until all data has been read and encoded by the worker goroutines
+	wg.Wait()
+	errSum := 0
+	for _, numErrs := range workerErrs {
+		errSum += numErrs
+	}
+	if errSum > 0 {
+		s.log.Errorf("error bootstrapping from commit log: %d block encode errors", errSum)
 	}
 	if err := iter.Err(); err != nil {
 		s.log.Errorf("error reading commit log: %v", err)
 	}
 
-	errs = 0
-	emptyErrs := 0
+	shardErrs := make([]int, numShards, numShards)
+	shardEmptyErrs := make([]int, numShards, numShards)
 	bootstrapResult := result.NewBootstrapResult()
 	blocksPool := bopts.DatabaseBlockOptions().DatabaseBlockPool()
 	multiReaderIteratorPool := blopts.MultiReaderIteratorPool()
+	// Controls how many shards can be merged in parallel
+	mergeSemaphore := make(chan bool, 4)
+	bootstrapResultLock := sync.Mutex{}
+	wg = sync.WaitGroup{}
+
 	for shard, unmergedShard := range unmerged {
-		shardResult := result.NewShardResult(len(unmergedShard), s.opts.ResultOptions())
-		for _, unmergedBlocks := range unmergedShard {
-			blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders), blopts)
-			for start, unmergedBlock := range unmergedBlocks.encoders {
-				block := blocksPool.Get()
-				if len(unmergedBlock) == 0 {
-					emptyErrs++
-					continue
-				} else if len(unmergedBlock) == 1 {
-					block.Reset(start, unmergedBlock[0].enc.Discard())
-				} else {
-					readers := make([]io.Reader, len(unmergedBlock))
-					for i := range unmergedBlock {
-						stream := unmergedBlock[i].enc.Stream()
-						readers[i] = stream
-						defer stream.Finalize()
-					}
-
-					iter := multiReaderIteratorPool.Get()
-					iter.Reset(readers)
-
-					var err error
-					enc := encoderPool.Get()
-					enc.Reset(start, blopts.DatabaseBlockAllocSize())
-					for iter.Next() {
-						dp, unit, annotation := iter.Current()
-						encodeErr := enc.Encode(dp, unit, annotation)
-						if encodeErr != nil {
-							err = encodeErr
-							errs++
-							break
-						}
-					}
-					if iterErr := iter.Err(); iterErr != nil {
-						if err == nil {
-							err = iter.Err()
-						}
-						errs++
-					}
-
-					iter.Close()
-					for i := range unmergedBlock {
-						unmergedBlock[i].enc.Close()
-					}
-
-					if err != nil {
+		mergeSemaphore <- true
+		wg.Add(1)
+		go func(shard int, unmergedShard map[ts.Hash]encodersByTime) {
+			shardResult := result.NewShardResult(len(unmergedShard), s.opts.ResultOptions())
+			for _, unmergedBlocks := range unmergedShard {
+				blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders), blopts)
+				for start, unmergedBlock := range unmergedBlocks.encoders {
+					startInNano := time.Unix(0, start)
+					block := blocksPool.Get()
+					if len(unmergedBlock) == 0 {
+						shardEmptyErrs[shard]++
 						continue
-					}
+					} else if len(unmergedBlock) == 1 {
+						block.Reset(startInNano, unmergedBlock[0].enc.Discard())
+					} else {
+						readers := make([]io.Reader, len(unmergedBlock))
+						for i := range unmergedBlock {
+							stream := unmergedBlock[i].enc.Stream()
+							readers[i] = stream
+							defer stream.Finalize()
+						}
 
-					block.Reset(start, enc.Discard())
+						iter := multiReaderIteratorPool.Get()
+						iter.Reset(readers)
+
+						var err error
+						enc := encoderPool.Get()
+						enc.Reset(startInNano, blopts.DatabaseBlockAllocSize())
+						for iter.Next() {
+							dp, unit, annotation := iter.Current()
+							encodeErr := enc.Encode(dp, unit, annotation)
+							if encodeErr != nil {
+								err = encodeErr
+								shardErrs[shard]++
+								break
+							}
+						}
+						if iterErr := iter.Err(); iterErr != nil {
+							if err == nil {
+								err = iter.Err()
+							}
+							shardErrs[shard]++
+						}
+
+						iter.Close()
+						for i := range unmergedBlock {
+							unmergedBlock[i].enc.Close()
+						}
+
+						if err != nil {
+							continue
+						}
+
+						block.Reset(startInNano, enc.Discard())
+					}
+					blocks.AddBlock(block)
 				}
-				blocks.AddBlock(block)
+				if blocks.Len() > 0 {
+					shardResult.AddSeries(unmergedBlocks.id, blocks)
+				}
 			}
-			if blocks.Len() > 0 {
-				shardResult.AddSeries(unmergedBlocks.id, blocks)
+			if len(shardResult.AllSeries()) > 0 {
+				// Prevent race conditions while updating bootstrapResult from multiple go-routines
+				bootstrapResultLock.Lock()
+				// Shard is a slice index so conversion to uint32 is safe
+				bootstrapResult.Add(uint32(shard), shardResult, nil)
+				bootstrapResultLock.Unlock()
 			}
-		}
-		if len(shardResult.AllSeries()) > 0 {
-			bootstrapResult.Add(shard, shardResult, nil)
-		}
+			<-mergeSemaphore
+			wg.Done()
+		}(shard, unmergedShard)
 	}
-	if errs > 0 {
-		s.log.Errorf("error bootstrapping from commit log: %d merge out of order errors", errs)
+	// Wait for all merge goroutines to complete
+	wg.Wait()
+
+	errSum = 0
+	for _, numErrs := range shardErrs {
+		errSum += numErrs
 	}
-	if emptyErrs > 0 {
-		s.log.Errorf("error bootstrapping from commit log: %d empty unmerged blocks errors", emptyErrs)
+	if errSum > 0 {
+		s.log.Errorf("error bootstrapping from commit log: %d merge out of order errors", errSum)
+	}
+
+	emptyErrSum := 0
+	for _, numEmptyErr := range shardEmptyErrs {
+		emptyErrSum += numEmptyErr
+	}
+	if emptyErrSum > 0 {
+		s.log.Errorf("error bootstrapping from commit log: %d empty unmerged blocks errors", emptyErrSum)
 	}
 
 	return bootstrapResult, nil

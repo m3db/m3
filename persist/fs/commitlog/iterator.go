@@ -95,6 +95,7 @@ func (i *iterator) Next() bool {
 	var err error
 	i.read.series, i.read.datapoint, i.read.unit, i.read.annotation, err = i.reader.Read()
 	if err == io.EOF {
+		i.reader.Close()
 		// Try the next reader
 		i.reader = nil
 		return i.Next()
