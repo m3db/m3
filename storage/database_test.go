@@ -62,6 +62,7 @@ func (d *mockDatabase) AssignShardSet(shardSet sharding.ShardSet) {}
 func (d *mockDatabase) Namespace(ts.ID) (Namespace, bool)         { return nil, false }
 func (d *mockDatabase) Namespaces() []Namespace                   { return nil }
 func (d *mockDatabase) Open() error                               { return nil }
+func (d *mockDatabase) Terminate() error                          { return nil }
 func (d *mockDatabase) Close() error                              { return nil }
 func (d *mockDatabase) Bootstrap() error                          { return nil }
 func (d *mockDatabase) IsBootstrapped() bool                      { return d.bs == bootstrapped }
@@ -277,6 +278,20 @@ func TestDatabaseClose(t *testing.T) {
 	}()
 	require.NoError(t, d.Open())
 	require.NoError(t, d.Close())
+	require.Equal(t, errDatabaseAlreadyClosed, d.Close())
+}
+
+func TestDatabaseTerminate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	defer func() {
+		close(mapCh)
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+	require.NoError(t, d.Open())
+	require.NoError(t, d.Terminate())
 	require.Equal(t, errDatabaseAlreadyClosed, d.Close())
 }
 

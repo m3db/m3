@@ -451,10 +451,7 @@ func (d *db) Open() error {
 	return d.mediator.Open()
 }
 
-func (d *db) Close() error {
-	d.Lock()
-	defer d.Unlock()
-
+func (d *db) terminateWithLock() error {
 	// ensure database is open
 	if d.state == databaseNotOpen {
 		return errDatabaseNotOpen
@@ -474,18 +471,40 @@ func (d *db) Close() error {
 		return err
 	}
 
-	// close all open namespaces
-	var multiErr xerrors.MultiError
-	for _, ns := range d.namespaces {
-		multiErr = multiErr.Add(ns.Close())
-	}
-	if err := multiErr.FinalError(); err != nil {
-		return err
-	}
+	// NB(prateek): Terminate is meant to return quickly, so we rely upon
+	// the gc to clean up any resources held by namespaces, and just set the
+	// our reference to the namespaces to nil.
 	d.namespaces = nil
 
 	// Finally close the commit log
 	return d.commitLog.Close()
+}
+
+func (d *db) Terminate() error {
+	d.Lock()
+	defer d.Unlock()
+
+	return d.terminateWithLock()
+}
+
+func (d *db) Close() error {
+	d.Lock()
+	defer d.Unlock()
+
+	// get a reference to all owned namespaces
+	namespaces := d.ownedNamespacesWithLock()
+
+	// release any database level resources
+	if err := d.terminateWithLock(); err != nil {
+		return err
+	}
+
+	var multiErr xerrors.MultiError
+	for _, ns := range namespaces {
+		multiErr = multiErr.Add(ns.Close())
+	}
+
+	return multiErr.FinalError()
 }
 
 func (d *db) Write(
@@ -614,14 +633,18 @@ func (d *db) namespaceFor(namespace ts.ID) (databaseNamespace, error) {
 	return n, nil
 }
 
-func (d *db) getOwnedNamespaces() []databaseNamespace {
-	d.RLock()
+func (d *db) ownedNamespacesWithLock() []databaseNamespace {
 	namespaces := make([]databaseNamespace, 0, len(d.namespaces))
 	for _, n := range d.namespaces {
 		namespaces = append(namespaces, n)
 	}
-	d.RUnlock()
 	return namespaces
+}
+
+func (d *db) getOwnedNamespaces() []databaseNamespace {
+	d.RLock()
+	d.RUnlock()
+	return d.ownedNamespacesWithLock()
 }
 
 func (d *db) nextIndex() uint64 {

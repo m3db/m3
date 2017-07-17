@@ -62,11 +62,14 @@ type Database interface {
 	// Open will open the database for writing and reading
 	Open() error
 
-	// Close will close the database for writing and reading
+	// Close will close the database for writing and reading. Close releases
+	// release resources held by owned namespaces
 	Close() error
 
-	// TODO(prateek):
-	// Terminate() error
+	// Terminate will close the database for writing and reading. Terminate does
+	// NOT release any resources held by owned namespaces, instead relying upon
+	// the GC to do so.
+	Terminate() error
 
 	// Write value to the database for an ID
 	Write(
