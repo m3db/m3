@@ -172,7 +172,7 @@ func newDatabaseNamespace(
 			"namespace": sanitizeIdentifierForMetrics(id.String()),
 		})
 
-	tickWorkersConcurrency := int(math.Max(1, float64(runtime.NumCPU())/8)) // TODO(prateek): drive this using options
+	tickWorkersConcurrency := int(math.Max(1, float64(runtime.NumCPU())/8))
 	tickWorkers := xsync.NewWorkerPool(tickWorkersConcurrency)
 	tickWorkers.Init()
 
@@ -467,7 +467,7 @@ func (n *dbNamespace) Bootstrap(
 	n.metrics.bootstrap.Success.Inc(1)
 
 	// Bootstrap shards using at least half the CPUs available
-	workers := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2))) // TODO(prateek): drive this using options
+	workers := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
 	workers.Init()
 
 	numSeries := 0
