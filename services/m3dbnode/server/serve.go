@@ -158,5 +158,5 @@ func OpenAndServe(
 	<-doneCh
 	log.Debug("server closing")
 
-	return db.Close()
+	return db.Terminate()
 }
