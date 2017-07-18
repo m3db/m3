@@ -109,8 +109,6 @@ func writeCommitLog(
 		}
 		require.NoError(t, commitLog.WriteBehind(ctx, cId, point.Datapoint, xtime.Second, nil))
 	}
-
-	closeCommitLogFn()
 }
 
 func testSetupMetadatas(
