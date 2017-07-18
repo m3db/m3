@@ -37,10 +37,10 @@ import (
 )
 
 var (
-	defaultIntegrationTestFlushInterval = 10 * time.Millisecond
+	defaultIntegrationTestFlushInterval = 100 * time.Millisecond
 )
 
-func computeMetricIndexes(timeBlocks generate.SeriesBlocksByStart) map[string]uint64 {
+func generateUniqueMetricIndexes(timeBlocks generate.SeriesBlocksByStart) map[string]uint64 {
 	var idx uint64
 	indexes := make(map[string]uint64)
 	for _, blks := range timeBlocks {
@@ -61,7 +61,7 @@ func writeCommitLog(
 	data generate.SeriesBlocksByStart,
 	namespace ts.ID,
 ) {
-	indexes := computeMetricIndexes(data)
+	indexes := generateUniqueMetricIndexes(data)
 	opts := s.storageOpts.CommitLogOptions()
 
 	// ensure commit log is flushing frequently
@@ -76,14 +76,11 @@ func writeCommitLog(
 		now       time.Time
 	)
 
-	closeCommitLogFn := func() {
+	defer func() {
 		if commitLog != nil {
-			// wait a bit to ensure writes are done, and then close the commit log
-			time.Sleep(10 * defaultIntegrationTestFlushInterval)
 			require.NoError(t, commitLog.Close())
 		}
-
-	}
+	}()
 
 	for _, point := range points {
 		pointTime := point.Timestamp
