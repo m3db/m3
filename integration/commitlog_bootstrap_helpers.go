@@ -76,11 +76,12 @@ func writeCommitLog(
 		now       time.Time
 	)
 
-	defer func() {
+	closeCommitLogFn := func() {
 		if commitLog != nil {
 			require.NoError(t, commitLog.Close())
 		}
-	}()
+	}
+	defer closeCommitLogFn()
 
 	for _, point := range points {
 		pointTime := point.Timestamp
