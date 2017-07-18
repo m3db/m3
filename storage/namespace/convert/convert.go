@@ -33,6 +33,7 @@ import (
 
 var (
 	errRetentionNil = errors.New("retention options must be set")
+	errNamespaceNil = errors.New("namespace options must be set")
 )
 
 // ToRetention converts nsproto.RetentionOptions to retention.Options
@@ -68,6 +69,10 @@ func ToMetadata(
 	id string,
 	opts *nsproto.NamespaceOptions,
 ) (namespace.Metadata, error) {
+	if opts == nil {
+		return nil, errNamespaceNil
+	}
+
 	ropts, err := ToRetention(opts.RetentionOptions)
 	if err != nil {
 		return nil, err

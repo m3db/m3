@@ -31,12 +31,16 @@ import (
 	"github.com/m3db/m3db/storage/namespace/convert"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/watch"
+
+	"github.com/uber-go/tally"
 )
 
 var (
 	errInitTimeOut           = errors.New("timed out waiting for initial value")
 	errRegistryAlreadyClosed = errors.New("registry already closed")
 	errInvalidRegistry       = errors.New("could not parse latest value from config service")
+
+	defaultReportInterval = 10 * time.Second
 )
 
 type dynamicInitializer struct {
@@ -73,12 +77,26 @@ func (i *dynamicInitializer) Init() (namespace.Registry, error) {
 
 type dynamicRegistry struct {
 	sync.RWMutex
-	opts      namespace.DynamicOptions
-	initValue kv.Value
-	kvWatch   kv.ValueWatch
-	watchable xwatch.Watchable
-	closed    bool
-	logger    xlog.Logger
+	opts         namespace.DynamicOptions
+	currentValue kv.Value
+	kvWatch      kv.ValueWatch
+	watchable    xwatch.Watchable
+	closed       bool
+	logger       xlog.Logger
+	metrics      *dynamicRegistryMetrics
+}
+
+type dynamicRegistryMetrics struct {
+	numInvalidUpdates tally.Counter
+	currentVersion    tally.Gauge
+}
+
+func newMetrics(opts namespace.DynamicOptions) *dynamicRegistryMetrics {
+	scope := opts.InstrumentOptions().MetricsScope().SubScope("namespace_registry")
+	return &dynamicRegistryMetrics{
+		numInvalidUpdates: scope.Counter("invalid_update"),
+		currentVersion:    scope.Gauge("current_version"),
+	}
 }
 
 func newRegistry(opts namespace.DynamicOptions) (namespace.Registry, error) {
@@ -111,13 +129,15 @@ func newRegistry(opts namespace.DynamicOptions) (namespace.Registry, error) {
 	watchable.Update(m)
 
 	dt := &dynamicRegistry{
-		opts:      opts,
-		initValue: initValue,
-		kvWatch:   watch,
-		watchable: watchable,
-		logger:    logger,
+		opts:         opts,
+		currentValue: initValue,
+		kvWatch:      watch,
+		watchable:    watchable,
+		logger:       logger,
+		metrics:      newMetrics(opts),
 	}
 	go dt.run()
+	go dt.reportMetrics()
 	return dt, nil
 }
 
@@ -128,6 +148,21 @@ func (r *dynamicRegistry) isClosed() bool {
 	return closed
 }
 
+func (r *dynamicRegistry) reportMetrics() {
+	ticker := time.NewTicker(defaultReportInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if r.isClosed() {
+			return
+		}
+
+		r.RLock()
+		r.metrics.currentVersion.Update(float64(r.currentValue.Version()))
+		r.RUnlock()
+	}
+}
+
 func (r *dynamicRegistry) run() {
 	for !r.isClosed() {
 		if _, ok := <-r.kvWatch.C(); !ok {
@@ -136,7 +171,8 @@ func (r *dynamicRegistry) run() {
 		}
 
 		val := r.kvWatch.Get()
-		if !val.IsNewer(r.initValue) {
+		if !val.IsNewer(r.currentValue) {
+			r.metrics.numInvalidUpdates.Inc(1)
 			r.logger.Warnf("dynamic namespace registry received older version: %v, skipping",
 				val.Version())
 			continue
@@ -144,12 +180,16 @@ func (r *dynamicRegistry) run() {
 
 		m, err := getMapFromUpdate(val)
 		if err != nil {
+			r.metrics.numInvalidUpdates.Inc(1)
 			r.logger.Warnf("dynamic namespace registry received invalid update: %v, skipping",
 				err)
 			continue
 		}
-		r.initValue = val
+
+		r.Lock()
+		r.currentValue = val
 		r.watchable.Update(m)
+		r.Unlock()
 	}
 }
 
@@ -188,9 +228,9 @@ func waitOnInit(w kv.ValueWatch, d time.Duration) error {
 	}
 }
 
-func getMapFromUpdate(data interface{}) (namespace.Map, error) {
-	protoRegistry, ok := data.(nsproto.Registry)
-	if !ok {
+func getMapFromUpdate(val kv.Value) (namespace.Map, error) {
+	var protoRegistry nsproto.Registry
+	if err := val.Unmarshal(&protoRegistry); err != nil {
 		return nil, errInvalidRegistry
 	}
 

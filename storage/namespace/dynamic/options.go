@@ -101,7 +101,7 @@ func (o *dynamicOpts) NamespaceRegistryKey() string {
 
 func (o *dynamicOpts) SetInitTimeout(value time.Duration) namespace.DynamicOptions {
 	opts := *o
-	o.initTimeout = value
+	opts.initTimeout = value
 	return &opts
 }
 
