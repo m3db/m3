@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"math/rand"
 	"testing"
 	"time"
 
@@ -34,6 +35,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func randStringRunes(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
 
 func TestCommitLogBootstrap(t *testing.T) {
 	if testing.Short() {
@@ -70,10 +81,21 @@ func TestCommitLogBootstrap(t *testing.T) {
 	// Write test data
 	log.Info("generating data")
 	now := setup.getNowFn()
-	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{[]string{"foo", "bar"}, 20, now.Add(-2 * blockSize)},
-		{[]string{"bar", "baz"}, 50, now.Add(-blockSize)},
-	})
+
+	blockConfig := []generate.BlockConfig{}
+	for i := 0; i < 30; i++ {
+		name := []string{}
+		for j := 0; j < rand.Intn(10)+1; j++ {
+			name = append(name, randStringRunes(100))
+		}
+
+		blockConfig = append(blockConfig, generate.BlockConfig{
+			IDs:       name,
+			NumPoints: rand.Intn(100) + 1,
+			Start:     now.Add(-2 * blockSize).Add(time.Duration(i) * time.Minute),
+		})
+	}
+	seriesMaps := generate.BlocksByStart(blockConfig)
 	log.Info("writing data")
 	writeCommitLog(t, setup, seriesMaps, testNamespaces[0])
 	log.Info("written data")
