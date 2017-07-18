@@ -26,12 +26,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fortytw2/leaktest"
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
 	"github.com/m3db/m3db/storage/namespace"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
 	"github.com/m3db/m3x/instrument"
@@ -310,9 +310,6 @@ func (v *testValue) IsNewer(other kv.Value) bool {
 }
 
 type testValueWatch struct {
-	doneCh  chan struct{}
-	closeCh chan struct{}
-
 	notifyCh chan struct{}
 	valueCh  chan testValue
 
@@ -328,8 +325,6 @@ func newWatch(initValue testValue) *testValueWatch {
 		initValue: initValue,
 		notifyCh:  make(chan struct{}, 10),
 		valueCh:   make(chan testValue, 10),
-		doneCh:    make(chan struct{}, 1),
-		closeCh:   make(chan struct{}, 1),
 	}
 }
 
