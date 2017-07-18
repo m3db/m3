@@ -40,9 +40,6 @@ import (
 )
 
 func newTestOpts(ctrl *gomock.Controller, watch *testValueWatch) namespace.DynamicOptions {
-	// update report interval for tests
-	defaultReportInterval = 10 * time.Millisecond
-
 	ts := tally.NewTestScope("", nil)
 	mockKVStore := kv.NewMockStore(ctrl)
 	mockKVStore.EXPECT().Watch(defaultNsRegistryKey).Return(watch, nil)
@@ -52,7 +49,9 @@ func newTestOpts(ctrl *gomock.Controller, watch *testValueWatch) namespace.Dynam
 
 	opts := NewOptions().
 		SetInstrumentOptions(
-			instrument.NewOptions().SetMetricsScope(ts)).
+			instrument.NewOptions().
+				SetReportInterval(10 * time.Millisecond).
+				SetMetricsScope(ts)).
 		SetInitTimeout(10 * time.Millisecond).
 		SetConfigServiceClient(mockCSClient)
 

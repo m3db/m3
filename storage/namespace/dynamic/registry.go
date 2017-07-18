@@ -39,8 +39,6 @@ var (
 	errInitTimeOut           = errors.New("timed out waiting for initial value")
 	errRegistryAlreadyClosed = errors.New("registry already closed")
 	errInvalidRegistry       = errors.New("could not parse latest value from config service")
-
-	defaultReportInterval = 10 * time.Second
 )
 
 type dynamicInitializer struct {
@@ -149,7 +147,7 @@ func (r *dynamicRegistry) isClosed() bool {
 }
 
 func (r *dynamicRegistry) reportMetrics() {
-	ticker := time.NewTicker(defaultReportInterval)
+	ticker := time.NewTicker(r.opts.InstrumentOptions().ReportInterval())
 	defer ticker.Stop()
 
 	for range ticker.C {
