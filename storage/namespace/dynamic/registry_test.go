@@ -53,7 +53,7 @@ func newTestOpts(ctrl *gomock.Controller, watch *testValueWatch) namespace.Dynam
 	opts := NewOptions().
 		SetInstrumentOptions(
 			instrument.NewOptions().SetMetricsScope(ts)).
-		SetInitTimeout(100 * time.Millisecond).
+		SetInitTimeout(10 * time.Millisecond).
 		SetConfigServiceClient(mockCSClient)
 
 	return opts
