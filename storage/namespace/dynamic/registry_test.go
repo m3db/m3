@@ -208,7 +208,51 @@ func TestInitializerUpdateWithOlderVersion(t *testing.T) {
 	require.NoError(t, reg.Close())
 }
 
-func TestInitializerUpdateWithNewerVersion(t *testing.T) {
+func TestInitializerUpdateWithIdenticalValue(t *testing.T) {
+	defer leaktest.CheckTimeout(t, time.Second)()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	initValue := singleTestValue()
+	w := newWatch(initValue)
+	defer w.Close()
+
+	opts := newTestOpts(ctrl, w)
+	init := NewInitializer(opts)
+
+	scope := opts.InstrumentOptions().MetricsScope().(tally.TestScope)
+	numInvalid := func() int64 {
+		count, ok := scope.Snapshot().Counters()["namespace_registry.invalid_update+"]
+		if !ok {
+			return 0
+		}
+		return count.Value()
+	}
+
+	go w.start()
+	reg, err := init.Init()
+	require.NoError(t, err)
+
+	rmap, err := reg.Watch()
+	require.NoError(t, err)
+	require.Len(t, rmap.Get().Metadatas(), 1)
+	require.Equal(t, int64(0), numInvalid())
+
+	// update with new version
+	w.valueCh <- testValue{
+		version:  2,
+		Registry: initValue.Registry,
+	}
+
+	time.Sleep(20 * time.Millisecond)
+	require.Equal(t, int64(1), numInvalid())
+
+	require.Len(t, rmap.Get().Metadatas(), 1)
+	require.NoError(t, reg.Close())
+}
+
+func TestInitializerUpdateSuccess(t *testing.T) {
 	defer leaktest.CheckTimeout(t, time.Second)()
 
 	ctrl := gomock.NewController(t)
@@ -247,17 +291,22 @@ func TestInitializerUpdateWithNewerVersion(t *testing.T) {
 	require.Equal(t, int64(0), numInvalid())
 	require.Equal(t, 0., currentVersion())
 
-	// update with new version
+	// update with valid value
 	w.valueCh <- testValue{
-		version:  2,
-		Registry: initValue.Registry,
+		version: 2,
+		Registry: nsproto.Registry{
+			Namespaces: map[string]*nsproto.NamespaceOptions{
+				"testns1": initValue.Namespaces["testns1"],
+				"testns2": initValue.Namespaces["testns1"],
+			},
+		},
 	}
 
 	time.Sleep(20 * time.Millisecond)
 	require.Equal(t, int64(0), numInvalid())
 	require.Equal(t, 2., currentVersion())
 
-	require.Len(t, rmap.Get().Metadatas(), 1)
+	require.Len(t, rmap.Get().Metadatas(), 2)
 	require.NoError(t, reg.Close())
 }
 

@@ -76,12 +76,13 @@ func (i *dynamicInitializer) Init() (namespace.Registry, error) {
 type dynamicRegistry struct {
 	sync.RWMutex
 	opts         namespace.DynamicOptions
-	currentValue kv.Value
-	kvWatch      kv.ValueWatch
-	watchable    xwatch.Watchable
-	closed       bool
 	logger       xlog.Logger
 	metrics      *dynamicRegistryMetrics
+	watchable    xwatch.Watchable
+	kvWatch      kv.ValueWatch
+	currentValue kv.Value
+	currentMap   namespace.Map
+	closed       bool
 }
 
 type dynamicRegistryMetrics struct {
@@ -128,11 +129,12 @@ func newRegistry(opts namespace.DynamicOptions) (namespace.Registry, error) {
 
 	dt := &dynamicRegistry{
 		opts:         opts,
-		currentValue: initValue,
-		kvWatch:      watch,
-		watchable:    watchable,
 		logger:       logger,
 		metrics:      newMetrics(opts),
+		watchable:    watchable,
+		kvWatch:      watch,
+		currentValue: initValue,
+		currentMap:   m,
 	}
 	go dt.run()
 	go dt.reportMetrics()
@@ -146,6 +148,18 @@ func (r *dynamicRegistry) isClosed() bool {
 	return closed
 }
 
+func (r *dynamicRegistry) value() kv.Value {
+	r.RLock()
+	defer r.RUnlock()
+	return r.currentValue
+}
+
+func (r *dynamicRegistry) maps() namespace.Map {
+	r.RLock()
+	defer r.RUnlock()
+	return r.currentMap
+}
+
 func (r *dynamicRegistry) reportMetrics() {
 	ticker := time.NewTicker(r.opts.InstrumentOptions().ReportInterval())
 	defer ticker.Stop()
@@ -155,9 +169,7 @@ func (r *dynamicRegistry) reportMetrics() {
 			return
 		}
 
-		r.RLock()
-		r.metrics.currentVersion.Update(float64(r.currentValue.Version()))
-		r.RUnlock()
+		r.metrics.currentVersion.Update(float64(r.value().Version()))
 	}
 }
 
@@ -184,8 +196,15 @@ func (r *dynamicRegistry) run() {
 			continue
 		}
 
+		if m.Equal(r.maps()) {
+			r.metrics.numInvalidUpdates.Inc(1)
+			r.logger.Warnf("dynamic namespace registry received identical update, skipping")
+			continue
+		}
+
 		r.Lock()
 		r.currentValue = val
+		r.currentMap = m
 		r.watchable.Update(m)
 		r.Unlock()
 	}
