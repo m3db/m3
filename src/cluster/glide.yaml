@@ -5,6 +5,7 @@ import:
   subpackages:
   - clientv3
   - integration
+  - embed
 - package: github.com/golang/mock
   version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
   subpackages:
