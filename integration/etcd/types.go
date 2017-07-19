@@ -1,6 +1,4 @@
-// +build integration
-
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -19,6 +17,7 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
+
 package etcd
 
 import (
@@ -29,6 +28,8 @@ import (
 	"github.com/m3db/m3x/instrument"
 )
 
+// EmbeddedKV is an embedded etcd server wrapped around
+// by m3cluster utilities
 type EmbeddedKV interface {
 	io.Closer
 
@@ -40,6 +41,7 @@ type EmbeddedKV interface {
 	ConfigServiceClient() (client.Client, error)
 }
 
+// Options specify the knobs to control the embedded kv
 type Options interface {
 	// SetInstrumentOptions sets the instrumentation options
 	SetInstrumentOptions(value instrument.Options) Options
