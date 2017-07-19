@@ -1,9 +1,9 @@
-hash: d1f7078727179cbf2f3f100adec3dcab8e8ad813f00843e9a62677d46d95cf00
-updated: 2017-07-19T00:36:20.741887117-04:00
+hash: e6a0c722558edb6c188ca0359f7b9a1416bce17172ada0efb1a004849576c49c
+updated: 2017-07-19T00:46:32.536325795-04:00
 imports:
 - name: ""
   version: 8ba2897a21e4fc51b298ca553d251318425f93ae
-  repo: git@github.com:coreos/etcd.git
+  repo: https://github.com/coreos/etcd.git
   vcs: git
   subpackages:
   - embed
