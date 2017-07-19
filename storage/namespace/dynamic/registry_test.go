@@ -30,11 +30,11 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3x/instrument"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
-	"github.com/m3db/m3x/instrument"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
