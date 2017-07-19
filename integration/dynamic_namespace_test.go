@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/integration/etcd"
+	"github.com/m3db/m3cluster/integration/etcd"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/namespace/convert"

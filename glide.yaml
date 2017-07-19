@@ -34,10 +34,11 @@ import:
   version: <4.0.0
 
 - package: github.com/m3db/m3cluster
-  version: 2eb541bb4b0883e27c78f7594f0eda09f8bf9665
+  version: 508d809f421fdb1e42f0bf0e755ca7eb9bc3b6fe
   subpackages:
   - client
   - services
+  - integration/etcd
 
 - package: github.com/m3db/m3x
   version: bd6be18ffb184691512eb442561b16a59c15d797
@@ -80,10 +81,3 @@ import:
 
 - package: github.com/fortytw2/leaktest
   version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
-
-- name: github.com/coreos/etcd
-  version: 8ba2897a21e4fc51b298ca553d251318425f93ae
-  repo: https://github.com/coreos/etcd.git
-  vcs: git
-  subpackages:
-  - embed

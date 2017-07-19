@@ -1,12 +1,6 @@
-hash: e6a0c722558edb6c188ca0359f7b9a1416bce17172ada0efb1a004849576c49c
-updated: 2017-07-19T00:46:32.536325795-04:00
+hash: e2c596493d42bd45ba7123f022b4d3f8c0fe93eac51509fc9391c25f4cfc78dc
+updated: 2017-07-19T01:02:18.255941929-04:00
 imports:
-- name: ""
-  version: 8ba2897a21e4fc51b298ca553d251318425f93ae
-  repo: https://github.com/coreos/etcd.git
-  vcs: git
-  subpackages:
-  - embed
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
   subpackages:
@@ -132,15 +126,17 @@ imports:
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
 - name: github.com/m3db/m3cluster
-  version: 2eb541bb4b0883e27c78f7594f0eda09f8bf9665
+  version: 508d809f421fdb1e42f0bf0e755ca7eb9bc3b6fe
   subpackages:
   - client
   - client/etcd
   - etcd/watchmanager
   - generated/proto/metadata
   - generated/proto/placement
+  - integration/etcd
   - kv
   - kv/etcd
+  - kv/util/runtime
   - proto/util
   - services
   - services/client
