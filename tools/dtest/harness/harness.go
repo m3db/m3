@@ -315,7 +315,7 @@ func newShardDir(prefix string, ns ts.ID, shard uint32) string {
 }
 
 func generatePaths(
-	placement services.ServicePlacement,
+	placement services.Placement,
 	n node.ServiceNode,
 	ns ts.ID,
 	file string,
