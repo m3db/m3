@@ -37,6 +37,8 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+const encoderChanBufSize = 1000
+
 type newIteratorFn func(
 	opts commitlog.Options,
 	commitLogPred commitlog.ReadEntryPredicate,
@@ -120,7 +122,9 @@ func (s *commitLogSource) Read(
 		// noncontigous. This means that this slice needs to be at least as long as
 		// the highest shard number that the bootstrapper will encounter. We should
 		// instead initialize this to some default size and then grow it everytime
-		// we see a new shard number that is larger than the current length
+		// we see a new shard number that is larger than the current length. This
+		// would require adding a mutex for accessing this slice. It would be better
+		// if we could initialize it to the right size the first time
 		unmerged = make([]map[ts.Hash]encodersByTime, numShards, numShards)
 		// TODO: Add to opts
 		numConc     = uint32(4)
@@ -132,8 +136,7 @@ func (s *commitLogSource) Read(
 
 	encoderChans := []chan encoderArg{}
 	for i := uint32(0); i < numConc; i++ {
-		// TODO: Constantize magic number
-		encoderChans = append(encoderChans, make(chan encoderArg, 1000))
+		encoderChans = append(encoderChans, make(chan encoderArg, encoderChanBufSize))
 	}
 
 	// Spin up numConc background go-routines to handle M3TSZ encoding. This must
@@ -153,6 +156,8 @@ func (s *commitLogSource) Read(
 					blockStart = arg.blockStart
 				)
 
+				// TODO: No lock required currently, but we may need one here if we
+				// begin dynamically resizing the unmerged slice
 				unmergedShard := unmerged[series.Shard]
 				if unmergedShard == nil {
 					unmergedShard = make(map[ts.Hash]encodersByTime)
