@@ -164,6 +164,10 @@ func (r *reader) Read() (
 	}
 	// Data is written into these channels in round-robin fashion, so reading them
 	// one at a time in the same order results in an ordered stream.
+	// TODO: This doesn't eventually deadlock because the reader goroutine will
+	// continue to fill these channels with EOFs until it is closed. We should
+	// probably avoid the deadlock (read from empty channel) scenario in a more
+	// graceful way.
 	rr := <-r.outBufs[r.nextIndex%r.numConc]
 	r.nextIndex++
 	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.resultErr
