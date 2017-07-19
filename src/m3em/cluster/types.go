@@ -117,7 +117,7 @@ type Cluster interface {
 	KnownNodes() []node.ServiceNode
 
 	// Placement returns the current placement
-	Placement() services.ServicePlacement
+	Placement() services.Placement
 
 	// Status returns the cluster status
 	Status() Status
