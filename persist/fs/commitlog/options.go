@@ -46,6 +46,9 @@ const (
 
 	// defaultBlockSize is the default commit log block size
 	defaultBlockSize = 15 * time.Minute
+
+	// defaultReadConcurrency is the default read concurrency
+	defaultReadConcurrency = 4
 )
 
 var (
@@ -71,6 +74,7 @@ type options struct {
 	flushInterval    time.Duration
 	backlogQueueSize int
 	bytesPool        pool.CheckedBytesPool
+	readConcurrency  int
 }
 
 // NewOptions creates new commit log options
@@ -88,6 +92,7 @@ func NewOptions() Options {
 		bytesPool: pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 			return pool.NewBytesPool(s, nil)
 		}),
+		readConcurrency: defaultReadConcurrency,
 	}
 	o.bytesPool.Init()
 	return o
@@ -207,4 +212,14 @@ func (o *options) SetBytesPool(value pool.CheckedBytesPool) Options {
 
 func (o *options) BytesPool() pool.CheckedBytesPool {
 	return o.bytesPool
+}
+
+func (o *options) SetReadConcurrency(concurrency int) Options {
+	opts := *o
+	opts.readConcurrency = concurrency
+	return &opts
+}
+
+func (o *options) ReadConcurrency() int {
+	return o.readConcurrency
 }
