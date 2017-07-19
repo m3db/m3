@@ -1,6 +1,12 @@
-hash: 6f507b5f7aec31ec364052a3af57e79226eaf21ff89d384d38a26800c4a1ba3e
-updated: 2017-07-18T21:37:59.858375596-04:00
+hash: d1f7078727179cbf2f3f100adec3dcab8e8ad813f00843e9a62677d46d95cf00
+updated: 2017-07-19T00:36:20.741887117-04:00
 imports:
+- name: ""
+  version: 8ba2897a21e4fc51b298ca553d251318425f93ae
+  repo: git@github.com:coreos/etcd.git
+  vcs: git
+  subpackages:
+  - embed
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
   subpackages:
@@ -85,7 +91,7 @@ imports:
   subpackages:
   - capnslog
 - name: github.com/davecgh/go-spew
-  version: 782f4967f2dc4564575ca782fe2d04090b5faca8
+  version: adab96458c51a58dc1783b3335dcce5461522e75
   subpackages:
   - spew
 - name: github.com/facebookgo/clock
@@ -220,8 +226,10 @@ imports:
   version: 0d12bf811670bf6a1a63828dfbd003eded177fce
 - name: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
+  subpackages:
+  - cobra
 - name: github.com/spf13/pflag
-  version: 08b1a584251b5b62f458943640fc8ebd4d50aaa5
+  version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 - name: github.com/StackExchange/wmi
   version: e542ed97d15e640bdc14b5c12162d59e8fc67324
 - name: github.com/stretchr/testify

@@ -64,6 +64,11 @@ import:
 
 - package: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
+  subpackages:
+  - cobra
+
+- package: github.com/spf13/pflag
+  version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 
 # NB(prateek): ideally, the following dependencies would be under testImport, but
 # Glide doesn't like that. https://github.com/Masterminds/glide/issues/597
@@ -78,5 +83,7 @@ import:
 
 - name: github.com/coreos/etcd
   version: 8ba2897a21e4fc51b298ca553d251318425f93ae
+  repo: git@github.com:coreos/etcd.git
+  vcs: git
   subpackages:
   - embed
