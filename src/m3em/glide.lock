@@ -1,5 +1,5 @@
-hash: ff87c86017626849a6adf52c3d36a6cb944430dfe79eaa14e44b8d74f07a3feb
-updated: 2017-05-12T12:30:26.321304275-04:00
+hash: 05546e8059998bea3eede1b13787456d17b1b92759d77c8fa31e71a0400fe981
+updated: 2017-07-19T12:37:02.001133759-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -25,16 +25,16 @@ imports:
   - proto
   - protoc-gen-go
 - name: github.com/m3db/m3cluster
-  version: 5e66868870e23c1182c7788714d9f46f61449c54
+  version: 73f7742b6c639865a27da64cf719f15e5ceed0cd
   subpackages:
+  - client
+  - generated/proto/metadata
+  - generated/proto/placement
+  - kv
+  - kv/util/runtime
   - services
   - services/placement
   - shard
-- name: github.com/m3db/m3db
-  version: 0b26ce183a008b18d05516f0d9d2bd7e0fe01e29
-  subpackages:
-  - generated/thrift/rpc
-  - network/server/tchannelthrift/node/channel
 - name: github.com/m3db/m3x
   version: bd6be18ffb184691512eb442561b16a59c15d797
   subpackages:
@@ -51,10 +51,6 @@ imports:
   - watch
 - name: github.com/nu7hatch/gouuid
   version: 179d4d0c4d8d407a32af483c2354df1d2c91e6c3
-- name: github.com/opentracing/opentracing-go
-  version: 855519783f479520497c6b3445611b05fc42f009
-  subpackages:
-  - ext
 - name: github.com/pborman/getopt
   version: ec82d864f599c39673eef89f91b93fa5576567a1
 - name: github.com/pmezard/go-difflib
@@ -90,15 +86,6 @@ imports:
   - m3/customtransports
   - m3/thrift
   - m3/thriftudp
-- name: github.com/uber/tchannel-go
-  version: 8d570ed87acb2661d390c096215260f3f9e9b931
-  subpackages:
-  - relay
-  - thrift
-  - thrift/gen-go/meta
-  - tnet
-  - trand
-  - typed
 - name: golang.org/x/net
   version: 61557ac0112b576429a0df080e1c2cef5dfbb642
   subpackages:

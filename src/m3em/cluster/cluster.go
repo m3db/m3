@@ -64,7 +64,7 @@ type svcCluster struct {
 	spares       []node.ServiceNode
 	sparesByID   map[string]node.ServiceNode
 	placementSvc services.PlacementService
-	placement    services.ServicePlacement
+	placement    services.Placement
 	status       Status
 	lastErr      error
 }
@@ -117,7 +117,7 @@ func (c *svcCluster) newExecutor(
 	return node.NewConcurrentExecutor(nodes, c.opts.NodeConcurrency(), c.opts.NodeOperationTimeout(), fn)
 }
 
-func (c *svcCluster) Placement() services.ServicePlacement {
+func (c *svcCluster) Placement() services.Placement {
 	c.Lock()
 	defer c.Unlock()
 	return c.placement
@@ -244,7 +244,7 @@ func (c *svcCluster) addNodeFromListWithLock(candidates []services.PlacementInst
 
 	var (
 		psvc         = c.placementSvc
-		newPlacement services.ServicePlacement
+		newPlacement services.Placement
 		usedInstance services.PlacementInstance
 	)
 	if err := c.opts.PlacementServiceRetrier().Attempt(func() error {
@@ -275,7 +275,7 @@ func (c *svcCluster) AddNode() (node.ServiceNode, error) {
 	return c.addNodeFromListWithLock(c.sparesAsPlacementInstaceWithLock())
 }
 
-func (c *svcCluster) setPlacementWithLock(p services.ServicePlacement) error {
+func (c *svcCluster) setPlacementWithLock(p services.Placement) error {
 	for _, instance := range p.Instances() {
 		// nb(prateek): update usedNodes with the new shards.
 		instanceID := instance.ID()
@@ -311,7 +311,7 @@ func (c *svcCluster) RemoveNode(i node.ServiceNode) error {
 	}
 
 	var (
-		newPlacement services.ServicePlacement
+		newPlacement services.Placement
 		psvc         = c.placementSvc
 	)
 	if err := c.opts.PlacementServiceRetrier().Attempt(func() error {
@@ -346,7 +346,7 @@ func (c *svcCluster) ReplaceNode(oldNode node.ServiceNode) ([]node.ServiceNode, 
 	var (
 		psvc            = c.placementSvc
 		spareCandidates = c.sparesAsPlacementInstaceWithLock()
-		newPlacement    services.ServicePlacement
+		newPlacement    services.Placement
 		newInstances    []services.PlacementInstance
 	)
 	if err := c.opts.PlacementServiceRetrier().Attempt(func() error {
