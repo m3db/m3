@@ -103,7 +103,7 @@ func (s *peersSource) Read(
 				xlog.NewLogField("namespace", namespace.String()),
 			).Infof("peers bootstrapper resolving block retriever")
 
-			r, err := retrieverMgr.Retriever(namespace)
+			r, err := retrieverMgr.Retriever(nsMetadata)
 			if err != nil {
 				return nil, err
 			}

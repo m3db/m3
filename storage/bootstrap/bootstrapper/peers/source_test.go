@@ -210,7 +210,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 
 	mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
 	mockRetrieverMgr.EXPECT().
-		Retriever(ts.NewIDMatcher(testNsMd.ID().String())).
+		Retriever(namespace.NewMetadataMatcher(testNsMd)).
 		Return(mockRetriever, nil)
 
 	opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)
@@ -393,7 +393,7 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 
 	mockRetrieverMgr := block.NewMockDatabaseBlockRetrieverManager(ctrl)
 	mockRetrieverMgr.EXPECT().
-		Retriever(ts.NewIDMatcher(testNamespace.String())).
+		Retriever(namespace.NewMetadataMatcher(testNsMd)).
 		Return(mockRetriever, nil)
 
 	opts = opts.SetDatabaseBlockRetrieverManager(mockRetrieverMgr)

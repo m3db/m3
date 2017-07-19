@@ -371,7 +371,7 @@ func (s *fileSystemSource) Read(
 		).Infof("filesystem bootstrapper resolving block retriever")
 
 		var err error
-		blockRetriever, err = blockRetrieverMgr.Retriever(nsID)
+		blockRetriever, err = blockRetrieverMgr.Retriever(md)
 		if err != nil {
 			return nil, err
 		}

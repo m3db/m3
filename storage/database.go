@@ -340,7 +340,7 @@ func (d *db) newDatabaseNamespace(
 			d, d.writeCommitLogFn, d.opts)
 	}
 
-	blockRetriever, err := brm.Retriever(md.ID())
+	blockRetriever, err := brm.Retriever(md)
 	if err != nil {
 		return nil, err
 	}
