@@ -88,3 +88,33 @@ func ToMetadata(
 
 	return namespace.NewMetadata(ts.StringID(id), mopts)
 }
+
+// ToProto converts namespace.Map to nsproto.Registry
+func ToProto(
+	m namespace.Map,
+) nsproto.Registry {
+	reg := nsproto.Registry{
+		Namespaces: make(map[string]*nsproto.NamespaceOptions, len(m.Metadatas())),
+	}
+
+	for _, md := range m.Metadatas() {
+		ropts := md.Options().RetentionOptions()
+		reg.Namespaces[md.ID().String()] = &nsproto.NamespaceOptions{
+			NeedsBootstrap:      md.Options().NeedsBootstrap(),
+			NeedsFlush:          md.Options().NeedsFlush(),
+			NeedsFilesetCleanup: md.Options().NeedsFilesetCleanup(),
+			NeedsRepair:         md.Options().NeedsRepair(),
+			WritesToCommitLog:   md.Options().WritesToCommitLog(),
+			RetentionOptions: &nsproto.RetentionOptions{
+				BlockSizeNanos:                           int64(ropts.BlockSize()),
+				RetentionPeriodNanos:                     int64(ropts.RetentionPeriod()),
+				BufferFutureNanos:                        int64(ropts.BufferFuture()),
+				BufferPastNanos:                          int64(ropts.BufferPast()),
+				BlockDataExpiry:                          ropts.BlockDataExpiry(),
+				BlockDataExpiryAfterNotAccessPeriodNanos: int64(ropts.BlockDataExpiryAfterNotAccessedPeriod()),
+			},
+		}
+	}
+
+	return reg
+}
