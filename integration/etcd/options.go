@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	defaulTimeout = time.Minute
+	defaulTimeout = 5 * time.Second
 	defaultDir    = "etcd.dir"
 )
 

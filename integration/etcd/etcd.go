@@ -22,14 +22,18 @@
 package etcd
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	sdclient "github.com/m3db/m3cluster/services/client"
+	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/errors"
 
 	"github.com/coreos/etcd/embed"
@@ -85,11 +89,44 @@ func (e *embeddedKV) Start() error {
 	timeout := e.opts.InitTimeout()
 	select {
 	case <-e.etcd.Server.ReadyNotify():
-		return nil
+		break
 	case <-time.After(timeout):
 		return fmt.Errorf("etcd server took too long to start")
 	}
+
+	// ensure v3 api endpoints are available, https://github.com/coreos/etcd/pull/7075
+	apiVersionEndpoint := fmt.Sprintf("%s/version", embed.DefaultListenClientURLs)
+	fn := func() bool { return version3Available(apiVersionEndpoint) }
+	ok := xclock.WaitUntil(fn, timeout)
+	if !ok {
+		return fmt.Errorf("api version 3 not available")
+	}
+
 	return nil
+}
+
+type versionResponse struct {
+	Version string `json:"etcdcluster"`
+}
+
+func version3Available(endpoint string) bool {
+	resp, err := http.Get(endpoint)
+	if err != nil {
+		return false
+	}
+	if resp.StatusCode != 200 {
+		return false
+	}
+	defer resp.Body.Close()
+
+	decoder := json.NewDecoder(resp.Body)
+	var data versionResponse
+	err = decoder.Decode(&data)
+	if err != nil {
+		return false
+	}
+
+	return strings.Index(data.Version, "3.") == 0
 }
 
 func (e *embeddedKV) ConfigServiceClient() (client.Client, error) {

@@ -107,10 +107,14 @@ func newTestSetup(t *testing.T, opts testOptions) (*testSetup, error) {
 		opts = newTestOptions(t)
 	}
 
+	nsInit := opts.NamespaceInitializer()
+	if nsInit == nil {
+		nsInit = staticns.NewInitializer(opts.Namespaces())
+	}
+
 	storageOpts := storage.NewOptions().
 		SetTickInterval(opts.TickInterval()).
-		SetNamespaceInitializer(
-			staticns.NewInitializer(opts.Namespaces()))
+		SetNamespaceInitializer(nsInit)
 
 	nativePooling := strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"
 	if nativePooling {

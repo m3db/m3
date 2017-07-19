@@ -82,6 +82,13 @@ type testOptions interface {
 	// Namespaces returns the namespaces.
 	Namespaces() []namespace.Metadata
 
+	// SetNamespaceInitializer sets the namespace initializer,
+	// if this is set, it superseeds Namespaces()
+	SetNamespaceInitializer(value namespace.Initializer) testOptions
+
+	// NamespaceInitializer returns the namespace initializer
+	NamespaceInitializer() namespace.Initializer
+
 	// SetCommitLogRetention sets the commit log retention options
 	SetCommitLogRetention(ropts retention.Options) testOptions
 
@@ -218,6 +225,7 @@ type testOptions interface {
 
 type options struct {
 	namespaces                         []namespace.Metadata
+	nsInitializer                      namespace.Initializer
 	commitlogRetentionOpts             retention.Options
 	id                                 string
 	tickInterval                       time.Duration
@@ -274,6 +282,16 @@ func (o *options) SetNamespaces(value []namespace.Metadata) testOptions {
 
 func (o *options) Namespaces() []namespace.Metadata {
 	return o.namespaces
+}
+
+func (o *options) SetNamespaceInitializer(value namespace.Initializer) testOptions {
+	opts := *o
+	opts.nsInitializer = value
+	return &opts
+}
+
+func (o *options) NamespaceInitializer() namespace.Initializer {
+	return o.nsInitializer
 }
 
 func (o *options) SetCommitLogRetention(value retention.Options) testOptions {
