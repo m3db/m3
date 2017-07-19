@@ -35,7 +35,6 @@ import (
 	bfs "github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 
 	"github.com/stretchr/testify/require"
@@ -69,10 +68,9 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	retrieverOpts := fs.NewBlockRetrieverOptions()
 
 	blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
-		func(ns ts.ID) (block.DatabaseBlockRetriever, error) {
-			require.True(t, ns.Equal(namesp.ID()))
+		func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
 			retriever := fs.NewBlockRetriever(retrieverOpts, setup.fsOpts)
-			if err := retriever.Open(namesp); err != nil {
+			if err := retriever.Open(md); err != nil {
 				return nil, err
 			}
 			return retriever, nil
