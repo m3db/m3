@@ -116,9 +116,10 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 
 func TestReadOrderedValues(t *testing.T) {
 	opts := testOptions()
+	md := testNsMetadata(t)
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	blockSize := opts.CommitLogOptions().RetentionOptions().BlockSize()
+	blockSize := md.Options().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now
@@ -149,7 +150,7 @@ func TestReadOrderedValues(t *testing.T) {
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.Read(testNsMetadata(t), targetRanges, testDefaultRunOpts)
+	res, err := src.Read(md, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
@@ -159,9 +160,10 @@ func TestReadOrderedValues(t *testing.T) {
 
 func TestReadNamespaceFiltering(t *testing.T) {
 	opts := testOptions()
+	md := testNsMetadata(t)
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	blockSize := opts.CommitLogOptions().RetentionOptions().BlockSize()
+	blockSize := md.Options().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now
@@ -192,7 +194,7 @@ func TestReadNamespaceFiltering(t *testing.T) {
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.Read(testNsMetadata(t), targetRanges, testDefaultRunOpts)
+	res, err := src.Read(md, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
@@ -202,9 +204,10 @@ func TestReadNamespaceFiltering(t *testing.T) {
 
 func TestReadUnorderedValues(t *testing.T) {
 	opts := testOptions()
+	md := testNsMetadata(t)
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	blockSize := opts.CommitLogOptions().RetentionOptions().BlockSize()
+	blockSize := md.Options().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now
@@ -232,7 +235,7 @@ func TestReadUnorderedValues(t *testing.T) {
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.Read(testNsMetadata(t), targetRanges, testDefaultRunOpts)
+	res, err := src.Read(md, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
@@ -242,9 +245,10 @@ func TestReadUnorderedValues(t *testing.T) {
 
 func TestReadTrimsToRanges(t *testing.T) {
 	opts := testOptions()
+	md := testNsMetadata(t)
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	blockSize := opts.CommitLogOptions().RetentionOptions().BlockSize()
+	blockSize := md.Options().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now
@@ -271,7 +275,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.Read(testNsMetadata(t), targetRanges, testDefaultRunOpts)
+	res, err := src.Read(md, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
