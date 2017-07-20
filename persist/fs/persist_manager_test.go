@@ -161,6 +161,17 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	require.Equal(t, int64(104), pm.bytesWritten)
 }
 
+func TestPersistenceManagerClose(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	pm, writer, _ := testManager(t, ctrl)
+	defer os.RemoveAll(pm.filePathPrefix)
+
+	writer.EXPECT().Close()
+	pm.close()
+}
+
 func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
