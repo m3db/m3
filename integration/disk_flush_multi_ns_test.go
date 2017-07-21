@@ -116,11 +116,11 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 	// Advance time to make sure all data are flushed. Because data
 	// are flushed to disk asynchronously, need to poll to check
 	// when data are written.
-	tickInterval := opts.TickInterval()
+	maxWaitTime := time.Minute
 	log.Infof("waiting until data is flushed")
 	testSetup.setNowFn(testSetup.getNowFn().Add(3 * ns1BlockSize))
-	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], ns1SeriesMaps, tickInterval*12))
-	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[1], ns2SeriesMaps, tickInterval*5))
+	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], ns1SeriesMaps, maxWaitTime))
+	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[1], ns2SeriesMaps, maxWaitTime))
 	log.Infof("data has been flushed")
 
 	// Verify on-disk data match what we expect
