@@ -134,7 +134,7 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 	testSetup.setNowFn(end)
 
 	// Check if expected files have been deleted
-	waitTimeout := opts.TickInterval() * 4
+	waitTimeout := 30 * time.Second
 	require.NoError(t, waitUntilDataCleanedUpExtended(
 		[]cleanupTimesFileset{
 			cleanupTimesFileset{
