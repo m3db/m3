@@ -40,7 +40,6 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 
 	// Test setup
 	var (
-		tickInterval       = 3 * time.Second
 		commitLogBlockSize = time.Hour
 		clROpts            = retention.NewOptions().SetRetentionPeriod(18 * time.Hour).SetBlockSize(commitLogBlockSize)
 		ns1BlockSize       = 2 * time.Hour
@@ -53,7 +52,7 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 	require.NoError(t, err)
 	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ns2ROpts))
 	require.NoError(t, err)
-	opts := newTestOptions(t).SetTickInterval(tickInterval).SetNamespaces([]namespace.Metadata{ns1, ns2})
+	opts := newTestOptions(t).SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	// Test setup
 	testSetup, err := newTestSetup(t, opts)
@@ -117,6 +116,7 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 	// Advance time to make sure all data are flushed. Because data
 	// are flushed to disk asynchronously, need to poll to check
 	// when data are written.
+	tickInterval := opts.TickInterval()
 	log.Infof("waiting until data is flushed")
 	testSetup.setNowFn(testSetup.getNowFn().Add(3 * ns1BlockSize))
 	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], ns1SeriesMaps, tickInterval*12))

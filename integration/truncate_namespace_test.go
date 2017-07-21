@@ -39,8 +39,7 @@ func TestTruncateNamespace(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	tickInterval := time.Second
-	testOpts := newTestOptions(t).SetTickInterval(tickInterval)
+	testOpts := newTestOptions(t)
 	testSetup, err := newTestSetup(t, testOpts)
 	require.NoError(t, err)
 	defer testSetup.close()

@@ -46,14 +46,13 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	}
 	// Test setup
 	var (
-		tickInterval = 3 * time.Second
-		log          = xlog.SimpleLogger
-		ropts        = retention.NewOptions().
-				SetRetentionPeriod(6 * time.Hour).
-				SetBlockSize(2 * time.Hour).
-				SetBufferPast(10 * time.Minute).
-				SetBufferFuture(2 * time.Minute).
-				SetBlockDataExpiry(true)
+		log   = xlog.SimpleLogger
+		ropts = retention.NewOptions().
+			SetRetentionPeriod(6 * time.Hour).
+			SetBlockSize(2 * time.Hour).
+			SetBufferPast(10 * time.Minute).
+			SetBufferFuture(2 * time.Minute).
+			SetBlockDataExpiry(true)
 		blockSize = ropts.BlockSize()
 		setup     *testSetup
 		err       error
@@ -62,8 +61,7 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp}).
-		SetTickInterval(tickInterval)
+		SetNamespaces([]namespace.Metadata{namesp})
 
 	retrieverOpts := fs.NewBlockRetrieverOptions()
 

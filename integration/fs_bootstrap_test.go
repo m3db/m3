@@ -43,9 +43,8 @@ func TestFilesystemBootstrap(t *testing.T) {
 	}
 
 	var (
-		tickInterval = 3 * time.Second
-		blockSize    = 2 * time.Hour
-		rOpts        = retention.NewOptions().SetRetentionPeriod(2 * time.Hour).SetBlockSize(blockSize)
+		blockSize = 2 * time.Hour
+		rOpts     = retention.NewOptions().SetRetentionPeriod(2 * time.Hour).SetBlockSize(blockSize)
 	)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(rOpts))
 	require.NoError(t, err)
@@ -53,7 +52,6 @@ func TestFilesystemBootstrap(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := newTestOptions(t).
-		SetTickInterval(tickInterval).
 		SetNamespaces([]namespace.Metadata{ns1, ns2}).
 		SetCommitLogRetention(rOpts)
 

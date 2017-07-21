@@ -55,7 +55,7 @@ const (
 	defaultWorkerPoolSize = 10
 
 	// defaultTickInterval is the default tick interval.
-	defaultTickInterval = 3 * time.Second
+	defaultTickInterval = 1 * time.Second
 
 	// defaultUseTChannelClientForReading determines whether we use the tchannel client for reading by default.
 	defaultUseTChannelClientForReading = true

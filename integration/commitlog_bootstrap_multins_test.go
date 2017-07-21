@@ -44,7 +44,6 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 
 	// Test setup
 	var (
-		tickInterval       = 3 * time.Second
 		commitLogBlockSize = 15 * time.Minute
 		clROpts            = retention.NewOptions().SetRetentionPeriod(48 * time.Hour).SetBlockSize(commitLogBlockSize)
 		ns1BlockSize       = time.Hour
@@ -59,7 +58,6 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := newTestOptions(t).
-		SetTickInterval(tickInterval).
 		SetCommitLogRetention(clROpts).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
