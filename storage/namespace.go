@@ -542,8 +542,7 @@ func (n *dbNamespace) Flush(
 
 	// check if blockStart is aligned with the namespace's retention options
 	bs := n.nopts.RetentionOptions().BlockSize()
-	truncated := blockStart.Truncate(bs)
-	if truncated != blockStart {
+	if t := blockStart.Truncate(bs); !blockStart.Equal(t) {
 		return fmt.Errorf("failed to flush at time %v, not aligned to blockSize", blockStart.String())
 	}
 
