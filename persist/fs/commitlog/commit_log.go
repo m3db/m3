@@ -244,7 +244,6 @@ func (l *commitLog) write() {
 
 			continue
 		}
-		// TODO(prateek): track success/errors per namespace
 		l.metrics.success.Inc(1)
 	}
 
