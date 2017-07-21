@@ -557,9 +557,9 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 			closeSuccess = int64(closing.NumShards() - closingErrors.NumShards())
 			closeErrors  = int64(closingErrors.NumShards())
 		)
-		return counts["database.dbnamespace.shards.add"] == adds &&
-			counts["database.dbnamespace.shards.close"] == closeSuccess &&
-			counts["database.dbnamespace.shards.close-errors"] == closeErrors
+		return counts["dbnamespace.shards.add"] == adds &&
+			counts["dbnamespace.shards.close"] == closeSuccess &&
+			counts["dbnamespace.shards.close-errors"] == closeErrors
 	})
 
 	for _, shard := range shards {

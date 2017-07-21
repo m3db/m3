@@ -68,7 +68,8 @@ func newShardRepairer(opts Options, rpopts repair.Options) (databaseShardRepaire
 	}
 
 	iopts := opts.InstrumentOptions()
-	scope := iopts.MetricsScope().SubScope("database.repair").Tagged(map[string]string{"host": hostname})
+	scope := iopts.MetricsScope().SubScope("repair").
+		Tagged(map[string]string{"host": hostname})
 
 	r := shardRepairer{
 		opts:   opts,
