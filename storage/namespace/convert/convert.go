@@ -92,7 +92,7 @@ func ToMetadata(
 // ToProto converts namespace.Map to nsproto.Registry
 func ToProto(
 	m namespace.Map,
-) nsproto.Registry {
+) *nsproto.Registry {
 	reg := nsproto.Registry{
 		Namespaces: make(map[string]*nsproto.NamespaceOptions, len(m.Metadatas())),
 	}
@@ -116,5 +116,5 @@ func ToProto(
 		}
 	}
 
-	return reg
+	return &reg
 }
