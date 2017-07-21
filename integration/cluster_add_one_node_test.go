@@ -56,8 +56,7 @@ func TestClusterAddOneNode(t *testing.T) {
 				SetBufferFuture(2*time.Minute)))
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp}).
-		SetTickInterval(3 * time.Second)
+		SetNamespaces([]namespace.Metadata{namesp})
 
 	instances := struct {
 		start []services.ServiceInstance

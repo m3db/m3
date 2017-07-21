@@ -52,8 +52,7 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 	require.NoError(t, err)
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp}).
-		SetVerifySeriesDebugFilePathPrefix("/tmp/").
-		SetTickInterval(3 * time.Second)
+		SetVerifySeriesDebugFilePathPrefix("/tmp/")
 
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 

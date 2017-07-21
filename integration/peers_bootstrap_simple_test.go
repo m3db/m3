@@ -49,8 +49,7 @@ func TestPeersBootstrapSimple(t *testing.T) {
 	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(retentionOpts))
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp}).
-		SetTickInterval(3 * time.Second)
+		SetNamespaces([]namespace.Metadata{namesp})
 
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},

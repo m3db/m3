@@ -81,7 +81,7 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
 	later := testSetup.getNowFn()
-	time.Sleep(testOpts.TickInterval() * 4)
+	time.Sleep(testOpts.TickInterval() * 10)
 
 	metadatasByShard := testSetupMetadatas(t, testSetup, testNamespaces[0], now, later)
 	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, md, metadatasByShard)

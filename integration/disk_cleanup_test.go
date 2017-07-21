@@ -73,6 +73,6 @@ func TestDiskCleanup(t *testing.T) {
 	testSetup.setNowFn(newNow)
 
 	// Check if files have been deleted
-	waitTimeout := testOpts.TickInterval() * 4
+	waitTimeout := testOpts.TickInterval() * 10
 	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, waitTimeout))
 }
