@@ -1406,7 +1406,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 			},
 		}, nil)
 
-		// Attempt stream blocks
+	// Attempt stream blocks
 	bopts := result.NewOptions()
 	m := session.streamFromPeersMetricsForShard(0, resultTypeTest)
 	r := newBulkBlocksResult(opts, bopts)
