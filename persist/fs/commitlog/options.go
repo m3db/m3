@@ -42,6 +42,9 @@ const (
 
 	// defaultFlushInterval is the default commit log flush interval
 	defaultFlushInterval = time.Second
+
+	// defaultBlockSize is the default commit log block size
+	defaultBlockSize = 15 * time.Minute
 )
 
 var (
@@ -84,7 +87,7 @@ func NewOptions() Options {
 
 func defaultRetentionOptions() retention.Options {
 	return retention.NewOptions().
-		SetBlockSize(15 * time.Minute)
+		SetBlockSize(defaultBlockSize)
 }
 
 func (o *options) Validate() error {
