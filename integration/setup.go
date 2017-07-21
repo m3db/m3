@@ -275,7 +275,7 @@ func guessBestTruncateBlockSize(mds []namespace.Metadata) (time.Duration, bool) 
 	// get all known blocksizes
 	blockSizes := make(map[int64]struct{})
 	for _, md := range mds {
-		bs := md.Options().RetentionOptions().BlockSize().Nanoseconds() / 1000 / 1000
+		bs := md.Options().RetentionOptions().BlockSize().Nanoseconds() / int64(time.Millisecond)
 		blockSizes[bs] = struct{}{}
 	}
 
