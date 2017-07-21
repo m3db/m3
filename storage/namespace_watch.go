@@ -45,9 +45,10 @@ type dbNamespaceWatch struct {
 	doneCh   chan struct{}
 	closedCh chan struct{}
 
-	db      database
-	log     xlog.Logger
-	metrics dbNamespaceWatchMetrics
+	db             database
+	log            xlog.Logger
+	metrics        dbNamespaceWatchMetrics
+	reportInterval time.Duration
 }
 
 type dbNamespaceWatchMetrics struct {
@@ -58,7 +59,7 @@ type dbNamespaceWatchMetrics struct {
 func newWatchMetrics(
 	scope tally.Scope,
 ) dbNamespaceWatchMetrics {
-	nsScope := scope.SubScope("database.nswatch")
+	nsScope := scope.SubScope("namespace-watch")
 	return dbNamespaceWatchMetrics{
 		activeNamespaces: nsScope.Gauge("active"),
 		updates:          nsScope.Counter("updates"),
@@ -72,10 +73,11 @@ func newDatabaseNamespaceWatch(
 ) databaseNamespaceWatch {
 	scope := iopts.MetricsScope()
 	return &dbNamespaceWatch{
-		watch:   w,
-		db:      db,
-		log:     iopts.Logger(),
-		metrics: newWatchMetrics(scope),
+		watch:          w,
+		db:             db,
+		log:            iopts.Logger(),
+		metrics:        newWatchMetrics(scope),
+		reportInterval: iopts.ReportInterval(),
 	}
 }
 
@@ -100,41 +102,54 @@ func (w *dbNamespaceWatch) startWatch() {
 	reportClosingCh := make(chan struct{}, 1)
 	reportClosedCh := make(chan struct{}, 1)
 	go func() {
-		ticker := time.NewTicker(1 * time.Second)
+		ticker := time.NewTicker(w.reportInterval)
+		defer func() {
+			ticker.Stop()
+			close(reportClosedCh)
+		}()
 		for {
 			select {
 			case <-ticker.C:
 				w.reportMetrics()
 			case <-reportClosingCh:
-				ticker.Stop()
-				close(reportClosedCh)
 				return
 			}
 		}
 	}()
 
+	defer func() {
+		// Issue closing signal to report channel
+		close(reportClosingCh)
+		// Wait for report channel to close
+		<-reportClosedCh
+		// Signal all closed
+		close(w.closedCh)
+	}()
+
 	for {
 		select {
 		case <-w.doneCh:
-			// Issue closing signal to report channel
-			close(reportClosingCh)
-			// Wait for report channel to close
-			<-reportClosedCh
-			// Signal all closed
-			close(w.closedCh)
 			return
-		case <-w.watch.C():
-			w.Lock()
-			if !w.watching {
-				continue
+		case _, ok := <-w.watch.C():
+			if !ok {
+				return
 			}
-			w.Unlock()
+
+			if !w.isWatching() {
+				return
+			}
 
 			w.metrics.updates.Inc(1)
 			newMap := w.watch.Get()
 			w.db.updateOwnedNamespaces(newMap)
 		}
 	}
+}
+
+func (w *dbNamespaceWatch) isWatching() bool {
+	w.Lock()
+	defer w.Unlock()
+	return w.watching
 }
 
 func (w *dbNamespaceWatch) reportMetrics() {

@@ -137,6 +137,7 @@ func NewDatabase(
 
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("database")
+	opts = opts.SetInstrumentOptions(iopts.SetMetricsScope(scope))
 
 	d := &db{
 		opts:         opts,
@@ -171,8 +172,7 @@ func NewDatabase(
 		return nil, errCommitLogStrategyUnknown
 	}
 
-	mediator, err := newMediator(d,
-		opts.SetInstrumentOptions(iopts.SetMetricsScope(scope)))
+	mediator, err := newMediator(d, opts)
 	if err != nil {
 		return nil, err
 	}

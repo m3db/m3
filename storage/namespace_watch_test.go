@@ -30,6 +30,7 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func newTestNamespaceWatch(t *testing.T, ctrl *gomock.Controller) (
@@ -37,7 +38,10 @@ func newTestNamespaceWatch(t *testing.T, ctrl *gomock.Controller) (
 	*mockDatabase,
 	*namespace.MockWatch,
 ) {
-	iopts := instrument.NewOptions()
+	testScope := tally.NewTestScope("", nil)
+	iopts := instrument.NewOptions().
+		SetMetricsScope(testScope).
+		SetReportInterval(10 * time.Millisecond)
 
 	// NB: Can't use golang.Mock generated database here because we need to use
 	// EXPECT on unexported methods, which fails due to: https://github.com/golang/mock/issues/52
@@ -92,6 +96,7 @@ func TestNamespaceWatchUpdatePropagation(t *testing.T) {
 	}()
 
 	mockMap := namespace.NewMockMap(ctrl)
+	mockMap.EXPECT().Metadatas().Return([]namespace.Metadata{}).AnyTimes()
 	dbWatch, mockDB, mockWatch := newTestNamespaceWatch(t, ctrl)
 	mockWatch.EXPECT().Get().Return(mockMap).AnyTimes()
 	mockWatch.EXPECT().C().Return(ch).AnyTimes()
