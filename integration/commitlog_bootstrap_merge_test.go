@@ -141,6 +141,6 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		log.Debug("server is now down")
 	}()
 
-	log.Info("vaildating bootstrapped data")
+	log.Info("validating bootstrapped data")
 	verifySeriesMaps(t, setup, ns1.ID(), seriesMaps)
 }
