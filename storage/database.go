@@ -151,7 +151,6 @@ func NewDatabase(
 		errThreshold: opts.ErrorThresholdForLoad(),
 	}
 
-	// TODO(prateek): investigate commit log metrics for multiple namespaces
 	commitLog, err := commitlog.NewCommitLog(opts.CommitLogOptions())
 	if err != nil {
 		return nil, err
