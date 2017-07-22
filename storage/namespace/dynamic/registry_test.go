@@ -58,6 +58,24 @@ func newTestOpts(ctrl *gomock.Controller, watch *testValueWatch) namespace.Dynam
 	return opts
 }
 
+func numInvalidUpdates(opts namespace.DynamicOptions) int64 {
+	scope := opts.InstrumentOptions().MetricsScope().(tally.TestScope)
+	count, ok := scope.Snapshot().Counters()["namespace-registry.invalid-update+"]
+	if !ok {
+		return 0
+	}
+	return count.Value()
+}
+
+func currentVersionMetrics(opts namespace.DynamicOptions) float64 {
+	scope := opts.InstrumentOptions().MetricsScope().(tally.TestScope)
+	g, ok := scope.Snapshot().Gauges()["namespace-registry.current-version+"]
+	if !ok {
+		return 0.0
+	}
+	return g.Value()
+}
+
 func TestInitializerTimeout(t *testing.T) {
 	defer leaktest.CheckTimeout(t, time.Second)()
 
@@ -128,15 +146,6 @@ func TestInitializerUpdateWithBadProto(t *testing.T) {
 	opts := newTestOpts(ctrl, w)
 	init := NewInitializer(opts)
 
-	scope := opts.InstrumentOptions().MetricsScope().(tally.TestScope)
-	numInvalid := func() int64 {
-		count, ok := scope.Snapshot().Counters()["namespace_registry.invalid_update+"]
-		if !ok {
-			return 0
-		}
-		return count.Value()
-	}
-
 	go w.start()
 	reg, err := init.Init()
 	require.NoError(t, err)
@@ -144,7 +153,7 @@ func TestInitializerUpdateWithBadProto(t *testing.T) {
 	rmap, err := reg.Watch()
 	require.NoError(t, err)
 	require.Len(t, rmap.Get().Metadatas(), 1)
-	require.Equal(t, int64(0), numInvalid())
+	require.Equal(t, int64(0), numInvalidUpdates(opts))
 
 	// update with bad proto
 	w.valueCh <- testValue{
@@ -158,7 +167,7 @@ func TestInitializerUpdateWithBadProto(t *testing.T) {
 	}
 
 	time.Sleep(20 * time.Millisecond)
-	require.Equal(t, int64(1), numInvalid())
+	require.Equal(t, int64(1), numInvalidUpdates(opts))
 
 	require.Len(t, rmap.Get().Metadatas(), 1)
 	require.NoError(t, reg.Close())
@@ -177,15 +186,6 @@ func TestInitializerUpdateWithOlderVersion(t *testing.T) {
 	opts := newTestOpts(ctrl, w)
 	init := NewInitializer(opts)
 
-	scope := opts.InstrumentOptions().MetricsScope().(tally.TestScope)
-	numInvalid := func() int64 {
-		count, ok := scope.Snapshot().Counters()["namespace_registry.invalid_update+"]
-		if !ok {
-			return 0
-		}
-		return count.Value()
-	}
-
 	go w.start()
 	reg, err := init.Init()
 	require.NoError(t, err)
@@ -193,7 +193,7 @@ func TestInitializerUpdateWithOlderVersion(t *testing.T) {
 	rmap, err := reg.Watch()
 	require.NoError(t, err)
 	require.Len(t, rmap.Get().Metadatas(), 1)
-	require.Equal(t, int64(0), numInvalid())
+	require.Equal(t, int64(0), numInvalidUpdates(opts))
 
 	// update with bad version
 	w.valueCh <- testValue{
@@ -202,7 +202,7 @@ func TestInitializerUpdateWithOlderVersion(t *testing.T) {
 	}
 
 	time.Sleep(20 * time.Millisecond)
-	require.Equal(t, int64(1), numInvalid())
+	require.Equal(t, int64(1), numInvalidUpdates(opts))
 
 	require.Len(t, rmap.Get().Metadatas(), 1)
 	require.NoError(t, reg.Close())
@@ -221,15 +221,6 @@ func TestInitializerUpdateWithIdenticalValue(t *testing.T) {
 	opts := newTestOpts(ctrl, w)
 	init := NewInitializer(opts)
 
-	scope := opts.InstrumentOptions().MetricsScope().(tally.TestScope)
-	numInvalid := func() int64 {
-		count, ok := scope.Snapshot().Counters()["namespace_registry.invalid_update+"]
-		if !ok {
-			return 0
-		}
-		return count.Value()
-	}
-
 	go w.start()
 	reg, err := init.Init()
 	require.NoError(t, err)
@@ -237,7 +228,7 @@ func TestInitializerUpdateWithIdenticalValue(t *testing.T) {
 	rmap, err := reg.Watch()
 	require.NoError(t, err)
 	require.Len(t, rmap.Get().Metadatas(), 1)
-	require.Equal(t, int64(0), numInvalid())
+	require.Equal(t, int64(0), numInvalidUpdates(opts))
 
 	// update with new version
 	w.valueCh <- testValue{
@@ -246,7 +237,7 @@ func TestInitializerUpdateWithIdenticalValue(t *testing.T) {
 	}
 
 	time.Sleep(20 * time.Millisecond)
-	require.Equal(t, int64(1), numInvalid())
+	require.Equal(t, int64(1), numInvalidUpdates(opts))
 
 	require.Len(t, rmap.Get().Metadatas(), 1)
 	require.NoError(t, reg.Close())
@@ -265,22 +256,6 @@ func TestInitializerUpdateSuccess(t *testing.T) {
 	opts := newTestOpts(ctrl, w)
 	init := NewInitializer(opts)
 
-	scope := opts.InstrumentOptions().MetricsScope().(tally.TestScope)
-	numInvalid := func() int64 {
-		count, ok := scope.Snapshot().Counters()["namespace_registry.invalid_update+"]
-		if !ok {
-			return 0
-		}
-		return count.Value()
-	}
-	currentVersion := func() float64 {
-		g, ok := scope.Snapshot().Gauges()["namespace_registry.current_version+"]
-		if !ok {
-			return 0.0
-		}
-		return g.Value()
-	}
-
 	go w.start()
 	reg, err := init.Init()
 	require.NoError(t, err)
@@ -288,8 +263,8 @@ func TestInitializerUpdateSuccess(t *testing.T) {
 	rmap, err := reg.Watch()
 	require.NoError(t, err)
 	require.Len(t, rmap.Get().Metadatas(), 1)
-	require.Equal(t, int64(0), numInvalid())
-	require.Equal(t, 0., currentVersion())
+	require.Equal(t, int64(0), numInvalidUpdates(opts))
+	require.Equal(t, 0., currentVersionMetrics(opts))
 
 	// update with valid value
 	w.valueCh <- testValue{
@@ -303,8 +278,8 @@ func TestInitializerUpdateSuccess(t *testing.T) {
 	}
 
 	time.Sleep(20 * time.Millisecond)
-	require.Equal(t, int64(0), numInvalid())
-	require.Equal(t, 2., currentVersion())
+	require.Equal(t, int64(0), numInvalidUpdates(opts))
+	require.Equal(t, 2., currentVersionMetrics(opts))
 
 	require.Len(t, rmap.Get().Metadatas(), 2)
 	require.NoError(t, reg.Close())

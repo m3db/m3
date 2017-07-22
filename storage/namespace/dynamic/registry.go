@@ -77,7 +77,7 @@ type dynamicRegistry struct {
 	sync.RWMutex
 	opts         namespace.DynamicOptions
 	logger       xlog.Logger
-	metrics      *dynamicRegistryMetrics
+	metrics      dynamicRegistryMetrics
 	watchable    xwatch.Watchable
 	kvWatch      kv.ValueWatch
 	currentValue kv.Value
@@ -90,11 +90,11 @@ type dynamicRegistryMetrics struct {
 	currentVersion    tally.Gauge
 }
 
-func newMetrics(opts namespace.DynamicOptions) *dynamicRegistryMetrics {
-	scope := opts.InstrumentOptions().MetricsScope().SubScope("namespace_registry")
-	return &dynamicRegistryMetrics{
-		numInvalidUpdates: scope.Counter("invalid_update"),
-		currentVersion:    scope.Gauge("current_version"),
+func newDynamicRegistryMetrics(opts namespace.DynamicOptions) dynamicRegistryMetrics {
+	scope := opts.InstrumentOptions().MetricsScope().SubScope("namespace-registry")
+	return dynamicRegistryMetrics{
+		numInvalidUpdates: scope.Counter("invalid-update"),
+		currentVersion:    scope.Gauge("current-version"),
 	}
 }
 
@@ -130,7 +130,7 @@ func newRegistry(opts namespace.DynamicOptions) (namespace.Registry, error) {
 	dt := &dynamicRegistry{
 		opts:         opts,
 		logger:       logger,
-		metrics:      newMetrics(opts),
+		metrics:      newDynamicRegistryMetrics(opts),
 		watchable:    watchable,
 		kvWatch:      watch,
 		currentValue: initValue,
