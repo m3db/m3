@@ -65,5 +65,6 @@ func (r *staticReg) Watch() (namespace.Watch, error) {
 }
 
 func (r *staticReg) Close() error {
-	return r.Close()
+	r.Watchable.Close()
+	return nil
 }
