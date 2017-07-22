@@ -234,7 +234,7 @@ func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
 
 	// log that updates and removals are skipped
 	if len(removes) > 0 || len(updates) > 0 {
-		d.log.Warnf("Skipping namespace removals and updates, restart process if you want changes to take effect.")
+		d.log.Warnf("skipping namespace removals and updates, restart process if you want changes to take effect.")
 	}
 
 	// enqueue bootstraps if new namespaces
