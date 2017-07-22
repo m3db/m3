@@ -156,6 +156,7 @@ func (w *dbNamespaceWatch) reportMetrics() {
 	m := w.watch.Get()
 	if m == nil {
 		w.metrics.activeNamespaces.Update(0)
+		return
 	}
 	w.metrics.activeNamespaces.Update(float64(len(m.Metadatas())))
 }
