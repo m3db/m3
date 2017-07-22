@@ -55,9 +55,6 @@ var (
 	// errDatabaseAlreadyClosed raised when trying to open a database that is already closed
 	errDatabaseAlreadyClosed = errors.New("database is already closed")
 
-	// errDuplicateNamespace raised when trying to create a database with duplicate namespaces
-	errDuplicateNamespaces = errors.New("database contains duplicate namespaces")
-
 	// errCommitLogStrategyUnknown raised when trying to use an unknown commit log strategy
 	errCommitLogStrategyUnknown = errors.New("database commit log strategy is unknown")
 )

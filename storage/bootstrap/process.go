@@ -21,17 +21,12 @@
 package bootstrap
 
 import (
-	"errors"
 	"sync"
 
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
-)
-
-var (
-	errUnfulfilledRanges = errors.New("bootstrap finished with unfulfilled ranges")
 )
 
 // bootstrapProcess represents the bootstrapping process.

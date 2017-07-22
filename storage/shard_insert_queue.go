@@ -48,7 +48,6 @@ type dbShardInsertQueue struct {
 
 	state              dbShardInsertQueueState
 	insertEntryBatchFn dbShardInsertEntryBatchFn
-	insertBatchBackoff time.Duration
 
 	currBatch    *dbShardInsertBatch
 	notifyInsert chan struct{}

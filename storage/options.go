@@ -48,9 +48,6 @@ import (
 )
 
 const (
-	// defaultCommitLogStrategy is the default commit log strategy
-	defaultCommitLogStrategy = commitlog.StrategyWriteBehind
-
 	// defaultMaxFlushRetries is the default number of retries when flush fails
 	defaultMaxFlushRetries = 3
 

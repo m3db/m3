@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/sync"
 	"github.com/m3db/m3x/time"
@@ -48,11 +47,6 @@ type incrementalFlush struct {
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 	shardResult       result.ShardResult
 	timeRange         xtime.Range
-}
-
-type incrementalFlushedBlock struct {
-	id    ts.ID
-	block block.DatabaseBlock
 }
 
 func newPeersSource(opts Options) bootstrap.Source {

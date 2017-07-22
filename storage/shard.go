@@ -51,10 +51,9 @@ import (
 )
 
 const (
-	shardIterateBatchPercent               = 0.01
-	expireBatchLength                      = 1024
-	blocksMetadataResultMaxInitialCapacity = 4096
-	defaultTickSleepIfAheadEvery           = 128
+	shardIterateBatchPercent     = 0.01
+	expireBatchLength            = 1024
+	defaultTickSleepIfAheadEvery = 128
 )
 
 var (
@@ -76,7 +75,6 @@ type dbShardState int
 const (
 	dbShardStateOpen dbShardState = iota
 	dbShardStateClosing
-	dbShardStateClosed
 )
 
 type dbShard struct {
@@ -146,8 +144,6 @@ func (entry *dbShardEntry) incrementWriterCount() {
 func (entry *dbShardEntry) decrementWriterCount() {
 	atomic.AddInt32(&entry.curWriters, -1)
 }
-
-type writeCompletionFn func()
 
 type dbShardEntryWorkFn func(entry *dbShardEntry) bool
 
