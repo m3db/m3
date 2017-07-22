@@ -333,59 +333,18 @@ func (d *db) addNamespacesWithLock(namespaces []namespace.Metadata) error {
 func (d *db) newDatabaseNamespace(
 	md namespace.Metadata,
 ) (databaseNamespace, error) {
-	brm := d.opts.DatabaseBlockRetrieverManager()
-	if brm == nil {
-		return newDatabaseNamespace(md, d.shardSet, nil,
-			d, d.writeCommitLogFn, d.opts)
+	var (
+		retriever block.DatabaseBlockRetriever
+		err       error
+	)
+	if mgr := d.opts.DatabaseBlockRetrieverManager(); mgr != nil {
+		retriever, err = mgr.Retriever(md)
+		if err != nil {
+			return nil, err
+		}
 	}
-
-	blockRetriever, err := brm.Retriever(md)
-	if err != nil {
-		return nil, err
-	}
-
-	return newDatabaseNamespace(md, d.shardSet, blockRetriever,
+	return newDatabaseNamespace(md, d.shardSet, retriever,
 		d, d.writeCommitLogFn, d.opts)
-}
-
-type tsIDs []ts.ID
-
-func (t tsIDs) String() (string, error) {
-	if len(t) == 0 {
-		return "[]", nil
-	}
-	var buf bytes.Buffer
-	for idx, id := range t {
-		if idx != 0 {
-			if _, err := buf.WriteString(", "); err != nil {
-				return "", err
-			}
-		}
-		if _, err := buf.WriteString(id.String()); err != nil {
-			return "", err
-		}
-	}
-	return buf.String(), nil
-}
-
-type metadatas []namespace.Metadata
-
-func (m metadatas) String() (string, error) {
-	if len(m) == 0 {
-		return "[]", nil
-	}
-	var buf bytes.Buffer
-	for idx, md := range m {
-		if idx != 0 {
-			if _, err := buf.WriteString(", "); err != nil {
-				return "", err
-			}
-		}
-		if _, err := buf.WriteString(md.ID().String()); err != nil {
-			return "", err
-		}
-	}
-	return buf.String(), nil
 }
 
 func (d *db) Options() Options {
@@ -649,4 +608,44 @@ func (d *db) getOwnedNamespaces() []databaseNamespace {
 func (d *db) nextIndex() uint64 {
 	created := atomic.AddUint64(&d.created, 1)
 	return created - 1
+}
+
+type tsIDs []ts.ID
+
+func (t tsIDs) String() (string, error) {
+	if len(t) == 0 {
+		return "[]", nil
+	}
+	var buf bytes.Buffer
+	for idx, id := range t {
+		if idx != 0 {
+			if _, err := buf.WriteString(", "); err != nil {
+				return "", err
+			}
+		}
+		if _, err := buf.WriteString(id.String()); err != nil {
+			return "", err
+		}
+	}
+	return buf.String(), nil
+}
+
+type metadatas []namespace.Metadata
+
+func (m metadatas) String() (string, error) {
+	if len(m) == 0 {
+		return "[]", nil
+	}
+	var buf bytes.Buffer
+	for idx, md := range m {
+		if idx != 0 {
+			if _, err := buf.WriteString(", "); err != nil {
+				return "", err
+			}
+		}
+		if _, err := buf.WriteString(md.ID().String()); err != nil {
+			return "", err
+		}
+	}
+	return buf.String(), nil
 }
