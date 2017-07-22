@@ -294,8 +294,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		resDiff      repair.MetadataComparisonResult
 	)
 
-	databaseShardRepairer, err := newShardRepairer(opts, rpOpts)
-	require.NoError(t, err)
+	databaseShardRepairer := newShardRepairer(opts, rpOpts)
 	repairer := databaseShardRepairer.(shardRepairer)
 	repairer.recordFn = func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) {
 		resNamespace = namespace

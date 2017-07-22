@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -61,15 +60,9 @@ type shardRepairer struct {
 	nowFn    clock.NowFn
 }
 
-func newShardRepairer(opts Options, rpopts repair.Options) (databaseShardRepairer, error) {
-	hostname, err := os.Hostname()
-	if err != nil {
-		return nil, err
-	}
-
+func newShardRepairer(opts Options, rpopts repair.Options) databaseShardRepairer {
 	iopts := opts.InstrumentOptions()
-	scope := iopts.MetricsScope().SubScope("repair").
-		Tagged(map[string]string{"host": hostname})
+	scope := iopts.MetricsScope().SubScope("repair")
 
 	r := shardRepairer{
 		opts:   opts,
@@ -81,7 +74,7 @@ func newShardRepairer(opts Options, rpopts repair.Options) (databaseShardRepaire
 	}
 	r.recordFn = r.recordDifferences
 
-	return r, nil
+	return r
 }
 
 func (r shardRepairer) Options() repair.Options {
@@ -250,10 +243,7 @@ func newDatabaseRepairer(database database, opts Options) (databaseRepairer, err
 		return nil, err
 	}
 
-	shardRepairer, err := newShardRepairer(opts, ropts)
-	if err != nil {
-		return nil, err
-	}
+	shardRepairer := newShardRepairer(opts, ropts)
 
 	var jitter time.Duration
 	if repairJitter := ropts.RepairTimeJitter(); repairJitter > 0 {
