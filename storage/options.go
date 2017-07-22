@@ -86,7 +86,6 @@ var (
 var (
 	errNamespaceInitializerNotSet = errors.New("namespace registry initializer not set")
 	errRepairOptionsNotSet        = errors.New("repair enabled but repair options are not set")
-	errFileJitterTooSmall         = errors.New("file op options jitter needs to be smaller than commit log block size")
 	errTickIntervalNegative       = errors.New("tick interval must be a positive duration")
 )
 
