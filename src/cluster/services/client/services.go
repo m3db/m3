@@ -55,6 +55,7 @@ func NewServices(opts Options) (services.Services, error) {
 		kvManagers: make(map[string]*kvManager),
 		hbStores:   make(map[string]services.HeartbeatService),
 		adDoneChs:  make(map[string]chan struct{}),
+		ldSvcs:     make(map[leaderKey]services.LeaderService),
 		opts:       opts,
 		logger:     opts.InstrumentsOptions().Logger(),
 		m:          opts.InstrumentsOptions().MetricsScope(),
@@ -67,6 +68,7 @@ type client struct {
 	opts       Options
 	kvManagers map[string]*kvManager
 	hbStores   map[string]services.HeartbeatService
+	ldSvcs     map[leaderKey]services.LeaderService
 	adDoneChs  map[string]chan struct{}
 	logger     xlog.Logger
 	m          tally.Scope
@@ -353,6 +355,40 @@ func (c *client) getHeartbeatService(sid services.ServiceID) (services.Heartbeat
 	return hb, nil
 }
 
+func (c *client) LeaderService(sid services.ServiceID, opts services.ElectionOptions) (services.LeaderService, error) {
+	if sid == nil {
+		return nil, errNoServiceID
+	}
+
+	if opts == nil {
+		opts = services.NewElectionOptions()
+	}
+
+	key := leaderCacheKey(sid, opts)
+
+	c.RLock()
+	if ld, ok := c.ldSvcs[key]; ok {
+		c.RUnlock()
+		return ld, nil
+	}
+	c.RUnlock()
+
+	c.Lock()
+	defer c.Unlock()
+
+	if ld, ok := c.ldSvcs[key]; ok {
+		return ld, nil
+	}
+
+	ld, err := c.opts.LeaderGen()(sid, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	c.ldSvcs[key] = ld
+	return ld, nil
+}
+
 func (c *client) getKVManager(zone string) (*kvManager, error) {
 	c.Lock()
 	defer c.Unlock()
@@ -540,6 +576,23 @@ func validateAdvertisement(sid services.ServiceID, id string) error {
 	}
 
 	return nil
+}
+
+// cache key for leader service clients
+type leaderKey struct {
+	sid           string
+	leaderTimeout time.Duration
+	resignTimeout time.Duration
+	ttl           int
+}
+
+func leaderCacheKey(sid services.ServiceID, opts services.ElectionOptions) leaderKey {
+	return leaderKey{
+		sid:           sid.String(),
+		leaderTimeout: opts.LeaderTimeout(),
+		resignTimeout: opts.ResignTimeout(),
+		ttl:           opts.TTLSecs(),
+	}
 }
 
 type kvManager struct {

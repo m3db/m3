@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3cluster/services"
 	sdclient "github.com/m3db/m3cluster/services/client"
 	etcdheartbeat "github.com/m3db/m3cluster/services/heartbeat/etcd"
+	"github.com/m3db/m3cluster/services/leader"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
 
@@ -131,6 +132,7 @@ func (c *csclient) createServices() {
 		c.sd, c.sdErr = sdclient.NewServices(c.opts.ServiceDiscoveryConfig().NewOptions().
 			SetHeartbeatGen(c.heartbeatGen()).
 			SetKVGen(c.kvGen()).
+			SetLeaderGen(c.leaderGen()).
 			SetInstrumentsOptions(instrument.NewOptions().
 				SetLogger(c.logger).
 				SetMetricsScope(c.sdScope),
@@ -192,6 +194,23 @@ func (c *csclient) heartbeatGen() sdclient.HeartbeatGen {
 					SetMetricsScope(c.hbScope)).
 				SetServiceID(sid)
 			return etcdheartbeat.NewStore(cli, opts)
+		},
+	)
+}
+
+func (c *csclient) leaderGen() sdclient.LeaderGen {
+	return sdclient.LeaderGen(
+		func(sid services.ServiceID, eo services.ElectionOptions) (services.LeaderService, error) {
+			cli, err := c.etcdClientGen(sid.Zone())
+			if err != nil {
+				return nil, err
+			}
+
+			opts := leader.NewOptions().
+				SetServiceID(sid).
+				SetElectionOpts(eo)
+
+			return leader.NewService(cli, opts)
 		},
 	)
 }

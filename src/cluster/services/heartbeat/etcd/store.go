@@ -57,7 +57,7 @@ var (
 
 // NewStore creates a heartbeat store based on etcd
 func NewStore(c *clientv3.Client, opts Options) (services.HeartbeatService, error) {
-	if opts.ServiceID == nil {
+	if opts.ServiceID() == nil {
 		return nil, errNoServiceID
 	}
 
