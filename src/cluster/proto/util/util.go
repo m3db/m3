@@ -123,12 +123,13 @@ func PlacementInstanceToProto(p services.PlacementInstance) (*placementproto.Ins
 	sort.Sort(shards)
 
 	return &placementproto.Instance{
-		Id:       p.ID(),
-		Rack:     p.Rack(),
-		Zone:     p.Zone(),
-		Weight:   p.Weight(),
-		Endpoint: p.Endpoint(),
-		Shards:   shards,
+		Id:         p.ID(),
+		Rack:       p.Rack(),
+		Zone:       p.Zone(),
+		Weight:     p.Weight(),
+		Endpoint:   p.Endpoint(),
+		Shards:     shards,
+		ShardSetId: p.ShardSetID(),
 	}, nil
 }
 
