@@ -83,7 +83,16 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 	// Test setup
 	testSetup, err := newTestSetup(t, opts)
 	require.NoError(t, err)
-	defer testSetup.close()
+
+	// logger
+	log := testSetup.storageOpts.InstrumentOptions().Logger()
+	log.Infof("disk cleanup multiple namespaces test")
+
+	// close testSetup to release resources by default
+	defer func() {
+		log.Infof("testSetup closing")
+		testSetup.close()
+	}()
 
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
@@ -111,10 +120,6 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 	ns2TimesToRetain := getTimes(ns2Times[3].Add(ns2BlockSize), end, ns2BlockSize)
 
 	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	log.Infof("disk cleanup multiple namespaces test")
-
-	// Start the server
 	require.NoError(t, testSetup.startServer())
 	log.Infof("server is now up")
 
@@ -134,6 +139,7 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 	testSetup.setNowFn(end)
 
 	// Check if expected files have been deleted
+	log.Infof("waiting until data is cleaned up")
 	waitTimeout := 60 * time.Second
 	require.NoError(t, waitUntilDataCleanedUpExtended(
 		[]cleanupTimesFileset{
@@ -158,15 +164,14 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 	))
 
 	// check files we still expect exist
+	log.Infof("asserting expected data files exist")
 	ns1ExpectedFiles := cleanupTimesFileset{
 		filePathPrefix: filePathPrefix,
 		namespace:      testNamespaces[0],
 		shard:          shard,
 		times:          ns1TimesToRetain,
 	}
-	if !ns1ExpectedFiles.allExist() {
-		require.Fail(t, "ns1 expected fileset files do not exist")
-	}
+	require.True(t, ns1ExpectedFiles.allExist(), "ns1 expected fileset files do not exist")
 
 	ns2ExpectedFiles := cleanupTimesFileset{
 		filePathPrefix: filePathPrefix,
@@ -174,15 +179,12 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 		shard:          shard,
 		times:          ns2TimesToRetain,
 	}
-	if !ns2ExpectedFiles.allExist() {
-		require.Fail(t, "ns2 expected fileset files do not exist")
-	}
+	require.True(t, ns2ExpectedFiles.allExist(), "ns2 expected fileset files do not exist")
 
 	commitLogFilesToRetain := cleanupTimesCommitLog{
 		filePathPrefix: filePathPrefix,
 		times:          commitLogTimesToRetain,
 	}
-	if !commitLogFilesToRetain.allExist() {
-		require.Fail(t, "commit log expected files do not exist")
-	}
+	require.True(t, commitLogFilesToRetain.allExist(), "commit log expected files do not exist")
+	log.Infof("done with data asserts")
 }
