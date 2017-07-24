@@ -69,11 +69,12 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 		ns1ROpts           = clROpts.SetRetentionPeriod(8 * time.Hour).SetBlockSize(ns1BlockSize)
 		ns2BlockSize       = 2 * time.Hour
 		ns2ROpts           = clROpts.SetRetentionPeriod(6 * time.Hour).SetBlockSize(ns2BlockSize)
+		nsOpts             = namespace.NewOptions().SetNeedsFlush(false) // disabling flushing to ensure data isn't flushed during test
 	)
 
-	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ns1ROpts))
+	ns1, err := namespace.NewMetadata(testNamespaces[0], nsOpts.SetRetentionOptions(ns1ROpts))
 	require.NoError(t, err)
-	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ns2ROpts))
+	ns2, err := namespace.NewMetadata(testNamespaces[1], nsOpts.SetRetentionOptions(ns2ROpts))
 	require.NoError(t, err)
 
 	opts := newTestOptions(t).
@@ -185,7 +186,6 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 		filePathPrefix: filePathPrefix,
 		times:          commitLogTimesToRetain,
 	}
-	log.Infof("about to be done with data asserts")
 	require.True(t, commitLogFilesToRetain.allExist(), "commit log expected files do not exist")
 	log.Infof("done with data asserts")
 }
