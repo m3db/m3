@@ -332,16 +332,18 @@ func NewInstanceFromProto(instance *placementproto.Instance) (services.Placement
 		SetWeight(instance.Weight).
 		SetZone(instance.Zone).
 		SetEndpoint(instance.Endpoint).
-		SetShards(shards), nil
+		SetShards(shards).
+		SetShardSetID(instance.ShardSetId), nil
 }
 
 type instance struct {
-	id       string
-	rack     string
-	zone     string
-	weight   uint32
-	endpoint string
-	shards   shard.Shards
+	id         string
+	rack       string
+	zone       string
+	weight     uint32
+	endpoint   string
+	shards     shard.Shards
+	shardSetID string
 }
 
 func (i *instance) String() string {
@@ -402,6 +404,15 @@ func (i *instance) Shards() shard.Shards {
 
 func (i *instance) SetShards(s shard.Shards) services.PlacementInstance {
 	i.shards = s
+	return i
+}
+
+func (i *instance) ShardSetID() string {
+	return i.shardSetID
+}
+
+func (i *instance) SetShardSetID(value string) services.PlacementInstance {
+	i.shardSetID = value
 	return i
 }
 

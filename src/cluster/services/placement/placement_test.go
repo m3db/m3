@@ -506,20 +506,22 @@ func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 	placementProto := &placementproto.Placement{
 		Instances: map[string]*placementproto.Instance{
 			"i1": &placementproto.Instance{
-				Id:       "i1",
-				Rack:     "r1",
-				Zone:     "z1",
-				Endpoint: "e1",
-				Weight:   1,
-				Shards:   protoShards,
+				Id:         "i1",
+				Rack:       "r1",
+				Zone:       "z1",
+				Endpoint:   "e1",
+				Weight:     1,
+				Shards:     protoShards,
+				ShardSetId: "foo",
 			},
 			"i2": &placementproto.Instance{
-				Id:       "i2",
-				Rack:     "r2",
-				Zone:     "z1",
-				Endpoint: "e2",
-				Weight:   1,
-				Shards:   protoShards,
+				Id:         "i2",
+				Rack:       "r2",
+				Zone:       "z1",
+				Endpoint:   "e2",
+				Weight:     1,
+				Shards:     protoShards,
+				ShardSetId: "bar",
 			},
 		},
 		ReplicaFactor: 2,
@@ -535,6 +537,9 @@ func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 	assert.True(t, p.IsSharded())
 	assert.Equal(t, []uint32{0, 1, 2}, p.Shards())
 	assert.Equal(t, int64(1234), p.CutoverNanos())
+	instances := p.Instances()
+	assert.Equal(t, "foo", instances[0].ShardSetID())
+	assert.Equal(t, "bar", instances[1].ShardSetID())
 
 	placementProtoNew, err := util.PlacementToProto(p)
 	assert.NoError(t, err)
@@ -542,12 +547,13 @@ func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 	assert.Equal(t, placementProto.NumShards, placementProtoNew.NumShards)
 	assert.Equal(t, placementProto.CutoverTime, placementProtoNew.CutoverTime)
 	for id, h := range placementProto.Instances {
-		i1 := placementProtoNew.Instances[id]
-		assert.Equal(t, h.Id, i1.Id)
-		assert.Equal(t, h.Rack, i1.Rack)
-		assert.Equal(t, h.Zone, i1.Zone)
-		assert.Equal(t, h.Weight, i1.Weight)
-		assert.Equal(t, h.Shards, i1.Shards)
+		instance := placementProtoNew.Instances[id]
+		assert.Equal(t, h.Id, instance.Id)
+		assert.Equal(t, h.Rack, instance.Rack)
+		assert.Equal(t, h.Zone, instance.Zone)
+		assert.Equal(t, h.Weight, instance.Weight)
+		assert.Equal(t, h.Shards, instance.Shards)
+		assert.Equal(t, h.ShardSetId, instance.ShardSetId)
 	}
 }
 

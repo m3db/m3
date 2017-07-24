@@ -422,19 +422,21 @@ type Placement interface {
 
 // PlacementInstance represents an instance in a service placement
 type PlacementInstance interface {
-	String() string                             // String is for debugging
-	ID() string                                 // ID is the id of the instance
-	SetID(id string) PlacementInstance          // SetID sets the id of the instance
-	Rack() string                               // Rack is the rack of the instance
-	SetRack(r string) PlacementInstance         // SetRack sets the rack of the instance
-	Zone() string                               // Zone is the zone of the instance
-	SetZone(z string) PlacementInstance         // SetZone sets the zone of the instance
-	Weight() uint32                             // Weight is the weight of the instance
-	SetWeight(w uint32) PlacementInstance       // SetWeight sets the weight of the instance
-	Endpoint() string                           // Endpoint is the endpoint of the instance
-	SetEndpoint(ip string) PlacementInstance    // SetEndpoint sets the endpoint of the instance
-	Shards() shard.Shards                       // Shards returns the shards owned by the instance
-	SetShards(s shard.Shards) PlacementInstance // SetShards sets the shards owned by the instance
+	String() string                               // String is for debugging
+	ID() string                                   // ID is the id of the instance
+	SetID(id string) PlacementInstance            // SetID sets the id of the instance
+	Rack() string                                 // Rack is the rack of the instance
+	SetRack(r string) PlacementInstance           // SetRack sets the rack of the instance
+	Zone() string                                 // Zone is the zone of the instance
+	SetZone(z string) PlacementInstance           // SetZone sets the zone of the instance
+	Weight() uint32                               // Weight is the weight of the instance
+	SetWeight(w uint32) PlacementInstance         // SetWeight sets the weight of the instance
+	Endpoint() string                             // Endpoint is the endpoint of the instance
+	SetEndpoint(ip string) PlacementInstance      // SetEndpoint sets the endpoint of the instance
+	Shards() shard.Shards                         // Shards returns the shards owned by the instance
+	SetShards(s shard.Shards) PlacementInstance   // SetShards sets the shards owned by the instance
+	ShardSetID() string                           // ShardSetID returns the shard set id.
+	SetShardSetID(value string) PlacementInstance // SetShardSetID sets the shard set id.
 }
 
 // HeartbeatService manages heartbeating instances
