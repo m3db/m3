@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3cluster/services/leader/campaign"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
@@ -55,6 +56,10 @@ type Services interface {
 
 	// HeartbeatService returns a heartbeat store for the given service.
 	HeartbeatService(service ServiceID) (HeartbeatService, error)
+
+	// LeaderService returns an instance of a leader service for the given
+	// service ID.
+	LeaderService(service ServiceID, opts ElectionOptions) (LeaderService, error)
 }
 
 // Service describes the metadata and instances of a service
@@ -455,4 +460,60 @@ type HeartbeatService interface {
 
 	// Watch watches the heartbeats for a service
 	Watch() (xwatch.Watch, error)
+}
+
+// ElectionOptions configure specific election-scoped options.
+type ElectionOptions interface {
+	// Duration after which a call to Leader() will timeout if no response
+	// returned from etcd. Defaults to 30 seconds.
+	LeaderTimeout() time.Duration
+	SetLeaderTimeout(t time.Duration) ElectionOptions
+
+	// Duration after which a call to Resign() will timeout if no response
+	// returned from etcd. Defaults to 30 seconds.
+	ResignTimeout() time.Duration
+	SetResignTimeout(t time.Duration) ElectionOptions
+
+	// TTL returns the TTL used for campaigns. By default (ttl == 0), etcd will
+	// set the TTL to 60s.
+	TTLSecs() int
+	SetTTLSecs(ttl int) ElectionOptions
+}
+
+// CampaignOptions provide the ability to override campaign defaults.
+type CampaignOptions interface {
+	// LeaderValue allows the user to override the value a campaign announces
+	// (that is, the value an observer sees upon calling Leader()). This
+	// defaults to the hostname of the caller.
+	LeaderValue() string
+	SetLeaderValue(v string) CampaignOptions
+}
+
+// LeaderService provides access to etcd-backed leader elections.
+type LeaderService interface {
+	// Close closes the election service client entirely. No more campaigns can be
+	// started and any outstanding campaigns are closed.
+	Close() error
+
+	// Campaign proposes that the caller become the leader for a specified
+	// election, with its leadership being refreshed on an interval according to
+	// the ElectionOptions the service was created with. It returns a read-only
+	// channel of campaign status events that is closed when the user resigns
+	// leadership or the campaign is invalidated due to background session
+	// expiration (i.e. failing to refresh etcd leadership lease). The caller
+	// MUST consume this channel until it is closed or risk goroutine leaks.
+	// Users are encouraged to read the package docs of services/leader for
+	// advice on proper usage and common gotchas.
+	//
+	// The leader will announce its hostname to observers unless opts is non-nil
+	// and opts.LeaderValue() is non-empty.
+	Campaign(electionID string, opts CampaignOptions) (<-chan campaign.Status, error)
+
+	// Resign gives up leadership of a specified election if the caller is the
+	// current leader (if the caller is not the leader an error is returned).
+	Resign(electionID string) error
+
+	// Leader returns the current leader of a specified election (if there is no
+	// leader then leader.ErrNoLeader is returned).
+	Leader(electionID string) (string, error)
 }

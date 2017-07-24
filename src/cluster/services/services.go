@@ -23,12 +23,18 @@ package services
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	metadataproto "github.com/m3db/m3cluster/generated/proto/metadata"
 	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
 	"github.com/m3db/m3cluster/shard"
+)
+
+const (
+	defaultLeaderTimeout = 10 * time.Second
+	defaultResignTimeout = 10 * time.Second
 )
 
 var (
@@ -257,4 +263,70 @@ func (i PlacementInstances) String() string {
 	}
 	strs = append(strs, "]")
 	return strings.Join(strs, "")
+}
+
+// NewElectionOptions returns an empty ElectionOptions.
+func NewElectionOptions() ElectionOptions {
+	eo := electionOpts{
+		leaderTimeout: defaultLeaderTimeout,
+		resignTimeout: defaultResignTimeout,
+	}
+
+	return eo
+}
+
+type electionOpts struct {
+	leaderTimeout time.Duration
+	resignTimeout time.Duration
+	ttlSecs       int
+}
+
+func (e electionOpts) LeaderTimeout() time.Duration {
+	return e.leaderTimeout
+}
+
+func (e electionOpts) SetLeaderTimeout(t time.Duration) ElectionOptions {
+	e.leaderTimeout = t
+	return e
+}
+
+func (e electionOpts) ResignTimeout() time.Duration {
+	return e.resignTimeout
+}
+
+func (e electionOpts) SetResignTimeout(t time.Duration) ElectionOptions {
+	e.resignTimeout = t
+	return e
+}
+
+func (e electionOpts) TTLSecs() int {
+	return e.ttlSecs
+}
+
+func (e electionOpts) SetTTLSecs(ttl int) ElectionOptions {
+	e.ttlSecs = ttl
+	return e
+}
+
+type campaignOpts struct {
+	val string
+}
+
+// NewCampaignOptions returns an empty CampaignOptions.
+func NewCampaignOptions() (CampaignOptions, error) {
+	h, err := os.Hostname()
+	if err != nil {
+		return nil, err
+	}
+
+	return campaignOpts{val: h}, nil
+}
+
+func (c campaignOpts) LeaderValue() string {
+	return c.val
+}
+
+func (c campaignOpts) SetLeaderValue(v string) CampaignOptions {
+	c.val = v
+	return c
 }

@@ -37,6 +37,7 @@ const (
 var (
 	errNoKVGen            = errors.New("no KVGen function set")
 	errNoHeartbeatGen     = errors.New("no HeartbeatGen function set")
+	errNoLeaderGen        = errors.New("no LeaderGen function set")
 	errInvalidInitTimeout = errors.New("non-positive init timeout for service watch")
 )
 
@@ -45,6 +46,9 @@ type KVGen func(zone string) (kv.Store, error)
 
 // HeartbeatGen generates a heartbeat store for a given zone
 type HeartbeatGen func(sid services.ServiceID) (services.HeartbeatService, error)
+
+// LeaderGen generates a leader service instance for a given service.
+type LeaderGen func(sid services.ServiceID, opts services.ElectionOptions) (services.LeaderService, error)
 
 // Options are options for the client of Services
 type Options interface {
@@ -67,6 +71,13 @@ type Options interface {
 	// SetHeartbeatGen sets the HeartbeatGen
 	SetHeartbeatGen(gen HeartbeatGen) Options
 
+	// LeaderGen is the function to generate a leader service instance for a
+	// given service.
+	LeaderGen() LeaderGen
+
+	// SetLeaderGen sets the leader generation function.
+	SetLeaderGen(gen LeaderGen) Options
+
 	// InstrumentsOptions is the instrument options
 	InstrumentsOptions() instrument.Options
 
@@ -81,6 +92,7 @@ type options struct {
 	initTimeout time.Duration
 	kvGen       KVGen
 	hbGen       HeartbeatGen
+	ldGen       LeaderGen
 	iopts       instrument.Options
 }
 
@@ -99,6 +111,10 @@ func (o options) Validate() error {
 
 	if o.hbGen == nil {
 		return errNoHeartbeatGen
+	}
+
+	if o.ldGen == nil {
+		return errNoLeaderGen
 	}
 
 	if o.initTimeout <= 0 {
@@ -132,6 +148,15 @@ func (o options) HeartbeatGen() HeartbeatGen {
 
 func (o options) SetHeartbeatGen(gen HeartbeatGen) Options {
 	o.hbGen = gen
+	return o
+}
+
+func (o options) LeaderGen() LeaderGen {
+	return o.ldGen
+}
+
+func (o options) SetLeaderGen(lg LeaderGen) Options {
+	o.ldGen = lg
 	return o
 }
 

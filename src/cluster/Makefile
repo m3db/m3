@@ -72,7 +72,9 @@ install-proto-bin: install-vendor
 	@echo Note: the protobuf compiler v3.0.0 can be downloaded from https://github.com/google/protobuf/releases or built from source at https://github.com/google/protobuf.
 	go install $(package_root)/$(vendor_prefix)/$(protoc_go_package)
 
-mock-gen: install-mockgen install-license-bin
+mock-gen: install-mockgen install-license-bin mock-gen-no-deps
+
+mock-gen-no-deps:
 	@echo Generating mocks
 	PACKAGE=$(package_root) $(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
 

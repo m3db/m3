@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/etcd/integration"
 	metadataproto "github.com/m3db/m3cluster/generated/proto/metadata"
 	"github.com/m3db/m3cluster/kv"
 	etcdKV "github.com/m3db/m3cluster/kv/etcd"
@@ -36,8 +35,17 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/watch"
+
+	"github.com/coreos/etcd/integration"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+var (
+	emptyLdGen LeaderGen = func(sid services.ServiceID, eo services.ElectionOptions) (services.LeaderService, error) {
+		return nil, nil
+	}
 )
 
 func TestOptions(t *testing.T) {
@@ -52,6 +60,9 @@ func TestOptions(t *testing.T) {
 	opts = opts.SetHeartbeatGen(func(sid services.ServiceID) (services.HeartbeatService, error) {
 		return nil, nil
 	})
+	require.Error(t, opts.Validate())
+
+	opts = opts.SetLeaderGen(emptyLdGen)
 	require.NoError(t, opts.Validate())
 
 	opts = opts.SetInitTimeout(0)
@@ -795,6 +806,7 @@ func TestWatch_GetAfterTimeout(t *testing.T) {
 	opts := NewOptions().
 		SetKVGen(kvGen).
 		SetHeartbeatGen(hbGen).
+		SetLeaderGen(emptyLdGen).
 		SetInitTimeout(1 * time.Millisecond).
 		SetInstrumentsOptions(instrument.NewOptions())
 
@@ -956,6 +968,43 @@ func TestCacheCollisions_Watchables(t *testing.T) {
 	}
 }
 
+func TestLeaderService(t *testing.T) {
+	mc := gomock.NewController(t)
+	defer mc.Finish()
+
+	ld := newTestLeaderGen(mc)
+
+	opts, closer, _ := testSetup(t)
+	defer closer()
+
+	opts = opts.SetLeaderGen(ld)
+	cl, err := NewServices(opts)
+	require.NoError(t, err)
+
+	sid1 := services.NewServiceID().SetName("s1")
+	sid2 := services.NewServiceID().SetName("s2")
+	eo1 := services.NewElectionOptions()
+	eo2 := services.NewElectionOptions().SetLeaderTimeout(30 * time.Second)
+	eo3 := services.NewElectionOptions().SetResignTimeout(30 * time.Second)
+
+	for _, sid := range []services.ServiceID{sid1, sid2} {
+		for _, eo := range []services.ElectionOptions{eo1, eo2, eo3} {
+			_, err := cl.LeaderService(sid, eo)
+			assert.NoError(t, err)
+		}
+	}
+
+	assert.Equal(t, 6, len(cl.(*client).ldSvcs),
+		"should cache 6 unique client entries")
+}
+
+func newTestLeaderGen(mc *gomock.Controller) LeaderGen {
+	svc := services.NewMockLeaderService(mc)
+	return func(sid services.ServiceID, eo services.ElectionOptions) (services.LeaderService, error) {
+		return svc, nil
+	}
+}
+
 func testSetup(t *testing.T) (Options, func(), *mockHBGen) {
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 	ec := ecluster.RandClient()
@@ -984,6 +1033,7 @@ func testSetup(t *testing.T) (Options, func(), *mockHBGen) {
 	return NewOptions().
 		SetKVGen(kvGen).
 		SetHeartbeatGen(hbGen).
+		SetLeaderGen(emptyLdGen).
 		SetInitTimeout(100 * time.Millisecond).
 		SetInstrumentsOptions(instrument.NewOptions()), closer, m
 }
