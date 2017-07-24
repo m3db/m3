@@ -892,53 +892,6 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 	assert.True(t, ns.NeedsFlush(blockStart, blockStart))
 }
 
-func TestNamespaceNeedsFlushInProgress(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		shards = sharding.NewShards([]uint32{0, 2, 4}, shard.Available)
-		dopts  = testDatabaseOptions()
-	)
-	testNs, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
-	require.NoError(t, err)
-
-	var (
-		ropts  = testNs.Options().RetentionOptions()
-		hashFn = func(identifier ts.ID) uint32 { return shards[0].ID() }
-	)
-	shardSet, err := sharding.NewShardSet(shards, hashFn)
-	require.NoError(t, err)
-
-	at := time.Unix(0, 0).Add(2 * ropts.RetentionPeriod())
-	dopts = dopts.SetClockOptions(dopts.ClockOptions().SetNowFn(func() time.Time {
-		return at
-	}))
-
-	blockStart := retention.FlushTimeEnd(ropts, at)
-
-	oNs, err := newDatabaseNamespace(testNs, shardSet, nil, nil, nil, dopts)
-	require.NoError(t, err)
-	ns := oNs.(*dbNamespace)
-	for _, s := range shards {
-		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().ID().Return(s.ID()).AnyTimes()
-		switch shard.ID() {
-		case shards[0].ID():
-			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
-				Status: fileOpSuccess,
-			}).AnyTimes()
-		case shards[1].ID():
-			shard.EXPECT().FlushState(blockStart).Return(fileOpState{
-				Status: fileOpInProgress,
-			}).AnyTimes()
-		}
-		ns.shards[s.ID()] = shard
-	}
-
-	assert.False(t, ns.NeedsFlush(blockStart, blockStart))
-}
-
 func TestNamespaceCloseWithShard(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -71,13 +71,7 @@ func (m *flushManager) NeedsFlush(startInclusive time.Time, endInclusive time.Ti
 }
 
 func (m *flushManager) Flush(curr time.Time) error {
-	flush, err := m.pm.StartFlush()
-	if err != nil {
-		return err
-	}
-
-	defer flush.Done()
-
+	// ensure only a single flush is happening at a time
 	m.Lock()
 	if m.flushInProgress {
 		m.Unlock()
@@ -86,7 +80,14 @@ func (m *flushManager) Flush(curr time.Time) error {
 	m.flushInProgress = true
 	m.Unlock()
 
+	// create flush-er
+	flush, err := m.pm.StartFlush()
+	if err != nil {
+		return err
+	}
+
 	defer func() {
+		flush.Done()
 		m.Lock()
 		m.flushInProgress = false
 		m.Unlock()

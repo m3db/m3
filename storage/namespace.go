@@ -585,20 +585,10 @@ func (n *dbNamespace) NeedsFlush(startInclusive time.Time, endInclusive time.Tim
 	n.RLock()
 	defer n.RUnlock()
 
+	// NB(prateek): we do not check if any other flush is in progress in this method,
+	// instead relying on the databaseFlushManager to ensure atomicity of flushes.
+
 	maxRetries := n.opts.MaxFlushRetries()
-
-	// Check if any in progress first to block another flush if so
-	for _, shard := range n.shards {
-		if shard == nil {
-			continue
-		}
-		for _, blockStart := range blockStarts {
-			if shard.FlushState(blockStart).Status == fileOpInProgress {
-				return false
-			}
-		}
-	}
-
 	// Check for not started or failed that might need a flush
 	for _, shard := range n.shards {
 		if shard == nil {

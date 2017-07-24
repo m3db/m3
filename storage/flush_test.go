@@ -55,6 +55,12 @@ func newMultipleFlushManagerNeedsFlush(t *testing.T, ctrl *gomock.Controller) (
 	return fm, namespace, otherNamespace
 }
 
+func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	// TODO(prateek): write this test
+}
+
 func TestFlushManagerNeedsFlushSingle(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
