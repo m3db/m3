@@ -547,6 +547,10 @@ func (n *dbNamespace) Flush(
 	multiErr := xerrors.NewMultiError()
 	shards := n.getOwnedShards()
 	for _, shard := range shards {
+		// skip flushing if the shard has already flushed data for the `blockStart`
+		if s := shard.FlushState(blockStart); s.Status == fileOpSuccess {
+			continue
+		}
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
 		if err := shard.Flush(blockStart, flush); err != nil {

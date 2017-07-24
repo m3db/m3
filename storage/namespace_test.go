@@ -377,6 +377,33 @@ func TestNamespaceFlushDontNeedFlush(t *testing.T) {
 	require.NoError(t, ns.Flush(time.Now(), nil))
 }
 
+func TestNamespaceFlushSkipFlushed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	ns := newTestNamespace(t)
+	ns.bs = bootstrapped
+	blockStart := time.Now().Truncate(ns.Options().RetentionOptions().BlockSize())
+
+	states := []fileOpState{
+		{Status: fileOpNotStarted},
+		{Status: fileOpSuccess},
+	}
+	for i, s := range states {
+		shard := NewMockdatabaseShard(ctrl)
+		shard.EXPECT().FlushState(blockStart).Return(s)
+		if s.Status != fileOpSuccess {
+			shard.EXPECT().Flush(blockStart, nil).Return(nil)
+		}
+		ns.shards[testShardIDs[i].ID()] = shard
+	}
+
+	require.NoError(t, ns.Flush(blockStart, nil))
+}
+
 func TestNamespaceFlushAllShards(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -391,6 +418,7 @@ func TestNamespaceFlushAllShards(t *testing.T) {
 	errs := []error{nil, errors.New("foo")}
 	for i := range errs {
 		shard := NewMockdatabaseShard(ctrl)
+		shard.EXPECT().FlushState(blockStart).Return(fileOpState{Status: fileOpNotStarted})
 		shard.EXPECT().Flush(blockStart, nil).Return(errs[i])
 		if errs[i] != nil {
 			shard.EXPECT().ID().Return(testShardIDs[i].ID())
