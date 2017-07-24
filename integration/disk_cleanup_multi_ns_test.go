@@ -185,6 +185,7 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 		filePathPrefix: filePathPrefix,
 		times:          commitLogTimesToRetain,
 	}
+	log.Infof("about to be done with data asserts")
 	require.True(t, commitLogFilesToRetain.allExist(), "commit log expected files do not exist")
 	log.Infof("done with data asserts")
 }
