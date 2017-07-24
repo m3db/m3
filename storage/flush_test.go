@@ -22,9 +22,11 @@ package storage
 
 import (
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
@@ -56,7 +58,50 @@ func newMultipleFlushManagerNeedsFlush(t *testing.T, ctrl *gomock.Controller) (
 func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	// TODO(prateek): write this test
+
+	startCh := make(chan struct{}, 1)
+	doneCh := make(chan struct{}, 1)
+	defer func() {
+		close(startCh)
+		close(doneCh)
+	}()
+
+	mockFlusher := persist.NewMockFlush(ctrl)
+	mockFlusher.EXPECT().Done().Return(nil).AnyTimes()
+	mockPersistManager := persist.NewMockManager(ctrl)
+	mockPersistManager.EXPECT().StartFlush().Do(func() {
+		// channels used to coordinate flushing state
+		startCh <- struct{}{}
+		<-doneCh
+	}).Return(mockFlusher, nil).AnyTimes()
+
+	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
+	db := newMockdatabase(ctrl)
+	db.EXPECT().Options().Return(testOpts).AnyTimes()
+	db.EXPECT().GetOwnedNamespaces().Return(nil).AnyTimes()
+
+	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
+	fm.pm = mockPersistManager
+
+	now := time.Unix(0, 0)
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// go routine 1 should succesfully flush
+	go func() {
+		defer wg.Done()
+		require.NoError(t, fm.Flush(now))
+	}()
+
+	// go routine 2 should indicate already flushing
+	go func() {
+		defer wg.Done()
+		<-startCh
+		require.Equal(t, errFlushAlreadyInProgress, fm.Flush(now))
+		doneCh <- struct{}{}
+	}()
+
+	wg.Wait()
 }
 
 func TestFlushManagerNeedsFlushSingle(t *testing.T) {

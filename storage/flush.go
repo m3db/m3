@@ -85,9 +85,9 @@ func (m *flushManager) Flush(curr time.Time) error {
 	if err != nil {
 		return err
 	}
+	defer flush.Done()
 
 	defer func() {
-		flush.Done()
 		m.Lock()
 		m.flushInProgress = false
 		m.Unlock()
