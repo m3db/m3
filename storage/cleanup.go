@@ -116,7 +116,7 @@ func (m *cleanupManager) Report() {
 func (m *cleanupManager) cleanupFilesetFiles(t time.Time) error {
 	var (
 		multiErr   = xerrors.NewMultiError()
-		namespaces = m.database.getOwnedNamespaces()
+		namespaces = m.database.GetOwnedNamespaces()
 	)
 	for _, n := range namespaces {
 		earliestToRetain := retention.FlushTimeStart(n.Options().RetentionOptions(), t)

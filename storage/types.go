@@ -132,11 +132,11 @@ type Database interface {
 type database interface {
 	Database
 
-	// getOwnedNamespaces returns the namespaces this database owns.
-	getOwnedNamespaces() []databaseNamespace
+	// GetOwnedNamespaces returns the namespaces this database owns.
+	GetOwnedNamespaces() []databaseNamespace
 
-	// updateOwnedNamespaces updates the namespaces this database owns.
-	updateOwnedNamespaces(namespaces namespace.Map) error
+	// UpdateOwnedNamespaces updates the namespaces this database owns.
+	UpdateOwnedNamespaces(namespaces namespace.Map) error
 }
 
 // Namespace is a time series database namespace

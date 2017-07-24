@@ -194,14 +194,14 @@ func NewDatabase(
 
 	// update with initial values
 	nsMap := watch.Get()
-	if err := d.updateOwnedNamespaces(nsMap); err != nil {
+	if err := d.UpdateOwnedNamespaces(nsMap); err != nil {
 		return nil, err
 	}
 
 	return d, nil
 }
 
-func (d *db) updateOwnedNamespaces(newNamespaces namespace.Map) error {
+func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	d.Lock()
 	defer d.Unlock()
 
@@ -596,7 +596,7 @@ func (d *db) ownedNamespacesWithLock() []databaseNamespace {
 	return namespaces
 }
 
-func (d *db) getOwnedNamespaces() []databaseNamespace {
+func (d *db) GetOwnedNamespaces() []databaseNamespace {
 	d.RLock()
 	defer d.RUnlock()
 	return d.ownedNamespacesWithLock()

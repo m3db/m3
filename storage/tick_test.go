@@ -42,10 +42,7 @@ func TestTickManagerTickNormalFlow(t *testing.T) {
 	namespace := NewMockdatabaseNamespace(ctrl)
 	namespace.EXPECT().NumSeries().Return(int64(10))
 	namespace.EXPECT().Tick(c, d)
-	namespaces := map[string]databaseNamespace{
-		"test": namespace,
-	}
-	db := &mockDatabase{namespaces: namespaces, opts: opts}
+	db := newMockdatabase(ctrl, namespace)
 
 	tm := newTickManager(db, opts).(*tickManager)
 	tm.c = c
@@ -72,10 +69,7 @@ func TestTickManagerTickCancelled(t *testing.T) {
 		ch1 <- struct{}{}
 		<-ch2
 	})
-	namespaces := map[string]databaseNamespace{
-		"test": namespace,
-	}
-	db := &mockDatabase{namespaces: namespaces, opts: opts}
+	db := newMockdatabase(ctrl, namespace)
 
 	tm := newTickManager(db, opts).(*tickManager)
 	tm.c = c
@@ -113,10 +107,7 @@ func TestTickManagerNonForcedTickDuringOngoingTick(t *testing.T) {
 		ch1 <- struct{}{}
 		<-ch2
 	})
-	namespaces := map[string]databaseNamespace{
-		"test": namespace,
-	}
-	db := &mockDatabase{namespaces: namespaces, opts: opts}
+	db := newMockdatabase(ctrl, namespace)
 
 	tm := newTickManager(db, opts).(*tickManager)
 	tm.c = c
@@ -160,10 +151,7 @@ func TestTickManagerForcedTickDuringOngoingTick(t *testing.T) {
 		namespace.EXPECT().NumSeries().Return(int64(10)),
 		namespace.EXPECT().Tick(c, d),
 	)
-	namespaces := map[string]databaseNamespace{
-		"test": namespace,
-	}
-	db := &mockDatabase{namespaces: namespaces, opts: opts}
+	db := newMockdatabase(ctrl, namespace)
 
 	tm := newTickManager(db, opts).(*tickManager)
 	tm.c = c

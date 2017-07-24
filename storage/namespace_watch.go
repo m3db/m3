@@ -141,7 +141,7 @@ func (w *dbNamespaceWatch) startWatch() {
 
 			w.metrics.updates.Inc(1)
 			newMap := w.watch.Get()
-			w.db.updateOwnedNamespaces(newMap)
+			w.db.UpdateOwnedNamespaces(newMap)
 		}
 	}
 }

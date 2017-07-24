@@ -35,10 +35,8 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/time"
 	"github.com/m3db/m3x/watch"
 
 	"github.com/fortytw2/leaktest"
@@ -46,79 +44,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-type mockDatabase struct {
-	sync.Mutex
-	opts        Options
-	namespaces  map[string]databaseNamespace
-	bs          bootstrapState
-	updateNsMap namespace.Map
-}
-
-func newMockDatabase() *mockDatabase { return &mockDatabase{opts: testDatabaseOptions()} }
-
-func (d *mockDatabase) Options() Options                          { return d.opts }
-func (d *mockDatabase) AssignShardSet(shardSet sharding.ShardSet) {}
-func (d *mockDatabase) Namespace(ts.ID) (Namespace, bool)         { return nil, false }
-func (d *mockDatabase) Namespaces() []Namespace                   { return nil }
-func (d *mockDatabase) Open() error                               { return nil }
-func (d *mockDatabase) Terminate() error                          { return nil }
-func (d *mockDatabase) Close() error                              { return nil }
-func (d *mockDatabase) Bootstrap() error                          { return nil }
-func (d *mockDatabase) IsBootstrapped() bool                      { return d.bs == bootstrapped }
-func (d *mockDatabase) IsOverloaded() bool                        { return false }
-func (d *mockDatabase) Repair() error                             { return nil }
-func (d *mockDatabase) Truncate(namespace ts.ID) (int64, error)   { return 0, nil }
-func (d *mockDatabase) flush(t time.Time, async bool)             {}
-
-func (d *mockDatabase) nsMapUpdates() namespace.Map {
-	d.Lock()
-	defer d.Unlock()
-	return d.updateNsMap
-}
-
-func (d *mockDatabase) updateOwnedNamespaces(v namespace.Map) error {
-	d.Lock()
-	defer d.Unlock()
-	d.updateNsMap = v
-	return nil
-}
-
-func (d *mockDatabase) getOwnedNamespaces() []databaseNamespace {
-	namespaces := make([]databaseNamespace, 0, len(d.namespaces))
-	for _, n := range d.namespaces {
-		namespaces = append(namespaces, n)
-	}
-	return namespaces
-}
-
-func (d *mockDatabase) Write(
-	context.Context, ts.ID, ts.ID,
-	time.Time, float64, xtime.Unit, []byte,
-) error {
-	return nil
-}
-
-func (d *mockDatabase) ReadEncoded(
-	context.Context, ts.ID, ts.ID,
-	time.Time, time.Time,
-) ([][]xio.SegmentReader, error) {
-	return nil, nil
-}
-
-func (d *mockDatabase) FetchBlocks(
-	context.Context, ts.ID,
-	uint32, ts.ID, []time.Time,
-) ([]block.FetchBlockResult, error) {
-	return nil, nil
-}
-
-func (d *mockDatabase) FetchBlocksMetadata(
-	context.Context, ts.ID, uint32,
-	time.Time, time.Time, int64, int64, block.FetchBlocksMetadataOptions,
-) (block.FetchBlocksMetadataResults, *int64, error) {
-	return nil, nil, nil
-}
 
 var (
 	defaultTestNs1ID         = ts.StringID("testns1")
@@ -215,6 +140,15 @@ func testRepairOptions(ctrl *gomock.Controller) repair.Options {
 		SetRepairTimeOffset(500 * time.Millisecond).
 		SetRepairTimeJitter(300 * time.Millisecond).
 		SetRepairCheckInterval(100 * time.Millisecond)
+}
+
+func newMockdatabase(ctrl *gomock.Controller, ns ...databaseNamespace) *Mockdatabase {
+	db := NewMockdatabase(ctrl)
+	db.EXPECT().Options().Return(testDatabaseOptions()).AnyTimes()
+	if len(ns) != 0 {
+		db.EXPECT().GetOwnedNamespaces().Return(ns).AnyTimes()
+	}
+	return db
 }
 
 func newTestDatabase(t *testing.T, ctrl *gomock.Controller, bs bootstrapState) (*db, nsMapCh) {

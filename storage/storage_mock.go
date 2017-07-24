@@ -26,6 +26,7 @@ package storage
 import (
 	time0 "time"
 
+	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
 	encoding "github.com/m3db/m3db/encoding"
@@ -45,8 +46,6 @@ import (
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
 	time "github.com/m3db/m3x/time"
-
-	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of Database interface
@@ -419,24 +418,24 @@ func (_mr *_MockdatabaseRecorder) Truncate(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate", arg0)
 }
 
-func (_m *Mockdatabase) getOwnedNamespaces() []databaseNamespace {
-	ret := _m.ctrl.Call(_m, "getOwnedNamespaces")
+func (_m *Mockdatabase) GetOwnedNamespaces() []databaseNamespace {
+	ret := _m.ctrl.Call(_m, "GetOwnedNamespaces")
 	ret0, _ := ret[0].([]databaseNamespace)
 	return ret0
 }
 
-func (_mr *_MockdatabaseRecorder) getOwnedNamespaces() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "getOwnedNamespaces")
+func (_mr *_MockdatabaseRecorder) GetOwnedNamespaces() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetOwnedNamespaces")
 }
 
-func (_m *Mockdatabase) updateOwnedNamespaces(namespaces namespace.Map) error {
-	ret := _m.ctrl.Call(_m, "updateOwnedNamespaces", namespaces)
+func (_m *Mockdatabase) UpdateOwnedNamespaces(namespaces namespace.Map) error {
+	ret := _m.ctrl.Call(_m, "UpdateOwnedNamespaces", namespaces)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseRecorder) updateOwnedNamespaces(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "updateOwnedNamespaces", arg0)
+func (_mr *_MockdatabaseRecorder) UpdateOwnedNamespaces(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "UpdateOwnedNamespaces", arg0)
 }
 
 // Mock of Namespace interface

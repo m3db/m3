@@ -35,7 +35,7 @@ import (
 
 func newTestNamespaceWatch(t *testing.T, ctrl *gomock.Controller) (
 	databaseNamespaceWatch,
-	*mockDatabase,
+	*Mockdatabase,
 	*namespace.MockWatch,
 ) {
 	testScope := tally.NewTestScope("", nil)
@@ -45,7 +45,7 @@ func newTestNamespaceWatch(t *testing.T, ctrl *gomock.Controller) (
 
 	// NB: Can't use golang.Mock generated database here because we need to use
 	// EXPECT on unexported methods, which fails due to: https://github.com/golang/mock/issues/52
-	mockDB := newMockDatabase()
+	mockDB := NewMockdatabase(ctrl)
 	mockWatch := namespace.NewMockWatch(ctrl)
 
 	return newDatabaseNamespaceWatch(mockDB, mockWatch, iopts), mockDB, mockWatch
@@ -102,8 +102,8 @@ func TestNamespaceWatchUpdatePropagation(t *testing.T) {
 	mockWatch.EXPECT().C().Return(ch).AnyTimes()
 	require.NoError(t, dbWatch.Start())
 
+	mockDB.EXPECT().UpdateOwnedNamespaces(mockMap).Return(nil)
 	ch <- struct{}{}
 	time.Sleep(100 * time.Millisecond) // give test a chance to schedule pending go-routines
-	require.Equal(t, mockMap, mockDB.nsMapUpdates())
 	require.NoError(t, dbWatch.Stop())
 }

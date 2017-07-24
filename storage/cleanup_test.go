@@ -34,8 +34,8 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func testCleanupManager(ctrl *gomock.Controller) (*mockDatabase, *MockdatabaseFlushManager, *cleanupManager) {
-	db := newMockDatabase()
+func testCleanupManager(ctrl *gomock.Controller) (*Mockdatabase, *MockdatabaseFlushManager, *cleanupManager) {
+	db := newMockdatabase(ctrl)
 	fm := NewMockdatabaseFlushManager(ctrl)
 	return db, fm, newCleanupManager(db, fm, tally.NoopScope).(*cleanupManager)
 }
@@ -64,14 +64,14 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	}
 
 	start := tf(14400)
-	namespaces := make(map[string]databaseNamespace)
+	namespaces := make([]databaseNamespace, 0, len(inputs))
 	for _, input := range inputs {
 		ns := NewMockdatabaseNamespace(ctrl)
 		ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 		ns.EXPECT().CleanupFileset(start).Return(input.err)
-		namespaces[input.name] = ns
+		namespaces = append(namespaces, ns)
 	}
-	db.namespaces = namespaces
+	db.EXPECT().GetOwnedNamespaces().Return(namespaces)
 
 	mgr.commitLogFilesBeforeFn = func(_ string, t time.Time) ([]string, error) {
 		return []string{"foo", "bar"}, errors.New("error1")

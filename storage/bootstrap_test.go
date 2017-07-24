@@ -49,11 +49,11 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	ns.EXPECT().Options().Return(namespace.NewOptions())
 	ns.EXPECT().Bootstrap(nil, gomock.Any()).Return(fmt.Errorf("an error"))
 	ns.EXPECT().ID().Return(ts.StringID("test"))
-	namespaces := map[string]databaseNamespace{
-		"test": ns,
-	}
+	namespaces := []databaseNamespace{ns}
 
-	db := &mockDatabase{namespaces: namespaces, opts: opts}
+	db := NewMockdatabase(ctrl)
+	db.EXPECT().GetOwnedNamespaces().Return(namespaces)
+
 	m := NewMockdatabaseMediator(ctrl)
 	m.EXPECT().DisableFileOps()
 	m.EXPECT().EnableFileOps().AnyTimes()
@@ -66,6 +66,9 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 }
 
 func TestDatabaseBootstrapTargetRanges(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	opts := testDatabaseOptions()
 	ns, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
@@ -77,7 +80,7 @@ func TestDatabaseBootstrapTargetRanges(t *testing.T) {
 			return now
 		}))
 
-	db := &mockDatabase{opts: opts}
+	db := NewMockdatabase(ctrl)
 	bsm := newBootstrapManager(db, nil, opts).(*bootstrapManager)
 	ranges := bsm.targetRanges(now, ropts)
 

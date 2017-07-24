@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/ts"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -41,15 +42,12 @@ func newMultipleFlushManagerNeedsFlush(t *testing.T, ctrl *gomock.Controller) (
 	options := namespace.NewOptions()
 	namespace := NewMockdatabaseNamespace(ctrl)
 	namespace.EXPECT().Options().Return(options).AnyTimes()
+	namespace.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
 	otherNamespace := NewMockdatabaseNamespace(ctrl)
 	otherNamespace.EXPECT().Options().Return(options).AnyTimes()
+	otherNamespace.EXPECT().ID().Return(ts.StringID("someString")).AnyTimes()
 
-	db := newMockDatabase()
-	db.namespaces = map[string]databaseNamespace{
-		defaultTestNs1ID.String(): namespace,
-		"someString":              otherNamespace,
-	}
-
+	db := newMockdatabase(ctrl, namespace, otherNamespace)
 	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
 
 	return fm, namespace, otherNamespace
@@ -127,6 +125,9 @@ func TestFlushManagerNeedsFlushMultipleSingleTrueSecond(t *testing.T) {
 }
 
 func TestFlushManagerFlushTimeStart(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	inputs := []struct {
 		ts       time.Time
 		expected time.Time
@@ -136,8 +137,7 @@ func TestFlushManagerFlushTimeStart(t *testing.T) {
 		{time.Unix(86400*2+10800, 0), time.Unix(7200, 0)},
 	}
 
-	database := newMockDatabase()
-	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
+	fm, _, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
 	for _, input := range inputs {
 		start, _ := fm.flushRange(defaultTestRetentionOpts, input.ts)
 		require.Equal(t, input.expected, start)
@@ -145,6 +145,9 @@ func TestFlushManagerFlushTimeStart(t *testing.T) {
 }
 
 func TestFlushManagerFlushTimeEnd(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	inputs := []struct {
 		ts       time.Time
 		expected time.Time
@@ -153,8 +156,8 @@ func TestFlushManagerFlushTimeEnd(t *testing.T) {
 		{time.Unix(8000, 0), time.Unix(0, 0)},
 		{time.Unix(15200, 0), time.Unix(7200, 0)},
 	}
-	database := newMockDatabase()
-	fm := newFlushManager(database, tally.NoopScope).(*flushManager)
+
+	fm, _, _ := newMultipleFlushManagerNeedsFlush(t, ctrl)
 	for _, input := range inputs {
 		_, end := fm.flushRange(defaultTestRetentionOpts, input.ts)
 		require.Equal(t, input.expected, end)

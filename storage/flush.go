@@ -61,7 +61,7 @@ func newFlushManager(database database, scope tally.Scope) databaseFlushManager 
 }
 
 func (m *flushManager) NeedsFlush(startInclusive time.Time, endInclusive time.Time) bool {
-	namespaces := m.database.getOwnedNamespaces()
+	namespaces := m.database.GetOwnedNamespaces()
 	for _, n := range namespaces {
 		if n.NeedsFlush(startInclusive, endInclusive) {
 			return true
@@ -94,7 +94,7 @@ func (m *flushManager) Flush(curr time.Time) error {
 	}()
 
 	multiErr := xerrors.NewMultiError()
-	namespaces := m.database.getOwnedNamespaces()
+	namespaces := m.database.GetOwnedNamespaces()
 	for _, ns := range namespaces {
 		flushTimes := m.namespaceFlushTimes(ns, curr)
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, flushTimes, flush))

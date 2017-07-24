@@ -203,7 +203,7 @@ func (m *bootstrapManager) bootstrap() error {
 	// efficient way of bootstrapping database shards, be it sequential or parallel.
 	multiErr := xerrors.NewMultiError()
 
-	namespaces := m.database.getOwnedNamespaces()
+	namespaces := m.database.GetOwnedNamespaces()
 	for _, namespace := range namespaces {
 		rOpts := namespace.Options().RetentionOptions()
 		targetRanges := m.targetRanges(bootstrapStart, rOpts)
