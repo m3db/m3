@@ -566,21 +566,12 @@ func (n *dbNamespace) Flush(
 }
 
 func (n *dbNamespace) NeedsFlush(startInclusive time.Time, endInclusive time.Time) bool {
-	// don't need to flush for bad input
-	if startInclusive.After(endInclusive) {
-		return false
-	}
-
-	// find all blockStarts for the given range
 	var (
 		blockSize   = n.nopts.RetentionOptions().BlockSize()
 		startBlock  = startInclusive.Truncate(blockSize)
-		endBlock    = endInclusive.Truncate(blockSize).Add(blockSize)
-		blockStarts []time.Time
+		endBlock    = endInclusive.Truncate(blockSize)
+		blockStarts = timesInRange(startBlock, endBlock, blockSize)
 	)
-	for t := startBlock; t.Before(endBlock); t = t.Add(blockSize) {
-		blockStarts = append(blockStarts, t)
-	}
 
 	// NB(r): Essentially if all are success, we don't need to flush, if any
 	// are failed with the minimum num failures less than max retries then

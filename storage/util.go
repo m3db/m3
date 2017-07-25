@@ -28,13 +28,40 @@ import (
 // numIntervals returns the number of intervals between [start, end] for a given
 // windowSize.
 func numIntervals(startInclusive, endInclusive time.Time, window time.Duration) int {
-	if window == 0 || endInclusive.Before(startInclusive) {
+	if window <= 0 || endInclusive.Before(startInclusive) {
 		return 0
 	}
 
 	return 1 + int((endInclusive.Sub(startInclusive))/window)
 }
 
+// TODO(prateek): use https://github.com/uber-go/tally/pull/50 once it lands
 func sanitizeIdentifierForMetrics(input string) string {
 	return strings.Replace(input, ":", "_", -1)
+}
+
+// timesInRange returns the points between [start, end] windowSize apart, starting at `end`, in
+// reverse chronological order.
+// NB: returns empty slice if window <= 0 or end is before start
+func timesInRange(startInclusive, endInclusive time.Time, windowSize time.Duration) []time.Time {
+	ni := numIntervals(startInclusive, endInclusive, windowSize)
+	if ni == 0 {
+		return nil
+	}
+	times := make([]time.Time, 0, ni)
+	for t := endInclusive; !t.Before(startInclusive); t = t.Add(-windowSize) {
+		times = append(times, t)
+	}
+	return times
+}
+
+// filterTimes returns the values in the slice `times` which satisfy the provided predicate
+func filterTimes(times []time.Time, predicate func(t time.Time) bool) []time.Time {
+	retTimes := make([]time.Time, 0, len(times))
+	for _, t := range times {
+		if predicate(t) {
+			retTimes = append(retTimes, t)
+		}
+	}
+	return retTimes
 }

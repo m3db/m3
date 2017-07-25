@@ -158,15 +158,14 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
 	// are only retained for a period of 1-2 days (at most), after we which we'd live we with the
 	// data loss.
 
-	times := make([]time.Time, 0, numIntervals(earliest, latest, blockSize))
-	for t := latest; !t.Before(earliest); t = t.Add(-blockSize) {
+	candidateTimes := timesInRange(earliest, latest, blockSize)
+	cleanupTimes := filterTimes(candidateTimes, func(t time.Time) bool {
 		leftBlockStart, rightBlockStart := t.Add(-blockSize), t.Add(blockSize)
-		if anyPendingFlushes := m.fm.NeedsFlush(leftBlockStart, rightBlockStart); !anyPendingFlushes {
-			times = append(times, t)
-		}
-	}
+		anyPendingFlushes := m.fm.NeedsFlush(leftBlockStart, rightBlockStart)
+		return !anyPendingFlushes
+	})
 
-	return earliest, times
+	return earliest, cleanupTimes
 }
 
 func (m *cleanupManager) cleanupCommitLogs(earliestToRetain time.Time, cleanupTimes []time.Time) error {
