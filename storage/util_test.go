@@ -28,7 +28,6 @@ import (
 )
 
 func TestNumIntervals(t *testing.T) {
-
 	var (
 		bs = 10
 		tf = func(i int) time.Time {
@@ -43,4 +42,66 @@ func TestNumIntervals(t *testing.T) {
 	require.Equal(t, 0, numIntervals(t1, t0, w))
 	require.Equal(t, 1, numIntervals(t0, t0, w))
 	require.Equal(t, 2, numIntervals(t0, t1, w))
+}
+
+func TestNumIntervalsStartEqualsEnd(t *testing.T) {
+	s := time.Now()
+	w := time.Minute
+	require.Equal(t, 1, numIntervals(s, s, w))
+}
+
+func TestNumIntervalsStartAfterEnd(t *testing.T) {
+	w := time.Minute
+	end := time.Now()
+	start := end.Add(w)
+	require.Equal(t, 0, numIntervals(start, end, w))
+}
+
+func TestNumIntervalsZeroWindow(t *testing.T) {
+	w := time.Duration(0)
+	s := time.Now()
+	require.Equal(t, 0, numIntervals(s, s, w))
+}
+
+func TestNumIntervalsNegativeWindow(t *testing.T) {
+	w := -time.Minute
+	s := time.Now()
+	require.Equal(t, 0, numIntervals(s, s, w))
+}
+
+func TestTimesInRange(t *testing.T) {
+	var (
+		w  = 10 * time.Second
+		tf = func(i int64) time.Time {
+			return time.Unix(0, int64(w)*i)
+		}
+		tfN = func(i, j int64) []time.Time {
+			times := make([]time.Time, 0, j-i+1)
+			for k := j; k >= i; k-- {
+				times = append(times, tf(k))
+			}
+			return times
+		}
+	)
+	// [0, 2] with a gap of 1 ==> [0, 1, 2]
+	require.Equal(t, []time.Time{tf(2), tf(1), tf(0)},
+		timesInRange(tf(0), tf(2), w))
+
+	// [2, 1] with a gap of 1 ==> empty result
+	require.Empty(t, timesInRange(tf(2), tf(1), w))
+
+	// [2, 2] with a gap of 1 ==> [2]
+	require.Equal(t, []time.Time{tf(2)},
+		timesInRange(tf(2), tf(2), w))
+
+	// [0, 9] with a gap of 3 ==> [9, 6, 3, 0]
+	require.Equal(t, []time.Time{tf(9), tf(6), tf(3), tf(0)},
+		timesInRange(tf(0), tf(9), 3*w))
+
+	// [1, 9] with a gap of 3 ==> [9, 6, 3]
+	require.Equal(t, []time.Time{tf(9), tf(6), tf(3)},
+		timesInRange(tf(1), tf(9), 3*w))
+
+	// [1, 100] with a gap of 1 ==> [100, 99, ..., 1]
+	require.Equal(t, tfN(1, 100), timesInRange(tf(1), tf(100), w))
 }
