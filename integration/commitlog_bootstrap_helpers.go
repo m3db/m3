@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"math/rand"
 	"testing"
 	"time"
 
@@ -53,6 +54,34 @@ func generateUniqueMetricIndexes(timeBlocks generate.SeriesBlocksByStart) map[st
 		}
 	}
 	return indexes
+}
+
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func randStringRunes(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
+
+func generateSeriesMaps(numBlocks int, starts ...time.Time) generate.SeriesBlocksByStart {
+	blockConfig := []generate.BlockConfig{}
+	for i := 0; i < numBlocks; i++ {
+		name := []string{}
+		for j := 0; j < rand.Intn(10)+1; j++ {
+			name = append(name, randStringRunes(100))
+		}
+
+		start := starts[rand.Intn(len(starts))]
+		blockConfig = append(blockConfig, generate.BlockConfig{
+			IDs:       name,
+			NumPoints: rand.Intn(100) + 1,
+			Start:     start.Add(time.Duration(i) * time.Minute),
+		})
+	}
+	return generate.BlocksByStart(blockConfig)
 }
 
 func writeCommitLogData(
