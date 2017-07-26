@@ -301,10 +301,13 @@ func (d *db) logNamespaceUpdate(removes []ts.ID, adds, updates []namespace.Metad
 
 	// log scheduled operation
 	d.log.WithFields(
-		xlog.NewLogField("removals", removalString),
 		xlog.NewLogField("adds", addString),
 		xlog.NewLogField("updates", updateString),
+		xlog.NewLogField("removals", removalString),
 	).Infof("updating database namespaces")
+
+	// NB(prateek): as noted in `UpdateOwnedNamespaces()` above, the current implementation
+	// does not apply updates, and removals until the m3dbnode process is restarted.
 
 	return nil
 }
