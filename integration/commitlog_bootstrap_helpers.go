@@ -116,9 +116,6 @@ func writeCommitLogData(
 		commitLog, err := commitlog.NewCommitLog(opts)
 		require.NoError(t, err)
 		require.NoError(t, commitLog.Open())
-		defer func() {
-			require.NoError(t, commitLog.Close())
-		}()
 
 		// write points
 		for _, point := range points {
@@ -132,5 +129,8 @@ func writeCommitLogData(
 			}
 			require.NoError(t, commitLog.WriteBehind(ctx, cId, point.Datapoint, xtime.Second, nil))
 		}
+
+		// ensure writes finished
+		require.NoError(t, commitLog.Close())
 	}
 }
