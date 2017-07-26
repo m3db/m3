@@ -83,7 +83,7 @@ func TestCommitLogBootstrap(t *testing.T) {
 	now := setup.getNowFn()
 
 	blockConfig := []generate.BlockConfig{}
-	for i := 0; i < 50; i++ {
+	for i := 0; i < 30; i++ {
 		name := []string{}
 		for j := 0; j < rand.Intn(10)+1; j++ {
 			name = append(name, randStringRunes(100))
