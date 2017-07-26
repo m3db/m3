@@ -64,8 +64,8 @@ func TestDiskCleanup(t *testing.T) {
 	for i := 0; i < numTimes; i++ {
 		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
 	}
-	createFilesetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
-	createCommitLogs(t, filePathPrefix, fileTimes)
+	writeFilesetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
+	writeCommitLogs(t, filePathPrefix, fileTimes)
 
 	// Move now forward by retentionPeriod + 2 * blockSize so fileset files
 	// and commit logs at now will be deleted
@@ -73,6 +73,6 @@ func TestDiskCleanup(t *testing.T) {
 	testSetup.setNowFn(newNow)
 
 	// Check if files have been deleted
-	waitTimeout := testOpts.TickInterval() * 10
+	waitTimeout := 30 * time.Second
 	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, waitTimeout))
 }

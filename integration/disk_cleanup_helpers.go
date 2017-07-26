@@ -40,7 +40,7 @@ var (
 	errDataCleanupTimedOut = errors.New("cleaning up data files took too long")
 )
 
-func createWriter(storageOpts storage.Options) fs.FileSetWriter {
+func newFilesetWriter(storageOpts storage.Options) fs.FileSetWriter {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	filePathPrefix := fsOpts.FilePathPrefix()
 	writerBufferSize := fsOpts.WriterBufferSize()
@@ -49,16 +49,16 @@ func createWriter(storageOpts storage.Options) fs.FileSetWriter {
 	return fs.NewWriter(filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 }
 
-func createFilesetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []time.Time) {
+func writeFilesetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []time.Time) {
 	rOpts := md.Options().RetentionOptions()
-	writer := createWriter(storageOpts)
+	writer := newFilesetWriter(storageOpts)
 	for _, start := range fileTimes {
 		require.NoError(t, writer.Open(md.ID(), rOpts.BlockSize(), shard, start))
 		require.NoError(t, writer.Close())
 	}
 }
 
-func createCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time) {
+func writeCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time) {
 	for _, start := range fileTimes {
 		commitLogFile, _ := fs.NextCommitLogsFile(filePathPrefix, start)
 		_, err := os.Create(commitLogFile)
