@@ -56,7 +56,7 @@ func generateUniqueMetricIndexes(timeBlocks generate.SeriesBlocksByStart) map[st
 	return indexes
 }
 
-func writeCommitLog(
+func writeCommitLogData(
 	t *testing.T,
 	s *testSetup,
 	data generate.SeriesBlocksByStart,
