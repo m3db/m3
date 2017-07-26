@@ -68,6 +68,26 @@ func ToPointsByTime(seriesMaps SeriesBlocksByStart) SeriesDataPointsByTime {
 	return pointsByTime
 }
 
+// Dearrange de-arranges the list by the defined percent.
+func (l SeriesDataPointsByTime) Dearrange(percent float64) SeriesDataPointsByTime {
+	numDis := percent * float64(len(l))
+	disEvery := int(float64(len(l)) / numDis)
+
+	newArr := make(SeriesDataPointsByTime, 0, len(l))
+	for i := 0; i < len(l); i += disEvery {
+		ti := i + disEvery
+		if ti >= len(l) {
+			newArr = append(newArr, l[i:]...)
+			break
+		}
+
+		newArr = append(newArr, l[ti])
+		newArr = append(newArr, l[i:ti]...)
+	}
+
+	return newArr
+}
+
 // Making SeriesDataPointsByTimes sortable
 
 func (l SeriesDataPointsByTime) Len() int      { return len(l) }

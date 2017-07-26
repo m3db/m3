@@ -38,6 +38,7 @@ import (
 
 var (
 	defaultIntegrationTestFlushInterval = 100 * time.Millisecond
+	defaultDerrangementPercent          = 0.20
 )
 
 func generateUniqueMetricIndexes(timeBlocks generate.SeriesBlocksByStart) map[string]uint64 {
@@ -61,53 +62,47 @@ func writeCommitLog(
 	data generate.SeriesBlocksByStart,
 	namespace ts.ID,
 ) {
-	indexes := generateUniqueMetricIndexes(data)
-	opts := s.storageOpts.CommitLogOptions()
-
 	// ensure commit log is flushing frequently
+	opts := s.storageOpts.CommitLogOptions()
 	require.Equal(t, defaultIntegrationTestFlushInterval, opts.FlushInterval())
-	ctx := context.NewContext()
 
 	var (
-		shardSet  = s.shardSet
-		points    = generate.ToPointsByTime(data) // points are sorted in chronological order
-		blockSize = opts.RetentionOptions().BlockSize()
-		commitLog commitlog.CommitLog
-		now       time.Time
+		indexes  = generateUniqueMetricIndexes(data)
+		shardSet = s.shardSet
 	)
 
-	closeCommitLogFn := func() {
-		if commitLog != nil {
+	for ts, blk := range data {
+		ctx := context.NewContext()
+		defer ctx.Close()
+
+		s.setNowFn(ts)
+		m := map[time.Time]generate.SeriesBlock{
+			ts: blk,
+		}
+
+		points := generate.
+			ToPointsByTime(m).
+			Dearrange(defaultDerrangementPercent)
+
+		// create new commit log
+		commitLog := commitlog.NewCommitLog(opts)
+		require.NoError(t, commitLog.Open())
+		defer func() {
 			require.NoError(t, commitLog.Close())
-		}
-	}
-	defer closeCommitLogFn()
+		}()
 
-	for _, point := range points {
-		pointTime := point.Timestamp
-
-		// check if this point falls in the current commit log block
-		if truncated := pointTime.Truncate(blockSize); truncated != now {
-			// close commit log if it exists
-			closeCommitLogFn()
-			// move time forward
-			now = truncated
-			s.setNowFn(now)
-			// create new commit log
-			commitLog = commitlog.NewCommitLog(opts)
-			require.NoError(t, commitLog.Open())
+		// write points
+		for _, point := range points {
+			idx, ok := indexes[point.ID.String()]
+			require.True(t, ok)
+			cId := commitlog.Series{
+				Namespace:   namespace,
+				Shard:       shardSet.Lookup(point.ID),
+				ID:          point.ID,
+				UniqueIndex: idx,
+			}
+			require.NoError(t, commitLog.WriteBehind(ctx, cId, point.Datapoint, xtime.Second, nil))
 		}
-
-		// write this point
-		idx, ok := indexes[point.ID.String()]
-		require.True(t, ok)
-		cId := commitlog.Series{
-			Namespace:   namespace,
-			Shard:       shardSet.Lookup(point.ID),
-			ID:          point.ID,
-			UniqueIndex: idx,
-		}
-		require.NoError(t, commitLog.WriteBehind(ctx, cId, point.Datapoint, xtime.Second, nil))
 	}
 }
 
