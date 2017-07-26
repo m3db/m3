@@ -97,7 +97,7 @@ func TestCommitLogBootstrap(t *testing.T) {
 	}
 	seriesMaps := generate.BlocksByStart(blockConfig)
 	log.Info("writing data")
-	writeCommitLog(t, setup, seriesMaps, testNamespaces[0])
+	writeCommitLogData(t, setup, seriesMaps, testNamespaces[0])
 	log.Info("written data")
 
 	setup.setNowFn(now)
