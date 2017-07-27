@@ -47,7 +47,6 @@ type cleanupManager struct {
 	nowFn                   clock.NowFn
 	filePathPrefix          string
 	commitLogsDir           string
-	fm                      databaseFlushManager
 	commitLogFilesBeforeFn  commitLogFilesBeforeFn
 	commitLogFilesForTimeFn commitLogFilesForTimeFn
 	deleteFilesFn           deleteFilesFn
@@ -55,18 +54,17 @@ type cleanupManager struct {
 	status                  tally.Gauge
 }
 
-func newCleanupManager(database database, fm databaseFlushManager, scope tally.Scope) databaseCleanupManager {
+func newCleanupManager(database database, scope tally.Scope) databaseCleanupManager {
 	opts := database.Options()
 	filePathPrefix := opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	commitLogsDir := fs.CommitLogsDirPath(filePathPrefix)
 
 	return &cleanupManager{
-		database:       database,
-		opts:           opts,
-		nowFn:          opts.ClockOptions().NowFn(),
-		filePathPrefix: filePathPrefix,
-		commitLogsDir:  commitLogsDir,
-		fm:             fm,
+		database:                database,
+		opts:                    opts,
+		nowFn:                   opts.ClockOptions().NowFn(),
+		filePathPrefix:          filePathPrefix,
+		commitLogsDir:           commitLogsDir,
 		commitLogFilesBeforeFn:  fs.CommitLogFilesBefore,
 		commitLogFilesForTimeFn: fs.CommitLogFilesForTime,
 		deleteFilesFn:           fs.DeleteFiles,
@@ -159,13 +157,44 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
 	// data loss.
 
 	candidateTimes := timesInRange(earliest, latest, blockSize)
+	namespaces := m.database.GetOwnedNamespaces()
 	cleanupTimes := filterTimes(candidateTimes, func(t time.Time) bool {
-		leftBlockStart, rightBlockStart := t.Add(-blockSize), t.Add(blockSize)
-		anyPendingFlushes := m.fm.NeedsFlush(leftBlockStart, rightBlockStart)
-		return !anyPendingFlushes
+		for _, ns := range namespaces {
+			ropts := ns.Options().RetentionOptions()
+			start, end := commitLogNamespaceBlockTimes(t, blockSize, ropts)
+			if ns.NeedsFlush(start, end) {
+				return false
+			}
+		}
+		return true
 	})
 
 	return earliest, cleanupTimes
+}
+
+// commitLogNamespaceBlockTimes returns the range of namespace block starts which for which the
+// given commit log block may contain data for.
+//
+// consider the situation where we have a single namespace, and a commit log with the following
+// retention options:
+//             buffer past | buffer future | block size
+// namespace:    ns_bp     |     ns_bf     |    ns_bs
+// commit log:     _       |      _        |    cl_bs
+//
+// for the commit log block with start time `t`, we can receive data for a range of namespace
+// blocks depending on the namespace retention options. The range is given by these relationships:
+//	- earliest ns block start = t.Add(-ns_bp).Truncate(ns_bs)
+//  -   latest ns block start = t.Add(cl_bs).Add(ns_bf).Truncate(ns_bs)
+// NB:
+// - blockStart assumed to be aligned to commit log block size
+func commitLogNamespaceBlockTimes(
+	blockStart time.Time,
+	commitlogBlockSize time.Duration,
+	nsRetention retention.Options,
+) (time.Time, time.Time) {
+	earliest := blockStart.Add(-nsRetention.BufferPast()).Truncate(nsRetention.BlockSize())
+	latest := blockStart.Add(commitlogBlockSize).Add(nsRetention.BufferPast()).Truncate(nsRetention.BlockSize())
+	return earliest, latest
 }
 
 func (m *cleanupManager) cleanupCommitLogs(earliestToRetain time.Time, cleanupTimes []time.Time) error {

@@ -34,10 +34,9 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func testCleanupManager(ctrl *gomock.Controller) (*Mockdatabase, *MockdatabaseFlushManager, *cleanupManager) {
+func testCleanupManager(ctrl *gomock.Controller) (*Mockdatabase, *cleanupManager) {
 	db := newMockdatabase(ctrl)
-	fm := NewMockdatabaseFlushManager(ctrl)
-	return db, fm, newCleanupManager(db, fm, tally.NoopScope).(*cleanupManager)
+	return db, newCleanupManager(db, tally.NoopScope).(*cleanupManager)
 }
 
 func TestCleanupManagerCleanup(t *testing.T) {
@@ -50,7 +49,7 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		SetBufferPast(0 * time.Second).
 		SetBlockSize(7200 * time.Second)
 	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts)
-	db, fm, mgr := testCleanupManager(ctrl)
+	db, mgr := testCleanupManager(ctrl)
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().SetRetentionOptions(rOpts))
 
@@ -88,11 +87,11 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		return nil
 	}
 
-	gomock.InOrder(
-		fm.EXPECT().NeedsFlush(tf(14400), tf(28800)).Return(false),
-		fm.EXPECT().NeedsFlush(tf(7200), tf(21600)).Return(false),
-		fm.EXPECT().NeedsFlush(tf(0), tf(14400)).Return(false),
-	)
+	// gomock.InOrder(
+	// 	fm.EXPECT().NeedsFlush(tf(14400), tf(28800)).Return(false),
+	// 	fm.EXPECT().NeedsFlush(tf(7200), tf(21600)).Return(false),
+	// 	fm.EXPECT().NeedsFlush(tf(0), tf(14400)).Return(false),
+	// )
 	require.Error(t, mgr.Cleanup(ts))
 	require.Equal(t, []string{"foo", "bar", "baz"}, deletedFiles)
 }
@@ -107,7 +106,7 @@ func TestCleanupManagerCommitLogTimeRange(t *testing.T) {
 			SetRetentionPeriod(18000 * time.Second).
 			SetBufferPast(0 * time.Second).
 			SetBlockSize(7200 * time.Second)
-		_, _, mgr = testCleanupManager(ctrl)
+		_, mgr = testCleanupManager(ctrl)
 	)
 
 	mgr.opts = mgr.opts.SetCommitLogOptions(
@@ -135,35 +134,33 @@ func TestCleanupManagerCommitLogTimeRange(t *testing.T) {
 // if any namespace still requires to be flushed for that period. If so,
 // we cannot remove the data for it. We should get back all the times
 // we can delete data for.
-func newCleanupManagerCommitLogTimesTest(t *testing.T, ctrl *gomock.Controller) (
-	*MockdatabaseFlushManager,
-	*cleanupManager,
-) {
+func newCleanupManagerCommitLogTimesTest(t *testing.T, ctrl *gomock.Controller) *cleanupManager {
 	var (
 		rOpts = retention.NewOptions().
 			SetRetentionPeriod(30 * time.Second).
 			SetBufferPast(0 * time.Second).
+			SetBufferFuture(0 * time.Second).
 			SetBlockSize(10 * time.Second)
-		_, fm, mgr = testCleanupManager(ctrl)
+		_, mgr = testCleanupManager(ctrl)
 	)
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().SetRetentionOptions(rOpts))
 
-	return fm, mgr
+	return mgr
 }
 
 func TestCleanupManagerCommitLogTimesAllFlushed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	fm, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
+	mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
 	currentTime := tf(50)
 
-	gomock.InOrder(
-		fm.EXPECT().NeedsFlush(tf(20), tf(40)).Return(false),
-		fm.EXPECT().NeedsFlush(tf(10), tf(30)).Return(false),
-		fm.EXPECT().NeedsFlush(tf(0), tf(20)).Return(false),
-	)
+	// gomock.InOrder(
+	// 	fm.EXPECT().NeedsFlush(tf(20), tf(40)).Return(false),
+	// 	fm.EXPECT().NeedsFlush(tf(10), tf(30)).Return(false),
+	// 	fm.EXPECT().NeedsFlush(tf(0), tf(20)).Return(false),
+	// )
 
 	earliest, times := mgr.commitLogTimes(currentTime)
 	require.Equal(t, tf(10), earliest)
@@ -177,14 +174,14 @@ func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	fm, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
+	mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
 	currentTime := tf(50)
 
-	gomock.InOrder(
-		fm.EXPECT().NeedsFlush(tf(20), tf(40)).Return(false),
-		fm.EXPECT().NeedsFlush(tf(10), tf(30)).Return(true),
-		fm.EXPECT().NeedsFlush(tf(0), tf(20)).Return(false),
-	)
+	// gomock.InOrder(
+	// 	fm.EXPECT().NeedsFlush(tf(20), tf(40)).Return(false),
+	// 	fm.EXPECT().NeedsFlush(tf(10), tf(30)).Return(true),
+	// 	fm.EXPECT().NeedsFlush(tf(0), tf(20)).Return(false),
+	// )
 
 	earliest, times := mgr.commitLogTimes(currentTime)
 	require.Equal(t, tf(10), earliest)
@@ -197,14 +194,14 @@ func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	fm, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
+	mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
 	currentTime := tf(50)
 
-	gomock.InOrder(
-		fm.EXPECT().NeedsFlush(tf(20), tf(40)).Return(true),
-		fm.EXPECT().NeedsFlush(tf(10), tf(30)).Return(false),
-		fm.EXPECT().NeedsFlush(tf(0), tf(20)).Return(false),
-	)
+	// gomock.InOrder(
+	// 	fm.EXPECT().NeedsFlush(tf(20), tf(40)).Return(true),
+	// 	fm.EXPECT().NeedsFlush(tf(10), tf(30)).Return(false),
+	// 	fm.EXPECT().NeedsFlush(tf(0), tf(20)).Return(false),
+	// )
 
 	earliest, times := mgr.commitLogTimes(currentTime)
 	require.Equal(t, tf(10), earliest)
@@ -217,14 +214,14 @@ func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	fm, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
+	mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
 	currentTime := tf(50)
 
-	gomock.InOrder(
-		fm.EXPECT().NeedsFlush(tf(20), tf(40)).Return(true),
-		fm.EXPECT().NeedsFlush(tf(10), tf(30)).Return(true),
-		fm.EXPECT().NeedsFlush(tf(0), tf(20)).Return(true),
-	)
+	// gomock.InOrder(
+	// 	fm.EXPECT().NeedsFlush(tf(20), tf(40)).Return(true),
+	// 	fm.EXPECT().NeedsFlush(tf(10), tf(30)).Return(true),
+	// 	fm.EXPECT().NeedsFlush(tf(0), tf(20)).Return(true),
+	// )
 
 	earliest, times := mgr.commitLogTimes(currentTime)
 	require.Equal(t, tf(10), earliest)

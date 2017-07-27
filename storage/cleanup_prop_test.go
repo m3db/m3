@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/storage/namespace"
 
 	"github.com/golang/mock/gomock"
 	"github.com/leanovate/gopter"
@@ -45,8 +46,7 @@ func propTestCleanupMgr(ctrl *gomock.Controller, ropts retention.Options, ns ...
 	db.EXPECT().Options().Return(opts).AnyTimes()
 	db.EXPECT().GetOwnedNamespaces().Return(ns).AnyTimes()
 	scope := tally.NoopScope
-	fm := newFlushManager(db, scope)
-	cm := newCleanupManager(db, fm, scope)
+	cm := newCleanupManager(db, scope)
 	return cm.(*cleanupManager)
 }
 
@@ -67,7 +67,7 @@ func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
 			cm := propTestCleanupMgr(ctrl, cRopts, ns)
 			_, cleanupTimes := cm.commitLogTimes(t)
 			for _, ct := range cleanupTimes {
-				s, e := commitLogBlockDataRange(ct, cRopts, ns.ropts)
+				s, e := commitLogNamespaceBlockTimes(ct, cRopts.BlockSize(), ns.ropts)
 				if ns.NeedsFlush(s, e) {
 					return false, fmt.Errorf("trying to cleanup commit log at %v, but ns needsFlush; (range: %v, %v)",
 						ct.String(), s.String(), e.String())
@@ -83,22 +83,11 @@ func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
 	properties.TestingRun(t)
 }
 
-// return the earliest and latest data a commit log block could possibly receive
-// for a given namespace retention
-func commitLogBlockDataRange(
-	commitLogBlockStart time.Time,
-	commitLogRetention retention.Options,
-	nsRetention retention.Options,
-) (time.Time, time.Time) {
-	earliestData := commitLogBlockStart.Add(-nsRetention.BufferPast())
-	latestData := commitLogBlockStart.Add(commitLogRetention.BlockSize()).Add(nsRetention.BufferFuture())
-	return earliestData, latestData
-}
-
 // generated namespace struct
 type gNamespace struct {
 	databaseNamespace
 
+	opts              namespace.Options
 	ropts             *gRetention
 	blockSize         time.Duration
 	oldestBlock       time.Time
@@ -134,6 +123,10 @@ func (ns *gNamespace) blockIdx(t time.Time) int {
 	return idx
 }
 
+func (ns *gNamespace) Options() namespace.Options {
+	return ns.opts
+}
+
 func (ns *gNamespace) NeedsFlush(start, end time.Time) bool {
 	if start.Before(ns.oldestBlock) && end.Before(ns.oldestBlock) {
 		return false
@@ -164,7 +157,10 @@ func genNamespace(t time.Time) gopter.Gen {
 			flushStates[i] = rng.Float32() > 0.6 // flip a coin to get a bool
 		}
 
+		opts := namespace.NewOptions().SetRetentionOptions(ropts)
+
 		ns := &gNamespace{
+			opts:              opts,
 			ropts:             ropts,
 			blockSize:         ropts.BlockSize(),
 			oldestBlock:       oldest,
