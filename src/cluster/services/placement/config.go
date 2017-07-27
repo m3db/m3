@@ -23,16 +23,13 @@ package placement
 import (
 	"time"
 
-	"github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3x/instrument"
 )
 
 // WatcherConfiguration contains placement watcher configuration.
 type WatcherConfiguration struct {
-	// Placement kv namespace.
-	Namespace string `yaml:"namespace" validate:"nonzero"`
-
 	// Placement key.
 	Key string `yaml:"key" validate:"nonzero"`
 
@@ -42,14 +39,9 @@ type WatcherConfiguration struct {
 
 // NewOptions creates a placement watcher option.
 func (c *WatcherConfiguration) NewOptions(
-	client client.Client,
+	store kv.Store,
 	instrumentOpts instrument.Options,
-) (services.StagedPlacementWatcherOptions, error) {
-	store, err := client.Store(c.Namespace)
-	if err != nil {
-		return nil, err
-	}
-
+) services.StagedPlacementWatcherOptions {
 	opts := NewStagedPlacementWatcherOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetStagedPlacementKey(c.Key).
@@ -57,5 +49,5 @@ func (c *WatcherConfiguration) NewOptions(
 	if c.InitWatchTimeout != 0 {
 		opts = opts.SetInitWatchTimeout(c.InitWatchTimeout)
 	}
-	return opts, nil
+	return opts
 }

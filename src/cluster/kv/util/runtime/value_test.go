@@ -151,19 +151,24 @@ func TestValueWatchUpdatesError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	watchCh := make(chan struct{})
+	doneCh := make(chan struct{})
 	_, rv := testValueWithMockStore(ctrl)
 	errUpdate := errors.New("error updating")
-	rv.updateWithLockFn = func(kv.Value) error { return errUpdate }
-	ch := make(chan struct{})
+	rv.updateWithLockFn = func(kv.Value) error {
+		close(doneCh)
+		return errUpdate
+	}
 	watch := kv.NewMockValueWatch(ctrl)
-	watch.EXPECT().C().Return(ch).AnyTimes()
+	watch.EXPECT().C().Return(watchCh).AnyTimes()
 	watch.EXPECT().Get().Return(nil)
-	watch.EXPECT().Close().Do(func() { close(ch) })
+	watch.EXPECT().Close().Do(func() { close(watchCh) })
 	rv.watch = watch
 	rv.status = valueWatching
 	go rv.watchUpdates(watch)
 
-	ch <- struct{}{}
+	watchCh <- struct{}{}
+	<-doneCh
 	rv.Unwatch()
 	require.Equal(t, valueNotWatching, rv.status)
 }
