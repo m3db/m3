@@ -60,7 +60,7 @@ func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
 	properties := gopter.NewProperties(parameters)
 
 	now := time.Now()
-	year := time.Hour * 24 * 365
+	year := time.Hour * 24 * 15
 
 	properties.Property("Commit log is retained if one namespace needs to flush", prop.ForAll(
 		func(t time.Time, cRopts retention.Options, ns *gNamespace) (bool, error) {
@@ -93,7 +93,7 @@ func TestPropertyCommitLogNotCleanedForUnflushedDataMultipleNs(t *testing.T) {
 	properties := gopter.NewProperties(parameters)
 
 	now := time.Now()
-	year := time.Hour * 24 * 365
+	year := time.Hour * 24 * 15
 
 	properties.Property("Commit log is retained if any namespace needs to flush", prop.ForAll(
 		func(t time.Time, cRopts retention.Options, nses []*gNamespace) (bool, error) {
