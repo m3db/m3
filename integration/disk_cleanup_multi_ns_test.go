@@ -64,12 +64,17 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 	// Test setup
 	var (
 		commitLogBlockSize = 30 * time.Minute
-		clROpts            = retention.NewOptions().SetRetentionPeriod(8 * time.Hour).SetBlockSize(commitLogBlockSize)
-		ns1BlockSize       = 4 * time.Hour
-		ns1ROpts           = clROpts.SetRetentionPeriod(8 * time.Hour).SetBlockSize(ns1BlockSize)
-		ns2BlockSize       = 2 * time.Hour
-		ns2ROpts           = clROpts.SetRetentionPeriod(6 * time.Hour).SetBlockSize(ns2BlockSize)
-		nsOpts             = namespace.NewOptions().SetNeedsFlush(false) // disabling flushing to ensure data isn't flushed during test
+		clROpts            = retention.NewOptions().
+					SetRetentionPeriod(8 * time.Hour).
+					SetBlockSize(commitLogBlockSize).
+					SetBufferFuture(0).
+					SetBufferPast(0)
+
+		ns1BlockSize = 4 * time.Hour
+		ns1ROpts     = clROpts.SetRetentionPeriod(8 * time.Hour).SetBlockSize(ns1BlockSize)
+		ns2BlockSize = 2 * time.Hour
+		ns2ROpts     = clROpts.SetRetentionPeriod(6 * time.Hour).SetBlockSize(ns2BlockSize)
+		nsOpts       = namespace.NewOptions().SetNeedsFlush(false) // disabling flushing to ensure data isn't flushed during test
 	)
 
 	ns1, err := namespace.NewMetadata(testNamespaces[0], nsOpts.SetRetentionOptions(ns1ROpts))

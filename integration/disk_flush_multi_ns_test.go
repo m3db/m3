@@ -41,11 +41,16 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 	// Test setup
 	var (
 		commitLogBlockSize = time.Hour
-		clROpts            = retention.NewOptions().SetRetentionPeriod(18 * time.Hour).SetBlockSize(commitLogBlockSize)
-		ns1BlockSize       = 2 * time.Hour
-		ns1ROpts           = clROpts.SetBlockSize(ns1BlockSize)
-		ns2BlockSize       = 3 * time.Hour
-		ns2ROpts           = clROpts.SetBlockSize(ns2BlockSize)
+		clROpts            = retention.NewOptions().
+					SetRetentionPeriod(18 * time.Hour).
+					SetBlockSize(commitLogBlockSize).
+					SetBufferFuture(0).
+					SetBufferPast(0)
+
+		ns1BlockSize = 2 * time.Hour
+		ns1ROpts     = clROpts.SetBlockSize(ns1BlockSize)
+		ns2BlockSize = 3 * time.Hour
+		ns2ROpts     = clROpts.SetBlockSize(ns2BlockSize)
 	)
 
 	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ns1ROpts))

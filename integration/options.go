@@ -72,7 +72,10 @@ const (
 )
 
 var (
-	defaultIntegrationTestRetentionOpts = retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
+	defaultIntegrationTestRetentionOpts = retention.NewOptions().
+		SetRetentionPeriod(6 * time.Hour).
+		SetBufferFuture(0).
+		SetBufferPast(0)
 )
 
 type testOptions interface {

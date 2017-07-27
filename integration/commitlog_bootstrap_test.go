@@ -43,7 +43,7 @@ func TestCommitLogBootstrap(t *testing.T) {
 
 	// Test setup
 	var (
-		ropts     = retention.NewOptions().SetRetentionPeriod(12 * time.Hour)
+		ropts     = retention.NewOptions().SetRetentionPeriod(12 * time.Hour).SetBufferFuture(0).SetBufferPast(0)
 		blockSize = ropts.BlockSize()
 	)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
