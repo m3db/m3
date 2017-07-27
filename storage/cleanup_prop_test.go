@@ -83,6 +83,51 @@ func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
 	properties.TestingRun(t)
 }
 
+func TestPropertyCommitLogNotCleanedForUnflushedDataMultipleNs(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	parameters := gopter.DefaultTestParameters()
+	parameters.Rng.Seed(7823434) // generate reproducable results
+	parameters.MinSuccessfulTests = 10000
+	properties := gopter.NewProperties(parameters)
+
+	now := time.Now()
+	year := time.Hour * 24 * 365
+
+	properties.Property("Commit log is retained if any namespace needs to flush", prop.ForAll(
+		func(t time.Time, cRopts retention.Options, nses []*gNamespace) (bool, error) {
+			cm := propTestCleanupMgr(ctrl, cRopts, gNamespaces(nses).asDatabaseNamespace()...)
+			_, cleanupTimes := cm.commitLogTimes(t)
+			for _, ct := range cleanupTimes {
+				for _, ns := range nses {
+					s, e := commitLogNamespaceBlockTimes(ct, cRopts.BlockSize(), ns.Options().RetentionOptions())
+					if ns.NeedsFlush(s, e) {
+						return false, fmt.Errorf("trying to cleanup commit log at %v, but ns needsFlush; (range: %v, %v)",
+							ct.String(), s.String(), e.String())
+					}
+				}
+			}
+			return true, nil
+		},
+		gen.TimeRange(now.Add(-year), 2*year).WithLabel("cleanup time"),
+		genCommitLogRetention().WithLabel("commit log retention"),
+		gen.SliceOfN(3, genNamespace(now)).WithLabel("namespaces"),
+	))
+
+	properties.TestingRun(t)
+}
+
+type gNamespaces []*gNamespace
+
+func (n gNamespaces) asDatabaseNamespace() []databaseNamespace {
+	nses := make([]databaseNamespace, 0, len(n))
+	for _, ns := range n {
+		nses = append(nses, ns)
+	}
+	return nses
+}
+
 // generated namespace struct
 type gNamespace struct {
 	databaseNamespace
