@@ -184,7 +184,7 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
 // for the commit log block with start time `t`, we can receive data for a range of namespace
 // blocks depending on the namespace retention options. The range is given by these relationships:
 //	- earliest ns block start = t.Add(-ns_bp).Truncate(ns_bs)
-//  -   latest ns block start = t.Add(cl_bs).Add(ns_bf).Truncate(ns_bs)
+//  - latest ns block start   = t.Add(cl_bs).Add(ns_bf).Ceil(ns_bs)
 // NB:
 // - blockStart assumed to be aligned to commit log block size
 func commitLogNamespaceBlockTimes(
@@ -193,8 +193,22 @@ func commitLogNamespaceBlockTimes(
 	nsRetention retention.Options,
 ) (time.Time, time.Time) {
 	earliest := blockStart.Add(-nsRetention.BufferPast()).Truncate(nsRetention.BlockSize())
-	latest := blockStart.Add(commitlogBlockSize).Add(nsRetention.BufferPast()).Truncate(nsRetention.BlockSize())
+	latest := blockStart.Add(commitlogBlockSize).Add(nsRetention.BufferFuture())
+	latest = ceilDate(latest).ceil(nsRetention.BlockSize())
 	return earliest, latest
+}
+
+type ceilDate time.Time
+
+// ceil returns the result of aligning t to the nearest multiple of d (since the zero time).
+// The ceil behavior for aligned values is to return them un-touched.
+// If d <= 0, ceil returns t unchanged.
+func (c ceilDate) ceil(d time.Duration) time.Time {
+	cp := time.Time(c).Truncate(d)
+	if time.Time(cp).Equal(time.Time(c)) {
+		return time.Time(c)
+	}
+	return cp.Add(d)
 }
 
 func (m *cleanupManager) cleanupCommitLogs(earliestToRetain time.Time, cleanupTimes []time.Time) error {

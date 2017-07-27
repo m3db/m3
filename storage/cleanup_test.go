@@ -113,6 +113,111 @@ func TestCleanupManagerCommitLogTimeRange(t *testing.T) {
 	require.Equal(t, time.Unix(7200, 0), ce)
 }
 
+func newTestRetentionOptions(
+	blockSizeSecs int,
+	bufferPastSecs int,
+	bufferFutureSecs int,
+) retention.Options {
+	return retention.NewOptions().
+		SetBufferPast(time.Duration(bufferPastSecs) * time.Second).
+		SetBufferFuture(time.Duration(bufferFutureSecs) * time.Second).
+		SetBlockSize(time.Duration(blockSizeSecs) * time.Second)
+}
+
+type testCaseCleanupMgrNsBlocks struct {
+	// input
+	id          string
+	nsRetention retention.Options
+	clBlockSize time.Duration
+	blockStart  time.Time
+
+	// output
+	expectedStart time.Time
+	expectedEnd   time.Time
+}
+
+func TestCleanupManagerCommitLogNamespaceBlocks(t *testing.T) {
+	tcs := []testCaseCleanupMgrNsBlocks{
+		{
+			id:            "test-case-0",
+			nsRetention:   newTestRetentionOptions(30, 0, 0),
+			clBlockSize:   15 * time.Second,
+			blockStart:    tf(15),
+			expectedStart: tf(0),
+			expectedEnd:   tf(30),
+		},
+		{
+			id:            "test-case-1",
+			nsRetention:   newTestRetentionOptions(30, 0, 0),
+			clBlockSize:   15 * time.Second,
+			blockStart:    tf(30),
+			expectedStart: tf(30),
+			expectedEnd:   tf(60),
+		},
+		{
+			id:            "test-case-2",
+			nsRetention:   newTestRetentionOptions(10, 0, 0),
+			clBlockSize:   15 * time.Second,
+			blockStart:    tf(15),
+			expectedStart: tf(10),
+			expectedEnd:   tf(30),
+		},
+		{
+			id:            "test-case-3",
+			nsRetention:   newTestRetentionOptions(15, 0, 0),
+			clBlockSize:   12 * time.Second,
+			blockStart:    tf(24),
+			expectedStart: tf(15),
+			expectedEnd:   tf(45),
+		},
+		{
+			id:            "test-case-4",
+			nsRetention:   newTestRetentionOptions(20, 0, 0),
+			clBlockSize:   22 * time.Second,
+			blockStart:    tf(22),
+			expectedStart: tf(20),
+			expectedEnd:   tf(60),
+		},
+		{
+			id:            "test-case-5",
+			nsRetention:   newTestRetentionOptions(20, 5, 0),
+			clBlockSize:   10 * time.Second,
+			blockStart:    tf(30),
+			expectedStart: tf(20),
+			expectedEnd:   tf(40),
+		},
+		{
+			id:            "test-case-6",
+			nsRetention:   newTestRetentionOptions(20, 0, 5),
+			clBlockSize:   10 * time.Second,
+			blockStart:    tf(40),
+			expectedStart: tf(40),
+			expectedEnd:   tf(60),
+		},
+		{
+			id:            "test-case-7",
+			nsRetention:   newTestRetentionOptions(25, 10, 5),
+			clBlockSize:   20 * time.Second,
+			blockStart:    tf(30),
+			expectedStart: tf(0),
+			expectedEnd:   tf(75),
+		},
+		{
+			id:            "test-case-8",
+			nsRetention:   newTestRetentionOptions(720, 720, 60),
+			clBlockSize:   15 * time.Second,
+			blockStart:    tf(1410),
+			expectedStart: tf(0),
+			expectedEnd:   tf(2160),
+		},
+	}
+	for _, tc := range tcs {
+		start, end := commitLogNamespaceBlockTimes(tc.blockStart, tc.clBlockSize, tc.nsRetention)
+		require.Equal(t, tc.expectedStart.Unix(), start.Unix(), tc.id)
+		require.Equal(t, tc.expectedEnd.Unix(), end.Unix(), tc.id)
+	}
+}
+
 // The following tests exercise commitLogTimes(). Consider the following situation:
 //
 // Commit Log Retention Options:
@@ -131,33 +236,41 @@ func TestCleanupManagerCommitLogTimeRange(t *testing.T) {
 // if any namespace still requires to be flushed for that period. If so,
 // we cannot remove the data for it. We should get back all the times
 // we can delete data for.
-func newCleanupManagerCommitLogTimesTest(t *testing.T, ctrl *gomock.Controller) *cleanupManager {
+func newCleanupManagerCommitLogTimesTest(t *testing.T, ctrl *gomock.Controller) (*MockdatabaseNamespace, *cleanupManager) {
 	var (
 		rOpts = retention.NewOptions().
 			SetRetentionPeriod(30 * time.Second).
 			SetBufferPast(0 * time.Second).
 			SetBufferFuture(0 * time.Second).
 			SetBlockSize(10 * time.Second)
-		_, mgr = testCleanupManager(ctrl)
 	)
+	no := namespace.NewMockOptions(ctrl)
+	no.EXPECT().RetentionOptions().Return(rOpts).AnyTimes()
+
+	ns := NewMockdatabaseNamespace(ctrl)
+	ns.EXPECT().Options().Return(no).AnyTimes()
+
+	db := newMockdatabase(ctrl, ns)
+	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+
 	mgr.opts = mgr.opts.SetCommitLogOptions(
 		mgr.opts.CommitLogOptions().SetRetentionOptions(rOpts))
 
-	return mgr
+	return ns, mgr
 }
 
 func TestCleanupManagerCommitLogTimesAllFlushed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
+	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
 	currentTime := tf(50)
 
-	// gomock.InOrder(
-	// 	fm.EXPECT().NeedsFlush(tf(20), tf(40)).Return(false),
-	// 	fm.EXPECT().NeedsFlush(tf(10), tf(30)).Return(false),
-	// 	fm.EXPECT().NeedsFlush(tf(0), tf(20)).Return(false),
-	// )
+	gomock.InOrder(
+		ns.EXPECT().NeedsFlush(tf(30), tf(40)).Return(false),
+		ns.EXPECT().NeedsFlush(tf(20), tf(30)).Return(false),
+		ns.EXPECT().NeedsFlush(tf(10), tf(20)).Return(false),
+	)
 
 	earliest, times := mgr.commitLogTimes(currentTime)
 	require.Equal(t, tf(10), earliest)
@@ -171,14 +284,14 @@ func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
+	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
 	currentTime := tf(50)
 
-	// gomock.InOrder(
-	// 	fm.EXPECT().NeedsFlush(tf(20), tf(40)).Return(false),
-	// 	fm.EXPECT().NeedsFlush(tf(10), tf(30)).Return(true),
-	// 	fm.EXPECT().NeedsFlush(tf(0), tf(20)).Return(false),
-	// )
+	gomock.InOrder(
+		ns.EXPECT().NeedsFlush(tf(30), tf(40)).Return(false),
+		ns.EXPECT().NeedsFlush(tf(20), tf(30)).Return(true),
+		ns.EXPECT().NeedsFlush(tf(10), tf(20)).Return(false),
+	)
 
 	earliest, times := mgr.commitLogTimes(currentTime)
 	require.Equal(t, tf(10), earliest)
@@ -191,14 +304,14 @@ func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
+	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
 	currentTime := tf(50)
 
-	// gomock.InOrder(
-	// 	fm.EXPECT().NeedsFlush(tf(20), tf(40)).Return(true),
-	// 	fm.EXPECT().NeedsFlush(tf(10), tf(30)).Return(false),
-	// 	fm.EXPECT().NeedsFlush(tf(0), tf(20)).Return(false),
-	// )
+	gomock.InOrder(
+		ns.EXPECT().NeedsFlush(tf(30), tf(40)).Return(true),
+		ns.EXPECT().NeedsFlush(tf(20), tf(30)).Return(false),
+		ns.EXPECT().NeedsFlush(tf(10), tf(20)).Return(false),
+	)
 
 	earliest, times := mgr.commitLogTimes(currentTime)
 	require.Equal(t, tf(10), earliest)
@@ -211,14 +324,14 @@ func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
+	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
 	currentTime := tf(50)
 
-	// gomock.InOrder(
-	// 	fm.EXPECT().NeedsFlush(tf(20), tf(40)).Return(true),
-	// 	fm.EXPECT().NeedsFlush(tf(10), tf(30)).Return(true),
-	// 	fm.EXPECT().NeedsFlush(tf(0), tf(20)).Return(true),
-	// )
+	gomock.InOrder(
+		ns.EXPECT().NeedsFlush(tf(30), tf(40)).Return(true),
+		ns.EXPECT().NeedsFlush(tf(20), tf(30)).Return(true),
+		ns.EXPECT().NeedsFlush(tf(10), tf(20)).Return(true),
+	)
 
 	earliest, times := mgr.commitLogTimes(currentTime)
 	require.Equal(t, tf(10), earliest)
