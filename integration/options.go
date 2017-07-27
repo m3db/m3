@@ -73,9 +73,12 @@ const (
 
 var (
 	defaultIntegrationTestRetentionOpts = retention.NewOptions().
-		SetRetentionPeriod(6 * time.Hour).
-		SetBufferFuture(0).
-		SetBufferPast(0)
+						SetRetentionPeriod(6 * time.Hour).
+						SetBufferFuture(0).
+						SetBufferPast(0)
+
+	defaultIntegrationTestNsRetentionOpts = retention.NewOptions().
+						SetRetentionPeriod(6 * time.Hour)
 )
 
 type testOptions interface {
@@ -253,12 +256,16 @@ type options struct {
 
 func newTestOptions(t *testing.T) testOptions {
 	var namespaces []namespace.Metadata
-	nsOpts := namespace.NewOptions().SetNeedsRepair(false).SetRetentionOptions(defaultIntegrationTestRetentionOpts)
+	nsOpts := namespace.NewOptions().
+		SetNeedsRepair(false).
+		SetRetentionOptions(defaultIntegrationTestNsRetentionOpts)
+
 	for _, ns := range testNamespaces {
 		md, err := namespace.NewMetadata(ns, nsOpts)
 		require.NoError(t, err)
 		namespaces = append(namespaces, md)
 	}
+
 	return &options{
 		namespaces:             namespaces,
 		commitlogRetentionOpts: defaultIntegrationTestRetentionOpts,
