@@ -568,9 +568,7 @@ func (n *dbNamespace) Flush(
 func (n *dbNamespace) NeedsFlush(startInclusive time.Time, endInclusive time.Time) bool {
 	var (
 		blockSize   = n.nopts.RetentionOptions().BlockSize()
-		startBlock  = startInclusive.Truncate(blockSize)
-		endBlock    = endInclusive.Truncate(blockSize)
-		blockStarts = timesInRange(startBlock, endBlock, blockSize)
+		blockStarts = timesInRange(startInclusive, endInclusive, blockSize)
 	)
 
 	// NB(r): Essentially if all are success, we don't need to flush, if any

@@ -60,16 +60,6 @@ func newFlushManager(database database, scope tally.Scope) databaseFlushManager 
 	}
 }
 
-func (m *flushManager) NeedsFlush(startInclusive time.Time, endInclusive time.Time) bool {
-	namespaces := m.database.GetOwnedNamespaces()
-	for _, n := range namespaces {
-		if n.NeedsFlush(startInclusive, endInclusive) {
-			return true
-		}
-	}
-	return false
-}
-
 func (m *flushManager) Flush(curr time.Time) error {
 	// ensure only a single flush is happening at a time
 	m.Lock()
@@ -128,7 +118,7 @@ func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time)
 
 	candidateTimes := timesInRange(earliest, latest, blockSize)
 	return filterTimes(candidateTimes, func(t time.Time) bool {
-		return ns.NeedsFlush(t, t.Add(blockSize))
+		return ns.NeedsFlush(t, t)
 	})
 }
 

@@ -104,71 +104,6 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	wg.Wait()
 }
 
-func TestFlushManagerNeedsFlushSingle(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
-	now := time.Now()
-
-	// short circuit second ns for this test case
-	ns2.EXPECT().NeedsFlush(now, now).Return(false).AnyTimes()
-
-	ns1.EXPECT().NeedsFlush(now, now).Return(true)
-	require.True(t, fm.NeedsFlush(now, now))
-
-	ns1.EXPECT().NeedsFlush(now, now).Return(false)
-	require.False(t, fm.NeedsFlush(now, now))
-}
-
-func TestFlushManagerNeedsFlushMultipleAllFalse(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
-	now := time.Now()
-
-	ns2.EXPECT().NeedsFlush(now, now).Return(false)
-	ns1.EXPECT().NeedsFlush(now, now).Return(false)
-	require.False(t, fm.NeedsFlush(now, now))
-}
-
-func TestFlushManagerNeedsFlushMultipleAllTrue(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
-	now := time.Now()
-
-	ns2.EXPECT().NeedsFlush(now, now).Return(true).AnyTimes()
-	ns1.EXPECT().NeedsFlush(now, now).Return(true).AnyTimes()
-	require.True(t, fm.NeedsFlush(now, now))
-}
-
-func TestFlushManagerNeedsFlushMultipleSingleTrueFirst(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
-	now := time.Now()
-
-	ns1.EXPECT().NeedsFlush(now, now).Return(false).AnyTimes()
-	ns2.EXPECT().NeedsFlush(now, now).Return(true)
-	require.True(t, fm.NeedsFlush(now, now))
-}
-
-func TestFlushManagerNeedsFlushMultipleSingleTrueSecond(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	fm, ns1, ns2 := newMultipleFlushManagerNeedsFlush(t, ctrl)
-	now := time.Now()
-
-	ns1.EXPECT().NeedsFlush(now, now).Return(true)
-	ns2.EXPECT().NeedsFlush(now, now).Return(false).AnyTimes()
-	require.True(t, fm.NeedsFlush(now, now))
-}
-
 func TestFlushManagerFlushTimeStart(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -257,15 +192,14 @@ func TestFlushManagerNamespaceFlushTimesSomeNeedFlush(t *testing.T) {
 	var expectedTimes []time.Time
 	for i := 0; i < num; i++ {
 		st := start.Add(time.Duration(i) * blockSize)
-		en := st.Add(blockSize)
 
 		// skip 1/3 of input
 		if i%3 == 0 {
-			ns1.EXPECT().NeedsFlush(st, en).Return(false)
+			ns1.EXPECT().NeedsFlush(st, st).Return(false)
 			continue
 		}
 
-		ns1.EXPECT().NeedsFlush(st, en).Return(true)
+		ns1.EXPECT().NeedsFlush(st, st).Return(true)
 		expectedTimes = append(expectedTimes, st)
 	}
 

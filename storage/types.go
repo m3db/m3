@@ -221,8 +221,7 @@ type databaseNamespace interface {
 
 	// NeedsFlush returns true if the namespace needs a flush for the
 	// period: [start, end] (both inclusive).
-	// NB(prateek): The start/end times do not need to be aligned to
-	// block size boundary.
+	// NB: The start/end times are assumed to be aligned to block size boundary.
 	NeedsFlush(start time.Time, end time.Time) bool
 
 	// CleanupFileset cleans up fileset files
@@ -325,10 +324,6 @@ type databaseBootstrapManager interface {
 
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
-	// NeedsFlush returns true if any registered namespaces require a flush
-	// in the time period specified: [startInclusive, endInclusive].
-	NeedsFlush(startInclusive time.Time, endInclusive time.Time) bool
-
 	// Flush flushes in-memory data to persistent storage.
 	Flush(t time.Time) error
 
