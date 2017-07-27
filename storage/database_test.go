@@ -58,6 +58,11 @@ var (
 					SetBufferPast(10 * time.Minute).
 					SetBlockSize(4 * time.Hour).
 					SetRetentionPeriod(2 * 24 * time.Hour)
+	defaultTestCommitlogRetentionOpts = retention.NewOptions().
+						SetBufferFuture(0).
+						SetBufferPast(0).
+						SetBlockSize(2 * time.Hour).
+						SetRetentionPeriod(2 * 24 * time.Hour)
 
 	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
 	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
@@ -69,7 +74,7 @@ var (
 					SetMaxFlushRetries(3).
 					SetTickInterval(10 * time.Minute).
 					SetCommitLogOptions(_opts.CommitLogOptions().
-						SetRetentionOptions(defaultTestRetentionOpts))
+						SetRetentionOptions(defaultTestCommitlogRetentionOpts))
 )
 
 type nsMapCh chan namespace.Map
