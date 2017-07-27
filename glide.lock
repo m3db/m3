@@ -1,5 +1,5 @@
-hash: 822dccdbdb7b2cb662bb44f39aafed25384d0696acb1175573ad2d982bd4c2df
-updated: 2017-07-19T12:44:10.220910567-04:00
+hash: f0f0a5939000440b833d7ab051c5c9550b398e8629830a9934bf36b22790c083
+updated: 2017-07-26T20:21:58.10096968-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -125,6 +125,11 @@ imports:
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
+- name: github.com/leanovate/gopter
+  version: 9e6101e5a87586b269acf3d0d61f363e4317309f
+  subpackages:
+  - gen
+  - prop
 - name: github.com/m3db/m3cluster
   version: 73f7742b6c639865a27da64cf719f15e5ceed0cd
   subpackages:
