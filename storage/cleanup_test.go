@@ -46,12 +46,10 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	ts := tf(36000)
 	rOpts := retention.NewOptions().
 		SetRetentionPeriod(21600 * time.Second).
-		SetBufferPast(0 * time.Second).
+		SetBufferPast(0).
+		SetBufferFuture(0).
 		SetBlockSize(7200 * time.Second)
 	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts)
-	db, mgr := testCleanupManager(ctrl)
-	mgr.opts = mgr.opts.SetCommitLogOptions(
-		mgr.opts.CommitLogOptions().SetRetentionOptions(rOpts))
 
 	inputs := []struct {
 		name string
@@ -68,9 +66,13 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		ns := NewMockdatabaseNamespace(ctrl)
 		ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 		ns.EXPECT().CleanupFileset(start).Return(input.err)
+		ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
 		namespaces = append(namespaces, ns)
 	}
-	db.EXPECT().GetOwnedNamespaces().Return(namespaces)
+	db := newMockdatabase(ctrl, namespaces...)
+	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+	mgr.opts = mgr.opts.SetCommitLogOptions(
+		mgr.opts.CommitLogOptions().SetRetentionOptions(rOpts))
 
 	mgr.commitLogFilesBeforeFn = func(_ string, t time.Time) ([]string, error) {
 		return []string{"foo", "bar"}, errors.New("error1")
@@ -87,11 +89,6 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		return nil
 	}
 
-	// gomock.InOrder(
-	// 	fm.EXPECT().NeedsFlush(tf(14400), tf(28800)).Return(false),
-	// 	fm.EXPECT().NeedsFlush(tf(7200), tf(21600)).Return(false),
-	// 	fm.EXPECT().NeedsFlush(tf(0), tf(14400)).Return(false),
-	// )
 	require.Error(t, mgr.Cleanup(ts))
 	require.Equal(t, []string{"foo", "bar", "baz"}, deletedFiles)
 }
