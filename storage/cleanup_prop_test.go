@@ -37,8 +37,13 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func propTestCleanupMgr(ctrl *gomock.Controller, ns ...databaseNamespace) *cleanupManager {
-	db := newMockdatabase(ctrl, ns...)
+func propTestCleanupMgr(ctrl *gomock.Controller, ropts retention.Options, ns ...databaseNamespace) *cleanupManager {
+	db := NewMockdatabase(ctrl)
+	opts := testDatabaseOptions()
+	opts = opts.SetCommitLogOptions(
+		opts.CommitLogOptions().SetRetentionOptions(ropts))
+	db.EXPECT().Options().Return(opts).AnyTimes()
+	db.EXPECT().GetOwnedNamespaces().Return(ns).AnyTimes()
 	scope := tally.NoopScope
 	fm := newFlushManager(db, scope)
 	cm := newCleanupManager(db, fm, scope)
@@ -59,7 +64,7 @@ func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
 
 	properties.Property("Commit log is retained if one namespace needs to flush", prop.ForAll(
 		func(t time.Time, cRopts retention.Options, ns *gNamespace) (bool, error) {
-			cm := propTestCleanupMgr(ctrl, ns)
+			cm := propTestCleanupMgr(ctrl, cRopts, ns)
 			_, cleanupTimes := cm.commitLogTimes(t)
 			for _, ct := range cleanupTimes {
 				s, e := commitLogBlockDataRange(ct, cRopts, ns.ropts)
@@ -71,7 +76,7 @@ func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
 			return true, nil
 		},
 		gen.TimeRange(now.Add(-year), 2*year).WithLabel("cleanup time"),
-		genRetention().WithLabel("commit log retention"),
+		genCommitLogRetention().WithLabel("commit log retention"),
 		genNamespace(now).WithLabel("namespace"),
 	))
 
@@ -204,6 +209,16 @@ func genRetention() gopter.Gen {
 		}
 		return genResult
 	}
+}
+
+// generator for commit log retention options
+func genCommitLogRetention() gopter.Gen {
+	return genRetention().
+		Map(func(v *gRetention) *gRetention {
+			return &gRetention{v.
+				SetBufferFuture(0).
+				SetBufferPast(0)}
+		})
 }
 
 type gRetention struct {

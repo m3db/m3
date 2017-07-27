@@ -87,7 +87,9 @@ func NewOptions() Options {
 
 func defaultRetentionOptions() retention.Options {
 	return retention.NewOptions().
-		SetBlockSize(defaultBlockSize)
+		SetBlockSize(defaultBlockSize).
+		SetBufferFuture(0).
+		SetBufferPast(0)
 }
 
 func (o *options) Validate() error {
@@ -95,8 +97,17 @@ func (o *options) Validate() error {
 		return errFlushIntervalNonNegative
 	}
 
-	if err := o.retentionOpts.Validate(); err != nil {
+	ropts := o.retentionOpts
+	if err := ropts.Validate(); err != nil {
 		return fmt.Errorf("invalid commit log retention options: %v", err)
+	}
+
+	if v := ropts.BufferFuture(); v != 0 {
+		return fmt.Errorf("invalid commit log retention buffer future, expected 0, observed: %v", v)
+	}
+
+	if v := ropts.BufferPast(); v != 0 {
+		return fmt.Errorf("invalid commit log retention buffer past, expected 0, observed: %v", v)
 	}
 
 	return nil
