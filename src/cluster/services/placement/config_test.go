@@ -24,31 +24,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3x/instrument"
 
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestWatcherConfiguration(t *testing.T) {
 	cfg := &WatcherConfiguration{
-		Namespace:        "ns",
 		Key:              "key",
 		InitWatchTimeout: time.Second,
 	}
 
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	m := client.NewMockClient(ctrl)
-
 	mem := mem.NewStore()
-	m.EXPECT().Store(cfg.Namespace).Return(mem, nil)
-	opts, err := cfg.NewOptions(m, instrument.NewOptions())
-	require.NoError(t, err)
-
+	opts := cfg.NewOptions(mem, instrument.NewOptions())
 	require.Equal(t, cfg.Key, opts.StagedPlacementKey())
 	require.Equal(t, cfg.InitWatchTimeout, opts.InitWatchTimeout())
 	require.Equal(t, mem, opts.StagedPlacementStore())
