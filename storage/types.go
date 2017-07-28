@@ -222,7 +222,7 @@ type databaseNamespace interface {
 	// NeedsFlush returns true if the namespace needs a flush for the
 	// period: [start, end] (both inclusive).
 	// NB: The start/end times are assumed to be aligned to block size boundary.
-	NeedsFlush(start time.Time, end time.Time) bool
+	NeedsFlush(alignedStartInclusive time.Time, alignedEndInclusive time.Time) bool
 
 	// CleanupFileset cleans up fileset files
 	CleanupFileset(earliestToRetain time.Time) error
