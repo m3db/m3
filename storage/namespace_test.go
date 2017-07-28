@@ -738,42 +738,6 @@ func TestNamespaceNeedsFlushRangeSingleShardConflict(t *testing.T) {
 	assert.False(t, ns.NeedsFlush(t2, t0))
 }
 
-func TestNamespaceNeedsFlushRangeSingleShardConflictUnalignedInput(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	var (
-		shards    = []uint32{0, 2, 4}
-		ns        = newNeedsFlushNamespace(t, shards)
-		ropts     = ns.Options().RetentionOptions()
-		blockSize = ropts.BlockSize()
-		halfBlock = time.Duration(blockSize.Nanoseconds()/2) * time.Nanosecond
-		t2        = retention.FlushTimeEnd(ropts, ns.opts.ClockOptions().NowFn()())
-		t1        = t2.Add(-blockSize)
-		t0        = t1.Add(-blockSize)
-	)
-
-	inputCases := []needsFlushTestCase{
-		{0, map[time.Time]bool{t0: false, t1: false, t2: true}},
-		{2, map[time.Time]bool{t0: true, t1: false, t2: true}},
-		{4, map[time.Time]bool{t0: false, t1: false, t2: true}},
-	}
-	setShardExpects(ns, ctrl, inputCases)
-
-	var (
-		t0Plus  = t0.Add(halfBlock)
-		t1Minus = t1.Add(-halfBlock)
-		t1Plus  = t1.Add(halfBlock)
-		t2Minus = t2.Add(-halfBlock)
-	)
-
-	assert.True(t, ns.NeedsFlush(t0, t0Plus))
-	assert.True(t, ns.NeedsFlush(t0Plus, t1Minus))
-	assert.True(t, ns.NeedsFlush(t1Minus, t1Plus))
-	assert.False(t, ns.NeedsFlush(t1Plus, t1Plus))
-	assert.False(t, ns.NeedsFlush(t1Plus, t2Minus))
-}
-
 func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

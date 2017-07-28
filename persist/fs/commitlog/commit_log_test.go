@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
@@ -69,7 +68,7 @@ func newTestOptions(
 
 	scope := tally.NewTestScope("", nil)
 
-	ropts := retention.NewOptions().SetBlockSize(2 * time.Hour)
+	ropts := defaultRetentionOptions().SetBlockSize(2 * time.Hour)
 
 	opts := NewOptions().
 		SetClockOptions(clock.NewOptions().SetNowFn(c.Now)).

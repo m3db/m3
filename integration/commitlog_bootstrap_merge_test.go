@@ -57,10 +57,11 @@ import (
 func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	// Test setup
 	var (
-		commitLogBlockSize = 15 * time.Minute
-		clROpts            = retention.NewOptions().SetRetentionPeriod(12 * time.Hour).SetBlockSize(commitLogBlockSize)
+		rOpts              = retention.NewOptions().SetRetentionPeriod(12 * time.Hour)
 		ns1BlockSize       = 2 * time.Hour
-		ns1ROpts           = clROpts.SetRetentionPeriod(12 * time.Hour).SetBlockSize(ns1BlockSize)
+		commitLogBlockSize = 15 * time.Minute
+		clROpts            = rOpts.SetBlockSize(commitLogBlockSize).SetBufferFuture(0).SetBufferPast(0)
+		ns1ROpts           = rOpts.SetBlockSize(ns1BlockSize)
 	)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ns1ROpts))
 	require.NoError(t, err)
