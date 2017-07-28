@@ -565,10 +565,10 @@ func (n *dbNamespace) Flush(
 	return res
 }
 
-func (n *dbNamespace) NeedsFlush(alignedStartInclusive time.Time, alignedEndInclusive time.Time) bool {
+func (n *dbNamespace) NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool {
 	var (
 		blockSize   = n.nopts.RetentionOptions().BlockSize()
-		blockStarts = timesInRange(alignedStartInclusive, alignedEndInclusive, blockSize)
+		blockStarts = timesInRange(alignedInclusiveStart, alignedInclusiveEnd, blockSize)
 	)
 
 	// NB(r): Essentially if all are success, we don't need to flush, if any
