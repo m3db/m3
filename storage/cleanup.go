@@ -184,7 +184,7 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
 // for the commit log block with start time `t`, we can receive data for a range of namespace
 // blocks depending on the namespace retention options. The range is given by these relationships:
 //	- earliest ns block start = t.Add(-ns_bp).Truncate(ns_bs)
-//  - latest ns block start   = t.Add(cl_bs).Add(ns_bf).Ceil(ns_bs)
+//  - latest ns block start   = t.Add(cl_bs).Add(ns_bf).Truncate(ns_bs)
 // NB:
 // - blockStart assumed to be aligned to commit log block size
 func commitLogNamespaceBlockTimes(
