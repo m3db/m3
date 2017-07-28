@@ -29,15 +29,15 @@ import (
 
 func TestNumIntervals(t *testing.T) {
 	var (
-		bs = 10
-		tf = func(i int) time.Time {
+		bs      = 10
+		timeFor = func(i int) time.Time {
 			return time.Unix(int64(bs*i), 0)
 		}
 	)
 
 	w := time.Second * time.Duration(bs)
-	t0 := tf(0)
-	t1 := tf(1)
+	t0 := timeFor(0)
+	t1 := timeFor(1)
 
 	require.Equal(t, 0, numIntervals(t1, t0, w))
 	require.Equal(t, 1, numIntervals(t0, t0, w))
@@ -71,37 +71,37 @@ func TestNumIntervalsNegativeWindow(t *testing.T) {
 
 func TestTimesInRange(t *testing.T) {
 	var (
-		w  = 10 * time.Second
-		tf = func(i int64) time.Time {
+		w       = 10 * time.Second
+		timeFor = func(i int64) time.Time {
 			return time.Unix(0, int64(w)*i)
 		}
-		tfN = func(i, j int64) []time.Time {
+		timesForN = func(i, j int64) []time.Time {
 			times := make([]time.Time, 0, j-i+1)
 			for k := j; k >= i; k-- {
-				times = append(times, tf(k))
+				times = append(times, timeFor(k))
 			}
 			return times
 		}
 	)
 	// [0, 2] with a gap of 1 ==> [0, 1, 2]
-	require.Equal(t, []time.Time{tf(2), tf(1), tf(0)},
-		timesInRange(tf(0), tf(2), w))
+	require.Equal(t, []time.Time{timeFor(2), timeFor(1), timeFor(0)},
+		timesInRange(timeFor(0), timeFor(2), w))
 
 	// [2, 1] with a gap of 1 ==> empty result
-	require.Empty(t, timesInRange(tf(2), tf(1), w))
+	require.Empty(t, timesInRange(timeFor(2), timeFor(1), w))
 
 	// [2, 2] with a gap of 1 ==> [2]
-	require.Equal(t, []time.Time{tf(2)},
-		timesInRange(tf(2), tf(2), w))
+	require.Equal(t, []time.Time{timeFor(2)},
+		timesInRange(timeFor(2), timeFor(2), w))
 
 	// [0, 9] with a gap of 3 ==> [9, 6, 3, 0]
-	require.Equal(t, []time.Time{tf(9), tf(6), tf(3), tf(0)},
-		timesInRange(tf(0), tf(9), 3*w))
+	require.Equal(t, []time.Time{timeFor(9), timeFor(6), timeFor(3), timeFor(0)},
+		timesInRange(timeFor(0), timeFor(9), 3*w))
 
 	// [1, 9] with a gap of 3 ==> [9, 6, 3]
-	require.Equal(t, []time.Time{tf(9), tf(6), tf(3)},
-		timesInRange(tf(1), tf(9), 3*w))
+	require.Equal(t, []time.Time{timeFor(9), timeFor(6), timeFor(3)},
+		timesInRange(timeFor(1), timeFor(9), 3*w))
 
 	// [1, 100] with a gap of 1 ==> [100, 99, ..., 1]
-	require.Equal(t, tfN(1, 100), timesInRange(tf(1), tf(100), w))
+	require.Equal(t, timesForN(1, 100), timesInRange(timeFor(1), timeFor(100), w))
 }

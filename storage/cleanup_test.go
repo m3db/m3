@@ -43,7 +43,7 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	ts := tf(36000)
+	ts := timeFor(36000)
 	rOpts := retention.NewOptions().
 		SetRetentionPeriod(21600 * time.Second).
 		SetBufferPast(0).
@@ -60,7 +60,7 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		{"baz", nil},
 	}
 
-	start := tf(14400)
+	start := timeFor(14400)
 	namespaces := make([]databaseNamespace, 0, len(inputs))
 	for _, input := range inputs {
 		ns := NewMockdatabaseNamespace(ctrl)
@@ -78,7 +78,7 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		return []string{"foo", "bar"}, errors.New("error1")
 	}
 	mgr.commitLogFilesForTimeFn = func(_ string, t time.Time) ([]string, error) {
-		if t == tf(14400) {
+		if t == timeFor(14400) {
 			return []string{"baz"}, nil
 		}
 		return nil, errors.New("error" + strconv.Itoa(int(t.Unix())))
@@ -113,108 +113,142 @@ func TestCleanupManagerCommitLogTimeRange(t *testing.T) {
 	require.Equal(t, time.Unix(7200, 0), ce)
 }
 
-func newTestRetentionOptions(
-	blockSizeSecs int,
-	bufferPastSecs int,
-	bufferFutureSecs int,
-) retention.Options {
-	return retention.NewOptions().
-		SetBufferPast(time.Duration(bufferPastSecs) * time.Second).
-		SetBufferFuture(time.Duration(bufferFutureSecs) * time.Second).
-		SetBlockSize(time.Duration(blockSizeSecs) * time.Second)
-}
-
 type testCaseCleanupMgrNsBlocks struct {
 	// input
-	id          string
-	nsRetention retention.Options
-	clBlockSize time.Duration
-	blockStart  time.Time
-
+	id                     string
+	nsRetention            testRetentionOptions
+	commitlogBlockSizeSecs int64
+	blockStartSecs         int64
 	// output
-	expectedStart time.Time
-	expectedEnd   time.Time
+	expectedStartSecs int64
+	expectedEndSecs   int64
+}
+
+type testRetentionOptions struct {
+	blockSizeSecs    int64
+	bufferPastSecs   int64
+	bufferFutureSecs int64
+}
+
+func (t *testRetentionOptions) newRetentionOptions() retention.Options {
+	return retention.NewOptions().
+		SetBufferPast(time.Duration(t.bufferPastSecs) * time.Second).
+		SetBufferFuture(time.Duration(t.bufferFutureSecs) * time.Second).
+		SetBlockSize(time.Duration(t.blockSizeSecs) * time.Second)
 }
 
 func TestCleanupManagerCommitLogNamespaceBlocks(t *testing.T) {
 	tcs := []testCaseCleanupMgrNsBlocks{
 		{
-			id:            "test-case-0",
-			nsRetention:   newTestRetentionOptions(30, 0, 0),
-			clBlockSize:   15 * time.Second,
-			blockStart:    tf(15),
-			expectedStart: tf(0),
-			expectedEnd:   tf(30),
+			id: "test-case-0",
+			nsRetention: testRetentionOptions{
+				blockSizeSecs:    30,
+				bufferPastSecs:   0,
+				bufferFutureSecs: 0,
+			},
+			commitlogBlockSizeSecs: 15,
+			blockStartSecs:         15,
+			expectedStartSecs:      0,
+			expectedEndSecs:        30,
 		},
 		{
-			id:            "test-case-1",
-			nsRetention:   newTestRetentionOptions(30, 0, 0),
-			clBlockSize:   15 * time.Second,
-			blockStart:    tf(30),
-			expectedStart: tf(30),
-			expectedEnd:   tf(60),
+			id: "test-case-1",
+			nsRetention: testRetentionOptions{
+				blockSizeSecs:    30,
+				bufferPastSecs:   0,
+				bufferFutureSecs: 0,
+			},
+			commitlogBlockSizeSecs: 15,
+			blockStartSecs:         30,
+			expectedStartSecs:      30,
+			expectedEndSecs:        30,
 		},
 		{
-			id:            "test-case-2",
-			nsRetention:   newTestRetentionOptions(10, 0, 0),
-			clBlockSize:   15 * time.Second,
-			blockStart:    tf(15),
-			expectedStart: tf(10),
-			expectedEnd:   tf(30),
+			id: "test-case-2",
+			nsRetention: testRetentionOptions{
+				blockSizeSecs:    10,
+				bufferPastSecs:   0,
+				bufferFutureSecs: 0,
+			},
+			commitlogBlockSizeSecs: 15,
+			blockStartSecs:         15,
+			expectedStartSecs:      10,
+			expectedEndSecs:        30,
 		},
 		{
-			id:            "test-case-3",
-			nsRetention:   newTestRetentionOptions(15, 0, 0),
-			clBlockSize:   12 * time.Second,
-			blockStart:    tf(24),
-			expectedStart: tf(15),
-			expectedEnd:   tf(45),
+			id: "test-case-3",
+			nsRetention: testRetentionOptions{
+				blockSizeSecs:    15,
+				bufferPastSecs:   0,
+				bufferFutureSecs: 0,
+			},
+			commitlogBlockSizeSecs: 12,
+			blockStartSecs:         24,
+			expectedStartSecs:      15,
+			expectedEndSecs:        30,
 		},
 		{
-			id:            "test-case-4",
-			nsRetention:   newTestRetentionOptions(20, 0, 0),
-			clBlockSize:   22 * time.Second,
-			blockStart:    tf(22),
-			expectedStart: tf(20),
-			expectedEnd:   tf(60),
+			id: "test-case-4",
+			nsRetention: testRetentionOptions{
+				blockSizeSecs:    20,
+				bufferPastSecs:   5,
+				bufferFutureSecs: 0,
+			},
+			commitlogBlockSizeSecs: 10,
+			blockStartSecs:         30,
+			expectedStartSecs:      20,
+			expectedEndSecs:        40,
 		},
 		{
-			id:            "test-case-5",
-			nsRetention:   newTestRetentionOptions(20, 5, 0),
-			clBlockSize:   10 * time.Second,
-			blockStart:    tf(30),
-			expectedStart: tf(20),
-			expectedEnd:   tf(40),
+			id: "test-case-5",
+			nsRetention: testRetentionOptions{
+				blockSizeSecs:    20,
+				bufferPastSecs:   0,
+				bufferFutureSecs: 15,
+			},
+			commitlogBlockSizeSecs: 10,
+			blockStartSecs:         40,
+			expectedStartSecs:      40,
+			expectedEndSecs:        60,
 		},
 		{
-			id:            "test-case-6",
-			nsRetention:   newTestRetentionOptions(20, 0, 5),
-			clBlockSize:   10 * time.Second,
-			blockStart:    tf(40),
-			expectedStart: tf(40),
-			expectedEnd:   tf(60),
+			id: "test-case-6",
+			nsRetention: testRetentionOptions{
+				blockSizeSecs:    25,
+				bufferPastSecs:   20,
+				bufferFutureSecs: 15,
+			},
+			commitlogBlockSizeSecs: 20,
+			blockStartSecs:         40,
+			expectedStartSecs:      0,
+			expectedEndSecs:        75,
 		},
 		{
-			id:            "test-case-7",
-			nsRetention:   newTestRetentionOptions(25, 10, 5),
-			clBlockSize:   20 * time.Second,
-			blockStart:    tf(30),
-			expectedStart: tf(0),
-			expectedEnd:   tf(75),
-		},
-		{
-			id:            "test-case-8",
-			nsRetention:   newTestRetentionOptions(720, 720, 60),
-			clBlockSize:   15 * time.Second,
-			blockStart:    tf(1410),
-			expectedStart: tf(0),
-			expectedEnd:   tf(2160),
+			id: "test-case-7",
+			nsRetention: testRetentionOptions{
+				blockSizeSecs:    720,
+				bufferPastSecs:   720,
+				bufferFutureSecs: 60,
+			},
+			commitlogBlockSizeSecs: 15,
+			blockStartSecs:         1410,
+			expectedStartSecs:      0,
+			expectedEndSecs:        1440,
 		},
 	}
 	for _, tc := range tcs {
-		start, end := commitLogNamespaceBlockTimes(tc.blockStart, tc.clBlockSize, tc.nsRetention)
-		require.Equal(t, tc.expectedStart.Unix(), start.Unix(), tc.id)
-		require.Equal(t, tc.expectedEnd.Unix(), end.Unix(), tc.id)
+		var (
+			blockStart         = time.Unix(tc.blockStartSecs, 0)
+			commitLogBlockSize = time.Duration(tc.commitlogBlockSizeSecs) * time.Second
+			nsRetention        = tc.nsRetention.newRetentionOptions()
+			expectedStart      = time.Unix(tc.expectedStartSecs, 0)
+			expectedEnd        = time.Unix(tc.expectedEndSecs, 0)
+		)
+		// blockStart needs to be commitlogBlockSize aligned
+		require.Equal(t, blockStart, blockStart.Truncate(commitLogBlockSize), tc.id)
+		start, end := commitLogNamespaceBlockTimes(blockStart, commitLogBlockSize, nsRetention)
+		require.Equal(t, expectedStart.Unix(), start.Unix(), tc.id)
+		require.Equal(t, expectedEnd.Unix(), end.Unix(), tc.id)
 	}
 }
 
@@ -264,20 +298,20 @@ func TestCleanupManagerCommitLogTimesAllFlushed(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	currentTime := tf(50)
+	currentTime := timeFor(50)
 
 	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(tf(30), tf(40)).Return(false),
-		ns.EXPECT().NeedsFlush(tf(20), tf(30)).Return(false),
-		ns.EXPECT().NeedsFlush(tf(10), tf(20)).Return(false),
+		ns.EXPECT().NeedsFlush(timeFor(30), timeFor(40)).Return(false),
+		ns.EXPECT().NeedsFlush(timeFor(20), timeFor(30)).Return(false),
+		ns.EXPECT().NeedsFlush(timeFor(10), timeFor(20)).Return(false),
 	)
 
 	earliest, times := mgr.commitLogTimes(currentTime)
-	require.Equal(t, tf(10), earliest)
+	require.Equal(t, timeFor(10), earliest)
 	require.Equal(t, 3, len(times))
-	require.True(t, contains(times, tf(10)))
-	require.True(t, contains(times, tf(20)))
-	require.True(t, contains(times, tf(30)))
+	require.True(t, contains(times, timeFor(10)))
+	require.True(t, contains(times, timeFor(20)))
+	require.True(t, contains(times, timeFor(30)))
 }
 
 func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
@@ -285,19 +319,19 @@ func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	currentTime := tf(50)
+	currentTime := timeFor(50)
 
 	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(tf(30), tf(40)).Return(false),
-		ns.EXPECT().NeedsFlush(tf(20), tf(30)).Return(true),
-		ns.EXPECT().NeedsFlush(tf(10), tf(20)).Return(false),
+		ns.EXPECT().NeedsFlush(timeFor(30), timeFor(40)).Return(false),
+		ns.EXPECT().NeedsFlush(timeFor(20), timeFor(30)).Return(true),
+		ns.EXPECT().NeedsFlush(timeFor(10), timeFor(20)).Return(false),
 	)
 
 	earliest, times := mgr.commitLogTimes(currentTime)
-	require.Equal(t, tf(10), earliest)
+	require.Equal(t, timeFor(10), earliest)
 	require.Equal(t, 2, len(times))
-	require.True(t, contains(times, tf(10)))
-	require.True(t, contains(times, tf(30)))
+	require.True(t, contains(times, timeFor(10)))
+	require.True(t, contains(times, timeFor(30)))
 }
 
 func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
@@ -305,19 +339,19 @@ func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	currentTime := tf(50)
+	currentTime := timeFor(50)
 
 	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(tf(30), tf(40)).Return(true),
-		ns.EXPECT().NeedsFlush(tf(20), tf(30)).Return(false),
-		ns.EXPECT().NeedsFlush(tf(10), tf(20)).Return(false),
+		ns.EXPECT().NeedsFlush(timeFor(30), timeFor(40)).Return(true),
+		ns.EXPECT().NeedsFlush(timeFor(20), timeFor(30)).Return(false),
+		ns.EXPECT().NeedsFlush(timeFor(10), timeFor(20)).Return(false),
 	)
 
 	earliest, times := mgr.commitLogTimes(currentTime)
-	require.Equal(t, tf(10), earliest)
+	require.Equal(t, timeFor(10), earliest)
 	require.Equal(t, 2, len(times))
-	require.True(t, contains(times, tf(20)))
-	require.True(t, contains(times, tf(10)))
+	require.True(t, contains(times, timeFor(20)))
+	require.True(t, contains(times, timeFor(10)))
 }
 
 func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
@@ -325,20 +359,20 @@ func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns, mgr := newCleanupManagerCommitLogTimesTest(t, ctrl)
-	currentTime := tf(50)
+	currentTime := timeFor(50)
 
 	gomock.InOrder(
-		ns.EXPECT().NeedsFlush(tf(30), tf(40)).Return(true),
-		ns.EXPECT().NeedsFlush(tf(20), tf(30)).Return(true),
-		ns.EXPECT().NeedsFlush(tf(10), tf(20)).Return(true),
+		ns.EXPECT().NeedsFlush(timeFor(30), timeFor(40)).Return(true),
+		ns.EXPECT().NeedsFlush(timeFor(20), timeFor(30)).Return(true),
+		ns.EXPECT().NeedsFlush(timeFor(10), timeFor(20)).Return(true),
 	)
 
 	earliest, times := mgr.commitLogTimes(currentTime)
-	require.Equal(t, tf(10), earliest)
+	require.Equal(t, timeFor(10), earliest)
 	require.Equal(t, 0, len(times))
 }
 
-func tf(s int64) time.Time {
+func timeFor(s int64) time.Time {
 	return time.Unix(s, 0)
 }
 

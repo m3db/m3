@@ -38,7 +38,12 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func propTestCleanupMgr(ctrl *gomock.Controller, ropts retention.Options, ns ...databaseNamespace) *cleanupManager {
+const (
+	commitLogTestRandomSeeed        int64 = 7823434
+	commitLogTestMinSuccessfulTests       = 10000
+)
+
+func newPropTestCleanupMgr(ctrl *gomock.Controller, ropts retention.Options, ns ...databaseNamespace) *cleanupManager {
 	db := NewMockdatabase(ctrl)
 	opts := testDatabaseOptions()
 	opts = opts.SetCommitLogOptions(
@@ -50,21 +55,24 @@ func propTestCleanupMgr(ctrl *gomock.Controller, ropts retention.Options, ns ...
 	return cm.(*cleanupManager)
 }
 
+func newCleanupMgrTestProperties() *gopter.Properties {
+	parameters := gopter.DefaultTestParameters()
+	parameters.Rng.Seed(commitLogTestRandomSeeed) // generate reproducable results
+	parameters.MinSuccessfulTests = commitLogTestMinSuccessfulTests
+	return gopter.NewProperties(parameters)
+}
+
 func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	parameters := gopter.DefaultTestParameters()
-	parameters.Rng.Seed(7823434) // generate reproducable results
-	parameters.MinSuccessfulTests = 10000
-	properties := gopter.NewProperties(parameters)
-
+	properties := newCleanupMgrTestProperties()
 	now := time.Now()
-	year := time.Hour * 24 * 15
+	timeWindow := time.Hour * 24 * 15
 
 	properties.Property("Commit log is retained if one namespace needs to flush", prop.ForAll(
-		func(t time.Time, cRopts retention.Options, ns *gNamespace) (bool, error) {
-			cm := propTestCleanupMgr(ctrl, cRopts, ns)
+		func(t time.Time, cRopts retention.Options, ns *generatedNamespace) (bool, error) {
+			cm := newPropTestCleanupMgr(ctrl, cRopts, ns)
 			_, cleanupTimes := cm.commitLogTimes(t)
 			for _, ct := range cleanupTimes {
 				s, e := commitLogNamespaceBlockTimes(ct, cRopts.BlockSize(), ns.ropts)
@@ -75,7 +83,7 @@ func TestPropertyCommitLogNotCleanedForUnflushedData(t *testing.T) {
 			}
 			return true, nil
 		},
-		gen.TimeRange(now.Add(-year), 2*year).WithLabel("cleanup time"),
+		gen.TimeRange(now.Add(-timeWindow), 2*timeWindow).WithLabel("cleanup time"),
 		genCommitLogRetention().WithLabel("commit log retention"),
 		genNamespace(now).WithLabel("namespace"),
 	))
@@ -87,17 +95,14 @@ func TestPropertyCommitLogNotCleanedForUnflushedDataMultipleNs(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	parameters := gopter.DefaultTestParameters()
-	parameters.Rng.Seed(7823434) // generate reproducable results
-	parameters.MinSuccessfulTests = 10000
-	properties := gopter.NewProperties(parameters)
-
+	properties := newCleanupMgrTestProperties()
 	now := time.Now()
-	year := time.Hour * 24 * 15
+	timeWindow := time.Hour * 24 * 15
 
 	properties.Property("Commit log is retained if any namespace needs to flush", prop.ForAll(
-		func(t time.Time, cRopts retention.Options, nses []*gNamespace) (bool, error) {
-			cm := propTestCleanupMgr(ctrl, cRopts, gNamespaces(nses).asDatabaseNamespace()...)
+		func(t time.Time, cRopts retention.Options, nses []*generatedNamespace) (bool, error) {
+			dbNses := generatedNamespaces(nses).asDatabaseNamespace()
+			cm := newPropTestCleanupMgr(ctrl, cRopts, dbNses...)
 			_, cleanupTimes := cm.commitLogTimes(t)
 			for _, ct := range cleanupTimes {
 				for _, ns := range nses {
@@ -110,7 +115,7 @@ func TestPropertyCommitLogNotCleanedForUnflushedDataMultipleNs(t *testing.T) {
 			}
 			return true, nil
 		},
-		gen.TimeRange(now.Add(-year), 2*year).WithLabel("cleanup time"),
+		gen.TimeRange(now.Add(-timeWindow), 2*timeWindow).WithLabel("cleanup time"),
 		genCommitLogRetention().WithLabel("commit log retention"),
 		gen.SliceOfN(3, genNamespace(now)).WithLabel("namespaces"),
 	))
@@ -118,9 +123,9 @@ func TestPropertyCommitLogNotCleanedForUnflushedDataMultipleNs(t *testing.T) {
 	properties.TestingRun(t)
 }
 
-type gNamespaces []*gNamespace
+type generatedNamespaces []*generatedNamespace
 
-func (n gNamespaces) asDatabaseNamespace() []databaseNamespace {
+func (n generatedNamespaces) asDatabaseNamespace() []databaseNamespace {
 	nses := make([]databaseNamespace, 0, len(n))
 	for _, ns := range n {
 		nses = append(nses, ns)
@@ -129,18 +134,18 @@ func (n gNamespaces) asDatabaseNamespace() []databaseNamespace {
 }
 
 // generated namespace struct
-type gNamespace struct {
+type generatedNamespace struct {
 	databaseNamespace
 
 	opts              namespace.Options
-	ropts             *gRetention
+	ropts             *generatedRetention
 	blockSize         time.Duration
 	oldestBlock       time.Time
 	newestBlock       time.Time
 	needsFlushMarkers []bool
 }
 
-func (ns *gNamespace) String() string {
+func (ns *generatedNamespace) String() string {
 	var buf bytes.Buffer
 	buf.WriteString(fmt.Sprintf("\n\tretention: %v", ns.ropts.String()))
 
@@ -157,7 +162,7 @@ func (ns *gNamespace) String() string {
 	return buf.String()
 }
 
-func (ns *gNamespace) blockIdx(t time.Time) int {
+func (ns *generatedNamespace) blockIdx(t time.Time) int {
 	idx := int(t.Truncate(ns.blockSize).Sub(ns.oldestBlock) / ns.blockSize)
 	if idx < 0 {
 		return 0
@@ -168,11 +173,11 @@ func (ns *gNamespace) blockIdx(t time.Time) int {
 	return idx
 }
 
-func (ns *gNamespace) Options() namespace.Options {
+func (ns *generatedNamespace) Options() namespace.Options {
 	return ns.opts
 }
 
-func (ns *gNamespace) NeedsFlush(start, end time.Time) bool {
+func (ns *generatedNamespace) NeedsFlush(start, end time.Time) bool {
 	if start.Before(ns.oldestBlock) && end.Before(ns.oldestBlock) {
 		return false
 	}
@@ -188,11 +193,11 @@ func (ns *gNamespace) NeedsFlush(start, end time.Time) bool {
 	return false
 }
 
-// generator for gNamespace
+// generator for generatedNamespace
 func genNamespace(t time.Time) gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
 		rng := genParams.Rng
-		ropts := randomRetention(rng)
+		ropts := newRandomRetention(rng)
 		oldest := retention.FlushTimeStart(ropts, t)
 		newest := retention.FlushTimeEnd(ropts, t)
 
@@ -204,7 +209,7 @@ func genNamespace(t time.Time) gopter.Gen {
 
 		opts := namespace.NewOptions().SetRetentionOptions(ropts)
 
-		ns := &gNamespace{
+		ns := &generatedNamespace{
 			opts:              opts,
 			ropts:             ropts,
 			blockSize:         ropts.BlockSize(),
@@ -215,7 +220,7 @@ func genNamespace(t time.Time) gopter.Gen {
 
 		genResult := gopter.NewGenResult(ns, gopter.NoShrinker)
 		genResult.Sieve = func(v interface{}) bool {
-			ns := v.(*gNamespace)
+			ns := v.(*generatedNamespace)
 			if len(ns.needsFlushMarkers) <= 0 {
 				return false
 			}
@@ -225,7 +230,7 @@ func genNamespace(t time.Time) gopter.Gen {
 	}
 }
 
-func randomRetention(rng *rand.Rand) *gRetention {
+func newRandomRetention(rng *rand.Rand) *generatedRetention {
 	var (
 		blockSizeMins    = maxInt(1, rng.Intn(60*12)) // 12 hours
 		retentionMins    = maxInt(1, rng.Intn(40)) * blockSizeMins
@@ -233,7 +238,7 @@ func randomRetention(rng *rand.Rand) *gRetention {
 		bufferFutureMins = maxInt(1, rng.Intn(blockSizeMins))
 	)
 
-	return &gRetention{retention.NewOptions().
+	return &generatedRetention{retention.NewOptions().
 		SetRetentionPeriod(time.Duration(retentionMins) * time.Minute).
 		SetBlockSize(time.Duration(blockSizeMins) * time.Minute).
 		SetBufferPast(time.Duration(bufferPastMins) * time.Minute).
@@ -243,7 +248,7 @@ func randomRetention(rng *rand.Rand) *gRetention {
 // generator for retention options
 func genRetention() gopter.Gen {
 	return func(genParams *gopter.GenParameters) *gopter.GenResult {
-		opts := randomRetention(genParams.Rng)
+		opts := newRandomRetention(genParams.Rng)
 		genResult := gopter.NewGenResult(opts, gopter.NoShrinker)
 		genResult.Sieve = func(v interface{}) bool {
 			return v.(retention.Options).Validate() == nil
@@ -255,18 +260,18 @@ func genRetention() gopter.Gen {
 // generator for commit log retention options
 func genCommitLogRetention() gopter.Gen {
 	return genRetention().
-		Map(func(v *gRetention) *gRetention {
-			return &gRetention{v.
+		Map(func(v *generatedRetention) *generatedRetention {
+			return &generatedRetention{v.
 				SetBufferFuture(0).
 				SetBufferPast(0)}
 		})
 }
 
-type gRetention struct {
+type generatedRetention struct {
 	retention.Options
 }
 
-func (ro *gRetention) String() string {
+func (ro *generatedRetention) String() string {
 	return fmt.Sprintf(
 		"[ retention-period = %v, block-size = %v, buffer-past = %v, buffer-future = %v ]",
 		ro.RetentionPeriod().String(),
