@@ -132,9 +132,10 @@ func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts Options) databaseBuff
 func (b *dbBuffer) Reset(opts Options) {
 	b.opts = opts
 	b.nowFn = opts.ClockOptions().NowFn()
-	b.blockSize = opts.RetentionOptions().BlockSize()
-	b.bufferPast = opts.RetentionOptions().BufferPast()
-	b.bufferFuture = opts.RetentionOptions().BufferFuture()
+	ropts := opts.RetentionOptions()
+	b.blockSize = ropts.BlockSize()
+	b.bufferPast = ropts.BufferPast()
+	b.bufferFuture = ropts.BufferFuture()
 	// Avoid capturing any variables with callback
 	b.computedForEachBucketAsc(computeAndResetBucketIdx, bucketResetStart)
 }
