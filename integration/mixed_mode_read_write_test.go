@@ -47,12 +47,15 @@ func TestMixedModeReadWrite(t *testing.T) {
 	}
 	// Test setup
 	var (
-		rOpts              = retention.NewOptions().SetRetentionPeriod(3 * time.Hour)
-		ns1BlockSize       = 1 * time.Hour
 		commitLogBlockSize = 15 * time.Minute
-		clROpts            = rOpts.SetBlockSize(commitLogBlockSize).SetBufferFuture(0).SetBufferPast(0)
-		ns1ROpts           = rOpts.SetBlockSize(ns1BlockSize)
-		nsID               = testNamespaces[0]
+		clROpts            = retention.NewOptions().
+					SetRetentionPeriod(6 * time.Hour).
+					SetBlockSize(commitLogBlockSize).
+					SetBufferFuture(0).
+					SetBufferPast(0)
+		ns1BlockSize = 1 * time.Hour
+		ns1ROpts     = retention.NewOptions().SetRetentionPeriod(3 * time.Hour).SetBlockSize(ns1BlockSize)
+		nsID         = testNamespaces[0]
 	)
 	ns1, err := namespace.NewMetadata(nsID, namespace.NewOptions().SetRetentionOptions(ns1ROpts))
 	require.NoError(t, err)
@@ -69,7 +72,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 	log := setup.storageOpts.InstrumentOptions().Logger()
 	log.Info("commit log & fileset files, write, read, and merge bootstrap test")
 
-	// setting time to 2017/02/13 15:30:10.500
+	// setting time to 2017/02/13 15:30:10
 	fakeStart := time.Date(2017, time.February, 13, 15, 30, 10, 0, time.Local)
 	blkStart15 := fakeStart.Truncate(ns1BlockSize)
 	blkStart16 := blkStart15.Add(ns1BlockSize)
@@ -136,31 +139,54 @@ func TestMixedModeReadWrite(t *testing.T) {
 	// should contain data from 15:30 - 17:59 on disk and 18:00 - 18:50 in mem
 	log.Infof("re-opening database & bootstrapping")
 	require.NoError(t, setup.startServer())
-
-	// verify in-memory data matches what we expect
 	log.Infof("verifying data in database equals expected data")
 	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
 	log.Infof("verified data in database equals expected data")
+
+	// the time now is 19:15
+	setup.setNowFn(setup.getNowFn().Add(20 * time.Minute))
+	// data from hour 15 is now outdated, ensure the file has been cleaned up
+	log.Infof("waiting till expired fileset files have been cleanedup")
+	require.NoError(t, waitUntilFilesetFilesCleanedUp(setup, nsID, blkStart15, waitTimeout))
+	log.Infof("fileset files have been cleaned up")
 
 	// stopping db
 	log.Infof("stopping database")
 	require.NoError(t, setup.stopServer())
 	log.Infof("database stopped")
 
-	// the time now is 19:10
-	setup.setNowFn(setup.getNowFn().Add(15 * time.Minute))
-
 	// recreate the db from the data files and commit log
 	log.Infof("re-opening database & bootstrapping")
 	require.NoError(t, setup.startServer())
 
 	// verify in-memory data matches what we expect
-	// data from hour 15 is now outdated
 	// should contain data from 16:00 - 17:59 on disk and 18:00 - 18:50 in mem
 	delete(expectedSeriesMap, blkStart15)
 	log.Infof("verifying data in database equals expected data")
 	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
 	log.Infof("verified data in database equals expected data")
+}
+
+func waitUntilFilesetFilesCleanedUp(
+	setup *testSetup,
+	namespace ts.ID,
+	toDelete time.Time,
+	timeout time.Duration,
+) error {
+	var (
+		shardSet       = setup.shardSet
+		filesetFiles   = []cleanupTimesFileset{}
+		commitLogFiles = cleanupTimesCommitLog{}
+	)
+	for _, id := range shardSet.AllIDs() {
+		filesetFiles = append(filesetFiles, cleanupTimesFileset{
+			filePathPrefix: setup.filePathPrefix,
+			namespace:      namespace,
+			shard:          id,
+			times:          []time.Time{toDelete},
+		})
+	}
+	return waitUntilDataCleanedUpExtended(filesetFiles, commitLogFiles, timeout)
 }
 
 func newTestSetupWithCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions) *testSetup {
