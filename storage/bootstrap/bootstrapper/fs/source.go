@@ -360,7 +360,7 @@ func (s *fileSystemSource) Read(
 	nsID := md.ID()
 
 	if shardsTimeRanges.IsEmpty() {
-		return nil, nil
+		return result.NewBootstrapResult(), nil
 	}
 
 	var blockRetriever block.DatabaseBlockRetriever

@@ -79,7 +79,7 @@ func (s *peersSource) Read(
 	opts bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
-		return nil, nil
+		return result.NewBootstrapResult(), nil
 	}
 
 	var (
