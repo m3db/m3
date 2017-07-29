@@ -530,7 +530,7 @@ func (s *dbSeries) Close() {
 	// of not releasing back an ID to a pool is amortized over
 	// a long period of time.
 	s.id = nil
-	s.buffer.Reset(s.opts.RetentionOptions())
+	s.buffer.Reset(s.opts)
 	s.blocks.Close()
 
 	if s.pool != nil {
@@ -549,7 +549,7 @@ func (s *dbSeries) Reset(
 
 	s.id = id
 	s.blocks.RemoveAll()
-	s.buffer.Reset(opts.RetentionOptions())
+	s.buffer.Reset(opts)
 	s.opts = opts
 	if seriesBootstrapped {
 		s.bs = bootstrapped
