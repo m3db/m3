@@ -130,6 +130,34 @@ func TestResultSetUnfulfilled(t *testing.T) {
 	}))
 }
 
+func TestResultNumSeries(t *testing.T) {
+	opts := testResultOptions()
+	blopts := opts.DatabaseBlockOptions()
+
+	start := time.Now().Truncate(testBlockSize)
+
+	blocks := []block.DatabaseBlock{
+		block.NewDatabaseBlock(start, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(2*testBlockSize), ts.Segment{}, blopts),
+	}
+
+	srs := []ShardResult{
+		NewShardResult(0, opts),
+		NewShardResult(0, opts),
+	}
+
+	srs[0].AddBlock(ts.StringID("foo"), blocks[0])
+	srs[0].AddBlock(ts.StringID("foo"), blocks[1])
+	srs[1].AddBlock(ts.StringID("bar"), blocks[2])
+
+	r := NewBootstrapResult()
+	r.Add(0, srs[0], nil)
+	r.Add(1, srs[1], nil)
+
+	require.Equal(t, int64(2), r.ShardResults().NumSeries())
+}
+
 func TestResultAddResult(t *testing.T) {
 	opts := testResultOptions()
 	blopts := opts.DatabaseBlockOptions()
@@ -259,6 +287,18 @@ func TestShardResultAddResult(t *testing.T) {
 	other.AddSeries(ts.StringID("bar"), block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()))
 	sr.AddResult(other)
 	require.Len(t, sr.AllSeries(), 2)
+}
+
+func TestShardResultNumSeries(t *testing.T) {
+	opts := testResultOptions()
+	sr := NewShardResult(0, opts)
+	sr.AddResult(nil)
+	require.True(t, sr.IsEmpty())
+	other := NewShardResult(0, opts)
+	other.AddSeries(ts.StringID("foo"), block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()))
+	other.AddSeries(ts.StringID("bar"), block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()))
+	sr.AddResult(other)
+	require.Equal(t, int64(2), sr.NumSeries())
 }
 
 func TestShardResultRemoveSeries(t *testing.T) {

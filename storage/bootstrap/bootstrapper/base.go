@@ -117,6 +117,7 @@ func (b *baseBootstrapper) Bootstrap(
 		logFields = append(logFields, xlog.NewLogField("error", currErr.Error()))
 		b.log.WithFields(logFields...).Infof("bootstrapping from source completed with error")
 	} else {
+		logFields = append(logFields, xlog.NewLogField("numSeries", currResult.ShardResults().NumSeries()))
 		b.log.WithFields(logFields...).Infof("bootstrapping from source completed successfully")
 	}
 

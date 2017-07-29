@@ -303,6 +303,7 @@ func testBasebootstrapperNext(t *testing.T, nextUnfulfilled result.ShardTimeRang
 	next.EXPECT().Can(bootstrap.BootstrapParallel).Return(true)
 
 	targetRanges := testShardTimeRanges()
+	emptyResult := testResult(nil)
 	nextResult := testResult(map[uint32]testShardResult{
 		testShard: {result: shardResult(testBlockEntry{"foo", testTargetStart})},
 	})
@@ -313,7 +314,7 @@ func testBasebootstrapperNext(t *testing.T, nextUnfulfilled result.ShardTimeRang
 	source.EXPECT().
 		Read(testNs, shardTimeRangesMatcher{nil},
 			testDefaultRunOpts).
-		Return(nil, nil)
+		Return(emptyResult, nil)
 	next.EXPECT().
 		Bootstrap(testNs, shardTimeRangesMatcher{targetRanges},
 			testDefaultRunOpts).
