@@ -130,11 +130,6 @@ func TestResultSetUnfulfilled(t *testing.T) {
 	}))
 }
 
-func TestResultEmpty(t *testing.T) {
-	r := NewBootstrapResult()
-	require.True(t, r.IsEmpty())
-}
-
 func TestResultNumSeries(t *testing.T) {
 	opts := testResultOptions()
 	blopts := opts.DatabaseBlockOptions()

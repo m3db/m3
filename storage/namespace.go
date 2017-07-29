@@ -468,9 +468,14 @@ func (n *dbNamespace) Bootstrap(
 	workers := xsync.NewWorkerPool(int(math.Ceil(float64(runtime.NumCPU()) / 2)))
 	workers.Init()
 
+	var numSeries int64
+	if bootstrapResult != nil {
+		numSeries = bootstrapResult.ShardResults().NumSeries()
+	}
+
 	n.log.WithFields(
 		xlog.NewLogField("numShards", len(shards)),
-		xlog.NewLogField("numSeries", bootstrapResult.ShardResults().NumSeries()),
+		xlog.NewLogField("numSeries", numSeries),
 	).Infof("bootstrap data fetched now initializing shards with series blocks")
 
 	var (

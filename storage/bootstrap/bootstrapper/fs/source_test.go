@@ -241,7 +241,7 @@ func TestReadEmptyRangeErr(t *testing.T) {
 	src := newFileSystemSource("foo", NewOptions())
 	res, err := src.Read(testNsMetadata(t), nil, testDefaultRunOpts)
 	require.NoError(t, err)
-	require.True(t, res.IsEmpty())
+	require.Nil(t, res)
 }
 
 func TestReadPatternError(t *testing.T) {
@@ -250,7 +250,7 @@ func TestReadPatternError(t *testing.T) {
 		map[uint32]xtime.Ranges{testShard: xtime.NewRanges()},
 		testDefaultRunOpts)
 	require.NoError(t, err)
-	require.True(t, res.IsEmpty())
+	require.Nil(t, res)
 }
 
 func TestReadNilTimeRanges(t *testing.T) {

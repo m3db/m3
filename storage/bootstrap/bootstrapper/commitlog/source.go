@@ -85,7 +85,7 @@ func (s *commitLogSource) Read(
 	_ bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {
 	if shardsTimeRanges.IsEmpty() {
-		return result.NewBootstrapResult(), nil
+		return nil, nil
 	}
 
 	iter, err := s.newIteratorFn(s.opts.CommitLogOptions())

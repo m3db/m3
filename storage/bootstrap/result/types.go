@@ -32,9 +32,6 @@ import (
 
 // BootstrapResult is the result of a bootstrap.
 type BootstrapResult interface {
-	// IsEmpty returns whether the result is empty.
-	IsEmpty() bool
-
 	// ShardResults is the results of all shards for the bootstrap.
 	ShardResults() ShardResults
 

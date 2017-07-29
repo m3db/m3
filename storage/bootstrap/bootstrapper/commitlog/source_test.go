@@ -91,7 +91,7 @@ func TestReadEmpty(t *testing.T) {
 
 	res, err := src.Read(testNsMetadata(t), result.ShardTimeRanges{},
 		testDefaultRunOpts)
-	require.True(t, res.IsEmpty())
+	require.Nil(t, res)
 	require.Nil(t, err)
 }
 
