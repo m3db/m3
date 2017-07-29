@@ -44,6 +44,10 @@ func NewBootstrapResult() BootstrapResult {
 	}
 }
 
+func (r *bootstrapResult) IsEmpty() bool {
+	return r.results.NumSeries() == 0
+}
+
 func (r *bootstrapResult) ShardResults() ShardResults {
 	return r.results
 }
