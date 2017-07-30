@@ -24,15 +24,12 @@
 package series
 
 import (
-	time "time"
-
+	gomock "github.com/golang/mock/gomock"
 	context "github.com/m3db/m3db/context"
-	retention "github.com/m3db/m3db/retention"
 	block "github.com/m3db/m3db/storage/block"
 	io "github.com/m3db/m3db/x/io"
 	time0 "github.com/m3db/m3x/time"
-
-	gomock "github.com/golang/mock/gomock"
+	time "time"
 )
 
 // Mock of databaseBuffer interface
@@ -157,8 +154,8 @@ func (_mr *_MockdatabaseBufferRecorder) Bootstrap(arg0 interface{}) *gomock.Call
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrap", arg0)
 }
 
-func (_m *MockdatabaseBuffer) Reset(ropts retention.Options) {
-	_m.ctrl.Call(_m, "Reset", ropts)
+func (_m *MockdatabaseBuffer) Reset(opts Options) {
+	_m.ctrl.Call(_m, "Reset", opts)
 }
 
 func (_mr *_MockdatabaseBufferRecorder) Reset(arg0 interface{}) *gomock.Call {

@@ -57,6 +57,9 @@ type ShardResult interface {
 	// AllSeries returns all series of blocks.
 	AllSeries() map[ts.Hash]DatabaseSeriesBlocks
 
+	// NumSeries returns the number of distinct series'.
+	NumSeries() int64
+
 	// AddBlock adds a data block.
 	AddBlock(id ts.ID, block block.DatabaseBlock)
 

@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
@@ -97,7 +96,7 @@ type databaseBuffer interface {
 
 	Bootstrap(bl block.DatabaseBlock) error
 
-	Reset(ropts retention.Options)
+	Reset(opts Options)
 }
 
 type bufferStats struct {
@@ -124,15 +123,16 @@ type databaseBufferDrainFn func(b block.DatabaseBlock)
 
 func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts Options) databaseBuffer {
 	b := &dbBuffer{
-		opts:    opts,
-		nowFn:   opts.ClockOptions().NowFn(),
 		drainFn: drainFn,
 	}
-	b.Reset(opts.RetentionOptions())
+	b.Reset(opts)
 	return b
 }
 
-func (b *dbBuffer) Reset(ropts retention.Options) {
+func (b *dbBuffer) Reset(opts Options) {
+	b.opts = opts
+	b.nowFn = opts.ClockOptions().NowFn()
+	ropts := opts.RetentionOptions()
 	b.blockSize = ropts.BlockSize()
 	b.bufferPast = ropts.BufferPast()
 	b.bufferFuture = ropts.BufferFuture()
