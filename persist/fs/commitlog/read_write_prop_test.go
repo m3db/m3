@@ -146,7 +146,14 @@ func clCommandFunctor(basePath string, t *testing.T) *commands.ProtoCommands {
 		NewSystemUnderTestFunc: func(initialState commands.State) commands.SystemUnderTest {
 			return initialState
 		},
-		InitialStateGen: genState(basePath, t).WithLabel("state"),
+		DestroySystemUnderTestFunc: func(sut commands.SystemUnderTest) {
+			state := sut.(*clState)
+			if cl := state.cLog; cl != nil {
+				cl.Close()
+			}
+			os.RemoveAll(state.opts.FilesystemOptions().FilePathPrefix())
+		},
+		InitialStateGen: genState(basePath, t),
 		InitialPreConditionFunc: func(state commands.State) bool {
 			if state == nil {
 				return false
