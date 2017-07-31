@@ -34,11 +34,11 @@ import (
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
-	"github.com/stretchr/testify/require"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/commands"
 	"github.com/leanovate/gopter/gen"
+	"github.com/stretchr/testify/require"
 )
 
 var (
