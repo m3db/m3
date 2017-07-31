@@ -22,11 +22,11 @@ package commitlog_test
 
 import (
 	"fmt"
-	"hash/crc32"
 	"io/ioutil"
 	"os"
 	"path"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -367,6 +367,23 @@ func genWrite() gopter.Gen {
 	})
 }
 
+type globalMetricIdx struct {
+	sync.Mutex
+
+	idx     uint64
+	idToIdx map[string]uint64
+}
+
+var metricIdx = globalMetricIdx{
+	idToIdx: make(map[string]uint64),
+}
+
 func uniqueID(s string) uint64 {
-	return uint64(crc32.Checksum([]byte(s), crc32.IEEETable))
+	metricIdx.Lock()
+	defer metricIdx.Unlock()
+
+	idx := metricIdx.idx
+	metricIdx.idx++
+	metricIdx.idToIdx[s] = idx
+	return idx
 }
