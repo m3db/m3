@@ -41,11 +41,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var (
-	defaultCommitLogSeed     int64  = 12345678
-	defaultShardNum          uint32 = 1234
-	defaultTestNamespace            = ts.StringID("testNamespace")
-	defaultTestFlushInterval        = time.Millisecond
+const (
+	defaultTestFlushInterval = time.Millisecond
 )
 
 func TestCommitLogReadWrite(t *testing.T) {
@@ -81,47 +78,12 @@ func TestCommitLogReadWrite(t *testing.T) {
 		series, datapoint, _, _ := iter.Current()
 		write := writes[i]
 		require.Equal(t, write.series.ID.String(), series.ID.String())
+		require.Equal(t, write.series.Namespace.String(), series.Namespace.String())
+		require.Equal(t, write.series.Shard, series.Shard)
 		require.Equal(t, write.datapoint.Value, datapoint.Value)
 		require.True(t, write.datapoint.Timestamp.Equal(datapoint.Timestamp))
 	}
 	require.Equal(t, len(writes), i)
-}
-
-func TestCommitLogRWOnce(t *testing.T) {
-	baseTestPath, err := ioutil.TempDir("", "commit-log-test-base-dir")
-	require.NoError(t, err)
-	defer os.RemoveAll(baseTestPath)
-
-	opts := commitlog.NewOptions()
-	fsOpts := opts.FilesystemOptions().SetFilePathPrefix(baseTestPath)
-	opts = opts.SetFilesystemOptions(fsOpts).SetFlushInterval(time.Millisecond)
-
-	params := gopter.DefaultGenParameters()
-	writeResult := genWrite()(params)
-	writesInterface, ok := writeResult.Retrieve()
-	require.True(t, ok)
-	w, ok := writesInterface.(generatedWrite)
-	require.True(t, ok)
-
-	cl := commitlog.NewCommitLog(opts)
-	require.NoError(t, cl.Open())
-
-	ctx := context.NewContext()
-	require.NoError(t, cl.Write(ctx, w.series, w.datapoint, w.unit, w.annotation))
-	ctx.Close()
-	require.NoError(t, cl.Close())
-
-	iter, err := commitlog.NewIterator(opts)
-	require.NoError(t, err)
-	defer iter.Close()
-	i := 0
-	for ; iter.Next(); i++ {
-		series, datapoint, _, _ := iter.Current()
-		require.Equal(t, w.series.ID.String(), series.ID.String())
-		require.Equal(t, w.datapoint.Value, datapoint.Value)
-		require.True(t, w.datapoint.Timestamp.Equal(datapoint.Timestamp))
-	}
-	require.Equal(t, 1, i)
 }
 
 func TestCommitLogPropTest(t *testing.T) {
@@ -130,7 +92,7 @@ func TestCommitLogPropTest(t *testing.T) {
 	defer os.RemoveAll(basePath)
 
 	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 20
+	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
 
 	comms := clCommandFunctor(basePath, t)
@@ -297,7 +259,7 @@ func newInitState(dir string, t *testing.T) *clState {
 }
 
 func (s *clState) writesArePresent(writes ...generatedWrite) error {
-	writesOnDisk := make(map[ts.Hash]map[time.Time]float64)
+	writesOnDisk := make(map[ts.Hash]map[time.Time]generatedWrite)
 	iter, err := commitlog.NewIterator(s.opts)
 	if err != nil {
 		return err
@@ -305,14 +267,19 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 
 	defer iter.Close()
 	for iter.Next() {
-		series, datapoint, _, _ := iter.Current()
+		series, datapoint, unit, annotation := iter.Current()
 		idHash := series.ID.Hash()
 		seriesMap, ok := writesOnDisk[idHash]
 		if !ok {
-			seriesMap = make(map[time.Time]float64)
+			seriesMap = make(map[time.Time]generatedWrite)
 			writesOnDisk[idHash] = seriesMap
 		}
-		seriesMap[datapoint.Timestamp] = datapoint.Value
+		seriesMap[datapoint.Timestamp] = generatedWrite{
+			series:     series,
+			datapoint:  datapoint,
+			unit:       unit,
+			annotation: annotation,
+		}
 	}
 	if err := iter.Err(); err != nil {
 		return err
@@ -325,11 +292,13 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 		if !ok {
 			return missingErr
 		}
-		val, ok := seriesMap[w.datapoint.Timestamp]
+		gw, ok := seriesMap[w.datapoint.Timestamp]
 		if !ok {
 			return missingErr
 		}
-		if val != w.datapoint.Value {
+		if !gw.series.Namespace.Equal(w.series.Namespace) ||
+			gw.series.Shard != w.series.Shard ||
+			gw.datapoint.Value != w.datapoint.Value {
 			return missingErr
 		}
 	}
@@ -353,16 +322,20 @@ func genWrite() gopter.Gen {
 		gen.Identifier(),
 		gen.TimeRange(time.Now(), 15*time.Minute),
 		gen.Float64(),
+		gen.Identifier(),
+		gen.UInt32(),
 	).Map(func(val []interface{}) generatedWrite {
 		id := val[0].(string)
 		t := val[1].(time.Time)
 		v := val[2].(float64)
+		ns := val[3].(string)
+		shard := val[4].(uint32)
 
 		return generatedWrite{
 			series: commitlog.Series{
 				ID:          ts.StringID(id),
-				Namespace:   defaultTestNamespace,
-				Shard:       defaultShardNum,
+				Namespace:   ts.StringID(ns),
+				Shard:       shard,
 				UniqueIndex: uniqueID(id),
 			},
 			datapoint: ts.Datapoint{
