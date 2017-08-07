@@ -38,9 +38,9 @@ import (
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
 
-	"github.com/uber-go/tally"
 	mclock "github.com/facebookgo/clock"
 	"github.com/stretchr/testify/assert"
+	"github.com/uber-go/tally"
 )
 
 type overrides struct {
@@ -122,7 +122,9 @@ func (w testWrite) assert(
 	unit xtime.Unit,
 	annotation []byte,
 ) {
-	assert.Equal(t, w.series.UniqueIndex, series.UniqueIndex)
+	// Log entry indexes start from 1 to avoid the seen cache lookup on zero succeeding
+	expectedLogEntryIndex := w.series.UniqueIndex + 1
+	assert.Equal(t, expectedLogEntryIndex, series.UniqueIndex)
 	assert.True(t, w.series.ID.Equal(series.ID), fmt.Sprintf("write ID '%s' does not match actual ID '%s'", w.series.ID.String(), series.ID.String()))
 	assert.Equal(t, w.series.Shard, series.Shard)
 	assert.True(t, w.t.Equal(datapoint.Timestamp))

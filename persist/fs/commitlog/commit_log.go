@@ -71,7 +71,6 @@ type commitLog struct {
 	lastFlushAt     time.Time
 	pendingFlushFns []completionFn
 
-	bitset         bitset
 	writerExpireAt time.Time
 	closed         bool
 	closeErr       chan error

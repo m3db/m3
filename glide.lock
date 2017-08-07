@@ -1,5 +1,5 @@
-hash: db31f8e4a8d2ef268db1a74eb24a5ad032ca5976a338f897dbba09394ff27049
-updated: 2017-06-19T13:23:16.778444112-04:00
+hash: f36f6957b8e8407334cef4f3ade2c69716c2b742c7d64391ee37618a0c8f8b93
+updated: 2017-08-07T13:39:47.228126307-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -174,8 +174,6 @@ imports:
   - tos
   - trand
   - typed
-- name: github.com/willf/bitset
-  version: 5c3c0fce48842b2c0bbaa99b4e61b0175d84b47c
 - name: golang.org/x/net
   version: 61557ac0112b576429a0df080e1c2cef5dfbb642
   subpackages:

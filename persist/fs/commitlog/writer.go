@@ -83,7 +83,8 @@ type writer struct {
 	newFileMode        os.FileMode
 	newDirectoryMode   os.FileMode
 	nowFn              clock.NowFn
-	bitset             bitset
+	seenCache          []uint64
+	seenCacheLen       int
 	start              time.Time
 	duration           time.Duration
 	chunkWriter        *chunkWriter
@@ -98,15 +99,17 @@ func newCommitLogWriter(
 	flushFn flushFn,
 	opts Options,
 ) commitLogWriter {
+	seenCache := make([]uint64, opts.MetadataSeenCacheSize())
 	return &writer{
 		filePathPrefix:     opts.FilesystemOptions().FilePathPrefix(),
 		newFileMode:        opts.FilesystemOptions().NewFileMode(),
 		newDirectoryMode:   opts.FilesystemOptions().NewDirectoryMode(),
 		nowFn:              opts.ClockOptions().NowFn(),
+		seenCache:          seenCache,
+		seenCacheLen:       len(seenCache),
 		chunkWriter:        newChunkWriter(flushFn),
 		chunkReserveHeader: make([]byte, chunkHeaderLen),
 		buffer:             bufio.NewWriterSize(nil, opts.FlushSize()),
-		bitset:             newBitset(),
 		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
 		logEncoder:         msgpack.NewEncoder(),
 		metadataEncoder:    msgpack.NewEncoder(),
@@ -154,19 +157,38 @@ func (w *writer) isOpen() bool {
 	return w.chunkWriter.fd != nil
 }
 
+func (w *writer) logEntryIndex(seriesUniqueIndex uint64) uint64 {
+	// Special case the zeroth value as we compare the value
+	// at the entry of the seen cache with the index being put
+	// at the location - since all entries in the seen cache when
+	// not set are zero the value being used to compare whether
+	// this result has been seen or not cannot be zero itself
+	return seriesUniqueIndex + 1
+}
+
 func (w *writer) Write(
 	series Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
 ) error {
+	logEntryIndex := w.logEntryIndex(series.UniqueIndex)
+
 	var logEntry schema.LogEntry
 	logEntry.Create = w.nowFn().UnixNano()
-	logEntry.Index = series.UniqueIndex
+	logEntry.Index = logEntryIndex
 
-	seen := w.bitset.has(logEntry.Index)
-	if !seen {
-		// If "idx" hasn't been written to commit log
+	// NB(r): Calculate whether metadata for this series
+	// has been written before. Once we have more unique series than
+	// the size of the seen cache this can cause some metadata
+	// to be written multiple times. The vast majority
+	// of IDs should not collide frequently which preserves
+	// the size of the resulting commit log staying small.
+	seenIdx := logEntryIndex % uint64(w.seenCacheLen)
+	seenValueAtIdx := w.seenCache[seenIdx]
+	definitelySeen := seenValueAtIdx == logEntryIndex
+	if !definitelySeen {
+		// If "idx" likely hasn't been written to commit log
 		// yet we need to include series metadata
 		var metadata schema.LogMetadata
 		metadata.ID = series.ID.Data().Get()
@@ -191,9 +213,9 @@ func (w *writer) Write(
 		return err
 	}
 
-	if !seen {
-		// Record we have seen this series
-		w.bitset.set(logEntry.Index)
+	if !definitelySeen {
+		// Record we have seen this series at the current seenIdx
+		w.seenCache[seenIdx] = logEntryIndex
 	}
 	return nil
 }
@@ -215,7 +237,9 @@ func (w *writer) Close() error {
 	}
 
 	w.chunkWriter.fd = nil
-	w.bitset.clearAll()
+	for i := range w.seenCache {
+		w.seenCache[i] = 0 // Reset seen cache values
+	}
 	w.start = timeZero
 	w.duration = 0
 	return nil

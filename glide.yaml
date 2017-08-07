@@ -32,9 +32,6 @@ import:
 - package: gopkg.in/vmihailenco/msgpack.v2
   version: a1382b1ce0c749733b814157c245e02cc1f41076
 
-- package: github.com/willf/bitset
-  version: 5c3c0fce48842b2c0bbaa99b4e61b0175d84b47c
-
 - package: github.com/uber-go/tally
   version: <4.0.0
 

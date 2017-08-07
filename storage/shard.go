@@ -636,28 +636,46 @@ type enqueueInsertResult struct {
 	uniqueIndex uint64
 }
 
-func (s *dbShard) enqueueInsertSeries(
+func (s *dbShard) newShardInsert(
 	id ts.ID,
 	opts enqueueInsertOptions,
-) (enqueueInsertResult, error) {
+) dbShardInsert {
 	series := s.seriesPool.Get()
 	seriesID := s.identifierPool.Clone(id)
 	series.Reset(seriesID, s.newSeriesBootstrapped, s.seriesBlockRetriever)
 
 	uniqueIndex := s.increasingIndex.nextIndex()
-	insert := dbShardInsert{
+	return dbShardInsert{
 		entry:           &dbShardEntry{series: series, index: uniqueIndex},
 		hasPendingWrite: opts.hasPendingWrite,
 		pendingWrite:    opts.pendingWrite,
 	}
+}
 
+func (s *dbShard) enqueueInsertSeries(
+	id ts.ID,
+	opts enqueueInsertOptions,
+) (enqueueInsertResult, error) {
+	insert := s.newShardInsert(id, opts)
 	wg, err := s.insertQueue.Insert(insert)
 	return enqueueInsertResult{wg, seriesID, uniqueIndex}, err
 }
 
 func (s *dbShard) insertSeriesEntries(inserts []dbShardInsert) error {
+	anyPendingWrites := false
+
 	s.Lock()
 	for i := range inserts {
+		// If we are going to write to this entry then increment the
+		// writer count so it does not look empty immediately after
+		// we release the write lock
+		if inserts[i].hasPendingWrite {
+			if !anyPendingWrites {
+				anyPendingWrites = true
+			}
+			entry.incrementWriterCount()
+		}
+
 		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.series.ID())
 		if err == nil {
 			// Already inserted
@@ -673,15 +691,12 @@ func (s *dbShard) insertSeriesEntries(inserts []dbShardInsert) error {
 		// Insert still pending, perform the insert
 		entry = inserts[i].entry
 		s.lookup[entry.series.ID().Hash()] = s.list.PushBack(entry)
-
-		// If we are going to write to this entry then increment the
-		// writer count so it does not look empty immediately after
-		// we release the write lock
-		if inserts[i].hasPendingWrite {
-			entry.incrementWriterCount()
-		}
 	}
 	s.Unlock()
+
+	if !anyPendingWrites {
+		return nil
+	}
 
 	// Perform any pending writes outside of the lock
 	ctx := s.contextPool.Get()
@@ -784,8 +799,22 @@ func (s *dbShard) Bootstrap(
 	s.bs = bootstrapping
 	s.Unlock()
 
+	inserts := make([]dbShardInsert, 1)
 	multiErr := xerrors.NewMultiError()
 	for _, dbBlocks := range bootstrappedSeries {
+		entry, _, err := s.tryRetrieveWritableSeries(dbBlocks.ID)
+		if err != nil {
+			multiErr = multiErr.Add(err)
+			continue
+		}
+		if entry == nil {
+			inserts[0] = s.newShardInsert(dbBlocks.ID, enqueueInsertOptions{})
+			if err := s.insertSeriesEntries(inserts); err != nil {
+				multiErr = multiErr.Add(err)
+				continue
+			}
+		}
+
 		entry, err := s.writableSeries(dbBlocks.ID)
 		if err != nil {
 			multiErr = multiErr.Add(err)

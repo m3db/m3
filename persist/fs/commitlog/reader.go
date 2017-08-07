@@ -116,7 +116,8 @@ func (r *reader) Read() (
 		return
 	}
 
-	if len(entry.Metadata) != 0 {
+	metadata, ok := r.metadataLookup[entry.Index]
+	if !ok && len(entry.Metadata) != 0 {
 		r.metadataDecoder.Reset(entry.Metadata)
 		decoded, err := r.metadataDecoder.DecodeLogMetadata()
 		if err != nil {
@@ -142,7 +143,9 @@ func (r *reader) Read() (
 		}
 	}
 
-	metadata, ok := r.metadataLookup[entry.Index]
+	if !ok {
+		metadata, ok = r.metadataLookup[entry.Index]
+	}
 	if !ok {
 		resultErr = errCommitLogReaderMissingLogMetadata
 		return
