@@ -183,6 +183,76 @@ func TestRangeOverlaps(t *testing.T) {
 	}
 }
 
+func TestRangeIntersect(t *testing.T) {
+	input := testInput()
+	for i := 0; i < len(input); i++ {
+		var (
+			r1                 = input[i].r1
+			r2                 = input[i].r2
+			r1Intersected, ok1 = r1.Intersect(r2)
+			r2Intersected, ok2 = r2.Intersect(r1)
+		)
+		switch i {
+		case 0: // r1 before r2, r1.end == r2.start
+			require.False(t, ok1)
+			require.False(t, ok2)
+		case 1: // r1 before r2, r1.end < r2.start
+			require.False(t, ok1)
+			require.False(t, ok2)
+		case 2: // r1 contains r2, r1.end == r2.end
+			require.True(t, ok1)
+			require.True(t, ok2)
+			require.Equal(t, r1Intersected.Start, r2.Start)
+			require.Equal(t, r2Intersected.Start, r2.Start)
+		case 3: // r1 contains r2, r1.end > r2.end
+			require.True(t, ok1)
+			require.True(t, ok2)
+		case 4: // r1 overlaps r2, r1.end < r2.end
+			require.True(t, ok1)
+			require.True(t, ok2)
+			require.Equal(t, r1Intersected.Start, r2.Start)
+			require.Equal(t, r1Intersected.End, r1.End)
+			require.Equal(t, r2Intersected.Start, r2.Start)
+			require.Equal(t, r2Intersected.End, r1.End)
+		case 5: // r2 before r1, r1.start == r2.end
+			require.False(t, ok1)
+			require.False(t, ok2)
+		case 6: // r2 before r1, r1.start > r2.end
+			require.False(t, ok1)
+			require.False(t, ok2)
+		case 7: // r2 contains r1, r1.end == r2.end
+			require.True(t, ok1)
+			require.True(t, ok2)
+			require.Equal(t, r1Intersected.Start, r1.Start)
+			require.Equal(t, r1Intersected.End, r1.End)
+			require.Equal(t, r2Intersected.Start, r1.Start)
+			require.Equal(t, r2Intersected.End, r2.End)
+		case 8: // r2 contains r1, r1.end < r2.end
+			require.True(t, ok1)
+			require.True(t, ok2)
+			require.Equal(t, r1Intersected.Start, r1.Start)
+			require.Equal(t, r1Intersected.End, r1.End)
+			require.Equal(t, r2Intersected.Start, r1.Start)
+			require.Equal(t, r2Intersected.End, r1.End)
+		case 9: // r1 overlaps r2, r1.end > r2.end
+			require.True(t, ok1)
+			require.True(t, ok2)
+			require.Equal(t, r1Intersected.Start, r1.Start)
+			require.Equal(t, r1Intersected.End, r2.End)
+			require.Equal(t, r2Intersected.Start, r1.Start)
+			require.Equal(t, r2Intersected.End, r2.End)
+		case 10: // r1 == r2
+			require.True(t, ok1)
+			require.True(t, ok2)
+			require.Equal(t, r1Intersected.Start, r1.Start)
+			require.Equal(t, r1Intersected.End, r1.End)
+			require.Equal(t, r2Intersected.Start, r2.Start)
+			require.Equal(t, r2Intersected.End, r2.End)
+		}
+	}
+
+}
+
 func TestRangeSince(t *testing.T) {
 	r := Range{testStart, testStart.Add(10 * time.Second)}
 	require.Equal(t, r, r.Since(testStart.Add(-time.Second)))
