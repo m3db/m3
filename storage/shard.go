@@ -856,11 +856,11 @@ func (s *dbShard) Bootstrap(
 	for _, dbBlocks := range bootstrappedSeries {
 		// First lookup if series already exists
 		entry, _, err := s.tryRetrieveWritableSeries(dbBlocks.ID)
-		if err != nil && err != errShardEntryNotFound {
+		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue
 		}
-		if err == errShardEntryNotFound {
+		if entry == nil {
 			// Synchronously insert to avoid waiting for
 			// the insert queue potential delayed insert
 			entry, err = s.insertSeriesSync(dbBlocks.ID, insertSyncIncWriterCount)
