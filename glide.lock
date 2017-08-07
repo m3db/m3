@@ -1,5 +1,5 @@
-hash: db31f8e4a8d2ef268db1a74eb24a5ad032ca5976a338f897dbba09394ff27049
-updated: 2017-06-19T13:23:16.778444112-04:00
+hash: d9f5bb22077e6b0c8af377e3d5f5938fdb7cc53e723e9c6dc8de572a2b8a6c10
+updated: 2017-07-30T21:24:33.175830519-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -20,7 +20,7 @@ imports:
   - mvcc/mvccpb
   - pkg/tlsutil
 - name: github.com/davecgh/go-spew
-  version: 346938d642f2ec3594ed81d874461961cd0faa76
+  version: adab96458c51a58dc1783b3335dcce5461522e75
   subpackages:
   - spew
 - name: github.com/facebookgo/clock
@@ -50,6 +50,12 @@ imports:
   - utilities
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/leanovate/gopter
+  version: 9e6101e5a87586b269acf3d0d61f363e4317309f
+  subpackages:
+  - commands
+  - gen
+  - prop
 - name: github.com/m3db/m3cluster
   version: 2eb541bb4b0883e27c78f7594f0eda09f8bf9665
   subpackages:
