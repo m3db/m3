@@ -192,7 +192,7 @@ func newDatabaseShard(
 		flushState:            newShardFlushState(),
 		metrics:               newDbShardMetrics(scope),
 	}
-	d.insertQueue = newDbShardInsertQueue(d.insertSeriesEntries, scope)
+	d.insertQueue = newDbShardInsertQueue(d.insertSeriesBatch, scope)
 	d.insertQueue.Start()
 
 	d.runtimeOptsListenCloser = opts.RuntimeOptionsManager().RegisterListener(d)
@@ -478,14 +478,16 @@ func (s *dbShard) Write(
 	// If no entry and we are not writing new series asynchronously
 	if !writable && !opts.writeNewSeriesAsync {
 		// Avoid double lookup by enqueueing insert immediately
-		result, err := s.enqueueInsertSeries(id, enqueueInsertOptions{
+		result, err := s.insertSeriesAsyncBatched(id, insertAsyncOptions{
 			hasPendingWrite: false,
 		})
 		if err != nil {
 			return err
 		}
-		// Wait for the insert
+
+		// Wait for the insert to be batched together and inserted
 		result.wg.Wait()
+
 		// Retrieve the inserted entry
 		entry, err = s.writableSeries(id)
 		if err != nil {
@@ -515,7 +517,7 @@ func (s *dbShard) Write(
 		}
 	} else {
 		// This is an asynchronous insert and write
-		result, err := s.enqueueInsertSeries(id, enqueueInsertOptions{
+		result, err := s.insertSeriesAsyncBatched(id, insertAsyncOptions{
 			hasPendingWrite: true,
 			pendingWrite: dbShardPendingWrite{
 				timestamp:  timestamp,
@@ -593,8 +595,8 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 			return nil, err
 		}
 
-		// Not inserted, attempt an insert
-		result, err := s.enqueueInsertSeries(id, enqueueInsertOptions{
+		// Not inserted, attempt a batched insert
+		result, err := s.insertSeriesAsyncBatched(id, insertAsyncOptions{
 			hasPendingWrite: false,
 		})
 		if err != nil {
@@ -625,43 +627,87 @@ func (s *dbShard) tryRetrieveWritableSeries(id ts.ID) (
 	return nil, currRuntimeOpts, nil
 }
 
-type enqueueInsertOptions struct {
+func (s *dbShard) newShardEntry(id ts.ID) *dbShardEntry {
+	series := s.seriesPool.Get()
+	seriesID := s.identifierPool.Clone(id)
+	series.Reset(seriesID, s.newSeriesBootstrapped, s.seriesBlockRetriever)
+	uniqueIndex := s.increasingIndex.nextIndex()
+	return &dbShardEntry{series: series, index: uniqueIndex}
+}
+
+type insertAsyncOptions struct {
 	hasPendingWrite bool
 	pendingWrite    dbShardPendingWrite
 }
 
-type enqueueInsertResult struct {
+type insertAsyncResult struct {
 	wg          *sync.WaitGroup
 	copiedID    ts.ID
 	uniqueIndex uint64
 }
 
-func (s *dbShard) newShardInsert(
+func (s *dbShard) insertSeriesAsyncBatched(
 	id ts.ID,
-	opts enqueueInsertOptions,
-) dbShardInsert {
-	series := s.seriesPool.Get()
-	seriesID := s.identifierPool.Clone(id)
-	series.Reset(seriesID, s.newSeriesBootstrapped, s.seriesBlockRetriever)
+	opts insertAsyncOptions,
+) (insertAsyncResult, error) {
+	entry := s.newShardEntry(id)
 
-	uniqueIndex := s.increasingIndex.nextIndex()
-	return dbShardInsert{
-		entry:           &dbShardEntry{series: series, index: uniqueIndex},
+	wg, err := s.insertQueue.Insert(dbShardInsert{
+		entry:           entry,
 		hasPendingWrite: opts.hasPendingWrite,
 		pendingWrite:    opts.pendingWrite,
-	}
+	})
+	return insertAsyncResult{
+		wg: wg,
+		// Make sure to return the copied ID from the new series
+		copiedID:    entry.series.ID(),
+		uniqueIndex: entry.index,
+	}, err
 }
 
-func (s *dbShard) enqueueInsertSeries(
+type insertSyncType uint8
+
+const (
+	insertSync insertSyncType = iota
+	insertSyncIncWriterCount
+)
+
+func (s *dbShard) insertSeriesSync(
 	id ts.ID,
-	opts enqueueInsertOptions,
-) (enqueueInsertResult, error) {
-	insert := s.newShardInsert(id, opts)
-	wg, err := s.insertQueue.Insert(insert)
-	return enqueueInsertResult{wg, seriesID, uniqueIndex}, err
+	insertType insertSyncType,
+) (*dbShardEntry, error) {
+	var (
+		entry *dbShardEntry
+		err   error
+	)
+
+	s.Lock()
+	defer func() {
+		// Check if we're making a modification to this entry, be sure
+		// to increment the writer count so it's visible when we release
+		// the lock
+		if entry != nil && insertType == insertSyncIncWriterCount {
+			entry.incrementWriterCount()
+		}
+		s.Unlock()
+	}()
+
+	entry, _, err = s.lookupEntryWithLock(id)
+	if err != nil && err != errShardEntryNotFound {
+		// Shard not taking inserts likely
+		return nil, err
+	}
+	if entry != nil {
+		// Already inserted
+		return entry, nil
+	}
+
+	entry = s.newShardEntry(id)
+	s.lookup[entry.series.ID().Hash()] = s.list.PushBack(entry)
+	return entry, nil
 }
 
-func (s *dbShard) insertSeriesEntries(inserts []dbShardInsert) error {
+func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	anyPendingWrites := false
 
 	s.Lock()
@@ -669,14 +715,21 @@ func (s *dbShard) insertSeriesEntries(inserts []dbShardInsert) error {
 		// If we are going to write to this entry then increment the
 		// writer count so it does not look empty immediately after
 		// we release the write lock
-		if inserts[i].hasPendingWrite {
-			if !anyPendingWrites {
-				anyPendingWrites = true
-			}
-			entry.incrementWriterCount()
+		hasPendingWrite := inserts[i].hasPendingWrite
+		if hasPendingWrite && !anyPendingWrites {
+			anyPendingWrites = true
 		}
 
 		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.series.ID())
+		if entry != nil {
+			// Already exists so update the entry we're pointed at for this insert
+			inserts[i].entry = entry
+		}
+		if hasPendingWrite {
+			// We're definitely writing a value, ensure that the pending write is
+			// visible before we release the lookup write lock
+			inserts[i].entry.incrementWriterCount()
+		}
 		if err == nil {
 			// Already inserted
 			continue
@@ -799,31 +852,31 @@ func (s *dbShard) Bootstrap(
 	s.bs = bootstrapping
 	s.Unlock()
 
-	inserts := make([]dbShardInsert, 1)
 	multiErr := xerrors.NewMultiError()
 	for _, dbBlocks := range bootstrappedSeries {
+		// First lookup if series already exists
 		entry, _, err := s.tryRetrieveWritableSeries(dbBlocks.ID)
-		if err != nil {
+		if err != nil && err != errShardEntryNotFound {
 			multiErr = multiErr.Add(err)
 			continue
 		}
-		if entry == nil {
-			inserts[0] = s.newShardInsert(dbBlocks.ID, enqueueInsertOptions{})
-			if err := s.insertSeriesEntries(inserts); err != nil {
+		if err == errShardEntryNotFound {
+			// Synchronously insert to avoid waiting for
+			// the insert queue potential delayed insert
+			entry, err = s.insertSeriesSync(dbBlocks.ID, insertSyncIncWriterCount)
+			if err != nil {
 				multiErr = multiErr.Add(err)
 				continue
 			}
 		}
 
-		entry, err := s.writableSeries(dbBlocks.ID)
+		err = entry.series.Bootstrap(dbBlocks.Blocks)
 		if err != nil {
 			multiErr = multiErr.Add(err)
-			continue
 		}
 
-		err = entry.series.Bootstrap(dbBlocks.Blocks)
+		// Always decrement the writer count, avoid continue on bootstrap error
 		entry.decrementWriterCount()
-		multiErr = multiErr.Add(err)
 	}
 
 	// From this point onwards, all newly created series that aren't in
