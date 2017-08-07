@@ -54,7 +54,11 @@ func NewBytes(value []byte, opts BytesOptions) Bytes {
 		value: value,
 	}
 	b.SetFinalizer(b)
-	b.TrackObject(b.value)
+	// NB(r): Tracking objects causes interface allocation
+	// so avoid if we are not performing any leak detection.
+	if leakDetectionEnabled() {
+		b.TrackObject(b.value)
+	}
 	return b
 }
 

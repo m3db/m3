@@ -104,6 +104,10 @@ func DisableLeakDetection() {
 	leakDetectionFlag = false
 }
 
+func leakDetectionEnabled() bool {
+	return leakDetectionFlag
+}
+
 // DumpLeaks returns all detected leaks so far.
 func DumpLeaks() []string {
 	var r []string
