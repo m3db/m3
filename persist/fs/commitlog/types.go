@@ -163,7 +163,7 @@ type Options interface {
 	// the same series ID metadata on every data point saving considerable space
 	SetMetadataSeenCacheSize(value int) Options
 
-	// SetMetadataSeenCacheSize returns the amount of entries to to use in the
+	// MetadataSeenCacheSize returns the amount of entries to to use in the
 	// "seen" metadata cache - this allows the commit log to avoid writing
 	// the same series ID metadata on every data point saving considerable space
 	MetadataSeenCacheSize() int
