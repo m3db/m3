@@ -135,17 +135,17 @@ func (r *reader) Read() (
 		defer namespace.DecRef()
 		namespace.AppendAll(decoded.Namespace)
 
-		r.metadataLookup[entry.Index] = Series{
+		metadata = Series{
 			UniqueIndex: entry.Index,
 			ID:          ts.BinaryID(id),
 			Namespace:   ts.BinaryID(namespace),
 			Shard:       uint32(decoded.Shard),
 		}
+		ok = true
+
+		r.metadataLookup[entry.Index] = metadata
 	}
 
-	if !ok {
-		metadata, ok = r.metadataLookup[entry.Index]
-	}
 	if !ok {
 		resultErr = errCommitLogReaderMissingLogMetadata
 		return
