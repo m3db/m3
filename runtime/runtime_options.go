@@ -28,7 +28,7 @@ import (
 
 const (
 	defaultWriteNewSeriesAsync                  = false
-	defaultWriteNewSeriesBackoffDuration        = 2 * time.Millisecond
+	defaultWriteNewSeriesBackoffDuration        = time.Duration(0)
 	defaultWriteNewSeriesLimitPerShardPerSecond = 0
 )
 
