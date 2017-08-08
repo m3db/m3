@@ -81,30 +81,30 @@ const (
 type dbShard struct {
 	sync.RWMutex
 	block.DatabaseBlockRetriever
-	opts                    Options
-	nowFn                   clock.NowFn
-	state                   dbShardState
-	namespace               ts.ID
-	seriesBlockRetriever    series.QueryableBlockRetriever
-	shard                   uint32
-	increasingIndex         increasingIndex
-	seriesPool              series.DatabaseSeriesPool
-	writeCommitLogFn        writeCommitLogFn
-	insertQueue             *dbShardInsertQueue
-	lookup                  map[ts.Hash]*list.Element
-	list                    *list.List
-	bs                      bootstrapState
-	newSeriesBootstrapped   bool
-	filesetBeforeFn         filesetBeforeFn
-	deleteFilesFn           deleteFilesFn
-	tickSleepIfAheadEvery   int
-	sleepFn                 func(time.Duration)
-	identifierPool          ts.IdentifierPool
-	contextPool             context.Pool
-	flushState              shardFlushState
-	runtimeOptsListenCloser xclose.SimpleCloser
-	currRuntimeOptions      dbShardRuntimeOptions
-	metrics                 dbShardMetrics
+	opts                     Options
+	nowFn                    clock.NowFn
+	state                    dbShardState
+	namespace                ts.ID
+	seriesBlockRetriever     series.QueryableBlockRetriever
+	shard                    uint32
+	increasingIndex          increasingIndex
+	seriesPool               series.DatabaseSeriesPool
+	writeCommitLogFn         writeCommitLogFn
+	insertQueue              *dbShardInsertQueue
+	lookup                   map[ts.Hash]*list.Element
+	list                     *list.List
+	bs                       bootstrapState
+	newSeriesBootstrapped    bool
+	filesetBeforeFn          filesetBeforeFn
+	deleteFilesFn            deleteFilesFn
+	tickSleepIfAheadEvery    int
+	sleepFn                  func(time.Duration)
+	identifierPool           ts.IdentifierPool
+	contextPool              context.Pool
+	flushState               shardFlushState
+	runtimeOptsListenClosers []xclose.SimpleCloser
+	currRuntimeOptions       dbShardRuntimeOptions
+	metrics                  dbShardMetrics
 }
 
 type dbShardRuntimeOptions struct {
@@ -120,7 +120,7 @@ type dbShardMetrics struct {
 	insertAsyncWriteErrors  tally.Counter
 }
 
-func newDbShardMetrics(scope tally.Scope) dbShardMetrics {
+func newDatabaseShardMetrics(scope tally.Scope) dbShardMetrics {
 	return dbShardMetrics{
 		create:       scope.Counter("create"),
 		close:        scope.Counter("close"),
@@ -198,12 +198,21 @@ func newDatabaseShard(
 		identifierPool:        opts.IdentifierPool(),
 		contextPool:           opts.ContextPool(),
 		flushState:            newShardFlushState(),
-		metrics:               newDbShardMetrics(scope),
+		metrics:               newDatabaseShardMetrics(scope),
 	}
-	d.insertQueue = newDbShardInsertQueue(d.insertSeriesBatch, scope)
-	d.insertQueue.Start()
+	d.insertQueue = newDatabaseShardInsertQueue(d.insertSeriesBatch,
+		d.nowFn, scope)
 
-	d.runtimeOptsListenCloser = opts.RuntimeOptionsManager().RegisterListener(d)
+	registerRuntimeOptionsListener := func(listener runtime.OptionsListener) {
+		elem := opts.RuntimeOptionsManager().RegisterListener(listener)
+		d.runtimeOptsListenClosers = append(d.runtimeOptsListenClosers, elem)
+	}
+	registerRuntimeOptionsListener(d)
+	registerRuntimeOptionsListener(d.insertQueue)
+
+	// Start the insert queue after registering runtime options listeners
+	// that may immediately fire with values
+	d.insertQueue.Start()
 
 	if !needsBootstrap {
 		d.bs = bootstrapped
@@ -331,7 +340,7 @@ func (s *dbShard) Close() error {
 
 	s.insertQueue.Stop()
 
-	if closer := s.runtimeOptsListenCloser; closer != nil {
+	for _, closer := range s.runtimeOptsListenClosers {
 		closer.Close()
 	}
 

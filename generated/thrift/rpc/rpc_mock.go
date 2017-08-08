@@ -179,6 +179,28 @@ func (_mr *_MockTChanNodeRecorder) GetWriteNewSeriesAsync(arg0 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetWriteNewSeriesAsync", arg0)
 }
 
+func (_m *MockTChanNode) GetWriteNewSeriesBackoffDuration(ctx thrift.Context) (*NodeWriteNewSeriesBackoffDurationResult_, error) {
+	ret := _m.ctrl.Call(_m, "GetWriteNewSeriesBackoffDuration", ctx)
+	ret0, _ := ret[0].(*NodeWriteNewSeriesBackoffDurationResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockTChanNodeRecorder) GetWriteNewSeriesBackoffDuration(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetWriteNewSeriesBackoffDuration", arg0)
+}
+
+func (_m *MockTChanNode) GetWriteNewSeriesLimitPerShardPerSecond(ctx thrift.Context) (*NodeWriteNewSeriesLimitPerShardPerSecondResult_, error) {
+	ret := _m.ctrl.Call(_m, "GetWriteNewSeriesLimitPerShardPerSecond", ctx)
+	ret0, _ := ret[0].(*NodeWriteNewSeriesLimitPerShardPerSecondResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockTChanNodeRecorder) GetWriteNewSeriesLimitPerShardPerSecond(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetWriteNewSeriesLimitPerShardPerSecond", arg0)
+}
+
 func (_m *MockTChanNode) Health(ctx thrift.Context) (*NodeHealthResult_, error) {
 	ret := _m.ctrl.Call(_m, "Health", ctx)
 	ret0, _ := ret[0].(*NodeHealthResult_)
@@ -220,6 +242,28 @@ func (_m *MockTChanNode) SetWriteNewSeriesAsync(ctx thrift.Context, req *NodeSet
 
 func (_mr *_MockTChanNodeRecorder) SetWriteNewSeriesAsync(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteNewSeriesAsync", arg0, arg1)
+}
+
+func (_m *MockTChanNode) SetWriteNewSeriesBackoffDuration(ctx thrift.Context, req *NodeSetWriteNewSeriesBackoffDurationRequest) (*NodeWriteNewSeriesBackoffDurationResult_, error) {
+	ret := _m.ctrl.Call(_m, "SetWriteNewSeriesBackoffDuration", ctx, req)
+	ret0, _ := ret[0].(*NodeWriteNewSeriesBackoffDurationResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockTChanNodeRecorder) SetWriteNewSeriesBackoffDuration(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteNewSeriesBackoffDuration", arg0, arg1)
+}
+
+func (_m *MockTChanNode) SetWriteNewSeriesLimitPerShardPerSecond(ctx thrift.Context, req *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) (*NodeWriteNewSeriesLimitPerShardPerSecondResult_, error) {
+	ret := _m.ctrl.Call(_m, "SetWriteNewSeriesLimitPerShardPerSecond", ctx, req)
+	ret0, _ := ret[0].(*NodeWriteNewSeriesLimitPerShardPerSecondResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockTChanNodeRecorder) SetWriteNewSeriesLimitPerShardPerSecond(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWriteNewSeriesLimitPerShardPerSecond", arg0, arg1)
 }
 
 func (_m *MockTChanNode) Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error) {
