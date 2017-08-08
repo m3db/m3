@@ -44,7 +44,11 @@ var (
 	timeZero = time.Time{}
 )
 
-type newCommitLogWriterFn func(flushFn flushFn, opts Options) commitLogWriter
+type newCommitLogWriterFn func(
+	flushFn flushFn,
+	scope tally.Scope,
+	opts Options,
+) commitLogWriter
 
 type commitLogFailFn func(err error)
 
@@ -52,10 +56,9 @@ type completionFn func(err error)
 
 type commitLog struct {
 	sync.RWMutex
-	opts    Options
-	nowFn   clock.NowFn
-	scope   tally.Scope
-	metrics commitLogMetrics
+	opts  Options
+	nowFn clock.NowFn
+	scope tally.Scope
 
 	log xlog.Logger
 
@@ -71,10 +74,11 @@ type commitLog struct {
 	lastFlushAt     time.Time
 	pendingFlushFns []completionFn
 
-	bitset         bitset
 	writerExpireAt time.Time
 	closed         bool
 	closeErr       chan error
+
+	metrics commitLogMetrics
 }
 
 type commitLogMetrics struct {
@@ -111,9 +115,13 @@ func NewCommitLog(opts Options) CommitLog {
 	scope := iopts.MetricsScope()
 
 	commitLog := &commitLog{
-		opts:  opts,
-		nowFn: opts.ClockOptions().NowFn(),
-		scope: scope,
+		opts:                 opts,
+		nowFn:                opts.ClockOptions().NowFn(),
+		scope:                scope,
+		log:                  iopts.Logger(),
+		newCommitLogWriterFn: newCommitLogWriter,
+		writes:               make(chan commitLogWrite, opts.BacklogQueueSize()),
+		closeErr:             make(chan error),
 		metrics: commitLogMetrics{
 			queued:      scope.Gauge("writes.queued"),
 			success:     scope.Counter("writes.success"),
@@ -123,10 +131,6 @@ func NewCommitLog(opts Options) CommitLog {
 			flushErrors: scope.Counter("writes.flush-errors"),
 			flushDone:   scope.Counter("writes.flush-done"),
 		},
-		log:                  iopts.Logger(),
-		newCommitLogWriterFn: newCommitLogWriter,
-		writes:               make(chan commitLogWrite, opts.BacklogQueueSize()),
-		closeErr:             make(chan error),
 	}
 
 	return commitLog
@@ -297,7 +301,7 @@ func (l *commitLog) openWriter(now time.Time) error {
 	}
 
 	if l.writer == nil {
-		l.writer = l.newCommitLogWriterFn(l.onFlush, l.opts)
+		l.writer = l.newCommitLogWriterFn(l.onFlush, l.scope, l.opts)
 	}
 
 	blockSize := l.opts.RetentionOptions().BlockSize()

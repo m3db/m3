@@ -92,7 +92,7 @@ func TestCommitLogPropTest(t *testing.T) {
 	defer os.RemoveAll(basePath)
 
 	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 30
+	parameters.MinSuccessfulTests = 8
 	properties := gopter.NewProperties(parameters)
 
 	comms := clCommandFunctor(basePath, t)

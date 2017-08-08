@@ -116,7 +116,8 @@ func (r *reader) Read() (
 		return
 	}
 
-	if len(entry.Metadata) != 0 {
+	metadata, ok := r.metadataLookup[entry.Index]
+	if !ok && len(entry.Metadata) != 0 {
 		r.metadataDecoder.Reset(entry.Metadata)
 		decoded, err := r.metadataDecoder.DecodeLogMetadata()
 		if err != nil {
@@ -134,15 +135,17 @@ func (r *reader) Read() (
 		defer namespace.DecRef()
 		namespace.AppendAll(decoded.Namespace)
 
-		r.metadataLookup[entry.Index] = Series{
+		metadata = Series{
 			UniqueIndex: entry.Index,
 			ID:          ts.BinaryID(id),
 			Namespace:   ts.BinaryID(namespace),
 			Shard:       uint32(decoded.Shard),
 		}
+		ok = true
+
+		r.metadataLookup[entry.Index] = metadata
 	}
 
-	metadata, ok := r.metadataLookup[entry.Index]
 	if !ok {
 		resultErr = errCommitLogReaderMissingLogMetadata
 		return
