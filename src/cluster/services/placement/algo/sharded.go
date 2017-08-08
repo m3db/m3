@@ -29,10 +29,10 @@ import (
 )
 
 var (
-	errNotEnoughRacks                   = errors.New("not enough racks to take shards, please make sure RF is less than number of racks")
-	errAddingInstanceAlreadyExist       = errors.New("the adding instance is already in the placement")
-	errCouldNotReachTargetLoad          = errors.New("new instance could not reach target load")
-	errShardedAlgoOnNotShardedPlacement = errors.New("could not apply sharded algo on non-sharded placement")
+	errNotEnoughRacks              = errors.New("not enough racks to take shards, please make sure RF is less than number of racks")
+	errAddingInstanceAlreadyExist  = errors.New("the adding instance is already in the placement")
+	errCouldNotReachTargetLoad     = errors.New("new instance could not reach target load")
+	errIncompatibleWithShardedAlgo = errors.New("could not apply sharded algo on the placement")
 )
 
 type rackAwarePlacementAlgorithm struct {
@@ -43,18 +43,39 @@ func newShardedAlgorithm(opts services.PlacementOptions) placement.Algorithm {
 	return rackAwarePlacementAlgorithm{opts: opts}
 }
 
-func (a rackAwarePlacementAlgorithm) InitialPlacement(instances []services.PlacementInstance, shards []uint32) (services.Placement, error) {
+func (a rackAwarePlacementAlgorithm) IsCompatibleWith(p services.Placement) error {
+	if !p.IsSharded() {
+		return errIncompatibleWithShardedAlgo
+	}
+
+	return nil
+}
+
+func (a rackAwarePlacementAlgorithm) InitialPlacement(
+	instances []services.PlacementInstance,
+	shards []uint32,
+	rf int,
+) (services.Placement, error) {
 	ph := newInitHelper(placement.CloneInstances(instances), shards, a.opts)
 
 	if err := ph.PlaceShards(newShards(shards), nil, ph.Instances()); err != nil {
 		return nil, err
 	}
-	return ph.GeneratePlacement(nonEmptyOnly), nil
+	p := ph.GeneratePlacement()
+	for i := 1; i < rf; i++ {
+		ph := newAddReplicaHelper(p, a.opts)
+		if err := ph.PlaceShards(newShards(p.Shards()), nil, ph.Instances()); err != nil {
+			return nil, err
+		}
+		ph.Optimize(safe)
+		p = ph.GeneratePlacement()
+	}
+	return p, nil
 }
 
 func (a rackAwarePlacementAlgorithm) AddReplica(p services.Placement) (services.Placement, error) {
-	if !p.IsSharded() {
-		return nil, errShardedAlgoOnNotShardedPlacement
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, err
 	}
 
 	p = placement.ClonePlacement(p)
@@ -65,50 +86,61 @@ func (a rackAwarePlacementAlgorithm) AddReplica(p services.Placement) (services.
 
 	ph.Optimize(safe)
 
-	return ph.GeneratePlacement(nonEmptyOnly), nil
+	return ph.GeneratePlacement(), nil
 }
 
-func (a rackAwarePlacementAlgorithm) RemoveInstance(p services.Placement, instanceID string) (services.Placement, error) {
-	if !p.IsSharded() {
-		return nil, errShardedAlgoOnNotShardedPlacement
+func (a rackAwarePlacementAlgorithm) RemoveInstances(
+	p services.Placement,
+	instanceIDs []string,
+) (services.Placement, error) {
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, err
 	}
 
 	p = placement.ClonePlacement(p)
-	ph, leavingInstance, err := newRemoveInstanceHelper(p, instanceID, a.opts)
-	if err != nil {
-		return nil, err
-	}
-	// place the shards from the leaving instance to the rest of the cluster
-	if err := ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance, ph.Instances()); err != nil {
-		return nil, err
-	}
+	for _, instanceID := range instanceIDs {
+		ph, leavingInstance, err := newRemoveInstanceHelper(p, instanceID, a.opts)
+		if err != nil {
+			return nil, err
+		}
+		// place the shards from the leaving instance to the rest of the cluster
+		if err := ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance, ph.Instances()); err != nil {
+			return nil, err
+		}
 
-	result, _, err := addInstanceToPlacement(ph.GeneratePlacement(nonEmptyOnly), leavingInstance, false)
-	return result, err
+		if p, _, err = addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, nonEmptyOnly); err != nil {
+			return nil, err
+		}
+	}
+	return p, nil
 }
 
-func (a rackAwarePlacementAlgorithm) AddInstance(
+func (a rackAwarePlacementAlgorithm) AddInstances(
 	p services.Placement,
-	addingInstance services.PlacementInstance,
+	instances []services.PlacementInstance,
 ) (services.Placement, error) {
-	if !p.IsSharded() {
-		return nil, errShardedAlgoOnNotShardedPlacement
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, err
 	}
 
-	p, addingInstance = placement.ClonePlacement(p), placement.CloneInstance(addingInstance)
-	instance, exist := p.Instance(addingInstance.ID())
-	if exist {
-		if !placement.IsInstanceLeaving(instance) {
-			return nil, errAddingInstanceAlreadyExist
+	p = placement.ClonePlacement(p)
+	for _, instance := range instances {
+		addingInstance := placement.CloneInstance(instance)
+		instance, exist := p.Instance(instance.ID())
+		if exist {
+			if !placement.IsInstanceLeaving(instance) {
+				return nil, errAddingInstanceAlreadyExist
+			}
+			addingInstance = instance
 		}
-		addingInstance = instance
+
+		ph := newAddInstanceHelper(p, addingInstance, a.opts)
+
+		ph.AddInstance(addingInstance)
+		p = ph.GeneratePlacement()
 	}
 
-	ph := newAddInstanceHelper(p, addingInstance, a.opts)
-
-	ph.AddInstance(addingInstance)
-
-	return ph.GeneratePlacement(nonEmptyOnly), nil
+	return p, nil
 }
 
 func (a rackAwarePlacementAlgorithm) ReplaceInstance(
@@ -116,8 +148,8 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstance(
 	instanceID string,
 	addingInstances []services.PlacementInstance,
 ) (services.Placement, error) {
-	if !p.IsSharded() {
-		return nil, errShardedAlgoOnNotShardedPlacement
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, err
 	}
 
 	p = placement.ClonePlacement(p)
@@ -132,7 +164,7 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstance(
 	}
 
 	if loadOnInstance(leavingInstance) == 0 {
-		result, _, err := addInstanceToPlacement(ph.GeneratePlacement(nonEmptyOnly), leavingInstance, false)
+		result, _, err := addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, nonEmptyOnly)
 		return result, err
 	}
 
@@ -151,6 +183,6 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstance(
 
 	ph.Optimize(unsafe)
 
-	result, _, err := addInstanceToPlacement(ph.GeneratePlacement(includeEmpty), leavingInstance, false)
+	result, _, err := addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, nonEmptyOnly)
 	return result, err
 }

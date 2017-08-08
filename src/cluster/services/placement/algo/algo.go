@@ -27,6 +27,10 @@ import (
 
 // NewAlgorithm returns a placement algorithm with given options
 func NewAlgorithm(opts services.PlacementOptions) placement.Algorithm {
+	if opts.IsMirrored() {
+		return newMirroredAlgorithm(opts)
+	}
+
 	if opts.IsSharded() {
 		return newShardedAlgorithm(opts)
 	}
