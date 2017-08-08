@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/ratelimit"
-	"github.com/m3db/m3x/close"
+	xclose "github.com/m3db/m3x/close"
 )
 
 // Options is a set of runtime options

@@ -204,7 +204,7 @@ func newDatabaseShard(
 		d.nowFn, scope)
 
 	registerRuntimeOptionsListener := func(listener runtime.OptionsListener) {
-		elem := opts.RuntimeOptionsManager().RegisterListener(d)
+		elem := opts.RuntimeOptionsManager().RegisterListener(listener)
 		d.runtimeOptsListenClosers = append(d.runtimeOptsListenClosers, elem)
 	}
 	registerRuntimeOptionsListener(d)
