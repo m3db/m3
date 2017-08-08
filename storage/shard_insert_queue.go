@@ -25,6 +25,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/runtime"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -33,6 +35,7 @@ import (
 var (
 	errShardInsertQueueNotOpen             = errors.New("shard insert queue is not open")
 	errShardInsertQueueAlreadyOpenOrClosed = errors.New("shard insert queue already open or is closed")
+	errNewSeriesInsertRateLimitExceeded    = errors.New("shard insert of new series eclipses rate limit")
 )
 
 type dbShardInsertQueueState int
@@ -47,8 +50,16 @@ type dbShardInsertQueue struct {
 	sync.RWMutex
 
 	state              dbShardInsertQueueState
+	nowFn              clock.NowFn
 	insertEntryBatchFn dbShardInsertEntryBatchFn
-	insertBatchBackoff time.Duration
+	sleepFn            func(time.Duration)
+
+	// rate limits, protected by mutex
+	insertBatchBackoff   time.Duration
+	insertPerSecondLimit int
+
+	insertPerSecondLimitWindowNanos  int64
+	insertPerSecondLimitWindowValues int
 
 	currBatch    *dbShardInsertBatch
 	notifyInsert chan struct{}
@@ -61,7 +72,7 @@ type dbShardInsertQueueMetrics struct {
 	insertsPendingWrite   tally.Counter
 }
 
-func newDBShardInsertQueueMetrics(
+func newDatabaseShardInsertQueueMetrics(
 	scope tally.Scope,
 ) dbShardInsertQueueMetrics {
 	insertName := "inserts"
@@ -108,7 +119,7 @@ func (b *dbShardInsertBatch) reset() {
 
 type dbShardInsertEntryBatchFn func(inserts []dbShardInsert) error
 
-// newDbShardInsertQueue creates a new shard insert queue. The shard
+// newDatabaseShardInsertQueue creates a new shard insert queue. The shard
 // insert queue is used to batch inserts into the shard series map without
 // sacrificing delays to insert the series.
 //
@@ -123,37 +134,74 @@ type dbShardInsertEntryBatchFn func(inserts []dbShardInsert) error
 // The batching as it is without any sleep and just relying on a notification
 // trigger and hot looping when being flooded improved by a factor of roughly
 // 4x during floods of new series.
-func newDbShardInsertQueue(
+func newDatabaseShardInsertQueue(
 	insertEntryBatchFn dbShardInsertEntryBatchFn,
+	nowFn clock.NowFn,
 	scope tally.Scope,
 ) *dbShardInsertQueue {
 	currBatch := &dbShardInsertBatch{}
 	currBatch.reset()
 	subscope := scope.SubScope("insert-queue")
 	return &dbShardInsertQueue{
+		nowFn:              nowFn,
 		insertEntryBatchFn: insertEntryBatchFn,
+		sleepFn:            time.Sleep,
 		currBatch:          currBatch,
 		notifyInsert:       make(chan struct{}, 1),
-		metrics:            newDBShardInsertQueueMetrics(subscope),
+		metrics:            newDatabaseShardInsertQueueMetrics(subscope),
 	}
 }
 
+func (q *dbShardInsertQueue) SetRuntimeOptions(value runtime.Options) {
+	q.Lock()
+	q.insertBatchBackoff = value.WriteNewSeriesBackoffDuration()
+	q.insertPerSecondLimit = value.WriteNewSeriesLimitPerShardPerSecond()
+	q.Unlock()
+}
+
 func (q *dbShardInsertQueue) insertLoop() {
+	var lastInsert time.Time
 	freeBatch := &dbShardInsertBatch{}
 	freeBatch.reset()
 	for range q.notifyInsert {
+		// Check if inserting too fast
+		elapsedSinceLastInsert := q.nowFn().Sub(lastInsert)
+
 		// Rotate batches
+		var (
+			backoff time.Duration
+			batch   *dbShardInsertBatch
+		)
 		q.Lock()
-		batch := q.currBatch
-		q.currBatch = freeBatch
+		if elapsedSinceLastInsert < q.insertBatchBackoff {
+			// Need to backoff before rotate and insert
+			backoff = q.insertBatchBackoff - elapsedSinceLastInsert
+		} else {
+			// No backoff required, rotate and go
+			batch = q.currBatch
+			q.currBatch = freeBatch
+		}
 		q.Unlock()
 
-		q.insertEntryBatchFn(batch.inserts)
+		if backoff > 0 {
+			q.sleepFn(backoff)
+			q.Lock()
+			// Rotate after backoff
+			batch = q.currBatch
+			q.currBatch = freeBatch
+			q.Unlock()
+		}
+
+		if len(batch.inserts) > 0 {
+			q.insertEntryBatchFn(batch.inserts)
+		}
 		batch.wg.Done()
 
 		// Set the free batch
 		batch.reset()
 		freeBatch = batch
+
+		lastInsert = q.nowFn()
 	}
 }
 
@@ -192,10 +240,24 @@ func (q *dbShardInsertQueue) Stop() error {
 }
 
 func (q *dbShardInsertQueue) Insert(insert dbShardInsert) (*sync.WaitGroup, error) {
+	windowNanos := q.nowFn().Truncate(time.Second).UnixNano()
+
 	q.Lock()
 	if q.state != dbShardInsertQueueStateOpen {
 		q.Unlock()
 		return nil, errShardInsertQueueNotOpen
+	}
+	if limit := q.insertPerSecondLimit; limit > 0 {
+		if q.insertPerSecondLimitWindowNanos != windowNanos {
+			// Rolled into to a new window
+			q.insertPerSecondLimitWindowNanos = windowNanos
+			q.insertPerSecondLimitWindowValues = 0
+		}
+		q.insertPerSecondLimitWindowValues++
+		if q.insertPerSecondLimitWindowValues > limit {
+			q.Unlock()
+			return nil, errNewSeriesInsertRateLimitExceeded
+		}
 	}
 	q.currBatch.inserts = append(q.currBatch.inserts, insert)
 	wg := q.currBatch.wg

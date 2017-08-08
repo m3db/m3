@@ -28,7 +28,6 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-
 	"github.com/apache/thrift/lib/go/thrift"
 )
 
@@ -5527,6 +5526,489 @@ func (p *NodeSetWriteNewSeriesAsyncRequest) String() string {
 }
 
 // Attributes:
+//  - WriteNewSeriesBackoffDuration
+//  - DurationType
+type NodeWriteNewSeriesBackoffDurationResult_ struct {
+	WriteNewSeriesBackoffDuration int64    `thrift:"writeNewSeriesBackoffDuration,1,required" db:"writeNewSeriesBackoffDuration" json:"writeNewSeriesBackoffDuration"`
+	DurationType                  TimeType `thrift:"durationType,2,required" db:"durationType" json:"durationType"`
+}
+
+func NewNodeWriteNewSeriesBackoffDurationResult_() *NodeWriteNewSeriesBackoffDurationResult_ {
+	return &NodeWriteNewSeriesBackoffDurationResult_{}
+}
+
+func (p *NodeWriteNewSeriesBackoffDurationResult_) GetWriteNewSeriesBackoffDuration() int64 {
+	return p.WriteNewSeriesBackoffDuration
+}
+
+func (p *NodeWriteNewSeriesBackoffDurationResult_) GetDurationType() TimeType {
+	return p.DurationType
+}
+func (p *NodeWriteNewSeriesBackoffDurationResult_) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	var issetWriteNewSeriesBackoffDuration bool = false
+	var issetDurationType bool = false
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+			issetWriteNewSeriesBackoffDuration = true
+		case 2:
+			if err := p.ReadField2(iprot); err != nil {
+				return err
+			}
+			issetDurationType = true
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	if !issetWriteNewSeriesBackoffDuration {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field WriteNewSeriesBackoffDuration is not set"))
+	}
+	if !issetDurationType {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field DurationType is not set"))
+	}
+	return nil
+}
+
+func (p *NodeWriteNewSeriesBackoffDurationResult_) ReadField1(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.WriteNewSeriesBackoffDuration = v
+	}
+	return nil
+}
+
+func (p *NodeWriteNewSeriesBackoffDurationResult_) ReadField2(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI32(); err != nil {
+		return thrift.PrependError("error reading field 2: ", err)
+	} else {
+		temp := TimeType(v)
+		p.DurationType = temp
+	}
+	return nil
+}
+
+func (p *NodeWriteNewSeriesBackoffDurationResult_) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("NodeWriteNewSeriesBackoffDurationResult"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeWriteNewSeriesBackoffDurationResult_) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("writeNewSeriesBackoffDuration", thrift.I64, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:writeNewSeriesBackoffDuration: ", p), err)
+	}
+	if err := oprot.WriteI64(int64(p.WriteNewSeriesBackoffDuration)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.writeNewSeriesBackoffDuration (1) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:writeNewSeriesBackoffDuration: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeWriteNewSeriesBackoffDurationResult_) writeField2(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("durationType", thrift.I32, 2); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:durationType: ", p), err)
+	}
+	if err := oprot.WriteI32(int32(p.DurationType)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.durationType (2) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:durationType: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeWriteNewSeriesBackoffDurationResult_) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeWriteNewSeriesBackoffDurationResult_(%+v)", *p)
+}
+
+// Attributes:
+//  - WriteNewSeriesBackoffDuration
+//  - DurationType
+type NodeSetWriteNewSeriesBackoffDurationRequest struct {
+	WriteNewSeriesBackoffDuration int64    `thrift:"writeNewSeriesBackoffDuration,1,required" db:"writeNewSeriesBackoffDuration" json:"writeNewSeriesBackoffDuration"`
+	DurationType                  TimeType `thrift:"durationType,2" db:"durationType" json:"durationType,omitempty"`
+}
+
+func NewNodeSetWriteNewSeriesBackoffDurationRequest() *NodeSetWriteNewSeriesBackoffDurationRequest {
+	return &NodeSetWriteNewSeriesBackoffDurationRequest{
+		DurationType: 2,
+	}
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationRequest) GetWriteNewSeriesBackoffDuration() int64 {
+	return p.WriteNewSeriesBackoffDuration
+}
+
+var NodeSetWriteNewSeriesBackoffDurationRequest_DurationType_DEFAULT TimeType = 2
+
+func (p *NodeSetWriteNewSeriesBackoffDurationRequest) GetDurationType() TimeType {
+	return p.DurationType
+}
+func (p *NodeSetWriteNewSeriesBackoffDurationRequest) IsSetDurationType() bool {
+	return p.DurationType != NodeSetWriteNewSeriesBackoffDurationRequest_DurationType_DEFAULT
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationRequest) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	var issetWriteNewSeriesBackoffDuration bool = false
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+			issetWriteNewSeriesBackoffDuration = true
+		case 2:
+			if err := p.ReadField2(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	if !issetWriteNewSeriesBackoffDuration {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field WriteNewSeriesBackoffDuration is not set"))
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationRequest) ReadField1(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.WriteNewSeriesBackoffDuration = v
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationRequest) ReadField2(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI32(); err != nil {
+		return thrift.PrependError("error reading field 2: ", err)
+	} else {
+		temp := TimeType(v)
+		p.DurationType = temp
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationRequest) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("NodeSetWriteNewSeriesBackoffDurationRequest"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField2(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("writeNewSeriesBackoffDuration", thrift.I64, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:writeNewSeriesBackoffDuration: ", p), err)
+	}
+	if err := oprot.WriteI64(int64(p.WriteNewSeriesBackoffDuration)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.writeNewSeriesBackoffDuration (1) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:writeNewSeriesBackoffDuration: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationRequest) writeField2(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDurationType() {
+		if err := oprot.WriteFieldBegin("durationType", thrift.I32, 2); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:durationType: ", p), err)
+		}
+		if err := oprot.WriteI32(int32(p.DurationType)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.durationType (2) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 2:durationType: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeSetWriteNewSeriesBackoffDurationRequest(%+v)", *p)
+}
+
+// Attributes:
+//  - WriteNewSeriesLimitPerShardPerSecond
+type NodeWriteNewSeriesLimitPerShardPerSecondResult_ struct {
+	WriteNewSeriesLimitPerShardPerSecond int64 `thrift:"writeNewSeriesLimitPerShardPerSecond,1,required" db:"writeNewSeriesLimitPerShardPerSecond" json:"writeNewSeriesLimitPerShardPerSecond"`
+}
+
+func NewNodeWriteNewSeriesLimitPerShardPerSecondResult_() *NodeWriteNewSeriesLimitPerShardPerSecondResult_ {
+	return &NodeWriteNewSeriesLimitPerShardPerSecondResult_{}
+}
+
+func (p *NodeWriteNewSeriesLimitPerShardPerSecondResult_) GetWriteNewSeriesLimitPerShardPerSecond() int64 {
+	return p.WriteNewSeriesLimitPerShardPerSecond
+}
+func (p *NodeWriteNewSeriesLimitPerShardPerSecondResult_) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	var issetWriteNewSeriesLimitPerShardPerSecond bool = false
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+			issetWriteNewSeriesLimitPerShardPerSecond = true
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	if !issetWriteNewSeriesLimitPerShardPerSecond {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field WriteNewSeriesLimitPerShardPerSecond is not set"))
+	}
+	return nil
+}
+
+func (p *NodeWriteNewSeriesLimitPerShardPerSecondResult_) ReadField1(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.WriteNewSeriesLimitPerShardPerSecond = v
+	}
+	return nil
+}
+
+func (p *NodeWriteNewSeriesLimitPerShardPerSecondResult_) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("NodeWriteNewSeriesLimitPerShardPerSecondResult"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeWriteNewSeriesLimitPerShardPerSecondResult_) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("writeNewSeriesLimitPerShardPerSecond", thrift.I64, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:writeNewSeriesLimitPerShardPerSecond: ", p), err)
+	}
+	if err := oprot.WriteI64(int64(p.WriteNewSeriesLimitPerShardPerSecond)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.writeNewSeriesLimitPerShardPerSecond (1) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:writeNewSeriesLimitPerShardPerSecond: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeWriteNewSeriesLimitPerShardPerSecondResult_) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeWriteNewSeriesLimitPerShardPerSecondResult_(%+v)", *p)
+}
+
+// Attributes:
+//  - WriteNewSeriesLimitPerShardPerSecond
+type NodeSetWriteNewSeriesLimitPerShardPerSecondRequest struct {
+	WriteNewSeriesLimitPerShardPerSecond int64 `thrift:"writeNewSeriesLimitPerShardPerSecond,1,required" db:"writeNewSeriesLimitPerShardPerSecond" json:"writeNewSeriesLimitPerShardPerSecond"`
+}
+
+func NewNodeSetWriteNewSeriesLimitPerShardPerSecondRequest() *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest {
+	return &NodeSetWriteNewSeriesLimitPerShardPerSecondRequest{}
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) GetWriteNewSeriesLimitPerShardPerSecond() int64 {
+	return p.WriteNewSeriesLimitPerShardPerSecond
+}
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	var issetWriteNewSeriesLimitPerShardPerSecond bool = false
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+			issetWriteNewSeriesLimitPerShardPerSecond = true
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	if !issetWriteNewSeriesLimitPerShardPerSecond {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field WriteNewSeriesLimitPerShardPerSecond is not set"))
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) ReadField1(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadI64(); err != nil {
+		return thrift.PrependError("error reading field 1: ", err)
+	} else {
+		p.WriteNewSeriesLimitPerShardPerSecond = v
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("NodeSetWriteNewSeriesLimitPerShardPerSecondRequest"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("writeNewSeriesLimitPerShardPerSecond", thrift.I64, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:writeNewSeriesLimitPerShardPerSecond: ", p), err)
+	}
+	if err := oprot.WriteI64(int64(p.WriteNewSeriesLimitPerShardPerSecond)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.writeNewSeriesLimitPerShardPerSecond (1) field write error: ", p), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:writeNewSeriesLimitPerShardPerSecond: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeSetWriteNewSeriesLimitPerShardPerSecondRequest(%+v)", *p)
+}
+
+// Attributes:
 //  - Ok
 //  - Status
 type HealthResult_ struct {
@@ -5697,6 +6179,14 @@ type Node interface {
 	// Parameters:
 	//  - Req
 	SetWriteNewSeriesAsync(req *NodeSetWriteNewSeriesAsyncRequest) (r *NodeWriteNewSeriesAsyncResult_, err error)
+	GetWriteNewSeriesBackoffDuration() (r *NodeWriteNewSeriesBackoffDurationResult_, err error)
+	// Parameters:
+	//  - Req
+	SetWriteNewSeriesBackoffDuration(req *NodeSetWriteNewSeriesBackoffDurationRequest) (r *NodeWriteNewSeriesBackoffDurationResult_, err error)
+	GetWriteNewSeriesLimitPerShardPerSecond() (r *NodeWriteNewSeriesLimitPerShardPerSecondResult_, err error)
+	// Parameters:
+	//  - Req
+	SetWriteNewSeriesLimitPerShardPerSecond(req *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) (r *NodeWriteNewSeriesLimitPerShardPerSecondResult_, err error)
 }
 
 type NodeClient struct {
@@ -6759,6 +7249,322 @@ func (p *NodeClient) recvSetWriteNewSeriesAsync() (value *NodeWriteNewSeriesAsyn
 	return
 }
 
+func (p *NodeClient) GetWriteNewSeriesBackoffDuration() (r *NodeWriteNewSeriesBackoffDurationResult_, err error) {
+	if err = p.sendGetWriteNewSeriesBackoffDuration(); err != nil {
+		return
+	}
+	return p.recvGetWriteNewSeriesBackoffDuration()
+}
+
+func (p *NodeClient) sendGetWriteNewSeriesBackoffDuration() (err error) {
+	oprot := p.OutputProtocol
+	if oprot == nil {
+		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.OutputProtocol = oprot
+	}
+	p.SeqId++
+	if err = oprot.WriteMessageBegin("getWriteNewSeriesBackoffDuration", thrift.CALL, p.SeqId); err != nil {
+		return
+	}
+	args := NodeGetWriteNewSeriesBackoffDurationArgs{}
+	if err = args.Write(oprot); err != nil {
+		return
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return
+	}
+	return oprot.Flush()
+}
+
+func (p *NodeClient) recvGetWriteNewSeriesBackoffDuration() (value *NodeWriteNewSeriesBackoffDurationResult_, err error) {
+	iprot := p.InputProtocol
+	if iprot == nil {
+		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.InputProtocol = iprot
+	}
+	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
+	if err != nil {
+		return
+	}
+	if method != "getWriteNewSeriesBackoffDuration" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "getWriteNewSeriesBackoffDuration failed: wrong method name")
+		return
+	}
+	if p.SeqId != seqId {
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "getWriteNewSeriesBackoffDuration failed: out of sequence response")
+		return
+	}
+	if mTypeId == thrift.EXCEPTION {
+		error39 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error40 error
+		error40, err = error39.Read(iprot)
+		if err != nil {
+			return
+		}
+		if err = iprot.ReadMessageEnd(); err != nil {
+			return
+		}
+		err = error40
+		return
+	}
+	if mTypeId != thrift.REPLY {
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "getWriteNewSeriesBackoffDuration failed: invalid message type")
+		return
+	}
+	result := NodeGetWriteNewSeriesBackoffDurationResult{}
+	if err = result.Read(iprot); err != nil {
+		return
+	}
+	if err = iprot.ReadMessageEnd(); err != nil {
+		return
+	}
+	if result.Err != nil {
+		err = result.Err
+		return
+	}
+	value = result.GetSuccess()
+	return
+}
+
+// Parameters:
+//  - Req
+func (p *NodeClient) SetWriteNewSeriesBackoffDuration(req *NodeSetWriteNewSeriesBackoffDurationRequest) (r *NodeWriteNewSeriesBackoffDurationResult_, err error) {
+	if err = p.sendSetWriteNewSeriesBackoffDuration(req); err != nil {
+		return
+	}
+	return p.recvSetWriteNewSeriesBackoffDuration()
+}
+
+func (p *NodeClient) sendSetWriteNewSeriesBackoffDuration(req *NodeSetWriteNewSeriesBackoffDurationRequest) (err error) {
+	oprot := p.OutputProtocol
+	if oprot == nil {
+		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.OutputProtocol = oprot
+	}
+	p.SeqId++
+	if err = oprot.WriteMessageBegin("setWriteNewSeriesBackoffDuration", thrift.CALL, p.SeqId); err != nil {
+		return
+	}
+	args := NodeSetWriteNewSeriesBackoffDurationArgs{
+		Req: req,
+	}
+	if err = args.Write(oprot); err != nil {
+		return
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return
+	}
+	return oprot.Flush()
+}
+
+func (p *NodeClient) recvSetWriteNewSeriesBackoffDuration() (value *NodeWriteNewSeriesBackoffDurationResult_, err error) {
+	iprot := p.InputProtocol
+	if iprot == nil {
+		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.InputProtocol = iprot
+	}
+	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
+	if err != nil {
+		return
+	}
+	if method != "setWriteNewSeriesBackoffDuration" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "setWriteNewSeriesBackoffDuration failed: wrong method name")
+		return
+	}
+	if p.SeqId != seqId {
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "setWriteNewSeriesBackoffDuration failed: out of sequence response")
+		return
+	}
+	if mTypeId == thrift.EXCEPTION {
+		error41 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error42 error
+		error42, err = error41.Read(iprot)
+		if err != nil {
+			return
+		}
+		if err = iprot.ReadMessageEnd(); err != nil {
+			return
+		}
+		err = error42
+		return
+	}
+	if mTypeId != thrift.REPLY {
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "setWriteNewSeriesBackoffDuration failed: invalid message type")
+		return
+	}
+	result := NodeSetWriteNewSeriesBackoffDurationResult{}
+	if err = result.Read(iprot); err != nil {
+		return
+	}
+	if err = iprot.ReadMessageEnd(); err != nil {
+		return
+	}
+	if result.Err != nil {
+		err = result.Err
+		return
+	}
+	value = result.GetSuccess()
+	return
+}
+
+func (p *NodeClient) GetWriteNewSeriesLimitPerShardPerSecond() (r *NodeWriteNewSeriesLimitPerShardPerSecondResult_, err error) {
+	if err = p.sendGetWriteNewSeriesLimitPerShardPerSecond(); err != nil {
+		return
+	}
+	return p.recvGetWriteNewSeriesLimitPerShardPerSecond()
+}
+
+func (p *NodeClient) sendGetWriteNewSeriesLimitPerShardPerSecond() (err error) {
+	oprot := p.OutputProtocol
+	if oprot == nil {
+		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.OutputProtocol = oprot
+	}
+	p.SeqId++
+	if err = oprot.WriteMessageBegin("getWriteNewSeriesLimitPerShardPerSecond", thrift.CALL, p.SeqId); err != nil {
+		return
+	}
+	args := NodeGetWriteNewSeriesLimitPerShardPerSecondArgs{}
+	if err = args.Write(oprot); err != nil {
+		return
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return
+	}
+	return oprot.Flush()
+}
+
+func (p *NodeClient) recvGetWriteNewSeriesLimitPerShardPerSecond() (value *NodeWriteNewSeriesLimitPerShardPerSecondResult_, err error) {
+	iprot := p.InputProtocol
+	if iprot == nil {
+		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.InputProtocol = iprot
+	}
+	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
+	if err != nil {
+		return
+	}
+	if method != "getWriteNewSeriesLimitPerShardPerSecond" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "getWriteNewSeriesLimitPerShardPerSecond failed: wrong method name")
+		return
+	}
+	if p.SeqId != seqId {
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "getWriteNewSeriesLimitPerShardPerSecond failed: out of sequence response")
+		return
+	}
+	if mTypeId == thrift.EXCEPTION {
+		error43 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error44 error
+		error44, err = error43.Read(iprot)
+		if err != nil {
+			return
+		}
+		if err = iprot.ReadMessageEnd(); err != nil {
+			return
+		}
+		err = error44
+		return
+	}
+	if mTypeId != thrift.REPLY {
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "getWriteNewSeriesLimitPerShardPerSecond failed: invalid message type")
+		return
+	}
+	result := NodeGetWriteNewSeriesLimitPerShardPerSecondResult{}
+	if err = result.Read(iprot); err != nil {
+		return
+	}
+	if err = iprot.ReadMessageEnd(); err != nil {
+		return
+	}
+	if result.Err != nil {
+		err = result.Err
+		return
+	}
+	value = result.GetSuccess()
+	return
+}
+
+// Parameters:
+//  - Req
+func (p *NodeClient) SetWriteNewSeriesLimitPerShardPerSecond(req *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) (r *NodeWriteNewSeriesLimitPerShardPerSecondResult_, err error) {
+	if err = p.sendSetWriteNewSeriesLimitPerShardPerSecond(req); err != nil {
+		return
+	}
+	return p.recvSetWriteNewSeriesLimitPerShardPerSecond()
+}
+
+func (p *NodeClient) sendSetWriteNewSeriesLimitPerShardPerSecond(req *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) (err error) {
+	oprot := p.OutputProtocol
+	if oprot == nil {
+		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.OutputProtocol = oprot
+	}
+	p.SeqId++
+	if err = oprot.WriteMessageBegin("setWriteNewSeriesLimitPerShardPerSecond", thrift.CALL, p.SeqId); err != nil {
+		return
+	}
+	args := NodeSetWriteNewSeriesLimitPerShardPerSecondArgs{
+		Req: req,
+	}
+	if err = args.Write(oprot); err != nil {
+		return
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return
+	}
+	return oprot.Flush()
+}
+
+func (p *NodeClient) recvSetWriteNewSeriesLimitPerShardPerSecond() (value *NodeWriteNewSeriesLimitPerShardPerSecondResult_, err error) {
+	iprot := p.InputProtocol
+	if iprot == nil {
+		iprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.InputProtocol = iprot
+	}
+	method, mTypeId, seqId, err := iprot.ReadMessageBegin()
+	if err != nil {
+		return
+	}
+	if method != "setWriteNewSeriesLimitPerShardPerSecond" {
+		err = thrift.NewTApplicationException(thrift.WRONG_METHOD_NAME, "setWriteNewSeriesLimitPerShardPerSecond failed: wrong method name")
+		return
+	}
+	if p.SeqId != seqId {
+		err = thrift.NewTApplicationException(thrift.BAD_SEQUENCE_ID, "setWriteNewSeriesLimitPerShardPerSecond failed: out of sequence response")
+		return
+	}
+	if mTypeId == thrift.EXCEPTION {
+		error45 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error46 error
+		error46, err = error45.Read(iprot)
+		if err != nil {
+			return
+		}
+		if err = iprot.ReadMessageEnd(); err != nil {
+			return
+		}
+		err = error46
+		return
+	}
+	if mTypeId != thrift.REPLY {
+		err = thrift.NewTApplicationException(thrift.INVALID_MESSAGE_TYPE_EXCEPTION, "setWriteNewSeriesLimitPerShardPerSecond failed: invalid message type")
+		return
+	}
+	result := NodeSetWriteNewSeriesLimitPerShardPerSecondResult{}
+	if err = result.Read(iprot); err != nil {
+		return
+	}
+	if err = iprot.ReadMessageEnd(); err != nil {
+		return
+	}
+	if result.Err != nil {
+		err = result.Err
+		return
+	}
+	value = result.GetSuccess()
+	return
+}
+
 type NodeProcessor struct {
 	processorMap map[string]thrift.TProcessorFunction
 	handler      Node
@@ -6779,21 +7585,25 @@ func (p *NodeProcessor) ProcessorMap() map[string]thrift.TProcessorFunction {
 
 func NewNodeProcessor(handler Node) *NodeProcessor {
 
-	self39 := &NodeProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
-	self39.processorMap["fetch"] = &nodeProcessorFetch{handler: handler}
-	self39.processorMap["write"] = &nodeProcessorWrite{handler: handler}
-	self39.processorMap["fetchBatchRaw"] = &nodeProcessorFetchBatchRaw{handler: handler}
-	self39.processorMap["fetchBlocksRaw"] = &nodeProcessorFetchBlocksRaw{handler: handler}
-	self39.processorMap["fetchBlocksMetadataRaw"] = &nodeProcessorFetchBlocksMetadataRaw{handler: handler}
-	self39.processorMap["writeBatchRaw"] = &nodeProcessorWriteBatchRaw{handler: handler}
-	self39.processorMap["repair"] = &nodeProcessorRepair{handler: handler}
-	self39.processorMap["truncate"] = &nodeProcessorTruncate{handler: handler}
-	self39.processorMap["health"] = &nodeProcessorHealth{handler: handler}
-	self39.processorMap["getPersistRateLimit"] = &nodeProcessorGetPersistRateLimit{handler: handler}
-	self39.processorMap["setPersistRateLimit"] = &nodeProcessorSetPersistRateLimit{handler: handler}
-	self39.processorMap["getWriteNewSeriesAsync"] = &nodeProcessorGetWriteNewSeriesAsync{handler: handler}
-	self39.processorMap["setWriteNewSeriesAsync"] = &nodeProcessorSetWriteNewSeriesAsync{handler: handler}
-	return self39
+	self47 := &NodeProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
+	self47.processorMap["fetch"] = &nodeProcessorFetch{handler: handler}
+	self47.processorMap["write"] = &nodeProcessorWrite{handler: handler}
+	self47.processorMap["fetchBatchRaw"] = &nodeProcessorFetchBatchRaw{handler: handler}
+	self47.processorMap["fetchBlocksRaw"] = &nodeProcessorFetchBlocksRaw{handler: handler}
+	self47.processorMap["fetchBlocksMetadataRaw"] = &nodeProcessorFetchBlocksMetadataRaw{handler: handler}
+	self47.processorMap["writeBatchRaw"] = &nodeProcessorWriteBatchRaw{handler: handler}
+	self47.processorMap["repair"] = &nodeProcessorRepair{handler: handler}
+	self47.processorMap["truncate"] = &nodeProcessorTruncate{handler: handler}
+	self47.processorMap["health"] = &nodeProcessorHealth{handler: handler}
+	self47.processorMap["getPersistRateLimit"] = &nodeProcessorGetPersistRateLimit{handler: handler}
+	self47.processorMap["setPersistRateLimit"] = &nodeProcessorSetPersistRateLimit{handler: handler}
+	self47.processorMap["getWriteNewSeriesAsync"] = &nodeProcessorGetWriteNewSeriesAsync{handler: handler}
+	self47.processorMap["setWriteNewSeriesAsync"] = &nodeProcessorSetWriteNewSeriesAsync{handler: handler}
+	self47.processorMap["getWriteNewSeriesBackoffDuration"] = &nodeProcessorGetWriteNewSeriesBackoffDuration{handler: handler}
+	self47.processorMap["setWriteNewSeriesBackoffDuration"] = &nodeProcessorSetWriteNewSeriesBackoffDuration{handler: handler}
+	self47.processorMap["getWriteNewSeriesLimitPerShardPerSecond"] = &nodeProcessorGetWriteNewSeriesLimitPerShardPerSecond{handler: handler}
+	self47.processorMap["setWriteNewSeriesLimitPerShardPerSecond"] = &nodeProcessorSetWriteNewSeriesLimitPerShardPerSecond{handler: handler}
+	return self47
 }
 
 func (p *NodeProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
@@ -6806,12 +7616,12 @@ func (p *NodeProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, er
 	}
 	iprot.Skip(thrift.STRUCT)
 	iprot.ReadMessageEnd()
-	x40 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
+	x48 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
 	oprot.WriteMessageBegin(name, thrift.EXCEPTION, seqId)
-	x40.Write(oprot)
+	x48.Write(oprot)
 	oprot.WriteMessageEnd()
 	oprot.Flush()
-	return false, x40
+	return false, x48
 
 }
 
@@ -7478,6 +8288,218 @@ func (p *nodeProcessorSetWriteNewSeriesAsync) Process(seqId int32, iprot, oprot 
 		result.Success = retval
 	}
 	if err2 = oprot.WriteMessageBegin("setWriteNewSeriesAsync", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type nodeProcessorGetWriteNewSeriesBackoffDuration struct {
+	handler Node
+}
+
+func (p *nodeProcessorGetWriteNewSeriesBackoffDuration) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := NodeGetWriteNewSeriesBackoffDurationArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("getWriteNewSeriesBackoffDuration", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush()
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	result := NodeGetWriteNewSeriesBackoffDurationResult{}
+	var retval *NodeWriteNewSeriesBackoffDurationResult_
+	var err2 error
+	if retval, err2 = p.handler.GetWriteNewSeriesBackoffDuration(); err2 != nil {
+		switch v := err2.(type) {
+		case *Error:
+			result.Err = v
+		default:
+			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing getWriteNewSeriesBackoffDuration: "+err2.Error())
+			oprot.WriteMessageBegin("getWriteNewSeriesBackoffDuration", thrift.EXCEPTION, seqId)
+			x.Write(oprot)
+			oprot.WriteMessageEnd()
+			oprot.Flush()
+			return true, err2
+		}
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("getWriteNewSeriesBackoffDuration", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type nodeProcessorSetWriteNewSeriesBackoffDuration struct {
+	handler Node
+}
+
+func (p *nodeProcessorSetWriteNewSeriesBackoffDuration) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := NodeSetWriteNewSeriesBackoffDurationArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("setWriteNewSeriesBackoffDuration", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush()
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	result := NodeSetWriteNewSeriesBackoffDurationResult{}
+	var retval *NodeWriteNewSeriesBackoffDurationResult_
+	var err2 error
+	if retval, err2 = p.handler.SetWriteNewSeriesBackoffDuration(args.Req); err2 != nil {
+		switch v := err2.(type) {
+		case *Error:
+			result.Err = v
+		default:
+			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing setWriteNewSeriesBackoffDuration: "+err2.Error())
+			oprot.WriteMessageBegin("setWriteNewSeriesBackoffDuration", thrift.EXCEPTION, seqId)
+			x.Write(oprot)
+			oprot.WriteMessageEnd()
+			oprot.Flush()
+			return true, err2
+		}
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("setWriteNewSeriesBackoffDuration", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type nodeProcessorGetWriteNewSeriesLimitPerShardPerSecond struct {
+	handler Node
+}
+
+func (p *nodeProcessorGetWriteNewSeriesLimitPerShardPerSecond) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := NodeGetWriteNewSeriesLimitPerShardPerSecondArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("getWriteNewSeriesLimitPerShardPerSecond", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush()
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	result := NodeGetWriteNewSeriesLimitPerShardPerSecondResult{}
+	var retval *NodeWriteNewSeriesLimitPerShardPerSecondResult_
+	var err2 error
+	if retval, err2 = p.handler.GetWriteNewSeriesLimitPerShardPerSecond(); err2 != nil {
+		switch v := err2.(type) {
+		case *Error:
+			result.Err = v
+		default:
+			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing getWriteNewSeriesLimitPerShardPerSecond: "+err2.Error())
+			oprot.WriteMessageBegin("getWriteNewSeriesLimitPerShardPerSecond", thrift.EXCEPTION, seqId)
+			x.Write(oprot)
+			oprot.WriteMessageEnd()
+			oprot.Flush()
+			return true, err2
+		}
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("getWriteNewSeriesLimitPerShardPerSecond", thrift.REPLY, seqId); err2 != nil {
+		err = err2
+	}
+	if err2 = result.Write(oprot); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.WriteMessageEnd(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err2 = oprot.Flush(); err == nil && err2 != nil {
+		err = err2
+	}
+	if err != nil {
+		return
+	}
+	return true, err
+}
+
+type nodeProcessorSetWriteNewSeriesLimitPerShardPerSecond struct {
+	handler Node
+}
+
+func (p *nodeProcessorSetWriteNewSeriesLimitPerShardPerSecond) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := NodeSetWriteNewSeriesLimitPerShardPerSecondArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		x := thrift.NewTApplicationException(thrift.PROTOCOL_ERROR, err.Error())
+		oprot.WriteMessageBegin("setWriteNewSeriesLimitPerShardPerSecond", thrift.EXCEPTION, seqId)
+		x.Write(oprot)
+		oprot.WriteMessageEnd()
+		oprot.Flush()
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	result := NodeSetWriteNewSeriesLimitPerShardPerSecondResult{}
+	var retval *NodeWriteNewSeriesLimitPerShardPerSecondResult_
+	var err2 error
+	if retval, err2 = p.handler.SetWriteNewSeriesLimitPerShardPerSecond(args.Req); err2 != nil {
+		switch v := err2.(type) {
+		case *Error:
+			result.Err = v
+		default:
+			x := thrift.NewTApplicationException(thrift.INTERNAL_ERROR, "Internal error processing setWriteNewSeriesLimitPerShardPerSecond: "+err2.Error())
+			oprot.WriteMessageBegin("setWriteNewSeriesLimitPerShardPerSecond", thrift.EXCEPTION, seqId)
+			x.Write(oprot)
+			oprot.WriteMessageEnd()
+			oprot.Flush()
+			return true, err2
+		}
+	} else {
+		result.Success = retval
+	}
+	if err2 = oprot.WriteMessageBegin("setWriteNewSeriesLimitPerShardPerSecond", thrift.REPLY, seqId); err2 != nil {
 		err = err2
 	}
 	if err2 = result.Write(oprot); err == nil && err2 != nil {
@@ -10445,6 +11467,920 @@ func (p *NodeSetWriteNewSeriesAsyncResult) String() string {
 	return fmt.Sprintf("NodeSetWriteNewSeriesAsyncResult(%+v)", *p)
 }
 
+type NodeGetWriteNewSeriesBackoffDurationArgs struct {
+}
+
+func NewNodeGetWriteNewSeriesBackoffDurationArgs() *NodeGetWriteNewSeriesBackoffDurationArgs {
+	return &NodeGetWriteNewSeriesBackoffDurationArgs{}
+}
+
+func (p *NodeGetWriteNewSeriesBackoffDurationArgs) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		if err := iprot.Skip(fieldTypeId); err != nil {
+			return err
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeGetWriteNewSeriesBackoffDurationArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("getWriteNewSeriesBackoffDuration_args"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeGetWriteNewSeriesBackoffDurationArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeGetWriteNewSeriesBackoffDurationArgs(%+v)", *p)
+}
+
+// Attributes:
+//  - Success
+//  - Err
+type NodeGetWriteNewSeriesBackoffDurationResult struct {
+	Success *NodeWriteNewSeriesBackoffDurationResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
+	Err     *Error                                    `thrift:"err,1" db:"err" json:"err,omitempty"`
+}
+
+func NewNodeGetWriteNewSeriesBackoffDurationResult() *NodeGetWriteNewSeriesBackoffDurationResult {
+	return &NodeGetWriteNewSeriesBackoffDurationResult{}
+}
+
+var NodeGetWriteNewSeriesBackoffDurationResult_Success_DEFAULT *NodeWriteNewSeriesBackoffDurationResult_
+
+func (p *NodeGetWriteNewSeriesBackoffDurationResult) GetSuccess() *NodeWriteNewSeriesBackoffDurationResult_ {
+	if !p.IsSetSuccess() {
+		return NodeGetWriteNewSeriesBackoffDurationResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var NodeGetWriteNewSeriesBackoffDurationResult_Err_DEFAULT *Error
+
+func (p *NodeGetWriteNewSeriesBackoffDurationResult) GetErr() *Error {
+	if !p.IsSetErr() {
+		return NodeGetWriteNewSeriesBackoffDurationResult_Err_DEFAULT
+	}
+	return p.Err
+}
+func (p *NodeGetWriteNewSeriesBackoffDurationResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *NodeGetWriteNewSeriesBackoffDurationResult) IsSetErr() bool {
+	return p.Err != nil
+}
+
+func (p *NodeGetWriteNewSeriesBackoffDurationResult) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 0:
+			if err := p.ReadField0(iprot); err != nil {
+				return err
+			}
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeGetWriteNewSeriesBackoffDurationResult) ReadField0(iprot thrift.TProtocol) error {
+	p.Success = &NodeWriteNewSeriesBackoffDurationResult_{}
+	if err := p.Success.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
+	}
+	return nil
+}
+
+func (p *NodeGetWriteNewSeriesBackoffDurationResult) ReadField1(iprot thrift.TProtocol) error {
+	p.Err = &Error{
+		Type: 0,
+	}
+	if err := p.Err.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
+	}
+	return nil
+}
+
+func (p *NodeGetWriteNewSeriesBackoffDurationResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("getWriteNewSeriesBackoffDuration_result"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField0(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeGetWriteNewSeriesBackoffDurationResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Success), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 0:success: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeGetWriteNewSeriesBackoffDurationResult) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErr() {
+		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
+		}
+		if err := p.Err.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:err: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeGetWriteNewSeriesBackoffDurationResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeGetWriteNewSeriesBackoffDurationResult(%+v)", *p)
+}
+
+// Attributes:
+//  - Req
+type NodeSetWriteNewSeriesBackoffDurationArgs struct {
+	Req *NodeSetWriteNewSeriesBackoffDurationRequest `thrift:"req,1" db:"req" json:"req"`
+}
+
+func NewNodeSetWriteNewSeriesBackoffDurationArgs() *NodeSetWriteNewSeriesBackoffDurationArgs {
+	return &NodeSetWriteNewSeriesBackoffDurationArgs{}
+}
+
+var NodeSetWriteNewSeriesBackoffDurationArgs_Req_DEFAULT *NodeSetWriteNewSeriesBackoffDurationRequest
+
+func (p *NodeSetWriteNewSeriesBackoffDurationArgs) GetReq() *NodeSetWriteNewSeriesBackoffDurationRequest {
+	if !p.IsSetReq() {
+		return NodeSetWriteNewSeriesBackoffDurationArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+func (p *NodeSetWriteNewSeriesBackoffDurationArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationArgs) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationArgs) ReadField1(iprot thrift.TProtocol) error {
+	p.Req = &NodeSetWriteNewSeriesBackoffDurationRequest{
+		DurationType: 2,
+	}
+	if err := p.Req.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("setWriteNewSeriesBackoffDuration_args"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("req", thrift.STRUCT, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:req: ", p), err)
+	}
+	if err := p.Req.Write(oprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Req), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:req: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeSetWriteNewSeriesBackoffDurationArgs(%+v)", *p)
+}
+
+// Attributes:
+//  - Success
+//  - Err
+type NodeSetWriteNewSeriesBackoffDurationResult struct {
+	Success *NodeWriteNewSeriesBackoffDurationResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
+	Err     *Error                                    `thrift:"err,1" db:"err" json:"err,omitempty"`
+}
+
+func NewNodeSetWriteNewSeriesBackoffDurationResult() *NodeSetWriteNewSeriesBackoffDurationResult {
+	return &NodeSetWriteNewSeriesBackoffDurationResult{}
+}
+
+var NodeSetWriteNewSeriesBackoffDurationResult_Success_DEFAULT *NodeWriteNewSeriesBackoffDurationResult_
+
+func (p *NodeSetWriteNewSeriesBackoffDurationResult) GetSuccess() *NodeWriteNewSeriesBackoffDurationResult_ {
+	if !p.IsSetSuccess() {
+		return NodeSetWriteNewSeriesBackoffDurationResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var NodeSetWriteNewSeriesBackoffDurationResult_Err_DEFAULT *Error
+
+func (p *NodeSetWriteNewSeriesBackoffDurationResult) GetErr() *Error {
+	if !p.IsSetErr() {
+		return NodeSetWriteNewSeriesBackoffDurationResult_Err_DEFAULT
+	}
+	return p.Err
+}
+func (p *NodeSetWriteNewSeriesBackoffDurationResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationResult) IsSetErr() bool {
+	return p.Err != nil
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationResult) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 0:
+			if err := p.ReadField0(iprot); err != nil {
+				return err
+			}
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationResult) ReadField0(iprot thrift.TProtocol) error {
+	p.Success = &NodeWriteNewSeriesBackoffDurationResult_{}
+	if err := p.Success.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationResult) ReadField1(iprot thrift.TProtocol) error {
+	p.Err = &Error{
+		Type: 0,
+	}
+	if err := p.Err.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("setWriteNewSeriesBackoffDuration_result"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField0(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Success), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 0:success: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationResult) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErr() {
+		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
+		}
+		if err := p.Err.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:err: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeSetWriteNewSeriesBackoffDurationResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeSetWriteNewSeriesBackoffDurationResult(%+v)", *p)
+}
+
+type NodeGetWriteNewSeriesLimitPerShardPerSecondArgs struct {
+}
+
+func NewNodeGetWriteNewSeriesLimitPerShardPerSecondArgs() *NodeGetWriteNewSeriesLimitPerShardPerSecondArgs {
+	return &NodeGetWriteNewSeriesLimitPerShardPerSecondArgs{}
+}
+
+func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondArgs) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		if err := iprot.Skip(fieldTypeId); err != nil {
+			return err
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("getWriteNewSeriesLimitPerShardPerSecond_args"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeGetWriteNewSeriesLimitPerShardPerSecondArgs(%+v)", *p)
+}
+
+// Attributes:
+//  - Success
+//  - Err
+type NodeGetWriteNewSeriesLimitPerShardPerSecondResult struct {
+	Success *NodeWriteNewSeriesLimitPerShardPerSecondResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
+	Err     *Error                                           `thrift:"err,1" db:"err" json:"err,omitempty"`
+}
+
+func NewNodeGetWriteNewSeriesLimitPerShardPerSecondResult() *NodeGetWriteNewSeriesLimitPerShardPerSecondResult {
+	return &NodeGetWriteNewSeriesLimitPerShardPerSecondResult{}
+}
+
+var NodeGetWriteNewSeriesLimitPerShardPerSecondResult_Success_DEFAULT *NodeWriteNewSeriesLimitPerShardPerSecondResult_
+
+func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondResult) GetSuccess() *NodeWriteNewSeriesLimitPerShardPerSecondResult_ {
+	if !p.IsSetSuccess() {
+		return NodeGetWriteNewSeriesLimitPerShardPerSecondResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var NodeGetWriteNewSeriesLimitPerShardPerSecondResult_Err_DEFAULT *Error
+
+func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondResult) GetErr() *Error {
+	if !p.IsSetErr() {
+		return NodeGetWriteNewSeriesLimitPerShardPerSecondResult_Err_DEFAULT
+	}
+	return p.Err
+}
+func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondResult) IsSetErr() bool {
+	return p.Err != nil
+}
+
+func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondResult) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 0:
+			if err := p.ReadField0(iprot); err != nil {
+				return err
+			}
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondResult) ReadField0(iprot thrift.TProtocol) error {
+	p.Success = &NodeWriteNewSeriesLimitPerShardPerSecondResult_{}
+	if err := p.Success.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
+	}
+	return nil
+}
+
+func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondResult) ReadField1(iprot thrift.TProtocol) error {
+	p.Err = &Error{
+		Type: 0,
+	}
+	if err := p.Err.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
+	}
+	return nil
+}
+
+func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("getWriteNewSeriesLimitPerShardPerSecond_result"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField0(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Success), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 0:success: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondResult) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErr() {
+		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
+		}
+		if err := p.Err.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:err: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeGetWriteNewSeriesLimitPerShardPerSecondResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeGetWriteNewSeriesLimitPerShardPerSecondResult(%+v)", *p)
+}
+
+// Attributes:
+//  - Req
+type NodeSetWriteNewSeriesLimitPerShardPerSecondArgs struct {
+	Req *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest `thrift:"req,1" db:"req" json:"req"`
+}
+
+func NewNodeSetWriteNewSeriesLimitPerShardPerSecondArgs() *NodeSetWriteNewSeriesLimitPerShardPerSecondArgs {
+	return &NodeSetWriteNewSeriesLimitPerShardPerSecondArgs{}
+}
+
+var NodeSetWriteNewSeriesLimitPerShardPerSecondArgs_Req_DEFAULT *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondArgs) GetReq() *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest {
+	if !p.IsSetReq() {
+		return NodeSetWriteNewSeriesLimitPerShardPerSecondArgs_Req_DEFAULT
+	}
+	return p.Req
+}
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondArgs) IsSetReq() bool {
+	return p.Req != nil
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondArgs) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondArgs) ReadField1(iprot thrift.TProtocol) error {
+	p.Req = &NodeSetWriteNewSeriesLimitPerShardPerSecondRequest{}
+	if err := p.Req.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Req), err)
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("setWriteNewSeriesLimitPerShardPerSecond_args"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("req", thrift.STRUCT, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:req: ", p), err)
+	}
+	if err := p.Req.Write(oprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Req), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:req: ", p), err)
+	}
+	return err
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeSetWriteNewSeriesLimitPerShardPerSecondArgs(%+v)", *p)
+}
+
+// Attributes:
+//  - Success
+//  - Err
+type NodeSetWriteNewSeriesLimitPerShardPerSecondResult struct {
+	Success *NodeWriteNewSeriesLimitPerShardPerSecondResult_ `thrift:"success,0" db:"success" json:"success,omitempty"`
+	Err     *Error                                           `thrift:"err,1" db:"err" json:"err,omitempty"`
+}
+
+func NewNodeSetWriteNewSeriesLimitPerShardPerSecondResult() *NodeSetWriteNewSeriesLimitPerShardPerSecondResult {
+	return &NodeSetWriteNewSeriesLimitPerShardPerSecondResult{}
+}
+
+var NodeSetWriteNewSeriesLimitPerShardPerSecondResult_Success_DEFAULT *NodeWriteNewSeriesLimitPerShardPerSecondResult_
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondResult) GetSuccess() *NodeWriteNewSeriesLimitPerShardPerSecondResult_ {
+	if !p.IsSetSuccess() {
+		return NodeSetWriteNewSeriesLimitPerShardPerSecondResult_Success_DEFAULT
+	}
+	return p.Success
+}
+
+var NodeSetWriteNewSeriesLimitPerShardPerSecondResult_Err_DEFAULT *Error
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondResult) GetErr() *Error {
+	if !p.IsSetErr() {
+		return NodeSetWriteNewSeriesLimitPerShardPerSecondResult_Err_DEFAULT
+	}
+	return p.Err
+}
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondResult) IsSetSuccess() bool {
+	return p.Success != nil
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondResult) IsSetErr() bool {
+	return p.Err != nil
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondResult) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 0:
+			if err := p.ReadField0(iprot); err != nil {
+				return err
+			}
+		case 1:
+			if err := p.ReadField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondResult) ReadField0(iprot thrift.TProtocol) error {
+	p.Success = &NodeWriteNewSeriesLimitPerShardPerSecondResult_{}
+	if err := p.Success.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Success), err)
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondResult) ReadField1(iprot thrift.TProtocol) error {
+	p.Err = &Error{
+		Type: 0,
+	}
+	if err := p.Err.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Err), err)
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondResult) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("setWriteNewSeriesLimitPerShardPerSecond_result"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if p != nil {
+		if err := p.writeField0(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField1(oprot); err != nil {
+			return err
+		}
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondResult) writeField0(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSuccess() {
+		if err := oprot.WriteFieldBegin("success", thrift.STRUCT, 0); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 0:success: ", p), err)
+		}
+		if err := p.Success.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Success), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 0:success: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondResult) writeField1(oprot thrift.TProtocol) (err error) {
+	if p.IsSetErr() {
+		if err := oprot.WriteFieldBegin("err", thrift.STRUCT, 1); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:err: ", p), err)
+		}
+		if err := p.Err.Write(oprot); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Err), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 1:err: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *NodeSetWriteNewSeriesLimitPerShardPerSecondResult) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("NodeSetWriteNewSeriesLimitPerShardPerSecondResult(%+v)", *p)
+}
+
 type Cluster interface {
 	Health() (r *HealthResult_, err error)
 	// Parameters:
@@ -10530,16 +12466,16 @@ func (p *ClusterClient) recvHealth() (value *HealthResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error95 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error96 error
-		error96, err = error95.Read(iprot)
+		error115 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error116 error
+		error116, err = error115.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error96
+		err = error116
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -10611,16 +12547,16 @@ func (p *ClusterClient) recvWrite() (err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error97 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error98 error
-		error98, err = error97.Read(iprot)
+		error117 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error118 error
+		error118, err = error117.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error98
+		err = error118
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -10691,16 +12627,16 @@ func (p *ClusterClient) recvFetch() (value *FetchResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error99 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error100 error
-		error100, err = error99.Read(iprot)
+		error119 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error120 error
+		error120, err = error119.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error100
+		err = error120
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -10772,16 +12708,16 @@ func (p *ClusterClient) recvTruncate() (value *TruncateResult_, err error) {
 		return
 	}
 	if mTypeId == thrift.EXCEPTION {
-		error101 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
-		var error102 error
-		error102, err = error101.Read(iprot)
+		error121 := thrift.NewTApplicationException(thrift.UNKNOWN_APPLICATION_EXCEPTION, "Unknown Exception")
+		var error122 error
+		error122, err = error121.Read(iprot)
 		if err != nil {
 			return
 		}
 		if err = iprot.ReadMessageEnd(); err != nil {
 			return
 		}
-		err = error102
+		err = error122
 		return
 	}
 	if mTypeId != thrift.REPLY {
@@ -10823,12 +12759,12 @@ func (p *ClusterProcessor) ProcessorMap() map[string]thrift.TProcessorFunction {
 
 func NewClusterProcessor(handler Cluster) *ClusterProcessor {
 
-	self103 := &ClusterProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
-	self103.processorMap["health"] = &clusterProcessorHealth{handler: handler}
-	self103.processorMap["write"] = &clusterProcessorWrite{handler: handler}
-	self103.processorMap["fetch"] = &clusterProcessorFetch{handler: handler}
-	self103.processorMap["truncate"] = &clusterProcessorTruncate{handler: handler}
-	return self103
+	self123 := &ClusterProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
+	self123.processorMap["health"] = &clusterProcessorHealth{handler: handler}
+	self123.processorMap["write"] = &clusterProcessorWrite{handler: handler}
+	self123.processorMap["fetch"] = &clusterProcessorFetch{handler: handler}
+	self123.processorMap["truncate"] = &clusterProcessorTruncate{handler: handler}
+	return self123
 }
 
 func (p *ClusterProcessor) Process(iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
@@ -10841,12 +12777,12 @@ func (p *ClusterProcessor) Process(iprot, oprot thrift.TProtocol) (success bool,
 	}
 	iprot.Skip(thrift.STRUCT)
 	iprot.ReadMessageEnd()
-	x104 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
+	x124 := thrift.NewTApplicationException(thrift.UNKNOWN_METHOD, "Unknown function "+name)
 	oprot.WriteMessageBegin(name, thrift.EXCEPTION, seqId)
-	x104.Write(oprot)
+	x124.Write(oprot)
 	oprot.WriteMessageEnd()
 	oprot.Flush()
-	return false, x104
+	return false, x124
 
 }
 

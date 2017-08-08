@@ -20,22 +20,32 @@
 
 package runtime
 
-import "github.com/m3db/m3db/ratelimit"
+import (
+	"time"
+
+	"github.com/m3db/m3db/ratelimit"
+)
 
 const (
-	defaultWriteNewSeriesAsync = false
+	defaultWriteNewSeriesAsync                  = false
+	defaultWriteNewSeriesBackoffDuration        = 2 * time.Millisecond
+	defaultWriteNewSeriesLimitPerShardPerSecond = 0
 )
 
 type options struct {
-	persistRateLimitOpts ratelimit.Options
-	writeNewSeriesAsync  bool
+	persistRateLimitOpts                 ratelimit.Options
+	writeNewSeriesAsync                  bool
+	writeNewSeriesBackoffDuration        time.Duration
+	writeNewSeriesLimitPerShardPerSecond int
 }
 
 // NewOptions creates a new set of runtime options with defaults
 func NewOptions() Options {
 	return &options{
-		persistRateLimitOpts: ratelimit.NewOptions(),
-		writeNewSeriesAsync:  defaultWriteNewSeriesAsync,
+		persistRateLimitOpts:                 ratelimit.NewOptions(),
+		writeNewSeriesAsync:                  defaultWriteNewSeriesAsync,
+		writeNewSeriesBackoffDuration:        defaultWriteNewSeriesBackoffDuration,
+		writeNewSeriesLimitPerShardPerSecond: defaultWriteNewSeriesLimitPerShardPerSecond,
 	}
 }
 
@@ -57,4 +67,24 @@ func (o *options) SetWriteNewSeriesAsync(value bool) Options {
 
 func (o *options) WriteNewSeriesAsync() bool {
 	return o.writeNewSeriesAsync
+}
+
+func (o *options) SetWriteNewSeriesBackoffDuration(value time.Duration) Options {
+	opts := *o
+	opts.writeNewSeriesBackoffDuration = value
+	return &opts
+}
+
+func (o *options) WriteNewSeriesBackoffDuration() time.Duration {
+	return o.writeNewSeriesBackoffDuration
+}
+
+func (o *options) SetWriteNewSeriesLimitPerShardPerSecond(value int) Options {
+	opts := *o
+	opts.writeNewSeriesLimitPerShardPerSecond = value
+	return &opts
+}
+
+func (o *options) WriteNewSeriesLimitPerShardPerSecond() int {
+	return o.writeNewSeriesLimitPerShardPerSecond
 }

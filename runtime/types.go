@@ -21,6 +21,8 @@
 package runtime
 
 import (
+	"time"
+
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3x/close"
 )
@@ -46,6 +48,30 @@ type Options interface {
 	// due to inserts into the shard map being buffered. The write is however written
 	// to the commit log before completing so it is considered durable.
 	WriteNewSeriesAsync() bool
+
+	// SetWriteNewSeriesBackoffDuration sets the insert backoff duration during
+	// periods of heavy insertions, this backoff helps gather larger batches
+	// to insert into a shard in a single batch requiring far less write lock
+	// acquisitions.
+	SetWriteNewSeriesBackoffDuration(value time.Duration) Options
+
+	// WriteNewSeriesBackoffDuration returns the insert backoff duration during
+	// periods of heavy insertions, this backoff helps gather larger batches
+	// to insert into a shard in a single batch requiring far less write lock
+	// acquisitions.
+	WriteNewSeriesBackoffDuration() time.Duration
+
+	// SetWriteNewSeriesLimitPerShardPerSecond sets the insert rate limit per second,
+	// setting to zero disables any rate limit for new series insertions. This rate
+	// limit is primarily offered to defend against unintentional bursts of new
+	// time series being inserted.
+	SetWriteNewSeriesLimitPerShardPerSecond(value int) Options
+
+	// WriteNewSeriesLimitPerShardPerSecond returns the insert rate limit per second,
+	// setting to zero disables any rate limit for new series insertions. This rate
+	// limit is primarily offered to defend against unintentional bursts of new
+	// time series being inserted.
+	WriteNewSeriesLimitPerShardPerSecond() int
 }
 
 // OptionsManager updates and supplies runtime options

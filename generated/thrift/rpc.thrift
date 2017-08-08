@@ -60,6 +60,10 @@ service Node {
 	NodePersistRateLimitResult setPersistRateLimit(1: NodeSetPersistRateLimitRequest req) throws (1: Error err)
 	NodeWriteNewSeriesAsyncResult getWriteNewSeriesAsync() throws (1: Error err)
 	NodeWriteNewSeriesAsyncResult setWriteNewSeriesAsync(1: NodeSetWriteNewSeriesAsyncRequest req) throws (1: Error err)
+	NodeWriteNewSeriesBackoffDurationResult getWriteNewSeriesBackoffDuration() throws (1: Error err)
+	NodeWriteNewSeriesBackoffDurationResult setWriteNewSeriesBackoffDuration(1: NodeSetWriteNewSeriesBackoffDurationRequest req) throws (1: Error err)
+	NodeWriteNewSeriesLimitPerShardPerSecondResult getWriteNewSeriesLimitPerShardPerSecond() throws (1: Error err)
+	NodeWriteNewSeriesLimitPerShardPerSecondResult setWriteNewSeriesLimitPerShardPerSecond(1: NodeSetWriteNewSeriesLimitPerShardPerSecondRequest req) throws (1: Error err)
 }
 
 struct FetchRequest {
@@ -220,6 +224,24 @@ struct NodeWriteNewSeriesAsyncResult {
 
 struct NodeSetWriteNewSeriesAsyncRequest {
 	1: required bool writeNewSeriesAsync
+}
+
+struct NodeWriteNewSeriesBackoffDurationResult {
+	1: required i64 writeNewSeriesBackoffDuration
+	2: required TimeType durationType
+}
+
+struct NodeSetWriteNewSeriesBackoffDurationRequest {
+	1: required i64 writeNewSeriesBackoffDuration
+	2: optional TimeType durationType = TimeType.UNIX_MILLISECONDS
+}
+
+struct NodeWriteNewSeriesLimitPerShardPerSecondResult {
+	1: required i64 writeNewSeriesLimitPerShardPerSecond
+}
+
+struct NodeSetWriteNewSeriesLimitPerShardPerSecondRequest {
+	1: required i64 writeNewSeriesLimitPerShardPerSecond
 }
 
 service Cluster {
