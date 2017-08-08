@@ -68,7 +68,7 @@ type PlacementHelper interface {
 	Optimize(t optimizeType)
 
 	// GeneratePlacement generates a placement
-	GeneratePlacement(t includeInstanceType) services.Placement
+	GeneratePlacement() services.Placement
 }
 
 type placementHelper struct {
@@ -135,7 +135,7 @@ func newReplaceInstanceHelper(
 
 	newAddingInstances := make([]services.PlacementInstance, len(addingInstances))
 	for i, instance := range addingInstances {
-		p, newAddingInstances[i], err = addInstanceToPlacement(p, instance, true)
+		p, newAddingInstances[i], err = addInstanceToPlacement(p, instance, includeEmpty)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -308,18 +308,12 @@ func (ph *placementHelper) buildInstanceHeap(instances []services.PlacementInsta
 	return newHeap(instances, availableCapacityAscending, ph.targetLoad, ph.rackToWeightMap)
 }
 
-func (ph *placementHelper) GeneratePlacement(t includeInstanceType) services.Placement {
-	var instances []services.PlacementInstance
+func (ph *placementHelper) GeneratePlacement() services.Placement {
+	var instances = make([]services.PlacementInstance, 0, len(ph.instances))
 
-	switch t {
-	case includeEmpty:
-		instances = ph.Instances()
-	case nonEmptyOnly:
-		instances = make([]services.PlacementInstance, 0, len(ph.instances))
-		for _, instance := range ph.instances {
-			if instance.Shards().NumShards() > 0 {
-				instances = append(instances, instance)
-			}
+	for _, instance := range ph.instances {
+		if instance.Shards().NumShards() > 0 {
+			instances = append(instances, instance)
 		}
 	}
 
@@ -336,7 +330,8 @@ func (ph *placementHelper) GeneratePlacement(t includeInstanceType) services.Pla
 		SetInstances(instances).
 		SetShards(ph.uniqueShards).
 		SetReplicaFactor(ph.rf).
-		SetIsSharded(true)
+		SetIsSharded(true).
+		SetIsMirrored(ph.opts.IsMirrored())
 }
 
 func (ph *placementHelper) PlaceShards(
@@ -663,18 +658,19 @@ func isRackOverWeight(rackWeight, totalWeight uint32, rf int) bool {
 	return float64(rackWeight)/float64(totalWeight) >= 1.0/float64(rf)
 }
 
-func addInstanceToPlacement(p services.Placement, i services.PlacementInstance, allowEmpty bool) (services.Placement, services.PlacementInstance, error) {
+func addInstanceToPlacement(p services.Placement, i services.PlacementInstance, includeInstance includeInstanceType) (services.Placement, services.PlacementInstance, error) {
 	if _, exist := p.Instance(i.ID()); exist {
 		return nil, nil, errAddingInstanceAlreadyExist
 	}
 	instance := placement.CloneInstance(i)
 
-	if allowEmpty || instance.Shards().NumShards() > 0 {
+	if includeInstance == includeEmpty || instance.Shards().NumShards() > 0 {
 		p = placement.NewPlacement().
 			SetInstances(append(p.Instances(), instance)).
 			SetShards(p.Shards()).
 			SetReplicaFactor(p.ReplicaFactor()).
-			SetIsSharded(p.IsSharded())
+			SetIsSharded(p.IsSharded()).
+			SetIsMirrored(p.IsMirrored())
 	}
 	return p, instance, nil
 }
@@ -686,7 +682,7 @@ func removeInstanceFromPlacement(p services.Placement, id string) (services.Plac
 	}
 
 	return placement.NewPlacement().
-		SetInstances(placement.RemoveInstance(p.Instances(), id)).
+		SetInstances(placement.RemoveInstanceFromList(p.Instances(), id)).
 		SetShards(p.Shards()).
 		SetReplicaFactor(p.ReplicaFactor()).
 		SetIsSharded(p.IsSharded()), leavingInstance, nil

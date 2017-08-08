@@ -155,6 +155,13 @@ func TestNonSharded(t *testing.T) {
 	assert.Error(t, Validate(p))
 }
 
+func TestValidateMirrorButNotSharded(t *testing.T) {
+	p := NewPlacement().SetIsMirrored(true)
+	err := Validate(p)
+	assert.Error(t, err)
+	assert.Equal(t, errMirrorNotSharded, err)
+}
+
 func TestValidateMissingShard(t *testing.T) {
 	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
@@ -167,7 +174,7 @@ func TestValidateMissingShard(t *testing.T) {
 	p := NewPlacement().SetInstances([]services.PlacementInstance{i1, i2}).SetShards(ids).SetReplicaFactor(2).SetIsSharded(true)
 	err := Validate(p)
 	assert.Error(t, err)
-	assert.Equal(t, err.Error(), "invalid placement, the total available shards in the placement is 3, expecting 4")
+	assert.Equal(t, "invalid placement, the total available shards in the placement is 3, expecting 4", err.Error())
 }
 
 func TestValidateUnexpectedShard(t *testing.T) {
@@ -311,6 +318,7 @@ func TestInstance(t *testing.T) {
 		SetEndpoint("endpoint").
 		SetRack("rack").
 		SetWeight(1).
+		SetShardSetID("ss1").
 		SetZone("zone")
 	assert.NotNil(t, i1.Shards())
 	s := shard.NewShards([]shard.Shard{
@@ -320,7 +328,7 @@ func TestInstance(t *testing.T) {
 	})
 	i1.SetShards(s)
 	description := fmt.Sprintf(
-		"Instance[ID=id, Rack=rack, Zone=zone, Weight=1, Endpoint=endpoint, Shards=%s]",
+		"Instance[ID=id, Rack=rack, Zone=zone, Weight=1, Endpoint=endpoint, ShardSetID=ss1, Shards=%s]",
 		s.String())
 	assert.Equal(t, description, i1.String())
 
@@ -471,8 +479,8 @@ func TestRemoveInstanceFromArray(t *testing.T) {
 		NewEmptyInstance("i2", "", "", "endpoint", 1),
 	}
 
-	assert.Equal(t, instances, RemoveInstance(instances, "not_exist"))
-	assert.Equal(t, []services.PlacementInstance{NewEmptyInstance("i2", "", "", "endpoint", 1)}, RemoveInstance(instances, "i1"))
+	assert.Equal(t, instances, RemoveInstanceFromList(instances, "not_exist"))
+	assert.Equal(t, []services.PlacementInstance{NewEmptyInstance("i2", "", "", "endpoint", 1)}, RemoveInstanceFromList(instances, "i1"))
 }
 
 func TestMarkAllAsAvailable(t *testing.T) {

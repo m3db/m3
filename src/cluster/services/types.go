@@ -187,11 +187,11 @@ type PlacementService interface {
 	// AddReplica up the replica factor by 1 in the placement
 	AddReplica() (Placement, error)
 
-	// AddInstance picks an instance from the candidate list to the placement
-	AddInstance(candidates []PlacementInstance) (newPlacement Placement, usedInstance PlacementInstance, err error)
+	// AddInstances adds instances from the candidate list to the placement
+	AddInstances(candidates []PlacementInstance) (newPlacement Placement, addedInstances []PlacementInstance, err error)
 
-	// RemoveInstance removes an instance from the placement
-	RemoveInstance(leavingInstanceID string) (Placement, error)
+	// RemoveInstances removes instances from the placement
+	RemoveInstances(leavingInstanceIDs []string) (Placement, error)
 
 	// ReplaceInstance picks instances from the candidate list to replace an instance in current placement
 	ReplaceInstance(leavingInstanceID string, candidates []PlacementInstance) (
@@ -233,6 +233,11 @@ type PlacementOptions interface {
 	// Dryrun will try to perform the placement operation but will not persist the final result
 	Dryrun() bool
 	SetDryrun(d bool) PlacementOptions
+
+	// IsMirrored sets whether the shard distribution should be mirrored
+	// to support master/slave model.
+	IsMirrored() bool
+	SetIsMirrored(m bool) PlacementOptions
 
 	// InstrumentOptions is the options for instrument
 	InstrumentOptions() instrument.Options
@@ -410,6 +415,12 @@ type Placement interface {
 
 	// SetCutoverNanos sets the cutover time in nanoseconds.
 	SetCutoverNanos(cutoverNanos int64) Placement
+
+	// IsMirrored() returns whether the placement is mirrored.
+	IsMirrored() bool
+
+	// SetIsMirrored() sets IsMirrored.
+	SetIsMirrored(v bool) Placement
 
 	// String returns a description of the placement
 	String() string

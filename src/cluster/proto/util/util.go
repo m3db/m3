@@ -65,6 +65,7 @@ func PlacementToProto(p services.Placement) (placementproto.Placement, error) {
 		NumShards:     uint32(p.NumShards()),
 		IsSharded:     p.IsSharded(),
 		CutoverTime:   p.CutoverNanos(),
+		IsMirrored:    p.IsMirrored(),
 	}, nil
 }
 

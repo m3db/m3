@@ -319,10 +319,7 @@ func TestGeneratePlacement(t *testing.T) {
 		placement.NewOptions(),
 	)
 
-	p := ph.GeneratePlacement(includeEmpty)
-	assert.Equal(t, 3, p.NumInstances())
-
-	p = ph.GeneratePlacement(nonEmptyOnly)
+	p := ph.GeneratePlacement()
 	assert.Equal(t, 2, p.NumInstances())
 }
 

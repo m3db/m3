@@ -87,14 +87,14 @@ func testGoodWorkflow(t *testing.T, p services.PlacementService) {
 		err = p.MarkInstanceAvailable(instance.ID())
 		assert.NoError(t, err)
 	}
-	_, ai, err := p.AddInstance([]services.PlacementInstance{i3})
+	_, ai, err := p.AddInstances([]services.PlacementInstance{i3})
 	assert.NoError(t, err)
-	assertPlacementInstanceEqualExceptShards(t, i3, ai)
+	assertPlacementInstanceEqualExceptShards(t, i3, ai[0])
 
 	err = p.MarkInstanceAvailable(i3.ID())
 	assert.NoError(t, err)
 
-	_, err = p.RemoveInstance(i1.ID())
+	_, err = p.RemoveInstances([]string{i1.ID()})
 	assert.NoError(t, err)
 
 	markAllInstancesAvailable(t, p)
@@ -128,24 +128,24 @@ func testGoodWorkflow(t *testing.T, p services.PlacementService) {
 	_, exist = s.Instance("i4")
 	assert.True(t, exist)
 
-	_, ai, err = p.AddInstance([]services.PlacementInstance{i1})
+	_, ai, err = p.AddInstances([]services.PlacementInstance{i1})
 	assert.NoError(t, err)
-	assertPlacementInstanceEqualExceptShards(t, i1, ai)
+	assertPlacementInstanceEqualExceptShards(t, i1, ai[0])
 
 	i24 := placement.NewEmptyInstance("i24", "r2", "z1", "endpoint", 1)
-	_, ai, err = p.AddInstance([]services.PlacementInstance{i24})
+	_, ai, err = p.AddInstances([]services.PlacementInstance{i24})
 	assert.NoError(t, err)
-	assertPlacementInstanceEqualExceptShards(t, i24, ai)
+	assertPlacementInstanceEqualExceptShards(t, i24, ai[0])
 
 	i34 := placement.NewEmptyInstance("i34", "r3", "z1", "endpoint", 1)
-	_, ai, err = p.AddInstance([]services.PlacementInstance{i34})
+	_, ai, err = p.AddInstances([]services.PlacementInstance{i34})
 	assert.NoError(t, err)
-	assertPlacementInstanceEqualExceptShards(t, i34, ai)
+	assertPlacementInstanceEqualExceptShards(t, i34, ai[0])
 
 	i35 := placement.NewEmptyInstance("i35", "r3", "z1", "endpoint", 1)
-	_, ai, err = p.AddInstance([]services.PlacementInstance{i35})
+	_, ai, err = p.AddInstances([]services.PlacementInstance{i35})
 	assert.NoError(t, err)
-	assertPlacementInstanceEqualExceptShards(t, i35, ai)
+	assertPlacementInstanceEqualExceptShards(t, i35, ai[0])
 
 	i41 := placement.NewEmptyInstance("i41", "r4", "z1", "endpoint", 1)
 	instances := []services.PlacementInstance{
@@ -156,9 +156,9 @@ func testGoodWorkflow(t *testing.T, p services.PlacementService) {
 		placement.NewEmptyInstance("i23", "r2", "z1", "endpoint", 1),
 		i41,
 	}
-	_, ai, err = p.AddInstance(instances)
+	_, ai, err = p.AddInstances(instances)
 	assert.NoError(t, err)
-	assertPlacementInstanceEqualExceptShards(t, i41, ai)
+	assertPlacementInstanceEqualExceptShards(t, i41, ai[0])
 	s, _, err = p.Placement()
 	assert.NoError(t, err)
 	_, exist = s.Instance("i41") // instance added from least weighted rack
@@ -193,15 +193,15 @@ func TestNonShardedWorkflow(t *testing.T) {
 
 	i3 := placement.NewEmptyInstance("i3", "r1", "z1", "e3", 1)
 	i4 := placement.NewEmptyInstance("i4", "r1", "z1", "e4", 1)
-	p, ai, err := ps.AddInstance([]services.PlacementInstance{i3, i4})
+	p, ai, err := ps.AddInstances([]services.PlacementInstance{i3, i4})
 	assert.NoError(t, err)
-	assert.Equal(t, i3, ai)
+	assert.Equal(t, i3, ai[0])
 	assert.Equal(t, 3, p.NumInstances())
 	assert.Equal(t, 0, p.NumShards())
 	assert.Equal(t, 2, p.ReplicaFactor())
 	assert.False(t, p.IsSharded())
 
-	p, err = ps.RemoveInstance("i1")
+	p, err = ps.RemoveInstances([]string{"i1"})
 	assert.NoError(t, err)
 	assert.Equal(t, 2, p.NumInstances())
 	assert.Equal(t, 0, p.NumShards())
@@ -248,27 +248,27 @@ func TestDryrun(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, v)
 
-	_, ai, err := dryrunPS.AddInstance([]services.PlacementInstance{i3})
+	_, ai, err := dryrunPS.AddInstances([]services.PlacementInstance{i3})
 	assert.NoError(t, err)
-	assertPlacementInstanceEqualExceptShards(t, i3, ai)
+	assertPlacementInstanceEqualExceptShards(t, i3, ai[0])
 
 	_, v, _ = m.Placement(sid)
 	assert.Equal(t, 1, v)
 
-	_, ai, err = ps.AddInstance([]services.PlacementInstance{i3})
+	_, ai, err = ps.AddInstances([]services.PlacementInstance{i3})
 	assert.NoError(t, err)
-	assertPlacementInstanceEqualExceptShards(t, i3, ai)
+	assertPlacementInstanceEqualExceptShards(t, i3, ai[0])
 
 	_, v, _ = m.Placement(sid)
 	assert.Equal(t, 2, v)
 
-	_, err = dryrunPS.RemoveInstance("i3")
+	_, err = dryrunPS.RemoveInstances([]string{"i3"})
 	assert.NoError(t, err)
 
 	_, v, _ = m.Placement(sid)
 	assert.Equal(t, 2, v)
 
-	_, err = ps.RemoveInstance("i3")
+	_, err = ps.RemoveInstances([]string{"i3"})
 	assert.NoError(t, err)
 
 	_, v, _ = m.Placement(sid)
@@ -433,21 +433,21 @@ func TestBadAddInstance(t *testing.T) {
 	assert.NoError(t, err)
 
 	// adding instance already exist
-	_, _, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)})
+	_, _, err = p.AddInstances([]services.PlacementInstance{placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)})
 	assert.Error(t, err)
 
 	// too many zones
-	_, _, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("i2", "r2", "z2", "endpoint", 1)})
+	_, _, err = p.AddInstances([]services.PlacementInstance{placement.NewEmptyInstance("i2", "r2", "z2", "endpoint", 1)})
 	assert.Error(t, err)
 	assert.Equal(t, errNoValidInstance, err)
 
 	p = NewPlacementService(ms, testServiceID(), placement.NewOptions())
-	_, _, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)})
+	_, _, err = p.AddInstances([]services.PlacementInstance{placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)})
 	assert.Error(t, err)
 
 	// could not find placement for service
 	p = NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions())
-	_, _, err = p.AddInstance([]services.PlacementInstance{placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)})
+	_, _, err = p.AddInstances([]services.PlacementInstance{placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)})
 	assert.Error(t, err)
 }
 
@@ -460,16 +460,16 @@ func TestBadRemoveInstance(t *testing.T) {
 	assert.NoError(t, err)
 
 	// leaving instance not exist
-	_, err = p.RemoveInstance("not_exist")
+	_, err = p.RemoveInstances([]string{"not_exist"})
 	assert.Error(t, err)
 
 	// not enough racks/instances after removal
-	_, err = p.RemoveInstance("i1")
+	_, err = p.RemoveInstances([]string{"i1"})
 	assert.Error(t, err)
 
 	// could not find placement for service
 	p = NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions())
-	_, err = p.RemoveInstance("i1")
+	_, err = p.RemoveInstances([]string{"i1"})
 	assert.Error(t, err)
 }
 

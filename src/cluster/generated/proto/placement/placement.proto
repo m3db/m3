@@ -27,6 +27,7 @@ message Placement {
   uint32 num_shards = 3;
   bool is_sharded = 4;
   int64 cutover_time = 5;
+  bool is_mirrored = 6;
 }
 
 message Instance {
