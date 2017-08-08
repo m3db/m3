@@ -484,8 +484,9 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	}
 
 	commitLog.newCommitLogWriterFn = func(
-		flushFn flushFn,
-		opts Options,
+		_ flushFn,
+		_ tally.Scope,
+		_ Options,
 	) commitLogWriter {
 		return writer
 	}
@@ -529,8 +530,9 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	}
 
 	commitLog.newCommitLogWriterFn = func(
-		flushFn flushFn,
-		opts Options,
+		_ flushFn,
+		_ tally.Scope,
+		_ Options,
 	) commitLogWriter {
 		return writer
 	}
@@ -582,8 +584,9 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	}
 
 	commitLog.newCommitLogWriterFn = func(
-		flushFn flushFn,
-		opts Options,
+		_ flushFn,
+		_ tally.Scope,
+		_ Options,
 	) commitLogWriter {
 		return writer
 	}

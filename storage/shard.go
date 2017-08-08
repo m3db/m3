@@ -112,10 +112,12 @@ type dbShardRuntimeOptions struct {
 }
 
 type dbShardMetrics struct {
-	create       tally.Counter
-	close        tally.Counter
-	closeStart   tally.Counter
-	closeLatency tally.Timer
+	create                  tally.Counter
+	close                   tally.Counter
+	closeStart              tally.Counter
+	closeLatency            tally.Timer
+	insertAsyncInsertErrors tally.Counter
+	insertAsyncWriteErrors  tally.Counter
 }
 
 func newDbShardMetrics(scope tally.Scope) dbShardMetrics {
@@ -124,6 +126,12 @@ func newDbShardMetrics(scope tally.Scope) dbShardMetrics {
 		close:        scope.Counter("close"),
 		closeStart:   scope.Counter("close-start"),
 		closeLatency: scope.Timer("close-latency"),
+		insertAsyncInsertErrors: scope.Tagged(map[string]string{
+			"error_type": "insert-series",
+		}).Counter("insert-async.errors"),
+		insertAsyncWriteErrors: scope.Tagged(map[string]string{
+			"error_type": "write-value",
+		}).Counter("insert-async.errors"),
 	}
 }
 
@@ -716,9 +724,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// writer count so it does not look empty immediately after
 		// we release the write lock
 		hasPendingWrite := inserts[i].hasPendingWrite
-		if hasPendingWrite && !anyPendingWrites {
-			anyPendingWrites = true
-		}
+		anyPendingWrites = anyPendingWrites || hasPendingWrite
 
 		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.series.ID())
 		if entry != nil {
@@ -738,6 +744,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		if err != errShardEntryNotFound {
 			// Shard is not taking inserts
 			s.Unlock()
+			s.metrics.insertAsyncInsertErrors.Inc(int64(len(inserts) - i))
 			return err
 		}
 
@@ -759,7 +766,10 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		}
 		entry := inserts[i].entry
 		write := inserts[i].pendingWrite
-		entry.series.Write(ctx, write.timestamp, write.value, write.unit, write.annotation)
+		err := entry.series.Write(ctx, write.timestamp, write.value, write.unit, write.annotation)
+		if err != nil {
+			s.metrics.insertAsyncWriteErrors.Inc(1)
+		}
 		entry.decrementWriterCount()
 	}
 

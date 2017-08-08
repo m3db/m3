@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/uber-go/tally"
 )
 
 const (
@@ -93,10 +94,16 @@ type writer struct {
 	sizeBuffer         []byte
 	logEncoder         encoding.Encoder
 	metadataEncoder    encoding.Encoder
+	metrics            commitLogWriterMetrics
+}
+
+type commitLogWriterMetrics struct {
+	seenCacheEntryOverwritten tally.Counter
 }
 
 func newCommitLogWriter(
 	flushFn flushFn,
+	scope tally.Scope,
 	opts Options,
 ) commitLogWriter {
 	seenCache := make([]uint64, opts.MetadataSeenCacheSize())
@@ -113,6 +120,9 @@ func newCommitLogWriter(
 		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
 		logEncoder:         msgpack.NewEncoder(),
 		metadataEncoder:    msgpack.NewEncoder(),
+		metrics: commitLogWriterMetrics{
+			seenCacheEntryOverwritten: scope.Counter("writes.seen-cache-entry-overwritten"),
+		},
 	}
 }
 
@@ -158,11 +168,10 @@ func (w *writer) isOpen() bool {
 }
 
 func (w *writer) logEntryIndex(seriesUniqueIndex uint64) uint64 {
-	// Special case the zeroth value as we compare the value
-	// at the entry of the seen cache with the index being put
-	// at the location - since all entries in the seen cache when
-	// not set are zero the value being used to compare whether
-	// this result has been seen or not cannot be zero itself
+	// This value is used as the unique index for the series in the
+	// seenCache. The seenCache is zero initialised, so we add one
+	// to ensure the value we set in the slice is non-zero. This
+	// lets us distinguish un-initialized vs initialized seenCache entries.
 	return seriesUniqueIndex + 1
 }
 
@@ -180,7 +189,7 @@ func (w *writer) Write(
 
 	// NB(r): Calculate whether metadata for this series
 	// has been written before. Once we have more unique series than
-	// the size of the seen cache this can cause some metadata
+	// the size of the seenCache this can cause some metadata
 	// to be written multiple times. The vast majority
 	// of IDs should not collide frequently which preserves
 	// the size of the resulting commit log staying small.
@@ -199,6 +208,12 @@ func (w *writer) Write(
 			return err
 		}
 		logEntry.Metadata = w.metadataEncoder.Bytes()
+
+		if seenValueAtIdx != 0 {
+			// This means we've overwritten a prexisting entry
+			// at this entry in the seenCache
+			w.metrics.seenCacheEntryOverwritten.Inc(1)
+		}
 	}
 
 	logEntry.Timestamp = datapoint.Timestamp.UnixNano()
