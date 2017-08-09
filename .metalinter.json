@@ -1,2 +1,4 @@
 { "Enable": [
-    "deadcode" ]}
+    "deadcode",
+    "structcheck"
+]}
