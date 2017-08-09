@@ -33,8 +33,7 @@ import (
 )
 
 var (
-	errReadFromClosedBlock         = errors.New("attempt to read from a closed block")
-	errRetrievableBlockNoRetriever = errors.New("attempt to read from a retrievable block with no retriever")
+	errReadFromClosedBlock = errors.New("attempt to read from a closed block")
 
 	timeZero = time.Time{}
 )

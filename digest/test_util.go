@@ -48,6 +48,7 @@ func (md *mockDigest) Size() int           { return 0 }
 func (md *mockDigest) BlockSize() int      { return 0 }
 func (md *mockDigest) Sum32() uint32       { return md.digest }
 
+// nolint: deadcode
 func createTestFdWithDigest(t *testing.T) (*os.File, *mockDigest) {
 	fd := createTempFile(t)
 	md := &mockDigest{}

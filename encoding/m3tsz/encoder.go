@@ -40,8 +40,7 @@ const (
 )
 
 var (
-	errEncoderClosed        = errors.New("encoder is closed")
-	errEncoderAlreadyClosed = errors.New("encoder is already closed")
+	errEncoderClosed = errors.New("encoder is closed")
 )
 
 type encoder struct {

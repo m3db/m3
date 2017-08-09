@@ -93,6 +93,7 @@ type commitLogMetrics struct {
 
 type valueType int
 
+// nolint: deadcode
 const (
 	writeValueType valueType = iota
 	flushValueType

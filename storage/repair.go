@@ -175,6 +175,7 @@ type sleepFn func(d time.Duration)
 
 type repairStatus int
 
+// nolint: deadcode
 const (
 	repairNotStarted repairStatus = iota
 	repairSuccess
