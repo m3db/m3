@@ -42,7 +42,6 @@ var (
 
 	errCommitLogReaderAlreadyOpen               = errors.New("commit log reader already open")
 	errCommitLogReaderChunkSizeChecksumMismatch = errors.New("commit log reader encountered chunk size checksum mismatch")
-	errCommitLogReaderChunkDataChecksumMismatch = errors.New("commit log reader encountered chunk data checksum mismatch")
 	errCommitLogReaderMissingLogMetadata        = errors.New("commit log reader encountered message missing metadata")
 )
 

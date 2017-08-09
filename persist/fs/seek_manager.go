@@ -32,7 +32,6 @@ import (
 )
 
 var (
-	errSeekerManagerNotOpen             = errors.New("seeker manager is not open")
 	errSeekerManagerAlreadyOpenOrClosed = errors.New("seeker manager already open or is closed")
 	errSeekerManagerFileSetNotFound     = errors.New("seeker manager lookup fileset not found")
 )

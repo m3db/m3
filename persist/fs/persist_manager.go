@@ -36,8 +36,7 @@ import (
 )
 
 const (
-	bytesPerMegabit  = 1024 * 1024 / 8
-	nsPerMillisecond = int64(time.Millisecond / time.Nanosecond)
+	bytesPerMegabit = 1024 * 1024 / 8
 )
 
 type persistManagerStatus int

@@ -21,14 +21,9 @@
 package xio
 
 import (
-	"errors"
 	"io"
 
 	"github.com/m3db/m3db/ts"
-)
-
-var (
-	errUnexpectedReaderType = errors.New("unexpected reader type")
 )
 
 type sliceOfSliceReader struct {

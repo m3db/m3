@@ -52,8 +52,7 @@ const (
 )
 
 var (
-	errCommitLogWriterAlreadyOpen                = errors.New("commit log writer already open")
-	errCommitLogWriterFlushWithoutReservedLength = errors.New("commit log writer flushed without header reserve")
+	errCommitLogWriterAlreadyOpen = errors.New("commit log writer already open")
 
 	endianness = binary.LittleEndian
 )

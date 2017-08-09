@@ -402,8 +402,6 @@ func (b *dbBuffer) FetchBlocksMetadata(
 	return res
 }
 
-type dbBufferBucketStreamFn func(stream xio.SegmentReader)
-
 type dbBufferBucket struct {
 	ctx               context.Context
 	opts              Options

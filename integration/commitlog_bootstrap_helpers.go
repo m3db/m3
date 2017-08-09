@@ -56,6 +56,7 @@ func generateUniqueMetricIndexes(timeBlocks generate.SeriesBlocksByStart) map[st
 	return indexes
 }
 
+// nolint: deadcode
 func writeCommitLogData(
 	t *testing.T,
 	s *testSetup,
@@ -106,6 +107,7 @@ func writeCommitLogData(
 	}
 }
 
+// nolint: deadcode
 func testSetupMetadatas(
 	t *testing.T,
 	testSetup *testSetup,

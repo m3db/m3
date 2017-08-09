@@ -114,6 +114,7 @@ func writeVerifyDebugOutput(t *testing.T, filePath string, start, end time.Time,
 	require.NoError(t, w.Close())
 }
 
+// nolint: deadcode
 func verifySeriesMaps(
 	t *testing.T,
 	ts *testSetup,
@@ -144,6 +145,7 @@ func createFileIfPrefixSet(t *testing.T, prefix, suffix string) string {
 	return filePath
 }
 
+// nolint: deadcode
 func compareSeriesList(
 	t *testing.T,
 	expected generate.SeriesBlock,
