@@ -135,7 +135,7 @@ type RouteForEachFn func(idx int, host Host)
 // ConsistencyLevel is the consistency level for cluster operations
 type ConsistencyLevel int
 
-// nolint: deadcode
+// nolint: deadcode, varcheck
 const (
 	consistencyLevelNone ConsistencyLevel = iota
 

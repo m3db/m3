@@ -116,7 +116,6 @@ func (r *fdWithDigestReader) ReadAllAndValidate(b []byte, expectedDigest uint32)
 	if err != io.EOF {
 		return 0, errBufferSizeMismatch
 	}
-	err = nil
 	if _, err := r.FdWithDigest.Digest().Write(b); err != nil {
 		return n, err
 	}

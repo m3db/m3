@@ -139,6 +139,7 @@ func TestReadDataError(t *testing.T) {
 
 	r := newTestReader(filePathPrefix)
 	err = r.Open(testNamespaceID, 0, testWriterStart)
+	assert.NoError(t, err)
 
 	// Close out the dataFd and expect an error on next read
 	reader := r.(*reader)
