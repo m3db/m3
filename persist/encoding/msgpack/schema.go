@@ -30,7 +30,7 @@ const (
 
 type objectType int
 
-// nolint: deadcode
+// nolint: deadcode, varcheck
 const (
 	unknownType objectType = iota
 	rootObjectType

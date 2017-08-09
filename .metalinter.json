@@ -1,4 +1,7 @@
 { "Enable": [
     "deadcode",
-    "structcheck"
+    "varcheck",
+    "structcheck",
+    "goconst",
+    "ineffassign"
 ]}

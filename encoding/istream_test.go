@@ -94,7 +94,7 @@ func TestReadAfterPeekBits(t *testing.T) {
 	res, err := is.PeekBits(10)
 	require.NoError(t, err)
 	require.Equal(t, uint64(0x2af), res)
-	res, err = is.PeekBits(20)
+	_, err = is.PeekBits(20)
 	require.Error(t, err)
 
 	inputs := []struct {
@@ -109,7 +109,7 @@ func TestReadAfterPeekBits(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, input.expected, res)
 	}
-	res, err = is.ReadBits(8)
+	_, err = is.ReadBits(8)
 	require.Error(t, err)
 }
 
