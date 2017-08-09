@@ -306,7 +306,6 @@ func (r *chunkReader) Read(p []byte) (int, error) {
 
 		// Reset read target
 		p = p[read:]
-		size = len(p)
 
 		// Perform consecutive read(s)
 		n, err := r.Read(p)

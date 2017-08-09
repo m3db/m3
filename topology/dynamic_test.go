@@ -31,6 +31,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func testSetup(ctrl *gomock.Controller) (DynamicOptions, *testWatch) {
@@ -120,6 +121,7 @@ func TestWatch(t *testing.T) {
 	assert.NoError(t, err)
 
 	w, err := topo.Watch()
+	require.NoError(t, err)
 	<-w.C()
 	m := w.Get()
 	assert.Equal(t, 2, m.Replicas())
@@ -138,7 +140,7 @@ func TestGetUniqueShardsAndReplicas(t *testing.T) {
 	assert.Equal(t, 3, len(shards))
 
 	goodInstances[0].SetShards(nil)
-	shards, err = validateInstances(goodInstances, 2, 3)
+	_, err = validateInstances(goodInstances, 2, 3)
 	assert.Equal(t, errInstanceHasNoShardsAssignment, err)
 
 	goodInstances[0].SetShards(shard.NewShards(
@@ -147,7 +149,7 @@ func TestGetUniqueShardsAndReplicas(t *testing.T) {
 			shard.NewShard(1),
 			shard.NewShard(3),
 		}))
-	shards, err = validateInstances(goodInstances, 2, 3)
+	_, err = validateInstances(goodInstances, 2, 3)
 	assert.Equal(t, errUnexpectedShard, err)
 
 	// got h1: 1, h2: 1, 2, h3 0,2, missing a replica for 1
@@ -155,7 +157,7 @@ func TestGetUniqueShardsAndReplicas(t *testing.T) {
 		[]shard.Shard{
 			shard.NewShard(1),
 		}))
-	shards, err = validateInstances(goodInstances, 2, 3)
+	_, err = validateInstances(goodInstances, 2, 3)
 	assert.Equal(t, errNotEnoughReplicasForShard, err)
 
 	goodInstances[0].SetShards(shard.NewShards(
@@ -166,7 +168,7 @@ func TestGetUniqueShardsAndReplicas(t *testing.T) {
 		[]shard.Shard{
 			shard.NewShard(2),
 		}))
-	shards, err = validateInstances(goodInstances, 2, 3)
+	_, err = validateInstances(goodInstances, 2, 3)
 	// got h1:0, h2: 2, h3 0,2, missing 1
 	assert.Equal(t, errMissingShard, err)
 }

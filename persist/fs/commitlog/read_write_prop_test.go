@@ -62,6 +62,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 	writesInterface, ok := writeResult.Retrieve()
 	require.True(t, ok)
 	writes, ok := writesInterface.([]generatedWrite)
+	require.True(t, ok)
 
 	ctx := context.NewContext()
 	for _, w := range writes {
