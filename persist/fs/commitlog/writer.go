@@ -84,9 +84,8 @@ type writer struct {
 	newFileMode        os.FileMode
 	newDirectoryMode   os.FileMode
 	nowFn              clock.NowFn
-	seenCache          []uint64
-	seenCacheLen       int
 	start              time.Time
+	startNanos         int64
 	duration           time.Duration
 	chunkWriter        *chunkWriter
 	chunkReserveHeader []byte
@@ -94,11 +93,6 @@ type writer struct {
 	sizeBuffer         []byte
 	logEncoder         encoding.Encoder
 	metadataEncoder    encoding.Encoder
-	metrics            commitLogWriterMetrics
-}
-
-type commitLogWriterMetrics struct {
-	seenCacheEntryOverwritten tally.Counter
 }
 
 func newCommitLogWriter(
@@ -106,23 +100,17 @@ func newCommitLogWriter(
 	scope tally.Scope,
 	opts Options,
 ) commitLogWriter {
-	seenCache := make([]uint64, opts.MetadataSeenCacheSize())
 	return &writer{
 		filePathPrefix:     opts.FilesystemOptions().FilePathPrefix(),
 		newFileMode:        opts.FilesystemOptions().NewFileMode(),
 		newDirectoryMode:   opts.FilesystemOptions().NewDirectoryMode(),
 		nowFn:              opts.ClockOptions().NowFn(),
-		seenCache:          seenCache,
-		seenCacheLen:       len(seenCache),
 		chunkWriter:        newChunkWriter(flushFn),
 		chunkReserveHeader: make([]byte, chunkHeaderLen),
 		buffer:             bufio.NewWriterSize(nil, opts.FlushSize()),
 		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
 		logEncoder:         msgpack.NewEncoder(),
 		metadataEncoder:    msgpack.NewEncoder(),
-		metrics: commitLogWriterMetrics{
-			seenCacheEntryOverwritten: scope.Counter("writes.seen-cache-entry-overwritten"),
-		},
 	}
 }
 
@@ -159,6 +147,7 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 	}
 
 	w.start = start
+	w.startNanos = start.UnixNano()
 	w.duration = duration
 	return nil
 }
@@ -167,36 +156,18 @@ func (w *writer) isOpen() bool {
 	return w.chunkWriter.fd != nil
 }
 
-func (w *writer) logEntryIndex(seriesUniqueIndex uint64) uint64 {
-	// This value is used as the unique index for the series in the
-	// seenCache. The seenCache is zero initialised, so we add one
-	// to ensure the value we set in the slice is non-zero. This
-	// lets us distinguish un-initialized vs initialized seenCache entries.
-	return seriesUniqueIndex + 1
-}
-
 func (w *writer) Write(
 	series Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
 ) error {
-	logEntryIndex := w.logEntryIndex(series.UniqueIndex)
-
 	var logEntry schema.LogEntry
 	logEntry.Create = w.nowFn().UnixNano()
-	logEntry.Index = logEntryIndex
+	logEntry.Index = series.UniqueIndex
 
-	// NB(r): Calculate whether metadata for this series
-	// has been written before. Once we have more unique series than
-	// the size of the seenCache this can cause some metadata
-	// to be written multiple times. The vast majority
-	// of IDs should not collide frequently which preserves
-	// the size of the resulting commit log staying small.
-	seenIdx := logEntryIndex % uint64(w.seenCacheLen)
-	seenValueAtIdx := w.seenCache[seenIdx]
-	definitelySeen := seenValueAtIdx == logEntryIndex
-	if !definitelySeen {
+	seen := w.startNanos == series.WriteState.CurrentCommitLogStart()
+	if !seen {
 		// If "idx" likely hasn't been written to commit log
 		// yet we need to include series metadata
 		var metadata schema.LogMetadata
@@ -208,12 +179,6 @@ func (w *writer) Write(
 			return err
 		}
 		logEntry.Metadata = w.metadataEncoder.Bytes()
-
-		if seenValueAtIdx != 0 {
-			// This means we've overwritten a prexisting entry
-			// at this entry in the seenCache
-			w.metrics.seenCacheEntryOverwritten.Inc(1)
-		}
 	}
 
 	logEntry.Timestamp = datapoint.Timestamp.UnixNano()
@@ -228,9 +193,9 @@ func (w *writer) Write(
 		return err
 	}
 
-	if !definitelySeen {
+	if !seen {
 		// Record we have seen this series at the current seenIdx
-		w.seenCache[seenIdx] = logEntryIndex
+		series.WriteState.SetCurrentCommitLogStart(w.startNanos)
 	}
 	return nil
 }
@@ -252,10 +217,8 @@ func (w *writer) Close() error {
 	}
 
 	w.chunkWriter.fd = nil
-	for i := range w.seenCache {
-		w.seenCache[i] = 0 // Reset seen cache values
-	}
 	w.start = timeZero
+	w.startNanos = 0
 	w.duration = 0
 	return nil
 }
