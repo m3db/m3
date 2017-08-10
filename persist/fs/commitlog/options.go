@@ -40,9 +40,6 @@ const (
 
 	// defaultFlushInterval is the default commit log flush interval
 	defaultFlushInterval = time.Second
-
-	// defaultMetadataSeenCacheSize is the default metadata seen cache size
-	defaultMetadataSeenCacheSize = 1048576
 )
 
 var (
@@ -51,30 +48,28 @@ var (
 )
 
 type options struct {
-	clockOpts             clock.Options
-	instrumentOpts        instrument.Options
-	retentionOpts         retention.Options
-	fsOpts                fs.Options
-	strategy              Strategy
-	flushSize             int
-	flushInterval         time.Duration
-	backlogQueueSize      int
-	metadataSeenCacheSize int
-	bytesPool             pool.CheckedBytesPool
+	clockOpts        clock.Options
+	instrumentOpts   instrument.Options
+	retentionOpts    retention.Options
+	fsOpts           fs.Options
+	strategy         Strategy
+	flushSize        int
+	flushInterval    time.Duration
+	backlogQueueSize int
+	bytesPool        pool.CheckedBytesPool
 }
 
 // NewOptions creates new commit log options
 func NewOptions() Options {
 	o := &options{
-		clockOpts:             clock.NewOptions(),
-		instrumentOpts:        instrument.NewOptions(),
-		retentionOpts:         retention.NewOptions(),
-		fsOpts:                fs.NewOptions(),
-		strategy:              defaultStrategy,
-		flushSize:             defaultFlushSize,
-		flushInterval:         defaultFlushInterval,
-		backlogQueueSize:      defaultBacklogQueueSize,
-		metadataSeenCacheSize: defaultMetadataSeenCacheSize,
+		clockOpts:        clock.NewOptions(),
+		instrumentOpts:   instrument.NewOptions(),
+		retentionOpts:    retention.NewOptions(),
+		fsOpts:           fs.NewOptions(),
+		strategy:         defaultStrategy,
+		flushSize:        defaultFlushSize,
+		flushInterval:    defaultFlushInterval,
+		backlogQueueSize: defaultBacklogQueueSize,
 		bytesPool: pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 			return pool.NewBytesPool(s, nil)
 		}),
@@ -161,16 +156,6 @@ func (o *options) SetBacklogQueueSize(value int) Options {
 
 func (o *options) BacklogQueueSize() int {
 	return o.backlogQueueSize
-}
-
-func (o *options) SetMetadataSeenCacheSize(value int) Options {
-	opts := *o
-	opts.metadataSeenCacheSize = value
-	return &opts
-}
-
-func (o *options) MetadataSeenCacheSize() int {
-	return o.metadataSeenCacheSize
 }
 
 func (o *options) SetBytesPool(value pool.CheckedBytesPool) Options {
