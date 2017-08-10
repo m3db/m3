@@ -47,8 +47,7 @@ func main() {
 
 	seeker := fs.NewSeeker(*optPathPrefix, defaultBufferReadSize, bytesPool, nil)
 
-	err := seeker.Open(ts.StringID(*optNamespace),
-		uint32(*optShard), time.Unix(0, int64(*optBlockstart)))
+	err := seeker.Open(ts.StringID(*optNamespace), *optShard, time.Unix(0, *optBlockstart))
 	if err != nil {
 		log.Fatalf("unable to open file: %v", err)
 	}

@@ -3,5 +3,6 @@
     "varcheck",
     "structcheck",
     "goconst",
-    "ineffassign"
+    "ineffassign",
+    "unconvert"
 ]}

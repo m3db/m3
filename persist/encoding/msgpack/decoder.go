@@ -278,7 +278,7 @@ func (dec *decoder) skip(numFields int) {
 }
 
 func (dec *decoder) decodeNumObjectFields() int {
-	return int(dec.decodeArrayLen())
+	return dec.decodeArrayLen()
 }
 
 func (dec *decoder) decodeObjectType() objectType {

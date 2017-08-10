@@ -135,7 +135,7 @@ func (pm *persistManager) persist(
 		if pm.start.IsZero() {
 			pm.start = start
 		} else if pm.count >= opts.LimitCheckEvery() {
-			target := time.Duration(float64(time.Second) * float64(pm.bytesWritten) / float64(rateLimitMbps*bytesPerMegabit))
+			target := time.Duration(float64(time.Second) * float64(pm.bytesWritten) / rateLimitMbps * bytesPerMegabit)
 			if elapsed := start.Sub(pm.start); elapsed < target {
 				pm.sleepFn(target - elapsed)
 				// Recapture start for precise timing, might take some time to "wakeup"
