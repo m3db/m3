@@ -151,7 +151,7 @@ func (l *commitLog) Open() error {
 	// NB(r): In the future we can introduce a commit log failure policy
 	// similar to Cassandra's "stop", for example see:
 	// https://github.com/apache/cassandra/blob/6dfc1e7eeba539774784dfd650d3e1de6785c938/conf/cassandra.yaml#L232
-	// Right now it is a large amount of coordination to implement something similiar.
+	// Right now it is a large amount of coordination to implement something similar.
 	l.commitLogFailFn = func(err error) {
 		l.log.Fatalf("fatal commit log error: %v", err)
 	}

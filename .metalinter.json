@@ -4,5 +4,6 @@
     "structcheck",
     "goconst",
     "ineffassign",
-    "unconvert"
+    "unconvert",
+    "misspell"
 ]}
