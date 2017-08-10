@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
-	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -91,14 +90,6 @@ func newDatabaseSeries(id ts.ID, opts Options) *dbSeries {
 	}
 	series.buffer = newDatabaseBuffer(series.bufferDrained, opts)
 	return series
-}
-
-func (s *dbSeries) log() xlog.Logger {
-	// NB(r): only in exceptional cases do we log, so defer
-	// creating the logger with fields until we need it
-	log := s.opts.InstrumentOptions().Logger()
-	log = log.WithFields(xlog.NewLogField("id", s.id.String()))
-	return log
 }
 
 func (s *dbSeries) now() time.Time {

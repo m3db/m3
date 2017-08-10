@@ -89,11 +89,6 @@ func NewRetrievableDatabaseBlock(
 	return b
 }
 
-func (b *dbBlock) now() time.Time {
-	nowFn := b.opts.ClockOptions().NowFn()
-	return nowFn()
-}
-
 func (b *dbBlock) StartTime() time.Time {
 	b.RLock()
 	start := b.startWithLock()

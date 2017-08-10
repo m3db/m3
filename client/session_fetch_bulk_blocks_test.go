@@ -2373,29 +2373,3 @@ func (e *testEncoder) DiscardReset(t time.Time, capacity int) ts.Segment {
 	e.data = ts.Segment{}
 	return curr
 }
-
-type synchronousWorkerPool struct{}
-
-func newSynchronousWorkerPool() *synchronousWorkerPool {
-	return &synchronousWorkerPool{}
-}
-
-func (s *synchronousWorkerPool) Init() {
-	// Noop
-}
-
-func (s *synchronousWorkerPool) Go(work xsync.Work) {
-	work()
-}
-
-func (s *synchronousWorkerPool) GoIfAvailable(work xsync.Work) bool {
-	work()
-	return true
-}
-
-func (s *synchronousWorkerPool) GoWithTimeout(
-	work xsync.Work, timeout time.Duration) bool {
-
-	work()
-	return true
-}

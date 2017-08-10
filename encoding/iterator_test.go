@@ -88,7 +88,6 @@ func (it *testIterator) Reset(r io.Reader) {
 type testReaderSliceOfSlicesIterator struct {
 	readers [][]io.Reader
 	idx     int
-	len     int
 	closed  bool
 }
 
