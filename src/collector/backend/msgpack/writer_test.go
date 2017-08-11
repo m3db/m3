@@ -29,8 +29,10 @@ import (
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
+	"github.com/m3db/m3x/instrument"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestWriterWriteClosed(t *testing.T) {
@@ -256,6 +258,39 @@ func TestWriterWriteBatchTimerWithPoliciesListLargeBatchSize(t *testing.T) {
 	require.Equal(t, expectedIDs, idRes)
 	require.Equal(t, expectedValues, valueRes)
 	require.Equal(t, expectedPoliciesList, plRes)
+}
+
+func TestWriterWriteLargeBatchTimerUsesMultipleBuffers(t *testing.T) {
+	numValues := 1400
+	timerValues := make([]float64, numValues)
+	for i := 0; i < numValues; i++ {
+		timerValues[i] = float64(i)
+	}
+	testLargeBatchTimer := unaggregated.MetricUnion{
+		Type:          unaggregated.BatchTimerType,
+		ID:            []byte("foo"),
+		BatchTimerVal: timerValues,
+	}
+
+	testScope := tally.NewTestScope("", nil)
+	iOpts := instrument.NewOptions().SetMetricsScope(testScope)
+	opts := testServerOptions().
+		SetMaxTimerBatchSize(140).
+		SetInstrumentOptions(iOpts)
+
+	w := newInstanceWriter(testPlacementInstance, opts).(*writer)
+	w.closed = false
+	w.newLockedEncoderFn = func(msgpack.BufferedEncoderPool) *lockedEncoder {
+		return &lockedEncoder{
+			UnaggregatedEncoder: msgpack.NewUnaggregatedEncoder(msgpack.NewBufferedEncoder()),
+		}
+	}
+
+	require.NoError(t, w.Write(0, testLargeBatchTimer, testPoliciesList))
+
+	enqueuedCounter := testScope.Snapshot().Counters()["buffers+action=enqueued"]
+	require.NotNil(t, enqueuedCounter)
+	require.Equal(t, int64(5), enqueuedCounter.Value())
 }
 
 func TestWriterWriteBatchTimerWithPoliciesListWriteError(t *testing.T) {

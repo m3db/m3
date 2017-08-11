@@ -30,6 +30,8 @@ import (
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
+
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -54,6 +56,7 @@ type writer struct {
 	sync.RWMutex
 
 	log               xlog.Logger
+	metrics           writerMetrics
 	flushSize         int
 	maxTimerBatchSize int
 	encoderPool       msgpack.BufferedEncoderPool
@@ -65,8 +68,10 @@ type writer struct {
 }
 
 func newInstanceWriter(instance services.PlacementInstance, opts ServerOptions) instanceWriter {
+	instrumentOpts := opts.InstrumentOptions()
 	w := &writer{
-		log:               opts.InstrumentOptions().Logger(),
+		log:               instrumentOpts.Logger(),
+		metrics:           newWriterMetrics(instrumentOpts.MetricsScope()),
 		flushSize:         opts.FlushSize(),
 		maxTimerBatchSize: opts.MaxTimerBatchSize(),
 		encoderPool:       opts.BufferedEncoderPool(),
@@ -151,7 +156,7 @@ func (w *writer) flushWithLock() error {
 		newBufferedEncoder.Reset()
 		encoder.Reset(newBufferedEncoder)
 		encoder.Unlock()
-		if err := w.queue.Enqueue(bufferedEncoder); err != nil {
+		if err := w.enqueueBuffer(bufferedEncoder); err != nil {
 			multiErr = multiErr.Add(err)
 		}
 	}
@@ -209,6 +214,33 @@ func (w *writer) encodeWithLock(
 				PoliciesList: pl,
 			}
 			err = encoder.EncodeBatchTimerWithPoliciesList(btp)
+			if err != nil {
+				break
+			}
+
+			// If the buffer isn't big enough continue to the next iteration.
+			if sizeAfter := buffer.Len(); sizeAfter < w.flushSize {
+				continue
+			}
+
+			// Otherwise we enqueue the current buffer.
+			oldBufferedEncoder := w.prepareEnqueueBufferWithLock(encoder, sizeBefore)
+
+			// Update variables since the encoder's buffer has been updated.
+			bufferedEncoder = encoder.Encoder()
+			buffer = bufferedEncoder.Buffer()
+			sizeBefore = buffer.Len()
+
+			// Unlock the encoder before we enqueue the old buffer to ensure other
+			// goroutines have an oppurtunity to encode metrics while larger timer
+			// batches are being encoded.
+			encoder.Unlock()
+
+			err := w.enqueueBuffer(oldBufferedEncoder)
+			encoder.Lock()
+			if err != nil {
+				break
+			}
 		}
 	case unaggregated.GaugeType:
 		gp := unaggregated.GaugeWithPoliciesList{
@@ -234,27 +266,62 @@ func (w *writer) encodeWithLock(
 	}
 
 	// If the buffer size is not big enough, do nothing.
-	sizeAfter := buffer.Len()
-	if sizeAfter < w.flushSize {
+	if sizeAfter := buffer.Len(); sizeAfter < w.flushSize {
 		encoder.Unlock()
 		return nil
 	}
 
-	// Otherwise we get a new buffer from pool, copy the bytes exceeding the
-	// flush size to it, swap the new buffer with the old one, and flush out
-	// the old buffer.
-	newBufferedEncoder := w.encoderPool.Get()
+	// Otherwise we enqueue the current buffer.
+	oldBufferedEncoder := w.prepareEnqueueBufferWithLock(encoder, sizeBefore)
+	encoder.Unlock()
+	return w.enqueueBuffer(oldBufferedEncoder)
+}
+
+// prepareEnqueueBufferWithLock prepares the writer to enqueue a
+// buffer onto its instance queue. It gets a new buffer from pool,
+// copies the bytes exceeding sizeBefore to it, resets the encoder
+// with the new buffer, and returns the old buffer.
+func (w *writer) prepareEnqueueBufferWithLock(
+	encoder *lockedEncoder,
+	sizeBefore int,
+) msgpack.Buffer {
+	var (
+		oldBufferedEncoder = encoder.Encoder()
+		newBufferedEncoder = w.encoderPool.Get()
+	)
 	newBufferedEncoder.Reset()
 	if sizeBefore > 0 {
-		data := bufferedEncoder.Bytes()
-		newBufferedEncoder.Buffer().Write(data[sizeBefore:sizeAfter])
+		var (
+			data   = oldBufferedEncoder.Bytes()
+			buffer = oldBufferedEncoder.Buffer()
+			end    = buffer.Len()
+		)
+		newBufferedEncoder.Buffer().Write(data[sizeBefore:end])
 		buffer.Truncate(sizeBefore)
 	}
 	encoder.Reset(newBufferedEncoder)
-	encoder.Unlock()
+	return oldBufferedEncoder
+}
 
-	// Write out the buffered data.
-	return w.queue.Enqueue(bufferedEncoder)
+func (w *writer) enqueueBuffer(buf msgpack.Buffer) error {
+	if err := w.queue.Enqueue(buf); err != nil {
+		w.metrics.enqueueErrors.Inc(1)
+		return err
+	}
+	w.metrics.buffersEnqueued.Inc(1)
+	return nil
+}
+
+type writerMetrics struct {
+	buffersEnqueued tally.Counter
+	enqueueErrors   tally.Counter
+}
+
+func newWriterMetrics(s tally.Scope) writerMetrics {
+	return writerMetrics{
+		buffersEnqueued: s.Tagged(map[string]string{"action": "enqueued"}).Counter("buffers"),
+		enqueueErrors:   s.Tagged(map[string]string{"error-type": "enqueue"}).Counter("errors"),
+	}
 }
 
 type lockedEncoder struct {
