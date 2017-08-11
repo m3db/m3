@@ -36,6 +36,7 @@ import (
 
 type bootstrapState int
 
+// nolint: deadcode
 const (
 	bootstrapNotStarted bootstrapState = iota
 	bootstrapping
@@ -43,9 +44,6 @@ const (
 )
 
 var (
-	// errDatabaseNotBootstrapped raised when trying to query a database that's not yet bootstrapped.
-	errDatabaseNotBootstrapped = errors.New("database is not yet bootstrapped")
-
 	// errNamespaceIsBootstrapping raised when trying to bootstrap a namespace that's being bootstrapped.
 	errNamespaceIsBootstrapping = errors.New("namespace is bootstrapping")
 

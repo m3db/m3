@@ -22,7 +22,6 @@ package fs
 
 import (
 	"os"
-	"time"
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
@@ -37,12 +36,6 @@ const (
 
 	// defaultReaderBufferSize is the default buffer size for reading TSDB files
 	defaultReaderBufferSize = 65536
-
-	// defaultThroughputCheckInterval is the default throughput check interval
-	defaultThroughputCheckInterval = 100 * time.Millisecond
-
-	// defaultThroughputLimitMbps is the default throughput limit in Mb/s
-	defaultThroughputLimitMbps = 50.0
 )
 
 var (

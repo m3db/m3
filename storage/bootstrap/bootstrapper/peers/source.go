@@ -49,11 +49,6 @@ type incrementalFlush struct {
 	timeRange         xtime.Range
 }
 
-type incrementalFlushedBlock struct {
-	id    ts.ID
-	block block.DatabaseBlock
-}
-
 func newPeersSource(opts Options) bootstrap.Source {
 	return &peersSource{
 		opts:  opts,

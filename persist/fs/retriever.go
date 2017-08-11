@@ -72,13 +72,6 @@ type blockRetriever struct {
 	notifyFetch    chan struct{}
 }
 
-type notifyRetrieval struct {
-	target  block.OnRetrieveBlock
-	id      ts.ID
-	start   time.Time
-	segment ts.Segment
-}
-
 // NewBlockRetriever returns a new block retriever for TSDB file sets.
 func NewBlockRetriever(
 	opts BlockRetrieverOptions,

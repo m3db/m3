@@ -50,10 +50,9 @@ import (
 )
 
 const (
-	shardIterateBatchPercent               = 0.01
-	expireBatchLength                      = 1024
-	blocksMetadataResultMaxInitialCapacity = 4096
-	defaultTickSleepIfAheadEvery           = 128
+	shardIterateBatchPercent     = 0.01
+	expireBatchLength            = 1024
+	defaultTickSleepIfAheadEvery = 128
 )
 
 var (
@@ -75,7 +74,6 @@ type dbShardState int
 const (
 	dbShardStateOpen dbShardState = iota
 	dbShardStateClosing
-	dbShardStateClosed
 )
 
 type dbShard struct {
@@ -163,8 +161,6 @@ func (entry *dbShardEntry) CurrentCommitLogStart() int64 {
 func (entry *dbShardEntry) SetCurrentCommitLogStart(unixNanos int64) {
 	entry.currCommitLogUnixNanos = unixNanos
 }
-
-type writeCompletionFn func()
 
 type dbShardEntryWorkFn func(entry *dbShardEntry) bool
 
@@ -702,6 +698,7 @@ func (s *dbShard) insertSeriesAsyncBatched(
 
 type insertSyncType uint8
 
+// nolint: deadcode
 const (
 	insertSync insertSyncType = iota
 	insertSyncIncWriterCount

@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
@@ -41,10 +42,9 @@ import (
 	xmetrics "github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/m3db/m3cluster/shard"
 
-	"github.com/uber-go/tally"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 const (
@@ -64,20 +64,6 @@ func waitUntil(fn conditionFn, timeout time.Duration) bool {
 		time.Sleep(time.Second)
 	}
 	return false
-}
-
-func newTestSleepFn() (func(d time.Duration), func(overrideFn func(d time.Duration))) {
-	var mutex sync.RWMutex
-	sleepFn := time.Sleep
-	return func(d time.Duration) {
-			mutex.RLock()
-			defer mutex.RUnlock()
-			sleepFn(d)
-		}, func(fn func(d time.Duration)) {
-			mutex.Lock()
-			defer mutex.Unlock()
-			sleepFn = fn
-		}
 }
 
 func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
@@ -262,6 +248,7 @@ func newDefaultBootstrappableTestSetups(
 	}
 }
 
+// nolint: deadcode
 func writeTestDataToDisk(
 	namespace ts.ID,
 	setup *testSetup,
@@ -271,6 +258,7 @@ func writeTestDataToDisk(
 	return writer.Write(namespace, setup.shardSet, seriesMaps)
 }
 
+// nolint: deadcode
 func concatShards(a, b shard.Shards) shard.Shards {
 	all := append(a.All(), b.All()...)
 	return shard.NewShards(all)
@@ -292,14 +280,17 @@ func newClusterShards(ids []uint32, s shard.State) shard.Shards {
 	return shard.NewShards(shards)
 }
 
+// nolint: deadcode
 func newClusterShardsRange(from, to uint32, s shard.State) shard.Shards {
 	return newClusterShards(newShardsRange(from, to), s)
 }
 
+// nolint: deadcode
 func newClusterEmptyShardsRange() shard.Shards {
 	return newClusterShards(nil, shard.Available)
 }
 
+// nolint: deadcode
 func waitUntilHasBootstrappedShardsExactly(
 	db storage.Database,
 	shards []uint32,

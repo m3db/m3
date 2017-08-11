@@ -75,6 +75,7 @@ func newCommitLogSeriesStates(
 	return lookup
 }
 
+// nolint: deadcode
 func writeCommitLogData(
 	t *testing.T,
 	s *testSetup,
@@ -126,6 +127,7 @@ func writeCommitLogData(
 	}
 }
 
+// nolint: deadcode
 func testSetupMetadatas(
 	t *testing.T,
 	testSetup *testSetup,

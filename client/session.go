@@ -69,7 +69,6 @@ const (
 	resultTypeMetadata  resultTypeEnum = "metadata"
 	resultTypeBootstrap                = "bootstrap"
 	resultTypeRaw                      = "raw"
-	resultTypeTest                     = "test"
 )
 
 var (

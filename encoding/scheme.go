@@ -21,8 +21,6 @@
 package encoding
 
 import (
-	"errors"
-
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/time"
 )
@@ -62,10 +60,6 @@ var (
 		defaultAnnotationMarker,
 		defaultTimeUnitMarker,
 	)
-
-	// errEndOfStreamMarkerNotFound raised when trying to trim the end of stream marker
-	// from an encoded byte stream but couldn't find the marker
-	errEndOfStreamMarkerNotFound = errors.New("end of stream marker not found")
 )
 
 // TimeBucket represents a bucket for encoding time values.

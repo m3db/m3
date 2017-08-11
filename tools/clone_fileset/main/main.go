@@ -9,10 +9,6 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-const (
-	defaultBufferSize = 65536
-)
-
 var (
 	optSrcPathPrefix  = flag.String("src-path-prefix", "/var/lib/m3db", "Source Path prefix")
 	optSrcNamespace   = flag.String("src-namespace", "metrics", "Source Namespace")

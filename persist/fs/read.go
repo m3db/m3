@@ -27,16 +27,14 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/time"
-	"github.com/m3db/m3db/digest"
 )
-
-type fileReader func(fd *os.File, buf []byte) (int, error)
 
 var (
 	// errCheckpointFileNotFound returned when the checkpoint file doesn't exist
