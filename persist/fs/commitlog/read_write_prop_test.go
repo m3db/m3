@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package commitlog_test
+package commitlog
 
 import (
 	"fmt"
@@ -31,7 +31,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
 
@@ -50,11 +49,11 @@ func TestCommitLogReadWrite(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(baseTestPath)
 
-	opts := commitlog.NewOptions()
+	opts := NewOptions()
 	fsOpts := opts.FilesystemOptions().SetFilePathPrefix(baseTestPath)
 	opts = opts.SetFilesystemOptions(fsOpts).SetFlushInterval(time.Millisecond)
 
-	cl := commitlog.NewCommitLog(opts)
+	cl := NewCommitLog(opts)
 	require.NoError(t, cl.Open())
 
 	params := gopter.DefaultGenParameters()
@@ -72,7 +71,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 	require.NoError(t, cl.Close())
 
 	i := 0
-	iter, err := commitlog.NewIterator(opts)
+	iter, err := NewIterator(opts)
 	require.NoError(t, err)
 	defer iter.Close()
 	for ; iter.Next(); i++ {
@@ -139,7 +138,7 @@ var genOpenCommand = gen.Const(&commands.ProtoCommand{
 	},
 	RunFunc: func(q commands.SystemUnderTest) commands.Result {
 		s := q.(*clState)
-		s.cLog = commitlog.NewCommitLog(s.opts)
+		s.cLog = NewCommitLog(s.opts)
 		return s.cLog.Open()
 	},
 	NextStateFunc: func(state commands.State) commands.State {
@@ -225,9 +224,9 @@ var genWriteBehindCommand = genWrite().
 // clState holds the expected state (i.e. its the commands.State), and we use it as the SystemUnderTest
 type clState struct {
 	basePath      string
-	opts          commitlog.Options
+	opts          Options
 	open          bool
-	cLog          commitlog.CommitLog
+	cLog          CommitLog
 	pendingWrites []generatedWrite
 }
 
@@ -250,7 +249,7 @@ func genState(basePath string, t *testing.T) gopter.Gen {
 }
 
 func newInitState(dir string, t *testing.T) *clState {
-	opts := commitlog.NewOptions().SetFlushInterval(defaultTestFlushInterval)
+	opts := NewOptions().SetFlushInterval(defaultTestFlushInterval)
 	fsOpts := opts.FilesystemOptions().SetFilePathPrefix(dir)
 	opts = opts.SetFilesystemOptions(fsOpts)
 	return &clState{
@@ -261,7 +260,7 @@ func newInitState(dir string, t *testing.T) *clState {
 
 func (s *clState) writesArePresent(writes ...generatedWrite) error {
 	writesOnDisk := make(map[ts.Hash]map[time.Time]generatedWrite)
-	iter, err := commitlog.NewIterator(s.opts)
+	iter, err := NewIterator(s.opts)
 	if err != nil {
 		return err
 	}
@@ -307,7 +306,7 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 }
 
 type generatedWrite struct {
-	series     commitlog.Series
+	series     Series
 	datapoint  ts.Datapoint
 	unit       xtime.Unit
 	annotation ts.Annotation
@@ -333,11 +332,12 @@ func genWrite() gopter.Gen {
 		shard := val[4].(uint32)
 
 		return generatedWrite{
-			series: commitlog.Series{
+			series: Series{
 				ID:          ts.StringID(id),
 				Namespace:   ts.StringID(ns),
 				Shard:       shard,
 				UniqueIndex: uniqueID(id),
+				WriteState:  newTestWriteState(),
 			},
 			datapoint: ts.Datapoint{
 				Timestamp: t,

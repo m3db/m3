@@ -134,9 +134,10 @@ func newDatabaseShardMetrics(scope tally.Scope) dbShardMetrics {
 }
 
 type dbShardEntry struct {
-	series     series.DatabaseSeries
-	index      uint64
-	curWriters int32
+	series                 series.DatabaseSeries
+	index                  uint64
+	curWriters             int32
+	currCommitLogUnixNanos int64
 }
 
 func (entry *dbShardEntry) writerCount() int32 {
@@ -149,6 +150,16 @@ func (entry *dbShardEntry) incrementWriterCount() {
 
 func (entry *dbShardEntry) decrementWriterCount() {
 	atomic.AddInt32(&entry.curWriters, -1)
+}
+
+// CurrentCommitLogStart implements the commitlog.SeriesWriteState interface
+func (entry *dbShardEntry) CurrentCommitLogStart() int64 {
+	return entry.currCommitLogUnixNanos
+}
+
+// SetCurrentCommitLogStart implements the commitlog.SeriesWriteState interface
+func (entry *dbShardEntry) SetCurrentCommitLogStart(unixNanos int64) {
+	entry.currCommitLogUnixNanos = unixNanos
 }
 
 type dbShardEntryWorkFn func(entry *dbShardEntry) bool
@@ -511,6 +522,7 @@ func (s *dbShard) Write(
 
 	var (
 		commitLogSeriesID          ts.ID
+		commitLogSeriesWriteState  commitlog.SeriesWriteState
 		commitLogSeriesUniqueIndex uint64
 	)
 	if writable {
@@ -523,6 +535,7 @@ func (s *dbShard) Write(
 		// as the commit log need to use the reference without the
 		// overhead of ownership tracking. This makes taking a ref here safe.
 		commitLogSeriesID = entry.series.ID()
+		commitLogSeriesWriteState = entry
 		commitLogSeriesUniqueIndex = entry.index
 		entry.decrementWriterCount()
 		if err != nil {
@@ -548,7 +561,8 @@ func (s *dbShard) Write(
 		// and adding ownership tracking to use it in the commit log
 		// (i.e. registering a dependency on the context) is too expensive.
 		commitLogSeriesID = result.copiedID
-		commitLogSeriesUniqueIndex = result.uniqueIndex
+		commitLogSeriesWriteState = result.entry
+		commitLogSeriesUniqueIndex = result.entry.index
 	}
 
 	// Write commit log
@@ -557,6 +571,7 @@ func (s *dbShard) Write(
 		Namespace:   s.namespace,
 		ID:          commitLogSeriesID,
 		Shard:       s.shard,
+		WriteState:  commitLogSeriesWriteState,
 	}
 
 	datapoint := ts.Datapoint{
@@ -654,9 +669,12 @@ type insertAsyncOptions struct {
 }
 
 type insertAsyncResult struct {
-	wg          *sync.WaitGroup
-	copiedID    ts.ID
-	uniqueIndex uint64
+	wg       *sync.WaitGroup
+	copiedID ts.ID
+	// entry is not guaranteed to be the final entry
+	// inserted into the shard map in case there is already
+	// an existing entry waiting in the insert queue
+	entry *dbShardEntry
 }
 
 func (s *dbShard) insertSeriesAsyncBatched(
@@ -673,8 +691,8 @@ func (s *dbShard) insertSeriesAsyncBatched(
 	return insertAsyncResult{
 		wg: wg,
 		// Make sure to return the copied ID from the new series
-		copiedID:    entry.series.ID(),
-		uniqueIndex: entry.index,
+		copiedID: entry.series.ID(),
+		entry:    entry,
 	}, err
 }
 

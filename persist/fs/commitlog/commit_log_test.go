@@ -102,6 +102,24 @@ type testWrite struct {
 	expectedErr error
 }
 
+type testWriteState struct {
+	currCommitLogUnixNanos int64
+}
+
+func newTestWriteState() SeriesWriteState {
+	return &testWriteState{currCommitLogUnixNanos: -1}
+}
+
+// CurrentCommitLogStart implements the commitlog.SeriesWriteState interface
+func (s *testWriteState) CurrentCommitLogStart() int64 {
+	return s.currCommitLogUnixNanos
+}
+
+// SetCurrentCommitLogStart implements the commitlog.SeriesWriteState interface
+func (s *testWriteState) SetCurrentCommitLogStart(unixNanos int64) {
+	s.currCommitLogUnixNanos = unixNanos
+}
+
 func testSeries(
 	uniqueIndex uint64,
 	id string,
@@ -112,6 +130,7 @@ func testSeries(
 		Namespace:   ts.StringID("testNS"),
 		ID:          ts.StringID(id),
 		Shard:       shard,
+		WriteState:  newTestWriteState(),
 	}
 }
 
@@ -122,9 +141,7 @@ func (w testWrite) assert(
 	unit xtime.Unit,
 	annotation []byte,
 ) {
-	// Log entry indexes start from 1 to avoid the seen cache lookup on zero succeeding
-	expectedLogEntryIndex := w.series.UniqueIndex + 1
-	assert.Equal(t, expectedLogEntryIndex, series.UniqueIndex)
+	assert.Equal(t, w.series.UniqueIndex, series.UniqueIndex)
 	assert.True(t, w.series.ID.Equal(series.ID), fmt.Sprintf("write ID '%s' does not match actual ID '%s'", w.series.ID.String(), series.ID.String()))
 	assert.Equal(t, w.series.Shard, series.Shard)
 	assert.True(t, w.t.Equal(datapoint.Timestamp))
