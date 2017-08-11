@@ -269,7 +269,7 @@ func (b *dbBlock) Close() {
 	b.closed = true
 
 	// NB(xichen): we use the worker pool to close the context instead doing
-	// an asychronous context close to explicitly control the context closing
+	// an asynchronous context close to explicitly control the context closing
 	// concurrency. This is particularly important during a node removal because
 	// all the shards are removed at once, causing a goroutine explosion without
 	// limiting the concurrency. We also cannot do a blocking close here because

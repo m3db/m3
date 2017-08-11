@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/integration/fake"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
@@ -33,8 +35,6 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/shard"
 
 	"github.com/stretchr/testify/require"
 )
@@ -129,7 +129,7 @@ func TestClusterAddOneNode(t *testing.T) {
 	err = writeTestDataToDisk(namesp.ID(), setups[0], seriesMaps)
 	require.NoError(t, err)
 
-	// Prepare verfication of data on nodes
+	// Prepare verification of data on nodes
 	expectedSeriesMaps := make([]map[time.Time]generate.SeriesBlock, 2)
 	expectedSeriesIDs := make([]map[string]struct{}, 2)
 	for i := range expectedSeriesMaps {

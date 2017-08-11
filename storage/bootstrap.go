@@ -176,7 +176,7 @@ func (m *bootstrapManager) targetRanges(at time.Time) []bootstrap.TargetRange {
 		Add(-ropts.BufferPast()).
 		Truncate(ropts.BlockSize()).
 		// NB(r): Since "end" is exclusive we need to add a
-		// an extra block size when specifiying the end time.
+		// an extra block size when specifying the end time.
 		Add(ropts.BlockSize())
 	cutover := at.Add(ropts.BufferFuture()).
 		Truncate(ropts.BlockSize()).

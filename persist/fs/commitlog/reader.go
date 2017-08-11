@@ -138,7 +138,7 @@ func (r *reader) Read() (
 			UniqueIndex: entry.Index,
 			ID:          ts.BinaryID(id),
 			Namespace:   ts.BinaryID(namespace),
-			Shard:       uint32(decoded.Shard),
+			Shard:       decoded.Shard,
 		}
 		ok = true
 

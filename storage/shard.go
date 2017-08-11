@@ -671,7 +671,7 @@ type insertAsyncOptions struct {
 type insertAsyncResult struct {
 	wg       *sync.WaitGroup
 	copiedID ts.ID
-	// entry is not guarenteed to be the final entry
+	// entry is not guaranteed to be the final entry
 	// inserted into the shard map in case there is already
 	// an existing entry waiting in the insert queue
 	entry *dbShardEntry

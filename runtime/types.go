@@ -37,14 +37,14 @@ type Options interface {
 
 	// SetWriteNewSeriesAsync sets whether to write new series asynchronously or not,
 	// when true this essentially makes writes for new series eventually consistent
-	// as after a write is finished you are not guarenteed to read it back immediately
+	// as after a write is finished you are not guaranteed to read it back immediately
 	// due to inserts into the shard map being buffered. The write is however written
 	// to the commit log before completing so it is considered durable.
 	SetWriteNewSeriesAsync(value bool) Options
 
 	// WriteNewSeriesAsync returns whether to write new series asynchronously or not,
 	// when true this essentially makes writes for new series eventually consistent
-	// as after a write is finished you are not guarenteed to read it back immediately
+	// as after a write is finished you are not guaranteed to read it back immediately
 	// due to inserts into the shard map being buffered. The write is however written
 	// to the commit log before completing so it is considered durable.
 	WriteNewSeriesAsync() bool
