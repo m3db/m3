@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
@@ -44,7 +45,6 @@ import (
 	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/sync"
 	"github.com/m3db/m3x/time"
-	"github.com/m3db/m3db/storage/block"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -536,7 +536,7 @@ func assertFetchBlocksFromPeersResult(
 
 	for i, peerMatches := range matchedBlocks {
 		for j, blockMatches := range peerMatches {
-			if blockMatches == nil || len(blockMatches) == 0 {
+			if len(blockMatches) == 0 {
 				assert.Fail(t,
 					"un-matched block [ peer=%d, block=%d, expected=%v ]",
 					i, j, expectedBlocks[i][j])

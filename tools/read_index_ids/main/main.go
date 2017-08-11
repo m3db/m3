@@ -53,7 +53,7 @@ func main() {
 	}
 
 	fileIds := seeker.IDs()
-	if fileIds == nil || len(fileIds) == 0 {
+	if len(fileIds) == 0 {
 		log.Fatalf("no ids in index")
 	}
 

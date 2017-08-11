@@ -127,7 +127,7 @@ func TestWatch(t *testing.T) {
 	assert.Equal(t, 2, m.Replicas())
 	assert.Equal(t, 2, w.Get().Replicas())
 
-	for _ = range w.C() {
+	for range w.C() {
 		assert.Equal(t, 2, w.Get().Replicas())
 	}
 }

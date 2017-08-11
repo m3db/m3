@@ -70,6 +70,4 @@ func (t *staticTopology) Watch() (MapWatch, error) {
 	return NewMapWatch(w), nil
 }
 
-func (t *staticTopology) Close() {
-	return
-}
+func (t *staticTopology) Close() {}
