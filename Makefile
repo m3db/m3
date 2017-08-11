@@ -169,7 +169,7 @@ test-ci-integration:
 	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false $(test_ci_integration)
 
 # run as: make test-one-integration test=<test_name>
-.PHONY: test-on-integration
+.PHONY: test-one-integration
 test-one-integration:
 	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false $(test_one_integration) $(test)
 
