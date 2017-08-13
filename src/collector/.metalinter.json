@@ -1,0 +1,17 @@
+{
+  "Linters": {
+    "unused":   "unused -tags integration:PATH:LINE:COL:MESSAGE",
+    "gosimple": "gosimple -tags integration:PATH:LINE:COL:MESSAGE" },
+  "Enable":
+    [ "deadcode"
+    , "varcheck"
+    , "structcheck"
+    , "goconst"
+    , "ineffassign"
+    , "unconvert"
+    , "misspell"
+    , "gosimple"
+    , "unused"  ],
+  "Deadline": "3m",
+  "EnableGC": true
+}
