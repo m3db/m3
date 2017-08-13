@@ -470,11 +470,6 @@ func TestServerCloseSuccess(t *testing.T) {
 	require.NoError(t, s.Close())
 }
 
-func testPlacementWatcherOptions() services.StagedPlacementWatcherOptions {
-	return placement.NewStagedPlacementWatcherOptions().
-		SetInitWatchTimeout(100 * time.Millisecond)
-}
-
 func testServerOptions() ServerOptions {
 	return NewServerOptions().
 		SetClockOptions(clock.NewOptions()).
