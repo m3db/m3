@@ -57,7 +57,12 @@ type server struct {
 
 // NewServer creates a new server.
 func NewServer(opts ServerOptions) backend.Server {
-	writerMgr := newInstanceWriterManager(opts)
+	var (
+		instrumentOpts = opts.InstrumentOptions()
+		writerScope    = instrumentOpts.MetricsScope().SubScope("writer")
+		writerOpts     = opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerScope))
+		writerMgr      = newInstanceWriterManager(writerOpts)
+	)
 	onPlacementsAddedFn := func(placements []services.Placement) {
 		for _, placement := range placements {
 			writerMgr.AddInstances(placement.Instances())
