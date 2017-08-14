@@ -68,14 +68,18 @@ type writer struct {
 }
 
 func newInstanceWriter(instance services.PlacementInstance, opts ServerOptions) instanceWriter {
-	instrumentOpts := opts.InstrumentOptions()
+	var (
+		iOpts     = opts.InstrumentOptions()
+		scope     = iOpts.MetricsScope()
+		queueOpts = opts.SetInstrumentOptions(iOpts.SetMetricsScope(scope.SubScope("queue")))
+	)
 	w := &writer{
-		log:               instrumentOpts.Logger(),
-		metrics:           newWriterMetrics(instrumentOpts.MetricsScope()),
+		log:               iOpts.Logger(),
+		metrics:           newWriterMetrics(scope),
 		flushSize:         opts.FlushSize(),
 		maxTimerBatchSize: opts.MaxTimerBatchSize(),
 		encoderPool:       opts.BufferedEncoderPool(),
-		queue:             newInstanceQueue(instance, opts),
+		queue:             newInstanceQueue(instance, queueOpts),
 		encodersByShard:   make(map[uint32]*lockedEncoder),
 	}
 	w.newLockedEncoderFn = newLockedEncoder
@@ -320,7 +324,7 @@ type writerMetrics struct {
 func newWriterMetrics(s tally.Scope) writerMetrics {
 	return writerMetrics{
 		buffersEnqueued: s.Tagged(map[string]string{"action": "enqueued"}).Counter("buffers"),
-		enqueueErrors:   s.Tagged(map[string]string{"error-type": "enqueue"}).Counter("errors"),
+		enqueueErrors:   s.Tagged(map[string]string{"action": "enqueue-error"}).Counter("buffers"),
 	}
 }
 
