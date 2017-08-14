@@ -23,12 +23,17 @@ package msgpack
 import (
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"
+)
+
+const (
+	defaultQueueSizeNumBuckets = 10
 )
 
 var (
@@ -55,24 +60,30 @@ type queue struct {
 	instance services.PlacementInstance
 	conn     *connection
 	bufCh    chan msgpack.Buffer
+	doneCh   chan struct{}
 	closed   bool
 
 	writeFn writeFn
 }
 
 func newInstanceQueue(instance services.PlacementInstance, opts ServerOptions) instanceQueue {
-	conn := newConnection(instance.Endpoint(), opts.ConnectionOptions())
-	iOpts := opts.InstrumentOptions()
+	var (
+		conn      = newConnection(instance.Endpoint(), opts.ConnectionOptions())
+		iOpts     = opts.InstrumentOptions()
+		queueSize = opts.InstanceQueueSize()
+	)
 	q := &queue{
 		log:      iOpts.Logger(),
-		metrics:  newQueueMetrics(iOpts.MetricsScope()),
+		metrics:  newQueueMetrics(iOpts.MetricsScope(), instance.ID(), queueSize),
 		instance: instance,
 		conn:     conn,
-		bufCh:    make(chan msgpack.Buffer, opts.InstanceQueueSize()),
+		bufCh:    make(chan msgpack.Buffer, queueSize),
+		doneCh:   make(chan struct{}),
 	}
 	q.writeFn = q.conn.Write
 
 	go q.drain()
+	go q.reportQueueSize(iOpts.ReportInterval())
 	return q
 }
 
@@ -109,6 +120,7 @@ func (q *queue) Close() error {
 		return errInstanceQueueClosed
 	}
 	q.closed = true
+	close(q.doneCh)
 	close(q.bufCh)
 	return nil
 }
@@ -127,14 +139,37 @@ func (q *queue) drain() {
 	q.conn.Close()
 }
 
+func (q *queue) reportQueueSize(reportInterval time.Duration) {
+	ticker := time.NewTicker(reportInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			q.metrics.queueSize.RecordValue(float64(len(q.bufCh)))
+		case <-q.doneCh:
+			return
+		}
+	}
+}
+
 type queueMetrics struct {
+	queueSize         tally.Histogram
 	queueClosedErrors tally.Counter
 	queueFullErrors   tally.Counter
 	connWriteErrors   tally.Counter
 }
 
-func newQueueMetrics(s tally.Scope) queueMetrics {
+func newQueueMetrics(s tally.Scope, instanceID string, queueSize int) queueMetrics {
+	numBuckets := defaultQueueSizeNumBuckets
+	if queueSize < numBuckets {
+		numBuckets = queueSize
+	}
+	buckets := tally.MustMakeLinearValueBuckets(0, float64(queueSize/numBuckets), numBuckets)
 	return queueMetrics{
+		queueSize: s.Tagged(
+			map[string]string{"instance-id": instanceID},
+		).Histogram("queue-size", buckets),
 		queueClosedErrors: s.Tagged(
 			map[string]string{"error-type": "queue-closed", "action": "enqueue"},
 		).Counter("errors"),
