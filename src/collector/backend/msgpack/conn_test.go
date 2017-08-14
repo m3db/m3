@@ -139,6 +139,7 @@ func TestConnectWriteToServer(t *testing.T) {
 
 		// Read from the second connection.
 		conn, err = l.Accept()
+		require.NoError(t, err)
 		buf := make([]byte, 1024)
 		n, err := conn.Read(buf)
 		require.NoError(t, err)

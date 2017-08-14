@@ -1,7 +1,4 @@
 {
-  "Linters": {
-    "unused":   "unused -tags integration:PATH:LINE:COL:MESSAGE",
-    "gosimple": "gosimple -tags integration:PATH:LINE:COL:MESSAGE" },
   "Enable":
     [ "deadcode"
     , "varcheck"
@@ -10,8 +7,8 @@
     , "ineffassign"
     , "unconvert"
     , "misspell"
-    , "gosimple"
-    , "unused"  ],
+    , "unparam"
+    , "megacheck" ],
   "Deadline": "3m",
   "EnableGC": true
 }
