@@ -27,6 +27,8 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/log"
+
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -49,6 +51,7 @@ type queue struct {
 	sync.RWMutex
 
 	log      xlog.Logger
+	metrics  queueMetrics
 	instance services.PlacementInstance
 	conn     *connection
 	bufCh    chan msgpack.Buffer
@@ -59,8 +62,10 @@ type queue struct {
 
 func newInstanceQueue(instance services.PlacementInstance, opts ServerOptions) instanceQueue {
 	conn := newConnection(instance.Endpoint(), opts.ConnectionOptions())
+	iOpts := opts.InstrumentOptions()
 	q := &queue{
-		log:      opts.InstrumentOptions().Logger(),
+		log:      iOpts.Logger(),
+		metrics:  newQueueMetrics(iOpts.MetricsScope()),
 		instance: instance,
 		conn:     conn,
 		bufCh:    make(chan msgpack.Buffer, opts.InstanceQueueSize()),
@@ -75,6 +80,7 @@ func (q *queue) Enqueue(buf msgpack.Buffer) error {
 	q.RLock()
 	if q.closed {
 		q.RUnlock()
+		q.metrics.queueClosedErrors.Inc(1)
 		return errInstanceQueueClosed
 	}
 	// NB(xichen): the buffer already batches multiple metric buf points
@@ -83,8 +89,12 @@ func (q *queue) Enqueue(buf msgpack.Buffer) error {
 	select {
 	case q.bufCh <- buf:
 	default:
-		// TODO(xichen): add metrics.
 		q.RUnlock()
+
+		// Close the buffer so it's resources are freed.
+		buf.Close()
+
+		q.metrics.queueFullErrors.Inc(1)
 		return errWriterQueueFull
 	}
 	q.RUnlock()
@@ -110,8 +120,29 @@ func (q *queue) drain() {
 				xlog.NewLogField("instance", q.instance.Endpoint()),
 				xlog.NewLogErrField(err),
 			).Error("write data error")
+			q.metrics.connWriteErrors.Inc(1)
 		}
 		buf.Close()
 	}
 	q.conn.Close()
+}
+
+type queueMetrics struct {
+	queueClosedErrors tally.Counter
+	queueFullErrors   tally.Counter
+	connWriteErrors   tally.Counter
+}
+
+func newQueueMetrics(s tally.Scope) queueMetrics {
+	return queueMetrics{
+		queueClosedErrors: s.Tagged(
+			map[string]string{"error-type": "queue-closed", "action": "enqueue"},
+		).Counter("errors"),
+		queueFullErrors: s.Tagged(
+			map[string]string{"error-type": "queue-full", "action": "enqueue"},
+		).Counter("errors"),
+		connWriteErrors: s.Tagged(
+			map[string]string{"error-type": "conn-write", "action": "drain"},
+		).Counter("errors"),
+	}
 }
