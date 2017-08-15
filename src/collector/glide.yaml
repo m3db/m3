@@ -13,7 +13,7 @@ import:
   - instrument
   - log
 - package: github.com/uber-go/tally
-  version: 3.0.0
+  version: ^3.0.0 # ie >= 3.0.0, < 4.0.0
 - package: golang.org/x/net
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
 - package: github.com/apache/thrift
