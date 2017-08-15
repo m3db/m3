@@ -698,7 +698,7 @@ func (s *dbShard) insertSeriesAsyncBatched(
 
 type insertSyncType uint8
 
-// nolint: deadcode, varcheck
+// nolint: deadcode, varcheck, unused
 const (
 	insertSync insertSyncType = iota
 	insertSyncIncWriterCount

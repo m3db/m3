@@ -182,7 +182,6 @@ type testWatch struct {
 	errAfter, closeAfter  int
 	currentCalled         int
 	ch                    chan struct{}
-	closed                bool
 }
 
 func newTestWatch(ctrl *gomock.Controller, firstDelay, nextDelay time.Duration, errAfter, closeAfter int) *testWatch {
