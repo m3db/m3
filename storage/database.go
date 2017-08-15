@@ -134,7 +134,6 @@ func NewDatabase(
 
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("database")
-	opts = opts.SetInstrumentOptions(iopts.SetMetricsScope(scope))
 
 	d := &db{
 		opts:         opts,
