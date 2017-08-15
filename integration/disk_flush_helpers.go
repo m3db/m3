@@ -42,6 +42,7 @@ var (
 	errDiskFlushTimedOut = errors.New("flushing data to disk took too long")
 )
 
+// nolint: deadcode
 func waitUntilDataFlushed(
 	filePathPrefix string,
 	shardSet sharding.ShardSet,
@@ -113,6 +114,7 @@ func verifyForTime(
 	compareSeriesList(t, expected, actual)
 }
 
+// nolint: deadcode
 func verifyFlushed(
 	t *testing.T,
 	shardSet sharding.ShardSet,

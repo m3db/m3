@@ -187,7 +187,7 @@ func NewDatabase(
 		return nil, err
 	}
 
-	// wait till first value is recieved
+	// wait till first value is received
 	<-watch.C()
 	d.nsWatch = newDatabaseNamespaceWatch(d, watch, iopts)
 

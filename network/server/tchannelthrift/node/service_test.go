@@ -43,7 +43,6 @@ import (
 
 // Create test service opts once to avoid recreating a lot of default pools, etc
 var (
-	testNamespaceID = ts.StringID("metrics")
 	testServiceOpts = storage.NewOptions()
 )
 

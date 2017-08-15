@@ -85,6 +85,7 @@ func randStringRunes(n int) string {
 	return string(b)
 }
 
+// nolint: deadcode
 func generateSeriesMaps(numBlocks int, starts ...time.Time) generate.SeriesBlocksByStart {
 	blockConfig := []generate.BlockConfig{}
 	for i := 0; i < numBlocks; i++ {
