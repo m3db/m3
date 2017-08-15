@@ -154,7 +154,7 @@ func TestDatabaseMarksShardAsAvailableOnReshard(t *testing.T) {
 	// Enqueue the update
 	viewsCh <- newTopoView(1, updatedView)
 
-	// Wait for the update to propogate, consume the first notification
+	// Wait for the update to propagate, consume the first notification
 	// from the initial read and then the second that should come after
 	// enqueing the view just prior to this read
 	for i := 0; i < 2; i++ {
@@ -210,7 +210,7 @@ func TestDatabaseOpenUpdatesShardSetBeforeOpen(t *testing.T) {
 	// Enqueue the update
 	viewsCh <- newTopoView(1, updatedView)
 
-	// Wait for the update to propogate, consume the first notification
+	// Wait for the update to propagate, consume the first notification
 	// from the initial read and then the second that should come after
 	// enqueing the view just prior to this read
 	for i := 0; i < 2; i++ {

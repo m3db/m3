@@ -70,7 +70,6 @@ const (
 	resultTypeMetadata  resultTypeEnum = "metadata"
 	resultTypeBootstrap                = "bootstrap"
 	resultTypeRaw                      = "raw"
-	resultTypeTest                     = "test"
 )
 
 var (
@@ -2513,7 +2512,7 @@ func (c *enqueueChannel) closeOnAllProcessed() {
 		if c.unprocessedLen() == 0 {
 			// Will only ever be zero after all is processed if called
 			// after enqueueing the desired set of entries as long as
-			// the guarentee that reattempts are enqueued before the
+			// the guarantee that reattempts are enqueued before the
 			// failed attempt is marked as processed is upheld
 			close(c.peersMetadataCh)
 			break

@@ -104,6 +104,24 @@ type testWrite struct {
 	expectedErr error
 }
 
+type testWriteState struct {
+	currCommitLogUnixNanos int64
+}
+
+func newTestWriteState() SeriesWriteState {
+	return &testWriteState{currCommitLogUnixNanos: -1}
+}
+
+// CurrentCommitLogStart implements the commitlog.SeriesWriteState interface
+func (s *testWriteState) CurrentCommitLogStart() int64 {
+	return s.currCommitLogUnixNanos
+}
+
+// SetCurrentCommitLogStart implements the commitlog.SeriesWriteState interface
+func (s *testWriteState) SetCurrentCommitLogStart(unixNanos int64) {
+	s.currCommitLogUnixNanos = unixNanos
+}
+
 func testSeries(
 	uniqueIndex uint64,
 	id string,
@@ -114,6 +132,7 @@ func testSeries(
 		Namespace:   ts.StringID("testNS"),
 		ID:          ts.StringID(id),
 		Shard:       shard,
+		WriteState:  newTestWriteState(),
 	}
 }
 
@@ -488,8 +507,9 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	}
 
 	commitLog.newCommitLogWriterFn = func(
-		flushFn flushFn,
-		opts Options,
+		_ flushFn,
+		_ tally.Scope,
+		_ Options,
 	) commitLogWriter {
 		return writer
 	}
@@ -535,8 +555,9 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	}
 
 	commitLog.newCommitLogWriterFn = func(
-		flushFn flushFn,
-		opts Options,
+		_ flushFn,
+		_ tally.Scope,
+		_ Options,
 	) commitLogWriter {
 		return writer
 	}
@@ -590,8 +611,9 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	}
 
 	commitLog.newCommitLogWriterFn = func(
-		flushFn flushFn,
-		opts Options,
+		_ flushFn,
+		_ tally.Scope,
+		_ Options,
 	) commitLogWriter {
 		return writer
 	}

@@ -636,3 +636,66 @@ func TestServiceSetWriteNewSeriesAsync(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, true, setResp.WriteNewSeriesAsync)
 }
+
+func TestServiceSetWriteNewSeriesBackoffDuration(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	runtimeOpts := runtime.NewOptions().
+		SetWriteNewSeriesBackoffDuration(3 * time.Millisecond)
+	runtimeOptsMgr := runtime.NewOptionsManager(runtimeOpts)
+	opts := testServiceOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(opts).AnyTimes()
+
+	service := NewService(mockDB, nil).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	getResp, err := service.GetWriteNewSeriesBackoffDuration(tctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), getResp.WriteNewSeriesBackoffDuration)
+	assert.Equal(t, rpc.TimeType_UNIX_MILLISECONDS, getResp.DurationType)
+
+	req := &rpc.NodeSetWriteNewSeriesBackoffDurationRequest{
+		WriteNewSeriesBackoffDuration: 1,
+		DurationType:                  rpc.TimeType_UNIX_SECONDS,
+	}
+	setResp, err := service.SetWriteNewSeriesBackoffDuration(tctx, req)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1000), setResp.WriteNewSeriesBackoffDuration)
+	assert.Equal(t, rpc.TimeType_UNIX_MILLISECONDS, setResp.DurationType)
+}
+
+func TestServiceSetWriteNewSeriesLimitPerShardPerSecond(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	runtimeOpts := runtime.NewOptions().
+		SetWriteNewSeriesLimitPerShardPerSecond(42)
+	runtimeOptsMgr := runtime.NewOptionsManager(runtimeOpts)
+	opts := testServiceOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(opts).AnyTimes()
+
+	service := NewService(mockDB, nil).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	getResp, err := service.GetWriteNewSeriesLimitPerShardPerSecond(tctx)
+	require.NoError(t, err)
+	assert.Equal(t, int64(42), getResp.WriteNewSeriesLimitPerShardPerSecond)
+
+	req := &rpc.NodeSetWriteNewSeriesLimitPerShardPerSecondRequest{
+		WriteNewSeriesLimitPerShardPerSecond: 84,
+	}
+	setResp, err := service.SetWriteNewSeriesLimitPerShardPerSecond(tctx, req)
+	require.NoError(t, err)
+	assert.Equal(t, int64(84), setResp.WriteNewSeriesLimitPerShardPerSecond)
+}

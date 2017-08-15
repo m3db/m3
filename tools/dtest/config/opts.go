@@ -22,7 +22,7 @@ type Args struct {
 	// NumNodes specifies the number of nodes to use from the m3em configuration
 	NumNodes int
 
-	// SessionOverride specifies if exisiting dtests maybe overriden on remote
+	// SessionOverride specifies if exisiting dtests maybe overridden on remote
 	// agents
 	SessionOverride bool
 

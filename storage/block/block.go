@@ -33,8 +33,7 @@ import (
 )
 
 var (
-	errReadFromClosedBlock         = errors.New("attempt to read from a closed block")
-	errRetrievableBlockNoRetriever = errors.New("attempt to read from a retrievable block with no retriever")
+	errReadFromClosedBlock = errors.New("attempt to read from a closed block")
 
 	timeZero = time.Time{}
 )
@@ -88,11 +87,6 @@ func NewRetrievableDatabaseBlock(
 	}
 	b.resetRetrievableWithLock(retriever, metadata)
 	return b
-}
-
-func (b *dbBlock) now() time.Time {
-	nowFn := b.opts.ClockOptions().NowFn()
-	return nowFn()
 }
 
 func (b *dbBlock) StartTime() time.Time {
@@ -270,7 +264,7 @@ func (b *dbBlock) Close() {
 	b.closed = true
 
 	// NB(xichen): we use the worker pool to close the context instead doing
-	// an asychronous context close to explicitly control the context closing
+	// an asynchronous context close to explicitly control the context closing
 	// concurrency. This is particularly important during a node removal because
 	// all the shards are removed at once, causing a goroutine explosion without
 	// limiting the concurrency. We also cannot do a blocking close here because

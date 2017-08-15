@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/ts"
 
 	"github.com/golang/mock/gomock"
@@ -101,8 +100,6 @@ func TestDatabaseBlockChecksum(t *testing.T) {
 }
 
 type testDatabaseBlockFn func(block *dbBlock)
-
-type testDatabaseBlockExpectedFn func(encoder *encoding.MockEncoder)
 
 type testDatabaseBlockAssertionFn func(t *testing.T, block *dbBlock)
 

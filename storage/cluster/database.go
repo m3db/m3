@@ -44,6 +44,7 @@ var (
 	errNotWatchingTopology     = errors.New("cluster db is not watching topology")
 )
 
+// nolint: deadcode
 type newStorageDatabaseFn func(
 	shardSet sharding.ShardSet,
 	opts storage.Options,

@@ -133,7 +133,7 @@ func newMockTopoInit(
 
 	watch := xwatch.NewWatchable()
 
-	// Make the propogate views channel large so it never blocks
+	// Make the propagate views channel large so it never blocks
 	propogateViewsCh := make(chan struct{}, 128)
 
 	go func() {

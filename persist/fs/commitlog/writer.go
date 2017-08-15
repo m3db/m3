@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
+	"github.com/uber-go/tally"
 )
 
 const (
@@ -51,8 +52,7 @@ const (
 )
 
 var (
-	errCommitLogWriterAlreadyOpen                = errors.New("commit log writer already open")
-	errCommitLogWriterFlushWithoutReservedLength = errors.New("commit log writer flushed without header reserve")
+	errCommitLogWriterAlreadyOpen = errors.New("commit log writer already open")
 
 	endianness = binary.LittleEndian
 )
@@ -83,8 +83,8 @@ type writer struct {
 	newFileMode        os.FileMode
 	newDirectoryMode   os.FileMode
 	nowFn              clock.NowFn
-	bitset             bitset
 	start              time.Time
+	startNanos         int64
 	duration           time.Duration
 	chunkWriter        *chunkWriter
 	chunkReserveHeader []byte
@@ -96,6 +96,7 @@ type writer struct {
 
 func newCommitLogWriter(
 	flushFn flushFn,
+	scope tally.Scope,
 	opts Options,
 ) commitLogWriter {
 	return &writer{
@@ -106,7 +107,6 @@ func newCommitLogWriter(
 		chunkWriter:        newChunkWriter(flushFn),
 		chunkReserveHeader: make([]byte, chunkHeaderLen),
 		buffer:             bufio.NewWriterSize(nil, opts.FlushSize()),
-		bitset:             newBitset(),
 		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
 		logEncoder:         msgpack.NewEncoder(),
 		metadataEncoder:    msgpack.NewEncoder(),
@@ -146,6 +146,7 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 	}
 
 	w.start = start
+	w.startNanos = start.UnixNano()
 	w.duration = duration
 	return nil
 }
@@ -164,9 +165,9 @@ func (w *writer) Write(
 	logEntry.Create = w.nowFn().UnixNano()
 	logEntry.Index = series.UniqueIndex
 
-	seen := w.bitset.has(logEntry.Index)
+	seen := w.startNanos == series.WriteState.CurrentCommitLogStart()
 	if !seen {
-		// If "idx" hasn't been written to commit log
+		// If "idx" likely hasn't been written to commit log
 		// yet we need to include series metadata
 		var metadata schema.LogMetadata
 		metadata.ID = series.ID.Data().Get()
@@ -192,8 +193,8 @@ func (w *writer) Write(
 	}
 
 	if !seen {
-		// Record we have seen this series
-		w.bitset.set(logEntry.Index)
+		// Record we have seen this series at the current seenIdx
+		series.WriteState.SetCurrentCommitLogStart(w.startNanos)
 	}
 	return nil
 }
@@ -215,8 +216,8 @@ func (w *writer) Close() error {
 	}
 
 	w.chunkWriter.fd = nil
-	w.bitset.clearAll()
 	w.start = timeZero
+	w.startNanos = 0
 	w.duration = 0
 	return nil
 }

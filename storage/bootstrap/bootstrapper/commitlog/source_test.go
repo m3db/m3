@@ -446,10 +446,7 @@ func newTestCommitLogIterator(values []testValue, err error) *testCommitLogItera
 
 func (i *testCommitLogIterator) Next() bool {
 	i.idx++
-	if i.idx >= len(i.values) {
-		return false
-	}
-	return true
+	return i.idx < len(i.values)
 }
 
 func (i *testCommitLogIterator) Current() (commitlog.Series, ts.Datapoint, xtime.Unit, ts.Annotation) {

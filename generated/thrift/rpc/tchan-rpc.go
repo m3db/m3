@@ -48,10 +48,14 @@ type TChanNode interface {
 	FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRawRequest) (*FetchBlocksRawResult_, error)
 	GetPersistRateLimit(ctx thrift.Context) (*NodePersistRateLimitResult_, error)
 	GetWriteNewSeriesAsync(ctx thrift.Context) (*NodeWriteNewSeriesAsyncResult_, error)
+	GetWriteNewSeriesBackoffDuration(ctx thrift.Context) (*NodeWriteNewSeriesBackoffDurationResult_, error)
+	GetWriteNewSeriesLimitPerShardPerSecond(ctx thrift.Context) (*NodeWriteNewSeriesLimitPerShardPerSecondResult_, error)
 	Health(ctx thrift.Context) (*NodeHealthResult_, error)
 	Repair(ctx thrift.Context) error
 	SetPersistRateLimit(ctx thrift.Context, req *NodeSetPersistRateLimitRequest) (*NodePersistRateLimitResult_, error)
 	SetWriteNewSeriesAsync(ctx thrift.Context, req *NodeSetWriteNewSeriesAsyncRequest) (*NodeWriteNewSeriesAsyncResult_, error)
+	SetWriteNewSeriesBackoffDuration(ctx thrift.Context, req *NodeSetWriteNewSeriesBackoffDurationRequest) (*NodeWriteNewSeriesBackoffDurationResult_, error)
+	SetWriteNewSeriesLimitPerShardPerSecond(ctx thrift.Context, req *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) (*NodeWriteNewSeriesLimitPerShardPerSecondResult_, error)
 	Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error)
 	Write(ctx thrift.Context, req *WriteRequest) error
 	WriteBatchRaw(ctx thrift.Context, req *WriteBatchRawRequest) error
@@ -389,6 +393,32 @@ func (c *tchanNodeClient) GetWriteNewSeriesAsync(ctx thrift.Context) (*NodeWrite
 	return resp.GetSuccess(), err
 }
 
+func (c *tchanNodeClient) GetWriteNewSeriesBackoffDuration(ctx thrift.Context) (*NodeWriteNewSeriesBackoffDurationResult_, error) {
+	var resp NodeGetWriteNewSeriesBackoffDurationResult
+	args := NodeGetWriteNewSeriesBackoffDurationArgs{}
+	success, err := c.client.Call(ctx, c.thriftService, "getWriteNewSeriesBackoffDuration", &args, &resp)
+	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
+func (c *tchanNodeClient) GetWriteNewSeriesLimitPerShardPerSecond(ctx thrift.Context) (*NodeWriteNewSeriesLimitPerShardPerSecondResult_, error) {
+	var resp NodeGetWriteNewSeriesLimitPerShardPerSecondResult
+	args := NodeGetWriteNewSeriesLimitPerShardPerSecondArgs{}
+	success, err := c.client.Call(ctx, c.thriftService, "getWriteNewSeriesLimitPerShardPerSecond", &args, &resp)
+	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
 func (c *tchanNodeClient) Health(ctx thrift.Context) (*NodeHealthResult_, error) {
 	var resp NodeHealthResult
 	args := NodeHealthArgs{}
@@ -436,6 +466,36 @@ func (c *tchanNodeClient) SetWriteNewSeriesAsync(ctx thrift.Context, req *NodeSe
 		Req: req,
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "setWriteNewSeriesAsync", &args, &resp)
+	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
+func (c *tchanNodeClient) SetWriteNewSeriesBackoffDuration(ctx thrift.Context, req *NodeSetWriteNewSeriesBackoffDurationRequest) (*NodeWriteNewSeriesBackoffDurationResult_, error) {
+	var resp NodeSetWriteNewSeriesBackoffDurationResult
+	args := NodeSetWriteNewSeriesBackoffDurationArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "setWriteNewSeriesBackoffDuration", &args, &resp)
+	if err == nil && !success {
+		if e := resp.Err; e != nil {
+			err = e
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
+func (c *tchanNodeClient) SetWriteNewSeriesLimitPerShardPerSecond(ctx thrift.Context, req *NodeSetWriteNewSeriesLimitPerShardPerSecondRequest) (*NodeWriteNewSeriesLimitPerShardPerSecondResult_, error) {
+	var resp NodeSetWriteNewSeriesLimitPerShardPerSecondResult
+	args := NodeSetWriteNewSeriesLimitPerShardPerSecondArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "setWriteNewSeriesLimitPerShardPerSecond", &args, &resp)
 	if err == nil && !success {
 		if e := resp.Err; e != nil {
 			err = e
@@ -514,10 +574,14 @@ func (s *tchanNodeServer) Methods() []string {
 		"fetchBlocksRaw",
 		"getPersistRateLimit",
 		"getWriteNewSeriesAsync",
+		"getWriteNewSeriesBackoffDuration",
+		"getWriteNewSeriesLimitPerShardPerSecond",
 		"health",
 		"repair",
 		"setPersistRateLimit",
 		"setWriteNewSeriesAsync",
+		"setWriteNewSeriesBackoffDuration",
+		"setWriteNewSeriesLimitPerShardPerSecond",
 		"truncate",
 		"write",
 		"writeBatchRaw",
@@ -538,6 +602,10 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleGetPersistRateLimit(ctx, protocol)
 	case "getWriteNewSeriesAsync":
 		return s.handleGetWriteNewSeriesAsync(ctx, protocol)
+	case "getWriteNewSeriesBackoffDuration":
+		return s.handleGetWriteNewSeriesBackoffDuration(ctx, protocol)
+	case "getWriteNewSeriesLimitPerShardPerSecond":
+		return s.handleGetWriteNewSeriesLimitPerShardPerSecond(ctx, protocol)
 	case "health":
 		return s.handleHealth(ctx, protocol)
 	case "repair":
@@ -546,6 +614,10 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleSetPersistRateLimit(ctx, protocol)
 	case "setWriteNewSeriesAsync":
 		return s.handleSetWriteNewSeriesAsync(ctx, protocol)
+	case "setWriteNewSeriesBackoffDuration":
+		return s.handleSetWriteNewSeriesBackoffDuration(ctx, protocol)
+	case "setWriteNewSeriesLimitPerShardPerSecond":
+		return s.handleSetWriteNewSeriesLimitPerShardPerSecond(ctx, protocol)
 	case "truncate":
 		return s.handleTruncate(ctx, protocol)
 	case "write":
@@ -726,6 +798,62 @@ func (s *tchanNodeServer) handleGetWriteNewSeriesAsync(ctx thrift.Context, proto
 	return err == nil, &res, nil
 }
 
+func (s *tchanNodeServer) handleGetWriteNewSeriesBackoffDuration(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeGetWriteNewSeriesBackoffDurationArgs
+	var res NodeGetWriteNewSeriesBackoffDurationResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.GetWriteNewSeriesBackoffDuration(ctx)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleGetWriteNewSeriesLimitPerShardPerSecond(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeGetWriteNewSeriesLimitPerShardPerSecondArgs
+	var res NodeGetWriteNewSeriesLimitPerShardPerSecondResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.GetWriteNewSeriesLimitPerShardPerSecond(ctx)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
 func (s *tchanNodeServer) handleHealth(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
 	var req NodeHealthArgs
 	var res NodeHealthResult
@@ -819,6 +947,62 @@ func (s *tchanNodeServer) handleSetWriteNewSeriesAsync(ctx thrift.Context, proto
 
 	r, err :=
 		s.handler.SetWriteNewSeriesAsync(ctx, req.Req)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleSetWriteNewSeriesBackoffDuration(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeSetWriteNewSeriesBackoffDurationArgs
+	var res NodeSetWriteNewSeriesBackoffDurationResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.SetWriteNewSeriesBackoffDuration(ctx, req.Req)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleSetWriteNewSeriesLimitPerShardPerSecond(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeSetWriteNewSeriesLimitPerShardPerSecondArgs
+	var res NodeSetWriteNewSeriesLimitPerShardPerSecondResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.SetWriteNewSeriesLimitPerShardPerSecond(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {

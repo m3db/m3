@@ -106,6 +106,28 @@ type Series struct {
 
 	// Shard is the shard the series belongs to
 	Shard uint32
+
+	// WriteState provides series write state for a
+	// series that is written to the commit log journal
+	WriteState SeriesWriteState
+}
+
+// SeriesWriteState provides series write state for a
+// series that is written to the commit log journal
+type SeriesWriteState interface {
+	// CurrentCommitLogStart returns the unix nanoseconds
+	// from when the series was last written
+	// Note: provider does not need to provide volatility protection
+	// (thread safety) as access is synchronized to both the accessor
+	// and setter.
+	CurrentCommitLogStart() int64
+
+	// SetCurrentCommitLogStart sets the unix nanoseconds
+	// for when the series was last written
+	// Note: provider does not need to provide volatility protection
+	// (thread safety) as access is synchronized to both the accessor
+	// and setter.
+	SetCurrentCommitLogStart(unixNanoseconds int64)
 }
 
 // Options represents the options for the commit log

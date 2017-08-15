@@ -31,9 +31,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
-	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
-	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -50,12 +48,9 @@ var (
 	ErrSeriesAllDatapointsExpired = errors.New("series datapoints are all expired")
 
 	errSeriesReadInvalidRange = errors.New("series invalid time range read argument specified")
-	errSeriesDrainEmptyStream = errors.New("series attempted to drain an empty stream")
 	errSeriesIsBootstrapping  = errors.New("series is bootstrapping")
 	errSeriesNotBootstrapped  = errors.New("series is not yet bootstrapped")
 )
-
-var nilID = ts.BinaryID(checked.NewBytes(nil, nil))
 
 type dbSeries struct {
 	sync.RWMutex
@@ -95,14 +90,6 @@ func newDatabaseSeries(id ts.ID, opts Options) *dbSeries {
 	}
 	series.buffer = newDatabaseBuffer(series.bufferDrained, opts)
 	return series
-}
-
-func (s *dbSeries) log() xlog.Logger {
-	// NB(r): only in exceptional cases do we log, so defer
-	// creating the logger with fields until we need it
-	log := s.opts.InstrumentOptions().Logger()
-	log = log.WithFields(xlog.NewLogField("id", s.id.String()))
-	return log
 }
 
 func (s *dbSeries) now() time.Time {

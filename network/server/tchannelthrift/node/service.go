@@ -301,7 +301,7 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 }
 
 func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawRequest) (*rpc.FetchBlocksRawResult_, error) {
-	if s.db.IsOverloaded() {
+	if s.isOverloaded() {
 		s.metrics.overloadRejected.Inc(1)
 		return nil, tterrors.NewInternalError(errServerIsOverloaded)
 	}
@@ -657,6 +657,65 @@ func (s *service) SetWriteNewSeriesAsync(
 	set := runtimeOptsMgr.Get().SetWriteNewSeriesAsync(req.WriteNewSeriesAsync)
 	runtimeOptsMgr.Update(set)
 	return s.GetWriteNewSeriesAsync(ctx)
+}
+
+func (s *service) GetWriteNewSeriesBackoffDuration(
+	ctx thrift.Context,
+) (
+	*rpc.NodeWriteNewSeriesBackoffDurationResult_,
+	error,
+) {
+	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
+	value := runtimeOptsMgr.Get().WriteNewSeriesBackoffDuration()
+	return &rpc.NodeWriteNewSeriesBackoffDurationResult_{
+		WriteNewSeriesBackoffDuration: int64(value / time.Millisecond),
+		DurationType:                  rpc.TimeType_UNIX_MILLISECONDS,
+	}, nil
+}
+
+func (s *service) SetWriteNewSeriesBackoffDuration(
+	ctx thrift.Context,
+	req *rpc.NodeSetWriteNewSeriesBackoffDurationRequest,
+) (
+	*rpc.NodeWriteNewSeriesBackoffDurationResult_,
+	error,
+) {
+	unit, err := convert.ToDuration(req.DurationType)
+	if err != nil {
+		return nil, tterrors.NewBadRequestError(xerrors.NewInvalidParamsError(err))
+	}
+	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
+	value := time.Duration(req.WriteNewSeriesBackoffDuration) * unit
+	set := runtimeOptsMgr.Get().SetWriteNewSeriesBackoffDuration(value)
+	runtimeOptsMgr.Update(set)
+	return s.GetWriteNewSeriesBackoffDuration(ctx)
+}
+
+func (s *service) GetWriteNewSeriesLimitPerShardPerSecond(
+	ctx thrift.Context,
+) (
+	*rpc.NodeWriteNewSeriesLimitPerShardPerSecondResult_,
+	error,
+) {
+	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
+	value := runtimeOptsMgr.Get().WriteNewSeriesLimitPerShardPerSecond()
+	return &rpc.NodeWriteNewSeriesLimitPerShardPerSecondResult_{
+		WriteNewSeriesLimitPerShardPerSecond: int64(value),
+	}, nil
+}
+
+func (s *service) SetWriteNewSeriesLimitPerShardPerSecond(
+	ctx thrift.Context,
+	req *rpc.NodeSetWriteNewSeriesLimitPerShardPerSecondRequest,
+) (
+	*rpc.NodeWriteNewSeriesLimitPerShardPerSecondResult_,
+	error,
+) {
+	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
+	value := int(req.WriteNewSeriesLimitPerShardPerSecond)
+	set := runtimeOptsMgr.Get().SetWriteNewSeriesLimitPerShardPerSecond(value)
+	runtimeOptsMgr.Update(set)
+	return s.GetWriteNewSeriesLimitPerShardPerSecond(ctx)
 }
 
 func (s *service) isOverloaded() bool {

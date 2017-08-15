@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
@@ -585,4 +586,50 @@ func TestShardCleanupFileset(t *testing.T) {
 	}
 	require.NoError(t, shard.CleanupFileset(time.Now()))
 	require.Equal(t, []string{defaultTestNs1ID.String(), "0"}, deletedFiles)
+}
+
+type testCloser struct {
+	called int
+}
+
+func (c *testCloser) Close() {
+	c.called++
+}
+
+func TestShardRegisterRuntimeOptionsListeners(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	callRegisterListenerOnShard := 0
+	callRegisterListenerOnShardInsertQueue := 0
+
+	closer := &testCloser{}
+
+	runtimeOptsMgr := runtime.NewMockOptionsManager(ctrl)
+	runtimeOptsMgr.EXPECT().
+		RegisterListener(gomock.Any()).
+		Times(2).
+		Do(func(l runtime.OptionsListener) {
+			if _, ok := l.(*dbShard); ok {
+				callRegisterListenerOnShard++
+			}
+			if _, ok := l.(*dbShardInsertQueue); ok {
+				callRegisterListenerOnShardInsertQueue++
+			}
+		}).
+		Return(closer)
+
+	opts := testDatabaseOptions().
+		SetRuntimeOptionsManager(runtimeOptsMgr)
+
+	shard := testDatabaseShard(opts)
+
+	assert.Equal(t, 1, callRegisterListenerOnShard)
+	assert.Equal(t, 1, callRegisterListenerOnShardInsertQueue)
+
+	assert.Equal(t, 0, closer.called)
+
+	shard.Close()
+
+	assert.Equal(t, 2, closer.called)
 }

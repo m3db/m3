@@ -255,7 +255,7 @@ func (it *readerIterator) readIntValDiff() {
 		sign = 1.0
 	}
 
-	it.intVal += sign * float64(uint64(it.readBits(int(it.sig))))
+	it.intVal += sign * float64(it.readBits(int(it.sig)))
 }
 
 func (it *readerIterator) readAnnotation() {
