@@ -129,7 +129,8 @@ lint:
 
 .PHONY: metalint
 metalint: install-metalinter
-	@($(metalint_check) $(metalint_config) $(metalint_exclude) && echo "metalinted successfully!") || (echo "metalinter failed" && exit 1)
+	@($(metalint_check) $(metalint_config) $(metalint_exclude) \
+		&& echo "metalinted successfully!") || (echo "metalinter failed" && exit 1)
 
 .PHONY: test-internal
 test-internal:

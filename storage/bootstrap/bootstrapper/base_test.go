@@ -169,10 +169,7 @@ func equalRanges(expected, actual xtime.Ranges) bool {
 			return false
 		}
 	}
-	if read != mustRead {
-		return false
-	}
-	return true
+	return read == mustRead
 }
 
 type shardTimeRangesMatcher struct {

@@ -71,10 +71,7 @@ func waitUntilDataCleanedUp(filePathPrefix string, namespace ts.ID, shard uint32
 			return false
 		}
 		_, index := fs.NextCommitLogsFile(filePathPrefix, toDelete)
-		if index != 0 {
-			return false
-		}
-		return true
+		return index == 0
 	}
 	if waitUntil(dataCleanedUp, timeout) {
 		return nil
