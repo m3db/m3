@@ -3,5 +3,7 @@
     "varcheck",
     "structcheck",
     "goconst",
-    "ineffassign"
+    "ineffassign",
+    "misspell",
+    "unconvert"
 ]}
