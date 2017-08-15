@@ -622,7 +622,7 @@ func TestShardRegisterRuntimeOptionsListeners(t *testing.T) {
 	opts := testDatabaseOptions().
 		SetRuntimeOptionsManager(runtimeOptsMgr)
 
-	shard := testDatabaseShard(opts)
+	shard := testDatabaseShard(t, opts)
 
 	assert.Equal(t, 1, callRegisterListenerOnShard)
 	assert.Equal(t, 1, callRegisterListenerOnShardInsertQueue)
