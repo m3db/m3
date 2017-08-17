@@ -144,7 +144,7 @@ func TestConnectWriteToServer(t *testing.T) {
 		n, err := conn.Read(buf)
 		require.NoError(t, err)
 		require.Equal(t, data, buf[:n])
-		conn.Close()
+		conn.Close() // nolint: errcheck
 	}()
 
 	// Wait until the server starts up.
@@ -159,7 +159,7 @@ func TestConnectWriteToServer(t *testing.T) {
 	require.Equal(t, 0, conn.numFailures)
 
 	// Stop the server.
-	l.Close()
+	l.Close() // nolint: errcheck
 	wg.Wait()
 
 	// Close the connection

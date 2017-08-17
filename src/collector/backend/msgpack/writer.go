@@ -142,7 +142,11 @@ func (w *writer) Close() error {
 		return errInstanceWriterClosed
 	}
 	w.closed = true
-	w.flushWithLock()
+	if err := w.flushWithLock(); err != nil {
+		w.log.WithFields(
+			xlog.NewLogErrField(err),
+		).Error("flush error when closing writer")
+	}
 	return w.queue.Close()
 }
 
@@ -352,5 +356,5 @@ func newRefCountedWriter(instance services.PlacementInstance, opts ServerOptions
 }
 
 func (rcWriter *refCountedWriter) Close() {
-	rcWriter.instanceWriter.Close()
+	rcWriter.instanceWriter.Close() // nolint: errcheck
 }

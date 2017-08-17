@@ -66,7 +66,9 @@ func BenchmarkParallelWriter(b *testing.B) {
 
 		for pb.Next() {
 			shard := r.Intn(numShards)
-			writer.Write(uint32(shard), testLargerBatchTimer, testPoliciesList)
+			if err := writer.Write(uint32(shard), testLargerBatchTimer, testPoliciesList); err != nil {
+				b.Fatalf("failed to successfully write metric: %v", err)
+			}
 		}
 	})
 }
@@ -94,7 +96,9 @@ func BenchmarkSerialOneShardWriter(b *testing.B) {
 
 		for pb.Next() {
 			shard := r.Intn(numShards)
-			writer.Write(uint32(shard), testLargerBatchTimer, testPoliciesList)
+			if err := writer.Write(uint32(shard), testLargerBatchTimer, testPoliciesList); err != nil {
+				b.Fatalf("failed to successfully write metric: %v", err)
+			}
 		}
 	})
 }
@@ -124,7 +128,9 @@ func BenchmarkSerialWriter(b *testing.B) {
 
 		for pb.Next() {
 			shard := r.Intn(numShards)
-			writer.Write(uint32(shard), testLargerBatchTimer, testPoliciesList)
+			if err := writer.Write(uint32(shard), testLargerBatchTimer, testPoliciesList); err != nil {
+				b.Fatalf("failed to successfully write metric: %v", err)
+			}
 		}
 	})
 }

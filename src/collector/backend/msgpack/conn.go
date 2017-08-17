@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/log"
 )
 
 const (
@@ -59,6 +60,8 @@ type connection struct {
 	numFailures int
 	threshold   int
 
+	log xlog.Logger
+
 	// These are for testing purposes.
 	connectWithLockFn connectWithLockFn
 	writeWithLockFn   writeWithLockFn
@@ -76,12 +79,17 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 		maxThreshold:  opts.MaxReconnectThreshold(),
 		nowFn:         opts.ClockOptions().NowFn(),
 		threshold:     opts.InitReconnectThreshold(),
+		log:           opts.InstrumentOptions().Logger(),
 	}
 	c.connectWithLockFn = c.connectWithLock
 	c.writeWithLockFn = c.writeWithLock
 
 	c.Lock()
-	c.connectWithLockFn()
+	if err := c.connectWithLockFn(); err != nil {
+		c.log.WithFields(
+			xlog.NewLogErrField(err),
+		).Error("encountered error creating initial connection")
+	}
 	c.Unlock()
 
 	return c
@@ -126,10 +134,16 @@ func (c *connection) connectWithLock() error {
 	if err != nil {
 		return err
 	}
+
 	tcpConn := conn.(*net.TCPConn)
-	tcpConn.SetKeepAlive(c.keepAlive)
+	if err := tcpConn.SetKeepAlive(c.keepAlive); err != nil {
+		c.log.WithFields(
+			xlog.NewLogErrField(err),
+		).Error("encountered error setting tcp keep alive")
+	}
+
 	if c.conn != nil {
-		c.conn.Close()
+		c.conn.Close() // nolint: errcheck
 	}
 	c.conn = tcpConn
 	return nil
@@ -153,7 +167,11 @@ func (c *connection) checkReconnectWithLock() bool {
 }
 
 func (c *connection) writeWithLock(data []byte) error {
-	c.conn.SetWriteDeadline(c.nowFn().Add(c.writeTimeout))
+	if err := c.conn.SetWriteDeadline(c.nowFn().Add(c.writeTimeout)); err != nil {
+		c.log.WithFields(
+			xlog.NewLogErrField(err),
+		).Error("encountered error setting write deadline on connection")
+	}
 	_, err := c.conn.Write(data)
 	return err
 }
@@ -165,7 +183,7 @@ func (c *connection) resetWithLock() {
 
 func (c *connection) closeWithLock() {
 	if c.conn != nil {
-		c.conn.Close()
+		c.conn.Close() // nolint: errcheck
 	}
 	c.conn = nil
 }

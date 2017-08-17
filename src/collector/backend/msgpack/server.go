@@ -65,12 +65,12 @@ func NewServer(opts ServerOptions) backend.Server {
 	)
 	onPlacementsAddedFn := func(placements []services.Placement) {
 		for _, placement := range placements {
-			writerMgr.AddInstances(placement.Instances())
+			writerMgr.AddInstances(placement.Instances()) // nolint: errcheck
 		}
 	}
 	onPlacementsRemovedFn := func(placements []services.Placement) {
 		for _, placement := range placements {
-			writerMgr.RemoveInstances(placement.Instances())
+			writerMgr.RemoveInstances(placement.Instances()) // nolint: errcheck
 		}
 	}
 	activeStagedPlacementOpts := placement.NewActiveStagedPlacementOptions().
@@ -157,7 +157,7 @@ func (s *server) Close() error {
 		return errServerIsNotOpenOrClosed
 	}
 	s.state = serverClosed
-	s.placementWatcher.Unwatch()
+	s.placementWatcher.Unwatch() // nolint: errcheck
 	return s.writerMgr.Close()
 }
 

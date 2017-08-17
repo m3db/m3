@@ -8,7 +8,9 @@
     , "unconvert"
     , "misspell"
     , "unparam"
-    , "megacheck" ],
+    , "megacheck"
+    , "aligncheck"
+    , "errcheck" ],
   "Deadline": "3m",
   "EnableGC": true
 }

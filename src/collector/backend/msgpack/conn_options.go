@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/instrument"
 )
 
 const (
@@ -37,11 +38,17 @@ const (
 
 // ConnectionOptions provides a set of options for tcp connections.
 type ConnectionOptions interface {
-	// SetClockOptions sets the clock options.
+	// SetInstrumentOptions sets the instrument options.
 	SetClockOptions(value clock.Options) ConnectionOptions
 
 	// ClockOptions returns the clock options.
 	ClockOptions() clock.Options
+
+	// SetInstrumentOptions sets the instrument options.
+	SetInstrumentOptions(value instrument.Options) ConnectionOptions
+
+	// InstrumentOptions returns the instrument options.
+	InstrumentOptions() instrument.Options
 
 	// SetConnectionTimeout sets the timeout for establishing connections.
 	SetConnectionTimeout(value time.Duration) ConnectionOptions
@@ -81,25 +88,27 @@ type ConnectionOptions interface {
 }
 
 type connectionOptions struct {
-	clockOpts     clock.Options
-	connTimeout   time.Duration
-	connKeepAlive bool
-	writeTimeout  time.Duration
-	initThreshold int
-	maxThreshold  int
-	multiplier    int
+	clockOpts      clock.Options
+	instrumentOpts instrument.Options
+	connTimeout    time.Duration
+	connKeepAlive  bool
+	writeTimeout   time.Duration
+	initThreshold  int
+	maxThreshold   int
+	multiplier     int
 }
 
 // NewConnectionOptions create a new set of connection options.
 func NewConnectionOptions() ConnectionOptions {
 	return &connectionOptions{
-		clockOpts:     clock.NewOptions(),
-		connTimeout:   defaultConnectionTimeout,
-		connKeepAlive: defaultConnectionKeepAlive,
-		writeTimeout:  defaultWriteTimeout,
-		initThreshold: defaultInitReconnectThreshold,
-		maxThreshold:  defaultMaxReconnectThreshold,
-		multiplier:    defaultReconnectThresholdMultiplier,
+		clockOpts:      clock.NewOptions(),
+		instrumentOpts: instrument.NewOptions(),
+		connTimeout:    defaultConnectionTimeout,
+		connKeepAlive:  defaultConnectionKeepAlive,
+		writeTimeout:   defaultWriteTimeout,
+		initThreshold:  defaultInitReconnectThreshold,
+		maxThreshold:   defaultMaxReconnectThreshold,
+		multiplier:     defaultReconnectThresholdMultiplier,
 	}
 }
 
@@ -111,6 +120,16 @@ func (o *connectionOptions) SetClockOptions(value clock.Options) ConnectionOptio
 
 func (o *connectionOptions) ClockOptions() clock.Options {
 	return o.clockOpts
+}
+
+func (o *connectionOptions) SetInstrumentOptions(value instrument.Options) ConnectionOptions {
+	opts := *o
+	opts.instrumentOpts = value
+	return &opts
+}
+
+func (o *connectionOptions) InstrumentOptions() instrument.Options {
+	return o.instrumentOpts
 }
 
 func (o *connectionOptions) SetConnectionTimeout(value time.Duration) ConnectionOptions {
