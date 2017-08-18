@@ -44,6 +44,12 @@ var (
 )
 
 var tracebackCallersPool = sync.Pool{New: func() interface{} {
+	// Pools should generally only return pointer types, since a pointer
+	// can be put into the return interface value without an allocation.
+	// However, since this package is used just for debugging, we make the
+	// tradeoff of greater code clarity by putting slices directly into the
+	// pool at the cost of an additional allocation of the three words which
+	// comprise the slice on each put.
 	return make([]uintptr, tracebackMaxDepth)
 }}
 
@@ -193,7 +199,7 @@ func (d *debugger) append(event debuggerEvent, ref int, pc []uintptr) {
 			// Shift all tracebacks back one if at end of traceback cycles
 			slice := d.entries[0]
 			for i, entry := range slice {
-				tracebackCallersPool.Put(entry.pc)
+				tracebackCallersPool.Put(entry.pc) // nolint: megacheck
 				entry.pc = nil
 				tracebackEntryPool.Put(entry)
 				slice[i] = nil

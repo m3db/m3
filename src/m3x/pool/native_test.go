@@ -34,6 +34,7 @@ type I interface {
 	Get() int
 }
 
+// nolint: megacheck
 type T struct {
 	x I
 	y [4096]byte

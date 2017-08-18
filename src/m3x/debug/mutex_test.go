@@ -65,21 +65,20 @@ func TestRWMutexReportEvery(t *testing.T) {
 	}()
 
 	// Wait for writer to appear
-	for {
-		if atomic.LoadInt64(&mutex.writers) != 1 {
-			time.Sleep(time.Millisecond)
-		}
-		break
+	if atomic.LoadInt64(&mutex.writers) != 1 {
+		time.Sleep(time.Millisecond)
 	}
 
 	// Create a few pending writers and readers
 	for i := 0; i < 3; i++ {
+		// nolint: megacheck
 		go func() {
 			mutex.Lock()
 			mutex.Unlock()
 		}()
 	}
 	for i := 0; i < 10; i++ {
+		// nolint: megacheck
 		go func() {
 			mutex.RLock()
 			mutex.RUnlock()

@@ -72,9 +72,9 @@ func NewObjectPool(opts ObjectPoolOptions) ObjectPool {
 		values: make(chan interface{}, opts.Size()),
 		size:   opts.Size(),
 		refillLowWatermark: int(math.Ceil(
-			float64(opts.RefillLowWatermark()) * float64(opts.Size()))),
+			opts.RefillLowWatermark() * float64(opts.Size()))),
 		refillHighWatermark: int(math.Ceil(
-			float64(opts.RefillHighWatermark()) * float64(opts.Size()))),
+			opts.RefillHighWatermark() * float64(opts.Size()))),
 		metrics: objectPoolMetrics{
 			free:       m.Gauge("free"),
 			total:      m.Gauge("total"),

@@ -37,6 +37,7 @@ const (
 	testListenAddress = "127.0.0.1:0"
 )
 
+// nolint: unparam
 func testServer(addr string) (*server, *mockHandler, *int32, *int32) {
 	var (
 		numAdded   int32

@@ -48,6 +48,7 @@ func TestFloatsPool(t *testing.T) {
 	assert.Equal(t, f1, f3[:1])
 }
 
+// nolint: unparam
 func getFloatsPool(bucketSizes int, bucketCaps []int) *floatsPool {
 	buckets := make([]Bucket, len(bucketCaps))
 	for i, cap := range bucketCaps {

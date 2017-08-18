@@ -66,7 +66,7 @@ func (c *RefCount) NumRef() int {
 // Finalize will call the finalizer if any, ref count must be zero.
 func (c *RefCount) Finalize() {
 	n := c.NumRef()
-	tracebackEvent(c, int(n), finalizeEvent)
+	tracebackEvent(c, n, finalizeEvent)
 
 	if n != 0 {
 		err := fmt.Errorf("finalize before zero ref count, ref=%d", n)
