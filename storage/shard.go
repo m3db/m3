@@ -87,7 +87,7 @@ type dbShard struct {
 	shard                    uint32
 	increasingIndex          increasingIndex
 	seriesPool               series.DatabaseSeriesPool
-	writeCommitLogFn         writeCommitLogFn
+	commitLogWriter          commitLogWriter
 	insertQueue              *dbShardInsertQueue
 	lookup                   map[ts.Hash]*list.Element
 	list                     *list.List
@@ -169,7 +169,7 @@ func newDatabaseShard(
 	shard uint32,
 	blockRetriever block.DatabaseBlockRetriever,
 	increasingIndex increasingIndex,
-	writeCommitLogFn writeCommitLogFn,
+	commitLogWriter commitLogWriter,
 	needsBootstrap bool,
 	opts Options,
 ) databaseShard {
@@ -184,7 +184,7 @@ func newDatabaseShard(
 		shard:                 shard,
 		increasingIndex:       increasingIndex,
 		seriesPool:            opts.DatabaseSeriesPool(),
-		writeCommitLogFn:      writeCommitLogFn,
+		commitLogWriter:       commitLogWriter,
 		lookup:                make(map[ts.Hash]*list.Element),
 		list:                  list.New(),
 		filesetBeforeFn:       fs.FilesetBefore,
@@ -564,7 +564,8 @@ func (s *dbShard) Write(
 		Value:     value,
 	}
 
-	return s.writeCommitLogFn(ctx, series, datapoint, unit, annotation)
+	return s.commitLogWriter.Write(ctx, series, datapoint,
+		unit, annotation)
 }
 
 func (s *dbShard) ReadEncoded(

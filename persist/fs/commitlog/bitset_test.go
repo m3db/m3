@@ -21,156 +21,32 @@
 package commitlog
 
 import (
-	"fmt"
-	"reflect"
 	"testing"
 
-	"github.com/leanovate/gopter"
-	"github.com/leanovate/gopter/commands"
-	"github.com/leanovate/gopter/gen"
+	"github.com/stretchr/testify/assert"
 )
 
-const (
-	bitSetPropTestMaxInitLength  = 4194304
-	bitSetPropTestMaxValueLength = bitSetPropTestMaxInitLength * 4
-)
+func TestBitSet(t *testing.T) {
+	set := newBitSet(0)
 
-func TestBitSetProp(t *testing.T) {
-	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 48
-	properties := gopter.NewProperties(parameters)
+	total := uint(16 * 64)
+	for i := uint(0); i < total; i++ {
+		if i%3 == 0 || i%5 == 0 {
+			set.set(i)
+		}
+	}
 
-	prop := commands.Prop(&commands.ProtoCommands{
-		NewSystemUnderTestFunc: func(initialState commands.State) commands.SystemUnderTest {
-			return initialState
-		},
-		DestroySystemUnderTestFunc: func(sut commands.SystemUnderTest) {
-			state := sut.(bitSetTestState)
-			state.set.clearAll()
-		},
-		InitialStateGen: gen.
-			UIntRange(0, bitSetPropTestMaxInitLength).
-			MapResult(func(r *gopter.GenResult) *gopter.GenResult {
-				iface, ok := r.Retrieve()
-				if !ok {
-					return gopter.NewEmptyResult(reflect.PtrTo(reflect.TypeOf(bitSetTestState{})))
-				}
-				v, ok := iface.(uint)
-				if !ok {
-					return gopter.NewEmptyResult(reflect.PtrTo(reflect.TypeOf(bitSetTestState{})))
-				}
-				state := bitSetTestState{
-					set:     newBitSet(v),
-					currSet: make(map[uint]struct{}),
-				}
-				return gopter.NewGenResult(state, gopter.NoShrinker)
-			}),
-		InitialPreConditionFunc: func(state commands.State) bool {
-			return true
-		},
-		GenCommandFunc: func(state commands.State) gopter.Gen {
-			return gen.OneGenOf(genBitSetTestCommand,
-				genBitSetSetCommand, genBitSetClearAllCommand)
-		},
-	})
-	properties.Property("BitSet set/test/clearAll", prop)
-	properties.TestingRun(t)
+	for i := uint(0); i < total; i++ {
+		if i%3 == 0 || i%5 == 0 {
+			assert.True(t, set.test(i))
+		} else {
+			assert.False(t, set.test(i))
+		}
+	}
+
+	set.clearAll()
+
+	for i := uint(0); i < 2*total; i++ {
+		assert.False(t, set.test(i))
+	}
 }
-
-type bitSetTestState struct {
-	set     *bitSet
-	currSet map[uint]struct{}
-}
-
-var genBitSetTestCommand = gen.
-	UIntRange(0, bitSetPropTestMaxValueLength).
-	Map(func(v uint) commands.Command {
-		return &commands.ProtoCommand{
-			Name: "Test",
-			PreConditionFunc: func(state commands.State) bool {
-				return true
-			},
-			RunFunc: func(q commands.SystemUnderTest) commands.Result {
-				state := q.(bitSetTestState)
-				return state.set.test(v)
-			},
-			NextStateFunc: func(state commands.State) commands.State {
-				return state
-			},
-			PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
-				actual := result.(bool)
-				_, expected := state.(bitSetTestState).currSet[v]
-				if actual == expected {
-					return &gopter.PropResult{Status: gopter.PropTrue}
-				}
-				return &gopter.PropResult{
-					Status: gopter.PropFalse,
-					Error:  fmt.Errorf("expected %d to be true when testing value", v),
-				}
-			},
-		}
-	})
-
-var genBitSetSetCommand = gen.
-	UIntRange(0, bitSetPropTestMaxValueLength).
-	Map(func(v uint) commands.Command {
-		return &commands.ProtoCommand{
-			Name: "Set",
-			PreConditionFunc: func(state commands.State) bool {
-				return true
-			},
-			RunFunc: func(q commands.SystemUnderTest) commands.Result {
-				state := q.(bitSetTestState)
-				state.set.set(v)
-				if !state.set.test(v) {
-					return fmt.Errorf("not set, expected set after setting %v", v)
-				}
-				return nil
-			},
-			NextStateFunc: func(state commands.State) commands.State {
-				s := state.(bitSetTestState)
-				s.currSet[v] = struct{}{}
-				return s
-			},
-			PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
-				if result == nil {
-					return &gopter.PropResult{Status: gopter.PropTrue}
-				}
-				return &gopter.PropResult{
-					Status: gopter.PropFalse,
-					Error:  result.(error),
-				}
-			},
-		}
-	})
-
-var genBitSetClearAllCommand = gen.Const(&commands.ProtoCommand{
-	Name: "ClearAll",
-	PreConditionFunc: func(state commands.State) bool {
-		return true
-	},
-	RunFunc: func(q commands.SystemUnderTest) commands.Result {
-		s := q.(bitSetTestState)
-		s.set.clearAll()
-		return nil
-	},
-	NextStateFunc: func(state commands.State) commands.State {
-		s := state.(bitSetTestState)
-		for k := range s.currSet {
-			delete(s.currSet, k)
-		}
-		return s
-	},
-	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
-		s := state.(bitSetTestState)
-		for i := range s.set.values {
-			if s.set.values[i] != 0 {
-				return &gopter.PropResult{
-					Status: gopter.PropFalse,
-					Error:  fmt.Errorf("set expected to be empty after clearAll"),
-				}
-			}
-		}
-		return &gopter.PropResult{Status: gopter.PropTrue}
-	},
-})

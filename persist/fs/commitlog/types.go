@@ -62,15 +62,6 @@ type CommitLog interface {
 		annotation ts.Annotation,
 	) error
 
-	// WriteBehind will write an entry in the commit log for a given series without waiting for completion
-	WriteBehind(
-		ctx context.Context,
-		series Series,
-		datapoint ts.Datapoint,
-		unit xtime.Unit,
-		annotation ts.Annotation,
-	) error
-
 	// Iter returns an iterator for accessing commit logs
 	Iter() (Iterator, error)
 

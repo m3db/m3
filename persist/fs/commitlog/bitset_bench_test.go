@@ -20,45 +20,15 @@
 
 package commitlog
 
-const (
-	wordSize    = uint(64)
-	logWordSize = uint(6) // lg(wordSize)
-	wordMask    = wordSize - 1
-)
+import "testing"
 
-type bitSet struct {
-	values []uint64
-}
-
-func newBitSet(size uint) *bitSet {
-	return &bitSet{values: make([]uint64, bitSetIndexOf(size)+1)}
-}
-
-func (b *bitSet) test(i uint) bool {
-	idx := bitSetIndexOf(i)
-	if idx >= len(b.values) {
-		return false
+// go test -bench=LemireCreate
+// see http://lemire.me/blog/2016/09/22/swift-versus-java-the-bitset-performance-test/
+func BenchmarkLemireCreate(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		bitmap := newBitSet(0) // we force dynamic memory allocation
+		for v := uint(0); v <= 100000000; v += 100 {
+			bitmap.set(v)
+		}
 	}
-	return b.values[idx]&(1<<(i&wordMask)) != 0
-}
-
-func (b *bitSet) set(i uint) {
-	idx := bitSetIndexOf(i)
-	currLen := len(b.values)
-	if idx >= currLen {
-		newValues := make([]uint64, 2*(idx+1))
-		copy(newValues, b.values)
-		b.values = newValues
-	}
-	b.values[idx] |= 1 << (i & wordMask)
-}
-
-func (b *bitSet) clearAll() {
-	for i := range b.values {
-		b.values[i] = 0
-	}
-}
-
-func bitSetIndexOf(i uint) int {
-	return int(i >> logWordSize)
 }
