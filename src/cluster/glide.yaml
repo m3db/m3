@@ -25,7 +25,7 @@ import:
 - package: github.com/prometheus/client_model
   version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
 - package: github.com/uber-go/tally
-  version: 3.0.0
+  version: ^3.0.0 # ie >= 3.0.0, < 4.0.0
 - package: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
 - package: github.com/uber-go/atomic
