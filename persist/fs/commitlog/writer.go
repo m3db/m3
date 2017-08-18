@@ -49,6 +49,8 @@ const (
 	chunkHeaderLen             = chunkHeaderSizeLen +
 		chunkHeaderChecksumSizeLen +
 		chunkHeaderChecksumDataLen
+
+	defaultBitSetLength = 65536
 )
 
 var (
@@ -90,6 +92,7 @@ type writer struct {
 	chunkReserveHeader []byte
 	buffer             *bufio.Writer
 	sizeBuffer         []byte
+	seen               *bitSet
 	logEncoder         encoding.Encoder
 	metadataEncoder    encoding.Encoder
 }
@@ -146,7 +149,6 @@ func (w *writer) Open(start time.Time, duration time.Duration) error {
 	}
 
 	w.start = start
-	w.startNanos = start.UnixNano()
 	w.duration = duration
 	return nil
 }
@@ -165,7 +167,7 @@ func (w *writer) Write(
 	logEntry.Create = w.nowFn().UnixNano()
 	logEntry.Index = series.UniqueIndex
 
-	seen := w.startNanos == series.WriteState.CurrentCommitLogStart
+	seen := w.seen.test(uint(series.UniqueIndex))
 	if !seen {
 		// If "idx" likely hasn't been written to commit log
 		// yet we need to include series metadata
@@ -193,8 +195,8 @@ func (w *writer) Write(
 	}
 
 	if !seen {
-		// Record we have seen this series at the current seenIdx
-		series.WriteState.Store.SetCurrentCommitLogStart(w.startNanos)
+		// Record we have written this series and metadata to this commit log
+		w.seen.set(uint(series.UniqueIndex))
 	}
 	return nil
 }
@@ -217,8 +219,8 @@ func (w *writer) Close() error {
 
 	w.chunkWriter.fd = nil
 	w.start = timeZero
-	w.startNanos = 0
 	w.duration = 0
+	w.seen.clearAll()
 	return nil
 }
 

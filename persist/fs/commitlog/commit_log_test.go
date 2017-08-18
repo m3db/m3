@@ -102,22 +102,6 @@ type testWrite struct {
 	expectedErr error
 }
 
-type testWriteStateStore struct {
-	currCommitLogUnixNanos int64
-}
-
-func newTestWriteState() SeriesWriteState {
-	return SeriesWriteState{
-		CurrentCommitLogStart: -1,
-		Store: &testWriteStateStore{currCommitLogUnixNanos: -1},
-	}
-}
-
-// SetCurrentCommitLogStart implements the commitlog.SeriesWriteState interface
-func (s *testWriteStateStore) SetCurrentCommitLogStart(unixNanos int64) {
-	s.currCommitLogUnixNanos = unixNanos
-}
-
 func testSeries(
 	uniqueIndex uint64,
 	id string,
@@ -128,7 +112,6 @@ func testSeries(
 		Namespace:   ts.StringID("testNS"),
 		ID:          ts.StringID(id),
 		Shard:       shard,
-		WriteState:  newTestWriteState(),
 	}
 }
 
