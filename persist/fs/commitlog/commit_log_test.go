@@ -102,21 +102,19 @@ type testWrite struct {
 	expectedErr error
 }
 
-type testWriteState struct {
+type testWriteStateStore struct {
 	currCommitLogUnixNanos int64
 }
 
 func newTestWriteState() SeriesWriteState {
-	return &testWriteState{currCommitLogUnixNanos: -1}
-}
-
-// CurrentCommitLogStart implements the commitlog.SeriesWriteState interface
-func (s *testWriteState) CurrentCommitLogStart() int64 {
-	return s.currCommitLogUnixNanos
+	return SeriesWriteState{
+		CurrentCommitLogStart: -1,
+		Store: &testWriteStateStore{currCommitLogUnixNanos: -1},
+	}
 }
 
 // SetCurrentCommitLogStart implements the commitlog.SeriesWriteState interface
-func (s *testWriteState) SetCurrentCommitLogStart(unixNanos int64) {
+func (s *testWriteStateStore) SetCurrentCommitLogStart(unixNanos int64) {
 	s.currCommitLogUnixNanos = unixNanos
 }
 

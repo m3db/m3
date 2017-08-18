@@ -166,7 +166,7 @@ func (w *writer) Write(
 	logEntry.Create = w.nowFn().UnixNano()
 	logEntry.Index = series.UniqueIndex
 
-	seen := w.startNanos == series.WriteState.CurrentCommitLogStart()
+	seen := w.startNanos == series.WriteState.CurrentCommitLogStart
 	if !seen {
 		// If "idx" likely hasn't been written to commit log
 		// yet we need to include series metadata
@@ -195,7 +195,7 @@ func (w *writer) Write(
 
 	if !seen {
 		// Record we have seen this series at the current seenIdx
-		series.WriteState.SetCurrentCommitLogStart(w.startNanos)
+		series.WriteState.Store.SetCurrentCommitLogStart(w.startNanos)
 	}
 	return nil
 }

@@ -539,7 +539,10 @@ func (s *dbShard) Write(
 		// as the commit log need to use the reference without the
 		// overhead of ownership tracking. This makes taking a ref here safe.
 		commitLogSeriesID = entry.series.ID()
-		commitLogSeriesWriteState = entry
+		commitLogSeriesWriteState = commitlog.SeriesWriteState{
+			CurrentCommitLogStart: entry.CurrentCommitLogStart(),
+			Store: entry,
+		}
 		commitLogSeriesUniqueIndex = entry.index
 		entry.decrementWriterCount()
 		if err != nil {
@@ -565,7 +568,10 @@ func (s *dbShard) Write(
 		// and adding ownership tracking to use it in the commit log
 		// (i.e. registering a dependency on the context) is too expensive.
 		commitLogSeriesID = result.copiedID
-		commitLogSeriesWriteState = result.entry
+		commitLogSeriesWriteState = commitlog.SeriesWriteState{
+			CurrentCommitLogStart: result.entry.CurrentCommitLogStart(),
+			Store: result.entry,
+		}
 		commitLogSeriesUniqueIndex = result.entry.index
 	}
 
