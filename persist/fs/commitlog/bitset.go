@@ -21,9 +21,8 @@
 package commitlog
 
 const (
-	wordSize      = uint(64)
-	logWordSize   = uint(6) // lg(wordSize)
-	totalCapacity = ^uint(0)
+	wordSize    = uint(64)
+	logWordSize = uint(6) // lg(wordSize)
 )
 
 type bitSet struct {

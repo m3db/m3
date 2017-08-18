@@ -86,7 +86,6 @@ type writer struct {
 	newDirectoryMode   os.FileMode
 	nowFn              clock.NowFn
 	start              time.Time
-	startNanos         int64
 	duration           time.Duration
 	chunkWriter        *chunkWriter
 	chunkReserveHeader []byte

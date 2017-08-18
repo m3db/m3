@@ -337,7 +337,6 @@ func genWrite() gopter.Gen {
 				Namespace:   ts.StringID(ns),
 				Shard:       shard,
 				UniqueIndex: uniqueID(id),
-				WriteState:  newTestWriteState(),
 			},
 			datapoint: ts.Datapoint{
 				Timestamp: t,
