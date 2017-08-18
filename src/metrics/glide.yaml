@@ -41,7 +41,7 @@ import:
 - package: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - package: github.com/uber-go/tally
-  version: 3.0.0
+  version: ^3.0.0 # ie >= 3.0.0, < 4.0.0
   subpackages:
   - m3
   - m3/customtransports
