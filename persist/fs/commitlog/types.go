@@ -112,16 +112,21 @@ type Series struct {
 	WriteState SeriesWriteState
 }
 
-// SeriesWriteState provides series write state for a
-// series that is written to the commit log journal
-type SeriesWriteState interface {
-	// CurrentCommitLogStart returns the unix nanoseconds
-	// from when the series was last written
-	// Note: provider does not need to provide volatility protection
-	// (thread safety) as access is synchronized to both the accessor
-	// and setter.
-	CurrentCommitLogStart() int64
+// SeriesWriteState is a snapshot of the current series
+// write state for the commit log journal with a store
+// that can update the attributes of the write state
+type SeriesWriteState struct {
+	// CurrentCommitLogStart is the unix nanoseconds
+	// for when the series was last written
+	CurrentCommitLogStart int64
+	// Store is the store for the series write state
+	// source of truth
+	Store SeriesWriteStateStore
+}
 
+// SeriesWriteStateStore provides series write state for a
+// series that is written to the commit log journal
+type SeriesWriteStateStore interface {
 	// SetCurrentCommitLogStart sets the unix nanoseconds
 	// for when the series was last written
 	// Note: provider does not need to provide volatility protection
