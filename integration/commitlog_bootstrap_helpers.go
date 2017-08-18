@@ -119,7 +119,10 @@ func writeCommitLogData(
 				Shard:       shardSet.Lookup(point.ID),
 				ID:          point.ID,
 				UniqueIndex: series.uniqueIndex,
-				WriteState:  series,
+				WriteState: commitlog.SeriesWriteState{
+					CurrentCommitLogStart: series.CurrentCommitLogStart(),
+					Store: series,
+				},
 			}
 			require.NoError(t, commitLog.WriteBehind(ctx, cId, point.Datapoint, xtime.Second, nil))
 		}
