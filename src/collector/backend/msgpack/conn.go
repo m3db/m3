@@ -28,7 +28,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/log"
+
+	"github.com/uber-go/tally"
 )
 
 const (
@@ -59,8 +60,7 @@ type connection struct {
 	conn        *net.TCPConn
 	numFailures int
 	threshold   int
-
-	log xlog.Logger
+	metrics     connectionMetrics
 
 	// These are for testing purposes.
 	connectWithLockFn connectWithLockFn
@@ -79,17 +79,13 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 		maxThreshold:  opts.MaxReconnectThreshold(),
 		nowFn:         opts.ClockOptions().NowFn(),
 		threshold:     opts.InitReconnectThreshold(),
-		log:           opts.InstrumentOptions().Logger(),
+		metrics:       newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
 	}
 	c.connectWithLockFn = c.connectWithLock
 	c.writeWithLockFn = c.writeWithLock
 
 	c.Lock()
-	if err := c.connectWithLockFn(); err != nil {
-		c.log.WithFields(
-			xlog.NewLogErrField(err),
-		).Error("encountered error creating initial connection")
-	}
+	c.connectWithLockFn() // nolint: errcheck
 	c.Unlock()
 
 	return c
@@ -132,14 +128,13 @@ func (c *connection) Close() {
 func (c *connection) connectWithLock() error {
 	conn, err := net.DialTimeout(tcpProtocol, c.addr, c.connTimeout)
 	if err != nil {
+		c.metrics.connectError.Inc(1)
 		return err
 	}
 
 	tcpConn := conn.(*net.TCPConn)
 	if err := tcpConn.SetKeepAlive(c.keepAlive); err != nil {
-		c.log.WithFields(
-			xlog.NewLogErrField(err),
-		).Error("encountered error setting tcp keep alive")
+		c.metrics.setKeepAliveError.Inc(1)
 	}
 
 	if c.conn != nil {
@@ -168,9 +163,7 @@ func (c *connection) checkReconnectWithLock() bool {
 
 func (c *connection) writeWithLock(data []byte) error {
 	if err := c.conn.SetWriteDeadline(c.nowFn().Add(c.writeTimeout)); err != nil {
-		c.log.WithFields(
-			xlog.NewLogErrField(err),
-		).Error("encountered error setting write deadline on connection")
+		c.metrics.setWriteDeadlineError.Inc(1)
 	}
 	_, err := c.conn.Write(data)
 	return err
@@ -186,4 +179,26 @@ func (c *connection) closeWithLock() {
 		c.conn.Close() // nolint: errcheck
 	}
 	c.conn = nil
+}
+
+const (
+	errorMetric     = "errors"
+	errorMetricType = "error-type"
+)
+
+type connectionMetrics struct {
+	connectError          tally.Counter
+	setKeepAliveError     tally.Counter
+	setWriteDeadlineError tally.Counter
+}
+
+func newConnectionMetrics(scope tally.Scope) connectionMetrics {
+	return connectionMetrics{
+		connectError: scope.Tagged(map[string]string{errorMetricType: "connection"}).
+			Counter(errorMetric),
+		setKeepAliveError: scope.Tagged(map[string]string{errorMetricType: "tcp-keep-alive"}).
+			Counter(errorMetric),
+		setWriteDeadlineError: scope.Tagged(map[string]string{errorMetricType: "set-write-deadline"}).
+			Counter(errorMetric),
+	}
 }

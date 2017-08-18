@@ -131,7 +131,12 @@ func (w *writer) Flush() error {
 	}
 	err := w.flushWithLock()
 	w.RUnlock()
-	return err
+
+	if err != nil {
+		w.metrics.flushErrors.Inc(1)
+		return err
+	}
+	return nil
 }
 
 func (w *writer) Close() error {
@@ -143,9 +148,7 @@ func (w *writer) Close() error {
 	}
 	w.closed = true
 	if err := w.flushWithLock(); err != nil {
-		w.log.WithFields(
-			xlog.NewLogErrField(err),
-		).Error("flush error when closing writer")
+		w.metrics.flushErrors.Inc(1)
 	}
 	return w.queue.Close()
 }
@@ -320,15 +323,22 @@ func (w *writer) enqueueBuffer(buf msgpack.Buffer) error {
 	return nil
 }
 
+const (
+	buffersMetric = "buffers"
+	actionTag     = "action"
+)
+
 type writerMetrics struct {
 	buffersEnqueued tally.Counter
 	enqueueErrors   tally.Counter
+	flushErrors     tally.Counter
 }
 
 func newWriterMetrics(s tally.Scope) writerMetrics {
 	return writerMetrics{
-		buffersEnqueued: s.Tagged(map[string]string{"action": "enqueued"}).Counter("buffers"),
-		enqueueErrors:   s.Tagged(map[string]string{"action": "enqueue-error"}).Counter("buffers"),
+		buffersEnqueued: s.Tagged(map[string]string{actionTag: "enqueued"}).Counter(buffersMetric),
+		enqueueErrors:   s.Tagged(map[string]string{actionTag: "enqueue-error"}).Counter(buffersMetric),
+		flushErrors:     s.Tagged(map[string]string{actionTag: "flush-error"}).Counter(buffersMetric),
 	}
 }
 
