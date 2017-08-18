@@ -111,6 +111,7 @@ func newCommitLogWriter(
 		chunkReserveHeader: make([]byte, chunkHeaderLen),
 		buffer:             bufio.NewWriterSize(nil, opts.FlushSize()),
 		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
+		seen:               newBitSet(defaultBitSetLength),
 		logEncoder:         msgpack.NewEncoder(),
 		metadataEncoder:    msgpack.NewEncoder(),
 	}
