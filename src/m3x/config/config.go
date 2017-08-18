@@ -8,7 +8,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-// errNoFilesToLoad is return when you attemp to call LoadFiles with no file paths
+// errNoFilesToLoad is return when you attempt to call LoadFiles with no file paths
 var errNoFilesToLoad = errors.New("attempt to load configuration with no files")
 
 // LoadFile loads a config from a file

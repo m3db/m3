@@ -37,6 +37,8 @@ func TestSource(t *testing.T) {
 	testSource(t, 28, 30, 20)
 	testSource(t, 19, 21, 20)
 	testSource(t, 13, 15, 20)
+	testSource(t, 18, 22, 10)
+	testSource(t, 14, 12, 15)
 }
 
 func testSource(t *testing.T, errAfter int32, closeAfter int32, watchNum int) {
@@ -54,7 +56,7 @@ func testSource(t *testing.T, errAfter int32, closeAfter int32, watchNum int) {
 		go func() {
 			var v interface{}
 			count := 0
-			for _ = range w.C() {
+			for range w.C() {
 				if v != nil {
 					assert.True(t, w.Get().(int64) >= v.(int64))
 				}

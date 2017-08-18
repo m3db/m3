@@ -20,7 +20,7 @@
 
 /*
 
-Package jump implements the jump consistent hash algorithim as described in
+Package jump implements the jump consistent hash algorithm as described in
 "A Fast, Minimal Memory, Consistent Hash Algorithm"[1]. As the paper notes:
 "In comparison to the algorithm of Karger et al., jump consistent hash
 requires no storage, is faster, and does a better job of evenly dividing

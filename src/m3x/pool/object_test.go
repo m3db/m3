@@ -51,7 +51,7 @@ func TestObjectPoolRefillOnLowWaterMark(t *testing.T) {
 	pool.Get()
 
 	start := time.Now()
-	for time.Now().Sub(start) < 10*time.Second {
+	for time.Since(start) < 10*time.Second {
 		if len(pool.values) == 75 {
 			break
 		}

@@ -107,7 +107,7 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 
 	start := time.Now()
 	err := fn()
-	duration := time.Now().Sub(start)
+	duration := time.Since(start)
 	attempt++
 	if err == nil {
 		r.metrics.successLatency.Record(duration)
@@ -139,7 +139,7 @@ func (r *retrier) attempt(continueFn ContinueFn, fn Fn) error {
 		r.metrics.retries.Inc(1)
 		start := time.Now()
 		err = fn()
-		duration := time.Now().Sub(start)
+		duration := time.Since(start)
 		attempt++
 		if err == nil {
 			r.metrics.successLatency.Record(duration)

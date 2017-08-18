@@ -62,10 +62,10 @@ func NewSource(input SourceInput, logger xlog.Logger) Source {
 type source struct {
 	sync.RWMutex
 
-	input       SourceInput
-	w           Watchable
-	closed      bool
-	logger      xlog.Logger
+	input  SourceInput
+	w      Watchable
+	closed bool
+	logger xlog.Logger
 }
 
 func (s *source) run() {
@@ -81,7 +81,9 @@ func (s *source) run() {
 			continue
 		}
 
-		err = s.w.Update(data)
+		if err = s.w.Update(data); err != nil {
+			s.logger.Errorf("watch source update error: %v", err)
+		}
 	}
 }
 
