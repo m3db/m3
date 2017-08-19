@@ -468,7 +468,7 @@ func (f *singleRangeFilter) matches(val []byte) ([]byte, bool) {
 }
 
 // singleCharSetFilter is a filter that performs a single character match against
-// a set of chars given explicity eg. [abcdefg].
+// a set of chars given explicitly eg. [abcdefg].
 type singleCharSetFilter struct {
 	pattern   []byte
 	backwards bool

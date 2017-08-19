@@ -62,7 +62,7 @@ func newBaseIterator(reader io.Reader, readerBufferSize int) iteratorBase {
 func (it *baseIterator) reset(reader io.Reader) {
 	bufReader := toBufReader(reader, it.readerBufferSize)
 	it.bufReader = bufReader
-	it.decoder.Reset(bufReader)
+	it.decoder.Reset(bufReader) // nolint: errcheck
 	it.decodeErr = nil
 }
 
@@ -213,7 +213,7 @@ func (it *baseIterator) decodeObjectType() objectType {
 }
 
 func (it *baseIterator) decodeNumObjectFields() int {
-	return int(it.decodeArrayLen())
+	return it.decodeArrayLen()
 }
 
 func (it *baseIterator) decodeRawID() id.RawID {

@@ -34,8 +34,6 @@ import (
 
 const (
 	defaultInitWatchTimeout = 10 * time.Second
-	defaultValueRetryPeriod = 10 * time.Second
-	defaultValueRetryExpiry = 3 * time.Hour
 	defaultNamespacesKey    = "/namespaces"
 	defaultRuleSetKeyFormat = "/ruleset/%s"
 	defaultMatchRangePast   = time.Duration(math.MaxInt64)

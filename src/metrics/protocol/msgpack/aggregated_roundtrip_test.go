@@ -63,15 +63,15 @@ type metricWithPolicy struct {
 	policy policy.StoragePolicy
 }
 
-func testAggregatedEncoder(t *testing.T) AggregatedEncoder {
+func testAggregatedEncoder() AggregatedEncoder {
 	return NewAggregatedEncoder(NewBufferedEncoder())
 }
 
-func testAggregatedIterator(t *testing.T, reader io.Reader) AggregatedIterator {
+func testAggregatedIterator(reader io.Reader) AggregatedIterator {
 	return NewAggregatedIterator(reader, NewAggregatedIteratorOptions())
 }
 
-func testAggregatedEncode(t *testing.T, encoder AggregatedEncoder, m interface{}, p policy.StoragePolicy) error {
+func testAggregatedEncode(encoder AggregatedEncoder, m interface{}, p policy.StoragePolicy) error {
 	switch m := m.(type) {
 	case aggregated.Metric:
 		return encoder.EncodeMetricWithStoragePolicy(aggregated.MetricWithStoragePolicy{
@@ -109,8 +109,8 @@ func toRawMetric(t *testing.T, m interface{}) aggregated.RawMetric {
 }
 
 func validateAggregatedRoundtrip(t *testing.T, inputs ...metricWithPolicy) {
-	encoder := testAggregatedEncoder(t)
-	it := testAggregatedIterator(t, nil)
+	encoder := testAggregatedEncoder()
+	it := testAggregatedIterator(nil)
 	validateAggregatedRoundtripWithEncoderAndIterator(t, encoder, it, inputs...)
 }
 
@@ -134,7 +134,7 @@ func validateAggregatedRoundtripWithEncoderAndIterator(
 				metric: inputMetric,
 				policy: input.policy,
 			})
-			require.NoError(t, testAggregatedEncode(t, encoder, inputMetric, input.policy))
+			require.NoError(t, testAggregatedEncode(encoder, inputMetric, input.policy))
 		case aggregated.ChunkedMetric:
 			var id id.RawID
 			id = append(id, inputMetric.ChunkedID.Prefix...)
@@ -148,7 +148,7 @@ func validateAggregatedRoundtripWithEncoderAndIterator(
 				},
 				policy: input.policy,
 			})
-			require.NoError(t, testAggregatedEncode(t, encoder, inputMetric, input.policy))
+			require.NoError(t, testAggregatedEncode(encoder, inputMetric, input.policy))
 		case aggregated.RawMetric:
 			m, err := inputMetric.Metric()
 			require.NoError(t, err)
@@ -156,7 +156,7 @@ func validateAggregatedRoundtripWithEncoderAndIterator(
 				metric: m,
 				policy: input.policy,
 			})
-			require.NoError(t, testAggregatedEncode(t, encoder, inputMetric, input.policy))
+			require.NoError(t, testAggregatedEncode(encoder, inputMetric, input.policy))
 		default:
 			require.Fail(t, "unrecognized input type %T", inputMetric)
 		}
@@ -205,8 +205,8 @@ func TestAggregatedEncodeDecodeStress(t *testing.T) {
 	var (
 		numIter    = 10
 		numMetrics = 10000
-		encoder    = testAggregatedEncoder(t)
-		iterator   = testAggregatedIterator(t, nil)
+		encoder    = testAggregatedEncoder()
+		iterator   = testAggregatedIterator(nil)
 	)
 
 	for i := 0; i < numIter; i++ {

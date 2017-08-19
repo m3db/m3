@@ -33,8 +33,8 @@ type aggregatedIterator struct {
 	iteratorBase
 
 	ignoreHigherVersion bool
-	iteratorPool        AggregatedIteratorPool
 	closed              bool
+	iteratorPool        AggregatedIteratorPool
 	metric              aggregated.RawMetric
 	storagePolicy       policy.StoragePolicy
 }

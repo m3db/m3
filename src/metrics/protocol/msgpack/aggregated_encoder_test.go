@@ -29,18 +29,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testCapturingAggregatedEncoder(t *testing.T) (AggregatedEncoder, *[]interface{}) {
-	encoder := testAggregatedEncoder(t).(*aggregatedEncoder)
+func testCapturingAggregatedEncoder() (AggregatedEncoder, *[]interface{}) {
+	encoder := testAggregatedEncoder().(*aggregatedEncoder)
 	result := testCapturingBaseEncoder(encoder.encoderBase)
 	return encoder, result
 }
 
-func expectedResultsForRawMetricWithPolicy(t *testing.T, m aggregated.RawMetric, p policy.StoragePolicy) []interface{} {
+func expectedResultsForRawMetricWithPolicy(m aggregated.RawMetric, p policy.StoragePolicy) []interface{} {
 	results := []interface{}{
 		numFieldsForType(rawMetricWithStoragePolicyType),
 		m.Bytes(),
 	}
-	results = append(results, expectedResultsForPolicy(t, p)...)
+	results = append(results, expectedResultsForPolicy(p)...)
 	return results
 }
 
@@ -53,12 +53,12 @@ func expectedResultsForAggregatedMetricWithPolicy(t *testing.T, m interface{}, p
 	switch m := m.(type) {
 	case aggregated.Metric:
 		rm := toRawMetric(t, m)
-		results = append(results, expectedResultsForRawMetricWithPolicy(t, rm, p)...)
+		results = append(results, expectedResultsForRawMetricWithPolicy(rm, p)...)
 	case aggregated.ChunkedMetric:
 		rm := toRawMetric(t, m)
-		results = append(results, expectedResultsForRawMetricWithPolicy(t, rm, p)...)
+		results = append(results, expectedResultsForRawMetricWithPolicy(rm, p)...)
 	case aggregated.RawMetric:
-		results = append(results, expectedResultsForRawMetricWithPolicy(t, m, p)...)
+		results = append(results, expectedResultsForRawMetricWithPolicy(m, p)...)
 	default:
 		require.Fail(t, "unrecognized input type %T", m)
 	}
@@ -66,7 +66,7 @@ func expectedResultsForAggregatedMetricWithPolicy(t *testing.T, m interface{}, p
 }
 
 func TestAggregatedEncodeMetric(t *testing.T) {
-	encoder := testAggregatedEncoder(t).(*aggregatedEncoder)
+	encoder := testAggregatedEncoder().(*aggregatedEncoder)
 	result := testCapturingBaseEncoder(encoder.buf)
 	encoder.encodeMetricAsRaw(testMetric)
 	expected := []interface{}{
@@ -80,48 +80,48 @@ func TestAggregatedEncodeMetric(t *testing.T) {
 }
 
 func TestAggregatedEncodeMetricWithPolicy(t *testing.T) {
-	encoder, results := testCapturingAggregatedEncoder(t)
-	require.NoError(t, testAggregatedEncode(t, encoder, testMetric, testPolicy))
+	encoder, results := testCapturingAggregatedEncoder()
+	require.NoError(t, testAggregatedEncode(encoder, testMetric, testPolicy))
 	expected := expectedResultsForAggregatedMetricWithPolicy(t, testMetric, testPolicy)
 	require.Equal(t, expected, *results)
 }
 
 func TestAggregatedEncodeChunkedMetricWithPolicy(t *testing.T) {
-	encoder, results := testCapturingAggregatedEncoder(t)
-	require.NoError(t, testAggregatedEncode(t, encoder, testChunkedMetric, testPolicy))
+	encoder, results := testCapturingAggregatedEncoder()
+	require.NoError(t, testAggregatedEncode(encoder, testChunkedMetric, testPolicy))
 	expected := expectedResultsForAggregatedMetricWithPolicy(t, testChunkedMetric, testPolicy)
 	require.Equal(t, expected, *results)
 }
 
 func TestAggregatedEncodeRawMetricWithPolicy(t *testing.T) {
-	encoder, results := testCapturingAggregatedEncoder(t)
+	encoder, results := testCapturingAggregatedEncoder()
 	rawMetric := toRawMetric(t, testMetric)
-	require.NoError(t, testAggregatedEncode(t, encoder, rawMetric, testPolicy))
+	require.NoError(t, testAggregatedEncode(encoder, rawMetric, testPolicy))
 	expected := expectedResultsForAggregatedMetricWithPolicy(t, rawMetric, testPolicy)
 	require.Equal(t, expected, *results)
 }
 
 func TestAggregatedEncodeError(t *testing.T) {
 	// Intentionally return an error when encoding varint.
-	encoder := testAggregatedEncoder(t).(*aggregatedEncoder)
+	encoder := testAggregatedEncoder().(*aggregatedEncoder)
 	baseEncoder := encoder.encoderBase.(*baseEncoder)
 	baseEncoder.encodeVarintFn = func(value int64) {
 		baseEncoder.encodeErr = errTestVarint
 	}
 
 	// Assert the error is expected.
-	require.Equal(t, errTestVarint, testAggregatedEncode(t, encoder, testMetric, testPolicy))
+	require.Equal(t, errTestVarint, testAggregatedEncode(encoder, testMetric, testPolicy))
 
 	// Assert re-encoding doesn't change the error.
-	require.Equal(t, errTestVarint, testAggregatedEncode(t, encoder, testMetric, testPolicy))
+	require.Equal(t, errTestVarint, testAggregatedEncode(encoder, testMetric, testPolicy))
 }
 
 func TestAggregatedEncoderReset(t *testing.T) {
-	encoder := testAggregatedEncoder(t).(*aggregatedEncoder)
+	encoder := testAggregatedEncoder().(*aggregatedEncoder)
 	baseEncoder := encoder.encoderBase.(*baseEncoder)
 	baseEncoder.encodeErr = errTestVarint
-	require.Equal(t, errTestVarint, testAggregatedEncode(t, encoder, testMetric, testPolicy))
+	require.Equal(t, errTestVarint, testAggregatedEncode(encoder, testMetric, testPolicy))
 
 	encoder.Reset(NewBufferedEncoder())
-	require.NoError(t, testAggregatedEncode(t, encoder, testMetric, testPolicy))
+	require.NoError(t, testAggregatedEncode(encoder, testMetric, testPolicy))
 }

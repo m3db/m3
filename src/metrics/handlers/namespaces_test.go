@@ -93,7 +93,8 @@ func TestNamespaceError(t *testing.T) {
 
 func TestNamespaces(t *testing.T) {
 	store := mem.NewStore()
-	store.Set(testNamespaceKey, testNamespaces)
+	_, err := store.Set(testNamespaceKey, testNamespaces)
+	require.NoError(t, err)
 	_, s, err := Namespaces(store, testNamespaceKey)
 	require.NoError(t, err)
 	require.NotNil(t, s.Namespaces)
@@ -101,7 +102,8 @@ func TestNamespaces(t *testing.T) {
 
 func TestNamespacesError(t *testing.T) {
 	store := mem.NewStore()
-	store.Set(testNamespaceKey, &schema.RollupRule{Uuid: "x"})
+	_, err := store.Set(testNamespaceKey, &schema.RollupRule{Uuid: "x"})
+	require.NoError(t, err)
 	_, s, err := Namespaces(store, testNamespaceKey)
 	require.Error(t, err)
 	require.Nil(t, s)
@@ -109,7 +111,8 @@ func TestNamespacesError(t *testing.T) {
 
 func TestValidateNamespace(t *testing.T) {
 	store := mem.NewStore()
-	store.Set(testNamespaceKey, testNamespaces)
+	_, err := store.Set(testNamespaceKey, testNamespaces)
+	require.NoError(t, err)
 	v, s, ns, err := ValidateNamespace(store, testNamespaceKey, "fooNs")
 	require.Equal(t, v, 1)
 	require.NoError(t, err)
@@ -119,16 +122,18 @@ func TestValidateNamespace(t *testing.T) {
 
 func TestValidateNamespaceDNE(t *testing.T) {
 	store := mem.NewStore()
-	store.Set(testNamespaceKey, testNamespaces)
-	_, _, _, err := ValidateNamespace(store, testNamespaceKey, "blah")
+	_, err := store.Set(testNamespaceKey, testNamespaces)
+	require.NoError(t, err)
+	_, _, _, err = ValidateNamespace(store, testNamespaceKey, "blah")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "not found")
 }
 
 func TestValidateNamespaceTombstoned(t *testing.T) {
 	store := mem.NewStore()
-	store.Set(testNamespaceKey, testNamespaces)
-	_, _, _, err := ValidateNamespace(store, testNamespaceKey, "barNs")
+	_, err := store.Set(testNamespaceKey, testNamespaces)
+	require.NoError(t, err)
+	_, _, _, err = ValidateNamespace(store, testNamespaceKey, "barNs")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "tombstoned")
 }

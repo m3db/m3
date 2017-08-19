@@ -334,7 +334,8 @@ func TestRuleSetKey(t *testing.T) {
 func TestRuleSet(t *testing.T) {
 	store := mem.NewStore()
 	rulesSetKey := RuleSetKey(testKeyFmt, testNamespace)
-	store.Set(rulesSetKey, testRuleSet)
+	_, err := store.Set(rulesSetKey, testRuleSet)
+	require.NoError(t, err)
 	_, s, err := RuleSet(store, rulesSetKey)
 	require.NoError(t, err)
 	require.NotNil(t, s)
@@ -343,7 +344,8 @@ func TestRuleSet(t *testing.T) {
 func TestRuleSetError(t *testing.T) {
 	store := mem.NewStore()
 	rulesSetKey := RuleSetKey(testKeyFmt, testNamespace)
-	store.Set(rulesSetKey, &schema.Namespace{Name: "x"})
+	_, err := store.Set(rulesSetKey, &schema.Namespace{Name: "x"})
+	require.NoError(t, err)
 	_, s, err := RuleSet(store, "blah")
 	require.Error(t, err)
 	require.Nil(t, s)
@@ -352,8 +354,9 @@ func TestRuleSetError(t *testing.T) {
 func TestValidateRuleSetTombstoned(t *testing.T) {
 	store := mem.NewStore()
 	rulesSetKey := RuleSetKey(testKeyFmt, testNamespace)
-	store.Set(rulesSetKey, testRuleSet)
-	_, _, err := ValidateRuleSet(store, rulesSetKey)
+	_, err := store.Set(rulesSetKey, testRuleSet)
+	require.NoError(t, err)
+	_, _, err = ValidateRuleSet(store, rulesSetKey)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "tombstoned")
 }
@@ -361,8 +364,9 @@ func TestValidateRuleSetTombstoned(t *testing.T) {
 func TestValidateRuleSetInvalid(t *testing.T) {
 	store := mem.NewStore()
 	rulesSetKey := RuleSetKey(testKeyFmt, testNamespace)
-	store.Set(rulesSetKey, nil)
-	_, _, err := ValidateRuleSet(store, rulesSetKey)
+	_, err := store.Set(rulesSetKey, &schema.Retention{Period: 100})
+	require.NoError(t, err)
+	_, _, err = ValidateRuleSet(store, rulesSetKey)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "could not read")
 }
@@ -370,7 +374,8 @@ func TestValidateRuleSetInvalid(t *testing.T) {
 func TestRule(t *testing.T) {
 	store := mem.NewStore()
 	rulesSetKey := RuleSetKey(testKeyFmt, testNamespace)
-	store.Set(rulesSetKey, testRuleSet)
+	_, err := store.Set(rulesSetKey, testRuleSet)
+	require.NoError(t, err)
 	_, r, err := RuleSet(store, rulesSetKey)
 	require.NoError(t, err)
 
@@ -388,7 +393,8 @@ func TestRule(t *testing.T) {
 func TestRuleDup(t *testing.T) {
 	store := mem.NewStore()
 	rulesSetKey := RuleSetKey(testKeyFmt, testNamespace)
-	store.Set(rulesSetKey, testRuleSet)
+	_, err := store.Set(rulesSetKey, testRuleSet)
+	require.NoError(t, err)
 	_, r, err := RuleSet(store, rulesSetKey)
 	require.NoError(t, err)
 

@@ -40,10 +40,10 @@ const (
 type unaggregatedIterator struct {
 	iteratorBase
 
-	ignoreHigherVersion bool
 	largeFloatsSize     int
 	largeFloatsPool     pool.FloatsPool
 	iteratorPool        UnaggregatedIteratorPool
+	ignoreHigherVersion bool
 
 	closed             bool
 	metric             unaggregated.MetricUnion
@@ -190,7 +190,7 @@ func (it *unaggregatedIterator) decodeCounter() {
 	}
 	it.metric.Type = unaggregated.CounterType
 	it.metric.ID = it.decodeID()
-	it.metric.CounterVal = int64(it.decodeVarint())
+	it.metric.CounterVal = it.decodeVarint()
 	it.skip(numActualFields - numExpectedFields)
 }
 
@@ -310,7 +310,7 @@ func (it *unaggregatedIterator) decodeID() id.RawID {
 	// NB(xichen): DecodeBytesLen() returns -1 if the byte slice is nil.
 	if idLen == -1 {
 		it.id = it.id[:0]
-		return id.RawID(it.id)
+		return it.id
 	}
 	if cap(it.id) < idLen {
 		it.id = make([]byte, idLen)

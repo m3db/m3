@@ -96,11 +96,11 @@ type GaugeWithPoliciesList struct {
 // NB(xichen): possibly use refcounting to replace explicit ownership tracking.
 type MetricUnion struct {
 	Type          Type
+	OwnsID        bool
 	ID            id.RawID
 	CounterVal    int64
 	BatchTimerVal []float64
 	GaugeVal      float64
-	OwnsID        bool
 	TimerValPool  pool.FloatsPool
 }
 

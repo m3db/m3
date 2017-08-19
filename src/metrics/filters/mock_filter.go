@@ -31,11 +31,6 @@ const (
 	mockTagValueSeparator = "="
 )
 
-type mockFilterData struct {
-	val   string
-	match bool
-}
-
 type mockTagPair struct {
 	name  []byte
 	value []byte

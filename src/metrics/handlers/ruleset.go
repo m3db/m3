@@ -32,7 +32,7 @@ var (
 	errMultipleMatches = errors.New("more than one match found")
 )
 
-// Rule returns the rule with a given name, or an error if there are mutliple matches
+// Rule returns the rule with a given name, or an error if there are multiple matches
 func Rule(ruleSet *schema.RuleSet, ruleName string) (*schema.MappingRule, *schema.RollupRule, error) {
 	var (
 		mappingRule *schema.MappingRule
