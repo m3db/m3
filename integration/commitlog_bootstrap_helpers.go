@@ -110,7 +110,7 @@ func writeCommitLogData(
 				ID:          point.ID,
 				UniqueIndex: series.uniqueIndex,
 			}
-			require.NoError(t, commitLog.WriteBehind(ctx, cId, point.Datapoint, xtime.Second, nil))
+			require.NoError(t, commitLog.Write(ctx, cId, point.Datapoint, xtime.Second, nil))
 		}
 	}
 }

@@ -55,9 +55,6 @@ var (
 
 	// errDuplicateNamespace raised when trying to create a database with duplicate namespaces
 	errDuplicateNamespaces = errors.New("database contains duplicate namespaces")
-
-	// errCommitLogStrategyUnknown raised when trying to use an unknown commit log strategy
-	errCommitLogStrategyUnknown = errors.New("database commit log strategy is unknown")
 )
 
 type databaseState int
@@ -72,15 +69,6 @@ const (
 type increasingIndex interface {
 	nextIndex() uint64
 }
-
-// writeCommitLogFn is a method for writing to the commit log
-type writeCommitLogFn func(
-	ctx context.Context,
-	series commitlog.Series,
-	datapoint ts.Datapoint,
-	unit xtime.Unit,
-	annotation ts.Annotation,
-) error
 
 type db struct {
 	sync.RWMutex

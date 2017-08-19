@@ -67,8 +67,6 @@ type commitLog struct {
 
 	log xlog.Logger
 
-	strategy Strategy
-
 	newCommitLogWriterFn newCommitLogWriterFn
 	writeFn              writeCommitLogFn
 	commitLogFailFn      commitLogFailFn
@@ -348,7 +346,8 @@ func (l *commitLog) writeWait(
 	unit xtime.Unit,
 	annotation ts.Annotation,
 ) error {
-	if l.RLock(); l.closed {
+	l.RLock()
+	if l.closed {
 		l.RUnlock()
 		return errCommitLogClosed
 	}
@@ -399,7 +398,8 @@ func (l *commitLog) writeBehind(
 	unit xtime.Unit,
 	annotation ts.Annotation,
 ) error {
-	if l.RLock(); l.closed {
+	l.RLock()
+	if l.closed {
 		l.RUnlock()
 		return errCommitLogClosed
 	}
