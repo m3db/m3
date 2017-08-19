@@ -34,7 +34,6 @@ var (
 	errNilNamespaceSnapshotSchema = errors.New("nil namespace snapshot schema")
 	errNilNamespaceSchema         = errors.New("nil namespace schema")
 	errNilNamespacesSchema        = errors.New("nil namespaces schema")
-	errNilNamespace               = errors.New("nil namespace")
 	errNilNamespaceSnapshot       = errors.New("nil namespace snapshot")
 )
 

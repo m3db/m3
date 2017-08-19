@@ -144,9 +144,10 @@ func TestNamespaceSchema(t *testing.T) {
 	}
 
 	ns, err := newNameSpace(testNs)
-
 	require.NoError(t, err)
+
 	res, err := ns.Schema()
+	require.NoError(t, err)
 
 	require.Equal(t, testNs, res)
 }

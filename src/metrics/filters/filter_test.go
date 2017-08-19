@@ -27,6 +27,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type mockFilterData struct {
+	val   string
+	match bool
+}
+
 func TestFilters(t *testing.T) {
 	filters := genAndValidateFilters(t, []testPattern{
 		testPattern{pattern: "f[A-z]?*", expectedStr: "StartsWith(Equals(\"f\") then Range(\"A-z\") then AnyChar)"},
@@ -223,10 +228,11 @@ func TestBadPatterns(t *testing.T) {
 }
 
 func TestMultiCharSequenceFilter(t *testing.T) {
-	f, err := newMultiCharSequenceFilter([]byte(""), false)
+	_, err := newMultiCharSequenceFilter([]byte(""), false)
 	require.Error(t, err)
 
-	f, err = newMultiCharSequenceFilter([]byte("test2,test,tent,book"), false)
+	f, err := newMultiCharSequenceFilter([]byte("test2,test,tent,book"), false)
+	require.NoError(t, err)
 	validateLookup(t, f, "", false, "")
 	validateLookup(t, f, "t", false, "")
 	validateLookup(t, f, "tes", false, "")
@@ -239,6 +245,7 @@ func TestMultiCharSequenceFilter(t *testing.T) {
 	validateLookup(t, f, "book123", true, "123")
 
 	f, err = newMultiCharSequenceFilter([]byte("test2,test,tent,book"), true)
+	require.NoError(t, err)
 	validateLookup(t, f, "", false, "")
 	validateLookup(t, f, "t", false, "")
 	validateLookup(t, f, "tes", false, "")

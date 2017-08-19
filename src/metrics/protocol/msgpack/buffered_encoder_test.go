@@ -32,7 +32,8 @@ func TestBufferedEncoderReset(t *testing.T) {
 
 	// Encode for the first time.
 	for _, input := range inputs {
-		encoder.Encode(input)
+		err := encoder.Encode(input)
+		require.NoError(t, err)
 	}
 	encoded := encoder.Bytes()
 	results := make([]byte, len(encoded))
@@ -43,7 +44,8 @@ func TestBufferedEncoderReset(t *testing.T) {
 
 	// Encode for the second time.
 	for _, input := range inputs {
-		encoder.Encode(input)
+		err := encoder.Encode(input)
+		require.NoError(t, err)
 	}
 	encoded = encoder.Bytes()
 	results2 := make([]byte, len(encoded))

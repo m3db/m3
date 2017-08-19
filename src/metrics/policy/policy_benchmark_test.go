@@ -70,7 +70,6 @@ type testStagedPoliciesInt64 interface {
 // StagedPolicies represent a list of policies at a specified version.
 type testStagedPolicies struct {
 	cutoverNanos int64
-	tombstoned   bool
 	policies     []Policy
 }
 

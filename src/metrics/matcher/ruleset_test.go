@@ -124,7 +124,8 @@ func TestRuleSetProcess(t *testing.T) {
 	_, cache, rs, _ := testRuleSet()
 	memCache := cache.(*memCache)
 	for _, input := range inputs {
-		rs.process(input)
+		err := rs.process(input)
+		require.NoError(t, err)
 	}
 
 	require.Equal(t, 5, rs.Version())

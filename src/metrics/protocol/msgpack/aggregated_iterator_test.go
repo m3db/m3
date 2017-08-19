@@ -55,7 +55,7 @@ func TestAggregatedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 		metric: testMetric,
 		policy: testPolicy,
 	}
-	enc := testAggregatedEncoder(t).(*aggregatedEncoder)
+	enc := testAggregatedEncoder().(*aggregatedEncoder)
 
 	// Version encoded is higher than supported version.
 	enc.encodeRootObjectFn = func(objType objectType) {
@@ -63,13 +63,13 @@ func TestAggregatedIteratorDecodeNewerVersionThanSupported(t *testing.T) {
 		enc.encodeNumObjectFields(numFieldsForType(rootObjectType))
 		enc.encodeObjectType(objType)
 	}
-	require.NoError(t, testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy))
+	require.NoError(t, testAggregatedEncode(enc, input.metric.(aggregated.Metric), input.policy))
 
 	// Now restore the encode top-level function and encode another metric.
 	enc.encodeRootObjectFn = enc.encodeRootObject
-	require.NoError(t, testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy))
+	require.NoError(t, testAggregatedEncode(enc, input.metric.(aggregated.Metric), input.policy))
 
-	it := testAggregatedIterator(t, enc.Encoder().Buffer())
+	it := testAggregatedIterator(enc.Encoder().Buffer())
 	it.(*aggregatedIterator).ignoreHigherVersion = true
 
 	// Check that we skipped the first metric and successfully decoded the second metric.
@@ -81,7 +81,7 @@ func TestAggregatedIteratorDecodeRootObjectMoreFieldsThanExpected(t *testing.T) 
 		metric: testMetric,
 		policy: testPolicy,
 	}
-	enc := testAggregatedEncoder(t).(*aggregatedEncoder)
+	enc := testAggregatedEncoder().(*aggregatedEncoder)
 
 	// Pretend we added an extra int field to the root object.
 	enc.encodeRootObjectFn = func(objType objectType) {
@@ -89,11 +89,12 @@ func TestAggregatedIteratorDecodeRootObjectMoreFieldsThanExpected(t *testing.T) 
 		enc.encodeNumObjectFields(numFieldsForType(rootObjectType) + 1)
 		enc.encodeObjectType(objType)
 	}
-	testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy)
+	err := testAggregatedEncode(enc, input.metric.(aggregated.Metric), input.policy)
+	require.NoError(t, err)
 	enc.encodeVarint(0)
 	require.NoError(t, enc.err())
 
-	it := testAggregatedIterator(t, enc.Encoder().Buffer())
+	it := testAggregatedIterator(enc.Encoder().Buffer())
 
 	// Check that we successfully decoded the metric.
 	validateAggregatedDecodeResults(t, it, []metricWithPolicy{input}, io.EOF)
@@ -104,7 +105,7 @@ func TestAggregatedIteratorDecodeRawMetricMoreFieldsThanExpected(t *testing.T) {
 		metric: testMetric,
 		policy: testPolicy,
 	}
-	enc := testAggregatedEncoder(t).(*aggregatedEncoder)
+	enc := testAggregatedEncoder().(*aggregatedEncoder)
 
 	// Pretend we added an extra int field to the raw metric with policy object.
 	enc.encodeRawMetricWithStoragePolicyFn = func(data []byte, p policy.StoragePolicy) {
@@ -112,11 +113,12 @@ func TestAggregatedIteratorDecodeRawMetricMoreFieldsThanExpected(t *testing.T) {
 		enc.encodeRawMetricFn(data)
 		enc.encodeStoragePolicy(p)
 	}
-	testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy)
+	err := testAggregatedEncode(enc, input.metric.(aggregated.Metric), input.policy)
+	require.NoError(t, err)
 	enc.encodeVarint(0)
 	require.NoError(t, enc.err())
 
-	it := testAggregatedIterator(t, enc.Encoder().Buffer())
+	it := testAggregatedIterator(enc.Encoder().Buffer())
 
 	// Check that we successfully decoded the metric.
 	validateAggregatedDecodeResults(t, it, []metricWithPolicy{input}, io.EOF)
@@ -127,7 +129,7 @@ func TestAggregatedIteratorDecodeMetricHigherVersionThanSupported(t *testing.T) 
 		metric: testMetric,
 		policy: testPolicy,
 	}
-	enc := testAggregatedEncoder(t).(*aggregatedEncoder)
+	enc := testAggregatedEncoder().(*aggregatedEncoder)
 
 	// Pretend we added an extra int field to the raw metric object.
 	enc.encodeMetricAsRawFn = func(m aggregated.Metric) []byte {
@@ -135,13 +137,14 @@ func TestAggregatedIteratorDecodeMetricHigherVersionThanSupported(t *testing.T) 
 		enc.buf.encodeVersion(metricVersion + 1)
 		return enc.buf.encoder().Bytes()
 	}
-	testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy)
+	err := testAggregatedEncode(enc, input.metric.(aggregated.Metric), input.policy)
+	require.NoError(t, err)
 	require.NoError(t, enc.err())
 
-	it := testAggregatedIterator(t, enc.Encoder().Buffer())
+	it := testAggregatedIterator(enc.Encoder().Buffer())
 	require.True(t, it.Next())
 	rawMetric, _ := it.Value()
-	_, err := rawMetric.Value()
+	_, err = rawMetric.Value()
 	require.Error(t, err)
 }
 
@@ -150,7 +153,7 @@ func TestAggregatedIteratorDecodeMetricMoreFieldsThanExpected(t *testing.T) {
 		metric: testMetric,
 		policy: testPolicy,
 	}
-	enc := testAggregatedEncoder(t).(*aggregatedEncoder)
+	enc := testAggregatedEncoder().(*aggregatedEncoder)
 
 	// Pretend we added an extra int field to the raw metric object.
 	enc.encodeMetricAsRawFn = func(m aggregated.Metric) []byte {
@@ -158,10 +161,11 @@ func TestAggregatedIteratorDecodeMetricMoreFieldsThanExpected(t *testing.T) {
 		enc.buf.encodeVarint(0)
 		return enc.buf.encoder().Bytes()
 	}
-	testAggregatedEncode(t, enc, input.metric.(aggregated.Metric), input.policy)
+	err := testAggregatedEncode(enc, input.metric.(aggregated.Metric), input.policy)
+	require.NoError(t, err)
 	require.NoError(t, enc.err())
 
-	it := testAggregatedIterator(t, enc.Encoder().Buffer())
+	it := testAggregatedIterator(enc.Encoder().Buffer())
 
 	// Check that we successfully decoded the metric.
 	validateAggregatedDecodeResults(t, it, []metricWithPolicy{input}, io.EOF)

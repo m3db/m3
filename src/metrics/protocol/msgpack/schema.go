@@ -33,6 +33,7 @@ const (
 	metricVersion int = 1
 )
 
+// nolint: deadcode
 const (
 	unknownType objectType = iota
 
@@ -84,7 +85,6 @@ const (
 	numKnownResolutionFields            = 2
 	numUnknownResolutionFields          = 3
 	numKnownRetentionFields             = 2
-	numUnknownRetentionFields           = 2
 	numDefaultAggregationIDFields       = 1
 	numShortAggregationIDFields         = 2
 	numLongAggregationIDFields          = 2

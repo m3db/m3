@@ -147,6 +147,7 @@ func BenchmarkMultiRangeFilterTrieSix(b *testing.B) {
 	benchMultiRangeFilterTrie(b, []byte("test_1,test_2,staging_1,staging_2,prod_1,prod_2"), false, [][]byte{[]byte("prod_1"), []byte("staging_3")})
 }
 
+// nolint: unparam
 func benchMultiRangeFilter(b *testing.B, patterns []byte, backwards bool, vals [][]byte) {
 	f, _ := newMultiCharSequenceFilter(patterns, backwards)
 	for n := 0; n < b.N; n++ {
@@ -156,6 +157,7 @@ func benchMultiRangeFilter(b *testing.B, patterns []byte, backwards bool, vals [
 	}
 }
 
+// nolint: unparam
 func benchMultiRangeFilterSelect(b *testing.B, patterns []byte, backwards bool, vals [][]byte) {
 	f, _ := newTestMultiCharRangeSelectFilter(patterns, backwards)
 	for n := 0; n < b.N; n++ {
@@ -165,6 +167,7 @@ func benchMultiRangeFilterSelect(b *testing.B, patterns []byte, backwards bool, 
 	}
 }
 
+// nolint: unparam
 func benchMultiRangeFilterTrie(b *testing.B, patterns []byte, backwards bool, vals [][]byte) {
 	f, _ := newTestMultiCharRangeTrieFilter(patterns, backwards)
 	for n := 0; n < b.N; n++ {

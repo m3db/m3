@@ -1,0 +1,16 @@
+{
+  "Enable":
+    [ "deadcode"
+    , "varcheck"
+    , "structcheck"
+    , "goconst"
+    , "ineffassign"
+    , "unconvert"
+    , "misspell"
+    , "unparam"
+    , "megacheck"
+    , "aligncheck"
+    , "errcheck" ],
+  "Deadline": "3m",
+  "EnableGC": true
+}

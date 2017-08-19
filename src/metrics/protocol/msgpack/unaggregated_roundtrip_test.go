@@ -274,8 +274,8 @@ func TestUnaggregatedEncodeDecodeMetricStress(t *testing.T) {
 	numIter := 10
 	numMetrics := 10000
 	allMetrics := []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge}
-	encoder := testUnaggregatedEncoder(t)
-	iterator := testUnaggregatedIterator(t, nil)
+	encoder := testUnaggregatedEncoder()
+	iterator := testUnaggregatedIterator(nil)
 	for i := 0; i < numIter; i++ {
 		var inputs []unaggregated.MetricUnion
 		for j := 0; j < numMetrics; j++ {
@@ -327,8 +327,8 @@ func TestUnaggregatedEncodeDecodeMetricWithPoliciesListStress(t *testing.T) {
 		},
 	}
 
-	encoder := testUnaggregatedEncoder(t)
-	iterator := testUnaggregatedIterator(t, nil)
+	encoder := testUnaggregatedEncoder()
+	iterator := testUnaggregatedIterator(nil)
 	for i := 0; i < numIter; i++ {
 		var inputs []metricWithPoliciesList
 		for j := 0; j < numMetrics; j++ {
@@ -371,20 +371,16 @@ func testCapturingBaseEncoder(encoder encoderBase) *[]interface{} {
 	return &result
 }
 
-func testUnaggregatedEncoder(t *testing.T) UnaggregatedEncoder {
+func testUnaggregatedEncoder() UnaggregatedEncoder {
 	return NewUnaggregatedEncoder(NewBufferedEncoder())
 }
 
-func testUnaggregatedIterator(t *testing.T, reader io.Reader) UnaggregatedIterator {
+func testUnaggregatedIterator(reader io.Reader) UnaggregatedIterator {
 	opts := NewUnaggregatedIteratorOptions()
 	return NewUnaggregatedIterator(reader, opts)
 }
 
-func testUnaggregatedEncodeMetric(
-	t *testing.T,
-	encoder UnaggregatedEncoder,
-	m unaggregated.MetricUnion,
-) error {
+func testUnaggregatedEncodeMetric(encoder UnaggregatedEncoder, m unaggregated.MetricUnion) error {
 	switch m.Type {
 	case unaggregated.CounterType:
 		return encoder.EncodeCounter(m.Counter())
@@ -398,7 +394,6 @@ func testUnaggregatedEncodeMetric(
 }
 
 func testUnaggregatedEncodeMetricWithPoliciesList(
-	t *testing.T,
 	encoder UnaggregatedEncoder,
 	m unaggregated.MetricUnion,
 	pl policy.PoliciesList,
@@ -455,8 +450,8 @@ func comparedPoliciesList(t *testing.T, expected policy.PoliciesList, actual pol
 }
 
 func validateUnaggregatedMetricRoundtrip(t *testing.T, inputs ...unaggregated.MetricUnion) {
-	encoder := testUnaggregatedEncoder(t)
-	it := testUnaggregatedIterator(t, nil)
+	encoder := testUnaggregatedEncoder()
+	it := testUnaggregatedIterator(nil)
 	validateUnaggregatedMetricRoundtripWithEncoderAndIterator(t, encoder, it, inputs...)
 }
 
@@ -471,7 +466,8 @@ func validateUnaggregatedMetricRoundtripWithEncoderAndIterator(
 	// Encode the batch of metrics.
 	encoder.Reset(NewBufferedEncoder())
 	for _, input := range inputs {
-		testUnaggregatedEncodeMetric(t, encoder, input)
+		err := testUnaggregatedEncodeMetric(encoder, input)
+		require.NoError(t, err)
 	}
 
 	// Decode the batch of metrics.
@@ -495,8 +491,8 @@ func validateMetrics(t *testing.T, inputs, results []unaggregated.MetricUnion) {
 }
 
 func validateUnaggregatedMetricWithPoliciesListRoundtrip(t *testing.T, inputs ...metricWithPoliciesList) {
-	encoder := testUnaggregatedEncoder(t)
-	it := testUnaggregatedIterator(t, nil)
+	encoder := testUnaggregatedEncoder()
+	it := testUnaggregatedIterator(nil)
 	validateUnaggregatedMetricWithPoliciesListRoundtripWithEncoderAndIterator(t, encoder, it, inputs...)
 }
 
@@ -511,7 +507,8 @@ func validateUnaggregatedMetricWithPoliciesListRoundtripWithEncoderAndIterator(
 	// Encode the batch of metrics.
 	encoder.Reset(NewBufferedEncoder())
 	for _, input := range inputs {
-		testUnaggregatedEncodeMetricWithPoliciesList(t, encoder, input.metric, input.policiesList)
+		err := testUnaggregatedEncodeMetricWithPoliciesList(encoder, input.metric, input.policiesList)
+		require.NoError(t, err)
 	}
 
 	// Decode the batch of metrics.
@@ -522,7 +519,7 @@ func validateUnaggregatedMetricWithPoliciesListRoundtripWithEncoderAndIterator(
 
 		// Make a copy of cached policies list because it becomes invalid
 		// on the next Next() call.
-		pl = toPoliciesList(t, pl)
+		pl = toPoliciesList(pl)
 
 		results = append(results, metricWithPoliciesList{
 			metric:       m,
@@ -543,22 +540,20 @@ func validateMetricsWithPoliciesList(t *testing.T, inputs, results []metricWithP
 	}
 }
 
-func toStagedPolicies(t *testing.T, p policy.StagedPolicies) policy.StagedPolicies {
+func toStagedPolicies(p policy.StagedPolicies) policy.StagedPolicies {
 	srcPolicies, _ := p.Policies()
 	destPolicies := make([]policy.Policy, len(srcPolicies))
-	for i, policy := range srcPolicies {
-		destPolicies[i] = policy
-	}
+	copy(destPolicies, srcPolicies)
 	return policy.NewStagedPolicies(p.CutoverNanos, p.Tombstoned, destPolicies)
 }
 
-func toPoliciesList(t *testing.T, pl policy.PoliciesList) policy.PoliciesList {
+func toPoliciesList(pl policy.PoliciesList) policy.PoliciesList {
 	if pl.IsDefault() {
 		return policy.DefaultPoliciesList
 	}
 	policiesList := make(policy.PoliciesList, 0, len(pl))
 	for i := 0; i < len(pl); i++ {
-		policiesList = append(policiesList, toStagedPolicies(t, pl[i]))
+		policiesList = append(policiesList, toStagedPolicies(pl[i]))
 	}
 	return policiesList
 }

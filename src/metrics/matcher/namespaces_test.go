@@ -27,13 +27,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/id"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -285,7 +285,6 @@ func (c *memCache) Close() error { return nil }
 type mockRuntimeValue struct {
 	key          string
 	numWatched   int32
-	watchErr     error
 	numUnwatched int32
 }
 
@@ -295,7 +294,6 @@ func (mv *mockRuntimeValue) Unwatch()     { atomic.AddInt32(&mv.numUnwatched, 1)
 
 type mockValue struct {
 	version int
-	cutover time.Time
 }
 
 func (v mockValue) Unmarshal(proto.Message) error { return errors.New("unimplemented") }

@@ -566,6 +566,7 @@ func (s *mockSource) Match(id []byte, fromNanos, toNanos int64) rules.MatchResul
 	return rules.EmptyMatchResult
 }
 
+// nolint: unparam
 func (s *mockSource) setVersion(version int) {
 	s.Lock()
 	s.currVersion = version
