@@ -58,6 +58,9 @@ type MetricsConfiguration struct {
 
 	// Extended metrics type.
 	ExtendedMetrics *ExtendedMetricsType `yaml:"extended"`
+
+	// Metric sanitization type.
+	Sanitization *MetricSanitizationType `yaml:"sanitization"`
 }
 
 // NewRootScope creates a new tally.Scope based on a tally.CachedStatsReporter
@@ -94,10 +97,16 @@ func (mc *MetricsConfiguration) NewRootScopeReporter(
 		}
 	}
 
+	var sanitizeOpts *tally.SanitizeOptions
+	if mc.Sanitization != nil {
+		sanitizeOpts = mc.Sanitization.NewOptions()
+	}
+
 	scopeOpts := tally.ScopeOptions{
-		Tags:           tags,
-		Prefix:         prefix,
-		CachedReporter: r,
+		Tags:            tags,
+		Prefix:          prefix,
+		CachedReporter:  r,
+		SanitizeOptions: sanitizeOpts,
 	}
 	reportInterval := mc.ReportInterval()
 	scope, closer := tally.NewRootScope(scopeOpts, reportInterval)
