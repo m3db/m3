@@ -25,17 +25,17 @@ import (
 	"net/http"
 )
 
-func (c *controller) getNamespacesHandler(w http.ResponseWriter, r *http.Request) {
+func (c *controller) getNamespacesHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 	fmt.Fprintf(w, "Placeholder for getNamespaces")
 }
 
-func (c *controller) createNamespaceHandler(w http.ResponseWriter, r *http.Request) {
+func (c *controller) createNamespaceHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 	fmt.Fprintf(w, "Placeholder for createNamespace")
 }
 
-func (c *controller) deleteNamespaceHandler(w http.ResponseWriter, r *http.Request) {
+func (c *controller) deleteNamespaceHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 	fmt.Fprintf(w, "Placeholder for deleteNamespace")
 }

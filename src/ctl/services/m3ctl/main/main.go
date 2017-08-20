@@ -162,7 +162,7 @@ func main() {
 }
 
 func interrupt() error {
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 	return fmt.Errorf("%s", <-c)
 }

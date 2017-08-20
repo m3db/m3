@@ -35,9 +35,8 @@ import (
 
 const (
 	ok          healthStatus = "OK"
-	fail        healthStatus = "FAIL"
 	healthURL                = "/health"
-	unknownName              = "unkown"
+	unknownName              = "unknown"
 )
 
 type healthStatus string
