@@ -94,7 +94,7 @@ clean:
 	@rm -f *.html *.xml *.out *.test
 
 .PHONY: all
-all: lint test-ci-unit services
+all: lint metalint test-ci-unit services
 	@echo Made all successfully
 
 .DEFAULT_GOAL := all
