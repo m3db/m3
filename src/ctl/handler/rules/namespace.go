@@ -25,12 +25,12 @@ import (
 	"net/http"
 )
 
-func (c *controller) getRulesInNamespaceHandler(w http.ResponseWriter, r *http.Request) {
+func (c *controller) getRulesInNamespaceHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 	fmt.Fprintf(w, "Placeholder for getRulesInNamespace")
 }
 
-func (c *controller) setRulesInNamespaceHandler(w http.ResponseWriter, r *http.Request) {
+func (c *controller) setRulesInNamespaceHandler(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 	fmt.Fprintf(w, "Placeholder for setRulesInNamespace")
 }

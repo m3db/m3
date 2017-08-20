@@ -54,7 +54,7 @@ func TestHealthCheck(t *testing.T) {
 
 	rawResult := make([]byte, rr.Body.Len())
 	_, err := rr.Body.Read(rawResult)
-	require.NoError(t, err, "Encountered error parsing reponse")
+	require.NoError(t, err, "Encountered error parsing response")
 
 	var actualResult healthCheckResult
 	json.Unmarshal(rawResult, &actualResult)
