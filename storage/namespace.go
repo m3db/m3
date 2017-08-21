@@ -192,7 +192,7 @@ func newDatabaseNamespace(
 	iops = iops.SetLogger(logger)
 	opts = opts.SetInstrumentOptions(iops)
 
-	scope := iops.MetricsScope().
+	scope := iops.MetricsScope().SubScope("database").
 		Tagged(map[string]string{
 			"namespace": id.String(),
 		})

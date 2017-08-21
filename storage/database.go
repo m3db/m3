@@ -119,22 +119,6 @@ func NewDatabase(
 		return nil, fmt.Errorf("invalid options: %v", err)
 	}
 
-	iopts := opts.InstrumentOptions()
-	scope := iopts.MetricsScope().SubScope("database")
-
-	d := &db{
-		opts:         opts,
-		nowFn:        opts.ClockOptions().NowFn(),
-		shardSet:     shardSet,
-		namespaces:   make(map[ts.Hash]databaseNamespace),
-		scope:        scope,
-		metrics:      newDatabaseMetrics(scope, iopts.MetricsSamplingRate()),
-		log:          iopts.Logger(),
-		errors:       xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
-		errWindow:    opts.ErrorWindowForLoad(),
-		errThreshold: opts.ErrorThresholdForLoad(),
-	}
-
 	commitLog, err := commitlog.NewCommitLog(opts.CommitLogOptions())
 	if err != nil {
 		return nil, err
@@ -142,7 +126,23 @@ func NewDatabase(
 	if err := commitLog.Open(); err != nil {
 		return nil, err
 	}
-	d.commitLog = commitLog
+
+	iopts := opts.InstrumentOptions()
+	scope := iopts.MetricsScope()
+
+	d := &db{
+		opts:         opts,
+		nowFn:        opts.ClockOptions().NowFn(),
+		shardSet:     shardSet,
+		namespaces:   make(map[ts.Hash]databaseNamespace),
+		commitLog:    commitLog,
+		scope:        scope,
+		metrics:      newDatabaseMetrics(scope, iopts.MetricsSamplingRate()),
+		log:          iopts.Logger(),
+		errors:       xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
+		errWindow:    opts.ErrorWindowForLoad(),
+		errThreshold: opts.ErrorThresholdForLoad(),
+	}
 
 	mediator, err := newMediator(d, opts)
 	if err != nil {
