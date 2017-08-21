@@ -24,6 +24,8 @@
 package commitlog
 
 import (
+	time0 "time"
+
 	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
@@ -33,7 +35,6 @@ import (
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
 	time "github.com/m3db/m3x/time"
-	time0 "time"
 )
 
 // Mock of CommitLog interface
@@ -168,45 +169,6 @@ func (_m *MockIterator) Close() {
 
 func (_mr *_MockIteratorRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
-}
-
-// Mock of SeriesWriteState interface
-type MockSeriesWriteState struct {
-	ctrl     *gomock.Controller
-	recorder *_MockSeriesWriteStateRecorder
-}
-
-// Recorder for MockSeriesWriteState (not exported)
-type _MockSeriesWriteStateRecorder struct {
-	mock *MockSeriesWriteState
-}
-
-func NewMockSeriesWriteState(ctrl *gomock.Controller) *MockSeriesWriteState {
-	mock := &MockSeriesWriteState{ctrl: ctrl}
-	mock.recorder = &_MockSeriesWriteStateRecorder{mock}
-	return mock
-}
-
-func (_m *MockSeriesWriteState) EXPECT() *_MockSeriesWriteStateRecorder {
-	return _m.recorder
-}
-
-func (_m *MockSeriesWriteState) CurrentCommitLogStart() int64 {
-	ret := _m.ctrl.Call(_m, "CurrentCommitLogStart")
-	ret0, _ := ret[0].(int64)
-	return ret0
-}
-
-func (_mr *_MockSeriesWriteStateRecorder) CurrentCommitLogStart() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "CurrentCommitLogStart")
-}
-
-func (_m *MockSeriesWriteState) SetCurrentCommitLogStart(unixNanoseconds int64) {
-	_m.ctrl.Call(_m, "SetCurrentCommitLogStart", unixNanoseconds)
-}
-
-func (_mr *_MockSeriesWriteStateRecorder) SetCurrentCommitLogStart(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetCurrentCommitLogStart", arg0)
 }
 
 // Mock of Options interface

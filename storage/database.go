@@ -55,9 +55,6 @@ var (
 
 	// errDuplicateNamespace raised when trying to create a database with duplicate namespaces
 	errDuplicateNamespaces = errors.New("database contains duplicate namespaces")
-
-	// errCommitLogStrategyUnknown raised when trying to use an unknown commit log strategy
-	errCommitLogStrategyUnknown = errors.New("database commit log strategy is unknown")
 )
 
 type databaseState int
@@ -73,23 +70,13 @@ type increasingIndex interface {
 	nextIndex() uint64
 }
 
-// writeCommitLogFn is a method for writing to the commit log
-type writeCommitLogFn func(
-	ctx context.Context,
-	series commitlog.Series,
-	datapoint ts.Datapoint,
-	unit xtime.Unit,
-	annotation ts.Annotation,
-) error
-
 type db struct {
 	sync.RWMutex
 	opts  Options
 	nowFn clock.NowFn
 
-	namespaces       map[ts.Hash]databaseNamespace
-	commitLog        commitlog.CommitLog
-	writeCommitLogFn writeCommitLogFn
+	namespaces map[ts.Hash]databaseNamespace
+	commitLog  commitlog.CommitLog
 
 	state    databaseState
 	mediator databaseMediator
@@ -147,17 +134,6 @@ func NewDatabase(
 		return nil, err
 	}
 
-	// TODO(r): instead of binding the method here simply bind the method
-	// in the commit log itself and just call "Write()" always
-	switch opts.CommitLogOptions().Strategy() {
-	case commitlog.StrategyWriteWait:
-		d.writeCommitLogFn = d.commitLog.Write
-	case commitlog.StrategyWriteBehind:
-		d.writeCommitLogFn = d.commitLog.WriteBehind
-	default:
-		return nil, errCommitLogStrategyUnknown
-	}
-
 	ns := make(map[ts.Hash]databaseNamespace, len(namespaces))
 	blockRetrieverMgr := opts.DatabaseBlockRetrieverManager()
 	for _, n := range namespaces {
@@ -174,7 +150,7 @@ func NewDatabase(
 			}
 		}
 		ns[n.ID().Hash()] = newDatabaseNamespace(n, shardSet, blockRetriever,
-			d, d.writeCommitLogFn, d.opts)
+			d, d.commitLog, d.opts)
 	}
 	d.namespaces = ns
 

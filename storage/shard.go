@@ -87,7 +87,7 @@ type dbShard struct {
 	shard                    uint32
 	increasingIndex          increasingIndex
 	seriesPool               series.DatabaseSeriesPool
-	writeCommitLogFn         writeCommitLogFn
+	commitLogWriter          commitLogWriter
 	insertQueue              *dbShardInsertQueue
 	lookup                   map[ts.Hash]*list.Element
 	list                     *list.List
@@ -134,10 +134,9 @@ func newDatabaseShardMetrics(scope tally.Scope) dbShardMetrics {
 }
 
 type dbShardEntry struct {
-	series                 series.DatabaseSeries
-	index                  uint64
-	curWriters             int32
-	currCommitLogUnixNanos int64
+	series     series.DatabaseSeries
+	index      uint64
+	curWriters int32
 }
 
 func (entry *dbShardEntry) writerCount() int32 {
@@ -150,16 +149,6 @@ func (entry *dbShardEntry) incrementWriterCount() {
 
 func (entry *dbShardEntry) decrementWriterCount() {
 	atomic.AddInt32(&entry.curWriters, -1)
-}
-
-// CurrentCommitLogStart implements the commitlog.SeriesWriteState interface
-func (entry *dbShardEntry) CurrentCommitLogStart() int64 {
-	return entry.currCommitLogUnixNanos
-}
-
-// SetCurrentCommitLogStart implements the commitlog.SeriesWriteState interface
-func (entry *dbShardEntry) SetCurrentCommitLogStart(unixNanos int64) {
-	entry.currCommitLogUnixNanos = unixNanos
 }
 
 type dbShardEntryWorkFn func(entry *dbShardEntry) bool
@@ -180,7 +169,7 @@ func newDatabaseShard(
 	shard uint32,
 	blockRetriever block.DatabaseBlockRetriever,
 	increasingIndex increasingIndex,
-	writeCommitLogFn writeCommitLogFn,
+	commitLogWriter commitLogWriter,
 	needsBootstrap bool,
 	opts Options,
 ) databaseShard {
@@ -195,7 +184,7 @@ func newDatabaseShard(
 		shard:                 shard,
 		increasingIndex:       increasingIndex,
 		seriesPool:            opts.DatabaseSeriesPool(),
-		writeCommitLogFn:      writeCommitLogFn,
+		commitLogWriter:       commitLogWriter,
 		lookup:                make(map[ts.Hash]*list.Element),
 		list:                  list.New(),
 		filesetBeforeFn:       fs.FilesetBefore,
@@ -522,7 +511,6 @@ func (s *dbShard) Write(
 
 	var (
 		commitLogSeriesID          ts.ID
-		commitLogSeriesWriteState  commitlog.SeriesWriteState
 		commitLogSeriesUniqueIndex uint64
 	)
 	if writable {
@@ -535,10 +523,6 @@ func (s *dbShard) Write(
 		// as the commit log need to use the reference without the
 		// overhead of ownership tracking. This makes taking a ref here safe.
 		commitLogSeriesID = entry.series.ID()
-		commitLogSeriesWriteState = commitlog.SeriesWriteState{
-			CurrentCommitLogStart: entry.CurrentCommitLogStart(),
-			Store: entry,
-		}
 		commitLogSeriesUniqueIndex = entry.index
 		entry.decrementWriterCount()
 		if err != nil {
@@ -564,10 +548,6 @@ func (s *dbShard) Write(
 		// and adding ownership tracking to use it in the commit log
 		// (i.e. registering a dependency on the context) is too expensive.
 		commitLogSeriesID = result.copiedID
-		commitLogSeriesWriteState = commitlog.SeriesWriteState{
-			CurrentCommitLogStart: result.entry.CurrentCommitLogStart(),
-			Store: result.entry,
-		}
 		commitLogSeriesUniqueIndex = result.entry.index
 	}
 
@@ -577,7 +557,6 @@ func (s *dbShard) Write(
 		Namespace:   s.namespace,
 		ID:          commitLogSeriesID,
 		Shard:       s.shard,
-		WriteState:  commitLogSeriesWriteState,
 	}
 
 	datapoint := ts.Datapoint{
@@ -585,7 +564,8 @@ func (s *dbShard) Write(
 		Value:     value,
 	}
 
-	return s.writeCommitLogFn(ctx, series, datapoint, unit, annotation)
+	return s.commitLogWriter.Write(ctx, series, datapoint,
+		unit, annotation)
 }
 
 func (s *dbShard) ReadEncoded(
