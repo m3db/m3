@@ -41,8 +41,9 @@ var (
 	// BuildDate is the date this build was created.
 	BuildDate = "unknown"
 
-	// LogBuildInfoAtStartup controls whether we log build information at startup.
-	LogBuildInfoAtStartup = false
+	// LogBuildInfoAtStartup controls whether we log build information at startup. If its
+	// set to a non-empty string, we log the build information at process startup.
+	LogBuildInfoAtStartup string
 
 	// goVersion is the current runtime version.
 	goVersion = runtime.Version()
@@ -56,8 +57,8 @@ var (
 	errNotStarted     = errors.New("reporter not started")
 )
 
-// LogBuildInformation logs the build information to the provided logger.
-func LogBuildInformation() {
+// LogBuildInfo logs the build information to the provided logger.
+func LogBuildInfo() {
 	log.Printf("Go Runtime version: %s\n", goVersion)
 	log.Printf("Build Revision:     %s\n", Revision)
 	log.Printf("Build Branch:       %s\n", Branch)
@@ -65,8 +66,8 @@ func LogBuildInformation() {
 }
 
 func init() {
-	if LogBuildInfoAtStartup {
-		LogBuildInformation()
+	if LogBuildInfoAtStartup != "" {
+		LogBuildInfo()
 	}
 }
 
