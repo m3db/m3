@@ -48,7 +48,35 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func commitLogWriteNoOp(
+type commitLogWriter interface {
+	Write(
+		ctx context.Context,
+		series commitlog.Series,
+		datapoint ts.Datapoint,
+		unit xtime.Unit,
+		annotation ts.Annotation,
+	) error
+}
+
+type commitLogWriterFn func(
+	ctx context.Context,
+	series commitlog.Series,
+	datapoint ts.Datapoint,
+	unit xtime.Unit,
+	annotation ts.Annotation,
+) error
+
+func (fn commitLogWriterFn) Write(
+	ctx context.Context,
+	series commitlog.Series,
+	datapoint ts.Datapoint,
+	unit xtime.Unit,
+	annotation ts.Annotation,
+) error {
+	return fn(ctx, series, datapoint, unit, annotation)
+}
+
+var commitLogWriteNoOp = commitLogWriter(commitLogWriterFn(func(
 	ctx context.Context,
 	series commitlog.Series,
 	datapoint ts.Datapoint,
@@ -56,7 +84,7 @@ func commitLogWriteNoOp(
 	annotation ts.Annotation,
 ) error {
 	return nil
-}
+}))
 
 type dbNamespace struct {
 	sync.RWMutex
@@ -76,8 +104,8 @@ type dbNamespace struct {
 	// entry will be nil when this shard does not belong to current database
 	shards []databaseShard
 
-	increasingIndex  increasingIndex
-	writeCommitLogFn writeCommitLogFn
+	increasingIndex increasingIndex
+	commitLogWriter commitLogWriter
 
 	tickWorkers            xsync.WorkerPool
 	tickWorkersConcurrency int
@@ -148,16 +176,15 @@ func newDatabaseNamespace(
 	shardSet sharding.ShardSet,
 	blockRetriever block.DatabaseBlockRetriever,
 	increasingIndex increasingIndex,
-	writeCommitLogFn writeCommitLogFn,
+	commitLogWriter commitLogWriter,
 	opts Options,
 ) (databaseNamespace, error) {
 	var (
 		nopts = metadata.Options()
 		id    = metadata.ID()
-		fn    = writeCommitLogFn
 	)
 	if !nopts.WritesToCommitLog() {
-		fn = commitLogWriteNoOp
+		commitLogWriter = commitLogWriteNoOp
 	}
 
 	iops := opts.InstrumentOptions()
@@ -192,7 +219,7 @@ func newDatabaseNamespace(
 		nowFn:                  opts.ClockOptions().NowFn(),
 		log:                    logger,
 		increasingIndex:        increasingIndex,
-		writeCommitLogFn:       fn,
+		commitLogWriter:        commitLogWriter,
 		tickWorkers:            tickWorkers,
 		tickWorkersConcurrency: tickWorkersConcurrency,
 		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
@@ -232,10 +259,9 @@ func (n *dbNamespace) Shards() []Shard {
 
 func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 	var (
-		needsBootstrap = n.nopts.NeedsBootstrap()
-		incoming       = make(map[uint32]struct{}, len(shardSet.All()))
-		existing       []databaseShard
-		closing        []databaseShard
+		incoming = make(map[uint32]struct{}, len(shardSet.All()))
+		existing []databaseShard
+		closing  []databaseShard
 	)
 	for _, shard := range shardSet.AllIDs() {
 		incoming[shard] = struct{}{}
@@ -257,8 +283,9 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		if int(shard) < len(existing) && existing[shard] != nil {
 			n.shards[shard] = existing[shard]
 		} else {
+			needsBootstrap := n.nopts.NeedsBootstrap()
 			n.shards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-				n.increasingIndex, n.writeCommitLogFn, needsBootstrap, n.opts, n.seriesOpts)
+				n.increasingIndex, n.commitLogWriter, needsBootstrap, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
 		}
 	}
@@ -785,7 +812,7 @@ func (n *dbNamespace) initShards(needBootstrap bool) {
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
 		dbShards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-			n.increasingIndex, n.writeCommitLogFn, needBootstrap, n.opts, n.seriesOpts)
+			n.increasingIndex, n.commitLogWriter, needBootstrap, n.opts, n.seriesOpts)
 	}
 	n.shards = dbShards
 	n.Unlock()

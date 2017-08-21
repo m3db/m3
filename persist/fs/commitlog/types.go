@@ -62,15 +62,6 @@ type CommitLog interface {
 		annotation ts.Annotation,
 	) error
 
-	// WriteBehind will write an entry in the commit log for a given series without waiting for completion
-	WriteBehind(
-		ctx context.Context,
-		series Series,
-		datapoint ts.Datapoint,
-		unit xtime.Unit,
-		annotation ts.Annotation,
-	) error
-
 	// Iter returns an iterator for accessing commit logs
 	Iter() (Iterator, error)
 
@@ -106,28 +97,6 @@ type Series struct {
 
 	// Shard is the shard the series belongs to
 	Shard uint32
-
-	// WriteState provides series write state for a
-	// series that is written to the commit log journal
-	WriteState SeriesWriteState
-}
-
-// SeriesWriteState provides series write state for a
-// series that is written to the commit log journal
-type SeriesWriteState interface {
-	// CurrentCommitLogStart returns the unix nanoseconds
-	// from when the series was last written
-	// Note: provider does not need to provide volatility protection
-	// (thread safety) as access is synchronized to both the accessor
-	// and setter.
-	CurrentCommitLogStart() int64
-
-	// SetCurrentCommitLogStart sets the unix nanoseconds
-	// for when the series was last written
-	// Note: provider does not need to provide volatility protection
-	// (thread safety) as access is synchronized to both the accessor
-	// and setter.
-	SetCurrentCommitLogStart(unixNanoseconds int64)
 }
 
 // Options represents the options for the commit log

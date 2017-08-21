@@ -46,10 +46,16 @@ var (
 
 type newCommitLogWriterFn func(
 	flushFn flushFn,
-	scope tally.Scope,
 	opts Options,
 ) commitLogWriter
 
+type writeCommitLogFn func(
+	ctx context.Context,
+	series Series,
+	datapoint ts.Datapoint,
+	unit xtime.Unit,
+	annotation ts.Annotation,
+) error
 type commitLogFailFn func(err error)
 
 type completionFn func(err error)
@@ -58,11 +64,11 @@ type commitLog struct {
 	sync.RWMutex
 	opts  Options
 	nowFn clock.NowFn
-	scope tally.Scope
 
 	log xlog.Logger
 
 	newCommitLogWriterFn newCommitLogWriterFn
+	writeFn              writeCommitLogFn
 	commitLogFailFn      commitLogFailFn
 	writer               commitLogWriter
 
@@ -121,7 +127,6 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 	commitLog := &commitLog{
 		opts:                 opts,
 		nowFn:                opts.ClockOptions().NowFn(),
-		scope:                scope,
 		log:                  iopts.Logger(),
 		newCommitLogWriterFn: newCommitLogWriter,
 		writes:               make(chan commitLogWrite, opts.BacklogQueueSize()),
@@ -135,6 +140,13 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 			flushErrors: scope.Counter("writes.flush-errors"),
 			flushDone:   scope.Counter("writes.flush-done"),
 		},
+	}
+
+	switch opts.Strategy() {
+	case StrategyWriteWait:
+		commitLog.writeFn = commitLog.writeWait
+	default:
+		commitLog.writeFn = commitLog.writeBehind
 	}
 
 	return commitLog, nil
@@ -304,7 +316,7 @@ func (l *commitLog) openWriter(now time.Time) error {
 	}
 
 	if l.writer == nil {
-		l.writer = l.newCommitLogWriterFn(l.onFlush, l.scope, l.opts)
+		l.writer = l.newCommitLogWriterFn(l.onFlush, l.opts)
 	}
 
 	blockSize := l.opts.RetentionOptions().BlockSize()
@@ -326,7 +338,18 @@ func (l *commitLog) Write(
 	unit xtime.Unit,
 	annotation ts.Annotation,
 ) error {
-	if l.RLock(); l.closed {
+	return l.writeFn(ctx, series, datapoint, unit, annotation)
+}
+
+func (l *commitLog) writeWait(
+	ctx context.Context,
+	series Series,
+	datapoint ts.Datapoint,
+	unit xtime.Unit,
+	annotation ts.Annotation,
+) error {
+	l.RLock()
+	if l.closed {
 		l.RUnlock()
 		return errCommitLogClosed
 	}
@@ -370,14 +393,15 @@ func (l *commitLog) Write(
 	return result
 }
 
-func (l *commitLog) WriteBehind(
+func (l *commitLog) writeBehind(
 	ctx context.Context,
 	series Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
 ) error {
-	if l.RLock(); l.closed {
+	l.RLock()
+	if l.closed {
 		l.RUnlock()
 		return errCommitLogClosed
 	}

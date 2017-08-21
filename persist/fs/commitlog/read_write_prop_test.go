@@ -49,7 +49,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(baseTestPath)
 
-	opts := NewOptions()
+	opts := NewOptions().SetStrategy(StrategyWriteBehind)
 	fsOpts := opts.FilesystemOptions().SetFilePathPrefix(baseTestPath)
 	opts = opts.SetFilesystemOptions(fsOpts).SetFlushInterval(time.Millisecond)
 
@@ -66,7 +66,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 
 	ctx := context.NewContext()
 	for _, w := range writes {
-		require.NoError(t, cl.WriteBehind(ctx, w.series, w.datapoint, w.unit, w.annotation))
+		require.NoError(t, cl.Write(ctx, w.series, w.datapoint, w.unit, w.annotation))
 	}
 	ctx.Close()
 	require.NoError(t, cl.Close())
@@ -207,7 +207,7 @@ var genWriteBehindCommand = genWrite().
 				s := q.(*clState)
 				ctx := context.NewContext()
 				defer ctx.Close()
-				return s.cLog.WriteBehind(ctx, w.series, w.datapoint, w.unit, w.annotation)
+				return s.cLog.Write(ctx, w.series, w.datapoint, w.unit, w.annotation)
 			},
 			NextStateFunc: func(state commands.State) commands.State {
 				s := state.(*clState)
@@ -254,7 +254,9 @@ func genState(basePath string, t *testing.T) gopter.Gen {
 }
 
 func newInitState(dir string, t *testing.T) *clState {
-	opts := NewOptions().SetFlushInterval(defaultTestFlushInterval)
+	opts := NewOptions().
+		SetStrategy(StrategyWriteBehind).
+		SetFlushInterval(defaultTestFlushInterval)
 	fsOpts := opts.FilesystemOptions().SetFilePathPrefix(dir)
 	opts = opts.SetFilesystemOptions(fsOpts)
 	return &clState{
@@ -342,7 +344,6 @@ func genWrite() gopter.Gen {
 				Namespace:   ts.StringID(ns),
 				Shard:       shard,
 				UniqueIndex: uniqueID(id),
-				WriteState:  newTestWriteState(),
 			},
 			datapoint: ts.Datapoint{
 				Timestamp: t,

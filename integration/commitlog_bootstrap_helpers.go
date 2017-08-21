@@ -42,18 +42,7 @@ var (
 )
 
 type commitLogSeriesState struct {
-	uniqueIndex            uint64
-	currCommitLogUnixNanos int64
-}
-
-// CurrentCommitLogStart implements the commitlog.SeriesWriteState interface
-func (s *commitLogSeriesState) CurrentCommitLogStart() int64 {
-	return s.currCommitLogUnixNanos
-}
-
-// SetCurrentCommitLogStart implements the commitlog.SeriesWriteState interface
-func (s *commitLogSeriesState) SetCurrentCommitLogStart(unixNanos int64) {
-	s.currCommitLogUnixNanos = unixNanos
+	uniqueIndex uint64
 }
 
 func newCommitLogSeriesStates(
@@ -147,9 +136,8 @@ func writeCommitLogData(
 				Shard:       shardSet.Lookup(point.ID),
 				ID:          point.ID,
 				UniqueIndex: series.uniqueIndex,
-				WriteState:  series,
 			}
-			require.NoError(t, commitLog.WriteBehind(ctx, cId, point.Datapoint, xtime.Second, nil))
+			require.NoError(t, commitLog.Write(ctx, cId, point.Datapoint, xtime.Second, nil))
 		}
 
 		// ensure writes finished
