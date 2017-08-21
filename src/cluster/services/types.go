@@ -451,8 +451,8 @@ type PlacementInstance interface {
 	SetEndpoint(ip string) PlacementInstance      // SetEndpoint sets the endpoint of the instance
 	Shards() shard.Shards                         // Shards returns the shards owned by the instance
 	SetShards(s shard.Shards) PlacementInstance   // SetShards sets the shards owned by the instance
-	ShardSetID() string                           // ShardSetID returns the shard set id.
-	SetShardSetID(value string) PlacementInstance // SetShardSetID sets the shard set id.
+	ShardSetID() uint32                           // ShardSetID returns the shard set id.
+	SetShardSetID(value uint32) PlacementInstance // SetShardSetID sets the shard set id.
 }
 
 // HeartbeatService manages heartbeating instances

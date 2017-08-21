@@ -23,6 +23,7 @@ package algo
 import (
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
@@ -163,7 +164,7 @@ func (a mirroredAlgorithm) AddInstances(
 
 	for _, instance := range mirrorInstances {
 		if _, ok := mirrorPlacement.Instance(instance.ID()); ok {
-			return nil, fmt.Errorf("shard set id %s already exist in current placement", instance.ShardSetID())
+			return nil, fmt.Errorf("shard set id %d already exist in current placement", instance.ShardSetID())
 		}
 		ph := newAddInstanceHelper(mirrorPlacement, instance, a.opts)
 		ph.AddInstance(instance)
@@ -199,7 +200,7 @@ func groupInstancesByShardSetID(
 	rf int,
 ) ([]services.PlacementInstance, error) {
 	var (
-		shardSetMap = make(map[string]*shardSetMetadata, len(instances))
+		shardSetMap = make(map[uint32]*shardSetMetadata, len(instances))
 		res         = make([]services.PlacementInstance, 0, len(instances))
 	)
 	for _, instance := range instances {
@@ -216,11 +217,11 @@ func groupInstancesByShardSetID(
 			shardSetMap[ssID] = meta
 		}
 		if _, ok := meta.racks[rack]; ok {
-			return nil, fmt.Errorf("found duplicated rack %s for shardset id %s", rack, ssID)
+			return nil, fmt.Errorf("found duplicated rack %s for shardset id %d", rack, ssID)
 		}
 
 		if meta.weight != weight {
-			return nil, fmt.Errorf("found different weights: %d and %d, for shardset id %s", meta.weight, weight, ssID)
+			return nil, fmt.Errorf("found different weights: %d and %d, for shardset id %d", meta.weight, weight, ssID)
 		}
 
 		meta.racks[rack] = struct{}{}
@@ -229,16 +230,17 @@ func groupInstancesByShardSetID(
 
 	for ssID, meta := range shardSetMap {
 		if meta.count != rf {
-			return nil, fmt.Errorf("found %d count of shard set id %s, expecting %d", meta.count, ssID, rf)
+			return nil, fmt.Errorf("found %d count of shard set id %d, expecting %d", meta.count, ssID, rf)
 		}
 
 		// NB(cw) The shard set ID should to be assigned in placement service,
 		// the algorithm does not change the shard set id assigned to each instance.
+		ssIDStr := strconv.Itoa(int(ssID))
 		res = append(
 			res,
 			placement.NewInstance().
-				SetID(ssID).
-				SetRack(ssID).
+				SetID(ssIDStr).
+				SetRack(ssIDStr).
 				SetWeight(meta.weight).
 				SetShardSetID(ssID).
 				SetShards(placement.CloneShards(meta.shards)),
@@ -273,7 +275,7 @@ func placementFromMirror(
 ) (services.Placement, error) {
 	var (
 		mirrorInstances     = mirror.Instances()
-		shardSetMap         = make(map[string][]services.PlacementInstance, len(mirrorInstances))
+		shardSetMap         = make(map[uint32][]services.PlacementInstance, len(mirrorInstances))
 		instancesWithShards = make([]services.PlacementInstance, 0, len(instances))
 	)
 	for _, instance := range instances {
@@ -303,12 +305,12 @@ func placementFromMirror(
 
 func instancesFromMirror(
 	mirrorInstance services.PlacementInstance,
-	instancesMap map[string][]services.PlacementInstance,
+	instancesMap map[uint32][]services.PlacementInstance,
 ) ([]services.PlacementInstance, error) {
 	ssID := mirrorInstance.ShardSetID()
 	instances, ok := instancesMap[ssID]
 	if !ok {
-		return nil, fmt.Errorf("could not find shard set id %s in placement", ssID)
+		return nil, fmt.Errorf("could not find shard set id %d in placement", ssID)
 	}
 
 	shards := mirrorInstance.Shards()
@@ -320,7 +322,11 @@ func instancesFromMirror(
 			if sourceID != "" {
 				// The sourceID in the mirror placement is shardSetID, need to be converted
 				// to instanceID.
-				sourceInstances, ok := instancesMap[sourceID]
+				shardSetID, err := strconv.Atoi(sourceID)
+				if err != nil {
+					return nil, fmt.Errorf("could not convert source id %s to shard set id", sourceID)
+				}
+				sourceInstances, ok := instancesMap[uint32(shardSetID)]
 				if !ok {
 					return nil, fmt.Errorf("could not find source id %s in placement", sourceID)
 				}

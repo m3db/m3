@@ -37,7 +37,7 @@ message Instance {
   uint32 weight = 4;
   string endpoint = 5;
   repeated Shard shards = 6;
-  string shard_set_id = 7;
+  uint32 shard_set_id = 7;
 }
 
 message Shard {

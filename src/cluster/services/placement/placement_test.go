@@ -318,7 +318,7 @@ func TestInstance(t *testing.T) {
 		SetEndpoint("endpoint").
 		SetRack("rack").
 		SetWeight(1).
-		SetShardSetID("ss1").
+		SetShardSetID(0).
 		SetZone("zone")
 	assert.NotNil(t, i1.Shards())
 	s := shard.NewShards([]shard.Shard{
@@ -328,7 +328,7 @@ func TestInstance(t *testing.T) {
 	})
 	i1.SetShards(s)
 	description := fmt.Sprintf(
-		"Instance[ID=id, Rack=rack, Zone=zone, Weight=1, Endpoint=endpoint, ShardSetID=ss1, Shards=%s]",
+		"Instance[ID=id, Rack=rack, Zone=zone, Weight=1, Endpoint=endpoint, ShardSetID=0, Shards=%s]",
 		s.String())
 	assert.Equal(t, description, i1.String())
 
@@ -520,7 +520,7 @@ func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 				Endpoint:   "e1",
 				Weight:     1,
 				Shards:     protoShards,
-				ShardSetId: "foo",
+				ShardSetId: 0,
 			},
 			"i2": &placementproto.Instance{
 				Id:         "i2",
@@ -529,7 +529,7 @@ func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 				Endpoint:   "e2",
 				Weight:     1,
 				Shards:     protoShards,
-				ShardSetId: "bar",
+				ShardSetId: 1,
 			},
 		},
 		ReplicaFactor: 2,
@@ -546,8 +546,8 @@ func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 	assert.Equal(t, []uint32{0, 1, 2}, p.Shards())
 	assert.Equal(t, int64(1234), p.CutoverNanos())
 	instances := p.Instances()
-	assert.Equal(t, "foo", instances[0].ShardSetID())
-	assert.Equal(t, "bar", instances[1].ShardSetID())
+	assert.Equal(t, uint32(0), instances[0].ShardSetID())
+	assert.Equal(t, uint32(1), instances[1].ShardSetID())
 
 	placementProtoNew, err := util.PlacementToProto(p)
 	assert.NoError(t, err)

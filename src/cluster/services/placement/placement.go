@@ -362,12 +362,12 @@ type instance struct {
 	weight     uint32
 	endpoint   string
 	shards     shard.Shards
-	shardSetID string
+	shardSetID uint32
 }
 
 func (i *instance) String() string {
 	return fmt.Sprintf(
-		"Instance[ID=%s, Rack=%s, Zone=%s, Weight=%d, Endpoint=%s, ShardSetID=%s, Shards=%s]",
+		"Instance[ID=%s, Rack=%s, Zone=%s, Weight=%d, Endpoint=%s, ShardSetID=%d, Shards=%s]",
 		i.id, i.rack, i.zone, i.weight, i.endpoint, i.shardSetID, i.shards.String(),
 	)
 }
@@ -426,11 +426,11 @@ func (i *instance) SetShards(s shard.Shards) services.PlacementInstance {
 	return i
 }
 
-func (i *instance) ShardSetID() string {
+func (i *instance) ShardSetID() uint32 {
 	return i.shardSetID
 }
 
-func (i *instance) SetShardSetID(value string) services.PlacementInstance {
+func (i *instance) SetShardSetID(value uint32) services.PlacementInstance {
 	i.shardSetID = value
 	return i
 }
