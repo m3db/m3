@@ -21,7 +21,6 @@
 package storage
 
 import (
-	"strings"
 	"time"
 )
 
@@ -37,11 +36,6 @@ func numIntervals(startInclusive, endInclusive time.Time, window time.Duration) 
 	}
 
 	return 1 + int((endInclusive.Sub(startInclusive))/window)
-}
-
-// TODO(prateek): use https://github.com/uber-go/tally/pull/50 once it lands
-func sanitizeIdentifierForMetrics(input string) string {
-	return strings.Replace(input, ":", "_", -1)
 }
 
 // timesInRange returns the points between [start, end] windowSize apart, starting at `end`, in

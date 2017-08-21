@@ -136,7 +136,7 @@ func (r shardRepairer) recordDifferences(
 ) {
 	var (
 		shardScope = r.scope.Tagged(map[string]string{
-			"namespace": sanitizeIdentifierForMetrics(namespace.String()),
+			"namespace": namespace.String(),
 			"shard":     strconv.Itoa(int(shard.ID())),
 		})
 		totalScope        = shardScope.Tagged(map[string]string{"resultType": "total"})
