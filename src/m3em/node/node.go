@@ -42,7 +42,6 @@ import (
 
 var (
 	errUnableToSetupInitializedNode = fmt.Errorf("unable to setup node, must be either setup/uninitialized")
-	errUnableToResetNode            = fmt.Errorf("unable to reset node, must be either setup/running")
 	errUnableToTeardownNode         = fmt.Errorf("unable to teardown node, must be either setup/running")
 	errUnableToStartNode            = fmt.Errorf("unable to start node, it must be setup")
 	errUnableToStopNode             = fmt.Errorf("unable to stop node, it must be running")
@@ -163,12 +162,12 @@ func (i *svcNode) Setup(
 
 	// Wait till we receive our first heartbeat
 	if i.opts.HeartbeatOptions().Enabled() {
-		i.logger.Infof("waiting until initial heartbeat is recieved")
+		i.logger.Infof("waiting until initial heartbeat is received")
 		received := xclock.WaitUntil(i.heartbeatReceived, i.opts.HeartbeatOptions().Timeout())
 		if !received {
 			return fmt.Errorf("did not receive heartbeat response from remote agent within timeout")
 		}
-		i.logger.Infof("initial heartbeat recieved")
+		i.logger.Infof("initial heartbeat received")
 
 		// start hb monitoring
 		if err := i.heartbeater.start(); err != nil {

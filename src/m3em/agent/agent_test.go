@@ -47,7 +47,7 @@ func newTempDir(t *testing.T) string {
 	return path
 }
 
-func newTestOptions(t *testing.T, workingDir string) Options {
+func newTestOptions(workingDir string) Options {
 	iopts := instrument.NewOptions()
 	return NewOptions(iopts).
 		SetHeartbeatTimeout(2 * time.Second).
@@ -73,9 +73,7 @@ func (mh *mockHeartbeatServer) heartbeats() []hb.HeartbeatRequest {
 	mh.Lock()
 	defer mh.Unlock()
 	beats := make([]hb.HeartbeatRequest, 0, len(mh.beats))
-	for _, b := range mh.beats {
-		beats = append(beats, b)
-	}
+	beats = append(beats, mh.beats...)
 	return beats
 }
 
@@ -86,7 +84,7 @@ func TestAgentClose(t *testing.T) {
 	tempDir := newTempDir(t)
 	defer os.RemoveAll(tempDir)
 
-	opts := newTestOptions(t, tempDir)
+	opts := newTestOptions(tempDir)
 	testAgent, err := New(opts)
 	require.NoError(t, err)
 	rawAgent, ok := testAgent.(*opAgent)
@@ -110,7 +108,7 @@ func TestProgramCrashNotify(t *testing.T) {
 	go hbServer.Serve(hbListener)
 	defer hbServer.Stop()
 
-	opts := newTestOptions(t, tempDir)
+	opts := newTestOptions(tempDir)
 	testAgent, err := New(opts)
 	require.NoError(t, err)
 	rawAgent, ok := testAgent.(*opAgent)
@@ -163,7 +161,7 @@ func TestTooManyFailedHeartbeatsUnsetup(t *testing.T) {
 	tempDir := newTempDir(t)
 	defer os.RemoveAll(tempDir)
 
-	opts := newTestOptions(t, tempDir)
+	opts := newTestOptions(tempDir)
 	testAgent, err := New(opts)
 	require.NoError(t, err)
 	rawAgent, ok := testAgent.(*opAgent)
@@ -190,7 +188,7 @@ func TestTooManyFailedHeartbeatsStop(t *testing.T) {
 	tempDir := newTempDir(t)
 	defer os.RemoveAll(tempDir)
 
-	opts := newTestOptions(t, tempDir)
+	opts := newTestOptions(tempDir)
 	testAgent, err := New(opts)
 	require.NoError(t, err)
 	rawAgent, ok := testAgent.(*opAgent)
@@ -243,7 +241,7 @@ func TestSetupOverrite(t *testing.T) {
 	go hbServer.Serve(hbListener)
 	defer hbServer.Stop()
 
-	opts := newTestOptions(t, tempDir)
+	opts := newTestOptions(tempDir)
 	testAgent, err := New(opts)
 	require.NoError(t, err)
 	rawAgent, ok := testAgent.(*opAgent)
@@ -313,7 +311,7 @@ func TestClientReconnect(t *testing.T) {
 	hb.RegisterHeartbeaterServer(hbServer, hbService)
 	go hbServer.Serve(hbListener)
 
-	opts := newTestOptions(t, tempDir)
+	opts := newTestOptions(tempDir)
 	testAgent, err := New(opts)
 	require.NoError(t, err)
 	rawAgent, ok := testAgent.(*opAgent)
@@ -359,7 +357,7 @@ func TestPullFile(t *testing.T) {
 	tempDir := newTempDir(t)
 	defer os.RemoveAll(tempDir)
 
-	opts := newTestOptions(t, tempDir)
+	opts := newTestOptions(tempDir)
 	testAgent, err := New(opts)
 	require.NoError(t, err)
 	opAgent, ok := testAgent.(*opAgent)

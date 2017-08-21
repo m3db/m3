@@ -34,10 +34,8 @@ import (
 
 var (
 	errInsufficientCapacity          = fmt.Errorf("insufficient node capacity in environment")
-	errNodeAlreadyUsed               = fmt.Errorf("unable to add node, already in use")
 	errNodeNotInUse                  = fmt.Errorf("unable to remove node, not in use")
 	errClusterNotUnitialized         = fmt.Errorf("unable to setup cluster, it is not unitialized")
-	errClusterUnableToInitialize     = fmt.Errorf("unable to initialize cluster, it needs to be setup")
 	errClusterUnableToAlterPlacement = fmt.Errorf("unable to alter cluster placement, it needs to be setup/running")
 	errUnableToStartUnsetupCluster   = fmt.Errorf("unable to start cluster, it has not been setup")
 	errClusterUnableToTeardown       = fmt.Errorf("unable to teardown cluster, it has not been setup")
