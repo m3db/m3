@@ -56,14 +56,6 @@ func newMockPlacementInstance(ctrl *gomock.Controller) placement.Instance {
 	return node
 }
 
-func newMockPlacementInstances(ctrl *gomock.Controller, numInstances int) []placement.Instance {
-	svcs := make([]placement.Instance, 0, numInstances)
-	for i := 0; i < numInstances; i++ {
-		svcs = append(svcs, newMockPlacementInstance(ctrl))
-	}
-	return svcs
-}
-
 func newTestOptions(c *m3em.MockOperatorClient) Options {
 	return NewOptions(nil).
 		SetOperatorClientFn(func() (*grpc.ClientConn, m3em.OperatorClient, error) {

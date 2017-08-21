@@ -39,19 +39,6 @@ const (
 	serverKeyResources = "m3em_server.uberinternal.com.key"
 )
 
-func caCertificate() (*x509.CertPool, error) {
-	caCrt, err := Asset(caCrtResource)
-	if err != nil {
-		return nil, err
-	}
-	certPool := x509.NewCertPool()
-	ok := certPool.AppendCertsFromPEM(caCrt)
-	if !ok {
-		return nil, err
-	}
-	return certPool, nil
-}
-
 // ClientTransportCredentials return a DialOption for TLS Client communication
 func ClientTransportCredentials() (credentials.TransportCredentials, error) {
 	caCrt, err := Asset(caCrtResource)

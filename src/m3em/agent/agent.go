@@ -47,7 +47,6 @@ import (
 
 const (
 	defaultReportInterval              = 5 * time.Second
-	defaultHeartbeatConnTimeout        = time.Minute
 	defaultTestCanaryPrefix            = "test-canary-file"
 	reasonTeardownHeartbeat            = "remote agent received Teardown(), turning off heartbeating"
 	reasonSetupInitializeHostResources = "unable to initialize host resources, turning off heartbeating"
@@ -55,7 +54,6 @@ const (
 
 var (
 	errProcessMonitorNotDefined = fmt.Errorf("process monitor not defined")
-	errHeartbeatSendingTimedout = fmt.Errorf("heartbeat sending timed out, remote agent reset")
 	errNoValidTargetsSpecified  = fmt.Errorf("no valid target destinations specified")
 	errOnlyDataFileMultiTarget  = fmt.Errorf("multiple targets are only supported for data files")
 )
@@ -82,7 +80,7 @@ type opAgent struct {
 
 type newProcessMonitorFn func(exec.Cmd, exec.ProcessListener) (exec.ProcessMonitor, error)
 
-// New creates and retuns a new Operator Agent
+// New creates and returns a new Operator Agent
 func New(
 	opts Options,
 ) (Agent, error) {
@@ -532,7 +530,7 @@ func (o *opAgent) PushFile(stream m3em.Operator_PushFileServer) error {
 		}
 
 		chunkIdx := request.GetData().GetIdx()
-		if chunkIdx != int32(1+lastChunkIdx) {
+		if chunkIdx != 1+lastChunkIdx {
 			return fmt.Errorf("received chunkIdx: %d after %d", chunkIdx, lastChunkIdx)
 		}
 		lastChunkIdx = chunkIdx

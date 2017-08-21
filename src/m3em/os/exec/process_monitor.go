@@ -28,23 +28,19 @@ import (
 	"path"
 	"path/filepath"
 	"sync"
-	"time"
 
 	xerrors "github.com/m3db/m3x/errors"
 )
 
 var (
-	defaultStdoutSuffix         = "out"
-	defaultStderrSuffix         = "err"
-	defaultProcessCheckInterval = time.Second
+	defaultStdoutSuffix = "out"
+	defaultStderrSuffix = "err"
 )
 
 var (
 	errUnableToStartClosed  = fmt.Errorf("unable to start: process monitor Closed()")
 	errUnableToStartRunning = fmt.Errorf("unable to start: process already running")
-	errUnableToStopClosed   = fmt.Errorf("unable to stop: process monitor Closed()")
 	errUnableToStopStoped   = fmt.Errorf("unable to stop: process not running")
-	errUnableToClose        = fmt.Errorf("unable to close: process monitor already Closed()")
 )
 
 func (m EnvMap) toSlice() []string {

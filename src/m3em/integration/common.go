@@ -36,13 +36,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// nolint: megacheck
 const (
 	rngSeed            = int64(123456789)
 	defaultUniqueBytes = int64(1024 * 8)
 )
 
+// nolint: megacheck
 type testProgram []byte
 
+// nolint: megacheck, deadcode, varcheck
 var (
 	shortLivedTestProgram = testProgram([]byte(`#!/usr/bin/env bash
 if [ "$#" -ne 2 ]; then
@@ -58,6 +61,7 @@ echo -ne "testing random output"`))
 	echo -ne "should never get this"`))
 )
 
+// nolint: megacheck
 func newTempFile(t *testing.T, dir string, content []byte) *os.File {
 	tmpfile, err := ioutil.TempFile(dir, "example")
 	require.NoError(t, err)
@@ -68,6 +72,7 @@ func newTempFile(t *testing.T, dir string, content []byte) *os.File {
 	return tmpfile
 }
 
+// nolint: megacheck
 func newTestScript(t *testing.T, dir string, scriptNum int, script testProgram) string {
 	file, err := ioutil.TempFile(dir, fmt.Sprintf("testscript%d.sh", scriptNum))
 	require.NoError(t, err)
@@ -81,6 +86,7 @@ func newTestScript(t *testing.T, dir string, scriptNum int, script testProgram) 
 	return name
 }
 
+// nolint: megacheck, deadcode
 func newLargeTempFile(t *testing.T, dir string, numBytes int64) *os.File {
 	if numBytes%defaultUniqueBytes != 0 {
 		require.FailNow(t, "numBytes must be divisble by %d", defaultUniqueBytes)
@@ -98,12 +104,14 @@ func newLargeTempFile(t *testing.T, dir string, numBytes int64) *os.File {
 	return tmpfile
 }
 
+// nolint: megacheck
 func newTempDir(t *testing.T) string {
 	path, err := ioutil.TempDir("", "integration-test")
 	require.NoError(t, err)
 	return path
 }
 
+// nolint: megacheck
 func newSubDir(t *testing.T, dir, subdir string) string {
 	newPath := path.Join(dir, subdir)
 	err := os.Mkdir(newPath, os.FileMode(0755))
@@ -111,6 +119,7 @@ func newSubDir(t *testing.T, dir, subdir string) string {
 	return newPath
 }
 
+// nolint: megacheck, unparam
 func newRandByteStream(t *testing.T, numBytes int64) []byte {
 	if mod8 := numBytes % int64(8); mod8 != 0 {
 		require.FailNow(t, "numBytes must be divisible by 8")
@@ -129,6 +138,7 @@ func newRandByteStream(t *testing.T, numBytes int64) []byte {
 }
 
 // returns true if agent finished, false otherwise
+// nolint: megacheck, deadcode
 func waitUntilAgentFinished(a agent.Agent, timeout time.Duration) bool {
 	start := time.Now()
 	seenRunning := false
@@ -146,6 +156,7 @@ func waitUntilAgentFinished(a agent.Agent, timeout time.Duration) bool {
 	return stopped
 }
 
+// nolint: megacheck
 func testExecGenFn(binary string, config string) (string, []string) {
 	return binary, []string{"-f", config}
 }

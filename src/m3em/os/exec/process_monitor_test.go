@@ -38,6 +38,7 @@ func newTempDir(t *testing.T) string {
 	return dir
 }
 
+// nolint: unparam
 func newTestScript(t *testing.T, dir string, scriptNum int, scriptContents []byte) string {
 	file, err := ioutil.TempFile(dir, fmt.Sprintf("testscript%d.sh", scriptNum))
 	require.NoError(t, err)
