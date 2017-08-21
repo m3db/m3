@@ -1,29 +1,44 @@
 package: github.com/m3db/m3x
 import:
+
 - package: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
+
 - package: github.com/golang/mock
   version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+
 - package: github.com/stretchr/testify
   version: d77da356e56a7428ad25149ca77381849a6a5232
   subpackages:
   - assert
   - require
+
 - package: github.com/uber-go/tally
   version: ^3.1.0 # ie >= 3.1.0, < 4.0.0
+
 - package: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
+
 - package: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
+
 - package: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
+
 - package: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
+
 - package: github.com/shirou/gopsutil
   version: b62e301a8b9958eebb7299683eb57fab229a9501
+
 - package: github.com/go-ole/go-ole
   version: de8695c8edbf8236f30d6e1376e20b198a028d42
+
 - package: github.com/shirou/w32
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
+
 - package: github.com/StackExchange/wmi
   version: e542ed97d15e640bdc14b5c12162d59e8fc67324
+
+- package: github.com/fortytw2/leaktest
+  version: 3b724c3d7b8729a35bf4e577f71653aec6e53513

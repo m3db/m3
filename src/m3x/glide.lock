@@ -1,5 +1,5 @@
-hash: c3d6d257588777e2ff742d3e1c66f1c6e1bb2f44cdda155eb8b146e5a95f939d
-updated: 2017-08-18T17:32:26.368391299-04:00
+hash: 50a0b59635ffd9cd3f6bd65a7f6a415f0f3a9a82d4f40b997585e04a4bcf2e86
+updated: 2017-08-20T15:45:39.86828054-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -7,6 +7,8 @@ imports:
   - lib/go/thrift
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
+- name: github.com/fortytw2/leaktest
+  version: 3b724c3d7b8729a35bf4e577f71653aec6e53513
 - name: github.com/go-ole/go-ole
   version: de8695c8edbf8236f30d6e1376e20b198a028d42
   subpackages:
