@@ -31,7 +31,6 @@ import (
 var (
 	errNotEnoughRacks              = errors.New("not enough racks to take shards, please make sure RF is less than number of racks")
 	errAddingInstanceAlreadyExist  = errors.New("the adding instance is already in the placement")
-	errCouldNotReachTargetLoad     = errors.New("new instance could not reach target load")
 	errIncompatibleWithShardedAlgo = errors.New("could not apply sharded algo on the placement")
 )
 

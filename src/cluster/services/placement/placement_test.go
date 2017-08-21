@@ -497,7 +497,7 @@ func TestMarkAllAsAvailable(t *testing.T) {
 		SetShards([]uint32{1, 2}).
 		SetReplicaFactor(2)
 
-	p, err := MarkAllShardsAsAvailable(p)
+	_, err := MarkAllShardsAsAvailable(p)
 	assert.NoError(t, err)
 
 	i2.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i3"))

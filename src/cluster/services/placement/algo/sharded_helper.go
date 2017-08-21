@@ -233,6 +233,7 @@ func (ph *placementHelper) moveOneShard(from, to services.PlacementInstance) boo
 	return false
 }
 
+// nolint: unparam
 func (ph *placementHelper) moveOneShardInState(from, to services.PlacementInstance, state shard.State) bool {
 	for _, s := range from.Shards().ShardsForState(state) {
 		if ph.moveShard(s, from, to) {

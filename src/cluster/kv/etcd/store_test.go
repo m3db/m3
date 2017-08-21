@@ -56,7 +56,6 @@ func TestGetAndSet(t *testing.T) {
 	require.NoError(t, err)
 
 	value, err := store.Get("foo")
-	require.Error(t, err)
 	require.Equal(t, kv.ErrNotFound, err)
 	require.Nil(t, value)
 
@@ -177,8 +176,7 @@ func TestSetIfNotExist(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, version)
 
-	version, err = store.SetIfNotExists("foo", genProto("bar"))
-	require.Error(t, err)
+	_, err = store.SetIfNotExists("foo", genProto("bar"))
 	require.Equal(t, kv.ErrAlreadyExists, err)
 
 	value, err := store.Get("foo")
@@ -193,11 +191,10 @@ func TestCheckAndSet(t *testing.T) {
 	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
-	version, err := store.CheckAndSet("foo", 1, genProto("bar"))
-	require.Error(t, err)
+	_, err = store.CheckAndSet("foo", 1, genProto("bar"))
 	require.Equal(t, kv.ErrVersionMismatch, err)
 
-	version, err = store.SetIfNotExists("foo", genProto("bar"))
+	version, err := store.SetIfNotExists("foo", genProto("bar"))
 	require.NoError(t, err)
 	require.Equal(t, 1, version)
 
@@ -205,8 +202,7 @@ func TestCheckAndSet(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, version)
 
-	version, err = store.CheckAndSet("foo", 1, genProto("bar"))
-	require.Error(t, err)
+	_, err = store.CheckAndSet("foo", 1, genProto("bar"))
 	require.Equal(t, kv.ErrVersionMismatch, err)
 
 	value, err := store.Get("foo")
@@ -366,12 +362,14 @@ func TestGetFromKvNotFound(t *testing.T) {
 	ec, opts, closeFn := testStore(t)
 	defer closeFn()
 	store, err := NewStore(ec, ec, opts)
+	require.NoError(t, err)
 	c := store.(*client)
 	_, err = c.Set("foo", genProto("bar1"))
+	require.NoError(t, err)
 
 	val, err := c.getFromKVStore("foo2")
+	require.NoError(t, err)
 	require.Nil(t, val)
-	require.Nil(t, err)
 }
 
 func TestMultipleWatchesFromExist(t *testing.T) {
@@ -501,13 +499,15 @@ func TestHistory(t *testing.T) {
 	defer closeFn()
 
 	store, err := NewStore(ec, ec, opts)
-	res, err := store.History("k1", 10, 5)
+	require.NoError(t, err)
+
+	_, err = store.History("k1", 10, 5)
 	require.Error(t, err)
 
-	res, err = store.History("k1", 0, 5)
+	_, err = store.History("k1", 0, 5)
 	require.Error(t, err)
 
-	res, err = store.History("k1", -5, 0)
+	_, err = store.History("k1", -5, 0)
 	require.Error(t, err)
 
 	totalVersion := 10
@@ -516,7 +516,7 @@ func TestHistory(t *testing.T) {
 		store.Set("k2", genProto(fmt.Sprintf("bar%d", i)))
 	}
 
-	res, err = store.History("k1", 5, 5)
+	res, err := store.History("k1", 5, 5)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(res))
 
@@ -559,8 +559,7 @@ func TestDelete(t *testing.T) {
 	store, err := NewStore(ec, ec, opts)
 	require.NoError(t, err)
 
-	v, err := store.Delete("foo")
-	require.Error(t, err)
+	_, err = store.Delete("foo")
 	require.Equal(t, kv.ErrNotFound, err)
 
 	version, err := store.Set("foo", genProto("bar1"))
@@ -571,7 +570,7 @@ func TestDelete(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, version)
 
-	v, err = store.Get("foo")
+	v, err := store.Get("foo")
 	require.NoError(t, err)
 	verifyValue(t, v, "bar2", 2)
 
@@ -579,12 +578,10 @@ func TestDelete(t *testing.T) {
 	require.NoError(t, err)
 	verifyValue(t, v, "bar2", 2)
 
-	v, err = store.Delete("foo")
-	require.Error(t, err)
+	_, err = store.Delete("foo")
 	require.Equal(t, kv.ErrNotFound, err)
 
-	v, err = store.Get("foo")
-	require.Error(t, err)
+	_, err = store.Get("foo")
 	require.Equal(t, kv.ErrNotFound, err)
 
 	version, err = store.SetIfNotExists("foo", genProto("bar1"))

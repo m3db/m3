@@ -33,8 +33,7 @@ import (
 )
 
 var (
-	testPlacementVersion = 2
-	testPlacementsProto  = []*placementproto.Placement{
+	testPlacementsProto = []*placementproto.Placement{
 		&placementproto.Placement{
 			NumShards:   4,
 			CutoverTime: 12345,

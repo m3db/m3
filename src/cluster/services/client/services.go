@@ -38,7 +38,6 @@ import (
 )
 
 var (
-	errWatchInitTimeout   = errors.New("service watch init time out")
 	errNoServiceName      = errors.New("no service specified")
 	errNoServiceID        = errors.New("no service id specified")
 	errNoInstanceID       = errors.New("no instance id specified")
@@ -166,10 +165,11 @@ func (c *client) Advertise(ad services.Advertisement) error {
 
 		tickFn()
 
-		ticker := time.Tick(m.HeartbeatInterval())
+		ticker := time.NewTicker(m.HeartbeatInterval())
+		defer ticker.Stop()
 		for {
 			select {
-			case <-ticker:
+			case <-ticker.C:
 				tickFn()
 			case <-ch:
 				return
@@ -418,16 +418,13 @@ func (c *client) watchPlacement(
 	sid services.ServiceID,
 	errCounter tally.Counter,
 ) {
-	for {
-		select {
-		case <-vw.C():
-			newService := c.serviceFromUpdate(vw.Get(), initValue, sid, errCounter)
-			if newService == nil {
-				continue
-			}
-
-			w.Update(newService)
+	for range vw.C() {
+		newService := c.serviceFromUpdate(vw.Get(), initValue, sid, errCounter)
+		if newService == nil {
+			continue
 		}
+
+		w.Update(newService)
 	}
 }
 

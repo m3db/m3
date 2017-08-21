@@ -171,7 +171,7 @@ func TestMirrorWorkflow(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	p, err = a.RemoveInstances(p, []string{"i19", "i10"})
+	_, err = a.RemoveInstances(p, []string{"i19", "i10"})
 	assert.NoError(t, err)
 }
 

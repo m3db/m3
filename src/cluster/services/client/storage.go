@@ -27,18 +27,6 @@ import (
 	"github.com/m3db/m3cluster/services/placement"
 )
 
-// newPlacementStorage returns a client of placement.Storage
-func newPlacementStorage(opts Options) (placement.Storage, error) {
-	if opts.KVGen() == nil {
-		return nil, errNoKVGen
-	}
-
-	return &client{
-		kvManagers: map[string]*kvManager{},
-		opts:       opts,
-	}, nil
-}
-
 func (s *client) Set(sid services.ServiceID, p services.Placement) error {
 	if err := validateServiceID(sid); err != nil {
 		return err

@@ -391,8 +391,7 @@ func (c *client) update(key string, events []*clientv3.Event) error {
 		err error
 	)
 
-	noEvents := events == nil || len(events) == 0
-	if noEvents {
+	if len(events) == 0 {
 		nv, err = c.getFromKVStore(key)
 	} else {
 		nv = c.getFromEtcdEvents(key, events)

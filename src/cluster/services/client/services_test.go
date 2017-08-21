@@ -311,6 +311,7 @@ func TestAdvertiseUnadvertise(t *testing.T) {
 	require.NoError(t, sd.Advertise(ad))
 	for {
 		ids, err = s.Get()
+		require.NoError(t, err)
 		if len(ids) == 1 {
 			break
 		}
@@ -1167,17 +1168,4 @@ func (hb *mockHBStore) Delete(id string) error {
 
 	delete(hbMap, id)
 	return nil
-}
-
-func (hb *mockHBStore) lastHeartbeatTime(s, id string) (time.Time, bool) {
-	hb.Lock()
-	defer hb.Unlock()
-
-	hbMap, ok := hb.hbs[s]
-	if !ok {
-		return time.Time{}, false
-	}
-
-	t, ok := hbMap[id]
-	return t, ok
 }

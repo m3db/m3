@@ -32,7 +32,6 @@ import (
 
 const (
 	leaderKeyPrefix = "_ld"
-	keySeparator    = "/"
 	keyFormat       = "%s/%s"
 )
 

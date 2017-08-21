@@ -47,7 +47,7 @@ func (cfg Configuration) NewClient(iopts instrument.Options) (client.Client, err
 	return NewConfigServiceClient(cfg.NewOptions().SetInstrumentOptions(iopts))
 }
 
-// NewOptions retuns a new Options
+// NewOptions returns a new Options
 func (cfg Configuration) NewOptions() Options {
 	return NewOptions().
 		SetZone(cfg.Zone).

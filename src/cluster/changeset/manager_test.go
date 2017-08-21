@@ -63,13 +63,13 @@ func TestManager_ChangeEmptyInitialConfig(t *testing.T) {
 
 	require.Equal(t, "", config1.config().Text)
 
-	require.Equal(t, int32(1), changes1.changeset(t).ForVersion)
-	require.Equal(t, changesetpb.ChangeSetState_OPEN, changes1.changeset(t).State)
-	require.Nil(t, changes1.changeset(t).Changes)
+	require.Equal(t, int32(1), changes1.changeset().ForVersion)
+	require.Equal(t, changesetpb.ChangeSetState_OPEN, changes1.changeset().State)
+	require.Nil(t, changes1.changeset().Changes)
 
-	require.Equal(t, int32(1), changes2.changeset(t).ForVersion)
-	require.Equal(t, changesetpb.ChangeSetState_OPEN, changes2.changeset(t).State)
-	require.NotNil(t, changes2.changeset(t).Changes)
+	require.Equal(t, int32(1), changes2.changeset().ForVersion)
+	require.Equal(t, changesetpb.ChangeSetState_OPEN, changes2.changeset().State)
+	require.NotNil(t, changes2.changeset().Changes)
 	require.Equal(t, []string{"foo", "bar"}, changes2.changes(t).Lines)
 }
 
@@ -314,7 +314,7 @@ func TestManagerCommit_Success(t *testing.T) {
 	err := s.mgr.Commit(committedVersion, commit)
 	require.NoError(t, err)
 
-	require.Equal(t, changesetpb.ChangeSetState_CLOSED, changeSet1.changeset(t).State)
+	require.Equal(t, changesetpb.ChangeSetState_CLOSED, changeSet1.changeset().State)
 	require.Equal(t, "shoop\nwoop\nhoop\nfoo\nbar", config1.config().Text)
 }
 
@@ -784,13 +784,13 @@ type changeSetMatcher struct {
 	CapturingProtoMatcher
 }
 
-func (m *changeSetMatcher) changeset(t *testing.T) *changesetpb.ChangeSet {
+func (m *changeSetMatcher) changeset() *changesetpb.ChangeSet {
 	return m.Arg.(*changesetpb.ChangeSet)
 }
 
 func (m *changeSetMatcher) changes(t *testing.T) *changesettest.Changes {
 	changes := new(changesettest.Changes)
-	require.NoError(t, proto.Unmarshal(m.changeset(t).Changes, changes))
+	require.NoError(t, proto.Unmarshal(m.changeset().Changes, changes))
 	return changes
 }
 

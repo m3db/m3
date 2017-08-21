@@ -54,7 +54,7 @@ type Options interface {
 	// SetRetryOptions sets the RetryOptions
 	SetRetryOptions(ropts xretry.Options) Options
 
-	// WatchChanCheckInterval will be used to periodicaly check if a watch chan
+	// WatchChanCheckInterval will be used to periodically check if a watch chan
 	// is no longer being subscribed and should be closed
 	WatchChanCheckInterval() time.Duration
 	// SetWatchChanCheckInterval sets the WatchChanCheckInterval

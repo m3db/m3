@@ -66,6 +66,7 @@ func TestConfig(t *testing.T) {
 	require.Equal(t, 10*time.Second, cfg.SDConfig.InitTimeout)
 }
 
+// nolint: unparam
 func writeFile(t *testing.T, contents string) string {
 	f, err := ioutil.TempFile("", "configtest")
 	require.NoError(t, err)

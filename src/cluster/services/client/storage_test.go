@@ -103,3 +103,15 @@ func TestPlacementStorage(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, kv.ErrNotFound, err)
 }
+
+// newPlacementStorage returns a client of placement.Storage
+func newPlacementStorage(opts Options) (placement.Storage, error) {
+	if opts.KVGen() == nil {
+		return nil, errNoKVGen
+	}
+
+	return &client{
+		kvManagers: map[string]*kvManager{},
+		opts:       opts,
+	}, nil
+}

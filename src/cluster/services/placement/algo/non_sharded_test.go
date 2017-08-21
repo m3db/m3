@@ -35,10 +35,10 @@ func TestNonShardedAlgo(t *testing.T) {
 	i2 := placement.NewInstance().SetID("i2").SetEndpoint("e2")
 	i3 := placement.NewInstance().SetID("i3").SetEndpoint("e3")
 	i4 := placement.NewInstance().SetID("i4").SetEndpoint("e4")
-	p, err := a.InitialPlacement([]services.PlacementInstance{i1, i2}, []uint32{1, 2}, 1)
+	_, err := a.InitialPlacement([]services.PlacementInstance{i1, i2}, []uint32{1, 2}, 1)
 	assert.Error(t, err)
 
-	p, err = a.InitialPlacement([]services.PlacementInstance{i1, i2}, []uint32{}, 1)
+	p, err := a.InitialPlacement([]services.PlacementInstance{i1, i2}, []uint32{}, 1)
 	assert.NoError(t, err)
 	assert.NoError(t, placement.Validate(p))
 	assert.Equal(t, 2, p.NumInstances())

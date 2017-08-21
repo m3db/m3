@@ -33,10 +33,9 @@ import (
 )
 
 var (
-	errInstanceAbsent        = errors.New("could not remove or replace a instance that does not exist")
-	errNoValidInstance       = errors.New("no valid instance in the candidate list")
-	errMultipleZones         = errors.New("could not init placement on instances from multiple zones")
-	errPlacementAlreadyExist = errors.New("could not init placement for service, there is already a placement")
+	errInstanceAbsent  = errors.New("could not remove or replace a instance that does not exist")
+	errNoValidInstance = errors.New("no valid instance in the candidate list")
+	errMultipleZones   = errors.New("could not init placement on instances from multiple zones")
 )
 
 type placementService struct {

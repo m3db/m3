@@ -51,7 +51,7 @@ func TestWatchAndUpdateBool(t *testing.T) {
 	_, err = store.Set("foo", &commonpb.BoolProto{Value: true})
 	require.NoError(t, err)
 	for {
-		if valueFn() == true {
+		if valueFn() {
 			break
 		}
 	}
@@ -59,7 +59,7 @@ func TestWatchAndUpdateBool(t *testing.T) {
 	_, err = store.Set("foo", &commonpb.BoolProto{Value: false})
 	require.NoError(t, err)
 	for {
-		if valueFn() == false {
+		if !valueFn() {
 			break
 		}
 	}
@@ -67,7 +67,7 @@ func TestWatchAndUpdateBool(t *testing.T) {
 	_, err = store.Set("foo", &commonpb.Float64Proto{Value: 20})
 	require.NoError(t, err)
 	for {
-		if valueFn() == true {
+		if valueFn() {
 			break
 		}
 	}
@@ -75,7 +75,7 @@ func TestWatchAndUpdateBool(t *testing.T) {
 	_, err = store.Set("foo", &commonpb.BoolProto{Value: false})
 	require.NoError(t, err)
 	for {
-		if valueFn() == false {
+		if !valueFn() {
 			break
 		}
 	}
@@ -83,7 +83,7 @@ func TestWatchAndUpdateBool(t *testing.T) {
 	_, err = store.Delete("foo")
 	require.NoError(t, err)
 	for {
-		if valueFn() == true {
+		if valueFn() {
 			break
 		}
 	}
