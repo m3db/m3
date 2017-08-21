@@ -66,7 +66,7 @@ type metrics struct {
 	etcdWatchReset  tally.Counter
 }
 
-func (w *manager) watchChanWithTimeout(key string) (clientv3.WatchChan, error) {
+func (w *manager) watchChanWithTimeout(key string) (clientv3.WatchChan, context.CancelFunc, error) {
 	doneCh := make(chan struct{})
 
 	ctx, cancelFn := context.WithCancel(clientv3.WithRequireLeader(context.Background()))
@@ -84,24 +84,25 @@ func (w *manager) watchChanWithTimeout(key string) (clientv3.WatchChan, error) {
 	timeout := w.opts.WatchChanInitTimeout()
 	select {
 	case <-doneCh:
-		return watchChan, nil
+		return watchChan, cancelFn, nil
 	case <-time.After(timeout):
 		cancelFn()
-		return nil, fmt.Errorf("etcd watch create timed out after %s for key: %s", timeout.String(), key)
+		return nil, nil, fmt.Errorf("etcd watch create timed out after %s for key: %s", timeout.String(), key)
 	}
 }
 
 func (w *manager) Watch(key string) {
-	ticker := time.Tick(w.opts.WatchChanCheckInterval())
+	ticker := time.Tick(w.opts.WatchChanCheckInterval()) //nolint: megacheck
 
 	var (
 		watchChan clientv3.WatchChan
+		cancelFn  context.CancelFunc
 		err       error
 	)
 	for {
 		if watchChan == nil {
 			w.m.etcdWatchCreate.Inc(1)
-			watchChan, err = w.watchChanWithTimeout(key)
+			watchChan, cancelFn, err = w.watchChanWithTimeout(key)
 			if err != nil {
 				w.logger.Errorf("could not create etcd watch: %v", err)
 
@@ -121,6 +122,7 @@ func (w *manager) Watch(key string) {
 			if !ok {
 				// the watch chan is closed, set it to nil so it will be recreated
 				// this is unlikely to happen but just to be defensive
+				cancelFn()
 				watchChan = nil
 				w.logger.Warnf("etcd watch channel closed on key %s, recreating a watch channel", key)
 
@@ -136,7 +138,7 @@ func (w *manager) Watch(key string) {
 				w.logger.Errorf("received error on watch channel: %v", err)
 				w.m.etcdWatchError.Inc(1)
 				// do not stop here, even though the update contains an error
-				// we still take this chance to attemp a Get() for the latest value
+				// we still take this chance to attempt a Get() for the latest value
 			}
 
 			if err = w.updateFn(key, r.Events); err != nil {

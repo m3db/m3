@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/leader/campaign"
@@ -37,27 +36,12 @@ import (
 	"golang.org/x/net/context"
 )
 
-type conditionFn func() bool
-
-const defaultWait = 10 * time.Second
-
 var (
 	newStatus = campaign.NewStatus
 	newErr    = campaign.NewErrorStatus
 	followerS = newStatus(campaign.Follower)
 	leaderS   = newStatus(campaign.Leader)
 )
-
-func waitUntil(timeout time.Duration, fn conditionFn) error {
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if fn() {
-			return nil
-		}
-		time.Sleep(10 * time.Millisecond)
-	}
-	return fmt.Errorf("fn not true within %s", timeout.String())
-}
 
 func waitForStates(ch <-chan campaign.Status, early bool, states ...campaign.Status) error {
 	var seen []campaign.Status
@@ -283,9 +267,12 @@ func testHandoff(t *testing.T, resign bool) {
 
 	sc1, err := svc1.campaign(tc.opts("i1"))
 	assert.NoError(t, err)
+
 	assert.NoError(t, waitForStates(sc1, true, followerS, leaderS))
 
 	sc2, err := svc2.campaign(tc.opts("i2"))
+	assert.NoError(t, err)
+
 	assert.NoError(t, waitForStates(sc2, true, followerS))
 
 	ld, err := svc1.leader()
@@ -327,6 +314,7 @@ func TestCampaign_Close_NonLeader(t *testing.T) {
 	assert.NoError(t, waitForStates(sc1, true, followerS, leaderS))
 
 	sc2, err := svc2.campaign(tc.opts("i2"))
+	assert.NoError(t, err)
 	assert.NoError(t, waitForStates(sc2, true, followerS))
 
 	ld, err := svc1.leader()
@@ -338,9 +326,10 @@ func TestCampaign_Close_NonLeader(t *testing.T) {
 	assert.NoError(t, waitForStates(sc2, false, newErr(context.Canceled)))
 
 	err = svc1.resign()
+	assert.NoError(t, err)
 	assert.NoError(t, waitForStates(sc1, false, followerS))
 
-	ld, err = svc2.leader()
+	_, err = svc2.leader()
 	assert.Equal(t, errClientClosed, err)
 }
 

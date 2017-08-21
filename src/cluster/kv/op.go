@@ -46,6 +46,7 @@ type opBase struct {
 	key string
 }
 
+// nolint: unparam
 func newOpBase(t OpType, key string) opBase { return opBase{ot: t, key: key} }
 
 func (r opBase) Type() OpType         { return r.ot }

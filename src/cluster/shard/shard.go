@@ -30,12 +30,9 @@ import (
 )
 
 var (
-	errNilShardProto          = errors.New("nil shard proto")
-	errInvalidShardState      = errors.New("invalid shard state")
 	errInvalidProtoShardState = errors.New("invalid proto shard state")
 
-	defaultShardState      State
-	defaultProtoShardState placementproto.ShardState
+	defaultShardState State
 )
 
 // State represents the state of a shard

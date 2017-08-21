@@ -90,6 +90,7 @@ func TestClient(t *testing.T) {
 	require.NoError(t, err)
 
 	cs, err = NewConfigServiceClient(testOptions())
+	require.NoError(t, err)
 	c := cs.(*csclient)
 
 	fn, closer := testNewETCDFn(t)

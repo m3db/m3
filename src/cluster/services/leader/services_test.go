@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// nolint: unparam
 func overrideOpts(t *testing.T, s string) services.CampaignOptions {
 	opts, err := services.NewCampaignOptions()
 	require.NoError(t, err)

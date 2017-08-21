@@ -84,7 +84,7 @@ func TestStore(t *testing.T) {
 	version2, err := s.Set("foo", &kvtest.Foo{
 		Msg: "update",
 	})
-	require.Nil(t, nil)
+	require.NoError(t, err)
 	require.Equal(t, 2, version2)
 
 	read.Reset()
@@ -144,6 +144,7 @@ func TestStoreWatch(t *testing.T) {
 	require.Equal(t, "first", foo.Msg)
 
 	fooWatch2, err := s.Watch("foo")
+	require.NoError(t, err)
 	<-fooWatch2.C()
 	require.NoError(t, fooWatch2.Get().Unmarshal(&foo))
 	require.Equal(t, "first", foo.Msg)

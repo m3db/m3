@@ -168,13 +168,13 @@ func testGoodWorkflow(t *testing.T, p services.PlacementService) {
 func TestNonShardedWorkflow(t *testing.T) {
 	ps := NewPlacementService(NewMockStorage(), testServiceID(), placement.NewOptions().SetIsSharded(false))
 
-	p, err := ps.BuildInitialPlacement([]services.PlacementInstance{
+	_, err := ps.BuildInitialPlacement([]services.PlacementInstance{
 		placement.NewEmptyInstance("i1", "r1", "z1", "e1", 1),
 		placement.NewEmptyInstance("i2", "r1", "z1", "e2", 1),
 	}, 10, 1)
 	assert.Error(t, err)
 
-	p, err = ps.BuildInitialPlacement([]services.PlacementInstance{
+	p, err := ps.BuildInitialPlacement([]services.PlacementInstance{
 		placement.NewEmptyInstance("i1", "r1", "z1", "e1", 1),
 		placement.NewEmptyInstance("i2", "r1", "z1", "e2", 1),
 	}, 0, 1)
@@ -757,6 +757,7 @@ func TestSetPlacement(t *testing.T) {
 	assert.NoError(t, err)
 
 	p, v, err = ps.Placement()
+	assert.NoError(t, err)
 	assert.Equal(t, 2, v)
 	assert.Equal(t, p, pGet)
 }
@@ -783,6 +784,7 @@ func TestDeletePlacement(t *testing.T) {
 	assert.NoError(t, err)
 
 	_, v, err := ps.Placement()
+	assert.NoError(t, err)
 	assert.Equal(t, 1, v)
 
 	err = ps.Delete()
@@ -795,6 +797,7 @@ func TestDeletePlacement(t *testing.T) {
 	assert.NoError(t, err)
 
 	_, v, err = ps.Placement()
+	assert.NoError(t, err)
 	assert.Equal(t, 1, v)
 }
 
@@ -1027,28 +1030,6 @@ func TestFilterZones(t *testing.T) {
 		res := filterZones(args.p, args.candidates, args.opts)
 		assert.Equal(t, exp, res)
 	}
-}
-
-type errorAlgorithm struct{}
-
-func (errorAlgorithm) InitialPlacement(instances []services.PlacementInstance, ids []uint32) (services.Placement, error) {
-	return nil, errors.New("error in errorAlgorithm")
-}
-
-func (errorAlgorithm) AddReplica(p services.Placement) (services.Placement, error) {
-	return nil, errors.New("error in errorAlgorithm")
-}
-
-func (errorAlgorithm) AddInstance(p services.Placement, h services.PlacementInstance) (services.Placement, error) {
-	return nil, errors.New("error in errorAlgorithm")
-}
-
-func (errorAlgorithm) RemoveInstance(p services.Placement, h services.PlacementInstance) (services.Placement, error) {
-	return nil, errors.New("error in errorAlgorithm")
-}
-
-func (errorAlgorithm) ReplaceInstance(p services.Placement, leavingInstance services.PlacementInstance, addingInstance []services.PlacementInstance) (services.Placement, error) {
-	return nil, errors.New("error in errorAlgorithm")
 }
 
 // file based placement storage

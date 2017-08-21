@@ -142,8 +142,8 @@ type ServiceID interface {
 	String() string                      // String returns a description of the ServiceID
 	Name() string                        // the service name of the ServiceID
 	SetName(s string) ServiceID          // set the service name of the ServiceID
-	Environment() string                 // the environemnt of the ServiceID
-	SetEnvironment(env string) ServiceID // sets the environemnt of the ServiceID
+	Environment() string                 // the environment of the ServiceID
+	SetEnvironment(env string) ServiceID // sets the environment of the ServiceID
 	Zone() string                        // the zone of the ServiceID
 	SetZone(zone string) ServiceID       // sets the zone of the ServiceID
 }

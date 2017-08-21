@@ -71,7 +71,7 @@ func TestNewClient(t *testing.T) {
 
 	tc.close()
 
-	cl, err = NewClient(tc.etcdClient(), "foo")
+	_, err = NewClient(tc.etcdClient(), "foo")
 	assert.Error(t, err)
 }
 

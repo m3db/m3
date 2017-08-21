@@ -37,7 +37,7 @@ func TestWatchChan(t *testing.T) {
 	wh, ec, _, _, _, closer := testSetup(t)
 	defer closer()
 
-	wc, err := wh.watchChanWithTimeout("foo")
+	wc, _, err := wh.watchChanWithTimeout("foo")
 	require.NoError(t, err)
 	require.Equal(t, 0, len(wc))
 
@@ -54,7 +54,7 @@ func TestWatchChan(t *testing.T) {
 	wh.opts = wh.opts.SetWatcher(mw).SetWatchChanInitTimeout(100 * time.Millisecond)
 
 	before := time.Now()
-	_, err = wh.watchChanWithTimeout("foo")
+	_, _, err = wh.watchChanWithTimeout("foo")
 	require.WithinDuration(t, time.Now(), before, 150*time.Millisecond)
 	require.Error(t, err)
 }

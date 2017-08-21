@@ -34,10 +34,8 @@ import (
 var (
 	errNilPlacementProto         = errors.New("nil placement proto")
 	errNilPlacementInstanceProto = errors.New("nil placement instance proto")
-	errInvalidInstance           = errors.New("invalid shards assigned to an instance")
 	errDuplicatedShards          = errors.New("invalid placement, there are duplicated shards in one replica")
 	errUnexpectedShards          = errors.New("invalid placement, there are unexpected shard ids on instance")
-	errInvalidShardsCount        = errors.New("invalid placement, the count for a shard does not match replica factor")
 	errMirrorNotSharded          = errors.New("invalid placement, mirrored placement must be sharded")
 )
 

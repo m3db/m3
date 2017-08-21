@@ -53,7 +53,7 @@ type Options interface {
 	// SetUpdateFn sets the UpdateFn
 	SetUpdateFn(f UpdateFn) Options
 
-	// TickAndStopFn is the function called periodicaly to check if a watch should be stopped
+	// TickAndStopFn is the function called periodically to check if a watch should be stopped
 	TickAndStopFn() TickAndStopFn
 	// SetTickAndStopFn sets the TickAndStopFn
 	SetTickAndStopFn(f TickAndStopFn) Options
@@ -63,7 +63,7 @@ type Options interface {
 	// SetWatchOptions sets the WatchOptions
 	SetWatchOptions(opts []clientv3.OpOption) Options
 
-	// WatchChanCheckInterval will be used to periodicaly check if a watch chan
+	// WatchChanCheckInterval will be used to periodically check if a watch chan
 	// is no longer being subscribed and should be closed
 	WatchChanCheckInterval() time.Duration
 	// SetWatchChanCheckInterval sets the WatchChanCheckInterval
