@@ -79,7 +79,7 @@ type mediator struct {
 }
 
 func newMediator(database database, opts Options) (databaseMediator, error) {
-	scope := opts.InstrumentOptions().MetricsScope().SubScope("database")
+	scope := opts.InstrumentOptions().MetricsScope()
 	d := &mediator{
 		opts:     opts,
 		nowFn:    opts.ClockOptions().NowFn(),

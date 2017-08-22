@@ -128,7 +128,7 @@ func NewDatabase(
 	}
 
 	iopts := opts.InstrumentOptions()
-	scope := iopts.MetricsScope()
+	scope := iopts.MetricsScope().SubScope("database")
 
 	d := &db{
 		opts:         opts,
@@ -144,7 +144,8 @@ func NewDatabase(
 		errThreshold: opts.ErrorThresholdForLoad(),
 	}
 
-	mediator, err := newMediator(d, opts)
+	databaseIOpts := iopts.SetMetricsScope(scope)
+	mediator, err := newMediator(d, opts.SetInstrumentOptions(databaseIOpts))
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +166,7 @@ func NewDatabase(
 
 	// wait till first value is received
 	<-watch.C()
-	d.nsWatch = newDatabaseNamespaceWatch(d, watch, iopts)
+	d.nsWatch = newDatabaseNamespaceWatch(d, watch, databaseIOpts)
 
 	// update with initial values
 	nsMap := watch.Get()
