@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	defaultQueueSizeNumBuckets = 10
+	defaultQueueSizeNumBuckets = 6
 )
 
 var (
@@ -74,7 +74,7 @@ func newInstanceQueue(instance services.PlacementInstance, opts ServerOptions) i
 	)
 	q := &queue{
 		log:      iOpts.Logger(),
-		metrics:  newQueueMetrics(iOpts.MetricsScope(), instance.ID(), queueSize),
+		metrics:  newQueueMetrics(iOpts.MetricsScope(), queueSize),
 		instance: instance,
 		conn:     conn,
 		bufCh:    make(chan msgpack.Buffer, queueSize),
@@ -146,7 +146,7 @@ func (q *queue) reportQueueSize(reportInterval time.Duration) {
 	for {
 		select {
 		case <-ticker.C:
-			q.metrics.queueSize.RecordValue(float64(len(q.bufCh)))
+			q.metrics.queueLen.RecordValue(float64(len(q.bufCh)))
 		case <-q.doneCh:
 			return
 		}
@@ -154,22 +154,20 @@ func (q *queue) reportQueueSize(reportInterval time.Duration) {
 }
 
 type queueMetrics struct {
-	queueSize         tally.Histogram
+	queueLen          tally.Histogram
 	queueClosedErrors tally.Counter
 	queueFullErrors   tally.Counter
 	connWriteErrors   tally.Counter
 }
 
-func newQueueMetrics(s tally.Scope, instanceID string, queueSize int) queueMetrics {
+func newQueueMetrics(s tally.Scope, queueSize int) queueMetrics {
 	numBuckets := defaultQueueSizeNumBuckets
 	if queueSize < numBuckets {
 		numBuckets = queueSize
 	}
 	buckets := tally.MustMakeLinearValueBuckets(0, float64(queueSize/numBuckets), numBuckets)
 	return queueMetrics{
-		queueSize: s.Tagged(
-			map[string]string{"instance-id": instanceID},
-		).Histogram("queue-size", buckets),
+		queueLen: s.Histogram("queue-length", buckets),
 		queueClosedErrors: s.Tagged(
 			map[string]string{"error-type": "queue-closed", "action": "enqueue"},
 		).Counter("errors"),
