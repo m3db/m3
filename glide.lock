@@ -1,5 +1,5 @@
-hash: f0f0a5939000440b833d7ab051c5c9550b398e8629830a9934bf36b22790c083
-updated: 2017-07-26T20:21:58.10096968-04:00
+hash: 3e342689749bbd18fc964d9c36efec62931ae5961109195bcd53519f5ac9296c
+updated: 2017-08-15T15:48:42.18549474-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -128,6 +128,7 @@ imports:
 - name: github.com/leanovate/gopter
   version: 9e6101e5a87586b269acf3d0d61f363e4317309f
   subpackages:
+  - commands
   - gen
   - prop
 - name: github.com/m3db/m3cluster
@@ -262,8 +263,6 @@ imports:
   version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
   subpackages:
   - codec
-- name: github.com/willf/bitset
-  version: 5c3c0fce48842b2c0bbaa99b4e61b0175d84b47c
 - name: github.com/xiang90/probing
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: golang.org/x/crypto

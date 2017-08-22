@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/storage/block"
 	xio "github.com/m3db/m3db/x/io"
-	"github.com/m3db/m3x/checked"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -44,10 +43,6 @@ func mins(x float64) time.Duration {
 	return time.Duration(x * float64(time.Minute))
 }
 
-func hrs(x float64) time.Duration {
-	return time.Duration(x * float64(time.Hour))
-}
-
 func requireDrainedStream(
 	ctx context.Context,
 	t *testing.T,
@@ -56,12 +51,6 @@ func requireDrainedStream(
 	stream, err := b.Stream(ctx)
 	require.NoError(t, err)
 	return stream
-}
-
-func bytesRefd(data []byte) checked.Bytes {
-	bytes := checked.NewBytes(data, nil)
-	bytes.IncRef()
-	return bytes
 }
 
 type value struct {
@@ -90,21 +79,6 @@ type decodedValue struct {
 	value      float64
 	unit       xtime.Unit
 	annotation []byte
-}
-
-// Implements sort.Interface
-type decodedValuesByTime []decodedValue
-
-func (v decodedValuesByTime) Len() int {
-	return len(v)
-}
-
-func (v decodedValuesByTime) Less(lhs, rhs int) bool {
-	return v[lhs].timestamp.Before(v[rhs].timestamp)
-}
-
-func (v decodedValuesByTime) Swap(lhs, rhs int) {
-	v[lhs], v[rhs] = v[rhs], v[lhs]
 }
 
 func decodedValues(results [][]xio.SegmentReader, opts Options) ([]decodedValue, error) {

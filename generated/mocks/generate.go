@@ -36,5 +36,6 @@
 //go:generate sh -c "mockgen -package=topology -destination=$GOPATH/src/$PACKAGE/topology/topology_mock.go -source=$GOPATH/src/$PACKAGE/topology/types.go"
 //go:generate sh -c "mockgen -package=retention -destination=$GOPATH/src/$PACKAGE/retention/retention_mock.go -source=$GOPATH/src/$PACKAGE/retention/types.go"
 //go:generate sh -c "mockgen -package=namespace -destination=$GOPATH/src/$PACKAGE/storage/namespace/namespace_mock.go -source=$GOPATH/src/$PACKAGE/storage/namespace/types.go"
+//go:generate sh -c "mockgen -package=runtime -destination=$GOPATH/src/$PACKAGE/runtime/runtime_mock.go -source=$GOPATH/src/$PACKAGE/runtime/types.go"
 
 package mocks

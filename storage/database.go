@@ -54,9 +54,6 @@ var (
 
 	// errDatabaseAlreadyClosed raised when trying to open a database that is already closed
 	errDatabaseAlreadyClosed = errors.New("database is already closed")
-
-	// errCommitLogStrategyUnknown raised when trying to use an unknown commit log strategy
-	errCommitLogStrategyUnknown = errors.New("database commit log strategy is unknown")
 )
 
 type databaseState int
@@ -72,25 +69,15 @@ type increasingIndex interface {
 	nextIndex() uint64
 }
 
-// writeCommitLogFn is a method for writing to the commit log
-type writeCommitLogFn func(
-	ctx context.Context,
-	series commitlog.Series,
-	datapoint ts.Datapoint,
-	unit xtime.Unit,
-	annotation ts.Annotation,
-) error
-
 type db struct {
 	sync.RWMutex
 	opts  Options
 	nowFn clock.NowFn
 
-	nsWatch          databaseNamespaceWatch
-	shardSet         sharding.ShardSet
-	namespaces       map[ts.Hash]databaseNamespace
-	commitLog        commitlog.CommitLog
-	writeCommitLogFn writeCommitLogFn
+	nsWatch    databaseNamespaceWatch
+	shardSet   sharding.ShardSet
+	namespaces map[ts.Hash]databaseNamespace
+	commitLog  commitlog.CommitLog
 
 	state    databaseState
 	mediator databaseMediator
@@ -132,15 +119,23 @@ func NewDatabase(
 		return nil, fmt.Errorf("invalid options: %v", err)
 	}
 
+	commitLog, err := commitlog.NewCommitLog(opts.CommitLogOptions())
+	if err != nil {
+		return nil, err
+	}
+	if err := commitLog.Open(); err != nil {
+		return nil, err
+	}
+
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("database")
-	opts = opts.SetInstrumentOptions(iopts.SetMetricsScope(scope))
 
 	d := &db{
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
 		shardSet:     shardSet,
 		namespaces:   make(map[ts.Hash]databaseNamespace),
+		commitLog:    commitLog,
 		scope:        scope,
 		metrics:      newDatabaseMetrics(scope, iopts.MetricsSamplingRate()),
 		log:          iopts.Logger(),
@@ -149,27 +144,8 @@ func NewDatabase(
 		errThreshold: opts.ErrorThresholdForLoad(),
 	}
 
-	commitLog, err := commitlog.NewCommitLog(opts.CommitLogOptions())
-	if err != nil {
-		return nil, err
-	}
-	if err := commitLog.Open(); err != nil {
-		return nil, err
-	}
-	d.commitLog = commitLog
-
-	// TODO(r): instead of binding the method here simply bind the method
-	// in the commit log itself and just call "Write()" always
-	switch opts.CommitLogOptions().Strategy() {
-	case commitlog.StrategyWriteWait:
-		d.writeCommitLogFn = d.commitLog.Write
-	case commitlog.StrategyWriteBehind:
-		d.writeCommitLogFn = d.commitLog.WriteBehind
-	default:
-		return nil, errCommitLogStrategyUnknown
-	}
-
-	mediator, err := newMediator(d, opts)
+	databaseIOpts := iopts.SetMetricsScope(scope)
+	mediator, err := newMediator(d, opts.SetInstrumentOptions(databaseIOpts))
 	if err != nil {
 		return nil, err
 	}
@@ -188,9 +164,9 @@ func NewDatabase(
 		return nil, err
 	}
 
-	// wait till first value is recieved
+	// wait till first value is received
 	<-watch.C()
-	d.nsWatch = newDatabaseNamespaceWatch(d, watch, iopts)
+	d.nsWatch = newDatabaseNamespaceWatch(d, watch, databaseIOpts)
 
 	// update with initial values
 	nsMap := watch.Get()
@@ -344,7 +320,7 @@ func (d *db) newDatabaseNamespace(
 		}
 	}
 	return newDatabaseNamespace(md, d.shardSet, retriever,
-		d, d.writeCommitLogFn, d.opts)
+		d, d.commitLog, d.opts)
 }
 
 func (d *db) Options() Options {

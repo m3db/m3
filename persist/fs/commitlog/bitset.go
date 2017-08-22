@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -20,40 +20,45 @@
 
 package commitlog
 
-import bset "github.com/willf/bitset"
-
 const (
-	defaultBitsetLength = 65536
+	wordSize    = uint(64)
+	logWordSize = uint(6) // lg(wordSize)
+	wordMask    = wordSize - 1
 )
 
-// bitset is a shim for providing a bitset
-type bitset interface {
-	has(i uint64) bool
-	set(i uint64)
-	clear(i uint64)
-	clearAll()
+type bitSet struct {
+	values []uint64
 }
 
-type set struct {
-	*bset.BitSet
+func newBitSet(size uint) *bitSet {
+	return &bitSet{values: make([]uint64, bitSetIndexOf(size)+1)}
 }
 
-func newBitset() bitset {
-	return &set{bset.New(defaultBitsetLength)}
+func (b *bitSet) test(i uint) bool {
+	idx := bitSetIndexOf(i)
+	if idx >= len(b.values) {
+		return false
+	}
+	return b.values[idx]&(1<<(i&wordMask)) != 0
 }
 
-func (s *set) has(i uint64) bool {
-	return s.Test(uint(i))
+func (b *bitSet) set(i uint) {
+	idx := bitSetIndexOf(i)
+	currLen := len(b.values)
+	if idx >= currLen {
+		newValues := make([]uint64, 2*(idx+1))
+		copy(newValues, b.values)
+		b.values = newValues
+	}
+	b.values[idx] |= 1 << (i & wordMask)
 }
 
-func (s *set) set(i uint64) {
-	s.Set(uint(i))
+func (b *bitSet) clearAll() {
+	for i := range b.values {
+		b.values[i] = 0
+	}
 }
 
-func (s *set) clear(i uint64) {
-	s.Clear(uint(i))
-}
-
-func (s *set) clearAll() {
-	s.ClearAll()
+func bitSetIndexOf(i uint) int {
+	return int(i >> logWordSize)
 }

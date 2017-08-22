@@ -48,11 +48,12 @@ const (
 	chunkHeaderLen             = chunkHeaderSizeLen +
 		chunkHeaderChecksumSizeLen +
 		chunkHeaderChecksumDataLen
+
+	defaultBitSetLength = 65536
 )
 
 var (
-	errCommitLogWriterAlreadyOpen                = errors.New("commit log writer already open")
-	errCommitLogWriterFlushWithoutReservedLength = errors.New("commit log writer flushed without header reserve")
+	errCommitLogWriterAlreadyOpen = errors.New("commit log writer already open")
 
 	endianness = binary.LittleEndian
 )
@@ -83,13 +84,13 @@ type writer struct {
 	newFileMode        os.FileMode
 	newDirectoryMode   os.FileMode
 	nowFn              clock.NowFn
-	bitset             bitset
 	start              time.Time
 	duration           time.Duration
 	chunkWriter        *chunkWriter
 	chunkReserveHeader []byte
 	buffer             *bufio.Writer
 	sizeBuffer         []byte
+	seen               *bitSet
 	logEncoder         encoding.Encoder
 	metadataEncoder    encoding.Encoder
 }
@@ -98,16 +99,17 @@ func newCommitLogWriter(
 	flushFn flushFn,
 	opts Options,
 ) commitLogWriter {
+	shouldFsync := opts.Strategy() == StrategyWriteWait
 	return &writer{
 		filePathPrefix:     opts.FilesystemOptions().FilePathPrefix(),
 		newFileMode:        opts.FilesystemOptions().NewFileMode(),
 		newDirectoryMode:   opts.FilesystemOptions().NewDirectoryMode(),
 		nowFn:              opts.ClockOptions().NowFn(),
-		chunkWriter:        newChunkWriter(flushFn),
+		chunkWriter:        newChunkWriter(flushFn, shouldFsync),
 		chunkReserveHeader: make([]byte, chunkHeaderLen),
 		buffer:             bufio.NewWriterSize(nil, opts.FlushSize()),
-		bitset:             newBitset(),
 		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
+		seen:               newBitSet(defaultBitSetLength),
 		logEncoder:         msgpack.NewEncoder(),
 		metadataEncoder:    msgpack.NewEncoder(),
 	}
@@ -164,9 +166,9 @@ func (w *writer) Write(
 	logEntry.Create = w.nowFn().UnixNano()
 	logEntry.Index = series.UniqueIndex
 
-	seen := w.bitset.has(logEntry.Index)
+	seen := w.seen.test(uint(series.UniqueIndex))
 	if !seen {
-		// If "idx" hasn't been written to commit log
+		// If "idx" likely hasn't been written to commit log
 		// yet we need to include series metadata
 		var metadata schema.LogMetadata
 		metadata.ID = series.ID.Data().Get()
@@ -192,8 +194,8 @@ func (w *writer) Write(
 	}
 
 	if !seen {
-		// Record we have seen this series
-		w.bitset.set(logEntry.Index)
+		// Record we have written this series and metadata to this commit log
+		w.seen.set(uint(series.UniqueIndex))
 	}
 	return nil
 }
@@ -215,9 +217,9 @@ func (w *writer) Close() error {
 	}
 
 	w.chunkWriter.fd = nil
-	w.bitset.clearAll()
 	w.start = timeZero
 	w.duration = 0
+	w.seen.clearAll()
 	return nil
 }
 
@@ -245,11 +247,16 @@ func (w *writer) write(data []byte) error {
 type chunkWriter struct {
 	fd      *os.File
 	flushFn flushFn
-	header  []byte
+	buff    []byte
+	fsync   bool
 }
 
-func newChunkWriter(flushFn flushFn) *chunkWriter {
-	return &chunkWriter{flushFn: flushFn, header: make([]byte, chunkHeaderLen)}
+func newChunkWriter(flushFn flushFn, fsync bool) *chunkWriter {
+	return &chunkWriter{
+		flushFn: flushFn,
+		buff:    make([]byte, chunkHeaderLen),
+		fsync:   fsync,
+	}
 }
 
 func (w *chunkWriter) Write(p []byte) (int, error) {
@@ -263,29 +270,34 @@ func (w *chunkWriter) Write(p []byte) (int, error) {
 		checksumSizeEnd, checksumSizeEnd+chunkHeaderChecksumDataLen
 
 	// Write size
-	endianness.PutUint32(w.header[sizeStart:sizeEnd], uint32(size))
+	endianness.PutUint32(w.buff[sizeStart:sizeEnd], uint32(size))
 
 	// Calculate checksums
-	checksumSize := digest.Checksum(w.header[sizeStart:sizeEnd])
+	checksumSize := digest.Checksum(w.buff[sizeStart:sizeEnd])
 	checksumData := digest.Checksum(p)
 
 	// Write checksums
 	digest.
-		Buffer(w.header[checksumSizeStart:checksumSizeEnd]).
+		Buffer(w.buff[checksumSizeStart:checksumSizeEnd]).
 		WriteDigest(checksumSize)
 	digest.
-		Buffer(w.header[checksumDataStart:checksumDataEnd]).
+		Buffer(w.buff[checksumDataStart:checksumDataEnd]).
 		WriteDigest(checksumData)
 
-	// Write header to file descriptor
-	if _, err := w.fd.Write(w.header); err != nil {
-		// Fire flush callback
-		w.flushFn(err)
-		return 0, err
-	}
+	// Combine buffers to reduce to a single syscall
+	w.buff = append(w.buff[:chunkHeaderLen], p...)
 
 	// Write contents to file descriptor
-	n, err := w.fd.Write(p)
+	n, err := w.fd.Write(w.buff)
+	if err != nil {
+		w.flushFn(err)
+		return n, err
+	}
+
+	// Fsync if required to
+	if w.fsync {
+		err = w.fd.Sync()
+	}
 
 	// Fire flush callback
 	w.flushFn(err)

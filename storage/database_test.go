@@ -401,9 +401,8 @@ func TestDatabaseNamespaces(t *testing.T) {
 		close(mapCh)
 	}()
 
-	var ns []*MockdatabaseNamespace
-	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns1"))
-	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns2"))
+	dbAddNewMockNamespace(ctrl, d, "testns1")
+	dbAddNewMockNamespace(ctrl, d, "testns2")
 
 	result := d.Namespaces()
 	require.Equal(t, 2, len(result))

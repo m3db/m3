@@ -57,7 +57,7 @@ func newPropTestCleanupMgr(ctrl *gomock.Controller, ropts retention.Options, ns 
 
 func newCleanupMgrTestProperties() *gopter.Properties {
 	parameters := gopter.DefaultTestParameters()
-	parameters.Rng.Seed(commitLogTestRandomSeeed) // generate reproducable results
+	parameters.Rng.Seed(commitLogTestRandomSeeed) // generate reproducible results
 	parameters.MinSuccessfulTests = commitLogTestMinSuccessfulTests
 	return gopter.NewProperties(parameters)
 }

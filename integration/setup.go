@@ -488,6 +488,7 @@ func (ts testSetups) parallel(fn func(s *testSetup)) {
 }
 
 // node generates service instances with reasonable defaults
+// nolint: deadcode
 func node(t *testing.T, n int, shards shard.Shards) services.ServiceInstance {
 	require.True(t, n < 250) // keep ports sensible
 	return services.NewServiceInstance().
@@ -497,6 +498,7 @@ func node(t *testing.T, n int, shards shard.Shards) services.ServiceInstance {
 }
 
 // newNodes creates a set of testSetups with reasonable defaults
+// nolint: deadcode
 func newNodes(
 	t *testing.T,
 	instances []services.ServiceInstance,

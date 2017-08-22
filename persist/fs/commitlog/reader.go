@@ -42,7 +42,6 @@ var (
 
 	errCommitLogReaderAlreadyOpen               = errors.New("commit log reader already open")
 	errCommitLogReaderChunkSizeChecksumMismatch = errors.New("commit log reader encountered chunk size checksum mismatch")
-	errCommitLogReaderChunkDataChecksumMismatch = errors.New("commit log reader encountered chunk data checksum mismatch")
 	errCommitLogReaderMissingLogMetadata        = errors.New("commit log reader encountered message missing metadata")
 )
 
@@ -116,7 +115,8 @@ func (r *reader) Read() (
 		return
 	}
 
-	if len(entry.Metadata) != 0 {
+	metadata, ok := r.metadataLookup[entry.Index]
+	if !ok && len(entry.Metadata) != 0 {
 		r.metadataDecoder.Reset(entry.Metadata)
 		decoded, err := r.metadataDecoder.DecodeLogMetadata()
 		if err != nil {
@@ -134,15 +134,17 @@ func (r *reader) Read() (
 		defer namespace.DecRef()
 		namespace.AppendAll(decoded.Namespace)
 
-		r.metadataLookup[entry.Index] = Series{
+		metadata = Series{
 			UniqueIndex: entry.Index,
 			ID:          ts.BinaryID(id),
 			Namespace:   ts.BinaryID(namespace),
-			Shard:       uint32(decoded.Shard),
+			Shard:       decoded.Shard,
 		}
+		ok = true
+
+		r.metadataLookup[entry.Index] = metadata
 	}
 
-	metadata, ok := r.metadataLookup[entry.Index]
 	if !ok {
 		resultErr = errCommitLogReaderMissingLogMetadata
 		return
@@ -304,7 +306,6 @@ func (r *chunkReader) Read(p []byte) (int, error) {
 
 		// Reset read target
 		p = p[read:]
-		size = len(p)
 
 		// Perform consecutive read(s)
 		n, err := r.Read(p)

@@ -62,7 +62,7 @@ var (
 )
 
 // convertToIntFloat takes a float64 val and the current max multiplier
-// and attempts to tranform the float into an int with multiplier. There
+// and attempts to transform the float into an int with multiplier. There
 // is potential for a small accuracy loss for float values that are very
 // close to ints eg. 46.000000000000001 would be returned as 46. This only
 // applies to values where the next possible smaller or larger float changes

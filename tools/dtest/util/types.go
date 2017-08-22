@@ -37,7 +37,7 @@ type NodesWatcher interface {
 
 	// WaitUntilAll allows you to specify a predicate which must be satisfied
 	// on all monitored Nodes within the timeout provided. It returns a flag
-	// indicating if this occurred succesfully
+	// indicating if this occurred successfully
 	WaitUntilAll(p NodePredicate, timeout time.Duration) bool
 
 	// Pending returns the list of nodes which have not satisfied the

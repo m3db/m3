@@ -134,10 +134,7 @@ func m3dbClientWriteBatch(client client.Client, workerPool xsync.WorkerPool, nam
 	wg.Wait()
 	close(errCh)
 
-	if err := <-errCh; err != nil {
-		return err
-	}
-	return nil
+	return <-errCh
 }
 
 // m3dbClientFetch fulfills a fetch request using an m3db client.
@@ -184,6 +181,7 @@ func m3dbClientTruncate(c client.Client, req *rpc.TruncateRequest) (int64, error
 	return adminSession.Truncate(ts.BinaryID(checked.NewBytes(req.NameSpace, nil)))
 }
 
+// nolint: deadcode
 func m3dbClientFetchBlocksMetadata(
 	c client.AdminClient,
 	namespace ts.ID,

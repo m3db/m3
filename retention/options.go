@@ -59,7 +59,6 @@ type options struct {
 	blockSize                        time.Duration
 	bufferFuture                     time.Duration
 	bufferPast                       time.Duration
-	bufferDrain                      time.Duration
 	dataExpiry                       bool
 	dataExpiryAfterNotAccessedPeriod time.Duration
 }

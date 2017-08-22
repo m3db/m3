@@ -410,7 +410,7 @@ func TestHostQueueFetchBatches(t *testing.T) {
 	namespace := "testNs"
 	ids := []string{"foo", "bar", "baz", "qux"}
 	result := &rpc.FetchBatchRawResult_{}
-	for _ = range ids {
+	for range ids {
 		result.Elements = append(result.Elements, &rpc.FetchRawResult_{Segments: []*rpc.Segments{}})
 	}
 	var expected []hostQueueResult
@@ -427,7 +427,7 @@ func TestHostQueueFetchBatchesErrorOnNextClientUnavailable(t *testing.T) {
 	ids := []string{"foo", "bar", "baz", "qux"}
 	expectedErr := fmt.Errorf("an error")
 	var expected []hostQueueResult
-	for _ = range ids {
+	for range ids {
 		expected = append(expected, hostQueueResult{nil, expectedErr})
 	}
 	opts := &testHostQueueFetchBatchesOptions{
@@ -443,7 +443,7 @@ func TestHostQueueFetchBatchesErrorOnFetchRawBatchError(t *testing.T) {
 	ids := []string{"foo", "bar", "baz", "qux"}
 	expectedErr := fmt.Errorf("an error")
 	var expected []hostQueueResult
-	for _ = range ids {
+	for range ids {
 		expected = append(expected, hostQueueResult{nil, expectedErr})
 	}
 	opts := &testHostQueueFetchBatchesOptions{
@@ -458,7 +458,7 @@ func TestHostQueueFetchBatchesErrorOnFetchNoResponse(t *testing.T) {
 	namespace := "testNs"
 	ids := []string{"foo", "bar", "baz", "qux"}
 	result := &rpc.FetchBatchRawResult_{}
-	for _ = range ids[:len(ids)-1] {
+	for range ids[:len(ids)-1] {
 		result.Elements = append(result.Elements, &rpc.FetchRawResult_{Segments: []*rpc.Segments{}})
 	}
 	var expected []hostQueueResult
@@ -479,7 +479,7 @@ func TestHostQueueFetchBatchesErrorOnResultError(t *testing.T) {
 	ids := []string{"foo", "bar", "baz", "qux"}
 	anError := &rpc.Error{Type: rpc.ErrorType_INTERNAL_ERROR, Message: "an error"}
 	result := &rpc.FetchBatchRawResult_{}
-	for _ = range ids[:len(ids)-1] {
+	for range ids[:len(ids)-1] {
 		result.Elements = append(result.Elements, &rpc.FetchRawResult_{Segments: []*rpc.Segments{}})
 	}
 	result.Elements = append(result.Elements, &rpc.FetchRawResult_{Err: anError})
@@ -628,7 +628,7 @@ func testHostQueueFetchBatches(
 			Ids:        rawIDs,
 		},
 	}
-	for _ = range fetchBatch.request.Ids {
+	for range fetchBatch.request.Ids {
 		fetchBatch.completionFns = append(fetchBatch.completionFns, callback)
 	}
 	wg.Add(len(fetchBatch.request.Ids))

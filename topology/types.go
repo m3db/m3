@@ -25,9 +25,9 @@ import (
 
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/instrument"
 )
 
 // Host is a container of a host in a topology
@@ -135,6 +135,7 @@ type RouteForEachFn func(idx int, host Host)
 // ConsistencyLevel is the consistency level for cluster operations
 type ConsistencyLevel int
 
+// nolint: deadcode, varcheck, unused
 const (
 	consistencyLevelNone ConsistencyLevel = iota
 

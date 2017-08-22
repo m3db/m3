@@ -191,7 +191,7 @@ func testSetupToSeriesMaps(
 			require.NotEmpty(t, datapoints)
 
 			firstTs := datapoints[0].Timestamp
-			seriesMapList, _ := seriesMap[firstTs]
+			seriesMapList := seriesMap[firstTs]
 			seriesMapList = append(seriesMapList, generate.Series{
 				ID:   id,
 				Data: datapoints,

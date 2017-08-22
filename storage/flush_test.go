@@ -87,7 +87,7 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	// go routine 1 should succesfully flush
+	// go routine 1 should successfully flush
 	go func() {
 		defer wg.Done()
 		require.NoError(t, fm.Flush(now))

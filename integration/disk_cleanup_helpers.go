@@ -40,6 +40,7 @@ var (
 	errDataCleanupTimedOut = errors.New("cleaning up data files took too long")
 )
 
+// nolint: deadcode
 func newFilesetWriter(storageOpts storage.Options) fs.FileSetWriter {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	filePathPrefix := fsOpts.FilePathPrefix()
@@ -49,6 +50,7 @@ func newFilesetWriter(storageOpts storage.Options) fs.FileSetWriter {
 	return fs.NewWriter(filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
 }
 
+// nolint: deadcode
 func writeFilesetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []time.Time) {
 	rOpts := md.Options().RetentionOptions()
 	writer := newFilesetWriter(storageOpts)
@@ -58,6 +60,7 @@ func writeFilesetFiles(t *testing.T, storageOpts storage.Options, md namespace.M
 	}
 }
 
+// nolint: deadcode
 func writeCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time) {
 	for _, start := range fileTimes {
 		commitLogFile, _ := fs.NextCommitLogsFile(filePathPrefix, start)
@@ -141,6 +144,7 @@ func waitUntilDataCleanedUpExtended(
 	return errDataCleanupTimedOut
 }
 
+// nolint: deadcode
 func waitUntilDataCleanedUp(filePathPrefix string, namespace ts.ID, shard uint32, toDelete time.Time, timeout time.Duration) error {
 	return waitUntilDataCleanedUpExtended(
 		[]cleanupTimesFileset{
@@ -158,6 +162,7 @@ func waitUntilDataCleanedUp(filePathPrefix string, namespace ts.ID, shard uint32
 		timeout)
 }
 
+// nolint: deadcode
 func getTimes(start time.Time, end time.Time, intervalSize time.Duration) []time.Time {
 	totalPeriod := end.Sub(start)
 	numPeriods := int(totalPeriod / intervalSize)

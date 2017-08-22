@@ -251,8 +251,6 @@ type seriesDatapoint struct {
 	value  float64
 }
 
-type dataPointPredicate func(seriesDatapoint) bool
-
 func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.SeriesBlocksByStart {
 	blockStartToSeriesMap := make(map[time.Time]map[ts.Hash]generate.Series)
 	for _, point := range d {

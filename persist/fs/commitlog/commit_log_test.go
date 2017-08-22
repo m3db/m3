@@ -47,6 +47,7 @@ type overrides struct {
 	clock            *mclock.Mock
 	flushInterval    *time.Duration
 	backlogQueueSize *int
+	strategy         Strategy
 }
 
 func newTestOptions(
@@ -86,6 +87,8 @@ func newTestOptions(
 	if overrides.backlogQueueSize != nil {
 		opts = opts.SetBacklogQueueSize(*overrides.backlogQueueSize)
 	}
+
+	opts = opts.SetStrategy(overrides.strategy)
 
 	return opts, scope
 }
@@ -202,18 +205,10 @@ func newTestCommitLog(t *testing.T, opts Options) *commitLog {
 	return commitLog
 }
 
-type writeCommitLogFn func(
-	ctx context.Context,
-	series Series,
-	datapoint ts.Datapoint,
-	unit xtime.Unit,
-	annotation ts.Annotation,
-) error
-
 func writeCommitLogs(
 	t *testing.T,
 	scope tally.TestScope,
-	writeFn writeCommitLogFn,
+	commitLog CommitLog,
 	writes []testWrite,
 ) *sync.WaitGroup {
 	wg := sync.WaitGroup{}
@@ -251,7 +246,7 @@ func writeCommitLogs(
 
 			series := write.series
 			datapoint := ts.Datapoint{Timestamp: write.t, Value: write.v}
-			err := writeFn(ctx, series, datapoint, write.u, write.a)
+			err := commitLog.Write(ctx, series, datapoint, write.u, write.a)
 
 			if write.expectedErr != nil {
 				assert.True(t, strings.Contains(fmt.Sprintf("%v", err), fmt.Sprintf("%v", write.expectedErr)))
@@ -315,7 +310,9 @@ func setupCloseOnFail(t *testing.T, l *commitLog) *sync.WaitGroup {
 }
 
 func TestCommitLogWrite(t *testing.T) {
-	opts, scope := newTestOptions(t, overrides{})
+	opts, scope := newTestOptions(t, overrides{
+		strategy: StrategyWriteWait,
+	})
 	defer cleanup(t, opts)
 
 	commitLog := newTestCommitLog(t, opts)
@@ -326,7 +323,7 @@ func TestCommitLogWrite(t *testing.T) {
 	}
 
 	// Call write sync
-	writeCommitLogs(t, scope, commitLog.Write, writes).Wait()
+	writeCommitLogs(t, scope, commitLog, writes).Wait()
 
 	// Close the commit log and consequently flush
 	assert.NoError(t, commitLog.Close())
@@ -336,7 +333,9 @@ func TestCommitLogWrite(t *testing.T) {
 }
 
 func TestCommitLogWriteBehind(t *testing.T) {
-	opts, scope := newTestOptions(t, overrides{})
+	opts, scope := newTestOptions(t, overrides{
+		strategy: StrategyWriteBehind,
+	})
 	defer cleanup(t, opts)
 
 	commitLog := newTestCommitLog(t, opts)
@@ -348,7 +347,7 @@ func TestCommitLogWriteBehind(t *testing.T) {
 	}
 
 	// Call write behind
-	writeCommitLogs(t, scope, commitLog.WriteBehind, writes)
+	writeCommitLogs(t, scope, commitLog, writes)
 
 	// Close the commit log and consequently flush
 	assert.NoError(t, commitLog.Close())
@@ -373,10 +372,6 @@ func TestCommitLogWriteErrorOnClosed(t *testing.T) {
 	err := commitLog.Write(ctx, series, datapoint, xtime.Millisecond, nil)
 	assert.Error(t, err)
 	assert.Equal(t, errCommitLogClosed, err)
-
-	err = commitLog.WriteBehind(ctx, series, datapoint, xtime.Millisecond, nil)
-	assert.Error(t, err)
-	assert.Equal(t, errCommitLogClosed, err)
 }
 
 func TestCommitLogWriteErrorOnFull(t *testing.T) {
@@ -386,6 +381,7 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 	opts, _ := newTestOptions(t, overrides{
 		backlogQueueSize: &backlogQueueSize,
 		flushInterval:    &flushInterval,
+		strategy:         StrategyWriteBehind,
 	})
 	defer cleanup(t, opts)
 
@@ -401,7 +397,7 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 	defer ctx.Close()
 
 	for {
-		if err := commitLog.WriteBehind(ctx, series, dp, unit, nil); err != nil {
+		if err := commitLog.Write(ctx, series, dp, unit, nil); err != nil {
 			// Ensure queue full error
 			assert.Equal(t, ErrCommitLogQueueFull, err)
 			break
@@ -422,7 +418,10 @@ func TestCommitLogWriteErrorOnFull(t *testing.T) {
 
 func TestCommitLogExpiresWriter(t *testing.T) {
 	clock := mclock.NewMock()
-	opts, scope := newTestOptions(t, overrides{clock: clock})
+	opts, scope := newTestOptions(t, overrides{
+		clock:    clock,
+		strategy: StrategyWriteWait,
+	})
 	defer cleanup(t, opts)
 
 	commitLog := newTestCommitLog(t, opts)
@@ -442,7 +441,7 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 		clock.Add(write.t.Sub(clock.Now()))
 
 		// Write entry
-		wg := writeCommitLogs(t, scope, commitLog.Write, []testWrite{write})
+		wg := writeCommitLogs(t, scope, commitLog, []testWrite{write})
 
 		// Flush until finished, this is required as timed flusher not active when clock is mocked
 		flushUntilDone(commitLog, wg)
@@ -462,7 +461,9 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 }
 
 func TestCommitLogFailOnWriteError(t *testing.T) {
-	opts, scope := newTestOptions(t, overrides{})
+	opts, scope := newTestOptions(t, overrides{
+		strategy: StrategyWriteBehind,
+	})
 	defer cleanup(t, opts)
 
 	commitLogI, err := NewCommitLog(opts)
@@ -488,8 +489,8 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	}
 
 	commitLog.newCommitLogWriterFn = func(
-		flushFn flushFn,
-		opts Options,
+		_ flushFn,
+		_ Options,
 	) commitLogWriter {
 		return writer
 	}
@@ -502,7 +503,7 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
 	}
 
-	writeCommitLogs(t, scope, commitLog.WriteBehind, writes)
+	writeCommitLogs(t, scope, commitLog, writes)
 
 	wg.Wait()
 
@@ -513,7 +514,9 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 }
 
 func TestCommitLogFailOnOpenError(t *testing.T) {
-	opts, scope := newTestOptions(t, overrides{})
+	opts, scope := newTestOptions(t, overrides{
+		strategy: StrategyWriteBehind,
+	})
 	defer cleanup(t, opts)
 
 	commitLogI, err := NewCommitLog(opts)
@@ -535,8 +538,8 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	}
 
 	commitLog.newCommitLogWriterFn = func(
-		flushFn flushFn,
-		opts Options,
+		_ flushFn,
+		_ Options,
 	) commitLogWriter {
 		return writer
 	}
@@ -556,7 +559,7 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
 	}
 
-	writeCommitLogs(t, scope, commitLog.WriteBehind, writes)
+	writeCommitLogs(t, scope, commitLog, writes)
 
 	wg.Wait()
 
@@ -571,7 +574,9 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 }
 
 func TestCommitLogFailOnFlushError(t *testing.T) {
-	opts, scope := newTestOptions(t, overrides{})
+	opts, scope := newTestOptions(t, overrides{
+		strategy: StrategyWriteBehind,
+	})
 	defer cleanup(t, opts)
 
 	commitLogI, err := NewCommitLog(opts)
@@ -590,8 +595,8 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	}
 
 	commitLog.newCommitLogWriterFn = func(
-		flushFn flushFn,
-		opts Options,
+		_ flushFn,
+		_ Options,
 	) commitLogWriter {
 		return writer
 	}
@@ -604,7 +609,7 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Millisecond, nil, nil},
 	}
 
-	writeCommitLogs(t, scope, commitLog.WriteBehind, writes)
+	writeCommitLogs(t, scope, commitLog, writes)
 
 	wg.Wait()
 

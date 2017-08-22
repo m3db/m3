@@ -141,10 +141,6 @@ func configureHeap(heap pool.CheckedBytesPool) pool.CheckedBytesPool {
 	return p
 }
 
-func create() interface{} {
-	return &id{}
-}
-
 // GetBinaryID returns a new ID based on a binary value.
 func (p *nativeIdentifierPool) GetBinaryID(ctx context.Context, v checked.Bytes) ID {
 	id := p.pool.Get().(*id)

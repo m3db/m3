@@ -41,19 +41,27 @@ var (
 	defaultDerrangementPercent          = 0.20
 )
 
-func generateUniqueMetricIndexes(timeBlocks generate.SeriesBlocksByStart) map[string]uint64 {
+type commitLogSeriesState struct {
+	uniqueIndex uint64
+}
+
+func newCommitLogSeriesStates(
+	timeBlocks generate.SeriesBlocksByStart,
+) map[string]*commitLogSeriesState {
 	var idx uint64
-	indexes := make(map[string]uint64)
+	lookup := make(map[string]*commitLogSeriesState)
 	for _, blks := range timeBlocks {
 		for _, blk := range blks {
 			id := blk.ID.String()
-			if _, ok := indexes[id]; !ok {
-				indexes[id] = idx
+			if _, ok := lookup[id]; !ok {
+				lookup[id] = &commitLogSeriesState{
+					uniqueIndex: idx,
+				}
 				idx++
 			}
 		}
 	}
-	return indexes
+	return lookup
 }
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -66,6 +74,7 @@ func randStringRunes(n int) string {
 	return string(b)
 }
 
+// nolint: deadcode
 func generateSeriesMaps(numBlocks int, starts ...time.Time) generate.SeriesBlocksByStart {
 	blockConfig := []generate.BlockConfig{}
 	for i := 0; i < numBlocks; i++ {
@@ -84,6 +93,7 @@ func generateSeriesMaps(numBlocks int, starts ...time.Time) generate.SeriesBlock
 	return generate.BlocksByStart(blockConfig)
 }
 
+// nolint: deadcode
 func writeCommitLogData(
 	t *testing.T,
 	s *testSetup,
@@ -95,8 +105,8 @@ func writeCommitLogData(
 	require.Equal(t, defaultIntegrationTestFlushInterval, opts.FlushInterval())
 
 	var (
-		indexes  = generateUniqueMetricIndexes(data)
-		shardSet = s.shardSet
+		seriesLookup = newCommitLogSeriesStates(data)
+		shardSet     = s.shardSet
 	)
 
 	for ts, blk := range data {
@@ -119,15 +129,15 @@ func writeCommitLogData(
 
 		// write points
 		for _, point := range points {
-			idx, ok := indexes[point.ID.String()]
+			series, ok := seriesLookup[point.ID.String()]
 			require.True(t, ok)
 			cId := commitlog.Series{
 				Namespace:   namespace,
 				Shard:       shardSet.Lookup(point.ID),
 				ID:          point.ID,
-				UniqueIndex: idx,
+				UniqueIndex: series.uniqueIndex,
 			}
-			require.NoError(t, commitLog.WriteBehind(ctx, cId, point.Datapoint, xtime.Second, nil))
+			require.NoError(t, commitLog.Write(ctx, cId, point.Datapoint, xtime.Second, nil))
 		}
 
 		// ensure writes finished

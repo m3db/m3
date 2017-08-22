@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,41 +23,30 @@ package commitlog
 import (
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
-func TestBitSetSetValue(t *testing.T) {
-	bs := newBitset().(*set)
-	var values []uint64
+func TestBitSet(t *testing.T) {
+	set := newBitSet(0)
 
-	// Setting a value smaller than the bitset length doesn't
-	// trigger reallocations
-	oldCap := cap(bs.Bytes())
-	values = append(values, uint64(oldCap-1))
-	bs.set(values[len(values)-1])
-	require.Equal(t, oldCap, cap(bs.Bytes()))
-	for _, v := range values {
-		require.True(t, bs.has(v))
+	total := uint(16 * 64)
+	for i := uint(0); i < total; i++ {
+		if i%3 == 0 || i%5 == 0 {
+			set.set(i)
+		}
 	}
 
-	// Setting a value bigger than the bitset length,
-	// which triggers an reallocation, and verify the capacity
-	// has grown and all the existing data are kept
-	values = append(values, uint64(defaultBitsetLength+1))
-	bs.set(values[len(values)-1])
-	require.True(t, cap(bs.Bytes()) >= 2*oldCap)
-	for _, v := range values {
-		require.True(t, bs.has(v))
+	for i := uint(0); i < total; i++ {
+		if i%3 == 0 || i%5 == 0 {
+			assert.True(t, set.test(i))
+		} else {
+			assert.False(t, set.test(i))
+		}
 	}
 
-	// Setting a value slightly bigger than the last value
-	// and verify it doesn't trigger a reallocation
-	oldCap = cap(bs.Bytes())
-	newVal := values[len(values)-1] + 100
-	values = append(values, uint64(newVal))
-	bs.set(values[len(values)-1])
-	require.Equal(t, oldCap, cap(bs.Bytes()))
-	for _, v := range values {
-		require.True(t, bs.has(v))
+	set.clearAll()
+
+	for i := uint(0); i < 2*total; i++ {
+		assert.False(t, set.test(i))
 	}
 }

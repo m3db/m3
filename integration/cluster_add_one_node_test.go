@@ -130,7 +130,7 @@ func TestClusterAddOneNode(t *testing.T) {
 	err = writeTestDataToDisk(namesp, setups[0], seriesMaps)
 	require.NoError(t, err)
 
-	// Prepare verfication of data on nodes
+	// Prepare verification of data on nodes
 	expectedSeriesMaps := make([]map[time.Time]generate.SeriesBlock, 2)
 	expectedSeriesIDs := make([]map[string]struct{}, 2)
 	for i := range expectedSeriesMaps {

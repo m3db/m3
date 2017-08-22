@@ -44,22 +44,31 @@ var (
 	timeZero = time.Time{}
 )
 
-type newCommitLogWriterFn func(flushFn flushFn, opts Options) commitLogWriter
+type newCommitLogWriterFn func(
+	flushFn flushFn,
+	opts Options,
+) commitLogWriter
 
+type writeCommitLogFn func(
+	ctx context.Context,
+	series Series,
+	datapoint ts.Datapoint,
+	unit xtime.Unit,
+	annotation ts.Annotation,
+) error
 type commitLogFailFn func(err error)
 
 type completionFn func(err error)
 
 type commitLog struct {
 	sync.RWMutex
-	opts    Options
-	nowFn   clock.NowFn
-	scope   tally.Scope
-	metrics commitLogMetrics
+	opts  Options
+	nowFn clock.NowFn
 
 	log xlog.Logger
 
 	newCommitLogWriterFn newCommitLogWriterFn
+	writeFn              writeCommitLogFn
 	commitLogFailFn      commitLogFailFn
 	writer               commitLogWriter
 
@@ -71,10 +80,11 @@ type commitLog struct {
 	lastFlushAt     time.Time
 	pendingFlushFns []completionFn
 
-	bitset         bitset
 	writerExpireAt time.Time
 	closed         bool
 	closeErr       chan error
+
+	metrics commitLogMetrics
 }
 
 type commitLogMetrics struct {
@@ -89,6 +99,7 @@ type commitLogMetrics struct {
 
 type valueType int
 
+// nolint: deadcode, varcheck, unused
 const (
 	writeValueType valueType = iota
 	flushValueType
@@ -114,9 +125,12 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 	scope := iopts.MetricsScope()
 
 	commitLog := &commitLog{
-		opts:  opts,
-		nowFn: opts.ClockOptions().NowFn(),
-		scope: scope,
+		opts:                 opts,
+		nowFn:                opts.ClockOptions().NowFn(),
+		log:                  iopts.Logger(),
+		newCommitLogWriterFn: newCommitLogWriter,
+		writes:               make(chan commitLogWrite, opts.BacklogQueueSize()),
+		closeErr:             make(chan error),
 		metrics: commitLogMetrics{
 			queued:      scope.Gauge("writes.queued"),
 			success:     scope.Counter("writes.success"),
@@ -126,10 +140,13 @@ func NewCommitLog(opts Options) (CommitLog, error) {
 			flushErrors: scope.Counter("writes.flush-errors"),
 			flushDone:   scope.Counter("writes.flush-done"),
 		},
-		log:                  iopts.Logger(),
-		newCommitLogWriterFn: newCommitLogWriter,
-		writes:               make(chan commitLogWrite, opts.BacklogQueueSize()),
-		closeErr:             make(chan error),
+	}
+
+	switch opts.Strategy() {
+	case StrategyWriteWait:
+		commitLog.writeFn = commitLog.writeWait
+	default:
+		commitLog.writeFn = commitLog.writeBehind
 	}
 
 	return commitLog, nil
@@ -149,7 +166,7 @@ func (l *commitLog) Open() error {
 	// NB(r): In the future we can introduce a commit log failure policy
 	// similar to Cassandra's "stop", for example see:
 	// https://github.com/apache/cassandra/blob/6dfc1e7eeba539774784dfd650d3e1de6785c938/conf/cassandra.yaml#L232
-	// Right now it is a large amount of coordination to implement something similiar.
+	// Right now it is a large amount of coordination to implement something similar.
 	l.commitLogFailFn = func(err error) {
 		l.log.Fatalf("fatal commit log error: %v", err)
 	}
@@ -321,7 +338,18 @@ func (l *commitLog) Write(
 	unit xtime.Unit,
 	annotation ts.Annotation,
 ) error {
-	if l.RLock(); l.closed {
+	return l.writeFn(ctx, series, datapoint, unit, annotation)
+}
+
+func (l *commitLog) writeWait(
+	ctx context.Context,
+	series Series,
+	datapoint ts.Datapoint,
+	unit xtime.Unit,
+	annotation ts.Annotation,
+) error {
+	l.RLock()
+	if l.closed {
 		l.RUnlock()
 		return errCommitLogClosed
 	}
@@ -365,14 +393,15 @@ func (l *commitLog) Write(
 	return result
 }
 
-func (l *commitLog) WriteBehind(
+func (l *commitLog) writeBehind(
 	ctx context.Context,
 	series Series,
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
 ) error {
-	if l.RLock(); l.closed {
+	l.RLock()
+	if l.closed {
 		l.RUnlock()
 		return errCommitLogClosed
 	}

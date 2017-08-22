@@ -136,7 +136,7 @@ func (r shardRepairer) recordDifferences(
 ) {
 	var (
 		shardScope = r.scope.Tagged(map[string]string{
-			"namespace": sanitizeIdentifierForMetrics(namespace.String()),
+			"namespace": namespace.String(),
 			"shard":     strconv.Itoa(int(shard.ID())),
 		})
 		totalScope        = shardScope.Tagged(map[string]string{"resultType": "total"})
@@ -163,6 +163,7 @@ type sleepFn func(d time.Duration)
 
 type repairStatus int
 
+// nolint: deadcode
 const (
 	repairNotStarted repairStatus = iota
 	repairSuccess

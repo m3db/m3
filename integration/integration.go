@@ -65,20 +65,6 @@ func waitUntil(fn conditionFn, timeout time.Duration) bool {
 	return false
 }
 
-func newTestSleepFn() (func(d time.Duration), func(overrideFn func(d time.Duration))) {
-	var mutex sync.RWMutex
-	sleepFn := time.Sleep
-	return func(d time.Duration) {
-			mutex.RLock()
-			defer mutex.RUnlock()
-			sleepFn(d)
-		}, func(fn func(d time.Duration)) {
-			mutex.Lock()
-			defer mutex.Unlock()
-			sleepFn = fn
-		}
-}
-
 func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
 	bind := "0.0.0.0"
 	start := multiAddrPortStart + (instance * multiAddrPortEach)
@@ -249,6 +235,7 @@ func newDefaultBootstrappableTestSetups(
 	}
 }
 
+// nolint: deadcode
 func writeTestDataToDisk(
 	metadata namespace.Metadata,
 	setup *testSetup,
@@ -259,6 +246,7 @@ func writeTestDataToDisk(
 	return writer.Write(metadata.ID(), setup.shardSet, seriesMaps)
 }
 
+// nolint: deadcode
 func concatShards(a, b shard.Shards) shard.Shards {
 	all := append(a.All(), b.All()...)
 	return shard.NewShards(all)
@@ -280,14 +268,17 @@ func newClusterShards(ids []uint32, s shard.State) shard.Shards {
 	return shard.NewShards(shards)
 }
 
+// nolint: deadcode
 func newClusterShardsRange(from, to uint32, s shard.State) shard.Shards {
 	return newClusterShards(newShardsRange(from, to), s)
 }
 
+// nolint: deadcode
 func newClusterEmptyShardsRange() shard.Shards {
 	return newClusterShards(nil, shard.Available)
 }
 
+// nolint: deadcode
 func waitUntilHasBootstrappedShardsExactly(
 	db storage.Database,
 	shards []uint32,
