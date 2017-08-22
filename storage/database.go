@@ -38,7 +38,6 @@ import (
 	"github.com/m3db/m3db/x/counter"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 
@@ -95,18 +94,19 @@ type db struct {
 }
 
 type databaseMetrics struct {
-	write               instrument.MethodMetrics
-	read                instrument.MethodMetrics
-	fetchBlocks         instrument.MethodMetrics
-	fetchBlocksMetadata instrument.MethodMetrics
+	unknownNamespaceRead                tally.Counter
+	unknownNamespaceWrite               tally.Counter
+	unknownNamespaceFetchBlocks         tally.Counter
+	unknownNamespaceFetchBlocksMetadata tally.Counter
 }
 
-func newDatabaseMetrics(scope tally.Scope, samplingRate float64) databaseMetrics {
+func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
+	unknownNamespaceScope := scope.SubScope("unknown-namespace")
 	return databaseMetrics{
-		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
-		read:                instrument.NewMethodMetrics(scope, "read", samplingRate),
-		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
-		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
+		unknownNamespaceRead:                unknownNamespaceScope.Counter("read"),
+		unknownNamespaceWrite:               unknownNamespaceScope.Counter("write"),
+		unknownNamespaceFetchBlocks:         unknownNamespaceScope.Counter("fetch-blocks"),
+		unknownNamespaceFetchBlocksMetadata: unknownNamespaceScope.Counter("fetch-blocks-metadata"),
 	}
 }
 
@@ -137,7 +137,7 @@ func NewDatabase(
 		namespaces:   make(map[ts.Hash]databaseNamespace),
 		commitLog:    commitLog,
 		scope:        scope,
-		metrics:      newDatabaseMetrics(scope, iopts.MetricsSamplingRate()),
+		metrics:      newDatabaseMetrics(scope),
 		log:          iopts.Logger(),
 		errors:       xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
 		errWindow:    opts.ErrorWindowForLoad(),
@@ -450,10 +450,9 @@ func (d *db) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	callStart := d.nowFn()
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
-		d.metrics.write.ReportError(d.nowFn().Sub(callStart))
+		d.metrics.unknownNamespaceWrite.Inc(1)
 		return err
 	}
 
@@ -461,7 +460,6 @@ func (d *db) Write(
 	if err == commitlog.ErrCommitLogQueueFull {
 		d.errors.Record(1)
 	}
-	d.metrics.write.ReportSuccessOrError(err, d.nowFn().Sub(callStart))
 	return err
 }
 
@@ -471,17 +469,13 @@ func (d *db) ReadEncoded(
 	id ts.ID,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
-	callStart := d.nowFn()
 	n, err := d.namespaceFor(namespace)
-
 	if err != nil {
-		d.metrics.read.ReportError(d.nowFn().Sub(callStart))
+		d.metrics.unknownNamespaceRead.Inc(1)
 		return nil, err
 	}
 
-	res, err := n.ReadEncoded(ctx, id, start, end)
-	d.metrics.read.ReportSuccessOrError(err, d.nowFn().Sub(callStart))
-	return res, err
+	return n.ReadEncoded(ctx, id, start, end)
 }
 
 func (d *db) FetchBlocks(
@@ -491,17 +485,13 @@ func (d *db) FetchBlocks(
 	id ts.ID,
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
-	callStart := d.nowFn()
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
-		res := xerrors.NewInvalidParamsError(err)
-		d.metrics.fetchBlocks.ReportError(d.nowFn().Sub(callStart))
-		return nil, res
+		d.metrics.unknownNamespaceFetchBlocks.Inc(1)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
-	res, err := n.FetchBlocks(ctx, shardID, id, starts)
-	d.metrics.fetchBlocks.ReportSuccessOrError(err, d.nowFn().Sub(callStart))
-	return res, err
+	return n.FetchBlocks(ctx, shardID, id, starts)
 }
 
 func (d *db) FetchBlocksMetadata(
@@ -513,20 +503,14 @@ func (d *db) FetchBlocksMetadata(
 	pageToken int64,
 	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, *int64, error) {
-	callStart := d.nowFn()
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
-		res := xerrors.NewInvalidParamsError(err)
-		d.metrics.fetchBlocksMetadata.ReportError(d.nowFn().Sub(callStart))
-		return nil, nil, res
+		d.metrics.unknownNamespaceFetchBlocksMetadata.Inc(1)
+		return nil, nil, xerrors.NewInvalidParamsError(err)
 	}
 
-	res, ptr, err := n.FetchBlocksMetadata(ctx, shardID, start, end, limit,
+	return n.FetchBlocksMetadata(ctx, shardID, start, end, limit,
 		pageToken, opts)
-
-	duration := d.nowFn().Sub(callStart)
-	d.metrics.fetchBlocksMetadata.ReportSuccessOrError(err, duration)
-	return res, ptr, err
 }
 
 func (d *db) Bootstrap() error {
