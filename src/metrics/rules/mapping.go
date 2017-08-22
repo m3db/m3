@@ -22,10 +22,13 @@ package rules
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/policy"
+
+	"github.com/pborman/uuid"
 )
 
 var (
@@ -59,14 +62,62 @@ func newMappingRuleSnapshot(
 	if err != nil {
 		return nil, err
 	}
+
+	return newMappingRuleSnapshotFromFields(
+		r.Name,
+		r.Tombstoned,
+		r.CutoverTime,
+		r.TagFilters,
+		policies,
+		filter,
+	), nil
+}
+
+func newMappingRuleSnapshotFromFields(
+	name string,
+	tombstoned bool,
+	cutoverNanos int64,
+	tagFilters map[string]string,
+	policies []policy.Policy,
+	filter filters.Filter,
+) *mappingRuleSnapshot {
 	return &mappingRuleSnapshot{
-		name:         r.Name,
-		tombstoned:   r.Tombstoned,
-		cutoverNanos: r.CutoverTime,
-		filter:       filter,
+		name:         name,
+		tombstoned:   tombstoned,
+		cutoverNanos: cutoverNanos,
 		policies:     policies,
-		rawFilters:   r.TagFilters,
-	}, nil
+		rawFilters:   tagFilters,
+		filter:       filter,
+	}
+}
+
+type mappingRuleSnapshotJSON struct {
+	Name         string            `json:"name"`
+	Tombstoned   bool              `json:"tombstoned"`
+	CutoverNanos int64             `json:"cutoverNanos"`
+	TagFilters   map[string]string `json:"filters"`
+	Policies     []policy.Policy   `json:"policies"`
+}
+
+func newMappingRuleSnapshotJSON(mrs mappingRuleSnapshot) mappingRuleSnapshotJSON {
+	return mappingRuleSnapshotJSON{
+		Name:         mrs.name,
+		Tombstoned:   mrs.tombstoned,
+		CutoverNanos: mrs.cutoverNanos,
+		TagFilters:   mrs.rawFilters,
+		Policies:     mrs.policies,
+	}
+}
+
+func (mrsj mappingRuleSnapshotJSON) mappingRuleSnapshot() *mappingRuleSnapshot {
+	return newMappingRuleSnapshotFromFields(
+		mrsj.Name,
+		mrsj.Tombstoned,
+		mrsj.CutoverNanos,
+		mrsj.TagFilters,
+		mrsj.Policies,
+		nil,
+	)
 }
 
 // Schema returns the given MappingRuleSnapshot in protobuf form.
@@ -118,7 +169,89 @@ func newMappingRule(
 	}, nil
 }
 
-// ActiveSnapshot returns the latest snapshot whose cutover time is earlier than or
+func newMappingRuleFromFields(
+	name string,
+	rawFilters map[string]string,
+	policies []policy.Policy,
+	cutoverTime int64,
+) (*mappingRule, error) {
+	mr := mappingRule{uuid: uuid.New()}
+	if err := mr.addSnapshot(name, rawFilters, policies, cutoverTime); err != nil {
+		return nil, err
+	}
+	return &mr, nil
+}
+
+func (mc *mappingRule) Name() (string, error) {
+	if len(mc.snapshots) == 0 {
+		return "", errNoRuleSnapshots
+	}
+	latest := mc.snapshots[len(mc.snapshots)-1]
+	return latest.name, nil
+}
+
+func (mc *mappingRule) Tombstoned() bool {
+	if len(mc.snapshots) == 0 {
+		return true
+	}
+	latest := mc.snapshots[len(mc.snapshots)-1]
+	return latest.tombstoned
+}
+
+func (mc *mappingRule) addSnapshot(
+	name string,
+	rawFilters map[string]string,
+	policies []policy.Policy,
+	cutoverTime int64,
+) error {
+	snapshot := newMappingRuleSnapshotFromFields(
+		name,
+		false,
+		cutoverTime,
+		rawFilters,
+		policies,
+		nil,
+	)
+
+	mc.snapshots = append(mc.snapshots, snapshot)
+	return nil
+}
+
+func (mc *mappingRule) markTombstoned(cutoverTime int64) error {
+	n, err := mc.Name()
+	if err != nil {
+		return err
+	}
+
+	if mc.Tombstoned() {
+		return fmt.Errorf("%s is already tombstoned", n)
+	}
+	if len(mc.snapshots) == 0 {
+		return errNoRuleSnapshots
+	}
+	snapshot := *mc.snapshots[len(mc.snapshots)-1]
+	snapshot.tombstoned = true
+	snapshot.cutoverNanos = cutoverTime
+	mc.snapshots = append(mc.snapshots, &snapshot)
+	return nil
+}
+
+func (mc *mappingRule) revive(
+	name string,
+	rawFilters map[string]string,
+	policies []policy.Policy,
+	cutoverTime int64,
+) error {
+	n, err := mc.Name()
+	if err != nil {
+		return err
+	}
+	if !mc.Tombstoned() {
+		return fmt.Errorf("%s is not tombstoned", n)
+	}
+	return mc.addSnapshot(name, rawFilters, policies, cutoverTime)
+}
+
 // equal to timeNanos, or nil if not found.
 func (mc *mappingRule) ActiveSnapshot(timeNanos int64) *mappingRuleSnapshot {
 	idx := mc.activeIndex(timeNanos)
@@ -146,6 +279,33 @@ func (mc *mappingRule) activeIndex(timeNanos int64) int {
 		idx--
 	}
 	return idx
+}
+
+type mappingRuleJSON struct {
+	UUID      string                    `json:"uuid"`
+	Snapshots []mappingRuleSnapshotJSON `json:"snapshots"`
+}
+
+func newMappingRuleJSON(mc mappingRule) mappingRuleJSON {
+	snapshots := make([]mappingRuleSnapshotJSON, len(mc.snapshots))
+	for i, s := range mc.snapshots {
+		snapshots[i] = newMappingRuleSnapshotJSON(*s)
+	}
+	return mappingRuleJSON{
+		UUID:      mc.uuid,
+		Snapshots: snapshots,
+	}
+}
+
+func (mrj mappingRuleJSON) mappingRule() mappingRule {
+	snapshots := make([]*mappingRuleSnapshot, len(mrj.Snapshots))
+	for i, s := range mrj.Snapshots {
+		snapshots[i] = s.mappingRuleSnapshot()
+	}
+	return mappingRule{
+		uuid:      mrj.UUID,
+		snapshots: snapshots,
+	}
 }
 
 // Schema returns the given MappingRule in protobuf form.

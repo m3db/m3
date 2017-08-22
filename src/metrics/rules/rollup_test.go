@@ -125,18 +125,18 @@ func TestRollupTargetSameTransform(t *testing.T) {
 	policies := []policy.Policy{
 		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), policy.DefaultAggregationID),
 	}
-	target := rollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2")}
+	target := RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2")}
 	inputs := []testRollupTargetData{
 		{
-			target: rollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2"), Policies: policies},
+			target: RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2"), Policies: policies},
 			result: true,
 		},
 		{
-			target: rollupTarget{Name: b("baz"), Tags: bs("bar1", "bar2")},
+			target: RollupTarget{Name: b("baz"), Tags: bs("bar1", "bar2")},
 			result: false,
 		},
 		{
-			target: rollupTarget{Name: b("foo"), Tags: bs("bar1", "bar3")},
+			target: RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar3")},
 			result: false,
 		},
 	}
@@ -149,7 +149,7 @@ func TestRollupTargetClone(t *testing.T) {
 	policies := []policy.Policy{
 		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*24*time.Hour), policy.DefaultAggregationID),
 	}
-	target := rollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2"), Policies: policies}
+	target := RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2"), Policies: policies}
 	cloned := target.clone()
 
 	// Cloned object should look exactly the same as the original one.
@@ -181,13 +181,13 @@ func TestRollupRuleValidSchema(t *testing.T) {
 		name         string
 		tombstoned   bool
 		cutoverNanos int64
-		targets      []rollupTarget
+		targets      []RollupTarget
 	}{
 		{
 			name:         "foo",
 			tombstoned:   false,
 			cutoverNanos: 12345,
-			targets: []rollupTarget{
+			targets: []RollupTarget{
 				{
 					Name: b("rName1"),
 					Tags: [][]byte{b("rtagName1"), b("rtagName2")},
@@ -201,7 +201,7 @@ func TestRollupRuleValidSchema(t *testing.T) {
 			name:         "bar",
 			tombstoned:   true,
 			cutoverNanos: 67890,
-			targets: []rollupTarget{
+			targets: []RollupTarget{
 				{
 					Name: b("rName1"),
 					Tags: [][]byte{b("rtagName1"), b("rtagName2")},
@@ -250,7 +250,7 @@ func TestRollupRuleActiveRuleFound(t *testing.T) {
 }
 
 type testRollupTargetData struct {
-	target rollupTarget
+	target RollupTarget
 	result bool
 }
 
@@ -278,4 +278,72 @@ func TestRollupRuleSchema(t *testing.T) {
 	schema, err := rr.Schema()
 	require.NoError(t, err)
 	require.Equal(t, testRollupRuleSchema, schema)
+}
+
+func TestNewRollupRuleFromFields(t *testing.T) {
+	rawFilters := map[string]string{"tag3": "value3"}
+	rr, err := newRollupRuleFromFields(
+		"bar",
+		rawFilters,
+		[]RollupTarget{
+			{
+				Name: b("rName1"),
+				Tags: [][]byte{b("rtagName1"), b("rtagName2")},
+				Policies: []policy.Policy{
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+				},
+			},
+		},
+		12345,
+	)
+	require.NoError(t, err)
+	expectedSnapshot := rollupRuleSnapshot{
+		name:         "bar",
+		tombstoned:   false,
+		cutoverNanos: 12345,
+		filter:       nil,
+		rawFilters:   rawFilters,
+		targets: []RollupTarget{
+			{
+				Name: b("rName1"),
+				Tags: [][]byte{b("rtagName1"), b("rtagName2")},
+				Policies: []policy.Policy{
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+				},
+			},
+		},
+	}
+
+	require.NoError(t, err)
+	n, err := rr.Name()
+	require.NoError(t, err)
+
+	require.Equal(t, n, "bar")
+	require.False(t, rr.Tombstoned())
+	require.Len(t, rr.snapshots, 1)
+	require.Equal(t, rr.snapshots[0].cutoverNanos, expectedSnapshot.cutoverNanos)
+	require.Equal(t, rr.snapshots[0].rawFilters, expectedSnapshot.rawFilters)
+	require.Equal(t, rr.snapshots[0].targets, expectedSnapshot.targets)
+}
+
+func TestRollupNameNoSnapshot(t *testing.T) {
+	rr := rollupRule{
+		uuid:      "blah",
+		snapshots: []*rollupRuleSnapshot{},
+	}
+	_, err := rr.Name()
+	require.Error(t, err)
+}
+
+func TestRollupTombstonedNoSnapshot(t *testing.T) {
+	rr := rollupRule{
+		uuid:      "blah",
+		snapshots: []*rollupRuleSnapshot{},
+	}
+	require.True(t, rr.Tombstoned())
+}
+
+func TestRollupTombstoned(t *testing.T) {
+	rr, _ := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	require.True(t, rr.Tombstoned())
 }

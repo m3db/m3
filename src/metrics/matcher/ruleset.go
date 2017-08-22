@@ -173,7 +173,7 @@ func (r *ruleSet) toRuleSet(value kv.Value) (interface{}, error) {
 	if err := value.Unmarshal(r.proto); err != nil {
 		return nil, err
 	}
-	return rules.NewRuleSet(value.Version(), r.proto, r.ruleSetOpts)
+	return rules.NewRuleSetFromSchema(value.Version(), r.proto, r.ruleSetOpts)
 }
 
 // process processes an ruleset update.
@@ -184,7 +184,7 @@ func (r *ruleSet) process(value interface{}) error {
 	ruleSet := value.(rules.RuleSet)
 	r.version = ruleSet.Version()
 	r.cutoverNanos = ruleSet.CutoverNanos()
-	r.tombstoned = ruleSet.TombStoned()
+	r.tombstoned = ruleSet.Tombstoned()
 	r.matcher = ruleSet.ActiveSet(r.nowFn().Add(-r.matchRangePast).UnixNano())
 	if r.onRuleSetUpdatedFn != nil {
 		r.onRuleSetUpdatedFn(r.namespace, r)

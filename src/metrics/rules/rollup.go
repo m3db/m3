@@ -23,31 +23,34 @@ package rules
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"sort"
 
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/policy"
+
+	"github.com/pborman/uuid"
 )
 
 var (
-	emptyRollupTarget rollupTarget
+	emptyRollupTarget RollupTarget
 
 	errNilRollupTargetSchema       = errors.New("nil rollup target schema")
 	errNilRollupRuleSnapshotSchema = errors.New("nil rollup rule snapshot schema")
 	errNilRollupRuleSchema         = errors.New("nil rollup rule schema")
 )
 
-// rollupTarget dictates how to roll up metrics. Metrics associated with a rollup
+// RollupTarget dictates how to roll up metrics. Metrics associated with a rollup
 // target will be grouped and rolled up across the provided set of tags, named
 // with the provided name, and aggregated and retained under the provided policies.
-type rollupTarget struct {
+type RollupTarget struct {
 	Name     []byte
 	Tags     [][]byte
 	Policies []policy.Policy
 }
 
-func newRollupTarget(target *schema.RollupTarget) (rollupTarget, error) {
+func newRollupTarget(target *schema.RollupTarget) (RollupTarget, error) {
 	if target == nil {
 		return emptyRollupTarget, errNilRollupTargetSchema
 	}
@@ -58,15 +61,34 @@ func newRollupTarget(target *schema.RollupTarget) (rollupTarget, error) {
 	tags := make([]string, len(target.Tags))
 	copy(tags, target.Tags)
 	sort.Strings(tags)
-	return rollupTarget{
+	return RollupTarget{
 		Name:     []byte(target.Name),
 		Tags:     bytesArrayFromStringArray(tags),
 		Policies: policies,
 	}, nil
 }
 
+// NewRollupTargetFromFields creates a new rollupTarget from a list of its component fields.
+func NewRollupTargetFromFields(name string, tags []string, policies []policy.Policy) RollupTarget {
+	return RollupTarget{Name: []byte(name), Tags: bytesArrayFromStringArray(tags), Policies: policies}
+}
+
+type rollupTargetJSON struct {
+	Name     string          `json:"name"`
+	Tags     []string        `json:"tags"`
+	Policies []policy.Policy `json:"policies"`
+}
+
+func newRollupTargetJSON(rt RollupTarget) rollupTargetJSON {
+	return rollupTargetJSON{Name: string(rt.Name), Tags: stringArrayFromBytesArray(rt.Tags), Policies: rt.Policies}
+}
+
+func (tj rollupTargetJSON) rollupTarget() RollupTarget {
+	return NewRollupTargetFromFields(tj.Name, tj.Tags, tj.Policies)
+}
+
 // sameTransform determines whether two targets have the same transformation.
-func (t *rollupTarget) sameTransform(other rollupTarget) bool {
+func (t *RollupTarget) sameTransform(other RollupTarget) bool {
 	if !bytes.Equal(t.Name, other.Name) {
 		return false
 	}
@@ -82,19 +104,59 @@ func (t *rollupTarget) sameTransform(other rollupTarget) bool {
 }
 
 // clone clones a rollup target.
-func (t *rollupTarget) clone() rollupTarget {
+func (t *RollupTarget) clone() RollupTarget {
 	name := make([]byte, len(t.Name))
 	copy(name, t.Name)
 	policies := make([]policy.Policy, len(t.Policies))
 	copy(policies, t.Policies)
-	return rollupTarget{
+	return RollupTarget{
 		Name:     name,
 		Tags:     bytesArrayCopy(t.Tags),
 		Policies: policies,
 	}
 }
 
-func (t rollupTarget) Schema() (*schema.RollupTarget, error) {
+type rollupRuleSnapshotJSON struct {
+	Name         string             `json:"name"`
+	Tombstoned   bool               `json:"tombstoned"`
+	CutoverNanos int64              `json:"cutoverNanos"`
+	TagFilters   map[string]string  `json:"filters"`
+	Targets      []rollupTargetJSON `json:"targets"`
+}
+
+func newRollupRuleSnapshotJSON(rrs rollupRuleSnapshot) rollupRuleSnapshotJSON {
+	targets := make([]rollupTargetJSON, len(rrs.targets))
+	for i, t := range rrs.targets {
+		targets[i] = newRollupTargetJSON(t)
+	}
+
+	return rollupRuleSnapshotJSON{
+		Name:         rrs.name,
+		Tombstoned:   rrs.tombstoned,
+		CutoverNanos: rrs.cutoverNanos,
+		TagFilters:   rrs.rawFilters,
+		Targets:      targets,
+	}
+}
+
+func (rrsj rollupRuleSnapshotJSON) rollupRuleSnapshot() *rollupRuleSnapshot {
+	targets := make([]RollupTarget, len(rrsj.Targets))
+	for i, t := range rrsj.Targets {
+		targets[i] = t.rollupTarget()
+	}
+
+	return newRollupRuleSnapshotFromFields(
+		rrsj.Name,
+		rrsj.Tombstoned,
+		rrsj.CutoverNanos,
+		rrsj.TagFilters,
+		targets,
+		nil,
+	)
+}
+
+// Schema returns the schema representation of a rollup target.
+func (t RollupTarget) Schema() (*schema.RollupTarget, error) {
 	res := &schema.RollupTarget{
 		Name: string(t.Name),
 	}
@@ -120,7 +182,7 @@ type rollupRuleSnapshot struct {
 	tombstoned   bool
 	cutoverNanos int64
 	filter       filters.Filter
-	targets      []rollupTarget
+	targets      []RollupTarget
 	rawFilters   map[string]string
 }
 
@@ -131,7 +193,7 @@ func newRollupRuleSnapshot(
 	if r == nil {
 		return nil, errNilRollupRuleSnapshotSchema
 	}
-	targets := make([]rollupTarget, 0, len(r.Targets))
+	targets := make([]RollupTarget, 0, len(r.Targets))
 	for _, t := range r.Targets {
 		target, err := newRollupTarget(t)
 		if err != nil {
@@ -143,14 +205,33 @@ func newRollupRuleSnapshot(
 	if err != nil {
 		return nil, err
 	}
+
+	return newRollupRuleSnapshotFromFields(
+		r.Name,
+		r.Tombstoned,
+		r.CutoverTime,
+		r.TagFilters,
+		targets,
+		filter,
+	), nil
+}
+
+func newRollupRuleSnapshotFromFields(
+	name string,
+	tombstoned bool,
+	cutoverNanos int64,
+	tagFilters map[string]string,
+	targets []RollupTarget,
+	filter filters.Filter,
+) *rollupRuleSnapshot {
 	return &rollupRuleSnapshot{
-		name:         r.Name,
-		tombstoned:   r.Tombstoned,
-		cutoverNanos: r.CutoverTime,
-		filter:       filter,
+		name:         name,
+		tombstoned:   tombstoned,
+		cutoverNanos: cutoverNanos,
 		targets:      targets,
-		rawFilters:   r.TagFilters,
-	}, nil
+		rawFilters:   tagFilters,
+		filter:       filter,
+	}
 }
 
 // Schema returns the given MappingRuleSnapshot in protobuf form.
@@ -202,6 +283,19 @@ func newRollupRule(
 	}, nil
 }
 
+func newRollupRuleFromFields(
+	name string,
+	rawFilters map[string]string,
+	targets []RollupTarget,
+	cutoverTime int64,
+) (*rollupRule, error) {
+	rr := rollupRule{uuid: uuid.New()}
+	if err := rr.addSnapshot(name, rawFilters, targets, cutoverTime); err != nil {
+		return nil, err
+	}
+	return &rr, nil
+}
+
 // ActiveSnapshot returns the latest rule snapshot whose cutover time is earlier
 // than or equal to timeNanos, or nil if not found.
 func (rc *rollupRule) ActiveSnapshot(timeNanos int64) *rollupRuleSnapshot {
@@ -228,6 +322,106 @@ func (rc *rollupRule) activeIndex(timeNanos int64) int {
 		idx--
 	}
 	return idx
+}
+
+func (rc *rollupRule) Name() (string, error) {
+	if len(rc.snapshots) == 0 {
+		return "", errNoRuleSnapshots
+	}
+	latest := rc.snapshots[len(rc.snapshots)-1]
+	return latest.name, nil
+}
+
+func (rc *rollupRule) Tombstoned() bool {
+	if len(rc.snapshots) == 0 {
+		return true
+	}
+
+	latest := rc.snapshots[len(rc.snapshots)-1]
+	return latest.tombstoned
+}
+
+func (rc *rollupRule) addSnapshot(
+	name string,
+	rawFilters map[string]string,
+	rollupTargets []RollupTarget,
+	cutoverTime int64,
+) error {
+	snapshot := newRollupRuleSnapshotFromFields(
+		name,
+		false,
+		cutoverTime,
+		rawFilters,
+		rollupTargets,
+		nil,
+	)
+
+	rc.snapshots = append(rc.snapshots, snapshot)
+	return nil
+}
+
+func (rc *rollupRule) markTombstoned(cutoverTime int64) error {
+	n, err := rc.Name()
+	if err != nil {
+		return err
+	}
+
+	if rc.Tombstoned() {
+		return fmt.Errorf("%s is already tombstoned", n)
+	}
+
+	if len(rc.snapshots) == 0 {
+		return errNoRuleSnapshots
+	}
+
+	snapshot := *rc.snapshots[len(rc.snapshots)-1]
+	snapshot.tombstoned = true
+	snapshot.cutoverNanos = cutoverTime
+	rc.snapshots = append(rc.snapshots, &snapshot)
+	return nil
+}
+
+func (rc *rollupRule) revive(
+	name string,
+	rawFilters map[string]string,
+	targets []RollupTarget,
+	cutoverTime int64,
+) error {
+	n, err := rc.Name()
+	if err != nil {
+		return err
+	}
+	if !rc.Tombstoned() {
+		return fmt.Errorf("%s is not tombstoned", n)
+	}
+	return rc.addSnapshot(name, rawFilters, targets, cutoverTime)
+}
+
+type rollupRuleJSON struct {
+	UUID      string                   `json:"uuid"`
+	Snapshots []rollupRuleSnapshotJSON `json:"snapshots"`
+}
+
+func newRollupRuleJSON(rc rollupRule) rollupRuleJSON {
+	snapshots := make([]rollupRuleSnapshotJSON, len(rc.snapshots))
+	for i, s := range rc.snapshots {
+		snapshots[i] = newRollupRuleSnapshotJSON(*s)
+	}
+	return rollupRuleJSON{
+		UUID:      rc.uuid,
+		Snapshots: snapshots,
+	}
+}
+
+func (rrj rollupRuleJSON) rollupRule() rollupRule {
+	snapshots := make([]*rollupRuleSnapshot, len(rrj.Snapshots))
+	for i, s := range rrj.Snapshots {
+		snapshots[i] = s.rollupRuleSnapshot()
+	}
+	return rollupRule{
+		uuid:      rrj.UUID,
+		snapshots: snapshots,
+	}
 }
 
 // Schema returns the given RollupRule in protobuf form.

@@ -107,7 +107,7 @@ func TestToRuleSetSuccess(t *testing.T) {
 	require.Equal(t, testNamespace, actual.Namespace())
 	require.Equal(t, 1, actual.Version())
 	require.Equal(t, int64(123456), actual.CutoverNanos())
-	require.Equal(t, false, actual.TombStoned())
+	require.Equal(t, false, actual.Tombstoned())
 }
 
 func TestRuleSetProcess(t *testing.T) {
@@ -168,9 +168,9 @@ type mockRuleSet struct {
 func (r mockRuleSet) Namespace() []byte                       { return []byte(r.namespace) }
 func (r mockRuleSet) Version() int                            { return r.version }
 func (r mockRuleSet) CutoverNanos() int64                     { return r.cutoverNanos }
-func (r mockRuleSet) TombStoned() bool                        { return r.tombstoned }
+func (r mockRuleSet) Tombstoned() bool                        { return r.tombstoned }
 func (r mockRuleSet) ActiveSet(timeNanos int64) rules.Matcher { return r.matcher }
-func (r mockRuleSet) Schema() (*schema.RuleSet, error)        { return nil, nil }
+func (r mockRuleSet) ToMutableRuleSet() rules.MutableRuleSet  { return nil }
 
 func testRuleSet() (kv.Store, Cache, *ruleSet, Options) {
 	store := mem.NewStore()

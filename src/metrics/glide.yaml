@@ -61,6 +61,8 @@ import:
   - difflib
 - package: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
+- name: github.com/pborman/uuid
+  version: e790cca94e6cc75c7064b1332e63811d4aae1a53
 testImport:
 - package: github.com/stretchr/testify
   version: d77da356e56a7428ad25149ca77381849a6a5232
