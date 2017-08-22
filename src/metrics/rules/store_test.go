@@ -16,31 +16,66 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
+// THE SOFTWARE
 
-package handlers
+package rules
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3metrics/generated/proto/schema"
+
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	testKeyFmt    = "rules/%s"
-	testNamespace = "ns"
+	testNamespaceKey  = "testKey"
+	testNamespace     = "fooNs"
+	testRuleSetKeyFmt = "rules/%s"
 )
 
 var (
-	testRuleSet = &schema.RuleSet{
+	testNamespaces = &schema.Namespaces{
+		Namespaces: []*schema.Namespace{
+			&schema.Namespace{
+				Name: "fooNs",
+				Snapshots: []*schema.NamespaceSnapshot{
+					&schema.NamespaceSnapshot{
+						ForRulesetVersion: 1,
+						Tombstoned:        false,
+					},
+					&schema.NamespaceSnapshot{
+						ForRulesetVersion: 2,
+						Tombstoned:        false,
+					},
+				},
+			},
+			&schema.Namespace{
+				Name: "barNs",
+				Snapshots: []*schema.NamespaceSnapshot{
+					&schema.NamespaceSnapshot{
+						ForRulesetVersion: 1,
+						Tombstoned:        false,
+					},
+					&schema.NamespaceSnapshot{
+						ForRulesetVersion: 2,
+						Tombstoned:        true,
+					},
+				},
+			},
+		},
+	}
+
+	testRuleSetKey = fmt.Sprintf(testRuleSetKeyFmt, testNamespace)
+	testRuleSet    = &schema.RuleSet{
 		Uuid:          "ruleset",
-		Namespace:     "namespace",
+		Namespace:     "fooNs",
 		CreatedAt:     1234,
 		LastUpdatedAt: 5678,
-		Tombstoned:    true,
+		Tombstoned:    false,
 		CutoverTime:   34923,
 		MappingRules: []*schema.MappingRule{
 			&schema.MappingRule{
@@ -325,82 +360,200 @@ var (
 	}
 )
 
-func TestRuleSetKey(t *testing.T) {
-	expected := "rules/ns"
-	actual := RuleSetKey(testKeyFmt, testNamespace)
-	require.Equal(t, expected, actual)
+func testStore() Store {
+	opts := NewStoreOptions(testNamespaceKey, testRuleSetKeyFmt)
+	kvStore := mem.NewStore()
+	return NewStore(kvStore, opts)
 }
 
-func TestRuleSet(t *testing.T) {
-	store := mem.NewStore()
-	rulesSetKey := RuleSetKey(testKeyFmt, testNamespace)
-	_, err := store.Set(rulesSetKey, testRuleSet)
+func TestRuleSetKey(t *testing.T) {
+	s := testStore()
+	key := s.(store).ruleSetKey(testNamespace)
+	require.Equal(t, "rules/fooNs", key)
+}
+
+func TestNewStore(t *testing.T) {
+	opts := NewStoreOptions(testNamespaceKey, testRuleSetKeyFmt)
+	kvStore := mem.NewStore()
+	s := NewStore(kvStore, opts).(store)
+
+	require.Equal(t, s.kvStore, kvStore)
+	require.Equal(t, s.opts, opts)
+}
+
+func TestReadNamespaces(t *testing.T) {
+	s := testStore()
+	_, e := s.(store).kvStore.Set(testNamespaceKey, testNamespaces)
+	require.NoError(t, e)
+	nss, err := s.ReadNamespaces()
 	require.NoError(t, err)
-	_, s, err := RuleSet(store, rulesSetKey)
+	require.NotNil(t, nss.Namespaces)
+}
+
+func TestNamespacesError(t *testing.T) {
+	s := testStore()
+	_, e := s.(store).kvStore.Set(testNamespaceKey, &schema.RollupRule{Uuid: "x"})
+	require.NoError(t, e)
+	nss, err := s.ReadNamespaces()
+	require.Error(t, err)
+	require.Nil(t, nss)
+}
+
+func TestReadRuleSet(t *testing.T) {
+	s := testStore()
+	_, e := s.(store).kvStore.Set(testRuleSetKey, testRuleSet)
+	require.NoError(t, e)
+	rs, err := s.ReadRuleSet(testNamespace)
 	require.NoError(t, err)
-	require.NotNil(t, s)
+	require.NotNil(t, rs)
 }
 
 func TestRuleSetError(t *testing.T) {
-	store := mem.NewStore()
-	rulesSetKey := RuleSetKey(testKeyFmt, testNamespace)
-	_, err := store.Set(rulesSetKey, &schema.Namespace{Name: "x"})
-	require.NoError(t, err)
-	_, s, err := RuleSet(store, "blah")
+	s := testStore()
+	_, e := s.(store).kvStore.Set(testRuleSetKey, &schema.Namespace{Name: "x"})
+	require.NoError(t, e)
+	rs, err := s.ReadRuleSet("blah")
 	require.Error(t, err)
-	require.Nil(t, s)
+	require.Nil(t, rs)
 }
 
-func TestValidateRuleSetTombstoned(t *testing.T) {
-	store := mem.NewStore()
-	rulesSetKey := RuleSetKey(testKeyFmt, testNamespace)
-	_, err := store.Set(rulesSetKey, testRuleSet)
-	require.NoError(t, err)
-	_, _, err = ValidateRuleSet(store, rulesSetKey)
+func TestWrite(t *testing.T) {
+	s := testStore()
+
+	rs, err := s.ReadRuleSet(testNamespaceKey)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "tombstoned")
+	require.Nil(t, rs)
+
+	nss, err := s.ReadNamespaces()
+	require.Error(t, err)
+	require.Nil(t, nss)
+
+	mutable, err := newMutableRuleSetFromSchema(0, testRuleSet)
+	require.NoError(t, err)
+
+	namespaces, err := NewNamespaces(0, testNamespaces)
+	require.NoError(t, err)
+
+	err = s.WriteAll(&namespaces, mutable)
+	require.NoError(t, err)
+
+	rs, err = s.ReadRuleSet(testNamespace)
+	require.NoError(t, err)
+	rsSchema, err := rs.ToMutableRuleSet().Schema()
+	require.NoError(t, err)
+	require.Equal(t, rsSchema, testRuleSet)
+
+	nss, err = s.ReadNamespaces()
+	require.NoError(t, err)
+	nssSchema, err := nss.Schema()
+	require.NoError(t, err)
+	require.Equal(t, nssSchema, testNamespaces)
 }
 
-func TestValidateRuleSetInvalid(t *testing.T) {
-	store := mem.NewStore()
-	rulesSetKey := RuleSetKey(testKeyFmt, testNamespace)
-	_, err := store.Set(rulesSetKey, &schema.Retention{Period: 100})
-	require.NoError(t, err)
-	_, _, err = ValidateRuleSet(store, rulesSetKey)
+func TestWriteErrorAll(t *testing.T) {
+	s := testStore()
+
+	rs, err := s.ReadRuleSet(testNamespaceKey)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "could not read")
+	require.Nil(t, rs)
+
+	nss, err := s.ReadNamespaces()
+	require.Error(t, err)
+	require.Nil(t, nss)
+
+	mutable, err := newMutableRuleSetFromSchema(1, testRuleSet)
+	require.NoError(t, err)
+
+	namespaces, err := NewNamespaces(0, testNamespaces)
+	require.NoError(t, err)
+
+	type dataPair struct {
+		nss *Namespaces
+		rs  MutableRuleSet
+	}
+
+	otherNss, err := NewNamespaces(1, testNamespaces)
+	require.NoError(t, err)
+
+	badPairs := []dataPair{
+		dataPair{nil, nil},
+		dataPair{nil, mutable},
+		dataPair{&namespaces, nil},
+		dataPair{&otherNss, mutable},
+	}
+
+	for _, p := range badPairs {
+		err = s.WriteAll(p.nss, p.rs)
+		require.Error(t, err)
+	}
+
+	_, err = s.ReadRuleSet(testNamespace)
+	require.Error(t, err)
+
+	_, err = s.ReadNamespaces()
+	require.Error(t, err)
 }
 
-func TestRule(t *testing.T) {
-	store := mem.NewStore()
-	rulesSetKey := RuleSetKey(testKeyFmt, testNamespace)
-	_, err := store.Set(rulesSetKey, testRuleSet)
-	require.NoError(t, err)
-	_, r, err := RuleSet(store, rulesSetKey)
+func TestWriteErrorRuleSet(t *testing.T) {
+	s := testStore()
+
+	rs, err := s.ReadRuleSet(testNamespaceKey)
+	require.Error(t, err)
+	require.Nil(t, rs)
+
+	nss, err := s.ReadNamespaces()
+	require.Error(t, err)
+	require.Nil(t, nss)
+
+	mutable, err := newMutableRuleSetFromSchema(1, testRuleSet)
 	require.NoError(t, err)
 
-	m, s, err := Rule(r, "foo")
-	require.Nil(t, s)
-	require.NoError(t, err)
-	require.EqualValues(t, m, testRuleSet.MappingRules[0])
+	badRuleSets := []MutableRuleSet{mutable, nil}
+	for _, rs := range badRuleSets {
+		err = s.WriteRuleSet(rs)
+		require.Error(t, err)
+	}
 
-	m, s, err = Rule(r, "baz")
-	require.Nil(t, m)
-	require.NoError(t, err)
-	require.EqualValues(t, s, testRuleSet.RollupRules[1])
+	err = s.WriteRuleSet(nil)
+	require.Error(t, err)
+
+	_, err = s.ReadRuleSet(testNamespace)
+	require.Error(t, err)
 }
 
-func TestRuleDup(t *testing.T) {
-	store := mem.NewStore()
-	rulesSetKey := RuleSetKey(testKeyFmt, testNamespace)
-	_, err := store.Set(rulesSetKey, testRuleSet)
-	require.NoError(t, err)
-	_, r, err := RuleSet(store, rulesSetKey)
+func TestWriteNoNamespace(t *testing.T) {
+	s := testStore()
+
+	rs, err := s.ReadRuleSet(testNamespaceKey)
+	require.Error(t, err)
+	require.Nil(t, rs)
+
+	nss, err := s.ReadNamespaces()
+	require.Error(t, err)
+	require.Nil(t, nss)
+
+	mutable, err := newMutableRuleSetFromSchema(0, testRuleSet)
 	require.NoError(t, err)
 
-	m, s, err := Rule(r, "dup")
-	require.Error(t, err)
-	require.Equal(t, errMultipleMatches, err)
-	require.Nil(t, m)
-	require.Nil(t, s)
+	namespaces, err := NewNamespaces(0, testNamespaces)
+	require.NoError(t, err)
+
+	err = s.WriteAll(&namespaces, mutable)
+	require.NoError(t, err)
+
+	rs, err = s.ReadRuleSet(testNamespace)
+	require.NoError(t, err)
+
+	_, err = s.ReadNamespaces()
+	require.NoError(t, err)
+
+	err = s.WriteRuleSet(rs.ToMutableRuleSet())
+	require.NoError(t, err)
+
+	rs, err = s.ReadRuleSet(testNamespace)
+	require.NoError(t, err)
+	nss, err = s.ReadNamespaces()
+	require.NoError(t, err)
+	require.Equal(t, nss.Version(), 1)
+	require.Equal(t, rs.Version(), 2)
 }

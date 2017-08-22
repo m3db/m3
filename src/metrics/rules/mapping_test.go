@@ -199,3 +199,55 @@ func TestMappingRuleSchema(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, testMappingRuleSchema, schema)
 }
+
+func TestNewMappingRuleFromFields(t *testing.T) {
+	rawFilters := map[string]string{"tag3": "value3"}
+	mr, err := newMappingRuleFromFields(
+		"bar",
+		rawFilters,
+		[]policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour), policy.DefaultAggregationID)},
+		12345,
+	)
+	require.NoError(t, err)
+	expectedSnapshot := mappingRuleSnapshot{
+		name:         "bar",
+		tombstoned:   false,
+		cutoverNanos: 12345,
+		filter:       nil,
+		rawFilters:   rawFilters,
+		policies:     []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour), policy.DefaultAggregationID)},
+	}
+
+	require.NoError(t, err)
+	n, err := mr.Name()
+	require.NoError(t, err)
+
+	require.Equal(t, n, "bar")
+	require.False(t, mr.Tombstoned())
+	require.Len(t, mr.snapshots, 1)
+	require.Equal(t, mr.snapshots[0].cutoverNanos, expectedSnapshot.cutoverNanos)
+	require.Equal(t, mr.snapshots[0].rawFilters, expectedSnapshot.rawFilters)
+	require.Equal(t, mr.snapshots[0].policies, expectedSnapshot.policies)
+}
+
+func TestMappingNameNoSnapshot(t *testing.T) {
+	mr := mappingRule{
+		uuid:      "blah",
+		snapshots: []*mappingRuleSnapshot{},
+	}
+	_, err := mr.Name()
+	require.Error(t, err)
+}
+
+func TestMappingTombstonedNoSnapshot(t *testing.T) {
+	mr := mappingRule{
+		uuid:      "blah",
+		snapshots: []*mappingRuleSnapshot{},
+	}
+	require.True(t, mr.Tombstoned())
+}
+
+func TestMappingTombstoned(t *testing.T) {
+	mr, _ := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	require.True(t, mr.Tombstoned())
+}
