@@ -25,8 +25,11 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3x/sync"
 )
 
 const (
@@ -35,8 +38,15 @@ const (
 )
 
 var (
-	defaultWorkerPoolSize = int(math.Max(float64(runtime.NumCPU()/8), 1.0))
+	defaultWorkerPoolSize         = int(math.Max(float64(runtime.NumCPU()/8), 1.0))
+	defaultFlushTimesKeyFormat    = "/shardset/%d/flush"
+	defaultFlushTimesPersistEvery = 10 * time.Second
+	defaultMaxNoFlushDuration     = 15 * time.Minute
+	defaultForcedFlushWindowSize  = 10 * time.Second
 )
+
+// FlushJitterFn determins the jitter based on the flush interval.
+type FlushJitterFn func(flushInterval time.Duration) time.Duration
 
 // FlushManagerOptions provide a set of options for the flush manager.
 type FlushManagerOptions interface {
@@ -64,29 +74,92 @@ type FlushManagerOptions interface {
 	// JitterEnabled returns whether jittering is enabled.
 	JitterEnabled() bool
 
-	// SetWorkerPoolSize sets the worker pool size.
-	SetWorkerPoolSize(value int) FlushManagerOptions
+	// SetMaxJitterFn sets the max flush jittering function.
+	SetMaxJitterFn(value FlushJitterFn) FlushManagerOptions
 
-	// WorkerPoolSize returns worker pool size.
-	WorkerPoolSize() int
+	// MaxJitterFn returns the max flush jittering function.
+	MaxJitterFn() FlushJitterFn
+
+	// SetWorkerPool sets the worker pool.
+	SetWorkerPool(value xsync.WorkerPool) FlushManagerOptions
+
+	// WorkerPool returns the worker pool.
+	WorkerPool() xsync.WorkerPool
+
+	// SetElectionManager sets the election manager.
+	SetElectionManager(value ElectionManager) FlushManagerOptions
+
+	// ElectionManager returns the election manager.
+	ElectionManager() ElectionManager
+
+	// SetFlushTimesKeyFmt sets the flush times key format.
+	SetFlushTimesKeyFmt(value string) FlushManagerOptions
+
+	// FlushTimesKeyFmt returns the flush times key format.
+	FlushTimesKeyFmt() string
+
+	// SetFlushTimesStore sets the flush times store.
+	SetFlushTimesStore(value kv.Store) FlushManagerOptions
+
+	// FlushTimesStore returns the flush times store.
+	FlushTimesStore() kv.Store
+
+	// SetFlushTimesPersistEvery sets how frequently the flush times are stored in kv.
+	SetFlushTimesPersistEvery(value time.Duration) FlushManagerOptions
+
+	// FlushTimesPersistEvery returns how frequently the flush times are stored in kv.
+	FlushTimesPersistEvery() time.Duration
+
+	// SetFlushTimesPersistRetrier sets the retrier for persisting flush times.
+	SetFlushTimesPersistRetrier(value xretry.Retrier) FlushManagerOptions
+
+	// FlushTimesPersistRetrier returns the retrier for persisting flush times.
+	FlushTimesPersistRetrier() xretry.Retrier
+
+	// SetMaxNoFlushDuration sets the maximum duration with no flushes.
+	SetMaxNoFlushDuration(value time.Duration) FlushManagerOptions
+
+	// MaxNoFlushDuration returns the maximum duration with no flushes.
+	MaxNoFlushDuration() time.Duration
+
+	// SetForcedFlushWindowSize sets the window size for a forced flush.
+	SetForcedFlushWindowSize(value time.Duration) FlushManagerOptions
+
+	// ForcedFlushWindowSize returns the window size for a forced flush.
+	ForcedFlushWindowSize() time.Duration
 }
 
 type flushManagerOptions struct {
-	clockOpts      clock.Options
-	instrumentOpts instrument.Options
-	checkEvery     time.Duration
-	jitterEnabled  bool
-	workerPoolSize int
+	clockOpts                clock.Options
+	instrumentOpts           instrument.Options
+	checkEvery               time.Duration
+	jitterEnabled            bool
+	maxJitterFn              FlushJitterFn
+	workerPool               xsync.WorkerPool
+	electionManager          ElectionManager
+	flushTimesKeyFmt         string
+	flushTimesStore          kv.Store
+	flushTimesPersistEvery   time.Duration
+	flushTimesPersistRetrier xretry.Retrier
+	maxNoFlushDuration       time.Duration
+	forcedFlushWindowSize    time.Duration
 }
 
 // NewFlushManagerOptions create a new set of flush manager options.
 func NewFlushManagerOptions() FlushManagerOptions {
+	workerPool := xsync.NewWorkerPool(defaultWorkerPoolSize)
+	workerPool.Init()
 	return &flushManagerOptions{
-		clockOpts:      clock.NewOptions(),
-		instrumentOpts: instrument.NewOptions(),
-		checkEvery:     defaultCheckEvery,
-		jitterEnabled:  defaultJitterEnabled,
-		workerPoolSize: defaultWorkerPoolSize,
+		clockOpts:                clock.NewOptions(),
+		instrumentOpts:           instrument.NewOptions(),
+		checkEvery:               defaultCheckEvery,
+		jitterEnabled:            defaultJitterEnabled,
+		workerPool:               workerPool,
+		flushTimesKeyFmt:         defaultFlushTimesKeyFormat,
+		flushTimesPersistEvery:   defaultFlushTimesPersistEvery,
+		flushTimesPersistRetrier: xretry.NewRetrier(xretry.NewOptions()),
+		maxNoFlushDuration:       defaultMaxNoFlushDuration,
+		forcedFlushWindowSize:    defaultForcedFlushWindowSize,
 	}
 }
 
@@ -130,12 +203,92 @@ func (o *flushManagerOptions) JitterEnabled() bool {
 	return o.jitterEnabled
 }
 
-func (o *flushManagerOptions) SetWorkerPoolSize(value int) FlushManagerOptions {
+func (o *flushManagerOptions) SetMaxJitterFn(value FlushJitterFn) FlushManagerOptions {
 	opts := *o
-	opts.workerPoolSize = value
+	opts.maxJitterFn = value
 	return &opts
 }
 
-func (o *flushManagerOptions) WorkerPoolSize() int {
-	return o.workerPoolSize
+func (o *flushManagerOptions) MaxJitterFn() FlushJitterFn {
+	return o.maxJitterFn
+}
+
+func (o *flushManagerOptions) SetWorkerPool(value xsync.WorkerPool) FlushManagerOptions {
+	opts := *o
+	opts.workerPool = value
+	return &opts
+}
+
+func (o *flushManagerOptions) WorkerPool() xsync.WorkerPool {
+	return o.workerPool
+}
+
+func (o *flushManagerOptions) SetElectionManager(value ElectionManager) FlushManagerOptions {
+	opts := *o
+	opts.electionManager = value
+	return &opts
+}
+
+func (o *flushManagerOptions) ElectionManager() ElectionManager {
+	return o.electionManager
+}
+
+func (o *flushManagerOptions) SetFlushTimesKeyFmt(value string) FlushManagerOptions {
+	opts := *o
+	opts.flushTimesKeyFmt = value
+	return &opts
+}
+
+func (o *flushManagerOptions) FlushTimesKeyFmt() string {
+	return o.flushTimesKeyFmt
+}
+
+func (o *flushManagerOptions) SetFlushTimesStore(value kv.Store) FlushManagerOptions {
+	opts := *o
+	opts.flushTimesStore = value
+	return &opts
+}
+
+func (o *flushManagerOptions) FlushTimesStore() kv.Store {
+	return o.flushTimesStore
+}
+
+func (o *flushManagerOptions) SetFlushTimesPersistEvery(value time.Duration) FlushManagerOptions {
+	opts := *o
+	opts.flushTimesPersistEvery = value
+	return &opts
+}
+
+func (o *flushManagerOptions) FlushTimesPersistEvery() time.Duration {
+	return o.flushTimesPersistEvery
+}
+
+func (o *flushManagerOptions) SetFlushTimesPersistRetrier(value xretry.Retrier) FlushManagerOptions {
+	opts := *o
+	opts.flushTimesPersistRetrier = value
+	return &opts
+}
+
+func (o *flushManagerOptions) FlushTimesPersistRetrier() xretry.Retrier {
+	return o.flushTimesPersistRetrier
+}
+
+func (o *flushManagerOptions) SetMaxNoFlushDuration(value time.Duration) FlushManagerOptions {
+	opts := *o
+	opts.maxNoFlushDuration = value
+	return &opts
+}
+
+func (o *flushManagerOptions) MaxNoFlushDuration() time.Duration {
+	return o.maxNoFlushDuration
+}
+
+func (o *flushManagerOptions) SetForcedFlushWindowSize(value time.Duration) FlushManagerOptions {
+	opts := *o
+	opts.forcedFlushWindowSize = value
+	return &opts
+}
+
+func (o *flushManagerOptions) ForcedFlushWindowSize() time.Duration {
+	return o.forcedFlushWindowSize
 }

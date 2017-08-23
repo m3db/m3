@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3x/server"
 )
 
-// server is an http server receiving incoming metrics traffic
+// server is an http server.
 type server struct {
 	opts       Options
 	address    string
@@ -37,7 +37,7 @@ type server struct {
 	aggregator aggregator.Aggregator
 }
 
-// NewServer creates a new http server
+// NewServer creates a new http server.
 func NewServer(address string, aggregator aggregator.Aggregator, opts Options) xserver.Server {
 	return &server{
 		opts:       opts,
@@ -57,9 +57,7 @@ func (s *server) ListenAndServe() error {
 
 func (s *server) Serve(l net.Listener) error {
 	mux := http.NewServeMux()
-	if err := registerHandlers(mux, s.aggregator); err != nil {
-		return err
-	}
+	registerHandlers(mux, s.aggregator)
 	xpprof.RegisterHandler(mux)
 	server := http.Server{
 		Handler:      mux,

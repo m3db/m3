@@ -23,8 +23,10 @@ package integration
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"sort"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
@@ -32,7 +34,6 @@ import (
 	httpserver "github.com/m3db/m3aggregator/server/http"
 	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
-	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3cluster/proto/util"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
@@ -41,13 +42,15 @@ import (
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/sync"
+	"github.com/stretchr/testify/require"
 )
 
 var (
-	msgpackAddrArg         = flag.String("msgpackAddr", "0.0.0.0:6000", "msgpack server address")
-	httpAddrArg            = flag.String("httpAddr", "0.0.0.0:6001", "http server address")
-	errServerStartTimedOut = errors.New("server took too long to start")
-	errServerStopTimedOut  = errors.New("server took too long to stop")
+	msgpackAddrArg                = flag.String("msgpackAddr", "0.0.0.0:6000", "msgpack server address")
+	httpAddrArg                   = flag.String("httpAddr", "0.0.0.0:6001", "http server address")
+	errServerStartTimedOut        = errors.New("server took too long to start")
+	errServerStopTimedOut         = errors.New("server took too long to stop")
+	errElectionStateChangeTimeout = errors.New("server took too long to change election state")
 )
 
 // nowSetterFn is the function that sets the current time.
@@ -62,6 +65,10 @@ type testSetup struct {
 	aggregator        aggregator.Aggregator
 	aggregatorOpts    aggregator.Options
 	handler           aggregator.Handler
+	electionKey       string
+	leaderValue       string
+	leaderService     services.LeaderService
+	electionCluster   *testCluster
 	getNowFn          clock.NowFn
 	setNowFn          nowSetterFn
 	workerPool        xsync.WorkerPool
@@ -73,7 +80,7 @@ type testSetup struct {
 	closedCh chan struct{}
 }
 
-func newTestSetup(opts testOptions) (*testSetup, error) {
+func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 	if opts == nil {
 		opts = newTestOptions()
 	}
@@ -122,7 +129,30 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		return aggregator.NewEntry(nil, aggregatorOpts)
 	})
 	aggregatorOpts = aggregatorOpts.SetEntryPool(entryPool)
-	flushManager := aggregator.NewFlushManager(nil)
+
+	// Set up election manager.
+	leaderValue := opts.InstanceID()
+	campaignOpts, err := services.NewCampaignOptions()
+	require.NoError(t, err)
+	campaignOpts = campaignOpts.SetLeaderValue(leaderValue)
+	electionKey := fmt.Sprintf(opts.ElectionKeyFmt(), opts.ShardSetID())
+	electionCluster := newTestCluster(t)
+	leaderService := electionCluster.LeaderService()
+	electionManagerOpts := aggregator.NewElectionManagerOptions().
+		SetCampaignOptions(campaignOpts).
+		SetElectionKeyFmt(opts.ElectionKeyFmt()).
+		SetLeaderService(leaderService)
+	electionManager := aggregator.NewElectionManager(electionManagerOpts)
+	aggregatorOpts = aggregatorOpts.SetElectionManager(electionManager)
+
+	// Set up flush manager.
+	flushManagerOpts := aggregator.NewFlushManagerOptions().
+		SetElectionManager(electionManager).
+		SetFlushTimesKeyFmt(opts.FlushTimesKeyFmt()).
+		SetFlushTimesStore(opts.KVStore()).
+		SetJitterEnabled(opts.JitterEnabled()).
+		SetMaxJitterFn(opts.MaxJitterFn())
+	flushManager := aggregator.NewFlushManager(flushManagerOpts)
 	aggregatorOpts = aggregatorOpts.SetFlushManager(flushManager)
 
 	// Set up placement watcher.
@@ -133,22 +163,19 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	shards := shard.NewShards(shardSet)
 	instance := placement.NewInstance().
 		SetID(opts.InstanceID()).
-		SetShards(shards)
+		SetShards(shards).
+		SetShardSetID(opts.ShardSetID())
 	testPlacement := placement.NewPlacement().
 		SetInstances([]services.PlacementInstance{instance}).
 		SetShards(shards.AllIDs())
 	stagedPlacement := placement.NewStagedPlacement().
 		SetPlacements([]services.Placement{testPlacement})
 	stagedPlacementProto, err := util.StagedPlacementToProto(stagedPlacement)
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, err)
 	placementKey := opts.PlacementKVKey()
-	placementStore := mem.NewStore()
+	placementStore := opts.KVStore()
 	_, err = placementStore.SetIfNotExists(placementKey, stagedPlacementProto)
-	if err != nil {
-		return nil, err
-	}
+	require.NoError(t, err)
 	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
 		SetStagedPlacementKey(placementKey).
 		SetStagedPlacementStore(placementStore)
@@ -181,6 +208,10 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		httpServerOpts:    httpServerOpts,
 		aggregatorOpts:    aggregatorOpts,
 		handler:           handler,
+		electionKey:       electionKey,
+		leaderValue:       leaderValue,
+		leaderService:     leaderService,
+		electionCluster:   electionCluster,
 		getNowFn:          getNowFn,
 		setNowFn:          setNowFn,
 		workerPool:        workerPool,
@@ -188,7 +219,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		resultLock:        &resultLock,
 		doneCh:            make(chan struct{}),
 		closedCh:          make(chan struct{}),
-	}, nil
+	}
 }
 
 func (ts *testSetup) newClient() *client {
@@ -242,17 +273,34 @@ func (ts *testSetup) startServer() error {
 	return <-errCh
 }
 
+func (ts *testSetup) waitUntilLeader() error {
+	isLeader := func() bool {
+		leader, err := ts.leaderService.Leader(ts.electionKey)
+		if err != nil {
+			return false
+		}
+		return leader == ts.leaderValue
+	}
+	waitUntil(isLeader, ts.opts.ElectionStateChangeTimeout())
+	return nil
+}
+
 func (ts *testSetup) sortedResults() []aggregated.MetricWithStoragePolicy {
 	sort.Sort(byTimeIDPolicyAscending(*ts.results))
 	return *ts.results
 }
 
 func (ts *testSetup) stopServer() error {
+	if err := ts.aggregator.Close(); err != nil {
+		return err
+	}
 	close(ts.doneCh)
 
-	// Wait for graceful server shutdown
+	// Wait for graceful server shutdown.
 	<-ts.closedCh
 	return nil
 }
 
-func (ts *testSetup) close() {}
+func (ts *testSetup) close() {
+	ts.electionCluster.Close()
+}

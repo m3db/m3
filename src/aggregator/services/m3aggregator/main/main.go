@@ -28,7 +28,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregator"
+	m3aggregator "github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/services/m3aggregator/config"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
 	"github.com/m3db/m3x/config"
@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	gracefulShutdownTimeout = 10 * time.Second
+	gracefulShutdownTimeout = 15 * time.Second
 )
 
 var (
@@ -92,7 +92,7 @@ func main() {
 	if err != nil {
 		logger.Fatalf("error creating aggregator options: %v", err)
 	}
-	aggregator := aggregator.NewAggregator(aggregatorOpts)
+	aggregator := m3aggregator.NewAggregator(aggregatorOpts)
 	if err := aggregator.Open(); err != nil {
 		logger.Fatalf("error opening the aggregator: %v", err)
 	}

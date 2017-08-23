@@ -21,6 +21,7 @@
 package aggregator
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -38,15 +39,34 @@ import (
 	"github.com/uber-go/tally"
 )
 
+// Aggregator aggregates different types of metrics.
+type Aggregator interface {
+	// Open opens the aggregator.
+	Open() error
+
+	// AddMetricWithPoliciesList adds a metric with policies list for aggregation.
+	AddMetricWithPoliciesList(mu unaggregated.MetricUnion, pl policy.PoliciesList) error
+
+	// Resign stops the aggregator from participating in leader election and resigns
+	// from ongoing campaign if any.
+	Resign() error
+
+	// Status returns the run-time status of the aggregator.
+	Status() RuntimeStatus
+
+	// Close closes the aggregator.
+	Close() error
+}
+
 const (
 	uninitializedCutoverNanos = math.MinInt64
 )
 
 var (
-	errAggregatorIsOpenOrClosed    = errors.New("aggregator is already open or closed")
-	errAggregatorIsNotOpenOrClosed = errors.New("aggregator is not open or closed")
-	errInvalidMetricType           = errors.New("invalid metric type")
-	errActivePlacementChanged      = errors.New("active placement has changed")
+	errAggregatorNotOpenOrClosed     = errors.New("aggregator is not open or closed")
+	errAggregatorAlreadyOpenOrClosed = errors.New("aggregator is already open or closed")
+	errInvalidMetricType             = errors.New("invalid metric type")
+	errActivePlacementChanged        = errors.New("active placement has changed")
 )
 
 type aggregatorTickMetrics struct {
@@ -123,6 +143,11 @@ func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMet
 	}
 }
 
+// RuntimeStatus contains run-time status of the aggregator.
+type RuntimeStatus struct {
+	FlushStatus FlushStatus `json:"flushStatus"`
+}
+
 type updateShardsType int
 
 const (
@@ -145,23 +170,25 @@ type sleepFn func(d time.Duration)
 type aggregator struct {
 	sync.RWMutex
 
-	opts          Options
-	nowFn         clock.NowFn
-	instanceID    string
-	shardFn       ShardFn
-	checkInterval time.Duration
-	flushManager  FlushManager
-	flushHandler  Handler
+	opts            Options
+	nowFn           clock.NowFn
+	instanceID      string
+	shardFn         ShardFn
+	checkInterval   time.Duration
+	electionManager ElectionManager
+	flushManager    FlushManager
+	flushHandler    Handler
+	resignTimeout   time.Duration
 
 	shardIDs              []uint32
 	shards                []*aggregatorShard
 	placementWatcher      services.StagedPlacementWatcher
 	placementCutoverNanos int64
 	state                 aggregatorState
-	metrics               aggregatorMetrics
 	doneCh                chan struct{}
 	wg                    sync.WaitGroup
 	sleepFn               sleepFn
+	metrics               aggregatorMetrics
 }
 
 // NewAggregator creates a new aggregator.
@@ -177,8 +204,10 @@ func NewAggregator(opts Options) Aggregator {
 		instanceID:            opts.InstanceID(),
 		shardFn:               opts.ShardFn(),
 		checkInterval:         opts.EntryCheckInterval(),
+		electionManager:       opts.ElectionManager(),
 		flushManager:          opts.FlushManager(),
 		flushHandler:          opts.FlushHandler(),
+		resignTimeout:         opts.ResignTimeout(),
 		placementWatcher:      placementWatcher,
 		placementCutoverNanos: uninitializedCutoverNanos,
 		metrics:               metrics,
@@ -192,14 +221,30 @@ func (agg *aggregator) Open() error {
 	defer agg.Unlock()
 
 	if agg.state != aggregatorNotOpen {
-		return errAggregatorIsOpenOrClosed
+		return errAggregatorAlreadyOpenOrClosed
 	}
 	if err := agg.placementWatcher.Watch(); err != nil {
 		return err
 	}
-	if err := agg.initShardsWithLock(); err != nil {
+	placement, err := agg.placement()
+	if err != nil {
 		return err
 	}
+	if err := agg.updateShardsWithLock(placement); err != nil {
+		return err
+	}
+	instance, err := agg.instance(placement)
+	if err != nil {
+		return err
+	}
+	shardSetID := instance.ShardSetID()
+	if err := agg.electionManager.Open(shardSetID); err != nil {
+		return err
+	}
+	if err := agg.flushManager.Open(shardSetID); err != nil {
+		return err
+	}
+
 	if agg.checkInterval > 0 {
 		agg.wg.Add(1)
 		go agg.tick()
@@ -227,18 +272,31 @@ func (agg *aggregator) AddMetricWithPoliciesList(
 	return err
 }
 
+func (agg *aggregator) Resign() error {
+	ctx, cancel := context.WithTimeout(context.Background(), agg.resignTimeout)
+	defer cancel()
+	return agg.electionManager.Resign(ctx)
+}
+
+func (agg *aggregator) Status() RuntimeStatus {
+	return RuntimeStatus{
+		FlushStatus: agg.flushManager.Status(),
+	}
+}
+
 func (agg *aggregator) Close() error {
 	agg.Lock()
 	defer agg.Unlock()
 
 	if agg.state != aggregatorOpen {
-		return errAggregatorIsNotOpenOrClosed
+		return errAggregatorNotOpenOrClosed
 	}
 	agg.state = aggregatorClosed
 	close(agg.doneCh)
 	for _, shardID := range agg.shardIDs {
 		agg.shards[shardID].Close()
 	}
+	agg.electionManager.Close()
 	agg.flushManager.Close()
 	agg.flushHandler.Close()
 	return nil
@@ -262,21 +320,13 @@ func (agg *aggregator) shardFor(id id.RawID) (*aggregatorShard, error) {
 
 func (agg *aggregator) shardForWithLock(id id.RawID, updateShardsType updateShardsType) (*aggregatorShard, error) {
 	if agg.state != aggregatorOpen {
-		return nil, errAggregatorIsNotOpenOrClosed
+		return nil, errAggregatorNotOpenOrClosed
 	}
-	stagedPlacement, onStagedPlacementDoneFn, err := agg.placementWatcher.ActiveStagedPlacement()
+	placement, err := agg.placement()
 	if err != nil {
 		return nil, err
 	}
-	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
-	if err != nil {
-		onStagedPlacementDoneFn()
-		return nil, err
-	}
-	shard, err := agg.findOrUpdateShardWithLock(id, placement, updateShardsType)
-	onPlacementDoneFn()
-	onStagedPlacementDoneFn()
-	return shard, err
+	return agg.findOrUpdateShardWithLock(id, placement, updateShardsType)
 }
 
 func (agg *aggregator) findOrUpdateShardWithLock(
@@ -301,18 +351,10 @@ func (agg *aggregator) findOrUpdateShardWithLock(
 }
 
 func (agg *aggregator) initShardsWithLock() error {
-	stagedPlacement, onStagedPlacementDoneFn, err := agg.placementWatcher.ActiveStagedPlacement()
+	placement, err := agg.placement()
 	if err != nil {
 		return err
 	}
-	defer onStagedPlacementDoneFn()
-
-	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
-	if err != nil {
-		return err
-	}
-	defer onPlacementDoneFn()
-
 	return agg.updateShardsWithLock(placement)
 }
 
@@ -321,9 +363,9 @@ func (agg *aggregator) updateShardsWithLock(newPlacement services.Placement) err
 	if !agg.shouldUpdateShardsWithLock(newPlacement) {
 		return nil
 	}
-	instance, found := newPlacement.Instance(agg.instanceID)
-	if !found {
-		return fmt.Errorf("instance %s not found in the placement", agg.instanceID)
+	instance, err := agg.instance(newPlacement)
+	if err != nil {
+		return err
 	}
 
 	var (
@@ -402,6 +444,29 @@ func (agg *aggregator) ownedShards() []*aggregatorShard {
 	}
 	agg.RUnlock()
 	return ownedShards
+}
+
+func (agg *aggregator) placement() (services.Placement, error) {
+	stagedPlacement, onStagedPlacementDoneFn, err := agg.placementWatcher.ActiveStagedPlacement()
+	if err != nil {
+		return nil, err
+	}
+	defer onStagedPlacementDoneFn()
+
+	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
+	if err != nil {
+		return nil, err
+	}
+	onPlacementDoneFn()
+	return placement, nil
+}
+
+func (agg *aggregator) instance(placement services.Placement) (services.PlacementInstance, error) {
+	instance, found := placement.Instance(agg.instanceID)
+	if !found {
+		return nil, fmt.Errorf("instance %s not found in the placement", agg.instanceID)
+	}
+	return instance, nil
 }
 
 func (agg *aggregator) tick() {

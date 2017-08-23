@@ -38,8 +38,8 @@ import (
 )
 
 func TestMetricListPushBack(t *testing.T) {
-	l := newMetricList(time.Second, testOptions())
-	elem := NewCounterElem(nil, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, l.opts)
+	l := newMetricList(testShard, time.Second, testOptions())
+	elem := NewCounterElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, l.opts)
 
 	// Push a counter to the list
 	e, err := l.PushBack(elem)
@@ -57,7 +57,7 @@ func TestMetricListPushBack(t *testing.T) {
 }
 
 func TestMetricListClose(t *testing.T) {
-	l := newMetricList(time.Second, testOptions())
+	l := newMetricList(testShard, time.Second, testOptions())
 	l.RLock()
 	require.False(t, l.closed)
 	l.RUnlock()
@@ -94,7 +94,7 @@ func TestMetricListFlush(t *testing.T) {
 		SetMaxFlushSize(100).
 		SetFlushHandler(handler)
 
-	l := newMetricList(0, opts)
+	l := newMetricList(testShard, 0, opts)
 	l.resolution = testStoragePolicy.Resolution().Window
 
 	// Intentionally cause a one-time error during encoding.
@@ -124,7 +124,7 @@ func TestMetricListFlush(t *testing.T) {
 
 	for _, ep := range elemPairs {
 		require.NoError(t, ep.elem.AddMetric(nowTs, ep.metric))
-		require.NoError(t, ep.elem.AddMetric(nowTs.Add(testStoragePolicy.Resolution().Window), ep.metric))
+		require.NoError(t, ep.elem.AddMetric(nowTs.Add(l.resolution), ep.metric))
 		_, err := l.PushBack(ep.elem)
 		require.NoError(t, err)
 	}
@@ -139,14 +139,14 @@ func TestMetricListFlush(t *testing.T) {
 
 	for i := 0; i < 2; i++ {
 		// Move the time forward by one aggregation interval.
-		nowTs = nowTs.Add(testStoragePolicy.Resolution().Window)
+		nowTs = nowTs.Add(l.resolution)
 		atomic.StoreInt64(&now, nowTs.UnixNano())
 
 		// Force a flush.
 		l.Flush()
 
 		var expected []testAggMetric
-		alignedStart := nowTs.Truncate(testStoragePolicy.Resolution().Window).UnixNano()
+		alignedStart := nowTs.Truncate(l.resolution).UnixNano()
 		expected = append(expected, expectedAggMetricsForCounter(alignedStart, testStoragePolicy, policy.DefaultAggregationTypes)...)
 		expected = append(expected, expectedAggMetricsForTimer(alignedStart, testStoragePolicy, policy.DefaultAggregationTypes)...)
 		expected = append(expected, expectedAggMetricsForGauge(alignedStart, testStoragePolicy, policy.DefaultAggregationTypes)...)
@@ -165,7 +165,7 @@ func TestMetricListFlush(t *testing.T) {
 	}
 
 	// Move the time forward by one aggregation interval.
-	nowTs = nowTs.Add(testStoragePolicy.Resolution().Window)
+	nowTs = nowTs.Add(l.resolution)
 	atomic.StoreInt64(&now, nowTs.UnixNano())
 
 	// Force a flush.
@@ -182,15 +182,27 @@ func TestMetricListFlush(t *testing.T) {
 		e.Value.(metricElem).MarkAsTombstoned()
 	}
 
-	// Force a flush.
+	// Move the time forward and force a flush.
+	nowTs = nowTs.Add(l.resolution)
+	atomic.StoreInt64(&now, nowTs.UnixNano())
 	l.Flush()
 
 	// Assert all elements have been collected.
 	require.Equal(t, 0, l.aggregations.Len())
+
+	require.Equal(t, l.lastFlushedNanos, nowTs.Truncate(l.resolution).UnixNano())
+}
+
+func TestMetricListFlushBeforeStale(t *testing.T) {
+	opts := testOptions()
+	l := newMetricList(testShard, 0, opts)
+	l.lastFlushedNanos = 1234
+	l.flushBefore(1000, discardType)
+	require.Equal(t, int64(1234), l.LastFlushedNanos())
 }
 
 func TestMetricLists(t *testing.T) {
-	lists := newMetricLists(testOptions())
+	lists := newMetricLists(testShard, testOptions())
 	require.False(t, lists.closed)
 
 	// Create a new list.

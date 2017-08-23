@@ -52,7 +52,7 @@ var (
 
 func TestMetricMapAddMetricWithPoliciesList(t *testing.T) {
 	opts := testOptions()
-	m := newMetricMap(opts)
+	m := newMetricMap(testShard, opts)
 	policies := testDefaultPoliciesList
 
 	// Add a counter metric and assert there is one entry afterwards.
@@ -143,7 +143,7 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 		SetClockOptions(expiredClockOpt).
 		SetEntryTTL(ttl)
 
-	m := newMetricMap(opts)
+	m := newMetricMap(testShard, opts)
 	var sleepIntervals []time.Duration
 	m.sleepFn = func(d time.Duration) { sleepIntervals = append(sleepIntervals, d) }
 

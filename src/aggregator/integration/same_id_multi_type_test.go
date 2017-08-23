@@ -37,8 +37,7 @@ func TestSameIDMultiType(t *testing.T) {
 	}
 
 	// Test setup
-	testSetup, err := newTestSetup(newTestOptions())
-	require.NoError(t, err)
+	testSetup := newTestSetup(t, newTestOptions())
 	defer testSetup.close()
 
 	testSetup.aggregatorOpts =
@@ -51,6 +50,8 @@ func TestSameIDMultiType(t *testing.T) {
 	log.Info("test one client sending multiple types of metrics")
 	require.NoError(t, testSetup.startServer())
 	log.Info("server is now up")
+	require.NoError(t, testSetup.waitUntilLeader())
+	log.Info("server is now the leader")
 
 	var (
 		idPrefix = "foo"
