@@ -51,7 +51,7 @@ func newAggregatorShard(shard uint32, opts Options) *aggregatorShard {
 	opts = opts.SetTimeLock(&sync.RWMutex{})
 	s := &aggregatorShard{
 		shard:     shard,
-		metricMap: newMetricMap(opts),
+		metricMap: newMetricMap(shard, opts),
 	}
 	s.addMetricWithPoliciesListFn = s.metricMap.AddMetricWithPoliciesList
 	return s

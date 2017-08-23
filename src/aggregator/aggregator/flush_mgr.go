@@ -22,12 +22,9 @@ package aggregator
 
 import (
 	"errors"
-	"math/rand"
+	"fmt"
 	"sync"
 	"time"
-
-	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/sync"
 
 	"github.com/uber-go/tally"
 )
@@ -36,52 +33,96 @@ var (
 	errFlushManagerClosed = errors.New("flush manager is closed")
 )
 
-// PeriodicFlusher flushes periodically.
+// PeriodicFlusher flushes metrics periodically.
 type PeriodicFlusher interface {
+	// Shard returns the shard associated with the flusher.
+	Shard() uint32
+
+	// Resolution returns the resolution of metrics associated with the flusher.
+	Resolution() time.Duration
+
 	// FlushInterval returns the periodic flush interval.
 	FlushInterval() time.Duration
 
+	// LastFlushedNanos returns the last flushed timestamp.
+	LastFlushedNanos() int64
+
 	// Flush performs a flush.
 	Flush()
+
+	// DiscardBefore discards all metrics before a given timestamp.
+	DiscardBefore(beforeNanos int64)
 }
 
 // FlushManager manages and coordinates flushing activities across many
 // periodic flushers with different flush intervals with controlled concurrency
 // for flushes to minimize spikes in CPU load and reduce p99 flush latencies.
 type FlushManager interface {
+	// Open opens the flush manager for a given shard set.
+	Open(shardSetID uint32) error
+
+	// Status returns the flush status.
+	Status() FlushStatus
+
 	// Register registers a metric list with the flush manager.
 	Register(flusher PeriodicFlusher) error
 
 	// Close closes the flush manager.
-	Close()
+	Close() error
 }
 
-type flushManagerMetrics struct {
-	queueSize tally.Gauge
+// FlushStatus is the flush status.
+type FlushStatus struct {
+	ElectionState ElectionState `json:"electionState"`
+	CanLead       bool          `json:"canLead"`
 }
 
-func newFlushManagerMetrics(scope tally.Scope) flushManagerMetrics {
-	return flushManagerMetrics{
-		queueSize: scope.Gauge("queue-size"),
-	}
+// flushTask is a flush task.
+type flushTask interface {
+	Run()
 }
+
+// roleBasedFlushManager manages flushing data based on their elected roles.
+type roleBasedFlushManager interface {
+	Open(shardSetID uint32) error
+
+	Init(buckets []*flushBucket)
+
+	Prepare(buckets []*flushBucket) (flushTask, time.Duration)
+
+	OnBucketAdded(bucketIdx int, bucket *flushBucket)
+
+	CanLead() bool
+}
+
+var (
+	errFlushManagerAlreadyOpenOrClosed = errors.New("flush manager is already open or closed")
+	errFlushManagerNotOpenOrClosed     = errors.New("flush manager is not open or closed")
+)
+
+type flushManagerState int
+
+const (
+	flushManagerNotOpen flushManagerState = iota
+	flushManagerOpen
+	flushManagerClosed
+)
 
 type flushManager struct {
-	sync.Mutex
+	sync.RWMutex
 
-	nowFn         clock.NowFn
-	checkEvery    time.Duration
-	jitterEnabled bool
-	workers       xsync.WorkerPool
-	scope         tally.Scope
+	scope      tally.Scope
+	checkEvery time.Duration
 
-	closed     bool
-	rand       *rand.Rand
-	buckets    []*flushBucket
-	flushTimes flushMetadataHeap
-	sleepFn    sleepFn
-	wgFlush    sync.WaitGroup
-	metrics    flushManagerMetrics
+	state         flushManagerState
+	doneCh        chan struct{}
+	buckets       []*flushBucket
+	electionState ElectionState
+	electionMgr   ElectionManager
+	leaderMgr     roleBasedFlushManager
+	followerMgr   roleBasedFlushManager
+	sleepFn       sleepFn
+	wgFlush       sync.WaitGroup
 }
 
 // NewFlushManager creates a new flush manager.
@@ -89,27 +130,49 @@ func NewFlushManager(opts FlushManagerOptions) FlushManager {
 	if opts == nil {
 		opts = NewFlushManagerOptions()
 	}
-	nowFn := opts.ClockOptions().NowFn()
-	scope := opts.InstrumentOptions().MetricsScope()
-	rand := rand.New(rand.NewSource(nowFn().UnixNano()))
-	workers := xsync.NewWorkerPool(opts.WorkerPoolSize())
-	workers.Init()
+	doneCh := make(chan struct{})
+	instrumentOpts := opts.InstrumentOptions()
+	scope := instrumentOpts.MetricsScope()
 
-	mgr := &flushManager{
-		nowFn:         nowFn,
+	leaderMgrScope := scope.SubScope("leader")
+	leaderMgrInstrumentOpts := instrumentOpts.SetMetricsScope(leaderMgrScope)
+	leaderMgr := newLeaderFlushManager(doneCh, opts.SetInstrumentOptions(leaderMgrInstrumentOpts))
+
+	followerMgrScope := scope.SubScope("follower")
+	followerMgrInstrumentOpts := instrumentOpts.SetMetricsScope(followerMgrScope)
+	followerMgr := newFollowerFlushManager(doneCh, opts.SetInstrumentOptions(followerMgrInstrumentOpts))
+
+	return &flushManager{
+		scope:         instrumentOpts.MetricsScope(),
 		checkEvery:    opts.CheckEvery(),
-		jitterEnabled: opts.JitterEnabled(),
-		workers:       workers,
-		scope:         scope,
-		rand:          rand,
+		doneCh:        doneCh,
+		electionState: FollowerState,
+		electionMgr:   opts.ElectionManager(),
+		leaderMgr:     leaderMgr,
+		followerMgr:   followerMgr,
 		sleepFn:       time.Sleep,
-		metrics:       newFlushManagerMetrics(scope),
 	}
+}
+
+func (mgr *flushManager) Open(shardSetID uint32) error {
+	mgr.Lock()
+	defer mgr.Unlock()
+
+	if mgr.state != flushManagerNotOpen {
+		return errFlushManagerAlreadyOpenOrClosed
+	}
+	if err := mgr.leaderMgr.Open(shardSetID); err != nil {
+		return err
+	}
+	if err := mgr.followerMgr.Open(shardSetID); err != nil {
+		return err
+	}
+	mgr.state = flushManagerOpen
 	if mgr.checkEvery > 0 {
 		mgr.wgFlush.Add(1)
 		go mgr.flush()
 	}
-	return mgr
+	return nil
 }
 
 func (mgr *flushManager) Register(flusher PeriodicFlusher) error {
@@ -124,9 +187,35 @@ func (mgr *flushManager) Register(flusher PeriodicFlusher) error {
 	return err
 }
 
+func (mgr *flushManager) Status() FlushStatus {
+	mgr.RLock()
+	electionState := mgr.electionState
+	canLead := mgr.flushManagerWithLock().CanLead()
+	mgr.RUnlock()
+
+	return FlushStatus{
+		ElectionState: electionState,
+		CanLead:       canLead,
+	}
+}
+
+func (mgr *flushManager) Close() error {
+	mgr.Lock()
+	if mgr.state != flushManagerOpen {
+		mgr.Unlock()
+		return errFlushManagerNotOpenOrClosed
+	}
+	mgr.state = flushManagerClosed
+	close(mgr.doneCh)
+	mgr.Unlock()
+
+	mgr.wgFlush.Wait()
+	return nil
+}
+
 func (mgr *flushManager) bucketForWithLock(l PeriodicFlusher) (*flushBucket, error) {
-	if mgr.closed {
-		return nil, errFlushManagerClosed
+	if mgr.state != flushManagerOpen {
+		return nil, errFlushManagerNotOpenOrClosed
 	}
 	flushInterval := l.FlushInterval()
 	for _, bucket := range mgr.buckets {
@@ -139,34 +228,8 @@ func (mgr *flushManager) bucketForWithLock(l PeriodicFlusher) (*flushBucket, err
 	})
 	bucket := newBucket(flushInterval, bucketScope)
 	mgr.buckets = append(mgr.buckets, bucket)
-
-	// NB(xichen): this is a new bucket so we need to update the flush times
-	// heap for the flush goroutine to pick it up.
-	nowNanos := mgr.nowNanos()
-	nextFlushNanos := nowNanos + int64(flushInterval)
-	if mgr.jitterEnabled {
-		jitterNanos := int64(mgr.rand.Int63n(int64(flushInterval)))
-		nextFlushNanos = nowNanos + jitterNanos
-	}
-	newFlushMetadata := flushMetadata{
-		timeNanos: nextFlushNanos,
-		bucketIdx: len(mgr.buckets) - 1,
-	}
-	mgr.flushTimes.Push(newFlushMetadata)
-
+	mgr.flushManagerWithLock().OnBucketAdded(len(mgr.buckets)-1, bucket)
 	return bucket, nil
-}
-
-func (mgr *flushManager) Close() {
-	mgr.Lock()
-	if mgr.closed {
-		mgr.Unlock()
-		return
-	}
-	mgr.closed = true
-	mgr.Unlock()
-
-	mgr.wgFlush.Wait()
 }
 
 // NB(xichen): apparently timer.Reset() is more difficult to use than I originally
@@ -177,78 +240,55 @@ func (mgr *flushManager) flush() {
 	defer mgr.wgFlush.Done()
 
 	for {
-		var (
-			shouldFlush = false
-			duration    tally.Timer
-			flushers    []PeriodicFlusher
-			waitFor     = mgr.checkEvery
-		)
-		mgr.Lock()
-		if mgr.closed {
+		mgr.RLock()
+		state := mgr.state
+		electionState := mgr.electionState
+		mgr.RUnlock()
+		if state == flushManagerClosed {
+			return
+		}
+
+		// If the election state has changed, we need to switch the flush manager.
+		newElectionState := mgr.checkElectionState()
+		if electionState != newElectionState {
+			mgr.Lock()
+			mgr.electionState = newElectionState
+			mgr.flushManagerWithLock().Init(mgr.buckets)
 			mgr.Unlock()
-			break
 		}
-		numFlushTimes := mgr.flushTimes.Len()
-		mgr.metrics.queueSize.Update(float64(numFlushTimes))
-		if numFlushTimes > 0 {
-			earliestFlush := mgr.flushTimes.Min()
-			if nowNanos := mgr.nowNanos(); nowNanos >= earliestFlush.timeNanos {
-				// NB(xichen): make a shallow copy of the flushers inside the lock
-				// and use the snapshot for flushing below.
-				shouldFlush = true
-				bucketIdx := earliestFlush.bucketIdx
-				duration = mgr.buckets[bucketIdx].duration
-				flushers = mgr.buckets[bucketIdx].flushers
-				nextFlushMetadata := flushMetadata{
-					timeNanos: earliestFlush.timeNanos + int64(mgr.buckets[bucketIdx].interval),
-					bucketIdx: bucketIdx,
-				}
-				mgr.flushTimes.Pop()
-				mgr.flushTimes.Push(nextFlushMetadata)
-			} else {
-				// NB(xichen): don't oversleep if the next flush is about to happen.
-				timeToNextFlush := time.Duration(earliestFlush.timeNanos - nowNanos)
-				if timeToNextFlush < waitFor {
-					waitFor = timeToNextFlush
-				}
-			}
-		}
-		mgr.Unlock()
 
-		if !shouldFlush {
+		mgr.RLock()
+		flushTask, waitFor := mgr.flushManagerWithLock().Prepare(mgr.buckets)
+		mgr.RUnlock()
+		if flushTask != nil {
+			flushTask.Run()
+		}
+		if waitFor > 0 {
 			mgr.sleepFn(waitFor)
-		} else {
-			var wgWorkers sync.WaitGroup
-			start := mgr.nowFn()
-			for _, flusher := range flushers {
-				flusher := flusher
-				wgWorkers.Add(1)
-				mgr.workers.Go(func() {
-					flusher.Flush()
-					wgWorkers.Done()
-				})
-			}
-			wgWorkers.Wait()
-			duration.Record(mgr.nowFn().Sub(start))
 		}
 	}
-
-	// Perform a final flush across all flushers before returning.
-	var wgWorkers sync.WaitGroup
-	for _, bucket := range mgr.buckets {
-		for _, flusher := range bucket.flushers {
-			flusher := flusher
-			wgWorkers.Add(1)
-			mgr.workers.Go(func() {
-				flusher.Flush()
-				wgWorkers.Done()
-			})
-		}
-	}
-	wgWorkers.Wait()
 }
 
-func (mgr *flushManager) nowNanos() int64 { return mgr.nowFn().UnixNano() }
+func (mgr *flushManager) checkElectionState() ElectionState {
+	switch mgr.electionMgr.ElectionState() {
+	case FollowerState:
+		return FollowerState
+	default:
+		return LeaderState
+	}
+}
+
+func (mgr *flushManager) flushManagerWithLock() roleBasedFlushManager {
+	switch mgr.electionState {
+	case FollowerState:
+		return mgr.followerMgr
+	case LeaderState:
+		return mgr.leaderMgr
+	default:
+		// We should never get here.
+		panic(fmt.Sprintf("unknown election state %v", mgr.electionState))
+	}
+}
 
 // flushBucket contains all the registered lists for a given flush interval.
 type flushBucket struct {
@@ -266,73 +306,4 @@ func newBucket(interval time.Duration, scope tally.Scope) *flushBucket {
 
 func (b *flushBucket) Add(flusher PeriodicFlusher) {
 	b.flushers = append(b.flushers, flusher)
-}
-
-// flushMetadata contains metadata information for a flush.
-type flushMetadata struct {
-	timeNanos int64
-	bucketIdx int
-}
-
-// flushMetadataHeap is a min heap for flush metadata where the metadata with the
-// earliest flush time will be at the top of the heap. Unlike the generic heap in
-// the container/heap package, pushing data to or popping data off of the heap doesn't
-// require conversion between flush metadata and interface{}, therefore avoiding the
-// memory and GC overhead due to the additional allocations.
-type flushMetadataHeap []flushMetadata
-
-// Len returns the number of values in the heap.
-func (h flushMetadataHeap) Len() int { return len(h) }
-
-// Min returns the metadata with the earliest flush time from the heap.
-func (h flushMetadataHeap) Min() flushMetadata { return h[0] }
-
-// Push pushes a flush metadata onto the heap.
-func (h *flushMetadataHeap) Push(value flushMetadata) {
-	*h = append(*h, value)
-	h.shiftUp(h.Len() - 1)
-}
-
-// Pop pops the metadata with the earliest flush time from the heap.
-func (h *flushMetadataHeap) Pop() flushMetadata {
-	var (
-		old = *h
-		n   = old.Len()
-		val = old[0]
-	)
-
-	old[0], old[n-1] = old[n-1], old[0]
-	h.heapify(0, n-1)
-	*h = (*h)[0 : n-1]
-	return val
-}
-
-func (h flushMetadataHeap) shiftUp(i int) {
-	for {
-		parent := (i - 1) / 2
-		if parent == i || h[parent].timeNanos <= h[i].timeNanos {
-			break
-		}
-		h[parent], h[i] = h[i], h[parent]
-		i = parent
-	}
-}
-
-func (h flushMetadataHeap) heapify(i, n int) {
-	for {
-		left := i*2 + 1
-		right := left + 1
-		smallest := i
-		if left < n && h[left].timeNanos < h[smallest].timeNanos {
-			smallest = left
-		}
-		if right < n && h[right].timeNanos < h[smallest].timeNanos {
-			smallest = right
-		}
-		if smallest == i {
-			return
-		}
-		h[i], h[smallest] = h[smallest], h[i]
-		i = smallest
-	}
 }

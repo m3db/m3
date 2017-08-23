@@ -589,24 +589,24 @@ func TestEntryAddMetricWithPoliciesListWithInvalidAggregationType(t *testing.T) 
 	e, _, _ := testEntry()
 
 	require.NoError(t, e.AddMetricWithPoliciesList(testCounter, policy.PoliciesList{policy.NewStagedPolicies(0, false, []policy.Policy{
-		policy.NewPolicy(policy.DefaultStoragePolicy, compressedMin),
+		policy.NewPolicy(policy.EmptyStoragePolicy, compressedMin),
 	})}))
 	require.Error(t, e.AddMetricWithPoliciesList(testCounter, policy.PoliciesList{policy.NewStagedPolicies(0, false, []policy.Policy{
-		policy.NewPolicy(policy.DefaultStoragePolicy, compressedP9999),
+		policy.NewPolicy(policy.EmptyStoragePolicy, compressedP9999),
 	})}))
 
 	require.NoError(t, e.AddMetricWithPoliciesList(testGauge, policy.PoliciesList{policy.NewStagedPolicies(0, false, []policy.Policy{
-		policy.NewPolicy(policy.DefaultStoragePolicy, compressedMin),
+		policy.NewPolicy(policy.EmptyStoragePolicy, compressedMin),
 	})}))
 	require.Error(t, e.AddMetricWithPoliciesList(testGauge, policy.PoliciesList{policy.NewStagedPolicies(0, false, []policy.Policy{
-		policy.NewPolicy(policy.DefaultStoragePolicy, compressedP9999),
+		policy.NewPolicy(policy.EmptyStoragePolicy, compressedP9999),
 	})}))
 
 	require.NoError(t, e.AddMetricWithPoliciesList(testBatchTimer, policy.PoliciesList{policy.NewStagedPolicies(0, false, []policy.Policy{
-		policy.NewPolicy(policy.DefaultStoragePolicy, compressedMin),
+		policy.NewPolicy(policy.EmptyStoragePolicy, compressedMin),
 	})}))
 	require.Error(t, e.AddMetricWithPoliciesList(testBatchTimer, policy.PoliciesList{policy.NewStagedPolicies(0, false, []policy.Policy{
-		policy.NewPolicy(policy.DefaultStoragePolicy, compressedLast),
+		policy.NewPolicy(policy.EmptyStoragePolicy, compressedLast),
 	})}))
 }
 
@@ -721,10 +721,10 @@ func testEntry() (*Entry, *metricLists, *time.Time) {
 		SetMinFlushInterval(0).
 		SetDefaultPolicies(testDefaultPolicies)
 
-	lists := newMetricLists(opts)
+	lists := newMetricLists(testShard, opts)
 	// This effectively disable flushing.
-	lists.newMetricListFn = func(res time.Duration, opts Options) *metricList {
-		return newMetricList(0, opts)
+	lists.newMetricListFn = func(shard uint32, res time.Duration, opts Options) *metricList {
+		return newMetricList(testShard, 0, opts)
 	}
 
 	e := NewEntry(nil, opts)

@@ -4,9 +4,9 @@ import:
 - package: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
 - package: github.com/m3db/m3cluster
-  version: 4b5c64d5fdcde721bf249a531359aeb3b9162806
+  version: e6473486b16d5c4dae33f2b89f396c45ebcf822d
 - package: github.com/m3db/m3metrics
-  version: 63f437f75e076ac85705b42290b8fbb0d2172a13
+  version: f6d7952fb61675c50aaea358b611aa332f1e5dca
 - package: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 - package: github.com/m3db/m3x
@@ -65,3 +65,27 @@ import:
   version: 988f4f24992fc745de53c42df0da6581e42a6686
 - package: google.golang.org/grpc
   version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
+- package: github.com/boltdb/bolt
+  version: 583e8937c61f1af6513608ccc75c97b6abdf4ff9
+- package: github.com/coreos/go-semver
+  version: 568e959cd89871e61434c1143528d9162da89ef2
+- package: github.com/coreos/go-systemd
+  version: 48702e0da86bd25e76cfef347e2adeb434a0d0a6
+- package: github.com/coreos/pkg
+  version: 3ac0863d7acf3bc44daf49afef8919af12f704ef
+- package: github.com/gogo/protobuf
+  version: 909568be09de550ed094403c2bf8a261b5bb730a
+- package: github.com/google/btree
+  version: 925471ac9e2131377a91e1595defec898166fe49
+- package: github.com/jonboulle/clockwork
+  version: 2eee05ed794112d45db504eb05aa693efd2b8b09
+- package: github.com/karlseguin/ccache
+  version: a2d62155777b39595c825ed3824279e642a5db3c
+- package: github.com/ugorji/go
+  version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
+- package: github.com/xiang90/probing
+  version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
+- package: golang.org/x/crypto
+  version: 1351f936d976c60a0a48d728281922cf63eafb8d
+- package: golang.org/x/time
+  version: a4bde12657593d5e90d0533a3e4fd95e635124cb

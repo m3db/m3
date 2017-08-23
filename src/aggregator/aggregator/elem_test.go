@@ -109,7 +109,7 @@ func TestElemBaseResetSetData(t *testing.T) {
 
 func TestCounterResetSetData(t *testing.T) {
 	opts := NewOptions()
-	ce := NewCounterElem(nil, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, opts)
+	ce := NewCounterElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, opts)
 	require.Equal(t, opts.DefaultCounterAggregationTypes(), ce.aggTypes)
 	require.True(t, ce.useDefaultAggregation)
 	require.False(t, ce.aggOpts.HasExpensiveAggregations)
@@ -128,7 +128,7 @@ func TestCounterResetSetData(t *testing.T) {
 
 func TestTimerResetSetData(t *testing.T) {
 	opts := NewOptions()
-	te := NewTimerElem(nil, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, opts)
+	te := NewTimerElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, opts)
 	require.False(t, te.isQuantilesPooled)
 	require.True(t, te.aggOpts.HasExpensiveAggregations)
 	require.Equal(t, opts.DefaultTimerAggregationTypes(), te.aggTypes)
@@ -150,7 +150,7 @@ func TestTimerResetSetData(t *testing.T) {
 
 func TestGaugeResetSetData(t *testing.T) {
 	opts := NewOptions()
-	ge := NewGaugeElem(nil, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, opts)
+	ge := NewGaugeElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, opts)
 	require.Equal(t, opts.DefaultGaugeAggregationTypes(), ge.aggTypes)
 	require.True(t, ge.useDefaultAggregation)
 	require.False(t, ge.aggOpts.HasExpensiveAggregations)

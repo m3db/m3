@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3metrics/metric/unaggregated"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,8 +38,7 @@ func TestMultiClientOneType(t *testing.T) {
 	}
 
 	// Test setup
-	testSetup, err := newTestSetup(newTestOptions())
-	require.NoError(t, err)
+	testSetup := newTestSetup(t, newTestOptions())
 	defer testSetup.close()
 
 	testSetup.aggregatorOpts =
@@ -51,6 +51,8 @@ func TestMultiClientOneType(t *testing.T) {
 	log.Info("test multiple clients sending one type of metrics")
 	require.NoError(t, testSetup.startServer())
 	log.Info("server is now up")
+	require.NoError(t, testSetup.waitUntilLeader())
+	log.Info("server is now the leader")
 
 	var (
 		idPrefix   = "foo"

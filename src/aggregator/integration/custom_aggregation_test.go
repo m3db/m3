@@ -65,8 +65,7 @@ func TestCustomAggregation(t *testing.T) {
 	}
 
 	// Test setup
-	testSetup, err := newTestSetup(newTestOptions())
-	require.NoError(t, err)
+	testSetup := newTestSetup(t, newTestOptions())
 	defer testSetup.close()
 
 	testSetup.aggregatorOpts =
@@ -79,6 +78,8 @@ func TestCustomAggregation(t *testing.T) {
 	log.Info("test policy change")
 	require.NoError(t, testSetup.startServer())
 	log.Info("server is now up")
+	require.NoError(t, testSetup.waitUntilLeader())
+	log.Info("server is now the leader")
 
 	var (
 		idPrefix = "foo"

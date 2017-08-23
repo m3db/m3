@@ -21,6 +21,8 @@
 package aggregator
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -46,6 +48,7 @@ const (
 )
 
 var (
+	testShardSetID  = uint32(0)
 	testValidMetric = unaggregated.MetricUnion{
 		Type:       unaggregated.CounterType,
 		ID:         []byte("foo"),
@@ -67,7 +70,7 @@ var (
 func TestAggregatorOpenAlreadyOpen(t *testing.T) {
 	agg, _ := testAggregator(t)
 	agg.state = aggregatorOpen
-	require.Equal(t, errAggregatorIsOpenOrClosed, agg.Open())
+	require.Equal(t, errAggregatorAlreadyOpenOrClosed, agg.Open())
 }
 
 func TestAggregatorOpenSuccess(t *testing.T) {
@@ -91,7 +94,7 @@ func TestAggregatorAddMetricWithPoliciesListInvalidMetricType(t *testing.T) {
 func TestAggregatorAddMetricWithPoliciesListNotOpen(t *testing.T) {
 	agg, _ := testAggregator(t)
 	err := agg.AddMetricWithPoliciesList(testValidMetric, testPoliciesList)
-	require.Equal(t, errAggregatorIsNotOpenOrClosed, err)
+	require.Equal(t, errAggregatorNotOpenOrClosed, err)
 }
 
 func TestAggregatorAddMetricWithPoliciesListPlacementWatcherUnwatched(t *testing.T) {
@@ -173,9 +176,40 @@ func TestAggregatorAddMetricWithPoliciesListSuccessWithPlacementUpdate(t *testin
 	}
 }
 
+func TestAggregatorResignError(t *testing.T) {
+	errTestResign := errors.New("test resign")
+	agg, _ := testAggregator(t)
+	agg.electionManager = &mockElectionManager{
+		resignFn: func(context.Context) error { return errTestResign },
+	}
+	require.Equal(t, errTestResign, agg.Resign())
+}
+
+func TestAggregatorResignSuccess(t *testing.T) {
+	agg, _ := testAggregator(t)
+	agg.electionManager = &mockElectionManager{
+		resignFn: func(context.Context) error { return nil },
+	}
+	require.NoError(t, agg.Resign())
+}
+
+func TestAggregatorStatus(t *testing.T) {
+	flushStatus := FlushStatus{
+		ElectionState: LeaderState,
+		CanLead:       true,
+	}
+	agg, _ := testAggregator(t)
+	agg.flushManager = &mockFlushManager{
+		statusFn: func() FlushStatus {
+			return flushStatus
+		},
+	}
+	require.Equal(t, RuntimeStatus{FlushStatus: flushStatus}, agg.Status())
+}
+
 func TestAggregatorCloseAlreadyClosed(t *testing.T) {
 	agg, _ := testAggregator(t)
-	require.Equal(t, errAggregatorIsNotOpenOrClosed, agg.Close())
+	require.Equal(t, errAggregatorNotOpenOrClosed, agg.Close())
 }
 
 func TestAggregatorCloseSuccess(t *testing.T) {
@@ -239,7 +273,11 @@ func testStagedPlacementProtoWithCustomShards(
 }
 
 func testOptions() Options {
+	electionManager := &mockElectionManager{
+		openFn: func(shardSetID uint32) error { return nil },
+	}
 	return NewOptions().
+		SetElectionManager(electionManager).
 		SetFlushManager(&mockFlushManager{
 			registerFn: func(flusher PeriodicFlusher) error { return nil },
 		}).
@@ -252,13 +290,19 @@ func testOptions() Options {
 }
 
 type registerFn func(flusher PeriodicFlusher) error
+type statusFn func() FlushStatus
 
 type mockFlushManager struct {
 	registerFn registerFn
+	statusFn   statusFn
 }
+
+func (mgr *mockFlushManager) Open(shardSetID uint32) error { return nil }
 
 func (mgr *mockFlushManager) Register(flusher PeriodicFlusher) error {
 	return mgr.registerFn(flusher)
 }
 
-func (mgr *mockFlushManager) Close() {}
+func (mgr *mockFlushManager) Status() FlushStatus { return mgr.statusFn() }
+
+func (mgr *mockFlushManager) Close() error { return nil }

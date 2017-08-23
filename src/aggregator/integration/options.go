@@ -20,16 +20,27 @@
 
 package integration
 
-import "time"
+import (
+	"time"
+
+	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3cluster/kv/mem"
+)
 
 const (
-	defaultServerStateChangeTimeout = 5 * time.Second
-	defaultClientBatchSize          = 1440
-	defaultClientConnectTimeout     = time.Second
-	defaultWorkerPoolSize           = 4
-	defaultInstanceID               = "localhost:6000"
-	defaultNumShards                = 1024
-	defaultPlacementKVKey           = "placement"
+	defaultServerStateChangeTimeout   = 5 * time.Second
+	defaultClientBatchSize            = 1440
+	defaultClientConnectTimeout       = time.Second
+	defaultWorkerPoolSize             = 4
+	defaultInstanceID                 = "localhost:6000"
+	defaultNumShards                  = 1024
+	defaultPlacementKVKey             = "/placement"
+	defaultElectionKeyFmt             = "/shardset/%d/lock"
+	defaultFlushTimesKeyFmt           = "/shardset/%d/flush"
+	defaultShardSetID                 = 0
+	defaultElectionStateChangeTimeout = time.Second
+	defaultJitterEnabled              = true
 )
 
 type testOptions interface {
@@ -63,6 +74,30 @@ type testOptions interface {
 	// PlacementKVKey returns the placement kv key.
 	PlacementKVKey() string
 
+	// SetElectionKeyFmt sets the election key format.
+	SetElectionKeyFmt(value string) testOptions
+
+	// ElectionKeyFmt returns the election key format.
+	ElectionKeyFmt() string
+
+	// SetShardSetID sets the shard set id.
+	SetShardSetID(value uint32) testOptions
+
+	// ShardSetID returns the shard set id.
+	ShardSetID() uint32
+
+	// SetFlushTimesKeyFmt sets the flush times key format.
+	SetFlushTimesKeyFmt(value string) testOptions
+
+	// FlushTimesKeyFmt returns the flush times key format.
+	FlushTimesKeyFmt() string
+
+	// SetKVStore sets the key value store.
+	SetKVStore(value kv.Store) testOptions
+
+	// KVStore returns the key value store.
+	KVStore() kv.Store
+
 	// SetClientBatchSize sets the client-side batch size.
 	SetClientBatchSize(value int) testOptions
 
@@ -81,34 +116,66 @@ type testOptions interface {
 	// ServerStateChangeTimeout returns the client connect timeout.
 	ServerStateChangeTimeout() time.Duration
 
+	// SetElectionStateChangeTimeout sets the election state change timeout.
+	SetElectionStateChangeTimeout(value time.Duration) testOptions
+
+	// ElectionStateChangeTimeout returns the election state change timeout.
+	ElectionStateChangeTimeout() time.Duration
+
 	// SetWorkerPoolSize sets the number of workers in the worker pool.
 	SetWorkerPoolSize(value int) testOptions
 
 	// WorkerPoolSize returns the number of workers in the worker pool.
 	WorkerPoolSize() int
+
+	// SetJitterEnabled sets whether jittering is enabled.
+	SetJitterEnabled(value bool) testOptions
+
+	// JitterEnabled returns whether jittering is enabled.
+	JitterEnabled() bool
+
+	// SetMaxJitterFn sets the max flush jittering function.
+	SetMaxJitterFn(value aggregator.FlushJitterFn) testOptions
+
+	// MaxJitterFn returns the max flush jittering function.
+	MaxJitterFn() aggregator.FlushJitterFn
 }
 
 type options struct {
-	msgpackAddr              string
-	httpAddr                 string
-	instanceID               string
-	numShards                int
-	placementKVKey           string
-	serverStateChangeTimeout time.Duration
-	workerPoolSize           int
-	clientBatchSize          int
-	clientConnectTimeout     time.Duration
+	msgpackAddr                string
+	httpAddr                   string
+	instanceID                 string
+	numShards                  int
+	placementKVKey             string
+	electionKeyFmt             string
+	shardSetID                 uint32
+	flushTimesKeyFmt           string
+	kvStore                    kv.Store
+	serverStateChangeTimeout   time.Duration
+	workerPoolSize             int
+	clientBatchSize            int
+	clientConnectTimeout       time.Duration
+	electionStateChangeTimeout time.Duration
+	jitterEnabled              bool
+	maxJitterFn                aggregator.FlushJitterFn
 }
 
 func newTestOptions() testOptions {
 	return &options{
-		instanceID:               defaultInstanceID,
-		numShards:                defaultNumShards,
-		placementKVKey:           defaultPlacementKVKey,
-		serverStateChangeTimeout: defaultServerStateChangeTimeout,
-		workerPoolSize:           defaultWorkerPoolSize,
-		clientBatchSize:          defaultClientBatchSize,
-		clientConnectTimeout:     defaultClientConnectTimeout,
+		instanceID:                 defaultInstanceID,
+		numShards:                  defaultNumShards,
+		placementKVKey:             defaultPlacementKVKey,
+		electionKeyFmt:             defaultElectionKeyFmt,
+		shardSetID:                 defaultShardSetID,
+		flushTimesKeyFmt:           defaultFlushTimesKeyFmt,
+		kvStore:                    mem.NewStore(),
+		serverStateChangeTimeout:   defaultServerStateChangeTimeout,
+		workerPoolSize:             defaultWorkerPoolSize,
+		clientBatchSize:            defaultClientBatchSize,
+		clientConnectTimeout:       defaultClientConnectTimeout,
+		electionStateChangeTimeout: defaultElectionStateChangeTimeout,
+		jitterEnabled:              defaultJitterEnabled,
+		maxJitterFn:                defaultMaxJitterFn,
 	}
 }
 
@@ -162,6 +229,46 @@ func (o *options) PlacementKVKey() string {
 	return o.placementKVKey
 }
 
+func (o *options) SetElectionKeyFmt(value string) testOptions {
+	opts := *o
+	opts.electionKeyFmt = value
+	return &opts
+}
+
+func (o *options) ElectionKeyFmt() string {
+	return o.electionKeyFmt
+}
+
+func (o *options) SetShardSetID(value uint32) testOptions {
+	opts := *o
+	opts.shardSetID = value
+	return &opts
+}
+
+func (o *options) ShardSetID() uint32 {
+	return o.shardSetID
+}
+
+func (o *options) SetFlushTimesKeyFmt(value string) testOptions {
+	opts := *o
+	opts.flushTimesKeyFmt = value
+	return &opts
+}
+
+func (o *options) FlushTimesKeyFmt() string {
+	return o.flushTimesKeyFmt
+}
+
+func (o *options) SetKVStore(value kv.Store) testOptions {
+	opts := *o
+	opts.kvStore = value
+	return &opts
+}
+
+func (o *options) KVStore() kv.Store {
+	return o.kvStore
+}
+
 func (o *options) SetClientBatchSize(value int) testOptions {
 	opts := *o
 	opts.clientBatchSize = value
@@ -192,6 +299,16 @@ func (o *options) ServerStateChangeTimeout() time.Duration {
 	return o.serverStateChangeTimeout
 }
 
+func (o *options) SetElectionStateChangeTimeout(value time.Duration) testOptions {
+	opts := *o
+	opts.electionStateChangeTimeout = value
+	return &opts
+}
+
+func (o *options) ElectionStateChangeTimeout() time.Duration {
+	return o.electionStateChangeTimeout
+}
+
 func (o *options) SetWorkerPoolSize(value int) testOptions {
 	opts := *o
 	opts.workerPoolSize = value
@@ -200,4 +317,28 @@ func (o *options) SetWorkerPoolSize(value int) testOptions {
 
 func (o *options) WorkerPoolSize() int {
 	return o.workerPoolSize
+}
+
+func (o *options) SetJitterEnabled(value bool) testOptions {
+	opts := *o
+	opts.jitterEnabled = value
+	return &opts
+}
+
+func (o *options) JitterEnabled() bool {
+	return o.jitterEnabled
+}
+
+func (o *options) SetMaxJitterFn(value aggregator.FlushJitterFn) testOptions {
+	opts := *o
+	opts.maxJitterFn = value
+	return &opts
+}
+
+func (o *options) MaxJitterFn() aggregator.FlushJitterFn {
+	return o.maxJitterFn
+}
+
+func defaultMaxJitterFn(interval time.Duration) time.Duration {
+	return time.Duration(0.75 * float64(interval))
 }

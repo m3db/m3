@@ -35,11 +35,15 @@ import (
 	"github.com/m3db/m3aggregator/aggregator/handler"
 	"github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
+	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/retry"
+	"github.com/m3db/m3x/sync"
 
 	"github.com/spaolacci/murmur3"
 )
@@ -53,9 +57,11 @@ var (
 	errUnknownFlushHandlerType       = errors.New("unknown flush handler type")
 	errNoKVClientConfiguration       = errors.New("no kv client configuration")
 	errNoForwardHandlerConfiguration = errors.New("no forward flush configuration")
+	errEmptyJitterBucketList         = errors.New("empty jitter bucket list")
 )
 
 // AggregatorConfiguration contains aggregator configuration.
+// TODO(xichen): consolidate the kv stores.
 type AggregatorConfiguration struct {
 	// Default aggregation types for counter metrics.
 	CounterAggregationTypes []policy.AggregationType `yaml:"counterAggregationTypes" validate:"nonzero"`
@@ -123,11 +129,20 @@ type AggregatorConfiguration struct {
 	// Client configuration for key value store.
 	KVClient kvClientConfiguration `yaml:"kvClient" validate:"nonzero"`
 
+	// KV namespace.
+	KVNamespace string `yaml:"kvNamespace" validate:"nonzero"`
+
 	// Placement watcher configuration for watching placement updates.
 	PlacementWatcher placement.WatcherConfiguration `yaml:"placementWatcher"`
 
 	// Sharding function type.
 	ShardFnType *shardFnType `yaml:"shardFnType"`
+
+	// Resign timeout.
+	ResignTimeout time.Duration `yaml:"resignTimeout"`
+
+	// Election manager.
+	ElectionManager electionManagerConfiguration `yaml:"electionManager"`
 
 	// Flush manager.
 	FlushManager flushManagerConfiguration `yaml:"flushManager"`
@@ -237,13 +252,14 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	if err != nil {
 		return nil, err
 	}
-
-	// Set placement watcher options.
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("placement-watcher"))
-	watcherOpts, err := c.PlacementWatcher.NewOptions(client, iOpts)
+	store, err := client.Store(c.KVNamespace)
 	if err != nil {
 		return nil, err
 	}
+
+	// Set placement watcher options.
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("placement-watcher"))
+	watcherOpts := c.PlacementWatcher.NewOptions(store, iOpts)
 	opts = opts.SetStagedPlacementWatcherOptions(watcherOpts)
 
 	// Set sharding function.
@@ -257,9 +273,25 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	}
 	opts = opts.SetShardFn(shardFn)
 
+	// Set resign timeout.
+	if c.ResignTimeout != 0 {
+		opts = opts.SetResignTimeout(c.ResignTimeout)
+	}
+
+	// Set election manager.
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("election-manager"))
+	electionManager, err := c.ElectionManager.NewElectionManager(client, instanceID, iOpts)
+	if err != nil {
+		return nil, err
+	}
+	opts = opts.SetElectionManager(electionManager)
+
 	// Set flush manager.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("flush-manager"))
-	flushManager := c.FlushManager.NewFlushManager(iOpts)
+	flushManager, err := c.FlushManager.NewFlushManager(store, electionManager, iOpts)
+	if err != nil {
+		return nil, err
+	}
 	opts = opts.SetFlushManager(flushManager)
 
 	// Set flushing handler.
@@ -302,7 +334,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	counterElemPool := aggregator.NewCounterElemPool(counterElemPoolOpts)
 	opts = opts.SetCounterElemPool(counterElemPool)
 	counterElemPool.Init(func() *aggregator.CounterElem {
-		return aggregator.NewCounterElem(nil, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, opts)
+		return aggregator.NewCounterElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, opts)
 	})
 
 	// Set timer elem pool.
@@ -311,7 +343,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	timerElemPool := aggregator.NewTimerElemPool(timerElemPoolOpts)
 	opts = opts.SetTimerElemPool(timerElemPool)
 	timerElemPool.Init(func() *aggregator.TimerElem {
-		return aggregator.NewTimerElem(nil, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, opts)
+		return aggregator.NewTimerElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, opts)
 	})
 
 	// Set gauge elem pool.
@@ -320,7 +352,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	gaugeElemPool := aggregator.NewGaugeElemPool(gaugeElemPoolOpts)
 	opts = opts.SetGaugeElemPool(gaugeElemPool)
 	gaugeElemPool.Init(func() *aggregator.GaugeElem {
-		return aggregator.NewGaugeElem(nil, policy.DefaultStoragePolicy, policy.DefaultAggregationTypes, opts)
+		return aggregator.NewGaugeElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, opts)
 	})
 
 	// Set entry pool.
@@ -515,6 +547,102 @@ func (t shardFnType) ShardFn() (aggregator.ShardFn, error) {
 	}
 }
 
+type electionManagerConfiguration struct {
+	Election            electionConfiguration  `yaml:"election"`
+	ServiceID           serviceIDConfiguration `yaml:"serviceID"`
+	LeaderValue         string                 `yaml:"leaderValue"`
+	ElectionKeyFmt      string                 `yaml:"electionKeyFmt" validate:"nonzero"`
+	CampaignRetrier     xretry.Configuration   `yaml:"campaignRetrier"`
+	ChangeRetrier       xretry.Configuration   `yaml:"changeRetrier"`
+	ChangeVerifyTimeout time.Duration          `yaml:"changeVerifyTimeout"`
+}
+
+func (c electionManagerConfiguration) NewElectionManager(
+	client client.Client,
+	instanceID string,
+	instrumentOpts instrument.Options,
+) (aggregator.ElectionManager, error) {
+	electionOpts, err := c.Election.NewElectionOptions()
+	if err != nil {
+		return nil, err
+	}
+	serviceID := c.ServiceID.NewServiceID()
+	svcs, err := client.Services()
+	if err != nil {
+		return nil, err
+	}
+	leaderService, err := svcs.LeaderService(serviceID, electionOpts)
+	if err != nil {
+		return nil, err
+	}
+	campaignOpts, err := services.NewCampaignOptions()
+	if err != nil {
+		return nil, err
+	}
+	leaderValue := instanceID
+	if c.LeaderValue != "" {
+		leaderValue = c.LeaderValue
+	}
+	campaignOpts = campaignOpts.SetLeaderValue(leaderValue)
+	scope := instrumentOpts.MetricsScope()
+	campaignRetryOpts := c.CampaignRetrier.NewOptions(scope.SubScope("campaign"))
+	changeRetryOpts := c.ChangeRetrier.NewOptions(scope.SubScope("change"))
+	opts := aggregator.NewElectionManagerOptions().
+		SetInstrumentOptions(instrumentOpts).
+		SetElectionOptions(electionOpts).
+		SetCampaignOptions(campaignOpts).
+		SetCampaignRetryOptions(campaignRetryOpts).
+		SetChangeRetryOptions(changeRetryOpts).
+		SetElectionKeyFmt(c.ElectionKeyFmt).
+		SetLeaderService(leaderService)
+	if c.ChangeVerifyTimeout != 0 {
+		opts = opts.SetChangeVerifyTimeout(c.ChangeVerifyTimeout)
+	}
+	electionManager := aggregator.NewElectionManager(opts)
+	return electionManager, nil
+}
+
+type electionConfiguration struct {
+	LeaderTimeout time.Duration `yaml:"leaderTimeout"`
+	ResignTimeout time.Duration `yaml:"resignTimeout"`
+	TTLSeconds    int           `yaml:"ttlSeconds"`
+}
+
+func (c electionConfiguration) NewElectionOptions() (services.ElectionOptions, error) {
+	opts := services.NewElectionOptions()
+	if c.LeaderTimeout != 0 {
+		opts = opts.SetLeaderTimeout(c.LeaderTimeout)
+	}
+	if c.ResignTimeout != 0 {
+		opts = opts.SetResignTimeout(c.ResignTimeout)
+	}
+	if c.TTLSeconds != 0 {
+		opts = opts.SetTTLSecs(c.TTLSeconds)
+	}
+	return opts, nil
+}
+
+// TODO: move this to m3cluster.
+type serviceIDConfiguration struct {
+	Name        string `yaml:"name"`
+	Environment string `yaml:"environment"`
+	Zone        string `yaml:"zone"`
+}
+
+func (c serviceIDConfiguration) NewServiceID() services.ServiceID {
+	sid := services.NewServiceID()
+	if c.Name != "" {
+		sid = sid.SetName(c.Name)
+	}
+	if c.Environment != "" {
+		sid = sid.SetEnvironment(c.Environment)
+	}
+	if c.Zone != "" {
+		sid = sid.SetZone(c.Zone)
+	}
+	return sid
+}
+
 type flushManagerConfiguration struct {
 	// How frequently the flush manager checks for next flush.
 	CheckEvery time.Duration `yaml:"checkEvery"`
@@ -522,25 +650,108 @@ type flushManagerConfiguration struct {
 	// Whether jittering is enabled.
 	JitterEnabled *bool `yaml:"jitterEnabled"`
 
+	// Buckets for determining max jitter amounts.
+	MaxJitters []jitterBucket `yaml:"maxJitters"`
+
 	// Number of workers per CPU.
 	NumWorkersPerCPU float64 `yaml:"numWorkersPerCPU" validate:"min=0.0,max=1.0"`
+
+	// Flush times key format.
+	FlushTimesKeyFmt string `yaml:"flushTimesKeyFmt" validate:"nonzero"`
+
+	// How frequently the flush times are persisted.
+	FlushTimesPersistEvery time.Duration `yaml:"flushTimesPersistEvery"`
+
+	// Retrier for persisting flush times.
+	FlushTimesPersistRetrier xretry.Configuration `yaml:"flushTimesPersistRetrier"`
+
+	// Maximum duration with no flushes.
+	MaxNoFlushDuration time.Duration `yaml:"maxNoFlushDuration"`
+
+	// Window size for a forced flush.
+	ForcedFlushWindowSize time.Duration `yaml:"forcedFlushWindowSize"`
 }
 
 func (c flushManagerConfiguration) NewFlushManager(
+	store kv.Store,
+	electionManager aggregator.ElectionManager,
 	instrumentOpts instrument.Options,
-) aggregator.FlushManager {
-	opts := aggregator.NewFlushManagerOptions().SetInstrumentOptions(instrumentOpts)
+) (aggregator.FlushManager, error) {
+	scope := instrumentOpts.MetricsScope()
+	retrier := c.FlushTimesPersistRetrier.NewRetrier(scope.SubScope("flush-times-persist"))
+	opts := aggregator.NewFlushManagerOptions().
+		SetInstrumentOptions(instrumentOpts).
+		SetElectionManager(electionManager).
+		SetFlushTimesKeyFmt(c.FlushTimesKeyFmt).
+		SetFlushTimesStore(store).
+		SetFlushTimesPersistRetrier(retrier)
 	if c.CheckEvery != 0 {
 		opts = opts.SetCheckEvery(c.CheckEvery)
 	}
 	if c.JitterEnabled != nil {
 		opts = opts.SetJitterEnabled(*c.JitterEnabled)
 	}
+	if c.MaxJitters != nil {
+		maxJitterFn, err := jitterBuckets(c.MaxJitters).NewMaxJitterFn()
+		if err != nil {
+			return nil, err
+		}
+		opts = opts.SetMaxJitterFn(maxJitterFn)
+	}
 	if c.NumWorkersPerCPU != 0 {
 		workerPoolSize := int(float64(runtime.NumCPU()) * c.NumWorkersPerCPU)
-		opts = opts.SetWorkerPoolSize(workerPoolSize)
+		workerPool := xsync.NewWorkerPool(workerPoolSize)
+		workerPool.Init()
+		opts = opts.SetWorkerPool(workerPool)
 	}
-	return aggregator.NewFlushManager(opts)
+	if c.FlushTimesPersistEvery != 0 {
+		opts = opts.SetFlushTimesPersistEvery(c.FlushTimesPersistEvery)
+	}
+	if c.MaxNoFlushDuration != 0 {
+		opts = opts.SetMaxNoFlushDuration(c.MaxNoFlushDuration)
+	}
+	if c.ForcedFlushWindowSize != 0 {
+		opts = opts.SetForcedFlushWindowSize(c.ForcedFlushWindowSize)
+	}
+	return aggregator.NewFlushManager(opts), nil
+}
+
+// jitterBucket determins the max jitter percent for lists whose flush
+// intervals are no more than the bucket flush interval.
+type jitterBucket struct {
+	FlushInterval    time.Duration `yaml:"flushInterval" validate:"nonzero"`
+	MaxJitterPercent float64       `yaml:"maxJitterPercent" validate:"min=0.0,max=1.0"`
+}
+
+type jitterBuckets []jitterBucket
+
+func (buckets jitterBuckets) NewMaxJitterFn() (aggregator.FlushJitterFn, error) {
+	numBuckets := len(buckets)
+	if numBuckets == 0 {
+		return nil, errEmptyJitterBucketList
+	}
+	res := make([]jitterBucket, numBuckets)
+	copy(res, buckets)
+	sort.Sort(jitterBucketsByIntervalAscending(res))
+
+	return func(interval time.Duration) time.Duration {
+		idx := sort.Search(numBuckets, func(i int) bool {
+			return res[i].FlushInterval >= interval
+		})
+		if idx == numBuckets {
+			idx--
+		}
+		return time.Duration(res[idx].MaxJitterPercent * float64(res[idx].FlushInterval))
+	}, nil
+}
+
+type jitterBucketsByIntervalAscending []jitterBucket
+
+func (b jitterBucketsByIntervalAscending) Len() int      { return len(b) }
+func (b jitterBucketsByIntervalAscending) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+
+func (b jitterBucketsByIntervalAscending) Less(i, j int) bool {
+	return b[i].FlushInterval < b[j].FlushInterval
 }
 
 // timerQuantileSuffixFnType is the timer quantile suffix function type.

@@ -18,48 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package aggregator
+//go:generate sh -c "$GOPATH/src/$PACKAGE/.ci/proto-gen.sh $GOPATH/src/$PACKAGE/generated/proto"
 
-import (
-	"testing"
-
-	"github.com/m3db/m3metrics/metric/unaggregated"
-	"github.com/m3db/m3metrics/policy"
-	"github.com/stretchr/testify/require"
-)
-
-var (
-	testShard = uint32(0)
-)
-
-func TestAggregatorShard(t *testing.T) {
-	shard := newAggregatorShard(testShard, testOptions().SetEntryCheckInterval(0))
-	require.Equal(t, testShard, shard.ID())
-
-	var (
-		resultMu           unaggregated.MetricUnion
-		resultPoliciesList policy.PoliciesList
-	)
-	shard.addMetricWithPoliciesListFn = func(
-		mu unaggregated.MetricUnion,
-		pl policy.PoliciesList,
-	) error {
-		resultMu = mu
-		resultPoliciesList = pl
-		return nil
-	}
-
-	require.NoError(t, shard.AddMetricWithPoliciesList(testValidMetric, testPoliciesList))
-	require.Equal(t, testValidMetric, resultMu)
-	require.Equal(t, testPoliciesList, resultPoliciesList)
-
-	// Close the shard.
-	shard.Close()
-
-	// Adding a metric to a closed shard should result in an error.
-	err := shard.AddMetricWithPoliciesList(testValidMetric, testPoliciesList)
-	require.Equal(t, errAggregatorShardClosed, err)
-
-	// Assert the shard is closed.
-	require.True(t, shard.closed)
-}
+package proto

@@ -26,28 +26,12 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 )
-
-// Aggregator aggregates different types of metrics.
-type Aggregator interface {
-	// Open opens the aggregator.
-	Open() error
-
-	// AddMetricWithPoliciesList adds a metric with policies list for aggregation.
-	AddMetricWithPoliciesList(
-		mu unaggregated.MetricUnion,
-		pl policy.PoliciesList,
-	) error
-
-	// Close closes the aggregator.
-	Close() error
-}
 
 // ShardFn maps a id to a shard given the total number of shards.
 type ShardFn func(id []byte, numShards int) uint32
@@ -273,6 +257,12 @@ type Options interface {
 	// ShardFn returns the sharding function.
 	ShardFn() ShardFn
 
+	// SetElectionManager sets the election manager.
+	SetElectionManager(value ElectionManager) Options
+
+	// ElectionManager returns the election manager.
+	ElectionManager() ElectionManager
+
 	// SetFlushManager sets the flush manager.
 	SetFlushManager(value FlushManager) Options
 
@@ -321,11 +311,17 @@ type Options interface {
 	// MaxTimerBatchSizePerWrite returns the maximum timer batch size for each batched write.
 	MaxTimerBatchSizePerWrite() int
 
-	// SetDefaultPolicies sets the default policies
+	// SetDefaultPolicies sets the default policies.
 	SetDefaultPolicies(value []policy.Policy) Options
 
-	// DefaultPolicies returns the default policies
+	// DefaultPolicies returns the default policies.
 	DefaultPolicies() []policy.Policy
+
+	// SetResignTimeout sets the resign timeout.
+	SetResignTimeout(value time.Duration) Options
+
+	// ResignTimeout returns the resign timeout.
+	ResignTimeout() time.Duration
 
 	// SetEntryPool sets the entry pool
 	SetEntryPool(value EntryPool) Options

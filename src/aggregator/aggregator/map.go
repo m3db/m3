@@ -62,6 +62,7 @@ func newMetricMapMetrics(scope tally.Scope) metricMapMetrics {
 type metricMap struct {
 	sync.RWMutex
 
+	shard        uint32
 	opts         Options
 	nowFn        clock.NowFn
 	entryPool    EntryPool
@@ -74,11 +75,12 @@ type metricMap struct {
 	metrics     metricMapMetrics
 }
 
-func newMetricMap(opts Options) *metricMap {
-	metricLists := newMetricLists(opts)
+func newMetricMap(shard uint32, opts Options) *metricMap {
+	metricLists := newMetricLists(shard, opts)
 	scope := opts.InstrumentOptions().MetricsScope().SubScope("map")
 
 	return &metricMap{
+		shard:        shard,
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
 		entryPool:    opts.EntryPool(),
