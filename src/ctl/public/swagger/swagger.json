@@ -1,0 +1,898 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "description": "R2 client API",
+    "version": "v1",
+    "title": "R2 API",
+    "license": {
+      "name": "MIT",
+      "url": "https://github.com/m3db/m3ctl/blob/master/LICENSE.md"
+    }
+  },
+  "host": "localhost:9000",
+  "basePath": "/r2/v1/",
+  "tags": [
+    {
+      "name": "namespaces",
+      "description": "Operations at the namespaces level"
+    },
+    {
+      "name": "namespace",
+      "description": "Operations on rule sets, i.e. namespaces"
+    },
+    {
+      "name": "mapping-rule",
+      "description": "Operations on mapping rules"
+    },
+    {
+      "name": "rollup-rule",
+      "description": "Operations on rollup rules"
+    }
+  ],
+  "schemes": [
+    "http"
+  ],
+  "paths": {
+    "/namespaces": {
+      "get": {
+        "tags": [
+          "namespaces"
+        ],
+        "summary": "Get all of the known namespaces",
+        "description": "",
+        "operationId": "getNamespaces",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "blah",
+            "schema": {
+              "$ref": "#/definitions/Namespaces"
+            }
+          }
+        }
+      }
+    },
+    "/namespace/{namespaceId}": {
+      "get": {
+        "tags": [
+          "namespace"
+        ],
+        "summary": "Get the current view of the rule set belonging to a given namespace",
+        "operationId": "getNamespace",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+         {
+            "in": "path",
+            "name": "namespaceId",
+            "description": "The name of the namespace",
+            "type": "string",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "blah",
+            "schema": {
+              "$ref": "#/definitions/RuleSet"
+            }
+          },
+          "404": {
+            "description": "No such namespace",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "500": {
+            "description": "Something went horribly wrong",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "namespace"
+        ],
+        "summary": "Creates a namespace with a given name.",
+        "operationId": "createNamespace",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceId",
+            "description": "The name of the namespace",
+            "type": "string",
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Succesfully created the namespace",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "409": {
+            "description": "Namespace already exists",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "500": {
+            "description": "Something went horribly wrong",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "namespace"
+        ],
+        "summary": "Deletes the namespace with a given name.",
+        "operationId": "deleteNamespace",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceId",
+            "description": "The name of the namespace",
+            "type": "string",
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Succesfully deleted the namespace",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "404": {
+            "description": "No such namespace",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "500": {
+            "description": "Something went horribly wrong",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          }
+        }
+      }
+    },
+    "/namespace/{namespaceId}/mapping/{ruleId}": {
+      "get": {
+        "tags": [
+          "mapping-rule"
+        ],
+        "summary": "Gets the current state for a given mapping rule in a given  namespace\n",
+        "operationId": "getMappingRule",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceId",
+            "description": "The name of the namespace",
+            "type": "string",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "ruleId",
+            "description": "The id of the rule",
+            "type": "string",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "rule state sorted latest first",
+            "schema": {
+              "$ref": "#/definitions/MappingRule"
+            }
+          },
+          "404": {
+            "description": "no such namespace or no such rule",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "500": {
+            "description": "Something went horribly wrong",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "mapping-rule"
+        ],
+        "summary": "Update the mapping rule to the provided state",
+        "operationId": "updateMappingRule",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "state",
+            "description": "the new state of the ruleset",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MappingRuleUpdate"
+            }
+          },
+          {
+            "in": "path",
+            "name": "namespaceId",
+            "description": "The name of the namespace",
+            "type": "string",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "ruleId",
+            "description": "The id of the rule",
+            "type": "string",
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Rule updated",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "404": {
+            "description": "No such Rule",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "409": {
+            "description": "The ruleset got updated while you were looking at it.",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "500": {
+            "description": "Something went horribly wrong",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "mapping-rule"
+        ],
+        "summary": "Update a mapping rule with the given state",
+        "operationId": "createMappingRule",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "state",
+            "description": "the new state of the ruleset",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MappingRuleUpdate"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Ruleset updated",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "404": {
+            "description": "No such namespace",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "409": {
+            "description": "The ruleset got updated while you were looking at it.",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "500": {
+            "description": "Something went horribly wrong",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "mapping-rule"
+        ],
+        "summary": "Delete a mapping rule with the given state",
+        "operationId": "deleteMappingRule",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "state",
+            "description": "the new state of the ruleset",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/MappingRuleUpdate"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Ruleset updated",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "404": {
+            "description": "No such namespace",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "409": {
+            "description": "The ruleset got updated while you were looking at it.",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "500": {
+            "description": "Something went horribly wrong",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          }
+        }
+      }
+    },
+    "/namespace/{namespaceId}/mapping/{ruleId}/history": {
+      "get": {
+        "tags": [
+          "mapping-rule"
+        ],
+        "summary": "Gets the current state and all history for a given mapping rule a given namespace\n",
+        "operationId": "getMappingRuleHistory",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceId",
+            "description": "The name of the namespace",
+            "type": "string",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "ruleId",
+            "description": "The id of the rule",
+            "type": "string",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "rule state sorted latest first",
+            "schema": {
+              "$ref": "#/definitions/MappingRuleHistory"
+            }
+          },
+          "404": {
+            "description": "no such namespace or no such rule",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "500": {
+            "description": "Something went horribly wrong",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          }
+        }
+      }
+    },
+    "/namespace/{namespaceId}/rollup/{ruleId}": {
+      "get": {
+        "tags": [
+          "rollup-rule"
+        ],
+        "summary": "Gets the current state for a given rollup rule in a given namespace",
+        "operationId": "getRollupRule",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceId",
+            "description": "The name of the namespace",
+            "type": "string",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "ruleId",
+            "description": "The id of the rule",
+            "type": "string",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "rule state sorted latest first",
+            "schema": {
+              "$ref": "#/definitions/RollupRule"
+            }
+          },
+          "404": {
+            "description": "no such namespace or no such rule",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "500": {
+            "description": "Something went horribly wrong",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "rollup-rule"
+        ],
+        "summary": "Update the rollup rule to the provided state",
+        "operationId": "updateRollupRule",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "state",
+            "description": "the new state of the ruleset",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/RollupRuleUpdate"
+            }
+          },
+          {
+            "in": "path",
+            "name": "namespaceId",
+            "description": "The name of the namespace",
+            "type": "string",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "ruleId",
+            "description": "The id of the rule",
+            "type": "string",
+            "required": true
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Rule updated",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "404": {
+            "description": "No such Rule",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "409": {
+            "description": "The ruleset got updated while you were looking at it.",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "500": {
+            "description": "Something went horribly wrong",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "rollup-rule"
+        ],
+        "summary": "Update a rollup rule with the given state",
+        "operationId": "createRollupRule",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "body",
+            "name": "state",
+            "description": "the new state of the ruleset",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/RollupRuleUpdate"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Ruleset updated",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "404": {
+            "description": "No such namespace or no such rule",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "409": {
+            "description": "The ruleset got updated while you were looking at it.",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "500": {
+            "description": "Something went horribly wrong",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "rollup-rule"
+        ],
+        "summary": "Delete a rollup rule with the given id",
+        "operationId": "deleteRollupRule",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+         {
+            "in": "body",
+            "name": "state",
+            "description": "the new state of the ruleset",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/RollupRuleUpdate"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Ruleset updated",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "404": {
+            "description": "No such namespace",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "409": {
+            "description": "The ruleset got updated while you were looking at it.",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "500": {
+            "description": "Something went horribly wrong",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          }
+        }
+      }
+    },
+    "/namespace/{namespaceId}/rollup/{ruleId}/history": {
+      "get": {
+        "tags": [
+          "rollup-rule"
+        ],
+        "summary": "Gets the current state and all history for a given rollup rule in a given  namespace\n",
+        "operationId": "getRollupRuleHistory",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "namespaceId",
+            "description": "The name of the namespace",
+            "type": "string",
+            "required": true
+          },
+          {
+            "in": "path",
+            "name": "ruleId",
+            "description": "The id of the rule",
+            "type": "string",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "rule state sorted latest first",
+            "schema": {
+              "$ref": "#/definitions/RollupRuleHistory"
+            }
+          },
+          "404": {
+            "description": "no such namespace or no such rule",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "500": {
+            "description": "Something went horribly wrong",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "Namespace": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "Namespaces": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Namespace"
+      }
+    },
+    "RuleSet": {
+      "type": "object",
+      "properties": {
+        "namespace": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "cutoverMillis": {
+          "type": "integer",
+          "format": "unixMillis"
+        },
+        "mappingRules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/MappingRule"
+          }
+        },
+        "rollupRules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RollupRule"
+          }
+        }
+      }
+    },
+    "MappingRule": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "string"
+        },
+        "policies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cutoverMillies": {
+          "type": "integer",
+          "description": "unixMillies"
+        },
+        "lastUpdateBy": {
+          "type": "string"
+        },
+        "lastUpdatedMillis": {
+          "type": "integer",
+          "description": "unixMillies"
+        }
+      }
+    },
+    "RollupRule": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "name": {
+          "type": "string"
+        },
+        "filter": {
+          "type": "string"
+        },
+        "targets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/RollupTarget"
+          }
+        },
+        "cutoverMillis": {
+          "type": "integer",
+          "description": "unixMillis"
+        },
+        "lastUpdateBy": {
+          "type": "string"
+        },
+        "lastUpdatedMillis": {
+          "type": "integer",
+          "description": "unixMillis"
+        }
+      }
+    },
+    "MappingRuleUpdate": {
+      "type": "object",
+      "properties": {
+        "rulesetVersion": {
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/definitions/MappingRule"
+        }
+      }
+    },
+    "MappingRuleHistory": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/MappingRule"
+      }
+    },
+    "RollupTarget": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items" : {
+            "type": "string"
+          }
+        },
+        "policies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "RollupRuleUpdate": {
+      "type": "object",
+      "properties": {
+        "rulesetVersion": {
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/definitions/RollupRule"
+        }
+      }
+    },
+    "RollupRuleHistory": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/RollupRule"
+      }
+    },
+    "ApiResponse": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer",
+          "format": "int32"
+        },
+        "type": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
