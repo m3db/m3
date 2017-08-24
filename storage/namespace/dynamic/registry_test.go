@@ -31,6 +31,7 @@ import (
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/time"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -124,11 +125,11 @@ func TestInitializerNoTimeout(t *testing.T) {
 	ropts := expectedNsValue.RetentionOptions
 	observedRopts := md.Options().RetentionOptions()
 	require.Equal(t, ropts.BlockDataExpiry, observedRopts.BlockDataExpiry())
-	require.Equal(t, ropts.BlockDataExpiryAfterNotAccessPeriodNanos,
-		observedRopts.BlockDataExpiryAfterNotAccessedPeriod().Nanoseconds())
-	require.Equal(t, ropts.BlockSizeNanos, observedRopts.BlockSize().Nanoseconds())
-	require.Equal(t, ropts.BufferFutureNanos, observedRopts.BufferFuture().Nanoseconds())
-	require.Equal(t, ropts.BufferPastNanos, observedRopts.BufferPast().Nanoseconds())
+	require.Equal(t, ropts.BlockDataExpiryAfterNotAccessPeriodMins,
+		toMinsInt64(observedRopts.BlockDataExpiryAfterNotAccessedPeriod()))
+	require.Equal(t, ropts.BlockSizeMins, toMinsInt64(observedRopts.BlockSize()))
+	require.Equal(t, ropts.BufferFutureMins, toMinsInt64(observedRopts.BufferFuture()))
+	require.Equal(t, ropts.BufferPastMins, toMinsInt64(observedRopts.BufferPast()))
 
 	require.NoError(t, rw.Close())
 	require.NoError(t, reg.Close())
@@ -297,12 +298,12 @@ func singleTestValue() testValue {
 					NeedsRepair:         true,
 					WritesToCommitLog:   true,
 					RetentionOptions: &nsproto.RetentionOptions{
-						BlockDataExpiry:                          true,
-						BlockDataExpiryAfterNotAccessPeriodNanos: int64(time.Minute),
-						BlockSizeNanos:                           int64(time.Hour * 2),
-						RetentionPeriodNanos:                     int64(time.Hour * 48),
-						BufferFutureNanos:                        int64(time.Minute * 10),
-						BufferPastNanos:                          int64(time.Minute * 15),
+						BlockDataExpiry:                         true,
+						BlockDataExpiryAfterNotAccessPeriodMins: toMinsInt64(time.Minute),
+						BlockSizeMins:                           toMinsInt64(time.Hour * 2),
+						RetentionPeriodMins:                     toMinsInt64(time.Hour * 48),
+						BufferFutureMins:                        toMinsInt64(time.Minute * 10),
+						BufferPastMins:                          toMinsInt64(time.Minute * 15),
 					},
 				},
 			},
@@ -386,4 +387,8 @@ func (w *testValueWatch) Close() {
 
 	close(w.valueCh)
 	close(w.notifyCh)
+}
+
+func toMinsInt64(t time.Duration) int64 {
+	return xtime.ToNormalizedDuration(t, time.Minute)
 }

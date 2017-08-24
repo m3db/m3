@@ -251,14 +251,5 @@ func getMapFromUpdate(val kv.Value) (namespace.Map, error) {
 		return nil, errInvalidRegistry
 	}
 
-	var metadatas []namespace.Metadata
-	for ns, opts := range protoRegistry.Namespaces {
-		md, err := convert.ToMetadata(ns, opts)
-		if err != nil {
-			return nil, err
-		}
-		metadatas = append(metadatas, md)
-	}
-
-	return namespace.NewMap(metadatas)
+	return convert.FromProto(protoRegistry)
 }
