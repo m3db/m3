@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package rules
+package swagger
 
 import (
 	"net/http"
@@ -30,13 +30,10 @@ import (
 )
 
 const (
-	readNamespacesURL  = "/rules/v1/namespaces"
-	createNamespaceURL = "/rules/v1/namespace/{name}"
-	deleteNamespaceURL = "/rules/v1/namespace/{name}"
-	rulesURL           = "/rules/v1/namespace/{name}"
+	swaggerURL = "/swagger/r2/v1"
+	swaggerDir = "public/swagger/"
 )
 
-// Controller sets up the handlers for rules
 type controller struct {
 	iOpts instrument.Options
 }
@@ -49,10 +46,11 @@ func NewController(iOpts instrument.Options) handler.Controller {
 // RegisterHandlers registers rule handlers
 func (c *controller) RegisterHandlers(router *mux.Router) {
 	log := c.iOpts.Logger()
-	router.HandleFunc(readNamespacesURL, c.getNamespacesHandler).Methods(http.MethodGet)
-	router.HandleFunc(createNamespaceURL, c.createNamespaceHandler).Methods(http.MethodPost)
-	router.HandleFunc(deleteNamespaceURL, c.deleteNamespaceHandler).Methods(http.MethodDelete)
-	router.HandleFunc(rulesURL, c.getRulesInNamespaceHandler).Methods(http.MethodGet)
-	router.HandleFunc(rulesURL, c.setRulesInNamespaceHandler).Methods(http.MethodPut, http.MethodPatch)
-	log.Infof("Registered rules endpoints")
+	router.PathPrefix(swaggerURL).Handler(
+		http.StripPrefix(
+			swaggerURL,
+			http.FileServer(http.Dir(swaggerDir)),
+		),
+	)
+	log.Infof("Registered swagger endpoints")
 }
