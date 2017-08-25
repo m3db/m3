@@ -741,7 +741,7 @@ func (buckets jitterBuckets) NewMaxJitterFn() (aggregator.FlushJitterFn, error) 
 		if idx == numBuckets {
 			idx--
 		}
-		return time.Duration(res[idx].MaxJitterPercent * float64(res[idx].FlushInterval))
+		return time.Duration(res[idx].MaxJitterPercent * float64(interval))
 	}, nil
 }
 
