@@ -21,8 +21,6 @@
 package aggregator
 
 import (
-	"time"
-
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
@@ -30,8 +28,7 @@ import (
 )
 
 const (
-	defaultElectionKeyFormat   = "/shardset/%d/lock"
-	defaultChangeVerifyTimeout = 10 * time.Second
+	defaultElectionKeyFormat = "/shardset/%d/lock"
 )
 
 // ElectionManagerOptions provide a set of options for the election manager.
@@ -83,36 +80,28 @@ type ElectionManagerOptions interface {
 
 	// LeaderService returns the leader service.
 	LeaderService() services.LeaderService
-
-	// SetChangeVerifyTimeout sets the change verification timeout.
-	SetChangeVerifyTimeout(value time.Duration) ElectionManagerOptions
-
-	// ChangeVerifyTimeout returns the change verification timeout.
-	ChangeVerifyTimeout() time.Duration
 }
 
 type electionManagerOptions struct {
-	clockOpts           clock.Options
-	instrumentOpts      instrument.Options
-	electionOpts        services.ElectionOptions
-	campaignOpts        services.CampaignOptions
-	campaignRetryOpts   xretry.Options
-	changeRetryOpts     xretry.Options
-	electionKeyFmt      string
-	leaderService       services.LeaderService
-	changeVerifyTimeout time.Duration
+	clockOpts         clock.Options
+	instrumentOpts    instrument.Options
+	electionOpts      services.ElectionOptions
+	campaignOpts      services.CampaignOptions
+	campaignRetryOpts xretry.Options
+	changeRetryOpts   xretry.Options
+	electionKeyFmt    string
+	leaderService     services.LeaderService
 }
 
 // NewElectionManagerOptions create a new set of options for the election manager.
 func NewElectionManagerOptions() ElectionManagerOptions {
 	return &electionManagerOptions{
-		clockOpts:           clock.NewOptions(),
-		instrumentOpts:      instrument.NewOptions(),
-		electionOpts:        services.NewElectionOptions(),
-		campaignRetryOpts:   xretry.NewOptions(),
-		changeRetryOpts:     xretry.NewOptions(),
-		electionKeyFmt:      defaultElectionKeyFormat,
-		changeVerifyTimeout: defaultChangeVerifyTimeout,
+		clockOpts:         clock.NewOptions(),
+		instrumentOpts:    instrument.NewOptions(),
+		electionOpts:      services.NewElectionOptions(),
+		campaignRetryOpts: xretry.NewOptions(),
+		changeRetryOpts:   xretry.NewOptions(),
+		electionKeyFmt:    defaultElectionKeyFormat,
 	}
 }
 
@@ -194,14 +183,4 @@ func (o *electionManagerOptions) SetLeaderService(value services.LeaderService) 
 
 func (o *electionManagerOptions) LeaderService() services.LeaderService {
 	return o.leaderService
-}
-
-func (o *electionManagerOptions) SetChangeVerifyTimeout(value time.Duration) ElectionManagerOptions {
-	opts := *o
-	opts.changeVerifyTimeout = value
-	return &opts
-}
-
-func (o *electionManagerOptions) ChangeVerifyTimeout() time.Duration {
-	return o.changeVerifyTimeout
 }

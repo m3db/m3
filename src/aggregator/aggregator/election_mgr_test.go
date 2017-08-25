@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -327,11 +328,16 @@ func TestElectionManagerCampaignLoop(t *testing.T) {
 	require.NoError(t, mgr.Close())
 }
 
-func TestElectionManagerVerifyTimeout(t *testing.T) {
+func TestElectionManagerVerifyLeaderDelay(t *testing.T) {
+	var iter int
 	leaderValue := "myself"
 	leaderService := &mockLeaderService{
 		leaderFn: func(electionID string) (string, error) {
-			return leaderValue, nil
+			iter++
+			if iter < 10 {
+				return leaderValue, nil
+			}
+			return "someone else", nil
 		},
 	}
 	campaignOpts, err := services.NewCampaignOptions()
@@ -341,35 +347,13 @@ func TestElectionManagerVerifyTimeout(t *testing.T) {
 		SetCampaignOptions(campaignOpts).
 		SetLeaderService(leaderService)
 	mgr := NewElectionManager(opts).(*electionManager)
+	retryOpts := xretry.NewOptions().
+		SetInitialBackoff(10 * time.Millisecond).
+		SetBackoffFactor(2).
+		SetMaxBackoff(50 * time.Millisecond).
+		SetForever(true)
+	mgr.changeRetrier = xretry.NewRetrier(retryOpts)
 	mgr.electionStateWatchable.Update(PendingFollowerState)
-	mgr.changeVerifyTimeout = time.Nanosecond
-
-	_, watch, err := mgr.goalStateWatchable.Watch()
-	require.NoError(t, err)
-
-	go mgr.verifyPendingFollower(watch)
-	mgr.goalStateWatchable.Update(goalState{state: PendingFollowerState})
-	time.Sleep(100 * time.Millisecond)
-	close(mgr.doneCh)
-	require.Equal(t, PendingFollowerState, mgr.ElectionState())
-}
-
-func TestElectionManagerVerifyIsLeader(t *testing.T) {
-	leaderValue := "myself"
-	leaderService := &mockLeaderService{
-		leaderFn: func(electionID string) (string, error) {
-			return leaderValue, nil
-		},
-	}
-	campaignOpts, err := services.NewCampaignOptions()
-	require.NoError(t, err)
-	campaignOpts = campaignOpts.SetLeaderValue(leaderValue)
-	opts := NewElectionManagerOptions().
-		SetCampaignOptions(campaignOpts).
-		SetLeaderService(leaderService)
-	mgr := NewElectionManager(opts).(*electionManager)
-	mgr.electionStateWatchable.Update(PendingFollowerState)
-	mgr.changeVerifyTimeout = 100 * time.Millisecond
 
 	_, watch, err := mgr.goalStateWatchable.Watch()
 	require.NoError(t, err)
@@ -378,12 +362,13 @@ func TestElectionManagerVerifyIsLeader(t *testing.T) {
 	mgr.goalStateWatchable.Update(goalState{state: PendingFollowerState})
 
 	for {
-		if mgr.goalStateWatchable.Get().(goalState).state == LeaderState {
+		if mgr.goalStateWatchable.Get().(goalState).state == FollowerState {
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
 	close(mgr.doneCh)
+	require.Equal(t, 10, iter)
 }
 
 func TestElectionManagerVerifyWithLeaderErrors(t *testing.T) {
@@ -409,7 +394,6 @@ func TestElectionManagerVerifyWithLeaderErrors(t *testing.T) {
 		SetLeaderService(leaderService)
 	mgr := NewElectionManager(opts).(*electionManager)
 	mgr.electionStateWatchable.Update(PendingFollowerState)
-	mgr.changeVerifyTimeout = time.Minute
 	mgr.changeRetrier = xretry.NewRetrier(xretry.NewOptions().SetInitialBackoff(100 * time.Millisecond))
 
 	_, watch, err := mgr.goalStateWatchable.Watch()
@@ -425,6 +409,45 @@ func TestElectionManagerVerifyWithLeaderErrors(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	close(mgr.doneCh)
+	require.Equal(t, 3, iter)
+}
+
+func TestElectionManagerVerifyPendingFollowerStale(t *testing.T) {
+	var called int32
+	leaderValue := "myself"
+	leaderService := &mockLeaderService{
+		leaderFn: func(electionID string) (string, error) {
+			atomic.StoreInt32(&called, 1)
+			return leaderValue, nil
+		},
+	}
+	campaignOpts, err := services.NewCampaignOptions()
+	require.NoError(t, err)
+	campaignOpts = campaignOpts.SetLeaderValue(leaderValue)
+	opts := NewElectionManagerOptions().
+		SetCampaignOptions(campaignOpts).
+		SetLeaderService(leaderService)
+	mgr := NewElectionManager(opts).(*electionManager)
+	mgr.electionStateWatchable.Update(PendingFollowerState)
+
+	_, watch, err := mgr.goalStateWatchable.Watch()
+	require.NoError(t, err)
+
+	go mgr.verifyPendingFollower(watch)
+	mgr.goalStateWatchable.Update(goalState{state: PendingFollowerState})
+
+	for {
+		if atomic.LoadInt32(&called) == 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Push a new goal state to preempt the previous pending follower state.
+	mgr.goalStateWatchable.Update(goalState{state: LeaderState})
+
+	// Verify the retrier has exited the infinite retry loop.
+	mgr.doneCh <- struct{}{}
 }
 
 func testElectionManagerOptions(t *testing.T) ElectionManagerOptions {

@@ -83,11 +83,11 @@ const (
 	// Unknown election state.
 	UnknownState ElectionState = iota
 
-	// Leader state.
-	LeaderState
-
 	// Follower state.
 	FollowerState
+
+	// Leader state.
+	LeaderState
 
 	// Pending follower state.
 	PendingFollowerState
@@ -186,24 +186,23 @@ type goalState struct {
 type electionManager struct {
 	sync.RWMutex
 
-	nowFn               clock.NowFn
-	logger              xlog.Logger
-	reportInterval      time.Duration
-	campaignOpts        services.CampaignOptions
-	electionOpts        services.ElectionOptions
-	campaignRetrier     xretry.Retrier
-	changeRetrier       xretry.Retrier
-	changeVerifyTimeout time.Duration
-	electionKeyFmt      string
-	leaderService       services.LeaderService
-	leaderValue         string
+	nowFn           clock.NowFn
+	logger          xlog.Logger
+	reportInterval  time.Duration
+	campaignOpts    services.CampaignOptions
+	electionOpts    services.ElectionOptions
+	campaignRetrier xretry.Retrier
+	changeRetrier   xretry.Retrier
+	electionKeyFmt  string
+	leaderService   services.LeaderService
+	leaderValue     string
 
 	state                  electionManagerState
 	doneCh                 chan struct{}
 	electionKey            string
 	electionStateWatchable xwatch.Watchable
-	goalStateLock          sync.Mutex
 	nextGoalStateID        int64
+	goalStateLock          sync.RWMutex
 	goalStateWatchable     xwatch.Watchable
 	resigning              bool
 	sleepFn                sleepFn
@@ -226,7 +225,6 @@ func NewElectionManager(opts ElectionManagerOptions) ElectionManager {
 		electionOpts:           opts.ElectionOptions(),
 		campaignRetrier:        campaignRetrier,
 		changeRetrier:          changeRetrier,
-		changeVerifyTimeout:    opts.ChangeVerifyTimeout(),
 		electionKeyFmt:         opts.ElectionKeyFmt(),
 		leaderService:          opts.LeaderService(),
 		leaderValue:            campaignOpts.LeaderValue(),
@@ -375,66 +373,49 @@ func (mgr *electionManager) verifyPendingFollower(watch xwatch.Watch) {
 		case <-watch.C():
 		}
 
-		currState := mgr.goalStateWatchable.Get().(goalState)
+		currState := watch.Get().(goalState)
 		if currState.state != PendingFollowerState {
 			continue
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), mgr.changeVerifyTimeout)
+		// Only continue verifying if the state has not changed.
 		continueFn := func(int) bool {
-			select {
-			case <-ctx.Done():
-				return false
-			default:
-				return true
-			}
+			mgr.goalStateLock.RLock()
+			latest := mgr.goalStateWatchable.Get().(goalState)
+			mgr.goalStateLock.RUnlock()
+			return currState.id == latest.id && currState.state == latest.state
 		}
 
-		var (
-			knownLeader bool
-			isLeader    bool
-		)
-		mgr.changeRetrier.AttemptWhile(continueFn, func() error {
+		// Do not change state if the follower state cannot be verified.
+		if verifyErr := mgr.changeRetrier.AttemptWhile(continueFn, func() error {
 			leader, err := mgr.leaderService.Leader(mgr.electionKey)
 			if err != nil {
-				knownLeader = false
 				mgr.metrics.verifyLeaderErrors.Inc(1)
 				mgr.logError("error determining the leader", err)
 				return err
 			}
-
-			knownLeader = true
 			if leader == mgr.leaderValue {
-				isLeader = true
 				mgr.metrics.verifyLeaderNotChanged.Inc(1)
 				mgr.logError("leader has not changed", errLeaderNotChanged)
 				return errLeaderNotChanged
 			}
-			isLeader = false
 			return nil
-		})
-		cancel()
+		}); verifyErr != nil {
+			mgr.logError("verify error", verifyErr)
+			continue
+		}
 
 		mgr.goalStateLock.Lock()
+		// If the latest goal state is different from the goal state before verification,
+		// this means the goal state has been updated since verification started and the
+		// pending follower to follower transition is no longer valid.
 		state := mgr.goalStateWatchable.Get().(goalState)
-		// If the latest goal state is different from the goal state before verification, this
-		// means the goal state has been updated since verification started and the pending follower
-		// to follower transition is no longer valid.
 		if !(state.id == currState.id && state.state == currState.state) {
 			mgr.metrics.verifyPendingChangeStale.Inc(1)
 			mgr.goalStateLock.Unlock()
 			continue
 		}
-		if !knownLeader {
-			mgr.metrics.verifyNoKnownLeader.Inc(1)
-			mgr.goalStateLock.Unlock()
-			continue
-		}
-		if isLeader {
-			mgr.setGoalStateWithLock(LeaderState)
-		} else {
-			mgr.setGoalStateWithLock(FollowerState)
-		}
+		mgr.setGoalStateWithLock(FollowerState)
 		mgr.goalStateLock.Unlock()
 	}
 }
