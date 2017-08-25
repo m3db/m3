@@ -319,7 +319,9 @@ func TestInstance(t *testing.T) {
 		SetRack("rack").
 		SetWeight(1).
 		SetShardSetID(0).
-		SetZone("zone")
+		SetZone("zone").
+		SetHostname("host1").
+		SetPort(123)
 	assert.NotNil(t, i1.Shards())
 	s := shard.NewShards([]shard.Shard{
 		shard.NewShard(1).SetState(shard.Available),
@@ -328,7 +330,7 @@ func TestInstance(t *testing.T) {
 	})
 	i1.SetShards(s)
 	description := fmt.Sprintf(
-		"Instance[ID=id, Rack=rack, Zone=zone, Weight=1, Endpoint=endpoint, ShardSetID=0, Shards=%s]",
+		"Instance[ID=id, Rack=rack, Zone=zone, Weight=1, Endpoint=endpoint, Hostname=host1, Port=123, ShardSetID=0, Shards=%s]",
 		s.String())
 	assert.Equal(t, description, i1.String())
 

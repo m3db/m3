@@ -210,6 +210,8 @@ func CloneInstance(instance services.PlacementInstance) services.PlacementInstan
 		SetZone(instance.Zone()).
 		SetWeight(instance.Weight()).
 		SetEndpoint(instance.Endpoint()).
+		SetHostname(instance.Hostname()).
+		SetPort(instance.Port()).
 		SetShardSetID(instance.ShardSetID()).
 		SetShards(CloneShards(instance.Shards()))
 }
@@ -350,7 +352,9 @@ func NewInstanceFromProto(instance *placementproto.Instance) (services.Placement
 		SetZone(instance.Zone).
 		SetEndpoint(instance.Endpoint).
 		SetShards(shards).
-		SetShardSetID(instance.ShardSetId), nil
+		SetShardSetID(instance.ShardSetId).
+		SetHostname(instance.Hostname).
+		SetPort(instance.Port), nil
 }
 
 type instance struct {
@@ -359,14 +363,16 @@ type instance struct {
 	zone       string
 	weight     uint32
 	endpoint   string
+	hostname   string
+	port       uint32
 	shards     shard.Shards
 	shardSetID uint32
 }
 
 func (i *instance) String() string {
 	return fmt.Sprintf(
-		"Instance[ID=%s, Rack=%s, Zone=%s, Weight=%d, Endpoint=%s, ShardSetID=%d, Shards=%s]",
-		i.id, i.rack, i.zone, i.weight, i.endpoint, i.shardSetID, i.shards.String(),
+		"Instance[ID=%s, Rack=%s, Zone=%s, Weight=%d, Endpoint=%s, Hostname=%s, Port=%d, ShardSetID=%d, Shards=%s]",
+		i.id, i.rack, i.zone, i.weight, i.endpoint, i.hostname, i.port, i.shardSetID, i.shards.String(),
 	)
 }
 
@@ -415,12 +421,21 @@ func (i *instance) SetEndpoint(ip string) services.PlacementInstance {
 	return i
 }
 
-func (i *instance) Shards() shard.Shards {
-	return i.shards
+func (i *instance) Hostname() string {
+	return i.hostname
 }
 
-func (i *instance) SetShards(s shard.Shards) services.PlacementInstance {
-	i.shards = s
+func (i *instance) SetHostname(value string) services.PlacementInstance {
+	i.hostname = value
+	return i
+}
+
+func (i *instance) Port() uint32 {
+	return i.port
+}
+
+func (i *instance) SetPort(value uint32) services.PlacementInstance {
+	i.port = value
 	return i
 }
 
@@ -430,6 +445,15 @@ func (i *instance) ShardSetID() uint32 {
 
 func (i *instance) SetShardSetID(value uint32) services.PlacementInstance {
 	i.shardSetID = value
+	return i
+}
+
+func (i *instance) Shards() shard.Shards {
+	return i.shards
+}
+
+func (i *instance) SetShards(s shard.Shards) services.PlacementInstance {
+	i.shards = s
 	return i
 }
 

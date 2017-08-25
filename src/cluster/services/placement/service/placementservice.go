@@ -21,44 +21,39 @@
 package service
 
 import (
-	"errors"
 	"fmt"
-	"sort"
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/services/placement/algo"
+	"github.com/m3db/m3cluster/services/placement/selector"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/log"
 )
 
-var (
-	errInstanceAbsent  = errors.New("could not remove or replace a instance that does not exist")
-	errNoValidInstance = errors.New("no valid instance in the candidate list")
-	errMultipleZones   = errors.New("could not init placement on instances from multiple zones")
-)
-
 type placementService struct {
-	ss      placement.Storage
-	service services.ServiceID
-	opts    services.PlacementOptions
-	algo    placement.Algorithm
-	logger  xlog.Logger
+	s        placement.Storage
+	sid      services.ServiceID
+	opts     services.PlacementOptions
+	algo     placement.Algorithm
+	selector placement.InstanceSelector
+	logger   xlog.Logger
 }
 
-// NewPlacementService returns an instance of placement service
-func NewPlacementService(ss placement.Storage, service services.ServiceID, opts services.PlacementOptions) services.PlacementService {
+// NewPlacementService returns an instance of placement service.
+func NewPlacementService(s placement.Storage, sid services.ServiceID, opts services.PlacementOptions) services.PlacementService {
 	return placementService{
-		ss:      ss,
-		service: service,
-		opts:    opts,
-		algo:    algo.NewAlgorithm(opts),
-		logger:  opts.InstrumentOptions().Logger(),
+		s:        s,
+		sid:      sid,
+		opts:     opts,
+		algo:     algo.NewAlgorithm(opts),
+		selector: selector.NewInstanceSelector(opts),
+		logger:   opts.InstrumentOptions().Logger(),
 	}
 }
 
 func (ps placementService) BuildInitialPlacement(
-	instances []services.PlacementInstance,
+	candidates []services.PlacementInstance,
 	numShards int,
 	rf int,
 ) (services.Placement, error) {
@@ -69,8 +64,9 @@ func (ps placementService) BuildInitialPlacement(
 	if rf <= 0 {
 		return nil, fmt.Errorf("could not build initial placement, invalid replica factor %d", rf)
 	}
-	var err error
-	if err = ps.validateInitInstances(instances); err != nil {
+
+	instances, err := ps.selector.SelectInitialInstances(candidates, rf)
+	if err != nil {
 		return nil, err
 	}
 
@@ -100,11 +96,11 @@ func (ps placementService) BuildInitialPlacement(
 		return p, err
 	}
 
-	return p, ps.ss.SetIfNotExist(ps.service, p)
+	return p, ps.s.SetIfNotExist(ps.sid, p)
 }
 
 func (ps placementService) AddReplica() (services.Placement, error) {
-	p, v, err := ps.ss.Placement(ps.service)
+	p, v, err := ps.s.Placement(ps.sid)
 	if err != nil {
 		return nil, err
 	}
@@ -122,17 +118,18 @@ func (ps placementService) AddReplica() (services.Placement, error) {
 		return p, err
 	}
 
-	return p, ps.ss.CheckAndSet(ps.service, p, v)
+	return p, ps.s.CheckAndSet(ps.sid, p, v)
 }
 
 func (ps placementService) AddInstances(
 	candidates []services.PlacementInstance,
 ) (services.Placement, []services.PlacementInstance, error) {
-	p, v, err := ps.ss.Placement(ps.service)
+	p, v, err := ps.s.Placement(ps.sid)
 	if err != nil {
 		return nil, nil, err
 	}
-	addingInstances, err := ps.findAddingInstance(p, candidates, ps.opts)
+
+	addingInstances, err := ps.selector.SelectAddingInstances(candidates, p)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -158,11 +155,11 @@ func (ps placementService) AddInstances(
 		return p, addingInstances, err
 	}
 
-	return p, addingInstances, ps.ss.CheckAndSet(ps.service, p, v)
+	return p, addingInstances, ps.s.CheckAndSet(ps.sid, p, v)
 }
 
 func (ps placementService) RemoveInstances(instanceIDs []string) (services.Placement, error) {
-	p, v, err := ps.ss.Placement(ps.service)
+	p, v, err := ps.s.Placement(ps.sid)
 	if err != nil {
 		return nil, err
 	}
@@ -180,29 +177,24 @@ func (ps placementService) RemoveInstances(instanceIDs []string) (services.Place
 		return p, err
 	}
 
-	return p, ps.ss.CheckAndSet(ps.service, p, v)
+	return p, ps.s.CheckAndSet(ps.sid, p, v)
 }
 
-func (ps placementService) ReplaceInstance(
-	leavingInstanceID string,
+func (ps placementService) ReplaceInstances(
+	leavingInstanceIDs []string,
 	candidates []services.PlacementInstance,
 ) (services.Placement, []services.PlacementInstance, error) {
-	p, v, err := ps.ss.Placement(ps.service)
+	p, v, err := ps.s.Placement(ps.sid)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	leavingInstance, exist := p.Instance(leavingInstanceID)
-	if !exist {
-		return nil, nil, errInstanceAbsent
-	}
-
-	addingInstances, err := ps.findReplaceInstance(p, candidates, leavingInstance)
+	addingInstances, err := ps.selector.SelectReplaceInstances(candidates, leavingInstanceIDs, p)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	if p, err = ps.algo.ReplaceInstance(p, leavingInstanceID, addingInstances); err != nil {
+	if p, err = ps.algo.ReplaceInstances(p, leavingInstanceIDs, addingInstances); err != nil {
 		return nil, nil, err
 	}
 
@@ -224,11 +216,11 @@ func (ps placementService) ReplaceInstance(
 		return p, addedInstances, err
 	}
 
-	return p, addedInstances, ps.ss.CheckAndSet(ps.service, p, v)
+	return p, addedInstances, ps.s.CheckAndSet(ps.sid, p, v)
 }
 
 func (ps placementService) MarkShardAvailable(instanceID string, shardID uint32) error {
-	p, v, err := ps.ss.Placement(ps.service)
+	p, v, err := ps.s.Placement(ps.sid)
 	if err != nil {
 		return err
 	}
@@ -242,11 +234,11 @@ func (ps placementService) MarkShardAvailable(instanceID string, shardID uint32)
 		return err
 	}
 
-	return ps.ss.CheckAndSet(ps.service, p, v)
+	return ps.s.CheckAndSet(ps.sid, p, v)
 }
 
 func (ps placementService) MarkInstanceAvailable(instanceID string) error {
-	p, v, err := ps.ss.Placement(ps.service)
+	p, v, err := ps.s.Placement(ps.sid)
 	if err != nil {
 		return err
 	}
@@ -269,11 +261,11 @@ func (ps placementService) MarkInstanceAvailable(instanceID string) error {
 		return err
 	}
 
-	return ps.ss.CheckAndSet(ps.service, p, v)
+	return ps.s.CheckAndSet(ps.sid, p, v)
 }
 
 func (ps placementService) Placement() (services.Placement, int, error) {
-	return ps.ss.Placement(ps.service)
+	return ps.s.Placement(ps.sid)
 }
 
 func (ps placementService) SetPlacement(p services.Placement) error {
@@ -286,7 +278,7 @@ func (ps placementService) SetPlacement(p services.Placement) error {
 		return nil
 	}
 
-	return ps.ss.Set(ps.service, p)
+	return ps.s.Set(ps.sid, p)
 }
 
 func (ps placementService) Delete() error {
@@ -295,260 +287,5 @@ func (ps placementService) Delete() error {
 		return nil
 	}
 
-	return ps.ss.Delete(ps.service)
-}
-
-func (ps placementService) validateInitInstances(instances []services.PlacementInstance) error {
-	var zone string
-	for _, instance := range instances {
-		if zone == "" {
-			zone = instance.Zone()
-			continue
-		}
-		if zone != instance.Zone() {
-			return errMultipleZones
-		}
-	}
-	return nil
-}
-
-func (ps placementService) findAddingInstance(
-	p services.Placement,
-	candidates []services.PlacementInstance,
-	opts services.PlacementOptions,
-) ([]services.PlacementInstance, error) {
-	// filter out invalid instances
-	candidates = getValidCandidates(p, candidates, opts)
-
-	// build rack-instance map for candidate instances
-	candidateRackMap := buildRackMap(candidates)
-
-	// build rack-instance map for current placement
-	placementRackMap := buildRackMap(p.Instances())
-
-	// if there is a rack not in the current placement, prefer that rack
-	for r, instances := range candidateRackMap {
-		if _, exist := placementRackMap[r]; !exist {
-			// All the racks in the candidateRackMap have at least 1 instance.
-			return instances[:1], nil
-		}
-	}
-
-	// otherwise sort the racks in the current placement by capacity and find a instance from least sized rack
-	racks := make(sortableThings, 0, len(placementRackMap))
-	for rack, instances := range placementRackMap {
-		weight := 0
-		for _, i := range instances {
-			weight += int(i.Weight())
-		}
-		racks = append(racks, sortableValue{value: rack, weight: weight})
-	}
-	sort.Sort(racks)
-
-	for _, rackLen := range racks {
-		if i, exist := candidateRackMap[rackLen.value.(string)]; exist {
-			for _, instance := range i {
-				return []services.PlacementInstance{instance}, nil
-			}
-		}
-	}
-	// no instance in the candidate instances can be added to the placement
-	return nil, errNoValidInstance
-}
-
-func (ps placementService) findReplaceInstance(
-	p services.Placement,
-	candidates []services.PlacementInstance,
-	leaving services.PlacementInstance,
-) ([]services.PlacementInstance, error) {
-	// filter out invalid instances
-	candidates = getValidCandidates(p, candidates, ps.opts)
-
-	if len(candidates) == 0 {
-		return nil, errNoValidInstance
-	}
-	// map rack to instances
-	rackMap := buildRackMap(candidates)
-
-	// otherwise sort the candidate instances by the number of conflicts
-	ph := algo.NewPlacementHelper(p, ps.opts)
-	instances := make([]sortableValue, 0, len(rackMap))
-	for rack, instancesInRack := range rackMap {
-		conflicts := 0
-		for _, s := range leaving.Shards().All() {
-			if ph.HasRackConflict(s.ID(), leaving, rack) {
-				conflicts++
-			}
-		}
-		for _, instance := range instancesInRack {
-			instances = append(instances, sortableValue{value: instance, weight: conflicts})
-		}
-	}
-
-	groups := groupInstancesByConflict(instances, ps.opts.LooseRackCheck())
-	if len(groups) == 0 {
-		return nil, errNoValidInstance
-	}
-
-	result, leftWeight := fillWeight(groups, int(leaving.Weight()))
-
-	if leftWeight > 0 {
-		return nil, fmt.Errorf("could not find enough instance to replace %s, %v weight could not be replaced",
-			leaving.String(), leftWeight)
-	}
-	return result, nil
-}
-
-func getValidCandidates(
-	p services.Placement,
-	candidates []services.PlacementInstance,
-	opts services.PlacementOptions,
-) []services.PlacementInstance {
-	var instances []services.PlacementInstance
-	for _, h := range candidates {
-		instanceInPlacement, exist := p.Instance(h.ID())
-		if !exist {
-			instances = append(instances, h)
-			continue
-		}
-		if placement.IsInstanceLeaving(instanceInPlacement) {
-			instances = append(instances, instanceInPlacement)
-		}
-	}
-	return filterZones(p, instances, opts)
-}
-
-func filterZones(
-	p services.Placement,
-	candidates []services.PlacementInstance,
-	opts services.PlacementOptions,
-) []services.PlacementInstance {
-	if len(candidates) == 0 {
-		return []services.PlacementInstance{}
-	}
-
-	var validZone string
-	if opts != nil {
-		validZone = opts.ValidZone()
-	}
-	if validZone == "" && len(p.Instances()) > 0 {
-		validZone = p.Instances()[0].Zone()
-	}
-
-	validInstances := make([]services.PlacementInstance, 0, len(candidates))
-	for _, instance := range candidates {
-		if validZone == instance.Zone() {
-			validInstances = append(validInstances, instance)
-		}
-	}
-	return validInstances
-}
-
-func groupInstancesByConflict(instancesSortedByConflicts []sortableValue, allowConflict bool) [][]services.PlacementInstance {
-	sort.Sort(sortableThings(instancesSortedByConflicts))
-	var groups [][]services.PlacementInstance
-	lastSeenConflict := -1
-	for _, instance := range instancesSortedByConflicts {
-		if !allowConflict && instance.weight > 0 {
-			break
-		}
-		if instance.weight > lastSeenConflict {
-			lastSeenConflict = instance.weight
-			groups = append(groups, []services.PlacementInstance{})
-		}
-		if lastSeenConflict == instance.weight {
-			groups[len(groups)-1] = append(groups[len(groups)-1], instance.value.(services.PlacementInstance))
-		}
-	}
-	return groups
-}
-
-func fillWeight(groups [][]services.PlacementInstance, targetWeight int) ([]services.PlacementInstance, int) {
-	var (
-		result           []services.PlacementInstance
-		instancesInGroup []services.PlacementInstance
-	)
-	for _, group := range groups {
-		sort.Sort(placement.ByIDAscending(group))
-		instancesInGroup, targetWeight = knapsack(group, targetWeight)
-		result = append(result, instancesInGroup...)
-		if targetWeight <= 0 {
-			break
-		}
-	}
-	return result, targetWeight
-}
-
-func knapsack(instances []services.PlacementInstance, targetWeight int) ([]services.PlacementInstance, int) {
-	totalWeight := 0
-	for _, instance := range instances {
-		totalWeight += int(instance.Weight())
-	}
-	if totalWeight <= targetWeight {
-		return instances[:], targetWeight - totalWeight
-	}
-	// totalWeight > targetWeight, there is a combination of instances to meet targetWeight for sure
-	// we do dp until totalWeight rather than targetWeight here because we need to
-	// at least cover the targetWeight, which is a little bit different than the knapsack problem
-	weights := make([]int, totalWeight+1)
-	combination := make([][]services.PlacementInstance, totalWeight+1)
-
-	// dp: weights[i][j] = max(weights[i-1][j], weights[i-1][j-instance.Weight] + instance.Weight)
-	// when there are multiple combination to reach a target weight, we prefer the one with less instances
-	for i := range instances {
-		weight := int(instances[i].Weight())
-		// this loop needs to go from len to 1 because weights is being updated in place
-		for j := totalWeight; j >= 1; j-- {
-			if j-weight < 0 {
-				continue
-			}
-			newWeight := weights[j-weight] + weight
-			if newWeight > weights[j] {
-				weights[j] = weights[j-weight] + weight
-				combination[j] = append(combination[j-weight], instances[i])
-			} else if newWeight == weights[j] {
-				// if can reach same weight, find a combination with less instances
-				if len(combination[j-weight])+1 < len(combination[j]) {
-					combination[j] = append(combination[j-weight], instances[i])
-				}
-			}
-		}
-	}
-	for i := targetWeight; i <= totalWeight; i++ {
-		if weights[i] >= targetWeight {
-			return combination[i], targetWeight - weights[i]
-		}
-	}
-
-	panic("should never reach here")
-}
-
-func buildRackMap(candidates []services.PlacementInstance) map[string][]services.PlacementInstance {
-	result := make(map[string][]services.PlacementInstance, len(candidates))
-	for _, instance := range candidates {
-		if _, exist := result[instance.Rack()]; !exist {
-			result[instance.Rack()] = make([]services.PlacementInstance, 0)
-		}
-		result[instance.Rack()] = append(result[instance.Rack()], instance)
-	}
-	return result
-}
-
-type sortableValue struct {
-	value  interface{}
-	weight int
-}
-
-type sortableThings []sortableValue
-
-func (things sortableThings) Len() int {
-	return len(things)
-}
-
-func (things sortableThings) Less(i, j int) bool {
-	return things[i].weight < things[j].weight
-}
-
-func (things sortableThings) Swap(i, j int) {
-	things[i], things[j] = things[j], things[i]
+	return ps.s.Delete(ps.sid)
 }

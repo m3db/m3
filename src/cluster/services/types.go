@@ -193,9 +193,15 @@ type PlacementService interface {
 	// RemoveInstances removes instances from the placement
 	RemoveInstances(leavingInstanceIDs []string) (Placement, error)
 
-	// ReplaceInstance picks instances from the candidate list to replace an instance in current placement
-	ReplaceInstance(leavingInstanceID string, candidates []PlacementInstance) (
-		newPlacement Placement, usedInstances []PlacementInstance, err error)
+	// ReplaceInstances picks instances from the candidate list to replace instances in current placement.
+	ReplaceInstances(
+		leavingInstanceIDs []string,
+		candidates []PlacementInstance,
+	) (
+		newPlacement Placement,
+		usedInstances []PlacementInstance,
+		err error,
+	)
 
 	// MarkShardAvailable marks the state of a shard as available
 	MarkShardAvailable(instanceID string, shardID uint32) error
@@ -453,6 +459,10 @@ type PlacementInstance interface {
 	SetShards(s shard.Shards) PlacementInstance   // SetShards sets the shards owned by the instance
 	ShardSetID() uint32                           // ShardSetID returns the shard set id.
 	SetShardSetID(value uint32) PlacementInstance // SetShardSetID sets the shard set id.
+	Hostname() string                             // Hostname returns the hostname of the instance.
+	SetHostname(value string) PlacementInstance   // SetHostname sets the hostname of the instance.
+	Port() uint32                                 // Port returns the port of the instance.
+	SetPort(value uint32) PlacementInstance       // SetPort sets the port of the instance.
 }
 
 // HeartbeatService manages heartbeating instances

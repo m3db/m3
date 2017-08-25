@@ -142,9 +142,9 @@ func (a rackAwarePlacementAlgorithm) AddInstances(
 	return p, nil
 }
 
-func (a rackAwarePlacementAlgorithm) ReplaceInstance(
+func (a rackAwarePlacementAlgorithm) ReplaceInstances(
 	p services.Placement,
-	instanceID string,
+	leavingInstanceIDs []string,
 	addingInstances []services.PlacementInstance,
 ) (services.Placement, error) {
 	if err := a.IsCompatibleWith(p); err != nil {
@@ -152,36 +152,45 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstance(
 	}
 
 	p = placement.ClonePlacement(p)
-	ph, leavingInstance, addingInstances, err := newReplaceInstanceHelper(p, instanceID, addingInstances, a.opts)
+	ph, leavingInstances, addingInstances, err := newReplaceInstanceHelper(p, leavingInstanceIDs, addingInstances, a.opts)
 	if err != nil {
 		return nil, err
 	}
 
-	err = ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance, addingInstances)
-	if err != nil && err != errNotEnoughRacks {
-		return nil, err
+	for _, leavingInstance := range leavingInstances {
+		err = ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance, addingInstances)
+		if err != nil && err != errNotEnoughRacks {
+			// errNotEnoughRacks means the adding instances do not have enough racks to take all the shards,
+			// but the rest instances might have more racks to take all the shards.
+			return nil, err
+		}
+		load := loadOnInstance(leavingInstance)
+		if load == 0 {
+			result, _, err := addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, nonEmptyOnly)
+			return result, err
+		}
+		if !a.opts.AllowPartialReplace() {
+			return nil, fmt.Errorf("could not fully replace all shards from %s, %d shards left unassigned",
+				leavingInstance.ID(), load)
+		}
 	}
 
-	if loadOnInstance(leavingInstance) == 0 {
-		result, _, err := addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, nonEmptyOnly)
-		return result, err
+	if a.opts.AllowPartialReplace() {
+		// Place the shards left on the leaving instance to the rest of the cluster.
+		for _, leavingInstance := range leavingInstances {
+			if err = ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance, ph.Instances()); err != nil {
+				return nil, err
+			}
+		}
+
+		ph.Optimize(unsafe)
 	}
 
-	if !a.opts.AllowPartialReplace() {
-		return nil, fmt.Errorf("could not fully replace all shards from %s, %v shards left unassigned", leavingInstance.ID(), leavingInstance.Shards().NumShards())
+	for _, leavingInstance := range leavingInstances {
+		p, _, err = addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, nonEmptyOnly)
+		if err != nil {
+			return nil, err
+		}
 	}
-
-	// place the shards from the leaving instance to the rest of the cluster
-	if err := ph.PlaceShards(
-		leavingInstance.Shards().All(),
-		leavingInstance,
-		ph.Instances(),
-	); err != nil {
-		return nil, err
-	}
-
-	ph.Optimize(unsafe)
-
-	result, _, err := addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, nonEmptyOnly)
-	return result, err
+	return p, nil
 }

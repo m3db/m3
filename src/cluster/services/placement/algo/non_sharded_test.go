@@ -88,7 +88,7 @@ func TestNonShardedAlgo(t *testing.T) {
 	_, err = a.RemoveInstances(p, []string{"i1"})
 	assert.Error(t, err)
 
-	p, err = a.ReplaceInstance(p, "i2", []services.PlacementInstance{i1, i4})
+	p, err = a.ReplaceInstances(p, []string{"i2"}, []services.PlacementInstance{i1, i4})
 	assert.NoError(t, err)
 	assert.NoError(t, placement.Validate(p))
 	assert.Equal(t, 3, p.NumInstances())
@@ -122,7 +122,7 @@ func TestIncompatibleWithNonShardedAlgo(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, errInCompatibleWithNonShardedAlgo, err)
 
-	_, err = a.ReplaceInstance(p, "i1", []services.PlacementInstance{i3, i4})
+	_, err = a.ReplaceInstances(p, []string{"i1"}, []services.PlacementInstance{i3, i4})
 	assert.Error(t, err)
 	assert.Equal(t, errInCompatibleWithNonShardedAlgo, err)
 }

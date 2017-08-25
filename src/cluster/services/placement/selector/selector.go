@@ -17,43 +17,19 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-syntax = "proto3";
 
-package placement;
+package selector
 
-message Placement {
-  map<string, Instance> instances = 1;
-  uint32 replica_factor = 2;
-  uint32 num_shards = 3;
-  bool is_sharded = 4;
-  int64 cutover_time = 5;
-  bool is_mirrored = 6;
-}
+import (
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/services/placement"
+)
 
-message Instance {
-  string id = 1;
-  string rack = 2;
-  string zone = 3;
-  uint32 weight = 4;
-  string endpoint = 5;
-  repeated Shard shards = 6;
-  uint32 shard_set_id = 7;
-  string hostname = 8;
-  uint32 port = 9;
-}
+// NewInstanceSelector creates an instance selector.
+func NewInstanceSelector(opts services.PlacementOptions) placement.InstanceSelector {
+	if opts.IsMirrored() {
+		return newMirroredSelector(opts)
+	}
 
-message Shard {
-  uint32 id = 1;
-  ShardState state = 2;
-  string source_id = 3;
-}
-
-enum ShardState {
-  INITIALIZING = 0;
-  AVAILABLE = 1;
-  LEAVING = 2;
-}
-
-message PlacementSnapshots {
-  repeated Placement snapshots = 1;
+	return newNonMirroredSelector(opts)
 }

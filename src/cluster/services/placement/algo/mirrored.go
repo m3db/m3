@@ -41,7 +41,8 @@ type mirroredAlgorithm struct {
 
 func newMirroredAlgorithm(opts services.PlacementOptions) placement.Algorithm {
 	return mirroredAlgorithm{
-		opts:        opts,
+		opts: opts,
+		// Mirrored algorithm requires full replacement.
 		shardedAlgo: newShardedAlgorithm(opts.SetAllowPartialReplace(false)),
 	}
 }
@@ -174,17 +175,17 @@ func (a mirroredAlgorithm) AddInstances(
 	return placementFromMirror(mirrorPlacement, append(p.Instances(), addingInstances...), p.ReplicaFactor())
 }
 
-func (a mirroredAlgorithm) ReplaceInstance(
+func (a mirroredAlgorithm) ReplaceInstances(
 	p services.Placement,
-	instanceID string,
+	leavingInstanceIDs []string,
 	addingInstances []services.PlacementInstance,
 ) (services.Placement, error) {
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}
 
-	if len(addingInstances) != 1 {
-		return nil, fmt.Errorf("invalid number of instances: %d for mirrored replace", len(addingInstances))
+	if len(addingInstances) != len(leavingInstanceIDs) {
+		return nil, fmt.Errorf("could not replace %d instances with %d instances for mirrored replace", len(leavingInstanceIDs), len(addingInstances))
 	}
 
 	p, err := placement.MarkAllShardsAsAvailable(p)
@@ -192,7 +193,14 @@ func (a mirroredAlgorithm) ReplaceInstance(
 		return nil, err
 	}
 
-	return a.shardedAlgo.ReplaceInstance(p, instanceID, addingInstances)
+	for i := range leavingInstanceIDs {
+		// We want full replacement for each instance.
+		p, err = a.shardedAlgo.ReplaceInstances(p, leavingInstanceIDs[i:i+1], addingInstances[i:i+1])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return p, nil
 }
 
 func groupInstancesByShardSetID(

@@ -133,9 +133,9 @@ func (a nonShardedAlgorithm) AddInstances(
 		SetIsSharded(p.IsSharded()), nil
 }
 
-func (a nonShardedAlgorithm) ReplaceInstance(
+func (a nonShardedAlgorithm) ReplaceInstances(
 	p services.Placement,
-	instanceID string,
+	leavingInstanceIDs []string,
 	addingInstances []services.PlacementInstance,
 ) (services.Placement, error) {
 	if err := a.IsCompatibleWith(p); err != nil {
@@ -147,5 +147,5 @@ func (a nonShardedAlgorithm) ReplaceInstance(
 		return nil, err
 	}
 
-	return a.RemoveInstances(p, []string{instanceID})
+	return a.RemoveInstances(p, leavingInstanceIDs)
 }
