@@ -347,3 +347,32 @@ func TestRollupTombstoned(t *testing.T) {
 	rr, _ := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
 	require.True(t, rr.Tombstoned())
 }
+
+func TestRollupRuleClone(t *testing.T) {
+	rr, _ := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	clone := rr.clone()
+	require.Equal(t, *rr, clone)
+	for i, r := range rr.snapshots {
+		c := clone.snapshots[i]
+		require.False(t, c == r)
+	}
+
+	clone.snapshots[1].tombstoned = !clone.snapshots[1].tombstoned
+	require.NotEqual(t, clone.snapshots[1].tombstoned, rr.snapshots[1].tombstoned)
+}
+
+func TestRollupRuleSnapshotClone(t *testing.T) {
+	rr, _ := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	s1 := rr.snapshots[0]
+	s1Clone := s1.clone()
+
+	require.Equal(t, *s1, s1Clone)
+	require.False(t, s1 == &s1Clone)
+
+	// Checking that things are cloned and not just referenced.
+	s1Clone.rawFilters["blah"] = "foo"
+	require.NotContains(t, s1.rawFilters, "blah")
+
+	s1Clone.targets = append(s1Clone.targets, s1Clone.targets[0])
+	require.NotEqual(t, s1.targets, s1Clone.targets)
+}

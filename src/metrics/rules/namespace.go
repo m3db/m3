@@ -111,8 +111,8 @@ type Namespace struct {
 	snapshots []NamespaceSnapshot
 }
 
-// newNameSpace creates a new namespace.
-func newNameSpace(namespace *schema.Namespace) (Namespace, error) {
+// newNamespace creates a new namespace.
+func newNamespace(namespace *schema.Namespace) (Namespace, error) {
 	if namespace == nil {
 		return emptyNamespace, errNilNamespaceSchema
 	}
@@ -128,6 +128,17 @@ func newNameSpace(namespace *schema.Namespace) (Namespace, error) {
 		name:      []byte(namespace.Name),
 		snapshots: snapshots,
 	}, nil
+}
+
+func (n Namespace) clone() Namespace {
+	name := make([]byte, len(n.name))
+	copy(name, n.name)
+	snapshots := make([]NamespaceSnapshot, len(n.snapshots))
+	copy(snapshots, n.snapshots)
+	return Namespace{
+		name:      name,
+		snapshots: snapshots,
+	}
 }
 
 type namespaceJSON struct {
@@ -228,7 +239,7 @@ func NewNamespaces(version int, namespaces *schema.Namespaces) (Namespaces, erro
 	}
 	nss := make([]Namespace, 0, len(namespaces.Namespaces))
 	for _, namespace := range namespaces.Namespaces {
-		ns, err := newNameSpace(namespace)
+		ns, err := newNamespace(namespace)
 		if err != nil {
 			return emptyNamespaces, err
 		}
@@ -240,18 +251,16 @@ func NewNamespaces(version int, namespaces *schema.Namespaces) (Namespaces, erro
 	}, nil
 }
 
-// Clone creates a deep copy of this namespace.
-func (nss Namespaces) Clone() (Namespaces, error) {
-	// TODO(dgromov): Do an actual deep copy that doesn't rely on .Schema().
-	schema, err := nss.Schema()
-	if err != nil {
-		return emptyNamespaces, err
+// Clone creates a deep copy of this Namespaces object.
+func (nss Namespaces) Clone() Namespaces {
+	namespaces := make([]Namespace, len(nss.namespaces))
+	for i, n := range nss.namespaces {
+		namespaces[i] = n.clone()
 	}
-	newNamespaces, err := NewNamespaces(nss.version, schema)
-	if err != nil {
-		return emptyNamespaces, err
+	return Namespaces{
+		version:    nss.version,
+		namespaces: namespaces,
 	}
-	return newNamespaces, nil
 }
 
 type namespacesJSON struct {

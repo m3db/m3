@@ -28,7 +28,7 @@ import (
 
 var (
 	errInvalidFilterPattern                  = errors.New("invalid filter pattern defined")
-	allowAllFilter               Filter      = allowFilter{}
+	allowAllFilter               filter      = allowFilter{}
 	singleAnyCharFilterForwards  chainFilter = &singleAnyCharFilter{backwards: false}
 	singleAnyCharFilterBackwards chainFilter = &singleAnyCharFilter{backwards: true}
 )
@@ -67,6 +67,12 @@ var (
 
 // Filter matches a string against certain conditions.
 type Filter interface {
+	filter
+
+	Clone() Filter
+}
+
+type filter interface {
 	fmt.Stringer
 
 	// Matches returns true if the conditions are met.
@@ -220,7 +226,7 @@ func newRangeFilter(pattern []byte, backwards bool, seg chainSegment) (Filter, e
 // allowFilter is a filter that allows all.
 type allowFilter struct{}
 
-func newAllowFilter() Filter                  { return allowAllFilter }
+func newAllowFilter() Filter                  { return newImmutableFilter(allowAllFilter) }
 func (f allowFilter) String() string          { return "All" }
 func (f allowFilter) Matches(val []byte) bool { return true }
 
@@ -230,7 +236,7 @@ type equalityFilter struct {
 }
 
 func newEqualityFilter(pattern []byte) Filter {
-	return &equalityFilter{pattern: pattern}
+	return newImmutableFilter(&equalityFilter{pattern: pattern})
 }
 
 func (f *equalityFilter) String() string {
@@ -251,7 +257,7 @@ func newContainsFilter(pattern []byte) (Filter, error) {
 		return nil, errInvalidFilterPattern
 	}
 
-	return &containsFilter{pattern: pattern}, nil
+	return newImmutableFilter(&containsFilter{pattern: pattern}), nil
 }
 
 func (f *containsFilter) String() string {
@@ -268,7 +274,7 @@ type negationFilter struct {
 }
 
 func newNegationFilter(filter Filter) Filter {
-	return &negationFilter{filter: filter}
+	return newImmutableFilter(&negationFilter{filter: filter})
 }
 
 func (f *negationFilter) String() string {
@@ -288,7 +294,7 @@ type multiFilter struct {
 // NewMultiFilter returns a filter that chains multiple filters together
 // using a LogicalOp.
 func NewMultiFilter(filters []Filter, op LogicalOp) Filter {
-	return &multiFilter{filters: filters, op: op}
+	return newImmutableFilter(&multiFilter{filters: filters, op: op})
 }
 
 func (f *multiFilter) String() string {
@@ -563,7 +569,7 @@ type multiChainFilter struct {
 
 // newMultiChainFilter creates a new multiChainFilter from given chainFilters.
 func newMultiChainFilter(filters []chainFilter, seg chainSegment, backwards bool) Filter {
-	return &multiChainFilter{filters: filters, seg: seg, backwards: backwards}
+	return newImmutableFilter(&multiChainFilter{filters: filters, seg: seg, backwards: backwards})
 }
 
 func (f *multiChainFilter) String() string {
@@ -621,4 +627,24 @@ func (f *multiChainFilter) Matches(val []byte) bool {
 	}
 
 	return true
+}
+
+type immutableFilter struct {
+	f filter
+}
+
+func newImmutableFilter(f filter) Filter {
+	return immutableFilter{f: f}
+}
+
+func (f immutableFilter) String() string {
+	return f.f.String()
+}
+
+func (f immutableFilter) Matches(val []byte) bool {
+	return f.f.Matches(val)
+}
+
+func (f immutableFilter) Clone() Filter {
+	return f
 }
