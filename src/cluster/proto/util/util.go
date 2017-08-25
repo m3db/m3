@@ -131,6 +131,8 @@ func PlacementInstanceToProto(p services.PlacementInstance) (*placementproto.Ins
 		Endpoint:   p.Endpoint(),
 		Shards:     shards,
 		ShardSetId: p.ShardSetID(),
+		Hostname:   p.Hostname(),
+		Port:       p.Port(),
 	}, nil
 }
 

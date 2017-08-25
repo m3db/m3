@@ -135,7 +135,7 @@ func TestMirrorWorkflow(t *testing.T) {
 	p, err = a.RemoveInstances(p, []string{i7.ID(), i8.ID()})
 	assert.NoError(t, err)
 
-	p, err = a.ReplaceInstance(p, "i6", []services.PlacementInstance{
+	p, err = a.ReplaceInstances(p, []string{"i6"}, []services.PlacementInstance{
 		placement.NewInstance().
 			SetID("i16").
 			SetRack("r6").
@@ -161,7 +161,7 @@ func TestMirrorWorkflow(t *testing.T) {
 	assert.NoError(t, err)
 	validateDistribution(t, p, 1.01, "")
 
-	p, err = a.ReplaceInstance(p, "i9", []services.PlacementInstance{
+	p, err = a.ReplaceInstances(p, []string{"i9"}, []services.PlacementInstance{
 		placement.NewInstance().
 			SetID("i19").
 			SetRack("r9").
@@ -378,7 +378,7 @@ func TestMirrorReplaceInstancesError(t *testing.T) {
 	p, err := a.InitialPlacement(instances, ids, 2)
 	assert.NoError(t, err)
 
-	_, err = a.ReplaceInstance(p.SetIsMirrored(false), "i1", []services.PlacementInstance{
+	_, err = a.ReplaceInstances(p.SetIsMirrored(false), []string{"i1"}, []services.PlacementInstance{
 		placement.NewInstance().
 			SetID("i11").
 			SetRack("r1").
@@ -388,7 +388,7 @@ func TestMirrorReplaceInstancesError(t *testing.T) {
 	})
 	assert.Error(t, err)
 
-	_, err = a.ReplaceInstance(p, "i1", []services.PlacementInstance{
+	_, err = a.ReplaceInstances(p, []string{"i1"}, []services.PlacementInstance{
 		placement.NewInstance().
 			SetID("i11").
 			SetRack("r1").
@@ -404,7 +404,7 @@ func TestMirrorReplaceInstancesError(t *testing.T) {
 	})
 	assert.Error(t, err)
 
-	_, err = a.ReplaceInstance(p, "bad", []services.PlacementInstance{
+	_, err = a.ReplaceInstances(p, []string{"bad"}, []services.PlacementInstance{
 		placement.NewInstance().
 			SetID("i11").
 			SetRack("r1").
@@ -471,22 +471,6 @@ func TestMirrorReplaceWithLeavingShards(t *testing.T) {
 		SetEndpoint("endpoint1").
 		SetShardSetID(0).
 		SetWeight(1)
-	p1, err := a.ReplaceInstance(p, "i1", []services.PlacementInstance{replaceI1})
-	assert.NoError(t, err)
-	_, ok := p1.Instance("i1")
-	assert.True(t, ok)
-	newI1, ok := p1.Instance("newI1")
-	assert.True(t, ok)
-	assert.Equal(t, replaceI1.SetShards(
-		shard.NewShards([]shard.Shard{
-			shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i1"),
-		}),
-	), newI1)
-	assert.NoError(t, placement.Validate(p1))
-
-	p1, err = placement.MarkAllShardsAsAvailable(p1)
-	assert.NoError(t, err)
-	assert.NoError(t, placement.Validate(p1))
 
 	replaceI4 := placement.NewInstance().
 		SetID("newI4").
@@ -494,8 +478,19 @@ func TestMirrorReplaceWithLeavingShards(t *testing.T) {
 		SetEndpoint("endpoint4").
 		SetShardSetID(1).
 		SetWeight(2)
-	p2, err := a.ReplaceInstance(p, "i4", []services.PlacementInstance{replaceI4})
+
+	p2, err := a.ReplaceInstances(p, []string{"i1", "i4"}, []services.PlacementInstance{replaceI1, replaceI4})
 	assert.NoError(t, err)
+
+	_, ok := p2.Instance("i1")
+	assert.True(t, ok)
+	newI1, ok := p2.Instance("newI1")
+	assert.True(t, ok)
+	assert.Equal(t, replaceI1.SetShards(
+		shard.NewShards([]shard.Shard{
+			shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i1"),
+		}),
+	), newI1)
 	_, ok = p2.Instance("i4")
 	assert.True(t, ok)
 	newI4, ok := p2.Instance("newI4")
@@ -566,5 +561,4 @@ func TestGroupInstanceByShardSetID(t *testing.T) {
 
 	_, err = groupInstancesByShardSetID([]services.PlacementInstance{i1, placement.CloneInstance(i2).SetRack("r1")}, 2)
 	assert.Error(t, err)
-
 }

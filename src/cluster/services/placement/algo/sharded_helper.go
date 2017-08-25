@@ -124,13 +124,19 @@ func newRemoveInstanceHelper(
 
 func newReplaceInstanceHelper(
 	p services.Placement,
-	instanceID string,
+	instanceIDs []string,
 	addingInstances []services.PlacementInstance,
 	opts services.PlacementOptions,
-) (PlacementHelper, services.PlacementInstance, []services.PlacementInstance, error) {
-	p, leavingInstance, err := removeInstanceFromPlacement(p, instanceID)
-	if err != nil {
-		return nil, nil, nil, err
+) (PlacementHelper, []services.PlacementInstance, []services.PlacementInstance, error) {
+	var (
+		leavingInstances = make([]services.PlacementInstance, len(instanceIDs))
+		err              error
+	)
+	for i, instanceID := range instanceIDs {
+		p, leavingInstances[i], err = removeInstanceFromPlacement(p, instanceID)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 	}
 
 	newAddingInstances := make([]services.PlacementInstance, len(addingInstances))
@@ -140,7 +146,7 @@ func newReplaceInstanceHelper(
 			return nil, nil, nil, err
 		}
 	}
-	return newHelper(p, p.ReplicaFactor(), opts), leavingInstance, newAddingInstances, nil
+	return newHelper(p, p.ReplicaFactor(), opts), leavingInstances, newAddingInstances, nil
 }
 
 func newHelper(p services.Placement, targetRF int, opts services.PlacementOptions) PlacementHelper {

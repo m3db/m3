@@ -36,11 +36,37 @@ type Algorithm interface {
 	// RemoveInstances removes a list of instances from the placement.
 	RemoveInstances(p services.Placement, leavingInstanceIDs []string) (services.Placement, error)
 
-	// ReplaceInstance replace a instance with new instances.
-	ReplaceInstance(p services.Placement, leavingInstanceID string, addingInstances []services.PlacementInstance) (services.Placement, error)
+	// ReplaceInstance replace a list of instances with new instances.
+	ReplaceInstances(
+		p services.Placement,
+		leavingInstanecIDs []string,
+		addingInstances []services.PlacementInstance,
+	) (services.Placement, error)
 
 	// IsCompatibleWith checks whether the algorithm could be applied to given placement.
 	IsCompatibleWith(p services.Placement) error
+}
+
+// InstanceSelector selects valid instances for the placement change.
+type InstanceSelector interface {
+	// SelectInitialInstances selects instances for the initial placement.
+	SelectInitialInstances(
+		candidates []services.PlacementInstance,
+		rf int,
+	) ([]services.PlacementInstance, error)
+
+	// SelectAddingInstances selects instances to be added to the placement.
+	SelectAddingInstances(
+		candidates []services.PlacementInstance,
+		p services.Placement,
+	) ([]services.PlacementInstance, error)
+
+	// SelectReplaceInstances selects instances to replace existing instances in the placement.
+	SelectReplaceInstances(
+		candidates []services.PlacementInstance,
+		leavingInstanceIDs []string,
+		p services.Placement,
+	) ([]services.PlacementInstance, error)
 }
 
 // DeploymentPlanner generates deployment steps for a placement
