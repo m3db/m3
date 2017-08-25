@@ -90,12 +90,12 @@ func NewTagsFilter(
 		}
 	}
 	sort.Sort(tagFiltersByNameAsc(tagFilters))
-	return &tagsFilter{
+	return newImmutableFilter(&tagsFilter{
 		nameFilter: nameFilter,
 		tagFilters: tagFilters,
 		op:         op,
 		opts:       opts,
-	}, nil
+	}), nil
 }
 
 func (f *tagsFilter) String() string {

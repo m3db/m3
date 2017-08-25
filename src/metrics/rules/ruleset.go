@@ -459,6 +459,47 @@ type RuleSet interface {
 	ToMutableRuleSet() MutableRuleSet
 }
 
+// MutableRuleSet is an extension of a RuleSet that implements mutation functions.
+type MutableRuleSet interface {
+	RuleSet
+
+	// Schema returns the schema.Ruleset representation of this ruleset.
+	Schema() (*schema.RuleSet, error)
+
+	// Clone returns a copy of this MutableRuleSet.
+	Clone() MutableRuleSet
+
+	// MarshalJSON serializes this RuleSet into JSON.
+	MarshalJSON() ([]byte, error)
+
+	// UnmarshalJSON deserializes this RuleSet from JSON.
+	UnmarshalJSON(data []byte) error
+
+	// AppendMappingRule creates a new mapping rule and adds it to this ruleset.
+	AddMappingRule(MappingRuleData) error
+
+	// UpdateMappingRule creates a new mapping rule and adds it to this ruleset.
+	UpdateMappingRule(MappingRuleUpdate) error
+
+	// DeleteMappingRule deletes a mapping rule
+	DeleteMappingRule(DeleteData) error
+
+	// AppendRollupRule creates a new rollup rule and adds it to this ruleset.
+	AddRollupRule(RollupRuleData) error
+
+	// UpdateRollupRule creates a new rollup rule and adds it to this ruleset.
+	UpdateRollupRule(RollupRuleUpdate) error
+
+	// DeleteRollupRule deletes a rollup rule
+	DeleteRollupRule(DeleteData) error
+
+	// Tombstone tombstones this ruleset and all of its rules.
+	Delete(UpdateMetadata) error
+
+	// Revive removes the tombstone from this ruleset. It does not revive any rules.
+	Revive(UpdateMetadata) error
+}
+
 type ruleSet struct {
 	uuid               string
 	version            int
@@ -557,171 +598,8 @@ func (rs *ruleSet) ToMutableRuleSet() MutableRuleSet {
 	return rs
 }
 
-// resolvePolicies resolves the conflicts among policies if any, following the rules below:
-// * If two policies have the same resolution but different retention, the one with longer
-// retention period is chosen.
-// * If two policies have the same resolution but different custom aggregation types, the
-// aggregation types will be merged.
-func resolvePolicies(policies []policy.Policy) []policy.Policy {
-	if len(policies) == 0 {
-		return policies
-	}
-	sort.Sort(policy.ByResolutionAsc(policies))
-	// curr is the index of the last policy kept so far.
-	curr := 0
-	for i := 1; i < len(policies); i++ {
-		// If the policy has the same resolution, it must have either the same or shorter retention
-		// period due to sorting, so we keep the one with longer retention period and ignore this
-		// policy.
-		if policies[curr].Resolution().Window == policies[i].Resolution().Window {
-			if res, merged := policies[curr].AggregationID.Merge(policies[i].AggregationID); merged {
-				// Merged custom aggregation functions to the current policy.
-				policies[curr] = policy.NewPolicy(policies[curr].StoragePolicy, res)
-			}
-			continue
-		}
-		// Now we are guaranteed the policy has lower resolution than the
-		// current one, so we want to keep it.
-		curr++
-		policies[curr] = policies[i]
-	}
-	return policies[:curr+1]
-}
-
-// mergeMappingResults assumes the policies contained in currMappingResults
-// are sorted by cutover time in time ascending order.
-func mergeMappingResults(
-	currMappingResults policy.PoliciesList,
-	nextMappingPolicies policy.StagedPolicies,
-) policy.PoliciesList {
-	currMappingPolicies := currMappingResults[len(currMappingResults)-1]
-	if currMappingPolicies.SamePolicies(nextMappingPolicies) {
-		return currMappingResults
-	}
-	currMappingResults = append(currMappingResults, nextMappingPolicies)
-	return currMappingResults
-}
-
-// mergeRollupResults assumes both currRollupResult and nextRollupResult
-// are sorted by the ids of roll up results in ascending order.
-func mergeRollupResults(
-	currRollupResults []RollupResult,
-	nextRollupResults []RollupResult,
-	nextCutoverNanos int64,
-) []RollupResult {
-	var (
-		numCurrRollupResults = len(currRollupResults)
-		numNextRollupResults = len(nextRollupResults)
-		currRollupIdx        int
-		nextRollupIdx        int
-	)
-
-	for currRollupIdx < numCurrRollupResults && nextRollupIdx < numNextRollupResults {
-		currRollupResult := currRollupResults[currRollupIdx]
-		nextRollupResult := nextRollupResults[nextRollupIdx]
-
-		// If the current and the next rollup result have the same id, we merge their policies.
-		compareResult := bytes.Compare(currRollupResult.ID, nextRollupResult.ID)
-		if compareResult == 0 {
-			currRollupPolicies := currRollupResult.PoliciesList[len(currRollupResult.PoliciesList)-1]
-			nextRollupPolicies := nextRollupResult.PoliciesList[0]
-			if !currRollupPolicies.SamePolicies(nextRollupPolicies) {
-				currRollupResults[currRollupIdx].PoliciesList = append(currRollupResults[currRollupIdx].PoliciesList, nextRollupPolicies)
-			}
-			currRollupIdx++
-			nextRollupIdx++
-			continue
-		}
-
-		// If the current id is smaller, it means the id is deleted in the next rollup result.
-		if compareResult < 0 {
-			currRollupPolicies := currRollupResult.PoliciesList[len(currRollupResult.PoliciesList)-1]
-			if !currRollupPolicies.Tombstoned {
-				tombstonedPolicies := policy.NewStagedPolicies(nextCutoverNanos, true, nil)
-				currRollupResults[currRollupIdx].PoliciesList = append(currRollupResults[currRollupIdx].PoliciesList, tombstonedPolicies)
-			}
-			currRollupIdx++
-			continue
-		}
-
-		// Otherwise the current id is larger, meaning a new id is added in the next rollup result.
-		currRollupResults = append(currRollupResults, nextRollupResult)
-		nextRollupIdx++
-	}
-
-	// If there are leftover ids in the current rollup result, these ids must have been deleted
-	// in the next rollup result.
-	for currRollupIdx < numCurrRollupResults {
-		currRollupResult := currRollupResults[currRollupIdx]
-		currRollupPolicies := currRollupResult.PoliciesList[len(currRollupResult.PoliciesList)-1]
-		if !currRollupPolicies.Tombstoned {
-			tombstonedPolicies := policy.NewStagedPolicies(nextCutoverNanos, true, nil)
-			currRollupResults[currRollupIdx].PoliciesList = append(currRollupResults[currRollupIdx].PoliciesList, tombstonedPolicies)
-		}
-		currRollupIdx++
-	}
-
-	// If there are additional ids in the next rollup result, these ids must have been added
-	// in the next rollup result.
-	for nextRollupIdx < numNextRollupResults {
-		nextRollupResult := nextRollupResults[nextRollupIdx]
-		currRollupResults = append(currRollupResults, nextRollupResult)
-		nextRollupIdx++
-	}
-
-	sort.Sort(RollupResultsByIDAsc(currRollupResults))
-	return currRollupResults
-}
-
-type int64Asc []int64
-
-func (a int64Asc) Len() int           { return len(a) }
-func (a int64Asc) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a int64Asc) Less(i, j int) bool { return a[i] < a[j] }
-
-// MutableRuleSet is an extension of a RuleSet that implements mutation functions.
-type MutableRuleSet interface {
-	RuleSet
-
-	// Schema returns the schema.Ruleset representation of this ruleset.
-	Schema() (*schema.RuleSet, error)
-
-	// Clone returns a copy of this MutableRuleSet.
-	Clone() (MutableRuleSet, error)
-
-	// MarshalJSON serializes this RuleSet into JSON.
-	MarshalJSON() ([]byte, error)
-
-	// UnmarshalJSON deserializes this RuleSet from JSON.
-	UnmarshalJSON(data []byte) error
-
-	// AppendMappingRule creates a new mapping rule and adds it to this ruleset.
-	AddMappingRule(MappingRuleData) error
-
-	// UpdateMappingRule creates a new mapping rule and adds it to this ruleset.
-	UpdateMappingRule(MappingRuleUpdate) error
-
-	// DeleteMappingRule deletes a mapping rule
-	DeleteMappingRule(DeleteData) error
-
-	// AppendRollupRule creates a new rollup rule and adds it to this ruleset.
-	AddRollupRule(RollupRuleData) error
-
-	// UpdateRollupRule creates a new rollup rule and adds it to this ruleset.
-	UpdateRollupRule(RollupRuleUpdate) error
-
-	// DeleteRollupRule deletes a rollup rule
-	DeleteRollupRule(DeleteData) error
-
-	// Tombstone tombstones this ruleset and all of its rules.
-	Delete(UpdateMetadata) error
-
-	// Revive removes the tombstone from this ruleset. It does not revive any rules.
-	Revive(UpdateMetadata) error
-}
-
 // Schema returns the protobuf representation fo a ruleset
-func (rs ruleSet) Schema() (*schema.RuleSet, error) {
+func (rs *ruleSet) Schema() (*schema.RuleSet, error) {
 	res := &schema.RuleSet{
 		Uuid:          rs.uuid,
 		Namespace:     string(rs.namespace),
@@ -754,114 +632,38 @@ func (rs ruleSet) Schema() (*schema.RuleSet, error) {
 	return res, nil
 }
 
-func (rs ruleSet) Clone() (MutableRuleSet, error) {
-	// TODO(dgromov): Do an actual deep copy that doesn't rely on .Schema().
-	schema, err := rs.Schema()
-	if err != nil {
-		return nil, err
-	}
+func (rs *ruleSet) Clone() MutableRuleSet {
+	namespace := make([]byte, len(rs.namespace))
+	copy(namespace, rs.namespace)
 
-	newRuleSet, err := NewRuleSetFromSchema(rs.version, schema, NewOptions())
-	if err != nil {
-		return nil, err
-	}
-
-	return newRuleSet.ToMutableRuleSet(), nil
-}
-
-// MarshalJSON returns the JSON encoding of staged policies.
-func (rs ruleSet) MarshalJSON() ([]byte, error) {
-	return json.Marshal(newRuleSetJSON(rs))
-}
-
-// UnmarshalJSON unmarshals JSON-encoded data into staged policies.
-func (rs *ruleSet) UnmarshalJSON(data []byte) error {
-	var rsj ruleSetJSON
-	err := json.Unmarshal(data, &rsj)
-	if err != nil {
-		return err
-	}
-	*rs = *rsj.RuleSet()
-	return nil
-}
-
-type ruleSetJSON struct {
-	UUID               string            `json:"uuid"`
-	Version            int               `json:"version"`
-	Namespace          string            `json:"namespace"`
-	CreatedAtNanos     int64             `json:"createdAt"`
-	LastUpdatedAtNanos int64             `json:"lastUpdatedAt"`
-	Tombstoned         bool              `json:"tombstoned"`
-	CutoverNanos       int64             `json:"cutoverNanos"`
-	MappingRules       []mappingRuleJSON `json:"mappingRules"`
-	RollupRules        []rollupRuleJSON  `json:"rollupRules"`
-}
-
-func newRuleSetJSON(rs ruleSet) ruleSetJSON {
-	mappingRuleJSONs := make([]mappingRuleJSON, len(rs.mappingRules))
+	mappingRules := make([]*mappingRule, len(rs.mappingRules))
 	for i, m := range rs.mappingRules {
-		mappingRuleJSONs[i] = newMappingRuleJSON(*m)
+		c := m.clone()
+		mappingRules[i] = &c
 	}
-	rollupRuleJSONs := make([]rollupRuleJSON, len(rs.rollupRules))
+
+	rollupRules := make([]*rollupRule, len(rs.rollupRules))
 	for i, r := range rs.rollupRules {
-		rollupRuleJSONs[i] = newRollupRuleJSON(*r)
+		c := r.clone()
+		rollupRules[i] = &c
 	}
 
-	return ruleSetJSON{
-		UUID:               rs.uuid,
-		Version:            rs.version,
-		Namespace:          string(rs.namespace),
-		CreatedAtNanos:     rs.createdAtNanos,
-		LastUpdatedAtNanos: rs.lastUpdatedAtNanos,
-		Tombstoned:         rs.tombstoned,
-		CutoverNanos:       rs.cutoverNanos,
-		MappingRules:       mappingRuleJSONs,
-		RollupRules:        rollupRuleJSONs,
-	}
-}
-
-// RuleSet returns a ruleSet representation of a ruleSetJSON
-func (rsj ruleSetJSON) RuleSet() *ruleSet {
-	mappingRules := make([]*mappingRule, len(rsj.MappingRules))
-	for i, m := range rsj.MappingRules {
-		rule := m.mappingRule()
-		mappingRules[i] = &rule
-	}
-
-	rollupRules := make([]*rollupRule, len(rsj.RollupRules))
-	for i, r := range rsj.RollupRules {
-		rule := r.rollupRule()
-		rollupRules[i] = &rule
-	}
-
-	return &ruleSet{
-		uuid:               rsj.UUID,
-		version:            rsj.Version,
-		namespace:          []byte(rsj.Namespace),
-		createdAtNanos:     rsj.CreatedAtNanos,
-		lastUpdatedAtNanos: rsj.LastUpdatedAtNanos,
-		tombstoned:         rsj.Tombstoned,
-		cutoverNanos:       rsj.CutoverNanos,
+	// this clone deliberately ignores tagFliterOpts and rollupIDFn
+	// as they are not useful for the MutableRuleSet.
+	return MutableRuleSet(&ruleSet{
+		uuid:               rs.uuid,
+		version:            rs.version,
+		createdAtNanos:     rs.createdAtNanos,
+		lastUpdatedAtNanos: rs.lastUpdatedAtNanos,
+		tombstoned:         rs.tombstoned,
+		cutoverNanos:       rs.cutoverNanos,
+		namespace:          namespace,
 		mappingRules:       mappingRules,
 		rollupRules:        rollupRules,
-	}
-}
-
-// RuleSetUpdateHelper stores the necessary details to create an UpdateMetadata.
-type RuleSetUpdateHelper struct {
-	propagationDelay time.Duration
-}
-
-// NewRuleSetUpdateHelper creates a new RuleSetUpdateHelper struct.
-func NewRuleSetUpdateHelper(propagationDelay time.Duration) RuleSetUpdateHelper {
-	return RuleSetUpdateHelper{propagationDelay: propagationDelay}
-}
-
-// NewUpdateMetadata creates a properly initialized UpdateMetadata object.
-func (r RuleSetUpdateHelper) NewUpdateMetadata() UpdateMetadata {
-	updateTime := time.Now().UnixNano()
-	cutoverTime := updateTime + int64(r.propagationDelay)
-	return UpdateMetadata{lastUpdatedAtNanos: updateTime, cutoverNanos: cutoverTime}
+		tagsFilterOpts:     rs.tagsFilterOpts,
+		newRollupIDFn:      rs.newRollupIDFn,
+		isRollupIDFn:       rs.isRollupIDFn,
+	})
 }
 
 // UpdateMetadata contains fields that should be set with each
@@ -1141,6 +943,223 @@ func (rs ruleSet) getRollupRuleByID(id string) (*rollupRule, error) {
 		}
 	}
 	return nil, errNoSuchRule
+}
+
+// resolvePolicies resolves the conflicts among policies if any, following the rules below:
+// * If two policies have the same resolution but different retention, the one with longer
+// retention period is chosen.
+// * If two policies have the same resolution but different custom aggregation types, the
+// aggregation types will be merged.
+func resolvePolicies(policies []policy.Policy) []policy.Policy {
+	if len(policies) == 0 {
+		return policies
+	}
+	sort.Sort(policy.ByResolutionAsc(policies))
+	// curr is the index of the last policy kept so far.
+	curr := 0
+	for i := 1; i < len(policies); i++ {
+		// If the policy has the same resolution, it must have either the same or shorter retention
+		// period due to sorting, so we keep the one with longer retention period and ignore this
+		// policy.
+		if policies[curr].Resolution().Window == policies[i].Resolution().Window {
+			if res, merged := policies[curr].AggregationID.Merge(policies[i].AggregationID); merged {
+				// Merged custom aggregation functions to the current policy.
+				policies[curr] = policy.NewPolicy(policies[curr].StoragePolicy, res)
+			}
+			continue
+		}
+		// Now we are guaranteed the policy has lower resolution than the
+		// current one, so we want to keep it.
+		curr++
+		policies[curr] = policies[i]
+	}
+	return policies[:curr+1]
+}
+
+// mergeMappingResults assumes the policies contained in currMappingResults
+// are sorted by cutover time in time ascending order.
+func mergeMappingResults(
+	currMappingResults policy.PoliciesList,
+	nextMappingPolicies policy.StagedPolicies,
+) policy.PoliciesList {
+	currMappingPolicies := currMappingResults[len(currMappingResults)-1]
+	if currMappingPolicies.SamePolicies(nextMappingPolicies) {
+		return currMappingResults
+	}
+	currMappingResults = append(currMappingResults, nextMappingPolicies)
+	return currMappingResults
+}
+
+// mergeRollupResults assumes both currRollupResult and nextRollupResult
+// are sorted by the ids of roll up results in ascending order.
+func mergeRollupResults(
+	currRollupResults []RollupResult,
+	nextRollupResults []RollupResult,
+	nextCutoverNanos int64,
+) []RollupResult {
+	var (
+		numCurrRollupResults = len(currRollupResults)
+		numNextRollupResults = len(nextRollupResults)
+		currRollupIdx        int
+		nextRollupIdx        int
+	)
+
+	for currRollupIdx < numCurrRollupResults && nextRollupIdx < numNextRollupResults {
+		currRollupResult := currRollupResults[currRollupIdx]
+		nextRollupResult := nextRollupResults[nextRollupIdx]
+
+		// If the current and the next rollup result have the same id, we merge their policies.
+		compareResult := bytes.Compare(currRollupResult.ID, nextRollupResult.ID)
+		if compareResult == 0 {
+			currRollupPolicies := currRollupResult.PoliciesList[len(currRollupResult.PoliciesList)-1]
+			nextRollupPolicies := nextRollupResult.PoliciesList[0]
+			if !currRollupPolicies.SamePolicies(nextRollupPolicies) {
+				currRollupResults[currRollupIdx].PoliciesList = append(currRollupResults[currRollupIdx].PoliciesList, nextRollupPolicies)
+			}
+			currRollupIdx++
+			nextRollupIdx++
+			continue
+		}
+
+		// If the current id is smaller, it means the id is deleted in the next rollup result.
+		if compareResult < 0 {
+			currRollupPolicies := currRollupResult.PoliciesList[len(currRollupResult.PoliciesList)-1]
+			if !currRollupPolicies.Tombstoned {
+				tombstonedPolicies := policy.NewStagedPolicies(nextCutoverNanos, true, nil)
+				currRollupResults[currRollupIdx].PoliciesList = append(currRollupResults[currRollupIdx].PoliciesList, tombstonedPolicies)
+			}
+			currRollupIdx++
+			continue
+		}
+
+		// Otherwise the current id is larger, meaning a new id is added in the next rollup result.
+		currRollupResults = append(currRollupResults, nextRollupResult)
+		nextRollupIdx++
+	}
+
+	// If there are leftover ids in the current rollup result, these ids must have been deleted
+	// in the next rollup result.
+	for currRollupIdx < numCurrRollupResults {
+		currRollupResult := currRollupResults[currRollupIdx]
+		currRollupPolicies := currRollupResult.PoliciesList[len(currRollupResult.PoliciesList)-1]
+		if !currRollupPolicies.Tombstoned {
+			tombstonedPolicies := policy.NewStagedPolicies(nextCutoverNanos, true, nil)
+			currRollupResults[currRollupIdx].PoliciesList = append(currRollupResults[currRollupIdx].PoliciesList, tombstonedPolicies)
+		}
+		currRollupIdx++
+	}
+
+	// If there are additional ids in the next rollup result, these ids must have been added
+	// in the next rollup result.
+	for nextRollupIdx < numNextRollupResults {
+		nextRollupResult := nextRollupResults[nextRollupIdx]
+		currRollupResults = append(currRollupResults, nextRollupResult)
+		nextRollupIdx++
+	}
+
+	sort.Sort(RollupResultsByIDAsc(currRollupResults))
+	return currRollupResults
+}
+
+type int64Asc []int64
+
+func (a int64Asc) Len() int           { return len(a) }
+func (a int64Asc) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a int64Asc) Less(i, j int) bool { return a[i] < a[j] }
+
+// MarshalJSON returns the JSON encoding of staged policies.
+func (rs ruleSet) MarshalJSON() ([]byte, error) {
+	return json.Marshal(newRuleSetJSON(rs))
+}
+
+// UnmarshalJSON unmarshals JSON-encoded data into staged policies.
+func (rs *ruleSet) UnmarshalJSON(data []byte) error {
+	var rsj ruleSetJSON
+	err := json.Unmarshal(data, &rsj)
+	if err != nil {
+		return err
+	}
+	*rs = *rsj.RuleSet()
+	return nil
+}
+
+type ruleSetJSON struct {
+	UUID               string            `json:"uuid"`
+	Version            int               `json:"version"`
+	Namespace          string            `json:"namespace"`
+	CreatedAtNanos     int64             `json:"createdAt"`
+	LastUpdatedAtNanos int64             `json:"lastUpdatedAt"`
+	Tombstoned         bool              `json:"tombstoned"`
+	CutoverNanos       int64             `json:"cutoverNanos"`
+	MappingRules       []mappingRuleJSON `json:"mappingRules"`
+	RollupRules        []rollupRuleJSON  `json:"rollupRules"`
+}
+
+func newRuleSetJSON(rs ruleSet) ruleSetJSON {
+	mappingRuleJSONs := make([]mappingRuleJSON, len(rs.mappingRules))
+	for i, m := range rs.mappingRules {
+		mappingRuleJSONs[i] = newMappingRuleJSON(*m)
+	}
+	rollupRuleJSONs := make([]rollupRuleJSON, len(rs.rollupRules))
+	for i, r := range rs.rollupRules {
+		rollupRuleJSONs[i] = newRollupRuleJSON(*r)
+	}
+
+	return ruleSetJSON{
+		UUID:               rs.uuid,
+		Version:            rs.version,
+		Namespace:          string(rs.namespace),
+		CreatedAtNanos:     rs.createdAtNanos,
+		LastUpdatedAtNanos: rs.lastUpdatedAtNanos,
+		Tombstoned:         rs.tombstoned,
+		CutoverNanos:       rs.cutoverNanos,
+		MappingRules:       mappingRuleJSONs,
+		RollupRules:        rollupRuleJSONs,
+	}
+}
+
+// RuleSet returns a ruleSet representation of a ruleSetJSON
+func (rsj ruleSetJSON) RuleSet() *ruleSet {
+	mappingRules := make([]*mappingRule, len(rsj.MappingRules))
+	for i, m := range rsj.MappingRules {
+		rule := m.mappingRule()
+		mappingRules[i] = &rule
+	}
+
+	rollupRules := make([]*rollupRule, len(rsj.RollupRules))
+	for i, r := range rsj.RollupRules {
+		rule := r.rollupRule()
+		rollupRules[i] = &rule
+	}
+
+	return &ruleSet{
+		uuid:               rsj.UUID,
+		version:            rsj.Version,
+		namespace:          []byte(rsj.Namespace),
+		createdAtNanos:     rsj.CreatedAtNanos,
+		lastUpdatedAtNanos: rsj.LastUpdatedAtNanos,
+		tombstoned:         rsj.Tombstoned,
+		cutoverNanos:       rsj.CutoverNanos,
+		mappingRules:       mappingRules,
+		rollupRules:        rollupRules,
+	}
+}
+
+// RuleSetUpdateHelper stores the necessary details to create an UpdateMetadata.
+type RuleSetUpdateHelper struct {
+	propagationDelay time.Duration
+}
+
+// NewRuleSetUpdateHelper creates a new RuleSetUpdateHelper struct.
+func NewRuleSetUpdateHelper(propagationDelay time.Duration) RuleSetUpdateHelper {
+	return RuleSetUpdateHelper{propagationDelay: propagationDelay}
+}
+
+// NewUpdateMetadata creates a properly initialized UpdateMetadata object.
+func (r RuleSetUpdateHelper) NewUpdateMetadata() UpdateMetadata {
+	updateTime := time.Now().UnixNano()
+	cutoverTime := updateTime + int64(r.propagationDelay)
+	return UpdateMetadata{lastUpdatedAtNanos: updateTime, cutoverNanos: cutoverTime}
 }
 
 // RuleConflictError is returned when a rule modification is made that would conflict with the current state.

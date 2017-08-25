@@ -251,3 +251,32 @@ func TestMappingTombstoned(t *testing.T) {
 	mr, _ := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
 	require.True(t, mr.Tombstoned())
 }
+
+func TestMappingRuleClone(t *testing.T) {
+	mr, _ := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	clone := mr.clone()
+
+	require.Equal(t, *mr, clone)
+	for i, m := range mr.snapshots {
+		c := clone.snapshots[i]
+		require.False(t, c == m)
+	}
+
+	clone.snapshots[1].tombstoned = !clone.snapshots[1].tombstoned
+	require.NotEqual(t, clone.snapshots[1].tombstoned, mr.snapshots[1].tombstoned)
+}
+
+func TestMappingRuleSnapshotClone(t *testing.T) {
+	mr, _ := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	s1 := mr.snapshots[0]
+	s1Clone := s1.clone()
+
+	require.Equal(t, *s1, s1Clone)
+	require.False(t, s1 == &s1Clone)
+
+	s1Clone.rawFilters["blah"] = "foo"
+	require.NotContains(t, s1.rawFilters, "blah")
+
+	s1Clone.policies = append(s1Clone.policies, s1Clone.policies[0])
+	require.NotEqual(t, s1.policies, s1Clone.policies)
+}

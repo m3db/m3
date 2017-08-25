@@ -156,7 +156,7 @@ func (rrsj rollupRuleSnapshotJSON) rollupRuleSnapshot() *rollupRuleSnapshot {
 }
 
 // Schema returns the schema representation of a rollup target.
-func (t RollupTarget) Schema() (*schema.RollupTarget, error) {
+func (t *RollupTarget) Schema() (*schema.RollupTarget, error) {
 	res := &schema.RollupTarget{
 		Name: string(t.Name),
 	}
@@ -228,14 +228,34 @@ func newRollupRuleSnapshotFromFields(
 		name:         name,
 		tombstoned:   tombstoned,
 		cutoverNanos: cutoverNanos,
+		filter:       filter,
 		targets:      targets,
 		rawFilters:   tagFilters,
+	}
+}
+
+func (rrs *rollupRuleSnapshot) clone() rollupRuleSnapshot {
+	rawFilters := make(map[string]string, len(rrs.rawFilters))
+	for k, v := range rrs.rawFilters {
+		rawFilters[k] = v
+	}
+	targets := make([]RollupTarget, len(rrs.targets))
+	for i, t := range rrs.targets {
+		targets[i] = t.clone()
+	}
+	filter := rrs.filter.Clone()
+	return rollupRuleSnapshot{
+		name:         rrs.name,
+		tombstoned:   rrs.tombstoned,
+		cutoverNanos: rrs.cutoverNanos,
 		filter:       filter,
+		targets:      targets,
+		rawFilters:   rawFilters,
 	}
 }
 
 // Schema returns the given MappingRuleSnapshot in protobuf form.
-func (rrs rollupRuleSnapshot) Schema() (*schema.RollupRuleSnapshot, error) {
+func (rrs *rollupRuleSnapshot) Schema() (*schema.RollupRuleSnapshot, error) {
 	res := &schema.RollupRuleSnapshot{
 		Name:        rrs.name,
 		Tombstoned:  rrs.tombstoned,
@@ -294,6 +314,18 @@ func newRollupRuleFromFields(
 		return nil, err
 	}
 	return &rr, nil
+}
+
+func (rc rollupRule) clone() rollupRule {
+	snapshots := make([]*rollupRuleSnapshot, len(rc.snapshots))
+	for i, s := range rc.snapshots {
+		c := s.clone()
+		snapshots[i] = &c
+	}
+	return rollupRule{
+		uuid:      rc.uuid,
+		snapshots: snapshots,
+	}
 }
 
 // ActiveSnapshot returns the latest rule snapshot whose cutover time is earlier
@@ -425,7 +457,7 @@ func (rrj rollupRuleJSON) rollupRule() rollupRule {
 }
 
 // Schema returns the given RollupRule in protobuf form.
-func (rc rollupRule) Schema() (*schema.RollupRule, error) {
+func (rc *rollupRule) Schema() (*schema.RollupRule, error) {
 	res := &schema.RollupRule{
 		Uuid: rc.uuid,
 	}

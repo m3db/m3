@@ -217,7 +217,7 @@ type testEqualityFilter struct {
 }
 
 func newTestEqualityFilter(pattern []byte) Filter {
-	return testEqualityFilter{pattern: pattern}
+	return newImmutableFilter(testEqualityFilter{pattern: pattern})
 }
 
 func (f testEqualityFilter) String() string {
@@ -240,10 +240,10 @@ func newTestMapTagsFilter(tagFilters map[string]string, iterFn id.SortedTagItera
 		filters[name] = filter
 	}
 
-	return &testMapTagsFilter{
+	return newImmutableFilter(&testMapTagsFilter{
 		filters: filters,
 		iterFn:  iterFn,
-	}
+	})
 }
 
 func (f *testMapTagsFilter) String() string {

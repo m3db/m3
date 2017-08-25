@@ -2288,7 +2288,7 @@ func TestUpdateMappingRule(t *testing.T) {
 	mutable, rs, helper, err := initMutableTest()
 	require.NoError(t, err)
 
-	mutableClone, err := mutable.Clone()
+	mutableClone := mutable.Clone()
 	require.NoError(t, err)
 
 	_, err = rs.getMappingRuleByID("mappingRule5")
@@ -2560,6 +2560,24 @@ func TestReviveRuleSet(t *testing.T) {
 	for _, r := range rs.rollupRules {
 		require.True(t, r.Tombstoned())
 	}
+}
+
+func TestRuleSetClone(t *testing.T) {
+	mutable, rs, _, _ := initMutableTest()
+	rsClone := mutable.Clone().(*ruleSet)
+
+	require.Equal(t, rsClone, rs)
+	for i, m := range rs.mappingRules {
+		require.False(t, m == rsClone.mappingRules[i])
+	}
+	for i, r := range rs.rollupRules {
+		require.False(t, r == rsClone.rollupRules[i])
+	}
+
+	rsClone.mappingRules = []*mappingRule{}
+	rsClone.rollupRules = []*rollupRule{}
+	require.NotEqual(t, rs.mappingRules, rsClone.mappingRules)
+	require.NotEqual(t, rs.rollupRules, rsClone.rollupRules)
 }
 
 type testMappingsData struct {
