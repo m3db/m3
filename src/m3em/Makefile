@@ -40,10 +40,12 @@ setup:
 	mkdir -p $(BUILD)
 
 define SERVICE_RULES
+.PHONY: $(SERVICE)
 $(SERVICE): setup
 	@echo Building $(SERVICE)
 	$(VENDOR_ENV) go build -o $(BUILD)/$(SERVICE) ./services/$(SERVICE)/.
 
+.PHONY: $(SERVICE)-linux-amd64
 $(SERVICE)-linux-amd64:
 	$(LINUX_AMD64_ENV) make $(SERVICE)
 endef
