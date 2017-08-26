@@ -23,8 +23,6 @@
 package resources
 
 import (
-	"crypto/x509"
-
 	xgrpc "github.com/m3db/m3em/x/grpc"
 
 	"google.golang.org/grpc/credentials"
