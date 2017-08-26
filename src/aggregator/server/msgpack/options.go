@@ -26,11 +26,6 @@ import (
 	"github.com/m3db/m3x/server"
 )
 
-const (
-	defaultKeepAliveEnabled = true
-	defaultKeepAlivePeriod  = 0
-)
-
 // Options provide a set of server options
 type Options interface {
 	// SetInstrumentOptions sets the instrument options

@@ -53,11 +53,9 @@ const (
 )
 
 var (
-	errUnknownQuantileSuffixFnType   = errors.New("unknown quantile suffix function type")
-	errUnknownFlushHandlerType       = errors.New("unknown flush handler type")
-	errNoKVClientConfiguration       = errors.New("no kv client configuration")
-	errNoForwardHandlerConfiguration = errors.New("no forward flush configuration")
-	errEmptyJitterBucketList         = errors.New("empty jitter bucket list")
+	errUnknownQuantileSuffixFnType = errors.New("unknown quantile suffix function type")
+	errNoKVClientConfiguration     = errors.New("no kv client configuration")
+	errEmptyJitterBucketList       = errors.New("empty jitter bucket list")
 )
 
 // AggregatorConfiguration contains aggregator configuration.
@@ -503,7 +501,6 @@ type shardFnType string
 
 // List of supported sharding function types.
 const (
-	unknownShardFn  shardFnType = "unknown"
 	murmur32ShardFn shardFnType = "murmur32"
 
 	defaultShardFn = murmur32ShardFn
@@ -712,7 +709,7 @@ func (c flushManagerConfiguration) NewFlushManager(
 	return aggregator.NewFlushManager(opts), nil
 }
 
-// jitterBucket determins the max jitter percent for lists whose flush
+// jitterBucket determines the max jitter percent for lists whose flush
 // intervals are no more than the bucket flush interval.
 type jitterBucket struct {
 	FlushInterval    time.Duration `yaml:"flushInterval" validate:"nonzero"`

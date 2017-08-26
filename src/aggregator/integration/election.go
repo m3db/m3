@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// nolint: megacheck
 var (
 	testClusterSize     = 1
 	testEnvironment     = "testEnv"
@@ -39,11 +40,13 @@ var (
 	testElectionTTLSecs = 5
 )
 
+// nolint: megacheck
 type testCluster struct {
 	t       *testing.T
 	cluster *integration.ClusterV3
 }
 
+// nolint: megacheck
 func newTestCluster(t *testing.T) *testCluster {
 	return &testCluster{
 		t: t,

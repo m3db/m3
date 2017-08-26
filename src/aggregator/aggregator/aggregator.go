@@ -350,14 +350,6 @@ func (agg *aggregator) findOrUpdateShardWithLock(
 	return agg.shards[shardID], nil
 }
 
-func (agg *aggregator) initShardsWithLock() error {
-	placement, err := agg.placement()
-	if err != nil {
-		return err
-	}
-	return agg.updateShardsWithLock(placement)
-}
-
 func (agg *aggregator) updateShardsWithLock(newPlacement services.Placement) error {
 	// If someone has already updated the shards ahead of us, do nothing.
 	if !agg.shouldUpdateShardsWithLock(newPlacement) {

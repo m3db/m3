@@ -244,6 +244,7 @@ func testAggregator(t *testing.T) (*aggregator, kv.Store) {
 	return NewAggregator(opts).(*aggregator), testPlacementStore
 }
 
+// nolint: unparam
 func testStagedPlacementProtoWithNumShards(t *testing.T, numShards int) *placementproto.PlacementSnapshots {
 	shardSet := make([]shard.Shard, numShards)
 	for i := 0; i < numShards; i++ {

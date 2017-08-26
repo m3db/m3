@@ -24,8 +24,10 @@ import (
 	"time"
 )
 
+// nolint: megacheck
 type conditionFn func() bool
 
+// nolint: megacheck
 func waitUntil(fn conditionFn, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {

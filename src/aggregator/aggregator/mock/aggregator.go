@@ -140,9 +140,7 @@ func cloneStagedPolicies(sp policy.StagedPolicies) policy.StagedPolicies {
 	}
 	policies, _ := sp.Policies()
 	cloned := make([]policy.Policy, len(policies))
-	for i, policy := range policies {
-		cloned[i] = policy
-	}
+	copy(cloned, policies)
 	return policy.NewStagedPolicies(sp.CutoverNanos, sp.Tombstoned, cloned)
 }
 

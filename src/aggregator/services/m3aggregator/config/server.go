@@ -140,9 +140,7 @@ type HTTPServerConfiguration struct {
 }
 
 // NewHTTPServerOptions create a new set of http server options.
-func (c *HTTPServerConfiguration) NewHTTPServerOptions(
-	instrumentOpts instrument.Options,
-) http.Options {
+func (c *HTTPServerConfiguration) NewHTTPServerOptions() http.Options {
 	opts := http.NewOptions()
 	if c.ReadTimeout != 0 {
 		opts = opts.SetReadTimeout(c.ReadTimeout)

@@ -54,8 +54,6 @@ type aggMetricFn func(
 	sp policy.StoragePolicy,
 )
 
-type newMetricElemFn func() metricElem
-
 // metricElem is the common interface for metric elements
 type metricElem interface {
 	// ID returns the metric id.
