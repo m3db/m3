@@ -45,6 +45,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// nolint: megacheck, varcheck, deadcode
 var (
 	msgpackAddrArg                = flag.String("msgpackAddr", "0.0.0.0:6000", "msgpack server address")
 	httpAddrArg                   = flag.String("httpAddr", "0.0.0.0:6001", "http server address")
@@ -54,8 +55,10 @@ var (
 )
 
 // nowSetterFn is the function that sets the current time.
+// nolint: megacheck
 type nowSetterFn func(t time.Time)
 
+// nolint: megacheck
 type testSetup struct {
 	opts              testOptions
 	msgpackAddr       string
@@ -80,6 +83,7 @@ type testSetup struct {
 	closedCh chan struct{}
 }
 
+// nolint: megacheck, deadcode
 func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 	if opts == nil {
 		opts = newTestOptions()

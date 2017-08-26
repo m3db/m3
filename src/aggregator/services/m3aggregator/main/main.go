@@ -82,9 +82,7 @@ func main() {
 
 	// Create the http server options.
 	httpAddr := cfg.HTTP.ListenAddress
-	httpServerScope := scope.SubScope("http-server").Tagged(map[string]string{"server": "http"})
-	iOpts = instrumentOpts.SetMetricsScope(httpServerScope)
-	httpServerOpts := cfg.HTTP.NewHTTPServerOptions(iOpts)
+	httpServerOpts := cfg.HTTP.NewHTTPServerOptions()
 
 	// Create the aggregator.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("aggregator"))
@@ -128,7 +126,7 @@ func main() {
 }
 
 func interrupt() error {
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 	return fmt.Errorf("%s", <-c)
 }

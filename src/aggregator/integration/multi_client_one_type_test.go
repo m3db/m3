@@ -71,7 +71,7 @@ func TestMultiClientOneType(t *testing.T) {
 
 	ids := generateTestIDs(idPrefix, numIDs)
 	typeFn := constantMetryTypeFnFactory(unaggregated.CounterType)
-	input := generateTestData(t, start, stop, interval, ids, typeFn, testPoliciesList)
+	input := generateTestData(start, stop, interval, ids, typeFn, testPoliciesList)
 	for _, data := range input.dataset {
 		testSetup.setNowFn(data.timestamp)
 		for _, mu := range data.metrics {

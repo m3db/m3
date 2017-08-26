@@ -186,11 +186,7 @@ func (h helper) executeStep(
 	}
 
 	h.logger.Infof("deployment progressed, waiting for completion: %v", step)
-	if err := h.waitUntilSafe(all); err != nil {
-		return err
-	}
-
-	return nil
+	return h.waitUntilSafe(all)
 }
 
 func (h helper) waitUntilSafe(instances instanceMetadatas) error {

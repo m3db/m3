@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3cluster/kv/mem"
 )
 
+// nolint: megacheck
 const (
 	defaultServerStateChangeTimeout   = 5 * time.Second
 	defaultClientBatchSize            = 1440
@@ -43,6 +44,7 @@ const (
 	defaultJitterEnabled              = true
 )
 
+// nolint: megacheck
 type testOptions interface {
 	// SetMsgpackAddr sets the msgpack server address.
 	SetMsgpackAddr(value string) testOptions
@@ -141,6 +143,7 @@ type testOptions interface {
 	MaxJitterFn() aggregator.FlushJitterFn
 }
 
+// nolint: megacheck
 type options struct {
 	msgpackAddr                string
 	httpAddr                   string
@@ -160,6 +163,7 @@ type options struct {
 	maxJitterFn                aggregator.FlushJitterFn
 }
 
+// nolint: megacheck
 func newTestOptions() testOptions {
 	return &options{
 		instanceID:                 defaultInstanceID,
@@ -339,6 +343,7 @@ func (o *options) MaxJitterFn() aggregator.FlushJitterFn {
 	return o.maxJitterFn
 }
 
+// nolint: megacheck
 func defaultMaxJitterFn(interval time.Duration) time.Duration {
 	return time.Duration(0.75 * float64(interval))
 }

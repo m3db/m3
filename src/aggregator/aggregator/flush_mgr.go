@@ -29,10 +29,6 @@ import (
 	"github.com/uber-go/tally"
 )
 
-var (
-	errFlushManagerClosed = errors.New("flush manager is closed")
-)
-
 // PeriodicFlusher flushes metrics periodically.
 type PeriodicFlusher interface {
 	// Shard returns the shard associated with the flusher.

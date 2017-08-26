@@ -38,10 +38,9 @@ import (
 )
 
 var (
-	testPoliciesVersion = 2
-	compressor          = policy.NewAggregationIDCompressor()
-	compressedMax, _    = compressor.Compress(policy.AggregationTypes{policy.Max})
-	testPolicies        = []policy.Policy{
+	compressor       = policy.NewAggregationIDCompressor()
+	compressedMax, _ = compressor.Compress(policy.AggregationTypes{policy.Max})
+	testPolicies     = []policy.Policy{
 		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
 		policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 2*24*time.Hour), compressedMax),
 		policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 30*24*time.Hour), policy.DefaultAggregationID),

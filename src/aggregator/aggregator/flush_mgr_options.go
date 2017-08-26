@@ -45,7 +45,7 @@ var (
 	defaultForcedFlushWindowSize  = 10 * time.Second
 )
 
-// FlushJitterFn determins the jitter based on the flush interval.
+// FlushJitterFn determines the jitter based on the flush interval.
 type FlushJitterFn func(flushInterval time.Duration) time.Duration
 
 // FlushManagerOptions provide a set of options for the flush manager.

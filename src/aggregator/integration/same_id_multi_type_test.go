@@ -88,7 +88,7 @@ func TestSameIDMultiType(t *testing.T) {
 		}
 	}
 
-	input := generateTestData(t, start, stop, interval, ids, metricTypeFn, testPoliciesList)
+	input := generateTestData(start, stop, interval, ids, metricTypeFn, testPoliciesList)
 	for _, data := range input.dataset {
 		testSetup.setNowFn(data.timestamp)
 		for _, mu := range data.metrics {

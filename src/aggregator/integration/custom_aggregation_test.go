@@ -96,10 +96,10 @@ func TestCustomAggregation(t *testing.T) {
 	defer client.close()
 
 	ids := generateTestIDs(idPrefix, numIDs)
-	input1 := generateTestData(t, start, t1, interval, ids, roundRobinMetricTypeFn, testPoliciesList)
-	input2 := generateTestData(t, t1, t2, interval, ids, roundRobinMetricTypeFn, testPoliciesListWithCustomAggregation1)
-	input3 := generateTestData(t, t2, t3, interval, ids, roundRobinMetricTypeFn, testPoliciesListWithCustomAggregation2)
-	input4 := generateTestData(t, t3, end, interval, ids, roundRobinMetricTypeFn, testPoliciesList)
+	input1 := generateTestData(start, t1, interval, ids, roundRobinMetricTypeFn, testPoliciesList)
+	input2 := generateTestData(t1, t2, interval, ids, roundRobinMetricTypeFn, testPoliciesListWithCustomAggregation1)
+	input3 := generateTestData(t2, t3, interval, ids, roundRobinMetricTypeFn, testPoliciesListWithCustomAggregation2)
+	input4 := generateTestData(t3, end, interval, ids, roundRobinMetricTypeFn, testPoliciesList)
 	for _, input := range []testDatasetWithPoliciesList{input1, input2, input3, input4} {
 		for _, data := range input.dataset {
 			testSetup.setNowFn(data.timestamp)

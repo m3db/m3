@@ -64,30 +64,6 @@ var (
 		ID:       testGaugeID,
 		GaugeVal: 123.456,
 	}
-	suffixMap = map[policy.AggregationType][]byte{
-		policy.Last:   []byte(".last"),
-		policy.Min:    []byte(".min"),
-		policy.Max:    []byte(".max"),
-		policy.Mean:   []byte(".mean"),
-		policy.Median: []byte(".median"),
-		policy.Count:  []byte(".count"),
-		policy.Sum:    []byte(".sum"),
-		policy.SumSq:  []byte(".sum_sq"),
-		policy.Stdev:  []byte(".stdev"),
-		policy.P10:    []byte(".p10"),
-		policy.P20:    []byte(".p20"),
-		policy.P30:    []byte(".p30"),
-		policy.P40:    []byte(".p40"),
-		policy.P50:    []byte(".p50"),
-		policy.P60:    []byte(".p60"),
-		policy.P70:    []byte(".p70"),
-		policy.P80:    []byte(".p80"),
-		policy.P90:    []byte(".p90"),
-		policy.P95:    []byte(".p95"),
-		policy.P99:    []byte(".p99"),
-		policy.P999:   []byte(".p999"),
-		policy.P9999:  []byte(".p9999"),
-	}
 )
 
 func TestElemBaseID(t *testing.T) {
@@ -279,7 +255,7 @@ func TestCounterElemReadAndDiscard(t *testing.T) {
 
 	// Reading and discarding values from a closed element is no op
 	e.closed = true
-	fn, res = testAggMetricFn()
+	fn, _ = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(e.values))
 }
@@ -314,7 +290,7 @@ func TestCounterElemReadAndDiscardWithCustomAggregation(t *testing.T) {
 
 	// Reading and discarding values from a closed element is no op
 	e.closed = true
-	fn, res = testAggMetricFn()
+	fn, _ = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(e.values))
 }
@@ -437,7 +413,7 @@ func TestTimerElemConsume(t *testing.T) {
 
 	// Reading and discarding values from a closed element is no op
 	e.closed = true
-	fn, res = testAggMetricFn()
+	fn, _ = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(e.values))
 
@@ -481,7 +457,7 @@ func TestTimerElemReadAndDiscardWithCustomAggregation(t *testing.T) {
 
 	// Reading and discarding values from a closed element is no op
 	e.closed = true
-	fn, res = testAggMetricFn()
+	fn, _ = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(e.values))
 
@@ -640,7 +616,7 @@ func TestGaugeElemReadAndDiscard(t *testing.T) {
 
 	// Reading and discarding values from a closed element is no op
 	e.closed = true
-	fn, res = testAggMetricFn()
+	fn, _ = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(e.values))
 }
@@ -676,7 +652,7 @@ func TestGaugeElemReadAndDiscardWithCustomAggregation(t *testing.T) {
 
 	// Reading and discarding values from a closed element is no op
 	e.closed = true
-	fn, res = testAggMetricFn()
+	fn, _ = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(e.values))
 }
@@ -737,12 +713,6 @@ type testAggMetric struct {
 	value     float64
 	sp        policy.StoragePolicy
 }
-
-type testAggMetricsByTimeAscending []testAggMetric
-
-func (m testAggMetricsByTimeAscending) Len() int           { return len(m) }
-func (m testAggMetricsByTimeAscending) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
-func (m testAggMetricsByTimeAscending) Less(i, j int) bool { return m[i].timeNanos < m[j].timeNanos }
 
 func testAggMetricFn() (aggMetricFn, *[]testAggMetric) {
 	var result []testAggMetric
