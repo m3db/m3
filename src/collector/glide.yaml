@@ -5,7 +5,7 @@ import:
   subpackages:
   - kv
 - package: github.com/m3db/m3metrics
-  version: 6ede27981b53b4ffa226c111a57326666942455c
+  version: 286dfad168595a1b0f2b2cd676e21e8b34fe08a5
 - package: github.com/m3db/m3x
   version: bd6be18ffb184691512eb442561b16a59c15d797
   subpackages:
@@ -36,3 +36,5 @@ import:
   version: 988f4f24992fc745de53c42df0da6581e42a6686
 - package: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
+- package: github.com/pborman/uuid
+  version: c55201b036063326c5b1b89ccfe45a184973d073
