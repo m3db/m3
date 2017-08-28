@@ -84,12 +84,19 @@ type Options interface {
 	// SetInstrumentsOptions sets the InstrumentsOptions
 	SetInstrumentsOptions(iopts instrument.Options) Options
 
+	// NamespaceOptions is the custom namespaces.
+	NamespaceOptions() services.NamespaceOptions
+
+	// SetNamespaceOptions sets the NamespaceOptions.
+	SetNamespaceOptions(opts services.NamespaceOptions) Options
+
 	// Validate validates the Options
 	Validate() error
 }
 
 type options struct {
 	initTimeout time.Duration
+	nOpts       services.NamespaceOptions
 	kvGen       KVGen
 	hbGen       HeartbeatGen
 	ldGen       LeaderGen
@@ -100,6 +107,7 @@ type options struct {
 func NewOptions() Options {
 	return options{
 		iopts:       instrument.NewOptions(),
+		nOpts:       services.NewNamespaceOptions(),
 		initTimeout: defaultInitTimeout,
 	}
 }
@@ -166,5 +174,14 @@ func (o options) InstrumentsOptions() instrument.Options {
 
 func (o options) SetInstrumentsOptions(iopts instrument.Options) Options {
 	o.iopts = iopts
+	return o
+}
+
+func (o options) NamespaceOptions() services.NamespaceOptions {
+	return o.nOpts
+}
+
+func (o options) SetNamespaceOptions(opts services.NamespaceOptions) Options {
+	o.nOpts = opts
 	return o
 }

@@ -28,6 +28,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestOptions(t *testing.T) {
+	opts := NewOptions()
+	assert.Equal(t, NewNamespaceOptions(), opts.NamespaceOptions())
+
+	nOpts := NewNamespaceOptions().SetPlacementNamespace("p")
+	opts = opts.SetNamespaceOptions(nOpts)
+	assert.Equal(t, nOpts, opts.NamespaceOptions())
+}
+
+func TestNamespaceOptions(t *testing.T) {
+	opts := NewNamespaceOptions()
+	assert.Empty(t, opts.PlacementNamespace())
+	assert.Empty(t, opts.MetadataNamespace())
+
+	opts = opts.SetPlacementNamespace("p").SetMetadataNamespace("m")
+	assert.Equal(t, "p", opts.PlacementNamespace())
+	assert.Equal(t, "m", opts.MetadataNamespace())
+}
+
 func TestConvertBetweenProtoAndService(t *testing.T) {
 	protoShards := getProtoShards([]uint32{0, 1, 2})
 	sid := NewServiceID().

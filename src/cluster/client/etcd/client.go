@@ -55,6 +55,8 @@ var errInvalidNamespace = errors.New("invalid namespace")
 
 type newClientFn func(endpoints []string) (*clientv3.Client, error)
 
+type cacheFileForZoneFn func(zone string) etcdkv.CacheFileFn
+
 // NewConfigServiceClient returns a ConfigServiceClient
 func NewConfigServiceClient(opts Options) (client.Client, error) {
 	if err := opts.Validate(); err != nil {
@@ -67,6 +69,7 @@ func NewConfigServiceClient(opts Options) (client.Client, error) {
 
 	return &csclient{
 		opts:    opts,
+		sdOpts:  opts.ServiceDiscoveryConfig().NewOptions(),
 		kvScope: scope.Tagged(map[string]string{"config_service": "kv"}),
 		sdScope: scope.Tagged(map[string]string{"config_service": "sd"}),
 		hbScope: scope.Tagged(map[string]string{"config_service": "hb"}),
@@ -81,25 +84,23 @@ type csclient struct {
 	clis map[string]*clientv3.Client
 
 	opts    Options
+	sdOpts  sdclient.Options
 	kvScope tally.Scope
 	sdScope tally.Scope
 	hbScope tally.Scope
 	logger  xlog.Logger
 	newFn   newClientFn
 
-	sdOnce sync.Once
-	sd     services.Services
-	sdErr  error
-
 	txnOnce sync.Once
 	txn     kv.TxnStore
 	txnErr  error
 }
 
-func (c *csclient) Services() (services.Services, error) {
-	c.createServices()
-
-	return c.sd, c.sdErr
+func (c *csclient) Services(opts services.Options) (services.Services, error) {
+	if opts == nil {
+		opts = services.NewOptions()
+	}
+	return c.createServices(opts)
 }
 
 func (c *csclient) KV() (kv.Store, error) {
@@ -114,6 +115,10 @@ func (c *csclient) Txn() (kv.TxnStore, error) {
 	return c.txn, c.txnErr
 }
 
+func (c *csclient) Store(namespace string) (kv.Store, error) {
+	return c.TxnStore(namespace)
+}
+
 func (c *csclient) TxnStore(namespace string) (kv.TxnStore, error) {
 	namespace, err := validateTopLevelNamespace(namespace)
 	if err != nil {
@@ -123,40 +128,37 @@ func (c *csclient) TxnStore(namespace string) (kv.TxnStore, error) {
 	return c.createTxnStore(namespace)
 }
 
-func (c *csclient) Store(namespace string) (kv.Store, error) {
-	return c.TxnStore(namespace)
-}
-
-func (c *csclient) createServices() {
-	c.sdOnce.Do(func() {
-		c.sd, c.sdErr = sdclient.NewServices(c.opts.ServiceDiscoveryConfig().NewOptions().
-			SetHeartbeatGen(c.heartbeatGen()).
-			SetKVGen(c.kvGen()).
-			SetLeaderGen(c.leaderGen()).
-			SetInstrumentsOptions(instrument.NewOptions().
-				SetLogger(c.logger).
-				SetMetricsScope(c.sdScope),
-			),
-		)
-	})
+func (c *csclient) createServices(opts services.Options) (services.Services, error) {
+	nOpts := opts.NamespaceOptions()
+	cacheFileExtraFields := []string{nOpts.PlacementNamespace(), nOpts.MetadataNamespace()}
+	return sdclient.NewServices(c.sdOpts.
+		SetHeartbeatGen(c.heartbeatGen()).
+		SetKVGen(c.kvGen(c.cacheFileFn(cacheFileExtraFields...))).
+		SetLeaderGen(c.leaderGen()).
+		SetNamespaceOptions(nOpts).
+		SetInstrumentsOptions(instrument.NewOptions().
+			SetLogger(c.logger).
+			SetMetricsScope(c.sdScope),
+		),
+	)
 }
 
 func (c *csclient) createTxnStore(namespace string) (kv.TxnStore, error) {
-	return c.txnGen(c.opts.Zone(), namespace, c.opts.Env())
+	return c.txnGen(c.opts.Zone(), c.cacheFileFn(), namespace, c.opts.Env())
 }
 
-func (c *csclient) kvGen() sdclient.KVGen {
+func (c *csclient) kvGen(fn cacheFileForZoneFn) sdclient.KVGen {
 	return sdclient.KVGen(func(zone string) (kv.Store, error) {
-		return c.txnGen(zone)
+		return c.txnGen(zone, fn)
 	})
 }
 
-func (c *csclient) newkvOptions(zone string, namespaces ...string) etcdkv.Options {
+func (c *csclient) newkvOptions(zone string, cacheFileFn cacheFileForZoneFn, namespaces ...string) etcdkv.Options {
 	opts := etcdkv.NewOptions().
 		SetInstrumentsOptions(instrument.NewOptions().
 			SetLogger(c.logger).
 			SetMetricsScope(c.kvScope)).
-		SetCacheFileFn(c.cacheFileFn(zone))
+		SetCacheFileFn(cacheFileFn(zone))
 
 	for _, namespace := range namespaces {
 		if namespace == "" {
@@ -167,7 +169,7 @@ func (c *csclient) newkvOptions(zone string, namespaces ...string) etcdkv.Option
 	return opts
 }
 
-func (c *csclient) txnGen(zone string, namespaces ...string) (kv.TxnStore, error) {
+func (c *csclient) txnGen(zone string, cacheFileFn cacheFileForZoneFn, namespaces ...string) (kv.TxnStore, error) {
 	cli, err := c.etcdClientGen(zone)
 	if err != nil {
 		return nil, err
@@ -176,7 +178,7 @@ func (c *csclient) txnGen(zone string, namespaces ...string) (kv.TxnStore, error
 	return etcdkv.NewStore(
 		cli.KV,
 		cli.Watcher,
-		c.newkvOptions(zone, namespaces...),
+		c.newkvOptions(zone, cacheFileFn, namespaces...),
 	)
 }
 
@@ -242,13 +244,19 @@ func newClient(endpoints []string) (*clientv3.Client, error) {
 	return clientv3.New(clientv3.Config{Endpoints: endpoints})
 }
 
-func (c *csclient) cacheFileFn(zone string) etcdkv.CacheFileFn {
-	return etcdkv.CacheFileFn(func(namespace string) string {
-		if c.opts.CacheDir() == "" {
-			return ""
+func (c *csclient) cacheFileFn(extraFields ...string) cacheFileForZoneFn {
+	return func(zone string) etcdkv.CacheFileFn {
+		return func(namespace string) string {
+			if c.opts.CacheDir() == "" {
+				return ""
+			}
+
+			cacheFileFields := make([]string, 0, len(extraFields)+3)
+			cacheFileFields = append(cacheFileFields, namespace, c.opts.Service(), zone)
+			cacheFileFields = append(cacheFileFields, extraFields...)
+			return filepath.Join(c.opts.CacheDir(), fileName(cacheFileFields...))
 		}
-		return filepath.Join(c.opts.CacheDir(), fileName(namespace, c.opts.Service(), zone))
-	})
+	}
 }
 
 func fileName(parts ...string) string {

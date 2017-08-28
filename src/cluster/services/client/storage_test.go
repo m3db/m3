@@ -104,6 +104,37 @@ func TestPlacementStorage(t *testing.T) {
 	require.Equal(t, kv.ErrNotFound, err)
 }
 
+func TestPlacementNamespaceOverride(t *testing.T) {
+	opts, closer, _ := testSetup(t)
+	defer closer()
+
+	ps, err := newPlacementStorage(opts.SetNamespaceOptions(
+		services.NewNamespaceOptions().SetPlacementNamespace("test_ns"),
+	))
+	require.NoError(t, err)
+
+	sid := services.NewServiceID().SetName("m3db")
+
+	p := placement.NewPlacement().
+		SetInstances([]services.PlacementInstance{}).
+		SetShards([]uint32{}).
+		SetReplicaFactor(0)
+
+	err = ps.Set(sid, p)
+	require.NoError(t, err)
+
+	newP, v, err := ps.Placement(sid)
+	require.NoError(t, err)
+	require.Equal(t, 1, v)
+	require.Equal(t, newP, p.SetVersion(v))
+
+	ps2, err := newPlacementStorage(opts)
+	require.NoError(t, err)
+
+	_, _, err = ps2.Placement(sid)
+	require.Error(t, err)
+}
+
 // newPlacementStorage returns a client of placement.Storage
 func newPlacementStorage(opts Options) (placement.Storage, error) {
 	if opts.KVGen() == nil {
@@ -111,7 +142,9 @@ func newPlacementStorage(opts Options) (placement.Storage, error) {
 	}
 
 	return &client{
-		kvManagers: map[string]*kvManager{},
-		opts:       opts,
+		opts:           opts,
+		placementKeyFn: keyFnWithNamespace(placementNamespace(opts.NamespaceOptions().PlacementNamespace())),
+		metadataKeyFn:  keyFnWithNamespace(metadataNamespace(opts.NamespaceOptions().MetadataNamespace())),
+		kvManagers:     map[string]*kvManager{},
 	}, nil
 }

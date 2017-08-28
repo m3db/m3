@@ -31,6 +31,31 @@ import (
 	xwatch "github.com/m3db/m3x/watch"
 )
 
+// Options are options to configure the service discovery service.
+type Options interface {
+	// NamespaceOptions is the namespace options.
+	NamespaceOptions() NamespaceOptions
+
+	// SetNamespaceOptions sets namespace options.
+	SetNamespaceOptions(opts NamespaceOptions) Options
+}
+
+// NamespaceOptions are options to provide custom namespaces in service discovery service.
+// TODO(cw): Provide overrides for leader service and heartbeat service.
+type NamespaceOptions interface {
+	// PlacementNamespace is the custom namespace for placement.
+	PlacementNamespace() string
+
+	// SetPlacementNamespace sets the custom namespace for placement.
+	SetPlacementNamespace(v string) NamespaceOptions
+
+	// MetadataNamespace is the custom namespace for metadata.
+	MetadataNamespace() string
+
+	// SetMetadataNamespace sets the custom namespace for metadata.
+	SetMetadataNamespace(v string) NamespaceOptions
+}
+
 // Services provides access to the service topology
 type Services interface {
 	// Advertise advertises the availability of an instance of a service

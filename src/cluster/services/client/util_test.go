@@ -30,7 +30,8 @@ import (
 func TestKeys(t *testing.T) {
 	sid := services.NewServiceID().SetName("m3db").SetEnvironment("production")
 	assert.Equal(t, "production/m3db", serviceKey(sid))
-	assert.Equal(t, "_sd.placement/production/m3db", placementKey(sid))
-	assert.Equal(t, "_sd.metadata/production/m3db", metadataKey(sid))
+	assert.Equal(t, "_sd.placement/production/m3db", keyFnWithNamespace(placementPrefix)(sid))
+	assert.Equal(t, "_sd.metadata/production/m3db", keyFnWithNamespace(metadataPrefix)(sid))
+	assert.Equal(t, "testns/production/m3db", keyFnWithNamespace("testns")(sid))
 	assert.Equal(t, "production/m3db/instance1", adKey(sid, "instance1"))
 }
