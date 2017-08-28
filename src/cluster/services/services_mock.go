@@ -25,6 +25,7 @@ package services
 
 import (
 	gomock "github.com/golang/mock/gomock"
+	proto "github.com/golang/protobuf/proto"
 	kv "github.com/m3db/m3cluster/kv"
 	campaign "github.com/m3db/m3cluster/services/leader/campaign"
 	shard "github.com/m3db/m3cluster/shard"
@@ -33,6 +34,108 @@ import (
 	watch "github.com/m3db/m3x/watch"
 	time "time"
 )
+
+// Mock of Options interface
+type MockOptions struct {
+	ctrl     *gomock.Controller
+	recorder *_MockOptionsRecorder
+}
+
+// Recorder for MockOptions (not exported)
+type _MockOptionsRecorder struct {
+	mock *MockOptions
+}
+
+func NewMockOptions(ctrl *gomock.Controller) *MockOptions {
+	mock := &MockOptions{ctrl: ctrl}
+	mock.recorder = &_MockOptionsRecorder{mock}
+	return mock
+}
+
+func (_m *MockOptions) EXPECT() *_MockOptionsRecorder {
+	return _m.recorder
+}
+
+func (_m *MockOptions) NamespaceOptions() NamespaceOptions {
+	ret := _m.ctrl.Call(_m, "NamespaceOptions")
+	ret0, _ := ret[0].(NamespaceOptions)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) NamespaceOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NamespaceOptions")
+}
+
+func (_m *MockOptions) SetNamespaceOptions(opts NamespaceOptions) Options {
+	ret := _m.ctrl.Call(_m, "SetNamespaceOptions", opts)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetNamespaceOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNamespaceOptions", arg0)
+}
+
+// Mock of NamespaceOptions interface
+type MockNamespaceOptions struct {
+	ctrl     *gomock.Controller
+	recorder *_MockNamespaceOptionsRecorder
+}
+
+// Recorder for MockNamespaceOptions (not exported)
+type _MockNamespaceOptionsRecorder struct {
+	mock *MockNamespaceOptions
+}
+
+func NewMockNamespaceOptions(ctrl *gomock.Controller) *MockNamespaceOptions {
+	mock := &MockNamespaceOptions{ctrl: ctrl}
+	mock.recorder = &_MockNamespaceOptionsRecorder{mock}
+	return mock
+}
+
+func (_m *MockNamespaceOptions) EXPECT() *_MockNamespaceOptionsRecorder {
+	return _m.recorder
+}
+
+func (_m *MockNamespaceOptions) PlacementNamespace() string {
+	ret := _m.ctrl.Call(_m, "PlacementNamespace")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockNamespaceOptionsRecorder) PlacementNamespace() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PlacementNamespace")
+}
+
+func (_m *MockNamespaceOptions) SetPlacementNamespace(v string) NamespaceOptions {
+	ret := _m.ctrl.Call(_m, "SetPlacementNamespace", v)
+	ret0, _ := ret[0].(NamespaceOptions)
+	return ret0
+}
+
+func (_mr *_MockNamespaceOptionsRecorder) SetPlacementNamespace(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPlacementNamespace", arg0)
+}
+
+func (_m *MockNamespaceOptions) MetadataNamespace() string {
+	ret := _m.ctrl.Call(_m, "MetadataNamespace")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockNamespaceOptionsRecorder) MetadataNamespace() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MetadataNamespace")
+}
+
+func (_m *MockNamespaceOptions) SetMetadataNamespace(v string) NamespaceOptions {
+	ret := _m.ctrl.Call(_m, "SetMetadataNamespace", v)
+	ret0, _ := ret[0].(NamespaceOptions)
+	return ret0
+}
+
+func (_mr *_MockNamespaceOptionsRecorder) SetMetadataNamespace(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetMetadataNamespace", arg0)
+}
 
 // Mock of Services interface
 type MockServices struct {
@@ -118,8 +221,8 @@ func (_mr *_MockServicesRecorder) SetMetadata(arg0, arg1 interface{}) *gomock.Ca
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetMetadata", arg0, arg1)
 }
 
-func (_m *MockServices) PlacementService(service ServiceID, popts PlacementOptions) (PlacementService, error) {
-	ret := _m.ctrl.Call(_m, "PlacementService", service, popts)
+func (_m *MockServices) PlacementService(sid ServiceID, popts PlacementOptions) (PlacementService, error) {
+	ret := _m.ctrl.Call(_m, "PlacementService", sid, popts)
 	ret0, _ := ret[0].(PlacementService)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
@@ -127,6 +230,17 @@ func (_m *MockServices) PlacementService(service ServiceID, popts PlacementOptio
 
 func (_mr *_MockServicesRecorder) PlacementService(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "PlacementService", arg0, arg1)
+}
+
+func (_m *MockServices) PlacementStorage(popts PlacementOptions) (PlacementStorage, error) {
+	ret := _m.ctrl.Call(_m, "PlacementStorage", popts)
+	ret0, _ := ret[0].(PlacementStorage)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockServicesRecorder) PlacementStorage(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PlacementStorage", arg0)
 }
 
 func (_m *MockServices) HeartbeatService(service ServiceID) (HeartbeatService, error) {
@@ -750,6 +864,101 @@ func (_mr *_MockMetadataRecorder) SetHeartbeatInterval(arg0 interface{}) *gomock
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetHeartbeatInterval", arg0)
 }
 
+// Mock of PlacementStorage interface
+type MockPlacementStorage struct {
+	ctrl     *gomock.Controller
+	recorder *_MockPlacementStorageRecorder
+}
+
+// Recorder for MockPlacementStorage (not exported)
+type _MockPlacementStorageRecorder struct {
+	mock *MockPlacementStorage
+}
+
+func NewMockPlacementStorage(ctrl *gomock.Controller) *MockPlacementStorage {
+	mock := &MockPlacementStorage{ctrl: ctrl}
+	mock.recorder = &_MockPlacementStorageRecorder{mock}
+	return mock
+}
+
+func (_m *MockPlacementStorage) EXPECT() *_MockPlacementStorageRecorder {
+	return _m.recorder
+}
+
+func (_m *MockPlacementStorage) SetPlacementProto(sid ServiceID, p proto.Message) error {
+	ret := _m.ctrl.Call(_m, "SetPlacementProto", sid, p)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockPlacementStorageRecorder) SetPlacementProto(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPlacementProto", arg0, arg1)
+}
+
+func (_m *MockPlacementStorage) PlacementProto(sid ServiceID) (proto.Message, int, error) {
+	ret := _m.ctrl.Call(_m, "PlacementProto", sid)
+	ret0, _ := ret[0].(proto.Message)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockPlacementStorageRecorder) PlacementProto(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PlacementProto", arg0)
+}
+
+func (_m *MockPlacementStorage) Set(service ServiceID, p Placement) error {
+	ret := _m.ctrl.Call(_m, "Set", service, p)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockPlacementStorageRecorder) Set(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Set", arg0, arg1)
+}
+
+func (_m *MockPlacementStorage) CheckAndSet(service ServiceID, p Placement, version int) error {
+	ret := _m.ctrl.Call(_m, "CheckAndSet", service, p, version)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockPlacementStorageRecorder) CheckAndSet(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CheckAndSet", arg0, arg1, arg2)
+}
+
+func (_m *MockPlacementStorage) SetIfNotExist(service ServiceID, p Placement) error {
+	ret := _m.ctrl.Call(_m, "SetIfNotExist", service, p)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockPlacementStorageRecorder) SetIfNotExist(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIfNotExist", arg0, arg1)
+}
+
+func (_m *MockPlacementStorage) Delete(service ServiceID) error {
+	ret := _m.ctrl.Call(_m, "Delete", service)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockPlacementStorageRecorder) Delete(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Delete", arg0)
+}
+
+func (_m *MockPlacementStorage) Placement(service ServiceID) (Placement, int, error) {
+	ret := _m.ctrl.Call(_m, "Placement", service)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockPlacementStorageRecorder) Placement(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Placement", arg0)
+}
+
 // Mock of PlacementService interface
 type MockPlacementService struct {
 	ctrl     *gomock.Controller
@@ -793,39 +1002,39 @@ func (_mr *_MockPlacementServiceRecorder) AddReplica() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AddReplica")
 }
 
-func (_m *MockPlacementService) AddInstance(candidates []PlacementInstance) (Placement, PlacementInstance, error) {
-	ret := _m.ctrl.Call(_m, "AddInstance", candidates)
-	ret0, _ := ret[0].(Placement)
-	ret1, _ := ret[1].(PlacementInstance)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-func (_mr *_MockPlacementServiceRecorder) AddInstance(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "AddInstance", arg0)
-}
-
-func (_m *MockPlacementService) RemoveInstance(leavingInstanceID string) (Placement, error) {
-	ret := _m.ctrl.Call(_m, "RemoveInstance", leavingInstanceID)
-	ret0, _ := ret[0].(Placement)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (_mr *_MockPlacementServiceRecorder) RemoveInstance(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "RemoveInstance", arg0)
-}
-
-func (_m *MockPlacementService) ReplaceInstance(leavingInstanceID string, candidates []PlacementInstance) (Placement, []PlacementInstance, error) {
-	ret := _m.ctrl.Call(_m, "ReplaceInstance", leavingInstanceID, candidates)
+func (_m *MockPlacementService) AddInstances(candidates []PlacementInstance) (Placement, []PlacementInstance, error) {
+	ret := _m.ctrl.Call(_m, "AddInstances", candidates)
 	ret0, _ := ret[0].(Placement)
 	ret1, _ := ret[1].([]PlacementInstance)
 	ret2, _ := ret[2].(error)
 	return ret0, ret1, ret2
 }
 
-func (_mr *_MockPlacementServiceRecorder) ReplaceInstance(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReplaceInstance", arg0, arg1)
+func (_mr *_MockPlacementServiceRecorder) AddInstances(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "AddInstances", arg0)
+}
+
+func (_m *MockPlacementService) RemoveInstances(leavingInstanceIDs []string) (Placement, error) {
+	ret := _m.ctrl.Call(_m, "RemoveInstances", leavingInstanceIDs)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockPlacementServiceRecorder) RemoveInstances(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RemoveInstances", arg0)
+}
+
+func (_m *MockPlacementService) ReplaceInstances(leavingInstanceIDs []string, candidates []PlacementInstance) (Placement, []PlacementInstance, error) {
+	ret := _m.ctrl.Call(_m, "ReplaceInstances", leavingInstanceIDs, candidates)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].([]PlacementInstance)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockPlacementServiceRecorder) ReplaceInstances(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReplaceInstances", arg0, arg1)
 }
 
 func (_m *MockPlacementService) MarkShardAvailable(instanceID string, shardID uint32) error {
@@ -979,6 +1188,46 @@ func (_m *MockPlacementOptions) SetDryrun(d bool) PlacementOptions {
 
 func (_mr *_MockPlacementOptionsRecorder) SetDryrun(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetDryrun", arg0)
+}
+
+func (_m *MockPlacementOptions) IsMirrored() bool {
+	ret := _m.ctrl.Call(_m, "IsMirrored")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockPlacementOptionsRecorder) IsMirrored() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsMirrored")
+}
+
+func (_m *MockPlacementOptions) SetIsMirrored(m bool) PlacementOptions {
+	ret := _m.ctrl.Call(_m, "SetIsMirrored", m)
+	ret0, _ := ret[0].(PlacementOptions)
+	return ret0
+}
+
+func (_mr *_MockPlacementOptionsRecorder) SetIsMirrored(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIsMirrored", arg0)
+}
+
+func (_m *MockPlacementOptions) IsStaged() bool {
+	ret := _m.ctrl.Call(_m, "IsStaged")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockPlacementOptionsRecorder) IsStaged() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsStaged")
+}
+
+func (_m *MockPlacementOptions) SetIsStaged(v bool) PlacementOptions {
+	ret := _m.ctrl.Call(_m, "SetIsStaged", v)
+	ret0, _ := ret[0].(PlacementOptions)
+	return ret0
+}
+
+func (_mr *_MockPlacementOptionsRecorder) SetIsStaged(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIsStaged", arg0)
 }
 
 func (_m *MockPlacementOptions) InstrumentOptions() instrument.Options {
@@ -1390,9 +1639,9 @@ func (_mr *_MockStagedPlacementRecorder) SetVersion(arg0 interface{}) *gomock.Ca
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetVersion", arg0)
 }
 
-func (_m *MockStagedPlacement) Placements() []Placement {
+func (_m *MockStagedPlacement) Placements() Placements {
 	ret := _m.ctrl.Call(_m, "Placements")
-	ret0, _ := ret[0].([]Placement)
+	ret0, _ := ret[0].(Placements)
 	return ret0
 }
 
@@ -1592,6 +1841,26 @@ func (_mr *_MockPlacementRecorder) SetCutoverNanos(arg0 interface{}) *gomock.Cal
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetCutoverNanos", arg0)
 }
 
+func (_m *MockPlacement) IsMirrored() bool {
+	ret := _m.ctrl.Call(_m, "IsMirrored")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockPlacementRecorder) IsMirrored() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsMirrored")
+}
+
+func (_m *MockPlacement) SetIsMirrored(v bool) Placement {
+	ret := _m.ctrl.Call(_m, "SetIsMirrored", v)
+	ret0, _ := ret[0].(Placement)
+	return ret0
+}
+
+func (_mr *_MockPlacementRecorder) SetIsMirrored(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIsMirrored", arg0)
+}
+
 func (_m *MockPlacement) String() string {
 	ret := _m.ctrl.Call(_m, "String")
 	ret0, _ := ret[0].(string)
@@ -1773,6 +2042,66 @@ func (_mr *_MockPlacementInstanceRecorder) SetShards(arg0 interface{}) *gomock.C
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetShards", arg0)
 }
 
+func (_m *MockPlacementInstance) ShardSetID() uint32 {
+	ret := _m.ctrl.Call(_m, "ShardSetID")
+	ret0, _ := ret[0].(uint32)
+	return ret0
+}
+
+func (_mr *_MockPlacementInstanceRecorder) ShardSetID() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ShardSetID")
+}
+
+func (_m *MockPlacementInstance) SetShardSetID(value uint32) PlacementInstance {
+	ret := _m.ctrl.Call(_m, "SetShardSetID", value)
+	ret0, _ := ret[0].(PlacementInstance)
+	return ret0
+}
+
+func (_mr *_MockPlacementInstanceRecorder) SetShardSetID(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetShardSetID", arg0)
+}
+
+func (_m *MockPlacementInstance) Hostname() string {
+	ret := _m.ctrl.Call(_m, "Hostname")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockPlacementInstanceRecorder) Hostname() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Hostname")
+}
+
+func (_m *MockPlacementInstance) SetHostname(value string) PlacementInstance {
+	ret := _m.ctrl.Call(_m, "SetHostname", value)
+	ret0, _ := ret[0].(PlacementInstance)
+	return ret0
+}
+
+func (_mr *_MockPlacementInstanceRecorder) SetHostname(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetHostname", arg0)
+}
+
+func (_m *MockPlacementInstance) Port() uint32 {
+	ret := _m.ctrl.Call(_m, "Port")
+	ret0, _ := ret[0].(uint32)
+	return ret0
+}
+
+func (_mr *_MockPlacementInstanceRecorder) Port() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Port")
+}
+
+func (_m *MockPlacementInstance) SetPort(value uint32) PlacementInstance {
+	ret := _m.ctrl.Call(_m, "SetPort", value)
+	ret0, _ := ret[0].(PlacementInstance)
+	return ret0
+}
+
+func (_mr *_MockPlacementInstanceRecorder) SetPort(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPort", arg0)
+}
+
 // Mock of HeartbeatService interface
 type MockHeartbeatService struct {
 	ctrl     *gomock.Controller
@@ -1926,16 +2255,6 @@ func (_m *MockElectionOptions) SetTTLSecs(ttl int) ElectionOptions {
 
 func (_mr *_MockElectionOptionsRecorder) SetTTLSecs(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetTTLSecs", arg0)
-}
-
-func (_m *MockElectionOptions) Hostname() string {
-	ret := _m.ctrl.Call(_m, "Hostname")
-	ret0, _ := ret[0].(string)
-	return ret0
-}
-
-func (_mr *_MockElectionOptionsRecorder) Hostname() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Hostname")
 }
 
 // Mock of CampaignOptions interface
