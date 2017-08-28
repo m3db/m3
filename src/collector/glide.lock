@@ -1,5 +1,5 @@
-hash: 3877428df1e2232a743da42a5878f902ba4928f8f55ac62e3a32e4e57f8def6a
-updated: 2017-08-28T11:58:16.290636017-04:00
+hash: 5dcc12520e4477d88c06a129040523fb2267bfc947720b355a162aec27e3e497
+updated: 2017-08-28T13:27:44.808251282-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -23,6 +23,7 @@ imports:
 - name: github.com/m3db/m3cluster
   version: 448266e7ef0dff85c2e6d7365c67e7397eb276bd
   subpackages:
+  - client
   - generated/proto/metadata
   - generated/proto/placement
   - kv
@@ -33,13 +34,14 @@ imports:
   - services/placement
   - shard
 - name: github.com/m3db/m3metrics
-  version: 6ede27981b53b4ffa226c111a57326666942455c
+  version: 286dfad168595a1b0f2b2cd676e21e8b34fe08a5
   subpackages:
   - filters
   - generated/proto/schema
   - matcher
   - metric/aggregated
   - metric/id
+  - metric/id/m3
   - metric/unaggregated
   - policy
   - protocol/msgpack
@@ -58,6 +60,8 @@ imports:
   - process
   - time
   - watch
+- name: github.com/pborman/uuid
+  version: c55201b036063326c5b1b89ccfe45a184973d073
 - name: github.com/shirou/gopsutil
   version: b62e301a8b9958eebb7299683eb57fab229a9501
   subpackages:
@@ -76,7 +80,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 4b9d9de43ffcb0b7efe67dab2a92c2d58dbf16ab
+  version: 2605c407d7d219644d03a3680ad7df4779017782
   subpackages:
   - m3
   - m3/customtransports
