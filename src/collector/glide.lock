@@ -1,5 +1,5 @@
-hash: 14a94d1ad06512571cdbcad6ee51f20d3745abd42fa4c6d6ac484339f7180061
-updated: 2017-08-14T19:37:21.343660989-04:00
+hash: 3877428df1e2232a743da42a5878f902ba4928f8f55ac62e3a32e4e57f8def6a
+updated: 2017-08-28T11:58:16.290636017-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -21,7 +21,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: b596a86b06f37c9150ea352d6ec1549ed19f304b
+  version: 448266e7ef0dff85c2e6d7365c67e7397eb276bd
   subpackages:
   - generated/proto/metadata
   - generated/proto/placement
@@ -29,6 +29,7 @@ imports:
   - kv/mem
   - kv/util/runtime
   - services
+  - services/leader/campaign
   - services/placement
   - shard
 - name: github.com/m3db/m3metrics

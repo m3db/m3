@@ -21,6 +21,8 @@
 package msgpack
 
 import (
+	"time"
+
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3metrics/protocol/msgpack"
@@ -38,6 +40,15 @@ const (
 	defaultMaxTimerBatchSize = 0
 
 	defaultInstanceQueueSize = 4096
+
+	// By default traffic is cut over to shards 10 minutes before the designated
+	// cutover time in case there are issues with the instances owning the shards.
+	defaultShardCutoverWarmupDuration = 10 * time.Minute
+
+	// By default traffic doesn't stop until one hour after the designated cutoff
+	// time in case there are issues with the instances taking over the shards
+	// and as such we need to switch the traffic back to the previous owner of the shards.
+	defaultShardCutoffLingerDuration = time.Hour
 )
 
 // ShardFn maps a id to a shard given the total number of shards.
@@ -68,6 +79,18 @@ type ServerOptions interface {
 
 	// StagedPlacementWatcherOptions returns the staged placement watcher options.
 	StagedPlacementWatcherOptions() services.StagedPlacementWatcherOptions
+
+	// SetShardCutoverWarmupDuration sets the warm up duration for traffic cut over to a shard.
+	SetShardCutoverWarmupDuration(value time.Duration) ServerOptions
+
+	// ShardCutoverWarmupDuration returns the warm up duration for traffic cut over to a shard.
+	ShardCutoverWarmupDuration() time.Duration
+
+	// SetShardCutoffLingerDuration sets the linger duration for traffic cut off from a shard.
+	SetShardCutoffLingerDuration(value time.Duration) ServerOptions
+
+	// ShardCutoffLingerDuration returns the linger duration for traffic cut off from a shard.
+	ShardCutoffLingerDuration() time.Duration
 
 	// SetConnectionOptions sets the connection options.
 	SetConnectionOptions(value ConnectionOptions) ServerOptions
@@ -101,15 +124,17 @@ type ServerOptions interface {
 }
 
 type serverOptions struct {
-	clockOpts         clock.Options
-	instrumentOpts    instrument.Options
-	shardFn           ShardFn
-	watcherOpts       services.StagedPlacementWatcherOptions
-	connOpts          ConnectionOptions
-	flushSize         int
-	maxTimerBatchSize int
-	instanceQueueSize int
-	encoderPool       msgpack.BufferedEncoderPool
+	clockOpts                  clock.Options
+	instrumentOpts             instrument.Options
+	shardFn                    ShardFn
+	shardCutoverWarmupDuration time.Duration
+	shardCutoffLingerDuration  time.Duration
+	watcherOpts                services.StagedPlacementWatcherOptions
+	connOpts                   ConnectionOptions
+	flushSize                  int
+	maxTimerBatchSize          int
+	instanceQueueSize          int
+	encoderPool                msgpack.BufferedEncoderPool
 }
 
 // NewServerOptions create a new set of server options.
@@ -119,15 +144,17 @@ func NewServerOptions() ServerOptions {
 		return msgpack.NewPooledBufferedEncoder(encoderPool)
 	})
 	return &serverOptions{
-		clockOpts:         clock.NewOptions(),
-		instrumentOpts:    instrument.NewOptions(),
-		shardFn:           defaultShardFn,
-		watcherOpts:       placement.NewStagedPlacementWatcherOptions(),
-		connOpts:          NewConnectionOptions(),
-		flushSize:         defaultFlushSize,
-		maxTimerBatchSize: defaultMaxTimerBatchSize,
-		instanceQueueSize: defaultInstanceQueueSize,
-		encoderPool:       encoderPool,
+		clockOpts:                  clock.NewOptions(),
+		instrumentOpts:             instrument.NewOptions(),
+		shardFn:                    defaultShardFn,
+		shardCutoverWarmupDuration: defaultShardCutoverWarmupDuration,
+		shardCutoffLingerDuration:  defaultShardCutoffLingerDuration,
+		watcherOpts:                placement.NewStagedPlacementWatcherOptions(),
+		connOpts:                   NewConnectionOptions(),
+		flushSize:                  defaultFlushSize,
+		maxTimerBatchSize:          defaultMaxTimerBatchSize,
+		instanceQueueSize:          defaultInstanceQueueSize,
+		encoderPool:                encoderPool,
 	}
 }
 
@@ -159,6 +186,26 @@ func (o *serverOptions) SetShardFn(value ShardFn) ServerOptions {
 
 func (o *serverOptions) ShardFn() ShardFn {
 	return o.shardFn
+}
+
+func (o *serverOptions) SetShardCutoverWarmupDuration(value time.Duration) ServerOptions {
+	opts := *o
+	opts.shardCutoverWarmupDuration = value
+	return &opts
+}
+
+func (o *serverOptions) ShardCutoverWarmupDuration() time.Duration {
+	return o.shardCutoverWarmupDuration
+}
+
+func (o *serverOptions) SetShardCutoffLingerDuration(value time.Duration) ServerOptions {
+	opts := *o
+	opts.shardCutoffLingerDuration = value
+	return &opts
+}
+
+func (o *serverOptions) ShardCutoffLingerDuration() time.Duration {
+	return o.shardCutoffLingerDuration
 }
 
 func (o *serverOptions) SetStagedPlacementWatcherOptions(value services.StagedPlacementWatcherOptions) ServerOptions {

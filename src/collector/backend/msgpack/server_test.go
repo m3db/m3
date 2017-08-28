@@ -22,6 +22,7 @@ package msgpack
 
 import (
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -38,7 +39,10 @@ import (
 )
 
 var (
-	testCounter = unaggregated.MetricUnion{
+	testNowNanos     = time.Now().UnixNano()
+	testCutoverNanos = testNowNanos - int64(time.Minute)
+	testCutoffNanos  = testNowNanos + int64(time.Hour)
+	testCounter      = unaggregated.MetricUnion{
 		Type:       unaggregated.CounterType,
 		ID:         []byte("foo"),
 		CounterVal: 1234,
@@ -76,29 +80,53 @@ var (
 			SetID("instance1").
 			SetEndpoint("instance1_endpoint").
 			SetShards(shard.NewShards([]shard.Shard{
-				shard.NewShard(0).SetState(shard.Initializing),
-				shard.NewShard(1).SetState(shard.Initializing),
+				shard.NewShard(0).
+					SetState(shard.Initializing).
+					SetCutoverNanos(testCutoverNanos).
+					SetCutoffNanos(testCutoffNanos),
+				shard.NewShard(1).
+					SetState(shard.Initializing).
+					SetCutoverNanos(testCutoverNanos).
+					SetCutoffNanos(testCutoffNanos),
 			})),
 		placement.NewInstance().
 			SetID("instance2").
 			SetEndpoint("instance2_endpoint").
 			SetShards(shard.NewShards([]shard.Shard{
-				shard.NewShard(2).SetState(shard.Initializing),
-				shard.NewShard(3).SetState(shard.Initializing),
+				shard.NewShard(2).
+					SetState(shard.Initializing).
+					SetCutoverNanos(testCutoverNanos).
+					SetCutoffNanos(testCutoffNanos),
+				shard.NewShard(3).
+					SetState(shard.Initializing).
+					SetCutoverNanos(testCutoverNanos).
+					SetCutoffNanos(testCutoffNanos),
 			})),
 		placement.NewInstance().
 			SetID("instance3").
 			SetEndpoint("instance3_endpoint").
 			SetShards(shard.NewShards([]shard.Shard{
-				shard.NewShard(0).SetState(shard.Initializing),
-				shard.NewShard(1).SetState(shard.Initializing),
+				shard.NewShard(0).
+					SetState(shard.Initializing).
+					SetCutoverNanos(testCutoverNanos).
+					SetCutoffNanos(testCutoffNanos),
+				shard.NewShard(1).
+					SetState(shard.Initializing).
+					SetCutoverNanos(testCutoverNanos).
+					SetCutoffNanos(testCutoffNanos),
 			})),
 		placement.NewInstance().
 			SetID("instance4").
 			SetEndpoint("instance4_endpoint").
 			SetShards(shard.NewShards([]shard.Shard{
-				shard.NewShard(2).SetState(shard.Initializing),
-				shard.NewShard(3).SetState(shard.Initializing),
+				shard.NewShard(2).
+					SetState(shard.Initializing).
+					SetCutoverNanos(testCutoverNanos).
+					SetCutoffNanos(testCutoffNanos),
+				shard.NewShard(3).
+					SetState(shard.Initializing).
+					SetCutoverNanos(testCutoverNanos).
+					SetCutoffNanos(testCutoffNanos),
 			})),
 	}
 	testPlacement = placement.NewPlacement().
@@ -136,17 +164,24 @@ func TestServerOpenSuccess(t *testing.T) {
 	require.Equal(t, serverOpen, s.state)
 }
 
-func TestServerWriteCounterWithPoliciesListClosed(t *testing.T) {
+func TestServerWriteMetricWithPoliciesListClosed(t *testing.T) {
 	s := NewServer(testServerOptions()).(*server)
 	s.state = serverNotOpen
-	require.Equal(t, errServerIsNotOpenOrClosed, s.WriteCounterWithPoliciesList(
-		testCounter.ID,
-		testCounter.CounterVal,
-		testPoliciesList,
-	))
+	for _, input := range []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge} {
+		var err error
+		switch input.Type {
+		case unaggregated.CounterType:
+			err = s.WriteCounterWithPoliciesList(input.ID, input.CounterVal, testPoliciesList)
+		case unaggregated.BatchTimerType:
+			err = s.WriteBatchTimerWithPoliciesList(input.ID, input.BatchTimerVal, testPoliciesList)
+		case unaggregated.GaugeType:
+			err = s.WriteGaugeWithPoliciesList(input.ID, input.GaugeVal, testPoliciesList)
+		}
+		require.Equal(t, errServerIsNotOpenOrClosed, err)
+	}
 }
 
-func TestServerWriteCounterWithPoliciesListActiveStagedPlacementError(t *testing.T) {
+func TestServerWriteMetricWithPoliciesListActiveStagedPlacementError(t *testing.T) {
 	errActiveStagedPlacementError := errors.New("error active staged placement")
 	s := NewServer(testServerOptions()).(*server)
 	s.state = serverOpen
@@ -155,14 +190,21 @@ func TestServerWriteCounterWithPoliciesListActiveStagedPlacementError(t *testing
 			return nil, nil, errActiveStagedPlacementError
 		},
 	}
-	require.Equal(t, errActiveStagedPlacementError, s.WriteCounterWithPoliciesList(
-		testCounter.ID,
-		testCounter.CounterVal,
-		testPoliciesList,
-	))
+	for _, input := range []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge} {
+		var err error
+		switch input.Type {
+		case unaggregated.CounterType:
+			err = s.WriteCounterWithPoliciesList(input.ID, input.CounterVal, testPoliciesList)
+		case unaggregated.BatchTimerType:
+			err = s.WriteBatchTimerWithPoliciesList(input.ID, input.BatchTimerVal, testPoliciesList)
+		case unaggregated.GaugeType:
+			err = s.WriteGaugeWithPoliciesList(input.ID, input.GaugeVal, testPoliciesList)
+		}
+		require.Equal(t, errActiveStagedPlacementError, err)
+	}
 }
 
-func TestServerWriteCounterWithPoliciesListActivePlacementError(t *testing.T) {
+func TestServerWriteMetricWithPoliciesListActivePlacementError(t *testing.T) {
 	errActivePlacementError := errors.New("error active placement")
 	s := NewServer(testServerOptions()).(*server)
 	s.state = serverOpen
@@ -177,14 +219,21 @@ func TestServerWriteCounterWithPoliciesListActivePlacementError(t *testing.T) {
 			return activeStagedPlacement, noOpDoneFn, nil
 		},
 	}
-	require.Equal(t, errActivePlacementError, s.WriteCounterWithPoliciesList(
-		testCounter.ID,
-		testCounter.CounterVal,
-		testPoliciesList,
-	))
+	for _, input := range []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge} {
+		var err error
+		switch input.Type {
+		case unaggregated.CounterType:
+			err = s.WriteCounterWithPoliciesList(input.ID, input.CounterVal, testPoliciesList)
+		case unaggregated.BatchTimerType:
+			err = s.WriteBatchTimerWithPoliciesList(input.ID, input.BatchTimerVal, testPoliciesList)
+		case unaggregated.GaugeType:
+			err = s.WriteGaugeWithPoliciesList(input.ID, input.GaugeVal, testPoliciesList)
+		}
+		require.Equal(t, errActivePlacementError, err)
+	}
 }
 
-func TestServerWriteCounterWithPoliciesListSuccess(t *testing.T) {
+func TestServerWriteMetricWithPoliciesListSuccess(t *testing.T) {
 	var (
 		instancesRes []services.PlacementInstance
 		shardRes     uint32
@@ -193,14 +242,15 @@ func TestServerWriteCounterWithPoliciesListSuccess(t *testing.T) {
 	)
 	s := NewServer(testServerOptions()).(*server)
 	s.state = serverOpen
+	s.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	s.writerMgr = &mockInstanceWriterManager{
 		writeToFn: func(
-			instances []services.PlacementInstance,
+			instance services.PlacementInstance,
 			shard uint32,
 			mu unaggregated.MetricUnion,
 			pl policy.PoliciesList,
 		) error {
-			instancesRes = instances
+			instancesRes = append(instancesRes, instance)
 			shardRes = shard
 			muRes = mu
 			plRes = pl
@@ -218,89 +268,101 @@ func TestServerWriteCounterWithPoliciesListSuccess(t *testing.T) {
 			return activeStagedPlacement, noOpDoneFn, nil
 		},
 	}
-	require.NoError(t, s.WriteCounterWithPoliciesList(
-		testCounter.ID,
-		testCounter.CounterVal,
-		testPoliciesList,
-	))
+
 	expectedInstances := []services.PlacementInstance{
 		testPlacementInstances[0],
 		testPlacementInstances[2],
 	}
+	for _, input := range []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge} {
+		// Reset states in each iteration.
+		instancesRes = instancesRes[:0]
+		shardRes = 0
+		muRes = unaggregated.MetricUnion{}
+		plRes = plRes[:0]
+
+		var err error
+		switch input.Type {
+		case unaggregated.CounterType:
+			err = s.WriteCounterWithPoliciesList(input.ID, input.CounterVal, testPoliciesList)
+		case unaggregated.BatchTimerType:
+			err = s.WriteBatchTimerWithPoliciesList(input.ID, input.BatchTimerVal, testPoliciesList)
+		case unaggregated.GaugeType:
+			err = s.WriteGaugeWithPoliciesList(input.ID, input.GaugeVal, testPoliciesList)
+		}
+
+		require.NoError(t, err)
+		require.Equal(t, expectedInstances, instancesRes)
+		require.Equal(t, uint32(1), shardRes)
+		require.Equal(t, input, muRes)
+		require.Equal(t, testPoliciesList, plRes)
+	}
+}
+
+func TestServerWriteMetricWithPoliciesListPartialError(t *testing.T) {
+	var (
+		instancesRes     []services.PlacementInstance
+		shardRes         uint32
+		muRes            unaggregated.MetricUnion
+		plRes            policy.PoliciesList
+		errInstanceWrite = errors.New("instance write error")
+	)
+	s := NewServer(testServerOptions()).(*server)
+	s.state = serverOpen
+	s.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
+	s.writerMgr = &mockInstanceWriterManager{
+		writeToFn: func(
+			instance services.PlacementInstance,
+			shard uint32,
+			mu unaggregated.MetricUnion,
+			pl policy.PoliciesList,
+		) error {
+			if instance.ID() == testPlacementInstances[0].ID() {
+				return errInstanceWrite
+			}
+			instancesRes = append(instancesRes, instance)
+			shardRes = shard
+			muRes = mu
+			plRes = pl
+			return nil
+		},
+	}
+	s.placementWatcher = &mockWatcher{
+		activeStagedPlacementFn: func() (services.ActiveStagedPlacement, services.DoneFn, error) {
+			noOpDoneFn := func() {}
+			activeStagedPlacement := &mockActiveStagedPlacement{
+				activePlacementFn: func() (services.Placement, services.DoneFn, error) {
+					return testPlacement, noOpDoneFn, nil
+				},
+			}
+			return activeStagedPlacement, noOpDoneFn, nil
+		},
+	}
+
+	expectedInstances := []services.PlacementInstance{
+		testPlacementInstances[2],
+	}
+	err := s.WriteCounterWithPoliciesList(testCounter.ID, testCounter.CounterVal, testPoliciesList)
+	require.NoError(t, err)
 	require.Equal(t, expectedInstances, instancesRes)
 	require.Equal(t, uint32(1), shardRes)
 	require.Equal(t, testCounter, muRes)
 	require.Equal(t, testPoliciesList, plRes)
 }
 
-func TestServerWriteBatchTimerWithPoliciesListClosed(t *testing.T) {
+func TestServerWriteMetricWithPoliciesListBeforeShardCutover(t *testing.T) {
+	var instancesRes []services.PlacementInstance
 	s := NewServer(testServerOptions()).(*server)
-	s.state = serverNotOpen
-	require.Equal(t, errServerIsNotOpenOrClosed, s.WriteBatchTimerWithPoliciesList(
-		testBatchTimer.ID,
-		testBatchTimer.BatchTimerVal,
-		testPoliciesList,
-	))
-}
-
-func TestServerWriteBatchTimerWithPoliciesListActiveStagedPlacementError(t *testing.T) {
-	errActiveStagedPlacementError := errors.New("error active staged placement")
-	s := NewServer(testServerOptions()).(*server)
+	s.shardCutoverWarmupDuration = time.Second
 	s.state = serverOpen
-	s.placementWatcher = &mockWatcher{
-		activeStagedPlacementFn: func() (services.ActiveStagedPlacement, services.DoneFn, error) {
-			return nil, nil, errActiveStagedPlacementError
-		},
-	}
-	require.Equal(t, errActiveStagedPlacementError, s.WriteBatchTimerWithPoliciesList(
-		testBatchTimer.ID,
-		testBatchTimer.BatchTimerVal,
-		testPoliciesList,
-	))
-}
-
-func TestServerWriteBatchTimerWithPoliciesListActivePlacementError(t *testing.T) {
-	errActivePlacementError := errors.New("error active placement")
-	s := NewServer(testServerOptions()).(*server)
-	s.state = serverOpen
-	s.placementWatcher = &mockWatcher{
-		activeStagedPlacementFn: func() (services.ActiveStagedPlacement, services.DoneFn, error) {
-			activeStagedPlacement := &mockActiveStagedPlacement{
-				activePlacementFn: func() (services.Placement, services.DoneFn, error) {
-					return nil, nil, errActivePlacementError
-				},
-			}
-			noOpDoneFn := func() {}
-			return activeStagedPlacement, noOpDoneFn, nil
-		},
-	}
-	require.Equal(t, errActivePlacementError, s.WriteBatchTimerWithPoliciesList(
-		testBatchTimer.ID,
-		testBatchTimer.BatchTimerVal,
-		testPoliciesList,
-	))
-}
-
-func TestServerWriteBatchTimerWithPoliciesListSuccess(t *testing.T) {
-	var (
-		instancesRes []services.PlacementInstance
-		shardRes     uint32
-		muRes        unaggregated.MetricUnion
-		plRes        policy.PoliciesList
-	)
-	s := NewServer(testServerOptions()).(*server)
-	s.state = serverOpen
+	s.nowFn = func() time.Time { return time.Unix(0, testCutoverNanos-1).Add(-time.Second) }
 	s.writerMgr = &mockInstanceWriterManager{
 		writeToFn: func(
-			instances []services.PlacementInstance,
+			instance services.PlacementInstance,
 			shard uint32,
 			mu unaggregated.MetricUnion,
 			pl policy.PoliciesList,
 		) error {
-			instancesRes = instances
-			shardRes = shard
-			muRes = mu
-			plRes = pl
+			instancesRes = append(instancesRes, instance)
 			return nil
 		},
 	}
@@ -315,89 +377,26 @@ func TestServerWriteBatchTimerWithPoliciesListSuccess(t *testing.T) {
 			return activeStagedPlacement, noOpDoneFn, nil
 		},
 	}
-	require.NoError(t, s.WriteBatchTimerWithPoliciesList(
-		testBatchTimer.ID,
-		testBatchTimer.BatchTimerVal,
-		testPoliciesList,
-	))
-	expectedInstances := []services.PlacementInstance{
-		testPlacementInstances[0],
-		testPlacementInstances[2],
-	}
-	require.Equal(t, expectedInstances, instancesRes)
-	require.Equal(t, uint32(1), shardRes)
-	require.Equal(t, testBatchTimer, muRes)
-	require.Equal(t, testPoliciesList, plRes)
+
+	err := s.WriteCounterWithPoliciesList(testCounter.ID, testCounter.CounterVal, testPoliciesList)
+	require.NoError(t, err)
+	require.Nil(t, instancesRes)
 }
 
-func TestServerWriteGaugeWithPoliciesListClosed(t *testing.T) {
+func TestServerWriteMetricWithPoliciesListAfterShardCutoff(t *testing.T) {
+	var instancesRes []services.PlacementInstance
 	s := NewServer(testServerOptions()).(*server)
-	s.state = serverNotOpen
-	require.Equal(t, errServerIsNotOpenOrClosed, s.WriteGaugeWithPoliciesList(
-		testGauge.ID,
-		testGauge.GaugeVal,
-		testPoliciesList,
-	))
-}
-
-func TestServerWriteGaugeWithPoliciesListActiveStagedPlacementError(t *testing.T) {
-	errActiveStagedPlacementError := errors.New("error active staged placement")
-	s := NewServer(testServerOptions()).(*server)
+	s.shardCutoffLingerDuration = time.Second
 	s.state = serverOpen
-	s.placementWatcher = &mockWatcher{
-		activeStagedPlacementFn: func() (services.ActiveStagedPlacement, services.DoneFn, error) {
-			return nil, nil, errActiveStagedPlacementError
-		},
-	}
-	require.Equal(t, errActiveStagedPlacementError, s.WriteGaugeWithPoliciesList(
-		testGauge.ID,
-		testGauge.GaugeVal,
-		testPoliciesList,
-	))
-}
-
-func TestServerWriteGaugeWithPoliciesListActivePlacementError(t *testing.T) {
-	errActivePlacementError := errors.New("error active placement")
-	s := NewServer(testServerOptions()).(*server)
-	s.state = serverOpen
-	s.placementWatcher = &mockWatcher{
-		activeStagedPlacementFn: func() (services.ActiveStagedPlacement, services.DoneFn, error) {
-			activeStagedPlacement := &mockActiveStagedPlacement{
-				activePlacementFn: func() (services.Placement, services.DoneFn, error) {
-					return nil, nil, errActivePlacementError
-				},
-			}
-			noOpDoneFn := func() {}
-			return activeStagedPlacement, noOpDoneFn, nil
-		},
-	}
-	require.Equal(t, errActivePlacementError, s.WriteGaugeWithPoliciesList(
-		testGauge.ID,
-		testGauge.GaugeVal,
-		testPoliciesList,
-	))
-}
-
-func TestServerWriteGaugeWithPoliciesListSuccess(t *testing.T) {
-	var (
-		instancesRes []services.PlacementInstance
-		shardRes     uint32
-		muRes        unaggregated.MetricUnion
-		plRes        policy.PoliciesList
-	)
-	s := NewServer(testServerOptions()).(*server)
-	s.state = serverOpen
+	s.nowFn = func() time.Time { return time.Unix(0, testCutoffNanos+1).Add(time.Second) }
 	s.writerMgr = &mockInstanceWriterManager{
 		writeToFn: func(
-			instances []services.PlacementInstance,
+			instance services.PlacementInstance,
 			shard uint32,
 			mu unaggregated.MetricUnion,
 			pl policy.PoliciesList,
 		) error {
-			instancesRes = instances
-			shardRes = shard
-			muRes = mu
-			plRes = pl
+			instancesRes = append(instancesRes, instance)
 			return nil
 		},
 	}
@@ -412,19 +411,10 @@ func TestServerWriteGaugeWithPoliciesListSuccess(t *testing.T) {
 			return activeStagedPlacement, noOpDoneFn, nil
 		},
 	}
-	require.NoError(t, s.WriteGaugeWithPoliciesList(
-		testGauge.ID,
-		testGauge.GaugeVal,
-		testPoliciesList,
-	))
-	expectedInstances := []services.PlacementInstance{
-		testPlacementInstances[0],
-		testPlacementInstances[2],
-	}
-	require.Equal(t, expectedInstances, instancesRes)
-	require.Equal(t, uint32(1), shardRes)
-	require.Equal(t, testGauge, muRes)
-	require.Equal(t, testPoliciesList, plRes)
+
+	err := s.WriteCounterWithPoliciesList(testCounter.ID, testCounter.CounterVal, testPoliciesList)
+	require.NoError(t, err)
+	require.Nil(t, instancesRes)
 }
 
 func TestServerFlushClosed(t *testing.T) {
@@ -470,6 +460,41 @@ func TestServerCloseSuccess(t *testing.T) {
 	require.NoError(t, s.Close())
 }
 
+func TestServerWriteTimeRangeFor(t *testing.T) {
+	s := NewServer(testServerOptions()).(*server)
+	testShard := shard.NewShard(0).SetState(shard.Initializing)
+	for _, input := range []struct {
+		cutoverNanos     int64
+		cutoffNanos      int64
+		expectedEarliest int64
+		expectedLatest   int64
+	}{
+		{
+			cutoverNanos:     0,
+			cutoffNanos:      int64(math.MaxInt64),
+			expectedEarliest: 0,
+			expectedLatest:   int64(math.MaxInt64),
+		},
+		{
+			cutoverNanos:     testNowNanos,
+			cutoffNanos:      int64(math.MaxInt64),
+			expectedEarliest: testNowNanos - int64(time.Minute),
+			expectedLatest:   int64(math.MaxInt64),
+		},
+		{
+			cutoverNanos:     0,
+			cutoffNanos:      testNowNanos,
+			expectedEarliest: 0,
+			expectedLatest:   testNowNanos + int64(10*time.Minute),
+		},
+	} {
+		testShard = testShard.SetCutoverNanos(input.cutoverNanos).SetCutoffNanos(input.cutoffNanos)
+		earliest, latest := s.writeTimeRangeFor(testShard)
+		require.Equal(t, input.expectedEarliest, earliest)
+		require.Equal(t, input.expectedLatest, latest)
+	}
+}
+
 func testServerOptions() ServerOptions {
 	return NewServerOptions().
 		SetClockOptions(clock.NewOptions()).
@@ -477,7 +502,9 @@ func testServerOptions() ServerOptions {
 		SetInstrumentOptions(instrument.NewOptions()).
 		SetShardFn(func(id []byte, numShards int) uint32 { return 1 }).
 		SetInstanceQueueSize(10).
-		SetMaxTimerBatchSize(140)
+		SetMaxTimerBatchSize(140).
+		SetShardCutoverWarmupDuration(time.Minute).
+		SetShardCutoffLingerDuration(10 * time.Minute)
 }
 
 type watchFn func() error
@@ -508,7 +535,7 @@ func (mw *mockWatcher) ActiveStagedPlacement() (services.ActiveStagedPlacement, 
 func (mw *mockWatcher) Unwatch() error { return nil }
 
 type writeToFn func(
-	[]services.PlacementInstance,
+	services.PlacementInstance,
 	uint32,
 	unaggregated.MetricUnion,
 	policy.PoliciesList,
@@ -528,12 +555,12 @@ func (mgr *mockInstanceWriterManager) RemoveInstances(instances []services.Place
 }
 
 func (mgr *mockInstanceWriterManager) WriteTo(
-	instances []services.PlacementInstance,
+	instance services.PlacementInstance,
 	shard uint32,
 	mu unaggregated.MetricUnion,
 	pl policy.PoliciesList,
 ) error {
-	return mgr.writeToFn(instances, shard, mu, pl)
+	return mgr.writeToFn(instance, shard, mu, pl)
 }
 
 func (mgr *mockInstanceWriterManager) Flush() error { return mgr.flushFn() }
