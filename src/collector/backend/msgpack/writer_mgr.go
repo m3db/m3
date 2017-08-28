@@ -43,10 +43,10 @@ type instanceWriterManager interface {
 	// RemoveInstances removes instancess.
 	RemoveInstances(instances []services.PlacementInstance) error
 
-	// WriteTo writes a metric alongside its policies list to target instances.
+	// WriteTo writes a metric alongside its policies list to a target instance.
 	WriteTo(
-		instances []services.PlacementInstance,
-		shard uint32,
+		instance services.PlacementInstance,
+		shardID uint32,
 		mu unaggregated.MetricUnion,
 		pl policy.PoliciesList,
 	) error
@@ -113,7 +113,7 @@ func (mgr *writerManager) RemoveInstances(instances []services.PlacementInstance
 }
 
 func (mgr *writerManager) WriteTo(
-	instances []services.PlacementInstance,
+	instance services.PlacementInstance,
 	shard uint32,
 	mu unaggregated.MetricUnion,
 	pl policy.PoliciesList,
@@ -123,21 +123,15 @@ func (mgr *writerManager) WriteTo(
 		mgr.RUnlock()
 		return errInstanceWriterManagerClosed
 	}
-	multiErr := xerrors.NewMultiError()
-	for _, instance := range instances {
-		id := instance.ID()
-		writer, exists := mgr.writers[id]
-		if !exists {
-			err := fmt.Errorf("writer for instance %s is not found", id)
-			multiErr = multiErr.Add(err)
-			continue
-		}
-		if err := writer.Write(shard, mu, pl); err != nil {
-			multiErr = multiErr.Add(err)
-		}
+	id := instance.ID()
+	writer, exists := mgr.writers[id]
+	if !exists {
+		mgr.RUnlock()
+		return fmt.Errorf("writer for instance %s is not found", id)
 	}
+	err := writer.Write(shard, mu, pl)
 	mgr.RUnlock()
-	return multiErr.FinalError()
+	return err
 }
 
 func (mgr *writerManager) Flush() error {

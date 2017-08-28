@@ -51,16 +51,12 @@ func TestInstanceQueueEnqueueQueueFull(t *testing.T) {
 	opts := testServerOptions().SetInstanceQueueSize(1)
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
 
-	// Fill up the queue and park the draining goroutine for 5 seconds
-	// so the queue remains full.
-	queue.writeFn = func([]byte) error { time.Sleep(5 * time.Second); return nil }
-	for i := 0; i < 10; i++ {
-		select {
-		case queue.bufCh <- msgpack.NewBufferedEncoder():
-		default:
-		}
+	// Fill up the queue and park the draining goroutine so the queue remains full.
+	queue.writeFn = func([]byte) error {
+		select {}
 	}
-
+	queue.bufCh <- msgpack.NewBufferedEncoder()
+	queue.bufCh <- msgpack.NewBufferedEncoder()
 	require.Equal(t, errWriterQueueFull, queue.Enqueue(msgpack.NewBufferedEncoder()))
 }
 

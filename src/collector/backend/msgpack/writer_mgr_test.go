@@ -85,14 +85,14 @@ func TestWriterManagerRemoveInstancesSuccess(t *testing.T) {
 func TestWriterManagerWriteToClosed(t *testing.T) {
 	mgr := newInstanceWriterManager(testServerOptions()).(*writerManager)
 	mgr.closed = true
-	err := mgr.WriteTo([]services.PlacementInstance{testPlacementInstance}, 0, testCounter, testPoliciesList)
+	err := mgr.WriteTo(testPlacementInstance, 0, testCounter, testPoliciesList)
 	require.Equal(t, errInstanceWriterManagerClosed, err)
 }
 
 func TestWriterManagerWriteToNoInstances(t *testing.T) {
 	mgr := newInstanceWriterManager(testServerOptions()).(*writerManager)
 	mgr.closed = false
-	err := mgr.WriteTo([]services.PlacementInstance{testPlacementInstance}, 0, testCounter, testPoliciesList)
+	err := mgr.WriteTo(testPlacementInstance, 0, testCounter, testPoliciesList)
 	require.Error(t, err)
 }
 
@@ -120,17 +120,9 @@ func TestWriterManagerWriteToSuccess(t *testing.T) {
 			},
 		},
 	}
-	mgr.writers[instances[1].ID()] = &refCountedWriter{
-		refCount: refCount{n: 1},
-		instanceWriter: &mockInstanceWriter{
-			writeFn: func(shard uint32, mu unaggregated.MetricUnion, pl policy.PoliciesList) error {
-				return errors.New("write error")
-			},
-		},
-	}
 
-	require.Error(t, mgr.WriteTo(instances, 0, testCounter, testPoliciesList))
-	require.Equal(t, 2, len(mgr.writers))
+	require.NoError(t, mgr.WriteTo(testPlacementInstance, 0, testCounter, testPoliciesList))
+	require.Equal(t, 1, len(mgr.writers))
 	require.Equal(t, uint32(0), shardRes)
 	require.Equal(t, testCounter, muRes)
 	require.Equal(t, testPoliciesList, plRes)

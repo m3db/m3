@@ -22,13 +22,19 @@ package msgpack
 
 import (
 	"errors"
+	"fmt"
+	"math"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3collector/backend"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/errors"
 )
 
 var (
@@ -48,11 +54,14 @@ const (
 type server struct {
 	sync.RWMutex
 
-	opts             ServerOptions
-	writerMgr        instanceWriterManager
-	shardFn          ShardFn
-	placementWatcher services.StagedPlacementWatcher
-	state            serverState
+	opts                       ServerOptions
+	nowFn                      clock.NowFn
+	shardCutoverWarmupDuration time.Duration
+	shardCutoffLingerDuration  time.Duration
+	writerMgr                  instanceWriterManager
+	shardFn                    ShardFn
+	placementWatcher           services.StagedPlacementWatcher
+	state                      serverState
 }
 
 // NewServer creates a new server.
@@ -81,10 +90,13 @@ func NewServer(opts ServerOptions) backend.Server {
 	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
 
 	return &server{
-		opts:             opts,
-		writerMgr:        writerMgr,
-		shardFn:          opts.ShardFn(),
-		placementWatcher: placementWatcher,
+		opts:  opts,
+		nowFn: opts.ClockOptions().NowFn(),
+		shardCutoverWarmupDuration: opts.ShardCutoverWarmupDuration(),
+		shardCutoffLingerDuration:  opts.ShardCutoffLingerDuration(),
+		writerMgr:                  writerMgr,
+		shardFn:                    opts.ShardFn(),
+		placementWatcher:           placementWatcher,
 	}
 }
 
@@ -182,12 +194,51 @@ func (s *server) write(
 		s.RUnlock()
 		return err
 	}
-	numShards := placement.NumShards()
-	shard := s.shardFn(id, numShards)
-	instances := placement.InstancesForShard(shard)
-	err = s.writerMgr.WriteTo(instances, shard, mu, pl)
+	var (
+		numShards = placement.NumShards()
+		shardID   = s.shardFn(id, numShards)
+		instances = placement.InstancesForShard(shardID)
+		nowNanos  = s.nowFn().UnixNano()
+		multiErr  = xerrors.NewMultiError()
+	)
+	for _, instance := range instances {
+		// NB(xichen): the shard should technically always be found because the instances
+		// are computed from the placement, but protect against errors here regardless.
+		shard, ok := instance.Shards().Shard(shardID)
+		if !ok {
+			err := fmt.Errorf("instance %s does not own shard %d", instance.ID(), shardID)
+			multiErr = multiErr.Add(err)
+			continue
+		}
+		if !s.shouldWriteForShard(nowNanos, shard) {
+			continue
+		}
+		if err := s.writerMgr.WriteTo(instance, shardID, mu, pl); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
 	onPlacementDoneFn()
 	onStagedPlacementDoneFn()
 	s.RUnlock()
 	return err
+}
+
+func (s *server) shouldWriteForShard(nowNanos int64, shard shard.Shard) bool {
+	writeEarliestNanos, writeLatestNanos := s.writeTimeRangeFor(shard)
+	return nowNanos >= writeEarliestNanos && nowNanos <= writeLatestNanos
+}
+
+// writeTimeRangeFor returns the time range for writes going to a given shard.
+func (s *server) writeTimeRangeFor(shard shard.Shard) (int64, int64) {
+	var (
+		earliestNanos = int64(0)
+		latestNanos   = int64(math.MaxInt64)
+	)
+	if cutoverNanos := shard.CutoverNanos(); cutoverNanos >= int64(s.shardCutoverWarmupDuration) {
+		earliestNanos = cutoverNanos - int64(s.shardCutoverWarmupDuration)
+	}
+	if cutoffNanos := shard.CutoffNanos(); cutoffNanos <= math.MaxInt64-int64(s.shardCutoffLingerDuration) {
+		latestNanos = cutoffNanos + int64(s.shardCutoffLingerDuration)
+	}
+	return earliestNanos, latestNanos
 }
