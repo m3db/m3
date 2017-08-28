@@ -29,7 +29,11 @@ import (
 )
 
 func TestBufferedEncoderPool(t *testing.T) {
-	p := NewBufferedEncoderPool(pool.NewObjectPoolOptions().SetSize(1))
+	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
+	opts := NewBufferedEncoderPoolOptions().
+		SetObjectPoolOptions(poolOpts)
+
+	p := NewBufferedEncoderPool(opts)
 	p.Init(func() BufferedEncoder {
 		return NewPooledBufferedEncoder(p)
 	})
@@ -49,4 +53,29 @@ func TestBufferedEncoderPool(t *testing.T) {
 	// Reset the encoder and assert it's been reset.
 	encoder.Reset()
 	require.Equal(t, 0, encoder.Buffer().Len())
+}
+
+func TestBufferedEncoderPoolMaxCapacity(t *testing.T) {
+	poolOpts := pool.NewObjectPoolOptions().SetSize(1)
+	opts := NewBufferedEncoderPoolOptions().
+		SetMaxCapacity(2).
+		SetObjectPoolOptions(poolOpts)
+
+	p := NewBufferedEncoderPool(opts)
+	p.Init(func() BufferedEncoder {
+		return NewPooledBufferedEncoder(p)
+	})
+
+	// Retrieve an encoder from the pool.
+	encoder := p.Get()
+	encoder.Buffer().Write([]byte{1, 2, 3})
+	require.Equal(t, 3, encoder.Buffer().Len())
+
+	// Closing the encoder should put it back to the pool.
+	encoder.Close()
+
+	// Retrieve an encoder and assert it's a different encoder since
+	// the previous one exceeded the maximum capacity of the pool.
+	encoder = p.Get()
+	require.Equal(t, 0, encoder.Buffer().Cap())
 }
