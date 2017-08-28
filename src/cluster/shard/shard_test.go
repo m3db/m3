@@ -21,10 +21,12 @@
 package shard
 
 import (
+	"math"
 	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestShard(t *testing.T) {
@@ -84,5 +86,39 @@ func TestSort(t *testing.T) {
 	sort.Sort(sortable)
 	for i := range shards {
 		assert.Equal(t, uint32(i), shards[i].ID())
+	}
+}
+
+func TestShardCutoverTimes(t *testing.T) {
+	s := NewShard(1).SetState(Initializing).SetSourceID("id")
+	inputs := []struct {
+		actualNanos   int64
+		expectedNanos int64
+	}{
+		{actualNanos: 0, expectedNanos: 0},
+		{actualNanos: 12345, expectedNanos: 12345},
+		{actualNanos: math.MaxInt64, expectedNanos: math.MaxInt64},
+	}
+
+	for _, input := range inputs {
+		s.SetCutoverNanos(input.actualNanos)
+		require.Equal(t, input.expectedNanos, s.CutoverNanos())
+	}
+}
+
+func TestShardCutoffTimes(t *testing.T) {
+	s := NewShard(1).SetState(Initializing).SetSourceID("id")
+	inputs := []struct {
+		actualNanos   int64
+		expectedNanos int64
+	}{
+		{actualNanos: 0, expectedNanos: math.MaxInt64},
+		{actualNanos: 12345, expectedNanos: 12345},
+		{actualNanos: math.MaxInt64, expectedNanos: math.MaxInt64},
+	}
+
+	for _, input := range inputs {
+		s.SetCutoffNanos(input.actualNanos)
+		require.Equal(t, input.expectedNanos, s.CutoffNanos())
 	}
 }

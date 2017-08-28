@@ -26,7 +26,12 @@ message Placement {
   uint32 replica_factor = 2;
   uint32 num_shards = 3;
   bool is_sharded = 4;
+
+  // cutover_time is the placement-level cutover time and determines when the clients
+  // watching the placement deems the placement as "in effect" and can use it to determine
+  // shard placement.
   int64 cutover_time = 5;
+
   bool is_mirrored = 6;
 }
 
@@ -46,6 +51,14 @@ message Shard {
   uint32 id = 1;
   ShardState state = 2;
   string source_id = 3;
+
+  // Shard-level cutover and cutoff times determine when the shards have been cut over or
+  // cut off from the source instance to the destination instance. The placement-level
+  // cutover times are usually (but not required to be) earlier than shard-level cutover
+  // times if the clients watching the placement need to send traffic to the shards before
+  // they are ready to cut over or after they are ready to cut off (e.g., for warmup purposes).
+  int64 cutover_nanos = 4;
+  int64 cutoff_nanos = 5;
 }
 
 enum ShardState {
