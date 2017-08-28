@@ -32,16 +32,32 @@ const (
 	keyFormat       = "%s/%s"
 )
 
+type keyFn func(sid services.ServiceID) string
+
+func placementNamespace(ns string) string {
+	if ns == "" {
+		ns = placementPrefix
+	}
+
+	return ns
+}
+
+func metadataNamespace(ns string) string {
+	if ns == "" {
+		ns = metadataPrefix
+	}
+
+	return ns
+}
+
+func keyFnWithNamespace(namespace string) keyFn {
+	return func(sid services.ServiceID) string {
+		return fmt.Sprintf(keyFormat, namespace, serviceKey(sid))
+	}
+}
+
 func adKey(sid services.ServiceID, id string) string {
 	return fmt.Sprintf(keyFormat, serviceKey(sid), id)
-}
-
-func placementKey(s services.ServiceID) string {
-	return fmt.Sprintf(keyFormat, placementPrefix, serviceKey(s))
-}
-
-func metadataKey(s services.ServiceID) string {
-	return fmt.Sprintf(keyFormat, metadataPrefix, serviceKey(s))
 }
 
 func serviceKey(s services.ServiceID) string {

@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,30 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package services
 
-import (
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/services"
-)
+// Configuration configs the Options.
+type Configuration struct {
+	Namespaces NamespacesConfiguration `yaml:"namespaces"`
+}
 
-// Client is the base interface into the cluster management system, providing
-// access to cluster services.
-type Client interface {
-	// Services returns access to the set of services.
-	Services(opts services.Options) (services.Services, error)
+// NewOptions creates a new Options.
+func (cfg Configuration) NewOptions() Options {
+	return NewOptions().
+		SetNamespaceOptions(cfg.Namespaces.NewOptions())
+}
 
-	// KV returns access to the distributed configuration store.
-	// To be deprecated.
-	KV() (kv.Store, error)
+// NamespacesConfiguration configs the NamespaceOptions.
+type NamespacesConfiguration struct {
+	Placement string `yaml:"placement"`
+	Metadata  string `yaml:"metadata"`
+}
 
-	// Txn returns access to the transaction store.
-	// To be deprecated.
-	Txn() (kv.TxnStore, error)
-
-	// Store returns access to the distributed configuration store with a namespace.
-	Store(namespace string) (kv.Store, error)
-
-	// TxnStore returns access to the transaction store with a namespace.
-	TxnStore(namespace string) (kv.TxnStore, error)
+// NewOptions creates a new NamespaceOptions.
+func (cfg NamespacesConfiguration) NewOptions() NamespaceOptions {
+	return NewNamespaceOptions().
+		SetPlacementNamespace(cfg.Placement).
+		SetMetadataNamespace(cfg.Metadata)
 }

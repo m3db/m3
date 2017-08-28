@@ -504,12 +504,12 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 	require.True(t, ok)
 
 	// set a bad value for placement
-	v, err := kvm.kv.Set(placementKey(sid), &metadataproto.Metadata{Port: 1})
+	v, err := kvm.kv.Set(keyFnWithNamespace(placementPrefix)(sid), &metadataproto.Metadata{Port: 1})
 	require.NoError(t, err)
 	require.Equal(t, 3, v)
 
 	// make sure the newly set bad value has been propagated to watches
-	testWatch, err := kvm.kv.Watch(placementKey(sid))
+	testWatch, err := kvm.kv.Watch(keyFnWithNamespace(placementPrefix)(sid))
 	require.NoError(t, err)
 	for range testWatch.C() {
 		if testWatch.Get().Version() == 3 {
@@ -653,12 +653,12 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 	require.True(t, ok)
 
 	// set a bad value for placement
-	v, err := kvm.kv.Set(placementKey(sid), &metadataproto.Metadata{Port: 1})
+	v, err := kvm.kv.Set(keyFnWithNamespace(placementPrefix)(sid), &metadataproto.Metadata{Port: 1})
 	require.NoError(t, err)
 	require.Equal(t, 2, v)
 
 	// make sure the newly set bad value has been propagated to watches
-	testWatch, err := kvm.kv.Watch(placementKey(sid))
+	testWatch, err := kvm.kv.Watch(keyFnWithNamespace(placementPrefix)(sid))
 	require.NoError(t, err)
 	for range testWatch.C() {
 		if testWatch.Get().Version() == 2 {
@@ -752,6 +752,9 @@ func TestMultipleWatches(t *testing.T) {
 	require.NoError(t, err)
 
 	sd, err := NewServices(opts)
+	require.NoError(t, err)
+
+	_, err = sd.Query(sid, qopts)
 	require.NoError(t, err)
 
 	w1, err := sd.Watch(sid, qopts)

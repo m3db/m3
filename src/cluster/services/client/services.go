@@ -51,26 +51,30 @@ func NewServices(opts Options) (services.Services, error) {
 	}
 
 	return &client{
-		kvManagers: make(map[string]*kvManager),
-		hbStores:   make(map[string]services.HeartbeatService),
-		adDoneChs:  make(map[string]chan struct{}),
-		ldSvcs:     make(map[leaderKey]services.LeaderService),
-		opts:       opts,
-		logger:     opts.InstrumentsOptions().Logger(),
-		m:          opts.InstrumentsOptions().MetricsScope(),
+		opts:           opts,
+		placementKeyFn: keyFnWithNamespace(placementNamespace(opts.NamespaceOptions().PlacementNamespace())),
+		metadataKeyFn:  keyFnWithNamespace(metadataNamespace(opts.NamespaceOptions().MetadataNamespace())),
+		kvManagers:     make(map[string]*kvManager),
+		hbStores:       make(map[string]services.HeartbeatService),
+		adDoneChs:      make(map[string]chan struct{}),
+		ldSvcs:         make(map[leaderKey]services.LeaderService),
+		logger:         opts.InstrumentsOptions().Logger(),
+		m:              opts.InstrumentsOptions().MetricsScope(),
 	}, nil
 }
 
 type client struct {
 	sync.RWMutex
 
-	opts       Options
-	kvManagers map[string]*kvManager
-	hbStores   map[string]services.HeartbeatService
-	ldSvcs     map[leaderKey]services.LeaderService
-	adDoneChs  map[string]chan struct{}
-	logger     xlog.Logger
-	m          tally.Scope
+	opts           Options
+	placementKeyFn keyFn
+	metadataKeyFn  keyFn
+	kvManagers     map[string]*kvManager
+	hbStores       map[string]services.HeartbeatService
+	ldSvcs         map[leaderKey]services.LeaderService
+	adDoneChs      map[string]chan struct{}
+	logger         xlog.Logger
+	m              tally.Scope
 }
 
 func (c *client) Metadata(sid services.ServiceID) (services.Metadata, error) {
@@ -83,7 +87,7 @@ func (c *client) Metadata(sid services.ServiceID) (services.Metadata, error) {
 		return nil, err
 	}
 
-	v, err := m.kv.Get(metadataKey(sid))
+	v, err := m.kv.Get(c.metadataKeyFn(sid))
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +111,7 @@ func (c *client) SetMetadata(sid services.ServiceID, meta services.Metadata) err
 	}
 
 	mp := util.MetadataToProto(meta)
-	_, err = m.kv.Set(metadataKey(sid), &mp)
+	_, err = m.kv.Set(c.metadataKeyFn(sid), &mp)
 	return err
 }
 
@@ -261,12 +265,12 @@ func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (xwat
 	}
 
 	// prepare the watch of placement outside of lock
-	placementWatch, err := kvm.kv.Watch(placementKey(sid))
+	placementWatch, err := kvm.kv.Watch(c.placementKeyFn(sid))
 	if err != nil {
 		return nil, err
 	}
 
-	initValue, err := waitForInitValue(kvm.kv, placementWatch, sid, c.opts.InitTimeout())
+	initValue, err := c.waitForInitValue(kvm.kv, placementWatch, sid, c.opts.InitTimeout())
 	if err != nil {
 		return nil, fmt.Errorf("could not get init value within timeout, err: %v", err)
 	}
@@ -330,7 +334,7 @@ func (c *client) getPlacementValue(sid services.ServiceID) (kv.Value, error) {
 		return nil, err
 	}
 
-	v, err := kvm.kv.Get(placementKey(sid))
+	v, err := kvm.kv.Get(c.placementKeyFn(sid))
 	if err != nil {
 		return nil, err
 	}
@@ -543,7 +547,7 @@ func getServiceFromValue(value kv.Value, sid services.ServiceID) (services.Servi
 	return services.NewServiceFromProto(&placement, sid)
 }
 
-func waitForInitValue(kvStore kv.Store, w kv.ValueWatch, sid services.ServiceID, timeout time.Duration) (kv.Value, error) {
+func (c *client) waitForInitValue(kvStore kv.Store, w kv.ValueWatch, sid services.ServiceID, timeout time.Duration) (kv.Value, error) {
 	if timeout <= 0 {
 		timeout = defaultInitTimeout
 	}
@@ -551,7 +555,7 @@ func waitForInitValue(kvStore kv.Store, w kv.ValueWatch, sid services.ServiceID,
 	case <-w.C():
 		return w.Get(), nil
 	case <-time.After(timeout):
-		return kvStore.Get(placementKey(sid))
+		return kvStore.Get(c.placementKeyFn(sid))
 	}
 }
 

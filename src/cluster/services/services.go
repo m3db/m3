@@ -330,3 +330,51 @@ func (c campaignOpts) SetLeaderValue(v string) CampaignOptions {
 	c.val = v
 	return c
 }
+
+type options struct {
+	namespaceOpts NamespaceOptions
+}
+
+// NewOptions constructs a new Options.
+func NewOptions() Options {
+	return &options{
+		namespaceOpts: NewNamespaceOptions(),
+	}
+}
+
+func (o options) NamespaceOptions() NamespaceOptions {
+	return o.namespaceOpts
+}
+
+func (o options) SetNamespaceOptions(opts NamespaceOptions) Options {
+	o.namespaceOpts = opts
+	return o
+}
+
+type namespaceOpts struct {
+	placementNamespace string
+	metadataNamespace  string
+}
+
+// NewNamespaceOptions constructs a new NamespaceOptions.
+func NewNamespaceOptions() NamespaceOptions {
+	return &namespaceOpts{}
+}
+
+func (opts namespaceOpts) PlacementNamespace() string {
+	return opts.placementNamespace
+}
+
+func (opts namespaceOpts) SetPlacementNamespace(v string) NamespaceOptions {
+	opts.placementNamespace = v
+	return opts
+}
+
+func (opts namespaceOpts) MetadataNamespace() string {
+	return opts.metadataNamespace
+}
+
+func (opts namespaceOpts) SetMetadataNamespace(v string) NamespaceOptions {
+	opts.metadataNamespace = v
+	return opts
+}
