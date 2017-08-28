@@ -32,7 +32,7 @@ import (
 )
 
 type placementService struct {
-	s        placement.Storage
+	s        services.PlacementStorage
 	sid      services.ServiceID
 	opts     services.PlacementOptions
 	algo     placement.Algorithm
@@ -41,7 +41,7 @@ type placementService struct {
 }
 
 // NewPlacementService returns an instance of placement service.
-func NewPlacementService(s placement.Storage, sid services.ServiceID, opts services.PlacementOptions) services.PlacementService {
+func NewPlacementService(s services.PlacementStorage, sid services.ServiceID, opts services.PlacementOptions) services.PlacementService {
 	return placementService{
 		s:        s,
 		sid:      sid,

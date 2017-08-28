@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/services"
+
 	"github.com/stretchr/testify/assert"
 )
 

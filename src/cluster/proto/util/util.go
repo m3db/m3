@@ -34,14 +34,18 @@ import (
 
 // StagedPlacementToProto converts a staged placement to a proto.
 func StagedPlacementToProto(sp services.StagedPlacement) (*placementproto.PlacementSnapshots, error) {
-	placements := sp.Placements()
+	return PlacementsToProto(sp.Placements())
+}
+
+// PlacementsToProto converts a list of ServicePlacement to a proto.
+func PlacementsToProto(placements services.Placements) (*placementproto.PlacementSnapshots, error) {
 	snapshots := make([]*placementproto.Placement, 0, len(placements))
 	for _, p := range placements {
 		placementProto, err := PlacementToProto(p)
 		if err != nil {
 			return nil, err
 		}
-		snapshots = append(snapshots, &placementProto)
+		snapshots = append(snapshots, placementProto)
 	}
 	return &placementproto.PlacementSnapshots{
 		Snapshots: snapshots,
@@ -49,17 +53,17 @@ func StagedPlacementToProto(sp services.StagedPlacement) (*placementproto.Placem
 }
 
 // PlacementToProto converts a ServicePlacement to a placement proto
-func PlacementToProto(p services.Placement) (placementproto.Placement, error) {
+func PlacementToProto(p services.Placement) (*placementproto.Placement, error) {
 	instances := make(map[string]*placementproto.Instance, p.NumInstances())
 	for _, instance := range p.Instances() {
 		pi, err := PlacementInstanceToProto(instance)
 		if err != nil {
-			return placementproto.Placement{}, err
+			return nil, err
 		}
 		instances[instance.ID()] = pi
 	}
 
-	return placementproto.Placement{
+	return &placementproto.Placement{
 		Instances:     instances,
 		ReplicaFactor: uint32(p.ReplicaFactor()),
 		NumShards:     uint32(p.NumShards()),

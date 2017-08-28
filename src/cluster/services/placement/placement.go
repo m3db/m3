@@ -32,11 +32,12 @@ import (
 )
 
 var (
-	errNilPlacementProto         = errors.New("nil placement proto")
-	errNilPlacementInstanceProto = errors.New("nil placement instance proto")
-	errDuplicatedShards          = errors.New("invalid placement, there are duplicated shards in one replica")
-	errUnexpectedShards          = errors.New("invalid placement, there are unexpected shard ids on instance")
-	errMirrorNotSharded          = errors.New("invalid placement, mirrored placement must be sharded")
+	errNilPlacementProto          = errors.New("nil placement proto")
+	errNilPlacementSnapshotsProto = errors.New("nil placement snapshots proto")
+	errNilPlacementInstanceProto  = errors.New("nil placement instance proto")
+	errDuplicatedShards           = errors.New("invalid placement, there are duplicated shards in one replica")
+	errUnexpectedShards           = errors.New("invalid placement, there are unexpected shard ids on instance")
+	errMirrorNotSharded           = errors.New("invalid placement, mirrored placement must be sharded")
 )
 
 type placement struct {
@@ -48,6 +49,24 @@ type placement struct {
 	isMirrored       bool
 	cutoverNanos     int64
 	version          int
+}
+
+// NewPlacementsFromProto creates a list of placements from proto.
+func NewPlacementsFromProto(p *placementproto.PlacementSnapshots) (services.Placements, error) {
+	if p == nil {
+		return nil, errNilPlacementSnapshotsProto
+	}
+
+	placements := make([]services.Placement, 0, len(p.Snapshots))
+	for _, snapshot := range p.Snapshots {
+		placement, err := NewPlacementFromProto(snapshot)
+		if err != nil {
+			return nil, err
+		}
+		placements = append(placements, placement)
+	}
+	sort.Sort(placementsByCutoverAsc(placements))
+	return placements, nil
 }
 
 // NewPlacement returns a ServicePlacement
