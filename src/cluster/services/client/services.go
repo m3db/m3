@@ -27,13 +27,13 @@ import (
 	"time"
 
 	metadataproto "github.com/m3db/m3cluster/generated/proto/metadata"
-	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/proto/util"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement/service"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/watch"
+
 	"github.com/uber-go/tally"
 )
 
@@ -120,7 +120,16 @@ func (c *client) PlacementService(sid services.ServiceID, opts services.Placemen
 		return nil, err
 	}
 
-	return service.NewPlacementService(c, sid, opts), nil
+	ps, err := c.PlacementStorage(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return service.NewPlacementService(ps, sid, opts), nil
+}
+
+func (c *client) PlacementStorage(opts services.PlacementOptions) (services.PlacementStorage, error) {
+	return newPlacementStorage(c.placementKeyFn, c.opts.KVGen(), newHelper(opts)), nil
 }
 
 func (c *client) Advertise(ad services.Advertisement) error {
@@ -539,12 +548,12 @@ func updateVersionGauge(vw kv.ValueWatch, versionGauge tally.Gauge) {
 }
 
 func getServiceFromValue(value kv.Value, sid services.ServiceID) (services.Service, error) {
-	var placement placementproto.Placement
-	if err := value.Unmarshal(&placement); err != nil {
+	p, err := placementFromValue(value)
+	if err != nil {
 		return nil, err
 	}
 
-	return services.NewServiceFromProto(&placement, sid)
+	return services.NewServiceFromPlacement(p, sid), nil
 }
 
 func (c *client) waitForInitValue(kvStore kv.Store, w kv.ValueWatch, sid services.ServiceID, timeout time.Duration) (kv.Value, error) {

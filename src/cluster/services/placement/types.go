@@ -20,7 +20,9 @@
 
 package placement
 
-import "github.com/m3db/m3cluster/services"
+import (
+	"github.com/m3db/m3cluster/services"
+)
 
 // Algorithm places shards on instances
 type Algorithm interface {
@@ -73,25 +75,6 @@ type InstanceSelector interface {
 type DeploymentPlanner interface {
 	// DeploymentSteps returns the deployment steps
 	DeploymentSteps(p services.Placement) [][]services.PlacementInstance
-}
-
-// Storage provides read and write access to service placement
-type Storage interface {
-	// Set writes a placement for a service
-	Set(service services.ServiceID, p services.Placement) error
-
-	// CheckAndSet writes a placement for a service if the current version
-	// matches the expected version
-	CheckAndSet(service services.ServiceID, p services.Placement, version int) error
-
-	// SetIfNotExist writes a placement for a service
-	SetIfNotExist(service services.ServiceID, p services.Placement) error
-
-	// Delete deletes the placement for a service
-	Delete(service services.ServiceID) error
-
-	// Placement reads placement and version for a service
-	Placement(service services.ServiceID) (services.Placement, int, error)
 }
 
 // DeploymentOptions provides options for DeploymentPlanner

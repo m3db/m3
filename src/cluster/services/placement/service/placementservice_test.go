@@ -29,6 +29,8 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/shard"
+
+	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -962,7 +964,7 @@ type mockStorage struct {
 	version int
 }
 
-func NewMockStorage() placement.Storage {
+func NewMockStorage() services.PlacementStorage {
 	return &mockStorage{m: map[string]services.Placement{}}
 }
 
@@ -1024,6 +1026,14 @@ func (ms *mockStorage) Placement(service services.ServiceID) (services.Placement
 	}
 
 	return nil, 0, kv.ErrNotFound
+}
+
+func (ms *mockStorage) SetPlacementProto(sid services.ServiceID, p proto.Message) error {
+	return errors.New("not implemented")
+}
+
+func (ms *mockStorage) PlacementProto(sid services.ServiceID) (proto.Message, int, error) {
+	return nil, 0, errors.New("not implemented")
 }
 
 func markAllInstancesAvailable(

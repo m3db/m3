@@ -71,6 +71,23 @@ func NewServiceFromProto(
 		SetInstances(r), nil
 }
 
+// NewServiceFromPlacement creates a Service from the placement and service ID.
+func NewServiceFromPlacement(p Placement, sid ServiceID) Service {
+	var (
+		placementInstances = p.Instances()
+		serviceInstances   = make([]ServiceInstance, len(placementInstances))
+	)
+
+	for i, placementInstance := range placementInstances {
+		serviceInstances[i] = NewServiceInstanceFromPlacementInstance(placementInstance, sid)
+	}
+
+	return NewService().
+		SetReplication(NewServiceReplication().SetReplicas(p.ReplicaFactor())).
+		SetSharding(NewServiceSharding().SetNumShards(p.NumShards()).SetIsSharded(p.IsSharded())).
+		SetInstances(serviceInstances)
+}
+
 type service struct {
 	instances   []ServiceInstance
 	replication ServiceReplication
@@ -135,6 +152,18 @@ func NewServiceInstanceFromProto(
 		SetInstanceID(instance.Id).
 		SetEndpoint(instance.Endpoint).
 		SetShards(shards), nil
+}
+
+// NewServiceInstanceFromPlacementInstance creates a new service instance from placement instance.
+func NewServiceInstanceFromPlacementInstance(
+	instance PlacementInstance,
+	sid ServiceID,
+) ServiceInstance {
+	return NewServiceInstance().
+		SetServiceID(sid).
+		SetInstanceID(instance.ID()).
+		SetEndpoint(instance.Endpoint()).
+		SetShards(instance.Shards())
 }
 
 type serviceInstance struct {
@@ -352,8 +381,8 @@ func (o options) SetNamespaceOptions(opts NamespaceOptions) Options {
 }
 
 type namespaceOpts struct {
-	placementNamespace string
-	metadataNamespace  string
+	placement string
+	metadata  string
 }
 
 // NewNamespaceOptions constructs a new NamespaceOptions.
@@ -362,19 +391,19 @@ func NewNamespaceOptions() NamespaceOptions {
 }
 
 func (opts namespaceOpts) PlacementNamespace() string {
-	return opts.placementNamespace
+	return opts.placement
 }
 
 func (opts namespaceOpts) SetPlacementNamespace(v string) NamespaceOptions {
-	opts.placementNamespace = v
+	opts.placement = v
 	return opts
 }
 
 func (opts namespaceOpts) MetadataNamespace() string {
-	return opts.metadataNamespace
+	return opts.metadata
 }
 
 func (opts namespaceOpts) SetMetadataNamespace(v string) NamespaceOptions {
-	opts.metadataNamespace = v
+	opts.metadata = v
 	return opts
 }
