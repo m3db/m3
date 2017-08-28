@@ -29,6 +29,9 @@ type bufferedEncoderPool struct {
 
 // NewBufferedEncoderPool creates a new pool for buffered encoders.
 func NewBufferedEncoderPool(opts BufferedEncoderPoolOptions) BufferedEncoderPool {
+	if opts == nil {
+		opts = NewBufferedEncoderPoolOptions()
+	}
 	return &bufferedEncoderPool{
 		maxCapacity: opts.MaxCapacity(),
 		pool:        pool.NewObjectPool(opts.ObjectPoolOptions()),
