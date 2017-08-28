@@ -76,10 +76,26 @@ func shardsToProto(shards shard.Shards) ([]*placementproto.Shard, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		// NB(xichen): if the cutover time or the cutoff times are the default values,
+		// we set them to 0 instead so they are not persisted as part of the proto message.
+		// This way we don't need to persist the cutoff times for every shard that has no
+		// designated cutoff times for space savings, which will be the common case.
+		cutoverNanos := s.CutoverNanos()
+		if cutoverNanos == shard.DefaultShardCutoverNanos {
+			cutoverNanos = 0
+		}
+		cutoffNanos := s.CutoffNanos()
+		if cutoffNanos == shard.DefaultShardCutoffNanos {
+			cutoffNanos = 0
+		}
+
 		r[i] = &placementproto.Shard{
-			Id:       s.ID(),
-			State:    ss,
-			SourceId: s.SourceID(),
+			Id:           s.ID(),
+			State:        ss,
+			SourceId:     s.SourceID(),
+			CutoverNanos: cutoverNanos,
+			CutoffNanos:  cutoffNanos,
 		}
 	}
 	return r, nil
