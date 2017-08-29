@@ -94,6 +94,16 @@ func (_mr *_MockServiceNodeRecorder) GetRemoteOutput(arg0, arg1 interface{}) *go
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetRemoteOutput", arg0, arg1)
 }
 
+func (_m *MockServiceNode) Hostname() string {
+	ret := _m.ctrl.Call(_m, "Hostname")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockServiceNodeRecorder) Hostname() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Hostname")
+}
+
 func (_m *MockServiceNode) ID() string {
 	ret := _m.ctrl.Call(_m, "ID")
 	ret0, _ := ret[0].(string)
@@ -102,6 +112,16 @@ func (_m *MockServiceNode) ID() string {
 
 func (_mr *_MockServiceNodeRecorder) ID() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ID")
+}
+
+func (_m *MockServiceNode) Port() uint32 {
+	ret := _m.ctrl.Call(_m, "Port")
+	ret0, _ := ret[0].(uint32)
+	return ret0
+}
+
+func (_mr *_MockServiceNodeRecorder) Port() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Port")
 }
 
 func (_m *MockServiceNode) Rack() string {
@@ -134,6 +154,16 @@ func (_mr *_MockServiceNodeRecorder) SetEndpoint(arg0 interface{}) *gomock.Call 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEndpoint", arg0)
 }
 
+func (_m *MockServiceNode) SetHostname(_param0 string) services.PlacementInstance {
+	ret := _m.ctrl.Call(_m, "SetHostname", _param0)
+	ret0, _ := ret[0].(services.PlacementInstance)
+	return ret0
+}
+
+func (_mr *_MockServiceNodeRecorder) SetHostname(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetHostname", arg0)
+}
+
 func (_m *MockServiceNode) SetID(_param0 string) services.PlacementInstance {
 	ret := _m.ctrl.Call(_m, "SetID", _param0)
 	ret0, _ := ret[0].(services.PlacementInstance)
@@ -144,6 +174,16 @@ func (_mr *_MockServiceNodeRecorder) SetID(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetID", arg0)
 }
 
+func (_m *MockServiceNode) SetPort(_param0 uint32) services.PlacementInstance {
+	ret := _m.ctrl.Call(_m, "SetPort", _param0)
+	ret0, _ := ret[0].(services.PlacementInstance)
+	return ret0
+}
+
+func (_mr *_MockServiceNodeRecorder) SetPort(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPort", arg0)
+}
+
 func (_m *MockServiceNode) SetRack(_param0 string) services.PlacementInstance {
 	ret := _m.ctrl.Call(_m, "SetRack", _param0)
 	ret0, _ := ret[0].(services.PlacementInstance)
@@ -152,6 +192,16 @@ func (_m *MockServiceNode) SetRack(_param0 string) services.PlacementInstance {
 
 func (_mr *_MockServiceNodeRecorder) SetRack(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRack", arg0)
+}
+
+func (_m *MockServiceNode) SetShardSetID(_param0 uint32) services.PlacementInstance {
+	ret := _m.ctrl.Call(_m, "SetShardSetID", _param0)
+	ret0, _ := ret[0].(services.PlacementInstance)
+	return ret0
+}
+
+func (_mr *_MockServiceNodeRecorder) SetShardSetID(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetShardSetID", arg0)
 }
 
 func (_m *MockServiceNode) SetShards(_param0 shard.Shards) services.PlacementInstance {
@@ -192,6 +242,16 @@ func (_m *MockServiceNode) Setup(_param0 build.ServiceBuild, _param1 build.Servi
 
 func (_mr *_MockServiceNodeRecorder) Setup(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Setup", arg0, arg1, arg2, arg3)
+}
+
+func (_m *MockServiceNode) ShardSetID() uint32 {
+	ret := _m.ctrl.Call(_m, "ShardSetID")
+	ret0, _ := ret[0].(uint32)
+	return ret0
+}
+
+func (_mr *_MockServiceNodeRecorder) ShardSetID() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ShardSetID")
 }
 
 func (_m *MockServiceNode) Shards() shard.Shards {

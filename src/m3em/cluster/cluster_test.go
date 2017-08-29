@@ -233,8 +233,8 @@ func TestClusterSetupAddNodeTransition(t *testing.T) {
 	mockPlacement := services.NewMockPlacement(ctrl)
 	mockPlacement.EXPECT().Instances().Return([]services.PlacementInstance{pi}).AnyTimes()
 	gomock.InOrder(
-		mpsvc.EXPECT().AddInstance(gomock.Any()).Return(nil, nil, fmt.Errorf("faking error to ensure retries")),
-		mpsvc.EXPECT().AddInstance(gomock.Any()).Return(mockPlacement, mockNode, nil),
+		mpsvc.EXPECT().AddInstances(gomock.Any()).Return(nil, nil, fmt.Errorf("faking error to ensure retries")),
+		mpsvc.EXPECT().AddInstances(gomock.Any()).Return(mockPlacement, []services.PlacementInstance{mockNode}, nil),
 	)
 
 	// ensure mockNode is in the spares
@@ -347,8 +347,8 @@ func TestClusterSetupToRemoveNode(t *testing.T) {
 	mockPlacement = services.NewMockPlacement(ctrl)
 	mockPlacement.EXPECT().Instances().Return([]services.PlacementInstance{}).AnyTimes()
 	gomock.InOrder(
-		mpsvc.EXPECT().RemoveInstance(setupNodes[0].ID()).Return(nil, fmt.Errorf("faking error to ensure retries")),
-		mpsvc.EXPECT().RemoveInstance(setupNodes[0].ID()).Return(mockPlacement, nil),
+		mpsvc.EXPECT().RemoveInstances([]string{setupNodes[0].ID()}).Return(nil, fmt.Errorf("faking error to ensure retries")),
+		mpsvc.EXPECT().RemoveInstances([]string{setupNodes[0].ID()}).Return(mockPlacement, nil),
 	)
 
 	err = cluster.RemoveNode(setupNodes[0])
@@ -419,10 +419,10 @@ func TestClusterSetupToReplaceNode(t *testing.T) {
 
 	gomock.InOrder(
 		mpsvc.EXPECT().
-			ReplaceInstance(setupNodes[0].ID(), gomock.Any()).
+			ReplaceInstances([]string{setupNodes[0].ID()}, gomock.Any()).
 			Return(nil, nil, fmt.Errorf("faking error to ensure retries")),
 		mpsvc.EXPECT().
-			ReplaceInstance(setupNodes[0].ID(), gomock.Any()).
+			ReplaceInstances([]string{setupNodes[0].ID()}, gomock.Any()).
 			Return(mockPlacement, replacementInstances, nil),
 	)
 

@@ -1,5 +1,5 @@
-hash: 05546e8059998bea3eede1b13787456d17b1b92759d77c8fa31e71a0400fe981
-updated: 2017-07-19T12:37:02.001133759-04:00
+hash: 0bfbd5edb07f864147e091ca66eb44d10e81f76d01c5d7a00d2b1fddd8ee8376
+updated: 2017-08-30T01:34:50.734830181+08:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -25,14 +25,14 @@ imports:
   - proto
   - protoc-gen-go
 - name: github.com/m3db/m3cluster
-  version: 73f7742b6c639865a27da64cf719f15e5ceed0cd
+  version: 7d12f7376dadd90a29c00f5d96fc50db6679eabe
   subpackages:
-  - client
   - generated/proto/metadata
   - generated/proto/placement
   - kv
   - kv/util/runtime
   - services
+  - services/leader/campaign
   - services/placement
   - shard
 - name: github.com/m3db/m3x
