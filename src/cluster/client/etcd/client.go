@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	etcdkv "github.com/m3db/m3cluster/kv/etcd"
 	"github.com/m3db/m3cluster/services"
-	sdclient "github.com/m3db/m3cluster/services/client"
+	etcdsd "github.com/m3db/m3cluster/services/client/etcd"
 	etcdheartbeat "github.com/m3db/m3cluster/services/heartbeat/etcd"
 	"github.com/m3db/m3cluster/services/leader"
 	"github.com/m3db/m3x/instrument"
@@ -84,7 +84,7 @@ type csclient struct {
 	clis map[string]*clientv3.Client
 
 	opts    Options
-	sdOpts  sdclient.Options
+	sdOpts  etcdsd.Options
 	kvScope tally.Scope
 	sdScope tally.Scope
 	hbScope tally.Scope
@@ -131,7 +131,7 @@ func (c *csclient) TxnStore(namespace string) (kv.TxnStore, error) {
 func (c *csclient) createServices(opts services.Options) (services.Services, error) {
 	nOpts := opts.NamespaceOptions()
 	cacheFileExtraFields := []string{nOpts.PlacementNamespace(), nOpts.MetadataNamespace()}
-	return sdclient.NewServices(c.sdOpts.
+	return etcdsd.NewServices(c.sdOpts.
 		SetHeartbeatGen(c.heartbeatGen()).
 		SetKVGen(c.kvGen(c.cacheFileFn(cacheFileExtraFields...))).
 		SetLeaderGen(c.leaderGen()).
@@ -147,8 +147,8 @@ func (c *csclient) createTxnStore(namespace string) (kv.TxnStore, error) {
 	return c.txnGen(c.opts.Zone(), c.cacheFileFn(), namespace, c.opts.Env())
 }
 
-func (c *csclient) kvGen(fn cacheFileForZoneFn) sdclient.KVGen {
-	return sdclient.KVGen(func(zone string) (kv.Store, error) {
+func (c *csclient) kvGen(fn cacheFileForZoneFn) etcdsd.KVGen {
+	return etcdsd.KVGen(func(zone string) (kv.Store, error) {
 		return c.txnGen(zone, fn)
 	})
 }
@@ -182,8 +182,8 @@ func (c *csclient) txnGen(zone string, cacheFileFn cacheFileForZoneFn, namespace
 	)
 }
 
-func (c *csclient) heartbeatGen() sdclient.HeartbeatGen {
-	return sdclient.HeartbeatGen(
+func (c *csclient) heartbeatGen() etcdsd.HeartbeatGen {
+	return etcdsd.HeartbeatGen(
 		func(sid services.ServiceID) (services.HeartbeatService, error) {
 			cli, err := c.etcdClientGen(sid.Zone())
 			if err != nil {
@@ -200,8 +200,8 @@ func (c *csclient) heartbeatGen() sdclient.HeartbeatGen {
 	)
 }
 
-func (c *csclient) leaderGen() sdclient.LeaderGen {
-	return sdclient.LeaderGen(
+func (c *csclient) leaderGen() etcdsd.LeaderGen {
+	return etcdsd.LeaderGen(
 		func(sid services.ServiceID, eo services.ElectionOptions) (services.LeaderService, error) {
 			cli, err := c.etcdClientGen(sid.Zone())
 			if err != nil {

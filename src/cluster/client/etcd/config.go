@@ -22,7 +22,7 @@ package etcd
 
 import (
 	"github.com/m3db/m3cluster/client"
-	sdclient "github.com/m3db/m3cluster/services/client"
+	etcdsd "github.com/m3db/m3cluster/services/client/etcd"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -34,12 +34,12 @@ type ClusterConfig struct {
 
 // Configuration is for config service client
 type Configuration struct {
-	Zone         string                 `yaml:"zone"`
-	Env          string                 `yaml:"env"`
-	Service      string                 `yaml:"service" validate:"nonzero"`
-	CacheDir     string                 `yaml:"cacheDir"`
-	ETCDClusters []ClusterConfig        `yaml:"etcdClusters"`
-	SDConfig     sdclient.Configuration `yaml:"m3sd"`
+	Zone         string               `yaml:"zone"`
+	Env          string               `yaml:"env"`
+	Service      string               `yaml:"service" validate:"nonzero"`
+	CacheDir     string               `yaml:"cacheDir"`
+	ETCDClusters []ClusterConfig      `yaml:"etcdClusters"`
+	SDConfig     etcdsd.Configuration `yaml:"m3sd"`
 }
 
 // NewClient creates a new config service client

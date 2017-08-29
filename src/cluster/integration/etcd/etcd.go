@@ -31,7 +31,7 @@ import (
 
 	"github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
-	sdclient "github.com/m3db/m3cluster/services/client"
+	etcdsd "github.com/m3db/m3cluster/services/client/etcd"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/errors"
 
@@ -133,7 +133,7 @@ func (e *embeddedKV) ConfigServiceClient() (client.Client, error) {
 
 	eopts := etcdclient.NewOptions().
 		SetInstrumentOptions(e.opts.InstrumentOptions()).
-		SetServiceDiscoveryConfig(sdclient.Configuration{
+		SetServiceDiscoveryConfig(etcdsd.Configuration{
 			InitTimeout: e.opts.InitTimeout(),
 		}).
 		SetClusters([]etcdclient.Cluster{

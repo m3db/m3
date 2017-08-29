@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package etcd
 
 import (
 	"fmt"
@@ -68,6 +68,14 @@ func serviceKey(s services.ServiceID) string {
 		return s.Name()
 	}
 	return fmt.Sprintf(keyFormat, s.Environment(), s.Name())
+}
+
+func validateServiceID(sid services.ServiceID) error {
+	if sid.Name() == "" {
+		return errNoServiceName
+	}
+
+	return nil
 }
 
 func placementProtoFromValue(v kv.Value) (*schema.Placement, error) {

@@ -28,7 +28,7 @@ import (
 const (
 	defaultMaxStepSize = 3
 	defaultIsSharded   = true
-	// by default partial replace should be allowed for better distribution
+	// By default partial replace should be allowed for better distribution.
 	defaultAllowPartialReplace = true
 )
 
@@ -61,7 +61,7 @@ type options struct {
 	dryrun              bool
 }
 
-// NewOptions returns a default PlacementOptions
+// NewOptions returns a default services.PlacementOptions.
 func NewOptions() services.PlacementOptions {
 	return options{
 		allowPartialReplace: defaultAllowPartialReplace,
