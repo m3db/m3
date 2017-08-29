@@ -206,7 +206,13 @@ type DynamicOptions interface {
 	// ServiceID returns the ServiceID for service discovery
 	ServiceID() services.ServiceID
 
-	// SetQueryOptions returns the ConfigService query options
+	// SetServiceOptions sets the options for service discovery.
+	SetServiceOptions(opts services.Options) DynamicOptions
+
+	// ServicesOptions returns the options for service discovery.
+	ServicesOptions() services.Options
+
+	// SetQueryOptions sets the ConfigService query options
 	SetQueryOptions(value services.QueryOptions) DynamicOptions
 
 	// QueryOptions returns the ConfigService query options

@@ -116,6 +116,7 @@ func (o *staticOptions) HostShardSets() []HostShardSet {
 type dynamicOptions struct {
 	configServiceClient client.Client
 	serviceID           services.ServiceID
+	serviceOptions      services.Options
 	queryOptions        services.QueryOptions
 	instrumentOptions   instrument.Options
 	initTimeout         time.Duration
@@ -126,6 +127,7 @@ type dynamicOptions struct {
 func NewDynamicOptions() DynamicOptions {
 	return &dynamicOptions{
 		serviceID:         services.NewServiceID().SetName(defaultServiceName),
+		serviceOptions:    services.NewOptions(),
 		queryOptions:      services.NewQueryOptions(),
 		instrumentOptions: instrument.NewOptions(),
 		initTimeout:       defaultInitTimeout,
@@ -137,10 +139,7 @@ func (o *dynamicOptions) Validate() error {
 	if o.ConfigServiceClient() == nil {
 		return errNoConfigServiceClient
 	}
-	_, err := o.ConfigServiceClient().Services()
-	if err != nil {
-		return fmt.Errorf("no service discover client, %v", err)
-	}
+
 	if o.HashGen() == nil {
 		return errNoHashGen
 	}
@@ -163,6 +162,15 @@ func (o *dynamicOptions) SetServiceID(s services.ServiceID) DynamicOptions {
 
 func (o *dynamicOptions) ServiceID() services.ServiceID {
 	return o.serviceID
+}
+
+func (o *dynamicOptions) SetServiceOptions(opts services.Options) DynamicOptions {
+	o.serviceOptions = opts
+	return o
+}
+
+func (o *dynamicOptions) ServicesOptions() services.Options {
+	return o.serviceOptions
 }
 
 func (o *dynamicOptions) SetQueryOptions(qo services.QueryOptions) DynamicOptions {

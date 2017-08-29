@@ -315,7 +315,7 @@ func newShardDir(prefix string, ns ts.ID, shard uint32) string {
 }
 
 func generatePaths(
-	placement services.ServicePlacement,
+	placement services.Placement,
 	n node.ServiceNode,
 	ns ts.ID,
 	file string,
@@ -462,7 +462,7 @@ func placementService(
 		return nil, fmt.Errorf("unable to create kv client: %v", err)
 	}
 
-	topoServices, err := kvClient.Services()
+	topoServices, err := kvClient.Services(nil)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create topology services: %v", err)
 	}

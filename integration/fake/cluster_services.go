@@ -90,7 +90,7 @@ type m3ClusterClient struct {
 	txnStore M3ClusterTxnStore
 }
 
-func (c *m3ClusterClient) Services() (services.Services, error) {
+func (c *m3ClusterClient) Services(opts services.Options) (services.Services, error) {
 	return c.services, nil
 }
 
@@ -99,6 +99,14 @@ func (c *m3ClusterClient) KV() (kv.Store, error) {
 }
 
 func (c *m3ClusterClient) Txn() (kv.TxnStore, error) {
+	return c.txnStore, nil
+}
+
+func (c *m3ClusterClient) Store(namespace string) (kv.Store, error) {
+	return c.kvStore, nil
+}
+
+func (c *m3ClusterClient) TxnStore(namespace string) (kv.TxnStore, error) {
 	return c.txnStore, nil
 }
 
@@ -161,12 +169,6 @@ func (s *m3ClusterServices) Unadvertise(
 	return fmt.Errorf("not implemented")
 }
 
-func (s *m3ClusterServices) HeartbeatService(
-	service services.ServiceID,
-) (services.HeartbeatService, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
 func (s *m3ClusterServices) Query(
 	service services.ServiceID,
 	opts services.QueryOptions,
@@ -214,6 +216,25 @@ func (s *m3ClusterServices) PlacementService(
 	return s.placementService, nil
 }
 
+func (s *m3ClusterServices) PlacementStorage(
+	popts services.PlacementOptions,
+) (services.PlacementStorage, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (s *m3ClusterServices) HeartbeatService(
+	service services.ServiceID,
+) (services.HeartbeatService, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
+func (s *m3ClusterServices) LeaderService(
+	service services.ServiceID,
+	opts services.ElectionOptions,
+) (services.LeaderService, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 // NewM3ClusterPlacementService creates a fake m3cluster placement service
 func NewM3ClusterPlacementService() M3ClusterPlacementService {
 	return &m3ClusterPlacementService{
@@ -230,27 +251,27 @@ func (s *m3ClusterPlacementService) InstanceShardsMarkedAvailable() map[string][
 }
 func (s *m3ClusterPlacementService) BuildInitialPlacement(
 	instances []services.PlacementInstance, numShards int, rf int,
-) (services.ServicePlacement, error) {
+) (services.Placement, error) {
 	return nil, fmt.Errorf("not implemented")
 }
 func (s *m3ClusterPlacementService) AddReplica() (
-	services.ServicePlacement, error,
+	services.Placement, error,
 ) {
 	return nil, fmt.Errorf("not implemented")
 }
-func (s *m3ClusterPlacementService) AddInstance(
+func (s *m3ClusterPlacementService) AddInstances(
 	candidates []services.PlacementInstance,
-) (services.ServicePlacement, services.PlacementInstance, error) {
+) (services.Placement, []services.PlacementInstance, error) {
 	return nil, nil, fmt.Errorf("not implemented")
 }
-func (s *m3ClusterPlacementService) RemoveInstance(
-	leavingInstanceID string,
-) (services.ServicePlacement, error) {
+func (s *m3ClusterPlacementService) RemoveInstances(
+	leavingInstanceIDs []string,
+) (services.Placement, error) {
 	return nil, fmt.Errorf("not implemented")
 }
-func (s *m3ClusterPlacementService) ReplaceInstance(
-	leavingInstanceID string, candidates []services.PlacementInstance,
-) (services.ServicePlacement, []services.PlacementInstance, error) {
+func (s *m3ClusterPlacementService) ReplaceInstances(
+	leavingInstanceIDs []string, candidates []services.PlacementInstance,
+) (services.Placement, []services.PlacementInstance, error) {
 	return nil, nil, fmt.Errorf("not implemented")
 }
 func (s *m3ClusterPlacementService) MarkShardAvailable(
@@ -265,12 +286,12 @@ func (s *m3ClusterPlacementService) MarkInstanceAvailable(
 	return fmt.Errorf("not implemented")
 }
 func (s *m3ClusterPlacementService) Placement() (
-	services.ServicePlacement, int, error,
+	services.Placement, int, error,
 ) {
 	return nil, 0, fmt.Errorf("not implemented")
 }
 func (s *m3ClusterPlacementService) SetPlacement(
-	p services.ServicePlacement,
+	p services.Placement,
 ) error {
 	return fmt.Errorf("not implemented")
 }
