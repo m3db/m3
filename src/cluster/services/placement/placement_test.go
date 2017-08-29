@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3cluster/proto/util"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3x/instrument"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -386,36 +385,6 @@ func TestVersion(t *testing.T) {
 
 	p1 = p1.SetVersion(100)
 	assert.Equal(t, 100, p1.GetVersion())
-}
-
-func TestOptions(t *testing.T) {
-	o := NewOptions()
-	assert.False(t, o.LooseRackCheck())
-	assert.True(t, o.AllowPartialReplace())
-	assert.True(t, o.IsSharded())
-	assert.False(t, o.Dryrun())
-	assert.Equal(t, instrument.NewOptions(), o.InstrumentOptions())
-
-	o = o.SetLooseRackCheck(true)
-	assert.True(t, o.LooseRackCheck())
-
-	o = o.SetAllowPartialReplace(false)
-	assert.False(t, o.AllowPartialReplace())
-
-	o = o.SetIsSharded(false)
-	assert.False(t, o.IsSharded())
-
-	o = o.SetDryrun(true)
-	assert.True(t, o.Dryrun())
-
-	iopts := instrument.NewOptions().SetMetricsSamplingRate(0.5)
-	o = o.SetInstrumentOptions(iopts)
-	assert.Equal(t, iopts, o.InstrumentOptions())
-
-	dopts := NewDeploymentOptions()
-	assert.Equal(t, defaultMaxStepSize, dopts.MaxStepSize())
-	dopts = dopts.SetMaxStepSize(5)
-	assert.Equal(t, 5, dopts.MaxStepSize())
 }
 
 func TestMarkShardSuccess(t *testing.T) {

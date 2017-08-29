@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package etcd
 
 import (
 	"errors"
@@ -568,13 +568,6 @@ func (c *client) waitForInitValue(kvStore kv.Store, w kv.ValueWatch, sid service
 	}
 }
 
-func validateServiceID(sid services.ServiceID) error {
-	if sid.Name() == "" {
-		return errNoServiceName
-	}
-
-	return nil
-}
 
 func validateAdvertisement(sid services.ServiceID, id string) error {
 	if sid == nil {

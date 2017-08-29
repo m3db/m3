@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,21 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package etcd
 
-import (
-	"testing"
+import "time"
 
-	"github.com/m3db/m3cluster/services"
+// Configuration is the config for service discovery
+type Configuration struct {
+	InitTimeout time.Duration `yaml:"initTimeout"`
+}
 
-	"github.com/stretchr/testify/assert"
-)
-
-func TestKeys(t *testing.T) {
-	sid := services.NewServiceID().SetName("m3db").SetEnvironment("production")
-	assert.Equal(t, "production/m3db", serviceKey(sid))
-	assert.Equal(t, "_sd.placement/production/m3db", keyFnWithNamespace(placementPrefix)(sid))
-	assert.Equal(t, "_sd.metadata/production/m3db", keyFnWithNamespace(metadataPrefix)(sid))
-	assert.Equal(t, "testns/production/m3db", keyFnWithNamespace("testns")(sid))
-	assert.Equal(t, "production/m3db/instance1", adKey(sid, "instance1"))
+// NewOptions creates an Option
+func (cfg Configuration) NewOptions() Options {
+	opts := NewOptions()
+	if cfg.InitTimeout != 0 {
+		opts = opts.SetInitTimeout(cfg.InitTimeout)
+	}
+	return opts
 }

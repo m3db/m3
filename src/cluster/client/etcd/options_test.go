@@ -24,8 +24,9 @@ import (
 	"testing"
 	"time"
 
-	sdclient "github.com/m3db/m3cluster/services/client"
+	etcdsd "github.com/m3db/m3cluster/services/client/etcd"
 	"github.com/m3db/m3x/instrument"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -47,7 +48,7 @@ func TestOptions(t *testing.T) {
 	opts := NewOptions()
 	assert.Equal(t, "", opts.Zone())
 	assert.Equal(t, "", opts.Env())
-	assert.Equal(t, sdclient.Configuration{}, opts.ServiceDiscoveryConfig())
+	assert.Equal(t, etcdsd.Configuration{}, opts.ServiceDiscoveryConfig())
 	assert.Equal(t, "", opts.CacheDir())
 	assert.Equal(t, "", opts.Service())
 	assert.Equal(t, []Cluster{}, opts.Clusters())
@@ -61,14 +62,14 @@ func TestOptions(t *testing.T) {
 
 	opts = opts.SetEnv("env").
 		SetZone("zone").
-		SetServiceDiscoveryConfig(sdclient.Configuration{}).
+		SetServiceDiscoveryConfig(etcdsd.Configuration{}).
 		SetCacheDir("/dir").
 		SetService("app").
 		SetClusters([]Cluster{c1, c2}).
 		SetInstrumentOptions(iopts)
 	assert.Equal(t, "env", opts.Env())
 	assert.Equal(t, "zone", opts.Zone())
-	assert.Equal(t, sdclient.Configuration{}, opts.ServiceDiscoveryConfig())
+	assert.Equal(t, etcdsd.Configuration{}, opts.ServiceDiscoveryConfig())
 	assert.Equal(t, "/dir", opts.CacheDir())
 	assert.Equal(t, "app", opts.Service())
 	assert.Equal(t, 2, len(opts.Clusters()))

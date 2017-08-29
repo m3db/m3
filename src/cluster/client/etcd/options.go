@@ -23,7 +23,7 @@ package etcd
 import (
 	"errors"
 
-	sdclient "github.com/m3db/m3cluster/services/client"
+	etcdsd "github.com/m3db/m3cluster/services/client/etcd"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -41,8 +41,8 @@ type Options interface {
 	CacheDir() string
 	SetCacheDir(dir string) Options
 
-	ServiceDiscoveryConfig() sdclient.Configuration
-	SetServiceDiscoveryConfig(cfg sdclient.Configuration) Options
+	ServiceDiscoveryConfig() etcdsd.Configuration
+	SetServiceDiscoveryConfig(cfg etcdsd.Configuration) Options
 
 	Clusters() []Cluster
 	SetClusters(clusters []Cluster) Options
@@ -73,7 +73,7 @@ type options struct {
 	zone     string
 	service  string
 	cacheDir string
-	sdConfig sdclient.Configuration
+	sdConfig etcdsd.Configuration
 	clusters map[string]Cluster
 	iopts    instrument.Options
 }
@@ -112,11 +112,11 @@ func (o options) SetZone(z string) Options {
 	return o
 }
 
-func (o options) ServiceDiscoveryConfig() sdclient.Configuration {
+func (o options) ServiceDiscoveryConfig() etcdsd.Configuration {
 	return o.sdConfig
 }
 
-func (o options) SetServiceDiscoveryConfig(cfg sdclient.Configuration) Options {
+func (o options) SetServiceDiscoveryConfig(cfg etcdsd.Configuration) Options {
 	o.sdConfig = cfg
 	return o
 }
