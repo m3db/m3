@@ -243,19 +243,23 @@ func (c *svcCluster) addNodeFromListWithLock(candidates []services.PlacementInst
 	}
 
 	var (
-		psvc         = c.placementSvc
-		newPlacement services.Placement
-		usedInstance services.PlacementInstance
+		psvc          = c.placementSvc
+		newPlacement  services.Placement
+		usedInstances []services.PlacementInstance
 	)
 	if err := c.opts.PlacementServiceRetrier().Attempt(func() error {
 		var internalErr error
-		newPlacement, usedInstance, internalErr = psvc.AddInstance(candidates)
+		newPlacement, usedInstances, internalErr = psvc.AddInstances(candidates)
 		return internalErr
 	}); err != nil {
 		return nil, err
 	}
 
-	setupNode, err := c.markSpareUsedWithLock(usedInstance)
+	if len(usedInstances) != 1 {
+		return nil, fmt.Errorf("%d instances added to the placement, expecting 1", len(usedInstances))
+	}
+
+	setupNode, err := c.markSpareUsedWithLock(usedInstances[0])
 	if err != nil {
 		return nil, err
 	}
@@ -316,7 +320,7 @@ func (c *svcCluster) RemoveNode(i node.ServiceNode) error {
 	)
 	if err := c.opts.PlacementServiceRetrier().Attempt(func() error {
 		var internalErr error
-		newPlacement, internalErr = psvc.RemoveInstance(i.ID())
+		newPlacement, internalErr = psvc.RemoveInstances([]string{i.ID()})
 		return internalErr
 	}); err != nil {
 		return err
@@ -351,7 +355,7 @@ func (c *svcCluster) ReplaceNode(oldNode node.ServiceNode) ([]node.ServiceNode, 
 	)
 	if err := c.opts.PlacementServiceRetrier().Attempt(func() error {
 		var internalErr error
-		newPlacement, newInstances, internalErr = psvc.ReplaceInstance(oldNode.ID(), spareCandidates)
+		newPlacement, newInstances, internalErr = psvc.ReplaceInstances([]string{oldNode.ID()}, spareCandidates)
 		return internalErr
 	}); err != nil {
 		return nil, err
