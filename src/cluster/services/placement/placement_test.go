@@ -379,6 +379,45 @@ func TestSortInstanceByID(t *testing.T) {
 	assert.Equal(t, []services.PlacementInstance{i1, i2, i3, i4, i5, i6}, i)
 }
 
+func TestClonePlacement(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+	i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+
+	instances := []services.PlacementInstance{i1, i2}
+
+	ids := []uint32{1, 2, 3, 4, 5, 6}
+	p := NewPlacement().
+		SetInstances(instances).
+		SetShards(ids).
+		SetReplicaFactor(1).
+		SetIsMirrored(false).
+		SetIsSharded(true).
+		SetCutoverNanos(1234)
+	copy := ClonePlacement(p)
+	assert.Equal(t, p.NumInstances(), copy.NumInstances())
+	assert.Equal(t, p.Shards(), copy.Shards())
+	assert.Equal(t, p.ReplicaFactor(), copy.ReplicaFactor())
+	for _, instance := range p.Instances() {
+		copiedInstance, exist := copy.Instance(instance.ID())
+		assert.True(t, exist)
+		for _, s := range copiedInstance.Shards().All() {
+			otherS, _ := instance.Shards().Shard(s.ID())
+			assert.Equal(t, s, otherS)
+		}
+		assert.Equal(t, copiedInstance, instance)
+		// make sure they are different objects, updating one won't update the other
+		instance.Shards().Add(shard.NewShard(100).SetState(shard.Available))
+		assert.NotEqual(t, copiedInstance, instance)
+	}
+}
+
 func TestVersion(t *testing.T) {
 	p1 := NewPlacement()
 	assert.Equal(t, 0, p1.GetVersion())

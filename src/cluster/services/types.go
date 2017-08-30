@@ -274,6 +274,9 @@ type PlacementService interface {
 	Delete() error
 }
 
+// TimeNanosFn returns the time in the format of Unix nanoseconds.
+type TimeNanosFn func() int64
+
 // PlacementOptions is the interface for placement options.
 type PlacementOptions interface {
 	// LooseRackCheck enables the placement to loose the rack check
@@ -332,6 +335,24 @@ type PlacementOptions interface {
 	// it is necessary to specify the valid zone when adding the first
 	// instance.
 	SetValidZone(z string) PlacementOptions
+
+	// PlacementCutoverNanosFn returns the TimeNanosFn for placement cutover time.
+	PlacementCutoverNanosFn() TimeNanosFn
+
+	// SetPlacementCutoverNanosFn sets the TimeNanosFn for placement cutover time.
+	SetPlacementCutoverNanosFn(fn TimeNanosFn) PlacementOptions
+
+	// ShardCutoverNanosFn returns the TimeNanosFn for shard cutover time.
+	ShardCutoverNanosFn() TimeNanosFn
+
+	// SetShardCutoverNanosFn sets the TimeNanosFn for shard cutover time.
+	SetShardCutoverNanosFn(fn TimeNanosFn) PlacementOptions
+
+	// ShardCutoffNanosFn returns the TimeNanosFn for shard cutoff time.
+	ShardCutoffNanosFn() TimeNanosFn
+
+	// SetShardCutoffNanosFn sets the TimeNanosFn for shard cutoff time.
+	SetShardCutoffNanosFn(fn TimeNanosFn) PlacementOptions
 }
 
 // DoneFn is called when caller is done using the resource.

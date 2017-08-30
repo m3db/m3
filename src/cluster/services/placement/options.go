@@ -22,6 +22,7 @@ package placement
 
 import (
 	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -50,6 +51,8 @@ func (o deploymentOptions) SetMaxStepSize(stepSize int) DeploymentOptions {
 	return o
 }
 
+func defaultTimeNanosFn() int64 { return shard.UnInitializedValue }
+
 type options struct {
 	looseRackCheck      bool
 	allowPartialReplace bool
@@ -59,6 +62,9 @@ type options struct {
 	iopts               instrument.Options
 	validZone           string
 	dryrun              bool
+	placementCutOverFn  services.TimeNanosFn
+	shardCutOverFn      services.TimeNanosFn
+	shardCutOffFn       services.TimeNanosFn
 }
 
 // NewOptions returns a default services.PlacementOptions.
@@ -67,6 +73,9 @@ func NewOptions() services.PlacementOptions {
 		allowPartialReplace: defaultAllowPartialReplace,
 		isSharded:           defaultIsSharded,
 		iopts:               instrument.NewOptions(),
+		placementCutOverFn:  defaultTimeNanosFn,
+		shardCutOverFn:      defaultTimeNanosFn,
+		shardCutOffFn:       defaultTimeNanosFn,
 	}
 }
 
@@ -139,5 +148,32 @@ func (o options) ValidZone() string {
 
 func (o options) SetValidZone(z string) services.PlacementOptions {
 	o.validZone = z
+	return o
+}
+
+func (o options) PlacementCutoverNanosFn() services.TimeNanosFn {
+	return o.placementCutOverFn
+}
+
+func (o options) SetPlacementCutoverNanosFn(fn services.TimeNanosFn) services.PlacementOptions {
+	o.placementCutOverFn = fn
+	return o
+}
+
+func (o options) ShardCutoverNanosFn() services.TimeNanosFn {
+	return o.shardCutOverFn
+}
+
+func (o options) SetShardCutoverNanosFn(fn services.TimeNanosFn) services.PlacementOptions {
+	o.shardCutOverFn = fn
+	return o
+}
+
+func (o options) ShardCutoffNanosFn() services.TimeNanosFn {
+	return o.shardCutOffFn
+}
+
+func (o options) SetShardCutoffNanosFn(fn services.TimeNanosFn) services.PlacementOptions {
+	o.shardCutOffFn = fn
 	return o
 }

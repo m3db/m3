@@ -23,13 +23,9 @@
 package util
 
 import (
-	"fmt"
-	"sort"
-
 	metadataproto "github.com/m3db/m3cluster/generated/proto/metadata"
 	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/shard"
 )
 
 // StagedPlacementToProto converts a staged placement to a proto.
@@ -73,75 +69,13 @@ func PlacementToProto(p services.Placement) (*placementproto.Placement, error) {
 	}, nil
 }
 
-func shardsToProto(shards shard.Shards) ([]*placementproto.Shard, error) {
-	r := make([]*placementproto.Shard, shards.NumShards())
-	for i, s := range shards.All() {
-		ss, err := shardStateToProto(s.State())
-		if err != nil {
-			return nil, err
-		}
-
-		// NB(xichen): if the cutover time or the cutoff times are the default values,
-		// we set them to 0 instead so they are not persisted as part of the proto message.
-		// This way we don't need to persist the cutoff times for every shard that has no
-		// designated cutoff times for space savings, which will be the common case.
-		cutoverNanos := s.CutoverNanos()
-		if cutoverNanos == shard.DefaultShardCutoverNanos {
-			cutoverNanos = 0
-		}
-		cutoffNanos := s.CutoffNanos()
-		if cutoffNanos == shard.DefaultShardCutoffNanos {
-			cutoffNanos = 0
-		}
-
-		r[i] = &placementproto.Shard{
-			Id:           s.ID(),
-			State:        ss,
-			SourceId:     s.SourceID(),
-			CutoverNanos: cutoverNanos,
-			CutoffNanos:  cutoffNanos,
-		}
-	}
-	return r, nil
-}
-
-func shardStateToProto(s shard.State) (placementproto.ShardState, error) {
-	switch s {
-	case shard.Initializing:
-		return placementproto.ShardState_INITIALIZING, nil
-	case shard.Available:
-		return placementproto.ShardState_AVAILABLE, nil
-	case shard.Leaving:
-		return placementproto.ShardState_LEAVING, nil
-	default:
-		var defaultShard placementproto.ShardState
-		return defaultShard, fmt.Errorf("could not parse shard state %v to placement proto", s)
-	}
-}
-
-type shardByIDAscending []*placementproto.Shard
-
-func (su shardByIDAscending) Len() int {
-	return len(su)
-}
-
-func (su shardByIDAscending) Less(i, j int) bool {
-	return su[i].Id < su[j].Id
-}
-
-func (su shardByIDAscending) Swap(i, j int) {
-	su[i], su[j] = su[j], su[i]
-}
-
 // PlacementInstanceToProto converts a PlacementInstance type to an Instance
 // proto message.
 func PlacementInstanceToProto(p services.PlacementInstance) (*placementproto.Instance, error) {
-	ss, err := shardsToProto(p.Shards())
+	ss, err := p.Shards().Proto()
 	if err != nil {
 		return &placementproto.Instance{}, err
 	}
-	shards := shardByIDAscending(ss)
-	sort.Sort(shards)
 
 	return &placementproto.Instance{
 		Id:         p.ID(),
@@ -149,7 +83,7 @@ func PlacementInstanceToProto(p services.PlacementInstance) (*placementproto.Ins
 		Zone:       p.Zone(),
 		Weight:     p.Weight(),
 		Endpoint:   p.Endpoint(),
-		Shards:     shards,
+		Shards:     ss,
 		ShardSetId: p.ShardSetID(),
 		Hostname:   p.Hostname(),
 		Port:       p.Port(),

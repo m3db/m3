@@ -23,101 +23,52 @@ package shard
 import (
 	"errors"
 	"fmt"
-	"math"
 	"sort"
 	"strings"
 
-	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
-)
-
-const (
-	// DefaultShardCutoverNanos is the default shard-level cutover nanos
-	// if the value is not set in the proto message.
-	DefaultShardCutoverNanos = 0
-
-	// DefaultShardCutoffNanos is the default shard-level cutoff nanos
-	// if the value is not set in the proto message.
-	DefaultShardCutoffNanos = math.MaxInt64
+	schema "github.com/m3db/m3cluster/generated/proto/placement"
 )
 
 var (
 	errInvalidProtoShardState = errors.New("invalid proto shard state")
 
-	defaultShardState State
-)
-
-// State represents the state of a shard
-type State int
-
-const (
-	// Unknown represents a shard in unknown state
-	Unknown State = iota
-	// Initializing represents a shard newly assigned to an instance
-	Initializing
-	// Available represents a shard bootstraped and ready to serve
-	Available
-	// Leaving represents a shard that is intending to be removed
-	Leaving
+	defaultShardState      State
+	defaultShardStateProto schema.ShardState
 )
 
 // NewShardStateFromProto creates new shard state from proto.
-func NewShardStateFromProto(state placementproto.ShardState) (State, error) {
+func NewShardStateFromProto(state schema.ShardState) (State, error) {
 	switch state {
-	case placementproto.ShardState_INITIALIZING:
+	case schema.ShardState_INITIALIZING:
 		return Initializing, nil
-	case placementproto.ShardState_AVAILABLE:
+	case schema.ShardState_AVAILABLE:
 		return Available, nil
-	case placementproto.ShardState_LEAVING:
+	case schema.ShardState_LEAVING:
 		return Leaving, nil
 	default:
 		return defaultShardState, errInvalidProtoShardState
 	}
 }
 
-// States returns all the possible states
-func States() []State {
-	return []State{
-		Initializing,
-		Available,
-		Leaving,
+// Proto returns the proto representation for the shard state.
+func (s State) Proto() (schema.ShardState, error) {
+	switch s {
+	case Initializing:
+		return schema.ShardState_INITIALIZING, nil
+	case Available:
+		return schema.ShardState_AVAILABLE, nil
+	case Leaving:
+		return schema.ShardState_LEAVING, nil
+	default:
+		return defaultShardStateProto, errInvalidProtoShardState
 	}
-}
-
-// A Shard represents a piece of data owned by the service
-type Shard interface {
-	// ID returns the ID of the shard
-	ID() uint32
-
-	// CutoverNanos returns when shard traffic is cut over.
-	CutoverNanos() int64
-
-	// SetCutoverNanos sets when shard traffic is cut over.
-	SetCutoverNanos(value int64) Shard
-
-	// CutoffNanos returns when shard traffic is cut off.
-	CutoffNanos() int64
-
-	// SetCutoffNanos sets when shard traffic is cut off.
-	SetCutoffNanos(value int64) Shard
-
-	// State returns the state of the shard
-	State() State
-
-	// SetState sets the state of the shard
-	SetState(s State) Shard
-
-	// Source returns the source of the shard
-	SourceID() string
-
-	// SetSource sets the source of the shard
-	SetSourceID(sourceID string) Shard
 }
 
 // NewShard returns a new Shard
 func NewShard(id uint32) Shard { return &shard{id: id, state: Unknown} }
 
 // NewShardFromProto create a new shard from proto.
-func NewShardFromProto(shard *placementproto.Shard) (Shard, error) {
+func NewShardFromProto(shard *schema.Shard) (Shard, error) {
 	state, err := NewShardStateFromProto(shard.State)
 	if err != nil {
 		return nil, err
@@ -145,7 +96,7 @@ func (s *shard) SourceID() string                  { return s.sourceID }
 func (s *shard) SetSourceID(sourceID string) Shard { s.sourceID = sourceID; return s }
 
 func (s *shard) CutoverNanos() int64 {
-	if s.cutoverNanos != 0 {
+	if s.cutoverNanos != UnInitializedValue {
 		return s.cutoverNanos
 	}
 
@@ -153,10 +104,20 @@ func (s *shard) CutoverNanos() int64 {
 	return DefaultShardCutoverNanos
 }
 
-func (s *shard) SetCutoverNanos(value int64) Shard { s.cutoverNanos = value; return s }
+func (s *shard) SetCutoverNanos(value int64) Shard {
+	// NB(cw): We use UnInitializedValue to represent the DefaultShardCutoverNanos
+	// so that we can save some space in the proto representation for the
+	// default value of cutover time.
+	if value == DefaultShardCutoverNanos {
+		value = UnInitializedValue
+	}
+
+	s.cutoverNanos = value
+	return s
+}
 
 func (s *shard) CutoffNanos() int64 {
-	if s.cutoffNanos != 0 {
+	if s.cutoffNanos != UnInitializedValue {
 		return s.cutoffNanos
 	}
 
@@ -164,7 +125,32 @@ func (s *shard) CutoffNanos() int64 {
 	return DefaultShardCutoffNanos
 }
 
-func (s *shard) SetCutoffNanos(value int64) Shard { s.cutoffNanos = value; return s }
+func (s *shard) SetCutoffNanos(value int64) Shard {
+	// NB(cw): We use UnInitializedValue to represent the DefaultShardCutoffNanos
+	// so that we can save some space in the proto representation for the
+	// default value of cutoff time.
+	if value == DefaultShardCutoffNanos {
+		value = UnInitializedValue
+	}
+
+	s.cutoffNanos = value
+	return s
+}
+
+func (s *shard) Proto() (*schema.Shard, error) {
+	ss, err := s.State().Proto()
+	if err != nil {
+		return nil, err
+	}
+
+	return &schema.Shard{
+		Id:           s.ID(),
+		State:        ss,
+		SourceId:     s.SourceID(),
+		CutoverNanos: s.cutoverNanos,
+		CutoffNanos:  s.cutoffNanos,
+	}, nil
+}
 
 // SortableShardsByIDAsc are sortable shards by ID in ascending order
 type SortableShardsByIDAsc []Shard
@@ -184,39 +170,6 @@ func (s SortableIDsAsc) Less(i, j int) bool {
 	return s[i] < s[j]
 }
 
-// Shards is a collection of shards owned by one ServiceInstance
-type Shards interface {
-	// All returns the shards sorted ascending
-	All() []Shard
-
-	// AllIDs returns the shard IDs sorted ascending
-	AllIDs() []uint32
-
-	// NumShards returns the number of the shards
-	NumShards() int
-
-	// ShardsForState returns the shards in a certain state
-	ShardsForState(state State) []Shard
-
-	// NumShardsForState returns the number of shards in a certain state
-	NumShardsForState(state State) int
-
-	// Add adds a shard
-	Add(shard Shard)
-
-	// Remove removes a shard
-	Remove(shard uint32)
-
-	// Contains checks if a shard exists
-	Contains(shard uint32) bool
-
-	// Shard returns the shard for the id
-	Shard(id uint32) (Shard, bool)
-
-	// String returns the string representation of the shards
-	String() string
-}
-
 // NewShards creates a new instance of Shards
 func NewShards(ss []Shard) Shards {
 	shardMap := make(map[uint32]Shard, len(ss))
@@ -227,7 +180,7 @@ func NewShards(ss []Shard) Shards {
 }
 
 // NewShardsFromProto creates a new set of shards from proto.
-func NewShardsFromProto(shards []*placementproto.Shard) (Shards, error) {
+func NewShardsFromProto(shards []*schema.Shard) (Shards, error) {
 	allShards := make([]Shard, 0, len(shards))
 	for _, s := range shards {
 		shard, err := NewShardFromProto(s)
@@ -305,7 +258,7 @@ func (s shards) ShardsForState(state State) []Shard {
 
 func (s shards) String() string {
 	var strs []string
-	for _, state := range States() {
+	for _, state := range validStates() {
 		ids := NewShards(s.ShardsForState(state)).AllIDs()
 		str := fmt.Sprintf("%s=%v", state.String(), ids)
 		strs = append(strs, str)
@@ -313,9 +266,32 @@ func (s shards) String() string {
 	return fmt.Sprintf("[%s]", strings.Join(strs, ", "))
 }
 
-// ShardsByIDAscending sorts shards by their ids in ascending order.
-type ShardsByIDAscending []*placementproto.Shard
+func (s shards) Proto() ([]*schema.Shard, error) {
+	res := make([]*schema.Shard, 0, len(s.shardsMap))
+	// All() returns the shards in ID ascending order.
+	for _, shard := range s.All() {
+		sp, err := shard.Proto()
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, sp)
+	}
 
-func (su ShardsByIDAscending) Len() int           { return len(su) }
-func (su ShardsByIDAscending) Less(i, j int) bool { return su[i].Id < su[j].Id }
-func (su ShardsByIDAscending) Swap(i, j int)      { su[i], su[j] = su[j], su[i] }
+	return res, nil
+}
+
+// SortableShardProtosByIDAsc sorts shard protos by their ids in ascending order.
+type SortableShardProtosByIDAsc []*schema.Shard
+
+func (su SortableShardProtosByIDAsc) Len() int           { return len(su) }
+func (su SortableShardProtosByIDAsc) Less(i, j int) bool { return su[i].Id < su[j].Id }
+func (su SortableShardProtosByIDAsc) Swap(i, j int)      { su[i], su[j] = su[j], su[i] }
+
+// validStates returns all the valid states.
+func validStates() []State {
+	return []State{
+		Initializing,
+		Available,
+		Leaving,
+	}
+}

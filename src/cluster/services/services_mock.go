@@ -24,6 +24,8 @@
 package services
 
 import (
+	time "time"
+
 	gomock "github.com/golang/mock/gomock"
 	proto "github.com/golang/protobuf/proto"
 	kv "github.com/m3db/m3cluster/kv"
@@ -32,7 +34,6 @@ import (
 	clock "github.com/m3db/m3x/clock"
 	instrument "github.com/m3db/m3x/instrument"
 	watch "github.com/m3db/m3x/watch"
-	time "time"
 )
 
 // Mock of Options interface
@@ -1268,6 +1269,66 @@ func (_m *MockPlacementOptions) SetValidZone(z string) PlacementOptions {
 
 func (_mr *_MockPlacementOptionsRecorder) SetValidZone(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetValidZone", arg0)
+}
+
+func (_m *MockPlacementOptions) PlacementCutoverNanosFn() TimeNanosFn {
+	ret := _m.ctrl.Call(_m, "PlacementCutoverNanosFn")
+	ret0, _ := ret[0].(TimeNanosFn)
+	return ret0
+}
+
+func (_mr *_MockPlacementOptionsRecorder) PlacementCutoverNanosFn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PlacementCutoverNanosFn")
+}
+
+func (_m *MockPlacementOptions) SetPlacementCutoverNanosFn(fn TimeNanosFn) PlacementOptions {
+	ret := _m.ctrl.Call(_m, "SetPlacementCutoverNanosFn", fn)
+	ret0, _ := ret[0].(PlacementOptions)
+	return ret0
+}
+
+func (_mr *_MockPlacementOptionsRecorder) SetPlacementCutoverNanosFn(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPlacementCutoverNanosFn", arg0)
+}
+
+func (_m *MockPlacementOptions) ShardCutoverNanosFn() TimeNanosFn {
+	ret := _m.ctrl.Call(_m, "ShardCutoverNanosFn")
+	ret0, _ := ret[0].(TimeNanosFn)
+	return ret0
+}
+
+func (_mr *_MockPlacementOptionsRecorder) ShardCutoverNanosFn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ShardCutoverNanosFn")
+}
+
+func (_m *MockPlacementOptions) SetShardCutoverNanosFn(fn TimeNanosFn) PlacementOptions {
+	ret := _m.ctrl.Call(_m, "SetShardCutoverNanosFn", fn)
+	ret0, _ := ret[0].(PlacementOptions)
+	return ret0
+}
+
+func (_mr *_MockPlacementOptionsRecorder) SetShardCutoverNanosFn(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetShardCutoverNanosFn", arg0)
+}
+
+func (_m *MockPlacementOptions) ShardCutoffNanosFn() TimeNanosFn {
+	ret := _m.ctrl.Call(_m, "ShardCutoffNanosFn")
+	ret0, _ := ret[0].(TimeNanosFn)
+	return ret0
+}
+
+func (_mr *_MockPlacementOptionsRecorder) ShardCutoffNanosFn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ShardCutoffNanosFn")
+}
+
+func (_m *MockPlacementOptions) SetShardCutoffNanosFn(fn TimeNanosFn) PlacementOptions {
+	ret := _m.ctrl.Call(_m, "SetShardCutoffNanosFn", fn)
+	ret0, _ := ret[0].(PlacementOptions)
+	return ret0
+}
+
+func (_mr *_MockPlacementOptionsRecorder) SetShardCutoffNanosFn(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetShardCutoffNanosFn", arg0)
 }
 
 // Mock of StagedPlacementWatcher interface
