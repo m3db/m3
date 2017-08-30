@@ -78,65 +78,114 @@ func TestGoodCase(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	a := newShardedAlgorithm(placement.NewOptions())
+	opts := placement.NewOptions().
+		SetPlacementCutoverNanosFn(timeNanosGen(1)).
+		SetShardCutoverNanosFn(timeNanosGen(2)).
+		SetShardCutoffNanosFn(timeNanosGen(3))
+	a := newShardedAlgorithm(opts)
 	p, err := a.InitialPlacement(instances, ids, 1)
 	assert.NoError(t, err)
+	validateCutoverCutoffNanos(t, p, opts)
 	p = markAllShardsAsAvailable(t, p)
+	validateCutoverCutoffNanos(t, p, opts)
 	validateDistribution(t, p, 1.01, "TestGoodCase replica 1")
 
+	opts = placement.NewOptions().
+		SetPlacementCutoverNanosFn(timeNanosGen(11)).
+		SetShardCutoverNanosFn(timeNanosGen(12)).
+		SetShardCutoffNanosFn(timeNanosGen(13))
+	a = newShardedAlgorithm(opts)
 	p, err = a.AddInstances(p, []services.PlacementInstance{placement.NewEmptyInstance("i21", "r6", "z1", "endpoint", 1)})
 	assert.NoError(t, err)
+	validateCutoverCutoffNanos(t, p, opts)
 	p = markAllShardsAsAvailable(t, p)
+	validateCutoverCutoffNanos(t, p, opts)
 	validateDistribution(t, p, 1.01, "TestGoodCase add 1")
 
+	opts = placement.NewOptions().
+		SetPlacementCutoverNanosFn(timeNanosGen(21)).
+		SetShardCutoverNanosFn(timeNanosGen(22)).
+		SetShardCutoffNanosFn(timeNanosGen(23))
+	a = newShardedAlgorithm(opts)
 	p, err = a.RemoveInstances(p, []string{i1.ID()})
 	assert.NoError(t, err)
+	validateCutoverCutoffNanos(t, p, opts)
 	p = markAllShardsAsAvailable(t, p)
 	_, exist := p.Instance(i1.ID())
 	assert.False(t, exist)
+	validateCutoverCutoffNanos(t, p, opts)
 	validateDistribution(t, p, 1.01, "TestGoodCase remove 1")
 
+	opts = placement.NewOptions().
+		SetPlacementCutoverNanosFn(timeNanosGen(31)).
+		SetShardCutoverNanosFn(timeNanosGen(32)).
+		SetShardCutoffNanosFn(timeNanosGen(33))
+	a = newShardedAlgorithm(opts)
 	i12 := placement.NewEmptyInstance("i12", "r3", "z1", "endpoint", 1)
 	p, err = a.ReplaceInstances(p, []string{i5.ID()}, []services.PlacementInstance{i12})
 	assert.NoError(t, err)
+	validateCutoverCutoffNanos(t, p, opts)
 	_, exist = p.Instance(i5.ID())
 	assert.True(t, exist)
 	p = markAllShardsAsAvailable(t, p)
 	_, exist = p.Instance(i5.ID())
 	assert.False(t, exist)
+	validateCutoverCutoffNanos(t, p, opts)
 	validateDistribution(t, p, 1.01, "TestGoodCase add 2")
 
+	opts = placement.NewOptions().
+		SetPlacementCutoverNanosFn(timeNanosGen(41)).
+		SetShardCutoverNanosFn(timeNanosGen(42)).
+		SetShardCutoffNanosFn(timeNanosGen(43))
+	a = newShardedAlgorithm(opts)
 	p, err = a.RemoveInstances(p, []string{i2.ID()})
 	assert.NoError(t, err)
+	validateCutoverCutoffNanos(t, p, opts)
 	p = markAllShardsAsAvailable(t, p)
+	validateCutoverCutoffNanos(t, p, opts)
 	validateDistribution(t, p, 1.01, "TestGoodCase remove 1")
 
+	opts = placement.NewOptions().
+		SetPlacementCutoverNanosFn(timeNanosGen(51)).
+		SetShardCutoverNanosFn(timeNanosGen(52)).
+		SetShardCutoffNanosFn(timeNanosGen(53))
+	a = newShardedAlgorithm(opts)
 	p, err = a.AddReplica(p)
 	assert.NoError(t, err)
+	validateCutoverCutoffNanos(t, p, opts)
 	p = markAllShardsAsAvailable(t, p)
+	validateCutoverCutoffNanos(t, p, opts)
 	validateDistribution(t, p, 1.01, "TestGoodCase replica 2")
 
 	p, err = a.AddReplica(p)
 	assert.NoError(t, err)
+	validateCutoverCutoffNanos(t, p, opts)
 	p = markAllShardsAsAvailable(t, p)
+	validateCutoverCutoffNanos(t, p, opts)
 	validateDistribution(t, p, 1.01, "TestGoodCase replica 3")
 
 	i10 := placement.NewEmptyInstance("i10", "r4", "z1", "endpoint", 1)
 	i11 := placement.NewEmptyInstance("i11", "r7", "z1", "endpoint", 1)
 	p, err = a.AddInstances(p, []services.PlacementInstance{i10, i11})
 	assert.NoError(t, err)
+	validateCutoverCutoffNanos(t, p, opts)
 	p = markAllShardsAsAvailable(t, p)
+	validateCutoverCutoffNanos(t, p, opts)
 	validateDistribution(t, p, 1.01, "TestGoodCase add 2 instances")
 
 	i13 := placement.NewEmptyInstance("i13", "r5", "z1", "endpoint", 1)
 	p, err = a.ReplaceInstances(p, []string{i3.ID()}, []services.PlacementInstance{i13})
 	assert.NoError(t, err)
+	validateCutoverCutoffNanos(t, p, opts)
 	p = markAllShardsAsAvailable(t, p)
+	validateCutoverCutoffNanos(t, p, opts)
 	validateDistribution(t, p, 1.01, "TestGoodCase replace 1")
 
 	p, err = a.RemoveInstances(p, []string{i4.ID()})
 	assert.NoError(t, err)
+	validateCutoverCutoffNanos(t, p, opts)
 	p = markAllShardsAsAvailable(t, p)
+	validateCutoverCutoffNanos(t, p, opts)
 	validateDistribution(t, p, 1.02, "TestGoodCase remove 2")
 }
 
@@ -1043,6 +1092,27 @@ func markAllShardsAsAvailable(t *testing.T, p services.Placement) services.Place
 	return p
 }
 
+func validateCutoverCutoffNanos(t *testing.T, p services.Placement, opts services.PlacementOptions) {
+	for _, i := range p.Instances() {
+		for _, s := range i.Shards().All() {
+			switch s.State() {
+			case shard.Available:
+				assert.Equal(t, shard.DefaultShardCutoverNanos, s.CutoverNanos())
+				assert.Equal(t, shard.DefaultShardCutoffNanos, s.CutoffNanos())
+			case shard.Initializing:
+				assert.Equal(t, opts.ShardCutoverNanosFn()(), s.CutoverNanos())
+				assert.Equal(t, shard.DefaultShardCutoffNanos, s.CutoffNanos())
+			case shard.Leaving:
+				assert.Equal(t, shard.DefaultShardCutoverNanos, s.CutoverNanos())
+				assert.Equal(t, opts.ShardCutoffNanosFn()(), s.CutoffNanos())
+			case shard.Unknown:
+				assert.Fail(t, "invalid shard state")
+			}
+		}
+	}
+	assert.Equal(t, opts.PlacementCutoverNanosFn()(), p.CutoverNanos())
+}
+
 func validateDistribution(t *testing.T, p services.Placement, expectPeakOverAvg float64, testCase string) {
 	assert.NoError(t, placement.Validate(p), "placement validation failed")
 	ph := NewPlacementHelper(p, placement.NewOptions()).(*placementHelper)
@@ -1072,4 +1142,10 @@ func validateDistribution(t *testing.T, p services.Placement, expectPeakOverAvg 
 
 func getWeightedLoad(ph *placementHelper, weight uint32) int {
 	return ph.rf * len(ph.shardToInstanceMap) * int(weight) / int(ph.totalWeight)
+}
+
+func timeNanosGen(v int64) services.TimeNanosFn {
+	return func() int64 {
+		return v
+	}
 }

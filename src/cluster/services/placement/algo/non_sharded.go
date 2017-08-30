@@ -72,12 +72,7 @@ func (a nonShardedAlgorithm) AddReplica(p services.Placement) (services.Placemen
 		return nil, err
 	}
 
-	p = placement.ClonePlacement(p)
-	return placement.NewPlacement().
-		SetInstances(p.Instances()).
-		SetShards(p.Shards()).
-		SetReplicaFactor(p.ReplicaFactor() + 1).
-		SetIsSharded(p.IsSharded()), nil
+	return placement.ClonePlacement(p).SetReplicaFactor(p.ReplicaFactor() + 1), nil
 }
 
 func (a nonShardedAlgorithm) RemoveInstances(
@@ -102,11 +97,7 @@ func (a nonShardedAlgorithm) RemoveInstances(
 	for _, instance := range removingInstances {
 		instances = placement.RemoveInstanceFromList(instances, instance.ID())
 	}
-	return placement.NewPlacement().
-		SetInstances(instances).
-		SetShards(p.Shards()).
-		SetReplicaFactor(p.ReplicaFactor()).
-		SetIsSharded(p.IsSharded()), nil
+	return p.SetInstances(instances), nil
 }
 
 func (a nonShardedAlgorithm) AddInstances(
@@ -126,11 +117,7 @@ func (a nonShardedAlgorithm) AddInstances(
 		instances = append(instances, instance)
 	}
 
-	return placement.NewPlacement().
-		SetInstances(instances).
-		SetShards(p.Shards()).
-		SetReplicaFactor(p.ReplicaFactor()).
-		SetIsSharded(p.IsSharded()), nil
+	return p.SetInstances(instances), nil
 }
 
 func (a nonShardedAlgorithm) ReplaceInstances(

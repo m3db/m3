@@ -215,7 +215,11 @@ func (p *placement) String() string {
 func CloneShards(shards shard.Shards) shard.Shards {
 	newShards := make([]shard.Shard, shards.NumShards())
 	for i, s := range shards.All() {
-		newShards[i] = shard.NewShard(s.ID()).SetState(s.State()).SetSourceID(s.SourceID())
+		newShards[i] = shard.NewShard(s.ID()).
+			SetState(s.State()).
+			SetSourceID(s.SourceID()).
+			SetCutoverNanos(s.CutoverNanos()).
+			SetCutoffNanos(s.CutoffNanos())
 	}
 
 	return shard.NewShards(newShards)
@@ -251,7 +255,8 @@ func ClonePlacement(p services.Placement) services.Placement {
 		SetShards(p.Shards()).
 		SetReplicaFactor(p.ReplicaFactor()).
 		SetIsSharded(p.IsSharded()).
-		SetIsMirrored(p.IsMirrored())
+		SetIsMirrored(p.IsMirrored()).
+		SetCutoverNanos(p.CutoverNanos())
 }
 
 // Validate validates a placement
@@ -528,7 +533,8 @@ func markShardAvailable(p services.Placement, instanceID string, shardID uint32)
 		return nil, fmt.Errorf("instance %s does not exist in placement", instanceID)
 	}
 
-	s, exist := instance.Shards().Shard(shardID)
+	shards := instance.Shards()
+	s, exist := shards.Shard(shardID)
 	if !exist {
 		return nil, fmt.Errorf("shard %d does not exist in instance %s", shardID, instanceID)
 	}
@@ -538,7 +544,7 @@ func markShardAvailable(p services.Placement, instanceID string, shardID uint32)
 	}
 
 	sourceID := s.SourceID()
-	s.SetState(shard.Available).SetSourceID("")
+	shards.Add(shard.NewShard(shardID).SetState(shard.Available))
 
 	// there could be no source for cases like initial placement
 	if sourceID == "" {
@@ -550,7 +556,8 @@ func markShardAvailable(p services.Placement, instanceID string, shardID uint32)
 		return nil, fmt.Errorf("source instance %s for shard %d does not exist in placement", sourceID, shardID)
 	}
 
-	sourceShard, exist := sourceInstance.Shards().Shard(shardID)
+	sourceShards := sourceInstance.Shards()
+	sourceShard, exist := sourceShards.Shard(shardID)
 	if !exist {
 		return nil, fmt.Errorf("shard %d does not exist in source instance %s", shardID, sourceID)
 	}
@@ -559,13 +566,10 @@ func markShardAvailable(p services.Placement, instanceID string, shardID uint32)
 		return nil, fmt.Errorf("shard %d is not leaving instance %s", shardID, sourceID)
 	}
 
-	sourceInstance.Shards().Remove(shardID)
-	if sourceInstance.Shards().NumShards() == 0 {
-		return NewPlacement().
-			SetInstances(RemoveInstanceFromList(p.Instances(), sourceInstance.ID())).
-			SetShards(p.Shards()).
-			SetReplicaFactor(p.ReplicaFactor()).
-			SetIsSharded(p.IsSharded()), nil
+	sourceShards.Remove(shardID)
+	if sourceShards.NumShards() == 0 {
+		return ClonePlacement(p).
+			SetInstances(RemoveInstanceFromList(p.Instances(), sourceInstance.ID())), nil
 	}
 	return p, nil
 }

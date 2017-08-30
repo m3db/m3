@@ -191,35 +191,6 @@ func TestNonLeavingInstances(t *testing.T) {
 	assert.Equal(t, "i2", r[1].ID())
 }
 
-func TestCopy(t *testing.T) {
-	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
-	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
-	i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
-
-	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
-	i2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
-	i2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
-	i2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
-
-	instances := []services.PlacementInstance{i1, i2}
-
-	ids := []uint32{1, 2, 3, 4, 5, 6}
-	s := placement.NewPlacement().SetInstances(instances).SetShards(ids).SetReplicaFactor(1)
-	copy := placement.ClonePlacement(s)
-	assert.Equal(t, s.NumInstances(), copy.NumInstances())
-	assert.Equal(t, s.Shards(), copy.Shards())
-	assert.Equal(t, s.ReplicaFactor(), copy.ReplicaFactor())
-	for _, i := range s.Instances() {
-		copiedInstance, exist := copy.Instance(i.ID())
-		assert.True(t, exist)
-		assert.Equal(t, copiedInstance, i)
-		// make sure they are different objects, updating one won't update the other
-		i.Shards().Add(shard.NewShard(100).SetState(shard.Available))
-		assert.NotEqual(t, copiedInstance, i)
-	}
-}
-
 func TestLoadOnInstance(t *testing.T) {
 	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))

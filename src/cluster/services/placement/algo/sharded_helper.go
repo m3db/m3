@@ -93,7 +93,8 @@ func newInitHelper(instances []services.PlacementInstance, ids []uint32, opts se
 		SetInstances(instances).
 		SetShards(ids).
 		SetReplicaFactor(0).
-		SetIsSharded(true)
+		SetIsSharded(true).
+		SetCutoverNanos(opts.PlacementCutoverNanosFn()())
 	return newHelper(emptyPlacement, emptyPlacement.ReplicaFactor()+1, opts)
 }
 
@@ -101,12 +102,8 @@ func newAddReplicaHelper(p services.Placement, opts services.PlacementOptions) P
 	return newHelper(p, p.ReplicaFactor()+1, opts)
 }
 
-func newAddInstanceHelper(p services.Placement, i services.PlacementInstance, opts services.PlacementOptions) PlacementHelper {
-	p = placement.NewPlacement().
-		SetInstances(append(p.Instances(), i)).
-		SetShards(p.Shards()).
-		SetReplicaFactor(p.ReplicaFactor()).
-		SetIsSharded(p.IsSharded())
+func newAddInstanceHelper(p services.Placement, instance services.PlacementInstance, opts services.PlacementOptions) PlacementHelper {
+	p = placement.ClonePlacement(p).SetInstances(append(p.Instances(), instance))
 	return newHelper(p, p.ReplicaFactor(), opts)
 }
 
@@ -269,7 +266,9 @@ func (ph *placementHelper) moveShard(candidateShard shard.Shard, from, to servic
 			from.Shards().Remove(shardID)
 			newShard.SetSourceID(candidateShard.SourceID())
 		case shard.Available:
-			candidateShard.SetState(shard.Leaving)
+			candidateShard.
+				SetState(shard.Leaving).
+				SetCutoffNanos(ph.opts.ShardCutoffNanosFn()())
 			newShard.SetSourceID(from.ID())
 		}
 
@@ -329,7 +328,8 @@ func (ph *placementHelper) GeneratePlacement() services.Placement {
 		for _, s := range shards.ShardsForState(shard.Unknown) {
 			shards.Add(shard.NewShard(s.ID()).
 				SetSourceID(s.SourceID()).
-				SetState(shard.Initializing))
+				SetState(shard.Initializing).
+				SetCutoverNanos(ph.opts.ShardCutoverNanosFn()()))
 		}
 	}
 
@@ -338,7 +338,8 @@ func (ph *placementHelper) GeneratePlacement() services.Placement {
 		SetShards(ph.uniqueShards).
 		SetReplicaFactor(ph.rf).
 		SetIsSharded(true).
-		SetIsMirrored(ph.opts.IsMirrored())
+		SetIsMirrored(ph.opts.IsMirrored()).
+		SetCutoverNanos(ph.opts.PlacementCutoverNanosFn()())
 }
 
 func (ph *placementHelper) PlaceShards(
@@ -672,12 +673,7 @@ func addInstanceToPlacement(p services.Placement, i services.PlacementInstance, 
 	instance := placement.CloneInstance(i)
 
 	if includeInstance == includeEmpty || instance.Shards().NumShards() > 0 {
-		p = placement.NewPlacement().
-			SetInstances(append(p.Instances(), instance)).
-			SetShards(p.Shards()).
-			SetReplicaFactor(p.ReplicaFactor()).
-			SetIsSharded(p.IsSharded()).
-			SetIsMirrored(p.IsMirrored())
+		p = placement.ClonePlacement(p).SetInstances(append(p.Instances(), instance))
 	}
 	return p, instance, nil
 }
@@ -687,12 +683,8 @@ func removeInstanceFromPlacement(p services.Placement, id string) (services.Plac
 	if !exist {
 		return nil, nil, fmt.Errorf("instance %s does not exist in placement", id)
 	}
-
-	return placement.NewPlacement().
-		SetInstances(placement.RemoveInstanceFromList(p.Instances(), id)).
-		SetShards(p.Shards()).
-		SetReplicaFactor(p.ReplicaFactor()).
-		SetIsSharded(p.IsSharded()), leavingInstance, nil
+	return placement.ClonePlacement(p).
+		SetInstances(placement.RemoveInstanceFromList(p.Instances(), id)), leavingInstance, nil
 }
 
 func getShardMap(shards []shard.Shard) map[uint32]shard.Shard {
@@ -723,7 +715,7 @@ func nonLeavingInstances(instances []services.PlacementInstance) []services.Plac
 func newShards(shardIDs []uint32) []shard.Shard {
 	r := make([]shard.Shard, len(shardIDs))
 	for i, id := range shardIDs {
-		r[i] = shard.NewShard(id)
+		r[i] = shard.NewShard(id).SetState(shard.Unknown)
 	}
 	return r
 }

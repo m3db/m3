@@ -44,6 +44,9 @@ func TestPlacementOptions(t *testing.T) {
 	assert.False(t, o.IsMirrored())
 	assert.False(t, o.IsStaged())
 	assert.Equal(t, instrument.NewOptions(), o.InstrumentOptions())
+	assert.Equal(t, int64(0), o.PlacementCutoverNanosFn()())
+	assert.Equal(t, int64(0), o.ShardCutoffNanosFn()())
+	assert.Equal(t, int64(0), o.ShardCutoffNanosFn()())
 
 	o = o.SetLooseRackCheck(true)
 	assert.True(t, o.LooseRackCheck())
@@ -66,4 +69,19 @@ func TestPlacementOptions(t *testing.T) {
 	iopts := instrument.NewOptions().SetMetricsSamplingRate(0.5)
 	o = o.SetInstrumentOptions(iopts)
 	assert.Equal(t, iopts, o.InstrumentOptions())
+
+	o = o.SetPlacementCutoverNanosFn(func() int64 {
+		return int64(10)
+	})
+	assert.Equal(t, int64(10), o.PlacementCutoverNanosFn()())
+
+	o = o.SetShardCutoverNanosFn(func() int64 {
+		return int64(20)
+	})
+	assert.Equal(t, int64(20), o.ShardCutoverNanosFn()())
+
+	o = o.SetShardCutoffNanosFn(func() int64 {
+		return int64(30)
+	})
+	assert.Equal(t, int64(30), o.ShardCutoffNanosFn()())
 }
