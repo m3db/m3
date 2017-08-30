@@ -23,6 +23,7 @@ package aggregator
 import (
 	"errors"
 	"io"
+	"math"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -57,23 +58,90 @@ func TestMetricListPushBack(t *testing.T) {
 }
 
 func TestMetricListClose(t *testing.T) {
-	l := newMetricList(testShard, time.Second, testOptions())
+	var (
+		registered   int
+		unregistered int
+	)
+	mockFlushManager := &mockFlushManager{
+		registerFn:   func(PeriodicFlusher) error { registered++; return nil },
+		unregisterFn: func(PeriodicFlusher) error { unregistered++; return nil },
+	}
+	opts := testOptions().SetFlushManager(mockFlushManager)
+	l := newMetricList(testShard, time.Second, opts)
 	l.RLock()
 	require.False(t, l.closed)
 	l.RUnlock()
+	require.Equal(t, 1, registered)
 
 	l.Close()
 	require.True(t, l.closed)
+	require.Equal(t, 1, unregistered)
 
 	// Close for a second time should have no impact.
 	l.Close()
 	require.True(t, l.closed)
+	require.Equal(t, 1, registered)
+	require.Equal(t, 1, unregistered)
 }
 
-func TestMetricListFlush(t *testing.T) {
+func TestMetricListFlushWithCutoverCutoffNanos(t *testing.T) {
 	var (
-		bufferLock sync.Mutex
-		buffers    []*RefCountedBuffer
+		now            = time.Unix(1234, 5678)
+		nowFn          = func() time.Time { return now }
+		beforeNanosRes int64
+		flushTypeRes   flushType
+	)
+	opts := testOptions().SetClockOptions(clock.NewOptions().SetNowFn(nowFn))
+	l := newMetricList(testShard, time.Second, opts)
+	l.flushBeforeFn = func(beforeNanos int64, flushType flushType) {
+		beforeNanosRes = beforeNanos
+		flushTypeRes = flushType
+	}
+
+	inputs := []struct {
+		cutoverNanos        int64
+		cutoffNanos         int64
+		expectedBeforeNanos int64
+		expectedFlushType   flushType
+	}{
+		{
+			cutoverNanos:        0,
+			cutoffNanos:         math.MaxInt64,
+			expectedBeforeNanos: 1234 * int64(time.Second),
+			expectedFlushType:   consumeType,
+		},
+		{
+			cutoverNanos:        1233 * int64(time.Second),
+			cutoffNanos:         1234 * int64(time.Second),
+			expectedBeforeNanos: 1234 * int64(time.Second),
+			expectedFlushType:   consumeType,
+		},
+		{
+			cutoverNanos:        0,
+			cutoffNanos:         0,
+			expectedBeforeNanos: 1234 * int64(time.Second),
+			expectedFlushType:   discardType,
+		},
+		{
+			cutoverNanos:        1234 * int64(time.Second),
+			cutoffNanos:         1235 * int64(time.Second),
+			expectedBeforeNanos: 1234 * int64(time.Second),
+			expectedFlushType:   discardType,
+		},
+	}
+	for _, input := range inputs {
+		l.Flush(input.cutoverNanos, input.cutoffNanos)
+		require.Equal(t, input.expectedBeforeNanos, beforeNanosRes)
+		require.Equal(t, input.expectedFlushType, flushTypeRes)
+	}
+}
+
+func TestMetricListFlushConsumingAndCollectingElems(t *testing.T) {
+	var (
+		cutoverNanos = int64(0)
+		cutoffNanos  = int64(math.MaxInt64)
+		bufferLock   sync.Mutex
+		buffers      []*RefCountedBuffer
 	)
 	flushFn := func(buffer *RefCountedBuffer) error {
 		bufferLock.Lock()
@@ -130,7 +198,7 @@ func TestMetricListFlush(t *testing.T) {
 	}
 
 	// Force a flush.
-	l.Flush()
+	l.Flush(cutoverNanos, cutoffNanos)
 
 	// Assert nothing has been collected.
 	bufferLock.Lock()
@@ -143,7 +211,7 @@ func TestMetricListFlush(t *testing.T) {
 		atomic.StoreInt64(&now, nowTs.UnixNano())
 
 		// Force a flush.
-		l.Flush()
+		l.Flush(cutoverNanos, cutoffNanos)
 
 		var expected []testAggMetric
 		alignedStart := nowTs.Truncate(l.resolution).UnixNano()
@@ -169,7 +237,7 @@ func TestMetricListFlush(t *testing.T) {
 	atomic.StoreInt64(&now, nowTs.UnixNano())
 
 	// Force a flush.
-	l.Flush()
+	l.Flush(cutoverNanos, cutoffNanos)
 
 	// Assert nothing has been collected.
 	bufferLock.Lock()
@@ -185,7 +253,7 @@ func TestMetricListFlush(t *testing.T) {
 	// Move the time forward and force a flush.
 	nowTs = nowTs.Add(l.resolution)
 	atomic.StoreInt64(&now, nowTs.UnixNano())
-	l.Flush()
+	l.Flush(cutoverNanos, cutoffNanos)
 
 	// Assert all elements have been collected.
 	require.Equal(t, 0, l.aggregations.Len())

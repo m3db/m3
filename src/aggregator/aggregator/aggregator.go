@@ -26,10 +26,10 @@ import (
 	"fmt"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -103,17 +103,19 @@ func (m aggregatorTickMetrics) Report(tickResult tickResult, duration time.Durat
 	}
 }
 
-type aggregatorShardMetrics struct {
-	add   tally.Counter
-	close tally.Counter
-	owned tally.Gauge
+type aggregatorShardsMetrics struct {
+	add          tally.Counter
+	close        tally.Counter
+	owned        tally.Gauge
+	pendingClose tally.Gauge
 }
 
-func newAggregatorShardMetrics(scope tally.Scope) aggregatorShardMetrics {
-	return aggregatorShardMetrics{
-		add:   scope.Counter("add"),
-		close: scope.Counter("close"),
-		owned: scope.Gauge("owned"),
+func newAggregatorShardsMetrics(scope tally.Scope) aggregatorShardsMetrics {
+	return aggregatorShardsMetrics{
+		add:          scope.Counter("add"),
+		close:        scope.Counter("close"),
+		owned:        scope.Gauge("owned"),
+		pendingClose: scope.Gauge("pending-close"),
 	}
 }
 
@@ -124,7 +126,7 @@ type aggregatorMetrics struct {
 	gauges                    tally.Counter
 	invalidMetricTypes        tally.Counter
 	addMetricWithPoliciesList instrument.MethodMetrics
-	shards                    aggregatorShardMetrics
+	shards                    aggregatorShardsMetrics
 	tick                      aggregatorTickMetrics
 }
 
@@ -138,7 +140,7 @@ func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMet
 		gauges:                    scope.Counter("gauges"),
 		invalidMetricTypes:        scope.Counter("invalid-metric-types"),
 		addMetricWithPoliciesList: instrument.NewMethodMetrics(scope, "addMetricWithPoliciesList", samplingRate),
-		shards: newAggregatorShardMetrics(shardsScope),
+		shards: newAggregatorShardsMetrics(shardsScope),
 		tick:   newAggregatorTickMetrics(tickScope),
 	}
 }
@@ -188,13 +190,12 @@ type aggregator struct {
 	doneCh                chan struct{}
 	wg                    sync.WaitGroup
 	sleepFn               sleepFn
+	shardsPendingClose    int32
 	metrics               aggregatorMetrics
 }
 
 // NewAggregator creates a new aggregator.
 func NewAggregator(opts Options) Aggregator {
-	placementWatcherOpts := opts.StagedPlacementWatcherOptions()
-	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
 	iOpts := opts.InstrumentOptions()
 	metrics := newAggregatorMetrics(iOpts.MetricsScope(), iOpts.MetricsSamplingRate())
 
@@ -208,7 +209,7 @@ func NewAggregator(opts Options) Aggregator {
 		flushManager:          opts.FlushManager(),
 		flushHandler:          opts.FlushHandler(),
 		resignTimeout:         opts.ResignTimeout(),
-		placementWatcher:      placementWatcher,
+		placementWatcher:      opts.StagedPlacementWatcher(),
 		placementCutoverNanos: uninitializedCutoverNanos,
 		metrics:               metrics,
 		doneCh:                make(chan struct{}),
@@ -222,9 +223,6 @@ func (agg *aggregator) Open() error {
 
 	if agg.state != aggregatorNotOpen {
 		return errAggregatorAlreadyOpenOrClosed
-	}
-	if err := agg.placementWatcher.Watch(); err != nil {
-		return err
 	}
 	placement, err := agg.placement()
 	if err != nil {
@@ -361,48 +359,49 @@ func (agg *aggregator) updateShardsWithLock(newPlacement services.Placement) err
 	}
 
 	var (
-		newShards = instance.Shards()
-		incoming  []*aggregatorShard
-		closing   []*aggregatorShard
+		newShardSet = instance.Shards()
+		incoming    []*aggregatorShard
+		closing     = make([]*aggregatorShard, 0, len(agg.shardIDs))
 	)
 	for _, shard := range agg.shards {
 		if shard == nil {
 			continue
 		}
-		if !newShards.Contains(shard.ID()) {
+		if !newShardSet.Contains(shard.ID()) {
 			closing = append(closing, shard)
 		}
 	}
-	// NB(xichen): shard ids are guaranteed to be sorted in ascending order.
-	newShardIDs := newShards.AllIDs()
-	if len(newShardIDs) > 0 {
-		newShardLen := newShardIDs[len(newShardIDs)-1] + 1
-		incoming = make([]*aggregatorShard, newShardLen)
+
+	// NB(xichen): shards are guaranteed to be sorted by their ids in ascending order.
+	var (
+		newShards   = newShardSet.All()
+		newShardIDs []uint32
+	)
+	if numShards := len(newShards); numShards > 0 {
+		newShardIDs = make([]uint32, 0, numShards)
+		maxShardID := newShards[numShards-1].ID()
+		incoming = make([]*aggregatorShard, maxShardID+1)
 	}
-	for _, shardID := range newShardIDs {
+	for _, shard := range newShards {
+		shardID := shard.ID()
+		newShardIDs = append(newShardIDs, shardID)
 		if int(shardID) < len(agg.shards) && agg.shards[shardID] != nil {
 			incoming[shardID] = agg.shards[shardID]
 		} else {
 			incoming[shardID] = newAggregatorShard(shardID, agg.opts)
 			agg.metrics.shards.add.Inc(1)
 		}
+		shardTimeRange := timeRange{
+			cutoverNanos: shard.CutoverNanos(),
+			cutoffNanos:  shard.CutoffNanos(),
+		}
+		incoming[shardID].SetWriteableRange(shardTimeRange)
 	}
 	agg.shardIDs = newShardIDs
 	agg.shards = incoming
 	agg.placementCutoverNanos = newPlacement.CutoverNanos()
 
-	// NB(xichen): asynchronously closing the shards to avoid blocking writes.
-	// Additionally, because each shard write happens while holding the shard
-	// read lock, the shard may only close itself after all its pending writes
-	// are finished.
-	for _, shard := range closing {
-		shard := shard
-		go func() {
-			shard.Close()
-			agg.metrics.shards.close.Inc(1)
-		}()
-	}
-
+	agg.closeShardsAsync(closing)
 	return nil
 }
 
@@ -428,14 +427,45 @@ func (agg *aggregator) checkMetricType(mu unaggregated.MetricUnion) error {
 	}
 }
 
-func (agg *aggregator) ownedShards() []*aggregatorShard {
-	agg.RLock()
-	ownedShards := make([]*aggregatorShard, len(agg.shardIDs))
-	for i, shardID := range agg.shardIDs {
-		ownedShards[i] = agg.shards[shardID]
+func (agg *aggregator) ownedShards() (owned, toClose []*aggregatorShard) {
+	agg.Lock()
+	defer agg.Unlock()
+
+	owned = make([]*aggregatorShard, 0, len(agg.shardIDs))
+	for i := 0; i < len(agg.shardIDs); i++ {
+		shardID := agg.shardIDs[i]
+		// NB(xichen): if traffic has been cut off for a shard, the aggregator actively
+		// closes it to avoid wasting CPU cycles flushing its metric lists.
+		if shard := agg.shards[shardID]; !shard.IsCutoff() {
+			owned = append(owned, shard)
+		} else {
+			lastIdx := len(agg.shardIDs) - 1
+			agg.shardIDs[i], agg.shardIDs[lastIdx] = agg.shardIDs[lastIdx], agg.shardIDs[i]
+			agg.shardIDs = agg.shardIDs[:lastIdx]
+			i--
+			agg.shards[shardID] = nil
+			toClose = append(toClose, shard)
+		}
 	}
-	agg.RUnlock()
-	return ownedShards
+	return owned, toClose
+}
+
+// closeShardsAsync asynchronously closes the shards to avoid blocking writes.
+// Because each shard write happens while holding the shard read lock, the shard
+// may only close itself after all its pending writes are finished.
+func (agg *aggregator) closeShardsAsync(shards []*aggregatorShard) {
+	pendingClose := atomic.AddInt32(&agg.shardsPendingClose, int32(len(shards)))
+	agg.metrics.shards.pendingClose.Update(float64(pendingClose))
+
+	for _, shard := range shards {
+		shard := shard
+		go func() {
+			shard.Close()
+			pendingClose := atomic.AddInt32(&agg.shardsPendingClose, -1)
+			agg.metrics.shards.pendingClose.Update(float64(pendingClose))
+			agg.metrics.shards.close.Inc(1)
+		}()
+	}
 }
 
 func (agg *aggregator) placement() (services.Placement, error) {
@@ -475,9 +505,12 @@ func (agg *aggregator) tick() {
 }
 
 func (agg *aggregator) tickInternal() {
-	ownedShards := agg.ownedShards()
+	ownedShards, closingShards := agg.ownedShards()
+	agg.closeShardsAsync(closingShards)
+
 	numShards := len(ownedShards)
 	agg.metrics.shards.owned.Update(float64(numShards))
+	agg.metrics.shards.pendingClose.Update(float64(atomic.LoadInt32(&agg.shardsPendingClose)))
 	if numShards == 0 {
 		return
 	}

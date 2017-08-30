@@ -24,6 +24,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"sort"
 	"sync"
 	"testing"
@@ -42,6 +43,7 @@ import (
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/sync"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -149,20 +151,13 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 	electionManager := aggregator.NewElectionManager(electionManagerOpts)
 	aggregatorOpts = aggregatorOpts.SetElectionManager(electionManager)
 
-	// Set up flush manager.
-	flushManagerOpts := aggregator.NewFlushManagerOptions().
-		SetElectionManager(electionManager).
-		SetFlushTimesKeyFmt(opts.FlushTimesKeyFmt()).
-		SetFlushTimesStore(opts.KVStore()).
-		SetJitterEnabled(opts.JitterEnabled()).
-		SetMaxJitterFn(opts.MaxJitterFn())
-	flushManager := aggregator.NewFlushManager(flushManagerOpts)
-	aggregatorOpts = aggregatorOpts.SetFlushManager(flushManager)
-
 	// Set up placement watcher.
 	shardSet := make([]shard.Shard, opts.NumShards())
 	for i := 0; i < opts.NumShards(); i++ {
-		shardSet[i] = shard.NewShard(uint32(i)).SetState(shard.Initializing)
+		shardSet[i] = shard.NewShard(uint32(i)).
+			SetState(shard.Initializing).
+			SetCutoverNanos(0).
+			SetCutoffNanos(math.MaxInt64)
 	}
 	shards := shard.NewShards(shardSet)
 	instance := placement.NewInstance().
@@ -183,9 +178,23 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
 		SetStagedPlacementKey(placementKey).
 		SetStagedPlacementStore(placementStore)
+	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
+	require.NoError(t, placementWatcher.Watch())
 	aggregatorOpts = aggregatorOpts.
 		SetInstanceID(opts.InstanceID()).
-		SetStagedPlacementWatcherOptions(placementWatcherOpts)
+		SetStagedPlacementWatcher(placementWatcher)
+
+	// Set up flush manager.
+	flushManagerOpts := aggregator.NewFlushManagerOptions().
+		SetElectionManager(electionManager).
+		SetFlushTimesKeyFmt(opts.FlushTimesKeyFmt()).
+		SetFlushTimesStore(opts.KVStore()).
+		SetJitterEnabled(opts.JitterEnabled()).
+		SetMaxJitterFn(opts.MaxJitterFn()).
+		SetInstanceID(opts.InstanceID()).
+		SetStagedPlacementWatcher(placementWatcher)
+	flushManager := aggregator.NewFlushManager(flushManagerOpts)
+	aggregatorOpts = aggregatorOpts.SetFlushManager(flushManager)
 
 	// Set up the handler.
 	var (

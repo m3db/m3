@@ -23,6 +23,8 @@ package aggregator
 import (
 	"context"
 	"errors"
+	"math"
+	"sort"
 	"testing"
 	"time"
 
@@ -125,29 +127,30 @@ func TestAggregatorAddMetricWithPoliciesListSuccessNoPlacementUpdate(t *testing.
 
 func TestAggregatorAddMetricWithPoliciesListSuccessWithPlacementUpdate(t *testing.T) {
 	agg, store := testAggregator(t)
+	now := time.Unix(0, 12345)
+	nowFn := func() time.Time { return now }
+	agg.opts = agg.opts.
+		SetClockOptions(agg.opts.ClockOptions().SetNowFn(nowFn)).
+		SetBufferDurationBeforeShardCutover(time.Duration(500)).
+		SetBufferDurationAfterShardCutoff(time.Duration(1000))
 	require.NoError(t, agg.Open())
 	agg.shardFn = func([]byte, int) uint32 { return 1 }
 
 	newShardAssignment := []shard.Shard{
-		shard.NewShard(0).SetState(shard.Initializing),
-		shard.NewShard(1).SetState(shard.Initializing),
-		shard.NewShard(2).SetState(shard.Initializing),
-		shard.NewShard(4).SetState(shard.Initializing),
+		shard.NewShard(0).SetState(shard.Initializing).SetCutoverNanos(5000).SetCutoffNanos(20000),
+		shard.NewShard(1).SetState(shard.Initializing).SetCutoverNanos(5500).SetCutoffNanos(25000),
+		shard.NewShard(2).SetState(shard.Initializing).SetCutoverNanos(6000).SetCutoffNanos(30000),
+		shard.NewShard(4).SetState(shard.Initializing).SetCutoverNanos(6500).SetCutoffNanos(math.MaxInt64),
 	}
-	newStagedPlacementProto := testStagedPlacementProtoWithCustomShards(t, newShardAssignment, 5678)
+	newStagedPlacementProto := testStagedPlacementProtoWithCustomShards(t, testInstanceID, newShardAssignment, 5678)
 	_, err := store.Set(testPlacementKey, newStagedPlacementProto)
 	require.NoError(t, err)
 
 	// Wait for the placement to be updated.
 	for {
-		stagedPlacement, stagedPlacementDoneFn, err := agg.placementWatcher.ActiveStagedPlacement()
+		placement, err := agg.placement()
 		require.NoError(t, err)
-		placement, placementDoneFn, err := stagedPlacement.ActivePlacement()
-		require.NoError(t, err)
-		cutoverNanos := placement.CutoverNanos()
-		placementDoneFn()
-		stagedPlacementDoneFn()
-		if cutoverNanos == 5678 {
+		if placement.CutoverNanos() == 5678 {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -157,14 +160,29 @@ func TestAggregatorAddMetricWithPoliciesListSuccessWithPlacementUpdate(t *testin
 	err = agg.AddMetricWithPoliciesList(testValidMetric, testPoliciesList)
 	require.NoError(t, err)
 	require.Equal(t, 5, len(agg.shards))
-	for i := 0; i < 5; i++ {
-		if i == 3 {
+
+	expectedShards := []struct {
+		isNil         bool
+		earliestNanos int64
+		latestNanos   int64
+	}{
+		{isNil: false, earliestNanos: 4500, latestNanos: 21000},
+		{isNil: false, earliestNanos: 5000, latestNanos: 26000},
+		{isNil: false, earliestNanos: 5500, latestNanos: 31000},
+		{isNil: true},
+		{isNil: false, earliestNanos: 6000, latestNanos: math.MaxInt64},
+	}
+	for i, expected := range expectedShards {
+		if expected.isNil {
 			require.Nil(t, agg.shards[i])
 		} else {
 			require.NotNil(t, agg.shards[i])
+			require.Equal(t, expected.earliestNanos, agg.shards[i].earliestWritableNanos)
+			require.Equal(t, expected.latestNanos, agg.shards[i].latestWriteableNanos)
 		}
 	}
 	require.Equal(t, 1, len(agg.shards[1].metricMap.entries))
+
 	for {
 		existingShard.RLock()
 		closed := existingShard.closed
@@ -229,43 +247,111 @@ func TestAggregatorTick(t *testing.T) {
 	require.NoError(t, agg.Close())
 }
 
+func TestAggregatorOwnedShards(t *testing.T) {
+	agg, _ := testAggregator(t)
+	now := time.Unix(0, 12345)
+	nowFn := func() time.Time { return now }
+	agg.nowFn = nowFn
+	agg.opts = agg.opts.SetClockOptions(agg.opts.ClockOptions().SetNowFn(nowFn))
+
+	shardCutoffNanos := []int64{math.MaxInt64, 1234, 56789, 8901}
+	agg.shardIDs = make([]uint32, 0, len(shardCutoffNanos))
+	agg.shards = make([]*aggregatorShard, 0, len(shardCutoffNanos))
+	for i, cutoffNanos := range shardCutoffNanos {
+		shardID := uint32(i)
+		shard := newAggregatorShard(shardID, agg.opts)
+		shard.latestWriteableNanos = cutoffNanos
+		agg.shardIDs = append(agg.shardIDs, shardID)
+		agg.shards = append(agg.shards, shard)
+	}
+
+	expectedOwned := []*aggregatorShard{agg.shards[0], agg.shards[2]}
+	expectedToClose := []*aggregatorShard{agg.shards[1], agg.shards[3]}
+	owned, toClose := agg.ownedShards()
+	require.Equal(t, expectedOwned, owned)
+	require.Equal(t, expectedToClose, toClose)
+
+	expectedShardIDs := []uint32{0, 2}
+	shardIDs := make([]uint32, len(agg.shardIDs))
+	copy(shardIDs, agg.shardIDs)
+	sort.Sort(uint32Ascending(shardIDs))
+	require.Equal(t, expectedShardIDs, agg.shardIDs)
+
+	for i := 0; i < 4; i++ {
+		if i == 0 || i == 2 {
+			require.NotNil(t, agg.shards[i])
+		} else {
+			require.Nil(t, agg.shards[i])
+		}
+	}
+}
+
 func testAggregator(t *testing.T) (*aggregator, kv.Store) {
-	opts := testOptions().SetEntryCheckInterval(0)
-
-	testStagedPlacementProto := testStagedPlacementProtoWithNumShards(t, testNumShards)
-	testPlacementStore := mem.NewStore()
-	_, err := testPlacementStore.SetIfNotExists(testPlacementKey, testStagedPlacementProto)
-	require.NoError(t, err)
-	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
-		SetStagedPlacementKey(testPlacementKey).
-		SetStagedPlacementStore(testPlacementStore)
-	opts = opts.SetInstanceID(testInstanceID).SetStagedPlacementWatcherOptions(placementWatcherOpts)
-
-	return NewAggregator(opts).(*aggregator), testPlacementStore
+	watcher, store := testPlacementWatcherWithNumShards(t, testInstanceID, testNumShards, testPlacementKey)
+	opts := testOptions().
+		SetEntryCheckInterval(0).
+		SetInstanceID(testInstanceID).
+		SetStagedPlacementWatcher(watcher)
+	return NewAggregator(opts).(*aggregator), store
 }
 
 // nolint: unparam
-func testStagedPlacementProtoWithNumShards(t *testing.T, numShards int) *placementproto.PlacementSnapshots {
+func testPlacementWatcherWithNumShards(
+	t *testing.T,
+	instanceID string,
+	numShards int,
+	placementKey string,
+) (services.StagedPlacementWatcher, kv.Store) {
+	proto := testStagedPlacementProtoWithNumShards(t, instanceID, numShards)
+	return testPlacementWatcherWithPlacementProto(t, placementKey, proto)
+}
+
+func testPlacementWatcherWithPlacementProto(
+	t *testing.T,
+	placementKey string,
+	proto *placementproto.PlacementSnapshots,
+) (services.StagedPlacementWatcher, kv.Store) {
+	store := mem.NewStore()
+	_, err := store.SetIfNotExists(placementKey, proto)
+	require.NoError(t, err)
+	placementWatcherOpts := placement.NewStagedPlacementWatcherOptions().
+		SetStagedPlacementKey(placementKey).
+		SetStagedPlacementStore(store)
+	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
+	require.NoError(t, placementWatcher.Watch())
+	return placementWatcher, store
+}
+
+// nolint: unparam
+func testStagedPlacementProtoWithNumShards(
+	t *testing.T,
+	instanceID string,
+	numShards int,
+) *placementproto.PlacementSnapshots {
 	shardSet := make([]shard.Shard, numShards)
 	for i := 0; i < numShards; i++ {
-		shardSet[i] = shard.NewShard(uint32(i)).SetState(shard.Initializing)
+		shardSet[i] = shard.NewShard(uint32(i)).
+			SetState(shard.Initializing).
+			SetCutoverNanos(0).
+			SetCutoffNanos(math.MaxInt64)
 	}
-	return testStagedPlacementProtoWithCustomShards(t, shardSet, testPlacementCutover)
+	return testStagedPlacementProtoWithCustomShards(t, instanceID, shardSet, testPlacementCutover)
 }
 
 func testStagedPlacementProtoWithCustomShards(
 	t *testing.T,
+	instanceID string,
 	shardSet []shard.Shard,
-	cutoverNanos int64,
+	placementCutoverNanos int64,
 ) *placementproto.PlacementSnapshots {
 	shards := shard.NewShards(shardSet)
 	instance := placement.NewInstance().
-		SetID(testInstanceID).
+		SetID(instanceID).
 		SetShards(shards)
 	testPlacement := placement.NewPlacement().
 		SetInstances([]services.PlacementInstance{instance}).
 		SetShards(shards.AllIDs()).
-		SetCutoverNanos(cutoverNanos)
+		SetCutoverNanos(placementCutoverNanos)
 	testStagedPlacement := placement.NewStagedPlacement().
 		SetPlacements([]services.Placement{testPlacement})
 	stagedPlacementProto, err := util.StagedPlacementToProto(testStagedPlacement)
@@ -280,7 +366,8 @@ func testOptions() Options {
 	return NewOptions().
 		SetElectionManager(electionManager).
 		SetFlushManager(&mockFlushManager{
-			registerFn: func(flusher PeriodicFlusher) error { return nil },
+			registerFn:   func(flusher PeriodicFlusher) error { return nil },
+			unregisterFn: func(flusher PeriodicFlusher) error { return nil },
 		}).
 		SetFlushHandler(&mockHandler{
 			handleFn: func(buf *RefCountedBuffer) error {
@@ -291,11 +378,13 @@ func testOptions() Options {
 }
 
 type registerFn func(flusher PeriodicFlusher) error
+type unregisterFn func(flusher PeriodicFlusher) error
 type statusFn func() FlushStatus
 
 type mockFlushManager struct {
-	registerFn registerFn
-	statusFn   statusFn
+	registerFn   registerFn
+	unregisterFn unregisterFn
+	statusFn     statusFn
 }
 
 func (mgr *mockFlushManager) Open(shardSetID uint32) error { return nil }
@@ -304,6 +393,16 @@ func (mgr *mockFlushManager) Register(flusher PeriodicFlusher) error {
 	return mgr.registerFn(flusher)
 }
 
+func (mgr *mockFlushManager) Unregister(flusher PeriodicFlusher) error {
+	return mgr.unregisterFn(flusher)
+}
+
 func (mgr *mockFlushManager) Status() FlushStatus { return mgr.statusFn() }
 
 func (mgr *mockFlushManager) Close() error { return nil }
+
+type uint32Ascending []uint32
+
+func (a uint32Ascending) Len() int           { return len(a) }
+func (a uint32Ascending) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a uint32Ascending) Less(i, j int) bool { return a[i] < a[j] }

@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"
@@ -127,6 +128,18 @@ type FlushManagerOptions interface {
 
 	// ForcedFlushWindowSize returns the window size for a forced flush.
 	ForcedFlushWindowSize() time.Duration
+
+	// SetInstanceID sets the instance id.
+	SetInstanceID(value string) FlushManagerOptions
+
+	// InstanceID returns the instance id.
+	InstanceID() string
+
+	// SetStagedPlacementWatcher sets the staged placement watcher.
+	SetStagedPlacementWatcher(value services.StagedPlacementWatcher) FlushManagerOptions
+
+	// StagedPlacementWatcher returns the staged placement watcher.
+	StagedPlacementWatcher() services.StagedPlacementWatcher
 }
 
 type flushManagerOptions struct {
@@ -143,6 +156,8 @@ type flushManagerOptions struct {
 	flushTimesPersistRetrier xretry.Retrier
 	maxNoFlushDuration       time.Duration
 	forcedFlushWindowSize    time.Duration
+	instanceID               string
+	placementWatcher         services.StagedPlacementWatcher
 }
 
 // NewFlushManagerOptions create a new set of flush manager options.
@@ -159,6 +174,7 @@ func NewFlushManagerOptions() FlushManagerOptions {
 		flushTimesPersistEvery:   defaultFlushTimesPersistEvery,
 		flushTimesPersistRetrier: xretry.NewRetrier(xretry.NewOptions()),
 		maxNoFlushDuration:       defaultMaxNoFlushDuration,
+		instanceID:               defaultInstanceID,
 		forcedFlushWindowSize:    defaultForcedFlushWindowSize,
 	}
 }
@@ -291,4 +307,24 @@ func (o *flushManagerOptions) SetForcedFlushWindowSize(value time.Duration) Flus
 
 func (o *flushManagerOptions) ForcedFlushWindowSize() time.Duration {
 	return o.forcedFlushWindowSize
+}
+
+func (o *flushManagerOptions) SetInstanceID(value string) FlushManagerOptions {
+	opts := *o
+	opts.instanceID = value
+	return &opts
+}
+
+func (o *flushManagerOptions) InstanceID() string {
+	return o.instanceID
+}
+
+func (o *flushManagerOptions) SetStagedPlacementWatcher(value services.StagedPlacementWatcher) FlushManagerOptions {
+	opts := *o
+	opts.placementWatcher = value
+	return &opts
+}
+
+func (o *flushManagerOptions) StagedPlacementWatcher() services.StagedPlacementWatcher {
+	return o.placementWatcher
 }

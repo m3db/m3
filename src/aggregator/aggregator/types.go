@@ -239,11 +239,11 @@ type Options interface {
 	// StreamOptions returns the stream options
 	StreamOptions() cm.Options
 
-	// SetStagedPlacementWatcherOptions sets the staged placement watcher options.
-	SetStagedPlacementWatcherOptions(value services.StagedPlacementWatcherOptions) Options
+	// SetStagedPlacementWatcher sets the staged placement watcher.
+	SetStagedPlacementWatcher(value services.StagedPlacementWatcher) Options
 
-	// StagedPlacementWatcherOptions returns the staged placement watcher options.
-	StagedPlacementWatcherOptions() services.StagedPlacementWatcherOptions
+	// StagedPlacementWatcher returns the staged placement watcher.
+	StagedPlacementWatcher() services.StagedPlacementWatcher
 
 	// SetInstanceID sets the current instance id.
 	SetInstanceID(value string) Options
@@ -256,6 +256,18 @@ type Options interface {
 
 	// ShardFn returns the sharding function.
 	ShardFn() ShardFn
+
+	// SetBufferDurationBeforeShardCutover sets the duration for buffering writes before shard cutover.
+	SetBufferDurationBeforeShardCutover(value time.Duration) Options
+
+	// BufferDurationBeforeShardCutover returns the duration for buffering writes before shard cutover.
+	BufferDurationBeforeShardCutover() time.Duration
+
+	// SetBufferDurationAfterShardCutoff sets the duration for buffering writes after shard cutoff.
+	SetBufferDurationAfterShardCutoff(value time.Duration) Options
+
+	// BufferDurationAfterShardCutoff returns the duration for buffering writes after shard cutoff.
+	BufferDurationAfterShardCutoff() time.Duration
 
 	// SetElectionManager sets the election manager.
 	SetElectionManager(value ElectionManager) Options

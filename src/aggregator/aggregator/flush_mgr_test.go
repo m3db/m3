@@ -109,6 +109,73 @@ func TestFlushManagerRegisterSuccess(t *testing.T) {
 	}
 }
 
+func TestFlushManagerUnregisterClosed(t *testing.T) {
+	mgr, _ := testFlushManager()
+	mgr.state = flushManagerClosed
+	require.Equal(t, errFlushManagerNotOpenOrClosed, mgr.Unregister(nil))
+}
+
+func TestFlushManagerUnregisterBucketNotFound(t *testing.T) {
+	flushers := []PeriodicFlusher{
+		&mockFlusher{flushInterval: time.Second},
+		&mockFlusher{flushInterval: time.Minute},
+	}
+	mgr, _ := testFlushManager()
+	mgr.state = flushManagerOpen
+	mgr.buckets = []*flushBucket{
+		&flushBucket{
+			interval: time.Second,
+			flushers: []PeriodicFlusher{flushers[0]},
+		},
+	}
+	require.Equal(t, errBucketNotFound, mgr.Unregister(flushers[1]))
+}
+
+func TestFlushManagerUnregisterFlusherNotFound(t *testing.T) {
+	mgr, _ := testFlushManager()
+	mgr.state = flushManagerOpen
+	mgr.buckets = []*flushBucket{
+		&flushBucket{
+			interval: time.Second,
+			flushers: []PeriodicFlusher{&mockFlusher{flushInterval: time.Second}},
+		},
+	}
+	flusher := &mockFlusher{flushInterval: time.Second}
+	require.Equal(t, errFlusherNotFound, mgr.Unregister(flusher))
+}
+
+func TestFlushManagerUnregisterSuccess(t *testing.T) {
+	flushers := []PeriodicFlusher{
+		&mockFlusher{flushInterval: time.Second},
+		&mockFlusher{flushInterval: time.Minute},
+		&mockFlusher{flushInterval: time.Second},
+		&mockFlusher{flushInterval: time.Second},
+	}
+	mgr, _ := testFlushManager()
+	mgr.state = flushManagerOpen
+	mgr.buckets = []*flushBucket{
+		&flushBucket{
+			interval: time.Second,
+			flushers: []PeriodicFlusher{flushers[0], flushers[2], flushers[3]},
+		},
+		&flushBucket{
+			interval: time.Minute,
+			flushers: []PeriodicFlusher{flushers[1]},
+		},
+	}
+	require.NoError(t, mgr.Unregister(flushers[0]))
+	require.NoError(t, mgr.Unregister(flushers[2]))
+
+	found := false
+	for _, b := range mgr.buckets {
+		if b.interval == time.Second {
+			found = true
+			require.Equal(t, []PeriodicFlusher{flushers[3]}, b.flushers)
+		}
+	}
+	require.True(t, found)
+}
+
 func TestFlushManagerStatus(t *testing.T) {
 	mgr, _ := testFlushManager()
 	mgr.leaderMgr = &mockRoleBasedFlushManager{
@@ -279,7 +346,7 @@ func testFlushManagerOptions() (FlushManagerOptions, *time.Time) {
 		SetJitterEnabled(false), &now
 }
 
-type flushFn func()
+type flushFn func(cutoverNanos, cutoffNanos int64)
 type discardBeforeFn func(beforeNanos int64)
 
 type mockFlusher struct {
@@ -291,12 +358,12 @@ type mockFlusher struct {
 	discardBeforeFn  discardBeforeFn
 }
 
-func (f *mockFlusher) Shard() uint32                   { return f.shard }
-func (f *mockFlusher) Resolution() time.Duration       { return f.resolution }
-func (f *mockFlusher) FlushInterval() time.Duration    { return f.flushInterval }
-func (f *mockFlusher) LastFlushedNanos() int64         { return f.lastFlushedNanos }
-func (f *mockFlusher) Flush()                          { f.flushFn() }
-func (f *mockFlusher) DiscardBefore(beforeNanos int64) { f.discardBeforeFn(beforeNanos) }
+func (f *mockFlusher) Shard() uint32                         { return f.shard }
+func (f *mockFlusher) Resolution() time.Duration             { return f.resolution }
+func (f *mockFlusher) FlushInterval() time.Duration          { return f.flushInterval }
+func (f *mockFlusher) LastFlushedNanos() int64               { return f.lastFlushedNanos }
+func (f *mockFlusher) Flush(cutoverNanos, cutoffNanos int64) { f.flushFn(cutoverNanos, cutoffNanos) }
+func (f *mockFlusher) DiscardBefore(beforeNanos int64)       { f.discardBeforeFn(beforeNanos) }
 
 type flushOpenFn func(shardSetID uint32) error
 type bucketInitFn func(buckets []*flushBucket)
