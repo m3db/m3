@@ -29,26 +29,10 @@ import (
 	"github.com/uber-go/tally"
 )
 
-// PeriodicFlusher flushes metrics periodically.
-type PeriodicFlusher interface {
-	// Shard returns the shard associated with the flusher.
-	Shard() uint32
-
-	// Resolution returns the resolution of metrics associated with the flusher.
-	Resolution() time.Duration
-
-	// FlushInterval returns the periodic flush interval.
-	FlushInterval() time.Duration
-
-	// LastFlushedNanos returns the last flushed timestamp.
-	LastFlushedNanos() int64
-
-	// Flush performs a flush.
-	Flush()
-
-	// DiscardBefore discards all metrics before a given timestamp.
-	DiscardBefore(beforeNanos int64)
-}
+var (
+	errBucketNotFound  = errors.New("bucket not found")
+	errFlusherNotFound = errors.New("flusher not found")
+)
 
 // FlushManager manages and coordinates flushing activities across many
 // periodic flushers with different flush intervals with controlled concurrency
@@ -60,8 +44,11 @@ type FlushManager interface {
 	// Status returns the flush status.
 	Status() FlushStatus
 
-	// Register registers a metric list with the flush manager.
+	// Register registers a flusher with the flush manager.
 	Register(flusher PeriodicFlusher) error
+
+	// Unregister unregisters a flusher with the flush manager.
+	Unregister(flusher PeriodicFlusher) error
 
 	// Close closes the flush manager.
 	Close() error
@@ -173,14 +160,25 @@ func (mgr *flushManager) Open(shardSetID uint32) error {
 
 func (mgr *flushManager) Register(flusher PeriodicFlusher) error {
 	mgr.Lock()
-	bucket, err := mgr.bucketForWithLock(flusher)
-	if err == nil {
-		bucket.Add(flusher)
-		mgr.Unlock()
-		return nil
+	defer mgr.Unlock()
+
+	bucket, err := mgr.findOrCreateBucketWithLock(flusher)
+	if err != nil {
+		return err
 	}
-	mgr.Unlock()
-	return err
+	bucket.Add(flusher)
+	return nil
+}
+
+func (mgr *flushManager) Unregister(flusher PeriodicFlusher) error {
+	mgr.Lock()
+	defer mgr.Unlock()
+
+	bucket, err := mgr.findBucketWithLock(flusher)
+	if err != nil {
+		return err
+	}
+	return bucket.Remove(flusher)
 }
 
 func (mgr *flushManager) Status() FlushStatus {
@@ -209,7 +207,25 @@ func (mgr *flushManager) Close() error {
 	return nil
 }
 
-func (mgr *flushManager) bucketForWithLock(l PeriodicFlusher) (*flushBucket, error) {
+func (mgr *flushManager) findOrCreateBucketWithLock(l PeriodicFlusher) (*flushBucket, error) {
+	bucket, err := mgr.findBucketWithLock(l)
+	if err == nil {
+		return bucket, nil
+	}
+	if err != errBucketNotFound {
+		return nil, err
+	}
+	flushInterval := l.FlushInterval()
+	bucketScope := mgr.scope.SubScope("bucket").Tagged(map[string]string{
+		"interval": flushInterval.String(),
+	})
+	bucket = newBucket(flushInterval, bucketScope)
+	mgr.buckets = append(mgr.buckets, bucket)
+	mgr.flushManagerWithLock().OnBucketAdded(len(mgr.buckets)-1, bucket)
+	return bucket, nil
+}
+
+func (mgr *flushManager) findBucketWithLock(l PeriodicFlusher) (*flushBucket, error) {
 	if mgr.state != flushManagerOpen {
 		return nil, errFlushManagerNotOpenOrClosed
 	}
@@ -219,13 +235,7 @@ func (mgr *flushManager) bucketForWithLock(l PeriodicFlusher) (*flushBucket, err
 			return bucket, nil
 		}
 	}
-	bucketScope := mgr.scope.SubScope("bucket").Tagged(map[string]string{
-		"interval": flushInterval.String(),
-	})
-	bucket := newBucket(flushInterval, bucketScope)
-	mgr.buckets = append(mgr.buckets, bucket)
-	mgr.flushManagerWithLock().OnBucketAdded(len(mgr.buckets)-1, bucket)
-	return bucket, nil
+	return nil, errBucketNotFound
 }
 
 // NB(xichen): apparently timer.Reset() is more difficult to use than I originally
@@ -287,6 +297,8 @@ func (mgr *flushManager) flushManagerWithLock() roleBasedFlushManager {
 }
 
 // flushBucket contains all the registered lists for a given flush interval.
+// NB(xichen): flushBucket is not thread-safe. It is protected by the lock
+// in the flush manager.
 type flushBucket struct {
 	interval time.Duration
 	flushers []PeriodicFlusher
@@ -302,4 +314,16 @@ func newBucket(interval time.Duration, scope tally.Scope) *flushBucket {
 
 func (b *flushBucket) Add(flusher PeriodicFlusher) {
 	b.flushers = append(b.flushers, flusher)
+}
+
+func (b *flushBucket) Remove(flusher PeriodicFlusher) error {
+	numFlushers := len(b.flushers)
+	for i := 0; i < numFlushers; i++ {
+		if b.flushers[i] == flusher {
+			b.flushers[i] = b.flushers[numFlushers-1]
+			b.flushers = b.flushers[:numFlushers-1]
+			return nil
+		}
+	}
+	return errFlusherNotFound
 }

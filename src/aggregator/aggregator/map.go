@@ -123,6 +123,10 @@ func (m *metricMap) Tick(target time.Duration) tickResult {
 	}
 }
 
+func (m *metricMap) Close() {
+	m.metricLists.Close()
+}
+
 func (m *metricMap) deleteExpired(target time.Duration) int {
 	now := m.nowFn()
 
@@ -182,10 +186,6 @@ func (m *metricMap) deleteExpired(target time.Duration) int {
 		expired[i] = emptyHashedEntry
 	}
 	return numExpired
-}
-
-func (m *metricMap) Close() {
-	m.metricLists.Close()
 }
 
 func (m *metricMap) findOrCreate(key entryKey) *Entry {

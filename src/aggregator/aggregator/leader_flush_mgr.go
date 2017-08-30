@@ -21,6 +21,7 @@
 package aggregator
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -28,6 +29,8 @@ import (
 
 	schema "github.com/m3db/m3aggregator/generated/proto/flush"
 	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
@@ -38,15 +41,25 @@ import (
 	"github.com/uber-go/tally"
 )
 
+var (
+	errInstanceNotFoundInPlacement = errors.New("instance not found in placement")
+)
+
 type leaderFlushManagerMetrics struct {
-	queueSize         tally.Gauge
-	flushTimesPersist instrument.MethodMetrics
+	queueSize                   tally.Gauge
+	activeStagedPlacementErrors tally.Counter
+	activePlacementErrors       tally.Counter
+	instanceNotFoundErrors      tally.Counter
+	flushTimesPersist           instrument.MethodMetrics
 }
 
 func newLeaderFlushManagerMetrics(scope tally.Scope) leaderFlushManagerMetrics {
 	return leaderFlushManagerMetrics{
-		queueSize:         scope.Gauge("queue-size"),
-		flushTimesPersist: instrument.NewMethodMetrics(scope, "flush-times-persist", 1.0),
+		queueSize:                   scope.Gauge("queue-size"),
+		activeStagedPlacementErrors: scope.Counter("active-staged-placement-errors"),
+		activePlacementErrors:       scope.Counter("active-placement-errors"),
+		instanceNotFoundErrors:      scope.Counter("instance-not-found-errors"),
+		flushTimesPersist:           instrument.NewMethodMetrics(scope, "flush-times-persist", 1.0),
 	}
 }
 
@@ -64,6 +77,8 @@ type leaderFlushManager struct {
 	flushTimesStore          kv.Store
 	flushTimesPersistEvery   time.Duration
 	flushTimesPersistRetrier xretry.Retrier
+	instanceID               string
+	placementWatcher         services.StagedPlacementWatcher
 	logger                   xlog.Logger
 	scope                    tally.Scope
 
@@ -97,14 +112,16 @@ func newLeaderFlushManager(
 		flushTimesStore:          opts.FlushTimesStore(),
 		flushTimesPersistEvery:   opts.FlushTimesPersistEvery(),
 		flushTimesPersistRetrier: opts.FlushTimesPersistRetrier(),
-		logger:             instrumentOpts.Logger(),
-		scope:              scope,
-		doneCh:             doneCh,
-		rand:               rand,
-		randFn:             rand.Int63n,
-		lastPersistAtNanos: nowFn().UnixNano(),
-		persistWatchable:   xwatch.NewWatchable(),
-		metrics:            newLeaderFlushManagerMetrics(scope),
+		instanceID:               opts.InstanceID(),
+		placementWatcher:         opts.StagedPlacementWatcher(),
+		logger:                   instrumentOpts.Logger(),
+		scope:                    scope,
+		doneCh:                   doneCh,
+		rand:                     rand,
+		randFn:                   rand.Int63n,
+		lastPersistAtNanos:       nowFn().UnixNano(),
+		persistWatchable:         xwatch.NewWatchable(),
+		metrics:                  newLeaderFlushManagerMetrics(scope),
 	}
 	mgr.flushTask = &leaderFlushTask{mgr: mgr}
 	return mgr
@@ -276,6 +293,29 @@ func (mgr *leaderFlushManager) persistFlushTimes(flushTimesWatch xwatch.Watch) {
 	}
 }
 
+func (mgr *leaderFlushManager) ownedShards() (shard.Shards, error) {
+	stagedPlacement, onStagedPlacementDoneFn, err := mgr.placementWatcher.ActiveStagedPlacement()
+	if err != nil {
+		mgr.metrics.activeStagedPlacementErrors.Inc(1)
+		return nil, err
+	}
+	defer onStagedPlacementDoneFn()
+
+	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
+	if err != nil {
+		mgr.metrics.activePlacementErrors.Inc(1)
+		return nil, err
+	}
+	defer onPlacementDoneFn()
+
+	instance, found := placement.Instance(mgr.instanceID)
+	if !found {
+		mgr.metrics.instanceNotFoundErrors.Inc(1)
+		return nil, errInstanceNotFoundInPlacement
+	}
+	return instance.Shards(), nil
+}
+
 func (mgr *leaderFlushManager) nowNanos() int64 { return mgr.nowFn().UnixNano() }
 
 type leaderFlushTask struct {
@@ -287,13 +327,33 @@ type leaderFlushTask struct {
 func (t *leaderFlushTask) Run() {
 	mgr := t.mgr
 
-	var wgWorkers sync.WaitGroup
-	start := mgr.nowFn()
+	// If there is an error determining owned shards (e.g., instance is not found in the
+	// placement), we return without flushing.
+	shards, err := mgr.ownedShards()
+	if err != nil {
+		mgr.logger.Errorf("unable to determine shards owned by this instance: %v", err)
+		return
+	}
+
+	var (
+		wgWorkers sync.WaitGroup
+		start     = mgr.nowFn()
+	)
 	for _, flusher := range t.flushers {
+		// By default traffic is cut off from a shard, unless the shard is in the list of
+		// shards owned by the instance, in which case the cutover time and the cutoff time
+		// are set to the corresponding cutover and cutoff times of the shard.
+		var cutoverNanos, cutoffNanos int64
+		shardID := flusher.Shard()
+		if shard, found := shards.Shard(shardID); found {
+			cutoverNanos = shard.CutoverNanos()
+			cutoffNanos = shard.CutoffNanos()
+		}
+
 		flusher := flusher
 		wgWorkers.Add(1)
 		mgr.workers.Go(func() {
-			flusher.Flush()
+			flusher.Flush(cutoverNanos, cutoffNanos)
 			wgWorkers.Done()
 		})
 	}

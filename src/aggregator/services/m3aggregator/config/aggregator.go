@@ -136,6 +136,12 @@ type AggregatorConfiguration struct {
 	// Sharding function type.
 	ShardFnType *shardFnType `yaml:"shardFnType"`
 
+	// Amount of time we buffer writes before shard cutover.
+	BufferDurationBeforeShardCutover time.Duration `yaml:"bufferDurationBeforeShardCutover"`
+
+	// Amount of time we buffer writes after shard cutoff.
+	BufferDurationAfterShardCutoff time.Duration `yaml:"bufferDurationAfterShardCutoff"`
+
 	// Resign timeout.
 	ResignTimeout time.Duration `yaml:"resignTimeout"`
 
@@ -257,8 +263,12 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 
 	// Set placement watcher options.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("placement-watcher"))
-	watcherOpts := c.PlacementWatcher.NewOptions(store, iOpts)
-	opts = opts.SetStagedPlacementWatcherOptions(watcherOpts)
+	placementWatcherOpts := c.PlacementWatcher.NewOptions(store, iOpts)
+	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
+	if err := placementWatcher.Watch(); err != nil {
+		return nil, err
+	}
+	opts = opts.SetStagedPlacementWatcher(placementWatcher)
 
 	// Set sharding function.
 	shardFnType := defaultShardFn
@@ -271,6 +281,14 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	}
 	opts = opts.SetShardFn(shardFn)
 
+	// Set buffer durations for shard cutovers and shard cutoffs.
+	if c.BufferDurationBeforeShardCutover != 0 {
+		opts = opts.SetBufferDurationBeforeShardCutover(c.BufferDurationBeforeShardCutover)
+	}
+	if c.BufferDurationAfterShardCutoff != 0 {
+		opts = opts.SetBufferDurationAfterShardCutoff(c.BufferDurationAfterShardCutoff)
+	}
+
 	// Set resign timeout.
 	if c.ResignTimeout != 0 {
 		opts = opts.SetResignTimeout(c.ResignTimeout)
@@ -278,7 +296,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 
 	// Set election manager.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("election-manager"))
-	electionManager, err := c.ElectionManager.NewElectionManager(client, instanceID, iOpts)
+	electionManager, err := c.ElectionManager.NewElectionManager(client, instanceID, c.KVNamespace, iOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +304,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 
 	// Set flush manager.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("flush-manager"))
-	flushManager, err := c.FlushManager.NewFlushManager(store, electionManager, iOpts)
+	flushManager, err := c.FlushManager.NewFlushManager(instanceID, placementWatcher, store, electionManager, iOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -556,6 +574,7 @@ type electionManagerConfiguration struct {
 func (c electionManagerConfiguration) NewElectionManager(
 	client client.Client,
 	instanceID string,
+	kvNamespace string,
 	instrumentOpts instrument.Options,
 ) (aggregator.ElectionManager, error) {
 	electionOpts, err := c.Election.NewElectionOptions()
@@ -563,7 +582,9 @@ func (c electionManagerConfiguration) NewElectionManager(
 		return nil, err
 	}
 	serviceID := c.ServiceID.NewServiceID()
-	svcs, err := client.Services()
+	namespaceOpts := services.NewNamespaceOptions().SetPlacementNamespace(kvNamespace)
+	serviceOpts := services.NewOptions().SetNamespaceOptions(namespaceOpts)
+	svcs, err := client.Services(serviceOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -666,6 +687,8 @@ type flushManagerConfiguration struct {
 }
 
 func (c flushManagerConfiguration) NewFlushManager(
+	instanceID string,
+	placementWatcher services.StagedPlacementWatcher,
 	store kv.Store,
 	electionManager aggregator.ElectionManager,
 	instrumentOpts instrument.Options,
@@ -677,7 +700,9 @@ func (c flushManagerConfiguration) NewFlushManager(
 		SetElectionManager(electionManager).
 		SetFlushTimesKeyFmt(c.FlushTimesKeyFmt).
 		SetFlushTimesStore(store).
-		SetFlushTimesPersistRetrier(retrier)
+		SetFlushTimesPersistRetrier(retrier).
+		SetInstanceID(instanceID).
+		SetStagedPlacementWatcher(placementWatcher)
 	if c.CheckEvery != 0 {
 		opts = opts.SetCheckEvery(c.CheckEvery)
 	}

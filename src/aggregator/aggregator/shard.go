@@ -22,25 +22,48 @@ package aggregator
 
 import (
 	"errors"
+	"math"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3x/clock"
+
+	"github.com/uber-go/tally"
 )
 
 var (
-	errAggregatorShardClosed = errors.New("aggregator shard is closed")
+	errAggregatorShardClosed       = errors.New("aggregator shard is closed")
+	errAggregatorShardNotWriteable = errors.New("aggregator shard is not writeable")
 )
 
 type addMetricWithPoliciesListFn func(mu unaggregated.MetricUnion, pl policy.PoliciesList) error
 
+type aggregatorShardMetrics struct {
+	notWriteableErrors tally.Counter
+}
+
+func newAggregatorShardMetrics(scope tally.Scope) aggregatorShardMetrics {
+	return aggregatorShardMetrics{
+		notWriteableErrors: scope.Counter("not-writeable-errors"),
+	}
+}
+
 type aggregatorShard struct {
 	sync.RWMutex
 
-	shard                       uint32
+	shard                            uint32
+	nowFn                            clock.NowFn
+	bufferDurationBeforeShardCutover time.Duration
+	bufferDurationAfterShardCutoff   time.Duration
+	earliestWritableNanos            int64
+	latestWriteableNanos             int64
+
 	closed                      bool
 	metricMap                   *metricMap
+	metrics                     aggregatorShardMetrics
 	addMetricWithPoliciesListFn addMetricWithPoliciesListFn
 }
 
@@ -49,15 +72,49 @@ func newAggregatorShard(shard uint32, opts Options) *aggregatorShard {
 	// its own time lock to ensure for an aggregation window, all metrics
 	// owned by the shard are aggregated before they are flushed.
 	opts = opts.SetTimeLock(&sync.RWMutex{})
+	scope := opts.InstrumentOptions().MetricsScope().SubScope("shard").Tagged(
+		map[string]string{"shard": strconv.Itoa(int(shard))},
+	)
 	s := &aggregatorShard{
-		shard:     shard,
-		metricMap: newMetricMap(shard, opts),
+		shard: shard,
+		nowFn: opts.ClockOptions().NowFn(),
+		bufferDurationBeforeShardCutover: opts.BufferDurationBeforeShardCutover(),
+		bufferDurationAfterShardCutoff:   opts.BufferDurationAfterShardCutoff(),
+		metricMap:                        newMetricMap(shard, opts),
+		metrics:                          newAggregatorShardMetrics(scope),
 	}
 	s.addMetricWithPoliciesListFn = s.metricMap.AddMetricWithPoliciesList
 	return s
 }
 
 func (s *aggregatorShard) ID() uint32 { return s.shard }
+
+func (s *aggregatorShard) SetWriteableRange(rng timeRange) {
+	var (
+		cutoverNanos  = rng.cutoverNanos
+		cutoffNanos   = rng.cutoffNanos
+		earliestNanos = int64(0)
+		latestNanos   = int64(math.MaxInt64)
+	)
+	if cutoverNanos >= int64(s.bufferDurationBeforeShardCutover) {
+		earliestNanos = cutoverNanos - int64(s.bufferDurationBeforeShardCutover)
+	}
+	if cutoffNanos <= math.MaxInt64-int64(s.bufferDurationAfterShardCutoff) {
+		latestNanos = cutoffNanos + int64(s.bufferDurationAfterShardCutoff)
+	}
+	s.Lock()
+	s.earliestWritableNanos = earliestNanos
+	s.latestWriteableNanos = latestNanos
+	s.Unlock()
+}
+
+func (s *aggregatorShard) IsCutoff() bool {
+	nowNanos := s.nowFn().UnixNano()
+	s.RLock()
+	latestWriteableNanos := s.latestWriteableNanos
+	s.RUnlock()
+	return nowNanos > latestWriteableNanos
+}
 
 func (s *aggregatorShard) AddMetricWithPoliciesList(
 	mu unaggregated.MetricUnion,
@@ -67,6 +124,11 @@ func (s *aggregatorShard) AddMetricWithPoliciesList(
 	if s.closed {
 		s.RUnlock()
 		return errAggregatorShardClosed
+	}
+	if err := s.checkWritableWithLock(); err != nil {
+		s.RUnlock()
+		s.metrics.notWriteableErrors.Inc(1)
+		return err
 	}
 	err := s.addMetricWithPoliciesListFn(mu, pl)
 	s.RUnlock()
@@ -86,4 +148,17 @@ func (s *aggregatorShard) Close() {
 	}
 	s.closed = true
 	s.metricMap.Close()
+}
+
+func (s *aggregatorShard) checkWritableWithLock() error {
+	nowNanos := s.nowFn().UnixNano()
+	if nowNanos < s.earliestWritableNanos || nowNanos > s.latestWriteableNanos {
+		return errAggregatorShardNotWriteable
+	}
+	return nil
+}
+
+type timeRange struct {
+	cutoverNanos int64
+	cutoffNanos  int64
 }

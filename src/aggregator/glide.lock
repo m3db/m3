@@ -1,5 +1,5 @@
-hash: 1cf1facfd8d784407ebff70d551ccd7cc97dc62dfdb00958ff9efe1b86fb7fec
-updated: 2017-08-22T18:00:39.948952385-04:00
+hash: a9c2fc0238917c1d7aa8bb91a55b3f051e68a5315ec72c6ea1e66e73d6fa8850
+updated: 2017-08-28T14:38:58.60099385-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -122,7 +122,7 @@ imports:
 - name: github.com/karlseguin/ccache
   version: a2d62155777b39595c825ed3824279e642a5db3c
 - name: github.com/m3db/m3cluster
-  version: e6473486b16d5c4dae33f2b89f396c45ebcf822d
+  version: 448266e7ef0dff85c2e6d7365c67e7397eb276bd
   subpackages:
   - client
   - client/etcd
@@ -142,6 +142,7 @@ imports:
   - services/leader/election
   - services/placement
   - services/placement/algo
+  - services/placement/selector
   - services/placement/service
   - shard
 - name: github.com/m3db/m3metrics
