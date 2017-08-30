@@ -24,11 +24,11 @@
 package fs
 
 import (
-	time "time"
+	time0 "time"
 
 	ts "github.com/m3db/m3db/ts"
 	checked "github.com/m3db/m3x/checked"
-	time0 "github.com/m3db/m3x/time"
+	time "github.com/m3db/m3x/time"
 
 	gomock "github.com/golang/mock/gomock"
 )
@@ -64,7 +64,7 @@ func (_mr *_MockFileSetWriterRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockFileSetWriter) Open(_param0 ts.ID, _param1 uint32, _param2 time.Time) error {
+func (_m *MockFileSetWriter) Open(_param0 ts.ID, _param1 uint32, _param2 time0.Time) error {
 	ret := _m.ctrl.Call(_m, "Open", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -145,7 +145,7 @@ func (_mr *_MockFileSetReaderRecorder) EntriesRead() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "EntriesRead")
 }
 
-func (_m *MockFileSetReader) Open(_param0 ts.ID, _param1 uint32, _param2 time.Time) error {
+func (_m *MockFileSetReader) Open(_param0 ts.ID, _param1 uint32, _param2 time0.Time) error {
 	ret := _m.ctrl.Call(_m, "Open", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -155,9 +155,9 @@ func (_mr *_MockFileSetReaderRecorder) Open(arg0, arg1, arg2 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open", arg0, arg1, arg2)
 }
 
-func (_m *MockFileSetReader) Range() time0.Range {
+func (_m *MockFileSetReader) Range() time.Range {
 	ret := _m.ctrl.Call(_m, "Range")
-	ret0, _ := ret[0].(time0.Range)
+	ret0, _ := ret[0].(time.Range)
 	return ret0
 }
 

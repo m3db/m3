@@ -615,6 +615,26 @@ func (_mr *_MockDynamicOptionsRecorder) ServiceID() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ServiceID")
 }
 
+func (_m *MockDynamicOptions) SetServiceOptions(opts services.Options) DynamicOptions {
+	ret := _m.ctrl.Call(_m, "SetServiceOptions", opts)
+	ret0, _ := ret[0].(DynamicOptions)
+	return ret0
+}
+
+func (_mr *_MockDynamicOptionsRecorder) SetServiceOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetServiceOptions", arg0)
+}
+
+func (_m *MockDynamicOptions) ServicesOptions() services.Options {
+	ret := _m.ctrl.Call(_m, "ServicesOptions")
+	ret0, _ := ret[0].(services.Options)
+	return ret0
+}
+
+func (_mr *_MockDynamicOptionsRecorder) ServicesOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ServicesOptions")
+}
+
 func (_m *MockDynamicOptions) SetQueryOptions(value services.QueryOptions) DynamicOptions {
 	ret := _m.ctrl.Call(_m, "SetQueryOptions", value)
 	ret0, _ := ret[0].(DynamicOptions)

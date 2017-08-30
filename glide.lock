@@ -1,5 +1,5 @@
-hash: 6b6fa7bd4ffa35639e41274671ffe64090929b60990f56c2b16781d2bc4d2cb4
-updated: 2017-08-30T01:04:45.265058565+08:00
+hash: 37e9f317d04b1ff68bdb8fe0ca6f581b62227e9e9dfc90dd695275e47a91a97f
+updated: 2017-08-30T14:47:12.377331239+08:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -22,7 +22,7 @@ imports:
   - mvcc/mvccpb
   - pkg/tlsutil
 - name: github.com/davecgh/go-spew
-  version: adab96458c51a58dc1783b3335dcce5461522e75
+  version: a476722483882dd40b8111f0eb64e1d7f43f56e4
   subpackages:
   - spew
 - name: github.com/facebookgo/clock
@@ -82,7 +82,7 @@ imports:
   - services/placement/service
   - shard
 - name: github.com/m3db/m3em
-  version: f5b48d1c5d2d6a990b8b4ef534a3431639027c12
+  version: b6179304c6fca0c507cb8f5fad60a510ffa7005e
   subpackages:
   - build
   - checksum
