@@ -6,6 +6,9 @@ import:
   subpackages:
   - lib/go/thrift
 
+- package: github.com/davecgh/go-spew
+  version: adab96458c51a58dc1783b3335dcce5461522e75
+
 - package: github.com/golang/mock
   version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
   subpackages:
@@ -15,6 +18,9 @@ import:
   version: 3852dcfda249c2097355a6aabb199a28d97b30df
   subpackages:
   - proto
+
+- package: github.com/prometheus/common
+  version: 195bde7883f7c39ea62b0d92ab7359b5327065cb
 
 - package: github.com/spaolacci/murmur3
   version: 0d12bf811670bf6a1a63828dfbd003eded177fce

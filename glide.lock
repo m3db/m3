@@ -1,5 +1,5 @@
-hash: 37e9f317d04b1ff68bdb8fe0ca6f581b62227e9e9dfc90dd695275e47a91a97f
-updated: 2017-08-30T14:47:12.377331239+08:00
+hash: 0e43a397a4941eeb75c96effe0d7cfa390bde135b19090d571a5056902caccda
+updated: 2017-08-30T21:18:33.143082564+08:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -22,7 +22,7 @@ imports:
   - mvcc/mvccpb
   - pkg/tlsutil
 - name: github.com/davecgh/go-spew
-  version: a476722483882dd40b8111f0eb64e1d7f43f56e4
+  version: adab96458c51a58dc1783b3335dcce5461522e75
   subpackages:
   - spew
 - name: github.com/facebookgo/clock
@@ -136,7 +136,7 @@ imports:
   subpackages:
   - go
 - name: github.com/prometheus/common
-  version: 9e0844febd9e2856f839c9cb974fbd676d1755a8
+  version: 195bde7883f7c39ea62b0d92ab7359b5327065cb
   subpackages:
   - expfmt
   - internal/bitbucket.org/ww/goautoneg
