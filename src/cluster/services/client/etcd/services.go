@@ -26,10 +26,12 @@ import (
 	"sync"
 	"time"
 
-	metadataproto "github.com/m3db/m3cluster/generated/proto/metadata"
+	"github.com/m3db/m3cluster/generated/proto/metadatapb"
 	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3cluster/placement/service"
+	"github.com/m3db/m3cluster/placement/storage"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/placement/service"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/watch"
 
@@ -91,7 +93,7 @@ func (c *client) Metadata(sid services.ServiceID) (services.Metadata, error) {
 		return nil, err
 	}
 
-	var mp metadataproto.Metadata
+	var mp metadatapb.Metadata
 	if err = v.Unmarshal(&mp); err != nil {
 		return nil, err
 	}
@@ -118,21 +120,30 @@ func (c *client) SetMetadata(sid services.ServiceID, meta services.Metadata) err
 	return err
 }
 
-func (c *client) PlacementService(sid services.ServiceID, opts services.PlacementOptions) (services.PlacementService, error) {
+func (c *client) PlacementService(sid services.ServiceID, opts placement.Options) (placement.Service, error) {
 	if err := validateServiceID(sid); err != nil {
 		return nil, err
 	}
 
-	ps, err := c.PlacementStorage(opts)
+	ps, err := c.PlacementStorage(sid, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	return service.NewPlacementService(ps, sid, opts), nil
+	return service.NewPlacementService(ps, opts), nil
 }
 
-func (c *client) PlacementStorage(opts services.PlacementOptions) (services.PlacementStorage, error) {
-	return newPlacementStorage(c.placementKeyFn, c.opts.KVGen(), newHelper(opts)), nil
+func (c *client) PlacementStorage(sid services.ServiceID, opts placement.Options) (placement.Storage, error) {
+	if err := validateServiceID(sid); err != nil {
+		return nil, err
+	}
+
+	store, err := c.opts.KVGen()(sid.Zone())
+	if err != nil {
+		return nil, err
+	}
+
+	return storage.NewPlacementStorage(store, c.placementKeyFn(sid), opts), nil
 }
 
 func (c *client) Advertise(ad services.Advertisement) error {

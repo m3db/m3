@@ -26,12 +26,13 @@ import (
 	"testing"
 	"time"
 
-	metadataproto "github.com/m3db/m3cluster/generated/proto/metadata"
+	"github.com/m3db/m3cluster/generated/proto/metadatapb"
 	"github.com/m3db/m3cluster/kv"
 	etcdKV "github.com/m3db/m3cluster/kv/etcd"
 	"github.com/m3db/m3cluster/mocks"
+	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3cluster/placement/storage"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/watch"
@@ -344,7 +345,7 @@ func TestQueryIncludeUnhealthy(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, kv.ErrNotFound, err)
 
-	p := placement.NewPlacement().SetInstances([]services.PlacementInstance{
+	p := placement.NewPlacement().SetInstances([]placement.Instance{
 		placement.NewInstance().
 			SetID("i1").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
@@ -353,10 +354,10 @@ func TestQueryIncludeUnhealthy(t *testing.T) {
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 	}).SetShards([]uint32{1}).SetReplicaFactor(2)
 
-	ps, err := newTestPlacementStorage(opts, placement.NewOptions())
+	ps, err := newTestPlacementStorage(sid, opts, placement.NewOptions())
 	require.NoError(t, err)
 
-	err = ps.SetIfNotExist(sid, p)
+	err = ps.SetIfNotExist(p)
 	require.NoError(t, err)
 
 	s, err := sd.Query(sid, qopts)
@@ -385,7 +386,7 @@ func TestQueryNotIncludeUnhealthy(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, kv.ErrNotFound, err)
 
-	p := placement.NewPlacement().SetInstances([]services.PlacementInstance{
+	p := placement.NewPlacement().SetInstances([]placement.Instance{
 		placement.NewInstance().
 			SetID("i1").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
@@ -394,10 +395,10 @@ func TestQueryNotIncludeUnhealthy(t *testing.T) {
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 	}).SetShards([]uint32{1}).SetReplicaFactor(2)
 
-	ps, err := newTestPlacementStorage(opts, placement.NewOptions())
+	ps, err := newTestPlacementStorage(sid, opts, placement.NewOptions())
 	require.NoError(t, err)
 
-	err = ps.SetIfNotExist(sid, p)
+	err = ps.SetIfNotExist(p)
 	require.NoError(t, err)
 
 	s, err := sd.Query(sid, qopts)
@@ -445,7 +446,7 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 	require.NoError(t, err)
 
 	p := placement.NewPlacement().
-		SetInstances([]services.PlacementInstance{
+		SetInstances([]placement.Instance{
 			placement.NewInstance().
 				SetID("i1").
 				SetEndpoint("e1").
@@ -473,7 +474,7 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 	require.Equal(t, 2, s.Replication().Replicas())
 
 	p = placement.NewPlacement().
-		SetInstances([]services.PlacementInstance{
+		SetInstances([]placement.Instance{
 			placement.NewInstance().
 				SetID("i1").
 				SetEndpoint("e1").
@@ -504,7 +505,7 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 	require.True(t, ok)
 
 	// set a bad value for placement
-	v, err := kvm.kv.Set(keyFnWithNamespace(placementPrefix)(sid), &metadataproto.Metadata{Port: 1})
+	v, err := kvm.kv.Set(keyFnWithNamespace(placementPrefix)(sid), &metadatapb.Metadata{Port: 1})
 	require.NoError(t, err)
 	require.Equal(t, 3, v)
 
@@ -536,7 +537,7 @@ func TestWatchIncludeUnhealthy(t *testing.T) {
 	}
 
 	p = placement.NewPlacement().
-		SetInstances([]services.PlacementInstance{
+		SetInstances([]placement.Instance{
 			placement.NewInstance().
 				SetID("i1").
 				SetEndpoint("e1").
@@ -577,7 +578,7 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 	require.NoError(t, err)
 
 	p := placement.NewPlacement().
-		SetInstances([]services.PlacementInstance{
+		SetInstances([]placement.Instance{
 			placement.NewInstance().
 				SetID("i1").
 				SetEndpoint("e1").
@@ -653,7 +654,7 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 	require.True(t, ok)
 
 	// set a bad value for placement
-	v, err := kvm.kv.Set(keyFnWithNamespace(placementPrefix)(sid), &metadataproto.Metadata{Port: 1})
+	v, err := kvm.kv.Set(keyFnWithNamespace(placementPrefix)(sid), &metadatapb.Metadata{Port: 1})
 	require.NoError(t, err)
 	require.Equal(t, 2, v)
 
@@ -707,7 +708,7 @@ func TestWatchNotIncludeUnhealthy(t *testing.T) {
 	require.Equal(t, 2, s.Replication().Replicas())
 
 	p = placement.NewPlacement().
-		SetInstances([]services.PlacementInstance{
+		SetInstances([]placement.Instance{
 			placement.NewInstance().
 				SetID("i1").
 				SetEndpoint("e1").
@@ -736,7 +737,7 @@ func TestMultipleWatches(t *testing.T) {
 	qopts := services.NewQueryOptions()
 	sid := services.NewServiceID().SetName("m3db").SetZone("zone1")
 
-	p := placement.NewPlacement().SetInstances([]services.PlacementInstance{
+	p := placement.NewPlacement().SetInstances([]placement.Instance{
 		placement.NewInstance().
 			SetID("i1").
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
@@ -745,10 +746,10 @@ func TestMultipleWatches(t *testing.T) {
 			SetShards(shard.NewShards([]shard.Shard{shard.NewShard(1).SetState(shard.Initializing)})),
 	}).SetShards([]uint32{1}).SetReplicaFactor(2)
 
-	ps, err := newTestPlacementStorage(opts, placement.NewOptions())
+	ps, err := newTestPlacementStorage(sid, opts, placement.NewOptions())
 	require.NoError(t, err)
 
-	err = ps.SetIfNotExist(sid, p)
+	err = ps.SetIfNotExist(p)
 	require.NoError(t, err)
 
 	sd, err := NewServices(opts)
@@ -827,7 +828,7 @@ func TestWatch_GetAfterTimeout(t *testing.T) {
 	require.NoError(t, err)
 
 	p := placement.NewPlacement().
-		SetInstances([]services.PlacementInstance{
+		SetInstances([]placement.Instance{
 			placement.NewInstance().
 				SetID("i1").
 				SetEndpoint("e1").
@@ -866,7 +867,7 @@ func TestWatch_GetAfterTimeout(t *testing.T) {
 	require.NoError(t, err)
 
 	p = placement.NewPlacement().
-		SetInstances([]services.PlacementInstance{
+		SetInstances([]placement.Instance{
 			placement.NewInstance().
 				SetID("i1").
 				SetEndpoint("e1").
@@ -955,7 +956,7 @@ func TestCacheCollisions_Watchables(t *testing.T) {
 		ps, err := sd.PlacementService(id, placement.NewOptions())
 		require.NoError(t, err)
 
-		p := placement.NewPlacement().SetInstances([]services.PlacementInstance{
+		p := placement.NewPlacement().SetInstances([]placement.Instance{
 			placement.NewInstance().SetID("i1").SetEndpoint("i:p"),
 		})
 		err = ps.SetPlacement(p)
@@ -1084,7 +1085,7 @@ type mockHBStore struct {
 	watchables map[string]xwatch.Watchable
 }
 
-func (hb *mockHBStore) Heartbeat(instance services.PlacementInstance, ttl time.Duration) error {
+func (hb *mockHBStore) Heartbeat(instance placement.Instance, ttl time.Duration) error {
 	hb.Lock()
 	defer hb.Unlock()
 	hbMap, ok := hb.hbs[serviceKey(hb.sid)]
@@ -1113,17 +1114,17 @@ func (hb *mockHBStore) Get() ([]string, error) {
 	return r, nil
 }
 
-func (hb *mockHBStore) GetInstances() ([]services.PlacementInstance, error) {
+func (hb *mockHBStore) GetInstances() ([]placement.Instance, error) {
 	hb.Lock()
 	defer hb.Unlock()
 
-	var r []services.PlacementInstance
+	var r []placement.Instance
 	hbMap, ok := hb.hbs[serviceKey(hb.sid)]
 	if !ok {
 		return r, nil
 	}
 
-	r = make([]services.PlacementInstance, 0, len(hbMap))
+	r = make([]placement.Instance, 0, len(hbMap))
 	for k := range hbMap {
 		r = append(r, placement.NewInstance().SetID(k))
 	}
@@ -1171,4 +1172,19 @@ func (hb *mockHBStore) Delete(id string) error {
 
 	delete(hbMap, id)
 	return nil
+}
+
+func newTestPlacementStorage(sid services.ServiceID, opts Options, pOpts placement.Options) (placement.Storage, error) {
+	if opts.KVGen() == nil {
+		return nil, errNoKVGen
+	}
+	store, err := opts.KVGen()(sid.Zone())
+	if err != nil {
+		return nil, err
+	}
+	return storage.NewPlacementStorage(
+		store,
+		keyFnWithNamespace(placementNamespace(opts.NamespaceOptions().PlacementNamespace()))(sid),
+		pOpts,
+	), nil
 }

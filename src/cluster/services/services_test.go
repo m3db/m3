@@ -23,7 +23,7 @@ package services
 import (
 	"testing"
 
-	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
+	"github.com/m3db/m3cluster/generated/proto/placementpb"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -53,9 +53,9 @@ func TestConvertBetweenProtoAndService(t *testing.T) {
 		SetName("test_service").
 		SetEnvironment("test_env").
 		SetZone("test_zone")
-	p := &placementproto.Placement{
-		Instances: map[string]*placementproto.Instance{
-			"i1": &placementproto.Instance{
+	p := &placementpb.Placement{
+		Instances: map[string]*placementpb.Instance{
+			"i1": &placementpb.Instance{
 				Id:       "i1",
 				Rack:     "r1",
 				Zone:     "z1",
@@ -63,7 +63,7 @@ func TestConvertBetweenProtoAndService(t *testing.T) {
 				Weight:   1,
 				Shards:   protoShards,
 			},
-			"i2": &placementproto.Instance{
+			"i2": &placementpb.Instance{
 				Id:       "i2",
 				Rack:     "r2",
 				Zone:     "z1",
@@ -104,12 +104,12 @@ func TestConvertBetweenProtoAndService(t *testing.T) {
 	assert.True(t, i2.Shards().Contains(2))
 }
 
-func getProtoShards(ids []uint32) []*placementproto.Shard {
-	r := make([]*placementproto.Shard, len(ids))
+func getProtoShards(ids []uint32) []*placementpb.Shard {
+	r := make([]*placementpb.Shard, len(ids))
 	for i, id := range ids {
-		r[i] = &placementproto.Shard{
+		r[i] = &placementpb.Shard{
 			Id:    id,
-			State: placementproto.ShardState_AVAILABLE,
+			State: placementpb.ShardState_AVAILABLE,
 		}
 	}
 	return r

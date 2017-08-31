@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,12 +18,35 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// mockgen rules for generating mocks using reflection mode
-//go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/$PACKAGE/client/client_mock.go $PACKAGE/client Client"
+package placement
 
-// mockgen rules for generating mocks using file mode
-//go:generate sh -c "mockgen -package=placement -destination=$GOPATH/src/$PACKAGE/placement/placement_mock.go -source=$GOPATH/src/$PACKAGE/placement/types.go"
-//go:generate sh -c "mockgen -package=services -destination=$GOPATH/src/$PACKAGE/services/services_mock.go -source=$GOPATH/src/$PACKAGE/services/types.go"
-//go:generate sh -c "mockgen -package=kv -destination=$GOPATH/src/$PACKAGE/kv/store_mock.go -source=$GOPATH/src/$PACKAGE/kv/types.go"
+import (
+	"time"
 
-package mocks
+	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3x/instrument"
+)
+
+// WatcherConfiguration contains placement watcher configuration.
+type WatcherConfiguration struct {
+	// Placement key.
+	Key string `yaml:"key" validate:"nonzero"`
+
+	// Initial watch timeout.
+	InitWatchTimeout time.Duration `yaml:"initWatchTimeout"`
+}
+
+// NewOptions creates a placement watcher option.
+func (c *WatcherConfiguration) NewOptions(
+	store kv.Store,
+	instrumentOpts instrument.Options,
+) StagedPlacementWatcherOptions {
+	opts := NewStagedPlacementWatcherOptions().
+		SetInstrumentOptions(instrumentOpts).
+		SetStagedPlacementKey(c.Key).
+		SetStagedPlacementStore(store)
+	if c.InitWatchTimeout != 0 {
+		opts = opts.SetInitWatchTimeout(c.InitWatchTimeout)
+	}
+	return opts
+}

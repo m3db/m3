@@ -260,6 +260,10 @@ func TestDelete(t *testing.T) {
 
 	<-w.C()
 	require.Nil(t, w.Get())
+
+	_, err = s.Get("foo")
+	require.Error(t, err)
+	require.Equal(t, kv.ErrNotFound, err)
 }
 
 func TestTxn(t *testing.T) {

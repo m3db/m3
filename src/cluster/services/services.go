@@ -24,11 +24,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
-	metadataproto "github.com/m3db/m3cluster/generated/proto/metadata"
-	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
+	"github.com/m3db/m3cluster/generated/proto/metadatapb"
+	"github.com/m3db/m3cluster/generated/proto/placementpb"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
 )
 
@@ -50,7 +50,7 @@ func NewService() Service { return new(service) }
 // NewServiceFromProto takes the data from a placement and a service id and
 // returns the corresponding Service object.
 func NewServiceFromProto(
-	p *placementproto.Placement,
+	p *placementpb.Placement,
 	sid ServiceID,
 ) (Service, error) {
 	if p == nil {
@@ -72,7 +72,7 @@ func NewServiceFromProto(
 }
 
 // NewServiceFromPlacement creates a Service from the placement and service ID.
-func NewServiceFromPlacement(p Placement, sid ServiceID) Service {
+func NewServiceFromPlacement(p placement.Placement, sid ServiceID) Service {
 	var (
 		placementInstances = p.Instances()
 		serviceInstances   = make([]ServiceInstance, len(placementInstances))
@@ -137,7 +137,7 @@ func NewServiceInstance() ServiceInstance { return new(serviceInstance) }
 
 // NewServiceInstanceFromProto creates a new service instance from proto.
 func NewServiceInstanceFromProto(
-	instance *placementproto.Instance,
+	instance *placementpb.Instance,
 	sid ServiceID,
 ) (ServiceInstance, error) {
 	if instance == nil {
@@ -156,7 +156,7 @@ func NewServiceInstanceFromProto(
 
 // NewServiceInstanceFromPlacementInstance creates a new service instance from placement instance.
 func NewServiceInstanceFromPlacementInstance(
-	instance PlacementInstance,
+	instance placement.Instance,
 	sid ServiceID,
 ) ServiceInstance {
 	return NewServiceInstance().
@@ -190,17 +190,17 @@ func (i *serviceInstance) SetServiceID(service ServiceID) ServiceInstance {
 func NewAdvertisement() Advertisement { return new(advertisement) }
 
 type advertisement struct {
-	instance PlacementInstance
+	instance placement.Instance
 	service  ServiceID
 	health   func() error
 }
 
 func (a *advertisement) ServiceID() ServiceID                   { return a.service }
 func (a *advertisement) Health() func() error                   { return a.health }
-func (a *advertisement) PlacementInstance() PlacementInstance   { return a.instance }
+func (a *advertisement) PlacementInstance() placement.Instance  { return a.instance }
 func (a *advertisement) SetServiceID(s ServiceID) Advertisement { a.service = s; return a }
 func (a *advertisement) SetHealth(h func() error) Advertisement { a.health = h; return a }
-func (a *advertisement) SetPlacementInstance(p PlacementInstance) Advertisement {
+func (a *advertisement) SetPlacementInstance(p placement.Instance) Advertisement {
 	a.instance = p
 	return a
 }
@@ -239,7 +239,7 @@ func NewMetadata() Metadata { return new(metadata) }
 
 // NewMetadataFromProto converts a Metadata proto message to an instance of
 // Metadata.
-func NewMetadataFromProto(m *metadataproto.Metadata) (Metadata, error) {
+func NewMetadataFromProto(m *metadatapb.Metadata) (Metadata, error) {
 	if m == nil {
 		return nil, errNilMetadataProto
 	}
@@ -278,45 +278,11 @@ func (m *metadata) String() string {
 	)
 }
 
-func (m *metadata) Proto() (*metadataproto.Metadata, error) {
-	return &metadataproto.Metadata{
+func (m *metadata) Proto() (*metadatapb.Metadata, error) {
+	return &metadatapb.Metadata{
 		Port:              m.Port(),
 		LivenessInterval:  int64(m.LivenessInterval()),
 		HeartbeatInterval: int64(m.HeartbeatInterval()),
-	}, nil
-}
-
-// PlacementInstances is a slice of instances that can produce a debug string
-type PlacementInstances []PlacementInstance
-
-func (i PlacementInstances) String() string {
-	if len(i) == 0 {
-		return "[]"
-	}
-	var strs []string
-	strs = append(strs, "[\n")
-	for _, elem := range i {
-		strs = append(strs, "\t"+elem.String()+",\n")
-	}
-	strs = append(strs, "]")
-	return strings.Join(strs, "")
-}
-
-// Placements represents a list of service placements.
-type Placements []Placement
-
-// Proto converts a list of Placement to a proto.
-func (placements Placements) Proto() (*placementproto.PlacementSnapshots, error) {
-	snapshots := make([]*placementproto.Placement, 0, len(placements))
-	for _, p := range placements {
-		placementProto, err := p.Proto()
-		if err != nil {
-			return nil, err
-		}
-		snapshots = append(snapshots, placementProto)
-	}
-	return &placementproto.PlacementSnapshots{
-		Snapshots: snapshots,
 	}, nil
 }
 

@@ -29,10 +29,10 @@ import (
 
 	"github.com/golang/protobuf/proto"
 	"github.com/m3db/m3cluster/etcd/watchmanager"
-	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
+	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/watch"
@@ -132,7 +132,7 @@ type clientMetrics struct {
 	etcdLeaseError tally.Counter
 }
 
-func (c *client) Heartbeat(instance services.PlacementInstance, ttl time.Duration) error {
+func (c *client) Heartbeat(instance placement.Instance, ttl time.Duration) error {
 	leaseID, ok := c.cache.get(c.sid, instance.ID(), ttl)
 	if ok {
 		ctx, cancel := c.context()
@@ -209,11 +209,11 @@ func (c *client) get(key string) ([]string, error) {
 	return r, nil
 }
 
-func (c *client) GetInstances() ([]services.PlacementInstance, error) {
+func (c *client) GetInstances() ([]placement.Instance, error) {
 	return c.getInstances(servicePrefix(c.sid))
 }
 
-func (c *client) getInstances(key string) ([]services.PlacementInstance, error) {
+func (c *client) getInstances(key string) ([]placement.Instance, error) {
 	ctx, cancel := c.context()
 	defer cancel()
 
@@ -223,9 +223,9 @@ func (c *client) getInstances(key string) ([]services.PlacementInstance, error) 
 		return nil, err
 	}
 
-	r := make([]services.PlacementInstance, len(gr.Kvs))
+	r := make([]placement.Instance, len(gr.Kvs))
 	for i, kv := range gr.Kvs {
-		var p placementproto.Instance
+		var p placementpb.Instance
 		if err := proto.Unmarshal(kv.Value, &p); err != nil {
 			return nil, err
 		}
