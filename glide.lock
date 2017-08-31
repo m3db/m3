@@ -1,5 +1,5 @@
-hash: 5c0673f89891fd280c4acbf09344476be5549cef0a88ad34ee6963df363c6c80
-updated: 2017-08-31T09:53:06.886613258+08:00
+hash: 21be616509d37e172c67901eae009a8b1c4fddb7ea4381a188e4bb24452707b1
+updated: 2017-08-31T16:23:13.436944905+08:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -59,30 +59,30 @@ imports:
   - gen
   - prop
 - name: github.com/m3db/m3cluster
-  version: 7d12f7376dadd90a29c00f5d96fc50db6679eabe
+  version: 109640195da41dd1b0a8d048350b52a329dbc27a
   subpackages:
   - client
   - client/etcd
   - etcd/watchmanager
-  - generated/proto/metadata
-  - generated/proto/placement
+  - generated/proto/metadatapb
+  - generated/proto/placementpb
   - kv
   - kv/etcd
   - kv/util/runtime
-  - proto/util
+  - placement
+  - placement/algo
+  - placement/selector
+  - placement/service
+  - placement/storage
   - services
   - services/client/etcd
   - services/heartbeat/etcd
   - services/leader
   - services/leader/campaign
   - services/leader/election
-  - services/placement
-  - services/placement/algo
-  - services/placement/selector
-  - services/placement/service
   - shard
 - name: github.com/m3db/m3em
-  version: f10c19b3b7daae5191e60bf8bd3ef80c33015392
+  version: cef896def73e1eea59d079f913adbccc305d2fb2
   subpackages:
   - build
   - checksum
@@ -205,7 +205,6 @@ imports:
 - name: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
   subpackages:
-  - datastore
   - internal
   - internal/app_identity
   - internal/base

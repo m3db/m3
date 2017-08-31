@@ -24,15 +24,13 @@
 package topology
 
 import (
-	time "time"
-
+	gomock "github.com/golang/mock/gomock"
 	client "github.com/m3db/m3cluster/client"
 	services "github.com/m3db/m3cluster/services"
 	sharding "github.com/m3db/m3db/sharding"
 	ts "github.com/m3db/m3db/ts"
 	instrument "github.com/m3db/m3x/instrument"
-
-	gomock "github.com/golang/mock/gomock"
+	time "time"
 )
 
 // Mock of Host interface
