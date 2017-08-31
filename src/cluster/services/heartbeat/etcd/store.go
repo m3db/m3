@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3cluster/etcd/watchmanager"
 	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
 	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/proto/util"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3x/log"
@@ -159,7 +158,7 @@ func (c *client) Heartbeat(instance services.PlacementInstance, ttl time.Duratio
 	ctx, cancel = c.context()
 	defer cancel()
 
-	instanceProto, err := util.PlacementInstanceToProto(instance)
+	instanceProto, err := instance.Proto()
 	if err != nil {
 		return err
 	}

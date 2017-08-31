@@ -211,6 +211,26 @@ func (p *placement) String() string {
 	)
 }
 
+func (p *placement) Proto() (*placementproto.Placement, error) {
+	instances := make(map[string]*placementproto.Instance, p.NumInstances())
+	for _, instance := range p.Instances() {
+		pi, err := instance.Proto()
+		if err != nil {
+			return nil, err
+		}
+		instances[instance.ID()] = pi
+	}
+
+	return &placementproto.Placement{
+		Instances:     instances,
+		ReplicaFactor: uint32(p.ReplicaFactor()),
+		NumShards:     uint32(p.NumShards()),
+		IsSharded:     p.IsSharded(),
+		CutoverTime:   p.CutoverNanos(),
+		IsMirrored:    p.IsMirrored(),
+	}, nil
+}
+
 // CloneShards returns a copy of shards.
 func CloneShards(shards shard.Shards) shard.Shards {
 	newShards := make([]shard.Shard, shards.NumShards())
@@ -479,6 +499,25 @@ func (i *instance) Shards() shard.Shards {
 func (i *instance) SetShards(s shard.Shards) services.PlacementInstance {
 	i.shards = s
 	return i
+}
+
+func (i *instance) Proto() (*placementproto.Instance, error) {
+	ss, err := i.Shards().Proto()
+	if err != nil {
+		return &placementproto.Instance{}, err
+	}
+
+	return &placementproto.Instance{
+		Id:         i.ID(),
+		Rack:       i.Rack(),
+		Zone:       i.Zone(),
+		Weight:     i.Weight(),
+		Endpoint:   i.Endpoint(),
+		Shards:     ss,
+		ShardSetId: i.ShardSetID(),
+		Hostname:   i.Hostname(),
+		Port:       i.Port(),
+	}, nil
 }
 
 // IsInstanceLeaving checks if all the shards on the instance is in Leaving state

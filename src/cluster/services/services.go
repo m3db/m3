@@ -278,6 +278,14 @@ func (m *metadata) String() string {
 	)
 }
 
+func (m *metadata) Proto() (*metadataproto.Metadata, error) {
+	return &metadataproto.Metadata{
+		Port:              m.Port(),
+		LivenessInterval:  int64(m.LivenessInterval()),
+		HeartbeatInterval: int64(m.HeartbeatInterval()),
+	}, nil
+}
+
 // PlacementInstances is a slice of instances that can produce a debug string
 type PlacementInstances []PlacementInstance
 
@@ -292,6 +300,24 @@ func (i PlacementInstances) String() string {
 	}
 	strs = append(strs, "]")
 	return strings.Join(strs, "")
+}
+
+// Placements represents a list of service placements.
+type Placements []Placement
+
+// Proto converts a list of Placement to a proto.
+func (placements Placements) Proto() (*placementproto.PlacementSnapshots, error) {
+	snapshots := make([]*placementproto.Placement, 0, len(placements))
+	for _, p := range placements {
+		placementProto, err := p.Proto()
+		if err != nil {
+			return nil, err
+		}
+		snapshots = append(snapshots, placementProto)
+	}
+	return &placementproto.PlacementSnapshots{
+		Snapshots: snapshots,
+	}, nil
 }
 
 // NewElectionOptions returns an empty ElectionOptions.

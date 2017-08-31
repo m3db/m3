@@ -25,7 +25,6 @@ import (
 	"time"
 
 	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
-	"github.com/m3db/m3cluster/proto/util"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 
@@ -433,7 +432,7 @@ func TestStagedPlacementValidProto(t *testing.T) {
 func TestStagedPlacementRoundtrip(t *testing.T) {
 	sp, err := NewStagedPlacementFromProto(1, testStagedPlacementProto, nil)
 	require.NoError(t, err)
-	actual, err := util.StagedPlacementToProto(sp)
+	actual, err := sp.Proto()
 	require.NoError(t, err)
 	require.Equal(t, testStagedPlacementProto, actual)
 }

@@ -23,6 +23,8 @@ package services
 import (
 	"time"
 
+	metadataproto "github.com/m3db/m3cluster/generated/proto/metadata"
+	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/services/leader/campaign"
 	"github.com/m3db/m3cluster/shard"
@@ -142,22 +144,44 @@ type ServiceSharding interface {
 
 // ServiceInstance is a single instance of a service
 type ServiceInstance interface {
-	ServiceID() ServiceID                           // the service implemented by the instance
-	SetServiceID(service ServiceID) ServiceInstance // sets the service implemented by the instance
-	InstanceID() string                             // ID of the instance
-	SetInstanceID(id string) ServiceInstance        // sets the ID of the instance
-	Endpoint() string                               // Endpoint address for contacting the instance
-	SetEndpoint(e string) ServiceInstance           // sets the endpoint address for the instance
-	Shards() shard.Shards                           // Shards owned by the instance
-	SetShards(s shard.Shards) ServiceInstance       // sets the Shards assigned to the instance
+	// ServiceID returns the service id of the instance.
+	ServiceID() ServiceID
+
+	// SetServiceID sets the service id of the instance.
+	SetServiceID(service ServiceID) ServiceInstance
+
+	// InstanceID returns the id of the instance.
+	InstanceID() string
+
+	// SetInstanceID sets the id of the instance.
+	SetInstanceID(id string) ServiceInstance
+
+	// Endpoint returns the endpoint of the instance.
+	Endpoint() string
+
+	// SetEndpoint sets the endpoint of the instance.
+	SetEndpoint(e string) ServiceInstance
+
+	// Shards returns the shards of the instance.
+	Shards() shard.Shards
+
+	// SetShards sets the shards of the instance.
+	SetShards(s shard.Shards) ServiceInstance
 }
 
 // Advertisement advertises the availability of a given instance of a service
 type Advertisement interface {
-	ServiceID() ServiceID                         // the service being advertised
-	SetServiceID(service ServiceID) Advertisement // sets the service being advertised
-	Health() func() error                         // optional health function, return an error to indicate unhealthy
-	SetHealth(health func() error) Advertisement  // sets the health function for the advertised instance
+	// the service being advertised.
+	ServiceID() ServiceID
+
+	// sets the service being advertised.
+	SetServiceID(service ServiceID) Advertisement
+
+	// optional health function, return an error to indicate unhealthy.
+	Health() func() error
+
+	// sets the health function for the advertised instance.
+	SetHealth(health func() error) Advertisement
 
 	// Returns the placement instance associated with this advertisement, which
 	// contains the ID of the instance advertising and all other relevant fields.
@@ -169,19 +193,35 @@ type Advertisement interface {
 
 // ServiceID contains the fields required to id a service
 type ServiceID interface {
-	String() string                      // String returns a description of the ServiceID
-	Name() string                        // the service name of the ServiceID
-	SetName(s string) ServiceID          // set the service name of the ServiceID
-	Environment() string                 // the environment of the ServiceID
-	SetEnvironment(env string) ServiceID // sets the environment of the ServiceID
-	Zone() string                        // the zone of the ServiceID
-	SetZone(zone string) ServiceID       // sets the zone of the ServiceID
+	// Name returns the service name of the ServiceID.
+	Name() string
+
+	// SetName sets the service name of the ServiceID.
+	SetName(s string) ServiceID
+
+	// Environment returns the environment of the ServiceID.
+	Environment() string
+
+	// SetEnvironment sets the environment of the ServiceID.
+	SetEnvironment(env string) ServiceID
+
+	// Zone returns the zone of the ServiceID.
+	Zone() string
+
+	// SetZone sets the zone of the ServiceID.
+	SetZone(zone string) ServiceID
+
+	// String returns a description of the ServiceID.
+	String() string
 }
 
-// QueryOptions are options to service discovery queries
+// QueryOptions are options to service discovery queries.
 type QueryOptions interface {
-	IncludeUnhealthy() bool                  // if true, will return unhealthy instances
-	SetIncludeUnhealthy(h bool) QueryOptions // sets whether to include unhealthy instances
+	// IncludeUnhealthy decides whether unhealthy instances should be returned.
+	IncludeUnhealthy() bool
+
+	// SetIncludeUnhealthy sets the value of IncludeUnhealthy.
+	SetIncludeUnhealthy(h bool) QueryOptions
 }
 
 // Metadata contains the metadata for a service
@@ -206,6 +246,9 @@ type Metadata interface {
 
 	// SetHeartbeatInterval sets the HeartbeatInterval
 	SetHeartbeatInterval(h time.Duration) Metadata
+
+	// Proto returns the proto representation for the Metadata.
+	Proto() (*metadataproto.Metadata, error)
 }
 
 // PlacementStorage provides read and write access to service placement.
@@ -470,6 +513,9 @@ type StagedPlacement interface {
 
 	// SetActiveStagedPlacementOptions sets the active staged placement options.
 	SetActiveStagedPlacementOptions(opts ActiveStagedPlacementOptions) StagedPlacement
+
+	// Proto returns the proto representation for the StagedPlacement.
+	Proto() (*placementproto.PlacementSnapshots, error)
 }
 
 // Placement describes how instances are placed in a service
@@ -534,32 +580,72 @@ type Placement interface {
 	// effect in terms of the updated ServicePlacement that is written back
 	// to the MVCC store.
 	SetVersion(v int) Placement
-}
 
-// Placements represents a list of service placements.
-type Placements []Placement
+	// Proto returns the proto representation for the Placement.
+	Proto() (*placementproto.Placement, error)
+}
 
 // PlacementInstance represents an instance in a service placement
 type PlacementInstance interface {
-	String() string                               // String is for debugging
-	ID() string                                   // ID is the id of the instance
-	SetID(id string) PlacementInstance            // SetID sets the id of the instance
-	Rack() string                                 // Rack is the rack of the instance
-	SetRack(r string) PlacementInstance           // SetRack sets the rack of the instance
-	Zone() string                                 // Zone is the zone of the instance
-	SetZone(z string) PlacementInstance           // SetZone sets the zone of the instance
-	Weight() uint32                               // Weight is the weight of the instance
-	SetWeight(w uint32) PlacementInstance         // SetWeight sets the weight of the instance
-	Endpoint() string                             // Endpoint is the endpoint of the instance
-	SetEndpoint(ip string) PlacementInstance      // SetEndpoint sets the endpoint of the instance
-	Shards() shard.Shards                         // Shards returns the shards owned by the instance
-	SetShards(s shard.Shards) PlacementInstance   // SetShards sets the shards owned by the instance
-	ShardSetID() uint32                           // ShardSetID returns the shard set id.
-	SetShardSetID(value uint32) PlacementInstance // SetShardSetID sets the shard set id.
-	Hostname() string                             // Hostname returns the hostname of the instance.
-	SetHostname(value string) PlacementInstance   // SetHostname sets the hostname of the instance.
-	Port() uint32                                 // Port returns the port of the instance.
-	SetPort(value uint32) PlacementInstance       // SetPort sets the port of the instance.
+	// String is for debugging.
+	String() string
+
+	// ID is the id of the instance.
+	ID() string
+
+	// SetID sets the id of the instance.
+	SetID(id string) PlacementInstance
+
+	// Rack is the rack of the instance.
+	Rack() string
+
+	// SetRack sets the rack of the instance.
+	SetRack(r string) PlacementInstance
+
+	// Zone is the zone of the instance.
+	Zone() string
+
+	// SetZone sets the zone of the instance.
+	SetZone(z string) PlacementInstance
+
+	// Weight is the weight of the instance.
+	Weight() uint32
+
+	// SetWeight sets the weight of the instance.
+	SetWeight(w uint32) PlacementInstance
+
+	// Endpoint is the endpoint of the instance.
+	Endpoint() string
+
+	// SetEndpoint sets the endpoint of the instance.
+	SetEndpoint(ip string) PlacementInstance
+
+	// Shards returns the shards owned by the instance.
+	Shards() shard.Shards
+
+	// SetShards sets the shards owned by the instance.
+	SetShards(s shard.Shards) PlacementInstance
+
+	// ShardSetID returns the shard set id.
+	ShardSetID() uint32
+
+	// SetShardSetID sets the shard set id.
+	SetShardSetID(value uint32) PlacementInstance
+
+	// Hostname returns the hostname of the instance.
+	Hostname() string
+
+	// SetHostname sets the hostname of the instance.
+	SetHostname(value string) PlacementInstance
+
+	// Port returns the port of the instance.
+	Port() uint32
+
+	// SetPort sets the port of the instance.
+	SetPort(value uint32) PlacementInstance
+
+	// Proto returns the proto representation for the Instance.
+	Proto() (*placementproto.Instance, error)
 }
 
 // HeartbeatService manages heartbeating instances

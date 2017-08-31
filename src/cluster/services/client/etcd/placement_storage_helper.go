@@ -25,7 +25,6 @@ import (
 
 	schema "github.com/m3db/m3cluster/generated/proto/placement"
 	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/proto/util"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement"
 
@@ -89,7 +88,7 @@ func (placementHelper) PlacementProto(store kv.Store, key string) (proto.Message
 }
 
 func (placementHelper) GenerateProto(store kv.Store, key string, p services.Placement) (proto.Message, error) {
-	return util.PlacementToProto(p)
+	return p.Proto()
 }
 
 func (placementHelper) ValidateProto(proto proto.Message) error {
@@ -144,7 +143,8 @@ func (h stagedPlacementHelper) GenerateProto(store kv.Store, key string, p servi
 		return nil, err
 	}
 
-	return util.PlacementsToProto(append(ps, p))
+	ps = append(ps, p)
+	return ps.Proto()
 }
 
 func (h stagedPlacementHelper) ValidateProto(proto proto.Message) error {
