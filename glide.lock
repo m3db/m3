@@ -1,5 +1,5 @@
-hash: 21be616509d37e172c67901eae009a8b1c4fddb7ea4381a188e4bb24452707b1
-updated: 2017-08-31T16:23:13.436944905+08:00
+hash: 49a3dcb65dfefdadd1d2890fa41810dba243fcb71cedfdf487c79ecb1872888c
+updated: 2017-09-01T01:08:50.634782191+08:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -59,7 +59,7 @@ imports:
   - gen
   - prop
 - name: github.com/m3db/m3cluster
-  version: 109640195da41dd1b0a8d048350b52a329dbc27a
+  version: f1f3976a0b3f5449b22c6e353a9da89b594dc586
   subpackages:
   - client
   - client/etcd
@@ -205,6 +205,7 @@ imports:
 - name: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
   subpackages:
+  - datastore
   - internal
   - internal/app_identity
   - internal/base
@@ -212,8 +213,6 @@ imports:
   - internal/log
   - internal/modules
   - internal/remote_api
-- name: google.golang.org/appengine/datastore
-  version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 - name: google.golang.org/grpc
   version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
   subpackages:
