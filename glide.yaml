@@ -6,6 +6,9 @@ import:
   subpackages:
   - lib/go/thrift
 
+- package: github.com/davecgh/go-spew
+  version: adab96458c51a58dc1783b3335dcce5461522e75
+
 - package: github.com/golang/mock
   version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
   subpackages:
@@ -15,6 +18,15 @@ import:
   version: 3852dcfda249c2097355a6aabb199a28d97b30df
   subpackages:
   - proto
+
+- package: github.com/opentracing/opentracing-go
+  version: 855519783f479520497c6b3445611b05fc42f009
+
+- package: github.com/prometheus/common
+  version: 195bde7883f7c39ea62b0d92ab7359b5327065cb
+
+- package: github.com/prometheus/procfs
+  version: 1878d9fbb537119d24b21ca07effd591627cd160
 
 - package: github.com/spaolacci/murmur3
   version: 0d12bf811670bf6a1a63828dfbd003eded177fce
@@ -36,7 +48,7 @@ import:
   version: <4.0.0
 
 - package: github.com/m3db/m3cluster
-  version: 2eb541bb4b0883e27c78f7594f0eda09f8bf9665
+  version: 7d12f7376dadd90a29c00f5d96fc50db6679eabe
   subpackages:
   - client
   - services
@@ -62,10 +74,13 @@ import:
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 
 - package: github.com/m3db/m3em
-  version: f5b48d1c5d2d6a990b8b4ef534a3431639027c12
+  version: f10c19b3b7daae5191e60bf8bd3ef80c33015392
 
 - package: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
+
+- package: github.com/spf13/pflag
+  version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 
 - package: github.com/leanovate/gopter
   version: 9e6101e5a87586b269acf3d0d61f363e4317309f

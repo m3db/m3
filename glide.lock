@@ -1,5 +1,5 @@
-hash: f36f6957b8e8407334cef4f3ade2c69716c2b742c7d64391ee37618a0c8f8b93
-updated: 2017-08-07T13:39:47.228126307-04:00
+hash: 5c0673f89891fd280c4acbf09344476be5549cef0a88ad34ee6963df363c6c80
+updated: 2017-08-31T09:53:06.886613258+08:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -14,6 +14,8 @@ imports:
   subpackages:
   - auth/authpb
   - clientv3
+  - clientv3/concurrency
+  - embed
   - etcdserver/api/v3rpc/rpctypes
   - etcdserver/etcdserverpb
   - integration
@@ -57,7 +59,7 @@ imports:
   - gen
   - prop
 - name: github.com/m3db/m3cluster
-  version: 2eb541bb4b0883e27c78f7594f0eda09f8bf9665
+  version: 7d12f7376dadd90a29c00f5d96fc50db6679eabe
   subpackages:
   - client
   - client/etcd
@@ -66,16 +68,21 @@ imports:
   - generated/proto/placement
   - kv
   - kv/etcd
+  - kv/util/runtime
   - proto/util
   - services
-  - services/client
+  - services/client/etcd
   - services/heartbeat/etcd
+  - services/leader
+  - services/leader/campaign
+  - services/leader/election
   - services/placement
   - services/placement/algo
+  - services/placement/selector
   - services/placement/service
   - shard
 - name: github.com/m3db/m3em
-  version: f5b48d1c5d2d6a990b8b4ef534a3431639027c12
+  version: f10c19b3b7daae5191e60bf8bd3ef80c33015392
   subpackages:
   - build
   - checksum
@@ -163,7 +170,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 4b9d9de43ffcb0b7efe67dab2a92c2d58dbf16ab
+  version: 2605c407d7d219644d03a3680ad7df4779017782
   subpackages:
   - m3
   - m3/customtransports
@@ -206,6 +213,8 @@ imports:
   - internal/log
   - internal/modules
   - internal/remote_api
+- name: google.golang.org/appengine/datastore
+  version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 - name: google.golang.org/grpc
   version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
   subpackages:
