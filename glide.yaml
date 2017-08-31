@@ -19,8 +19,14 @@ import:
   subpackages:
   - proto
 
+- package: github.com/opentracing/opentracing-go
+  version: 855519783f479520497c6b3445611b05fc42f009
+
 - package: github.com/prometheus/common
   version: 195bde7883f7c39ea62b0d92ab7359b5327065cb
+
+- package: github.com/prometheus/procfs
+  version: 1878d9fbb537119d24b21ca07effd591627cd160
 
 - package: github.com/spaolacci/murmur3
   version: 0d12bf811670bf6a1a63828dfbd003eded177fce
@@ -68,10 +74,13 @@ import:
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 
 - package: github.com/m3db/m3em
-  version: b6179304c6fca0c507cb8f5fad60a510ffa7005e
+  version: f10c19b3b7daae5191e60bf8bd3ef80c33015392
 
 - package: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
+
+- package: github.com/spf13/pflag
+  version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 
 - package: github.com/leanovate/gopter
   version: 9e6101e5a87586b269acf3d0d61f363e4317309f
