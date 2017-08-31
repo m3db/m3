@@ -28,7 +28,6 @@ import (
 
 	metadataproto "github.com/m3db/m3cluster/generated/proto/metadata"
 	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/proto/util"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/services/placement/service"
 	"github.com/m3db/m3x/log"
@@ -110,8 +109,12 @@ func (c *client) SetMetadata(sid services.ServiceID, meta services.Metadata) err
 		return err
 	}
 
-	mp := util.MetadataToProto(meta)
-	_, err = m.kv.Set(c.metadataKeyFn(sid), &mp)
+	mp, err := meta.Proto()
+	if err != nil {
+		return err
+	}
+
+	_, err = m.kv.Set(c.metadataKeyFn(sid), mp)
 	return err
 }
 
@@ -567,7 +570,6 @@ func (c *client) waitForInitValue(kvStore kv.Store, w kv.ValueWatch, sid service
 		return kvStore.Get(c.placementKeyFn(sid))
 	}
 }
-
 
 func validateAdvertisement(sid services.ServiceID, id string) error {
 	if sid == nil {

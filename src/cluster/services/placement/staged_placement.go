@@ -218,6 +218,10 @@ func (sp *stagedPlacement) SetActiveStagedPlacementOptions(
 	return sp
 }
 
+func (sp *stagedPlacement) Proto() (*placementproto.PlacementSnapshots, error) {
+	return sp.Placements().Proto()
+}
+
 type placementsByCutoverAsc []services.Placement
 
 func (s placementsByCutoverAsc) Len() int { return len(s) }

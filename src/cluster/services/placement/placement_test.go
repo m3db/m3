@@ -26,7 +26,6 @@ import (
 	"testing"
 
 	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
-	"github.com/m3db/m3cluster/proto/util"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 
@@ -559,7 +558,7 @@ func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 	assert.Equal(t, uint32(0), instances[0].ShardSetID())
 	assert.Equal(t, uint32(1), instances[1].ShardSetID())
 
-	placementProtoNew, err := util.PlacementToProto(p)
+	placementProtoNew, err := p.Proto()
 	assert.NoError(t, err)
 	assert.Equal(t, placementProto.ReplicaFactor, placementProtoNew.ReplicaFactor)
 	assert.Equal(t, placementProto.NumShards, placementProtoNew.NumShards)
@@ -633,7 +632,7 @@ func TestPlacementInstanceToProto(t *testing.T) {
 		SetWeight(1).
 		SetShards(shards)
 
-	instanceProto, err := util.PlacementInstanceToProto(instance)
+	instanceProto, err := instance.Proto()
 	assert.NoError(t, err)
 
 	protoShards := getProtoShards([]uint32{0, 1, 2})
