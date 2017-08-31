@@ -23,10 +23,10 @@ package etcd
 import (
 	"fmt"
 
-	schema "github.com/m3db/m3cluster/generated/proto/placement"
+	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/placement"
 )
 
 const (
@@ -78,8 +78,8 @@ func validateServiceID(sid services.ServiceID) error {
 	return nil
 }
 
-func placementProtoFromValue(v kv.Value) (*schema.Placement, error) {
-	var placementProto schema.Placement
+func placementProtoFromValue(v kv.Value) (*placementpb.Placement, error) {
+	var placementProto placementpb.Placement
 	if err := v.Unmarshal(&placementProto); err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func placementProtoFromValue(v kv.Value) (*schema.Placement, error) {
 	return &placementProto, nil
 }
 
-func placementFromValue(v kv.Value) (services.Placement, error) {
+func placementFromValue(v kv.Value) (placement.Placement, error) {
 	placementProto, err := placementProtoFromValue(v)
 	if err != nil {
 		return nil, err
@@ -99,30 +99,4 @@ func placementFromValue(v kv.Value) (services.Placement, error) {
 	}
 
 	return p.SetVersion(v.Version()), nil
-}
-
-func placementSnapshotsProtoFromValue(v kv.Value) (*schema.PlacementSnapshots, error) {
-	var placementsProto schema.PlacementSnapshots
-	if err := v.Unmarshal(&placementsProto); err != nil {
-		return nil, err
-	}
-
-	return &placementsProto, nil
-}
-
-func placementsFromValue(v kv.Value) (services.Placements, error) {
-	placementsProto, err := placementSnapshotsProtoFromValue(v)
-	if err != nil {
-		return nil, err
-	}
-
-	ps, err := placement.NewPlacementsFromProto(placementsProto)
-	if err != nil {
-		return nil, err
-	}
-
-	for i, p := range ps {
-		ps[i] = p.SetVersion(v.Version())
-	}
-	return ps, nil
 }

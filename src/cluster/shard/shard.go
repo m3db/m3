@@ -26,24 +26,24 @@ import (
 	"sort"
 	"strings"
 
-	schema "github.com/m3db/m3cluster/generated/proto/placement"
+	"github.com/m3db/m3cluster/generated/proto/placementpb"
 )
 
 var (
 	errInvalidProtoShardState = errors.New("invalid proto shard state")
 
 	defaultShardState      State
-	defaultShardStateProto schema.ShardState
+	defaultShardStateProto placementpb.ShardState
 )
 
 // NewShardStateFromProto creates new shard state from proto.
-func NewShardStateFromProto(state schema.ShardState) (State, error) {
+func NewShardStateFromProto(state placementpb.ShardState) (State, error) {
 	switch state {
-	case schema.ShardState_INITIALIZING:
+	case placementpb.ShardState_INITIALIZING:
 		return Initializing, nil
-	case schema.ShardState_AVAILABLE:
+	case placementpb.ShardState_AVAILABLE:
 		return Available, nil
-	case schema.ShardState_LEAVING:
+	case placementpb.ShardState_LEAVING:
 		return Leaving, nil
 	default:
 		return defaultShardState, errInvalidProtoShardState
@@ -51,14 +51,14 @@ func NewShardStateFromProto(state schema.ShardState) (State, error) {
 }
 
 // Proto returns the proto representation for the shard state.
-func (s State) Proto() (schema.ShardState, error) {
+func (s State) Proto() (placementpb.ShardState, error) {
 	switch s {
 	case Initializing:
-		return schema.ShardState_INITIALIZING, nil
+		return placementpb.ShardState_INITIALIZING, nil
 	case Available:
-		return schema.ShardState_AVAILABLE, nil
+		return placementpb.ShardState_AVAILABLE, nil
 	case Leaving:
-		return schema.ShardState_LEAVING, nil
+		return placementpb.ShardState_LEAVING, nil
 	default:
 		return defaultShardStateProto, errInvalidProtoShardState
 	}
@@ -68,7 +68,7 @@ func (s State) Proto() (schema.ShardState, error) {
 func NewShard(id uint32) Shard { return &shard{id: id, state: Unknown} }
 
 // NewShardFromProto create a new shard from proto.
-func NewShardFromProto(shard *schema.Shard) (Shard, error) {
+func NewShardFromProto(shard *placementpb.Shard) (Shard, error) {
 	state, err := NewShardStateFromProto(shard.State)
 	if err != nil {
 		return nil, err
@@ -137,13 +137,13 @@ func (s *shard) SetCutoffNanos(value int64) Shard {
 	return s
 }
 
-func (s *shard) Proto() (*schema.Shard, error) {
+func (s *shard) Proto() (*placementpb.Shard, error) {
 	ss, err := s.State().Proto()
 	if err != nil {
 		return nil, err
 	}
 
-	return &schema.Shard{
+	return &placementpb.Shard{
 		Id:           s.ID(),
 		State:        ss,
 		SourceId:     s.SourceID(),
@@ -180,7 +180,7 @@ func NewShards(ss []Shard) Shards {
 }
 
 // NewShardsFromProto creates a new set of shards from proto.
-func NewShardsFromProto(shards []*schema.Shard) (Shards, error) {
+func NewShardsFromProto(shards []*placementpb.Shard) (Shards, error) {
 	allShards := make([]Shard, 0, len(shards))
 	for _, s := range shards {
 		shard, err := NewShardFromProto(s)
@@ -266,8 +266,8 @@ func (s shards) String() string {
 	return fmt.Sprintf("[%s]", strings.Join(strs, ", "))
 }
 
-func (s shards) Proto() ([]*schema.Shard, error) {
-	res := make([]*schema.Shard, 0, len(s.shardsMap))
+func (s shards) Proto() ([]*placementpb.Shard, error) {
+	res := make([]*placementpb.Shard, 0, len(s.shardsMap))
 	// All() returns the shards in ID ascending order.
 	for _, shard := range s.All() {
 		sp, err := shard.Proto()
@@ -281,7 +281,7 @@ func (s shards) Proto() ([]*schema.Shard, error) {
 }
 
 // SortableShardProtosByIDAsc sorts shard protos by their ids in ascending order.
-type SortableShardProtosByIDAsc []*schema.Shard
+type SortableShardProtosByIDAsc []*placementpb.Shard
 
 func (su SortableShardProtosByIDAsc) Len() int           { return len(su) }
 func (su SortableShardProtosByIDAsc) Less(i, j int) bool { return su[i].Id < su[j].Id }

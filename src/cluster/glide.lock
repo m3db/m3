@@ -1,5 +1,5 @@
-hash: ae0fb14a2cca679a0203d3ca3a4526370f4050a4adc75e7dbb96d918e5a0773b
-updated: 2017-08-18T15:03:26.163638092-04:00
+hash: dd67eefd5a80ca5482fdd06e582f9bf18472af2c77c2b938eb6ef3979574e844
+updated: 2017-08-31T11:49:06.780411762+08:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -191,11 +191,15 @@ imports:
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: golang.org/x/crypto
   version: 1351f936d976c60a0a48d728281922cf63eafb8d
+  repo: https://github.com/golang/crypto
+  vcs: git
   subpackages:
   - bcrypt
   - blowfish
 - name: golang.org/x/net
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
+  repo: https://github.com/golang/net
+  vcs: git
   subpackages:
   - context
   - http2
@@ -206,10 +210,14 @@ imports:
   - trace
 - name: golang.org/x/sys
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  repo: https://github.com/golang/sys
+  vcs: git
   subpackages:
   - unix
 - name: golang.org/x/time
   version: a4bde12657593d5e90d0533a3e4fd95e635124cb
+  repo: https://github.com/golang/time
+  vcs: git
   subpackages:
   - rate
 - name: google.golang.org/grpc

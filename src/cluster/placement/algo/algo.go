@@ -18,12 +18,21 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// mockgen rules for generating mocks using reflection mode
-//go:generate sh -c "mockgen -package=client -destination=$GOPATH/src/$PACKAGE/client/client_mock.go $PACKAGE/client Client"
+package algo
 
-// mockgen rules for generating mocks using file mode
-//go:generate sh -c "mockgen -package=placement -destination=$GOPATH/src/$PACKAGE/placement/placement_mock.go -source=$GOPATH/src/$PACKAGE/placement/types.go"
-//go:generate sh -c "mockgen -package=services -destination=$GOPATH/src/$PACKAGE/services/services_mock.go -source=$GOPATH/src/$PACKAGE/services/types.go"
-//go:generate sh -c "mockgen -package=kv -destination=$GOPATH/src/$PACKAGE/kv/store_mock.go -source=$GOPATH/src/$PACKAGE/kv/types.go"
+import (
+	"github.com/m3db/m3cluster/placement"
+)
 
-package mocks
+// NewAlgorithm returns a placement algorithm with given options
+func NewAlgorithm(opts placement.Options) placement.Algorithm {
+	if opts.IsMirrored() {
+		return newMirroredAlgorithm(opts)
+	}
+
+	if opts.IsSharded() {
+		return newShardedAlgorithm(opts)
+	}
+
+	return newNonShardedAlgorithm()
+}

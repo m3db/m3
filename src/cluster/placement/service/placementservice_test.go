@@ -1,0 +1,1044 @@
+// Copyright (c) 2016 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+package service
+
+import (
+	"errors"
+	"sync"
+	"testing"
+
+	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3cluster/shard"
+
+	"github.com/golang/protobuf/proto"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestGoodWorkflow(t *testing.T) {
+	p := NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
+	testGoodWorkflow(t, p)
+
+	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1").SetLooseRackCheck(true))
+	testGoodWorkflow(t, p)
+}
+
+func testGoodWorkflow(t *testing.T, p placement.Service) {
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 2)
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 2)
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", "endpoint", 2)
+	_, err := p.BuildInitialPlacement([]placement.Instance{i1, i2}, 10, 1)
+	assert.NoError(t, err)
+
+	_, err = p.AddReplica()
+	assert.NoError(t, err)
+
+	for _, instance := range []placement.Instance{i1, i2} {
+		err = p.MarkInstanceAvailable(instance.ID())
+		assert.NoError(t, err)
+	}
+	_, ai, err := p.AddInstances([]placement.Instance{i3})
+	assert.NoError(t, err)
+	assertPlacementInstanceEqualExceptShards(t, i3, ai[0])
+
+	err = p.MarkInstanceAvailable(i3.ID())
+	assert.NoError(t, err)
+
+	_, err = p.RemoveInstances([]string{i1.ID()})
+	assert.NoError(t, err)
+
+	markAllInstancesAvailable(t, p)
+
+	var (
+		i21 = placement.NewEmptyInstance("i21", "r2", "z1", "endpoint", 1)
+		i4  = placement.NewEmptyInstance("i4", "r4", "z1", "endpoint", 1)
+	)
+	_, usedInstances, err := p.ReplaceInstances(
+		[]string{i2.ID()},
+		[]placement.Instance{i21, i4,
+			i3, // already in placement
+			placement.NewEmptyInstance("i31", "r3", "z1", "endpoint", 1), // conflict
+		},
+	)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(usedInstances))
+	assertPlacementInstanceEqualExceptShards(t, i21, usedInstances[0])
+	assertPlacementInstanceEqualExceptShards(t, i4, usedInstances[1])
+
+	for _, id := range []string{"i21", "i4"} {
+		err = p.MarkInstanceAvailable(id)
+		assert.NoError(t, err)
+	}
+
+	s, _, err := p.Placement()
+	assert.NoError(t, err)
+	assert.Equal(t, 3, s.NumInstances())
+	_, exist := s.Instance("i21")
+	assert.True(t, exist)
+	_, exist = s.Instance("i4")
+	assert.True(t, exist)
+
+	_, ai, err = p.AddInstances([]placement.Instance{i1})
+	assert.NoError(t, err)
+	assertPlacementInstanceEqualExceptShards(t, i1, ai[0])
+
+	i24 := placement.NewEmptyInstance("i24", "r2", "z1", "endpoint", 1)
+	_, ai, err = p.AddInstances([]placement.Instance{i24})
+	assert.NoError(t, err)
+	assertPlacementInstanceEqualExceptShards(t, i24, ai[0])
+
+	i34 := placement.NewEmptyInstance("i34", "r3", "z1", "endpoint", 1)
+	_, ai, err = p.AddInstances([]placement.Instance{i34})
+	assert.NoError(t, err)
+	assertPlacementInstanceEqualExceptShards(t, i34, ai[0])
+
+	i35 := placement.NewEmptyInstance("i35", "r3", "z1", "endpoint", 1)
+	_, ai, err = p.AddInstances([]placement.Instance{i35})
+	assert.NoError(t, err)
+	assertPlacementInstanceEqualExceptShards(t, i35, ai[0])
+
+	i41 := placement.NewEmptyInstance("i41", "r4", "z1", "endpoint", 1)
+	instances := []placement.Instance{
+		placement.NewEmptyInstance("i15", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i34", "r3", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i35", "r3", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i36", "r3", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i23", "r2", "z1", "endpoint", 1),
+		i41,
+	}
+	_, ai, err = p.AddInstances(instances)
+	assert.NoError(t, err)
+	assertPlacementInstanceEqualExceptShards(t, i41, ai[0])
+	s, _, err = p.Placement()
+	assert.NoError(t, err)
+	_, exist = s.Instance("i41") // instance added from least weighted rack
+	assert.True(t, exist)
+}
+
+func assertPlacementInstanceEqualExceptShards(
+	t *testing.T,
+	expected placement.Instance,
+	observed placement.Instance,
+) {
+	assert.Equal(t, expected.ID(), observed.ID())
+	assert.Equal(t, expected.Rack(), observed.Rack())
+	assert.Equal(t, expected.Zone(), observed.Zone())
+	assert.Equal(t, expected.Weight(), observed.Weight())
+	assert.Equal(t, expected.Endpoint(), observed.Endpoint())
+	assert.True(t, len(observed.Shards().All()) > 0)
+}
+
+func TestNonShardedWorkflow(t *testing.T) {
+	ps := NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1").SetIsSharded(false))
+
+	_, err := ps.BuildInitialPlacement([]placement.Instance{
+		placement.NewEmptyInstance("i1", "r1", "z1", "e1", 1),
+		placement.NewEmptyInstance("i2", "r1", "z1", "e2", 1),
+	}, 10, 1)
+	assert.Error(t, err)
+
+	p, err := ps.BuildInitialPlacement([]placement.Instance{
+		placement.NewEmptyInstance("i1", "r1", "z1", "e1", 1),
+		placement.NewEmptyInstance("i2", "r1", "z1", "e2", 1),
+	}, 0, 1)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, p.NumInstances())
+	assert.Equal(t, 0, p.NumShards())
+	assert.Equal(t, 1, p.ReplicaFactor())
+	assert.False(t, p.IsSharded())
+
+	p, err = ps.AddReplica()
+	assert.NoError(t, err)
+	assert.Equal(t, 2, p.NumInstances())
+	assert.Equal(t, 0, p.NumShards())
+	assert.Equal(t, 2, p.ReplicaFactor())
+	assert.False(t, p.IsSharded())
+
+	i3 := placement.NewEmptyInstance("i3", "r1", "z1", "e3", 1)
+	i4 := placement.NewEmptyInstance("i4", "r1", "z1", "e4", 1)
+	p, ai, err := ps.AddInstances([]placement.Instance{i3, i4})
+	assert.NoError(t, err)
+	assert.Equal(t, i3, ai[0])
+	assert.Equal(t, 3, p.NumInstances())
+	assert.Equal(t, 0, p.NumShards())
+	assert.Equal(t, 2, p.ReplicaFactor())
+	assert.False(t, p.IsSharded())
+
+	p, err = ps.RemoveInstances([]string{"i1"})
+	assert.NoError(t, err)
+	assert.Equal(t, 2, p.NumInstances())
+	assert.Equal(t, 0, p.NumShards())
+	assert.Equal(t, 2, p.ReplicaFactor())
+	assert.False(t, p.IsSharded())
+
+	p, usedInstances, err := ps.ReplaceInstances([]string{"i2"}, []placement.Instance{i3, i4})
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(usedInstances))
+	assert.Equal(t, i4, usedInstances[0])
+	assert.Equal(t, 2, p.NumInstances())
+	assert.Equal(t, 0, p.NumShards())
+	assert.Equal(t, 2, p.ReplicaFactor())
+	assert.False(t, p.IsSharded())
+
+	// nothing happens because i3 has no shards
+	err = ps.MarkInstanceAvailable("i3")
+	assert.NoError(t, err)
+	assert.Equal(t, 2, p.NumInstances())
+	assert.Equal(t, 0, p.NumShards())
+	assert.Equal(t, 2, p.ReplicaFactor())
+	assert.False(t, p.IsSharded())
+}
+
+func TestDryrun(t *testing.T) {
+	m := NewMockStorage()
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 2)
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 2)
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", "endpoint", 2)
+	dryrunPS := NewPlacementService(m, placement.NewOptions().SetValidZone("z1").SetDryrun(true))
+	ps := NewPlacementService(m, placement.NewOptions().SetValidZone("z1"))
+
+	_, err := dryrunPS.BuildInitialPlacement([]placement.Instance{i1, i2}, 10, 2)
+	assert.NoError(t, err)
+
+	_, _, err = m.Placement()
+	assert.Error(t, err)
+
+	_, err = ps.BuildInitialPlacement([]placement.Instance{i1, i2}, 10, 2)
+	assert.NoError(t, err)
+
+	_, v, err := m.Placement()
+	assert.NoError(t, err)
+	assert.Equal(t, 1, v)
+
+	_, ai, err := dryrunPS.AddInstances([]placement.Instance{i3})
+	assert.NoError(t, err)
+	assertPlacementInstanceEqualExceptShards(t, i3, ai[0])
+
+	_, v, _ = m.Placement()
+	assert.Equal(t, 1, v)
+
+	_, ai, err = ps.AddInstances([]placement.Instance{i3})
+	assert.NoError(t, err)
+	assertPlacementInstanceEqualExceptShards(t, i3, ai[0])
+
+	_, v, _ = m.Placement()
+	assert.Equal(t, 2, v)
+
+	_, err = dryrunPS.RemoveInstances([]string{"i3"})
+	assert.NoError(t, err)
+
+	_, v, _ = m.Placement()
+	assert.Equal(t, 2, v)
+
+	_, err = ps.RemoveInstances([]string{"i3"})
+	assert.NoError(t, err)
+
+	_, v, _ = m.Placement()
+	assert.Equal(t, 3, v)
+
+	_, usedInstances, err := dryrunPS.ReplaceInstances([]string{"i2"}, []placement.Instance{i3})
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(usedInstances))
+	assertPlacementInstanceEqualExceptShards(t, i3, usedInstances[0])
+
+	_, v, _ = m.Placement()
+	assert.Equal(t, 3, v)
+
+	_, usedInstances, err = ps.ReplaceInstances([]string{"i2"}, []placement.Instance{i3})
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(usedInstances))
+	assertPlacementInstanceEqualExceptShards(t, i3, usedInstances[0])
+
+	p, v, _ := m.Placement()
+	assert.Equal(t, 4, v)
+
+	err = dryrunPS.SetPlacement(p)
+	assert.NoError(t, err)
+
+	_, v, _ = m.Placement()
+	assert.Equal(t, 4, v)
+
+	err = ps.SetPlacement(p)
+	assert.NoError(t, err)
+
+	_, v, _ = m.Placement()
+	assert.Equal(t, 5, v)
+
+	err = dryrunPS.Delete()
+	assert.NoError(t, err)
+
+	_, v, err = m.Placement()
+	assert.NoError(t, err)
+	assert.Equal(t, 5, v)
+
+	err = ps.Delete()
+	assert.NoError(t, err)
+
+	_, _, err = m.Placement()
+	assert.Error(t, err)
+}
+
+func TestBadInitialPlacement(t *testing.T) {
+	p := NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1").SetIsSharded(false))
+
+	// invalid numShards
+	_, err := p.BuildInitialPlacement([]placement.Instance{
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1),
+	}, -1, 1)
+	assert.Error(t, err)
+
+	// invalid rf
+	_, err = p.BuildInitialPlacement([]placement.Instance{
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1),
+	}, 10, 0)
+	assert.Error(t, err)
+
+	// numshards > 0 && sharded == false
+	_, err = p.BuildInitialPlacement([]placement.Instance{
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1),
+	}, 10, 1)
+	assert.Error(t, err)
+
+	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
+
+	// not enough instances
+	_, err = p.BuildInitialPlacement([]placement.Instance{}, 10, 1)
+	assert.Error(t, err)
+
+	// err: rf == 0 && sharded == true
+	_, err = p.BuildInitialPlacement([]placement.Instance{
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1),
+	}, 10, 0)
+	assert.Error(t, err)
+
+	// not enough racks
+	_, err = p.BuildInitialPlacement([]placement.Instance{
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1),
+	}, 100, 2)
+	assert.Error(t, err)
+
+	_, err = p.BuildInitialPlacement([]placement.Instance{
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1),
+	}, 100, 2)
+	assert.NoError(t, err)
+
+	// placement already exist
+	_, err = p.BuildInitialPlacement([]placement.Instance{
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1),
+	}, 100, 2)
+	assert.Error(t, err)
+}
+
+func TestBadAddReplica(t *testing.T) {
+	p := NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
+
+	_, err := p.BuildInitialPlacement(
+		[]placement.Instance{placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)},
+		10, 1)
+	assert.NoError(t, err)
+
+	// not enough racks/instances
+	_, err = p.AddReplica()
+	assert.Error(t, err)
+
+	// could not find placement for service
+	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
+	_, err = p.AddReplica()
+	assert.Error(t, err)
+}
+
+func TestBadAddInstance(t *testing.T) {
+	ms := NewMockStorage()
+	p := NewPlacementService(ms, placement.NewOptions().SetValidZone("z1"))
+
+	_, err := p.BuildInitialPlacement(
+		[]placement.Instance{placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)},
+		10, 1)
+	assert.NoError(t, err)
+
+	// adding instance already exist
+	_, _, err = p.AddInstances([]placement.Instance{placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)})
+	assert.Error(t, err)
+
+	// too many zones
+	_, _, err = p.AddInstances([]placement.Instance{placement.NewEmptyInstance("i2", "r2", "z2", "endpoint", 1)})
+	assert.Error(t, err)
+
+	p = NewPlacementService(ms, placement.NewOptions().SetValidZone("z1"))
+	_, _, err = p.AddInstances([]placement.Instance{placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)})
+	assert.Error(t, err)
+
+	// could not find placement for service
+	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
+	_, _, err = p.AddInstances([]placement.Instance{placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)})
+	assert.Error(t, err)
+}
+
+func TestBadRemoveInstance(t *testing.T) {
+	p := NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
+
+	_, err := p.BuildInitialPlacement(
+		[]placement.Instance{placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)},
+		10, 1)
+	assert.NoError(t, err)
+
+	// leaving instance not exist
+	_, err = p.RemoveInstances([]string{"not_exist"})
+	assert.Error(t, err)
+
+	// not enough racks/instances after removal
+	_, err = p.RemoveInstances([]string{"i1"})
+	assert.Error(t, err)
+
+	// could not find placement for service
+	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
+	_, err = p.RemoveInstances([]string{"i1"})
+	assert.Error(t, err)
+}
+
+func TestBadReplaceInstance(t *testing.T) {
+	p := NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
+
+	_, err := p.BuildInitialPlacement([]placement.Instance{
+		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i4", "r4", "z1", "endpoint", 1),
+	}, 10, 1)
+	assert.NoError(t, err)
+
+	// leaving instance not exist
+	_, _, err = p.ReplaceInstances(
+		[]string{"not_exist"},
+		[]placement.Instance{placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)},
+	)
+	assert.Error(t, err)
+
+	// adding instance already exist
+	_, _, err = p.ReplaceInstances(
+		[]string{"i1"},
+		[]placement.Instance{placement.NewEmptyInstance("i4", "r4", "z1", "endpoint", 1)},
+	)
+	assert.Error(t, err)
+
+	// not enough rack after replace
+	_, err = p.AddReplica()
+	assert.NoError(t, err)
+	_, _, err = p.ReplaceInstances(
+		[]string{"i4"},
+		[]placement.Instance{placement.NewEmptyInstance("i12", "r1", "z1", "endpoint", 1)},
+	)
+	assert.Error(t, err)
+
+	// could not find placement for service
+	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
+	_, _, err = p.ReplaceInstances(
+		[]string{"i1"},
+		[]placement.Instance{placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)},
+	)
+	assert.Error(t, err)
+}
+
+func TestReplaceInstanceWithLooseRackCheck(t *testing.T) {
+	p := NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1").SetLooseRackCheck(true))
+
+	_, err := p.BuildInitialPlacement(
+		[]placement.Instance{
+			placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
+			placement.NewEmptyInstance("i4", "r4", "z1", "endpoint", 1),
+		}, 10, 1)
+	assert.NoError(t, err)
+
+	// leaving instance not exist
+	_, _, err = p.ReplaceInstances(
+		[]string{"not_exist"},
+		[]placement.Instance{placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)},
+	)
+	assert.Error(t, err)
+
+	// adding instance already exist
+	_, _, err = p.ReplaceInstances(
+		[]string{"i1"},
+		[]placement.Instance{placement.NewEmptyInstance("i4", "r4", "z1", "endpoint", 1)},
+	)
+	assert.Error(t, err)
+
+	// NO ERROR when not enough rack after replace
+	_, err = p.AddReplica()
+	assert.NoError(t, err)
+	i12 := placement.NewEmptyInstance("i12", "r1", "z1", "endpoint", 1)
+	_, usedInstances, err := p.ReplaceInstances([]string{"i4"}, []placement.Instance{i12})
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(usedInstances))
+	assertPlacementInstanceEqualExceptShards(t, i12, usedInstances[0])
+
+	// could not find placement for service
+	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
+	_, _, err = p.ReplaceInstances(
+		[]string{"i1"},
+		[]placement.Instance{placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)},
+	)
+	assert.Error(t, err)
+}
+
+func TestMarkShard(t *testing.T) {
+	ms := NewMockStorage()
+
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+	i2 := placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+
+	i3 := placement.NewEmptyInstance("i3", "r2", "z1", "endpoint", 1)
+	i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+
+	i4 := placement.NewEmptyInstance("i4", "r2", "z1", "endpoint", 1)
+	i4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+
+	i5 := placement.NewEmptyInstance("i5", "r2", "z1", "endpoint", 1)
+	i5.Shards().Add(shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i1"))
+
+	instances := []placement.Instance{i1, i2, i3, i4, i5}
+	p := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards([]uint32{1, 2, 3, 4, 5, 6}).
+		SetReplicaFactor(2).
+		SetIsSharded(true)
+	err := ms.SetIfNotExist(p)
+	assert.NoError(t, err)
+
+	ps := NewPlacementService(ms, placement.NewOptions().SetValidZone("z1"))
+	err = ps.MarkShardAvailable("i5", 1)
+	assert.NoError(t, err)
+	p, _, err = ms.Placement()
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
+	for _, instance := range p.Instances() {
+		for _, s := range instance.Shards().All() {
+			assert.Equal(t, shard.Available, s.State())
+		}
+	}
+
+	err = ps.MarkShardAvailable("i1", 1)
+	assert.Error(t, err)
+
+	err = ps.MarkShardAvailable("i5", 5)
+	assert.Error(t, err)
+}
+
+func TestMarkInstance(t *testing.T) {
+	ms := NewMockStorage()
+
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+	i2 := placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+
+	i3 := placement.NewEmptyInstance("i3", "r2", "z1", "endpoint", 1)
+	i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+
+	i4 := placement.NewEmptyInstance("i4", "r2", "z1", "endpoint", 1)
+	i4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+
+	i5 := placement.NewEmptyInstance("i5", "r2", "z1", "endpoint", 1)
+	i5.Shards().Add(shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i1"))
+	i5.Shards().Add(shard.NewShard(2).SetState(shard.Initializing).SetSourceID("i1"))
+
+	instances := []placement.Instance{i1, i2, i3, i4, i5}
+	p := placement.NewPlacement().
+		SetInstances(instances).
+		SetShards([]uint32{1, 2, 3, 4, 5, 6}).
+		SetReplicaFactor(2).
+		SetIsSharded(true)
+	err := ms.SetIfNotExist(p)
+	assert.NoError(t, err)
+
+	ps := NewPlacementService(ms, placement.NewOptions().SetValidZone("z1"))
+	// marking shard 2 will fail
+	err = ps.MarkInstanceAvailable("i5")
+	assert.Error(t, err)
+
+	// instance not exist
+	err = ps.MarkInstanceAvailable("i6")
+	assert.Error(t, err)
+
+	i5.Shards().Remove(2)
+	ms = NewMockStorage()
+	ms.SetIfNotExist(p)
+	ps = NewPlacementService(ms, placement.NewOptions().SetValidZone("z1"))
+	err = ps.MarkInstanceAvailable("i5")
+	assert.NoError(t, err)
+}
+
+func TestFindReplaceInstance(t *testing.T) {
+	i1 := placement.NewEmptyInstance("i1", "r11", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i1.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+
+	i10 := placement.NewEmptyInstance("i10", "r11", "z1", "endpoint", 1)
+	i10.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i10.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+
+	i2 := placement.NewEmptyInstance("i2", "r12", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(7).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(8).SetState(shard.Available))
+	i2.Shards().Add(shard.NewShard(9).SetState(shard.Available))
+
+	i3 := placement.NewEmptyInstance("i3", "r13", "z1", "endpoint", 3)
+	i3.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(3).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(4).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(5).SetState(shard.Available))
+	i3.Shards().Add(shard.NewShard(6).SetState(shard.Available))
+
+	i4 := placement.NewEmptyInstance("i4", "r14", "z1", "endpoint", 1)
+	i4.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(7).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(8).SetState(shard.Available))
+	i4.Shards().Add(shard.NewShard(9).SetState(shard.Available))
+
+	instances := []placement.Instance{i1, i2, i3, i4, i10}
+
+	ids := []uint32{1, 2, 3, 4, 5, 6, 7, 8}
+	s := placement.NewPlacement().SetInstances(instances).SetShards(ids).SetReplicaFactor(2)
+
+	candidates := []placement.Instance{
+		placement.NewEmptyInstance("i11", "r11", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i22", "r22", "z2", "endpoint", 1), // bad zone
+	}
+
+	p := NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1")).(placementService)
+	i, err := p.selector.SelectReplaceInstances(candidates, []string{i4.ID()}, s)
+	assert.Error(t, err)
+	assert.Nil(t, i)
+
+	noConflictCandidates := []placement.Instance{
+		placement.NewEmptyInstance("i11", "r0", "z1", "endpoint", 1),
+		placement.NewEmptyInstance("i22", "r0", "z2", "endpoint", 1),
+	}
+	i, err = p.selector.SelectReplaceInstances(noConflictCandidates, []string{i3.ID()}, s)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "could not find enough instance to replace")
+	assert.Nil(t, i)
+
+	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1").SetLooseRackCheck(true)).(placementService)
+	i, err = p.selector.SelectReplaceInstances(candidates, []string{i4.ID()}, s)
+	assert.NoError(t, err)
+	// gonna prefer r1 because r1 would only conflict shard 2, r2 would conflict 7,8,9
+	assert.Equal(t, 1, len(i))
+	assert.Equal(t, "r11", i[0].Rack())
+}
+
+func TestSetPlacement(t *testing.T) {
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	p := placement.NewPlacement().
+		SetInstances([]placement.Instance{i1, i2}).
+		SetShards([]uint32{1, 2}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+
+	ps := NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
+	err := ps.SetPlacement(p)
+	assert.NoError(t, err)
+	pGet, v, err := ps.Placement()
+	assert.NoError(t, err)
+	assert.Equal(t, 1, v)
+	assert.Equal(t, p, pGet)
+
+	// validation error
+	err = ps.SetPlacement(placement.NewPlacement().
+		SetInstances([]placement.Instance{i1, i2}).
+		SetShards([]uint32{1, 2}).
+		SetReplicaFactor(2),
+	)
+	assert.Error(t, err)
+
+	err = ps.SetPlacement(p)
+	assert.NoError(t, err)
+
+	p, v, err = ps.Placement()
+	assert.NoError(t, err)
+	assert.Equal(t, 2, v)
+	assert.Equal(t, p, pGet)
+}
+
+func TestDeletePlacement(t *testing.T) {
+	m := NewMockStorage()
+
+	ps := NewPlacementService(m, placement.NewOptions().SetValidZone("z1"))
+
+	err := ps.Delete()
+	assert.Error(t, err)
+
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
+	i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+	p := placement.NewPlacement().
+		SetInstances([]placement.Instance{i1, i2}).
+		SetShards([]uint32{1, 2}).
+		SetReplicaFactor(1).
+		SetIsSharded(true)
+
+	err = ps.SetPlacement(p)
+	assert.NoError(t, err)
+
+	_, v, err := ps.Placement()
+	assert.NoError(t, err)
+	assert.Equal(t, 1, v)
+
+	err = ps.Delete()
+	assert.NoError(t, err)
+
+	err = ps.Delete()
+	assert.Error(t, err)
+
+	err = ps.SetPlacement(p)
+	assert.NoError(t, err)
+
+	_, v, err = ps.Placement()
+	assert.NoError(t, err)
+	assert.Equal(t, 1, v)
+}
+
+func TestMirrorWorkflow(t *testing.T) {
+	h1p1 := placement.NewInstance().
+		SetID("h1p1").
+		SetHostname("h1").
+		SetPort(1).
+		SetRack("r1").
+		SetZone("z1").
+		SetEndpoint("h1p1e").
+		SetWeight(1)
+	h1p2 := placement.NewInstance().
+		SetID("h1p2").
+		SetHostname("h1").
+		SetPort(2).
+		SetRack("r1").
+		SetZone("z1").
+		SetEndpoint("h1p2e").
+		SetWeight(1)
+	h1p3 := placement.NewInstance().
+		SetID("h1p3").
+		SetHostname("h1").
+		SetPort(3).
+		SetRack("r1").
+		SetZone("z1").
+		SetEndpoint("h1p3e").
+		SetWeight(1)
+	h2p1 := placement.NewInstance().
+		SetID("h2p1").
+		SetHostname("h2").
+		SetPort(1).
+		SetRack("r2").
+		SetZone("z1").
+		SetEndpoint("h2p1e").
+		SetWeight(1)
+	h2p2 := placement.NewInstance().
+		SetID("h2p2").
+		SetHostname("h2").
+		SetPort(2).
+		SetRack("r2").
+		SetZone("z1").
+		SetEndpoint("h2p2e").
+		SetWeight(1)
+	h2p3 := placement.NewInstance().
+		SetID("h2p3").
+		SetHostname("h2").
+		SetPort(3).
+		SetRack("r2").
+		SetZone("z1").
+		SetEndpoint("h2p3e").
+		SetWeight(1)
+	h3p1 := placement.NewInstance().
+		SetID("h3p1").
+		SetHostname("h3").
+		SetPort(1).
+		SetRack("r1").
+		SetZone("z1").
+		SetEndpoint("h3p1e").
+		SetWeight(2)
+	h3p2 := placement.NewInstance().
+		SetID("h3p2").
+		SetHostname("h3").
+		SetPort(2).
+		SetRack("r1").
+		SetZone("z1").
+		SetEndpoint("h3p2e").
+		SetWeight(2)
+	h3p3 := placement.NewInstance().
+		SetID("h3p3").
+		SetHostname("h3").
+		SetPort(3).
+		SetRack("r1").
+		SetZone("z1").
+		SetEndpoint("h3p3e").
+		SetWeight(2)
+	h4p1 := placement.NewInstance().
+		SetID("h4p1").
+		SetHostname("h4").
+		SetPort(1).
+		SetRack("r2").
+		SetZone("z1").
+		SetEndpoint("h4p1e").
+		SetWeight(2)
+	h4p2 := placement.NewInstance().
+		SetID("h4p2").
+		SetHostname("h4").
+		SetPort(2).
+		SetRack("r2").
+		SetZone("z1").
+		SetEndpoint("h4p2e").
+		SetWeight(2)
+	h4p3 := placement.NewInstance().
+		SetID("h4p3").
+		SetHostname("h4").
+		SetPort(3).
+		SetRack("r2").
+		SetZone("z1").
+		SetEndpoint("h4p3e").
+		SetWeight(2)
+
+	ps := NewPlacementService(
+		NewMockStorage(),
+		placement.NewOptions().SetValidZone("z1").SetIsMirrored(true),
+	)
+
+	p, err := ps.BuildInitialPlacement(
+		[]placement.Instance{h1p1, h1p2, h1p3, h2p1, h2p2, h2p3, h3p1, h3p2, h3p3, h4p1, h4p2, h4p3},
+		20,
+		2,
+	)
+	assert.NoError(t, err)
+	assert.Equal(t, h1p1.ShardSetID(), h2p1.ShardSetID())
+	assert.Equal(t, h1p2.ShardSetID(), h2p2.ShardSetID())
+	assert.Equal(t, h1p3.ShardSetID(), h2p3.ShardSetID())
+	assert.Equal(t, h3p1.ShardSetID(), h4p1.ShardSetID())
+	assert.Equal(t, h3p2.ShardSetID(), h4p2.ShardSetID())
+	assert.Equal(t, h3p3.ShardSetID(), h4p3.ShardSetID())
+	assert.Equal(t, 12, p.NumInstances())
+
+	h5p1 := placement.NewInstance().
+		SetID("h5p1").
+		SetHostname("h5").
+		SetPort(1).
+		SetRack("r1").
+		SetZone("z1").
+		SetEndpoint("h5p1e").
+		SetWeight(2)
+	h6p1 := placement.NewInstance().
+		SetID("h6p1").
+		SetHostname("h6").
+		SetPort(1).
+		SetRack("r2").
+		SetZone("z1").
+		SetEndpoint("h6p1e").
+		SetWeight(2)
+
+	_, addedInstances, err := ps.AddInstances([]placement.Instance{h5p1, h6p1})
+	assert.NoError(t, err)
+	assert.Equal(t, 2, len(addedInstances))
+	assert.Equal(t, addedInstances[0].ShardSetID(), addedInstances[1].ShardSetID())
+	assert.Equal(t, uint32(6), addedInstances[0].ShardSetID())
+
+	_, err = ps.RemoveInstances([]string{h5p1.ID(), h6p1.ID()})
+	assert.NoError(t, err)
+
+	h7p1 := placement.NewInstance().
+		SetID("h7p1").
+		SetHostname("h7").
+		SetPort(1).
+		SetRack("r2").
+		SetZone("z1").
+		SetEndpoint("h7p1e").
+		SetWeight(2)
+	h7p2 := placement.NewInstance().
+		SetID("h7p2").
+		SetHostname("h7").
+		SetPort(2).
+		SetRack("r2").
+		SetZone("z1").
+		SetEndpoint("h7p2e").
+		SetWeight(2)
+	h7p3 := placement.NewInstance().
+		SetID("h7p3").
+		SetHostname("h7").
+		SetPort(3).
+		SetRack("r2").
+		SetZone("z1").
+		SetEndpoint("h7p3e").
+		SetWeight(2)
+
+	p, addedInstances, err = ps.ReplaceInstances(
+		[]string{h4p1.ID(), h4p2.ID(), h4p3.ID()},
+		[]placement.Instance{h3p1, h3p2, h3p3, h7p1, h7p2, h7p3},
+	)
+	assert.NoError(t, err)
+	h4p1, ok := p.Instance(h4p1.ID())
+	assert.True(t, ok)
+	h4p2, ok = p.Instance(h4p2.ID())
+	assert.True(t, ok)
+	h4p3, ok = p.Instance(h4p3.ID())
+	assert.True(t, ok)
+	assert.Equal(t, h4p1.ShardSetID(), addedInstances[0].ShardSetID())
+	assert.Equal(t, h4p1.Shards().AllIDs(), addedInstances[0].Shards().AllIDs())
+	assert.Equal(t, h4p2.ShardSetID(), addedInstances[1].ShardSetID())
+	assert.Equal(t, h4p2.Shards().AllIDs(), addedInstances[1].Shards().AllIDs())
+	assert.Equal(t, h4p3.ShardSetID(), addedInstances[2].ShardSetID())
+	assert.Equal(t, h4p3.Shards().AllIDs(), addedInstances[2].Shards().AllIDs())
+}
+
+func TestManyShards(t *testing.T) {
+	p := NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 2)
+	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 2)
+	i3 := placement.NewEmptyInstance("i3", "r3", "z1", "endpoint", 2)
+	i4 := placement.NewEmptyInstance("i4", "r1", "z1", "endpoint", 2)
+	i5 := placement.NewEmptyInstance("i5", "r2", "z1", "endpoint", 2)
+	i6 := placement.NewEmptyInstance("i6", "r3", "z1", "endpoint", 2)
+	_, err := p.BuildInitialPlacement([]placement.Instance{i1, i2, i3, i4, i5, i6}, 8192, 1)
+	assert.NoError(t, err)
+}
+
+// file based placement storage
+type mockStorage struct {
+	sync.Mutex
+
+	p       placement.Placement
+	version int
+}
+
+func NewMockStorage() placement.Storage {
+	return &mockStorage{}
+}
+
+func (ms *mockStorage) Set(p placement.Placement) error {
+	ms.Lock()
+	defer ms.Unlock()
+
+	ms.p = p
+	ms.version++
+
+	return nil
+}
+
+func (ms *mockStorage) CheckAndSet(p placement.Placement, v int) error {
+	ms.Lock()
+	defer ms.Unlock()
+
+	if ms.version == v {
+		ms.p = p
+		ms.version++
+	} else {
+		return errors.New("wrong version")
+	}
+
+	return nil
+}
+
+func (ms *mockStorage) SetIfNotExist(p placement.Placement) error {
+	ms.Lock()
+	defer ms.Unlock()
+
+	if ms.p != nil {
+		return errors.New("placement already exist")
+	}
+
+	ms.p = p
+	ms.version = 1
+	return nil
+}
+
+func (ms *mockStorage) Delete() error {
+	ms.Lock()
+	defer ms.Unlock()
+
+	if ms.p == nil {
+		return errors.New("not exist")
+	}
+
+	ms.p = nil
+	ms.version = 0
+	return nil
+}
+
+func (ms *mockStorage) Placement() (placement.Placement, int, error) {
+	ms.Lock()
+	defer ms.Unlock()
+
+	if ms.p != nil {
+		return ms.p, ms.version, nil
+	}
+
+	return nil, 0, kv.ErrNotFound
+}
+
+func (ms *mockStorage) SetPlacementProto(p proto.Message) error {
+	return errors.New("not implemented")
+}
+
+func (ms *mockStorage) PlacementProto() (proto.Message, int, error) {
+	return nil, 0, errors.New("not implemented")
+}
+
+func markAllInstancesAvailable(
+	t *testing.T,
+	ps placement.Service,
+) {
+	p, _, err := ps.Placement()
+	require.NoError(t, err)
+	for _, i := range p.Instances() {
+		if len(i.Shards().ShardsForState(shard.Initializing)) == 0 {
+			continue
+		}
+		err := ps.MarkInstanceAvailable(i.ID())
+		require.NoError(t, err)
+	}
+}

@@ -24,6 +24,8 @@ import:
   - require
 - package: github.com/prometheus/client_model
   version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
+- package: github.com/prometheus/common
+  version: 9e0844febd9e2856f839c9cb974fbd676d1755a8
 - package: github.com/uber-go/tally
   version: ^3.0.0 # ie >= 3.0.0, < 4.0.0
 - package: github.com/apache/thrift
@@ -38,3 +40,19 @@ import:
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
 - package: github.com/StackExchange/wmi
   version: e542ed97d15e640bdc14b5c12162d59e8fc67324
+- package: golang.org/x/crypto
+  version: 1351f936d976c60a0a48d728281922cf63eafb8d
+  repo: https://github.com/golang/crypto
+  vcs: git
+- package: golang.org/x/net
+  version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
+  repo: https://github.com/golang/net
+  vcs: git
+- package: golang.org/x/sys
+  version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  repo: https://github.com/golang/sys
+  vcs: git
+- package: golang.org/x/time
+  version: a4bde12657593d5e90d0533a3e4fd95e635124cb
+  repo: https://github.com/golang/time
+  vcs: git

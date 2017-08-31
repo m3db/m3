@@ -204,6 +204,7 @@ func (s *store) Delete(key string) (kv.Value, error) {
 
 	prev := val[len(val)-1]
 	s.updateWatchable(key, nil)
+	delete(s.values, key)
 	return prev, nil
 }
 

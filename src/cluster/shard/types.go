@@ -23,7 +23,7 @@ package shard
 import (
 	"math"
 
-	schema "github.com/m3db/m3cluster/generated/proto/placement"
+	"github.com/m3db/m3cluster/generated/proto/placementpb"
 )
 
 const (
@@ -83,7 +83,7 @@ type Shard interface {
 	SetSourceID(sourceID string) Shard
 
 	// Proto returns the proto representation for the shard.
-	Proto() (*schema.Shard, error)
+	Proto() (*placementpb.Shard, error)
 }
 
 // Shards is a collection of shards owned by one ServiceInstance.
@@ -119,5 +119,5 @@ type Shards interface {
 	String() string
 
 	// Proto returns the proto representation for the shards.
-	Proto() ([]*schema.Shard, error)
+	Proto() ([]*placementpb.Shard, error)
 }
