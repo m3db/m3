@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/golang/protobuf/proto"
+
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/placement"
@@ -217,13 +219,6 @@ func (s *m3ClusterServices) PlacementService(
 	return s.placementService, nil
 }
 
-func (s *m3ClusterServices) PlacementStorage(
-	service services.ServiceID,
-	popts placement.Options,
-) (placement.Storage, error) {
-	return nil, fmt.Errorf("not implemented")
-}
-
 func (s *m3ClusterServices) HeartbeatService(
 	service services.ServiceID,
 ) (services.HeartbeatService, error) {
@@ -292,12 +287,29 @@ func (s *m3ClusterPlacementService) Placement() (
 ) {
 	return nil, 0, fmt.Errorf("not implemented")
 }
-func (s *m3ClusterPlacementService) SetPlacement(
+func (s *m3ClusterPlacementService) Set(
 	p placement.Placement,
 ) error {
 	return fmt.Errorf("not implemented")
 }
+func (s *m3ClusterPlacementService) SetIfNotExist(
+	p placement.Placement,
+) error {
+	return fmt.Errorf("not implemented")
+}
+func (s *m3ClusterPlacementService) CheckAndSet(
+	p placement.Placement,
+	v int,
+) error {
+	return fmt.Errorf("not implemented")
+}
 func (s *m3ClusterPlacementService) Delete() error {
+	return fmt.Errorf("not implemented")
+}
+func (s *m3ClusterPlacementService) PlacementProto() (proto.Message, int, error) {
+	return nil, 0, fmt.Errorf("not implemented")
+}
+func (s *m3ClusterPlacementService) SetPlacementProto(p proto.Message) error {
 	return fmt.Errorf("not implemented")
 }
 
