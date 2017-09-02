@@ -59,7 +59,7 @@ func TestLargeFileTransfer(t *testing.T) {
 
 	// test copied build file contents
 	buildOutputPath := path.Join(th.agentOptions.WorkingDirectory(), testBuildID)
-	obsBytes, err := ioutil.ReadFile(buildOutputPath)
+	_, err := ioutil.ReadFile(buildOutputPath)
 	require.NoError(t, err)
 	// NB(prateek): not testing if bytes are equal as this is a large file,
 	// the operator <-> agent communication verifies checksum and num chunks
@@ -67,7 +67,7 @@ func TestLargeFileTransfer(t *testing.T) {
 
 	// test copied config file contents
 	configOutputPath := path.Join(th.agentOptions.WorkingDirectory(), testConfigID)
-	obsBytes, err = ioutil.ReadFile(configOutputPath)
+	obsBytes, err := ioutil.ReadFile(configOutputPath)
 	require.NoError(t, err)
 	require.Equal(t, confContents, obsBytes)
 }

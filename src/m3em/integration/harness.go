@@ -70,12 +70,10 @@ type testHarness struct {
 	heartbeatStopped  int32
 }
 
-// nolint: deadcode
 func newTestHarnessWithHearbeat(t *testing.T) *testHarness {
 	return newTestHarnessWithHearbeatOptions(t, testHeartbeatOptions())
 }
 
-// nolint: deadcode
 func newTestHarness(t *testing.T) *testHarness {
 	return newTestHarnessWithHearbeatOptions(t, nil)
 }
