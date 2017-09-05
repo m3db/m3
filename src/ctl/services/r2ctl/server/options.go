@@ -31,24 +31,24 @@ const (
 	defaultWriteTimeout = 10 * time.Second
 )
 
-// Options is a set of server options
+// Options is a set of server options.
 type Options interface {
-	// SetReadTimeout sets the read timeout
+	// SetReadTimeout sets the read timeout.
 	SetReadTimeout(value time.Duration) Options
 
-	// ReadTimeout returns the read timeout
+	// ReadTimeout returns the read timeout.
 	ReadTimeout() time.Duration
 
-	// SetWriteTimeout sets the write timeout
+	// SetWriteTimeout sets the write timeout.
 	SetWriteTimeout(value time.Duration) Options
 
-	// WriteTimeout returns the write timeout
+	// WriteTimeout returns the write timeout.
 	WriteTimeout() time.Duration
 
-	// SetInstrumentOptions returns the write timeout
+	// SetInstrumentOptions returns the write timeout.
 	SetInstrumentOptions(value instrument.Options) Options
 
-	// InstrumentOptions returns the write timeout
+	// InstrumentOptions returns the write timeout.
 	InstrumentOptions() instrument.Options
 }
 
@@ -58,7 +58,7 @@ type options struct {
 	writeTimeout   time.Duration
 }
 
-// NewOptions creates a new set of server options
+// NewOptions creates a new set of server options.
 func NewOptions() Options {
 	return &options{
 		readTimeout:    defaultReadTimeout,

@@ -30,14 +30,18 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/client/etcd"
-	"github.com/m3db/m3ctl/server"
+	"github.com/m3db/m3ctl/health"
+	"github.com/m3db/m3ctl/r2"
+	"github.com/m3db/m3ctl/r2/kv"
+	"github.com/m3db/m3ctl/services/r2ctl/server"
+	"github.com/m3db/m3ctl/swagger"
 	"github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
 )
 
 const (
-	portEnvVar = "M3CTL_PORT"
+	portEnvVar = "R2CTL_PORT"
 )
 
 type serverConfig struct {
@@ -73,7 +77,7 @@ type kvClientConfiguration struct {
 }
 
 type configuration struct {
-	// KVStore Config
+	// KVStore Config.
 	KVClient kvClientConfiguration `yaml:"kvClient" validate:"nonzero"`
 
 	// Logging configuration.
@@ -139,15 +143,18 @@ func main() {
 
 	doneCh := make(chan struct{})
 
-	s, err := server.NewServer(listenAddr, serverOpts)
-	if err != nil {
-		logger.Fatalf("could not create m3ctl server: %v", err)
+	services := []server.Service{
+		health.NewService(instrumentOpts),
+		swagger.NewService(instrumentOpts, "r2/v1"),
+		r2.NewService(instrumentOpts, "r2/v1", kv.NewStore(kv.StoreConfig{})),
 	}
+
+	r2ApiServer := server.NewServer(listenAddr, serverOpts, services)
 
 	go func() {
 		go func() {
 			logger.Infof("Starting http server on: %s", listenAddr)
-			if err = s.ListenAndServe(); err != nil {
+			if err = r2ApiServer.ListenAndServe(); err != nil {
 				logger.Fatalf("could not start serving traffic: %v", err)
 			}
 		}()

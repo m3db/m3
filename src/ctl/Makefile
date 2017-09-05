@@ -23,7 +23,7 @@ BUILD           := $(abspath ./bin)
 LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 
 SERVICES := \
-	m3ctl
+	r2ctl
 
 .PHONY: setup
 setup:

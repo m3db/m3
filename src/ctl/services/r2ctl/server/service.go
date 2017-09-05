@@ -16,26 +16,14 @@
 // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
+// THE SOFTWARE
 
 package server
 
-import (
-	"net/http"
+import "github.com/gorilla/mux"
 
-	"github.com/gorilla/mux"
-)
-
-// NewServer creates a new http server
-func NewServer(address string, opts Options) (*http.Server, error) {
-	router := mux.NewRouter()
-	if err := registerHandlers(router, opts.InstrumentOptions()); err != nil {
-		return nil, err
-	}
-	return &http.Server{
-		WriteTimeout: opts.WriteTimeout(),
-		ReadTimeout:  opts.ReadTimeout(),
-		Addr:         address,
-		Handler:      router,
-	}, nil
+// Service defines routes and handlers for a given entity.
+type Service interface {
+	// RegisterHandlers wires the http handlers for this Service with the given router.
+	RegisterHandlers(*mux.Router)
 }

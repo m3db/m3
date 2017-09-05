@@ -18,12 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE
 
-package handler
+package kv
 
-import "github.com/gorilla/mux"
+import (
+	"github.com/m3db/m3ctl/r2"
+	"github.com/m3db/m3metrics/rules"
+)
 
-// Controller defines functions around a controllable entity
-type Controller interface {
-	// Registers the handlers for this controller with the given ServeMux
-	RegisterHandlers(*mux.Router)
+type store struct {
+	cfg StoreConfig
+}
+
+// StoreConfig is all the configuration state needed by a kv service.
+type StoreConfig struct {
+	UpdateHelper rules.RuleSetUpdateHelper
+}
+
+// NewStore returns a new service that knows how to talk to a kv backed r2 store.
+func NewStore(cfg StoreConfig) r2.Store {
+	return &store{cfg: cfg}
 }
