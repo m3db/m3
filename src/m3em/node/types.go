@@ -27,7 +27,7 @@ import (
 	hb "github.com/m3db/m3em/generated/proto/heartbeat"
 	"github.com/m3db/m3em/generated/proto/m3em"
 
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/placement"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"
@@ -95,7 +95,7 @@ const (
 // ServiceNode represents an executable service node. This object controls both the service
 // and resources on the host running the service (e.g. fs, processes, etc.)
 type ServiceNode interface {
-	services.PlacementInstance
+	placement.Instance
 
 	// Setup initializes the directories, config file, and binary for the process being tested.
 	// It does not Start the process on the ServiceNode.

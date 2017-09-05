@@ -26,7 +26,7 @@ import (
 	"github.com/m3db/m3em/build"
 	"github.com/m3db/m3em/node"
 
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"
 )
@@ -117,7 +117,7 @@ type Cluster interface {
 	KnownNodes() []node.ServiceNode
 
 	// Placement returns the current placement
-	Placement() services.Placement
+	Placement() placement.Placement
 
 	// Status returns the cluster status
 	Status() Status
@@ -177,11 +177,11 @@ type Options interface {
 
 	// SetPlacementService returns the PlacementService to use for cluster
 	// configuration
-	SetPlacementService(services.PlacementService) Options
+	SetPlacementService(placement.Service) Options
 
 	// PlacementService returns the PlacementService to use for cluster
 	// configuration
-	PlacementService() services.PlacementService
+	PlacementService() placement.Service
 
 	// SetPlacementServiceRetrier sets the retrier to use for placement
 	// service operations

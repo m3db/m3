@@ -27,7 +27,8 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	build "github.com/m3db/m3em/build"
 	node "github.com/m3db/m3em/node"
-	services "github.com/m3db/m3cluster/services"
+	placementpb "github.com/m3db/m3cluster/generated/proto/placementpb"
+	placement "github.com/m3db/m3cluster/placement"
 	shard "github.com/m3db/m3cluster/shard"
 	instrument "github.com/m3db/m3x/instrument"
 	retry "github.com/m3db/m3x/retry"
@@ -124,6 +125,17 @@ func (_mr *_MockServiceNodeRecorder) Port() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Port")
 }
 
+func (_m *MockServiceNode) Proto() (*placementpb.Instance, error) {
+	ret := _m.ctrl.Call(_m, "Proto")
+	ret0, _ := ret[0].(*placementpb.Instance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockServiceNodeRecorder) Proto() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Proto")
+}
+
 func (_m *MockServiceNode) Rack() string {
 	ret := _m.ctrl.Call(_m, "Rack")
 	ret0, _ := ret[0].(string)
@@ -144,9 +156,9 @@ func (_mr *_MockServiceNodeRecorder) RegisterListener(arg0 interface{}) *gomock.
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "RegisterListener", arg0)
 }
 
-func (_m *MockServiceNode) SetEndpoint(_param0 string) services.PlacementInstance {
+func (_m *MockServiceNode) SetEndpoint(_param0 string) placement.Instance {
 	ret := _m.ctrl.Call(_m, "SetEndpoint", _param0)
-	ret0, _ := ret[0].(services.PlacementInstance)
+	ret0, _ := ret[0].(placement.Instance)
 	return ret0
 }
 
@@ -154,9 +166,9 @@ func (_mr *_MockServiceNodeRecorder) SetEndpoint(arg0 interface{}) *gomock.Call 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEndpoint", arg0)
 }
 
-func (_m *MockServiceNode) SetHostname(_param0 string) services.PlacementInstance {
+func (_m *MockServiceNode) SetHostname(_param0 string) placement.Instance {
 	ret := _m.ctrl.Call(_m, "SetHostname", _param0)
-	ret0, _ := ret[0].(services.PlacementInstance)
+	ret0, _ := ret[0].(placement.Instance)
 	return ret0
 }
 
@@ -164,9 +176,9 @@ func (_mr *_MockServiceNodeRecorder) SetHostname(arg0 interface{}) *gomock.Call 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetHostname", arg0)
 }
 
-func (_m *MockServiceNode) SetID(_param0 string) services.PlacementInstance {
+func (_m *MockServiceNode) SetID(_param0 string) placement.Instance {
 	ret := _m.ctrl.Call(_m, "SetID", _param0)
-	ret0, _ := ret[0].(services.PlacementInstance)
+	ret0, _ := ret[0].(placement.Instance)
 	return ret0
 }
 
@@ -174,9 +186,9 @@ func (_mr *_MockServiceNodeRecorder) SetID(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetID", arg0)
 }
 
-func (_m *MockServiceNode) SetPort(_param0 uint32) services.PlacementInstance {
+func (_m *MockServiceNode) SetPort(_param0 uint32) placement.Instance {
 	ret := _m.ctrl.Call(_m, "SetPort", _param0)
-	ret0, _ := ret[0].(services.PlacementInstance)
+	ret0, _ := ret[0].(placement.Instance)
 	return ret0
 }
 
@@ -184,9 +196,9 @@ func (_mr *_MockServiceNodeRecorder) SetPort(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPort", arg0)
 }
 
-func (_m *MockServiceNode) SetRack(_param0 string) services.PlacementInstance {
+func (_m *MockServiceNode) SetRack(_param0 string) placement.Instance {
 	ret := _m.ctrl.Call(_m, "SetRack", _param0)
-	ret0, _ := ret[0].(services.PlacementInstance)
+	ret0, _ := ret[0].(placement.Instance)
 	return ret0
 }
 
@@ -194,9 +206,9 @@ func (_mr *_MockServiceNodeRecorder) SetRack(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRack", arg0)
 }
 
-func (_m *MockServiceNode) SetShardSetID(_param0 uint32) services.PlacementInstance {
+func (_m *MockServiceNode) SetShardSetID(_param0 uint32) placement.Instance {
 	ret := _m.ctrl.Call(_m, "SetShardSetID", _param0)
-	ret0, _ := ret[0].(services.PlacementInstance)
+	ret0, _ := ret[0].(placement.Instance)
 	return ret0
 }
 
@@ -204,9 +216,9 @@ func (_mr *_MockServiceNodeRecorder) SetShardSetID(arg0 interface{}) *gomock.Cal
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetShardSetID", arg0)
 }
 
-func (_m *MockServiceNode) SetShards(_param0 shard.Shards) services.PlacementInstance {
+func (_m *MockServiceNode) SetShards(_param0 shard.Shards) placement.Instance {
 	ret := _m.ctrl.Call(_m, "SetShards", _param0)
-	ret0, _ := ret[0].(services.PlacementInstance)
+	ret0, _ := ret[0].(placement.Instance)
 	return ret0
 }
 
@@ -214,9 +226,9 @@ func (_mr *_MockServiceNodeRecorder) SetShards(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetShards", arg0)
 }
 
-func (_m *MockServiceNode) SetWeight(_param0 uint32) services.PlacementInstance {
+func (_m *MockServiceNode) SetWeight(_param0 uint32) placement.Instance {
 	ret := _m.ctrl.Call(_m, "SetWeight", _param0)
-	ret0, _ := ret[0].(services.PlacementInstance)
+	ret0, _ := ret[0].(placement.Instance)
 	return ret0
 }
 
@@ -224,9 +236,9 @@ func (_mr *_MockServiceNodeRecorder) SetWeight(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetWeight", arg0)
 }
 
-func (_m *MockServiceNode) SetZone(_param0 string) services.PlacementInstance {
+func (_m *MockServiceNode) SetZone(_param0 string) placement.Instance {
 	ret := _m.ctrl.Call(_m, "SetZone", _param0)
-	ret0, _ := ret[0].(services.PlacementInstance)
+	ret0, _ := ret[0].(placement.Instance)
 	return ret0
 }
 

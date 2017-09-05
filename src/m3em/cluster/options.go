@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3em/build"
 	"github.com/m3db/m3em/node"
 
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"
 )
@@ -46,7 +46,7 @@ type clusterOpts struct {
 	token            string
 	svcBuild         build.ServiceBuild
 	svcConf          build.ServiceConfiguration
-	placementSvc     services.PlacementService
+	placementSvc     placement.Service
 	placementRetrier xretry.Retrier
 	replication      int
 	numShards        int
@@ -57,7 +57,7 @@ type clusterOpts struct {
 
 // NewOptions returns a new Options object
 func NewOptions(
-	placementSvc services.PlacementService,
+	placementSvc placement.Service,
 	iopts instrument.Options,
 ) Options {
 	if iopts == nil {
@@ -166,12 +166,12 @@ func (o clusterOpts) NumShards() int {
 	return o.numShards
 }
 
-func (o clusterOpts) SetPlacementService(psvc services.PlacementService) Options {
+func (o clusterOpts) SetPlacementService(psvc placement.Service) Options {
 	o.placementSvc = psvc
 	return o
 }
 
-func (o clusterOpts) PlacementService() services.PlacementService {
+func (o clusterOpts) PlacementService() placement.Service {
 	return o.placementSvc
 }
 
