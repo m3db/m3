@@ -24,7 +24,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
@@ -67,7 +67,7 @@ type writer struct {
 	newLockedEncoderFn newLockedEncoderFn
 }
 
-func newInstanceWriter(instance services.PlacementInstance, opts ServerOptions) instanceWriter {
+func newInstanceWriter(instance placement.Instance, opts ServerOptions) instanceWriter {
 	var (
 		iOpts     = opts.InstrumentOptions()
 		scope     = iOpts.MetricsScope()
@@ -359,7 +359,7 @@ type refCountedWriter struct {
 	instanceWriter
 }
 
-func newRefCountedWriter(instance services.PlacementInstance, opts ServerOptions) *refCountedWriter {
+func newRefCountedWriter(instance placement.Instance, opts ServerOptions) *refCountedWriter {
 	rcWriter := &refCountedWriter{instanceWriter: newInstanceWriter(instance, opts)}
 	rcWriter.refCount.SetDestructor(rcWriter.Close)
 	return rcWriter

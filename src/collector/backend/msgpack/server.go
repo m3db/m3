@@ -27,8 +27,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/placement"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3collector/backend"
 	"github.com/m3db/m3metrics/metric/unaggregated"
@@ -60,7 +59,7 @@ type server struct {
 	shardCutoffLingerDuration  time.Duration
 	writerMgr                  instanceWriterManager
 	shardFn                    ShardFn
-	placementWatcher           services.StagedPlacementWatcher
+	placementWatcher           placement.StagedPlacementWatcher
 	state                      serverState
 }
 
@@ -72,12 +71,12 @@ func NewServer(opts ServerOptions) backend.Server {
 		writerOpts     = opts.SetInstrumentOptions(instrumentOpts.SetMetricsScope(writerScope))
 		writerMgr      = newInstanceWriterManager(writerOpts)
 	)
-	onPlacementsAddedFn := func(placements []services.Placement) {
+	onPlacementsAddedFn := func(placements []placement.Placement) {
 		for _, placement := range placements {
 			writerMgr.AddInstances(placement.Instances()) // nolint: errcheck
 		}
 	}
-	onPlacementsRemovedFn := func(placements []services.Placement) {
+	onPlacementsRemovedFn := func(placements []placement.Placement) {
 		for _, placement := range placements {
 			writerMgr.RemoveInstances(placement.Instances()) // nolint: errcheck
 		}
