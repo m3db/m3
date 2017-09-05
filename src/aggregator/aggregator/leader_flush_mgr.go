@@ -29,7 +29,7 @@ import (
 
 	schema "github.com/m3db/m3aggregator/generated/proto/flush"
 	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
@@ -78,7 +78,7 @@ type leaderFlushManager struct {
 	flushTimesPersistEvery   time.Duration
 	flushTimesPersistRetrier xretry.Retrier
 	instanceID               string
-	placementWatcher         services.StagedPlacementWatcher
+	placementWatcher         placement.StagedPlacementWatcher
 	logger                   xlog.Logger
 	scope                    tally.Scope
 

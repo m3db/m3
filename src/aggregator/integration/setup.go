@@ -35,9 +35,8 @@ import (
 	httpserver "github.com/m3db/m3aggregator/server/http"
 	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
-	"github.com/m3db/m3cluster/proto/util"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -165,11 +164,11 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 		SetShards(shards).
 		SetShardSetID(opts.ShardSetID())
 	testPlacement := placement.NewPlacement().
-		SetInstances([]services.PlacementInstance{instance}).
+		SetInstances([]placement.Instance{instance}).
 		SetShards(shards.AllIDs())
 	stagedPlacement := placement.NewStagedPlacement().
-		SetPlacements([]services.Placement{testPlacement})
-	stagedPlacementProto, err := util.StagedPlacementToProto(stagedPlacement)
+		SetPlacements([]placement.Placement{testPlacement})
+	stagedPlacementProto, err := stagedPlacement.Proto()
 	require.NoError(t, err)
 	placementKey := opts.PlacementKVKey()
 	placementStore := opts.KVStore()

@@ -37,7 +37,7 @@ import (
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/placement"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/instrument"
@@ -688,7 +688,7 @@ type flushManagerConfiguration struct {
 
 func (c flushManagerConfiguration) NewFlushManager(
 	instanceID string,
-	placementWatcher services.StagedPlacementWatcher,
+	placementWatcher placement.StagedPlacementWatcher,
 	store kv.Store,
 	electionManager aggregator.ElectionManager,
 	instrumentOpts instrument.Options,

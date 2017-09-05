@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
@@ -128,7 +128,7 @@ type options struct {
 	clockOpts                        clock.Options
 	instrumentOpts                   instrument.Options
 	streamOpts                       cm.Options
-	placementWatcher                 services.StagedPlacementWatcher
+	placementWatcher                 placement.StagedPlacementWatcher
 	instanceID                       string
 	shardFn                          ShardFn
 	bufferDurationBeforeShardCutover time.Duration
@@ -449,13 +449,13 @@ func (o *options) StreamOptions() cm.Options {
 	return o.streamOpts
 }
 
-func (o *options) SetStagedPlacementWatcher(value services.StagedPlacementWatcher) Options {
+func (o *options) SetStagedPlacementWatcher(value placement.StagedPlacementWatcher) Options {
 	opts := *o
 	opts.placementWatcher = value
 	return &opts
 }
 
-func (o *options) StagedPlacementWatcher() services.StagedPlacementWatcher {
+func (o *options) StagedPlacementWatcher() placement.StagedPlacementWatcher {
 	return o.placementWatcher
 }
 

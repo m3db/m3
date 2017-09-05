@@ -1,5 +1,5 @@
-hash: a9c2fc0238917c1d7aa8bb91a55b3f051e68a5315ec72c6ea1e66e73d6fa8850
-updated: 2017-08-28T14:38:58.60099385-04:00
+hash: c7d794d7676427ed0af6489b640027ad8fe813f9cd510407a8a9b7dc85a8b51e
+updated: 2017-09-05T10:37:23.510645255-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -122,28 +122,28 @@ imports:
 - name: github.com/karlseguin/ccache
   version: a2d62155777b39595c825ed3824279e642a5db3c
 - name: github.com/m3db/m3cluster
-  version: 448266e7ef0dff85c2e6d7365c67e7397eb276bd
+  version: 296a3aed74ef56ee64bf08ead9b358056aa2fb14
   subpackages:
   - client
   - client/etcd
   - etcd/watchmanager
-  - generated/proto/metadata
-  - generated/proto/placement
+  - generated/proto/metadatapb
+  - generated/proto/placementpb
   - kv
   - kv/etcd
   - kv/mem
   - kv/util/runtime
-  - proto/util
+  - placement
+  - placement/algo
+  - placement/selector
+  - placement/service
+  - placement/storage
   - services
-  - services/client
+  - services/client/etcd
   - services/heartbeat/etcd
   - services/leader
   - services/leader/campaign
   - services/leader/election
-  - services/placement
-  - services/placement/algo
-  - services/placement/selector
-  - services/placement/service
   - shard
 - name: github.com/m3db/m3metrics
   version: f6d7952fb61675c50aaea358b611aa332f1e5dca
