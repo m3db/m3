@@ -23,6 +23,7 @@ package storage
 import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3x/log"
 
 	"github.com/golang/protobuf/proto"
 )
@@ -31,6 +32,8 @@ type storage struct {
 	helper Helper
 	key    string
 	store  kv.Store
+	opts   placement.Options
+	logger xlog.Logger
 }
 
 // NewPlacementStorage creates a placement.Storage.
@@ -39,6 +42,8 @@ func NewPlacementStorage(store kv.Store, key string, opts placement.Options) pla
 		key:    key,
 		store:  store,
 		helper: newHelper(store, key, opts),
+		opts:   opts,
+		logger: opts.InstrumentOptions().Logger(),
 	}
 }
 
@@ -47,6 +52,10 @@ func (s *storage) SetPlacementProto(p proto.Message) error {
 		return err
 	}
 
+	if s.opts.Dryrun() {
+		s.logger.Info("this is a dryrun, the operation is not persisted")
+		return nil
+	}
 	_, err := s.store.Set(s.key, p)
 	return err
 }
@@ -56,9 +65,18 @@ func (s *storage) PlacementProto() (proto.Message, int, error) {
 }
 
 func (s *storage) Set(p placement.Placement) error {
+	if err := placement.Validate(p); err != nil {
+		return err
+	}
+
 	placementProto, err := s.helper.GenerateProto(p)
 	if err != nil {
 		return err
+	}
+
+	if s.opts.Dryrun() {
+		s.logger.Info("this is a dryrun, the operation is not persisted")
+		return nil
 	}
 
 	_, err = s.store.Set(s.key, placementProto)
@@ -66,9 +84,18 @@ func (s *storage) Set(p placement.Placement) error {
 }
 
 func (s *storage) CheckAndSet(p placement.Placement, version int) error {
+	if err := placement.Validate(p); err != nil {
+		return err
+	}
+
 	placementProto, err := s.helper.GenerateProto(p)
 	if err != nil {
 		return err
+	}
+
+	if s.opts.Dryrun() {
+		s.logger.Info("this is a dryrun, the operation is not persisted")
+		return nil
 	}
 
 	_, err = s.store.CheckAndSet(
@@ -80,9 +107,18 @@ func (s *storage) CheckAndSet(p placement.Placement, version int) error {
 }
 
 func (s *storage) SetIfNotExist(p placement.Placement) error {
+	if err := placement.Validate(p); err != nil {
+		return err
+	}
+
 	placementProto, err := s.helper.GenerateProto(p)
 	if err != nil {
 		return err
+	}
+
+	if s.opts.Dryrun() {
+		s.logger.Info("this is a dryrun, the operation is not persisted")
+		return nil
 	}
 
 	_, err = s.store.SetIfNotExists(
@@ -93,6 +129,11 @@ func (s *storage) SetIfNotExist(p placement.Placement) error {
 }
 
 func (s *storage) Delete() error {
+	if s.opts.Dryrun() {
+		s.logger.Info("this is a dryrun, the operation is not persisted")
+		return nil
+	}
+
 	_, err := s.store.Delete(s.key)
 	return err
 }

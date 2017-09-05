@@ -230,17 +230,6 @@ func (_mr *_MockServicesRecorder) PlacementService(arg0, arg1 interface{}) *gomo
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "PlacementService", arg0, arg1)
 }
 
-func (_m *MockServices) PlacementStorage(sid ServiceID, popts placement.Options) (placement.Storage, error) {
-	ret := _m.ctrl.Call(_m, "PlacementStorage", sid, popts)
-	ret0, _ := ret[0].(placement.Storage)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (_mr *_MockServicesRecorder) PlacementStorage(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "PlacementStorage", arg0, arg1)
-}
-
 func (_m *MockServices) HeartbeatService(service ServiceID) (HeartbeatService, error) {
 	ret := _m.ctrl.Call(_m, "HeartbeatService", service)
 	ret0, _ := ret[0].(HeartbeatService)

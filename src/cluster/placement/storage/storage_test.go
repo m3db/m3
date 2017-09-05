@@ -32,7 +32,7 @@ import (
 )
 
 func TestStorageWithSinglePlacement(t *testing.T) {
-	ps := newTestPlacementStorage(placement.NewOptions())
+	ps := newTestPlacementStorage(mem.NewStore(), placement.NewOptions())
 	err := ps.Delete()
 	require.Error(t, err)
 	require.Equal(t, kv.ErrNotFound, err)
@@ -91,7 +91,7 @@ func TestStorageWithSinglePlacement(t *testing.T) {
 }
 
 func TestStorageWithPlacementSnapshots(t *testing.T) {
-	ps := newTestPlacementStorage(placement.NewOptions().SetIsStaged(true))
+	ps := newTestPlacementStorage(mem.NewStore(), placement.NewOptions().SetIsStaged(true))
 
 	p := placement.NewPlacement().
 		SetInstances([]placement.Instance{}).
@@ -147,6 +147,53 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 	require.Equal(t, p.SetVersion(1), pGet3)
 }
 
-func newTestPlacementStorage(pOpts placement.Options) placement.Storage {
-	return NewPlacementStorage(mem.NewStore(), "key", pOpts)
+func TestDryrun(t *testing.T) {
+	m := mem.NewStore()
+	dryrunPS := newTestPlacementStorage(m, placement.NewOptions().SetDryrun(true))
+	ps := newTestPlacementStorage(m, placement.NewOptions())
+
+	p := placement.NewPlacement().
+		SetInstances([]placement.Instance{}).
+		SetShards([]uint32{}).
+		SetReplicaFactor(0)
+
+	err := dryrunPS.SetIfNotExist(p)
+	require.NoError(t, err)
+
+	_, _, err = ps.Placement()
+	require.Error(t, err)
+
+	err = ps.SetIfNotExist(p)
+	require.NoError(t, err)
+
+	_, v, err := ps.Placement()
+	require.NoError(t, err)
+	require.Equal(t, 1, v)
+
+	err = dryrunPS.CheckAndSet(p, 1)
+	require.NoError(t, err)
+
+	_, v, _ = ps.Placement()
+	require.Equal(t, 1, v)
+
+	err = dryrunPS.Delete()
+	require.NoError(t, err)
+
+	_, v, err = ps.Placement()
+	require.NoError(t, err)
+	require.Equal(t, 1, v)
+
+	_, v, err = dryrunPS.Placement()
+	require.NoError(t, err)
+	require.Equal(t, 1, v)
+
+	err = ps.Delete()
+	require.NoError(t, err)
+
+	_, _, err = dryrunPS.Placement()
+	require.Error(t, err)
+}
+
+func newTestPlacementStorage(store kv.Store, pOpts placement.Options) placement.Storage {
+	return NewPlacementStorage(store, "key", pOpts)
 }

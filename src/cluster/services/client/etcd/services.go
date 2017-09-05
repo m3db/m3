@@ -125,25 +125,15 @@ func (c *client) PlacementService(sid services.ServiceID, opts placement.Options
 		return nil, err
 	}
 
-	ps, err := c.PlacementStorage(sid, opts)
-	if err != nil {
-		return nil, err
-	}
-
-	return service.NewPlacementService(ps, opts), nil
-}
-
-func (c *client) PlacementStorage(sid services.ServiceID, opts placement.Options) (placement.Storage, error) {
-	if err := validateServiceID(sid); err != nil {
-		return nil, err
-	}
-
 	store, err := c.opts.KVGen()(sid.Zone())
 	if err != nil {
 		return nil, err
 	}
 
-	return storage.NewPlacementStorage(store, c.placementKeyFn(sid), opts), nil
+	return service.NewPlacementService(
+		storage.NewPlacementStorage(store, c.placementKeyFn(sid), opts),
+		opts,
+	), nil
 }
 
 func (c *client) Advertise(ad services.Advertisement) error {

@@ -1256,6 +1256,80 @@ func (_m *MockService) EXPECT() *_MockServiceRecorder {
 	return _m.recorder
 }
 
+func (_m *MockService) SetPlacementProto(p proto.Message) error {
+	ret := _m.ctrl.Call(_m, "SetPlacementProto", p)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockServiceRecorder) SetPlacementProto(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPlacementProto", arg0)
+}
+
+func (_m *MockService) PlacementProto() (proto.Message, int, error) {
+	ret := _m.ctrl.Call(_m, "PlacementProto")
+	ret0, _ := ret[0].(proto.Message)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockServiceRecorder) PlacementProto() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PlacementProto")
+}
+
+func (_m *MockService) Set(p Placement) error {
+	ret := _m.ctrl.Call(_m, "Set", p)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockServiceRecorder) Set(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Set", arg0)
+}
+
+func (_m *MockService) CheckAndSet(p Placement, version int) error {
+	ret := _m.ctrl.Call(_m, "CheckAndSet", p, version)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockServiceRecorder) CheckAndSet(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CheckAndSet", arg0, arg1)
+}
+
+func (_m *MockService) SetIfNotExist(p Placement) error {
+	ret := _m.ctrl.Call(_m, "SetIfNotExist", p)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockServiceRecorder) SetIfNotExist(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIfNotExist", arg0)
+}
+
+func (_m *MockService) Delete() error {
+	ret := _m.ctrl.Call(_m, "Delete")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockServiceRecorder) Delete() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Delete")
+}
+
+func (_m *MockService) Placement() (Placement, int, error) {
+	ret := _m.ctrl.Call(_m, "Placement")
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockServiceRecorder) Placement() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Placement")
+}
+
 func (_m *MockService) BuildInitialPlacement(instances []Instance, numShards int, rf int) (Placement, error) {
 	ret := _m.ctrl.Call(_m, "BuildInitialPlacement", instances, numShards, rf)
 	ret0, _ := ret[0].(Placement)
@@ -1331,38 +1405,6 @@ func (_m *MockService) MarkInstanceAvailable(instanceID string) error {
 
 func (_mr *_MockServiceRecorder) MarkInstanceAvailable(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "MarkInstanceAvailable", arg0)
-}
-
-func (_m *MockService) Delete() error {
-	ret := _m.ctrl.Call(_m, "Delete")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockServiceRecorder) Delete() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Delete")
-}
-
-func (_m *MockService) SetPlacement(p Placement) error {
-	ret := _m.ctrl.Call(_m, "SetPlacement", p)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockServiceRecorder) SetPlacement(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPlacement", arg0)
-}
-
-func (_m *MockService) Placement() (Placement, int, error) {
-	ret := _m.ctrl.Call(_m, "Placement")
-	ret0, _ := ret[0].(Placement)
-	ret1, _ := ret[1].(int)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-func (_mr *_MockServiceRecorder) Placement() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Placement")
 }
 
 // Mock of Algorithm interface

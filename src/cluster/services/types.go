@@ -78,9 +78,6 @@ type Services interface {
 	// PlacementService returns a client of placement.Service
 	PlacementService(sid ServiceID, popts placement.Options) (placement.Service, error)
 
-	// PlacementStorage returns a client of placement.Storage.
-	PlacementStorage(sid ServiceID, popts placement.Options) (placement.Storage, error)
-
 	// HeartbeatService returns a heartbeat store for the given service.
 	HeartbeatService(service ServiceID) (HeartbeatService, error)
 

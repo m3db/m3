@@ -391,6 +391,8 @@ type Storage interface {
 // Service handles the placement related operations for registered services
 // all write or update operations will persist the generated placement before returning success.
 type Service interface {
+	Storage
+
 	// BuildInitialPlacement initialize a placement.
 	BuildInitialPlacement(instances []Instance, numShards int, rf int) (Placement, error)
 
@@ -418,15 +420,6 @@ type Service interface {
 
 	// MarkInstanceAvailable marks all the shards on a given instance as available.
 	MarkInstanceAvailable(instanceID string) error
-
-	// Delete deletes the placement.
-	Delete() error
-
-	// SetPlacement writes a placement.
-	SetPlacement(p Placement) error
-
-	// Placement reads placement and version.
-	Placement() (Placement, int, error)
 }
 
 // Algorithm places shards on instances.
