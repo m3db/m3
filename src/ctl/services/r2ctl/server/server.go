@@ -18,41 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package rules
+package server
 
 import (
 	"net/http"
 
-	"github.com/m3db/m3ctl/handler"
-	"github.com/m3db/m3x/instrument"
-
 	"github.com/gorilla/mux"
 )
 
-const (
-	readNamespacesURL  = "/rules/v1/namespaces"
-	createNamespaceURL = "/rules/v1/namespace/{name}"
-	deleteNamespaceURL = "/rules/v1/namespace/{name}"
-	rulesURL           = "/rules/v1/namespace/{name}"
-)
-
-// Controller sets up the handlers for rules
-type controller struct {
-	iOpts instrument.Options
+func registerHandlers(router *mux.Router, services []Service) {
+	for _, s := range services {
+		s.RegisterHandlers(router)
+	}
 }
 
-// NewController creates a new rules controller
-func NewController(iOpts instrument.Options) handler.Controller {
-	return &controller{iOpts: iOpts}
-}
-
-// RegisterHandlers registers rule handlers
-func (c *controller) RegisterHandlers(router *mux.Router) {
-	log := c.iOpts.Logger()
-	router.HandleFunc(readNamespacesURL, c.getNamespacesHandler).Methods(http.MethodGet)
-	router.HandleFunc(createNamespaceURL, c.createNamespaceHandler).Methods(http.MethodPost)
-	router.HandleFunc(deleteNamespaceURL, c.deleteNamespaceHandler).Methods(http.MethodDelete)
-	router.HandleFunc(rulesURL, c.getRulesInNamespaceHandler).Methods(http.MethodGet)
-	router.HandleFunc(rulesURL, c.setRulesInNamespaceHandler).Methods(http.MethodPut, http.MethodPatch)
-	log.Infof("Registered rules endpoints")
+// NewServer creates a new http server for R2.
+func NewServer(address string, serverOpts Options, services []Service) *http.Server {
+	router := mux.NewRouter()
+	registerHandlers(router, services)
+	return &http.Server{
+		WriteTimeout: serverOpts.WriteTimeout(),
+		ReadTimeout:  serverOpts.ReadTimeout(),
+		Addr:         address,
+		Handler:      router,
+	}
 }

@@ -21,36 +21,43 @@
 package swagger
 
 import (
+	"fmt"
 	"net/http"
 
-	"github.com/m3db/m3ctl/handler"
+	"github.com/m3db/m3ctl/services/r2ctl/server"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/gorilla/mux"
 )
 
 const (
-	swaggerURL = "/swagger/r2/v1"
-	swaggerDir = "public/swagger/"
+	swaggerPrefix = "/swagger"
+	swaggerDir    = "public/swagger/"
 )
 
-type controller struct {
-	iOpts instrument.Options
+type service struct {
+	iOpts      instrument.Options
+	apiVersion string
 }
 
-// NewController creates a new rules controller
-func NewController(iOpts instrument.Options) handler.Controller {
-	return &controller{iOpts: iOpts}
+// NewService creates a new swagger service.
+func NewService(iOpts instrument.Options, apiVersion string) server.Service {
+	return &service{iOpts: iOpts, apiVersion: apiVersion}
 }
 
-// RegisterHandlers registers rule handlers
-func (c *controller) RegisterHandlers(router *mux.Router) {
-	log := c.iOpts.Logger()
-	router.PathPrefix(swaggerURL).Handler(
+// RegisterHandlers registers rule handlers.
+func (s *service) RegisterHandlers(router *mux.Router) {
+	log := s.iOpts.Logger()
+	swaggerPath := s.fullPath()
+	router.PathPrefix(swaggerPath).Handler(
 		http.StripPrefix(
-			swaggerURL,
+			swaggerPath,
 			http.FileServer(http.Dir(swaggerDir)),
 		),
 	)
 	log.Infof("Registered swagger endpoints")
+}
+
+func (s *service) fullPath() string {
+	return fmt.Sprintf("%s/%s", swaggerPrefix, s.apiVersion)
 }

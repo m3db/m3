@@ -1,5 +1,5 @@
-hash: 7db74c638d281adcf75f01ecd67e97af5432ea8221a8bdb1a0e10c3f6a73aaaf
-updated: 2017-06-07T14:58:47.091108428-04:00
+hash: 588c352c5dea50e578c292b67b23be10ae14a8c99e902b5fb2111f7e381b7568
+updated: 2017-08-28T17:31:55.70377869-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -57,6 +57,7 @@ imports:
   - generated/proto/placement
   - kv
   - kv/etcd
+  - kv/mem
   - kv/util/runtime
   - proto/util
   - services
@@ -67,23 +68,34 @@ imports:
   - services/placement/service
   - shard
 - name: github.com/m3db/m3metrics
-  version: 18bc01a7057d55b78e528236e0e9db297bcd4fa3
+  version: 286dfad168595a1b0f2b2cd676e21e8b34fe08a5
+  subpackages:
+  - filters
+  - generated/proto/schema
+  - metric/id
+  - policy
+  - rules
 - name: github.com/m3db/m3x
   version: 9e66dd6d48a872bae1bdddb9bf85a33e99129267
   subpackages:
+  - checked
   - clock
   - close
   - config
   - errors
   - instrument
   - log
+  - pool
   - process
   - retry
+  - time
   - watch
 - name: github.com/matttproud/golang_protobuf_extensions
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
   - pbutil
+- name: github.com/pborman/uuid
+  version: e790cca94e6cc75c7064b1332e63811d4aae1a53
 - name: github.com/prometheus/client_golang
   version: c5b7fccd204277076155f10851dad72b76a49317
   subpackages:
@@ -122,6 +134,8 @@ imports:
   - m3/customtransports
   - m3/thrift
   - m3/thriftudp
+- name: github.com/willf/bitset
+  version: 988f4f24992fc745de53c42df0da6581e42a6686
 - name: golang.org/x/net
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
   subpackages:

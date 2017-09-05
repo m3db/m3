@@ -18,20 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE
 
-package server
+package r2
 
-import (
-	"github.com/m3db/m3ctl/handler/health"
-	"github.com/m3db/m3ctl/handler/rules"
-	"github.com/m3db/m3ctl/handler/swagger"
-	"github.com/m3db/m3x/instrument"
-
-	"github.com/gorilla/mux"
-)
-
-func registerHandlers(router *mux.Router, instruments instrument.Options) error {
-	rules.NewController(instruments).RegisterHandlers(router)
-	health.NewController(instruments).RegisterHandlers(router)
-	swagger.NewController(instruments).RegisterHandlers(router)
-	return nil
-}
+// Store is a construct that performs operations against a backing rule store.
+type Store interface{}
