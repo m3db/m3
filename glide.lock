@@ -1,5 +1,5 @@
-hash: 5c0673f89891fd280c4acbf09344476be5549cef0a88ad34ee6963df363c6c80
-updated: 2017-08-31T09:53:06.886613258+08:00
+hash: 0c2afdc4f6ba2b1f1b661326742565cf29aef6593cc9859728f8cd199e4888c7
+updated: 2017-09-05T10:20:54.141140044-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -59,30 +59,30 @@ imports:
   - gen
   - prop
 - name: github.com/m3db/m3cluster
-  version: 7d12f7376dadd90a29c00f5d96fc50db6679eabe
+  version: 296a3aed74ef56ee64bf08ead9b358056aa2fb14
   subpackages:
   - client
   - client/etcd
   - etcd/watchmanager
-  - generated/proto/metadata
-  - generated/proto/placement
+  - generated/proto/metadatapb
+  - generated/proto/placementpb
   - kv
   - kv/etcd
   - kv/util/runtime
-  - proto/util
+  - placement
+  - placement/algo
+  - placement/selector
+  - placement/service
+  - placement/storage
   - services
   - services/client/etcd
   - services/heartbeat/etcd
   - services/leader
   - services/leader/campaign
   - services/leader/election
-  - services/placement
-  - services/placement/algo
-  - services/placement/selector
-  - services/placement/service
   - shard
 - name: github.com/m3db/m3em
-  version: f10c19b3b7daae5191e60bf8bd3ef80c33015392
+  version: f011c9da127dc8f7dd132c3d8c59814e96e6971f
   subpackages:
   - build
   - checksum
@@ -128,7 +128,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: c5b7fccd204277076155f10851dad72b76a49317
+  version: 967789050ba94deca04a5e84cce8ad472ce313c1
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
@@ -213,8 +213,6 @@ imports:
   - internal/log
   - internal/modules
   - internal/remote_api
-- name: google.golang.org/appengine/datastore
-  version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 - name: google.golang.org/grpc
   version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
   subpackages:

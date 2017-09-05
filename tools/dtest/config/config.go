@@ -6,8 +6,7 @@ import (
 	"time"
 
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/placement"
+	"github.com/m3db/m3cluster/placement"
 	m3emnode "github.com/m3db/m3db/x/m3em/node"
 	"github.com/m3db/m3em/cluster"
 	"github.com/m3db/m3em/generated/proto/m3em"
@@ -48,7 +47,7 @@ type SeedConfig struct {
 	Delay         time.Duration `yaml:"delay"`
 }
 
-// PlacementInstance is a config for a services.PlacementInstance
+// PlacementInstance is a config for a placement instance.
 type PlacementInstance struct {
 	ID       string `yaml:"id" validate:"nonzero"`
 	Rack     string `yaml:"rack" validate:"nonzero"`
@@ -172,7 +171,7 @@ func (pi *PlacementInstance) operatorClientFn(agentPort int, tlsConfig *TLSConfi
 	}, nil
 }
 
-func (pi *PlacementInstance) newServicesPlacementInstance(nodePort int) services.PlacementInstance {
+func (pi *PlacementInstance) newServicesPlacementInstance(nodePort int) placement.Instance {
 	endpoint := fmt.Sprintf("%s:%d", pi.Hostname, nodePort)
 	return placement.NewInstance().
 		SetID(pi.ID).

@@ -24,11 +24,9 @@
 package persist
 
 import (
-	time "time"
-
-	ts "github.com/m3db/m3db/ts"
-
 	gomock "github.com/golang/mock/gomock"
+	ts "github.com/m3db/m3db/ts"
+	time "time"
 )
 
 // Mock of Manager interface
