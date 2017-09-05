@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"
@@ -136,10 +136,10 @@ type FlushManagerOptions interface {
 	InstanceID() string
 
 	// SetStagedPlacementWatcher sets the staged placement watcher.
-	SetStagedPlacementWatcher(value services.StagedPlacementWatcher) FlushManagerOptions
+	SetStagedPlacementWatcher(value placement.StagedPlacementWatcher) FlushManagerOptions
 
 	// StagedPlacementWatcher returns the staged placement watcher.
-	StagedPlacementWatcher() services.StagedPlacementWatcher
+	StagedPlacementWatcher() placement.StagedPlacementWatcher
 }
 
 type flushManagerOptions struct {
@@ -157,7 +157,7 @@ type flushManagerOptions struct {
 	maxNoFlushDuration       time.Duration
 	forcedFlushWindowSize    time.Duration
 	instanceID               string
-	placementWatcher         services.StagedPlacementWatcher
+	placementWatcher         placement.StagedPlacementWatcher
 }
 
 // NewFlushManagerOptions create a new set of flush manager options.
@@ -319,12 +319,12 @@ func (o *flushManagerOptions) InstanceID() string {
 	return o.instanceID
 }
 
-func (o *flushManagerOptions) SetStagedPlacementWatcher(value services.StagedPlacementWatcher) FlushManagerOptions {
+func (o *flushManagerOptions) SetStagedPlacementWatcher(value placement.StagedPlacementWatcher) FlushManagerOptions {
 	opts := *o
 	opts.placementWatcher = value
 	return &opts
 }
 
-func (o *flushManagerOptions) StagedPlacementWatcher() services.StagedPlacementWatcher {
+func (o *flushManagerOptions) StagedPlacementWatcher() placement.StagedPlacementWatcher {
 	return o.placementWatcher
 }

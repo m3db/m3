@@ -29,7 +29,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -184,7 +184,7 @@ type aggregator struct {
 
 	shardIDs              []uint32
 	shards                []*aggregatorShard
-	placementWatcher      services.StagedPlacementWatcher
+	placementWatcher      placement.StagedPlacementWatcher
 	placementCutoverNanos int64
 	state                 aggregatorState
 	doneCh                chan struct{}
@@ -329,7 +329,7 @@ func (agg *aggregator) shardForWithLock(id id.RawID, updateShardsType updateShar
 
 func (agg *aggregator) findOrUpdateShardWithLock(
 	id id.RawID,
-	placement services.Placement,
+	placement placement.Placement,
 	updateShardsType updateShardsType,
 ) (*aggregatorShard, error) {
 	if agg.shouldUpdateShardsWithLock(placement) {
@@ -348,7 +348,7 @@ func (agg *aggregator) findOrUpdateShardWithLock(
 	return agg.shards[shardID], nil
 }
 
-func (agg *aggregator) updateShardsWithLock(newPlacement services.Placement) error {
+func (agg *aggregator) updateShardsWithLock(newPlacement placement.Placement) error {
 	// If someone has already updated the shards ahead of us, do nothing.
 	if !agg.shouldUpdateShardsWithLock(newPlacement) {
 		return nil
@@ -405,7 +405,7 @@ func (agg *aggregator) updateShardsWithLock(newPlacement services.Placement) err
 	return nil
 }
 
-func (agg *aggregator) shouldUpdateShardsWithLock(newPlacement services.Placement) bool {
+func (agg *aggregator) shouldUpdateShardsWithLock(newPlacement placement.Placement) bool {
 	return agg.placementCutoverNanos < newPlacement.CutoverNanos()
 }
 
@@ -468,7 +468,7 @@ func (agg *aggregator) closeShardsAsync(shards []*aggregatorShard) {
 	}
 }
 
-func (agg *aggregator) placement() (services.Placement, error) {
+func (agg *aggregator) placement() (placement.Placement, error) {
 	stagedPlacement, onStagedPlacementDoneFn, err := agg.placementWatcher.ActiveStagedPlacement()
 	if err != nil {
 		return nil, err
@@ -483,7 +483,7 @@ func (agg *aggregator) placement() (services.Placement, error) {
 	return placement, nil
 }
 
-func (agg *aggregator) instance(placement services.Placement) (services.PlacementInstance, error) {
+func (agg *aggregator) instance(placement placement.Placement) (placement.Instance, error) {
 	instance, found := placement.Instance(agg.instanceID)
 	if !found {
 		return nil, fmt.Errorf("instance %s not found in the placement", agg.instanceID)

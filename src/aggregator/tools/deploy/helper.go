@@ -28,8 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/placement"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"
@@ -68,7 +67,7 @@ type helper struct {
 	workers                 xsync.WorkerPool
 	toPlacementInstanceIDFn ToPlacementInstanceIDFn
 	toAPIEndpointFn         ToAPIEndpointFn
-	placementWatcher        services.StagedPlacementWatcher
+	placementWatcher        placement.StagedPlacementWatcher
 	settleBetweenSteps      time.Duration
 }
 
@@ -323,7 +322,7 @@ func (h helper) allInstanceMetadatas() (instanceMetadatas, error) {
 // instances derived from deployment, ensuring there are no duplicate instances
 // and the instances derived from two sources match against each other.
 func (h helper) computeInstanceMetadatas(
-	placementInstances []services.PlacementInstance,
+	placementInstances []placement.Instance,
 	deploymentInstances []Instance,
 ) (instanceMetadatas, error) {
 	if len(placementInstances) != len(deploymentInstances) {
@@ -372,7 +371,7 @@ func (h helper) computeInstanceMetadatas(
 	return metadatas, nil
 }
 
-func (h helper) placementInstances() ([]services.PlacementInstance, error) {
+func (h helper) placementInstances() ([]placement.Instance, error) {
 	stagedPlacement, onStagedPlacementDoneFn, err := h.placementWatcher.ActiveStagedPlacement()
 	if err != nil {
 		return nil, err

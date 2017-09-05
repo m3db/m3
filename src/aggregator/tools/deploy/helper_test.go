@@ -26,11 +26,10 @@ import (
 	"testing"
 	"time"
 
-	schema "github.com/m3db/m3cluster/generated/proto/placement"
+	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/placement"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3x/retry"
 
 	"github.com/stretchr/testify/require"
@@ -38,26 +37,26 @@ import (
 
 var (
 	testPlacementKey    = "testPlacementKey"
-	testPlacementsProto = &schema.PlacementSnapshots{
-		Snapshots: []*schema.Placement{
-			&schema.Placement{
-				Instances: map[string]*schema.Instance{
-					"placement_instance1": &schema.Instance{
+	testPlacementsProto = &placementpb.PlacementSnapshots{
+		Snapshots: []*placementpb.Placement{
+			&placementpb.Placement{
+				Instances: map[string]*placementpb.Instance{
+					"placement_instance1": &placementpb.Instance{
 						Id:         "placement_instance1",
 						Endpoint:   "placement_instance1_endpoint",
 						ShardSetId: 0,
 					},
-					"placement_instance2": &schema.Instance{
+					"placement_instance2": &placementpb.Instance{
 						Id:         "placement_instance2",
 						Endpoint:   "placement_instance2_endpoint",
 						ShardSetId: 0,
 					},
-					"placement_instance3": &schema.Instance{
+					"placement_instance3": &placementpb.Instance{
 						Id:         "placement_instance3",
 						Endpoint:   "placement_instance3_endpoint",
 						ShardSetId: 1,
 					},
-					"placement_instance4": &schema.Instance{
+					"placement_instance4": &placementpb.Instance{
 						Id:         "placement_instance4",
 						Endpoint:   "placement_instance4_endpoint",
 						ShardSetId: 1,
@@ -66,7 +65,7 @@ var (
 			},
 		},
 	}
-	testPlacementInstances = []services.PlacementInstance{
+	testPlacementInstances = []placement.Instance{
 		placement.NewInstance().
 			SetID("placement_instance1").
 			SetEndpoint("placement_instance1_endpoint").
@@ -494,7 +493,7 @@ func testHelperWithValidPlacement(t *testing.T) helper {
 
 func testHelper(t *testing.T) helper {
 	store := mem.NewStore()
-	_, err := store.Set(testPlacementKey, &schema.PlacementSnapshots{})
+	_, err := store.Set(testPlacementKey, &placementpb.PlacementSnapshots{})
 	require.NoError(t, err)
 	return testHelperWithStore(t, store)
 }

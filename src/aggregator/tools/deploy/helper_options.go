@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/sync"
@@ -116,10 +116,10 @@ type HelperOptions interface {
 	ToAPIEndpointFn() ToAPIEndpointFn
 
 	// SetStagedPlacementWatcherOptions sets the staged placement watcher options.
-	SetStagedPlacementWatcherOptions(value services.StagedPlacementWatcherOptions) HelperOptions
+	SetStagedPlacementWatcherOptions(value placement.StagedPlacementWatcherOptions) HelperOptions
 
 	// StagedPlacementWatcherOptions returns the staged placement watcher options.
-	StagedPlacementWatcherOptions() services.StagedPlacementWatcherOptions
+	StagedPlacementWatcherOptions() placement.StagedPlacementWatcherOptions
 
 	// SetSettleDurationBetweenSteps sets the settlement duration between consecutive steps.
 	SetSettleDurationBetweenSteps(value time.Duration) HelperOptions
@@ -141,7 +141,7 @@ type helperOptions struct {
 	workerPool              xsync.WorkerPool
 	toPlacementInstanceIDFn ToPlacementInstanceIDFn
 	toAPIEndpointFn         ToAPIEndpointFn
-	watcherOpts             services.StagedPlacementWatcherOptions
+	watcherOpts             placement.StagedPlacementWatcherOptions
 	settleDuration          time.Duration
 }
 
@@ -247,13 +247,13 @@ func (o *helperOptions) ToAPIEndpointFn() ToAPIEndpointFn {
 	return o.toAPIEndpointFn
 }
 
-func (o *helperOptions) SetStagedPlacementWatcherOptions(value services.StagedPlacementWatcherOptions) HelperOptions {
+func (o *helperOptions) SetStagedPlacementWatcherOptions(value placement.StagedPlacementWatcherOptions) HelperOptions {
 	opts := *o
 	opts.watcherOpts = value
 	return &opts
 }
 
-func (o *helperOptions) StagedPlacementWatcherOptions() services.StagedPlacementWatcherOptions {
+func (o *helperOptions) StagedPlacementWatcherOptions() placement.StagedPlacementWatcherOptions {
 	return o.watcherOpts
 }
 

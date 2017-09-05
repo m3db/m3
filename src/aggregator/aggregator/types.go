@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
@@ -240,10 +240,10 @@ type Options interface {
 	StreamOptions() cm.Options
 
 	// SetStagedPlacementWatcher sets the staged placement watcher.
-	SetStagedPlacementWatcher(value services.StagedPlacementWatcher) Options
+	SetStagedPlacementWatcher(value placement.StagedPlacementWatcher) Options
 
 	// StagedPlacementWatcher returns the staged placement watcher.
-	StagedPlacementWatcher() services.StagedPlacementWatcher
+	StagedPlacementWatcher() placement.StagedPlacementWatcher
 
 	// SetInstanceID sets the current instance id.
 	SetInstanceID(value string) Options

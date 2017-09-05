@@ -25,7 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/kv/mem"
-	"github.com/m3db/m3cluster/services/placement"
+	"github.com/m3db/m3cluster/placement"
 
 	"github.com/stretchr/testify/require"
 )

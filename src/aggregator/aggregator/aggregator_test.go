@@ -28,12 +28,10 @@ import (
 	"testing"
 	"time"
 
-	placementproto "github.com/m3db/m3cluster/generated/proto/placement"
+	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
-	"github.com/m3db/m3cluster/proto/util"
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/placement"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -301,7 +299,7 @@ func testPlacementWatcherWithNumShards(
 	instanceID string,
 	numShards int,
 	placementKey string,
-) (services.StagedPlacementWatcher, kv.Store) {
+) (placement.StagedPlacementWatcher, kv.Store) {
 	proto := testStagedPlacementProtoWithNumShards(t, instanceID, numShards)
 	return testPlacementWatcherWithPlacementProto(t, placementKey, proto)
 }
@@ -309,8 +307,8 @@ func testPlacementWatcherWithNumShards(
 func testPlacementWatcherWithPlacementProto(
 	t *testing.T,
 	placementKey string,
-	proto *placementproto.PlacementSnapshots,
-) (services.StagedPlacementWatcher, kv.Store) {
+	proto *placementpb.PlacementSnapshots,
+) (placement.StagedPlacementWatcher, kv.Store) {
 	store := mem.NewStore()
 	_, err := store.SetIfNotExists(placementKey, proto)
 	require.NoError(t, err)
@@ -327,7 +325,7 @@ func testStagedPlacementProtoWithNumShards(
 	t *testing.T,
 	instanceID string,
 	numShards int,
-) *placementproto.PlacementSnapshots {
+) *placementpb.PlacementSnapshots {
 	shardSet := make([]shard.Shard, numShards)
 	for i := 0; i < numShards; i++ {
 		shardSet[i] = shard.NewShard(uint32(i)).
@@ -343,18 +341,18 @@ func testStagedPlacementProtoWithCustomShards(
 	instanceID string,
 	shardSet []shard.Shard,
 	placementCutoverNanos int64,
-) *placementproto.PlacementSnapshots {
+) *placementpb.PlacementSnapshots {
 	shards := shard.NewShards(shardSet)
 	instance := placement.NewInstance().
 		SetID(instanceID).
 		SetShards(shards)
 	testPlacement := placement.NewPlacement().
-		SetInstances([]services.PlacementInstance{instance}).
+		SetInstances([]placement.Instance{instance}).
 		SetShards(shards.AllIDs()).
 		SetCutoverNanos(placementCutoverNanos)
 	testStagedPlacement := placement.NewStagedPlacement().
-		SetPlacements([]services.Placement{testPlacement})
-	stagedPlacementProto, err := util.StagedPlacementToProto(testStagedPlacement)
+		SetPlacements([]placement.Placement{testPlacement})
+	stagedPlacementProto, err := testStagedPlacement.Proto()
 	require.NoError(t, err)
 	return stagedPlacementProto
 }
