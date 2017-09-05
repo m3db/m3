@@ -7,7 +7,7 @@ Utility Packages:
   `cluster` - is a collection of instances along with corresponding placement alteration (public)
 
 Packages for client<->server communications, life-cycle maintenance, event propagation.
-  `node` - main construct is ServiceNode, which wraps services.PlacementInstance (public)
+  `node` - main construct is ServiceNode, which wraps placement.Instance (public)
   `generated` - grpc schemas for Operator, and Heartbeat services (private)
   `agent` - the server side Operator implementation, client side Heartbeat implementation (private)
   `services` - m3em_agent main (private)

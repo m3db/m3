@@ -33,7 +33,7 @@ import (
 	mockfs "github.com/m3db/m3em/os/fs/mocks"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )
@@ -44,9 +44,9 @@ var (
 	defaultRandomVar = rand.New(rand.NewSource(int64(defaultRandSeed)))
 )
 
-func newMockPlacementInstance(ctrl *gomock.Controller) services.PlacementInstance {
+func newMockPlacementInstance(ctrl *gomock.Controller) placement.Instance {
 	r := defaultRandomVar
-	node := services.NewMockPlacementInstance(ctrl)
+	node := placement.NewMockInstance(ctrl)
 	node.EXPECT().ID().AnyTimes().Return(fmt.Sprintf("%d", r.Int()))
 	node.EXPECT().Endpoint().AnyTimes().Return(fmt.Sprintf("%d:%d", r.Int(), r.Int()))
 	node.EXPECT().Rack().AnyTimes().Return(fmt.Sprintf("%d", r.Int()))
@@ -56,8 +56,8 @@ func newMockPlacementInstance(ctrl *gomock.Controller) services.PlacementInstanc
 	return node
 }
 
-func newMockPlacementInstances(ctrl *gomock.Controller, numInstances int) []services.PlacementInstance {
-	svcs := make([]services.PlacementInstance, 0, numInstances)
+func newMockPlacementInstances(ctrl *gomock.Controller, numInstances int) []placement.Instance {
+	svcs := make([]placement.Instance, 0, numInstances)
 	for i := 0; i < numInstances; i++ {
 		svcs = append(svcs, newMockPlacementInstance(ctrl))
 	}

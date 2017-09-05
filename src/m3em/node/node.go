@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3em/generated/proto/m3em"
 	"github.com/m3db/m3em/os/fs"
 
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/placement"
 	xclock "github.com/m3db/m3x/clock"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
@@ -51,7 +51,7 @@ var (
 
 type svcNode struct {
 	sync.Mutex
-	services.PlacementInstance
+	placement.Instance
 	logger            xlog.Logger
 	opts              Options
 	status            Status
@@ -67,7 +67,7 @@ type svcNode struct {
 
 // New returns a new ServiceNode.
 func New(
-	node services.PlacementInstance,
+	node placement.Instance,
 	opts Options,
 ) (ServiceNode, error) {
 	if err := opts.Validate(); err != nil {
@@ -86,10 +86,10 @@ func New(
 
 	var (
 		retNode = &svcNode{
-			logger:            opts.InstrumentOptions().Logger(),
-			opts:              opts,
-			PlacementInstance: node,
-			status:            StatusUninitialized,
+			logger:   opts.InstrumentOptions().Logger(),
+			opts:     opts,
+			Instance: node,
+			status:   StatusUninitialized,
 		}
 		listeners      = newListenerGroup(retNode)
 		hbUUID         = string(uuid[:])
@@ -118,7 +118,7 @@ func New(
 func (i *svcNode) String() string {
 	i.Lock()
 	defer i.Unlock()
-	return fmt.Sprintf("ServiceNode %s", i.PlacementInstance.String())
+	return fmt.Sprintf("ServiceNode %s", i.Instance.String())
 }
 
 func (i *svcNode) heartbeatReceived() bool {

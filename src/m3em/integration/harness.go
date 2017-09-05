@@ -31,7 +31,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3em/agent"
 	hb "github.com/m3db/m3em/generated/proto/heartbeat"
 	"github.com/m3db/m3em/generated/proto/m3em"
@@ -39,6 +38,7 @@ import (
 	"github.com/m3db/m3em/node"
 	xgrpc "github.com/m3db/m3em/x/grpc"
 
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"

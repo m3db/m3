@@ -30,7 +30,7 @@ import (
 	mocknode "github.com/m3db/m3em/node/mocks"
 
 	"github.com/golang/mock/gomock"
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/stretchr/testify/require"
 )
@@ -44,7 +44,7 @@ var (
 	defaultRandomVar = rand.New(rand.NewSource(int64(defaultRandSeed)))
 )
 
-func newDefaultClusterTestOptions(ctrl *gomock.Controller, psvc services.PlacementService) Options {
+func newDefaultClusterTestOptions(ctrl *gomock.Controller, psvc placement.Service) Options {
 	mockBuild := build.NewMockServiceBuild(ctrl)
 	mockConf := build.NewMockServiceConfiguration(ctrl)
 	return NewOptions(psvc, nil).
@@ -96,8 +96,8 @@ func newMockServiceNodes(ctrl *gomock.Controller, numNodes int, calls expectNode
 	return nodes
 }
 
-func newMockPlacementService(ctrl *gomock.Controller) services.PlacementService {
-	return services.NewMockPlacementService(ctrl)
+func newMockPlacementService(ctrl *gomock.Controller) placement.Service {
+	return placement.NewMockService(ctrl)
 }
 
 func TestClusterErrorStatusTransitions(t *testing.T) {
@@ -134,7 +134,7 @@ func TestClusterUninitializedToSetupTransition(t *testing.T) {
 	defer ctrl.Finish()
 	var (
 		mockPlacementService = newMockPlacementService(ctrl)
-		mpsvc                = mockPlacementService.(*services.MockPlacementService)
+		mpsvc                = mockPlacementService.(*placement.MockService)
 		opts                 = newDefaultClusterTestOptions(ctrl, mockPlacementService)
 		nodes                = newMockServiceNodes(ctrl, 5, expectNodeCallTypes{expectSetup: true})
 		clusterIface, err    = New(nodes, opts)
@@ -145,13 +145,13 @@ func TestClusterUninitializedToSetupTransition(t *testing.T) {
 	require.Equal(t, ClusterStatusUninitialized, cluster.Status())
 
 	// fake placement
-	pi, ok := nodes[0].(services.PlacementInstance)
+	pi, ok := nodes[0].(placement.Instance)
 	require.True(t, ok)
 	mockNode, ok := nodes[0].(*mocknode.MockServiceNode)
 	require.True(t, ok)
 	mockNode.EXPECT().SetShards(gomock.Any())
-	mockPlacement := services.NewMockPlacement(ctrl)
-	mockPlacement.EXPECT().Instances().Return([]services.PlacementInstance{pi}).AnyTimes()
+	mockPlacement := placement.NewMockPlacement(ctrl)
+	mockPlacement.EXPECT().Instances().Return([]placement.Instance{pi}).AnyTimes()
 
 	// setup (legal)
 	gomock.InOrder(
@@ -214,7 +214,7 @@ func TestClusterSetupAddNodeTransition(t *testing.T) {
 	defer ctrl.Finish()
 	var (
 		mockPlacementService = newMockPlacementService(ctrl)
-		mpsvc                = mockPlacementService.(*services.MockPlacementService)
+		mpsvc                = mockPlacementService.(*placement.MockService)
 		opts                 = newDefaultClusterTestOptions(ctrl, mockPlacementService)
 		expectCalls          = expectNodeCallTypes{}
 		nodes                = newMockServiceNodes(ctrl, 5, expectCalls)
@@ -225,16 +225,16 @@ func TestClusterSetupAddNodeTransition(t *testing.T) {
 	require.Equal(t, ClusterStatusUninitialized, cluster.Status())
 
 	// fake placement
-	pi, ok := nodes[0].(services.PlacementInstance)
+	pi, ok := nodes[0].(placement.Instance)
 	require.True(t, ok)
 	mockNode, ok := nodes[0].(*mocknode.MockServiceNode)
 	require.True(t, ok)
 	mockNode.EXPECT().SetShards(gomock.Any())
-	mockPlacement := services.NewMockPlacement(ctrl)
-	mockPlacement.EXPECT().Instances().Return([]services.PlacementInstance{pi}).AnyTimes()
+	mockPlacement := placement.NewMockPlacement(ctrl)
+	mockPlacement.EXPECT().Instances().Return([]placement.Instance{pi}).AnyTimes()
 	gomock.InOrder(
 		mpsvc.EXPECT().AddInstances(gomock.Any()).Return(nil, nil, fmt.Errorf("faking error to ensure retries")),
-		mpsvc.EXPECT().AddInstances(gomock.Any()).Return(mockPlacement, []services.PlacementInstance{mockNode}, nil),
+		mpsvc.EXPECT().AddInstances(gomock.Any()).Return(mockPlacement, []placement.Instance{mockNode}, nil),
 	)
 
 	// ensure mockNode is in the spares
@@ -266,7 +266,7 @@ func TestClusterSetupToStart(t *testing.T) {
 	defer ctrl.Finish()
 	var (
 		mockPlacementService = newMockPlacementService(ctrl)
-		mpsvc                = mockPlacementService.(*services.MockPlacementService)
+		mpsvc                = mockPlacementService.(*placement.MockService)
 		opts                 = newDefaultClusterTestOptions(ctrl, mockPlacementService)
 		expectCalls          = expectNodeCallTypes{expectSetup: true}
 		nodes                = newMockServiceNodes(ctrl, 5, expectCalls)
@@ -277,14 +277,14 @@ func TestClusterSetupToStart(t *testing.T) {
 	require.Equal(t, ClusterStatusUninitialized, cluster.Status())
 
 	// fake placement
-	pi, ok := nodes[0].(services.PlacementInstance)
+	pi, ok := nodes[0].(placement.Instance)
 	require.True(t, ok)
 	mockNode, ok := nodes[0].(*mocknode.MockServiceNode)
 	require.True(t, ok)
 	mockNode.EXPECT().SetShards(gomock.Any())
 	mockNode.EXPECT().Start().Return(nil)
-	mockPlacement := services.NewMockPlacement(ctrl)
-	mockPlacement.EXPECT().Instances().Return([]services.PlacementInstance{pi}).AnyTimes()
+	mockPlacement := placement.NewMockPlacement(ctrl)
+	mockPlacement.EXPECT().Instances().Return([]placement.Instance{pi}).AnyTimes()
 
 	// setup (legal)
 	gomock.InOrder(
@@ -309,7 +309,7 @@ func TestClusterSetupToRemoveNode(t *testing.T) {
 	defer ctrl.Finish()
 	var (
 		mockPlacementService = newMockPlacementService(ctrl)
-		mpsvc                = mockPlacementService.(*services.MockPlacementService)
+		mpsvc                = mockPlacementService.(*placement.MockService)
 		opts                 = newDefaultClusterTestOptions(ctrl, mockPlacementService)
 		expectCalls          = expectNodeCallTypes{expectSetup: true}
 		nodes                = newMockServiceNodes(ctrl, 5, expectCalls)
@@ -320,13 +320,13 @@ func TestClusterSetupToRemoveNode(t *testing.T) {
 	require.Equal(t, ClusterStatusUninitialized, cluster.Status())
 
 	// fake placement
-	pi, ok := nodes[0].(services.PlacementInstance)
+	pi, ok := nodes[0].(placement.Instance)
 	require.True(t, ok)
 	mockNode, ok := nodes[0].(*mocknode.MockServiceNode)
 	require.True(t, ok)
 	mockNode.EXPECT().SetShards(gomock.Any())
-	mockPlacement := services.NewMockPlacement(ctrl)
-	mockPlacement.EXPECT().Instances().Return([]services.PlacementInstance{pi}).AnyTimes()
+	mockPlacement := placement.NewMockPlacement(ctrl)
+	mockPlacement.EXPECT().Instances().Return([]placement.Instance{pi}).AnyTimes()
 
 	// setup (legal)
 	gomock.InOrder(
@@ -344,8 +344,8 @@ func TestClusterSetupToRemoveNode(t *testing.T) {
 	require.Equal(t, mockNode.ID(), setupNodes[0].ID())
 
 	mockNode.EXPECT().SetShards(shard.NewShards(nil))
-	mockPlacement = services.NewMockPlacement(ctrl)
-	mockPlacement.EXPECT().Instances().Return([]services.PlacementInstance{}).AnyTimes()
+	mockPlacement = placement.NewMockPlacement(ctrl)
+	mockPlacement.EXPECT().Instances().Return([]placement.Instance{}).AnyTimes()
 	gomock.InOrder(
 		mpsvc.EXPECT().RemoveInstances([]string{setupNodes[0].ID()}).Return(nil, fmt.Errorf("faking error to ensure retries")),
 		mpsvc.EXPECT().RemoveInstances([]string{setupNodes[0].ID()}).Return(mockPlacement, nil),
@@ -370,7 +370,7 @@ func TestClusterSetupToReplaceNode(t *testing.T) {
 	defer ctrl.Finish()
 	var (
 		mockPlacementService = newMockPlacementService(ctrl)
-		mpsvc                = mockPlacementService.(*services.MockPlacementService)
+		mpsvc                = mockPlacementService.(*placement.MockService)
 		opts                 = newDefaultClusterTestOptions(ctrl, mockPlacementService)
 		expectCalls          = expectNodeCallTypes{expectSetup: true}
 		nodes                = newMockServiceNodes(ctrl, 5, expectCalls)
@@ -381,13 +381,13 @@ func TestClusterSetupToReplaceNode(t *testing.T) {
 	require.Equal(t, ClusterStatusUninitialized, cluster.Status())
 
 	// fake placement
-	pi, ok := nodes[0].(services.PlacementInstance)
+	pi, ok := nodes[0].(placement.Instance)
 	require.True(t, ok)
 	mockNode, ok := nodes[0].(*mocknode.MockServiceNode)
 	require.True(t, ok)
 	mockNode.EXPECT().SetShards(gomock.Any())
-	mockPlacement := services.NewMockPlacement(ctrl)
-	mockPlacement.EXPECT().Instances().Return([]services.PlacementInstance{pi}).AnyTimes()
+	mockPlacement := placement.NewMockPlacement(ctrl)
+	mockPlacement.EXPECT().Instances().Return([]placement.Instance{pi}).AnyTimes()
 
 	// setup (legal)
 	gomock.InOrder(
@@ -406,10 +406,10 @@ func TestClusterSetupToReplaceNode(t *testing.T) {
 
 	// create new mock placement for replace
 	mockNode.EXPECT().SetShards(shard.NewShards(nil))
-	mockPlacement = services.NewMockPlacement(ctrl)
-	replacementInstances := []services.PlacementInstance{
-		nodes[1].(services.PlacementInstance),
-		nodes[2].(services.PlacementInstance),
+	mockPlacement = placement.NewMockPlacement(ctrl)
+	replacementInstances := []placement.Instance{
+		nodes[1].(placement.Instance),
+		nodes[2].(placement.Instance),
 	}
 	mockPlacement.EXPECT().Instances().Return(replacementInstances).AnyTimes()
 	mockNode1 := nodes[1].(*mocknode.MockServiceNode)

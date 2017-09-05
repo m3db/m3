@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3em/node"
 
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
@@ -63,8 +63,8 @@ type svcCluster struct {
 	usedNodes    idToNodeMap
 	spares       []node.ServiceNode
 	sparesByID   map[string]node.ServiceNode
-	placementSvc services.PlacementService
-	placement    services.Placement
+	placementSvc placement.Service
+	placement    placement.Placement
 	status       Status
 	lastErr      error
 }
@@ -117,7 +117,7 @@ func (c *svcCluster) newExecutor(
 	return node.NewConcurrentExecutor(nodes, c.opts.NodeConcurrency(), c.opts.NodeOperationTimeout(), fn)
 }
 
-func (c *svcCluster) Placement() services.Placement {
+func (c *svcCluster) Placement() placement.Placement {
 	c.Lock()
 	defer c.Unlock()
 	return c.placement
@@ -207,7 +207,7 @@ func (c *svcCluster) Setup(numNodes int) ([]node.ServiceNode, error) {
 	return setupNodes, c.markStatusWithLock(ClusterStatusSetup, multiErr.FinalError())
 }
 
-func (c *svcCluster) markSpareUsedWithLock(spare services.PlacementInstance) (node.ServiceNode, error) {
+func (c *svcCluster) markSpareUsedWithLock(spare placement.Instance) (node.ServiceNode, error) {
 	id := spare.ID()
 	spareNode, ok := c.sparesByID[id]
 	if !ok {
@@ -228,7 +228,7 @@ func (c *svcCluster) AddSpecifiedNode(newNode node.ServiceNode) error {
 		return fmt.Errorf("provided node is not a known spare")
 	}
 
-	_, err := c.addNodeFromListWithLock([]services.PlacementInstance{newNode.(services.PlacementInstance)})
+	_, err := c.addNodeFromListWithLock([]placement.Instance{newNode.(placement.Instance)})
 	return err
 }
 
@@ -237,15 +237,15 @@ func (c *svcCluster) isSpareNodeWithLock(n node.ServiceNode) bool {
 	return ok
 }
 
-func (c *svcCluster) addNodeFromListWithLock(candidates []services.PlacementInstance) (node.ServiceNode, error) {
+func (c *svcCluster) addNodeFromListWithLock(candidates []placement.Instance) (node.ServiceNode, error) {
 	if c.status != ClusterStatusRunning && c.status != ClusterStatusSetup {
 		return nil, errClusterUnableToAlterPlacement
 	}
 
 	var (
 		psvc          = c.placementSvc
-		newPlacement  services.Placement
-		usedInstances []services.PlacementInstance
+		newPlacement  placement.Placement
+		usedInstances []placement.Instance
 	)
 	if err := c.opts.PlacementServiceRetrier().Attempt(func() error {
 		var internalErr error
@@ -279,7 +279,7 @@ func (c *svcCluster) AddNode() (node.ServiceNode, error) {
 	return c.addNodeFromListWithLock(c.sparesAsPlacementInstaceWithLock())
 }
 
-func (c *svcCluster) setPlacementWithLock(p services.Placement) error {
+func (c *svcCluster) setPlacementWithLock(p placement.Placement) error {
 	for _, instance := range p.Instances() {
 		// nb(prateek): update usedNodes with the new shards.
 		instanceID := instance.ID()
@@ -293,10 +293,10 @@ func (c *svcCluster) setPlacementWithLock(p services.Placement) error {
 	return nil
 }
 
-func (c *svcCluster) sparesAsPlacementInstaceWithLock() []services.PlacementInstance {
-	spares := make([]services.PlacementInstance, 0, len(c.spares))
+func (c *svcCluster) sparesAsPlacementInstaceWithLock() []placement.Instance {
+	spares := make([]placement.Instance, 0, len(c.spares))
 	for _, spare := range c.spares {
-		spares = append(spares, spare.(services.PlacementInstance))
+		spares = append(spares, spare.(placement.Instance))
 	}
 	return spares
 }
@@ -315,7 +315,7 @@ func (c *svcCluster) RemoveNode(i node.ServiceNode) error {
 	}
 
 	var (
-		newPlacement services.Placement
+		newPlacement placement.Placement
 		psvc         = c.placementSvc
 	)
 	if err := c.opts.PlacementServiceRetrier().Attempt(func() error {
@@ -350,8 +350,8 @@ func (c *svcCluster) ReplaceNode(oldNode node.ServiceNode) ([]node.ServiceNode, 
 	var (
 		psvc            = c.placementSvc
 		spareCandidates = c.sparesAsPlacementInstaceWithLock()
-		newPlacement    services.Placement
-		newInstances    []services.PlacementInstance
+		newPlacement    placement.Placement
+		newInstances    []placement.Instance
 	)
 	if err := c.opts.PlacementServiceRetrier().Attempt(func() error {
 		var internalErr error
