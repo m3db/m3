@@ -1,5 +1,5 @@
-hash: 3e342689749bbd18fc964d9c36efec62931ae5961109195bcd53519f5ac9296c
-updated: 2017-08-15T15:48:42.18549474-04:00
+hash: c208328e9cc17f460245c18c97f53d1b0349c3ac81543f1a45fe295382054d48
+updated: 2017-09-05T16:21:12.400276859-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -21,6 +21,7 @@ imports:
   - auth/authpb
   - client
   - clientv3
+  - clientv3/concurrency
   - compactor
   - discovery
   - embed
@@ -132,27 +133,31 @@ imports:
   - gen
   - prop
 - name: github.com/m3db/m3cluster
-  version: 73f7742b6c639865a27da64cf719f15e5ceed0cd
+  version: 296a3aed74ef56ee64bf08ead9b358056aa2fb14
   subpackages:
   - client
   - client/etcd
   - etcd/watchmanager
-  - generated/proto/metadata
-  - generated/proto/placement
+  - generated/proto/metadatapb
+  - generated/proto/placementpb
   - integration/etcd
   - kv
   - kv/etcd
   - kv/util/runtime
-  - proto/util
+  - placement
+  - placement/algo
+  - placement/selector
+  - placement/service
+  - placement/storage
   - services
-  - services/client
+  - services/client/etcd
   - services/heartbeat/etcd
-  - services/placement
-  - services/placement/algo
-  - services/placement/service
+  - services/leader
+  - services/leader/campaign
+  - services/leader/election
   - shard
 - name: github.com/m3db/m3em
-  version: f89beabde940cd31ca77c700a8ecc3fee8e2d3a9
+  version: f011c9da127dc8f7dd132c3d8c59814e96e6971f
   subpackages:
   - build
   - checksum
@@ -198,7 +203,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: c5b7fccd204277076155f10851dad72b76a49317
+  version: 967789050ba94deca04a5e84cce8ad472ce313c1
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
@@ -242,7 +247,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 4b9d9de43ffcb0b7efe67dab2a92c2d58dbf16ab
+  version: 2605c407d7d219644d03a3680ad7df4779017782
   subpackages:
   - m3
   - m3/customtransports
@@ -267,6 +272,8 @@ imports:
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: golang.org/x/crypto
   version: 1351f936d976c60a0a48d728281922cf63eafb8d
+  repo: https://github.com/golang/crypto
+  vcs: git
   subpackages:
   - bcrypt
   - blowfish
@@ -287,6 +294,8 @@ imports:
   - trace
 - name: golang.org/x/sys
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  repo: https://github.com/golang/sys
+  vcs: git
   subpackages:
   - unix
 - name: google.golang.org/appengine

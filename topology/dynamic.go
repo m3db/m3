@@ -25,8 +25,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3x/log"
@@ -86,7 +86,7 @@ type dynamicTopology struct {
 }
 
 func newDynamicTopology(opts DynamicOptions) (DynamicTopology, error) {
-	services, err := opts.ConfigServiceClient().Services()
+	services, err := opts.ConfigServiceClient().Services(opts.ServicesOptions())
 	if err != nil {
 		return nil, err
 	}

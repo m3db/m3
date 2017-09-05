@@ -24,16 +24,14 @@
 package encoding
 
 import (
-	io0 "io"
-	time0 "time"
-
+	gomock "github.com/golang/mock/gomock"
 	ts "github.com/m3db/m3db/ts"
 	io "github.com/m3db/m3db/x/io"
 	checked "github.com/m3db/m3x/checked"
 	pool "github.com/m3db/m3x/pool"
 	time "github.com/m3db/m3x/time"
-
-	gomock "github.com/golang/mock/gomock"
+	io0 "io"
+	time0 "time"
 )
 
 // Mock of Encoder interface

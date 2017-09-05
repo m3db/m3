@@ -15,8 +15,8 @@ import (
 	"time"
 
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/placement"
 	"github.com/m3db/m3cluster/shard"
 	xclock "github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/integration/generate"
@@ -60,7 +60,7 @@ type DTestHarness struct {
 	harnessDir       string
 	iopts            instrument.Options
 	logger           xlog.Logger
-	placementService services.PlacementService
+	placementService placement.Service
 	nodeOpts         node.Options
 	clusterOpts      cluster.Options
 	nodes            []m3emnode.Node
@@ -315,7 +315,7 @@ func newShardDir(prefix string, ns ts.ID, shard uint32) string {
 }
 
 func generatePaths(
-	placement services.Placement,
+	placement placement.Placement,
 	n node.ServiceNode,
 	ns ts.ID,
 	file string,
@@ -455,14 +455,14 @@ func (dt *DTestHarness) serviceID() services.ServiceID {
 func placementService(
 	svcID services.ServiceID,
 	eopts etcdclient.Options,
-	popts services.PlacementOptions,
-) (services.PlacementService, error) {
+	popts placement.Options,
+) (placement.Service, error) {
 	kvClient, err := etcdclient.NewConfigServiceClient(eopts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create kv client: %v", err)
 	}
 
-	topoServices, err := kvClient.Services()
+	topoServices, err := kvClient.Services(nil)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create topology services: %v", err)
 	}
@@ -470,7 +470,7 @@ func placementService(
 	return topoServices.PlacementService(svcID, popts)
 }
 
-func defaultPlacementOptions(iopts instrument.Options) services.PlacementOptions {
+func defaultPlacementOptions(iopts instrument.Options) placement.Options {
 	return placement.NewOptions().
 		SetIsSharded(true).
 		SetLooseRackCheck(true).

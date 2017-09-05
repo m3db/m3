@@ -24,15 +24,13 @@
 package topology
 
 import (
-	time "time"
-
+	gomock "github.com/golang/mock/gomock"
 	client "github.com/m3db/m3cluster/client"
 	services "github.com/m3db/m3cluster/services"
 	sharding "github.com/m3db/m3db/sharding"
 	ts "github.com/m3db/m3db/ts"
 	instrument "github.com/m3db/m3x/instrument"
-
-	gomock "github.com/golang/mock/gomock"
+	time "time"
 )
 
 // Mock of Host interface
@@ -613,6 +611,26 @@ func (_m *MockDynamicOptions) ServiceID() services.ServiceID {
 
 func (_mr *_MockDynamicOptionsRecorder) ServiceID() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ServiceID")
+}
+
+func (_m *MockDynamicOptions) SetServiceOptions(opts services.Options) DynamicOptions {
+	ret := _m.ctrl.Call(_m, "SetServiceOptions", opts)
+	ret0, _ := ret[0].(DynamicOptions)
+	return ret0
+}
+
+func (_mr *_MockDynamicOptionsRecorder) SetServiceOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetServiceOptions", arg0)
+}
+
+func (_m *MockDynamicOptions) ServicesOptions() services.Options {
+	ret := _m.ctrl.Call(_m, "ServicesOptions")
+	ret0, _ := ret[0].(services.Options)
+	return ret0
+}
+
+func (_mr *_MockDynamicOptionsRecorder) ServicesOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ServicesOptions")
 }
 
 func (_m *MockDynamicOptions) SetQueryOptions(value services.QueryOptions) DynamicOptions {
