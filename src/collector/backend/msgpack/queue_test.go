@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3cluster/services/placement"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 
 	"github.com/stretchr/testify/require"

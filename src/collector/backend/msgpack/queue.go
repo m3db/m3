@@ -25,7 +25,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/log"
 
@@ -57,7 +57,7 @@ type queue struct {
 
 	log      xlog.Logger
 	metrics  queueMetrics
-	instance services.PlacementInstance
+	instance placement.Instance
 	conn     *connection
 	bufCh    chan msgpack.Buffer
 	doneCh   chan struct{}
@@ -66,7 +66,7 @@ type queue struct {
 	writeFn writeFn
 }
 
-func newInstanceQueue(instance services.PlacementInstance, opts ServerOptions) instanceQueue {
+func newInstanceQueue(instance placement.Instance, opts ServerOptions) instanceQueue {
 	var (
 		conn      = newConnection(instance.Endpoint(), opts.ConnectionOptions())
 		iOpts     = opts.InstrumentOptions()

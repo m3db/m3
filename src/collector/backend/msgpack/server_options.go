@@ -23,8 +23,7 @@ package msgpack
 import (
 	"time"
 
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/placement"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
@@ -75,10 +74,10 @@ type ServerOptions interface {
 	ShardFn() ShardFn
 
 	// SetStagedPlacementWatcherOptions sets the staged placement watcher options.
-	SetStagedPlacementWatcherOptions(value services.StagedPlacementWatcherOptions) ServerOptions
+	SetStagedPlacementWatcherOptions(value placement.StagedPlacementWatcherOptions) ServerOptions
 
 	// StagedPlacementWatcherOptions returns the staged placement watcher options.
-	StagedPlacementWatcherOptions() services.StagedPlacementWatcherOptions
+	StagedPlacementWatcherOptions() placement.StagedPlacementWatcherOptions
 
 	// SetShardCutoverWarmupDuration sets the warm up duration for traffic cut over to a shard.
 	SetShardCutoverWarmupDuration(value time.Duration) ServerOptions
@@ -129,7 +128,7 @@ type serverOptions struct {
 	shardFn                    ShardFn
 	shardCutoverWarmupDuration time.Duration
 	shardCutoffLingerDuration  time.Duration
-	watcherOpts                services.StagedPlacementWatcherOptions
+	watcherOpts                placement.StagedPlacementWatcherOptions
 	connOpts                   ConnectionOptions
 	flushSize                  int
 	maxTimerBatchSize          int
@@ -208,13 +207,13 @@ func (o *serverOptions) ShardCutoffLingerDuration() time.Duration {
 	return o.shardCutoffLingerDuration
 }
 
-func (o *serverOptions) SetStagedPlacementWatcherOptions(value services.StagedPlacementWatcherOptions) ServerOptions {
+func (o *serverOptions) SetStagedPlacementWatcherOptions(value placement.StagedPlacementWatcherOptions) ServerOptions {
 	opts := *o
 	opts.watcherOpts = value
 	return &opts
 }
 
-func (o *serverOptions) StagedPlacementWatcherOptions() services.StagedPlacementWatcherOptions {
+func (o *serverOptions) StagedPlacementWatcherOptions() placement.StagedPlacementWatcherOptions {
 	return o.watcherOpts
 }
 

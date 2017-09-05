@@ -26,8 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/placement"
+	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -75,7 +74,7 @@ var (
 			},
 		),
 	}
-	testPlacementInstances = []services.PlacementInstance{
+	testPlacementInstances = []placement.Instance{
 		placement.NewInstance().
 			SetID("instance1").
 			SetEndpoint("instance1_endpoint").
@@ -186,7 +185,7 @@ func TestServerWriteMetricWithPoliciesListActiveStagedPlacementError(t *testing.
 	s := NewServer(testServerOptions()).(*server)
 	s.state = serverOpen
 	s.placementWatcher = &mockWatcher{
-		activeStagedPlacementFn: func() (services.ActiveStagedPlacement, services.DoneFn, error) {
+		activeStagedPlacementFn: func() (placement.ActiveStagedPlacement, placement.DoneFn, error) {
 			return nil, nil, errActiveStagedPlacementError
 		},
 	}
@@ -209,9 +208,9 @@ func TestServerWriteMetricWithPoliciesListActivePlacementError(t *testing.T) {
 	s := NewServer(testServerOptions()).(*server)
 	s.state = serverOpen
 	s.placementWatcher = &mockWatcher{
-		activeStagedPlacementFn: func() (services.ActiveStagedPlacement, services.DoneFn, error) {
+		activeStagedPlacementFn: func() (placement.ActiveStagedPlacement, placement.DoneFn, error) {
 			activeStagedPlacement := &mockActiveStagedPlacement{
-				activePlacementFn: func() (services.Placement, services.DoneFn, error) {
+				activePlacementFn: func() (placement.Placement, placement.DoneFn, error) {
 					return nil, nil, errActivePlacementError
 				},
 			}
@@ -235,7 +234,7 @@ func TestServerWriteMetricWithPoliciesListActivePlacementError(t *testing.T) {
 
 func TestServerWriteMetricWithPoliciesListSuccess(t *testing.T) {
 	var (
-		instancesRes []services.PlacementInstance
+		instancesRes []placement.Instance
 		shardRes     uint32
 		muRes        unaggregated.MetricUnion
 		plRes        policy.PoliciesList
@@ -245,7 +244,7 @@ func TestServerWriteMetricWithPoliciesListSuccess(t *testing.T) {
 	s.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	s.writerMgr = &mockInstanceWriterManager{
 		writeToFn: func(
-			instance services.PlacementInstance,
+			instance placement.Instance,
 			shard uint32,
 			mu unaggregated.MetricUnion,
 			pl policy.PoliciesList,
@@ -258,10 +257,10 @@ func TestServerWriteMetricWithPoliciesListSuccess(t *testing.T) {
 		},
 	}
 	s.placementWatcher = &mockWatcher{
-		activeStagedPlacementFn: func() (services.ActiveStagedPlacement, services.DoneFn, error) {
+		activeStagedPlacementFn: func() (placement.ActiveStagedPlacement, placement.DoneFn, error) {
 			noOpDoneFn := func() {}
 			activeStagedPlacement := &mockActiveStagedPlacement{
-				activePlacementFn: func() (services.Placement, services.DoneFn, error) {
+				activePlacementFn: func() (placement.Placement, placement.DoneFn, error) {
 					return testPlacement, noOpDoneFn, nil
 				},
 			}
@@ -269,7 +268,7 @@ func TestServerWriteMetricWithPoliciesListSuccess(t *testing.T) {
 		},
 	}
 
-	expectedInstances := []services.PlacementInstance{
+	expectedInstances := []placement.Instance{
 		testPlacementInstances[0],
 		testPlacementInstances[2],
 	}
@@ -300,7 +299,7 @@ func TestServerWriteMetricWithPoliciesListSuccess(t *testing.T) {
 
 func TestServerWriteMetricWithPoliciesListPartialError(t *testing.T) {
 	var (
-		instancesRes     []services.PlacementInstance
+		instancesRes     []placement.Instance
 		shardRes         uint32
 		muRes            unaggregated.MetricUnion
 		plRes            policy.PoliciesList
@@ -311,7 +310,7 @@ func TestServerWriteMetricWithPoliciesListPartialError(t *testing.T) {
 	s.nowFn = func() time.Time { return time.Unix(0, testNowNanos) }
 	s.writerMgr = &mockInstanceWriterManager{
 		writeToFn: func(
-			instance services.PlacementInstance,
+			instance placement.Instance,
 			shard uint32,
 			mu unaggregated.MetricUnion,
 			pl policy.PoliciesList,
@@ -327,10 +326,10 @@ func TestServerWriteMetricWithPoliciesListPartialError(t *testing.T) {
 		},
 	}
 	s.placementWatcher = &mockWatcher{
-		activeStagedPlacementFn: func() (services.ActiveStagedPlacement, services.DoneFn, error) {
+		activeStagedPlacementFn: func() (placement.ActiveStagedPlacement, placement.DoneFn, error) {
 			noOpDoneFn := func() {}
 			activeStagedPlacement := &mockActiveStagedPlacement{
-				activePlacementFn: func() (services.Placement, services.DoneFn, error) {
+				activePlacementFn: func() (placement.Placement, placement.DoneFn, error) {
 					return testPlacement, noOpDoneFn, nil
 				},
 			}
@@ -338,7 +337,7 @@ func TestServerWriteMetricWithPoliciesListPartialError(t *testing.T) {
 		},
 	}
 
-	expectedInstances := []services.PlacementInstance{
+	expectedInstances := []placement.Instance{
 		testPlacementInstances[2],
 	}
 	err := s.WriteCounterWithPoliciesList(testCounter.ID, testCounter.CounterVal, testPoliciesList)
@@ -350,14 +349,14 @@ func TestServerWriteMetricWithPoliciesListPartialError(t *testing.T) {
 }
 
 func TestServerWriteMetricWithPoliciesListBeforeShardCutover(t *testing.T) {
-	var instancesRes []services.PlacementInstance
+	var instancesRes []placement.Instance
 	s := NewServer(testServerOptions()).(*server)
 	s.shardCutoverWarmupDuration = time.Second
 	s.state = serverOpen
 	s.nowFn = func() time.Time { return time.Unix(0, testCutoverNanos-1).Add(-time.Second) }
 	s.writerMgr = &mockInstanceWriterManager{
 		writeToFn: func(
-			instance services.PlacementInstance,
+			instance placement.Instance,
 			shard uint32,
 			mu unaggregated.MetricUnion,
 			pl policy.PoliciesList,
@@ -367,10 +366,10 @@ func TestServerWriteMetricWithPoliciesListBeforeShardCutover(t *testing.T) {
 		},
 	}
 	s.placementWatcher = &mockWatcher{
-		activeStagedPlacementFn: func() (services.ActiveStagedPlacement, services.DoneFn, error) {
+		activeStagedPlacementFn: func() (placement.ActiveStagedPlacement, placement.DoneFn, error) {
 			noOpDoneFn := func() {}
 			activeStagedPlacement := &mockActiveStagedPlacement{
-				activePlacementFn: func() (services.Placement, services.DoneFn, error) {
+				activePlacementFn: func() (placement.Placement, placement.DoneFn, error) {
 					return testPlacement, noOpDoneFn, nil
 				},
 			}
@@ -384,14 +383,14 @@ func TestServerWriteMetricWithPoliciesListBeforeShardCutover(t *testing.T) {
 }
 
 func TestServerWriteMetricWithPoliciesListAfterShardCutoff(t *testing.T) {
-	var instancesRes []services.PlacementInstance
+	var instancesRes []placement.Instance
 	s := NewServer(testServerOptions()).(*server)
 	s.shardCutoffLingerDuration = time.Second
 	s.state = serverOpen
 	s.nowFn = func() time.Time { return time.Unix(0, testCutoffNanos+1).Add(time.Second) }
 	s.writerMgr = &mockInstanceWriterManager{
 		writeToFn: func(
-			instance services.PlacementInstance,
+			instance placement.Instance,
 			shard uint32,
 			mu unaggregated.MetricUnion,
 			pl policy.PoliciesList,
@@ -401,10 +400,10 @@ func TestServerWriteMetricWithPoliciesListAfterShardCutoff(t *testing.T) {
 		},
 	}
 	s.placementWatcher = &mockWatcher{
-		activeStagedPlacementFn: func() (services.ActiveStagedPlacement, services.DoneFn, error) {
+		activeStagedPlacementFn: func() (placement.ActiveStagedPlacement, placement.DoneFn, error) {
 			noOpDoneFn := func() {}
 			activeStagedPlacement := &mockActiveStagedPlacement{
-				activePlacementFn: func() (services.Placement, services.DoneFn, error) {
+				activePlacementFn: func() (placement.Placement, placement.DoneFn, error) {
 					return testPlacement, noOpDoneFn, nil
 				},
 			}
@@ -508,14 +507,14 @@ func testServerOptions() ServerOptions {
 }
 
 type watchFn func() error
-type activePlacementFn func() (services.Placement, services.DoneFn, error)
-type activeStagedPlacementFn func() (services.ActiveStagedPlacement, services.DoneFn, error)
+type activePlacementFn func() (placement.Placement, placement.DoneFn, error)
+type activeStagedPlacementFn func() (placement.ActiveStagedPlacement, placement.DoneFn, error)
 
 type mockActiveStagedPlacement struct {
 	activePlacementFn activePlacementFn
 }
 
-func (mp *mockActiveStagedPlacement) ActivePlacement() (services.Placement, services.DoneFn, error) {
+func (mp *mockActiveStagedPlacement) ActivePlacement() (placement.Placement, placement.DoneFn, error) {
 	return mp.activePlacementFn()
 }
 
@@ -528,14 +527,14 @@ type mockWatcher struct {
 
 func (mw *mockWatcher) Watch() error { return mw.watchFn() }
 
-func (mw *mockWatcher) ActiveStagedPlacement() (services.ActiveStagedPlacement, services.DoneFn, error) {
+func (mw *mockWatcher) ActiveStagedPlacement() (placement.ActiveStagedPlacement, placement.DoneFn, error) {
 	return mw.activeStagedPlacementFn()
 }
 
 func (mw *mockWatcher) Unwatch() error { return nil }
 
 type writeToFn func(
-	services.PlacementInstance,
+	placement.Instance,
 	uint32,
 	unaggregated.MetricUnion,
 	policy.PoliciesList,
@@ -546,16 +545,16 @@ type mockInstanceWriterManager struct {
 	flushFn   mockFlushFn
 }
 
-func (mgr *mockInstanceWriterManager) AddInstances(instances []services.PlacementInstance) error {
+func (mgr *mockInstanceWriterManager) AddInstances(instances []placement.Instance) error {
 	return nil
 }
 
-func (mgr *mockInstanceWriterManager) RemoveInstances(instances []services.PlacementInstance) error {
+func (mgr *mockInstanceWriterManager) RemoveInstances(instances []placement.Instance) error {
 	return nil
 }
 
 func (mgr *mockInstanceWriterManager) WriteTo(
-	instance services.PlacementInstance,
+	instance placement.Instance,
 	shard uint32,
 	mu unaggregated.MetricUnion,
 	pl policy.PoliciesList,
