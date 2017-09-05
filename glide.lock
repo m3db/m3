@@ -1,5 +1,5 @@
-hash: 49a3dcb65dfefdadd1d2890fa41810dba243fcb71cedfdf487c79ecb1872888c
-updated: 2017-09-01T01:08:50.634782191+08:00
+hash: 0c2afdc4f6ba2b1f1b661326742565cf29aef6593cc9859728f8cd199e4888c7
+updated: 2017-09-05T10:20:54.141140044-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -59,7 +59,7 @@ imports:
   - gen
   - prop
 - name: github.com/m3db/m3cluster
-  version: f1f3976a0b3f5449b22c6e353a9da89b594dc586
+  version: 296a3aed74ef56ee64bf08ead9b358056aa2fb14
   subpackages:
   - client
   - client/etcd
@@ -82,7 +82,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3em
-  version: cef896def73e1eea59d079f913adbccc305d2fb2
+  version: f011c9da127dc8f7dd132c3d8c59814e96e6971f
   subpackages:
   - build
   - checksum
@@ -128,7 +128,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: c5b7fccd204277076155f10851dad72b76a49317
+  version: 967789050ba94deca04a5e84cce8ad472ce313c1
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model

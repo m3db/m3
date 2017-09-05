@@ -48,7 +48,7 @@ import:
   version: <4.0.0
 
 - package: github.com/m3db/m3cluster
-  version: f1f3976a0b3f5449b22c6e353a9da89b594dc586
+  version: 296a3aed74ef56ee64bf08ead9b358056aa2fb14
   subpackages:
   - client
   - services
@@ -74,7 +74,7 @@ import:
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 
 - package: github.com/m3db/m3em
-  version: cef896def73e1eea59d079f913adbccc305d2fb2
+  version: f011c9da127dc8f7dd132c3d8c59814e96e6971f
 
 - package: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
