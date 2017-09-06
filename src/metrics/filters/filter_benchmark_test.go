@@ -45,7 +45,7 @@ var (
 	}
 )
 
-func BenchmarkEquityFilter(b *testing.B) {
+func BenchmarkEqualityFilter(b *testing.B) {
 	f1 := newEqualityFilter([]byte("test"))
 	f2 := newEqualityFilter([]byte("test2"))
 
@@ -55,7 +55,7 @@ func BenchmarkEquityFilter(b *testing.B) {
 	}
 }
 
-func BenchmarkEquityFilterByValue(b *testing.B) {
+func BenchmarkEqualityFilterByValue(b *testing.B) {
 	f1 := newTestEqualityFilter([]byte("test"))
 	f2 := newTestEqualityFilter([]byte("test2"))
 
