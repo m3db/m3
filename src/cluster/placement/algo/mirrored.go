@@ -121,7 +121,7 @@ func (a mirroredAlgorithm) RemoveInstances(
 			return nil, err
 		}
 		// Place the shards from the leaving instance to the rest of the cluster
-		if err := ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance, ph.Instances()); err != nil {
+		if err := ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance, nonLeavingInstances(ph.Instances())); err != nil {
 			return nil, err
 		}
 

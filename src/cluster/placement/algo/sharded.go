@@ -78,7 +78,7 @@ func (a rackAwarePlacementAlgorithm) AddReplica(p placement.Placement) (placemen
 
 	p = placement.ClonePlacement(p)
 	ph := newAddReplicaHelper(p, a.opts)
-	if err := ph.PlaceShards(newShards(p.Shards()), nil, ph.Instances()); err != nil {
+	if err := ph.PlaceShards(newShards(p.Shards()), nil, nonLeavingInstances(ph.Instances())); err != nil {
 		return nil, err
 	}
 
@@ -102,7 +102,7 @@ func (a rackAwarePlacementAlgorithm) RemoveInstances(
 			return nil, err
 		}
 		// place the shards from the leaving instance to the rest of the cluster
-		if err := ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance, ph.Instances()); err != nil {
+		if err := ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance, nonLeavingInstances(ph.Instances())); err != nil {
 			return nil, err
 		}
 
@@ -177,7 +177,7 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstances(
 	if a.opts.AllowPartialReplace() {
 		// Place the shards left on the leaving instance to the rest of the cluster.
 		for _, leavingInstance := range leavingInstances {
-			if err = ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance, ph.Instances()); err != nil {
+			if err = ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance, nonLeavingInstances(ph.Instances())); err != nil {
 				return nil, err
 			}
 		}
