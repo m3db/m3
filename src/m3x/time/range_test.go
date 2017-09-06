@@ -183,6 +183,25 @@ func TestRangeOverlaps(t *testing.T) {
 	}
 }
 
+func TestRangeDuration(t *testing.T) {
+	inputs := []struct {
+		r        Range
+		expected time.Duration
+	}{
+		{
+			r:        Range{Start: time.Unix(12, 0), End: time.Unix(34, 0)},
+			expected: 22 * time.Second,
+		},
+		{
+			r:        Range{Start: time.Unix(8, 0), End: time.Unix(8, 0)},
+			expected: 0,
+		},
+	}
+	for _, input := range inputs {
+		require.Equal(t, input.expected, input.r.Duration())
+	}
+}
+
 func TestRangeIntersect(t *testing.T) {
 	input := testInput()
 	for i := 0; i < len(input); i++ {

@@ -51,6 +51,65 @@ func TestUnitValue(t *testing.T) {
 	require.Equal(t, errUnrecognizedTimeUnit, err)
 }
 
+func TestUnitCount(t *testing.T) {
+	inputs := []struct {
+		u        Unit
+		d        time.Duration
+		expected int
+	}{
+		{Second, time.Second, 1},
+		{Millisecond, 10 * time.Millisecond, 10},
+		{Microsecond, time.Nanosecond, 0},
+		{Nanosecond, time.Microsecond, 1000},
+	}
+	for _, input := range inputs {
+		c, err := input.u.Count(input.d)
+		require.NoError(t, err)
+		require.Equal(t, input.expected, c)
+	}
+
+	invalidUnit := Unit(10)
+	_, err := invalidUnit.Count(time.Second)
+	require.Error(t, err)
+
+	var (
+		u               = Second
+		invalidDuration = -1 * time.Second
+	)
+	_, err = u.Count(invalidDuration)
+	require.Error(t, err)
+}
+
+func TestUnitMustCount(t *testing.T) {
+	inputs := []struct {
+		u        Unit
+		d        time.Duration
+		expected int
+	}{
+		{Second, time.Second, 1},
+		{Millisecond, 10 * time.Millisecond, 10},
+		{Microsecond, time.Nanosecond, 0},
+		{Nanosecond, time.Microsecond, 1000},
+	}
+	for _, input := range inputs {
+		c := input.u.MustCount(input.d)
+		require.Equal(t, input.expected, c)
+	}
+
+	invalidUnit := Unit(10)
+	require.Panics(t, func() {
+		invalidUnit.MustCount(time.Second)
+	})
+
+	var (
+		u               = Second
+		invalidDuration = -1 * time.Second
+	)
+	require.Panics(t, func() {
+		u.MustCount(invalidDuration)
+	})
+}
+
 func TestUnitIsValid(t *testing.T) {
 	inputs := []struct {
 		u        Unit

@@ -61,6 +61,11 @@ func (r Range) Overlaps(other Range) bool {
 	return r.End.After(other.Start) && r.Start.Before(other.End)
 }
 
+// Duration returns the duration of the range.
+func (r Range) Duration() time.Duration {
+	return r.End.Sub(r.Start)
+}
+
 // Intersect calculates the intersection of the receiver range against the
 // provided argument range iff there is an overlap between the two. It also
 // returns a bool indicating if there was a valid intersection.
