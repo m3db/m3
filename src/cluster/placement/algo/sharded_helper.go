@@ -672,7 +672,7 @@ func addInstanceToPlacement(p placement.Placement, i placement.Instance, include
 	instance := placement.CloneInstance(i)
 
 	if includeInstance == includeEmpty || instance.Shards().NumShards() > 0 {
-		p = placement.ClonePlacement(p).SetInstances(append(p.Instances(), instance))
+		p = p.SetInstances(append(p.Instances(), instance))
 	}
 	return p, instance, nil
 }
@@ -682,8 +682,7 @@ func removeInstanceFromPlacement(p placement.Placement, id string) (placement.Pl
 	if !exist {
 		return nil, nil, fmt.Errorf("instance %s does not exist in placement", id)
 	}
-	return placement.ClonePlacement(p).
-		SetInstances(placement.RemoveInstanceFromList(p.Instances(), id)), leavingInstance, nil
+	return p.SetInstances(placement.RemoveInstanceFromList(p.Instances(), id)), leavingInstance, nil
 }
 
 func getShardMap(shards []shard.Shard) map[uint32]shard.Shard {
