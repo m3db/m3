@@ -1,5 +1,5 @@
-hash: a539218a08730e83f130bf1ed415321b5137b6950b2f56150ab470fdb2832093
-updated: 2017-03-15T15:46:10.216421502-04:00
+hash: af4448f76f908056a83785900c67060ef648ce1b598b0c3e0f1209f8c9be2058
+updated: 2017-08-26T17:07:28.1294357-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -12,7 +12,7 @@ imports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fsnotify/fsnotify
-  version: 30411dbcefb7a1da7e84f75530ad3abe4011b4f8
+  version: 629574ca2a5df945712d3079857300b5e4da0236
 - name: github.com/gavv/monotime
   version: 47d58efa69556a936a3c15eb2ed42706d968ab01
 - name: github.com/golang/mock
@@ -25,7 +25,7 @@ imports:
   - proto
   - ptypes/timestamp
 - name: github.com/hashicorp/hcl
-  version: 630949a3c5fa3c613328e1b8256052cbc2327c9b
+  version: 7fa7fff964d035e8a162cce3a164b3ad02ad651b
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -84,15 +84,16 @@ imports:
 - name: github.com/mitchellh/mapstructure
   version: 53818660ed4955e899c0bcafa97299a388bd7c8e
 - name: github.com/opentracing/opentracing-go
-  version: 855519783f479520497c6b3445611b05fc42f009
+  version: 1949ddbfd147afd4d964a9f00b24eb291e0e7c38
   subpackages:
   - ext
+  - log
 - name: github.com/pborman/getopt
   version: ec82d864f599c39673eef89f91b93fa5576567a1
 - name: github.com/pelletier/go-buffruneio
   version: c37440a7cf42ac63b919c752ca73a85067e05992
 - name: github.com/pelletier/go-toml
-  version: fee7787d3f811af92276f5ff10107092e95b7a1d
+  version: 3b00596b2e9ee541bbd72dc50cc0c60e2b46c69c
 - name: github.com/pmezard/go-difflib
   version: 792786c7400a136282c1664665ae0a8db921c6c2
   subpackages:
@@ -100,7 +101,7 @@ imports:
 - name: github.com/spaolacci/murmur3
   version: 0d12bf811670bf6a1a63828dfbd003eded177fce
 - name: github.com/spf13/afero
-  version: 9be650865eab0c12963d8753212f4f9c66cdcf12
+  version: 36f8810e2e3d7eeac4ac05b57f65690fbfba62a2
   subpackages:
   - mem
 - name: github.com/spf13/cast

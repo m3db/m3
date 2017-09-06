@@ -31,7 +31,7 @@ import (
 )
 
 func toTimeFromProtoTimestamp(t *google_protobuf.Timestamp) time.Time {
-	return time.Unix(int64(t.Seconds), int64(t.Nanos))
+	return time.Unix(t.Seconds, int64(t.Nanos))
 }
 
 // ToM3nschWorkload converts a rpc Workload into an equivalent API Workload.

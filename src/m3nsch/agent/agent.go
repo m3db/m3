@@ -100,12 +100,6 @@ func (ms *m3nschAgent) notifyWorkersWithLock(msg workerNotification) {
 	ms.workerChans.notify(msg)
 }
 
-func (ms *m3nschAgent) status() m3nsch.Status {
-	ms.RLock()
-	defer ms.RUnlock()
-	return ms.agentStatus
-}
-
 func (ms *m3nschAgent) resetWithLock() {
 	if ms.workerChans != nil {
 		ms.closeWorkerChannelsWithLock()
@@ -253,6 +247,7 @@ func (ms *m3nschAgent) MaxQPS() int64 {
 	return int64(ms.opts.Concurrency()) * ms.opts.MaxWorkerQPS()
 }
 
+// nolint: unparam
 func (ms *m3nschAgent) newMethodMetrics(method string) instrument.MethodMetrics {
 	subScope := ms.opts.InstrumentOptions().MetricsScope().SubScope("agent")
 	return instrument.NewMethodMetrics(subScope, method, ms.opts.InstrumentOptions().MetricsSamplingRate())

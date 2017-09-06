@@ -37,7 +37,7 @@ type cliWorkload struct {
 
 func (w *cliWorkload) validate() error {
 	var multiErr xerrors.MultiError
-	if w.baseTimeOffset >= time.Duration(0*time.Second) {
+	if w.baseTimeOffset >= 0 {
 		multiErr = multiErr.Add(fmt.Errorf("basetime-offset must be negative"))
 	}
 	if w.Cardinality <= 0 {

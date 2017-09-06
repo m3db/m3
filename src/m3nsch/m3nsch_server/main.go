@@ -108,6 +108,9 @@ func ServeGRPCService(
 ) {
 	server := grpc.NewServer(grpc.MaxConcurrentStreams(16384))
 	service, err := services.NewGRPCService(agent, scope, logger)
+	if err != nil {
+		logger.Fatalf("could not create grpc service: %v", err)
+	}
 	rpc.RegisterMenschServer(server, service)
 	logger.Infof("serving m3nsch endpoints at %v", listener.Addr().String())
 	err = server.Serve(listener)
