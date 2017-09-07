@@ -29,6 +29,48 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestWrap(t *testing.T) {
+	inner := errors.New("detailed error message")
+	err := NewInvalidParamsError(inner)
+	wrappedErr := Wrap(err, "context about params error")
+	assert.Error(t, wrappedErr)
+	assert.Equal(t, "context about params error: detailed error message", wrappedErr.Error())
+	assert.True(t, IsInvalidParams(wrappedErr))
+
+	err = NewRetryableError(inner)
+	wrappedErr = Wrap(err, "context about retryable error")
+	assert.Error(t, wrappedErr)
+	assert.Equal(t, "context about retryable error: detailed error message", wrappedErr.Error())
+	assert.True(t, IsRetryableError(wrappedErr))
+
+	err = NewNonRetryableError(inner)
+	wrappedErr = Wrap(err, "context about nonretryable error")
+	assert.Error(t, wrappedErr)
+	assert.Equal(t, "context about nonretryable error: detailed error message", wrappedErr.Error())
+	assert.True(t, IsNonRetryableError(wrappedErr))
+}
+
+func TestWrapf(t *testing.T) {
+	inner := errors.New("detailed error message")
+	err := NewInvalidParamsError(inner)
+	wrappedErr := Wrapf(err, "context about %s error", "params")
+	assert.Error(t, wrappedErr)
+	assert.Equal(t, "context about params error: detailed error message", wrappedErr.Error())
+	assert.True(t, IsInvalidParams(wrappedErr))
+
+	err = NewRetryableError(inner)
+	wrappedErr = Wrapf(err, "context about %s error", "retryable")
+	assert.Error(t, wrappedErr)
+	assert.Equal(t, "context about retryable error: detailed error message", wrappedErr.Error())
+	assert.True(t, IsRetryableError(wrappedErr))
+
+	err = NewNonRetryableError(inner)
+	wrappedErr = Wrapf(err, "context about %s error", "nonretryable")
+	assert.Error(t, wrappedErr)
+	assert.Equal(t, "context about nonretryable error: detailed error message", wrappedErr.Error())
+	assert.True(t, IsNonRetryableError(wrappedErr))
+}
+
 func TestMultiErrorNoError(t *testing.T) {
 	err := NewMultiError()
 	require.Nil(t, err.FinalError())
