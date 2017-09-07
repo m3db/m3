@@ -165,7 +165,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		poolOpts:                       poolOpts,
 		contextPool:                    context.NewPool(poolOpts, poolOpts),
 		seriesOpts:                     seriesOpts,
-		seriesPool:                     series.NewDatabaseSeriesPool(seriesOpts, poolOpts),
+		seriesPool:                     series.NewDatabaseSeriesPool(poolOpts),
 		bytesPool:                      bytesPool,
 		encoderPool:                    encoding.NewEncoderPool(poolOpts),
 		segmentReaderPool:              xio.NewSegmentReaderPool(poolOpts),
@@ -214,7 +214,6 @@ func (o *options) SetClockOptions(value clock.Options) Options {
 	opts.clockOpts = value
 	opts.commitLogOpts = opts.commitLogOpts.SetClockOptions(value)
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
-	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, opts.poolOpts)
 	return &opts
 }
 
@@ -227,7 +226,6 @@ func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 	opts.instrumentOpts = value
 	opts.commitLogOpts = opts.commitLogOpts.SetInstrumentOptions(value)
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
-	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, opts.poolOpts)
 	return &opts
 }
 
@@ -249,7 +247,6 @@ func (o *options) SetDatabaseBlockOptions(value block.Options) Options {
 	opts := *o
 	opts.blockOpts = value
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
-	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, opts.poolOpts)
 	return &opts
 }
 
@@ -384,7 +381,6 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 		SetBytesPool(bytesPool)
 
 	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
-	opts.seriesPool = series.NewDatabaseSeriesPool(opts.seriesOpts, opts.poolOpts)
 	return &opts
 }
 

@@ -128,10 +128,9 @@ func (sr *shardResult) AddSeries(id ts.ID, rawSeries block.DatabaseSeriesBlocks)
 
 func (sr *shardResult) newBlocks(id ts.ID) DatabaseSeriesBlocks {
 	size := sr.opts.NewBlocksLen()
-	blopts := sr.opts.DatabaseBlockOptions()
 	return DatabaseSeriesBlocks{
 		ID:     id,
-		Blocks: block.NewDatabaseSeriesBlocks(size, blopts),
+		Blocks: block.NewDatabaseSeriesBlocks(size),
 	}
 }
 

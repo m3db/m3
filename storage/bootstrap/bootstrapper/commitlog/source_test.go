@@ -381,7 +381,6 @@ func requireShardResults(
 			otherAllBlocks := otherBlocks.Blocks.AllBlocks()
 			require.Equal(t, len(allBlocks), len(otherAllBlocks))
 
-			blopts := blocks.Blocks.Options()
 			readerIteratorPool := blopts.ReaderIteratorPool()
 			for start, block := range allBlocks {
 				otherBlock, ok := otherAllBlocks[start]

@@ -305,9 +305,7 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	series.buffer = buffer
 
 	errBlockStart := bufferMin
-	blopts := opts.DatabaseBlockOptions()
-
-	blocks := block.NewDatabaseSeriesBlocks(0, blopts)
+	blocks := block.NewDatabaseSeriesBlocks(0)
 
 	// Add block that buffer will fail to bootstrap
 	bl := block.NewMockDatabaseBlock(ctrl)

@@ -121,11 +121,10 @@ type dbBuffer struct {
 
 type databaseBufferDrainFn func(b block.DatabaseBlock)
 
-func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts Options) databaseBuffer {
+func newDatabaseBuffer(drainFn databaseBufferDrainFn) databaseBuffer {
 	b := &dbBuffer{
 		drainFn: drainFn,
 	}
-	b.Reset(opts)
 	return b
 }
 
