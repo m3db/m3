@@ -262,8 +262,11 @@ func (w *writer) writeCheckpointFile() error {
 	if err != nil {
 		return err
 	}
-	defer fd.Close()
-	return w.digestBuf.WriteDigestToFile(fd, w.digestFdWithDigestContents.Digest().Sum32())
+	if err := w.digestBuf.WriteDigestToFile(fd, w.digestFdWithDigestContents.Digest().Sum32()); err != nil {
+		fd.Close() // NB(prateek): failure to write takes precedence over failure to close the file
+		return err
+	}
+	return fd.Close()
 }
 
 func (w *writer) openWritable(filePath string) (*os.File, error) {
