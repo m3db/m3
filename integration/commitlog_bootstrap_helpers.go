@@ -145,10 +145,14 @@ func writeCommitLogData(
 	}
 }
 
-func verifyCommitLogData(
+// verifyCommitLogContains ensures the commit log contains the specified data.
+// NB(prateek): it only guarantees the specified data is present, their might be additional data in the
+// commit logs too.
+// nolint: deadcode
+func verifyCommitLogContains(
 	t *testing.T,
 	s *testSetup,
-	data generate.SeriesBlocksByStart,
+	seriesMaps generate.SeriesBlocksByStart,
 	namespace ts.ID,
 ) {
 	writesOnDisk := make(map[ts.Hash]map[time.Time]generate.SeriesDataPoint)
@@ -179,4 +183,40 @@ func verifyCommitLogData(
 	for _, writes := range writesOnDisk {
 		require.NotEmpty(t, writes)
 	}
+
+	missingDatapoints := []generate.SeriesDataPoint{}
+	for _, seriesBlock := range seriesMaps {
+		for _, series := range seriesBlock {
+			for _, dp := range series.Data {
+				appendMissingFn := func() {
+					missingDatapoints = append(missingDatapoints, generate.SeriesDataPoint{
+						Datapoint: dp,
+						ID:        series.ID,
+					})
+				}
+				// ensure series is present in writes on disk
+				seriesWrites, ok := writesOnDisk[series.ID.Hash()]
+				if !ok {
+					appendMissingFn()
+					continue
+				}
+				// ensure series datapoint is present in writes on disk
+				writesDataPoint, ok := seriesWrites[dp.Timestamp]
+				if !ok {
+					appendMissingFn()
+					continue
+				}
+
+				// ensure series datapoint on disk is same as expected
+				if !writesDataPoint.ID.Equal(series.ID) ||
+					!writesDataPoint.Timestamp.Equal(dp.Timestamp) ||
+					writesDataPoint.Value != dp.Value {
+					appendMissingFn()
+					continue
+				}
+			}
+		}
+	}
+
+	require.Empty(t, missingDatapoints, "missing expected datapoints")
 }
