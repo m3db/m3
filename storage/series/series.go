@@ -72,7 +72,7 @@ type dbSeries struct {
 // NewDatabaseSeries creates a new database series
 func NewDatabaseSeries(id ts.ID, opts Options) DatabaseSeries {
 	var (
-		s                  = newDatabaseSeries(id, opts)
+		s                  = newDatabaseSeries()
 		seriesBootstrapped = false
 		blockRetriever     QueryableBlockRetriever
 	)
@@ -82,15 +82,15 @@ func NewDatabaseSeries(id ts.ID, opts Options) DatabaseSeries {
 
 // newPooledDatabaseSeries creates a new pooled database series
 func newPooledDatabaseSeries(pool DatabaseSeriesPool) DatabaseSeries {
-	series := newDatabaseSeries(nil, nil)
+	series := newDatabaseSeries()
 	series.pool = pool
 	return series
 }
 
-func newDatabaseSeries(id ts.ID, opts Options) *dbSeries {
+// NB(prateek): dbSeries.Reset(...) must be called upon the returned
+// object prior to use.
+func newDatabaseSeries() *dbSeries {
 	series := &dbSeries{
-		id:     id,
-		opts:   opts,
 		blocks: block.NewDatabaseSeriesBlocks(0),
 		bs:     bootstrapNotStarted,
 	}

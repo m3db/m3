@@ -121,6 +121,8 @@ type dbBuffer struct {
 
 type databaseBufferDrainFn func(b block.DatabaseBlock)
 
+// NB(prateek): databaseBuffer.Reset(...) must be called upon the returned
+// object prior to use.
 func newDatabaseBuffer(drainFn databaseBufferDrainFn) databaseBuffer {
 	b := &dbBuffer{
 		drainFn: drainFn,
