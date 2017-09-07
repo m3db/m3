@@ -189,6 +189,8 @@ func newDatabaseNamespace(
 
 	iops := opts.InstrumentOptions()
 	logger := iops.Logger().WithFields(xlog.NewLogField("namespace", id.String()))
+	iops = iops.SetLogger(logger)
+	opts = opts.SetInstrumentOptions(iops)
 
 	scope := iops.MetricsScope().SubScope("database").
 		Tagged(map[string]string{
