@@ -144,3 +144,39 @@ func writeCommitLogData(
 		require.NoError(t, commitLog.Close())
 	}
 }
+
+func verifyCommitLogData(
+	t *testing.T,
+	s *testSetup,
+	data generate.SeriesBlocksByStart,
+	namespace ts.ID,
+) {
+	writesOnDisk := make(map[ts.Hash]map[time.Time]generate.SeriesDataPoint)
+	opts := s.storageOpts.CommitLogOptions()
+	iter, err := commitlog.NewIterator(opts)
+	require.NoError(t, err)
+
+	defer iter.Close()
+	for iter.Next() {
+		series, datapoint, _, _ := iter.Current()
+		if !series.Namespace.Equal(namespace) {
+			continue
+		}
+
+		idHash := series.ID.Hash()
+		seriesMap, ok := writesOnDisk[idHash]
+		if !ok {
+			seriesMap = make(map[time.Time]generate.SeriesDataPoint)
+			writesOnDisk[idHash] = seriesMap
+		}
+		seriesMap[datapoint.Timestamp] = generate.SeriesDataPoint{
+			Datapoint: datapoint,
+			ID:        series.ID,
+		}
+	}
+	require.NoError(t, iter.Err())
+	require.NotEmpty(t, writesOnDisk)
+	for _, writes := range writesOnDisk {
+		require.NotEmpty(t, writes)
+	}
+}

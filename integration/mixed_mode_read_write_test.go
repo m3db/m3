@@ -132,6 +132,11 @@ func TestMixedModeReadWrite(t *testing.T) {
 	require.NoError(t, setup.stopServer())
 	log.Infof("database stopped")
 
+	expectedCommitLogData := map[time.Time]generate.SeriesBlock{
+		blkStart18: expectedSeriesMap[blkStart18],
+	}
+	verifyCommitLogData(t, setup, expectedCommitLogData, nsID)
+
 	// the time now is 18:55
 	setup.setNowFn(setup.getNowFn().Add(5 * time.Minute))
 
