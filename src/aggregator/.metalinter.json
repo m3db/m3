@@ -1,4 +1,8 @@
 {
+  "Linters": {
+    "deadcode":  { "Command": "deadcode  -tags integration" },
+    "varcheck":  { "Command": "varcheck  -tags integration" },
+    "megacheck": { "Command": "megacheck -tags integration" } },
   "Enable":
     [ "deadcode"
     , "varcheck"

@@ -37,7 +37,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// nolint: megacheck, varcheck, deadcode
 var (
 	testCounterVal     = int64(123)
 	testBatchTimerVals = []float64{1.5, 2.5, 3.5, 4.5, 5.5}
@@ -62,23 +61,8 @@ var (
 			},
 		),
 	}
-
-	testDefaultTimerAggregationTypes = policy.AggregationTypes{
-		policy.Sum,
-		policy.SumSq,
-		policy.Mean,
-		policy.Min,
-		policy.Max,
-		policy.Count,
-		policy.Stdev,
-		policy.Median,
-		policy.P50,
-		policy.P95,
-		policy.P99,
-	}
 )
 
-// nolint: megacheck
 type byTimeIDPolicyAscending []aggregated.MetricWithStoragePolicy
 
 func (a byTimeIDPolicyAscending) Len() int      { return len(a) }
@@ -99,37 +83,32 @@ func (a byTimeIDPolicyAscending) Less(i, j int) bool {
 	return retention1 < retention2
 }
 
-// nolint: megacheck
 type metricKey struct {
 	id  string
 	typ unaggregated.Type
 }
 
-type valuesByTime map[int64]interface{}        // nolint: megacheck
-type datapointsByID map[metricKey]valuesByTime // nolint: megacheck
+type valuesByTime map[int64]interface{}
+type datapointsByID map[metricKey]valuesByTime
 
-// nolint: megacheck
 type dataForPolicy struct {
 	aggTypes policy.AggregationTypes
 	data     datapointsByID
 }
 
-type metricsByPolicy map[policy.Policy]*dataForPolicy           // nolint: megacheck
-type metricTypeFn func(ts time.Time, idx int) unaggregated.Type // nolint: megacheck
+type metricsByPolicy map[policy.Policy]*dataForPolicy
+type metricTypeFn func(ts time.Time, idx int) unaggregated.Type
 
-// nolint: megacheck
 type testData struct {
 	timestamp time.Time
 	metrics   []unaggregated.MetricUnion
 }
 
-// nolint: megacheck
 type testDatasetWithPoliciesList struct {
 	dataset      []testData
 	policiesList policy.PoliciesList
 }
 
-// nolint: megacheck, deadcode
 func roundRobinMetricTypeFn(_ time.Time, idx int) unaggregated.Type {
 	switch idx % 3 {
 	case 0:
@@ -141,12 +120,10 @@ func roundRobinMetricTypeFn(_ time.Time, idx int) unaggregated.Type {
 	}
 }
 
-// nolint: megacheck, deadcode
 func constantMetryTypeFnFactory(typ unaggregated.Type) metricTypeFn {
 	return func(time.Time, int) unaggregated.Type { return typ }
 }
 
-// nolint: megacheck, deadcode
 func generateTestIDs(prefix string, numIDs int) []string {
 	ids := make([]string, numIDs)
 	for i := 0; i < numIDs; i++ {
@@ -155,7 +132,6 @@ func generateTestIDs(prefix string, numIDs int) []string {
 	return ids
 }
 
-// nolint: megacheck, deadcode
 func generateTestData(
 	start, stop time.Time,
 	interval time.Duration,
@@ -211,7 +187,6 @@ func generateTestData(
 	}
 }
 
-// nolint: megacheck, deadcode
 func toExpectedResults(
 	t *testing.T,
 	now time.Time,
@@ -332,7 +307,6 @@ func toExpectedResults(
 	return expected
 }
 
-// nolint: megacheck
 func toAggregatedMetrics(
 	t *testing.T,
 	key metricKey,
