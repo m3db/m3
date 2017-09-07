@@ -1,5 +1,5 @@
-hash: c7d794d7676427ed0af6489b640027ad8fe813f9cd510407a8a9b7dc85a8b51e
-updated: 2017-09-05T10:37:23.510645255-04:00
+hash: b35e505fca8e6a20547a72f8c378ec6323f191dec2ff3274b0d340edc7a52ff2
+updated: 2017-09-06T22:41:41.420772692-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -191,7 +191,7 @@ imports:
   subpackages:
   - go
 - name: github.com/prometheus/common
-  version: 195bde7883f7c39ea62b0d92ab7359b5327065cb
+  version: 3e6a7635bac6573d43f49f97b47eb9bda195dba8
   subpackages:
   - expfmt
   - internal/bitbucket.org/ww/goautoneg
@@ -209,7 +209,7 @@ imports:
   - process
 - name: github.com/shirou/w32
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
-- name: github.com/Sirupsen/logrus
+- name: github.com/sirupsen/logrus
   version: cd7d1bbe41066b6c1f19780f895901052150a575
 - name: github.com/spaolacci/murmur3
   version: 0d12bf811670bf6a1a63828dfbd003eded177fce

@@ -20,8 +20,8 @@ import:
 - package: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
 - package: github.com/prometheus/common
-  version: 195bde7883f7c39ea62b0d92ab7359b5327065cb
-- package: github.com/Sirupsen/logrus
+  version: 3e6a7635bac6573d43f49f97b47eb9bda195dba8
+- package: github.com/sirupsen/logrus
   version: cd7d1bbe41066b6c1f19780f895901052150a575
 - package: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
