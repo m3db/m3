@@ -145,7 +145,8 @@ func writeCommitLogData(
 	}
 }
 
-// verifyCommitLogContains ensures the commit log contains the specified data.
+// verifyCommitLogContains ensures the commit log contains the specified data. It returns the number of datapoints
+// verified.
 // NB(prateek): it only guarantees the specified data is present, their might be additional data in the
 // commit logs too.
 // nolint: deadcode
@@ -154,7 +155,7 @@ func verifyCommitLogContains(
 	s *testSetup,
 	seriesMaps generate.SeriesBlocksByStart,
 	namespace ts.ID,
-) {
+) int {
 	writesOnDisk := make(map[ts.Hash]map[time.Time]generate.SeriesDataPoint)
 	opts := s.storageOpts.CommitLogOptions()
 	iter, err := commitlog.NewIterator(opts)
@@ -184,6 +185,7 @@ func verifyCommitLogContains(
 		require.NotEmpty(t, writes)
 	}
 
+	numVerified := 0
 	missingDatapoints := []generate.SeriesDataPoint{}
 	for _, seriesBlock := range seriesMaps {
 		for _, series := range seriesBlock {
@@ -214,9 +216,11 @@ func verifyCommitLogContains(
 					appendMissingFn()
 					continue
 				}
+				numVerified++
 			}
 		}
 	}
 
-	require.Empty(t, missingDatapoints, "missing expected datapoints")
+	require.Empty(t, missingDatapoints, "expected datapoints are missing")
+	return numVerified
 }

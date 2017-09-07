@@ -133,10 +133,13 @@ func TestMixedModeReadWrite(t *testing.T) {
 	log.Infof("database stopped")
 
 	// verify commit log files on disk contains expected data
+	log.Infof("verifying commit log data on disk")
 	expectedCommitLogData := map[time.Time]generate.SeriesBlock{
 		blkStart18: expectedSeriesMap[blkStart18],
 	}
-	verifyCommitLogContains(t, setup, expectedCommitLogData, nsID)
+	numPoints := verifyCommitLogContains(t, setup, expectedCommitLogData, nsID)
+	require.Equal(t, 100, numPoints)
+	log.Infof("verified commit log data on disk")
 
 	// the time now is 18:55
 	setup.setNowFn(setup.getNowFn().Add(5 * time.Minute))
