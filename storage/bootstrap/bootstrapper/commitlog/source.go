@@ -188,7 +188,7 @@ func (s *commitLogSource) Read(
 	for shard, unmergedShard := range unmerged {
 		shardResult := result.NewShardResult(len(unmergedShard), s.opts.ResultOptions())
 		for _, unmergedBlocks := range unmergedShard {
-			blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders), blopts)
+			blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
 			for start, unmergedBlock := range unmergedBlocks.encoders {
 				block := blocksPool.Get()
 				if len(unmergedBlock) == 0 {

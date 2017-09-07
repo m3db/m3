@@ -73,7 +73,8 @@ func TestBufferWriteTooFuture(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
+	buffer.Reset(opts)
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -90,7 +91,8 @@ func TestBufferWriteTooPast(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
+	buffer.Reset(opts)
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -107,7 +109,8 @@ func TestBufferWriteRead(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
+	buffer.Reset(opts)
 
 	data := []value{
 		{curr.Add(secs(1)), 1, xtime.Second, nil},
@@ -138,7 +141,8 @@ func TestBufferReadOnlyMatchingBuckets(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
+	buffer.Reset(opts)
 
 	data := []value{
 		{curr.Add(mins(1)), 1, xtime.Second, nil},
@@ -182,7 +186,8 @@ func TestBufferDrain(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer := newDatabaseBuffer(drainFn, opts).(*dbBuffer)
+	buffer := newDatabaseBuffer(drainFn).(*dbBuffer)
+	buffer.Reset(opts)
 
 	data := []value{
 		{curr, 1, xtime.Second, nil},
@@ -232,7 +237,8 @@ func TestBufferResetUndrainedBucketDrainsBucket(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer := newDatabaseBuffer(drainFn, opts).(*dbBuffer)
+	buffer := newDatabaseBuffer(drainFn).(*dbBuffer)
+	buffer.Reset(opts)
 
 	data := []value{
 		{curr.Add(mins(1)), 1, xtime.Second, nil},
@@ -271,7 +277,8 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
+	buffer.Reset(opts)
 
 	data := []value{
 		{curr, 1, xtime.Second, nil},
@@ -456,7 +463,8 @@ func TestBufferFetchBlocks(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	defer ctx.Close()
 
-	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
+	buffer.Reset(opts)
 	buffer.buckets[0] = *b
 
 	for i := 1; i < 3; i++ {
@@ -483,7 +491,8 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 	start := b.start.Add(-time.Second)
 	end := b.start.Add(time.Second)
 
-	buffer := newDatabaseBuffer(nil, opts).(*dbBuffer)
+	buffer := newDatabaseBuffer(nil).(*dbBuffer)
+	buffer.Reset(opts)
 	buffer.buckets[0] = *b
 
 	expectedSize := int64(b.streamsLen())
@@ -514,7 +523,8 @@ func TestBufferReadEncodedValidAfterDrain(t *testing.T) {
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
 		return curr
 	}))
-	buffer := newDatabaseBuffer(drainFn, opts).(*dbBuffer)
+	buffer := newDatabaseBuffer(drainFn).(*dbBuffer)
+	buffer.Reset(opts)
 
 	// Perform out of order writes that will create two in order encoders
 	data := []value{

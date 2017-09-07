@@ -260,13 +260,13 @@ func TestShardResultAddSeries(t *testing.T) {
 		id     string
 		series block.DatabaseSeriesBlocks
 	}{
-		{"foo", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())},
-		{"bar", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())},
+		{"foo", block.NewDatabaseSeriesBlocks(0)},
+		{"bar", block.NewDatabaseSeriesBlocks(0)},
 	}
 	for _, input := range inputs {
 		sr.AddSeries(ts.StringID(input.id), input.series)
 	}
-	moreSeries := block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())
+	moreSeries := block.NewDatabaseSeriesBlocks(0)
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	block.Reset(start, ts.Segment{})
 	moreSeries.AddBlock(block)
@@ -283,8 +283,8 @@ func TestShardResultAddResult(t *testing.T) {
 	sr.AddResult(nil)
 	require.True(t, sr.IsEmpty())
 	other := NewShardResult(0, opts)
-	other.AddSeries(ts.StringID("foo"), block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()))
-	other.AddSeries(ts.StringID("bar"), block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()))
+	other.AddSeries(ts.StringID("foo"), block.NewDatabaseSeriesBlocks(0))
+	other.AddSeries(ts.StringID("bar"), block.NewDatabaseSeriesBlocks(0))
 	sr.AddResult(other)
 	require.Len(t, sr.AllSeries(), 2)
 }
@@ -295,8 +295,8 @@ func TestShardResultNumSeries(t *testing.T) {
 	sr.AddResult(nil)
 	require.True(t, sr.IsEmpty())
 	other := NewShardResult(0, opts)
-	other.AddSeries(ts.StringID("foo"), block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()))
-	other.AddSeries(ts.StringID("bar"), block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()))
+	other.AddSeries(ts.StringID("foo"), block.NewDatabaseSeriesBlocks(0))
+	other.AddSeries(ts.StringID("bar"), block.NewDatabaseSeriesBlocks(0))
 	sr.AddResult(other)
 	require.Equal(t, int64(2), sr.NumSeries())
 }
@@ -308,8 +308,8 @@ func TestShardResultRemoveSeries(t *testing.T) {
 		id     string
 		series block.DatabaseSeriesBlocks
 	}{
-		{"foo", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())},
-		{"bar", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())},
+		{"foo", block.NewDatabaseSeriesBlocks(0)},
+		{"bar", block.NewDatabaseSeriesBlocks(0)},
 	}
 	for _, input := range inputs {
 		sr.AddSeries(ts.StringID(input.id), input.series)
