@@ -114,13 +114,17 @@ type dbNamespace struct {
 }
 
 type databaseNamespaceMetrics struct {
-	bootstrap      instrument.MethodMetrics
-	flush          instrument.MethodMetrics
-	unfulfilled    tally.Counter
-	bootstrapStart tally.Counter
-	bootstrapEnd   tally.Counter
-	shards         databaseNamespaceShardMetrics
-	tick           databaseNamespaceTickMetrics
+	bootstrap           instrument.MethodMetrics
+	flush               instrument.MethodMetrics
+	write               instrument.MethodMetrics
+	read                instrument.MethodMetrics
+	fetchBlocks         instrument.MethodMetrics
+	fetchBlocksMetadata instrument.MethodMetrics
+	unfulfilled         tally.Counter
+	bootstrapStart      tally.Counter
+	bootstrapEnd        tally.Counter
+	shards              databaseNamespaceShardMetrics
+	tick                databaseNamespaceTickMetrics
 }
 
 type databaseNamespaceShardMetrics struct {
@@ -146,11 +150,15 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 	shardsScope := scope.SubScope("dbnamespace").SubScope("shards")
 	tickScope := scope.SubScope("tick")
 	return databaseNamespaceMetrics{
-		bootstrap:      instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
-		flush:          instrument.NewMethodMetrics(scope, "flush", samplingRate),
-		unfulfilled:    scope.Counter("bootstrap.unfulfilled"),
-		bootstrapStart: scope.Counter("bootstrap.start"),
-		bootstrapEnd:   scope.Counter("bootstrap.end"),
+		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
+		flush:               instrument.NewMethodMetrics(scope, "flush", samplingRate),
+		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
+		read:                instrument.NewMethodMetrics(scope, "read", samplingRate),
+		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
+		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
+		unfulfilled:         scope.Counter("bootstrap.unfulfilled"),
+		bootstrapStart:      scope.Counter("bootstrap.start"),
+		bootstrapEnd:        scope.Counter("bootstrap.end"),
 		shards: databaseNamespaceShardMetrics{
 			add:         shardsScope.Counter("add"),
 			close:       shardsScope.Counter("close"),
@@ -386,11 +394,15 @@ func (n *dbNamespace) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
+	callStart := n.nowFn()
 	shard, err := n.shardFor(id)
 	if err != nil {
+		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
 		return err
 	}
-	return shard.Write(ctx, id, timestamp, value, unit, annotation)
+	err = shard.Write(ctx, id, timestamp, value, unit, annotation)
+	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return err
 }
 
 func (n *dbNamespace) ReadEncoded(
@@ -398,11 +410,15 @@ func (n *dbNamespace) ReadEncoded(
 	id ts.ID,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
+	callStart := n.nowFn()
 	shard, err := n.readableShardFor(id)
 	if err != nil {
+		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
 		return nil, err
 	}
-	return shard.ReadEncoded(ctx, id, start, end)
+	res, err := shard.ReadEncoded(ctx, id, start, end)
+	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return res, err
 }
 
 func (n *dbNamespace) FetchBlocks(
@@ -411,11 +427,15 @@ func (n *dbNamespace) FetchBlocks(
 	id ts.ID,
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
+	callStart := n.nowFn()
 	shard, err := n.readableShardAt(shardID)
 	if err != nil {
+		n.metrics.fetchBlocks.ReportError(n.nowFn().Sub(callStart))
 		return nil, err
 	}
-	return shard.FetchBlocks(ctx, id, starts)
+	res, err := shard.FetchBlocks(ctx, id, starts)
+	n.metrics.fetchBlocks.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return res, err
 }
 
 func (n *dbNamespace) FetchBlocksMetadata(
@@ -426,12 +446,16 @@ func (n *dbNamespace) FetchBlocksMetadata(
 	pageToken int64,
 	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, *int64, error) {
+	callStart := n.nowFn()
 	shard, err := n.readableShardAt(shardID)
 	if err != nil {
+		n.metrics.fetchBlocksMetadata.ReportError(n.nowFn().Sub(callStart))
 		return nil, nil, err
 	}
+
 	res, nextPageToken := shard.FetchBlocksMetadata(ctx, start, end, limit,
 		pageToken, opts)
+	n.metrics.fetchBlocksMetadata.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, nextPageToken, nil
 }
 
