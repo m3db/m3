@@ -186,6 +186,9 @@ func (f *mirroredFilter) SelectReplaceInstances(
 		if instance.Hostname() == h.name {
 			continue
 		}
+		if placement.IsInstanceLeaving(instance) {
+			continue
+		}
 
 		conflictRacks[instance.Rack()] = struct{}{}
 	}

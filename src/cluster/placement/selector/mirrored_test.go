@@ -24,11 +24,12 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3cluster/shard"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestFilterInitialInstancesForMirror(t *testing.T) {
+func TestSelectInitialInstancesForMirror(t *testing.T) {
 	h1p1 := placement.NewInstance().
 		SetID("h1p1").
 		SetHostname("h1").
@@ -94,8 +95,8 @@ func TestFilterInitialInstancesForMirror(t *testing.T) {
 		SetEndpoint("h4p2e").
 		SetWeight(1)
 
-	filter := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
-	res, err := filter.SelectInitialInstances(
+	selector := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
+	res, err := selector.SelectInitialInstances(
 		[]placement.Instance{h1p1, h1p2, h2p1, h2p2, h3p1, h3p2, h4p1, h4p2},
 		2,
 	)
@@ -116,7 +117,7 @@ func TestFilterInitialInstancesForMirror(t *testing.T) {
 	}
 }
 
-func TestFilterInitialInstancesForMirrorRF2(t *testing.T) {
+func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 	h1p1 := placement.NewInstance().
 		SetID("h1p1").
 		SetHostname("h1").
@@ -190,8 +191,8 @@ func TestFilterInitialInstancesForMirrorRF2(t *testing.T) {
 		SetEndpoint("h3p3e").
 		SetWeight(2)
 
-	filter := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
-	res, err := filter.SelectInitialInstances(
+	selector := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
+	res, err := selector.SelectInitialInstances(
 		[]placement.Instance{h1p1, h1p2, h1p3, h2p1, h2p2, h2p3, h3p1, h3p2, h3p3},
 		2,
 	)
@@ -241,7 +242,7 @@ func TestFilterInitialInstancesForMirrorRF2(t *testing.T) {
 		SetEndpoint("h4p3e").
 		SetWeight(2)
 
-	res, err = filter.SelectInitialInstances(
+	res, err = selector.SelectInitialInstances(
 		[]placement.Instance{h1p1, h1p2, h1p3, h2p1, h2p2, h2p3, h3p1, h3p2, h3p3, h4p1, h4p2, h4p3},
 		2,
 	)
@@ -268,7 +269,7 @@ func TestFilterInitialInstancesForMirrorRF2(t *testing.T) {
 	}
 }
 
-func TestFilterInitialInstancesForMirrorRF3(t *testing.T) {
+func TestSelectInitialInstancesForMirrorRF3(t *testing.T) {
 	h1p1 := placement.NewInstance().
 		SetID("h1p1").
 		SetHostname("h1").
@@ -342,8 +343,8 @@ func TestFilterInitialInstancesForMirrorRF3(t *testing.T) {
 		SetEndpoint("h3p3e").
 		SetWeight(1)
 
-	filter := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
-	res, err := filter.SelectInitialInstances(
+	selector := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
+	res, err := selector.SelectInitialInstances(
 		[]placement.Instance{h1p1, h1p2, h1p3, h2p1, h2p2, h2p3, h3p1, h3p2, h3p3},
 		3,
 	)
@@ -369,7 +370,7 @@ func TestFilterInitialInstancesForMirrorRF3(t *testing.T) {
 		require.Equal(t, 0, count)
 	}
 }
-func TestFilterReplaceInstanceForMirror(t *testing.T) {
+func TestSelectReplaceInstanceForMirror(t *testing.T) {
 	h1p1 := placement.NewInstance().
 		SetID("h1p1").
 		SetHostname("h1").
@@ -430,8 +431,8 @@ func TestFilterReplaceInstanceForMirror(t *testing.T) {
 		SetEndpoint("h3p2e").
 		SetWeight(1)
 
-	filter := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
-	res, err := filter.SelectReplaceInstances(
+	selector := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
+	res, err := selector.SelectReplaceInstances(
 		[]placement.Instance{h3p1, h3p2},
 		[]string{h1p1.ID(), h1p2.ID()},
 		p,
@@ -442,7 +443,7 @@ func TestFilterReplaceInstanceForMirror(t *testing.T) {
 	require.Equal(t, h3p2.ShardSetID(), res[1].ShardSetID())
 
 	// Rack conflict.
-	_, err = filter.SelectReplaceInstances(
+	_, err = selector.SelectReplaceInstances(
 		[]placement.Instance{h3p1, h3p2},
 		[]string{h2p1.ID(), h2p2.ID()},
 		p,
@@ -450,7 +451,7 @@ func TestFilterReplaceInstanceForMirror(t *testing.T) {
 	require.Error(t, err)
 
 	// More than 1 host.
-	_, err = filter.SelectReplaceInstances(
+	_, err = selector.SelectReplaceInstances(
 		[]placement.Instance{h3p1, h3p2},
 		[]string{h1p1.ID(), h2p1.ID()},
 		p,
@@ -461,7 +462,7 @@ func TestFilterReplaceInstanceForMirror(t *testing.T) {
 	h3p1.SetWeight(2)
 	h3p2.SetWeight(2)
 
-	_, err = filter.SelectReplaceInstances(
+	_, err = selector.SelectReplaceInstances(
 		[]placement.Instance{h3p1, h3p2},
 		[]string{h1p1.ID(), h1p2.ID()},
 		p,
@@ -469,7 +470,48 @@ func TestFilterReplaceInstanceForMirror(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestFilterAddingInstanceForMirror(t *testing.T) {
+func TestSelectReplaceInstancesWithLeaving(t *testing.T) {
+	s1 := shard.NewShard(1).SetState(shard.Leaving)
+	h1p1 := placement.NewInstance().
+		SetID("h1p1").
+		SetHostname("h1").
+		SetPort(1).
+		SetRack("r1").
+		SetZone("z1").
+		SetEndpoint("h1p1e").
+		SetWeight(1).
+		SetShardSetID(0).
+		SetShards(shard.NewShards([]shard.Shard{s1}))
+	s2 := shard.NewShard(1).SetState(shard.Initializing)
+	h2p1 := placement.NewInstance().
+		SetID("h2p1").
+		SetHostname("h2").
+		SetPort(1).
+		SetRack("r2").
+		SetZone("z1").
+		SetEndpoint("h2p1e").
+		SetWeight(1).
+		SetShardSetID(0).
+		SetShards(shard.NewShards([]shard.Shard{s2}))
+
+	p := placement.NewPlacement().
+		SetInstances([]placement.Instance{h1p1, h2p1}).
+		SetIsMirrored(true).
+		SetIsSharded(true).
+		SetReplicaFactor(1)
+
+	selector := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
+	res, err := selector.SelectReplaceInstances(
+		[]placement.Instance{h1p1, h2p1},
+		[]string{h2p1.ID()},
+		p,
+	)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(res))
+	require.Equal(t, h1p1, res[0])
+}
+
+func TestSelectAddingInstanceForMirror(t *testing.T) {
 	h1p1 := placement.NewInstance().
 		SetID("h1p1").
 		SetHostname("h1").
@@ -546,21 +588,21 @@ func TestFilterAddingInstanceForMirror(t *testing.T) {
 		SetEndpoint("h4p2e").
 		SetWeight(1)
 
-	filter := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
-	res, err := filter.SelectAddingInstances(
+	selector := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
+	res, err := selector.SelectAddingInstances(
 		[]placement.Instance{h3p1, h3p2, h4p1, h4p2},
 		p,
 	)
 	require.NoError(t, err)
 	require.Equal(t, 4, len(res))
 
-	_, err = filter.SelectAddingInstances(
+	_, err = selector.SelectAddingInstances(
 		[]placement.Instance{h3p2, h4p1},
 		p,
 	)
 	require.Error(t, err)
 
-	_, err = filter.SelectAddingInstances(
+	_, err = selector.SelectAddingInstances(
 		[]placement.Instance{h3p1, h3p2},
 		p,
 	)
@@ -570,7 +612,7 @@ func TestFilterAddingInstanceForMirror(t *testing.T) {
 	h3p1.SetWeight(2)
 	h3p2.SetWeight(2)
 
-	_, err = filter.SelectAddingInstances(
+	_, err = selector.SelectAddingInstances(
 		[]placement.Instance{h3p1, h3p2, h4p1, h4p2},
 		p,
 	)

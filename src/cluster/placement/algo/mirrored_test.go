@@ -75,17 +75,23 @@ func TestMirrorWorkflow(t *testing.T) {
 		ids[i] = uint32(i)
 	}
 
-	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true))
+	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true).
+		SetPlacementCutoverNanosFn(timeNanosGen(1)).
+		SetShardCutoverNanosFn(timeNanosGen(2)).
+		SetShardCutoffNanosFn(timeNanosGen(3)))
 	p, err := a.InitialPlacement(instances, ids, 2)
 	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
 	assert.True(t, p.IsMirrored())
 	assert.Equal(t, 2, p.ReplicaFactor())
+	assert.Equal(t, int64(1), p.CutoverNanos())
 
 	_, err = a.AddInstances(p, []placement.Instance{placement.NewEmptyInstance("xxx", "rrr", "zzz", "endpoint", 1)})
 	assert.Error(t, err)
 
 	p, err = a.AddInstances(p, []placement.Instance{})
 	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
 
 	i7 := placement.NewInstance().
 		SetID("i7").
@@ -133,6 +139,7 @@ func TestMirrorWorkflow(t *testing.T) {
 
 	p, err = a.RemoveInstances(p, []string{i7.ID(), i8.ID()})
 	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
 
 	p, err = a.ReplaceInstances(p, []string{"i6"}, []placement.Instance{
 		placement.NewInstance().
@@ -143,6 +150,7 @@ func TestMirrorWorkflow(t *testing.T) {
 			SetWeight(3),
 	})
 	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
 
 	i9 := placement.NewInstance().
 		SetID("i9").
@@ -169,9 +177,11 @@ func TestMirrorWorkflow(t *testing.T) {
 			SetWeight(1),
 	})
 	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
 
-	_, err = a.RemoveInstances(p, []string{"i19", "i10"})
+	p, err = a.RemoveInstances(p, []string{"i19", "i10"})
 	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
 }
 
 func TestMirrorInitError(t *testing.T) {
@@ -256,6 +266,7 @@ func TestMirrorAddInstancesError(t *testing.T) {
 	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true))
 	p, err := a.InitialPlacement(instances, ids, 2)
 	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
 
 	_, err = a.AddInstances(placement.ClonePlacement(p).SetIsMirrored(false), []placement.Instance{i5, i6})
 	assert.Error(t, err)
@@ -266,9 +277,24 @@ func TestMirrorAddInstancesError(t *testing.T) {
 	// Allow adding back leaving instances.
 	p, err = a.RemoveInstances(p, []string{i3.ID(), i4.ID()})
 	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
 
-	_, err = a.AddInstances(p, []placement.Instance{i3, i4})
+	p, err = a.AddInstances(p, []placement.Instance{
+		placement.NewInstance().
+			SetID("i3").
+			SetRack("r3").
+			SetEndpoint("endpoint3").
+			SetShardSetID(1).
+			SetWeight(2),
+		placement.NewInstance().
+			SetID("i4").
+			SetRack("r4").
+			SetEndpoint("endpoint4").
+			SetShardSetID(1).
+			SetWeight(2),
+	})
 	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
 
 	// Duplicated shardset id.
 	_, err = a.AddInstances(p, []placement.Instance{
@@ -325,6 +351,7 @@ func TestMirrorRemoveInstancesError(t *testing.T) {
 	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true))
 	p, err := a.InitialPlacement(instances, ids, 2)
 	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
 
 	_, err = a.RemoveInstances(p.SetIsMirrored(false), []string{"i1", "i2"})
 	assert.Error(t, err)
@@ -376,6 +403,7 @@ func TestMirrorReplaceInstancesError(t *testing.T) {
 	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true))
 	p, err := a.InitialPlacement(instances, ids, 2)
 	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
 
 	_, err = a.ReplaceInstances(p.SetIsMirrored(false), []string{"i1"}, []placement.Instance{
 		placement.NewInstance().
@@ -480,6 +508,7 @@ func TestMirrorReplaceWithLeavingShards(t *testing.T) {
 
 	p2, err := a.ReplaceInstances(p, []string{"i1", "i4"}, []placement.Instance{replaceI1, replaceI4})
 	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
 
 	_, ok := p2.Instance("i1")
 	assert.True(t, ok)

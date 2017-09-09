@@ -137,6 +137,14 @@ func (s *shard) SetCutoffNanos(value int64) Shard {
 	return s
 }
 
+func (s *shard) Equals(other Shard) bool {
+	return s.ID() == other.ID() &&
+		s.State() == other.State() &&
+		s.SourceID() == other.SourceID() &&
+		s.CutoverNanos() == other.CutoverNanos() &&
+		s.CutoffNanos() == other.CutoffNanos()
+}
+
 func (s *shard) Proto() (*placementpb.Shard, error) {
 	ss, err := s.State().Proto()
 	if err != nil {
@@ -196,49 +204,49 @@ type shards struct {
 	shardsMap map[uint32]Shard
 }
 
-func (s shards) All() []Shard {
-	ss := make([]Shard, 0, len(s.shardsMap))
-	for _, shard := range s.shardsMap {
-		ss = append(ss, shard)
+func (ss shards) All() []Shard {
+	shards := make([]Shard, 0, len(ss.shardsMap))
+	for _, shard := range ss.shardsMap {
+		shards = append(shards, shard)
 	}
-	sort.Sort(SortableShardsByIDAsc(ss))
-	return ss
+	sort.Sort(SortableShardsByIDAsc(shards))
+	return shards
 }
 
-func (s shards) AllIDs() []uint32 {
-	ids := make([]uint32, 0, len(s.shardsMap))
-	for _, shard := range s.shardsMap {
+func (ss shards) AllIDs() []uint32 {
+	ids := make([]uint32, 0, len(ss.shardsMap))
+	for _, shard := range ss.shardsMap {
 		ids = append(ids, shard.ID())
 	}
 	sort.Sort(SortableIDsAsc(ids))
 	return ids
 }
 
-func (s shards) NumShards() int {
-	return len(s.shardsMap)
+func (ss shards) NumShards() int {
+	return len(ss.shardsMap)
 }
 
-func (s shards) Shard(id uint32) (Shard, bool) {
-	shard, ok := s.shardsMap[id]
+func (ss shards) Shard(id uint32) (Shard, bool) {
+	shard, ok := ss.shardsMap[id]
 	return shard, ok
 }
 
-func (s shards) Add(shard Shard) {
-	s.shardsMap[shard.ID()] = shard
+func (ss shards) Add(shard Shard) {
+	ss.shardsMap[shard.ID()] = shard
 }
 
-func (s shards) Remove(shard uint32) {
-	delete(s.shardsMap, shard)
+func (ss shards) Remove(shard uint32) {
+	delete(ss.shardsMap, shard)
 }
 
-func (s shards) Contains(shard uint32) bool {
-	_, ok := s.shardsMap[shard]
+func (ss shards) Contains(shard uint32) bool {
+	_, ok := ss.shardsMap[shard]
 	return ok
 }
 
-func (s shards) NumShardsForState(state State) int {
+func (ss shards) NumShardsForState(state State) int {
 	count := 0
-	for _, s := range s.shardsMap {
+	for _, s := range ss.shardsMap {
 		if s.State() == state {
 			count++
 		}
@@ -246,9 +254,9 @@ func (s shards) NumShardsForState(state State) int {
 	return count
 }
 
-func (s shards) ShardsForState(state State) []Shard {
+func (ss shards) ShardsForState(state State) []Shard {
 	var r []Shard
-	for _, s := range s.shardsMap {
+	for _, s := range ss.shardsMap {
 		if s.State() == state {
 			r = append(r, s)
 		}
@@ -256,20 +264,36 @@ func (s shards) ShardsForState(state State) []Shard {
 	return r
 }
 
-func (s shards) String() string {
+func (ss shards) Equals(other Shards) bool {
+	shards := ss.All()
+	otherShards := other.All()
+	if len(shards) != len(otherShards) {
+		return false
+	}
+
+	for i, shard := range shards {
+		otherShard := otherShards[i]
+		if !shard.Equals(otherShard) {
+			return false
+		}
+	}
+	return true
+}
+
+func (ss shards) String() string {
 	var strs []string
 	for _, state := range validStates() {
-		ids := NewShards(s.ShardsForState(state)).AllIDs()
+		ids := NewShards(ss.ShardsForState(state)).AllIDs()
 		str := fmt.Sprintf("%s=%v", state.String(), ids)
 		strs = append(strs, str)
 	}
 	return fmt.Sprintf("[%s]", strings.Join(strs, ", "))
 }
 
-func (s shards) Proto() ([]*placementpb.Shard, error) {
-	res := make([]*placementpb.Shard, 0, len(s.shardsMap))
+func (ss shards) Proto() ([]*placementpb.Shard, error) {
+	res := make([]*placementpb.Shard, 0, len(ss.shardsMap))
 	// All() returns the shards in ID ascending order.
-	for _, shard := range s.All() {
+	for _, shard := range ss.All() {
 		sp, err := shard.Proto()
 		if err != nil {
 			return nil, err

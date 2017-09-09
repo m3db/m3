@@ -82,6 +82,9 @@ type Shard interface {
 	// SetSource sets the source of the shard.
 	SetSourceID(sourceID string) Shard
 
+	// Equals returns whether the shard equals to another shard.
+	Equals(s Shard) bool
+
 	// Proto returns the proto representation for the shard.
 	Proto() (*placementpb.Shard, error)
 }
@@ -114,6 +117,9 @@ type Shards interface {
 
 	// Shard returns the shard for the id.
 	Shard(id uint32) (Shard, bool)
+
+	// Equals returns whether the shards equals to another shards.
+	Equals(s Shards) bool
 
 	// String returns the string representation of the shards.
 	String() string
