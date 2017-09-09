@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package xserver implements a network server.
 package xserver
 
 import (
@@ -137,7 +138,7 @@ func (s *server) Serve(l net.Listener) error {
 	return nil
 }
 
-func (s *server) serve() error {
+func (s *server) serve() {
 	connCh, errCh := xnet.StartForeverAcceptLoop(s.listener, s.retryOpts)
 	for conn := range connCh {
 		conn := conn
@@ -160,7 +161,9 @@ func (s *server) serve() error {
 			}()
 		}
 	}
-	return <-errCh
+	err := <-errCh
+	s.log.WithFields(xlog.NewLogErrField(err)).
+		Error("server unexpectedly closed")
 }
 
 func (s *server) Close() {

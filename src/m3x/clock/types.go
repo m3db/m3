@@ -18,21 +18,22 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package clock implements facilities for working with wall clock time.
 package clock
 
 import (
 	"time"
 )
 
-// NowFn is the function supplied to determine "now"
+// NowFn is the function supplied to determine "now".
 type NowFn func() time.Time
 
-// Options represents the options for the clock
+// Options represents the options for the clock.
 type Options interface {
-	// SetNowFn sets the nowFn
+	// SetNowFn sets the NowFn.
 	SetNowFn(value NowFn) Options
 
-	// NowFn returns the nowFn
+	// NowFn returns the NowFn.
 	NowFn() NowFn
 
 	// SetMaxPositiveSkew sets the maximum positive clock skew
@@ -52,11 +53,11 @@ type Options interface {
 	MaxNegativeSkew() time.Duration
 }
 
-// ConditionFn specifies a predicate to check
+// ConditionFn specifies a predicate to check.
 type ConditionFn func() bool
 
 // WaitUntil returns true if the condition specified evaluated to
-// true before the timeout, false otherwise
+// true before the timeout, false otherwise.
 func WaitUntil(fn ConditionFn, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {

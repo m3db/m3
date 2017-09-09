@@ -40,7 +40,7 @@ type options struct {
 	reportInterval time.Duration
 }
 
-// NewOptions creates new instrument options
+// NewOptions creates new instrument options.
 func NewOptions() Options {
 	logger := xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LogLevelInfo)
 	return &options{

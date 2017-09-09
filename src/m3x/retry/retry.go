@@ -31,7 +31,8 @@ import (
 )
 
 var (
-	// ErrWhileConditionFalse is raised when the while condition to a while retry method evaluates false
+	// ErrWhileConditionFalse is returned when the while condition to a while retry
+	// method evaluates false.
 	ErrWhileConditionFalse = errors.New("retry while condition evaluated to false")
 )
 
@@ -56,7 +57,7 @@ type retrierMetrics struct {
 	retries            tally.Counter
 }
 
-// NewRetrier creates a new retrier
+// NewRetrier creates a new retrier.
 func NewRetrier(opts Options) Retrier {
 	scope := opts.MetricsScope()
 	errorTags := struct {

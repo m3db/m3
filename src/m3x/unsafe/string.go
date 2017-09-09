@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package xunsafe contains operations that step around the type safety of Go programs.
 package xunsafe
 
 import (

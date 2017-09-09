@@ -18,24 +18,61 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package process provides functions for inspecting processes.
-package process
+package xclose
 
 import (
-	"fmt"
-	"os"
+	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-// NumFDs returns the number of file descriptors for a given process.
-// This is more efficient than the NumFDs() method in the psutils package
-// by avoiding reading the destination of the symlinks in the proc directory.
-func NumFDs(pid int) (int, error) {
-	statPath := fmt.Sprintf("/proc/%d/fd", pid)
-	d, err := os.Open(statPath)
-	if err != nil {
-		return 0, err
+func TestTryClose(t *testing.T) {
+	tests := []struct {
+		input     interface{}
+		expectErr bool
+	}{
+		{
+			input:     &closer{returnErr: false},
+			expectErr: false,
+		},
+		{
+			input:     &closer{returnErr: true},
+			expectErr: true,
+		},
+		{
+			input:     &simpleCloser{},
+			expectErr: false,
+		},
+		{
+			input:     &nonCloser{},
+			expectErr: true,
+		},
 	}
-	fnames, err := d.Readdirnames(-1)
-	d.Close()
-	return len(fnames), err
+
+	for _, test := range tests {
+		err := TryClose(test.input)
+		if test.expectErr {
+			assert.Error(t, err)
+			continue
+		}
+		assert.NoError(t, err)
+	}
 }
+
+type closer struct {
+	returnErr bool
+}
+
+func (c *closer) Close() error {
+	if c.returnErr {
+		return errors.New("")
+	}
+	return nil
+}
+
+type simpleCloser struct{}
+
+func (c *simpleCloser) Close() {}
+
+type nonCloser struct{}

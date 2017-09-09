@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package xtcp implements a tcp listener.
 package xtcp
 
 import (
@@ -26,6 +27,8 @@ import (
 )
 
 // NewTCPListener is Listener specifically for TCP
+//
+// TODO(jeromefroe): Move this into the net package which covers network I/O.
 func NewTCPListener(listenAddress string, keepAlivePeriod time.Duration) (net.Listener, error) {
 	l, err := net.Listen("tcp", listenAddress)
 	if err != nil {

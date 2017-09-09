@@ -46,7 +46,7 @@ type options struct {
 	jitter         bool
 }
 
-// NewOptions creates new retry options
+// NewOptions creates new retry options.
 func NewOptions() Options {
 	return &options{
 		scope:          tally.NoopScope,

@@ -28,26 +28,28 @@ import (
 	"github.com/m3db/m3x/log"
 )
 
-// ErrSourceClosed could be thrown from SourceInput to indicate that the Source should be closed
+// ErrSourceClosed indicates that the Source should be closed.
 var ErrSourceClosed = errors.New("source closed")
 
-// SourceInput provides data for Source
+// SourceInput provides data for Source,
 type SourceInput interface {
-	// Poll will be called by Source for data, any backoff/jitter logic should be handled here
+	// Poll will be called by Source for data. Any backoff/jitter logic should
+	// be handled here.
 	Poll() (interface{}, error)
 }
 
-// Source polls data by calling SourcePollFn and notifies its watches on updates
+// Source polls data by calling SourcePollFn and notifies its watches on updates.
 type Source interface {
 	xclose.SimpleCloser
 
-	// Get returns the latest value
+	// Get returns the latest value.
 	Get() interface{}
-	// Watch returns the value and an Watch
+
+	// Watch returns the value and a Watch.
 	Watch() (interface{}, Watch, error)
 }
 
-// NewSource returns a Source
+// NewSource returns a new Source.
 func NewSource(input SourceInput, logger xlog.Logger) Source {
 	s := &source{
 		input:  input,

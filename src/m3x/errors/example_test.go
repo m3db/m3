@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,24 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package process provides functions for inspecting processes.
-package process
+package xerrors_test
 
 import (
 	"fmt"
-	"os"
+	"strings"
+
+	"github.com/m3db/m3x/errors"
 )
 
-// NumFDs returns the number of file descriptors for a given process.
-// This is more efficient than the NumFDs() method in the psutils package
-// by avoiding reading the destination of the symlinks in the proc directory.
-func NumFDs(pid int) (int, error) {
-	statPath := fmt.Sprintf("/proc/%d/fd", pid)
-	d, err := os.Open(statPath)
-	if err != nil {
-		return 0, err
+func ExampleMultiError() {
+	mutliErr := xerrors.NewMultiError()
+
+	for i := 0; i < 3; i++ {
+		// Perform some work which may fail.
+		err := fmt.Errorf("error %d", i)
+
+		if err != nil {
+			// Add returns a new MultiError.
+			mutliErr = mutliErr.Add(err)
+		}
 	}
-	fnames, err := d.Readdirnames(-1)
-	d.Close()
-	return len(fnames), err
+
+	if err := mutliErr.FinalError(); err != nil {
+		msg := strings.Replace(err.Error(), "\n", "; ", -1)
+		fmt.Println(msg)
+	}
+
+	// Output: error 0; error 1; error 2
 }

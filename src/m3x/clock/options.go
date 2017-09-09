@@ -30,7 +30,7 @@ type options struct {
 	maxNegativeSkew time.Duration
 }
 
-// NewOptions creates new clock options
+// NewOptions creates new clock options.
 func NewOptions() Options {
 	return &options{
 		nowFn: time.Now,
