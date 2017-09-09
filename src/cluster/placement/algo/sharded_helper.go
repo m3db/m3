@@ -361,7 +361,7 @@ func (ph *placementHelper) PlaceShards(
 		}
 	}
 
-	instanceHeap, err := ph.buildInstanceHeap(candidates, true)
+	instanceHeap, err := ph.buildInstanceHeap(nonLeavingInstances(candidates), true)
 	if err != nil {
 		return err
 	}
@@ -411,7 +411,7 @@ func (ph *placementHelper) returnInitializingShardsToSource(
 		}
 		sourceInstance, ok := candidateMap[sourceID]
 		if !ok {
-			return fmt.Errorf("could not find sourceID %s in the placement", sourceID)
+			return fmt.Errorf("could not find sourceID %s for instance %s, shard %d", sourceID, from.ID(), s.ID())
 		}
 		if placement.IsInstanceLeaving(sourceInstance) {
 			continue

@@ -628,6 +628,44 @@ func TestLooseRackCheckAlgorithm(t *testing.T) {
 	assert.NoError(t, placement.Validate(p))
 }
 
+func TestRemoveMultipleInstances(t *testing.T) {
+	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 10)
+	i2 := placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 10)
+	i3 := placement.NewEmptyInstance("i3", "r2", "z1", "endpoint", 20)
+	i4 := placement.NewEmptyInstance("i4", "r3", "z1", "endpoint", 10)
+	i5 := placement.NewEmptyInstance("i5", "r4", "z1", "endpoint", 30)
+	i6 := placement.NewEmptyInstance("i6", "r6", "z1", "endpoint", 40)
+	i7 := placement.NewEmptyInstance("i7", "r7", "z1", "endpoint", 10)
+	i8 := placement.NewEmptyInstance("i8", "r8", "z1", "endpoint", 10)
+	i9 := placement.NewEmptyInstance("i9", "r9", "z1", "endpoint", 10)
+
+	instances := []placement.Instance{i1, i2, i3, i4, i5, i6, i7, i8, i9}
+
+	ids := make([]uint32, 1024)
+	for i := 0; i < len(ids); i++ {
+		ids[i] = uint32(i)
+	}
+
+	a := newShardedAlgorithm(placement.NewOptions())
+	p, err := a.InitialPlacement(instances, ids, 2)
+	assert.NoError(t, err)
+	p = markAllShardsAsAvailable(t, p)
+
+	p, err = a.RemoveInstances(p, []string{"i1", "i2", "i3"})
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
+
+	i1, ok := p.Instance("i1")
+	assert.True(t, ok)
+	assert.True(t, placement.IsInstanceLeaving(i1))
+	i2, ok = p.Instance("i2")
+	assert.True(t, ok)
+	assert.True(t, placement.IsInstanceLeaving(i2))
+	i3, ok = p.Instance("i3")
+	assert.True(t, ok)
+	assert.True(t, placement.IsInstanceLeaving(i3))
+}
+
 func TestRemoveAbsentInstance(t *testing.T) {
 	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 

@@ -38,10 +38,10 @@ func getValidCandidates(
 	opts placement.Options,
 ) ([]placement.Instance, error) {
 	var instances = make([]placement.Instance, 0, len(candidates))
-	for _, h := range candidates {
-		instanceInPlacement, exist := p.Instance(h.ID())
+	for _, instance := range candidates {
+		instanceInPlacement, exist := p.Instance(instance.ID())
 		if !exist {
-			instances = append(instances, h)
+			instances = append(instances, instance)
 			continue
 		}
 		if placement.IsInstanceLeaving(instanceInPlacement) {

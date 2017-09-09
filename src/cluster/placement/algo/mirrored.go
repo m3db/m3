@@ -91,18 +91,18 @@ func (a mirroredAlgorithm) RemoveInstances(
 		return nil, err
 	}
 
-	removingInstances := make([]placement.Instance, len(instanceIDs))
-	for i, id := range instanceIDs {
-		instance, ok := p.Instance(id)
-		if !ok {
-			return nil, fmt.Errorf("instance %s not found in placement", id)
-		}
-		removingInstances[i] = instance
-	}
-
 	p, err := placement.MarkAllShardsAsAvailable(p)
 	if err != nil {
 		return nil, err
+	}
+
+	removingInstances := make([]placement.Instance, 0, len(instanceIDs))
+	for _, id := range instanceIDs {
+		instance, ok := p.Instance(id)
+		if !ok {
+			return nil, fmt.Errorf("instance %s does not exist in the placement", id)
+		}
+		removingInstances = append(removingInstances, instance)
 	}
 
 	mirrorPlacement, err := mirrorFromPlacement(p)
@@ -121,7 +121,7 @@ func (a mirroredAlgorithm) RemoveInstances(
 			return nil, err
 		}
 		// Place the shards from the leaving instance to the rest of the cluster
-		if err := ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance, nonLeavingInstances(ph.Instances())); err != nil {
+		if err := ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance, ph.Instances()); err != nil {
 			return nil, err
 		}
 
@@ -146,10 +146,8 @@ func (a mirroredAlgorithm) AddInstances(
 	}
 
 	// At this point, all leaving instances in the placement are cleaned up.
-	for _, instance := range addingInstances {
-		if _, exist := p.Instance(instance.ID()); exist {
-			return nil, fmt.Errorf("instance %s already exist in the placement", instance.ID())
-		}
+	if addingInstances, err = validAddingInstances(p, addingInstances); err != nil {
+		return nil, err
 	}
 
 	mirrorPlacement, err := mirrorFromPlacement(p)
@@ -192,6 +190,11 @@ func (a mirroredAlgorithm) ReplaceInstances(
 		return nil, err
 	}
 
+	// At this point, all leaving instances in the placement are cleaned up.
+	if addingInstances, err = validAddingInstances(p, addingInstances); err != nil {
+		return nil, err
+	}
+
 	for i := range leavingInstanceIDs {
 		// We want full replacement for each instance.
 		p, err = a.shardedAlgo.ReplaceInstances(p, leavingInstanceIDs[i:i+1], addingInstances[i:i+1])
@@ -200,6 +203,20 @@ func (a mirroredAlgorithm) ReplaceInstances(
 		}
 	}
 	return p, nil
+}
+
+func validAddingInstances(p placement.Placement, addingInstances []placement.Instance) ([]placement.Instance, error) {
+	for i, instance := range addingInstances {
+		if _, exist := p.Instance(instance.ID()); exist {
+			return nil, fmt.Errorf("instance %s already exist in the placement", instance.ID())
+		}
+		if placement.IsInstanceLeaving(instance) {
+			// The instance was leaving in placement, after MarkAllShardsAsAvailable it is now removed
+			// from the placement, so we should treat them as fresh new instances.
+			addingInstances[i] = instance.SetShards(shard.NewShards(nil))
+		}
+	}
+	return addingInstances, nil
 }
 
 func groupInstancesByShardSetID(
@@ -211,15 +228,18 @@ func groupInstancesByShardSetID(
 		res         = make([]placement.Instance, 0, len(instances))
 	)
 	for _, instance := range instances {
-		ssID := instance.ShardSetID()
-		weight := instance.Weight()
-		rack := instance.Rack()
+		var (
+			ssID   = instance.ShardSetID()
+			weight = instance.Weight()
+			rack   = instance.Rack()
+			shards = instance.Shards()
+		)
 		meta, ok := shardSetMap[ssID]
 		if !ok {
 			meta = &shardSetMetadata{
 				weight: weight,
 				racks:  make(map[string]struct{}, rf),
-				shards: instance.Shards(),
+				shards: shards,
 			}
 			shardSetMap[ssID] = meta
 		}
@@ -229,6 +249,10 @@ func groupInstancesByShardSetID(
 
 		if meta.weight != weight {
 			return nil, fmt.Errorf("found different weights: %d and %d, for shardset id %d", meta.weight, weight, ssID)
+		}
+
+		if !meta.shards.Equals(shards) {
+			return nil, fmt.Errorf("found different shards: %v and %v, for shardset id %d", meta.shards, shards, ssID)
 		}
 
 		meta.racks[rack] = struct{}{}
@@ -269,6 +293,7 @@ func mirrorFromPlacement(p placement.Placement) (placement.Placement, error) {
 		SetInstances(mirrorInstances).
 		SetReplicaFactor(1).
 		SetShards(p.Shards()).
+		SetCutoverNanos(p.CutoverNanos()).
 		SetIsSharded(true).
 		SetIsMirrored(true), nil
 }
@@ -306,6 +331,7 @@ func placementFromMirror(
 		SetInstances(instancesWithShards).
 		SetReplicaFactor(rf).
 		SetShards(mirror.Shards()).
+		SetCutoverNanos(mirror.CutoverNanos()).
 		SetIsMirrored(true).
 		SetIsSharded(true), nil
 }
@@ -324,7 +350,8 @@ func instancesFromMirror(
 	for i, instance := range instances {
 		newShards := make([]shard.Shard, shards.NumShards())
 		for j, s := range shards.All() {
-			newShard := shard.NewShard(s.ID()).SetState(s.State())
+			// TODO move clone() to shard interface
+			newShard := shard.NewShard(s.ID()).SetState(s.State()).SetCutoffNanos(s.CutoffNanos()).SetCutoverNanos(s.CutoverNanos())
 			sourceID := s.SourceID()
 			if sourceID != "" {
 				// The sourceID in the mirror placement is shardSetID, need to be converted

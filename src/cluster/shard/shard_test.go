@@ -30,10 +30,22 @@ import (
 )
 
 func TestShard(t *testing.T) {
-	s := NewShard(1).SetState(Initializing).SetSourceID("id")
+	s := NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoffNanos(1000).SetCutoverNanos(100)
 	assert.Equal(t, uint32(1), s.ID())
 	assert.Equal(t, Initializing, s.State())
 	assert.Equal(t, "id", s.SourceID())
+	assert.Equal(t, int64(1000), s.CutoffNanos())
+	assert.Equal(t, int64(100), s.CutoverNanos())
+}
+
+func TestShardEqualts(t *testing.T) {
+	s := NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoffNanos(1000).SetCutoverNanos(100)
+	assert.False(t, s.Equals(NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoffNanos(1000)))
+	assert.False(t, s.Equals(NewShard(1).SetState(Initializing).SetSourceID("id").SetCutoverNanos(100)))
+	assert.False(t, s.Equals(NewShard(1).SetState(Initializing).SetCutoffNanos(1000).SetCutoverNanos(100)))
+	assert.False(t, s.Equals(NewShard(1).SetSourceID("id").SetCutoffNanos(1000).SetCutoverNanos(100)))
+	assert.False(t, s.Equals(NewShard(1).SetSourceID("id").SetCutoffNanos(1000).SetCutoverNanos(100)))
+	assert.False(t, s.Equals(NewShard(2).SetState(Initializing).SetSourceID("id").SetCutoffNanos(1000).SetCutoverNanos(100)))
 }
 
 func TestShards(t *testing.T) {
@@ -75,6 +87,22 @@ func TestShards(t *testing.T) {
 
 	shards.Add(NewShard(3).SetState(Leaving))
 	assert.Equal(t, "[Initializing=[1], Available=[2], Leaving=[3]]", shards.String())
+}
+
+func TestShardsEquals(t *testing.T) {
+	ss1 := NewShards(nil)
+	ss2 := NewShards(nil)
+
+	s1 := NewShard(1).SetState(Initializing).SetSourceID("id")
+	s2 := NewShard(2).SetState(Available)
+	ss1.Add(s1)
+	ss2.Add(s2)
+	assert.False(t, ss1.Equals(ss2))
+	ss2.Add(s1)
+	assert.False(t, ss1.Equals(ss2))
+
+	ss2.Remove(s2.ID())
+	assert.True(t, ss1.Equals(ss2))
 }
 
 func TestSort(t *testing.T) {
