@@ -18,24 +18,43 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package process provides functions for inspecting processes.
-package process
+package xnet_test
 
 import (
-	"fmt"
-	"os"
+	"io"
+	"log"
+	"net"
+
+	"github.com/m3db/m3x/net"
+	"github.com/m3db/m3x/retry"
 )
 
-// NumFDs returns the number of file descriptors for a given process.
-// This is more efficient than the NumFDs() method in the psutils package
-// by avoiding reading the destination of the symlinks in the proc directory.
-func NumFDs(pid int) (int, error) {
-	statPath := fmt.Sprintf("/proc/%d/fd", pid)
-	d, err := os.Open(statPath)
+func ExampleStartForeverAcceptLoop() {
+	// Create a new listener.
+	l, err := net.Listen("tcp", ":0")
 	if err != nil {
-		return 0, err
+		log.Fatal(err)
 	}
-	fnames, err := d.Readdirnames(-1)
-	d.Close()
-	return len(fnames), err
+	defer l.Close()
+
+	// Start accepting incoming connections.
+	var (
+		opts          = xretry.NewOptions()
+		connCh, errCh = xnet.StartAcceptLoop(l, opts)
+	)
+
+	for {
+		select {
+		case conn := <-connCh:
+			// Handle the connection in a new goroutine.
+			go func(c net.Conn) {
+				io.Copy(c, c)
+				c.Close()
+			}(conn)
+
+		case err := <-errCh:
+			// Only fatal errors are returned on errCh.
+			log.Fatal(err)
+		}
+	}
 }

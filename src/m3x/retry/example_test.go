@@ -18,24 +18,49 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package process provides functions for inspecting processes.
-package process
+package xretry_test
 
 import (
+	"context"
+	"errors"
 	"fmt"
-	"os"
+	"log"
+
+	"github.com/m3db/m3x/retry"
 )
 
-// NumFDs returns the number of file descriptors for a given process.
-// This is more efficient than the NumFDs() method in the psutils package
-// by avoiding reading the destination of the symlinks in the proc directory.
-func NumFDs(pid int) (int, error) {
-	statPath := fmt.Sprintf("/proc/%d/fd", pid)
-	d, err := os.Open(statPath)
-	if err != nil {
-		return 0, err
+func ExampleRetrier() {
+	var (
+		opts    = xretry.NewOptions()
+		retrier = xretry.NewRetrier(opts)
+		context = context.Background()
+	)
+
+	continueFn := func(attempt int) bool {
+		// Check if the context has been canceled.
+		select {
+		case <-context.Done():
+			return false
+		default:
+			return true
+		}
 	}
-	fnames, err := d.Readdirnames(-1)
-	d.Close()
-	return len(fnames), err
+
+	var attempts int
+	fn := func() error {
+		// Perform some work which may fail.
+
+		if attempts++; attempts == 3 {
+			fmt.Printf("Attempt %v succeeded", attempts)
+			// Output: Attempt 3 succeeded
+
+			return nil
+		}
+		return errors.New("test")
+	}
+
+	if err := retrier.AttemptWhile(continueFn, fn); err != nil {
+		log.Fatal(err)
+	}
+
 }

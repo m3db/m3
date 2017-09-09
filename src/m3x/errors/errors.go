@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package xerrors provides utilities for working with different types errors.
 package xerrors
 
 import (
@@ -26,7 +27,7 @@ import (
 	"fmt"
 )
 
-// FirstError will return the first non nil error
+// FirstError returns the first non nil error.
 func FirstError(errs ...error) error {
 	for i := range errs {
 		if errs[i] != nil {
@@ -48,12 +49,13 @@ func (e containedError) InnerError() error {
 	return e.inner
 }
 
-// ContainedError is an error with a contained error
+// ContainedError is an error with a contained error.
 type ContainedError interface {
 	InnerError() error
 }
 
-// InnerError returns the packaged inner error if this is an error that contains another
+// InnerError returns the packaged inner error if this is an error that
+// contains another.
 func InnerError(err error) error {
 	contained, ok := err.(ContainedError)
 	if !ok {
@@ -67,7 +69,8 @@ type renamedError struct {
 	renamed error
 }
 
-// NewRenamedError returns a new error that packages an inner error with a renamed error
+// NewRenamedError returns a new error that packages an inner error with
+// a renamed error.
 func NewRenamedError(inner, renamed error) error {
 	return renamedError{containedError{inner}, renamed}
 }
@@ -110,13 +113,13 @@ func (e invalidParamsError) InnerError() error {
 	return e.inner
 }
 
-// IsInvalidParams returns true if this is an invalid params error
+// IsInvalidParams returns true if this is an invalid params error.
 func IsInvalidParams(err error) bool {
 	return GetInnerInvalidParamsError(err) != nil
 }
 
 // GetInnerInvalidParamsError returns an inner invalid params error
-// if contained by this error, nil otherwise
+// if contained by this error, nil otherwise.
 func GetInnerInvalidParamsError(err error) error {
 	for err != nil {
 		if _, ok := err.(invalidParamsError); ok {
@@ -131,7 +134,7 @@ type retryableError struct {
 	containedError
 }
 
-// NewRetryableError creates a new retryable error
+// NewRetryableError creates a new retryable error.
 func NewRetryableError(inner error) error {
 	return retryableError{containedError{inner}}
 }
@@ -144,13 +147,13 @@ func (e retryableError) InnerError() error {
 	return e.inner
 }
 
-// IsRetryableError returns true if this is a retryable error
+// IsRetryableError returns true if this is a retryable error.
 func IsRetryableError(err error) bool {
 	return GetInnerRetryableError(err) != nil
 }
 
 // GetInnerRetryableError returns an inner retryable error
-// if contained by this error, nil otherwise
+// if contained by this error, nil otherwise.
 func GetInnerRetryableError(err error) error {
 	for err != nil {
 		if _, ok := err.(retryableError); ok {
@@ -165,7 +168,7 @@ type nonRetryableError struct {
 	containedError
 }
 
-// NewNonRetryableError creates a new non-retryable error
+// NewNonRetryableError creates a new non-retryable error.
 func NewNonRetryableError(inner error) error {
 	return nonRetryableError{containedError{inner}}
 }
@@ -178,13 +181,13 @@ func (e nonRetryableError) InnerError() error {
 	return e.inner
 }
 
-// IsNonRetryableError returns true if this is a non-retryable error
+// IsNonRetryableError returns true if this is a non-retryable error.
 func IsNonRetryableError(err error) bool {
 	return GetInnerNonRetryableError(err) != nil
 }
 
 // GetInnerNonRetryableError returns an inner non-retryable error
-// if contained by this error, nil otherwise
+// if contained by this error, nil otherwise.
 func GetInnerNonRetryableError(err error) error {
 	for err != nil {
 		if _, ok := err.(nonRetryableError); ok {
@@ -196,6 +199,7 @@ func GetInnerNonRetryableError(err error) error {
 }
 
 // MultiError is an immutable error that packages a list of errors.
+//
 // TODO(xichen): we may want to limit the number of errors included.
 type MultiError struct {
 	err    error // optimization for single error case
@@ -207,7 +211,7 @@ func NewMultiError() MultiError {
 	return MultiError{}
 }
 
-// Empty returns true if the MultiError has no errors
+// Empty returns true if the MultiError has no errors.
 func (e MultiError) Empty() bool {
 	return e.err == nil
 }

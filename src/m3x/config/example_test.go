@@ -18,24 +18,24 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package process provides functions for inspecting processes.
-package process
+package xconfig_test
 
 import (
 	"fmt"
-	"os"
+	"log"
+
+	"github.com/m3db/m3x/config"
 )
 
-// NumFDs returns the number of file descriptors for a given process.
-// This is more efficient than the NumFDs() method in the psutils package
-// by avoiding reading the destination of the symlinks in the proc directory.
-func NumFDs(pid int) (int, error) {
-	statPath := fmt.Sprintf("/proc/%d/fd", pid)
-	d, err := os.Open(statPath)
-	if err != nil {
-		return 0, err
+type config struct {
+	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
+}
+
+func ExampleLoadFile() {
+	var cfg config
+	if err := xconfig.LoadFile(&cfg, "testdata/conf.yaml"); err != nil {
+		log.Fatal(err)
 	}
-	fnames, err := d.Readdirnames(-1)
-	d.Close()
-	return len(fnames), err
+	fmt.Printf("listenAddress: %s\n", cfg.ListenAddress)
+	// Output: listenAddress: 0.0.0.0:8392
 }

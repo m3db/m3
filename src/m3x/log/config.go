@@ -25,14 +25,14 @@ import (
 	"os"
 )
 
-// Configuration defines configuration for logging 'natch
+// Configuration defines configuration for logging.
 type Configuration struct {
-	File   string                 `json:"file",yaml:"file"`
-	Level  string                 `json:"level",yaml:"level"`
-	Fields map[string]interface{} `json:"fields",yaml:"fields"`
+	File   string                 `json:"file" yaml:"file"`
+	Level  string                 `json:"level" yaml:"level"`
+	Fields map[string]interface{} `json:"fields" yaml:"fields"`
 }
 
-// BuildLogger builds a new Logger based on the configuration
+// BuildLogger builds a new Logger based on the configuration.
 func (cfg Configuration) BuildLogger() (Logger, error) {
 	writer := io.Writer(os.Stdout)
 

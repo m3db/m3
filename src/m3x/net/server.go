@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package xnet implements functions for running network servers.
 package xnet
 
 import (
@@ -49,11 +50,11 @@ func StartAcceptLoop(l net.Listener, rOpts xretry.Options) (<-chan net.Conn, <-c
 				if connErr == nil {
 					return nil
 				}
-				// If the error is a temporary network error, we consider it retryable
+				// If the error is a temporary network error, we consider it retryable.
 				if ne, ok := connErr.(net.Error); ok && ne.Temporary() {
 					return ne
 				}
-				// Otherwise it's a non-retryable error
+				// Otherwise it's a non-retryable error.
 				return xerrors.NewNonRetryableError(connErr)
 			}); err != nil {
 				close(connCh)

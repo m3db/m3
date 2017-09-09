@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package xclose provides utilities for closing resources.
 package xclose
 
 import (
@@ -27,18 +28,17 @@ import (
 
 var (
 	// ErrNotCloseable is returned when trying to close a resource
-	// that does not conform to a closeable interface
+	// that does not conform to a closeable interface.
 	ErrNotCloseable = errors.New("not a closeable resource")
 )
 
-// Closer is a resource that can close
+// Closer is a resource that can be closed.
 type Closer interface {
 	io.Closer
 }
 
-// SimpleCloser is a resource that can close without returning a result
+// SimpleCloser is a resource that can be closed without returning a result.
 type SimpleCloser interface {
-	// Close resource
 	Close()
 }
 

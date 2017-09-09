@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package checked implements reference counted resources.
 package checked
 
 // Finalizer finalizes a checked resource.

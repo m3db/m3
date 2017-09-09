@@ -18,24 +18,5 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package process provides functions for inspecting processes.
-package process
-
-import (
-	"fmt"
-	"os"
-)
-
-// NumFDs returns the number of file descriptors for a given process.
-// This is more efficient than the NumFDs() method in the psutils package
-// by avoiding reading the destination of the symlinks in the proc directory.
-func NumFDs(pid int) (int, error) {
-	statPath := fmt.Sprintf("/proc/%d/fd", pid)
-	d, err := os.Open(statPath)
-	if err != nil {
-		return 0, err
-	}
-	fnames, err := d.Readdirnames(-1)
-	d.Close()
-	return len(fnames), err
-}
+// Package hash provides implementation of hash functions.
+package hash

@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package xlog implements a logging package.
 package xlog
 
 import (
@@ -28,7 +29,7 @@ import (
 	"time"
 )
 
-// Logger provides an abstract interface for logging
+// Logger provides an abstract interface for logging.
 type Logger interface {
 	// Enabled returns whether the given level is enabled.
 	Enabled(level LogLevel) bool
@@ -76,12 +77,12 @@ type LogField interface {
 	Value() interface{}
 }
 
-// NewLogField creates a new log field
+// NewLogField creates a new log field.
 func NewLogField(key string, value interface{}) LogField {
 	return &logField{key, value}
 }
 
-// NewLogErrField wraps an error string as a LogField named "error"
+// NewLogErrField wraps an error string as a LogField named "error".
 func NewLogErrField(err error) LogField {
 	return NewLogField("error", err.Error())
 }
@@ -108,20 +109,20 @@ type LogFields interface {
 	// Len returns the length
 	Len() int
 
-	// ValueAt returns a value for an index
+	// ValueAt returns a value for an index.
 	ValueAt(i int) LogField
 }
 
-// Fields is a list of log fields that implements the LogFields interface
+// Fields is a list of log fields that implements the LogFields interface.
 type Fields []LogField
 
-// Len returns the length
+// Len returns the length.
 func (f Fields) Len() int { return len(f) }
 
-// ValueAt returns a value for an index
+// ValueAt returns a value for an index.
 func (f Fields) ValueAt(i int) LogField { return f[i] }
 
-// NullLogger is a logger that emits nowhere
+// NullLogger is a logger that emits nowhere.
 var NullLogger Logger = nullLogger{}
 
 type nullLogger struct {
@@ -255,7 +256,7 @@ func (l LogLevel) String() string {
 	return ""
 }
 
-// ParseLogLevel parses a log level string to log level
+// ParseLogLevel parses a log level string to log level.
 func ParseLogLevel(level string) (LogLevel, error) {
 	level = strings.ToLower(level)
 	for _, l := range logLevels {

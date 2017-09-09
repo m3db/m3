@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// Package instrument implements functions to make instrumenting code,
+// including metrics and logging, easier.
 package instrument
 
 import (
@@ -29,43 +31,42 @@ import (
 	"github.com/uber-go/tally"
 )
 
-// Reporter reports information during runtime
+// Reporter reports information during runtime.
 type Reporter interface {
-	// Report reports information during runtime
 	Report()
 }
 
-// BuildReporter reports metrics about the build version
+// BuildReporter reports metrics about the build version.
 type BuildReporter interface {
 	io.Closer
 
-	// Start begins the background version reporting routine
+	// Start begins the background version reporting routine.
 	Start() error
 }
 
-// Options represents the options for instrumentation
+// Options represents the options for instrumentation.
 type Options interface {
-	// SetLogger sets the logger
+	// SetLogger sets the logger.
 	SetLogger(value xlog.Logger) Options
 
-	// Logger returns the logger
+	// Logger returns the logger.
 	Logger() xlog.Logger
 
-	// SetMetricsScope sets the metricsScope
+	// SetMetricsScope sets the metrics scope.
 	SetMetricsScope(value tally.Scope) Options
 
-	// MetricsScope returns the metricsScope
+	// MetricsScope returns the metrics scope.
 	MetricsScope() tally.Scope
 
-	// SetMetricsSamplingRate sets the metrics sampling rate
+	// SetMetricsSamplingRate sets the metrics sampling rate.
 	SetMetricsSamplingRate(value float64) Options
 
-	// SetMetricsSamplingRate returns the metrics sampling rate
+	// SetMetricsSamplingRate returns the metrics sampling rate.
 	MetricsSamplingRate() float64
 
-	// ReportInterval sets time between reporting many metrics within the system
+	// ReportInterval sets the time between reporting metrics within the system.
 	SetReportInterval(time.Duration) Options
 
-	// GetReportInterval returns the time between reporting many metrics within the system
+	// GetReportInterval returns the time between reporting metrics within the system.
 	ReportInterval() time.Duration
 }
