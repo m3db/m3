@@ -102,7 +102,11 @@ func NewStore(etcdKV clientv3.KV, etcdWatcher clientv3.Watcher, opts Options) (k
 
 		go func() {
 			for range store.cacheUpdatedCh {
-				store.writeCacheToFile()
+				if err := store.writeCacheToFile(); err != nil {
+					store.logger.
+						WithFields(xlog.NewLogErrField(err)).
+						Error("failed to write cache file")
+				}
 			}
 		}()
 	}
