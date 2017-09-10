@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3x/log"
 )
 
 type includeInstanceType int
@@ -79,6 +80,7 @@ type placementHelper struct {
 	rf                 int
 	uniqueShards       []uint32
 	instances          map[string]placement.Instance
+	log                xlog.Logger
 	opts               placement.Options
 }
 
@@ -150,6 +152,7 @@ func newHelper(p placement.Placement, targetRF int, opts placement.Options) Plac
 		rf:           targetRF,
 		instances:    make(map[string]placement.Instance, p.NumInstances()),
 		uniqueShards: p.Shards(),
+		log:          opts.InstrumentOptions().Logger(),
 		opts:         opts,
 	}
 
@@ -515,15 +518,23 @@ func (ph *placementHelper) optimize(fn assignLoadFn) {
 }
 
 func (ph *placementHelper) assignLoadToInstanceSafe(addingInstance placement.Instance) {
-	ph.assignTargetLoad(addingInstance, func(from, to placement.Instance) bool {
+	if err := ph.assignTargetLoad(addingInstance, func(from, to placement.Instance) bool {
 		return ph.moveOneShardInState(from, to, shard.Unknown)
-	})
+	}); err != nil {
+		ph.log.
+			WithFields(xlog.NewLogErrField(err)).
+			Error("failed to assign target load to instance")
+	}
 }
 
 func (ph *placementHelper) assignLoadToInstanceUnsafe(addingInstance placement.Instance) {
-	ph.assignTargetLoad(addingInstance, func(from, to placement.Instance) bool {
+	if err := ph.assignTargetLoad(addingInstance, func(from, to placement.Instance) bool {
 		return ph.moveOneShard(from, to)
-	})
+	}); err != nil {
+		ph.log.
+			WithFields(xlog.NewLogErrField(err)).
+			Error("failed to assign target load to instance")
+	}
 }
 
 func (ph *placementHelper) AddInstance(addingInstance placement.Instance) {
