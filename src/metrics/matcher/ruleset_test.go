@@ -42,7 +42,7 @@ var (
 )
 
 func TestRuleSetProperties(t *testing.T) {
-	_, _, rs, _ := testRuleSet()
+	_, _, rs := testRuleSet()
 	rs.namespace = testNamespace
 	rs.version = 2
 	rs.cutoverNanos = 12345
@@ -55,13 +55,13 @@ func TestRuleSetProperties(t *testing.T) {
 }
 
 func TestRuleSetMatchNoMatcher(t *testing.T) {
-	_, _, rs, _ := testRuleSet()
+	_, _, rs := testRuleSet()
 	nowNanos := rs.nowFn().UnixNano()
 	require.Equal(t, rules.EmptyMatchResult, rs.Match([]byte("foo"), nowNanos, nowNanos))
 }
 
 func TestRuleSetMatchWithMatcher(t *testing.T) {
-	_, _, rs, _ := testRuleSet()
+	_, _, rs := testRuleSet()
 	mockMatcher := &mockMatcher{res: rules.EmptyMatchResult}
 	rs.matcher = mockMatcher
 
@@ -79,19 +79,19 @@ func TestRuleSetMatchWithMatcher(t *testing.T) {
 }
 
 func TestToRuleSetNilValue(t *testing.T) {
-	_, _, rs, _ := testRuleSet()
+	_, _, rs := testRuleSet()
 	_, err := rs.toRuleSet(nil)
 	require.Equal(t, errNilValue, err)
 }
 
 func TestToRuleSetUnmarshalError(t *testing.T) {
-	_, _, rs, _ := testRuleSet()
+	_, _, rs := testRuleSet()
 	_, err := rs.toRuleSet(&mockValue{})
 	require.Error(t, err)
 }
 
 func TestToRuleSetSuccess(t *testing.T) {
-	store, _, rs, _ := testRuleSet()
+	store, _, rs := testRuleSet()
 	proto := &schema.RuleSet{
 		Namespace:   string(testNamespace),
 		Tombstoned:  false,
@@ -121,7 +121,7 @@ func TestRuleSetProcess(t *testing.T) {
 		}
 	)
 
-	_, cache, rs, _ := testRuleSet()
+	_, cache, rs := testRuleSet()
 	memCache := cache.(*memCache)
 	for _, input := range inputs {
 		err := rs.process(input)
@@ -172,7 +172,7 @@ func (r mockRuleSet) Tombstoned() bool                        { return r.tombsto
 func (r mockRuleSet) ActiveSet(timeNanos int64) rules.Matcher { return r.matcher }
 func (r mockRuleSet) ToMutableRuleSet() rules.MutableRuleSet  { return nil }
 
-func testRuleSet() (kv.Store, Cache, *ruleSet, Options) {
+func testRuleSet() (kv.Store, Cache, *ruleSet) {
 	store := mem.NewStore()
 	cache := newMemCache()
 	opts := NewOptions().
@@ -182,5 +182,5 @@ func testRuleSet() (kv.Store, Cache, *ruleSet, Options) {
 		SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) { cache.Register(namespace, ruleSet) }).
 		SetMatchMode(rules.ReverseMatch).
 		SetMatchRangePast(0)
-	return store, cache, newRuleSet(testNamespace, testNamespacesKey, opts).(*ruleSet), opts
+	return store, cache, newRuleSet(testNamespace, testNamespacesKey, opts).(*ruleSet)
 }
