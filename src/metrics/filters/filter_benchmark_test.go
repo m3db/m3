@@ -51,7 +51,7 @@ func BenchmarkEqualityFilter(b *testing.B) {
 
 	val := []byte("test")
 	for n := 0; n < b.N; n++ {
-		testUnionFilter(val, []Filter{f1, f2})
+		_ = testUnionFilter(val, []Filter{f1, f2})
 	}
 }
 
@@ -61,7 +61,7 @@ func BenchmarkEqualityFilterByValue(b *testing.B) {
 
 	val := []byte("test")
 	for n := 0; n < b.N; n++ {
-		testUnionFilter(val, []Filter{f1, f2})
+		_ = testUnionFilter(val, []Filter{f1, f2})
 	}
 }
 
@@ -159,7 +159,11 @@ func benchMultiRangeFilter(b *testing.B, patterns []byte, backwards bool, vals [
 
 // nolint: unparam
 func benchMultiRangeFilterSelect(b *testing.B, patterns []byte, backwards bool, vals [][]byte) {
-	f, _ := newTestMultiCharRangeSelectFilter(patterns, backwards)
+	f, err := newTestMultiCharRangeSelectFilter(patterns, backwards)
+	if err != nil {
+		b.Errorf("encountered error creating filter: %v", err)
+	}
+
 	for n := 0; n < b.N; n++ {
 		for _, val := range vals {
 			f.matches(val)
@@ -169,7 +173,11 @@ func benchMultiRangeFilterSelect(b *testing.B, patterns []byte, backwards bool, 
 
 // nolint: unparam
 func benchMultiRangeFilterTrie(b *testing.B, patterns []byte, backwards bool, vals [][]byte) {
-	f, _ := newTestMultiCharRangeTrieFilter(patterns, backwards)
+	f, err := newTestMultiCharRangeTrieFilter(patterns, backwards)
+	if err != nil {
+		b.Errorf("encountered error creating filter: %v", err)
+	}
+
 	for n := 0; n < b.N; n++ {
 		for _, val := range vals {
 			f.matches(val)
@@ -189,7 +197,11 @@ func benchRangeFilterStructs(b *testing.B, pattern, val []byte, expectedMatch bo
 
 func benchRangeFilterRange(b *testing.B, pattern, val []byte, expectedMatch bool) {
 	for n := 0; n < b.N; n++ {
-		match, _ := validateRangeByScan(pattern, val)
+		match, err := validateRangeByScan(pattern, val)
+		if err != nil {
+			b.Errorf("unexpected error: %v", err)
+		}
+
 		if match != expectedMatch {
 			b.FailNow()
 		}
@@ -202,6 +214,7 @@ func benchTagsFilter(b *testing.B, id []byte, tagsFilter Filter) {
 	}
 }
 
+// nolint: unparam
 func testUnionFilter(val []byte, filters []Filter) bool {
 	for _, filter := range filters {
 		if !filter.Matches(val) {
