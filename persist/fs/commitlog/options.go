@@ -55,7 +55,7 @@ var (
 
 var (
 	errFlushIntervalNonNegative       = errors.New("flush interval must be non-negative")
-	errBlockSizePositive              = errors.New("block size must be a postive duration")
+	errBlockSizePositive              = errors.New("block size must be a positive duration")
 	errRetentionPeriodPositive        = errors.New("retention period must be a positive duration")
 	errRetentionGreaterEqualBlockSize = errors.New("retention period must be >= block size")
 )
