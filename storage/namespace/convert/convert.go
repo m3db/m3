@@ -44,18 +44,18 @@ func ToRetention(
 		return nil, errRetentionNil
 	}
 
-	fromMins := func(n int64) time.Duration {
-		return xtime.FromNormalizedDuration(n, time.Minute)
+	fromNanos := func(n int64) time.Duration {
+		return xtime.FromNormalizedDuration(n, time.Nanosecond)
 	}
 
 	ropts := retention.NewOptions().
-		SetRetentionPeriod(fromMins(ro.RetentionPeriodMins)).
-		SetBlockSize(fromMins(ro.BlockSizeMins)).
-		SetBufferFuture(fromMins(ro.BufferFutureMins)).
-		SetBufferPast(fromMins(ro.BufferPastMins)).
+		SetRetentionPeriod(fromNanos(ro.RetentionPeriodNanos)).
+		SetBlockSize(fromNanos(ro.BlockSizeNanos)).
+		SetBufferFuture(fromNanos(ro.BufferFutureNanos)).
+		SetBufferPast(fromNanos(ro.BufferPastNanos)).
 		SetBlockDataExpiry(ro.BlockDataExpiry).
 		SetBlockDataExpiryAfterNotAccessedPeriod(
-			fromMins(ro.BlockDataExpiryAfterNotAccessPeriodMins))
+			fromNanos(ro.BlockDataExpiryAfterNotAccessPeriodNanos))
 
 	if err := ropts.Validate(); err != nil {
 		return nil, err
@@ -95,8 +95,8 @@ func ToProto(m namespace.Map) *nsproto.Registry {
 		Namespaces: make(map[string]*nsproto.NamespaceOptions, len(m.Metadatas())),
 	}
 
-	toMins := func(t time.Duration) int64 {
-		return xtime.ToNormalizedDuration(t, time.Minute)
+	toNanos := func(t time.Duration) int64 {
+		return xtime.ToNormalizedDuration(t, time.Nanosecond)
 	}
 
 	for _, md := range m.Metadatas() {
@@ -108,12 +108,12 @@ func ToProto(m namespace.Map) *nsproto.Registry {
 			NeedsRepair:         md.Options().NeedsRepair(),
 			WritesToCommitLog:   md.Options().WritesToCommitLog(),
 			RetentionOptions: &nsproto.RetentionOptions{
-				BlockSizeMins:                           toMins(ropts.BlockSize()),
-				RetentionPeriodMins:                     toMins(ropts.RetentionPeriod()),
-				BufferFutureMins:                        toMins(ropts.BufferFuture()),
-				BufferPastMins:                          toMins(ropts.BufferPast()),
-				BlockDataExpiry:                         ropts.BlockDataExpiry(),
-				BlockDataExpiryAfterNotAccessPeriodMins: toMins(ropts.BlockDataExpiryAfterNotAccessedPeriod()),
+				BlockSizeNanos:                           toNanos(ropts.BlockSize()),
+				RetentionPeriodNanos:                     toNanos(ropts.RetentionPeriod()),
+				BufferFutureNanos:                        toNanos(ropts.BufferFuture()),
+				BufferPastNanos:                          toNanos(ropts.BufferPast()),
+				BlockDataExpiry:                          ropts.BlockDataExpiry(),
+				BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(ropts.BlockDataExpiryAfterNotAccessedPeriod()),
 			},
 		}
 	}

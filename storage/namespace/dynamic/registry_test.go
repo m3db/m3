@@ -125,11 +125,11 @@ func TestInitializerNoTimeout(t *testing.T) {
 	ropts := expectedNsValue.RetentionOptions
 	observedRopts := md.Options().RetentionOptions()
 	require.Equal(t, ropts.BlockDataExpiry, observedRopts.BlockDataExpiry())
-	require.Equal(t, ropts.BlockDataExpiryAfterNotAccessPeriodMins,
-		toMinsInt64(observedRopts.BlockDataExpiryAfterNotAccessedPeriod()))
-	require.Equal(t, ropts.BlockSizeMins, toMinsInt64(observedRopts.BlockSize()))
-	require.Equal(t, ropts.BufferFutureMins, toMinsInt64(observedRopts.BufferFuture()))
-	require.Equal(t, ropts.BufferPastMins, toMinsInt64(observedRopts.BufferPast()))
+	require.Equal(t, ropts.BlockDataExpiryAfterNotAccessPeriodNanos,
+		toNanosInt64(observedRopts.BlockDataExpiryAfterNotAccessedPeriod()))
+	require.Equal(t, ropts.BlockSizeNanos, toNanosInt64(observedRopts.BlockSize()))
+	require.Equal(t, ropts.BufferFutureNanos, toNanosInt64(observedRopts.BufferFuture()))
+	require.Equal(t, ropts.BufferPastNanos, toNanosInt64(observedRopts.BufferPast()))
 
 	require.NoError(t, rw.Close())
 	require.NoError(t, reg.Close())
@@ -298,12 +298,12 @@ func singleTestValue() testValue {
 					NeedsRepair:         true,
 					WritesToCommitLog:   true,
 					RetentionOptions: &nsproto.RetentionOptions{
-						BlockDataExpiry:                         true,
-						BlockDataExpiryAfterNotAccessPeriodMins: toMinsInt64(time.Minute),
-						BlockSizeMins:                           toMinsInt64(time.Hour * 2),
-						RetentionPeriodMins:                     toMinsInt64(time.Hour * 48),
-						BufferFutureMins:                        toMinsInt64(time.Minute * 10),
-						BufferPastMins:                          toMinsInt64(time.Minute * 15),
+						BlockDataExpiry:                          true,
+						BlockDataExpiryAfterNotAccessPeriodNanos: toNanosInt64(time.Minute),
+						BlockSizeNanos:                           toNanosInt64(time.Hour * 2),
+						RetentionPeriodNanos:                     toNanosInt64(time.Hour * 48),
+						BufferFutureNanos:                        toNanosInt64(time.Minute * 10),
+						BufferPastNanos:                          toNanosInt64(time.Minute * 15),
 					},
 				},
 			},
@@ -389,6 +389,6 @@ func (w *testValueWatch) Close() {
 	close(w.notifyCh)
 }
 
-func toMinsInt64(t time.Duration) int64 {
-	return xtime.ToNormalizedDuration(t, time.Minute)
+func toNanosInt64(t time.Duration) int64 {
+	return xtime.ToNormalizedDuration(t, time.Nanosecond)
 }

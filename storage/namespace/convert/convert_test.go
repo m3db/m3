@@ -22,6 +22,7 @@ package convert_test
 
 import (
 	"testing"
+	"time"
 
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
 	"github.com/m3db/m3db/retention"
@@ -33,13 +34,17 @@ import (
 )
 
 var (
+	toNanos = func(mins int64) int64 {
+		return int64(time.Duration(mins) * time.Minute / time.Nanosecond)
+	}
+
 	validRetentionOpts = nsproto.RetentionOptions{
-		RetentionPeriodMins:                     1200, // 20h
-		BlockSizeMins:                           120,  // 2h
-		BufferFutureMins:                        12,   // 12m
-		BufferPastMins:                          10,   // 10m
-		BlockDataExpiry:                         true,
-		BlockDataExpiryAfterNotAccessPeriodMins: 30, // 30m
+		RetentionPeriodNanos:                     toNanos(1200), // 20h
+		BlockSizeNanos:                           toNanos(120),  // 2h
+		BufferFutureNanos:                        toNanos(12),   // 12m
+		BufferPastNanos:                          toNanos(10),   // 10m
+		BlockDataExpiry:                          true,
+		BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 	}
 
 	validNamespaceOpts = nsproto.NamespaceOptions{
@@ -54,21 +59,21 @@ var (
 	invalidRetentionOpts = []nsproto.RetentionOptions{
 		// block size < buffer past
 		nsproto.RetentionOptions{
-			RetentionPeriodMins:                     1200, // 20h
-			BlockSizeMins:                           2,    // 2m
-			BufferFutureMins:                        12,   // 12m
-			BufferPastMins:                          10,   // 10m
-			BlockDataExpiry:                         true,
-			BlockDataExpiryAfterNotAccessPeriodMins: 30, // 30m
+			RetentionPeriodNanos:                     toNanos(1200), // 20h
+			BlockSizeNanos:                           toNanos(2),    // 2m
+			BufferFutureNanos:                        toNanos(12),   // 12m
+			BufferPastNanos:                          toNanos(10),   // 10m
+			BlockDataExpiry:                          true,
+			BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 		},
 		// block size > retention
 		nsproto.RetentionOptions{
-			RetentionPeriodMins:                     1200, // 20h
-			BlockSizeMins:                           1260, // 21h
-			BufferFutureMins:                        12,   // 12m
-			BufferPastMins:                          10,   // 10m
-			BlockDataExpiry:                         true,
-			BlockDataExpiryAfterNotAccessPeriodMins: 30, // 30m
+			RetentionPeriodNanos:                     toNanos(1200), // 20h
+			BlockSizeNanos:                           toNanos(1260), // 21h
+			BufferFutureNanos:                        toNanos(12),   // 12m
+			BufferPastNanos:                          toNanos(10),   // 10m
+			BlockDataExpiry:                          true,
+			BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(30), // 30m
 		},
 	}
 )
@@ -163,11 +168,11 @@ func assertEqualMetadata(t *testing.T, name string, expected nsproto.NamespaceOp
 }
 
 func assertEqualRetentions(t *testing.T, expected nsproto.RetentionOptions, observed retention.Options) {
-	require.Equal(t, expected.RetentionPeriodMins, int64(observed.RetentionPeriod().Minutes()))
-	require.Equal(t, expected.BlockSizeMins, int64(observed.BlockSize().Minutes()))
-	require.Equal(t, expected.BufferPastMins, int64(observed.BufferPast().Minutes()))
-	require.Equal(t, expected.BufferFutureMins, int64(observed.BufferFuture().Minutes()))
+	require.Equal(t, expected.RetentionPeriodNanos, observed.RetentionPeriod().Nanoseconds())
+	require.Equal(t, expected.BlockSizeNanos, observed.BlockSize().Nanoseconds())
+	require.Equal(t, expected.BufferPastNanos, observed.BufferPast().Nanoseconds())
+	require.Equal(t, expected.BufferFutureNanos, observed.BufferFuture().Nanoseconds())
 	require.Equal(t, expected.BlockDataExpiry, observed.BlockDataExpiry())
-	require.Equal(t, expected.BlockDataExpiryAfterNotAccessPeriodMins,
-		int64(observed.BlockDataExpiryAfterNotAccessedPeriod().Minutes()))
+	require.Equal(t, expected.BlockDataExpiryAfterNotAccessPeriodNanos,
+		observed.BlockDataExpiryAfterNotAccessedPeriod().Nanoseconds())
 }
