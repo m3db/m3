@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"errors"
 	"sort"
 	"sync"
 	"testing"
@@ -102,6 +103,28 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	}()
 
 	wg.Wait()
+}
+
+func TestFlushManagerFlushDoneError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fakeErr := errors.New("fake error while marking flush done")
+	mockFlusher := persist.NewMockFlush(ctrl)
+	mockFlusher.EXPECT().Done().Return(fakeErr).AnyTimes()
+	mockPersistManager := persist.NewMockManager(ctrl)
+	mockPersistManager.EXPECT().StartFlush().Return(mockFlusher, nil).AnyTimes()
+
+	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
+	db := newMockdatabase(ctrl)
+	db.EXPECT().Options().Return(testOpts).AnyTimes()
+	db.EXPECT().GetOwnedNamespaces().Return(nil).AnyTimes()
+
+	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
+	fm.pm = mockPersistManager
+
+	now := time.Unix(0, 0)
+	require.EqualError(t, fakeErr, fm.Flush(now).Error())
 }
 
 func TestFlushManagerFlushTimeStart(t *testing.T) {

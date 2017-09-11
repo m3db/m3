@@ -130,10 +130,10 @@ func (m *cleanupManager) cleanupFilesetFiles(t time.Time) error {
 // time range for commit log files we need to check.
 func (m *cleanupManager) commitLogTimeRange(t time.Time) (time.Time, time.Time) {
 	var (
-		ropts      = m.opts.CommitLogOptions().RetentionOptions()
-		blockSize  = ropts.BlockSize()
-		flushStart = retention.FlushTimeStart(ropts, t)
-		flushEnd   = retention.FlushTimeEnd(ropts, t)
+		copts      = m.opts.CommitLogOptions()
+		blockSize  = copts.BlockSize()
+		flushStart = retention.FlushTimeStartForRetentionPeriod(copts.RetentionPeriod(), blockSize, t)
+		flushEnd   = retention.FlushTimeEndForBlockSize(blockSize, t)
 	)
 	return flushStart.Add(-blockSize), flushEnd.Add(-blockSize)
 }
@@ -142,8 +142,7 @@ func (m *cleanupManager) commitLogTimeRange(t time.Time) (time.Time, time.Time) 
 // as well as a list of times we need to clean up commit log files for.
 func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
 	var (
-		ropts            = m.opts.CommitLogOptions().RetentionOptions()
-		blockSize        = ropts.BlockSize()
+		blockSize        = m.opts.CommitLogOptions().BlockSize()
 		earliest, latest = m.commitLogTimeRange(t)
 	)
 	// NB(prateek): this logic of polling the namespaces across the commit log's entire
@@ -205,7 +204,6 @@ func commitLogNamespaceBlockTimes(
 func (m *cleanupManager) cleanupCommitLogs(earliestToRetain time.Time, cleanupTimes []time.Time) error {
 	multiErr := xerrors.NewMultiError()
 	toCleanup, err := m.commitLogFilesBeforeFn(m.commitLogsDir, earliestToRetain)
-
 	if err != nil {
 		multiErr = multiErr.Add(err)
 	}

@@ -41,7 +41,7 @@ func TestRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	blockSize := testOpts.CommitLogRetention().BlockSize()
+	blockSize := testOpts.CommitLogBlockSize()
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()

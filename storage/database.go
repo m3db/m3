@@ -129,6 +129,7 @@ func NewDatabase(
 
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("database")
+	logger := iopts.Logger()
 
 	d := &db{
 		opts:         opts,
@@ -138,7 +139,7 @@ func NewDatabase(
 		commitLog:    commitLog,
 		scope:        scope,
 		metrics:      newDatabaseMetrics(scope),
-		log:          iopts.Logger(),
+		log:          logger,
 		errors:       xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
 		errWindow:    opts.ErrorWindowForLoad(),
 		errThreshold: opts.ErrorThresholdForLoad(),
@@ -165,6 +166,7 @@ func NewDatabase(
 	}
 
 	// wait till first value is received
+	logger.Info("resolving namespaces with namespace watch")
 	<-watch.C()
 	d.nsWatch = newDatabaseNamespaceWatch(d, watch, databaseIOpts)
 
@@ -573,10 +575,8 @@ func (d *db) nextIndex() uint64 {
 type tsIDs []ts.ID
 
 func (t tsIDs) String() (string, error) {
-	if len(t) == 0 {
-		return "[]", nil
-	}
 	var buf bytes.Buffer
+	buf.WriteRune('[')
 	for idx, id := range t {
 		if idx != 0 {
 			if _, err := buf.WriteString(", "); err != nil {
@@ -587,16 +587,15 @@ func (t tsIDs) String() (string, error) {
 			return "", err
 		}
 	}
+	buf.WriteRune(']')
 	return buf.String(), nil
 }
 
 type metadatas []namespace.Metadata
 
 func (m metadatas) String() (string, error) {
-	if len(m) == 0 {
-		return "[]", nil
-	}
 	var buf bytes.Buffer
+	buf.WriteRune('[')
 	for idx, md := range m {
 		if idx != 0 {
 			if _, err := buf.WriteString(", "); err != nil {
@@ -607,5 +606,6 @@ func (m metadatas) String() (string, error) {
 			return "", err
 		}
 	}
+	buf.WriteRune(']')
 	return buf.String(), nil
 }

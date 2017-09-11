@@ -75,7 +75,6 @@ func (m *flushManager) Flush(curr time.Time) error {
 	if err != nil {
 		return err
 	}
-	defer flush.Done()
 
 	defer func() {
 		m.Lock()
@@ -83,13 +82,17 @@ func (m *flushManager) Flush(curr time.Time) error {
 		m.Unlock()
 	}()
 
-	multiErr := xerrors.NewMultiError()
-	namespaces := m.database.GetOwnedNamespaces()
+	var (
+		multiErr   = xerrors.NewMultiError()
+		namespaces = m.database.GetOwnedNamespaces()
+	)
 	for _, ns := range namespaces {
 		flushTimes := m.namespaceFlushTimes(ns, curr)
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, flushTimes, flush))
 	}
 
+	// mark flush finished
+	multiErr = multiErr.Add(flush.Done())
 	return multiErr.FinalError()
 }
 

@@ -299,9 +299,8 @@ func requireShardResults(
 ) {
 	// First create what result should be constructed for test values
 	bopts := opts.ResultOptions()
-	ropts := opts.CommitLogOptions().RetentionOptions()
+	blockSize := opts.CommitLogOptions().BlockSize()
 	blopts := bopts.DatabaseBlockOptions()
-	blockSize := ropts.BlockSize()
 
 	expected := result.ShardResults{}
 

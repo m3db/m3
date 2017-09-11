@@ -22,13 +22,11 @@ package commitlog
 
 import (
 	"errors"
-	"fmt"
 	"runtime"
 	"time"
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 )
@@ -43,6 +41,9 @@ const (
 	// defaultFlushInterval is the default commit log flush interval
 	defaultFlushInterval = time.Second
 
+	// defaultRetentionPeriod is the default commit log retention period
+	defaultRetentionPeriod = 2 * 24 * time.Hour
+
 	// defaultBlockSize is the default commit log block size
 	defaultBlockSize = 15 * time.Minute
 )
@@ -50,14 +51,20 @@ const (
 var (
 	// defaultBacklogQueueSize is the default commit log backlog queue size
 	defaultBacklogQueueSize = 1024 * runtime.NumCPU()
+)
 
-	errFlushIntervalNonNegative = errors.New("flush interval must be non-negative")
+var (
+	errFlushIntervalNonNegative       = errors.New("flush interval must be non-negative")
+	errBlockSizePositive              = errors.New("block size must be a postive duration")
+	errRetentionPeriodPositive        = errors.New("retention period must be a positive duration")
+	errRetentionGreaterEqualBlockSize = errors.New("retention period must be >= block size")
 )
 
 type options struct {
 	clockOpts        clock.Options
 	instrumentOpts   instrument.Options
-	retentionOpts    retention.Options
+	retentionPeriod  time.Duration
+	blockSize        time.Duration
 	fsOpts           fs.Options
 	strategy         Strategy
 	flushSize        int
@@ -71,7 +78,8 @@ func NewOptions() Options {
 	o := &options{
 		clockOpts:        clock.NewOptions(),
 		instrumentOpts:   instrument.NewOptions(),
-		retentionOpts:    defaultRetentionOptions(),
+		retentionPeriod:  defaultRetentionPeriod,
+		blockSize:        defaultBlockSize,
 		fsOpts:           fs.NewOptions(),
 		strategy:         defaultStrategy,
 		flushSize:        defaultFlushSize,
@@ -85,31 +93,19 @@ func NewOptions() Options {
 	return o
 }
 
-func defaultRetentionOptions() retention.Options {
-	return retention.NewOptions().
-		SetBlockSize(defaultBlockSize).
-		SetBufferFuture(0).
-		SetBufferPast(0)
-}
-
 func (o *options) Validate() error {
 	if o.FlushInterval() < 0 {
 		return errFlushIntervalNonNegative
 	}
-
-	ropts := o.retentionOpts
-	if err := ropts.Validate(); err != nil {
-		return fmt.Errorf("invalid commit log retention options: %v", err)
+	if o.BlockSize() <= 0 {
+		return errBlockSizePositive
 	}
-
-	if v := ropts.BufferFuture(); v != 0 {
-		return fmt.Errorf("invalid commit log retention buffer future, expected 0, observed: %v", v)
+	if o.RetentionPeriod() <= 0 {
+		return errRetentionPeriodPositive
 	}
-
-	if v := ropts.BufferPast(); v != 0 {
-		return fmt.Errorf("invalid commit log retention buffer past, expected 0, observed: %v", v)
+	if o.RetentionPeriod() < o.BlockSize() {
+		return errRetentionGreaterEqualBlockSize
 	}
-
 	return nil
 }
 
@@ -133,14 +129,24 @@ func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) SetRetentionOptions(value retention.Options) Options {
+func (o *options) SetRetentionPeriod(value time.Duration) Options {
 	opts := *o
-	opts.retentionOpts = value
+	opts.retentionPeriod = value
 	return &opts
 }
 
-func (o *options) RetentionOptions() retention.Options {
-	return o.retentionOpts
+func (o *options) RetentionPeriod() time.Duration {
+	return o.retentionPeriod
+}
+
+func (o *options) SetBlockSize(value time.Duration) Options {
+	opts := *o
+	opts.blockSize = value
+	return &opts
+}
+
+func (o *options) BlockSize() time.Duration {
+	return o.blockSize
 }
 
 func (o *options) SetFilesystemOptions(value fs.Options) Options {

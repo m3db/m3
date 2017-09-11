@@ -48,26 +48,21 @@ func TestMixedModeReadWrite(t *testing.T) {
 	// Test setup
 	var (
 		commitLogBlockSize = 15 * time.Minute
-		clROpts            = retention.NewOptions().
-					SetRetentionPeriod(6 * time.Hour).
-					SetBlockSize(commitLogBlockSize).
-					SetBufferFuture(0).
-					SetBufferPast(0)
-		ns1BlockSize = 1 * time.Hour
-		ns1ROpts     = retention.NewOptions().SetRetentionPeriod(3 * time.Hour).SetBlockSize(ns1BlockSize)
-		nsID         = testNamespaces[0]
+		commitLogRetetion  = 6 * time.Hour
+		ns1BlockSize       = 1 * time.Hour
+		ns1ROpts           = retention.NewOptions().SetRetentionPeriod(3 * time.Hour).SetBlockSize(ns1BlockSize)
+		nsID               = testNamespaces[0]
 	)
 	ns1, err := namespace.NewMetadata(nsID, namespace.NewOptions().SetRetentionOptions(ns1ROpts))
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetCommitLogRetention(clROpts).
+		SetCommitLogRetentionPeriod(commitLogRetetion).
+		SetCommitLogBlockSize(commitLogBlockSize).
 		SetNamespaces([]namespace.Metadata{ns1})
 
 	// Test setup
 	setup := newTestSetupWithCommitLogAndFilesystemBootstrapper(t, opts)
-	defer func() {
-		setup.close()
-	}()
+	defer setup.close()
 
 	log := setup.storageOpts.InstrumentOptions().Logger()
 	log.Info("commit log & fileset files, write, read, and merge bootstrap test")

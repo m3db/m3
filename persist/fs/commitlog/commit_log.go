@@ -319,7 +319,7 @@ func (l *commitLog) openWriter(now time.Time) error {
 		l.writer = l.newCommitLogWriterFn(l.onFlush, l.opts)
 	}
 
-	blockSize := l.opts.RetentionOptions().BlockSize()
+	blockSize := l.opts.BlockSize()
 	start := now.Truncate(blockSize)
 
 	if err := l.writer.Open(start, blockSize); err != nil {

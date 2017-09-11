@@ -46,8 +46,6 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	ts := timeFor(36000)
 	rOpts := retention.NewOptions().
 		SetRetentionPeriod(21600 * time.Second).
-		SetBufferPast(0).
-		SetBufferFuture(0).
 		SetBlockSize(7200 * time.Second)
 	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts)
 
@@ -72,7 +70,9 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	db := newMockdatabase(ctrl, namespaces...)
 	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
 	mgr.opts = mgr.opts.SetCommitLogOptions(
-		mgr.opts.CommitLogOptions().SetRetentionOptions(rOpts))
+		mgr.opts.CommitLogOptions().
+			SetRetentionPeriod(rOpts.RetentionPeriod()).
+			SetBlockSize(rOpts.BlockSize()))
 
 	mgr.commitLogFilesBeforeFn = func(_ string, t time.Time) ([]string, error) {
 		return []string{"foo", "bar"}, errors.New("error1")
@@ -107,7 +107,9 @@ func TestCleanupManagerCommitLogTimeRange(t *testing.T) {
 	)
 
 	mgr.opts = mgr.opts.SetCommitLogOptions(
-		mgr.opts.CommitLogOptions().SetRetentionOptions(rOpts))
+		mgr.opts.CommitLogOptions().
+			SetRetentionPeriod(rOpts.RetentionPeriod()).
+			SetBlockSize(rOpts.BlockSize()))
 	cs, ce := mgr.commitLogTimeRange(ts)
 	require.Equal(t, time.Unix(0, 0), cs)
 	require.Equal(t, time.Unix(7200, 0), ce)
@@ -288,8 +290,9 @@ func newCleanupManagerCommitLogTimesTest(t *testing.T, ctrl *gomock.Controller) 
 	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
 
 	mgr.opts = mgr.opts.SetCommitLogOptions(
-		mgr.opts.CommitLogOptions().SetRetentionOptions(rOpts))
-
+		mgr.opts.CommitLogOptions().
+			SetRetentionPeriod(rOpts.RetentionPeriod()).
+			SetBlockSize(rOpts.BlockSize()))
 	return ns, mgr
 }
 

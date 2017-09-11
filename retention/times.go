@@ -24,14 +24,20 @@ import "time"
 
 // FlushTimeStart is the earliest flushable time
 func FlushTimeStart(opts Options, t time.Time) time.Time {
-	retentionPeriod := opts.RetentionPeriod()
-	blockSize := opts.BlockSize()
+	return FlushTimeStartForRetentionPeriod(opts.RetentionPeriod(), opts.BlockSize(), t)
+}
+
+// FlushTimeStartForRetentionPeriod is the earliest flushable time
+func FlushTimeStartForRetentionPeriod(retentionPeriod time.Duration, blockSize time.Duration, t time.Time) time.Time {
 	return t.Add(-retentionPeriod).Truncate(blockSize)
 }
 
 // FlushTimeEnd is the latest flushable time
 func FlushTimeEnd(opts Options, t time.Time) time.Time {
-	bufferPast := opts.BufferPast()
-	blockSize := opts.BlockSize()
-	return t.Add(-bufferPast).Add(-blockSize).Truncate(blockSize)
+	return FlushTimeEndForBlockSize(opts.BlockSize(), t.Add(-opts.BufferPast()))
+}
+
+// FlushTimeEndForBlockSize is the latest flushable time
+func FlushTimeEndForBlockSize(blockSize time.Duration, t time.Time) time.Time {
+	return t.Add(-blockSize).Truncate(blockSize)
 }

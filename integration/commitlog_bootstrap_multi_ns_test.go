@@ -39,7 +39,6 @@ import (
 func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
-
 	}
 
 	// Test setup
@@ -48,7 +47,6 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 		commitLogBlockSize = 15 * time.Minute
 		ns1BlockSize       = time.Hour
 		ns2BlockSize       = 30 * time.Minute
-		clROpts            = rOpts.SetBlockSize(commitLogBlockSize).SetBufferFuture(0).SetBufferPast(0)
 		ns1ROpts           = rOpts.SetBlockSize(ns1BlockSize)
 		ns2ROpts           = rOpts.SetBlockSize(ns2BlockSize)
 	)
@@ -59,7 +57,8 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := newTestOptions(t).
-		SetCommitLogRetention(clROpts).
+		SetCommitLogRetentionPeriod(rOpts.RetentionPeriod()).
+		SetCommitLogBlockSize(commitLogBlockSize).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	// Test setup

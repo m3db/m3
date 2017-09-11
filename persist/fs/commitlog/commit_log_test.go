@@ -69,13 +69,11 @@ func newTestOptions(
 
 	scope := tally.NewTestScope("", nil)
 
-	ropts := defaultRetentionOptions().SetBlockSize(2 * time.Hour)
-
 	opts := NewOptions().
 		SetClockOptions(clock.NewOptions().SetNowFn(c.Now)).
 		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
 		SetFilesystemOptions(fs.NewOptions().SetFilePathPrefix(dir)).
-		SetRetentionOptions(ropts).
+		SetBlockSize(2 * time.Hour).
 		SetFlushSize(4096).
 		SetFlushInterval(100 * time.Millisecond).
 		SetBacklogQueueSize(1024)
@@ -426,7 +424,7 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 
 	commitLog := newTestCommitLog(t, opts)
 
-	blockSize := opts.RetentionOptions().BlockSize()
+	blockSize := opts.BlockSize()
 	alignedStart := clock.Now().Truncate(blockSize)
 
 	// Writes spaced apart by block size
