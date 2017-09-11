@@ -31,6 +31,7 @@ import (
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/time"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
@@ -125,10 +126,10 @@ func TestInitializerNoTimeout(t *testing.T) {
 	observedRopts := md.Options().RetentionOptions()
 	require.Equal(t, ropts.BlockDataExpiry, observedRopts.BlockDataExpiry())
 	require.Equal(t, ropts.BlockDataExpiryAfterNotAccessPeriodNanos,
-		observedRopts.BlockDataExpiryAfterNotAccessedPeriod().Nanoseconds())
-	require.Equal(t, ropts.BlockSizeNanos, observedRopts.BlockSize().Nanoseconds())
-	require.Equal(t, ropts.BufferFutureNanos, observedRopts.BufferFuture().Nanoseconds())
-	require.Equal(t, ropts.BufferPastNanos, observedRopts.BufferPast().Nanoseconds())
+		toNanosInt64(observedRopts.BlockDataExpiryAfterNotAccessedPeriod()))
+	require.Equal(t, ropts.BlockSizeNanos, toNanosInt64(observedRopts.BlockSize()))
+	require.Equal(t, ropts.BufferFutureNanos, toNanosInt64(observedRopts.BufferFuture()))
+	require.Equal(t, ropts.BufferPastNanos, toNanosInt64(observedRopts.BufferPast()))
 
 	require.NoError(t, rw.Close())
 	require.NoError(t, reg.Close())
@@ -298,11 +299,11 @@ func singleTestValue() testValue {
 					WritesToCommitLog:   true,
 					RetentionOptions: &nsproto.RetentionOptions{
 						BlockDataExpiry:                          true,
-						BlockDataExpiryAfterNotAccessPeriodNanos: int64(time.Minute),
-						BlockSizeNanos:                           int64(time.Hour * 2),
-						RetentionPeriodNanos:                     int64(time.Hour * 48),
-						BufferFutureNanos:                        int64(time.Minute * 10),
-						BufferPastNanos:                          int64(time.Minute * 15),
+						BlockDataExpiryAfterNotAccessPeriodNanos: toNanosInt64(time.Minute),
+						BlockSizeNanos:                           toNanosInt64(time.Hour * 2),
+						RetentionPeriodNanos:                     toNanosInt64(time.Hour * 48),
+						BufferFutureNanos:                        toNanosInt64(time.Minute * 10),
+						BufferPastNanos:                          toNanosInt64(time.Minute * 15),
 					},
 				},
 			},
@@ -386,4 +387,8 @@ func (w *testValueWatch) Close() {
 
 	close(w.valueCh)
 	close(w.notifyCh)
+}
+
+func toNanosInt64(t time.Duration) int64 {
+	return xtime.ToNormalizedDuration(t, time.Nanosecond)
 }

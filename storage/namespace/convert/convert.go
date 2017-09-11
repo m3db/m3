@@ -90,11 +90,13 @@ func ToMetadata(
 }
 
 // ToProto converts namespace.Map to nsproto.Registry
-func ToProto(
-	m namespace.Map,
-) *nsproto.Registry {
+func ToProto(m namespace.Map) *nsproto.Registry {
 	reg := nsproto.Registry{
 		Namespaces: make(map[string]*nsproto.NamespaceOptions, len(m.Metadatas())),
+	}
+
+	toNanos := func(t time.Duration) int64 {
+		return xtime.ToNormalizedDuration(t, time.Nanosecond)
 	}
 
 	for _, md := range m.Metadatas() {
@@ -106,15 +108,28 @@ func ToProto(
 			NeedsRepair:         md.Options().NeedsRepair(),
 			WritesToCommitLog:   md.Options().WritesToCommitLog(),
 			RetentionOptions: &nsproto.RetentionOptions{
-				BlockSizeNanos:                           int64(ropts.BlockSize()),
-				RetentionPeriodNanos:                     int64(ropts.RetentionPeriod()),
-				BufferFutureNanos:                        int64(ropts.BufferFuture()),
-				BufferPastNanos:                          int64(ropts.BufferPast()),
+				BlockSizeNanos:                           toNanos(ropts.BlockSize()),
+				RetentionPeriodNanos:                     toNanos(ropts.RetentionPeriod()),
+				BufferFutureNanos:                        toNanos(ropts.BufferFuture()),
+				BufferPastNanos:                          toNanos(ropts.BufferPast()),
 				BlockDataExpiry:                          ropts.BlockDataExpiry(),
-				BlockDataExpiryAfterNotAccessPeriodNanos: int64(ropts.BlockDataExpiryAfterNotAccessedPeriod()),
+				BlockDataExpiryAfterNotAccessPeriodNanos: toNanos(ropts.BlockDataExpiryAfterNotAccessedPeriod()),
 			},
 		}
 	}
 
 	return &reg
+}
+
+// FromProto converts nsproto.Registry -> namespace.Map
+func FromProto(protoRegistry nsproto.Registry) (namespace.Map, error) {
+	metadatas := make([]namespace.Metadata, 0, len(protoRegistry.Namespaces))
+	for ns, opts := range protoRegistry.Namespaces {
+		md, err := ToMetadata(ns, opts)
+		if err != nil {
+			return nil, err
+		}
+		metadatas = append(metadatas, md)
+	}
+	return namespace.NewMap(metadatas)
 }
