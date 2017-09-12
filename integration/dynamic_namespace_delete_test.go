@@ -123,14 +123,11 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 	numInvalid := numInvalidNamespaceUpdates(scope)
 	_, err = kvStore.Delete(dynamicOpts.NamespaceRegistryKey())
 	require.NoError(t, err)
-	log.Infof("deleted namespace key from kv")
-	for {
-		invalidUpdates := numInvalidNamespaceUpdates(scope)
-		if invalidUpdates > numInvalid {
-			break
-		}
-		time.Sleep(time.Second)
+	deletePropagated := func() bool {
+		return numInvalidNamespaceUpdates(scope) > numInvalid
 	}
+	require.True(t, waitUntil(deletePropagated, 5*time.Second))
+	log.Infof("deleted namespace key from kv")
 
 	// update value in kv
 	_, err = kvStore.Set(dynamicOpts.NamespaceRegistryKey(), protoKey(ns0, ns1))
