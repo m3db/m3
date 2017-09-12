@@ -81,9 +81,9 @@ func TestDatabaseRepairerStartStop(t *testing.T) {
 	repairer.Stop()
 	for {
 		// Wait for the repairer to stop
-		repairer.Lock()
+		repairer.closedLock.Lock()
 		closed := repairer.closed
-		repairer.Unlock()
+		repairer.closedLock.Unlock()
 		if closed {
 			break
 		}

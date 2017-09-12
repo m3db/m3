@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package convert
+package namespace
 
 import (
 	"errors"
@@ -26,7 +26,6 @@ import (
 
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
 	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -68,7 +67,7 @@ func ToRetention(
 func ToMetadata(
 	id string,
 	opts *nsproto.NamespaceOptions,
-) (namespace.Metadata, error) {
+) (Metadata, error) {
 	if opts == nil {
 		return nil, errNamespaceNil
 	}
@@ -78,7 +77,7 @@ func ToMetadata(
 		return nil, err
 	}
 
-	mopts := namespace.NewOptions().
+	mopts := NewOptions().
 		SetNeedsBootstrap(opts.NeedsBootstrap).
 		SetNeedsFlush(opts.NeedsFlush).
 		SetNeedsFilesetCleanup(opts.NeedsFilesetCleanup).
@@ -86,11 +85,11 @@ func ToMetadata(
 		SetWritesToCommitLog(opts.WritesToCommitLog).
 		SetRetentionOptions(ropts)
 
-	return namespace.NewMetadata(ts.StringID(id), mopts)
+	return NewMetadata(ts.StringID(id), mopts)
 }
 
-// ToProto converts namespace.Map to nsproto.Registry
-func ToProto(m namespace.Map) *nsproto.Registry {
+// ToProto converts Map to nsproto.Registry
+func ToProto(m Map) *nsproto.Registry {
 	reg := nsproto.Registry{
 		Namespaces: make(map[string]*nsproto.NamespaceOptions, len(m.Metadatas())),
 	}
@@ -121,9 +120,9 @@ func ToProto(m namespace.Map) *nsproto.Registry {
 	return &reg
 }
 
-// FromProto converts nsproto.Registry -> namespace.Map
-func FromProto(protoRegistry nsproto.Registry) (namespace.Map, error) {
-	metadatas := make([]namespace.Metadata, 0, len(protoRegistry.Namespaces))
+// FromProto converts nsproto.Registry -> Map
+func FromProto(protoRegistry nsproto.Registry) (Map, error) {
+	metadatas := make([]Metadata, 0, len(protoRegistry.Namespaces))
 	for ns, opts := range protoRegistry.Namespaces {
 		md, err := ToMetadata(ns, opts)
 		if err != nil {
@@ -131,5 +130,5 @@ func FromProto(protoRegistry nsproto.Registry) (namespace.Map, error) {
 		}
 		metadatas = append(metadatas, md)
 	}
-	return namespace.NewMap(metadatas)
+	return NewMap(metadatas)
 }

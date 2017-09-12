@@ -64,11 +64,15 @@ func NewMap(metadatas []Metadata) (Map, error) {
 		idsMap[id.Hash()] = struct{}{}
 	}
 
+	if err := multiErr.FinalError(); err != nil {
+		return nil, err
+	}
+
 	return &nsMap{
 		namespaces: ns,
 		ids:        ids,
 		metadatas:  nsMetadatas,
-	}, multiErr.FinalError()
+	}, nil
 }
 
 func (r *nsMap) Get(namespace ts.ID) (Metadata, error) {

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package dynamic
+package namespace
 
 import (
 	"fmt"
@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
-	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
 
@@ -40,7 +39,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func newTestOpts(ctrl *gomock.Controller, watch *testValueWatch) namespace.DynamicOptions {
+func newTestOpts(ctrl *gomock.Controller, watch *testValueWatch) DynamicOptions {
 	ts := tally.NewTestScope("", nil)
 	mockKVStore := kv.NewMockStore(ctrl)
 	mockKVStore.EXPECT().Watch(defaultNsRegistryKey).Return(watch, nil)
@@ -48,7 +47,7 @@ func newTestOpts(ctrl *gomock.Controller, watch *testValueWatch) namespace.Dynam
 	mockCSClient := client.NewMockClient(ctrl)
 	mockCSClient.EXPECT().KV().Return(mockKVStore, nil)
 
-	opts := NewOptions().
+	opts := NewDynamicOptions().
 		SetInstrumentOptions(
 			instrument.NewOptions().
 				SetReportInterval(10 * time.Millisecond).
@@ -59,7 +58,7 @@ func newTestOpts(ctrl *gomock.Controller, watch *testValueWatch) namespace.Dynam
 	return opts
 }
 
-func numInvalidUpdates(opts namespace.DynamicOptions) int64 {
+func numInvalidUpdates(opts DynamicOptions) int64 {
 	scope := opts.InstrumentOptions().MetricsScope().(tally.TestScope)
 	count, ok := scope.Snapshot().Counters()["namespace-registry.invalid-update+"]
 	if !ok {
@@ -68,7 +67,7 @@ func numInvalidUpdates(opts namespace.DynamicOptions) int64 {
 	return count.Value()
 }
 
-func currentVersionMetrics(opts namespace.DynamicOptions) float64 {
+func currentVersionMetrics(opts DynamicOptions) float64 {
 	scope := opts.InstrumentOptions().MetricsScope().(tally.TestScope)
 	g, ok := scope.Snapshot().Gauges()["namespace-registry.current-version+"]
 	if !ok {
@@ -86,7 +85,7 @@ func TestInitializerTimeout(t *testing.T) {
 	values := singleTestValue()
 	w := newWatch(values)
 	opts := newTestOpts(ctrl, w)
-	init := NewInitializer(opts)
+	init := NewDynamicInitializer(opts)
 	_, err := init.Init()
 	require.Error(t, err)
 	require.Equal(t, errInitTimeOut, err)
@@ -105,7 +104,7 @@ func TestInitializerNoTimeout(t *testing.T) {
 	go w.start()
 
 	opts := newTestOpts(ctrl, w)
-	init := NewInitializer(opts)
+	init := NewDynamicInitializer(opts)
 	reg, err := init.Init()
 	require.NoError(t, err)
 
@@ -145,7 +144,7 @@ func TestInitializerUpdateWithBadProto(t *testing.T) {
 	defer w.Close()
 
 	opts := newTestOpts(ctrl, w)
-	init := NewInitializer(opts)
+	init := NewDynamicInitializer(opts)
 
 	go w.start()
 	reg, err := init.Init()
@@ -185,7 +184,7 @@ func TestInitializerUpdateWithOlderVersion(t *testing.T) {
 	defer w.Close()
 
 	opts := newTestOpts(ctrl, w)
-	init := NewInitializer(opts)
+	init := NewDynamicInitializer(opts)
 
 	go w.start()
 	reg, err := init.Init()
@@ -220,7 +219,7 @@ func TestInitializerUpdateWithIdenticalValue(t *testing.T) {
 	defer w.Close()
 
 	opts := newTestOpts(ctrl, w)
-	init := NewInitializer(opts)
+	init := NewDynamicInitializer(opts)
 
 	go w.start()
 	reg, err := init.Init()
@@ -255,7 +254,7 @@ func TestInitializerUpdateSuccess(t *testing.T) {
 	defer w.Close()
 
 	opts := newTestOpts(ctrl, w)
-	init := NewInitializer(opts)
+	init := NewDynamicInitializer(opts)
 
 	go w.start()
 	reg, err := init.Init()

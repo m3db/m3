@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package convert_test
+package namespace_test
 
 import (
 	"fmt"
@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/storage/namespace/convert"
 	"github.com/m3db/m3db/ts"
 
 	"github.com/leanovate/gopter"
@@ -51,8 +50,8 @@ func TestConvert(t *testing.T) {
 
 	props.Property("Conversion rooted at metadata is bijective", prop.ForAll(
 		func(nsMap namespace.Map) (bool, error) {
-			reg := convert.ToProto(nsMap)
-			cmd, err := convert.FromProto(*reg)
+			reg := namespace.ToProto(nsMap)
+			cmd, err := namespace.FromProto(*reg)
 			if err != nil {
 				return false, err
 			}

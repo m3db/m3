@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/cluster"
-	staticns "github.com/m3db/m3db/storage/namespace/static"
+	"github.com/m3db/m3db/storage/namespace"
 )
 
 var (
@@ -70,7 +70,7 @@ func main() {
 	}
 
 	storageOpts = storageOpts.SetNamespaceInitializer(
-		staticns.NewInitializer(namespaces))
+		namespace.NewStaticInitializer(namespaces))
 	topoInit, err := server.DefaultTopologyInitializer(id, tchannelNodeAddr)
 	if err != nil {
 		log.Fatalf("could not create topology initializer: %v", err)

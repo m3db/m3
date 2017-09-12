@@ -18,14 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package dynamic
+package namespace
 
 import (
 	"errors"
 	"time"
 
 	"github.com/m3db/m3cluster/client"
-	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -47,8 +46,8 @@ type dynamicOpts struct {
 	initTimeout   time.Duration
 }
 
-// NewOptions creates a new DynamicOptions
-func NewOptions() namespace.DynamicOptions {
+// NewDynamicOptions creates a new DynamicOptions
+func NewDynamicOptions() DynamicOptions {
 	return &dynamicOpts{
 		iopts:         instrument.NewOptions(),
 		nsRegistryKey: defaultNsRegistryKey,
@@ -69,7 +68,7 @@ func (o *dynamicOpts) Validate() error {
 	return nil
 }
 
-func (o *dynamicOpts) SetInstrumentOptions(value instrument.Options) namespace.DynamicOptions {
+func (o *dynamicOpts) SetInstrumentOptions(value instrument.Options) DynamicOptions {
 	opts := *o
 	opts.iopts = value
 	return &opts
@@ -79,7 +78,7 @@ func (o *dynamicOpts) InstrumentOptions() instrument.Options {
 	return o.iopts
 }
 
-func (o *dynamicOpts) SetConfigServiceClient(c client.Client) namespace.DynamicOptions {
+func (o *dynamicOpts) SetConfigServiceClient(c client.Client) DynamicOptions {
 	opts := *o
 	opts.csClient = c
 	return &opts
@@ -89,7 +88,7 @@ func (o *dynamicOpts) ConfigServiceClient() client.Client {
 	return o.csClient
 }
 
-func (o *dynamicOpts) SetNamespaceRegistryKey(k string) namespace.DynamicOptions {
+func (o *dynamicOpts) SetNamespaceRegistryKey(k string) DynamicOptions {
 	opts := *o
 	opts.nsRegistryKey = k
 	return &opts
@@ -99,7 +98,7 @@ func (o *dynamicOpts) NamespaceRegistryKey() string {
 	return o.nsRegistryKey
 }
 
-func (o *dynamicOpts) SetInitTimeout(value time.Duration) namespace.DynamicOptions {
+func (o *dynamicOpts) SetInitTimeout(value time.Duration) DynamicOptions {
 	opts := *o
 	opts.initTimeout = value
 	return &opts
