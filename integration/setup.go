@@ -46,7 +46,6 @@ import (
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/cluster"
 	"github.com/m3db/m3db/storage/namespace"
-	staticns "github.com/m3db/m3db/storage/namespace/static"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xlog "github.com/m3db/m3x/log"
@@ -109,7 +108,7 @@ func newTestSetup(t *testing.T, opts testOptions) (*testSetup, error) {
 
 	nsInit := opts.NamespaceInitializer()
 	if nsInit == nil {
-		nsInit = staticns.NewInitializer(opts.Namespaces())
+		nsInit = namespace.NewStaticInitializer(opts.Namespaces())
 	}
 
 	storageOpts := storage.NewOptions().

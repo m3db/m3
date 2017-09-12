@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package dynamic
+package namespace
 
 import (
 	"errors"
@@ -27,8 +27,6 @@ import (
 
 	"github.com/m3db/m3cluster/kv"
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
-	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/storage/namespace/convert"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/watch"
 
@@ -43,16 +41,16 @@ var (
 
 type dynamicInitializer struct {
 	sync.Mutex
-	opts namespace.DynamicOptions
-	reg  namespace.Registry
+	opts DynamicOptions
+	reg  Registry
 }
 
-// NewInitializer returns a dynamic namespace initializer
-func NewInitializer(opts namespace.DynamicOptions) namespace.Initializer {
+// NewDynamicInitializer returns a dynamic namespace initializer
+func NewDynamicInitializer(opts DynamicOptions) Initializer {
 	return &dynamicInitializer{opts: opts}
 }
 
-func (i *dynamicInitializer) Init() (namespace.Registry, error) {
+func (i *dynamicInitializer) Init() (Registry, error) {
 	i.Lock()
 	defer i.Unlock()
 
@@ -64,7 +62,7 @@ func (i *dynamicInitializer) Init() (namespace.Registry, error) {
 		return nil, err
 	}
 
-	reg, err := newRegistry(i.opts)
+	reg, err := newDynamicRegistry(i.opts)
 	if err != nil {
 		return nil, err
 	}
@@ -75,13 +73,13 @@ func (i *dynamicInitializer) Init() (namespace.Registry, error) {
 
 type dynamicRegistry struct {
 	sync.RWMutex
-	opts         namespace.DynamicOptions
+	opts         DynamicOptions
 	logger       xlog.Logger
 	metrics      dynamicRegistryMetrics
 	watchable    xwatch.Watchable
 	kvWatch      kv.ValueWatch
 	currentValue kv.Value
-	currentMap   namespace.Map
+	currentMap   Map
 	closed       bool
 }
 
@@ -90,7 +88,7 @@ type dynamicRegistryMetrics struct {
 	currentVersion    tally.Gauge
 }
 
-func newDynamicRegistryMetrics(opts namespace.DynamicOptions) dynamicRegistryMetrics {
+func newDynamicRegistryMetrics(opts DynamicOptions) dynamicRegistryMetrics {
 	scope := opts.InstrumentOptions().MetricsScope().SubScope("namespace-registry")
 	return dynamicRegistryMetrics{
 		numInvalidUpdates: scope.Counter("invalid-update"),
@@ -98,7 +96,7 @@ func newDynamicRegistryMetrics(opts namespace.DynamicOptions) dynamicRegistryMet
 	}
 }
 
-func newRegistry(opts namespace.DynamicOptions) (namespace.Registry, error) {
+func newDynamicRegistry(opts DynamicOptions) (Registry, error) {
 	kvStore, err := opts.ConfigServiceClient().KV()
 	if err != nil {
 		return nil, err
@@ -154,7 +152,7 @@ func (r *dynamicRegistry) value() kv.Value {
 	return r.currentValue
 }
 
-func (r *dynamicRegistry) maps() namespace.Map {
+func (r *dynamicRegistry) maps() Map {
 	r.RLock()
 	defer r.RUnlock()
 	return r.currentMap
@@ -216,12 +214,12 @@ func (r *dynamicRegistry) run() {
 	}
 }
 
-func (r *dynamicRegistry) Watch() (namespace.Watch, error) {
+func (r *dynamicRegistry) Watch() (Watch, error) {
 	_, w, err := r.watchable.Watch()
 	if err != nil {
 		return nil, err
 	}
-	return namespace.NewWatch(w), err
+	return NewWatch(w), err
 }
 
 func (r *dynamicRegistry) Close() error {
@@ -251,7 +249,7 @@ func waitOnInit(w kv.ValueWatch, d time.Duration) error {
 	}
 }
 
-func getMapFromUpdate(val kv.Value) (namespace.Map, error) {
+func getMapFromUpdate(val kv.Value) (Map, error) {
 	if val == nil {
 		return nil, errInvalidRegistry
 	}
@@ -261,5 +259,5 @@ func getMapFromUpdate(val kv.Value) (namespace.Map, error) {
 		return nil, errInvalidRegistry
 	}
 
-	return convert.FromProto(protoRegistry)
+	return FromProto(protoRegistry)
 }

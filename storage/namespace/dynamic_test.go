@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package dynamic
+package namespace
 
 import (
 	"fmt"
@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
-	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
 
@@ -39,7 +38,7 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func newTestOpts(t *testing.T, ctrl *gomock.Controller, watchable kv.ValueWatchable) namespace.DynamicOptions {
+func newTestOpts(t *testing.T, ctrl *gomock.Controller, watchable kv.ValueWatchable) DynamicOptions {
 	_, watch, err := watchable.Watch()
 	require.NoError(t, err)
 
@@ -50,7 +49,7 @@ func newTestOpts(t *testing.T, ctrl *gomock.Controller, watchable kv.ValueWatcha
 	mockCSClient := client.NewMockClient(ctrl)
 	mockCSClient.EXPECT().KV().Return(mockKVStore, nil)
 
-	opts := NewOptions().
+	opts := NewDynamicOptions().
 		SetInstrumentOptions(
 			instrument.NewOptions().
 				SetReportInterval(10 * time.Millisecond).
@@ -61,7 +60,7 @@ func newTestOpts(t *testing.T, ctrl *gomock.Controller, watchable kv.ValueWatcha
 	return opts
 }
 
-func numInvalidUpdates(opts namespace.DynamicOptions) int64 {
+func numInvalidUpdates(opts DynamicOptions) int64 {
 	scope := opts.InstrumentOptions().MetricsScope().(tally.TestScope)
 	count, ok := scope.Snapshot().Counters()["namespace-registry.invalid-update+"]
 	if !ok {
@@ -70,7 +69,7 @@ func numInvalidUpdates(opts namespace.DynamicOptions) int64 {
 	return count.Value()
 }
 
-func currentVersionMetrics(opts namespace.DynamicOptions) float64 {
+func currentVersionMetrics(opts DynamicOptions) float64 {
 	scope := opts.InstrumentOptions().MetricsScope().(tally.TestScope)
 	g, ok := scope.Snapshot().Gauges()["namespace-registry.current-version+"]
 	if !ok {
@@ -87,7 +86,7 @@ func TestInitializerTimeout(t *testing.T) {
 
 	w := newTestWatchable(t, nil)
 	opts := newTestOpts(t, ctrl, w)
-	init := NewInitializer(opts)
+	init := NewDynamicInitializer(opts)
 	_, err := init.Init()
 	require.Error(t, err)
 	require.Equal(t, errInitTimeOut, err)
@@ -105,7 +104,7 @@ func TestInitializerNoTimeout(t *testing.T) {
 	defer w.Close()
 
 	opts := newTestOpts(t, ctrl, w)
-	init := NewInitializer(opts)
+	init := NewDynamicInitializer(opts)
 	reg, err := init.Init()
 	require.NoError(t, err)
 
@@ -145,7 +144,7 @@ func TestInitializerUpdateWithBadProto(t *testing.T) {
 	defer w.Close()
 
 	opts := newTestOpts(t, ctrl, w)
-	init := NewInitializer(opts)
+	init := NewDynamicInitializer(opts)
 
 	reg, err := init.Init()
 	require.NoError(t, err)
@@ -184,7 +183,7 @@ func TestInitializerUpdateWithOlderVersion(t *testing.T) {
 	defer w.Close()
 
 	opts := newTestOpts(t, ctrl, w)
-	init := NewInitializer(opts)
+	init := NewDynamicInitializer(opts)
 
 	reg, err := init.Init()
 	require.NoError(t, err)
@@ -217,7 +216,7 @@ func TestInitializerUpdateWithNilValue(t *testing.T) {
 	defer w.Close()
 
 	opts := newTestOpts(t, ctrl, w)
-	init := NewInitializer(opts)
+	init := NewDynamicInitializer(opts)
 
 	reg, err := init.Init()
 	require.NoError(t, err)
@@ -247,7 +246,7 @@ func TestInitializerUpdateWithNilInitialValue(t *testing.T) {
 	defer w.Close()
 
 	opts := newTestOpts(t, ctrl, w)
-	init := NewInitializer(opts)
+	init := NewDynamicInitializer(opts)
 
 	require.NoError(t, w.Update(nil))
 	_, err := init.Init()
@@ -265,7 +264,7 @@ func TestInitializerUpdateWithIdenticalValue(t *testing.T) {
 	defer w.Close()
 
 	opts := newTestOpts(t, ctrl, w)
-	init := NewInitializer(opts)
+	init := NewDynamicInitializer(opts)
 
 	reg, err := init.Init()
 	require.NoError(t, err)
@@ -299,7 +298,7 @@ func TestInitializerUpdateSuccess(t *testing.T) {
 	defer w.Close()
 
 	opts := newTestOpts(t, ctrl, w)
-	init := NewInitializer(opts)
+	init := NewDynamicInitializer(opts)
 
 	reg, err := init.Init()
 	require.NoError(t, err)

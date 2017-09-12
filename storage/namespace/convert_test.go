@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package convert_test
+package namespace_test
 
 import (
 	"testing"
@@ -27,7 +27,6 @@ import (
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/storage/namespace/convert"
 	"github.com/m3db/m3db/ts"
 
 	"github.com/stretchr/testify/require"
@@ -78,39 +77,39 @@ var (
 	}
 )
 
-func TestToRetentionValid(t *testing.T) {
+func TestNamespaceToRetentionValid(t *testing.T) {
 	validOpts := validRetentionOpts
-	ropts, err := convert.ToRetention(&validOpts)
+	ropts, err := namespace.ToRetention(&validOpts)
 	require.NoError(t, err)
 	assertEqualRetentions(t, validOpts, ropts)
 }
 
-func TestToRetentionInvalid(t *testing.T) {
+func TestNamespaceToRetentionInvalid(t *testing.T) {
 	for _, opts := range invalidRetentionOpts {
-		_, err := convert.ToRetention(&opts)
+		_, err := namespace.ToRetention(&opts)
 		require.Error(t, err)
 	}
 }
 
 func TestToNamespaceValid(t *testing.T) {
-	nsOpts, err := convert.ToMetadata("abc", &validNamespaceOpts)
+	nsOpts, err := namespace.ToMetadata("abc", &validNamespaceOpts)
 	require.NoError(t, err)
 	assertEqualMetadata(t, "abc", validNamespaceOpts, nsOpts)
 }
 
 func TestToNamespaceInvalid(t *testing.T) {
-	_, err := convert.ToMetadata("", &validNamespaceOpts)
+	_, err := namespace.ToMetadata("", &validNamespaceOpts)
 	require.Error(t, err)
 
 	opts := validNamespaceOpts
 	opts.RetentionOptions = nil
-	_, err = convert.ToMetadata("abc", &opts)
+	_, err = namespace.ToMetadata("abc", &opts)
 	require.Error(t, err)
 
 	for _, ro := range invalidRetentionOpts {
 		opts := validNamespaceOpts
 		opts.RetentionOptions = &ro
-		_, err = convert.ToMetadata("abc", &opts)
+		_, err = namespace.ToMetadata("abc", &opts)
 		require.Error(t, err)
 	}
 }
@@ -122,7 +121,7 @@ func TestFromProto(t *testing.T) {
 			"testns2": &validNamespaceOpts,
 		},
 	}
-	nsMap, err := convert.FromProto(validRegistry)
+	nsMap, err := namespace.FromProto(validRegistry)
 	require.NoError(t, err)
 
 	md1, err := nsMap.Get(ts.StringID("testns1"))
@@ -146,7 +145,7 @@ func TestToProto(t *testing.T) {
 	require.NoError(t, err)
 
 	// convert to nsproto map
-	reg := convert.ToProto(nsMap)
+	reg := namespace.ToProto(nsMap)
 	require.Len(t, reg.Namespaces, 2)
 
 	// NB(prateek): expected/observed are inverted here

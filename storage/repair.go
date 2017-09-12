@@ -211,9 +211,11 @@ func (r repairStatesByNs) setRepairState(
 	nsRepairState[t] = state
 }
 
+// NB(prateek): dbRepairer.Repair(...) guarantees atomicity of execution, so all other
+// state does not need to be thread safe. One exception - `dbRepairer.closed` is used
+// for early termination if `dbRepairer.Stop()` is called during a repair, so we guard
+// it with a mutex.
 type dbRepairer struct {
-	sync.Mutex
-
 	database         database
 	ropts            repair.Options
 	shardRepairer    databaseShardRepairer
@@ -228,9 +230,11 @@ type dbRepairer struct {
 	repairTimeJitter    time.Duration
 	repairCheckInterval time.Duration
 	repairMaxRetries    int
-	closed              bool
 	running             int32
 	status              tally.Gauge
+
+	closedLock sync.Mutex
+	closed     bool
 }
 
 func newDatabaseRepairer(database database, opts Options) (databaseRepairer, error) {
@@ -276,9 +280,9 @@ func (r *dbRepairer) run() {
 	var curIntervalStart time.Time
 
 	for {
-		r.Lock()
+		r.closedLock.Lock()
 		closed := r.closed
-		r.Unlock()
+		r.closedLock.Unlock()
 
 		if closed {
 			break
@@ -344,9 +348,9 @@ func (r *dbRepairer) Start() {
 }
 
 func (r *dbRepairer) Stop() {
-	r.Lock()
+	r.closedLock.Lock()
 	r.closed = true
-	r.Unlock()
+	r.closedLock.Unlock()
 }
 
 func (r *dbRepairer) Repair() error {

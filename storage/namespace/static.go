@@ -21,31 +21,30 @@
 package namespace
 
 import (
-	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/watch"
 )
 
 type staticInit struct {
-	metadatas []namespace.Metadata
+	metadatas []Metadata
 }
 
-// NewInitializer returns a new static registry initializer
-func NewInitializer(metadatas []namespace.Metadata) namespace.Initializer {
+// NewStaticInitializer returns a new static registry initializer
+func NewStaticInitializer(metadatas []Metadata) Initializer {
 	return &staticInit{
 		metadatas: metadatas,
 	}
 }
 
-func (i *staticInit) Init() (namespace.Registry, error) {
-	return newRegistry(i.metadatas)
+func (i *staticInit) Init() (Registry, error) {
+	return newStaticRegistry(i.metadatas)
 }
 
 type staticReg struct {
 	xwatch.Watchable
 }
 
-func newRegistry(metadatas []namespace.Metadata) (namespace.Registry, error) {
-	m, err := namespace.NewMap(metadatas)
+func newStaticRegistry(metadatas []Metadata) (Registry, error) {
+	m, err := NewMap(metadatas)
 	if err != nil {
 		return nil, err
 	}
@@ -56,12 +55,12 @@ func newRegistry(metadatas []namespace.Metadata) (namespace.Registry, error) {
 	return reg, nil
 }
 
-func (r *staticReg) Watch() (namespace.Watch, error) {
+func (r *staticReg) Watch() (Watch, error) {
 	_, w, err := r.Watchable.Watch()
 	if err != nil {
 		return nil, err
 	}
-	return namespace.NewWatch(w), nil
+	return NewWatch(w), nil
 }
 
 func (r *staticReg) Close() error {
