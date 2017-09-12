@@ -157,7 +157,7 @@ func TestInitializerUpdateWithBadProto(t *testing.T) {
 	require.Equal(t, int64(0), numInvalidUpdates(opts))
 
 	// update with bad proto
-	w.valueCh <- testValue{
+	w.valueCh <- &testValue{
 		version: 2,
 		Registry: nsproto.Registry{
 			Namespaces: map[string]*nsproto.NamespaceOptions{
@@ -197,10 +197,42 @@ func TestInitializerUpdateWithOlderVersion(t *testing.T) {
 	require.Equal(t, int64(0), numInvalidUpdates(opts))
 
 	// update with bad version
-	w.valueCh <- testValue{
+	w.valueCh <- &testValue{
 		version:  1,
 		Registry: initValue.Registry,
 	}
+
+	time.Sleep(20 * time.Millisecond)
+	require.Equal(t, int64(1), numInvalidUpdates(opts))
+
+	require.Len(t, rmap.Get().Metadatas(), 1)
+	require.NoError(t, reg.Close())
+}
+
+func TestInitializerUpdateWithNilValue(t *testing.T) {
+	defer leaktest.CheckTimeout(t, time.Second)()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	initValue := singleTestValue()
+	w := newWatch(initValue)
+	defer w.Close()
+
+	opts := newTestOpts(ctrl, w)
+	init := NewInitializer(opts)
+
+	go w.start()
+	reg, err := init.Init()
+	require.NoError(t, err)
+
+	rmap, err := reg.Watch()
+	require.NoError(t, err)
+	require.Len(t, rmap.Get().Metadatas(), 1)
+	require.Equal(t, int64(0), numInvalidUpdates(opts))
+
+	// update with nil value
+	w.valueCh <- nil
 
 	time.Sleep(20 * time.Millisecond)
 	require.Equal(t, int64(1), numInvalidUpdates(opts))
@@ -232,7 +264,7 @@ func TestInitializerUpdateWithIdenticalValue(t *testing.T) {
 	require.Equal(t, int64(0), numInvalidUpdates(opts))
 
 	// update with new version
-	w.valueCh <- testValue{
+	w.valueCh <- &testValue{
 		version:  2,
 		Registry: initValue.Registry,
 	}
@@ -268,7 +300,7 @@ func TestInitializerUpdateSuccess(t *testing.T) {
 	require.Equal(t, 0., currentVersionMetrics(opts))
 
 	// update with valid value
-	w.valueCh <- testValue{
+	w.valueCh <- &testValue{
 		version: 2,
 		Registry: nsproto.Registry{
 			Namespaces: map[string]*nsproto.NamespaceOptions{
@@ -335,7 +367,7 @@ func (v *testValue) IsNewer(other kv.Value) bool {
 
 type testValueWatch struct {
 	notifyCh chan struct{}
-	valueCh  chan testValue
+	valueCh  chan *testValue
 
 	initValue testValue
 
@@ -348,19 +380,19 @@ func newWatch(initValue testValue) *testValueWatch {
 	return &testValueWatch{
 		initValue: initValue,
 		notifyCh:  make(chan struct{}, 10),
-		valueCh:   make(chan testValue, 10),
+		valueCh:   make(chan *testValue, 10),
 	}
 }
 
-func (w *testValueWatch) updateValue(v testValue) {
+func (w *testValueWatch) updateValue(v *testValue) {
 	w.Lock()
-	w.current = &v
+	w.current = v
 	w.notifyCh <- struct{}{}
 	w.Unlock()
 }
 
 func (w *testValueWatch) start() {
-	w.updateValue(w.initValue)
+	w.updateValue(&w.initValue)
 	for val := range w.valueCh {
 		w.updateValue(val)
 	}

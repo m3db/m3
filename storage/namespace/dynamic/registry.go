@@ -22,6 +22,7 @@ package dynamic
 
 import (
 	"errors"
+	"reflect"
 	"sync"
 	"time"
 
@@ -181,6 +182,12 @@ func (r *dynamicRegistry) run() {
 		}
 
 		val := r.kvWatch.Get()
+		if val == nil || reflect.ValueOf(val).IsNil() {
+			r.metrics.numInvalidUpdates.Inc(1)
+			r.logger.Warnf("dynamic namespace registry received nil, skipping")
+			continue
+		}
+
 		if !val.IsNewer(r.currentValue) {
 			r.metrics.numInvalidUpdates.Inc(1)
 			r.logger.Warnf("dynamic namespace registry received older version: %v, skipping",
