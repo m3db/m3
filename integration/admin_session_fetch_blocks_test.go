@@ -44,7 +44,8 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	}
 
 	// Test setup
-	testOpts := newTestOptions(t)
+	testOpts := newTestOptions(t).
+		SetTickInterval(time.Second)
 	testSetup, err := newTestSetup(t, testOpts)
 	require.NoError(t, err)
 	defer testSetup.close()
