@@ -22,7 +22,6 @@ package dynamic
 
 import (
 	"errors"
-	"reflect"
 	"sync"
 	"time"
 
@@ -182,7 +181,7 @@ func (r *dynamicRegistry) run() {
 		}
 
 		val := r.kvWatch.Get()
-		if val == nil || reflect.ValueOf(val).IsNil() {
+		if val == nil {
 			r.metrics.numInvalidUpdates.Inc(1)
 			r.logger.Warnf("dynamic namespace registry received nil, skipping")
 			continue
@@ -253,6 +252,10 @@ func waitOnInit(w kv.ValueWatch, d time.Duration) error {
 }
 
 func getMapFromUpdate(val kv.Value) (namespace.Map, error) {
+	if val == nil {
+		return nil, errInvalidRegistry
+	}
+
 	var protoRegistry nsproto.Registry
 	if err := val.Unmarshal(&protoRegistry); err != nil {
 		return nil, errInvalidRegistry
