@@ -22,7 +22,6 @@ package namespace
 
 import (
 	"fmt"
-	"sync"
 	"testing"
 	"time"
 
@@ -39,7 +38,10 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func newTestOpts(ctrl *gomock.Controller, watch *testValueWatch) DynamicOptions {
+func newTestOpts(t *testing.T, ctrl *gomock.Controller, watchable kv.ValueWatchable) DynamicOptions {
+	_, watch, err := watchable.Watch()
+	require.NoError(t, err)
+
 	ts := tally.NewTestScope("", nil)
 	mockKVStore := kv.NewMockStore(ctrl)
 	mockKVStore.EXPECT().Watch(defaultNsRegistryKey).Return(watch, nil)
@@ -82,9 +84,8 @@ func TestInitializerTimeout(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	values := singleTestValue()
-	w := newWatch(values)
-	opts := newTestOpts(ctrl, w)
+	w := newTestWatchable(t, nil)
+	opts := newTestOpts(t, ctrl, w)
 	init := NewDynamicInitializer(opts)
 	_, err := init.Init()
 	require.Error(t, err)
@@ -99,11 +100,10 @@ func TestInitializerNoTimeout(t *testing.T) {
 
 	value := singleTestValue()
 	expectedNsValue := value.Namespaces["testns1"]
-	w := newWatch(value)
+	w := newTestWatchable(t, value)
 	defer w.Close()
-	go w.start()
 
-	opts := newTestOpts(ctrl, w)
+	opts := newTestOpts(t, ctrl, w)
 	init := NewDynamicInitializer(opts)
 	reg, err := init.Init()
 	require.NoError(t, err)
@@ -140,13 +140,12 @@ func TestInitializerUpdateWithBadProto(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	w := newWatch(singleTestValue())
+	w := newTestWatchable(t, singleTestValue())
 	defer w.Close()
 
-	opts := newTestOpts(ctrl, w)
+	opts := newTestOpts(t, ctrl, w)
 	init := NewDynamicInitializer(opts)
 
-	go w.start()
 	reg, err := init.Init()
 	require.NoError(t, err)
 
@@ -156,7 +155,7 @@ func TestInitializerUpdateWithBadProto(t *testing.T) {
 	require.Equal(t, int64(0), numInvalidUpdates(opts))
 
 	// update with bad proto
-	w.valueCh <- testValue{
+	require.NoError(t, w.Update(&testValue{
 		version: 2,
 		Registry: nsproto.Registry{
 			Namespaces: map[string]*nsproto.NamespaceOptions{
@@ -164,7 +163,7 @@ func TestInitializerUpdateWithBadProto(t *testing.T) {
 				"testns2": nil,
 			},
 		},
-	}
+	}))
 
 	time.Sleep(20 * time.Millisecond)
 	require.Equal(t, int64(1), numInvalidUpdates(opts))
@@ -180,13 +179,12 @@ func TestInitializerUpdateWithOlderVersion(t *testing.T) {
 	defer ctrl.Finish()
 
 	initValue := singleTestValue()
-	w := newWatch(initValue)
+	w := newTestWatchable(t, initValue)
 	defer w.Close()
 
-	opts := newTestOpts(ctrl, w)
+	opts := newTestOpts(t, ctrl, w)
 	init := NewDynamicInitializer(opts)
 
-	go w.start()
 	reg, err := init.Init()
 	require.NoError(t, err)
 
@@ -196,16 +194,63 @@ func TestInitializerUpdateWithOlderVersion(t *testing.T) {
 	require.Equal(t, int64(0), numInvalidUpdates(opts))
 
 	// update with bad version
-	w.valueCh <- testValue{
+	require.NoError(t, w.Update(&testValue{
 		version:  1,
 		Registry: initValue.Registry,
-	}
+	}))
 
 	time.Sleep(20 * time.Millisecond)
 	require.Equal(t, int64(1), numInvalidUpdates(opts))
 
 	require.Len(t, rmap.Get().Metadatas(), 1)
 	require.NoError(t, reg.Close())
+}
+
+func TestInitializerUpdateWithNilValue(t *testing.T) {
+	defer leaktest.CheckTimeout(t, time.Second)()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	w := newTestWatchable(t, singleTestValue())
+	defer w.Close()
+
+	opts := newTestOpts(t, ctrl, w)
+	init := NewDynamicInitializer(opts)
+
+	reg, err := init.Init()
+	require.NoError(t, err)
+
+	rmap, err := reg.Watch()
+	require.NoError(t, err)
+	require.Len(t, rmap.Get().Metadatas(), 1)
+	require.Equal(t, int64(0), numInvalidUpdates(opts))
+
+	// update with nil value
+	require.NoError(t, w.Update(nil))
+
+	time.Sleep(20 * time.Millisecond)
+	require.Equal(t, int64(1), numInvalidUpdates(opts))
+
+	require.Len(t, rmap.Get().Metadatas(), 1)
+	require.NoError(t, reg.Close())
+}
+
+func TestInitializerUpdateWithNilInitialValue(t *testing.T) {
+	defer leaktest.CheckTimeout(t, time.Second)()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	w := newTestWatchable(t, nil)
+	defer w.Close()
+
+	opts := newTestOpts(t, ctrl, w)
+	init := NewDynamicInitializer(opts)
+
+	require.NoError(t, w.Update(nil))
+	_, err := init.Init()
+	require.Error(t, err)
 }
 
 func TestInitializerUpdateWithIdenticalValue(t *testing.T) {
@@ -215,13 +260,12 @@ func TestInitializerUpdateWithIdenticalValue(t *testing.T) {
 	defer ctrl.Finish()
 
 	initValue := singleTestValue()
-	w := newWatch(initValue)
+	w := newTestWatchable(t, initValue)
 	defer w.Close()
 
-	opts := newTestOpts(ctrl, w)
+	opts := newTestOpts(t, ctrl, w)
 	init := NewDynamicInitializer(opts)
 
-	go w.start()
 	reg, err := init.Init()
 	require.NoError(t, err)
 
@@ -231,10 +275,10 @@ func TestInitializerUpdateWithIdenticalValue(t *testing.T) {
 	require.Equal(t, int64(0), numInvalidUpdates(opts))
 
 	// update with new version
-	w.valueCh <- testValue{
+	require.NoError(t, w.Update(&testValue{
 		version:  2,
 		Registry: initValue.Registry,
-	}
+	}))
 
 	time.Sleep(20 * time.Millisecond)
 	require.Equal(t, int64(1), numInvalidUpdates(opts))
@@ -250,13 +294,12 @@ func TestInitializerUpdateSuccess(t *testing.T) {
 	defer ctrl.Finish()
 
 	initValue := singleTestValue()
-	w := newWatch(initValue)
+	w := newTestWatchable(t, initValue)
 	defer w.Close()
 
-	opts := newTestOpts(ctrl, w)
+	opts := newTestOpts(t, ctrl, w)
 	init := NewDynamicInitializer(opts)
 
-	go w.start()
 	reg, err := init.Init()
 	require.NoError(t, err)
 
@@ -267,7 +310,7 @@ func TestInitializerUpdateSuccess(t *testing.T) {
 	require.Equal(t, 0., currentVersionMetrics(opts))
 
 	// update with valid value
-	w.valueCh <- testValue{
+	require.NoError(t, w.Update(&testValue{
 		version: 2,
 		Registry: nsproto.Registry{
 			Namespaces: map[string]*nsproto.NamespaceOptions{
@@ -275,7 +318,7 @@ func TestInitializerUpdateSuccess(t *testing.T) {
 				"testns2": initValue.Namespaces["testns1"],
 			},
 		},
-	}
+	}))
 
 	time.Sleep(20 * time.Millisecond)
 	require.Equal(t, int64(0), numInvalidUpdates(opts))
@@ -285,8 +328,8 @@ func TestInitializerUpdateSuccess(t *testing.T) {
 	require.NoError(t, reg.Close())
 }
 
-func singleTestValue() testValue {
-	return testValue{
+func singleTestValue() *testValue {
+	return &testValue{
 		version: 1,
 		Registry: nsproto.Registry{
 			Namespaces: map[string]*nsproto.NamespaceOptions{
@@ -332,60 +375,12 @@ func (v *testValue) IsNewer(other kv.Value) bool {
 	return v.Version() > other.Version()
 }
 
-type testValueWatch struct {
-	notifyCh chan struct{}
-	valueCh  chan testValue
-
-	initValue testValue
-
-	sync.RWMutex
-	current *testValue
-	closed  bool
-}
-
-func newWatch(initValue testValue) *testValueWatch {
-	return &testValueWatch{
-		initValue: initValue,
-		notifyCh:  make(chan struct{}, 10),
-		valueCh:   make(chan testValue, 10),
+func newTestWatchable(t *testing.T, initValue *testValue) kv.ValueWatchable {
+	w := kv.NewValueWatchable()
+	if initValue != nil {
+		require.NoError(t, w.Update(initValue))
 	}
-}
-
-func (w *testValueWatch) updateValue(v testValue) {
-	w.Lock()
-	w.current = &v
-	w.notifyCh <- struct{}{}
-	w.Unlock()
-}
-
-func (w *testValueWatch) start() {
-	w.updateValue(w.initValue)
-	for val := range w.valueCh {
-		w.updateValue(val)
-	}
-}
-
-func (w *testValueWatch) C() <-chan struct{} {
-	return w.notifyCh
-}
-
-func (w *testValueWatch) Get() kv.Value {
-	w.RLock()
-	defer w.RUnlock()
-	return w.current
-}
-
-func (w *testValueWatch) Close() {
-	w.Lock()
-	if w.closed {
-		w.Unlock()
-		return
-	}
-	w.closed = true
-	w.Unlock()
-
-	close(w.valueCh)
-	close(w.notifyCh)
+	return w
 }
 
 func toNanosInt64(t time.Duration) int64 {

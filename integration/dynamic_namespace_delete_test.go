@@ -29,21 +29,29 @@ import (
 	"github.com/m3db/m3cluster/integration/etcd"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/storage/namespace"
+	xmetrics "github.com/m3db/m3db/x/metrics"
+	"github.com/m3db/m3x/instrument"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
-func TestDynamicNamespaceAdd(t *testing.T) {
+func TestDynamicNamespaceDelete(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
 	// test options
-	testOpts := newTestOptions(t)
+	testOpts := newTestOptions(t).
+		SetTickInterval(time.Second)
 	require.True(t, len(testOpts.Namespaces()) >= 2)
 	ns0 := testOpts.Namespaces()[0]
 	ns1 := testOpts.Namespaces()[1]
+
+	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, 100*time.Millisecond)
+	defer closer.Close()
 
 	// embedded kv
 	embeddedKV, err := etcd.New(etcd.NewOptions())
@@ -66,7 +74,8 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 
 	// dynamic namespace registry options
 	dynamicOpts := namespace.NewDynamicOptions().
-		SetConfigServiceClient(csClient)
+		SetConfigServiceClient(csClient).
+		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope))
 	dynamicInit := namespace.NewDynamicInitializer(dynamicOpts)
 	testOpts = testOpts.SetNamespaceInitializer(dynamicInit)
 
@@ -109,6 +118,16 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 		require.Error(t, testSetup.writeBatch(ns0.ID(), testData))
 	}
 
+	// delete namespace key, ensure update propagates
+	numInvalid := numInvalidNamespaceUpdates(scope)
+	_, err = kvStore.Delete(dynamicOpts.NamespaceRegistryKey())
+	require.NoError(t, err)
+	deletePropagated := func() bool {
+		return numInvalidNamespaceUpdates(scope) > numInvalid
+	}
+	require.True(t, waitUntil(deletePropagated, 5*time.Second))
+	log.Infof("deleted namespace key from kv")
+
 	// update value in kv
 	_, err = kvStore.Set(dynamicOpts.NamespaceRegistryKey(), protoKey(ns0, ns1))
 	require.NoError(t, err)
@@ -132,7 +151,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
 	testSetup.setNowFn(testSetup.getNowFn().Add(2 * blockSize))
 	later := testSetup.getNowFn()
-	time.Sleep(testOpts.TickInterval() * 10)
+	testSetup.sleepFor10xTickInterval()
 
 	metadatasByShard := testSetupMetadatas(t, testSetup, ns0.ID(), now, later)
 	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, ns0, metadatasByShard)
@@ -141,4 +160,13 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	// Verify retrieved data matches what we've written
 	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
 	log.Infof("data is verified")
+}
+
+func numInvalidNamespaceUpdates(scope tally.Scope) int64 {
+	testScope := scope.(tally.TestScope)
+	count, ok := testScope.Snapshot().Counters()["namespace-registry.invalid-update+"]
+	if !ok {
+		return 0
+	}
+	return count.Value()
 }

@@ -472,6 +472,11 @@ func (ts *testSetup) close() {
 	}
 }
 
+// convenience wrapper used to ensure a tick occurs
+func (ts *testSetup) sleepFor10xTickInterval() {
+	time.Sleep(ts.opts.TickInterval() * 10)
+}
+
 type testSetups []*testSetup
 
 func (ts testSetups) parallel(fn func(s *testSetup)) {
