@@ -99,6 +99,9 @@ type Instance interface {
 
 	// IsInitializing returns whether the instance contains only initializing shards.
 	IsInitializing() bool
+
+	// Clone returns a clone of the Instance.
+	Clone() Instance
 }
 
 // Placement describes how instances are placed.
@@ -166,6 +169,9 @@ type Placement interface {
 
 	// Proto returns the proto representation for the Placement.
 	Proto() (*placementpb.Placement, error)
+
+	// Clone returns a clone of the Placement.
+	Clone() Placement
 }
 
 // DoneFn is called when caller is done using the resource.

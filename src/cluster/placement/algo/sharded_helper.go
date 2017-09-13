@@ -656,8 +656,8 @@ func addInstanceToPlacement(p placement.Placement, i placement.Instance, include
 	if _, exist := p.Instance(i.ID()); exist {
 		return nil, nil, errAddingInstanceAlreadyExist
 	}
-	instance := placement.CloneInstance(i)
 
+	instance := i.Clone()
 	if includeInstance == includeEmpty || instance.Shards().NumShards() > 0 {
 		p = p.SetInstances(append(p.Instances(), instance))
 	}

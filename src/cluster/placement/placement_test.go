@@ -413,7 +413,7 @@ func TestClonePlacement(t *testing.T) {
 		SetIsMirrored(false).
 		SetIsSharded(true).
 		SetCutoverNanos(1234)
-	copy := ClonePlacement(p)
+	copy := p.Clone()
 	assert.Equal(t, p.NumInstances(), copy.NumInstances())
 	assert.Equal(t, p.Shards(), copy.Shards())
 	assert.Equal(t, p.ReplicaFactor(), copy.ReplicaFactor())

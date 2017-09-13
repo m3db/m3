@@ -87,6 +87,9 @@ type Shard interface {
 
 	// Proto returns the proto representation for the shard.
 	Proto() (*placementpb.Shard, error)
+
+	// Clone returns a clone of the Shard.
+	Clone() Shard
 }
 
 // Shards is a collection of shards owned by one ServiceInstance.
@@ -126,4 +129,7 @@ type Shards interface {
 
 	// Proto returns the proto representation for the shards.
 	Proto() ([]*placementpb.Shard, error)
+
+	// Clone returns a clone of the Shards.
+	Clone() Shards
 }
