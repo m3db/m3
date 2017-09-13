@@ -1,0 +1,7 @@
+# mocked files
+mock_*.go binary linguist-generated
+*_mock.go binary linguist-generated
+
+# source files
+*.go text
+*.md text

@@ -43,14 +43,13 @@ type testEntry struct {
 }
 
 func newTestWriter(filePathPrefix string) FileSetWriter {
-	blockSize := testBlockSize
 	newFileMode := defaultNewFileMode
 	newDirectoryMode := defaultNewDirectoryMode
-	return NewWriter(blockSize, filePathPrefix, testWriterBufferSize, newFileMode, newDirectoryMode)
+	return NewWriter(filePathPrefix, testWriterBufferSize, newFileMode, newDirectoryMode)
 }
 
 func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
-	err := w.Open(testNamespaceID, shard, timestamp)
+	err := w.Open(testNs1ID, testBlockSize, shard, timestamp)
 	assert.NoError(t, err)
 
 	for i := range entries {
@@ -63,7 +62,7 @@ func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.T
 }
 
 func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
-	err := r.Open(testNamespaceID, 0, timestamp)
+	err := r.Open(testNs1ID, 0, timestamp)
 	assert.NoError(t, err)
 
 	assert.Equal(t, len(entries), r.Entries())
@@ -121,7 +120,7 @@ func TestInfoReadWrite(t *testing.T) {
 	w := newTestWriter(filePathPrefix)
 	writeTestData(t, w, 0, testWriterStart, entries)
 
-	infoFiles := ReadInfoFiles(filePathPrefix, testNamespaceID, 0, 16, nil)
+	infoFiles := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil)
 	require.Equal(t, 1, len(infoFiles))
 
 	infoFile := infoFiles[0]
@@ -167,7 +166,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	}
 	w := newTestWriter(filePathPrefix)
 	shard := uint32(0)
-	require.NoError(t, w.Open(testNamespaceID, shard, testWriterStart))
+	require.NoError(t, w.Open(testNs1ID, testBlockSize, shard, testWriterStart))
 
 	require.NoError(t, w.Write(
 		ts.StringID(entries[0].id),
@@ -183,7 +182,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	w.Close()
 
 	r := newTestReader(filePathPrefix)
-	require.Equal(t, errCheckpointFileNotFound, r.Open(testNamespaceID, shard, testWriterStart))
+	require.Equal(t, errCheckpointFileNotFound, r.Open(testNs1ID, shard, testWriterStart))
 
 	// Now reuse the writer and validate the data are written as expected.
 	writeTestData(t, w, shard, testWriterStart, entries)
@@ -202,7 +201,7 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	}
 
 	w := newTestWriter(filePathPrefix)
-	err := w.Open(testNamespaceID, 0, testWriterStart)
+	err := w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	w.WriteAll(ts.StringID("foo"), []checked.Bytes{

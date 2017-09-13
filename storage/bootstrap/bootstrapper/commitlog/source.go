@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
@@ -69,7 +70,7 @@ func (s *commitLogSource) Can(strategy bootstrap.Strategy) bool {
 }
 
 func (s *commitLogSource) Available(
-	namespace ts.ID,
+	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
 	// Commit log bootstrapper is a last ditch effort, so fulfill all
@@ -79,7 +80,7 @@ func (s *commitLogSource) Available(
 }
 
 func (s *commitLogSource) Read(
-	namespace ts.ID,
+	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	_ bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {
@@ -95,15 +96,22 @@ func (s *commitLogSource) Read(
 	defer iter.Close()
 
 	var (
+		namespace   = ns.ID()
 		unmerged    = make(map[uint32]map[ts.Hash]encoderMap)
 		bopts       = s.opts.ResultOptions()
 		blopts      = bopts.DatabaseBlockOptions()
-		blockSize   = bopts.RetentionOptions().BlockSize()
+		blockSize   = ns.Options().RetentionOptions().BlockSize()
 		encoderPool = bopts.DatabaseBlockOptions().EncoderPool()
 		errs        = 0
 	)
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
+
+		// check if the series belongs to current namespace being bootstrapped
+		if !namespace.Equal(series.Namespace) {
+			continue
+		}
+
 		ranges, ok := shardsTimeRanges[series.Shard]
 		if !ok {
 			// Not bootstrapping this shard
@@ -180,7 +188,7 @@ func (s *commitLogSource) Read(
 	for shard, unmergedShard := range unmerged {
 		shardResult := result.NewShardResult(len(unmergedShard), s.opts.ResultOptions())
 		for _, unmergedBlocks := range unmergedShard {
-			blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders), blopts)
+			blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
 			for start, unmergedBlock := range unmergedBlocks.encoders {
 				block := blocksPool.Get()
 				if len(unmergedBlock) == 0 {

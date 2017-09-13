@@ -33,13 +33,13 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/time"
 
 	mclock "github.com/facebookgo/clock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
 
@@ -73,7 +73,7 @@ func newTestOptions(
 		SetClockOptions(clock.NewOptions().SetNowFn(c.Now)).
 		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope)).
 		SetFilesystemOptions(fs.NewOptions().SetFilePathPrefix(dir)).
-		SetRetentionOptions(retention.NewOptions().SetBlockSize(2 * time.Hour)).
+		SetBlockSize(2 * time.Hour).
 		SetFlushSize(4096).
 		SetFlushInterval(100 * time.Millisecond).
 		SetBacklogQueueSize(1024)
@@ -189,7 +189,9 @@ func (w *mockCommitLogWriter) Close() error {
 }
 
 func newTestCommitLog(t *testing.T, opts Options) *commitLog {
-	commitLog := NewCommitLog(opts).(*commitLog)
+	commitLogI, err := NewCommitLog(opts)
+	require.NoError(t, err)
+	commitLog := commitLogI.(*commitLog)
 	assert.NoError(t, commitLog.Open())
 
 	// Ensure files present
@@ -422,7 +424,7 @@ func TestCommitLogExpiresWriter(t *testing.T) {
 
 	commitLog := newTestCommitLog(t, opts)
 
-	blockSize := opts.RetentionOptions().BlockSize()
+	blockSize := opts.BlockSize()
 	alignedStart := clock.Now().Truncate(blockSize)
 
 	// Writes spaced apart by block size
@@ -462,7 +464,9 @@ func TestCommitLogFailOnWriteError(t *testing.T) {
 	})
 	defer cleanup(t, opts)
 
-	commitLog := NewCommitLog(opts).(*commitLog)
+	commitLogI, err := NewCommitLog(opts)
+	require.NoError(t, err)
+	commitLog := commitLogI.(*commitLog)
 	writer := newMockCommitLogWriter()
 
 	writer.writeFn = func(Series, ts.Datapoint, xtime.Unit, ts.Annotation) error {
@@ -513,7 +517,9 @@ func TestCommitLogFailOnOpenError(t *testing.T) {
 	})
 	defer cleanup(t, opts)
 
-	commitLog := NewCommitLog(opts).(*commitLog)
+	commitLogI, err := NewCommitLog(opts)
+	require.NoError(t, err)
+	commitLog := commitLogI.(*commitLog)
 	writer := newMockCommitLogWriter()
 
 	var opens int64
@@ -571,7 +577,9 @@ func TestCommitLogFailOnFlushError(t *testing.T) {
 	})
 	defer cleanup(t, opts)
 
-	commitLog := NewCommitLog(opts).(*commitLog)
+	commitLogI, err := NewCommitLog(opts)
+	require.NoError(t, err)
+	commitLog := commitLogI.(*commitLog)
 	writer := newMockCommitLogWriter()
 
 	var flushes int64

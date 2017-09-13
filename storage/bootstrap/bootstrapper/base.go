@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 )
@@ -68,7 +68,7 @@ func (b *baseBootstrapper) Can(strategy bootstrap.Strategy) bool {
 }
 
 func (b *baseBootstrapper) Bootstrap(
-	namespace ts.ID,
+	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {
@@ -76,7 +76,7 @@ func (b *baseBootstrapper) Bootstrap(
 		return nil, nil
 	}
 
-	available := b.src.Available(namespace, shardsTimeRanges)
+	available := b.src.Available(ns, shardsTimeRanges)
 	remaining := shardsTimeRanges.Copy()
 	remaining.Subtract(available)
 
@@ -92,30 +92,36 @@ func (b *baseBootstrapper) Bootstrap(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			nextResult, nextErr = b.next.Bootstrap(namespace, remaining, opts)
+			nextResult, nextErr = b.next.Bootstrap(ns, remaining, opts)
 		}()
 	}
 
 	min, max := available.MinMax()
 	logFields := []xlog.LogField{
 		xlog.NewLogField("source", b.name),
-		xlog.NewLogField("from", min),
-		xlog.NewLogField("to", max),
+		xlog.NewLogField("from", min.String()),
+		xlog.NewLogField("to", max.String()),
 		xlog.NewLogField("range", max.Sub(min).String()),
 		xlog.NewLogField("shards", len(available)),
+		xlog.NewLogField("namespace", ns.ID().String()),
 	}
 	b.log.WithFields(logFields...).Infof("bootstrapping from source starting")
 
 	nowFn := b.opts.ClockOptions().NowFn()
 	begin := nowFn()
 
-	currResult, currErr = b.src.Read(namespace, available, opts)
+	currResult, currErr = b.src.Read(ns, available, opts)
 
 	logFields = append(logFields, xlog.NewLogField("took", nowFn().Sub(begin).String()))
 	if currErr != nil {
 		logFields = append(logFields, xlog.NewLogField("error", currErr.Error()))
 		b.log.WithFields(logFields...).Infof("bootstrapping from source completed with error")
 	} else {
+		var numSeries int64
+		if currResult != nil {
+			numSeries = currResult.ShardResults().NumSeries()
+		}
+		logFields = append(logFields, xlog.NewLogField("numSeries", numSeries))
 		b.log.WithFields(logFields...).Infof("bootstrapping from source completed successfully")
 	}
 
@@ -146,7 +152,7 @@ func (b *baseBootstrapper) Bootstrap(
 	// If there are some time ranges the current bootstrapper could not fulfill,
 	// pass it along to the next bootstrapper
 	if !currUnfulfilled.IsEmpty() {
-		nextResult, nextErr = b.next.Bootstrap(namespace, currUnfulfilled, opts)
+		nextResult, nextErr = b.next.Bootstrap(ns, currUnfulfilled, opts)
 		if nextErr != nil {
 			return nil, nextErr
 		}

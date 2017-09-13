@@ -69,11 +69,13 @@ func (bsc BootstrapConfiguration) New(
 	adminClient client.AdminClient,
 	blockRetrieverMgr block.DatabaseBlockRetrieverManager,
 ) (bootstrap.Process, error) {
-	var bs bootstrap.Bootstrapper
+	var (
+		bs  bootstrap.Bootstrapper
+		err error
+	)
 
 	rsopts := result.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
-		SetRetentionOptions(opts.RetentionOptions()).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions())
 
 	// Start from the end of the list because the bootstrappers are ordered by precedence in descending order.
@@ -96,14 +98,20 @@ func (bsc BootstrapConfiguration) New(
 			copts := commitlog.NewOptions().
 				SetResultOptions(rsopts).
 				SetCommitLogOptions(opts.CommitLogOptions())
-			bs = commitlog.NewCommitLogBootstrapper(copts, bs)
+			bs, err = commitlog.NewCommitLogBootstrapper(copts, bs)
+			if err != nil {
+				return nil, err
+			}
 		case peers.PeersBootstrapperName:
 			popts := peers.NewOptions().
 				SetResultOptions(rsopts).
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
 				SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
-			bs = peers.NewPeersBootstrapper(popts, bs)
+			bs, err = peers.NewPeersBootstrapper(popts, bs)
+			if err != nil {
+				return nil, err
+			}
 		default:
 			return nil, fmt.Errorf("unknown bootstrapper name %s", bsc.Bootstrappers[i])
 		}

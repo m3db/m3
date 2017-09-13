@@ -21,6 +21,7 @@
 package retention
 
 import (
+	"errors"
 	"time"
 )
 
@@ -37,9 +38,6 @@ const (
 	// defaultBufferPast is the default buffer past limit
 	defaultBufferPast = 10 * time.Minute
 
-	// defaultBufferDrain is the default buffer drain
-	defaultBufferDrain = 2 * time.Minute
-
 	// defaultDataExpiry is the default bool for whether data expiry is on
 	defaultDataExpiry = true
 
@@ -47,12 +45,20 @@ const (
 	defaultDataExpiryAfterNotAccessedPeriod = 5 * time.Minute
 )
 
+var (
+	errBufferFutureNonNegative = errors.New("buffer future must be non-negative")
+	errBufferPastNonNegative   = errors.New("buffer past must be non-negative")
+	errBlockSizePositive       = errors.New("block size must positive")
+	errBufferFutureTooLarge    = errors.New("buffer future must be smaller than block size")
+	errBufferPastTooLarge      = errors.New("buffer past must be smaller than block size")
+	errRetentionPeriodTooSmall = errors.New("retention period must not be smaller than block size")
+)
+
 type options struct {
 	retentionPeriod                  time.Duration
 	blockSize                        time.Duration
 	bufferFuture                     time.Duration
 	bufferPast                       time.Duration
-	bufferDrain                      time.Duration
 	dataExpiry                       bool
 	dataExpiryAfterNotAccessedPeriod time.Duration
 }
@@ -64,10 +70,40 @@ func NewOptions() Options {
 		blockSize:                        defaultBlockSize,
 		bufferFuture:                     defaultBufferFuture,
 		bufferPast:                       defaultBufferPast,
-		bufferDrain:                      defaultBufferDrain,
 		dataExpiry:                       defaultDataExpiry,
 		dataExpiryAfterNotAccessedPeriod: defaultDataExpiryAfterNotAccessedPeriod,
 	}
+}
+
+func (o *options) Validate() error {
+	if o.bufferFuture < 0 {
+		return errBufferFutureNonNegative
+	}
+	if o.bufferPast < 0 {
+		return errBufferPastNonNegative
+	}
+	if o.blockSize <= 0 {
+		return errBlockSizePositive
+	}
+	if o.bufferFuture >= o.blockSize {
+		return errBufferFutureTooLarge
+	}
+	if o.bufferPast >= o.blockSize {
+		return errBufferPastTooLarge
+	}
+	if o.retentionPeriod < o.blockSize {
+		return errRetentionPeriodTooSmall
+	}
+	return nil
+}
+
+func (o *options) Equal(value Options) bool {
+	return o.retentionPeriod == value.RetentionPeriod() &&
+		o.blockSize == value.BlockSize() &&
+		o.bufferFuture == value.BufferFuture() &&
+		o.bufferPast == value.BufferPast() &&
+		o.dataExpiry == value.BlockDataExpiry() &&
+		o.dataExpiryAfterNotAccessedPeriod == value.BlockDataExpiryAfterNotAccessedPeriod()
 }
 
 func (o *options) SetRetentionPeriod(value time.Duration) Options {
@@ -108,16 +144,6 @@ func (o *options) SetBufferPast(value time.Duration) Options {
 
 func (o *options) BufferPast() time.Duration {
 	return o.bufferPast
-}
-
-func (o *options) SetBufferDrain(value time.Duration) Options {
-	opts := *o
-	opts.bufferDrain = value
-	return &opts
-}
-
-func (o *options) BufferDrain() time.Duration {
-	return o.bufferDrain
 }
 
 func (o *options) SetBlockDataExpiry(value bool) Options {

@@ -24,9 +24,10 @@
 package bootstrap
 
 import (
-	gomock "github.com/golang/mock/gomock"
 	result "github.com/m3db/m3db/storage/bootstrap/result"
-	ts "github.com/m3db/m3db/ts"
+	namespace "github.com/m3db/m3db/storage/namespace"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of Process interface
@@ -68,8 +69,8 @@ func (_mr *_MockProcessRecorder) Bootstrapper() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Bootstrapper")
 }
 
-func (_m *MockProcess) Run(namespace ts.ID, shards []uint32, targetRanges []TargetRange) (result.BootstrapResult, error) {
-	ret := _m.ctrl.Call(_m, "Run", namespace, shards, targetRanges)
+func (_m *MockProcess) Run(ns namespace.Metadata, shards []uint32, targetRanges []TargetRange) (result.BootstrapResult, error) {
+	ret := _m.ctrl.Call(_m, "Run", ns, shards, targetRanges)
 	ret0, _ := ret[0].(result.BootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
@@ -161,8 +162,8 @@ func (_mr *_MockBootstrapperRecorder) Can(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Can", arg0)
 }
 
-func (_m *MockBootstrapper) Bootstrap(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.BootstrapResult, error) {
-	ret := _m.ctrl.Call(_m, "Bootstrap", namespace, shardsTimeRanges, opts)
+func (_m *MockBootstrapper) Bootstrap(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.BootstrapResult, error) {
+	ret := _m.ctrl.Call(_m, "Bootstrap", ns, shardsTimeRanges, opts)
 	ret0, _ := ret[0].(result.BootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
@@ -203,8 +204,8 @@ func (_mr *_MockSourceRecorder) Can(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Can", arg0)
 }
 
-func (_m *MockSource) Available(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges) result.ShardTimeRanges {
-	ret := _m.ctrl.Call(_m, "Available", namespace, shardsTimeRanges)
+func (_m *MockSource) Available(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges) result.ShardTimeRanges {
+	ret := _m.ctrl.Call(_m, "Available", ns, shardsTimeRanges)
 	ret0, _ := ret[0].(result.ShardTimeRanges)
 	return ret0
 }
@@ -213,8 +214,8 @@ func (_mr *_MockSourceRecorder) Available(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Available", arg0, arg1)
 }
 
-func (_m *MockSource) Read(namespace ts.ID, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.BootstrapResult, error) {
-	ret := _m.ctrl.Call(_m, "Read", namespace, shardsTimeRanges, opts)
+func (_m *MockSource) Read(ns namespace.Metadata, shardsTimeRanges result.ShardTimeRanges, opts RunOptions) (result.BootstrapResult, error) {
+	ret := _m.ctrl.Call(_m, "Read", ns, shardsTimeRanges, opts)
 	ret0, _ := ret[0].(result.BootstrapResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1

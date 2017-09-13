@@ -21,8 +21,6 @@
 package storage
 
 import (
-	"math"
-	"math/rand"
 	"sync"
 	"time"
 
@@ -65,7 +63,6 @@ type fileSystemManager struct {
 	log      xlog.Logger
 	database database
 	opts     Options
-	jitter   time.Duration
 	status   fileOpStatus
 	enabled  bool
 }
@@ -73,23 +70,11 @@ type fileSystemManager struct {
 func newFileSystemManager(
 	database database,
 	opts Options,
-) (databaseFileSystemManager, error) {
-	fileOpts := opts.FileOpOptions()
-	if err := fileOpts.Validate(); err != nil {
-		return nil, err
-	}
+) databaseFileSystemManager {
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope().SubScope("fs")
 	fm := newFlushManager(database, scope)
-	cm := newCleanupManager(database, fm, scope)
-
-	var jitter time.Duration
-	if maxJitter := fileOpts.Jitter(); maxJitter > 0 {
-		nowFn := opts.ClockOptions().NowFn()
-		src := rand.NewSource(nowFn().UnixNano())
-		jitter = time.Duration(float64(maxJitter) *
-			(float64(src.Int63()) / float64(math.MaxInt64)))
-	}
+	cm := newCleanupManager(database, scope)
 
 	return &fileSystemManager{
 		databaseFlushManager:   fm,
@@ -97,10 +82,9 @@ func newFileSystemManager(
 		log:      instrumentOpts.Logger(),
 		database: database,
 		opts:     opts,
-		jitter:   jitter,
 		status:   fileOpNotStarted,
 		enabled:  true,
-	}, nil
+	}
 }
 
 func (m *fileSystemManager) Disable() fileOpStatus {

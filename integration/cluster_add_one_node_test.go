@@ -47,8 +47,15 @@ func TestClusterAddOneNode(t *testing.T) {
 	// Test setups
 	log := xlog.SimpleLogger
 
-	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
-	opts := newTestOptions().
+	namesp, err := namespace.NewMetadata(testNamespaces[0],
+		namespace.NewOptions().SetRetentionOptions(
+			retention.NewOptions().
+				SetRetentionPeriod(6*time.Hour).
+				SetBlockSize(2*time.Hour).
+				SetBufferPast(10*time.Minute).
+				SetBufferFuture(2*time.Minute)))
+	require.NoError(t, err)
+	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp})
 
 	instances := struct {
@@ -84,12 +91,6 @@ func TestClusterAddOneNode(t *testing.T) {
 	topoOpts := topology.NewDynamicOptions().
 		SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
 	topoInit := topology.NewDynamicInitializer(topoOpts)
-	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(6 * time.Hour).
-		SetBlockSize(2 * time.Hour).
-		SetBufferPast(10 * time.Minute).
-		SetBufferFuture(2 * time.Minute).
-		SetBufferDrain(3 * time.Second)
 	setupOpts := []bootstrappableTestSetupOptions{
 		{
 			disablePeersBootstrapper: true,
@@ -100,7 +101,7 @@ func TestClusterAddOneNode(t *testing.T) {
 			topologyInitializer:      topoInit,
 		},
 	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
+	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
 	// Write test data for first node
@@ -121,12 +122,12 @@ func TestClusterAddOneNode(t *testing.T) {
 	}
 
 	now := setups[0].getNowFn()
-	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
+	blockSize := namesp.Options().RetentionOptions().BlockSize()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{[]string{ids[0].str, ids[1].str}, 180, now.Add(-blockSize)},
 		{[]string{ids[0].str, ids[2].str}, 90, now},
 	})
-	err = writeTestDataToDisk(namesp.ID(), setups[0], seriesMaps)
+	err = writeTestDataToDisk(namesp, setups[0], seriesMaps)
 	require.NoError(t, err)
 
 	// Prepare verification of data on nodes

@@ -42,16 +42,16 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 
 	// Test setups
 	log := xlog.SimpleLogger
-	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
-	opts := newTestOptions().
-		SetNamespaces([]namespace.Metadata{namesp})
-
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(6 * time.Hour).
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
-		SetBufferFuture(2 * time.Minute).
-		SetBufferDrain(3 * time.Second)
+		SetBufferFuture(2 * time.Minute)
+	namesp := namespace.NewMetadata(testNamespaces[0],
+		namespace.NewOptions().SetRetentionOptions(retentionOpts))
+	opts := newTestOptions(t).
+		SetNamespaces([]namespace.Metadata{namesp})
+
 	batchSize := 16
 	concurrency := 64
 	setupOpts := []bootstrappableTestSetupOptions{
@@ -64,7 +64,7 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 			bootstrapBlocksConcurrency: concurrency,
 		},
 	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
+	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
 	// Write test data for first node
@@ -77,12 +77,12 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 	}
 
 	now := setups[0].getNowFn()
-	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
+	blockSize := retentionOpts.BlockSize()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{shardIDs, 3, now.Add(-blockSize)},
 		{shardIDs, 3, now},
 	})
-	err := writeTestDataToDisk(namesp.ID(), setups[0], seriesMaps)
+	err := writeTestDataToDisk(namesp, setups[0], seriesMaps)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper

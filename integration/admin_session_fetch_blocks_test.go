@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 
 	"github.com/stretchr/testify/require"
@@ -41,16 +42,16 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
+
 	// Test setup
-	testSetup, err := newTestSetup(newTestOptions())
+	testOpts := newTestOptions(t).
+		SetTickInterval(time.Second)
+	testSetup, err := newTestSetup(t, testOpts)
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	testSetup.storageOpts = testSetup.storageOpts.SetRetentionOptions(
-		testSetup.storageOpts.RetentionOptions().
-			SetBufferDrain(time.Second).
-			SetRetentionPeriod(6 * time.Hour))
-	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
+	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
+	blockSize := md.Options().RetentionOptions().BlockSize()
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
@@ -81,20 +82,29 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
 	later := testSetup.getNowFn()
-	time.Sleep(testSetup.storageOpts.RetentionOptions().BufferDrain() * 4)
+	testSetup.sleepFor10xTickInterval()
 
-	// Retrieve written data using the AdminSession APIs (FetchMetadataBlocksFromPeers/FetchBlocksFromPeers)
-	adminClient := testSetup.m3dbAdminClient
-	metadatasByShard, err := m3dbClientFetchBlocksMetadata(adminClient,
-		testNamespaces[0], testSetup.shardSet.AllIDs(), now, later)
-	require.NoError(t, err)
-	require.NotEmpty(t, metadatasByShard)
-
-	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup,
-		testNamespaces[0], metadatasByShard)
+	metadatasByShard := testSetupMetadatas(t, testSetup, testNamespaces[0], now, later)
+	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, md, metadatasByShard)
 
 	// Verify retrieved data matches what we've written
 	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
+}
+
+func testSetupMetadatas(
+	t *testing.T,
+	testSetup *testSetup,
+	namespace ts.ID,
+	start time.Time,
+	end time.Time,
+) map[uint32][]block.ReplicaMetadata {
+	// Retrieve written data using the AdminSession APIs
+	// FetchMetadataBlocksFromPeers/FetchBlocksFromPeers
+	adminClient := testSetup.m3dbAdminClient
+	metadatasByShard, err := m3dbClientFetchBlocksMetadata(
+		adminClient, namespace, testSetup.shardSet.AllIDs(), start, end)
+	require.NoError(t, err)
+	return metadatasByShard
 }
 
 func verifySeriesMapsEqual(
@@ -149,19 +159,18 @@ func verifySeriesMapsEqual(
 func testSetupToSeriesMaps(
 	t *testing.T,
 	testSetup *testSetup,
-	namespace ts.ID,
+	nsMetadata namespace.Metadata,
 	metadatasByShard map[uint32][]block.ReplicaMetadata,
 ) map[time.Time]generate.SeriesBlock {
 	seriesMap := make(map[time.Time]generate.SeriesBlock)
-	resultOpts := newDefaulTestResultOptions(testSetup.storageOpts,
-		testSetup.storageOpts.InstrumentOptions())
+	resultOpts := newDefaulTestResultOptions(testSetup.storageOpts)
 	iterPool := testSetup.storageOpts.ReaderIteratorPool()
 	session, err := testSetup.m3dbAdminClient.DefaultAdminSession()
 	require.NoError(t, err)
 	require.NotNil(t, session)
 
 	for shardID, metadatas := range metadatasByShard {
-		blocksIter, err := session.FetchBlocksFromPeers(namespace, shardID, metadatas, resultOpts)
+		blocksIter, err := session.FetchBlocksFromPeers(nsMetadata, shardID, metadatas, resultOpts)
 		require.NoError(t, err)
 		require.NotNil(t, blocksIter)
 

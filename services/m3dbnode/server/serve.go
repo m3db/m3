@@ -89,11 +89,13 @@ func DefaultTopologyInitializerForShardSet(
 }
 
 // DefaultNamespaces creates a list of default namespaces
-func DefaultNamespaces() []namespace.Metadata {
+func DefaultNamespaces() ([]namespace.Metadata, error) {
 	opts := namespace.NewOptions()
-	return []namespace.Metadata{
-		namespace.NewMetadata(ts.StringID(defaultNamespaceName), opts),
+	md, err := namespace.NewMetadata(ts.StringID(defaultNamespaceName), opts)
+	if err != nil {
+		return nil, err
 	}
+	return []namespace.Metadata{md}, nil
 }
 
 // DefaultClientOptions creates a default m3db client options
@@ -156,5 +158,5 @@ func OpenAndServe(
 	<-doneCh
 	log.Debug("server closing")
 
-	return db.Close()
+	return db.Terminate()
 }

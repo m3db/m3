@@ -33,6 +33,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var testBlockSize = 2 * time.Hour
+
 func testResultOptions() Options {
 	return NewOptions()
 }
@@ -41,13 +43,12 @@ func TestResultAddMergesExistingShardResults(t *testing.T) {
 	opts := testResultOptions()
 	blopts := opts.DatabaseBlockOptions()
 
-	blockSize := opts.RetentionOptions().BlockSize()
-	start := time.Now().Truncate(blockSize)
+	start := time.Now().Truncate(testBlockSize)
 
 	blocks := []block.DatabaseBlock{
 		block.NewDatabaseBlock(start, ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(1*blockSize), ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(2*blockSize), ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(2*testBlockSize), ts.Segment{}, blopts),
 	}
 
 	srs := []ShardResult{
@@ -75,77 +76,98 @@ func TestResultAddMergesExistingShardResults(t *testing.T) {
 }
 
 func TestResultAddMergesUnfulfilled(t *testing.T) {
-	opts := testResultOptions()
-
-	blockSize := opts.RetentionOptions().BlockSize()
-	start := time.Now().Truncate(blockSize)
+	start := time.Now().Truncate(testBlockSize)
 
 	r := NewBootstrapResult()
 
 	r.Add(0, nil, xtime.NewRanges().AddRange(xtime.Range{
 		Start: start,
-		End:   start.Add(8 * blockSize),
+		End:   start.Add(8 * testBlockSize),
 	}))
 
 	r.Add(0, nil, xtime.NewRanges().AddRange(xtime.Range{
 		Start: start,
-		End:   start.Add(2 * blockSize),
+		End:   start.Add(2 * testBlockSize),
 	}).AddRange(xtime.Range{
-		Start: start.Add(6 * blockSize),
-		End:   start.Add(10 * blockSize),
+		Start: start.Add(6 * testBlockSize),
+		End:   start.Add(10 * testBlockSize),
 	}))
 
 	expected := ShardTimeRanges{0: xtime.NewRanges().AddRange(xtime.Range{
 		Start: start,
-		End:   start.Add(10 * blockSize),
+		End:   start.Add(10 * testBlockSize),
 	})}
 
 	assert.True(t, r.Unfulfilled().Equal(expected))
 }
 
 func TestResultSetUnfulfilled(t *testing.T) {
-	opts := testResultOptions()
-
-	blockSize := opts.RetentionOptions().BlockSize()
-	start := time.Now().Truncate(blockSize)
+	start := time.Now().Truncate(testBlockSize)
 
 	r := NewBootstrapResult()
 	r.SetUnfulfilled(ShardTimeRanges{
 		0: xtime.NewRanges().AddRange(xtime.Range{
 			Start: start,
-			End:   start.Add(2 * blockSize),
+			End:   start.Add(2 * testBlockSize),
 		}),
 		1: xtime.NewRanges().AddRange(xtime.Range{
 			Start: start,
-			End:   start.Add(2 * blockSize),
+			End:   start.Add(2 * testBlockSize),
 		}),
 	})
 	r.SetUnfulfilled(ShardTimeRanges{
 		1: xtime.NewRanges().AddRange(xtime.Range{
 			Start: start,
-			End:   start.Add(2 * blockSize),
+			End:   start.Add(2 * testBlockSize),
 		}),
 	})
 
 	assert.True(t, r.Unfulfilled().Equal(ShardTimeRanges{
 		1: xtime.NewRanges().AddRange(xtime.Range{
 			Start: start,
-			End:   start.Add(2 * blockSize),
+			End:   start.Add(2 * testBlockSize),
 		}),
 	}))
+}
+
+func TestResultNumSeries(t *testing.T) {
+	opts := testResultOptions()
+	blopts := opts.DatabaseBlockOptions()
+
+	start := time.Now().Truncate(testBlockSize)
+
+	blocks := []block.DatabaseBlock{
+		block.NewDatabaseBlock(start, ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(2*testBlockSize), ts.Segment{}, blopts),
+	}
+
+	srs := []ShardResult{
+		NewShardResult(0, opts),
+		NewShardResult(0, opts),
+	}
+
+	srs[0].AddBlock(ts.StringID("foo"), blocks[0])
+	srs[0].AddBlock(ts.StringID("foo"), blocks[1])
+	srs[1].AddBlock(ts.StringID("bar"), blocks[2])
+
+	r := NewBootstrapResult()
+	r.Add(0, srs[0], nil)
+	r.Add(1, srs[1], nil)
+
+	require.Equal(t, int64(2), r.ShardResults().NumSeries())
 }
 
 func TestResultAddResult(t *testing.T) {
 	opts := testResultOptions()
 	blopts := opts.DatabaseBlockOptions()
 
-	blockSize := opts.RetentionOptions().BlockSize()
-	start := time.Now().Truncate(blockSize)
+	start := time.Now().Truncate(testBlockSize)
 
 	blocks := []block.DatabaseBlock{
 		block.NewDatabaseBlock(start, ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(1*blockSize), ts.Segment{}, blopts),
-		block.NewDatabaseBlock(start.Add(2*blockSize), ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(1*testBlockSize), ts.Segment{}, blopts),
+		block.NewDatabaseBlock(start.Add(2*testBlockSize), ts.Segment{}, blopts),
 	}
 
 	srs := []ShardResult{
@@ -163,13 +185,13 @@ func TestResultAddResult(t *testing.T) {
 	}
 
 	rs[0].Add(0, srs[0], xtime.NewRanges().AddRange(xtime.Range{
-		Start: start.Add(4 * blockSize),
-		End:   start.Add(6 * blockSize),
+		Start: start.Add(4 * testBlockSize),
+		End:   start.Add(6 * testBlockSize),
 	}))
 
 	rs[1].Add(0, srs[1], xtime.NewRanges().AddRange(xtime.Range{
-		Start: start.Add(6 * blockSize),
-		End:   start.Add(8 * blockSize),
+		Start: start.Add(6 * testBlockSize),
+		End:   start.Add(8 * testBlockSize),
 	}))
 
 	r := MergedBootstrapResult(rs[0], rs[1])
@@ -185,11 +207,11 @@ func TestResultAddResult(t *testing.T) {
 	}{
 		ShardResults{0: srMerged},
 		ShardTimeRanges{0: xtime.NewRanges().AddRange(xtime.Range{
-			Start: start.Add(4 * blockSize),
-			End:   start.Add(6 * blockSize),
+			Start: start.Add(4 * testBlockSize),
+			End:   start.Add(6 * testBlockSize),
 		}).AddRange(xtime.Range{
-			Start: start.Add(6 * blockSize),
-			End:   start.Add(8 * blockSize),
+			Start: start.Add(6 * testBlockSize),
+			End:   start.Add(8 * testBlockSize),
 		})},
 	}
 
@@ -238,13 +260,13 @@ func TestShardResultAddSeries(t *testing.T) {
 		id     string
 		series block.DatabaseSeriesBlocks
 	}{
-		{"foo", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())},
-		{"bar", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())},
+		{"foo", block.NewDatabaseSeriesBlocks(0)},
+		{"bar", block.NewDatabaseSeriesBlocks(0)},
 	}
 	for _, input := range inputs {
 		sr.AddSeries(ts.StringID(input.id), input.series)
 	}
-	moreSeries := block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())
+	moreSeries := block.NewDatabaseSeriesBlocks(0)
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	block.Reset(start, ts.Segment{})
 	moreSeries.AddBlock(block)
@@ -261,10 +283,22 @@ func TestShardResultAddResult(t *testing.T) {
 	sr.AddResult(nil)
 	require.True(t, sr.IsEmpty())
 	other := NewShardResult(0, opts)
-	other.AddSeries(ts.StringID("foo"), block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()))
-	other.AddSeries(ts.StringID("bar"), block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()))
+	other.AddSeries(ts.StringID("foo"), block.NewDatabaseSeriesBlocks(0))
+	other.AddSeries(ts.StringID("bar"), block.NewDatabaseSeriesBlocks(0))
 	sr.AddResult(other)
 	require.Len(t, sr.AllSeries(), 2)
+}
+
+func TestShardResultNumSeries(t *testing.T) {
+	opts := testResultOptions()
+	sr := NewShardResult(0, opts)
+	sr.AddResult(nil)
+	require.True(t, sr.IsEmpty())
+	other := NewShardResult(0, opts)
+	other.AddSeries(ts.StringID("foo"), block.NewDatabaseSeriesBlocks(0))
+	other.AddSeries(ts.StringID("bar"), block.NewDatabaseSeriesBlocks(0))
+	sr.AddResult(other)
+	require.Equal(t, int64(2), sr.NumSeries())
 }
 
 func TestShardResultRemoveSeries(t *testing.T) {
@@ -274,8 +308,8 @@ func TestShardResultRemoveSeries(t *testing.T) {
 		id     string
 		series block.DatabaseSeriesBlocks
 	}{
-		{"foo", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())},
-		{"bar", block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions())},
+		{"foo", block.NewDatabaseSeriesBlocks(0)},
+		{"bar", block.NewDatabaseSeriesBlocks(0)},
 	}
 	for _, input := range inputs {
 		sr.AddSeries(ts.StringID(input.id), input.series)
@@ -325,77 +359,69 @@ func TestShardTimeRangesToUnfulfilledResult(t *testing.T) {
 }
 
 func TestShardTimeRangesSubtract(t *testing.T) {
-	opts := testResultOptions()
-
-	blockSize := opts.RetentionOptions().BlockSize()
-	start := time.Now().Truncate(blockSize)
+	start := time.Now().Truncate(testBlockSize)
 
 	str := ShardTimeRanges{
 		0: xtime.NewRanges().AddRange(xtime.Range{
 			Start: start,
-			End:   start.Add(2 * blockSize),
+			End:   start.Add(2 * testBlockSize),
 		}),
 		1: xtime.NewRanges().AddRange(xtime.Range{
 			Start: start,
-			End:   start.Add(2 * blockSize),
+			End:   start.Add(2 * testBlockSize),
 		}),
 	}
 	str.Subtract(ShardTimeRanges{
 		0: xtime.NewRanges().AddRange(xtime.Range{
 			Start: start,
-			End:   start.Add(blockSize),
+			End:   start.Add(testBlockSize),
 		}),
 		1: xtime.NewRanges().AddRange(xtime.Range{
-			Start: start.Add(blockSize),
-			End:   start.Add(2 * blockSize),
+			Start: start.Add(testBlockSize),
+			End:   start.Add(2 * testBlockSize),
 		}),
 	})
 
 	assert.True(t, str.Equal(ShardTimeRanges{
 		0: xtime.NewRanges().AddRange(xtime.Range{
-			Start: start.Add(blockSize),
-			End:   start.Add(2 * blockSize),
+			Start: start.Add(testBlockSize),
+			End:   start.Add(2 * testBlockSize),
 		}),
 		1: xtime.NewRanges().AddRange(xtime.Range{
 			Start: start,
-			End:   start.Add(blockSize),
+			End:   start.Add(testBlockSize),
 		}),
 	}))
 }
 
 func TestShardTimeRangesMinMax(t *testing.T) {
-	opts := testResultOptions()
 
-	blockSize := opts.RetentionOptions().BlockSize()
-	start := time.Now().Truncate(blockSize)
+	start := time.Now().Truncate(testBlockSize)
 
 	str := ShardTimeRanges{
 		0: xtime.NewRanges().AddRange(xtime.Range{
 			Start: start,
-			End:   start.Add(blockSize),
+			End:   start.Add(testBlockSize),
 		}),
 		1: xtime.NewRanges().AddRange(xtime.Range{
-			Start: start.Add(blockSize),
-			End:   start.Add(2 * blockSize),
+			Start: start.Add(testBlockSize),
+			End:   start.Add(2 * testBlockSize),
 		}),
 	}
 
 	min, max := str.MinMax()
 
 	assert.True(t, min.Equal(start))
-	assert.True(t, max.Equal(start.Add(2*blockSize)))
+	assert.True(t, max.Equal(start.Add(2*testBlockSize)))
 }
 
 func TestShardTimeRangesString(t *testing.T) {
-	opts := testResultOptions()
-
-	blockSize := opts.RetentionOptions().BlockSize()
 	start := time.Unix(1472824800, 0)
 
 	ts := [][]time.Time{
-		[]time.Time{start, start.Add(blockSize)},
-		[]time.Time{start.Add(2 * blockSize), start.Add(4 * blockSize)},
-		[]time.Time{start, start.Add(2 * blockSize)},
+		[]time.Time{start, start.Add(testBlockSize)},
+		[]time.Time{start.Add(2 * testBlockSize), start.Add(4 * testBlockSize)},
+		[]time.Time{start, start.Add(2 * testBlockSize)},
 	}
 
 	str := ShardTimeRanges{
@@ -421,22 +447,19 @@ func TestShardTimeRangesString(t *testing.T) {
 }
 
 func TestShardTimeRangesSummaryString(t *testing.T) {
-	opts := testResultOptions()
-
-	blockSize := opts.RetentionOptions().BlockSize()
 	start := time.Unix(1472824800, 0)
 
 	str := ShardTimeRanges{
 		0: xtime.NewRanges().AddRange(xtime.Range{
 			Start: start,
-			End:   start.Add(blockSize),
+			End:   start.Add(testBlockSize),
 		}).AddRange(xtime.Range{
-			Start: start.Add(2 * blockSize),
-			End:   start.Add(4 * blockSize),
+			Start: start.Add(2 * testBlockSize),
+			End:   start.Add(4 * testBlockSize),
 		}),
 		1: xtime.NewRanges().AddRange(xtime.Range{
 			Start: start,
-			End:   start.Add(2 * blockSize),
+			End:   start.Add(2 * testBlockSize),
 		}),
 	}
 

@@ -28,7 +28,9 @@ import (
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
@@ -39,23 +41,15 @@ import (
 	"github.com/uber-go/tally"
 )
 
-func testRepairOptions(ctrl *gomock.Controller) repair.Options {
-	return repair.NewOptions().
-		SetAdminClient(client.NewMockAdminClient(ctrl)).
-		SetRepairInterval(time.Second).
-		SetRepairTimeOffset(500 * time.Millisecond).
-		SetRepairTimeJitter(300 * time.Millisecond).
-		SetRepairCheckInterval(100 * time.Millisecond)
-}
-
 func TestDatabaseRepairerStartStop(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockDatabase := newMockDatabase()
-	mockDatabase.opts = mockDatabase.opts.SetRepairOptions(testRepairOptions(ctrl))
+	opts := testDatabaseOptions().SetRepairOptions(testRepairOptions(ctrl))
+	db := NewMockdatabase(ctrl)
+	db.EXPECT().Options().Return(opts).AnyTimes()
 
-	databaseRepairer, err := newDatabaseRepairer(mockDatabase, mockDatabase.opts)
+	databaseRepairer, err := newDatabaseRepairer(db, opts)
 	require.NoError(t, err)
 	repairer := databaseRepairer.(*dbRepairer)
 
@@ -81,19 +75,19 @@ func TestDatabaseRepairerStartStop(t *testing.T) {
 		if done {
 			break
 		}
-		time.Sleep(time.Second)
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	repairer.Stop()
 	for {
 		// Wait for the repairer to stop
-		repairer.Lock()
+		repairer.closedLock.Lock()
 		closed := repairer.closed
-		repairer.Unlock()
+		repairer.closedLock.Unlock()
 		if closed {
 			break
 		}
-		time.Sleep(time.Second)
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
@@ -110,16 +104,18 @@ func TestDatabaseRepairerHaveNotReachedOffset(t *testing.T) {
 	)
 
 	nowFn := func() time.Time { return now }
-	mockDatabase := newMockDatabase()
-	clockOpts := mockDatabase.opts.ClockOptions().SetNowFn(nowFn)
+	opts := testDatabaseOptions()
+	clockOpts := opts.ClockOptions().SetNowFn(nowFn)
 	repairOpts := testRepairOptions(ctrl).
 		SetRepairInterval(repairInterval).
 		SetRepairTimeOffset(repairTimeOffset)
-	mockDatabase.opts = mockDatabase.opts.
+	opts = opts.
 		SetClockOptions(clockOpts.SetNowFn(nowFn)).
 		SetRepairOptions(repairOpts)
+	mockDatabase := NewMockdatabase(ctrl)
+	mockDatabase.EXPECT().Options().Return(opts).AnyTimes()
 
-	databaseRepairer, err := newDatabaseRepairer(mockDatabase, mockDatabase.opts)
+	databaseRepairer, err := newDatabaseRepairer(mockDatabase, opts)
 	require.NoError(t, err)
 	repairer := databaseRepairer.(*dbRepairer)
 
@@ -165,16 +161,18 @@ func TestDatabaseRepairerOnlyOncePerInterval(t *testing.T) {
 		}
 	}
 
-	mockDatabase := newMockDatabase()
-	clockOpts := mockDatabase.opts.ClockOptions().SetNowFn(nowFn)
+	opts := testDatabaseOptions()
+	clockOpts := opts.ClockOptions().SetNowFn(nowFn)
 	repairOpts := testRepairOptions(ctrl).
 		SetRepairInterval(repairInterval).
 		SetRepairTimeOffset(repairTimeOffset)
-	mockDatabase.opts = mockDatabase.opts.
+	opts = opts.
 		SetClockOptions(clockOpts.SetNowFn(nowFn)).
 		SetRepairOptions(repairOpts)
+	mockDatabase := NewMockdatabase(ctrl)
+	mockDatabase.EXPECT().Options().Return(opts).AnyTimes()
 
-	databaseRepairer, err := newDatabaseRepairer(mockDatabase, mockDatabase.opts)
+	databaseRepairer, err := newDatabaseRepairer(mockDatabase, opts)
 	require.NoError(t, err)
 	repairer := databaseRepairer.(*dbRepairer)
 
@@ -199,14 +197,14 @@ func TestDatabaseRepairerRepairNotBootstrapped(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockDatabase := newMockDatabase()
-	mockDatabase.opts = mockDatabase.opts.SetRepairOptions(testRepairOptions(ctrl))
+	opts := testDatabaseOptions().SetRepairOptions(testRepairOptions(ctrl))
+	mockDatabase := NewMockdatabase(ctrl)
 
-	databaseRepairer, err := newDatabaseRepairer(mockDatabase, mockDatabase.opts)
+	databaseRepairer, err := newDatabaseRepairer(mockDatabase, opts)
 	require.NoError(t, err)
 	repairer := databaseRepairer.(*dbRepairer)
 
-	mockDatabase.bs = bootstrapNotStarted
+	mockDatabase.EXPECT().IsBootstrapped().Return(false)
 	require.Nil(t, repairer.Repair())
 }
 
@@ -228,7 +226,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 	opts := testDatabaseOptions()
 	copts := opts.ClockOptions()
 	iopts := opts.InstrumentOptions()
-	rtopts := opts.RetentionOptions()
+	rtopts := defaultTestRetentionOpts
 	opts = opts.
 		SetClockOptions(copts.SetNowFn(nowFn)).
 		SetInstrumentOptions(iopts.SetMetricsScope(tally.NoopScope))
@@ -301,8 +299,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		resDiff      repair.MetadataComparisonResult
 	)
 
-	databaseShardRepairer, err := newShardRepairer(opts, rpOpts)
-	require.NoError(t, err)
+	databaseShardRepairer := newShardRepairer(opts, rpOpts)
 	repairer := databaseShardRepairer.(shardRepairer)
 	repairer.recordFn = func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult) {
 		resNamespace = namespace
@@ -337,11 +334,12 @@ func TestRepairerRepairTimes(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	database := newMockDatabase()
-	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
 	now := time.Unix(188000, 0)
-	clockOpts := database.opts.ClockOptions()
-	database.opts = database.opts.SetClockOptions(clockOpts.SetNowFn(func() time.Time { return now }))
+	opts := testDatabaseOptions().SetRepairOptions(testRepairOptions(ctrl))
+	clockOpts := opts.ClockOptions()
+	opts = opts.SetClockOptions(clockOpts.SetNowFn(func() time.Time { return now }))
+	database := NewMockdatabase(ctrl)
+	database.EXPECT().Options().Return(opts).AnyTimes()
 
 	inputTimes := []struct {
 		bs time.Time
@@ -352,16 +350,18 @@ func TestRepairerRepairTimes(t *testing.T) {
 		{time.Unix(36000, 0), repairState{repairNotStarted, 0}},
 		{time.Unix(43200, 0), repairState{repairSuccess, 1}},
 	}
-	repairer, err := newDatabaseRepairer(database, database.opts)
+	repairer, err := newDatabaseRepairer(database, opts)
 	require.NoError(t, err)
 	r := repairer.(*dbRepairer)
 	for _, input := range inputTimes {
-		r.repairStates[input.bs] = input.rs
+		r.repairStatesByNs.setRepairState(defaultTestNs1ID, input.bs, input.rs)
 	}
 
-	res := r.repairTimeRanges()
+	testNs := newTestNamespace(t)
+	res := r.namespaceRepairTimeRanges(testNs)
 	expectedRanges := xtime.NewRanges().
 		AddRange(xtime.Range{Start: time.Unix(14400, 0), End: time.Unix(28800, 0)}).
+		AddRange(xtime.Range{Start: time.Unix(36000, 0), End: time.Unix(43200, 0)}).
 		AddRange(xtime.Range{Start: time.Unix(50400, 0), End: time.Unix(187200, 0)})
 	require.Equal(t, expectedRanges, res)
 }
@@ -371,9 +371,11 @@ func TestRepairerRepairWithTime(t *testing.T) {
 	defer ctrl.Finish()
 
 	repairTimeRange := xtime.Range{Start: time.Unix(7200, 0), End: time.Unix(14400, 0)}
-	database := newMockDatabase()
-	database.opts = database.opts.SetRepairOptions(testRepairOptions(ctrl))
-	repairer, err := newDatabaseRepairer(database, database.opts)
+	opts := testDatabaseOptions().SetRepairOptions(testRepairOptions(ctrl))
+	database := NewMockdatabase(ctrl)
+	database.EXPECT().Options().Return(opts).AnyTimes()
+
+	repairer, err := newDatabaseRepairer(database, opts)
 	require.NoError(t, err)
 	r := repairer.(*dbRepairer)
 
@@ -385,16 +387,82 @@ func TestRepairerRepairWithTime(t *testing.T) {
 		{"bar", errors.New("some other error")},
 		{"baz", nil},
 	}
-	namespaces := make(map[string]databaseNamespace)
 	for _, input := range inputs {
 		ns := NewMockdatabaseNamespace(ctrl)
+		id := ts.StringID(input.name)
+		ropts := retention.NewOptions()
+		nsOpts := namespace.NewMockOptions(ctrl)
+		nsOpts.EXPECT().RetentionOptions().Return(ropts)
+		ns.EXPECT().Options().Return(nsOpts)
 		ns.EXPECT().Repair(gomock.Not(nil), repairTimeRange).Return(input.err)
-		if input.err != nil {
-			ns.EXPECT().ID().Return(ts.StringID(input.name))
+		ns.EXPECT().ID().Return(id).AnyTimes()
+		err := r.repairNamespaceWithTimeRange(ns, repairTimeRange)
+		rs, ok := r.repairStatesByNs.repairStates(id, time.Unix(7200, 0))
+		require.True(t, ok)
+		if input.err == nil {
+			require.NoError(t, err)
+			require.Equal(t, repairState{Status: repairSuccess}, rs)
+		} else {
+			require.Error(t, err)
+			require.Equal(t, repairState{Status: repairFailed, NumFailures: 1}, rs)
 		}
-		namespaces[input.name] = ns
 	}
-	database.namespaces = namespaces
+}
 
-	require.Error(t, r.repairWithTimeRange(repairTimeRange))
+func TestRepairerTimesMultipleNamespaces(t *testing.T) {
+	// tf2(i) returns the start time of the i_th 2 hour block since epoch
+	tf2 := func(i int) time.Time {
+		return time.Unix(int64(i*7200), 0)
+	}
+	// tf4(i) returns the start time of the i_th 4 hour block since epoch
+	tf4 := func(i int) time.Time {
+		return tf2(2 * i)
+	}
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	now := time.Unix(188000, 0)
+	opts := testDatabaseOptions().SetRepairOptions(testRepairOptions(ctrl))
+	clockOpts := opts.ClockOptions()
+	opts = opts.SetClockOptions(clockOpts.SetNowFn(func() time.Time { return now }))
+	database := NewMockdatabase(ctrl)
+	database.EXPECT().Options().Return(opts).AnyTimes()
+
+	inputTimes := []struct {
+		ns ts.ID
+		bs time.Time
+		rs repairState
+	}{
+		{defaultTestNs1ID, tf2(2), repairState{repairFailed, 2}},
+		{defaultTestNs1ID, tf2(4), repairState{repairFailed, 3}},
+		{defaultTestNs1ID, tf2(5), repairState{repairNotStarted, 0}},
+		{defaultTestNs1ID, tf2(6), repairState{repairSuccess, 1}},
+		{defaultTestNs2ID, tf4(1), repairState{repairFailed, 1}},
+		{defaultTestNs2ID, tf4(2), repairState{repairFailed, 3}},
+		{defaultTestNs2ID, tf4(4), repairState{repairNotStarted, 0}},
+		{defaultTestNs2ID, tf4(6), repairState{repairSuccess, 1}},
+	}
+	repairer, err := newDatabaseRepairer(database, opts)
+	require.NoError(t, err)
+	r := repairer.(*dbRepairer)
+	for _, input := range inputTimes {
+		r.repairStatesByNs.setRepairState(input.ns, input.bs, input.rs)
+	}
+
+	testNs1 := newTestNamespaceWithIDOpts(t, defaultTestNs1ID, defaultTestNs1Opts)
+	res := r.namespaceRepairTimeRanges(testNs1)
+	expectedRanges := xtime.NewRanges().
+		AddRange(xtime.Range{Start: tf2(2), End: tf2(4)}).
+		AddRange(xtime.Range{Start: tf2(5), End: tf2(6)}).
+		AddRange(xtime.Range{Start: tf2(7), End: tf2(26)})
+	require.Equal(t, expectedRanges, res)
+
+	testNs2 := newTestNamespaceWithIDOpts(t, defaultTestNs2ID, defaultTestNs2Opts)
+	res = r.namespaceRepairTimeRanges(testNs2)
+	expectedRanges = xtime.NewRanges().
+		AddRange(xtime.Range{Start: tf4(1), End: tf4(2)}).
+		AddRange(xtime.Range{Start: tf4(3), End: tf4(6)}).
+		AddRange(xtime.Range{Start: tf4(7), End: tf4(13)})
+	require.Equal(t, expectedRanges, res)
 }

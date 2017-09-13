@@ -50,34 +50,36 @@ func TestLastReadAfterPeerBootstrap(t *testing.T) {
 
 	// Test setups
 	log := xlog.SimpleLogger
-	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
-	opts := newTestOptions().
-		SetNamespaces([]namespace.Metadata{namesp})
-
-	retentionOpts := retention.NewOptions().
+	ropts := retention.NewOptions().
 		SetRetentionPeriod(8 * time.Hour).
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
-		SetBufferFuture(2 * time.Minute).
-		SetBufferDrain(time.Minute)
+		SetBufferFuture(2 * time.Minute)
+
+	namesp, err := namespace.NewMetadata(testNamespaces[0],
+		namespace.NewOptions().SetRetentionOptions(ropts))
+	require.NoError(t, err)
+	opts := newTestOptions(t).
+		SetNamespaces([]namespace.Metadata{namesp}).
+		SetTickInterval(time.Minute)
+
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: false},
 	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts,
-		retentionOpts, setupOpts)
+	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
 	// Write test data for first node
 	now := setups[0].getNowFn() // now is already truncate to block size
-	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
+	blockSize := ropts.BlockSize()
 	start, end := now.Add(-3*blockSize), now
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{[]string{"foo", "bar"}, 50, now.Add(-3 * blockSize)},
 		{[]string{"foo", "baz"}, 50, now.Add(-2 * blockSize)},
 		{[]string{"foo", "qux"}, 50, now.Add(-1 * blockSize)},
 	})
-	err := writeTestDataToDisk(namesp.ID(), setups[0], seriesMaps)
+	err = writeTestDataToDisk(namesp, setups[0], seriesMaps)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper

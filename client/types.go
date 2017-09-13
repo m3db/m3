@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
@@ -205,7 +206,7 @@ type AdminSession interface {
 	// FetchBootstrapBlocksFromPeers will fetch the most fulfilled block
 	// for each series in a best effort method from available peers
 	FetchBootstrapBlocksFromPeers(
-		namespace ts.ID,
+		namespace namespace.Metadata,
 		shard uint32,
 		start, end time.Time,
 		opts result.Options,
@@ -214,7 +215,7 @@ type AdminSession interface {
 	// FetchBlocksFromPeers will fetch the required blocks from the
 	// peers specified
 	FetchBlocksFromPeers(
-		namespace ts.ID,
+		namespace namespace.Metadata,
 		shard uint32,
 		metadatas []block.ReplicaMetadata,
 		opts result.Options,

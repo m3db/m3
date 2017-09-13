@@ -27,6 +27,7 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	context "github.com/m3db/m3db/context"
 	encoding "github.com/m3db/m3db/encoding"
+	namespace "github.com/m3db/m3db/storage/namespace"
 	ts "github.com/m3db/m3db/ts"
 	io "github.com/m3db/m3db/x/io"
 	clock "github.com/m3db/m3x/clock"
@@ -502,8 +503,8 @@ func (_m *MockDatabaseBlockRetrieverManager) EXPECT() *_MockDatabaseBlockRetriev
 	return _m.recorder
 }
 
-func (_m *MockDatabaseBlockRetrieverManager) Retriever(namespace ts.ID) (DatabaseBlockRetriever, error) {
-	ret := _m.ctrl.Call(_m, "Retriever", namespace)
+func (_m *MockDatabaseBlockRetrieverManager) Retriever(nsMetadata namespace.Metadata) (DatabaseBlockRetriever, error) {
+	ret := _m.ctrl.Call(_m, "Retriever", nsMetadata)
 	ret0, _ := ret[0].(DatabaseBlockRetriever)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1

@@ -30,32 +30,39 @@ import (
 )
 
 func TestFileSystemManagerShouldRunDuringBootstrap(t *testing.T) {
-	database := newMockDatabase()
-	fsm, err := newFileSystemManager(database, testDatabaseOptions())
-	require.NoError(t, err)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	database := newMockdatabase(ctrl)
+	fsm := newFileSystemManager(database, testDatabaseOptions())
 	mgr := fsm.(*fileSystemManager)
+
+	database.EXPECT().IsBootstrapped().Return(false)
 	require.False(t, mgr.shouldRunWithLock())
-	database.bs = bootstrapped
+
+	database.EXPECT().IsBootstrapped().Return(true)
 	require.True(t, mgr.shouldRunWithLock())
 }
 
 func TestFileSystemManagerShouldRunWhileRunning(t *testing.T) {
-	database := newMockDatabase()
-	database.bs = bootstrapped
-	fsm, err := newFileSystemManager(database, testDatabaseOptions())
-	require.NoError(t, err)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	database := newMockdatabase(ctrl)
+	fsm := newFileSystemManager(database, testDatabaseOptions())
 	mgr := fsm.(*fileSystemManager)
+	database.EXPECT().IsBootstrapped().Return(true)
 	require.True(t, mgr.shouldRunWithLock())
 	mgr.status = fileOpInProgress
 	require.False(t, mgr.shouldRunWithLock())
 }
 
 func TestFileSystemManagerShouldRunEnableDisable(t *testing.T) {
-	database := newMockDatabase()
-	database.bs = bootstrapped
-	fsm, err := newFileSystemManager(database, testDatabaseOptions())
-	require.NoError(t, err)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	database := newMockdatabase(ctrl)
+	fsm := newFileSystemManager(database, testDatabaseOptions())
 	mgr := fsm.(*fileSystemManager)
+	database.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 	require.True(t, mgr.shouldRunWithLock())
 	require.NotEqual(t, fileOpInProgress, mgr.Disable())
 	require.False(t, mgr.shouldRunWithLock())
@@ -66,13 +73,12 @@ func TestFileSystemManagerShouldRunEnableDisable(t *testing.T) {
 func TestFileSystemManagerRun(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
+	database := newMockdatabase(ctrl)
+	database.EXPECT().IsBootstrapped().Return(true).AnyTimes()
 
-	database := newMockDatabase()
-	database.bs = bootstrapped
 	fm := NewMockdatabaseFlushManager(ctrl)
 	cm := NewMockdatabaseCleanupManager(ctrl)
-	fsm, err := newFileSystemManager(database, testDatabaseOptions())
-	require.NoError(t, err)
+	fsm := newFileSystemManager(database, testDatabaseOptions())
 	mgr := fsm.(*fileSystemManager)
 	mgr.databaseFlushManager = fm
 	mgr.databaseCleanupManager = cm

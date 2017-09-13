@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 
 	"github.com/stretchr/testify/require"
 )
@@ -41,22 +42,29 @@ func TestFilesystemBootstrap(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 
-	// Test setup
-	opts := newTestOptions()
+	var (
+		blockSize = 2 * time.Hour
+		rOpts     = retention.NewOptions().SetRetentionPeriod(2 * time.Hour).SetBlockSize(blockSize)
+	)
+	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(rOpts))
+	require.NoError(t, err)
+	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(rOpts))
+	require.NoError(t, err)
 
-	setup, err := newTestSetup(opts)
+	opts := newTestOptions(t).
+		SetCommitLogRetentionPeriod(rOpts.RetentionPeriod()).
+		SetCommitLogBlockSize(blockSize).
+		SetNamespaces([]namespace.Metadata{ns1, ns2})
+
+	// Test setup
+	setup, err := newTestSetup(t, opts)
 	require.NoError(t, err)
 	defer setup.close()
-
-	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(2 * time.Hour).
-		SetBufferDrain(3 * time.Second)
 
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 	filePathPrefix := fsOpts.FilePathPrefix()
 	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-	bsOpts := result.NewOptions().
-		SetRetentionOptions(setup.storageOpts.RetentionOptions())
+	bsOpts := result.NewOptions()
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts)
@@ -64,18 +72,16 @@ func TestFilesystemBootstrap(t *testing.T) {
 	process := bootstrap.NewProcess(bs, bsOpts)
 
 	setup.storageOpts = setup.storageOpts.
-		SetRetentionOptions(retentionOpts).
 		SetBootstrapProcess(process)
 
 	// Write test data
 	now := setup.getNowFn()
-	blockSize := setup.storageOpts.RetentionOptions().BlockSize()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{[]string{"foo", "bar"}, 100, now.Add(-blockSize)},
 		{[]string{"foo", "baz"}, 50, now},
 	})
-	require.NoError(t, writeTestDataToDisk(testNamespaces[0], setup, seriesMaps))
-	require.NoError(t, writeTestDataToDisk(testNamespaces[1], setup, nil))
+	require.NoError(t, writeTestDataToDisk(ns1, setup, seriesMaps))
+	require.NoError(t, writeTestDataToDisk(ns2, setup, nil))
 
 	// Start the server with filesystem bootstrapper
 	log := setup.storageOpts.InstrumentOptions().Logger()

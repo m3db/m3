@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
@@ -57,6 +56,9 @@ type ShardResult interface {
 
 	// AllSeries returns all series of blocks.
 	AllSeries() map[ts.Hash]DatabaseSeriesBlocks
+
+	// NumSeries returns the number of distinct series'.
+	NumSeries() int64
 
 	// AddBlock adds a data block.
 	AddBlock(id ts.ID, block block.DatabaseBlock)
@@ -102,12 +104,6 @@ type Options interface {
 
 	// InstrumentOptions returns the instrumentation options
 	InstrumentOptions() instrument.Options
-
-	// SetRetentionOptions sets the retention options
-	SetRetentionOptions(value retention.Options) Options
-
-	// RetentionOptions returns the retention options
-	RetentionOptions() retention.Options
 
 	// SetDatabaseBlockOptions sets the database block options
 	SetDatabaseBlockOptions(value block.Options) Options

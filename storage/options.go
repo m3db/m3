@@ -21,6 +21,8 @@
 package storage
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -35,6 +37,7 @@ import (
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
@@ -62,21 +65,37 @@ const (
 
 	// defaultErrorThresholdForLoad is the default error threshold for considering server overloaded
 	defaultErrorThresholdForLoad = 1000
+
+	// defaultTickInterval is the default tick interval
+	defaultTickInterval = 2 * time.Minute
 )
 
 var (
 	// defaultBootstrapProcess is the default bootstrap for the database
 	defaultBootstrapProcess = bootstrap.NewNoOpProcess()
 
+	// defaultPoolOptions are the pool options used by default
+	defaultPoolOptions pool.ObjectPoolOptions
+
 	timeZero time.Time
 )
 
-// NewSeriesOptionsFromOptions creates a new set of database series options from options
-func NewSeriesOptionsFromOptions(opts Options) series.Options {
-	return series.NewOptions().
+var (
+	errNamespaceInitializerNotSet = errors.New("namespace registry initializer not set")
+	errRepairOptionsNotSet        = errors.New("repair enabled but repair options are not set")
+	errTickIntervalNegative       = errors.New("tick interval must be a positive duration")
+)
+
+// NewSeriesOptionsFromOptions creates a new set of database series options from provided options.
+func NewSeriesOptionsFromOptions(opts Options, ropts retention.Options) series.Options {
+	if ropts == nil {
+		ropts = retention.NewOptions()
+	}
+
+	return opts.SeriesOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions()).
-		SetRetentionOptions(opts.RetentionOptions()).
+		SetRetentionOptions(ropts).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
 		SetContextPool(opts.ContextPool()).
 		SetEncoderPool(opts.EncoderPool()).
@@ -87,7 +106,7 @@ func NewSeriesOptionsFromOptions(opts Options) series.Options {
 type options struct {
 	clockOpts                      clock.Options
 	instrumentOpts                 instrument.Options
-	retentionOpts                  retention.Options
+	nsRegistryInitializer          namespace.Initializer
 	blockOpts                      block.Options
 	commitLogOpts                  commitlog.Options
 	runtimeOptsMgr                 runtime.OptionsManager
@@ -96,14 +115,16 @@ type options struct {
 	errThresholdForLoad            int64
 	repairEnabled                  bool
 	repairOpts                     repair.Options
-	fileOpOpts                     FileOpOptions
 	newEncoderFn                   encoding.NewEncoderFn
 	newDecoderFn                   encoding.NewDecoderFn
 	bootstrapProcess               bootstrap.Process
 	persistManager                 persist.Manager
+	tickInterval                   time.Duration
 	maxFlushRetries                int
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
+	poolOpts                       pool.ObjectPoolOptions
 	contextPool                    context.Pool
+	seriesOpts                     series.Options
 	seriesPool                     series.DatabaseSeriesPool
 	bytesPool                      pool.CheckedBytesPool
 	encoderPool                    encoding.EncoderPool
@@ -116,17 +137,19 @@ type options struct {
 }
 
 // NewOptions creates a new set of storage options with defaults
-// TODO(r): add an "IsValid()" method and ensure buffer future and buffer past are
-// less than blocksize and check when opening database
 func NewOptions() Options {
-	bytesPool := pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
-		return pool.NewBytesPool(s, nil)
+	return newOptions(defaultPoolOptions)
+}
+
+func newOptions(poolOpts pool.ObjectPoolOptions) Options {
+	bytesPool := pool.NewCheckedBytesPool(nil, poolOpts, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, poolOpts)
 	})
 	bytesPool.Init()
+	seriesOpts := series.NewOptions()
 	o := &options{
 		clockOpts:                      clock.NewOptions(),
 		instrumentOpts:                 instrument.NewOptions(),
-		retentionOpts:                  retention.NewOptions(),
 		blockOpts:                      block.NewOptions(),
 		commitLogOpts:                  commitlog.NewOptions(),
 		runtimeOptsMgr:                 runtime.NewOptionsManager(runtime.NewOptions()),
@@ -135,29 +158,62 @@ func NewOptions() Options {
 		errThresholdForLoad:            defaultErrorThresholdForLoad,
 		repairEnabled:                  defaultRepairEnabled,
 		repairOpts:                     repair.NewOptions(),
-		fileOpOpts:                     NewFileOpOptions(),
 		bootstrapProcess:               defaultBootstrapProcess,
 		persistManager:                 fs.NewPersistManager(fs.NewOptions()),
+		tickInterval:                   defaultTickInterval,
 		maxFlushRetries:                defaultMaxFlushRetries,
-		contextPool:                    context.NewPool(nil, nil),
-		seriesPool:                     series.NewDatabaseSeriesPool(series.NewOptions(), nil),
+		poolOpts:                       poolOpts,
+		contextPool:                    context.NewPool(poolOpts, poolOpts),
+		seriesOpts:                     seriesOpts,
+		seriesPool:                     series.NewDatabaseSeriesPool(poolOpts),
 		bytesPool:                      bytesPool,
-		encoderPool:                    encoding.NewEncoderPool(nil),
-		segmentReaderPool:              xio.NewSegmentReaderPool(nil),
-		readerIteratorPool:             encoding.NewReaderIteratorPool(nil),
-		multiReaderIteratorPool:        encoding.NewMultiReaderIteratorPool(nil),
-		identifierPool:                 ts.NewIdentifierPool(bytesPool, nil),
-		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(nil, 0),
-		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(nil, 0),
+		encoderPool:                    encoding.NewEncoderPool(poolOpts),
+		segmentReaderPool:              xio.NewSegmentReaderPool(poolOpts),
+		readerIteratorPool:             encoding.NewReaderIteratorPool(poolOpts),
+		multiReaderIteratorPool:        encoding.NewMultiReaderIteratorPool(poolOpts),
+		identifierPool:                 ts.NewIdentifierPool(bytesPool, poolOpts),
+		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(poolOpts, 0),
+		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
 	}
 	return o.SetEncodingM3TSZPooled()
+}
+
+func (o *options) Validate() error {
+	if o.tickInterval <= 0 {
+		return errTickIntervalNegative
+	}
+
+	// validate namespace registry
+	init := o.NamespaceInitializer()
+	if init == nil {
+		return errNamespaceInitializerNotSet
+	}
+
+	// validate commit log options
+	clOpts := o.CommitLogOptions()
+	if err := clOpts.Validate(); err != nil {
+		return fmt.Errorf("unable to validate commit log options: %v", err)
+	}
+
+	// validate repair options
+	if o.RepairEnabled() {
+		rOpts := o.RepairOptions()
+		if rOpts == nil {
+			return errRepairOptionsNotSet
+		}
+		if err := rOpts.Validate(); err != nil {
+			return fmt.Errorf("unable to validate repair options, err: %v", err)
+		}
+	}
+
+	return nil
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {
 	opts := *o
 	opts.clockOpts = value
 	opts.commitLogOpts = opts.commitLogOpts.SetClockOptions(value)
-	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
+	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
 	return &opts
 }
 
@@ -169,7 +225,7 @@ func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 	opts := *o
 	opts.instrumentOpts = value
 	opts.commitLogOpts = opts.commitLogOpts.SetInstrumentOptions(value)
-	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
+	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
 	return &opts
 }
 
@@ -177,22 +233,20 @@ func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) SetRetentionOptions(value retention.Options) Options {
+func (o *options) SetNamespaceInitializer(value namespace.Initializer) Options {
 	opts := *o
-	opts.retentionOpts = value
-	opts.commitLogOpts = opts.commitLogOpts.SetRetentionOptions(value)
-	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
+	opts.nsRegistryInitializer = value
 	return &opts
 }
 
-func (o *options) RetentionOptions() retention.Options {
-	return o.retentionOpts
+func (o *options) NamespaceInitializer() namespace.Initializer {
+	return o.nsRegistryInitializer
 }
 
 func (o *options) SetDatabaseBlockOptions(value block.Options) Options {
 	opts := *o
 	opts.blockOpts = value
-	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
+	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
 	return &opts
 }
 
@@ -270,16 +324,6 @@ func (o *options) RepairOptions() repair.Options {
 	return o.repairOpts
 }
 
-func (o *options) SetFileOpOptions(value FileOpOptions) Options {
-	opts := *o
-	opts.fileOpOpts = value
-	return &opts
-}
-
-func (o *options) FileOpOptions() FileOpOptions {
-	return o.fileOpOpts
-}
-
 func (o *options) SetEncodingM3TSZPooled() Options {
 	opts := *o
 
@@ -288,20 +332,20 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 		Count:    defaultBytesPoolBucketCount,
 	}}
 	newBackingBytesPool := func(s []pool.Bucket) pool.BytesPool {
-		return pool.NewBytesPool(s, nil)
+		return pool.NewBytesPool(s, opts.poolOpts)
 	}
-	bytesPool := pool.NewCheckedBytesPool(buckets, nil, newBackingBytesPool)
+	bytesPool := pool.NewCheckedBytesPool(buckets, o.poolOpts, newBackingBytesPool)
 	bytesPool.Init()
 	opts.bytesPool = bytesPool
 
 	// initialize context pool
-	opts.contextPool = context.NewPool(nil, nil)
+	opts.contextPool = context.NewPool(opts.poolOpts, opts.poolOpts)
 
-	encoderPool := encoding.NewEncoderPool(nil)
-	readerIteratorPool := encoding.NewReaderIteratorPool(nil)
+	encoderPool := encoding.NewEncoderPool(opts.poolOpts)
+	readerIteratorPool := encoding.NewReaderIteratorPool(opts.poolOpts)
 
 	// initialize segment reader pool
-	segmentReaderPool := xio.NewSegmentReaderPool(nil)
+	segmentReaderPool := xio.NewSegmentReaderPool(opts.poolOpts)
 	segmentReaderPool.Init()
 	opts.segmentReaderPool = segmentReaderPool
 
@@ -324,7 +368,7 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	opts.readerIteratorPool = readerIteratorPool
 
 	// initialize multi reader iterator pool
-	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
+	multiReaderIteratorPool := encoding.NewMultiReaderIteratorPool(opts.poolOpts)
 	multiReaderIteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
 		return m3tsz.NewReaderIterator(r, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
@@ -333,10 +377,10 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	opts.blockOpts = opts.blockOpts.
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(readerIteratorPool).
-		SetMultiReaderIteratorPool(multiReaderIteratorPool)
+		SetMultiReaderIteratorPool(multiReaderIteratorPool).
+		SetBytesPool(bytesPool)
 
-	opts.seriesPool = series.NewDatabaseSeriesPool(NewSeriesOptionsFromOptions(&opts), nil)
-
+	opts.seriesOpts = NewSeriesOptionsFromOptions(&opts, nil)
 	return &opts
 }
 
@@ -380,6 +424,16 @@ func (o *options) PersistManager() persist.Manager {
 	return o.persistManager
 }
 
+func (o *options) SetTickInterval(value time.Duration) Options {
+	opts := *o
+	opts.tickInterval = value
+	return &opts
+}
+
+func (o *options) TickInterval() time.Duration {
+	return o.tickInterval
+}
+
 func (o *options) SetMaxFlushRetries(value int) Options {
 	opts := *o
 	opts.maxFlushRetries = value
@@ -408,6 +462,16 @@ func (o *options) SetContextPool(value context.Pool) Options {
 
 func (o *options) ContextPool() context.Pool {
 	return o.contextPool
+}
+
+func (o *options) SetSeriesOptions(value series.Options) Options {
+	opts := *o
+	opts.seriesOpts = value
+	return &opts
+}
+
+func (o *options) SeriesOptions() series.Options {
+	return o.seriesOpts
 }
 
 func (o *options) SetDatabaseSeriesPool(value series.DatabaseSeriesPool) Options {

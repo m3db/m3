@@ -22,7 +22,7 @@ package bootstrap
 
 import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/storage/namespace"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -38,7 +38,7 @@ type Process interface {
 
 	// Run runs the bootstrap process, returning the bootstrap result and any error encountered.
 	Run(
-		namespace ts.ID,
+		ns namespace.Metadata,
 		shards []uint32,
 		targetRanges []TargetRange,
 	) (result.BootstrapResult, error)
@@ -89,7 +89,7 @@ type Bootstrapper interface {
 	// should only return an error should it want to entirely cancel the bootstrapping of the
 	// node, i.e. non-recoverable situation like not being able to read from the filesystem.
 	Bootstrap(
-		namespace ts.ID,
+		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
 		opts RunOptions,
 	) (result.BootstrapResult, error)
@@ -104,7 +104,7 @@ type Source interface {
 
 	// Available returns what time ranges are available for a given set of shards.
 	Available(
-		namespace ts.ID,
+		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
 	) result.ShardTimeRanges
 
@@ -113,7 +113,7 @@ type Source interface {
 	// an error should it want to entirely cancel the bootstrapping of the node,
 	// i.e. non-recoverable situation like not being able to read from the filesystem.
 	Read(
-		namespace ts.ID,
+		ns namespace.Metadata,
 		shardsTimeRanges result.ShardTimeRanges,
 		opts RunOptions,
 	) (result.BootstrapResult, error)

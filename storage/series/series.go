@@ -71,24 +71,30 @@ type dbSeries struct {
 
 // NewDatabaseSeries creates a new database series
 func NewDatabaseSeries(id ts.ID, opts Options) DatabaseSeries {
-	return newDatabaseSeries(id, opts)
+	var (
+		s                  = newDatabaseSeries()
+		seriesBootstrapped = false
+		blockRetriever     QueryableBlockRetriever
+	)
+	s.Reset(id, seriesBootstrapped, blockRetriever, opts)
+	return s
 }
 
 // newPooledDatabaseSeries creates a new pooled database series
-func newPooledDatabaseSeries(pool DatabaseSeriesPool, opts Options) DatabaseSeries {
-	series := newDatabaseSeries(nil, opts)
+func newPooledDatabaseSeries(pool DatabaseSeriesPool) DatabaseSeries {
+	series := newDatabaseSeries()
 	series.pool = pool
 	return series
 }
 
-func newDatabaseSeries(id ts.ID, opts Options) *dbSeries {
+// NB(prateek): dbSeries.Reset(...) must be called upon the returned
+// object prior to use.
+func newDatabaseSeries() *dbSeries {
 	series := &dbSeries{
-		id:     id,
-		opts:   opts,
-		blocks: block.NewDatabaseSeriesBlocks(0, opts.DatabaseBlockOptions()),
+		blocks: block.NewDatabaseSeriesBlocks(0),
 		bs:     bootstrapNotStarted,
 	}
-	series.buffer = newDatabaseBuffer(series.bufferDrained, opts)
+	series.buffer = newDatabaseBuffer(series.bufferDrained)
 	return series
 }
 
@@ -517,7 +523,7 @@ func (s *dbSeries) Close() {
 	// of not releasing back an ID to a pool is amortized over
 	// a long period of time.
 	s.id = nil
-	s.buffer.Reset()
+	s.buffer.Reset(s.opts)
 	s.blocks.Close()
 
 	if s.pool != nil {
@@ -529,13 +535,15 @@ func (s *dbSeries) Reset(
 	id ts.ID,
 	seriesBootstrapped bool,
 	blockRetriever QueryableBlockRetriever,
+	opts Options,
 ) {
 	s.Lock()
 	defer s.Unlock()
 
 	s.id = id
-	s.buffer.Reset()
 	s.blocks.RemoveAll()
+	s.buffer.Reset(opts)
+	s.opts = opts
 	if seriesBootstrapped {
 		s.bs = bootstrapped
 	} else {

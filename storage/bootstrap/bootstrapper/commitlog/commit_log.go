@@ -38,12 +38,16 @@ type commitLogBootstrapper struct {
 func NewCommitLogBootstrapper(
 	opts Options,
 	next bootstrap.Bootstrapper,
-) bootstrap.Bootstrapper {
+) (bootstrap.Bootstrapper, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	src := newCommitLogSource(opts)
 	b := &commitLogBootstrapper{}
 	b.Bootstrapper = bootstrapper.NewBaseBootstrapper(b.String(),
 		src, opts.ResultOptions(), next)
-	return b
+	return b, nil
 }
 
 func (*commitLogBootstrapper) String() string {

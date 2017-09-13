@@ -23,80 +23,26 @@
 package integration
 
 import (
-	"errors"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/storage"
-	"github.com/m3db/m3db/ts"
-
 	"github.com/stretchr/testify/require"
 )
-
-var (
-	errDataCleanupTimedOut = errors.New("cleaning up data files took too long")
-)
-
-func createWriter(storageOpts storage.Options) fs.FileSetWriter {
-	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
-	blockSize := storageOpts.RetentionOptions().BlockSize()
-	filePathPrefix := fsOpts.FilePathPrefix()
-	writerBufferSize := fsOpts.WriterBufferSize()
-	newFileMode := fsOpts.NewFileMode()
-	newDirectoryMode := fsOpts.NewDirectoryMode()
-	return fs.NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
-}
-
-func createFilesetFiles(t *testing.T, storageOpts storage.Options, namespace ts.ID, shard uint32, fileTimes []time.Time) {
-	writer := createWriter(storageOpts)
-	for _, start := range fileTimes {
-		require.NoError(t, writer.Open(namespace, shard, start))
-		require.NoError(t, writer.Close())
-	}
-}
-
-func createCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time) {
-	for _, start := range fileTimes {
-		commitLogFile, _ := fs.NextCommitLogsFile(filePathPrefix, start)
-		_, err := os.Create(commitLogFile)
-		require.NoError(t, err)
-	}
-}
-
-func waitUntilDataCleanedUp(filePathPrefix string, namespace ts.ID, shard uint32, toDelete time.Time, timeout time.Duration) error {
-	dataCleanedUp := func() bool {
-		if fs.FilesetExistsAt(filePathPrefix, namespace, shard, toDelete) {
-			return false
-		}
-		_, index := fs.NextCommitLogsFile(filePathPrefix, toDelete)
-		return index == 0
-	}
-	if waitUntil(dataCleanedUp, timeout) {
-		return nil
-	}
-	return errDataCleanupTimedOut
-}
 
 func TestDiskCleanup(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	testSetup, err := newTestSetup(newTestOptions())
+	testOpts := newTestOptions(t)
+	testSetup, err := newTestSetup(t, testOpts)
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	testSetup.storageOpts =
-		testSetup.storageOpts.
-			SetRetentionOptions(testSetup.storageOpts.RetentionOptions().
-				SetBufferDrain(3 * time.Second).
-				SetRetentionPeriod(6 * time.Hour))
-
-	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
+	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
+	blockSize := md.Options().RetentionOptions().BlockSize()
+	retentionPeriod := md.Options().RetentionOptions().RetentionPeriod()
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-	retentionPeriod := testSetup.storageOpts.RetentionOptions().RetentionPeriod()
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
@@ -118,8 +64,8 @@ func TestDiskCleanup(t *testing.T) {
 	for i := 0; i < numTimes; i++ {
 		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
 	}
-	createFilesetFiles(t, testSetup.storageOpts, testNamespaces[0], shard, fileTimes)
-	createCommitLogs(t, filePathPrefix, fileTimes)
+	writeFilesetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
+	writeCommitLogs(t, filePathPrefix, fileTimes)
 
 	// Move now forward by retentionPeriod + 2 * blockSize so fileset files
 	// and commit logs at now will be deleted
@@ -127,6 +73,6 @@ func TestDiskCleanup(t *testing.T) {
 	testSetup.setNowFn(newNow)
 
 	// Check if files have been deleted
-	waitTimeout := testSetup.storageOpts.RetentionOptions().BufferDrain() * 4
+	waitTimeout := 30 * time.Second
 	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, waitTimeout))
 }

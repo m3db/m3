@@ -24,7 +24,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3db/storage/bootstrap/result"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 )
@@ -62,7 +62,7 @@ func (b *bootstrapProcess) Bootstrapper() Bootstrapper {
 }
 
 func (b *bootstrapProcess) Run(
-	namespace ts.ID,
+	nsMetadata namespace.Metadata,
 	shards []uint32,
 	targetRanges []TargetRange,
 ) (result.BootstrapResult, error) {
@@ -70,6 +70,7 @@ func (b *bootstrapProcess) Run(
 	bootstrapper := b.bootstrapper
 	b.RUnlock()
 
+	namespace := nsMetadata.ID()
 	bootstrapResult := result.NewBootstrapResult()
 	for _, target := range targetRanges {
 		shardsTimeRanges := make(result.ShardTimeRanges, len(shards))
@@ -99,7 +100,7 @@ func (b *bootstrapProcess) Run(
 			opts = NewRunOptions()
 		}
 
-		res, err := bootstrapper.Bootstrap(namespace, shardsTimeRanges, opts)
+		res, err := bootstrapper.Bootstrap(nsMetadata, shardsTimeRanges, opts)
 
 		logFields = append(logFields, xlog.NewLogField("took", nowFn().Sub(begin).String()))
 		if err != nil {

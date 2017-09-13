@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
@@ -167,8 +168,7 @@ func (m *bootstrapManager) Report() {
 	}
 }
 
-func (m *bootstrapManager) targetRanges(at time.Time) []bootstrap.TargetRange {
-	ropts := m.opts.RetentionOptions()
+func (m *bootstrapManager) targetRanges(at time.Time, ropts retention.Options) []bootstrap.TargetRange {
 	start := at.Add(-ropts.RetentionPeriod()).
 		Truncate(ropts.BlockSize())
 	midPoint := at.
@@ -199,13 +199,15 @@ func (m *bootstrapManager) targetRanges(at time.Time) []bootstrap.TargetRange {
 }
 
 func (m *bootstrapManager) bootstrap() error {
-	targetRanges := m.targetRanges(m.nowFn())
-
+	bootstrapStart := m.nowFn()
 	// NB(xichen): each bootstrapper should be responsible for choosing the most
 	// efficient way of bootstrapping database shards, be it sequential or parallel.
 	multiErr := xerrors.NewMultiError()
 
-	for _, namespace := range m.database.getOwnedNamespaces() {
+	namespaces := m.database.GetOwnedNamespaces()
+	for _, namespace := range namespaces {
+		rOpts := namespace.Options().RetentionOptions()
+		targetRanges := m.targetRanges(bootstrapStart, rOpts)
 		start := m.nowFn()
 		if err := namespace.Bootstrap(m.process, targetRanges); err != nil {
 			multiErr = multiErr.Add(err)

@@ -32,81 +32,92 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/time"
+	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/watch"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-type mockDatabase struct {
-	opts       Options
-	namespaces map[string]databaseNamespace
-	bs         bootstrapState
+var (
+	defaultTestNs1ID         = ts.StringID("testns1")
+	defaultTestNs2ID         = ts.StringID("testns2")
+	defaultTestRetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
+					SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
+	defaultTestNs2RetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
+					SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
+	defaultTestCommitlogRetentionPeriod = 2 * 24 * time.Hour
+	defaultTestCommitlogBlockSize       = 2 * time.Hour
+	defaultTestNs1Opts                  = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
+	defaultTestNs2Opts                  = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
+	_opts                               = newOptions(pool.NewObjectPoolOptions().SetSize(16))
+	defaultTestDatabaseOptions          = _opts.
+						SetRepairEnabled(false).
+						SetMaxFlushRetries(3).
+						SetTickInterval(10 * time.Minute).
+						SetCommitLogOptions(_opts.CommitLogOptions().
+							SetRetentionPeriod(defaultTestCommitlogRetentionPeriod).
+							SetBlockSize(defaultTestCommitlogBlockSize))
+)
+
+type nsMapCh chan namespace.Map
+
+type mockNsInitializer struct {
+	registry *namespace.MockRegistry
+	updateCh chan struct{}
 }
 
-func newMockDatabase() *mockDatabase { return &mockDatabase{opts: testDatabaseOptions()} }
+func (mi *mockNsInitializer) Init() (namespace.Registry, error) {
+	return mi.registry, nil
+}
 
-func (d *mockDatabase) Options() Options                          { return d.opts }
-func (d *mockDatabase) AssignShardSet(shardSet sharding.ShardSet) {}
-func (d *mockDatabase) Namespaces() []Namespace                   { return nil }
-func (d *mockDatabase) Open() error                               { return nil }
-func (d *mockDatabase) Close() error                              { return nil }
-func (d *mockDatabase) Bootstrap() error                          { return nil }
-func (d *mockDatabase) IsBootstrapped() bool                      { return d.bs == bootstrapped }
-func (d *mockDatabase) IsOverloaded() bool                        { return false }
-func (d *mockDatabase) Repair() error                             { return nil }
-func (d *mockDatabase) Truncate(namespace ts.ID) (int64, error)   { return 0, nil }
+func newMockNsInitializer(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	nsMapCh nsMapCh,
+) namespace.Initializer {
+	updateCh := make(chan struct{}, 10)
+	watch := xwatch.NewWatchable()
+	go func() {
+		for {
+			v, ok := <-nsMapCh
+			if !ok { // closed channel
+				return
+			}
 
-func (d *mockDatabase) getOwnedNamespaces() []databaseNamespace {
-	namespaces := make([]databaseNamespace, 0, len(d.namespaces))
-	for _, n := range d.namespaces {
-		namespaces = append(namespaces, n)
+			watch.Update(v)
+			updateCh <- struct{}{}
+		}
+	}()
+
+	_, w, err := watch.Watch()
+	require.NoError(t, err)
+
+	nsWatch := namespace.NewWatch(w)
+	reg := namespace.NewMockRegistry(ctrl)
+	reg.EXPECT().Watch().Return(nsWatch, nil).AnyTimes()
+
+	return &mockNsInitializer{
+		registry: reg,
+		updateCh: updateCh,
 	}
-	return namespaces
 }
 
-func (d *mockDatabase) Write(
-	context.Context, ts.ID, ts.ID,
-	time.Time, float64, xtime.Unit, []byte,
-) error {
-	return nil
+func testNamespaceMap(t *testing.T) namespace.Map {
+	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2})
+	require.NoError(t, err)
+	return nsMap
 }
-
-func (d *mockDatabase) ReadEncoded(
-	context.Context, ts.ID, ts.ID,
-	time.Time, time.Time,
-) ([][]xio.SegmentReader, error) {
-	return nil, nil
-}
-
-func (d *mockDatabase) FetchBlocks(
-	context.Context, ts.ID,
-	uint32, ts.ID, []time.Time,
-) ([]block.FetchBlockResult, error) {
-	return nil, nil
-}
-
-func (d *mockDatabase) FetchBlocksMetadata(
-	context.Context, ts.ID, uint32,
-	time.Time, time.Time, int64, int64, block.FetchBlocksMetadataOptions,
-) (block.FetchBlocksMetadataResults, *int64, error) {
-	return nil, nil, nil
-}
-
-var defaultTestDatabaseOptions = NewOptions().
-	SetMaxFlushRetries(3).
-	SetFileOpOptions(NewFileOpOptions().SetJitter(0)).
-	SetRetentionOptions(retention.NewOptions().
-		SetBufferFuture(10 * time.Minute).
-		SetBufferPast(10 * time.Minute).
-		SetBufferDrain(10 * time.Minute).
-		SetBlockSize(2 * time.Hour).
-		SetRetentionPeriod(2 * 24 * time.Hour))
 
 func testDatabaseOptions() Options {
 	// NB(r): We don't need to recreate the options multiple
@@ -116,26 +127,46 @@ func testDatabaseOptions() Options {
 	return defaultTestDatabaseOptions
 }
 
-func newTestDatabase(t *testing.T, bs bootstrapState) *db {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := testDatabaseOptions()
-	opts = opts.SetRepairOptions(repair.NewOptions().
+func testRepairOptions(ctrl *gomock.Controller) repair.Options {
+	return repair.NewOptions().
 		SetAdminClient(client.NewMockAdminClient(ctrl)).
-		SetRepairInterval(time.Duration(0)).
-		SetRepairTimeOffset(time.Duration(0)).
-		SetRepairTimeJitter(time.Duration(0)).
-		SetRepairCheckInterval(time.Duration(0)))
+		SetRepairInterval(time.Second).
+		SetRepairTimeOffset(500 * time.Millisecond).
+		SetRepairTimeJitter(300 * time.Millisecond).
+		SetRepairCheckInterval(100 * time.Millisecond)
+}
 
-	database, err := NewDatabase(nil, nil, opts)
+func newMockdatabase(ctrl *gomock.Controller, ns ...databaseNamespace) *Mockdatabase {
+	db := NewMockdatabase(ctrl)
+	db.EXPECT().Options().Return(testDatabaseOptions()).AnyTimes()
+	if len(ns) != 0 {
+		db.EXPECT().GetOwnedNamespaces().Return(ns).AnyTimes()
+	}
+	return db
+}
+
+func newTestDatabase(t *testing.T, ctrl *gomock.Controller, bs bootstrapState) (*db, nsMapCh) {
+	mapCh := make(nsMapCh, 10)
+	mapCh <- testNamespaceMap(t)
+
+	opts := testDatabaseOptions().
+		SetRepairEnabled(true).
+		SetRepairOptions(testRepairOptions(ctrl)).
+		SetNamespaceInitializer(newMockNsInitializer(t, ctrl, mapCh))
+
+	shards := sharding.NewShards([]uint32{0, 1}, shard.Available)
+	shardSet, err := sharding.NewShardSet(shards, nil)
+	require.NoError(t, err)
+
+	database, err := NewDatabase(shardSet, opts)
 	require.NoError(t, err)
 	d := database.(*db)
 	m := d.mediator.(*mediator)
 	bsm := newBootstrapManager(d, m, opts).(*bootstrapManager)
 	bsm.state = bs
 	m.databaseBootstrapManager = bsm
-	return d
+
+	return d, mapCh
 }
 
 func dbAddNewMockNamespace(
@@ -154,25 +185,55 @@ func TestDatabaseOpen(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d := newTestDatabase(t, bootstrapNotStarted)
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapNotStarted)
+	defer func() {
+		close(mapCh)
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
 	require.NoError(t, d.Open())
 	require.Equal(t, errDatabaseAlreadyOpen, d.Open())
 	require.NoError(t, d.Close())
 }
 
 func TestDatabaseClose(t *testing.T) {
-	d := newTestDatabase(t, bootstrapped)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
 
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	defer func() {
+		close(mapCh)
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
 	require.NoError(t, d.Open())
 	require.NoError(t, d.Close())
 	require.Equal(t, errDatabaseAlreadyClosed, d.Close())
 }
 
+func TestDatabaseTerminate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	defer func() {
+		close(mapCh)
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+	require.NoError(t, d.Open())
+	require.NoError(t, d.Terminate())
+	require.Equal(t, errDatabaseAlreadyClosed, d.Close())
+}
+
 func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d := newTestDatabase(t, bootstrapped)
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
 	_, err := d.ReadEncoded(ctx, ts.StringID("nonexistent"), ts.StringID("foo"), time.Now(), time.Now())
 	require.Equal(t, "no such namespace nonexistent", err.Error())
 }
@@ -184,7 +245,11 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d := newTestDatabase(t, bootstrapped)
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
 	ns := ts.StringID("testns1")
 	id := ts.StringID("bar")
 	end := time.Now()
@@ -199,13 +264,20 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 }
 
 func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d := newTestDatabase(t, bootstrapped)
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
 	now := time.Now()
 	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
-	res, err := d.FetchBlocks(ctx, ts.StringID("testns1"), 0, ts.StringID("foo"), starts)
+	res, err := d.FetchBlocks(ctx, ts.StringID("non-existent-ns"), 0, ts.StringID("foo"), starts)
 	require.Nil(t, res)
 	require.True(t, xerrors.IsInvalidParams(err))
 }
@@ -217,7 +289,11 @@ func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	d := newTestDatabase(t, bootstrapped)
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
 	ns := ts.StringID("testns1")
 	id := ts.StringID("bar")
 	shardID := uint32(0)
@@ -234,6 +310,9 @@ func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
 }
 
 func TestDatabaseFetchBlocksMetadataShardNotOwned(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	ctx := context.NewContext()
 	defer ctx.Close()
 
@@ -250,7 +329,10 @@ func TestDatabaseFetchBlocksMetadataShardNotOwned(t *testing.T) {
 			IncludeLastRead:  true,
 		}
 	)
-	d := newTestDatabase(t, bootstrapped)
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
 	res, nextPageToken, err := d.FetchBlocksMetadata(ctx, ns, shardID, start, end, limit, pageToken, opts)
 	require.Nil(t, res)
 	require.Nil(t, nextPageToken)
@@ -278,7 +360,11 @@ func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
 		}
 	)
 
-	d := newTestDatabase(t, bootstrapped)
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
 	expectedBlocks := block.NewFetchBlocksMetadataResults()
 	expectedBlocks.Add(block.NewFetchBlocksMetadataResult(ts.StringID("bar"), nil))
 	expectedToken := new(int64)
@@ -299,7 +385,11 @@ func TestDatabaseNamespaces(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d := newTestDatabase(t, bootstrapped)
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
 	dbAddNewMockNamespace(ctrl, d, "testns1")
 	dbAddNewMockNamespace(ctrl, d, "testns2")
 
@@ -315,7 +405,10 @@ func TestDatabaseAssignShardSet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d := newTestDatabase(t, bootstrapped)
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
 
 	var ns []*MockdatabaseNamespace
 	ns = append(ns, dbAddNewMockNamespace(ctrl, d, "testns1"))
@@ -343,7 +436,11 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	d := newTestDatabase(t, bootstrapped)
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
 	ns := dbAddNewMockNamespace(ctrl, d, "testns")
 
 	mediator := NewMockdatabaseMediator(ctrl)
@@ -368,4 +465,140 @@ func TestDatabaseBootstrappedAssignShardSet(t *testing.T) {
 	d.AssignShardSet(shardSet)
 
 	wg.Wait()
+}
+
+func TestDatabaseRemoveNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	require.NoError(t, d.Open())
+	defer func() {
+		require.NoError(t, d.Close())
+		close(mapCh)
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	// retrieve the update channel to track propatation
+	updateCh := d.opts.NamespaceInitializer().(*mockNsInitializer).updateCh
+
+	// check initial namespaces
+	nses := d.Namespaces()
+	require.Len(t, nses, 2)
+
+	// construct new namespace Map
+	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1})
+	require.NoError(t, err)
+
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	<-updateCh
+	<-updateCh
+	time.Sleep(10 * time.Millisecond)
+
+	// now check the expected ns exists
+	nses = d.Namespaces()
+	require.Len(t, nses, 2)
+}
+
+func TestDatabaseAddNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	require.NoError(t, d.Open())
+	defer func() {
+		require.NoError(t, d.Close())
+		close(mapCh)
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	// retrieve the update channel to track propatation
+	updateCh := d.opts.NamespaceInitializer().(*mockNsInitializer).updateCh
+
+	// check initial namespaces
+	nses := d.Namespaces()
+	require.Len(t, nses, 2)
+
+	// construct new namespace Map
+	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
+	require.NoError(t, err)
+	md3, err := namespace.NewMetadata(ts.StringID("and1"), defaultTestNs1Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2, md3})
+	require.NoError(t, err)
+
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	<-updateCh
+	<-updateCh
+	time.Sleep(10 * time.Millisecond)
+
+	// ensure the expected namespaces exist
+	nses = d.Namespaces()
+	require.Len(t, nses, 3)
+	ns1, ok := d.Namespace(defaultTestNs1ID)
+	require.True(t, ok)
+	require.Equal(t, md1.Options(), ns1.Options())
+	ns2, ok := d.Namespace(defaultTestNs2ID)
+	require.True(t, ok)
+	require.Equal(t, md2.Options(), ns2.Options())
+	ns3, ok := d.Namespace(ts.StringID("and1"))
+	require.True(t, ok)
+	require.Equal(t, md1.Options(), ns3.Options())
+}
+
+func TestDatabaseUpdateNamespace(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	require.NoError(t, d.Open())
+	defer func() {
+		require.NoError(t, d.Close())
+		close(mapCh)
+		leaktest.CheckTimeout(t, time.Second)()
+	}()
+
+	// retrieve the update channel to track propatation
+	updateCh := d.opts.NamespaceInitializer().(*mockNsInitializer).updateCh
+
+	// check initial namespaces
+	nses := d.Namespaces()
+	require.Len(t, nses, 2)
+
+	// construct new namespace Map
+	ropts := defaultTestNs1Opts.RetentionOptions().SetRetentionPeriod(2000 * time.Hour)
+	md1, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts.SetRetentionOptions(ropts))
+	require.NoError(t, err)
+	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
+	require.NoError(t, err)
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2})
+	require.NoError(t, err)
+
+	// update the database watch with new Map
+	mapCh <- nsMap
+
+	// wait till the update has propagated
+	<-updateCh
+	<-updateCh
+	time.Sleep(10 * time.Millisecond)
+
+	// ensure the namespaces have old properties
+	nses = d.Namespaces()
+	require.Len(t, nses, 2)
+	ns1, ok := d.Namespace(defaultTestNs1ID)
+	require.True(t, ok)
+	require.Equal(t, defaultTestNs1Opts, ns1.Options())
+	ns2, ok := d.Namespace(defaultTestNs2ID)
+	require.True(t, ok)
+	require.Equal(t, defaultTestNs2Opts, ns2.Options())
 }

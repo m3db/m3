@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
@@ -40,9 +41,16 @@ import (
 )
 
 var (
-	testNamespaceID    = ts.StringID("testnamespace")
-	testDefaultRunOpts = bootstrap.NewRunOptions().SetIncremental(true)
+	testNamespaceID       = ts.StringID("testnamespace")
+	testDefaultRunOpts    = bootstrap.NewRunOptions().SetIncremental(true)
+	minCommitLogRetention = 10 * time.Minute
 )
+
+func testNsMetadata(t *testing.T) namespace.Metadata {
+	md, err := namespace.NewMetadata(testNamespaceID, namespace.NewOptions())
+	require.NoError(t, err)
+	return md
+}
 
 func testOptions() Options {
 	opts := NewOptions()
@@ -72,7 +80,7 @@ func testOptions() Options {
 func TestAvailableEmptyRangeError(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts)
-	res := src.Available(testNamespaceID, result.ShardTimeRanges{})
+	res := src.Available(testNsMetadata(t), result.ShardTimeRanges{})
 	require.True(t, result.ShardTimeRanges{}.Equal(res))
 }
 
@@ -81,7 +89,7 @@ func TestReadEmpty(t *testing.T) {
 
 	src := newCommitLogSource(opts)
 
-	res, err := src.Read(testNamespaceID, result.ShardTimeRanges{},
+	res, err := src.Read(testNsMetadata(t), result.ShardTimeRanges{},
 		testDefaultRunOpts)
 	require.Nil(t, res)
 	require.Nil(t, err)
@@ -100,7 +108,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 		Start: time.Now(),
 		End:   time.Now().Add(time.Hour),
 	})
-	res, err := src.Read(testNamespaceID, result.ShardTimeRanges{0: ranges},
+	res, err := src.Read(testNsMetadata(t), result.ShardTimeRanges{0: ranges},
 		testDefaultRunOpts)
 	require.Error(t, err)
 	require.Nil(t, res)
@@ -108,25 +116,26 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 
 func TestReadOrderedValues(t *testing.T) {
 	opts := testOptions()
+	md := testNsMetadata(t)
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	blockSize := opts.ResultOptions().RetentionOptions().BlockSize()
+	blockSize := md.Options().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now
 
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
-	require.True(t, blockSize >= time.Hour)
+	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.NewRanges()
 	ranges = ranges.AddRange(xtime.Range{
 		Start: start.Add(time.Minute),
 		End:   end,
 	})
 
-	foo := commitlog.Series{Shard: 0, ID: ts.StringID("foo")}
-	bar := commitlog.Series{Shard: 1, ID: ts.StringID("bar")}
-	baz := commitlog.Series{Shard: 2, ID: ts.StringID("baz")}
+	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ts.StringID("foo")}
+	bar := commitlog.Series{Namespace: testNamespaceID, Shard: 1, ID: ts.StringID("bar")}
+	baz := commitlog.Series{Namespace: testNamespaceID, Shard: 2, ID: ts.StringID("baz")}
 
 	values := []testValue{
 		{foo, start, 1.0, xtime.Second, nil},
@@ -141,7 +150,51 @@ func TestReadOrderedValues(t *testing.T) {
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.Read(testNamespaceID, targetRanges, testDefaultRunOpts)
+	res, err := src.Read(md, targetRanges, testDefaultRunOpts)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.Equal(t, 2, len(res.ShardResults()))
+	require.Equal(t, 0, len(res.Unfulfilled()))
+	requireShardResults(t, values[:4], res.ShardResults(), opts)
+}
+
+func TestReadNamespaceFiltering(t *testing.T) {
+	opts := testOptions()
+	md := testNsMetadata(t)
+	src := newCommitLogSource(opts).(*commitLogSource)
+
+	blockSize := md.Options().RetentionOptions().BlockSize()
+	now := time.Now()
+	start := now.Truncate(blockSize).Add(-blockSize)
+	end := now
+
+	// Request a little after the start of data, because always reading full blocks
+	// it should return the entire block beginning from "start"
+	require.True(t, blockSize >= minCommitLogRetention)
+	ranges := xtime.NewRanges()
+	ranges = ranges.AddRange(xtime.Range{
+		Start: start.Add(time.Minute),
+		End:   end,
+	})
+
+	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ts.StringID("foo")}
+	bar := commitlog.Series{Namespace: testNamespaceID, Shard: 1, ID: ts.StringID("bar")}
+	baz := commitlog.Series{Namespace: ts.StringID("someID"), Shard: 0, ID: ts.StringID("baz")}
+
+	values := []testValue{
+		{foo, start, 1.0, xtime.Second, nil},
+		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
+		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
+		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, nil},
+		// "baz" is in another namespace should not be returned
+		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, nil},
+	}
+	src.newIteratorFn = func(_ commitlog.Options) (commitlog.Iterator, error) {
+		return newTestCommitLogIterator(values, nil), nil
+	}
+
+	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
+	res, err := src.Read(md, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
@@ -151,23 +204,24 @@ func TestReadOrderedValues(t *testing.T) {
 
 func TestReadUnorderedValues(t *testing.T) {
 	opts := testOptions()
+	md := testNsMetadata(t)
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	blockSize := opts.ResultOptions().RetentionOptions().BlockSize()
+	blockSize := md.Options().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now
 
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
-	require.True(t, blockSize >= time.Hour)
+	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.NewRanges()
 	ranges = ranges.AddRange(xtime.Range{
 		Start: start.Add(time.Minute),
 		End:   end,
 	})
 
-	foo := commitlog.Series{Shard: 0, ID: ts.StringID("foo")}
+	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ts.StringID("foo")}
 
 	values := []testValue{
 		{foo, start.Add(10 * time.Minute), 1.0, xtime.Second, nil},
@@ -181,7 +235,7 @@ func TestReadUnorderedValues(t *testing.T) {
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.Read(testNamespaceID, targetRanges, testDefaultRunOpts)
+	res, err := src.Read(md, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
@@ -191,23 +245,24 @@ func TestReadUnorderedValues(t *testing.T) {
 
 func TestReadTrimsToRanges(t *testing.T) {
 	opts := testOptions()
+	md := testNsMetadata(t)
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	blockSize := opts.ResultOptions().RetentionOptions().BlockSize()
+	blockSize := md.Options().RetentionOptions().BlockSize()
 	now := time.Now()
 	start := now.Truncate(blockSize).Add(-blockSize)
 	end := now
 
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
-	require.True(t, blockSize >= time.Hour)
+	require.True(t, blockSize >= minCommitLogRetention)
 	ranges := xtime.NewRanges()
 	ranges = ranges.AddRange(xtime.Range{
 		Start: start.Add(time.Minute),
 		End:   end,
 	})
 
-	foo := commitlog.Series{Shard: 0, ID: ts.StringID("foo")}
+	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ts.StringID("foo")}
 
 	values := []testValue{
 		{foo, start.Add(-1 * time.Minute), 1.0, xtime.Nanosecond, nil},
@@ -220,7 +275,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 	}
 
 	targetRanges := result.ShardTimeRanges{0: ranges, 1: ranges}
-	res, err := src.Read(testNamespaceID, targetRanges, testDefaultRunOpts)
+	res, err := src.Read(md, targetRanges, testDefaultRunOpts)
 	require.NoError(t, err)
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
@@ -244,9 +299,8 @@ func requireShardResults(
 ) {
 	// First create what result should be constructed for test values
 	bopts := opts.ResultOptions()
-	ropts := bopts.RetentionOptions()
+	blockSize := opts.CommitLogOptions().BlockSize()
 	blopts := bopts.DatabaseBlockOptions()
-	blockSize := ropts.BlockSize()
 
 	expected := result.ShardResults{}
 
@@ -326,7 +380,6 @@ func requireShardResults(
 			otherAllBlocks := otherBlocks.Blocks.AllBlocks()
 			require.Equal(t, len(allBlocks), len(otherAllBlocks))
 
-			blopts := blocks.Blocks.Options()
 			readerIteratorPool := blopts.ReaderIteratorPool()
 			for start, block := range allBlocks {
 				otherBlock, ok := otherAllBlocks[start]

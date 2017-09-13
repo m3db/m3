@@ -21,8 +21,16 @@
 package namespace
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+)
+
+var (
+	errIDNotSet   = errors.New("namespace ID is not set")
+	errOptsNotSet = errors.New("namespace options are not set")
 )
 
 type metadata struct {
@@ -31,18 +39,35 @@ type metadata struct {
 }
 
 // NewMetadata creates a new namespace metadata
-func NewMetadata(id ts.ID, opts Options) Metadata {
+func NewMetadata(id ts.ID, opts Options) (Metadata, error) {
+	if id == nil || id.String() == "" {
+		return nil, errIDNotSet
+	}
+
+	if opts == nil {
+		return nil, errOptsNotSet
+	}
+
+	if err := opts.Validate(); err != nil {
+		return nil, fmt.Errorf("unable to validate options: %v", err)
+
+	}
+
 	copiedID := checked.NewBytes(append([]byte(nil), id.Data().Get()...), nil)
-	return metadata{
+	return &metadata{
 		id:   ts.BinaryID(copiedID),
 		opts: opts,
-	}
+	}, nil
 }
 
-func (m metadata) ID() ts.ID {
+func (m *metadata) ID() ts.ID {
 	return m.id
 }
 
-func (m metadata) Options() Options {
+func (m *metadata) Options() Options {
 	return m.opts
+}
+
+func (m *metadata) Equal(value Metadata) bool {
+	return m.id.Equal(value.ID()) && m.Options().Equal(value.Options())
 }

@@ -29,12 +29,12 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
@@ -56,11 +56,20 @@ type Database interface {
 	// Namespaces returns the namespaces
 	Namespaces() []Namespace
 
+	// Namespace returns the specified namespace
+	Namespace(ns ts.ID) (Namespace, bool)
+
 	// Open will open the database for writing and reading
 	Open() error
 
-	// Close will close the database for writing and reading
+	// Close will close the database for writing and reading. Close releases
+	// release resources held by owned namespaces
 	Close() error
+
+	// Terminate will close the database for writing and reading. Terminate does
+	// NOT release any resources held by owned namespaces, instead relying upon
+	// the GC to do so.
+	Terminate() error
 
 	// Write value to the database for an ID
 	Write(
@@ -123,12 +132,18 @@ type Database interface {
 type database interface {
 	Database
 
-	// getOwnedNamespaces returns the namespaces this database owns.
-	getOwnedNamespaces() []databaseNamespace
+	// GetOwnedNamespaces returns the namespaces this database owns.
+	GetOwnedNamespaces() []databaseNamespace
+
+	// UpdateOwnedNamespaces updates the namespaces this database owns.
+	UpdateOwnedNamespaces(namespaces namespace.Map) error
 }
 
 // Namespace is a time series database namespace
 type Namespace interface {
+	// Options returns the namespace options
+	Options() namespace.Options
+
 	// ID returns the ID of the namespace
 	ID() ts.ID
 
@@ -150,6 +165,9 @@ func (n NamespacesByID) Less(i, j int) bool {
 
 type databaseNamespace interface {
 	Namespace
+
+	// Close will release the namespace resources and close the namespace
+	Close() error
 
 	// AssignShardSet sets the shard set assignment and returns immediately
 	AssignShardSet(shardSet sharding.ShardSet)
@@ -201,8 +219,10 @@ type databaseNamespace interface {
 	// Flush flushes in-memory data
 	Flush(blockStart time.Time, flush persist.Flush) error
 
-	// NeedsFlush returns true if the namespace needs a flush for a block start.
-	NeedsFlush(blockStart time.Time) bool
+	// NeedsFlush returns true if the namespace needs a flush for the
+	// period: [start, end] (both inclusive).
+	// NB: The start/end times are assumed to be aligned to block size boundary.
+	NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool
 
 	// CleanupFileset cleans up fileset files
 	CleanupFileset(earliestToRetain time.Time) error
@@ -270,9 +290,8 @@ type databaseShard interface {
 		bootstrappedSeries map[ts.Hash]result.DatabaseSeriesBlocks,
 	) error
 
-	// Flush flushes the series in this shard.
+	// Flush flushes the series' in this shard.
 	Flush(
-		namespace ts.ID,
 		blockStart time.Time,
 		flush persist.Flush,
 	) error
@@ -281,12 +300,11 @@ type databaseShard interface {
 	FlushState(blockStart time.Time) fileOpState
 
 	// CleanupFileset cleans up fileset files
-	CleanupFileset(namespace ts.ID, earliestToRetain time.Time) error
+	CleanupFileset(earliestToRetain time.Time) error
 
 	// Repair repairs the shard data for a given time
 	Repair(
 		ctx context.Context,
-		namespace ts.ID,
 		tr xtime.Range,
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)
@@ -306,15 +324,6 @@ type databaseBootstrapManager interface {
 
 // databaseFlushManager manages flushing in-memory data to persistent storage.
 type databaseFlushManager interface {
-	// NeedsFlush returns true if the data for a given time have been flushed.
-	NeedsFlush(t time.Time) bool
-
-	// FlushTimeStart is the earliest flushable time.
-	FlushTimeStart(t time.Time) time.Time
-
-	// FlushTimeEnd is the latest flushable time.
-	FlushTimeEnd(t time.Time) time.Time
-
 	// Flush flushes in-memory data to persistent storage.
 	Flush(t time.Time) error
 
@@ -329,24 +338,6 @@ type databaseCleanupManager interface {
 
 	// Report reports runtime information
 	Report()
-}
-
-// FileOpOptions control the database file operations behavior
-type FileOpOptions interface {
-	// SetRetentionOptions sets the retention options
-	SetRetentionOptions(value retention.Options) FileOpOptions
-
-	// RetentionOptions returns the retention options
-	RetentionOptions() retention.Options
-
-	// SetJitter sets the jitter for database file operations
-	SetJitter(value time.Duration) FileOpOptions
-
-	// Jitter returns the jitter for database file operations
-	Jitter() time.Duration
-
-	// Validate validates the options
-	Validate() error
 }
 
 // databaseFileSystemManager manages the database related filesystem activities.
@@ -442,8 +433,23 @@ type databaseMediator interface {
 	Report()
 }
 
+// databaseNamespaceWatch watches for namespace updates.
+type databaseNamespaceWatch interface {
+	// Start starts the namespace watch.
+	Start() error
+
+	// Stop stops the namespace watch.
+	Stop() error
+
+	// close stops the watch, and releases any held resources.
+	Close() error
+}
+
 // Options represents the options for storage
 type Options interface {
+	// Validate validates assumptions baked into the code
+	Validate() error
+
 	// SetEncodingM3TSZPooled sets m3tsz encoding with pooling
 	SetEncodingM3TSZPooled() Options
 
@@ -459,11 +465,11 @@ type Options interface {
 	// InstrumentOptions returns the instrumentation options
 	InstrumentOptions() instrument.Options
 
-	// SetRetentionOptions sets the retention options
-	SetRetentionOptions(value retention.Options) Options
+	// SetNamespaceInitializer sets the namespace registry initializer
+	SetNamespaceInitializer(value namespace.Initializer) Options
 
-	// RetentionOptions returns the retention options
-	RetentionOptions() retention.Options
+	// NamespaceInitializer returns the namespace registry initializer
+	NamespaceInitializer() namespace.Initializer
 
 	// SetDatabaseBlockOptions sets the database block options
 	SetDatabaseBlockOptions(value block.Options) Options
@@ -513,12 +519,6 @@ type Options interface {
 	// RepairOptions returns the repair options
 	RepairOptions() repair.Options
 
-	// SetFileOpOptions sets the file op options
-	SetFileOpOptions(value FileOpOptions) Options
-
-	// FileOpOptions returns the repair options
-	FileOpOptions() FileOpOptions
-
 	// SetBootstrapProcess sets the bootstrap process for the database
 	SetBootstrapProcess(value bootstrap.Process) Options
 
@@ -530,6 +530,12 @@ type Options interface {
 
 	// PersistManager returns the persistence manager
 	PersistManager() persist.Manager
+
+	// SetTickInterval sets the interval taken to tick
+	SetTickInterval(value time.Duration) Options
+
+	// TickInterval returns the interval taken to tick
+	TickInterval() time.Duration
 
 	// SetMaxFlushRetries sets the maximum number of retries when data flushing fails
 	SetMaxFlushRetries(value int) Options
@@ -559,6 +565,12 @@ type Options interface {
 
 	// ContextPool returns the contextPool
 	ContextPool() context.Pool
+
+	// SetSeriesOptions sets the series options
+	SetSeriesOptions(value series.Options) Options
+
+	// SeriesOptions returns the series options
+	SeriesOptions() series.Options
 
 	// SetDatabaseSeriesPool sets the database series pool
 	SetDatabaseSeriesPool(value series.DatabaseSeriesPool) Options

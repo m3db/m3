@@ -23,7 +23,7 @@ package bootstrapper
 import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/storage/namespace"
 )
 
 const (
@@ -53,7 +53,7 @@ func (noop *noOpNoneBootstrapper) Can(strategy bootstrap.Strategy) bool {
 }
 
 func (noop *noOpNoneBootstrapper) Bootstrap(
-	_ ts.ID,
+	_ namespace.Metadata,
 	targetRanges result.ShardTimeRanges,
 	_ bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {
@@ -80,7 +80,7 @@ func (noop *noOpAllBootstrapper) Can(strategy bootstrap.Strategy) bool {
 }
 
 func (noop *noOpAllBootstrapper) Bootstrap(
-	_ ts.ID,
+	_ namespace.Metadata,
 	_ result.ShardTimeRanges,
 	_ bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {

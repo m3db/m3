@@ -287,22 +287,16 @@ func (b *dbBlock) resetMergeTargetWithLock() {
 }
 
 type databaseSeriesBlocks struct {
-	opts  Options
 	elems map[time.Time]DatabaseBlock
 	min   time.Time
 	max   time.Time
 }
 
 // NewDatabaseSeriesBlocks creates a databaseSeriesBlocks instance.
-func NewDatabaseSeriesBlocks(capacity int, opts Options) DatabaseSeriesBlocks {
+func NewDatabaseSeriesBlocks(capacity int) DatabaseSeriesBlocks {
 	return &databaseSeriesBlocks{
-		opts:  opts,
 		elems: make(map[time.Time]DatabaseBlock, capacity),
 	}
-}
-
-func (dbb *databaseSeriesBlocks) Options() Options {
-	return dbb.opts
 }
 
 func (dbb *databaseSeriesBlocks) Len() int {

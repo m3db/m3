@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/sync"
 	"github.com/m3db/m3x/time"
@@ -42,7 +42,7 @@ type peersSource struct {
 }
 
 type incrementalFlush struct {
-	namespace         ts.ID
+	nsMetadata        namespace.Metadata
 	shard             uint32
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 	shardResult       result.ShardResult
@@ -66,7 +66,7 @@ func (s *peersSource) Can(strategy bootstrap.Strategy) bool {
 }
 
 func (s *peersSource) Available(
-	namespace ts.ID,
+	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 ) result.ShardTimeRanges {
 	// Peers should be able to fulfill all data
@@ -74,7 +74,7 @@ func (s *peersSource) Available(
 }
 
 func (s *peersSource) Read(
-	namespace ts.ID,
+	nsMetadata namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts bootstrap.RunOptions,
 ) (result.BootstrapResult, error) {
@@ -83,6 +83,7 @@ func (s *peersSource) Read(
 	}
 
 	var (
+		namespace         = nsMetadata.ID()
 		blockRetriever    block.DatabaseBlockRetriever
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 		persistFlush      persist.Flush
@@ -96,7 +97,7 @@ func (s *peersSource) Read(
 				xlog.NewLogField("namespace", namespace.String()),
 			).Infof("peers bootstrapper resolving block retriever")
 
-			r, err := retrieverMgr.Retriever(namespace)
+			r, err := retrieverMgr.Retriever(nsMetadata)
 			if err != nil {
 				return nil, err
 			}
@@ -150,7 +151,7 @@ func (s *peersSource) Read(
 			defer incrementalWg.Done()
 
 			for flush := range incrementalQueue {
-				err := s.incrementalFlush(persistFlush, flush.namespace,
+				err := s.incrementalFlush(persistFlush, flush.nsMetadata,
 					flush.shard, flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
 				if err != nil {
 					s.log.WithFields(
@@ -173,12 +174,12 @@ func (s *peersSource) Read(
 			for it.Next() {
 				currRange := it.Value()
 
-				shardResult, err := session.FetchBootstrapBlocksFromPeers(namespace,
+				shardResult, err := session.FetchBootstrapBlocksFromPeers(nsMetadata,
 					shard, currRange.Start, currRange.End, bopts)
 
 				if err == nil && incremental {
 					incrementalQueue <- incrementalFlush{
-						namespace:         namespace,
+						nsMetadata:        nsMetadata,
 						shard:             shard,
 						shardRetrieverMgr: shardRetrieverMgr,
 						shardResult:       shardResult,
@@ -219,20 +220,20 @@ func (s *peersSource) Read(
 
 func (s *peersSource) incrementalFlush(
 	flush persist.Flush,
-	namespace ts.ID,
+	nsMetadata namespace.Metadata,
 	shard uint32,
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
 	shardResult result.ShardResult,
 	tr xtime.Range,
 ) error {
 	var (
-		ropts          = s.opts.ResultOptions().RetentionOptions()
+		ropts          = nsMetadata.Options().RetentionOptions()
 		blockSize      = ropts.BlockSize()
 		shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
 		tmpCtx         = context.NewContext()
 	)
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
-		prepared, err := flush.Prepare(namespace, shard, start)
+		prepared, err := flush.Prepare(nsMetadata, shard, start)
 		if err != nil {
 			return err
 		}

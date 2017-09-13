@@ -21,11 +21,15 @@
 package integration
 
 import (
+	"testing"
 	"time"
 
+	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
+
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -50,6 +54,9 @@ const (
 	// defaultWorkerPoolSize is the default number of workers in the worker pool.
 	defaultWorkerPoolSize = 10
 
+	// defaultTickInterval is the default tick interval.
+	defaultTickInterval = 1 * time.Second
+
 	// defaultUseTChannelClientForReading determines whether we use the tchannel client for reading by default.
 	defaultUseTChannelClientForReading = true
 
@@ -64,6 +71,10 @@ const (
 	defaultWriteConsistencyLevel = topology.ConsistencyLevelMajority
 )
 
+var (
+	defaultIntegrationTestRetentionOpts = retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
+)
+
 type testOptions interface {
 	// SetNamespaces sets the namespaces.
 	SetNamespaces(value []namespace.Metadata) testOptions
@@ -71,11 +82,36 @@ type testOptions interface {
 	// Namespaces returns the namespaces.
 	Namespaces() []namespace.Metadata
 
+	// SetNamespaceInitializer sets the namespace initializer,
+	// if this is set, it superseeds Namespaces()
+	SetNamespaceInitializer(value namespace.Initializer) testOptions
+
+	// NamespaceInitializer returns the namespace initializer
+	NamespaceInitializer() namespace.Initializer
+
+	// SetCommitLogRetentionPeriod sets the commit log retention period
+	SetCommitLogRetentionPeriod(value time.Duration) testOptions
+
+	// CommitLogRetentionPeriod returns the commit log retention period
+	CommitLogRetentionPeriod() time.Duration
+
+	// SetCommitLogBlockSize sets the commit log block size
+	SetCommitLogBlockSize(value time.Duration) testOptions
+
+	// CommitLogBlockSize returns the commit log block size
+	CommitLogBlockSize() time.Duration
+
 	// SetID sets the node ID.
 	SetID(value string) testOptions
 
 	// ID returns the node ID.
 	ID() string
+
+	// SetTickInterval sets the tick interval.
+	SetTickInterval(value time.Duration) testOptions
+
+	// TickInterval returns the tick interval.
+	TickInterval() time.Duration
 
 	// SetHTTPClusterAddr sets the http cluster address.
 	SetHTTPClusterAddr(value string) testOptions
@@ -195,7 +231,11 @@ type testOptions interface {
 
 type options struct {
 	namespaces                         []namespace.Metadata
+	nsInitializer                      namespace.Initializer
+	commitlogRetentionPeriod           time.Duration
+	commitlogBlockSize                 time.Duration
 	id                                 string
+	tickInterval                       time.Duration
 	httpClusterAddr                    string
 	tchannelClusterAddr                string
 	httpNodeAddr                       string
@@ -215,14 +255,24 @@ type options struct {
 	writeConsistencyLevel              topology.ConsistencyLevel
 }
 
-func newTestOptions() testOptions {
+func newTestOptions(t *testing.T) testOptions {
 	var namespaces []namespace.Metadata
+	nsOpts := namespace.NewOptions().
+		SetNeedsRepair(false).
+		SetRetentionOptions(defaultIntegrationTestRetentionOpts)
+
 	for _, ns := range testNamespaces {
-		namespaces = append(namespaces, namespace.NewMetadata(ns, namespace.NewOptions()))
+		md, err := namespace.NewMetadata(ns, nsOpts)
+		require.NoError(t, err)
+		namespaces = append(namespaces, md)
 	}
+
 	return &options{
-		namespaces: namespaces,
-		id:         defaultID,
+		namespaces:                     namespaces,
+		commitlogRetentionPeriod:       defaultIntegrationTestRetentionOpts.RetentionPeriod(),
+		commitlogBlockSize:             defaultIntegrationTestRetentionOpts.BlockSize(),
+		id:                             defaultID,
+		tickInterval:                   defaultTickInterval,
 		serverStateChangeTimeout:       defaultServerStateChangeTimeout,
 		clusterConnectionTimeout:       defaultClusterConnectionTimeout,
 		readRequestTimeout:             defaultReadRequestTimeout,
@@ -246,6 +296,36 @@ func (o *options) Namespaces() []namespace.Metadata {
 	return o.namespaces
 }
 
+func (o *options) SetNamespaceInitializer(value namespace.Initializer) testOptions {
+	opts := *o
+	opts.nsInitializer = value
+	return &opts
+}
+
+func (o *options) NamespaceInitializer() namespace.Initializer {
+	return o.nsInitializer
+}
+
+func (o *options) SetCommitLogRetentionPeriod(value time.Duration) testOptions {
+	opts := *o
+	opts.commitlogRetentionPeriod = value
+	return &opts
+}
+
+func (o *options) CommitLogRetentionPeriod() time.Duration {
+	return o.commitlogRetentionPeriod
+}
+
+func (o *options) SetCommitLogBlockSize(value time.Duration) testOptions {
+	opts := *o
+	opts.commitlogBlockSize = value
+	return &opts
+}
+
+func (o *options) CommitLogBlockSize() time.Duration {
+	return o.commitlogBlockSize
+}
+
 func (o *options) SetID(value string) testOptions {
 	opts := *o
 	opts.id = value
@@ -254,6 +334,16 @@ func (o *options) SetID(value string) testOptions {
 
 func (o *options) ID() string {
 	return o.id
+}
+
+func (o *options) SetTickInterval(value time.Duration) testOptions {
+	opts := *o
+	opts.tickInterval = value
+	return &opts
+}
+
+func (o *options) TickInterval() time.Duration {
+	return o.tickInterval
 }
 
 func (o *options) SetHTTPClusterAddr(value string) testOptions {

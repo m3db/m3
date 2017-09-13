@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
@@ -52,13 +53,23 @@ import (
 )
 
 var (
-	timeZero = time.Time{}
-	nsID     = ts.StringID("testNs1")
+	timeZero        = time.Time{}
+	blockSize       = 2 * time.Hour
+	nsID            = ts.StringID("testNs1")
+	nsRetentionOpts = retention.NewOptions().
+			SetBlockSize(blockSize).
+			SetRetentionPeriod(48 * blockSize)
 	fooID    = ts.StringID("foo")
 	barID    = ts.StringID("bar")
 	bazID    = ts.StringID("baz")
 	testHost = topology.NewHost("testhost", "testhost:9000")
 )
+
+func testsNsMetadata(t *testing.T) namespace.Metadata {
+	md, err := namespace.NewMetadata(nsID, namespace.NewOptions().SetRetentionOptions(nsRetentionOpts))
+	require.NoError(t, err)
+	return md
+}
 
 func newSessionTestMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 	p := encoding.NewMultiReaderIteratorPool(nil)
@@ -69,6 +80,7 @@ func newSessionTestMultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 }
 
 func newSessionTestAdminOptions() AdminOptions {
+
 	opts := applySessionTestOptions(NewAdminOptions()).(AdminOptions)
 	hostShardSets := sessionTestHostAndShards(sessionTestShardSet())
 	host := hostShardSets[0].Host()
@@ -125,7 +137,6 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	require.NoError(t, session.Open())
 
 	batchSize := opts.FetchSeriesBlocksBatchSize()
-	blockSize := 2 * time.Hour
 
 	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 
@@ -205,7 +216,7 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	rangeStart := start
 	rangeEnd := start.Add(blockSize * (24 - 1))
 	bootstrapOpts := newResultTestOptions()
-	result, err := session.FetchBootstrapBlocksFromPeers(nsID, 0, rangeStart, rangeEnd, bootstrapOpts)
+	result, err := session.FetchBootstrapBlocksFromPeers(testsNsMetadata(t), 0, rangeStart, rangeEnd, bootstrapOpts)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
@@ -255,7 +266,6 @@ func fetchBlocksFromPeersTestsHelper(
 	require.NoError(t, session.Open())
 
 	batchSize := opts.FetchSeriesBlocksBatchSize()
-	blockSize := 2 * time.Hour
 	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 
 	allBlocks := make([][]testBlocks, 0, len(mockHostQueues))
@@ -305,7 +315,7 @@ func fetchBlocksFromPeersTestsHelper(
 	}()
 	blockReplicasMetadata := testBlocksToBlockReplicasMetadata(t, peerBlocks, mockHostQueues[1:])
 	bootstrapOpts := newResultTestOptions()
-	result, err := session.FetchBlocksFromPeers(nsID, 0, blockReplicasMetadata, bootstrapOpts)
+	result, err := session.FetchBlocksFromPeers(testsNsMetadata(t), 0, blockReplicasMetadata, bootstrapOpts)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
@@ -314,7 +324,6 @@ func fetchBlocksFromPeersTestsHelper(
 }
 
 func TestFetchBlocksFromPeersSingleNonIdenticalBlockReplica(t *testing.T) {
-	blockSize := 2 * time.Hour
 	peerScenarioGeneratorFn := func(peerIdx int, numPeers int, start time.Time) []testBlocks {
 		if peerIdx == 0 {
 			return []testBlocks{}
@@ -338,7 +347,6 @@ func TestFetchBlocksFromPeersSingleNonIdenticalBlockReplica(t *testing.T) {
 }
 
 func TestFetchRepairBlocksMultipleDifferentBlocks(t *testing.T) {
-	blockSize := 2 * time.Hour
 	peerScenarioGeneratorFn := func(peerIdx int, numPeers int, start time.Time) []testBlocks {
 		return []testBlocks{
 			{
@@ -383,7 +391,6 @@ func TestFetchRepairBlocksMultipleDifferentBlocks(t *testing.T) {
 }
 
 func TestFetchRepairBlocksMultipleBlocksSameIDAndPeer(t *testing.T) {
-	blockSize := 2 * time.Hour
 	peerScenarioGeneratorFn := func(peerIdx int, numPeers int, start time.Time) []testBlocks {
 		return []testBlocks{
 			{
@@ -1241,11 +1248,10 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	require.NoError(t, session.Open())
 
 	var (
-		blockSize = 2 * time.Hour
-		start     = time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
-		retrier   = xretry.NewRetrier(xretry.NewOptions().
-				SetMaxRetries(1).
-				SetInitialBackoff(time.Millisecond))
+		start   = time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+		retrier = xretry.NewRetrier(xretry.NewOptions().
+			SetMaxRetries(1).
+			SetInitialBackoff(time.Millisecond))
 		peerIdx   = len(mockHostQueues) - 1
 		peer      = mockHostQueues[peerIdx]
 		client    = mockClients[peerIdx]
@@ -1286,10 +1292,9 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 	client.EXPECT().FetchBlocksRaw(gomock.Any(), gomock.Any()).Return(nil, fmt.Errorf("an error")).Times(2)
 
 	// Attempt stream blocks
-	ropts := retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
-	bopts := result.NewOptions().SetRetentionOptions(ropts)
+	bopts := result.NewOptions()
 	m := session.streamFromPeersMetricsForShard(0, resultTypeRaw)
-	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, bopts, nil, enqueueCh, retrier, m)
+	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, nil, enqueueCh, retrier, m)
 
 	// Assert result
 	assertEnqueueChannel(t, append(batch[0].blocks, batch[1].blocks...), enqueueCh)
@@ -1320,9 +1325,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
 	require.NoError(t, session.Open())
 
-	blockSize := 2 * time.Hour
 	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
-
 	enc := m3tsz.NewEncoder(start, nil, true, encoding.NewOptions())
 	require.NoError(t, enc.Encode(ts.Datapoint{
 		Timestamp: start.Add(10 * time.Second),
@@ -1404,11 +1407,10 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		}, nil)
 
 	// Attempt stream blocks
-	ropts := retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
-	bopts := result.NewOptions().SetRetentionOptions(ropts)
+	bopts := result.NewOptions()
 	m := session.streamFromPeersMetricsForShard(0, resultTypeRaw)
 	r := newBulkBlocksResult(opts, bopts)
-	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, bopts, r, enqueueCh, retrier, m)
+	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 
 	// Assert result
 	assertEnqueueChannel(t, batch[1].blocks[1:], enqueueCh)
@@ -1451,7 +1453,6 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 
 	require.NoError(t, session.Open())
 
-	blockSize := 2 * time.Hour
 	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
 
 	enc := m3tsz.NewEncoder(start, nil, true, encoding.NewOptions())
@@ -1547,12 +1548,10 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 		}, nil)
 
 	// Attempt stream blocks
-	ropts := retention.NewOptions().SetBlockSize(blockSize).SetRetentionPeriod(48 * blockSize)
-	bopts := result.NewOptions().SetRetentionOptions(ropts)
+	bopts := result.NewOptions()
 	m := session.streamFromPeersMetricsForShard(0, resultTypeRaw)
 	r := newBulkBlocksResult(opts, bopts)
-	session.streamBlocksBatchFromPeer(nsID, 0, peer, batch, bopts, r, enqueueCh, retrier, m)
-
+	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 	// Assert enqueueChannel contents (bad bar block)
 	assertEnqueueChannel(t, batch[1].blocks[:1], enqueueCh)
 

@@ -26,12 +26,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	xtime "github.com/m3db/m3x/time"
-	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/shard"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -176,12 +176,13 @@ func makeTestWrite(
 	instances []services.ServiceInstance,
 ) (testSetups, closeFn, testWriteFn) {
 
-	nspaces := []namespace.Metadata{
-		namespace.NewMetadata(testNamespaces[0], namespace.NewOptions()),
-	}
+	nsOpts := namespace.NewOptions()
+	md, err := namespace.NewMetadata(testNamespaces[0],
+		nsOpts.SetRetentionOptions(nsOpts.RetentionOptions().SetRetentionPeriod(6*time.Hour)))
+	require.NoError(t, err)
 
+	nspaces := []namespace.Metadata{md}
 	nodes, topoInit, closeFn := newNodes(t, instances, nspaces)
-
 	now := nodes[0].getNowFn()
 
 	clientopts := client.NewOptions().

@@ -41,6 +41,7 @@ import (
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
@@ -1237,7 +1238,7 @@ func (s *session) FetchBlocksMetadataFromPeers(
 }
 
 func (s *session) FetchBootstrapBlocksFromPeers(
-	namespace ts.ID,
+	nsMetadata namespace.Metadata,
 	shard uint32,
 	start, end time.Time,
 	opts result.Options,
@@ -1276,7 +1277,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	// be returned from this routine as long as one peer succeeds completely
 	metadataCh := make(chan blocksMetadata, 4096)
 	go func() {
-		err := s.streamBlocksMetadataFromPeers(namespace, shard, peers,
+		err := s.streamBlocksMetadataFromPeers(nsMetadata.ID(), shard, peers,
 			start, end, metadataCh, m)
 
 		close(metadataCh)
@@ -1288,7 +1289,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 
 	// Begin consuming metadata and making requests
 	go func() {
-		err := s.streamBlocksFromPeers(namespace, shard, peers,
+		err := s.streamBlocksFromPeers(nsMetadata, shard, peers,
 			metadataCh, opts, result, m, s.streamAndGroupCollectedBlocksMetadata)
 		onDone(err)
 	}()
@@ -1300,11 +1301,12 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 }
 
 func (s *session) FetchBlocksFromPeers(
-	namespace ts.ID,
+	nsMetadata namespace.Metadata,
 	shard uint32,
 	metadatas []block.ReplicaMetadata,
 	opts result.Options,
 ) (PeerBlocksIter, error) {
+
 	var (
 		logger   = opts.InstrumentOptions().Logger()
 		complete = int64(0)
@@ -1368,7 +1370,7 @@ func (s *session) FetchBlocksFromPeers(
 
 	// Begin consuming metadata and making requests
 	go func() {
-		err := s.streamBlocksFromPeers(namespace, shard, peers,
+		err := s.streamBlocksFromPeers(nsMetadata, shard, peers,
 			metadataCh, opts, result, m, s.passThruBlocksMetadata)
 		close(outputCh)
 		onDone(err)
@@ -1547,7 +1549,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 }
 
 func (s *session) streamBlocksFromPeers(
-	namespace ts.ID,
+	nsMetadata namespace.Metadata,
 	shard uint32,
 	peers []peer,
 	ch <-chan blocksMetadata,
@@ -1582,7 +1584,7 @@ func (s *session) streamBlocksFromPeers(
 		workers := s.streamBlocksWorkers
 		drainEvery := 100 * time.Millisecond
 		processFn := func(batch []*blocksMetadata) {
-			s.streamBlocksBatchFromPeer(namespace, shard, peer, batch, opts,
+			s.streamBlocksBatchFromPeer(nsMetadata, shard, peer, batch, opts,
 				result, enqueueCh, retrier, m)
 		}
 		queue := s.newPeerBlocksQueueFn(peer, size, drainEvery, workers, processFn)
@@ -1918,7 +1920,7 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 }
 
 func (s *session) streamBlocksBatchFromPeer(
-	namespace ts.ID,
+	namespaceMetadata namespace.Metadata,
 	shard uint32,
 	peer peer,
 	batch []*blocksMetadata,
@@ -1935,12 +1937,12 @@ func (s *session) streamBlocksBatchFromPeer(
 		reqBlocksLen int64
 
 		nowFn              = opts.ClockOptions().NowFn()
-		ropts              = opts.RetentionOptions()
+		ropts              = namespaceMetadata.Options().RetentionOptions()
 		blockSize          = ropts.BlockSize()
 		retention          = ropts.RetentionPeriod()
 		earliestBlockStart = nowFn().Add(-retention).Truncate(blockSize)
 	)
-	req.NameSpace = namespace.Data().Get()
+	req.NameSpace = namespaceMetadata.ID().Data().Get()
 	req.Shard = int32(shard)
 	req.Elements = make([]*rpc.FetchBlocksRawRequestElement, len(batch))
 	for i := range batch {

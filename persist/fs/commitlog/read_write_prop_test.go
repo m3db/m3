@@ -53,7 +53,8 @@ func TestCommitLogReadWrite(t *testing.T) {
 	fsOpts := opts.FilesystemOptions().SetFilePathPrefix(baseTestPath)
 	opts = opts.SetFilesystemOptions(fsOpts).SetFlushInterval(time.Millisecond)
 
-	cl := NewCommitLog(opts)
+	cl, err := NewCommitLog(opts)
+	require.NoError(t, err)
 	require.NoError(t, cl.Open())
 
 	params := gopter.DefaultGenParameters()
@@ -137,8 +138,12 @@ var genOpenCommand = gen.Const(&commands.ProtoCommand{
 		return !state.(*clState).open
 	},
 	RunFunc: func(q commands.SystemUnderTest) commands.Result {
+		var err error
 		s := q.(*clState)
-		s.cLog = NewCommitLog(s.opts)
+		s.cLog, err = NewCommitLog(s.opts)
+		if err != nil {
+			return err
+		}
 		return s.cLog.Open()
 	},
 	NextStateFunc: func(state commands.State) commands.State {

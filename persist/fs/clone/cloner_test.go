@@ -82,8 +82,8 @@ func TestCloner(t *testing.T) {
 }
 
 func writeTestData(t *testing.T, bs time.Duration, src FilesetID, opts Options) {
-	w := fs.NewWriter(bs, src.PathPrefix, opts.BufferSize(), opts.FileMode(), opts.DirMode())
-	require.NoError(t, w.Open(ts.StringID(src.Namespace), src.Shard, src.Blockstart))
+	w := fs.NewWriter(src.PathPrefix, opts.BufferSize(), opts.FileMode(), opts.DirMode())
+	require.NoError(t, w.Open(ts.StringID(src.Namespace), bs, src.Shard, src.Blockstart))
 	for i := 0; i < numTestSeries; i++ {
 		id := ts.StringID(fmt.Sprintf("testSeries.%d", i))
 		for j := 0; j < numTestPoints; j++ {

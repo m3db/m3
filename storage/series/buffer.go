@@ -96,7 +96,7 @@ type databaseBuffer interface {
 
 	Bootstrap(bl block.DatabaseBlock) error
 
-	Reset()
+	Reset(opts Options)
 }
 
 type bufferStats struct {
@@ -121,20 +121,22 @@ type dbBuffer struct {
 
 type databaseBufferDrainFn func(b block.DatabaseBlock)
 
-func newDatabaseBuffer(drainFn databaseBufferDrainFn, opts Options) databaseBuffer {
+// NB(prateek): databaseBuffer.Reset(...) must be called upon the returned
+// object prior to use.
+func newDatabaseBuffer(drainFn databaseBufferDrainFn) databaseBuffer {
 	b := &dbBuffer{
-		opts:         opts,
-		nowFn:        opts.ClockOptions().NowFn(),
-		drainFn:      drainFn,
-		blockSize:    opts.RetentionOptions().BlockSize(),
-		bufferPast:   opts.RetentionOptions().BufferPast(),
-		bufferFuture: opts.RetentionOptions().BufferFuture(),
+		drainFn: drainFn,
 	}
-	b.Reset()
 	return b
 }
 
-func (b *dbBuffer) Reset() {
+func (b *dbBuffer) Reset(opts Options) {
+	b.opts = opts
+	b.nowFn = opts.ClockOptions().NowFn()
+	ropts := opts.RetentionOptions()
+	b.blockSize = ropts.BlockSize()
+	b.bufferPast = ropts.BufferPast()
+	b.bufferFuture = ropts.BufferFuture()
 	// Avoid capturing any variables with callback
 	b.computedForEachBucketAsc(computeAndResetBucketIdx, bucketResetStart)
 }

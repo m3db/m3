@@ -23,15 +23,13 @@ package bootstrapper
 import (
 	"testing"
 
-	"github.com/m3db/m3db/ts"
-
 	"github.com/stretchr/testify/require"
 )
 
 func TestNoOpNoneBootstrapperBootstrap(t *testing.T) {
 	bs := NewNoOpNoneBootstrapper()
 	ranges := testShardTimeRanges()
-	res, err := bs.Bootstrap(ts.StringID("testNs"), ranges, testDefaultRunOpts)
+	res, err := bs.Bootstrap(testNsMetadata(t), ranges, testDefaultRunOpts)
 	require.Equal(t, ranges, res.Unfulfilled())
 	require.Nil(t, err)
 }
@@ -39,7 +37,7 @@ func TestNoOpNoneBootstrapperBootstrap(t *testing.T) {
 func TestNoOpAllBootstrapperBootstrap(t *testing.T) {
 	bs := NewNoOpAllBootstrapper()
 	ranges := testShardTimeRanges()
-	res, err := bs.Bootstrap(ts.StringID("testNs"), ranges, testDefaultRunOpts)
+	res, err := bs.Bootstrap(testNsMetadata(t), ranges, testDefaultRunOpts)
 	require.True(t, res.Unfulfilled().IsEmpty())
 	require.Nil(t, err)
 }

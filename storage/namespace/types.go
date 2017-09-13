@@ -20,10 +20,23 @@
 
 package namespace
 
-import "github.com/m3db/m3db/ts"
+import (
+	"time"
+
+	"github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/instrument"
+)
 
 // Options controls namespace behavior
 type Options interface {
+	// Validate validates the options
+	Validate() error
+
+	// Equal returns true if the provide value is equal to this one
+	Equal(value Options) bool
+
 	// SetNeedsBootstrap sets whether this namespace requires bootstrapping
 	SetNeedsBootstrap(value bool) Options
 
@@ -53,13 +66,96 @@ type Options interface {
 
 	// NeedsRepair returns whether the data for this namespace needs to be repaired
 	NeedsRepair() bool
+
+	// SetRetentionOptions sets the retention options for this namespace
+	SetRetentionOptions(value retention.Options) Options
+
+	// RetentionOptions returns the retention options for this namespace
+	RetentionOptions() retention.Options
 }
 
 // Metadata represents namespace metadata information
 type Metadata interface {
+	// Equal returns true if the provide value is equal to this one
+	Equal(value Metadata) bool
+
 	// ID is the ID of the namespace
 	ID() ts.ID
 
 	// Options is the namespace options
 	Options() Options
+}
+
+// Map is mapping from known namespaces' ID to their Metadata
+type Map interface {
+	// Equal returns true if the provide value is equal to this one
+	Equal(value Map) bool
+
+	// Get gets the metadata for the provided namespace
+	Get(ts.ID) (Metadata, error)
+
+	// IDs returns the ID of known namespaces
+	IDs() []ts.ID
+
+	// Metadatas returns the metadata of known namespaces
+	Metadatas() []Metadata
+}
+
+// Watch is a watch on a namespace Map
+type Watch interface {
+	// C is the notification channel for when a value becomes available
+	C() <-chan struct{}
+
+	// Get the current namespace map
+	Get() Map
+
+	// Close closes the watch
+	Close() error
+}
+
+// Registry is an un-changing container for a Map
+type Registry interface {
+	// Watch for the Registry changes
+	Watch() (Watch, error)
+
+	// Close closes the registry
+	Close() error
+}
+
+// Initializer can init new instances of namespace registries
+type Initializer interface {
+	// Init will return a new Registry
+	Init() (Registry, error)
+}
+
+// DynamicOptions is a set of options for dynamic namespace registry
+type DynamicOptions interface {
+	// Validate validates the options
+	Validate() error
+
+	// SetInstrumentOptions sets the instrumentation options
+	SetInstrumentOptions(value instrument.Options) DynamicOptions
+
+	// InstrumentOptions returns the instrumentation options
+	InstrumentOptions() instrument.Options
+
+	// SetConfigServiceClient sets the client of ConfigService
+	SetConfigServiceClient(c client.Client) DynamicOptions
+
+	// ConfigServiceClient returns the client of ConfigService
+	ConfigServiceClient() client.Client
+
+	// SetNamespaceRegistryKey sets the kv-store key used for the
+	// NamespaceRegistry
+	SetNamespaceRegistryKey(k string) DynamicOptions
+
+	// NamespaceRegistryKey returns the kv-store key used for the
+	// NamespaceRegistry
+	NamespaceRegistryKey() string
+
+	// SetInitTimeout sets the waiting time for dynamic topology to be initialized
+	SetInitTimeout(value time.Duration) DynamicOptions
+
+	// InitTimeout returns the waiting time for dynamic topology to be initialized
+	InitTimeout() time.Duration
 }

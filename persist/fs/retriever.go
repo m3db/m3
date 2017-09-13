@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/pool"
@@ -62,9 +63,9 @@ type blockRetriever struct {
 
 	newSeekerMgrFn newSeekerMgrFn
 
-	reqPool   retrieveRequestPool
-	bytesPool pool.CheckedBytesPool
-	namespace ts.ID
+	reqPool    retrieveRequestPool
+	bytesPool  pool.CheckedBytesPool
+	nsMetadata namespace.Metadata
 
 	status         blockRetrieverStatus
 	reqsByShardIdx []*shardRetrieveRequests
@@ -92,7 +93,7 @@ func NewBlockRetriever(
 	}
 }
 
-func (r *blockRetriever) Open(namespace ts.ID) error {
+func (r *blockRetriever) Open(ns namespace.Metadata) error {
 	r.Lock()
 	defer r.Unlock()
 
@@ -103,7 +104,7 @@ func (r *blockRetriever) Open(namespace ts.ID) error {
 	seekerMgrs := make([]FileSetSeekerManager, 0, r.opts.FetchConcurrency())
 	for i := 0; i < r.opts.FetchConcurrency(); i++ {
 		seekerMgr := r.newSeekerMgrFn(r.bytesPool, r.fsOpts)
-		if err := seekerMgr.Open(namespace); err != nil {
+		if err := seekerMgr.Open(ns); err != nil {
 			for _, opened := range seekerMgrs {
 				opened.Close()
 			}
@@ -112,7 +113,7 @@ func (r *blockRetriever) Open(namespace ts.ID) error {
 		seekerMgrs = append(seekerMgrs, seekerMgr)
 	}
 
-	r.namespace = namespace
+	r.nsMetadata = ns
 	r.status = blockRetrieverOpen
 	r.seekerMgrs = seekerMgrs
 
@@ -361,7 +362,7 @@ func (r *blockRetriever) Close() error {
 	r.Lock()
 	defer r.Unlock()
 
-	r.namespace = nil
+	r.nsMetadata = nil
 	r.status = blockRetrieverClosed
 
 	return nil

@@ -26,7 +26,6 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
@@ -101,6 +100,9 @@ type Series struct {
 
 // Options represents the options for the commit log
 type Options interface {
+	// Validate validates the Options
+	Validate() error
+
 	// SetClockOptions sets the clock options
 	SetClockOptions(value clock.Options) Options
 
@@ -113,11 +115,17 @@ type Options interface {
 	// InstrumentOptions returns the instrumentation options
 	InstrumentOptions() instrument.Options
 
-	// SetRetentionOptions sets the retention options
-	SetRetentionOptions(value retention.Options) Options
+	// SetRetentionPeriod sets the retention period
+	SetRetentionPeriod(value time.Duration) Options
 
-	// RetentionOptions returns the retention options
-	RetentionOptions() retention.Options
+	// RetentionPeriod returns the retention period
+	RetentionPeriod() time.Duration
+
+	// SetBlockSize sets the block size
+	SetBlockSize(value time.Duration) Options
+
+	// BlockSize returns the block size
+	BlockSize() time.Duration
 
 	// SetFilesystemOptions sets the filesystem options
 	SetFilesystemOptions(value fs.Options) Options

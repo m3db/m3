@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
@@ -80,9 +81,10 @@ type dbShard struct {
 	sync.RWMutex
 	block.DatabaseBlockRetriever
 	opts                     Options
+	seriesOpts               series.Options
 	nowFn                    clock.NowFn
 	state                    dbShardState
-	namespace                ts.ID
+	nsMetadata               namespace.Metadata
 	seriesBlockRetriever     series.QueryableBlockRetriever
 	shard                    uint32
 	increasingIndex          increasingIndex
@@ -165,22 +167,24 @@ func newShardFlushState() shardFlushState {
 }
 
 func newDatabaseShard(
-	namespace ts.ID,
+	namespaceMetadata namespace.Metadata,
 	shard uint32,
 	blockRetriever block.DatabaseBlockRetriever,
 	increasingIndex increasingIndex,
 	commitLogWriter commitLogWriter,
 	needsBootstrap bool,
 	opts Options,
+	seriesOpts series.Options,
 ) databaseShard {
 	scope := opts.InstrumentOptions().MetricsScope().
 		SubScope("dbshard")
 
 	d := &dbShard{
 		opts:                  opts,
+		seriesOpts:            seriesOpts,
 		nowFn:                 opts.ClockOptions().NowFn(),
 		state:                 dbShardStateOpen,
-		namespace:             namespace,
+		nsMetadata:            namespaceMetadata,
 		shard:                 shard,
 		increasingIndex:       increasingIndex,
 		seriesPool:            opts.DatabaseSeriesPool(),
@@ -266,7 +270,6 @@ func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
 	}
 	panic(fmt.Errorf("shard queried is retrievable with bad flush state %d",
 		flushState.Status))
-	return false
 }
 
 func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
@@ -352,7 +355,7 @@ func (s *dbShard) Close() error {
 	// causes the GC to impact performance when closing shards the deadline
 	// should be increased.
 	cancellable := context.NewNoOpCanncellable()
-	softDeadline := s.opts.RetentionOptions().BufferDrain()
+	softDeadline := s.opts.TickInterval()
 	s.tickAndExpire(cancellable, softDeadline, tickPolicyForceExpiry)
 
 	return nil
@@ -554,7 +557,7 @@ func (s *dbShard) Write(
 	// Write commit log
 	series := commitlog.Series{
 		UniqueIndex: commitLogSeriesUniqueIndex,
-		Namespace:   s.namespace,
+		Namespace:   s.nsMetadata.ID(),
 		ID:          commitLogSeriesID,
 		Shard:       s.shard,
 	}
@@ -644,7 +647,7 @@ func (s *dbShard) tryRetrieveWritableSeries(id ts.ID) (
 func (s *dbShard) newShardEntry(id ts.ID) *dbShardEntry {
 	series := s.seriesPool.Get()
 	seriesID := s.identifierPool.Clone(id)
-	series.Reset(seriesID, s.newSeriesBootstrapped, s.seriesBlockRetriever)
+	series.Reset(seriesID, s.newSeriesBootstrapped, s.seriesBlockRetriever, s.seriesOpts)
 	uniqueIndex := s.increasingIndex.nextIndex()
 	return &dbShardEntry{series: series, index: uniqueIndex}
 }
@@ -927,7 +930,6 @@ func (s *dbShard) Bootstrap(
 }
 
 func (s *dbShard) Flush(
-	namespace ts.ID,
 	blockStart time.Time,
 	flush persist.Flush,
 ) error {
@@ -940,19 +942,14 @@ func (s *dbShard) Flush(
 	s.RUnlock()
 
 	var multiErr xerrors.MultiError
-	prepared, err := flush.Prepare(namespace, s.ID(), blockStart)
+	prepared, err := flush.Prepare(s.nsMetadata, s.ID(), blockStart)
 	multiErr = multiErr.Add(err)
 
+	// No action is necessary therefore we bail out early and there is no need to close.
 	if prepared.Persist == nil {
-		// No action is necessary therefore we bail out early and there is no need to close.
-		if err := multiErr.FinalError(); err != nil {
-			s.markFlushStateFail(blockStart)
-			return err
-		}
-		// NB(r): Need to mark this state as success so IsBlockRetrievable can
+		// NB(r): Need to mark state without mulitErr as success so IsBlockRetrievable can
 		// return true when querying if a block is retrievable for this time
-		s.markFlushStateSuccess(blockStart)
-		return nil
+		return s.markFlushStateSuccessOrError(blockStart, multiErr.FinalError())
 	}
 
 	// If we encounter an error when persisting a series, we continue regardless.
@@ -972,16 +969,7 @@ func (s *dbShard) Flush(
 		multiErr = multiErr.Add(err)
 	}
 
-	resultErr := multiErr.FinalError()
-
-	// Track flush state for block state
-	if resultErr == nil {
-		s.markFlushStateSuccess(blockStart)
-	} else {
-		s.markFlushStateFail(blockStart)
-	}
-
-	return resultErr
+	return s.markFlushStateSuccessOrError(blockStart, multiErr.FinalError())
 }
 
 func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
@@ -993,6 +981,16 @@ func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
 	}
 	s.flushState.RUnlock()
 	return state
+}
+
+func (s *dbShard) markFlushStateSuccessOrError(blockStart time.Time, err error) error {
+	// Track flush state for block state
+	if err == nil {
+		s.markFlushStateSuccess(blockStart)
+	} else {
+		s.markFlushStateFail(blockStart)
+	}
+	return err
 }
 
 func (s *dbShard) markFlushStateSuccess(blockStart time.Time) {
@@ -1013,7 +1011,7 @@ func (s *dbShard) markFlushStateFail(blockStart time.Time) {
 func (s *dbShard) removeAnyFlushStatesTooEarly() {
 	s.flushState.Lock()
 	now := s.nowFn()
-	earliestFlush := retention.FlushTimeStart(s.opts.RetentionOptions(), now)
+	earliestFlush := retention.FlushTimeStart(s.nsMetadata.Options().RetentionOptions(), now)
 	for t := range s.flushState.statesByTime {
 		if t.Before(earliestFlush) {
 			delete(s.flushState.statesByTime, t)
@@ -1022,12 +1020,14 @@ func (s *dbShard) removeAnyFlushStatesTooEarly() {
 	s.flushState.Unlock()
 }
 
-func (s *dbShard) CleanupFileset(namespace ts.ID, earliestToRetain time.Time) error {
+func (s *dbShard) CleanupFileset(earliestToRetain time.Time) error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	multiErr := xerrors.NewMultiError()
-	expired, err := s.filesetBeforeFn(filePathPrefix, namespace, s.ID(), earliestToRetain)
+	expired, err := s.filesetBeforeFn(filePathPrefix, s.nsMetadata.ID(), s.ID(), earliestToRetain)
 	if err != nil {
-		detailedErr := fmt.Errorf("encountered errors when getting fileset files for prefix %s namespace %s shard %d: %v", filePathPrefix, namespace, s.ID(), err)
+		detailedErr :=
+			fmt.Errorf("encountered errors when getting fileset files for prefix %s namespace %s shard %d: %v",
+				filePathPrefix, s.nsMetadata.ID(), s.ID(), err)
 		multiErr = multiErr.Add(detailedErr)
 	}
 	if err := s.deleteFilesFn(expired); err != nil {
@@ -1038,9 +1038,8 @@ func (s *dbShard) CleanupFileset(namespace ts.ID, earliestToRetain time.Time) er
 
 func (s *dbShard) Repair(
 	ctx context.Context,
-	namespace ts.ID,
 	tr xtime.Range,
 	repairer databaseShardRepairer,
 ) (repair.MetadataComparisonResult, error) {
-	return repairer.Repair(ctx, namespace, tr, s)
+	return repairer.Repair(ctx, s.nsMetadata.ID(), tr, s)
 }

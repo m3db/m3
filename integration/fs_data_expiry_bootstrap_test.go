@@ -35,7 +35,6 @@ import (
 	bfs "github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/log"
 
 	"github.com/stretchr/testify/require"
@@ -47,20 +46,29 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	}
 	// Test setup
 	var (
-		log    = xlog.SimpleLogger
-		namesp = namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
-		opts   = newTestOptions().
-			SetNamespaces([]namespace.Metadata{namesp})
-		setup *testSetup
-		err   error
+		log   = xlog.SimpleLogger
+		ropts = retention.NewOptions().
+			SetRetentionPeriod(6 * time.Hour).
+			SetBlockSize(2 * time.Hour).
+			SetBufferPast(10 * time.Minute).
+			SetBufferFuture(2 * time.Minute).
+			SetBlockDataExpiry(true)
+		blockSize = ropts.BlockSize()
+		setup     *testSetup
+		err       error
 	)
+	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
+	require.NoError(t, err)
+
+	opts := newTestOptions(t).
+		SetNamespaces([]namespace.Metadata{namesp})
 
 	retrieverOpts := fs.NewBlockRetrieverOptions()
 
 	blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
-		func(namespace ts.ID) (block.DatabaseBlockRetriever, error) {
+		func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
 			retriever := fs.NewBlockRetriever(retrieverOpts, setup.fsOpts)
-			if err := retriever.Open(namespace); err != nil {
+			if err := retriever.Open(md); err != nil {
 				return nil, err
 			}
 			return retriever, nil
@@ -68,23 +76,14 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 
 	opts = opts.SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
 
-	setup, err = newTestSetup(opts)
+	setup, err = newTestSetup(t, opts)
 	require.NoError(t, err)
 	defer setup.close()
-
-	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(6 * time.Hour).
-		SetBlockSize(2 * time.Hour).
-		SetBufferPast(10 * time.Minute).
-		SetBufferFuture(2 * time.Minute).
-		SetBufferDrain(3 * time.Second).
-		SetBlockDataExpiry(true)
 
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 	filePathPrefix := fsOpts.FilePathPrefix()
 	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-	bsOpts := result.NewOptions().
-		SetRetentionOptions(setup.storageOpts.RetentionOptions())
+	bsOpts := result.NewOptions()
 	bfsOpts := bfs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
@@ -93,16 +92,14 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	process := bootstrap.NewProcess(bs, bsOpts)
 
 	setup.storageOpts = setup.storageOpts.
-		SetRetentionOptions(retentionOpts).
 		SetBootstrapProcess(process)
 
 	// Write test data
 	now := setup.getNowFn()
-	blockSize := setup.storageOpts.RetentionOptions().BlockSize()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{[]string{"foo", "bar"}, 100, now.Add(-blockSize)},
 	})
-	require.NoError(t, writeTestDataToDisk(namesp.ID(), setup, seriesMaps))
+	require.NoError(t, writeTestDataToDisk(namesp, setup, seriesMaps))
 
 	// Start the server with filesystem bootstrapper
 	log.Debug("filesystem data expiry bootstrap test")

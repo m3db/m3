@@ -89,10 +89,7 @@ func newMediator(database database, opts Options) (databaseMediator, error) {
 		closedCh: make(chan struct{}),
 	}
 
-	fsm, err := newFileSystemManager(database, opts)
-	if err != nil {
-		return nil, err
-	}
+	fsm := newFileSystemManager(database, opts)
 	d.databaseFileSystemManager = fsm
 
 	d.databaseRepairer = newNoopDatabaseRepairer()
@@ -178,7 +175,7 @@ func (m *mediator) ongoingTick() {
 			// NB(xichen): if we attempt to tick while another tick
 			// is in progress, throttle a little to avoid constantly
 			// checking whether the ongoing tick is finished
-			err := m.Tick(m.opts.RetentionOptions().BufferDrain(), asyncRun, noForce)
+			err := m.Tick(m.opts.TickInterval(), asyncRun, noForce)
 			if err == errTickInProgress {
 				m.sleepFn(tickCheckInterval)
 			}

@@ -23,127 +23,27 @@
 package integration
 
 import (
-	"bytes"
-	"errors"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/integration/generate"
-	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/sharding"
-	"github.com/m3db/m3db/storage"
-	"github.com/m3db/m3db/ts"
 
 	"github.com/stretchr/testify/require"
 )
-
-var (
-	errDiskFlushTimedOut = errors.New("flushing data to disk took too long")
-)
-
-func waitUntilDataFlushed(
-	filePathPrefix string,
-	shardSet sharding.ShardSet,
-	namespace ts.ID,
-	testData map[time.Time]generate.SeriesBlock,
-	timeout time.Duration,
-) error {
-	dataFlushed := func() bool {
-		for timestamp, seriesList := range testData {
-			for _, series := range seriesList {
-				shard := shardSet.Lookup(series.ID)
-				if !fs.FilesetExistsAt(filePathPrefix, namespace, shard, timestamp) {
-					return false
-				}
-			}
-		}
-		return true
-	}
-	if waitUntil(dataFlushed, timeout) {
-		return nil
-	}
-	return errDiskFlushTimedOut
-}
-
-func verifyForTime(
-	t *testing.T,
-	reader fs.FileSetReader,
-	shardSet sharding.ShardSet,
-	iteratorPool encoding.ReaderIteratorPool,
-	timestamp time.Time,
-	namespace ts.ID,
-	expected generate.SeriesBlock,
-) {
-	shards := make(map[uint32]struct{})
-	for _, series := range expected {
-		shard := shardSet.Lookup(series.ID)
-		shards[shard] = struct{}{}
-	}
-	actual := make(generate.SeriesBlock, 0, len(expected))
-	for shard := range shards {
-		require.NoError(t, reader.Open(namespace, shard, timestamp))
-		for i := 0; i < reader.Entries(); i++ {
-			id, data, _, err := reader.Read()
-			require.NoError(t, err)
-
-			data.IncRef()
-
-			var datapoints []ts.Datapoint
-			it := iteratorPool.Get()
-			it.Reset(bytes.NewBuffer(data.Get()))
-			for it.Next() {
-				dp, _, _ := it.Current()
-				datapoints = append(datapoints, dp)
-			}
-			require.NoError(t, it.Err())
-			it.Close()
-
-			actual = append(actual, generate.Series{
-				ID:   id,
-				Data: datapoints,
-			})
-
-			data.DecRef()
-			data.Finalize()
-		}
-		require.NoError(t, reader.Close())
-	}
-
-	compareSeriesList(t, expected, actual)
-}
-
-func verifyFlushed(
-	t *testing.T,
-	shardSet sharding.ShardSet,
-	opts storage.Options,
-	namespace ts.ID,
-	seriesMaps map[time.Time]generate.SeriesBlock,
-) {
-	fsOpts := opts.CommitLogOptions().FilesystemOptions()
-	reader := fs.NewReader(fsOpts.FilePathPrefix(), fsOpts.ReaderBufferSize(), opts.BytesPool(), nil)
-	iteratorPool := opts.ReaderIteratorPool()
-	for timestamp, seriesList := range seriesMaps {
-		verifyForTime(t, reader, shardSet, iteratorPool, timestamp, namespace, seriesList)
-	}
-}
 
 func TestDiskFlush(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	testSetup, err := newTestSetup(newTestOptions())
+	testOpts := newTestOptions(t).
+		SetTickInterval(time.Second)
+	testSetup, err := newTestSetup(t, testOpts)
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	testSetup.storageOpts =
-		testSetup.storageOpts.
-			SetRetentionOptions(testSetup.storageOpts.RetentionOptions().
-				SetBufferDrain(3 * time.Second).
-				SetRetentionPeriod(6 * time.Hour))
-
-	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
+	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
+	blockSize := md.Options().RetentionOptions().BlockSize()
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// Start the server
@@ -177,7 +77,7 @@ func TestDiskFlush(t *testing.T) {
 	// are flushed to disk asynchronously, need to poll to check
 	// when data are written.
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	waitTimeout := testSetup.storageOpts.RetentionOptions().BufferDrain() * 10
+	waitTimeout := testOpts.TickInterval() * 10
 	require.NoError(t, waitUntilDataFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], seriesMaps, waitTimeout))
 
 	// Verify on-disk data match what we expect

@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 
@@ -95,19 +96,19 @@ func newPersistManagerMetrics(scope tally.Scope) persistManagerMetrics {
 
 // NewPersistManager creates a new filesystem persist manager
 func NewPersistManager(opts Options) persist.Manager {
-	filePathPrefix := opts.FilePathPrefix()
-	writerBufferSize := opts.WriterBufferSize()
-	blockSize := opts.RetentionOptions().BlockSize()
-	newFileMode := opts.NewFileMode()
-	newDirectoryMode := opts.NewDirectoryMode()
-	writer := NewWriter(blockSize, filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode)
-	scope := opts.InstrumentOptions().MetricsScope().SubScope("persist")
+	var (
+		filePathPrefix   = opts.FilePathPrefix()
+		writerBufferSize = opts.WriterBufferSize()
+		newFileMode      = opts.NewFileMode()
+		newDirectoryMode = opts.NewDirectoryMode()
+		scope            = opts.InstrumentOptions().MetricsScope().SubScope("persist")
+	)
 	pm := &persistManager{
 		opts:           opts,
 		filePathPrefix: filePathPrefix,
 		nowFn:          opts.ClockOptions().NowFn(),
 		sleepFn:        time.Sleep,
-		writer:         writer,
+		writer:         NewWriter(filePathPrefix, writerBufferSize, newFileMode, newDirectoryMode),
 		segmentHolder:  make([]checked.Bytes, 2),
 		status:         persistManagerIdle,
 		metrics:        newPersistManagerMetrics(scope),
@@ -165,6 +166,7 @@ func (pm *persistManager) close() error {
 	return pm.writer.Close()
 }
 
+// StartFlush is called by the databaseFlushManager to begin the flush process
 func (pm *persistManager) StartFlush() (persist.Flush, error) {
 	pm.Lock()
 	defer pm.Unlock()
@@ -177,6 +179,7 @@ func (pm *persistManager) StartFlush() (persist.Flush, error) {
 	return pm, nil
 }
 
+// Done is called by the databaseFlushManager to finish the flush process
 func (pm *persistManager) Done() error {
 	pm.Lock()
 	defer pm.Unlock()
@@ -204,12 +207,22 @@ func (pm *persistManager) reset() {
 	pm.slept = 0
 }
 
-func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (persist.PreparedPersist, error) {
-	var prepared persist.PreparedPersist
+func (pm *persistManager) Prepare(
+	nsMetadata namespace.Metadata,
+	shard uint32,
+	blockStart time.Time,
+) (persist.PreparedPersist, error) {
 
+	var (
+		nsID     = nsMetadata.ID()
+		prepared persist.PreparedPersist
+	)
+
+	// ensure StartFlush has been called
 	pm.RLock()
 	status := pm.status
 	pm.RUnlock()
+
 	if status != persistManagerFlushing {
 		return prepared, errPersistManagerCannotPrepareNotFlushing
 	}
@@ -217,10 +230,12 @@ func (pm *persistManager) Prepare(namespace ts.ID, shard uint32, blockStart time
 	// NB(xichen): if the checkpoint file for blockStart already exists, bail.
 	// This allows us to retry failed flushing attempts because they wouldn't
 	// have created the checkpoint file.
-	if FilesetExistsAt(pm.filePathPrefix, namespace, shard, blockStart) {
+	if FilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart) {
 		return prepared, nil
 	}
-	if err := pm.writer.Open(namespace, shard, blockStart); err != nil {
+
+	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
+	if err := pm.writer.Open(nsID, blockSize, shard, blockStart); err != nil {
 		return prepared, err
 	}
 

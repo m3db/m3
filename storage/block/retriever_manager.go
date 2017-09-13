@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 )
@@ -31,7 +32,7 @@ import (
 // NewDatabaseBlockRetrieverFn is a method for constructing
 // new database block retrievers
 type NewDatabaseBlockRetrieverFn func(
-	namespace ts.ID,
+	md namespace.Metadata,
 ) (DatabaseBlockRetriever, error)
 
 // NewDatabaseBlockRetrieverManager creates a new manager
@@ -52,10 +53,11 @@ type blockRetrieverManager struct {
 }
 
 func (m *blockRetrieverManager) Retriever(
-	namespace ts.ID,
+	md namespace.Metadata,
 ) (DatabaseBlockRetriever, error) {
+	idHash := md.ID().Hash()
 	m.RLock()
-	retriever, ok := m.retrievers[namespace.Hash()]
+	retriever, ok := m.retrievers[idHash]
 	m.RUnlock()
 
 	if ok {
@@ -65,18 +67,18 @@ func (m *blockRetrieverManager) Retriever(
 	m.Lock()
 	defer m.Unlock()
 
-	retriever, ok = m.retrievers[namespace.Hash()]
+	retriever, ok = m.retrievers[idHash]
 	if ok {
 		return retriever, nil
 	}
 
 	var err error
-	retriever, err = m.newRetrieverFn(namespace)
+	retriever, err = m.newRetrieverFn(md)
 	if err != nil {
 		return nil, err
 	}
 
-	m.retrievers[namespace.Hash()] = retriever
+	m.retrievers[idHash] = retriever
 	return retriever, nil
 }
 

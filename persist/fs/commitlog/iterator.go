@@ -165,7 +165,7 @@ func (i *iterator) nextReader() bool {
 		i.err = errStartDoesNotMatch
 		return false
 	}
-	if duration != i.opts.RetentionOptions().BlockSize() {
+	if duration != i.opts.BlockSize() {
 		i.err = errDurationDoesNotMatch
 		return false
 	}

@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3x/time"
@@ -41,7 +42,9 @@ import (
 )
 
 // Create test service opts once to avoid recreating a lot of default pools, etc
-var testServiceOpts = storage.NewOptions()
+var (
+	testServiceOpts = storage.NewOptions()
+)
 
 func TestServiceHealth(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -232,7 +235,11 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	nsID := "metrics"
+	mockNs := storage.NewMockNamespace(ctrl)
+	mockNs.EXPECT().Options().Return(namespace.NewOptions()).AnyTimes()
 	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Namespace(ts.NewIDMatcher(nsID)).Return(mockNs, true).AnyTimes()
 	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
 	mockDB.EXPECT().IsOverloaded().Return(false)
 
@@ -244,8 +251,6 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 
 	start := time.Now().Add(-2 * time.Hour).Truncate(time.Second)
 	starts := []time.Time{start}
-
-	nsID := "metrics"
 
 	streams := map[string]xio.SegmentReader{}
 	checksums := map[string]uint32{}

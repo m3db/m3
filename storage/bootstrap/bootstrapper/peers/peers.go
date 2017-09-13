@@ -21,6 +21,8 @@
 package peers
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
 )
@@ -38,12 +40,16 @@ type peersBootstrapper struct {
 func NewPeersBootstrapper(
 	opts Options,
 	next bootstrap.Bootstrapper,
-) bootstrap.Bootstrapper {
+) (bootstrap.Bootstrapper, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, fmt.Errorf("unable to validate peer options: %v", err)
+	}
+
 	src := newPeersSource(opts)
 	b := &peersBootstrapper{}
 	b.Bootstrapper = bootstrapper.NewBaseBootstrapper(b.String(),
 		src, opts.ResultOptions(), next)
-	return b
+	return b, nil
 }
 
 func (*peersBootstrapper) String() string {

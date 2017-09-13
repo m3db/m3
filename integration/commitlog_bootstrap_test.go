@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"math/rand"
 	"testing"
 	"time"
 
@@ -32,19 +31,10 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
 	bcl "github.com/m3db/m3db/storage/bootstrap/bootstrapper/commitlog"
+	"github.com/m3db/m3db/storage/namespace"
 
 	"github.com/stretchr/testify/require"
 )
-
-var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-
-func randStringRunes(n int) string {
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letterRunes[rand.Intn(len(letterRunes))]
-	}
-	return string(b)
-}
 
 func TestCommitLogBootstrap(t *testing.T) {
 	if testing.Short() {
@@ -55,23 +45,31 @@ func TestCommitLogBootstrap(t *testing.T) {
 	var (
 		ropts     = retention.NewOptions().SetRetentionPeriod(12 * time.Hour)
 		blockSize = ropts.BlockSize()
-		testOpts  = newTestOptions()
 	)
-	setup, err := newTestSetup(testOpts)
+	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
+	require.NoError(t, err)
+	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ropts))
+	require.NoError(t, err)
+	opts := newTestOptions(t).
+		SetCommitLogRetentionPeriod(ropts.RetentionPeriod()).
+		SetCommitLogBlockSize(blockSize).
+		SetNamespaces([]namespace.Metadata{ns1, ns2})
+
+	setup, err := newTestSetup(t, opts)
 	require.NoError(t, err)
 	defer setup.close()
 
 	commitLogOpts := setup.storageOpts.CommitLogOptions().
-		SetFlushInterval(defaultIntegrationTestFlushInterval).
-		SetRetentionOptions(ropts)
+		SetFlushInterval(defaultIntegrationTestFlushInterval)
 	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
 
 	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-	bsOpts := newDefaulTestResultOptions(setup.storageOpts, setup.storageOpts.InstrumentOptions())
+	bsOpts := newDefaulTestResultOptions(setup.storageOpts)
 	bclOpts := bcl.NewOptions().
 		SetResultOptions(bsOpts).
 		SetCommitLogOptions(commitLogOpts)
-	bs := bcl.NewCommitLogBootstrapper(bclOpts, noOpAll)
+	bs, err := bcl.NewCommitLogBootstrapper(bclOpts, noOpAll)
+	require.NoError(t, err)
 	process := bootstrap.NewProcess(bs, bsOpts)
 	setup.storageOpts = setup.storageOpts.SetBootstrapProcess(process)
 
@@ -81,21 +79,7 @@ func TestCommitLogBootstrap(t *testing.T) {
 	// Write test data
 	log.Info("generating data")
 	now := setup.getNowFn()
-
-	blockConfig := []generate.BlockConfig{}
-	for i := 0; i < 30; i++ {
-		name := []string{}
-		for j := 0; j < rand.Intn(10)+1; j++ {
-			name = append(name, randStringRunes(100))
-		}
-
-		blockConfig = append(blockConfig, generate.BlockConfig{
-			IDs:       name,
-			NumPoints: rand.Intn(100) + 1,
-			Start:     now.Add(-2 * blockSize).Add(time.Duration(i) * time.Minute),
-		})
-	}
-	seriesMaps := generate.BlocksByStart(blockConfig)
+	seriesMaps := generateSeriesMaps(30, now.Add(-2*blockSize), now.Add(-blockSize))
 	log.Info("writing data")
 	writeCommitLogData(t, setup, seriesMaps, testNamespaces[0])
 	log.Info("written data")
@@ -113,6 +97,12 @@ func TestCommitLogBootstrap(t *testing.T) {
 
 	// Verify in-memory data match what we expect
 	metadatasByShard := testSetupMetadatas(t, setup, testNamespaces[0], now.Add(-2*blockSize), now)
-	observedSeriesMaps := testSetupToSeriesMaps(t, setup, testNamespaces[0], metadatasByShard)
+	observedSeriesMaps := testSetupToSeriesMaps(t, setup, ns1, metadatasByShard)
 	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
+
+	// Verify in-memory data match what we expect
+	emptySeriesMaps := make(generate.SeriesBlocksByStart)
+	metadatasByShard2 := testSetupMetadatas(t, setup, testNamespaces[1], now.Add(-2*blockSize), now)
+	observedSeriesMaps2 := testSetupToSeriesMaps(t, setup, ns2, metadatasByShard2)
+	verifySeriesMapsEqual(t, emptySeriesMaps, observedSeriesMaps2)
 }

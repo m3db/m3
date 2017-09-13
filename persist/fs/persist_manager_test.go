@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 
@@ -51,13 +50,9 @@ func testManager(
 
 	opts := NewOptions().
 		SetFilePathPrefix(dir).
-		SetWriterBufferSize(10).
-		SetRetentionOptions(
-			retention.NewOptions().
-				SetBlockSize(2 * time.Hour))
+		SetWriterBufferSize(10)
 
 	writer := NewMockFileSetWriter(ctrl)
-
 	manager := NewPersistManager(opts).(*persistManager)
 	manager.writer = writer
 
@@ -73,7 +68,7 @@ func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	shardDir := createShardDir(t, pm.filePathPrefix, testNamespaceID, shard)
+	shardDir := createShardDir(t, pm.filePathPrefix, testNs1ID, shard)
 	checkpointFilePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	f, err := os.Create(checkpointFilePath)
 	require.NoError(t, err)
@@ -86,7 +81,7 @@ func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 		assert.NoError(t, flush.Done())
 	}()
 
-	prepared, err := flush.Prepare(testNamespaceID, shard, blockStart)
+	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
 	require.NoError(t, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
@@ -99,10 +94,13 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	pm, writer, _ := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
+	ns1Md := testNs1Metadata(t)
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
 	expectedErr := errors.New("foo")
-	writer.EXPECT().Open(testNamespaceID, shard, blockStart).Return(expectedErr)
+
+	writer.EXPECT().Open(ts.NewIDMatcher(testNs1ID.String()),
+		testBlockSize, shard, blockStart).Return(expectedErr)
 
 	flush, err := pm.StartFlush()
 	require.NoError(t, err)
@@ -111,7 +109,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 		assert.NoError(t, flush.Done())
 	}()
 
-	prepared, err := flush.Prepare(testNamespaceID, shard, blockStart)
+	prepared, err := flush.Prepare(ns1Md, shard, blockStart)
 	require.Equal(t, expectedErr, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
@@ -126,7 +124,8 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	writer.EXPECT().Open(testNamespaceID, shard, blockStart).Return(nil)
+	writer.EXPECT().Open(ts.NewIDMatcher(testNs1ID.String()),
+		testBlockSize, shard, blockStart).Return(nil)
 
 	var (
 		id       = ts.StringID("foo")
@@ -150,7 +149,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	pm.count = 123
 	pm.bytesWritten = 100
 
-	prepared, err := flush.Prepare(testNamespaceID, shard, blockStart)
+	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
 	defer prepared.Close()
 
 	require.Nil(t, err)
@@ -180,6 +179,11 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	pm, writer, _ := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
 
+	shard := uint32(0)
+	blockStart := time.Unix(1000, 0)
+	writer.EXPECT().Open(ts.NewIDMatcher(testNs1ID.String()),
+		testBlockSize, shard, blockStart).Return(nil)
+
 	var (
 		now      time.Time
 		slept    time.Duration
@@ -202,13 +206,17 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 		assert.NoError(t, flush.Done())
 	}()
 
+	// prepare the flush
+	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+	require.NoError(t, err)
+
 	// Start persistence
 	now = time.Now()
-	require.NoError(t, pm.persist(id, segment, checksum))
+	require.NoError(t, prepared.Persist(id, segment, checksum))
 
 	// Advance time and write again
 	now = now.Add(time.Millisecond)
-	require.NoError(t, pm.persist(id, segment, checksum))
+	require.NoError(t, prepared.Persist(id, segment, checksum))
 
 	// Check there is no rate limiting
 	require.Equal(t, time.Duration(0), slept)
@@ -221,6 +229,9 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 
 	pm, writer, opts := testManager(t, ctrl)
 	defer os.RemoveAll(pm.filePathPrefix)
+
+	shard := uint32(0)
+	blockStart := time.Unix(1000, 0)
 
 	var (
 		now      time.Time
@@ -236,6 +247,8 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
 
+	writer.EXPECT().Open(ts.NewIDMatcher(testNs1ID.String()),
+		testBlockSize, shard, blockStart).Return(nil).Times(iter)
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).AnyTimes()
 	writer.EXPECT().Close().Times(iter)
 
@@ -264,29 +277,65 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		flush, err := pm.StartFlush()
 		require.NoError(t, err)
 
+		// prepare the flush
+		prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+		require.NoError(t, err)
+
 		// Start persistence
 		now = time.Now()
-		require.NoError(t, pm.persist(id, segment, checksum))
+		require.NoError(t, prepared.Persist(id, segment, checksum))
 
 		// Assert we don't rate limit if the count is not enough yet
-		require.NoError(t, pm.persist(id, segment, checksum))
+		require.NoError(t, prepared.Persist(id, segment, checksum))
 		require.Equal(t, time.Duration(0), slept)
 
 		// Advance time and check we rate limit if the disk throughput exceeds the limit
 		now = now.Add(time.Microsecond)
-		require.NoError(t, pm.persist(id, segment, checksum))
+		require.NoError(t, prepared.Persist(id, segment, checksum))
 		require.Equal(t, time.Duration(1861), slept)
 
 		// Advance time and check we don't rate limit if the disk throughput is below the limit
-		require.NoError(t, pm.persist(id, segment, checksum))
+		require.NoError(t, prepared.Persist(id, segment, checksum))
 		now = now.Add(time.Second - time.Microsecond)
-		require.NoError(t, pm.persist(id, segment, checksum))
+		require.NoError(t, prepared.Persist(id, segment, checksum))
 		require.Equal(t, time.Duration(1861), slept)
 
 		require.Equal(t, int64(15), pm.bytesWritten)
 
-		pm.close()
+		require.NoError(t, prepared.Close())
 
 		assert.NoError(t, flush.Done())
 	}
+}
+
+func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	pm, writer, _ := testManager(t, ctrl)
+	defer os.RemoveAll(pm.filePathPrefix)
+
+	shard := uint32(0)
+	blockStart := time.Unix(1000, 0)
+
+	flush, err := pm.StartFlush()
+	require.NoError(t, err)
+
+	defer func() {
+		assert.NoError(t, flush.Done())
+	}()
+
+	writer.EXPECT().Open(ts.NewIDMatcher(testNs1ID.String()),
+		testBlockSize, shard, blockStart).Return(nil)
+	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+	require.NoError(t, err)
+	require.NotNil(t, prepared.Persist)
+	require.NotNil(t, prepared.Close)
+
+	writer.EXPECT().Open(ts.NewIDMatcher(testNs2ID.String()),
+		testBlockSize, shard, blockStart).Return(nil)
+	prepared, err = flush.Prepare(testNs2Metadata(t), shard, blockStart)
+	require.NoError(t, err)
+	require.NotNil(t, prepared.Persist)
+	require.NotNil(t, prepared.Close)
 }

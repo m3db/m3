@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/pool"
@@ -61,6 +62,7 @@ type seekerManager struct {
 	status                 seekerManagerStatus
 	seekersByShardIdx      []*seekersByTime
 	namespace              ts.ID
+	namespaceMetadata      namespace.Metadata
 	unreadBuf              seekerUnreadBuf
 	openAnyUnopenSeekersFn openAnyUnopenSeekersFn
 }
@@ -97,7 +99,7 @@ func NewSeekerManager(
 }
 
 func (m *seekerManager) Open(
-	namespace ts.ID,
+	nsMetadata namespace.Metadata,
 ) error {
 	m.Lock()
 	defer m.Unlock()
@@ -106,7 +108,8 @@ func (m *seekerManager) Open(
 		return errSeekerManagerAlreadyOpenOrClosed
 	}
 
-	m.namespace = namespace
+	m.namespace = nsMetadata.ID()
+	m.namespaceMetadata = nsMetadata
 	m.status = seekerManagerOpen
 
 	go m.openCloseLoop()
@@ -136,7 +139,7 @@ func (m *seekerManager) CacheShardIndices(shards []uint32) error {
 func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 	start := m.earliestSeekableBlockStart()
 	end := m.latestSeekableBlockStart()
-	blockSize := m.opts.RetentionOptions().BlockSize()
+	blockSize := m.namespaceMetadata.Options().RetentionOptions().BlockSize()
 	multiErr := xerrors.NewMultiError()
 
 	for t := start; !t.After(end); t = t.Add(blockSize) {
@@ -283,7 +286,7 @@ func (m *seekerManager) Close() error {
 func (m *seekerManager) earliestSeekableBlockStart() time.Time {
 	nowFn := m.opts.ClockOptions().NowFn()
 	now := nowFn()
-	ropts := m.opts.RetentionOptions()
+	ropts := m.namespaceMetadata.Options().RetentionOptions()
 	blockSize := ropts.BlockSize()
 	earliestReachableBlockStart := retention.FlushTimeStart(ropts, now)
 	earliestSeekableBlockStart := earliestReachableBlockStart.Add(-blockSize)
@@ -293,7 +296,7 @@ func (m *seekerManager) earliestSeekableBlockStart() time.Time {
 func (m *seekerManager) latestSeekableBlockStart() time.Time {
 	nowFn := m.opts.ClockOptions().NowFn()
 	now := nowFn()
-	ropts := m.opts.RetentionOptions()
+	ropts := m.namespaceMetadata.Options().RetentionOptions()
 	return now.Truncate(ropts.BlockSize())
 }
 

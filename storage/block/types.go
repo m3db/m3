@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
@@ -243,7 +244,7 @@ type DatabaseShardBlockRetriever interface {
 // DatabaseBlockRetrieverManager creates and holds block retrievers
 // for different namespaces.
 type DatabaseBlockRetrieverManager interface {
-	Retriever(namespace ts.ID) (DatabaseBlockRetriever, error)
+	Retriever(nsMetadata namespace.Metadata) (DatabaseBlockRetriever, error)
 }
 
 // DatabaseShardBlockRetrieverManager creates and holds shard block
@@ -254,9 +255,6 @@ type DatabaseShardBlockRetrieverManager interface {
 
 // DatabaseSeriesBlocks represents a collection of data blocks.
 type DatabaseSeriesBlocks interface {
-	// Options returns the blocks options.
-	Options() Options
-
 	// Len returns the number of blocks contained in the collection.
 	Len() int
 

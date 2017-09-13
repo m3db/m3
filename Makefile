@@ -3,31 +3,33 @@ include $(SELF_DIR)/.ci/common.mk
 
 SHELL=/bin/bash -o pipefail
 
-m3db_package         := github.com/m3db/m3db
+auto_gen             := .ci/auto-gen.sh
+convert-test-data    := .ci/convert-test-data.sh
+coverage_xml         := coverage.xml
+coverfile            := cover.out
 gopath_prefix        := $(GOPATH)/src
-vendor_prefix        := vendor
+html_report          := coverage.html
+junit_xml            := junit.xml
 license_dir          := .ci/uber-licence
 license_node_modules := $(license_dir)/node_modules
-html_report          := coverage.html
-test                 := .ci/test-cover.sh
-test_one_integration := .ci/test-one-integration.sh
-test_ci_integration  := .ci/test-integration.sh
-convert-test-data    := .ci/convert-test-data.sh
-coverfile            := cover.out
-coverage_xml         := coverage.xml
-junit_xml            := junit.xml
-test_log             := test.log
 lint_check           := .ci/lint.sh
+m3db_package         := github.com/m3db/m3db
 metalint_check       := .ci/metalint.sh
 metalint_config      := .metalinter.json
 metalint_exclude     := .excludemetalint
-auto_gen             := .ci/auto-gen.sh
 mockgen_package      := github.com/golang/mock/mockgen
 mocks_output_dir     := generated/mocks/mocks
 mocks_rules_dir      := generated/mocks
+proto_rules_dir      := generated/proto
+protoc_go_package    := github.com/golang/protobuf/protoc-gen-go
+test                 := .ci/test-cover.sh
+test_ci_integration  := .ci/test-integration.sh
+test_log             := test.log
+test_one_integration := .ci/test-one-integration.sh
 thrift_gen_package   := github.com/uber/tchannel-go
 thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
+vendor_prefix        := vendor
 
 BUILD           := $(abspath ./bin)
 LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
@@ -109,6 +111,12 @@ install-thrift-bin: install-vendor install-glide
 	go get $(thrift_gen_package) && cd $(GOPATH)/src/$(thrift_gen_package) && glide install
 	go install $(thrift_gen_package)/thrift/thrift-gen
 
+.PHONY: install-proto-bin
+install-proto-bin: install-vendor
+	@echo Installing protobuf binaries
+	@echo Note: the protobuf compiler v3.0.0 can be downloaded from https://github.com/google/protobuf/releases or built from source at https://github.com/google/protobuf.
+	go install $(m3db_package)/$(vendor_prefix)/$(protoc_go_package)
+
 .PHONY: mock-gen
 mock-gen: install-mockgen install-license-bin
 	@echo Generating mocks
@@ -119,8 +127,13 @@ thrift-gen: install-thrift-bin install-license-bin
 	@echo Generating thrift files
 	PACKAGE=$(m3db_package) $(auto_gen) $(thrift_output_dir) $(thrift_rules_dir)
 
+.PHONY: proto-gen
+proto-gen: install-proto-bin install-license-bin
+	@echo Generating protobuf files
+	PACKAGE=$(m3db_package) $(auto_gen) $(proto_output_dir) $(proto_rules_dir)
+
 .PHONY: all-gen
-all-gen: mock-gen thrift-gen
+all-gen: mock-gen thrift-gen proto-gen
 
 .PHONY: lint
 lint:
@@ -166,7 +179,7 @@ test-ci-unit: test-internal
 # Do not test native pooling for now due to slow travis builds
 .PHONY: test-ci-integration
 test-ci-integration:
-	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false $(test_ci_integration)
+	@$(VENDOR_ENV) INTEGRATION_TIMEOUT=2m TEST_NATIVE_POOLING=false $(test_ci_integration)
 
 # run as: make test-one-integration test=<test_name>
 .PHONY: test-one-integration

@@ -24,7 +24,8 @@
 package commitlog
 
 import (
-	gomock "github.com/golang/mock/gomock"
+	time0 "time"
+
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
 	fs "github.com/m3db/m3db/persist/fs"
@@ -33,7 +34,8 @@ import (
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
 	time "github.com/m3db/m3x/time"
-	time0 "time"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of CommitLog interface
@@ -75,6 +77,16 @@ func (_m *MockCommitLog) Write(ctx context.Context, series Series, datapoint ts.
 
 func (_mr *_MockCommitLogRecorder) Write(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4)
+}
+
+func (_m *MockCommitLog) WriteBehind(ctx context.Context, series Series, datapoint ts.Datapoint, unit time.Unit, annotation ts.Annotation) error {
+	ret := _m.ctrl.Call(_m, "WriteBehind", ctx, series, datapoint, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockCommitLogRecorder) WriteBehind(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteBehind", arg0, arg1, arg2, arg3, arg4)
 }
 
 func (_m *MockCommitLog) Iter() (Iterator, error) {
@@ -179,6 +191,16 @@ func NewMockOptions(ctrl *gomock.Controller) *MockOptions {
 
 func (_m *MockOptions) EXPECT() *_MockOptionsRecorder {
 	return _m.recorder
+}
+
+func (_m *MockOptions) Validate() error {
+	ret := _m.ctrl.Call(_m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) Validate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
 }
 
 func (_m *MockOptions) SetClockOptions(value clock.Options) Options {

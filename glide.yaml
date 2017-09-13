@@ -31,11 +31,6 @@ import:
 - package: github.com/spaolacci/murmur3
   version: 0d12bf811670bf6a1a63828dfbd003eded177fce
 
-- package: github.com/stretchr/testify
-  version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
-  subpackages:
-  - require
-
 - package: github.com/uber/tchannel-go
   version: 5d979b31a7405a676919fca637bb2f715fb9ed65
   subpackages:
@@ -52,6 +47,7 @@ import:
   subpackages:
   - client
   - services
+  - integration/etcd
 
 - package: github.com/m3db/m3x
   version: bd6be18ffb184691512eb442561b16a59c15d797
@@ -78,6 +74,22 @@ import:
 
 - package: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
+  subpackages:
+  - cobra
+
+- package: github.com/spf13/pflag
+  version: 4f9190456aed1c2113ca51ea9b89219747458dc1
+
+# NB(prateek): ideally, the following dependencies would be under testImport, but
+# Glide doesn't like that. https://github.com/Masterminds/glide/issues/597
+
+- package: github.com/stretchr/testify
+  version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
+  subpackages:
+  - require
+
+- package: github.com/fortytw2/leaktest
+  version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
 
 - package: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1

@@ -43,7 +43,6 @@ import (
 type testBlockRetrieverOptions struct {
 	retrieverOpts  BlockRetrieverOptions
 	fsOpts         Options
-	namespace      string
 	newSeekerMgrFn newSeekerMgrFn
 }
 
@@ -56,14 +55,10 @@ func newOpenTestBlockRetriever(
 	dir, err := ioutil.TempDir("", "testdb")
 	require.NoError(t, err)
 
-	filePathPrefix := filepath.Join(dir, "")
+	require.NotNil(t, opts.retrieverOpts)
+	require.NotNil(t, opts.fsOpts)
 
-	if opts.retrieverOpts == nil {
-		opts.retrieverOpts = NewBlockRetrieverOptions()
-	}
-	if opts.fsOpts == nil {
-		opts.fsOpts = NewOptions()
-	}
+	filePathPrefix := filepath.Join(dir, "")
 	opts.fsOpts = opts.fsOpts.SetFilePathPrefix(filePathPrefix)
 
 	r := NewBlockRetriever(opts.retrieverOpts, opts.fsOpts)
@@ -72,15 +67,9 @@ func newOpenTestBlockRetriever(
 		retriever.newSeekerMgrFn = opts.newSeekerMgrFn
 	}
 
-	namespace := opts.namespace
-	if namespace == "" {
-		namespace = testNamespaceID.String()
-	}
-
-	nsID := ts.StringID(namespace)
-	nsPath := NamespaceDirPath(filePathPrefix, nsID)
+	nsPath := NamespaceDirPath(filePathPrefix, testNs1ID)
 	require.NoError(t, os.MkdirAll(nsPath, opts.fsOpts.NewDirectoryMode()))
-	require.NoError(t, retriever.Open(nsID))
+	require.NoError(t, retriever.Open(testNs1Metadata(t)))
 
 	return retriever, func() {
 		assert.NoError(t, retriever.Close())
@@ -91,15 +80,11 @@ func newOpenTestBlockRetriever(
 func newOpenTestWriter(
 	t *testing.T,
 	fsOpts Options,
-	namespace string,
 	shard uint32,
 	start time.Time,
 ) (FileSetWriter, testCleanupFn) {
 	w := newTestWriter(fsOpts.FilePathPrefix())
-	if namespace == "" {
-		namespace = testNamespaceID.String()
-	}
-	err := w.Open(ts.StringID(namespace), shard, start)
+	err := w.Open(testNs1ID, testBlockSize, shard, start)
 	require.NoError(t, err)
 	return w, func() {
 		assert.NoError(t, w.Close())
@@ -123,12 +108,13 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 				// NB(r): Try to make sure same req structs are reused frequently
 				// to surface any race issues that might occur with pooling.
 				SetSize(fetchConcurrency / 2)),
+		fsOpts: NewOptions(),
 	}
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
 	defer cleanup()
 
 	fsopts := retriever.fsOpts
-	ropts := fsopts.RetentionOptions()
+	ropts := testNs1Metadata(t).Options().RetentionOptions()
 
 	now := time.Now().Truncate(ropts.BlockSize())
 	min, max := now.Add(-6*ropts.BlockSize()), now.Add(-ropts.BlockSize())
@@ -148,7 +134,7 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 		shardIDs[shard] = make([]ts.ID, 0, idsPerShard)
 		shardData[shard] = make(map[ts.Hash]map[time.Time]checked.Bytes, idsPerShard)
 		for _, blockStart := range blockStarts {
-			w, closer := newOpenTestWriter(t, fsopts, opts.namespace, shard, blockStart)
+			w, closer := newOpenTestWriter(t, fsopts, shard, blockStart)
 			for i := 0; i < idsPerShard; i++ {
 				id := ts.StringID(fmt.Sprintf("foo.%d", i))
 				shardIDs[shard] = append(shardIDs[shard], id)

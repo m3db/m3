@@ -27,10 +27,10 @@ type databaseSeriesPool struct {
 }
 
 // NewDatabaseSeriesPool creates a new database series pool
-func NewDatabaseSeriesPool(seriesOpts Options, opts pool.ObjectPoolOptions) DatabaseSeriesPool {
+func NewDatabaseSeriesPool(opts pool.ObjectPoolOptions) DatabaseSeriesPool {
 	p := &databaseSeriesPool{pool: pool.NewObjectPool(opts)}
 	p.pool.Init(func() interface{} {
-		return newPooledDatabaseSeries(p, seriesOpts)
+		return newPooledDatabaseSeries(p)
 	})
 	return p
 }

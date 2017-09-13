@@ -36,15 +36,13 @@ func TestRoundtrip(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	testSetup, err := newTestSetup(newTestOptions())
+	testOpts := newTestOptions(t).
+		SetTickInterval(time.Second)
+	testSetup, err := newTestSetup(t, testOpts)
 	require.NoError(t, err)
 	defer testSetup.close()
 
-	testSetup.storageOpts =
-		testSetup.storageOpts.SetRetentionOptions(testSetup.storageOpts.RetentionOptions().
-			SetBufferDrain(time.Second).
-			SetRetentionPeriod(6 * time.Hour))
-	blockSize := testSetup.storageOpts.RetentionOptions().BlockSize()
+	blockSize := testOpts.CommitLogBlockSize()
 
 	// Start the server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
@@ -75,7 +73,7 @@ func TestRoundtrip(t *testing.T) {
 
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	time.Sleep(testSetup.storageOpts.RetentionOptions().BufferDrain() * 4)
+	testSetup.sleepFor10xTickInterval()
 
 	// Verify in-memory data match what we've written
 	verifySeriesMaps(t, testSetup, testNamespaces[0], seriesMaps)

@@ -128,10 +128,9 @@ func (sr *shardResult) AddSeries(id ts.ID, rawSeries block.DatabaseSeriesBlocks)
 
 func (sr *shardResult) newBlocks(id ts.ID) DatabaseSeriesBlocks {
 	size := sr.opts.NewBlocksLen()
-	blopts := sr.opts.DatabaseBlockOptions()
 	return DatabaseSeriesBlocks{
 		ID:     id,
-		Blocks: block.NewDatabaseSeriesBlocks(size, blopts),
+		Blocks: block.NewDatabaseSeriesBlocks(size),
 	}
 }
 
@@ -168,6 +167,10 @@ func (sr *shardResult) AllSeries() map[ts.Hash]DatabaseSeriesBlocks {
 	return sr.blocks
 }
 
+func (sr *shardResult) NumSeries() int64 {
+	return int64(len(sr.blocks))
+}
+
 func (sr *shardResult) BlockAt(id ts.ID, t time.Time) (block.DatabaseBlock, bool) {
 	series, exists := sr.blocks[id.Hash()]
 	if !exists {
@@ -181,6 +184,15 @@ func (sr *shardResult) Close() {
 	for _, series := range sr.blocks {
 		series.Blocks.Close()
 	}
+}
+
+// NumSeries returns the number of series' across all shards.
+func (r ShardResults) NumSeries() int64 {
+	var numSeries int64
+	for _, result := range r {
+		numSeries += result.NumSeries()
+	}
+	return numSeries
 }
 
 // AddResults adds other shard results to the current shard results.

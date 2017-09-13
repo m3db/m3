@@ -116,7 +116,10 @@ type commitLogWrite struct {
 }
 
 // NewCommitLog creates a new commit log
-func NewCommitLog(opts Options) CommitLog {
+func NewCommitLog(opts Options) (CommitLog, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
 	iopts := opts.InstrumentOptions().SetMetricsScope(
 		opts.InstrumentOptions().MetricsScope().SubScope("commitlog"))
 	scope := iopts.MetricsScope()
@@ -146,7 +149,7 @@ func NewCommitLog(opts Options) CommitLog {
 		commitLog.writeFn = commitLog.writeBehind
 	}
 
-	return commitLog
+	return commitLog, nil
 }
 
 func (l *commitLog) Open() error {
@@ -258,7 +261,6 @@ func (l *commitLog) write() {
 
 			continue
 		}
-
 		l.metrics.success.Inc(1)
 	}
 
@@ -317,7 +319,7 @@ func (l *commitLog) openWriter(now time.Time) error {
 		l.writer = l.newCommitLogWriterFn(l.onFlush, l.opts)
 	}
 
-	blockSize := l.opts.RetentionOptions().BlockSize()
+	blockSize := l.opts.BlockSize()
 	start := now.Truncate(blockSize)
 
 	if err := l.writer.Open(start, blockSize); err != nil {

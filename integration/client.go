@@ -97,8 +97,8 @@ func tchannelClientHealth(client rpc.TChanNode) (*rpc.NodeHealthResult_, error) 
 	return client.Health(ctx)
 }
 
-func m3dbClient(opts client.Options) (client.Client, error) {
-	return client.NewClient(opts)
+func m3dbAdminClient(opts client.AdminOptions) (client.AdminClient, error) {
+	return client.NewAdminClient(opts)
 }
 
 // m3dbClientWriteBatch writes a data map using an m3db client.
@@ -181,6 +181,7 @@ func m3dbClientTruncate(c client.Client, req *rpc.TruncateRequest) (int64, error
 	return adminSession.Truncate(ts.BinaryID(checked.NewBytes(req.NameSpace, nil)))
 }
 
+// nolint: deadcode
 func m3dbClientFetchBlocksMetadata(
 	c client.AdminClient,
 	namespace ts.ID,

@@ -67,7 +67,6 @@ func newSeriesTestOptions() Options {
 			SetBlockSize(2 * time.Minute).
 			SetBufferFuture(10 * time.Second).
 			SetBufferPast(10 * time.Second).
-			SetBufferDrain(30 * time.Second).
 			SetRetentionPeriod(time.Hour)).
 		SetDatabaseBlockOptions(opts.
 			DatabaseBlockOptions().
@@ -306,9 +305,7 @@ func TestSeriesBootstrapWithError(t *testing.T) {
 	series.buffer = buffer
 
 	errBlockStart := bufferMin
-	blopts := opts.DatabaseBlockOptions()
-
-	blocks := block.NewDatabaseSeriesBlocks(0, blopts)
+	blocks := block.NewDatabaseSeriesBlocks(0)
 
 	// Add block that buffer will fail to bootstrap
 	bl := block.NewMockDatabaseBlock(ctrl)
@@ -488,7 +485,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 	)
 
 	series := NewDatabaseSeries(id, opts).(*dbSeries)
-	series.Reset(id, true, nil)
+	series.Reset(id, true, nil, opts)
 
 	for iter := 0; iter < numBlocks; iter++ {
 		start := now

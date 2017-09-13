@@ -29,6 +29,9 @@ import (
 )
 
 func TestDatabaseMediatorOpenClose(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	opts := testDatabaseOptions().SetRepairEnabled(false)
 	now := time.Now()
 	opts = opts.
@@ -37,7 +40,9 @@ func TestDatabaseMediatorOpenClose(t *testing.T) {
 			return now
 		}))
 
-	db := &mockDatabase{opts: opts}
+	db := NewMockdatabase(ctrl)
+	db.EXPECT().Options().Return(opts).AnyTimes()
+	db.EXPECT().GetOwnedNamespaces().Return(nil).AnyTimes()
 	m, err := newMediator(db, opts)
 	require.NoError(t, err)
 
@@ -62,7 +67,8 @@ func TestDatabaseMediatorDisableFileOps(t *testing.T) {
 			return now
 		}))
 
-	db := &mockDatabase{opts: opts}
+	db := NewMockdatabase(ctrl)
+	db.EXPECT().Options().Return(opts).AnyTimes()
 	med, err := newMediator(db, opts)
 	require.NoError(t, err)
 

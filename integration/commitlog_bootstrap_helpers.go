@@ -23,13 +23,13 @@
 package integration
 
 import (
+	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/persist/fs/commitlog"
-	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/time"
 
@@ -64,6 +64,35 @@ func newCommitLogSeriesStates(
 	return lookup
 }
 
+var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func randStringRunes(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
+
+// nolint: deadcode
+func generateSeriesMaps(numBlocks int, starts ...time.Time) generate.SeriesBlocksByStart {
+	blockConfig := []generate.BlockConfig{}
+	for i := 0; i < numBlocks; i++ {
+		name := []string{}
+		for j := 0; j < rand.Intn(10)+1; j++ {
+			name = append(name, randStringRunes(100))
+		}
+
+		start := starts[rand.Intn(len(starts))]
+		blockConfig = append(blockConfig, generate.BlockConfig{
+			IDs:       name,
+			NumPoints: rand.Intn(100) + 1,
+			Start:     start.Add(time.Duration(i) * time.Minute),
+		})
+	}
+	return generate.BlocksByStart(blockConfig)
+}
+
 // nolint: deadcode
 func writeCommitLogData(
 	t *testing.T,
@@ -94,11 +123,9 @@ func writeCommitLogData(
 			Dearrange(defaultDerrangementPercent)
 
 		// create new commit log
-		commitLog := commitlog.NewCommitLog(opts)
+		commitLog, err := commitlog.NewCommitLog(opts)
+		require.NoError(t, err)
 		require.NoError(t, commitLog.Open())
-		defer func() {
-			require.NoError(t, commitLog.Close())
-		}()
 
 		// write points
 		for _, point := range points {
@@ -112,22 +139,8 @@ func writeCommitLogData(
 			}
 			require.NoError(t, commitLog.Write(ctx, cId, point.Datapoint, xtime.Second, nil))
 		}
-	}
-}
 
-// nolint: deadcode
-func testSetupMetadatas(
-	t *testing.T,
-	testSetup *testSetup,
-	namespace ts.ID,
-	start time.Time,
-	end time.Time,
-) map[uint32][]block.ReplicaMetadata {
-	// Retrieve written data using the AdminSession APIs
-	// FetchMetadataBlocksFromPeers/FetchBlocksFromPeers
-	adminClient := testSetup.m3dbAdminClient
-	metadatasByShard, err := m3dbClientFetchBlocksMetadata(
-		adminClient, namespace, testSetup.shardSet.AllIDs(), start, end)
-	require.NoError(t, err)
-	return metadatasByShard
+		// ensure writes finished
+		require.NoError(t, commitLog.Close())
+	}
 }

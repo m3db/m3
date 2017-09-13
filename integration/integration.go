@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/integration/generate"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -37,8 +36,8 @@ import (
 	bfs "github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/ts"
 	xmetrics "github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
@@ -135,19 +134,16 @@ type closeFn func()
 
 func newDefaulTestResultOptions(
 	storageOpts storage.Options,
-	instrumentOpts instrument.Options,
 ) result.Options {
 	return result.NewOptions().
 		SetClockOptions(storageOpts.ClockOptions()).
-		SetInstrumentOptions(instrumentOpts).
-		SetRetentionOptions(storageOpts.RetentionOptions()).
+		SetInstrumentOptions(storageOpts.InstrumentOptions()).
 		SetDatabaseBlockOptions(storageOpts.DatabaseBlockOptions())
 }
 
 func newDefaultBootstrappableTestSetups(
 	t *testing.T,
 	opts testOptions,
-	retentionOpts retention.Options,
 	setupOpts []bootstrappableTestSetupOptions,
 ) (testSetups, closeFn) {
 	var (
@@ -177,18 +173,23 @@ func newDefaultBootstrappableTestSetups(
 				SetClusterDatabaseTopologyInitializer(topologyInitializer)
 		}
 
-		setup, err := newTestSetup(instanceOpts)
+		setup, err := newTestSetup(t, instanceOpts)
 		require.NoError(t, err)
 
-		setup.storageOpts = setup.storageOpts.
-			SetRetentionOptions(retentionOpts)
-
 		instrumentOpts := setup.storageOpts.InstrumentOptions()
+		logger := instrumentOpts.Logger()
+		logger = logger.WithFields(xlog.NewLogField("instance", instance))
+		instrumentOpts = instrumentOpts.SetLogger(logger)
+		if testStatsReporter != nil {
+			scope, _ := tally.NewRootScope(tally.ScopeOptions{Reporter: testStatsReporter}, 100*time.Millisecond)
+			instrumentOpts = instrumentOpts.SetMetricsScope(scope)
+		}
+		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(instrumentOpts)
 
-		bsOpts := newDefaulTestResultOptions(setup.storageOpts, instrumentOpts)
+		bsOpts := newDefaulTestResultOptions(setup.storageOpts)
 		noOpAll := bootstrapper.NewNoOpAllBootstrapper()
+		var peersBootstrapper bootstrap.Bootstrapper
 
-		var adminClient client.AdminClient
 		if usingPeersBoostrapper {
 			adminOpts := client.NewAdminOptions()
 			if bootstrapBlocksBatchSize > 0 {
@@ -197,41 +198,27 @@ func newDefaultBootstrappableTestSetups(
 			if bootstrapBlocksConcurrency > 0 {
 				adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
 			}
-			adminClient = newMultiAddrAdminClient(
+			adminClient := newMultiAddrAdminClient(
 				t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
+			peersOpts := peers.NewOptions().
+				SetResultOptions(bsOpts).
+				SetAdminClient(adminClient)
+
+			peersBootstrapper, err = peers.NewPeersBootstrapper(peersOpts, noOpAll)
+			require.NoError(t, err)
+		} else {
+			peersBootstrapper = noOpAll
 		}
-
-		peersOpts := peers.NewOptions().
-			SetResultOptions(bsOpts).
-			SetAdminClient(adminClient)
-
-		peersBootstrapper := peers.NewPeersBootstrapper(peersOpts, noOpAll)
 
 		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 		filePathPrefix := fsOpts.FilePathPrefix()
-
 		bfsOpts := bfs.NewOptions().
 			SetResultOptions(bsOpts).
 			SetFilesystemOptions(fsOpts)
 
-		var fsBootstrapper bootstrap.Bootstrapper
-		if usingPeersBoostrapper {
-			fsBootstrapper = bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, peersBootstrapper)
-		} else {
-			fsBootstrapper = bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, noOpAll)
-		}
-
+		fsBootstrapper := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, peersBootstrapper)
 		setup.storageOpts = setup.storageOpts.
 			SetBootstrapProcess(bootstrap.NewProcess(fsBootstrapper, bsOpts))
-
-		logger := setup.storageOpts.InstrumentOptions().Logger()
-		logger = logger.WithFields(xlog.NewLogField("instance", instance))
-		iopts := setup.storageOpts.InstrumentOptions().SetLogger(logger)
-		if testStatsReporter != nil {
-			scope, _ := tally.NewRootScope(tally.ScopeOptions{Reporter: testStatsReporter}, 100*time.Millisecond)
-			iopts = iopts.SetMetricsScope(scope)
-		}
-		setup.storageOpts = setup.storageOpts.SetInstrumentOptions(iopts)
 
 		setups = append(setups, setup)
 		appendCleanupFn(func() {
@@ -250,12 +237,13 @@ func newDefaultBootstrappableTestSetups(
 
 // nolint: deadcode
 func writeTestDataToDisk(
-	namespace ts.ID,
+	metadata namespace.Metadata,
 	setup *testSetup,
 	seriesMaps map[time.Time]generate.SeriesBlock,
 ) error {
-	writer := generate.NewWriter(setup.generatorOptions())
-	return writer.Write(namespace, setup.shardSet, seriesMaps)
+	ropts := metadata.Options().RetentionOptions()
+	writer := generate.NewWriter(setup.generatorOptions(ropts))
+	return writer.Write(metadata.ID(), setup.shardSet, seriesMaps)
 }
 
 // nolint: deadcode

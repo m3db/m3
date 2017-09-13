@@ -44,7 +44,6 @@ type flushManager struct {
 	database        database
 	opts            Options
 	nowFn           clock.NowFn
-	blockSize       time.Duration
 	pm              persist.Manager
 	flushInProgress bool
 	status          tally.Gauge
@@ -53,46 +52,16 @@ type flushManager struct {
 func newFlushManager(database database, scope tally.Scope) databaseFlushManager {
 	opts := database.Options()
 	return &flushManager{
-		database:  database,
-		opts:      opts,
-		nowFn:     opts.ClockOptions().NowFn(),
-		blockSize: opts.RetentionOptions().BlockSize(),
-		pm:        opts.PersistManager(),
-		status:    scope.Gauge("flush"),
+		database: database,
+		opts:     opts,
+		nowFn:    opts.ClockOptions().NowFn(),
+		pm:       opts.PersistManager(),
+		status:   scope.Gauge("flush"),
 	}
-}
-
-func (m *flushManager) NeedsFlush(t time.Time) bool {
-	namespaces := m.database.getOwnedNamespaces()
-	for _, n := range namespaces {
-		if n.NeedsFlush(t) {
-			return true
-		}
-	}
-	return false
-}
-
-func (m *flushManager) FlushTimeStart(t time.Time) time.Time {
-	return retention.FlushTimeStart(m.opts.RetentionOptions(), t)
-}
-
-func (m *flushManager) FlushTimeEnd(t time.Time) time.Time {
-	return retention.FlushTimeEnd(m.opts.RetentionOptions(), t)
 }
 
 func (m *flushManager) Flush(curr time.Time) error {
-	timesToFlush := m.flushTimes(curr)
-	if len(timesToFlush) == 0 {
-		return nil
-	}
-
-	flush, err := m.pm.StartFlush()
-	if err != nil {
-		return err
-	}
-
-	defer flush.Done()
-
+	// ensure only a single flush is happening at a time
 	m.Lock()
 	if m.flushInProgress {
 		m.Unlock()
@@ -101,19 +70,29 @@ func (m *flushManager) Flush(curr time.Time) error {
 	m.flushInProgress = true
 	m.Unlock()
 
+	// create flush-er
+	flush, err := m.pm.StartFlush()
+	if err != nil {
+		return err
+	}
+
 	defer func() {
 		m.Lock()
 		m.flushInProgress = false
 		m.Unlock()
 	}()
 
-	multiErr := xerrors.NewMultiError()
-	for _, flushTime := range timesToFlush {
-		if err := m.flushWithTime(flushTime, flush); err != nil {
-			multiErr = multiErr.Add(err)
-		}
+	var (
+		multiErr   = xerrors.NewMultiError()
+		namespaces = m.database.GetOwnedNamespaces()
+	)
+	for _, ns := range namespaces {
+		flushTimes := m.namespaceFlushTimes(ns, curr)
+		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, flushTimes, flush))
 	}
 
+	// mark flush finished
+	multiErr = multiErr.Add(flush.Done())
 	return multiErr.FinalError()
 }
 
@@ -129,31 +108,33 @@ func (m *flushManager) Report() {
 	}
 }
 
-func (m *flushManager) flushTimes(curr time.Time) []time.Time {
-	earliest, latest := m.FlushTimeStart(curr), m.FlushTimeEnd(curr)
-
-	// NB(xichen): could preallocate slice here.
-	var flushTimes []time.Time
-	for t := latest; !t.Before(earliest); t = t.Add(-m.blockSize) {
-		if m.NeedsFlush(t) {
-			flushTimes = append(flushTimes, t)
-		}
-	}
-
-	return flushTimes
+func (m *flushManager) flushRange(ropts retention.Options, t time.Time) (time.Time, time.Time) {
+	return retention.FlushTimeStart(ropts, t), retention.FlushTimeEnd(ropts, t)
 }
 
-// flushWithTime flushes in-memory data across all namespaces for a given
+func (m *flushManager) namespaceFlushTimes(ns databaseNamespace, curr time.Time) []time.Time {
+	var (
+		rOpts            = ns.Options().RetentionOptions()
+		blockSize        = rOpts.BlockSize()
+		earliest, latest = m.flushRange(rOpts, curr)
+	)
+
+	candidateTimes := timesInRange(earliest, latest, blockSize)
+	return filterTimes(candidateTimes, func(t time.Time) bool {
+		return ns.NeedsFlush(t, t)
+	})
+}
+
+// flushWithTime flushes in-memory data for a given namespace, at a given
 // time, returning any error encountered during flushing
-func (m *flushManager) flushWithTime(t time.Time, flush persist.Flush) error {
+func (m *flushManager) flushNamespaceWithTimes(ns databaseNamespace, times []time.Time, flush persist.Flush) error {
 	multiErr := xerrors.NewMultiError()
-	namespaces := m.database.getOwnedNamespaces()
-	for _, n := range namespaces {
+	for _, t := range times {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		if err := n.Flush(t, flush); err != nil {
+		if err := ns.Flush(t, flush); err != nil {
 			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v",
-				n.ID().String(), err)
+				ns.ID().String(), err)
 			multiErr = multiErr.Add(detailedErr)
 		}
 	}

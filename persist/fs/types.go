@@ -27,9 +27,9 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
@@ -43,7 +43,7 @@ type FileSetWriter interface {
 	io.Closer
 
 	// Open opens the files for writing data to the given shard in the given namespace
-	Open(namespace ts.ID, shard uint32, start time.Time) error
+	Open(namespace ts.ID, blockSize time.Duration, shard uint32, start time.Time) error
 
 	// Write will write the id and data pair and returns an error on a write error
 	Write(id ts.ID, data checked.Bytes, checksum uint32) error
@@ -112,7 +112,7 @@ type FileSetSeekerManager interface {
 	io.Closer
 
 	// Open opens the seekers for a given namespace.
-	Open(namespace ts.ID) error
+	Open(md namespace.Metadata) error
 
 	// CacheShardIndices will pre-parse the indexes for given shards
 	// to improve times when seeking to a block.
@@ -128,7 +128,7 @@ type BlockRetriever interface {
 	block.DatabaseBlockRetriever
 
 	// Open the block retriever to retrieve from a namespace
-	Open(namespace ts.ID) error
+	Open(md namespace.Metadata) error
 }
 
 // RetrievableBlockSegmentReader is a retrievable block reader
@@ -149,12 +149,6 @@ type Options interface {
 
 	// InstrumentOptions returns the instrumentation options
 	InstrumentOptions() instrument.Options
-
-	// SetRetentionOptions sets the retention options
-	SetRetentionOptions(value retention.Options) Options
-
-	// RetentionOptions returns the retention options
-	RetentionOptions() retention.Options
 
 	// SetRuntimeOptionsManager sets the runtime options manager
 	SetRuntimeOptionsManager(value runtime.OptionsManager) Options

@@ -23,6 +23,7 @@ package persist
 import (
 	"time"
 
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 )
 
@@ -51,7 +52,7 @@ type Flush interface {
 	// Prepare prepares writing data for a given (shard, blockStart) combination,
 	// returning a PreparedPersist object and any error encountered during
 	// preparation if any.
-	Prepare(namespace ts.ID, shard uint32, blockStart time.Time) (PreparedPersist, error)
+	Prepare(ns namespace.Metadata, shard uint32, blockStart time.Time) (PreparedPersist, error)
 
 	// Done marks the flush as complete.
 	Done() error

@@ -23,10 +23,25 @@ package peers
 import (
 	"testing"
 
+	"github.com/m3db/m3db/client"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewPeersBotstrapper(t *testing.T) {
-	b := NewPeersBootstrapper(NewOptions(), nil)
+func TestNewPeersBootstrapperInvalidOpts(t *testing.T) {
+	_, err := NewPeersBootstrapper(NewOptions(), nil)
+	assert.Error(t, err)
+}
+
+func TestNewPeersBootstrapper(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := NewOptions().
+		SetAdminClient(client.NewMockAdminClient(ctrl))
+
+	b, err := NewPeersBootstrapper(opts, nil)
+	assert.NoError(t, err)
 	assert.Equal(t, PeersBootstrapperName, b.String())
 }

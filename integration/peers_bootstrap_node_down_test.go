@@ -41,32 +41,33 @@ func TestPeersBootstrapNodeDown(t *testing.T) {
 
 	// Test setups
 	log := xlog.SimpleLogger
-	namesp := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions())
-	opts := newTestOptions().
-		SetNamespaces([]namespace.Metadata{namesp})
-
 	retentionOpts := retention.NewOptions().
 		SetRetentionPeriod(6 * time.Hour).
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
-		SetBufferFuture(2 * time.Minute).
-		SetBufferDrain(3 * time.Second)
+		SetBufferFuture(2 * time.Minute)
+
+	namesp := namespace.NewMetadata(testNamespaces[0],
+		namespace.NewOptions().SetRetentionOptions(retentionOpts))
+	opts := newTestOptions(t).
+		SetNamespaces([]namespace.Metadata{namesp})
+
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: false},
 	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, setupOpts)
+	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
 
 	// Write test data for first node
 	now := setups[0].getNowFn()
-	blockSize := setups[0].storageOpts.RetentionOptions().BlockSize()
+	blockSize := retentionOpts.BlockSize()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
 		{[]string{"foo", "bar"}, 180, now.Add(-blockSize)},
 		{[]string{"foo", "baz"}, 90, now},
 	})
-	err := writeTestDataToDisk(namesp.ID(), setups[0], seriesMaps)
+	err := writeTestDataToDisk(namesp, setups[0], seriesMaps)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper

@@ -21,6 +21,7 @@
 package peers
 
 import (
+	"errors"
 	"math"
 	"runtime"
 
@@ -34,6 +35,10 @@ var (
 	defaultDefaultShardConcurrency        = runtime.NumCPU()
 	defaultIncrementalShardConcurrency    = int(math.Max(1, float64(runtime.NumCPU())/2))
 	defaultIncrementalPersistMaxQueueSize = 0
+)
+
+var (
+	errAdminClientNotSet = errors.New("admin client not set")
 )
 
 type options struct {
@@ -54,6 +59,13 @@ func NewOptions() Options {
 		incrementalShardConcurrency:    defaultIncrementalShardConcurrency,
 		incrementalPersistMaxQueueSize: defaultIncrementalPersistMaxQueueSize,
 	}
+}
+
+func (o *options) Validate() error {
+	if client := o.client; client == nil {
+		return errAdminClientNotSet
+	}
+	return nil
 }
 
 func (o *options) SetResultOptions(value result.Options) Options {

@@ -75,6 +75,7 @@ var (
 type nowSetterFn func(t time.Time)
 
 type testSetup struct {
+	t               *testing.T
 	opts            testOptions
 	db              cluster.Database
 	storageOpts     storage.Options
@@ -100,12 +101,19 @@ type testSetup struct {
 	closedCh chan struct{}
 }
 
-func newTestSetup(opts testOptions) (*testSetup, error) {
+func newTestSetup(t *testing.T, opts testOptions) (*testSetup, error) {
 	if opts == nil {
-		opts = newTestOptions()
+		opts = newTestOptions(t)
 	}
 
-	storageOpts := storage.NewOptions()
+	nsInit := opts.NamespaceInitializer()
+	if nsInit == nil {
+		nsInit = namespace.NewStaticInitializer(opts.Namespaces())
+	}
+
+	storageOpts := storage.NewOptions().
+		SetTickInterval(opts.TickInterval()).
+		SetNamespaceInitializer(nsInit)
 
 	nativePooling := strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"
 	if nativePooling {
@@ -150,6 +158,11 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
 		SetWriteConsistencyLevel(opts.WriteConsistencyLevel())
 
+	adminOpts, ok := clientOpts.(client.AdminOptions)
+	if !ok {
+		return nil, fmt.Errorf("unable to cast to admin options")
+	}
+
 	// Set up tchannel client
 	channel, tc, err := tchannelClient(tchannelNodeAddr)
 	if err != nil {
@@ -157,7 +170,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	// Set up m3db client
-	mc, err := m3dbClient(clientOpts)
+	adminClient, err := m3dbAdminClient(adminOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -166,9 +179,18 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	workerPool := xsync.NewWorkerPool(opts.WorkerPoolSize())
 	workerPool.Init()
 
+	// BlockSizes are specified per namespace, make best effort at finding
+	// a value to align `now` for all of them.
+	truncateSize, guess := guessBestTruncateBlockSize(opts.Namespaces())
+	if guess {
+		storageOpts.InstrumentOptions().Logger().Warnf(
+			"Unable to find a single blockSize from known retention periods, guessing: %v",
+			truncateSize.String())
+	}
+
 	// Set up getter and setter for now
 	var lock sync.RWMutex
-	now := time.Now().Truncate(storageOpts.RetentionOptions().BlockSize())
+	now := time.Now().Truncate(truncateSize)
 	getNowFn := func() time.Time {
 		lock.RLock()
 		t := now
@@ -189,15 +211,19 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		return nil, err
 	}
 
-	fsOpts := fs.NewOptions().SetFilePathPrefix(filePathPrefix)
+	fsOpts := fs.NewOptions().
+		SetFilePathPrefix(filePathPrefix)
 
-	storageOpts = storageOpts.SetCommitLogOptions(storageOpts.CommitLogOptions().SetFilesystemOptions(fsOpts))
+	storageOpts = storageOpts.SetCommitLogOptions(
+		storageOpts.CommitLogOptions().
+			SetFilesystemOptions(fsOpts).
+			SetRetentionPeriod(opts.CommitLogRetentionPeriod()).
+			SetBlockSize(opts.CommitLogBlockSize()))
 
 	// Set up persistence manager
 	storageOpts = storageOpts.SetPersistManager(fs.NewPersistManager(fsOpts))
 
 	// Set up repair options
-	adminClient := mc.(client.AdminClient)
 	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(adminClient))
 
 	// Set up block retriever manager
@@ -206,6 +232,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}
 
 	return &testSetup{
+		t:               t,
 		opts:            opts,
 		storageOpts:     storageOpts,
 		fsOpts:          fsOpts,
@@ -216,7 +243,7 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 		getNowFn:        getNowFn,
 		setNowFn:        setNowFn,
 		tchannelClient:  tc,
-		m3dbClient:      mc,
+		m3dbClient:      adminClient.(client.Client),
 		m3dbAdminClient: adminClient,
 		workerPool:      workerPool,
 		channel:         channel,
@@ -227,7 +254,63 @@ func newTestSetup(opts testOptions) (*testSetup, error) {
 	}, nil
 }
 
-func (ts *testSetup) generatorOptions() generate.Options {
+// guestBestTruncateBlockSize guesses for the best block size to truncate testSetup's nowFn
+func guessBestTruncateBlockSize(mds []namespace.Metadata) (time.Duration, bool) {
+	// gcd of a pair of numbers
+	gcd := func(a, b int64) int64 {
+		for b > 0 {
+			a, b = b, a%b
+		}
+		return a
+	}
+	lcm := func(a, b int64) int64 {
+		return a * b / gcd(a, b)
+	}
+
+	// default guess
+	if len(mds) == 0 {
+		return time.Hour, true
+	}
+
+	// get all known blocksizes
+	blockSizes := make(map[int64]struct{})
+	for _, md := range mds {
+		bs := md.Options().RetentionOptions().BlockSize().Nanoseconds() / int64(time.Millisecond)
+		blockSizes[bs] = struct{}{}
+	}
+
+	first := true
+	var l int64
+	for i := range blockSizes {
+		if first {
+			l = i
+			first = false
+		} else {
+			l = lcm(l, i)
+		}
+	}
+
+	guess := time.Duration(l) * time.Millisecond
+	// if there's only a single value, we are not guessing
+	if len(blockSizes) == 1 {
+		return guess, false
+	}
+
+	// otherwise, we are guessing
+	return guess, true
+}
+
+func (ts *testSetup) namespaceMetadataOrFail(id ts.ID) namespace.Metadata {
+	for _, md := range ts.namespaces {
+		if md.ID().Equal(id) {
+			return md
+		}
+	}
+	require.FailNow(ts.t, "unable to find namespace", id.String())
+	return nil
+}
+
+func (ts *testSetup) generatorOptions(ropts retention.Options) generate.Options {
 	var (
 		storageOpts = ts.storageOpts
 		fsOpts      = storageOpts.CommitLogOptions().FilesystemOptions()
@@ -237,8 +320,8 @@ func (ts *testSetup) generatorOptions() generate.Options {
 
 	return opts.
 		SetClockOptions(co).
-		SetRetentionPeriod(storageOpts.RetentionOptions().RetentionPeriod()).
-		SetBlockSize(storageOpts.RetentionOptions().BlockSize()).
+		SetRetentionPeriod(ropts.RetentionPeriod()).
+		SetBlockSize(ropts.BlockSize()).
 		SetFilePathPrefix(fsOpts.FilePathPrefix()).
 		SetNewFileMode(fsOpts.NewFileMode()).
 		SetNewDirectoryMode(fsOpts.NewDirectoryMode()).
@@ -300,8 +383,7 @@ func (ts *testSetup) startServer() error {
 	}
 
 	var err error
-	ts.db, err = cluster.NewDatabase(ts.namespaces,
-		ts.hostID, ts.topoInit, ts.storageOpts)
+	ts.db, err = cluster.NewDatabase(ts.hostID, ts.topoInit, ts.storageOpts)
 	if err != nil {
 		return err
 	}
@@ -390,15 +472,20 @@ func (ts *testSetup) close() {
 	}
 }
 
+// convenience wrapper used to ensure a tick occurs
+func (ts *testSetup) sleepFor10xTickInterval() {
+	time.Sleep(ts.opts.TickInterval() * 10)
+}
+
 type testSetups []*testSetup
 
 func (ts testSetups) parallel(fn func(s *testSetup)) {
 	var wg sync.WaitGroup
 	for _, setup := range ts {
-		setup := setup
+		s := setup
 		wg.Add(1)
 		go func() {
-			fn(setup)
+			fn(s)
 			wg.Done()
 		}()
 	}
@@ -424,7 +511,9 @@ func newNodes(
 ) (testSetups, topology.Initializer, closeFn) {
 
 	log := xlog.SimpleLogger
-	opts := newTestOptions().SetNamespaces(nspaces)
+	opts := newTestOptions(t).
+		SetNamespaces(nspaces).
+		SetTickInterval(3 * time.Second)
 
 	// NB(bl): We set replication to 3 to mimic production. This can be made
 	// into a variable if needed.
@@ -439,9 +528,6 @@ func newNodes(
 	topoOpts := topology.NewDynamicOptions().
 		SetConfigServiceClient(fake.NewM3ClusterClient(svcs, nil))
 	topoInit := topology.NewDynamicInitializer(topoOpts)
-	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(6 * time.Hour).
-		SetBufferDrain(3 * time.Second)
 
 	nodeOpt := bootstrappableTestSetupOptions{
 		disablePeersBootstrapper: true,
@@ -453,7 +539,7 @@ func newNodes(
 		nodeOpts[i] = nodeOpt
 	}
 
-	nodes, closeFn := newDefaultBootstrappableTestSetups(t, opts, retentionOpts, nodeOpts)
+	nodes, closeFn := newDefaultBootstrappableTestSetups(t, opts, nodeOpts)
 
 	nodeClose := func() { // Clean up running servers at end of test
 		log.Debug("servers closing")
