@@ -29,8 +29,6 @@ import (
 	"github.com/m3db/m3cluster/integration/etcd"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/storage/namespace/convert"
-	"github.com/m3db/m3db/storage/namespace/dynamic"
 	xmetrics "github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/instrument"
 
@@ -71,14 +69,14 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 	protoKey := func(nses ...namespace.Metadata) proto.Message {
 		nsMap, err := namespace.NewMap(nses)
 		require.NoError(t, err)
-		return convert.ToProto(nsMap)
+		return namespace.ToProto(nsMap)
 	}
 
 	// dynamic namespace registry options
-	dynamicOpts := dynamic.NewOptions().
+	dynamicOpts := namespace.NewDynamicOptions().
 		SetConfigServiceClient(csClient).
 		SetInstrumentOptions(instrument.NewOptions().SetMetricsScope(scope))
-	dynamicInit := dynamic.NewInitializer(dynamicOpts)
+	dynamicInit := namespace.NewDynamicInitializer(dynamicOpts)
 	testOpts = testOpts.SetNamespaceInitializer(dynamicInit)
 
 	// initialize value in kv
