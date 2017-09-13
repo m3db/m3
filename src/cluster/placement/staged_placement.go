@@ -38,7 +38,7 @@ var (
 type activeStagedPlacement struct {
 	sync.RWMutex
 
-	placements            []Placement
+	placements            Placements
 	nowFn                 clock.NowFn
 	onPlacementsAddedFn   OnPlacementsAddedFn
 	onPlacementsRemovedFn OnPlacementsRemovedFn
@@ -100,7 +100,7 @@ func (p *activeStagedPlacement) activePlacementWithLock(timeNanos int64) (Placem
 	if p.closed {
 		return nil, errActiveStagedPlacementClosed
 	}
-	idx := p.activeIndexWithLock(timeNanos)
+	idx := p.placements.ActiveIndex(timeNanos)
 	if idx < 0 {
 		return nil, errNoApplicablePlacement
 	}
@@ -110,18 +110,6 @@ func (p *activeStagedPlacement) activePlacementWithLock(timeNanos int64) (Placem
 		go p.expire()
 	}
 	return placement, nil
-}
-
-// activeIndexWithLock finds the index of the last placement whose cutover time is no
-// later than t (a.k.a. the active placement). The cutover times of the placements are
-// sorted in ascending order (i.e., earliest time first).
-func (p *activeStagedPlacement) activeIndexWithLock(timeNanos int64) int {
-	idx := 0
-	for idx < len(p.placements) && p.placements[idx].CutoverNanos() <= timeNanos {
-		idx++
-	}
-	idx--
-	return idx
 }
 
 func (p *activeStagedPlacement) expire() {
@@ -137,7 +125,7 @@ func (p *activeStagedPlacement) expire() {
 	if p.closed {
 		return
 	}
-	idx := p.activeIndexWithLock(p.nowFn().UnixNano())
+	idx := p.placements.ActiveIndex(p.nowFn().UnixNano())
 	if idx <= 0 {
 		return
 	}

@@ -60,6 +60,7 @@ func NewPlacementFromProto(p *placementpb.Placement) (Placement, error) {
 	if p == nil {
 		return nil, errNilPlacementProto
 	}
+
 	shards := make([]uint32, p.NumShards)
 	for i := uint32(0); i < p.NumShards; i++ {
 		shards[i] = i
@@ -256,6 +257,18 @@ func (placements Placements) Proto() (*placementpb.PlacementSnapshots, error) {
 	return &placementpb.PlacementSnapshots{
 		Snapshots: snapshots,
 	}, nil
+}
+
+// ActiveIndex finds the index of the last placement whose cutover time is no
+// later than timeNanos (a.k.a. the active placement). Assuming the cutover times
+// of the placements are sorted in ascending order (i.e., earliest time first).
+func (placements Placements) ActiveIndex(timeNanos int64) int {
+	idx := 0
+	for idx < len(placements) && placements[idx].CutoverNanos() <= timeNanos {
+		idx++
+	}
+	idx--
+	return idx
 }
 
 // Validate validates a placement

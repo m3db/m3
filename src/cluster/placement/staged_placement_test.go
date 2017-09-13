@@ -444,7 +444,7 @@ func TestStagedPlacementActiveStagedPlacement(t *testing.T) {
 
 	for _, input := range []struct {
 		t          int64
-		placements []Placement
+		placements Placements
 	}{
 		{t: 0, placements: pss.placements[:]},
 		{t: 20000, placements: pss.placements[:]},
