@@ -371,7 +371,7 @@ func watchAndUpdate(
 		// The channel for a ValueWatch should never close.
 		getLogger(logger).
 			WithFields(xlog.NewLogField("key", key)).
-			Errorf("watch unexpectedly closed")
+			Error("watch unexpectedly closed")
 	}()
 
 	return err
@@ -415,7 +415,7 @@ func logNilUpdate(logger xlog.Logger, k string, v interface{}) {
 	getLogger(logger).WithFields(
 		xlog.NewLogField("key", k),
 		xlog.NewLogField("default-value", v),
-	).Warnf("nil value from kv store, applying default value")
+	).Warn("nil value from kv store, applying default value")
 }
 
 func logMalformedUpdate(logger xlog.Logger, k string, ver int, v interface{}, err error) {
@@ -424,7 +424,7 @@ func logMalformedUpdate(logger xlog.Logger, k string, ver int, v interface{}, er
 		xlog.NewLogField("malformed-value", v),
 		xlog.NewLogField("version", ver),
 		xlog.NewLogField("error", err),
-	).Warnf("malformed value from kv store, not applying update")
+	).Warn("malformed value from kv store, not applying update")
 }
 
 func logInvalidUpdate(logger xlog.Logger, k string, ver int, v interface{}, err error) {
@@ -433,7 +433,7 @@ func logInvalidUpdate(logger xlog.Logger, k string, ver int, v interface{}, err 
 		xlog.NewLogField("invalid-value", v),
 		xlog.NewLogField("version", ver),
 		xlog.NewLogField("error", err),
-	).Warnf("invalid value from kv store, not applying update")
+	).Warn("invalid value from kv store, not applying update")
 }
 
 func logUpdateSuccess(logger xlog.Logger, k string, ver int, v interface{}) {
@@ -441,7 +441,7 @@ func logUpdateSuccess(logger xlog.Logger, k string, ver int, v interface{}) {
 		xlog.NewLogField("key", k),
 		xlog.NewLogField("value", v),
 		xlog.NewLogField("version", ver),
-	).Infof("value update success")
+	).Info("value update success")
 }
 
 func getLogger(logger xlog.Logger) xlog.Logger {
