@@ -657,13 +657,13 @@ func TestRemoveMultipleInstances(t *testing.T) {
 
 	i1, ok := p.Instance("i1")
 	assert.True(t, ok)
-	assert.True(t, placement.IsInstanceLeaving(i1))
+	assert.True(t, i1.IsLeaving())
 	i2, ok = p.Instance("i2")
 	assert.True(t, ok)
-	assert.True(t, placement.IsInstanceLeaving(i2))
+	assert.True(t, i2.IsLeaving())
 	i3, ok = p.Instance("i3")
 	assert.True(t, ok)
-	assert.True(t, placement.IsInstanceLeaving(i3))
+	assert.True(t, i3.IsLeaving())
 }
 
 func TestRemoveAbsentInstance(t *testing.T) {
@@ -841,7 +841,6 @@ func TestAddInstance(t *testing.T) {
 
 func TestAddInstance_ExistNonLeaving(t *testing.T) {
 	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
-
 	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
 
 	instances := []placement.Instance{i1, i2}
@@ -885,7 +884,7 @@ func TestAddInstance_ExistAndLeaving(t *testing.T) {
 
 	i2, ok := p.Instance("i2")
 	assert.True(t, ok)
-	assert.Equal(t, i2.Shards().NumShards(), i2.Shards().NumShardsForState(shard.Leaving))
+	assert.True(t, i2.IsLeaving())
 
 	p, err = a.AddInstances(p, []placement.Instance{i2})
 	assert.NoError(t, err)

@@ -348,19 +348,34 @@ func TestInstance(t *testing.T) {
 	assert.Equal(t, "rack", i1.Rack())
 }
 
-func TestIsInstanceLeaving(t *testing.T) {
+func TestInstanceIsLeaving(t *testing.T) {
 	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
-	assert.False(t, IsInstanceLeaving(i1))
+	assert.False(t, i1.IsLeaving())
 
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
-	assert.False(t, IsInstanceLeaving(i1))
+	assert.False(t, i1.IsLeaving())
 
 	i1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
-	assert.True(t, IsInstanceLeaving(i1))
+	assert.True(t, i1.IsLeaving())
 
 	i1.SetShards(shard.NewShards(nil))
-	assert.False(t, IsInstanceLeaving(i1))
+	assert.False(t, i1.IsLeaving())
+}
+
+func TestInstanceIsInitializing(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+	assert.False(t, i1.IsInitializing())
+
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Initializing))
+	assert.True(t, i1.IsInitializing())
+
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Leaving))
+	assert.False(t, i1.IsInitializing())
+
+	i1.SetShards(shard.NewShards(nil))
+	assert.False(t, i1.IsInitializing())
 }
 
 func TestSortInstanceByID(t *testing.T) {

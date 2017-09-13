@@ -93,6 +93,12 @@ type Instance interface {
 
 	// Proto returns the proto representation for the Instance.
 	Proto() (*placementpb.Instance, error)
+
+	// IsLeaving returns whether the instance contains only leaving shards.
+	IsLeaving() bool
+
+	// IsInitializing returns whether the instance contains only initializing shards.
+	IsInitializing() bool
 }
 
 // Placement describes how instances are placed.

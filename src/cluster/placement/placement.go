@@ -537,6 +537,23 @@ func (i *instance) Proto() (*placementpb.Instance, error) {
 	}, nil
 }
 
+func (i *instance) IsLeaving() bool {
+	return i.allShardsInState(shard.Leaving)
+}
+
+func (i *instance) IsInitializing() bool {
+	return i.allShardsInState(shard.Initializing)
+}
+
+func (i *instance) allShardsInState(s shard.State) bool {
+	ss := i.Shards()
+	numShards := ss.NumShards()
+	if numShards == 0 {
+		return false
+	}
+	return numShards == ss.NumShardsForState(s)
+}
+
 // IsInstanceLeaving checks if all the shards on the instance is in Leaving state
 func IsInstanceLeaving(instance Instance) bool {
 	newInstance := true
