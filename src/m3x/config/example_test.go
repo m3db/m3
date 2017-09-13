@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xconfig_test
+package config_test
 
 import (
 	"fmt"
@@ -27,13 +27,13 @@ import (
 	"github.com/m3db/m3x/config"
 )
 
-type config struct {
+type configuration struct {
 	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
 }
 
 func ExampleLoadFile() {
-	var cfg config
-	if err := xconfig.LoadFile(&cfg, "testdata/conf.yaml"); err != nil {
+	var cfg configuration
+	if err := config.LoadFile(&cfg, "testdata/conf.yaml"); err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("listenAddress: %s\n", cfg.ListenAddress)

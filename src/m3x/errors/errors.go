@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package xerrors provides utilities for working with different types errors.
-package xerrors
+// Package errors provides utilities for working with different types errors.
+package errors
 
 import (
 	"bytes"

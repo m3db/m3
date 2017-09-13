@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package xid provides utilities for generating ID's from hash functions.
-package xid
+// Package id provides utilities for generating ID's from hash functions.
+package id
 
 import "crypto/md5"
 

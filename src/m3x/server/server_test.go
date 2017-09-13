@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xserver
+package server
 
 import (
 	"fmt"
@@ -44,7 +44,7 @@ func testServer(addr string) (*server, *mockHandler, *int32, *int32) {
 		numRemoved int32
 	)
 
-	opts := NewOptions().SetRetryOptions(xretry.NewOptions().SetMaxRetries(2))
+	opts := NewOptions().SetRetryOptions(retry.NewOptions().SetMaxRetries(2))
 	opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetReportInterval(time.Second))
 
 	h := newMockHandler()

@@ -18,9 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package xpprof provides a function for registering a HTTP handler for pprof
+// Package pprof provides a function for registering a HTTP handler for pprof
 // endpoints.
-package xpprof
+package pprof
 
 import (
 	"net/http"

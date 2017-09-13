@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xlog
+package log
 
 import (
 	"io"
@@ -48,7 +48,7 @@ func (cfg Configuration) BuildLogger() (Logger, error) {
 	logger := NewLogger(writer)
 
 	if len(cfg.Level) != 0 {
-		level, err := ParseLogLevel(cfg.Level)
+		level, err := ParseLevel(cfg.Level)
 		if err != nil {
 			return nil, err
 		}
@@ -57,9 +57,9 @@ func (cfg Configuration) BuildLogger() (Logger, error) {
 	}
 
 	if len(cfg.Fields) != 0 {
-		var fields []LogField
+		var fields []Field
 		for k, v := range cfg.Fields {
-			fields = append(fields, NewLogField(k, v))
+			fields = append(fields, NewField(k, v))
 		}
 		logger = logger.WithFields(fields...)
 	}

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xwatch
+package watch
 
 import (
 	"errors"
@@ -40,7 +40,7 @@ type SourceInput interface {
 
 // Source polls data by calling SourcePollFn and notifies its watches on updates.
 type Source interface {
-	xclose.SimpleCloser
+	close.SimpleCloser
 
 	// Get returns the latest value.
 	Get() interface{}
@@ -50,7 +50,7 @@ type Source interface {
 }
 
 // NewSource returns a new Source.
-func NewSource(input SourceInput, logger xlog.Logger) Source {
+func NewSource(input SourceInput, logger log.Logger) Source {
 	s := &source{
 		input:  input,
 		w:      NewWatchable(),
@@ -67,7 +67,7 @@ type source struct {
 	input  SourceInput
 	w      Watchable
 	closed bool
-	logger xlog.Logger
+	logger log.Logger
 }
 
 func (s *source) run() {

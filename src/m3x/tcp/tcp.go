@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package xtcp implements a tcp listener.
-package xtcp
+// Package tcp implements a tcp listener.
+package tcp
 
 import (
 	"net"

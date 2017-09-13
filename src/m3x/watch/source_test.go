@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xwatch
+package watch
 
 import (
 	"errors"
@@ -42,7 +42,9 @@ func TestSource(t *testing.T) {
 }
 
 func testSource(t *testing.T, errAfter int32, closeAfter int32, watchNum int) {
-	s := NewSource(&testSourceInput{callCount: 0, errAfter: errAfter, closeAfter: closeAfter}, xlog.SimpleLogger)
+	s := NewSource(
+		&testSourceInput{callCount: 0, errAfter: errAfter, closeAfter: closeAfter}, log.SimpleLogger,
+	)
 
 	var wg sync.WaitGroup
 

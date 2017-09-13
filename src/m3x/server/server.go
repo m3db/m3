@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package xserver implements a network server.
-package xserver
+// Package server implements a network server.
+package server
 
 import (
 	"net"
@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/net"
+	xnet "github.com/m3db/m3x/net"
 	"github.com/m3db/m3x/retry"
 
 	"github.com/uber-go/tally"
@@ -77,8 +77,8 @@ type server struct {
 
 	address                      string
 	listener                     net.Listener
-	log                          xlog.Logger
-	retryOpts                    xretry.Options
+	log                          log.Logger
+	retryOpts                    retry.Options
 	reportInterval               time.Duration
 	tcpConnectionKeepAlive       bool
 	tcpConnectionKeepAlivePeriod time.Duration
@@ -162,7 +162,7 @@ func (s *server) serve() {
 		}
 	}
 	err := <-errCh
-	s.log.WithFields(xlog.NewLogErrField(err)).
+	s.log.WithFields(log.NewErrField(err)).
 		Error("server unexpectedly closed")
 }
 

@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package xnet implements functions for running network servers.
-package xnet
+// Package net implements functions for running network servers.
+package net
 
 import (
 	"net"
@@ -32,11 +32,11 @@ import (
 // returning accepted connections via a channel while handling
 // temporary network errors. Fatal errors are returned via the
 // error channel with the listener closed on return.
-func StartAcceptLoop(l net.Listener, rOpts xretry.Options) (<-chan net.Conn, <-chan error) {
+func StartAcceptLoop(l net.Listener, rOpts retry.Options) (<-chan net.Conn, <-chan error) {
 	var (
 		connCh  = make(chan net.Conn)
 		errCh   = make(chan error)
-		retrier = xretry.NewRetrier(rOpts)
+		retrier = retry.NewRetrier(rOpts)
 	)
 
 	go func() {
@@ -55,7 +55,7 @@ func StartAcceptLoop(l net.Listener, rOpts xretry.Options) (<-chan net.Conn, <-c
 					return ne
 				}
 				// Otherwise it's a non-retryable error.
-				return xerrors.NewNonRetryableError(connErr)
+				return errors.NewNonRetryableError(connErr)
 			}); err != nil {
 				close(connCh)
 				errCh <- err
@@ -74,6 +74,6 @@ func StartAcceptLoop(l net.Listener, rOpts xretry.Options) (<-chan net.Conn, <-c
 // accepted connections via a channel while handling
 // temporary network errors. Fatal errors are returned via the
 // error channel with the listener closed on return.
-func StartForeverAcceptLoop(l net.Listener, rOpts xretry.Options) (<-chan net.Conn, <-chan error) {
+func StartForeverAcceptLoop(l net.Listener, rOpts retry.Options) (<-chan net.Conn, <-chan error) {
 	return StartAcceptLoop(l, rOpts.SetForever(true))
 }

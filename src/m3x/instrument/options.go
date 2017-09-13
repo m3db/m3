@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/log"
-
 	"github.com/uber-go/tally"
 )
 
@@ -34,7 +33,7 @@ const (
 )
 
 type options struct {
-	logger         xlog.Logger
+	logger         log.Logger
 	scope          tally.Scope
 	samplingRate   float64
 	reportInterval time.Duration
@@ -42,7 +41,7 @@ type options struct {
 
 // NewOptions creates new instrument options.
 func NewOptions() Options {
-	logger := xlog.NewLevelLogger(xlog.SimpleLogger, xlog.LogLevelInfo)
+	logger := log.NewLevelLogger(log.SimpleLogger, log.LevelInfo)
 	return &options{
 		logger:         logger,
 		scope:          tally.NoopScope,
@@ -51,13 +50,13 @@ func NewOptions() Options {
 	}
 }
 
-func (o *options) SetLogger(value xlog.Logger) Options {
+func (o *options) SetLogger(value log.Logger) Options {
 	opts := *o
 	opts.logger = value
 	return &opts
 }
 
-func (o *options) Logger() xlog.Logger {
+func (o *options) Logger() log.Logger {
 	return o.logger
 }
 

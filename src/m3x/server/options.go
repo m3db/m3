@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xserver
+package server
 
 import (
 	"time"
@@ -45,10 +45,10 @@ type Options interface {
 	InstrumentOptions() instrument.Options
 
 	// SetRetryOptions sets the retry options
-	SetRetryOptions(value xretry.Options) Options
+	SetRetryOptions(value retry.Options) Options
 
 	// RetryOptions returns the retry options
-	RetryOptions() xretry.Options
+	RetryOptions() retry.Options
 
 	// SetTCPConnectionKeepAlive sets the keep alive state for tcp connections.
 	SetTCPConnectionKeepAlive(value bool) Options
@@ -68,7 +68,7 @@ type Options interface {
 
 type options struct {
 	instrumentOpts               instrument.Options
-	retryOpts                    xretry.Options
+	retryOpts                    retry.Options
 	tcpConnectionKeepAlive       bool
 	tcpConnectionKeepAlivePeriod time.Duration
 }
@@ -77,7 +77,7 @@ type options struct {
 func NewOptions() Options {
 	return &options{
 		instrumentOpts:               instrument.NewOptions(),
-		retryOpts:                    xretry.NewOptions(),
+		retryOpts:                    retry.NewOptions(),
 		tcpConnectionKeepAlive:       defaultTCPConnectionKeepAlive,
 		tcpConnectionKeepAlivePeriod: defaultTCPConnectionKeepAlivePeriod,
 	}
@@ -93,13 +93,13 @@ func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) SetRetryOptions(value xretry.Options) Options {
+func (o *options) SetRetryOptions(value retry.Options) Options {
 	opts := *o
 	opts.retryOpts = value
 	return &opts
 }
 
-func (o *options) RetryOptions() xretry.Options {
+func (o *options) RetryOptions() retry.Options {
 	return o.retryOpts
 }
 

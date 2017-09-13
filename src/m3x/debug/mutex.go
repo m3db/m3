@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package xdebug provides utilities for debugging.
-package xdebug
+// Package debug provides utilities for debugging.
+package debug
 
 import (
 	"fmt"
@@ -51,7 +51,7 @@ func SetRWMutexStackBufferLength(value int) {
 // RWMutex is a debug wrapper for sync.RWMutex
 type RWMutex struct {
 	Name   string
-	Log    xlog.Logger
+	Log    log.Logger
 	Writer io.Writer
 
 	mutex          sync.RWMutex
@@ -123,7 +123,7 @@ func (m *RWMutex) Report() {
 }
 
 // ReportEvery will report the state of the RWMutex at a regular interval
-func (m *RWMutex) ReportEvery(interval time.Duration) xclose.SimpleCloser {
+func (m *RWMutex) ReportEvery(interval time.Duration) close.SimpleCloser {
 	ticker := time.NewTicker(interval)
 	go func() {
 		for range ticker.C {

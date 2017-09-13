@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xnet
+package net
 
 import (
 	"fmt"
@@ -44,7 +44,7 @@ func TestStartAcceptLoop(t *testing.T) {
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	assert.Nil(t, err)
-	connCh, errCh := StartForeverAcceptLoop(l, xretry.NewOptions())
+	connCh, errCh := StartForeverAcceptLoop(l, retry.NewOptions())
 
 	wgServer.Add(1)
 	go func() {
