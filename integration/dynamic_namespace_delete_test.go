@@ -151,7 +151,7 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
 	testSetup.setNowFn(testSetup.getNowFn().Add(2 * blockSize))
 	later := testSetup.getNowFn()
-	time.Sleep(testOpts.TickInterval() * 10)
+	testSetup.sleepFor10xTickInterval()
 
 	metadatasByShard := testSetupMetadatas(t, testSetup, ns0.ID(), now, later)
 	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, ns0, metadatasByShard)

@@ -73,7 +73,7 @@ func TestRoundtrip(t *testing.T) {
 
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	time.Sleep(testOpts.TickInterval() * 10)
+	testSetup.sleepFor10xTickInterval()
 
 	// Verify in-memory data match what we've written
 	verifySeriesMaps(t, testSetup, testNamespaces[0], seriesMaps)
