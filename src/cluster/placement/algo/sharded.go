@@ -54,11 +54,11 @@ func (a rackAwarePlacementAlgorithm) InitialPlacement(
 	shards []uint32,
 	rf int,
 ) (placement.Placement, error) {
-	ph := newInitHelper(placement.CloneInstances(instances), shards, a.opts)
-
+	ph := newInitHelper(placement.Instances(instances).Clone(), shards, a.opts)
 	if err := ph.PlaceShards(newShards(shards), nil, ph.Instances()); err != nil {
 		return nil, err
 	}
+
 	p := ph.GeneratePlacement()
 	for i := 1; i < rf; i++ {
 		ph := newAddReplicaHelper(p, a.opts)
@@ -78,7 +78,7 @@ func (a rackAwarePlacementAlgorithm) AddReplica(p placement.Placement) (placemen
 		return nil, err
 	}
 
-	p = placement.ClonePlacement(p)
+	p = p.Clone()
 	ph := newAddReplicaHelper(p, a.opts)
 	if err := ph.PlaceShards(newShards(p.Shards()), nil, nonLeavingInstances(ph.Instances())); err != nil {
 		return nil, err
@@ -99,7 +99,7 @@ func (a rackAwarePlacementAlgorithm) RemoveInstances(
 		return nil, err
 	}
 
-	p = placement.ClonePlacement(p)
+	p = p.Clone()
 	for _, instanceID := range instanceIDs {
 		ph, leavingInstance, err := newRemoveInstanceHelper(p, instanceID, a.opts)
 		if err != nil {
@@ -129,7 +129,7 @@ func (a rackAwarePlacementAlgorithm) AddInstances(
 		return nil, err
 	}
 
-	p = placement.ClonePlacement(p)
+	p = p.Clone()
 	for _, instance := range instances {
 		ph, addingInstance, err := newAddInstanceHelper(p, instance, a.opts)
 		if err != nil {
@@ -155,7 +155,7 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstances(
 		return nil, err
 	}
 
-	p = placement.ClonePlacement(p)
+	p = p.Clone()
 	ph, leavingInstances, addingInstances, err := newReplaceInstanceHelper(p, leavingInstanceIDs, addingInstances, a.opts)
 	if err != nil {
 		return nil, err

@@ -212,6 +212,16 @@ func (p *placement) Proto() (*placementpb.Placement, error) {
 	}, nil
 }
 
+func (p *placement) Clone() Placement {
+	return NewPlacement().
+		SetInstances(Instances(p.Instances()).Clone()).
+		SetShards(p.Shards()).
+		SetReplicaFactor(p.ReplicaFactor()).
+		SetIsSharded(p.IsSharded()).
+		SetIsMirrored(p.IsMirrored()).
+		SetCutoverNanos(p.CutoverNanos())
+}
+
 // Placements represents a list of placements.
 type Placements []Placement
 
@@ -246,54 +256,6 @@ func (placements Placements) Proto() (*placementpb.PlacementSnapshots, error) {
 	return &placementpb.PlacementSnapshots{
 		Snapshots: snapshots,
 	}, nil
-}
-
-// CloneShards returns a copy of shards.
-func CloneShards(shards shard.Shards) shard.Shards {
-	newShards := make([]shard.Shard, shards.NumShards())
-	for i, s := range shards.All() {
-		newShards[i] = shard.NewShard(s.ID()).
-			SetState(s.State()).
-			SetSourceID(s.SourceID()).
-			SetCutoverNanos(s.CutoverNanos()).
-			SetCutoffNanos(s.CutoffNanos())
-	}
-
-	return shard.NewShards(newShards)
-}
-
-// CloneInstance returns a copy of an instance.
-func CloneInstance(instance Instance) Instance {
-	return NewInstance().
-		SetID(instance.ID()).
-		SetRack(instance.Rack()).
-		SetZone(instance.Zone()).
-		SetWeight(instance.Weight()).
-		SetEndpoint(instance.Endpoint()).
-		SetHostname(instance.Hostname()).
-		SetPort(instance.Port()).
-		SetShardSetID(instance.ShardSetID()).
-		SetShards(CloneShards(instance.Shards()))
-}
-
-// CloneInstances returns a set of cloned instances.
-func CloneInstances(instances []Instance) []Instance {
-	copied := make([]Instance, len(instances))
-	for i, instance := range instances {
-		copied[i] = CloneInstance(instance)
-	}
-	return copied
-}
-
-// ClonePlacement creates a copy of a given placment.
-func ClonePlacement(p Placement) Placement {
-	return NewPlacement().
-		SetInstances(CloneInstances(p.Instances())).
-		SetShards(p.Shards()).
-		SetReplicaFactor(p.ReplicaFactor()).
-		SetIsSharded(p.IsSharded()).
-		SetIsMirrored(p.IsMirrored()).
-		SetCutoverNanos(p.CutoverNanos())
 }
 
 // Validate validates a placement
@@ -554,17 +516,17 @@ func (i *instance) allShardsInState(s shard.State) bool {
 	return numShards == ss.NumShardsForState(s)
 }
 
-// IsInstanceLeaving checks if all the shards on the instance is in Leaving state
-func IsInstanceLeaving(instance Instance) bool {
-	newInstance := true
-	for _, s := range instance.Shards().All() {
-		if s.State() != shard.Leaving {
-			return false
-		}
-		newInstance = false
-
-	}
-	return !newInstance
+func (i *instance) Clone() Instance {
+	return NewInstance().
+		SetID(i.ID()).
+		SetRack(i.Rack()).
+		SetZone(i.Zone()).
+		SetWeight(i.Weight()).
+		SetEndpoint(i.Endpoint()).
+		SetHostname(i.Hostname()).
+		SetPort(i.Port()).
+		SetShardSetID(i.ShardSetID()).
+		SetShards(i.Shards().Clone())
 }
 
 // Instances is a slice of instances that can produce a debug string.
@@ -583,6 +545,15 @@ func (instances Instances) String() string {
 	}
 	strs = append(strs, "]")
 	return strings.Join(strs, "")
+}
+
+// Clone returns a set of cloned instances.
+func (instances Instances) Clone() Instances {
+	cloned := make([]Instance, len(instances))
+	for i, instance := range instances {
+		cloned[i] = instance.Clone()
+	}
+	return cloned
 }
 
 // ByIDAscending sorts Instance by ID ascending
@@ -614,8 +585,7 @@ func RemoveInstanceFromList(list []Instance, instanceID string) []Instance {
 
 // MarkShardAvailable marks a shard available on a clone of the placement
 func MarkShardAvailable(p Placement, instanceID string, shardID uint32) (Placement, error) {
-	p = ClonePlacement(p)
-	return markShardAvailable(p, instanceID, shardID)
+	return markShardAvailable(p.Clone(), instanceID, shardID)
 }
 
 func markShardAvailable(p Placement, instanceID string, shardID uint32) (Placement, error) {
@@ -659,8 +629,7 @@ func markShardAvailable(p Placement, instanceID string, shardID uint32) (Placeme
 
 	sourceShards.Remove(shardID)
 	if sourceShards.NumShards() == 0 {
-		return ClonePlacement(p).
-			SetInstances(RemoveInstanceFromList(p.Instances(), sourceInstance.ID())), nil
+		return p.SetInstances(RemoveInstanceFromList(p.Instances(), sourceInstance.ID())), nil
 	}
 	return p, nil
 }
@@ -668,7 +637,7 @@ func markShardAvailable(p Placement, instanceID string, shardID uint32) (Placeme
 // MarkAllShardsAsAvailable marks all shard available
 func MarkAllShardsAsAvailable(p Placement) (Placement, error) {
 	var err error
-	p = ClonePlacement(p)
+	p = p.Clone()
 	for _, instance := range p.Instances() {
 		for _, s := range instance.Shards().All() {
 			if s.State() == shard.Initializing {

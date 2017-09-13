@@ -355,7 +355,7 @@ func TestMirrorTestRemoveReplace(t *testing.T) {
 	}
 
 	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true))
-	p, err := a.InitialPlacement(placement.CloneInstances(instances), ids, 2)
+	p, err := a.InitialPlacement(instances, ids, 2)
 	assert.NoError(t, err)
 	assert.NoError(t, placement.Validate(p))
 
@@ -473,10 +473,10 @@ func TestMirrorAddInstancesError(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, placement.Validate(p))
 
-	_, err = a.AddInstances(placement.ClonePlacement(p).SetIsMirrored(false), []placement.Instance{i5, i6})
+	_, err = a.AddInstances(p.Clone().SetIsMirrored(false), []placement.Instance{i5, i6})
 	assert.Error(t, err)
 
-	_, err = a.AddInstances(placement.ClonePlacement(p).SetReplicaFactor(1), []placement.Instance{i5, i6})
+	_, err = a.AddInstances(p.Clone().SetReplicaFactor(1), []placement.Instance{i5, i6})
 	assert.Error(t, err)
 
 	// Allow adding back leaving instances.
@@ -789,9 +789,9 @@ func TestGroupInstanceByShardSetID(t *testing.T) {
 			shard.NewShard(0).SetState(shard.Available),
 		})), res[0])
 
-	_, err = groupInstancesByShardSetID([]placement.Instance{i1, placement.CloneInstance(i2).SetWeight(2)}, 2)
+	_, err = groupInstancesByShardSetID([]placement.Instance{i1, i2.Clone().SetWeight(2)}, 2)
 	assert.Error(t, err)
 
-	_, err = groupInstancesByShardSetID([]placement.Instance{i1, placement.CloneInstance(i2).SetRack("r1")}, 2)
+	_, err = groupInstancesByShardSetID([]placement.Instance{i1, i2.Clone().SetRack("r1")}, 2)
 	assert.Error(t, err)
 }

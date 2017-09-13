@@ -354,7 +354,7 @@ func groupInstancesByShardSetID(
 				SetRack(ssIDStr).
 				SetWeight(meta.weight).
 				SetShardSetID(ssID).
-				SetShards(placement.CloneShards(meta.shards)),
+				SetShards(meta.shards.Clone()),
 		)
 	}
 

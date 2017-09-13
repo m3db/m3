@@ -160,6 +160,14 @@ func (s *shard) Proto() (*placementpb.Shard, error) {
 	}, nil
 }
 
+func (s *shard) Clone() Shard {
+	return NewShard(s.ID()).
+		SetState(s.State()).
+		SetSourceID(s.SourceID()).
+		SetCutoverNanos(s.CutoverNanos()).
+		SetCutoffNanos(s.CutoffNanos())
+}
+
 // SortableShardsByIDAsc are sortable shards by ID in ascending order
 type SortableShardsByIDAsc []Shard
 
@@ -302,6 +310,15 @@ func (ss shards) Proto() ([]*placementpb.Shard, error) {
 	}
 
 	return res, nil
+}
+
+func (ss shards) Clone() Shards {
+	shards := make([]Shard, ss.NumShards())
+	for i, shard := range ss.All() {
+		shards[i] = shard.Clone()
+	}
+
+	return NewShards(shards)
 }
 
 // SortableShardProtosByIDAsc sorts shard protos by their ids in ascending order.

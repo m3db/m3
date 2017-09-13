@@ -197,3 +197,15 @@ func TestShardsToProto(t *testing.T) {
 		require.Equal(t, expected, actual)
 	}
 }
+
+func TestClone(t *testing.T) {
+	s1 := NewShard(1).SetState(Initializing).SetSourceID("s").SetCutoffNanos(123).SetCutoverNanos(100)
+	s2 := NewShard(2).SetState(Available)
+
+	ss1 := NewShards([]Shard{s1, s2})
+	ss2 := NewShards([]Shard{s1, s2})
+	require.True(t, ss1.Clone().Equals(ss2))
+
+	ss1.Add(NewShard(2).SetState(Leaving))
+	require.False(t, ss1.Equals(ss2))
+}
