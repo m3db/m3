@@ -125,7 +125,7 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 	deletePropagated := func() bool {
 		return numInvalidNamespaceUpdates(scope) > numInvalid
 	}
-	require.True(t, waitUntil(deletePropagated, 5*time.Second))
+	require.True(t, waitUntil(deletePropagated, 20*time.Second))
 	log.Infof("deleted namespace key from kv")
 
 	// update value in kv
