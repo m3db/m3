@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package xlog implements a logging package.
-package xlog
+// Package log implements a logging package.
+package log
 
 import (
 	"fmt"
@@ -32,7 +32,7 @@ import (
 // Logger provides an abstract interface for logging.
 type Logger interface {
 	// Enabled returns whether the given level is enabled.
-	Enabled(level LogLevel) bool
+	Enabled(level Level) bool
 
 	// Fatalf logs a message, then exits with os.Exit(1).
 	Fatalf(msg string, args ...interface{})
@@ -65,71 +65,71 @@ type Logger interface {
 	Debug(msg string)
 
 	// Fields returns the fields that this logger contains.
-	Fields() LogFields
+	Fields() LoggerFields
 
 	// WithFields returns a logger with the current logger's fields and fields.
-	WithFields(fields ...LogField) Logger
+	WithFields(fields ...Field) Logger
 }
 
-// LogField is a single field of additional information passed to the logger.
-type LogField interface {
+// Field is a single field of additional information passed to the logger.
+type Field interface {
 	Key() string
 	Value() interface{}
 }
 
-// NewLogField creates a new log field.
-func NewLogField(key string, value interface{}) LogField {
-	return &logField{key, value}
+// NewField creates a new log field.
+func NewField(key string, value interface{}) Field {
+	return &field{key, value}
 }
 
-// NewLogErrField wraps an error string as a LogField named "error".
-func NewLogErrField(err error) LogField {
-	return NewLogField("error", err.Error())
+// NewErrField wraps an error string as a Field named "error".
+func NewErrField(err error) Field {
+	return NewField("error", err.Error())
 }
 
-type logField struct {
+type field struct {
 	key   string
 	value interface{}
 }
 
-func (f *logField) Key() string {
+func (f *field) Key() string {
 	return f.key
 }
 
-func (f *logField) Value() interface{} {
+func (f *field) Value() interface{} {
 	return f.value
 }
 
-func (f *logField) String() string {
+func (f *field) String() string {
 	return fmt.Sprintf("%v", *f)
 }
 
-// LogFields is a list of LogFields used to pass additional information to the logger.
-type LogFields interface {
+// LoggerFields is a list of Fields used to pass additional information to the logger.
+type LoggerFields interface {
 	// Len returns the length
 	Len() int
 
 	// ValueAt returns a value for an index.
-	ValueAt(i int) LogField
+	ValueAt(i int) Field
 }
 
-// Fields is a list of log fields that implements the LogFields interface.
-type Fields []LogField
+// Fields is a list of log fields that implements the LoggerFields interface.
+type Fields []Field
 
 // Len returns the length.
 func (f Fields) Len() int { return len(f) }
 
 // ValueAt returns a value for an index.
-func (f Fields) ValueAt(i int) LogField { return f[i] }
+func (f Fields) ValueAt(i int) Field { return f[i] }
 
 // NullLogger is a logger that emits nowhere.
 var NullLogger Logger = nullLogger{}
 
 type nullLogger struct {
-	fields LogFields
+	fields Fields
 }
 
-func (nullLogger) Enabled(_ LogLevel) bool                { return false }
+func (nullLogger) Enabled(_ Level) bool                   { return false }
 func (nullLogger) Fatalf(msg string, args ...interface{}) {}
 func (nullLogger) Fatal(msg string)                       { os.Exit(1) }
 func (nullLogger) Errorf(msg string, args ...interface{}) {}
@@ -140,9 +140,9 @@ func (nullLogger) Infof(msg string, args ...interface{})  {}
 func (nullLogger) Info(msg string)                        {}
 func (nullLogger) Debugf(msg string, args ...interface{}) {}
 func (nullLogger) Debug(msg string)                       {}
-func (l nullLogger) Fields() LogFields                    { return l.fields }
+func (l nullLogger) Fields() LoggerFields                 { return l.fields }
 
-func (l nullLogger) WithFields(newFields ...LogField) Logger {
+func (l nullLogger) WithFields(newFields ...Field) Logger {
 	existingLen := 0
 
 	existingFields := l.Fields()
@@ -150,7 +150,7 @@ func (l nullLogger) WithFields(newFields ...LogField) Logger {
 		existingLen = existingFields.Len()
 	}
 
-	fields := make([]LogField, 0, existingLen+len(newFields))
+	fields := make([]Field, 0, existingLen+len(newFields))
 	for i := 0; i < existingLen; i++ {
 		fields = append(fields, existingFields.ValueAt(i))
 	}
@@ -163,13 +163,13 @@ var SimpleLogger = NewLogger(os.Stdout)
 
 type writerLogger struct {
 	writer io.Writer
-	fields LogFields
+	fields LoggerFields
 }
 
 const writerLoggerStamp = "15:04:05.000000"
 
 // NewLogger returns a Logger that writes to the given writer.
-func NewLogger(writer io.Writer, fields ...LogField) Logger {
+func NewLogger(writer io.Writer, fields ...Field) Logger {
 	return &writerLogger{writer, Fields(fields)}
 }
 
@@ -183,7 +183,7 @@ func (l writerLogger) Fatal(msg string) {
 	os.Exit(1)
 }
 
-func (l writerLogger) Enabled(_ LogLevel) bool                { return true }
+func (l writerLogger) Enabled(_ Level) bool                   { return true }
 func (l writerLogger) Errorf(msg string, args ...interface{}) { l.printfn("E", msg, args...) }
 func (l writerLogger) Error(msg string)                       { l.printfn("E", msg) }
 func (l writerLogger) Warnf(msg string, args ...interface{})  { l.printfn("W", msg, args...) }
@@ -202,13 +202,13 @@ func (l writerLogger) printfn(prefix, msg string, args ...interface{}) {
 	fmt.Fprintf(l.writer, "%s[%s] %s %v\n", ft, prefix, fma, l.fields)
 }
 
-func (l writerLogger) Fields() LogFields {
+func (l writerLogger) Fields() LoggerFields {
 	return l.fields
 }
 
-func (l writerLogger) WithFields(newFields ...LogField) Logger {
+func (l writerLogger) WithFields(newFields ...Field) Logger {
 	existingFields := l.Fields()
-	fields := make([]LogField, 0, existingFields.Len()+1)
+	fields := make([]Field, 0, existingFields.Len()+1)
 	for i := 0; i < existingFields.Len(); i++ {
 		fields = append(fields, existingFields.ValueAt(i))
 	}
@@ -216,136 +216,136 @@ func (l writerLogger) WithFields(newFields ...LogField) Logger {
 	return &writerLogger{l.writer, Fields(fields)}
 }
 
-// LogLevel is the level of logging used by LevelLogger.
-type LogLevel int
+// Level is the level of logging used by LevelLogger.
+type Level int
 
-// The minimum level that will be logged. e.g. LogLevelError only logs errors and fatals.
+// The minimum level that will be logged. e.g. LevelError only logs errors and fatals.
 const (
-	LogLevelAll LogLevel = iota
-	LogLevelDebug
-	LogLevelInfo
-	LogLevelWarn
-	LogLevelError
-	LogLevelFatal
+	LevelAll Level = iota
+	LevelDebug
+	LevelInfo
+	LevelWarn
+	LevelError
+	LevelFatal
 )
 
-var logLevels = []LogLevel{
-	LogLevelAll,
-	LogLevelDebug,
-	LogLevelInfo,
-	LogLevelWarn,
-	LogLevelError,
-	LogLevelFatal,
+var levels = []Level{
+	LevelAll,
+	LevelDebug,
+	LevelInfo,
+	LevelWarn,
+	LevelError,
+	LevelFatal,
 }
 
-func (l LogLevel) String() string {
+func (l Level) String() string {
 	switch l {
-	case LogLevelAll:
+	case LevelAll:
 		return "all"
-	case LogLevelDebug:
+	case LevelDebug:
 		return "debug"
-	case LogLevelInfo:
+	case LevelInfo:
 		return "info"
-	case LogLevelWarn:
+	case LevelWarn:
 		return "warn"
-	case LogLevelError:
+	case LevelError:
 		return "error"
-	case LogLevelFatal:
+	case LevelFatal:
 		return "fatal"
 	}
 	return ""
 }
 
-// ParseLogLevel parses a log level string to log level.
-func ParseLogLevel(level string) (LogLevel, error) {
+// ParseLevel parses a log level string to log level.
+func ParseLevel(level string) (Level, error) {
 	level = strings.ToLower(level)
-	for _, l := range logLevels {
+	for _, l := range levels {
 		if strings.ToLower(l.String()) == level {
 			return l, nil
 		}
 	}
-	return LogLevel(0), fmt.Errorf("unrecognized log level: %s", level)
+	return Level(0), fmt.Errorf("unrecognized log level: %s", level)
 }
 
 type levelLogger struct {
 	logger Logger
-	level  LogLevel
+	level  Level
 }
 
 // NewLevelLogger returns a logger that only logs messages with a minimum of level.
-func NewLevelLogger(logger Logger, level LogLevel) Logger {
+func NewLevelLogger(logger Logger, level Level) Logger {
 	return &levelLogger{logger, level}
 }
 
-func (l levelLogger) Enabled(level LogLevel) bool {
+func (l levelLogger) Enabled(level Level) bool {
 	return l.level <= level
 }
 
 func (l levelLogger) Fatalf(msg string, args ...interface{}) {
-	if l.level <= LogLevelFatal {
+	if l.level <= LevelFatal {
 		l.logger.Fatalf(msg, args...)
 	}
 }
 
 func (l levelLogger) Fatal(msg string) {
-	if l.level <= LogLevelFatal {
+	if l.level <= LevelFatal {
 		l.logger.Fatal(msg)
 	}
 }
 
 func (l levelLogger) Errorf(msg string, args ...interface{}) {
-	if l.level <= LogLevelError {
+	if l.level <= LevelError {
 		l.logger.Errorf(msg, args...)
 	}
 }
 
 func (l levelLogger) Error(msg string) {
-	if l.level <= LogLevelError {
+	if l.level <= LevelError {
 		l.logger.Error(msg)
 	}
 }
 
 func (l levelLogger) Warnf(msg string, args ...interface{}) {
-	if l.level <= LogLevelWarn {
+	if l.level <= LevelWarn {
 		l.logger.Warnf(msg, args...)
 	}
 }
 
 func (l levelLogger) Warn(msg string) {
-	if l.level <= LogLevelWarn {
+	if l.level <= LevelWarn {
 		l.logger.Warn(msg)
 	}
 }
 
 func (l levelLogger) Infof(msg string, args ...interface{}) {
-	if l.level <= LogLevelInfo {
+	if l.level <= LevelInfo {
 		l.logger.Infof(msg, args...)
 	}
 }
 
 func (l levelLogger) Info(msg string) {
-	if l.level <= LogLevelInfo {
+	if l.level <= LevelInfo {
 		l.logger.Info(msg)
 	}
 }
 
 func (l levelLogger) Debugf(msg string, args ...interface{}) {
-	if l.level <= LogLevelDebug {
+	if l.level <= LevelDebug {
 		l.logger.Debugf(msg, args...)
 	}
 }
 
 func (l levelLogger) Debug(msg string) {
-	if l.level <= LogLevelDebug {
+	if l.level <= LevelDebug {
 		l.logger.Debug(msg)
 	}
 }
 
-func (l levelLogger) Fields() LogFields {
+func (l levelLogger) Fields() LoggerFields {
 	return l.logger.Fields()
 }
 
-func (l levelLogger) WithFields(fields ...LogField) Logger {
+func (l levelLogger) WithFields(fields ...Field) Logger {
 	return &levelLogger{
 		logger: l.logger.WithFields(fields...),
 		level:  l.level,

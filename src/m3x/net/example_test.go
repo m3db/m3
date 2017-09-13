@@ -18,14 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xnet_test
+package net_test
 
 import (
 	"io"
 	"log"
 	"net"
 
-	"github.com/m3db/m3x/net"
+	xnet "github.com/m3db/m3x/net"
 	"github.com/m3db/m3x/retry"
 )
 
@@ -39,7 +39,7 @@ func ExampleStartForeverAcceptLoop() {
 
 	// Start accepting incoming connections.
 	var (
-		opts          = xretry.NewOptions()
+		opts          = retry.NewOptions()
 		connCh, errCh = xnet.StartAcceptLoop(l, opts)
 	)
 

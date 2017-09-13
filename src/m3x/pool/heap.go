@@ -28,7 +28,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"
 )

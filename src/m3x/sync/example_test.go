@@ -18,14 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xsync_test
+package sync_test
 
 import (
 	"fmt"
 	"log"
 	"sync"
 
-	"github.com/m3db/m3x/sync"
+	xsync "github.com/m3db/m3x/sync"
 )
 
 type response struct {

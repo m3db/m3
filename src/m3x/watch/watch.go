@@ -18,14 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package xwatch provides utilities for watching resources for changes.
-package xwatch
+// Package watch provides utilities for watching resources for changes.
+package watch
 
 import (
 	"errors"
 	"sync"
 
-	"github.com/m3db/m3x/close"
+	xclose "github.com/m3db/m3x/close"
 )
 
 var errClosed = errors.New("closed")

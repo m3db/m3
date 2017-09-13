@@ -18,14 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xretry
+package retry
 
 import (
 	"errors"
 	"math/rand"
 	"time"
 
-	"github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/uber-go/tally"
 )

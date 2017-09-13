@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package xconfig provides utilities for loading configuration files.
-package xconfig
+// Package config provides utilities for loading configuration files.
+package config
 
 import (
 	"errors"

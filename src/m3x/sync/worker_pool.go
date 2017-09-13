@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package xsync implements synchronization facililites such as worker pools.
-package xsync
+// Package sync implements synchronization facililites such as worker pools.
+package sync
 
 import (
 	"time"

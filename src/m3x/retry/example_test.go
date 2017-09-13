@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xretry_test
+package retry_test
 
 import (
 	"context"
@@ -31,8 +31,8 @@ import (
 
 func ExampleRetrier() {
 	var (
-		opts    = xretry.NewOptions()
-		retrier = xretry.NewRetrier(opts)
+		opts    = retry.NewOptions()
+		retrier = retry.NewRetrier(opts)
 		context = context.Background()
 	)
 

@@ -18,13 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xserver_test
+package server_test
 
 import (
 	"log"
 	"net"
 
-	"github.com/m3db/m3x/server"
+	xserver "github.com/m3db/m3x/server"
 )
 
 type simpleHandler struct{}

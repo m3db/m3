@@ -47,10 +47,10 @@ type BuildReporter interface {
 // Options represents the options for instrumentation.
 type Options interface {
 	// SetLogger sets the logger.
-	SetLogger(value xlog.Logger) Options
+	SetLogger(value log.Logger) Options
 
 	// Logger returns the logger.
-	Logger() xlog.Logger
+	Logger() log.Logger
 
 	// SetMetricsScope sets the metrics scope.
 	SetMetricsScope(value tally.Scope) Options

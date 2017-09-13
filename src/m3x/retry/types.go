@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package xretry provides utilities for retrying functions.
-package xretry
+// Package retry provides utilities for retrying functions.
+package retry
 
 import (
 	"time"
@@ -31,12 +31,12 @@ import (
 
 // RetryableError returns a retryable error.
 func RetryableError(err error) error {
-	return xerrors.NewRetryableError(err)
+	return errors.NewRetryableError(err)
 }
 
 // NonRetryableError returns a non-retryable error.
 func NonRetryableError(err error) error {
-	return xerrors.NewNonRetryableError(err)
+	return errors.NewNonRetryableError(err)
 }
 
 // Fn is a function that can be retried.

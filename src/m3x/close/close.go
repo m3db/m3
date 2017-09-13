@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package xclose provides utilities for closing resources.
-package xclose
+// Package close provides utilities for closing resources.
+package close
 
 import (
 	"errors"

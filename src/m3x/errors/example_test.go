@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package xerrors_test
+package errors_test
 
 import (
 	"fmt"
@@ -28,7 +28,7 @@ import (
 )
 
 func ExampleMultiError() {
-	mutliErr := xerrors.NewMultiError()
+	mutliErr := errors.NewMultiError()
 
 	for i := 0; i < 3; i++ {
 		// Perform some work which may fail.
