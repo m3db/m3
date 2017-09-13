@@ -197,16 +197,6 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 		return err
 	}
 
-	// TODO(prateek): create issue for this ~ namepace updates need to be handled better,
-	// the current implementation updates namespaces by closing and re-creating them.
-	// There are a few problems with this approach:
-	// (1) it's too expensive to flush all the data, and re-bootstrap it for a namespace
-	// (2) we stop accepting writes during the period between when a namespace is removed
-	// until it's added back. This is worse when you consider a KV update can propagate
-	// to all nodes at the same time.
-	// (3): we are not controlling bg processing (repairs/bootstrapping/etc) whilst updating
-	// active namespaces.
-
 	// log that updates and removals are skipped
 	if len(removes) > 0 || len(updates) > 0 {
 		d.log.Warnf("skipping namespace removals and updates, restart process if you want changes to take effect.")
