@@ -44,7 +44,7 @@ func getValidCandidates(
 			instances = append(instances, instance)
 			continue
 		}
-		if placement.IsInstanceLeaving(instanceInPlacement) {
+		if instanceInPlacement.IsLeaving() {
 			instances = append(instances, instanceInPlacement)
 		}
 	}

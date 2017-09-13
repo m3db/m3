@@ -186,7 +186,7 @@ func (f *mirroredFilter) SelectReplaceInstances(
 		if instance.Hostname() == h.name {
 			continue
 		}
-		if placement.IsInstanceLeaving(instance) {
+		if instance.IsLeaving() {
 			continue
 		}
 

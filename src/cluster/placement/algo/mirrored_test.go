@@ -184,6 +184,211 @@ func TestMirrorWorkflow(t *testing.T) {
 	assert.NoError(t, placement.Validate(p))
 }
 
+func TestMirrorTestAddRevert(t *testing.T) {
+	i1 := placement.NewInstance().
+		SetID("i1").
+		SetRack("r1").
+		SetEndpoint("endpoint1").
+		SetShardSetID(0).
+		SetWeight(1)
+	i2 := placement.NewInstance().
+		SetID("i2").
+		SetRack("r2").
+		SetEndpoint("endpoint2").
+		SetShardSetID(0).
+		SetWeight(1)
+	i3 := placement.NewInstance().
+		SetID("i3").
+		SetRack("r3").
+		SetEndpoint("endpoint3").
+		SetShardSetID(1).
+		SetWeight(2)
+	i4 := placement.NewInstance().
+		SetID("i4").
+		SetRack("r4").
+		SetEndpoint("endpoint4").
+		SetShardSetID(1).
+		SetWeight(2)
+	i5 := placement.NewInstance().
+		SetID("i5").
+		SetRack("r5").
+		SetEndpoint("endpoint5").
+		SetShardSetID(2).
+		SetWeight(3)
+	i6 := placement.NewInstance().
+		SetID("i6").
+		SetRack("r6").
+		SetEndpoint("endpoint6").
+		SetShardSetID(2).
+		SetWeight(3)
+
+	instances := []placement.Instance{i1, i2, i3, i4}
+
+	numShards := 100
+	ids := make([]uint32, numShards)
+	for i := 0; i < len(ids); i++ {
+		ids[i] = uint32(i)
+	}
+
+	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true))
+	p, err := a.InitialPlacement(instances, ids, 2)
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
+
+	p1, err := a.AddInstances(p, []placement.Instance{i5, i6})
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p1))
+	assert.True(t, allInitializing([]string{"i5", "i6"}, p1))
+
+	p2, err := a.RemoveInstances(p1, []string{"i5", "i6"})
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p2))
+
+	pa, err := placement.MarkAllShardsAsAvailable(p)
+	assert.NoError(t, err)
+	assert.Equal(t, pa, p2)
+}
+
+func TestMirrorTestRemoveRevert(t *testing.T) {
+	i1 := placement.NewInstance().
+		SetID("i1").
+		SetRack("r1").
+		SetEndpoint("endpoint1").
+		SetShardSetID(0).
+		SetWeight(1)
+	i2 := placement.NewInstance().
+		SetID("i2").
+		SetRack("r2").
+		SetEndpoint("endpoint2").
+		SetShardSetID(0).
+		SetWeight(1)
+	i3 := placement.NewInstance().
+		SetID("i3").
+		SetRack("r3").
+		SetEndpoint("endpoint3").
+		SetShardSetID(1).
+		SetWeight(2)
+	i4 := placement.NewInstance().
+		SetID("i4").
+		SetRack("r4").
+		SetEndpoint("endpoint4").
+		SetShardSetID(1).
+		SetWeight(2)
+	i5 := placement.NewInstance().
+		SetID("i5").
+		SetRack("r5").
+		SetEndpoint("endpoint5").
+		SetShardSetID(2).
+		SetWeight(3)
+	i6 := placement.NewInstance().
+		SetID("i6").
+		SetRack("r6").
+		SetEndpoint("endpoint6").
+		SetShardSetID(2).
+		SetWeight(3)
+
+	instances := []placement.Instance{i1, i2, i3, i4, i5, i6}
+
+	numShards := 100
+	ids := make([]uint32, numShards)
+	for i := 0; i < len(ids); i++ {
+		ids[i] = uint32(i)
+	}
+
+	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true))
+	p, err := a.InitialPlacement(instances, ids, 2)
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
+
+	p1, err := a.RemoveInstances(p, []string{"i5", "i6"})
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p1))
+	assert.True(t, allLeaving([]placement.Instance{i5, i6}, p1))
+
+	p2, err := a.AddInstances(p1, []placement.Instance{i5, i6})
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p2))
+
+	pa, err := placement.MarkAllShardsAsAvailable(p)
+	assert.NoError(t, err)
+	assert.Equal(t, pa, p2)
+}
+
+func TestMirrorTestRemoveReplace(t *testing.T) {
+	i1 := placement.NewInstance().
+		SetID("i1").
+		SetRack("r1").
+		SetEndpoint("endpoint1").
+		SetShardSetID(0).
+		SetWeight(1)
+	i2 := placement.NewInstance().
+		SetID("i2").
+		SetRack("r2").
+		SetEndpoint("endpoint2").
+		SetShardSetID(0).
+		SetWeight(1)
+	i3 := placement.NewInstance().
+		SetID("i3").
+		SetRack("r3").
+		SetEndpoint("endpoint3").
+		SetShardSetID(1).
+		SetWeight(2)
+	i4 := placement.NewInstance().
+		SetID("i4").
+		SetRack("r4").
+		SetEndpoint("endpoint4").
+		SetShardSetID(1).
+		SetWeight(2)
+	i5 := placement.NewInstance().
+		SetID("i5").
+		SetRack("r5").
+		SetEndpoint("endpoint5").
+		SetShardSetID(1).
+		SetWeight(2)
+
+	instances := []placement.Instance{i1, i2, i3, i4}
+
+	numShards := 100
+	ids := make([]uint32, numShards)
+	for i := 0; i < len(ids); i++ {
+		ids[i] = uint32(i)
+	}
+
+	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true))
+	p, err := a.InitialPlacement(placement.CloneInstances(instances), ids, 2)
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
+
+	p1, err := a.ReplaceInstances(p, []string{"i4"}, []placement.Instance{i5})
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p1))
+	assert.True(t, allLeaving([]placement.Instance{i4}, p1))
+	assert.True(t, allInitializing([]string{"i5"}, p1))
+
+	i4, ok := p1.Instance("i4")
+	assert.True(t, ok)
+	ssI4 := i4.Shards()
+	i5, ok = p1.Instance("i5")
+	assert.True(t, ok)
+	ssI5 := i5.Shards()
+
+	p2, err := a.ReplaceInstances(p1, []string{"i5"}, []placement.Instance{i4})
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p2))
+	assert.True(t, allLeaving([]placement.Instance{i5}, p2))
+	assert.True(t, allInitializing([]string{"i4"}, p2))
+
+	i4, ok = p2.Instance("i4")
+	assert.True(t, ok)
+	i5, ok = p2.Instance("i5")
+	assert.True(t, ok)
+
+	assert.True(t, ssI4.Equals(i5.Shards()))
+	// Can't directly compare shards.Equals because the shards in ssI5 will be having "i4"
+	// as sourceID and shards in i4 will be having "i5" as sourceID.
+	assert.Equal(t, ssI5.NumShardsForState(shard.Initializing), i4.Shards().NumShardsForState(shard.Initializing))
+}
+
 func TestMirrorInitError(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
