@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/id"
+	xid "github.com/m3db/m3x/id"
 	"github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"
@@ -91,7 +91,7 @@ type namespaces struct {
 	store                kv.Store
 	opts                 Options
 	nowFn                clock.NowFn
-	log                  xlog.Logger
+	log                  log.Logger
 	ruleSetKeyFn         RuleSetKeyFn
 	matchRangePast       time.Duration
 	onNamespaceAddedFn   OnNamespaceAddedFn
@@ -146,8 +146,8 @@ func (n *namespaces) Open() error {
 	// from starting up.
 	n.metrics.initWatchErrors.Inc(1)
 	n.opts.InstrumentOptions().Logger().WithFields(
-		xlog.NewLogField("key", n.key),
-		xlog.NewLogErrField(err),
+		log.NewField("key", n.key),
+		log.NewErrField(err),
 	).Error("error initializing namespaces values, retrying in the background")
 	return nil
 }
@@ -237,7 +237,7 @@ func (n *namespaces) process(value interface{}) error {
 		// This should never happen but just to be on the defensive side.
 		if len(snapshots) == 0 {
 			n.log.WithFields(
-				xlog.NewLogField("version", version),
+				log.NewField("version", version),
 			).Warn("namespace updates have no snapshots")
 		} else {
 			latestSnapshot := snapshots[len(snapshots)-1]
@@ -256,8 +256,8 @@ func (n *namespaces) process(value interface{}) error {
 			if err := ruleSet.Watch(); err != nil {
 				n.metrics.watchErrors.Inc(1)
 				n.log.WithFields(
-					xlog.NewLogField("ruleSetKey", ruleSet.Key()),
-					xlog.NewLogErrField(err),
+					log.NewField("ruleSetKey", ruleSet.Key()),
+					log.NewErrField(err),
 				).Error("failed to watch ruleset updates")
 			}
 		}

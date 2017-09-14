@@ -1,5 +1,5 @@
-hash: ca3317d58e2265be6354b457f6bb66a6c9baf587e0207f33bbfa9c45d159233f
-updated: 2017-09-05T11:20:54.145016974-04:00
+hash: 5da019805f269604cfca0fee03c4bfb11a16b477ca40ce19348e844f134100f0
+updated: 2017-09-13T21:17:57.469086946-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -21,18 +21,20 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: b596a86b06f37c9150ea352d6ec1549ed19f304b
+  version: 3ca6883175651960ca2f93ba91198bbb9a84f5be
   subpackages:
   - client
-  - generated/proto/metadata
-  - generated/proto/placement
+  - generated/proto/metadatapb
+  - generated/proto/placementpb
   - kv
   - kv/mem
   - kv/util/runtime
+  - placement
   - services
+  - services/leader/campaign
   - shard
 - name: github.com/m3db/m3x
-  version: bd6be18ffb184691512eb442561b16a59c15d797
+  version: 6e9713eca6718643e105f574be392f122bcc062e
   subpackages:
   - checked
   - clock
@@ -66,7 +68,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 4b9d9de43ffcb0b7efe67dab2a92c2d58dbf16ab
+  version: be9e53c77349ae2dd4b8c03a6dc20ed9a88b9927
   subpackages:
   - m3
   - m3/customtransports
