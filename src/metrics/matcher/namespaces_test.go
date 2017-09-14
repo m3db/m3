@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/rules"
-	"github.com/m3db/m3x/id"
+	xid "github.com/m3db/m3x/id"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
