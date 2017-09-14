@@ -34,7 +34,7 @@ var (
 	defaultWatchChanCheckInterval = 10 * time.Second
 	defaultWatchChanResetInterval = 10 * time.Second
 	defaultWatchChanInitTimeout   = 10 * time.Second
-	defaultRetryOptions           = xretry.NewOptions().SetMaxRetries(3)
+	defaultRetryOptions           = retry.NewOptions().SetMaxRetries(3)
 )
 
 // Options are options for the client of the kv store
@@ -50,9 +50,9 @@ type Options interface {
 	SetInstrumentsOptions(iopts instrument.Options) Options
 
 	// RetryOptions is the retry options
-	RetryOptions() xretry.Options
+	RetryOptions() retry.Options
 	// SetRetryOptions sets the RetryOptions
-	SetRetryOptions(ropts xretry.Options) Options
+	SetRetryOptions(ropts retry.Options) Options
 
 	// WatchChanCheckInterval will be used to periodically check if a watch chan
 	// is no longer being subscribed and should be closed
@@ -83,7 +83,7 @@ type Options interface {
 type options struct {
 	requestTimeout         time.Duration
 	iopts                  instrument.Options
-	ropts                  xretry.Options
+	ropts                  retry.Options
 	watchChanCheckInterval time.Duration
 	watchChanResetInterval time.Duration
 	watchChanInitTimeout   time.Duration
@@ -135,11 +135,11 @@ func (o options) SetInstrumentsOptions(iopts instrument.Options) Options {
 	return o
 }
 
-func (o options) RetryOptions() xretry.Options {
+func (o options) RetryOptions() retry.Options {
 	return o.ropts
 }
 
-func (o options) SetRetryOptions(ropts xretry.Options) Options {
+func (o options) SetRetryOptions(ropts retry.Options) Options {
 	o.ropts = ropts
 	return o
 }

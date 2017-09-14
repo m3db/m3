@@ -1071,7 +1071,7 @@ func (m *mockHBGen) genMockStore(sid services.ServiceID) (*mockHBStore, error) {
 	}
 	s = &mockHBStore{
 		hbs:        map[string]map[string]time.Time{},
-		watchables: map[string]xwatch.Watchable{},
+		watchables: map[string]watch.Watchable{},
 		sid:        sid,
 	}
 
@@ -1092,7 +1092,7 @@ type mockHBStore struct {
 
 	sid        services.ServiceID
 	hbs        map[string]map[string]time.Time
-	watchables map[string]xwatch.Watchable
+	watchables map[string]watch.Watchable
 }
 
 func (hb *mockHBStore) Heartbeat(instance placement.Instance, ttl time.Duration) error {
@@ -1141,7 +1141,7 @@ func (hb *mockHBStore) GetInstances() ([]placement.Instance, error) {
 	return r, nil
 }
 
-func (hb *mockHBStore) Watch() (xwatch.Watch, error) {
+func (hb *mockHBStore) Watch() (watch.Watch, error) {
 	hb.Lock()
 	defer hb.Unlock()
 
@@ -1151,14 +1151,14 @@ func (hb *mockHBStore) Watch() (xwatch.Watch, error) {
 		return w, err
 	}
 
-	watchable = xwatch.NewWatchable()
+	watchable = watch.NewWatchable()
 	hb.watchables[serviceKey(hb.sid)] = watchable
 
 	_, w, err := watchable.Watch()
 	return w, err
 }
 
-func (hb *mockHBStore) getWatchable(s string) (xwatch.Watchable, bool) {
+func (hb *mockHBStore) getWatchable(s string) (watch.Watchable, bool) {
 	hb.Lock()
 	defer hb.Unlock()
 

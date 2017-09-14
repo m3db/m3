@@ -348,7 +348,7 @@ func watchAndUpdate(
 	update updateFn,
 	validate ValidateFn,
 	defaultValue interface{},
-	logger xlog.Logger,
+	logger log.Logger,
 ) error {
 	if store == nil {
 		return errNilStore
@@ -370,7 +370,7 @@ func watchAndUpdate(
 		}
 		// The channel for a ValueWatch should never close.
 		getLogger(logger).
-			WithFields(xlog.NewLogField("key", key)).
+			WithFields(log.NewField("key", key)).
 			Error("watch unexpectedly closed")
 	}()
 
@@ -384,7 +384,7 @@ func updateWithKV(
 	key string,
 	v kv.Value,
 	defaultValue interface{},
-	logger xlog.Logger,
+	logger log.Logger,
 ) error {
 	if v == nil {
 		// The key is deleted from kv, use the default value.
@@ -411,42 +411,42 @@ func updateWithKV(
 	return nil
 }
 
-func logNilUpdate(logger xlog.Logger, k string, v interface{}) {
+func logNilUpdate(logger log.Logger, k string, v interface{}) {
 	getLogger(logger).WithFields(
-		xlog.NewLogField("key", k),
-		xlog.NewLogField("default-value", v),
+		log.NewField("key", k),
+		log.NewField("default-value", v),
 	).Warn("nil value from kv store, applying default value")
 }
 
-func logMalformedUpdate(logger xlog.Logger, k string, ver int, v interface{}, err error) {
+func logMalformedUpdate(logger log.Logger, k string, ver int, v interface{}, err error) {
 	getLogger(logger).WithFields(
-		xlog.NewLogField("key", k),
-		xlog.NewLogField("malformed-value", v),
-		xlog.NewLogField("version", ver),
-		xlog.NewLogField("error", err),
+		log.NewField("key", k),
+		log.NewField("malformed-value", v),
+		log.NewField("version", ver),
+		log.NewField("error", err),
 	).Warn("malformed value from kv store, not applying update")
 }
 
-func logInvalidUpdate(logger xlog.Logger, k string, ver int, v interface{}, err error) {
+func logInvalidUpdate(logger log.Logger, k string, ver int, v interface{}, err error) {
 	getLogger(logger).WithFields(
-		xlog.NewLogField("key", k),
-		xlog.NewLogField("invalid-value", v),
-		xlog.NewLogField("version", ver),
-		xlog.NewLogField("error", err),
+		log.NewField("key", k),
+		log.NewField("invalid-value", v),
+		log.NewField("version", ver),
+		log.NewField("error", err),
 	).Warn("invalid value from kv store, not applying update")
 }
 
-func logUpdateSuccess(logger xlog.Logger, k string, ver int, v interface{}) {
+func logUpdateSuccess(logger log.Logger, k string, ver int, v interface{}) {
 	getLogger(logger).WithFields(
-		xlog.NewLogField("key", k),
-		xlog.NewLogField("value", v),
-		xlog.NewLogField("version", ver),
+		log.NewField("key", k),
+		log.NewField("value", v),
+		log.NewField("version", ver),
 	).Info("value update success")
 }
 
-func getLogger(logger xlog.Logger) xlog.Logger {
+func getLogger(logger log.Logger) log.Logger {
 	if logger == nil {
-		return xlog.NullLogger
+		return log.NullLogger
 	}
 	return logger
 }

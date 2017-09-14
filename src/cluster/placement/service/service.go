@@ -36,7 +36,7 @@ type placementService struct {
 	opts     placement.Options
 	algo     placement.Algorithm
 	selector placement.InstanceSelector
-	logger   xlog.Logger
+	logger   log.Logger
 }
 
 // NewPlacementService returns an instance of placement service.

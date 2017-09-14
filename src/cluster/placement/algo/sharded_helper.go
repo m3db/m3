@@ -88,7 +88,7 @@ type placementHelper struct {
 	rf                 int
 	uniqueShards       []uint32
 	instances          map[string]placement.Instance
-	log                xlog.Logger
+	log                log.Logger
 	opts               placement.Options
 }
 
