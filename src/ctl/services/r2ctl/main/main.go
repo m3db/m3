@@ -81,7 +81,7 @@ type configuration struct {
 	KVClient kvClientConfiguration `yaml:"kvClient" validate:"nonzero"`
 
 	// Logging configuration.
-	Logging xlog.Configuration `yaml:"logging"`
+	Logging log.Configuration `yaml:"logging"`
 
 	// Metrics configuration.
 	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
@@ -100,7 +100,7 @@ func main() {
 	}
 
 	var cfg configuration
-	if err := xconfig.LoadFile(&cfg, *configFile); err != nil {
+	if err := config.LoadFile(&cfg, *configFile); err != nil {
 		fmt.Printf("error loading config file: %v\n", err)
 		os.Exit(1)
 	}
