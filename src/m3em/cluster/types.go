@@ -28,7 +28,7 @@ import (
 
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/retry"
+	xretry "github.com/m3db/m3x/retry"
 )
 
 // Status indicates the different states a Cluster can be in. Refer to the

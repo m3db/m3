@@ -35,7 +35,7 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	xclock "github.com/m3db/m3x/clock"
 	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 	gu "github.com/nu7hatch/gouuid"
 	"google.golang.org/grpc"
 )

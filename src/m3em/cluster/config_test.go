@@ -33,6 +33,7 @@ import (
 
 func TestConfigurationAssignment(t *testing.T) {
 	var (
+		trueValue            = true
 		sessionToken         = "abc"
 		sessionOverride      = true
 		replication          = 3
@@ -41,9 +42,9 @@ func TestConfigurationAssignment(t *testing.T) {
 		nodeOperationTimeout = time.Minute
 		retryConf            = &xretry.Configuration{
 			BackoffFactor:  2.0,
-			Forever:        true,
+			Forever:        &trueValue,
 			InitialBackoff: time.Second,
-			Jitter:         true,
+			Jitter:         &trueValue,
 			MaxBackoff:     time.Minute,
 			MaxRetries:     3,
 		}

@@ -28,8 +28,8 @@ import (
 
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/log"
+	xerrors "github.com/m3db/m3x/errors"
+	xlog "github.com/m3db/m3x/log"
 )
 
 var (

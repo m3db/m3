@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	xclock "github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/retry"
+	xretry "github.com/m3db/m3x/retry"
 	"google.golang.org/grpc"
 )
 

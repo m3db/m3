@@ -56,6 +56,16 @@ func (_m *MockServiceNode) EXPECT() *_MockServiceNodeRecorder {
 	return _m.recorder
 }
 
+func (_m *MockServiceNode) Clone() placement.Instance {
+	ret := _m.ctrl.Call(_m, "Clone")
+	ret0, _ := ret[0].(placement.Instance)
+	return ret0
+}
+
+func (_mr *_MockServiceNodeRecorder) Clone() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Clone")
+}
+
 func (_m *MockServiceNode) Close() error {
 	ret := _m.ctrl.Call(_m, "Close")
 	ret0, _ := ret[0].(error)
@@ -113,6 +123,26 @@ func (_m *MockServiceNode) ID() string {
 
 func (_mr *_MockServiceNodeRecorder) ID() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ID")
+}
+
+func (_m *MockServiceNode) IsInitializing() bool {
+	ret := _m.ctrl.Call(_m, "IsInitializing")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockServiceNodeRecorder) IsInitializing() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsInitializing")
+}
+
+func (_m *MockServiceNode) IsLeaving() bool {
+	ret := _m.ctrl.Call(_m, "IsLeaving")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockServiceNodeRecorder) IsLeaving() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsLeaving")
 }
 
 func (_m *MockServiceNode) Port() uint32 {

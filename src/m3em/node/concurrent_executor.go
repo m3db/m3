@@ -25,8 +25,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/sync"
+	xerrors "github.com/m3db/m3x/errors"
+	xsync "github.com/m3db/m3x/sync"
 )
 
 type executor struct {
