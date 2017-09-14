@@ -22,7 +22,7 @@ package deploy
 
 import (
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3x/sync"
+	xsync "github.com/m3db/m3x/sync"
 )
 
 const (

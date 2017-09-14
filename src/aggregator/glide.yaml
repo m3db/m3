@@ -4,15 +4,15 @@ import:
 - package: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
 - package: github.com/m3db/m3cluster
-  version: 296a3aed74ef56ee64bf08ead9b358056aa2fb14
+  version: 3ca6883175651960ca2f93ba91198bbb9a84f5be
 - package: github.com/m3db/m3metrics
-  version: f6d7952fb61675c50aaea358b611aa332f1e5dca
+  version: 8f664bcaa26b6a844a479a71aa98d014eaaba748
 - package: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 - package: github.com/m3db/m3x
-  version: f3fdee26896eff88aea63d585eceb6ac417f4530
+  version: 6e9713eca6718643e105f574be392f122bcc062e
 - package: github.com/uber-go/tally
-  version: 3.0.0
+  version: ^3.1.0
 - package: github.com/golang/protobuf
   version: 7390af9dcd3c33042ebaf2474a1724a83cf1a7e6
 - package: golang.org/x/net

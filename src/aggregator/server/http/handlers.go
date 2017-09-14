@@ -28,7 +28,7 @@ import (
 	"strings"
 
 	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3x/errors"
 )
 
 // A list of HTTP endpoints.

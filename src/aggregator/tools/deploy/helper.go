@@ -29,10 +29,10 @@ import (
 
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"
-	"github.com/m3db/m3x/sync"
+	xsync "github.com/m3db/m3x/sync"
 )
 
 var (
@@ -57,13 +57,13 @@ type Helper interface {
 
 // TODO(xichen): disable deployment while another is ongoing.
 type helper struct {
-	logger                  xlog.Logger
+	logger                  log.Logger
 	planner                 planner
 	client                  aggregatorClient
 	mgr                     Manager
 	store                   kv.Store
-	retrier                 xretry.Retrier
-	foreverRetrier          xretry.Retrier
+	retrier                 retry.Retrier
+	foreverRetrier          retry.Retrier
 	workers                 xsync.WorkerPool
 	toPlacementInstanceIDFn ToPlacementInstanceIDFn
 	toAPIEndpointFn         ToAPIEndpointFn
@@ -81,8 +81,8 @@ func NewHelper(opts HelperOptions) (Helper, error) {
 		return nil, err
 	}
 	retryOpts := opts.RetryOptions()
-	retrier := xretry.NewRetrier(retryOpts)
-	foreverRetrier := xretry.NewRetrier(retryOpts.SetForever(true))
+	retrier := retry.NewRetrier(retryOpts)
+	foreverRetrier := retry.NewRetrier(retryOpts.SetForever(true))
 	return helper{
 		logger:                  opts.InstrumentOptions().Logger(),
 		planner:                 planner,

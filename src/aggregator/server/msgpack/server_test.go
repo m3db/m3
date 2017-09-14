@@ -31,8 +31,8 @@ import (
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/retry"
-	"github.com/m3db/m3x/server"
-	"github.com/m3db/m3x/time"
+	xserver "github.com/m3db/m3x/server"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -93,7 +93,7 @@ func testServerOptions() Options {
 	opts := NewOptions()
 	return opts.
 		SetIteratorPool(iteratorPool).
-		SetServerOptions(xserver.NewOptions().SetRetryOptions(xretry.NewOptions().SetMaxRetries(2))).
+		SetServerOptions(xserver.NewOptions().SetRetryOptions(retry.NewOptions().SetMaxRetries(2))).
 		SetInstrumentOptions(opts.InstrumentOptions().SetReportInterval(time.Second))
 }
 

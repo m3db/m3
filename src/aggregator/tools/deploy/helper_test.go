@@ -169,11 +169,11 @@ func TestHelperClose(t *testing.T) {
 func TestHelperWaitUntilSafeQueryError(t *testing.T) {
 	errQuery := errors.New("error querying instances")
 	helper := testHelperWithValidPlacement(t)
-	retryOpts := xretry.NewOptions().
+	retryOpts := retry.NewOptions().
 		SetMaxRetries(3).
 		SetInitialBackoff(10 * time.Millisecond).
 		SetBackoffFactor(1)
-	helper.foreverRetrier = xretry.NewRetrier(retryOpts)
+	helper.foreverRetrier = retry.NewRetrier(retryOpts)
 	helper.mgr = &mockManager{
 		queryFn: func([]string) ([]Instance, error) {
 			return nil, errQuery
@@ -188,11 +188,11 @@ func TestHelperWaitUntilSafeInstanceUnhealthy(t *testing.T) {
 		&mockInstance{isHealthy: false, isDeploying: false},
 	}
 	helper := testHelperWithValidPlacement(t)
-	retryOpts := xretry.NewOptions().
+	retryOpts := retry.NewOptions().
 		SetMaxRetries(3).
 		SetInitialBackoff(10 * time.Millisecond).
 		SetBackoffFactor(1)
-	helper.foreverRetrier = xretry.NewRetrier(retryOpts)
+	helper.foreverRetrier = retry.NewRetrier(retryOpts)
 	helper.mgr = &mockManager{
 		queryFn: func([]string) ([]Instance, error) { return instances, nil },
 	}
@@ -205,11 +205,11 @@ func TestHelperWaitUntilSafeInstanceIsDeploying(t *testing.T) {
 		&mockInstance{isHealthy: true, isDeploying: false},
 	}
 	helper := testHelperWithValidPlacement(t)
-	retryOpts := xretry.NewOptions().
+	retryOpts := retry.NewOptions().
 		SetMaxRetries(3).
 		SetInitialBackoff(10 * time.Millisecond).
 		SetBackoffFactor(1)
-	helper.foreverRetrier = xretry.NewRetrier(retryOpts)
+	helper.foreverRetrier = retry.NewRetrier(retryOpts)
 	helper.mgr = &mockManager{
 		queryFn: func([]string) ([]Instance, error) { return instances, nil },
 	}
@@ -226,11 +226,11 @@ func TestHelperWaitUntilSafeInstanceUnhealthyFromAPI(t *testing.T) {
 		&mockInstance{isHealthy: true, isDeploying: false},
 	}
 	helper := testHelperWithValidPlacement(t)
-	retryOpts := xretry.NewOptions().
+	retryOpts := retry.NewOptions().
 		SetMaxRetries(3).
 		SetInitialBackoff(10 * time.Millisecond).
 		SetBackoffFactor(1)
-	helper.foreverRetrier = xretry.NewRetrier(retryOpts)
+	helper.foreverRetrier = retry.NewRetrier(retryOpts)
 	helper.mgr = &mockManager{
 		queryFn: func([]string) ([]Instance, error) { return instances, nil },
 	}
@@ -262,11 +262,11 @@ func TestHelperValidateError(t *testing.T) {
 		{Validator: func() error { return errValidate }},
 	}
 	helper := testHelperWithValidPlacement(t)
-	retryOpts := xretry.NewOptions().
+	retryOpts := retry.NewOptions().
 		SetMaxRetries(3).
 		SetInitialBackoff(10 * time.Millisecond).
 		SetBackoffFactor(1)
-	helper.foreverRetrier = xretry.NewRetrier(retryOpts)
+	helper.foreverRetrier = retry.NewRetrier(retryOpts)
 	require.Error(t, helper.validate(targets))
 }
 
@@ -286,11 +286,11 @@ func TestHelperResignError(t *testing.T) {
 		{Instance: testInstanceMetadatas[1]},
 	}
 	helper := testHelperWithValidPlacement(t)
-	retryOpts := xretry.NewOptions().
+	retryOpts := retry.NewOptions().
 		SetMaxRetries(3).
 		SetInitialBackoff(10 * time.Millisecond).
 		SetBackoffFactor(1)
-	helper.retrier = xretry.NewRetrier(retryOpts)
+	helper.retrier = retry.NewRetrier(retryOpts)
 	helper.client = &mockAggregatorClient{
 		resignFn: func(string) error { return errResign },
 	}
@@ -314,11 +314,11 @@ func TestHelperWaitUntilProgressingQueryError(t *testing.T) {
 	targetIDs := []string{"instance1", "instance2"}
 	revision := "revision1"
 	helper := testHelperWithValidPlacement(t)
-	retryOpts := xretry.NewOptions().
+	retryOpts := retry.NewOptions().
 		SetMaxRetries(3).
 		SetInitialBackoff(10 * time.Millisecond).
 		SetBackoffFactor(1)
-	helper.foreverRetrier = xretry.NewRetrier(retryOpts)
+	helper.foreverRetrier = retry.NewRetrier(retryOpts)
 	helper.mgr = &mockManager{
 		queryFn: func([]string) ([]Instance, error) {
 			return nil, errQuery
@@ -335,11 +335,11 @@ func TestHelperWaitUntilProgressingInstanceNotProgressing(t *testing.T) {
 		&mockInstance{isDeploying: false, revision: "revision1"},
 	}
 	helper := testHelperWithValidPlacement(t)
-	retryOpts := xretry.NewOptions().
+	retryOpts := retry.NewOptions().
 		SetMaxRetries(3).
 		SetInitialBackoff(10 * time.Millisecond).
 		SetBackoffFactor(1)
-	helper.foreverRetrier = xretry.NewRetrier(retryOpts)
+	helper.foreverRetrier = retry.NewRetrier(retryOpts)
 	helper.mgr = &mockManager{
 		queryFn: func([]string) ([]Instance, error) {
 			return targetInstances, nil

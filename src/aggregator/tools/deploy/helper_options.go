@@ -88,16 +88,16 @@ type HelperOptions interface {
 	KVStore() kv.Store
 
 	// SetRetryOptions sets the retry options.
-	SetRetryOptions(value xretry.Options) HelperOptions
+	SetRetryOptions(value retry.Options) HelperOptions
 
 	// RetryOptions returns the retry options.
-	RetryOptions() xretry.Options
+	RetryOptions() retry.Options
 
 	// SetWorkerPool sets the worker pool.
-	SetWorkerPool(value xsync.WorkerPool) HelperOptions
+	SetWorkerPool(value sync.WorkerPool) HelperOptions
 
 	// WorkerPool returns the worker pool.
-	WorkerPool() xsync.WorkerPool
+	WorkerPool() sync.WorkerPool
 
 	// SetToPlacementInstanceIDFn sets the function that converts a deployment
 	// instance id to the corresponding placement instance id.
@@ -137,8 +137,8 @@ type helperOptions struct {
 	manager                 Manager
 	httpClient              *http.Client
 	store                   kv.Store
-	retryOpts               xretry.Options
-	workerPool              xsync.WorkerPool
+	retryOpts               retry.Options
+	workerPool              sync.WorkerPool
 	toPlacementInstanceIDFn ToPlacementInstanceIDFn
 	toAPIEndpointFn         ToAPIEndpointFn
 	watcherOpts             placement.StagedPlacementWatcherOptions
@@ -147,11 +147,11 @@ type helperOptions struct {
 
 // NewHelperOptions create a set of deployment helper options.
 func NewHelperOptions() HelperOptions {
-	workers := xsync.NewWorkerPool(defaultHelperWorkerPoolSize)
+	workers := sync.NewWorkerPool(defaultHelperWorkerPoolSize)
 	workers.Init()
 	return &helperOptions{
 		instrumentOpts: instrument.NewOptions(),
-		retryOpts:      xretry.NewOptions(),
+		retryOpts:      retry.NewOptions(),
 		workerPool:     workers,
 		settleDuration: defaultSettleDurationBetweenSteps,
 	}
@@ -207,23 +207,23 @@ func (o *helperOptions) KVStore() kv.Store {
 	return o.store
 }
 
-func (o *helperOptions) SetRetryOptions(value xretry.Options) HelperOptions {
+func (o *helperOptions) SetRetryOptions(value retry.Options) HelperOptions {
 	opts := *o
 	opts.retryOpts = value
 	return &opts
 }
 
-func (o *helperOptions) RetryOptions() xretry.Options {
+func (o *helperOptions) RetryOptions() retry.Options {
 	return o.retryOpts
 }
 
-func (o *helperOptions) SetWorkerPool(value xsync.WorkerPool) HelperOptions {
+func (o *helperOptions) SetWorkerPool(value sync.WorkerPool) HelperOptions {
 	opts := *o
 	opts.workerPool = value
 	return &opts
 }
 
-func (o *helperOptions) WorkerPool() xsync.WorkerPool {
+func (o *helperOptions) WorkerPool() sync.WorkerPool {
 	return o.workerPool
 }
 

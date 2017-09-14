@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
-	"github.com/m3db/m3x/server"
+	xserver "github.com/m3db/m3x/server"
 )
 
 // MsgpackServerConfiguration contains msgpack server configuration.
@@ -44,7 +44,7 @@ type MsgpackServerConfiguration struct {
 	KeepAlivePeriod time.Duration `yaml:"keepAlivePeriod"`
 
 	// Retry mechanism configuration.
-	Retry xretry.Configuration `yaml:"retry"`
+	Retry retry.Configuration `yaml:"retry"`
 
 	// Iterator configuration.
 	Iterator unaggregatedIteratorConfiguration `yaml:"iterator"`

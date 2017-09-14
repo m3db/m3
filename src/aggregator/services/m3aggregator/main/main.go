@@ -31,7 +31,7 @@ import (
 	m3aggregator "github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/services/m3aggregator/config"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
-	"github.com/m3db/m3x/config"
+	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/instrument"
 )
 

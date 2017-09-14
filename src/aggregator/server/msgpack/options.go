@@ -35,10 +35,10 @@ type Options interface {
 	InstrumentOptions() instrument.Options
 
 	// SetServerOptions sets the server options.
-	SetServerOptions(value xserver.Options) Options
+	SetServerOptions(value server.Options) Options
 
 	// ServerOptiosn returns the server options.
-	ServerOptions() xserver.Options
+	ServerOptions() server.Options
 
 	// SetIteratorPool sets the iterator pool
 	SetIteratorPool(value msgpack.UnaggregatedIteratorPool) Options
@@ -49,7 +49,7 @@ type Options interface {
 
 type options struct {
 	instrumentOpts instrument.Options
-	serverOpts     xserver.Options
+	serverOpts     server.Options
 	iteratorPool   msgpack.UnaggregatedIteratorPool
 }
 
@@ -63,7 +63,7 @@ func NewOptions() Options {
 
 	return &options{
 		instrumentOpts: instrument.NewOptions(),
-		serverOpts:     xserver.NewOptions(),
+		serverOpts:     server.NewOptions(),
 		iteratorPool:   iteratorPool,
 	}
 }
@@ -78,13 +78,13 @@ func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) SetServerOptions(value xserver.Options) Options {
+func (o *options) SetServerOptions(value server.Options) Options {
 	opts := *o
 	opts.serverOpts = value
 	return &opts
 }
 
-func (o *options) ServerOptions() xserver.Options {
+func (o *options) ServerOptions() server.Options {
 	return o.serverOpts
 }
 

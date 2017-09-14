@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/sync"
+	xsync "github.com/m3db/m3x/sync"
 )
 
 var (
@@ -214,7 +214,7 @@ func (p deploymentPlanner) groupInstancesByShardSetID(
 
 	wg.Wait()
 	close(errCh)
-	multiErr := xerrors.NewMultiError()
+	multiErr := errors.NewMultiError()
 	for err := range errCh {
 		multiErr = multiErr.Add(err)
 	}

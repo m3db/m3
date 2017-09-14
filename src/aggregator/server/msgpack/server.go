@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/server"
+	xserver "github.com/m3db/m3x/server"
 
 	"github.com/uber-go/tally"
 )
@@ -62,7 +62,7 @@ type handler struct {
 
 	aggregator   aggregator.Aggregator
 	opts         Options
-	log          xlog.Logger
+	log          log.Logger
 	iteratorPool msgpack.UnaggregatedIteratorPool
 	metrics      handlerMetrics
 }
@@ -90,9 +90,9 @@ func (s *handler) Handle(conn net.Conn) {
 		policiesList := it.PoliciesList()
 		if err := s.aggregator.AddMetricWithPoliciesList(metric, policiesList); err != nil {
 			s.log.WithFields(
-				xlog.NewLogField("metric", metric.String()),
-				xlog.NewLogField("policies", policiesList),
-				xlog.NewLogErrField(err),
+				log.NewField("metric", metric.String()),
+				log.NewField("policies", policiesList),
+				log.NewErrField(err),
 			).Errorf("error adding metric with policies")
 			s.metrics.addMetricErrors.Inc(1)
 		}
@@ -106,8 +106,8 @@ func (s *handler) Handle(conn net.Conn) {
 			remoteAddress = remoteAddr.String()
 		}
 		s.log.WithFields(
-			xlog.NewLogField("remoteAddress", remoteAddress),
-			xlog.NewLogErrField(err),
+			log.NewField("remoteAddress", remoteAddress),
+			log.NewErrField(err),
 		).Error("decode error")
 		s.metrics.decodeErrors.Inc(1)
 	}

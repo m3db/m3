@@ -258,7 +258,7 @@ func testRefCountedBuffer() *aggregator.RefCountedBuffer {
 }
 
 func testForwardHandlerOptions() ForwardHandlerOptions {
-	retrierOpts := xretry.NewOptions().
+	retrierOpts := retry.NewOptions().
 		SetInitialBackoff(time.Millisecond).
 		SetBackoffFactor(1).
 		SetForever(true)
@@ -266,5 +266,5 @@ func testForwardHandlerOptions() ForwardHandlerOptions {
 		SetConnectionKeepAlive(true).
 		SetConnectTimeout(100 * time.Millisecond).
 		SetQueueSize(4096).
-		SetReconnectRetrier(xretry.NewRetrier(retrierOpts))
+		SetReconnectRetrier(retry.NewRetrier(retrierOpts))
 }

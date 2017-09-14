@@ -28,7 +28,7 @@ import (
 // Configuration contains top-level configuration.
 type Configuration struct {
 	// Logging configuration.
-	Logging xlog.Configuration `yaml:"logging"`
+	Logging log.Configuration `yaml:"logging"`
 
 	// Metrics configuration.
 	Metrics instrument.MetricsConfiguration `yaml:"metrics"`

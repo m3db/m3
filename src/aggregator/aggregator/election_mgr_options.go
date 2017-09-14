@@ -58,16 +58,16 @@ type ElectionManagerOptions interface {
 	CampaignOptions() services.CampaignOptions
 
 	// SetCampaignRetryOptions sets the campaign retry options.
-	SetCampaignRetryOptions(value xretry.Options) ElectionManagerOptions
+	SetCampaignRetryOptions(value retry.Options) ElectionManagerOptions
 
 	// CampaignRetryOptions returns the campaign retry options.
-	CampaignRetryOptions() xretry.Options
+	CampaignRetryOptions() retry.Options
 
 	// SetChangeRetryOptions sets the change retry options.
-	SetChangeRetryOptions(value xretry.Options) ElectionManagerOptions
+	SetChangeRetryOptions(value retry.Options) ElectionManagerOptions
 
 	// ChangeRetryOptions returns the change retry options.
-	ChangeRetryOptions() xretry.Options
+	ChangeRetryOptions() retry.Options
 
 	// SetElectionKeyFmt sets the election key format.
 	SetElectionKeyFmt(value string) ElectionManagerOptions
@@ -87,8 +87,8 @@ type electionManagerOptions struct {
 	instrumentOpts    instrument.Options
 	electionOpts      services.ElectionOptions
 	campaignOpts      services.CampaignOptions
-	campaignRetryOpts xretry.Options
-	changeRetryOpts   xretry.Options
+	campaignRetryOpts retry.Options
+	changeRetryOpts   retry.Options
 	electionKeyFmt    string
 	leaderService     services.LeaderService
 }
@@ -99,8 +99,8 @@ func NewElectionManagerOptions() ElectionManagerOptions {
 		clockOpts:         clock.NewOptions(),
 		instrumentOpts:    instrument.NewOptions(),
 		electionOpts:      services.NewElectionOptions(),
-		campaignRetryOpts: xretry.NewOptions(),
-		changeRetryOpts:   xretry.NewOptions(),
+		campaignRetryOpts: retry.NewOptions(),
+		changeRetryOpts:   retry.NewOptions(),
 		electionKeyFmt:    defaultElectionKeyFormat,
 	}
 }
@@ -145,23 +145,23 @@ func (o *electionManagerOptions) CampaignOptions() services.CampaignOptions {
 	return o.campaignOpts
 }
 
-func (o *electionManagerOptions) SetCampaignRetryOptions(value xretry.Options) ElectionManagerOptions {
+func (o *electionManagerOptions) SetCampaignRetryOptions(value retry.Options) ElectionManagerOptions {
 	opts := *o
 	opts.campaignRetryOpts = value
 	return &opts
 }
 
-func (o *electionManagerOptions) CampaignRetryOptions() xretry.Options {
+func (o *electionManagerOptions) CampaignRetryOptions() retry.Options {
 	return o.campaignRetryOpts
 }
 
-func (o *electionManagerOptions) SetChangeRetryOptions(value xretry.Options) ElectionManagerOptions {
+func (o *electionManagerOptions) SetChangeRetryOptions(value retry.Options) ElectionManagerOptions {
 	opts := *o
 	opts.changeRetryOpts = value
 	return &opts
 }
 
-func (o *electionManagerOptions) ChangeRetryOptions() xretry.Options {
+func (o *electionManagerOptions) ChangeRetryOptions() retry.Options {
 	return o.changeRetryOpts
 }
 

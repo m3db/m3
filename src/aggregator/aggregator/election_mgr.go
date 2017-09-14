@@ -187,12 +187,12 @@ type electionManager struct {
 	sync.RWMutex
 
 	nowFn           clock.NowFn
-	logger          xlog.Logger
+	logger          log.Logger
 	reportInterval  time.Duration
 	campaignOpts    services.CampaignOptions
 	electionOpts    services.ElectionOptions
-	campaignRetrier xretry.Retrier
-	changeRetrier   xretry.Retrier
+	campaignRetrier retry.Retrier
+	changeRetrier   retry.Retrier
 	electionKeyFmt  string
 	leaderService   services.LeaderService
 	leaderValue     string
@@ -200,10 +200,10 @@ type electionManager struct {
 	state                  electionManagerState
 	doneCh                 chan struct{}
 	electionKey            string
-	electionStateWatchable xwatch.Watchable
+	electionStateWatchable watch.Watchable
 	nextGoalStateID        int64
 	goalStateLock          sync.RWMutex
-	goalStateWatchable     xwatch.Watchable
+	goalStateWatchable     watch.Watchable
 	resigning              bool
 	sleepFn                sleepFn
 	metrics                electionManagerMetrics
@@ -213,9 +213,9 @@ type electionManager struct {
 func NewElectionManager(opts ElectionManagerOptions) ElectionManager {
 	instrumentOpts := opts.InstrumentOptions()
 	campaignOpts := opts.CampaignOptions()
-	campaignRetrier := xretry.NewRetrier(opts.CampaignRetryOptions().SetForever(true))
-	changeRetrier := xretry.NewRetrier(opts.ChangeRetryOptions().SetForever(true))
-	electionStateWatchable := xwatch.NewWatchable()
+	campaignRetrier := retry.NewRetrier(opts.CampaignRetryOptions().SetForever(true))
+	changeRetrier := retry.NewRetrier(opts.ChangeRetryOptions().SetForever(true))
+	electionStateWatchable := watch.NewWatchable()
 	electionStateWatchable.Update(FollowerState)
 	return &electionManager{
 		nowFn:                  opts.ClockOptions().NowFn(),
@@ -231,7 +231,7 @@ func NewElectionManager(opts ElectionManagerOptions) ElectionManager {
 		state:                  electionManagerNotOpen,
 		doneCh:                 make(chan struct{}),
 		electionStateWatchable: electionStateWatchable,
-		goalStateWatchable:     xwatch.NewWatchable(),
+		goalStateWatchable:     watch.NewWatchable(),
 		sleepFn:                time.Sleep,
 		metrics:                newElectionManagerMetrics(instrumentOpts.MetricsScope()),
 	}
@@ -330,7 +330,7 @@ func (mgr *electionManager) Close() error {
 	return nil
 }
 
-func (mgr *electionManager) watchGoalStateChanges(watch xwatch.Watch) {
+func (mgr *electionManager) watchGoalStateChanges(watch watch.Watch) {
 	defer watch.Close()
 
 	for {
@@ -363,7 +363,7 @@ func (mgr *electionManager) processGoalState(goalState goalState) {
 	mgr.logger.Info(fmt.Sprintf("election state changed from %v to %v", currState, newState))
 }
 
-func (mgr *electionManager) verifyPendingFollower(watch xwatch.Watch) {
+func (mgr *electionManager) verifyPendingFollower(watch watch.Watch) {
 	defer watch.Close()
 
 	for {
@@ -444,7 +444,7 @@ func (mgr *electionManager) campaignLoop() {
 				mgr.metrics.campaignCreateErrors.Inc(1)
 				mgr.logError("error creating campaign", err)
 				return err
-			}); err == xretry.ErrWhileConditionFalse {
+			}); err == retry.ErrWhileConditionFalse {
 				return
 			}
 		}
@@ -512,9 +512,9 @@ func (mgr *electionManager) reportMetrics() {
 
 func (mgr *electionManager) logError(desc string, err error) {
 	mgr.logger.WithFields(
-		xlog.NewLogField("electionKey", mgr.electionKey),
-		xlog.NewLogField("electionTTL", time.Duration(mgr.electionOpts.TTLSecs())*time.Second),
-		xlog.NewLogField("leaderValue", mgr.campaignOpts.LeaderValue()),
-		xlog.NewLogErrField(err),
+		log.NewField("electionKey", mgr.electionKey),
+		log.NewField("electionTTL", time.Duration(mgr.electionOpts.TTLSecs())*time.Second),
+		log.NewField("leaderValue", mgr.campaignOpts.LeaderValue()),
+		log.NewErrField(err),
 	).Error(desc)
 }

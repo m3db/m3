@@ -29,18 +29,18 @@ import (
 )
 
 func logMetricAndPolicy(
-	logger xlog.Logger,
+	logger log.Logger,
 	metric aggregated.Metric,
 	sp policy.StoragePolicy,
 ) error {
 	logger.WithFields(
-		xlog.NewLogField("metric", metric.String()),
-		xlog.NewLogField("policy", sp.String()),
+		log.NewField("metric", metric.String()),
+		log.NewField("policy", sp.String()),
 	).Info("aggregated metric")
 	return nil
 }
 
-func loggingHandler(logger xlog.Logger) HandleFunc {
+func loggingHandler(logger log.Logger) HandleFunc {
 	return func(metric aggregated.Metric, sp policy.StoragePolicy) error {
 		return logMetricAndPolicy(logger, metric, sp)
 	}
