@@ -55,7 +55,7 @@ type writeFn func([]byte) error
 type queue struct {
 	sync.RWMutex
 
-	log      xlog.Logger
+	log      log.Logger
 	metrics  queueMetrics
 	instance placement.Instance
 	conn     *connection
@@ -129,8 +129,8 @@ func (q *queue) drain() {
 	for buf := range q.bufCh {
 		if err := q.writeFn(buf.Bytes()); err != nil {
 			q.log.WithFields(
-				xlog.NewLogField("instance", q.instance.Endpoint()),
-				xlog.NewLogErrField(err),
+				log.NewField("instance", q.instance.Endpoint()),
+				log.NewErrField(err),
 			).Error("write data error")
 			q.metrics.connWriteErrors.Inc(1)
 		}

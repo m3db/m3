@@ -99,7 +99,7 @@ func (r *reporter) ReportCounter(id id.ID, value int64) error {
 		reportAt  = r.nowFn()
 		fromNanos = reportAt.Add(-r.maxNegativeSkew).UnixNano()
 		toNanos   = reportAt.Add(r.maxPositiveSkew).UnixNano()
-		multiErr  = xerrors.NewMultiError()
+		multiErr  = errors.NewMultiError()
 	)
 	matchRes := r.matcher.Match(id, fromNanos, toNanos)
 	if err := r.server.WriteCounterWithPoliciesList(
@@ -128,7 +128,7 @@ func (r *reporter) ReportBatchTimer(id id.ID, value []float64) error {
 		reportAt  = r.nowFn()
 		fromNanos = reportAt.Add(-r.maxNegativeSkew).UnixNano()
 		toNanos   = reportAt.Add(r.maxPositiveSkew).UnixNano()
-		multiErr  = xerrors.NewMultiError()
+		multiErr  = errors.NewMultiError()
 	)
 	matchRes := r.matcher.Match(id, fromNanos, toNanos)
 	if err := r.server.WriteBatchTimerWithPoliciesList(
@@ -157,7 +157,7 @@ func (r *reporter) ReportGauge(id id.ID, value float64) error {
 		reportAt  = r.nowFn()
 		fromNanos = reportAt.Add(-r.maxNegativeSkew).UnixNano()
 		toNanos   = reportAt.Add(r.maxPositiveSkew).UnixNano()
-		multiErr  = xerrors.NewMultiError()
+		multiErr  = errors.NewMultiError()
 	)
 	matchRes := r.matcher.Match(id, fromNanos, toNanos)
 	if err := r.server.WriteGaugeWithPoliciesList(
@@ -189,7 +189,7 @@ func (r *reporter) Flush() error {
 }
 
 func (r *reporter) Close() error {
-	multiErr := xerrors.NewMultiError()
+	multiErr := errors.NewMultiError()
 	if err := r.server.Close(); err != nil {
 		multiErr = multiErr.Add(err)
 	}

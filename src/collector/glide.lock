@@ -1,5 +1,5 @@
-hash: 0ce5d985f4973c04d9f50587b986bb712582e3af0d3bf32ec5acbd30945c848c
-updated: 2017-09-05T13:05:54.731148057-04:00
+hash: c352c3ff93b479a0a52acae9b2408624993b2fbe641687df6d2a83e73d65acba
+updated: 2017-09-14T09:20:40.069627234-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -21,7 +21,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: 296a3aed74ef56ee64bf08ead9b358056aa2fb14
+  version: 3ca6883175651960ca2f93ba91198bbb9a84f5be
   subpackages:
   - client
   - generated/proto/metadatapb
@@ -34,7 +34,7 @@ imports:
   - services/leader/campaign
   - shard
 - name: github.com/m3db/m3metrics
-  version: 286dfad168595a1b0f2b2cd676e21e8b34fe08a5
+  version: 8f664bcaa26b6a844a479a71aa98d014eaaba748
   subpackages:
   - filters
   - generated/proto/schema
@@ -47,7 +47,7 @@ imports:
   - protocol/msgpack
   - rules
 - name: github.com/m3db/m3x
-  version: bd6be18ffb184691512eb442561b16a59c15d797
+  version: 6e9713eca6718643e105f574be392f122bcc062e
   subpackages:
   - checked
   - clock
@@ -80,7 +80,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 2605c407d7d219644d03a3680ad7df4779017782
+  version: be9e53c77349ae2dd4b8c03a6dc20ed9a88b9927
   subpackages:
   - m3
   - m3/customtransports

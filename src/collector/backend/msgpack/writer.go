@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
-	"github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"
@@ -55,7 +55,7 @@ type newLockedEncoderFn func(msgpack.BufferedEncoderPool) *lockedEncoder
 type writer struct {
 	sync.RWMutex
 
-	log               xlog.Logger
+	log               log.Logger
 	metrics           writerMetrics
 	flushSize         int
 	maxTimerBatchSize int
@@ -265,9 +265,9 @@ func (w *writer) encodeWithLock(
 
 	if err != nil {
 		w.log.WithFields(
-			xlog.NewLogField("metric", mu),
-			xlog.NewLogField("policies", pl),
-			xlog.NewLogErrField(err),
+			log.NewField("metric", mu),
+			log.NewField("policies", pl),
+			log.NewErrField(err),
 		).Error("encode metric with policies error")
 		// Rewind buffer and clear out the encoder error.
 		buffer.Truncate(sizeBefore)
