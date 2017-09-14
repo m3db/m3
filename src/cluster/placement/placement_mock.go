@@ -256,6 +256,36 @@ func (_mr *_MockInstanceRecorder) Proto() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Proto")
 }
 
+func (_m *MockInstance) IsLeaving() bool {
+	ret := _m.ctrl.Call(_m, "IsLeaving")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockInstanceRecorder) IsLeaving() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsLeaving")
+}
+
+func (_m *MockInstance) IsInitializing() bool {
+	ret := _m.ctrl.Call(_m, "IsInitializing")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockInstanceRecorder) IsInitializing() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsInitializing")
+}
+
+func (_m *MockInstance) Clone() Instance {
+	ret := _m.ctrl.Call(_m, "Clone")
+	ret0, _ := ret[0].(Instance)
+	return ret0
+}
+
+func (_mr *_MockInstanceRecorder) Clone() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Clone")
+}
+
 // Mock of Placement interface
 type MockPlacement struct {
 	ctrl     *gomock.Controller
@@ -477,6 +507,16 @@ func (_m *MockPlacement) Proto() (*placementpb.Placement, error) {
 
 func (_mr *_MockPlacementRecorder) Proto() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Proto")
+}
+
+func (_m *MockPlacement) Clone() Placement {
+	ret := _m.ctrl.Call(_m, "Clone")
+	ret0, _ := ret[0].(Placement)
+	return ret0
+}
+
+func (_mr *_MockPlacementRecorder) Clone() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Clone")
 }
 
 // Mock of StagedPlacementWatcher interface
