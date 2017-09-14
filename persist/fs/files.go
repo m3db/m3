@@ -34,8 +34,8 @@ import (
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/close"
-	"github.com/m3db/m3x/errors"
+	xclose "github.com/m3db/m3x/close"
+	xerrors "github.com/m3db/m3x/errors"
 )
 
 var timeZero time.Time

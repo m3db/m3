@@ -30,9 +30,9 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/sync"
-	"github.com/m3db/m3x/time"
+	xlog "github.com/m3db/m3x/log"
+	xsync "github.com/m3db/m3x/sync"
+	xtime "github.com/m3db/m3x/time"
 )
 
 type peersSource struct {
@@ -94,7 +94,7 @@ func (s *peersSource) Read(
 		persistManager := s.opts.PersistManager()
 		if retrieverMgr != nil && persistManager != nil {
 			s.log.WithFields(
-				xlog.NewLogField("namespace", namespace.String()),
+				xlog.NewField("namespace", namespace.String()),
 			).Infof("peers bootstrapper resolving block retriever")
 
 			r, err := retrieverMgr.Retriever(nsMetadata)
@@ -139,9 +139,9 @@ func (s *peersSource) Read(
 	}
 
 	s.log.WithFields(
-		xlog.NewLogField("shards", count),
-		xlog.NewLogField("concurrency", concurrency),
-		xlog.NewLogField("incremental", incremental),
+		xlog.NewField("shards", count),
+		xlog.NewField("concurrency", concurrency),
+		xlog.NewField("incremental", incremental),
 	).Infof("peers bootstrapper bootstrapping shards for ranges")
 	if incremental {
 		// If performing an incremental bootstrap then flush one
@@ -155,7 +155,7 @@ func (s *peersSource) Read(
 					flush.shard, flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
 				if err != nil {
 					s.log.WithFields(
-						xlog.NewLogField("error", err.Error()),
+						xlog.NewField("error", err.Error()),
 					).Infof("peers bootstrapper incremental flush encountered error")
 				}
 			}

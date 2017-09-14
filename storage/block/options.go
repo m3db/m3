@@ -29,7 +29,7 @@ import (
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/sync"
+	xsync "github.com/m3db/m3x/sync"
 )
 
 const (

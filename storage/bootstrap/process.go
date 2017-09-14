@@ -25,8 +25,8 @@ import (
 
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/time"
+	xlog "github.com/m3db/m3x/log"
+	xtime "github.com/m3db/m3x/time"
 )
 
 // bootstrapProcess represents the bootstrapping process.
@@ -82,13 +82,13 @@ func (b *bootstrapProcess) Run(
 			shardsTimeRanges[s] = r
 		}
 
-		logFields := []xlog.LogField{
-			xlog.NewLogField("bootstrapper", b.bootstrapper.String()),
-			xlog.NewLogField("namespace", namespace.String()),
-			xlog.NewLogField("numShards", len(shards)),
-			xlog.NewLogField("from", window.Start.String()),
-			xlog.NewLogField("to", window.End.String()),
-			xlog.NewLogField("range", window.End.Sub(window.Start).String()),
+		logFields := []xlog.Field{
+			xlog.NewField("bootstrapper", b.bootstrapper.String()),
+			xlog.NewField("namespace", namespace.String()),
+			xlog.NewField("numShards", len(shards)),
+			xlog.NewField("from", window.Start.String()),
+			xlog.NewField("to", window.End.String()),
+			xlog.NewField("range", window.End.Sub(window.Start).String()),
 		}
 		b.log.WithFields(logFields...).Infof("bootstrapping shards for range starting")
 
@@ -102,9 +102,9 @@ func (b *bootstrapProcess) Run(
 
 		res, err := bootstrapper.Bootstrap(nsMetadata, shardsTimeRanges, opts)
 
-		logFields = append(logFields, xlog.NewLogField("took", nowFn().Sub(begin).String()))
+		logFields = append(logFields, xlog.NewField("took", nowFn().Sub(begin).String()))
 		if err != nil {
-			logFields = append(logFields, xlog.NewLogField("error", err.Error()))
+			logFields = append(logFields, xlog.NewField("error", err.Error()))
 			b.log.WithFields(logFields...).Infof("bootstrapping shards for range completed with error")
 			return nil, err
 		}

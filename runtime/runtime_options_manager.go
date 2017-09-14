@@ -21,8 +21,8 @@
 package runtime
 
 import (
-	"github.com/m3db/m3x/close"
-	"github.com/m3db/m3x/watch"
+	xclose "github.com/m3db/m3x/close"
+	xwatch "github.com/m3db/m3x/watch"
 )
 
 type optionsManager struct {

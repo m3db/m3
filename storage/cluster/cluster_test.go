@@ -28,7 +28,7 @@ import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3x/watch"
+	xwatch "github.com/m3db/m3x/watch"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

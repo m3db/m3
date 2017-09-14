@@ -27,8 +27,8 @@ import (
 
 	"github.com/m3db/m3cluster/kv"
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/watch"
+	xlog "github.com/m3db/m3x/log"
+	xwatch "github.com/m3db/m3x/watch"
 
 	"github.com/uber-go/tally"
 )

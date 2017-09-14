@@ -50,7 +50,7 @@ import (
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	xretry "github.com/m3db/m3x/retry"
-	"github.com/m3db/m3x/sync"
+	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -1346,9 +1346,9 @@ func (s *session) FetchBlocksFromPeers(
 			peer, ok := peersByHost[rb.Host.ID()]
 			if !ok {
 				logger.WithFields(
-					xlog.NewLogField("peer", rb.Host.String()),
-					xlog.NewLogField("id", rb.ID.String()),
-					xlog.NewLogField("start", rb.Start.String()),
+					xlog.NewField("peer", rb.Host.String()),
+					xlog.NewField("id", rb.ID.String()),
+					xlog.NewField("start", rb.Start.String()),
 				).Warnf("replica requested from unknown peer, skipping")
 				continue
 			}
@@ -1803,10 +1803,10 @@ func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
 			if finalError {
 				m.fetchBlockFinalError.Inc(1)
 				s.log.WithFields(
-					xlog.NewLogField("id", currID.String()),
-					xlog.NewLogField("start", earliestStart),
-					xlog.NewLogField("attempted", currUnselected.reattempt.attempt),
-					xlog.NewLogField("attemptErrs", xerrors.Errors(currUnselected.reattempt.errs).Error()),
+					xlog.NewField("id", currID.String()),
+					xlog.NewField("start", earliestStart),
+					xlog.NewField("attempted", currUnselected.reattempt.attempt),
+					xlog.NewField("attemptErrs", xerrors.Errors(currUnselected.reattempt.errs).Error()),
 				).Error("retries failed for streaming blocks from peers")
 			}
 
@@ -2001,7 +2001,7 @@ func (s *session) streamBlocksBatchFromPeer(
 			if !tooManyIDsLogged {
 				tooManyIDsLogged = true
 				s.log.WithFields(
-					xlog.NewLogField("peer", peer.Host().String()),
+					xlog.NewField("peer", peer.Host().String()),
 				).Errorf("stream blocks more IDs than expected")
 			}
 			continue
@@ -2029,10 +2029,10 @@ func (s *session) streamBlocksBatchFromPeer(
 				if !tooManyBlocksLogged {
 					tooManyBlocksLogged = true
 					s.log.WithFields(
-						xlog.NewLogField("id", id.String()),
-						xlog.NewLogField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
-						xlog.NewLogField("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
-						xlog.NewLogField("peer", peer.Host().String()),
+						xlog.NewField("id", id.String()),
+						xlog.NewField("expectedStarts", newTimesByUnixNanos(req.Elements[i].Starts)),
+						xlog.NewField("actualStarts", newTimesByRPCBlocks(result.Elements[i].Blocks)),
+						xlog.NewField("peer", peer.Host().String()),
 					).Errorf("stream blocks returned more blocks than expected")
 				}
 				continue

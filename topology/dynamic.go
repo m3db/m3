@@ -29,8 +29,8 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/watch"
+	xlog "github.com/m3db/m3x/log"
+	xwatch "github.com/m3db/m3x/watch"
 )
 
 var (

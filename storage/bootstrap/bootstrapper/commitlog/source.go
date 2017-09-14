@@ -32,8 +32,8 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/time"
+	xlog "github.com/m3db/m3x/log"
+	xtime "github.com/m3db/m3x/time"
 )
 
 type newIteratorFn func(opts commitlog.Options) (commitlog.Iterator, error)

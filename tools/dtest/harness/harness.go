@@ -34,7 +34,7 @@ import (
 	m3xclock "github.com/m3db/m3x/clock"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 	xtcp "github.com/m3db/m3x/tcp"
 )
 

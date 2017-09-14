@@ -24,7 +24,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 )
 
 type fileOpStatus int

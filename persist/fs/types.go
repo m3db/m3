@@ -35,7 +35,7 @@ import (
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3x/time"
 )
 
 // FileSetWriter provides an unsynchronized writer for a TSDB file set

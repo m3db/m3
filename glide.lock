@@ -133,7 +133,7 @@ imports:
   - gen
   - prop
 - name: github.com/m3db/m3cluster
-  version: 296a3aed74ef56ee64bf08ead9b358056aa2fb14
+  version: 56c031689fb080404de0b2acfc385e91627d93d7
   subpackages:
   - client
   - client/etcd
@@ -157,7 +157,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3em
-  version: f011c9da127dc8f7dd132c3d8c59814e96e6971f
+  version: 3a93476c799a6077306f1e25800bf6b058d1aba8
   subpackages:
   - build
   - checksum
@@ -169,7 +169,7 @@ imports:
   - os/fs
   - x/grpc
 - name: github.com/m3db/m3x
-  version: bd6be18ffb184691512eb442561b16a59c15d797
+  version: 6e9713eca6718643e105f574be392f122bcc062e
   vcs: git
   subpackages:
   - checked

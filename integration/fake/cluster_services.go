@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3x/watch"
+	xwatch "github.com/m3db/m3x/watch"
 )
 
 // NB(r): once a lot more feature complete move this to the m3cluster repository

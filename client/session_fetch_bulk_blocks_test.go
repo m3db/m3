@@ -43,9 +43,9 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/retry"
-	"github.com/m3db/m3x/sync"
-	"github.com/m3db/m3x/time"
+	xretry "github.com/m3db/m3x/retry"
+	xsync "github.com/m3db/m3x/sync"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

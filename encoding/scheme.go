@@ -22,7 +22,7 @@ package encoding
 
 import (
 	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3x/time"
 )
 
 const (

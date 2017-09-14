@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/m3db/m3db/tools/dtest/config"
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 
 	"github.com/spf13/cobra"
 )

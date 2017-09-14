@@ -37,9 +37,9 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/counter"
 	xio "github.com/m3db/m3db/x/io"
-	"github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3x/errors"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -269,9 +269,9 @@ func (d *db) logNamespaceUpdate(removes []ts.ID, adds, updates []namespace.Metad
 
 	// log scheduled operation
 	d.log.WithFields(
-		xlog.NewLogField("adds", addString),
-		xlog.NewLogField("updates", updateString),
-		xlog.NewLogField("removals", removalString),
+		xlog.NewField("adds", addString),
+		xlog.NewField("updates", updateString),
+		xlog.NewField("removals", removalString),
 	).Infof("updating database namespaces")
 
 	// NB(prateek): as noted in `UpdateOwnedNamespaces()` above, the current implementation

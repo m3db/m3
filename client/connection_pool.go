@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	nchannel "github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3x/close"
+	xclose "github.com/m3db/m3x/close"
 
 	"github.com/spaolacci/murmur3"
 	"github.com/uber/tchannel-go"

@@ -23,7 +23,7 @@ package topology
 import (
 	"errors"
 
-	"github.com/m3db/m3x/watch"
+	xwatch "github.com/m3db/m3x/watch"
 )
 
 var (

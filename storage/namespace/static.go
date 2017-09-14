@@ -21,7 +21,7 @@
 package namespace
 
 import (
-	"github.com/m3db/m3x/watch"
+	xwatch "github.com/m3db/m3x/watch"
 )
 
 type staticInit struct {

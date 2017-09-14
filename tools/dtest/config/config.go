@@ -12,7 +12,7 @@ import (
 	"github.com/m3db/m3em/generated/proto/m3em"
 	"github.com/m3db/m3em/node"
 	"github.com/m3db/m3em/x/grpc"
-	"github.com/m3db/m3x/config"
+	xconfig "github.com/m3db/m3x/config"
 	xlog "github.com/m3db/m3x/log"
 
 	"google.golang.org/grpc"
@@ -130,7 +130,7 @@ func (c *Configuration) Nodes(opts node.Options, numNodes int) ([]m3emnode.Node,
 		newOpts := opts.
 			SetOperatorClientFn(clientFn).
 			SetInstrumentOptions(opts.InstrumentOptions().SetLogger(
-				logger.WithFields(xlog.NewLogField("host", inst.Hostname))))
+				logger.WithFields(xlog.NewField("host", inst.Hostname))))
 
 		svcNode, err := node.New(pi, newOpts)
 		if err != nil {

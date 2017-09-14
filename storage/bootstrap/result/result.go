@@ -28,7 +28,7 @@ import (
 
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3x/time"
 )
 
 type bootstrapResult struct {

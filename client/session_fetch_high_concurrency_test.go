@@ -34,8 +34,8 @@ import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/close"
-	"github.com/m3db/m3x/time"
+	xclose "github.com/m3db/m3x/close"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

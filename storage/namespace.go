@@ -39,11 +39,11 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
-	"github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/sync"
-	"github.com/m3db/m3x/time"
+	xlog "github.com/m3db/m3x/log"
+	xsync "github.com/m3db/m3x/sync"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -196,7 +196,7 @@ func newDatabaseNamespace(
 	}
 
 	iops := opts.InstrumentOptions()
-	logger := iops.Logger().WithFields(xlog.NewLogField("namespace", id.String()))
+	logger := iops.Logger().WithFields(xlog.NewField("namespace", id.String()))
 	iops = iops.SetLogger(logger)
 	opts = opts.SetInstrumentOptions(iops)
 
@@ -314,7 +314,7 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 		defer wg.Done()
 		if err := shard.Close(); err != nil {
 			n.log.
-				WithFields(xlog.NewLogField("shard", shard.ID())).
+				WithFields(xlog.NewField("shard", shard.ID())).
 				Errorf("error occurred closing shard: %v", err)
 			n.metrics.shards.closeErrors.Inc(1)
 		} else {
@@ -525,8 +525,8 @@ func (n *dbNamespace) Bootstrap(
 	}
 
 	n.log.WithFields(
-		xlog.NewLogField("numShards", len(shards)),
-		xlog.NewLogField("numSeries", numSeries),
+		xlog.NewField("numShards", len(shards)),
+		xlog.NewField("numSeries", numSeries),
 	).Infof("bootstrap data fetched now initializing shards with series blocks")
 
 	var (
@@ -756,15 +756,15 @@ func (n *dbNamespace) Repair(
 	wg.Wait()
 
 	n.log.WithFields(
-		xlog.NewLogField("repairTimeRange", tr.String()),
-		xlog.NewLogField("numTotalShards", len(shards)),
-		xlog.NewLogField("numShardsRepaired", numShardsRepaired),
-		xlog.NewLogField("numTotalSeries", numTotalSeries),
-		xlog.NewLogField("numTotalBlocks", numTotalBlocks),
-		xlog.NewLogField("numSizeDiffSeries", numSizeDiffSeries),
-		xlog.NewLogField("numSizeDiffBlocks", numSizeDiffBlocks),
-		xlog.NewLogField("numChecksumDiffSeries", numChecksumDiffSeries),
-		xlog.NewLogField("numChecksumDiffBlocks", numChecksumDiffBlocks),
+		xlog.NewField("repairTimeRange", tr.String()),
+		xlog.NewField("numTotalShards", len(shards)),
+		xlog.NewField("numShardsRepaired", numShardsRepaired),
+		xlog.NewField("numTotalSeries", numTotalSeries),
+		xlog.NewField("numTotalBlocks", numTotalBlocks),
+		xlog.NewField("numSizeDiffSeries", numSizeDiffSeries),
+		xlog.NewField("numSizeDiffBlocks", numSizeDiffBlocks),
+		xlog.NewField("numChecksumDiffSeries", numChecksumDiffSeries),
+		xlog.NewField("numChecksumDiffBlocks", numChecksumDiffBlocks),
 	).Infof("repair result")
 
 	return multiErr.FinalError()

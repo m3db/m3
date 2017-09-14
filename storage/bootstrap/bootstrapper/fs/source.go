@@ -31,10 +31,10 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/sync"
-	"github.com/m3db/m3x/time"
+	xsync "github.com/m3db/m3x/sync"
+	xtime "github.com/m3db/m3x/time"
 )
 
 type newFileSetReaderFn func(
@@ -139,9 +139,9 @@ func (s *fileSystemSource) enqueueReaders(
 			t := xtime.FromNanoseconds(files[i].Start)
 			if err := r.Open(namespace, shard, t); err != nil {
 				s.log.WithFields(
-					xlog.NewLogField("shard", shard),
-					xlog.NewLogField("time", t.String()),
-					xlog.NewLogField("error", err.Error()),
+					xlog.NewField("shard", shard),
+					xlog.NewField("time", t.String()),
+					xlog.NewField("error", err.Error()),
 				).Error("unable to open fileset files")
 				readerPool.put(r)
 				continue
@@ -231,8 +231,8 @@ func (s *fileSystemSource) bootstrapFromReaders(
 					if err != nil {
 						entryErr = err
 						s.log.WithFields(
-							xlog.NewLogField("shard", shard),
-							xlog.NewLogField("error", entryErr),
+							xlog.NewField("shard", shard),
+							xlog.NewField("error", entryErr),
 						).Error("reading data file failed")
 						hasError = true
 						break
@@ -282,8 +282,8 @@ func (s *fileSystemSource) bootstrapFromReaders(
 				if !hasError {
 					if err := r.Validate(); err != nil {
 						s.log.WithFields(
-							xlog.NewLogField("shard", shard),
-							xlog.NewLogField("error", err),
+							xlog.NewField("shard", shard),
+							xlog.NewField("error", err),
 						).Error("data validation failed")
 						hasError = true
 					}
@@ -308,8 +308,8 @@ func (s *fileSystemSource) bootstrapFromReaders(
 			// final result.
 			if len(timesWithErrors) > 0 {
 				s.log.WithFields(
-					xlog.NewLogField("shard", shard),
-					xlog.NewLogField("timesWithErrors", timesWithErrors),
+					xlog.NewField("shard", shard),
+					xlog.NewField("timesWithErrors", timesWithErrors),
 				).Info("deleting entries from results for times with errors")
 
 				resultLock.Lock()
@@ -367,7 +367,7 @@ func (s *fileSystemSource) Read(
 	blockRetrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 	if blockRetrieverMgr != nil {
 		s.log.WithFields(
-			xlog.NewLogField("namespace", nsID.String()),
+			xlog.NewField("namespace", nsID.String()),
 		).Infof("filesystem bootstrapper resolving block retriever")
 
 		var err error
@@ -377,8 +377,8 @@ func (s *fileSystemSource) Read(
 		}
 
 		s.log.WithFields(
-			xlog.NewLogField("namespace", nsID.String()),
-			xlog.NewLogField("shards", len(shardsTimeRanges)),
+			xlog.NewField("namespace", nsID.String()),
+			xlog.NewField("shards", len(shardsTimeRanges)),
 		).Infof("filesystem bootstrapper caching block retriever shard indices")
 
 		shards := make([]uint32, 0, len(shardsTimeRanges))
@@ -393,9 +393,9 @@ func (s *fileSystemSource) Read(
 	}
 
 	s.log.WithFields(
-		xlog.NewLogField("shards", len(shardsTimeRanges)),
-		xlog.NewLogField("concurrency", s.opts.NumProcessors()),
-		xlog.NewLogField("metadataOnly", blockRetriever != nil),
+		xlog.NewField("shards", len(shardsTimeRanges)),
+		xlog.NewField("concurrency", s.opts.NumProcessors()),
+		xlog.NewField("metadataOnly", blockRetriever != nil),
 	).Infof("filesystem bootstrapper bootstrapping shards for ranges")
 	readerPool := newReaderPool(func() fs.FileSetReader {
 		return s.newReaderFn(

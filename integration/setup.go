@@ -50,7 +50,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/sync"
+	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/stretchr/testify/require"
 	tchannel "github.com/uber/tchannel-go"
@@ -355,8 +355,8 @@ func (ts *testSetup) waitUntilServerIsDown() error {
 
 func (ts *testSetup) startServer() error {
 	log := ts.storageOpts.InstrumentOptions().Logger()
-	fields := []xlog.LogField{
-		xlog.NewLogField("nativepooling", ts.nativePooling),
+	fields := []xlog.Field{
+		xlog.NewField("nativepooling", ts.nativePooling),
 	}
 	log.WithFields(fields...).Infof("starting server")
 

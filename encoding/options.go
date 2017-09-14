@@ -23,7 +23,7 @@ package encoding
 import (
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3x/time"
 )
 
 const (
