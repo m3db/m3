@@ -13,10 +13,10 @@ import:
   - protoc-gen-go
 
 - package: github.com/m3db/m3cluster
-  version: 296a3aed74ef56ee64bf08ead9b358056aa2fb14
+  version: 56c031689fb080404de0b2acfc385e91627d93d7
 
 - package: github.com/m3db/m3x
-  version: bd6be18ffb184691512eb442561b16a59c15d797
+  version: 6e9713eca6718643e105f574be392f122bcc062e
   subpackages:
   - errors
   - instrument

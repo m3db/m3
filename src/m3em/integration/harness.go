@@ -39,9 +39,9 @@ import (
 	xgrpc "github.com/m3db/m3em/x/grpc"
 
 	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
