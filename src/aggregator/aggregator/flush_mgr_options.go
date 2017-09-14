@@ -82,10 +82,10 @@ type FlushManagerOptions interface {
 	MaxJitterFn() FlushJitterFn
 
 	// SetWorkerPool sets the worker pool.
-	SetWorkerPool(value xsync.WorkerPool) FlushManagerOptions
+	SetWorkerPool(value sync.WorkerPool) FlushManagerOptions
 
 	// WorkerPool returns the worker pool.
-	WorkerPool() xsync.WorkerPool
+	WorkerPool() sync.WorkerPool
 
 	// SetElectionManager sets the election manager.
 	SetElectionManager(value ElectionManager) FlushManagerOptions
@@ -112,10 +112,10 @@ type FlushManagerOptions interface {
 	FlushTimesPersistEvery() time.Duration
 
 	// SetFlushTimesPersistRetrier sets the retrier for persisting flush times.
-	SetFlushTimesPersistRetrier(value xretry.Retrier) FlushManagerOptions
+	SetFlushTimesPersistRetrier(value retry.Retrier) FlushManagerOptions
 
 	// FlushTimesPersistRetrier returns the retrier for persisting flush times.
-	FlushTimesPersistRetrier() xretry.Retrier
+	FlushTimesPersistRetrier() retry.Retrier
 
 	// SetMaxNoFlushDuration sets the maximum duration with no flushes.
 	SetMaxNoFlushDuration(value time.Duration) FlushManagerOptions
@@ -148,12 +148,12 @@ type flushManagerOptions struct {
 	checkEvery               time.Duration
 	jitterEnabled            bool
 	maxJitterFn              FlushJitterFn
-	workerPool               xsync.WorkerPool
+	workerPool               sync.WorkerPool
 	electionManager          ElectionManager
 	flushTimesKeyFmt         string
 	flushTimesStore          kv.Store
 	flushTimesPersistEvery   time.Duration
-	flushTimesPersistRetrier xretry.Retrier
+	flushTimesPersistRetrier retry.Retrier
 	maxNoFlushDuration       time.Duration
 	forcedFlushWindowSize    time.Duration
 	instanceID               string
@@ -162,7 +162,7 @@ type flushManagerOptions struct {
 
 // NewFlushManagerOptions create a new set of flush manager options.
 func NewFlushManagerOptions() FlushManagerOptions {
-	workerPool := xsync.NewWorkerPool(defaultWorkerPoolSize)
+	workerPool := sync.NewWorkerPool(defaultWorkerPoolSize)
 	workerPool.Init()
 	return &flushManagerOptions{
 		clockOpts:                clock.NewOptions(),
@@ -172,7 +172,7 @@ func NewFlushManagerOptions() FlushManagerOptions {
 		workerPool:               workerPool,
 		flushTimesKeyFmt:         defaultFlushTimesKeyFormat,
 		flushTimesPersistEvery:   defaultFlushTimesPersistEvery,
-		flushTimesPersistRetrier: xretry.NewRetrier(xretry.NewOptions()),
+		flushTimesPersistRetrier: retry.NewRetrier(retry.NewOptions()),
 		maxNoFlushDuration:       defaultMaxNoFlushDuration,
 		instanceID:               defaultInstanceID,
 		forcedFlushWindowSize:    defaultForcedFlushWindowSize,
@@ -229,13 +229,13 @@ func (o *flushManagerOptions) MaxJitterFn() FlushJitterFn {
 	return o.maxJitterFn
 }
 
-func (o *flushManagerOptions) SetWorkerPool(value xsync.WorkerPool) FlushManagerOptions {
+func (o *flushManagerOptions) SetWorkerPool(value sync.WorkerPool) FlushManagerOptions {
 	opts := *o
 	opts.workerPool = value
 	return &opts
 }
 
-func (o *flushManagerOptions) WorkerPool() xsync.WorkerPool {
+func (o *flushManagerOptions) WorkerPool() sync.WorkerPool {
 	return o.workerPool
 }
 
@@ -279,13 +279,13 @@ func (o *flushManagerOptions) FlushTimesPersistEvery() time.Duration {
 	return o.flushTimesPersistEvery
 }
 
-func (o *flushManagerOptions) SetFlushTimesPersistRetrier(value xretry.Retrier) FlushManagerOptions {
+func (o *flushManagerOptions) SetFlushTimesPersistRetrier(value retry.Retrier) FlushManagerOptions {
 	opts := *o
 	opts.flushTimesPersistRetrier = value
 	return &opts
 }
 
-func (o *flushManagerOptions) FlushTimesPersistRetrier() xretry.Retrier {
+func (o *flushManagerOptions) FlushTimesPersistRetrier() retry.Retrier {
 	return o.flushTimesPersistRetrier
 }
 

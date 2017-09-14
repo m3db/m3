@@ -37,7 +37,7 @@ func TestValidatorForFollowerStatusError(t *testing.T) {
 			return aggregator.RuntimeStatus{}, errStatus
 		},
 	}
-	workers := xsync.NewWorkerPool(2)
+	workers := sync.NewWorkerPool(2)
 	workers.Init()
 	f := newValidatorFactory(client, workers)
 	validator := f.ValidatorFor(instanceMetadata{}, nil, followerTarget)
@@ -54,7 +54,7 @@ func TestValidatorForFollowerNotFollowerState(t *testing.T) {
 			}, nil
 		},
 	}
-	workers := xsync.NewWorkerPool(2)
+	workers := sync.NewWorkerPool(2)
 	workers.Init()
 	f := newValidatorFactory(client, workers)
 	validator := f.ValidatorFor(instanceMetadata{}, nil, followerTarget)
@@ -71,7 +71,7 @@ func TestValidatorForFollowerSuccess(t *testing.T) {
 			}, nil
 		},
 	}
-	workers := xsync.NewWorkerPool(2)
+	workers := sync.NewWorkerPool(2)
 	workers.Init()
 	f := newValidatorFactory(client, workers)
 	validator := f.ValidatorFor(instanceMetadata{}, nil, followerTarget)
@@ -85,7 +85,7 @@ func TestValidatorForLeaderStatusError(t *testing.T) {
 			return aggregator.RuntimeStatus{}, errStatus
 		},
 	}
-	workers := xsync.NewWorkerPool(2)
+	workers := sync.NewWorkerPool(2)
 	workers.Init()
 	f := newValidatorFactory(client, workers)
 	validator := f.ValidatorFor(instanceMetadata{}, nil, leaderTarget)
@@ -102,7 +102,7 @@ func TestValidatorForLeaderNotLeaderState(t *testing.T) {
 			}, nil
 		},
 	}
-	workers := xsync.NewWorkerPool(2)
+	workers := sync.NewWorkerPool(2)
 	workers.Init()
 	f := newValidatorFactory(client, workers)
 	validator := f.ValidatorFor(instanceMetadata{}, nil, leaderTarget)
@@ -123,7 +123,7 @@ func TestValidatorForLeaderNoLeaderFound(t *testing.T) {
 			}, nil
 		},
 	}
-	workers := xsync.NewWorkerPool(2)
+	workers := sync.NewWorkerPool(2)
 	workers.Init()
 	f := newValidatorFactory(client, workers)
 	validator := f.ValidatorFor(instance, group, leaderTarget)
@@ -149,7 +149,7 @@ func TestValidatorForLeaderFollowerCannotLead(t *testing.T) {
 			}, nil
 		},
 	}
-	workers := xsync.NewWorkerPool(2)
+	workers := sync.NewWorkerPool(2)
 	workers.Init()
 	f := newValidatorFactory(client, workers)
 	validator := f.ValidatorFor(instance, group, leaderTarget)
@@ -186,7 +186,7 @@ func TestValidatorForLeaderFollowerSuccess(t *testing.T) {
 			}, nil
 		},
 	}
-	workers := xsync.NewWorkerPool(2)
+	workers := sync.NewWorkerPool(2)
 	workers.Init()
 	f := newValidatorFactory(client, workers)
 	validator := f.ValidatorFor(instance, group, leaderTarget)

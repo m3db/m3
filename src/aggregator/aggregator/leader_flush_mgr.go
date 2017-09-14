@@ -35,7 +35,7 @@ import (
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"
-	"github.com/m3db/m3x/sync"
+	xsync "github.com/m3db/m3x/sync"
 	"github.com/m3db/m3x/watch"
 
 	"github.com/uber-go/tally"
@@ -76,10 +76,10 @@ type leaderFlushManager struct {
 	flushTimesKeyFmt         string
 	flushTimesStore          kv.Store
 	flushTimesPersistEvery   time.Duration
-	flushTimesPersistRetrier xretry.Retrier
+	flushTimesPersistRetrier retry.Retrier
 	instanceID               string
 	placementWatcher         placement.StagedPlacementWatcher
-	logger                   xlog.Logger
+	logger                   log.Logger
 	scope                    tally.Scope
 
 	doneCh              <-chan struct{}
@@ -89,7 +89,7 @@ type leaderFlushManager struct {
 	flushTimesKey       string
 	lastPersistAtNanos  int64
 	flushedSincePersist bool
-	persistWatchable    xwatch.Watchable
+	persistWatchable    watch.Watchable
 	flushTask           *leaderFlushTask
 	metrics             leaderFlushManagerMetrics
 }
@@ -120,7 +120,7 @@ func newLeaderFlushManager(
 		rand:                     rand,
 		randFn:                   rand.Int63n,
 		lastPersistAtNanos:       nowFn().UnixNano(),
-		persistWatchable:         xwatch.NewWatchable(),
+		persistWatchable:         watch.NewWatchable(),
 		metrics:                  newLeaderFlushManagerMetrics(scope),
 	}
 	mgr.flushTask = &leaderFlushTask{mgr: mgr}
@@ -276,7 +276,7 @@ func (mgr *leaderFlushManager) prepareFlushTimesWithLock(
 	return proto
 }
 
-func (mgr *leaderFlushManager) persistFlushTimes(flushTimesWatch xwatch.Watch) {
+func (mgr *leaderFlushManager) persistFlushTimes(flushTimesWatch watch.Watch) {
 	for {
 		select {
 		case <-mgr.doneCh:

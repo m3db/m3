@@ -41,7 +41,7 @@ import (
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/sync"
+	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/stretchr/testify/require"
 )

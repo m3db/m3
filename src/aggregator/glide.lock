@@ -1,5 +1,5 @@
-hash: b35e505fca8e6a20547a72f8c378ec6323f191dec2ff3274b0d340edc7a52ff2
-updated: 2017-09-06T22:41:41.420772692-04:00
+hash: f6d7a5598b8c8de86c3295a659ed13921c49c629d4b5252dcaa16c98b42d5fbc
+updated: 2017-09-14T10:13:20.507766804-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -122,7 +122,7 @@ imports:
 - name: github.com/karlseguin/ccache
   version: a2d62155777b39595c825ed3824279e642a5db3c
 - name: github.com/m3db/m3cluster
-  version: 296a3aed74ef56ee64bf08ead9b358056aa2fb14
+  version: 3ca6883175651960ca2f93ba91198bbb9a84f5be
   subpackages:
   - client
   - client/etcd
@@ -146,7 +146,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3metrics
-  version: f6d7952fb61675c50aaea358b611aa332f1e5dca
+  version: 8f664bcaa26b6a844a479a71aa98d014eaaba748
   subpackages:
   - generated/proto/schema
   - metric/aggregated
@@ -155,7 +155,7 @@ imports:
   - policy
   - protocol/msgpack
 - name: github.com/m3db/m3x
-  version: f3fdee26896eff88aea63d585eceb6ac417f4530
+  version: 6e9713eca6718643e105f574be392f122bcc062e
   subpackages:
   - checked
   - clock
@@ -223,7 +223,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 4b9d9de43ffcb0b7efe67dab2a92c2d58dbf16ab
+  version: be9e53c77349ae2dd4b8c03a6dc20ed9a88b9927
   subpackages:
   - m3
   - m3/customtransports

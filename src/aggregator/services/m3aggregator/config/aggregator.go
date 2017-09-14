@@ -36,8 +36,8 @@ import (
 	"github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/instrument"
@@ -382,7 +382,8 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	// NB(xichen): we preallocate a bit over the maximum flush size as a safety measure
 	// because we might write past the max flush size and rewind it during flushing.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("buffered-encoder-pool"))
-	bufferedEncoderPoolOpts := c.BufferedEncoderPool.NewObjectPoolOptions(iOpts)
+	bufferedEncoderPoolOpts := msgpack.NewBufferedEncoderPoolOptions().
+		SetObjectPoolOptions(c.BufferedEncoderPool.NewObjectPoolOptions(iOpts))
 	bufferedEncoderPool := msgpack.NewBufferedEncoderPool(bufferedEncoderPoolOpts)
 	opts = opts.SetBufferedEncoderPool(bufferedEncoderPool)
 	initialBufferSize := c.MaxFlushSize * initialBufferSizeGrowthFactor
@@ -567,8 +568,8 @@ type electionManagerConfiguration struct {
 	ServiceID       serviceIDConfiguration `yaml:"serviceID"`
 	LeaderValue     string                 `yaml:"leaderValue"`
 	ElectionKeyFmt  string                 `yaml:"electionKeyFmt" validate:"nonzero"`
-	CampaignRetrier xretry.Configuration   `yaml:"campaignRetrier"`
-	ChangeRetrier   xretry.Configuration   `yaml:"changeRetrier"`
+	CampaignRetrier retry.Configuration    `yaml:"campaignRetrier"`
+	ChangeRetrier   retry.Configuration    `yaml:"changeRetrier"`
 }
 
 func (c electionManagerConfiguration) NewElectionManager(
@@ -677,7 +678,7 @@ type flushManagerConfiguration struct {
 	FlushTimesPersistEvery time.Duration `yaml:"flushTimesPersistEvery"`
 
 	// Retrier for persisting flush times.
-	FlushTimesPersistRetrier xretry.Configuration `yaml:"flushTimesPersistRetrier"`
+	FlushTimesPersistRetrier retry.Configuration `yaml:"flushTimesPersistRetrier"`
 
 	// Maximum duration with no flushes.
 	MaxNoFlushDuration time.Duration `yaml:"maxNoFlushDuration"`
@@ -718,7 +719,7 @@ func (c flushManagerConfiguration) NewFlushManager(
 	}
 	if c.NumWorkersPerCPU != 0 {
 		workerPoolSize := int(float64(runtime.NumCPU()) * c.NumWorkersPerCPU)
-		workerPool := xsync.NewWorkerPool(workerPoolSize)
+		workerPool := sync.NewWorkerPool(workerPoolSize)
 		workerPool.Init()
 		opts = opts.SetWorkerPool(workerPool)
 	}

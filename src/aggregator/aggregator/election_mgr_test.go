@@ -347,12 +347,12 @@ func TestElectionManagerVerifyLeaderDelay(t *testing.T) {
 		SetCampaignOptions(campaignOpts).
 		SetLeaderService(leaderService)
 	mgr := NewElectionManager(opts).(*electionManager)
-	retryOpts := xretry.NewOptions().
+	retryOpts := retry.NewOptions().
 		SetInitialBackoff(10 * time.Millisecond).
 		SetBackoffFactor(2).
 		SetMaxBackoff(50 * time.Millisecond).
 		SetForever(true)
-	mgr.changeRetrier = xretry.NewRetrier(retryOpts)
+	mgr.changeRetrier = retry.NewRetrier(retryOpts)
 	mgr.electionStateWatchable.Update(PendingFollowerState)
 
 	_, watch, err := mgr.goalStateWatchable.Watch()
@@ -394,7 +394,7 @@ func TestElectionManagerVerifyWithLeaderErrors(t *testing.T) {
 		SetLeaderService(leaderService)
 	mgr := NewElectionManager(opts).(*electionManager)
 	mgr.electionStateWatchable.Update(PendingFollowerState)
-	mgr.changeRetrier = xretry.NewRetrier(xretry.NewOptions().SetInitialBackoff(100 * time.Millisecond))
+	mgr.changeRetrier = retry.NewRetrier(retry.NewOptions().SetInitialBackoff(100 * time.Millisecond))
 
 	_, watch, err := mgr.goalStateWatchable.Watch()
 	require.NoError(t, err)

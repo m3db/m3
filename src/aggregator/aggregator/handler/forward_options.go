@@ -74,10 +74,10 @@ type ForwardHandlerOptions interface {
 	ConnectionWriteTimeout() time.Duration
 
 	// SetReconnectRetrier sets the reconnect retrier.
-	SetReconnectRetrier(value xretry.Retrier) ForwardHandlerOptions
+	SetReconnectRetrier(value retry.Retrier) ForwardHandlerOptions
 
 	// ReconnectRetrier returns the reconnect retrier.
-	ReconnectRetrier() xretry.Retrier
+	ReconnectRetrier() retry.Retrier
 }
 
 type forwardHandlerOptions struct {
@@ -87,7 +87,7 @@ type forwardHandlerOptions struct {
 	connectTimeout         time.Duration
 	connectionKeepAlive    bool
 	connectionWriteTimeout time.Duration
-	reconnectRetrier       xretry.Retrier
+	reconnectRetrier       retry.Retrier
 }
 
 // NewForwardHandlerOptions create a new set of forward handler options.
@@ -99,7 +99,7 @@ func NewForwardHandlerOptions() ForwardHandlerOptions {
 		connectTimeout:         defaultConnectTimeout,
 		connectionKeepAlive:    defaultConnectionKeepAlive,
 		connectionWriteTimeout: defaultConnectionWriteTimeout,
-		reconnectRetrier:       xretry.NewRetrier(xretry.NewOptions().SetForever(true)),
+		reconnectRetrier:       retry.NewRetrier(retry.NewOptions().SetForever(true)),
 	}
 }
 
@@ -163,12 +163,12 @@ func (o *forwardHandlerOptions) ConnectionWriteTimeout() time.Duration {
 	return o.connectionWriteTimeout
 }
 
-func (o *forwardHandlerOptions) SetReconnectRetrier(value xretry.Retrier) ForwardHandlerOptions {
+func (o *forwardHandlerOptions) SetReconnectRetrier(value retry.Retrier) ForwardHandlerOptions {
 	opts := *o
 	opts.reconnectRetrier = value
 	return &opts
 }
 
-func (o *forwardHandlerOptions) ReconnectRetrier() xretry.Retrier {
+func (o *forwardHandlerOptions) ReconnectRetrier() retry.Retrier {
 	return o.reconnectRetrier
 }

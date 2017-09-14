@@ -26,7 +26,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3x/sync"
+	xsync "github.com/m3db/m3x/sync"
 )
 
 // validator performs validation on a deployment target, returning nil if

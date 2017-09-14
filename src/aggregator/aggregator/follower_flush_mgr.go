@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/sync"
+	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/uber-go/tally"
 )
@@ -72,7 +72,7 @@ type followerFlushManager struct {
 	flushTimesStore       kv.Store
 	maxNoFlushDuration    time.Duration
 	forcedFlushWindowSize time.Duration
-	logger                xlog.Logger
+	logger                log.Logger
 	scope                 tally.Scope
 
 	doneCh          <-chan struct{}
@@ -209,7 +209,7 @@ func (mgr *followerFlushManager) flushersFromKVUpdateWithLock(buckets []*flushBu
 			if !exists {
 				mgr.metrics.shardNotFound.Inc(1)
 				mgr.logger.WithFields(
-					xlog.NewLogField("shard", shard),
+					log.NewField("shard", shard),
 				).Warn("shard not found in flush times")
 				continue
 			}
@@ -218,8 +218,8 @@ func (mgr *followerFlushManager) flushersFromKVUpdateWithLock(buckets []*flushBu
 			if !exists {
 				mgr.metrics.resolutionNotFound.Inc(1)
 				mgr.logger.WithFields(
-					xlog.NewLogField("shard", shard),
-					xlog.NewLogField("resolution", resolution.String()),
+					log.NewField("shard", shard),
+					log.NewField("resolution", resolution.String()),
 				).Warn("resolution not found in flush times")
 				continue
 			}
@@ -266,8 +266,8 @@ func (mgr *followerFlushManager) watchFlushTimes() {
 			if err != nil {
 				mgr.metrics.watchCreateErrors.Inc(1)
 				mgr.logger.WithFields(
-					xlog.NewLogField("flushTimesKey", mgr.flushTimesKey),
-					xlog.NewLogErrField(err),
+					log.NewField("flushTimesKey", mgr.flushTimesKey),
+					log.NewErrField(err),
 				).Error("error creating flush times watch")
 				mgr.sleepFn(throttlePeriod)
 				continue
@@ -287,8 +287,8 @@ func (mgr *followerFlushManager) watchFlushTimes() {
 		if err = value.Unmarshal(&proto); err != nil {
 			mgr.metrics.unmarshalErrors.Inc(1)
 			mgr.logger.WithFields(
-				xlog.NewLogField("flushTimesKey", mgr.flushTimesKey),
-				xlog.NewLogErrField(err),
+				log.NewField("flushTimesKey", mgr.flushTimesKey),
+				log.NewErrField(err),
 			).Error("flush times unmarshal error")
 			continue
 		}

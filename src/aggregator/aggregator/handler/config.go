@@ -64,7 +64,7 @@ func (c *FlushHandlerConfiguration) NewHandler(
 			return nil, errNoForwardHandlerConfiguration
 		}
 		scope = scope.SubScope("forward").Tagged(map[string]string{"forward-target": c.Forward.Name})
-		logger := iOpts.Logger().WithFields(xlog.NewLogField("forward-target", c.Forward.Name))
+		logger := iOpts.Logger().WithFields(log.NewField("forward-target", c.Forward.Name))
 		return c.Forward.NewHandler(iOpts.SetMetricsScope(scope).SetLogger(logger))
 	case BroadcastHandler:
 		if c.Broadcast == nil {
@@ -117,7 +117,7 @@ type forwardHandlerConfiguration struct {
 	ConnectionWriteTimeout time.Duration `yaml:"connectionWriteTimeout"`
 
 	// Reconnect retrier.
-	ReconnectRetrier xretry.Configuration `yaml:"reconnect"`
+	ReconnectRetrier retry.Configuration `yaml:"reconnect"`
 }
 
 func (c *forwardHandlerConfiguration) NewHandler(

@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3x/pprof"
-	"github.com/m3db/m3x/server"
+	xserver "github.com/m3db/m3x/server"
 )
 
 // server is an http server.
@@ -58,7 +58,7 @@ func (s *server) ListenAndServe() error {
 func (s *server) Serve(l net.Listener) error {
 	mux := http.NewServeMux()
 	registerHandlers(mux, s.aggregator)
-	xpprof.RegisterHandler(mux)
+	pprof.RegisterHandler(mux)
 	server := http.Server{
 		Handler:      mux,
 		ReadTimeout:  s.opts.ReadTimeout(),

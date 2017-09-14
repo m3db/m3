@@ -88,12 +88,12 @@ type forwardHandler struct {
 	sync.RWMutex
 
 	servers                []string
-	log                    xlog.Logger
+	log                    log.Logger
 	nowFn                  clock.NowFn
 	connectTimeout         time.Duration
 	connectionKeepAlive    bool
 	connectionWriteTimeout time.Duration
-	reconnectRetrier       xretry.Retrier
+	reconnectRetrier       retry.Retrier
 	reportInterval         time.Duration
 
 	bufCh              chan *aggregator.RefCountedBuffer
@@ -150,8 +150,8 @@ func (h *forwardHandler) initConnections(servers []string) {
 		conn, err := h.tryConnectFn(addr)
 		if err != nil {
 			h.log.WithFields(
-				xlog.NewLogField("address", addr),
-				xlog.NewLogErrField(err),
+				log.NewField("address", addr),
+				log.NewErrField(err),
 			).Error("error connecting to server")
 		}
 		go h.forwardToConn(addr, conn)
@@ -203,8 +203,6 @@ func (h *forwardHandler) enqueue(buffer *aggregator.RefCountedBuffer, dropType d
 		default:
 		}
 	}
-	panic("unreachable code")
-	return nil
 }
 
 func (h *forwardHandler) forwardToConn(addr string, conn *net.TCPConn) {
@@ -226,7 +224,7 @@ func (h *forwardHandler) forwardToConn(addr string, conn *net.TCPConn) {
 		// Retry establishing connection until either success or the handler is closed.
 		for conn == nil {
 			attemptErr := h.reconnectRetrier.AttemptWhile(continueFn, connectFn)
-			if attemptErr == xretry.ErrWhileConditionFalse {
+			if attemptErr == retry.ErrWhileConditionFalse {
 				return
 			}
 		}
@@ -247,16 +245,16 @@ func (h *forwardHandler) forwardToConn(addr string, conn *net.TCPConn) {
 			}
 			h.metrics.writeErrors.Inc(1)
 			h.log.WithFields(
-				xlog.NewLogField("address", addr),
-				xlog.NewLogErrField(writeErr),
+				log.NewField("address", addr),
+				log.NewErrField(writeErr),
 			).Error("error writing to server")
 
 			// NB(xichen): the buffer contains the oldest flushed data in queue
 			// so it's preferrable to drop it in case the queue is full.
 			if enqueueErr := h.enqueue(buf, dropCurrent); enqueueErr != nil {
 				h.log.WithFields(
-					xlog.NewLogField("address", addr),
-					xlog.NewLogErrField(enqueueErr),
+					log.NewField("address", addr),
+					log.NewErrField(enqueueErr),
 				).Error("error enqueuing the buffer")
 			}
 

@@ -87,7 +87,7 @@ type metricList struct {
 	shard         uint32
 	opts          Options
 	nowFn         clock.NowFn
-	log           xlog.Logger
+	log           log.Logger
 	timeLock      *sync.RWMutex
 	maxFlushSize  int
 	flushHandler  Handler
@@ -317,13 +317,13 @@ func (l *metricList) consumeAggregatedMetric(
 		StoragePolicy: sp,
 	}); err != nil {
 		l.log.WithFields(
-			xlog.NewLogField("idPrefix", string(idPrefix)),
-			xlog.NewLogField("id", id.String()),
-			xlog.NewLogField("idSuffix", string(idSuffix)),
-			xlog.NewLogField("timestamp", time.Unix(0, timeNanos).String()),
-			xlog.NewLogField("value", value),
-			xlog.NewLogField("policy", sp.String()),
-			xlog.NewLogErrField(err),
+			log.NewField("idPrefix", string(idPrefix)),
+			log.NewField("id", id.String()),
+			log.NewField("idSuffix", string(idSuffix)),
+			log.NewField("timestamp", time.Unix(0, timeNanos).String()),
+			log.NewField("value", value),
+			log.NewField("policy", sp.String()),
+			log.NewErrField(err),
 		).Error("encode metric with policy error")
 		l.metrics.flushMetricConsumeErrors.Inc(1)
 		buffer.Truncate(sizeBefore)
