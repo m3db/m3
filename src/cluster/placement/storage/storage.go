@@ -33,7 +33,7 @@ type storage struct {
 	key    string
 	store  kv.Store
 	opts   placement.Options
-	logger xlog.Logger
+	logger log.Logger
 }
 
 // NewPlacementStorage creates a placement.Storage.

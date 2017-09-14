@@ -69,7 +69,7 @@ type value struct {
 	key              string
 	store            kv.Store
 	opts             Options
-	log              xlog.Logger
+	log              log.Logger
 	unmarshalFn      UnmarshalFn
 	processFn        ProcessFn
 	updateWithLockFn updateWithLockFn

@@ -54,7 +54,7 @@ func TestConfig(t *testing.T) {
 	defer os.Remove(fname)
 
 	var cfg Configuration
-	xconfig.LoadFile(&cfg, fname)
+	config.LoadFile(&cfg, fname)
 
 	require.Equal(t, "env1", cfg.Env)
 	require.Equal(t, "z1", cfg.Zone)

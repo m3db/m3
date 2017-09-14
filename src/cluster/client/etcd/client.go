@@ -88,7 +88,7 @@ type csclient struct {
 	kvScope tally.Scope
 	sdScope tally.Scope
 	hbScope tally.Scope
-	logger  xlog.Logger
+	logger  log.Logger
 	newFn   newClientFn
 
 	txnOnce sync.Once
