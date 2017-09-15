@@ -133,7 +133,7 @@ func (ps *placementService) AddInstances(
 	for i, instance := range addingInstances {
 		addingInstance, ok := p.Instance(instance.ID())
 		if !ok {
-			return nil, nil, fmt.Errorf("unable to find added instance [%s] in new placement", addingInstance.ID())
+			return nil, nil, fmt.Errorf("unable to find added instance [%s] in new placement", instance.ID())
 		}
 		addingInstances[i] = addingInstance
 	}

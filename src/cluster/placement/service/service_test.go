@@ -856,11 +856,15 @@ func (ms *mockStorage) Placement() (placement.Placement, int, error) {
 	return nil, 0, kv.ErrNotFound
 }
 
-func (ms *mockStorage) SetPlacementProto(p proto.Message) error {
+func (ms *mockStorage) CheckAndSetProto(p proto.Message, v int) error {
 	return errors.New("not implemented")
 }
 
-func (ms *mockStorage) PlacementProto() (proto.Message, int, error) {
+func (ms *mockStorage) SetProto(p proto.Message) error {
+	return errors.New("not implemented")
+}
+
+func (ms *mockStorage) Proto() (proto.Message, int, error) {
 	return nil, 0, errors.New("not implemented")
 }
 

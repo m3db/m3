@@ -1201,28 +1201,6 @@ func (_m *MockStorage) EXPECT() *_MockStorageRecorder {
 	return _m.recorder
 }
 
-func (_m *MockStorage) SetPlacementProto(p proto.Message) error {
-	ret := _m.ctrl.Call(_m, "SetPlacementProto", p)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockStorageRecorder) SetPlacementProto(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPlacementProto", arg0)
-}
-
-func (_m *MockStorage) PlacementProto() (proto.Message, int, error) {
-	ret := _m.ctrl.Call(_m, "PlacementProto")
-	ret0, _ := ret[0].(proto.Message)
-	ret1, _ := ret[1].(int)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-func (_mr *_MockStorageRecorder) PlacementProto() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "PlacementProto")
-}
-
 func (_m *MockStorage) Set(p Placement) error {
 	ret := _m.ctrl.Call(_m, "Set", p)
 	ret0, _ := ret[0].(error)
@@ -1253,16 +1231,6 @@ func (_mr *_MockStorageRecorder) SetIfNotExist(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIfNotExist", arg0)
 }
 
-func (_m *MockStorage) Delete() error {
-	ret := _m.ctrl.Call(_m, "Delete")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockStorageRecorder) Delete() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Delete")
-}
-
 func (_m *MockStorage) Placement() (Placement, int, error) {
 	ret := _m.ctrl.Call(_m, "Placement")
 	ret0, _ := ret[0].(Placement)
@@ -1273,6 +1241,48 @@ func (_m *MockStorage) Placement() (Placement, int, error) {
 
 func (_mr *_MockStorageRecorder) Placement() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Placement")
+}
+
+func (_m *MockStorage) Delete() error {
+	ret := _m.ctrl.Call(_m, "Delete")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockStorageRecorder) Delete() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Delete")
+}
+
+func (_m *MockStorage) SetProto(p proto.Message) error {
+	ret := _m.ctrl.Call(_m, "SetProto", p)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockStorageRecorder) SetProto(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetProto", arg0)
+}
+
+func (_m *MockStorage) CheckAndSetProto(p proto.Message, version int) error {
+	ret := _m.ctrl.Call(_m, "CheckAndSetProto", p, version)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockStorageRecorder) CheckAndSetProto(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CheckAndSetProto", arg0, arg1)
+}
+
+func (_m *MockStorage) Proto() (proto.Message, int, error) {
+	ret := _m.ctrl.Call(_m, "Proto")
+	ret0, _ := ret[0].(proto.Message)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockStorageRecorder) Proto() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Proto")
 }
 
 // Mock of Service interface
@@ -1294,28 +1304,6 @@ func NewMockService(ctrl *gomock.Controller) *MockService {
 
 func (_m *MockService) EXPECT() *_MockServiceRecorder {
 	return _m.recorder
-}
-
-func (_m *MockService) SetPlacementProto(p proto.Message) error {
-	ret := _m.ctrl.Call(_m, "SetPlacementProto", p)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockServiceRecorder) SetPlacementProto(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetPlacementProto", arg0)
-}
-
-func (_m *MockService) PlacementProto() (proto.Message, int, error) {
-	ret := _m.ctrl.Call(_m, "PlacementProto")
-	ret0, _ := ret[0].(proto.Message)
-	ret1, _ := ret[1].(int)
-	ret2, _ := ret[2].(error)
-	return ret0, ret1, ret2
-}
-
-func (_mr *_MockServiceRecorder) PlacementProto() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "PlacementProto")
 }
 
 func (_m *MockService) Set(p Placement) error {
@@ -1348,16 +1336,6 @@ func (_mr *_MockServiceRecorder) SetIfNotExist(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIfNotExist", arg0)
 }
 
-func (_m *MockService) Delete() error {
-	ret := _m.ctrl.Call(_m, "Delete")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockServiceRecorder) Delete() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Delete")
-}
-
 func (_m *MockService) Placement() (Placement, int, error) {
 	ret := _m.ctrl.Call(_m, "Placement")
 	ret0, _ := ret[0].(Placement)
@@ -1368,6 +1346,48 @@ func (_m *MockService) Placement() (Placement, int, error) {
 
 func (_mr *_MockServiceRecorder) Placement() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Placement")
+}
+
+func (_m *MockService) Delete() error {
+	ret := _m.ctrl.Call(_m, "Delete")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockServiceRecorder) Delete() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Delete")
+}
+
+func (_m *MockService) SetProto(p proto.Message) error {
+	ret := _m.ctrl.Call(_m, "SetProto", p)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockServiceRecorder) SetProto(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetProto", arg0)
+}
+
+func (_m *MockService) CheckAndSetProto(p proto.Message, version int) error {
+	ret := _m.ctrl.Call(_m, "CheckAndSetProto", p, version)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockServiceRecorder) CheckAndSetProto(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "CheckAndSetProto", arg0, arg1)
+}
+
+func (_m *MockService) Proto() (proto.Message, int, error) {
+	ret := _m.ctrl.Call(_m, "Proto")
+	ret0, _ := ret[0].(proto.Message)
+	ret1, _ := ret[1].(int)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockServiceRecorder) Proto() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Proto")
 }
 
 func (_m *MockService) BuildInitialPlacement(instances []Instance, numShards int, rf int) (Placement, error) {
