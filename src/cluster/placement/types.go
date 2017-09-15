@@ -377,12 +377,6 @@ type Options interface {
 
 // Storage provides read and write access to placement.
 type Storage interface {
-	// SetPlacementProto sets the proto as the placement.
-	SetPlacementProto(p proto.Message) error
-
-	// PlacementProto returns the placement proto.
-	PlacementProto() (proto.Message, int, error)
-
 	// Set writes a placement.
 	Set(p Placement) error
 
@@ -393,11 +387,21 @@ type Storage interface {
 	// SetIfNotExist writes a placement.
 	SetIfNotExist(p Placement) error
 
+	// Placement reads placement and version.
+	Placement() (Placement, int, error)
+
 	// Delete deletes the placement.
 	Delete() error
 
-	// Placement reads placement and version.
-	Placement() (Placement, int, error)
+	// SetProto sets the proto as the placement.
+	SetProto(p proto.Message) error
+
+	// CheckAndSetProto writes a proto if the current version
+	// matches the expected version.
+	CheckAndSetProto(p proto.Message, version int) error
+
+	// Proto returns the placement proto.
+	Proto() (proto.Message, int, error)
 }
 
 // Service handles the placement related operations for registered services

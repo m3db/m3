@@ -47,7 +47,20 @@ func NewPlacementStorage(store kv.Store, key string, opts placement.Options) pla
 	}
 }
 
-func (s *storage) SetPlacementProto(p proto.Message) error {
+func (s *storage) CheckAndSetProto(p proto.Message, version int) error {
+	if err := s.helper.ValidateProto(p); err != nil {
+		return err
+	}
+
+	if s.opts.Dryrun() {
+		s.logger.Info("this is a dryrun, the operation is not persisted")
+		return nil
+	}
+	_, err := s.store.CheckAndSet(s.key, version, p)
+	return err
+}
+
+func (s *storage) SetProto(p proto.Message) error {
 	if err := s.helper.ValidateProto(p); err != nil {
 		return err
 	}
@@ -60,7 +73,7 @@ func (s *storage) SetPlacementProto(p proto.Message) error {
 	return err
 }
 
-func (s *storage) PlacementProto() (proto.Message, int, error) {
+func (s *storage) Proto() (proto.Message, int, error) {
 	return s.helper.PlacementProto()
 }
 

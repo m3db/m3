@@ -81,7 +81,7 @@ func TestStorageWithSinglePlacement(t *testing.T) {
 	require.Equal(t, 1, v)
 	require.Equal(t, p.SetVersion(1), pGet)
 
-	proto, v, err := ps.PlacementProto()
+	proto, v, err := ps.Proto()
 	require.NoError(t, err)
 	require.Equal(t, 1, v)
 
@@ -122,7 +122,7 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 	require.Equal(t, 2, v)
 	require.Equal(t, p.SetVersion(2), pGet2)
 
-	newProto, v, err := ps.PlacementProto()
+	newProto, v, err := ps.Proto()
 	require.NoError(t, err)
 	require.Equal(t, 2, v)
 
@@ -145,6 +145,34 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, v)
 	require.Equal(t, p.SetVersion(1), pGet3)
+}
+
+func TestCheckAndSetProto(t *testing.T) {
+	m := mem.NewStore()
+	ps := newTestPlacementStorage(m, placement.NewOptions())
+
+	p := placement.NewPlacement().
+		SetInstances([]placement.Instance{}).
+		SetShards([]uint32{}).
+		SetReplicaFactor(0)
+
+	err := ps.SetIfNotExist(p)
+	require.NoError(t, err)
+
+	newProto, v, err := ps.Proto()
+	require.NoError(t, err)
+	require.Equal(t, 1, v)
+
+	err = ps.CheckAndSetProto(newProto, 2)
+	require.Error(t, err)
+
+	err = ps.CheckAndSetProto(newProto, 1)
+	require.NoError(t, err)
+
+	require.NoError(t, ps.Delete())
+
+	err = ps.CheckAndSetProto(newProto, 0)
+	require.NoError(t, err)
 }
 
 func TestDryrun(t *testing.T) {
