@@ -25,25 +25,21 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/sync"
 )
 
 const (
-	defaultCheckEvery    = time.Second
-	defaultJitterEnabled = true
+	defaultCheckEvery             = time.Second
+	defaultJitterEnabled          = true
+	defaultFlushTimesPersistEvery = 10 * time.Second
+	defaultMaxBufferSize          = 5 * time.Minute
+	defaultForcedFlushWindowSize  = 10 * time.Second
 )
 
 var (
-	defaultWorkerPoolSize         = int(math.Max(float64(runtime.NumCPU()/8), 1.0))
-	defaultFlushTimesKeyFormat    = "/shardset/%d/flush"
-	defaultFlushTimesPersistEvery = 10 * time.Second
-	defaultMaxNoFlushDuration     = 15 * time.Minute
-	defaultForcedFlushWindowSize  = 10 * time.Second
+	defaultWorkerPoolSize = int(math.Max(float64(runtime.NumCPU()/8), 1.0))
 )
 
 // FlushJitterFn determines the jitter based on the flush interval.
@@ -87,23 +83,23 @@ type FlushManagerOptions interface {
 	// WorkerPool returns the worker pool.
 	WorkerPool() sync.WorkerPool
 
+	// SetPlacementManager sets the placement manager.
+	SetPlacementManager(value PlacementManager) FlushManagerOptions
+
+	// PlacementManager returns the placement manager.
+	PlacementManager() PlacementManager
+
 	// SetElectionManager sets the election manager.
 	SetElectionManager(value ElectionManager) FlushManagerOptions
 
 	// ElectionManager returns the election manager.
 	ElectionManager() ElectionManager
 
-	// SetFlushTimesKeyFmt sets the flush times key format.
-	SetFlushTimesKeyFmt(value string) FlushManagerOptions
+	// SetFlushTimesManager sets the flush times manager.
+	SetFlushTimesManager(value FlushTimesManager) FlushManagerOptions
 
-	// FlushTimesKeyFmt returns the flush times key format.
-	FlushTimesKeyFmt() string
-
-	// SetFlushTimesStore sets the flush times store.
-	SetFlushTimesStore(value kv.Store) FlushManagerOptions
-
-	// FlushTimesStore returns the flush times store.
-	FlushTimesStore() kv.Store
+	// FlushTimesManager returns the flush times manager.
+	FlushTimesManager() FlushTimesManager
 
 	// SetFlushTimesPersistEvery sets how frequently the flush times are stored in kv.
 	SetFlushTimesPersistEvery(value time.Duration) FlushManagerOptions
@@ -111,53 +107,36 @@ type FlushManagerOptions interface {
 	// FlushTimesPersistEvery returns how frequently the flush times are stored in kv.
 	FlushTimesPersistEvery() time.Duration
 
-	// SetFlushTimesPersistRetrier sets the retrier for persisting flush times.
-	SetFlushTimesPersistRetrier(value retry.Retrier) FlushManagerOptions
+	// SetMaxBufferSize sets the maximum duration data are buffered for without getting
+	// flushed or discarded to handle transient KV issues or for backing out of active
+	// topology changes.
+	SetMaxBufferSize(value time.Duration) FlushManagerOptions
 
-	// FlushTimesPersistRetrier returns the retrier for persisting flush times.
-	FlushTimesPersistRetrier() retry.Retrier
-
-	// SetMaxNoFlushDuration sets the maximum duration with no flushes.
-	SetMaxNoFlushDuration(value time.Duration) FlushManagerOptions
-
-	// MaxNoFlushDuration returns the maximum duration with no flushes.
-	MaxNoFlushDuration() time.Duration
+	// MaxBufferSize sets the maximum duration data are buffered for without getting
+	// flushed or discarded to handle transient KV issues or for backing out of active
+	// topology changes.
+	MaxBufferSize() time.Duration
 
 	// SetForcedFlushWindowSize sets the window size for a forced flush.
 	SetForcedFlushWindowSize(value time.Duration) FlushManagerOptions
 
 	// ForcedFlushWindowSize returns the window size for a forced flush.
 	ForcedFlushWindowSize() time.Duration
-
-	// SetInstanceID sets the instance id.
-	SetInstanceID(value string) FlushManagerOptions
-
-	// InstanceID returns the instance id.
-	InstanceID() string
-
-	// SetStagedPlacementWatcher sets the staged placement watcher.
-	SetStagedPlacementWatcher(value placement.StagedPlacementWatcher) FlushManagerOptions
-
-	// StagedPlacementWatcher returns the staged placement watcher.
-	StagedPlacementWatcher() placement.StagedPlacementWatcher
 }
 
 type flushManagerOptions struct {
-	clockOpts                clock.Options
-	instrumentOpts           instrument.Options
-	checkEvery               time.Duration
-	jitterEnabled            bool
-	maxJitterFn              FlushJitterFn
-	workerPool               sync.WorkerPool
-	electionManager          ElectionManager
-	flushTimesKeyFmt         string
-	flushTimesStore          kv.Store
-	flushTimesPersistEvery   time.Duration
-	flushTimesPersistRetrier retry.Retrier
-	maxNoFlushDuration       time.Duration
-	forcedFlushWindowSize    time.Duration
-	instanceID               string
-	placementWatcher         placement.StagedPlacementWatcher
+	clockOpts              clock.Options
+	instrumentOpts         instrument.Options
+	checkEvery             time.Duration
+	jitterEnabled          bool
+	maxJitterFn            FlushJitterFn
+	workerPool             sync.WorkerPool
+	placementManager       PlacementManager
+	electionManager        ElectionManager
+	flushTimesManager      FlushTimesManager
+	flushTimesPersistEvery time.Duration
+	maxBufferSize          time.Duration
+	forcedFlushWindowSize  time.Duration
 }
 
 // NewFlushManagerOptions create a new set of flush manager options.
@@ -165,17 +144,14 @@ func NewFlushManagerOptions() FlushManagerOptions {
 	workerPool := sync.NewWorkerPool(defaultWorkerPoolSize)
 	workerPool.Init()
 	return &flushManagerOptions{
-		clockOpts:                clock.NewOptions(),
-		instrumentOpts:           instrument.NewOptions(),
-		checkEvery:               defaultCheckEvery,
-		jitterEnabled:            defaultJitterEnabled,
-		workerPool:               workerPool,
-		flushTimesKeyFmt:         defaultFlushTimesKeyFormat,
-		flushTimesPersistEvery:   defaultFlushTimesPersistEvery,
-		flushTimesPersistRetrier: retry.NewRetrier(retry.NewOptions()),
-		maxNoFlushDuration:       defaultMaxNoFlushDuration,
-		instanceID:               defaultInstanceID,
-		forcedFlushWindowSize:    defaultForcedFlushWindowSize,
+		clockOpts:              clock.NewOptions(),
+		instrumentOpts:         instrument.NewOptions(),
+		checkEvery:             defaultCheckEvery,
+		jitterEnabled:          defaultJitterEnabled,
+		workerPool:             workerPool,
+		flushTimesPersistEvery: defaultFlushTimesPersistEvery,
+		maxBufferSize:          defaultMaxBufferSize,
+		forcedFlushWindowSize:  defaultForcedFlushWindowSize,
 	}
 }
 
@@ -239,6 +215,16 @@ func (o *flushManagerOptions) WorkerPool() sync.WorkerPool {
 	return o.workerPool
 }
 
+func (o *flushManagerOptions) SetPlacementManager(value PlacementManager) FlushManagerOptions {
+	opts := *o
+	opts.placementManager = value
+	return &opts
+}
+
+func (o *flushManagerOptions) PlacementManager() PlacementManager {
+	return o.placementManager
+}
+
 func (o *flushManagerOptions) SetElectionManager(value ElectionManager) FlushManagerOptions {
 	opts := *o
 	opts.electionManager = value
@@ -249,24 +235,14 @@ func (o *flushManagerOptions) ElectionManager() ElectionManager {
 	return o.electionManager
 }
 
-func (o *flushManagerOptions) SetFlushTimesKeyFmt(value string) FlushManagerOptions {
+func (o *flushManagerOptions) SetFlushTimesManager(value FlushTimesManager) FlushManagerOptions {
 	opts := *o
-	opts.flushTimesKeyFmt = value
+	opts.flushTimesManager = value
 	return &opts
 }
 
-func (o *flushManagerOptions) FlushTimesKeyFmt() string {
-	return o.flushTimesKeyFmt
-}
-
-func (o *flushManagerOptions) SetFlushTimesStore(value kv.Store) FlushManagerOptions {
-	opts := *o
-	opts.flushTimesStore = value
-	return &opts
-}
-
-func (o *flushManagerOptions) FlushTimesStore() kv.Store {
-	return o.flushTimesStore
+func (o *flushManagerOptions) FlushTimesManager() FlushTimesManager {
+	return o.flushTimesManager
 }
 
 func (o *flushManagerOptions) SetFlushTimesPersistEvery(value time.Duration) FlushManagerOptions {
@@ -279,24 +255,14 @@ func (o *flushManagerOptions) FlushTimesPersistEvery() time.Duration {
 	return o.flushTimesPersistEvery
 }
 
-func (o *flushManagerOptions) SetFlushTimesPersistRetrier(value retry.Retrier) FlushManagerOptions {
+func (o *flushManagerOptions) SetMaxBufferSize(value time.Duration) FlushManagerOptions {
 	opts := *o
-	opts.flushTimesPersistRetrier = value
+	opts.maxBufferSize = value
 	return &opts
 }
 
-func (o *flushManagerOptions) FlushTimesPersistRetrier() retry.Retrier {
-	return o.flushTimesPersistRetrier
-}
-
-func (o *flushManagerOptions) SetMaxNoFlushDuration(value time.Duration) FlushManagerOptions {
-	opts := *o
-	opts.maxNoFlushDuration = value
-	return &opts
-}
-
-func (o *flushManagerOptions) MaxNoFlushDuration() time.Duration {
-	return o.maxNoFlushDuration
+func (o *flushManagerOptions) MaxBufferSize() time.Duration {
+	return o.maxBufferSize
 }
 
 func (o *flushManagerOptions) SetForcedFlushWindowSize(value time.Duration) FlushManagerOptions {
@@ -307,24 +273,4 @@ func (o *flushManagerOptions) SetForcedFlushWindowSize(value time.Duration) Flus
 
 func (o *flushManagerOptions) ForcedFlushWindowSize() time.Duration {
 	return o.forcedFlushWindowSize
-}
-
-func (o *flushManagerOptions) SetInstanceID(value string) FlushManagerOptions {
-	opts := *o
-	opts.instanceID = value
-	return &opts
-}
-
-func (o *flushManagerOptions) InstanceID() string {
-	return o.instanceID
-}
-
-func (o *flushManagerOptions) SetStagedPlacementWatcher(value placement.StagedPlacementWatcher) FlushManagerOptions {
-	opts := *o
-	opts.placementWatcher = value
-	return &opts
-}
-
-func (o *flushManagerOptions) StagedPlacementWatcher() placement.StagedPlacementWatcher {
-	return o.placementWatcher
 }

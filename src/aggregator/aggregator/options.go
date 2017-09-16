@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
-	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
@@ -51,7 +50,6 @@ var (
 	defaultAggregationCountSuffix    = []byte(".count")
 	defaultAggregationStdevSuffix    = []byte(".stdev")
 	defaultAggregationMedianSuffix   = []byte(".median")
-	defaultInstanceID                = "localhost"
 	defaultMinFlushInterval          = 5 * time.Second
 	defaultMaxFlushSize              = 1440
 	defaultEntryTTL                  = 24 * time.Hour
@@ -128,8 +126,7 @@ type options struct {
 	clockOpts                        clock.Options
 	instrumentOpts                   instrument.Options
 	streamOpts                       cm.Options
-	placementWatcher                 placement.StagedPlacementWatcher
-	instanceID                       string
+	placementManager                 PlacementManager
 	shardFn                          ShardFn
 	bufferDurationBeforeShardCutover time.Duration
 	bufferDurationAfterShardCutoff   time.Duration
@@ -142,6 +139,7 @@ type options struct {
 	entryCheckBatchPercent           float64
 	maxTimerBatchSizePerWrite        int
 	defaultPolicies                  []policy.Policy
+	flushTimesManager                FlushTimesManager
 	electionManager                  ElectionManager
 	resignTimeout                    time.Duration
 	entryPool                        EntryPool
@@ -195,7 +193,6 @@ func NewOptions() Options {
 		clockOpts:                      clock.NewOptions(),
 		instrumentOpts:                 instrument.NewOptions(),
 		streamOpts:                     cm.NewOptions(),
-		instanceID:                     defaultInstanceID,
 		shardFn:                        defaultShardFn,
 		bufferDurationBeforeShardCutover: defaultBufferDurationBeforeShardCutover,
 		bufferDurationAfterShardCutoff:   defaultBufferDurationAfterShardCutoff,
@@ -449,24 +446,14 @@ func (o *options) StreamOptions() cm.Options {
 	return o.streamOpts
 }
 
-func (o *options) SetStagedPlacementWatcher(value placement.StagedPlacementWatcher) Options {
+func (o *options) SetPlacementManager(value PlacementManager) Options {
 	opts := *o
-	opts.placementWatcher = value
+	opts.placementManager = value
 	return &opts
 }
 
-func (o *options) StagedPlacementWatcher() placement.StagedPlacementWatcher {
-	return o.placementWatcher
-}
-
-func (o *options) SetInstanceID(value string) Options {
-	opts := *o
-	opts.instanceID = value
-	return &opts
-}
-
-func (o *options) InstanceID() string {
-	return o.instanceID
+func (o *options) PlacementManager() PlacementManager {
+	return o.placementManager
 }
 
 func (o *options) SetShardFn(value ShardFn) Options {
@@ -497,6 +484,16 @@ func (o *options) SetBufferDurationAfterShardCutoff(value time.Duration) Options
 
 func (o *options) BufferDurationAfterShardCutoff() time.Duration {
 	return o.bufferDurationAfterShardCutoff
+}
+
+func (o *options) SetFlushTimesManager(value FlushTimesManager) Options {
+	opts := *o
+	opts.flushTimesManager = value
+	return &opts
+}
+
+func (o *options) FlushTimesManager() FlushTimesManager {
+	return o.flushTimesManager
 }
 
 func (o *options) SetElectionManager(value ElectionManager) Options {
