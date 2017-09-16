@@ -15,7 +15,7 @@ var seededBootstrapTestCmd = &cobra.Command{
 	(2) Seed the nodes used in (1), with initial data on their respective file-systems.
 	(3) Start the nodes from (1), and wait until they are bootstrapped.
 `,
-	Example: `./dtest seeded_bootstrap --m3db-build path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --m3em-config path/to/dtest.yaml`,
+	Example: `./dtest seeded_bootstrap --m3db-build path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --dtest-config path/to/dtest.yaml`,
 	Run:     seededBootstrapDTest,
 }
 

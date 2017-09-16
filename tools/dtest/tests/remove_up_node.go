@@ -17,7 +17,7 @@ var removeUpNodeTestCmd = &cobra.Command{
 	(4) Remove any one node from the cluster placement.
 	(5) Wait until all the shards in the placement are marked as available.
 `,
-	Example: `./dtest remove_up_node --m3db-build path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --m3em-config path/to/dtest.yaml`,
+	Example: `./dtest remove_up_node --m3db-build path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --dtest-config path/to/dtest.yaml`,
 	Run:     removeUpNodeDTest,
 }
 

@@ -19,7 +19,7 @@ var (
 		(4) Add the one unused node to the cluster placement, and start it's process.
 		(5) Wait until all the shards in the cluster placement are marked as available.
 `,
-		Example: `./dtest add_down_node_bring_up --m3db-build path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --m3em-config path/to/dtest.yaml`,
+		Example: `./dtest add_down_node_bring_up --m3db-build path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --dtest-config path/to/dtest.yaml`,
 		Run:     addDownNodeAndBringUpDTest,
 	}
 )

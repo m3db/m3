@@ -18,7 +18,7 @@ var removeDownNodeTestCmd = &cobra.Command{
 	(5) The node from (4) is removed from the cluster placement.
 	(6) Wait until all shard in the cluster placement are marked as available.
 `,
-	Example: `./dtest remove_down_node --m3db-build path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --m3em-config path/to/dtest.yaml`,
+	Example: `./dtest remove_down_node --m3db-build path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --dtest-config path/to/dtest.yaml`,
 	Run:     removeDownNodeDTest,
 }
 
