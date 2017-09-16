@@ -38,10 +38,10 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 	"github.com/uber/tchannel-go/thrift"

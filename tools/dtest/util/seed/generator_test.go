@@ -16,7 +16,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

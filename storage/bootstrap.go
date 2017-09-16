@@ -28,9 +28,9 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap"
-	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/time"
+	xerrors "github.com/m3db/m3x/errors"
+	xlog "github.com/m3db/m3x/log"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 )
@@ -214,8 +214,8 @@ func (m *bootstrapManager) bootstrap() error {
 		}
 		end := m.nowFn()
 		m.log.WithFields(
-			xlog.NewLogField("namespace", namespace.ID().String()),
-			xlog.NewLogField("duration", end.Sub(start).String()),
+			xlog.NewField("namespace", namespace.ID().String()),
+			xlog.NewField("duration", end.Sub(start).String()),
 		).Info("bootstrap finished")
 	}
 

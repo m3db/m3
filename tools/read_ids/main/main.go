@@ -31,8 +31,8 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	nchannel "github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/retry"
+	xlog "github.com/m3db/m3x/log"
+	xretry "github.com/m3db/m3x/retry"
 
 	tchannel "github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"

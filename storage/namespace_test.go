@@ -38,8 +38,8 @@ import (
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/metrics"
-	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/time"
+	xerrors "github.com/m3db/m3x/errors"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"

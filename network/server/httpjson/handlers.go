@@ -29,7 +29,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3x/errors"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber/tchannel-go/thrift"

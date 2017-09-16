@@ -26,7 +26,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/stretchr/testify/assert"
 )

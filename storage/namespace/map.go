@@ -25,7 +25,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3x/errors"
 )
 
 var (

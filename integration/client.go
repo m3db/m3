@@ -32,8 +32,8 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
-	"github.com/m3db/m3x/sync"
-	"github.com/m3db/m3x/time"
+	xsync "github.com/m3db/m3x/sync"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"

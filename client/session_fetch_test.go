@@ -35,7 +35,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/metrics"
 	xerrors "github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

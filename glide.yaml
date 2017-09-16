@@ -43,14 +43,14 @@ import:
   version: <4.0.0
 
 - package: github.com/m3db/m3cluster
-  version: 296a3aed74ef56ee64bf08ead9b358056aa2fb14
+  version: 56c031689fb080404de0b2acfc385e91627d93d7
   subpackages:
   - client
   - services
   - integration/etcd
 
 - package: github.com/m3db/m3x
-  version: bd6be18ffb184691512eb442561b16a59c15d797
+  version: 6e9713eca6718643e105f574be392f122bcc062e
   vcs: git
   subpackages:
   - checked
@@ -70,7 +70,7 @@ import:
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 
 - package: github.com/m3db/m3em
-  version: f011c9da127dc8f7dd132c3d8c59814e96e6971f
+  version: 3a93476c799a6077306f1e25800bf6b058d1aba8
 
 - package: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f

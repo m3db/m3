@@ -26,8 +26,8 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/log"
+	xerrors "github.com/m3db/m3x/errors"
+	xlog "github.com/m3db/m3x/log"
 )
 
 const (
@@ -97,13 +97,13 @@ func (b *baseBootstrapper) Bootstrap(
 	}
 
 	min, max := available.MinMax()
-	logFields := []xlog.LogField{
-		xlog.NewLogField("source", b.name),
-		xlog.NewLogField("from", min.String()),
-		xlog.NewLogField("to", max.String()),
-		xlog.NewLogField("range", max.Sub(min).String()),
-		xlog.NewLogField("shards", len(available)),
-		xlog.NewLogField("namespace", ns.ID().String()),
+	logFields := []xlog.Field{
+		xlog.NewField("source", b.name),
+		xlog.NewField("from", min.String()),
+		xlog.NewField("to", max.String()),
+		xlog.NewField("range", max.Sub(min).String()),
+		xlog.NewField("shards", len(available)),
+		xlog.NewField("namespace", ns.ID().String()),
 	}
 	b.log.WithFields(logFields...).Infof("bootstrapping from source starting")
 
@@ -112,16 +112,16 @@ func (b *baseBootstrapper) Bootstrap(
 
 	currResult, currErr = b.src.Read(ns, available, opts)
 
-	logFields = append(logFields, xlog.NewLogField("took", nowFn().Sub(begin).String()))
+	logFields = append(logFields, xlog.NewField("took", nowFn().Sub(begin).String()))
 	if currErr != nil {
-		logFields = append(logFields, xlog.NewLogField("error", currErr.Error()))
+		logFields = append(logFields, xlog.NewField("error", currErr.Error()))
 		b.log.WithFields(logFields...).Infof("bootstrapping from source completed with error")
 	} else {
 		var numSeries int64
 		if currResult != nil {
 			numSeries = currResult.ShardResults().NumSeries()
 		}
-		logFields = append(logFields, xlog.NewLogField("numSeries", numSeries))
+		logFields = append(logFields, xlog.NewField("numSeries", numSeries))
 		b.log.WithFields(logFields...).Infof("bootstrapping from source completed successfully")
 	}
 

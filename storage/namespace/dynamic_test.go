@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/time"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/golang/mock/gomock"

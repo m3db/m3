@@ -26,8 +26,8 @@ import (
 
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/ts"
-	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/time"
+	xlog "github.com/m3db/m3x/log"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
 )

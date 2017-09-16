@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
-	"github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3x/errors"
 )
 
 // IsInternalServerError determines if the error is an internal server error
