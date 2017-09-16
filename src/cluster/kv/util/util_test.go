@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -58,7 +59,9 @@ func TestWatchAndUpdateBool(t *testing.T) {
 		defaultValue = false
 	)
 
-	err := WatchAndUpdateBool(store, "foo", &testConfig.v, &testConfig.RWMutex, defaultValue, nil)
+	watch, err := WatchAndUpdateBool(
+		store, "foo", &testConfig.v, &testConfig.RWMutex, defaultValue, nil,
+	)
 	require.NoError(t, err)
 
 	// Valid update.
@@ -100,6 +103,17 @@ func TestWatchAndUpdateBool(t *testing.T) {
 			break
 		}
 	}
+
+	// Updates should not be applied after the watch is closed and there should not
+	// be any goroutines still running.
+	watch.Close()
+	time.Sleep(100 * time.Millisecond)
+	_, err = store.Set("foo", &commonpb.BoolProto{Value: false})
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.True(t, valueFn())
+
+	leaktest.Check(t)()
 }
 
 func TestWatchAndUpdateFloat64(t *testing.T) {
@@ -120,7 +134,9 @@ func TestWatchAndUpdateFloat64(t *testing.T) {
 		defaultValue = 1.35
 	)
 
-	err := WatchAndUpdateFloat64(store, "foo", &testConfig.v, &testConfig.RWMutex, defaultValue, nil)
+	watch, err := WatchAndUpdateFloat64(
+		store, "foo", &testConfig.v, &testConfig.RWMutex, defaultValue, nil,
+	)
 	require.NoError(t, err)
 
 	_, err = store.Set("foo", &commonpb.Float64Proto{Value: 3.7})
@@ -161,6 +177,17 @@ func TestWatchAndUpdateFloat64(t *testing.T) {
 			break
 		}
 	}
+
+	// Updates should not be applied after the watch is closed and there should not
+	// be any goroutines still running.
+	watch.Close()
+	time.Sleep(100 * time.Millisecond)
+	_, err = store.Set("foo", &commonpb.Float64Proto{Value: 7.2})
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, 6.2, valueFn())
+
+	leaktest.Check(t)
 }
 
 func TestWatchAndUpdateInt64(t *testing.T) {
@@ -181,7 +208,9 @@ func TestWatchAndUpdateInt64(t *testing.T) {
 		defaultValue int64 = 3
 	)
 
-	err := WatchAndUpdateInt64(store, "foo", &testConfig.v, &testConfig.RWMutex, defaultValue, nil)
+	watch, err := WatchAndUpdateInt64(
+		store, "foo", &testConfig.v, &testConfig.RWMutex, defaultValue, nil,
+	)
 	require.NoError(t, err)
 
 	_, err = store.Set("foo", &commonpb.Int64Proto{Value: 1})
@@ -222,6 +251,17 @@ func TestWatchAndUpdateInt64(t *testing.T) {
 			break
 		}
 	}
+
+	// Updates should not be applied after the watch is closed and there should not
+	// be any goroutines still running.
+	watch.Close()
+	time.Sleep(100 * time.Millisecond)
+	_, err = store.Set("foo", &commonpb.Int64Proto{Value: 13})
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, int64(21), valueFn())
+
+	leaktest.Check(t)
 }
 
 func TestWatchAndUpdateString(t *testing.T) {
@@ -242,7 +282,9 @@ func TestWatchAndUpdateString(t *testing.T) {
 		defaultValue = "abc"
 	)
 
-	err := WatchAndUpdateString(store, "foo", &testConfig.v, &testConfig.RWMutex, defaultValue, nil)
+	watch, err := WatchAndUpdateString(
+		store, "foo", &testConfig.v, &testConfig.RWMutex, defaultValue, nil,
+	)
 	require.NoError(t, err)
 
 	_, err = store.Set("foo", &commonpb.StringProto{Value: "fizz"})
@@ -283,6 +325,17 @@ func TestWatchAndUpdateString(t *testing.T) {
 			break
 		}
 	}
+
+	// Updates should not be applied after the watch is closed and there should not
+	// be any goroutines still running.
+	watch.Close()
+	time.Sleep(100 * time.Millisecond)
+	_, err = store.Set("foo", &commonpb.StringProto{Value: "abc"})
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, "lol", valueFn())
+
+	leaktest.Check(t)
 }
 
 func TestWatchAndUpdateStringArray(t *testing.T) {
@@ -303,7 +356,7 @@ func TestWatchAndUpdateStringArray(t *testing.T) {
 		defaultValue = []string{"abc", "def"}
 	)
 
-	err := WatchAndUpdateStringArray(
+	watch, err := WatchAndUpdateStringArray(
 		store, "foo", &testConfig.v, &testConfig.RWMutex, defaultValue, nil,
 	)
 	require.NoError(t, err)
@@ -346,6 +399,17 @@ func TestWatchAndUpdateStringArray(t *testing.T) {
 			break
 		}
 	}
+
+	// Updates should not be applied after the watch is closed and there should not
+	// be any goroutines still running.
+	watch.Close()
+	time.Sleep(100 * time.Millisecond)
+	_, err = store.Set("foo", &commonpb.StringArrayProto{Values: []string{"abc", "def"}})
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, []string{"jim", "jam"}, valueFn())
+
+	leaktest.Check(t)
 }
 
 func TestWatchAndUpdateTime(t *testing.T) {
@@ -366,7 +430,7 @@ func TestWatchAndUpdateTime(t *testing.T) {
 		defaultValue = time.Now()
 	)
 
-	err := WatchAndUpdateTime(store, "foo", &testConfig.v, &testConfig.RWMutex, defaultValue, nil)
+	watch, err := WatchAndUpdateTime(store, "foo", &testConfig.v, &testConfig.RWMutex, defaultValue, nil)
 	require.NoError(t, err)
 
 	newTime := defaultValue.Add(time.Minute)
@@ -410,6 +474,17 @@ func TestWatchAndUpdateTime(t *testing.T) {
 			break
 		}
 	}
+
+	// Updates should not be applied after the watch is closed and there should not
+	// be any goroutines still running.
+	watch.Close()
+	time.Sleep(100 * time.Millisecond)
+	_, err = store.Set("foo", &commonpb.Int64Proto{Value: defaultValue.Unix()})
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, newTime.Unix(), valueFn().Unix())
+
+	leaktest.Check(t)
 }
 
 func TestWatchAndUpdateWithValidationBool(t *testing.T) {
@@ -430,7 +505,7 @@ func TestWatchAndUpdateWithValidationBool(t *testing.T) {
 		opts  = NewOptions().SetValidateFn(testValidateBoolFn)
 	)
 
-	err := WatchAndUpdateBool(store, "foo", &testConfig.v, &testConfig.RWMutex, false, opts)
+	_, err := WatchAndUpdateBool(store, "foo", &testConfig.v, &testConfig.RWMutex, false, opts)
 	require.NoError(t, err)
 
 	_, err = store.Set("foo", &commonpb.BoolProto{Value: true})
@@ -469,7 +544,7 @@ func TestWatchAndUpdateWithValidationFloat64(t *testing.T) {
 		opts  = NewOptions().SetValidateFn(testValidateFloat64Fn)
 	)
 
-	err := WatchAndUpdateFloat64(store, "foo", &testConfig.v, &testConfig.RWMutex, 1.2, opts)
+	_, err := WatchAndUpdateFloat64(store, "foo", &testConfig.v, &testConfig.RWMutex, 1.2, opts)
 	require.NoError(t, err)
 
 	_, err = store.Set("foo", &commonpb.Float64Proto{Value: 17})
@@ -513,7 +588,7 @@ func TestWatchAndUpdateWithValidationInt64(t *testing.T) {
 		opts  = NewOptions().SetValidateFn(testValidateInt64Fn)
 	)
 
-	err := WatchAndUpdateInt64(store, "foo", &testConfig.v, &testConfig.RWMutex, 16, opts)
+	_, err := WatchAndUpdateInt64(store, "foo", &testConfig.v, &testConfig.RWMutex, 16, opts)
 	require.NoError(t, err)
 
 	_, err = store.Set("foo", &commonpb.Int64Proto{Value: 17})
@@ -557,7 +632,7 @@ func TestWatchAndUpdateWithValidationString(t *testing.T) {
 		opts  = NewOptions().SetValidateFn(testValidateStringFn)
 	)
 
-	err := WatchAndUpdateString(store, "foo", &testConfig.v, &testConfig.RWMutex, "bcd", opts)
+	_, err := WatchAndUpdateString(store, "foo", &testConfig.v, &testConfig.RWMutex, "bcd", opts)
 	require.NoError(t, err)
 
 	_, err = store.Set("foo", &commonpb.StringProto{Value: "bar"})
@@ -601,7 +676,7 @@ func TestWatchAndUpdateWithValidationStringArray(t *testing.T) {
 		opts  = NewOptions().SetValidateFn(testValidateStringArrayFn)
 	)
 
-	err := WatchAndUpdateStringArray(
+	_, err := WatchAndUpdateStringArray(
 		store, "foo", &testConfig.v, &testConfig.RWMutex, []string{"a", "b"}, opts,
 	)
 	require.NoError(t, err)
@@ -647,7 +722,7 @@ func TestWatchAndUpdateWithValidationTime(t *testing.T) {
 		opts  = NewOptions().SetValidateFn(testValidateTimeFn)
 	)
 
-	err := WatchAndUpdateTime(store, "foo", &testConfig.v, &testConfig.RWMutex, testNow, opts)
+	_, err := WatchAndUpdateTime(store, "foo", &testConfig.v, &testConfig.RWMutex, testNow, opts)
 	require.NoError(t, err)
 
 	newTime := testNow.Add(30 * time.Second)
