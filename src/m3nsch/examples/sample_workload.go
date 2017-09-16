@@ -7,7 +7,8 @@ import (
 	"github.com/m3db/m3nsch"
 	"github.com/m3db/m3nsch/coordinator"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
+	xlog "github.com/m3db/m3x/log"
+
 	"github.com/pborman/getopt"
 	"github.com/spf13/viper"
 	validator "gopkg.in/validator.v2"

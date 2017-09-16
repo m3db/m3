@@ -1,20 +1,24 @@
-hash: af4448f76f908056a83785900c67060ef648ce1b598b0c3e0f1209f8c9be2058
-updated: 2017-08-26T17:07:28.1294357-04:00
+hash: 94bd7df44f154890e4298d77619c8bd61560d75b167a6a77b2abaafa02205f77
+updated: 2017-09-16T13:30:50.200341586-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
   subpackages:
   - lib/go/thrift
 - name: github.com/davecgh/go-spew
-  version: 346938d642f2ec3594ed81d874461961cd0faa76
+  version: adab96458c51a58dc1783b3335dcce5461522e75
   subpackages:
   - spew
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fsnotify/fsnotify
-  version: 629574ca2a5df945712d3079857300b5e4da0236
+  version: 30411dbcefb7a1da7e84f75530ad3abe4011b4f8
 - name: github.com/gavv/monotime
   version: 47d58efa69556a936a3c15eb2ed42706d968ab01
+- name: github.com/go-ole/go-ole
+  version: de8695c8edbf8236f30d6e1376e20b198a028d42
+  subpackages:
+  - oleutil
 - name: github.com/golang/mock
   version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
   subpackages:
@@ -38,15 +42,20 @@ imports:
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
 - name: github.com/m3db/m3cluster
-  version: 1054ce5875f3f13519cfc1c4e816c06bab8587fe
+  version: 56c031689fb080404de0b2acfc385e91627d93d7
   subpackages:
   - client
+  - generated/proto/metadatapb
+  - generated/proto/placementpb
+  - integration/etcd
   - kv
+  - kv/util/runtime
+  - placement
   - services
-  - services/placement
+  - services/leader/campaign
   - shard
 - name: github.com/m3db/m3db
-  version: 4d41e2d211f35888c76894ab77fb3ffddee7e273
+  version: 774977eac740d655fecddc99cc8fc2c44468ff4e
   subpackages:
   - client
   - clock
@@ -54,6 +63,7 @@ imports:
   - digest
   - encoding
   - encoding/m3tsz
+  - generated/proto/namespace
   - generated/thrift/rpc
   - network/server/tchannelthrift/convert
   - network/server/tchannelthrift/errors
@@ -62,11 +72,12 @@ imports:
   - sharding
   - storage/block
   - storage/bootstrap/result
+  - storage/namespace
   - topology
   - ts
   - x/io
 - name: github.com/m3db/m3x
-  version: 2adc966acde14c9f0cc04c3eaeb338c5f9673a74
+  version: 6e9713eca6718643e105f574be392f122bcc062e
   subpackages:
   - checked
   - clock
@@ -75,6 +86,7 @@ imports:
   - instrument
   - log
   - pool
+  - process
   - retry
   - sync
   - time
@@ -84,10 +96,9 @@ imports:
 - name: github.com/mitchellh/mapstructure
   version: 53818660ed4955e899c0bcafa97299a388bd7c8e
 - name: github.com/opentracing/opentracing-go
-  version: 1949ddbfd147afd4d964a9f00b24eb291e0e7c38
+  version: 855519783f479520497c6b3445611b05fc42f009
   subpackages:
   - ext
-  - log
 - name: github.com/pborman/getopt
   version: ec82d864f599c39673eef89f91b93fa5576567a1
 - name: github.com/pelletier/go-buffruneio
@@ -98,6 +109,17 @@ imports:
   version: 792786c7400a136282c1664665ae0a8db921c6c2
   subpackages:
   - difflib
+- name: github.com/shirou/gopsutil
+  version: b62e301a8b9958eebb7299683eb57fab229a9501
+  subpackages:
+  - cpu
+  - host
+  - internal/common
+  - mem
+  - net
+  - process
+- name: github.com/shirou/w32
+  version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
 - name: github.com/spaolacci/murmur3
   version: 0d12bf811670bf6a1a63828dfbd003eded177fce
 - name: github.com/spf13/afero
@@ -114,6 +136,8 @@ imports:
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 - name: github.com/spf13/viper
   version: 7538d73b4eb9511d85a9f1dfef202eeb8ac260f4
+- name: github.com/StackExchange/wmi
+  version: e542ed97d15e640bdc14b5c12162d59e8fc67324
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
@@ -122,37 +146,46 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 43c1379c0577ac1eb74f9f3869cea07191c9992b
+  version: be9e53c77349ae2dd4b8c03a6dc20ed9a88b9927
   subpackages:
   - m3
   - m3/customtransports
   - m3/thrift
   - m3/thriftudp
 - name: github.com/uber/tchannel-go
-  version: 8d570ed87acb2661d390c096215260f3f9e9b931
+  version: 5d979b31a7405a676919fca637bb2f715fb9ed65
   subpackages:
+  - internal/argreader
   - relay
   - thrift
   - thrift/gen-go/meta
   - tnet
+  - tos
   - trand
   - typed
 - name: golang.org/x/net
   version: 61557ac0112b576429a0df080e1c2cef5dfbb642
   subpackages:
+  - bpf
   - context
   - http2
   - http2/hpack
   - idna
+  - internal/iana
+  - internal/netreflect
   - internal/timeseries
+  - ipv4
+  - ipv6
   - lex/httplex
   - trace
 - name: golang.org/x/sys
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  repo: https://github.com/golang/sys
+  vcs: git
   subpackages:
   - unix
 - name: golang.org/x/text
-  version: ece019dcfd29abcf65d0d1dfe145e8faad097640
+  version: 1cbadb444a806fd9430d14ad08967ed91da4fa0a
   subpackages:
   - transform
   - unicode/norm

@@ -8,11 +8,11 @@ import:
   - proto
   - ptypes/timestamp
 - package: github.com/m3db/m3db
-  version: 4d41e2d211f35888c76894ab77fb3ffddee7e273
+  version: 774977eac740d655fecddc99cc8fc2c44468ff4e
   subpackages:
   - client
 - package: github.com/m3db/m3x
-  version: 2adc966acde14c9f0cc04c3eaeb338c5f9673a74
+  version: 6e9713eca6718643e105f574be392f122bcc062e
   subpackages:
   - errors
   - instrument
@@ -27,7 +27,7 @@ import:
 - package: github.com/spf13/viper
   version: 7538d73b4eb9511d85a9f1dfef202eeb8ac260f4
 - package: github.com/uber-go/tally
-  version: 43c1379c0577ac1eb74f9f3869cea07191c9992b
+  version: ^3.1.0
   subpackages:
   - m3
 - package: golang.org/x/net

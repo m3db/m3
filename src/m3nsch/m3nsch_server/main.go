@@ -65,11 +65,11 @@ func main() {
 
 	StartPProfServer(conf.Server.DebugAddress, logger)
 
-	reporter, err := conf.Metrics.M3.NewReporter()
+	scope, closer, err := conf.Metrics.NewRootScope()
 	if err != nil {
 		logger.Fatalf("could not connect to metrics: %v", err)
 	}
-	scope, _ := tally.NewCachedRootScope(conf.Metrics.Prefix, nil, reporter, time.Second, tally.DefaultSeparator)
+	defer closer.Close()
 
 	listener, err := tcp.NewTCPListener(conf.Server.ListenAddress, 3*time.Minute)
 	if err != nil {
@@ -80,7 +80,7 @@ func main() {
 		NewOptions().
 		SetLogger(logger).
 		SetMetricsScope(scope).
-		SetMetricsSamplingRate(conf.Metrics.SampleRate)
+		SetMetricsSamplingRate(conf.Metrics.SamplingRate)
 	datumRegistry := datums.NewDefaultRegistry(conf.M3nsch.NumPointsPerDatum)
 	agentOpts := agent.NewOptions(iopts).
 		SetConcurrency(conf.M3nsch.Concurrency) // TODO: also need to SetNewSessionFn()

@@ -413,7 +413,7 @@ func newM3nschClient(
 	timeout time.Duration,
 ) (*m3nschClient, error) {
 	var (
-		logger    = iopts.Logger().WithFields(xlog.NewLogField("client", endpoint))
+		logger    = iopts.Logger().WithFields(xlog.NewField("client", endpoint))
 		conn, err = grpc.Dial(endpoint, grpc.WithTimeout(timeout), grpc.WithInsecure())
 	)
 	if err != nil {
