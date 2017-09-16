@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
-	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
@@ -239,17 +238,11 @@ type Options interface {
 	// StreamOptions returns the stream options
 	StreamOptions() cm.Options
 
-	// SetStagedPlacementWatcher sets the staged placement watcher.
-	SetStagedPlacementWatcher(value placement.StagedPlacementWatcher) Options
+	// SetPlacementManager sets the placement manager.
+	SetPlacementManager(value PlacementManager) Options
 
-	// StagedPlacementWatcher returns the staged placement watcher.
-	StagedPlacementWatcher() placement.StagedPlacementWatcher
-
-	// SetInstanceID sets the current instance id.
-	SetInstanceID(value string) Options
-
-	// InstanceID returns the current instance id.
-	InstanceID() string
+	// PlacementManager returns the placement manager.
+	PlacementManager() PlacementManager
 
 	// SetShardFn sets the sharding function.
 	SetShardFn(value ShardFn) Options
@@ -268,6 +261,12 @@ type Options interface {
 
 	// BufferDurationAfterShardCutoff returns the duration for buffering writes after shard cutoff.
 	BufferDurationAfterShardCutoff() time.Duration
+
+	// SetFlushTimesManager sets the flush times manager.
+	SetFlushTimesManager(value FlushTimesManager) Options
+
+	// FlushTimesManager returns the flush times manager.
+	FlushTimesManager() FlushTimesManager
 
 	// SetElectionManager sets the election manager.
 	SetElectionManager(value ElectionManager) Options

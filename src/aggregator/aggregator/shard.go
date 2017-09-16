@@ -58,6 +58,8 @@ type aggregatorShard struct {
 	nowFn                            clock.NowFn
 	bufferDurationBeforeShardCutover time.Duration
 	bufferDurationAfterShardCutoff   time.Duration
+	cutoverNanos                     int64
+	cutoffNanos                      int64
 	earliestWritableNanos            int64
 	latestWriteableNanos             int64
 
@@ -89,6 +91,28 @@ func newAggregatorShard(shard uint32, opts Options) *aggregatorShard {
 
 func (s *aggregatorShard) ID() uint32 { return s.shard }
 
+func (s *aggregatorShard) CutoffNanos() int64 {
+	s.RLock()
+	cutoffNanos := s.cutoffNanos
+	s.RUnlock()
+	return cutoffNanos
+}
+
+func (s *aggregatorShard) IsWritable() bool {
+	s.RLock()
+	isWritable := s.isWritableWithLock()
+	s.RUnlock()
+	return isWritable
+}
+
+func (s *aggregatorShard) IsCutoff() bool {
+	nowNanos := s.nowFn().UnixNano()
+	s.RLock()
+	isCutoff := nowNanos >= s.cutoffNanos
+	s.RUnlock()
+	return isCutoff
+}
+
 func (s *aggregatorShard) SetWriteableRange(rng timeRange) {
 	var (
 		cutoverNanos  = rng.cutoverNanos
@@ -103,17 +127,11 @@ func (s *aggregatorShard) SetWriteableRange(rng timeRange) {
 		latestNanos = cutoffNanos + int64(s.bufferDurationAfterShardCutoff)
 	}
 	s.Lock()
+	s.cutoverNanos = cutoverNanos
+	s.cutoffNanos = cutoffNanos
 	s.earliestWritableNanos = earliestNanos
 	s.latestWriteableNanos = latestNanos
 	s.Unlock()
-}
-
-func (s *aggregatorShard) IsCutoff() bool {
-	nowNanos := s.nowFn().UnixNano()
-	s.RLock()
-	latestWriteableNanos := s.latestWriteableNanos
-	s.RUnlock()
-	return nowNanos > latestWriteableNanos
 }
 
 func (s *aggregatorShard) AddMetricWithPoliciesList(
@@ -125,10 +143,10 @@ func (s *aggregatorShard) AddMetricWithPoliciesList(
 		s.RUnlock()
 		return errAggregatorShardClosed
 	}
-	if err := s.checkWritableWithLock(); err != nil {
+	if !s.isWritableWithLock() {
 		s.RUnlock()
 		s.metrics.notWriteableErrors.Inc(1)
-		return err
+		return errAggregatorShardNotWriteable
 	}
 	err := s.addMetricWithPoliciesListFn(mu, pl)
 	s.RUnlock()
@@ -150,12 +168,9 @@ func (s *aggregatorShard) Close() {
 	s.metricMap.Close()
 }
 
-func (s *aggregatorShard) checkWritableWithLock() error {
+func (s *aggregatorShard) isWritableWithLock() bool {
 	nowNanos := s.nowFn().UnixNano()
-	if nowNanos < s.earliestWritableNanos || nowNanos > s.latestWriteableNanos {
-		return errAggregatorShardNotWriteable
-	}
-	return nil
+	return nowNanos >= s.earliestWritableNanos && nowNanos < s.latestWriteableNanos
 }
 
 type timeRange struct {

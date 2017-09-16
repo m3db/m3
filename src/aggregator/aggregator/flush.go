@@ -22,6 +22,18 @@ package aggregator
 
 import "time"
 
+// FlushRequest is a request to flush data.
+type FlushRequest struct {
+	// The start time of consumable data.
+	CutoverNanos int64
+
+	// The end time of consumable data.
+	CutoffNanos int64
+
+	// If nonzero, data between [now - bufferAfterCutoff, now) are buffered.
+	BufferAfterCutoff time.Duration
+}
+
 // PeriodicFlusher flushes metrics periodically.
 type PeriodicFlusher interface {
 	// Shard returns the shard associated with the flusher.
@@ -36,8 +48,8 @@ type PeriodicFlusher interface {
 	// LastFlushedNanos returns the last flushed timestamp.
 	LastFlushedNanos() int64
 
-	// Flush performs a flush for a given time range.
-	Flush(cutoverNanos, cutoffNanos int64)
+	// Flush performs a flush for a given request.
+	Flush(req FlushRequest)
 
 	// DiscardBefore discards all metrics before a given timestamp.
 	DiscardBefore(beforeNanos int64)

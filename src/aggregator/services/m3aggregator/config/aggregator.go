@@ -130,8 +130,8 @@ type AggregatorConfiguration struct {
 	// KV namespace.
 	KVNamespace string `yaml:"kvNamespace" validate:"nonzero"`
 
-	// Placement watcher configuration for watching placement updates.
-	PlacementWatcher placement.WatcherConfiguration `yaml:"placementWatcher"`
+	// Placement manager.
+	PlacementManager placementManagerConfiguration `yaml:"placementManager"`
 
 	// Sharding function type.
 	ShardFnType *shardFnType `yaml:"shardFnType"`
@@ -144,6 +144,9 @@ type AggregatorConfiguration struct {
 
 	// Resign timeout.
 	ResignTimeout time.Duration `yaml:"resignTimeout"`
+
+	// Flush times manager.
+	FlushTimesManager flushTimesManagerConfiguration `yaml:"flushTimesManager"`
 
 	// Election manager.
 	ElectionManager electionManagerConfiguration `yaml:"electionManager"`
@@ -248,7 +251,6 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	if err != nil {
 		return nil, err
 	}
-	opts = opts.SetInstanceID(instanceID)
 
 	// Create kv client.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("kvClient"))
@@ -261,14 +263,10 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		return nil, err
 	}
 
-	// Set placement watcher options.
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("placement-watcher"))
-	placementWatcherOpts := c.PlacementWatcher.NewOptions(store, iOpts)
-	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
-	if err := placementWatcher.Watch(); err != nil {
-		return nil, err
-	}
-	opts = opts.SetStagedPlacementWatcher(placementWatcher)
+	// Set placement manager.
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("placement-manager"))
+	placementManager := c.PlacementManager.NewPlacementManager(instanceID, store, iOpts)
+	opts = opts.SetPlacementManager(placementManager)
 
 	// Set sharding function.
 	shardFnType := defaultShardFn
@@ -294,9 +292,21 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		opts = opts.SetResignTimeout(c.ResignTimeout)
 	}
 
+	// Set flush times manager.
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("flush-times-manager"))
+	flushTimesManager := c.FlushTimesManager.NewFlushTimesManager(store, iOpts)
+	opts = opts.SetFlushTimesManager(flushTimesManager)
+
 	// Set election manager.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("election-manager"))
-	electionManager, err := c.ElectionManager.NewElectionManager(client, instanceID, c.KVNamespace, iOpts)
+	electionManager, err := c.ElectionManager.NewElectionManager(
+		client,
+		instanceID,
+		c.KVNamespace,
+		placementManager,
+		flushTimesManager,
+		iOpts,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +314,12 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 
 	// Set flush manager.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("flush-manager"))
-	flushManager, err := c.FlushManager.NewFlushManager(instanceID, placementWatcher, store, electionManager, iOpts)
+	flushManager, err := c.FlushManager.NewFlushManager(
+		placementManager,
+		electionManager,
+		flushTimesManager,
+		iOpts,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -563,19 +578,66 @@ func (t shardFnType) ShardFn() (aggregator.ShardFn, error) {
 	}
 }
 
+type placementManagerConfiguration struct {
+	PlacementWatcher placement.WatcherConfiguration `yaml:"placementWatcher"`
+}
+
+func (c placementManagerConfiguration) NewPlacementManager(
+	instanceID string,
+	store kv.Store,
+	instrumentOpts instrument.Options,
+) aggregator.PlacementManager {
+	scope := instrumentOpts.MetricsScope()
+	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("placement-watcher"))
+	placementWatcherOpts := c.PlacementWatcher.NewOptions(store, iOpts)
+	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
+	placementManagerOpts := aggregator.NewPlacementManagerOptions().
+		SetInstrumentOptions(instrumentOpts).
+		SetInstanceID(instanceID).
+		SetStagedPlacementWatcher(placementWatcher)
+	return aggregator.NewPlacementManager(placementManagerOpts)
+}
+
+type flushTimesManagerConfiguration struct {
+	// Flush times key format.
+	FlushTimesKeyFmt string `yaml:"flushTimesKeyFmt" validate:"nonzero"`
+
+	// Retrier for persisting flush times.
+	FlushTimesPersistRetrier retry.Configuration `yaml:"flushTimesPersistRetrier"`
+}
+
+func (c flushTimesManagerConfiguration) NewFlushTimesManager(
+	store kv.Store,
+	instrumentOpts instrument.Options,
+) aggregator.FlushTimesManager {
+	scope := instrumentOpts.MetricsScope()
+	retrier := c.FlushTimesPersistRetrier.NewRetrier(scope.SubScope("flush-times-persist"))
+	flushTimesManagerOpts := aggregator.NewFlushTimesManagerOptions().
+		SetInstrumentOptions(instrumentOpts).
+		SetFlushTimesKeyFmt(c.FlushTimesKeyFmt).
+		SetFlushTimesStore(store).
+		SetFlushTimesPersistRetrier(retrier)
+	return aggregator.NewFlushTimesManager(flushTimesManagerOpts)
+}
+
 type electionManagerConfiguration struct {
-	Election        electionConfiguration  `yaml:"election"`
-	ServiceID       serviceIDConfiguration `yaml:"serviceID"`
-	LeaderValue     string                 `yaml:"leaderValue"`
-	ElectionKeyFmt  string                 `yaml:"electionKeyFmt" validate:"nonzero"`
-	CampaignRetrier retry.Configuration    `yaml:"campaignRetrier"`
-	ChangeRetrier   retry.Configuration    `yaml:"changeRetrier"`
+	Election                   electionConfiguration  `yaml:"election"`
+	ServiceID                  serviceIDConfiguration `yaml:"serviceID"`
+	LeaderValue                string                 `yaml:"leaderValue"`
+	ElectionKeyFmt             string                 `yaml:"electionKeyFmt" validate:"nonzero"`
+	CampaignRetrier            retry.Configuration    `yaml:"campaignRetrier"`
+	ChangeRetrier              retry.Configuration    `yaml:"changeRetrier"`
+	ResignRetrier              retry.Configuration    `yaml:"resignRetrier"`
+	CampaignStateCheckInterval time.Duration          `yaml:"campaignStateCheckInterval"`
+	ShardCutoffCheckOffset     time.Duration          `yaml:"shardCutoffCheckOffset"`
 }
 
 func (c electionManagerConfiguration) NewElectionManager(
 	client client.Client,
 	instanceID string,
 	kvNamespace string,
+	placementManager aggregator.PlacementManager,
+	flushTimesManager aggregator.FlushTimesManager,
 	instrumentOpts instrument.Options,
 ) (aggregator.ElectionManager, error) {
 	electionOpts, err := c.Election.NewElectionOptions()
@@ -605,14 +667,24 @@ func (c electionManagerConfiguration) NewElectionManager(
 	scope := instrumentOpts.MetricsScope()
 	campaignRetryOpts := c.CampaignRetrier.NewOptions(scope.SubScope("campaign"))
 	changeRetryOpts := c.ChangeRetrier.NewOptions(scope.SubScope("change"))
+	resignRetryOpts := c.ResignRetrier.NewOptions(scope.SubScope("resign"))
 	opts := aggregator.NewElectionManagerOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetElectionOptions(electionOpts).
 		SetCampaignOptions(campaignOpts).
 		SetCampaignRetryOptions(campaignRetryOpts).
 		SetChangeRetryOptions(changeRetryOpts).
+		SetResignRetryOptions(resignRetryOpts).
 		SetElectionKeyFmt(c.ElectionKeyFmt).
-		SetLeaderService(leaderService)
+		SetLeaderService(leaderService).
+		SetPlacementManager(placementManager).
+		SetFlushTimesManager(flushTimesManager)
+	if c.CampaignStateCheckInterval != 0 {
+		opts = opts.SetCampaignStateCheckInterval(c.CampaignStateCheckInterval)
+	}
+	if c.ShardCutoffCheckOffset != 0 {
+		opts = opts.SetShardCutoffCheckOffset(c.ShardCutoffCheckOffset)
+	}
 	electionManager := aggregator.NewElectionManager(opts)
 	return electionManager, nil
 }
@@ -671,39 +743,27 @@ type flushManagerConfiguration struct {
 	// Number of workers per CPU.
 	NumWorkersPerCPU float64 `yaml:"numWorkersPerCPU" validate:"min=0.0,max=1.0"`
 
-	// Flush times key format.
-	FlushTimesKeyFmt string `yaml:"flushTimesKeyFmt" validate:"nonzero"`
-
 	// How frequently the flush times are persisted.
 	FlushTimesPersistEvery time.Duration `yaml:"flushTimesPersistEvery"`
 
-	// Retrier for persisting flush times.
-	FlushTimesPersistRetrier retry.Configuration `yaml:"flushTimesPersistRetrier"`
-
-	// Maximum duration with no flushes.
-	MaxNoFlushDuration time.Duration `yaml:"maxNoFlushDuration"`
+	// Maximum buffer size.
+	MaxBufferSize time.Duration `yaml:"maxBufferSize"`
 
 	// Window size for a forced flush.
 	ForcedFlushWindowSize time.Duration `yaml:"forcedFlushWindowSize"`
 }
 
 func (c flushManagerConfiguration) NewFlushManager(
-	instanceID string,
-	placementWatcher placement.StagedPlacementWatcher,
-	store kv.Store,
+	placementManager aggregator.PlacementManager,
 	electionManager aggregator.ElectionManager,
+	flushTimesManager aggregator.FlushTimesManager,
 	instrumentOpts instrument.Options,
 ) (aggregator.FlushManager, error) {
-	scope := instrumentOpts.MetricsScope()
-	retrier := c.FlushTimesPersistRetrier.NewRetrier(scope.SubScope("flush-times-persist"))
 	opts := aggregator.NewFlushManagerOptions().
 		SetInstrumentOptions(instrumentOpts).
+		SetPlacementManager(placementManager).
 		SetElectionManager(electionManager).
-		SetFlushTimesKeyFmt(c.FlushTimesKeyFmt).
-		SetFlushTimesStore(store).
-		SetFlushTimesPersistRetrier(retrier).
-		SetInstanceID(instanceID).
-		SetStagedPlacementWatcher(placementWatcher)
+		SetFlushTimesManager(flushTimesManager)
 	if c.CheckEvery != 0 {
 		opts = opts.SetCheckEvery(c.CheckEvery)
 	}
@@ -726,8 +786,8 @@ func (c flushManagerConfiguration) NewFlushManager(
 	if c.FlushTimesPersistEvery != 0 {
 		opts = opts.SetFlushTimesPersistEvery(c.FlushTimesPersistEvery)
 	}
-	if c.MaxNoFlushDuration != 0 {
-		opts = opts.SetMaxNoFlushDuration(c.MaxNoFlushDuration)
+	if c.MaxBufferSize != 0 {
+		opts = opts.SetMaxBufferSize(c.MaxBufferSize)
 	}
 	if c.ForcedFlushWindowSize != 0 {
 		opts = opts.SetForcedFlushWindowSize(c.ForcedFlushWindowSize)

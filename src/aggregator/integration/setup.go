@@ -129,22 +129,7 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 	})
 	aggregatorOpts = aggregatorOpts.SetEntryPool(entryPool)
 
-	// Set up election manager.
-	leaderValue := opts.InstanceID()
-	campaignOpts, err := services.NewCampaignOptions()
-	require.NoError(t, err)
-	campaignOpts = campaignOpts.SetLeaderValue(leaderValue)
-	electionKey := fmt.Sprintf(opts.ElectionKeyFmt(), opts.ShardSetID())
-	electionCluster := newTestCluster(t)
-	leaderService := electionCluster.LeaderService()
-	electionManagerOpts := aggregator.NewElectionManagerOptions().
-		SetCampaignOptions(campaignOpts).
-		SetElectionKeyFmt(opts.ElectionKeyFmt()).
-		SetLeaderService(leaderService)
-	electionManager := aggregator.NewElectionManager(electionManagerOpts)
-	aggregatorOpts = aggregatorOpts.SetElectionManager(electionManager)
-
-	// Set up placement watcher.
+	// Set up placement manager.
 	shardSet := make([]shard.Shard, opts.NumShards())
 	for i := 0; i < opts.NumShards(); i++ {
 		shardSet[i] = shard.NewShard(uint32(i)).
@@ -172,20 +157,43 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 		SetStagedPlacementKey(placementKey).
 		SetStagedPlacementStore(placementStore)
 	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
-	require.NoError(t, placementWatcher.Watch())
-	aggregatorOpts = aggregatorOpts.
+	placementManagerOpts := aggregator.NewPlacementManagerOptions().
 		SetInstanceID(opts.InstanceID()).
 		SetStagedPlacementWatcher(placementWatcher)
+	placementManager := aggregator.NewPlacementManager(placementManagerOpts)
+	aggregatorOpts = aggregatorOpts.SetPlacementManager(placementManager)
+
+	// Set up flush times manager.
+	flushTimesManagerOpts := aggregator.NewFlushTimesManagerOptions().
+		SetFlushTimesKeyFmt(opts.FlushTimesKeyFmt()).
+		SetFlushTimesStore(opts.KVStore())
+	flushTimesManager := aggregator.NewFlushTimesManager(flushTimesManagerOpts)
+	aggregatorOpts = aggregatorOpts.SetFlushTimesManager(flushTimesManager)
+
+	// Set up election manager.
+	leaderValue := opts.InstanceID()
+	campaignOpts, err := services.NewCampaignOptions()
+	require.NoError(t, err)
+	campaignOpts = campaignOpts.SetLeaderValue(leaderValue)
+	electionKey := fmt.Sprintf(opts.ElectionKeyFmt(), opts.ShardSetID())
+	electionCluster := newTestCluster(t)
+	leaderService := electionCluster.LeaderService()
+	electionManagerOpts := aggregator.NewElectionManagerOptions().
+		SetCampaignOptions(campaignOpts).
+		SetElectionKeyFmt(opts.ElectionKeyFmt()).
+		SetLeaderService(leaderService).
+		SetPlacementManager(placementManager).
+		SetFlushTimesManager(flushTimesManager)
+	electionManager := aggregator.NewElectionManager(electionManagerOpts)
+	aggregatorOpts = aggregatorOpts.SetElectionManager(electionManager)
 
 	// Set up flush manager.
 	flushManagerOpts := aggregator.NewFlushManagerOptions().
+		SetPlacementManager(placementManager).
+		SetFlushTimesManager(flushTimesManager).
 		SetElectionManager(electionManager).
-		SetFlushTimesKeyFmt(opts.FlushTimesKeyFmt()).
-		SetFlushTimesStore(opts.KVStore()).
 		SetJitterEnabled(opts.JitterEnabled()).
-		SetMaxJitterFn(opts.MaxJitterFn()).
-		SetInstanceID(opts.InstanceID()).
-		SetStagedPlacementWatcher(placementWatcher)
+		SetMaxJitterFn(opts.MaxJitterFn())
 	flushManager := aggregator.NewFlushManager(flushManagerOpts)
 	aggregatorOpts = aggregatorOpts.SetFlushManager(flushManager)
 
