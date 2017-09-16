@@ -37,7 +37,7 @@ var (
 
 // WatchAndUpdateBool sets up a watch with validation for a bool property. Any
 // malformed or invalid updates are not applied. The default value is applied
-// when the key does not exist in KV.
+// when the key does not exist in KV. The watch on the value is returned.
 func WatchAndUpdateBool(
 	store kv.Store,
 	key string,
@@ -45,7 +45,7 @@ func WatchAndUpdateBool(
 	lock sync.Locker,
 	defaultValue bool,
 	opts Options,
-) error {
+) (kv.ValueWatch, error) {
 	if opts == nil {
 		opts = NewOptions()
 	}
@@ -58,7 +58,7 @@ func WatchAndUpdateBool(
 
 // WatchAndUpdateFloat64 sets up a watch with validation for a float64 property.
 // Any malformed or invalid updates are not applied. The default value is applied
-// when the key does not exist in KV.
+// when the key does not exist in KV. The watch on the value is returned.
 func WatchAndUpdateFloat64(
 	store kv.Store,
 	key string,
@@ -66,7 +66,7 @@ func WatchAndUpdateFloat64(
 	lock sync.Locker,
 	defaultValue float64,
 	opts Options,
-) error {
+) (kv.ValueWatch, error) {
 	if opts == nil {
 		opts = NewOptions()
 	}
@@ -79,7 +79,7 @@ func WatchAndUpdateFloat64(
 
 // WatchAndUpdateInt64 sets up a watch with validation for an int64 property. Any
 // malformed or invalid updates are not applied. The default value is applied when
-// the key does not exist in KV.
+// the key does not exist in KV. The watch on the value is returned.
 func WatchAndUpdateInt64(
 	store kv.Store,
 	key string,
@@ -87,7 +87,7 @@ func WatchAndUpdateInt64(
 	lock sync.Locker,
 	defaultValue int64,
 	opts Options,
-) error {
+) (kv.ValueWatch, error) {
 	if opts == nil {
 		opts = NewOptions()
 	}
@@ -100,7 +100,7 @@ func WatchAndUpdateInt64(
 
 // WatchAndUpdateString sets up a watch with validation for a string property. Any
 // malformed or invalid updates are not applied. The default value is applied when
-// the key does not exist in KV.
+// the key does not exist in KV. The watch on the value is returned.
 func WatchAndUpdateString(
 	store kv.Store,
 	key string,
@@ -108,7 +108,7 @@ func WatchAndUpdateString(
 	lock sync.Locker,
 	defaultValue string,
 	opts Options,
-) error {
+) (kv.ValueWatch, error) {
 	if opts == nil {
 		opts = NewOptions()
 	}
@@ -121,7 +121,7 @@ func WatchAndUpdateString(
 
 // WatchAndUpdateStringArray sets up a watch with validation for a string array
 // property. Any malformed, or invalid updates are not applied. The default value
-// is applied when the key does not exist in KV.
+// is applied when the key does not exist in KV. The watch on the value is returned.
 func WatchAndUpdateStringArray(
 	store kv.Store,
 	key string,
@@ -129,7 +129,7 @@ func WatchAndUpdateStringArray(
 	lock sync.Locker,
 	defaultValue []string,
 	opts Options,
-) error {
+) (kv.ValueWatch, error) {
 	if opts == nil {
 		opts = NewOptions()
 	}
@@ -142,7 +142,7 @@ func WatchAndUpdateStringArray(
 
 // WatchAndUpdateTime sets up a watch with validation for a time property. Any
 // malformed, or invalid updates are not applied. The default value is applied
-// when the key does not exist in KV.
+// when the key does not exist in KV. The watch on the value is returned.
 func WatchAndUpdateTime(
 	store kv.Store,
 	key string,
@@ -150,7 +150,7 @@ func WatchAndUpdateTime(
 	lock sync.Locker,
 	defaultValue time.Time,
 	opts Options,
-) error {
+) (kv.ValueWatch, error) {
 	if opts == nil {
 		opts = NewOptions()
 	}
@@ -349,9 +349,9 @@ func watchAndUpdate(
 	validate ValidateFn,
 	defaultValue interface{},
 	logger log.Logger,
-) error {
+) (kv.ValueWatch, error) {
 	if store == nil {
-		return errNilStore
+		return nil, errNilStore
 	}
 
 	var (
@@ -361,7 +361,7 @@ func watchAndUpdate(
 
 	watch, err = store.Watch(key)
 	if err != nil {
-		return fmt.Errorf("could not establish initial watch: %v", err)
+		return nil, fmt.Errorf("could not establish initial watch: %v", err)
 	}
 
 	go func() {
@@ -374,7 +374,7 @@ func watchAndUpdate(
 			Error("watch unexpectedly closed")
 	}()
 
-	return err
+	return watch, nil
 }
 
 func updateWithKV(

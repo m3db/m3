@@ -17,11 +17,6 @@ import:
   - proto
 - package: github.com/m3db/m3x
   version: 6e9713eca6718643e105f574be392f122bcc062e
-- package: github.com/stretchr/testify
-  version: d77da356e56a7428ad25149ca77381849a6a5232
-  subpackages:
-  - assert
-  - require
 - package: github.com/prometheus/client_model
   version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
 - package: github.com/prometheus/common
@@ -56,3 +51,11 @@ import:
   version: a4bde12657593d5e90d0533a3e4fd95e635124cb
   repo: https://github.com/golang/time
   vcs: git
+testImport:
+- package: github.com/stretchr/testify
+  version: d77da356e56a7428ad25149ca77381849a6a5232
+  subpackages:
+  - assert
+  - require
+- package: github.com/fortytw2/leaktest
+  version: ^1.1.0
