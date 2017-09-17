@@ -52,11 +52,11 @@ func TestConnectionWriteNoReconnect(t *testing.T) {
 
 func TestConnectionWriteReconnectMultiplyThreshold(t *testing.T) {
 	conn := newConnection(testFakeServerAddr, testConnectionOptions())
-	conn.numFailures = 2
+	conn.numFailures = 3
 	conn.connectWithLockFn = func() error { return errTestConnect }
 
 	require.Equal(t, errNoActiveConnection, conn.Write(nil))
-	require.Equal(t, 3, conn.numFailures)
+	require.Equal(t, 4, conn.numFailures)
 	require.Equal(t, 4, conn.threshold)
 }
 
@@ -69,6 +69,17 @@ func TestConnectionWriteReconnectMaxThresholdReached(t *testing.T) {
 	require.Equal(t, errNoActiveConnection, conn.Write(nil))
 	require.Equal(t, 5, conn.numFailures)
 	require.Equal(t, 6, conn.threshold)
+}
+
+func TestConnectionWriteReconnectMaxDurationReached(t *testing.T) {
+	conn := newConnection(testFakeServerAddr, testConnectionOptions())
+	now := time.Now()
+	conn.nowFn = func() time.Time { return now }
+	conn.lastConnectNanos = now.Add(-2 * defaultMaxReconnectDuration).UnixNano()
+	conn.connectWithLockFn = func() error { return nil }
+	conn.writeWithLockFn = func([]byte) error { return nil }
+
+	require.NoError(t, conn.Write(nil))
 }
 
 func TestConnectionWriteReconnectSuccessWriteSuccess(t *testing.T) {

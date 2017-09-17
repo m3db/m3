@@ -34,6 +34,7 @@ const (
 	defaultInitReconnectThreshold       = 2
 	defaultMaxReconnectThreshold        = 5000
 	defaultReconnectThresholdMultiplier = 2
+	defaultMaxReconnectDuration         = 15 * time.Second
 )
 
 // ConnectionOptions provides a set of options for tcp connections.
@@ -85,6 +86,12 @@ type ConnectionOptions interface {
 
 	// ReconnectThresholdMultiplier returns the threshold multiplier.
 	ReconnectThresholdMultiplier() int
+
+	// SetMaxReconnectDuration sets the max duration between attempts to re-establish connections.
+	SetMaxReconnectDuration(value time.Duration) ConnectionOptions
+
+	// MaxReconnectDuration returns the max duration between attempts to re-establish connections.
+	MaxReconnectDuration() time.Duration
 }
 
 type connectionOptions struct {
@@ -96,6 +103,7 @@ type connectionOptions struct {
 	initThreshold  int
 	maxThreshold   int
 	multiplier     int
+	maxDuration    time.Duration
 }
 
 // NewConnectionOptions create a new set of connection options.
@@ -109,6 +117,7 @@ func NewConnectionOptions() ConnectionOptions {
 		initThreshold:  defaultInitReconnectThreshold,
 		maxThreshold:   defaultMaxReconnectThreshold,
 		multiplier:     defaultReconnectThresholdMultiplier,
+		maxDuration:    defaultMaxReconnectDuration,
 	}
 }
 
@@ -190,4 +199,14 @@ func (o *connectionOptions) SetReconnectThresholdMultiplier(value int) Connectio
 
 func (o *connectionOptions) ReconnectThresholdMultiplier() int {
 	return o.multiplier
+}
+
+func (o *connectionOptions) SetMaxReconnectDuration(value time.Duration) ConnectionOptions {
+	opts := *o
+	opts.maxDuration = value
+	return &opts
+}
+
+func (o *connectionOptions) MaxReconnectDuration() time.Duration {
+	return o.maxDuration
 }
