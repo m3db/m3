@@ -29,7 +29,6 @@ import (
 
 var (
 	errNotEnoughRacks              = errors.New("not enough racks to take shards, please make sure RF is less than number of racks")
-	errAddingInstanceAlreadyExist  = errors.New("the adding instance is already in the placement")
 	errIncompatibleWithShardedAlgo = errors.New("could not apply sharded algo on the placement")
 )
 
@@ -114,7 +113,7 @@ func (a rackAwarePlacementAlgorithm) RemoveInstances(
 			return nil, err
 		}
 
-		if p, _, err = addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, nonEmptyOnly); err != nil {
+		if p, _, err = addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, withShards); err != nil {
 			return nil, err
 		}
 	}
@@ -131,7 +130,7 @@ func (a rackAwarePlacementAlgorithm) AddInstances(
 
 	p = p.Clone()
 	for _, instance := range instances {
-		ph, addingInstance, err := newAddInstanceHelper(p, instance, a.opts)
+		ph, addingInstance, err := newAddInstanceHelper(p, instance, a.opts, withLeavingShardsOnly)
 		if err != nil {
 			return nil, err
 		}
@@ -170,7 +169,7 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstances(
 		}
 		load := loadOnInstance(leavingInstance)
 		if load == 0 {
-			result, _, err := addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, nonEmptyOnly)
+			result, _, err := addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, withShards)
 			return result, err
 		}
 		if !a.opts.AllowPartialReplace() {
@@ -193,7 +192,7 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstances(
 	}
 
 	for _, leavingInstance := range leavingInstances {
-		p, _, err = addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, nonEmptyOnly)
+		p, _, err = addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, withShards)
 		if err != nil {
 			return nil, err
 		}
