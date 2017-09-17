@@ -22,6 +22,7 @@ package deploy
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 
 	"github.com/m3db/m3cluster/services"
@@ -135,6 +136,8 @@ func (p deploymentPlanner) generateStepFromTargetType(
 			delete(instances, shardSetID)
 			continue
 		}
+
+		done := false
 		for i, instance := range group.ToDeploy {
 			if !matchTargetType(instance.PlacementInstanceID, group.LeaderID, targetType) {
 				continue
@@ -146,11 +149,17 @@ func (p deploymentPlanner) generateStepFromTargetType(
 			step.Targets = append(step.Targets, target)
 			group.removeInstanceToDeploy(i)
 			if maxStepSize != 0 && len(step.Targets) >= maxStepSize {
-				return step
+				done = true
 			}
 			break
 		}
+		if done {
+			break
+		}
 	}
+
+	// Sort targets by instance id for deterministic ordering.
+	sort.Sort(targetsByInstanceIDAsc(step.Targets))
 	return step
 }
 
@@ -241,6 +250,15 @@ func (targets deploymentTargets) DeploymentInstanceIDs() []string {
 		deploymentInstanceIDs = append(deploymentInstanceIDs, target.Instance.DeploymentInstanceID)
 	}
 	return deploymentInstanceIDs
+}
+
+type targetsByInstanceIDAsc []deploymentTarget
+
+func (a targetsByInstanceIDAsc) Len() int      { return len(a) }
+func (a targetsByInstanceIDAsc) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a targetsByInstanceIDAsc) Less(i, j int) bool {
+	return a[i].Instance.PlacementInstanceID < a[j].Instance.PlacementInstanceID
 }
 
 // deploymentStep is a deployment step.
