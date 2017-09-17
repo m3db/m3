@@ -111,9 +111,7 @@ func TestGeneratePlan(t *testing.T) {
 			i++
 		}
 	}
-	for _, step := range plan.Steps {
-		sort.Sort(targetsByInstanceIDAscending(step.Targets))
-	}
+
 	expected := deploymentPlan{
 		Steps: []deploymentStep{
 			{
@@ -190,9 +188,6 @@ func TestGeneratePlanWithStepSizeLimit(t *testing.T) {
 			require.Equal(t, validators[i].instance, target.Instance)
 			i++
 		}
-	}
-	for _, step := range plan.Steps {
-		sort.Sort(targetsByInstanceIDAscending(step.Targets))
 	}
 
 	step1 := deploymentStep{
@@ -349,7 +344,35 @@ func TestRemoveInstanceToDeploy(t *testing.T) {
 	require.Equal(t, group.ToDeploy, expected)
 }
 
-//func testPlannerOptions
+func TestTargetsByInstanceIDAsc(t *testing.T) {
+	targets := []deploymentTarget{
+		{
+			Instance: instanceMetadata{
+				PlacementInstanceID: "instance3",
+			},
+		},
+		{
+			Instance: instanceMetadata{
+				PlacementInstanceID: "instance1",
+			},
+		},
+		{
+			Instance: instanceMetadata{
+				PlacementInstanceID: "instance2",
+			},
+		},
+		{
+			Instance: instanceMetadata{
+				PlacementInstanceID: "instance4",
+			},
+		},
+	}
+
+	expected := []deploymentTarget{targets[1], targets[2], targets[0], targets[3]}
+	sort.Sort(targetsByInstanceIDAsc(targets))
+	require.Equal(t, expected, targets)
+}
+
 type leaderCampaignFn func(
 	electionID string,
 	opts services.CampaignOptions,
@@ -380,15 +403,6 @@ func (s *mockLeaderService) Leader(electionID string) (string, error) {
 }
 
 func (s *mockLeaderService) Close() error { return nil }
-
-type targetsByInstanceIDAscending []deploymentTarget
-
-func (t targetsByInstanceIDAscending) Len() int      { return len(t) }
-func (t targetsByInstanceIDAscending) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
-
-func (t targetsByInstanceIDAscending) Less(i, j int) bool {
-	return t[i].Instance.PlacementInstanceID < t[j].Instance.PlacementInstanceID
-}
 
 type generatePlanFn func(toDeploy, all instanceMetadatas) (deploymentPlan, error)
 type generateOneStepFn func(toDeploy, all instanceMetadatas) (deploymentStep, error)
