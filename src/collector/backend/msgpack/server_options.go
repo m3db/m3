@@ -48,6 +48,9 @@ const (
 	// time in case there are issues with the instances taking over the shards
 	// and as such we need to switch the traffic back to the previous owner of the shards.
 	defaultShardCutoffLingerDuration = time.Hour
+
+	// By default the oldest metrics in the queue are dropped when it is full.
+	defaultDropType = DropOldest
 )
 
 // ShardFn maps a id to a shard given the total number of shards.
@@ -120,6 +123,14 @@ type ServerOptions interface {
 
 	// BufferedEncoderPool returns the buffered encoder pool.
 	BufferedEncoderPool() msgpack.BufferedEncoderPool
+
+	// SetQueueDropType sets the strategy for which metrics should metrics should be dropped when
+	// the queue is full.
+	SetQueueDropType(value DropType) ServerOptions
+
+	// QueueDropType returns sets the strategy for which metrics should metrics should be dropped
+	// when the queue is full.
+	QueueDropType() DropType
 }
 
 type serverOptions struct {
@@ -134,6 +145,7 @@ type serverOptions struct {
 	maxTimerBatchSize          int
 	instanceQueueSize          int
 	encoderPool                msgpack.BufferedEncoderPool
+	dropType                   DropType
 }
 
 // NewServerOptions create a new set of server options.
@@ -154,6 +166,7 @@ func NewServerOptions() ServerOptions {
 		maxTimerBatchSize:          defaultMaxTimerBatchSize,
 		instanceQueueSize:          defaultInstanceQueueSize,
 		encoderPool:                encoderPool,
+		dropType:                   defaultDropType,
 	}
 }
 
@@ -265,6 +278,16 @@ func (o *serverOptions) SetBufferedEncoderPool(value msgpack.BufferedEncoderPool
 
 func (o *serverOptions) BufferedEncoderPool() msgpack.BufferedEncoderPool {
 	return o.encoderPool
+}
+
+func (o *serverOptions) SetQueueDropType(value DropType) ServerOptions {
+	opts := *o
+	opts.dropType = value
+	return &opts
+}
+
+func (o *serverOptions) QueueDropType() DropType {
+	return o.dropType
 }
 
 func defaultShardFn(id []byte, numShards int) uint32 {

@@ -36,3 +36,5 @@ import:
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 - package: github.com/pborman/uuid
   version: c55201b036063326c5b1b89ccfe45a184973d073
+- package: gopkg.in/yaml.v2
+  version: a83829b6f1293c91addabc89d0571c246397bbf4

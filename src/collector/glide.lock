@@ -1,5 +1,5 @@
-hash: c352c3ff93b479a0a52acae9b2408624993b2fbe641687df6d2a83e73d65acba
-updated: 2017-09-14T09:20:40.069627234-04:00
+hash: 86ad7e7434d71b9fa799f26ba6d448ba80cd76bd33e060af56d5ba217d86b2cf
+updated: 2017-09-16T08:51:29.388772568-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -107,6 +107,8 @@ imports:
   version: a1382b1ce0c749733b814157c245e02cc1f41076
   subpackages:
   - codes
+- name: gopkg.in/yaml.v2
+  version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImports:
 - name: github.com/davecgh/go-spew
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
@@ -117,7 +119,7 @@ testImports:
   subpackages:
   - difflib
 - name: github.com/stretchr/testify
-  version: d77da356e56a7428ad25149ca77381849a6a5232
+  version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
   - assert
   - require
