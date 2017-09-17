@@ -55,12 +55,14 @@ type connection struct {
 	initThreshold int
 	multiplier    int
 	maxThreshold  int
+	maxDuration   time.Duration
 	nowFn         clock.NowFn
 
-	conn        *net.TCPConn
-	numFailures int
-	threshold   int
-	metrics     connectionMetrics
+	conn             *net.TCPConn
+	numFailures      int
+	threshold        int
+	lastConnectNanos int64
+	metrics          connectionMetrics
 
 	// These are for testing purposes.
 	connectWithLockFn connectWithLockFn
@@ -77,6 +79,7 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 		initThreshold: opts.InitReconnectThreshold(),
 		multiplier:    opts.ReconnectThresholdMultiplier(),
 		maxThreshold:  opts.MaxReconnectThreshold(),
+		maxDuration:   opts.MaxReconnectDuration(),
 		nowFn:         opts.ClockOptions().NowFn(),
 		threshold:     opts.InitReconnectThreshold(),
 		metrics:       newConnectionMetrics(opts.InstrumentOptions().MetricsScope()),
@@ -96,8 +99,8 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 func (c *connection) Write(data []byte) error {
 	c.Lock()
 	if c.conn == nil {
-		c.numFailures++
 		if !c.checkReconnectWithLock() {
+			c.numFailures++
 			c.Unlock()
 			return errNoActiveConnection
 		}
@@ -126,6 +129,7 @@ func (c *connection) Close() {
 }
 
 func (c *connection) connectWithLock() error {
+	c.lastConnectNanos = c.nowFn().UnixNano()
 	conn, err := net.DialTimeout(tcpProtocol, c.addr, c.connTimeout)
 	if err != nil {
 		c.metrics.connectError.Inc(1)
@@ -146,8 +150,9 @@ func (c *connection) connectWithLock() error {
 
 func (c *connection) checkReconnectWithLock() bool {
 	// If we haven't accumulated enough failures to warrant another reconnect
-	// empty, simply returning false without reconnecting.
-	if c.numFailures <= c.threshold {
+	// and we haven't past the maximum duration since the last time we attempted
+	// to connect then we simply return false without reconnecting.
+	if c.numFailures <= c.threshold && c.nowFn().UnixNano() < c.lastConnectNanos+int64(c.maxDuration) {
 		return false
 	}
 	if err := c.connectWithLockFn(); err == nil {
@@ -165,8 +170,11 @@ func (c *connection) writeWithLock(data []byte) error {
 	if err := c.conn.SetWriteDeadline(c.nowFn().Add(c.writeTimeout)); err != nil {
 		c.metrics.setWriteDeadlineError.Inc(1)
 	}
-	_, err := c.conn.Write(data)
-	return err
+	if _, err := c.conn.Write(data); err != nil {
+		c.metrics.writeError.Inc(1)
+		return err
+	}
+	return nil
 }
 
 func (c *connection) resetWithLock() {
@@ -188,6 +196,7 @@ const (
 
 type connectionMetrics struct {
 	connectError          tally.Counter
+	writeError            tally.Counter
 	setKeepAliveError     tally.Counter
 	setWriteDeadlineError tally.Counter
 }
@@ -195,6 +204,8 @@ type connectionMetrics struct {
 func newConnectionMetrics(scope tally.Scope) connectionMetrics {
 	return connectionMetrics{
 		connectError: scope.Tagged(map[string]string{errorMetricType: "connection"}).
+			Counter(errorMetric),
+		writeError: scope.Tagged(map[string]string{errorMetricType: "write"}).
 			Counter(errorMetric),
 		setKeepAliveError: scope.Tagged(map[string]string{errorMetricType: "tcp-keep-alive"}).
 			Counter(errorMetric),
