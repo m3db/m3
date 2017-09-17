@@ -29,7 +29,9 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -47,9 +49,10 @@ func TestInstanceQueueEnqueueClosed(t *testing.T) {
 	require.Equal(t, errInstanceQueueClosed, queue.Enqueue(msgpack.NewBufferedEncoder()))
 }
 
-func TestInstanceQueueEnqueueQueueFull(t *testing.T) {
+func TestInstanceQueueEnqueueQueueFullDropCurrent(t *testing.T) {
 	opts := testServerOptions().SetInstanceQueueSize(1)
 	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
+	queue.dropType = DropCurrent
 
 	// Fill up the queue and park the draining goroutine so the queue remains full.
 	queue.writeFn = func([]byte) error {
@@ -58,6 +61,20 @@ func TestInstanceQueueEnqueueQueueFull(t *testing.T) {
 	queue.bufCh <- msgpack.NewBufferedEncoder()
 	queue.bufCh <- msgpack.NewBufferedEncoder()
 	require.Equal(t, errWriterQueueFull, queue.Enqueue(msgpack.NewBufferedEncoder()))
+}
+
+func TestInstanceQueueEnqueueQueueFullDropOldest(t *testing.T) {
+	opts := testServerOptions().SetInstanceQueueSize(1)
+	queue := newInstanceQueue(testPlacementInstance, opts).(*queue)
+
+	// Fill up the queue and park the draining goroutine so the queue remains full
+	// until the enqueueing goroutine pulls a buffer off the channel.
+	queue.writeFn = func([]byte) error {
+		select {}
+	}
+	queue.bufCh <- msgpack.NewBufferedEncoder()
+	queue.bufCh <- msgpack.NewBufferedEncoder()
+	require.NoError(t, queue.Enqueue(msgpack.NewBufferedEncoder()))
 }
 
 func TestInstanceQueueEnqueueSuccessDrainSuccess(t *testing.T) {
@@ -153,4 +170,31 @@ func TestInstanceQueueCloseSuccess(t *testing.T) {
 	require.True(t, queue.closed)
 	_, ok := <-queue.bufCh
 	require.False(t, ok)
+}
+
+func TestDropTypeUnmarshalYAML(t *testing.T) {
+	type S struct {
+		A DropType
+	}
+
+	tests := []struct {
+		input    []byte
+		expected DropType
+	}{
+		{
+			input:    []byte("a: oldest\n"),
+			expected: DropOldest,
+		},
+		{
+			input:    []byte("a: current\n"),
+			expected: DropCurrent,
+		},
+	}
+
+	for _, test := range tests {
+		var s S
+		err := yaml.Unmarshal(test.input, &s)
+		require.NoError(t, err)
+		assert.Equal(t, test.expected, s.A)
+	}
 }

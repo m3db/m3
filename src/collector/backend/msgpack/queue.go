@@ -22,6 +22,8 @@ package msgpack
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,6 +43,57 @@ var (
 	errWriterQueueFull     = errors.New("writer queue is full")
 )
 
+// DropType determines which metrics should be dropped when the queue is full.
+type DropType int
+
+const (
+	// DropOldest signifies that the oldest metrics in the queue should be dropped.
+	DropOldest DropType = iota
+
+	// DropCurrent signifies that the current metrics in the queue should be dropped.
+	DropCurrent
+)
+
+var (
+	validDropTypes = []DropType{
+		DropOldest,
+		DropCurrent,
+	}
+)
+
+func (t DropType) String() string {
+	switch t {
+	case DropOldest:
+		return "oldest"
+	case DropCurrent:
+		return "current"
+	}
+	return "unknown"
+}
+
+// UnmarshalYAML unmarshals a DropType into a valid type from string.
+func (t *DropType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	if str == "" {
+		*t = defaultDropType
+		return nil
+	}
+	strs := make([]string, len(validDropTypes))
+	for _, valid := range validDropTypes {
+		if str == valid.String() {
+			*t = valid
+			return nil
+		}
+		strs = append(strs, "'"+valid.String()+"'")
+	}
+	return fmt.Errorf(
+		"invalid DropType '%s' valid types are: %s", str, strings.Join(strs, ", "),
+	)
+}
+
 // instanceQueue processes write requests for given instance.
 type instanceQueue interface {
 	// Enqueue enqueues a data buffer.
@@ -57,6 +110,7 @@ type queue struct {
 
 	log      log.Logger
 	metrics  queueMetrics
+	dropType DropType
 	instance placement.Instance
 	conn     *connection
 	bufCh    chan msgpack.Buffer
@@ -73,6 +127,7 @@ func newInstanceQueue(instance placement.Instance, opts ServerOptions) instanceQ
 		queueSize = opts.InstanceQueueSize()
 	)
 	q := &queue{
+		dropType: opts.QueueDropType(),
 		log:      iOpts.Logger(),
 		metrics:  newQueueMetrics(iOpts.MetricsScope(), queueSize),
 		instance: instance,
@@ -91,25 +146,38 @@ func (q *queue) Enqueue(buf msgpack.Buffer) error {
 	q.RLock()
 	if q.closed {
 		q.RUnlock()
-		q.metrics.queueClosedErrors.Inc(1)
+		q.metrics.enqueueClosedErrors.Inc(1)
 		return errInstanceQueueClosed
 	}
-	// NB(xichen): the buffer already batches multiple metric buf points
-	// to maximize per packet utilization so there should be no need to perform
-	// additional batching here.
-	select {
-	case q.bufCh <- buf:
-	default:
-		q.RUnlock()
+	for {
+		// NB(xichen): the buffer already batches multiple metric buf points
+		// to maximize per packet utilization so there should be no need to perform
+		// additional batching here.
+		select {
+		case q.bufCh <- buf:
+			q.RUnlock()
+			q.metrics.enqueueSuccesses.Inc(1)
+			return nil
 
-		// Close the buffer so it's resources are freed.
-		buf.Close()
+		default:
+			if q.dropType == DropCurrent {
+				q.RUnlock()
 
-		q.metrics.queueFullErrors.Inc(1)
-		return errWriterQueueFull
+				// Close the buffer so it's resources are freed.
+				buf.Close()
+				q.metrics.enqueueCurrentDropped.Inc(1)
+				return errWriterQueueFull
+			}
+		}
+
+		select {
+		case buf := <-q.bufCh:
+			// Close the buffer so it's resources are freed.
+			buf.Close()
+			q.metrics.enqueueOldestDropped.Inc(1)
+		default:
+		}
 	}
-	q.RUnlock()
-	return nil
 }
 
 func (q *queue) Close() error {
@@ -154,10 +222,12 @@ func (q *queue) reportQueueSize(reportInterval time.Duration) {
 }
 
 type queueMetrics struct {
-	queueLen          tally.Histogram
-	queueClosedErrors tally.Counter
-	queueFullErrors   tally.Counter
-	connWriteErrors   tally.Counter
+	queueLen              tally.Histogram
+	enqueueSuccesses      tally.Counter
+	enqueueOldestDropped  tally.Counter
+	enqueueCurrentDropped tally.Counter
+	enqueueClosedErrors   tally.Counter
+	connWriteErrors       tally.Counter
 }
 
 func newQueueMetrics(s tally.Scope, queueSize int) queueMetrics {
@@ -166,16 +236,17 @@ func newQueueMetrics(s tally.Scope, queueSize int) queueMetrics {
 		numBuckets = queueSize
 	}
 	buckets := tally.MustMakeLinearValueBuckets(0, float64(queueSize/numBuckets), numBuckets)
+	enqueueScope := s.Tagged(map[string]string{"action": "enqueue"})
 	return queueMetrics{
-		queueLen: s.Histogram("queue-length", buckets),
-		queueClosedErrors: s.Tagged(
-			map[string]string{"error-type": "queue-closed", "action": "enqueue"},
-		).Counter("errors"),
-		queueFullErrors: s.Tagged(
-			map[string]string{"error-type": "queue-full", "action": "enqueue"},
-		).Counter("errors"),
-		connWriteErrors: s.Tagged(
-			map[string]string{"error-type": "conn-write", "action": "drain"},
-		).Counter("errors"),
+		queueLen:         s.Histogram("queue-length", buckets),
+		enqueueSuccesses: enqueueScope.Counter("successes"),
+		enqueueOldestDropped: enqueueScope.Tagged(map[string]string{"drop-type": "oldest"}).
+			Counter("dropped"),
+		enqueueCurrentDropped: enqueueScope.Tagged(map[string]string{"drop-type": "current"}).
+			Counter("dropped"),
+		enqueueClosedErrors: enqueueScope.Tagged(map[string]string{"error-type": "queue-closed"}).
+			Counter("errors"),
+		connWriteErrors: s.Tagged(map[string]string{"error-type": "conn-write", "action": "drain"}).
+			Counter("errors"),
 	}
 }
