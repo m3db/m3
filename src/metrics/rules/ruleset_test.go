@@ -22,7 +22,6 @@ package rules
 
 import (
 	"bytes"
-	"encoding/json"
 	"testing"
 	"time"
 
@@ -45,118 +44,7 @@ var (
 	compressedP999, _         = compressor.Compress(policy.AggregationTypes{policy.P999})
 	compressedCountAndMean, _ = compressor.Compress(policy.AggregationTypes{policy.Count, policy.Mean})
 
-	marshalTestSchema = &schema.RuleSet{
-		Uuid:          "ruleset",
-		Namespace:     "namespace",
-		CreatedAt:     1234,
-		LastUpdatedAt: 5678,
-		Tombstoned:    false,
-		CutoverTime:   34923,
-		MappingRules: []*schema.MappingRule{
-			&schema.MappingRule{
-				Uuid: "12669817-13ae-40e6-ba2f-33087b262c68",
-				Snapshots: []*schema.MappingRuleSnapshot{
-					&schema.MappingRuleSnapshot{
-						Name:        "foo",
-						Tombstoned:  false,
-						CutoverTime: 12345,
-						TagFilters: map[string]string{
-							"tag1": "value1",
-							"tag2": "value2",
-						},
-						Policies: []*schema.Policy{
-							&schema.Policy{
-								StoragePolicy: &schema.StoragePolicy{
-									Resolution: &schema.Resolution{
-										WindowSize: int64(10 * time.Second),
-										Precision:  int64(time.Second),
-									},
-									Retention: &schema.Retention{
-										Period: int64(24 * time.Hour),
-									},
-								},
-								AggregationTypes: []schema.AggregationType{
-									schema.AggregationType_P999,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		RollupRules: []*schema.RollupRule{
-			&schema.RollupRule{
-				Uuid: "12669817-13ae-40e6-ba2f-33087b262c69",
-				Snapshots: []*schema.RollupRuleSnapshot{
-					&schema.RollupRuleSnapshot{
-						Name:        "bar",
-						Tombstoned:  false,
-						CutoverTime: 12345,
-						TagFilters: map[string]string{
-							"tag1": "value1",
-							"tag2": "value2",
-						},
-						Targets: []*schema.RollupTarget{
-							&schema.RollupTarget{
-								Name: "test",
-								Tags: []string{"foo", "bar"},
-								Policies: []*schema.Policy{
-									&schema.Policy{
-										StoragePolicy: &schema.StoragePolicy{
-											Resolution: &schema.Resolution{
-												WindowSize: int64(10 * time.Second),
-												Precision:  int64(time.Second),
-											},
-											Retention: &schema.Retention{
-												Period: int64(24 * time.Hour),
-											},
-										},
-										AggregationTypes: []schema.AggregationType{
-											schema.AggregationType_P999,
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-
-	marshalTestString = `
-		{"uuid":"ruleset",
-		 "version":1,
-		 "namespace":"namespace",
-		 "createdAt":1234,
-		 "lastUpdatedAt":5678,
-		 "tombstoned":false,
-		 "cutoverNanos":34923,
-		 "mappingRules":[{
-			 "uuid":"12669817-13ae-40e6-ba2f-33087b262c68",
-			 "snapshots":[{
-				 "name":"foo",
-				 "tombstoned":false,
-				 "cutoverNanos":12345,
-				 "filters":{"tag1":"value1","tag2":"value2"},
-				 "policies":["10s@1s:24h0m0s|P999"]
-				}]
-			}],
-			"rollupRules":[{
-				"uuid":"12669817-13ae-40e6-ba2f-33087b262c69",
-				"snapshots":[{
-					"name":"bar",
-					"tombstoned":false,
-					"cutoverNanos":12345,
-					"filters":{"tag1":"value1","tag2":"value2"},
-					"targets":[{
-						"name":"test",
-						"tags":["bar","foo"],
-						"policies":["10s@1s:24h0m0s|P999"]
-					}]
-				}]
-			}]
-		}`
+	now = time.Now().UnixNano()
 )
 
 func TestMatchModeUnmarshalYAML(t *testing.T) {
@@ -626,44 +514,6 @@ func TestRuleSetProperties(t *testing.T) {
 	require.Equal(t, int64(34923), ruleSet.CutoverNanos())
 	require.Equal(t, false, ruleSet.Tombstoned())
 }
-
-func TestRuleSetMarshalJSON(t *testing.T) {
-	opts := testRuleSetOptions()
-	version := 1
-
-	newRuleSet, err := NewRuleSetFromSchema(version, marshalTestSchema, opts)
-	require.NoError(t, err)
-
-	res, err := json.Marshal(newRuleSet)
-	require.NoError(t, err)
-
-	var bb bytes.Buffer
-	err = json.Compact(&bb, []byte(marshalTestString))
-	require.NoError(t, err)
-
-	require.Equal(t, bb.String(), string(res))
-}
-
-func TestRuleSetUnmarshalJSON(t *testing.T) {
-	version := 1
-	newRuleSet, err := newMutableRuleSetFromSchema(version, marshalTestSchema)
-	require.NoError(t, err)
-
-	data, err := json.Marshal(newRuleSet)
-	require.NoError(t, err)
-	var rs ruleSet
-	err = json.Unmarshal(data, &rs)
-	require.NoError(t, err)
-
-	expected, err := newRuleSet.Schema()
-	require.NoError(t, err)
-
-	actual, err := rs.Schema()
-	require.NoError(t, err)
-
-	require.Equal(t, expected, actual)
-}
-
 func TestRuleSetSchema(t *testing.T) {
 	version := 1
 
@@ -2214,6 +2064,38 @@ func newMutableRuleSetFromSchema(version int, rs *schema.RuleSet) (MutableRuleSe
 	return roRuleSet.(*ruleSet), nil
 }
 
+func TestMappingRules(t *testing.T) {
+	_, rs, _, err := initMutableTest()
+	require.NoError(t, err)
+
+	mr := rs.MappingRules()
+	for _, v := range rs.mappingRules {
+		require.Contains(t, mr, v.uuid)
+		if len(v.snapshots) > 0 {
+			lastIdx := len(v.snapshots) - 1
+			require.Equal(t, mr[v.uuid][lastIdx], newMappingRuleView(v.uuid, *v.snapshots[lastIdx]))
+		}
+	}
+
+	require.NotNil(t, mr)
+}
+
+func TestRollupRules(t *testing.T) {
+	_, rs, _, err := initMutableTest()
+	require.NoError(t, err)
+
+	rr := rs.RollupRules()
+	for _, v := range rs.rollupRules {
+		require.Contains(t, rr, v.uuid)
+		lastIdx := len(v.snapshots) - 1
+		if len(v.snapshots) > 0 {
+			require.Equal(t, rr[v.uuid][lastIdx], newRollupRuleView(v.uuid, *v.snapshots[lastIdx]))
+		}
+	}
+
+	require.NotNil(t, rr)
+}
+
 func TestAddMappingRule(t *testing.T) {
 	mutable, rs, helper, err := initMutableTest()
 	require.NoError(t, err)
@@ -2222,13 +2104,13 @@ func TestAddMappingRule(t *testing.T) {
 
 	newFilters := map[string]string{"tag1": "value", "tag2": "value"}
 	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
-	data := MappingRuleData{
-		Name:           "foo",
-		Filters:        newFilters,
-		Policies:       p,
-		UpdateMetadata: helper.NewUpdateMetadata(),
+	view := MappingRuleView{
+		Name:     "foo",
+		Filters:  newFilters,
+		Policies: p,
 	}
-	err = mutable.AddMappingRule(data)
+
+	err = mutable.AddMappingRule(view, helper.NewUpdateMetadata(time.Now().UnixNano()))
 	require.NoError(t, err)
 
 	_, err = rs.getMappingRuleByName("foo")
@@ -2245,14 +2127,13 @@ func TestAddMappingRuleDup(t *testing.T) {
 
 	newFilters := map[string]string{"tag1": "value", "tag2": "value"}
 	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
-	data := MappingRuleData{
-		Name:           "mappingRule5.snapshot1",
-		Filters:        newFilters,
-		Policies:       p,
-		UpdateMetadata: helper.NewUpdateMetadata(),
+	view := MappingRuleView{
+		Name:     "mappingRule5.snapshot1",
+		Filters:  newFilters,
+		Policies: p,
 	}
 
-	err = mutable.AddMappingRule(data)
+	err = mutable.AddMappingRule(view, helper.NewUpdateMetadata(now))
 	require.Error(t, err)
 }
 
@@ -2264,19 +2145,17 @@ func TestAddMappingRuleRevive(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
-	dd := DeleteData{ID: "mappingRule5"}
-	err = mutable.DeleteMappingRule(dd)
+	err = mutable.DeleteMappingRule("mappingRule5", helper.NewUpdateMetadata(now))
 	require.NoError(t, err)
 
 	newFilters := map[string]string{"test": "bar"}
 	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
-	data := MappingRuleData{
-		Name:           "mappingRule5.snapshot1",
-		Filters:        newFilters,
-		Policies:       p,
-		UpdateMetadata: helper.NewUpdateMetadata(),
+	view := MappingRuleView{
+		Name:     "mappingRule5.snapshot1",
+		Filters:  newFilters,
+		Policies: p,
 	}
-	err = rs.AddMappingRule(data)
+	err = rs.AddMappingRule(view, helper.NewUpdateMetadata(now))
 	require.NoError(t, err)
 
 	mr, err := rs.getMappingRuleByID("mappingRule5")
@@ -2296,19 +2175,14 @@ func TestUpdateMappingRule(t *testing.T) {
 
 	newFilters := map[string]string{"tag1": "value", "tag2": "value"}
 	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
-	data := MappingRuleData{
-		Name:           "foo",
-		Filters:        newFilters,
-		Policies:       p,
-		UpdateMetadata: helper.NewUpdateMetadata(),
+	view := MappingRuleView{
+		ID:       "mappingRule5",
+		Name:     "foo",
+		Filters:  newFilters,
+		Policies: p,
 	}
 
-	update := MappingRuleUpdate{
-		Data: data,
-		ID:   "mappingRule5",
-	}
-
-	err = mutableClone.UpdateMappingRule(update)
+	err = mutableClone.UpdateMappingRule(view, helper.NewUpdateMetadata(now))
 	require.NoError(t, err)
 
 	res, err := mutableClone.(*ruleSet).getMappingRuleByID("mappingRule5")
@@ -2332,8 +2206,7 @@ func TestDeleteMappingRule(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
-	dd := DeleteData{ID: "mappingRule5", UpdateMetadata: helper.NewUpdateMetadata()}
-	err = mutable.DeleteMappingRule(dd)
+	err = mutable.DeleteMappingRule("mappingRule5", helper.NewUpdateMetadata(now))
 	require.NoError(t, err)
 
 	m, err = rs.getMappingRuleByID("mappingRule5")
@@ -2351,21 +2224,20 @@ func TestAddRollupRule(t *testing.T) {
 	newFilters := map[string]string{"tag1": "value", "tag2": "value"}
 	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
 
-	newTargets := []RollupTarget{
-		RollupTarget{
-			Name:     b("blah"),
-			Tags:     bs("a"),
+	newTargets := []RollupTargetView{
+		RollupTargetView{
+			Name:     "blah",
+			Tags:     []string{"a"},
 			Policies: p,
 		},
 	}
-	data := RollupRuleData{
-		Name:           "foo",
-		Filters:        newFilters,
-		Targets:        newTargets,
-		UpdateMetadata: helper.NewUpdateMetadata(),
+	view := RollupRuleView{
+		Name:    "foo",
+		Filters: newFilters,
+		Targets: newTargets,
 	}
 
-	err = mutable.AddRollupRule(data)
+	err = mutable.AddRollupRule(view, helper.NewUpdateMetadata(now))
 	require.NoError(t, err)
 
 	res, err := rs.getRollupRuleByName("foo")
@@ -2383,21 +2255,20 @@ func TestAddRollupRuleDup(t *testing.T) {
 
 	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
 
-	newTargets := []RollupTarget{
-		RollupTarget{
-			Name:     b("blah"),
-			Tags:     bs("a"),
+	newTargets := []RollupTargetView{
+		RollupTargetView{
+			Name:     "blah",
+			Tags:     []string{"a"},
 			Policies: p,
 		},
 	}
 	newFilters := map[string]string{"test": "bar"}
-	rrd := RollupRuleData{
-		Name:           "rollupRule5.snapshot1",
-		Filters:        newFilters,
-		Targets:        newTargets,
-		UpdateMetadata: helper.NewUpdateMetadata(),
+	view := RollupRuleView{
+		Name:    "rollupRule5.snapshot1",
+		Filters: newFilters,
+		Targets: newTargets,
 	}
-	err = mutable.AddRollupRule(rrd)
+	err = mutable.AddRollupRule(view, helper.NewUpdateMetadata(now))
 	require.Error(t, err)
 }
 
@@ -2407,10 +2278,8 @@ func TestReviveRollupRule(t *testing.T) {
 
 	rr, err := rs.getRollupRuleByID("rollupRule5")
 	require.NoError(t, err)
-	updateMeta := helper.NewUpdateMetadata()
 
-	dd := DeleteData{ID: rr.uuid, UpdateMetadata: updateMeta}
-	err = mutable.DeleteRollupRule(dd)
+	err = mutable.DeleteRollupRule(rr.uuid, helper.NewUpdateMetadata(now))
 	require.NoError(t, err)
 
 	rr, err = rs.getRollupRuleByID("rollupRule5")
@@ -2419,14 +2288,13 @@ func TestReviveRollupRule(t *testing.T) {
 
 	snapshot := rr.snapshots[len(rr.snapshots)-1]
 
-	rrd := RollupRuleData{
-		Name:           "rollupRule5.snapshot1",
-		Filters:        snapshot.rawFilters,
-		Targets:        snapshot.targets,
-		UpdateMetadata: updateMeta,
+	view := RollupRuleView{
+		ID:      rr.uuid,
+		Name:    "rollupRule5.snapshot1",
+		Filters: snapshot.rawFilters,
 	}
 
-	err = mutable.AddRollupRule(rrd)
+	err = mutable.AddRollupRule(view, helper.NewUpdateMetadata(now))
 	require.NoError(t, err)
 
 	rr, err = rs.getRollupRuleByID("rollupRule5")
@@ -2440,31 +2308,25 @@ func TestUpdateRollupRule(t *testing.T) {
 
 	rr, err := rs.getRollupRuleByID("rollupRule5")
 	require.NoError(t, err)
-	updateMeta := helper.NewUpdateMetadata()
 
 	newFilters := map[string]string{"tag1": "value", "tag2": "value"}
 	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
-	newTargets := []RollupTarget{
-		RollupTarget{
-			Name:     b("blah"),
-			Tags:     bs("a"),
+	newTargets := []RollupTargetView{
+		RollupTargetView{
+			Name:     "blah",
+			Tags:     []string{"a"},
 			Policies: p,
 		},
 	}
 
-	data := RollupRuleData{
-		Name:           "foo",
-		Filters:        newFilters,
-		Targets:        newTargets,
-		UpdateMetadata: updateMeta,
+	view := RollupRuleView{
+		ID:      rr.uuid,
+		Name:    "foo",
+		Filters: newFilters,
+		Targets: newTargets,
 	}
 
-	update := RollupRuleUpdate{
-		Data: data,
-		ID:   rr.uuid,
-	}
-
-	err = mutable.UpdateRollupRule(update)
+	err = mutable.UpdateRollupRule(view, helper.NewUpdateMetadata(now))
 	require.NoError(t, err)
 
 	_, err = rs.getRollupRuleByName("foo")
@@ -2476,32 +2338,26 @@ func TestUpdateRollupRuleDupTarget(t *testing.T) {
 
 	rr, err := rs.getRollupRuleByID("rollupRule5")
 	require.NoError(t, err)
-	updateMeta := helper.NewUpdateMetadata()
 
 	newFilters := map[string]string{"tag1": "value", "tag2": "value"}
 	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
 	// Duplicate target from rollupRule4
-	newTargets := []RollupTarget{
-		RollupTarget{
-			Name:     b("rName3"),
-			Tags:     bs("rtagName1", "rtagName2"),
+	newTargets := []RollupTargetView{
+		RollupTargetView{
+			Name:     "rName3",
+			Tags:     []string{"rtagName1", "rtagName2"},
 			Policies: p,
 		},
 	}
 
-	data := RollupRuleData{
-		Name:           "foo",
-		Filters:        newFilters,
-		Targets:        newTargets,
-		UpdateMetadata: updateMeta,
+	view := RollupRuleView{
+		ID:      rr.uuid,
+		Name:    "foo",
+		Filters: newFilters,
+		Targets: newTargets,
 	}
 
-	update := RollupRuleUpdate{
-		Data: data,
-		ID:   rr.uuid,
-	}
-
-	err = mutable.UpdateRollupRule(update)
+	err = mutable.UpdateRollupRule(view, helper.NewUpdateMetadata(now))
 	require.Error(t, err)
 }
 
@@ -2511,13 +2367,8 @@ func TestDeleteRollupRule(t *testing.T) {
 
 	rr, err := rs.getRollupRuleByID("rollupRule5")
 	require.NoError(t, err)
-	updateMeta := helper.NewUpdateMetadata()
 
-	dd := DeleteData{
-		ID:             rr.uuid,
-		UpdateMetadata: updateMeta,
-	}
-	err = mutable.DeleteRollupRule(dd)
+	err = mutable.DeleteRollupRule(rr.uuid, helper.NewUpdateMetadata(now))
 	require.NoError(t, err)
 
 	rr, err = rs.getRollupRuleByName("rollupRule5.snapshot1")
@@ -2529,7 +2380,7 @@ func TestDeleteRuleset(t *testing.T) {
 	mutable, rs, helper, err := initMutableTest()
 	require.NoError(t, err)
 
-	err = mutable.Delete(helper.NewUpdateMetadata())
+	err = mutable.Delete(helper.NewUpdateMetadata(now))
 	require.NoError(t, err)
 
 	require.True(t, mutable.Tombstoned())
@@ -2546,10 +2397,10 @@ func TestReviveRuleSet(t *testing.T) {
 	mutable, rs, helper, err := initMutableTest()
 	require.NoError(t, err)
 
-	err = mutable.Delete(helper.NewUpdateMetadata())
+	err = mutable.Delete(helper.NewUpdateMetadata(now))
 	require.NoError(t, err)
 
-	err = mutable.Revive(helper.NewUpdateMetadata())
+	err = mutable.Revive(helper.NewUpdateMetadata(now))
 	require.NoError(t, err)
 
 	require.False(t, rs.Tombstoned())

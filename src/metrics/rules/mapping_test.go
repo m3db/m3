@@ -280,3 +280,22 @@ func TestMappingRuleSnapshotClone(t *testing.T) {
 	s1Clone.policies = append(s1Clone.policies, s1Clone.policies[0])
 	require.NotEqual(t, s1.policies, s1Clone.policies)
 }
+
+func TestNewMappingRuleView(t *testing.T) {
+	mr, _ := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	actual := newMappingRuleView("test", *mr.snapshots[0])
+
+	p, _ := policy.ParsePolicy("10s:24h|P999")
+	expected := MappingRuleView{
+		ID:           "test",
+		Name:         "foo",
+		CutoverNanos: 12345,
+
+		Filters: map[string]string{
+			"tag1": "value1",
+			"tag2": "value2",
+		},
+		Policies: []policy.Policy{p},
+	}
+	require.Equal(t, expected, actual)
+}

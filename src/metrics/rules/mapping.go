@@ -109,35 +109,6 @@ func (mrs *mappingRuleSnapshot) clone() mappingRuleSnapshot {
 	}
 }
 
-type mappingRuleSnapshotJSON struct {
-	Name         string            `json:"name"`
-	Tombstoned   bool              `json:"tombstoned"`
-	CutoverNanos int64             `json:"cutoverNanos"`
-	TagFilters   map[string]string `json:"filters"`
-	Policies     []policy.Policy   `json:"policies"`
-}
-
-func newMappingRuleSnapshotJSON(mrs mappingRuleSnapshot) mappingRuleSnapshotJSON {
-	return mappingRuleSnapshotJSON{
-		Name:         mrs.name,
-		Tombstoned:   mrs.tombstoned,
-		CutoverNanos: mrs.cutoverNanos,
-		TagFilters:   mrs.rawFilters,
-		Policies:     mrs.policies,
-	}
-}
-
-func (mrsj mappingRuleSnapshotJSON) mappingRuleSnapshot() *mappingRuleSnapshot {
-	return newMappingRuleSnapshotFromFields(
-		mrsj.Name,
-		mrsj.Tombstoned,
-		mrsj.CutoverNanos,
-		mrsj.TagFilters,
-		mrsj.Policies,
-		nil,
-	)
-}
-
 // Schema returns the given MappingRuleSnapshot in protobuf form.
 func (mrs *mappingRuleSnapshot) Schema() (*schema.MappingRuleSnapshot, error) {
 	res := &schema.MappingRuleSnapshot{
@@ -158,6 +129,26 @@ func (mrs *mappingRuleSnapshot) Schema() (*schema.MappingRuleSnapshot, error) {
 	res.Policies = policies
 
 	return res, nil
+}
+
+// MappingRuleView is a human friendly representation of a mapping rule at a given point in time.
+type MappingRuleView struct {
+	ID           string
+	Name         string
+	CutoverNanos int64
+	Filters      map[string]string
+	Policies     []policy.Policy
+}
+
+func newMappingRuleView(uuid string, mrs mappingRuleSnapshot) MappingRuleView {
+	mrs = mrs.clone()
+	return MappingRuleView{
+		ID:           uuid,
+		Name:         mrs.name,
+		CutoverNanos: mrs.cutoverNanos,
+		Filters:      mrs.rawFilters,
+		Policies:     mrs.policies,
+	}
 }
 
 // mappingRule stores mapping rule snapshots.
@@ -311,31 +302,12 @@ func (mc *mappingRule) activeIndex(timeNanos int64) int {
 	return idx
 }
 
-type mappingRuleJSON struct {
-	UUID      string                    `json:"uuid"`
-	Snapshots []mappingRuleSnapshotJSON `json:"snapshots"`
-}
-
-func newMappingRuleJSON(mc mappingRule) mappingRuleJSON {
-	snapshots := make([]mappingRuleSnapshotJSON, len(mc.snapshots))
+func (mc *mappingRule) history() []MappingRuleView {
+	views := make([]MappingRuleView, len(mc.snapshots))
 	for i, s := range mc.snapshots {
-		snapshots[i] = newMappingRuleSnapshotJSON(*s)
+		views[i] = newMappingRuleView(mc.uuid, *s)
 	}
-	return mappingRuleJSON{
-		UUID:      mc.uuid,
-		Snapshots: snapshots,
-	}
-}
-
-func (mrj mappingRuleJSON) mappingRule() mappingRule {
-	snapshots := make([]*mappingRuleSnapshot, len(mrj.Snapshots))
-	for i, s := range mrj.Snapshots {
-		snapshots[i] = s.mappingRuleSnapshot()
-	}
-	return mappingRule{
-		uuid:      mrj.UUID,
-		snapshots: snapshots,
-	}
+	return views
 }
 
 // Schema returns the given MappingRule in protobuf form.
