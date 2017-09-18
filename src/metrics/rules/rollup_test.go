@@ -376,3 +376,27 @@ func TestRollupRuleSnapshotClone(t *testing.T) {
 	s1Clone.targets = append(s1Clone.targets, s1Clone.targets[0])
 	require.NotEqual(t, s1.targets, s1Clone.targets)
 }
+
+func TestNewRollupRuleView(t *testing.T) {
+	rr, _ := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	actual := newRollupRuleView("test", *rr.snapshots[0])
+
+	p, _ := policy.ParsePolicy("10s:24h")
+	expected := RollupRuleView{
+		ID:           "test",
+		Name:         "foo",
+		CutoverNanos: 12345,
+		Filters: map[string]string{
+			"tag1": "value1",
+			"tag2": "value2",
+		},
+		Targets: []RollupTargetView{
+			RollupTargetView{
+				Name:     "rName1",
+				Tags:     []string{"rtagName1", "rtagName2"},
+				Policies: []policy.Policy{p},
+			},
+		},
+	}
+	require.Equal(t, expected, actual)
+}
