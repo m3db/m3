@@ -168,11 +168,7 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstances(
 			return nil, err
 		}
 		load := loadOnInstance(leavingInstance)
-		if load == 0 {
-			result, _, err := addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, withShards)
-			return result, err
-		}
-		if !a.opts.AllowPartialReplace() {
+		if load != 0 && !a.opts.AllowPartialReplace() {
 			return nil, fmt.Errorf("could not fully replace all shards from %s, %d shards left unassigned",
 				leavingInstance.ID(), load)
 		}
@@ -191,9 +187,9 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstances(
 		}
 	}
 
+	p = ph.GeneratePlacement()
 	for _, leavingInstance := range leavingInstances {
-		p, _, err = addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, withShards)
-		if err != nil {
+		if p, _, err = addInstanceToPlacement(p, leavingInstance, withShards); err != nil {
 			return nil, err
 		}
 	}
