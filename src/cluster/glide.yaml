@@ -25,8 +25,8 @@ import:
   version: ^3.0.0 # ie >= 3.0.0, < 4.0.0
 - package: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
-- package: github.com/uber-go/atomic
-  version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
+- package: go.uber.org/atomic
+  version: ^1
 - package: github.com/shirou/gopsutil
   version: b62e301a8b9958eebb7299683eb57fab229a9501
 - package: github.com/go-ole/go-ole
