@@ -1,5 +1,5 @@
-hash: cae8831c4d4687030f8d331f1a05ffeb54ee545c5d371af273ab25de4b05bd0f
-updated: 2017-09-14T17:06:27.192853437-04:00
+hash: 0206ff542af1611b989062b69f6e3f5fbd1a9f79daf37590982bca520990075a
+updated: 2017-09-18T19:54:18.872848253-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -184,6 +184,8 @@ imports:
   - codec
 - name: github.com/xiang90/probing
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
+- name: go.uber.org/atomic
+  version: 4e336646b2ef9fc6e47be8e21594178f98e5ebcf
 - name: golang.org/x/crypto
   version: 1351f936d976c60a0a48d728281922cf63eafb8d
   repo: https://github.com/golang/crypto
