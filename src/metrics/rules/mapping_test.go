@@ -282,20 +282,58 @@ func TestMappingRuleSnapshotClone(t *testing.T) {
 }
 
 func TestNewMappingRuleView(t *testing.T) {
-	mr, _ := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
-	actual := newMappingRuleView("test", *mr.snapshots[0])
+	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	require.NoError(t, err)
 
-	p, _ := policy.ParsePolicy("10s:24h|P999")
-	expected := MappingRuleView{
-		ID:           "test",
-		Name:         "foo",
-		CutoverNanos: 12345,
+	actual, err := mr.mappingRuleView(len(mr.snapshots) - 1)
+	require.NoError(t, err)
+
+	p1, _ := policy.ParsePolicy("1m:24h")
+	p2, _ := policy.ParsePolicy("5m:2d")
+	expected := &MappingRuleView{
+		ID:           "12669817-13ae-40e6-ba2f-33087b262c68",
+		Name:         "bar",
+		CutoverNanos: 67890,
 
 		Filters: map[string]string{
-			"tag1": "value1",
-			"tag2": "value2",
+			"tag3": "value3",
+			"tag4": "value4",
 		},
-		Policies: []policy.Policy{p},
+		Policies: []policy.Policy{p1, p2},
 	}
+	require.Equal(t, expected, actual)
+}
+
+func TestNewMappingRuleViewError(t *testing.T) {
+	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	require.NoError(t, err)
+
+	actual, err := mr.mappingRuleView(20)
+	require.Error(t, err)
+	require.Nil(t, actual)
+}
+
+func TestMappingRuleHistory(t *testing.T) {
+	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	require.NoError(t, err)
+
+	hist, err := mr.history()
+	require.NoError(t, err)
+	require.Equal(t, len(mr.snapshots), len(hist))
+	p1, _ := policy.ParsePolicy("1m:24h")
+	p2, _ := policy.ParsePolicy("5m:2d")
+	expected := &MappingRuleView{
+		ID:           "12669817-13ae-40e6-ba2f-33087b262c68",
+		Name:         "bar",
+		CutoverNanos: 67890,
+
+		Filters: map[string]string{
+			"tag3": "value3",
+			"tag4": "value4",
+		},
+		Policies: []policy.Policy{p1, p2},
+	}
+
+	actual := hist[0]
 	require.Equal(t, expected, actual)
 }

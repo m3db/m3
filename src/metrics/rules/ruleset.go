@@ -439,11 +439,11 @@ func (as *activeRuleSet) cutoverNanosAt(idx int) int64 {
 
 // MappingRules belonging to a ruleset indexed by uuid.
 // Each value contains the entire snapshot history of the rule.
-type MappingRules map[string][]MappingRuleView
+type MappingRules map[string][]*MappingRuleView
 
 // RollupRules belonging to a ruleset indexed by uuid.
 // Each value contains the entire snapshot history of the rule.
-type RollupRules map[string][]RollupRuleView
+type RollupRules map[string][]*RollupRuleView
 
 // RuleSet is a set of rules associated with a namespace.
 type RuleSet interface {
@@ -469,10 +469,10 @@ type RuleSet interface {
 	ActiveSet(timeNanos int64) Matcher
 
 	// MappingRuleHistory returns a map of mapping rule id to states that rule has been in.
-	MappingRules() MappingRules
+	MappingRules() (MappingRules, error)
 
 	// RollupRuleHistory returns a map of rollup rule id to states that rule has been in.
-	RollupRules() RollupRules
+	RollupRules() (RollupRules, error)
 
 	// ToMutableRuleSet returns a mutable version of this ruleset.
 	ToMutableRuleSet() MutableRuleSet
@@ -489,7 +489,8 @@ type MutableRuleSet interface {
 	Clone() MutableRuleSet
 
 	// AppendMappingRule creates a new mapping rule and adds it to this ruleset.
-	AddMappingRule(MappingRuleView, UpdateMetadata) error
+	// Should return the id of the newly created rule.
+	AddMappingRule(MappingRuleView, UpdateMetadata) (string, error)
 
 	// UpdateMappingRule creates a new mapping rule and adds it to this ruleset.
 	UpdateMappingRule(MappingRuleView, UpdateMetadata) error
@@ -498,7 +499,8 @@ type MutableRuleSet interface {
 	DeleteMappingRule(string, UpdateMetadata) error
 
 	// AppendRollupRule creates a new rollup rule and adds it to this ruleset.
-	AddRollupRule(RollupRuleView, UpdateMetadata) error
+	// Should return the id of the newly created rule.
+	AddRollupRule(RollupRuleView, UpdateMetadata) (string, error)
 
 	// UpdateRollupRule creates a new rollup rule and adds it to this ruleset.
 	UpdateRollupRule(RollupRuleView, UpdateMetadata) error
@@ -646,20 +648,28 @@ func (rs *ruleSet) Schema() (*schema.RuleSet, error) {
 	return res, nil
 }
 
-func (rs *ruleSet) MappingRules() MappingRules {
+func (rs *ruleSet) MappingRules() (MappingRules, error) {
 	mappingRules := make(MappingRules, len(rs.mappingRules))
 	for _, m := range rs.mappingRules {
-		mappingRules[m.uuid] = m.history()
+		hist, err := m.history()
+		if err != nil {
+			return nil, err
+		}
+		mappingRules[m.uuid] = hist
 	}
-	return mappingRules
+	return mappingRules, nil
 }
 
-func (rs *ruleSet) RollupRules() RollupRules {
+func (rs *ruleSet) RollupRules() (RollupRules, error) {
 	rollupRules := make(RollupRules, len(rs.rollupRules))
 	for _, r := range rs.rollupRules {
-		rollupRules[r.uuid] = r.history()
+		hist, err := r.history()
+		if err != nil {
+			return nil, err
+		}
+		rollupRules[r.uuid] = hist
 	}
-	return rollupRules
+	return rollupRules, nil
 }
 
 func (rs *ruleSet) Clone() MutableRuleSet {
@@ -696,15 +706,15 @@ func (rs *ruleSet) Clone() MutableRuleSet {
 	})
 }
 
-func (rs *ruleSet) AddMappingRule(mrv MappingRuleView, meta UpdateMetadata) error {
+func (rs *ruleSet) AddMappingRule(mrv MappingRuleView, meta UpdateMetadata) (string, error) {
 	err := rs.validateMappingRuleUpdate(mrv)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	m, err := rs.getMappingRuleByName(mrv.Name)
 	if err != nil && err != errNoSuchRule {
-		return fmt.Errorf(ruleActionErrorFmt, "add", mrv.Name, err)
+		return "", fmt.Errorf(ruleActionErrorFmt, "add", mrv.Name, err)
 	}
 	if err == errNoSuchRule {
 		if m, err = newMappingRuleFromFields(
@@ -713,7 +723,7 @@ func (rs *ruleSet) AddMappingRule(mrv MappingRuleView, meta UpdateMetadata) erro
 			mrv.Policies,
 			meta.cutoverNanos,
 		); err != nil {
-			return fmt.Errorf(ruleActionErrorFmt, "add", mrv.Name, err)
+			return "", fmt.Errorf(ruleActionErrorFmt, "add", mrv.Name, err)
 		}
 		rs.mappingRules = append(rs.mappingRules, m)
 	} else {
@@ -723,12 +733,11 @@ func (rs *ruleSet) AddMappingRule(mrv MappingRuleView, meta UpdateMetadata) erro
 			mrv.Policies,
 			meta.cutoverNanos,
 		); err != nil {
-			return fmt.Errorf(ruleActionErrorFmt, "revive", mrv.Name, err)
+			return "", fmt.Errorf(ruleActionErrorFmt, "revive", mrv.Name, err)
 		}
 	}
-
 	rs.updateMetadata(meta)
-	return nil
+	return m.uuid, nil
 }
 
 func (rs *ruleSet) UpdateMappingRule(mrv MappingRuleView, meta UpdateMetadata) error {
@@ -765,15 +774,15 @@ func (rs *ruleSet) DeleteMappingRule(id string, meta UpdateMetadata) error {
 	return nil
 }
 
-func (rs *ruleSet) AddRollupRule(rrv RollupRuleView, meta UpdateMetadata) error {
+func (rs *ruleSet) AddRollupRule(rrv RollupRuleView, meta UpdateMetadata) (string, error) {
 	err := rs.validateRollupRuleUpdate(rrv)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	r, err := rs.getRollupRuleByName(rrv.Name)
 	if err != nil && err != errNoSuchRule {
-		return fmt.Errorf(ruleActionErrorFmt, "add", rrv.Name, err)
+		return "", fmt.Errorf(ruleActionErrorFmt, "add", rrv.Name, err)
 	}
 	targets := rollupTargetViewsToTargets(rrv.Targets)
 	if err == errNoSuchRule {
@@ -783,7 +792,7 @@ func (rs *ruleSet) AddRollupRule(rrv RollupRuleView, meta UpdateMetadata) error 
 			targets,
 			meta.cutoverNanos,
 		); err != nil {
-			return fmt.Errorf(ruleActionErrorFmt, "add", rrv.Name, err)
+			return "", fmt.Errorf(ruleActionErrorFmt, "add", rrv.Name, err)
 		}
 		rs.rollupRules = append(rs.rollupRules, r)
 	} else {
@@ -793,11 +802,11 @@ func (rs *ruleSet) AddRollupRule(rrv RollupRuleView, meta UpdateMetadata) error 
 			targets,
 			meta.cutoverNanos,
 		); err != nil {
-			return fmt.Errorf(ruleActionErrorFmt, "revive", rrv.Name, err)
+			return "", fmt.Errorf(ruleActionErrorFmt, "revive", rrv.Name, err)
 		}
 	}
 	rs.updateMetadata(meta)
-	return nil
+	return r.uuid, nil
 }
 
 func (rs *ruleSet) UpdateRollupRule(rrv RollupRuleView, meta UpdateMetadata) error {

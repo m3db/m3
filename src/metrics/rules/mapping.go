@@ -32,6 +32,7 @@ import (
 )
 
 var (
+	errBadMappingRuleSnapshotIdx    = errors.New("mapping rule snapshot index out of range")
 	errNilMappingRuleSnapshotSchema = errors.New("nil mapping rule snapshot schema")
 	errNilMappingRuleSchema         = errors.New("nil mapping rule schema")
 )
@@ -98,7 +99,10 @@ func (mrs *mappingRuleSnapshot) clone() mappingRuleSnapshot {
 	}
 	policies := make([]policy.Policy, len(mrs.policies))
 	copy(policies, mrs.policies)
-	filter := mrs.filter.Clone()
+	var filter filters.Filter
+	if mrs.filter != nil {
+		filter = mrs.filter.Clone()
+	}
 	return mappingRuleSnapshot{
 		name:         mrs.name,
 		tombstoned:   mrs.tombstoned,
@@ -140,15 +144,19 @@ type MappingRuleView struct {
 	Policies     []policy.Policy
 }
 
-func newMappingRuleView(uuid string, mrs mappingRuleSnapshot) MappingRuleView {
-	mrs = mrs.clone()
-	return MappingRuleView{
-		ID:           uuid,
+func (mc *mappingRule) mappingRuleView(snapshotIdx int) (*MappingRuleView, error) {
+	if snapshotIdx < 0 || snapshotIdx > len(mc.snapshots) {
+		return nil, errBadMappingRuleSnapshotIdx
+	}
+
+	mrs := mc.snapshots[snapshotIdx].clone()
+	return &MappingRuleView{
+		ID:           mc.uuid,
 		Name:         mrs.name,
 		CutoverNanos: mrs.cutoverNanos,
 		Filters:      mrs.rawFilters,
 		Policies:     mrs.policies,
-	}
+	}, nil
 }
 
 // mappingRule stores mapping rule snapshots.
@@ -302,12 +310,18 @@ func (mc *mappingRule) activeIndex(timeNanos int64) int {
 	return idx
 }
 
-func (mc *mappingRule) history() []MappingRuleView {
-	views := make([]MappingRuleView, len(mc.snapshots))
-	for i, s := range mc.snapshots {
-		views[i] = newMappingRuleView(mc.uuid, *s)
+func (mc *mappingRule) history() ([]*MappingRuleView, error) {
+	lastIdx := len(mc.snapshots) - 1
+	views := make([]*MappingRuleView, len(mc.snapshots))
+	// Snapshots are stored oldest -> newest. History should start with newest.
+	for i := 0; i < len(mc.snapshots); i++ {
+		mrs, err := mc.mappingRuleView(lastIdx - i)
+		if err != nil {
+			return nil, err
+		}
+		views[i] = mrs
 	}
-	return views
+	return views, nil
 }
 
 // Schema returns the given MappingRule in protobuf form.

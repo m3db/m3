@@ -36,6 +36,7 @@ import (
 var (
 	emptyRollupTarget RollupTarget
 
+	errBadRollupRuleSnapshotIdx    = errors.New("rollup rule snapshot index out of range")
 	errNilRollupTargetSchema       = errors.New("nil rollup target schema")
 	errNilRollupRuleSnapshotSchema = errors.New("nil rollup rule snapshot schema")
 	errNilRollupRuleSchema         = errors.New("nil rollup rule schema")
@@ -220,7 +221,10 @@ func (rrs *rollupRuleSnapshot) clone() rollupRuleSnapshot {
 	for i, t := range rrs.targets {
 		targets[i] = t.clone()
 	}
-	filter := rrs.filter.Clone()
+	var filter filters.Filter
+	if rrs.filter != nil {
+		filter = rrs.filter.Clone()
+	}
 	return rollupRuleSnapshot{
 		name:         rrs.name,
 		tombstoned:   rrs.tombstoned,
@@ -262,19 +266,24 @@ type RollupRuleView struct {
 	Targets      []RollupTargetView
 }
 
-func newRollupRuleView(uuid string, rrs rollupRuleSnapshot) RollupRuleView {
-	rrs = rrs.clone()
+func (rc *rollupRule) rollupRuleView(snapshotIdx int) (*RollupRuleView, error) {
+	if snapshotIdx < 0 || snapshotIdx > len(rc.snapshots) {
+		return nil, errBadRollupRuleSnapshotIdx
+	}
+
+	rrs := rc.snapshots[snapshotIdx].clone()
 	targets := make([]RollupTargetView, len(rrs.targets))
 	for i, t := range rrs.targets {
 		targets[i] = newRollupTargetView(t)
 	}
-	return RollupRuleView{
-		ID:           uuid,
+
+	return &RollupRuleView{
+		ID:           rc.uuid,
 		Name:         rrs.name,
 		CutoverNanos: rrs.cutoverNanos,
 		Filters:      rrs.rawFilters,
 		Targets:      targets,
-	}
+	}, nil
 }
 
 // rollupRule stores rollup rule snapshots.
@@ -430,13 +439,18 @@ func (rc *rollupRule) revive(
 	return rc.addSnapshot(name, rawFilters, targets, cutoverTime)
 }
 
-func (rc *rollupRule) history() []RollupRuleView {
-	views := make([]RollupRuleView, len(rc.snapshots))
-	for i, s := range rc.snapshots {
-		views[i] = newRollupRuleView(rc.uuid, *s)
+func (rc *rollupRule) history() ([]*RollupRuleView, error) {
+	lastIdx := len(rc.snapshots) - 1
+	views := make([]*RollupRuleView, len(rc.snapshots))
+	// Snapshots are stored oldest -> newest. History should start with newest.
+	for i := 0; i < len(rc.snapshots); i++ {
+		rrs, err := rc.rollupRuleView(lastIdx - i)
+		if err != nil {
+			return nil, err
+		}
+		views[i] = rrs
 	}
-
-	return views
+	return views, nil
 }
 
 // Schema returns the given RollupRule in protobuf form.
