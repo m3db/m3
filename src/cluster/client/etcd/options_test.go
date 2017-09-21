@@ -34,14 +34,32 @@ func TestCluster(t *testing.T) {
 	c := NewCluster()
 	assert.Equal(t, "", c.Zone())
 	assert.Equal(t, 0, len(c.Endpoints()))
+	assert.Equal(t, "", c.Cert())
+	assert.Equal(t, "", c.Key())
 
 	c = c.SetZone("z")
 	assert.Equal(t, "z", c.Zone())
 	assert.Equal(t, 0, len(c.Endpoints()))
+	assert.Equal(t, "", c.Cert())
+	assert.Equal(t, "", c.Key())
 
 	c = c.SetEndpoints([]string{"e1"})
 	assert.Equal(t, "z", c.Zone())
 	assert.Equal(t, []string{"e1"}, c.Endpoints())
+	assert.Equal(t, "", c.Cert())
+	assert.Equal(t, "", c.Key())
+
+	c = c.SetCert("self.crt.pem")
+	assert.Equal(t, "z", c.Zone())
+	assert.Equal(t, []string{"e1"}, c.Endpoints())
+	assert.Equal(t, "self.crt.pem", c.Cert())
+	assert.Equal(t, "", c.Key())
+
+	c = c.SetKey("self.key.pem")
+	assert.Equal(t, "z", c.Zone())
+	assert.Equal(t, []string{"e1"}, c.Endpoints())
+	assert.Equal(t, "self.crt.pem", c.Cert())
+	assert.Equal(t, "self.key.pem", c.Key())
 }
 
 func TestOptions(t *testing.T) {

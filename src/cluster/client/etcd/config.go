@@ -30,6 +30,9 @@ import (
 type ClusterConfig struct {
 	Zone      string   `yaml:"zone"`
 	Endpoints []string `yaml:"endpoints"`
+	Cert      string   `yaml:"cert",omitempty`
+	Key       string   `yaml:"key",omitempty`
+	CA        string   `yaml:"ca",omitempty`
 }
 
 // Configuration is for config service client
@@ -63,7 +66,10 @@ func (cfg Configuration) etcdClusters() []Cluster {
 	for i, c := range cfg.ETCDClusters {
 		res[i] = NewCluster().
 			SetZone(c.Zone).
-			SetEndpoints(c.Endpoints)
+			SetEndpoints(c.Endpoints).
+			SetCert(c.Cert).
+			SetKey(c.Key).
+			SetCA(c.CA)
 	}
 
 	return res

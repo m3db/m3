@@ -45,6 +45,15 @@ const testConfig = `
           endpoints:
               - etcd3:2379
               - etcd4:2379
+          cert: foo.crt.pem
+          key: foo.key.pem
+        - zone: z3
+          endpoints:
+              - etcd5:2379
+              - etcd6:2379
+          cert: foo.crt.pem
+          key: foo.key.pem
+          ca: foo_ca.pem
     m3sd:
         initTimeout: 10s
 `
@@ -61,8 +70,20 @@ func TestConfig(t *testing.T) {
 	require.Equal(t, "service1", cfg.Service)
 	require.Equal(t, "/tmp/cache.json", cfg.CacheDir)
 	require.Equal(t, []ClusterConfig{
-		ClusterConfig{"z1", []string{"etcd1:2379", "etcd2:2379"}},
-		ClusterConfig{"z2", []string{"etcd3:2379", "etcd4:2379"}},
+		ClusterConfig{Zone: "z1", Endpoints: []string{"etcd1:2379", "etcd2:2379"}},
+		ClusterConfig{
+			Zone:      "z2",
+			Endpoints: []string{"etcd3:2379", "etcd4:2379"},
+			Cert:      "foo.crt.pem",
+			Key:       "foo.key.pem",
+		},
+		ClusterConfig{
+			Zone:      "z3",
+			Endpoints: []string{"etcd5:2379", "etcd6:2379"},
+			Cert:      "foo.crt.pem",
+			Key:       "foo.key.pem",
+			CA:        "foo_ca.pem",
+		},
 	}, cfg.ETCDClusters)
 	require.Equal(t, 10*time.Second, cfg.SDConfig.InitTimeout)
 }
