@@ -49,6 +49,18 @@ func TestETCDClientGen(t *testing.T) {
 	require.Equal(t, 2, len(c.clis))
 	require.NotEqual(t, c1, c2)
 
+	_, err = c.etcdClientGen("zone3")
+	require.Error(t, err)
+	require.Equal(t, 2, len(c.clis))
+
+	// TODO(pwoodman): bit of a cop-out- this'll error no matter what as it's looking for
+	// a file that won't be in the test environment. So, expect error.
+	_, err = c.etcdClientGen("zone4")
+	require.Error(t, err)
+
+	_, err = c.etcdClientGen("zone5")
+	require.Error(t, err)
+
 	c1Again, err := c.etcdClientGen("zone1")
 	require.NoError(t, err)
 	require.Equal(t, 2, len(c.clis))
@@ -266,7 +278,12 @@ func testOptions() Options {
 	return NewOptions().SetClusters([]Cluster{
 		NewCluster().SetZone("zone1").SetEndpoints([]string{"i1"}),
 		NewCluster().SetZone("zone2").SetEndpoints([]string{"i2"}),
-		NewCluster().SetZone("zone3").SetEndpoints([]string{"i3"}),
+		NewCluster().SetZone("zone3").SetEndpoints([]string{"i3"}).
+			SetCert("foo.crt.pem"),
+		NewCluster().SetZone("zone4").SetEndpoints([]string{"i4"}).
+			SetCert("foo.crt.pem").SetKey("foo.key.pem"),
+		NewCluster().SetZone("zone5").SetEndpoints([]string{"i5"}).
+			SetCert("foo.crt.pem").SetKey("foo.key.pem").SetCA("foo_ca.pem"),
 	}).SetService("test_app").SetZone("zone1")
 }
 
@@ -274,7 +291,7 @@ func testNewETCDFn(t *testing.T) (newClientFn, func()) {
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 	ec := ecluster.RandClient()
 
-	newFn := func(endpoints []string) (*clientv3.Client, error) {
+	newFn := func(endpoints []string, cert string, key string, ca string) (*clientv3.Client, error) {
 		return ec, nil
 	}
 

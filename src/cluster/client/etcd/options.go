@@ -61,6 +61,13 @@ type Cluster interface {
 
 	Endpoints() []string
 	SetEndpoints(endpoints []string) Cluster
+
+	Cert() string
+	SetCert(string) Cluster
+	Key() string
+	SetKey(string) Cluster
+	CA() string
+	SetCA(string) Cluster
 }
 
 // NewOptions creates a set of Options
@@ -172,6 +179,9 @@ func (o options) SetInstrumentOptions(iopts instrument.Options) Options {
 type cluster struct {
 	zone      string
 	endpoints []string
+	cert      string
+	key       string
+	ca        string
 }
 
 // NewCluster creates a Cluster
@@ -194,5 +204,30 @@ func (c cluster) Endpoints() []string {
 
 func (c cluster) SetEndpoints(endpoints []string) Cluster {
 	c.endpoints = endpoints
+	return c
+}
+
+func (c cluster) Cert() string {
+	return c.cert
+}
+
+func (c cluster) SetCert(cert string) Cluster {
+	c.cert = cert
+	return c
+}
+
+func (c cluster) Key() string {
+	return c.key
+}
+func (c cluster) SetKey(key string) Cluster {
+	c.key = key
+	return c
+}
+
+func (c cluster) CA() string {
+	return c.ca
+}
+func (c cluster) SetCA(ca string) Cluster {
+	c.ca = ca
 	return c
 }
