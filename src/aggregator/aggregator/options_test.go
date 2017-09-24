@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
@@ -82,7 +81,6 @@ func TestOptionsValidateDefault(t *testing.T) {
 	require.Equal(t, defaultAggregationMedianSuffix, o.AggregationMedianSuffix())
 	require.Equal(t, defaultGaugePrefix, o.GaugePrefix())
 	require.Equal(t, defaultMinFlushInterval, o.MinFlushInterval())
-	require.Equal(t, defaultMaxFlushSize, o.MaxFlushSize())
 	require.Equal(t, defaultEntryTTL, o.EntryTTL())
 	require.Equal(t, defaultEntryCheckInterval, o.EntryCheckInterval())
 	require.Equal(t, defaultEntryCheckBatchPercent, o.EntryCheckBatchPercent())
@@ -95,7 +93,6 @@ func TestOptionsValidateDefault(t *testing.T) {
 	require.NotNil(t, o.CounterElemPool())
 	require.NotNil(t, o.TimerElemPool())
 	require.NotNil(t, o.GaugeElemPool())
-	require.NotNil(t, o.BufferedEncoderPool())
 
 	// Validate derived options
 	validateDerivedPrefix(t, o.FullCounterPrefix(), o.MetricPrefix(), o.CounterPrefix())
@@ -380,25 +377,10 @@ func TestSetMinFlushInterval(t *testing.T) {
 	require.Equal(t, value, o.MinFlushInterval())
 }
 
-func TestSetMaxFlushSize(t *testing.T) {
-	value := 10000
-	o := NewOptions().SetMaxFlushSize(value)
-	require.Equal(t, value, o.MaxFlushSize())
-}
-
 func TestSetFlushHandler(t *testing.T) {
-	var b *RefCountedBuffer
-	fn := func(buf *RefCountedBuffer) error {
-		b = buf
-		return nil
-	}
-	value := &mockHandler{handleFn: fn}
-	o := NewOptions().SetFlushHandler(value)
-
-	buf := NewRefCountedBuffer(msgpack.NewPooledBufferedEncoder(nil))
-	defer buf.DecRef()
-	require.NoError(t, o.FlushHandler().Handle(buf))
-	require.Equal(t, b, buf)
+	h := &mockHandler{}
+	o := NewOptions().SetFlushHandler(h)
+	require.Equal(t, h, o.FlushHandler())
 }
 
 func TestSetEntryTTL(t *testing.T) {
@@ -441,12 +423,6 @@ func TestSetGaugeElemPool(t *testing.T) {
 	value := NewGaugeElemPool(nil)
 	o := NewOptions().SetGaugeElemPool(value)
 	require.Equal(t, value, o.GaugeElemPool())
-}
-
-func TestSetBufferedEncoderPool(t *testing.T) {
-	value := msgpack.NewBufferedEncoderPool(nil)
-	o := NewOptions().SetBufferedEncoderPool(value)
-	require.Equal(t, value, o.BufferedEncoderPool())
 }
 
 func TestSetQuantilesPool(t *testing.T) {

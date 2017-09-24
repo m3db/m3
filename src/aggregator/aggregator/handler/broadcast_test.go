@@ -21,63 +21,105 @@
 package handler
 
 import (
-	"bytes"
+	"errors"
 	"testing"
 
 	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3metrics/metric/aggregated"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
-func TestBroadcastHandler(t *testing.T) {
-	var numCloses int
-	mb := &mockBuffer{closeFn: func() { numCloses++ }}
-	buf := aggregator.NewRefCountedBuffer(mb)
-	bh := NewBroadcastHandler([]aggregator.Handler{NewBlackholeHandler()})
-	require.NoError(t, bh.Handle(buf))
-	require.Equal(t, 1, numCloses)
-}
-
-func TestBroadcastHandlerWithHandlerError(t *testing.T) {
-	var numCloses int
-	mb := &mockBuffer{
-		buf:     bytes.NewBuffer(nil),
-		closeFn: func() { numCloses++ },
+func TestBroadcastHandlerNewWriterSingleHandler(t *testing.T) {
+	mockWriter := &mockWriter{}
+	handler := &mockHandler{
+		newWriterFn: func(scope tally.Scope) (aggregator.Writer, error) {
+			return mockWriter, nil
+		},
 	}
-	_, err := mb.buf.Write([]byte{'a', 'b', 'c', 'd'})
+	h := NewBroadcastHandler([]aggregator.Handler{handler})
+	writer, err := h.NewWriter(tally.NoopScope)
 	require.NoError(t, err)
-	buf := aggregator.NewRefCountedBuffer(mb)
-
-	bh := NewBroadcastHandler([]aggregator.Handler{
-		NewLoggingHandler(instrument.NewOptions()),
-		NewBlackholeHandler(),
-	})
-	require.Error(t, bh.Handle(buf))
-	require.Equal(t, 1, numCloses)
+	require.Equal(t, mockWriter, writer)
 }
 
-func TestBroadcastHandlerWithNoHandlers(t *testing.T) {
-	var numCloses int
-	mb := &mockBuffer{
-		buf:     bytes.NewBuffer(nil),
-		closeFn: func() { numCloses++ },
+func TestBroadcastHandlerNewWriterMultiHandler(t *testing.T) {
+	var written int
+	writers := []aggregator.Writer{
+		&mockWriter{
+			writeFn: func(aggregated.ChunkedMetricWithStoragePolicy) error {
+				written++
+				return nil
+			},
+		},
+		&mockWriter{
+			writeFn: func(aggregated.ChunkedMetricWithStoragePolicy) error {
+				written += 2
+				return nil
+			},
+		},
 	}
-	buf := aggregator.NewRefCountedBuffer(mb)
-
-	bh := NewBroadcastHandler(nil)
-	require.NoError(t, bh.Handle(buf))
-	require.Equal(t, 1, numCloses)
+	handlers := []aggregator.Handler{
+		&mockHandler{
+			newWriterFn: func(scope tally.Scope) (aggregator.Writer, error) {
+				return writers[0], nil
+			},
+		},
+		&mockHandler{
+			newWriterFn: func(scope tally.Scope) (aggregator.Writer, error) {
+				return writers[1], nil
+			},
+		},
+	}
+	h := NewBroadcastHandler(handlers)
+	writer, err := h.NewWriter(tally.NoopScope)
+	require.NoError(t, err)
+	require.NoError(t, writer.Write(aggregated.ChunkedMetricWithStoragePolicy{}))
+	require.Equal(t, 3, written)
 }
 
-type closeFn func()
-
-type mockBuffer struct {
-	buf     *bytes.Buffer
-	closeFn closeFn
+func TestBroadcastHandlerNewWriterMultiHandlerWithError(t *testing.T) {
+	handlers := []aggregator.Handler{
+		&mockHandler{
+			newWriterFn: func(scope tally.Scope) (aggregator.Writer, error) {
+				return &mockWriter{}, nil
+			},
+		},
+		&mockHandler{
+			newWriterFn: func(scope tally.Scope) (aggregator.Writer, error) {
+				return nil, errors.New("new writer error")
+			},
+		},
+	}
+	h := NewBroadcastHandler(handlers)
+	_, err := h.NewWriter(tally.NoopScope)
+	require.Error(t, err)
 }
 
-func (mb *mockBuffer) Buffer() *bytes.Buffer { return mb.buf }
-func (mb *mockBuffer) Reset()                {}
-func (mb *mockBuffer) Bytes() []byte         { return mb.buf.Bytes() }
-func (mb *mockBuffer) Close()                { mb.closeFn() }
+type writeFn func(mp aggregated.ChunkedMetricWithStoragePolicy) error
+type writeflushFn func() error
+
+type mockWriter struct {
+	writeFn writeFn
+	flushFn writeflushFn
+}
+
+func (w *mockWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) error {
+	return w.writeFn(mp)
+}
+
+func (w *mockWriter) Flush() error { return w.flushFn() }
+func (w *mockWriter) Close() error { return nil }
+
+type newWriterFn func(scope tally.Scope) (aggregator.Writer, error)
+
+type mockHandler struct {
+	newWriterFn newWriterFn
+}
+
+func (h *mockHandler) NewWriter(scope tally.Scope) (aggregator.Writer, error) {
+	return h.newWriterFn(scope)
+}
+
+func (h *mockHandler) Close() {}

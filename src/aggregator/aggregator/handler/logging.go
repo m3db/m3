@@ -22,32 +22,23 @@ package handler
 
 import (
 	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3aggregator/aggregator/handler/writer"
 	"github.com/m3db/m3x/log"
+
+	"github.com/uber-go/tally"
 )
 
-func logMetricAndPolicy(
-	logger log.Logger,
-	metric aggregated.Metric,
-	sp policy.StoragePolicy,
-) error {
-	logger.WithFields(
-		log.NewField("metric", metric.String()),
-		log.NewField("policy", sp.String()),
-	).Info("aggregated metric")
-	return nil
-}
-
-func loggingHandler(logger log.Logger) HandleFunc {
-	return func(metric aggregated.Metric, sp policy.StoragePolicy) error {
-		return logMetricAndPolicy(logger, metric, sp)
-	}
+type loggingHandler struct {
+	logger log.Logger
 }
 
 // NewLoggingHandler creates a new logging handler.
-func NewLoggingHandler(instrumentOpts instrument.Options) aggregator.Handler {
-	handler := loggingHandler(instrumentOpts.Logger())
-	return NewDecodingHandler(handler)
+func NewLoggingHandler(logger log.Logger) aggregator.Handler {
+	return &loggingHandler{logger: logger}
 }
+
+func (h *loggingHandler) NewWriter(tally.Scope) (aggregator.Writer, error) {
+	return writer.NewLoggingWriter(h.logger), nil
+}
+
+func (h *loggingHandler) Close() {}

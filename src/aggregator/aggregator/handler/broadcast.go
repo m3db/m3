@@ -22,33 +22,38 @@ package handler
 
 import (
 	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3x/errors"
+	"github.com/m3db/m3aggregator/aggregator/handler/writer"
+
+	"github.com/uber-go/tally"
 )
 
 type broadcastHandler struct {
 	handlers []aggregator.Handler
 }
 
-// NewBroadcastHandler creates a new Handler that routes a
-// msgpack buffer to a list of handlers.
+// NewBroadcastHandler creates a new Handler that broadcasts incoming data
+// to a list of handlers.
 func NewBroadcastHandler(handlers []aggregator.Handler) aggregator.Handler {
 	return &broadcastHandler{handlers: handlers}
 }
 
-func (b *broadcastHandler) Handle(buffer *aggregator.RefCountedBuffer) error {
-	multiErr := errors.NewMultiError()
-	for _, h := range b.handlers {
-		buffer.IncRef()
-		if err := h.Handle(buffer); err != nil {
-			multiErr = multiErr.Add(err)
-		}
+func (h *broadcastHandler) NewWriter(scope tally.Scope) (aggregator.Writer, error) {
+	if len(h.handlers) == 1 {
+		return h.handlers[0].NewWriter(scope)
 	}
-	buffer.DecRef()
-	return multiErr.FinalError()
+	writers := make([]aggregator.Writer, 0, len(h.handlers))
+	for _, handler := range h.handlers {
+		writer, err := handler.NewWriter(scope)
+		if err != nil {
+			return nil, err
+		}
+		writers = append(writers, writer)
+	}
+	return writer.NewMultiWriter(writers), nil
 }
 
-func (b *broadcastHandler) Close() {
-	for _, h := range b.handlers {
-		h.Close()
+func (h *broadcastHandler) Close() {
+	for _, handler := range h.handlers {
+		handler.Close()
 	}
 }

@@ -27,29 +27,22 @@ import (
 	"os"
 	"runtime"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/aggregator/handler"
+	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/sync"
-
-	"github.com/spaolacci/murmur3"
-)
-
-const (
-	initialBufferSizeGrowthFactor = 2
 )
 
 var (
@@ -133,8 +126,8 @@ type AggregatorConfiguration struct {
 	// Placement manager.
 	PlacementManager placementManagerConfiguration `yaml:"placementManager"`
 
-	// Sharding function type.
-	ShardFnType *shardFnType `yaml:"shardFnType"`
+	// Hash type used for sharding.
+	HashType *sharding.HashType `yaml:"hashType"`
 
 	// Amount of time we buffer writes before shard cutover.
 	BufferDurationBeforeShardCutover time.Duration `yaml:"bufferDurationBeforeShardCutover"`
@@ -157,11 +150,8 @@ type AggregatorConfiguration struct {
 	// Minimum flush interval across all resolutions.
 	MinFlushInterval time.Duration `yaml:"minFlushInterval"`
 
-	// Maximum flush size in bytes.
-	MaxFlushSize int `yaml:"maxFlushSize"`
-
 	// Flushing handler configuration.
-	Flush *handler.FlushHandlerConfiguration `yaml:"flush"`
+	Flush handler.FlushHandlerConfiguration `yaml:"flush"`
 
 	// EntryTTL determines how long an entry remains alive before it may be expired due to inactivity.
 	EntryTTL time.Duration `yaml:"entryTTL"`
@@ -189,9 +179,6 @@ type AggregatorConfiguration struct {
 
 	// Pool of entries.
 	EntryPool pool.ObjectPoolConfiguration `yaml:"entryPool"`
-
-	// Pool of buffered encoders.
-	BufferedEncoderPool pool.ObjectPoolConfiguration `yaml:"bufferedEncoderPool"`
 
 	// Pool of aggregation types.
 	AggregationTypesPool pool.ObjectPoolConfiguration `yaml:"aggregationTypesPool"`
@@ -269,11 +256,11 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	opts = opts.SetPlacementManager(placementManager)
 
 	// Set sharding function.
-	shardFnType := defaultShardFn
-	if c.ShardFnType != nil {
-		shardFnType = *c.ShardFnType
+	hashType := sharding.DefaultHash
+	if c.HashType != nil {
+		hashType = *c.HashType
 	}
-	shardFn, err := shardFnType.ShardFn()
+	shardFn, err := hashType.ShardFn()
 	if err != nil {
 		return nil, err
 	}
@@ -328,9 +315,6 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	// Set flushing handler.
 	if c.MinFlushInterval != 0 {
 		opts = opts.SetMinFlushInterval(c.MinFlushInterval)
-	}
-	if c.MaxFlushSize != 0 {
-		opts = opts.SetMaxFlushSize(c.MaxFlushSize)
 	}
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("flush-handler"))
 	flushHandler, err := c.Flush.NewHandler(iOpts)
@@ -392,19 +376,6 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	entryPool := aggregator.NewEntryPool(entryPoolOpts)
 	opts = opts.SetEntryPool(entryPool)
 	entryPool.Init(func() *aggregator.Entry { return aggregator.NewEntry(nil, opts) })
-
-	// Set buffered encoder pool.
-	// NB(xichen): we preallocate a bit over the maximum flush size as a safety measure
-	// because we might write past the max flush size and rewind it during flushing.
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("buffered-encoder-pool"))
-	bufferedEncoderPoolOpts := msgpack.NewBufferedEncoderPoolOptions().
-		SetObjectPoolOptions(c.BufferedEncoderPool.NewObjectPoolOptions(iOpts))
-	bufferedEncoderPool := msgpack.NewBufferedEncoderPool(bufferedEncoderPoolOpts)
-	opts = opts.SetBufferedEncoderPool(bufferedEncoderPool)
-	initialBufferSize := c.MaxFlushSize * initialBufferSizeGrowthFactor
-	bufferedEncoderPool.Init(func() msgpack.BufferedEncoder {
-		return msgpack.NewPooledBufferedEncoderSize(bufferedEncoderPool, initialBufferSize)
-	})
 
 	// Set aggregation types pool.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("aggregation-types-pool"))
@@ -529,53 +500,6 @@ func (c *kvClientConfiguration) NewKVClient(instrumentOpts instrument.Options) (
 		return nil, errNoKVClientConfiguration
 	}
 	return c.Etcd.NewClient(instrumentOpts)
-}
-
-type shardFnType string
-
-// List of supported sharding function types.
-const (
-	murmur32ShardFn shardFnType = "murmur32"
-
-	defaultShardFn = murmur32ShardFn
-)
-
-var (
-	validShardFnTypes = []shardFnType{
-		murmur32ShardFn,
-	}
-)
-
-func (t *shardFnType) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
-	if str == "" {
-		*t = defaultShardFn
-		return nil
-	}
-	validTypes := make([]string, 0, len(validShardFnTypes))
-	for _, valid := range validShardFnTypes {
-		if str == string(valid) {
-			*t = valid
-			return nil
-		}
-		validTypes = append(validTypes, string(valid))
-	}
-	return fmt.Errorf("invalid shrading function type '%s' valid types are: %s",
-		str, strings.Join(validTypes, ", "))
-}
-
-func (t shardFnType) ShardFn() (aggregator.ShardFn, error) {
-	switch t {
-	case murmur32ShardFn:
-		return func(id []byte, numShards int) uint32 {
-			return murmur3.Sum32(id) % uint32(numShards)
-		}, nil
-	default:
-		return nil, fmt.Errorf("unrecognized hash gen type %v", t)
-	}
 }
 
 type placementManagerConfiguration struct {

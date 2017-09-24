@@ -22,7 +22,6 @@ package aggregator
 
 import (
 	"errors"
-	"io"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -32,14 +31,15 @@ import (
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestMetricListPushBack(t *testing.T) {
-	l := newMetricList(testShard, time.Second, testOptions())
+	l, err := newMetricList(testShard, time.Second, testOptions())
+	require.NoError(t, err)
 	elem := NewCounterElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, l.opts)
 
 	// Push a counter to the list
@@ -67,7 +67,9 @@ func TestMetricListClose(t *testing.T) {
 		unregisterFn: func(PeriodicFlusher) error { unregistered++; return nil },
 	}
 	opts := testOptions().SetFlushManager(mockFlushManager)
-	l := newMetricList(testShard, time.Second, opts)
+	l, err := newMetricList(testShard, time.Second, opts)
+	require.NoError(t, err)
+
 	l.RLock()
 	require.False(t, l.closed)
 	l.RUnlock()
@@ -91,7 +93,8 @@ func TestMetricListFlushWithRequests(t *testing.T) {
 		results []flushBeforeResult
 	)
 	opts := testOptions().SetClockOptions(clock.NewOptions().SetNowFn(nowFn))
-	l := newMetricList(testShard, time.Second, opts)
+	l, err := newMetricList(testShard, time.Second, opts)
+	require.NoError(t, err)
 	l.flushBeforeFn = func(beforeNanos int64, flushType flushType) {
 		results = append(results, flushBeforeResult{
 			beforeNanos: beforeNanos,
@@ -196,16 +199,30 @@ func TestMetricListFlushConsumingAndCollectingElems(t *testing.T) {
 	var (
 		cutoverNanos = int64(0)
 		cutoffNanos  = int64(math.MaxInt64)
-		bufferLock   sync.Mutex
-		buffers      []*RefCountedBuffer
+		count        int
+		flushLock    sync.Mutex
+		flushed      []aggregated.ChunkedMetricWithStoragePolicy
 	)
-	flushFn := func(buffer *RefCountedBuffer) error {
-		bufferLock.Lock()
-		buffers = append(buffers, buffer)
-		bufferLock.Unlock()
+
+	// Intentionally cause a one-time error during encoding.
+	writeFn := func(mp aggregated.ChunkedMetricWithStoragePolicy) error {
+		flushLock.Lock()
+		defer flushLock.Unlock()
+
+		if count == 0 {
+			count++
+			return errors.New("foo")
+		}
+		flushed = append(flushed, mp)
 		return nil
 	}
-	handler := &mockHandler{handleFn: flushFn}
+	writer := &mockWriter{
+		writeFn: writeFn,
+		flushFn: func() error { return nil },
+	}
+	handler := &mockHandler{
+		newWriterFn: func(tally.Scope) (Writer, error) { return writer, nil },
+	}
 
 	var now = time.Unix(216, 0).UnixNano()
 	nowTs := time.Unix(0, now)
@@ -215,22 +232,13 @@ func TestMetricListFlushConsumingAndCollectingElems(t *testing.T) {
 	opts := testOptions().
 		SetClockOptions(clockOpts).
 		SetMinFlushInterval(0).
-		SetMaxFlushSize(100).
 		SetFlushHandler(handler)
 
-	l := newMetricList(testShard, 0, opts)
+	l, err := newMetricList(testShard, 0, opts)
+	require.NoError(t, err)
 	l.resolution = testStoragePolicy.Resolution().Window
 
 	// Intentionally cause a one-time error during encoding.
-	var count int
-	l.encodeFn = func(mp aggregated.ChunkedMetricWithStoragePolicy) error {
-		if count == 0 {
-			count++
-			return errors.New("foo")
-		}
-		return l.encoder.EncodeChunkedMetricWithStoragePolicy(mp)
-	}
-
 	elemPairs := []testElemPair{
 		{
 			elem:   NewCounterElem(testCounterID, testStoragePolicy, policy.DefaultAggregationTypes, opts),
@@ -259,10 +267,10 @@ func TestMetricListFlushConsumingAndCollectingElems(t *testing.T) {
 		CutoffNanos:  cutoffNanos,
 	})
 
-	// Assert nothing has been collected.
-	bufferLock.Lock()
-	require.Equal(t, 0, len(buffers))
-	bufferLock.Unlock()
+	// Assert nothing has been flushed.
+	flushLock.Lock()
+	require.Equal(t, 0, len(flushed))
+	flushLock.Unlock()
 
 	for i := 0; i < 2; i++ {
 		// Move the time forward by one aggregation interval.
@@ -287,11 +295,11 @@ func TestMetricListFlushConsumingAndCollectingElems(t *testing.T) {
 			expected = expected[1:]
 		}
 
-		bufferLock.Lock()
-		require.NotNil(t, buffers)
-		validateBuffers(t, expected, buffers)
-		buffers = buffers[:0]
-		bufferLock.Unlock()
+		flushLock.Lock()
+		require.NotNil(t, flushed)
+		validateFlushed(t, expected, flushed)
+		flushed = flushed[:0]
+		flushLock.Unlock()
 	}
 
 	// Move the time forward by one aggregation interval.
@@ -304,10 +312,10 @@ func TestMetricListFlushConsumingAndCollectingElems(t *testing.T) {
 		CutoffNanos:  cutoffNanos,
 	})
 
-	// Assert nothing has been collected.
-	bufferLock.Lock()
-	require.Equal(t, 0, len(buffers))
-	bufferLock.Unlock()
+	// Assert nothing has been flushed.
+	flushLock.Lock()
+	require.Equal(t, 0, len(flushed))
+	flushLock.Unlock()
 	require.Equal(t, 3, l.aggregations.Len())
 
 	// Mark all elements as tombstoned.
@@ -331,7 +339,8 @@ func TestMetricListFlushConsumingAndCollectingElems(t *testing.T) {
 
 func TestMetricListFlushBeforeStale(t *testing.T) {
 	opts := testOptions()
-	l := newMetricList(testShard, 0, opts)
+	l, err := newMetricList(testShard, 0, opts)
+	require.NoError(t, err)
 	l.lastFlushedNanos = 1234
 	l.flushBefore(1000, discardType)
 	require.Equal(t, int64(1234), l.LastFlushedNanos())
@@ -369,39 +378,19 @@ type testElemPair struct {
 	metric unaggregated.MetricUnion
 }
 
-func validateBuffers(
+func validateFlushed(
 	t *testing.T,
 	expected []testAggMetric,
-	buffers []*RefCountedBuffer,
+	flushed []aggregated.ChunkedMetricWithStoragePolicy,
 ) {
-	var decoded []aggregated.MetricWithStoragePolicy
-	it := msgpack.NewAggregatedIterator(nil, nil)
-	for _, b := range buffers {
-		it.Reset(b.Buffer().Buffer())
-		for it.Next() {
-			rm, sp := it.Value()
-			m, err := rm.Metric()
-			require.NoError(t, err)
-			decoded = append(decoded, aggregated.MetricWithStoragePolicy{
-				Metric:        m,
-				StoragePolicy: sp,
-			})
-		}
-		b.DecRef()
-		require.Equal(t, io.EOF, it.Err())
-	}
-
-	require.Equal(t, len(expected), len(decoded))
-	for i := 0; i < len(decoded); i++ {
-		numBytes := len(expected[i].idPrefix) + len(expected[i].id) + len(expected[i].idSuffix)
-		expectedID := make([]byte, numBytes)
-		n := copy(expectedID, expected[i].idPrefix)
-		n += copy(expectedID[n:], expected[i].id)
-		copy(expectedID[n:], expected[i].idSuffix)
-		require.Equal(t, expectedID, []byte(decoded[i].ID))
-		require.Equal(t, expected[i].timeNanos, decoded[i].TimeNanos)
-		require.Equal(t, expected[i].value, decoded[i].Value)
-		require.Equal(t, expected[i].sp, decoded[i].StoragePolicy)
+	require.Equal(t, len(expected), len(flushed))
+	for i := 0; i < len(flushed); i++ {
+		require.Equal(t, expected[i].idPrefix, flushed[i].ChunkedID.Prefix)
+		require.Equal(t, []byte(expected[i].id), flushed[i].ChunkedID.Data)
+		require.Equal(t, expected[i].idSuffix, flushed[i].ChunkedID.Suffix)
+		require.Equal(t, expected[i].timeNanos, flushed[i].TimeNanos)
+		require.Equal(t, expected[i].value, flushed[i].Value)
+		require.Equal(t, expected[i].sp, flushed[i].StoragePolicy)
 	}
 }
 
@@ -410,11 +399,24 @@ type flushBeforeResult struct {
 	flushType   flushType
 }
 
-type handleFn func(buffer *RefCountedBuffer) error
+type writeFn func(mp aggregated.ChunkedMetricWithStoragePolicy) error
+type writeflushFn func() error
 
-type mockHandler struct {
-	handleFn handleFn
+type mockWriter struct {
+	writeFn writeFn
+	flushFn writeflushFn
 }
 
-func (h *mockHandler) Handle(buffer *RefCountedBuffer) error { return h.handleFn(buffer) }
-func (h *mockHandler) Close()                                {}
+func (w *mockWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) error {
+	return w.writeFn(mp)
+}
+
+func (w *mockWriter) Flush() error { return w.flushFn() }
+func (w *mockWriter) Close() error { return nil }
+
+type newWriterFn func(scope tally.Scope) (Writer, error)
+
+type mockHandler struct{ newWriterFn newWriterFn }
+
+func (h *mockHandler) NewWriter(scope tally.Scope) (Writer, error) { return h.newWriterFn(scope) }
+func (h *mockHandler) Close()                                      {}

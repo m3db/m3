@@ -21,19 +21,31 @@
 package handler
 
 import (
-	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3aggregator/aggregator/handler/writer"
+	"testing"
 
-	"github.com/uber-go/tally"
+	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
-type blackholeHandler struct{}
-
-// NewBlackholeHandler creates a new blackhole handler.
-func NewBlackholeHandler() aggregator.Handler { return blackholeHandler{} }
-
-func (h blackholeHandler) NewWriter(tally.Scope) (aggregator.Writer, error) {
-	return writer.NewBlackholeWriter(), nil
+func TestTypeUnmarshalYAML(t *testing.T) {
+	inputs := []struct {
+		str      string
+		expected Type
+	}{
+		{str: "blackhole", expected: blackholeType},
+		{str: "logging", expected: loggingType},
+		{str: "forward", expected: forwardType},
+	}
+	for _, input := range inputs {
+		var typ Type
+		require.NoError(t, yaml.Unmarshal([]byte(input.str), &typ))
+		require.Equal(t, input.expected, typ)
+	}
 }
 
-func (h blackholeHandler) Close() {}
+func TestTypeUnmarshalYAMLErrors(t *testing.T) {
+	var typ Type
+	err := yaml.Unmarshal([]byte("huh"), &typ)
+	require.Error(t, err)
+	require.Equal(t, "invalid handler type 'huh' valid types are: blackhole, logging, forward", err.Error())
+}

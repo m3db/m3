@@ -69,7 +69,7 @@ var (
 )
 
 func TestGeneratePlan(t *testing.T) {
-	var validators []capturingValidator
+	var capturedInstance instanceMetadata
 	electionIDForShardset0 := fmt.Sprintf(testElectionKeyFmt, 0)
 	electionIDForShardset1 := fmt.Sprintf(testElectionKeyFmt, 1)
 	leaderService := &mockLeaderService{
@@ -93,22 +93,19 @@ func TestGeneratePlan(t *testing.T) {
 			group *instanceGroup,
 			targetType targetType,
 		) validator {
-			validators = append(validators, capturingValidator{
-				instance:   instance,
-				group:      group,
-				targetType: targetType,
-			})
-			return nil
+			return func() error {
+				capturedInstance = instance
+				return nil
+			}
 		},
 	}
 	plan, err := planner.GeneratePlan(testInstancesToDeploy, testAllInstances)
 	require.NoError(t, err)
 
-	i := 0
 	for _, step := range plan.Steps {
 		for _, target := range step.Targets {
-			require.Equal(t, validators[i].instance, target.Instance)
-			i++
+			require.NoError(t, target.Validator())
+			require.Equal(t, capturedInstance, target.Instance)
 		}
 	}
 
@@ -142,11 +139,11 @@ func TestGeneratePlan(t *testing.T) {
 			},
 		},
 	}
-	require.Equal(t, expected, plan)
+	validateDeploymentPlan(t, expected, plan)
 }
 
 func TestGeneratePlanWithStepSizeLimit(t *testing.T) {
-	var validators []capturingValidator
+	var capturedInstance instanceMetadata
 	electionIDForShardset0 := fmt.Sprintf(testElectionKeyFmt, 0)
 	electionIDForShardset1 := fmt.Sprintf(testElectionKeyFmt, 1)
 	leaderService := &mockLeaderService{
@@ -171,22 +168,19 @@ func TestGeneratePlanWithStepSizeLimit(t *testing.T) {
 			group *instanceGroup,
 			targetType targetType,
 		) validator {
-			validators = append(validators, capturingValidator{
-				instance:   instance,
-				group:      group,
-				targetType: targetType,
-			})
-			return nil
+			return func() error {
+				capturedInstance = instance
+				return nil
+			}
 		},
 	}
 	plan, err := planner.GeneratePlan(testInstancesToDeploy, testAllInstances)
 	require.NoError(t, err)
 
-	i := 0
 	for _, step := range plan.Steps {
 		for _, target := range step.Targets {
-			require.Equal(t, validators[i].instance, target.Instance)
-			i++
+			require.NoError(t, target.Validator())
+			require.Equal(t, capturedInstance, target.Instance)
 		}
 	}
 
@@ -227,7 +221,7 @@ func TestGeneratePlanWithStepSizeLimit(t *testing.T) {
 	} else {
 		expected = deploymentPlan{Steps: []deploymentStep{step1, step3, step2}}
 	}
-	require.Equal(t, expected, plan)
+	validateDeploymentPlan(t, expected, plan)
 }
 
 func TestGroupInstancesByShardSetID(t *testing.T) {
@@ -371,6 +365,23 @@ func TestTargetsByInstanceIDAsc(t *testing.T) {
 	expected := []deploymentTarget{targets[1], targets[2], targets[0], targets[3]}
 	sort.Sort(targetsByInstanceIDAsc(targets))
 	require.Equal(t, expected, targets)
+}
+
+func validateDeploymentPlan(
+	t *testing.T,
+	expected, actual deploymentPlan,
+) {
+	require.Equal(t, len(expected.Steps), len(actual.Steps))
+	for i := 0; i < len(expected.Steps); i++ {
+		expectedTargets := expected.Steps[i].Targets
+		actualTargets := actual.Steps[i].Targets
+		require.Equal(t, len(expectedTargets), len(actualTargets))
+		for j := 0; j < len(expectedTargets); j++ {
+			expectedTarget := expectedTargets[j].Instance
+			actualTarget := actualTargets[j].Instance
+			require.Equal(t, expectedTarget, actualTarget)
+		}
+	}
 }
 
 type leaderCampaignFn func(

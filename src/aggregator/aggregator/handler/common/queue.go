@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package common
 
 import (
 	"errors"
@@ -27,7 +27,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/retry"
@@ -41,8 +40,8 @@ const (
 
 var (
 	errEmptyServerList = errors.New("empty server list")
-	errHandlerClosed   = errors.New("handler is closed")
-	errBufferQueueFull = errors.New("buffer queue is full")
+	errQueueClosed     = errors.New("queue is closed")
+	errQueueFull       = errors.New("queue is full")
 )
 
 type dropType int
@@ -56,7 +55,7 @@ type tryConnectFn func(addr string) (*net.TCPConn, error)
 type dialWithTimeoutFn func(protocol string, addr string, timeout time.Duration) (net.Conn, error)
 type writeToConnFn func(conn *net.TCPConn, data []byte) (int, error)
 
-type forwardHandlerMetrics struct {
+type queueMetrics struct {
 	connectTimeouts  tally.Counter
 	connectSuccesses tally.Counter
 	enqueueErrors    tally.Counter
@@ -69,8 +68,8 @@ type forwardHandlerMetrics struct {
 	queueSize        tally.Gauge
 }
 
-func newForwardHandlerMetrics(scope tally.Scope) forwardHandlerMetrics {
-	return forwardHandlerMetrics{
+func newQueueMetrics(scope tally.Scope) queueMetrics {
+	return queueMetrics{
 		connectTimeouts:  scope.Counter("connect-timeouts"),
 		connectSuccesses: scope.Counter("connect-successes"),
 		enqueueErrors:    scope.Counter("enqueue-errors"),
@@ -84,7 +83,16 @@ func newForwardHandlerMetrics(scope tally.Scope) forwardHandlerMetrics {
 	}
 }
 
-type forwardHandler struct {
+// Queue is a queue for queuing encoded data and sending them to backend servers.
+type Queue interface {
+	// Enqueue enqueues a ref-counted buffer.
+	Enqueue(buffer *RefCountedBuffer) error
+
+	// Close closes the queue.
+	Close()
+}
+
+type queue struct {
 	sync.RWMutex
 
 	servers                []string
@@ -96,134 +104,134 @@ type forwardHandler struct {
 	reconnectRetrier       retry.Retrier
 	reportInterval         time.Duration
 
-	bufCh              chan *aggregator.RefCountedBuffer
+	bufCh              chan *RefCountedBuffer
 	wg                 sync.WaitGroup
 	closed             bool
 	closedCh           chan struct{}
-	metrics            forwardHandlerMetrics
+	metrics            queueMetrics
 	numOpenConnections int32
 	tryConnectFn       tryConnectFn
 	dialWithTimeoutFn  dialWithTimeoutFn
 	writeToConnFn      writeToConnFn
 }
 
-// NewForwardHandler creates a new forwarding handler.
-func NewForwardHandler(
+// NewQueue creates a new queue.
+func NewQueue(
 	servers []string,
-	opts ForwardHandlerOptions,
-) (aggregator.Handler, error) {
-	h, err := newForwardHandler(servers, opts)
+	opts QueueOptions,
+) (Queue, error) {
+	q, err := newQueue(servers, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	h.initConnections(servers)
-	go h.reportMetrics()
+	q.initConnections(servers)
+	go q.reportMetrics()
 
-	return h, nil
+	return q, nil
 }
 
-func (h *forwardHandler) Handle(buffer *aggregator.RefCountedBuffer) error {
+func (q *queue) Enqueue(buffer *RefCountedBuffer) error {
 	// NB(xichen): the buffer contains newly flushed data so it's preferrable to keep
 	// it and drop the oldest buffer in queue in case the queue is full.
-	return h.enqueue(buffer, dropOldestInQueue)
+	return q.enqueue(buffer, dropOldestInQueue)
 }
 
-func (h *forwardHandler) Close() {
-	h.Lock()
-	if h.closed {
-		h.Unlock()
+func (q *queue) Close() {
+	q.Lock()
+	if q.closed {
+		q.Unlock()
 		return
 	}
-	h.closed = true
-	close(h.bufCh)
-	close(h.closedCh)
-	h.Unlock()
+	close(q.bufCh)
+	close(q.closedCh)
+	q.closed = true
+	q.Unlock()
 
 	// Wait for the queue to be drained.
-	h.wg.Wait()
+	q.wg.Wait()
 }
 
-func (h *forwardHandler) initConnections(servers []string) {
-	h.wg.Add(len(servers))
+func (q *queue) initConnections(servers []string) {
+	q.wg.Add(len(servers))
 	for _, addr := range servers {
-		conn, err := h.tryConnectFn(addr)
+		conn, err := q.tryConnectFn(addr)
 		if err != nil {
-			h.log.WithFields(
+			q.log.WithFields(
 				log.NewField("address", addr),
 				log.NewErrField(err),
 			).Error("error connecting to server")
 		}
-		go h.forwardToConn(addr, conn)
+		go q.forwardToConn(addr, conn)
 	}
 }
 
-func (h *forwardHandler) tryConnect(addr string) (*net.TCPConn, error) {
-	conn, err := h.dialWithTimeoutFn(tcpProtocol, addr, h.connectTimeout)
+func (q *queue) tryConnect(addr string) (*net.TCPConn, error) {
+	conn, err := q.dialWithTimeoutFn(tcpProtocol, addr, q.connectTimeout)
 	if err != nil {
-		h.metrics.connectTimeouts.Inc(1)
+		q.metrics.connectTimeouts.Inc(1)
 		return nil, err
 	}
-	atomic.AddInt32(&h.numOpenConnections, 1)
-	h.metrics.connectSuccesses.Inc(1)
+	atomic.AddInt32(&q.numOpenConnections, 1)
+	q.metrics.connectSuccesses.Inc(1)
 	tcpConn := conn.(*net.TCPConn)
-	tcpConn.SetKeepAlive(h.connectionKeepAlive)
+	tcpConn.SetKeepAlive(q.connectionKeepAlive)
 	return tcpConn, nil
 }
 
-func (h *forwardHandler) enqueue(buffer *aggregator.RefCountedBuffer, dropType dropType) error {
-	h.RLock()
-	if h.closed {
-		h.RUnlock()
+func (q *queue) enqueue(buffer *RefCountedBuffer, dropType dropType) error {
+	q.RLock()
+	if q.closed {
+		q.RUnlock()
 		buffer.DecRef()
-		h.metrics.enqueueErrors.Inc(1)
-		return errHandlerClosed
+		q.metrics.enqueueErrors.Inc(1)
+		return errQueueClosed
 	}
 	for {
 		select {
-		case h.bufCh <- buffer:
-			h.RUnlock()
-			h.metrics.enqueueSuccesses.Inc(1)
+		case q.bufCh <- buffer:
+			q.RUnlock()
+			q.metrics.enqueueSuccesses.Inc(1)
 			return nil
 		default:
 			if dropType == dropCurrent {
-				h.RUnlock()
+				q.RUnlock()
 				buffer.DecRef()
-				h.metrics.enqueueErrors.Inc(1)
-				h.metrics.currentDropped.Inc(1)
-				return errBufferQueueFull
+				q.metrics.enqueueErrors.Inc(1)
+				q.metrics.currentDropped.Inc(1)
+				return errQueueFull
 			}
 		}
 
 		// Drop oldest in queue to make room for new buffer.
 		select {
-		case buf := <-h.bufCh:
+		case buf := <-q.bufCh:
 			buf.DecRef()
-			h.metrics.oldestdDropped.Inc(1)
+			q.metrics.oldestdDropped.Inc(1)
 		default:
 		}
 	}
 }
 
-func (h *forwardHandler) forwardToConn(addr string, conn *net.TCPConn) {
-	defer h.wg.Done()
+func (q *queue) forwardToConn(addr string, conn *net.TCPConn) {
+	defer q.wg.Done()
 
 	var err error
 	continueFn := func(int) bool {
-		h.RLock()
-		closed := h.closed
-		h.RUnlock()
+		q.RLock()
+		closed := q.closed
+		q.RUnlock()
 		return !closed
 	}
 	connectFn := func() error {
-		conn, err = h.tryConnectFn(addr)
+		conn, err = q.tryConnectFn(addr)
 		return err
 	}
 
 	for {
-		// Retry establishing connection until either success or the handler is closed.
+		// Retry establishing connection until either success or the queue is closed.
 		for conn == nil {
-			attemptErr := h.reconnectRetrier.AttemptWhile(continueFn, connectFn)
+			attemptErr := q.reconnectRetrier.AttemptWhile(continueFn, connectFn)
 			if attemptErr == retry.ErrWhileConditionFalse {
 				return
 			}
@@ -231,82 +239,83 @@ func (h *forwardHandler) forwardToConn(addr string, conn *net.TCPConn) {
 
 		// Dequeue buffers and forward to server.
 		for {
-			buf, ok := <-h.bufCh
+			buf, ok := <-q.bufCh
 			if !ok {
 				conn.Close()
-				atomic.AddInt32(&h.numOpenConnections, -1)
+				atomic.AddInt32(&q.numOpenConnections, -1)
 				return
 			}
-			_, writeErr := h.writeToConnFn(conn, buf.Buffer().Bytes())
-			if writeErr == nil {
-				h.metrics.writeSuccesses.Inc(1)
+			_, err := q.writeToConnFn(conn, buf.Buffer().Bytes())
+			if err == nil {
+				q.metrics.writeSuccesses.Inc(1)
 				buf.DecRef()
 				continue
 			}
-			h.metrics.writeErrors.Inc(1)
-			h.log.WithFields(
+			q.metrics.writeErrors.Inc(1)
+			q.log.WithFields(
 				log.NewField("address", addr),
-				log.NewErrField(writeErr),
+				log.NewErrField(err),
 			).Error("error writing to server")
 
 			// NB(xichen): the buffer contains the oldest flushed data in queue
 			// so it's preferrable to drop it in case the queue is full.
-			if enqueueErr := h.enqueue(buf, dropCurrent); enqueueErr != nil {
-				h.log.WithFields(
+			if err := q.enqueue(buf, dropCurrent); err != nil {
+				q.log.WithFields(
 					log.NewField("address", addr),
-					log.NewErrField(enqueueErr),
+					log.NewErrField(err),
 				).Error("error enqueuing the buffer")
 			}
 
 			// Close and reset the connection.
 			conn.Close()
 			conn = nil
-			atomic.AddInt32(&h.numOpenConnections, -1)
+			atomic.AddInt32(&q.numOpenConnections, -1)
 			break
 		}
 	}
 }
 
-func (h *forwardHandler) writeToConn(conn *net.TCPConn, data []byte) (int, error) {
-	conn.SetWriteDeadline(h.nowFn().Add(h.connectionWriteTimeout))
+func (q *queue) writeToConn(conn *net.TCPConn, data []byte) (int, error) {
+	conn.SetWriteDeadline(q.nowFn().Add(q.connectionWriteTimeout))
 	return conn.Write(data)
 }
 
-func (h *forwardHandler) reportMetrics() {
-	t := time.NewTicker(h.reportInterval)
+func (q *queue) reportMetrics() {
+	t := time.NewTicker(q.reportInterval)
 	for {
 		select {
-		case <-h.closedCh:
+		case <-q.closedCh:
 			t.Stop()
 			return
 		case <-t.C:
-			h.metrics.openConnections.Update(float64(atomic.LoadInt32(&h.numOpenConnections)))
-			h.metrics.queueSize.Update(float64(len(h.bufCh)))
+			q.metrics.openConnections.Update(float64(atomic.LoadInt32(&q.numOpenConnections)))
+			q.metrics.queueSize.Update(float64(len(q.bufCh)))
 		}
 	}
 }
 
-func newForwardHandler(servers []string, opts ForwardHandlerOptions) (*forwardHandler, error) {
+func newQueue(servers []string, opts QueueOptions) (*queue, error) {
 	if len(servers) == 0 {
 		return nil, errEmptyServerList
 	}
 
 	instrumentOpts := opts.InstrumentOptions()
-	h := &forwardHandler{
+	connectionOpts := opts.ConnectionOptions()
+	q := &queue{
 		servers:                servers,
 		log:                    instrumentOpts.Logger(),
 		nowFn:                  opts.ClockOptions().NowFn(),
-		connectTimeout:         opts.ConnectTimeout(),
-		connectionKeepAlive:    opts.ConnectionKeepAlive(),
-		connectionWriteTimeout: opts.ConnectionWriteTimeout(),
-		reconnectRetrier:       opts.ReconnectRetrier(),
+		connectTimeout:         connectionOpts.ConnectTimeout(),
+		connectionKeepAlive:    connectionOpts.ConnectionKeepAlive(),
+		connectionWriteTimeout: connectionOpts.ConnectionWriteTimeout(),
+		reconnectRetrier:       retry.NewRetrier(connectionOpts.ReconnectRetryOptions().SetForever(true)),
 		reportInterval:         instrumentOpts.ReportInterval(),
-		bufCh:                  make(chan *aggregator.RefCountedBuffer, opts.QueueSize()),
+		bufCh:                  make(chan *RefCountedBuffer, opts.QueueSize()),
 		closedCh:               make(chan struct{}),
-		metrics:                newForwardHandlerMetrics(instrumentOpts.MetricsScope()),
+		metrics:                newQueueMetrics(instrumentOpts.MetricsScope()),
 		dialWithTimeoutFn:      net.DialTimeout,
 	}
-	h.tryConnectFn = h.tryConnect
-	h.writeToConnFn = h.writeToConn
-	return h, nil
+	q.tryConnectFn = q.tryConnect
+	q.writeToConnFn = q.writeToConn
+	return q, nil
 }
