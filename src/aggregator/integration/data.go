@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3aggregator/aggregation"
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/metric/aggregated"
-	metricID "github.com/m3db/m3metrics/metric/id"
+	metricid "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
@@ -153,7 +153,7 @@ func generateTestData(
 			case unaggregated.CounterType:
 				mu = unaggregated.MetricUnion{
 					Type:       metricType,
-					ID:         metricID.RawID(ids[i]),
+					ID:         metricid.RawID(ids[i]),
 					CounterVal: testCounterVal + int64(intervalIdx),
 				}
 			case unaggregated.BatchTimerType:
@@ -163,13 +163,13 @@ func generateTestData(
 				}
 				mu = unaggregated.MetricUnion{
 					Type:          metricType,
-					ID:            metricID.RawID(ids[i]),
+					ID:            metricid.RawID(ids[i]),
 					BatchTimerVal: vals,
 				}
 			case unaggregated.GaugeType:
 				mu = unaggregated.MetricUnion{
 					Type:     metricType,
-					ID:       metricID.RawID(ids[i]),
+					ID:       metricid.RawID(ids[i]),
 					GaugeVal: testGaugeVal + float64(intervalIdx),
 				}
 			}
@@ -320,7 +320,7 @@ func toAggregatedMetrics(
 	fn := func(prefix []byte, id string, suffix []byte, timeNanos int64, value float64, sp policy.StoragePolicy) {
 		result = append(result, aggregated.MetricWithStoragePolicy{
 			Metric: aggregated.Metric{
-				ID:        metricID.RawID(string(prefix) + id + string(suffix)),
+				ID:        metricid.RawID(string(prefix) + id + string(suffix)),
 				TimeNanos: timeNanos,
 				Value:     value,
 			},

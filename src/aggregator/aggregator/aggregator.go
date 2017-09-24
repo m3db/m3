@@ -29,6 +29,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3metrics/metric/id"
@@ -177,7 +178,7 @@ type aggregator struct {
 
 	opts              Options
 	nowFn             clock.NowFn
-	shardFn           ShardFn
+	shardFn           sharding.ShardFn
 	checkInterval     time.Duration
 	placementManager  PlacementManager
 	flushTimesManager FlushTimesManager

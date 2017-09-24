@@ -18,22 +18,45 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package common
 
 import (
-	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3aggregator/aggregator/handler/writer"
+	"sync/atomic"
 
-	"github.com/uber-go/tally"
+	"github.com/m3db/m3metrics/protocol/msgpack"
 )
 
-type blackholeHandler struct{}
-
-// NewBlackholeHandler creates a new blackhole handler.
-func NewBlackholeHandler() aggregator.Handler { return blackholeHandler{} }
-
-func (h blackholeHandler) NewWriter(tally.Scope) (aggregator.Writer, error) {
-	return writer.NewBlackholeWriter(), nil
+// RefCountedBuffer is a refcounted buffer.
+type RefCountedBuffer struct {
+	n   int32
+	buf msgpack.Buffer
 }
 
-func (h blackholeHandler) Close() {}
+// NewRefCountedBuffer creates a new refcounted buffer.
+func NewRefCountedBuffer(buffer msgpack.Buffer) *RefCountedBuffer {
+	return &RefCountedBuffer{n: 1, buf: buffer}
+}
+
+// Buffer returns the internal msgpack buffer.
+func (b *RefCountedBuffer) Buffer() msgpack.Buffer { return b.buf }
+
+// IncRef increments the refcount for the buffer.
+func (b *RefCountedBuffer) IncRef() {
+	if n := int(atomic.AddInt32(&b.n, 1)); n > 0 {
+		return
+	}
+	panic("invalid ref count")
+}
+
+// DecRef decrements the refcount for the buffer.
+func (b *RefCountedBuffer) DecRef() {
+	if n := int(atomic.AddInt32(&b.n, -1)); n == 0 {
+		if b.buf != nil {
+			b.buf.Close()
+		}
+		return
+	} else if n > 0 {
+		return
+	}
+	panic("invalid ref count")
+}

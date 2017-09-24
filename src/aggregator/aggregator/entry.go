@@ -28,7 +28,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	metricID "github.com/m3db/m3metrics/metric/id"
+	metricid "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	xerrors "github.com/m3db/m3x/errors"
@@ -355,7 +355,7 @@ func (e *Entry) hasPolicyChangesWithLock(newPolicies []policy.Policy) bool {
 
 func (e *Entry) updatePoliciesWithLock(
 	typ unaggregated.Type,
-	id metricID.RawID,
+	id metricid.RawID,
 	ownsID bool,
 	hasDefaultPoliciesList bool,
 	sp policy.StagedPolicies,
@@ -393,7 +393,7 @@ func (e *Entry) updatePoliciesWithLock(
 		} else {
 			// Otherwise this is a new id so it is necessary to make a
 			// copy because it's not owned by us.
-			elemID = make(metricID.RawID, len(id))
+			elemID = make(metricid.RawID, len(id))
 			copy(elemID, id)
 		}
 	}

@@ -101,9 +101,11 @@ aggregator:
           capacity: 32
         - count: 1024
           capacity: 64
-  placementWatcher:
-    namespace: /m3aggregator
-    key: placement
+  kvNamespace: /r2/m3aggregator
+  placementManager:
+    placementWatcher:
+      key: placement
+      initWatchTimeout: 10s
   shardFnType: murmur32
   flushManager:
     checkEvery: 1s

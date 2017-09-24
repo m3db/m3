@@ -722,7 +722,7 @@ func testEntry() (*Entry, *metricLists, *time.Time) {
 
 	lists := newMetricLists(testShard, opts)
 	// This effectively disable flushing.
-	lists.newMetricListFn = func(shard uint32, res time.Duration, opts Options) *metricList {
+	lists.newMetricListFn = func(shard uint32, res time.Duration, opts Options) (*metricList, error) {
 		return newMetricList(testShard, 0, opts)
 	}
 

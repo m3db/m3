@@ -193,12 +193,6 @@ func TestValidatorForLeaderFollowerSuccess(t *testing.T) {
 	require.NoError(t, validator())
 }
 
-type capturingValidator struct {
-	instance   instanceMetadata
-	group      *instanceGroup
-	targetType targetType
-}
-
 type validatorForFn func(
 	instance instanceMetadata,
 	group *instanceGroup,

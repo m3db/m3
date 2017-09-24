@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package common
 
 import (
 	"errors"
@@ -27,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/retry"
 
@@ -39,49 +38,49 @@ const (
 	testFakeServerAddr = "nonexistent"
 )
 
-func TestNewForwardHandlerEmptyServerList(t *testing.T) {
-	_, err := newForwardHandler(nil, testForwardHandlerOptions())
+func TestNewQueueEmptyServerList(t *testing.T) {
+	_, err := newQueue(nil, testQueueOptions())
 	require.Equal(t, errEmptyServerList, err)
 }
 
-func TestForwardHandlerHandleClosed(t *testing.T) {
-	h, err := newForwardHandler([]string{testFakeServerAddr}, testForwardHandlerOptions())
+func TestQueueHandleClosed(t *testing.T) {
+	q, err := newQueue([]string{testFakeServerAddr}, testQueueOptions())
 	require.NoError(t, err)
 
-	h.Close()
-	require.Equal(t, errHandlerClosed, h.Handle(testRefCountedBuffer()))
+	q.Close()
+	require.Equal(t, errQueueClosed, q.Enqueue(testRefCountedBuffer()))
 }
 
-func TestForwardHandlerHandleQueueFull(t *testing.T) {
-	opts := testForwardHandlerOptions().SetQueueSize(3)
-	handler, err := newForwardHandler([]string{testFakeServerAddr}, opts)
+func TestQueueHandleQueueFull(t *testing.T) {
+	opts := testQueueOptions().SetQueueSize(3)
+	q, err := newQueue([]string{testFakeServerAddr}, opts)
 	require.NoError(t, err)
 
 	// Fill up the queue.
 	for i := 0; i < 10; i++ {
 		select {
-		case handler.bufCh <- testRefCountedBuffer():
+		case q.bufCh <- testRefCountedBuffer():
 		default:
 		}
 	}
 
-	// Handle the buffer and expect it to be queued.
-	require.NoError(t, handler.Handle(testRefCountedBuffer()))
+	// Enqueue the buffer and expect it to be queued.
+	require.NoError(t, q.Enqueue(testRefCountedBuffer()))
 }
 
-func TestForwardHandlerForwardToConnNoConnectionClosed(t *testing.T) {
-	opts := testForwardHandlerOptions().SetQueueSize(3)
-	handler, err := newForwardHandler([]string{testFakeServerAddr}, opts)
+func TestQueueForwardToConnNoConnectionClosed(t *testing.T) {
+	opts := testQueueOptions().SetQueueSize(3)
+	q, err := newQueue([]string{testFakeServerAddr}, opts)
 	require.NoError(t, err)
-	// Queue up a nil buffer and close the handler.
-	handler.bufCh <- nil
-	handler.Close()
+	// Queue up a nil buffer and close the queue.
+	q.bufCh <- nil
+	q.Close()
 }
 
-func TestForwardHandlerForwardToConnWithConnectionClosed(t *testing.T) {
-	opts := testForwardHandlerOptions().SetQueueSize(10)
+func TestQueueForwardToConnWithConnectionClosed(t *testing.T) {
+	opts := testQueueOptions().SetQueueSize(10)
 	servers := []string{testFakeServerAddr}
-	h, err := newForwardHandler(servers, opts)
+	q, err := newQueue(servers, opts)
 	require.NoError(t, err)
 
 	var (
@@ -90,17 +89,17 @@ func TestForwardHandlerForwardToConnWithConnectionClosed(t *testing.T) {
 		numConnects int32
 		errConnect  = errors.New("error connecting")
 	)
-	h.tryConnectFn = func(addr string) (*net.TCPConn, error) {
+	q.tryConnectFn = func(addr string) (*net.TCPConn, error) {
 		if atomic.AddInt32(&numConnects, 1) == 1 {
 			return nil, errConnect
 		}
 		return &net.TCPConn{}, nil
 	}
-	h.writeToConnFn = func(conn *net.TCPConn, data []byte) (int, error) {
+	q.writeToConnFn = func(conn *net.TCPConn, data []byte) (int, error) {
 		res = append(res, data)
 		return 0, nil
 	}
-	h.initConnections(servers)
+	q.initConnections(servers)
 
 	// Wait for the mock functions to take effect.
 	for atomic.LoadInt32(&numConnects) <= 1 {
@@ -113,18 +112,18 @@ func TestForwardHandlerForwardToConnWithConnectionClosed(t *testing.T) {
 		buf := testRefCountedBuffer()
 		_, err := buf.Buffer().Buffer().Write(data)
 		require.NoError(t, err)
-		require.NoError(t, h.Handle(buf))
+		require.NoError(t, q.Enqueue(buf))
 	}
 
 	// Expect all the buffers to be processed.
-	h.Close()
+	q.Close()
 	require.Equal(t, expected, res)
 }
 
-func TestForwardHandlerForwardToConnReenqueueSuccess(t *testing.T) {
-	opts := testForwardHandlerOptions().SetQueueSize(10)
+func TestQueueForwardToConnReenqueueSuccess(t *testing.T) {
+	opts := testQueueOptions().SetQueueSize(10)
 	servers := []string{testFakeServerAddr}
-	h, err := newForwardHandler(servers, opts)
+	q, err := newQueue(servers, opts)
 	require.NoError(t, err)
 
 	var (
@@ -134,20 +133,20 @@ func TestForwardHandlerForwardToConnReenqueueSuccess(t *testing.T) {
 		errConnect  = errors.New("error connecting")
 		errWrite    = errors.New("write error")
 	)
-	h.tryConnectFn = func(addr string) (*net.TCPConn, error) {
+	q.tryConnectFn = func(addr string) (*net.TCPConn, error) {
 		if atomic.AddInt32(&numConnects, 1) == 1 {
 			return nil, errConnect
 		}
 		return &net.TCPConn{}, nil
 	}
-	h.writeToConnFn = func(conn *net.TCPConn, data []byte) (int, error) {
+	q.writeToConnFn = func(conn *net.TCPConn, data []byte) (int, error) {
 		if atomic.AddInt32(&numWrites, 1) == 1 {
 			return 0, errWrite
 		}
 		res = append(res, data)
 		return 0, nil
 	}
-	h.initConnections(servers)
+	q.initConnections(servers)
 
 	// Wait for the mock functions to take effect.
 	for atomic.LoadInt32(&numConnects) <= 1 {
@@ -157,22 +156,22 @@ func TestForwardHandlerForwardToConnReenqueueSuccess(t *testing.T) {
 	buf := testRefCountedBuffer()
 	_, err = buf.Buffer().Buffer().Write([]byte{0x3, 0x4, 0x5})
 	require.NoError(t, err)
-	require.NoError(t, h.Handle(buf))
+	require.NoError(t, q.Enqueue(buf))
 
 	// Wait for buffer to be re-enqueued.
 	for atomic.LoadInt32(&numWrites) <= 1 {
 	}
 
 	// Expect all the buffers to be processed.
-	h.Close()
+	q.Close()
 	require.Equal(t, [][]byte{[]byte{0x3, 0x4, 0x5}}, res)
 }
 
-func TestForwardHandlerForwardToConnReenqueueQueueFull(t *testing.T) {
-	opts := testForwardHandlerOptions().SetQueueSize(1)
+func TestQueueForwardToConnReenqueueQueueFull(t *testing.T) {
+	opts := testQueueOptions().SetQueueSize(1)
 
 	servers := []string{testFakeServerAddr}
-	h, err := newForwardHandler(servers, opts)
+	q, err := newQueue(servers, opts)
 	require.NoError(t, err)
 
 	var (
@@ -182,25 +181,25 @@ func TestForwardHandlerForwardToConnReenqueueQueueFull(t *testing.T) {
 		errConnect  = errors.New("error connecting")
 		errWrite    = errors.New("write error")
 	)
-	h.tryConnectFn = func(addr string) (*net.TCPConn, error) {
+	q.tryConnectFn = func(addr string) (*net.TCPConn, error) {
 		if atomic.AddInt32(&numConnects, 1) == 1 {
 			return nil, errConnect
 		}
 		return &net.TCPConn{}, nil
 	}
-	h.writeToConnFn = func(conn *net.TCPConn, data []byte) (int, error) {
+	q.writeToConnFn = func(conn *net.TCPConn, data []byte) (int, error) {
 		if atomic.AddInt32(&numWrites, 1) == 1 {
 			// Fill up the queue.
 			buf := testRefCountedBuffer()
 			_, err = buf.Buffer().Buffer().Write([]byte{0x1, 0x2})
 			require.NoError(t, err)
-			h.bufCh <- buf
+			q.bufCh <- buf
 			return 0, errWrite
 		}
 		res = append(res, data)
 		return 0, nil
 	}
-	h.initConnections(servers)
+	q.initConnections(servers)
 
 	// Wait for the mock functions to take effect.
 	for atomic.LoadInt32(&numConnects) <= 1 {
@@ -210,61 +209,75 @@ func TestForwardHandlerForwardToConnReenqueueQueueFull(t *testing.T) {
 	buf := testRefCountedBuffer()
 	_, err = buf.Buffer().Buffer().Write([]byte{0x3, 0x4, 0x5})
 	require.NoError(t, err)
-	require.NoError(t, h.Handle(buf))
+	require.NoError(t, q.Enqueue(buf))
 
 	// Wait for buffer to be re-enqueued.
 	for atomic.LoadInt32(&numWrites) <= 1 {
 	}
 
 	// Expect the first buffer to be dropped.
-	h.Close()
+	q.Close()
 	require.Equal(t, [][]byte{[]byte{0x1, 0x2}}, res)
 }
 
-func TestForwardHandlerClose(t *testing.T) {
-	handler, err := newForwardHandler([]string{testFakeServerAddr}, testForwardHandlerOptions())
+func TestQueueClose(t *testing.T) {
+	q, err := newQueue([]string{testFakeServerAddr}, testQueueOptions())
 	require.NoError(t, err)
 
-	// Close the handler sets the flag.
-	handler.Close()
-	require.True(t, handler.closed)
+	// Closing the queue sets the flag.
+	q.Close()
+	require.True(t, q.closed)
 
-	// Close the handler a second time is a no op.
-	handler.Close()
-	require.True(t, handler.closed)
+	// Closing the queue a second time is a no op.
+	q.Close()
+	require.True(t, q.closed)
 }
 
 func TestTryConnectTimeout(t *testing.T) {
 	errTimeout := errors.New("error timing out")
-	h := &forwardHandler{metrics: newForwardHandlerMetrics(tally.NoopScope)}
-	h.dialWithTimeoutFn = func(string, string, time.Duration) (net.Conn, error) {
+	q := &queue{metrics: newQueueMetrics(tally.NoopScope)}
+	q.dialWithTimeoutFn = func(string, string, time.Duration) (net.Conn, error) {
 		return nil, errTimeout
 	}
-	_, err := h.tryConnect(testFakeServerAddr)
+	_, err := q.tryConnect(testFakeServerAddr)
 	require.Equal(t, errTimeout, err)
 }
 
 func TestTryConnectSuccess(t *testing.T) {
-	h := &forwardHandler{metrics: newForwardHandlerMetrics(tally.NoopScope)}
-	h.dialWithTimeoutFn = func(string, string, time.Duration) (net.Conn, error) {
+	q := &queue{metrics: newQueueMetrics(tally.NoopScope)}
+	q.dialWithTimeoutFn = func(string, string, time.Duration) (net.Conn, error) {
 		return &net.TCPConn{}, nil
 	}
-	_, err := h.tryConnect(testFakeServerAddr)
+	_, err := q.tryConnect(testFakeServerAddr)
 	require.NoError(t, err)
 }
 
-func testRefCountedBuffer() *aggregator.RefCountedBuffer {
-	return aggregator.NewRefCountedBuffer(msgpack.NewBufferedEncoder())
+func testRefCountedBuffer() *RefCountedBuffer {
+	return NewRefCountedBuffer(msgpack.NewBufferedEncoder())
 }
 
-func testForwardHandlerOptions() ForwardHandlerOptions {
+func testQueueOptions() QueueOptions {
 	retrierOpts := retry.NewOptions().
 		SetInitialBackoff(time.Millisecond).
 		SetBackoffFactor(1).
 		SetForever(true)
-	return NewForwardHandlerOptions().
+	connectionOpts := NewConnectionOptions().
 		SetConnectionKeepAlive(true).
 		SetConnectTimeout(100 * time.Millisecond).
-		SetQueueSize(4096).
-		SetReconnectRetrier(retry.NewRetrier(retrierOpts))
+		SetReconnectRetryOptions(retrierOpts)
+	return NewQueueOptions().
+		SetConnectionOptions(connectionOpts).
+		SetQueueSize(4096)
 }
+
+type enqueueFn func(buffer *RefCountedBuffer) error
+
+type mockQueue struct {
+	enqueueFn enqueueFn
+}
+
+func (q *mockQueue) Enqueue(buffer *RefCountedBuffer) error {
+	return q.enqueueFn(buffer)
+}
+
+func (q *mockQueue) Close() {}

@@ -22,91 +22,296 @@ package handler
 
 import (
 	"errors"
+	"fmt"
+	"sort"
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3aggregator/aggregator/handler/common"
+	"github.com/m3db/m3aggregator/aggregator/handler/writer"
+	"github.com/m3db/m3aggregator/sharding"
+	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
+
+	"github.com/uber-go/tally"
+)
+
+const (
+	initialBufferSizeGrowthFactor = 2
 )
 
 var (
-	errUnknownFlushHandlerType         = errors.New("unknown flush handler type")
-	errNoForwardHandlerConfiguration   = errors.New("no forward handler configuration")
-	errNoBroadcastHandlerConfiguration = errors.New("no broadcast handler configuration")
+	errNoHandlerConfiguration = errors.New("no handler configuration")
+	errNoWriterConfiguration  = errors.New("no writer configuration")
+	errNoBackendConfiguration = errors.New("no backend configuration")
 )
 
-// FlushHandlerConfiguration contains configuration for flushing metrics.
+// FlushHandlerConfiguration configures flush handlers.
 type FlushHandlerConfiguration struct {
-	// Flushing handler type.
-	Type string `yaml:"type" validate:"regexp=(^blackhole$|^logging$|^forward$|^broadcast$)"`
-
-	// Forward handler configuration.
-	Forward *forwardHandlerConfiguration `yaml:"forward"`
-
-	// Forward handler configuration.
-	Broadcast *broadcastHandlerConfiguration `yaml:"broadcast"`
+	Handlers []flushHandlerConfiguration `yaml:"handlers" validate:"nonzero"`
+	Writer   *writerConfiguration        `yaml:"writer"`
 }
 
-// NewHandler creates a new flush handler
-func (c *FlushHandlerConfiguration) NewHandler(
-	iOpts instrument.Options,
+// NewHandler creates a new flush handler based on the configuration.
+func (c FlushHandlerConfiguration) NewHandler(
+	instrumentOpts instrument.Options,
 ) (aggregator.Handler, error) {
-	scope := iOpts.MetricsScope()
-	switch Type(c.Type) {
-	case BlackholeHandler:
-		return NewBlackholeHandler(), nil
-	case LoggingHandler:
-		scope = scope.SubScope("logging")
-		return NewLoggingHandler(iOpts.SetMetricsScope(scope)), nil
-	case ForwardHandler:
-		if c.Forward == nil {
-			return nil, errNoForwardHandlerConfiguration
-		}
-		scope = scope.SubScope("forward").Tagged(map[string]string{"forward-target": c.Forward.Name})
-		logger := iOpts.Logger().WithFields(log.NewField("forward-target", c.Forward.Name))
-		return c.Forward.NewHandler(iOpts.SetMetricsScope(scope).SetLogger(logger))
-	case BroadcastHandler:
-		if c.Broadcast == nil {
-			return nil, errNoBroadcastHandlerConfiguration
-		}
-		scope = scope.SubScope("broadcast")
-		return c.Broadcast.NewHandler(iOpts.SetMetricsScope(scope))
-	default:
-		return nil, errUnknownFlushHandlerType
+	if len(c.Handlers) == 0 {
+		return nil, errNoHandlerConfiguration
 	}
-}
-
-type broadcastHandlerConfiguration struct {
-	// Broadcast target handlers.
-	Handlers []FlushHandlerConfiguration `yaml:"handlers" validate:"nonzero"`
-}
-
-func (c *broadcastHandlerConfiguration) NewHandler(
-	iOpts instrument.Options,
-) (aggregator.Handler, error) {
-	handlers := make([]aggregator.Handler, 0, len(c.Handlers))
-	for _, cfg := range c.Handlers {
-		handler, err := cfg.NewHandler(iOpts)
-		if err != nil {
-			return nil, err
+	var (
+		handlers       = make([]aggregator.Handler, 0, len(c.Handlers))
+		sharderRouters = make([]SharderRouter, 0, len(c.Handlers))
+	)
+	for _, hc := range c.Handlers {
+		switch hc.Type {
+		case blackholeType:
+			handlers = append(handlers, NewBlackholeHandler())
+		case loggingType:
+			handlers = append(handlers, NewLoggingHandler(instrumentOpts.Logger()))
+		case forwardType:
+			if hc.Backend == nil {
+				return nil, errNoBackendConfiguration
+			}
+			sharderRouter, err := hc.Backend.NewSharderRouter(instrumentOpts)
+			if err != nil {
+				return nil, err
+			}
+			sharderRouters = append(sharderRouters, sharderRouter)
+		default:
+			return nil, fmt.Errorf("unknown flush handler type %v", hc.Type)
 		}
-		handlers = append(handlers, handler)
+	}
+	if len(sharderRouters) > 0 {
+		if c.Writer == nil {
+			return nil, errNoWriterConfiguration
+		}
+		writerOpts := c.Writer.NewWriterOptions(instrumentOpts)
+		shardedHandler := NewShardedHandler(sharderRouters, writerOpts)
+		handlers = append(handlers, shardedHandler)
+	}
+	if len(handlers) == 1 {
+		return handlers[0], nil
 	}
 	return NewBroadcastHandler(handlers), nil
 }
 
-// forwardHandlerConfiguration contains configuration for forward
-type forwardHandlerConfiguration struct {
-	// Name of the forward target.
+type writerConfiguration struct {
+	// Maximum Buffer size in bytes before a buffer is flushed to backend.
+	MaxBufferSize int `yaml:"maxBufferSize"`
+
+	// Pool of buffered encoders.
+	BufferedEncoderPool pool.ObjectPoolConfiguration `yaml:"bufferedEncoderPool"`
+}
+
+func (c *writerConfiguration) NewWriterOptions(
+	instrumentOpts instrument.Options,
+) writer.Options {
+	opts := writer.NewOptions().SetInstrumentOptions(instrumentOpts)
+	if c.MaxBufferSize > 0 {
+		opts = opts.SetMaxBufferSize(c.MaxBufferSize)
+	}
+
+	// Set buffered encoder pool.
+	// NB(xichen): we preallocate a bit over the maximum buffer size as a safety measure
+	// because we might write past the max buffer size and rewind it during writing.
+	scope := instrumentOpts.MetricsScope()
+	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("buffered-encoder-pool"))
+	bufferedEncoderPoolOpts := msgpack.NewBufferedEncoderPoolOptions().
+		SetObjectPoolOptions(c.BufferedEncoderPool.NewObjectPoolOptions(iOpts))
+	bufferedEncoderPool := msgpack.NewBufferedEncoderPool(bufferedEncoderPoolOpts)
+	opts = opts.SetBufferedEncoderPool(bufferedEncoderPool)
+	initialBufferSize := c.MaxBufferSize * initialBufferSizeGrowthFactor
+	bufferedEncoderPool.Init(func() msgpack.BufferedEncoder {
+		return msgpack.NewPooledBufferedEncoderSize(bufferedEncoderPool, initialBufferSize)
+	})
+	return opts
+}
+
+type flushHandlerConfiguration struct {
+	// Flushing handler type.
+	Type Type `yaml:"type"`
+
+	// Backend configures the backend.
+	Backend *backendConfiguration `yaml:"backend"`
+}
+
+type backendConfiguration struct {
+	// Name of the backend.
 	Name string `yaml:"name"`
 
-	// Server address list.
+	// Servers for non-sharded backend.
 	Servers []string `yaml:"servers"`
 
-	// Buffer queue size.
+	// Configuration for sharded backend.
+	Sharded *shardedConfiguration `yaml:"sharded"`
+
+	// Queue size reserved for the backend.
 	QueueSize int `yaml:"queueSize"`
 
+	// Connection configuration.
+	Connection connectionConfiguration `yaml:"connection"`
+
+	// Disable validation (dangerous but useful for testing and staging environments).
+	DisableValidation bool `yaml:"disableValidation"`
+}
+
+func (c *backendConfiguration) Validate() error {
+	if c.DisableValidation {
+		return nil
+	}
+	hasServers := len(c.Servers) > 0
+	hasShards := c.Sharded != nil
+	if hasServers && hasShards {
+		return fmt.Errorf("backend %s configuration has both servers and shards", c.Name)
+	}
+	if !hasServers && !hasShards {
+		return fmt.Errorf("backend %s configuration has neither servers no shards", c.Name)
+	}
+	if hasServers {
+		return c.validateNonSharded()
+	}
+	return c.Sharded.Validate()
+}
+
+func (c *backendConfiguration) validateNonSharded() error {
+	// Make sure we haven't declared the same server more than once.
+	serversAssigned := make(map[string]struct{}, len(c.Servers))
+	for _, server := range c.Servers {
+		if _, alreadyAssigned := serversAssigned[server]; alreadyAssigned {
+			return fmt.Errorf("server %s specified more than once", server)
+		}
+		serversAssigned[server] = struct{}{}
+	}
+	return nil
+}
+
+func (c *backendConfiguration) NewSharderRouter(
+	instrumentOpts instrument.Options,
+) (SharderRouter, error) {
+	if err := c.Validate(); err != nil {
+		return SharderRouter{}, err
+	}
+	backendScope := instrumentOpts.MetricsScope().SubScope(c.Name)
+
+	// Set up queue options.
+	queueScope := backendScope.SubScope("queue")
+	connectionOpts := c.Connection.NewConnectionOptions(queueScope)
+	queueOpts := common.NewQueueOptions().
+		SetInstrumentOptions(instrumentOpts.SetMetricsScope(queueScope)).
+		SetConnectionOptions(connectionOpts)
+	if c.QueueSize > 0 {
+		queueOpts = queueOpts.SetQueueSize(c.QueueSize)
+	}
+
+	if len(c.Servers) > 0 {
+		// This is a non-sharded backend.
+		queue, err := common.NewQueue(c.Servers, queueOpts)
+		if err != nil {
+			return SharderRouter{}, err
+		}
+		router := common.NewAllowAllRouter(queue)
+		return SharderRouter{SharderID: sharding.NoShardingSharderID, Router: router}, nil
+	}
+
+	// Sharded backend.
+	routerScope := backendScope.SubScope("router")
+	return c.Sharded.NewSharderRouter(routerScope, queueOpts)
+}
+
+type shardedConfiguration struct {
+	// Hashing function type.
+	HashType sharding.HashType `yaml:"hashType"`
+
+	// Total number of shards.
+	TotalShards int `yaml:"totalShards" validate:"nonzero"`
+
+	// Backend server shard sets.
+	Shards []backendServerShardSet `yaml:"shards" validate:"nonzero"`
+}
+
+func (c *shardedConfiguration) Validate() error {
+	var (
+		serversAssigned = make(map[string]struct{}, len(c.Shards))
+		shardsAssigned  = make(map[int]struct{}, c.TotalShards)
+	)
+	for _, shards := range c.Shards {
+		// Make sure we have a deterministic ordering.
+		sortedShards := make([]int, 0, len(shards.ShardSet))
+		for shard := range shards.ShardSet {
+			sortedShards = append(sortedShards, int(shard))
+		}
+		sort.Ints(sortedShards)
+
+		for _, shard := range sortedShards {
+			if shard >= c.TotalShards {
+				return fmt.Errorf("shard %d exceeds total available shards %d", shard, c.TotalShards)
+			}
+			if _, shardAlreadyAssigned := shardsAssigned[shard]; shardAlreadyAssigned {
+				return fmt.Errorf("shard %d is present in multiple ranges", shard)
+			}
+			shardsAssigned[shard] = struct{}{}
+		}
+
+		for _, server := range shards.Servers {
+			if _, serverAlreadyAssigned := serversAssigned[server]; serverAlreadyAssigned {
+				return fmt.Errorf("server %s is present in multiple ranges", server)
+			}
+			serversAssigned[server] = struct{}{}
+		}
+	}
+	if len(shardsAssigned) != c.TotalShards {
+		return fmt.Errorf("missing shards; expected %d total received %d",
+			c.TotalShards, len(shardsAssigned))
+	}
+	return nil
+}
+
+func (c *shardedConfiguration) NewSharderRouter(
+	routerScope tally.Scope,
+	queueOpts common.QueueOptions,
+) (SharderRouter, error) {
+	shardQueueSize := queueOpts.QueueSize() / len(c.Shards)
+	shardQueueOpts := queueOpts.SetQueueSize(shardQueueSize)
+	sharderID := sharding.NewSharderID(c.HashType, c.TotalShards)
+	shardedQueues := make([]common.ShardedQueue, 0, len(c.Shards))
+	for _, shard := range c.Shards {
+		sq, err := shard.NewShardedQueue(shardQueueOpts)
+		if err != nil {
+			return SharderRouter{}, err
+		}
+		shardedQueues = append(shardedQueues, sq)
+	}
+	router := common.NewShardedRouter(shardedQueues, c.TotalShards, routerScope)
+	return SharderRouter{SharderID: sharderID, Router: router}, nil
+}
+
+type backendServerShardSet struct {
+	Name     string            `yaml:"name"`
+	ShardSet sharding.ShardSet `yaml:"shardSet" validate:"nonzero"`
+	Servers  []string          `yaml:"servers" validate:"nonzero"`
+}
+
+func (s *backendServerShardSet) NewShardedQueue(
+	queueOpts common.QueueOptions,
+) (common.ShardedQueue, error) {
+	instrumentOpts := queueOpts.InstrumentOptions()
+	connectionOpts := queueOpts.ConnectionOptions()
+	queueScope := instrumentOpts.MetricsScope().Tagged(map[string]string{"shard-set": s.Name})
+	reconnectRetryOpts := connectionOpts.ReconnectRetryOptions().SetMetricsScope(queueScope)
+	queueOpts = queueOpts.
+		SetInstrumentOptions(instrumentOpts.SetMetricsScope(queueScope)).
+		SetConnectionOptions(connectionOpts.SetReconnectRetryOptions(reconnectRetryOpts))
+	queue, err := common.NewQueue(s.Servers, queueOpts)
+	if err != nil {
+		return common.ShardedQueue{}, err
+	}
+	return common.ShardedQueue{ShardSet: s.ShardSet, Queue: queue}, nil
+}
+
+type connectionConfiguration struct {
 	// Connection timeout.
 	ConnectTimeout time.Duration `yaml:"connectTimeout"`
 
@@ -116,18 +321,12 @@ type forwardHandlerConfiguration struct {
 	// Connection write timeout.
 	ConnectionWriteTimeout time.Duration `yaml:"connectionWriteTimeout"`
 
-	// Reconnect retrier.
+	// Reconnect retry options.
 	ReconnectRetrier retry.Configuration `yaml:"reconnect"`
 }
 
-func (c *forwardHandlerConfiguration) NewHandler(
-	instrumentOpts instrument.Options,
-) (aggregator.Handler, error) {
-	opts := NewForwardHandlerOptions().SetInstrumentOptions(instrumentOpts)
-
-	if c.QueueSize != 0 {
-		opts = opts.SetQueueSize(c.QueueSize)
-	}
+func (c *connectionConfiguration) NewConnectionOptions(scope tally.Scope) common.ConnectionOptions {
+	opts := common.NewConnectionOptions()
 	if c.ConnectTimeout != 0 {
 		opts = opts.SetConnectTimeout(c.ConnectTimeout)
 	}
@@ -137,10 +336,8 @@ func (c *forwardHandlerConfiguration) NewHandler(
 	if c.ConnectionWriteTimeout != 0 {
 		opts = opts.SetConnectionWriteTimeout(c.ConnectionWriteTimeout)
 	}
-
-	scope := instrumentOpts.MetricsScope().SubScope("reconnect")
-	retrier := c.ReconnectRetrier.NewRetrier(scope)
-	opts = opts.SetReconnectRetrier(retrier)
-
-	return NewForwardHandler(c.Servers, opts)
+	reconnectScope := scope.SubScope("reconnect")
+	retryOpts := c.ReconnectRetrier.NewOptions(reconnectScope)
+	opts = opts.SetReconnectRetryOptions(retryOpts)
+	return opts
 }

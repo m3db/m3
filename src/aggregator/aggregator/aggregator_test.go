@@ -34,11 +34,13 @@ import (
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 const (
@@ -631,9 +633,11 @@ func testOptions() Options {
 			unregisterFn: func(flusher PeriodicFlusher) error { return nil },
 		}).
 		SetFlushHandler(&mockHandler{
-			handleFn: func(buf *RefCountedBuffer) error {
-				buf.DecRef()
-				return nil
+			newWriterFn: func(tally.Scope) (Writer, error) {
+				return &mockWriter{
+					writeFn: func(mp aggregated.ChunkedMetricWithStoragePolicy) error { return nil },
+					flushFn: func() error { return nil },
+				}, nil
 			},
 		})
 }

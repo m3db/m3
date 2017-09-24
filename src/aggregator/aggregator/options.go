@@ -26,8 +26,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
+	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
@@ -51,7 +51,6 @@ var (
 	defaultAggregationStdevSuffix    = []byte(".stdev")
 	defaultAggregationMedianSuffix   = []byte(".median")
 	defaultMinFlushInterval          = 5 * time.Second
-	defaultMaxFlushSize              = 1440
 	defaultEntryTTL                  = 24 * time.Hour
 	defaultEntryCheckInterval        = time.Hour
 	defaultEntryCheckBatchPercent    = 0.01
@@ -127,12 +126,11 @@ type options struct {
 	instrumentOpts                   instrument.Options
 	streamOpts                       cm.Options
 	placementManager                 PlacementManager
-	shardFn                          ShardFn
+	shardFn                          sharding.ShardFn
 	bufferDurationBeforeShardCutover time.Duration
 	bufferDurationAfterShardCutoff   time.Duration
 	flushManager                     FlushManager
 	minFlushInterval                 time.Duration
-	maxFlushSize                     int
 	flushHandler                     Handler
 	entryTTL                         time.Duration
 	entryCheckInterval               time.Duration
@@ -146,7 +144,6 @@ type options struct {
 	counterElemPool                  CounterElemPool
 	timerElemPool                    TimerElemPool
 	gaugeElemPool                    GaugeElemPool
-	bufferedEncoderPool              msgpack.BufferedEncoderPool
 	aggTypesPool                     policy.AggregationTypesPool
 	quantilesPool                    pool.FloatsPool
 
@@ -197,7 +194,6 @@ func NewOptions() Options {
 		bufferDurationBeforeShardCutover: defaultBufferDurationBeforeShardCutover,
 		bufferDurationAfterShardCutoff:   defaultBufferDurationAfterShardCutoff,
 		minFlushInterval:                 defaultMinFlushInterval,
-		maxFlushSize:                     defaultMaxFlushSize,
 		entryTTL:                         defaultEntryTTL,
 		entryCheckInterval:               defaultEntryCheckInterval,
 		entryCheckBatchPercent:           defaultEntryCheckBatchPercent,
@@ -456,13 +452,13 @@ func (o *options) PlacementManager() PlacementManager {
 	return o.placementManager
 }
 
-func (o *options) SetShardFn(value ShardFn) Options {
+func (o *options) SetShardFn(value sharding.ShardFn) Options {
 	opts := *o
 	opts.shardFn = value
 	return &opts
 }
 
-func (o *options) ShardFn() ShardFn {
+func (o *options) ShardFn() sharding.ShardFn {
 	return o.shardFn
 }
 
@@ -524,16 +520,6 @@ func (o *options) SetMinFlushInterval(value time.Duration) Options {
 
 func (o *options) MinFlushInterval() time.Duration {
 	return o.minFlushInterval
-}
-
-func (o *options) SetMaxFlushSize(value int) Options {
-	opts := *o
-	opts.maxFlushSize = value
-	return &opts
-}
-
-func (o *options) MaxFlushSize() int {
-	return o.maxFlushSize
 }
 
 func (o *options) SetFlushHandler(value Handler) Options {
@@ -646,16 +632,6 @@ func (o *options) GaugeElemPool() GaugeElemPool {
 	return o.gaugeElemPool
 }
 
-func (o *options) SetBufferedEncoderPool(value msgpack.BufferedEncoderPool) Options {
-	opts := *o
-	opts.bufferedEncoderPool = value
-	return &opts
-}
-
-func (o *options) BufferedEncoderPool() msgpack.BufferedEncoderPool {
-	return o.bufferedEncoderPool
-}
-
 func (o *options) SetAggregationTypesPool(pool policy.AggregationTypesPool) Options {
 	opts := *o
 	opts.aggTypesPool = pool
@@ -761,11 +737,6 @@ func (o *options) initPools() {
 	o.gaugeElemPool = NewGaugeElemPool(nil)
 	o.gaugeElemPool.Init(func() *GaugeElem {
 		return NewGaugeElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, o)
-	})
-
-	o.bufferedEncoderPool = msgpack.NewBufferedEncoderPool(nil)
-	o.bufferedEncoderPool.Init(func() msgpack.BufferedEncoder {
-		return msgpack.NewPooledBufferedEncoder(o.bufferedEncoderPool)
 	})
 
 	o.quantilesPool = pool.NewFloatsPool(nil, nil)

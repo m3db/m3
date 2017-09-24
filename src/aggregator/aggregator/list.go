@@ -28,9 +28,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3metrics/metric/aggregated"
-	metricID "github.com/m3db/m3metrics/metric/id"
+	metricid "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/log"
 
@@ -45,9 +44,9 @@ var (
 type metricListMetrics struct {
 	flushMetricConsumeSuccess   tally.Counter
 	flushMetricConsumeErrors    tally.Counter
-	flushBufferConsumeSuccess   tally.Counter
-	flushBufferConsumeErrors    tally.Counter
 	flushMetricDiscarded        tally.Counter
+	flushWriterFlushSuccess     tally.Counter
+	flushWriterFlushErrors      tally.Counter
 	flushElemCollected          tally.Counter
 	flushDuration               tally.Timer
 	flushBeforeCutover          tally.Counter
@@ -62,12 +61,13 @@ type metricListMetrics struct {
 func newMetricListMetrics(scope tally.Scope) metricListMetrics {
 	flushScope := scope.SubScope("flush")
 	flushBeforeScope := scope.SubScope("flush-before")
+	flushWriterScope := scope.SubScope("flush-writer")
 	return metricListMetrics{
 		flushMetricConsumeSuccess:   flushScope.Counter("metric-consume-success"),
 		flushMetricConsumeErrors:    flushScope.Counter("metric-consume-errors"),
-		flushBufferConsumeSuccess:   flushScope.Counter("buffer-consume-success"),
-		flushBufferConsumeErrors:    flushScope.Counter("buffer-consume-errors"),
 		flushMetricDiscarded:        flushScope.Counter("metric-discarded"),
+		flushWriterFlushSuccess:     flushWriterScope.Counter("flush-success"),
+		flushWriterFlushErrors:      flushWriterScope.Counter("flush-errors"),
 		flushElemCollected:          flushScope.Counter("elem-collected"),
 		flushDuration:               flushScope.Timer("duration"),
 		flushBeforeCutover:          flushScope.Counter("before-cutover"),
@@ -80,7 +80,6 @@ func newMetricListMetrics(scope tally.Scope) metricListMetrics {
 	}
 }
 
-type encodeFn func(mp aggregated.ChunkedMetricWithStoragePolicy) error
 type flushBeforeFn func(beforeNanos int64, flushType flushType)
 
 // metricList stores aggregated metrics at a given resolution
@@ -93,26 +92,32 @@ type metricList struct {
 	nowFn         clock.NowFn
 	log           log.Logger
 	timeLock      *sync.RWMutex
-	maxFlushSize  int
 	flushHandler  Handler
-	encoderPool   msgpack.BufferedEncoderPool
+	flushWriter   Writer
 	resolution    time.Duration
 	flushInterval time.Duration
 	flushMgr      FlushManager
 
+	closed             bool
 	aggregations       *list.List
 	lastFlushedNanos   int64
-	encoder            msgpack.AggregatedEncoder
 	toCollect          []*list.Element
-	closed             bool
-	encodeFn           encodeFn
 	flushBeforeFn      flushBeforeFn
 	consumeAggMetricFn aggMetricFn
 	discardAggMetricFn aggMetricFn
 	metrics            metricListMetrics
 }
 
-func newMetricList(shard uint32, resolution time.Duration, opts Options) *metricList {
+func newMetricList(shard uint32, resolution time.Duration, opts Options) (*metricList, error) {
+	scope := opts.InstrumentOptions().MetricsScope().SubScope("list").Tagged(
+		map[string]string{"resolution": resolution.String()},
+	)
+	flushHandler := opts.FlushHandler()
+	flushWriter, err := flushHandler.NewWriter(scope.SubScope("writer"))
+	if err != nil {
+		return nil, err
+	}
+
 	// NB(xichen): by default the flush interval is the same as metric
 	// resolution, unless the resolution is smaller than the minimum flush
 	// interval, in which case we use the min flush interval to avoid excessing
@@ -121,35 +126,26 @@ func newMetricList(shard uint32, resolution time.Duration, opts Options) *metric
 	if minFlushInterval := opts.MinFlushInterval(); flushInterval < minFlushInterval {
 		flushInterval = minFlushInterval
 	}
-	scope := opts.InstrumentOptions().MetricsScope().SubScope("list").Tagged(
-		map[string]string{"resolution": resolution.String()},
-	)
-	encoderPool := opts.BufferedEncoderPool()
-	encoder := encoderPool.Get()
-	encoder.Reset()
 	l := &metricList{
 		shard:         shard,
 		opts:          opts,
 		nowFn:         opts.ClockOptions().NowFn(),
 		log:           opts.InstrumentOptions().Logger(),
 		timeLock:      opts.TimeLock(),
-		maxFlushSize:  opts.MaxFlushSize(),
-		flushHandler:  opts.FlushHandler(),
-		encoderPool:   encoderPool,
+		flushHandler:  flushHandler,
+		flushWriter:   flushWriter,
 		resolution:    resolution,
 		flushInterval: flushInterval,
 		flushMgr:      opts.FlushManager(),
 		aggregations:  list.New(),
-		encoder:       msgpack.NewAggregatedEncoder(encoder),
 		metrics:       newMetricListMetrics(scope),
 	}
-	l.encodeFn = l.encoder.EncodeChunkedMetricWithStoragePolicy
 	l.flushBeforeFn = l.flushBefore
 	l.consumeAggMetricFn = l.consumeAggregatedMetric
 	l.discardAggMetricFn = l.discardAggregatedMetric
 	l.flushMgr.Register(l)
 
-	return l
+	return l, nil
 }
 
 func (l *metricList) Shard() uint32 { return l.shard }
@@ -193,6 +189,7 @@ func (l *metricList) Close() {
 		l.Unlock()
 		return
 	}
+	l.flushWriter.Close()
 	l.closed = true
 	l.Unlock()
 
@@ -254,6 +251,8 @@ func (l *metricList) DiscardBefore(beforeNanos int64) {
 	l.metrics.discardBefore.Inc(1)
 }
 
+// flushBefore flushes or discards data before a given time based on the flush type.
+// It is not thread-safe.
 func (l *metricList) flushBefore(beforeNanos int64, flushType flushType) {
 	alignedBeforeNanos := time.Unix(0, beforeNanos).Truncate(l.resolution).UnixNano()
 	if l.LastFlushedNanos() >= alignedBeforeNanos {
@@ -283,18 +282,13 @@ func (l *metricList) flushBefore(beforeNanos int64, flushType flushType) {
 	}
 	l.RUnlock()
 
-	// Flush remaining bytes in the buffer.
+	// Flush remaining bytes buffered in the writer.
 	if flushType == consumeType {
-		if encoder := l.encoder.Encoder(); len(encoder.Bytes()) > 0 {
-			newEncoder := l.encoderPool.Get()
-			newEncoder.Reset()
-			l.encoder.Reset(newEncoder)
-			if err := l.flushHandler.Handle(NewRefCountedBuffer(encoder)); err != nil {
-				l.log.Errorf("flushing metrics error: %v", err)
-				l.metrics.flushBufferConsumeErrors.Inc(1)
-			} else {
-				l.metrics.flushBufferConsumeSuccess.Inc(1)
-			}
+		if err := l.flushWriter.Flush(); err != nil {
+			l.logError("flush writer flush error", err)
+			l.metrics.flushWriterFlushErrors.Inc(1)
+		} else {
+			l.metrics.flushWriterFlushSuccess.Inc(1)
 		}
 	}
 
@@ -314,62 +308,30 @@ func (l *metricList) flushBefore(beforeNanos int64, flushType flushType) {
 
 func (l *metricList) consumeAggregatedMetric(
 	idPrefix []byte,
-	id metricID.RawID,
+	id metricid.RawID,
 	idSuffix []byte,
 	timeNanos int64,
 	value float64,
 	sp policy.StoragePolicy,
 ) {
-	encoder := l.encoder.Encoder()
-	buffer := encoder.Buffer()
-	sizeBefore := buffer.Len()
-	if err := l.encodeFn(aggregated.ChunkedMetricWithStoragePolicy{
+	chunkedID := metricid.ChunkedID{
+		Prefix: idPrefix,
+		Data:   []byte(id),
+		Suffix: idSuffix,
+	}
+	chunkedMetricWithPolicy := aggregated.ChunkedMetricWithStoragePolicy{
 		ChunkedMetric: aggregated.ChunkedMetric{
-			ChunkedID: metricID.ChunkedID{
-				Prefix: idPrefix,
-				Data:   []byte(id),
-				Suffix: idSuffix,
-			},
+			ChunkedID: chunkedID,
 			TimeNanos: timeNanos,
 			Value:     value,
 		},
 		StoragePolicy: sp,
-	}); err != nil {
-		l.log.WithFields(
-			log.NewField("idPrefix", string(idPrefix)),
-			log.NewField("id", id.String()),
-			log.NewField("idSuffix", string(idSuffix)),
-			log.NewField("timestamp", time.Unix(0, timeNanos).String()),
-			log.NewField("value", value),
-			log.NewField("policy", sp.String()),
-			log.NewErrField(err),
-		).Error("encode metric with policy error")
+	}
+	if err := l.flushWriter.Write(chunkedMetricWithPolicy); err != nil {
+		l.logError("flush writer write error", err)
 		l.metrics.flushMetricConsumeErrors.Inc(1)
-		buffer.Truncate(sizeBefore)
-		// Clear out the encoder error.
-		l.encoder.Reset(encoder)
-		return
-	}
-	l.metrics.flushMetricConsumeSuccess.Inc(1)
-	sizeAfter := buffer.Len()
-	// If the buffer size is not big enough, do nothing.
-	if sizeAfter < l.maxFlushSize {
-		return
-	}
-	// Otherwise we get a new buffer and copy the bytes exceeding the max
-	// flush size to it, swap the new buffer with the old one, and flush out
-	// the old buffer.
-	encoder2 := l.encoderPool.Get()
-	encoder2.Reset()
-	data := encoder.Bytes()
-	encoder2.Buffer().Write(data[sizeBefore:sizeAfter])
-	l.encoder.Reset(encoder2)
-	buffer.Truncate(sizeBefore)
-	if err := l.flushHandler.Handle(NewRefCountedBuffer(encoder)); err != nil {
-		l.log.Errorf("flushing metrics error: %v", err)
-		l.metrics.flushBufferConsumeErrors.Inc(1)
 	} else {
-		l.metrics.flushBufferConsumeSuccess.Inc(1)
+		l.metrics.flushMetricConsumeSuccess.Inc(1)
 	}
 }
 
@@ -377,7 +339,7 @@ func (l *metricList) consumeAggregatedMetric(
 // nolint: unparam
 func (l *metricList) discardAggregatedMetric(
 	idPrefix []byte,
-	id metricID.RawID,
+	id metricid.RawID,
 	idSuffix []byte,
 	timeNanos int64,
 	value float64,
@@ -386,7 +348,19 @@ func (l *metricList) discardAggregatedMetric(
 	l.metrics.flushMetricDiscarded.Inc(1)
 }
 
-type newMetricListFn func(shard uint32, resolution time.Duration, opts Options) *metricList
+func (l *metricList) logError(desc string, err error) {
+	l.log.WithFields(
+		log.NewField("shard", l.shard),
+		log.NewField("resolution", l.resolution),
+		log.NewErrField(err),
+	).Error(desc)
+}
+
+type newMetricListFn func(
+	shard uint32,
+	resolution time.Duration,
+	opts Options,
+) (*metricList, error)
 
 // metricLists contains all the metric lists.
 type metricLists struct {
@@ -438,7 +412,11 @@ func (l *metricLists) FindOrCreate(resolution time.Duration) (*metricList, error
 	}
 	list, exists = l.lists[resolution]
 	if !exists {
-		list = l.newMetricListFn(l.shard, resolution, l.opts)
+		var err error
+		list, err = l.newMetricListFn(l.shard, resolution, l.opts)
+		if err != nil {
+			return nil, err
+		}
 		l.lists[resolution] = list
 	}
 	l.Unlock()

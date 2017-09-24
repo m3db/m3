@@ -31,7 +31,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
-	"github.com/m3db/m3aggregator/aggregator/handler"
 	httpserver "github.com/m3db/m3aggregator/server/http"
 	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
@@ -39,11 +38,11 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 	xsync "github.com/m3db/m3x/sync"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -202,16 +201,7 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 		results    []aggregated.MetricWithStoragePolicy
 		resultLock sync.Mutex
 	)
-	handleFn := func(metric aggregated.Metric, sp policy.StoragePolicy) error {
-		resultLock.Lock()
-		results = append(results, aggregated.MetricWithStoragePolicy{
-			Metric:        metric,
-			StoragePolicy: sp,
-		})
-		resultLock.Unlock()
-		return nil
-	}
-	handler := handler.NewDecodingHandler(handleFn)
+	handler := &capturingHandler{results: &results, resultLock: &resultLock}
 	aggregatorOpts = aggregatorOpts.SetFlushHandler(handler)
 
 	return &testSetup{
@@ -318,3 +308,41 @@ func (ts *testSetup) stopServer() error {
 func (ts *testSetup) close() {
 	ts.electionCluster.Close()
 }
+
+type capturingWriter struct {
+	results    *[]aggregated.MetricWithStoragePolicy
+	resultLock *sync.Mutex
+}
+
+func (w *capturingWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) error {
+	w.resultLock.Lock()
+	var fullID []byte
+	fullID = append(fullID, mp.ChunkedID.Prefix...)
+	fullID = append(fullID, mp.ChunkedID.Data...)
+	fullID = append(fullID, mp.ChunkedID.Suffix...)
+	metric := aggregated.Metric{
+		ID:        fullID,
+		TimeNanos: mp.TimeNanos,
+		Value:     mp.Value,
+	}
+	*w.results = append(*w.results, aggregated.MetricWithStoragePolicy{
+		Metric:        metric,
+		StoragePolicy: mp.StoragePolicy,
+	})
+	w.resultLock.Unlock()
+	return nil
+}
+
+func (w *capturingWriter) Flush() error { return nil }
+func (w *capturingWriter) Close() error { return nil }
+
+type capturingHandler struct {
+	results    *[]aggregated.MetricWithStoragePolicy
+	resultLock *sync.Mutex
+}
+
+func (h *capturingHandler) NewWriter(tally.Scope) (aggregator.Writer, error) {
+	return &capturingWriter{results: h.results, resultLock: h.resultLock}, nil
+}
+
+func (h *capturingHandler) Close() {}

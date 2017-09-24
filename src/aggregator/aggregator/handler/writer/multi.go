@@ -18,49 +18,49 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package handler
+package writer
 
 import (
-	"io"
-
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/metric/aggregated"
-	"github.com/m3db/m3metrics/policy"
-	"github.com/m3db/m3metrics/protocol/msgpack"
+	"github.com/m3db/m3x/errors"
 )
 
-// HandleFunc handles an aggregated metric alongside the policy.
-type HandleFunc func(metric aggregated.Metric, policy policy.StoragePolicy) error
-
-type decodingHandler struct {
-	handle HandleFunc
+type multiWriter struct {
+	writers []aggregator.Writer
 }
 
-// NewDecodingHandler creates a new decoding handler with a custom handle function.
-func NewDecodingHandler(handle HandleFunc) aggregator.Handler {
-	return decodingHandler{handle: handle}
+// NewMultiWriter creates a new multi-writer.
+func NewMultiWriter(writers []aggregator.Writer) aggregator.Writer {
+	return &multiWriter{writers: writers}
 }
 
-func (h decodingHandler) Handle(buffer *aggregator.RefCountedBuffer) error {
-	defer buffer.DecRef()
-
-	iter := msgpack.NewAggregatedIterator(buffer.Buffer().Buffer(), msgpack.NewAggregatedIteratorOptions())
-	defer iter.Close()
-
-	for iter.Next() {
-		rawMetric, sp := iter.Value()
-		metric, err := rawMetric.Metric()
-		if err != nil {
-			return err
-		}
-		if err := h.handle(metric, sp); err != nil {
-			return err
+func (w *multiWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) error {
+	multiErr := errors.NewMultiError()
+	for _, writer := range w.writers {
+		if err := writer.Write(mp); err != nil {
+			multiErr = multiErr.Add(err)
 		}
 	}
-	if err := iter.Err(); err != nil && err != io.EOF {
-		return err
-	}
-	return nil
+	return multiErr.FinalError()
 }
 
-func (h decodingHandler) Close() {}
+func (w *multiWriter) Flush() error {
+	multiErr := errors.NewMultiError()
+	for _, writer := range w.writers {
+		if err := writer.Flush(); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+	return multiErr.FinalError()
+}
+
+func (w *multiWriter) Close() error {
+	multiErr := errors.NewMultiError()
+	for _, writer := range w.writers {
+		if err := writer.Close(); err != nil {
+			multiErr = multiErr.Add(err)
+		}
+	}
+	return multiErr.FinalError()
+}
