@@ -244,7 +244,7 @@ func (c *csclient) etcdClientGen(zone string) (*clientv3.Client, error) {
 }
 
 func newClient(endpoints []string, certfile string, keyfile string, ca string) (*clientv3.Client, error) {
-	tlscfg := &tls.Config{}
+	var tlscfg *tls.Config
 	if certfile != "" {
 		cert, err := tls.LoadX509KeyPair(certfile, keyfile)
 		if err != nil {
