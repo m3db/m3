@@ -8,7 +8,6 @@
 *.ipr
 *.iws
 *.cov
-*.html
 test.log
 
 # glide manages this
