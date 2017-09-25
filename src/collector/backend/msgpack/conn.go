@@ -22,7 +22,6 @@ package msgpack
 
 import (
 	"errors"
-	"math"
 	"net"
 	"sync"
 	"time"
@@ -88,7 +87,7 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 	c.writeWithLockFn = c.writeWithLock
 
 	c.Lock()
-	c.connectWithLockFn() // nolint: errcheck
+	c.resetAndConnectWithLock() // nolint: errcheck
 	c.Unlock()
 
 	return c
@@ -99,23 +98,26 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 func (c *connection) Write(data []byte) error {
 	c.Lock()
 	if c.conn == nil {
-		if !c.checkReconnectWithLock() {
+		if err := c.checkReconnectWithLock(); err != nil {
 			c.numFailures++
 			c.Unlock()
-			return errNoActiveConnection
+			return err
 		}
 	}
+
 	writeErr := c.writeWithLockFn(data)
 	if writeErr == nil {
 		c.Unlock()
 		return nil
 	}
+
 	if err := c.connectWithLockFn(); err == nil {
 		if writeErr = c.writeWithLockFn(data); writeErr == nil {
 			c.Unlock()
 			return nil
 		}
 	}
+
 	c.numFailures++
 	c.closeWithLock()
 	c.Unlock()
@@ -128,8 +130,13 @@ func (c *connection) Close() {
 	c.Unlock()
 }
 
-func (c *connection) connectWithLock() error {
+func (c *connection) resetAndConnectWithLock() error {
+	c.numFailures = 0
 	c.lastConnectNanos = c.nowFn().UnixNano()
+	return c.connectWithLockFn()
+}
+
+func (c *connection) connectWithLock() error {
 	conn, err := net.DialTimeout(tcpProtocol, c.addr, c.connTimeout)
 	if err != nil {
 		c.metrics.connectError.Inc(1)
@@ -148,22 +155,29 @@ func (c *connection) connectWithLock() error {
 	return nil
 }
 
-func (c *connection) checkReconnectWithLock() bool {
+func (c *connection) checkReconnectWithLock() error {
 	// If we haven't accumulated enough failures to warrant another reconnect
 	// and we haven't past the maximum duration since the last time we attempted
 	// to connect then we simply return false without reconnecting.
-	if c.numFailures <= c.threshold && c.nowFn().UnixNano() < c.lastConnectNanos+int64(c.maxDuration) {
-		return false
+	tooManyFailures := c.numFailures > c.threshold
+	if !tooManyFailures && c.nowFn().UnixNano() < c.lastConnectNanos+int64(c.maxDuration) {
+		return errNoActiveConnection
 	}
-	if err := c.connectWithLockFn(); err == nil {
-		c.resetWithLock()
-		return true
+	err := c.resetAndConnectWithLock()
+	if err == nil {
+		c.threshold = c.initThreshold
+		return nil
 	}
-	if c.threshold < c.maxThreshold {
+
+	// Only raise the threshold when it is crossed, not when the max duration is reached.
+	if tooManyFailures && c.threshold < c.maxThreshold {
 		newThreshold := c.threshold * c.multiplier
-		c.threshold = int(math.Min(float64(newThreshold), float64(c.maxThreshold)))
+		if newThreshold > c.maxThreshold {
+			newThreshold = c.maxThreshold
+		}
+		c.threshold = newThreshold
 	}
-	return false
+	return err
 }
 
 func (c *connection) writeWithLock(data []byte) error {
@@ -175,11 +189,6 @@ func (c *connection) writeWithLock(data []byte) error {
 		return err
 	}
 	return nil
-}
-
-func (c *connection) resetWithLock() {
-	c.numFailures = 0
-	c.threshold = c.initThreshold
 }
 
 func (c *connection) closeWithLock() {
