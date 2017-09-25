@@ -64,31 +64,35 @@ const (
 	longAggregationID
 	policyType
 
+	// Additional object types.
+	rawMetricWithStoragePolicyAndEncodeTimeType
+
 	// Total number of object types.
 	numObjectTypes = iota
 )
 
 const (
-	numRootObjectFields                 = 2
-	numCounterWithPoliciesListFields    = 2
-	numBatchTimerWithPoliciesListFields = 2
-	numGaugeWithPoliciesListFields      = 2
-	numRawMetricWithStoragePolicyFields = 2
-	numCounterFields                    = 2
-	numBatchTimerFields                 = 2
-	numGaugeFields                      = 2
-	numMetricFields                     = 3
-	numDefaultStagedPoliciesListFields  = 1
-	numCustomStagedPoliciesListFields   = 2
-	numStagedPoliciesFields             = 3
-	numStoragePolicyFields              = 2
-	numKnownResolutionFields            = 2
-	numUnknownResolutionFields          = 3
-	numKnownRetentionFields             = 2
-	numDefaultAggregationIDFields       = 1
-	numShortAggregationIDFields         = 2
-	numLongAggregationIDFields          = 2
-	numPolicyFields                     = 2
+	numRootObjectFields                              = 2
+	numCounterWithPoliciesListFields                 = 2
+	numBatchTimerWithPoliciesListFields              = 2
+	numGaugeWithPoliciesListFields                   = 2
+	numRawMetricWithStoragePolicyFields              = 2
+	numRawMetricWithStoragePolicyAndEncodeTimeFields = 3
+	numCounterFields                                 = 2
+	numBatchTimerFields                              = 2
+	numGaugeFields                                   = 2
+	numMetricFields                                  = 3
+	numDefaultStagedPoliciesListFields               = 1
+	numCustomStagedPoliciesListFields                = 2
+	numStagedPoliciesFields                          = 3
+	numStoragePolicyFields                           = 2
+	numKnownResolutionFields                         = 2
+	numUnknownResolutionFields                       = 3
+	numKnownRetentionFields                          = 2
+	numDefaultAggregationIDFields                    = 1
+	numShortAggregationIDFields                      = 2
+	numLongAggregationIDFields                       = 2
+	numPolicyFields                                  = 2
 )
 
 // NB(xichen): use a slice instead of a map to avoid lookup overhead.
@@ -110,6 +114,7 @@ func init() {
 	setNumFieldsForType(batchTimerWithPoliciesListType, numBatchTimerWithPoliciesListFields)
 	setNumFieldsForType(gaugeWithPoliciesListType, numGaugeWithPoliciesListFields)
 	setNumFieldsForType(rawMetricWithStoragePolicyType, numRawMetricWithStoragePolicyFields)
+	setNumFieldsForType(rawMetricWithStoragePolicyAndEncodeTimeType, numRawMetricWithStoragePolicyAndEncodeTimeFields)
 	setNumFieldsForType(counterType, numCounterFields)
 	setNumFieldsForType(batchTimerType, numBatchTimerFields)
 	setNumFieldsForType(gaugeType, numGaugeFields)

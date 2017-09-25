@@ -50,17 +50,14 @@ var (
 		TimeNanos: time.Now().UnixNano(),
 		Value:     123.45,
 	}
-	testMetric2 = aggregated.Metric{
-		ID:        id.RawID("bar"),
-		TimeNanos: time.Now().UnixNano(),
-		Value:     678.90,
-	}
-	testPolicy = policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour)
+	testPolicy         = policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour)
+	testEncodedAtNanos = time.Now().UnixNano()
 )
 
-type metricWithPolicy struct {
-	metric interface{}
-	policy policy.StoragePolicy
+type metricWithPolicyAndEncodeTime struct {
+	metric         interface{}
+	policy         policy.StoragePolicy
+	encodedAtNanos int64
 }
 
 func testAggregatedEncoder() AggregatedEncoder {
@@ -71,7 +68,11 @@ func testAggregatedIterator(reader io.Reader) AggregatedIterator {
 	return NewAggregatedIterator(reader, NewAggregatedIteratorOptions())
 }
 
-func testAggregatedEncode(encoder AggregatedEncoder, m interface{}, p policy.StoragePolicy) error {
+func testAggregatedEncodeMetricWithPolicy(
+	encoder AggregatedEncoder,
+	m interface{},
+	p policy.StoragePolicy,
+) error {
 	switch m := m.(type) {
 	case aggregated.Metric:
 		return encoder.EncodeMetricWithStoragePolicy(aggregated.MetricWithStoragePolicy{
@@ -83,11 +84,30 @@ func testAggregatedEncode(encoder AggregatedEncoder, m interface{}, p policy.Sto
 			ChunkedMetric: m,
 			StoragePolicy: p,
 		})
-	case aggregated.RawMetric:
-		return encoder.EncodeRawMetricWithStoragePolicy(aggregated.RawMetricWithStoragePolicy{
-			RawMetric:     m,
+	default:
+		return fmt.Errorf("unrecognized metric type: %T", m)
+	}
+}
+
+func testAggregatedEncodeMetricWithPolicyAndEncodeTime(
+	encoder AggregatedEncoder,
+	m interface{},
+	p policy.StoragePolicy,
+	encodedAtNanos int64,
+) error {
+	switch m := m.(type) {
+	case aggregated.Metric:
+		input := aggregated.MetricWithStoragePolicy{
+			Metric:        m,
 			StoragePolicy: p,
-		})
+		}
+		return encoder.EncodeMetricWithStoragePolicyAndEncodeTime(input, encodedAtNanos)
+	case aggregated.ChunkedMetric:
+		input := aggregated.ChunkedMetricWithStoragePolicy{
+			ChunkedMetric: m,
+			StoragePolicy: p,
+		}
+		return encoder.EncodeChunkedMetricWithStoragePolicyAndEncodeTime(input, encodedAtNanos)
 	default:
 		return fmt.Errorf("unrecognized metric type: %T", m)
 	}
@@ -108,7 +128,7 @@ func toRawMetric(t *testing.T, m interface{}) aggregated.RawMetric {
 	return NewRawMetric(data, 16)
 }
 
-func validateAggregatedRoundtrip(t *testing.T, inputs ...metricWithPolicy) {
+func validateAggregatedRoundtrip(t *testing.T, inputs ...metricWithPolicyAndEncodeTime) {
 	encoder := testAggregatedEncoder()
 	it := testAggregatedIterator(nil)
 	validateAggregatedRoundtripWithEncoderAndIterator(t, encoder, it, inputs...)
@@ -118,11 +138,11 @@ func validateAggregatedRoundtripWithEncoderAndIterator(
 	t *testing.T,
 	encoder AggregatedEncoder,
 	it AggregatedIterator,
-	inputs ...metricWithPolicy,
+	inputs ...metricWithPolicyAndEncodeTime,
 ) {
 	var (
-		expected []metricWithPolicy
-		results  []metricWithPolicy
+		expected []metricWithPolicyAndEncodeTime
+		results  []metricWithPolicyAndEncodeTime
 	)
 
 	// Encode the batch of metrics.
@@ -130,33 +150,35 @@ func validateAggregatedRoundtripWithEncoderAndIterator(
 	for _, input := range inputs {
 		switch inputMetric := input.metric.(type) {
 		case aggregated.Metric:
-			expected = append(expected, metricWithPolicy{
-				metric: inputMetric,
-				policy: input.policy,
+			expected = append(expected, metricWithPolicyAndEncodeTime{
+				metric:         inputMetric,
+				policy:         input.policy,
+				encodedAtNanos: input.encodedAtNanos,
 			})
-			require.NoError(t, testAggregatedEncode(encoder, inputMetric, input.policy))
+			if input.encodedAtNanos == 0 {
+				require.NoError(t, testAggregatedEncodeMetricWithPolicy(encoder, inputMetric, input.policy))
+			} else {
+				require.NoError(t, testAggregatedEncodeMetricWithPolicyAndEncodeTime(encoder, inputMetric, input.policy, input.encodedAtNanos))
+			}
 		case aggregated.ChunkedMetric:
 			var id id.RawID
 			id = append(id, inputMetric.ChunkedID.Prefix...)
 			id = append(id, inputMetric.ChunkedID.Data...)
 			id = append(id, inputMetric.ChunkedID.Suffix...)
-			expected = append(expected, metricWithPolicy{
+			expected = append(expected, metricWithPolicyAndEncodeTime{
 				metric: aggregated.Metric{
 					ID:        id,
 					TimeNanos: inputMetric.TimeNanos,
 					Value:     inputMetric.Value,
 				},
-				policy: input.policy,
+				policy:         input.policy,
+				encodedAtNanos: input.encodedAtNanos,
 			})
-			require.NoError(t, testAggregatedEncode(encoder, inputMetric, input.policy))
-		case aggregated.RawMetric:
-			m, err := inputMetric.Metric()
-			require.NoError(t, err)
-			expected = append(expected, metricWithPolicy{
-				metric: m,
-				policy: input.policy,
-			})
-			require.NoError(t, testAggregatedEncode(encoder, inputMetric, input.policy))
+			if input.encodedAtNanos == 0 {
+				require.NoError(t, testAggregatedEncodeMetricWithPolicy(encoder, inputMetric, input.policy))
+			} else {
+				require.NoError(t, testAggregatedEncodeMetricWithPolicyAndEncodeTime(encoder, inputMetric, input.policy, input.encodedAtNanos))
+			}
 		default:
 			require.Fail(t, "unrecognized input type %T", inputMetric)
 		}
@@ -166,12 +188,13 @@ func validateAggregatedRoundtripWithEncoderAndIterator(
 	encodedBytes := bytes.NewBuffer(encoder.Encoder().Bytes())
 	it.Reset(encodedBytes)
 	for it.Next() {
-		metric, p := it.Value()
+		metric, p, encodedAtNanos := it.Value()
 		m, err := metric.Metric()
 		require.NoError(t, err)
-		results = append(results, metricWithPolicy{
-			metric: m,
-			policy: p,
+		results = append(results, metricWithPolicyAndEncodeTime{
+			metric:         m,
+			policy:         p,
+			encodedAtNanos: encodedAtNanos,
 		})
 	}
 
@@ -181,23 +204,32 @@ func validateAggregatedRoundtripWithEncoderAndIterator(
 }
 
 func TestAggregatedEncodeDecodeMetricWithPolicy(t *testing.T) {
-	validateAggregatedRoundtrip(t, metricWithPolicy{
+	validateAggregatedRoundtrip(t, metricWithPolicyAndEncodeTime{
 		metric: testMetric,
 		policy: testPolicy,
 	})
 }
 
+func TestAggregatedEncodeDecodeMetricWithPolicyAndEncodeTime(t *testing.T) {
+	validateAggregatedRoundtrip(t, metricWithPolicyAndEncodeTime{
+		metric:         testMetric,
+		policy:         testPolicy,
+		encodedAtNanos: testEncodedAtNanos,
+	})
+}
+
 func TestAggregatedEncodeDecodeChunkedMetricWithPolicy(t *testing.T) {
-	validateAggregatedRoundtrip(t, metricWithPolicy{
+	validateAggregatedRoundtrip(t, metricWithPolicyAndEncodeTime{
 		metric: testChunkedMetric,
 		policy: testPolicy,
 	})
 }
 
-func TestAggregatedEncodeDecodeRawMetricWithPolicy(t *testing.T) {
-	validateAggregatedRoundtrip(t, metricWithPolicy{
-		metric: toRawMetric(t, testMetric),
-		policy: testPolicy,
+func TestAggregatedEncodeDecodeChunkedMetricWithPolicyAndEncodeTime(t *testing.T) {
+	validateAggregatedRoundtrip(t, metricWithPolicyAndEncodeTime{
+		metric:         testChunkedMetric,
+		policy:         testPolicy,
+		encodedAtNanos: testEncodedAtNanos,
 	})
 }
 
@@ -210,22 +242,30 @@ func TestAggregatedEncodeDecodeStress(t *testing.T) {
 	)
 
 	for i := 0; i < numIter; i++ {
-		var inputs []metricWithPolicy
+		var inputs []metricWithPolicyAndEncodeTime
 		for j := 0; j < numMetrics; j++ {
-			if j%3 == 0 {
-				inputs = append(inputs, metricWithPolicy{
+			switch j % 4 {
+			case 0:
+				inputs = append(inputs, metricWithPolicyAndEncodeTime{
 					metric: testMetric,
 					policy: testPolicy,
 				})
-			} else if j%3 == 1 {
-				inputs = append(inputs, metricWithPolicy{
+			case 1:
+				inputs = append(inputs, metricWithPolicyAndEncodeTime{
+					metric:         testMetric,
+					policy:         testPolicy,
+					encodedAtNanos: testEncodedAtNanos,
+				})
+			case 2:
+				inputs = append(inputs, metricWithPolicyAndEncodeTime{
 					metric: testChunkedMetric,
 					policy: testPolicy,
 				})
-			} else {
-				inputs = append(inputs, metricWithPolicy{
-					metric: toRawMetric(t, testMetric2),
-					policy: testPolicy,
+			case 3:
+				inputs = append(inputs, metricWithPolicyAndEncodeTime{
+					metric:         testChunkedMetric,
+					policy:         testPolicy,
+					encodedAtNanos: testEncodedAtNanos,
 				})
 			}
 		}

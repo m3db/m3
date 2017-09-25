@@ -26,6 +26,7 @@ import (
 )
 
 type encodeRawMetricWithStoragePolicyFn func(data []byte, p policy.StoragePolicy)
+type encodeRawMetricWithStoragePolicyAndEncodeTimeFn func(data []byte, p policy.StoragePolicy, encodedAtNanos int64)
 type encodeRawMetricFn func(data []byte)
 type encodeMetricAsRawFn func(m aggregated.Metric) []byte
 type encodeChunkedMetricAsRawFn func(m aggregated.ChunkedMetric) []byte
@@ -35,12 +36,13 @@ type encodeChunkedMetricAsRawFn func(m aggregated.ChunkedMetric) []byte
 type aggregatedEncoder struct {
 	encoderBase
 
-	buf                                encoderBase
-	encodeRootObjectFn                 encodeRootObjectFn
-	encodeRawMetricWithStoragePolicyFn encodeRawMetricWithStoragePolicyFn
-	encodeRawMetricFn                  encodeRawMetricFn
-	encodeMetricAsRawFn                encodeMetricAsRawFn
-	encodeChunkedMetricAsRawFn         encodeChunkedMetricAsRawFn
+	buf                                             encoderBase
+	encodeRootObjectFn                              encodeRootObjectFn
+	encodeRawMetricWithStoragePolicyFn              encodeRawMetricWithStoragePolicyFn
+	encodeRawMetricWithStoragePolicyAndEncodeTimeFn encodeRawMetricWithStoragePolicyAndEncodeTimeFn
+	encodeRawMetricFn                               encodeRawMetricFn
+	encodeMetricAsRawFn                             encodeMetricAsRawFn
+	encodeChunkedMetricAsRawFn                      encodeChunkedMetricAsRawFn
 }
 
 // NewAggregatedEncoder creates an aggregated encoder.
@@ -52,6 +54,7 @@ func NewAggregatedEncoder(encoder BufferedEncoder) AggregatedEncoder {
 
 	enc.encodeRootObjectFn = enc.encodeRootObject
 	enc.encodeRawMetricWithStoragePolicyFn = enc.encodeRawMetricWithStoragePolicy
+	enc.encodeRawMetricWithStoragePolicyAndEncodeTimeFn = enc.encodeRawMetricWithStoragePolicyAndEncodeTime
 	enc.encodeRawMetricFn = enc.encodeRawMetric
 	enc.encodeMetricAsRawFn = enc.encodeMetricAsRaw
 	enc.encodeChunkedMetricAsRawFn = enc.encodeChunkedMetricAsRaw
@@ -64,7 +67,9 @@ func (enc *aggregatedEncoder) Reset(encoder BufferedEncoder) { enc.reset(encoder
 
 // NB(xichen): we encode metric as a raw metric so the decoder can inspect the encoded byte stream
 // and apply filters to the encode bytes as needed without fully decoding the entire payload.
-func (enc *aggregatedEncoder) EncodeMetricWithStoragePolicy(mp aggregated.MetricWithStoragePolicy) error {
+func (enc *aggregatedEncoder) EncodeMetricWithStoragePolicy(
+	mp aggregated.MetricWithStoragePolicy,
+) error {
 	if err := enc.err(); err != nil {
 		return err
 	}
@@ -74,7 +79,22 @@ func (enc *aggregatedEncoder) EncodeMetricWithStoragePolicy(mp aggregated.Metric
 	return enc.err()
 }
 
-func (enc *aggregatedEncoder) EncodeChunkedMetricWithStoragePolicy(cmp aggregated.ChunkedMetricWithStoragePolicy) error {
+func (enc *aggregatedEncoder) EncodeMetricWithStoragePolicyAndEncodeTime(
+	mp aggregated.MetricWithStoragePolicy,
+	encodedAtNanos int64,
+) error {
+	if err := enc.err(); err != nil {
+		return err
+	}
+	enc.encodeRootObjectFn(rawMetricWithStoragePolicyAndEncodeTimeType)
+	data := enc.encodeMetricAsRawFn(mp.Metric)
+	enc.encodeRawMetricWithStoragePolicyAndEncodeTimeFn(data, mp.StoragePolicy, encodedAtNanos)
+	return enc.err()
+}
+
+func (enc *aggregatedEncoder) EncodeChunkedMetricWithStoragePolicy(
+	cmp aggregated.ChunkedMetricWithStoragePolicy,
+) error {
 	if err := enc.err(); err != nil {
 		return err
 	}
@@ -84,12 +104,16 @@ func (enc *aggregatedEncoder) EncodeChunkedMetricWithStoragePolicy(cmp aggregate
 	return enc.err()
 }
 
-func (enc *aggregatedEncoder) EncodeRawMetricWithStoragePolicy(rp aggregated.RawMetricWithStoragePolicy) error {
+func (enc *aggregatedEncoder) EncodeChunkedMetricWithStoragePolicyAndEncodeTime(
+	cmp aggregated.ChunkedMetricWithStoragePolicy,
+	encodedAtNanos int64,
+) error {
 	if err := enc.err(); err != nil {
 		return err
 	}
-	enc.encodeRootObjectFn(rawMetricWithStoragePolicyType)
-	enc.encodeRawMetricWithStoragePolicyFn(rp.RawMetric.Bytes(), rp.StoragePolicy)
+	enc.encodeRootObjectFn(rawMetricWithStoragePolicyAndEncodeTimeType)
+	data := enc.encodeChunkedMetricAsRawFn(cmp.ChunkedMetric)
+	enc.encodeRawMetricWithStoragePolicyAndEncodeTimeFn(data, cmp.StoragePolicy, encodedAtNanos)
 	return enc.err()
 }
 
@@ -122,10 +146,24 @@ func (enc *aggregatedEncoder) encodeMetricProlog() {
 	enc.buf.encodeNumObjectFields(numFieldsForType(metricType))
 }
 
-func (enc *aggregatedEncoder) encodeRawMetricWithStoragePolicy(data []byte, p policy.StoragePolicy) {
+func (enc *aggregatedEncoder) encodeRawMetricWithStoragePolicy(
+	data []byte,
+	p policy.StoragePolicy,
+) {
 	enc.encodeNumObjectFields(numFieldsForType(rawMetricWithStoragePolicyType))
 	enc.encodeRawMetricFn(data)
 	enc.encodeStoragePolicy(p)
+}
+
+func (enc *aggregatedEncoder) encodeRawMetricWithStoragePolicyAndEncodeTime(
+	data []byte,
+	p policy.StoragePolicy,
+	encodedAtNanos int64,
+) {
+	enc.encodeNumObjectFields(numFieldsForType(rawMetricWithStoragePolicyAndEncodeTimeType))
+	enc.encodeRawMetricFn(data)
+	enc.encodeStoragePolicy(p)
+	enc.encodeVarint(encodedAtNanos)
 }
 
 func (enc *aggregatedEncoder) encodeRawMetric(data []byte) {

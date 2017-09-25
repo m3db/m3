@@ -35,7 +35,10 @@ func testCapturingAggregatedEncoder() (AggregatedEncoder, *[]interface{}) {
 	return encoder, result
 }
 
-func expectedResultsForRawMetricWithPolicy(m aggregated.RawMetric, p policy.StoragePolicy) []interface{} {
+func expectedResultsForRawMetricWithPolicy(
+	m aggregated.RawMetric,
+	p policy.StoragePolicy,
+) []interface{} {
 	results := []interface{}{
 		numFieldsForType(rawMetricWithStoragePolicyType),
 		m.Bytes(),
@@ -44,7 +47,11 @@ func expectedResultsForRawMetricWithPolicy(m aggregated.RawMetric, p policy.Stor
 	return results
 }
 
-func expectedResultsForAggregatedMetricWithPolicy(t *testing.T, m interface{}, p policy.StoragePolicy) []interface{} {
+func expectedResultsForAggregatedMetricWithPolicy(
+	t *testing.T,
+	m interface{},
+	p policy.StoragePolicy,
+) []interface{} {
 	results := []interface{}{
 		int64(aggregatedVersion),
 		numFieldsForType(rootObjectType),
@@ -57,8 +64,46 @@ func expectedResultsForAggregatedMetricWithPolicy(t *testing.T, m interface{}, p
 	case aggregated.ChunkedMetric:
 		rm := toRawMetric(t, m)
 		results = append(results, expectedResultsForRawMetricWithPolicy(rm, p)...)
-	case aggregated.RawMetric:
-		results = append(results, expectedResultsForRawMetricWithPolicy(m, p)...)
+	default:
+		require.Fail(t, "unrecognized input type %T", m)
+	}
+	return results
+}
+
+func expectedResultsForRawMetricWithPolicyAndEncodeTime(
+	m aggregated.RawMetric,
+	p policy.StoragePolicy,
+	encodedAtNanos int64,
+) []interface{} {
+	results := []interface{}{
+		numFieldsForType(rawMetricWithStoragePolicyAndEncodeTimeType),
+		m.Bytes(),
+	}
+	results = append(results, expectedResultsForPolicy(p)...)
+	results = append(results, encodedAtNanos)
+	return results
+}
+
+func expectedResultsForAggregatedMetricWithPolicyAndEncodeTime(
+	t *testing.T,
+	m interface{},
+	p policy.StoragePolicy,
+	encodedAtNanos int64,
+) []interface{} {
+	results := []interface{}{
+		int64(aggregatedVersion),
+		numFieldsForType(rootObjectType),
+		int64(rawMetricWithStoragePolicyAndEncodeTimeType),
+	}
+	switch m := m.(type) {
+	case aggregated.Metric:
+		rm := toRawMetric(t, m)
+		res := expectedResultsForRawMetricWithPolicyAndEncodeTime(rm, p, encodedAtNanos)
+		results = append(results, res...)
+	case aggregated.ChunkedMetric:
+		rm := toRawMetric(t, m)
+		res := expectedResultsForRawMetricWithPolicyAndEncodeTime(rm, p, encodedAtNanos)
+		results = append(results, res...)
 	default:
 		require.Fail(t, "unrecognized input type %T", m)
 	}
@@ -81,23 +126,31 @@ func TestAggregatedEncodeMetric(t *testing.T) {
 
 func TestAggregatedEncodeMetricWithPolicy(t *testing.T) {
 	encoder, results := testCapturingAggregatedEncoder()
-	require.NoError(t, testAggregatedEncode(encoder, testMetric, testPolicy))
+	require.NoError(t, testAggregatedEncodeMetricWithPolicy(encoder, testMetric, testPolicy))
 	expected := expectedResultsForAggregatedMetricWithPolicy(t, testMetric, testPolicy)
+	require.Equal(t, expected, *results)
+}
+
+func TestAggregatedEncodeMetricWithPolicyAndEncodeTime(t *testing.T) {
+	encoder, results := testCapturingAggregatedEncoder()
+	err := testAggregatedEncodeMetricWithPolicyAndEncodeTime(encoder, testMetric, testPolicy, testEncodedAtNanos)
+	require.NoError(t, err)
+	expected := expectedResultsForAggregatedMetricWithPolicyAndEncodeTime(t, testMetric, testPolicy, testEncodedAtNanos)
 	require.Equal(t, expected, *results)
 }
 
 func TestAggregatedEncodeChunkedMetricWithPolicy(t *testing.T) {
 	encoder, results := testCapturingAggregatedEncoder()
-	require.NoError(t, testAggregatedEncode(encoder, testChunkedMetric, testPolicy))
+	require.NoError(t, testAggregatedEncodeMetricWithPolicy(encoder, testChunkedMetric, testPolicy))
 	expected := expectedResultsForAggregatedMetricWithPolicy(t, testChunkedMetric, testPolicy)
 	require.Equal(t, expected, *results)
 }
 
-func TestAggregatedEncodeRawMetricWithPolicy(t *testing.T) {
+func TestAggregatedEncodeChunkedMetricWithPolicyAndEncodeTime(t *testing.T) {
 	encoder, results := testCapturingAggregatedEncoder()
-	rawMetric := toRawMetric(t, testMetric)
-	require.NoError(t, testAggregatedEncode(encoder, rawMetric, testPolicy))
-	expected := expectedResultsForAggregatedMetricWithPolicy(t, rawMetric, testPolicy)
+	err := testAggregatedEncodeMetricWithPolicyAndEncodeTime(encoder, testChunkedMetric, testPolicy, testEncodedAtNanos)
+	require.NoError(t, err)
+	expected := expectedResultsForAggregatedMetricWithPolicyAndEncodeTime(t, testChunkedMetric, testPolicy, testEncodedAtNanos)
 	require.Equal(t, expected, *results)
 }
 
@@ -110,18 +163,18 @@ func TestAggregatedEncodeError(t *testing.T) {
 	}
 
 	// Assert the error is expected.
-	require.Equal(t, errTestVarint, testAggregatedEncode(encoder, testMetric, testPolicy))
+	require.Equal(t, errTestVarint, testAggregatedEncodeMetricWithPolicy(encoder, testMetric, testPolicy))
 
 	// Assert re-encoding doesn't change the error.
-	require.Equal(t, errTestVarint, testAggregatedEncode(encoder, testMetric, testPolicy))
+	require.Equal(t, errTestVarint, testAggregatedEncodeMetricWithPolicy(encoder, testMetric, testPolicy))
 }
 
 func TestAggregatedEncoderReset(t *testing.T) {
 	encoder := testAggregatedEncoder().(*aggregatedEncoder)
 	baseEncoder := encoder.encoderBase.(*baseEncoder)
 	baseEncoder.encodeErr = errTestVarint
-	require.Equal(t, errTestVarint, testAggregatedEncode(encoder, testMetric, testPolicy))
+	require.Equal(t, errTestVarint, testAggregatedEncodeMetricWithPolicy(encoder, testMetric, testPolicy))
 
 	encoder.Reset(NewBufferedEncoder())
-	require.NoError(t, testAggregatedEncode(encoder, testMetric, testPolicy))
+	require.NoError(t, testAggregatedEncodeMetricWithPolicy(encoder, testMetric, testPolicy))
 }
