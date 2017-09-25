@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/mocks"
-	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3cluster/services"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"
@@ -198,7 +198,7 @@ func TestDelete(t *testing.T) {
 }
 
 func TestWatch(t *testing.T) {
-	sid := services.NewServiceID().SetName("s1").SetEnvironment("e1")
+	sid := services.NewServiceID().SetName("s2").SetEnvironment("e2")
 	ec, opts, closeFn := testStore(t, sid)
 	defer closeFn()
 

@@ -22,7 +22,9 @@ package placement
 
 import (
 	"testing"
+	"time"
 
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/stretchr/testify/assert"
@@ -84,4 +86,20 @@ func TestPlacementOptions(t *testing.T) {
 		return int64(30)
 	})
 	assert.Equal(t, int64(30), o.ShardCutoffNanosFn()())
+
+	now := time.Unix(0, 0)
+	o = o.SetNowFn(func() time.Time {
+		return now
+	})
+	assert.Equal(t, now, o.NowFn()())
+
+	o = o.SetIsShardCutoverFn(func(s shard.Shard) error {
+		return nil
+	})
+	assert.Nil(t, o.IsShardCutoverFn()(nil))
+
+	o = o.SetIsShardCutoffFn(func(s shard.Shard) error {
+		return nil
+	})
+	assert.Nil(t, o.IsShardCutoffFn()(nil))
 }

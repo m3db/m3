@@ -703,7 +703,7 @@ func removeInstanceFromPlacement(p placement.Placement, id string) (placement.Pl
 	if !exist {
 		return nil, nil, fmt.Errorf("instance %s does not exist in placement", id)
 	}
-	return p.SetInstances(placement.RemoveInstanceFromList(p.Instances(), id)), leavingInstance, nil
+	return p.SetInstances(removeInstanceFromList(p.Instances(), id)), leavingInstance, nil
 }
 
 func getShardMap(shards []shard.Shard) map[uint32]shard.Shard {
@@ -737,4 +737,91 @@ func newShards(shardIDs []uint32) []shard.Shard {
 		r[i] = shard.NewShard(id).SetState(shard.Unknown)
 	}
 	return r
+}
+
+func removeInstanceFromList(instances []placement.Instance, instanceID string) []placement.Instance {
+	for i, instance := range instances {
+		if instance.ID() == instanceID {
+			last := len(instances) - 1
+			instances[i] = instances[last]
+			return instances[:last]
+		}
+	}
+	return instances
+}
+
+func markShardAvailable(p placement.Placement, instanceID string, shardID uint32, opts placement.Options) (placement.Placement, error) {
+	instance, exist := p.Instance(instanceID)
+	if !exist {
+		return nil, fmt.Errorf("instance %s does not exist in placement", instanceID)
+	}
+
+	shards := instance.Shards()
+	s, exist := shards.Shard(shardID)
+	if !exist {
+		return nil, fmt.Errorf("shard %d does not exist in instance %s", shardID, instanceID)
+	}
+
+	if s.State() != shard.Initializing {
+		return nil, fmt.Errorf("could not mark shard %d as available, it's not in Initializing state", s.ID())
+	}
+
+	isCutoverFn := opts.IsShardCutoverFn()
+	if isCutoverFn != nil {
+		if err := isCutoverFn(s); err != nil {
+			return nil, err
+		}
+	}
+
+	sourceID := s.SourceID()
+	shards.Add(shard.NewShard(shardID).SetState(shard.Available))
+
+	// There could be no source for cases like initial placement.
+	if sourceID == "" {
+		return p, nil
+	}
+
+	sourceInstance, exist := p.Instance(sourceID)
+	if !exist {
+		return nil, fmt.Errorf("source instance %s for shard %d does not exist in placement", sourceID, shardID)
+	}
+
+	sourceShards := sourceInstance.Shards()
+	leavingShard, exist := sourceShards.Shard(shardID)
+	if !exist {
+		return nil, fmt.Errorf("shard %d does not exist in source instance %s", shardID, sourceID)
+	}
+
+	if leavingShard.State() != shard.Leaving {
+		return nil, fmt.Errorf("shard %d is not leaving instance %s", shardID, sourceID)
+	}
+
+	isCutoffFn := opts.IsShardCutoffFn()
+	if isCutoffFn != nil {
+		if err := isCutoffFn(leavingShard); err != nil {
+			return nil, err
+		}
+	}
+
+	sourceShards.Remove(shardID)
+	if sourceShards.NumShards() == 0 {
+		return p.SetInstances(removeInstanceFromList(p.Instances(), sourceInstance.ID())), nil
+	}
+	return p, nil
+}
+
+func markAllShardsAvailable(p placement.Placement, opts placement.Options) (placement.Placement, error) {
+	p = p.Clone()
+	var err error
+	for _, instance := range p.Instances() {
+		for _, s := range instance.Shards().All() {
+			if s.State() == shard.Initializing {
+				p, err = markShardAvailable(p, instance.ID(), s.ID(), opts)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	return p, nil
 }
