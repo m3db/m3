@@ -1,0 +1,42 @@
+{
+  "parser": "babel-eslint",
+  "extends": [
+    "react-app",
+    "plugin:flowtype/recommended",
+    "plugin:react/recommended",
+    "eslint-config-uber-es2015",
+    "eslint-config-uber-jsx",
+    "prettier",
+    "prettier/flowtype",
+    "prettier/react"
+  ],
+
+  "plugins": [
+    "import",
+    "flowtype",
+    "react",
+    "prettier"
+  ],
+
+  "env": {
+    "jest": true,
+    "browser": true
+  },
+
+  "rules": {
+    "no-inline-comments": 1,
+    "max-len": 0,
+    "func-style": 1,
+    "valid-jsdoc": 2,
+    "import/no-unresolved": "off",
+    "import/named": 2,
+    "import/namespace": 2,
+    "import/default": 2,
+    "import/export": 2,
+    "flowtype/generic-spacing": 0,
+    "prettier/prettier": ["error", "fb"],
+    "react/no-string-refs": 0,
+    "react/jsx-key": 0,
+    "react/no-children-prop": 0
+  }
+}
