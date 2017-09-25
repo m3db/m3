@@ -37,6 +37,7 @@ type aggregatedIterator struct {
 	iteratorPool        AggregatedIteratorPool
 	metric              aggregated.RawMetric
 	storagePolicy       policy.StoragePolicy
+	encodedAtNanos      int64
 }
 
 // NewAggregatedIterator creates a new aggregated iterator.
@@ -60,8 +61,8 @@ func (it *aggregatedIterator) Reset(reader io.Reader) {
 	it.reset(reader)
 }
 
-func (it *aggregatedIterator) Value() (aggregated.RawMetric, policy.StoragePolicy) {
-	return it.metric, it.storagePolicy
+func (it *aggregatedIterator) Value() (aggregated.RawMetric, policy.StoragePolicy, int64) {
+	return it.metric, it.storagePolicy, it.encodedAtNanos
 }
 
 func (it *aggregatedIterator) Next() bool {
@@ -110,6 +111,8 @@ func (it *aggregatedIterator) decodeRootObject() bool {
 	switch objType {
 	case rawMetricWithStoragePolicyType:
 		it.decodeRawMetricWithStoragePolicy()
+	case rawMetricWithStoragePolicyAndEncodeTimeType:
+		it.decodeRawMetricWithStoragePolicyAndEncodeTime()
 	default:
 		it.setErr(fmt.Errorf("unrecognized object type %v", objType))
 	}
@@ -125,6 +128,18 @@ func (it *aggregatedIterator) decodeRawMetricWithStoragePolicy() {
 	}
 	it.metric.Reset(it.decodeRawMetric())
 	it.storagePolicy = it.decodeStoragePolicy()
+	it.encodedAtNanos = 0
+	it.skip(numActualFields - numExpectedFields)
+}
+
+func (it *aggregatedIterator) decodeRawMetricWithStoragePolicyAndEncodeTime() {
+	numExpectedFields, numActualFields, ok := it.checkNumFieldsForType(rawMetricWithStoragePolicyAndEncodeTimeType)
+	if !ok {
+		return
+	}
+	it.metric.Reset(it.decodeRawMetric())
+	it.storagePolicy = it.decodeStoragePolicy()
+	it.encodedAtNanos = it.decodeVarint()
 	it.skip(numActualFields - numExpectedFields)
 }
 

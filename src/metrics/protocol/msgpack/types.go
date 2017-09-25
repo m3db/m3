@@ -326,11 +326,22 @@ type AggregatedEncoder interface {
 	// EncodeMetricWithStoragePolicy encodes a metric with an applicable storage policy.
 	EncodeMetricWithStoragePolicy(mp aggregated.MetricWithStoragePolicy) error
 
+	// EncodeMetricWithStoragePolicyAndEncodeTime encodes a metric with an applicable
+	// storage policy, alongside the time at which encoding happens.
+	EncodeMetricWithStoragePolicyAndEncodeTime(
+		mp aggregated.MetricWithStoragePolicy,
+		encodedAtNanos int64,
+	) error
+
 	// EncodeChunkedMetricWithStoragePolicy encodes a chunked metric with an applicable storage policy.
 	EncodeChunkedMetricWithStoragePolicy(cmp aggregated.ChunkedMetricWithStoragePolicy) error
 
-	// EncodeRawMetricWithStoragePolicy encodes a raw metric with an applicable storage policy.
-	EncodeRawMetricWithStoragePolicy(rp aggregated.RawMetricWithStoragePolicy) error
+	// EncodeChunkedMetricWithStoragePolicyAndEncodeTime encodes a chunked metric with
+	// an applicable storage policy, alongside the time at which encoding happens.
+	EncodeChunkedMetricWithStoragePolicyAndEncodeTime(
+		cmp aggregated.ChunkedMetricWithStoragePolicy,
+		encodedAtNanos int64,
+	) error
 
 	// Encoder returns the encoder.
 	Encoder() BufferedEncoder
@@ -344,8 +355,9 @@ type AggregatedIterator interface {
 	// Next returns true if there are more metrics to decode.
 	Next() bool
 
-	// Value returns the current raw metric and the applicable policy.
-	Value() (aggregated.RawMetric, policy.StoragePolicy)
+	// Value returns the current raw metric, the corresponding policy, and timestamp at
+	// which the metric and the policy were encoded if applicable.
+	Value() (aggregated.RawMetric, policy.StoragePolicy, int64)
 
 	// Err returns the error encountered during decoding, if any.
 	Err() error
