@@ -21,7 +21,10 @@
 package placement
 
 import (
+	"time"
+
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -50,7 +53,8 @@ func (o deploymentOptions) SetMaxStepSize(stepSize int) DeploymentOptions {
 	return o
 }
 
-func defaultTimeNanosFn() int64 { return shard.UnInitializedValue }
+func defaultTimeNanosFn() int64                    { return shard.UnInitializedValue }
+func defaultShardValidationFn(s shard.Shard) error { return nil }
 
 type options struct {
 	looseRackCheck      bool
@@ -64,6 +68,9 @@ type options struct {
 	placementCutOverFn  TimeNanosFn
 	shardCutOverFn      TimeNanosFn
 	shardCutOffFn       TimeNanosFn
+	isShardCutoverFn    ShardValidationFn
+	isShardCutoffFn     ShardValidationFn
+	nowFn               clock.NowFn
 }
 
 // NewOptions returns a default Options.
@@ -75,6 +82,9 @@ func NewOptions() Options {
 		placementCutOverFn:  defaultTimeNanosFn,
 		shardCutOverFn:      defaultTimeNanosFn,
 		shardCutOffFn:       defaultTimeNanosFn,
+		isShardCutoverFn:    defaultShardValidationFn,
+		isShardCutoffFn:     defaultShardValidationFn,
+		nowFn:               time.Now,
 	}
 }
 
@@ -174,5 +184,32 @@ func (o options) ShardCutoffNanosFn() TimeNanosFn {
 
 func (o options) SetShardCutoffNanosFn(fn TimeNanosFn) Options {
 	o.shardCutOffFn = fn
+	return o
+}
+
+func (o options) IsShardCutoverFn() ShardValidationFn {
+	return o.isShardCutoverFn
+}
+
+func (o options) SetIsShardCutoverFn(fn ShardValidationFn) Options {
+	o.isShardCutoverFn = fn
+	return o
+}
+
+func (o options) IsShardCutoffFn() ShardValidationFn {
+	return o.isShardCutoffFn
+}
+
+func (o options) SetIsShardCutoffFn(fn ShardValidationFn) Options {
+	o.isShardCutoffFn = fn
+	return o
+}
+
+func (o options) NowFn() clock.NowFn {
+	return o.nowFn
+}
+
+func (o options) SetNowFn(fn clock.NowFn) Options {
+	o.nowFn = fn
 	return o
 }

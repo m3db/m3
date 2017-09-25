@@ -76,7 +76,7 @@ func TestWatchAndUpdateBool(t *testing.T) {
 	_, err = store.Set("foo", &commonpb.BoolProto{Value: true})
 	require.NoError(t, err)
 	for {
-		if !valueFn() {
+		if valueFn() {
 			break
 		}
 	}
