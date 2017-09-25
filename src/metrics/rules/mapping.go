@@ -32,9 +32,9 @@ import (
 )
 
 var (
-	errBadMappingRuleSnapshotIdx    = errors.New("mapping rule snapshot index out of range")
-	errNilMappingRuleSnapshotSchema = errors.New("nil mapping rule snapshot schema")
-	errNilMappingRuleSchema         = errors.New("nil mapping rule schema")
+	errMappingRuleSnapshotIndexOutOfRange = errors.New("mapping rule snapshot index out of range")
+	errNilMappingRuleSnapshotSchema       = errors.New("nil mapping rule snapshot schema")
+	errNilMappingRuleSchema               = errors.New("nil mapping rule schema")
 )
 
 // mappingRuleSnapshot defines a rule snapshot such that if a metric matches the
@@ -139,20 +139,22 @@ func (mrs *mappingRuleSnapshot) Schema() (*schema.MappingRuleSnapshot, error) {
 type MappingRuleView struct {
 	ID           string
 	Name         string
+	Tombstoned   bool
 	CutoverNanos int64
 	Filters      map[string]string
 	Policies     []policy.Policy
 }
 
 func (mc *mappingRule) mappingRuleView(snapshotIdx int) (*MappingRuleView, error) {
-	if snapshotIdx < 0 || snapshotIdx > len(mc.snapshots) {
-		return nil, errBadMappingRuleSnapshotIdx
+	if snapshotIdx < 0 || snapshotIdx >= len(mc.snapshots) {
+		return nil, errMappingRuleSnapshotIndexOutOfRange
 	}
 
 	mrs := mc.snapshots[snapshotIdx].clone()
 	return &MappingRuleView{
 		ID:           mc.uuid,
 		Name:         mrs.name,
+		Tombstoned:   mrs.tombstoned,
 		CutoverNanos: mrs.cutoverNanos,
 		Filters:      mrs.rawFilters,
 		Policies:     mrs.policies,

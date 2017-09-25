@@ -21,7 +21,6 @@
 package rules
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -33,15 +32,16 @@ var (
 	emptyNamespace         Namespace
 	emptyNamespaces        Namespaces
 
-	errNilNamespaceSnapshotSchema = errors.New("nil namespace snapshot schema")
-	errNilNamespaceSchema         = errors.New("nil namespace schema")
-	errNilNamespacesSchema        = errors.New("nil namespaces schema")
-	errNilNamespaceSnapshot       = errors.New("nil namespace snapshot")
-	errMultipleNamespaceMatches   = errors.New("more than one namespace match found")
-	errNamespaceNotFound          = errors.New("namespace not found")
-	errNamespaceNotTombstoned     = errors.New("not tombstoned")
-	errNamespaceTombstoned        = errors.New("already tombstoned")
-	errNoNamespaceSnapshots       = errors.New("no snapshots")
+	errNamespaceSnapshotIndexOutOfRange = errors.New("namespace snapshot idx out of range")
+	errNilNamespaceSnapshotSchema       = errors.New("nil namespace snapshot schema")
+	errNilNamespaceSchema               = errors.New("nil namespace schema")
+	errNilNamespacesSchema              = errors.New("nil namespaces schema")
+	errNilNamespaceSnapshot             = errors.New("nil namespace snapshot")
+	errMultipleNamespaceMatches         = errors.New("more than one namespace match found")
+	errNamespaceNotFound                = errors.New("namespace not found")
+	errNamespaceNotTombstoned           = errors.New("not tombstoned")
+	errNamespaceTombstoned              = errors.New("already tombstoned")
+	errNoNamespaceSnapshots             = errors.New("no snapshots")
 
 	namespaceActionErrorFmt = "cannot %s namespace %s. %v"
 )
@@ -60,35 +60,6 @@ func newNamespaceSnapshot(snapshot *schema.NamespaceSnapshot) (NamespaceSnapshot
 		forRuleSetVersion: int(snapshot.ForRulesetVersion),
 		tombstoned:        snapshot.Tombstoned,
 	}, nil
-}
-
-type namespaceSnapshotJSON struct {
-	ForRuleSetVersion int  `json:"forRuleSetVersion"`
-	Tombstoned        bool `json:"tombstoned"`
-}
-
-func newNamespaceSnapshotJSON(s NamespaceSnapshot) namespaceSnapshotJSON {
-	return namespaceSnapshotJSON{ForRuleSetVersion: s.forRuleSetVersion, Tombstoned: s.tombstoned}
-}
-
-// MarshalJSON returns the JSON encoding of Namespaces.
-func (s NamespaceSnapshot) MarshalJSON() ([]byte, error) {
-	return json.Marshal(newNamespaceSnapshotJSON(s))
-}
-
-// UnmarshalJSON unmarshals JSON-encoded data into a Namespace.
-func (s *NamespaceSnapshot) UnmarshalJSON(data []byte) error {
-	var nsj namespaceSnapshotJSON
-	err := json.Unmarshal(data, &nsj)
-	if err != nil {
-		return err
-	}
-	*s = *nsj.NamespaceSnapshot()
-	return nil
-}
-
-func (sj namespaceSnapshotJSON) NamespaceSnapshot() *NamespaceSnapshot {
-	return &NamespaceSnapshot{forRuleSetVersion: sj.ForRuleSetVersion, tombstoned: sj.Tombstoned}
 }
 
 // ForRuleSetVersion is the ruleset version this namespace change is related to.
@@ -130,6 +101,25 @@ func newNamespace(namespace *schema.Namespace) (Namespace, error) {
 	}, nil
 }
 
+// NamespaceView is a human friendly representation of a namespace at a single point in time.
+type NamespaceView struct {
+	Name              string
+	ForRuleSetVersion int
+	Tombstoned        bool
+}
+
+func (n Namespace) namespaceView(snapshotIdx int) (*NamespaceView, error) {
+	if snapshotIdx < 0 || snapshotIdx >= len(n.snapshots) {
+		return nil, errNamespaceSnapshotIndexOutOfRange
+	}
+	s := n.snapshots[snapshotIdx]
+	return &NamespaceView{
+		Name:              string(n.name),
+		ForRuleSetVersion: s.forRuleSetVersion,
+		Tombstoned:        s.tombstoned,
+	}, nil
+}
+
 func (n Namespace) clone() Namespace {
 	name := make([]byte, len(n.name))
 	copy(name, n.name)
@@ -139,35 +129,6 @@ func (n Namespace) clone() Namespace {
 		name:      name,
 		snapshots: snapshots,
 	}
-}
-
-type namespaceJSON struct {
-	Name      string              `json:"name"`
-	Snapshots []NamespaceSnapshot `json:"snapshots"`
-}
-
-func newNamespaceJSON(n Namespace) namespaceJSON {
-	return namespaceJSON{Name: string(n.name), Snapshots: n.snapshots}
-}
-
-// MarshalJSON returns the JSON encoding of Namespaces.
-func (n Namespace) MarshalJSON() ([]byte, error) {
-	return json.Marshal(newNamespaceJSON(n))
-}
-
-// UnmarshalJSON unmarshals JSON-encoded data into a Namespace.
-func (n *Namespace) UnmarshalJSON(data []byte) error {
-	var nsj namespaceJSON
-	err := json.Unmarshal(data, &nsj)
-	if err != nil {
-		return err
-	}
-	*n = *nsj.Namespace()
-	return nil
-}
-
-func (nsj namespaceJSON) Namespace() *Namespace {
-	return &Namespace{name: []byte(nsj.Name), snapshots: nsj.Snapshots}
 }
 
 // Name is the name of the namespace.
@@ -251,6 +212,27 @@ func NewNamespaces(version int, namespaces *schema.Namespaces) (Namespaces, erro
 	}, nil
 }
 
+// NamespacesView is a representation of all the namespaces at a point in time.
+type NamespacesView struct {
+	Version    int
+	Namespaces []*NamespaceView
+}
+
+func (nss Namespaces) namespacesView() (*NamespacesView, error) {
+	namespaces := make([]*NamespaceView, len(nss.namespaces))
+	for i, n := range nss.namespaces {
+		ns, err := n.namespaceView(len(n.snapshots) - 1)
+		if err != nil {
+			return nil, err
+		}
+		namespaces[i] = ns
+	}
+	return &NamespacesView{
+		Version:    nss.version,
+		Namespaces: namespaces,
+	}, nil
+}
+
 // Clone creates a deep copy of this Namespaces object.
 func (nss Namespaces) Clone() Namespaces {
 	namespaces := make([]Namespace, len(nss.namespaces))
@@ -261,35 +243,6 @@ func (nss Namespaces) Clone() Namespaces {
 		version:    nss.version,
 		namespaces: namespaces,
 	}
-}
-
-type namespacesJSON struct {
-	Version    int         `json:"version"`
-	Namespaces []Namespace `json:"namespaces"`
-}
-
-func newNamespacesJSON(nss Namespaces) namespacesJSON {
-	return namespacesJSON{Version: nss.version, Namespaces: nss.namespaces}
-}
-
-// MarshalJSON returns the JSON encoding of Namespaces.
-func (nss Namespaces) MarshalJSON() ([]byte, error) {
-	return json.Marshal(newNamespacesJSON(nss))
-}
-
-// UnmarshalJSON unmarshals JSON-encoded data into a Namespace.
-func (nss *Namespaces) UnmarshalJSON(data []byte) error {
-	var nsj namespacesJSON
-	err := json.Unmarshal(data, &nsj)
-	if err != nil {
-		return err
-	}
-	*nss = *nsj.NewNamespaces()
-	return nil
-}
-
-func (nsj namespacesJSON) NewNamespaces() *Namespaces {
-	return &Namespaces{version: nsj.Version, namespaces: nsj.Namespaces}
 }
 
 // Version returns the namespaces version.

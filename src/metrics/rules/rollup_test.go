@@ -405,9 +405,12 @@ func TestNewRollupRuleView(t *testing.T) {
 func TestNewRollupRuleViewError(t *testing.T) {
 	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
-	actual, err := rr.rollupRuleView(20)
-	require.Error(t, err)
-	require.Nil(t, actual)
+	badIdx := []int{-2, 2, 30}
+	for _, i := range badIdx {
+		actual, err := rr.rollupRuleView(i)
+		require.Error(t, err)
+		require.Nil(t, actual)
+	}
 }
 
 func TestNewRollupRuleHistory(t *testing.T) {
@@ -416,25 +419,45 @@ func TestNewRollupRuleHistory(t *testing.T) {
 	hist, err := rr.history()
 	require.NoError(t, err)
 
+	p0, _ := policy.ParsePolicy("10s:24h")
 	p1, _ := policy.ParsePolicy("1m:24h")
 	p2, _ := policy.ParsePolicy("5m:2d|Mean")
-	expected := &RollupRuleView{
-		ID:           "12669817-13ae-40e6-ba2f-33087b262c68",
-		Name:         "bar",
-		CutoverNanos: 67890,
-		Filters: map[string]string{
-			"tag3": "value3",
-			"tag4": "value4",
+	expected := []*RollupRuleView{
+		&RollupRuleView{
+			ID:           "12669817-13ae-40e6-ba2f-33087b262c68",
+			Name:         "bar",
+			CutoverNanos: 67890,
+			Tombstoned:   true,
+			Filters: map[string]string{
+				"tag3": "value3",
+				"tag4": "value4",
+			},
+			Targets: []RollupTargetView{
+				RollupTargetView{
+					Name:     "rName1",
+					Tags:     []string{"rtagName1", "rtagName2"},
+					Policies: []policy.Policy{p1, p2},
+				},
+			},
 		},
-		Targets: []RollupTargetView{
-			RollupTargetView{
-				Name:     "rName1",
-				Tags:     []string{"rtagName1", "rtagName2"},
-				Policies: []policy.Policy{p1, p2},
+		&RollupRuleView{
+			ID:           "12669817-13ae-40e6-ba2f-33087b262c68",
+			Name:         "foo",
+			CutoverNanos: 12345,
+			Tombstoned:   false,
+			Filters: map[string]string{
+				"tag1": "value1",
+				"tag2": "value2",
+			},
+			Targets: []RollupTargetView{
+				RollupTargetView{
+					Name:     "rName1",
+					Tags:     []string{"rtagName1", "rtagName2"},
+					Policies: []policy.Policy{p0},
+				},
 			},
 		},
 	}
 
-	actual := hist[0]
-	require.Equal(t, expected, actual)
+	require.Equal(t, expected, hist)
 }
