@@ -22,7 +22,9 @@ package msgpack
 
 import (
 	"errors"
+	"math/rand"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3metrics/metric/unaggregated"
@@ -57,6 +59,8 @@ type writer struct {
 
 	log               log.Logger
 	metrics           writerMetrics
+	rand              *rand.Rand
+	samplingRate      float64
 	flushSize         int
 	maxTimerBatchSize int
 	encoderPool       msgpack.BufferedEncoderPool
@@ -76,6 +80,8 @@ func newInstanceWriter(instance placement.Instance, opts ServerOptions) instance
 	w := &writer{
 		log:               iOpts.Logger(),
 		metrics:           newWriterMetrics(scope),
+		rand:              rand.New(rand.NewSource(time.Now().UnixNano())),
+		samplingRate:      opts.InstrumentOptions().MetricsSamplingRate(),
 		flushSize:         opts.FlushSize(),
 		maxTimerBatchSize: opts.MaxTimerBatchSize(),
 		encoderPool:       opts.BufferedEncoderPool(),
@@ -91,6 +97,10 @@ func (w *writer) Write(
 	mu unaggregated.MetricUnion,
 	pl policy.PoliciesList,
 ) error {
+	if w.rand.Float64() < w.samplingRate {
+		w.metrics.idLengths.RecordValue(float64(len(mu.ID)))
+		w.metrics.numPolicies.RecordValue(float64(len(pl)))
+	}
 	w.RLock()
 	if w.closed {
 		w.RUnlock()
@@ -329,6 +339,8 @@ const (
 )
 
 type writerMetrics struct {
+	idLengths       tally.Histogram
+	numPolicies     tally.Histogram
 	buffersEnqueued tally.Counter
 	enqueueErrors   tally.Counter
 	flushErrors     tally.Counter
@@ -336,6 +348,8 @@ type writerMetrics struct {
 
 func newWriterMetrics(s tally.Scope) writerMetrics {
 	return writerMetrics{
+		idLengths:       s.Histogram("id-length", tally.MustMakeExponentialValueBuckets(32, 1.5, 10)),
+		numPolicies:     s.Histogram("num-policies", tally.MustMakeExponentialValueBuckets(1, 2, 8)),
 		buffersEnqueued: s.Tagged(map[string]string{actionTag: "enqueued"}).Counter(buffersMetric),
 		enqueueErrors:   s.Tagged(map[string]string{actionTag: "enqueue-error"}).Counter(buffersMetric),
 		flushErrors:     s.Tagged(map[string]string{actionTag: "flush-error"}).Counter(buffersMetric),
