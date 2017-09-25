@@ -38,3 +38,12 @@ import:
   version: c55201b036063326c5b1b89ccfe45a184973d073
 - package: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
+
+testImports:
+- name: github.com/stretchr/testify
+  version: ^1.1.4
+  subpackages:
+  - assert
+  - require
+- package: github.com/leanovate/gopter
+  version: 9e6101e5a87586b269acf3d0d61f363e4317309f

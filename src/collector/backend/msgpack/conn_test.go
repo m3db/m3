@@ -22,6 +22,8 @@ package msgpack
 
 import (
 	"errors"
+	"fmt"
+	"math"
 	"net"
 	"sync"
 	"testing"
@@ -29,12 +31,19 @@ import (
 
 	"github.com/m3db/m3x/clock"
 
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/gen"
+	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	testFakeServerAddr  = "nonexistent"
-	testLocalServerAddr = "127.0.0.1:0"
+	testFakeServerAddr        = "nonexistent"
+	testLocalServerAddr       = "127.0.0.1:0"
+	testRandomSeeed           = 831992
+	testMinSuccessfulTests    = 1000
+	testReconnectThreshold    = 1024
+	testMaxReconnectThreshold = 8096
 )
 
 var (
@@ -42,58 +51,131 @@ var (
 	errTestWrite   = errors.New("write error")
 )
 
-func TestConnectionWriteNoReconnect(t *testing.T) {
-	conn := newConnection(testFakeServerAddr, testConnectionOptions())
-	conn.connectWithLockFn = func() error { return errTestConnect }
+func TestConnectionDontReconnectProperties(t *testing.T) {
+	props := getProperties()
+	props.Property(
+		`When the number of failures is less than or equal to the threshold and the time since last `+
+			`connection is less than the maximum duration writes should:
+	  - not attempt to reconnect
+	  - increment the number of failures`,
+		prop.ForAll(
+			func(numFailures int32) (bool, error) {
+				conn := newConnection(testFakeServerAddr, testConnectionOptions())
+				conn.connectWithLockFn = func() error { return errTestConnect }
+				conn.numFailures = int(numFailures)
+				conn.threshold = testReconnectThreshold
 
-	require.Equal(t, errNoActiveConnection, conn.Write(nil))
-	require.Equal(t, 1, conn.numFailures)
+				if err := conn.Write(nil); err != errNoActiveConnection {
+					return false, fmt.Errorf("unexpected error: %v", err)
+				}
+
+				expected := int(numFailures + 1)
+				if conn.numFailures != expected {
+					return false, fmt.Errorf(
+						"expected the number of failures to be: %v, but found: %v", expected, conn.numFailures,
+					)
+				}
+
+				return true, nil
+			},
+			gen.Int32Range(0, testReconnectThreshold),
+		))
+
+	props.TestingRun(t)
 }
 
-func TestConnectionWriteReconnectMultiplyThreshold(t *testing.T) {
-	conn := newConnection(testFakeServerAddr, testConnectionOptions())
-	conn.numFailures = 3
-	conn.connectWithLockFn = func() error { return errTestConnect }
+func TestConnectionNumFailuresThresholdReconnectProperty(t *testing.T) {
+	props := getProperties()
+	props.Property(
+		"When the number of failures is greater than the threshold writes should attempt to reconnect",
+		prop.ForAll(
+			func(threshold int32) (bool, error) {
+				conn := newConnection(testFakeServerAddr, testConnectionOptions())
+				conn.connectWithLockFn = func() error { return errTestConnect }
+				conn.threshold = int(threshold)
+				conn.numFailures = conn.threshold + 1
 
-	require.Equal(t, errNoActiveConnection, conn.Write(nil))
-	require.Equal(t, 4, conn.numFailures)
-	require.Equal(t, 4, conn.threshold)
+				if err := conn.Write(nil); err != errTestConnect {
+					return false, fmt.Errorf("unexpected error: %v", err)
+				}
+				return true, nil
+			},
+			gen.Int32Range(1, testMaxReconnectThreshold),
+		))
+
+	props.TestingRun(t)
 }
 
-func TestConnectionWriteReconnectMaxThresholdReached(t *testing.T) {
-	conn := newConnection(testFakeServerAddr, testConnectionOptions())
-	conn.numFailures = 4
-	conn.threshold = 3
-	conn.connectWithLockFn = func() error { return errTestConnect }
+func TestConnectionMaxDurationReconnectProperty(t *testing.T) {
+	props := getProperties()
+	props.Property(
+		"When the time since last connection is greater than the maximum duration writes should attempt to reconnect",
+		prop.ForAll(
+			func(delay int64) (bool, error) {
+				conn := newConnection(testFakeServerAddr, testConnectionOptions())
+				conn.connectWithLockFn = func() error { return errTestConnect }
+				now := time.Now()
+				conn.nowFn = func() time.Time { return now }
+				conn.lastConnectNanos = now.UnixNano() - int64(delay)
+				conn.maxDuration = time.Duration(delay)
 
-	require.Equal(t, errNoActiveConnection, conn.Write(nil))
-	require.Equal(t, 5, conn.numFailures)
-	require.Equal(t, 6, conn.threshold)
+				if err := conn.Write(nil); err != errTestConnect {
+					return false, fmt.Errorf("unexpected error: %v", err)
+				}
+				return true, nil
+			},
+			gen.Int64Range(1, math.MaxInt64),
+		))
+
+	props.TestingRun(t)
 }
 
-func TestConnectionWriteReconnectMaxDurationReached(t *testing.T) {
-	conn := newConnection(testFakeServerAddr, testConnectionOptions())
-	now := time.Now()
-	conn.nowFn = func() time.Time { return now }
-	conn.lastConnectNanos = now.Add(-2 * defaultMaxReconnectDuration).UnixNano()
-	conn.connectWithLockFn = func() error { return nil }
-	conn.writeWithLockFn = func([]byte) error { return nil }
+func TestConnectionReconnectProperties(t *testing.T) {
+	props := getProperties()
+	props.Property(
+		`When the attempt to reconnect fails writes should:
+	  - reset the number of failures back to 1
+	  - update the threshold to be min(threshold*multiplier, maxThreshold)`,
+		prop.ForAll(
+			func(threshold, multiplier int32) (bool, error) {
+				conn := newConnection(testFakeServerAddr, testConnectionOptions())
+				conn.connectWithLockFn = func() error { return errTestConnect }
+				conn.threshold = int(threshold)
+				conn.numFailures = conn.threshold + 1
+				conn.multiplier = int(multiplier)
+				conn.maxThreshold = testMaxReconnectThreshold
 
-	require.NoError(t, conn.Write(nil))
+				if err := conn.Write(nil); err != errTestConnect {
+					return false, fmt.Errorf("unexpected error: %v", err)
+				}
+
+				if conn.numFailures != 1 {
+					return false, fmt.Errorf(
+						"expected the number of failures to be 1, but found: %v", conn.numFailures,
+					)
+				}
+
+				expected := int(threshold * multiplier)
+				if expected > testMaxReconnectThreshold {
+					expected = testMaxReconnectThreshold
+				}
+
+				if conn.threshold != expected {
+					return false, fmt.Errorf(
+						"expected the new threshold to be %v, but found: %v", expected, conn.threshold,
+					)
+				}
+
+				return true, nil
+			},
+			gen.Int32Range(1, testMaxReconnectThreshold),
+			gen.Int32Range(1, 16),
+		))
+
+	props.TestingRun(t)
 }
 
-func TestConnectionWriteReconnectSuccessWriteSuccess(t *testing.T) {
-	conn := newConnection(testFakeServerAddr, testConnectionOptions())
-	conn.numFailures = 3
-	conn.connectWithLockFn = func() error { return nil }
-	conn.writeWithLockFn = func([]byte) error { return nil }
-
-	require.NoError(t, conn.Write(nil))
-	require.Equal(t, 0, conn.numFailures)
-	require.Equal(t, 2, conn.threshold)
-}
-
-func TestConnectionWriteReconnectSuccessWriteFailReconnectSuccess(t *testing.T) {
+func TestConnectionWriteSucceedsOnSecondAttempt(t *testing.T) {
 	conn := newConnection(testFakeServerAddr, testConnectionOptions())
 	conn.numFailures = 3
 	conn.connectWithLockFn = func() error { return nil }
@@ -111,7 +193,7 @@ func TestConnectionWriteReconnectSuccessWriteFailReconnectSuccess(t *testing.T) 
 	require.Equal(t, 2, conn.threshold)
 }
 
-func TestConnectionWriteReconnectSuccessWriteFailReconnectFail(t *testing.T) {
+func TestConnectionWriteFailsOnSecondAttempt(t *testing.T) {
 	conn := newConnection(testFakeServerAddr, testConnectionOptions())
 	conn.numFailures = 3
 	conn.writeWithLockFn = func([]byte) error { return errTestWrite }
@@ -187,4 +269,11 @@ func testConnectionOptions() ConnectionOptions {
 		SetMaxReconnectThreshold(6).
 		SetReconnectThresholdMultiplier(2).
 		SetWriteTimeout(100 * time.Millisecond)
+}
+
+func getProperties() *gopter.Properties {
+	params := gopter.DefaultTestParameters()
+	params.Rng.Seed(testRandomSeeed)
+	params.MinSuccessfulTests = testMinSuccessfulTests
+	return gopter.NewProperties(params)
 }
