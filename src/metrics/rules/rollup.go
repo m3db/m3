@@ -36,10 +36,10 @@ import (
 var (
 	emptyRollupTarget RollupTarget
 
-	errBadRollupRuleSnapshotIdx    = errors.New("rollup rule snapshot index out of range")
-	errNilRollupTargetSchema       = errors.New("nil rollup target schema")
-	errNilRollupRuleSnapshotSchema = errors.New("nil rollup rule snapshot schema")
-	errNilRollupRuleSchema         = errors.New("nil rollup rule schema")
+	errRollupRuleSnapshotIndexOutOfRange = errors.New("rollup rule snapshot index out of range")
+	errNilRollupTargetSchema             = errors.New("nil rollup target schema")
+	errNilRollupRuleSnapshotSchema       = errors.New("nil rollup rule snapshot schema")
+	errNilRollupRuleSchema               = errors.New("nil rollup rule schema")
 )
 
 // RollupTarget dictates how to roll up metrics. Metrics associated with a rollup
@@ -261,14 +261,15 @@ func (rrs *rollupRuleSnapshot) Schema() (*schema.RollupRuleSnapshot, error) {
 type RollupRuleView struct {
 	ID           string
 	Name         string
+	Tombstoned   bool
 	CutoverNanos int64
 	Filters      map[string]string
 	Targets      []RollupTargetView
 }
 
 func (rc *rollupRule) rollupRuleView(snapshotIdx int) (*RollupRuleView, error) {
-	if snapshotIdx < 0 || snapshotIdx > len(rc.snapshots) {
-		return nil, errBadRollupRuleSnapshotIdx
+	if snapshotIdx < 0 || snapshotIdx >= len(rc.snapshots) {
+		return nil, errRollupRuleSnapshotIndexOutOfRange
 	}
 
 	rrs := rc.snapshots[snapshotIdx].clone()
@@ -280,6 +281,7 @@ func (rc *rollupRule) rollupRuleView(snapshotIdx int) (*RollupRuleView, error) {
 	return &RollupRuleView{
 		ID:           rc.uuid,
 		Name:         rrs.name,
+		Tombstoned:   rrs.tombstoned,
 		CutoverNanos: rrs.cutoverNanos,
 		Filters:      rrs.rawFilters,
 		Targets:      targets,

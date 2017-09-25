@@ -21,8 +21,6 @@
 package rules
 
 import (
-	"bytes"
-	"encoding/json"
 	"testing"
 
 	"github.com/m3db/m3metrics/generated/proto/schema"
@@ -205,94 +203,6 @@ func TestNamespacesSchema(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, testNss, res)
 }
-
-func TestNamespacesMarshal(t *testing.T) {
-	testNss := &schema.Namespaces{
-		Namespaces: []*schema.Namespace{
-			&schema.Namespace{
-				Name: "foo",
-				Snapshots: []*schema.NamespaceSnapshot{
-					&schema.NamespaceSnapshot{ForRulesetVersion: 123, Tombstoned: false},
-					&schema.NamespaceSnapshot{ForRulesetVersion: 4, Tombstoned: false},
-				},
-			},
-			&schema.Namespace{
-				Name: "foo2",
-				Snapshots: []*schema.NamespaceSnapshot{
-					&schema.NamespaceSnapshot{ForRulesetVersion: 123, Tombstoned: false},
-					&schema.NamespaceSnapshot{ForRulesetVersion: 4, Tombstoned: false},
-				},
-			},
-		},
-	}
-
-	marshalledNamespaced := `{
-		"version":1,
-		"namespaces":[
-			{"name":"foo",
-			 "snapshots":[
-				 {"forRuleSetVersion":123,"tombstoned":false},
-				 {"forRuleSetVersion":4,"tombstoned":false}
-				]},
-			{"name":"foo2",
-			 "snapshots":[
-				 {"forRuleSetVersion":123,"tombstoned":false},
-				 {"forRuleSetVersion":4,"tombstoned":false}
-				]
-			}
-		]
-	}`
-
-	nss, err := NewNamespaces(1, testNss)
-	require.NoError(t, err)
-
-	res, err := json.Marshal(nss)
-	require.NoError(t, err)
-
-	var bb bytes.Buffer
-	err = json.Compact(&bb, []byte(marshalledNamespaced))
-	require.NoError(t, err)
-
-	require.Equal(t, bb.String(), string(res))
-}
-
-func TestNamespacesUnmarshal(t *testing.T) {
-	testNss := &schema.Namespaces{
-		Namespaces: []*schema.Namespace{
-			&schema.Namespace{
-				Name: "foo",
-				Snapshots: []*schema.NamespaceSnapshot{
-					&schema.NamespaceSnapshot{ForRulesetVersion: 123, Tombstoned: false},
-					&schema.NamespaceSnapshot{ForRulesetVersion: 4, Tombstoned: false},
-				},
-			},
-			&schema.Namespace{
-				Name: "foo2",
-				Snapshots: []*schema.NamespaceSnapshot{
-					&schema.NamespaceSnapshot{ForRulesetVersion: 123, Tombstoned: false},
-					&schema.NamespaceSnapshot{ForRulesetVersion: 4, Tombstoned: false},
-				},
-			},
-		},
-	}
-	nss, err := NewNamespaces(1, testNss)
-	require.NoError(t, err)
-
-	data, err := json.Marshal(nss)
-	require.NoError(t, err)
-	var nss2 Namespaces
-	err = json.Unmarshal(data, &nss2)
-	require.NoError(t, err)
-
-	expected, err := nss.Schema()
-	require.NoError(t, err)
-
-	actual, err := nss2.Schema()
-	require.NoError(t, err)
-
-	require.Equal(t, expected, actual)
-}
-
 func TestNamespaceTombstoned(t *testing.T) {
 	ns, err := newNamespace(&schema.Namespace{
 		Name: "foo",
@@ -602,4 +512,85 @@ func TestNamespaceClone(t *testing.T) {
 	require.Equal(t, *ns, nsClone)
 	nsClone.snapshots = append(nsClone.snapshots, nsClone.snapshots[0])
 	require.NotEqual(t, *ns, nsClone)
+}
+
+func TestNamespacesView(t *testing.T) {
+	testNss := &schema.Namespaces{
+		Namespaces: []*schema.Namespace{
+			&schema.Namespace{
+				Name: "foo",
+				Snapshots: []*schema.NamespaceSnapshot{
+					&schema.NamespaceSnapshot{ForRulesetVersion: 1, Tombstoned: true},
+					&schema.NamespaceSnapshot{ForRulesetVersion: 2, Tombstoned: false},
+				},
+			},
+			&schema.Namespace{
+				Name: "bar",
+				Snapshots: []*schema.NamespaceSnapshot{
+					&schema.NamespaceSnapshot{ForRulesetVersion: 1, Tombstoned: true},
+					&schema.NamespaceSnapshot{ForRulesetVersion: 3, Tombstoned: false},
+				},
+			},
+		},
+	}
+
+	nss, err := NewNamespaces(1, testNss)
+	require.NoError(t, err)
+
+	expected := &NamespacesView{
+		Version: 1,
+		Namespaces: []*NamespaceView{
+			&NamespaceView{
+				Name:              "foo",
+				ForRuleSetVersion: 2,
+				Tombstoned:        false,
+			},
+			&NamespaceView{
+				Name:              "bar",
+				ForRuleSetVersion: 3,
+				Tombstoned:        false,
+			},
+		},
+	}
+
+	actual, err := nss.namespacesView()
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
+func TestNamespaceView(t *testing.T) {
+	n := Namespace{
+		name: b("test"),
+		snapshots: []NamespaceSnapshot{
+			NamespaceSnapshot{forRuleSetVersion: 3, tombstoned: false},
+			NamespaceSnapshot{forRuleSetVersion: 4, tombstoned: true},
+		},
+	}
+
+	expected := &NamespaceView{
+		Name:              "test",
+		ForRuleSetVersion: 4,
+		Tombstoned:        true,
+	}
+
+	actual, err := n.namespaceView(1)
+	require.NoError(t, err)
+	require.Equal(t, actual, expected)
+}
+
+func TestNamespaceViewError(t *testing.T) {
+	n := Namespace{
+		name: b("test"),
+		snapshots: []NamespaceSnapshot{
+			NamespaceSnapshot{forRuleSetVersion: 3, tombstoned: false},
+			NamespaceSnapshot{forRuleSetVersion: 4, tombstoned: true},
+		},
+	}
+
+	badIdx := []int{-2, 2, 30}
+	for _, i := range badIdx {
+		actual, err := n.namespaceView(i)
+		require.Error(t, err)
+		require.Nil(t, actual)
+	}
 }
