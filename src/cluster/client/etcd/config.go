@@ -26,16 +26,33 @@ import (
 	"github.com/m3db/m3x/instrument"
 )
 
-// ClusterConfig is the config for a zoned etcd cluster
+// ClusterConfig is the config for a zoned etcd cluster.
 type ClusterConfig struct {
-	Zone      string   `yaml:"zone"`
-	Endpoints []string `yaml:"endpoints"`
-	Cert      string   `yaml:"cert",omitempty`
-	Key       string   `yaml:"key",omitempty`
-	CA        string   `yaml:"ca",omitempty`
+	Zone      string     `yaml:"zone"`
+	Endpoints []string   `yaml:"endpoints"`
+	TLS       *TLSConfig `yaml:"tls"`
 }
 
-// Configuration is for config service client
+// TLSConfig is the config for TLS.
+type TLSConfig struct {
+	CrtPath   string `yaml:"crtPath"`
+	CACrtPath string `yaml:"caCrtPath"`
+	KeyPath   string `yaml:"keyPath"`
+}
+
+func (c *TLSConfig) newOptions() TLSOptions {
+	opts := NewTLSOptions()
+	if c == nil {
+		return opts
+	}
+
+	return opts.
+		SetCrtPath(c.CrtPath).
+		SetKeyPath(c.KeyPath).
+		SetCACrtPath(c.CACrtPath)
+}
+
+// Configuration is for config service client.
 type Configuration struct {
 	Zone         string               `yaml:"zone"`
 	Env          string               `yaml:"env"`
@@ -45,12 +62,12 @@ type Configuration struct {
 	SDConfig     etcdsd.Configuration `yaml:"m3sd"`
 }
 
-// NewClient creates a new config service client
+// NewClient creates a new config service client.
 func (cfg Configuration) NewClient(iopts instrument.Options) (client.Client, error) {
 	return NewConfigServiceClient(cfg.NewOptions().SetInstrumentOptions(iopts))
 }
 
-// NewOptions returns a new Options
+// NewOptions returns a new Options.
 func (cfg Configuration) NewOptions() Options {
 	return NewOptions().
 		SetZone(cfg.Zone).
@@ -67,9 +84,7 @@ func (cfg Configuration) etcdClusters() []Cluster {
 		res[i] = NewCluster().
 			SetZone(c.Zone).
 			SetEndpoints(c.Endpoints).
-			SetCert(c.Cert).
-			SetKey(c.Key).
-			SetCA(c.CA)
+			SetTLSOptions(c.TLS.newOptions())
 	}
 
 	return res

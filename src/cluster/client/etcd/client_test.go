@@ -279,11 +279,11 @@ func testOptions() Options {
 		NewCluster().SetZone("zone1").SetEndpoints([]string{"i1"}),
 		NewCluster().SetZone("zone2").SetEndpoints([]string{"i2"}),
 		NewCluster().SetZone("zone3").SetEndpoints([]string{"i3"}).
-			SetCert("foo.crt.pem"),
+			SetTLSOptions(NewTLSOptions().SetCrtPath("foo.crt.pem")),
 		NewCluster().SetZone("zone4").SetEndpoints([]string{"i4"}).
-			SetCert("foo.crt.pem").SetKey("foo.key.pem"),
+			SetTLSOptions(NewTLSOptions().SetCrtPath("foo.crt.pem").SetKeyPath("foo.key.pem")),
 		NewCluster().SetZone("zone5").SetEndpoints([]string{"i5"}).
-			SetCert("foo.crt.pem").SetKey("foo.key.pem").SetCA("foo_ca.pem"),
+			SetTLSOptions(NewTLSOptions().SetCrtPath("foo.crt.pem").SetKeyPath("foo.key.pem").SetCACrtPath("foo_ca.pem")),
 	}).SetService("test_app").SetZone("zone1")
 }
 
@@ -291,7 +291,7 @@ func testNewETCDFn(t *testing.T) (newClientFn, func()) {
 	ecluster := integration.NewClusterV3(t, &integration.ClusterConfig{Size: 1})
 	ec := ecluster.RandClient()
 
-	newFn := func(endpoints []string, cert string, key string, ca string) (*clientv3.Client, error) {
+	newFn := func(Cluster) (*clientv3.Client, error) {
 		return ec, nil
 	}
 
