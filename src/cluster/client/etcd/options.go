@@ -21,56 +21,79 @@
 package etcd
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
+	"fmt"
+	"io/ioutil"
 
 	etcdsd "github.com/m3db/m3cluster/services/client/etcd"
 	"github.com/m3db/m3x/instrument"
 )
 
-// Options is the Options to create a config service client
-type Options interface {
-	Env() string
-	SetEnv(e string) Options
-
-	Zone() string
-	SetZone(z string) Options
-
-	Service() string
-	SetService(id string) Options
-
-	CacheDir() string
-	SetCacheDir(dir string) Options
-
-	ServiceDiscoveryConfig() etcdsd.Configuration
-	SetServiceDiscoveryConfig(cfg etcdsd.Configuration) Options
-
-	Clusters() []Cluster
-	SetClusters(clusters []Cluster) Options
-	ClusterForZone(z string) (Cluster, bool)
-
-	InstrumentOptions() instrument.Options
-	SetInstrumentOptions(iopts instrument.Options) Options
-
-	Validate() error
+// NewTLSOptions creates a set of TLS Options.
+func NewTLSOptions() TLSOptions {
+	return tlsOptions{}
 }
 
-// Cluster defines the configuration for a etcd cluster
-type Cluster interface {
-	Zone() string
-	SetZone(z string) Cluster
-
-	Endpoints() []string
-	SetEndpoints(endpoints []string) Cluster
-
-	Cert() string
-	SetCert(string) Cluster
-	Key() string
-	SetKey(string) Cluster
-	CA() string
-	SetCA(string) Cluster
+type tlsOptions struct {
+	cert string
+	key  string
+	ca   string
 }
 
-// NewOptions creates a set of Options
+func (o tlsOptions) CrtPath() string {
+	return o.cert
+}
+
+func (o tlsOptions) SetCrtPath(cert string) TLSOptions {
+	o.cert = cert
+	return o
+}
+
+func (o tlsOptions) KeyPath() string {
+	return o.key
+}
+func (o tlsOptions) SetKeyPath(key string) TLSOptions {
+	o.key = key
+	return o
+}
+
+func (o tlsOptions) CACrtPath() string {
+	return o.ca
+}
+func (o tlsOptions) SetCACrtPath(ca string) TLSOptions {
+	o.ca = ca
+	return o
+}
+
+func (o tlsOptions) Config() (*tls.Config, error) {
+	if o.cert == "" {
+		// By default we should use nil config instead of empty config.
+		return nil, nil
+	}
+
+	cert, err := tls.LoadX509KeyPair(o.cert, o.key)
+	if err != nil {
+		return nil, err
+	}
+	caCert, err := ioutil.ReadFile(o.ca)
+	if err != nil {
+		return nil, err
+	}
+	caPool := x509.NewCertPool()
+	if ok := caPool.AppendCertsFromPEM(caCert); !ok {
+		return nil, fmt.Errorf("can't read PEM-formatted certificates from file %s as root CA pool", o.ca)
+	}
+	return &tls.Config{
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: false,
+		Certificates:       []tls.Certificate{cert},
+		RootCAs:            caPool,
+	}, nil
+}
+
+// NewOptions creates a set of Options.
 func NewOptions() Options {
 	return options{iopts: instrument.NewOptions()}
 }
@@ -176,17 +199,15 @@ func (o options) SetInstrumentOptions(iopts instrument.Options) Options {
 	return o
 }
 
+// NewCluster creates a Cluster.
+func NewCluster() Cluster {
+	return cluster{tlsOpts: NewTLSOptions()}
+}
+
 type cluster struct {
 	zone      string
 	endpoints []string
-	cert      string
-	key       string
-	ca        string
-}
-
-// NewCluster creates a Cluster
-func NewCluster() Cluster {
-	return cluster{}
+	tlsOpts   TLSOptions
 }
 
 func (c cluster) Zone() string {
@@ -207,27 +228,11 @@ func (c cluster) SetEndpoints(endpoints []string) Cluster {
 	return c
 }
 
-func (c cluster) Cert() string {
-	return c.cert
+func (c cluster) TLSOptions() TLSOptions {
+	return c.tlsOpts
 }
 
-func (c cluster) SetCert(cert string) Cluster {
-	c.cert = cert
-	return c
-}
-
-func (c cluster) Key() string {
-	return c.key
-}
-func (c cluster) SetKey(key string) Cluster {
-	c.key = key
-	return c
-}
-
-func (c cluster) CA() string {
-	return c.ca
-}
-func (c cluster) SetCA(ca string) Cluster {
-	c.ca = ca
+func (c cluster) SetTLSOptions(opts TLSOptions) Cluster {
+	c.tlsOpts = opts
 	return c
 }

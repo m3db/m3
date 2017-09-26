@@ -34,34 +34,34 @@ func TestCluster(t *testing.T) {
 	c := NewCluster()
 	assert.Equal(t, "", c.Zone())
 	assert.Equal(t, 0, len(c.Endpoints()))
-	assert.Equal(t, "", c.Cert())
-	assert.Equal(t, "", c.Key())
+	assert.Equal(t, NewTLSOptions(), c.TLSOptions())
 
 	c = c.SetZone("z")
 	assert.Equal(t, "z", c.Zone())
 	assert.Equal(t, 0, len(c.Endpoints()))
-	assert.Equal(t, "", c.Cert())
-	assert.Equal(t, "", c.Key())
 
 	c = c.SetEndpoints([]string{"e1"})
 	assert.Equal(t, "z", c.Zone())
 	assert.Equal(t, []string{"e1"}, c.Endpoints())
-	assert.Equal(t, "", c.Cert())
-	assert.Equal(t, "", c.Key())
 
-	c = c.SetCert("self.crt.pem")
+	aOpts := NewTLSOptions().SetCrtPath("cert").SetKeyPath("key").SetCACrtPath("ca")
+	c = c.SetTLSOptions(aOpts)
 	assert.Equal(t, "z", c.Zone())
 	assert.Equal(t, []string{"e1"}, c.Endpoints())
-	assert.Equal(t, "self.crt.pem", c.Cert())
-	assert.Equal(t, "", c.Key())
-
-	c = c.SetKey("self.key.pem")
-	assert.Equal(t, "z", c.Zone())
-	assert.Equal(t, []string{"e1"}, c.Endpoints())
-	assert.Equal(t, "self.crt.pem", c.Cert())
-	assert.Equal(t, "self.key.pem", c.Key())
+	assert.Equal(t, aOpts, c.TLSOptions())
 }
 
+func TestTLSOptions(t *testing.T) {
+	aOpts := NewTLSOptions()
+	assert.Equal(t, "", aOpts.CrtPath())
+	assert.Equal(t, "", aOpts.KeyPath())
+	assert.Equal(t, "", aOpts.CACrtPath())
+
+	aOpts = aOpts.SetCrtPath("cert").SetKeyPath("key").SetCACrtPath("ca")
+	assert.Equal(t, "cert", aOpts.CrtPath())
+	assert.Equal(t, "key", aOpts.KeyPath())
+	assert.Equal(t, "ca", aOpts.CACrtPath())
+}
 func TestOptions(t *testing.T) {
 	opts := NewOptions()
 	assert.Equal(t, "", opts.Zone())
