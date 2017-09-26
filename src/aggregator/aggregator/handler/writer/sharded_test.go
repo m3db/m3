@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
+	"github.com/m3db/m3x/clock"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -80,7 +81,7 @@ func TestShardedWriterWriteClosed(t *testing.T) {
 	require.Equal(t, errWriterClosed, writer.Write(testChunkedMetricWithStoragePolicy))
 }
 
-func TestShardedWriterWriteNoFlush(t *testing.T) {
+func TestShardedWriterWriteNoEncodeTimeNoFlush(t *testing.T) {
 	opts := NewOptions().SetMaxBufferSize(math.MaxInt64)
 	writer := testShardedWriter(t, opts)
 	writer.shardFn = func(chunkedID id.ChunkedID) uint32 {
@@ -106,26 +107,26 @@ func TestShardedWriterWriteNoFlush(t *testing.T) {
 
 	expectedData := []struct {
 		shard   uint32
-		written []aggregated.ChunkedMetricWithStoragePolicy
+		written []encodeData
 	}{
 		{
 			shard: 1,
-			written: []aggregated.ChunkedMetricWithStoragePolicy{
-				testChunkedMetricWithStoragePolicy,
-				testChunkedMetricWithStoragePolicy,
+			written: []encodeData{
+				{ChunkedMetricWithStoragePolicy: testChunkedMetricWithStoragePolicy},
+				{ChunkedMetricWithStoragePolicy: testChunkedMetricWithStoragePolicy},
 			},
 		},
 		{
 			shard: 2,
-			written: []aggregated.ChunkedMetricWithStoragePolicy{
-				testChunkedMetricWithStoragePolicy2,
-				testChunkedMetricWithStoragePolicy2,
+			written: []encodeData{
+				{ChunkedMetricWithStoragePolicy: testChunkedMetricWithStoragePolicy2},
+				{ChunkedMetricWithStoragePolicy: testChunkedMetricWithStoragePolicy2},
 			},
 		},
 	}
 	for shard, encoder := range writer.encodersByShard {
 		var (
-			expectedWritten []aggregated.ChunkedMetricWithStoragePolicy
+			expectedWritten []encodeData
 			found           bool
 		)
 		for _, expected := range expectedData {
@@ -144,7 +145,97 @@ func TestShardedWriterWriteNoFlush(t *testing.T) {
 	}
 }
 
-func TestShardedWriterWriteWithFlush(t *testing.T) {
+func TestShardedWriterWriteWithEncodeTimeNoFlush(t *testing.T) {
+	now := time.Now()
+	nowFn := func() time.Time { return now }
+	opts := NewOptions().
+		SetClockOptions(clock.NewOptions().SetNowFn(nowFn)).
+		SetMaxBufferSize(math.MaxInt64).
+		SetEncodingTimeSamplingRate(0.5)
+	writer := testShardedWriter(t, opts)
+	writer.shardFn = func(chunkedID id.ChunkedID) uint32 {
+		if isSameChunkedID(chunkedID, testChunkedID) {
+			return 1
+		}
+		if isSameChunkedID(chunkedID, testChunkedID2) {
+			return 2
+		}
+		require.Fail(t, "unexpected chunked id %v", chunkedID)
+		return 0
+	}
+	var iter int
+	writer.randFn = func() float64 {
+		iter++
+		if iter%2 == 0 {
+			return 0.1
+		}
+		return 0.9
+	}
+
+	inputs := []aggregated.ChunkedMetricWithStoragePolicy{
+		testChunkedMetricWithStoragePolicy,
+		testChunkedMetricWithStoragePolicy2,
+		testChunkedMetricWithStoragePolicy2,
+		testChunkedMetricWithStoragePolicy,
+	}
+	for _, input := range inputs {
+		require.NoError(t, writer.Write(input))
+	}
+
+	encodedAtNanos := now.UnixNano()
+	expectedData := []struct {
+		shard   uint32
+		written []encodeData
+	}{
+		{
+			shard: 1,
+			written: []encodeData{
+				{
+					ChunkedMetricWithStoragePolicy: testChunkedMetricWithStoragePolicy,
+					encodedAtNanos:                 0,
+				},
+				{
+					ChunkedMetricWithStoragePolicy: testChunkedMetricWithStoragePolicy,
+					encodedAtNanos:                 encodedAtNanos,
+				},
+			},
+		},
+		{
+			shard: 2,
+			written: []encodeData{
+				{
+					ChunkedMetricWithStoragePolicy: testChunkedMetricWithStoragePolicy2,
+					encodedAtNanos:                 encodedAtNanos,
+				},
+				{
+					ChunkedMetricWithStoragePolicy: testChunkedMetricWithStoragePolicy2,
+					encodedAtNanos:                 0,
+				},
+			},
+		},
+	}
+	for shard, encoder := range writer.encodersByShard {
+		var (
+			expectedWritten []encodeData
+			found           bool
+		)
+		for _, expected := range expectedData {
+			if expected.shard == uint32(shard) {
+				expectedWritten = expected.written
+				found = true
+				break
+			}
+		}
+		if found {
+			actual := []*common.RefCountedBuffer{common.NewRefCountedBuffer(encoder.Encoder())}
+			validateWritten(t, expectedWritten, actual)
+		} else {
+			require.Nil(t, encoder)
+		}
+	}
+}
+
+func TestShardedWriterWriteNoEncodeTimeWithFlush(t *testing.T) {
 	flushed := make(map[uint32][]*common.RefCountedBuffer)
 	router := &mockRouter{
 		routeFn: func(shard uint32, buf *common.RefCountedBuffer) error {
@@ -178,20 +269,20 @@ func TestShardedWriterWriteWithFlush(t *testing.T) {
 
 	expectedData := []struct {
 		shard   uint32
-		written []aggregated.ChunkedMetricWithStoragePolicy
+		written []encodeData
 	}{
 		{
 			shard: 1,
-			written: []aggregated.ChunkedMetricWithStoragePolicy{
-				testChunkedMetricWithStoragePolicy,
-				testChunkedMetricWithStoragePolicy,
+			written: []encodeData{
+				{ChunkedMetricWithStoragePolicy: testChunkedMetricWithStoragePolicy},
+				{ChunkedMetricWithStoragePolicy: testChunkedMetricWithStoragePolicy},
 			},
 		},
 		{
 			shard: 2,
-			written: []aggregated.ChunkedMetricWithStoragePolicy{
-				testChunkedMetricWithStoragePolicy2,
-				testChunkedMetricWithStoragePolicy2,
+			written: []encodeData{
+				{ChunkedMetricWithStoragePolicy: testChunkedMetricWithStoragePolicy2},
+				{ChunkedMetricWithStoragePolicy: testChunkedMetricWithStoragePolicy2},
 			},
 		},
 	}
@@ -236,12 +327,12 @@ func TestShardedWriterFlush(t *testing.T) {
 	// Shard 2 has a buffer with good data.
 	bufferedEncoder = msgpack.NewBufferedEncoder()
 	writer.encodersByShard[2] = msgpack.NewAggregatedEncoder(bufferedEncoder)
-	inputs := []aggregated.ChunkedMetricWithStoragePolicy{
-		testChunkedMetricWithStoragePolicy,
-		testChunkedMetricWithStoragePolicy2,
+	inputs := []encodeData{
+		{ChunkedMetricWithStoragePolicy: testChunkedMetricWithStoragePolicy},
+		{ChunkedMetricWithStoragePolicy: testChunkedMetricWithStoragePolicy2},
 	}
 	for _, input := range inputs {
-		require.NoError(t, writer.encodersByShard[2].EncodeChunkedMetricWithStoragePolicy(input))
+		require.NoError(t, writer.encodersByShard[2].EncodeChunkedMetricWithStoragePolicy(input.ChunkedMetricWithStoragePolicy))
 	}
 
 	require.Error(t, writer.Flush())
@@ -271,21 +362,25 @@ func isSameChunkedID(id1, id2 id.ChunkedID) bool {
 
 func validateWritten(
 	t *testing.T,
-	expected []aggregated.ChunkedMetricWithStoragePolicy,
+	expected []encodeData,
 	actual []*common.RefCountedBuffer,
 ) {
-	var decoded []aggregated.MetricWithStoragePolicy
+	var decoded []decodeData
 	it := msgpack.NewAggregatedIterator(nil, nil)
 	for _, b := range actual {
 		it.Reset(b.Buffer().Buffer())
 		for it.Next() {
-			rm, sp := it.Value()
+			rm, sp, encodedAtNanos := it.Value()
 			m, err := rm.Metric()
 			require.NoError(t, err)
-			decoded = append(decoded, aggregated.MetricWithStoragePolicy{
-				Metric:        m,
-				StoragePolicy: sp,
-			})
+			res := decodeData{
+				MetricWithStoragePolicy: aggregated.MetricWithStoragePolicy{
+					Metric:        m,
+					StoragePolicy: sp,
+				},
+				encodedAtNanos: encodedAtNanos,
+			}
+			decoded = append(decoded, res)
 		}
 		b.DecRef()
 		require.Equal(t, io.EOF, it.Err())
@@ -303,6 +398,7 @@ func validateWritten(
 		require.Equal(t, expected[i].TimeNanos, decoded[i].TimeNanos)
 		require.Equal(t, expected[i].Value, decoded[i].Value)
 		require.Equal(t, expected[i].StoragePolicy, decoded[i].StoragePolicy)
+		require.Equal(t, expected[i].encodedAtNanos, decoded[i].encodedAtNanos)
 	}
 }
 
@@ -311,6 +407,18 @@ func testShardedWriter(t *testing.T, opts Options) *shardedWriter {
 	writer, err := NewShardedWriter(sharderID, nil, opts)
 	require.NoError(t, err)
 	return writer.(*shardedWriter)
+}
+
+type encodeData struct {
+	aggregated.ChunkedMetricWithStoragePolicy
+
+	encodedAtNanos int64
+}
+
+type decodeData struct {
+	aggregated.MetricWithStoragePolicy
+
+	encodedAtNanos int64
 }
 
 type routeFn func(shard uint32, buf *common.RefCountedBuffer) error

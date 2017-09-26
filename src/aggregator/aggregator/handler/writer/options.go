@@ -22,15 +22,23 @@ package writer
 
 import (
 	"github.com/m3db/m3metrics/protocol/msgpack"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 )
 
 const (
-	defaultMaxBufferSize = 1440
+	defaultMaxBufferSize            = 1440
+	defaultEncodingTimeSamplingRate = 0
 )
 
 // Options provide a set of options for the writer.
 type Options interface {
+	// SetClockOptions sets the clock options.
+	SetClockOptions(value clock.Options) Options
+
+	// ClockOptions returns the clock options.
+	ClockOptions() clock.Options
+
 	// SetInstrumentOptions sets the instrument options.
 	SetInstrumentOptions(value instrument.Options) Options
 
@@ -48,12 +56,24 @@ type Options interface {
 
 	// BufferedEncoderPool returns the buffered encoder pool.
 	BufferedEncoderPool() msgpack.BufferedEncoderPool
+
+	// SetEncodingTimeSampleRate sets the sampling rate at which the encoding time is
+	// included in the encoded data. A value of 0 means the encoding time is never included,
+	// and a value of 1 means the encoding time is always included.
+	SetEncodingTimeSamplingRate(value float64) Options
+
+	// EncodingTimeSamplingRate returns the sampling rate at which the encoding time is
+	// included in the encoded data. A value of 0 means the encoding time is never included,
+	// and a value of 1 means the encoding time is always included.
+	EncodingTimeSamplingRate() float64
 }
 
 type options struct {
-	instrumentOpts      instrument.Options
-	maxBufferSize       int
-	bufferedEncoderPool msgpack.BufferedEncoderPool
+	clockOpts                clock.Options
+	instrumentOpts           instrument.Options
+	maxBufferSize            int
+	bufferedEncoderPool      msgpack.BufferedEncoderPool
+	encodingTimeSamplingRate float64
 }
 
 // NewOptions provide a set of writer options.
@@ -63,10 +83,22 @@ func NewOptions() Options {
 		return msgpack.NewPooledBufferedEncoder(bufferedEncoderPool)
 	})
 	return &options{
-		instrumentOpts:      instrument.NewOptions(),
-		maxBufferSize:       defaultMaxBufferSize,
-		bufferedEncoderPool: bufferedEncoderPool,
+		clockOpts:                clock.NewOptions(),
+		instrumentOpts:           instrument.NewOptions(),
+		maxBufferSize:            defaultMaxBufferSize,
+		bufferedEncoderPool:      bufferedEncoderPool,
+		encodingTimeSamplingRate: defaultEncodingTimeSamplingRate,
 	}
+}
+
+func (o *options) SetClockOptions(value clock.Options) Options {
+	opts := *o
+	opts.clockOpts = value
+	return &opts
+}
+
+func (o *options) ClockOptions() clock.Options {
+	return o.clockOpts
 }
 
 func (o *options) SetInstrumentOptions(value instrument.Options) Options {
@@ -97,4 +129,14 @@ func (o *options) SetBufferedEncoderPool(value msgpack.BufferedEncoderPool) Opti
 
 func (o *options) BufferedEncoderPool() msgpack.BufferedEncoderPool {
 	return o.bufferedEncoderPool
+}
+
+func (o *options) SetEncodingTimeSamplingRate(value float64) Options {
+	opts := *o
+	opts.encodingTimeSamplingRate = value
+	return &opts
+}
+
+func (o *options) EncodingTimeSamplingRate() float64 {
+	return o.encodingTimeSamplingRate
 }
