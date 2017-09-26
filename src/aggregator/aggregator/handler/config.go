@@ -104,12 +104,17 @@ type writerConfiguration struct {
 
 	// Pool of buffered encoders.
 	BufferedEncoderPool pool.ObjectPoolConfiguration `yaml:"bufferedEncoderPool"`
+
+	// How frequent is the encoding time sampled and included in the payload.
+	EncodingTimeSamplingRate float64 `yaml:"encodingTimeSamplingRate" validate:"min=0.0,max=1.0"`
 }
 
 func (c *writerConfiguration) NewWriterOptions(
 	instrumentOpts instrument.Options,
 ) writer.Options {
-	opts := writer.NewOptions().SetInstrumentOptions(instrumentOpts)
+	opts := writer.NewOptions().
+		SetInstrumentOptions(instrumentOpts).
+		SetEncodingTimeSamplingRate(c.EncodingTimeSamplingRate)
 	if c.MaxBufferSize > 0 {
 		opts = opts.SetMaxBufferSize(c.MaxBufferSize)
 	}
