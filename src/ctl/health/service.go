@@ -95,6 +95,10 @@ func m3ctlHealthCheck(w http.ResponseWriter, r *http.Request) {
 // RegisterHandlers registers health handlers.
 func (s *service) RegisterHandlers(router *mux.Router) {
 	log := s.iOpts.Logger()
-	router.HandleFunc(healthURL, m3ctlHealthCheck)
+	router.HandleFunc("", m3ctlHealthCheck)
 	log.Infof("Registered health endpoints")
+}
+
+func (s *service) URLPrefix() string {
+	return healthURL
 }
