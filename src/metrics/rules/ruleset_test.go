@@ -44,7 +44,8 @@ var (
 	compressedP999, _         = compressor.Compress(policy.AggregationTypes{policy.P999})
 	compressedCountAndMean, _ = compressor.Compress(policy.AggregationTypes{policy.Count, policy.Mean})
 
-	now = time.Now().UnixNano()
+	now      = time.Now().UnixNano()
+	testUser = "test_user"
 )
 
 func TestMatchModeUnmarshalYAML(t *testing.T) {
@@ -497,12 +498,12 @@ func TestRuleSetProperties(t *testing.T) {
 	opts := testRuleSetOptions()
 	version := 1
 	rs := &schema.RuleSet{
-		Uuid:          "ruleset",
-		Namespace:     "namespace",
-		CreatedAt:     1234,
-		LastUpdatedAt: 5678,
-		Tombstoned:    false,
-		CutoverTime:   34923,
+		Uuid:               "ruleset",
+		Namespace:          "namespace",
+		CreatedAtNanos:     1234,
+		LastUpdatedAtNanos: 5678,
+		Tombstoned:         false,
+		CutoverNanos:       34923,
 	}
 	newRuleSet, err := NewRuleSetFromSchema(version, rs, opts)
 	require.NoError(t, err)
@@ -514,18 +515,20 @@ func TestRuleSetProperties(t *testing.T) {
 	require.Equal(t, int64(34923), ruleSet.CutoverNanos())
 	require.Equal(t, false, ruleSet.Tombstoned())
 }
+
 func TestRuleSetSchema(t *testing.T) {
 	version := 1
 
 	expectedRs := &schema.RuleSet{
-		Uuid:          "ruleset",
-		Namespace:     "namespace",
-		CreatedAt:     1234,
-		LastUpdatedAt: 5678,
-		Tombstoned:    false,
-		CutoverTime:   34923,
-		MappingRules:  testMappingRulesConfig(),
-		RollupRules:   testRollupRulesConfig(),
+		Uuid:               "ruleset",
+		Namespace:          "namespace",
+		CreatedAtNanos:     1234,
+		LastUpdatedAtNanos: 5678,
+		LastUpdatedBy:      "someone",
+		Tombstoned:         false,
+		CutoverNanos:       34923,
+		MappingRules:       testMappingRulesConfig(),
+		RollupRules:        testRollupRulesConfig(),
 	}
 
 	rs, err := newMutableRuleSetFromSchema(version, expectedRs)
@@ -1265,10 +1268,12 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		uuid: "rollupRule5",
 		snapshots: []*rollupRuleSnapshot{
 			&rollupRuleSnapshot{
-				name:         "rollupRule5.snapshot1",
-				tombstoned:   false,
-				cutoverNanos: 24000,
-				filter:       filter2,
+				name:               "rollupRule5.snapshot1",
+				tombstoned:         false,
+				cutoverNanos:       24000,
+				filter:             filter2,
+				lastUpdatedAtNanos: 123456,
+				lastUpdatedBy:      "test",
 				targets: []RollupTarget{
 					{
 						Name: b("rName4"),
@@ -1312,10 +1317,10 @@ func testMappingRulesConfig() []*schema.MappingRule {
 			Uuid: "mappingRule1",
 			Snapshots: []*schema.MappingRuleSnapshot{
 				&schema.MappingRuleSnapshot{
-					Name:        "mappingRule1.snapshot1",
-					Tombstoned:  false,
-					CutoverTime: 10000,
-					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
+					Name:         "mappingRule1.snapshot1",
+					Tombstoned:   false,
+					CutoverNanos: 10000,
+					TagFilters:   map[string]string{"mtagName1": "mtagValue1"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
 							StoragePolicy: &schema.StoragePolicy{
@@ -1331,10 +1336,10 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					},
 				},
 				&schema.MappingRuleSnapshot{
-					Name:        "mappingRule1.snapshot2",
-					Tombstoned:  false,
-					CutoverTime: 20000,
-					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
+					Name:         "mappingRule1.snapshot2",
+					Tombstoned:   false,
+					CutoverNanos: 20000,
+					TagFilters:   map[string]string{"mtagName1": "mtagValue1"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
 							StoragePolicy: &schema.StoragePolicy{
@@ -1372,10 +1377,10 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					},
 				},
 				&schema.MappingRuleSnapshot{
-					Name:        "mappingRule1.snapshot3",
-					Tombstoned:  false,
-					CutoverTime: 30000,
-					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
+					Name:         "mappingRule1.snapshot3",
+					Tombstoned:   false,
+					CutoverNanos: 30000,
+					TagFilters:   map[string]string{"mtagName1": "mtagValue1"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
 							StoragePolicy: &schema.StoragePolicy{
@@ -1396,10 +1401,10 @@ func testMappingRulesConfig() []*schema.MappingRule {
 			Uuid: "mappingRule2",
 			Snapshots: []*schema.MappingRuleSnapshot{
 				&schema.MappingRuleSnapshot{
-					Name:        "mappingRule2.snapshot1",
-					Tombstoned:  false,
-					CutoverTime: 15000,
-					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
+					Name:         "mappingRule2.snapshot1",
+					Tombstoned:   false,
+					CutoverNanos: 15000,
+					TagFilters:   map[string]string{"mtagName1": "mtagValue1"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
 							StoragePolicy: &schema.StoragePolicy{
@@ -1415,10 +1420,10 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					},
 				},
 				&schema.MappingRuleSnapshot{
-					Name:        "mappingRule2.snapshot2",
-					Tombstoned:  false,
-					CutoverTime: 22000,
-					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
+					Name:         "mappingRule2.snapshot2",
+					Tombstoned:   false,
+					CutoverNanos: 22000,
+					TagFilters:   map[string]string{"mtagName1": "mtagValue1"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
 							StoragePolicy: &schema.StoragePolicy{
@@ -1448,11 +1453,11 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					},
 				},
 				&schema.MappingRuleSnapshot{
-					Name:        "mappingRule2.snapshot3",
-					Tombstoned:  true,
-					CutoverTime: 35000,
-					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
-					Policies:    []*schema.Policy{},
+					Name:         "mappingRule2.snapshot3",
+					Tombstoned:   true,
+					CutoverNanos: 35000,
+					TagFilters:   map[string]string{"mtagName1": "mtagValue1"},
+					Policies:     []*schema.Policy{},
 				},
 			},
 		},
@@ -1460,10 +1465,10 @@ func testMappingRulesConfig() []*schema.MappingRule {
 			Uuid: "mappingRule3",
 			Snapshots: []*schema.MappingRuleSnapshot{
 				&schema.MappingRuleSnapshot{
-					Name:        "mappingRule3.snapshot1",
-					Tombstoned:  false,
-					CutoverTime: 22000,
-					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
+					Name:         "mappingRule3.snapshot1",
+					Tombstoned:   false,
+					CutoverNanos: 22000,
+					TagFilters:   map[string]string{"mtagName1": "mtagValue1"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
 							StoragePolicy: &schema.StoragePolicy{
@@ -1504,10 +1509,10 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					},
 				},
 				&schema.MappingRuleSnapshot{
-					Name:        "mappingRule3.snapshot2",
-					Tombstoned:  false,
-					CutoverTime: 34000,
-					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
+					Name:         "mappingRule3.snapshot2",
+					Tombstoned:   false,
+					CutoverNanos: 34000,
+					TagFilters:   map[string]string{"mtagName1": "mtagValue1"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
 							StoragePolicy: &schema.StoragePolicy{
@@ -1539,10 +1544,10 @@ func testMappingRulesConfig() []*schema.MappingRule {
 			Uuid: "mappingRule4",
 			Snapshots: []*schema.MappingRuleSnapshot{
 				&schema.MappingRuleSnapshot{
-					Name:        "mappingRule4.snapshot1",
-					Tombstoned:  false,
-					CutoverTime: 24000,
-					TagFilters:  map[string]string{"mtagName1": "mtagValue2"},
+					Name:         "mappingRule4.snapshot1",
+					Tombstoned:   false,
+					CutoverNanos: 24000,
+					TagFilters:   map[string]string{"mtagName1": "mtagValue2"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
 							StoragePolicy: &schema.StoragePolicy{
@@ -1566,10 +1571,12 @@ func testMappingRulesConfig() []*schema.MappingRule {
 			Uuid: "mappingRule5",
 			Snapshots: []*schema.MappingRuleSnapshot{
 				&schema.MappingRuleSnapshot{
-					Name:        "mappingRule5.snapshot1",
-					Tombstoned:  false,
-					CutoverTime: 100000,
-					TagFilters:  map[string]string{"mtagName1": "mtagValue1"},
+					Name:               "mappingRule5.snapshot1",
+					Tombstoned:         false,
+					CutoverNanos:       100000,
+					LastUpdatedAtNanos: 123456,
+					LastUpdatedBy:      "test",
+					TagFilters:         map[string]string{"mtagName1": "mtagValue1"},
 					Policies: []*schema.Policy{
 						&schema.Policy{
 							StoragePolicy: &schema.StoragePolicy{
@@ -1595,9 +1602,9 @@ func testRollupRulesConfig() []*schema.RollupRule {
 			Uuid: "rollupRule1",
 			Snapshots: []*schema.RollupRuleSnapshot{
 				&schema.RollupRuleSnapshot{
-					Name:        "rollupRule1.snapshot1",
-					Tombstoned:  false,
-					CutoverTime: 10000,
+					Name:         "rollupRule1.snapshot1",
+					Tombstoned:   false,
+					CutoverNanos: 10000,
 					TagFilters: map[string]string{
 						"rtagName1": "rtagValue1",
 						"rtagName2": "rtagValue2",
@@ -1623,9 +1630,9 @@ func testRollupRulesConfig() []*schema.RollupRule {
 					},
 				},
 				&schema.RollupRuleSnapshot{
-					Name:        "rollupRule1.snapshot2",
-					Tombstoned:  false,
-					CutoverTime: 20000,
+					Name:         "rollupRule1.snapshot2",
+					Tombstoned:   false,
+					CutoverNanos: 20000,
 					TagFilters: map[string]string{
 						"rtagName1": "rtagValue1",
 						"rtagName2": "rtagValue2",
@@ -1673,9 +1680,9 @@ func testRollupRulesConfig() []*schema.RollupRule {
 					},
 				},
 				&schema.RollupRuleSnapshot{
-					Name:        "rollupRule1.snapshot3",
-					Tombstoned:  false,
-					CutoverTime: 30000,
+					Name:         "rollupRule1.snapshot3",
+					Tombstoned:   false,
+					CutoverNanos: 30000,
 					TagFilters: map[string]string{
 						"rtagName1": "rtagValue1",
 						"rtagName2": "rtagValue2",
@@ -1706,9 +1713,9 @@ func testRollupRulesConfig() []*schema.RollupRule {
 			Uuid: "rollupRule2",
 			Snapshots: []*schema.RollupRuleSnapshot{
 				&schema.RollupRuleSnapshot{
-					Name:        "rollupRule2.snapshot1",
-					Tombstoned:  false,
-					CutoverTime: 15000,
+					Name:         "rollupRule2.snapshot1",
+					Tombstoned:   false,
+					CutoverNanos: 15000,
 					TagFilters: map[string]string{
 						"rtagName1": "rtagValue1",
 						"rtagName2": "rtagValue2",
@@ -1734,9 +1741,9 @@ func testRollupRulesConfig() []*schema.RollupRule {
 					},
 				},
 				&schema.RollupRuleSnapshot{
-					Name:        "rollupRule2.snapshot2",
-					Tombstoned:  false,
-					CutoverTime: 22000,
+					Name:         "rollupRule2.snapshot2",
+					Tombstoned:   false,
+					CutoverNanos: 22000,
 					TagFilters: map[string]string{
 						"rtagName1": "rtagValue1",
 						"rtagName2": "rtagValue2",
@@ -1773,9 +1780,9 @@ func testRollupRulesConfig() []*schema.RollupRule {
 					},
 				},
 				&schema.RollupRuleSnapshot{
-					Name:        "rollupRule2.snapshot3",
-					Tombstoned:  true,
-					CutoverTime: 35000,
+					Name:         "rollupRule2.snapshot3",
+					Tombstoned:   true,
+					CutoverNanos: 35000,
 					TagFilters: map[string]string{
 						"rtagName1": "rtagValue1",
 						"rtagName2": "rtagValue2",
@@ -1788,9 +1795,9 @@ func testRollupRulesConfig() []*schema.RollupRule {
 			Uuid: "rollupRule3",
 			Snapshots: []*schema.RollupRuleSnapshot{
 				&schema.RollupRuleSnapshot{
-					Name:        "rollupRule3.snapshot1",
-					Tombstoned:  false,
-					CutoverTime: 22000,
+					Name:         "rollupRule3.snapshot1",
+					Tombstoned:   false,
+					CutoverNanos: 22000,
 					TagFilters: map[string]string{
 						"rtagName1": "rtagValue1",
 						"rtagName2": "rtagValue2",
@@ -1855,9 +1862,9 @@ func testRollupRulesConfig() []*schema.RollupRule {
 					},
 				},
 				&schema.RollupRuleSnapshot{
-					Name:        "rollupRule3.snapshot2",
-					Tombstoned:  false,
-					CutoverTime: 34000,
+					Name:         "rollupRule3.snapshot2",
+					Tombstoned:   false,
+					CutoverNanos: 34000,
 					TagFilters: map[string]string{
 						"rtagName1": "rtagValue1",
 						"rtagName2": "rtagValue2",
@@ -1899,9 +1906,9 @@ func testRollupRulesConfig() []*schema.RollupRule {
 			Uuid: "rollupRule4",
 			Snapshots: []*schema.RollupRuleSnapshot{
 				&schema.RollupRuleSnapshot{
-					Name:        "rollupRule4.snapshot1",
-					Tombstoned:  false,
-					CutoverTime: 24000,
+					Name:         "rollupRule4.snapshot1",
+					Tombstoned:   false,
+					CutoverNanos: 24000,
 					TagFilters: map[string]string{
 						"rtagName1": "rtagValue2",
 					},
@@ -1931,9 +1938,9 @@ func testRollupRulesConfig() []*schema.RollupRule {
 			Uuid: "rollupRule5",
 			Snapshots: []*schema.RollupRuleSnapshot{
 				&schema.RollupRuleSnapshot{
-					Name:        "rollupRule5.snapshot1",
-					Tombstoned:  false,
-					CutoverTime: 24000,
+					Name:         "rollupRule5.snapshot1",
+					Tombstoned:   false,
+					CutoverNanos: 24000,
 					TagFilters: map[string]string{
 						"rtagName1": "rtagValue2",
 					},
@@ -1963,9 +1970,9 @@ func testRollupRulesConfig() []*schema.RollupRule {
 			Uuid: "rollupRule6",
 			Snapshots: []*schema.RollupRuleSnapshot{
 				&schema.RollupRuleSnapshot{
-					Name:        "rollupRule6.snapshot1",
-					Tombstoned:  false,
-					CutoverTime: 100000,
+					Name:         "rollupRule6.snapshot1",
+					Tombstoned:   false,
+					CutoverNanos: 100000,
 					TagFilters: map[string]string{
 						"rtagName1": "rtagValue1",
 						"rtagName2": "rtagValue2",
@@ -2039,14 +2046,15 @@ func initMutableTest() (MutableRuleSet, *ruleSet, RuleSetUpdateHelper, error) {
 	version := 1
 
 	expectedRs := &schema.RuleSet{
-		Uuid:          "ruleset",
-		Namespace:     "namespace",
-		CreatedAt:     1234,
-		LastUpdatedAt: 5678,
-		Tombstoned:    false,
-		CutoverTime:   34923,
-		MappingRules:  testMappingRulesConfig(),
-		RollupRules:   testRollupRulesConfig(),
+		Uuid:               "ruleset",
+		Namespace:          "namespace",
+		CreatedAtNanos:     1234,
+		LastUpdatedAtNanos: 5678,
+		LastUpdatedBy:      "someone",
+		Tombstoned:         false,
+		CutoverNanos:       34923,
+		MappingRules:       testMappingRulesConfig(),
+		RollupRules:        testRollupRulesConfig(),
 	}
 
 	mutable, err := newMutableRuleSetFromSchema(version, expectedRs)
@@ -2110,14 +2118,21 @@ func TestAddMappingRule(t *testing.T) {
 		Policies: p,
 	}
 
-	newID, err := mutable.AddMappingRule(view, helper.NewUpdateMetadata(time.Now().UnixNano()))
+	newID, err := mutable.AddMappingRule(view, helper.NewUpdateMetadata(now, testUser))
 	require.NoError(t, err)
 	mrs, err := mutable.MappingRules()
 	require.NoError(t, err)
 	require.Contains(t, mrs, newID)
 
-	_, err = rs.getMappingRuleByName("foo")
+	mr, err := rs.getMappingRuleByName("foo")
 	require.NoError(t, err)
+
+	updated := mrs[mr.uuid][0]
+	require.Equal(t, updated.Name, view.Name)
+	require.Equal(t, updated.ID, mr.uuid)
+	require.Equal(t, updated.Filters, view.Filters)
+	require.Equal(t, updated.LastUpdatedAtNanos, now)
+	require.Equal(t, updated.LastUpdatedBy, testUser)
 }
 
 func TestAddMappingRuleDup(t *testing.T) {
@@ -2136,7 +2151,7 @@ func TestAddMappingRuleDup(t *testing.T) {
 		Policies: p,
 	}
 
-	newID, err := mutable.AddMappingRule(view, helper.NewUpdateMetadata(time.Now().UnixNano()))
+	newID, err := mutable.AddMappingRule(view, helper.NewUpdateMetadata(time.Now().UnixNano(), testUser))
 	require.Empty(t, newID)
 	require.Error(t, err)
 }
@@ -2149,7 +2164,7 @@ func TestAddMappingRuleRevive(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
-	err = mutable.DeleteMappingRule("mappingRule5", helper.NewUpdateMetadata(now))
+	err = mutable.DeleteMappingRule("mappingRule5", helper.NewUpdateMetadata(now, testUser))
 	require.NoError(t, err)
 
 	newFilters := map[string]string{"test": "bar"}
@@ -2159,7 +2174,7 @@ func TestAddMappingRuleRevive(t *testing.T) {
 		Filters:  newFilters,
 		Policies: p,
 	}
-	newID, err := mutable.AddMappingRule(view, helper.NewUpdateMetadata(time.Now().UnixNano()))
+	newID, err := mutable.AddMappingRule(view, helper.NewUpdateMetadata(now, testUser))
 	require.NoError(t, err)
 
 	mrs, err := mutable.MappingRules()
@@ -2169,6 +2184,14 @@ func TestAddMappingRuleRevive(t *testing.T) {
 	mr, err := rs.getMappingRuleByID("mappingRule5")
 	require.NoError(t, err)
 	require.Equal(t, mr.snapshots[len(mr.snapshots)-1].rawFilters, newFilters)
+
+	updated := mrs[mr.uuid][0]
+	require.NoError(t, err)
+	require.Equal(t, updated.Name, "mappingRule5.snapshot1")
+	require.Equal(t, updated.ID, mr.uuid)
+	require.Equal(t, updated.Filters, newFilters)
+	require.Equal(t, updated.LastUpdatedAtNanos, now)
+	require.Equal(t, updated.LastUpdatedBy, testUser)
 }
 
 func TestUpdateMappingRule(t *testing.T) {
@@ -2178,8 +2201,12 @@ func TestUpdateMappingRule(t *testing.T) {
 	mutableClone := mutable.Clone()
 	require.NoError(t, err)
 
-	_, err = rs.getMappingRuleByID("mappingRule5")
+	mr, err := rs.getMappingRuleByID("mappingRule5")
 	require.NoError(t, err)
+
+	mrs, err := rs.MappingRules()
+	require.NoError(t, err)
+	require.Contains(t, mrs, "mappingRule5")
 
 	newFilters := map[string]string{"tag1": "value", "tag2": "value"}
 	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
@@ -2190,36 +2217,46 @@ func TestUpdateMappingRule(t *testing.T) {
 		Policies: p,
 	}
 
-	err = mutableClone.UpdateMappingRule(view, helper.NewUpdateMetadata(now))
+	err = mutableClone.UpdateMappingRule(view, helper.NewUpdateMetadata(now, testUser))
 	require.NoError(t, err)
 
-	res, err := mutableClone.(*ruleSet).getMappingRuleByID("mappingRule5")
+	r, err := rs.getMappingRuleByID(mr.uuid)
 	require.NoError(t, err)
-	n, err := res.Name()
-	require.NoError(t, err)
-	require.Equal(t, "foo", n)
 
-	orig, err := rs.getMappingRuleByID("mappingRule5")
+	mrs, err = mutableClone.MappingRules()
 	require.NoError(t, err)
-	n, err = orig.Name()
+	require.Contains(t, mrs, r.uuid)
+	updated := mrs[mr.uuid][0]
 	require.NoError(t, err)
-	require.Equal(t, "mappingRule5.snapshot1", n)
+	require.Equal(t, updated.Name, "foo")
+	require.Equal(t, updated.ID, mr.uuid)
+	require.Equal(t, updated.Filters, newFilters)
+	require.Equal(t, updated.LastUpdatedAtNanos, now)
+	require.Equal(t, updated.LastUpdatedBy, testUser)
 }
 
 func TestDeleteMappingRule(t *testing.T) {
 	mutable, rs, helper, err := initMutableTest()
 	require.NoError(t, err)
 
+	mrs, err := rs.MappingRules()
+	require.NoError(t, err)
+	require.Contains(t, mrs, "mappingRule5")
+
 	m, err := rs.getMappingRuleByID("mappingRule5")
 	require.NoError(t, err)
 	require.NotNil(t, m)
 
-	err = mutable.DeleteMappingRule("mappingRule5", helper.NewUpdateMetadata(now))
+	err = mutable.DeleteMappingRule("mappingRule5", helper.NewUpdateMetadata(now, testUser))
 	require.NoError(t, err)
 
 	m, err = rs.getMappingRuleByID("mappingRule5")
 	require.NoError(t, err)
 	require.True(t, m.Tombstoned())
+
+	mrs, err = rs.MappingRules()
+	require.NoError(t, err)
+	require.Contains(t, mrs, "mappingRule5")
 }
 
 func TestAddRollupRule(t *testing.T) {
@@ -2245,15 +2282,23 @@ func TestAddRollupRule(t *testing.T) {
 		Targets: newTargets,
 	}
 
-	newID, err := mutable.AddRollupRule(view, helper.NewUpdateMetadata(time.Now().UnixNano()))
+	newID, err := mutable.AddRollupRule(view, helper.NewUpdateMetadata(now, testUser))
 	require.NoError(t, err)
 	rrs, err := mutable.RollupRules()
 	require.Contains(t, rrs, newID)
 	require.NoError(t, err)
 
-	res, err := rs.getRollupRuleByName("foo")
-	require.NotEmpty(t, res.uuid)
+	rr, err := rs.getRollupRuleByName("foo")
 	require.NoError(t, err)
+	require.Contains(t, rrs, rr.uuid)
+
+	updated := rrs[rr.uuid][0]
+	require.Equal(t, updated.Name, view.Name)
+	require.Equal(t, updated.ID, rr.uuid)
+	require.Equal(t, updated.Targets, view.Targets)
+	require.Equal(t, updated.Filters, view.Filters)
+	require.Equal(t, updated.LastUpdatedAtNanos, now)
+	require.Equal(t, updated.LastUpdatedBy, testUser)
 }
 
 func TestAddRollupRuleDup(t *testing.T) {
@@ -2279,7 +2324,7 @@ func TestAddRollupRuleDup(t *testing.T) {
 		Filters: newFilters,
 		Targets: newTargets,
 	}
-	uuid, err := mutable.AddRollupRule(view, helper.NewUpdateMetadata(now))
+	uuid, err := mutable.AddRollupRule(view, helper.NewUpdateMetadata(now, testUser))
 	require.Empty(t, uuid)
 	require.Error(t, err)
 }
@@ -2291,7 +2336,7 @@ func TestReviveRollupRule(t *testing.T) {
 	rr, err := rs.getRollupRuleByID("rollupRule5")
 	require.NoError(t, err)
 
-	err = mutable.DeleteRollupRule(rr.uuid, helper.NewUpdateMetadata(now))
+	err = mutable.DeleteRollupRule(rr.uuid, helper.NewUpdateMetadata(now, testUser))
 	require.NoError(t, err)
 
 	rr, err = rs.getRollupRuleByID("rollupRule5")
@@ -2304,18 +2349,29 @@ func TestReviveRollupRule(t *testing.T) {
 		ID:      rr.uuid,
 		Name:    "rollupRule5.snapshot1",
 		Filters: snapshot.rawFilters,
+		Targets: []RollupTargetView{},
 	}
 
-	uuid, err := mutable.AddRollupRule(view, helper.NewUpdateMetadata(now))
+	uuid, err := mutable.AddRollupRule(view, helper.NewUpdateMetadata(now, testUser))
 	require.NoError(t, err)
 	require.NotEmpty(t, uuid)
 	hist, err := mutable.RollupRules()
 	require.NoError(t, err)
 	require.Contains(t, hist, uuid)
 
-	rr, err = rs.getRollupRuleByID("rollupRule5")
+	rrs, err := rs.RollupRules()
 	require.NoError(t, err)
-	require.Equal(t, rr.snapshots[len(rr.snapshots)-1].rawFilters, snapshot.rawFilters)
+	require.Contains(t, rrs, rr.uuid)
+
+	updated := rrs[rr.uuid][0]
+
+	require.NoError(t, err)
+	require.Equal(t, updated.Name, view.Name)
+	require.Equal(t, updated.ID, rr.uuid)
+	require.Equal(t, updated.Targets, view.Targets)
+	require.Equal(t, updated.Filters, view.Filters)
+	require.Equal(t, updated.LastUpdatedAtNanos, now)
+	require.Equal(t, updated.LastUpdatedBy, testUser)
 }
 
 func TestUpdateRollupRule(t *testing.T) {
@@ -2342,12 +2398,27 @@ func TestUpdateRollupRule(t *testing.T) {
 		Targets: newTargets,
 	}
 
-	err = mutable.UpdateRollupRule(view, helper.NewUpdateMetadata(now))
+	err = mutable.UpdateRollupRule(view, helper.NewUpdateMetadata(now, testUser))
 	require.NoError(t, err)
 
-	_, err = rs.getRollupRuleByName("foo")
+	r, err := rs.getRollupRuleByID(rr.uuid)
+	require.NoError(t, err)
+
+	rrs, err := rs.RollupRules()
+	require.Contains(t, rrs, r.uuid)
+
+	updated := rrs[r.uuid][0]
+	require.NoError(t, err)
+	require.Equal(t, updated.Name, "foo")
+	require.Equal(t, updated.ID, rr.uuid)
+	require.Equal(t, updated.Targets, newTargets)
+	require.Equal(t, updated.Filters, newFilters)
+	require.Equal(t, updated.LastUpdatedAtNanos, now)
+	require.Equal(t, updated.LastUpdatedBy, testUser)
+
 	require.NoError(t, err)
 }
+
 func TestUpdateRollupRuleDupTarget(t *testing.T) {
 	mutable, rs, helper, err := initMutableTest()
 	require.NoError(t, err)
@@ -2373,7 +2444,7 @@ func TestUpdateRollupRuleDupTarget(t *testing.T) {
 		Targets: newTargets,
 	}
 
-	err = mutable.UpdateRollupRule(view, helper.NewUpdateMetadata(now))
+	err = mutable.UpdateRollupRule(view, helper.NewUpdateMetadata(now, testUser))
 	require.Error(t, err)
 }
 
@@ -2381,22 +2452,30 @@ func TestDeleteRollupRule(t *testing.T) {
 	mutable, rs, helper, err := initMutableTest()
 	require.NoError(t, err)
 
+	rrs, err := rs.RollupRules()
+	require.NoError(t, err)
+	require.Contains(t, rrs, "rollupRule5")
+
 	rr, err := rs.getRollupRuleByID("rollupRule5")
 	require.NoError(t, err)
 
-	err = mutable.DeleteRollupRule(rr.uuid, helper.NewUpdateMetadata(now))
+	err = mutable.DeleteRollupRule(rr.uuid, helper.NewUpdateMetadata(now, testUser))
 	require.NoError(t, err)
 
 	rr, err = rs.getRollupRuleByName("rollupRule5.snapshot1")
 	require.NoError(t, err)
 	require.True(t, rr.Tombstoned())
+
+	rrs, err = rs.RollupRules()
+	require.NoError(t, err)
+	require.Contains(t, rrs, "rollupRule5")
 }
 
 func TestDeleteRuleset(t *testing.T) {
 	mutable, rs, helper, err := initMutableTest()
 	require.NoError(t, err)
 
-	err = mutable.Delete(helper.NewUpdateMetadata(now))
+	err = mutable.Delete(helper.NewUpdateMetadata(now, testUser))
 	require.NoError(t, err)
 
 	require.True(t, mutable.Tombstoned())
@@ -2413,10 +2492,10 @@ func TestReviveRuleSet(t *testing.T) {
 	mutable, rs, helper, err := initMutableTest()
 	require.NoError(t, err)
 
-	err = mutable.Delete(helper.NewUpdateMetadata(now))
+	err = mutable.Delete(helper.NewUpdateMetadata(now, testUser))
 	require.NoError(t, err)
 
-	err = mutable.Revive(helper.NewUpdateMetadata(now))
+	err = mutable.Revive(helper.NewUpdateMetadata(now, testUser))
 	require.NoError(t, err)
 
 	require.False(t, rs.Tombstoned())
@@ -2432,7 +2511,6 @@ func TestReviveRuleSet(t *testing.T) {
 func TestRuleSetClone(t *testing.T) {
 	mutable, rs, _, _ := initMutableTest()
 	rsClone := mutable.Clone().(*ruleSet)
-
 	require.Equal(t, rsClone, rs)
 	for i, m := range rs.mappingRules {
 		require.False(t, m == rsClone.mappingRules[i])

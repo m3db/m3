@@ -40,12 +40,14 @@ var (
 // mappingRuleSnapshot defines a rule snapshot such that if a metric matches the
 // provided filters, it is aggregated and retained under the provided set of policies.
 type mappingRuleSnapshot struct {
-	name         string
-	tombstoned   bool
-	cutoverNanos int64
-	filter       filters.Filter
-	rawFilters   map[string]string
-	policies     []policy.Policy
+	name               string
+	tombstoned         bool
+	cutoverNanos       int64
+	filter             filters.Filter
+	rawFilters         map[string]string
+	policies           []policy.Policy
+	lastUpdatedAtNanos int64
+	lastUpdatedBy      string
 }
 
 func newMappingRuleSnapshot(
@@ -67,10 +69,12 @@ func newMappingRuleSnapshot(
 	return newMappingRuleSnapshotFromFields(
 		r.Name,
 		r.Tombstoned,
-		r.CutoverTime,
+		r.CutoverNanos,
 		r.TagFilters,
 		policies,
 		filter,
+		r.LastUpdatedAtNanos,
+		r.LastUpdatedBy,
 	), nil
 }
 
@@ -81,14 +85,18 @@ func newMappingRuleSnapshotFromFields(
 	tagFilters map[string]string,
 	policies []policy.Policy,
 	filter filters.Filter,
+	lastUpdatedAtNanos int64,
+	lastUpdatedBy string,
 ) *mappingRuleSnapshot {
 	return &mappingRuleSnapshot{
-		name:         name,
-		tombstoned:   tombstoned,
-		cutoverNanos: cutoverNanos,
-		filter:       filter,
-		rawFilters:   tagFilters,
-		policies:     policies,
+		name:               name,
+		tombstoned:         tombstoned,
+		cutoverNanos:       cutoverNanos,
+		filter:             filter,
+		rawFilters:         tagFilters,
+		policies:           policies,
+		lastUpdatedAtNanos: lastUpdatedAtNanos,
+		lastUpdatedBy:      lastUpdatedBy,
 	}
 }
 
@@ -104,22 +112,26 @@ func (mrs *mappingRuleSnapshot) clone() mappingRuleSnapshot {
 		filter = mrs.filter.Clone()
 	}
 	return mappingRuleSnapshot{
-		name:         mrs.name,
-		tombstoned:   mrs.tombstoned,
-		cutoverNanos: mrs.cutoverNanos,
-		filter:       filter,
-		rawFilters:   rawFilters,
-		policies:     policies,
+		name:               mrs.name,
+		tombstoned:         mrs.tombstoned,
+		cutoverNanos:       mrs.cutoverNanos,
+		filter:             filter,
+		rawFilters:         rawFilters,
+		policies:           policies,
+		lastUpdatedAtNanos: mrs.lastUpdatedAtNanos,
+		lastUpdatedBy:      mrs.lastUpdatedBy,
 	}
 }
 
 // Schema returns the given MappingRuleSnapshot in protobuf form.
 func (mrs *mappingRuleSnapshot) Schema() (*schema.MappingRuleSnapshot, error) {
 	res := &schema.MappingRuleSnapshot{
-		Name:        mrs.name,
-		Tombstoned:  mrs.tombstoned,
-		CutoverTime: mrs.cutoverNanos,
-		TagFilters:  mrs.rawFilters,
+		Name:               mrs.name,
+		Tombstoned:         mrs.tombstoned,
+		CutoverNanos:       mrs.cutoverNanos,
+		TagFilters:         mrs.rawFilters,
+		LastUpdatedAtNanos: mrs.lastUpdatedAtNanos,
+		LastUpdatedBy:      mrs.lastUpdatedBy,
 	}
 
 	policies := make([]*schema.Policy, len(mrs.policies))
@@ -137,12 +149,14 @@ func (mrs *mappingRuleSnapshot) Schema() (*schema.MappingRuleSnapshot, error) {
 
 // MappingRuleView is a human friendly representation of a mapping rule at a given point in time.
 type MappingRuleView struct {
-	ID           string
-	Name         string
-	Tombstoned   bool
-	CutoverNanos int64
-	Filters      map[string]string
-	Policies     []policy.Policy
+	ID                 string
+	Name               string
+	Tombstoned         bool
+	CutoverNanos       int64
+	Filters            map[string]string
+	Policies           []policy.Policy
+	LastUpdatedBy      string
+	LastUpdatedAtNanos int64
 }
 
 func (mc *mappingRule) mappingRuleView(snapshotIdx int) (*MappingRuleView, error) {
@@ -152,12 +166,14 @@ func (mc *mappingRule) mappingRuleView(snapshotIdx int) (*MappingRuleView, error
 
 	mrs := mc.snapshots[snapshotIdx].clone()
 	return &MappingRuleView{
-		ID:           mc.uuid,
-		Name:         mrs.name,
-		Tombstoned:   mrs.tombstoned,
-		CutoverNanos: mrs.cutoverNanos,
-		Filters:      mrs.rawFilters,
-		Policies:     mrs.policies,
+		ID:                 mc.uuid,
+		Name:               mrs.name,
+		Tombstoned:         mrs.tombstoned,
+		CutoverNanos:       mrs.cutoverNanos,
+		Filters:            mrs.rawFilters,
+		Policies:           mrs.policies,
+		LastUpdatedAtNanos: mrs.lastUpdatedAtNanos,
+		LastUpdatedBy:      mrs.lastUpdatedBy,
 	}, nil
 }
 
@@ -192,10 +208,10 @@ func newMappingRuleFromFields(
 	name string,
 	rawFilters map[string]string,
 	policies []policy.Policy,
-	cutoverTime int64,
+	meta UpdateMetadata,
 ) (*mappingRule, error) {
 	mr := mappingRule{uuid: uuid.New()}
-	if err := mr.addSnapshot(name, rawFilters, policies, cutoverTime); err != nil {
+	if err := mr.addSnapshot(name, rawFilters, policies, meta); err != nil {
 		return nil, err
 	}
 	return &mr, nil
@@ -233,17 +249,18 @@ func (mc *mappingRule) addSnapshot(
 	name string,
 	rawFilters map[string]string,
 	policies []policy.Policy,
-	cutoverTime int64,
+	meta UpdateMetadata,
 ) error {
 	snapshot := newMappingRuleSnapshotFromFields(
 		name,
 		false,
-		cutoverTime,
+		meta.cutoverNanos,
 		rawFilters,
 		policies,
 		nil,
+		meta.updatedAtNanos,
+		meta.updatedBy,
 	)
-
 	mc.snapshots = append(mc.snapshots, snapshot)
 	return nil
 }
@@ -271,7 +288,7 @@ func (mc *mappingRule) revive(
 	name string,
 	rawFilters map[string]string,
 	policies []policy.Policy,
-	cutoverTime int64,
+	meta UpdateMetadata,
 ) error {
 	n, err := mc.Name()
 	if err != nil {
@@ -280,7 +297,7 @@ func (mc *mappingRule) revive(
 	if !mc.Tombstoned() {
 		return fmt.Errorf("%s is not tombstoned", n)
 	}
-	return mc.addSnapshot(name, rawFilters, policies, cutoverTime)
+	return mc.addSnapshot(name, rawFilters, policies, meta)
 }
 
 // equal to timeNanos, or nil if not found.
@@ -301,7 +318,10 @@ func (mc *mappingRule) ActiveRule(timeNanos int64) *mappingRule {
 	if idx < 0 {
 		return mc
 	}
-	return &mappingRule{uuid: mc.uuid, snapshots: mc.snapshots[idx:]}
+	return &mappingRule{
+		uuid:      mc.uuid,
+		snapshots: mc.snapshots[idx:],
+	}
 }
 
 func (mc *mappingRule) activeIndex(timeNanos int64) int {
@@ -328,10 +348,6 @@ func (mc *mappingRule) history() ([]*MappingRuleView, error) {
 
 // Schema returns the given MappingRule in protobuf form.
 func (mc *mappingRule) Schema() (*schema.MappingRule, error) {
-	res := &schema.MappingRule{
-		Uuid: mc.uuid,
-	}
-
 	snapshots := make([]*schema.MappingRuleSnapshot, len(mc.snapshots))
 	for i, s := range mc.snapshots {
 		snapshot, err := s.Schema()
@@ -340,7 +356,10 @@ func (mc *mappingRule) Schema() (*schema.MappingRule, error) {
 		}
 		snapshots[i] = snapshot
 	}
-	res.Snapshots = snapshots
 
-	return res, nil
+	return &schema.MappingRule{
+		Uuid:      mc.uuid,
+		Snapshots: snapshots,
+	}, nil
+
 }

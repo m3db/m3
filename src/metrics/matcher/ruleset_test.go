@@ -93,9 +93,9 @@ func TestToRuleSetUnmarshalError(t *testing.T) {
 func TestToRuleSetSuccess(t *testing.T) {
 	store, _, rs := testRuleSet()
 	proto := &schema.RuleSet{
-		Namespace:   string(testNamespace),
-		Tombstoned:  false,
-		CutoverTime: 123456,
+		Namespace:    string(testNamespace),
+		Tombstoned:   false,
+		CutoverNanos: 123456,
 	}
 	_, err := store.SetIfNotExists(testRuleSetKey, proto)
 	require.NoError(t, err)
