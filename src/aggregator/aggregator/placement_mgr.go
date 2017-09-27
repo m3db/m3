@@ -209,19 +209,22 @@ func (mgr *placementManager) placementWithLock() (placement.Placement, error) {
 	if mgr.state != placementManagerOpen {
 		return nil, errPlacementManagerNotOpenOrClosed
 	}
+
+	// NB(xichen): avoid using defer here because this is called on the write path
+	// for every incoming metric and defered return and func execution is expensive.
 	stagedPlacement, onStagedPlacementDoneFn, err := mgr.placementWatcher.ActiveStagedPlacement()
 	if err != nil {
 		mgr.metrics.activeStagedPlacementErrors.Inc(1)
 		return nil, err
 	}
-	defer onStagedPlacementDoneFn()
-
 	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
 	if err != nil {
+		onStagedPlacementDoneFn()
 		mgr.metrics.activePlacementErrors.Inc(1)
 		return nil, err
 	}
-	defer onPlacementDoneFn()
+	onPlacementDoneFn()
+	onStagedPlacementDoneFn()
 	return placement, nil
 }
 
