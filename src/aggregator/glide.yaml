@@ -10,7 +10,7 @@ import:
 - package: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 - package: github.com/m3db/m3x
-  version: 6e9713eca6718643e105f574be392f122bcc062e
+  version: 118fa2f66efa708eb1afdcd756c4da0ec6a8848e
 - package: github.com/uber-go/tally
   version: ^3.1.0
 - package: github.com/golang/protobuf
