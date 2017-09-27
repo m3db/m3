@@ -39,7 +39,7 @@ var (
 
 type entryKey struct {
 	metricType unaggregated.Type
-	idHash     xid.Hash
+	idHash     xid.Hash128
 }
 
 type hashedEntry struct {
@@ -99,7 +99,7 @@ func (m *metricMap) AddMetricWithPoliciesList(
 ) error {
 	entryKey := entryKey{
 		metricType: mu.Type,
-		idHash:     xid.HashFn(mu.ID),
+		idHash:     xid.Murmur3Hash128(mu.ID),
 	}
 	e := m.findOrCreate(entryKey)
 	err := e.AddMetricWithPoliciesList(mu, pl)

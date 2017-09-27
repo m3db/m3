@@ -58,7 +58,7 @@ func TestMetricMapAddMetricWithPoliciesList(t *testing.T) {
 	// Add a counter metric and assert there is one entry afterwards.
 	key := entryKey{
 		metricType: unaggregated.CounterType,
-		idHash:     xid.HashFn(testCounterID),
+		idHash:     xid.Murmur3Hash128(testCounterID),
 	}
 	require.NoError(t, m.AddMetricWithPoliciesList(testCounter, policies))
 	require.Equal(t, 1, len(m.entries))
@@ -86,7 +86,7 @@ func TestMetricMapAddMetricWithPoliciesList(t *testing.T) {
 	// now two entries.
 	key2 := entryKey{
 		metricType: unaggregated.GaugeType,
-		idHash:     xid.HashFn(testCounterID),
+		idHash:     xid.Murmur3Hash128(testCounterID),
 	}
 	metricWithDifferentType := unaggregated.MetricUnion{
 		Type:     unaggregated.GaugeType,
@@ -152,7 +152,7 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 	for i := 0; i < numEntries; i++ {
 		key := entryKey{
 			metricType: unaggregated.CounterType,
-			idHash:     xid.HashFn([]byte(fmt.Sprintf("%d", i))),
+			idHash:     xid.Murmur3Hash128([]byte(fmt.Sprintf("%d", i))),
 		}
 		if i%2 == 0 {
 			m.entries[key] = m.entryList.PushBack(hashedEntry{
