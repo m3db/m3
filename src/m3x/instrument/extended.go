@@ -43,8 +43,13 @@ const (
 	// SimpleExtendedMetrics describes just a simple level of extended metrics:
 	// - number of active goroutines
 	// - number of configured gomaxprocs
-	// - number of file descriptors
 	SimpleExtendedMetrics
+
+	// ModerateExtendedMetrics describes a moderately verbose level of extended metrics:
+	// - number of active goroutines
+	// - number of configured gomaxprocs
+	// - number of file descriptors
+	ModerateExtendedMetrics
 
 	// DetailedExtendedMetrics describes a detailed level of extended metrics:
 	// - number of active goroutines
@@ -60,13 +65,14 @@ const (
 	DetailedExtendedMetrics
 
 	// DefaultExtendedMetricsType is the default extended metrics level.
-	DefaultExtendedMetricsType = DetailedExtendedMetrics
+	DefaultExtendedMetricsType = SimpleExtendedMetrics
 )
 
 var (
 	validExtendedMetricsTypes = []ExtendedMetricsType{
 		NoExtendedMetrics,
 		SimpleExtendedMetrics,
+		ModerateExtendedMetrics,
 		DetailedExtendedMetrics,
 	}
 )
@@ -77,6 +83,8 @@ func (t ExtendedMetricsType) String() string {
 		return "none"
 	case SimpleExtendedMetrics:
 		return "simple"
+	case ModerateExtendedMetrics:
+		return "moderate"
 	case DetailedExtendedMetrics:
 		return "detailed"
 	}
@@ -225,7 +233,7 @@ func (r *ExtendedMetricsReporter) reportRuntimeMetrics() {
 
 	r.runtime.NumGoRoutines.Update(float64(runtime.NumGoroutine()))
 	r.runtime.GoMaxProcs.Update(float64(runtime.GOMAXPROCS(0)))
-	if r.metricsType == SimpleExtendedMetrics {
+	if r.metricsType < DetailedExtendedMetrics {
 		return
 	}
 
@@ -254,7 +262,7 @@ func (r *ExtendedMetricsReporter) reportRuntimeMetrics() {
 }
 
 func (r *ExtendedMetricsReporter) reportProcessMetrics() {
-	if r.metricsType == NoExtendedMetrics {
+	if r.metricsType < ModerateExtendedMetrics {
 		return
 	}
 	numFDs, err := process.NumFDs(r.process.pid)
