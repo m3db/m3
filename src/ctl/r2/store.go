@@ -20,5 +20,36 @@
 
 package r2
 
-// Store is a construct that performs operations against a backing rule store.
-type Store interface{}
+import "github.com/m3db/m3metrics/rules"
+
+// Store is a construct that can perform operations against a backing rule store.
+type Store interface {
+	// Fetch namespaces and their version
+	FetchNamespaces() ([]string, int, error)
+
+	CreateNamespace(namespaceID string) (string, error)
+
+	DeleteNamespace(namespaceID string) error
+
+	FetchRuleSet(namespaceID string) (*CurrentRuleSet, error)
+
+	FetchMappingRule(namespaceID, mappingRuleID string) (*rules.MappingRuleView, error)
+
+	CreateMappingRule(namespaceID string, mrv *rules.MappingRuleView) (*rules.MappingRuleView, error)
+
+	UpdateMappingRule(namespaceID, mappingRuleID string, mrv *rules.MappingRuleView) (*rules.MappingRuleView, error)
+
+	DeleteMappingRule(namespaceID, mappingRuleID string) error
+
+	FetchMappingRuleHistory(namespaceID, mappingRuleID string) ([]*rules.MappingRuleView, error)
+
+	FetchRollupRule(namespaceID, rollupRuleID string) (*rules.RollupRuleView, error)
+
+	CreateRollupRule(namespaceID string, rrv *rules.RollupRuleView) (*rules.RollupRuleView, error)
+
+	UpdateRollupRule(namespaceID, rollupRuleID string, rrv *rules.RollupRuleView) (*rules.RollupRuleView, error)
+
+	DeleteRollupRule(namespaceID, rollupRuleID string) error
+
+	FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]*rules.RollupRuleView, error)
+}

@@ -4,7 +4,7 @@ import:
 - package: github.com/m3db/m3cluster
   version: 3ca6883175651960ca2f93ba91198bbb9a84f5be
 - package: github.com/m3db/m3metrics
-  version: 8f664bcaa26b6a844a479a71aa98d014eaaba748
+  version: dd2d4e7f6058944f24b7f649f9ebb04739cffe9f
 - package: github.com/m3db/m3x
   version: 6e9713eca6718643e105f574be392f122bcc062e
 - package: github.com/apache/thrift
@@ -57,6 +57,12 @@ import:
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
 - package: github.com/gorilla/mux
   version: 18fca31550181693b3a834a15b74b564b3605876
+- package: github.com/go-playground/locales
+  version: 1e5f1161c6416a5ff48840eb8724a394e48cc534
+- package: github.com/go-playground/universal-translator
+  version: 71201497bace774495daed26a3874fd339e0b538
+- package: gopkg.in/go-playground/validator.v9
+  version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64
 testImport:
 - package: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a

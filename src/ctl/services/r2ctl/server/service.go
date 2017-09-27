@@ -26,4 +26,7 @@ import "github.com/gorilla/mux"
 type Service interface {
 	// RegisterHandlers wires the http handlers for this Service with the given router.
 	RegisterHandlers(*mux.Router)
+
+	// URLPrefix returns the prefix for all routes of this service
+	URLPrefix() string
 }

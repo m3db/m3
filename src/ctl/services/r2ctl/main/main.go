@@ -29,12 +29,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3ctl/health"
 	"github.com/m3db/m3ctl/r2"
-	"github.com/m3db/m3ctl/r2/kv"
+	"github.com/m3db/m3ctl/r2/stub"
 	"github.com/m3db/m3ctl/services/r2ctl/server"
-	"github.com/m3db/m3ctl/swagger"
 	"github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
@@ -72,26 +70,16 @@ func (c *serverConfig) newHTTPServerOptions(
 	return opts
 }
 
-type kvClientConfiguration struct {
-	Etcd *etcd.Configuration `yaml:"etcd"`
-}
-
 type configuration struct {
-	// KVStore Config.
-	KVClient kvClientConfiguration `yaml:"kvClient" validate:"nonzero"`
-
 	// Logging configuration.
 	Logging log.Configuration `yaml:"logging"`
-
-	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
 
 	// HTTP server configuration.
 	HTTP serverConfig `yaml:"http"`
 }
 
 func main() {
-	configFile := flag.String("f", "", "configuration file")
+	configFile := flag.String("f", "config/base.yaml", "configuration file")
 	flag.Parse()
 
 	if len(*configFile) == 0 {
@@ -126,30 +114,20 @@ func main() {
 		logger.Fatalf("No valid port configured. Can't start.")
 	}
 
-	scope, closer, err := cfg.Metrics.NewRootScope()
-	if err != nil {
-		logger.Fatalf("error creating metrics root scope: %v", err)
-	}
-	defer closer.Close()
-
 	instrumentOpts := instrument.NewOptions().
-		SetLogger(logger).
-		SetMetricsScope(scope).
-		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
-		SetReportInterval(cfg.Metrics.ReportInterval())
+		SetLogger(logger)
 
 	listenAddr := fmt.Sprintf("%s:%d", cfg.HTTP.Host, cfg.HTTP.Port)
 	serverOpts := cfg.HTTP.newHTTPServerOptions(instrumentOpts)
 
 	doneCh := make(chan struct{})
 
-	services := []server.Service{
+	r2ApiServer := server.NewServer(
+		listenAddr,
+		serverOpts,
+		r2.NewService(instrumentOpts, "/r2/v1/", stub.NewStore(instrumentOpts)),
 		health.NewService(instrumentOpts),
-		swagger.NewService(instrumentOpts, "r2/v1"),
-		r2.NewService(instrumentOpts, "r2/v1", kv.NewStore(kv.StoreConfig{})),
-	}
-
-	r2ApiServer := server.NewServer(listenAddr, serverOpts, services)
+	)
 
 	go func() {
 		go func() {

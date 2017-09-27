@@ -1,5 +1,5 @@
-hash: 67c3e6ebce8e19a424f79122fbbaa4a6185238908d17174befaee69672703904
-updated: 2017-09-14T07:34:47.425204191-04:00
+hash: 4c7f11b17aaebaa2390b1a7fd1ff65b79e3ad13d759d071cadf96067ba39d0c8
+updated: 2017-09-22T09:43:54.827796739-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -7,18 +7,8 @@ imports:
   - lib/go/thrift
 - name: github.com/beorn7/perks
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
-  subpackages:
-  - quantile
 - name: github.com/coreos/etcd
   version: 8ba2897a21e4fc51b298ca553d251318425f93ae
-  subpackages:
-  - auth/authpb
-  - clientv3
-  - clientv3/concurrency
-  - etcdserver/api/v3rpc/rpctypes
-  - etcdserver/etcdserverpb
-  - mvcc/mvccpb
-  - pkg/tlsutil
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/ghodss/yaml
@@ -27,6 +17,12 @@ imports:
   version: de8695c8edbf8236f30d6e1376e20b198a028d42
   subpackages:
   - oleutil
+- name: github.com/go-playground/locales
+  version: 1e5f1161c6416a5ff48840eb8724a394e48cc534
+  subpackages:
+  - currency
+- name: github.com/go-playground/universal-translator
+  version: 71201497bace774495daed26a3874fd339e0b538
 - name: github.com/golang/mock
   version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
   subpackages:
@@ -34,7 +30,6 @@ imports:
 - name: github.com/golang/protobuf
   version: 7390af9dcd3c33042ebaf2474a1724a83cf1a7e6
   subpackages:
-  - jsonpb
   - proto
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
@@ -44,35 +39,12 @@ imports:
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
   version: 84398b94e188ee336f307779b57b3aa91af7063c
-  subpackages:
-  - runtime
-  - runtime/internal
-  - utilities
 - name: github.com/m3db/m3cluster
   version: 3ca6883175651960ca2f93ba91198bbb9a84f5be
   subpackages:
-  - client
-  - client/etcd
-  - etcd/watchmanager
-  - generated/proto/metadatapb
-  - generated/proto/placementpb
   - kv
-  - kv/etcd
-  - kv/util/runtime
-  - placement
-  - placement/algo
-  - placement/selector
-  - placement/service
-  - placement/storage
-  - services
-  - services/client/etcd
-  - services/heartbeat/etcd
-  - services/leader
-  - services/leader/campaign
-  - services/leader/election
-  - shard
 - name: github.com/m3db/m3metrics
-  version: 8f664bcaa26b6a844a479a71aa98d014eaaba748
+  version: dd2d4e7f6058944f24b7f649f9ebb04739cffe9f
   subpackages:
   - filters
   - generated/proto/schema
@@ -83,37 +55,24 @@ imports:
   version: 6e9713eca6718643e105f574be392f122bcc062e
   subpackages:
   - checked
-  - clock
   - close
   - config
-  - errors
   - instrument
   - log
   - pool
   - process
-  - retry
   - time
   - watch
 - name: github.com/matttproud/golang_protobuf_extensions
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
-  subpackages:
-  - pbutil
 - name: github.com/pborman/uuid
   version: e790cca94e6cc75c7064b1332e63811d4aae1a53
 - name: github.com/prometheus/client_golang
   version: c5b7fccd204277076155f10851dad72b76a49317
-  subpackages:
-  - prometheus
 - name: github.com/prometheus/client_model
   version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
-  subpackages:
-  - go
 - name: github.com/prometheus/common
   version: 195bde7883f7c39ea62b0d92ab7359b5327065cb
-  subpackages:
-  - expfmt
-  - internal/bitbucket.org/ww/goautoneg
-  - model
 - name: github.com/prometheus/procfs
   version: 1878d9fbb537119d24b21ca07effd591627cd160
 - name: github.com/shirou/gopsutil
@@ -142,25 +101,10 @@ imports:
   version: 988f4f24992fc745de53c42df0da6581e42a6686
 - name: golang.org/x/net
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
-  subpackages:
-  - context
-  - http2
-  - http2/hpack
-  - idna
-  - internal/timeseries
-  - lex/httplex
-  - trace
 - name: google.golang.org/grpc
   version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
-  subpackages:
-  - codes
-  - credentials
-  - grpclog
-  - internal
-  - metadata
-  - naming
-  - peer
-  - transport
+- name: gopkg.in/go-playground/validator.v9
+  version: a021b2ec9a8a8bb970f3f15bc42617cb520e8a64
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
 - name: gopkg.in/yaml.v2
