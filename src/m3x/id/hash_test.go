@@ -29,5 +29,11 @@ import (
 
 func TestHashFn(t *testing.T) {
 	input := []byte{0x1, 0x2, 0x3}
-	require.Equal(t, HashFn(input), Hash(md5.Sum(input)))
+	require.Equal(t, Hash(md5.Sum(input)), HashFn(input))
+}
+
+func TestMurmur3Hash128(t *testing.T) {
+	input := []byte("foo.bar.baz")
+	expected := Hash128{0xf14b7935f63800a5, 0x57d98c62725b8ebd}
+	require.Equal(t, expected, Murmur3Hash128(input))
 }
