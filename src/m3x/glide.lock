@@ -1,5 +1,5 @@
 hash: 50a0b59635ffd9cd3f6bd65a7f6a415f0f3a9a82d4f40b997585e04a4bcf2e86
-updated: 2017-08-20T15:45:39.86828054-04:00
+updated: 2017-09-27T11:06:16.549595088-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -26,6 +26,8 @@ imports:
   - process
 - name: github.com/shirou/w32
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
+- name: github.com/spaolacci/murmur3
+  version: 0d12bf811670bf6a1a63828dfbd003eded177fce
 - name: github.com/StackExchange/wmi
   version: e542ed97d15e640bdc14b5c12162d59e8fc67324
 - name: github.com/stretchr/testify
@@ -36,7 +38,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 2605c407d7d219644d03a3680ad7df4779017782
+  version: be9e53c77349ae2dd4b8c03a6dc20ed9a88b9927
   subpackages:
   - m3
   - m3/customtransports

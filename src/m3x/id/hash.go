@@ -21,7 +21,11 @@
 // Package id provides utilities for generating ID's from hash functions.
 package id
 
-import "crypto/md5"
+import (
+	"crypto/md5"
+
+	"github.com/spaolacci/murmur3"
+)
 
 // Hash represents a form of ID suitable to be used as map keys.
 type Hash [md5.Size]byte
@@ -29,4 +33,13 @@ type Hash [md5.Size]byte
 // HashFn is the default hashing implementation for IDs.
 func HashFn(data []byte) Hash {
 	return md5.Sum(data)
+}
+
+// Hash128 is a 128-bit hash of an ID consisting of two unsigned 64-bit ints.
+type Hash128 [2]uint64
+
+// Murmur3Hash128 computes the 128-bit hash of an id.
+func Murmur3Hash128(data []byte) Hash128 {
+	h0, h1 := murmur3.Sum128(data)
+	return Hash128{h0, h1}
 }

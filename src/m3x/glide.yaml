@@ -42,3 +42,6 @@ import:
 
 - package: github.com/fortytw2/leaktest
   version: 3b724c3d7b8729a35bf4e577f71653aec6e53513
+
+- package: github.com/spaolacci/murmur3
+  version: 0d12bf811670bf6a1a63828dfbd003eded177fce
