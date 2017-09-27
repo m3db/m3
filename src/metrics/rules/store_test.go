@@ -71,20 +71,20 @@ var (
 
 	testRuleSetKey = fmt.Sprintf(testRuleSetKeyFmt, testNamespace)
 	testRuleSet    = &schema.RuleSet{
-		Uuid:          "ruleset",
-		Namespace:     "fooNs",
-		CreatedAt:     1234,
-		LastUpdatedAt: 5678,
-		Tombstoned:    false,
-		CutoverTime:   34923,
+		Uuid:               "ruleset",
+		Namespace:          "fooNs",
+		CreatedAtNanos:     1234,
+		LastUpdatedAtNanos: 5678,
+		Tombstoned:         false,
+		CutoverNanos:       34923,
 		MappingRules: []*schema.MappingRule{
 			&schema.MappingRule{
 				Uuid: "12669817-13ae-40e6-ba2f-33087b262c68",
 				Snapshots: []*schema.MappingRuleSnapshot{
 					&schema.MappingRuleSnapshot{
-						Name:        "foo",
-						Tombstoned:  false,
-						CutoverTime: 12345,
+						Name:         "foo",
+						Tombstoned:   false,
+						CutoverNanos: 12345,
 						TagFilters: map[string]string{
 							"tag1": "value1",
 							"tag2": "value2",
@@ -107,9 +107,9 @@ var (
 						},
 					},
 					&schema.MappingRuleSnapshot{
-						Name:        "foo",
-						Tombstoned:  false,
-						CutoverTime: 67890,
+						Name:         "foo",
+						Tombstoned:   false,
+						CutoverNanos: 67890,
 						TagFilters: map[string]string{
 							"tag3": "value3",
 							"tag4": "value4",
@@ -145,9 +145,9 @@ var (
 				Uuid: "12669817-13ae-40e6-ba2f-33087b262c68",
 				Snapshots: []*schema.MappingRuleSnapshot{
 					&schema.MappingRuleSnapshot{
-						Name:        "dup",
-						Tombstoned:  false,
-						CutoverTime: 12345,
+						Name:         "dup",
+						Tombstoned:   false,
+						CutoverNanos: 12345,
 						TagFilters: map[string]string{
 							"tag1": "value1",
 							"tag2": "value2",
@@ -177,9 +177,9 @@ var (
 				Uuid: "12669817-13ae-40e6-ba2f-33087b262c68",
 				Snapshots: []*schema.RollupRuleSnapshot{
 					&schema.RollupRuleSnapshot{
-						Name:        "foo2",
-						Tombstoned:  false,
-						CutoverTime: 12345,
+						Name:         "foo2",
+						Tombstoned:   false,
+						CutoverNanos: 12345,
 						TagFilters: map[string]string{
 							"tag1": "value1",
 							"tag2": "value2",
@@ -205,9 +205,9 @@ var (
 						},
 					},
 					&schema.RollupRuleSnapshot{
-						Name:        "bar",
-						Tombstoned:  true,
-						CutoverTime: 67890,
+						Name:         "bar",
+						Tombstoned:   true,
+						CutoverNanos: 67890,
 						TagFilters: map[string]string{
 							"tag3": "value3",
 							"tag4": "value4",
@@ -252,9 +252,9 @@ var (
 				Uuid: "12669817-13ae-40e6-ba2f-33087b262c68",
 				Snapshots: []*schema.RollupRuleSnapshot{
 					&schema.RollupRuleSnapshot{
-						Name:        "foo",
-						Tombstoned:  false,
-						CutoverTime: 12345,
+						Name:         "foo",
+						Tombstoned:   false,
+						CutoverNanos: 12345,
 						TagFilters: map[string]string{
 							"tag1": "value1",
 							"tag2": "value2",
@@ -280,9 +280,9 @@ var (
 						},
 					},
 					&schema.RollupRuleSnapshot{
-						Name:        "baz",
-						Tombstoned:  false,
-						CutoverTime: 67890,
+						Name:         "baz",
+						Tombstoned:   false,
+						CutoverNanos: 67890,
 						TagFilters: map[string]string{
 							"tag3": "value3",
 							"tag4": "value4",
@@ -327,9 +327,9 @@ var (
 				Uuid: "12669817-13ae-40e6-ba2f-33087b262c68",
 				Snapshots: []*schema.RollupRuleSnapshot{
 					&schema.RollupRuleSnapshot{
-						Name:        "dup",
-						Tombstoned:  false,
-						CutoverTime: 12345,
+						Name:         "dup",
+						Tombstoned:   false,
+						CutoverNanos: 12345,
 						TagFilters: map[string]string{
 							"tag1": "value1",
 							"tag2": "value2",

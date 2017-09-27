@@ -521,6 +521,7 @@ type ruleSet struct {
 	namespace          []byte
 	createdAtNanos     int64
 	lastUpdatedAtNanos int64
+	lastUpdatedBy      string
 	tombstoned         bool
 	cutoverNanos       int64
 	mappingRules       []*mappingRule
@@ -556,10 +557,11 @@ func NewRuleSetFromSchema(version int, rs *schema.RuleSet, opts Options) (RuleSe
 		uuid:               rs.Uuid,
 		version:            version,
 		namespace:          []byte(rs.Namespace),
-		createdAtNanos:     rs.CreatedAt,
-		lastUpdatedAtNanos: rs.LastUpdatedAt,
+		createdAtNanos:     rs.CreatedAtNanos,
+		lastUpdatedAtNanos: rs.LastUpdatedAtNanos,
+		lastUpdatedBy:      rs.LastUpdatedBy,
 		tombstoned:         rs.Tombstoned,
-		cutoverNanos:       rs.CutoverTime,
+		cutoverNanos:       rs.CutoverNanos,
 		mappingRules:       mappingRules,
 		rollupRules:        rollupRules,
 		tagsFilterOpts:     tagsFilterOpts,
@@ -617,12 +619,13 @@ func (rs *ruleSet) ToMutableRuleSet() MutableRuleSet {
 // Schema returns the protobuf representation of a ruleset.
 func (rs *ruleSet) Schema() (*schema.RuleSet, error) {
 	res := &schema.RuleSet{
-		Uuid:          rs.uuid,
-		Namespace:     string(rs.namespace),
-		CreatedAt:     rs.createdAtNanos,
-		LastUpdatedAt: rs.lastUpdatedAtNanos,
-		Tombstoned:    rs.tombstoned,
-		CutoverTime:   rs.cutoverNanos,
+		Uuid:               rs.uuid,
+		Namespace:          string(rs.namespace),
+		CreatedAtNanos:     rs.createdAtNanos,
+		LastUpdatedAtNanos: rs.lastUpdatedAtNanos,
+		LastUpdatedBy:      rs.lastUpdatedBy,
+		Tombstoned:         rs.tombstoned,
+		CutoverNanos:       rs.cutoverNanos,
 	}
 
 	mappingRules := make([]*schema.MappingRule, len(rs.mappingRules))
@@ -695,6 +698,7 @@ func (rs *ruleSet) Clone() MutableRuleSet {
 		version:            rs.version,
 		createdAtNanos:     rs.createdAtNanos,
 		lastUpdatedAtNanos: rs.lastUpdatedAtNanos,
+		lastUpdatedBy:      rs.lastUpdatedBy,
 		tombstoned:         rs.tombstoned,
 		cutoverNanos:       rs.cutoverNanos,
 		namespace:          namespace,
@@ -721,7 +725,7 @@ func (rs *ruleSet) AddMappingRule(mrv MappingRuleView, meta UpdateMetadata) (str
 			mrv.Name,
 			mrv.Filters,
 			mrv.Policies,
-			meta.cutoverNanos,
+			meta,
 		); err != nil {
 			return "", fmt.Errorf(ruleActionErrorFmt, "add", mrv.Name, err)
 		}
@@ -731,7 +735,7 @@ func (rs *ruleSet) AddMappingRule(mrv MappingRuleView, meta UpdateMetadata) (str
 			mrv.Name,
 			mrv.Filters,
 			mrv.Policies,
-			meta.cutoverNanos,
+			meta,
 		); err != nil {
 			return "", fmt.Errorf(ruleActionErrorFmt, "revive", mrv.Name, err)
 		}
@@ -745,7 +749,6 @@ func (rs *ruleSet) UpdateMappingRule(mrv MappingRuleView, meta UpdateMetadata) e
 	if err != nil {
 		return err
 	}
-
 	m, err := rs.getMappingRuleByID(mrv.ID)
 	if err != nil {
 		return fmt.Errorf(ruleActionErrorFmt, "update", mrv.ID, err)
@@ -754,7 +757,7 @@ func (rs *ruleSet) UpdateMappingRule(mrv MappingRuleView, meta UpdateMetadata) e
 		mrv.Name,
 		mrv.Filters,
 		mrv.Policies,
-		meta.cutoverNanos,
+		meta,
 	); err != nil {
 		return fmt.Errorf(ruleActionErrorFmt, "update", mrv.Name, err)
 	}
@@ -790,7 +793,7 @@ func (rs *ruleSet) AddRollupRule(rrv RollupRuleView, meta UpdateMetadata) (strin
 			rrv.Name,
 			rrv.Filters,
 			targets,
-			meta.cutoverNanos,
+			meta,
 		); err != nil {
 			return "", fmt.Errorf(ruleActionErrorFmt, "add", rrv.Name, err)
 		}
@@ -800,7 +803,7 @@ func (rs *ruleSet) AddRollupRule(rrv RollupRuleView, meta UpdateMetadata) (strin
 			rrv.Name,
 			rrv.Filters,
 			targets,
-			meta.cutoverNanos,
+			meta,
 		); err != nil {
 			return "", fmt.Errorf(ruleActionErrorFmt, "revive", rrv.Name, err)
 		}
@@ -824,7 +827,7 @@ func (rs *ruleSet) UpdateRollupRule(rrv RollupRuleView, meta UpdateMetadata) err
 		rrv.Name,
 		rrv.Filters,
 		targets,
-		meta.cutoverNanos,
+		meta,
 	); err != nil {
 		return fmt.Errorf(ruleActionErrorFmt, "update", rrv.Name, err)
 	}
@@ -880,7 +883,8 @@ func (rs *ruleSet) Revive(meta UpdateMetadata) error {
 
 func (rs *ruleSet) updateMetadata(meta UpdateMetadata) {
 	rs.cutoverNanos = meta.cutoverNanos
-	rs.lastUpdatedAtNanos = meta.lastUpdatedAtNanos
+	rs.lastUpdatedAtNanos = meta.updatedAtNanos
+	rs.lastUpdatedBy = meta.updatedBy
 }
 
 func (rs ruleSet) getMappingRuleByName(name string) (*mappingRule, error) {
@@ -1066,14 +1070,15 @@ func NewRuleSetUpdateHelper(propagationDelay time.Duration) RuleSetUpdateHelper 
 // UpdateMetadata contains descriptive information that needs to be updated
 // with any modification of the ruleset.
 type UpdateMetadata struct {
-	cutoverNanos       int64
-	lastUpdatedAtNanos int64
+	cutoverNanos   int64
+	updatedAtNanos int64
+	updatedBy      string
 }
 
 // NewUpdateMetadata creates a properly initialized UpdateMetadata object.
-func (r RuleSetUpdateHelper) NewUpdateMetadata(updateTime int64) UpdateMetadata {
+func (r RuleSetUpdateHelper) NewUpdateMetadata(updateTime int64, updatedBy string) UpdateMetadata {
 	cutoverNanos := updateTime + int64(r.propagationDelay)
-	return UpdateMetadata{lastUpdatedAtNanos: updateTime, cutoverNanos: cutoverNanos}
+	return UpdateMetadata{updatedAtNanos: updateTime, cutoverNanos: cutoverNanos, updatedBy: updatedBy}
 }
 
 // RuleConflictError is returned when a rule modification is made that would conflict with the current state.

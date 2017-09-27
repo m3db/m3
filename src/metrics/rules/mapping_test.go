@@ -36,9 +36,11 @@ var (
 		Uuid: "12669817-13ae-40e6-ba2f-33087b262c68",
 		Snapshots: []*schema.MappingRuleSnapshot{
 			&schema.MappingRuleSnapshot{
-				Name:        "foo",
-				Tombstoned:  false,
-				CutoverTime: 12345,
+				Name:               "foo",
+				Tombstoned:         false,
+				CutoverNanos:       12345,
+				LastUpdatedAtNanos: 1234,
+				LastUpdatedBy:      "someone",
 				TagFilters: map[string]string{
 					"tag1": "value1",
 					"tag2": "value2",
@@ -61,9 +63,11 @@ var (
 				},
 			},
 			&schema.MappingRuleSnapshot{
-				Name:        "bar",
-				Tombstoned:  true,
-				CutoverTime: 67890,
+				Name:               "bar",
+				Tombstoned:         true,
+				CutoverNanos:       67890,
+				LastUpdatedAtNanos: 1234,
+				LastUpdatedBy:      "someone",
 				TagFilters: map[string]string{
 					"tag3": "value3",
 					"tag4": "value4",
@@ -206,7 +210,7 @@ func TestNewMappingRuleFromFields(t *testing.T) {
 		"bar",
 		rawFilters,
 		[]policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, time.Hour), policy.DefaultAggregationID)},
-		12345,
+		UpdateMetadata{12345, 12345, "test_user"},
 	)
 	require.NoError(t, err)
 	expectedSnapshot := mappingRuleSnapshot{
@@ -281,41 +285,6 @@ func TestMappingRuleSnapshotClone(t *testing.T) {
 	require.NotEqual(t, s1.policies, s1Clone.policies)
 }
 
-func TestNewMappingRuleView(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
-	require.NoError(t, err)
-
-	actual, err := mr.mappingRuleView(len(mr.snapshots) - 1)
-	require.NoError(t, err)
-
-	p1, _ := policy.ParsePolicy("1m:24h")
-	p2, _ := policy.ParsePolicy("5m:2d")
-	expected := &MappingRuleView{
-		ID:           "12669817-13ae-40e6-ba2f-33087b262c68",
-		Name:         "bar",
-		CutoverNanos: 67890,
-		Tombstoned:   true,
-		Filters: map[string]string{
-			"tag3": "value3",
-			"tag4": "value4",
-		},
-		Policies: []policy.Policy{p1, p2},
-	}
-	require.Equal(t, expected, actual)
-}
-
-func TestNewMappingRuleViewError(t *testing.T) {
-	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
-	require.NoError(t, err)
-
-	badIdx := []int{-2, 2, 30}
-	for _, i := range badIdx {
-		actual, err := mr.mappingRuleView(i)
-		require.Error(t, err)
-		require.Nil(t, actual)
-	}
-}
-
 func TestMappingRuleHistory(t *testing.T) {
 	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
@@ -337,7 +306,9 @@ func TestMappingRuleHistory(t *testing.T) {
 				"tag3": "value3",
 				"tag4": "value4",
 			},
-			Policies: []policy.Policy{p1, p2},
+			Policies:           []policy.Policy{p1, p2},
+			LastUpdatedAtNanos: 1234,
+			LastUpdatedBy:      "someone",
 		},
 		&MappingRuleView{
 			ID:           "12669817-13ae-40e6-ba2f-33087b262c68",
@@ -348,9 +319,20 @@ func TestMappingRuleHistory(t *testing.T) {
 				"tag1": "value1",
 				"tag2": "value2",
 			},
-			Policies: []policy.Policy{p0},
+			Policies:           []policy.Policy{p0},
+			LastUpdatedAtNanos: 1234,
+			LastUpdatedBy:      "someone",
 		},
 	}
 
 	require.Equal(t, expectedViews, hist)
+}
+
+func TestNewMappingRuleViewError(t *testing.T) {
+	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	require.NoError(t, err)
+
+	actual, err := mr.mappingRuleView(20)
+	require.Error(t, err)
+	require.Nil(t, actual)
 }
