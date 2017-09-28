@@ -43,8 +43,8 @@ type PlacementManager interface {
 	// Open opens the placement manager.
 	Open() error
 
-	// Placement returns the current placement.
-	Placement() (placement.Placement, error)
+	// Placement returns the active staged placement and the active placement.
+	Placement() (placement.ActiveStagedPlacement, placement.Placement, error)
 
 	// Instance returns the current instance in the current placement.
 	Instance() (placement.Instance, error)
@@ -121,11 +121,11 @@ func (mgr *placementManager) Open() error {
 	return nil
 }
 
-func (mgr *placementManager) Placement() (placement.Placement, error) {
+func (mgr *placementManager) Placement() (placement.ActiveStagedPlacement, placement.Placement, error) {
 	mgr.RLock()
-	placement, err := mgr.placementWithLock()
+	stagedPlacement, placement, err := mgr.placementWithLock()
 	mgr.RUnlock()
-	return placement, err
+	return stagedPlacement, placement, err
 }
 
 func (mgr *placementManager) Instance() (placement.Instance, error) {
@@ -141,7 +141,7 @@ func (mgr *placementManager) InstanceFrom(placement placement.Placement) (placem
 
 // TODO(xichen): move the method to placement interface.
 func (mgr *placementManager) HasReplacementInstance() (bool, error) {
-	placement, err := mgr.Placement()
+	_, placement, err := mgr.Placement()
 	if err != nil {
 		return false, err
 	}
@@ -205,9 +205,9 @@ func (mgr *placementManager) Close() error {
 	return nil
 }
 
-func (mgr *placementManager) placementWithLock() (placement.Placement, error) {
+func (mgr *placementManager) placementWithLock() (placement.ActiveStagedPlacement, placement.Placement, error) {
 	if mgr.state != placementManagerOpen {
-		return nil, errPlacementManagerNotOpenOrClosed
+		return nil, nil, errPlacementManagerNotOpenOrClosed
 	}
 
 	// NB(xichen): avoid using defer here because this is called on the write path
@@ -215,21 +215,21 @@ func (mgr *placementManager) placementWithLock() (placement.Placement, error) {
 	stagedPlacement, onStagedPlacementDoneFn, err := mgr.placementWatcher.ActiveStagedPlacement()
 	if err != nil {
 		mgr.metrics.activeStagedPlacementErrors.Inc(1)
-		return nil, err
+		return nil, nil, err
 	}
 	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
 	if err != nil {
 		onStagedPlacementDoneFn()
 		mgr.metrics.activePlacementErrors.Inc(1)
-		return nil, err
+		return nil, nil, err
 	}
 	onPlacementDoneFn()
 	onStagedPlacementDoneFn()
-	return placement, nil
+	return stagedPlacement, placement, nil
 }
 
 func (mgr *placementManager) instanceWithLock() (placement.Instance, error) {
-	placement, err := mgr.placementWithLock()
+	_, placement, err := mgr.placementWithLock()
 	if err != nil {
 		return nil, err
 	}

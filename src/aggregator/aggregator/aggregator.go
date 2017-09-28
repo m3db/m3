@@ -188,17 +188,18 @@ type aggregator struct {
 	flushHandler      Handler
 	resignTimeout     time.Duration
 
-	shardSetID            uint32
-	shardSetOpen          bool
-	shardIDs              []uint32
-	shards                []*aggregatorShard
-	placementCutoverNanos int64
-	state                 aggregatorState
-	doneCh                chan struct{}
-	wg                    sync.WaitGroup
-	sleepFn               sleepFn
-	shardsPendingClose    int32
-	metrics               aggregatorMetrics
+	shardSetID          uint32
+	shardSetOpen        bool
+	shardIDs            []uint32
+	shards              []*aggregatorShard
+	currStagedPlacement placement.ActiveStagedPlacement
+	currPlacement       placement.Placement
+	state               aggregatorState
+	doneCh              chan struct{}
+	wg                  sync.WaitGroup
+	sleepFn             sleepFn
+	shardsPendingClose  int32
+	metrics             aggregatorMetrics
 }
 
 // NewAggregator creates a new aggregator.
@@ -208,21 +209,20 @@ func NewAggregator(opts Options) Aggregator {
 	metrics := newAggregatorMetrics(scope, iOpts.MetricsSamplingRate())
 
 	return &aggregator{
-		opts:                  opts,
-		nowFn:                 opts.ClockOptions().NowFn(),
-		shardFn:               opts.ShardFn(),
-		checkInterval:         opts.EntryCheckInterval(),
-		placementManager:      opts.PlacementManager(),
-		flushTimesManager:     opts.FlushTimesManager(),
-		flushTimesChecker:     newFlushTimesChecker(scope.SubScope("tick.shard-check")),
-		electionManager:       opts.ElectionManager(),
-		flushManager:          opts.FlushManager(),
-		flushHandler:          opts.FlushHandler(),
-		resignTimeout:         opts.ResignTimeout(),
-		placementCutoverNanos: uninitializedCutoverNanos,
-		metrics:               metrics,
-		doneCh:                make(chan struct{}),
-		sleepFn:               time.Sleep,
+		opts:              opts,
+		nowFn:             opts.ClockOptions().NowFn(),
+		shardFn:           opts.ShardFn(),
+		checkInterval:     opts.EntryCheckInterval(),
+		placementManager:  opts.PlacementManager(),
+		flushTimesManager: opts.FlushTimesManager(),
+		flushTimesChecker: newFlushTimesChecker(scope.SubScope("tick.shard-check")),
+		electionManager:   opts.ElectionManager(),
+		flushManager:      opts.FlushManager(),
+		flushHandler:      opts.FlushHandler(),
+		resignTimeout:     opts.ResignTimeout(),
+		metrics:           metrics,
+		doneCh:            make(chan struct{}),
+		sleepFn:           time.Sleep,
 	}
 }
 
@@ -236,11 +236,11 @@ func (agg *aggregator) Open() error {
 	if err := agg.placementManager.Open(); err != nil {
 		return err
 	}
-	placement, err := agg.placementManager.Placement()
+	stagedPlacement, placement, err := agg.placementManager.Placement()
 	if err != nil {
 		return err
 	}
-	if err := agg.processPlacementWithLock(placement); err != nil {
+	if err := agg.processPlacementWithLock(stagedPlacement, placement); err != nil {
 		return err
 	}
 	if agg.checkInterval > 0 {
@@ -321,15 +321,15 @@ func (agg *aggregator) shardForWithLock(id id.RawID, updateShardsType updateShar
 	if agg.state != aggregatorOpen {
 		return nil, errAggregatorNotOpenOrClosed
 	}
-	placement, err := agg.placementManager.Placement()
+	stagedPlacement, placement, err := agg.placementManager.Placement()
 	if err != nil {
 		return nil, err
 	}
-	if agg.shouldProcessPlacementWithLock(placement) {
+	if agg.shouldProcessPlacementWithLock(stagedPlacement, placement) {
 		if updateShardsType == noUpdateShards {
 			return nil, errActivePlacementChanged
 		}
-		if err := agg.processPlacementWithLock(placement); err != nil {
+		if err := agg.processPlacementWithLock(stagedPlacement, placement); err != nil {
 			return nil, err
 		}
 	}
@@ -341,9 +341,12 @@ func (agg *aggregator) shardForWithLock(id id.RawID, updateShardsType updateShar
 	return agg.shards[shardID], nil
 }
 
-func (agg *aggregator) processPlacementWithLock(newPlacement placement.Placement) error {
+func (agg *aggregator) processPlacementWithLock(
+	newStagedPlacement placement.ActiveStagedPlacement,
+	newPlacement placement.Placement,
+) error {
 	// If someone has already processed the placement ahead of us, do nothing.
-	if !agg.shouldProcessPlacementWithLock(newPlacement) {
+	if !agg.shouldProcessPlacementWithLock(newStagedPlacement, newPlacement) {
 		return nil
 	}
 	var newShardSet shard.Shards
@@ -358,12 +361,25 @@ func (agg *aggregator) processPlacementWithLock(newPlacement placement.Placement
 	if err := agg.updateShardSetIDWithLock(instance); err != nil {
 		return err
 	}
-	agg.updateShardsWithLock(newPlacement, newShardSet)
+	agg.updateShardsWithLock(newStagedPlacement, newPlacement, newShardSet)
 	return nil
 }
 
-func (agg *aggregator) shouldProcessPlacementWithLock(newPlacement placement.Placement) bool {
-	return agg.placementCutoverNanos < newPlacement.CutoverNanos()
+func (agg *aggregator) shouldProcessPlacementWithLock(
+	newStagedPlacement placement.ActiveStagedPlacement,
+	newPlacement placement.Placement,
+) bool {
+	// If there is no staged placement yet, or the staged placement has been updated,
+	// process this placement.
+	if agg.currStagedPlacement == nil || agg.currStagedPlacement != newStagedPlacement {
+		return true
+	}
+	// If there is no placement yet, or the new placement has a later cutover time,
+	// process this placement.
+	if agg.currPlacement == nil || agg.currPlacement.CutoverNanos() < newPlacement.CutoverNanos() {
+		return true
+	}
+	return false
 }
 
 // updateShardSetWithLock resets the instance's shard set id given the instance from
@@ -445,6 +461,7 @@ func (agg *aggregator) closeShardSetWithLock() error {
 }
 
 func (agg *aggregator) updateShardsWithLock(
+	newStagedPlacement placement.ActiveStagedPlacement,
 	newPlacement placement.Placement,
 	newShardSet shard.Shards,
 ) {
@@ -489,7 +506,8 @@ func (agg *aggregator) updateShardsWithLock(
 
 	agg.shardIDs = newShardIDs
 	agg.shards = incoming
-	agg.placementCutoverNanos = newPlacement.CutoverNanos()
+	agg.currStagedPlacement = newStagedPlacement
+	agg.currPlacement = newPlacement
 	agg.closeShardsAsync(closing)
 }
 
