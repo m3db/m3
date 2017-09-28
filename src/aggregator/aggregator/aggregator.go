@@ -123,6 +123,20 @@ func newAggregatorShardsMetrics(scope tally.Scope) aggregatorShardsMetrics {
 	}
 }
 
+type aggregatorPlacementMetrics struct {
+	stagedPlacementChanged tally.Counter
+	cutoverChanged         tally.Counter
+	updated                tally.Counter
+}
+
+func newAggregatorPlacementMetrics(scope tally.Scope) aggregatorPlacementMetrics {
+	return aggregatorPlacementMetrics{
+		stagedPlacementChanged: scope.Counter("staged-placement-changed"),
+		cutoverChanged:         scope.Counter("cutover-changed"),
+		updated:                scope.Counter("updated"),
+	}
+}
+
 type aggregatorMetrics struct {
 	counters                  tally.Counter
 	timers                    tally.Counter
@@ -130,11 +144,13 @@ type aggregatorMetrics struct {
 	gauges                    tally.Counter
 	invalidMetricTypes        tally.Counter
 	addMetricWithPoliciesList instrument.MethodMetrics
+	placement                 aggregatorPlacementMetrics
 	shards                    aggregatorShardsMetrics
 	tick                      aggregatorTickMetrics
 }
 
 func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMetrics {
+	placementScope := scope.SubScope("placement")
 	shardsScope := scope.SubScope("shards")
 	tickScope := scope.SubScope("tick")
 	return aggregatorMetrics{
@@ -144,8 +160,9 @@ func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMet
 		gauges:                    scope.Counter("gauges"),
 		invalidMetricTypes:        scope.Counter("invalid-metric-types"),
 		addMetricWithPoliciesList: instrument.NewMethodMetrics(scope, "addMetricWithPoliciesList", samplingRate),
-		shards: newAggregatorShardsMetrics(shardsScope),
-		tick:   newAggregatorTickMetrics(tickScope),
+		placement:                 newAggregatorPlacementMetrics(placementScope),
+		shards:                    newAggregatorShardsMetrics(shardsScope),
+		tick:                      newAggregatorTickMetrics(tickScope),
 	}
 }
 
@@ -362,6 +379,7 @@ func (agg *aggregator) processPlacementWithLock(
 		return err
 	}
 	agg.updateShardsWithLock(newStagedPlacement, newPlacement, newShardSet)
+	agg.metrics.placement.updated.Inc(1)
 	return nil
 }
 
@@ -372,11 +390,13 @@ func (agg *aggregator) shouldProcessPlacementWithLock(
 	// If there is no staged placement yet, or the staged placement has been updated,
 	// process this placement.
 	if agg.currStagedPlacement == nil || agg.currStagedPlacement != newStagedPlacement {
+		agg.metrics.placement.stagedPlacementChanged.Inc(1)
 		return true
 	}
 	// If there is no placement yet, or the new placement has a later cutover time,
 	// process this placement.
 	if agg.currPlacement == nil || agg.currPlacement.CutoverNanos() < newPlacement.CutoverNanos() {
+		agg.metrics.placement.cutoverChanged.Inc(1)
 		return true
 	}
 	return false
