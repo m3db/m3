@@ -227,6 +227,18 @@ func TestValueUpdateNilValueError(t *testing.T) {
 	require.Equal(t, errNilValue, rv.updateWithLockFn(nil))
 }
 
+func TestValueUpdateStaleUpdate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	_, rv := testValueWithMockStore(ctrl)
+	currValue := mem.NewValue(3, nil)
+	rv.currValue = currValue
+	newValue := mem.NewValue(3, nil)
+	require.NoError(t, rv.updateWithLockFn(newValue))
+	require.Equal(t, currValue, rv.currValue)
+}
+
 func TestValueUpdateUnmarshalError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -236,6 +248,7 @@ func TestValueUpdateUnmarshalError(t *testing.T) {
 	rv.unmarshalFn = func(v kv.Value) (interface{}, error) { return nil, errUnmarshal }
 
 	require.Error(t, rv.updateWithLockFn(mem.NewValue(3, nil)))
+	require.Nil(t, rv.currValue)
 }
 
 func TestValueUpdateProcessError(t *testing.T) {
@@ -248,6 +261,7 @@ func TestValueUpdateProcessError(t *testing.T) {
 	rv.processFn = func(v interface{}) error { return errProcess }
 
 	require.Error(t, rv.updateWithLockFn(mem.NewValue(3, nil)))
+	require.Nil(t, rv.currValue)
 }
 
 func TestValueUpdateSuccess(t *testing.T) {
@@ -256,6 +270,7 @@ func TestValueUpdateSuccess(t *testing.T) {
 
 	var outputs []kv.Value
 	_, rv := testValueWithMockStore(ctrl)
+	rv.currValue = mem.NewValue(2, nil)
 	rv.unmarshalFn = func(v kv.Value) (interface{}, error) { return v, nil }
 	rv.processFn = func(v interface{}) error {
 		outputs = append(outputs, v.(kv.Value))
@@ -265,19 +280,7 @@ func TestValueUpdateSuccess(t *testing.T) {
 	input := mem.NewValue(3, nil)
 	require.NoError(t, rv.updateWithLock(input))
 	require.Equal(t, []kv.Value{input}, outputs)
-	require.Equal(t, 3, rv.version)
-}
-
-func TestValueUpdateStaleUpdate(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	_, rv := testValueWithMockStore(ctrl)
-	rv.version = 3
-	rv.unmarshalFn = func(v kv.Value) (interface{}, error) { return v, nil }
-
-	require.NoError(t, rv.updateWithLock(mem.NewValue(2, nil)))
-	require.Equal(t, 3, rv.version)
+	require.Equal(t, input, rv.currValue)
 }
 
 func testValueOptions(store kv.Store) Options {

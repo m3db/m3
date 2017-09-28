@@ -74,9 +74,9 @@ type value struct {
 	processFn        ProcessFn
 	updateWithLockFn updateWithLockFn
 
-	status  valueStatus
-	watch   kv.ValueWatch
-	version int
+	status    valueStatus
+	watch     kv.ValueWatch
+	currValue kv.Value
 }
 
 // NewValue creates a new value.
@@ -91,7 +91,6 @@ func NewValue(
 		log:         opts.InstrumentOptions().Logger(),
 		unmarshalFn: opts.UnmarshalFn(),
 		processFn:   opts.ProcessFn(),
-		version:     kv.UninitializedVersion,
 	}
 	v.updateWithLockFn = v.updateWithLock
 	return v
@@ -168,19 +167,18 @@ func (v *value) updateWithLock(update kv.Value) error {
 	if update == nil {
 		return errNilValue
 	}
-	newVersion := update.Version()
-	if newVersion <= v.version {
+	if v.currValue != nil && !update.IsNewer(v.currValue) {
 		return nil
 	}
 	latest, err := v.unmarshalFn(update)
 	if err != nil {
-		err = fmt.Errorf("error unmarshalling value for version %d: %v", newVersion, err)
+		err = fmt.Errorf("error unmarshalling value for version %d: %v", update.Version(), err)
 		return err
 	}
 	if err := v.processFn(latest); err != nil {
 		return err
 	}
-	v.version = newVersion
+	v.currValue = update
 	return nil
 }
 
