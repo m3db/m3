@@ -20,6 +20,8 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	xclock "github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/integration/generate"
+	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/tools/dtest/config"
 	"github.com/m3db/m3db/tools/dtest/util"
 	"github.com/m3db/m3db/tools/dtest/util/seed"
@@ -36,11 +38,14 @@ import (
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xtcp "github.com/m3db/m3x/tcp"
+
+	"github.com/gogo/protobuf/proto"
 )
 
 const (
-	buildFilename  = "m3dbnode"
-	configFilename = "m3dbnode.yaml"
+	buildFilename        = "m3dbnode"
+	configFilename       = "m3dbnode.yaml"
+	m3dbnodeNamespaceKey = "m3db.node.namespaces"
 )
 
 type closeFn func() error
@@ -92,9 +97,50 @@ func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
 	dt.conf = conf
 	dt.startPProfServer()
 
+	zone, err := conf.Zone()
+	if err != nil {
+		logger.Fatalf("unable to read configuration zone: %v", err)
+	}
+
+	// make kv config
+	var (
+		svcID = dt.serviceID()
+		eopts = conf.KV.NewOptions()
+		popts = defaultPlacementOptions(zone, dt.iopts)
+	)
+	kvClient, err := etcdclient.NewConfigServiceClient(eopts)
+	if err != nil {
+		logger.Fatalf("unable to create kv client: %v", err)
+	}
+
+	// set the namespace in kv
+	kvStore, err := kvClient.KV()
+	if err != nil {
+		logger.Fatalf("unable to create kv store: %v", err)
+	}
+
+	protoValue, err := defaultNamespaceProtoValue()
+	if err != nil {
+		logger.Fatalf("unable to create proto value: %v", err)
+	}
+
+	_, err = kvStore.Set(m3dbnodeNamespaceKey, protoValue)
+	if err != nil {
+		logger.Fatalf("unable to set initial namespace value: %v", err)
+	}
+
+	// register cleanup in the end
+	dt.addCloser(func() error {
+		_, err := kvStore.Delete(m3dbnodeNamespaceKey)
+		return err
+	})
+
 	// make placement service
-	pSvc, err := placementService(dt.serviceID(),
-		conf.KV.NewOptions(), defaultPlacementOptions(dt.iopts))
+	topoServices, err := kvClient.Services(nil)
+	if err != nil {
+		logger.Fatalf("unable to create topology services: %v", err)
+	}
+	pSvc, err := topoServices.PlacementService(svcID, popts)
 	if err != nil {
 		logger.Fatalf("unable to create placement service %v", err)
 	}
@@ -110,7 +156,7 @@ func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
 	// parse node configurations
 	nodes, err := dt.conf.Nodes(dt.nodeOpts, cliOpts.NumNodes)
 	if err != nil {
-		logger.Fatalf("unable to create m3emnodes: %v", err)
+		logger.Fatalf("unable to create m3em nodes: %v", err)
 	}
 	dt.nodes = nodes
 
@@ -452,30 +498,13 @@ func (dt *DTestHarness) serviceID() services.ServiceID {
 		SetZone(dt.conf.KV.Zone)
 }
 
-func placementService(
-	svcID services.ServiceID,
-	eopts etcdclient.Options,
-	popts placement.Options,
-) (placement.Service, error) {
-	kvClient, err := etcdclient.NewConfigServiceClient(eopts)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create kv client: %v", err)
-	}
-
-	topoServices, err := kvClient.Services(nil)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create topology services: %v", err)
-	}
-
-	return topoServices.PlacementService(svcID, popts)
-}
-
-func defaultPlacementOptions(iopts instrument.Options) placement.Options {
+func defaultPlacementOptions(zone string, iopts instrument.Options) placement.Options {
 	return placement.NewOptions().
 		SetIsSharded(true).
 		SetLooseRackCheck(true).
 		SetAllowPartialReplace(true).
-		SetInstrumentOptions(iopts)
+		SetInstrumentOptions(iopts).
+		SetValidZone(zone)
 }
 
 func newBuild(logger xlog.Logger, filename string) build.ServiceBuild {
@@ -497,4 +526,27 @@ func newConfig(logger xlog.Logger, filename string) build.ServiceConfiguration {
 	// - data directory
 	// - seed data configuration for block size, retention
 	return conf
+}
+
+func defaultNamespaceProtoValue() (proto.Message, error) {
+	md, err := namespace.NewMetadata(
+		ts.StringID("metrics"),
+		namespace.NewOptions().
+			SetNeedsBootstrap(true).
+			SetNeedsFilesetCleanup(true).
+			SetNeedsFlush(true).
+			SetNeedsRepair(true).
+			SetWritesToCommitLog(true).
+			SetRetentionOptions(
+				retention.NewOptions().
+					SetBlockSize(2*time.Hour).
+					SetRetentionPeriod(48*time.Hour)))
+	if err != nil {
+		return nil, err
+	}
+	nsMap, err := namespace.NewMap([]namespace.Metadata{md})
+	if err != nil {
+		return nil, err
+	}
+	return namespace.ToProto(nsMap), nil
 }

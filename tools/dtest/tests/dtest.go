@@ -68,5 +68,11 @@ func panicIfErr(err error, msg string) {
 func newLogger(cmd *cobra.Command) xlog.Logger {
 	logger := xlog.NewLogger(os.Stdout)
 	logger.Infof("============== %v ==============", cmd.Name())
+	desc := cmd.Long
+	if desc == "" {
+		desc = cmd.Short
+	}
+	logger.Infof("Test description: %v", desc)
+	logger.Infof("============================")
 	return logger
 }

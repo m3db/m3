@@ -103,6 +103,18 @@ func New(m3emConfigPath string) (*Configuration, error) {
 	return &conf, nil
 }
 
+// Zone returns the zone configured for kv, and the instances if they are all the same;
+// it returns an error if they're not.
+func (c *Configuration) Zone() (string, error) {
+	kvZone := c.KV.Zone
+	for _, inst := range c.DTest.Instances {
+		if kvZone != inst.Zone {
+			return "", fmt.Errorf("instance has zone %s which differs from kv zone %s", kvZone, inst.Zone)
+		}
+	}
+	return kvZone, nil
+}
+
 // Nodes returns a slice of m3emnode.Nodes per the config provided
 func (c *Configuration) Nodes(opts node.Options, numNodes int) ([]m3emnode.Node, error) {
 	// use all nodes if numNodes is zero

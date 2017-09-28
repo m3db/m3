@@ -40,7 +40,7 @@ func (a *Args) RegisterFlags(cmd *cobra.Command) {
 	pf := cmd.PersistentFlags()
 	pf.StringVarP(&a.NodeBuildPath, "m3db-build", "b", "", "M3DB Binary")
 	pf.StringVarP(&a.NodeConfigPath, "m3db-config", "f", "", "M3DB Configuration File")
-	pf.StringVarP(&a.DTestConfigPath, "m3em-config", "c", "", "DTest Configuration File")
+	pf.StringVarP(&a.DTestConfigPath, "dtest-config", "d", "", "DTest Configuration File")
 	pf.BoolVarP(&a.SessionOverride, "session-override", "o", false, "Session Override")
 	pf.StringVarP(&a.SessionToken, "session-token", "t", "dtest", "Session Token")
 	pf.IntVarP(&a.NumNodes, "num-nodes", "n", 0, "Num Nodes to use in DTest")

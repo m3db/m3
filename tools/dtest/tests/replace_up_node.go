@@ -19,7 +19,7 @@ var (
 		(5) The joining node's process is started.
 		(6) Wait until all shards in the cluster placement are available.
 `,
-		Example: `./dtest replace_up_node --m3db-build  path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --m3em-config path/to/dtest.yaml`,
+		Example: `./dtest replace_up_node --m3db-build  path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --dtest-config path/to/dtest.yaml`,
 		Run:     replaceUpNodeDTest,
 	}
 )

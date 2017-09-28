@@ -22,7 +22,7 @@ var (
 		(6) Wait until any shard on the joining node is marked as available.
 		(7) Remove the joining node from the cluster placement.
 `,
-		Example: `./dtest replace_up_node_remove --m3db-build path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --m3em-config path/to/dtest.yaml`,
+		Example: `./dtest replace_up_node_remove --m3db-build path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --dtest-config path/to/dtest.yaml`,
 		Run:     replaceUpNodeRemoveDTest,
 	}
 )
@@ -81,7 +81,7 @@ func replaceUpNodeRemoveDTest(cmd *cobra.Command, args []string) {
 	// wait until any shard is bootstrapped (i.e. marked available on new node)
 	replacementNode := replacementNodes[0]
 	logger.Infof("waiting till any shards are bootstrapped on node: %v", replacementNode.ID())
-	timeout := dt.BootstrapTimeout() / 10
+	timeout := dt.BootstrapTimeout()
 	anyBootstrapped := xclock.WaitUntil(func() bool { return dt.AnyInstanceShardHasState(replacementNode.ID(), shard.Available) }, timeout)
 	panicIf(!anyBootstrapped, "all shards not available")
 

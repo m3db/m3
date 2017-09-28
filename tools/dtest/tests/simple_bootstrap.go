@@ -14,7 +14,7 @@ var simpleBootstrapTestCmd = &cobra.Command{
 	(1) Create a new cluster placement using all of the provided nodes.
 	(2) The nodes from (1) are started, and wait until they are bootstrapped.
 `,
-	Example: `./dtest simple --m3db-build  path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --m3em-config path/to/dtest.yaml`,
+	Example: `./dtest simple --m3db-build  path/to/m3dbnode --m3db-config path/to/m3dbnode.yaml --dtest-config path/to/dtest.yaml`,
 	Run:     simpleBootstrapDTest,
 }
 
