@@ -90,18 +90,25 @@ func TestAggregatorOpenPlacementError(t *testing.T) {
 	agg, _ := testAggregator(t)
 	agg.placementManager = &mockPlacementManager{
 		openFn:      func() error { return nil },
-		placementFn: func() (placement.Placement, error) { return nil, errPlacement },
+		placementFn: func() (placement.ActiveStagedPlacement, placement.Placement, error) { return nil, nil, errPlacement },
 	}
 	require.Equal(t, errPlacement, agg.Open())
 }
 
 func TestAggregatorOpenInstanceFromError(t *testing.T) {
 	testPlacement := placement.NewPlacement().SetCutoverNanos(5678)
+	testStagedPlacement := &mockActiveStagedPlacement{
+		activePlacementFn: func() (placement.Placement, placement.DoneFn, error) {
+			return testPlacement, func() {}, nil
+		},
+	}
 	errInstanceFrom := errors.New("error getting instance from placement")
 	agg, _ := testAggregator(t)
 	agg.placementManager = &mockPlacementManager{
-		openFn:      func() error { return nil },
-		placementFn: func() (placement.Placement, error) { return testPlacement, nil },
+		openFn: func() error { return nil },
+		placementFn: func() (placement.ActiveStagedPlacement, placement.Placement, error) {
+			return testStagedPlacement, testPlacement, nil
+		},
 		instanceFromFn: func(placement.Placement) (placement.Instance, error) {
 			return nil, errInstanceFrom
 		},
@@ -111,10 +118,17 @@ func TestAggregatorOpenInstanceFromError(t *testing.T) {
 
 func TestAggregatorOpenInstanceNotInPlacement(t *testing.T) {
 	testPlacement := placement.NewPlacement().SetCutoverNanos(5678)
+	testStagedPlacement := &mockActiveStagedPlacement{
+		activePlacementFn: func() (placement.Placement, placement.DoneFn, error) {
+			return testPlacement, func() {}, nil
+		},
+	}
 	agg, _ := testAggregator(t)
 	agg.placementManager = &mockPlacementManager{
-		openFn:      func() error { return nil },
-		placementFn: func() (placement.Placement, error) { return testPlacement, nil },
+		openFn: func() error { return nil },
+		placementFn: func() (placement.ActiveStagedPlacement, placement.Placement, error) {
+			return testStagedPlacement, testPlacement, nil
+		},
 		instanceFromFn: func(placement.Placement) (placement.Instance, error) {
 			return nil, ErrInstanceNotFoundInPlacement
 		},
@@ -124,7 +138,8 @@ func TestAggregatorOpenInstanceNotInPlacement(t *testing.T) {
 	require.False(t, agg.shardSetOpen)
 	require.Equal(t, 0, len(agg.shardIDs))
 	require.Nil(t, agg.shards)
-	require.Equal(t, int64(5678), agg.placementCutoverNanos)
+	require.Equal(t, agg.currStagedPlacement, testStagedPlacement)
+	require.Equal(t, agg.currPlacement, testPlacement)
 	require.Equal(t, aggregatorOpen, agg.state)
 }
 
@@ -138,7 +153,9 @@ func TestAggregatorOpenSuccess(t *testing.T) {
 	for i := 0; i < testNumShards; i++ {
 		require.NotNil(t, agg.shards[i])
 	}
-	require.Equal(t, int64(testPlacementCutover), agg.placementCutoverNanos)
+	require.NotNil(t, agg.currStagedPlacement)
+	require.NotNil(t, agg.currPlacement)
+	require.Equal(t, int64(testPlacementCutover), agg.currPlacement.CutoverNanos())
 }
 
 func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
@@ -167,14 +184,14 @@ func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 	require.False(t, agg.shardSetOpen)
 	require.Equal(t, 0, len(agg.shardIDs))
 	require.Nil(t, agg.shards)
-	require.Equal(t, int64(0), agg.placementCutoverNanos)
+	require.Equal(t, int64(0), agg.currPlacement.CutoverNanos())
 	require.Equal(t, aggregatorOpen, agg.state)
 
 	// Update placement to add the instance and wait for it to propagate.
 	_, err := store.Set(testPlacementKey, placements[1])
 	require.NoError(t, err)
 	for {
-		p, err := agg.placementManager.Placement()
+		_, p, err := agg.placementManager.Placement()
 		require.NoError(t, err)
 		if p.CutoverNanos() == testPlacementCutover {
 			break
@@ -192,13 +209,13 @@ func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 	for i := 0; i < testNumShards; i++ {
 		require.NotNil(t, agg.shards[i])
 	}
-	require.Equal(t, int64(testPlacementCutover), agg.placementCutoverNanos)
+	require.Equal(t, int64(testPlacementCutover), agg.currPlacement.CutoverNanos())
 
 	// Update placement to remove the instance and wait for it to propagate.
 	_, err = store.Set(testPlacementKey, placements[2])
 	require.NoError(t, err)
 	for {
-		p, err := agg.placementManager.Placement()
+		_, p, err := agg.placementManager.Placement()
 		require.NoError(t, err)
 		if p.CutoverNanos() == testPlacementCutover+1000 {
 			break
@@ -212,7 +229,7 @@ func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 	require.False(t, agg.shardSetOpen)
 	require.Equal(t, 0, len(agg.shardIDs))
 	require.Nil(t, agg.shards)
-	require.Equal(t, int64(testPlacementCutover+1000), agg.placementCutoverNanos)
+	require.Equal(t, int64(testPlacementCutover+1000), agg.currPlacement.CutoverNanos())
 	require.Equal(t, aggregatorOpen, agg.state)
 }
 
@@ -254,8 +271,9 @@ func TestAggregatorAddMetricWithPoliciesListSuccessWithPlacementUpdate(t *testin
 		SetClockOptions(agg.opts.ClockOptions().SetNowFn(nowFn)).
 		SetBufferDurationBeforeShardCutover(time.Duration(500)).
 		SetBufferDurationAfterShardCutoff(time.Duration(1000))
-	require.NoError(t, agg.Open())
 	agg.shardFn = func([]byte, int) uint32 { return 1 }
+	require.NoError(t, agg.Open())
+	require.Equal(t, int64(testPlacementCutover), agg.currPlacement.CutoverNanos())
 
 	newShardAssignment := []shard.Shard{
 		shard.NewShard(0).SetState(shard.Initializing).SetCutoverNanos(5000).SetCutoffNanos(20000),
@@ -263,15 +281,16 @@ func TestAggregatorAddMetricWithPoliciesListSuccessWithPlacementUpdate(t *testin
 		shard.NewShard(2).SetState(shard.Initializing).SetCutoverNanos(6000).SetCutoffNanos(30000),
 		shard.NewShard(4).SetState(shard.Initializing).SetCutoverNanos(6500).SetCutoffNanos(math.MaxInt64),
 	}
-	newStagedPlacementProto := testStagedPlacementProtoWithCustomShards(t, testInstanceID, testShardSetID, newShardAssignment, 5678)
+	newPlacementCutoverNanos := int64(testPlacementCutover - 1)
+	newStagedPlacementProto := testStagedPlacementProtoWithCustomShards(t, testInstanceID, testShardSetID, newShardAssignment, newPlacementCutoverNanos)
 	_, err := store.Set(testPlacementKey, newStagedPlacementProto)
 	require.NoError(t, err)
 
 	// Wait for the placement to be updated.
 	for {
-		placement, err := agg.placementManager.Placement()
+		_, placement, err := agg.placementManager.Placement()
 		require.NoError(t, err)
-		if placement.CutoverNanos() == 5678 {
+		if placement.CutoverNanos() == newPlacementCutoverNanos {
 			break
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -303,6 +322,7 @@ func TestAggregatorAddMetricWithPoliciesListSuccessWithPlacementUpdate(t *testin
 		}
 	}
 	require.Equal(t, 1, len(agg.shards[1].metricMap.entries))
+	require.Equal(t, newPlacementCutoverNanos, agg.currPlacement.CutoverNanos())
 
 	for {
 		existingShard.RLock()

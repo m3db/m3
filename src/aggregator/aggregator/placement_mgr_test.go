@@ -100,7 +100,7 @@ func TestPlacementManagerOpenSuccess(t *testing.T) {
 
 func TestPlacementManagerPlacementNotOpen(t *testing.T) {
 	mgr, _ := testPlacementManager(t)
-	_, err := mgr.Placement()
+	_, _, err := mgr.Placement()
 	require.Equal(t, errPlacementManagerNotOpenOrClosed, err)
 }
 
@@ -113,7 +113,7 @@ func TestPlacementManagerPlacement(t *testing.T) {
 	require.NoError(t, err)
 	var placement placement.Placement
 	for {
-		placement, err = mgr.Placement()
+		_, placement, err = mgr.Placement()
 		if err == nil {
 			break
 		}
@@ -291,7 +291,7 @@ func TestPlacementHasReplacementInstance(t *testing.T) {
 		_, err := store.Set(testPlacementKey, proto)
 		require.NoError(t, err)
 		for {
-			p, err := mgr.Placement()
+			_, p, err := mgr.Placement()
 			if err == nil && p.CutoverNanos() == proto.Snapshots[0].CutoverTime {
 				res, err := mgr.HasReplacementInstance()
 				require.NoError(t, err)
@@ -338,7 +338,7 @@ func testPlacementManager(t *testing.T) (*placementManager, kv.Store) {
 }
 
 type openFn func() error
-type placementFn func() (placement.Placement, error)
+type placementFn func() (placement.ActiveStagedPlacement, placement.Placement, error)
 type instanceFn func() (placement.Instance, error)
 type instanceFromFn func(placement placement.Placement) (placement.Instance, error)
 type hasReplacementInstanceFn func() (bool, error)
@@ -355,7 +355,9 @@ type mockPlacementManager struct {
 
 func (m *mockPlacementManager) Open() error { return m.openFn() }
 
-func (m *mockPlacementManager) Placement() (placement.Placement, error) { return m.placementFn() }
+func (m *mockPlacementManager) Placement() (placement.ActiveStagedPlacement, placement.Placement, error) {
+	return m.placementFn()
+}
 
 func (m *mockPlacementManager) Instance() (placement.Instance, error) { return m.instanceFn() }
 
@@ -372,3 +374,15 @@ func (m *mockPlacementManager) HasReplacementInstance() (bool, error) {
 func (m *mockPlacementManager) Shards() (shard.Shards, error) { return m.shardsFn() }
 
 func (m *mockPlacementManager) Close() error { return nil }
+
+type activePlacementFn func() (placement.Placement, placement.DoneFn, error)
+
+type mockActiveStagedPlacement struct {
+	activePlacementFn activePlacementFn
+}
+
+func (m *mockActiveStagedPlacement) ActivePlacement() (placement.Placement, placement.DoneFn, error) {
+	return m.activePlacementFn()
+}
+
+func (m *mockActiveStagedPlacement) Close() error { return nil }
