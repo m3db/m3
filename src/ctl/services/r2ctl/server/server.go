@@ -36,10 +36,13 @@ func NewServer(address string, serverOpts Options, r2Service, healthService Serv
 	healthRouter := router.PathPrefix(healthService.URLPrefix()).Subrouter()
 	healthService.RegisterHandlers(healthRouter)
 
-	// Public route handler - This has to be registered after all of the other ones.
-	// If it is registered before, all of the other registration will return 404s trying to access
-	// their paths under public/r2/v1
-	router.PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("public"))))
+	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "ui/build/index.html")
+
+	})
+	router.PathPrefix("/public").Handler(http.StripPrefix("/public", http.FileServer(http.Dir("public"))))
+
+	router.PathPrefix("/static").Handler(http.StripPrefix("/static", http.FileServer(http.Dir("ui/build/static"))))
 
 	return &http.Server{
 		WriteTimeout: serverOpts.WriteTimeout(),

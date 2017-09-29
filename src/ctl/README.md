@@ -16,18 +16,21 @@ This project is released under the [MIT License](LICENSE.md).
 [cov-img]: https://coveralls.io/repos/m3db/m3ctl/badge.svg?branch=master&service=github
 [cov]: https://coveralls.io/github/m3db/m3ctl?branch=master
 
-### Run the R2API
+### Run the R2 App
 
 ```bash
 git clone --recursive https://github.com/m3db/m3ctl.git
 cd m3ctl
 glide install -v
-make r2ctl && ./bin/r2ctl -f config/base.yaml
-curl -v localhost:9000/r2/v1/namespaces
+make && ./bin/r2ctl -f config/base.yaml
+open http://localhost:9000
 ```
+
+**UI**
+`/`
 
 **API Server**
 `/r2/v1`
 
 **API Docs (via Swagger)**
-`/r2/v1/swagger`
+`public/r2/v1/swagger`

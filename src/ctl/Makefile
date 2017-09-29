@@ -44,6 +44,11 @@ services: $(SERVICES)
 services-linux-amd64:
 	$(LINUX_AMD64_ENV) make services
 
+build-ui:
+	cd ui && npm install
+	cd ui && npm run build
+
+
 $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 
 .PHONY: lint
@@ -94,7 +99,7 @@ clean:
 	@rm -f *.html *.xml *.out *.test
 
 .PHONY: all
-all: lint metalint test-ci-unit services
+all: lint metalint test-ci-unit services build-ui
 	@echo Made all successfully
 
 .DEFAULT_GOAL := all
