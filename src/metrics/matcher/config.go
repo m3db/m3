@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/id/m3"
@@ -37,7 +38,7 @@ import (
 // Configuration is config used to create a Matcher.
 type Configuration struct {
 	InitWatchTimeout      time.Duration                `yaml:"initWatchTimeout"`
-	RulesKVNamespace      string                       `yaml:"rulesKVNamespace" validate:"nonzero"`
+	RulesKVConfig         kv.Configuration             `yaml:"rulesKVConfig"`
 	NamespacesKey         string                       `yaml:"namespacesKey" validate:"nonzero"`
 	RuleSetKeyFmt         string                       `yaml:"ruleSetKeyFmt" validate:"nonzero"`
 	NamespaceTag          string                       `yaml:"namespaceTag" validate:"nonzero"`
@@ -85,7 +86,7 @@ func (cfg *Configuration) NewOptions(
 	instrumentOpts instrument.Options,
 ) (Options, error) {
 	// Configure rules kv store.
-	rulesStore, err := kvCluster.Store(cfg.RulesKVNamespace)
+	rulesStore, err := kvCluster.Store(cfg.RulesKVConfig.NewOptions())
 	if err != nil {
 		return nil, err
 	}
