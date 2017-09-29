@@ -420,12 +420,14 @@ func (c *client) update(key string, events []*clientv3.Event) error {
 		return nil
 	}
 
-	if curValue == nil || nv == nil {
-		// At creation or deletion, just update the watch to current value.
-		return w.Update(nv)
+	if nv == nil {
+		// At deletion, just update the watch to nil.
+		c.logger.Infof("received nil update for key %s from kv store", key)
+		return w.Update(nil)
 	}
 
-	if nv.IsNewer(curValue) {
+	if curValue == nil || nv.IsNewer(curValue) {
+		c.logger.Infof("received update for key %s with version %d from kv store", key, nv.Version())
 		return w.Update(nv)
 	}
 
