@@ -125,6 +125,9 @@ func (c *csclient) Store(opts kv.Options) (kv.Store, error) {
 }
 
 func (c *csclient) TxnStore(opts kv.Options) (kv.TxnStore, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
 	if err := validateTopLevelNamespace(opts.Namespace()); err != nil {
 		return nil, err
 	}

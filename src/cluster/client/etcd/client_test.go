@@ -121,11 +121,11 @@ func TestClient(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, kv1, kv2)
 
-	kv3, err := c.Store(kv.NewOptions().SetNamespace("ns"))
+	kv3, err := c.Store(kv.NewOptions().SetNamespace("ns").SetEnvironment("test_env1"))
 	require.NoError(t, err)
 	require.NotEqual(t, kv1, kv3)
 
-	kv4, err := c.Store(kv.NewOptions().SetNamespace("ns").SetEnvironment("test_env"))
+	kv4, err := c.Store(kv.NewOptions().SetNamespace("ns").SetEnvironment("test_env2"))
 	require.NoError(t, err)
 	require.NotEqual(t, kv3, kv4)
 

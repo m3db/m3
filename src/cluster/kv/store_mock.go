@@ -270,6 +270,16 @@ func (_mr *_MockOptionsRecorder) SetEnvironment(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEnvironment", arg0)
 }
 
+func (_m *MockOptions) Validate() error {
+	ret := _m.ctrl.Call(_m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) Validate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
+}
+
 // Mock of Store interface
 type MockStore struct {
 	ctrl     *gomock.Controller
