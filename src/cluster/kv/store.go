@@ -20,7 +20,16 @@
 
 package kv
 
-import xwatch "github.com/m3db/m3x/watch"
+import (
+	"errors"
+
+	xwatch "github.com/m3db/m3x/watch"
+)
+
+var (
+	errEmptyNamespace   = errors.New("empty kv namespace")
+	errEmptyEnvironment = errors.New("empty kv environment")
+)
 
 type valueWatch struct {
 	w xwatch.Watch
@@ -115,4 +124,14 @@ func (opts options) Environment() string {
 func (opts options) SetEnvironment(env string) Options {
 	opts.env = env
 	return opts
+}
+
+func (opts options) Validate() error {
+	if opts.env == "" {
+		return errEmptyEnvironment
+	}
+	if opts.namespace == "" {
+		return errEmptyNamespace
+	}
+	return nil
 }

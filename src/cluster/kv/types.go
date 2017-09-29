@@ -108,6 +108,9 @@ type Options interface {
 
 	// SetEnvironment sets the environment of the KV store.
 	SetEnvironment(env string) Options
+
+	// Validate validates the Options.
+	Validate() error
 }
 
 // Store provides access to the configuration store
