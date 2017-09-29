@@ -40,8 +40,8 @@ type Client interface {
 	Txn() (kv.TxnStore, error)
 
 	// Store returns access to the distributed configuration store with a namespace.
-	Store(namespace string) (kv.Store, error)
+	Store(opts kv.Options) (kv.Store, error)
 
 	// TxnStore returns access to the transaction store with a namespace.
-	TxnStore(namespace string) (kv.TxnStore, error)
+	TxnStore(opts kv.Options) (kv.TxnStore, error)
 }

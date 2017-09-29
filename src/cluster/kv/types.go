@@ -95,6 +95,21 @@ type ValueWatchable interface {
 	Close()
 }
 
+// Options provides a set of options to config a KV store.
+type Options interface {
+	// Namespace returns the namespace of the KV store.
+	Namespace() string
+
+	// SetNamespace sets the namespace of the KV store.
+	SetNamespace(namespace string) Options
+
+	// Environment returns the environment of the KV store.
+	Environment() string
+
+	// SetEnvironment sets the environment of the KV store.
+	SetEnvironment(env string) Options
+}
+
 // Store provides access to the configuration store
 type Store interface {
 	// Get retrieves the value for the given key
@@ -197,7 +212,6 @@ type OpResponse interface {
 
 // Response captures the response of the transaction
 type Response interface {
-	// Responses return
 	Responses() []OpResponse
 	SetResponses(oprs []OpResponse) Response
 }
