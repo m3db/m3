@@ -1180,6 +1180,66 @@ func (_mr *_MockOptionsRecorder) SetShardCutoffNanosFn(arg0 interface{}) *gomock
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetShardCutoffNanosFn", arg0)
 }
 
+func (_m *MockOptions) IsShardCutoverFn() ShardValidationFn {
+	ret := _m.ctrl.Call(_m, "IsShardCutoverFn")
+	ret0, _ := ret[0].(ShardValidationFn)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) IsShardCutoverFn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsShardCutoverFn")
+}
+
+func (_m *MockOptions) SetIsShardCutoverFn(fn ShardValidationFn) Options {
+	ret := _m.ctrl.Call(_m, "SetIsShardCutoverFn", fn)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetIsShardCutoverFn(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIsShardCutoverFn", arg0)
+}
+
+func (_m *MockOptions) IsShardCutoffFn() ShardValidationFn {
+	ret := _m.ctrl.Call(_m, "IsShardCutoffFn")
+	ret0, _ := ret[0].(ShardValidationFn)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) IsShardCutoffFn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsShardCutoffFn")
+}
+
+func (_m *MockOptions) SetIsShardCutoffFn(fn ShardValidationFn) Options {
+	ret := _m.ctrl.Call(_m, "SetIsShardCutoffFn", fn)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetIsShardCutoffFn(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIsShardCutoffFn", arg0)
+}
+
+func (_m *MockOptions) NowFn() clock.NowFn {
+	ret := _m.ctrl.Call(_m, "NowFn")
+	ret0, _ := ret[0].(clock.NowFn)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) NowFn() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NowFn")
+}
+
+func (_m *MockOptions) SetNowFn(fn clock.NowFn) Options {
+	ret := _m.ctrl.Call(_m, "SetNowFn", fn)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetNowFn(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNowFn", arg0)
+}
+
 // Mock of Storage interface
 type MockStorage struct {
 	ctrl     *gomock.Controller
@@ -1551,6 +1611,17 @@ func (_m *MockAlgorithm) IsCompatibleWith(p Placement) error {
 
 func (_mr *_MockAlgorithmRecorder) IsCompatibleWith(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsCompatibleWith", arg0)
+}
+
+func (_m *MockAlgorithm) MarkShardAvailable(p Placement, instanceID string, shardID uint32) (Placement, error) {
+	ret := _m.ctrl.Call(_m, "MarkShardAvailable", p, instanceID, shardID)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockAlgorithmRecorder) MarkShardAvailable(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MarkShardAvailable", arg0, arg1, arg2)
 }
 
 // Mock of InstanceSelector interface

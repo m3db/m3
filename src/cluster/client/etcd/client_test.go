@@ -23,6 +23,7 @@ package etcd
 import (
 	"testing"
 
+	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/services"
 
 	"github.com/coreos/etcd/clientv3"
@@ -120,9 +121,13 @@ func TestClient(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, kv1, kv2)
 
-	kv3, err := c.Store("ns")
+	kv3, err := c.Store(kv.NewOptions().SetNamespace("ns"))
 	require.NoError(t, err)
 	require.NotEqual(t, kv1, kv3)
+
+	kv4, err := c.Store(kv.NewOptions().SetNamespace("ns").SetEnvironment("test_env"))
+	require.NoError(t, err)
+	require.NotEqual(t, kv3, kv4)
 
 	// KV store will create an etcd cli for local zone only
 	require.Equal(t, 1, len(c.clis))
@@ -219,58 +224,47 @@ func TestCacheFileForZone(t *testing.T) {
 func TestValidateNamespace(t *testing.T) {
 	inputs := []struct {
 		ns        string
-		result    string
 		expectErr bool
 	}{
 		{
 			ns:        "ns",
-			result:    "/ns",
 			expectErr: false,
 		},
 		{
 			ns:        "/ns",
-			result:    "/ns",
 			expectErr: false,
 		},
 		{
 			ns:        "/ns/ab",
-			result:    "/ns/ab",
 			expectErr: false,
 		},
 		{
 			ns:        "ns/ab",
-			result:    "/ns/ab",
 			expectErr: false,
 		},
 		{
 			ns:        "_ns",
-			result:    "",
 			expectErr: true,
 		},
 		{
 			ns:        "/_ns",
-			result:    "",
 			expectErr: true,
 		},
 		{
 			ns:        "",
-			result:    "",
 			expectErr: true,
 		},
 		{
 			ns:        "/",
-			result:    "",
 			expectErr: true,
 		},
 	}
 
 	for _, input := range inputs {
-		rs, err := validateTopLevelNamespace(input.ns)
+		err := validateTopLevelNamespace(input.ns)
 		if input.expectErr {
 			require.Error(t, err)
-			continue
 		}
-		require.Equal(t, input.result, rs)
 	}
 }
 

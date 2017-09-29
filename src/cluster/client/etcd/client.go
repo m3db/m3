@@ -109,23 +109,27 @@ func (c *csclient) KV() (kv.Store, error) {
 
 func (c *csclient) Txn() (kv.TxnStore, error) {
 	c.txnOnce.Do(func() {
-		c.txn, c.txnErr = c.createTxnStore(kvPrefix)
+		c.txn, c.txnErr = c.createTxnStore(
+			kv.NewOptions().
+				SetNamespace(kvPrefix).
+				SetEnvironment(c.opts.Env()),
+		)
+
 	})
 
 	return c.txn, c.txnErr
 }
 
-func (c *csclient) Store(namespace string) (kv.Store, error) {
-	return c.TxnStore(namespace)
+func (c *csclient) Store(opts kv.Options) (kv.Store, error) {
+	return c.TxnStore(opts)
 }
 
-func (c *csclient) TxnStore(namespace string) (kv.TxnStore, error) {
-	namespace, err := validateTopLevelNamespace(namespace)
-	if err != nil {
+func (c *csclient) TxnStore(opts kv.Options) (kv.TxnStore, error) {
+	if err := validateTopLevelNamespace(opts.Namespace()); err != nil {
 		return nil, err
 	}
 
-	return c.createTxnStore(namespace)
+	return c.createTxnStore(opts)
 }
 
 func (c *csclient) createServices(opts services.Options) (services.Services, error) {
@@ -143,8 +147,8 @@ func (c *csclient) createServices(opts services.Options) (services.Services, err
 	)
 }
 
-func (c *csclient) createTxnStore(namespace string) (kv.TxnStore, error) {
-	return c.txnGen(c.opts.Zone(), c.cacheFileFn(), namespace, c.opts.Env())
+func (c *csclient) createTxnStore(opts kv.Options) (kv.TxnStore, error) {
+	return c.txnGen(c.opts.Zone(), c.cacheFileFn(), opts.Namespace(), opts.Environment())
 }
 
 func (c *csclient) kvGen(fn cacheFileForZoneFn) etcdsd.KVGen {
@@ -281,19 +285,16 @@ func fileName(parts ...string) string {
 	return strings.Replace(s, string(os.PathSeparator), cacheFileSeparator, -1) + cacheFileSuffix
 }
 
-func validateTopLevelNamespace(namespace string) (string, error) {
+func validateTopLevelNamespace(namespace string) error {
 	if namespace == "" || namespace == hierarchySeparator {
-		return "", errInvalidNamespace
+		return errInvalidNamespace
 	}
 	if strings.HasPrefix(namespace, internalPrefix) {
 		// start with _
-		return "", errInvalidNamespace
+		return errInvalidNamespace
 	}
-	if strings.HasPrefix(namespace, hierarchySeparator) {
-		if internalPrefix == string(namespace[1]) {
-			return "", errInvalidNamespace
-		}
-		return namespace, nil
+	if strings.HasPrefix(namespace, hierarchySeparator+internalPrefix) {
+		return errInvalidNamespace
 	}
-	return hierarchySeparator + namespace, nil
+	return nil
 }

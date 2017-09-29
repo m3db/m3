@@ -72,7 +72,7 @@ func (_mr *_MockClientRecorder) Services(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Services", arg0)
 }
 
-func (_m *MockClient) Store(_param0 string) (kv.Store, error) {
+func (_m *MockClient) Store(_param0 kv.Options) (kv.Store, error) {
 	ret := _m.ctrl.Call(_m, "Store", _param0)
 	ret0, _ := ret[0].(kv.Store)
 	ret1, _ := ret[1].(error)
@@ -94,7 +94,7 @@ func (_mr *_MockClientRecorder) Txn() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Txn")
 }
 
-func (_m *MockClient) TxnStore(_param0 string) (kv.TxnStore, error) {
+func (_m *MockClient) TxnStore(_param0 kv.Options) (kv.TxnStore, error) {
 	ret := _m.ctrl.Call(_m, "TxnStore", _param0)
 	ret0, _ := ret[0].(kv.TxnStore)
 	ret1, _ := ret[1].(error)

@@ -209,6 +209,67 @@ func (_mr *_MockValueWatchableRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
+// Mock of Options interface
+type MockOptions struct {
+	ctrl     *gomock.Controller
+	recorder *_MockOptionsRecorder
+}
+
+// Recorder for MockOptions (not exported)
+type _MockOptionsRecorder struct {
+	mock *MockOptions
+}
+
+func NewMockOptions(ctrl *gomock.Controller) *MockOptions {
+	mock := &MockOptions{ctrl: ctrl}
+	mock.recorder = &_MockOptionsRecorder{mock}
+	return mock
+}
+
+func (_m *MockOptions) EXPECT() *_MockOptionsRecorder {
+	return _m.recorder
+}
+
+func (_m *MockOptions) Namespace() string {
+	ret := _m.ctrl.Call(_m, "Namespace")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) Namespace() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Namespace")
+}
+
+func (_m *MockOptions) SetNamespace(namespace string) Options {
+	ret := _m.ctrl.Call(_m, "SetNamespace", namespace)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetNamespace(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNamespace", arg0)
+}
+
+func (_m *MockOptions) Environment() string {
+	ret := _m.ctrl.Call(_m, "Environment")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) Environment() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Environment")
+}
+
+func (_m *MockOptions) SetEnvironment(env string) Options {
+	ret := _m.ctrl.Call(_m, "SetEnvironment", env)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetEnvironment(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetEnvironment", arg0)
+}
+
 // Mock of Store interface
 type MockStore struct {
 	ctrl     *gomock.Controller
