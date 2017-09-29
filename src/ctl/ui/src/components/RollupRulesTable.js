@@ -32,38 +32,28 @@ function TargetPreview({target}) {
     <div>
       <div className="pb1">
         <label className="bold">Policies</label>
-        <div>
-          {target.policies.join(' ')}
-        </div>
+        <div>{target.policies.join(' ')}</div>
       </div>
       <div className="pb1">
         <label className="bold pb1">Tags</label>
-        <div>
-          {target.tags.join(', ')}
-        </div>
+        <div>{target.tags.join(', ')}</div>
       </div>
     </div>
   );
   return (
     <Popover
       placement="topLeft"
-      title={
-        <b>
-          {target.name}
-        </b>
-      }
+      title={<b>{target.name}</b>}
       content={content}
       trigger="click">
-      <Tag>
-        {target.name}
-      </Tag>
+      <Tag>{target.name}</Tag>
     </Popover>
   );
 }
 
 function RollupRuleHistoryBase(props) {
   const loading = _.get(props.rollupRuleHistory, 'pending');
-  const rollupRules = _.get(props.rollupRuleHistory, 'value');
+  const rollupRules = _.get(props.rollupRuleHistory, 'value.rollupRules');
 
   return (
     <RollupRulesTable
@@ -116,27 +106,24 @@ function RollupRulesTable(props) {
       <Column
         title="Metric Filter"
         dataIndex="filter"
-        render={filter =>
-          <pre>
-            {filter}
-          </pre>}
+        render={filter => <pre>{filter}</pre>}
       />
       <Column
         title="Targets"
         dataIndex="targets"
         render={targets => {
-          return _.map(targets, (target, i) =>
-            <TargetPreview key={i} target={target} />,
-          );
+          return _.map(targets, (target, i) => (
+            <TargetPreview key={i} target={target} />
+          ));
         }}
       />
-      {showActions &&
+      {showActions && (
         <Column
           width={200}
           fixed="right"
           title="Action"
           key="action"
-          render={(__, rollupRule) =>
+          render={(__, rollupRule) => (
             <TableActions
               onEditClicked={() =>
                 props.setModal({
@@ -163,8 +150,10 @@ function RollupRulesTable(props) {
                     />
                   ),
                 })}
-            />}
-        />}
+            />
+          )}
+        />
+      )}
     </Table>
   );
 }
