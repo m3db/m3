@@ -29,7 +29,7 @@ const {Column} = Table;
 
 function MappingRuleHistoryBase(props) {
   const loading = _.get(props.mappingRuleHistory, 'pending');
-  const mappingRules = _.get(props.mappingRuleHistory, 'value');
+  const mappingRules = _.get(props.mappingRuleHistory, 'value.mappingRules');
   return (
     <MappingRulesTable
       rollupRules={mappingRules}
@@ -69,29 +69,22 @@ function MappingRulesTable(props) {
       <Column
         title="Metric Filter"
         dataIndex="filter"
-        render={filter =>
-          <pre>
-            {filter}
-          </pre>}
+        render={filter => <pre>{filter}</pre>}
       />
       <Column
         title="Policies"
         dataIndex="policies"
         render={policies => {
-          return _.map(policies, policy =>
-            <Tag key={policy}>
-              {policy}
-            </Tag>,
-          );
+          return _.map(policies, policy => <Tag key={policy}>{policy}</Tag>);
         }}
       />
-      {showActions &&
+      {showActions && (
         <Column
           width={200}
           fixed="right"
           title="Action"
           key="action"
-          render={(__, mappingRule) =>
+          render={(__, mappingRule) => (
             <TableActions
               onEditClicked={() =>
                 props.setModal({
@@ -118,8 +111,10 @@ function MappingRulesTable(props) {
                     />
                   ),
                 })}
-            />}
-        />}
+            />
+          )}
+        />
+      )}
     </Table>
   );
 }
