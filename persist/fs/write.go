@@ -227,16 +227,12 @@ func (w *writer) close() error {
 		return err
 	}
 
-	if err := closeAll(
+	return closeAll(
 		w.infoFdWithDigest,
 		w.indexFdWithDigest,
 		w.dataFdWithDigest,
 		w.digestFdWithDigestContents,
-	); err != nil {
-		return err
-	}
-
-	return nil
+	)
 }
 
 func (w *writer) Close() error {
