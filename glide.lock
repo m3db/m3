@@ -1,5 +1,5 @@
-hash: c208328e9cc17f460245c18c97f53d1b0349c3ac81543f1a45fe295382054d48
-updated: 2017-09-05T16:21:12.400276859-04:00
+hash: 1250a11856eea1d80a64b0cc96cafcc7d4dde19dfdb1f56d263219614a0f5540
+updated: 2017-10-02T14:04:49.164947784-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -199,7 +199,7 @@ imports:
 - name: github.com/pborman/getopt
   version: ec82d864f599c39673eef89f91b93fa5576567a1
 - name: github.com/pmezard/go-difflib
-  version: 792786c7400a136282c1664665ae0a8db921c6c2
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
@@ -247,14 +247,14 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 2605c407d7d219644d03a3680ad7df4779017782
+  version: 95078a8f10668bd1fa73ae46761cdc58d25436b8
   subpackages:
   - m3
   - m3/customtransports
   - m3/thrift
   - m3/thriftudp
 - name: github.com/uber/tchannel-go
-  version: 5d979b31a7405a676919fca637bb2f715fb9ed65
+  version: 1fcf82ec86967eb43ba0baa9b964f8eb226d242e
   subpackages:
   - internal/argreader
   - relay

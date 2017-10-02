@@ -32,7 +32,7 @@ import:
   version: 0d12bf811670bf6a1a63828dfbd003eded177fce
 
 - package: github.com/uber/tchannel-go
-  version: 5d979b31a7405a676919fca637bb2f715fb9ed65
+  version: 1fcf82ec86967eb43ba0baa9b964f8eb226d242e
   subpackages:
   - thrift
 
