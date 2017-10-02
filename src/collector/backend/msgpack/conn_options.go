@@ -21,6 +21,7 @@
 package msgpack
 
 import (
+	"math"
 	"time"
 
 	"github.com/m3db/m3x/clock"
@@ -34,7 +35,7 @@ const (
 	defaultInitReconnectThreshold       = 2
 	defaultMaxReconnectThreshold        = 5000
 	defaultReconnectThresholdMultiplier = 2
-	defaultMaxReconnectDuration         = 15 * time.Second
+	defaultMaxReconnectDuration         = math.MaxInt64
 )
 
 // ConnectionOptions provides a set of options for tcp connections.

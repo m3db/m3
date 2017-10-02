@@ -57,11 +57,11 @@ type connection struct {
 	maxDuration   time.Duration
 	nowFn         clock.NowFn
 
-	conn             *net.TCPConn
-	numFailures      int
-	threshold        int
-	lastConnectNanos int64
-	metrics          connectionMetrics
+	conn                    *net.TCPConn
+	numFailures             int
+	threshold               int
+	lastConnectAttemptNanos int64
+	metrics                 connectionMetrics
 
 	// These are for testing purposes.
 	connectWithLockFn connectWithLockFn
@@ -87,7 +87,7 @@ func newConnection(addr string, opts ConnectionOptions) *connection {
 	c.writeWithLockFn = c.writeWithLock
 
 	c.Lock()
-	c.resetAndConnectWithLock() // nolint: errcheck
+	c.connectWithLockFn() // nolint: errcheck
 	c.Unlock()
 
 	return c
@@ -130,13 +130,8 @@ func (c *connection) Close() {
 	c.Unlock()
 }
 
-func (c *connection) resetAndConnectWithLock() error {
-	c.numFailures = 0
-	c.lastConnectNanos = c.nowFn().UnixNano()
-	return c.connectWithLockFn()
-}
-
 func (c *connection) connectWithLock() error {
+	c.lastConnectAttemptNanos = c.nowFn().UnixNano()
 	conn, err := net.DialTimeout(tcpProtocol, c.addr, c.connTimeout)
 	if err != nil {
 		c.metrics.connectError.Inc(1)
@@ -160,12 +155,13 @@ func (c *connection) checkReconnectWithLock() error {
 	// and we haven't past the maximum duration since the last time we attempted
 	// to connect then we simply return false without reconnecting.
 	tooManyFailures := c.numFailures > c.threshold
-	if !tooManyFailures && c.nowFn().UnixNano() < c.lastConnectNanos+int64(c.maxDuration) {
+	sufficientTimePassed := c.nowFn().UnixNano()-c.lastConnectAttemptNanos >= c.maxDuration.Nanoseconds()
+	if !tooManyFailures && !sufficientTimePassed {
 		return errNoActiveConnection
 	}
-	err := c.resetAndConnectWithLock()
+	err := c.connectWithLockFn()
 	if err == nil {
-		c.threshold = c.initThreshold
+		c.resetWithLock()
 		return nil
 	}
 
@@ -189,6 +185,11 @@ func (c *connection) writeWithLock(data []byte) error {
 		return err
 	}
 	return nil
+}
+
+func (c *connection) resetWithLock() {
+	c.numFailures = 0
+	c.threshold = c.initThreshold
 }
 
 func (c *connection) closeWithLock() {
