@@ -32,6 +32,7 @@ import:
   version: 0d12bf811670bf6a1a63828dfbd003eded177fce
 
 - package: github.com/uber/tchannel-go
+  # Must be this hash or higher to include TChannel connection health checks
   version: 1fcf82ec86967eb43ba0baa9b964f8eb226d242e
   subpackages:
   - thrift
