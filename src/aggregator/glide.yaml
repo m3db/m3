@@ -4,9 +4,9 @@ import:
 - package: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
 - package: github.com/m3db/m3cluster
-  version: c08a9f9c8ed09f2419fa16718db294bd3121a484
+  version: d9fd14a38efe2eaf43b9a52350055fbd2dac06ec
 - package: github.com/m3db/m3metrics
-  version: c45bed752fb0d4e16bf56322adedfb4a03c29972
+  version: 82d18cdd2a24502c6a170b6bfea01c30685e5b26
 - package: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 - package: github.com/m3db/m3x

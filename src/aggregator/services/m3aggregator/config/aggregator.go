@@ -120,8 +120,8 @@ type AggregatorConfiguration struct {
 	// Client configuration for key value store.
 	KVClient kvClientConfiguration `yaml:"kvClient" validate:"nonzero"`
 
-	// KV namespace.
-	KVNamespace string `yaml:"kvNamespace" validate:"nonzero"`
+	// KV configuration.
+	KVConfig kv.Configuration `yaml:"kvConfig"`
 
 	// Placement manager.
 	PlacementManager placementManagerConfiguration `yaml:"placementManager"`
@@ -245,7 +245,9 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	if err != nil {
 		return nil, err
 	}
-	store, err := client.Store(c.KVNamespace)
+
+	// The store is shared between placement manager and flush times manager.
+	store, err := client.Store(c.KVConfig.NewOptions())
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +291,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	electionManager, err := c.ElectionManager.NewElectionManager(
 		client,
 		instanceID,
-		c.KVNamespace,
+		c.KVConfig.Namespace,
 		placementManager,
 		flushTimesManager,
 		iOpts,

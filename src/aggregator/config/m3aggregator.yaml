@@ -101,7 +101,9 @@ aggregator:
           capacity: 32
         - count: 1024
           capacity: 64
-  kvNamespace: /r2/m3aggregator
+  kvConfig:
+    namespace: /r2/m3aggregator
+    environment: production
   placementManager:
     placementWatcher:
       key: placement
