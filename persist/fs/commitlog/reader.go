@@ -46,6 +46,7 @@ var (
 
 	errCommitLogReaderAlreadyOpen               = errors.New("commit log reader already open")
 	errCommitLogReaderChunkSizeChecksumMismatch = errors.New("commit log reader encountered chunk size checksum mismatch")
+	errCommitLogReaderChunkDataChecksumMismatch = errors.New("commit log reader encountered chunk data checksum mismatch")
 	errCommitLogReaderMissingLogMetadata        = errors.New("commit log reader encountered message missing metadata")
 )
 
@@ -423,6 +424,7 @@ func (r *chunkReader) Read(p []byte) (int, error) {
 
 		// Reset read target
 		p = p[read:]
+		size = len(p)
 
 		// Perform consecutive read(s)
 		n, err := r.Read(p)
