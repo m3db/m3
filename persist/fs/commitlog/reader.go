@@ -204,7 +204,7 @@ func (r *reader) readLoop() {
 	}
 }
 
-func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan *readResponse) {
+func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readResponse) {
 	decodingOpts := r.opts.FilesystemOptions().DecodingOptions()
 	decoder := msgpack.NewDecoder(decodingOpts)
 	metadataDecoder := msgpack.NewDecoder(decodingOpts)
@@ -355,7 +355,6 @@ func (r *reader) Close() error {
 	return <-r.shutdownChan
 }
 
-// TODO: Does this need to completely reset the reader?
 func (r *reader) close() error {
 	if r.chunkReader.fd == nil {
 		return nil
@@ -458,7 +457,6 @@ func (r *chunkReader) Read(p []byte) (int, error) {
 
 		// Reset read target
 		p = p[read:]
-		size = len(p)
 
 		// Perform consecutive read(s)
 		n, err := r.Read(p)
