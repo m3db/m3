@@ -191,6 +191,15 @@ func getStringArray(v kv.Value) (interface{}, error) {
 	return stringArrProto.Values, nil
 }
 
+func getStringArrayPointer(v kv.Value) (interface{}, error) {
+	var stringArrProto commonpb.StringArrayProto
+	if err := v.Unmarshal(&stringArrProto); err != nil {
+		return nil, err
+	}
+
+	return &stringArrProto.Values, nil
+}
+
 func getTime(v kv.Value) (interface{}, error) {
 	var int64Proto commonpb.Int64Proto
 	if err := v.Unmarshal(&int64Proto); err != nil {

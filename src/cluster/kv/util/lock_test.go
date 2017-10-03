@@ -389,6 +389,153 @@ func TestWatchAndUpdateStringArray(t *testing.T) {
 	leaktest.Check(t)
 }
 
+func TestWatchAndUpdateStringArrayPointer(t *testing.T) {
+	testConfig := struct {
+		sync.RWMutex
+		v *[]string
+	}{}
+
+	valueFn := func() *[]string {
+		testConfig.RLock()
+		defer testConfig.RUnlock()
+
+		return testConfig.v
+	}
+
+	var (
+		store        = mem.NewStore()
+		defaultValue = []string{"abc", "def"}
+	)
+
+	watch, err := WatchAndUpdateStringArrayPointer(
+		store, "foo", &testConfig.v, &testConfig.RWMutex, &defaultValue, nil,
+	)
+	require.NoError(t, err)
+
+	_, err = store.Set("foo", &commonpb.StringArrayProto{Values: []string{"fizz", "buzz"}})
+	require.NoError(t, err)
+	for {
+		res := valueFn()
+		if res != nil && stringSliceEquals(*res, []string{"fizz", "buzz"}) {
+			break
+		}
+	}
+
+	// Malformed updates should not be applied.
+	_, err = store.Set("foo", &commonpb.Float64Proto{Value: 12.3})
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, []string{"fizz", "buzz"}, *valueFn())
+
+	_, err = store.Set("foo", &commonpb.StringArrayProto{Values: []string{"foo", "bar"}})
+	require.NoError(t, err)
+	for {
+		if stringSliceEquals(*valueFn(), []string{"foo", "bar"}) {
+			break
+		}
+	}
+
+	// Nil updates should apply the default value.
+	_, err = store.Delete("foo")
+	require.NoError(t, err)
+	for {
+		if stringSliceEquals(*valueFn(), defaultValue) {
+			break
+		}
+	}
+
+	_, err = store.Set("foo", &commonpb.StringArrayProto{Values: []string{"jim", "jam"}})
+	require.NoError(t, err)
+	for {
+		if stringSliceEquals(*valueFn(), []string{"jim", "jam"}) {
+			break
+		}
+	}
+
+	// Updates should not be applied after the watch is closed and there should not
+	// be any goroutines still running.
+	watch.Close()
+	time.Sleep(100 * time.Millisecond)
+	_, err = store.Set("foo", &commonpb.StringArrayProto{Values: []string{"abc", "def"}})
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, []string{"jim", "jam"}, *valueFn())
+
+	leaktest.Check(t)
+}
+
+func TestWatchAndUpdateStringArrayPointerWithNilDefault(t *testing.T) {
+	testConfig := struct {
+		sync.RWMutex
+		v *[]string
+	}{}
+
+	valueFn := func() *[]string {
+		testConfig.RLock()
+		defer testConfig.RUnlock()
+
+		return testConfig.v
+	}
+
+	var store = mem.NewStore()
+	watch, err := WatchAndUpdateStringArrayPointer(
+		store, "foo", &testConfig.v, &testConfig.RWMutex, nil, nil,
+	)
+	require.NoError(t, err)
+
+	_, err = store.Set("foo", &commonpb.StringArrayProto{Values: []string{"fizz", "buzz"}})
+	require.NoError(t, err)
+	for {
+		res := valueFn()
+		if res != nil && stringSliceEquals(*res, []string{"fizz", "buzz"}) {
+			break
+		}
+	}
+
+	// Malformed updates should not be applied.
+	_, err = store.Set("foo", &commonpb.Float64Proto{Value: 12.3})
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, []string{"fizz", "buzz"}, *valueFn())
+
+	_, err = store.Set("foo", &commonpb.StringArrayProto{Values: []string{"foo", "bar"}})
+	require.NoError(t, err)
+	for {
+		if stringSliceEquals(*valueFn(), []string{"foo", "bar"}) {
+			break
+		}
+	}
+
+	// Nil updates should apply the default value.
+	_, err = store.Delete("foo")
+	require.NoError(t, err)
+	for {
+		if valueFn() == nil {
+			break
+		}
+	}
+
+	_, err = store.Set("foo", &commonpb.StringArrayProto{Values: []string{"jim", "jam"}})
+	require.NoError(t, err)
+	for {
+		res := valueFn()
+		if res != nil && stringSliceEquals(*res, []string{"jim", "jam"}) {
+			break
+		}
+	}
+
+	// Updates should not be applied after the watch is closed and there should not
+	// be any goroutines still running.
+	watch.Close()
+	time.Sleep(100 * time.Millisecond)
+	_, err = store.Set("foo", &commonpb.StringArrayProto{Values: []string{"abc", "def"}})
+	require.NoError(t, err)
+	time.Sleep(100 * time.Millisecond)
+	require.Equal(t, []string{"jim", "jam"}, *valueFn())
+
+	leaktest.Check(t)
+}
+
 func TestWatchAndUpdateTime(t *testing.T) {
 	testConfig := struct {
 		sync.RWMutex
