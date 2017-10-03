@@ -126,6 +126,27 @@ func WatchAndUpdateStringArray(
 	)
 }
 
+// WatchAndUpdateStringArrayPointer sets up a watch with validation for a string array pointer
+// property. Any malformed, or invalid updates are not applied. The default value
+// is applied when the key does not exist in KV. The watch on the value is returned.
+func WatchAndUpdateStringArrayPointer(
+	store kv.Store,
+	key string,
+	property **[]string,
+	lock sync.Locker,
+	defaultValue *[]string,
+	opts Options,
+) (kv.ValueWatch, error) {
+	if opts == nil {
+		opts = NewOptions()
+	}
+	updateFn := lockedUpdate(func(i interface{}) { *property = i.(*[]string) }, lock)
+
+	return watchAndUpdate(
+		store, key, getStringArrayPointer, updateFn, opts.ValidateFn(), defaultValue, opts.Logger(),
+	)
+}
+
 // WatchAndUpdateTime sets up a watch with validation for a time property. Any
 // malformed, or invalid updates are not applied. The default value is applied
 // when the key does not exist in KV. The watch on the value is returned.
