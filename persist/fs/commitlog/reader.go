@@ -242,6 +242,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 			namespace.AppendAll(decoded.Namespace)
 
 			r.metadataLock.Lock()
+			metadata, ok := r.metadataLookup[entry.Index]
 			r.metadataLookup[entry.Index] = metadataEntry{
 				series: Series{
 					UniqueIndex: entry.Index,
@@ -250,6 +251,10 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 					Shard:       decoded.Shard,
 				},
 				pendingResult: &sync.WaitGroup{},
+			}
+			// Another goroutine is blocked waiting for this metadata
+			if ok {
+				metadata.pendingResult.Done()
 			}
 			r.metadataLock.Unlock()
 			namespace.DecRef()
