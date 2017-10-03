@@ -85,8 +85,7 @@ type reader struct {
 	numConc         int
 	bytesPool       pool.CheckedBytesPool
 	chunkReader     *chunkReader
-	sizeBuffer      []byte
-	dataBuffer      []byte
+	dataBufs        [][]byte
 	logDecoder      encoding.Decoder
 	decoderBufs     []chan decoderArg
 	outBufs         []chan *readResponse
@@ -112,16 +111,20 @@ func newCommitLogReader(opts Options) commitLogReader {
 	for i := 0; i < numConc; i++ {
 		outBufs = append(outBufs, make(chan *readResponse, decoderInBufChanSize))
 	}
+	dataBufs := [][]byte{}
+	for i := 0; i < numConc; i++ {
+		dataBufs = append(dataBufs, []byte{})
+	}
 
 	reader := &reader{
 		opts:            opts,
 		numConc:         numConc,
 		bytesPool:       opts.BytesPool(),
 		chunkReader:     newChunkReader(opts.FlushSize()),
-		sizeBuffer:      make([]byte, binary.MaxVarintLen64),
 		logDecoder:      msgpack.NewDecoder(decodingOpts),
 		decoderBufs:     decoderBufs,
 		outBufs:         outBufs,
+		dataBufs:        dataBufs,
 		cancelCtx:       cancelCtx,
 		cancelFunc:      cancelFunc,
 		shutdownChan:    make(chan error),
@@ -190,8 +193,7 @@ func (r *reader) readLoop() {
 			r.shutdownChan <- r.close()
 			return
 		default:
-			data, err := r.readChunk()
-			// TODO: Special case if err == io.EOF here?
+			data, err := r.readChunk(index % r.numConc)
 
 			// Distribute the decoding work in round-robin fashion so that when we
 			// read round-robin, we get the data back in the original order.
@@ -311,18 +313,25 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan *readResponse)
 	}
 }
 
-func (r *reader) readChunk() ([]byte, error) {
+func (r *reader) readChunk(dataBufferIndex int) ([]byte, error) {
 	// Read size of message
 	size, err := binary.ReadUvarint(r.chunkReader)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Pool this
-	newBuf := make([]byte, size, size)
+	dataBuf := r.dataBufs[dataBufferIndex]
+	dataBufLen := len(dataBuf)
+	// Extend buffer as necessary
+	if dataBufLen < int(size) {
+		diff := int(size) - dataBufLen
+		for i := 0; i < diff; i++ {
+			dataBuf = append(dataBuf, 0)
+		}
+	}
 
 	// Size the target buffer for reading and unmarshalling
-	buffer := newBuf[:size]
+	buffer := dataBuf[:size]
 
 	// Read message
 	if _, err := r.chunkReader.Read(buffer); err != nil {
@@ -332,7 +341,7 @@ func (r *reader) readChunk() ([]byte, error) {
 }
 
 func (r *reader) readInfo() (schema.LogInfo, error) {
-	data, err := r.readChunk()
+	data, err := r.readChunk(0)
 	if err != nil {
 		return emptyLogInfo, err
 	}
