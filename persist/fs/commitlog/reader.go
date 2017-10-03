@@ -25,6 +25,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -94,13 +95,16 @@ type reader struct {
 	metadataLookup  map[uint64]metadataEntry
 	metadataLock    sync.RWMutex
 	nextIndex       int
+	numDecoded      int
+	numRead         int
+	counterLock     sync.Mutex
 }
 
 func newCommitLogReader(opts Options) commitLogReader {
 	decodingOpts := opts.FilesystemOptions().DecodingOptions()
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 
-	numConc := opts.ReadConcurrency()
+	numConc := 4
 	decoderBufs := []chan decoderArg{}
 	for i := 0; i < numConc; i++ {
 		decoderBufs = append(decoderBufs, make(chan decoderArg, decoderInBufChanSize))
@@ -130,11 +134,13 @@ func newCommitLogReader(opts Options) commitLogReader {
 		metadataLookup:  make(map[uint64]metadataEntry),
 		metadataLock:    sync.RWMutex{},
 		nextIndex:       0,
+		counterLock:     sync.Mutex{},
 	}
 	return reader
 }
 
 func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
+	fmt.Println("opened")
 	if r.chunkReader.fd != nil {
 		return timeZero, 0, 0, errCommitLogReaderAlreadyOpen
 	}
@@ -177,21 +183,46 @@ func (r *reader) Read() (
 		return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
 	}
 	r.nextIndex++
+	// fmt.Println("READ: ", rr.datapoint.Value)
+	// fmt.Println("READ ERROR: ", rr.resultErr)
+	if rr.resultErr == nil {
+		r.counterLock.Lock()
+		r.numRead++
+		r.counterLock.Unlock()
+		// fmt.Println(rr.series.ID)
+		// fmt.Println("READ: ", rr.datapoint, " ", rr.series.ID.String())
+
+	}
 	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.resultErr
 }
 
 func (r *reader) readLoop() {
 	index := 0
+	fmt.Println("Read started")
+	eofFound := false
 	for {
 		select {
 		case <-r.cancelCtx.Done():
+			fmt.Println("cancelCtx.Done()")
 			for _, decoderBuf := range r.decoderBufs {
 				close(decoderBuf)
 			}
+			fmt.Println("CLosed all channells")
 			r.shutdownChan <- r.close()
+			fmt.Println("sent to shutdownchan")
+			fmt.Println("NUM READ: ", r.numRead)
+			fmt.Println("NUM Decoded: ", r.numDecoded)
 			return
 		default:
+			if eofFound {
+				continue
+			}
+			// fmt.Println("default start")
 			data, err := r.readChunk(index % r.numConc)
+
+			if err == io.EOF {
+				eofFound = true
+			}
 
 			// Distribute the decoding work in round-robin fashion so that when we
 			// read round-robin, we get the data back in the original order.
@@ -199,6 +230,15 @@ func (r *reader) readLoop() {
 				bytes: data,
 				err:   err,
 			}
+
+			// if err == io.EOF {
+			// 	for _, decoderBuf := range r.decoderBufs {
+			// 		close(decoderBuf)
+			// 	}
+			// 	r.shutdownChan <- r.close()
+			// 	return
+			// }
+			// fmt.Println("default end")
 			index++
 		}
 	}
@@ -210,6 +250,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 	metadataDecoder := msgpack.NewDecoder(decodingOpts)
 
 	for arg := range inBuf {
+		// fmt.Println("DECODE")
 		readResponse := &readResponse{}
 		if arg.err != nil {
 			readResponse.resultErr = arg.err
@@ -257,8 +298,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 				metadata.pendingResult.Done()
 			}
 			r.metadataLock.Unlock()
-			namespace.DecRef()
-			id.DecRef()
+			// namespace.DecRef()
+			// id.DecRef()
 		}
 
 		var pendingResult *sync.WaitGroup
@@ -274,6 +315,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 		// goroutine to run into this issue.
 		r.metadataLock.Lock()
 		if !ok {
+			// fmt.Println("MISSING HEADER")
 			metadata, ok = r.metadataLookup[entry.Index]
 			if !ok {
 				pendingResult = &sync.WaitGroup{}
@@ -299,6 +341,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 			r.metadataLock.RUnlock()
 			// Something went wrong, maybe the reader was closed early
 			if !ok {
+				fmt.Println("wtf missing data")
 				readResponse.resultErr = errCommitLogReaderMissingLogMetadata
 				outBuf <- readResponse
 				continue
@@ -313,7 +356,12 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 		readResponse.unit = xtime.Unit(byte(entry.Unit))
 		readResponse.annotation = entry.Annotation
 		outBuf <- readResponse
+		// fmt.Println("DECODED ", entry.Value)
+		r.counterLock.Lock()
+		r.numDecoded++
+		r.counterLock.Unlock()
 	}
+	fmt.Println("Decoder shutdown")
 }
 
 func (r *reader) readChunk(dataBufferIndex int) ([]byte, error) {
@@ -323,15 +371,16 @@ func (r *reader) readChunk(dataBufferIndex int) ([]byte, error) {
 		return nil, err
 	}
 
-	dataBuf := r.dataBufs[dataBufferIndex]
-	dataBufLen := len(dataBuf)
-	// Extend buffer as necessary
-	if dataBufLen < int(size) {
-		diff := int(size) - dataBufLen
-		for i := 0; i < diff; i++ {
-			dataBuf = append(dataBuf, 0)
-		}
-	}
+	// dataBuf := r.dataBufs[dataBufferIndex]
+	// dataBufLen := len(dataBuf)
+	// // Extend buffer as necessary
+	// if dataBufLen < int(size) {
+	// 	diff := int(size) - dataBufLen
+	// 	for i := 0; i < diff; i++ {
+	// 		dataBuf = append(dataBuf, 0)
+	// 	}
+	// }
+	dataBuf := make([]byte, size, size)
 
 	// Size the target buffer for reading and unmarshalling
 	buffer := dataBuf[:size]
@@ -355,9 +404,12 @@ func (r *reader) readInfo() (schema.LogInfo, error) {
 func (r *reader) Close() error {
 	// Shutdown the readLoop goroutine which will shut down the decoderLoops
 	// and close the fd
+	fmt.Println("Trying to close")
 	r.cancelFunc()
 
-	return <-r.shutdownChan
+	<-r.shutdownChan
+	fmt.Println("Done closing")
+	return nil
 }
 
 func (r *reader) close() error {
