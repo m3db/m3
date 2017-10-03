@@ -25,6 +25,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"io"
 	"os"
 	"sync"
 	"time"
@@ -74,23 +75,28 @@ type decoderArg struct {
 	err   error
 }
 
+type metadataEntry struct {
+	series        Series
+	pendingResult *sync.WaitGroup
+}
+
 type reader struct {
-	opts               Options
-	numConc            int
-	bytesPool          pool.CheckedBytesPool
-	chunkReader        *chunkReader
-	sizeBuffer         []byte
-	dataBuffer         []byte
-	logDecoder         encoding.Decoder
-	decoderBufs        []chan decoderArg
-	outBufs            []chan *readResponse
-	cancelCtx          context.Context
-	cancelFunc         context.CancelFunc
-	shutdownChan       chan error
-	metadataDecoder    encoding.Decoder
-	metadataLookup     map[uint64]Series
-	metadataLookupLock sync.Mutex
-	nextIndex          int
+	opts            Options
+	numConc         int
+	bytesPool       pool.CheckedBytesPool
+	chunkReader     *chunkReader
+	sizeBuffer      []byte
+	dataBuffer      []byte
+	logDecoder      encoding.Decoder
+	decoderBufs     []chan decoderArg
+	outBufs         []chan *readResponse
+	cancelCtx       context.Context
+	cancelFunc      context.CancelFunc
+	shutdownChan    chan error
+	metadataDecoder encoding.Decoder
+	metadataLookup  map[uint64]metadataEntry
+	metadataLock    sync.RWMutex
+	nextIndex       int
 }
 
 func newCommitLogReader(opts Options) commitLogReader {
@@ -108,21 +114,21 @@ func newCommitLogReader(opts Options) commitLogReader {
 	}
 
 	reader := &reader{
-		opts:               opts,
-		numConc:            numConc,
-		bytesPool:          opts.BytesPool(),
-		chunkReader:        newChunkReader(opts.FlushSize()),
-		sizeBuffer:         make([]byte, binary.MaxVarintLen64),
-		logDecoder:         msgpack.NewDecoder(decodingOpts),
-		decoderBufs:        decoderBufs,
-		outBufs:            outBufs,
-		cancelCtx:          cancelCtx,
-		cancelFunc:         cancelFunc,
-		shutdownChan:       make(chan error),
-		metadataDecoder:    msgpack.NewDecoder(decodingOpts),
-		metadataLookup:     make(map[uint64]Series),
-		metadataLookupLock: sync.Mutex{},
-		nextIndex:          0,
+		opts:            opts,
+		numConc:         numConc,
+		bytesPool:       opts.BytesPool(),
+		chunkReader:     newChunkReader(opts.FlushSize()),
+		sizeBuffer:      make([]byte, binary.MaxVarintLen64),
+		logDecoder:      msgpack.NewDecoder(decodingOpts),
+		decoderBufs:     decoderBufs,
+		outBufs:         outBufs,
+		cancelCtx:       cancelCtx,
+		cancelFunc:      cancelFunc,
+		shutdownChan:    make(chan error),
+		metadataDecoder: msgpack.NewDecoder(decodingOpts),
+		metadataLookup:  make(map[uint64]metadataEntry),
+		metadataLock:    sync.RWMutex{},
+		nextIndex:       0,
 	}
 	return reader
 }
@@ -165,11 +171,10 @@ func (r *reader) Read() (
 	}
 	// Data is written into these channels in round-robin fashion, so reading them
 	// one at a time in the same order results in an ordered stream.
-	// TODO: This doesn't eventually deadlock because the reader goroutine will
-	// continue to fill these channels with EOFs until it is closed. We should
-	// probably avoid the deadlock (read from empty channel) scenario in a more
-	// graceful way.
-	rr := <-r.outBufs[r.nextIndex%r.numConc]
+	rr, ok := <-r.outBufs[r.nextIndex%r.numConc]
+	if !ok {
+		return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
+	}
 	r.nextIndex++
 	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.resultErr
 }
@@ -236,45 +241,66 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan *readResponse)
 			namespace.IncRef()
 			namespace.AppendAll(decoded.Namespace)
 
-			r.metadataLookupLock.Lock()
-			r.metadataLookup[entry.Index] = Series{
-				UniqueIndex: entry.Index,
-				ID:          ts.BinaryID(id),
-				Namespace:   ts.BinaryID(namespace),
-				Shard:       uint32(decoded.Shard),
+			r.metadataLock.Lock()
+			r.metadataLookup[entry.Index] = metadataEntry{
+				series: Series{
+					UniqueIndex: entry.Index,
+					ID:          ts.BinaryID(id),
+					Namespace:   ts.BinaryID(namespace),
+					Shard:       uint32(decoded.Shard),
+				},
+				pendingResult: &sync.WaitGroup{},
 			}
-			r.metadataLookupLock.Unlock()
+			r.metadataLock.Unlock()
 			namespace.DecRef()
 			id.DecRef()
 		}
 
-		numMetadataMiss := 0
-		var metadata Series
+		var pendingResult *sync.WaitGroup
+		var metadata metadataEntry
 		var ok bool
-		for true {
-			r.metadataLookupLock.Lock()
+
+		// Try cheap read lock first
+		r.metadataLock.RLock()
+		_, ok = r.metadataLookup[entry.Index]
+		r.metadataLock.RUnlock()
+
+		// The required metadata hasn't been processed yet, and we're  the first
+		// goroutine to run into this issue.
+		r.metadataLock.Lock()
+		if !ok {
 			metadata, ok = r.metadataLookup[entry.Index]
-			r.metadataLookupLock.Unlock()
-
-			if ok {
-				break
+			if !ok {
+				pendingResult = &sync.WaitGroup{}
+				pendingResult.Add(1)
+				r.metadataLookup[entry.Index] = metadataEntry{
+					pendingResult: pendingResult,
+				}
 			}
+		}
+		if pendingResult == nil {
+			pendingResult = metadata.pendingResult
+		}
+		if pendingResult == nil {
+			pendingResult = &sync.WaitGroup{}
+		}
+		r.metadataLock.Unlock()
 
-			// Race condition where the metadata is currently being processed by
-			// another decoderLoop goroutine, but that routine has not updated the
-			// metadataLookup map yet.
-			if !ok && numMetadataMiss < 3 {
-				numMetadataMiss++
-				time.Sleep(100 * time.Millisecond)
+		// The required metadata hasn't been processed yet
+		if pendingResult != nil {
+			pendingResult.Wait()
+			r.metadataLock.RLock()
+			metadata, ok = r.metadataLookup[entry.Index]
+			r.metadataLock.RUnlock()
+			// Something went wrong, maybe the reader was closed early
+			if !ok {
+				readResponse.resultErr = errCommitLogReaderMissingLogMetadata
+				outBuf <- readResponse
 				continue
 			}
-
-			readResponse.resultErr = errCommitLogReaderMissingLogMetadata
-			outBuf <- readResponse
-			break
 		}
 
-		readResponse.series = metadata
+		readResponse.series = metadata.series
 		readResponse.datapoint = ts.Datapoint{
 			Timestamp: time.Unix(0, entry.Timestamp),
 			Value:     entry.Value,
@@ -322,6 +348,7 @@ func (r *reader) Close() error {
 	return <-r.shutdownChan
 }
 
+// TODO: Does this need to completely reset the reader?
 func (r *reader) close() error {
 	if r.chunkReader.fd == nil {
 		return nil
@@ -331,7 +358,7 @@ func (r *reader) close() error {
 		return err
 	}
 	r.chunkReader.fd = nil
-	r.metadataLookup = make(map[uint64]Series)
+	r.metadataLookup = make(map[uint64]metadataEntry)
 	return nil
 }
 
