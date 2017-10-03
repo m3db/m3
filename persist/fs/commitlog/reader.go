@@ -93,6 +93,7 @@ type reader struct {
 	shutdownChan    chan error
 	metadataDecoder encoding.Decoder
 	metadataLookup  map[uint64]metadataEntry
+	waiterLookup    map[uint64]*sync.WaitGroup
 	metadataLock    sync.RWMutex
 	nextIndex       int
 	numDecoded      int
@@ -104,7 +105,7 @@ func newCommitLogReader(opts Options) commitLogReader {
 	decodingOpts := opts.FilesystemOptions().DecodingOptions()
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 
-	numConc := 4
+	numConc := opts.ReadConcurrency()
 	decoderBufs := []chan decoderArg{}
 	for i := 0; i < numConc; i++ {
 		decoderBufs = append(decoderBufs, make(chan decoderArg, decoderInBufChanSize))
@@ -132,6 +133,7 @@ func newCommitLogReader(opts Options) commitLogReader {
 		shutdownChan:    make(chan error),
 		metadataDecoder: msgpack.NewDecoder(decodingOpts),
 		metadataLookup:  make(map[uint64]metadataEntry),
+		waiterLookup:    make(map[uint64]*sync.WaitGroup),
 		metadataLock:    sync.RWMutex{},
 		nextIndex:       0,
 		counterLock:     sync.Mutex{},
@@ -191,8 +193,11 @@ func (r *reader) Read() (
 		r.counterLock.Unlock()
 		// fmt.Println(rr.series.ID)
 		// fmt.Println("READ: ", rr.datapoint, " ", rr.series.ID.String())
-
+		if rr.series.ID == nil {
+			fmt.Println("WTFFFF")
+		}
 	}
+
 	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.resultErr
 }
 
@@ -283,7 +288,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 			namespace.AppendAll(decoded.Namespace)
 
 			r.metadataLock.Lock()
-			metadata, ok := r.metadataLookup[entry.Index]
+			// metadata, _ := r.metadataLookup[entry.Index]
 			r.metadataLookup[entry.Index] = metadataEntry{
 				series: Series{
 					UniqueIndex: entry.Index,
@@ -293,9 +298,11 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 				},
 				pendingResult: &sync.WaitGroup{},
 			}
+			waiters, ok := r.waiterLookup[entry.Index]
 			// Another goroutine is blocked waiting for this metadata
 			if ok {
-				metadata.pendingResult.Done()
+				fmt.Println("Releasing waiters: ", waiters)
+				waiters.Done()
 			}
 			r.metadataLock.Unlock()
 			// namespace.DecRef()
@@ -318,35 +325,49 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 			// fmt.Println("MISSING HEADER")
 			metadata, ok = r.metadataLookup[entry.Index]
 			if !ok {
-				pendingResult = &sync.WaitGroup{}
-				pendingResult.Add(1)
-				r.metadataLookup[entry.Index] = metadataEntry{
-					pendingResult: pendingResult,
+				waiters, ok := r.waiterLookup[entry.Index]
+				if ok {
+					pendingResult = waiters
+				} else {
+					pendingResult = &sync.WaitGroup{}
+					pendingResult.Add(1)
+					r.waiterLookup[entry.Index] = pendingResult
 				}
+				// r.metadataLookup[entry.Index] = metadataEntry{
+				// 	series: Series{
+				// 		UniqueIndex: 10,
+				// 	},
+				// 	pendingResult: pendingResult,
+				// }
 			}
 		}
 		if pendingResult == nil {
 			pendingResult = metadata.pendingResult
 		}
 		if pendingResult == nil {
+			// fmt.Println("huh")
 			pendingResult = &sync.WaitGroup{}
 		}
 		r.metadataLock.Unlock()
 
 		// The required metadata hasn't been processed yet
-		if pendingResult != nil {
-			pendingResult.Wait()
-			r.metadataLock.RLock()
-			metadata, ok = r.metadataLookup[entry.Index]
-			r.metadataLock.RUnlock()
-			// Something went wrong, maybe the reader was closed early
-			if !ok {
-				fmt.Println("wtf missing data")
-				readResponse.resultErr = errCommitLogReaderMissingLogMetadata
-				outBuf <- readResponse
-				continue
-			}
+		// if pendingResult != nil {
+		pendingResult.Wait()
+		r.metadataLock.Lock()
+		metadata, ok = r.metadataLookup[entry.Index]
+		if metadata.series.ID == nil {
+			fmt.Println("wtf2222")
+			fmt.Println(metadata)
 		}
+		r.metadataLock.Unlock()
+		// Something went wrong, maybe the reader was closed early
+		if !ok {
+			fmt.Println("wtf missing data")
+			readResponse.resultErr = errCommitLogReaderMissingLogMetadata
+			outBuf <- readResponse
+			continue
+		}
+		// }
 
 		readResponse.series = metadata.series
 		readResponse.datapoint = ts.Datapoint{
