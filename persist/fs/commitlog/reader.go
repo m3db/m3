@@ -42,12 +42,10 @@ import (
 const decoderInBufChanSize = 100
 
 var (
-	emptyLogInfo  schema.LogInfo
-	emptyLogEntry schema.LogEntry
+	emptyLogInfo schema.LogInfo
 
 	errCommitLogReaderAlreadyOpen               = errors.New("commit log reader already open")
 	errCommitLogReaderChunkSizeChecksumMismatch = errors.New("commit log reader encountered chunk size checksum mismatch")
-	errCommitLogReaderChunkDataChecksumMismatch = errors.New("commit log reader encountered chunk data checksum mismatch")
 	errCommitLogReaderMissingLogMetadata        = errors.New("commit log reader encountered message missing metadata")
 )
 
@@ -249,7 +247,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan *readResponse)
 					UniqueIndex: entry.Index,
 					ID:          ts.BinaryID(id),
 					Namespace:   ts.BinaryID(namespace),
-					Shard:       uint32(decoded.Shard),
+					Shard:       decoded.Shard,
 				},
 				pendingResult: &sync.WaitGroup{},
 			}
