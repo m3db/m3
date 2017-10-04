@@ -309,7 +309,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 		}
 		readResponse.unit = xtime.Unit(byte(entry.Unit))
 		// Copy annotation to prevent reference to pooled byte slice
-		copy(readResponse.annotation, entry.Annotation)
+		readResponse.annotation = append(readResponse.annotation, entry.Annotation...)
 		// DecRef delayed until this point because even after decoding, underlying
 		// byte slice is still referenced by metadata and annotation
 		arg.bytes.DecRef()
