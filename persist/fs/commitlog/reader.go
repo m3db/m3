@@ -25,7 +25,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -142,7 +141,6 @@ func newCommitLogReader(opts Options) commitLogReader {
 }
 
 func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
-	fmt.Println("opened")
 	if r.chunkReader.fd != nil {
 		return timeZero, 0, 0, errCommitLogReaderAlreadyOpen
 	}
@@ -185,17 +183,10 @@ func (r *reader) Read() (
 		return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
 	}
 	r.nextIndex++
-	// fmt.Println("READ: ", rr.datapoint.Value)
-	// fmt.Println("READ ERROR: ", rr.resultErr)
 	if rr.resultErr == nil {
 		r.counterLock.Lock()
 		r.numRead++
 		r.counterLock.Unlock()
-		// fmt.Println(rr.series.ID)
-		// fmt.Println("READ: ", rr.datapoint, " ", rr.series.ID.String())
-		if rr.series.ID == nil {
-			fmt.Println("WTFFFF")
-		}
 	}
 
 	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.resultErr
@@ -203,26 +194,19 @@ func (r *reader) Read() (
 
 func (r *reader) readLoop() {
 	index := 0
-	fmt.Println("Read started")
 	eofFound := false
 	for {
 		select {
 		case <-r.cancelCtx.Done():
-			fmt.Println("cancelCtx.Done()")
 			for _, decoderBuf := range r.decoderBufs {
 				close(decoderBuf)
 			}
-			fmt.Println("CLosed all channells")
 			r.shutdownChan <- r.close()
-			fmt.Println("sent to shutdownchan")
-			fmt.Println("NUM READ: ", r.numRead)
-			fmt.Println("NUM Decoded: ", r.numDecoded)
 			return
 		default:
 			if eofFound {
 				continue
 			}
-			// fmt.Println("default start")
 			data, err := r.readChunk(index % r.numConc)
 
 			if err == io.EOF {
@@ -236,14 +220,6 @@ func (r *reader) readLoop() {
 				err:   err,
 			}
 
-			// if err == io.EOF {
-			// 	for _, decoderBuf := range r.decoderBufs {
-			// 		close(decoderBuf)
-			// 	}
-			// 	r.shutdownChan <- r.close()
-			// 	return
-			// }
-			// fmt.Println("default end")
 			index++
 		}
 	}
@@ -255,7 +231,6 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 	metadataDecoder := msgpack.NewDecoder(decodingOpts)
 
 	for arg := range inBuf {
-		// fmt.Println("DECODE")
 		readResponse := &readResponse{}
 		if arg.err != nil {
 			readResponse.resultErr = arg.err
@@ -301,7 +276,6 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 			waiters, ok := r.waiterLookup[entry.Index]
 			// Another goroutine is blocked waiting for this metadata
 			if ok {
-				fmt.Println("Releasing waiters: ", waiters)
 				waiters.Done()
 			}
 			r.metadataLock.Unlock()
@@ -322,7 +296,6 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 		// goroutine to run into this issue.
 		r.metadataLock.Lock()
 		if !ok {
-			// fmt.Println("MISSING HEADER")
 			metadata, ok = r.metadataLookup[entry.Index]
 			if !ok {
 				waiters, ok := r.waiterLookup[entry.Index]
@@ -345,7 +318,6 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 			pendingResult = metadata.pendingResult
 		}
 		if pendingResult == nil {
-			// fmt.Println("huh")
 			pendingResult = &sync.WaitGroup{}
 		}
 		r.metadataLock.Unlock()
@@ -355,14 +327,9 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 		pendingResult.Wait()
 		r.metadataLock.Lock()
 		metadata, ok = r.metadataLookup[entry.Index]
-		if metadata.series.ID == nil {
-			fmt.Println("wtf2222")
-			fmt.Println(metadata)
-		}
 		r.metadataLock.Unlock()
 		// Something went wrong, maybe the reader was closed early
 		if !ok {
-			fmt.Println("wtf missing data")
 			readResponse.resultErr = errCommitLogReaderMissingLogMetadata
 			outBuf <- readResponse
 			continue
@@ -377,12 +344,10 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 		readResponse.unit = xtime.Unit(byte(entry.Unit))
 		readResponse.annotation = entry.Annotation
 		outBuf <- readResponse
-		// fmt.Println("DECODED ", entry.Value)
 		r.counterLock.Lock()
 		r.numDecoded++
 		r.counterLock.Unlock()
 	}
-	fmt.Println("Decoder shutdown")
 }
 
 func (r *reader) readChunk(dataBufferIndex int) ([]byte, error) {
@@ -425,11 +390,9 @@ func (r *reader) readInfo() (schema.LogInfo, error) {
 func (r *reader) Close() error {
 	// Shutdown the readLoop goroutine which will shut down the decoderLoops
 	// and close the fd
-	fmt.Println("Trying to close")
 	r.cancelFunc()
 
 	<-r.shutdownChan
-	fmt.Println("Done closing")
 	return nil
 }
 
