@@ -29,6 +29,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/m3db/m3ctl/auth"
 	"github.com/m3db/m3ctl/health"
 	"github.com/m3db/m3ctl/r2"
 	"github.com/m3db/m3ctl/r2/stub"
@@ -76,6 +77,9 @@ type configuration struct {
 
 	// HTTP server configuration.
 	HTTP serverConfig `yaml:"http"`
+
+	// Simple Auth Config.
+	Auth auth.SimpleAuthConfig `yaml:"auth"`
 }
 
 func main() {
@@ -120,12 +124,13 @@ func main() {
 	listenAddr := fmt.Sprintf("%s:%d", cfg.HTTP.Host, cfg.HTTP.Port)
 	serverOpts := cfg.HTTP.newHTTPServerOptions(instrumentOpts)
 
-	doneCh := make(chan struct{})
+	authService := cfg.Auth.NewSimpleAuth()
 
+	doneCh := make(chan struct{})
 	r2ApiServer := server.NewServer(
 		listenAddr,
 		serverOpts,
-		r2.NewService(instrumentOpts, "/r2/v1/", stub.NewStore(instrumentOpts)),
+		r2.NewService(instrumentOpts, "/r2/v1/", authService, stub.NewStore(instrumentOpts)),
 		health.NewService(instrumentOpts),
 	)
 

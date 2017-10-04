@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/m3db/m3ctl/auth"
 	"github.com/m3db/m3ctl/services/r2ctl/server"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
@@ -112,15 +113,21 @@ func writeAPIResponse(w http.ResponseWriter, code int, msg string) error {
 	return write(w, j, code)
 }
 
+type r2HandlerFunc func(http.ResponseWriter, *http.Request) error
+
 type r2Handler struct {
 	iOpts instrument.Options
-	fn    func(http.ResponseWriter, *http.Request) error
+	auth  auth.HTTPAuthService
 }
 
-func (h r2Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if err := h.fn(w, r); err != nil {
-		h.handleError(w, err)
-	}
+func (h r2Handler) wrap(fn r2HandlerFunc) http.Handler {
+	f := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := fn(w, r); err != nil {
+			h.handleError(w, err)
+		}
+	})
+
+	return h.auth.NewAuthHandler(f)
 }
 
 func (h r2Handler) handleError(w http.ResponseWriter, opError error) {
@@ -128,14 +135,16 @@ func (h r2Handler) handleError(w http.ResponseWriter, opError error) {
 
 	var err error
 	switch opError.(type) {
-	case ConflictError:
+	case conflictError:
 		err = writeAPIResponse(w, http.StatusConflict, opError.Error())
-	case BadInputError:
+	case badInputError:
 		err = writeAPIResponse(w, http.StatusBadRequest, opError.Error())
-	case VersionError:
+	case versionError:
 		err = writeAPIResponse(w, http.StatusConflict, opError.Error())
-	case NotFoundError:
+	case notFoundError:
 		err = writeAPIResponse(w, http.StatusNotFound, opError.Error())
+	case authError:
+		err = writeAPIResponse(w, http.StatusUnauthorized, opError.Error())
 	default:
 		err = writeAPIResponse(w, http.StatusInternalServerError, opError.Error())
 	}
@@ -150,14 +159,20 @@ func (h r2Handler) handleError(w http.ResponseWriter, opError error) {
 
 // service handles all of the endpoints for r2.
 type service struct {
-	iOpts      instrument.Options
-	rootPrefix string
-	store      Store
+	iOpts       instrument.Options
+	rootPrefix  string
+	store       Store
+	authService auth.HTTPAuthService
 }
 
 // NewService creates a new r2 service using a given store.
-func NewService(iOpts instrument.Options, rootPrefix string, store Store) server.Service {
-	return &service{iOpts: iOpts, store: store, rootPrefix: rootPrefix}
+func NewService(
+	iOpts instrument.Options,
+	rootPrefix string,
+	authService auth.HTTPAuthService,
+	store Store,
+) server.Service {
+	return &service{iOpts: iOpts, store: store, authService: authService, rootPrefix: rootPrefix}
 }
 
 func (s *service) write(w http.ResponseWriter, data interface{}) error {
@@ -346,32 +361,34 @@ func (s *service) fetchRollupRuleHistory(w http.ResponseWriter, r *http.Request)
 func (s *service) RegisterHandlers(router *mux.Router) {
 	log := s.iOpts.Logger()
 	// Namespaces action
-	router.Handle(namespacePath, r2Handler{s.iOpts, s.fetchNamespaces}).Methods(http.MethodGet)
-	router.Handle(namespacePath, r2Handler{s.iOpts, s.createNamespace}).Methods(http.MethodPost)
+	h := r2Handler{s.iOpts, s.authService}
+
+	router.Handle(namespacePath, h.wrap(s.fetchNamespaces)).Methods(http.MethodGet)
+	router.Handle(namespacePath, h.wrap(s.createNamespace)).Methods(http.MethodPost)
 
 	// Ruleset actions
-	router.Handle(namespacePrefix, r2Handler{s.iOpts, s.fetchNamespace}).Methods(http.MethodGet)
-	router.Handle(namespacePrefix, r2Handler{s.iOpts, s.deleteNamespace}).Methods(http.MethodDelete)
+	router.Handle(namespacePrefix, h.wrap(s.fetchNamespace)).Methods(http.MethodGet)
+	router.Handle(namespacePrefix, h.wrap(s.deleteNamespace)).Methods(http.MethodDelete)
 
 	// Mapping Rule actions
-	router.Handle(mappingRuleRoot, r2Handler{s.iOpts, s.createMappingRule}).Methods(http.MethodPost)
+	router.Handle(mappingRuleRoot, h.wrap(s.createMappingRule)).Methods(http.MethodPost)
 
-	router.Handle(mappingRuleWithIDPath, r2Handler{s.iOpts, s.fetchMappingRule}).Methods(http.MethodGet)
-	router.Handle(mappingRuleWithIDPath, r2Handler{s.iOpts, s.updateMappingRule}).Methods(http.MethodPut, http.MethodPatch)
-	router.Handle(mappingRuleWithIDPath, r2Handler{s.iOpts, s.deleteMappingRule}).Methods(http.MethodDelete)
+	router.Handle(mappingRuleWithIDPath, h.wrap(s.fetchMappingRule)).Methods(http.MethodGet)
+	router.Handle(mappingRuleWithIDPath, h.wrap(s.updateMappingRule)).Methods(http.MethodPut, http.MethodPatch)
+	router.Handle(mappingRuleWithIDPath, h.wrap(s.deleteMappingRule)).Methods(http.MethodDelete)
 
 	// Mapping Rule history
-	router.Handle(mappingRuleHistoryPath, r2Handler{s.iOpts, s.fetchMappingRuleHistory}).Methods(http.MethodGet)
+	router.Handle(mappingRuleHistoryPath, h.wrap(s.fetchMappingRuleHistory)).Methods(http.MethodGet)
 
 	// Rollup Rule actions
-	router.Handle(rollupRuleRoot, r2Handler{s.iOpts, s.createRollupRule}).Methods(http.MethodPost)
+	router.Handle(rollupRuleRoot, h.wrap(s.createRollupRule)).Methods(http.MethodPost)
 
-	router.Handle(rollupRuleWithIDPath, r2Handler{s.iOpts, s.fetchRollupRule}).Methods(http.MethodGet)
-	router.Handle(rollupRuleWithIDPath, r2Handler{s.iOpts, s.updateRollupRule}).Methods(http.MethodPut, http.MethodPatch)
-	router.Handle(rollupRuleWithIDPath, r2Handler{s.iOpts, s.deleteRollupRule}).Methods(http.MethodDelete)
+	router.Handle(rollupRuleWithIDPath, h.wrap(s.fetchRollupRule)).Methods(http.MethodGet)
+	router.Handle(rollupRuleWithIDPath, h.wrap(s.updateRollupRule)).Methods(http.MethodPut, http.MethodPatch)
+	router.Handle(rollupRuleWithIDPath, h.wrap(s.deleteRollupRule)).Methods(http.MethodDelete)
 
 	// Rollup Rule history
-	router.Handle(rollupRuleHistoryPath, r2Handler{s.iOpts, s.fetchRollupRuleHistory}).Methods(http.MethodGet)
+	router.Handle(rollupRuleHistoryPath, h.wrap(s.fetchRollupRuleHistory)).Methods(http.MethodGet)
 
 	log.Infof("Registered rules endpoints")
 }

@@ -20,43 +20,48 @@
 
 package r2
 
+import "errors"
+
+// NewInternalError returns a new error that isn't covered by the other error types.
+func NewInternalError(msg string) error { return errors.New(msg) }
+
 // ConflictError represents either a version mismatch writing data or a data conflict issue.
-type ConflictError struct{ msg string }
+type conflictError string
 
 // NewConflictError creates a new Conflict Error
-func NewConflictError(msg string) ConflictError { return ConflictError{msg: msg} }
+func NewConflictError(msg string) error { return conflictError(msg) }
 
-func (e ConflictError) Error() string { return e.msg }
-
-// InternalError represents an unexpected server error.
-type InternalError struct{ msg string }
-
-// NewInternalError creates a new Internal Error
-func NewInternalError(msg string) InternalError { return InternalError{msg: msg} }
-
-func (e InternalError) Error() string { return e.msg }
+func (e conflictError) Error() string { return string(e) }
 
 // VersionError represents a mismatch in the Namespaces or Ruleset version specified in the request
 // and the latest one.
-type VersionError struct{ msg string }
+type versionError string
 
 // NewVersionError creates a new Version Error
-func NewVersionError(msg string) VersionError { return VersionError{msg: msg} }
+func NewVersionError(msg string) error { return versionError(msg) }
 
-func (e VersionError) Error() string { return e.msg }
+func (e versionError) Error() string { return string(e) }
 
 // BadInputError represents an error due to malformed or invalid metrics.
-type BadInputError struct{ msg string }
+type badInputError string
 
 // NewBadInputError creates a new Bad Input Error.
-func NewBadInputError(msg string) BadInputError { return BadInputError{msg: msg} }
+func NewBadInputError(msg string) error { return badInputError(msg) }
 
-func (e BadInputError) Error() string { return e.msg }
+func (e badInputError) Error() string { return string(e) }
 
 // NotFoundError represents an error due to malformed or invalid metrics.
-type NotFoundError struct{ msg string }
+type notFoundError string
 
 // NewNotFoundError creates a new not found Error.
-func NewNotFoundError(msg string) NotFoundError { return NotFoundError{msg: msg} }
+func NewNotFoundError(msg string) error { return notFoundError(msg) }
 
-func (e NotFoundError) Error() string { return e.msg }
+func (e notFoundError) Error() string { return string(e) }
+
+// AuthError represents an error due to missing or invalid auth information.
+type authError string
+
+// NewAuthError creates a new not found Error.
+func NewAuthError(msg string) error { return authError(msg) }
+
+func (e authError) Error() string { return string(e) }
