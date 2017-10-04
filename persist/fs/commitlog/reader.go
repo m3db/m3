@@ -30,6 +30,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3x/checked"
+
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
@@ -69,35 +71,27 @@ type readResponse struct {
 }
 
 type decoderArg struct {
-	bytes []byte
+	bytes checked.Bytes
 	err   error
 }
 
-type metadataEntry struct {
-	series        Series
-	pendingResult *sync.WaitGroup
-}
-
 type reader struct {
-	opts            Options
-	numConc         int
-	bytesPool       pool.CheckedBytesPool
-	chunkReader     *chunkReader
-	dataBufs        [][]byte
-	logDecoder      encoding.Decoder
-	decoderBufs     []chan decoderArg
-	outBufs         []chan *readResponse
-	cancelCtx       context.Context
-	cancelFunc      context.CancelFunc
-	shutdownChan    chan error
-	metadataDecoder encoding.Decoder
-	metadataLookup  map[uint64]metadataEntry
-	waiterLookup    map[uint64]*sync.WaitGroup
-	metadataLock    sync.RWMutex
-	nextIndex       int
-	numDecoded      int
-	numRead         int
-	counterLock     sync.Mutex
+	opts               Options
+	numConc            int
+	bytesPool          pool.CheckedBytesPool
+	chunkReader        *chunkReader
+	dataBuffer         []byte
+	logDecoder         encoding.Decoder
+	decoderBufs        []chan decoderArg
+	outBufs            []chan *readResponse
+	cancelCtx          context.Context
+	cancelFunc         context.CancelFunc
+	shutdownChan       chan error
+	metadataDecoder    encoding.Decoder
+	metadataLookup     map[uint64]Series
+	metadataWaitGroups map[uint64]*sync.WaitGroup
+	metadataLock       sync.RWMutex
+	nextIndex          int
 }
 
 func newCommitLogReader(opts Options) commitLogReader {
@@ -113,29 +107,24 @@ func newCommitLogReader(opts Options) commitLogReader {
 	for i := 0; i < numConc; i++ {
 		outBufs = append(outBufs, make(chan *readResponse, decoderInBufChanSize))
 	}
-	dataBufs := [][]byte{}
-	for i := 0; i < numConc; i++ {
-		dataBufs = append(dataBufs, []byte{})
-	}
 
 	reader := &reader{
-		opts:            opts,
-		numConc:         numConc,
-		bytesPool:       opts.BytesPool(),
-		chunkReader:     newChunkReader(opts.FlushSize()),
-		logDecoder:      msgpack.NewDecoder(decodingOpts),
-		decoderBufs:     decoderBufs,
-		outBufs:         outBufs,
-		dataBufs:        dataBufs,
-		cancelCtx:       cancelCtx,
-		cancelFunc:      cancelFunc,
-		shutdownChan:    make(chan error),
-		metadataDecoder: msgpack.NewDecoder(decodingOpts),
-		metadataLookup:  make(map[uint64]metadataEntry),
-		waiterLookup:    make(map[uint64]*sync.WaitGroup),
-		metadataLock:    sync.RWMutex{},
-		nextIndex:       0,
-		counterLock:     sync.Mutex{},
+		opts:               opts,
+		numConc:            numConc,
+		bytesPool:          opts.BytesPool(),
+		chunkReader:        newChunkReader(opts.FlushSize()),
+		logDecoder:         msgpack.NewDecoder(decodingOpts),
+		decoderBufs:        decoderBufs,
+		outBufs:            outBufs,
+		dataBuffer:         []byte{},
+		cancelCtx:          cancelCtx,
+		cancelFunc:         cancelFunc,
+		shutdownChan:       make(chan error),
+		metadataDecoder:    msgpack.NewDecoder(decodingOpts),
+		metadataLookup:     make(map[uint64]Series),
+		metadataWaitGroups: make(map[uint64]*sync.WaitGroup),
+		metadataLock:       sync.RWMutex{},
+		nextIndex:          0,
 	}
 	return reader
 }
@@ -183,12 +172,6 @@ func (r *reader) Read() (
 		return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
 	}
 	r.nextIndex++
-	if rr.resultErr == nil {
-		r.counterLock.Lock()
-		r.numRead++
-		r.counterLock.Unlock()
-	}
-
 	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.resultErr
 }
 
@@ -207,8 +190,7 @@ func (r *reader) readLoop() {
 			if eofFound {
 				continue
 			}
-			data, err := r.readChunk(index % r.numConc)
-
+			data, err := r.readChunk()
 			if err == io.EOF {
 				eofFound = true
 			}
@@ -237,8 +219,9 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 			outBuf <- readResponse
 			continue
 		}
-		decoder.Reset(arg.bytes)
+		decoder.Reset(arg.bytes.Get())
 		entry, err := decoder.DecodeLogEntry()
+		arg.bytes.DecRef()
 		if err != nil {
 			readResponse.resultErr = err
 			outBuf <- readResponse
@@ -263,80 +246,64 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 			namespace.AppendAll(decoded.Namespace)
 
 			r.metadataLock.Lock()
-			// metadata, _ := r.metadataLookup[entry.Index]
-			r.metadataLookup[entry.Index] = metadataEntry{
-				series: Series{
-					UniqueIndex: entry.Index,
-					ID:          ts.BinaryID(id),
-					Namespace:   ts.BinaryID(namespace),
-					Shard:       decoded.Shard,
-				},
-				pendingResult: &sync.WaitGroup{},
+			r.metadataLookup[entry.Index] = Series{
+				UniqueIndex: entry.Index,
+				ID:          ts.BinaryID(id),
+				Namespace:   ts.BinaryID(namespace),
+				Shard:       decoded.Shard,
 			}
-			waiters, ok := r.waiterLookup[entry.Index]
+			waitGroup, ok := r.metadataWaitGroups[entry.Index]
 			// Another goroutine is blocked waiting for this metadata
 			if ok {
-				waiters.Done()
+				waitGroup.Done()
 			}
 			r.metadataLock.Unlock()
-			// namespace.DecRef()
-			// id.DecRef()
+			namespace.DecRef()
+			id.DecRef()
 		}
 
 		var pendingResult *sync.WaitGroup
-		var metadata metadataEntry
+		var metadata Series
+		var hasMetadata bool
 		var ok bool
 
 		// Try cheap read lock first
 		r.metadataLock.RLock()
-		_, ok = r.metadataLookup[entry.Index]
+		metadata, hasMetadata = r.metadataLookup[entry.Index]
 		r.metadataLock.RUnlock()
 
-		// The required metadata hasn't been processed yet, and we're  the first
-		// goroutine to run into this issue.
+		// The required metadata hasn't been processed yet
 		r.metadataLock.Lock()
-		if !ok {
-			metadata, ok = r.metadataLookup[entry.Index]
-			if !ok {
-				waiters, ok := r.waiterLookup[entry.Index]
-				if ok {
-					pendingResult = waiters
+		if !hasMetadata {
+			metadata, hasMetadata = r.metadataLookup[entry.Index]
+			if !hasMetadata {
+				waitGroup, hasWaitGroup := r.metadataWaitGroups[entry.Index]
+				if hasWaitGroup {
+					pendingResult = waitGroup
 				} else {
 					pendingResult = &sync.WaitGroup{}
 					pendingResult.Add(1)
-					r.waiterLookup[entry.Index] = pendingResult
+					r.metadataWaitGroups[entry.Index] = pendingResult
 				}
-				// r.metadataLookup[entry.Index] = metadataEntry{
-				// 	series: Series{
-				// 		UniqueIndex: 10,
-				// 	},
-				// 	pendingResult: pendingResult,
-				// }
 			}
-		}
-		if pendingResult == nil {
-			pendingResult = metadata.pendingResult
-		}
-		if pendingResult == nil {
-			pendingResult = &sync.WaitGroup{}
 		}
 		r.metadataLock.Unlock()
 
 		// The required metadata hasn't been processed yet
-		// if pendingResult != nil {
-		pendingResult.Wait()
-		r.metadataLock.Lock()
-		metadata, ok = r.metadataLookup[entry.Index]
-		r.metadataLock.Unlock()
-		// Something went wrong, maybe the reader was closed early
-		if !ok {
-			readResponse.resultErr = errCommitLogReaderMissingLogMetadata
-			outBuf <- readResponse
-			continue
+		if pendingResult != nil {
+			pendingResult.Wait()
+			r.metadataLock.Lock()
+			metadata, ok = r.metadataLookup[entry.Index]
+			r.metadataLock.Unlock()
+			// Something went wrong, maybe the reader was closed early
+			if !ok {
+				readResponse.resultErr = errCommitLogReaderMissingLogMetadata
+				outBuf <- readResponse
+				continue
+			}
 		}
-		// }
 
-		readResponse.series = metadata.series
+		readResponse.series = metadata
 		readResponse.datapoint = ts.Datapoint{
 			Timestamp: time.Unix(0, entry.Timestamp),
 			Value:     entry.Value,
@@ -344,47 +311,52 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readRespons
 		readResponse.unit = xtime.Unit(byte(entry.Unit))
 		readResponse.annotation = entry.Annotation
 		outBuf <- readResponse
-		r.counterLock.Lock()
-		r.numDecoded++
-		r.counterLock.Unlock()
 	}
 }
 
-func (r *reader) readChunk(dataBufferIndex int) ([]byte, error) {
+// Caller is responsible for calling DecRef()
+func (r *reader) readChunk() (checked.Bytes, error) {
 	// Read size of message
 	size, err := binary.ReadUvarint(r.chunkReader)
 	if err != nil {
 		return nil, err
 	}
 
-	// dataBuf := r.dataBufs[dataBufferIndex]
-	// dataBufLen := len(dataBuf)
-	// // Extend buffer as necessary
-	// if dataBufLen < int(size) {
-	// 	diff := int(size) - dataBufLen
-	// 	for i := 0; i < diff; i++ {
-	// 		dataBuf = append(dataBuf, 0)
-	// 	}
-	// }
-	dataBuf := make([]byte, size)
+	// Extend buffer as necessary
+	if len(r.dataBuffer) < int(size) {
+		diff := int(size) - len(r.dataBuffer)
+		for i := 0; i < diff; i++ {
+			r.dataBuffer = append(r.dataBuffer, 0)
+		}
+	}
 
 	// Size the target buffer for reading and unmarshalling
-	buffer := dataBuf[:size]
+	buffer := r.dataBuffer[:size]
 
 	// Read message
 	if _, err := r.chunkReader.Read(buffer); err != nil {
 		return nil, err
 	}
-	return buffer, nil
+
+	// Copy message into pooled byte slice. Reading happens synchronously so its
+	// safe to reuse the same buffer repeatedly, but decoding happens in parallel
+	// so we need to make sure that the byte slice we return won't be mutated
+	// until the caller is done with it.
+	pooled := r.bytesPool.Get(int(size))
+	pooled.IncRef()
+	pooled.AppendAll(buffer)
+	return pooled, nil
 }
 
 func (r *reader) readInfo() (schema.LogInfo, error) {
-	data, err := r.readChunk(0)
+	data, err := r.readChunk()
 	if err != nil {
 		return emptyLogInfo, err
 	}
-	r.logDecoder.Reset(data)
-	return r.logDecoder.DecodeLogInfo()
+	r.logDecoder.Reset(data.Get())
+	logInfo, err := r.logDecoder.DecodeLogInfo()
+	data.DecRef()
+	return logInfo, err
 }
 
 func (r *reader) Close() error {
@@ -405,7 +377,7 @@ func (r *reader) close() error {
 		return err
 	}
 	r.chunkReader.fd = nil
-	r.metadataLookup = make(map[uint64]metadataEntry)
+	r.metadataLookup = make(map[uint64]Series)
 	return nil
 }
 

@@ -113,8 +113,6 @@ func verifySeriesMapsEqual(
 	observedSeriesMap map[time.Time]generate.SeriesBlock,
 ) {
 	// ensure same length
-	// fmt.Println(expectedSeriesMap)
-	// fmt.Println(observedSeriesMap)
 	require.Equal(t, len(expectedSeriesMap), len(observedSeriesMap))
 
 	// ensure same set of keys
@@ -138,7 +136,6 @@ func verifySeriesMapsEqual(
 				found = true
 
 				// compare all the values in the series
-				// require.Equal(t, es.Data, os.Data)
 				require.Equal(t, len(es.Data), len(os.Data),
 					"data length mismatch for series - [time: %v, seriesID: %v]", i.String(), es.ID.String())
 				for idx := range es.Data {
