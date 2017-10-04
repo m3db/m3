@@ -43,22 +43,24 @@ func TestCommitLogBootstrap(t *testing.T) {
 
 	// Test setup
 	var (
-		ropts     = retention.NewOptions().SetRetentionPeriod(12 * time.Hour).SetBufferFuture(0).SetBufferPast(0)
+		ropts     = retention.NewOptions().SetRetentionPeriod(12 * time.Hour)
 		blockSize = ropts.BlockSize()
 	)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
 	require.NoError(t, err)
 	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ropts))
 	require.NoError(t, err)
-	opts := newTestOptions(t).SetNamespaces([]namespace.Metadata{ns1, ns2})
+	opts := newTestOptions(t).
+		SetCommitLogRetentionPeriod(ropts.RetentionPeriod()).
+		SetCommitLogBlockSize(blockSize).
+		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	setup, err := newTestSetup(t, opts)
 	require.NoError(t, err)
 	defer setup.close()
 
 	commitLogOpts := setup.storageOpts.CommitLogOptions().
-		SetFlushInterval(defaultIntegrationTestFlushInterval).
-		SetRetentionOptions(ropts)
+		SetFlushInterval(defaultIntegrationTestFlushInterval)
 	setup.storageOpts = setup.storageOpts.SetCommitLogOptions(commitLogOpts)
 
 	noOpAll := bootstrapper.NewNoOpAllBootstrapper()

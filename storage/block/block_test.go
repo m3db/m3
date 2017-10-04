@@ -39,8 +39,7 @@ func testDatabaseBlock(ctrl *gomock.Controller) *dbBlock {
 }
 
 func testDatabaseSeriesBlocks() *databaseSeriesBlocks {
-	opts := NewOptions()
-	return NewDatabaseSeriesBlocks(0, opts).(*databaseSeriesBlocks)
+	return NewDatabaseSeriesBlocks(0).(*databaseSeriesBlocks)
 }
 
 func testDatabaseSeriesBlocksWithTimes(times []time.Time) *databaseSeriesBlocks {

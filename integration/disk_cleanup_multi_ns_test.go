@@ -67,7 +67,6 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 		commitLogBlockSize = 30 * time.Minute
 		ns1BlockSize       = 4 * time.Hour
 		ns2BlockSize       = 2 * time.Hour
-		clROpts            = rOpts.SetBlockSize(commitLogBlockSize).SetBufferFuture(0).SetBufferPast(0)
 		ns1ROpts           = rOpts.SetRetentionPeriod(8 * time.Hour).SetBlockSize(ns1BlockSize)
 		ns2ROpts           = rOpts.SetRetentionPeriod(6 * time.Hour).SetBlockSize(ns2BlockSize)
 		nsOpts             = namespace.NewOptions().SetNeedsFlush(false) // disabling flushing to ensure data isn't flushed during test
@@ -79,7 +78,8 @@ func TestDiskCleanupMultipleNamespace(t *testing.T) {
 	require.NoError(t, err)
 
 	opts := newTestOptions(t).
-		SetCommitLogRetention(clROpts).
+		SetCommitLogRetentionPeriod(rOpts.RetentionPeriod()).
+		SetCommitLogBlockSize(commitLogBlockSize).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	// Test setup

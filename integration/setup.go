@@ -46,7 +46,6 @@ import (
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/cluster"
 	"github.com/m3db/m3db/storage/namespace"
-	staticns "github.com/m3db/m3db/storage/namespace/static"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xlog "github.com/m3db/m3x/log"
@@ -109,7 +108,7 @@ func newTestSetup(t *testing.T, opts testOptions) (*testSetup, error) {
 
 	nsInit := opts.NamespaceInitializer()
 	if nsInit == nil {
-		nsInit = staticns.NewInitializer(opts.Namespaces())
+		nsInit = namespace.NewStaticInitializer(opts.Namespaces())
 	}
 
 	storageOpts := storage.NewOptions().
@@ -218,7 +217,8 @@ func newTestSetup(t *testing.T, opts testOptions) (*testSetup, error) {
 	storageOpts = storageOpts.SetCommitLogOptions(
 		storageOpts.CommitLogOptions().
 			SetFilesystemOptions(fsOpts).
-			SetRetentionOptions(opts.CommitLogRetention()))
+			SetRetentionPeriod(opts.CommitLogRetentionPeriod()).
+			SetBlockSize(opts.CommitLogBlockSize()))
 
 	// Set up persistence manager
 	storageOpts = storageOpts.SetPersistManager(fs.NewPersistManager(fsOpts))
@@ -470,6 +470,11 @@ func (ts *testSetup) close() {
 	if ts.filePathPrefix != "" {
 		os.RemoveAll(ts.filePathPrefix)
 	}
+}
+
+// convenience wrapper used to ensure a tick occurs
+func (ts *testSetup) sleepFor10xTickInterval() {
+	time.Sleep(ts.opts.TickInterval() * 10)
 }
 
 type testSetups []*testSetup

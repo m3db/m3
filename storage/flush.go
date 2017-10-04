@@ -75,7 +75,6 @@ func (m *flushManager) Flush(curr time.Time) error {
 	if err != nil {
 		return err
 	}
-	defer flush.Done()
 
 	defer func() {
 		m.Lock()
@@ -83,13 +82,17 @@ func (m *flushManager) Flush(curr time.Time) error {
 		m.Unlock()
 	}()
 
-	multiErr := xerrors.NewMultiError()
-	namespaces := m.database.GetOwnedNamespaces()
+	var (
+		multiErr   = xerrors.NewMultiError()
+		namespaces = m.database.GetOwnedNamespaces()
+	)
 	for _, ns := range namespaces {
 		flushTimes := m.namespaceFlushTimes(ns, curr)
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, flushTimes, flush))
 	}
 
+	// mark flush finished
+	multiErr = multiErr.Add(flush.Done())
 	return multiErr.FinalError()
 }
 
@@ -129,7 +132,6 @@ func (m *flushManager) flushNamespaceWithTimes(ns databaseNamespace, times []tim
 	for _, t := range times {
 		// NB(xichen): we still want to proceed if a namespace fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
-		// TODO(prateek): add metrics for observability per namespace here
 		if err := ns.Flush(t, flush); err != nil {
 			detailedErr := fmt.Errorf("namespace %s failed to flush data: %v",
 				ns.ID().String(), err)

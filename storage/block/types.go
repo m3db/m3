@@ -255,9 +255,6 @@ type DatabaseShardBlockRetrieverManager interface {
 
 // DatabaseSeriesBlocks represents a collection of data blocks.
 type DatabaseSeriesBlocks interface {
-	// Options returns the blocks options.
-	Options() Options
-
 	// Len returns the number of blocks contained in the collection.
 	Len() int
 

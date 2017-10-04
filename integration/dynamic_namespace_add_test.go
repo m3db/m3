@@ -29,8 +29,6 @@ import (
 	"github.com/m3db/m3cluster/integration/etcd"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/storage/namespace/convert"
-	"github.com/m3db/m3db/storage/namespace/dynamic"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
@@ -42,7 +40,8 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	}
 
 	// test options
-	testOpts := newTestOptions(t)
+	testOpts := newTestOptions(t).
+		SetTickInterval(time.Second)
 	require.True(t, len(testOpts.Namespaces()) >= 2)
 	ns0 := testOpts.Namespaces()[0]
 	ns1 := testOpts.Namespaces()[1]
@@ -63,13 +62,13 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	protoKey := func(nses ...namespace.Metadata) proto.Message {
 		nsMap, err := namespace.NewMap(nses)
 		require.NoError(t, err)
-		return convert.ToProto(nsMap)
+		return namespace.ToProto(nsMap)
 	}
 
 	// dynamic namespace registry options
-	dynamicOpts := dynamic.NewOptions().
+	dynamicOpts := namespace.NewDynamicOptions().
 		SetConfigServiceClient(csClient)
-	dynamicInit := dynamic.NewInitializer(dynamicOpts)
+	dynamicInit := namespace.NewDynamicInitializer(dynamicOpts)
 	testOpts = testOpts.SetNamespaceInitializer(dynamicInit)
 
 	// initialize value in kv
@@ -134,7 +133,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
 	testSetup.setNowFn(testSetup.getNowFn().Add(2 * blockSize))
 	later := testSetup.getNowFn()
-	time.Sleep(testOpts.TickInterval() * 10)
+	testSetup.sleepFor10xTickInterval()
 
 	metadatasByShard := testSetupMetadatas(t, testSetup, ns0.ID(), now, later)
 	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, ns0, metadatasByShard)

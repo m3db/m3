@@ -72,13 +72,7 @@ const (
 )
 
 var (
-	defaultIntegrationTestRetentionOpts = retention.NewOptions().
-						SetRetentionPeriod(6 * time.Hour).
-						SetBufferFuture(0).
-						SetBufferPast(0)
-
-	defaultIntegrationTestNsRetentionOpts = retention.NewOptions().
-						SetRetentionPeriod(6 * time.Hour)
+	defaultIntegrationTestRetentionOpts = retention.NewOptions().SetRetentionPeriod(6 * time.Hour)
 )
 
 type testOptions interface {
@@ -95,11 +89,17 @@ type testOptions interface {
 	// NamespaceInitializer returns the namespace initializer
 	NamespaceInitializer() namespace.Initializer
 
-	// SetCommitLogRetention sets the commit log retention options
-	SetCommitLogRetention(ropts retention.Options) testOptions
+	// SetCommitLogRetentionPeriod sets the commit log retention period
+	SetCommitLogRetentionPeriod(value time.Duration) testOptions
 
-	// CommitLogRetention returns the commit log retention options
-	CommitLogRetention() retention.Options
+	// CommitLogRetentionPeriod returns the commit log retention period
+	CommitLogRetentionPeriod() time.Duration
+
+	// SetCommitLogBlockSize sets the commit log block size
+	SetCommitLogBlockSize(value time.Duration) testOptions
+
+	// CommitLogBlockSize returns the commit log block size
+	CommitLogBlockSize() time.Duration
 
 	// SetID sets the node ID.
 	SetID(value string) testOptions
@@ -232,7 +232,8 @@ type testOptions interface {
 type options struct {
 	namespaces                         []namespace.Metadata
 	nsInitializer                      namespace.Initializer
-	commitlogRetentionOpts             retention.Options
+	commitlogRetentionPeriod           time.Duration
+	commitlogBlockSize                 time.Duration
 	id                                 string
 	tickInterval                       time.Duration
 	httpClusterAddr                    string
@@ -258,7 +259,7 @@ func newTestOptions(t *testing.T) testOptions {
 	var namespaces []namespace.Metadata
 	nsOpts := namespace.NewOptions().
 		SetNeedsRepair(false).
-		SetRetentionOptions(defaultIntegrationTestNsRetentionOpts)
+		SetRetentionOptions(defaultIntegrationTestRetentionOpts)
 
 	for _, ns := range testNamespaces {
 		md, err := namespace.NewMetadata(ns, nsOpts)
@@ -267,8 +268,9 @@ func newTestOptions(t *testing.T) testOptions {
 	}
 
 	return &options{
-		namespaces:             namespaces,
-		commitlogRetentionOpts: defaultIntegrationTestRetentionOpts,
+		namespaces:                     namespaces,
+		commitlogRetentionPeriod:       defaultIntegrationTestRetentionOpts.RetentionPeriod(),
+		commitlogBlockSize:             defaultIntegrationTestRetentionOpts.BlockSize(),
 		id:                             defaultID,
 		tickInterval:                   defaultTickInterval,
 		serverStateChangeTimeout:       defaultServerStateChangeTimeout,
@@ -304,14 +306,24 @@ func (o *options) NamespaceInitializer() namespace.Initializer {
 	return o.nsInitializer
 }
 
-func (o *options) SetCommitLogRetention(value retention.Options) testOptions {
+func (o *options) SetCommitLogRetentionPeriod(value time.Duration) testOptions {
 	opts := *o
-	opts.commitlogRetentionOpts = value
+	opts.commitlogRetentionPeriod = value
 	return &opts
 }
 
-func (o *options) CommitLogRetention() retention.Options {
-	return o.commitlogRetentionOpts
+func (o *options) CommitLogRetentionPeriod() time.Duration {
+	return o.commitlogRetentionPeriod
+}
+
+func (o *options) SetCommitLogBlockSize(value time.Duration) testOptions {
+	opts := *o
+	opts.commitlogBlockSize = value
+	return &opts
+}
+
+func (o *options) CommitLogBlockSize() time.Duration {
+	return o.commitlogBlockSize
 }
 
 func (o *options) SetID(value string) testOptions {

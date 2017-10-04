@@ -38,7 +38,6 @@ import (
 	"github.com/m3db/m3db/x/counter"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/errors"
-	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/time"
 
@@ -95,18 +94,19 @@ type db struct {
 }
 
 type databaseMetrics struct {
-	write               instrument.MethodMetrics
-	read                instrument.MethodMetrics
-	fetchBlocks         instrument.MethodMetrics
-	fetchBlocksMetadata instrument.MethodMetrics
+	unknownNamespaceRead                tally.Counter
+	unknownNamespaceWrite               tally.Counter
+	unknownNamespaceFetchBlocks         tally.Counter
+	unknownNamespaceFetchBlocksMetadata tally.Counter
 }
 
-func newDatabaseMetrics(scope tally.Scope, samplingRate float64) databaseMetrics {
+func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
+	unknownNamespaceScope := scope.SubScope("unknown-namespace")
 	return databaseMetrics{
-		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
-		read:                instrument.NewMethodMetrics(scope, "read", samplingRate),
-		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
-		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
+		unknownNamespaceRead:                unknownNamespaceScope.Counter("read"),
+		unknownNamespaceWrite:               unknownNamespaceScope.Counter("write"),
+		unknownNamespaceFetchBlocks:         unknownNamespaceScope.Counter("fetch-blocks"),
+		unknownNamespaceFetchBlocksMetadata: unknownNamespaceScope.Counter("fetch-blocks-metadata"),
 	}
 }
 
@@ -129,6 +129,7 @@ func NewDatabase(
 
 	iopts := opts.InstrumentOptions()
 	scope := iopts.MetricsScope().SubScope("database")
+	logger := iopts.Logger()
 
 	d := &db{
 		opts:         opts,
@@ -137,8 +138,8 @@ func NewDatabase(
 		namespaces:   make(map[ts.Hash]databaseNamespace),
 		commitLog:    commitLog,
 		scope:        scope,
-		metrics:      newDatabaseMetrics(scope, iopts.MetricsSamplingRate()),
-		log:          iopts.Logger(),
+		metrics:      newDatabaseMetrics(scope),
+		log:          logger,
 		errors:       xcounter.NewFrequencyCounter(opts.ErrorCounterOptions()),
 		errWindow:    opts.ErrorWindowForLoad(),
 		errThreshold: opts.ErrorThresholdForLoad(),
@@ -165,6 +166,7 @@ func NewDatabase(
 	}
 
 	// wait till first value is received
+	logger.Info("resolving namespaces with namespace watch")
 	<-watch.C()
 	d.nsWatch = newDatabaseNamespaceWatch(d, watch, databaseIOpts)
 
@@ -194,16 +196,6 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 		d.log.Errorf("%v", enrichedErr)
 		return err
 	}
-
-	// TODO(prateek): create issue for this ~ namepace updates need to be handled better,
-	// the current implementation updates namespaces by closing and re-creating them.
-	// There are a few problems with this approach:
-	// (1) it's too expensive to flush all the data, and re-bootstrap it for a namespace
-	// (2) we stop accepting writes during the period between when a namespace is removed
-	// until it's added back. This is worse when you consider a KV update can propagate
-	// to all nodes at the same time.
-	// (3): we are not controlling bg processing (repairs/bootstrapping/etc) whilst updating
-	// active namespaces.
 
 	// log that updates and removals are skipped
 	if len(removes) > 0 || len(updates) > 0 {
@@ -450,10 +442,9 @@ func (d *db) Write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	callStart := d.nowFn()
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
-		d.metrics.write.ReportError(d.nowFn().Sub(callStart))
+		d.metrics.unknownNamespaceWrite.Inc(1)
 		return err
 	}
 
@@ -461,7 +452,6 @@ func (d *db) Write(
 	if err == commitlog.ErrCommitLogQueueFull {
 		d.errors.Record(1)
 	}
-	d.metrics.write.ReportSuccessOrError(err, d.nowFn().Sub(callStart))
 	return err
 }
 
@@ -471,17 +461,13 @@ func (d *db) ReadEncoded(
 	id ts.ID,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
-	callStart := d.nowFn()
 	n, err := d.namespaceFor(namespace)
-
 	if err != nil {
-		d.metrics.read.ReportError(d.nowFn().Sub(callStart))
+		d.metrics.unknownNamespaceRead.Inc(1)
 		return nil, err
 	}
 
-	res, err := n.ReadEncoded(ctx, id, start, end)
-	d.metrics.read.ReportSuccessOrError(err, d.nowFn().Sub(callStart))
-	return res, err
+	return n.ReadEncoded(ctx, id, start, end)
 }
 
 func (d *db) FetchBlocks(
@@ -491,17 +477,13 @@ func (d *db) FetchBlocks(
 	id ts.ID,
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
-	callStart := d.nowFn()
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
-		res := xerrors.NewInvalidParamsError(err)
-		d.metrics.fetchBlocks.ReportError(d.nowFn().Sub(callStart))
-		return nil, res
+		d.metrics.unknownNamespaceFetchBlocks.Inc(1)
+		return nil, xerrors.NewInvalidParamsError(err)
 	}
 
-	res, err := n.FetchBlocks(ctx, shardID, id, starts)
-	d.metrics.fetchBlocks.ReportSuccessOrError(err, d.nowFn().Sub(callStart))
-	return res, err
+	return n.FetchBlocks(ctx, shardID, id, starts)
 }
 
 func (d *db) FetchBlocksMetadata(
@@ -513,20 +495,14 @@ func (d *db) FetchBlocksMetadata(
 	pageToken int64,
 	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, *int64, error) {
-	callStart := d.nowFn()
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
-		res := xerrors.NewInvalidParamsError(err)
-		d.metrics.fetchBlocksMetadata.ReportError(d.nowFn().Sub(callStart))
-		return nil, nil, res
+		d.metrics.unknownNamespaceFetchBlocksMetadata.Inc(1)
+		return nil, nil, xerrors.NewInvalidParamsError(err)
 	}
 
-	res, ptr, err := n.FetchBlocksMetadata(ctx, shardID, start, end, limit,
+	return n.FetchBlocksMetadata(ctx, shardID, start, end, limit,
 		pageToken, opts)
-
-	duration := d.nowFn().Sub(callStart)
-	d.metrics.fetchBlocksMetadata.ReportSuccessOrError(err, duration)
-	return res, ptr, err
 }
 
 func (d *db) Bootstrap() error {
@@ -589,10 +565,8 @@ func (d *db) nextIndex() uint64 {
 type tsIDs []ts.ID
 
 func (t tsIDs) String() (string, error) {
-	if len(t) == 0 {
-		return "[]", nil
-	}
 	var buf bytes.Buffer
+	buf.WriteRune('[')
 	for idx, id := range t {
 		if idx != 0 {
 			if _, err := buf.WriteString(", "); err != nil {
@@ -603,16 +577,15 @@ func (t tsIDs) String() (string, error) {
 			return "", err
 		}
 	}
+	buf.WriteRune(']')
 	return buf.String(), nil
 }
 
 type metadatas []namespace.Metadata
 
 func (m metadatas) String() (string, error) {
-	if len(m) == 0 {
-		return "[]", nil
-	}
 	var buf bytes.Buffer
+	buf.WriteRune('[')
 	for idx, md := range m {
 		if idx != 0 {
 			if _, err := buf.WriteString(", "); err != nil {
@@ -623,5 +596,6 @@ func (m metadatas) String() (string, error) {
 			return "", err
 		}
 	}
+	buf.WriteRune(']')
 	return buf.String(), nil
 }

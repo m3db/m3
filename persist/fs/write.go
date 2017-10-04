@@ -262,8 +262,11 @@ func (w *writer) writeCheckpointFile() error {
 	if err != nil {
 		return err
 	}
-	if err := w.digestBuf.WriteDigestToFile(fd, w.digestFdWithDigestContents.Digest().Sum32()); err != nil {
-		fd.Close() // NB(prateek): failure to write takes precedence over failure to close the file
+	digestChecksum := w.digestFdWithDigestContents.Digest().Sum32()
+	if err := w.digestBuf.WriteDigestToFile(fd, digestChecksum); err != nil {
+		// NB(prateek): intentionally skipping fd.Close() error, as failure
+		// to write takes precedence over failure to close the file
+		fd.Close()
 		return err
 	}
 	return fd.Close()

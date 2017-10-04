@@ -44,7 +44,6 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 		commitLogBlockSize = time.Hour
 		ns1BlockSize       = 2 * time.Hour
 		ns2BlockSize       = 3 * time.Hour
-		clROpts            = rOpts.SetBlockSize(commitLogBlockSize).SetBufferFuture(0).SetBufferPast(0)
 		ns1ROpts           = rOpts.SetBlockSize(ns1BlockSize)
 		ns2ROpts           = rOpts.SetBlockSize(ns2BlockSize)
 	)
@@ -53,7 +52,10 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 	require.NoError(t, err)
 	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ns2ROpts))
 	require.NoError(t, err)
-	opts := newTestOptions(t).SetNamespaces([]namespace.Metadata{ns1, ns2})
+	opts := newTestOptions(t).
+		SetCommitLogRetentionPeriod(rOpts.RetentionPeriod()).
+		SetCommitLogBlockSize(commitLogBlockSize).
+		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	// Test setup
 	testSetup, err := newTestSetup(t, opts)
@@ -61,7 +63,6 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 	defer testSetup.close()
 
 	clOpts := testSetup.storageOpts.CommitLogOptions()
-	testSetup.storageOpts = testSetup.storageOpts.SetCommitLogOptions(clOpts.SetRetentionOptions(clROpts))
 	filePathPrefix := clOpts.FilesystemOptions().FilePathPrefix()
 
 	// it's aligned to lcm of ns block sizes

@@ -48,33 +48,22 @@ import (
 var (
 	defaultTestNs1ID         = ts.StringID("testns1")
 	defaultTestNs2ID         = ts.StringID("testns2")
-	defaultTestRetentionOpts = retention.NewOptions().
-					SetBufferFuture(10 * time.Minute).
-					SetBufferPast(10 * time.Minute).
-					SetBlockSize(2 * time.Hour).
-					SetRetentionPeriod(2 * 24 * time.Hour)
-	defaultTestNs2RetentionOpts = retention.NewOptions().
-					SetBufferFuture(10 * time.Minute).
-					SetBufferPast(10 * time.Minute).
-					SetBlockSize(4 * time.Hour).
-					SetRetentionPeriod(2 * 24 * time.Hour)
-	defaultTestCommitlogRetentionOpts = retention.NewOptions().
-						SetBufferFuture(0).
-						SetBufferPast(0).
-						SetBlockSize(2 * time.Hour).
-						SetRetentionPeriod(2 * 24 * time.Hour)
-
-	defaultTestNs1Opts = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
-	defaultTestNs2Opts = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
-
-	_opts = newOptions(pool.NewObjectPoolOptions().SetSize(16))
-
-	defaultTestDatabaseOptions = _opts.
-					SetRepairEnabled(false).
-					SetMaxFlushRetries(3).
-					SetTickInterval(10 * time.Minute).
-					SetCommitLogOptions(_opts.CommitLogOptions().
-						SetRetentionOptions(defaultTestCommitlogRetentionOpts))
+	defaultTestRetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
+					SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
+	defaultTestNs2RetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
+					SetBlockSize(4 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
+	defaultTestCommitlogRetentionPeriod = 2 * 24 * time.Hour
+	defaultTestCommitlogBlockSize       = 2 * time.Hour
+	defaultTestNs1Opts                  = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
+	defaultTestNs2Opts                  = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
+	_opts                               = newOptions(pool.NewObjectPoolOptions().SetSize(16))
+	defaultTestDatabaseOptions          = _opts.
+						SetRepairEnabled(false).
+						SetMaxFlushRetries(3).
+						SetTickInterval(10 * time.Minute).
+						SetCommitLogOptions(_opts.CommitLogOptions().
+							SetRetentionPeriod(defaultTestCommitlogRetentionPeriod).
+							SetBlockSize(defaultTestCommitlogBlockSize))
 )
 
 type nsMapCh chan namespace.Map

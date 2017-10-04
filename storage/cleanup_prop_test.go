@@ -47,7 +47,9 @@ func newPropTestCleanupMgr(ctrl *gomock.Controller, ropts retention.Options, ns 
 	db := NewMockdatabase(ctrl)
 	opts := testDatabaseOptions()
 	opts = opts.SetCommitLogOptions(
-		opts.CommitLogOptions().SetRetentionOptions(ropts))
+		opts.CommitLogOptions().
+			SetRetentionPeriod(ropts.RetentionPeriod()).
+			SetBlockSize(ropts.BlockSize()))
 	db.EXPECT().Options().Return(opts).AnyTimes()
 	db.EXPECT().GetOwnedNamespaces().Return(ns).AnyTimes()
 	scope := tally.NoopScope
@@ -259,12 +261,7 @@ func genRetention() gopter.Gen {
 
 // generator for commit log retention options
 func genCommitLogRetention() gopter.Gen {
-	return genRetention().
-		Map(func(v *generatedRetention) *generatedRetention {
-			return &generatedRetention{v.
-				SetBufferFuture(0).
-				SetBufferPast(0)}
-		})
+	return genRetention()
 }
 
 type generatedRetention struct {

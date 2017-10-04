@@ -102,6 +102,7 @@ func NewDatabase(
 	}
 
 	// Wait for the topology to be available
+	log.Info("resolving topology from kv")
 	<-watch.C()
 
 	d := &clusterDB{
@@ -215,6 +216,7 @@ func (d *clusterDB) activeTopologyWatch() {
 			if !ok {
 				return
 			}
+			d.log.Info("received update from kv topology watch")
 			shardSet := d.hostOrEmptyShardSet(d.watch.Get())
 			d.Database.AssignShardSet(shardSet)
 		}
