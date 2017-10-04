@@ -366,7 +366,7 @@ func (r *reader) readChunk(dataBufferIndex int) ([]byte, error) {
 	// 		dataBuf = append(dataBuf, 0)
 	// 	}
 	// }
-	dataBuf := make([]byte, size, size)
+	dataBuf := make([]byte, size)
 
 	// Size the target buffer for reading and unmarshalling
 	buffer := dataBuf[:size]
