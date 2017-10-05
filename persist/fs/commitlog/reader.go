@@ -30,13 +30,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3x/checked"
-
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -367,8 +366,7 @@ func (r *reader) Close() error {
 	// and close the fd
 	r.cancelFunc()
 
-	<-r.shutdownChan
-	return nil
+	return <-r.shutdownChan
 }
 
 func (r *reader) close() error {
