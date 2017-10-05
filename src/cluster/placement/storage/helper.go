@@ -22,6 +22,7 @@ package storage
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/kv"
@@ -153,6 +154,15 @@ func (h *stagedPlacementHelper) GenerateProto(p placement.Placement) (proto.Mess
 	ps, _, err := h.placements()
 	if err != nil && err != kv.ErrNotFound {
 		return nil, err
+	}
+
+	if l := len(ps); l > 0 {
+		lastCutoverNanos := ps[l-1].CutoverNanos()
+		// When there is valid placement in the snapshots, the new placement must be scheduled after last placement.
+		if lastCutoverNanos >= p.CutoverNanos() {
+			return nil, fmt.Errorf("invalid placement: cutover nanos %d must be later than last placement cutover nanos %d",
+				p.CutoverNanos(), lastCutoverNanos)
+		}
 	}
 
 	ps = append(ps, p)
