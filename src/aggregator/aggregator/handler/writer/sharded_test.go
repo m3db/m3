@@ -354,6 +354,18 @@ func TestShardedWriterClose(t *testing.T) {
 	require.True(t, writer.closed)
 }
 
+func TestShardedWriterEncode(t *testing.T) {
+	errEncode := errors.New("encode error")
+	mockEncoder := &mockAggregatedEncoder{
+		AggregatedEncoder: msgpack.NewAggregatedEncoder(msgpack.NewBufferedEncoder()),
+		encodeChunkedMetricWithStoragePolicyFn: func(aggregated.ChunkedMetricWithStoragePolicy) error {
+			return errEncode
+		},
+	}
+	w := testShardedWriter(t, NewOptions())
+	require.Equal(t, errEncode, w.encode(mockEncoder, testChunkedMetricWithStoragePolicy, 0))
+}
+
 func isSameChunkedID(id1, id2 id.ChunkedID) bool {
 	return bytes.Equal(id1.Prefix, id2.Prefix) &&
 		bytes.Equal(id1.Data, id2.Data) &&
@@ -432,3 +444,17 @@ func (r *mockRouter) Route(shard uint32, buf *common.RefCountedBuffer) error {
 }
 
 func (r *mockRouter) Close() {}
+
+type encodeChunkedMetricWithStoragePolicyFn func(aggregated.ChunkedMetricWithStoragePolicy) error
+
+type mockAggregatedEncoder struct {
+	msgpack.AggregatedEncoder
+
+	encodeChunkedMetricWithStoragePolicyFn encodeChunkedMetricWithStoragePolicyFn
+}
+
+func (m *mockAggregatedEncoder) EncodeChunkedMetricWithStoragePolicy(
+	cmp aggregated.ChunkedMetricWithStoragePolicy,
+) error {
+	return m.encodeChunkedMetricWithStoragePolicyFn(cmp)
+}

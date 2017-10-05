@@ -285,7 +285,6 @@ func (l *metricList) flushBefore(beforeNanos int64, flushType flushType) {
 	// Flush remaining bytes buffered in the writer.
 	if flushType == consumeType {
 		if err := l.flushWriter.Flush(); err != nil {
-			l.logError("flush writer flush error", err)
 			l.metrics.flushWriterFlushErrors.Inc(1)
 		} else {
 			l.metrics.flushWriterFlushSuccess.Inc(1)
@@ -328,7 +327,6 @@ func (l *metricList) consumeAggregatedMetric(
 		StoragePolicy: sp,
 	}
 	if err := l.flushWriter.Write(chunkedMetricWithPolicy); err != nil {
-		l.logError("flush writer write error", err)
 		l.metrics.flushMetricConsumeErrors.Inc(1)
 	} else {
 		l.metrics.flushMetricConsumeSuccess.Inc(1)
@@ -346,14 +344,6 @@ func (l *metricList) discardAggregatedMetric(
 	sp policy.StoragePolicy,
 ) {
 	l.metrics.flushMetricDiscarded.Inc(1)
-}
-
-func (l *metricList) logError(desc string, err error) {
-	l.log.WithFields(
-		log.NewField("shard", l.shard),
-		log.NewField("resolution", l.resolution),
-		log.NewErrField(err),
-	).Error(desc)
 }
 
 type newMetricListFn func(

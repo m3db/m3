@@ -41,6 +41,7 @@ var (
 )
 
 type shardedWriterMetrics struct {
+	writerClosed  tally.Counter
 	encodeSuccess tally.Counter
 	encodeErrors  tally.Counter
 	routeSuccess  tally.Counter
@@ -51,6 +52,7 @@ func newShardedWriterMetrics(scope tally.Scope) shardedWriterMetrics {
 	encodeScope := scope.SubScope("encode")
 	routeScope := scope.SubScope("route")
 	return shardedWriterMetrics{
+		writerClosed:  scope.Counter("writer-closed"),
 		encodeSuccess: encodeScope.Counter("success"),
 		encodeErrors:  encodeScope.Counter("errors"),
 		routeSuccess:  routeScope.Counter("success"),
@@ -111,6 +113,7 @@ func NewShardedWriter(
 
 func (w *shardedWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) error {
 	if w.closed {
+		w.metrics.writerClosed.Inc(1)
 		return errWriterClosed
 	}
 	shard := w.shardFn(mp.ChunkedID)
@@ -126,6 +129,7 @@ func (w *shardedWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) erro
 
 func (w *shardedWriter) Flush() error {
 	if w.closed {
+		w.metrics.writerClosed.Inc(1)
 		return errWriterClosed
 	}
 	multiErr := xerrors.NewMultiError()
@@ -153,6 +157,7 @@ func (w *shardedWriter) Flush() error {
 
 func (w *shardedWriter) Close() error {
 	if w.closed {
+		w.metrics.writerClosed.Inc(1)
 		return errWriterClosed
 	}
 	err := w.Flush()
@@ -182,7 +187,7 @@ func (w *shardedWriter) encode(
 		buffer.Truncate(sizeBefore)
 		// Clear out the encoder error.
 		encoder.Reset(bufferedEncoder)
-		return nil
+		return err
 	}
 	w.metrics.encodeSuccess.Inc(1)
 
