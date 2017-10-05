@@ -117,15 +117,9 @@ func (s *commitLogSource) Read(
 	var (
 		namespace = ns.ID()
 		// unmerged    = make(map[uint32]map[ts.Hash]encoderMap)
-		numShards = len(shardsTimeRanges)
-		// TODO: This is actually just wrong. Shards owned by an M3DB node can be
-		// noncontigous. This means that this slice needs to be at least as long as
-		// the highest shard number that the bootstrapper will encounter. We should
-		// instead initialize this to some default size and then grow it everytime
-		// we see a new shard number that is larger than the current length. This
-		// would require adding a mutex for accessing this slice. It would be better
-		// if we could initialize it to the right size the first time
-		unmerged = make([]map[ts.Hash]encodersByTime, numShards, numShards)
+		numShards    = len(shardsTimeRanges)
+		unmerged     = []map[ts.Hash]encodersByTime{}
+		unmergedLock = sync.RWMutex{}
 		// TODO: Add to opts
 		numConc     = uint32(4)
 		bopts       = s.opts.ResultOptions()
@@ -156,9 +150,9 @@ func (s *commitLogSource) Read(
 					blockStart = arg.blockStart
 				)
 
-				// TODO: No lock required currently, but we may need one here if we
-				// begin dynamically resizing the unmerged slice
+				unmergedLock.RLock()
 				unmergedShard := unmerged[series.Shard]
+				unmergedLock.RUnlock()
 				if unmergedShard == nil {
 					unmergedShard = make(map[ts.Hash]encodersByTime)
 					unmerged[series.Shard] = unmergedShard
@@ -229,6 +223,22 @@ func (s *commitLogSource) Read(
 		if !ranges.Overlaps(blockRange) {
 			// Data in this block does not match the requested ranges
 			continue
+		}
+
+		// We use the unmerged slice for lookup because its faster than a map.
+		// Shard ID's map directly to indices, but we don't know the highest shard
+		// number upfront so we resize when necessary.
+		if len(unmerged) < int(series.Shard+1) {
+			// Resize shard
+			unmergedLock.Lock()
+			oldUnmerged := unmerged
+			unmerged = make([]map[ts.Hash]encodersByTime, series.Shard+1)
+			for i, hashToEncoderMap := range oldUnmerged {
+				unmerged[i] = hashToEncoderMap
+			}
+			// unmerged = append(unmerged, nil)
+			// unmerged = append(unmerged, oldUnmerged...)
+			unmergedLock.Unlock()
 		}
 
 		// Distribute work such that each encoder goroutine is responsible for
