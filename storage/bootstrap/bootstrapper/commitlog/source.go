@@ -115,7 +115,7 @@ func (s *commitLogSource) Read(
 	defer iter.Close()
 
 	var (
-		// namespace   = ns.ID()
+		namespace = ns.ID()
 		// unmerged    = make(map[uint32]map[ts.Hash]encoderMap)
 		numShards = len(shardsTimeRanges)
 		// TODO: This is actually just wrong. Shards owned by an M3DB node can be
