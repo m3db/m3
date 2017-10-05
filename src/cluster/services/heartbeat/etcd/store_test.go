@@ -238,16 +238,16 @@ func TestWatch(t *testing.T) {
 			break
 		}
 	}
-	<-w1.C()
-	require.Equal(t, 0, len(w1.C()))
-	require.Equal(t, []string{}, w1.Get())
 
 	err = store.Heartbeat(i2, time.Second)
 	require.NoError(t, err)
 
-	<-w1.C()
-	require.Equal(t, 0, len(w1.C()))
-	require.Equal(t, []string{"i2"}, w1.Get())
+	for range w1.C() {
+		val := w1.Get().([]string)
+		if len(val) == 1 && val[0] == "i2" {
+			break
+		}
+	}
 
 	w1.Close()
 }

@@ -138,11 +138,41 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, v)
 
-	m, err := helper.GenerateProto(p)
+	_, err = helper.GenerateProto(p)
+	require.Error(t, err)
+
+	newCutoverTime := p.CutoverNanos() + 1
+	m, err := helper.GenerateProto(p.SetCutoverNanos(newCutoverTime))
 	require.NoError(t, err)
 
 	newProto := m.(*placementpb.PlacementSnapshots)
-	require.Equal(t, &placementpb.PlacementSnapshots{Snapshots: []*placementpb.Placement{proto1, proto2, proto2}}, newProto)
+	require.Equal(
+		t,
+		&placementpb.PlacementSnapshots{
+			Snapshots: []*placementpb.Placement{
+				proto1,
+				proto2,
+				&placementpb.Placement{
+					Instances: map[string]*placementpb.Instance{
+						"i1": &placementpb.Instance{
+							Id:         "i1",
+							Rack:       "r1",
+							Zone:       "z1",
+							Endpoint:   "e1",
+							Weight:     1,
+							Shards:     protoShards,
+							ShardSetId: 0,
+						},
+					},
+					ReplicaFactor: 1,
+					NumShards:     3,
+					IsSharded:     true,
+					CutoverTime:   newCutoverTime,
+				},
+			},
+		},
+		newProto,
+	)
 
 	err = helper.ValidateProto(m)
 	require.NoError(t, err)

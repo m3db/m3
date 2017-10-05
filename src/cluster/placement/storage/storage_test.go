@@ -96,14 +96,14 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 	p := placement.NewPlacement().
 		SetInstances([]placement.Instance{}).
 		SetShards([]uint32{}).
-		SetReplicaFactor(0)
+		SetReplicaFactor(0).
+		SetCutoverNanos(100)
 
 	err := ps.SetIfNotExist(p)
 	require.NoError(t, err)
 
 	err = ps.SetIfNotExist(p)
 	require.Error(t, err)
-	require.Equal(t, kv.ErrAlreadyExists, err)
 
 	pGet1, v, err := ps.Placement()
 	require.NoError(t, err)
@@ -111,9 +111,13 @@ func TestStorageWithPlacementSnapshots(t *testing.T) {
 	require.Equal(t, p.SetVersion(1), pGet1)
 
 	err = ps.CheckAndSet(p, v)
+	require.Error(t, err)
+
+	p = p.SetCutoverNanos(p.CutoverNanos() + 1)
+	err = ps.CheckAndSet(p, v)
 	require.NoError(t, err)
 
-	err = ps.CheckAndSet(p, v)
+	err = ps.CheckAndSet(p.Clone().SetCutoverNanos(p.CutoverNanos()+1), v)
 	require.Error(t, err)
 	require.Equal(t, kv.ErrVersionMismatch, err)
 
