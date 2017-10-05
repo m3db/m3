@@ -37,6 +37,9 @@ type MsgpackServerConfiguration struct {
 	// Msgpack server listening address.
 	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
 
+	// Error log sampling rate.
+	ErrorLogSamplingRate *float64 `yaml:"errorLogSamplingRate"`
+
 	// Whether keep alives are enabled on connections.
 	KeepAliveEnabled *bool `yaml:"keepAliveEnabled"`
 
@@ -55,6 +58,11 @@ func (c *MsgpackServerConfiguration) NewMsgpackServerOptions(
 	instrumentOpts instrument.Options,
 ) msgpack.Options {
 	opts := msgpack.NewOptions().SetInstrumentOptions(instrumentOpts)
+
+	// Set error log sampling rate.
+	if c.ErrorLogSamplingRate != nil {
+		opts = opts.SetErrorLogSamplingRate(*c.ErrorLogSamplingRate)
+	}
 
 	// Set server options.
 	serverOpts := xserver.NewOptions().

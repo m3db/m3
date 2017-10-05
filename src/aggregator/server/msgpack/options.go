@@ -22,17 +22,34 @@ package msgpack
 
 import (
 	"github.com/m3db/m3metrics/protocol/msgpack"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/server"
 )
 
-// Options provide a set of server options
+const (
+	defaultErrorLogSamplingRate = 1.0
+)
+
+// Options provide a set of server options.
 type Options interface {
-	// SetInstrumentOptions sets the instrument options
+	// SetClockOptions sets the clock options.
+	SetClockOptions(value clock.Options) Options
+
+	// ClockOptions returns the clock options.
+	ClockOptions() clock.Options
+
+	// SetInstrumentOptions sets the instrument options.
 	SetInstrumentOptions(value instrument.Options) Options
 
-	// InstrumentOptions returns the instrument options
+	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
+
+	// SetErrorLogSamplingRate sets the error log sampling rate.
+	SetErrorLogSamplingRate(value float64) Options
+
+	// ErrorLogSamplingRate returns the error log sampling rate.
+	ErrorLogSamplingRate() float64
 
 	// SetServerOptions sets the server options.
 	SetServerOptions(value server.Options) Options
@@ -40,20 +57,22 @@ type Options interface {
 	// ServerOptiosn returns the server options.
 	ServerOptions() server.Options
 
-	// SetIteratorPool sets the iterator pool
+	// SetIteratorPool sets the iterator pool.
 	SetIteratorPool(value msgpack.UnaggregatedIteratorPool) Options
 
-	// IteratorPool returns the iterator pool
+	// IteratorPool returns the iterator pool.
 	IteratorPool() msgpack.UnaggregatedIteratorPool
 }
 
 type options struct {
-	instrumentOpts instrument.Options
-	serverOpts     server.Options
-	iteratorPool   msgpack.UnaggregatedIteratorPool
+	clockOpts          clock.Options
+	instrumentOpts     instrument.Options
+	errLogSamplingRate float64
+	serverOpts         server.Options
+	iteratorPool       msgpack.UnaggregatedIteratorPool
 }
 
-// NewOptions creates a new set of server options
+// NewOptions creates a new set of server options.
 func NewOptions() Options {
 	iteratorPool := msgpack.NewUnaggregatedIteratorPool(nil)
 	opts := msgpack.NewUnaggregatedIteratorOptions().SetIteratorPool(iteratorPool)
@@ -62,10 +81,22 @@ func NewOptions() Options {
 	})
 
 	return &options{
-		instrumentOpts: instrument.NewOptions(),
-		serverOpts:     server.NewOptions(),
-		iteratorPool:   iteratorPool,
+		clockOpts:          clock.NewOptions(),
+		instrumentOpts:     instrument.NewOptions(),
+		errLogSamplingRate: defaultErrorLogSamplingRate,
+		serverOpts:         server.NewOptions(),
+		iteratorPool:       iteratorPool,
 	}
+}
+
+func (o *options) SetClockOptions(value clock.Options) Options {
+	opts := *o
+	opts.clockOpts = value
+	return &opts
+}
+
+func (o *options) ClockOptions() clock.Options {
+	return o.clockOpts
 }
 
 func (o *options) SetInstrumentOptions(value instrument.Options) Options {
@@ -76,6 +107,16 @@ func (o *options) SetInstrumentOptions(value instrument.Options) Options {
 
 func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
+}
+
+func (o *options) SetErrorLogSamplingRate(value float64) Options {
+	opts := *o
+	opts.errLogSamplingRate = value
+	return &opts
+}
+
+func (o *options) ErrorLogSamplingRate() float64 {
+	return o.errLogSamplingRate
 }
 
 func (o *options) SetServerOptions(value server.Options) Options {

@@ -22,6 +22,7 @@ package msgpack
 
 import (
 	"io"
+	"math/rand"
 	"net"
 	"sync"
 
@@ -60,22 +61,28 @@ func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 type handler struct {
 	sync.Mutex
 
-	aggregator   aggregator.Aggregator
-	opts         Options
-	log          log.Logger
-	iteratorPool msgpack.UnaggregatedIteratorPool
-	metrics      handlerMetrics
+	opts               Options
+	log                log.Logger
+	errLogSamplingRate float64
+	iteratorPool       msgpack.UnaggregatedIteratorPool
+
+	aggregator aggregator.Aggregator
+	rand       *rand.Rand
+	metrics    handlerMetrics
 }
 
 // NewHandler creates a new msgpack handler.
 func NewHandler(aggregator aggregator.Aggregator, opts Options) xserver.Handler {
+	nowFn := opts.ClockOptions().NowFn()
 	iOpts := opts.InstrumentOptions()
 	return &handler{
-		aggregator:   aggregator,
-		opts:         opts,
-		log:          iOpts.Logger(),
-		iteratorPool: opts.IteratorPool(),
-		metrics:      newHandlerMetrics(iOpts.MetricsScope()),
+		opts:               opts,
+		log:                iOpts.Logger(),
+		errLogSamplingRate: opts.ErrorLogSamplingRate(),
+		iteratorPool:       opts.IteratorPool(),
+		aggregator:         aggregator,
+		rand:               rand.New(rand.NewSource(nowFn().UnixNano())),
+		metrics:            newHandlerMetrics(iOpts.MetricsScope()),
 	}
 }
 
@@ -89,11 +96,15 @@ func (s *handler) Handle(conn net.Conn) {
 		metric := it.Metric()
 		policiesList := it.PoliciesList()
 		if err := s.aggregator.AddMetricWithPoliciesList(metric, policiesList); err != nil {
-			s.log.WithFields(
-				log.NewField("metric", metric.String()),
-				log.NewField("policies", policiesList),
-				log.NewErrField(err),
-			).Errorf("error adding metric with policies")
+			// We sample the error log here because the error rate may scale with
+			// the metrics incoming rate and consume lots of cpu cycles.
+			if s.rand.Float64() < s.errLogSamplingRate {
+				s.log.WithFields(
+					log.NewField("metric", metric.String()),
+					log.NewField("policies", policiesList),
+					log.NewErrField(err),
+				).Errorf("error adding metric with policies")
+			}
 			s.metrics.addMetricErrors.Inc(1)
 		}
 	}
