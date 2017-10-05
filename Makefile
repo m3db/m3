@@ -43,6 +43,7 @@ TOOLS :=         \
 	read_index_ids \
 	clone_fileset  \
 	dtest          \
+	bootstrap_commitlogs \
 
 .PHONY: setup
 setup:

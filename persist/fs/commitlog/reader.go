@@ -89,7 +89,7 @@ type reader struct {
 	dataBuffer   []byte
 	logDecoder   encoding.Decoder
 	decoderBufs  []chan decoderArg
-	outBufs      []chan *readResponse
+	outBufs      []chan readResponse
 	cancelCtx    context.Context
 	cancelFunc   context.CancelFunc
 	shutdownChan chan error
@@ -106,9 +106,9 @@ func newCommitLogReader(opts Options) commitLogReader {
 	for i := 0; i < numConc; i++ {
 		decoderBufs = append(decoderBufs, make(chan decoderArg, decoderInBufChanSize))
 	}
-	outBufs := []chan *readResponse{}
+	outBufs := []chan readResponse{}
 	for i := 0; i < numConc; i++ {
-		outBufs = append(outBufs, make(chan *readResponse, decoderInBufChanSize))
+		outBufs = append(outBufs, make(chan readResponse, decoderInBufChanSize))
 	}
 
 	reader := &reader{
@@ -214,13 +214,13 @@ func (r *reader) readLoop() {
 	}
 }
 
-func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- *readResponse) {
+func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse) {
 	decodingOpts := r.opts.FilesystemOptions().DecodingOptions()
 	decoder := msgpack.NewDecoder(decodingOpts)
 	metadataDecoder := msgpack.NewDecoder(decodingOpts)
 
 	for arg := range inBuf {
-		readResponse := &readResponse{}
+		readResponse := readResponse{}
 		if arg.err != nil {
 			readResponse.resultErr = arg.err
 			outBuf <- readResponse
