@@ -71,7 +71,7 @@ func TestETCDClientGen(t *testing.T) {
 func TestKVAndHeartbeatServiceSharingETCDClient(t *testing.T) {
 	sid := services.NewServiceID().SetName("s1")
 
-	cs, err := NewConfigServiceClient(testOptions().SetZone("zone1"))
+	cs, err := NewConfigServiceClient(testOptions().SetZone("zone1").SetEnv("env"))
 	require.NoError(t, err)
 
 	c := cs.(*csclient)
@@ -125,7 +125,7 @@ func TestClient(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, kv1, kv3)
 
-	kv4, err := c.Store(kv.NewOptions().SetNamespace("ns").SetEnvironment("test_env2"))
+	kv4, err := c.Store(kv.NewOptions().SetNamespace("ns"))
 	require.NoError(t, err)
 	require.NotEqual(t, kv3, kv4)
 
@@ -278,7 +278,7 @@ func testOptions() Options {
 			SetTLSOptions(NewTLSOptions().SetCrtPath("foo.crt.pem").SetKeyPath("foo.key.pem")),
 		NewCluster().SetZone("zone5").SetEndpoints([]string{"i5"}).
 			SetTLSOptions(NewTLSOptions().SetCrtPath("foo.crt.pem").SetKeyPath("foo.key.pem").SetCACrtPath("foo_ca.pem")),
-	}).SetService("test_app").SetZone("zone1")
+	}).SetService("test_app").SetZone("zone1").SetEnv("env")
 }
 
 func testNewETCDFn(t *testing.T) (newClientFn, func()) {

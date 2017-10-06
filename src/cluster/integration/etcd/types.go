@@ -66,4 +66,10 @@ type Options interface {
 
 	// ServiceID returns the service id for KV operations
 	ServiceID() string
+
+	// SetEnvironment sets the environment for KV operations.
+	SetEnvironment(value string) Options
+
+	// Environment returns the environment for KV operations.
+	Environment() string
 }

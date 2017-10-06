@@ -22,8 +22,8 @@ package kv
 
 // Configuration is the config for kv options.
 type Configuration struct {
-	Environment string `yaml:"environment" validate:"nonzero"`
-	Namespace   string `yaml:"namespace" validate:"nonzero"`
+	Environment string `yaml:"environment"`
+	Namespace   string `yaml:"namespace"`
 }
 
 // NewOptions creates a kv.Options.
