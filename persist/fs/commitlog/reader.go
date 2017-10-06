@@ -198,9 +198,6 @@ func (r *reader) readLoop() {
 			if err == io.EOF {
 				eofFound = true
 			}
-			if err == nil {
-				data.IncRef()
-			}
 
 			// Distribute the decoding work in round-robin fashion so that when we
 			// read round-robin, we get the data back in the original order.
@@ -227,6 +224,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			continue
 		}
 
+		arg.bytes.IncRef()
 		decoder.Reset(arg.bytes.Get())
 		entry, err := decoder.DecodeLogEntry()
 		if err != nil {
