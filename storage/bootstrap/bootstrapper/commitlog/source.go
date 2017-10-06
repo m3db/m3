@@ -115,17 +115,17 @@ func (s *commitLogSource) Read(
 	defer iter.Close()
 
 	var (
-		namespace = ns.ID()
-		// unmerged    = make(map[uint32]map[ts.Hash]encoderMap)
+		namespace    = ns.ID()
 		numShards    = len(shardsTimeRanges)
 		unmerged     = []map[ts.Hash]encodersByTime{}
-		unmergedLock = sync.RWMutex{}
+		unmergedLock = &sync.RWMutex{}
 		// TODO: Add to opts
 		numConc     = uint32(4)
 		bopts       = s.opts.ResultOptions()
 		blopts      = bopts.DatabaseBlockOptions()
 		blockSize   = ns.Options().RetentionOptions().BlockSize()
 		encoderPool = bopts.DatabaseBlockOptions().EncoderPool()
+		workerErrs  = make([]int, numConc, numConc)
 	)
 
 	encoderChans := []chan encoderArg{}
@@ -136,68 +136,19 @@ func (s *commitLogSource) Read(
 	// Spin up numConc background go-routines to handle M3TSZ encoding. This must
 	// happen before we start reading to prevent infinitely blocking writes to
 	// the encoderChans.
-	wg := sync.WaitGroup{}
-	workerErrs := make([]int, numConc, numConc)
+	wg := &sync.WaitGroup{}
 	for workerNum, encoderChan := range encoderChans {
 		wg.Add(1)
-		go func(workerNum int, ec <-chan encoderArg) {
-			for arg := range ec {
-				var (
-					series     = arg.series
-					dp         = arg.dp
-					unit       = arg.unit
-					annotation = arg.annotation
-					blockStart = arg.blockStart
-				)
-
-				unmergedLock.RLock()
-				unmergedShard := unmerged[series.Shard]
-				unmergedLock.RUnlock()
-				if unmergedShard == nil {
-					unmergedShard = make(map[ts.Hash]encodersByTime)
-					unmerged[series.Shard] = unmergedShard
-				}
-
-				unmergedSeries, ok := unmergedShard[series.ID.Hash()]
-				if !ok {
-					unmergedSeries = encodersByTime{
-						id:       series.ID,
-						encoders: make(map[int64][]encoder)}
-					unmergedShard[series.ID.Hash()] = unmergedSeries
-				}
-
-				var (
-					err           error
-					unmergedBlock = unmergedSeries.encoders[blockStart.UnixNano()]
-					wroteExisting = false
-				)
-				for i := range unmergedBlock {
-					if unmergedBlock[i].lastWriteAt.Before(dp.Timestamp) {
-						unmergedBlock[i].lastWriteAt = dp.Timestamp
-						err = unmergedBlock[i].enc.Encode(dp, unit, annotation)
-						wroteExisting = true
-						break
-					}
-				}
-				if !wroteExisting {
-					enc := encoderPool.Get()
-					enc.Reset(blockStart, blopts.DatabaseBlockAllocSize())
-
-					err = enc.Encode(dp, unit, annotation)
-					if err == nil {
-						unmergedBlock = append(unmergedBlock, encoder{
-							lastWriteAt: dp.Timestamp,
-							enc:         enc,
-						})
-						unmergedSeries.encoders[blockStart.UnixNano()] = unmergedBlock
-					}
-				}
-				if err != nil {
-					workerErrs[workerNum]++
-				}
-			}
-			wg.Done()
-		}(workerNum, encoderChan)
+		go s.startM3TSZEncodingWorker(
+			workerNum,
+			encoderChan,
+			&unmerged,
+			unmergedLock,
+			encoderPool,
+			workerErrs,
+			blopts,
+			wg,
+		)
 	}
 
 	for iter.Next() {
@@ -225,6 +176,7 @@ func (s *commitLogSource) Read(
 			continue
 		}
 
+		// TODO: Factor out into function?
 		// We use the unmerged slice for lookup because its faster than a map.
 		// Shard ID's map directly to indices, but we don't know the highest shard
 		// number upfront so we resize when necessary.
@@ -236,8 +188,6 @@ func (s *commitLogSource) Read(
 			for i, hashToEncoderMap := range oldUnmerged {
 				unmerged[i] = hashToEncoderMap
 			}
-			// unmerged = append(unmerged, nil)
-			// unmerged = append(unmerged, oldUnmerged...)
 			unmergedLock.Unlock()
 		}
 
@@ -284,7 +234,7 @@ func (s *commitLogSource) Read(
 	// Controls how many shards can be merged in parallel
 	mergeSemaphore := make(chan bool, 4)
 	bootstrapResultLock := sync.Mutex{}
-	wg = sync.WaitGroup{}
+	wg = &sync.WaitGroup{}
 
 	for shard, unmergedShard := range unmerged {
 		mergeSemaphore <- true
@@ -380,6 +330,78 @@ func (s *commitLogSource) Read(
 	}
 
 	return bootstrapResult, nil
+}
+
+func (s *commitLogSource) startM3TSZEncodingWorker(
+	workerNum int,
+	ec <-chan encoderArg,
+	// Pass as pointer so slice resizing is reflected
+	unmergedPtr *[]map[ts.Hash]encodersByTime,
+	unmergedLock *sync.RWMutex,
+	encoderPool encoding.EncoderPool,
+	workerErrs []int,
+	blockOpts block.Options,
+	wg *sync.WaitGroup,
+) {
+	for arg := range ec {
+		var (
+			series     = arg.series
+			dp         = arg.dp
+			unit       = arg.unit
+			annotation = arg.annotation
+			blockStart = arg.blockStart
+		)
+
+		unmergedLock.RLock()
+		// Dereference the pointer inside the lock so we're certain that the slice
+		// has been resized already
+		unmerged := *unmergedPtr
+		unmergedShard := unmerged[series.Shard]
+		unmergedLock.RUnlock()
+		if unmergedShard == nil {
+			unmergedShard = make(map[ts.Hash]encodersByTime)
+			unmerged[series.Shard] = unmergedShard
+		}
+
+		unmergedSeries, ok := unmergedShard[series.ID.Hash()]
+		if !ok {
+			unmergedSeries = encodersByTime{
+				id:       series.ID,
+				encoders: make(map[int64][]encoder)}
+			unmergedShard[series.ID.Hash()] = unmergedSeries
+		}
+
+		var (
+			err           error
+			unmergedBlock = unmergedSeries.encoders[blockStart.UnixNano()]
+			wroteExisting = false
+		)
+		for i := range unmergedBlock {
+			if unmergedBlock[i].lastWriteAt.Before(dp.Timestamp) {
+				unmergedBlock[i].lastWriteAt = dp.Timestamp
+				err = unmergedBlock[i].enc.Encode(dp, unit, annotation)
+				wroteExisting = true
+				break
+			}
+		}
+		if !wroteExisting {
+			enc := encoderPool.Get()
+			enc.Reset(blockStart, blockOpts.DatabaseBlockAllocSize())
+
+			err = enc.Encode(dp, unit, annotation)
+			if err == nil {
+				unmergedBlock = append(unmergedBlock, encoder{
+					lastWriteAt: dp.Timestamp,
+					enc:         enc,
+				})
+				unmergedSeries.encoders[blockStart.UnixNano()] = unmergedBlock
+			}
+		}
+		if err != nil {
+			workerErrs[workerNum]++
+		}
+	}
+	wg.Done()
 }
 
 func newReadCommitLogPredicate(
