@@ -153,33 +153,15 @@ func (s *commitLogSource) Read(
 
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
-
-		// check if the series belongs to current namespace being bootstrapped
-		if !namespace.Equal(series.Namespace) {
+		if !s.shouldEncodeSeries(namespace, shardsTimeRanges, blockSize, series, dp) {
 			continue
 		}
 
-		ranges, ok := shardsTimeRanges[series.Shard]
-		if !ok {
-			// Not bootstrapping this shard
-			continue
-		}
-
-		blockStart := dp.Timestamp.Truncate(blockSize)
-		blockEnd := blockStart.Add(blockSize)
-		blockRange := xtime.Range{
-			Start: blockStart,
-			End:   blockEnd,
-		}
-		if !ranges.Overlaps(blockRange) {
-			// Data in this block does not match the requested ranges
-			continue
-		}
-
-		// TODO: Factor out into function?
 		// We use the unmerged slice for lookup because its faster than a map.
 		// Shard ID's map directly to indices, but we don't know the highest shard
-		// number upfront so we resize when necessary.
+		// number upfront so we resize when necessary. We don't need to acquire a
+		// lock when we check the length because this is the only goroutine that
+		// change the size of the slice.
 		if len(unmerged) < int(series.Shard+1) {
 			// Resize shard
 			unmergedLock.Lock()
@@ -206,7 +188,7 @@ func (s *commitLogSource) Read(
 			dp:         dp,
 			unit:       unit,
 			annotation: annotation,
-			blockStart: blockStart,
+			blockStart: dp.Timestamp.Truncate(blockSize),
 		}
 	}
 	for _, encoderChan := range encoderChans {
@@ -215,6 +197,8 @@ func (s *commitLogSource) Read(
 
 	// Block until all data has been read and encoded by the worker goroutines
 	wg.Wait()
+
+	// TODO: Function?
 	errSum := 0
 	for _, numErrs := range workerErrs {
 		errSum += numErrs
@@ -239,66 +223,10 @@ func (s *commitLogSource) Read(
 	for shard, unmergedShard := range unmerged {
 		mergeSemaphore <- true
 		wg.Add(1)
-		// TODO: Factor this into subfunctions
 		go func(shard int, unmergedShard map[ts.Hash]encodersByTime) {
-			shardResult := result.NewShardResult(len(unmergedShard), s.opts.ResultOptions())
-			for _, unmergedBlocks := range unmergedShard {
-				blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
-				for start, unmergedBlock := range unmergedBlocks.encoders {
-					startInNano := time.Unix(0, start)
-					block := blocksPool.Get()
-					if len(unmergedBlock) == 0 {
-						shardEmptyErrs[shard]++
-						continue
-					} else if len(unmergedBlock) == 1 {
-						block.Reset(startInNano, unmergedBlock[0].enc.Discard())
-					} else {
-						readers := make([]io.Reader, len(unmergedBlock))
-						for i := range unmergedBlock {
-							stream := unmergedBlock[i].enc.Stream()
-							readers[i] = stream
-							defer stream.Finalize()
-						}
-
-						iter := multiReaderIteratorPool.Get()
-						iter.Reset(readers)
-
-						var err error
-						enc := encoderPool.Get()
-						enc.Reset(startInNano, blopts.DatabaseBlockAllocSize())
-						for iter.Next() {
-							dp, unit, annotation := iter.Current()
-							encodeErr := enc.Encode(dp, unit, annotation)
-							if encodeErr != nil {
-								err = encodeErr
-								shardErrs[shard]++
-								break
-							}
-						}
-						if iterErr := iter.Err(); iterErr != nil {
-							if err == nil {
-								err = iter.Err()
-							}
-							shardErrs[shard]++
-						}
-
-						iter.Close()
-						for i := range unmergedBlock {
-							unmergedBlock[i].enc.Close()
-						}
-
-						if err != nil {
-							continue
-						}
-
-						block.Reset(startInNano, enc.Discard())
-					}
-					blocks.AddBlock(block)
-				}
-				if blocks.Len() > 0 {
-					shardResult.AddSeries(unmergedBlocks.id, blocks)
-				}
-			}
+			var shardResult result.ShardResult
+			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShard(
+				unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blopts)
 			if len(shardResult.AllSeries()) > 0 {
 				// Prevent race conditions while updating bootstrapResult from multiple go-routines
 				bootstrapResultLock.Lock()
@@ -310,6 +238,7 @@ func (s *commitLogSource) Read(
 			wg.Done()
 		}(shard, unmergedShard)
 	}
+
 	// Wait for all merge goroutines to complete
 	wg.Wait()
 
@@ -340,7 +269,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 	unmergedLock *sync.RWMutex,
 	encoderPool encoding.EncoderPool,
 	workerErrs []int,
-	blockOpts block.Options,
+	blopts block.Options,
 	wg *sync.WaitGroup,
 ) {
 	for arg := range ec {
@@ -386,7 +315,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		}
 		if !wroteExisting {
 			enc := encoderPool.Get()
-			enc.Reset(blockStart, blockOpts.DatabaseBlockAllocSize())
+			enc.Reset(blockStart, blopts.DatabaseBlockAllocSize())
 
 			err = enc.Encode(dp, unit, annotation)
 			if err == nil {
@@ -429,4 +358,104 @@ func newReadCommitLogPredicate(
 			End:   entryTime.Add(entryDuration).Add(bufferFuture),
 		}.Overlaps(shardRange)
 	}
+}
+
+func (s *commitLogSource) shouldEncodeSeries(
+	namespace ts.ID,
+	shardsTimeRanges result.ShardTimeRanges,
+	blockSize time.Duration,
+	series commitlog.Series,
+	dp ts.Datapoint,
+) bool {
+	// check if the series belongs to current namespace being bootstrapped
+	if !namespace.Equal(series.Namespace) {
+		return false
+	}
+
+	ranges, ok := shardsTimeRanges[series.Shard]
+	if !ok {
+		// Not bootstrapping this shard
+		return false
+	}
+
+	blockStart := dp.Timestamp.Truncate(blockSize)
+	blockEnd := blockStart.Add(blockSize)
+	blockRange := xtime.Range{
+		Start: blockStart,
+		End:   blockEnd,
+	}
+	if !ranges.Overlaps(blockRange) {
+		// Data in this block does not match the requested ranges
+		return false
+	}
+
+	return true
+}
+
+func (s *commitLogSource) mergeShard(
+	unmergedShard map[ts.Hash]encodersByTime,
+	blocksPool block.DatabaseBlockPool,
+	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
+	encoderPool encoding.EncoderPool,
+	blopts block.Options,
+) (shardResult result.ShardResult, numShardEmptyErrs int, numErrs int) {
+	shardResult = result.NewShardResult(len(unmergedShard), s.opts.ResultOptions())
+	for _, unmergedBlocks := range unmergedShard {
+		blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
+		for start, unmergedBlock := range unmergedBlocks.encoders {
+			startInNano := time.Unix(0, start)
+			block := blocksPool.Get()
+			if len(unmergedBlock) == 0 {
+				numShardEmptyErrs++
+				continue
+			} else if len(unmergedBlock) == 1 {
+				block.Reset(startInNano, unmergedBlock[0].enc.Discard())
+			} else {
+				readers := make([]io.Reader, len(unmergedBlock))
+				for i := range unmergedBlock {
+					stream := unmergedBlock[i].enc.Stream()
+					readers[i] = stream
+					defer stream.Finalize()
+				}
+
+				iter := multiReaderIteratorPool.Get()
+				iter.Reset(readers)
+
+				var err error
+				enc := encoderPool.Get()
+				enc.Reset(startInNano, blopts.DatabaseBlockAllocSize())
+				for iter.Next() {
+					dp, unit, annotation := iter.Current()
+					encodeErr := enc.Encode(dp, unit, annotation)
+					if encodeErr != nil {
+						err = encodeErr
+						numErrs++
+						break
+					}
+				}
+				if iterErr := iter.Err(); iterErr != nil {
+					if err == nil {
+						err = iter.Err()
+					}
+					numErrs++
+				}
+
+				iter.Close()
+				for i := range unmergedBlock {
+					unmergedBlock[i].enc.Close()
+				}
+
+				if err != nil {
+					continue
+				}
+
+				block.Reset(startInNano, enc.Discard())
+			}
+			blocks.AddBlock(block)
+		}
+		if blocks.Len() > 0 {
+			shardResult.AddSeries(unmergedBlocks.id, blocks)
+		}
+	}
+	return shardResult, numShardEmptyErrs, numErrs
 }
