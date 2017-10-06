@@ -123,7 +123,6 @@ func newCommitLogReader(opts Options) commitLogReader {
 		cancelFunc:   cancelFunc,
 		shutdownChan: make(chan error),
 		metadata: readerMetadata{
-			RWMutex: sync.RWMutex{},
 			decoder: msgpack.NewDecoder(decodingOpts),
 			lookup:  make(map[uint64]Series),
 			wgs:     make(map[uint64]*sync.WaitGroup),
