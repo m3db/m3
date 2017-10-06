@@ -26,7 +26,7 @@ import (
 )
 
 // Options represents the options for bootstrapping from commit logs
-type Options interface {
+type 		Options interface {
 	// Validate validates the options
 	Validate() error
 

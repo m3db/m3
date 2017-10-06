@@ -45,9 +45,9 @@ const decoderInBufChanSize = 100
 var (
 	emptyLogInfo schema.LogInfo
 
-	errCommitLogReaderAlreadyOpen               = errors.New("commit log reader already open")
 	errCommitLogReaderChunkSizeChecksumMismatch = errors.New("commit log reader encountered chunk size checksum mismatch")
 	errCommitLogReaderMissingLogMetadata        = errors.New("commit log reader encountered message missing metadata")
+	errCommitLogReaderIsNotReusable             = errors.New("commit log reader is not reusable")
 )
 
 type commitLogReader interface {
@@ -82,19 +82,20 @@ type readerMetadata struct {
 }
 
 type reader struct {
-	opts         Options
-	numConc      int
-	bytesPool    pool.CheckedBytesPool
-	chunkReader  *chunkReader
-	dataBuffer   []byte
-	logDecoder   encoding.Decoder
-	decoderBufs  []chan decoderArg
-	outBufs      []chan readResponse
-	cancelCtx    context.Context
-	cancelFunc   context.CancelFunc
-	shutdownChan chan error
-	metadata     readerMetadata
-	nextIndex    int
+	opts          Options
+	numConc       int
+	bytesPool     pool.CheckedBytesPool
+	chunkReader   *chunkReader
+	dataBuffer    []byte
+	logDecoder    encoding.Decoder
+	decoderBufs   []chan decoderArg
+	outBufs       []chan readResponse
+	cancelCtx     context.Context
+	cancelFunc    context.CancelFunc
+	shutdownChan  chan error
+	metadata      readerMetadata
+	nextIndex     int
+	hasBeenOpened bool
 }
 
 func newCommitLogReader(opts Options) commitLogReader {
@@ -133,9 +134,11 @@ func newCommitLogReader(opts Options) commitLogReader {
 }
 
 func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
-	if r.chunkReader.fd != nil {
-		return timeZero, 0, 0, errCommitLogReaderAlreadyOpen
+	// Commitlog reader does not currently support being reused
+	if r.hasBeenOpened {
+		return timeZero, 0, 0, errCommitLogReaderIsNotReusable
 	}
+	r.hasBeenOpened = true
 
 	fd, err := os.Open(filePath)
 	if err != nil {
@@ -374,10 +377,14 @@ func (r *reader) readInfo() (schema.LogInfo, error) {
 }
 
 func (r *reader) Close() error {
+	// Background goroutines were never started, safe to close immediately.
+	if r.nextIndex == 0 {
+		return r.close()
+	}
+
 	// Shutdown the readLoop goroutine which will shut down the decoderLoops
 	// and close the fd
 	r.cancelFunc()
-
 	return <-r.shutdownChan
 }
 
@@ -385,13 +392,7 @@ func (r *reader) close() error {
 	if r.chunkReader.fd == nil {
 		return nil
 	}
-	err := r.chunkReader.fd.Close()
-	if err != nil {
-		return err
-	}
-	r.chunkReader.fd = nil
-	r.metadata.lookup = make(map[uint64]Series)
-	return nil
+	return r.chunkReader.fd.Close()
 }
 
 type chunkReader struct {

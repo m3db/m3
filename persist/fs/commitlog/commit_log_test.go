@@ -330,6 +330,43 @@ func TestCommitLogWrite(t *testing.T) {
 	assertCommitLogWritesByIterating(t, commitLog, writes)
 }
 
+func TestCommitLogReaderIsNotReusable(t *testing.T) {
+	opts, scope := newTestOptions(t, overrides{
+		strategy: StrategyWriteWait,
+	})
+	defer cleanup(t, opts)
+
+	commitLog := newTestCommitLog(t, opts)
+
+	writes := []testWrite{
+		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Second, []byte{1, 2, 3}, nil},
+		{testSeries(1, "foo.baz", 150), time.Now(), 456.789, xtime.Second, nil, nil},
+	}
+
+	// Call write sync
+	writeCommitLogs(t, scope, commitLog, writes).Wait()
+
+	// Close the commit log and consequently flush
+	assert.NoError(t, commitLog.Close())
+
+	// Assert writes occurred by reading the commit log
+	assertCommitLogWritesByIterating(t, commitLog, writes)
+
+	// Assert commitlog file exists and retrieve path
+	fsopts := opts.FilesystemOptions()
+	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(files))
+
+	// Assert commitlog cannot be opened more than once
+	reader := newCommitLogReader(opts)
+	_, _, _, err = reader.Open(files[0])
+	assert.NoError(t, err)
+	reader.Close()
+	_, _, _, err = reader.Open(files[0])
+	assert.Equal(t, errCommitLogReaderIsNotReusable, err)
+}
+
 func TestCommitLogWriteBehind(t *testing.T) {
 	opts, scope := newTestOptions(t, overrides{
 		strategy: StrategyWriteBehind,
