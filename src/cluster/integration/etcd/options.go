@@ -26,10 +26,11 @@ import (
 	"github.com/m3db/m3x/instrument"
 )
 
-var (
+const (
 	defaulTimeout    = 5 * time.Second
 	defaultDir       = "etcd.dir"
 	defaultServiceID = "integration.service"
+	defaultEnv       = "integration.env"
 )
 
 type opts struct {
@@ -37,6 +38,7 @@ type opts struct {
 	workingDir  string
 	initTimeout time.Duration
 	serviceID   string
+	env         string
 }
 
 // NewOptions returns a new options
@@ -46,6 +48,7 @@ func NewOptions() Options {
 		workingDir:  defaultDir,
 		initTimeout: defaulTimeout,
 		serviceID:   defaultServiceID,
+		env:         defaultEnv,
 	}
 }
 
@@ -87,4 +90,14 @@ func (o *opts) SetServiceID(value string) Options {
 
 func (o *opts) ServiceID() string {
 	return o.serviceID
+}
+
+func (o *opts) SetEnvironment(value string) Options {
+	oo := *o
+	oo.env = value
+	return &oo
+}
+
+func (o *opts) Environment() string {
+	return o.env
 }

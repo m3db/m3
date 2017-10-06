@@ -125,10 +125,8 @@ func (c *csclient) Store(opts kv.Options) (kv.Store, error) {
 }
 
 func (c *csclient) TxnStore(opts kv.Options) (kv.TxnStore, error) {
-	if err := opts.Validate(); err != nil {
-		return nil, err
-	}
-	if err := validateTopLevelNamespace(opts.Namespace()); err != nil {
+	opts, err := c.sanitizeOptions(opts)
+	if err != nil {
 		return nil, err
 	}
 
@@ -151,6 +149,9 @@ func (c *csclient) createServices(opts services.Options) (services.Services, err
 }
 
 func (c *csclient) createTxnStore(opts kv.Options) (kv.TxnStore, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
 	return c.txnGen(c.opts.Zone(), c.cacheFileFn(), opts.Namespace(), opts.Environment())
 }
 
@@ -300,4 +301,17 @@ func validateTopLevelNamespace(namespace string) error {
 		return errInvalidNamespace
 	}
 	return nil
+}
+
+func (c *csclient) sanitizeOptions(opts kv.Options) (kv.Options, error) {
+	if opts.Environment() == "" {
+		opts = opts.SetEnvironment(c.opts.Env())
+	}
+
+	namespace := opts.Namespace()
+	if namespace == "" {
+		return opts.SetNamespace(kvPrefix), nil
+	}
+
+	return opts, validateTopLevelNamespace(namespace)
 }

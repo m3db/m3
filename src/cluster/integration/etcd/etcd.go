@@ -139,6 +139,7 @@ func (e *embeddedKV) ConfigServiceClient() (client.Client, error) {
 		SetClusters([]etcdclient.Cluster{
 			etcdclient.NewCluster().SetEndpoints(addresses),
 		}).
-		SetService(e.opts.ServiceID())
+		SetService(e.opts.ServiceID()).
+		SetEnv(e.opts.Environment())
 	return etcdclient.NewConfigServiceClient(eopts)
 }
