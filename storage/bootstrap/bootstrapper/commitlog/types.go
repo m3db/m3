@@ -41,4 +41,16 @@ type Options interface {
 
 	// CommitLogOptions returns the commit log options
 	CommitLogOptions() commitlog.Options
+
+	// SetM3TSZEncodingConcurrency sets the concurrency for M3TSZ encoding
+	SetM3TSZEncodingConcurrency(value int) Options
+
+	// M3TSZEncodingConcurrency returns the concurrency for M3TSZ encoding
+	M3TSZEncodingConcurrency() int
+
+	// SetMergeShardConcurrency sets the concurrency for merging shards
+	SetMergeShardsConcurrency(value int) Options
+
+	// MergeShardConcurrency returns the concurrency for merging shards
+	MergeShardsConcurrency() int
 }

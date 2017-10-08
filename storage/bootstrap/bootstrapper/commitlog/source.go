@@ -119,17 +119,16 @@ func (s *commitLogSource) Read(
 		numShards    = len(shardsTimeRanges)
 		unmerged     = []map[ts.Hash]encodersByTime{}
 		unmergedLock = &sync.RWMutex{}
-		// TODO: Add to opts
-		numConc     = uint32(4)
-		bopts       = s.opts.ResultOptions()
-		blopts      = bopts.DatabaseBlockOptions()
-		blockSize   = ns.Options().RetentionOptions().BlockSize()
-		encoderPool = bopts.DatabaseBlockOptions().EncoderPool()
-		workerErrs  = make([]int, numConc, numConc)
+		numConc      = s.opts.M3TSZEncodingConcurrency()
+		bopts        = s.opts.ResultOptions()
+		blopts       = bopts.DatabaseBlockOptions()
+		blockSize    = ns.Options().RetentionOptions().BlockSize()
+		encoderPool  = bopts.DatabaseBlockOptions().EncoderPool()
+		workerErrs   = make([]int, numConc, numConc)
 	)
 
 	encoderChans := []chan encoderArg{}
-	for i := uint32(0); i < numConc; i++ {
+	for i := 0; i < numConc; i++ {
 		encoderChans = append(encoderChans, make(chan encoderArg, encoderChanBufSize))
 	}
 
@@ -177,7 +176,7 @@ func (s *commitLogSource) Read(
 		// approximately numShards / numConc shards. This also means that all
 		// datapoints for a given shard/series will be processed in a serialized
 		// manner.
-		encoderChans[series.Shard%numConc] <- struct {
+		encoderChans[series.Shard%uint32(numConc)] <- struct {
 			series     commitlog.Series
 			dp         ts.Datapoint
 			unit       xtime.Unit
@@ -216,7 +215,7 @@ func (s *commitLogSource) Read(
 	blocksPool := bopts.DatabaseBlockOptions().DatabaseBlockPool()
 	multiReaderIteratorPool := blopts.MultiReaderIteratorPool()
 	// Controls how many shards can be merged in parallel
-	mergeSemaphore := make(chan bool, 4)
+	mergeSemaphore := make(chan bool, s.opts.MergeShardsConcurrency())
 	bootstrapResultLock := sync.Mutex{}
 	wg = &sync.WaitGroup{}
 
