@@ -1,5 +1,5 @@
-hash: c44d4ae50c7bd0c6c041964ca9442def9398debcdb28573732c8981796be3f91
-updated: 2017-09-29T17:42:36.458843873-04:00
+hash: bff29f71ea493a584d1eadf74f79ba28326bd674d1559a1e84383ef594197ddb
+updated: 2017-10-09T09:46:05.297155788-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -122,7 +122,7 @@ imports:
 - name: github.com/karlseguin/ccache
   version: a2d62155777b39595c825ed3824279e642a5db3c
 - name: github.com/m3db/m3cluster
-  version: d9fd14a38efe2eaf43b9a52350055fbd2dac06ec
+  version: b9650bbb69955b5daf276cd840bd36cc986e9dc9
   subpackages:
   - client
   - client/etcd
@@ -223,7 +223,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: be9e53c77349ae2dd4b8c03a6dc20ed9a88b9927
+  version: 95078a8f10668bd1fa73ae46761cdc58d25436b8
   subpackages:
   - m3
   - m3/customtransports
@@ -252,6 +252,8 @@ imports:
   - trace
 - name: golang.org/x/sys
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  subpackages:
+  - unix
 - name: golang.org/x/time
   version: a4bde12657593d5e90d0533a3e4fd95e635124cb
   subpackages:

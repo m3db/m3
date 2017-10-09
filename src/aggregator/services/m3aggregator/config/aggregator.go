@@ -52,7 +52,6 @@ var (
 )
 
 // AggregatorConfiguration contains aggregator configuration.
-// TODO(xichen): consolidate the kv stores.
 type AggregatorConfiguration struct {
 	// Default aggregation types for counter metrics.
 	CounterAggregationTypes []policy.AggregationType `yaml:"counterAggregationTypes" validate:"nonzero"`
@@ -119,9 +118,6 @@ type AggregatorConfiguration struct {
 
 	// Client configuration for key value store.
 	KVClient kvClientConfiguration `yaml:"kvClient" validate:"nonzero"`
-
-	// KV configuration.
-	KVConfig kv.Configuration `yaml:"kvConfig"`
 
 	// Placement manager.
 	PlacementManager placementManagerConfiguration `yaml:"placementManager"`
@@ -246,15 +242,12 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 		return nil, err
 	}
 
-	// The store is shared between placement manager and flush times manager.
-	store, err := client.Store(c.KVConfig.NewOptions())
+	// Set placement manager.
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("placement-manager"))
+	placementManager, err := c.PlacementManager.NewPlacementManager(client, instanceID, iOpts)
 	if err != nil {
 		return nil, err
 	}
-
-	// Set placement manager.
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("placement-manager"))
-	placementManager := c.PlacementManager.NewPlacementManager(instanceID, store, iOpts)
 	opts = opts.SetPlacementManager(placementManager)
 
 	// Set sharding function.
@@ -283,15 +276,19 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 
 	// Set flush times manager.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("flush-times-manager"))
-	flushTimesManager := c.FlushTimesManager.NewFlushTimesManager(store, iOpts)
+	flushTimesManager, err := c.FlushTimesManager.NewFlushTimesManager(client, iOpts)
+	if err != nil {
+		return nil, err
+	}
 	opts = opts.SetFlushTimesManager(flushTimesManager)
 
 	// Set election manager.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("election-manager"))
+	placementNamespace := c.PlacementManager.KVConfig.Namespace
 	electionManager, err := c.ElectionManager.NewElectionManager(
 		client,
 		instanceID,
-		c.KVConfig.Namespace,
+		placementNamespace,
 		placementManager,
 		flushTimesManager,
 		iOpts,
@@ -505,14 +502,23 @@ func (c *kvClientConfiguration) NewKVClient(instrumentOpts instrument.Options) (
 }
 
 type placementManagerConfiguration struct {
+	KVConfig         kv.Configuration               `yaml:"kvConfig"`
 	PlacementWatcher placement.WatcherConfiguration `yaml:"placementWatcher"`
 }
 
 func (c placementManagerConfiguration) NewPlacementManager(
+	client client.Client,
 	instanceID string,
-	store kv.Store,
 	instrumentOpts instrument.Options,
-) aggregator.PlacementManager {
+) (aggregator.PlacementManager, error) {
+	kvOpts, err := c.KVConfig.NewOptions()
+	if err != nil {
+		return nil, err
+	}
+	store, err := client.Store(kvOpts)
+	if err != nil {
+		return nil, err
+	}
 	scope := instrumentOpts.MetricsScope()
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("placement-watcher"))
 	placementWatcherOpts := c.PlacementWatcher.NewOptions(store, iOpts)
@@ -521,10 +527,13 @@ func (c placementManagerConfiguration) NewPlacementManager(
 		SetInstrumentOptions(instrumentOpts).
 		SetInstanceID(instanceID).
 		SetStagedPlacementWatcher(placementWatcher)
-	return aggregator.NewPlacementManager(placementManagerOpts)
+	return aggregator.NewPlacementManager(placementManagerOpts), nil
 }
 
 type flushTimesManagerConfiguration struct {
+	// KV Configuration.
+	KVConfig kv.Configuration `yaml:"kvConfig"`
+
 	// Flush times key format.
 	FlushTimesKeyFmt string `yaml:"flushTimesKeyFmt" validate:"nonzero"`
 
@@ -533,9 +542,17 @@ type flushTimesManagerConfiguration struct {
 }
 
 func (c flushTimesManagerConfiguration) NewFlushTimesManager(
-	store kv.Store,
+	client client.Client,
 	instrumentOpts instrument.Options,
-) aggregator.FlushTimesManager {
+) (aggregator.FlushTimesManager, error) {
+	kvOpts, err := c.KVConfig.NewOptions()
+	if err != nil {
+		return nil, err
+	}
+	store, err := client.Store(kvOpts)
+	if err != nil {
+		return nil, err
+	}
 	scope := instrumentOpts.MetricsScope()
 	retrier := c.FlushTimesPersistRetrier.NewRetrier(scope.SubScope("flush-times-persist"))
 	flushTimesManagerOpts := aggregator.NewFlushTimesManagerOptions().
@@ -543,7 +560,7 @@ func (c flushTimesManagerConfiguration) NewFlushTimesManager(
 		SetFlushTimesKeyFmt(c.FlushTimesKeyFmt).
 		SetFlushTimesStore(store).
 		SetFlushTimesPersistRetrier(retrier)
-	return aggregator.NewFlushTimesManager(flushTimesManagerOpts)
+	return aggregator.NewFlushTimesManager(flushTimesManagerOpts), nil
 }
 
 type electionManagerConfiguration struct {
@@ -561,7 +578,7 @@ type electionManagerConfiguration struct {
 func (c electionManagerConfiguration) NewElectionManager(
 	client client.Client,
 	instanceID string,
-	kvNamespace string,
+	placementNamespace string,
 	placementManager aggregator.PlacementManager,
 	flushTimesManager aggregator.FlushTimesManager,
 	instrumentOpts instrument.Options,
@@ -571,7 +588,7 @@ func (c electionManagerConfiguration) NewElectionManager(
 		return nil, err
 	}
 	serviceID := c.ServiceID.NewServiceID()
-	namespaceOpts := services.NewNamespaceOptions().SetPlacementNamespace(kvNamespace)
+	namespaceOpts := services.NewNamespaceOptions().SetPlacementNamespace(placementNamespace)
 	serviceOpts := services.NewOptions().SetNamespaceOptions(namespaceOpts)
 	svcs, err := client.Services(serviceOpts)
 	if err != nil {
