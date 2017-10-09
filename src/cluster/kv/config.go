@@ -20,13 +20,28 @@
 
 package kv
 
+import "github.com/m3db/m3x/log"
+
 // Configuration is the config for kv options.
 type Configuration struct {
-	Environment string `yaml:"environment"`
-	Namespace   string `yaml:"namespace"`
+	Logging     *log.Configuration `yaml:"logging"`
+	Environment string             `yaml:"environment"`
+	Namespace   string             `yaml:"namespace"`
 }
 
 // NewOptions creates a kv.Options.
-func (cfg Configuration) NewOptions() Options {
-	return NewOptions().SetEnvironment(cfg.Environment).SetNamespace(cfg.Namespace)
+func (cfg Configuration) NewOptions() (Options, error) {
+	var logger log.Logger
+	if cfg.Logging != nil {
+		var err error
+		logger, err = cfg.Logging.BuildLogger()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return NewOptions().
+		SetLogger(logger).
+		SetEnvironment(cfg.Environment).
+		SetNamespace(cfg.Namespace), nil
 }

@@ -23,6 +23,7 @@ package kv
 import (
 	"errors"
 
+	"github.com/m3db/m3x/log"
 	xwatch "github.com/m3db/m3x/watch"
 )
 
@@ -101,11 +102,21 @@ func valueFromWatch(value interface{}) Value {
 type options struct {
 	namespace string
 	env       string
+	logger    log.Logger
 }
 
 // NewOptions creates a new kv Options.
 func NewOptions() Options {
 	return options{}
+}
+
+func (opts options) Logger() log.Logger {
+	return opts.logger
+}
+
+func (opts options) SetLogger(logger log.Logger) Options {
+	opts.logger = logger
+	return opts
 }
 
 func (opts options) Namespace() string {

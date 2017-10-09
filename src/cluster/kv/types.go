@@ -23,6 +23,8 @@ package kv
 import (
 	"errors"
 
+	"github.com/m3db/m3x/log"
+
 	"github.com/golang/protobuf/proto"
 )
 
@@ -97,6 +99,12 @@ type ValueWatchable interface {
 
 // Options provides a set of options to config a KV store.
 type Options interface {
+	// Logger returns the logger of the KV store.
+	Logger() log.Logger
+
+	// SetLogger sets the logger of the KV store.
+	SetLogger(logger log.Logger) Options
+
 	// Namespace returns the namespace of the KV store.
 	Namespace() string
 
