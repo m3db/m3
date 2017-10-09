@@ -124,7 +124,7 @@ func (s *commitLogSource) Read(
 		blopts       = bopts.DatabaseBlockOptions()
 		blockSize    = ns.Options().RetentionOptions().BlockSize()
 		encoderPool  = bopts.DatabaseBlockOptions().EncoderPool()
-		workerErrs   = make([]int, numConc, numConc)
+		workerErrs   = make([]int, numConc)
 	)
 
 	encoderChans := []chan encoderArg{}
@@ -198,41 +198,7 @@ func (s *commitLogSource) Read(
 	wg.Wait()
 	s.printM3TSZEncodingOutcome(workerErrs, iter)
 
-	shardErrs := make([]int, numShards, numShards)
-	shardEmptyErrs := make([]int, numShards, numShards)
-	bootstrapResult := result.NewBootstrapResult()
-	blocksPool := bopts.DatabaseBlockOptions().DatabaseBlockPool()
-	multiReaderIteratorPool := blopts.MultiReaderIteratorPool()
-	// Controls how many shards can be merged in parallel
-	mergeSemaphore := make(chan bool, s.opts.MergeShardsConcurrency())
-	bootstrapResultLock := sync.Mutex{}
-	wg = &sync.WaitGroup{}
-
-	for shard, unmergedShard := range unmerged {
-		mergeSemaphore <- true
-		wg.Add(1)
-		go func(shard int, unmergedShard map[ts.Hash]encodersByTime) {
-			var shardResult result.ShardResult
-			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShard(
-				unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blopts)
-			if len(shardResult.AllSeries()) > 0 {
-				// Prevent race conditions while updating bootstrapResult from multiple go-routines
-				bootstrapResultLock.Lock()
-				// Shard is a slice index so conversion to uint32 is safe
-				bootstrapResult.Add(uint32(shard), shardResult, nil)
-				bootstrapResultLock.Unlock()
-			}
-			<-mergeSemaphore
-			wg.Done()
-		}(shard, unmergedShard)
-	}
-
-	// Wait for all merge goroutines to complete
-	wg.Wait()
-
-	s.printMergeShardsOutcome(shardErrs, shardEmptyErrs)
-
-	return bootstrapResult, nil
+	return s.mergeShards(numShards, bopts, blopts, encoderPool, unmerged), nil
 }
 
 func (s *commitLogSource) startM3TSZEncodingWorker(
@@ -377,6 +343,48 @@ func (s *commitLogSource) printM3TSZEncodingOutcome(workerErrs []int, iter commi
 	if err := iter.Err(); err != nil {
 		s.log.Errorf("error reading commit log: %v", err)
 	}
+}
+
+func (s *commitLogSource) mergeShards(
+	numShards int,
+	bopts result.Options,
+	blopts block.Options,
+	encoderPool encoding.EncoderPool,
+	unmerged []map[ts.Hash]encodersByTime,
+) result.BootstrapResult {
+	shardErrs := make([]int, numShards, numShards)
+	shardEmptyErrs := make([]int, numShards, numShards)
+	bootstrapResult := result.NewBootstrapResult()
+	blocksPool := bopts.DatabaseBlockOptions().DatabaseBlockPool()
+	multiReaderIteratorPool := blopts.MultiReaderIteratorPool()
+	// Controls how many shards can be merged in parallel
+	mergeSemaphore := make(chan bool, s.opts.MergeShardsConcurrency())
+	bootstrapResultLock := sync.Mutex{}
+	wg := &sync.WaitGroup{}
+
+	for shard, unmergedShard := range unmerged {
+		mergeSemaphore <- true
+		wg.Add(1)
+		go func(shard int, unmergedShard map[ts.Hash]encodersByTime) {
+			var shardResult result.ShardResult
+			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShard(
+				unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blopts)
+			if len(shardResult.AllSeries()) > 0 {
+				// Prevent race conditions while updating bootstrapResult from multiple go-routines
+				bootstrapResultLock.Lock()
+				// Shard is a slice index so conversion to uint32 is safe
+				bootstrapResult.Add(uint32(shard), shardResult, nil)
+				bootstrapResultLock.Unlock()
+			}
+			<-mergeSemaphore
+			wg.Done()
+		}(shard, unmergedShard)
+	}
+
+	// Wait for all merge goroutines to complete
+	wg.Wait()
+	s.printMergeShardsOutcome(shardErrs, shardEmptyErrs)
+	return bootstrapResult
 }
 
 func (s *commitLogSource) mergeShard(
