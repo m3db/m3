@@ -166,9 +166,7 @@ func (s *commitLogSource) Read(
 			unmergedLock.Lock()
 			oldUnmerged := unmerged
 			unmerged = make([]map[ts.Hash]encodersByTime, series.Shard+1)
-			for i, hashToEncoderMap := range oldUnmerged {
-				unmerged[i] = hashToEncoderMap
-			}
+			copy(unmerged, oldUnmerged)
 			unmergedLock.Unlock()
 		}
 
@@ -325,11 +323,8 @@ func (s *commitLogSource) shouldEncodeSeries(
 		Start: blockStart,
 		End:   blockEnd,
 	}
-	if !ranges.Overlaps(blockRange) {
-		return false
-	}
 
-	return true
+	return ranges.Overlaps(blockRange)
 }
 
 func (s *commitLogSource) printM3TSZEncodingOutcome(workerErrs []int, iter commitlog.Iterator) {
@@ -352,8 +347,8 @@ func (s *commitLogSource) mergeShards(
 	encoderPool encoding.EncoderPool,
 	unmerged []map[ts.Hash]encodersByTime,
 ) result.BootstrapResult {
-	shardErrs := make([]int, numShards, numShards)
-	shardEmptyErrs := make([]int, numShards, numShards)
+	shardErrs := make([]int, numShards)
+	shardEmptyErrs := make([]int, numShards)
 	bootstrapResult := result.NewBootstrapResult()
 	blocksPool := bopts.DatabaseBlockOptions().DatabaseBlockPool()
 	multiReaderIteratorPool := blopts.MultiReaderIteratorPool()
