@@ -171,7 +171,17 @@ func (r *reader) Read() (
 		}
 	}
 	// Data is written into these channels in round-robin fashion, so reading them
-	// one at a time in the same order results in an ordered stream.
+	// one at a time in the same order results in an ordered stream. I.E with a
+	// concurrency of two then we'll start with an initial structure like this:
+	// 		r.outBufs:
+	// 			[0]: []
+	// 			[1]: []
+	// After several reads from the commitlog we end up with:
+	// 		r.outBufs:
+	// 			[0]: [a, c]
+	// 			[1]: [b, d]
+	// If we now read from the outBufs in round-robin order (0, 1, 0, 1) we will
+	// end up with the correct global ordering: a, b, c, d
 	rr, ok := <-r.outBufs[r.nextIndex%r.numConc]
 	if !ok {
 		return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
