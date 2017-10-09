@@ -328,7 +328,6 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 	}
 }
 
-// Caller is responsible for calling DecRef()
 func (r *reader) readChunk() (checked.Bytes, error) {
 	// Read size of message
 	size, err := binary.ReadUvarint(r.chunkReader)

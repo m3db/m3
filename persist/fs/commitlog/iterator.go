@@ -172,9 +172,11 @@ func (i *iterator) nextReader() bool {
 	return true
 }
 
-func (i *iterator) closeAndResetReader() {
+func (i *iterator) closeAndResetReader() error {
 	if i.reader != nil {
-		i.reader.Close()
+		err := i.reader.Close()
 		i.reader = nil
+		return err
 	}
+	return nil
 }
