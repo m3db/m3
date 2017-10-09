@@ -76,9 +76,8 @@ type decoderArg struct {
 
 type readerMetadata struct {
 	sync.RWMutex
-	decoder encoding.Decoder
-	lookup  map[uint64]Series
-	wgs     map[uint64]*sync.WaitGroup
+	lookup map[uint64]Series
+	wgs    map[uint64]*sync.WaitGroup
 }
 
 type reader struct {
@@ -92,7 +91,7 @@ type reader struct {
 	outBufs       []chan readResponse
 	cancelCtx     context.Context
 	cancelFunc    context.CancelFunc
-	shutdownChan  chan error
+	shutdownCh    chan error
 	metadata      readerMetadata
 	nextIndex     int
 	hasBeenOpened bool
@@ -105,28 +104,27 @@ func newCommitLogReader(opts Options) commitLogReader {
 	numConc := opts.ReadConcurrency()
 	decoderBufs := make([]chan decoderArg, 0, numConc)
 	for i := 0; i < numConc; i++ {
-		decoderBufs[i] = make(chan decoderArg, decoderInBufChanSize)
+		decoderBufs = append(decoderBufs, make(chan decoderArg, decoderInBufChanSize))
 	}
 	outBufs := make([]chan readResponse, 0, numConc)
 	for i := 0; i < numConc; i++ {
-		outBufs[i] = make(chan readResponse, decoderInBufChanSize)
+		outBufs = append(outBufs, make(chan readResponse, decoderInBufChanSize))
 	}
 
 	reader := &reader{
-		opts:         opts,
-		numConc:      numConc,
-		bytesPool:    opts.BytesPool(),
-		chunkReader:  newChunkReader(opts.FlushSize()),
-		logDecoder:   msgpack.NewDecoder(decodingOpts),
-		decoderBufs:  decoderBufs,
-		outBufs:      outBufs,
-		cancelCtx:    cancelCtx,
-		cancelFunc:   cancelFunc,
-		shutdownChan: make(chan error),
+		opts:        opts,
+		numConc:     numConc,
+		bytesPool:   opts.BytesPool(),
+		chunkReader: newChunkReader(opts.FlushSize()),
+		logDecoder:  msgpack.NewDecoder(decodingOpts),
+		decoderBufs: decoderBufs,
+		outBufs:     outBufs,
+		cancelCtx:   cancelCtx,
+		cancelFunc:  cancelFunc,
+		shutdownCh:  make(chan error),
 		metadata: readerMetadata{
-			decoder: msgpack.NewDecoder(decodingOpts),
-			lookup:  make(map[uint64]Series),
-			wgs:     make(map[uint64]*sync.WaitGroup),
+			lookup: make(map[uint64]Series),
+			wgs:    make(map[uint64]*sync.WaitGroup),
 		},
 		nextIndex: 0,
 	}
@@ -187,14 +185,12 @@ func (r *reader) readLoop() {
 	for {
 		select {
 		case <-r.cancelCtx.Done():
-			for _, decoderBuf := range r.decoderBufs {
-				close(decoderBuf)
-			}
-			r.shutdownChan <- r.close()
+			r.shutdown()
 			return
 		default:
 			if eofFound {
-				continue
+				r.shutdown()
+				return
 			}
 			data, err := r.readChunk()
 			if err == io.EOF {
@@ -211,6 +207,13 @@ func (r *reader) readLoop() {
 			index++
 		}
 	}
+}
+
+func (r *reader) shutdown() {
+	for _, decoderBuf := range r.decoderBufs {
+		close(decoderBuf)
+	}
+	r.shutdownCh <- r.close()
 }
 
 func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse) {
@@ -384,7 +387,7 @@ func (r *reader) Close() error {
 	// Shutdown the readLoop goroutine which will shut down the decoderLoops
 	// and close the fd
 	r.cancelFunc()
-	return <-r.shutdownChan
+	return <-r.shutdownCh
 }
 
 func (r *reader) close() error {
