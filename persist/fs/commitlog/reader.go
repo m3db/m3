@@ -103,13 +103,13 @@ func newCommitLogReader(opts Options) commitLogReader {
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 
 	numConc := opts.ReadConcurrency()
-	decoderBufs := []chan decoderArg{}
+	decoderBufs := make([]chan decoderArg, 0, numConc)
 	for i := 0; i < numConc; i++ {
-		decoderBufs = append(decoderBufs, make(chan decoderArg, decoderInBufChanSize))
+		decoderBufs[i] = make(chan decoderArg, decoderInBufChanSize)
 	}
-	outBufs := []chan readResponse{}
+	outBufs := make([]chan readResponse, 0, numConc)
 	for i := 0; i < numConc; i++ {
-		outBufs = append(outBufs, make(chan readResponse, decoderInBufChanSize))
+		outBufs[i] = make(chan readResponse, decoderInBufChanSize)
 	}
 
 	reader := &reader{
