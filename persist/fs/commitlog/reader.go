@@ -166,7 +166,8 @@ func (r *reader) Read() (
 	if r.nextIndex == 0 {
 		go r.readLoop()
 		for i, decoderBuf := range r.decoderBufs {
-			go r.decoderLoop(decoderBuf, r.outBufs[i])
+			localDecoderBuf, outBuf := decoderBuf, r.outBufs[i]
+			go r.decoderLoop(localDecoderBuf, outBuf)
 		}
 	}
 	// Data is written into these channels in round-robin fashion, so reading them
