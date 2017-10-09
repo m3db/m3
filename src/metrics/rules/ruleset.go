@@ -28,6 +28,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	metricID "github.com/m3db/m3metrics/metric/id"
@@ -574,7 +575,7 @@ func NewRuleSetFromSchema(version int, rs *schema.RuleSet, opts Options) (RuleSe
 func NewEmptyRuleSet(namespaceName string, meta UpdateMetadata) MutableRuleSet {
 	rs := &ruleSet{
 		uuid:         uuid.NewUUID().String(),
-		version:      1,
+		version:      kv.UninitializedVersion,
 		namespace:    []byte(namespaceName),
 		tombstoned:   false,
 		mappingRules: make([]*mappingRule, 0),
