@@ -108,7 +108,8 @@ type NamespaceView struct {
 	Tombstoned        bool
 }
 
-func (n Namespace) namespaceView(snapshotIdx int) (*NamespaceView, error) {
+// NamespaceView returns the view representation of a namespace object.
+func (n Namespace) NamespaceView(snapshotIdx int) (*NamespaceView, error) {
 	if snapshotIdx < 0 || snapshotIdx >= len(n.snapshots) {
 		return nil, errNamespaceSnapshotIndexOutOfRange
 	}
@@ -218,10 +219,11 @@ type NamespacesView struct {
 	Namespaces []*NamespaceView
 }
 
-func (nss Namespaces) namespacesView() (*NamespacesView, error) {
+// NamespacesView returns a view representation of a given Namespaces object.
+func (nss Namespaces) NamespacesView() (*NamespacesView, error) {
 	namespaces := make([]*NamespaceView, len(nss.namespaces))
 	for i, n := range nss.namespaces {
-		ns, err := n.namespaceView(len(n.snapshots) - 1)
+		ns, err := n.NamespaceView(len(n.snapshots) - 1)
 		if err != nil {
 			return nil, err
 		}
@@ -291,11 +293,14 @@ func (nss *Namespaces) Namespace(name string) (*Namespace, error) {
 	return res, nil
 }
 
-// AddNamespace adds a new namespace to the namespaces structure and persists it
-func (nss *Namespaces) AddNamespace(nsName string) error {
+// AddNamespace adds a new namespace to the namespaces structure and persists it.
+// This function returns a boolean indicating whether or not the namespace was revived.
+// The revived flag should be used to decided if the corresponding" ruleset should also
+// be revived.
+func (nss *Namespaces) AddNamespace(nsName string) (bool, error) {
 	existing, err := nss.Namespace(nsName)
 	if err != nil && err != errNamespaceNotFound {
-		return fmt.Errorf(namespaceActionErrorFmt, "add", nsName, err)
+		return false, fmt.Errorf(namespaceActionErrorFmt, "add", nsName, err)
 	}
 
 	// Brand new namespace
@@ -311,15 +316,15 @@ func (nss *Namespaces) AddNamespace(nsName string) error {
 		}
 
 		nss.namespaces = append(nss.namespaces, ns)
-		return nil
+		return false, nil
 	}
 
 	// Revive the namespace
 	if err = existing.revive(); err != nil {
-		return fmt.Errorf(namespaceActionErrorFmt, "revive", nsName, err)
+		return false, fmt.Errorf(namespaceActionErrorFmt, "revive", nsName, err)
 	}
 
-	return nil
+	return true, nil
 }
 
 // DeleteNamespace tombstones the given namespace mapping it to the given RuleSet version + 1

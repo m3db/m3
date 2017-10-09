@@ -344,7 +344,8 @@ func TestNamespaceAdd(t *testing.T) {
 	require.NoError(t, err)
 	nssClone := nss.Clone()
 
-	err = nssClone.AddNamespace("bar")
+	revived, err := nssClone.AddNamespace("bar")
+	require.False(t, revived)
 	require.Equal(t, nss.namespaces[0], nssClone.namespaces[0])
 	// require.False(t, &nss.namespaces[0] == &nssClone.namespaces[0])
 	require.False(t, &nss.namespaces[0].snapshots[0] == &nssClone.namespaces[0].snapshots[0])
@@ -374,8 +375,9 @@ func TestNamespaceAddDup(t *testing.T) {
 	nss, err := NewNamespaces(1, testNss)
 	require.NoError(t, err)
 
-	err = nss.AddNamespace("foo")
+	revived, err := nss.AddNamespace("foo")
 	require.Error(t, err)
+	require.False(t, revived)
 }
 
 func TestNamespaceRevive(t *testing.T) {
@@ -402,8 +404,9 @@ func TestNamespaceRevive(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ns.Tombstoned())
 
-	err = nss.AddNamespace("foo")
+	revived, err := nss.AddNamespace("foo")
 	require.NoError(t, err)
+	require.True(t, revived)
 
 	ns, err = nss.Namespace("foo")
 	require.NoError(t, err)
@@ -553,7 +556,7 @@ func TestNamespacesView(t *testing.T) {
 		},
 	}
 
-	actual, err := nss.namespacesView()
+	actual, err := nss.NamespacesView()
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
@@ -573,7 +576,7 @@ func TestNamespaceView(t *testing.T) {
 		Tombstoned:        true,
 	}
 
-	actual, err := n.namespaceView(1)
+	actual, err := n.NamespaceView(1)
 	require.NoError(t, err)
 	require.Equal(t, actual, expected)
 }
@@ -589,7 +592,7 @@ func TestNamespaceViewError(t *testing.T) {
 
 	badIdx := []int{-2, 2, 30}
 	for _, i := range badIdx {
-		actual, err := n.namespaceView(i)
+		actual, err := n.NamespaceView(i)
 		require.Error(t, err)
 		require.Nil(t, actual)
 	}

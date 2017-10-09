@@ -1091,12 +1091,18 @@ func (e RuleConflictError) Error() string { return e.msg }
 
 func (rs ruleSet) validateMappingRuleUpdate(mrv MappingRuleView) error {
 	for _, m := range rs.mappingRules {
+		// Ignore tombstoned.
 		if m.Tombstoned() {
 			continue
 		}
-		if n, err := m.Name(); err != nil {
-			continue
-		} else if n == mrv.Name {
+
+		n, err := m.Name()
+		if err != nil {
+			return err
+		}
+
+		// If the rule getting updated keeps its name, that is fine.
+		if n == mrv.Name && m.uuid != mrv.ID {
 			return RuleConflictError{msg: fmt.Sprintf("Rule with name: %s already exists", n), ConflictRuleUUID: m.uuid}
 		}
 	}
@@ -1106,19 +1112,22 @@ func (rs ruleSet) validateMappingRuleUpdate(mrv MappingRuleView) error {
 
 func (rs ruleSet) validateRollupRuleUpdate(rrv RollupRuleView) error {
 	for _, r := range rs.rollupRules {
+		// Ignore tombstoned.
 		if r.Tombstoned() {
 			continue
 		}
 
-		if n, err := r.Name(); err != nil {
-			continue
-		} else if n == rrv.Name {
+		n, err := r.Name()
+		if err != nil {
+			return err
+		}
+
+		// If the rule getting updated keeps its name, that is fine.
+		if n == rrv.Name && r.uuid != rrv.ID {
 			return RuleConflictError{msg: fmt.Sprintf("Rule with name: %s already exists", n), ConflictRuleUUID: r.uuid}
 		}
 
-		if len(r.snapshots) == 0 {
-			continue
-		}
+		// We've already checked that some snapshots exist by checking the name.
 		latestSnapshot := r.snapshots[len(r.snapshots)-1]
 		for _, t1 := range latestSnapshot.targets {
 			for _, t2 := range rrv.Targets {
