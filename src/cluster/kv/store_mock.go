@@ -26,6 +26,7 @@ package kv
 import (
 	gomock "github.com/golang/mock/gomock"
 	proto "github.com/golang/protobuf/proto"
+	log "github.com/m3db/m3x/log"
 )
 
 // Mock of Value interface
@@ -228,6 +229,26 @@ func NewMockOptions(ctrl *gomock.Controller) *MockOptions {
 
 func (_m *MockOptions) EXPECT() *_MockOptionsRecorder {
 	return _m.recorder
+}
+
+func (_m *MockOptions) Logger() log.Logger {
+	ret := _m.ctrl.Call(_m, "Logger")
+	ret0, _ := ret[0].(log.Logger)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) Logger() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Logger")
+}
+
+func (_m *MockOptions) SetLogger(logger log.Logger) Options {
+	ret := _m.ctrl.Call(_m, "SetLogger", logger)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetLogger(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetLogger", arg0)
 }
 
 func (_m *MockOptions) Namespace() string {

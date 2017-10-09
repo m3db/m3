@@ -152,19 +152,24 @@ func (c *csclient) createTxnStore(opts kv.Options) (kv.TxnStore, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	return c.txnGen(c.opts.Zone(), c.cacheFileFn(), opts.Namespace(), opts.Environment())
+	return c.txnGen(c.opts.Zone(), c.cacheFileFn(), opts.Logger(), opts.Namespace(), opts.Environment())
 }
 
 func (c *csclient) kvGen(fn cacheFileForZoneFn) etcdsd.KVGen {
 	return etcdsd.KVGen(func(zone string) (kv.Store, error) {
-		return c.txnGen(zone, fn)
+		return c.txnGen(zone, fn, c.logger)
 	})
 }
 
-func (c *csclient) newkvOptions(zone string, cacheFileFn cacheFileForZoneFn, namespaces ...string) etcdkv.Options {
+func (c *csclient) newkvOptions(
+	zone string,
+	cacheFileFn cacheFileForZoneFn,
+	logger log.Logger,
+	namespaces ...string,
+) etcdkv.Options {
 	opts := etcdkv.NewOptions().
 		SetInstrumentsOptions(instrument.NewOptions().
-			SetLogger(c.logger).
+			SetLogger(logger).
 			SetMetricsScope(c.kvScope)).
 		SetCacheFileFn(cacheFileFn(zone))
 
@@ -177,7 +182,12 @@ func (c *csclient) newkvOptions(zone string, cacheFileFn cacheFileForZoneFn, nam
 	return opts
 }
 
-func (c *csclient) txnGen(zone string, cacheFileFn cacheFileForZoneFn, namespaces ...string) (kv.TxnStore, error) {
+func (c *csclient) txnGen(
+	zone string,
+	cacheFileFn cacheFileForZoneFn,
+	logger log.Logger,
+	namespaces ...string,
+) (kv.TxnStore, error) {
 	cli, err := c.etcdClientGen(zone)
 	if err != nil {
 		return nil, err
@@ -186,7 +196,7 @@ func (c *csclient) txnGen(zone string, cacheFileFn cacheFileForZoneFn, namespace
 	return etcdkv.NewStore(
 		cli.KV,
 		cli.Watcher,
-		c.newkvOptions(zone, cacheFileFn, namespaces...),
+		c.newkvOptions(zone, cacheFileFn, logger, namespaces...),
 	)
 }
 
@@ -304,6 +314,10 @@ func validateTopLevelNamespace(namespace string) error {
 }
 
 func (c *csclient) sanitizeOptions(opts kv.Options) (kv.Options, error) {
+	if opts.Logger() == nil {
+		opts = opts.SetLogger(c.logger)
+	}
+
 	if opts.Environment() == "" {
 		opts = opts.SetEnvironment(c.opts.Env())
 	}
