@@ -61,6 +61,7 @@ var (
 	errBlockSizePositive              = errors.New("block size must be a positive duration")
 	errRetentionPeriodPositive        = errors.New("retention period must be a positive duration")
 	errRetentionGreaterEqualBlockSize = errors.New("retention period must be >= block size")
+	errReadConcurrencyPositive        = errors.New("read concurrency must be a positive integer")
 )
 
 type options struct {
@@ -110,6 +111,9 @@ func (o *options) Validate() error {
 	}
 	if o.RetentionPeriod() < o.BlockSize() {
 		return errRetentionGreaterEqualBlockSize
+	}
+	if o.ReadConcurrency() <= 0 {
+		return errReadConcurrencyPositive
 	}
 	return nil
 }
