@@ -183,6 +183,8 @@ func (r *reader) readLoop() {
 	index := 0
 	eofFound := false
 	for {
+		// Return's after calls to r.shutdown() are important otherwise we'll try
+		// and close the same channel twice and panic
 		select {
 		case <-r.cancelCtx.Done():
 			r.shutdown()
