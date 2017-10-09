@@ -231,21 +231,7 @@ func (s *commitLogSource) Read(
 	// Wait for all merge goroutines to complete
 	wg.Wait()
 
-	errSum = 0
-	for _, numErrs := range shardErrs {
-		errSum += numErrs
-	}
-	if errSum > 0 {
-		s.log.Errorf("error bootstrapping from commit log: %d merge out of order errors", errSum)
-	}
-
-	emptyErrSum := 0
-	for _, numEmptyErr := range shardEmptyErrs {
-		emptyErrSum += numEmptyErr
-	}
-	if emptyErrSum > 0 {
-		s.log.Errorf("error bootstrapping from commit log: %d empty unmerged blocks errors", emptyErrSum)
-	}
+	s.printMergeShardsOutcome(shardErrs, shardEmptyErrs)
 
 	return bootstrapResult, nil
 }
@@ -460,4 +446,22 @@ func (s *commitLogSource) mergeShard(
 		}
 	}
 	return shardResult, numShardEmptyErrs, numErrs
+}
+
+func (s *commitLogSource) printMergeShardsOutcome(shardErrs []int, shardEmptyErrs []int) {
+	errSum := 0
+	for _, numErrs := range shardErrs {
+		errSum += numErrs
+	}
+	if errSum > 0 {
+		s.log.Errorf("error bootstrapping from commit log: %d merge out of order errors", errSum)
+	}
+
+	emptyErrSum := 0
+	for _, numEmptyErr := range shardEmptyErrs {
+		emptyErrSum += numEmptyErr
+	}
+	if emptyErrSum > 0 {
+		s.log.Errorf("error bootstrapping from commit log: %d empty unmerged blocks errors", emptyErrSum)
+	}
 }
