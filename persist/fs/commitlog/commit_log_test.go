@@ -30,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
@@ -331,6 +332,9 @@ func TestCommitLogWrite(t *testing.T) {
 }
 
 func TestCommitLogReaderIsNotReusable(t *testing.T) {
+	// Make sure we're not leaking goroutines
+	defer leaktest.CheckTimeout(t, time.Second)()
+
 	opts, scope := newTestOptions(t, overrides{
 		strategy: StrategyWriteWait,
 	})
