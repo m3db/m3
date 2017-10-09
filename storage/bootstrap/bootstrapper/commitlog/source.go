@@ -196,7 +196,6 @@ func (s *commitLogSource) Read(
 
 	// Block until all data has been read and encoded by the worker goroutines
 	wg.Wait()
-
 	s.printM3TSZEncodingOutcome(workerErrs, iter)
 
 	shardErrs := make([]int, numShards, numShards)
@@ -239,7 +238,7 @@ func (s *commitLogSource) Read(
 func (s *commitLogSource) startM3TSZEncodingWorker(
 	workerNum int,
 	ec <-chan encoderArg,
-	// Pass as pointer so slice resizing is reflected
+	// Pass as pointer so slice resizing is reflected elsewhere
 	unmergedPtr *[]map[ts.Hash]encodersByTime,
 	unmergedLock *sync.RWMutex,
 	encoderPool encoding.EncoderPool,
@@ -342,17 +341,18 @@ func (s *commitLogSource) shouldEncodeSeries(
 	series commitlog.Series,
 	dp ts.Datapoint,
 ) bool {
-	// check if the series belongs to current namespace being bootstrapped
+	// Check if the series belongs to current namespace being bootstrapped
 	if !namespace.Equal(series.Namespace) {
 		return false
 	}
 
+	// Check if the shard is one of the shards we're trying to bootstrap
 	ranges, ok := shardsTimeRanges[series.Shard]
 	if !ok {
-		// Not bootstrapping this shard
 		return false
 	}
 
+	// Check if the block corresponds to the time-range that we're trying to bootstrap
 	blockStart := dp.Timestamp.Truncate(blockSize)
 	blockEnd := blockStart.Add(blockSize)
 	blockRange := xtime.Range{
@@ -360,7 +360,6 @@ func (s *commitLogSource) shouldEncodeSeries(
 		End:   blockEnd,
 	}
 	if !ranges.Overlaps(blockRange) {
-		// Data in this block does not match the requested ranges
 		return false
 	}
 
