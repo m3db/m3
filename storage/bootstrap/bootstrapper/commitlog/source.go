@@ -197,17 +197,7 @@ func (s *commitLogSource) Read(
 	// Block until all data has been read and encoded by the worker goroutines
 	wg.Wait()
 
-	// TODO: Function?
-	errSum := 0
-	for _, numErrs := range workerErrs {
-		errSum += numErrs
-	}
-	if errSum > 0 {
-		s.log.Errorf("error bootstrapping from commit log: %d block encode errors", errSum)
-	}
-	if err := iter.Err(); err != nil {
-		s.log.Errorf("error reading commit log: %v", err)
-	}
+	s.printM3TSZEncodingOutcome(workerErrs, iter)
 
 	shardErrs := make([]int, numShards, numShards)
 	shardEmptyErrs := make([]int, numShards, numShards)
@@ -389,6 +379,19 @@ func (s *commitLogSource) shouldEncodeSeries(
 	}
 
 	return true
+}
+
+func (s *commitLogSource) printM3TSZEncodingOutcome(workerErrs []int, iter commitlog.Iterator) {
+	errSum := 0
+	for _, numErrs := range workerErrs {
+		errSum += numErrs
+	}
+	if errSum > 0 {
+		s.log.Errorf("error bootstrapping from commit log: %d block encode errors", errSum)
+	}
+	if err := iter.Err(); err != nil {
+		s.log.Errorf("error reading commit log: %v", err)
+	}
 }
 
 func (s *commitLogSource) mergeShard(
