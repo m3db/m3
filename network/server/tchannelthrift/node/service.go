@@ -57,28 +57,30 @@ var (
 )
 
 type serviceMetrics struct {
-	fetch               instrument.MethodMetrics
-	write               instrument.MethodMetrics
-	fetchBlocks         instrument.MethodMetrics
-	fetchBlocksMetadata instrument.MethodMetrics
-	repair              instrument.MethodMetrics
-	truncate            instrument.MethodMetrics
-	fetchBatchRaw       instrument.BatchMethodMetrics
-	writeBatchRaw       instrument.BatchMethodMetrics
-	overloadRejected    tally.Counter
+	fetch                 instrument.MethodMetrics
+	write                 instrument.MethodMetrics
+	fetchBlocks           instrument.MethodMetrics
+	fetchBlocksMetadata   instrument.MethodMetrics
+	repair                instrument.MethodMetrics
+	truncate              instrument.MethodMetrics
+	fetchBatchRaw         instrument.BatchMethodMetrics
+	writeBatchRaw         instrument.BatchMethodMetrics
+	fetchMetadataBatchRaw instrument.BatchMethodMetrics
+	overloadRejected      tally.Counter
 }
 
 func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
 	return serviceMetrics{
-		fetch:               instrument.NewMethodMetrics(scope, "fetch", samplingRate),
-		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
-		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
-		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
-		repair:              instrument.NewMethodMetrics(scope, "repair", samplingRate),
-		truncate:            instrument.NewMethodMetrics(scope, "truncate", samplingRate),
-		fetchBatchRaw:       instrument.NewBatchMethodMetrics(scope, "fetchBatchRaw", samplingRate),
-		writeBatchRaw:       instrument.NewBatchMethodMetrics(scope, "writeBatchRaw", samplingRate),
-		overloadRejected:    scope.Counter("overload-rejected"),
+		fetch:                 instrument.NewMethodMetrics(scope, "fetch", samplingRate),
+		write:                 instrument.NewMethodMetrics(scope, "write", samplingRate),
+		fetchBlocks:           instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
+		fetchBlocksMetadata:   instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
+		repair:                instrument.NewMethodMetrics(scope, "repair", samplingRate),
+		truncate:              instrument.NewMethodMetrics(scope, "truncate", samplingRate),
+		fetchBatchRaw:         instrument.NewBatchMethodMetrics(scope, "fetchBatchRaw", samplingRate),
+		writeBatchRaw:         instrument.NewBatchMethodMetrics(scope, "writeBatchRaw", samplingRate),
+		fetchMetadataBatchRaw: instrument.NewBatchMethodMetrics(scope, "fetchMetadataBatchRaw", samplingRate),
+		overloadRejected:      scope.Counter("overload-rejected"),
 	}
 }
 
@@ -296,6 +298,13 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 	s.metrics.fetchBatchRaw.ReportRetryableErrors(retryableErrors)
 	s.metrics.fetchBatchRaw.ReportNonRetryableErrors(nonRetryableErrors)
 	s.metrics.fetchBatchRaw.ReportLatency(s.nowFn().Sub(callStart))
+
+	return result, nil
+}
+
+// stubb function
+func (s *service) FetchMetadataBatchRaw(ctx thrift.Context, req *rpc.FetchMetadataBatchRawRequest) (*rpc.FetchMetadataBatchRawResult_, error) {
+	result := rpc.NewFetchMetadataBatchRawResult_()
 
 	return result, nil
 }
