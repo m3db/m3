@@ -69,28 +69,6 @@ func (w *waitGroupWithTimeout) Wait() (timedout bool) {
 		return w.timedout
 	}
 
-	// If this is the first call to Wait(), setup the state
-	if len(w.waiters) == 0 {
-		// Timer starts after first call to Wait()
-		w.timeoutCh = time.After(5 * time.Second)
-		w.doneCh = make(chan struct{})
-
-		go func() {
-			select {
-			case <-w.doneCh:
-				w.timedout = false
-				for _, waiterCh := range w.waiters {
-					waiterCh <- false
-				}
-			case <-w.timeoutCh:
-				w.timedout = true
-				for _, waiterCh := range w.waiters {
-					waiterCh <- true
-				}
-			}
-		}()
-	}
-
 	waitCh := make(chan bool)
 	w.waiters = append(w.waiters, waitCh)
 	w.Unlock()
@@ -109,6 +87,31 @@ func (w *waitGroupWithTimeout) Done() {
 	}
 
 	w.doneCh <- struct{}{}
+}
+
+func newWaitGroupWithTimeout(timeout time.Duration) *waitGroupWithTimeout {
+	wgt := waitGroupWithTimeout{
+		// Timer starts after instantiation()
+		timeoutCh: time.After(timeout),
+		doneCh:    make(chan struct{}),
+	}
+
+	go func() {
+		select {
+		case <-wgt.doneCh:
+			wgt.timedout = false
+			for _, waiterCh := range wgt.waiters {
+				waiterCh <- false
+			}
+		case <-wgt.timeoutCh:
+			wgt.timedout = true
+			for _, waiterCh := range wgt.waiters {
+				waiterCh <- true
+			}
+		}
+	}()
+
+	return &wgt
 }
 
 type commitLogReader interface {
@@ -367,8 +370,6 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 				waitGroup, ok := r.metadata.wgs[entry.Index]
 				// One (or more) goroutines are blocked waiting for this metadata
 				if ok {
-					// Because we enver increment the waitgroup past 1, we can release all
-					// waiting goroutines with a single call to .Done()
 					waitGroup.Done()
 				}
 			}
@@ -393,12 +394,10 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			metadata, hasMetadata = r.metadata.lookup[entry.Index]
 			if !hasMetadata {
 				waitGroup, hasWaitGroup := r.metadata.wgs[entry.Index]
-				// The waitgroup is never incremented past 1, that way a single call to
-				// .Done() can release multiple waiting goroutines
 				if hasWaitGroup {
 					pendingResult = waitGroup
 				} else {
-					pendingResult = &waitGroupWithTimeout{}
+					pendingResult = newWaitGroupWithTimeout(5 * time.Second)
 					r.metadata.wgs[entry.Index] = pendingResult
 				}
 			}
@@ -407,12 +406,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 
 		// The required metadata hasn't been processed yet
 		if pendingResult != nil {
-			// Wait with timeout to prevent deadlock for corrupt commitlog
-			// timedout := r.waitWithTimeout(pendingResult, 5*time.Second)
-			// if timedout {
-
-			// }
 			timedOut := pendingResult.Wait()
+			// Timedout waiting for metadata, maybe the commitlog was corrupt
 			if timedOut {
 				readResponse.resultErr = errCommitLogReaderMissingLogMetadata
 				outBuf <- readResponse
