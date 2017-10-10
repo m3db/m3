@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m3db/m3x/pool"
+
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/persist/fs"
@@ -37,13 +39,8 @@ var (
 	shardsCountArg          = flag.Int("shards-count", 8192, "Shards count - set number too bootstrap all shards in range")
 	shardsArg               = flag.String("shards", "", "Shards - set comma separated list of shards")
 	debugListenAddressArg   = flag.String("debug-listen-address", "", "Debug listen address - if set will expose pprof, i.e. ':8080'")
-	currentUnixTimestampArg = flag.String("current-unix-timestamp", currentUnixTimestampString(), "Current unix timestamp - If set will perform the bootstrap as if this was the current time, defaults to current time")
+	currentUnixTimestampArg = flag.Int64("current-unix-timestamp", time.Now().Unix(), "Current unix timestamp (Seconds) - If set will perform the bootstrap as if this was the current time, defaults to current time")
 )
-
-func currentUnixTimestampString() string {
-	unixTs := time.Now().Unix()
-	return strconv.Itoa(int(unixTs))
-}
 
 func main() {
 	flag.Parse()
@@ -79,12 +76,7 @@ func main() {
 
 	shardTimeRanges := result.ShardTimeRanges{}
 
-	currentUnixTimestampParsed, err := strconv.Atoi(currentUnixTimestamp)
-	if err != nil {
-		log.Fatalf("could not parse unix timestamp: '%s': %v", currentUnixTimestamp, err)
-	}
-
-	now := time.Unix(int64(currentUnixTimestampParsed), 0)
+	now := time.Unix(currentUnixTimestamp, 0)
 	// Round current time down to nearest blocksize (2h) and then decrease blocksize (2h)
 	startInclusive := now.Truncate(blockSize).Add(-blockSize)
 	// Round current time down to nearest blocksize (2h) and then add blocksize (2h)
@@ -116,6 +108,7 @@ func main() {
 			shardsAll = append(shardsAll, i)
 		}
 	} else {
+		log.Info("Either the shards or shards-count argument need to be valid")
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -137,8 +130,19 @@ func main() {
 
 	blockOpts := block.NewOptions()
 
-	encoderPool := encoding.NewEncoderPool(nil)
-	iteratorPool := encoding.NewReaderIteratorPool(nil)
+	encoderPoolOpts := pool.
+		NewObjectPoolOptions().
+		SetSize(25165824).
+		SetRefillLowWatermark(0.001).
+		SetRefillHighWatermark(0.002)
+	encoderPool := encoding.NewEncoderPool(encoderPoolOpts)
+
+	iteratorPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(2048).
+		SetRefillLowWatermark(0.01).
+		SetRefillHighWatermark(0.02)
+	iteratorPool := encoding.NewReaderIteratorPool(iteratorPoolOpts)
+
 	multiIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
 	segmentReaderPool := xio.NewSegmentReaderPool(nil)
 
@@ -188,14 +192,11 @@ func main() {
 		SetInstrumentOptions(instrumentOpts).
 		SetFilesystemOptions(fsOpts).
 		SetFlushSize(flushSize).
-		SetBlockSize(blockSize).
-		SetReadConcurrency(8)
+		SetBlockSize(blockSize)
 
 	opts := commitlogsrc.NewOptions().
 		SetResultOptions(resultOpts).
-		SetCommitLogOptions(commitLogOpts).
-		SetM3TSZEncodingConcurrency(10).
-		SetMergeShardsConcurrency(10)
+		SetCommitLogOptions(commitLogOpts)
 
 	log.Infof("bootstrapping")
 
