@@ -224,7 +224,6 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		// has been resized already
 		unmerged := *unmergedPtr
 		unmergedShard := unmerged[series.Shard]
-		unmergedLock.RUnlock()
 		if unmergedShard == nil {
 			unmergedShard = make(map[ts.Hash]encodersByTime)
 			unmerged[series.Shard] = unmergedShard
@@ -237,6 +236,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 				encoders: make(map[int64][]encoder)}
 			unmergedShard[series.ID.Hash()] = unmergedSeries
 		}
+		unmergedLock.RUnlock()
 
 		var (
 			err           error
