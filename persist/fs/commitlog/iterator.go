@@ -95,7 +95,10 @@ func (i *iterator) Next() bool {
 	var err error
 	i.read.series, i.read.datapoint, i.read.unit, i.read.annotation, err = i.reader.Read()
 	if err == io.EOF {
-		i.closeAndResetReader()
+		closeErr := i.closeAndResetReader()
+		if closeErr != nil {
+			i.err = closeErr
+		}
 		// Try the next reader
 		return i.Next()
 	}
@@ -138,7 +141,11 @@ func (i *iterator) nextReader() bool {
 		return false
 	}
 
-	i.closeAndResetReader()
+	err := i.closeAndResetReader()
+	if err != nil {
+		i.err = err
+		return false
+	}
 
 	file := i.files[0]
 	i.files = i.files[1:]

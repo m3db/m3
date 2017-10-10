@@ -51,65 +51,65 @@ var (
 	errCommitLogReaderMultipleReadloops         = errors.New("commitlog reader tried to open multiple readLoops, do not call Read() concurrently")
 )
 
-// type waitGroupWithTimeout struct {
-// 	sync.Mutex
-// 	waiters   []chan bool
-// 	doneCh    chan struct{}
-// 	timeoutCh <-chan time.Time
-// 	completed bool
-// 	timedout  bool
-// }
+type waitGroupWithTimeout struct {
+	sync.Mutex
+	waiters   []chan bool
+	doneCh    chan struct{}
+	timeoutCh <-chan time.Time
+	completed bool
+	timedout  bool
+}
 
-// func (w *waitGroupWithTimeout) Wait() (timedout bool) {
-// 	w.Lock()
+func (w *waitGroupWithTimeout) Wait() (timedout bool) {
+	w.Lock()
 
-// 	if w.completed {
-// 		w.Unlock()
-// 		return w.timedout
-// 	}
+	// Done() has already been called, just return
+	if w.completed {
+		w.Unlock()
+		return w.timedout
+	}
 
-// 	// If this is the first call to Wait(), setup the state
-// 	if len(w.waiters) == 0 {
-// 		// Timer starts after first call to Wait()
-// 		w.timeoutCh = time.After(5 * time.Second)
-// 		w.doneCh = make(chan struct{})
+	// If this is the first call to Wait(), setup the state
+	if len(w.waiters) == 0 {
+		// Timer starts after first call to Wait()
+		w.timeoutCh = time.After(5 * time.Second)
+		w.doneCh = make(chan struct{})
 
-// 		go func() {
-// 			select {
-// 			case <-w.doneCh:
-// 				w.timedout = false
-// 				for _, waiterCh := range w.waiters {
-// 					waiterCh <- false
-// 				}
-// 			case <-w.timeoutCh:
-// 				w.timedout = true
-// 				for _, waiterCh := range w.waiters {
-// 					waiterCh <- true
-// 				}
-// 			}
-// 		}()
-// 	}
+		go func() {
+			select {
+			case <-w.doneCh:
+				w.timedout = false
+				for _, waiterCh := range w.waiters {
+					waiterCh <- false
+				}
+			case <-w.timeoutCh:
+				w.timedout = true
+				for _, waiterCh := range w.waiters {
+					waiterCh <- true
+				}
+			}
+		}()
+	}
 
-// 	waitCh := make(chan bool)
-// 	w.waiters = append(w.waiters, waitCh)
-// 	w.Unlock()
-// 	timedout = <-waitCh
-// 	return timedout
-// }
+	waitCh := make(chan bool)
+	w.waiters = append(w.waiters, waitCh)
+	w.Unlock()
+	return <-waitCh
+}
 
-// func (w *waitGroupWithTimeout) Done() {
-// 	w.Lock()
-// 	defer w.Unlock()
+func (w *waitGroupWithTimeout) Done() {
+	w.Lock()
+	defer w.Unlock()
 
-// 	w.completed = true
-// 	// No one ever called Wait()
-// 	if len(w.waiters) == 0 {
-// 		w.timedout = false
-// 		return
-// 	}
+	w.completed = true
+	// No one ever called Wait()
+	if len(w.waiters) == 0 {
+		w.timedout = false
+		return
+	}
 
-// 	w.doneCh <- struct{}{}
-// }
+	w.doneCh <- struct{}{}
+}
 
 type commitLogReader interface {
 	// Open opens the commit log for reading
