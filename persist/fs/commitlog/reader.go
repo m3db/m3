@@ -397,7 +397,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 				if hasWaitGroup {
 					pendingResult = waitGroup
 				} else {
-					pendingResult = newWaitGroupWithTimeout(5 * time.Second)
+					pendingResult = newWaitGroupWithTimeout(r.opts.MetadataTimeout())
 					r.metadata.wgs[entry.Index] = pendingResult
 				}
 			}

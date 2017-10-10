@@ -49,6 +49,9 @@ const (
 
 	// defaultReadConcurrency is the default read concurrency
 	defaultReadConcurrency = 4
+
+	// defaultMetadataTimeout is the default metadata timeout
+	defaultMetadataTimeout = 100 * time.Millisecond
 )
 
 var (
@@ -76,6 +79,7 @@ type options struct {
 	backlogQueueSize int
 	bytesPool        pool.CheckedBytesPool
 	readConcurrency  int
+	metadataTimeout  time.Duration
 }
 
 // NewOptions creates new commit log options
@@ -94,6 +98,7 @@ func NewOptions() Options {
 			return pool.NewBytesPool(s, nil)
 		}),
 		readConcurrency: defaultReadConcurrency,
+		metadataTimeout: defaultMetadataTimeout,
 	}
 	o.bytesPool.Init()
 	return o
@@ -226,4 +231,14 @@ func (o *options) SetReadConcurrency(concurrency int) Options {
 
 func (o *options) ReadConcurrency() int {
 	return o.readConcurrency
+}
+
+func (o *options) SetMetadataTimeout(timeout time.Duration) Options {
+	opts := *o
+	opts.metadataTimeout = timeout
+	return &opts
+}
+
+func (o *options) MetadataTimeout() time.Duration {
+	return o.metadataTimeout
 }
