@@ -31,9 +31,9 @@ import (
 var (
 	pathPrefixArg           = flag.String("path-prefix", "/var/lib/m3db", "Path prefix - must contain a folder called 'commitlogs'")
 	namespaceArg            = flag.String("namespace", "metrics", "Namespace")
-	blockSizeArg            = flag.String("block-size", "10m", "Block size")
+	blockSizeArg            = flag.Duration("block-size", 10*time.Minute, "Block size")
 	flushSizeArg            = flag.Int("flush-size", 524288, "Flush size of commit log")
-	bootstrapRetentionArg   = flag.String("retention", "48h", "Retention")
+	bootstrapRetentionArg   = flag.Duration("retention", 48*time.Hour, "Retention")
 	shardsCountArg          = flag.Int("shards-count", 8192, "Shards count - set number too bootstrap all shards in range")
 	shardsArg               = flag.String("shards", "", "Shards - set comma separated list of shards")
 	debugListenAddressArg   = flag.String("debug-listen-address", "", "Debug listen address - if set will expose pprof, i.e. ':8080'")
@@ -48,9 +48,7 @@ func currentUnixTimestampString() string {
 func main() {
 	flag.Parse()
 	if *pathPrefixArg == "" ||
-		*namespaceArg == "" ||
-		*blockSizeArg == "" ||
-		*bootstrapRetentionArg == "" {
+		*namespaceArg == "" {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -81,16 +79,6 @@ func main() {
 
 	shardTimeRanges := result.ShardTimeRanges{}
 
-	blockSizeLen, err := time.ParseDuration(blockSize)
-	if err != nil {
-		log.Fatalf("could not parse block size '%s': %v", blockSize, err)
-	}
-
-	retentionLen, err := time.ParseDuration(bootstrapRetention)
-	if err != nil {
-		log.Fatalf("could not parse retention '%s': %v", bootstrapRetention, err)
-	}
-
 	currentUnixTimestampParsed, err := strconv.Atoi(currentUnixTimestamp)
 	if err != nil {
 		log.Fatalf("could not parse unix timestmap: '%s': %v", currentUnixTimestamp, err)
@@ -98,9 +86,9 @@ func main() {
 
 	now := time.Unix(int64(currentUnixTimestampParsed), 0)
 	// Round current time down to nearest blocksize (2h) and then decrease blocksize (2h)
-	startInclusive := now.Truncate(blockSizeLen).Add(-blockSizeLen)
+	startInclusive := now.Truncate(blockSize).Add(-blockSize)
 	// Round current time down to nearest blocksize (2h) and then add blocksize (2h)
-	endExclusive := now.Truncate(blockSizeLen).Add(blockSizeLen * 2)
+	endExclusive := now.Truncate(blockSize).Add(blockSize * 2)
 
 	// Ony used for logging
 	var shardsAll []uint32
@@ -110,7 +98,7 @@ func main() {
 		for _, shard := range strings.Split(shards, ",") {
 			shard = strings.TrimSpace(shard)
 			if shard == "" {
-				continue
+				log.Fatalf("Invalid shard list: '%s'", shards)
 			}
 			value, err := strconv.Atoi(shard)
 			if err != nil {
@@ -142,8 +130,8 @@ func main() {
 		SetLogger(log)
 
 	retentionOpts := retention.NewOptions().
-		SetBlockSize(blockSizeLen).
-		SetRetentionPeriod(retentionLen).
+		SetBlockSize(blockSize).
+		SetRetentionPeriod(bootstrapRetention).
 		SetBufferPast(1 * time.Minute).
 		SetBufferFuture(1 * time.Minute)
 
@@ -200,7 +188,7 @@ func main() {
 		SetInstrumentOptions(instrumentOpts).
 		SetFilesystemOptions(fsOpts).
 		SetFlushSize(flushSize).
-		SetBlockSize(blockSizeLen)
+		SetBlockSize(blockSize)
 
 	opts := commitlogsrc.NewOptions().
 		SetResultOptions(resultOpts).
