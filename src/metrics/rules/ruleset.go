@@ -475,6 +475,10 @@ type RuleSet interface {
 	// RollupRuleHistory returns a map of rollup rule id to states that rule has been in.
 	RollupRules() (RollupRules, error)
 
+	// Latest returns the latest snapshot of a ruleset containing the latest snapshots
+	// of each rule in the ruleset.
+	Latest() (*RuleSetSnapshot, error)
+
 	// ToMutableRuleSet returns a mutable version of this ruleset.
 	ToMutableRuleSet() MutableRuleSet
 }
@@ -674,6 +678,24 @@ func (rs *ruleSet) RollupRules() (RollupRules, error) {
 		rollupRules[r.uuid] = hist
 	}
 	return rollupRules, nil
+}
+
+func (rs *ruleSet) Latest() (*RuleSetSnapshot, error) {
+	mrs, err := rs.latestMappingRules()
+	if err != nil {
+		return nil, err
+	}
+	rrs, err := rs.latestRollupRules()
+	if err != nil {
+		return nil, err
+	}
+	return &RuleSetSnapshot{
+		Namespace:    string(rs.Namespace()),
+		Version:      rs.Version(),
+		CutoverNanos: rs.CutoverNanos(),
+		MappingRules: mrs,
+		RollupRules:  rrs,
+	}, nil
 }
 
 func (rs *ruleSet) Clone() MutableRuleSet {
@@ -888,7 +910,7 @@ func (rs *ruleSet) updateMetadata(meta UpdateMetadata) {
 	rs.lastUpdatedBy = meta.updatedBy
 }
 
-func (rs ruleSet) getMappingRuleByName(name string) (*mappingRule, error) {
+func (rs *ruleSet) getMappingRuleByName(name string) (*mappingRule, error) {
 	for _, m := range rs.mappingRules {
 		n, err := m.Name()
 		if err != nil {
@@ -902,7 +924,7 @@ func (rs ruleSet) getMappingRuleByName(name string) (*mappingRule, error) {
 	return nil, errNoSuchRule
 }
 
-func (rs ruleSet) getMappingRuleByID(id string) (*mappingRule, error) {
+func (rs *ruleSet) getMappingRuleByID(id string) (*mappingRule, error) {
 	for _, m := range rs.mappingRules {
 		if m.uuid == id {
 			return m, nil
@@ -911,7 +933,7 @@ func (rs ruleSet) getMappingRuleByID(id string) (*mappingRule, error) {
 	return nil, errNoSuchRule
 }
 
-func (rs ruleSet) getRollupRuleByName(name string) (*rollupRule, error) {
+func (rs *ruleSet) getRollupRuleByName(name string) (*rollupRule, error) {
 	for _, r := range rs.rollupRules {
 		n, err := r.Name()
 		if err != nil {
@@ -925,13 +947,43 @@ func (rs ruleSet) getRollupRuleByName(name string) (*rollupRule, error) {
 	return nil, errNoSuchRule
 }
 
-func (rs ruleSet) getRollupRuleByID(id string) (*rollupRule, error) {
+func (rs *ruleSet) getRollupRuleByID(id string) (*rollupRule, error) {
 	for _, r := range rs.rollupRules {
 		if r.uuid == id {
 			return r, nil
 		}
 	}
 	return nil, errNoSuchRule
+}
+
+func (rs *ruleSet) latestMappingRules() ([]*MappingRuleView, error) {
+	mrs, err := rs.MappingRules()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*MappingRuleView, 0, len(mrs))
+	for _, m := range mrs {
+		if len(m) > 0 && !m[0].Tombstoned {
+			// views included in m are sorted latest first.
+			result = append(result, m[0])
+		}
+	}
+	return result, nil
+}
+
+func (rs *ruleSet) latestRollupRules() ([]*RollupRuleView, error) {
+	rrs, err := rs.RollupRules()
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*RollupRuleView, 0, len(rrs))
+	for _, r := range rrs {
+		if len(r) > 0 && !r[0].Tombstoned {
+			// views included in m are sorted latest first.
+			result = append(result, r[0])
+		}
+	}
+	return result, nil
 }
 
 // resolvePolicies resolves the conflicts among policies if any, following the rules below:
@@ -1080,6 +1132,16 @@ type UpdateMetadata struct {
 func (r RuleSetUpdateHelper) NewUpdateMetadata(updateTime int64, updatedBy string) UpdateMetadata {
 	cutoverNanos := updateTime + int64(r.propagationDelay)
 	return UpdateMetadata{updatedAtNanos: updateTime, cutoverNanos: cutoverNanos, updatedBy: updatedBy}
+}
+
+// RuleSetSnapshot represents a snapshot of a rule set containing snapshots of rules
+// in the ruleset.
+type RuleSetSnapshot struct {
+	Namespace    string
+	Version      int
+	CutoverNanos int64
+	MappingRules []*MappingRuleView
+	RollupRules  []*RollupRuleView
 }
 
 // RuleConflictError is returned when a rule modification is made that would conflict with the current state.
