@@ -175,6 +175,7 @@ func (r mockRuleSet) ActiveSet(timeNanos int64) rules.Matcher   { return r.match
 func (r mockRuleSet) ToMutableRuleSet() rules.MutableRuleSet    { return nil }
 func (r mockRuleSet) MappingRules() (rules.MappingRules, error) { return nil, nil }
 func (r mockRuleSet) RollupRules() (rules.RollupRules, error)   { return nil, nil }
+func (r mockRuleSet) Latest() (*rules.RuleSetSnapshot, error)   { return nil, nil }
 
 func testRuleSet() (kv.Store, Cache, *ruleSet) {
 	store := mem.NewStore()
