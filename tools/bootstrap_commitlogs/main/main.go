@@ -81,7 +81,7 @@ func main() {
 
 	currentUnixTimestampParsed, err := strconv.Atoi(currentUnixTimestamp)
 	if err != nil {
-		log.Fatalf("could not parse unix timestmap: '%s': %v", currentUnixTimestamp, err)
+		log.Fatalf("could not parse unix timestamp: '%s': %v", currentUnixTimestamp, err)
 	}
 
 	now := time.Unix(int64(currentUnixTimestampParsed), 0)
@@ -188,11 +188,14 @@ func main() {
 		SetInstrumentOptions(instrumentOpts).
 		SetFilesystemOptions(fsOpts).
 		SetFlushSize(flushSize).
-		SetBlockSize(blockSize)
+		SetBlockSize(blockSize).
+		SetReadConcurrency(8)
 
 	opts := commitlogsrc.NewOptions().
 		SetResultOptions(resultOpts).
-		SetCommitLogOptions(commitLogOpts)
+		SetCommitLogOptions(commitLogOpts).
+		SetM3TSZEncodingConcurrency(10).
+		SetMergeShardsConcurrency(10)
 
 	log.Infof("bootstrapping")
 
