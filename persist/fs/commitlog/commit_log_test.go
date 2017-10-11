@@ -366,7 +366,9 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 		indexTestReturn: map[uint]bool{},
 	}
 
-	// Generate fake series, where approximately half will be missing metadata
+	// Generate fake series, where approximately half will be missing metadata.
+	// This works because the commitlog writer uses the bitset to determine if
+	// the metadata for a particular series had already been written to disk.
 	allSeries := []Series{}
 	for i := 0; i < 200; i++ {
 		willNotHaveMetadata := !(i%2 == 0)
