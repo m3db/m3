@@ -453,6 +453,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 
 func (r *reader) freeWaitingDecoderLoops() {
 	r.metadata.Lock()
+	// TODO(r): here need to wait for all decoderbufs to actually finish before we can safely check
+	// if any pending is still pending
 	for _, pending := range r.metadata.wgs {
 		for _, p := range pending {
 			p.done(Series{}, errCommitLogReaderPendingMetadataNeverFulfilled)
