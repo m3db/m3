@@ -380,7 +380,7 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	// Generate fake writes for each of the series
 	writes := []testWrite{}
 	for _, series := range allSeries {
-		for i := 0; i < 100; i++ {
+		for i := 0; i < 10; i++ {
 			writes = append(writes, testWrite{series, time.Now(), rand.Float64(), xtime.Second, []byte{1, 2, 3}, nil})
 		}
 	}
