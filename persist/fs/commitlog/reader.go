@@ -145,9 +145,9 @@ type decoderArg struct {
 
 type readerMetadata struct {
 	sync.RWMutex
-	numBlockedDecoders int
-	lookup             map[uint64]Series
-	wgs                map[uint64][]*readerPendingSeriesMetadataResponse
+	numBlockedOrFinishedDecoders int
+	lookup                       map[uint64]Series
+	wgs                          map[uint64][]*readerPendingSeriesMetadataResponse
 }
 
 // Used to guard against background workers being started more than once
@@ -172,7 +172,6 @@ type reader struct {
 	nextIndex             int
 	hasBeenOpened         bool
 	backgroundWorkersInit readerBackgroundWorkersInit
-	decodersWg            *sync.WaitGroup
 }
 
 func newCommitLogReader(opts Options) commitLogReader {
@@ -204,8 +203,7 @@ func newCommitLogReader(opts Options) commitLogReader {
 			lookup: make(map[uint64]Series),
 			wgs:    make(map[uint64][]*readerPendingSeriesMetadataResponse),
 		},
-		nextIndex:  0,
-		decodersWg: &sync.WaitGroup{},
+		nextIndex: 0,
 	}
 	return reader
 }
@@ -283,7 +281,6 @@ func (r *reader) startBackgroundWorkers() error {
 	r.backgroundWorkersInit.Unlock()
 
 	// Start background worker goroutines
-	r.decodersWg.Add(len(r.decoderBufs))
 	go r.readLoop()
 	for i, decoderBuf := range r.decoderBufs {
 		localDecoderBuf, outBuf := decoderBuf, r.outBufs[i]
@@ -320,11 +317,6 @@ func (r *reader) shutdown() {
 	for _, decoderBuf := range r.decoderBufs {
 		close(decoderBuf)
 	}
-	// Wait for all decoders to finish
-	r.decodersWg.Wait()
-	// Make sure there are no more pending waits because any metadata that is
-	// still pending is definitely not in the commitlog
-	r.freeAllPendingWaiters()
 	r.shutdownCh <- r.close()
 }
 
@@ -456,30 +448,38 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 				// outBuf is full
 			default:
 				r.metadata.Lock()
-				// Check if all the other decoderLoops are blocked too
-				if r.metadata.numBlockedDecoders >= r.opts.ReadConcurrency()-1 {
+				// Check if all the other decoderLoops are blocked or finished too
+				if r.metadata.numBlockedOrFinishedDecoders >= r.opts.ReadConcurrency()-1 {
 					// If they are, then performing a blocking write would cause deadlock
 					// so we free all pending waiters
 					r.freeAllPendingWaiters()
 					// Otherwise all the other decoderLoops are not blocked yet and its
 					// safe to perform a blocking write because we will be free'd by the
-					// final decoderLoop if its about to block
+					// final decoderLoop if its about to block or finish
 				} else {
-					r.metadata.numBlockedDecoders++
+					r.metadata.numBlockedOrFinishedDecoders++
 					r.metadata.Unlock()
 					outBuf <- readResponse
 					r.metadata.Lock()
-					r.metadata.numBlockedDecoders--
+					r.metadata.numBlockedOrFinishedDecoders--
 					r.metadata.Unlock()
 				}
 			}
 		}
 	}
-	r.decodersWg.Done()
+	r.metadata.Lock()
+	r.metadata.numBlockedOrFinishedDecoders++
+	// If all of the decoders are either finished or blocked then we need to free
+	// any pending waiters. This also guarantees that the last decoderLoop to
+	// finish will free up any pending waiters (and by then any still-pending
+	// metadata is definitely missing from the commitlog)
+	if r.metadata.numBlockedOrFinishedDecoders >= r.opts.ReadConcurrency() {
+		r.freeAllPendingWaiters()
+	}
+	r.metadata.Unlock()
 }
 
 func (r *reader) freeAllPendingWaiters() {
-	r.metadata.Lock()
 	for _, pending := range r.metadata.wgs {
 		for _, p := range pending {
 			p.done(Series{}, errCommitLogReaderPendingMetadataNeverFulfilled)
@@ -488,7 +488,6 @@ func (r *reader) freeAllPendingWaiters() {
 	for k := range r.metadata.wgs {
 		delete(r.metadata.wgs, k)
 	}
-	r.metadata.Unlock()
 }
 
 func (r *reader) readChunk() (checked.Bytes, error) {
