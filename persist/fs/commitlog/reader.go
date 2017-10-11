@@ -25,6 +25,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -54,47 +55,6 @@ var (
 	errCommitLogReaderPendingResponseCompletedTwice = errors.New("commit log reader pending response was completed twice")
 	errCommitLogReaderPendingMetadataNeverFulfilled = errors.New("commit log reader pending metadata was never fulfilled")
 )
-
-// multiDoneWaitGroup is a waitgroup that supports Done() being called
-// multiple times and is all-or-nothing with no concept of units of work
-type multiDoneWaitGroup struct {
-	sync.Mutex
-	waiters     []chan bool
-	isCompleted bool
-}
-
-func (w *multiDoneWaitGroup) Wait() {
-	w.Lock()
-
-	// Done() has already been called, just return
-	if w.isCompleted {
-		w.Unlock()
-		return
-	}
-
-	waitCh := make(chan bool)
-	w.waiters = append(w.waiters, waitCh)
-	w.Unlock()
-	<-waitCh
-}
-
-func (w *multiDoneWaitGroup) Done() {
-	w.Lock()
-	defer w.Unlock()
-
-	if w.isCompleted {
-		return
-	}
-
-	for _, waiterCh := range w.waiters {
-		waiterCh <- true
-	}
-	w.isCompleted = true
-}
-
-func newmultiDoneWaitGroup() *multiDoneWaitGroup {
-	return &multiDoneWaitGroup{}
-}
 
 type readerPendingSeriesMetadataResponse struct {
 	wg       sync.WaitGroup
@@ -258,7 +218,9 @@ func (r *reader) Read() (
 	// 			[1]: [b, d]
 	// If we now read from the outBufs in round-robin order (0, 1, 0, 1) we will
 	// end up with the correct global ordering: a, b, c, d
+	fmt.Println("Blocking read")
 	rr, ok := <-r.outBufs[r.nextIndex%r.numConc]
+	fmt.Println("Blocking read done")
 	if !ok {
 		return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
 	}
@@ -326,10 +288,11 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 	metadataDecoder := msgpack.NewDecoder(decodingOpts)
 
 	for arg := range inBuf {
+		fmt.Println("looping")
 		readResponse := readResponse{}
 		if arg.err != nil {
 			readResponse.resultErr = arg.err
-			outBuf <- readResponse
+			r.writeToOutBuf(outBuf, readResponse)
 			continue
 		}
 
@@ -338,7 +301,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		entry, err := decoder.DecodeLogEntry()
 		if err != nil {
 			readResponse.resultErr = err
-			outBuf <- readResponse
+			r.writeToOutBuf(outBuf, readResponse)
 			continue
 		}
 
@@ -347,7 +310,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			decoded, err := metadataDecoder.DecodeLogMetadata()
 			if err != nil {
 				readResponse.resultErr = err
-				outBuf <- readResponse
+				r.writeToOutBuf(outBuf, readResponse)
 				continue
 			}
 
@@ -381,7 +344,6 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 					delete(r.metadata.wgs, entry.Index)
 				}
 
-				r.metadata.Unlock()
 				namespace.DecRef()
 				id.DecRef()
 
@@ -391,6 +353,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 					}
 				}
 			}
+			r.metadata.Unlock()
 		}
 
 		var pendingMetadata *readerPendingSeriesMetadataResponse
@@ -432,40 +395,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// byte slice is still referenced by metadata and annotation
 		arg.bytes.DecRef()
 		arg.bytes.Finalize()
-
-		// Guard against all of the decoder loops having full outBuffers (deadlock).
-		// This could happen in the scenario where the commitlog is missing metadata
-		// and the .Wait() call in Read() is blocked waiting for data that will
-		// never arrive and thus is unable to empty the outBufs.
-		// In that case, its clear that the commitlog is malformatted (missing
-		// metadata) so we signal that the Read() call should proceed.
-	for_loop:
-		for {
-			select {
-			// Happy path, outBuf is not full and our write succeeds immediately
-			case outBuf <- readResponse:
-				break for_loop
-				// outBuf is full
-			default:
-				r.metadata.Lock()
-				// Check if all the other decoderLoops are blocked or finished too
-				if r.metadata.numBlockedOrFinishedDecoders >= r.opts.ReadConcurrency()-1 {
-					// If they are, then performing a blocking write would cause deadlock
-					// so we free all pending waiters
-					r.freeAllPendingWaiters()
-					// Otherwise all the other decoderLoops are not blocked yet and its
-					// safe to perform a blocking write because we will be free'd by the
-					// final decoderLoop if its about to block or finish
-				} else {
-					r.metadata.numBlockedOrFinishedDecoders++
-					r.metadata.Unlock()
-					outBuf <- readResponse
-					r.metadata.Lock()
-					r.metadata.numBlockedOrFinishedDecoders--
-					r.metadata.Unlock()
-				}
-			}
-		}
+		r.writeToOutBuf(outBuf, readResponse)
 	}
 	r.metadata.Lock()
 	r.metadata.numBlockedOrFinishedDecoders++
@@ -477,6 +407,47 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		r.freeAllPendingWaiters()
 	}
 	r.metadata.Unlock()
+}
+
+func (r *reader) writeToOutBuf(outBuf chan<- readResponse, readResponse readResponse) {
+	// Guard against all of the decoder loops having full outBuffers (deadlock).
+	// This could happen in the scenario where the commitlog is missing metadata
+	// and the .Wait() call in Read() is blocked waiting for data that will
+	// never arrive and thus is unable to empty the outBufs.
+	// In that case, its clear that the commitlog is malformatted (missing
+	// metadata) so we signal that the Read() call should proceed.
+for_loop:
+	for {
+		select {
+		// Happy path, outBuf is not full and our write succeeds immediately
+		case outBuf <- readResponse:
+			break for_loop
+			// outBuf is full
+		default:
+			r.metadata.Lock()
+			// Check if all the other decoderLoops are blocked or finished too
+			if r.metadata.numBlockedOrFinishedDecoders >= r.opts.ReadConcurrency()-1 {
+				// If they are, then performing a blocking write would cause deadlock
+				// so we free all pending waiters
+				fmt.Println("Freeing")
+				r.freeAllPendingWaiters()
+				r.metadata.Unlock()
+				// Otherwise all the other decoderLoops are not blocked yet and its
+				// safe to perform a blocking write because we will be free'd by the
+				// final decoderLoop if its about to block or finish
+			} else {
+				r.metadata.numBlockedOrFinishedDecoders++
+				r.metadata.Unlock()
+				fmt.Println("Blocking write")
+				outBuf <- readResponse
+				fmt.Println("Blocking write done")
+				r.metadata.Lock()
+				r.metadata.numBlockedOrFinishedDecoders--
+				r.metadata.Unlock()
+				break for_loop
+			}
+		}
+	}
 }
 
 func (r *reader) freeAllPendingWaiters() {
