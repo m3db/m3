@@ -275,7 +275,6 @@ func (r *reader) readLoop() {
 				err:   err,
 			}
 			index++
-			// Its important that the EOF error is
 			if err == io.EOF {
 				return
 			}
