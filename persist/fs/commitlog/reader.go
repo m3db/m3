@@ -25,7 +25,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -218,9 +217,7 @@ func (r *reader) Read() (
 	// 			[1]: [b, d]
 	// If we now read from the outBufs in round-robin order (0, 1, 0, 1) we will
 	// end up with the correct global ordering: a, b, c, d
-	fmt.Println("Blocking read")
 	rr, ok := <-r.outBufs[r.nextIndex%r.numConc]
-	fmt.Println("Blocking read done")
 	if !ok {
 		return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
 	}
@@ -288,7 +285,6 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 	metadataDecoder := msgpack.NewDecoder(decodingOpts)
 
 	for arg := range inBuf {
-		fmt.Println("looping")
 		readResponse := readResponse{}
 		if arg.err != nil {
 			readResponse.resultErr = arg.err
@@ -416,12 +412,11 @@ func (r *reader) writeToOutBuf(outBuf chan<- readResponse, readResponse readResp
 	// never arrive and thus is unable to empty the outBufs.
 	// In that case, its clear that the commitlog is malformatted (missing
 	// metadata) so we signal that the Read() call should proceed.
-for_loop:
 	for {
 		select {
 		// Happy path, outBuf is not full and our write succeeds immediately
 		case outBuf <- readResponse:
-			break for_loop
+			return
 			// outBuf is full
 		default:
 			r.metadata.Lock()
@@ -429,7 +424,6 @@ for_loop:
 			if r.metadata.numBlockedOrFinishedDecoders >= r.opts.ReadConcurrency()-1 {
 				// If they are, then performing a blocking write would cause deadlock
 				// so we free all pending waiters
-				fmt.Println("Freeing")
 				r.freeAllPendingWaiters()
 				r.metadata.Unlock()
 				// Otherwise all the other decoderLoops are not blocked yet and its
@@ -438,13 +432,13 @@ for_loop:
 			} else {
 				r.metadata.numBlockedOrFinishedDecoders++
 				r.metadata.Unlock()
-				fmt.Println("Blocking write")
+
 				outBuf <- readResponse
-				fmt.Println("Blocking write done")
+
 				r.metadata.Lock()
 				r.metadata.numBlockedOrFinishedDecoders--
 				r.metadata.Unlock()
-				break for_loop
+				return
 			}
 		}
 	}
