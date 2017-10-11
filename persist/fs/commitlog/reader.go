@@ -79,6 +79,10 @@ func (w *waitGroupWithTimeout) Done() {
 	w.Lock()
 	defer w.Unlock()
 
+	if w.completed {
+		return
+	}
+
 	w.completed = true
 	// No one ever called Wait()
 	if len(w.waiters) == 0 {
@@ -140,8 +144,9 @@ type decoderArg struct {
 
 type readerMetadata struct {
 	sync.RWMutex
-	lookup map[uint64]Series
-	wgs    map[uint64]*waitGroupWithTimeout
+	numWaiting int
+	lookup     map[uint64]Series
+	wgs        map[uint64]*waitGroupWithTimeout
 }
 
 // Used to guard against background workers being started more than once
@@ -166,6 +171,7 @@ type reader struct {
 	nextIndex             int
 	hasBeenOpened         bool
 	backgroundWorkersInit readerBackgroundWorkersInit
+	decodersWg            *sync.WaitGroup
 }
 
 func newCommitLogReader(opts Options) commitLogReader {
@@ -197,7 +203,8 @@ func newCommitLogReader(opts Options) commitLogReader {
 			lookup: make(map[uint64]Series),
 			wgs:    make(map[uint64]*waitGroupWithTimeout),
 		},
-		nextIndex: 0,
+		nextIndex:  0,
+		decodersWg: &sync.WaitGroup{},
 	}
 	return reader
 }
@@ -274,6 +281,7 @@ func (r *reader) startBackgroundWorkers() error {
 	go r.readLoop()
 	for i, decoderBuf := range r.decoderBufs {
 		localDecoderBuf, outBuf := decoderBuf, r.outBufs[i]
+		r.decodersWg.Add(1)
 		go r.decoderLoop(localDecoderBuf, outBuf)
 	}
 
@@ -371,6 +379,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 				// One (or more) goroutines are blocked waiting for this metadata
 				if ok {
 					waitGroup.Done()
+					// TODO: Delete it from the map
 				}
 			}
 			r.metadata.Unlock()
@@ -406,13 +415,29 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 
 		// The required metadata hasn't been processed yet
 		if pendingResult != nil {
-			timedOut := pendingResult.Wait()
-			// Timedout waiting for metadata, maybe the commitlog was corrupt
-			if timedOut {
-				readResponse.resultErr = errCommitLogReaderMissingLogMetadata
-				outBuf <- readResponse
-				continue
+			r.metadata.Lock()
+			flushed := false
+			// timedOut := false
+			if r.metadata.numWaiting >= r.opts.ReadConcurrency() {
+				flushed = true
+				r.flushWaiters()
 			}
+			r.metadata.Unlock()
+			if !flushed {
+				r.metadata.Lock()
+				r.metadata.numWaiting++
+				r.metadata.Unlock()
+				pendingResult.Wait()
+				r.metadata.Lock()
+				r.metadata.numWaiting--
+				r.metadata.Unlock()
+			}
+			// // Timedout waiting for metadata, maybe the commitlog was corrupt
+			// if timedOut || flushed {
+			// 	readResponse.resultErr = errCommitLogReaderMissingLogMetadata
+			// 	outBuf <- readResponse
+			// 	continue
+			// }
 			r.metadata.RLock()
 			metadata, ok = r.metadata.lookup[entry.Index]
 			r.metadata.RUnlock()
@@ -438,7 +463,22 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// byte slice is still referenced by metadata and annotation
 		arg.bytes.DecRef()
 		arg.bytes.Finalize()
-		outBuf <- readResponse
+	test:
+		for {
+			select {
+			case outBuf <- readResponse:
+				break test
+			default:
+				r.flushWaiters()
+			}
+		}
+	}
+	r.decodersWg.Done()
+}
+
+func (r *reader) flushWaiters() {
+	for _, waiting := range r.metadata.wgs {
+		waiting.Done()
 	}
 }
 
