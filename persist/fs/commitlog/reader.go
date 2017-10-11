@@ -402,6 +402,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		r.freeAllPendingWaiters()
 	}
 	r.metadata.Unlock()
+	// Close the outBuf now that there is no more data to produce to it
+	close(outBuf)
 }
 
 func (r *reader) writeToOutBuf(outBuf chan<- readResponse, readResponse readResponse) {
@@ -510,6 +512,15 @@ func (r *reader) Close() error {
 	// Shutdown the readLoop goroutine which will shut down the decoderLoops
 	// and close the fd
 	r.cancelFunc()
+	// Drain any unread data from the outBuffers to free any decoderLoops curently
+	// in a blocking write
+	for {
+		_, ok := <-r.outBufs[r.nextIndex%r.numConc]
+		r.nextIndex++
+		if !ok {
+			break
+		}
+	}
 	shutdownErr := <-r.shutdownCh
 	return shutdownErr
 }

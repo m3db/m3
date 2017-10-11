@@ -90,7 +90,7 @@ type writer struct {
 	chunkReserveHeader []byte
 	buffer             *bufio.Writer
 	sizeBuffer         []byte
-	seen               *bitSet
+	seen               bitSet
 	logEncoder         encoding.Encoder
 	metadataEncoder    encoding.Encoder
 }

@@ -75,7 +75,7 @@ func TestBitSetProp(t *testing.T) {
 }
 
 type bitSetTestState struct {
-	set     *bitSet
+	set     bitSet
 	currSet map[uint]struct{}
 }
 
@@ -151,8 +151,8 @@ var genBitSetClearAllCommand = gen.Const(&commands.ProtoCommand{
 	},
 	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
 		s := state.(bitSetTestState)
-		for i := range s.set.values {
-			if s.set.values[i] != 0 {
+		for _, val := range s.set.getValues() {
+			if val != 0 {
 				return &gopter.PropResult{
 					Status: gopter.PropError,
 					Error:  fmt.Errorf("set expected to be empty after clearAll"),

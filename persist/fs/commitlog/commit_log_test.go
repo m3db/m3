@@ -23,6 +23,7 @@ package commitlog
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"strings"
 	"sync"
@@ -95,6 +96,20 @@ func newTestOptions(
 func cleanup(t *testing.T, opts Options) {
 	filePathPrefix := opts.FilesystemOptions().FilePathPrefix()
 	assert.NoError(t, os.RemoveAll(filePathPrefix))
+}
+
+type mockBitSet struct {
+	indexTestReturn map[uint]bool
+}
+
+func (b *mockBitSet) test(i uint) bool {
+	// return b.indexTestReturn[i]
+	return true
+}
+func (b *mockBitSet) set(i uint) {}
+func (b *mockBitSet) clearAll()  {}
+func (b *mockBitSet) getValues() []uint64 {
+	return []uint64{}
 }
 
 type testWrite struct {
@@ -236,7 +251,7 @@ func writeCommitLogs(
 
 		// Wait for previous writes to enqueue
 		for getAllWrites() != preWrites+i {
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(1 * time.Microsecond)
 		}
 
 		wg.Add(1)
@@ -257,7 +272,7 @@ func writeCommitLogs(
 
 	// Wait for all writes to enqueue
 	for getAllWrites() != preWrites+len(writes) {
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(1 * time.Microsecond)
 	}
 
 	return &wg
@@ -329,6 +344,58 @@ func TestCommitLogWrite(t *testing.T) {
 
 	// Assert writes occurred by reading the commit log
 	assertCommitLogWritesByIterating(t, commitLog, writes)
+}
+
+func TestReadCommitLogMissingMetadata(t *testing.T) {
+	readConc := 4
+	// Make sure we're not leaking goroutines
+	defer leaktest.CheckTimeout(t, 10*time.Second)()
+
+	opts, scope := newTestOptions(t, overrides{
+		strategy: StrategyWriteWait,
+	})
+	// Set read concurrency so that the parallel path is definitely tested
+	opts.SetReadConcurrency(readConc)
+	defer cleanup(t, opts)
+
+	// Replace bitset in writer with one that configurably returns true or false
+	// depending on the series
+	commitLog := newTestCommitLog(t, opts)
+	writer := commitLog.writer.(*writer)
+	mockBitSet := &mockBitSet{
+		indexTestReturn: map[uint]bool{},
+	}
+
+	// Generate fake series, where approximately half will be missing metadata
+	allSeries := []Series{}
+	for i := 0; i < 200; i++ {
+		willNotHaveMetadata := !(i%2 == 0)
+		allSeries = append(allSeries, testSeries(uint64(i), "hax", uint32(i%100)))
+		mockBitSet.indexTestReturn[uint(i)] = willNotHaveMetadata
+	}
+	writer.seen = mockBitSet
+
+	// Generate fake writes for each of the series
+	writes := []testWrite{}
+	for _, series := range allSeries {
+		for i := 0; i < 100; i++ {
+			writes = append(writes, testWrite{series, time.Now(), rand.Float64(), xtime.Second, []byte{1, 2, 3}, nil})
+		}
+	}
+
+	// Call write sync
+	writeCommitLogs(t, scope, commitLog, writes).Wait()
+
+	// Close the commit log and consequently flush
+	assert.NoError(t, commitLog.Close())
+
+	// Make sure we don't panic / deadlock
+	iter, err := commitLog.Iter()
+	assert.NoError(t, err)
+	for iter.Next() {
+	}
+	iter.Close()
+	commitLog.Close()
 }
 
 func TestCommitLogReaderIsNotReusable(t *testing.T) {

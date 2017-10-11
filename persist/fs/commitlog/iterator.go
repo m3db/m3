@@ -106,6 +106,11 @@ func (i *iterator) Next() bool {
 		// Try the next reader, this enables restoring with best effort from commit logs
 		i.metrics.readsErrors.Inc(1)
 		i.log.Errorf("commit log reader returned error, iterator moving to next file: %v", err)
+		i.err = err
+		closeErr := i.closeAndResetReader()
+		if closeErr != nil {
+			i.err = closeErr
+		}
 		return i.Next()
 	}
 	i.setRead = true
