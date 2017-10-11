@@ -28,13 +28,13 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/m3db/m3ctl/auth"
 	"github.com/m3db/m3ctl/services/r2ctl/server"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/instrument"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/gorilla/mux"
 	"gopkg.in/go-playground/validator.v9"
@@ -53,6 +53,8 @@ const (
 
 	namespaceIDVar = "namespaceID"
 	ruleIDVar      = "ruleID"
+
+	nanosPerMilli = int64(time.Millisecond / time.Nanosecond)
 )
 
 var (
@@ -67,7 +69,7 @@ var (
 	rollupRuleHistoryPath = fmt.Sprintf("%s/history", rollupRuleWithIDPath)
 )
 
-func write(w http.ResponseWriter, data []byte, status int) error {
+func sendResponse(w http.ResponseWriter, data []byte, status int) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_, err := w.Write(data)
@@ -110,7 +112,7 @@ func writeAPIResponse(w http.ResponseWriter, code int, msg string) error {
 	if err != nil {
 		return err
 	}
-	return write(w, j, code)
+	return sendResponse(w, j, code)
 }
 
 type r2HandlerFunc func(http.ResponseWriter, *http.Request) error
@@ -126,7 +128,6 @@ func (h r2Handler) wrap(fn r2HandlerFunc) http.Handler {
 			h.handleError(w, err)
 		}
 	})
-
 	return h.auth.NewAuthHandler(f)
 }
 
@@ -175,24 +176,20 @@ func NewService(
 	return &service{iOpts: iOpts, store: store, authService: authService, rootPrefix: rootPrefix}
 }
 
-func (s *service) write(w http.ResponseWriter, data interface{}) error {
+func (s *service) sendResponse(w http.ResponseWriter, statusCode int, data interface{}) error {
 	if j, err := json.Marshal(data); err == nil {
-		return write(w, j, http.StatusOK)
+		return sendResponse(w, j, statusCode)
 	}
-	return writeAPIResponse(w, http.StatusInternalServerError, "Could not create response object")
+	return writeAPIResponse(w, http.StatusInternalServerError, "could not create response object")
 }
 
 func (s *service) fetchNamespaces(w http.ResponseWriter, _ *http.Request) error {
-	names, v, err := s.store.FetchNamespaces()
+	view, err := s.store.FetchNamespaces()
 	if err != nil {
-		return writeAPIResponse(w, http.StatusInternalServerError, "Could not read namespaces")
+		return err
 	}
 
-	nss := make([]namespaceJSON, len(names))
-	for i, n := range names {
-		nss[i] = namespaceJSON{ID: n}
-	}
-	return s.write(w, namespacesJSON{Version: v, Namespaces: nss})
+	return s.sendResponse(w, http.StatusOK, newNamespacesJSON(view))
 }
 
 func (s *service) fetchNamespace(w http.ResponseWriter, r *http.Request) error {
@@ -201,7 +198,7 @@ func (s *service) fetchNamespace(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	return s.write(w, rs.ruleSetJSON())
+	return s.sendResponse(w, http.StatusOK, newRuleSetJSON(rs))
 }
 
 func (s *service) createNamespace(w http.ResponseWriter, r *http.Request) error {
@@ -210,17 +207,29 @@ func (s *service) createNamespace(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 
-	id, err := s.store.CreateNamespace(n.ID)
+	uOpts, err := s.newUpdateOptions(r)
 	if err != nil {
 		return err
 	}
-	return writeAPIResponse(w, http.StatusCreated, fmt.Sprintf("Created namespace %s", id))
+
+	view, err := s.store.CreateNamespace(n.ID, uOpts)
+	if err != nil {
+		return err
+	}
+
+	return s.sendResponse(w, http.StatusCreated, newNamespaceJSON(view))
 }
 
 func (s *service) deleteNamespace(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	namespaceID := vars["namespaceIDVar"]
-	if err := s.store.DeleteNamespace(namespaceID); err != nil {
+	namespaceID := vars[namespaceIDVar]
+
+	uOpts, err := s.newUpdateOptions(r)
+	if err != nil {
+		return err
+	}
+
+	if err := s.store.DeleteNamespace(namespaceID, uOpts); err != nil {
 		return err
 	}
 	return writeAPIResponse(w, http.StatusOK, fmt.Sprintf("Deleted namespace %s", namespaceID))
@@ -232,7 +241,7 @@ func (s *service) fetchMappingRule(w http.ResponseWriter, r *http.Request) error
 	if err != nil {
 		return err
 	}
-	return s.write(w, newMappingRuleJSON(mr))
+	return s.sendResponse(w, http.StatusOK, newMappingRuleJSON(mr))
 }
 
 func (s *service) createMappingRule(w http.ResponseWriter, r *http.Request) error {
@@ -242,15 +251,21 @@ func (s *service) createMappingRule(w http.ResponseWriter, r *http.Request) erro
 		return err
 	}
 
+	uOpts, err := s.newUpdateOptions(r)
+	if err != nil {
+		return err
+	}
+
 	mr, err := s.store.CreateMappingRule(
 		vars[namespaceIDVar],
 		mrj.mappingRuleView(),
+		uOpts,
 	)
 
 	if err != nil {
 		return err
 	}
-	return s.write(w, newMappingRuleJSON(mr))
+	return s.sendResponse(w, http.StatusCreated, newMappingRuleJSON(mr))
 }
 
 func (s *service) updateMappingRule(w http.ResponseWriter, r *http.Request) error {
@@ -260,25 +275,40 @@ func (s *service) updateMappingRule(w http.ResponseWriter, r *http.Request) erro
 	if err := parseRequest(&mrj, r.Body); err != nil {
 		return err
 	}
+
+	uOpts, err := s.newUpdateOptions(r)
+	if err != nil {
+		return err
+	}
+
 	mr, err := s.store.UpdateMappingRule(
 		vars[namespaceIDVar],
 		vars[ruleIDVar],
 		mrj.mappingRuleView(),
+		uOpts,
 	)
 
 	if err != nil {
 		return err
 	}
-	return s.write(w, newMappingRuleJSON(mr))
+
+	return s.sendResponse(w, http.StatusOK, newMappingRuleJSON(mr))
 }
 
 func (s *service) deleteMappingRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
 	namespaceID := vars[namespaceIDVar]
 	mappingRuleID := vars[ruleIDVar]
-	if err := s.store.DeleteMappingRule(namespaceID, mappingRuleID); err != nil {
+
+	uOpts, err := s.newUpdateOptions(r)
+	if err != nil {
 		return err
 	}
+
+	if err := s.store.DeleteMappingRule(namespaceID, mappingRuleID, uOpts); err != nil {
+		return err
+	}
+
 	return writeAPIResponse(w, http.StatusOK,
 		fmt.Sprintf("Deleted mapping rule: %s in namespace %s", mappingRuleID, namespaceID))
 }
@@ -289,7 +319,7 @@ func (s *service) fetchMappingRuleHistory(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		return err
 	}
-	return s.write(w, newMappingRuleHistoryJSON(hist))
+	return s.sendResponse(w, http.StatusOK, newMappingRuleHistoryJSON(hist))
 }
 
 func (s *service) fetchRollupRule(w http.ResponseWriter, r *http.Request) error {
@@ -298,7 +328,7 @@ func (s *service) fetchRollupRule(w http.ResponseWriter, r *http.Request) error 
 	if err != nil {
 		return err
 	}
-	return s.write(w, newRollupRuleJSON(rr))
+	return s.sendResponse(w, http.StatusOK, newRollupRuleJSON(rr))
 }
 
 func (s *service) createRollupRule(w http.ResponseWriter, r *http.Request) error {
@@ -310,18 +340,27 @@ func (s *service) createRollupRule(w http.ResponseWriter, r *http.Request) error
 		return err
 	}
 
-	rr, err := s.store.CreateRollupRule(namespaceID, rrj.rollupRuleView())
+	uOpts, err := s.newUpdateOptions(r)
 	if err != nil {
 		return err
 	}
-	return s.write(w, newRollupRuleJSON(rr))
+
+	rr, err := s.store.CreateRollupRule(namespaceID, rrj.rollupRuleView(), uOpts)
+	if err != nil {
+		return err
+	}
+	return s.sendResponse(w, http.StatusCreated, newRollupRuleJSON(rr))
 }
 
 func (s *service) updateRollupRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-
 	var rrj rollupRuleJSON
 	if err := parseRequest(&rrj, r.Body); err != nil {
+		return err
+	}
+
+	uOpts, err := s.newUpdateOptions(r)
+	if err != nil {
 		return err
 	}
 
@@ -329,21 +368,29 @@ func (s *service) updateRollupRule(w http.ResponseWriter, r *http.Request) error
 		vars[namespaceIDVar],
 		vars[ruleIDVar],
 		rrj.rollupRuleView(),
+		uOpts,
 	)
 
 	if err != nil {
 		return err
 	}
-	return s.write(w, newRollupRuleJSON(rr))
+	return s.sendResponse(w, http.StatusOK, newRollupRuleJSON(rr))
 }
 
 func (s *service) deleteRollupRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
 	namespaceID := vars[namespaceIDVar]
 	rollupRuleID := vars[ruleIDVar]
-	if err := s.store.DeleteRollupRule(namespaceID, rollupRuleID); err != nil {
+
+	uOpts, err := s.newUpdateOptions(r)
+	if err != nil {
 		return err
 	}
+
+	if err := s.store.DeleteRollupRule(namespaceID, rollupRuleID, uOpts); err != nil {
+		return err
+	}
+
 	return writeAPIResponse(w, http.StatusOK,
 		fmt.Sprintf("Deleted rollup rule: %s in namespace %s", rollupRuleID, namespaceID))
 }
@@ -354,7 +401,7 @@ func (s *service) fetchRollupRuleHistory(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		return err
 	}
-	return s.write(w, newRollupRuleHistoryJSON(hist))
+	return s.sendResponse(w, http.StatusOK, newRollupRuleHistoryJSON(hist))
 }
 
 // RegisterHandlers registers rule handler.
@@ -397,77 +444,31 @@ func (s *service) URLPrefix() string {
 	return s.rootPrefix
 }
 
-// CurrentRuleSet represents the current state of a rule set. A rule with all the latest snapshots
-// of its ruleset.
-type CurrentRuleSet struct {
-	Namespace    string
-	Version      int
-	CutoverNanos int64
-	MappingRules []*rules.MappingRuleView
-	RollupRules  []*rules.RollupRuleView
+func (s *service) newUpdateOptions(r *http.Request) (UpdateOptions, error) {
+	uOpts := NewUpdateOptions()
+	author, err := s.authService.GetUser(r.Context())
+	if err != nil {
+		return uOpts, nil
+	}
+	return uOpts.SetAuthor(author), nil
 }
 
-// nolint
-func newCurrentRuleSetView(r rules.RuleSet) (*CurrentRuleSet, error) {
-	mrs, err := r.MappingRules()
-	if err != nil {
-		return nil, err
+func newRuleSetJSON(latest *rules.RuleSetSnapshot) ruleSetJSON {
+	var mrJSON []mappingRuleJSON
+	for _, m := range latest.MappingRules {
+		mrJSON = append(mrJSON, newMappingRuleJSON(m))
 	}
-
-	rrs, err := r.RollupRules()
-	if err != nil {
-		return nil, err
-	}
-
-	return &CurrentRuleSet{
-		Namespace:    string(r.Namespace()),
-		Version:      r.Version(),
-		CutoverNanos: r.CutoverNanos(),
-		MappingRules: newMappingRules(mrs),
-		RollupRules:  newRollupRules(rrs),
-	}, nil
-}
-
-func (c CurrentRuleSet) ruleSetJSON() ruleSetJSON {
-	mrJSON := make([]mappingRuleJSON, len(c.MappingRules))
-	for i, m := range c.MappingRules {
-		mrJSON[i] = newMappingRuleJSON(m)
-	}
-	rrJSON := make([]rollupRuleJSON, len(c.RollupRules))
-	for i, r := range c.RollupRules {
-		rrJSON[i] = newRollupRuleJSON(r)
+	var rrJSON []rollupRuleJSON
+	for _, r := range latest.RollupRules {
+		rrJSON = append(rrJSON, newRollupRuleJSON(r))
 	}
 	return ruleSetJSON{
-		Namespace:     c.Namespace,
-		Version:       c.Version,
-		CutoverMillis: xtime.ToUnixMillis(xtime.FromNanoseconds(c.CutoverNanos)),
+		Namespace:     latest.Namespace,
+		Version:       latest.Version,
+		CutoverMillis: latest.CutoverNanos / nanosPerMilli,
 		MappingRules:  mrJSON,
 		RollupRules:   rrJSON,
 	}
-}
-
-// nolint
-func newMappingRules(mrs rules.MappingRules) []*rules.MappingRuleView {
-	var result []*rules.MappingRuleView
-	for _, m := range mrs {
-		if len(m) > 0 {
-			// views included in m are sorted latest first.
-			result = append(result, m[0])
-		}
-	}
-	return result
-}
-
-// nolint
-func newRollupRules(rrs rules.RollupRules) []*rules.RollupRuleView {
-	var result []*rules.RollupRuleView
-	for _, r := range rrs {
-		if len(r) > 0 {
-			// views included in m are sorted latest first.
-			result = append(result, r[0])
-		}
-	}
-	return result
 }
 
 // filters is an object that represents the key value tag filters for a rule.
@@ -489,13 +490,13 @@ func (f *filters) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-
+	trimmed := strings.TrimSpace(unquoted)
 	tmp := make(map[string]string)
-	tagPairs := strings.Split(unquoted, tagFilterListSeparator)
+	tagPairs := strings.Split(trimmed, tagFilterListSeparator)
 	for _, p := range tagPairs {
 		parts := strings.Split(p, tagFilterSeparator)
 		if len(parts) != 2 {
-			return NewBadInputError(fmt.Sprintf("invalid filter: Expecting tag:value pairs. Got: %s", unquoted))
+			return NewBadInputError(fmt.Sprintf("invalid filter: Expecting tag:value pairs. Got: %s", trimmed))
 		}
 		tmp[parts[0]] = parts[1]
 	}
@@ -509,7 +510,15 @@ type apiResponse struct {
 }
 
 type namespaceJSON struct {
-	ID string `json:"id" validate:"required"`
+	ID                string `json:"id" validate:"required"`
+	ForRuleSetVersion int    `json:"forRuleSetVersion"`
+}
+
+func newNamespaceJSON(nv *rules.NamespaceView) namespaceJSON {
+	return namespaceJSON{
+		ID:                nv.Name,
+		ForRuleSetVersion: nv.ForRuleSetVersion,
+	}
 }
 
 type namespacesJSON struct {
@@ -517,12 +526,25 @@ type namespacesJSON struct {
 	Namespaces []namespaceJSON `json:"namespaces"`
 }
 
+func newNamespacesJSON(nss *rules.NamespacesView) namespacesJSON {
+	views := make([]namespaceJSON, len(nss.Namespaces))
+	for i, namespace := range nss.Namespaces {
+		views[i] = newNamespaceJSON(namespace)
+	}
+	return namespacesJSON{
+		Version:    nss.Version,
+		Namespaces: views,
+	}
+}
+
 type mappingRuleJSON struct {
-	ID            string          `json:"id,omitempty"`
-	Name          string          `json:"name" validate:"required"`
-	CutoverMillis int64           `json:"cutoverMillis,omitempty"`
-	Filters       filters         `json:"filter" validate:"required"`
-	Policies      []policy.Policy `json:"policies" validate:"required"`
+	ID                  string          `json:"id,omitempty"`
+	Name                string          `json:"name" validate:"required"`
+	CutoverMillis       int64           `json:"cutoverMillis,omitempty"`
+	Filters             filters         `json:"filter" validate:"required"`
+	Policies            []policy.Policy `json:"policies" validate:"required"`
+	LastUpdatedBy       string          `json:"lastUpdatedBy"`
+	LastUpdatedAtMillis int64           `json:"lastUpdatedAtMillis"`
 }
 
 func (m mappingRuleJSON) mappingRuleView() *rules.MappingRuleView {
@@ -536,11 +558,13 @@ func (m mappingRuleJSON) mappingRuleView() *rules.MappingRuleView {
 
 func newMappingRuleJSON(mrv *rules.MappingRuleView) mappingRuleJSON {
 	return mappingRuleJSON{
-		ID:            mrv.ID,
-		Name:          mrv.Name,
-		Filters:       mrv.Filters,
-		Policies:      mrv.Policies,
-		CutoverMillis: xtime.ToUnixMillis(xtime.FromNanoseconds(mrv.CutoverNanos)),
+		ID:                  mrv.ID,
+		Name:                mrv.Name,
+		Filters:             mrv.Filters,
+		Policies:            mrv.Policies,
+		CutoverMillis:       mrv.CutoverNanos / nanosPerMilli,
+		LastUpdatedBy:       mrv.LastUpdatedBy,
+		LastUpdatedAtMillis: mrv.LastUpdatedAtNanos / nanosPerMilli,
 	}
 }
 
@@ -579,11 +603,13 @@ func newRollupTargetJSON(t rules.RollupTargetView) rollupTargetJSON {
 }
 
 type rollupRuleJSON struct {
-	ID            string             `json:"id,omitempty"`
-	Name          string             `json:"name" validate:"required"`
-	Filters       filters            `json:"filter" validate:"required"`
-	Targets       []rollupTargetJSON `json:"targets" validate:"required,dive,required"`
-	CutoverMillis int64              `json:"cutoverMillis,omitempty"`
+	ID                  string             `json:"id,omitempty"`
+	Name                string             `json:"name" validate:"required"`
+	Filters             filters            `json:"filter" validate:"required"`
+	Targets             []rollupTargetJSON `json:"targets" validate:"required,dive,required"`
+	CutoverMillis       int64              `json:"cutoverMillis,omitempty"`
+	LastUpdatedBy       string             `json:"lastUpdatedBy"`
+	LastUpdatedAtMillis int64              `json:"lastUpdatedAtMillis"`
 }
 
 func newRollupRuleJSON(rrv *rules.RollupRuleView) rollupRuleJSON {
@@ -592,11 +618,13 @@ func newRollupRuleJSON(rrv *rules.RollupRuleView) rollupRuleJSON {
 		targets[i] = newRollupTargetJSON(t)
 	}
 	return rollupRuleJSON{
-		ID:            rrv.ID,
-		Name:          rrv.Name,
-		Filters:       rrv.Filters,
-		Targets:       targets,
-		CutoverMillis: xtime.ToUnixMillis(xtime.FromNanoseconds(rrv.CutoverNanos)),
+		ID:                  rrv.ID,
+		Name:                rrv.Name,
+		Filters:             rrv.Filters,
+		Targets:             targets,
+		CutoverMillis:       rrv.CutoverNanos / nanosPerMilli,
+		LastUpdatedBy:       rrv.LastUpdatedBy,
+		LastUpdatedAtMillis: rrv.LastUpdatedAtNanos / nanosPerMilli,
 	}
 }
 
@@ -627,9 +655,11 @@ func newRollupRuleHistoryJSON(hist []*rules.RollupRuleView) rollupRuleHistoryJSO
 }
 
 type ruleSetJSON struct {
-	Namespace     string            `json:"id"`
-	Version       int               `json:"version"`
-	CutoverMillis int64             `json:"cutoverMillis"`
-	MappingRules  []mappingRuleJSON `json:"mappingRules"`
-	RollupRules   []rollupRuleJSON  `json:"rollupRules"`
+	Namespace           string            `json:"id"`
+	Version             int               `json:"version"`
+	CutoverMillis       int64             `json:"cutoverMillis"`
+	LastUpdatedBy       string            `json:"lastUpdatedBy"`
+	LastUpdatedAtMillis int64             `json:"lastUpdatedAtMillis"`
+	MappingRules        []mappingRuleJSON `json:"mappingRules"`
+	RollupRules         []rollupRuleJSON  `json:"rollupRules"`
 }
