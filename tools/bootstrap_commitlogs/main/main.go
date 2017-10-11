@@ -142,14 +142,58 @@ func main() {
 		SetRefillLowWatermark(0.01).
 		SetRefillHighWatermark(0.02)
 	iteratorPool := encoding.NewReaderIteratorPool(iteratorPoolOpts)
+	multiIteratorPool := encoding.NewMultiReaderIteratorPool(iteratorPoolOpts)
 
-	multiIteratorPool := encoding.NewMultiReaderIteratorPool(nil)
-	segmentReaderPool := xio.NewSegmentReaderPool(nil)
+	segmentReaderPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(16384).
+		SetRefillLowWatermark(0.01).
+		SetRefillHighWatermark(0.02)
+	segmentReaderPool := xio.NewSegmentReaderPool(segmentReaderPoolOpts)
+
+	bytesPoolOpts := pool.NewObjectPoolOptions().
+		SetRefillLowWatermark(0.001).
+		SetRefillHighWatermark(0.002)
+	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{
+		pool.Bucket{
+			Capacity: 16,
+			Count:    6291456,
+		},
+		pool.Bucket{
+			Capacity: 32,
+			Count:    3145728,
+		},
+		pool.Bucket{
+			Capacity: 64,
+			Count:    3145728,
+		},
+		pool.Bucket{
+			Capacity: 128,
+			Count:    3145728,
+		},
+		pool.Bucket{
+			Capacity: 256,
+			Count:    3145728,
+		},
+		pool.Bucket{
+			Capacity: 1440,
+			Count:    524288,
+		},
+		pool.Bucket{
+			Capacity: 4096,
+			Count:    524288,
+		},
+		pool.Bucket{
+			Capacity: 8192,
+			Count:    524288,
+		},
+	}, bytesPoolOpts, func(s []pool.Bucket) pool.BytesPool {
+		return pool.NewBytesPool(s, bytesPoolOpts)
+	})
 
 	encodingOpts := encoding.NewOptions().
 		SetEncoderPool(encoderPool).
 		SetReaderIteratorPool(iteratorPool).
-		SetBytesPool(blockOpts.BytesPool()).
+		SetBytesPool(bytesPool).
 		SetSegmentReaderPool(segmentReaderPool)
 
 	encoderPool.Init(func() encoding.Encoder {
@@ -168,7 +212,11 @@ func main() {
 
 	segmentReaderPool.Init()
 
-	blockPool := block.NewDatabaseBlockPool(nil)
+	blockPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(4194304).
+		SetRefillLowWatermark(0.001).
+		SetRefillHighWatermark(0.002)
+	blockPool := block.NewDatabaseBlockPool(blockPoolOpts)
 	blockPool.Init(func() block.DatabaseBlock {
 		return block.NewDatabaseBlock(time.Time{}, ts.Segment{}, blockOpts)
 	})
