@@ -48,7 +48,6 @@ var (
 	emptyLogInfo schema.LogInfo
 
 	errCommitLogReaderChunkSizeChecksumMismatch     = errors.New("commit log reader encountered chunk size checksum mismatch")
-	errCommitLogReaderMissingLogMetadata            = errors.New("commit log reader encountered message missing metadata")
 	errCommitLogReaderIsNotReusable                 = errors.New("commit log reader is not reusable")
 	errCommitLogReaderMultipleReadloops             = errors.New("commitlog reader tried to open multiple readLoops, do not call Read() concurrently")
 	errCommitLogReaderPendingResponseCompletedTwice = errors.New("commit log reader pending response was completed twice")
