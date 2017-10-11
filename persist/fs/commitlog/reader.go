@@ -348,7 +348,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 				// One (or more) goroutines are blocked waiting for this metadata
 				if ok {
 					waitGroup.Done()
-					// TODO: Delete it from the map
+					delete(r.metadata.wgs, entry.Index)
 				}
 			}
 			r.metadata.Unlock()
@@ -385,14 +385,16 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// The required metadata hasn't been processed yet
 		if pendingResult != nil {
 			r.metadata.Lock()
-			flushed := false
-			// timedOut := false
+			wouldHaveBeenDeadlock := false
+			// Prevent dead-lock by not allowing all workers to Wait() simultaneously.
+			// This can only happen in the case of a malformed commitlog that is
+			// missing a metadata entry.
 			if r.metadata.numWaiting >= r.opts.ReadConcurrency() {
-				flushed = true
-				r.flushWaiters()
+				wouldHaveBeenDeadlock = true
+				r.freeWaitingDecoderLoops()
 			}
 			r.metadata.Unlock()
-			if !flushed {
+			if !wouldHaveBeenDeadlock {
 				r.metadata.Lock()
 				r.metadata.numWaiting++
 				r.metadata.Unlock()
@@ -427,19 +429,28 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// byte slice is still referenced by metadata and annotation
 		arg.bytes.DecRef()
 		arg.bytes.Finalize()
-	test:
+
+		// Guard against a full outBuf. This could happen in the scenario where
+		// the commitlog is missing metadata and thus the outBuf that the Read()
+		// call is trying to read from is blocked (because the goroutine that feeds
+		// is stuck in a call to .Wait()) thus causing this workers outBuf to fill
+		// up. In that case, assume we've processed enough data that the metadata
+		// the waiting goroutine is waiting for is not present in the commitlog and
+		// signal the waiting routine that it should stop waiting, emit an error,
+		// and move on.
+	for_loop:
 		for {
 			select {
 			case outBuf <- readResponse:
-				break test
+				break for_loop
 			default:
-				r.flushWaiters()
+				r.freeWaitingDecoderLoops()
 			}
 		}
 	}
 }
 
-func (r *reader) flushWaiters() {
+func (r *reader) freeWaitingDecoderLoops() {
 	for _, waiting := range r.metadata.wgs {
 		waiting.Done()
 	}
@@ -502,7 +513,8 @@ func (r *reader) Close() error {
 	// and close the fd
 	r.cancelFunc()
 	shutdownErr := <-r.shutdownCh
-	r.flushWaiters()
+	// Make sure there are no decoder loops stuck in a .Wait() call
+	r.freeWaitingDecoderLoops()
 	return shutdownErr
 }
 
