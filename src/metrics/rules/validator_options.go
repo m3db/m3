@@ -25,8 +25,8 @@ import (
 	"github.com/m3db/m3metrics/policy"
 )
 
-// MetricTypeFn determines the metric type based on a set of tag based filters.
-type MetricTypeFn func(tagFilters map[string]string) metric.Type
+// MetricTypesFn determines the possible metric types based on a set of tag based filters.
+type MetricTypesFn func(tagFilters map[string]string) []metric.Type
 
 // ValidatorOptions provide a set of options for the validator.
 type ValidatorOptions interface {
@@ -44,11 +44,11 @@ type ValidatorOptions interface {
 	// types for a given metric type.
 	SetAllowedCustomAggregationTypesFor(t metric.Type, aggTypes policy.AggregationTypes) ValidatorOptions
 
-	// SetMetricTypeFn sets the metric type function.
-	SetMetricTypeFn(value MetricTypeFn) ValidatorOptions
+	// SetMetricTypesFn sets the metric types function.
+	SetMetricTypesFn(value MetricTypesFn) ValidatorOptions
 
-	// MetricTypeFn returns the metric type function.
-	MetricTypeFn() MetricTypeFn
+	// MetricTypesFn returns the metric types function.
+	MetricTypesFn() MetricTypesFn
 
 	// IsAllowedStoragePolicyFor determines whether a given storage policy is allowed for the
 	// given metric type.
@@ -67,7 +67,7 @@ type validationMetadata struct {
 type validatorOptions struct {
 	defaultAllowedStoragePolicies        map[policy.StoragePolicy]struct{}
 	defaultAllowedCustomAggregationTypes map[policy.AggregationType]struct{}
-	metricTypeFn                         MetricTypeFn
+	metricTypesFn                        MetricTypesFn
 	metadatasByType                      map[metric.Type]validationMetadata
 }
 
@@ -102,13 +102,13 @@ func (o *validatorOptions) SetAllowedCustomAggregationTypesFor(t metric.Type, ag
 	return o
 }
 
-func (o *validatorOptions) SetMetricTypeFn(value MetricTypeFn) ValidatorOptions {
-	o.metricTypeFn = value
+func (o *validatorOptions) SetMetricTypesFn(value MetricTypesFn) ValidatorOptions {
+	o.metricTypesFn = value
 	return o
 }
 
-func (o *validatorOptions) MetricTypeFn() MetricTypeFn {
-	return o.metricTypeFn
+func (o *validatorOptions) MetricTypesFn() MetricTypesFn {
+	return o.metricTypesFn
 }
 
 func (o *validatorOptions) IsAllowedStoragePolicyFor(t metric.Type, p policy.StoragePolicy) bool {

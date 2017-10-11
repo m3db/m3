@@ -572,24 +572,24 @@ func testValidatorOptions() ValidatorOptions {
 	return NewValidatorOptions().
 		SetDefaultAllowedStoragePolicies(testStoragePolicies).
 		SetDefaultAllowedCustomAggregationTypes(nil).
-		SetMetricTypeFn(testMetricTypeFn())
+		SetMetricTypesFn(testMetricTypesFn())
 }
 
-func testMetricTypeFn() MetricTypeFn {
-	return func(filters map[string]string) metric.Type {
+func testMetricTypesFn() MetricTypesFn {
+	return func(filters map[string]string) []metric.Type {
 		typ, exists := filters[testTypeTag]
 		if !exists {
-			return metric.UnknownType
+			return []metric.Type{metric.UnknownType}
 		}
 		switch typ {
 		case testCounterType:
-			return metric.CounterType
+			return []metric.Type{metric.CounterType}
 		case testTimerType:
-			return metric.TimerType
+			return []metric.Type{metric.TimerType}
 		case testGaugeType:
-			return metric.GaugeType
+			return []metric.Type{metric.GaugeType}
 		default:
-			return metric.UnknownType
+			return []metric.Type{metric.UnknownType}
 		}
 	}
 }

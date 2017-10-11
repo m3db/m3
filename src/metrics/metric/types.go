@@ -20,6 +20,11 @@
 
 package metric
 
+import (
+	"fmt"
+	"strings"
+)
+
 // Type is a metric type.
 type Type int
 
@@ -30,3 +35,41 @@ const (
 	TimerType
 	GaugeType
 )
+
+// ValidTypes is a list of valid types.
+var ValidTypes = []Type{
+	CounterType,
+	TimerType,
+	GaugeType,
+}
+
+func (t Type) String() string {
+	switch t {
+	case CounterType:
+		return "counter"
+	case TimerType:
+		return "timer"
+	case GaugeType:
+		return "gauge"
+	default:
+		return "unknown"
+	}
+}
+
+// UnmarshalYAML unmarshals YAML object into a metric type.
+func (t *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	validTypes := make([]string, 0, len(ValidTypes))
+	for _, valid := range ValidTypes {
+		if str == string(valid) {
+			*t = valid
+			return nil
+		}
+		validTypes = append(validTypes, string(valid))
+	}
+	return fmt.Errorf("invalid metric type '%s' valid types are: %s",
+		str, strings.Join(validTypes, ", "))
+}
