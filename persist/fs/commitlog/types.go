@@ -168,11 +168,4 @@ type Options interface {
 
 	// ReadConcurrency returns the concurrency of the reader
 	ReadConcurrency() int
-
-	// SetMetadataTimeout sets the amount of time the commitlog reader will
-	// wait before discarding entries with missing metadata
-	SetMetadataTimeout(timeout time.Duration) Options
-
-	// MetadataTimeout returns metadata timeout duration
-	MetadataTimeout() time.Duration
 }
