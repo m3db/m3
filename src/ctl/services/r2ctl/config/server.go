@@ -18,36 +18,39 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package config
 
 import (
-	"net/http"
+	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/m3db/m3ctl/services/r2ctl/server"
+	"github.com/m3db/m3x/instrument"
 )
 
-// NewServer creates a new http server for R2.
-func NewServer(address string, serverOpts Options, r2Service, healthService Service) *http.Server {
-	router := mux.NewRouter()
+type serverConfig struct {
+	// Host is the host name the HTTP server shoud listen on.
+	Host string `yaml:"host" validate:"nonzero"`
 
-	r2Router := router.PathPrefix(r2Service.URLPrefix()).Subrouter()
-	r2Service.RegisterHandlers(r2Router)
+	// Port is the port the HTTP server should listen on.
+	Port int `yaml:"port"`
 
-	healthRouter := router.PathPrefix(healthService.URLPrefix()).Subrouter()
-	healthService.RegisterHandlers(healthRouter)
+	// ReadTimeout is the HTTP server read timeout.
+	ReadTimeout time.Duration `yaml:"readTimeout"`
 
-	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "ui/build/index.html")
-	})
+	// WriteTimeout HTTP server write timeout.
+	WriteTimeout time.Duration `yaml:"writeTimeout"`
+}
 
-	router.PathPrefix("/public").Handler(http.StripPrefix("/public", http.FileServer(http.Dir("public"))))
-
-	router.PathPrefix("/static").Handler(http.StripPrefix("/static", http.FileServer(http.Dir("ui/build/static"))))
-
-	return &http.Server{
-		WriteTimeout: serverOpts.WriteTimeout(),
-		ReadTimeout:  serverOpts.ReadTimeout(),
-		Addr:         address,
-		Handler:      router,
+func (c *serverConfig) NewHTTPServerOptions(
+	instrumentOpts instrument.Options,
+) server.Options {
+	opts := server.NewOptions().SetInstrumentOptions(instrumentOpts)
+	if c.ReadTimeout != 0 {
+		opts = opts.SetReadTimeout(c.ReadTimeout)
 	}
+	if c.WriteTimeout != 0 {
+		opts = opts.SetWriteTimeout(c.WriteTimeout)
+	}
+
+	return opts
 }

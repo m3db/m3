@@ -8,5 +8,14 @@ http:
   readTimeout: 10s
   writeTimeout: 10s
 
-auth:
-  userIDHeader: user
+metrics:
+  m3:
+    hostPort: 127.0.0.1:5000  # local collector host port for m3 metrics
+    service: r2ctl
+    env: test
+    includeHost: true
+  samplingRate: 0.01
+
+store:
+  stub: true
+

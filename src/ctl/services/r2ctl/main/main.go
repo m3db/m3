@@ -27,60 +27,21 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
-	"time"
 
 	"github.com/m3db/m3ctl/auth"
 	"github.com/m3db/m3ctl/health"
 	"github.com/m3db/m3ctl/r2"
-	"github.com/m3db/m3ctl/r2/stub"
+	"github.com/m3db/m3ctl/services/r2ctl/config"
 	"github.com/m3db/m3ctl/services/r2ctl/server"
-	"github.com/m3db/m3x/config"
+	"github.com/m3db/m3x/clock"
+	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
 )
 
 const (
-	portEnvVar = "R2CTL_PORT"
+	portEnvVar  = "R2CTL_PORT"
+	r2apiPrefix = "/r2/v1/"
 )
-
-type serverConfig struct {
-	// Host is the host name the HTTP server shoud listen on.
-	Host string `yaml:"host" validate:"nonzero"`
-
-	// Port is the port the HTTP server should listen on.
-	Port int `yaml:"port"`
-
-	// ReadTimeout is the HTTP server read timeout.
-	ReadTimeout time.Duration `yaml:"readTimeout"`
-
-	// WriteTimeout HTTP server write timeout.
-	WriteTimeout time.Duration `yaml:"writeTimeout"`
-}
-
-func (c *serverConfig) newHTTPServerOptions(
-	instrumentOpts instrument.Options,
-) server.Options {
-	opts := server.NewOptions().SetInstrumentOptions(instrumentOpts)
-	if c.ReadTimeout != 0 {
-		opts = opts.SetReadTimeout(c.ReadTimeout)
-	}
-	if c.WriteTimeout != 0 {
-		opts = opts.SetWriteTimeout(c.WriteTimeout)
-	}
-
-	return opts
-}
-
-type configuration struct {
-	// Logging configuration.
-	Logging log.Configuration `yaml:"logging"`
-
-	// HTTP server configuration.
-	HTTP serverConfig `yaml:"http"`
-
-	// Simple Auth Config.
-	Auth auth.SimpleAuthConfig `yaml:"auth"`
-}
 
 func main() {
 	configFile := flag.String("f", "config/base.yaml", "configuration file")
@@ -91,8 +52,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	var cfg configuration
-	if err := config.LoadFile(&cfg, *configFile); err != nil {
+	var cfg config.Configuration
+	if err := xconfig.LoadFile(&cfg, *configFile); err != nil {
 		fmt.Printf("error loading config file: %v\n", err)
 		os.Exit(1)
 	}
@@ -104,7 +65,6 @@ func main() {
 	}
 
 	envPort := os.Getenv(portEnvVar)
-
 	if envPort != "" {
 		if p, err := strconv.Atoi(envPort); err == nil {
 			logger.Infof("Using env supplied port var: %s=%d", portEnvVar, p)
@@ -118,22 +78,41 @@ func main() {
 		logger.Fatalf("No valid port configured. Can't start.")
 	}
 
+	scope, closer, err := cfg.Metrics.NewRootScope()
+	if err != nil {
+		logger.Fatalf("error creating metrics root scope: %v", err)
+	}
+	defer closer.Close()
+
 	instrumentOpts := instrument.NewOptions().
-		SetLogger(logger)
+		SetLogger(logger).
+		SetMetricsScope(scope).
+		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
+		SetReportInterval(cfg.Metrics.ReportInterval())
+
+	clockOpts := clock.NewOptions()
 
 	listenAddr := fmt.Sprintf("%s:%d", cfg.HTTP.Host, cfg.HTTP.Port)
-	serverOpts := cfg.HTTP.newHTTPServerOptions(instrumentOpts)
+	serverOpts := cfg.HTTP.NewHTTPServerOptions(instrumentOpts)
 
-	authService := cfg.Auth.NewSimpleAuth()
+	store, err := cfg.Store.NewR2Store(instrumentOpts, clockOpts)
+	if err != nil {
+		logger.Fatalf("error initializing backing store: %v", err)
+	}
 
-	doneCh := make(chan struct{})
+	authService := auth.NewNoopAuth()
+	if cfg.Auth != nil {
+		authService = cfg.Auth.NewSimpleAuth()
+	}
+
 	r2ApiServer := server.NewServer(
 		listenAddr,
 		serverOpts,
-		r2.NewService(instrumentOpts, "/r2/v1/", authService, stub.NewStore(instrumentOpts)),
+		r2.NewService(instrumentOpts, r2apiPrefix, authService, store),
 		health.NewService(instrumentOpts),
 	)
 
+	doneCh := make(chan struct{})
 	go func() {
 		go func() {
 			logger.Infof("Starting http server on: %s", listenAddr)

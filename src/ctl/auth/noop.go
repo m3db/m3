@@ -18,36 +18,35 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package auth
 
 import (
+	"context"
 	"net/http"
-
-	"github.com/gorilla/mux"
 )
 
-// NewServer creates a new http server for R2.
-func NewServer(address string, serverOpts Options, r2Service, healthService Service) *http.Server {
-	router := mux.NewRouter()
+const (
+	noopUser = "noopUser"
+)
 
-	r2Router := router.PathPrefix(r2Service.URLPrefix()).Subrouter()
-	r2Service.RegisterHandlers(r2Router)
+// noopAuth lets everything through
+type noopAuth struct{}
 
-	healthRouter := router.PathPrefix(healthService.URLPrefix()).Subrouter()
-	healthService.RegisterHandlers(healthRouter)
+// NewNoopAuth creates a new noop auth instance.
+func NewNoopAuth() HTTPAuthService {
+	return noopAuth{}
+}
 
-	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "ui/build/index.html")
+func (a noopAuth) NewAuthHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r)
 	})
+}
 
-	router.PathPrefix("/public").Handler(http.StripPrefix("/public", http.FileServer(http.Dir("public"))))
+func (a noopAuth) SetUser(parent context.Context, userID string) context.Context {
+	return parent
+}
 
-	router.PathPrefix("/static").Handler(http.StripPrefix("/static", http.FileServer(http.Dir("ui/build/static"))))
-
-	return &http.Server{
-		WriteTimeout: serverOpts.WriteTimeout(),
-		ReadTimeout:  serverOpts.ReadTimeout(),
-		Addr:         address,
-		Handler:      router,
-	}
+func (a noopAuth) GetUser(ctx context.Context) (string, error) {
+	return noopUser, nil
 }

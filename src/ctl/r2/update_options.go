@@ -18,36 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package r2
 
-import (
-	"net/http"
+// UpdateOptions is a set of ruleset or namespace update options.
+type UpdateOptions interface {
+	// SetAuthor sets the author for an update.
+	SetAuthor(value string) UpdateOptions
 
-	"github.com/gorilla/mux"
-)
+	// Author returns the author for an update.
+	Author() string
+}
 
-// NewServer creates a new http server for R2.
-func NewServer(address string, serverOpts Options, r2Service, healthService Service) *http.Server {
-	router := mux.NewRouter()
+type updateOptions struct {
+	author string
+}
 
-	r2Router := router.PathPrefix(r2Service.URLPrefix()).Subrouter()
-	r2Service.RegisterHandlers(r2Router)
+// NewUpdateOptions creates a new set of update options.
+func NewUpdateOptions() UpdateOptions {
+	return &updateOptions{}
+}
 
-	healthRouter := router.PathPrefix(healthService.URLPrefix()).Subrouter()
-	healthService.RegisterHandlers(healthRouter)
+func (o *updateOptions) SetAuthor(value string) UpdateOptions {
+	opts := *o
+	opts.author = value
+	return &opts
+}
 
-	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "ui/build/index.html")
-	})
-
-	router.PathPrefix("/public").Handler(http.StripPrefix("/public", http.FileServer(http.Dir("public"))))
-
-	router.PathPrefix("/static").Handler(http.StripPrefix("/static", http.FileServer(http.Dir("ui/build/static"))))
-
-	return &http.Server{
-		WriteTimeout: serverOpts.WriteTimeout(),
-		ReadTimeout:  serverOpts.ReadTimeout(),
-		Addr:         address,
-		Handler:      router,
-	}
+func (o *updateOptions) Author() string {
+	return o.author
 }
