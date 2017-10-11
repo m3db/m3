@@ -43,6 +43,7 @@ const (
 
 var (
 	errNilRuleSetSchema   = errors.New("nil rule set schema")
+	errNilValidator       = errors.New("no validator provided")
 	errNoSuchRule         = errors.New("no such rule exists")
 	errNotTombstoned      = errors.New("not tombstoned")
 	errNoRuleSnapshots    = errors.New("no snapshots")
@@ -479,6 +480,9 @@ type RuleSet interface {
 	// of each rule in the ruleset.
 	Latest() (*RuleSetSnapshot, error)
 
+	// Validate validates this ruleset.
+	Validate(validator Validator) error
+
 	// ToMutableRuleSet returns a mutable version of this ruleset.
 	ToMutableRuleSet() MutableRuleSet
 }
@@ -698,6 +702,13 @@ func (rs *ruleSet) Latest() (*RuleSetSnapshot, error) {
 	}, nil
 }
 
+func (rs *ruleSet) Validate(validator Validator) error {
+	if validator == nil {
+		return errNilValidator
+	}
+	return validator.Validate(rs)
+}
+
 func (rs *ruleSet) Clone() MutableRuleSet {
 	namespace := make([]byte, len(rs.namespace))
 	copy(namespace, rs.namespace)
@@ -714,7 +725,7 @@ func (rs *ruleSet) Clone() MutableRuleSet {
 		rollupRules[i] = &c
 	}
 
-	// this clone deliberately ignores tagFliterOpts and rollupIDFn
+	// This clone deliberately ignores tagFliterOpts and rollupIDFn
 	// as they are not useful for the MutableRuleSet.
 	return MutableRuleSet(&ruleSet{
 		uuid:               rs.uuid,
@@ -734,11 +745,6 @@ func (rs *ruleSet) Clone() MutableRuleSet {
 }
 
 func (rs *ruleSet) AddMappingRule(mrv MappingRuleView, meta UpdateMetadata) (string, error) {
-	err := rs.validateMappingRuleUpdate(mrv)
-	if err != nil {
-		return "", err
-	}
-
 	m, err := rs.getMappingRuleByName(mrv.Name)
 	if err != nil && err != errNoSuchRule {
 		return "", fmt.Errorf(ruleActionErrorFmt, "add", mrv.Name, err)
@@ -768,10 +774,6 @@ func (rs *ruleSet) AddMappingRule(mrv MappingRuleView, meta UpdateMetadata) (str
 }
 
 func (rs *ruleSet) UpdateMappingRule(mrv MappingRuleView, meta UpdateMetadata) error {
-	err := rs.validateMappingRuleUpdate(mrv)
-	if err != nil {
-		return err
-	}
 	m, err := rs.getMappingRuleByID(mrv.ID)
 	if err != nil {
 		return fmt.Errorf(ruleActionErrorFmt, "update", mrv.ID, err)
@@ -801,11 +803,6 @@ func (rs *ruleSet) DeleteMappingRule(id string, meta UpdateMetadata) error {
 }
 
 func (rs *ruleSet) AddRollupRule(rrv RollupRuleView, meta UpdateMetadata) (string, error) {
-	err := rs.validateRollupRuleUpdate(rrv)
-	if err != nil {
-		return "", err
-	}
-
 	r, err := rs.getRollupRuleByName(rrv.Name)
 	if err != nil && err != errNoSuchRule {
 		return "", fmt.Errorf(ruleActionErrorFmt, "add", rrv.Name, err)
@@ -836,11 +833,6 @@ func (rs *ruleSet) AddRollupRule(rrv RollupRuleView, meta UpdateMetadata) (strin
 }
 
 func (rs *ruleSet) UpdateRollupRule(rrv RollupRuleView, meta UpdateMetadata) error {
-	err := rs.validateRollupRuleUpdate(rrv)
-	if err != nil {
-		return err
-	}
-
 	r, err := rs.getRollupRuleByID(rrv.ID)
 	if err != nil {
 		return fmt.Errorf(ruleActionErrorFmt, "update", rrv.ID, err)
@@ -956,31 +948,31 @@ func (rs *ruleSet) getRollupRuleByID(id string) (*rollupRule, error) {
 	return nil, errNoSuchRule
 }
 
-func (rs *ruleSet) latestMappingRules() ([]*MappingRuleView, error) {
+func (rs *ruleSet) latestMappingRules() (map[string]*MappingRuleView, error) {
 	mrs, err := rs.MappingRules()
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*MappingRuleView, 0, len(mrs))
-	for _, m := range mrs {
+	result := make(map[string]*MappingRuleView, len(mrs))
+	for id, m := range mrs {
 		if len(m) > 0 && !m[0].Tombstoned {
 			// views included in m are sorted latest first.
-			result = append(result, m[0])
+			result[id] = m[0]
 		}
 	}
 	return result, nil
 }
 
-func (rs *ruleSet) latestRollupRules() ([]*RollupRuleView, error) {
+func (rs *ruleSet) latestRollupRules() (map[string]*RollupRuleView, error) {
 	rrs, err := rs.RollupRules()
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*RollupRuleView, 0, len(rrs))
-	for _, r := range rrs {
+	result := make(map[string]*RollupRuleView, len(rrs))
+	for id, r := range rrs {
 		if len(r) > 0 && !r[0].Tombstoned {
 			// views included in m are sorted latest first.
-			result = append(result, r[0])
+			result[id] = r[0]
 		}
 	}
 	return result, nil
@@ -1140,66 +1132,6 @@ type RuleSetSnapshot struct {
 	Namespace    string
 	Version      int
 	CutoverNanos int64
-	MappingRules []*MappingRuleView
-	RollupRules  []*RollupRuleView
-}
-
-// RuleConflictError is returned when a rule modification is made that would conflict with the current state.
-type RuleConflictError struct {
-	ConflictRuleUUID string
-	msg              string
-}
-
-func (e RuleConflictError) Error() string { return e.msg }
-
-func (rs ruleSet) validateMappingRuleUpdate(mrv MappingRuleView) error {
-	for _, m := range rs.mappingRules {
-		// Ignore tombstoned.
-		if m.Tombstoned() {
-			continue
-		}
-
-		n, err := m.Name()
-		if err != nil {
-			return err
-		}
-
-		// If the rule getting updated keeps its name, that is fine.
-		if n == mrv.Name && m.uuid != mrv.ID {
-			return RuleConflictError{msg: fmt.Sprintf("Rule with name: %s already exists", n), ConflictRuleUUID: m.uuid}
-		}
-	}
-
-	return nil
-}
-
-func (rs ruleSet) validateRollupRuleUpdate(rrv RollupRuleView) error {
-	for _, r := range rs.rollupRules {
-		// Ignore tombstoned.
-		if r.Tombstoned() {
-			continue
-		}
-
-		n, err := r.Name()
-		if err != nil {
-			return err
-		}
-
-		// If the rule getting updated keeps its name, that is fine.
-		if n == rrv.Name && r.uuid != rrv.ID {
-			return RuleConflictError{msg: fmt.Sprintf("Rule with name: %s already exists", n), ConflictRuleUUID: r.uuid}
-		}
-
-		// We've already checked that some snapshots exist by checking the name.
-		latestSnapshot := r.snapshots[len(r.snapshots)-1]
-		for _, t1 := range latestSnapshot.targets {
-			for _, t2 := range rrv.Targets {
-				if t1.sameTransform(t2.rollupTarget()) {
-					return RuleConflictError{msg: fmt.Sprintf("Same rollup transformation: %s: %v already exists", t1.Name, t1.Tags), ConflictRuleUUID: r.uuid}
-				}
-			}
-		}
-	}
-
-	return nil
+	MappingRules map[string]*MappingRuleView
+	RollupRules  map[string]*RollupRuleView
 }

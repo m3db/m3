@@ -2419,35 +2419,6 @@ func TestUpdateRollupRule(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestUpdateRollupRuleDupTarget(t *testing.T) {
-	mutable, rs, helper, err := initMutableTest()
-	require.NoError(t, err)
-
-	rr, err := rs.getRollupRuleByID("rollupRule5")
-	require.NoError(t, err)
-
-	newFilters := map[string]string{"tag1": "value", "tag2": "value"}
-	p := []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)}
-	// Duplicate target from rollupRule4
-	newTargets := []RollupTargetView{
-		RollupTargetView{
-			Name:     "rName3",
-			Tags:     []string{"rtagName1", "rtagName2"},
-			Policies: p,
-		},
-	}
-
-	view := RollupRuleView{
-		ID:      rr.uuid,
-		Name:    "foo",
-		Filters: newFilters,
-		Targets: newTargets,
-	}
-
-	err = mutable.UpdateRollupRule(view, helper.NewUpdateMetadata(now, testUser))
-	require.Error(t, err)
-}
-
 func TestDeleteRollupRule(t *testing.T) {
 	mutable, rs, helper, err := initMutableTest()
 	require.NoError(t, err)

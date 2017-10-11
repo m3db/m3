@@ -438,12 +438,16 @@ func (id AggregationID) Merge(other AggregationID) (AggregationID, bool) {
 	return id, merged
 }
 
+// AggregationTypes returns the aggregation types defined by the id.
+func (id AggregationID) AggregationTypes() (AggregationTypes, error) {
+	return NewAggregationIDDecompressor().Decompress(id)
+}
+
 // String for debugging.
 func (id AggregationID) String() string {
-	aggTypes, err := NewAggregationIDDecompressor().Decompress(id)
+	aggTypes, err := id.AggregationTypes()
 	if err != nil {
 		return fmt.Sprintf("[invalid AggregationID: %v]", err)
 	}
-
 	return aggTypes.String()
 }
