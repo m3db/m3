@@ -176,6 +176,7 @@ func (r mockRuleSet) ToMutableRuleSet() rules.MutableRuleSet    { return nil }
 func (r mockRuleSet) MappingRules() (rules.MappingRules, error) { return nil, nil }
 func (r mockRuleSet) RollupRules() (rules.RollupRules, error)   { return nil, nil }
 func (r mockRuleSet) Latest() (*rules.RuleSetSnapshot, error)   { return nil, nil }
+func (r mockRuleSet) Validate(rules.Validator) error            { return nil }
 
 func testRuleSet() (kv.Store, Cache, *ruleSet) {
 	store := mem.NewStore()
