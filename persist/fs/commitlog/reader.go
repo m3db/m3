@@ -28,6 +28,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3db/digest"
@@ -45,10 +46,12 @@ const decoderInBufChanSize = 100
 var (
 	emptyLogInfo schema.LogInfo
 
-	errCommitLogReaderChunkSizeChecksumMismatch = errors.New("commit log reader encountered chunk size checksum mismatch")
-	errCommitLogReaderMissingLogMetadata        = errors.New("commit log reader encountered message missing metadata")
-	errCommitLogReaderIsNotReusable             = errors.New("commit log reader is not reusable")
-	errCommitLogReaderMultipleReadloops         = errors.New("commitlog reader tried to open multiple readLoops, do not call Read() concurrently")
+	errCommitLogReaderChunkSizeChecksumMismatch     = errors.New("commit log reader encountered chunk size checksum mismatch")
+	errCommitLogReaderMissingLogMetadata            = errors.New("commit log reader encountered message missing metadata")
+	errCommitLogReaderIsNotReusable                 = errors.New("commit log reader is not reusable")
+	errCommitLogReaderMultipleReadloops             = errors.New("commitlog reader tried to open multiple readLoops, do not call Read() concurrently")
+	errCommitLogReaderPendingResponseCompletedTwice = errors.New("commit log reader pending response was completed twice")
+	errCommitLogReaderPendingMetadataNeverFulfilled = errors.New("commit log reader pending metadata was never fulfilled")
 )
 
 // multiDoneWaitGroup is a waitgroup that supports Done() being called
@@ -92,6 +95,28 @@ func newmultiDoneWaitGroup() *multiDoneWaitGroup {
 	return &multiDoneWaitGroup{}
 }
 
+type readerPendingSeriesMetadataResponse struct {
+	wg       sync.WaitGroup
+	competed uint32
+	value    Series
+	err      error
+}
+
+func (p *readerPendingSeriesMetadataResponse) done(value Series, err error) error {
+	if !atomic.CompareAndSwapUint32(&p.competed, 0, 1) {
+		return errCommitLogReaderPendingResponseCompletedTwice
+	}
+	p.value = value
+	p.err = err
+	p.wg.Done()
+	return nil
+}
+
+func (p *readerPendingSeriesMetadataResponse) wait() (Series, error) {
+	p.wg.Wait()
+	return p.value, p.err
+}
+
 type commitLogReader interface {
 	// Open opens the commit log for reading
 	Open(filePath string) (time.Time, time.Duration, int, error)
@@ -104,11 +129,12 @@ type commitLogReader interface {
 }
 
 type readResponse struct {
-	series     Series
-	datapoint  ts.Datapoint
-	unit       xtime.Unit
-	annotation ts.Annotation
-	resultErr  error
+	pendingMetadata *readerPendingSeriesMetadataResponse
+	series          Series
+	datapoint       ts.Datapoint
+	unit            xtime.Unit
+	annotation      ts.Annotation
+	resultErr       error
 }
 
 type decoderArg struct {
@@ -120,7 +146,7 @@ type readerMetadata struct {
 	sync.RWMutex
 	numWaiting int
 	lookup     map[uint64]Series
-	wgs        map[uint64]*multiDoneWaitGroup
+	wgs        map[uint64][]*readerPendingSeriesMetadataResponse
 }
 
 // Used to guard against background workers being started more than once
@@ -174,7 +200,7 @@ func newCommitLogReader(opts Options) commitLogReader {
 		shutdownCh:  make(chan error),
 		metadata: readerMetadata{
 			lookup: make(map[uint64]Series),
-			wgs:    make(map[uint64]*multiDoneWaitGroup),
+			wgs:    make(map[uint64][]*readerPendingSeriesMetadataResponse),
 		},
 		nextIndex: 0,
 	}
@@ -234,6 +260,10 @@ func (r *reader) Read() (
 	rr, ok := <-r.outBufs[r.nextIndex%r.numConc]
 	if !ok {
 		return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
+	}
+	if rr.pendingMetadata != nil {
+		// Wait for metadata to be available
+		rr.series, rr.resultErr = rr.pendingMetadata.wait()
 	}
 	r.nextIndex++
 	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.resultErr
@@ -337,28 +367,34 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 				namespace.DecRef()
 				namespace.Finalize()
 			} else {
-				r.metadata.lookup[entry.Index] = Series{
+				metadata := Series{
 					UniqueIndex: entry.Index,
 					ID:          ts.BinaryID(id),
 					Namespace:   ts.BinaryID(namespace),
 					Shard:       decoded.Shard,
 				}
+				r.metadata.lookup[entry.Index] = metadata
 				waitGroup, ok := r.metadata.wgs[entry.Index]
 				// One (or more) goroutines are blocked waiting for this metadata
 				if ok {
-					waitGroup.Done()
 					delete(r.metadata.wgs, entry.Index)
 				}
+
+				r.metadata.Unlock()
+				namespace.DecRef()
+				id.DecRef()
+
+				if ok {
+					for _, p := range waitGroup {
+						p.done(metadata, nil)
+					}
+				}
 			}
-			r.metadata.Unlock()
-			namespace.DecRef()
-			id.DecRef()
 		}
 
-		var pendingResult *multiDoneWaitGroup
+		var pendingMetadata *readerPendingSeriesMetadataResponse
 		var metadata Series
 		var hasMetadata bool
-		var ok bool
 
 		// Try cheap read lock first
 		r.metadata.RLock()
@@ -370,50 +406,17 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			r.metadata.Lock()
 			metadata, hasMetadata = r.metadata.lookup[entry.Index]
 			if !hasMetadata {
-				waitGroup, hasWaitGroup := r.metadata.wgs[entry.Index]
-				if hasWaitGroup {
-					pendingResult = waitGroup
-				} else {
-					pendingResult = newmultiDoneWaitGroup()
-					r.metadata.wgs[entry.Index] = pendingResult
-				}
+				pendingMetadata = &readerPendingSeriesMetadataResponse{}
+				pendingMetadata.wg.Add(1)
+				r.metadata.wgs[entry.Index] = append(r.metadata.wgs[entry.Index], pendingMetadata)
 			}
 			r.metadata.Unlock()
 		}
 
-		// The required metadata hasn't been processed yet
-		if pendingResult != nil {
-			r.metadata.Lock()
-			wouldHaveBeenDeadlock := false
-			// Prevent dead-lock by not allowing all workers to Wait() simultaneously.
-			// This can only happen in the case of a malformed commitlog that is
-			// missing a metadata entry.
-			if r.metadata.numWaiting >= r.opts.ReadConcurrency() {
-				wouldHaveBeenDeadlock = true
-				r.freeWaitingDecoderLoops()
-			}
-			r.metadata.Unlock()
-			if !wouldHaveBeenDeadlock {
-				r.metadata.Lock()
-				r.metadata.numWaiting++
-				r.metadata.Unlock()
-				pendingResult.Wait()
-				r.metadata.Lock()
-				r.metadata.numWaiting--
-				r.metadata.Unlock()
-			}
-			r.metadata.RLock()
-			metadata, ok = r.metadata.lookup[entry.Index]
-			r.metadata.RUnlock()
-			// Something went wrong, maybe the reader was closed early
-			// or the commitlog was malformatted (missing metadata)
-			if !ok {
-				readResponse.resultErr = errCommitLogReaderMissingLogMetadata
-				outBuf <- readResponse
-				continue
-			}
-		}
+		readResponse.pendingMetadata = pendingMetadata
 
+		// Metadata may or may not actually be nonzero here, the consumer in Read()
+		// will wait if so
 		readResponse.series = metadata
 		readResponse.datapoint = ts.Datapoint{
 			Timestamp: time.Unix(0, entry.Timestamp),
@@ -430,13 +433,12 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		arg.bytes.Finalize()
 
 		// Guard against a full outBuf. This could happen in the scenario where
-		// the commitlog is missing metadata and thus the outBuf that the Read()
-		// call is trying to read from is blocked (because the goroutine that feeds
-		// is stuck in a call to .Wait()) thus causing this workers outBuf to fill
-		// up. In that case, assume we've processed enough data that the metadata
+		// the commitlog is missing metadata and the .Wait() call in Read() is
+		// is blocked waiting for data that will never arrive and thus is unable
+		// to empty the outBuf.
+		// In that case, assume we've processed enough data that the metadata
 		// the waiting goroutine is waiting for is not present in the commitlog and
-		// signal the waiting routine that it should stop waiting, emit an error,
-		// and move on.
+		// signal that the Read() call should proceed.
 	for_loop:
 		for {
 			select {
@@ -450,9 +452,16 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 }
 
 func (r *reader) freeWaitingDecoderLoops() {
-	for _, waiting := range r.metadata.wgs {
-		waiting.Done()
+	r.metadata.Lock()
+	for _, pending := range r.metadata.wgs {
+		for _, p := range pending {
+			p.done(Series{}, errCommitLogReaderPendingMetadataNeverFulfilled)
+		}
 	}
+	for k := range r.metadata.wgs {
+		delete(r.metadata.wgs, k)
+	}
+	r.metadata.Unlock()
 }
 
 func (r *reader) readChunk() (checked.Bytes, error) {
