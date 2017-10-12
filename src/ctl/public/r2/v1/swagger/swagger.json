@@ -861,6 +861,12 @@
                 },
                 "cutoverMillies": {
                     "type": "integer"
+                },
+                "lastUpdatedBy": {
+                    "type": "string"
+                },
+                "lastUpdatedAtMillis": {
+                    "type": "integer"
                 }
             }
         },
@@ -907,6 +913,12 @@
                     "items": {
                         "$ref": "#/definitions/RollupTarget"
                     }
+                },
+                "lastUpdatedBy": {
+                    "type": "string"
+                },
+                "lastUpdatedAtMillis": {
+                    "type": "integer"
                 }
            }
         },
