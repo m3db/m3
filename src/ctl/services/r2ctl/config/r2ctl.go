@@ -190,6 +190,6 @@ type policiesOverrideConfiguration struct {
 }
 
 type policiesConfiguration struct {
-	StoragePolicies  []policy.StoragePolicy  `yaml:"storagePolicies"`
-	AggregationTypes policy.AggregationTypes `yaml:"aggregationTypes"`
+	StoragePolicies  []policy.StoragePolicy   `yaml:"storagePolicies"`
+	AggregationTypes []policy.AggregationType `yaml:"aggregationTypes"`
 }
