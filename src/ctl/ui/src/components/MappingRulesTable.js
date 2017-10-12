@@ -32,7 +32,7 @@ function MappingRuleHistoryBase(props) {
   const mappingRules = _.get(props.mappingRuleHistory, 'value.mappingRules');
   return (
     <MappingRulesTable
-      rollupRules={mappingRules}
+      mappingRules={mappingRules}
       loading={loading}
       showActions={false}
     />

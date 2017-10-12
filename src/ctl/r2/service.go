@@ -655,11 +655,9 @@ func newRollupRuleHistoryJSON(hist []*rules.RollupRuleView) rollupRuleHistoryJSO
 }
 
 type ruleSetJSON struct {
-	Namespace           string            `json:"id"`
-	Version             int               `json:"version"`
-	CutoverMillis       int64             `json:"cutoverMillis"`
-	LastUpdatedBy       string            `json:"lastUpdatedBy"`
-	LastUpdatedAtMillis int64             `json:"lastUpdatedAtMillis"`
-	MappingRules        []mappingRuleJSON `json:"mappingRules"`
-	RollupRules         []rollupRuleJSON  `json:"rollupRules"`
+	Namespace     string            `json:"id"`
+	Version       int               `json:"version"`
+	CutoverMillis int64             `json:"cutoverMillis"`
+	MappingRules  []mappingRuleJSON `json:"mappingRules"`
+	RollupRules   []rollupRuleJSON  `json:"rollupRules"`
 }
