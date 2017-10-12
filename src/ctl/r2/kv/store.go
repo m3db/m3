@@ -29,21 +29,22 @@ import (
 )
 
 type store struct {
-	nowFn clock.NowFn
-
-	sOpts        StoreOptions
-	updateHelper rules.RuleSetUpdateHelper
+	nowFn        clock.NowFn
+	opts         StoreOptions
 	ruleStore    rules.Store
+	updateHelper rules.RuleSetUpdateHelper
 }
 
 // NewStore returns a new service that knows how to talk to a kv backed r2 store.
-func NewStore(rs rules.Store, uh rules.RuleSetUpdateHelper, sOpts StoreOptions) r2.Store {
-	clockOpts := sOpts.ClockOptions()
+func NewStore(rs rules.Store, opts StoreOptions) r2.Store {
+	clockOpts := opts.ClockOptions()
+	updateHelper := rules.NewRuleSetUpdateHelper(opts.RuleUpdatePropagationDelay())
 	return &store{
 		nowFn:        clockOpts.NowFn(),
+		opts:         opts,
 		ruleStore:    rs,
-		updateHelper: uh,
-		sOpts:        sOpts}
+		updateHelper: updateHelper,
+	}
 }
 
 func (s *store) FetchNamespaces() (*rules.NamespacesView, error) {

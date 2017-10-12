@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3ctl/r2"
 	"github.com/m3db/m3ctl/services/r2ctl/config"
 	"github.com/m3db/m3ctl/services/r2ctl/server"
-	"github.com/m3db/m3x/clock"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/instrument"
 )
@@ -90,12 +89,10 @@ func main() {
 		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
 		SetReportInterval(cfg.Metrics.ReportInterval())
 
-	clockOpts := clock.NewOptions()
-
 	listenAddr := fmt.Sprintf("%s:%d", cfg.HTTP.Host, cfg.HTTP.Port)
 	serverOpts := cfg.HTTP.NewHTTPServerOptions(instrumentOpts)
 
-	store, err := cfg.Store.NewR2Store(instrumentOpts, clockOpts)
+	store, err := cfg.Store.NewR2Store(instrumentOpts)
 	if err != nil {
 		logger.Fatalf("error initializing backing store: %v", err)
 	}

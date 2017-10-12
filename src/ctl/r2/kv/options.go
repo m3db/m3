@@ -21,36 +21,60 @@
 package kv
 
 import (
+	"time"
+
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 )
 
+const (
+	defaultRuleUpdatePropagationDelay = time.Minute
+)
+
 // StoreOptions is a set of options for a kv backed store.
 type StoreOptions interface {
+	// SetClockOptions sets the clock options.
+	SetClockOptions(value clock.Options) StoreOptions
+
+	// ClockOptions returns the clock options
+	ClockOptions() clock.Options
+
 	// SetInstrumentOptions sets the instrument options.
 	SetInstrumentOptions(value instrument.Options) StoreOptions
 
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
 
-	// SetClockOptions sets the clock options.
-	SetClockOptions(value clock.Options) StoreOptions
+	// SetRuleUpdatePropagationDelay sets the propagation delay for rule updates.
+	SetRuleUpdatePropagationDelay(value time.Duration) StoreOptions
 
-	// ClockOptions returns the clock options
-	ClockOptions() clock.Options
+	// RuleUpdatePropagationDelay returns the propagation delay for rule updates.
+	RuleUpdatePropagationDelay() time.Duration
 }
 
 type storeOptions struct {
-	instrumentOpts instrument.Options
-	clockOpts      clock.Options
+	clockOpts                  clock.Options
+	instrumentOpts             instrument.Options
+	ruleUpdatePropagationDelay time.Duration
 }
 
 // NewStoreOptions creates a new set of store options.
 func NewStoreOptions() StoreOptions {
 	return &storeOptions{
-		instrumentOpts: instrument.NewOptions(),
-		clockOpts:      clock.NewOptions(),
+		clockOpts:                  clock.NewOptions(),
+		instrumentOpts:             instrument.NewOptions(),
+		ruleUpdatePropagationDelay: defaultRuleUpdatePropagationDelay,
 	}
+}
+
+func (o *storeOptions) SetClockOptions(value clock.Options) StoreOptions {
+	opts := *o
+	opts.clockOpts = value
+	return &opts
+}
+
+func (o *storeOptions) ClockOptions() clock.Options {
+	return o.clockOpts
 }
 
 func (o *storeOptions) SetInstrumentOptions(value instrument.Options) StoreOptions {
@@ -63,12 +87,12 @@ func (o *storeOptions) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *storeOptions) SetClockOptions(value clock.Options) StoreOptions {
+func (o *storeOptions) SetRuleUpdatePropagationDelay(value time.Duration) StoreOptions {
 	opts := *o
-	opts.clockOpts = value
+	opts.ruleUpdatePropagationDelay = value
 	return &opts
 }
 
-func (o *storeOptions) ClockOptions() clock.Options {
-	return o.clockOpts
+func (o *storeOptions) RuleUpdatePropagationDelay() time.Duration {
+	return o.ruleUpdatePropagationDelay
 }

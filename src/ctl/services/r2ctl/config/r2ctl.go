@@ -30,8 +30,10 @@ import (
 	"github.com/m3db/m3ctl/r2"
 	"github.com/m3db/m3ctl/r2/kv"
 	"github.com/m3db/m3ctl/r2/stub"
+	"github.com/m3db/m3metrics/filters"
+	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
-	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
 )
@@ -52,31 +54,41 @@ type Configuration struct {
 	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
 
 	// Store configuration.
-	Store R2StoreConfiguration `yaml:"store"`
+	Store r2StoreConfiguration `yaml:"store"`
 
 	// Simple Auth Config.
 	Auth *auth.SimpleAuthConfig `yaml:"auth"`
-
-	// Clock configuration used by the api.
-	Clock clock.Configuration `yaml:"clock"`
 }
 
-// R2StoreConfiguration has all the fields necessary for an R2Store
-type R2StoreConfiguration struct {
+// r2StoreConfiguration has all the fields necessary for an R2 store.
+type r2StoreConfiguration struct {
 	// Stub means use the stub store.
 	Stub bool `yaml:"stub"`
 
-	// KV is the configuration for the etcd backed implementation of the kvStore.
-	KV *KVStoreConfig `yaml:"kv,omitempty"`
+	// KV is the configuration for the etcd backed implementation of the kv store.
+	KV *kvStoreConfig `yaml:"kv,omitempty"`
 }
 
-// KVStoreConfig is the configuration for the etcd backed implementation of the kvStore.
-type KVStoreConfig struct {
-	// KV namespace.
-	RulesKVConfig clusterKV.Configuration `yaml:"rulesKVConfig"`
+// NewR2Store creates a new R2 store.
+func (c r2StoreConfiguration) NewR2Store(instrumentOpts instrument.Options) (r2.Store, error) {
+	if c.Stub {
+		return stub.NewStore(instrumentOpts), nil
+	}
 
-	// KVClient configuration for key value store.
-	KVClient *etcd.Configuration `yaml:"etcd" validate:"nonzero"`
+	if c.KV == nil {
+		return nil, errKVConfigRequired
+	}
+
+	return c.KV.NewStore(instrumentOpts)
+}
+
+// kvStoreConfig is the configuration for the kv backed implementation of the R2 store.
+type kvStoreConfig struct {
+	// KVClient configures the client for key value store.
+	KVClient *etcd.Configuration `yaml:"kvClient" validate:"nonzero"`
+
+	// KV configures the namespace and the environment.
+	KVConfig clusterKV.Configuration `yaml:"kvConfig"`
 
 	// Propagation delay for rule updates.
 	PropagationDelay time.Duration `yaml:"propagationDelay" validate:"nonzero"`
@@ -86,35 +98,98 @@ type KVStoreConfig struct {
 
 	// RuleSetKey fmt
 	RuleSetKeyFmt string `yaml:"ruleSetKeyFmt" validate:"nonzero"`
+
+	// Validation configuration.
+	Validation *validationConfiguration `yaml:"validation"`
 }
 
-// NewR2Store creates
-func (c R2StoreConfiguration) NewR2Store(iOpts instrument.Options, clockOpts clock.Options) (r2.Store, error) {
-	if c.Stub {
-		return stub.NewStore(iOpts), nil
-	}
-
-	if c.KV == nil {
-		return nil, errKVConfigRequired
-	}
-
-	client, err := c.KV.KVClient.NewClient(iOpts)
+// NewStore creates a new kv backed store.
+func (c kvStoreConfig) NewStore(instrumentOpts instrument.Options) (r2.Store, error) {
+	// Create rules store.
+	client, err := c.KVClient.NewClient(instrumentOpts)
 	if err != nil {
 		return nil, err
 	}
-
-	store, err := client.TxnStore(c.KV.RulesKVConfig.NewOptions())
+	store, err := client.TxnStore(c.KVConfig.NewOptions())
 	if err != nil {
 		return nil, err
 	}
+	var validator rules.Validator
+	if c.Validation != nil {
+		validator = c.Validation.NewValidator()
+	}
+	rulesStoreOpts := rules.NewStoreOptions(c.NamespacesKey, c.RuleSetKeyFmt, validator)
+	rulesStore := rules.NewStore(store, rulesStoreOpts)
 
-	r2StoreOpts := kv.NewStoreOptions().
-		SetInstrumentOptions(iOpts).
-		SetClockOptions(clockOpts)
+	// Create kv store.
+	kvStoreOpts := kv.NewStoreOptions().
+		SetInstrumentOptions(instrumentOpts).
+		SetRuleUpdatePropagationDelay(c.PropagationDelay)
+	return kv.NewStore(rulesStore, kvStoreOpts), nil
+}
 
-	storeOpts := rules.NewStoreOptions(c.KV.NamespacesKey, c.KV.RuleSetKeyFmt)
-	kvStore := rules.NewStore(store, storeOpts)
-	updateHelper := rules.NewRuleSetUpdateHelper(c.KV.PropagationDelay)
+type validationConfiguration struct {
+	MetricTypes metricTypesValidationConfiguration `yaml:"metricTypes"`
+	Policies    policiesValidationConfiguration    `yaml:"policies"`
+}
 
-	return kv.NewStore(kvStore, updateHelper, r2StoreOpts), nil
+func (c validationConfiguration) NewValidator() rules.Validator {
+	opts := rules.NewValidatorOptions().
+		SetMetricTypesFn(c.MetricTypes.NewMetricTypesFn()).
+		SetDefaultAllowedStoragePolicies(c.Policies.DefaultAllowed.StoragePolicies).
+		SetDefaultAllowedCustomAggregationTypes(c.Policies.DefaultAllowed.AggregationTypes)
+	for _, override := range c.Policies.Overrides {
+		opts = opts.
+			SetAllowedStoragePoliciesFor(override.Type, override.Allowed.StoragePolicies).
+			SetAllowedCustomAggregationTypesFor(override.Type, override.Allowed.AggregationTypes)
+	}
+	return rules.NewValidator(opts)
+}
+
+type metricTypesValidationConfiguration struct {
+	// Metric type tag.
+	TypeTag string `yaml:"typeTag"`
+
+	// Allowed metric types.
+	Allowed []metric.Type `yaml:"allowed"`
+}
+
+func (c metricTypesValidationConfiguration) NewMetricTypesFn() rules.MetricTypesFn {
+	return func(tagFilters map[string]string) ([]metric.Type, error) {
+		allowed := make([]metric.Type, 0, len(c.Allowed))
+		filterStr, exists := tagFilters[c.TypeTag]
+		if !exists {
+			// If there is not type filter provided, the filter may match any allowed type.
+			allowed = append(allowed, c.Allowed...)
+			return allowed, nil
+		}
+		f, err := filters.NewFilter([]byte(filterStr))
+		if err != nil {
+			return nil, err
+		}
+		for _, t := range c.Allowed {
+			if f.Matches([]byte(t.String())) {
+				allowed = append(allowed, t)
+			}
+		}
+		return allowed, nil
+	}
+}
+
+type policiesValidationConfiguration struct {
+	// DefaultAllowed defines the policies allowed by default.
+	DefaultAllowed policiesConfiguration `yaml:"defaultAllowed"`
+
+	// Overrides define the metric type specific policy overrides.
+	Overrides []policiesOverrideConfiguration `yaml:"overrides"`
+}
+
+type policiesOverrideConfiguration struct {
+	Type    metric.Type           `yaml:"type"`
+	Allowed policiesConfiguration `yaml:"allowed"`
+}
+
+type policiesConfiguration struct {
+	StoragePolicies  []policy.StoragePolicy  `yaml:"storagePolicies"`
+	AggregationTypes policy.AggregationTypes `yaml:"aggregationTypes"`
 }
