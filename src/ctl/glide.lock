@@ -1,5 +1,5 @@
-hash: a369d593928c9ff31a6a808a1be7ba7d41454f49813b296ee510460c6855197d
-updated: 2017-10-11T12:10:14.291294975-04:00
+hash: 28047698c88f744b435c145a79b31f2a18bc3909ba90896eeb8dbdb6bc881a22
+updated: 2017-10-12T10:37:00.450394544-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -78,7 +78,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3metrics
-  version: 887ca912e4742a0edd91a0bb333eab4c2fc7bb0a
+  version: 47413a132ed7a7a7a0d223d5247d332e2bee3deb
   subpackages:
   - filters
   - generated/proto/schema
