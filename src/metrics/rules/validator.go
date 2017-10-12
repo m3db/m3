@@ -77,8 +77,16 @@ func (v *validator) validateMappingRules(mrv map[string]*MappingRuleView) error 
 			return err
 		}
 
+		// Validate the metric types.
+		types, err := v.opts.MetricTypesFn()(view.Filters)
+		if err != nil {
+			return err
+		}
+		if len(types) == 0 {
+			return fmt.Errorf("mapping rule %s does not match any allowed metric types, filter=%v", view.Name, view.Filters)
+		}
+
 		// Validate that the policies are valid.
-		types := v.opts.MetricTypesFn()(view.Filters)
 		for _, t := range types {
 			for _, p := range view.Policies {
 				if err := v.validatePolicy(t, p); err != nil {
@@ -107,8 +115,16 @@ func (v *validator) validateRollupRules(rrv map[string]*RollupRuleView) error {
 			return err
 		}
 
+		// Validate the metric types.
+		types, err := v.opts.MetricTypesFn()(view.Filters)
+		if err != nil {
+			return err
+		}
+		if len(types) == 0 {
+			return fmt.Errorf("rollup rule %s does not match any allowed metric types, filter=%v", view.Name, view.Filters)
+		}
+
 		// Validate that the policies are valid.
-		types := v.opts.MetricTypesFn()(view.Filters)
 		for _, t := range types {
 			for _, target := range view.Targets {
 				for _, p := range target.Policies {

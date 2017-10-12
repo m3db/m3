@@ -26,7 +26,7 @@ import (
 )
 
 // MetricTypesFn determines the possible metric types based on a set of tag based filters.
-type MetricTypesFn func(tagFilters map[string]string) []metric.Type
+type MetricTypesFn func(tagFilters map[string]string) ([]metric.Type, error)
 
 // ValidatorOptions provide a set of options for the validator.
 type ValidatorOptions interface {

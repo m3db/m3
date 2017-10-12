@@ -360,12 +360,6 @@ var (
 	}
 )
 
-func testStore() Store {
-	opts := NewStoreOptions(testNamespaceKey, testRuleSetKeyFmt)
-	kvStore := mem.NewStore()
-	return NewStore(kvStore, opts)
-}
-
 func TestRuleSetKey(t *testing.T) {
 	s := testStore()
 	key := s.(store).ruleSetKey(testNamespace)
@@ -373,7 +367,7 @@ func TestRuleSetKey(t *testing.T) {
 }
 
 func TestNewStore(t *testing.T) {
-	opts := NewStoreOptions(testNamespaceKey, testRuleSetKeyFmt)
+	opts := NewStoreOptions(testNamespaceKey, testRuleSetKeyFmt, nil)
 	kvStore := mem.NewStore()
 	s := NewStore(kvStore, opts).(store)
 
@@ -556,4 +550,10 @@ func TestWriteNoNamespace(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, nss.Version(), 1)
 	require.Equal(t, rs.Version(), 2)
+}
+
+func testStore() Store {
+	opts := NewStoreOptions(testNamespaceKey, testRuleSetKeyFmt, nil)
+	kvStore := mem.NewStore()
+	return NewStore(kvStore, opts)
 }
