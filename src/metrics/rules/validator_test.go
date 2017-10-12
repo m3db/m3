@@ -21,6 +21,7 @@
 package rules
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -67,6 +68,12 @@ func TestValidatorValidateMappingRuleInvalidFilter(t *testing.T) {
 	}
 	validator := NewValidator(testValidatorOptions())
 	require.Error(t, rs.Validate(validator))
+}
+
+func TestValidatorValidateMappingRuleInvalidMetricType(t *testing.T) {
+	ruleSet := testRuleSetWithMappingRules(t, testInvalidMetricTypeMappingRulesConfig())
+	validator := NewValidator(testValidatorOptions())
+	require.Error(t, ruleSet.Validate(validator))
 }
 
 func TestValidatorValidateMappingRulePolicy(t *testing.T) {
@@ -169,6 +176,12 @@ func TestValidatorValidateRollupRuleInvalidFilter(t *testing.T) {
 	}
 	validator := NewValidator(testValidatorOptions())
 	require.Error(t, rs.Validate(validator))
+}
+
+func TestValidatorValidateRollupRuleInvalidMetricType(t *testing.T) {
+	ruleSet := testRuleSetWithRollupRules(t, testInvalidMetricTypeRollupRulesConfig())
+	validator := NewValidator(testValidatorOptions())
+	require.Error(t, ruleSet.Validate(validator))
 }
 
 func TestValidatorValidateRollupRulePolicy(t *testing.T) {
@@ -298,6 +311,23 @@ func testNoDuplicateMappingRulesConfigWithTombstone() []*schema.MappingRule {
 	}
 }
 
+func testInvalidMetricTypeMappingRulesConfig() []*schema.MappingRule {
+	return []*schema.MappingRule{
+		&schema.MappingRule{
+			Uuid: "mappingRule1",
+			Snapshots: []*schema.MappingRuleSnapshot{
+				&schema.MappingRuleSnapshot{
+					Name:       "snapshot1",
+					Tombstoned: false,
+					TagFilters: map[string]string{
+						testTypeTag: "nonexistent",
+					},
+				},
+			},
+		},
+	}
+}
+
 func testPolicyResolutionMappingRulesConfig() []*schema.MappingRule {
 	return []*schema.MappingRule{
 		&schema.MappingRule{
@@ -402,6 +432,23 @@ func testNoDuplicateRollupRulesConfigWithTombstone() []*schema.RollupRule {
 				&schema.RollupRuleSnapshot{
 					Name:       "snapshot1",
 					Tombstoned: false,
+				},
+			},
+		},
+	}
+}
+
+func testInvalidMetricTypeRollupRulesConfig() []*schema.RollupRule {
+	return []*schema.RollupRule{
+		&schema.RollupRule{
+			Uuid: "rollupRule1",
+			Snapshots: []*schema.RollupRuleSnapshot{
+				&schema.RollupRuleSnapshot{
+					Name:       "snapshot1",
+					Tombstoned: false,
+					TagFilters: map[string]string{
+						testTypeTag: "nonexistent",
+					},
 				},
 			},
 		},
@@ -576,20 +623,20 @@ func testValidatorOptions() ValidatorOptions {
 }
 
 func testMetricTypesFn() MetricTypesFn {
-	return func(filters map[string]string) []metric.Type {
+	return func(filters map[string]string) ([]metric.Type, error) {
 		typ, exists := filters[testTypeTag]
 		if !exists {
-			return []metric.Type{metric.UnknownType}
+			return []metric.Type{metric.UnknownType}, nil
 		}
 		switch typ {
 		case testCounterType:
-			return []metric.Type{metric.CounterType}
+			return []metric.Type{metric.CounterType}, nil
 		case testTimerType:
-			return []metric.Type{metric.TimerType}
+			return []metric.Type{metric.TimerType}, nil
 		case testGaugeType:
-			return []metric.Type{metric.GaugeType}
+			return []metric.Type{metric.GaugeType}, nil
 		default:
-			return []metric.Type{metric.UnknownType}
+			return nil, fmt.Errorf("unknown metric type %v", typ)
 		}
 	}
 }

@@ -52,16 +52,25 @@ type Store interface {
 type StoreOptions struct {
 	NamespacesKey string
 	RuleSetKeyFmt string
+	Validator     Validator
+}
+
+// NewStoreOptions creates a new store options struct.
+func NewStoreOptions(
+	namespacesKey string,
+	rulesetKeyFmt string,
+	validator Validator,
+) StoreOptions {
+	return StoreOptions{
+		NamespacesKey: namespacesKey,
+		RuleSetKeyFmt: rulesetKeyFmt,
+		Validator:     validator,
+	}
 }
 
 type store struct {
 	kvStore kv.TxnStore
 	opts    StoreOptions
-}
-
-// NewStoreOptions creates a new store options struct.
-func NewStoreOptions(namespacesKey string, rulesetKeyFmt string) StoreOptions {
-	return StoreOptions{NamespacesKey: namespacesKey, RuleSetKeyFmt: rulesetKeyFmt}
 }
 
 // NewStore creates a new Store.
@@ -110,6 +119,11 @@ func (s store) ReadRuleSet(nsName string) (RuleSet, error) {
 }
 
 func (s store) WriteRuleSet(rs MutableRuleSet) error {
+	if s.opts.Validator != nil {
+		if err := s.opts.Validator.Validate(rs); err != nil {
+			return err
+		}
+	}
 	rsCond, rsOp, err := s.ruleSetTransaction(rs)
 	if err != nil {
 		return err
@@ -120,9 +134,16 @@ func (s store) WriteRuleSet(rs MutableRuleSet) error {
 }
 
 func (s store) WriteAll(nss *Namespaces, rs MutableRuleSet) error {
-	var conditions []kv.Condition
-	var ops []kv.Op
+	if s.opts.Validator != nil {
+		if err := s.opts.Validator.Validate(rs); err != nil {
+			return err
+		}
+	}
 
+	var (
+		conditions []kv.Condition
+		ops        []kv.Op
+	)
 	ruleSetCond, ruleSetOp, err := s.ruleSetTransaction(rs)
 	if err != nil {
 		return err

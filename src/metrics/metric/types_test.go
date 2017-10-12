@@ -21,55 +21,37 @@
 package metric
 
 import (
-	"fmt"
-	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
-// Type is a metric type.
-type Type int
-
-// A list of supported metric types.
-const (
-	UnknownType Type = iota
-	CounterType
-	TimerType
-	GaugeType
-)
-
-// validTypes is a list of valid types.
-var validTypes = []Type{
-	CounterType,
-	TimerType,
-	GaugeType,
-}
-
-func (t Type) String() string {
-	switch t {
-	case CounterType:
-		return "counter"
-	case TimerType:
-		return "timer"
-	case GaugeType:
-		return "gauge"
-	default:
-		return "unknown"
+func TestTypeUnmarshalYAML(t *testing.T) {
+	inputs := []struct {
+		str      string
+		expected Type
+	}{
+		{str: "counter", expected: CounterType},
+		{str: "timer", expected: TimerType},
+		{str: "gauge", expected: GaugeType},
+	}
+	for _, input := range inputs {
+		var typ Type
+		require.NoError(t, yaml.Unmarshal([]byte(input.str), &typ))
+		require.Equal(t, input.expected, typ)
 	}
 }
 
-// UnmarshalYAML unmarshals YAML object into a metric type.
-func (t *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
+func TestTypeUnmarshalYAMLErrors(t *testing.T) {
+	inputs := []string{
+		"huh",
+		"blah",
 	}
-	validTypeStrs := make([]string, 0, len(validTypes))
-	for _, valid := range validTypes {
-		if str == valid.String() {
-			*t = valid
-			return nil
-		}
-		validTypeStrs = append(validTypeStrs, valid.String())
+	for _, input := range inputs {
+		var typ Type
+		err := yaml.Unmarshal([]byte(input), &typ)
+		require.Error(t, err)
+		require.Equal(t, "invalid metric type '"+input+"' valid types are: counter, timer, gauge", err.Error())
 	}
-	return fmt.Errorf("invalid metric type '%s' valid types are: %s",
-		str, strings.Join(validTypeStrs, ", "))
 }
