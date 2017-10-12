@@ -87,7 +87,7 @@ type kvStoreConfig struct {
 	// KVClient configures the client for key value store.
 	KVClient *etcd.Configuration `yaml:"kvClient" validate:"nonzero"`
 
-	// KV configures the namespace and the environment.
+	// KVConfig configures the namespace and the environment.
 	KVConfig clusterKV.Configuration `yaml:"kvConfig"`
 
 	// Propagation delay for rule updates.
