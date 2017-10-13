@@ -22,6 +22,7 @@ package aggregator
 
 import (
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -772,7 +773,6 @@ func (o *options) computeSuffixes() {
 
 func (o *options) computeDefaultSuffixes() {
 	o.defaultSuffixes = make([][]byte, policy.MaxAggregationTypeID+1)
-
 	for aggType := range policy.ValidAggregationTypes {
 		switch aggType {
 		case policy.Last:
@@ -870,7 +870,12 @@ func (o *options) computeFullGaugePrefix() {
 
 // By default we use e.g. ".p50", ".p95", ".p99" for the 50th/95th/99th percentile.
 func defaultTimerQuantileSuffixFn(quantile float64) []byte {
-	return []byte(".p" + strconv.FormatFloat(quantile*100, 'f', -1, 64))
+	str := strconv.FormatFloat(quantile*100, 'f', -1, 64)
+	idx := strings.Index(str, ".")
+	if idx != -1 {
+		str = str[:idx] + str[idx+1:]
+	}
+	return []byte(".p" + str)
 }
 
 func defaultShardFn(id []byte, numShards int) uint32 {
