@@ -19,8 +19,10 @@
 package time
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -47,6 +49,11 @@ func isDigit(c byte) bool { return c >= '0' && c <= '9' }
 func ParseExtendedDuration(s string) (time.Duration, error) {
 	if len(s) == 0 {
 		return 0, errDurationEmpty
+	}
+	var isNegative bool
+	if s[0] == '-' {
+		isNegative = true
+		s = s[1:]
 	}
 
 	var d time.Duration
@@ -85,5 +92,39 @@ func ParseExtendedDuration(s string) (time.Duration, error) {
 
 	}
 
+	if isNegative {
+		d = -d
+	}
 	return d, nil
+}
+
+// ToExtendedString converts a duration to an extended string.
+func ToExtendedString(d time.Duration) string {
+	if d == 0 {
+		return d.String()
+	}
+	var (
+		b          bytes.Buffer
+		dUnixNanos = d.Nanoseconds()
+	)
+	if dUnixNanos < 0 {
+		dUnixNanos = -dUnixNanos
+		b.WriteString("-")
+	}
+	for _, u := range unitsByDurationDesc {
+		// The unit is guaranteed to be valid so it's safe to ignore error here.
+		v, _ := u.Value()
+		valueNanos := int64(v)
+		if dUnixNanos < valueNanos {
+			continue
+		}
+		quotient := dUnixNanos / valueNanos
+		dUnixNanos -= quotient * valueNanos
+		b.WriteString(strconv.Itoa(int(quotient)))
+		b.WriteString(u.String())
+		if dUnixNanos == 0 {
+			break
+		}
+	}
+	return b.String()
 }

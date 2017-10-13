@@ -22,6 +22,7 @@ package time
 
 import (
 	"errors"
+	"sort"
 	"time"
 )
 
@@ -36,13 +37,16 @@ const (
 	Nanosecond
 	Minute
 	Hour
+	Day
+	Week
+	Month
+	Year
 )
 
 var (
 	errUnrecognizedTimeUnit  = errors.New("unrecognized time unit")
 	errConvertDurationToUnit = errors.New("unable to convert from duration to time unit")
 	errConvertUnitToDuration = errors.New("unable to convert from time unit to duration")
-	errMaxUnitForDuration    = errors.New("unable to determine the maximum unit for duration")
 	errNegativeDuraton       = errors.New("duration cannot be negative")
 )
 
@@ -117,15 +121,21 @@ func DurationFromUnit(u Unit) (time.Duration, error) {
 
 // MaxUnitForDuration determines the maximum unit for which
 // the input duration is a multiple of.
-func MaxUnitForDuration(d time.Duration) (int64, Unit, error) {
+func MaxUnitForDuration(d time.Duration) (int64, Unit) {
 	var (
-		currDuration time.Duration
 		currMultiple int64
-		currUnit     Unit
-		dUnixNanos   = int64(d)
+		currUnit     = Nanosecond
+		dUnixNanos   = d.Nanoseconds()
+		isNegative   bool
 	)
-	for unit, duration := range unitsToDuration {
-		if d < duration || currDuration >= duration {
+	if dUnixNanos < 0 {
+		dUnixNanos = -dUnixNanos
+		isNegative = true
+	}
+	for _, u := range unitsByDurationDesc {
+		// The unit is guaranteed to be valid so it's safe to ignore error here.
+		duration, _ := u.Value()
+		if dUnixNanos < duration.Nanoseconds() {
 			continue
 		}
 		durationUnixNanos := int64(duration)
@@ -134,14 +144,14 @@ func MaxUnitForDuration(d time.Duration) (int64, Unit, error) {
 		if remainder != 0 {
 			continue
 		}
-		currDuration = duration
 		currMultiple = quotient
-		currUnit = unit
+		currUnit = u
+		break
 	}
-	if currUnit == None {
-		return 0, None, errMaxUnitForDuration
+	if isNegative {
+		currMultiple = -currMultiple
 	}
-	return currMultiple, currUnit, nil
+	return currMultiple, currUnit
 }
 
 var (
@@ -152,6 +162,10 @@ var (
 		Microsecond: "us",
 		Minute:      "m",
 		Hour:        "h",
+		Day:         "d",
+		Week:        "w",
+		Month:       "mon",
+		Year:        "y",
 	}
 
 	durationsToUnit = make(map[time.Duration]Unit)
@@ -162,11 +176,32 @@ var (
 		Microsecond: time.Microsecond,
 		Minute:      time.Minute,
 		Hour:        time.Hour,
+		Day:         time.Hour * 24,
+		Week:        time.Hour * 24 * 7,
+		Month:       time.Hour * 24 * 30,
+		Year:        time.Hour * 24 * 365,
 	}
+	unitsByDurationDesc []Unit
 )
 
+// byDurationDesc sorts time units by their durations in descending order.
+// The order is undefined if the units are invalid.
+type byDurationDesc []Unit
+
+func (b byDurationDesc) Len() int      { return len(b) }
+func (b byDurationDesc) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
+
+func (b byDurationDesc) Less(i, j int) bool {
+	vi, _ := b[i].Value()
+	vj, _ := b[j].Value()
+	return vi > vj
+}
+
 func init() {
+	unitsByDurationDesc = make([]Unit, 0, len(unitsToDuration))
 	for u, d := range unitsToDuration {
 		durationsToUnit[d] = u
+		unitsByDurationDesc = append(unitsByDurationDesc, u)
 	}
+	sort.Sort(byDurationDesc(unitsByDurationDesc))
 }

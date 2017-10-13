@@ -37,6 +37,11 @@ func TestParseExtendedDuration(t *testing.T) {
 		{"5m4ms", 5*time.Minute + 4*time.Millisecond},
 		{"1y6mon", 365*day + 180*day},
 		{"245ns", 245 * time.Nanosecond},
+		{"-6mon1w3d5min2s", -(day*180 + day*7 + day*3 + 5*time.Minute + 2*time.Second)},
+		{"-334us", -(334 * time.Microsecond)},
+		{"-5m4ms", -(5*time.Minute + 4*time.Millisecond)},
+		{"-1y6mon", -(365*day + 180*day)},
+		{"-245ns", -(245 * time.Nanosecond)},
 	}
 
 	for _, test := range tests {
@@ -55,6 +60,7 @@ func TestParseExtendedDurationErrors(t *testing.T) {
 		{"", "duration empty"},
 		{"4minutes", "invalid duration 4minutes, invalid unit minutes"},
 		{"4d3", "invalid duration 4d3, no unit"},
+		{"--4d", "invalid duration -4d, no value specified"},
 		{",3490", "invalid duration ,3490, no value specified"},
 	}
 
@@ -62,5 +68,99 @@ func TestParseExtendedDurationErrors(t *testing.T) {
 		_, err := ParseExtendedDuration(test.text)
 		require.Error(t, err, "expected error for '%s'", test.text)
 		assert.Equal(t, test.err, err.Error(), "invalid error for %s", test.text)
+	}
+}
+
+func TestToExtendedString(t *testing.T) {
+	tests := []struct {
+		d      time.Duration
+		result string
+	}{
+		{0, "0s"},
+		{time.Nanosecond, "1ns"},
+		{30 * time.Nanosecond, "30ns"},
+		{60 * time.Microsecond, "60us"},
+		{999 * time.Millisecond, "999ms"},
+		{20 * time.Second, "20s"},
+		{70 * time.Second, "1m10s"},
+		{120 * time.Second, "2m"},
+		{10 * time.Minute, "10m"},
+		{20 * time.Hour, "20h"},
+		{24 * time.Hour, "1d"},
+		{25 * time.Hour, "1d1h"},
+		{24 * 7 * time.Hour, "1w"},
+		{24 * 8 * time.Hour, "1w1d"},
+		{24 * 30 * time.Hour, "1mon"},
+		{24 * 31 * time.Hour, "1mon1d"},
+		{24 * 365 * time.Hour, "1y"},
+		{24 * 300 * time.Hour, "10mon"},
+		{-time.Nanosecond, "-1ns"},
+		{-30 * time.Nanosecond, "-30ns"},
+		{-60 * time.Microsecond, "-60us"},
+		{-999 * time.Millisecond, "-999ms"},
+		{-20 * time.Second, "-20s"},
+		{-70 * time.Second, "-1m10s"},
+		{-120 * time.Second, "-2m"},
+		{-10 * time.Minute, "-10m"},
+		{-20 * time.Hour, "-20h"},
+		{-24 * time.Hour, "-1d"},
+		{-25 * time.Hour, "-1d1h"},
+		{-24 * 7 * time.Hour, "-1w"},
+		{-24 * 8 * time.Hour, "-1w1d"},
+		{-24 * 30 * time.Hour, "-1mon"},
+		{-24 * 31 * time.Hour, "-1mon1d"},
+		{-24 * 365 * time.Hour, "-1y"},
+		{-24 * 300 * time.Hour, "-10mon"},
+	}
+
+	for _, test := range tests {
+		require.Equal(t, test.result, ToExtendedString(test.d))
+	}
+}
+
+func TestExtendDurationRoundTrip(t *testing.T) {
+	inputs := []string{
+		"0s",
+		"1ns",
+		"30ns",
+		"60us",
+		"999ms",
+		"20s",
+		"1m10s",
+		"2m",
+		"10m",
+		"20h",
+		"1d",
+		"1d1h",
+		"1w",
+		"1w1d",
+		"1mon",
+		"1mon1d",
+		"1y",
+		"10mon",
+		"-1ns",
+		"-30ns",
+		"-60us",
+		"-999ms",
+		"-20s",
+		"-1m10s",
+		"-2m",
+		"-10m",
+		"-20h",
+		"-1d",
+		"-1d1h",
+		"-1w",
+		"-1w1d",
+		"-1mon",
+		"-1mon1d",
+		"-1y",
+		"-10mon",
+	}
+
+	for _, input := range inputs {
+		d, err := ParseExtendedDuration(input)
+		require.NoError(t, err)
+		res := ToExtendedString(d)
+		require.Equal(t, input, res)
 	}
 }
