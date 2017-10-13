@@ -37,9 +37,9 @@ func TestPolicyString(t *testing.T) {
 		p        Policy
 		expected string
 	}{
-		{p: NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, time.Hour), DefaultAggregationID), expected: "10s@1s:1h0m0s"},
-		{p: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), mustCompress(Mean, P999)), expected: "1m0s@1m:12h0m0s|Mean,P999"},
-		{p: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), mustCompress(Mean)), expected: "1m0s@1m:12h0m0s|Mean"},
+		{p: NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, time.Hour), DefaultAggregationID), expected: "10s:1h"},
+		{p: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), mustCompress(Mean, P999)), expected: "1m:12h|Mean,P999"},
+		{p: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), mustCompress(Mean)), expected: "1m:12h|Mean"},
 	}
 	for _, input := range inputs {
 		require.Equal(t, input.expected, input.p.String())

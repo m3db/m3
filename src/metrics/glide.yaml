@@ -1,7 +1,7 @@
 package: github.com/m3db/m3metrics
 import:
 - package: github.com/m3db/m3x
-  version: 6e9713eca6718643e105f574be392f122bcc062e
+  version: 5120e5bcfaf4888c15052e5c9d7ba700dce4247c
   subpackages:
   - pool
   - time
@@ -73,3 +73,5 @@ testImport:
   subpackages:
   - gomock
   - mockgen
+- package: github.com/spaolacci/murmur3
+  version: 0d12bf811670bf6a1a63828dfbd003eded177fce

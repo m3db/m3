@@ -22,7 +22,10 @@ package policy
 
 import (
 	"errors"
+	"fmt"
 	"time"
+
+	xtime "github.com/m3db/m3x/time"
 )
 
 // Retention is the retention period for datapoints.
@@ -30,12 +33,30 @@ type Retention time.Duration
 
 // String is the string representation of a retention period.
 func (r Retention) String() string {
-	return r.Duration().String()
+	return xtime.ToExtendedString(r.Duration())
 }
 
 // Duration returns the duration of the retention period.
 func (r Retention) Duration() time.Duration {
 	return time.Duration(r)
+}
+
+// ParseRetention parses a retention.
+func ParseRetention(str string) (Retention, error) {
+	d, err := xtime.ParseExtendedDuration(str)
+	if err != nil {
+		return 0, err
+	}
+	return Retention(d), nil
+}
+
+// MustParseRetention parses a retention, and panics if the input is invalid.
+func MustParseRetention(str string) Retention {
+	retention, err := ParseRetention(str)
+	if err != nil {
+		panic(fmt.Errorf("invalid retention string %s: %v", str, err))
+	}
+	return retention
 }
 
 // RetentionValue is the retention value.
