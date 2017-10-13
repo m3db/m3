@@ -39,6 +39,10 @@ func TestUnitValue(t *testing.T) {
 		{Nanosecond, time.Nanosecond},
 		{Minute, time.Minute},
 		{Hour, time.Hour},
+		{Day, 24 * time.Hour},
+		{Week, 24 * 7 * time.Hour},
+		{Month, 24 * 30 * time.Hour},
+		{Year, 24 * 365 * time.Hour},
 	}
 	for _, input := range inputs {
 		v, err := input.u.Value()
@@ -46,7 +50,7 @@ func TestUnitValue(t *testing.T) {
 		require.Equal(t, input.expected, v)
 	}
 
-	invalidUnit := Unit(10)
+	invalidUnit := Unit(100)
 	_, err := invalidUnit.Value()
 	require.Equal(t, errUnrecognizedTimeUnit, err)
 }
@@ -61,6 +65,12 @@ func TestUnitCount(t *testing.T) {
 		{Millisecond, 10 * time.Millisecond, 10},
 		{Microsecond, time.Nanosecond, 0},
 		{Nanosecond, time.Microsecond, 1000},
+		{Minute, 2 * time.Minute, 2},
+		{Hour, 3 * time.Hour, 3},
+		{Day, 49 * time.Hour, 2},
+		{Week, 24 * 10 * time.Hour, 1},
+		{Month, 24 * 60 * time.Hour, 2},
+		{Year, 24 * 365 * time.Hour, 1},
 	}
 	for _, input := range inputs {
 		c, err := input.u.Count(input.d)
@@ -68,7 +78,7 @@ func TestUnitCount(t *testing.T) {
 		require.Equal(t, input.expected, c)
 	}
 
-	invalidUnit := Unit(10)
+	invalidUnit := Unit(100)
 	_, err := invalidUnit.Count(time.Second)
 	require.Error(t, err)
 
@@ -90,13 +100,19 @@ func TestUnitMustCount(t *testing.T) {
 		{Millisecond, 10 * time.Millisecond, 10},
 		{Microsecond, time.Nanosecond, 0},
 		{Nanosecond, time.Microsecond, 1000},
+		{Minute, 2 * time.Minute, 2},
+		{Hour, 3 * time.Hour, 3},
+		{Day, 49 * time.Hour, 2},
+		{Week, 24 * 10 * time.Hour, 1},
+		{Month, 24 * 60 * time.Hour, 2},
+		{Year, 24 * 365 * time.Hour, 1},
 	}
 	for _, input := range inputs {
 		c := input.u.MustCount(input.d)
 		require.Equal(t, input.expected, c)
 	}
 
-	invalidUnit := Unit(10)
+	invalidUnit := Unit(100)
 	require.Panics(t, func() {
 		invalidUnit.MustCount(time.Second)
 	})
@@ -121,7 +137,11 @@ func TestUnitIsValid(t *testing.T) {
 		{Nanosecond, true},
 		{Minute, true},
 		{Hour, true},
-		{Unit(10), false},
+		{Day, true},
+		{Week, true},
+		{Month, true},
+		{Year, true},
+		{Unit(100), false},
 	}
 	for _, input := range inputs {
 		require.Equal(t, input.expected, input.u.IsValid())
@@ -139,6 +159,10 @@ func TestUnitFromDuration(t *testing.T) {
 		{time.Nanosecond, Nanosecond},
 		{time.Minute, Minute},
 		{time.Hour, Hour},
+		{24 * time.Hour, Day},
+		{24 * 7 * time.Hour, Week},
+		{24 * 30 * time.Hour, Month},
+		{24 * 365 * time.Hour, Year},
 	}
 	for _, input := range inputs {
 		u, err := UnitFromDuration(input.d)
@@ -158,26 +182,45 @@ func TestMaxUnitForDuration(t *testing.T) {
 		expectedMultiple int64
 		expectedUnit     Unit
 	}{
+		{0, 0, Nanosecond},
+		{30 * time.Nanosecond, 30, Nanosecond},
+		{60 * time.Microsecond, 60, Microsecond},
+		{999 * time.Millisecond, 999, Millisecond},
 		{20 * time.Second, 20, Second},
 		{70 * time.Second, 70, Second},
 		{120 * time.Second, 2, Minute},
-		{30 * time.Nanosecond, 30, Nanosecond},
-		{999 * time.Millisecond, 999, Millisecond},
-		{60 * time.Microsecond, 60, Microsecond},
 		{10 * time.Minute, 10, Minute},
 		{20 * time.Hour, 20, Hour},
+		{24 * time.Hour, 1, Day},
+		{25 * time.Hour, 25, Hour},
+		{24 * 7 * time.Hour, 1, Week},
+		{24 * 8 * time.Hour, 8, Day},
+		{24 * 30 * time.Hour, 1, Month},
+		{24 * 31 * time.Hour, 31, Day},
+		{24 * 365 * time.Hour, 1, Year},
+		{24 * 300 * time.Hour, 10, Month},
+		{-30 * time.Nanosecond, -30, Nanosecond},
+		{-60 * time.Microsecond, -60, Microsecond},
+		{-999 * time.Millisecond, -999, Millisecond},
+		{-20 * time.Second, -20, Second},
+		{-70 * time.Second, -70, Second},
+		{-120 * time.Second, -2, Minute},
+		{-10 * time.Minute, -10, Minute},
+		{-20 * time.Hour, -20, Hour},
+		{-24 * time.Hour, -1, Day},
+		{-25 * time.Hour, -25, Hour},
+		{-24 * 7 * time.Hour, -1, Week},
+		{-24 * 8 * time.Hour, -8, Day},
+		{-24 * 30 * time.Hour, -1, Month},
+		{-24 * 31 * time.Hour, -31, Day},
+		{-24 * 365 * time.Hour, -1, Year},
+		{-24 * 300 * time.Hour, -10, Month},
 	}
 	for _, input := range inputs {
-		m, u, err := MaxUnitForDuration(input.d)
-		require.NoError(t, err)
+		m, u := MaxUnitForDuration(input.d)
 		require.Equal(t, input.expectedMultiple, m)
 		require.Equal(t, input.expectedUnit, u)
 	}
-}
-
-func TestMaxUnitForDurationError(t *testing.T) {
-	_, _, err := MaxUnitForDuration(0)
-	require.Equal(t, errMaxUnitForDuration, err)
 }
 
 func TestDurationFromUnit(t *testing.T) {
@@ -191,6 +234,10 @@ func TestDurationFromUnit(t *testing.T) {
 		{Nanosecond, time.Nanosecond},
 		{Minute, time.Minute},
 		{Hour, time.Hour},
+		{Day, 24 * time.Hour},
+		{Week, 24 * 7 * time.Hour},
+		{Month, 24 * 30 * time.Hour},
+		{Year, 24 * 365 * time.Hour},
 	}
 	for _, input := range inputs {
 		d, err := DurationFromUnit(input.u)
@@ -215,6 +262,10 @@ func TestUnitString(t *testing.T) {
 		{Nanosecond, "ns"},
 		{Minute, "m"},
 		{Hour, "h"},
+		{Day, "d"},
+		{Week, "w"},
+		{Month, "mon"},
+		{Year, "y"},
 		{None, "unknown"},
 	}
 
