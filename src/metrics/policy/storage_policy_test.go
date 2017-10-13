@@ -36,8 +36,9 @@ func TestStoragePolicyString(t *testing.T) {
 		p        StoragePolicy
 		expected string
 	}{
-		{p: NewStoragePolicy(10*time.Second, xtime.Second, time.Hour), expected: "10s@1s:1h0m0s"},
-		{p: NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), expected: "1m0s@1m:12h0m0s"},
+		{p: NewStoragePolicy(10*time.Second, xtime.Second, time.Hour), expected: "10s:1h"},
+		{p: NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), expected: "1m:12h"},
+		{p: NewStoragePolicy(time.Minute, xtime.Second, 12*time.Hour), expected: "1m@1s:12h"},
 	}
 	for _, input := range inputs {
 		require.Equal(t, input.expected, input.p.String())
@@ -81,6 +82,14 @@ func TestParseStoragePolicy(t *testing.T) {
 			str:      "1m@1m:1d",
 			expected: NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
 		},
+		{
+			str:      "1h0m0s@1h0m0s:24h0m0s",
+			expected: NewStoragePolicy(time.Hour, xtime.Hour, 24*time.Hour),
+		},
+		{
+			str:      "1h:24h",
+			expected: NewStoragePolicy(time.Hour, xtime.Hour, 24*time.Hour),
+		},
 	}
 	for _, input := range inputs {
 		res, err := ParseStoragePolicy(input.str)
@@ -89,10 +98,29 @@ func TestParseStoragePolicy(t *testing.T) {
 	}
 }
 
+func TestStoragePolicyRoundTrip(t *testing.T) {
+	inputs := []StoragePolicy{
+		NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+		NewStoragePolicy(time.Second, xtime.Second, time.Hour),
+		NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Second, 24*time.Hour),
+		NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour),
+	}
+
+	for _, input := range inputs {
+		str := input.String()
+		parsed, err := ParseStoragePolicy(str)
+		require.NoError(t, err)
+		require.Equal(t, input, parsed)
+	}
+}
+
 func TestParseStoragePolicyErrors(t *testing.T) {
 	inputs := []string{
 		"1s:1s:1s",
-		"0s:1d",
 		"10seconds:1s",
 		"10seconds@1s:1d",
 		"10s@2s:1d",
@@ -178,7 +206,6 @@ func TestMustParseStoragePolicy(t *testing.T) {
 func TestStoragePolicyUnmarshalYAMLErrors(t *testing.T) {
 	inputs := []string{
 		"1s:1s:1s",
-		"0s:1d",
 		"10seconds:1s",
 		"10seconds@1s:1d",
 		"10s@2s:1d",

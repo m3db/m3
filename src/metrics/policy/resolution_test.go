@@ -142,10 +142,62 @@ func TestParseResolution(t *testing.T) {
 	}
 }
 
+func TestResolutionString(t *testing.T) {
+	inputs := []struct {
+		resolution Resolution
+		expected   string
+	}{
+		{
+			resolution: Resolution{Window: time.Second, Precision: xtime.Second},
+			expected:   "1s",
+		},
+		{
+			resolution: Resolution{Window: 10 * time.Second, Precision: xtime.Second},
+			expected:   "10s",
+		},
+		{
+			resolution: Resolution{Window: time.Minute, Precision: xtime.Minute},
+			expected:   "1m",
+		},
+		{
+			resolution: Resolution{Window: 10 * time.Minute, Precision: xtime.Minute},
+			expected:   "10m",
+		},
+		{
+			resolution: Resolution{Window: time.Hour, Precision: xtime.Hour},
+			expected:   "1h",
+		},
+		{
+			resolution: Resolution{Window: 10 * time.Minute, Precision: xtime.Second},
+			expected:   "10m@1s",
+		},
+	}
+	for _, input := range inputs {
+		require.Equal(t, input.expected, input.resolution.String())
+	}
+}
+
+func TestResolutionRoundTrip(t *testing.T) {
+	inputs := []Resolution{
+		Resolution{Window: time.Second, Precision: xtime.Second},
+		Resolution{Window: 10 * time.Second, Precision: xtime.Second},
+		Resolution{Window: time.Minute, Precision: xtime.Minute},
+		Resolution{Window: 10 * time.Minute, Precision: xtime.Minute},
+		Resolution{Window: time.Hour, Precision: xtime.Hour},
+		Resolution{Window: 10 * time.Minute, Precision: xtime.Second},
+		Resolution{Window: 23491929834 * time.Nanosecond, Precision: xtime.Nanosecond},
+	}
+
+	for _, input := range inputs {
+		res, err := ParseResolution(input.String())
+		require.NoError(t, err)
+		require.Equal(t, input, res)
+	}
+}
+
 func TestParseResolutionNoPrecisionErrors(t *testing.T) {
 	inputs := []string{
 		"10seconds",
-		"0s",
 		"0.1s",
 		"10seconds@1s",
 		"10s@2s",

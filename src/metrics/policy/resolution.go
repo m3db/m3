@@ -48,7 +48,12 @@ type Resolution struct {
 
 // String is the string representation of a resolution.
 func (r Resolution) String() string {
-	return fmt.Sprintf("%s%s1%s", r.Window.String(), windowPrecisionSeparator, r.Precision.String())
+	_, maxUnit := xtime.MaxUnitForDuration(r.Window)
+	if maxUnit == r.Precision {
+		// If the precision is the default value, do not write it for better readability.
+		return xtime.ToExtendedString(r.Window)
+	}
+	return fmt.Sprintf("%s%s1%s", xtime.ToExtendedString(r.Window), windowPrecisionSeparator, r.Precision.String())
 }
 
 // ParseResolution parses a resolution.
@@ -62,10 +67,7 @@ func ParseResolution(str string) (Resolution, error) {
 		if err != nil {
 			return emptyResolution, err
 		}
-		_, precision, err := xtime.MaxUnitForDuration(windowSize)
-		if err != nil {
-			return emptyResolution, err
-		}
+		_, precision := xtime.MaxUnitForDuration(windowSize)
 		return Resolution{Window: windowSize, Precision: precision}, nil
 	}
 
@@ -83,6 +85,16 @@ func ParseResolution(str string) (Resolution, error) {
 		return emptyResolution, err
 	}
 	return Resolution{Window: windowSize, Precision: precision}, nil
+}
+
+// MustParseResolution parses a resolution in the form of window@precision,
+// and panics if the input string is invalid.
+func MustParseResolution(str string) Resolution {
+	resolution, err := ParseResolution(str)
+	if err != nil {
+		panic(fmt.Errorf("invalid resolution string %s: %v", str, err))
+	}
+	return resolution
 }
 
 // ResolutionValue is the resolution value.

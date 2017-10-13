@@ -132,11 +132,10 @@ func ParseStoragePolicy(str string) (StoragePolicy, error) {
 	if err != nil {
 		return EmptyStoragePolicy, err
 	}
-	retentionDuration, err := xtime.ParseExtendedDuration(parts[1])
+	retention, err := ParseRetention(parts[1])
 	if err != nil {
 		return EmptyStoragePolicy, err
 	}
-	retention := Retention(retentionDuration)
 	return StoragePolicy{resolution: resolution, retention: retention}, nil
 }
 

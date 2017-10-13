@@ -111,3 +111,150 @@ func TestInvalidRetention(t *testing.T) {
 		require.Equal(t, errUnknownRetention, err)
 	}
 }
+
+func TestParseRetention(t *testing.T) {
+	inputs := []struct {
+		str      string
+		expected Retention
+	}{
+		{
+			str:      "1s",
+			expected: Retention(time.Second),
+		},
+		{
+			str:      "10s",
+			expected: Retention(10 * time.Second),
+		},
+		{
+			str:      "1m",
+			expected: Retention(time.Minute),
+		},
+		{
+			str:      "10m",
+			expected: Retention(10 * time.Minute),
+		},
+		{
+			str:      "1h",
+			expected: Retention(time.Hour),
+		},
+		{
+			str:      "1d",
+			expected: Retention(24 * time.Hour),
+		},
+		{
+			str:      "1w",
+			expected: Retention(24 * 7 * time.Hour),
+		},
+		{
+			str:      "1mon",
+			expected: Retention(24 * 30 * time.Hour),
+		},
+		{
+			str:      "6mon",
+			expected: Retention(24 * 180 * time.Hour),
+		},
+		{
+			str:      "1y",
+			expected: Retention(24 * 365 * time.Hour),
+		},
+		{
+			str:      "24h0m0s",
+			expected: Retention(24 * time.Hour),
+		},
+	}
+
+	for _, input := range inputs {
+		res, err := ParseRetention(input.str)
+		require.NoError(t, err)
+		require.Equal(t, input.expected, res)
+	}
+}
+
+func TestParseRetentionError(t *testing.T) {
+	inputs := []string{
+		"4",
+		"",
+		"4minutes",
+		"4d3",
+		",3490",
+	}
+
+	for _, input := range inputs {
+		_, err := ParseRetention(input)
+		require.Error(t, err)
+	}
+}
+
+func TestRetentionString(t *testing.T) {
+	inputs := []struct {
+		retention Retention
+		expected  string
+	}{
+		{
+			retention: Retention(time.Second),
+			expected:  "1s",
+		},
+		{
+			retention: Retention(10 * time.Second),
+			expected:  "10s",
+		},
+		{
+			retention: Retention(time.Minute),
+			expected:  "1m",
+		},
+		{
+			retention: Retention(10 * time.Minute),
+			expected:  "10m",
+		},
+		{
+			retention: Retention(time.Hour),
+			expected:  "1h",
+		},
+		{
+			retention: Retention(24 * time.Hour),
+			expected:  "1d",
+		},
+		{
+			retention: Retention(24 * 7 * time.Hour),
+			expected:  "1w",
+		},
+		{
+			retention: Retention(24 * 30 * time.Hour),
+			expected:  "1mon",
+		},
+		{
+			retention: Retention(24 * 180 * time.Hour),
+			expected:  "6mon",
+		},
+		{
+			retention: Retention(24 * 365 * time.Hour),
+			expected:  "1y",
+		},
+	}
+
+	for _, input := range inputs {
+		require.Equal(t, input.expected, input.retention.String())
+	}
+}
+
+func TestRetentionRoundTrip(t *testing.T) {
+	inputs := []Retention{
+		Retention(time.Second),
+		Retention(10 * time.Second),
+		Retention(time.Minute),
+		Retention(10 * time.Minute),
+		Retention(time.Hour),
+		Retention(24 * time.Hour),
+		Retention(24 * 7 * time.Hour),
+		Retention(24 * 30 * time.Hour),
+		Retention(24 * 180 * time.Hour),
+		Retention(24 * 365 * time.Hour),
+	}
+
+	for _, input := range inputs {
+		str := input.String()
+		res, err := ParseRetention(str)
+		require.NoError(t, err)
+		require.Equal(t, input, res)
+	}
+}

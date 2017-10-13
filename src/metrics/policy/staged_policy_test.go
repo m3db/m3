@@ -250,8 +250,8 @@ func TestPoliciesListJSONMarshaling(t *testing.T) {
 					[]Policy{},
 				),
 			},
-			expected: `[{"cutoverNanos":0,"tombstoned":false,"policies":["10s@1s:6h0m0s","1m0s@1m:24h0m0s|Mean,Count"]},` +
-				`{"cutoverNanos":100,"tombstoned":true,"policies":["10s@1s:6h0m0s|Sum"]},` +
+			expected: `[{"cutoverNanos":0,"tombstoned":false,"policies":["10s:6h","1m:1d|Mean,Count"]},` +
+				`{"cutoverNanos":100,"tombstoned":true,"policies":["10s:6h|Sum"]},` +
 				`{"cutoverNanos":200,"tombstoned":false,"policies":[]}]`,
 		},
 	}
