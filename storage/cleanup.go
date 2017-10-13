@@ -89,7 +89,9 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 			"encountered errors when cleaning up fileset files for %v: %v", t, err))
 	}
 
-	commitLogStart, commitLogTimes := m.commitLogTimes(t)
+	commitLogStart, commitLogTimes, err := m.commitLogTimes(t)
+	multiErr = multiErr.Add(fmt.Errorf(
+		"encountered errors when cleaning up commit logs: %v", err))
 	if err := m.cleanupCommitLogs(commitLogStart, commitLogTimes); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when cleaning up commit logs for commitLogStart %v commitLogTimes %v: %v",
@@ -112,10 +114,11 @@ func (m *cleanupManager) Report() {
 }
 
 func (m *cleanupManager) cleanupFilesetFiles(t time.Time) error {
-	var (
-		multiErr   = xerrors.NewMultiError()
-		namespaces = m.database.GetOwnedNamespaces()
-	)
+	multiErr := xerrors.NewMultiError()
+	namespaces, err := m.database.GetOwnedNamespaces()
+	if err != nil {
+		return err
+	}
 	for _, n := range namespaces {
 		earliestToRetain := retention.FlushTimeStart(n.Options().RetentionOptions(), t)
 		multiErr = multiErr.Add(n.CleanupFileset(earliestToRetain))
@@ -140,7 +143,7 @@ func (m *cleanupManager) commitLogTimeRange(t time.Time) (time.Time, time.Time) 
 
 // commitLogTimes returns the earliest time before which the commit logs are expired,
 // as well as a list of times we need to clean up commit log files for.
-func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
+func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time, error) {
 	var (
 		blockSize        = m.opts.CommitLogOptions().BlockSize()
 		earliest, latest = m.commitLogTimeRange(t)
@@ -156,7 +159,10 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
 	// data loss.
 
 	candidateTimes := timesInRange(earliest, latest, blockSize)
-	namespaces := m.database.GetOwnedNamespaces()
+	namespaces, err := m.database.GetOwnedNamespaces()
+	if err != nil {
+		return time.Time{}, nil, err
+	}
 	cleanupTimes := filterTimes(candidateTimes, func(t time.Time) bool {
 		for _, ns := range namespaces {
 			ropts := ns.Options().RetentionOptions()
@@ -168,7 +174,7 @@ func (m *cleanupManager) commitLogTimes(t time.Time) (time.Time, []time.Time) {
 		return true
 	})
 
-	return earliest, cleanupTimes
+	return earliest, cleanupTimes, nil
 }
 
 // commitLogNamespaceBlockTimes returns the range of namespace block starts which for which the

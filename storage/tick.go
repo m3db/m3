@@ -115,7 +115,10 @@ func (mgr *tickManager) Tick(softDeadline time.Duration, forceType forceType) er
 
 	// Now we acquired the token, reset the cancellable
 	mgr.c.Reset()
-	namespaces := mgr.database.GetOwnedNamespaces()
+	namespaces, err := mgr.database.GetOwnedNamespaces()
+	if err != nil {
+		return err
+	}
 	if len(namespaces) == 0 {
 		return errEmptyNamespaces
 	}

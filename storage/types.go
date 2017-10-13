@@ -133,7 +133,7 @@ type database interface {
 	Database
 
 	// GetOwnedNamespaces returns the namespaces this database owns.
-	GetOwnedNamespaces() []databaseNamespace
+	GetOwnedNamespaces() ([]databaseNamespace, error)
 
 	// UpdateOwnedNamespaces updates the namespaces this database owns.
 	UpdateOwnedNamespaces(namespaces namespace.Map) error

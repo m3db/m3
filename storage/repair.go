@@ -368,7 +368,10 @@ func (r *dbRepairer) Repair() error {
 	}()
 
 	multiErr := xerrors.NewMultiError()
-	namespaces := r.database.GetOwnedNamespaces()
+	namespaces, err := r.database.GetOwnedNamespaces()
+	if err != nil {
+		return err
+	}
 	for _, n := range namespaces {
 		iter := r.namespaceRepairTimeRanges(n).Iter()
 		for iter.Next() {

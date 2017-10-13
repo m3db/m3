@@ -53,6 +53,9 @@ var (
 
 	// errDatabaseAlreadyClosed raised when trying to open a database that is already closed
 	errDatabaseAlreadyClosed = errors.New("database is already closed")
+
+	// errDatabaseIsClosed raise when trying to perform an action that requires an open database
+	errDatabaseIsClosed = errors.New("database is closed")
 )
 
 type databaseState int
@@ -551,10 +554,13 @@ func (d *db) ownedNamespacesWithLock() []databaseNamespace {
 	return namespaces
 }
 
-func (d *db) GetOwnedNamespaces() []databaseNamespace {
+func (d *db) GetOwnedNamespaces() ([]databaseNamespace, error) {
 	d.RLock()
 	defer d.RUnlock()
-	return d.ownedNamespacesWithLock()
+	if d.state == databaseClosed {
+		return nil, errDatabaseIsClosed
+	}
+	return d.ownedNamespacesWithLock(), nil
 }
 
 func (d *db) nextIndex() uint64 {
