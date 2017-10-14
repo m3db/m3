@@ -180,6 +180,11 @@ func NewPoliciesFromSchema(policies []*schema.Policy) ([]Policy, error) {
 	return res, nil
 }
 
+// IsDefaultPolicies checks if the policies are the default policies.
+func IsDefaultPolicies(ps []Policy) bool {
+	return len(ps) == 0
+}
+
 // ByResolutionAsc implements the sort.Sort interface to sort
 // policies by resolution in ascending order, finest resolution first.
 // If two policies have the same resolution, the one with longer

@@ -182,6 +182,17 @@ func TestQuantiles(t *testing.T) {
 	require.True(t, ok)
 }
 
+func TestAggregationIDContains(t *testing.T) {
+	require.True(t, MustCompressAggregationTypes(P99).Contains(P99))
+	require.True(t, MustCompressAggregationTypes(P99, P95).Contains(P99))
+	require.True(t, MustCompressAggregationTypes(P99, P95).Contains(P95))
+	require.True(t, MustCompressAggregationTypes(Sum, Last, P999).Contains(Sum))
+	require.True(t, MustCompressAggregationTypes(Sum, Last, P999).Contains(Last))
+	require.True(t, MustCompressAggregationTypes(Sum, Last, P999).Contains(P999))
+	require.False(t, MustCompressAggregationTypes(Sum, Last, P999).Contains(P9999))
+	require.False(t, MustCompressAggregationTypes().Contains(P99))
+	require.False(t, MustCompressAggregationTypes(P99, P95).Contains(P9999))
+}
 func TestCompressedAggregationTypesIsDefault(t *testing.T) {
 	var id AggregationID
 	require.True(t, id.IsDefault())
@@ -201,11 +212,11 @@ func TestCompressedAggregationTypesMerge(t *testing.T) {
 		merged bool
 	}{
 		{DefaultAggregationID, DefaultAggregationID, DefaultAggregationID, false},
-		{mustCompress(Mean), DefaultAggregationID, mustCompress(Mean), false},
-		{DefaultAggregationID, mustCompress(Mean), mustCompress(Mean), true},
-		{mustCompress(Min), mustCompress(Max), mustCompress(Min, Max), true},
-		{mustCompress(Min), mustCompress(Min, Max), mustCompress(Min, Max), true},
-		{mustCompress(Min, Max), mustCompress(Min), mustCompress(Min, Max), false},
+		{MustCompressAggregationTypes(Mean), DefaultAggregationID, MustCompressAggregationTypes(Mean), false},
+		{DefaultAggregationID, MustCompressAggregationTypes(Mean), MustCompressAggregationTypes(Mean), true},
+		{MustCompressAggregationTypes(Min), MustCompressAggregationTypes(Max), MustCompressAggregationTypes(Min, Max), true},
+		{MustCompressAggregationTypes(Min), MustCompressAggregationTypes(Min, Max), MustCompressAggregationTypes(Min, Max), true},
+		{MustCompressAggregationTypes(Min, Max), MustCompressAggregationTypes(Min), MustCompressAggregationTypes(Min, Max), false},
 	}
 
 	for _, test := range testcases {
@@ -213,12 +224,4 @@ func TestCompressedAggregationTypesMerge(t *testing.T) {
 		require.Equal(t, test.result, res)
 		require.Equal(t, test.merged, merged)
 	}
-}
-
-func mustCompress(aggTypes ...AggregationType) AggregationID {
-	res, err := NewAggregationIDCompressor().Compress(aggTypes)
-	if err != nil {
-		panic(err.Error())
-	}
-	return res
 }

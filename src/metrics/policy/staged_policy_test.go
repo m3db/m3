@@ -63,10 +63,10 @@ func TestStagedPoliciesSamePoliciesDefaultPolicies(t *testing.T) {
 		{
 			sp: [2]StagedPolicies{
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Min, Max)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), MustCompressAggregationTypes(Min, Max)),
 				}),
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Max, Min)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), MustCompressAggregationTypes(Max, Min)),
 				}),
 			},
 			expected: true,
@@ -74,10 +74,10 @@ func TestStagedPoliciesSamePoliciesDefaultPolicies(t *testing.T) {
 		{
 			sp: [2]StagedPolicies{
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Max)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), MustCompressAggregationTypes(Max)),
 				}),
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Last)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), MustCompressAggregationTypes(Last)),
 				}),
 			},
 			expected: false,
@@ -85,10 +85,10 @@ func TestStagedPoliciesSamePoliciesDefaultPolicies(t *testing.T) {
 		{
 			sp: [2]StagedPolicies{
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Max)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), MustCompressAggregationTypes(Max)),
 				}),
 				NewStagedPolicies(0, false, []Policy{
-					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Max, Min)),
+					NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), MustCompressAggregationTypes(Max, Min)),
 				}),
 			},
 			expected: false,
@@ -234,14 +234,14 @@ func TestPoliciesListJSONMarshaling(t *testing.T) {
 					false,
 					[]Policy{
 						NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), DefaultAggregationID),
-						NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), mustCompress(Count, Mean)),
+						NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), MustCompressAggregationTypes(Count, Mean)),
 					},
 				),
 				NewStagedPolicies(
 					100,
 					true,
 					[]Policy{
-						NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), mustCompress(Sum)),
+						NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 6*time.Hour), MustCompressAggregationTypes(Sum)),
 					},
 				),
 				NewStagedPolicies(

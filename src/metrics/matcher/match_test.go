@@ -73,7 +73,7 @@ func TestMatcherMatchDoesNotExist(t *testing.T) {
 	}
 	now := time.Now()
 	matcher := testMatcher(t, newMemCache())
-	require.Equal(t, rules.EmptyMatchResult, matcher.Match(id, now.UnixNano(), now.UnixNano()))
+	require.Equal(t, rules.EmptyMatchResult, matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano()))
 }
 
 func TestMatcherMatchExists(t *testing.T) {
@@ -91,7 +91,7 @@ func TestMatcherMatchExists(t *testing.T) {
 	matcher := testMatcher(t, cache)
 	c := cache.(*memCache)
 	c.namespaces[ns] = memRes
-	require.Equal(t, res, matcher.Match(id, now.UnixNano(), now.UnixNano()))
+	require.Equal(t, res, matcher.ForwardMatch(id, now.UnixNano(), now.UnixNano()))
 }
 
 func TestMatcherClose(t *testing.T) {

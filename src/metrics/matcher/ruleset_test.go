@@ -28,6 +28,8 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
 
 	"github.com/stretchr/testify/require"
@@ -57,10 +59,10 @@ func TestRuleSetProperties(t *testing.T) {
 func TestRuleSetMatchNoMatcher(t *testing.T) {
 	_, _, rs := testRuleSet()
 	nowNanos := rs.nowFn().UnixNano()
-	require.Equal(t, rules.EmptyMatchResult, rs.Match([]byte("foo"), nowNanos, nowNanos))
+	require.Equal(t, rules.EmptyMatchResult, rs.ForwardMatch([]byte("foo"), nowNanos, nowNanos))
 }
 
-func TestRuleSetMatchWithMatcher(t *testing.T) {
+func TestRuleSetForwardMatchWithMatcher(t *testing.T) {
 	_, _, rs := testRuleSet()
 	mockMatcher := &mockMatcher{res: rules.EmptyMatchResult}
 	rs.matcher = mockMatcher
@@ -71,11 +73,29 @@ func TestRuleSetMatchWithMatcher(t *testing.T) {
 		toNanos   = now.Add(time.Second).UnixNano()
 	)
 
-	require.Equal(t, mockMatcher.res, rs.Match([]byte("foo"), fromNanos, toNanos))
+	require.Equal(t, mockMatcher.res, rs.ForwardMatch([]byte("foo"), fromNanos, toNanos))
 	require.Equal(t, []byte("foo"), mockMatcher.id)
 	require.Equal(t, fromNanos, mockMatcher.fromNanos)
 	require.Equal(t, toNanos, mockMatcher.toNanos)
-	require.Equal(t, rules.ReverseMatch, mockMatcher.mode)
+}
+
+func TestRuleSetReverseMatchWithMatcher(t *testing.T) {
+	_, _, rs := testRuleSet()
+	mockMatcher := &mockMatcher{res: rules.EmptyMatchResult}
+	rs.matcher = mockMatcher
+
+	var (
+		now       = rs.nowFn()
+		fromNanos = now.Add(-time.Second).UnixNano()
+		toNanos   = now.Add(time.Second).UnixNano()
+	)
+
+	require.Equal(t, mockMatcher.res, rs.ReverseMatch([]byte("foo"), fromNanos, toNanos, metric.CounterType, policy.Sum))
+	require.Equal(t, []byte("foo"), mockMatcher.id)
+	require.Equal(t, fromNanos, mockMatcher.fromNanos)
+	require.Equal(t, toNanos, mockMatcher.toNanos)
+	require.Equal(t, metric.CounterType, mockMatcher.metricType)
+	require.Equal(t, policy.Sum, mockMatcher.aggregationType)
 }
 
 func TestToRuleSetNilValue(t *testing.T) {
@@ -138,22 +158,34 @@ func TestRuleSetProcess(t *testing.T) {
 }
 
 type mockMatcher struct {
-	id        []byte
-	fromNanos int64
-	toNanos   int64
-	mode      rules.MatchMode
-	res       rules.MatchResult
+	id              []byte
+	fromNanos       int64
+	toNanos         int64
+	res             rules.MatchResult
+	metricType      metric.Type
+	aggregationType policy.AggregationType
 }
 
-func (mm *mockMatcher) MatchAll(
+func (mm *mockMatcher) ForwardMatch(
 	id []byte,
 	fromNanos, toNanos int64,
-	matchMode rules.MatchMode,
 ) rules.MatchResult {
 	mm.id = id
 	mm.fromNanos = fromNanos
 	mm.toNanos = toNanos
-	mm.mode = matchMode
+	return mm.res
+}
+
+func (mm *mockMatcher) ReverseMatch(
+	id []byte,
+	fromNanos, toNanos int64,
+	mt metric.Type, at policy.AggregationType,
+) rules.MatchResult {
+	mm.id = id
+	mm.fromNanos = fromNanos
+	mm.toNanos = toNanos
+	mm.metricType = mt
+	mm.aggregationType = at
 	return mm.res
 }
 
@@ -186,7 +218,6 @@ func testRuleSet() (kv.Store, Cache, *ruleSet) {
 		SetKVStore(store).
 		SetRuleSetKeyFn(func(ns []byte) string { return fmt.Sprintf("/rules/%s", ns) }).
 		SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) { cache.Register(namespace, ruleSet) }).
-		SetMatchMode(rules.ReverseMatch).
 		SetMatchRangePast(0)
 	return store, cache, newRuleSet(testNamespace, testNamespacesKey, opts).(*ruleSet)
 }

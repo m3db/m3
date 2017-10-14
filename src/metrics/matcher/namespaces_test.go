@@ -249,7 +249,7 @@ func newMemCache() Cache {
 	return &memCache{namespaces: make(map[string]memResults)}
 }
 
-func (c *memCache) Match(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult {
+func (c *memCache) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult {
 	c.RLock()
 	defer c.RUnlock()
 	if results, exists := c.namespaces[string(namespace)]; exists {

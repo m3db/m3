@@ -18,29 +18,25 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package matcher
+package policy
 
-import "github.com/m3db/m3metrics/rules"
+import (
+	"testing"
 
-// Source is a datasource providing match results.
-type Source interface {
-	// ForwardMatch returns the match result for a given id within time range
-	// [fromNanos, toNanos).
-	ForwardMatch(id []byte, fromNanos, toNanos int64) rules.MatchResult
-}
+	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
+)
 
-// Cache caches the rule matching result associated with metrics.
-type Cache interface {
-	// ForwardMatch returns the rule matching result associated with a metric id
-	// between [fromNanos, toNanos).
-	ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult
+func TestAggregationTypesConfiguration(t *testing.T) {
+	str := `
+defaultGaugeAggregationTypes: Max
+defaultTimerAggregationTypes: P50,P99,P9999
+`
 
-	// Register sets the result source for a given namespace.
-	Register(namespace []byte, source Source)
-
-	// Unregister deletes the cached results for a given namespace.
-	Unregister(namespace []byte)
-
-	// Close closes the cache.
-	Close() error
+	var cfg AggregationTypesConfiguration
+	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
+	opts := cfg.NewOptions()
+	require.Equal(t, defaultDefaultCounterAggregationTypes, opts.DefaultCounterAggregationTypes())
+	require.Equal(t, AggregationTypes{Max}, opts.DefaultGaugeAggregationTypes())
+	require.Equal(t, AggregationTypes{P50, P99, P9999}, opts.DefaultTimerAggregationTypes())
 }

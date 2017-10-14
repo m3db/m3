@@ -138,7 +138,7 @@ func NewCache(opts Options) matcher.Cache {
 	return c
 }
 
-func (c *cache) Match(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult {
+func (c *cache) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult {
 	c.RLock()
 	res, found := c.tryGetWithLock(namespace, id, fromNanos, toNanos, dontSetIfNotFound)
 	c.RUnlock()
@@ -262,7 +262,7 @@ func (c *cache) setWithLock(
 	if invalidate {
 		results = c.invalidateWithLock(nsHash, idHash, results)
 	}
-	res := results.source.Match(id, fromNanos, toNanos)
+	res := results.source.ForwardMatch(id, fromNanos, toNanos)
 	newElem := &element{nsHash: nsHash, idHash: idHash, result: res}
 	newElem.SetPromotionExpiry(c.newPromotionExpiry(c.nowFn()))
 	results.elems[idHash] = newElem

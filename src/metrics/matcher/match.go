@@ -27,9 +27,9 @@ import (
 
 // Matcher matches rules against metric IDs.
 type Matcher interface {
-	// Match matches rules against metric ID for time range [fromNanos, toNanos)
+	// ForwardMatch matches rules against metric ID for time range [fromNanos, toNanos)
 	// and returns the match result.
-	Match(id id.ID, fromNanos, toNanos int64) rules.MatchResult
+	ForwardMatch(id id.ID, fromNanos, toNanos int64) rules.MatchResult
 
 	// Close closes the matcher.
 	Close() error
@@ -74,12 +74,12 @@ func NewMatcher(cache Cache, opts Options) (Matcher, error) {
 	}, nil
 }
 
-func (m *matcher) Match(id id.ID, fromNanos, toNanos int64) rules.MatchResult {
+func (m *matcher) ForwardMatch(id id.ID, fromNanos, toNanos int64) rules.MatchResult {
 	ns, found := id.TagValue(m.namespaceTag)
 	if !found {
 		ns = m.defaultNamespace
 	}
-	return m.cache.Match(ns, id.Bytes(), fromNanos, toNanos)
+	return m.cache.ForwardMatch(ns, id.Bytes(), fromNanos, toNanos)
 }
 
 func (m *matcher) Close() error {

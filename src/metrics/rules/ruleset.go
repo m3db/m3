@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/metric"
 	metricID "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 
@@ -51,51 +52,14 @@ var (
 	ruleSetActionErrorFmt = "cannot %s ruleset %s. %v"
 )
 
-// MatchMode determines how match is performed.
-type MatchMode string
-
-// List of supported match modes.
-const (
-	// When performing matches in ForwardMatch mode, the matcher matches the given id against
-	// both the mapping rules and rollup rules to find out the applicable mapping policies
-	// and rollup policies.
-	ForwardMatch MatchMode = "forward"
-
-	// When performing matches in ReverseMatch mode, the matcher find the applicable mapping
-	// policies for the given id.
-	ReverseMatch MatchMode = "reverse"
-)
-
-// UnmarshalYAML unmarshals match mode from a string.
-func (m *MatchMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	var str string
-	if err := unmarshal(&str); err != nil {
-		return err
-	}
-
-	parsed, err := parseMatchMode(str)
-	if err != nil {
-		return err
-	}
-
-	*m = parsed
-	return nil
-}
-
-func parseMatchMode(value string) (MatchMode, error) {
-	mode := MatchMode(value)
-	switch mode {
-	case ForwardMatch, ReverseMatch:
-		return mode, nil
-	default:
-		return mode, fmt.Errorf("unknown match mode: %s", value)
-	}
-}
-
 // Matcher matches metrics against rules to determine applicable policies.
 type Matcher interface {
-	// MatchAll returns the applicable policies for a metric id between [fromNanos, toNanos).
-	MatchAll(id []byte, fromNanos, toNanos int64, matchMode MatchMode) MatchResult
+	// ForwardMatch matches the applicable policies for a metric id between [fromNanos, toNanos).
+	ForwardMatch(id []byte, fromNanos, toNanos int64) MatchResult
+
+	// ReverseMatch reverse matches the applicable policies for a metric id between [fromNanos, toNanos),
+	// with aware of the metric type and aggregation type for the given id.
+	ReverseMatch(id []byte, fromNanos, toNanos int64, mt metric.Type, at policy.AggregationType) MatchResult
 }
 
 type activeRuleSet struct {
@@ -106,6 +70,7 @@ type activeRuleSet struct {
 	tagFilterOpts   filters.TagsFilterOptions
 	newRollupIDFn   metricID.NewIDFn
 	isRollupIDFn    metricID.MatchIDFn
+	aggTypeOpts     policy.AggregationTypesOptions
 }
 
 func newActiveRuleSet(
@@ -115,6 +80,7 @@ func newActiveRuleSet(
 	tagFilterOpts filters.TagsFilterOptions,
 	newRollupIDFn metricID.NewIDFn,
 	isRollupIDFn metricID.MatchIDFn,
+	aggOpts policy.AggregationTypesOptions,
 ) *activeRuleSet {
 	uniqueCutoverTimes := make(map[int64]struct{})
 	for _, mappingRule := range mappingRules {
@@ -142,31 +108,24 @@ func newActiveRuleSet(
 		tagFilterOpts:   tagFilterOpts,
 		newRollupIDFn:   newRollupIDFn,
 		isRollupIDFn:    isRollupIDFn,
+		aggTypeOpts:     aggOpts,
 	}
 }
 
 // NB(xichen): could make this more efficient by keeping track of matched rules
 // at previous iteration and incrementally update match results.
-func (as *activeRuleSet) MatchAll(
+func (as *activeRuleSet) ForwardMatch(
 	id []byte,
 	fromNanos, toNanos int64,
-	matchMode MatchMode,
 ) MatchResult {
-	if matchMode == ForwardMatch {
-		return as.matchAllForward(id, fromNanos, toNanos)
-	}
-	return as.matchAllReverse(id, fromNanos, toNanos)
-}
-
-func (as *activeRuleSet) matchAllForward(id []byte, fromNanos, toNanos int64) MatchResult {
 	var (
 		nextIdx            = as.nextCutoverIdx(fromNanos)
 		nextCutoverNanos   = as.cutoverNanosAt(nextIdx)
-		currMappingResults = policy.PoliciesList{as.mappingsForNonRollupID(id, fromNanos)}
+		currMappingResults = policy.PoliciesList{as.forwardMappingsForNonRollupID(id, fromNanos)}
 		currRollupResults  = as.rollupResultsFor(id, fromNanos)
 	)
 	for nextIdx < len(as.cutoverTimesAsc) && nextCutoverNanos < toNanos {
-		nextMappingPolicies := as.mappingsForNonRollupID(id, nextCutoverNanos)
+		nextMappingPolicies := as.forwardMappingsForNonRollupID(id, nextCutoverNanos)
 		currMappingResults = mergeMappingResults(currMappingResults, nextMappingPolicies)
 		nextRollupResults := as.rollupResultsFor(id, nextCutoverNanos)
 		currRollupResults = mergeRollupResults(currRollupResults, nextRollupResults, nextCutoverNanos)
@@ -179,7 +138,11 @@ func (as *activeRuleSet) matchAllForward(id []byte, fromNanos, toNanos int64) Ma
 	return NewMatchResult(as.version, nextCutoverNanos, currMappingResults, currRollupResults)
 }
 
-func (as *activeRuleSet) matchAllReverse(id []byte, fromNanos, toNanos int64) MatchResult {
+func (as *activeRuleSet) ReverseMatch(
+	id []byte,
+	fromNanos, toNanos int64,
+	mt metric.Type, at policy.AggregationType,
+) MatchResult {
 	var (
 		nextIdx            = as.nextCutoverIdx(fromNanos)
 		nextCutoverNanos   = as.cutoverNanosAt(nextIdx)
@@ -193,11 +156,11 @@ func (as *activeRuleSet) matchAllReverse(id []byte, fromNanos, toNanos int64) Ma
 		isRollupID = as.isRollupIDFn(name, tags)
 	}
 
-	if currMappingPolicies, found := as.reverseMappingsFor(id, name, tags, isRollupID, fromNanos); found {
+	if currMappingPolicies, found := as.reverseMappingsFor(id, name, tags, isRollupID, fromNanos, mt, at); found {
 		currMappingResults = append(currMappingResults, currMappingPolicies)
 	}
 	for nextIdx < len(as.cutoverTimesAsc) && nextCutoverNanos < toNanos {
-		if nextMappingPolicies, found := as.reverseMappingsFor(id, name, tags, isRollupID, nextCutoverNanos); found {
+		if nextMappingPolicies, found := as.reverseMappingsFor(id, name, tags, isRollupID, nextCutoverNanos, mt, at); found {
 			currMappingResults = mergeMappingResults(currMappingResults, nextMappingPolicies)
 		}
 		nextIdx++
@@ -213,11 +176,13 @@ func (as *activeRuleSet) reverseMappingsFor(
 	id, name, tags []byte,
 	isRollupID bool,
 	timeNanos int64,
+	mt metric.Type,
+	at policy.AggregationType,
 ) (policy.StagedPolicies, bool) {
 	if !isRollupID {
-		return as.mappingsForNonRollupID(id, timeNanos), true
+		return as.reverseMappingsForNonRollupID(id, timeNanos, mt, at)
 	}
-	return as.mappingsForRollupID(name, tags, timeNanos)
+	return as.reverseMappingsForRollupID(name, tags, timeNanos, mt, at)
 }
 
 // NB(xichen): in order to determine the applicable policies for a rollup metric, we need to
@@ -228,9 +193,14 @@ func (as *activeRuleSet) reverseMappingsFor(
 // used to produce the given rollup metric id due to its tag filters, thereby causing the wrong
 // staged policies to be returned. This also implies at any given time, at most one rollup target
 // may match the given rollup id.
-func (as *activeRuleSet) mappingsForRollupID(
+// Since we may have policies with different aggregation types defined for a roll up rule,
+// and each aggregation type would generate a new id. So when doing reverse mapping, not only do
+// we need to match the roll up tags, we also need to check the aggregation type against
+// each policy to see if the aggregation type was actually contained in the policy.
+func (as *activeRuleSet) reverseMappingsForRollupID(
 	name, tags []byte,
 	timeNanos int64,
+	mt metric.Type, at policy.AggregationType,
 ) (policy.StagedPolicies, bool) {
 	for _, rollupRule := range as.rollupRules {
 		snapshot := rollupRule.ActiveSnapshot(timeNanos)
@@ -268,7 +238,12 @@ func (as *activeRuleSet) mappingsForRollupID(
 				policies := make([]policy.Policy, len(target.Policies))
 				copy(policies, target.Policies)
 				resolved := resolvePolicies(policies)
-				return policy.NewStagedPolicies(snapshot.cutoverNanos, false, resolved), true
+				// Filter the each policy by the aggregation type.
+				filtered, _ := filterPoliciesWithAggregationTypes(resolved, mt, at, as.aggTypeOpts)
+				if len(filtered) == 0 {
+					return policy.DefaultStagedPolicies, false
+				}
+				return policy.NewStagedPolicies(snapshot.cutoverNanos, false, filtered), true
 			}
 		}
 	}
@@ -276,9 +251,36 @@ func (as *activeRuleSet) mappingsForRollupID(
 	return policy.DefaultStagedPolicies, false
 }
 
+func (as *activeRuleSet) reverseMappingsForNonRollupID(
+	id []byte,
+	timeNanos int64,
+	mt metric.Type,
+	at policy.AggregationType,
+) (policy.StagedPolicies, bool) {
+	policies, cutoverNanos := as.mappingsForNonRollupID(id, timeNanos)
+	// NB(cw) aggregation types filter must be applied after the policy list is resolved.
+	// Because policies like [1m:40h|P90,P99; 1m:20h|P50] will be resolved to [1m:40h|P50,P90,P99].
+	filtered, isDefault := filterPoliciesWithAggregationTypes(policies, mt, at, as.aggTypeOpts)
+	if cutoverNanos == 0 && isDefault {
+		return policy.DefaultStagedPolicies, true
+	}
+	if isDefault || len(filtered) != 0 {
+		return policy.NewStagedPolicies(cutoverNanos, false, filtered), true
+	}
+	return policy.DefaultStagedPolicies, false
+}
+
+func (as *activeRuleSet) forwardMappingsForNonRollupID(id []byte, timeNanos int64) policy.StagedPolicies {
+	policies, cutoverNanos := as.mappingsForNonRollupID(id, timeNanos)
+	if cutoverNanos == 0 && len(policies) == 0 {
+		return policy.DefaultStagedPolicies
+	}
+	return policy.NewStagedPolicies(cutoverNanos, false, policies)
+}
+
 // NB(xichen): if the given id is not a rollup id, we need to match it against the mapping
 // rules to determine the corresponding mapping policies.
-func (as *activeRuleSet) mappingsForNonRollupID(id []byte, timeNanos int64) policy.StagedPolicies {
+func (as *activeRuleSet) mappingsForNonRollupID(id []byte, timeNanos int64) ([]policy.Policy, int64) {
 	var (
 		cutoverNanos int64
 		policies     []policy.Policy
@@ -296,11 +298,8 @@ func (as *activeRuleSet) mappingsForNonRollupID(id []byte, timeNanos int64) poli
 		}
 		policies = append(policies, snapshot.policies...)
 	}
-	if cutoverNanos == 0 && len(policies) == 0 {
-		return policy.DefaultStagedPolicies
-	}
 	resolved := resolvePolicies(policies)
-	return policy.NewStagedPolicies(cutoverNanos, false, resolved)
+	return resolved, cutoverNanos
 }
 
 func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64) []RollupResult {
@@ -538,6 +537,7 @@ type ruleSet struct {
 	tagsFilterOpts     filters.TagsFilterOptions
 	newRollupIDFn      metricID.NewIDFn
 	isRollupIDFn       metricID.MatchIDFn
+	aggOpts            policy.AggregationTypesOptions
 }
 
 // NewRuleSetFromSchema creates a new RuleSet from a schema object.
@@ -576,6 +576,7 @@ func NewRuleSetFromSchema(version int, rs *schema.RuleSet, opts Options) (RuleSe
 		tagsFilterOpts:     tagsFilterOpts,
 		newRollupIDFn:      opts.NewRollupIDFn(),
 		isRollupIDFn:       opts.IsRollupIDFn(),
+		aggOpts:            opts.AggregationTypesOptions(),
 	}, nil
 }
 
@@ -588,6 +589,7 @@ func NewEmptyRuleSet(namespaceName string, meta UpdateMetadata) MutableRuleSet {
 		tombstoned:   false,
 		mappingRules: make([]*mappingRule, 0),
 		rollupRules:  make([]*rollupRule, 0),
+		aggOpts:      policy.NewAggregationTypesOptions(),
 	}
 	rs.updateMetadata(meta)
 	return rs
@@ -618,6 +620,7 @@ func (rs *ruleSet) ActiveSet(timeNanos int64) Matcher {
 		rs.tagsFilterOpts,
 		rs.newRollupIDFn,
 		rs.isRollupIDFn,
+		rs.aggOpts,
 	)
 }
 
@@ -741,6 +744,7 @@ func (rs *ruleSet) Clone() MutableRuleSet {
 		tagsFilterOpts:     rs.tagsFilterOpts,
 		newRollupIDFn:      rs.newRollupIDFn,
 		isRollupIDFn:       rs.isRollupIDFn,
+		aggOpts:            rs.aggOpts,
 	})
 }
 
@@ -980,9 +984,9 @@ func (rs *ruleSet) latestRollupRules() (map[string]*RollupRuleView, error) {
 
 // resolvePolicies resolves the conflicts among policies if any, following the rules below:
 // * If two policies have the same resolution but different retention, the one with longer
-// retention period is chosen.
+//   retention period is chosen.
 // * If two policies have the same resolution but different custom aggregation types, the
-// aggregation types will be merged.
+//   aggregation types will be merged.
 func resolvePolicies(policies []policy.Policy) []policy.Policy {
 	if len(policies) == 0 {
 		return policies
@@ -1009,12 +1013,47 @@ func resolvePolicies(policies []policy.Policy) []policy.Policy {
 	return policies[:curr+1]
 }
 
+// filterPoliciesWithAggregationTypes accepts a policy when:
+// * If the policy contains default aggregation types and the given aggregation type
+//   is contained in the default aggregation types for the metric type.
+// * If the policy contains custom aggregation types and the given aggregation type
+//   is contained in the custom aggregation type.
+func filterPoliciesWithAggregationTypes(ps []policy.Policy, mt metric.Type, at policy.AggregationType, opts policy.AggregationTypesOptions) ([]policy.Policy, bool) {
+	if policy.IsDefaultPolicies(ps) {
+		return nil, opts.IsContainedInDefaultAggregationTypes(at, mt)
+	}
+
+	var cur int
+	for i := 0; i < len(ps); i++ {
+		if !containsAggType(ps[i].AggregationID, mt, at, opts) {
+			continue
+		}
+		// NB: The policy does not match the aggregation type and should be removed,
+		// but we need to maintain the order of the policy list.
+		if cur != i {
+			ps[cur] = ps[i]
+		}
+		cur++
+	}
+	return ps[:cur], false
+}
+
+func containsAggType(aggID policy.AggregationID, mt metric.Type, at policy.AggregationType, opts policy.AggregationTypesOptions) bool {
+	if aggID.IsDefault() {
+		return opts.IsContainedInDefaultAggregationTypes(at, mt)
+	}
+	return aggID.Contains(at)
+}
+
 // mergeMappingResults assumes the policies contained in currMappingResults
 // are sorted by cutover time in time ascending order.
 func mergeMappingResults(
 	currMappingResults policy.PoliciesList,
 	nextMappingPolicies policy.StagedPolicies,
 ) policy.PoliciesList {
+	if len(currMappingResults) == 0 {
+		return policy.PoliciesList{nextMappingPolicies}
+	}
 	currMappingPolicies := currMappingResults[len(currMappingResults)-1]
 	if currMappingPolicies.SamePolicies(nextMappingPolicies) {
 		return currMappingResults
