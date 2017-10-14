@@ -4,9 +4,9 @@ import:
 - package: github.com/m3db/m3cluster
   version: d9fd14a38efe2eaf43b9a52350055fbd2dac06ec
 - package: github.com/m3db/m3metrics
-  version: 7a12355ab5695dcec24da256d76947f8c8cc6fd8
+  version: 53ee9f560becd279ed04e3e31d1c5570aa4784b6
 - package: github.com/m3db/m3x
-  version: 5120e5bcfaf4888c15052e5c9d7ba700dce4247c
+  version: b009e41c873b0fb0fc066114911c87ff6a6f8d77
 - package: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
 - package: github.com/beorn7/perks
