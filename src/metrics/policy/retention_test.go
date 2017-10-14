@@ -142,20 +142,12 @@ func TestParseRetention(t *testing.T) {
 			expected: Retention(24 * time.Hour),
 		},
 		{
-			str:      "1w",
+			str:      "7d",
 			expected: Retention(24 * 7 * time.Hour),
 		},
 		{
-			str:      "1mon",
+			str:      "30d",
 			expected: Retention(24 * 30 * time.Hour),
-		},
-		{
-			str:      "6mon",
-			expected: Retention(24 * 180 * time.Hour),
-		},
-		{
-			str:      "1y",
-			expected: Retention(24 * 365 * time.Hour),
 		},
 		{
 			str:      "24h0m0s",
@@ -216,19 +208,11 @@ func TestRetentionString(t *testing.T) {
 		},
 		{
 			retention: Retention(24 * 7 * time.Hour),
-			expected:  "1w",
+			expected:  "7d",
 		},
 		{
 			retention: Retention(24 * 30 * time.Hour),
-			expected:  "1mon",
-		},
-		{
-			retention: Retention(24 * 180 * time.Hour),
-			expected:  "6mon",
-		},
-		{
-			retention: Retention(24 * 365 * time.Hour),
-			expected:  "1y",
+			expected:  "30d",
 		},
 	}
 
@@ -248,7 +232,6 @@ func TestRetentionRoundTrip(t *testing.T) {
 		Retention(24 * 7 * time.Hour),
 		Retention(24 * 30 * time.Hour),
 		Retention(24 * 180 * time.Hour),
-		Retention(24 * 365 * time.Hour),
 	}
 
 	for _, input := range inputs {
