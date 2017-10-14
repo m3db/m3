@@ -18,29 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package matcher
+package policy
 
-import "github.com/m3db/m3metrics/rules"
+// AggregationTypesConfiguration contains configuration for aggregation types.
+type AggregationTypesConfiguration struct {
+	// Default aggregation types for counter metrics.
+	DefaultCounterAggregationTypes *AggregationTypes `yaml:"defaultCounterAggregationTypes"`
 
-// Source is a datasource providing match results.
-type Source interface {
-	// ForwardMatch returns the match result for a given id within time range
-	// [fromNanos, toNanos).
-	ForwardMatch(id []byte, fromNanos, toNanos int64) rules.MatchResult
+	// Default aggregation types for timer metrics.
+	DefaultTimerAggregationTypes *AggregationTypes `yaml:"defaultTimerAggregationTypes"`
+
+	// Default aggregation types for gauge metrics.
+	DefaultGaugeAggregationTypes *AggregationTypes `yaml:"defaultGaugeAggregationTypes"`
 }
 
-// Cache caches the rule matching result associated with metrics.
-type Cache interface {
-	// ForwardMatch returns the rule matching result associated with a metric id
-	// between [fromNanos, toNanos).
-	ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult
-
-	// Register sets the result source for a given namespace.
-	Register(namespace []byte, source Source)
-
-	// Unregister deletes the cached results for a given namespace.
-	Unregister(namespace []byte)
-
-	// Close closes the cache.
-	Close() error
+// NewOptions creates a new Option.
+func (c AggregationTypesConfiguration) NewOptions() AggregationTypesOptions {
+	opts := NewAggregationTypesOptions()
+	if c.DefaultCounterAggregationTypes != nil {
+		opts = opts.SetDefaultCounterAggregationTypes(*c.DefaultCounterAggregationTypes)
+	}
+	if c.DefaultGaugeAggregationTypes != nil {
+		opts = opts.SetDefaultGaugeAggregationTypes(*c.DefaultGaugeAggregationTypes)
+	}
+	if c.DefaultTimerAggregationTypes != nil {
+		opts = opts.SetDefaultTimerAggregationTypes(*c.DefaultTimerAggregationTypes)
+	}
+	return opts
 }

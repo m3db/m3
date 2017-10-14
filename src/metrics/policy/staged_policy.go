@@ -95,7 +95,7 @@ func (p StagedPolicies) String() string {
 }
 
 func (p StagedPolicies) hasDefaultPolicies() bool {
-	return len(p.policies) == 0
+	return IsDefaultPolicies(p.policies)
 }
 
 // MarshalJSON returns the JSON encoding of staged policies.

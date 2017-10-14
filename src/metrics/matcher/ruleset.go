@@ -27,6 +27,8 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/util/runtime"
 	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
@@ -38,7 +40,7 @@ import (
 // API to match metic ids against rules in the corresponding ruleset.
 type RuleSet interface {
 	runtime.Value
-	Source
+	rules.Matcher
 
 	// Namespace returns the namespace of the ruleset.
 	Namespace() []byte
@@ -72,7 +74,6 @@ type ruleSet struct {
 	sync.RWMutex
 	runtime.Value
 
-	matchMode          rules.MatchMode
 	namespace          []byte
 	key                string
 	store              kv.Store
@@ -100,7 +101,6 @@ func newRuleSet(
 		namespace:          namespace,
 		key:                key,
 		opts:               opts,
-		matchMode:          opts.MatchMode(),
 		store:              opts.KVStore(),
 		nowFn:              opts.ClockOptions().NowFn(),
 		matchRangePast:     opts.MatchRangePast(),
@@ -148,7 +148,7 @@ func (r *ruleSet) Tombstoned() bool {
 	return tombstoned
 }
 
-func (r *ruleSet) Match(id []byte, fromNanos, toNanos int64) rules.MatchResult {
+func (r *ruleSet) ForwardMatch(id []byte, fromNanos, toNanos int64) rules.MatchResult {
 	callStart := r.nowFn()
 	r.RLock()
 	if r.matcher == nil {
@@ -156,7 +156,21 @@ func (r *ruleSet) Match(id []byte, fromNanos, toNanos int64) rules.MatchResult {
 		r.metrics.nilMatcher.Inc(1)
 		return rules.EmptyMatchResult
 	}
-	res := r.matcher.MatchAll(id, fromNanos, toNanos, r.matchMode)
+	res := r.matcher.ForwardMatch(id, fromNanos, toNanos)
+	r.RUnlock()
+	r.metrics.match.ReportSuccess(r.nowFn().Sub(callStart))
+	return res
+}
+
+func (r *ruleSet) ReverseMatch(id []byte, fromNanos, toNanos int64, mt metric.Type, at policy.AggregationType) rules.MatchResult {
+	callStart := r.nowFn()
+	r.RLock()
+	if r.matcher == nil {
+		r.RUnlock()
+		r.metrics.nilMatcher.Inc(1)
+		return rules.EmptyMatchResult
+	}
+	res := r.matcher.ReverseMatch(id, fromNanos, toNanos, mt, at)
 	r.RUnlock()
 	r.metrics.match.ReportSuccess(r.nowFn().Sub(callStart))
 	return res

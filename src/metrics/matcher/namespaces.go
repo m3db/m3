@@ -28,6 +28,8 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/util/runtime"
 	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/metric"
+	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
 	xid "github.com/m3db/m3x/id"
@@ -50,9 +52,13 @@ type Namespaces interface {
 	// Version returns the current version for a give namespace.
 	Version(namespace []byte) int
 
-	// Match returns the matching policies for a given id in a given namespace
+	// ForwardMatch forward matches the matching policies for a given id in a given namespace
 	// between [fromNanos, toNanos).
-	Match(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult
+	ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult
+
+	// ReverseMatch reverse matches the matching policies for a given id in a given namespace
+	// between [fromNanos, toNanos), taking into account the metric type and aggregation type for the given id.
+	ReverseMatch(namespace, id []byte, fromNanos, toNanos int64, mt metric.Type, at policy.AggregationType) rules.MatchResult
 
 	// Close closes the namespaces.
 	Close()
@@ -163,19 +169,31 @@ func (n *namespaces) Version(namespace []byte) int {
 	return ruleSet.Version()
 }
 
-func (n *namespaces) Match(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult {
-	var (
-		res    = rules.EmptyMatchResult
-		nsHash = xid.HashFn(namespace)
-	)
+func (n *namespaces) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult {
+	ruleSet, exists := n.ruleSet(namespace)
+	if !exists {
+		return rules.EmptyMatchResult
+	}
+	return ruleSet.ForwardMatch(id, fromNanos, toNanos)
+}
+
+func (n *namespaces) ReverseMatch(namespace, id []byte, fromNanos, toNanos int64, mt metric.Type, at policy.AggregationType) rules.MatchResult {
+	ruleSet, exists := n.ruleSet(namespace)
+	if !exists {
+		return rules.EmptyMatchResult
+	}
+	return ruleSet.ReverseMatch(id, fromNanos, toNanos, mt, at)
+}
+
+func (n *namespaces) ruleSet(namespace []byte) (RuleSet, bool) {
+	nsHash := xid.HashFn(namespace)
 	n.RLock()
 	ruleSet, exists := n.rules[nsHash]
 	n.RUnlock()
 	if !exists {
 		n.metrics.notExists.Inc(1)
-		return res
 	}
-	return ruleSet.Match(id, fromNanos, toNanos)
+	return ruleSet, exists
 }
 
 func (n *namespaces) Close() {

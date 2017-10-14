@@ -22,17 +22,18 @@ package rules
 
 import (
 	"bytes"
+	"math"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
-	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -48,46 +49,12 @@ var (
 	testUser = "test_user"
 )
 
-func TestMatchModeUnmarshalYAML(t *testing.T) {
-	inputs := []struct {
-		str         string
-		expected    MatchMode
-		expectedErr bool
-	}{
-		{
-			str:      "forward",
-			expected: ForwardMatch,
-		},
-		{
-			str:      "reverse",
-			expected: ReverseMatch,
-		},
-		{
-			str:         "bad",
-			expectedErr: true,
-		},
-	}
-	for _, input := range inputs {
-		var m MatchMode
-		err := yaml.Unmarshal([]byte(input.str), &m)
-
-		if input.expectedErr {
-			require.Error(t, err)
-			continue
-		}
-
-		require.NoError(t, err)
-		require.Equal(t, input.expected, m)
-	}
-}
-
-func TestActiveRuleSetMappingPoliciesForNonRollupID(t *testing.T) {
+func TestActiveRuleSetForwardMappingPoliciesForNonRollupID(t *testing.T) {
 	inputs := []testMappingsData{
 		{
 			id:            "mtagName1=mtagValue1",
 			matchFrom:     25000,
 			matchTo:       25001,
-			matchMode:     ForwardMatch,
 			expireAtNanos: 30000,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
@@ -106,7 +73,6 @@ func TestActiveRuleSetMappingPoliciesForNonRollupID(t *testing.T) {
 			id:            "mtagName1=mtagValue1",
 			matchFrom:     35000,
 			matchTo:       35001,
-			matchMode:     ForwardMatch,
 			expireAtNanos: 100000,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
@@ -124,7 +90,6 @@ func TestActiveRuleSetMappingPoliciesForNonRollupID(t *testing.T) {
 			id:            "mtagName1=mtagValue2",
 			matchFrom:     25000,
 			matchTo:       25001,
-			matchMode:     ForwardMatch,
 			expireAtNanos: 30000,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
@@ -140,7 +105,6 @@ func TestActiveRuleSetMappingPoliciesForNonRollupID(t *testing.T) {
 			id:            "mtagName1=mtagValue3",
 			matchFrom:     25000,
 			matchTo:       25001,
-			matchMode:     ForwardMatch,
 			expireAtNanos: 30000,
 			result:        policy.DefaultPoliciesList,
 		},
@@ -148,7 +112,6 @@ func TestActiveRuleSetMappingPoliciesForNonRollupID(t *testing.T) {
 			id:            "mtagName1=mtagValue1",
 			matchFrom:     10000,
 			matchTo:       40000,
-			matchMode:     ForwardMatch,
 			expireAtNanos: 100000,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
@@ -210,7 +173,6 @@ func TestActiveRuleSetMappingPoliciesForNonRollupID(t *testing.T) {
 			id:            "mtagName1=mtagValue2",
 			matchFrom:     10000,
 			matchTo:       40000,
-			matchMode:     ForwardMatch,
 			expireAtNanos: 100000,
 			result: policy.PoliciesList{
 				policy.DefaultStagedPolicies,
@@ -233,24 +195,230 @@ func TestActiveRuleSetMappingPoliciesForNonRollupID(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
+		policy.NewAggregationTypesOptions(),
 	)
 	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 100000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
 	for _, input := range inputs {
-		res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo, input.matchMode)
+		res := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo)
 		require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 		require.Equal(t, input.result, res.MappingsAt(0))
 	}
 }
 
-func TestActiveRuleSetMappingPoliciesForRollupID(t *testing.T) {
+func TestActiveRuleSetReverseMappingPoliciesForNonRollupID(t *testing.T) {
 	inputs := []testMappingsData{
 		{
-			id:            "rName4|rtagName1=rtagValue2",
-			matchFrom:     25000,
-			matchTo:       25001,
-			matchMode:     ReverseMatch,
-			expireAtNanos: 30000,
+			id:              "mtagName1=mtagValue1",
+			matchFrom:       25000,
+			matchTo:         25001,
+			expireAtNanos:   30000,
+			metricType:      metric.CounterType,
+			aggregationType: policy.Sum,
+			result: policy.PoliciesList{
+				policy.NewStagedPolicies(
+					22000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+					},
+				),
+			},
+		},
+		{
+			id:              "mtagName1=mtagValue1",
+			matchFrom:       35000,
+			matchTo:         35001,
+			expireAtNanos:   100000,
+			metricType:      metric.CounterType,
+			aggregationType: policy.Sum,
+			result: policy.PoliciesList{
+				policy.NewStagedPolicies(
+					35000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+					},
+				),
+			},
+		},
+		{
+			id:              "mtagName1=mtagValue2",
+			matchFrom:       25000,
+			matchTo:         25001,
+			expireAtNanos:   30000,
+			metricType:      metric.CounterType,
+			aggregationType: policy.Sum,
+			result: policy.PoliciesList{
+				policy.NewStagedPolicies(
+					24000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+					},
+				),
+			},
+		},
+		{
+			id:              "mtagName1=mtagValue3",
+			matchFrom:       25000,
+			matchTo:         25001,
+			expireAtNanos:   30000,
+			metricType:      metric.CounterType,
+			aggregationType: policy.Sum,
+			result:          policy.DefaultPoliciesList,
+		},
+		{
+			id:              "mtagName1=mtagValue3",
+			matchFrom:       25000,
+			matchTo:         25001,
+			expireAtNanos:   30000,
+			metricType:      metric.CounterType,
+			aggregationType: policy.Min,
+			result:          nil,
+		},
+		{
+			id:              "mtagName1=mtagValue1",
+			matchFrom:       10000,
+			matchTo:         12000,
+			expireAtNanos:   15000,
+			metricType:      metric.CounterType,
+			aggregationType: policy.Sum,
+			result:          nil,
+		},
+		{
+			id:              "mtagName1=mtagValue1",
+			matchFrom:       10000,
+			matchTo:         21000,
+			expireAtNanos:   22000,
+			metricType:      metric.CounterType,
+			aggregationType: policy.Sum,
+			result: policy.PoliciesList{
+				policy.NewStagedPolicies(
+					20000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+					},
+				),
+			},
+		},
+		{
+			id:              "mtagName1=mtagValue1",
+			matchFrom:       10000,
+			matchTo:         40000,
+			expireAtNanos:   100000,
+			metricType:      metric.TimerType,
+			aggregationType: policy.Count,
+			result: policy.PoliciesList{
+				policy.NewStagedPolicies(
+					10000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), compressedCount),
+					},
+				),
+				policy.NewStagedPolicies(
+					15000,
+					false,
+					[]policy.Policy{
+						// different policies same resolution, merge aggregation types
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), compressedCountAndMean),
+					},
+				),
+				policy.NewStagedPolicies(
+					20000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+					},
+				),
+				policy.NewStagedPolicies(
+					22000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+					},
+				),
+				policy.NewStagedPolicies(
+					30000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 12*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+					},
+				),
+				policy.NewStagedPolicies(
+					34000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+					},
+				),
+			},
+		},
+		{
+			id:              "mtagName1=mtagValue2",
+			matchFrom:       10000,
+			matchTo:         40000,
+			expireAtNanos:   100000,
+			metricType:      metric.CounterType,
+			aggregationType: policy.Sum,
+			result: policy.PoliciesList{
+				policy.DefaultStagedPolicies,
+				policy.NewStagedPolicies(
+					24000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+					},
+				),
+			},
+		},
+	}
+
+	mappingRules := testMappingRules(t)
+	as := newActiveRuleSet(
+		0,
+		mappingRules,
+		nil,
+		testTagsFilterOptions(),
+		mockNewID,
+		func([]byte, []byte) bool { return false },
+		policy.NewAggregationTypesOptions(),
+	)
+	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 100000}
+	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
+	for _, input := range inputs {
+		res := as.ReverseMatch(b(input.id), input.matchFrom, input.matchTo, input.metricType, input.aggregationType)
+		require.Equal(t, input.expireAtNanos, res.expireAtNanos)
+		require.Equal(t, input.result, res.MappingsAt(0))
+	}
+}
+
+func TestActiveRuleSetReverseMappingPoliciesForRollupID(t *testing.T) {
+	inputs := []testMappingsData{
+		{
+			id:              "rName4|rtagName1=rtagValue2",
+			matchFrom:       25000,
+			matchTo:         25001,
+			expireAtNanos:   30000,
+			metricType:      metric.CounterType,
+			aggregationType: policy.Sum,
 			result: policy.PoliciesList{
 				policy.NewStagedPolicies(
 					24000,
@@ -262,28 +430,99 @@ func TestActiveRuleSetMappingPoliciesForRollupID(t *testing.T) {
 			},
 		},
 		{
-			id:            "rName4|rtagName2=rtagValue2",
-			matchFrom:     25000,
-			matchTo:       25001,
-			matchMode:     ReverseMatch,
-			expireAtNanos: 30000,
-			result:        nil,
+			id:              "rName4|rtagName1=rtagValue2",
+			matchFrom:       25000,
+			matchTo:         25001,
+			expireAtNanos:   30000,
+			metricType:      metric.CounterType,
+			aggregationType: policy.Min,
+			result:          nil,
+		},
+		{
+			id:              "rName4|rtagName1=rtagValue2",
+			matchFrom:       25000,
+			matchTo:         25001,
+			expireAtNanos:   30000,
+			metricType:      metric.UnknownType,
+			aggregationType: policy.Unknown,
+			result:          nil,
+		},
+		{
+			id:              "rName4|rtagName1=rtagValue2",
+			matchFrom:       25000,
+			matchTo:         25001,
+			expireAtNanos:   30000,
+			metricType:      metric.TimerType,
+			aggregationType: policy.P99,
+			result: policy.PoliciesList{
+				policy.NewStagedPolicies(
+					24000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), policy.DefaultAggregationID),
+					},
+				),
+			},
+		},
+		{
+			id:              "rName4|rtagName2=rtagValue2",
+			matchFrom:       25000,
+			matchTo:         25001,
+			expireAtNanos:   30000,
+			metricType:      metric.CounterType,
+			aggregationType: policy.Sum,
+			result:          nil,
 		},
 		{
 			id:            "rName4|rtagName1=rtagValue2",
 			matchFrom:     10000,
 			matchTo:       10001,
-			matchMode:     ReverseMatch,
 			expireAtNanos: 15000,
 			result:        nil,
 		},
 		{
-			id:            "rName3|rtagName1=rtagValue2",
-			matchFrom:     25000,
-			matchTo:       25001,
-			matchMode:     ReverseMatch,
-			expireAtNanos: 30000,
-			result:        nil,
+			id:              "rName5|rtagName1=rtagValue2",
+			matchFrom:       130000,
+			matchTo:         130001,
+			expireAtNanos:   math.MaxInt64,
+			metricType:      metric.TimerType,
+			aggregationType: policy.P99,
+			result: policy.PoliciesList{
+				policy.NewStagedPolicies(
+					120000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), policy.MustCompressAggregationTypes(policy.Sum, policy.P90, policy.P99)),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour), policy.MustCompressAggregationTypes(policy.Sum, policy.P99)),
+					},
+				),
+			},
+		},
+		{
+			id:              "rName5|rtagName1=rtagValue2",
+			matchFrom:       130000,
+			matchTo:         130001,
+			expireAtNanos:   math.MaxInt64,
+			metricType:      metric.TimerType,
+			aggregationType: policy.P90,
+			result: policy.PoliciesList{
+				policy.NewStagedPolicies(
+					120000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), policy.MustCompressAggregationTypes(policy.Sum, policy.P90, policy.P99)),
+					},
+				),
+			},
+		},
+		{
+			id:              "rName5|rtagName1=rtagValue2",
+			matchFrom:       130000,
+			matchTo:         130001,
+			expireAtNanos:   math.MaxInt64,
+			metricType:      metric.GaugeType,
+			aggregationType: policy.Last,
+			result:          nil,
 		},
 	}
 
@@ -295,11 +534,12 @@ func TestActiveRuleSetMappingPoliciesForRollupID(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		func([]byte, []byte) bool { return true },
+		policy.NewAggregationTypesOptions(),
 	)
-	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 100000}
+	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 100000, 120000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
 	for _, input := range inputs {
-		res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo, input.matchMode)
+		res := as.ReverseMatch(b(input.id), input.matchFrom, input.matchTo, input.metricType, input.aggregationType)
 		require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 		require.Equal(t, input.result, res.MappingsAt(0))
 		require.Nil(t, res.rollups)
@@ -312,7 +552,6 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 			id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
 			matchFrom:     25000,
 			matchTo:       25001,
-			matchMode:     ForwardMatch,
 			expireAtNanos: 30000,
 			result: []RollupResult{
 				{
@@ -348,7 +587,6 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 			id:            "rtagName1=rtagValue2",
 			matchFrom:     25000,
 			matchTo:       25001,
-			matchMode:     ForwardMatch,
 			expireAtNanos: 30000,
 			result: []RollupResult{
 				{
@@ -369,7 +607,6 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 			id:            "rtagName5=rtagValue5",
 			matchFrom:     25000,
 			matchTo:       25001,
-			matchMode:     ForwardMatch,
 			expireAtNanos: 30000,
 			result:        []RollupResult{},
 		},
@@ -377,7 +614,6 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 			id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
 			matchFrom:     10000,
 			matchTo:       40000,
-			matchMode:     ForwardMatch,
 			expireAtNanos: 100000,
 			result: []RollupResult{
 				{
@@ -477,11 +713,12 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 		testTagsFilterOptions(),
 		mockNewID,
 		nil,
+		policy.NewAggregationTypesOptions(),
 	)
-	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 100000}
+	expectedCutovers := []int64{10000, 15000, 20000, 22000, 24000, 30000, 34000, 35000, 38000, 100000, 120000}
 	require.Equal(t, expectedCutovers, as.cutoverTimesAsc)
 	for _, input := range inputs {
-		res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo, input.matchMode)
+		res := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo)
 		require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 		require.Equal(t, len(input.result), res.NumRollups())
 		for i := 0; i < len(input.result); i++ {
@@ -560,7 +797,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue1",
 					matchFrom:     25000,
 					matchTo:       25001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: 30000,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -580,7 +816,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue1",
 					matchFrom:     35000,
 					matchTo:       35001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: 100000,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -598,7 +833,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue2",
 					matchFrom:     25000,
 					matchTo:       25001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: 30000,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -614,7 +848,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue3",
 					matchFrom:     25000,
 					matchTo:       25001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: 30000,
 					result:        policy.DefaultPoliciesList,
 				},
@@ -624,7 +857,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
 					matchFrom:     25000,
 					matchTo:       25001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: 30000,
 					result: []RollupResult{
 						{
@@ -660,7 +892,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName1=rtagValue2",
 					matchFrom:     25000,
 					matchTo:       25001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: 30000,
 					result: []RollupResult{
 						{
@@ -681,7 +912,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName5=rtagValue5",
 					matchFrom:     25000,
 					matchTo:       25001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: 30000,
 					result:        []RollupResult{},
 				},
@@ -694,7 +924,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue1",
 					matchFrom:     35000,
 					matchTo:       35001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: 100000,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -712,7 +941,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue2",
 					matchFrom:     35000,
 					matchTo:       35001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: 100000,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -728,7 +956,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue3",
 					matchFrom:     35000,
 					matchTo:       35001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: 100000,
 					result:        policy.DefaultPoliciesList,
 				},
@@ -738,7 +965,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
 					matchFrom:     35000,
 					matchTo:       35001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: 100000,
 					result: []RollupResult{
 						{
@@ -761,7 +987,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName1=rtagValue2",
 					matchFrom:     35000,
 					matchTo:       35001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: 100000,
 					result: []RollupResult{
 						{
@@ -782,7 +1007,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName5=rtagValue5",
 					matchFrom:     35000,
 					matchTo:       35001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: 100000,
 					result:        []RollupResult{},
 				},
@@ -795,7 +1019,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue1",
 					matchFrom:     250000,
 					matchTo:       250001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: timeNanosMax,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -813,7 +1036,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue2",
 					matchFrom:     250000,
 					matchTo:       250001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: timeNanosMax,
 					result: policy.PoliciesList{
 						policy.NewStagedPolicies(
@@ -829,7 +1051,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "mtagName1=mtagValue3",
 					matchFrom:     250000,
 					matchTo:       250001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: timeNanosMax,
 					result:        policy.DefaultPoliciesList,
 				},
@@ -839,7 +1060,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName1=rtagValue1,rtagName2=rtagValue2,rtagName3=rtagValue3",
 					matchFrom:     250000,
 					matchTo:       250001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: timeNanosMax,
 					result: []RollupResult{
 						{
@@ -874,7 +1094,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName1=rtagValue2",
 					matchFrom:     250000,
 					matchTo:       250001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: timeNanosMax,
 					result: []RollupResult{
 						{
@@ -895,7 +1114,6 @@ func TestRuleSetActiveSet(t *testing.T) {
 					id:            "rtagName5=rtagValue5",
 					matchFrom:     250000,
 					matchTo:       250001,
-					matchMode:     ForwardMatch,
 					expireAtNanos: timeNanosMax,
 					result:        []RollupResult{},
 				},
@@ -906,12 +1124,12 @@ func TestRuleSetActiveSet(t *testing.T) {
 	for _, inputs := range allInputs {
 		as := newRuleSet.ActiveSet(inputs.activeSetTime.UnixNano())
 		for _, input := range inputs.mappingInputs {
-			res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo, input.matchMode)
+			res := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.Equal(t, input.result, res.MappingsAt(0))
 		}
 		for _, input := range inputs.rollupInputs {
-			res := as.MatchAll(b(input.id), input.matchFrom, input.matchTo, input.matchMode)
+			res := as.ForwardMatch(b(input.id), input.matchFrom, input.matchTo)
 			require.Equal(t, input.expireAtNanos, res.expireAtNanos)
 			require.Equal(t, len(input.result), res.NumRollups())
 			for i := 0; i < len(input.result); i++ {
@@ -1308,7 +1526,31 @@ func testRollupRules(t *testing.T) []*rollupRule {
 		},
 	}
 
-	return []*rollupRule{rollupRule1, rollupRule2, rollupRule3, rollupRule4, rollupRule5, rollupRule6}
+	rollupRule7 := &rollupRule{
+		uuid: "rollupRule7",
+		snapshots: []*rollupRuleSnapshot{
+			&rollupRuleSnapshot{
+				name:               "rollupRule7.snapshot1",
+				tombstoned:         false,
+				cutoverNanos:       120000,
+				filter:             filter2,
+				lastUpdatedAtNanos: 125000,
+				lastUpdatedBy:      "test",
+				targets: []RollupTarget{
+					{
+						Name: b("rName5"),
+						Tags: [][]byte{b("rtagName1")},
+						Policies: []policy.Policy{
+							policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour), policy.MustCompressAggregationTypes(policy.Sum, policy.P90, policy.P99)),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Second, 10*time.Hour), policy.MustCompressAggregationTypes(policy.Sum, policy.P99)),
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return []*rollupRule{rollupRule1, rollupRule2, rollupRule3, rollupRule4, rollupRule5, rollupRule6, rollupRule7}
 }
 
 func testMappingRulesConfig() []*schema.MappingRule {
@@ -2497,19 +2739,19 @@ func TestRuleSetClone(t *testing.T) {
 }
 
 type testMappingsData struct {
-	id            string
-	matchFrom     int64
-	matchTo       int64
-	matchMode     MatchMode
-	expireAtNanos int64
-	result        policy.PoliciesList
+	id              string
+	matchFrom       int64
+	matchTo         int64
+	expireAtNanos   int64
+	result          policy.PoliciesList
+	metricType      metric.Type
+	aggregationType policy.AggregationType
 }
 
 type testRollupResultsData struct {
 	id            string
 	matchFrom     int64
 	matchTo       int64
-	matchMode     MatchMode
 	expireAtNanos int64
 	result        []RollupResult
 }

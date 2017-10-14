@@ -38,8 +38,8 @@ func TestPolicyString(t *testing.T) {
 		expected string
 	}{
 		{p: NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, time.Hour), DefaultAggregationID), expected: "10s:1h"},
-		{p: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), mustCompress(Mean, P999)), expected: "1m:12h|Mean,P999"},
-		{p: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), mustCompress(Mean)), expected: "1m:12h|Mean"},
+		{p: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), MustCompressAggregationTypes(Mean, P999)), expected: "1m:12h|Mean,P999"},
+		{p: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 12*time.Hour), MustCompressAggregationTypes(Mean)), expected: "1m:12h|Mean"},
 	}
 	for _, input := range inputs {
 		require.Equal(t, input.expected, input.p.String())
@@ -57,19 +57,19 @@ func TestPolicyUnmarshalYAML(t *testing.T) {
 		},
 		{
 			str:      "10s:1d|Mean",
-			expected: NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), mustCompress(Mean)),
+			expected: NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), MustCompressAggregationTypes(Mean)),
 		},
 		{
 			str:      "60s:24h|Mean,Count",
-			expected: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), mustCompress(Mean, Count)),
+			expected: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), MustCompressAggregationTypes(Mean, Count)),
 		},
 		{
 			str:      "1m:1d|Count,Mean",
-			expected: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), mustCompress(Mean, Count)),
+			expected: NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), MustCompressAggregationTypes(Mean, Count)),
 		},
 		{
 			str:      "1s@1s:1h|P999,P9999",
-			expected: NewPolicy(NewStoragePolicy(time.Second, xtime.Second, time.Hour), mustCompress(P999, P9999)),
+			expected: NewPolicy(NewStoragePolicy(time.Second, xtime.Second, time.Hour), MustCompressAggregationTypes(P999, P9999)),
 		},
 	}
 	for _, input := range inputs {
@@ -133,8 +133,8 @@ func TestNewPoliciesFromSchema(t *testing.T) {
 	res, err := NewPoliciesFromSchema(input)
 	require.NoError(t, err)
 	require.Equal(t, []Policy{
-		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), mustCompress(Mean, P999)),
-		NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 240*time.Hour), mustCompress(Mean, P9999)),
+		NewPolicy(NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), MustCompressAggregationTypes(Mean, P999)),
+		NewPolicy(NewStoragePolicy(time.Minute, xtime.Minute, 240*time.Hour), MustCompressAggregationTypes(Mean, P9999)),
 	}, res)
 }
 

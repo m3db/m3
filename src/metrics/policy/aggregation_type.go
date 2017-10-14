@@ -70,6 +70,10 @@ const (
 	AggregationIDLen = (MaxAggregationTypeID)/64 + 1
 
 	aggregationTypesSeparator = ","
+
+	// aggregation id uses an array of int64 to represent aggregation types.
+	aggIDBitShift = 6
+	aggIDBitMask  = 63
 )
 
 var (
@@ -81,7 +85,7 @@ var (
 	// DefaultAggregationID is a default AggregationID.
 	DefaultAggregationID AggregationID
 
-	// ValidAggregationTypes is the list of all the valid aggregation types
+	// ValidAggregationTypes is the list of all the valid aggregation types.
 	ValidAggregationTypes = map[AggregationType]struct{}{
 		Last:   emptyStruct,
 		Min:    emptyStruct,
@@ -276,6 +280,16 @@ func (aggTypes *AggregationTypes) UnmarshalYAML(unmarshal func(interface{}) erro
 	return nil
 }
 
+// Contains checks if the given type is contained in the aggregation types.
+func (aggTypes AggregationTypes) Contains(aggType AggregationType) bool {
+	for _, at := range aggTypes {
+		if at == aggType {
+			return true
+		}
+	}
+	return false
+}
+
 // IsDefault checks if the AggregationTypes is the default aggregation type.
 func (aggTypes AggregationTypes) IsDefault() bool {
 	return len(aggTypes) == 0
@@ -415,6 +429,16 @@ func NewAggregationIDFromSchema(input []schema.AggregationType) (AggregationID, 
 	return id, nil
 }
 
+// MustCompressAggregationTypes compresses a list of aggregation types to
+// an AggregationID, it panics if an error was encountered.
+func MustCompressAggregationTypes(aggTypes ...AggregationType) AggregationID {
+	res, err := NewAggregationIDCompressor().Compress(aggTypes)
+	if err != nil {
+		panic(err.Error())
+	}
+	return res
+}
+
 // IsDefault checks if the AggregationID is the default aggregation type.
 func (id AggregationID) IsDefault() bool {
 	return id == DefaultAggregationID
@@ -436,6 +460,16 @@ func (id AggregationID) Merge(other AggregationID) (AggregationID, bool) {
 		}
 	}
 	return id, merged
+}
+
+// Contains checks if the given aggregation type is contained in the aggregation id.
+func (id AggregationID) Contains(aggType AggregationType) bool {
+	if !aggType.IsValid() {
+		return false
+	}
+	idx := int(aggType) >> aggIDBitShift   // aggType / 64
+	offset := uint(aggType) & aggIDBitMask // aggType % 64
+	return (id[idx] & (1 << offset)) > 0
 }
 
 // AggregationTypes returns the aggregation types defined by the id.
