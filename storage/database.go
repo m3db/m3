@@ -168,12 +168,14 @@ func NewDatabase(
 		return nil, err
 	}
 
-	// wait till first value is received
+	// Wait till first namespaces value is received and set the value.
+	// Its important that this happens before the mediator is started to prevent
+	// a race condition where the namespaces haven't been initialized yet and
+	// GetOwnedNamespaces() returns an empty slice which makes the cleanup logic
+	// in the background Tick think it can clean up files that it shouldn't.
 	logger.Info("resolving namespaces with namespace watch")
 	<-watch.C()
 	d.nsWatch = newDatabaseNamespaceWatch(d, watch, databaseIOpts)
-
-	// update with initial values
 	nsMap := watch.Get()
 	if err := d.UpdateOwnedNamespaces(nsMap); err != nil {
 		return nil, err
