@@ -444,7 +444,7 @@ func TestActiveRuleSetReverseMappingPoliciesForRollupID(t *testing.T) {
 			matchTo:         25001,
 			expireAtNanos:   30000,
 			metricType:      metric.UnknownType,
-			aggregationType: policy.Unknown,
+			aggregationType: policy.UnknownAggregationType,
 			result:          nil,
 		},
 		{

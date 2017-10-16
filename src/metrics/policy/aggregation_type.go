@@ -30,7 +30,7 @@ import (
 
 // Supported aggregation types.
 const (
-	Unknown AggregationType = iota
+	UnknownAggregationType AggregationType = iota
 	Last
 	Min
 	Max
@@ -128,7 +128,7 @@ type AggregationType int
 func NewAggregationTypeFromSchema(input schema.AggregationType) (AggregationType, error) {
 	aggType := AggregationType(input)
 	if !aggType.IsValid() {
-		return Unknown, fmt.Errorf("invalid aggregation type from schema: %s", input)
+		return UnknownAggregationType, fmt.Errorf("invalid aggregation type from schema: %s", input)
 	}
 	return aggType, nil
 }
@@ -244,7 +244,7 @@ func validateSchemaAggregationType(a schema.AggregationType) error {
 func ParseAggregationType(str string) (AggregationType, error) {
 	aggType, ok := aggregationTypeStringMap[str]
 	if !ok {
-		return Unknown, fmt.Errorf("invalid aggregation type: %s", str)
+		return UnknownAggregationType, fmt.Errorf("invalid aggregation type: %s", str)
 	}
 	return aggType, nil
 }

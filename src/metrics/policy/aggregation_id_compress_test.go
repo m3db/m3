@@ -35,12 +35,12 @@ func TestAggregationIDCompressRoundTrip(t *testing.T) {
 		expectErr bool
 	}{
 		{DefaultAggregationTypes, DefaultAggregationTypes, false},
-		{[]AggregationType{Unknown}, DefaultAggregationTypes, true},
+		{[]AggregationType{UnknownAggregationType}, DefaultAggregationTypes, true},
 		{[]AggregationType{Min, Max}, []AggregationType{Min, Max}, false},
 		{[]AggregationType{Last}, []AggregationType{Last}, false},
 		{[]AggregationType{P999, P9999}, []AggregationType{P999, P9999}, false},
 		{[]AggregationType{1, 5, 9, 3, 2}, []AggregationType{1, 2, 3, 5, 9}, false},
-		// 50 is an Unknown aggregation type.
+		// 50 is an unknown aggregation type.
 		{[]AggregationType{10, 50}, DefaultAggregationTypes, true},
 	}
 
@@ -63,7 +63,7 @@ func TestAggregationIDCompressRoundTrip(t *testing.T) {
 
 func TestAggregationIDDecompressError(t *testing.T) {
 	compressor, decompressor := NewAggregationIDCompressor(), NewAggregationIDDecompressor()
-	_, err := decompressor.Decompress([AggregationIDLen]uint64{1}) // aggregation type: Unknown.
+	_, err := decompressor.Decompress([AggregationIDLen]uint64{1}) // aggregation type: UnknownAggregationType.
 	require.Error(t, err)
 
 	max, err := compressor.Compress([]AggregationType{Last, Min, Max, Mean, Median, Count, Sum, SumSq, Stdev, P95, P99, P999, P9999})
