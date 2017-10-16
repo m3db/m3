@@ -410,9 +410,6 @@ func TestGetOwnedNamespacesErrorIfClosed(t *testing.T) {
 		close(mapCh)
 	}()
 
-	dbAddNewMockNamespace(ctrl, d, "testns1")
-	dbAddNewMockNamespace(ctrl, d, "testns2")
-
 	require.NoError(t, d.Open())
 	require.NoError(t, d.Terminate())
 
