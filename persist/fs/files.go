@@ -234,7 +234,7 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 
 //Filesets returns all the filesets for a given namespace
 func Filesets(filePathPrefix string, namespace ts.ID) ([]string, error) {
-	matched, err := filesetFiles(filePathPrefix, namespace, filesetFilePattern)
+	matched, err := namepsaceFilesetFiles(filePathPrefix, namespace, filesetFilePattern)
 	if err != nil {
 		return nil, err
 	}
