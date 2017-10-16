@@ -221,6 +221,7 @@ func toExpectedResults(
 	}
 
 	decompressor := policy.NewAggregationIDDecompressor()
+	aggTypeOpts := opts.AggregationTypesOptions()
 	// Aggregate metrics by policies
 	for _, dataValues := range dsp.dataset {
 		for _, mu := range dataValues.metrics {
@@ -244,19 +245,19 @@ func toExpectedResults(
 					switch mu.Type {
 					case unaggregated.CounterType:
 						if aggTypes.IsDefault() {
-							aggTypes = opts.DefaultCounterAggregationTypes()
+							aggTypes = aggTypeOpts.DefaultCounterAggregationTypes()
 						}
 						aggregationOpts.ResetSetData(aggTypes)
 						values = aggregation.NewCounter(aggregationOpts)
 					case unaggregated.BatchTimerType:
 						if aggTypes.IsDefault() {
-							aggTypes = opts.DefaultTimerAggregationTypes()
+							aggTypes = aggTypeOpts.DefaultTimerAggregationTypes()
 						}
 						aggregationOpts.ResetSetData(aggTypes)
-						values = aggregation.NewTimer(opts.TimerQuantiles(), opts.StreamOptions(), aggregationOpts)
+						values = aggregation.NewTimer(aggTypeOpts.TimerQuantiles(), opts.StreamOptions(), aggregationOpts)
 					case unaggregated.GaugeType:
 						if aggTypes.IsDefault() {
-							aggTypes = opts.DefaultGaugeAggregationTypes()
+							aggTypes = aggTypeOpts.DefaultGaugeAggregationTypes()
 						}
 						aggregationOpts.ResetSetData(aggTypes)
 						values = aggregation.NewGauge(aggregationOpts)
@@ -329,33 +330,34 @@ func toAggregatedMetrics(
 	}
 
 	id := key.id
+	aggTypeOpts := opts.AggregationTypesOptions()
 	switch values := values.(type) {
 	case aggregation.Counter:
 		var fullCounterPrefix = opts.FullCounterPrefix()
 		if aggTypes.IsDefault() {
-			aggTypes = opts.DefaultCounterAggregationTypes()
+			aggTypes = aggTypeOpts.DefaultCounterAggregationTypes()
 		}
 
 		for _, aggType := range aggTypes {
-			fn(fullCounterPrefix, id, opts.SuffixForCounter(aggType), timeNanos, values.ValueOf(aggType), sp)
+			fn(fullCounterPrefix, id, aggTypeOpts.SuffixForCounter(aggType), timeNanos, values.ValueOf(aggType), sp)
 		}
 	case aggregation.Timer:
 		var fullTimerPrefix = opts.FullTimerPrefix()
 		if aggTypes.IsDefault() {
-			aggTypes = opts.DefaultTimerAggregationTypes()
+			aggTypes = aggTypeOpts.DefaultTimerAggregationTypes()
 		}
 
 		for _, aggType := range aggTypes {
-			fn(fullTimerPrefix, id, opts.SuffixForTimer(aggType), timeNanos, values.ValueOf(aggType), sp)
+			fn(fullTimerPrefix, id, aggTypeOpts.SuffixForTimer(aggType), timeNanos, values.ValueOf(aggType), sp)
 		}
 	case aggregation.Gauge:
 		var fullGaugePrefix = opts.FullGaugePrefix()
 		if aggTypes.IsDefault() {
-			aggTypes = opts.DefaultGaugeAggregationTypes()
+			aggTypes = aggTypeOpts.DefaultGaugeAggregationTypes()
 		}
 
 		for _, aggType := range aggTypes {
-			fn(fullGaugePrefix, id, opts.SuffixForGauge(aggType), timeNanos, values.ValueOf(aggType), sp)
+			fn(fullGaugePrefix, id, aggTypeOpts.SuffixForGauge(aggType), timeNanos, values.ValueOf(aggType), sp)
 		}
 	default:
 		require.Fail(t, fmt.Sprintf("unrecognized aggregation type %T", values))

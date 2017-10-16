@@ -46,21 +46,14 @@ import (
 )
 
 var (
-	errUnknownQuantileSuffixFnType = errors.New("unknown quantile suffix function type")
-	errNoKVClientConfiguration     = errors.New("no kv client configuration")
-	errEmptyJitterBucketList       = errors.New("empty jitter bucket list")
+	errNoKVClientConfiguration = errors.New("no kv client configuration")
+	errEmptyJitterBucketList   = errors.New("empty jitter bucket list")
 )
 
 // AggregatorConfiguration contains aggregator configuration.
 type AggregatorConfiguration struct {
-	// Default aggregation types for counter metrics.
-	CounterAggregationTypes []policy.AggregationType `yaml:"counterAggregationTypes" validate:"nonzero"`
-
-	// Default aggregation types for timer metrics.
-	TimerAggregationTypes []policy.AggregationType `yaml:"timerAggregationTypes" validate:"nonzero"`
-
-	// Default aggregation types for gauge metrics.
-	GaugeAggregationTypes []policy.AggregationType `yaml:"gaugeAggregationTypes" validate:"nonzero"`
+	// AggregationTypes configs the aggregation types.
+	AggregationTypes policy.AggregationTypesConfiguration `yaml:"aggregationTypes"`
 
 	// Common metric prefix.
 	MetricPrefix string `yaml:"metricPrefix"`
@@ -71,47 +64,8 @@ type AggregatorConfiguration struct {
 	// Timer metric prefix.
 	TimerPrefix string `yaml:"timerPrefix"`
 
-	// Gauge metric suffix.
+	// Gauge metric prefix.
 	GaugePrefix string `yaml:"gaugePrefix"`
-
-	// Metric suffix for aggregation type last.
-	AggregationLastSuffix string `yaml:"aggregationLastSuffix"`
-
-	// Metric suffix for aggregation type sum.
-	AggregationSumSuffix string `yaml:"aggregationSumSuffix"`
-
-	// Metric suffix for aggregation type sum square.
-	AggregationSumSqSuffix string `yaml:"aggregationSumSqSuffix"`
-
-	// Metric suffix for aggregation type mean.
-	AggregationMeanSuffix string `yaml:"aggregationMeanSuffix"`
-
-	// Metric suffix for aggregation type min.
-	AggregationMinSuffix string `yaml:"aggregationMinSuffix"`
-
-	// Metric suffix for aggregation type max.
-	AggregationMaxSuffix string `yaml:"aggregationMaxSuffix"`
-
-	// Metric suffix for aggregation type count.
-	AggregationCountSuffix string `yaml:"aggregationCountSuffix"`
-
-	// Metric suffix for aggregation type standard deviation.
-	AggregationStdevSuffix string `yaml:"aggregationStdevSuffix"`
-
-	// Metric suffix for aggregation type median.
-	AggregationMedianSuffix string `yaml:"aggregationMedianSuffix"`
-
-	// Timer quantile suffix function type.
-	TimerQuantileSuffixFnType string `yaml:"timerQuantileSuffixFnType"`
-
-	// Counter suffix override.
-	CounterSuffixOverride map[policy.AggregationType]string `yaml:"counterSuffixOverride"`
-
-	// Timer suffix override.
-	TimerSuffixOverride map[policy.AggregationType]string `yaml:"timerSuffixOverride"`
-
-	// Gauge suffix override.
-	GaugeSuffixOverride map[policy.AggregationType]string `yaml:"gaugeSuffixOverride"`
 
 	// Stream configuration for computing quantiles.
 	Stream streamConfiguration `yaml:"stream"`
@@ -175,12 +129,6 @@ type AggregatorConfiguration struct {
 
 	// Pool of entries.
 	EntryPool pool.ObjectPoolConfiguration `yaml:"entryPool"`
-
-	// Pool of aggregation types.
-	AggregationTypesPool pool.ObjectPoolConfiguration `yaml:"aggregationTypesPool"`
-
-	// Pool of quantile slices.
-	QuantilesPool pool.BucketizedPoolConfiguration `yaml:"quantilesPool"`
 }
 
 // NewAggregatorOptions creates a new set of aggregator options.
@@ -190,36 +138,13 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 ) (aggregator.Options, error) {
 	scope := instrumentOpts.MetricsScope()
 	opts := aggregator.NewOptions().SetInstrumentOptions(instrumentOpts)
+	opts = opts.SetAggregationTypesOptions(c.AggregationTypes.NewOptions(instrumentOpts))
 
-	opts = opts.SetDefaultCounterAggregationTypes(c.CounterAggregationTypes).
-		SetDefaultTimerAggregationTypes(c.TimerAggregationTypes).
-		SetDefaultGaugeAggregationTypes(c.GaugeAggregationTypes)
-
-	// Set the prefix and suffix for metrics aggregations.
-	opts = setMetricPrefixOrSuffix(opts, c.MetricPrefix, opts.SetMetricPrefix)
-	opts = setMetricPrefixOrSuffix(opts, c.CounterPrefix, opts.SetCounterPrefix)
-	opts = setMetricPrefixOrSuffix(opts, c.TimerPrefix, opts.SetTimerPrefix)
-	opts = setMetricPrefixOrSuffix(opts, c.AggregationLastSuffix, opts.SetAggregationLastSuffix)
-	opts = setMetricPrefixOrSuffix(opts, c.AggregationSumSuffix, opts.SetAggregationSumSuffix)
-	opts = setMetricPrefixOrSuffix(opts, c.AggregationSumSqSuffix, opts.SetAggregationSumSqSuffix)
-	opts = setMetricPrefixOrSuffix(opts, c.AggregationMeanSuffix, opts.SetAggregationMeanSuffix)
-	opts = setMetricPrefixOrSuffix(opts, c.AggregationMinSuffix, opts.SetAggregationMinSuffix)
-	opts = setMetricPrefixOrSuffix(opts, c.AggregationMaxSuffix, opts.SetAggregationMaxSuffix)
-	opts = setMetricPrefixOrSuffix(opts, c.AggregationCountSuffix, opts.SetAggregationCountSuffix)
-	opts = setMetricPrefixOrSuffix(opts, c.AggregationStdevSuffix, opts.SetAggregationStdevSuffix)
-	opts = setMetricPrefixOrSuffix(opts, c.AggregationMedianSuffix, opts.SetAggregationMedianSuffix)
-	opts = setMetricPrefixOrSuffix(opts, c.GaugePrefix, opts.SetGaugePrefix)
-
-	// Set timer quantiles and quantile suffix function.
-	quantileSuffixFn, err := c.parseTimerQuantileSuffixFn(opts)
-	if err != nil {
-		return nil, err
-	}
-	opts = opts.SetTimerQuantileSuffixFn(quantileSuffixFn)
-
-	opts = opts.SetCounterSuffixOverride(c.parseSuffixOverride(c.CounterSuffixOverride)).
-		SetTimerSuffixOverride(c.parseSuffixOverride(c.TimerSuffixOverride)).
-		SetGaugeSuffixOverride(c.parseSuffixOverride(c.GaugeSuffixOverride))
+	// Set the prefix for metrics aggregations.
+	opts = setMetricPrefix(opts, c.MetricPrefix, opts.SetMetricPrefix)
+	opts = setMetricPrefix(opts, c.CounterPrefix, opts.SetCounterPrefix)
+	opts = setMetricPrefix(opts, c.TimerPrefix, opts.SetTimerPrefix)
+	opts = setMetricPrefix(opts, c.GaugePrefix, opts.SetGaugePrefix)
 
 	// Set stream options.
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("stream"))
@@ -376,53 +301,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	opts = opts.SetEntryPool(entryPool)
 	entryPool.Init(func() *aggregator.Entry { return aggregator.NewEntry(nil, opts) })
 
-	// Set aggregation types pool.
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("aggregation-types-pool"))
-	aggTypesPoolOpts := c.AggregationTypesPool.NewObjectPoolOptions(iOpts)
-	aggTypesPool := policy.NewAggregationTypesPool(aggTypesPoolOpts)
-	opts = opts.SetAggregationTypesPool(aggTypesPool)
-	aggTypesPool.Init(func() policy.AggregationTypes {
-		return make(policy.AggregationTypes, 0, len(policy.ValidAggregationTypes))
-	})
-
-	// Set quantiles pool.
-	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("quantile-pool"))
-	quantilesPool := pool.NewFloatsPool(
-		c.QuantilesPool.NewBuckets(),
-		c.QuantilesPool.NewObjectPoolOptions(iOpts),
-	)
-	opts = opts.SetQuantilesPool(quantilesPool)
-	quantilesPool.Init()
-
 	return opts, nil
-}
-
-// parseSuffixOverride parses the suffix override map.
-func (c *AggregatorConfiguration) parseSuffixOverride(m map[policy.AggregationType]string) map[policy.AggregationType][]byte {
-	res := make(map[policy.AggregationType][]byte, len(m))
-	for aggType, s := range m {
-		var bytes []byte
-		if s != "" {
-			// NB(cw) []byte("") is empty with a cap of 8.
-			bytes = []byte(s)
-		}
-		res[aggType] = bytes
-	}
-	return res
-}
-
-// parseTimerQuantileSuffixFn parses the quantile suffix function type.
-func (c *AggregatorConfiguration) parseTimerQuantileSuffixFn(opts aggregator.Options) (aggregator.QuantileSuffixFn, error) {
-	fnType := defaultQuantileSuffixType
-	if c.TimerQuantileSuffixFnType != "" {
-		fnType = timerQuantileSuffixFnType(c.TimerQuantileSuffixFnType)
-	}
-	switch fnType {
-	case defaultQuantileSuffixType:
-		return opts.TimerQuantileSuffixFn(), nil
-	default:
-		return nil, errUnknownQuantileSuffixFnType
-	}
 }
 
 // streamConfiguration contains configuration for quantile-related metric streams.
@@ -776,20 +655,12 @@ func (b jitterBucketsByIntervalAscending) Less(i, j int) bool {
 	return b[i].FlushInterval < b[j].FlushInterval
 }
 
-// timerQuantileSuffixFnType is the timer quantile suffix function type.
-type timerQuantileSuffixFnType string
+type metricPrefixSetter func(b []byte) aggregator.Options
 
-// A list of supported timer quantile suffix function types.
-const (
-	defaultQuantileSuffixType timerQuantileSuffixFnType = "default"
-)
-
-type metricPrefixOrSuffixSetter func(prefixOrSuffix []byte) aggregator.Options
-
-func setMetricPrefixOrSuffix(
+func setMetricPrefix(
 	opts aggregator.Options,
 	str string,
-	fn metricPrefixOrSuffixSetter,
+	fn metricPrefixSetter,
 ) aggregator.Options {
 	if str == "" {
 		return opts

@@ -64,6 +64,7 @@ var (
 		ID:       testGaugeID,
 		GaugeVal: 123.456,
 	}
+	testOpts = NewOptions()
 )
 
 func TestElemBaseID(t *testing.T) {
@@ -86,7 +87,7 @@ func TestElemBaseResetSetData(t *testing.T) {
 func TestCounterResetSetData(t *testing.T) {
 	opts := NewOptions()
 	ce := NewCounterElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, opts)
-	require.Equal(t, opts.DefaultCounterAggregationTypes(), ce.aggTypes)
+	require.Equal(t, opts.AggregationTypesOptions().DefaultCounterAggregationTypes(), ce.aggTypes)
 	require.True(t, ce.useDefaultAggregation)
 	require.False(t, ce.aggOpts.HasExpensiveAggregations)
 
@@ -107,7 +108,7 @@ func TestTimerResetSetData(t *testing.T) {
 	te := NewTimerElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, opts)
 	require.False(t, te.isQuantilesPooled)
 	require.True(t, te.aggOpts.HasExpensiveAggregations)
-	require.Equal(t, opts.DefaultTimerAggregationTypes(), te.aggTypes)
+	require.Equal(t, opts.AggregationTypesOptions().DefaultTimerAggregationTypes(), te.aggTypes)
 	require.True(t, te.useDefaultAggregation)
 
 	sp := policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour)
@@ -127,7 +128,7 @@ func TestTimerResetSetData(t *testing.T) {
 func TestGaugeResetSetData(t *testing.T) {
 	opts := NewOptions()
 	ge := NewGaugeElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, opts)
-	require.Equal(t, opts.DefaultGaugeAggregationTypes(), ge.aggTypes)
+	require.Equal(t, opts.AggregationTypesOptions().DefaultGaugeAggregationTypes(), ge.aggTypes)
 	require.True(t, ge.useDefaultAggregation)
 	require.False(t, ge.aggOpts.HasExpensiveAggregations)
 
@@ -763,7 +764,7 @@ func testCounterElem(aggTypes policy.AggregationTypes) *CounterElem {
 func testTimerElem(aggTypes policy.AggregationTypes, opts Options) *TimerElem {
 	e := NewTimerElem(testBatchTimerID, testStoragePolicy, aggTypes, opts)
 	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
-		newTimer := aggregation.NewTimer(opts.TimerQuantiles(), opts.StreamOptions(), e.aggOpts)
+		newTimer := aggregation.NewTimer(opts.AggregationTypesOptions().TimerQuantiles(), opts.StreamOptions(), e.aggOpts)
 		timer := aggregation.NewLockedTimer(newTimer)
 		timer.AddBatch(testBatchTimer.BatchTimerVal)
 		e.values = append(e.values, timedTimer{
@@ -788,15 +789,15 @@ func testGaugeElem(aggTypes policy.AggregationTypes) *GaugeElem {
 }
 
 func expectCounterSuffix(aggType policy.AggregationType) []byte {
-	return NewOptions().SuffixForCounter(aggType)
+	return testOpts.AggregationTypesOptions().SuffixForCounter(aggType)
 }
 
 func expectTimerSuffix(aggType policy.AggregationType) []byte {
-	return NewOptions().SuffixForTimer(aggType)
+	return testOpts.AggregationTypesOptions().SuffixForTimer(aggType)
 }
 
 func expectGaugeSuffix(aggType policy.AggregationType) []byte {
-	return NewOptions().SuffixForGauge(aggType)
+	return testOpts.AggregationTypesOptions().SuffixForGauge(aggType)
 }
 
 func expectedAggMetricsForCounter(
