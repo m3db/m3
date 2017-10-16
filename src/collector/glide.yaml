@@ -3,9 +3,9 @@ import:
 - package: github.com/m3db/m3cluster
   version: d9fd14a38efe2eaf43b9a52350055fbd2dac06ec
 - package: github.com/m3db/m3metrics
-  version: 82d18cdd2a24502c6a170b6bfea01c30685e5b26
+  version: 53ee9f560becd279ed04e3e31d1c5570aa4784b6
 - package: github.com/m3db/m3x
-  version: 6e9713eca6718643e105f574be392f122bcc062e
+  version: b009e41c873b0fb0fc066114911c87ff6a6f8d77
   subpackages:
   - clock
   - instrument
