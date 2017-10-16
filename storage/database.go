@@ -149,11 +149,6 @@ func NewDatabase(
 	}
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
-	mediator, err := newMediator(d, opts.SetInstrumentOptions(databaseIOpts))
-	if err != nil {
-		return nil, err
-	}
-	d.mediator = mediator
 
 	// initialize namespaces
 	nsInit := opts.NamespaceInitializer()
@@ -180,6 +175,12 @@ func NewDatabase(
 	if err := d.UpdateOwnedNamespaces(nsMap); err != nil {
 		return nil, err
 	}
+
+	mediator, err := newMediator(d, opts.SetInstrumentOptions(databaseIOpts))
+	if err != nil {
+		return nil, err
+	}
+	d.mediator = mediator
 
 	return d, nil
 }
