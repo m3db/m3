@@ -118,7 +118,7 @@ func (cfg *Configuration) NewOptions(
 		SetTagsFilterOptions(tagsFilterOptions).
 		SetNewRollupIDFn(m3.NewRollupID).
 		SetIsRollupIDFn(isRollupIDFn).
-		SetAggregationTypesOptions(cfg.AggregationTypes.NewOptions())
+		SetAggregationTypesOptions(cfg.AggregationTypes.NewOptions(instrumentOpts))
 
 	// Configure ruleset key function.
 	ruleSetKeyFn := func(namespace []byte) string {
