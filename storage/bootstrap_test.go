@@ -52,7 +52,7 @@ func TestDatabaseBootstrapWithBootstrapError(t *testing.T) {
 	namespaces := []databaseNamespace{ns}
 
 	db := NewMockdatabase(ctrl)
-	db.EXPECT().GetOwnedNamespaces().Return(namespaces)
+	db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil)
 
 	m := NewMockdatabaseMediator(ctrl)
 	m.EXPECT().DisableFileOps()

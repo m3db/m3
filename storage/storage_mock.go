@@ -24,8 +24,6 @@
 package storage
 
 import (
-	time0 "time"
-
 	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
@@ -46,6 +44,7 @@ import (
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
 	time "github.com/m3db/m3x/time"
+	time0 "time"
 )
 
 // Mock of Database interface
@@ -418,10 +417,11 @@ func (_mr *_MockdatabaseRecorder) Truncate(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate", arg0)
 }
 
-func (_m *Mockdatabase) GetOwnedNamespaces() []databaseNamespace {
+func (_m *Mockdatabase) GetOwnedNamespaces() ([]databaseNamespace, error) {
 	ret := _m.ctrl.Call(_m, "GetOwnedNamespaces")
 	ret0, _ := ret[0].([]databaseNamespace)
-	return ret0
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 func (_mr *_MockdatabaseRecorder) GetOwnedNamespaces() *gomock.Call {
@@ -650,8 +650,8 @@ func (_mr *_MockdatabaseNamespaceRecorder) Flush(arg0, arg1 interface{}) *gomock
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Flush", arg0, arg1)
 }
 
-func (_m *MockdatabaseNamespace) NeedsFlush(start time0.Time, end time0.Time) bool {
-	ret := _m.ctrl.Call(_m, "NeedsFlush", start, end)
+func (_m *MockdatabaseNamespace) NeedsFlush(alignedInclusiveStart time0.Time, alignedInclusiveEnd time0.Time) bool {
+	ret := _m.ctrl.Call(_m, "NeedsFlush", alignedInclusiveStart, alignedInclusiveEnd)
 	ret0, _ := ret[0].(bool)
 	return ret0
 }
@@ -975,16 +975,6 @@ func NewMockdatabaseFlushManager(ctrl *gomock.Controller) *MockdatabaseFlushMana
 
 func (_m *MockdatabaseFlushManager) EXPECT() *_MockdatabaseFlushManagerRecorder {
 	return _m.recorder
-}
-
-func (_m *MockdatabaseFlushManager) NeedsFlush(startInclusive time0.Time, endInclusive time0.Time) bool {
-	ret := _m.ctrl.Call(_m, "NeedsFlush", startInclusive, endInclusive)
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-func (_mr *_MockdatabaseFlushManagerRecorder) NeedsFlush(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "NeedsFlush", arg0, arg1)
 }
 
 func (_m *MockdatabaseFlushManager) Flush(t time0.Time) error {

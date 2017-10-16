@@ -140,7 +140,7 @@ func newMockdatabase(ctrl *gomock.Controller, ns ...databaseNamespace) *Mockdata
 	db := NewMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testDatabaseOptions()).AnyTimes()
 	if len(ns) != 0 {
-		db.EXPECT().GetOwnedNamespaces().Return(ns).AnyTimes()
+		db.EXPECT().GetOwnedNamespaces().Return(ns, nil).AnyTimes()
 	}
 	return db
 }
