@@ -401,6 +401,25 @@ func TestDatabaseNamespaces(t *testing.T) {
 	assert.Equal(t, "testns2", result[1].ID().String())
 }
 
+func TestGetOwnedNamespacesErrorIfClosed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	dbAddNewMockNamespace(ctrl, d, "testns1")
+	dbAddNewMockNamespace(ctrl, d, "testns2")
+
+	require.NoError(t, d.Open())
+	require.NoError(t, d.Terminate())
+
+	_, err := d.GetOwnedNamespaces()
+	require.Equal(t, errDatabaseIsClosed, err)
+}
+
 func TestDatabaseAssignShardSet(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

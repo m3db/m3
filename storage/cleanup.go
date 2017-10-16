@@ -90,8 +90,11 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 	}
 
 	commitLogStart, commitLogTimes, err := m.commitLogTimes(t)
-	multiErr = multiErr.Add(fmt.Errorf(
-		"encountered errors when cleaning up commit logs: %v", err))
+	if err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when cleaning up commit logs: %v", err))
+	}
+
 	if err := m.cleanupCommitLogs(commitLogStart, commitLogTimes); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when cleaning up commit logs for commitLogStart %v commitLogTimes %v: %v",
