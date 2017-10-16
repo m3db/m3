@@ -23,6 +23,7 @@ package policy
 import (
 	"testing"
 
+	"github.com/m3db/m3x/instrument"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -31,12 +32,24 @@ func TestAggregationTypesConfiguration(t *testing.T) {
 	str := `
 defaultGaugeAggregationTypes: Max
 defaultTimerAggregationTypes: P50,P99,P9999
+meanSuffix: .testMean
+gaugeSuffixOverrides:
+  Last: ""
+counterSuffixOverrides:
+  Sum: ""
 `
 
 	var cfg AggregationTypesConfiguration
 	require.NoError(t, yaml.Unmarshal([]byte(str), &cfg))
-	opts := cfg.NewOptions()
+	opts := cfg.NewOptions(instrument.NewOptions())
 	require.Equal(t, defaultDefaultCounterAggregationTypes, opts.DefaultCounterAggregationTypes())
 	require.Equal(t, AggregationTypes{Max}, opts.DefaultGaugeAggregationTypes())
 	require.Equal(t, AggregationTypes{P50, P99, P9999}, opts.DefaultTimerAggregationTypes())
+	require.Equal(t, []byte(".testMean"), opts.MeanSuffix())
+	require.Equal(t, []byte(nil), opts.SuffixForCounter(Sum))
+	require.Equal(t, []byte(nil), opts.SuffixForGauge(Last))
+	suffixes := opts.DefaultTimerAggregationSuffixes()
+	for i, aggType := range opts.DefaultTimerAggregationTypes() {
+		require.Equal(t, suffixes[i], opts.SuffixForTimer(aggType))
+	}
 }
