@@ -393,13 +393,13 @@ func (d *db) terminateWithLock() error {
 	}
 	d.state = databaseClosed
 
-	// stop listening for namespace changes
-	if err := d.nsWatch.Close(); err != nil {
+	// close the mediator
+	if err := d.mediator.Close(); err != nil {
 		return err
 	}
 
-	// close the mediator
-	if err := d.mediator.Close(); err != nil {
+	// stop listening for namespace changes
+	if err := d.nsWatch.Close(); err != nil {
 		return err
 	}
 
