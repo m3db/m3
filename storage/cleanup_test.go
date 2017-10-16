@@ -93,6 +93,25 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	require.Equal(t, []string{"foo", "bar", "baz"}, deletedFiles)
 }
 
+func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ts := timeFor(36000)
+
+	db := NewMockdatabase(ctrl)
+	db.EXPECT().Options().Return(testDatabaseOptions()).AnyTimes()
+	db.EXPECT().Open().Return(nil)
+	db.EXPECT().Terminate().Return(nil)
+	db.EXPECT().GetOwnedNamespaces().Return(nil, errDatabaseIsClosed).AnyTimes()
+
+	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+	require.NoError(t, db.Open())
+	require.NoError(t, db.Terminate())
+
+	require.Error(t, mgr.Cleanup(ts))
+}
+
 func TestCleanupManagerCommitLogTimeRange(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
