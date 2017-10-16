@@ -103,8 +103,7 @@ type mockBitSet struct {
 }
 
 func (b *mockBitSet) test(i uint) bool {
-	// return b.indexTestReturn[i]
-	return true
+	return b.indexTestReturn[i]
 }
 func (b *mockBitSet) set(i uint) {}
 func (b *mockBitSet) clearAll()  {}
@@ -251,7 +250,7 @@ func writeCommitLogs(
 
 		// Wait for previous writes to enqueue
 		for getAllWrites() != preWrites+i {
-			time.Sleep(1 * time.Microsecond)
+			time.Sleep(time.Microsecond)
 		}
 
 		wg.Add(1)
@@ -272,7 +271,7 @@ func writeCommitLogs(
 
 	// Wait for all writes to enqueue
 	for getAllWrites() != preWrites+len(writes) {
-		time.Sleep(1 * time.Microsecond)
+		time.Sleep(time.Microsecond)
 	}
 
 	return &wg
@@ -395,9 +394,10 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	iter, err := commitLog.Iter()
 	assert.NoError(t, err)
 	for iter.Next() {
+		assert.NoError(t, iter.Err())
 	}
 	iter.Close()
-	commitLog.Close()
+	assert.NoError(t, commitLog.Close())
 }
 
 func TestCommitLogReaderIsNotReusable(t *testing.T) {
