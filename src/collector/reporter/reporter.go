@@ -101,7 +101,7 @@ func (r *reporter) ReportCounter(id id.ID, value int64) error {
 		toNanos   = reportAt.Add(r.maxPositiveSkew).UnixNano()
 		multiErr  = errors.NewMultiError()
 	)
-	matchRes := r.matcher.Match(id, fromNanos, toNanos)
+	matchRes := r.matcher.ForwardMatch(id, fromNanos, toNanos)
 	if err := r.server.WriteCounterWithPoliciesList(
 		id.Bytes(),
 		value,
@@ -130,7 +130,7 @@ func (r *reporter) ReportBatchTimer(id id.ID, value []float64) error {
 		toNanos   = reportAt.Add(r.maxPositiveSkew).UnixNano()
 		multiErr  = errors.NewMultiError()
 	)
-	matchRes := r.matcher.Match(id, fromNanos, toNanos)
+	matchRes := r.matcher.ForwardMatch(id, fromNanos, toNanos)
 	if err := r.server.WriteBatchTimerWithPoliciesList(
 		id.Bytes(),
 		value,
@@ -159,7 +159,7 @@ func (r *reporter) ReportGauge(id id.ID, value float64) error {
 		toNanos   = reportAt.Add(r.maxPositiveSkew).UnixNano()
 		multiErr  = errors.NewMultiError()
 	)
-	matchRes := r.matcher.Match(id, fromNanos, toNanos)
+	matchRes := r.matcher.ForwardMatch(id, fromNanos, toNanos)
 	if err := r.server.WriteGaugeWithPoliciesList(
 		id.Bytes(),
 		value,
