@@ -234,12 +234,12 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 
 //Filesets returns all the filesets for a given namespace
 func Filesets(filePathPrefix string, namespace ts.ID) ([]string, error) {
-	matched, err := namepsaceFilesetFiles(filePathPrefix, namespace, filesetFilePattern)
+	matched, err := namespaceFilesetFiles(filePathPrefix, namespace, filesetFilePattern)
 	if err != nil {
 		return nil, err
 	}
 	//maybe group by shard ID to make life easier?
-	return matched
+	return matched, err
 }
 
 // CommitLogFiles returns all the commit log files in the commit logs directory.
@@ -362,6 +362,7 @@ func ShardDirPath(prefix string, namespace ts.ID, shard uint32) string {
 	return path.Join(namespacePath, strconv.Itoa(int(shard)))
 }
 
+// GenericShardDirPath returns the path matching all shards in a namespace
 func GenericShardDirPath(prefix string, namespace ts.ID) string {
 	namespacePath := NamespaceDirPath(prefix, namespace)
 	return path.Join(namespacePath, "*")
