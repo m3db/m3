@@ -79,7 +79,7 @@ func TestFlushManagerFlushAlreadyInProgress(t *testing.T) {
 	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
-	db.EXPECT().GetOwnedNamespaces().Return(nil).AnyTimes()
+	db.EXPECT().GetOwnedNamespaces().Return(nil, nil).AnyTimes()
 
 	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
 	fm.pm = mockPersistManager
@@ -118,7 +118,7 @@ func TestFlushManagerFlushDoneError(t *testing.T) {
 	testOpts := testDatabaseOptions().SetPersistManager(mockPersistManager)
 	db := newMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testOpts).AnyTimes()
-	db.EXPECT().GetOwnedNamespaces().Return(nil).AnyTimes()
+	db.EXPECT().GetOwnedNamespaces().Return(nil, nil).AnyTimes()
 
 	fm := newFlushManager(db, tally.NoopScope).(*flushManager)
 	fm.pm = mockPersistManager

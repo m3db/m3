@@ -162,7 +162,6 @@ func (m *mediator) Close() error {
 	m.state = mediatorClosed
 	close(m.closedCh)
 	m.databaseRepairer.Stop()
-
 	return nil
 }
 

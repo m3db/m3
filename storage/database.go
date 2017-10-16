@@ -53,6 +53,9 @@ var (
 
 	// errDatabaseAlreadyClosed raised when trying to open a database that is already closed
 	errDatabaseAlreadyClosed = errors.New("database is already closed")
+
+	// errDatabaseIsClosed raise when trying to perform an action that requires an open database
+	errDatabaseIsClosed = errors.New("database is closed")
 )
 
 type databaseState int
@@ -146,11 +149,6 @@ func NewDatabase(
 	}
 
 	databaseIOpts := iopts.SetMetricsScope(scope)
-	mediator, err := newMediator(d, opts.SetInstrumentOptions(databaseIOpts))
-	if err != nil {
-		return nil, err
-	}
-	d.mediator = mediator
 
 	// initialize namespaces
 	nsInit := opts.NamespaceInitializer()
@@ -165,16 +163,24 @@ func NewDatabase(
 		return nil, err
 	}
 
-	// wait till first value is received
+	// Wait till first namespaces value is received and set the value.
+	// Its important that this happens before the mediator is started to prevent
+	// a race condition where the namespaces haven't been initialized yet and
+	// GetOwnedNamespaces() returns an empty slice which makes the cleanup logic
+	// in the background Tick think it can clean up files that it shouldn't.
 	logger.Info("resolving namespaces with namespace watch")
 	<-watch.C()
 	d.nsWatch = newDatabaseNamespaceWatch(d, watch, databaseIOpts)
-
-	// update with initial values
 	nsMap := watch.Get()
 	if err := d.UpdateOwnedNamespaces(nsMap); err != nil {
 		return nil, err
 	}
+
+	mediator, err := newMediator(d, opts.SetInstrumentOptions(databaseIOpts))
+	if err != nil {
+		return nil, err
+	}
+	d.mediator = mediator
 
 	return d, nil
 }
@@ -387,13 +393,13 @@ func (d *db) terminateWithLock() error {
 	}
 	d.state = databaseClosed
 
-	// stop listening for namespace changes
-	if err := d.nsWatch.Close(); err != nil {
+	// close the mediator
+	if err := d.mediator.Close(); err != nil {
 		return err
 	}
 
-	// close the mediator
-	if err := d.mediator.Close(); err != nil {
+	// stop listening for namespace changes
+	if err := d.nsWatch.Close(); err != nil {
 		return err
 	}
 
@@ -551,10 +557,13 @@ func (d *db) ownedNamespacesWithLock() []databaseNamespace {
 	return namespaces
 }
 
-func (d *db) GetOwnedNamespaces() []databaseNamespace {
+func (d *db) GetOwnedNamespaces() ([]databaseNamespace, error) {
 	d.RLock()
 	defer d.RUnlock()
-	return d.ownedNamespacesWithLock()
+	if d.state == databaseClosed {
+		return nil, errDatabaseIsClosed
+	}
+	return d.ownedNamespacesWithLock(), nil
 }
 
 func (d *db) nextIndex() uint64 {

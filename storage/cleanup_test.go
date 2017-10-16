@@ -93,6 +93,25 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	require.Equal(t, []string{"foo", "bar", "baz"}, deletedFiles)
 }
 
+func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ts := timeFor(36000)
+
+	db := NewMockdatabase(ctrl)
+	db.EXPECT().Options().Return(testDatabaseOptions()).AnyTimes()
+	db.EXPECT().Open().Return(nil)
+	db.EXPECT().Terminate().Return(nil)
+	db.EXPECT().GetOwnedNamespaces().Return(nil, errDatabaseIsClosed).AnyTimes()
+
+	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+	require.NoError(t, db.Open())
+	require.NoError(t, db.Terminate())
+
+	require.Error(t, mgr.Cleanup(ts))
+}
+
 func TestCleanupManagerCommitLogTimeRange(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -309,7 +328,8 @@ func TestCleanupManagerCommitLogTimesAllFlushed(t *testing.T) {
 		ns.EXPECT().NeedsFlush(timeFor(10), timeFor(20)).Return(false),
 	)
 
-	earliest, times := mgr.commitLogTimes(currentTime)
+	earliest, times, err := mgr.commitLogTimes(currentTime)
+	require.NoError(t, err)
 	require.Equal(t, timeFor(10), earliest)
 	require.Equal(t, 3, len(times))
 	require.True(t, contains(times, timeFor(10)))
@@ -330,7 +350,8 @@ func TestCleanupManagerCommitLogTimesMiddlePendingFlush(t *testing.T) {
 		ns.EXPECT().NeedsFlush(timeFor(10), timeFor(20)).Return(false),
 	)
 
-	earliest, times := mgr.commitLogTimes(currentTime)
+	earliest, times, err := mgr.commitLogTimes(currentTime)
+	require.NoError(t, err)
 	require.Equal(t, timeFor(10), earliest)
 	require.Equal(t, 2, len(times))
 	require.True(t, contains(times, timeFor(10)))
@@ -350,7 +371,8 @@ func TestCleanupManagerCommitLogTimesStartPendingFlush(t *testing.T) {
 		ns.EXPECT().NeedsFlush(timeFor(10), timeFor(20)).Return(false),
 	)
 
-	earliest, times := mgr.commitLogTimes(currentTime)
+	earliest, times, err := mgr.commitLogTimes(currentTime)
+	require.NoError(t, err)
 	require.Equal(t, timeFor(10), earliest)
 	require.Equal(t, 2, len(times))
 	require.True(t, contains(times, timeFor(20)))
@@ -370,7 +392,8 @@ func TestCleanupManagerCommitLogTimesAllPendingFlush(t *testing.T) {
 		ns.EXPECT().NeedsFlush(timeFor(10), timeFor(20)).Return(true),
 	)
 
-	earliest, times := mgr.commitLogTimes(currentTime)
+	earliest, times, err := mgr.commitLogTimes(currentTime)
+	require.NoError(t, err)
 	require.Equal(t, timeFor(10), earliest)
 	require.Equal(t, 0, len(times))
 }

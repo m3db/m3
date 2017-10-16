@@ -140,7 +140,7 @@ func newMockdatabase(ctrl *gomock.Controller, ns ...databaseNamespace) *Mockdata
 	db := NewMockdatabase(ctrl)
 	db.EXPECT().Options().Return(testDatabaseOptions()).AnyTimes()
 	if len(ns) != 0 {
-		db.EXPECT().GetOwnedNamespaces().Return(ns).AnyTimes()
+		db.EXPECT().GetOwnedNamespaces().Return(ns, nil).AnyTimes()
 	}
 	return db
 }
@@ -399,6 +399,22 @@ func TestDatabaseNamespaces(t *testing.T) {
 	sort.Sort(NamespacesByID(result))
 	assert.Equal(t, "testns1", result[0].ID().String())
 	assert.Equal(t, "testns2", result[1].ID().String())
+}
+
+func TestGetOwnedNamespacesErrorIfClosed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d, mapCh := newTestDatabase(t, ctrl, bootstrapped)
+	defer func() {
+		close(mapCh)
+	}()
+
+	require.NoError(t, d.Open())
+	require.NoError(t, d.Terminate())
+
+	_, err := d.GetOwnedNamespaces()
+	require.Equal(t, errDatabaseIsClosed, err)
 }
 
 func TestDatabaseAssignShardSet(t *testing.T) {
