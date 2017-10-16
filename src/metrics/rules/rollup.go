@@ -440,6 +440,7 @@ func (rc *rollupRule) markTombstoned(cutoverTime int64) error {
 	snapshot := *rc.snapshots[len(rc.snapshots)-1]
 	snapshot.tombstoned = true
 	snapshot.cutoverNanos = cutoverTime
+	snapshot.targets = nil
 	rc.snapshots = append(rc.snapshots, &snapshot)
 	return nil
 }

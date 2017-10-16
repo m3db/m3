@@ -204,7 +204,7 @@ func (as *activeRuleSet) reverseMappingsForRollupID(
 ) (policy.StagedPolicies, bool) {
 	for _, rollupRule := range as.rollupRules {
 		snapshot := rollupRule.ActiveSnapshot(timeNanos)
-		if snapshot == nil {
+		if snapshot == nil || snapshot.tombstoned {
 			continue
 		}
 		for _, target := range snapshot.targets {
@@ -296,6 +296,11 @@ func (as *activeRuleSet) mappingsForNonRollupID(id []byte, timeNanos int64) ([]p
 		if cutoverNanos < snapshot.cutoverNanos {
 			cutoverNanos = snapshot.cutoverNanos
 		}
+		// If the mapping rule snapshot is a tombstoned snapshot, its cutover time is
+		// recorded to indicate a rule change, but its policies are no longer in effect.
+		if snapshot.tombstoned {
+			continue
+		}
 		policies = append(policies, snapshot.policies...)
 	}
 	resolved := resolvePolicies(policies)
@@ -318,6 +323,11 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64) []RollupRe
 		}
 		if cutoverNanos < snapshot.cutoverNanos {
 			cutoverNanos = snapshot.cutoverNanos
+		}
+		// If the rollup rule snapshot is a tombstoned snapshot, its cutover time is
+		// recorded to indicate a rule change, but its rollup targets are no longer in effect.
+		if snapshot.tombstoned {
+			continue
 		}
 		for _, target := range snapshot.targets {
 			found := false
