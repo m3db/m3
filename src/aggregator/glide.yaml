@@ -6,11 +6,11 @@ import:
 - package: github.com/m3db/m3cluster
   version: b9650bbb69955b5daf276cd840bd36cc986e9dc9
 - package: github.com/m3db/m3metrics
-  version: 82d18cdd2a24502c6a170b6bfea01c30685e5b26
+  version: bb6198075758dd454c3f0d2b0bb3f640162394ba
 - package: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
 - package: github.com/m3db/m3x
-  version: 118fa2f66efa708eb1afdcd756c4da0ec6a8848e
+  version: b009e41c873b0fb0fc066114911c87ff6a6f8d77
 - package: github.com/uber-go/tally
   version: ^3.1.0
 - package: github.com/golang/protobuf

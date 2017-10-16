@@ -85,7 +85,7 @@ func NewEntry(lists *metricLists, opts Options) *Entry {
 	e := &Entry{
 		aggregations: make(map[policy.Policy]*list.Element),
 		metrics:      newEntryMetrics(scope),
-		decompressor: policy.NewPooledAggregationIDDecompressor(opts.AggregationTypesPool()),
+		decompressor: policy.NewPooledAggregationIDDecompressor(opts.AggregationTypesOptions().AggregationTypesPool()),
 	}
 	e.ResetSetData(lists, opts)
 	return e

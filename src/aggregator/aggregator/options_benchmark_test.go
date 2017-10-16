@@ -23,7 +23,7 @@ package aggregator
 import "testing"
 
 func BenchmarkSuffixSlice(b *testing.B) {
-	opts := NewOptions()
+	opts := NewOptions().AggregationTypesOptions()
 	var a []byte
 
 	b.ResetTimer()
@@ -40,7 +40,7 @@ func BenchmarkSuffixSlice(b *testing.B) {
 }
 
 func BenchmarkSuffixFn(b *testing.B) {
-	opts := NewOptions()
+	opts := NewOptions().AggregationTypesOptions()
 	var a []byte
 
 	b.ResetTimer()

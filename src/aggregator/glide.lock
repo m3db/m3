@@ -1,5 +1,5 @@
-hash: bff29f71ea493a584d1eadf74f79ba28326bd674d1559a1e84383ef594197ddb
-updated: 2017-10-09T09:46:05.297155788-04:00
+hash: 278e430c0679f8734076664cf679cc452f8e7251e07b4ff1576c0338dcb01134
+updated: 2017-10-16T10:55:38.553726711-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -146,16 +146,17 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3metrics
-  version: 82d18cdd2a24502c6a170b6bfea01c30685e5b26
+  version: bb6198075758dd454c3f0d2b0bb3f640162394ba
   subpackages:
   - generated/proto/schema
+  - metric
   - metric/aggregated
   - metric/id
   - metric/unaggregated
   - policy
   - protocol/msgpack
 - name: github.com/m3db/m3x
-  version: 118fa2f66efa708eb1afdcd756c4da0ec6a8848e
+  version: b009e41c873b0fb0fc066114911c87ff6a6f8d77
   subpackages:
   - checked
   - clock
@@ -252,8 +253,6 @@ imports:
   - trace
 - name: golang.org/x/sys
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
-  subpackages:
-  - unix
 - name: golang.org/x/time
   version: a4bde12657593d5e90d0533a3e4fd95e635124cb
   subpackages:

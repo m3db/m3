@@ -98,6 +98,7 @@ type elemBase struct {
 	sync.RWMutex
 
 	opts                  Options
+	aggTypesOpts          policy.AggregationTypesOptions
 	id                    id.RawID
 	sp                    policy.StoragePolicy
 	aggTypes              policy.AggregationTypes
@@ -136,8 +137,9 @@ type GaugeElem struct {
 
 func newElemBase(opts Options) elemBase {
 	return elemBase{
-		opts:    opts,
-		aggOpts: aggregation.NewOptions(),
+		opts:         opts,
+		aggTypesOpts: opts.AggregationTypesOptions(),
+		aggOpts:      aggregation.NewOptions(),
 	}
 }
 
@@ -186,7 +188,7 @@ func NewCounterElem(id id.RawID, sp policy.StoragePolicy, aggTypes policy.Aggreg
 func (e *CounterElem) ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes) {
 	useDefaultAggregation := aggTypes.IsDefault()
 	if useDefaultAggregation {
-		aggTypes = e.opts.DefaultCounterAggregationTypes()
+		aggTypes = e.aggTypesOpts.DefaultCounterAggregationTypes()
 	}
 
 	e.elemBase.resetSetData(id, sp, aggTypes, useDefaultAggregation)
@@ -255,7 +257,7 @@ func (e *CounterElem) Close() {
 	e.id = nil
 	e.values = e.values[:0]
 	e.toConsume = e.toConsume[:0]
-	aggTypesPool := e.opts.AggregationTypesPool()
+	aggTypesPool := e.aggTypesOpts.AggregationTypesPool()
 	pool := e.opts.CounterElemPool()
 	e.Unlock()
 
@@ -339,8 +341,8 @@ func (e *CounterElem) processValue(timeNanos int64, agg aggregation.Counter, fn 
 	var fullCounterPrefix = e.opts.FullCounterPrefix()
 	if e.useDefaultAggregation {
 		// NB(cw) Use default suffix slice for faster look up.
-		suffixes := e.opts.DefaultCounterAggregationSuffixes()
-		aggTypes := e.opts.DefaultCounterAggregationTypes()
+		suffixes := e.aggTypesOpts.DefaultCounterAggregationSuffixes()
+		aggTypes := e.aggTypesOpts.DefaultCounterAggregationTypes()
 		for i, aggType := range aggTypes {
 			fn(fullCounterPrefix, e.id, suffixes[i], timeNanos, agg.ValueOf(aggType), e.sp)
 		}
@@ -348,7 +350,7 @@ func (e *CounterElem) processValue(timeNanos int64, agg aggregation.Counter, fn 
 	}
 
 	for _, aggType := range e.aggTypes {
-		fn(fullCounterPrefix, e.id, e.opts.SuffixForCounter(aggType), timeNanos, agg.ValueOf(aggType), e.sp)
+		fn(fullCounterPrefix, e.id, e.aggTypesOpts.SuffixForCounter(aggType), timeNanos, agg.ValueOf(aggType), e.sp)
 	}
 }
 
@@ -366,10 +368,10 @@ func NewTimerElem(id id.RawID, sp policy.StoragePolicy, aggTypes policy.Aggregat
 func (e *TimerElem) ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes) {
 	useDefaultAggregation := aggTypes.IsDefault()
 	if useDefaultAggregation {
-		aggTypes = e.opts.DefaultTimerAggregationTypes()
-		e.quantiles, e.isQuantilesPooled = e.opts.TimerQuantiles(), false
+		aggTypes = e.aggTypesOpts.DefaultTimerAggregationTypes()
+		e.quantiles, e.isQuantilesPooled = e.aggTypesOpts.TimerQuantiles(), false
 	} else {
-		e.quantiles, e.isQuantilesPooled = aggTypes.PooledQuantiles(e.opts.QuantilesPool())
+		e.quantiles, e.isQuantilesPooled = aggTypes.PooledQuantiles(e.aggTypesOpts.QuantilesPool())
 	}
 
 	e.elemBase.resetSetData(id, sp, aggTypes, useDefaultAggregation)
@@ -449,8 +451,8 @@ func (e *TimerElem) Close() {
 	}
 	e.values = e.values[:0]
 	e.toConsume = e.toConsume[:0]
-	quantileFloatsPool := e.opts.QuantilesPool()
-	aggTypesPool := e.opts.AggregationTypesPool()
+	quantileFloatsPool := e.aggTypesOpts.QuantilesPool()
+	aggTypesPool := e.aggTypesOpts.AggregationTypesPool()
 	pool := e.opts.TimerElemPool()
 	e.Unlock()
 
@@ -538,8 +540,8 @@ func (e *TimerElem) processValue(timeNanos int64, agg aggregation.Timer, fn aggM
 	fullTimerPrefix := e.opts.FullTimerPrefix()
 	if e.useDefaultAggregation {
 		// NB(cw) Use default suffix slice for faster look up.
-		suffixes := e.opts.DefaultTimerAggregationSuffixes()
-		aggTypes := e.opts.DefaultTimerAggregationTypes()
+		suffixes := e.aggTypesOpts.DefaultTimerAggregationSuffixes()
+		aggTypes := e.aggTypesOpts.DefaultTimerAggregationTypes()
 		for i, aggType := range aggTypes {
 			fn(fullTimerPrefix, e.id, suffixes[i], timeNanos, agg.ValueOf(aggType), e.sp)
 		}
@@ -547,7 +549,7 @@ func (e *TimerElem) processValue(timeNanos int64, agg aggregation.Timer, fn aggM
 	}
 
 	for _, aggType := range e.aggTypes {
-		fn(fullTimerPrefix, e.id, e.opts.SuffixForTimer(aggType), timeNanos, agg.ValueOf(aggType), e.sp)
+		fn(fullTimerPrefix, e.id, e.aggTypesOpts.SuffixForTimer(aggType), timeNanos, agg.ValueOf(aggType), e.sp)
 	}
 }
 
@@ -565,7 +567,7 @@ func NewGaugeElem(id id.RawID, sp policy.StoragePolicy, aggTypes policy.Aggregat
 func (e *GaugeElem) ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes) {
 	useDefaultAggregation := aggTypes.IsDefault()
 	if useDefaultAggregation {
-		aggTypes = e.opts.DefaultGaugeAggregationTypes()
+		aggTypes = e.aggTypesOpts.DefaultGaugeAggregationTypes()
 	}
 
 	e.elemBase.resetSetData(id, sp, aggTypes, useDefaultAggregation)
@@ -633,7 +635,7 @@ func (e *GaugeElem) Close() {
 	e.id = nil
 	e.values = e.values[:0]
 	e.toConsume = e.toConsume[:0]
-	aggTypesPool := e.opts.AggregationTypesPool()
+	aggTypesPool := e.aggTypesOpts.AggregationTypesPool()
 	pool := e.opts.GaugeElemPool()
 	e.Unlock()
 
@@ -717,8 +719,8 @@ func (e *GaugeElem) processValue(timeNanos int64, agg aggregation.Gauge, fn aggM
 	var fullGaugePrefix = e.opts.FullGaugePrefix()
 	if e.useDefaultAggregation {
 		// NB(cw) Use default suffix slice for faster look up.
-		suffixes := e.opts.DefaultGaugeAggregationSuffixes()
-		aggTypes := e.opts.DefaultGaugeAggregationTypes()
+		suffixes := e.aggTypesOpts.DefaultGaugeAggregationSuffixes()
+		aggTypes := e.aggTypesOpts.DefaultGaugeAggregationTypes()
 		for i, aggType := range aggTypes {
 			fn(fullGaugePrefix, e.id, suffixes[i], timeNanos, agg.ValueOf(aggType), e.sp)
 		}
@@ -726,6 +728,6 @@ func (e *GaugeElem) processValue(timeNanos int64, agg aggregation.Gauge, fn aggM
 	}
 
 	for _, aggType := range e.aggTypes {
-		fn(fullGaugePrefix, e.id, e.opts.SuffixForGauge(aggType), timeNanos, agg.ValueOf(aggType), e.sp)
+		fn(fullGaugePrefix, e.id, e.aggTypesOpts.SuffixForGauge(aggType), timeNanos, agg.ValueOf(aggType), e.sp)
 	}
 }

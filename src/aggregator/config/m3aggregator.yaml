@@ -63,29 +63,19 @@ http:
   writeTimeout: 45s
 
 aggregator:
-  counterAggregationTypes:
-    - Sum
-  timerAggregationTypes:
-    - Sum
-    - SumSq
-    - Mean
-    - Min
-    - Max
-    - Count
-    - Stdev
-    - Median
-    - P50
-    - P95
-    - P99
-  gaugeAggregationTypes:
-    - Last
-  counterSuffixOverride:
-    Sum: ""
-  timerSuffixOverride:
-    Min: ".lower"
-    Max: ".upper"
-  gaugeSuffixOverride:
-    Last: ""
+  aggregationTypes:
+    counterSuffixOverrides:
+      Sum: ""
+    gaugeSuffixOverrides:
+      Last: ""
+    aggregationTypesPool:
+      size: 1024
+    quantilesPool:
+      buckets:
+        - count: 256
+          capacity: 4
+        - count: 128
+          capacity: 8
   stream:
     eps: 0.001
     capacity: 32
@@ -126,8 +116,6 @@ aggregator:
   defaultPolicies:
     - 10s:2d
     - 1m:40d
-  aggregationTypesPool:
-    size: 1024
   counterElemPool:
     size: 4096
   timerElemPool:
@@ -138,9 +126,3 @@ aggregator:
     size: 4096
   bufferedEncoderPool:
     size: 4096
-  quantilesPool:
-    buckets:
-      - count: 256
-        capacity: 4
-      - count: 128
-        capacity: 8
