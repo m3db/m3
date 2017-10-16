@@ -86,6 +86,8 @@ var commitLogWriteNoOp = commitLogWriter(commitLogWriterFn(func(
 	return nil
 }))
 
+type allFilesetPathsFn func(namespace ts.ID) ([]string, error)
+
 type dbNamespace struct {
 	sync.RWMutex
 
@@ -99,6 +101,7 @@ type dbNamespace struct {
 	nowFn          clock.NowFn
 	log            xlog.Logger
 	bs             bootstrapState
+	allFilesets    allFilesetPathsFn
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
@@ -652,6 +655,15 @@ func (n *dbNamespace) NeedsFlush(alignedInclusiveStart time.Time, alignedInclusi
 
 	// All success or failed and reached max retries
 	return false
+}
+
+func (n *dbNamespace) DeleteUnusedFilesets() error {
+	filesetFilePrefix := n.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	multiErr := xerrors.NewMultiError()
+	activeShards := n.getOwnedShards()
+	allShards := n.allFilesets(filesetFilePrefix, n.ID())
+
+	//then remove the ones that aren't a part of the active shards
 }
 
 func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {

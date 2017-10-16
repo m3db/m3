@@ -232,6 +232,16 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 	return filesBefore(matched, t)
 }
 
+//Filesets returns all the filesets for a given namespace
+func Filesets(filePathPrefix string, namespace ts.ID) ([]string, error) {
+	matched, err := filesetFiles(filePathPrefix, namespace, filesetFilePattern)
+	if err != nil {
+		return nil, err
+	}
+	//maybe group by shard ID to make life easier?
+	return matched
+}
+
 // CommitLogFiles returns all the commit log files in the commit logs directory.
 func CommitLogFiles(commitLogsDir string) ([]string, error) {
 	return commitlogFiles(commitLogsDir, commitLogFilePattern)
@@ -271,6 +281,13 @@ func findFiles(fileDir string, pattern string, fn toSortableFn) ([]string, error
 
 func filesetFiles(filePathPrefix string, namespace ts.ID, shard uint32, pattern string) ([]string, error) {
 	shardDir := ShardDirPath(filePathPrefix, namespace, shard)
+	return findFiles(shardDir, pattern, func(files []string) sort.Interface {
+		return byTimeAscending(files)
+	})
+}
+
+func namespaceFilesetFiles(filePathPrefix string, namespace ts.ID, pattern string) ([]string, error) {
+	shardDir := GenericShardDirPath(filePathPrefix, namespace)
 	return findFiles(shardDir, pattern, func(files []string) sort.Interface {
 		return byTimeAscending(files)
 	})
@@ -343,6 +360,11 @@ func NamespaceDirPath(prefix string, namespace ts.ID) string {
 func ShardDirPath(prefix string, namespace ts.ID, shard uint32) string {
 	namespacePath := NamespaceDirPath(prefix, namespace)
 	return path.Join(namespacePath, strconv.Itoa(int(shard)))
+}
+
+func GenericShardDirPath(prefix string, namespace ts.ID) string {
+	namespacePath := NamespaceDirPath(prefix, namespace)
+	return path.Join(namespacePath, "*")
 }
 
 // CommitLogsDirPath returns the path to commit logs.
