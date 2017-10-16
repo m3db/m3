@@ -1219,7 +1219,10 @@ func testMappingRules(t *testing.T) []*mappingRule {
 				tombstoned:   true,
 				cutoverNanos: 35000,
 				filter:       filter1,
-				policies:     []policy.Policy{},
+				policies: []policy.Policy{
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+				},
 			},
 		},
 	}
@@ -1456,7 +1459,16 @@ func testRollupRules(t *testing.T) []*rollupRule {
 				tombstoned:   true,
 				cutoverNanos: 38000,
 				filter:       filter1,
-				targets:      []RollupTarget{},
+				targets: []RollupTarget{
+					{
+						Name: b("rName1"),
+						Tags: [][]byte{b("rtagName1"), b("rtagName2")},
+						Policies: []policy.Policy{
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+						},
+					},
+				},
 			},
 		},
 	}
@@ -1699,7 +1711,33 @@ func testMappingRulesConfig() []*schema.MappingRule {
 					Tombstoned:   true,
 					CutoverNanos: 35000,
 					TagFilters:   map[string]string{"mtagName1": "mtagValue1"},
-					Policies:     []*schema.Policy{},
+					Policies: []*schema.Policy{
+						&schema.Policy{
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(10 * time.Second),
+									Precision:  int64(time.Second),
+								},
+								Retention: &schema.Retention{
+									Period: int64(2 * time.Hour),
+								},
+							},
+						},
+						&schema.Policy{
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(time.Minute),
+									Precision:  int64(time.Minute),
+								},
+								Retention: &schema.Retention{
+									Period: int64(time.Hour),
+								},
+							},
+							AggregationTypes: []schema.AggregationType{
+								schema.AggregationType_MIN,
+							},
+						},
+					},
 				},
 			},
 		},
@@ -2029,7 +2067,36 @@ func testRollupRulesConfig() []*schema.RollupRule {
 						"rtagName1": "rtagValue1",
 						"rtagName2": "rtagValue2",
 					},
-					Targets: []*schema.RollupTarget{},
+					Targets: []*schema.RollupTarget{
+						&schema.RollupTarget{
+							Name: "rName1",
+							Tags: []string{"rtagName1", "rtagName2"},
+							Policies: []*schema.Policy{
+								&schema.Policy{
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: &schema.Retention{
+											Period: int64(2 * time.Hour),
+										},
+									},
+								},
+								&schema.Policy{
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(time.Minute),
+											Precision:  int64(time.Minute),
+										},
+										Retention: &schema.Retention{
+											Period: int64(time.Hour),
+										},
+									},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -2495,6 +2562,7 @@ func TestDeleteMappingRule(t *testing.T) {
 	m, err = rs.getMappingRuleByID("mappingRule5")
 	require.NoError(t, err)
 	require.True(t, m.Tombstoned())
+	require.Nil(t, m.snapshots[len(m.snapshots)-1].policies)
 
 	mrs, err = rs.MappingRules()
 	require.NoError(t, err)
@@ -2678,6 +2746,7 @@ func TestDeleteRollupRule(t *testing.T) {
 	rr, err = rs.getRollupRuleByName("rollupRule5.snapshot1")
 	require.NoError(t, err)
 	require.True(t, rr.Tombstoned())
+	require.Nil(t, rr.snapshots[len(rr.snapshots)-1].targets)
 
 	rrs, err = rs.RollupRules()
 	require.NoError(t, err)

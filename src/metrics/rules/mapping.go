@@ -280,6 +280,7 @@ func (mc *mappingRule) markTombstoned(cutoverTime int64) error {
 	snapshot := *mc.snapshots[len(mc.snapshots)-1]
 	snapshot.tombstoned = true
 	snapshot.cutoverNanos = cutoverTime
+	snapshot.policies = nil
 	mc.snapshots = append(mc.snapshots, &snapshot)
 	return nil
 }
