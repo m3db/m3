@@ -93,6 +93,7 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 	if err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when cleaning up commit logs: %v", err))
+		return multiErr.FinalError()
 	}
 
 	if err := m.cleanupCommitLogs(commitLogStart, commitLogTimes); err != nil {
