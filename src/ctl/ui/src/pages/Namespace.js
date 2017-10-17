@@ -45,14 +45,16 @@ function Namespace(props) {
         </Breadcrumb>
       </div>
       <Card className="mb2" style={{minHeight: 500}}>
-        <Modal
-          title={props.modal.title}
-          width={'60%'}
-          visible={props.modal.open}
-          footer={false}
-          onCancel={() => props.setModal({open: false})}>
-          {props.modal.content}
-        </Modal>
+        {props.modal.open && (
+          <Modal
+            title={props.modal.title}
+            width={'60%'}
+            visible={true}
+            footer={false}
+            onCancel={() => props.setModal({open: false})}>
+            {props.modal.content}
+          </Modal>
+        )}
 
         <Tabs
           tabPosition={'left'}
@@ -243,9 +245,7 @@ export default compose(
     (state, payload) => {
       return {
         ...state,
-        title: payload.title || state.title,
-        open: payload.open,
-        content: payload.content || state.content,
+        ...payload,
       };
     },
     props => ({open: false, content: null}),
