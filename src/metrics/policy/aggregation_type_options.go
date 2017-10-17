@@ -30,8 +30,11 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
-// QuantileSuffixFn returns the byte-slice suffix for a quantile value
-type QuantileSuffixFn func(quantile float64) []byte
+// QuantileTypeStringFn returns the byte-slice type string for a quantile value.
+type QuantileTypeStringFn func(quantile float64) []byte
+
+// TypeStringTransformFn transforms the type string.
+type TypeStringTransformFn func(typeString []byte) []byte
 
 // AggregationTypesOptions provides a set of options for aggregation types.
 type AggregationTypesOptions interface {
@@ -58,65 +61,19 @@ type AggregationTypesOptions interface {
 	// DefaultGaugeAggregationTypes returns the default aggregation types for gauges.
 	DefaultGaugeAggregationTypes() AggregationTypes
 
-	// SetLastSuffix sets the suffix for aggregation type last.
-	SetLastSuffix(value []byte) AggregationTypesOptions
+	// SetTimerQuantileTypeStringFn sets the quantile type string function for timers.
+	SetTimerQuantileTypeStringFn(value QuantileTypeStringFn) AggregationTypesOptions
 
-	// LastSuffix returns the suffix for aggregation type last.
-	LastSuffix() []byte
+	// TimerQuantileTypeStringFn returns the quantile type string function for timers.
+	TimerQuantileTypeStringFn() QuantileTypeStringFn
 
-	// SetMinSuffix sets the suffix for aggregation type min.
-	SetMinSuffix(value []byte) AggregationTypesOptions
+	// SetGlobalTypeStringTransformFn sets the type string transform functions.
+	// The GlobalTypeStringTransformFn will only be applied to the global type strings, it
+	// will NOT be applied to the metric type specific overrides.
+	SetGlobalTypeStringTransformFn(value TypeStringTransformFn) AggregationTypesOptions
 
-	// MinSuffix returns the suffix for aggregation type min.
-	MinSuffix() []byte
-
-	// SetMaxSuffix sets the suffix for aggregation type max.
-	SetMaxSuffix(value []byte) AggregationTypesOptions
-
-	// MaxSuffix returns the suffix for aggregation type max.
-	MaxSuffix() []byte
-
-	// SetMeanSuffix sets the suffix for aggregation type mean.
-	SetMeanSuffix(value []byte) AggregationTypesOptions
-
-	// MeanSuffix returns the suffix for aggregation type mean.
-	MeanSuffix() []byte
-
-	// SetMedianSuffix sets the suffix for aggregation type median.
-	SetMedianSuffix(value []byte) AggregationTypesOptions
-
-	// MedianSuffix returns the suffix for aggregation type median.
-	MedianSuffix() []byte
-
-	// SetCountSuffix sets the suffix for aggregation type count.
-	SetCountSuffix(value []byte) AggregationTypesOptions
-
-	// CountSuffix returns the suffix for aggregation type count.
-	CountSuffix() []byte
-
-	// SetSumSuffix sets the suffix for aggregation type sum.
-	SetSumSuffix(value []byte) AggregationTypesOptions
-
-	// SumSuffix returns the suffix for aggregation type sum.
-	SumSuffix() []byte
-
-	// SetSumSqSuffix sets the suffix for aggregation type sum square.
-	SetSumSqSuffix(value []byte) AggregationTypesOptions
-
-	// SumSqSuffix returns the suffix for aggregation type sum square.
-	SumSqSuffix() []byte
-
-	// SetStdevSuffix sets the suffix for aggregation type standard deviation.
-	SetStdevSuffix(value []byte) AggregationTypesOptions
-
-	// StdevSuffix returns the suffix for aggregation type standard deviation.
-	StdevSuffix() []byte
-
-	// SetTimerQuantileSuffixFn sets the quantile suffix function for timers.
-	SetTimerQuantileSuffixFn(value QuantileSuffixFn) AggregationTypesOptions
-
-	// TimerQuantileSuffixFn returns the quantile suffix function for timers.
-	TimerQuantileSuffixFn() QuantileSuffixFn
+	// GlobalTypeStringTransformFn returns the global type string transform functions.
+	GlobalTypeStringTransformFn() TypeStringTransformFn
 
 	// SetAggregationTypesPool sets the aggregation types pool.
 	SetAggregationTypesPool(pool AggregationTypesPool) AggregationTypesOptions
@@ -132,45 +89,49 @@ type AggregationTypesOptions interface {
 
 	/// Write-only options.
 
-	// SetCounterSuffixOverrides sets the overrides for counter suffixes.
-	SetCounterSuffixOverrides(m map[AggregationType][]byte) AggregationTypesOptions
+	// SetGlobalTypeStringOverrides sets the global type strings.
+	// The GlobalTypeStringTransformFn will be applied to these type strings.
+	SetGlobalTypeStringOverrides(m map[AggregationType][]byte) AggregationTypesOptions
 
-	// SetTimerSuffixOverrides sets the overrides for timer suffixes.
-	SetTimerSuffixOverrides(m map[AggregationType][]byte) AggregationTypesOptions
+	// SetCounterTypeStringOverrides sets the overrides for counter type strings.
+	SetCounterTypeStringOverrides(m map[AggregationType][]byte) AggregationTypesOptions
 
-	// SetGaugeSuffixOverrides sets the overrides for gauge suffixes.
-	SetGaugeSuffixOverrides(m map[AggregationType][]byte) AggregationTypesOptions
+	// SetTimerTypeStringOverrides sets the overrides for timer type strings.
+	SetTimerTypeStringOverrides(m map[AggregationType][]byte) AggregationTypesOptions
+
+	// SetGaugeTypeStringOverrides sets the overrides for gauge type strings.
+	SetGaugeTypeStringOverrides(m map[AggregationType][]byte) AggregationTypesOptions
 
 	// Read only methods.
 
-	// DefaultCounterAggregationSuffixes returns the suffix for
+	// DefaultCounterAggregationTypeStrings returns the type string for
 	// default counter aggregation types.
-	DefaultCounterAggregationSuffixes() [][]byte
+	DefaultCounterAggregationTypeStrings() [][]byte
 
-	// DefaultTimerAggregationSuffixes returns the suffix for
+	// DefaultTimerAggregationTypeStrings returns the type string for
 	// default timer aggregation types.
-	DefaultTimerAggregationSuffixes() [][]byte
+	DefaultTimerAggregationTypeStrings() [][]byte
 
-	// DefaultGaugeAggregationSuffixes returns the suffix for
+	// DefaultGaugeAggregationTypeStrings returns the type string for
 	// default gauge aggregation types.
-	DefaultGaugeAggregationSuffixes() [][]byte
+	DefaultGaugeAggregationTypeStrings() [][]byte
 
-	// Suffix returns the suffix for the aggregation type for counters.
-	SuffixForCounter(value AggregationType) []byte
+	// TypeString returns the type string for the aggregation type for counters.
+	TypeStringForCounter(value AggregationType) []byte
 
-	// Suffix returns the suffix for the aggregation type for timers.
-	SuffixForTimer(value AggregationType) []byte
+	// TypeString returns the type string for the aggregation type for timers.
+	TypeStringForTimer(value AggregationType) []byte
 
-	// Suffix returns the suffix for the aggregation type for gauges.
-	SuffixForGauge(value AggregationType) []byte
+	// TypeString returns the type string for the aggregation type for gauges.
+	TypeStringForGauge(value AggregationType) []byte
 
-	// AggregationTypeForCounter returns the aggregation type with the given suffix for counters.
+	// AggregationTypeForCounter returns the aggregation type with the given type string for counters.
 	AggregationTypeForCounter(value []byte) AggregationType
 
-	// AggregationTypeForTimer returns the aggregation type with the given suffix for timers.
+	// AggregationTypeForTimer returns the aggregation type with the given type string for timers.
 	AggregationTypeForTimer(value []byte) AggregationType
 
-	// AggregationTypeForGauge returns the aggregation type with the given suffix for gauges.
+	// AggregationTypeForGauge returns the aggregation type with the given type string for gauges.
 	AggregationTypeForGauge(value []byte) AggregationType
 
 	// TimerQuantiles returns the quantiles for timers.
@@ -202,22 +163,22 @@ var (
 		Last,
 	}
 
-	defaultUnknownSuffix = []byte(".unknown")
-	defaultLastSuffix    = []byte(".last")
-	defaultSumSuffix     = []byte(".sum")
-	defaultSumSqSuffix   = []byte(".sum_sq")
-	defaultMeanSuffix    = []byte(".mean")
-	defaultMinSuffix     = []byte(".lower")
-	defaultMaxSuffix     = []byte(".upper")
-	defaultCountSuffix   = []byte(".count")
-	defaultStdevSuffix   = []byte(".stdev")
-	defaultMedianSuffix  = []byte(".median")
+	defaultUnknownTypeString = []byte("unknown")
+	defaultLastTypeString    = []byte("last")
+	defaultSumTypeString     = []byte("sum")
+	defaultSumSqTypeString   = []byte("sum_sq")
+	defaultMeanTypeString    = []byte("mean")
+	defaultMinTypeString     = []byte("lower")
+	defaultMaxTypeString     = []byte("upper")
+	defaultCountTypeString   = []byte("count")
+	defaultStdevTypeString   = []byte("stdev")
+	defaultMedianTypeString  = []byte("median")
 
-	defaultCounterSuffixOverride = map[AggregationType][]byte{
+	defaultCounterTypeStringOverride = map[AggregationType][]byte{
 		Sum: nil,
 	}
-	defaultTimerSuffixOverride = map[AggregationType][]byte{}
-	defaultGaugeSuffixOverride = map[AggregationType][]byte{
+	defaultTimerTypeStringOverride = map[AggregationType][]byte{}
+	defaultGaugeTypeStringOverride = map[AggregationType][]byte{
 		Last: nil,
 	}
 )
@@ -226,32 +187,25 @@ type options struct {
 	defaultCounterAggregationTypes AggregationTypes
 	defaultTimerAggregationTypes   AggregationTypes
 	defaultGaugeAggregationTypes   AggregationTypes
-	sumSuffix                      []byte
-	sumSqSuffix                    []byte
-	meanSuffix                     []byte
-	lastSuffix                     []byte
-	minSuffix                      []byte
-	maxSuffix                      []byte
-	countSuffix                    []byte
-	stdevSuffix                    []byte
-	medianSuffix                   []byte
-	timerQuantileSuffixFn          QuantileSuffixFn
+	timerQuantileTypeStringFn      QuantileTypeStringFn
+	globalTypeStringTransformFn    TypeStringTransformFn
 	aggTypesPool                   AggregationTypesPool
 	quantilesPool                  pool.FloatsPool
 
-	defaultSuffixes [][]byte
-	counterSuffixes [][]byte
-	timerSuffixes   [][]byte
-	gaugeSuffixes   [][]byte
+	defaultTypeStrings [][]byte
+	counterTypeStrings [][]byte
+	timerTypeStrings   [][]byte
+	gaugeTypeStrings   [][]byte
 
-	counterSuffixOverride map[AggregationType][]byte
-	timerSuffixOverride   map[AggregationType][]byte
-	gaugeSuffixOverride   map[AggregationType][]byte
+	globalTypeStringOverrides map[AggregationType][]byte
+	counterTypeStringOverride map[AggregationType][]byte
+	timerTypeStringOverride   map[AggregationType][]byte
+	gaugeTypeStringOverride   map[AggregationType][]byte
 
-	defaultCounterAggregationSuffixes [][]byte
-	defaultTimerAggregationSuffixes   [][]byte
-	defaultGaugeAggregationSuffixes   [][]byte
-	timerQuantiles                    []float64
+	defaultCounterAggregationTypeStrings [][]byte
+	defaultTimerAggregationTypeStrings   [][]byte
+	defaultGaugeAggregationTypeStrings   [][]byte
+	timerQuantiles                       []float64
 }
 
 // NewAggregationTypesOptions returns a default AggregationTypesOptions.
@@ -260,19 +214,11 @@ func NewAggregationTypesOptions() AggregationTypesOptions {
 		defaultCounterAggregationTypes: defaultDefaultCounterAggregationTypes,
 		defaultGaugeAggregationTypes:   defaultDefaultGaugeAggregationTypes,
 		defaultTimerAggregationTypes:   defaultDefaultTimerAggregationTypes,
-		lastSuffix:                     defaultLastSuffix,
-		minSuffix:                      defaultMinSuffix,
-		maxSuffix:                      defaultMaxSuffix,
-		meanSuffix:                     defaultMeanSuffix,
-		medianSuffix:                   defaultMedianSuffix,
-		countSuffix:                    defaultCountSuffix,
-		sumSuffix:                      defaultSumSuffix,
-		sumSqSuffix:                    defaultSumSqSuffix,
-		stdevSuffix:                    defaultStdevSuffix,
-		timerQuantileSuffixFn:          defaultTimerQuantileSuffixFn,
-		counterSuffixOverride:          defaultCounterSuffixOverride,
-		timerSuffixOverride:            defaultTimerSuffixOverride,
-		gaugeSuffixOverride:            defaultGaugeSuffixOverride,
+		timerQuantileTypeStringFn:      defaultTimerQuantileTypeStringFn,
+		globalTypeStringTransformFn:    noopTransformFn,
+		counterTypeStringOverride:      defaultCounterTypeStringOverride,
+		timerTypeStringOverride:        defaultTimerTypeStringOverride,
+		gaugeTypeStringOverride:        defaultGaugeTypeStringOverride,
 	}
 	o.initPools()
 	o.computeAllDerived()
@@ -290,21 +236,21 @@ func (o *options) initPools() {
 }
 
 func (o *options) Validate() error {
-	if err := o.ensureUniqueSuffix(o.counterSuffixes, metric.CounterType); err != nil {
+	if err := o.ensureUniqueTypeString(o.counterTypeStrings, metric.CounterType); err != nil {
 		return err
 	}
-	if err := o.ensureUniqueSuffix(o.timerSuffixes, metric.TimerType); err != nil {
+	if err := o.ensureUniqueTypeString(o.timerTypeStrings, metric.TimerType); err != nil {
 		return err
 	}
-	return o.ensureUniqueSuffix(o.gaugeSuffixes, metric.GaugeType)
+	return o.ensureUniqueTypeString(o.gaugeTypeStrings, metric.GaugeType)
 }
 
-func (o *options) ensureUniqueSuffix(suffixes [][]byte, t metric.Type) error {
-	m := make(map[string]int, len(suffixes))
-	for aggType, suffix := range suffixes {
-		s := string(suffix)
+func (o *options) ensureUniqueTypeString(typeStrings [][]byte, t metric.Type) error {
+	m := make(map[string]int, len(typeStrings))
+	for aggType, typeString := range typeStrings {
+		s := string(typeString)
 		if existAggType, ok := m[s]; ok {
-			return fmt.Errorf("invalid options, found duplicated suffix: '%s' for aggregation type %v and %v for metric type: %s",
+			return fmt.Errorf("invalid options, found duplicated type string: '%s' for aggregation type %v and %v for metric type: %s",
 				s, AggregationType(aggType), AggregationType(existAggType), t.String())
 		}
 		m[s] = aggType
@@ -315,7 +261,7 @@ func (o *options) ensureUniqueSuffix(suffixes [][]byte, t metric.Type) error {
 func (o *options) SetDefaultCounterAggregationTypes(aggTypes AggregationTypes) AggregationTypesOptions {
 	opts := *o
 	opts.defaultCounterAggregationTypes = aggTypes
-	opts.computeSuffixes()
+	opts.computeTypeStrings()
 	return &opts
 }
 
@@ -327,7 +273,7 @@ func (o *options) SetDefaultTimerAggregationTypes(aggTypes AggregationTypes) Agg
 	opts := *o
 	opts.defaultTimerAggregationTypes = aggTypes
 	opts.computeQuantiles()
-	opts.computeSuffixes()
+	opts.computeTypeStrings()
 	return &opts
 }
 
@@ -338,7 +284,7 @@ func (o *options) DefaultTimerAggregationTypes() AggregationTypes {
 func (o *options) SetDefaultGaugeAggregationTypes(aggTypes AggregationTypes) AggregationTypesOptions {
 	opts := *o
 	opts.defaultGaugeAggregationTypes = aggTypes
-	opts.computeSuffixes()
+	opts.computeTypeStrings()
 	return &opts
 }
 
@@ -346,114 +292,26 @@ func (o *options) DefaultGaugeAggregationTypes() AggregationTypes {
 	return o.defaultGaugeAggregationTypes
 }
 
-func (o *options) SetLastSuffix(value []byte) AggregationTypesOptions {
+func (o *options) SetTimerQuantileTypeStringFn(value QuantileTypeStringFn) AggregationTypesOptions {
 	opts := *o
-	opts.lastSuffix = value
-	opts.computeSuffixes()
+	opts.timerQuantileTypeStringFn = value
+	opts.computeTypeStrings()
 	return &opts
 }
 
-func (o *options) LastSuffix() []byte {
-	return o.lastSuffix
+func (o *options) TimerQuantileTypeStringFn() QuantileTypeStringFn {
+	return o.timerQuantileTypeStringFn
 }
 
-func (o *options) SetMinSuffix(value []byte) AggregationTypesOptions {
+func (o *options) SetGlobalTypeStringTransformFn(value TypeStringTransformFn) AggregationTypesOptions {
 	opts := *o
-	opts.minSuffix = value
-	opts.computeSuffixes()
+	opts.globalTypeStringTransformFn = value
+	opts.computeTypeStrings()
 	return &opts
 }
 
-func (o *options) MinSuffix() []byte {
-	return o.minSuffix
-}
-
-func (o *options) SetMaxSuffix(value []byte) AggregationTypesOptions {
-	opts := *o
-	opts.maxSuffix = value
-	opts.computeSuffixes()
-	return &opts
-}
-
-func (o *options) MaxSuffix() []byte {
-	return o.maxSuffix
-}
-
-func (o *options) SetMeanSuffix(value []byte) AggregationTypesOptions {
-	opts := *o
-	opts.meanSuffix = value
-	opts.computeSuffixes()
-	return &opts
-}
-
-func (o *options) MeanSuffix() []byte {
-	return o.meanSuffix
-}
-
-func (o *options) SetMedianSuffix(value []byte) AggregationTypesOptions {
-	opts := *o
-	opts.medianSuffix = value
-	opts.computeSuffixes()
-	return &opts
-}
-
-func (o *options) MedianSuffix() []byte {
-	return o.medianSuffix
-}
-
-func (o *options) SetCountSuffix(value []byte) AggregationTypesOptions {
-	opts := *o
-	opts.countSuffix = value
-	opts.computeSuffixes()
-	return &opts
-}
-
-func (o *options) CountSuffix() []byte {
-	return o.countSuffix
-}
-
-func (o *options) SetSumSuffix(value []byte) AggregationTypesOptions {
-	opts := *o
-	opts.sumSuffix = value
-	opts.computeSuffixes()
-	return &opts
-}
-
-func (o *options) SumSuffix() []byte {
-	return o.sumSuffix
-}
-
-func (o *options) SetSumSqSuffix(value []byte) AggregationTypesOptions {
-	opts := *o
-	opts.sumSqSuffix = value
-	opts.computeSuffixes()
-	return &opts
-}
-
-func (o *options) SumSqSuffix() []byte {
-	return o.sumSqSuffix
-}
-
-func (o *options) SetStdevSuffix(value []byte) AggregationTypesOptions {
-	opts := *o
-	opts.stdevSuffix = value
-	opts.computeSuffixes()
-	return &opts
-}
-
-func (o *options) StdevSuffix() []byte {
-	return o.stdevSuffix
-}
-
-func (o *options) SetTimerQuantileSuffixFn(value QuantileSuffixFn) AggregationTypesOptions {
-	opts := *o
-	opts.timerQuantileSuffixFn = value
-	opts.computeSuffixes()
-	return &opts
-}
-
-func (o *options) TimerQuantileSuffixFn() QuantileSuffixFn {
-	return o.timerQuantileSuffixFn
+func (o *options) GlobalTypeStringTransformFn() TypeStringTransformFn {
+	return o.globalTypeStringTransformFn
 }
 
 func (o *options) SetAggregationTypesPool(pool AggregationTypesPool) AggregationTypesOptions {
@@ -476,61 +334,68 @@ func (o *options) QuantilesPool() pool.FloatsPool {
 	return o.quantilesPool
 }
 
-func (o *options) SetCounterSuffixOverrides(m map[AggregationType][]byte) AggregationTypesOptions {
+func (o *options) SetGlobalTypeStringOverrides(m map[AggregationType][]byte) AggregationTypesOptions {
 	opts := *o
-	opts.counterSuffixOverride = m
-	opts.computeSuffixes()
+	opts.globalTypeStringOverrides = m
+	opts.computeTypeStrings()
 	return &opts
 }
 
-func (o *options) SetTimerSuffixOverrides(m map[AggregationType][]byte) AggregationTypesOptions {
+func (o *options) SetCounterTypeStringOverrides(m map[AggregationType][]byte) AggregationTypesOptions {
 	opts := *o
-	opts.timerSuffixOverride = m
-	opts.computeSuffixes()
+	opts.counterTypeStringOverride = m
+	opts.computeTypeStrings()
 	return &opts
 }
 
-func (o *options) SetGaugeSuffixOverrides(m map[AggregationType][]byte) AggregationTypesOptions {
+func (o *options) SetTimerTypeStringOverrides(m map[AggregationType][]byte) AggregationTypesOptions {
 	opts := *o
-	opts.gaugeSuffixOverride = m
-	opts.computeSuffixes()
+	opts.timerTypeStringOverride = m
+	opts.computeTypeStrings()
 	return &opts
 }
 
-func (o *options) DefaultCounterAggregationSuffixes() [][]byte {
-	return o.defaultCounterAggregationSuffixes
+func (o *options) SetGaugeTypeStringOverrides(m map[AggregationType][]byte) AggregationTypesOptions {
+	opts := *o
+	opts.gaugeTypeStringOverride = m
+	opts.computeTypeStrings()
+	return &opts
 }
 
-func (o *options) DefaultTimerAggregationSuffixes() [][]byte {
-	return o.defaultTimerAggregationSuffixes
+func (o *options) DefaultCounterAggregationTypeStrings() [][]byte {
+	return o.defaultCounterAggregationTypeStrings
 }
 
-func (o *options) DefaultGaugeAggregationSuffixes() [][]byte {
-	return o.defaultGaugeAggregationSuffixes
+func (o *options) DefaultTimerAggregationTypeStrings() [][]byte {
+	return o.defaultTimerAggregationTypeStrings
 }
 
-func (o *options) SuffixForCounter(aggType AggregationType) []byte {
-	return o.counterSuffixes[aggType.ID()]
+func (o *options) DefaultGaugeAggregationTypeStrings() [][]byte {
+	return o.defaultGaugeAggregationTypeStrings
 }
 
-func (o *options) SuffixForTimer(aggType AggregationType) []byte {
-	return o.timerSuffixes[aggType.ID()]
+func (o *options) TypeStringForCounter(aggType AggregationType) []byte {
+	return o.counterTypeStrings[aggType.ID()]
 }
 
-func (o *options) SuffixForGauge(aggType AggregationType) []byte {
-	return o.gaugeSuffixes[aggType.ID()]
+func (o *options) TypeStringForTimer(aggType AggregationType) []byte {
+	return o.timerTypeStrings[aggType.ID()]
+}
+
+func (o *options) TypeStringForGauge(aggType AggregationType) []byte {
+	return o.gaugeTypeStrings[aggType.ID()]
 }
 
 func (o *options) AggregationTypeForCounter(value []byte) AggregationType {
-	return aggregationTypeWithSuffix(value, o.counterSuffixes)
+	return aggregationTypeWithTypeString(value, o.counterTypeStrings)
 }
 
 func (o *options) AggregationTypeForTimer(value []byte) AggregationType {
-	return aggregationTypeWithSuffix(value, o.timerSuffixes)
+	return aggregationTypeWithTypeString(value, o.timerTypeStrings)
 }
 
 func (o *options) AggregationTypeForGauge(value []byte) AggregationType {
-	return aggregationTypeWithSuffix(value, o.gaugeSuffixes)
+	return aggregationTypeWithTypeString(value, o.gaugeTypeStrings)
 }
 
 func (o *options) TimerQuantiles() []float64 {
@@ -551,11 +416,8 @@ func (o *options) IsContainedInDefaultAggregationTypes(at AggregationType, mt me
 	return aggTypes.Contains(at)
 }
 
-func aggregationTypeWithSuffix(value []byte, suffixes [][]byte) AggregationType {
-	for aggType, b := range suffixes {
-		if aggType == UnknownAggregationType.ID() {
-			continue
-		}
+func aggregationTypeWithTypeString(value []byte, typeStrings [][]byte) AggregationType {
+	for aggType, b := range typeStrings {
 		if bytes.Equal(b, value) {
 			return AggregationType(aggType)
 		}
@@ -565,109 +427,117 @@ func aggregationTypeWithSuffix(value []byte, suffixes [][]byte) AggregationType 
 
 func (o *options) computeAllDerived() {
 	o.computeQuantiles()
-	o.computeSuffixes()
+	o.computeTypeStrings()
 }
 
 func (o *options) computeQuantiles() {
 	o.timerQuantiles, _ = o.DefaultTimerAggregationTypes().PooledQuantiles(o.QuantilesPool())
 }
 
-func (o *options) computeSuffixes() {
+func (o *options) computeTypeStrings() {
 	// NB(cw) The order matters.
-	o.computeDefaultSuffixes()
-	o.computeCounterSuffixes()
-	o.computeTimerSuffixes()
-	o.computeGaugeSuffixes()
-	o.computeDefaultCounterAggregationSuffix()
-	o.computeDefaultTimerAggregationSuffix()
-	o.computeDefaultGaugeAggregationSuffix()
+	o.computeDefaultTypeStrings()
+	o.computeCounterTypeStrings()
+	o.computeTimerTypeStrings()
+	o.computeGaugeTypeStrings()
+	o.computeDefaultCounterAggregationTypeString()
+	o.computeDefaultTimerAggregationTypeString()
+	o.computeDefaultGaugeAggregationTypeString()
 }
 
-func (o *options) computeDefaultSuffixes() {
-	o.defaultSuffixes = make([][]byte, MaxAggregationTypeID+1)
-	o.defaultSuffixes[UnknownAggregationType.ID()] = defaultUnknownSuffix
+func (o *options) computeDefaultTypeStrings() {
+	o.defaultTypeStrings = make([][]byte, MaxAggregationTypeID+1)
+	o.defaultTypeStrings[UnknownAggregationType.ID()] = defaultUnknownTypeString
+	transformFn := o.GlobalTypeStringTransformFn()
 	for aggType := range ValidAggregationTypes {
-		var suffix []byte
+		var typeString []byte
 		switch aggType {
 		case Last:
-			suffix = o.LastSuffix()
+			typeString = defaultLastTypeString
 		case Min:
-			suffix = o.MinSuffix()
+			typeString = defaultMinTypeString
 		case Max:
-			suffix = o.MaxSuffix()
+			typeString = defaultMaxTypeString
 		case Mean:
-			suffix = o.MeanSuffix()
+			typeString = defaultMeanTypeString
 		case Median:
-			suffix = o.MedianSuffix()
+			typeString = defaultMedianTypeString
 		case Count:
-			suffix = o.CountSuffix()
+			typeString = defaultCountTypeString
 		case Sum:
-			suffix = o.SumSuffix()
+			typeString = defaultSumTypeString
 		case SumSq:
-			suffix = o.SumSqSuffix()
+			typeString = defaultSumSqTypeString
 		case Stdev:
-			suffix = o.StdevSuffix()
+			typeString = defaultStdevTypeString
 		default:
 			q, ok := aggType.Quantile()
 			if ok {
-				suffix = o.timerQuantileSuffixFn(q)
+				typeString = o.timerQuantileTypeStringFn(q)
 			}
 		}
-		o.defaultSuffixes[aggType.ID()] = suffix
+		override, ok := o.globalTypeStringOverrides[aggType]
+		if ok {
+			typeString = override
+		}
+		o.defaultTypeStrings[aggType.ID()] = transformFn(typeString)
 	}
 }
 
-func (o *options) computeCounterSuffixes() {
-	o.counterSuffixes = o.computeOverrideSuffixes(o.counterSuffixOverride)
+func (o *options) computeCounterTypeStrings() {
+	o.counterTypeStrings = o.computeOverrideTypeStrings(o.counterTypeStringOverride)
 }
 
-func (o *options) computeTimerSuffixes() {
-	o.timerSuffixes = o.computeOverrideSuffixes(o.timerSuffixOverride)
+func (o *options) computeTimerTypeStrings() {
+	o.timerTypeStrings = o.computeOverrideTypeStrings(o.timerTypeStringOverride)
 }
 
-func (o *options) computeGaugeSuffixes() {
-	o.gaugeSuffixes = o.computeOverrideSuffixes(o.gaugeSuffixOverride)
+func (o *options) computeGaugeTypeStrings() {
+	o.gaugeTypeStrings = o.computeOverrideTypeStrings(o.gaugeTypeStringOverride)
 }
 
-func (o options) computeOverrideSuffixes(m map[AggregationType][]byte) [][]byte {
-	res := make([][]byte, len(o.defaultSuffixes))
-	for aggType, defaultSuffix := range o.defaultSuffixes {
-		if overrideSuffix, ok := m[AggregationType(aggType)]; ok {
-			res[aggType] = overrideSuffix
+func (o options) computeOverrideTypeStrings(m map[AggregationType][]byte) [][]byte {
+	res := make([][]byte, len(o.defaultTypeStrings))
+	for aggType, defaultTypeString := range o.defaultTypeStrings {
+		if overrideTypeString, ok := m[AggregationType(aggType)]; ok {
+			res[aggType] = overrideTypeString
 			continue
 		}
-		res[aggType] = defaultSuffix
+		res[aggType] = defaultTypeString
 	}
 	return res
 }
 
-func (o *options) computeDefaultCounterAggregationSuffix() {
-	o.defaultCounterAggregationSuffixes = make([][]byte, len(o.DefaultCounterAggregationTypes()))
+func (o *options) computeDefaultCounterAggregationTypeString() {
+	o.defaultCounterAggregationTypeStrings = make([][]byte, len(o.DefaultCounterAggregationTypes()))
 	for i, aggType := range o.DefaultCounterAggregationTypes() {
-		o.defaultCounterAggregationSuffixes[i] = o.SuffixForCounter(aggType)
+		o.defaultCounterAggregationTypeStrings[i] = o.TypeStringForCounter(aggType)
 	}
 }
 
-func (o *options) computeDefaultTimerAggregationSuffix() {
-	o.defaultTimerAggregationSuffixes = make([][]byte, len(o.DefaultTimerAggregationTypes()))
+func (o *options) computeDefaultTimerAggregationTypeString() {
+	o.defaultTimerAggregationTypeStrings = make([][]byte, len(o.DefaultTimerAggregationTypes()))
 	for i, aggType := range o.DefaultTimerAggregationTypes() {
-		o.defaultTimerAggregationSuffixes[i] = o.SuffixForTimer(aggType)
+		o.defaultTimerAggregationTypeStrings[i] = o.TypeStringForTimer(aggType)
 	}
 }
 
-func (o *options) computeDefaultGaugeAggregationSuffix() {
-	o.defaultGaugeAggregationSuffixes = make([][]byte, len(o.DefaultGaugeAggregationTypes()))
+func (o *options) computeDefaultGaugeAggregationTypeString() {
+	o.defaultGaugeAggregationTypeStrings = make([][]byte, len(o.DefaultGaugeAggregationTypes()))
 	for i, aggType := range o.DefaultGaugeAggregationTypes() {
-		o.defaultGaugeAggregationSuffixes[i] = o.SuffixForGauge(aggType)
+		o.defaultGaugeAggregationTypeStrings[i] = o.TypeStringForGauge(aggType)
 	}
 }
 
-// By default we use e.g. ".p50", ".p95", ".p99" for the 50th/95th/99th percentile.
-func defaultTimerQuantileSuffixFn(quantile float64) []byte {
+// By default we use e.g. "p50", "p95", "p99" for the 50th/95th/99th percentile.
+func defaultTimerQuantileTypeStringFn(quantile float64) []byte {
 	str := strconv.FormatFloat(quantile*100, 'f', -1, 64)
 	idx := strings.Index(str, ".")
 	if idx != -1 {
 		str = str[:idx] + str[idx+1:]
 	}
-	return []byte(".p" + str)
+	return []byte("p" + str)
 }
+
+func noopTransformFn(b []byte) []byte   { return b }
+func suffixTransformFn(b []byte) []byte { return append([]byte("."), b...) }
