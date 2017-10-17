@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/storage/read"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/counter"
 	xio "github.com/m3db/m3db/x/io"
@@ -466,6 +467,7 @@ func (d *db) ReadEncoded(
 	namespace ts.ID,
 	id ts.ID,
 	start, end time.Time,
+	readOpts read.ReadOptions,
 ) ([][]xio.SegmentReader, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
@@ -473,7 +475,7 @@ func (d *db) ReadEncoded(
 		return nil, err
 	}
 
-	return n.ReadEncoded(ctx, id, start, end)
+	return n.ReadEncoded(ctx, id, start, end, readOpts)
 }
 
 func (d *db) FetchBlocks(

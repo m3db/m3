@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/read"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
@@ -158,14 +159,17 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
+	readOpts := read.ReadOptions{
+		SoftRead: false,
+	}
 	// Test fine grained range
-	results, err := series.ReadEncoded(ctx, start, start.Add(mins(10)))
+	results, err := series.ReadEncoded(ctx, start, start.Add(mins(10)), readOpts)
 	assert.NoError(t, err)
 
 	assertValuesEqual(t, data, results, opts)
 
 	// Test wide range
-	results, err = series.ReadEncoded(ctx, timeZero, timeDistantFuture)
+	results, err = series.ReadEncoded(ctx, timeZero, timeDistantFuture, readOpts)
 	assert.NoError(t, err)
 
 	assertValuesEqual(t, data, results, opts)
@@ -179,7 +183,10 @@ func TestSeriesReadEndBeforeStart(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	results, err := series.ReadEncoded(ctx, time.Now(), time.Now().Add(-1*time.Second))
+	readOpts := read.ReadOptions{
+		SoftRead: false,
+	}
+	results, err := series.ReadEncoded(ctx, time.Now(), time.Now().Add(-1*time.Second), readOpts)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsInvalidParams(err))
 	assert.Nil(t, results)
@@ -510,7 +517,10 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		now = now.Add(blockSize)
 	}
 
-	encoded, err := series.ReadEncoded(ctx, qStart, qEnd)
+	readOpts := block.ReadOptions{
+		SoftRead: false,
+	}
+	encoded, err := series.ReadEncoded(ctx, qStart, qEnd, readOpts)
 	require.NoError(t, err)
 
 	multiIt := opts.MultiReaderIteratorPool().Get()

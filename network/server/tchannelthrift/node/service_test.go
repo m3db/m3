@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/storage/read"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xtime "github.com/m3db/m3x/time"
@@ -116,8 +117,11 @@ func TestServiceFetch(t *testing.T) {
 		require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 	}
 
+	readOpts := read.ReadOptions{
+		SoftRead: true,
+	}
 	mockDB.EXPECT().
-		ReadEncoded(ctx, ts.NewIDMatcher(nsID), ts.NewIDMatcher("foo"), start, end).
+		ReadEncoded(ctx, ts.NewIDMatcher(nsID), ts.NewIDMatcher("foo"), start, end, readOpts).
 		Return([][]xio.SegmentReader{
 			[]xio.SegmentReader{enc.Stream()},
 		}, nil)
@@ -186,8 +190,11 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 
 		streams[id] = enc.Stream()
 
+		readOpts := read.ReadOptions{
+			SoftRead: false,
+		}
 		mockDB.EXPECT().
-			ReadEncoded(ctx, ts.NewIDMatcher(nsID), ts.NewIDMatcher(id), start, end).
+			ReadEncoded(ctx, ts.NewIDMatcher(nsID), ts.NewIDMatcher(id), start, end, readOpts).
 			Return([][]xio.SegmentReader{
 				[]xio.SegmentReader{enc.Stream()},
 			}, nil)

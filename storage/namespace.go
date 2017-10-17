@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/storage/read"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
@@ -409,6 +410,7 @@ func (n *dbNamespace) ReadEncoded(
 	ctx context.Context,
 	id ts.ID,
 	start, end time.Time,
+	readOpts read.ReadOptions,
 ) ([][]xio.SegmentReader, error) {
 	callStart := n.nowFn()
 	shard, err := n.readableShardFor(id)
@@ -416,7 +418,7 @@ func (n *dbNamespace) ReadEncoded(
 		n.metrics.read.ReportError(n.nowFn().Sub(callStart))
 		return nil, err
 	}
-	res, err := shard.ReadEncoded(ctx, id, start, end)
+	res, err := shard.ReadEncoded(ctx, id, start, end, readOpts)
 	n.metrics.read.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return res, err
 }

@@ -26,6 +26,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/storage/read"
+
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
@@ -181,7 +183,11 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	encoded, err := s.db.ReadEncoded(ctx,
 		s.idPool.GetStringID(ctx, req.NameSpace),
 		s.idPool.GetStringID(ctx, req.ID),
-		start, end)
+		start, end,
+		read.ReadOptions{
+			SoftRead: true,
+		},
+	)
 	if err != nil {
 		s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
 		rpcErr := convert.ToRPCError(err)
@@ -253,7 +259,10 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		result.Elements = append(result.Elements, rawResult)
 
 		tsID := s.newID(ctx, req.Ids[i])
-		encoded, err := s.db.ReadEncoded(ctx, nsID, tsID, start, end)
+		readOpts := read.ReadOptions{
+			SoftRead: req.GetSoftRead(),
+		}
+		encoded, err := s.db.ReadEncoded(ctx, nsID, tsID, start, end, readOpts)
 		if err != nil {
 			rawResult.Err = convert.ToRPCError(err)
 			if tterrors.IsBadRequestError(rawResult.Err) {

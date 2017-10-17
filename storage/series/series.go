@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/read"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xerrors "github.com/m3db/m3x/errors"
@@ -234,6 +235,7 @@ func (s *dbSeries) Write(
 func (s *dbSeries) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
+	opts read.ReadOptions,
 ) ([][]xio.SegmentReader, error) {
 	if end.Before(start) {
 		return nil, xerrors.NewInvalidParamsError(errSeriesReadInvalidRange)
@@ -272,7 +274,9 @@ func (s *dbSeries) ReadEncoded(
 				if stream != nil {
 					results = append(results, []xio.SegmentReader{stream})
 					// NB(r): Mark this block as read now
-					block.SetLastReadTime(now)
+					if opts.SoftRead == false {
+						block.SetLastReadTime(now)
+					}
 				}
 			}
 		}

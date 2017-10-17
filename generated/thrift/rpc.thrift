@@ -98,6 +98,7 @@ struct FetchBatchRawRequest {
 	3: required binary nameSpace
 	4: required list<binary> ids
 	5: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
+	6: optional bool softRead
 }
 
 struct FetchBatchRawResult {

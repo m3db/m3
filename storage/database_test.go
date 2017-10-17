@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/storage/read"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/ts"
 	xerrors "github.com/m3db/m3x/errors"
@@ -234,7 +235,10 @@ func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
 	defer func() {
 		close(mapCh)
 	}()
-	_, err := d.ReadEncoded(ctx, ts.StringID("nonexistent"), ts.StringID("foo"), time.Now(), time.Now())
+	readOptions := read.ReadOptions{
+		SoftRead: true,
+	}
+	_, err := d.ReadEncoded(ctx, ts.StringID("nonexistent"), ts.StringID("foo"), time.Now(), time.Now(), readOptions)
 	require.Equal(t, "no such namespace nonexistent", err.Error())
 }
 
@@ -255,10 +259,13 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 	end := time.Now()
 	start := end.Add(-time.Hour)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
-	mockNamespace.EXPECT().ReadEncoded(ctx, id, start, end).Return(nil, nil)
+	readOpts := read.ReadOptions{
+		SoftRead: true,
+	}
+	mockNamespace.EXPECT().ReadEncoded(ctx, id, start, end, readOpts).Return(nil, nil)
 	d.namespaces[ns.Hash()] = mockNamespace
 
-	res, err := d.ReadEncoded(ctx, ns, id, start, end)
+	res, err := d.ReadEncoded(ctx, ns, id, start, end, readOpts)
 	require.Nil(t, res)
 	require.Nil(t, err)
 }
