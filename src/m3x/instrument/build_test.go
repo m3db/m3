@@ -46,14 +46,14 @@ func TestStartStop(t *testing.T) {
 
 	rep := NewBuildReporter(newTestOptions())
 	require.NoError(t, rep.Start())
-	require.NoError(t, rep.Close())
+	require.NoError(t, rep.Stop())
 }
 
 func TestStartStart(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	rep := NewBuildReporter(newTestOptions())
-	defer rep.Close()
+	defer rep.Stop()
 	require.NoError(t, rep.Start())
 	require.Error(t, rep.Start())
 }
@@ -62,7 +62,7 @@ func TestStopWithoutStart(t *testing.T) {
 	defer leaktest.Check(t)()
 
 	rep := NewBuildReporter(newTestOptions())
-	require.Error(t, rep.Close())
+	require.Error(t, rep.Stop())
 }
 
 func TestMultipleStop(t *testing.T) {
@@ -70,8 +70,8 @@ func TestMultipleStop(t *testing.T) {
 
 	rep := NewBuildReporter(newTestOptions())
 	require.NoError(t, rep.Start())
-	go rep.Close()
-	go rep.Close()
+	go rep.Stop()
+	go rep.Stop()
 }
 
 func TestVersionReported(t *testing.T) {
@@ -93,5 +93,5 @@ func TestVersionReported(t *testing.T) {
 		}
 	}
 
-	require.NoError(t, rep.Close())
+	require.NoError(t, rep.Stop())
 }

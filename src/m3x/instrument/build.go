@@ -83,7 +83,7 @@ type buildReporter struct {
 // NewBuildReporter returns a new build version reporter.
 func NewBuildReporter(
 	opts Options,
-) BuildReporter {
+) Reporter {
 	return &buildReporter{
 		opts: opts,
 	}
@@ -128,7 +128,7 @@ func (b *buildReporter) report() {
 	}
 }
 
-func (b *buildReporter) Close() error {
+func (b *buildReporter) Stop() error {
 	b.Lock()
 	defer b.Unlock()
 	if !b.active {

@@ -28,8 +28,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3x/process"
-
 	"github.com/uber-go/tally"
 )
 
@@ -113,15 +111,18 @@ func (t *ExtendedMetricsType) UnmarshalYAML(unmarshal func(interface{}) error) e
 		str, strings.Join(strs, ", "))
 }
 
-// StartReportingExtendedMetrics starts reporting extended metrics.
+// StartReportingExtendedMetrics creates a extend metrics reporter and starts
+// the reporter returning it so it may be stopped if successfully started.
 func StartReportingExtendedMetrics(
 	scope tally.Scope,
 	reportInterval time.Duration,
 	metricsType ExtendedMetricsType,
-) *ExtendedMetricsReporter {
+) (Reporter, error) {
 	reporter := NewExtendedMetricsReporter(scope, reportInterval, metricsType)
-	reporter.Start()
-	return reporter
+	if err := reporter.Start(); err != nil {
+		return nil, err
+	}
+	return reporter, nil
 }
 
 type runtimeMetrics struct {
@@ -137,35 +138,64 @@ type runtimeMetrics struct {
 	lastNumGC       uint32
 }
 
-type processMetrics struct {
-	NumFDs      tally.Gauge
-	NumFDErrors tally.Counter
-	pid         int
+func (r *runtimeMetrics) report(metricsType ExtendedMetricsType) {
+	if metricsType == NoExtendedMetrics {
+		return
+	}
+
+	r.NumGoRoutines.Update(float64(runtime.NumGoroutine()))
+	r.GoMaxProcs.Update(float64(runtime.GOMAXPROCS(0)))
+	if metricsType < DetailedExtendedMetrics {
+		return
+	}
+
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+	r.MemoryAllocated.Update(float64(memStats.Alloc))
+	r.MemoryHeap.Update(float64(memStats.HeapAlloc))
+	r.MemoryHeapIdle.Update(float64(memStats.HeapIdle))
+	r.MemoryHeapInuse.Update(float64(memStats.HeapInuse))
+	r.MemoryStack.Update(float64(memStats.StackInuse))
+
+	// memStats.NumGC is a perpetually incrementing counter (unless it wraps at 2^32).
+	num := memStats.NumGC
+	lastNum := atomic.SwapUint32(&r.lastNumGC, num)
+	if delta := num - lastNum; delta > 0 {
+		r.NumGC.Inc(int64(delta))
+		if delta > 255 {
+			// too many GCs happened, the timestamps buffer got wrapped around. Report only the last 256.
+			lastNum = num - 256
+		}
+		for i := lastNum; i != num; i++ {
+			pause := memStats.PauseNs[i%256]
+			r.GcPauseMs.Record(time.Duration(pause))
+		}
+	}
 }
 
-// ExtendedMetricsReporter reports an extended set of metrics.
-// The reporter is not thread-safe.
-type ExtendedMetricsReporter struct {
-	reportInterval time.Duration
-	metricsType    ExtendedMetricsType
-	runtime        runtimeMetrics
-	process        processMetrics
-	started        bool
-	quit           chan struct{}
+type extendedMetricsReporter struct {
+	baseReporter
+
+	metricsType ExtendedMetricsType
+	runtime     runtimeMetrics
+	process     processMetrics
 }
 
-// NewExtendedMetricsReporter creates a new extended metrics reporter.
+// NewExtendedMetricsReporter creates a new extended metrics reporter
+// that reports runtime and process metrics.
 func NewExtendedMetricsReporter(
 	scope tally.Scope,
 	reportInterval time.Duration,
 	metricsType ExtendedMetricsType,
-) *ExtendedMetricsReporter {
-	r := &ExtendedMetricsReporter{
-		reportInterval: reportInterval,
-		metricsType:    metricsType,
-		started:        false,
-		quit:           make(chan struct{}),
-	}
+) Reporter {
+	r := new(extendedMetricsReporter)
+	r.metricsType = metricsType
+	r.init(reportInterval, func() {
+		r.runtime.report(r.metricsType)
+		if r.metricsType >= ModerateExtendedMetrics {
+			r.process.report()
+		}
+	})
 	if r.metricsType == NoExtendedMetrics {
 		return r
 	}
@@ -177,7 +207,7 @@ func NewExtendedMetricsReporter(
 	r.process.NumFDs = processScope.Gauge("num-fds")
 	r.process.NumFDErrors = processScope.Counter("num-fd-errors")
 	r.process.pid = os.Getpid()
-	if r.metricsType == SimpleExtendedMetrics {
+	if r.metricsType < DetailedExtendedMetrics {
 		return r
 	}
 
@@ -192,83 +222,6 @@ func NewExtendedMetricsReporter(
 	r.runtime.NumGC = memoryScope.Counter("num-gc")
 	r.runtime.GcPauseMs = memoryScope.Timer("gc-pause-ms")
 	r.runtime.lastNumGC = memstats.NumGC
+
 	return r
-}
-
-// Start starts the reporter thread that periodically emits metrics.
-func (r *ExtendedMetricsReporter) Start() {
-	if r.started {
-		return
-	}
-	go func() {
-		ticker := time.NewTicker(r.reportInterval)
-		for {
-			select {
-			case <-ticker.C:
-				r.report()
-			case <-r.quit:
-				ticker.Stop()
-				return
-			}
-		}
-	}()
-	r.started = true
-}
-
-// Stop stops reporting of runtime metrics.
-// The reporter cannot be started again after it's been stopped.
-func (r *ExtendedMetricsReporter) Stop() {
-	close(r.quit)
-}
-
-func (r *ExtendedMetricsReporter) report() {
-	r.reportRuntimeMetrics()
-	r.reportProcessMetrics()
-}
-
-func (r *ExtendedMetricsReporter) reportRuntimeMetrics() {
-	if r.metricsType == NoExtendedMetrics {
-		return
-	}
-
-	r.runtime.NumGoRoutines.Update(float64(runtime.NumGoroutine()))
-	r.runtime.GoMaxProcs.Update(float64(runtime.GOMAXPROCS(0)))
-	if r.metricsType < DetailedExtendedMetrics {
-		return
-	}
-
-	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
-	r.runtime.MemoryAllocated.Update(float64(memStats.Alloc))
-	r.runtime.MemoryHeap.Update(float64(memStats.HeapAlloc))
-	r.runtime.MemoryHeapIdle.Update(float64(memStats.HeapIdle))
-	r.runtime.MemoryHeapInuse.Update(float64(memStats.HeapInuse))
-	r.runtime.MemoryStack.Update(float64(memStats.StackInuse))
-
-	// memStats.NumGC is a perpetually incrementing counter (unless it wraps at 2^32).
-	num := memStats.NumGC
-	lastNum := atomic.SwapUint32(&r.runtime.lastNumGC, num)
-	if delta := num - lastNum; delta > 0 {
-		r.runtime.NumGC.Inc(int64(delta))
-		if delta > 255 {
-			// too many GCs happened, the timestamps buffer got wrapped around. Report only the last 256.
-			lastNum = num - 256
-		}
-		for i := lastNum; i != num; i++ {
-			pause := memStats.PauseNs[i%256]
-			r.runtime.GcPauseMs.Record(time.Duration(pause))
-		}
-	}
-}
-
-func (r *ExtendedMetricsReporter) reportProcessMetrics() {
-	if r.metricsType < ModerateExtendedMetrics {
-		return
-	}
-	numFDs, err := process.NumFDs(r.process.pid)
-	if err == nil {
-		r.process.NumFDs.Update(float64(numFDs))
-	} else {
-		r.process.NumFDErrors.Inc(1)
-	}
 }
