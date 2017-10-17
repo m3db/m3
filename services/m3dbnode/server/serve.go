@@ -20,6 +20,8 @@
 
 package server
 
+// TODO(r): move this file elsewhere near those that actually still use it
+
 import (
 	"errors"
 	"fmt"
