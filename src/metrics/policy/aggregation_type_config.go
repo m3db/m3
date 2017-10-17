@@ -21,6 +21,8 @@
 package policy
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 )
@@ -36,41 +38,20 @@ type AggregationTypesConfiguration struct {
 	// Default aggregation types for gauge metrics.
 	DefaultGaugeAggregationTypes *AggregationTypes `yaml:"defaultGaugeAggregationTypes"`
 
-	// Metric suffix for aggregation type last.
-	LastSuffix *string `yaml:"lastSuffix"`
+	// Global type string overrides.
+	GlobalOverrides map[AggregationType]string `yaml:"globalOverrides"`
 
-	// Metric suffix for aggregation type sum.
-	SumSuffix *string `yaml:"sumSuffix"`
+	// Type string overrides for Counter.
+	CounterOverrides map[AggregationType]string `yaml:"counterOverrides"`
 
-	// Metric suffix for aggregation type sum square.
-	SumSqSuffix *string `yaml:"sumSqSuffix"`
+	// Type string overrides for Timer.
+	TimerOverrides map[AggregationType]string `yaml:"timerOverrides"`
 
-	// Metric suffix for aggregation type mean.
-	MeanSuffix *string `yaml:"meanSuffix"`
+	// Type string overrides for Gauge.
+	GaugeOverrides map[AggregationType]string `yaml:"gaugeOverrides"`
 
-	// Metric suffix for aggregation type min.
-	MinSuffix *string `yaml:"minSuffix"`
-
-	// Metric suffix for aggregation type max.
-	MaxSuffix *string `yaml:"maxSuffix"`
-
-	// Metric suffix for aggregation type count.
-	CountSuffix *string `yaml:"countSuffix"`
-
-	// Metric suffix for aggregation type standard deviation.
-	StdevSuffix *string `yaml:"stdevSuffix"`
-
-	// Metric suffix for aggregation type median.
-	MedianSuffix *string `yaml:"medianSuffix"`
-
-	// Counter suffix overrides.
-	CounterSuffixOverrides map[AggregationType]string `yaml:"counterSuffixOverrides"`
-
-	// Timer suffix overrides.
-	TimerSuffixOverrides map[AggregationType]string `yaml:"timerSuffixOverrides"`
-
-	// Gauge suffix overrides.
-	GaugeSuffixOverrides map[AggregationType]string `yaml:"gaugeSuffixOverrides"`
+	// TransformFnType configs the global type string transform function type.
+	TransformFnType *transformFnType `yaml:"transformFnType"`
 
 	// Pool of aggregation types.
 	AggregationTypesPool pool.ObjectPoolConfiguration `yaml:"aggregationTypesPool"`
@@ -80,8 +61,16 @@ type AggregationTypesConfiguration struct {
 }
 
 // NewOptions creates a new Option.
-func (c AggregationTypesConfiguration) NewOptions(instrumentOpts instrument.Options) AggregationTypesOptions {
+func (c AggregationTypesConfiguration) NewOptions(instrumentOpts instrument.Options) (AggregationTypesOptions, error) {
 	opts := NewAggregationTypesOptions()
+	if c.TransformFnType != nil {
+		fn, err := c.TransformFnType.TransformFn()
+		if err != nil {
+			return nil, err
+		}
+		opts = opts.SetGlobalTypeStringTransformFn(fn)
+	}
+
 	if c.DefaultCounterAggregationTypes != nil {
 		opts = opts.SetDefaultCounterAggregationTypes(*c.DefaultCounterAggregationTypes)
 	}
@@ -92,19 +81,10 @@ func (c AggregationTypesConfiguration) NewOptions(instrumentOpts instrument.Opti
 		opts = opts.SetDefaultTimerAggregationTypes(*c.DefaultTimerAggregationTypes)
 	}
 
-	opts = setSuffix(opts, c.LastSuffix, opts.SetLastSuffix)
-	opts = setSuffix(opts, c.SumSuffix, opts.SetSumSuffix)
-	opts = setSuffix(opts, c.SumSqSuffix, opts.SetSumSqSuffix)
-	opts = setSuffix(opts, c.MeanSuffix, opts.SetMeanSuffix)
-	opts = setSuffix(opts, c.MinSuffix, opts.SetMinSuffix)
-	opts = setSuffix(opts, c.MaxSuffix, opts.SetMaxSuffix)
-	opts = setSuffix(opts, c.CountSuffix, opts.SetCountSuffix)
-	opts = setSuffix(opts, c.StdevSuffix, opts.SetStdevSuffix)
-	opts = setSuffix(opts, c.MedianSuffix, opts.SetMedianSuffix)
-
-	opts = opts.SetCounterSuffixOverrides(parseSuffixOverride(c.CounterSuffixOverrides))
-	opts = opts.SetGaugeSuffixOverrides(parseSuffixOverride(c.GaugeSuffixOverrides))
-	opts = opts.SetTimerSuffixOverrides(parseSuffixOverride(c.TimerSuffixOverrides))
+	opts = opts.SetGlobalTypeStringOverrides(parseTypeStringOverride(c.GlobalOverrides))
+	opts = opts.SetCounterTypeStringOverrides(parseTypeStringOverride(c.CounterOverrides))
+	opts = opts.SetGaugeTypeStringOverrides(parseTypeStringOverride(c.GaugeOverrides))
+	opts = opts.SetTimerTypeStringOverrides(parseTypeStringOverride(c.TimerOverrides))
 
 	scope := instrumentOpts.MetricsScope()
 
@@ -125,25 +105,14 @@ func (c AggregationTypesConfiguration) NewOptions(instrumentOpts instrument.Opti
 	)
 	opts = opts.SetQuantilesPool(quantilesPool)
 	quantilesPool.Init()
-	return opts
+
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+	return opts, nil
 }
 
-func setSuffix(
-	opts AggregationTypesOptions,
-	strP *string,
-	fn func(value []byte) AggregationTypesOptions,
-) AggregationTypesOptions {
-	if strP == nil {
-		return opts
-	}
-	str := *strP
-	if str == "" {
-		return fn(nil)
-	}
-	return fn([]byte(str))
-}
-
-func parseSuffixOverride(m map[AggregationType]string) map[AggregationType][]byte {
+func parseTypeStringOverride(m map[AggregationType]string) map[AggregationType][]byte {
 	res := make(map[AggregationType][]byte, len(m))
 	for aggType, s := range m {
 		var bytes []byte
@@ -154,4 +123,46 @@ func parseSuffixOverride(m map[AggregationType]string) map[AggregationType][]byt
 		res[aggType] = bytes
 	}
 	return res
+}
+
+type transformFnType string
+
+var (
+	unknownTransformType transformFnType = "unknown"
+	noopTransformType    transformFnType = "noop"
+	suffixTransformType  transformFnType = "suffix"
+
+	validTypes = []transformFnType{
+		noopTransformType,
+		suffixTransformType,
+	}
+)
+
+func (t *transformFnType) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	var validStrings []string
+	for _, validType := range validTypes {
+		validString := string(validType)
+		if validString == str {
+			*t = validType
+			return nil
+		}
+		validStrings = append(validStrings, validString)
+	}
+
+	return fmt.Errorf("invalid transform type %s, valid types are: %v", str, validStrings)
+}
+
+func (t transformFnType) TransformFn() (TypeStringTransformFn, error) {
+	switch t {
+	case noopTransformType:
+		return noopTransformFn, nil
+	case suffixTransformType:
+		return suffixTransformFn, nil
+	default:
+		return nil, fmt.Errorf("invalid type string transform function type: %s", string(t))
+	}
 }

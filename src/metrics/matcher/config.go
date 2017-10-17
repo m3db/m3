@@ -114,11 +114,15 @@ func (cfg *Configuration) NewOptions(
 		return m3.IsRollupID(name, tags, sortedTagIteratorPool)
 	}
 
+	aggTypeOpts, err := cfg.AggregationTypes.NewOptions(instrumentOpts)
+	if err != nil {
+		return nil, err
+	}
 	ruleSetOpts := rules.NewOptions().
 		SetTagsFilterOptions(tagsFilterOptions).
 		SetNewRollupIDFn(m3.NewRollupID).
 		SetIsRollupIDFn(isRollupIDFn).
-		SetAggregationTypesOptions(cfg.AggregationTypes.NewOptions(instrumentOpts))
+		SetAggregationTypesOptions(aggTypeOpts)
 
 	// Configure ruleset key function.
 	ruleSetKeyFn := func(namespace []byte) string {
