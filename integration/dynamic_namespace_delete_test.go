@@ -50,7 +50,8 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 	ns1 := testOpts.Namespaces()[1]
 
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
-	scope, closer := tally.NewRootScope(tally.ScopeOptions{Reporter: reporter}, 100*time.Millisecond)
+	scope, closer := tally.NewRootScope(
+		tally.ScopeOptions{Reporter: reporter}, time.Millisecond)
 	defer closer.Close()
 
 	// embedded kv
@@ -119,14 +120,14 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 	}
 
 	// delete namespace key, ensure update propagates
-	numInvalid := numInvalidNamespaceUpdates(scope)
+	numInvalid := numInvalidNamespaceUpdates(reporter)
 	_, err = kvStore.Delete(dynamicOpts.NamespaceRegistryKey())
 	require.NoError(t, err)
 	deletePropagated := func() bool {
-		return numInvalidNamespaceUpdates(scope) > numInvalid
+		return numInvalidNamespaceUpdates(reporter) > numInvalid
 	}
 	require.True(t, waitUntil(deletePropagated, 20*time.Second))
-	log.Infof("deleted namespace key from kv")
+	log.Infof("deleted namespace key propagated from KV to testSetup")
 
 	// update value in kv
 	_, err = kvStore.Set(dynamicOpts.NamespaceRegistryKey(), protoKey(ns0, ns1))
@@ -139,7 +140,7 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 		return ok
 	}
 	require.True(t, waitUntil(nsExists, 5*time.Second))
-	log.Infof("new namespace available in testSetup")
+	log.Infof("new namespace propagated from KV to testSetup")
 
 	// write to new namespace
 	for start, testData := range seriesMaps {
@@ -162,11 +163,6 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 	log.Infof("data is verified")
 }
 
-func numInvalidNamespaceUpdates(scope tally.Scope) int64 {
-	testScope := scope.(tally.TestScope)
-	count, ok := testScope.Snapshot().Counters()["namespace-registry.invalid-update+"]
-	if !ok {
-		return 0
-	}
-	return count.Value()
+func numInvalidNamespaceUpdates(reporter xmetrics.TestStatsReporter) int64 {
+	return reporter.Counters()["namespace-registry.invalid-update"]
 }
