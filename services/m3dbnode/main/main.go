@@ -549,10 +549,7 @@ func withEncodingAndPoolingOptions(
 		var b pool.Bucket
 		b.Capacity = bucket.Capacity
 		b.Count = bucket.Count
-		buckets[i] = pool.Bucket{
-			Capacity: bucket.Capacity,
-			Count:    bucket.Count,
-		}
+		buckets[i] = b
 		logger.Infof("bytes pool registering bucket capacity=%d, count=%d",
 			bucket.Capacity, bucket.Count)
 	}
