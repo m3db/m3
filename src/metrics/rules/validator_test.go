@@ -184,6 +184,13 @@ func TestValidatorValidateRollupRuleInvalidMetricType(t *testing.T) {
 	require.Error(t, ruleSet.Validate(validator))
 }
 
+func TestValidatorValidateRollupRuleMissingRequiredTag(t *testing.T) {
+	requiredRollupTags := []string{"requiredTag"}
+	ruleSet := testRuleSetWithRollupRules(t, testMissingRequiredTagRollupRulesConfig())
+	validator := NewValidator(testValidatorOptions().SetRequiredRollupTags(requiredRollupTags))
+	require.Error(t, ruleSet.Validate(validator))
+}
+
 func TestValidatorValidateRollupRulePolicy(t *testing.T) {
 	testStoragePolicies := []policy.StoragePolicy{
 		policy.MustParseStoragePolicy("10s:1d"),
@@ -448,6 +455,26 @@ func testInvalidMetricTypeRollupRulesConfig() []*schema.RollupRule {
 					Tombstoned: false,
 					TagFilters: map[string]string{
 						testTypeTag: "nonexistent",
+					},
+				},
+			},
+		},
+	}
+}
+
+func testMissingRequiredTagRollupRulesConfig() []*schema.RollupRule {
+	return []*schema.RollupRule{
+		&schema.RollupRule{
+			Uuid: "rollupRule1",
+			Snapshots: []*schema.RollupRuleSnapshot{
+				&schema.RollupRuleSnapshot{
+					Name:       "snapshot1",
+					Tombstoned: false,
+					Targets: []*schema.RollupTarget{
+						&schema.RollupTarget{
+							Name: "rName1",
+							Tags: []string{"rtagName1", "rtagName2"},
+						},
 					},
 				},
 			},

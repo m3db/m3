@@ -50,6 +50,12 @@ type ValidatorOptions interface {
 	// MetricTypesFn returns the metric types function.
 	MetricTypesFn() MetricTypesFn
 
+	// SetRequiredRollupTags sets the list of required rollup tags.
+	SetRequiredRollupTags(value []string) ValidatorOptions
+
+	// RequiredRollupTags returns the list of required rollup tags.
+	RequiredRollupTags() []string
+
 	// IsAllowedStoragePolicyFor determines whether a given storage policy is allowed for the
 	// given metric type.
 	IsAllowedStoragePolicyFor(t metric.Type, p policy.StoragePolicy) bool
@@ -68,6 +74,7 @@ type validatorOptions struct {
 	defaultAllowedStoragePolicies        map[policy.StoragePolicy]struct{}
 	defaultAllowedCustomAggregationTypes map[policy.AggregationType]struct{}
 	metricTypesFn                        MetricTypesFn
+	requiredRollupTags                   []string
 	metadatasByType                      map[metric.Type]validationMetadata
 }
 
@@ -109,6 +116,18 @@ func (o *validatorOptions) SetMetricTypesFn(value MetricTypesFn) ValidatorOption
 
 func (o *validatorOptions) MetricTypesFn() MetricTypesFn {
 	return o.metricTypesFn
+}
+
+func (o *validatorOptions) SetRequiredRollupTags(value []string) ValidatorOptions {
+	requiredRollupTags := make([]string, len(value))
+	copy(requiredRollupTags, value)
+	opts := *o
+	opts.requiredRollupTags = requiredRollupTags
+	return &opts
+}
+
+func (o *validatorOptions) RequiredRollupTags() []string {
+	return o.requiredRollupTags
 }
 
 func (o *validatorOptions) IsAllowedStoragePolicyFor(t metric.Type, p policy.StoragePolicy) bool {
