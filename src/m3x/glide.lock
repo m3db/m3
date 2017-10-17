@@ -1,5 +1,5 @@
-hash: 50a0b59635ffd9cd3f6bd65a7f6a415f0f3a9a82d4f40b997585e04a4bcf2e86
-updated: 2017-09-27T11:06:16.549595088-04:00
+hash: 36610071dc288827adec80eb735d435be541d6576cd1241a1fffdc700f27094c
+updated: 2017-10-16T21:03:35.690080455-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -38,7 +38,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: be9e53c77349ae2dd4b8c03a6dc20ed9a88b9927
+  version: 95078a8f10668bd1fa73ae46761cdc58d25436b8
   subpackages:
   - m3
   - m3/customtransports

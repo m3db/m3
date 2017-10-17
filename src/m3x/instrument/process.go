@@ -18,49 +18,51 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package instrument implements functions to make instrumenting code,
-// including metrics and logging, easier.
 package instrument
 
 import (
+	"os"
 	"time"
 
-	"github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/process"
 
 	"github.com/uber-go/tally"
 )
 
-// Reporter reports metrics about a component.
-type Reporter interface {
-	// Start starts the reporter.
-	Start() error
-	// Stop stops the reporter.
-	Stop() error
+type processReporter struct {
+	baseReporter
+
+	metrics processMetrics
 }
 
-// Options represents the options for instrumentation.
-type Options interface {
-	// SetLogger sets the logger.
-	SetLogger(value log.Logger) Options
+type processMetrics struct {
+	NumFDs      tally.Gauge
+	NumFDErrors tally.Counter
+	pid         int
+}
 
-	// Logger returns the logger.
-	Logger() log.Logger
+func (r *processMetrics) report() {
+	numFDs, err := process.NumFDs(r.pid)
+	if err == nil {
+		r.NumFDs.Update(float64(numFDs))
+	} else {
+		r.NumFDErrors.Inc(1)
+	}
+}
 
-	// SetMetricsScope sets the metrics scope.
-	SetMetricsScope(value tally.Scope) Options
+// NewProcessReporter returns a new reporter that reports process
+// metrics, currently just the process file descriptor count.
+func NewProcessReporter(
+	scope tally.Scope,
+	reportInterval time.Duration,
+) Reporter {
+	r := new(processReporter)
+	r.init(reportInterval, r.metrics.report)
 
-	// MetricsScope returns the metrics scope.
-	MetricsScope() tally.Scope
+	processScope := scope.SubScope("process")
+	r.metrics.NumFDs = processScope.Gauge("num-fds")
+	r.metrics.NumFDErrors = processScope.Counter("num-fd-errors")
+	r.metrics.pid = os.Getpid()
 
-	// SetMetricsSamplingRate sets the metrics sampling rate.
-	SetMetricsSamplingRate(value float64) Options
-
-	// SetMetricsSamplingRate returns the metrics sampling rate.
-	MetricsSamplingRate() float64
-
-	// ReportInterval sets the time between reporting metrics within the system.
-	SetReportInterval(time.Duration) Options
-
-	// GetReportInterval returns the time between reporting metrics within the system.
-	ReportInterval() time.Duration
+	return r
 }
