@@ -86,22 +86,25 @@ var commitLogWriteNoOp = commitLogWriter(commitLogWriterFn(func(
 	return nil
 }))
 
-type allFilesetPathsFn func(namespace ts.ID) ([]string, error)
+type unusedFilesetFilesFn func(namespace ts.ID) ([]string, error)
+
+type deleteFilesetFilesFn func(namespace ts.ID) ([]string, error)
 
 type dbNamespace struct {
 	sync.RWMutex
 
-	id             ts.ID
-	shardSet       sharding.ShardSet
-	blockRetriever block.DatabaseBlockRetriever
-	opts           Options
-	metadata       namespace.Metadata
-	nopts          namespace.Options
-	seriesOpts     series.Options
-	nowFn          clock.NowFn
-	log            xlog.Logger
-	bs             bootstrapState
-	allFilesets    allFilesetPathsFn
+	id                   ts.ID
+	shardSet             sharding.ShardSet
+	blockRetriever       block.DatabaseBlockRetriever
+	opts                 Options
+	metadata             namespace.Metadata
+	nopts                namespace.Options
+	seriesOpts           series.Options
+	nowFn                clock.NowFn
+	log                  xlog.Logger
+	bs                   bootstrapState
+	inactiveFilesetFiles inactiveFilesetFilesFn
+	deleteFilesetFiles   deleteFilesetFilesFn
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
@@ -657,13 +660,14 @@ func (n *dbNamespace) NeedsFlush(alignedInclusiveStart time.Time, alignedInclusi
 	return false
 }
 
-func (n *dbNamespace) DeleteUnusedFilesets() error {
+func (n *dbNamespace) DeleteInactiveFilesetFiles() error {
 	filesetFilePrefix := n.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	multiErr := xerrors.NewMultiError()
-	activeShards := n.getOwnedShards()
-	allShards := n.allFilesets(filesetFilePrefix, n.ID())
-
-	//then remove the ones that aren't a part of the active shards
+	inactiveFilesets, err := n.inactiveFilesetFiles(filesetFilePrefix, n)
+	if err != nil {
+		return err
+	}
+	return n.deleteFilesetFiles(inactiveFilesets)
 }
 
 func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {

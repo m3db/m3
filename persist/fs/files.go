@@ -232,27 +232,22 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 	return filesBefore(matched, t)
 }
 
-//Filesets returns all the filesets for a given namespace
-func Filesets(filePathPrefix string, namespace ts.ID) ([]string, error) {
-	matched, err := namespaceFilesetFiles(filePathPrefix, namespace, filesetFilePattern)
-	if err != nil {
-		return nil, err
-	}
-	//maybe group by shard ID to make life easier?
-	return matched, err
-}
-
 //get the active and inactive file sets and figure out what's up
-func UnusedFilesetFiles(filePathPrefix string, namespace ts.ID, shards []uint32) ([]string, error) {
-	filesetFilesSuperSet, err := namespaceFilesetFiles(filePathPrefix, namespace, filesetFilePattern)
+func UnusedFilesetFiles(filePathPrefix string, namespace ts.ID) ([]string, error) {
+	allFilesets, err := namespaceFilesetFiles(filePathPrefix, namespace, filesetFilePattern)
 	if err != nil {
 		return nil, err
 	}
-	return extractInactiveFilesetFiles(filepathPrefix, shards, filesetFilesSuperSet)
+	activeFilesets, err := getActiveFilesets(filePathPrefix, namespace)
+	if err != nil {
+		return nil, err
+	}
+
+	return extractInactiveFilesetFiles(allFilesets, activeFilesets)
 }
 
 //get the active ones
-func ActiveFilesetFiles(filePathPrefix string, namespace ts.ID) ([]string, error) {
+func getActiveFilesets(filePathPrefix string, namespace ts.ID) ([]string, error) {
 	var activeShards []string
 	for _, shard := range namespace.getOwnedShards() {
 		matched, err := filesetFiles(filePathPrefix, namespace, shard, filesetFilePattern)
@@ -265,7 +260,7 @@ func ActiveFilesetFiles(filePathPrefix string, namespace ts.ID) ([]string, error
 }
 
 //remove the active ones from the superset
-func RemoveSubsetFromSuperSet(allFiles []string, acitveFilesets []string) ([]string, error) {
+func extractInactiveFilesetFiles(allFiles []string, acitveFilesets []string) ([]string, error) {
 	var toDelete []string
 	for _, fileset := range activeFilesets {
 		_, err := allFiles[fileset]

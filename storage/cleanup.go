@@ -120,6 +120,9 @@ func (m *cleanupManager) cleanupFilesetFiles(t time.Time) error {
 		earliestToRetain := retention.FlushTimeStart(n.Options().RetentionOptions(), t)
 		multiErr = multiErr.Add(n.CleanupFileset(earliestToRetain))
 	}
+	for _, n := range namespaces {
+		multiErr = multiErr.Add(n.DeleteInactiveFilsetFiles())
+	}
 
 	return multiErr.FinalError()
 }
