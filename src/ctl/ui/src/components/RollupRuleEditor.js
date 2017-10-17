@@ -19,13 +19,16 @@
 // THE SOFTWARE.
 
 import React from 'react';
-import {Button, Input, Form, Icon, Select, Card} from 'antd';
+import {Button, Input, Form, Icon, Select, Card, Tag} from 'antd';
 import {toClass} from 'recompose';
 import _ from 'lodash';
 import {withFormik} from 'formik';
 import * as util from 'utils';
 import PoliciesEditor from './PolicyEditor';
 import {filterPoliciesBasedOnTag} from 'utils';
+
+// @TODO Move to config service
+const REQUIRED_TAGS = ['dc', 'env', 'service', 'type'];
 
 const FormItem = Form.Item;
 const formItemLayout = {
@@ -38,6 +41,14 @@ const formItemLayout = {
     sm: {span: 18},
   },
 };
+
+function removeRequiredTags(tags, requiredTags) {
+  return _.filter(tags, t => !_.includes(requiredTags, t));
+}
+
+function addRequiredTags(tags, requiredTags) {
+  return _.concat(tags, requiredTags);
+}
 
 function RollupRuleEditor({values, handleChange, handleSubmit, setFieldValue}) {
   const typeTag = util.getTypeTag(values.filter);
@@ -123,21 +134,27 @@ const TargetsEditorBase = props => {
                 <Icon type="delete" />
               </a>
             }>
-            <label>Metric Name</label>
+            <label>New Rollup Metric Name</label>
             <Input
               value={t.name}
               onChange={e => handleChange(i, 'name', e.target.value)}
             />
             <label>Rollup Tags</label>
-            <Select
-              onChange={e => handleChange(i, 'tags', e)}
-              value={t.tags}
-              autoComplete="off"
-              mode="tags"
-              style={{width: '100%'}}
-              tokenSeparators={[',']}
-              notFoundContent={false}
-            />
+            <div>
+              {_.map(REQUIRED_TAGS, requiredTag => <Tag>{requiredTag}</Tag>)}
+              <Select
+                className="inline-block"
+                placeholder="Additional Tags"
+                style={{minWidth: 200, width: 'inherit'}}
+                onChange={e =>
+                  handleChange(i, 'tags', addRequiredTags(e, REQUIRED_TAGS))}
+                value={removeRequiredTags(t.tags, REQUIRED_TAGS)}
+                autoComplete="off"
+                mode="tags"
+                tokenSeparators={[',']}
+                notFoundContent={false}
+              />
+            </div>
             <label>Policies</label>
             <PoliciesEditor
               typeTag={typeTag}
@@ -164,6 +181,9 @@ export default withFormik({
     return rollupRule || {};
   },
   handleSubmit: (values, {props}) => {
-    props.onSubmit(values);
+    props.onSubmit({
+      ...values,
+      policies: _.map(values.policies, p => _.union(p.tags, REQUIRED_TAGS)),
+    });
   },
 })(RollupRuleEditor);

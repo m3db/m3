@@ -88,12 +88,12 @@ function MappingRulesTable(props) {
         render={user => user || 'N/A'}
       />
       <Column
-        title="Last Updated At"
-        dataIndex="lastUpdatedAt"
+        title="Last Updated At (Local)"
+        dataIndex="lastUpdatedAtMillis"
         render={timestamp => formatTimestampMilliseconds(timestamp)}
       />
       <Column
-        title="Cutover Date"
+        title="Effective Time (Local)"
         dataIndex="cutoverMillis"
         render={cutoverMillis => formatTimestampMilliseconds(cutoverMillis)}
       />

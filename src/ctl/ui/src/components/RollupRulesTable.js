@@ -38,7 +38,7 @@ function TargetPreview({target}) {
         <div>{target.policies.join(' ')}</div>
       </div>
       <div className="pb1">
-        <label className="bold pb1">Tags</label>
+        <label className="bold pb1">GroupBy Tags</label>
         <div>{target.tags.join(', ')}</div>
       </div>
     </div>
@@ -128,12 +128,12 @@ function RollupRulesTable(props) {
         render={user => user || 'N/A'}
       />
       <Column
-        title="Last Updated At"
-        dataIndex="lastUpdatedAt"
+        title="Last Updated At (Local)"
+        dataIndex="lastUpdatedAtMillis"
         render={timestamp => formatTimestampMilliseconds(timestamp)}
       />
       <Column
-        title="Cutover Date"
+        title="Effective Time (Local)"
         dataIndex="cutoverMillis"
         render={cutoverMillis => formatTimestampMilliseconds(cutoverMillis)}
       />
