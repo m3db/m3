@@ -21,6 +21,9 @@
 package client
 
 import (
+	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3db/clock"
@@ -65,17 +68,48 @@ const (
 func (l ConnectConsistencyLevel) String() string {
 	switch l {
 	case ConnectConsistencyLevelAny:
-		return "ConnectConsistencyLevelAny"
+		return "any"
 	case ConnectConsistencyLevelNone:
-		return "ConnectConsistencyLevelNone"
+		return "none"
 	case ConnectConsistencyLevelOne:
-		return "ConnectConsistencyLevelOne"
+		return "one"
 	case ConnectConsistencyLevelMajority:
-		return "ConnectConsistencyLevelMajority"
+		return "majority"
 	case ConnectConsistencyLevelAll:
-		return "ConnectConsistencyLevelAll"
+		return "all"
 	}
-	return "ConnectConsistencyLevelUnknown"
+	return "unknown"
+}
+
+var validConnectConsistencyLevels = []ConnectConsistencyLevel{
+	ConnectConsistencyLevelAny,
+	ConnectConsistencyLevelNone,
+	ConnectConsistencyLevelOne,
+	ConnectConsistencyLevelMajority,
+	ConnectConsistencyLevelAll,
+}
+
+var errClusterConnectConsistencyLevelUnspecified = errors.New("cluster connect consistency level not specified")
+
+// UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
+func (l *ConnectConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	if str == "" {
+		return errClusterConnectConsistencyLevelUnspecified
+	}
+	strs := make([]string, len(validConnectConsistencyLevels))
+	for _, valid := range validConnectConsistencyLevels {
+		if str == valid.String() {
+			*l = valid
+			return nil
+		}
+		strs = append(strs, "'"+valid.String()+"'")
+	}
+	return fmt.Errorf("invalid ConnectConsistencyLevel '%s' valid types are: %s",
+		str, strings.Join(strs, ", "))
 }
 
 // ReadConsistencyLevel is the consistency level for reading from a cluster
@@ -101,15 +135,45 @@ const (
 func (l ReadConsistencyLevel) String() string {
 	switch l {
 	case ReadConsistencyLevelOne:
-		return "ReadConsistencyLevelOne"
+		return "one"
 	case ReadConsistencyLevelUnstrictMajority:
-		return "ReadConsistencyLevelUnstrictMajority"
+		return "unstrict_majority"
 	case ReadConsistencyLevelMajority:
-		return "ReadConsistencyLevelMajority"
+		return "majority"
 	case ReadConsistencyLevelAll:
-		return "ReadConsistencyLevelAll"
+		return "all"
 	}
-	return "ReadConsistencyLevelUnknown"
+	return "unknown"
+}
+
+var validReadConsistencyLevels = []ReadConsistencyLevel{
+	ReadConsistencyLevelOne,
+	ReadConsistencyLevelUnstrictMajority,
+	ReadConsistencyLevelMajority,
+	ReadConsistencyLevelAll,
+}
+
+var errReadConsistencyLevelUnspecified = errors.New("read consistency level not specified")
+
+// UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
+func (l *ReadConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	if str == "" {
+		return errReadConsistencyLevelUnspecified
+	}
+	strs := make([]string, len(validReadConsistencyLevels))
+	for _, valid := range validReadConsistencyLevels {
+		if str == valid.String() {
+			*l = valid
+			return nil
+		}
+		strs = append(strs, "'"+valid.String()+"'")
+	}
+	return fmt.Errorf("invalid ReadConsistencyLevel '%s' valid types are: %s",
+		str, strings.Join(strs, ", "))
 }
 
 // Client can create sessions to write and read to a cluster

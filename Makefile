@@ -32,7 +32,7 @@ thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 
 BUILD            := $(abspath ./bin)
-GO_BUILD_LDFLAGS := $(shell $(SELF_DIR)/scripts/go-build-ldflags.sh)
+GO_BUILD_LDFLAGS := $(shell $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package))
 LINUX_AMD64_ENV  := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 VENDOR_ENV       := GO15VENDOREXPERIMENT=1
 

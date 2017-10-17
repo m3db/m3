@@ -21,10 +21,10 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	_ "net/http/pprof"
@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
+	"github.com/m3db/m3db/kvconfig"
 	hjcluster "github.com/m3db/m3db/network/server/httpjson/cluster"
 	hjnode "github.com/m3db/m3db/network/server/httpjson/node"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
@@ -53,7 +54,7 @@ import (
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/retention"
 	m3dbruntime "github.com/m3db/m3db/runtime"
-	bconfig "github.com/m3db/m3db/services/m3dbnode/config"
+	"github.com/m3db/m3db/services/m3dbnode/config"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/cluster"
@@ -63,452 +64,19 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	m3dbxio "github.com/m3db/m3db/x/io"
-	"github.com/m3db/m3x/config"
+	"github.com/m3db/m3db/x/tchannel"
+	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
-	"github.com/m3db/m3x/retry"
 
 	"github.com/uber-go/tally"
-	tchannel "github.com/uber/tchannel-go"
 )
-
-type calculationType string
 
 const (
-	calculationTypeFixed       calculationType = "fixed"
-	calculationTypePerCPU      calculationType = "percpu"
-	bootstrapConfigInitTimeout time.Duration   = 10 * time.Second
+	bootstrapConfigInitTimeout = 10 * time.Second
+	serverGracefulCloseTimeout = 10 * time.Second
 )
-
-type hostIDResolver string
-
-const (
-	hostnameHostIDResolver    hostIDResolver = "hostname"
-	configHostIDResolver      hostIDResolver = "config"
-	environmentHostIDResolver hostIDResolver = "environment"
-
-	defaultHostIDResolver = hostnameHostIDResolver
-)
-
-// TODO(r): move to its own pacakage
-const (
-	KVStoreBootstrapperKey             = "m3db.node.bootstrapper"
-	KVStoreNamespacesKey               = "m3db.node.namespaces"
-	KVStoreClusterNewSeriesInsertLimit = "m3db.node.cluster-new-series-insert-limit"
-)
-
-var (
-	timeZero time.Time
-
-	errNoShards = errors.New("found service instance with no shards")
-)
-
-type hostIDConfiguration struct {
-	// Resolver is the resolver for the host ID.
-	Resolver hostIDResolver `yaml:"resolver"`
-
-	// Value is the config specified host ID if using config host ID resolver.
-	Value *string `yaml:"value"`
-
-	// EnvVarName is the environemnt specified host ID if using environment host ID resolver.
-	EnvVarName *string `yaml:"envVarName"`
-}
-
-func (c hostIDConfiguration) Resolve() (string, error) {
-	switch c.Resolver {
-	case hostnameHostIDResolver:
-		return os.Hostname()
-	case configHostIDResolver:
-		if c.Value == nil {
-			err := fmt.Errorf("missing host ID using: resolver=%s",
-				string(c.Resolver))
-			return "", err
-		}
-		return *c.Value, nil
-	case environmentHostIDResolver:
-		if c.EnvVarName == nil {
-			err := fmt.Errorf("missing host ID env var name using: resolver=%s",
-				string(c.Resolver))
-			return "", err
-		}
-		v := os.Getenv(*c.EnvVarName)
-		if v == "" {
-			err := fmt.Errorf("missing host ID env var value using: resolver=%s, name=%s",
-				string(c.Resolver), *c.EnvVarName)
-			return "", err
-		}
-		return v, nil
-	}
-	return "", fmt.Errorf("unknown host ID resolver: resolver=%s",
-		string(c.Resolver))
-}
-
-type clientConfigurationOption func(v client.Options) client.Options
-
-type clientConfigurationAdminOption func(v client.AdminOptions) client.AdminOptions
-
-type clientConfiguration struct {
-	// ConfigService is used when a topology initializer is not supplied.
-	ConfigService etcdclient.Configuration `yaml:"configService"`
-
-	// WriteTimeout is the write request timeout.
-	WriteTimeout time.Duration `yaml:"writeTimeout" validate:"min=0"`
-
-	// FetchTimeout is the fetch request timeout.
-	FetchTimeout time.Duration `yaml:"fetchTimeout" validate:"min=0"`
-
-	// ConnectTimeout is the cluster connect timeout.
-	ConnectTimeout time.Duration `yaml:"connectTimeout" validate:"min=0"`
-
-	// WriteRetry is the write retry config.
-	WriteRetry retry.Configuration `yaml:"writeRetry"`
-
-	// FetchRetry is the fetch retry config.
-	FetchRetry retry.Configuration `yaml:"fetchRetry"`
-
-	// BackgroundHealthCheckFailLimit is the amount of times a background check
-	// must fail before a connection is taken out of consideration.
-	BackgroundHealthCheckFailLimit int `yaml:"backgroundHealthCheckFailLimit" validate:"min=1,max=10"`
-
-	// BackgroundHealthCheckFailThrottleFactor is the factor of the host connect
-	// time to use when sleeping between a failed health check and the next check.
-	BackgroundHealthCheckFailThrottleFactor float64 `yaml:"backgroundHealthCheckFailThrottleFactor"`
-}
-
-type clientConfigurationRequirements struct {
-	// InstrumentOptions is a required argument when
-	// constructing a client from configuration.
-	InstrumentOptions instrument.Options
-
-	// TopologyInitializer is an optional argument when
-	// constructing a client from configuration.
-	TopologyInitializer topology.Initializer
-
-	// EncodingOptions is an optional argument when
-	// constructing a client from configuration.
-	EncodingOptions encoding.Options
-}
-
-func (c clientConfiguration) NewClient(
-	requirements clientConfigurationRequirements,
-	custom ...clientConfigurationOption,
-) (client.Client, error) {
-	customAdmin := make([]clientConfigurationAdminOption, 0, len(custom))
-	for _, opt := range custom {
-		customAdmin = append(customAdmin, func(v client.AdminOptions) client.AdminOptions {
-			return opt(client.Options(v)).(client.AdminOptions)
-		})
-	}
-
-	v, err := c.NewAdminClient(requirements, customAdmin...)
-	if err != nil {
-		return nil, err
-	}
-
-	return v, err
-}
-
-func (c clientConfiguration) NewAdminClient(
-	requirements clientConfigurationRequirements,
-	custom ...clientConfigurationAdminOption,
-) (client.AdminClient, error) {
-	iopts := requirements.InstrumentOptions
-	writeRequestScope := iopts.MetricsScope().SubScope("write-req")
-	fetchRequestScope := iopts.MetricsScope().SubScope("fetch-req")
-
-	topoInit := requirements.TopologyInitializer
-	if topoInit == nil {
-		configSvcClient, err := c.ConfigService.NewClient(iopts)
-		if err != nil {
-			return nil, err
-		}
-
-		initOpts := topology.NewDynamicOptions().
-			SetConfigServiceClient(configSvcClient).
-			SetServiceID(services.NewServiceID().
-				SetName(c.ConfigService.Service).
-				SetEnvironment(c.ConfigService.Env).
-				SetZone(c.ConfigService.Zone)).
-			SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
-			SetInstrumentOptions(iopts)
-
-		topoInit = topology.NewDynamicInitializer(initOpts)
-	}
-
-	v := client.NewAdminOptions().
-		SetTopologyInitializer(topoInit).
-		SetWriteConsistencyLevel(topology.ConsistencyLevelMajority).          // TODO(r): create unmarshal yaml for this type and read from config
-		SetReadConsistencyLevel(client.ReadConsistencyLevelUnstrictMajority). // TODO(r): create unmarshal yaml for this type and read from config
-		SetBackgroundHealthCheckFailLimit(c.BackgroundHealthCheckFailLimit).
-		SetBackgroundHealthCheckFailThrottleFactor(c.BackgroundHealthCheckFailThrottleFactor).
-		SetWriteRequestTimeout(c.WriteTimeout).
-		SetFetchRequestTimeout(c.FetchTimeout).
-		SetClusterConnectTimeout(c.ConnectTimeout).
-		SetWriteRetrier(c.WriteRetry.NewRetrier(writeRequestScope)).
-		SetFetchRetrier(c.FetchRetry.NewRetrier(fetchRequestScope)).
-		SetChannelOptions(&tchannel.ChannelOptions{
-			Logger: NewTChannelNoopLogger(),
-		})
-
-	encodingOpts := requirements.EncodingOptions
-	if encodingOpts == nil {
-		encodingOpts = encoding.NewOptions()
-	}
-
-	v = v.SetReaderIteratorAllocate(func(r io.Reader) encoding.ReaderIterator {
-		intOptimized := m3tsz.DefaultIntOptimizationEnabled
-		return m3tsz.NewReaderIterator(r, intOptimized, encodingOpts)
-	})
-
-	// Apply programtic custom options
-	opts := v.(client.AdminOptions)
-	for _, opt := range custom {
-		opts = opt(opts)
-	}
-
-	return client.NewAdminClient(opts)
-}
-
-// TODO(r): place this logger in a different package
-var tchannelNoLog tchannelNoopLogger
-
-type tchannelNoopLogger struct{}
-
-// NewTChannelNoopLogger returns a default tchannel no-op logger
-func NewTChannelNoopLogger() tchannel.Logger { return tchannelNoLog }
-
-func (tchannelNoopLogger) Enabled(_ tchannel.LogLevel) bool                         { return false }
-func (tchannelNoopLogger) Fatal(msg string)                                         { os.Exit(1) }
-func (tchannelNoopLogger) Error(msg string)                                         {}
-func (tchannelNoopLogger) Warn(msg string)                                          {}
-func (tchannelNoopLogger) Infof(msg string, args ...interface{})                    {}
-func (tchannelNoopLogger) Info(msg string)                                          {}
-func (tchannelNoopLogger) Debugf(msg string, args ...interface{})                   {}
-func (tchannelNoopLogger) Debug(msg string)                                         {}
-func (tchannelNoopLogger) Fields() tchannel.LogFields                               { return nil }
-func (l tchannelNoopLogger) WithFields(fields ...tchannel.LogField) tchannel.Logger { return l }
-
-type configuration struct {
-	// Logging configuration.
-	Logging xlog.Configuration `yaml:"logging"`
-
-	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
-
-	// The host and port on which to listen
-	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
-
-	// The HTTP host and port on which to listen for the cluster service
-	HTTPClusterListenAddress string `yaml:"httpClusterListenAddress" validate:"nonzero"`
-
-	// The HTTP host and port on which to listen for the node service
-	HTTPNodeListenAddress string `yaml:"httpNodeListenAddress" validate:"nonzero"`
-
-	// The host and port on which to listen for debug endpoints
-	DebugListenAddress string `yaml:"debugListenAddress"`
-
-	// HostID is the local host ID configuration.
-	HostID hostIDConfiguration `yaml:"hostID"`
-
-	// Client configuration, used for inter-node communication and when used as a coordinator.
-	Client clientConfiguration `yaml:"client"`
-
-	// The initial garbage collection target percentage
-	GCPercentage int `yaml:"gcPercentage" validate:"max=100"`
-
-	// Write new series asynchronously for fast ingestion of new ID bursts
-	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
-
-	// Write new series limit per second to limit overwhelming during new ID bursts
-	WriteNewSeriesLimitPerSecond int `yaml:"writeNewSeriesLimitPerSecond"`
-
-	// Write new series backoff between batches of new series insertions
-	WriteNewSeriesBackoffDuration time.Duration `yaml:"writeNewSeriesBackoffDuration"`
-
-	// Bootstrap configuration
-	Bootstrap bconfig.BootstrapConfiguration `yaml:"bootstrap"`
-
-	// TickInterval controls the tick interval for the node
-	TickInterval time.Duration `yaml:"tickInterval" validate:"nonzero"`
-
-	// The commit log policy for the node
-	CommitLog commitLogPolicy `yaml:"commitlog"`
-
-	// The filesystem policy for the node
-	Filesystem fsPolicy `yaml:"fs"`
-
-	// The repair policy for repairing in-memory data
-	Repair repairPolicy `yaml:"repair"`
-
-	// The pooling policy
-	PoolingPolicy poolingPolicy `yaml:"poolingPolicy"`
-
-	// The configuration for config service client
-	ConfigService etcdclient.Configuration `yaml:"configService"`
-}
-
-type commitLogPolicy struct {
-	// The max size the commit log will flush a segment to disk after buffering
-	FlushMaxBytes int `yaml:"flushMaxBytes" validate:"nonzero"`
-
-	// The maximum amount of time the commit log will wait to flush to disk
-	FlushEvery time.Duration `yaml:"flushEvery" validate:"nonzero"`
-
-	// The queue the commit log will keep in front of the current commit log segment
-	Queue commitLogQueuePolicy `yaml:"queue" validate:"nonzero"`
-
-	// The commit log retention policy
-	RetentionPeriod time.Duration `yaml:"retentionPeriod" validate:"nonzero"`
-
-	// The commit log block size
-	BlockSize time.Duration `yaml:"blockSize" validate:"nonzero"`
-}
-
-type commitLogQueuePolicy struct {
-	// The type of calculation for the size
-	CalculationType string `yaml:"calculationType"`
-
-	// The size of the commit log, calculated according to the calculation type
-	Size int `yaml:"size" validate:"nonzero"`
-}
-
-type fsPolicy struct {
-	// File path prefix for reading/writing TSDB files
-	FilePathPrefix string `yaml:"filePathPrefix" validate:"nonzero"`
-
-	// Write buffer size
-	WriteBufferSize int `yaml:"writeBufferSize" validate:"min=0"`
-
-	// Read buffer size
-	ReadBufferSize int `yaml:"readBufferSize" validate:"min=0"`
-
-	// Disk flush throughput limit in Mb/s
-	ThroughputLimitMbps float64 `yaml:"throughputLimitMbps" validate:"min=0.0"`
-
-	// Disk flush throughput check interval
-	ThroughputCheckEvery int `yaml:"throughputCheckEvery" validate:"nonzero"`
-}
-
-type repairPolicy struct {
-	// Enabled or disabled
-	Enabled bool `yaml:"enabled"`
-
-	// The repair interval
-	Interval time.Duration `yaml:"interval" validate:"nonzero"`
-
-	// The repair time offset
-	Offset time.Duration `yaml:"offset" validate:"nonzero"`
-
-	// The repair time jitter
-	Jitter time.Duration `yaml:"jitter" validate:"nonzero"`
-
-	// The repair throttle
-	Throttle time.Duration `yaml:"throttle" validate:"nonzero"`
-
-	// The repair check interval
-	CheckInterval time.Duration `yaml:"checkInterval" validate:"nonzero"`
-}
-
-type poolingPolicy struct {
-	// The initial alloc size for a block
-	BlockAllocSize int `yaml:"blockAllocSize"`
-
-	// The general pool type: simple or native.
-	Type string `yaml:"type" validate:"regexp=(^simple$|^native$)"`
-
-	// The Bytes pool buckets to use
-	BytesPool bucketPoolPolicy `yaml:"bytesPool"`
-
-	// The policy for the Closers pool
-	ClosersPool poolPolicy `yaml:"closersPool"`
-
-	// The policy for the Context pool
-	ContextPool poolPolicy `yaml:"contextPool"`
-
-	// The policy for the DatabaseSeries pool
-	SeriesPool poolPolicy `yaml:"seriesPool"`
-
-	// The policy for the DatabaseBlock pool
-	BlockPool poolPolicy `yaml:"blockPool"`
-
-	// The policy for the Encoder pool
-	EncoderPool poolPolicy `yaml:"encoderPool"`
-
-	// The policy for the Iterator pool
-	IteratorPool poolPolicy `yaml:"iteratorPool"`
-
-	// The policy for the Segment Reader pool
-	SegmentReaderPool poolPolicy `yaml:"segmentReaderPool"`
-
-	// The policy for the Identifier pool
-	IdentifierPool poolPolicy `yaml:"identifierPool"`
-
-	// The policy for the fetchBlockMetadataResult pool
-	FetchBlockMetadataResultsPool capacityPoolPolicy `yaml:"fetchBlockMetadataResultsPool"`
-
-	// The policy for the fetchBlocksMetadataResultsPool pool
-	FetchBlocksMetadataResultsPool capacityPoolPolicy `yaml:"fetchBlocksMetadataResultsPool"`
-
-	// The policy for the hostBlockMetadataSlicePool pool
-	HostBlockMetadataSlicePool capacityPoolPolicy `yaml:"hostBlockMetadataSlicePool"`
-
-	// The policy for the blockMetadataPool pool
-	BlockMetadataPool poolPolicy `yaml:"blockMetadataPool"`
-
-	// The policy for the blockMetadataSlicePool pool
-	BlockMetadataSlicePool capacityPoolPolicy `yaml:"blockMetadataSlicePool"`
-
-	// The policy for the blocksMetadataPool pool
-	BlocksMetadataPool poolPolicy `yaml:"blocksMetadataPool"`
-
-	// The policy for the blocksMetadataSlicePool pool
-	BlocksMetadataSlicePool capacityPoolPolicy `yaml:"blocksMetadataSlicePool"`
-}
-
-type poolPolicy struct {
-	// The size of the pool
-	Size int `yaml:"size"`
-
-	// The low watermark to start refilling the pool, if zero none
-	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
-
-	// The high watermark to stop refilling the pool, if zero none
-	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
-}
-
-type capacityPoolPolicy struct {
-	// The size of the pool
-	Size int `yaml:"size"`
-
-	// The capacity of items in the pool
-	Capacity int `yaml:"capacity"`
-
-	// The low watermark to start refilling the pool, if zero none
-	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
-
-	// The high watermark to stop refilling the pool, if zero none
-	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
-}
-
-type bucketPoolPolicy struct {
-	// The low watermark to start refilling the pool, if zero none
-	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
-
-	// The high watermark to stop refilling the pool, if zero none
-	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
-
-	// The pool buckets sizes to use
-	Buckets []poolingPolicyBytesPoolBucket `yaml:"buckets"`
-}
-
-type poolingPolicyBytesPoolBucket struct {
-	// The capacity of each item in the bucket
-	Capacity int `yaml:"capacity"`
-
-	// The count of the items in the bucket
-	Count int `yaml:"count"`
-}
 
 var (
 	configFile = flag.String("f", "", "configuration file")
@@ -522,8 +90,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	var cfg configuration
-	if err := config.LoadFile(&cfg, *configFile); err != nil {
+	var cfg config.Configuration
+	if err := xconfig.LoadFile(&cfg, *configFile); err != nil {
 		fmt.Fprintf(os.Stderr, "unable to load %s: %v", *configFile, err)
 	}
 
@@ -553,40 +121,56 @@ func main() {
 	}
 	defer buildReporter.Close()
 
-	csClient, err := etcdclient.NewConfigServiceClient(
-		cfg.ConfigService.NewOptions().
-			SetInstrumentOptions(
-				instrument.NewOptions().
-					SetLogger(logger).
-					SetMetricsScope(scope),
-			),
-	)
+	configSvcClientOpts := cfg.ConfigService.NewOptions().
+		SetInstrumentOptions(
+			instrument.NewOptions().
+				SetLogger(logger).
+				SetMetricsScope(scope))
+	configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
 	if err != nil {
 		logger.Fatalf("could not create m3cluster client: %v", err)
 	}
 
 	dynamicOpts := namespace.NewDynamicOptions().
 		SetInstrumentOptions(iopts).
-		SetConfigServiceClient(csClient).
-		SetNamespaceRegistryKey(KVStoreNamespacesKey)
+		SetConfigServiceClient(configSvcClient).
+		SetNamespaceRegistryKey(kvconfig.NamespacesKey)
 	nsInit := namespace.NewDynamicInitializer(dynamicOpts)
 
 	opts = opts.
 		SetTickInterval(cfg.TickInterval).
 		SetNamespaceInitializer(nsInit)
 
+	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
+	if err != nil {
+		log.Fatalf("could not parse new file mode: %v", err)
+	}
+
+	newDirectoryMode, err := cfg.Filesystem.ParseNewFileMode()
+	if err != nil {
+		log.Fatalf("could not parse new directory mode: %v", err)
+	}
+
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
-		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope.SubScope("database.fs"))).
+		SetInstrumentOptions(opts.InstrumentOptions().
+			SetMetricsScope(scope.SubScope("database.fs"))).
 		SetFilePathPrefix(cfg.Filesystem.FilePathPrefix).
-		SetNewFileMode(os.FileMode(0666)).
-		SetNewDirectoryMode(os.ModeDir | os.FileMode(0755)).
+		SetNewFileMode(newFileMode).
+		SetNewDirectoryMode(newDirectoryMode).
 		SetWriterBufferSize(cfg.Filesystem.WriteBufferSize).
 		SetReaderBufferSize(cfg.Filesystem.ReadBufferSize)
 
-	commitLogQueueSize := cfg.CommitLog.Queue.Size
-	if cfg.CommitLog.Queue.CalculationType == string(calculationTypePerCPU) {
-		commitLogQueueSize = commitLogQueueSize * runtime.NumCPU()
+	var commitLogQueueSize int
+	specified := cfg.CommitLog.Queue.Size
+	switch cfg.CommitLog.Queue.CalculationType {
+	case config.CalculationTypeFixed:
+		commitLogQueueSize = specified
+	case config.CalculationTypePerCPU:
+		commitLogQueueSize = specified * runtime.NumCPU()
+	default:
+		log.Fatalf("unknown commit log queue size type: %v",
+			cfg.CommitLog.Queue.CalculationType)
 	}
 
 	opts = opts.SetCommitLogOptions(opts.CommitLogOptions().
@@ -655,7 +239,7 @@ func main() {
 	}
 
 	m3dbClient, err := cfg.Client.NewAdminClient(
-		clientConfigurationRequirements{
+		client.ConfigurationParameters{
 			InstrumentOptions: iopts.
 				SetMetricsScope(iopts.MetricsScope().SubScope("m3dbclient")),
 			TopologyInitializer: topoInit,
@@ -684,7 +268,7 @@ func main() {
 	opts = opts.SetBootstrapProcess(bs)
 
 	timeout := bootstrapConfigInitTimeout
-	updateBootstrappersFromM3KV(kv, logger, timeout, cfg.Bootstrap.Bootstrappers,
+	kvWatchBootstrappers(kv, logger, timeout, cfg.Bootstrap.Bootstrappers,
 		func(bootstrappers []string) {
 			if len(bootstrappers) == 0 {
 				logger.Errorf("updated bootstrapper list is empty")
@@ -704,9 +288,10 @@ func main() {
 	// Set repair options
 	policy := cfg.PoolingPolicy
 	hostBlockMetadataSlicePool := repair.NewHostBlockMetadataSlicePool(
-		capacityPoolOptions(policy.HostBlockMetadataSlicePool, scope.SubScope("host-block-metadata-slice-pool")),
-		policy.HostBlockMetadataSlicePool.Capacity,
-	)
+		capacityPoolOptions(policy.HostBlockMetadataSlicePool,
+			scope.SubScope("host-block-metadata-slice-pool")),
+		policy.HostBlockMetadataSlicePool.Capacity)
+
 	opts = opts.
 		SetRepairEnabled(cfg.Repair.Enabled).
 		SetRepairOptions(opts.RepairOptions().
@@ -750,24 +335,25 @@ func main() {
 
 	contextPool := opts.ContextPool()
 
-	tchannelOpts := &tchannel.ChannelOptions{
-		Logger: NewTChannelNoopLogger(),
-	}
-	tchannelthriftNodeClose, err := ttnode.NewServer(db, cfg.ListenAddress, contextPool, tchannelOpts, ttopts).ListenAndServe()
+	tchannelOpts := xtchannel.NewDefaultChannelOptions()
+	tchannelthriftNodeClose, err := ttnode.NewServer(db,
+		cfg.ListenAddress, contextPool, tchannelOpts, ttopts).ListenAndServe()
 	if err != nil {
 		logger.Fatalf("could not open tchannelthrift interface: %v", err)
 	}
 	defer tchannelthriftNodeClose()
 	logger.Infof("node tchannelthrift: listening on %v", cfg.ListenAddress)
 
-	httpjsonNodeClose, err := hjnode.NewServer(db, cfg.HTTPNodeListenAddress, contextPool, nil, ttopts).ListenAndServe()
+	httpjsonNodeClose, err := hjnode.NewServer(db,
+		cfg.HTTPNodeListenAddress, contextPool, nil, ttopts).ListenAndServe()
 	if err != nil {
 		logger.Fatalf("could not open httpjson interface: %v", err)
 	}
 	defer httpjsonNodeClose()
 	logger.Infof("node httpjson: listening on %v", cfg.HTTPNodeListenAddress)
 
-	httpjsonClusterClose, err := hjcluster.NewServer(m3dbClient, cfg.HTTPClusterListenAddress, contextPool, nil).ListenAndServe()
+	httpjsonClusterClose, err := hjcluster.NewServer(m3dbClient,
+		cfg.HTTPClusterListenAddress, contextPool, nil).ListenAndServe()
 	if err != nil {
 		logger.Fatalf("could not open httpjson interface: %v", err)
 	}
@@ -790,7 +376,7 @@ func main() {
 		logger.Infof("bootstrapped")
 
 		// Only set the write new series limit after bootstrapping
-		updateNewSeriesLimitPerShardFromM3KV(kv, logger, topo,
+		kvWatchNewSeriesLimitPerShard(kv, logger, topo,
 			runtimeOptsMgr, cfg.WriteNewSeriesLimitPerSecond)
 	}()
 
@@ -798,8 +384,6 @@ func main() {
 	logger.Warnf("interrupt: %v", interrupt())
 
 	// Attempt graceful server close
-	cleanCloseTimeout := 10 * time.Second
-
 	closedCh := make(chan struct{})
 	go func() {
 		err := db.Terminate()
@@ -810,15 +394,22 @@ func main() {
 	}()
 
 	// Wait then close or hard close
+	closeTimeout := serverGracefulCloseTimeout
 	select {
 	case <-closedCh:
 		logger.Infof("server closed")
-	case <-time.After(cleanCloseTimeout):
-		logger.Errorf("server closed after %s timeout", cleanCloseTimeout.String())
+	case <-time.After(closeTimeout):
+		logger.Errorf("server closed after %s timeout", closeTimeout.String())
 	}
 }
 
-func updateNewSeriesLimitPerShardFromM3KV(
+func interrupt() error {
+	c := make(chan os.Signal)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	return fmt.Errorf("%s", <-c)
+}
+
+func kvWatchNewSeriesLimitPerShard(
 	store kv.Store,
 	logger xlog.Logger,
 	topo topology.Topology,
@@ -827,7 +418,7 @@ func updateNewSeriesLimitPerShardFromM3KV(
 ) {
 	var initClusterLimit int
 
-	value, err := store.Get(KVStoreClusterNewSeriesInsertLimit)
+	value, err := store.Get(kvconfig.ClusterNewSeriesInsertLimitKey)
 	if err == nil {
 		protoValue := &commonpb.Int64Proto{}
 		err = value.Unmarshal(protoValue)
@@ -845,7 +436,7 @@ func updateNewSeriesLimitPerShardFromM3KV(
 
 	setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, initClusterLimit)
 
-	watch, err := store.Watch(KVStoreClusterNewSeriesInsertLimit)
+	watch, err := store.Watch(kvconfig.ClusterNewSeriesInsertLimitKey)
 	if err != nil {
 		logger.Errorf("could not watch cluster new series insert limit: %v", err)
 		return
@@ -899,16 +490,17 @@ func clusterLimitToPlacedShardLimit(topo topology.Topology, clusterLimit int) in
 
 // this function will block for at most waitTimeout to try to get an initial value
 // before we kick off the bootstrap
-func updateBootstrappersFromM3KV(
+func kvWatchBootstrappers(
 	kv kv.Store,
 	logger xlog.Logger,
 	waitTimeout time.Duration,
 	defaultBootstrappers []string,
 	onUpdate func(bootstrappers []string),
 ) {
-	vw, err := kv.Watch(KVStoreBootstrapperKey)
+	vw, err := kv.Watch(kvconfig.BootstrapperKey)
 	if err != nil {
-		logger.Fatalf("could not watch value for key with KV: %s", KVStoreBootstrapperKey)
+		logger.Fatalf("could not watch value for key with KV: %s",
+			kvconfig.BootstrapperKey)
 	}
 
 	initializedCh := make(chan struct{})
@@ -918,12 +510,11 @@ func updateBootstrappersFromM3KV(
 		opts := util.NewOptions().SetLogger(logger)
 
 		for range vw.C() {
-			v, err := util.StringArrayFromValue(
-				vw.Get(), KVStoreBootstrapperKey, defaultBootstrappers, opts,
-			)
+			v, err := util.StringArrayFromValue(vw.Get(),
+				kvconfig.BootstrapperKey, defaultBootstrappers, opts)
 			if err != nil {
 				logger.WithFields(
-					xlog.NewField("key", KVStoreBootstrapperKey),
+					xlog.NewField("key", kvconfig.BootstrapperKey),
 					xlog.NewErrField(err),
 				).Error("error converting KV update to string array")
 				continue
@@ -944,16 +535,10 @@ func updateBootstrappersFromM3KV(
 	}
 }
 
-func interrupt() error {
-	c := make(chan os.Signal)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-	return fmt.Errorf("%s", <-c)
-}
-
 func withEncodingAndPoolingOptions(
 	logger xlog.Logger,
 	opts storage.Options,
-	policy poolingPolicy,
+	policy config.PoolingPolicy,
 ) storage.Options {
 	scope := opts.InstrumentOptions().MetricsScope()
 
@@ -961,6 +546,9 @@ func withEncodingAndPoolingOptions(
 
 	buckets := make([]pool.Bucket, len(policy.BytesPool.Buckets))
 	for i, bucket := range policy.BytesPool.Buckets {
+		var b pool.Bucket
+		b.Capacity = bucket.Capacity
+		b.Count = bucket.Count
 		buckets[i] = pool.Bucket{
 			Capacity: bucket.Capacity,
 			Count:    bucket.Count,
@@ -1019,13 +607,14 @@ func withEncodingAndPoolingOptions(
 	}
 
 	fetchBlockMetadataResultsPool := block.NewFetchBlockMetadataResultsPool(
-		capacityPoolOptions(policy.FetchBlockMetadataResultsPool, scope.SubScope("fetch-block-metadata-results-pool")),
-		policy.FetchBlockMetadataResultsPool.Capacity,
-	)
+		capacityPoolOptions(policy.FetchBlockMetadataResultsPool,
+			scope.SubScope("fetch-block-metadata-results-pool")),
+		policy.FetchBlockMetadataResultsPool.Capacity)
+
 	fetchBlocksMetadataResultsPool := block.NewFetchBlocksMetadataResultsPool(
-		capacityPoolOptions(policy.FetchBlocksMetadataResultsPool, scope.SubScope("fetch-blocks-metadata-results-pool")),
-		policy.FetchBlocksMetadataResultsPool.Capacity,
-	)
+		capacityPoolOptions(policy.FetchBlocksMetadataResultsPool,
+			scope.SubScope("fetch-blocks-metadata-results-pool")),
+		policy.FetchBlocksMetadataResultsPool.Capacity)
 
 	encodingOpts := encoding.NewOptions().
 		SetEncoderPool(encoderPool).
@@ -1034,7 +623,7 @@ func withEncodingAndPoolingOptions(
 		SetSegmentReaderPool(segmentReaderPool)
 
 	encoderPool.Init(func() encoding.Encoder {
-		return m3tsz.NewEncoder(timeZero, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
+		return m3tsz.NewEncoder(time.Time{}, nil, m3tsz.DefaultIntOptimizationEnabled, encodingOpts)
 	})
 
 	iteratorPool.Init(func(r io.Reader) encoding.ReaderIterator {
@@ -1063,14 +652,15 @@ func withEncodingAndPoolingOptions(
 		SetEncoderPool(encoderPool).
 		SetSegmentReaderPool(segmentReaderPool).
 		SetBytesPool(bytesPool)
-	blockPool := block.NewDatabaseBlockPool(poolOptions(policy.BlockPool, scope.SubScope("block-pool")))
+	blockPool := block.NewDatabaseBlockPool(poolOptions(policy.BlockPool,
+		scope.SubScope("block-pool")))
 	blockPool.Init(func() block.DatabaseBlock {
-		return block.NewDatabaseBlock(timeZero, ts.Segment{}, blockOpts)
+		return block.NewDatabaseBlock(time.Time{}, ts.Segment{}, blockOpts)
 	})
 	blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
 	opts = opts.SetDatabaseBlockOptions(blockOpts)
 
-	// NB(prateek): retention opts are overriden per namespace during series creation
+	// NB(prateek): retention opts are overridden per namespace during series creation
 	retentionOpts := retention.NewOptions()
 	seriesOpts := storage.NewSeriesOptionsFromOptions(opts, retentionOpts).
 		SetFetchBlockMetadataResultsPool(opts.FetchBlockMetadataResultsPool())
@@ -1085,7 +675,10 @@ func withEncodingAndPoolingOptions(
 	return opts
 }
 
-func poolOptions(policy poolPolicy, scope tally.Scope) pool.ObjectPoolOptions {
+func poolOptions(
+	policy config.PoolPolicy,
+	scope tally.Scope,
+) pool.ObjectPoolOptions {
 	opts := pool.NewObjectPoolOptions()
 	if policy.Size > 0 {
 		opts = opts.SetSize(policy.Size)
@@ -1097,12 +690,16 @@ func poolOptions(policy poolPolicy, scope tally.Scope) pool.ObjectPoolOptions {
 		}
 	}
 	if scope != nil {
-		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
+		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
+			SetMetricsScope(scope))
 	}
 	return opts
 }
 
-func capacityPoolOptions(policy capacityPoolPolicy, scope tally.Scope) pool.ObjectPoolOptions {
+func capacityPoolOptions(
+	policy config.CapacityPoolPolicy,
+	scope tally.Scope,
+) pool.ObjectPoolOptions {
 	opts := pool.NewObjectPoolOptions()
 	if policy.Size > 0 {
 		opts = opts.SetSize(policy.Size)
@@ -1114,7 +711,8 @@ func capacityPoolOptions(policy capacityPoolPolicy, scope tally.Scope) pool.Obje
 		}
 	}
 	if scope != nil {
-		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope))
+		opts = opts.SetInstrumentOptions(opts.InstrumentOptions().
+			SetMetricsScope(scope))
 	}
 	return opts
 }
