@@ -222,7 +222,7 @@ func main() {
 		SetZone(cfg.ConfigService.Zone)
 
 	topoOpts := topology.NewDynamicOptions().
-		SetConfigServiceClient(csClient).
+		SetConfigServiceClient(configSvcClient).
 		SetServiceID(serviceID).
 		SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
 		SetInstrumentOptions(opts.InstrumentOptions())
@@ -254,7 +254,7 @@ func main() {
 		logger.Fatalf("could not create m3db client: %v", err)
 	}
 
-	kv, err := csClient.KV()
+	kv, err := configSvcClient.KV()
 	if err != nil {
 		logger.Fatalf("could not create KV client, %v", err)
 	}
