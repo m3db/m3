@@ -22,67 +22,72 @@ import React from 'react';
 import {Button, Input, Form, Icon, Select, Card} from 'antd';
 import {toClass} from 'recompose';
 import _ from 'lodash';
+import {withFormik} from 'formik';
+import * as util from 'utils';
+import PoliciesEditor from './PolicyEditor';
+import {filterPoliciesBasedOnTag} from 'utils';
+
 const FormItem = Form.Item;
-const Option = Select.Option;
 const formItemLayout = {
   labelCol: {
     xs: {span: 24},
-    sm: {span: 6},
+    sm: {span: 4},
   },
   wrapperCol: {
     xs: {span: 24},
-    sm: {span: 14},
+    sm: {span: 18},
   },
 };
 
-function RollupRuleEditor({form, rollupRule, onSubmit}) {
-  const {getFieldDecorator} = form;
+function RollupRuleEditor({values, handleChange, handleSubmit, setFieldValue}) {
+  const typeTag = util.getTypeTag(values.filter);
   return (
-    <Form
-      onSubmit={e => {
-        e.preventDefault();
-        form.validateFields((err, values) => {
-          if (!err) {
-            onSubmit({
-              ...rollupRule,
-              ...values,
-            });
-          }
-        });
-      }}>
+    <Form onSubmit={handleSubmit}>
       <div className="clearfix">
         <div className="col col-12 px1">
-          <FormItem colon={false} label="Metric Name" {...formItemLayout}>
-            {getFieldDecorator('name', {
-              rules: [
-                {
-                  required: true,
-                },
-              ],
-            })(<Input autoComplete={false} />)}
+          <FormItem
+            required
+            colon={false}
+            label="Rule Name"
+            {...formItemLayout}>
+            <Input
+              name="name"
+              autoComplete="off"
+              value={values.name}
+              onChange={handleChange}
+            />
           </FormItem>
         </div>
         <div className="col col-12 px1">
-          <FormItem colon={false} label="Metric Filter" {...formItemLayout}>
-            {getFieldDecorator('filter', {
-              rules: [
-                {
-                  required: true,
-                },
-              ],
-            })(<Input />)}
+          <FormItem
+            required
+            colon={false}
+            label="Metric Filter"
+            help="eg. tag1:value1 tag2:value2"
+            {...formItemLayout}>
+            <Input
+              name="filter"
+              autoComplete="off"
+              value={values.filter}
+              onChange={e => {
+                const newTypeTag = util.getTypeTag(e.target.value);
+                const targets = _.map(values.targets, t => ({
+                  ...t,
+                  policies: filterPoliciesBasedOnTag(t.policies, newTypeTag),
+                }));
+                setFieldValue('targets', targets);
+                handleChange(e);
+              }}
+            />
           </FormItem>
         </div>
         <div className="col col-12 px1">
-          <FormItem label="Targets" colon={false} {...formItemLayout}>
-            {getFieldDecorator('targets', {
-              initialValue: [],
-              rules: [
-                {
-                  required: true,
-                },
-              ],
-            })(<TargetsEditor />)}
+          <FormItem required label="Targets" colon={false} {...formItemLayout}>
+            <TargetsEditor
+              typeTag={typeTag}
+              value={values.targets}
+              onChange={e => setFieldValue('targets', e)}
+            />
           </FormItem>
         </div>
         <div className="clearfix my2">
@@ -96,7 +101,7 @@ function RollupRuleEditor({form, rollupRule, onSubmit}) {
 }
 
 const TargetsEditorBase = props => {
-  const {value: targets = [], onChange, onBlur = noop => noop} = props;
+  const {value: targets = [], onChange, typeTag} = props;
   const handleChange = (index, property, newValue) => {
     targets[index][property] = newValue;
     onChange(targets);
@@ -109,6 +114,7 @@ const TargetsEditorBase = props => {
           <Card
             className="mb1"
             key={i}
+            title={t.name}
             extra={
               <a
                 onClick={() => {
@@ -117,30 +123,13 @@ const TargetsEditorBase = props => {
                 <Icon type="delete" />
               </a>
             }>
-            <label>Name</label>
+            <label>Metric Name</label>
             <Input
-              onBlur={onBlur}
               value={t.name}
               onChange={e => handleChange(i, 'name', e.target.value)}
             />
-            <label>Policy</label>
+            <label>Rollup Tags</label>
             <Select
-              onChange={e => handleChange(i, 'policies', e)}
-              value={t.policies}
-              autoComplete="off"
-              mode="tags"
-              style={{width: '100%'}}
-              tokenSeparators={[',']}
-              notFoundContent={false}>
-              {['1m:10d|Max'].map(opt =>
-                <Option key={opt}>
-                  {opt}
-                </Option>,
-              )}
-            </Select>
-            <label>Tags</label>
-            <Select
-              onBlur={onBlur}
               onChange={e => handleChange(i, 'tags', e)}
               value={t.tags}
               autoComplete="off"
@@ -148,6 +137,12 @@ const TargetsEditorBase = props => {
               style={{width: '100%'}}
               tokenSeparators={[',']}
               notFoundContent={false}
+            />
+            <label>Policies</label>
+            <PoliciesEditor
+              typeTag={typeTag}
+              value={t.policies}
+              onChange={e => handleChange(i, 'policies', e)}
             />
           </Card>
         );
@@ -163,21 +158,12 @@ const TargetsEditorBase = props => {
 };
 const TargetsEditor = toClass(TargetsEditorBase);
 
-export default Form.create({
-  mapPropsToFields({rollupRule = {name: '', filter: '', targets: []}}) {
-    return {
-      name: {
-        value: rollupRule.name,
-      },
-      filter: {
-        value: rollupRule.filter,
-      },
-      targets2: {
-        value: rollupRule.targets,
-      },
-      targets: {
-        value: rollupRule.targets,
-      },
-    };
+export default withFormik({
+  enableReinitialize: true,
+  mapPropsToValues: ({rollupRule}) => {
+    return rollupRule || {};
+  },
+  handleSubmit: (values, {props}) => {
+    props.onSubmit(values);
   },
 })(RollupRuleEditor);

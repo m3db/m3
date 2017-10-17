@@ -20,3 +20,4 @@
 
 export * from './promiseState';
 export * from './api';
+export * from './filter';

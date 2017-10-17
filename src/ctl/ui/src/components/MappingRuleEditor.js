@@ -19,113 +19,107 @@
 // THE SOFTWARE.
 
 import React from 'react';
-import {Button, Input, Form, Select} from 'antd';
+import {Button, Input, Form} from 'antd';
+import {withFormik} from 'formik';
+import * as util from 'utils';
+import yup from 'yup';
+import PoliciesEditor from './PolicyEditor';
+import {filterPoliciesBasedOnTag} from 'utils';
+
+const schema = yup.object().shape({
+  name: yup.string('Name filter is required').required(),
+  filter: yup.string().required('Metric filter is required'),
+});
 
 const FormItem = Form.Item;
-const Option = Select.Option;
 const formItemLayout = {
   labelCol: {
     xs: {span: 24},
-    sm: {span: 6},
+    sm: {span: 4},
   },
   wrapperCol: {
     xs: {span: 24},
-    sm: {span: 14},
+    sm: {span: 18},
   },
 };
-function MappingRuleEditor({mappingRule, form, onSubmit}) {
-  const {getFieldDecorator} = form;
+function MappingRuleEditor({
+  mappingRule,
+  values,
+  handleChange,
+  handleSubmit,
+  setFieldValue,
+  ...rest
+}) {
+  const typeTag = util.getTypeTag(values.filter);
+
   return (
-    <Form
-      layout="horizontal"
-      onSubmit={e => {
-        e.preventDefault();
-        form.validateFields((err, values) => {
-          if (!err) {
-            onSubmit({
-              ...mappingRule,
-              ...values,
-            });
-          }
-        });
-      }}>
+    <Form layout="horizontal" onSubmit={handleSubmit}>
       <div className="clearfix">
         <div className="col col-12">
-          <FormItem colon={false} label="Name" {...formItemLayout}>
-            {getFieldDecorator('name', {
-              rules: [
-                {
-                  required: true,
-                },
-              ],
-            })(<Input autoComplete="off" />)}
+          <FormItem
+            required="true"
+            colon={false}
+            label="Name"
+            {...formItemLayout}>
+            <Input
+              name="name"
+              autoComplete="off"
+              value={values.name}
+              onChange={handleChange}
+            />
           </FormItem>
         </div>
         <div className="col col-12">
           <FormItem
+            required="true"
             colon={false}
             label="Metric Filter"
             {...formItemLayout}
             help="eg. tag1:value1 tag2:value2">
-            {getFieldDecorator('filter', {
-              rules: [
-                {
-                  required: true,
-                },
-              ],
-            })(<Input autoComplete="off" />)}
+            <Input
+              name="filter"
+              autoComplete="off"
+              value={values.filter}
+              onChange={e => {
+                const newTypeTag = util.getTypeTag(e.target.value);
+                setFieldValue(
+                  'policies',
+                  filterPoliciesBasedOnTag(values.policies, newTypeTag),
+                );
+                handleChange(e);
+              }}
+            />
           </FormItem>
         </div>
         <div className="col col-12">
           <FormItem
             colon={false}
+            required={true}
             label="Policies"
             {...formItemLayout}
-            help="eg:1m:10d = 1 min granularity for 10 days">
-            {getFieldDecorator('policies', {
-              rules: [
-                {
-                  required: true,
-                },
-              ],
-            })(
-              <Select
-                autoComplete="off"
-                mode="tags"
-                style={{width: '100%'}}
-                tokenSeparators={[',']}
-                notFoundContent={false}>
-                {['1m:10d'].map(opt =>
-                  <Option key={opt}>
-                    {opt}
-                  </Option>,
-                )}
-              </Select>,
-            )}
+            help="eg:1m:10d = 1 min resolution for 10 days">
+            <PoliciesEditor
+              typeTag={typeTag}
+              value={values.policies}
+              onChange={e => setFieldValue('policies', e)}
+            />
           </FormItem>
         </div>
-        <div className="clearfix my1">
-          <Button type="primary" htmlType="submit" className="right">
-            Add
-          </Button>
-        </div>
+        <Button type="primary" htmlType="submit" className="right">
+          Add
+        </Button>
       </div>
     </Form>
   );
 }
 
-export default Form.create({
-  mapPropsToFields({mappingRule = {}}) {
-    return {
-      name: {
-        value: mappingRule.name,
-      },
-      filter: {
-        value: mappingRule.filter,
-      },
-      policies: {
-        value: mappingRule.policies,
-      },
-    };
+export default withFormik({
+  enableReinitialize: true,
+  mapPropsToValues: ({mappingRule}) => {
+    return mappingRule || {};
   },
+  handleSubmit: (values, {props}) => {
+    props.onSubmit(values);
+  },
+  validationSchema: schema,
 })(MappingRuleEditor);

@@ -19,11 +19,11 @@
 // THE SOFTWARE.
 
 import React from 'react';
-import {Breadcrumb, Card, Tabs, Button, Modal} from 'antd';
+import {Breadcrumb, Card, Tabs, Button, Modal, Input} from 'antd';
 import {Link} from 'react-router-dom';
 import _ from 'lodash';
 import {compose, withProps, withReducer} from 'recompose';
-import {connectR2API, withPromiseStateChangeCallback} from 'hocs';
+import {connectR2API, withPromiseStateChangeCallback, withFilter} from 'hocs';
 import MappingRuleEditor from 'components/MappingRuleEditor';
 import MappingRulesTable from 'components/MappingRulesTable';
 import RollupRuleEditor from 'components/RollupRuleEditor';
@@ -36,16 +36,12 @@ function Namespace(props) {
   return (
     <div>
       <div className="mb2">
-        <h2>
-          Namespace: {namespaceID}
-        </h2>
+        <h2>Namespace: {namespaceID}</h2>
         <Breadcrumb>
           <Breadcrumb.Item>
             <Link to="/namespaces">All Namespaces</Link>
           </Breadcrumb.Item>
-          <Breadcrumb.Item>
-            {namespaceID}
-          </Breadcrumb.Item>
+          <Breadcrumb.Item>{namespaceID}</Breadcrumb.Item>
         </Breadcrumb>
       </div>
       <Card className="mb2" style={{minHeight: 500}}>
@@ -90,7 +86,12 @@ function Namespace(props) {
                 </Button>
               </div>
             </div>
-
+            <Input
+              className="mb1"
+              value={props.mappingRulesFilter}
+              onChange={e => props.setMappingRulesFilter(e.target.value)}
+              placeholder="Mapping Rule Name Filter"
+            />
             <MappingRulesTable
               loading={loading}
               mappingRules={mappingRules}
@@ -122,6 +123,12 @@ function Namespace(props) {
                 </Button>
               </div>
             </div>
+            <Input
+              className="mb1"
+              value={props.rollupRuleFilter}
+              onChange={e => props.setRollupRuleFilter(e.target.value)}
+              placeholder="Rollup Rule Name Filter"
+            />
             <RollupRulesTable
               loading={loading}
               rollupRules={rollupRules}
@@ -194,7 +201,7 @@ export default compose(
         return {
           saveRollupRuleFetch: {
             meta: {
-              successMessage: 'Mapping rule saved!',
+              successMessage: 'Rollup rule saved!',
             },
             url: `/namespaces/${namespaceID}/rollup-rules${urlPath}`,
             method,
@@ -243,15 +250,28 @@ export default compose(
     },
     props => ({open: false, content: null}),
   ),
-  withPromiseStateChangeCallback(
-    ['saveMappingRuleFetch', 'saveRollupRuleFetch'],
-    props => {
-      if (
-        props.saveMappingRuleFetch.fulfilled ||
-        props.saveRollupRuleFetch.fulfilled
-      ) {
-        props.setModal({open: false});
-      }
-    },
-  ),
+  withPromiseStateChangeCallback(['saveRollupRuleFetch'], props => {
+    if (props.saveRollupRuleFetch.fulfilled) {
+      props.setModal({open: false});
+    }
+  }),
+  withPromiseStateChangeCallback(['saveMappingRuleFetch'], props => {
+    if (props.saveMappingRuleFetch.fulfilled) {
+      props.setModal({open: false});
+    }
+  }),
+  withFilter({
+    propMapper: props => props.mappingRules,
+    propName: 'mappingRules',
+    propField: 'name',
+    filterPropName: 'mappingRulesFilter',
+    filterChangeHandlerName: 'setMappingRulesFilter',
+  }),
+  withFilter({
+    propMapper: props => props.rollupRules,
+    propName: 'rollupRules',
+    propField: 'name',
+    filterPropName: 'rollupRuleFilter',
+    filterChangeHandlerName: 'setRollupRuleFilter',
+  }),
 )(Namespace);
