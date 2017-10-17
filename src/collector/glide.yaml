@@ -40,7 +40,7 @@ import:
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 
 testImports:
-- name: github.com/stretchr/testify
+- package: github.com/stretchr/testify
   version: ^1.1.4
   subpackages:
   - assert
