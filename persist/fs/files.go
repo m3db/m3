@@ -242,6 +242,23 @@ func Filesets(filePathPrefix string, namespace ts.ID) ([]string, error) {
 	return matched, err
 }
 
+//get the active and inactive file sets and figure out what's up
+func UnusedFilesetFiles(filePathPrefix string, namespace ts.ID, shards []uint32) ([]string, error) {
+	filesetFilesSuperSet, err := namespaceFilesetFiles(filePathPrefix, namespace, filesetFilePattern)
+	if err != nil {
+		return nil, err
+	}
+	return extractInactiveFilesetFiles(filepathPrefix, shards, filesetFilesSuperSet_
+} 
+
+//get the active ones
+func ActiveFilesetFiles(filePathPrefix string, shards []uint32) {
+}
+
+//remove the active ones from the superset
+func RemoveSubsetFromSuperSet(){
+}
+
 // CommitLogFiles returns all the commit log files in the commit logs directory.
 func CommitLogFiles(commitLogsDir string) ([]string, error) {
 	return commitlogFiles(commitLogsDir, commitLogFilePattern)
