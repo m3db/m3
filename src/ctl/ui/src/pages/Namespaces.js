@@ -19,12 +19,11 @@
 // THE SOFTWARE.
 
 import React from 'react';
-import {compose, withProps, withState, withHandlers} from 'recompose';
+import {compose, withProps, withState} from 'recompose';
 import {Button, Card, Input, Popconfirm, Table, Icon} from 'antd';
 import _ from 'lodash';
 import {Link} from 'react-router-dom';
-import qs from 'qs';
-import {connectR2API} from 'hocs';
+import {connectR2API, withFilter} from 'hocs';
 
 const {Column} = Table;
 
@@ -41,11 +40,7 @@ function NamespaceTable(props) {
         title="Name"
         dataIndex="id"
         render={namespace => {
-          return (
-            <Link to={`/namespaces/${namespace}`}>
-              {namespace}
-            </Link>
-          );
+          return <Link to={`/namespaces/${namespace}`}>{namespace}</Link>;
         }}
       />
       <Column
@@ -53,7 +48,7 @@ function NamespaceTable(props) {
         width={200}
         fixed="right"
         title="Action"
-        render={(__, namespace) =>
+        render={(__, namespace) => (
           <Popconfirm
             placement="topRight"
             title={'Are you sure you want to delete?'}
@@ -63,7 +58,8 @@ function NamespaceTable(props) {
             <a>
               <Icon type="delete" />
             </a>
-          </Popconfirm>}
+          </Popconfirm>
+        )}
       />
     </Table>
   );
@@ -163,22 +159,12 @@ export default compose(
       },
     };
   }),
-  withProps(props => {
-    const namespaces = _.get(props.namespacesFetch.value, 'namespaces', []);
-    const nameFilter = qs.parse(props.location.search.replace('?', '')).q;
-    return {
-      nameFilter,
-      namespaces: _.isEmpty(nameFilter)
-        ? namespaces
-        : _.filter(namespaces, n => n.id.indexOf(nameFilter) !== -1),
-    };
-  }),
-  withHandlers({
-    setNameFilter: props => nameFilter => {
-      props.history.replace({
-        pathname: '/namespaces',
-        search: nameFilter ? `?q=${nameFilter}` : '',
-      });
-    },
+  withFilter({
+    propMapper: props => _.get(props.namespacesFetch.value, 'namespaces', []),
+    propName: 'namespaces',
+    propField: 'id',
+    queryParam: 'q',
+    filterPropName: 'nameFilter',
+    filterChangeHandlerName: 'setNameFilter',
   }),
 )(Namespaces);
