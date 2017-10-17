@@ -339,7 +339,7 @@ func toAggregatedMetrics(
 		}
 
 		for _, aggType := range aggTypes {
-			fn(fullCounterPrefix, id, aggTypeOpts.SuffixForCounter(aggType), timeNanos, values.ValueOf(aggType), sp)
+			fn(fullCounterPrefix, id, aggTypeOpts.TypeStringForCounter(aggType), timeNanos, values.ValueOf(aggType), sp)
 		}
 	case aggregation.Timer:
 		var fullTimerPrefix = opts.FullTimerPrefix()
@@ -348,7 +348,7 @@ func toAggregatedMetrics(
 		}
 
 		for _, aggType := range aggTypes {
-			fn(fullTimerPrefix, id, aggTypeOpts.SuffixForTimer(aggType), timeNanos, values.ValueOf(aggType), sp)
+			fn(fullTimerPrefix, id, aggTypeOpts.TypeStringForTimer(aggType), timeNanos, values.ValueOf(aggType), sp)
 		}
 	case aggregation.Gauge:
 		var fullGaugePrefix = opts.FullGaugePrefix()
@@ -357,7 +357,7 @@ func toAggregatedMetrics(
 		}
 
 		for _, aggType := range aggTypes {
-			fn(fullGaugePrefix, id, aggTypeOpts.SuffixForGauge(aggType), timeNanos, values.ValueOf(aggType), sp)
+			fn(fullGaugePrefix, id, aggTypeOpts.TypeStringForGauge(aggType), timeNanos, values.ValueOf(aggType), sp)
 		}
 	default:
 		require.Fail(t, fmt.Sprintf("unrecognized aggregation type %T", values))

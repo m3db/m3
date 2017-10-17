@@ -29,7 +29,7 @@ func BenchmarkSuffixSlice(b *testing.B) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		aggTypes := opts.DefaultTimerAggregationTypes()
-		suffixes := opts.DefaultTimerAggregationSuffixes()
+		suffixes := opts.DefaultTimerAggregationTypeStrings()
 		for i := range aggTypes {
 			a = suffixes[i]
 		}
@@ -47,7 +47,7 @@ func BenchmarkSuffixFn(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		aggTypes := opts.DefaultTimerAggregationTypes()
 		for _, aggType := range aggTypes {
-			a = opts.SuffixForTimer(aggType)
+			a = opts.TypeStringForTimer(aggType)
 		}
 	}
 	b.StopTimer()

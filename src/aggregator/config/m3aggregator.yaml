@@ -64,10 +64,11 @@ http:
 
 aggregator:
   aggregationTypes:
-    counterSuffixOverrides:
+    counterOverrides:
       Sum: ""
-    gaugeSuffixOverrides:
+    gaugeOverrides:
       Last: ""
+    transformFnType: suffix
     aggregationTypesPool:
       size: 1024
     quantilesPool:

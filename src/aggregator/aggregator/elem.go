@@ -341,7 +341,7 @@ func (e *CounterElem) processValue(timeNanos int64, agg aggregation.Counter, fn 
 	var fullCounterPrefix = e.opts.FullCounterPrefix()
 	if e.useDefaultAggregation {
 		// NB(cw) Use default suffix slice for faster look up.
-		suffixes := e.aggTypesOpts.DefaultCounterAggregationSuffixes()
+		suffixes := e.aggTypesOpts.DefaultCounterAggregationTypeStrings()
 		aggTypes := e.aggTypesOpts.DefaultCounterAggregationTypes()
 		for i, aggType := range aggTypes {
 			fn(fullCounterPrefix, e.id, suffixes[i], timeNanos, agg.ValueOf(aggType), e.sp)
@@ -350,7 +350,7 @@ func (e *CounterElem) processValue(timeNanos int64, agg aggregation.Counter, fn 
 	}
 
 	for _, aggType := range e.aggTypes {
-		fn(fullCounterPrefix, e.id, e.aggTypesOpts.SuffixForCounter(aggType), timeNanos, agg.ValueOf(aggType), e.sp)
+		fn(fullCounterPrefix, e.id, e.aggTypesOpts.TypeStringForCounter(aggType), timeNanos, agg.ValueOf(aggType), e.sp)
 	}
 }
 
@@ -540,7 +540,7 @@ func (e *TimerElem) processValue(timeNanos int64, agg aggregation.Timer, fn aggM
 	fullTimerPrefix := e.opts.FullTimerPrefix()
 	if e.useDefaultAggregation {
 		// NB(cw) Use default suffix slice for faster look up.
-		suffixes := e.aggTypesOpts.DefaultTimerAggregationSuffixes()
+		suffixes := e.aggTypesOpts.DefaultTimerAggregationTypeStrings()
 		aggTypes := e.aggTypesOpts.DefaultTimerAggregationTypes()
 		for i, aggType := range aggTypes {
 			fn(fullTimerPrefix, e.id, suffixes[i], timeNanos, agg.ValueOf(aggType), e.sp)
@@ -549,7 +549,7 @@ func (e *TimerElem) processValue(timeNanos int64, agg aggregation.Timer, fn aggM
 	}
 
 	for _, aggType := range e.aggTypes {
-		fn(fullTimerPrefix, e.id, e.aggTypesOpts.SuffixForTimer(aggType), timeNanos, agg.ValueOf(aggType), e.sp)
+		fn(fullTimerPrefix, e.id, e.aggTypesOpts.TypeStringForTimer(aggType), timeNanos, agg.ValueOf(aggType), e.sp)
 	}
 }
 
@@ -719,7 +719,7 @@ func (e *GaugeElem) processValue(timeNanos int64, agg aggregation.Gauge, fn aggM
 	var fullGaugePrefix = e.opts.FullGaugePrefix()
 	if e.useDefaultAggregation {
 		// NB(cw) Use default suffix slice for faster look up.
-		suffixes := e.aggTypesOpts.DefaultGaugeAggregationSuffixes()
+		suffixes := e.aggTypesOpts.DefaultGaugeAggregationTypeStrings()
 		aggTypes := e.aggTypesOpts.DefaultGaugeAggregationTypes()
 		for i, aggType := range aggTypes {
 			fn(fullGaugePrefix, e.id, suffixes[i], timeNanos, agg.ValueOf(aggType), e.sp)
@@ -728,6 +728,6 @@ func (e *GaugeElem) processValue(timeNanos int64, agg aggregation.Gauge, fn aggM
 	}
 
 	for _, aggType := range e.aggTypes {
-		fn(fullGaugePrefix, e.id, e.aggTypesOpts.SuffixForGauge(aggType), timeNanos, agg.ValueOf(aggType), e.sp)
+		fn(fullGaugePrefix, e.id, e.aggTypesOpts.TypeStringForGauge(aggType), timeNanos, agg.ValueOf(aggType), e.sp)
 	}
 }
