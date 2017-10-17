@@ -789,15 +789,15 @@ func testGaugeElem(aggTypes policy.AggregationTypes) *GaugeElem {
 }
 
 func expectCounterSuffix(aggType policy.AggregationType) []byte {
-	return testOpts.AggregationTypesOptions().SuffixForCounter(aggType)
+	return testOpts.AggregationTypesOptions().TypeStringForCounter(aggType)
 }
 
 func expectTimerSuffix(aggType policy.AggregationType) []byte {
-	return testOpts.AggregationTypesOptions().SuffixForTimer(aggType)
+	return testOpts.AggregationTypesOptions().TypeStringForTimer(aggType)
 }
 
 func expectGaugeSuffix(aggType policy.AggregationType) []byte {
-	return testOpts.AggregationTypesOptions().SuffixForGauge(aggType)
+	return testOpts.AggregationTypesOptions().TypeStringForGauge(aggType)
 }
 
 func expectedAggMetricsForCounter(

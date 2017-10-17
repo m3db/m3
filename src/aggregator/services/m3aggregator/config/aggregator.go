@@ -138,7 +138,11 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 ) (aggregator.Options, error) {
 	scope := instrumentOpts.MetricsScope()
 	opts := aggregator.NewOptions().SetInstrumentOptions(instrumentOpts)
-	opts = opts.SetAggregationTypesOptions(c.AggregationTypes.NewOptions(instrumentOpts))
+	aggTypesOpts, err := c.AggregationTypes.NewOptions(instrumentOpts)
+	if err != nil {
+		return nil, err
+	}
+	opts = opts.SetAggregationTypesOptions(aggTypesOpts)
 
 	// Set the prefix for metrics aggregations.
 	opts = setMetricPrefix(opts, c.MetricPrefix, opts.SetMetricPrefix)
