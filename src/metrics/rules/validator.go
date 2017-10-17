@@ -124,19 +124,22 @@ func (v *validator) validateRollupRules(rrv map[string]*RollupRuleView) error {
 			return fmt.Errorf("rollup rule %s does not match any allowed metric types, filter=%v", view.Name, view.Filters)
 		}
 
-		// Validate that the policies are valid.
-		for _, t := range types {
-			for _, target := range view.Targets {
+		for _, target := range view.Targets {
+			// Validate that the rollup tags are valid.
+			if err := v.validateRollupTags(view.Name, target.Tags); err != nil {
+				return err
+			}
+
+			// Validate that the policies are valid.
+			for _, t := range types {
 				for _, p := range target.Policies {
 					if err := v.validatePolicy(t, p); err != nil {
 						return err
 					}
 				}
 			}
-		}
 
-		// Validate that there are no conflicting rollup targets.
-		for _, target := range view.Targets {
+			// Validate that there are no conflicting rollup targets.
 			current := target.rollupTarget()
 			for _, seenTarget := range targetsSeen {
 				if current.sameTransform(seenTarget) {
@@ -155,6 +158,24 @@ func (v *validator) validateFilters(f map[string]string) error {
 		// Validating the filter expression by actually constructing the filter.
 		if _, err := filters.NewFilter([]byte(filter)); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func (v *validator) validateRollupTags(ruleName string, tags []string) error {
+	requiredTags := v.opts.RequiredRollupTags()
+	if len(requiredTags) == 0 {
+		return nil
+	}
+	// Validating the list of rollup tags in the rule contain all required tags.
+	rollupTags := make(map[string]struct{}, len(tags))
+	for _, tag := range tags {
+		rollupTags[tag] = struct{}{}
+	}
+	for _, requiredTag := range requiredTags {
+		if _, exists := rollupTags[requiredTag]; !exists {
+			return fmt.Errorf("rollup rule %s does not have required rollup tag: %s, provided rollup tags are %v", ruleName, requiredTag, tags)
 		}
 	}
 	return nil
