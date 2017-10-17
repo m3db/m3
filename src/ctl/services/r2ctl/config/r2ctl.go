@@ -129,12 +129,14 @@ func (c kvStoreConfig) NewStore(instrumentOpts instrument.Options) (r2.Store, er
 }
 
 type validationConfiguration struct {
-	MetricTypes metricTypesValidationConfiguration `yaml:"metricTypes"`
-	Policies    policiesValidationConfiguration    `yaml:"policies"`
+	RequiredRollupTags []string                           `yaml:"requiredRollupTags"`
+	MetricTypes        metricTypesValidationConfiguration `yaml:"metricTypes"`
+	Policies           policiesValidationConfiguration    `yaml:"policies"`
 }
 
 func (c validationConfiguration) NewValidator() rules.Validator {
 	opts := rules.NewValidatorOptions().
+		SetRequiredRollupTags(c.RequiredRollupTags).
 		SetMetricTypesFn(c.MetricTypes.NewMetricTypesFn()).
 		SetDefaultAllowedStoragePolicies(c.Policies.DefaultAllowed.StoragePolicies).
 		SetDefaultAllowedCustomAggregationTypes(c.Policies.DefaultAllowed.AggregationTypes)
