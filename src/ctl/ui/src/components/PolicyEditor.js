@@ -148,6 +148,11 @@ export function PolicyEditor(props: Props) {
           notFoundContent={false}>
           {policies.map(opt => <Option key={opt}>{opt}</Option>)}
         </Select>
+        {typeTag === 'timer' && (
+          <small style={{color: 'gray'}}>
+            Resolutions {'>'} 1 minute are not supported for timers
+          </small>
+        )}
       </div>
       <div className="col col-6" style={{opacity: showAggs ? 1 : 0.5}}>
         <label className="block pb1">Aggregation Functions</label>
