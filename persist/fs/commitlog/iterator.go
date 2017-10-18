@@ -129,6 +129,7 @@ func (i *iterator) Err() error {
 	return i.err
 }
 
+// TODO: Refactor codebase so that it can handle Close() returning an error
 func (i *iterator) Close() {
 	if i.closed {
 		return
