@@ -111,7 +111,7 @@ function RollupRulesTable(props) {
       <Column
         title="Metric Filter"
         dataIndex="filter"
-        render={filter => <pre>{filter}</pre>}
+        render={filter => <code>{filter}</code>}
       />
       <Column
         title="Targets"
