@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3x/pool"
-
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/persist/fs"
@@ -27,6 +25,7 @@ import (
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
 
