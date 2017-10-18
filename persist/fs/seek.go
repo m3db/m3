@@ -80,6 +80,7 @@ func NewSeeker(
 	filePathPrefix string,
 	dataBufferSize int,
 	infoBufferSize int,
+	seekBufferSize int,
 	bytesPool pool.CheckedBytesPool,
 	decodingOpts msgpack.DecodingOptions,
 ) FileSetSeeker {
@@ -87,6 +88,7 @@ func NewSeeker(
 		filePathPrefix: filePathPrefix,
 		dataBufferSize: dataBufferSize,
 		infoBufferSize: infoBufferSize,
+		seekBufferSize: seekBufferSize,
 		bytesPool:      bytesPool,
 		keepIndexIDs:   true,
 		keepUnreadBuf:  false,
@@ -98,6 +100,7 @@ type seekerOpts struct {
 	filePathPrefix string
 	infoBufferSize int
 	dataBufferSize int
+	seekBufferSize int
 	bytesPool      pool.CheckedBytesPool
 	keepIndexIDs   bool
 	keepUnreadBuf  bool
@@ -122,7 +125,7 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		filePathPrefix:             opts.filePathPrefix,
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.infoBufferSize),
 		indexFdWithDigest:          digest.NewFdWithDigestReader(opts.dataBufferSize),
-		dataReader:                 bufio.NewReaderSize(nil, opts.dataBufferSize),
+		dataReader:                 bufio.NewReaderSize(nil, opts.seekBufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.infoBufferSize),
 		keepIndexIDs:               opts.keepIndexIDs,
 		keepUnreadBuf:              opts.keepUnreadBuf,

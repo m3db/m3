@@ -38,6 +38,9 @@ const (
 
 	// defaultInfoReaderBufferSize is the default buffer size for reading TSDB info, checkpoint and digest files
 	defaultInfoReaderBufferSize = 64
+
+	// defaultSeekReaderBufferSize is the default buffer size for fs seeker's data buffer
+	defaultSeekReaderBufferSize = 4096
 )
 
 var (
@@ -57,6 +60,7 @@ type options struct {
 	writerBufferSize     int
 	dataReaderBufferSize int
 	infoReaderBufferSize int
+	seekReaderBufferSize int
 }
 
 // NewOptions creates a new set of fs options
@@ -72,6 +76,7 @@ func NewOptions() Options {
 		writerBufferSize:     defaultWriterBufferSize,
 		dataReaderBufferSize: defaultDataReaderBufferSize,
 		infoReaderBufferSize: defaultInfoReaderBufferSize,
+		seekReaderBufferSize: defaultSeekReaderBufferSize,
 	}
 }
 
@@ -173,4 +178,14 @@ func (o *options) SetInfoReaderBufferSize(value int) Options {
 
 func (o *options) InfoReaderBufferSize() int {
 	return o.infoReaderBufferSize
+}
+
+func (o *options) SetSeekReaderBufferSize(value int) Options {
+	opts := *o
+	opts.seekReaderBufferSize = value
+	return &opts
+}
+
+func (o *options) SeekReaderBufferSize() int {
+	return o.seekReaderBufferSize
 }

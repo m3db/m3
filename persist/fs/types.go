@@ -197,6 +197,12 @@ type Options interface {
 
 	// DataReaderBufferSize returns the buffer size for reading TSDB data and index files
 	DataReaderBufferSize() int
+
+	// SetSeekReaderBufferSize size sets the buffer size for seeking TSDB files
+	SetSeekReaderBufferSize(value int) Options
+
+	// SeekReaderBufferSize size returns the buffer size for seeking TSDB files
+	SeekReaderBufferSize() int
 }
 
 // BlockRetrieverOptions represents the options for block retrieval
