@@ -12,9 +12,10 @@ $ ./bin/bootstrap_commitlogs -h
 
 # Example usage
 ```bash
-./bootstrap_commitlogs     \
+./verify_commitlogs     \
    -path-prefix /var/lib/m3db \
    -namespace metrics         \
    -block-size 2h             \
-   -current-unix-timestamp 1507667028 \
+   -start-unix-timestamp 1507667028 \
+   -end-unix-timestamp 1507677000 \
 ```
