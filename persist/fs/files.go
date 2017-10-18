@@ -86,6 +86,7 @@ func closeAll(closers ...xclose.Closer) error {
 
 // DeleteFiles delete a set of files, returning all the errors encountered during
 // the deletion process.
+// logic might need to be duplicated to handle deletion of directories
 func DeleteFiles(filePaths []string) error {
 	multiErr := xerrors.NewMultiError()
 	for _, file := range filePaths {
@@ -232,43 +233,22 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 	return filesBefore(matched, t)
 }
 
-//get the active and inactive file sets and figure out what's up
-func UnusedFilesetFiles(filePathPrefix string, namespace ts.ID) ([]string, error) {
-	allFilesets, err := namespaceFilesetFiles(filePathPrefix, namespace, filesetFilePattern)
-	if err != nil {
-		return nil, err
-	}
-	activeFilesets, err := getActiveFilesets(filePathPrefix, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	return extractInactiveFilesetFiles(allFilesets, activeFilesets)
-}
-
-//get the active ones
-func getActiveFilesets(filePathPrefix string, namespace ts.ID) ([]string, error) {
-	var activeShards []string
-	for _, shard := range namespace.getOwnedShards() {
-		matched, err := filesetFiles(filePathPrefix, namespace, shard, filesetFilePattern)
-		if err != nil {
-			return nil, err
-		}
-		activeShards.append(matched)
-	}
-	return activeShards
-}
-
-//remove the active ones from the superset
-func extractInactiveFilesetFiles(allFiles []string, acitveFilesets []string) ([]string, error) {
+//delete any inactive filesets in a given namespace
+func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards []uint32) error {
 	var toDelete []string
-	for _, fileset := range activeFilesets {
-		_, err := allFiles[fileset]
-		if err != nil {
-			toDelete.append(fileset)
+	activeShardDirs := activeShardDirs(filePathPrefix, namespace, activeShards)
+	namespaceDirPath := NamespaceDirPath(filePathPrefix, namespace)
+	allDirs, err := findDirectories(namespaceDirPath)
+	if err != nil {
+		return nil, err
+	}
+	for _, dir := range allDirs {
+		_, ok := activeShardDirs[dir]
+		if ok != nil {
+			toDelete.append(dir)
 		}
 	}
-	return toDelete
+	return DeleteFiles(toDelete)
 }
 
 // CommitLogFiles returns all the commit log files in the commit logs directory.
@@ -298,6 +278,23 @@ func CommitLogFilesBefore(commitLogsDir string, t time.Time) ([]string, error) {
 }
 
 type toSortableFn func(files []string) sort.Interface
+
+func findDirectories(dirPath string) ([]string, error) {
+	dirs, err := ioutil.ReadDir(dirPath)
+	if err != nil {
+		return nil, err
+	}
+	return dirs
+}
+
+func parseActiveShards(filePathPrefix string, namepsace ts.ID, active []uint32) []string {
+	var activeShardDirs []string
+	for _, shard := range active {
+		shardDir := ShardDirPath(filePathPrefix, namespace, shard)
+		activeShardDirs.append(shardDir)
+	}
+	return activeShardDirs
+}
 
 func findFiles(fileDir string, pattern string, fn toSortableFn) ([]string, error) {
 	matched, err := filepath.Glob(path.Join(fileDir, pattern))
