@@ -217,6 +217,7 @@ func (m *seekerManager) newOpenSeeker(
 		filePathPrefix: m.filePathPrefix,
 		dataBufferSize: m.opts.DataReaderBufferSize(),
 		infoBufferSize: m.opts.InfoReaderBufferSize(),
+		seekBufferSize: m.opts.SeekReaderBufferSize(),
 		bytesPool:      m.bytesPool,
 		keepIndexIDs:   false,
 		keepUnreadBuf:  true,
