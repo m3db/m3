@@ -409,30 +409,35 @@ func (r *reader) writeToOutBuf(outBuf chan<- readResponse, readResponse readResp
 		// Happy path, outBuf is not full and our write succeeds immediately
 		case outBuf <- readResponse:
 			return
-		// outBuf is full
+		// outBuf is full - fallthrough into remaining code
 		default:
-			r.metadata.Lock()
-			// Check if all the other decoderLoops are finished or blocked too
-			if r.metadata.numBlockedOrFinishedDecoders >= r.numConc-1 {
-				// If they are, then performing a blocking write would cause deadlock
-				// so we free all pending waiters
-				r.freeAllPendingWaiters()
-				r.metadata.Unlock()
-				// Otherwise all the other decoderLoops are not blocked yet and its
-				// safe to perform a blocking write because we will be free'd by the
-				// final decoderLoop if its about to block or finish
-			} else {
-				r.metadata.numBlockedOrFinishedDecoders++
-				r.metadata.Unlock()
-
-				outBuf <- readResponse
-
-				r.metadata.Lock()
-				r.metadata.numBlockedOrFinishedDecoders--
-				r.metadata.Unlock()
-				return
-			}
 		}
+
+		r.metadata.Lock()
+		// Check if all the other decoderLoops are finished or blocked too
+		allBlockedOrFinished := r.metadata.numBlockedOrFinishedDecoders < r.numConc
+		// If they're not then register ourselves as blocked and perform a blocking write
+		if !allBlockedOrFinished {
+			r.metadata.numBlockedOrFinishedDecoders++
+			// Release the lock because we're about to perform a potentially blocking
+			// channel write
+			r.metadata.Unlock()
+
+			// Safe to perform a blocking write because we will be free'd by the
+			// final decoderLoop if its about to block or finish
+			outBuf <- readResponse
+
+			// Unregister as blocked
+			r.metadata.Lock()
+			r.metadata.numBlockedOrFinishedDecoders--
+			r.metadata.Unlock()
+			return
+		}
+
+		// If all the other workers are blocked or finished, then performing a
+		// blocking write would cause deadlock so we free all pending waiters
+		r.freeAllPendingWaiters()
+		r.metadata.Unlock()
 	}
 }
 
