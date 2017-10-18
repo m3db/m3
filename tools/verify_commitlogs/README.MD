@@ -1,13 +1,13 @@
-# bootstrap_commitlogs
+# verify_commitlogs
 
-`bootstrap_commitlogs` is a utility to bootstrap a set of commit logs to ensure they are valid. It's also useful for testing / benchmarking the commitlog bootstrapper.
+`verify_commitlogs` is a utility to verify a set of commit logs to ensure they are valid. It's also useful for testing / benchmarking the commitlog bootstrapper.
 
 # Usage
 
 ```bash
 $ git clone git@github.com:m3db/m3db.git
-$ make bootstrap_commitlogs
-$ ./bin/bootstrap_commitlogs -h
+$ make verify_commitlogs
+$ ./bin/verify_commitlogs -h
 ```
 
 # Example usage
