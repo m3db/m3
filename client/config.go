@@ -45,8 +45,8 @@ type Configuration struct {
 	// ReadConsistencyLevel specifies the read consistency level.
 	ReadConsistencyLevel ReadConsistencyLevel `yaml:"readConsistencyLevel"`
 
-	// ClusterConnectConsistencyLevel specifies the cluster connect consistency level.
-	ClusterConnectConsistencyLevel ConnectConsistencyLevel `yaml:"clusterConnectConsistencyLevel"`
+	// ConnectConsistencyLevel specifies the cluster connect consistency level.
+	ConnectConsistencyLevel ConnectConsistencyLevel `yaml:"connectConsistencyLevel"`
 
 	// WriteTimeout is the write request timeout.
 	WriteTimeout time.Duration `yaml:"writeTimeout" validate:"min=0"`
@@ -155,7 +155,7 @@ func (c Configuration) NewAdminClient(
 		SetTopologyInitializer(topoInit).
 		SetWriteConsistencyLevel(c.WriteConsistencyLevel).
 		SetReadConsistencyLevel(c.ReadConsistencyLevel).
-		SetClusterConnectConsistencyLevel(c.ClusterConnectConsistencyLevel).
+		SetClusterConnectConsistencyLevel(c.ConnectConsistencyLevel).
 		SetBackgroundHealthCheckFailLimit(c.BackgroundHealthCheckFailLimit).
 		SetBackgroundHealthCheckFailThrottleFactor(c.BackgroundHealthCheckFailThrottleFactor).
 		SetWriteRequestTimeout(c.WriteTimeout).
