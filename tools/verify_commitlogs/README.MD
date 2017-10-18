@@ -18,4 +18,8 @@ $ ./bin/verify_commitlogs -h
    -block-size 2h             \
    -start-unix-timestamp 1507667028 \
    -end-unix-timestamp 1507677000 \
+   -debug-listen-address :8080 \
 ```
+
+Some of the flags in the example above are optional, and there are other flags
+that are not shown. Run `./verify_commitlogs -h` to see all possible flags.
