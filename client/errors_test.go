@@ -46,7 +46,7 @@ func TestConsistencyResultError(t *testing.T) {
 	}
 
 	assert.True(t, strings.HasPrefix(err.Error(),
-		"failed to meet ReadConsistencyLevelMajority with 1/3 success, 3 nodes responded, errors:"))
+		"failed to meet consistency level majority with 1/3 success, 3 nodes responded, errors:"))
 	assert.Equal(t, topErr, xerrors.InnerError(err))
 	assert.True(t, IsBadRequestError(err))
 	assert.Equal(t, 3, NumResponded(err))

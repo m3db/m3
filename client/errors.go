@@ -135,7 +135,8 @@ func (e consistencyResultErr) InnerError() error {
 
 func (e consistencyResultErr) Error() string {
 	return fmt.Sprintf(
-		"failed to meet %s with %d/%d success, %d nodes responded, errors: %v",
+		"failed to meet consistency level %s with %d/%d success, "+
+			"%d nodes responded, errors: %v",
 		e.level.String(), e.success, e.enqueued, e.responded, e.errs)
 }
 
