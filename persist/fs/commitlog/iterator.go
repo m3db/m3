@@ -186,10 +186,10 @@ func (i *iterator) nextReader() bool {
 }
 
 func (i *iterator) closeAndResetReader() error {
-	if i.reader != nil {
-		err := i.reader.Close()
-		i.reader = nil
-		return err
+	if i.reader == nil {
+		return nil
 	}
-	return nil
+	reader := i.reader
+	i.reader = nil
+	return reader.Close()
 }
