@@ -108,28 +108,22 @@ type readerMetadata struct {
 	pending                      map[uint64][]*readerPendingSeriesMetadataResponse
 }
 
-// Used to guard against background workers being started more than once
-type readerBackgroundWorkersInit struct {
-	sync.Mutex
-	hasBeenInitialized bool
-}
-
 type reader struct {
-	opts                  Options
-	numConc               int
-	bytesPool             pool.CheckedBytesPool
-	chunkReader           *chunkReader
-	dataBuffer            []byte
-	logDecoder            encoding.Decoder
-	decoderBufs           []chan decoderArg
-	outBufs               []chan readResponse
-	cancelCtx             context.Context
-	cancelFunc            context.CancelFunc
-	shutdownCh            chan error
-	metadata              readerMetadata
-	nextIndex             int
-	hasBeenOpened         bool
-	backgroundWorkersInit readerBackgroundWorkersInit
+	opts                 Options
+	numConc              int
+	bytesPool            pool.CheckedBytesPool
+	chunkReader          *chunkReader
+	dataBuffer           []byte
+	logDecoder           encoding.Decoder
+	decoderBufs          []chan decoderArg
+	outBufs              []chan readResponse
+	cancelCtx            context.Context
+	cancelFunc           context.CancelFunc
+	shutdownCh           chan error
+	metadata             readerMetadata
+	nextIndex            int
+	hasBeenOpened        bool
+	bgWorkersInitialized int64
 }
 
 func newCommitLogReader(opts Options) commitLogReader {
@@ -230,13 +224,10 @@ func (r *reader) Read() (
 
 func (r *reader) startBackgroundWorkers() error {
 	// Make sure background workers are never setup more than once
-	r.backgroundWorkersInit.Lock()
-	if r.backgroundWorkersInit.hasBeenInitialized {
-		r.backgroundWorkersInit.Unlock()
+	set := atomic.CompareAndSwapInt64(&r.bgWorkersInitialized, 0, 1)
+	if !set {
 		return errCommitLogReaderMultipleReadloops
 	}
-	r.backgroundWorkersInit.hasBeenInitialized = true
-	r.backgroundWorkersInit.Unlock()
 
 	// Start background worker goroutines
 	go r.readLoop()
