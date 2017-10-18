@@ -59,9 +59,9 @@ func TestCloner(t *testing.T) {
 	require.NoError(t, cloner.Clone(src, dest, destBlockSize))
 
 	// verify the two are equal
-	r1 := fs.NewReader(src.PathPrefix, opts.BufferSize(), opts.BytesPool(), opts.DecodingOptions())
+	r1 := fs.NewReader(src.PathPrefix, opts.BufferSize(), opts.BufferSize(), opts.BytesPool(), opts.DecodingOptions())
 	require.NoError(t, r1.Open(ts.StringID(src.Namespace), src.Shard, src.Blockstart))
-	r2 := fs.NewReader(dest.PathPrefix, opts.BufferSize(), opts.BytesPool(), opts.DecodingOptions())
+	r2 := fs.NewReader(dest.PathPrefix, opts.BufferSize(), opts.BufferSize(), opts.BytesPool(), opts.DecodingOptions())
 	require.NoError(t, r2.Open(ts.StringID(dest.Namespace), dest.Shard, dest.Blockstart))
 	for {
 		t1, b1, c1, e1 := r1.Read()

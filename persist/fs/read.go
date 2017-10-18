@@ -84,16 +84,17 @@ type reader struct {
 // read the index info.
 func NewReader(
 	filePathPrefix string,
-	bufferSize int,
+	dataBufferSize int,
+	infoBufferSize int,
 	bytesPool pool.CheckedBytesPool,
 	decodingOpts msgpack.DecodingOptions,
 ) FileSetReader {
 	return &reader{
 		filePathPrefix:             filePathPrefix,
-		infoFdWithDigest:           digest.NewFdWithDigestReader(bufferSize),
-		indexFdWithDigest:          digest.NewFdWithDigestReader(bufferSize),
-		dataFdWithDigest:           digest.NewFdWithDigestReader(bufferSize),
-		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(bufferSize),
+		infoFdWithDigest:           digest.NewFdWithDigestReader(infoBufferSize),
+		indexFdWithDigest:          digest.NewFdWithDigestReader(dataBufferSize),
+		dataFdWithDigest:           digest.NewFdWithDigestReader(dataBufferSize),
+		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(infoBufferSize),
 		prologue:                   make([]byte, markerLen+idxLen),
 		decoder:                    msgpack.NewDecoder(decodingOpts),
 		digestBuf:                  digest.NewBuffer(),

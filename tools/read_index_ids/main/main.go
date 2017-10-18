@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	defaultBufferReadSize  = 10
-	defaultBufferCapacity  = 1024 * 1024 * 1024
-	defaultBufferPoolCount = 10
+	defaultDataBufferReadSize = 65536
+	defaultInfoBufferReadSize = 64
+	defaultBufferCapacity     = 1024 * 1024 * 1024
+	defaultBufferPoolCount    = 10
 )
 
 func main() {
@@ -45,7 +46,7 @@ func main() {
 	})
 	bytesPool.Init()
 
-	seeker := fs.NewSeeker(*optPathPrefix, defaultBufferReadSize, bytesPool, nil)
+	seeker := fs.NewSeeker(*optPathPrefix, defaultDataBufferReadSize, defaultInfoBufferReadSize, bytesPool, nil)
 
 	err := seeker.Open(ts.StringID(*optNamespace), *optShard, time.Unix(0, *optBlockstart))
 	if err != nil {
