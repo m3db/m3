@@ -22,6 +22,7 @@ package fs
 
 import (
 	"fmt"
+	"ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -235,15 +236,21 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 
 // DeleteInactiveFilesets deletes any inactive filesets in a given namespace
 func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards []uint32) error {
+	//can use better naming
 	var toDelete []string
+	var dirs map[string]bool
 	activeShardDirs := activeShardDirs(filePathPrefix, namespace, activeShards)
 	namespaceDirPath := NamespaceDirPath(filePathPrefix, namespace)
 	allDirs, err := findDirectories(namespaceDirPath)
+	for _, dir := range activeShardDirs {
+		dirs[dir] = true
+	}
+
 	if err != nil {
 		return err
 	}
 	for _, dir := range allDirs {
-		_, ok := activeShardDirs[dir]
+		ok := dirs[dir]
 		if ok != nil {
 			toDelete = append(toDelete, dir)
 		}
@@ -284,7 +291,7 @@ func findDirectories(dirPath string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	return dirs
+	return dirs, nil
 }
 
 func activeShardDirs(filePathPrefix string, namepsace ts.ID, active []uint32) []string {
