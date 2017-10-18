@@ -233,19 +233,19 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 	return filesBefore(matched, t)
 }
 
-//delete any inactive filesets in a given namespace
+// DeleteInactiveFilesets deletes any inactive filesets in a given namespace
 func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards []uint32) error {
 	var toDelete []string
 	activeShardDirs := activeShardDirs(filePathPrefix, namespace, activeShards)
 	namespaceDirPath := NamespaceDirPath(filePathPrefix, namespace)
 	allDirs, err := findDirectories(namespaceDirPath)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	for _, dir := range allDirs {
 		_, ok := activeShardDirs[dir]
 		if ok != nil {
-			toDelete.append(dir)
+			toDelete = append(toDelete, dir)
 		}
 	}
 	return DeleteFiles(toDelete)
@@ -287,11 +287,11 @@ func findDirectories(dirPath string) ([]string, error) {
 	return dirs
 }
 
-func parseActiveShards(filePathPrefix string, namepsace ts.ID, active []uint32) []string {
+func activeShardDirs(filePathPrefix string, namepsace ts.ID, active []uint32) []string {
 	var activeShardDirs []string
 	for _, shard := range active {
 		shardDir := ShardDirPath(filePathPrefix, namespace, shard)
-		activeShardDirs.append(shardDir)
+		activeShardDirs = append(activeShardDirs, shardDir)
 	}
 	return activeShardDirs
 }
