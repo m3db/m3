@@ -69,7 +69,8 @@ func (p FilesystemConfiguration) ParseNewFileMode() (os.FileMode, error) {
 		return 0, fmt.Errorf("file mode must be 3 chars long")
 	}
 
-	str = "0" + str
+	// NB(r): There's no way next line can be ineffectual as it prepends str..
+	str = "0" + str // nolint: ineffassign
 
 	var v uint32
 	n, err := fmt.Sscanf(*p.NewFileMode, "%o", &v)
@@ -93,7 +94,8 @@ func (p FilesystemConfiguration) ParseNewDirectoryMode() (os.FileMode, error) {
 		return 0, fmt.Errorf("file mode must be 3 chars long")
 	}
 
-	str = "0" + str
+	// NB(r): There's no way next line can be ineffectual as it prepends str..
+	str = "0" + str // nolint: ineffassign
 
 	var v uint32
 	n, err := fmt.Sscanf(*p.NewDirectoryMode, "%o", &v)
