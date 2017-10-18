@@ -148,7 +148,7 @@ func (_mr *_MockDatabaseRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5, arg6
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
-func (_m *MockDatabase) ReadEncoded(ctx context.Context, namespace ts.ID, id ts.ID, start time.Time, end time.Time, readOpts read.ReadOptions) ([][]io.SegmentReader, error) {
+func (_m *MockDatabase) ReadEncoded(ctx context.Context, namespace ts.ID, id ts.ID, start time.Time, end time.Time, readOpts read.Options) ([][]io.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, namespace, id, start, end, readOpts)
 	ret0, _ := ret[0].([][]io.SegmentReader)
 	ret1, _ := ret[1].(error)
@@ -333,7 +333,7 @@ func (_mr *_MockdatabaseRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5, arg6
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
-func (_m *Mockdatabase) ReadEncoded(ctx context.Context, namespace ts.ID, id ts.ID, start time.Time, end time.Time, readOpts read.ReadOptions) ([][]io.SegmentReader, error) {
+func (_m *Mockdatabase) ReadEncoded(ctx context.Context, namespace ts.ID, id ts.ID, start time.Time, end time.Time, readOpts read.Options) ([][]io.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, namespace, id, start, end, readOpts)
 	ret0, _ := ret[0].([][]io.SegmentReader)
 	ret1, _ := ret[1].(error)
@@ -597,7 +597,7 @@ func (_mr *_MockdatabaseNamespaceRecorder) Write(arg0, arg1, arg2, arg3, arg4, a
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
-func (_m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id ts.ID, start time.Time, end time.Time, readOpts read.ReadOptions) ([][]io.SegmentReader, error) {
+func (_m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id ts.ID, start time.Time, end time.Time, readOpts read.Options) ([][]io.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, id, start, end, readOpts)
 	ret0, _ := ret[0].([][]io.SegmentReader)
 	ret1, _ := ret[1].(error)
@@ -824,7 +824,7 @@ func (_mr *_MockdatabaseShardRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
-func (_m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ts.ID, start time.Time, end time.Time, readOpts read.ReadOptions) ([][]io.SegmentReader, error) {
+func (_m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ts.ID, start time.Time, end time.Time, readOpts read.Options) ([][]io.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, id, start, end, readOpts)
 	ret0, _ := ret[0].([][]io.SegmentReader)
 	ret1, _ := ret[1].(error)

@@ -235,7 +235,7 @@ func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
 	defer func() {
 		close(mapCh)
 	}()
-	readOptions := read.ReadOptions{
+	readOptions := read.Options{
 		SoftRead: true,
 	}
 	_, err := d.ReadEncoded(ctx, ts.StringID("nonexistent"), ts.StringID("foo"), time.Now(), time.Now(), readOptions)
@@ -259,7 +259,7 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 	end := time.Now()
 	start := end.Add(-time.Hour)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
-	readOpts := read.ReadOptions{
+	readOpts := read.Options{
 		SoftRead: true,
 	}
 	mockNamespace.EXPECT().ReadEncoded(ctx, id, start, end, readOpts).Return(nil, nil)

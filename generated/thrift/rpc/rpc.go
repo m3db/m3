@@ -437,6 +437,7 @@ func (p *WriteBatchRawErrors) Error() string {
 //  - ID
 //  - RangeType
 //  - ResultTimeType
+//  - SoftRead
 type FetchRequest struct {
 	RangeStart     int64    `thrift:"rangeStart,1,required" db:"rangeStart" json:"rangeStart"`
 	RangeEnd       int64    `thrift:"rangeEnd,2,required" db:"rangeEnd" json:"rangeEnd"`
@@ -444,6 +445,7 @@ type FetchRequest struct {
 	ID             string   `thrift:"id,4,required" db:"id" json:"id"`
 	RangeType      TimeType `thrift:"rangeType,5" db:"rangeType" json:"rangeType,omitempty"`
 	ResultTimeType TimeType `thrift:"resultTimeType,6" db:"resultTimeType" json:"resultTimeType,omitempty"`
+	SoftRead       *bool    `thrift:"softRead,7" db:"softRead" json:"softRead,omitempty"`
 }
 
 func NewFetchRequest() *FetchRequest {
@@ -481,12 +483,25 @@ var FetchRequest_ResultTimeType_DEFAULT TimeType = 0
 func (p *FetchRequest) GetResultTimeType() TimeType {
 	return p.ResultTimeType
 }
+
+var FetchRequest_SoftRead_DEFAULT bool
+
+func (p *FetchRequest) GetSoftRead() bool {
+	if !p.IsSetSoftRead() {
+		return FetchRequest_SoftRead_DEFAULT
+	}
+	return *p.SoftRead
+}
 func (p *FetchRequest) IsSetRangeType() bool {
 	return p.RangeType != FetchRequest_RangeType_DEFAULT
 }
 
 func (p *FetchRequest) IsSetResultTimeType() bool {
 	return p.ResultTimeType != FetchRequest_ResultTimeType_DEFAULT
+}
+
+func (p *FetchRequest) IsSetSoftRead() bool {
+	return p.SoftRead != nil
 }
 
 func (p *FetchRequest) Read(iprot thrift.TProtocol) error {
@@ -534,6 +549,10 @@ func (p *FetchRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 6:
 			if err := p.ReadField6(iprot); err != nil {
+				return err
+			}
+		case 7:
+			if err := p.ReadField7(iprot); err != nil {
 				return err
 			}
 		default:
@@ -619,6 +638,15 @@ func (p *FetchRequest) ReadField6(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *FetchRequest) ReadField7(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBool(); err != nil {
+		return thrift.PrependError("error reading field 7: ", err)
+	} else {
+		p.SoftRead = &v
+	}
+	return nil
+}
+
 func (p *FetchRequest) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("FetchRequest"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -640,6 +668,9 @@ func (p *FetchRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField6(oprot); err != nil {
+			return err
+		}
+		if err := p.writeField7(oprot); err != nil {
 			return err
 		}
 	}
@@ -729,6 +760,21 @@ func (p *FetchRequest) writeField6(oprot thrift.TProtocol) (err error) {
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 6:resultTimeType: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *FetchRequest) writeField7(oprot thrift.TProtocol) (err error) {
+	if p.IsSetSoftRead() {
+		if err := oprot.WriteFieldBegin("softRead", thrift.BOOL, 7); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 7:softRead: ", p), err)
+		}
+		if err := oprot.WriteBool(bool(*p.SoftRead)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.softRead (7) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 7:softRead: ", p), err)
 		}
 	}
 	return err

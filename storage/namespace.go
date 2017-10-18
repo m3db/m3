@@ -410,7 +410,7 @@ func (n *dbNamespace) ReadEncoded(
 	ctx context.Context,
 	id ts.ID,
 	start, end time.Time,
-	readOpts read.ReadOptions,
+	readOpts read.Options,
 ) ([][]xio.SegmentReader, error) {
 	callStart := n.nowFn()
 	shard, err := n.readableShardFor(id)

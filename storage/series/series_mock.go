@@ -135,7 +135,7 @@ func (_mr *_MockDatabaseSeriesRecorder) IsEmpty() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsEmpty")
 }
 
-func (_m *MockDatabaseSeries) ReadEncoded(_param0 context.Context, _param1 time0.Time, _param2 time0.Time, _param3 read.ReadOptions) ([][]io.SegmentReader, error) {
+func (_m *MockDatabaseSeries) ReadEncoded(_param0 context.Context, _param1 time0.Time, _param2 time0.Time, _param3 read.Options) ([][]io.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", _param0, _param1, _param2, _param3)
 	ret0, _ := ret[0].([][]io.SegmentReader)
 	ret1, _ := ret[1].(error)

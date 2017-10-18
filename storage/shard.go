@@ -576,7 +576,7 @@ func (s *dbShard) ReadEncoded(
 	ctx context.Context,
 	id ts.ID,
 	start, end time.Time,
-	opts read.ReadOptions,
+	opts read.Options,
 ) ([][]xio.SegmentReader, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)

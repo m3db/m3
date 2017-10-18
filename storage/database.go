@@ -467,7 +467,7 @@ func (d *db) ReadEncoded(
 	namespace ts.ID,
 	id ts.ID,
 	start, end time.Time,
-	readOpts read.ReadOptions,
+	readOpts read.Options,
 ) ([][]xio.SegmentReader, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {

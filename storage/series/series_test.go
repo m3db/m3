@@ -159,7 +159,7 @@ func TestSeriesWriteFlushRead(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	readOpts := read.ReadOptions{
+	readOpts := read.Options{
 		SoftRead: false,
 	}
 	// Test fine grained range
@@ -183,7 +183,7 @@ func TestSeriesReadEndBeforeStart(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	readOpts := read.ReadOptions{
+	readOpts := read.Options{
 		SoftRead: false,
 	}
 	results, err := series.ReadEncoded(ctx, time.Now(), time.Now().Add(-1*time.Second), readOpts)
@@ -517,7 +517,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 		now = now.Add(blockSize)
 	}
 
-	readOpts := block.ReadOptions{
+	readOpts := read.Options{
 		SoftRead: false,
 	}
 	encoded, err := series.ReadEncoded(ctx, qStart, qEnd, readOpts)

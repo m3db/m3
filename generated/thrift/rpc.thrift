@@ -73,6 +73,7 @@ struct FetchRequest {
 	4: required string id
 	5: optional TimeType rangeType = TimeType.UNIX_SECONDS
 	6: optional TimeType resultTimeType = TimeType.UNIX_SECONDS
+	7: optional bool softRead
 }
 
 struct FetchResult {

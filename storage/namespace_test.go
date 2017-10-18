@@ -138,7 +138,7 @@ func TestNamespaceReadEncodedShardNotOwned(t *testing.T) {
 	for i := range ns.shards {
 		ns.shards[i] = nil
 	}
-	readOptions := read.ReadOptions{
+	readOptions := read.Options{
 		SoftRead: false,
 	}
 	_, err := ns.ReadEncoded(ctx, ts.StringID("foo"), time.Now(), time.Now(), readOptions)
@@ -158,7 +158,7 @@ func TestNamespaceReadEncodedShardOwned(t *testing.T) {
 
 	ns := newTestNamespace(t)
 	shard := NewMockdatabaseShard(ctrl)
-	readOpts := read.ReadOptions{
+	readOpts := read.Options{
 		SoftRead: false,
 	}
 	shard.EXPECT().ReadEncoded(ctx, id, start, end, readOpts).Return(nil, nil)

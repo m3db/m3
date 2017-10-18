@@ -117,8 +117,8 @@ func TestServiceFetch(t *testing.T) {
 		require.NoError(t, enc.Encode(dp, xtime.Second, nil))
 	}
 
-	readOpts := read.ReadOptions{
-		SoftRead: true,
+	readOpts := read.Options{
+		SoftRead: false,
 	}
 	mockDB.EXPECT().
 		ReadEncoded(ctx, ts.NewIDMatcher(nsID), ts.NewIDMatcher("foo"), start, end, readOpts).
@@ -190,7 +190,7 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 
 		streams[id] = enc.Stream()
 
-		readOpts := read.ReadOptions{
+		readOpts := read.Options{
 			SoftRead: false,
 		}
 		mockDB.EXPECT().

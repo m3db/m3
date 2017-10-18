@@ -89,7 +89,7 @@ type Database interface {
 		namespace ts.ID,
 		id ts.ID,
 		start, end time.Time,
-		readOpts read.ReadOptions,
+		readOpts read.Options,
 	) ([][]xio.SegmentReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
@@ -192,7 +192,7 @@ type databaseNamespace interface {
 		ctx context.Context,
 		id ts.ID,
 		start, end time.Time,
-		readOpts read.ReadOptions,
+		readOpts read.Options,
 	) ([][]xio.SegmentReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
@@ -271,7 +271,7 @@ type databaseShard interface {
 		ctx context.Context,
 		id ts.ID,
 		start, end time.Time,
-		readOpts read.ReadOptions,
+		readOpts read.Options,
 	) ([][]xio.SegmentReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.

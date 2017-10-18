@@ -235,7 +235,7 @@ func (s *dbSeries) Write(
 func (s *dbSeries) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
-	opts read.ReadOptions,
+	opts read.Options,
 ) ([][]xio.SegmentReader, error) {
 	if end.Before(start) {
 		return nil, xerrors.NewInvalidParamsError(errSeriesReadInvalidRange)
@@ -273,8 +273,7 @@ func (s *dbSeries) ReadEncoded(
 				}
 				if stream != nil {
 					results = append(results, []xio.SegmentReader{stream})
-					// NB(r): Mark this block as read now
-					if opts.SoftRead == false {
+					if !opts.SoftRead {
 						block.SetLastReadTime(now)
 					}
 				}

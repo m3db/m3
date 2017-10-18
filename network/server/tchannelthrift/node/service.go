@@ -26,8 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/storage/read"
-
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
@@ -37,6 +35,7 @@ import (
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/read"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
@@ -184,8 +183,8 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 		s.idPool.GetStringID(ctx, req.NameSpace),
 		s.idPool.GetStringID(ctx, req.ID),
 		start, end,
-		read.ReadOptions{
-			SoftRead: true,
+		read.Options{
+			SoftRead: req.GetSoftRead(),
 		},
 	)
 	if err != nil {
@@ -259,10 +258,16 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		result.Elements = append(result.Elements, rawResult)
 
 		tsID := s.newID(ctx, req.Ids[i])
-		readOpts := read.ReadOptions{
-			SoftRead: req.GetSoftRead(),
-		}
-		encoded, err := s.db.ReadEncoded(ctx, nsID, tsID, start, end, readOpts)
+		encoded, err := s.db.ReadEncoded(
+			ctx,
+			nsID,
+			tsID,
+			start,
+			end,
+			read.Options{
+				SoftRead: req.GetSoftRead(),
+			},
+		)
 		if err != nil {
 			rawResult.Err = convert.ToRPCError(err)
 			if tterrors.IsBadRequestError(rawResult.Err) {
