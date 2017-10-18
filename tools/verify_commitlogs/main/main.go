@@ -38,7 +38,7 @@ var (
 	shardsCountArg        = flag.Int("shards-count", 8192, "Shards count - set number too bootstrap all shards in range")
 	shardsArg             = flag.String("shards", "", "Shards - set comma separated list of shards")
 	debugListenAddressArg = flag.String("debug-listen-address", "", "Debug listen address - if set will expose pprof, i.e. ':8080'")
-	startUnixTimestampArg = flag.Int64("start-unix-timestramp", 0, "Start unix timestamp (Seconds) - If set will boostrap all data after this timestamp up to start-unix-timestamp, defaults to reading from the beginning of the first commitlog")
+	startUnixTimestampArg = flag.Int64("start-unix-timestramp", 0, "Start unix timestamp (Seconds) - If set will boostrap all data after this timestamp up to end-unix-timestamp, defaults to reading from the beginning of the first commitlog")
 	// 1<<63-62135596801 is the largest possible time.Time that can be represented
 	// without causing overflow when passed to functions in the time package
 	endUnixTimestampArg = flag.Int64("end-unix-timestramp", 1<<63-62135596801, "End unix timestamp (Seconds) - If set will bootrap all data from start-unix-timestamp up to this timestamp, defaults to reading up to the end of the last commitlog")
