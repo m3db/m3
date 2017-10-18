@@ -22,7 +22,6 @@ package fs
 
 import (
 	"fmt"
-	"ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -251,7 +250,7 @@ func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards
 	}
 	for _, dir := range allDirs {
 		ok := dirs[dir]
-		if ok != nil {
+		if !ok {
 			toDelete = append(toDelete, dir)
 		}
 	}
@@ -287,14 +286,23 @@ func CommitLogFilesBefore(commitLogsDir string, t time.Time) ([]string, error) {
 type toSortableFn func(files []string) sort.Interface
 
 func findDirectories(dirPath string) ([]string, error) {
-	dirs, err := ioutil.ReadDir(dirPath)
+	f, err := os.Open(dirPath)
 	if err != nil {
 		return nil, err
 	}
-	return dirs, nil
+	dirs, err := f.Readdir(-1)
+	f.Close()
+	if err != nil {
+		return nil, err
+	}
+	var dirPaths []string
+	for i, dir := range dirs {
+		dirPaths[i] = dir.Name()
+	}
+	return dirPaths, nil
 }
 
-func activeShardDirs(filePathPrefix string, namepsace ts.ID, active []uint32) []string {
+func activeShardDirs(filePathPrefix string, namespace ts.ID, active []uint32) []string {
 	var activeShardDirs []string
 	for _, shard := range active {
 		shardDir := ShardDirPath(filePathPrefix, namespace, shard)
