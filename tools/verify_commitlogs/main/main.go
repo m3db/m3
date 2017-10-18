@@ -30,15 +30,18 @@ import (
 )
 
 var (
-	pathPrefixArg           = flag.String("path-prefix", "/var/lib/m3db", "Path prefix - must contain a folder called 'commitlogs'")
-	namespaceArg            = flag.String("namespace", "metrics", "Namespace")
-	blockSizeArg            = flag.Duration("block-size", 10*time.Minute, "Block size")
-	flushSizeArg            = flag.Int("flush-size", 524288, "Flush size of commit log")
-	bootstrapRetentionArg   = flag.Duration("retention", 48*time.Hour, "Retention")
-	shardsCountArg          = flag.Int("shards-count", 8192, "Shards count - set number too bootstrap all shards in range")
-	shardsArg               = flag.String("shards", "", "Shards - set comma separated list of shards")
-	debugListenAddressArg   = flag.String("debug-listen-address", "", "Debug listen address - if set will expose pprof, i.e. ':8080'")
-	currentUnixTimestampArg = flag.Int64("current-unix-timestamp", time.Now().Unix(), "Current unix timestamp (Seconds) - If set will perform the bootstrap as if this was the current time, defaults to current time")
+	pathPrefixArg         = flag.String("path-prefix", "/var/lib/m3db", "Path prefix - must contain a folder called 'commitlogs'")
+	namespaceArg          = flag.String("namespace", "metrics", "Namespace")
+	blockSizeArg          = flag.Duration("block-size", 10*time.Minute, "Block size")
+	flushSizeArg          = flag.Int("flush-size", 524288, "Flush size of commit log")
+	bootstrapRetentionArg = flag.Duration("retention", 48*time.Hour, "Retention")
+	shardsCountArg        = flag.Int("shards-count", 8192, "Shards count - set number too bootstrap all shards in range")
+	shardsArg             = flag.String("shards", "", "Shards - set comma separated list of shards")
+	debugListenAddressArg = flag.String("debug-listen-address", "", "Debug listen address - if set will expose pprof, i.e. ':8080'")
+	startUnixTimestampArg = flag.Int64("start-unix-timestramp", 0, "Start unix timestamp (Seconds) - If set will boostrap all data after this timestamp up to start-unix-timestamp, defaults to reading from the beginning of the first commitlog")
+	// 1<<63-62135596801 is the largest possible time.Time that can be represented
+	// without causing overflow when passed to functions in the time package
+	endUnixTimestampArg = flag.Int64("end-unix-timestramp", 1<<63-62135596801, "End unix timestamp (Seconds) - If set will bootrap all data from start-unix-timestamp up to this timestamp, defaults to reading up to the end of the last commitlog")
 )
 
 func main() {
@@ -50,15 +53,16 @@ func main() {
 	}
 
 	var (
-		pathPrefix           = *pathPrefixArg
-		namespaceStr         = *namespaceArg
-		blockSize            = *blockSizeArg
-		flushSize            = *flushSizeArg
-		bootstrapRetention   = *bootstrapRetentionArg
-		shardsCount          = *shardsCountArg
-		shards               = *shardsArg
-		debugListenAddress   = *debugListenAddressArg
-		currentUnixTimestamp = *currentUnixTimestampArg
+		pathPrefix         = *pathPrefixArg
+		namespaceStr       = *namespaceArg
+		blockSize          = *blockSizeArg
+		flushSize          = *flushSizeArg
+		bootstrapRetention = *bootstrapRetentionArg
+		shardsCount        = *shardsCountArg
+		shards             = *shardsArg
+		debugListenAddress = *debugListenAddressArg
+		startUnixTimestamp = *startUnixTimestampArg
+		endUnixTimestamp   = *endUnixTimestampArg
 	)
 
 	log := xlog.NewLogger(os.Stderr)
@@ -75,11 +79,8 @@ func main() {
 
 	shardTimeRanges := result.ShardTimeRanges{}
 
-	now := time.Unix(currentUnixTimestamp, 0)
-	// Round current time down to nearest blocksize (2h) and then decrease blocksize (2h)
-	startInclusive := now.Truncate(blockSize).Add(-blockSize)
-	// Round current time down to nearest blocksize (2h) and then add blocksize (2h)
-	endExclusive := now.Truncate(blockSize).Add(blockSize * 2)
+	start := time.Unix(startUnixTimestamp, 0)
+	end := time.Unix(endUnixTimestamp, 0)
 
 	// Ony used for logging
 	var shardsAll []uint32
@@ -95,14 +96,14 @@ func main() {
 			if err != nil {
 				log.Fatalf("could not parse shard '%s': %v", shard, err)
 			}
-			rng := xtime.Range{Start: startInclusive, End: endExclusive}
+			rng := xtime.Range{Start: start, End: end}
 			shardTimeRanges[uint32(value)] = xtime.NewRanges().AddRange(rng)
 			shardsAll = append(shardsAll, uint32(value))
 		}
 		// Or just handled up to N (shard-count) shards
 	} else if shardsCount > 0 {
 		for i := uint32(0); i < uint32(shardsCount); i++ {
-			rng := xtime.Range{Start: startInclusive, End: endExclusive}
+			rng := xtime.Range{Start: start, End: end}
 			shardTimeRanges[i] = xtime.NewRanges().AddRange(rng)
 			shardsAll = append(shardsAll, i)
 		}
