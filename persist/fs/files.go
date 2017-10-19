@@ -237,10 +237,16 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards []uint32) error {
 	//can use better naming
 	var toDelete []string
-	var dirs map[string]bool
+	dirs := make(map[string]bool)
 	activeShardDirs := activeShardDirs(filePathPrefix, namespace, activeShards)
+	for _, f := range activeShardDirs {
+		fmt.Println(f)
+	}
 	namespaceDirPath := NamespaceDirPath(filePathPrefix, namespace)
 	allDirs, err := findDirectories(namespaceDirPath)
+	for _, f := range allDirs {
+		fmt.Println(f)
+	}
 	for _, dir := range activeShardDirs {
 		dirs[dir] = true
 	}
