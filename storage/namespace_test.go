@@ -432,6 +432,7 @@ func TestNamespaceFlushAllShards(t *testing.T) {
 func TestNamespaceCleanupFilesetDontNeedCleanup(t *testing.T) {
 	ns := newTestNamespaceWithIDOpts(t, defaultTestNs1ID, namespace.NewOptions().SetNeedsFilesetCleanup(false))
 	require.NoError(t, ns.CleanupFileset(time.Now()))
+	require.NoError(t, ns.DeleteInactiveFilesetFiles())
 }
 
 func TestNamespaceCleanupFilesetAllShards(t *testing.T) {

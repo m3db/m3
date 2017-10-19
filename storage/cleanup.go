@@ -121,7 +121,7 @@ func (m *cleanupManager) cleanupFilesetFiles(t time.Time) error {
 		multiErr = multiErr.Add(n.CleanupFileset(earliestToRetain))
 	}
 	for _, n := range namespaces {
-		multiErr = multiErr.Add(n.DeleteInactiveFilsetFiles())
+		multiErr = multiErr.Add(n.DeleteInactiveFilesetFiles())
 	}
 
 	return multiErr.FinalError()

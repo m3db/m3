@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
@@ -86,25 +87,22 @@ var commitLogWriteNoOp = commitLogWriter(commitLogWriterFn(func(
 	return nil
 }))
 
-type unusedFilesetFilesFn func(namespace ts.ID) ([]string, error)
-
-type deleteFilesetFilesFn func(namespace ts.ID) ([]string, error)
+type deleteInactiveFilesetFilesFn func(filesetFilePrefix string, namespace ts.ID, activeShards []uint32) error
 
 type dbNamespace struct {
 	sync.RWMutex
 
-	id                   ts.ID
-	shardSet             sharding.ShardSet
-	blockRetriever       block.DatabaseBlockRetriever
-	opts                 Options
-	metadata             namespace.Metadata
-	nopts                namespace.Options
-	seriesOpts           series.Options
-	nowFn                clock.NowFn
-	log                  xlog.Logger
-	bs                   bootstrapState
-	inactiveFilesetFiles inactiveFilesetFilesFn
-	deleteFilesetFiles   deleteFilesetFilesFn
+	id                         ts.ID
+	shardSet                   sharding.ShardSet
+	blockRetriever             block.DatabaseBlockRetriever
+	opts                       Options
+	metadata                   namespace.Metadata
+	nopts                      namespace.Options
+	seriesOpts                 series.Options
+	nowFn                      clock.NowFn
+	log                        xlog.Logger
+	bs                         bootstrapState
+	deleteInactiveFilesetFiles deleteInactiveFilesetFilesFn
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
@@ -223,20 +221,21 @@ func newDatabaseNamespace(
 	}
 
 	n := &dbNamespace{
-		id:                     id,
-		shardSet:               shardSet,
-		blockRetriever:         blockRetriever,
-		opts:                   opts,
-		metadata:               metadata,
-		nopts:                  nopts,
-		seriesOpts:             seriesOpts,
-		nowFn:                  opts.ClockOptions().NowFn(),
-		log:                    logger,
-		increasingIndex:        increasingIndex,
-		commitLogWriter:        commitLogWriter,
-		tickWorkers:            tickWorkers,
-		tickWorkersConcurrency: tickWorkersConcurrency,
-		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
+		id:                         id,
+		shardSet:                   shardSet,
+		blockRetriever:             blockRetriever,
+		opts:                       opts,
+		metadata:                   metadata,
+		nopts:                      nopts,
+		seriesOpts:                 seriesOpts,
+		nowFn:                      opts.ClockOptions().NowFn(),
+		log:                        logger,
+		increasingIndex:            increasingIndex,
+		commitLogWriter:            commitLogWriter,
+		tickWorkers:                tickWorkers,
+		tickWorkersConcurrency:     tickWorkersConcurrency,
+		metrics:                    newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
+		deleteInactiveFilesetFiles: fs.DeleteInactiveFilesets,
 	}
 
 	n.initShards(nopts.NeedsBootstrap())
@@ -661,13 +660,13 @@ func (n *dbNamespace) NeedsFlush(alignedInclusiveStart time.Time, alignedInclusi
 }
 
 func (n *dbNamespace) DeleteInactiveFilesetFiles() error {
+	var shardIds []uint32
 	filesetFilePrefix := n.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-	multiErr := xerrors.NewMultiError()
-	inactiveFilesets, err := n.inactiveFilesetFiles(filesetFilePrefix, n)
-	if err != nil {
-		return err
+	activeShards := n.getOwnedShards()
+	for _, shard := range activeShards {
+		shardIds = append(shardIds, shard.ID())
 	}
-	return n.deleteFilesetFiles(inactiveFilesets)
+	return n.deleteInactiveFilesetFiles(filesetFilePrefix, n.ID(), shardIds)
 }
 
 func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {
