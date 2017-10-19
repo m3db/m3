@@ -125,19 +125,22 @@ func version3Available(endpoint string) bool {
 	return strings.Index(data.Version, "3.") == 0
 }
 
-func (e *embeddedKV) ConfigServiceClient() (client.Client, error) {
+func (e *embeddedKV) Endpoints() []string {
 	addresses := make([]string, 0, len(e.etcd.Clients))
 	for _, c := range e.etcd.Clients {
 		addresses = append(addresses, c.Addr().String())
 	}
+	return addresses
+}
 
+func (e *embeddedKV) ConfigServiceClient() (client.Client, error) {
 	eopts := etcdclient.NewOptions().
 		SetInstrumentOptions(e.opts.InstrumentOptions()).
 		SetServiceDiscoveryConfig(etcdsd.Configuration{
 			InitTimeout: e.opts.InitTimeout(),
 		}).
 		SetClusters([]etcdclient.Cluster{
-			etcdclient.NewCluster().SetEndpoints(addresses),
+			etcdclient.NewCluster().SetEndpoints(e.Endpoints()),
 		}).
 		SetService(e.opts.ServiceID()).
 		SetEnv(e.opts.Environment())

@@ -29,42 +29,45 @@ import (
 )
 
 // EmbeddedKV is an embedded etcd server wrapped around
-// by m3cluster utilities
+// by m3cluster utilities.
 type EmbeddedKV interface {
 	io.Closer
 
-	// Start starts the embedded KV
+	// Start starts the embedded KV.
 	Start() error
 
+	// Endpoints returns the active endpoints for the embedded KV.
+	Endpoints() []string
+
 	// ConfigServiceClient returns a m3cluster wrapper
-	// around the embedded kv
+	// around the embedded KV.
 	ConfigServiceClient() (client.Client, error)
 }
 
-// Options specify the knobs to control the embedded kv
+// Options specify the knobs to control the embedded KV.
 type Options interface {
-	// SetInstrumentOptions sets the instrumentation options
+	// SetInstrumentOptions sets the instrumentation options.
 	SetInstrumentOptions(value instrument.Options) Options
 
-	// InstrumentOptions returns the instrumentation options
+	// InstrumentOptions returns the instrumentation options.
 	InstrumentOptions() instrument.Options
 
-	// SetDir sets the working directory
+	// SetDir sets the working directory.
 	SetDir(value string) Options
 
-	// Dir returns the working directory
+	// Dir returns the working directory.
 	Dir() string
 
-	// SetInitTimeout sets the init timeout
+	// SetInitTimeout sets the init timeout.
 	SetInitTimeout(value time.Duration) Options
 
-	// InitTimeout returns the init timeout
+	// InitTimeout returns the init timeout.
 	InitTimeout() time.Duration
 
-	// SetServiceID sets the service id for KV operations
+	// SetServiceID sets the service id for KV operations.
 	SetServiceID(value string) Options
 
-	// ServiceID returns the service id for KV operations
+	// ServiceID returns the service id for KV operations.
 	ServiceID() string
 
 	// SetEnvironment sets the environment for KV operations.
