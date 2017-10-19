@@ -56,7 +56,7 @@ func newTestReader(filePathPrefix string) FileSetReader {
 		return pool.NewBytesPool(s, nil)
 	})
 	bytesPool.Init()
-	return NewReader(filePathPrefix, testReaderBufferSize, bytesPool, nil)
+	return NewReader(filePathPrefix, testReaderBufferSize, testReaderBufferSize, bytesPool, nil)
 }
 
 func bytesRefd(data []byte) checked.Bytes {
@@ -289,7 +289,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 	require.True(t, FileExists(checkpointFile))
 	os.Remove(checkpointFile)
 
-	r := NewReader(filePathPrefix, testReaderBufferSize, nil, nil)
+	r := NewReader(filePathPrefix, testReaderBufferSize, testReaderBufferSize, nil, nil)
 	err = r.Open(testNs1ID, shard, testWriterStart)
 	require.Equal(t, errCheckpointFileNotFound, err)
 }
@@ -320,7 +320,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 		fd.Close()
 	}
 
-	r := NewReader(filePathPrefix, testReaderBufferSize, nil, nil)
+	r := NewReader(filePathPrefix, testReaderBufferSize, testReaderBufferSize, nil, nil)
 	require.Error(t, r.Open(testNs1ID, shard, time.Unix(1000, 0)))
 }
 

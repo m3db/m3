@@ -28,13 +28,13 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
-	"github.com/m3db/m3db/digest"
 )
 
 var (
@@ -78,13 +78,17 @@ type indexMapEntry struct {
 // NewSeeker returns a new seeker.
 func NewSeeker(
 	filePathPrefix string,
-	bufferSize int,
+	dataBufferSize int,
+	infoBufferSize int,
+	seekBufferSize int,
 	bytesPool pool.CheckedBytesPool,
 	decodingOpts msgpack.DecodingOptions,
 ) FileSetSeeker {
 	return newSeeker(seekerOpts{
 		filePathPrefix: filePathPrefix,
-		bufferSize:     bufferSize,
+		dataBufferSize: dataBufferSize,
+		infoBufferSize: infoBufferSize,
+		seekBufferSize: seekBufferSize,
 		bytesPool:      bytesPool,
 		keepIndexIDs:   true,
 		keepUnreadBuf:  false,
@@ -94,7 +98,9 @@ func NewSeeker(
 
 type seekerOpts struct {
 	filePathPrefix string
-	bufferSize     int
+	infoBufferSize int
+	dataBufferSize int
+	seekBufferSize int
 	bytesPool      pool.CheckedBytesPool
 	keepIndexIDs   bool
 	keepUnreadBuf  bool
@@ -117,10 +123,10 @@ type fileSetSeeker interface {
 func newSeeker(opts seekerOpts) fileSetSeeker {
 	return &seeker{
 		filePathPrefix:             opts.filePathPrefix,
-		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.bufferSize),
-		indexFdWithDigest:          digest.NewFdWithDigestReader(opts.bufferSize),
-		dataReader:                 bufio.NewReaderSize(nil, opts.bufferSize),
-		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.bufferSize),
+		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.infoBufferSize),
+		indexFdWithDigest:          digest.NewFdWithDigestReader(opts.dataBufferSize),
+		dataReader:                 bufio.NewReaderSize(nil, opts.seekBufferSize),
+		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.infoBufferSize),
 		keepIndexIDs:               opts.keepIndexIDs,
 		keepUnreadBuf:              opts.keepUnreadBuf,
 		prologue:                   make([]byte, markerLen+idxLen),

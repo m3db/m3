@@ -22,7 +22,7 @@ func New(opts Options) FilesetCloner {
 }
 
 func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duration) error {
-	reader := fs.NewReader(src.PathPrefix, c.opts.BufferSize(), nil, msgpack.NewDecodingOptions())
+	reader := fs.NewReader(src.PathPrefix, c.opts.BufferSize(), c.opts.BufferSize(), nil, msgpack.NewDecodingOptions())
 	if err := reader.Open(ts.StringID(src.Namespace), src.Shard, src.Blockstart); err != nil {
 		return fmt.Errorf("unable to read source fileset: %v", err)
 	}

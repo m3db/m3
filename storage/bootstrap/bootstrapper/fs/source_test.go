@@ -391,7 +391,8 @@ func TestReadValidateError(t *testing.T) {
 	src := newFileSystemSource(dir, NewOptions()).(*fileSystemSource)
 	src.newReaderFn = func(
 		filePathPrefix string,
-		readerBufferSize int,
+		dataReaderBufferSize int,
+		infoReaderBufferSize int,
 		b pool.CheckedBytesPool,
 		decodingOpts msgpack.DecodingOptions,
 	) fs.FileSetReader {
@@ -441,7 +442,8 @@ func TestReadDeleteOnError(t *testing.T) {
 	src := newFileSystemSource(dir, NewOptions()).(*fileSystemSource)
 	src.newReaderFn = func(
 		filePathPrefix string,
-		readerBufferSize int,
+		dataReaderBufferSize int,
+		infoReaderBufferSize int,
 		b pool.CheckedBytesPool,
 		decodingOpts msgpack.DecodingOptions,
 	) fs.FileSetReader {
