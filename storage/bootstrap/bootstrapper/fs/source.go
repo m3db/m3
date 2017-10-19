@@ -39,19 +39,21 @@ import (
 
 type newFileSetReaderFn func(
 	filePathPrefix string,
-	readerBufferSize int,
+	dataReaderBufferSize int,
+	infoReaderBufferSize int,
 	bytesPool pool.CheckedBytesPool,
 	decodingOpts msgpack.DecodingOptions,
 ) fs.FileSetReader
 
 type fileSystemSource struct {
-	opts             Options
-	log              xlog.Logger
-	filePathPrefix   string
-	readerBufferSize int
-	decodingOpts     msgpack.DecodingOptions
-	newReaderFn      newFileSetReaderFn
-	processors       xsync.WorkerPool
+	opts                 Options
+	log                  xlog.Logger
+	filePathPrefix       string
+	dataReaderBufferSize int
+	infoReaderBufferSize int
+	decodingOpts         msgpack.DecodingOptions
+	newReaderFn          newFileSetReaderFn
+	processors           xsync.WorkerPool
 }
 
 func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
@@ -60,13 +62,14 @@ func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
 
 	fileSystemOpts := opts.FilesystemOptions()
 	return &fileSystemSource{
-		opts:             opts,
-		log:              opts.ResultOptions().InstrumentOptions().Logger(),
-		filePathPrefix:   prefix,
-		readerBufferSize: fileSystemOpts.ReaderBufferSize(),
-		decodingOpts:     fileSystemOpts.DecodingOptions(),
-		newReaderFn:      fs.NewReader,
-		processors:       processors,
+		opts:                 opts,
+		log:                  opts.ResultOptions().InstrumentOptions().Logger(),
+		filePathPrefix:       prefix,
+		dataReaderBufferSize: fileSystemOpts.DataReaderBufferSize(),
+		infoReaderBufferSize: fileSystemOpts.InfoReaderBufferSize(),
+		decodingOpts:         fileSystemOpts.DecodingOptions(),
+		newReaderFn:          fs.NewReader,
+		processors:           processors,
 	}
 }
 
@@ -98,7 +101,7 @@ func (s *fileSystemSource) shardAvailability(
 		return nil
 	}
 
-	entries := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.readerBufferSize, s.decodingOpts)
+	entries := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.infoReaderBufferSize, s.decodingOpts)
 	if len(entries) == 0 {
 		return nil
 	}
@@ -123,7 +126,7 @@ func (s *fileSystemSource) enqueueReaders(
 	readersCh chan<- shardReaders,
 ) {
 	for shard, tr := range shardsTimeRanges {
-		files := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.readerBufferSize, s.decodingOpts)
+		files := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.infoReaderBufferSize, s.decodingOpts)
 		if len(files) == 0 {
 			if tr == nil {
 				tr = xtime.NewRanges()
@@ -400,7 +403,8 @@ func (s *fileSystemSource) Read(
 	readerPool := newReaderPool(func() fs.FileSetReader {
 		return s.newReaderFn(
 			s.filePathPrefix,
-			s.readerBufferSize,
+			s.dataReaderBufferSize,
+			s.infoReaderBufferSize,
 			s.opts.ResultOptions().DatabaseBlockOptions().BytesPool(),
 			s.decodingOpts,
 		)

@@ -33,8 +33,14 @@ const (
 	// defaultWriterBufferSize is the default buffer size for writing TSDB files
 	defaultWriterBufferSize = 65536
 
-	// defaultReaderBufferSize is the default buffer size for reading TSDB files
-	defaultReaderBufferSize = 65536
+	// defaultDataReaderBufferSize is the default buffer size for reading TSDB data and index files
+	defaultDataReaderBufferSize = 65536
+
+	// defaultInfoReaderBufferSize is the default buffer size for reading TSDB info, checkpoint and digest files
+	defaultInfoReaderBufferSize = 64
+
+	// defaultSeekReaderBufferSize is the default buffer size for fs seeker's data buffer
+	defaultSeekReaderBufferSize = 4096
 )
 
 var (
@@ -44,29 +50,33 @@ var (
 )
 
 type options struct {
-	clockOpts        clock.Options
-	instrumentOpts   instrument.Options
-	runtimeOptsMgr   runtime.OptionsManager
-	decodingOpts     msgpack.DecodingOptions
-	filePathPrefix   string
-	newFileMode      os.FileMode
-	newDirectoryMode os.FileMode
-	writerBufferSize int
-	readerBufferSize int
+	clockOpts            clock.Options
+	instrumentOpts       instrument.Options
+	runtimeOptsMgr       runtime.OptionsManager
+	decodingOpts         msgpack.DecodingOptions
+	filePathPrefix       string
+	newFileMode          os.FileMode
+	newDirectoryMode     os.FileMode
+	writerBufferSize     int
+	dataReaderBufferSize int
+	infoReaderBufferSize int
+	seekReaderBufferSize int
 }
 
 // NewOptions creates a new set of fs options
 func NewOptions() Options {
 	return &options{
-		clockOpts:        clock.NewOptions(),
-		instrumentOpts:   instrument.NewOptions(),
-		runtimeOptsMgr:   runtime.NewOptionsManager(runtime.NewOptions()),
-		decodingOpts:     msgpack.NewDecodingOptions(),
-		filePathPrefix:   defaultFilePathPrefix,
-		newFileMode:      defaultNewFileMode,
-		newDirectoryMode: defaultNewDirectoryMode,
-		writerBufferSize: defaultWriterBufferSize,
-		readerBufferSize: defaultReaderBufferSize,
+		clockOpts:            clock.NewOptions(),
+		instrumentOpts:       instrument.NewOptions(),
+		runtimeOptsMgr:       runtime.NewOptionsManager(runtime.NewOptions()),
+		decodingOpts:         msgpack.NewDecodingOptions(),
+		filePathPrefix:       defaultFilePathPrefix,
+		newFileMode:          defaultNewFileMode,
+		newDirectoryMode:     defaultNewDirectoryMode,
+		writerBufferSize:     defaultWriterBufferSize,
+		dataReaderBufferSize: defaultDataReaderBufferSize,
+		infoReaderBufferSize: defaultInfoReaderBufferSize,
+		seekReaderBufferSize: defaultSeekReaderBufferSize,
 	}
 }
 
@@ -150,12 +160,32 @@ func (o *options) WriterBufferSize() int {
 	return o.writerBufferSize
 }
 
-func (o *options) SetReaderBufferSize(value int) Options {
+func (o *options) SetDataReaderBufferSize(value int) Options {
 	opts := *o
-	opts.readerBufferSize = value
+	opts.dataReaderBufferSize = value
 	return &opts
 }
 
-func (o *options) ReaderBufferSize() int {
-	return o.readerBufferSize
+func (o *options) DataReaderBufferSize() int {
+	return o.dataReaderBufferSize
+}
+
+func (o *options) SetInfoReaderBufferSize(value int) Options {
+	opts := *o
+	opts.infoReaderBufferSize = value
+	return &opts
+}
+
+func (o *options) InfoReaderBufferSize() int {
+	return o.infoReaderBufferSize
+}
+
+func (o *options) SetSeekReaderBufferSize(value int) Options {
+	opts := *o
+	opts.seekReaderBufferSize = value
+	return &opts
+}
+
+func (o *options) SeekReaderBufferSize() int {
+	return o.seekReaderBufferSize
 }
