@@ -68,7 +68,6 @@ type Entry struct {
 	hasDefaultPoliciesList bool
 	useDefaultPolicies     bool
 	cutoverNanos           int64
-	tombstoned             bool
 	lists                  *metricLists
 	numWriters             int32
 	lastAccessNanos        int64
@@ -106,7 +105,6 @@ func (e *Entry) ResetSetData(lists *metricLists, opts Options) {
 	e.hasDefaultPoliciesList = false
 	e.useDefaultPolicies = false
 	e.cutoverNanos = uninitializedCutoverNanos
-	e.tombstoned = false
 	e.lists = lists
 	e.numWriters = 0
 	e.recordLastAccessed(e.opts.ClockOptions().NowFn()())
@@ -199,13 +197,19 @@ func (e *Entry) addMetricWithPoliciesList(
 		return err
 	}
 
+	// If the policy indicates the (rollup) metric has been tombstoned, the metric is
+	// not ingested for aggregation. However, we do not update the policies asssociated
+	// with this entry and mark it tombstoned because there may be a different raw metric
+	// generating this same (rollup) metric that is actively emitting, meaning this entry
+	// may still be very much alive.
+	if sp.Tombstoned {
+		e.RUnlock()
+		timeLock.RUnlock()
+		e.metrics.tombstonedPolicy.Inc(1)
+		return nil
+	}
+
 	if !e.shouldUpdatePoliciesWithLock(currTime, sp) {
-		if e.tombstoned {
-			e.RUnlock()
-			timeLock.RUnlock()
-			e.metrics.tombstonedPolicy.Inc(1)
-			return nil
-		}
 		err := e.addMetricWithLock(currTime, mu)
 		e.RUnlock()
 		timeLock.RUnlock()
@@ -228,13 +232,6 @@ func (e *Entry) addMetricWithPoliciesList(
 			timeLock.RUnlock()
 			return err
 		}
-	}
-
-	if e.tombstoned {
-		e.Unlock()
-		timeLock.RUnlock()
-		e.metrics.tombstonedPolicy.Inc(1)
-		return nil
 	}
 
 	err = e.addMetricWithLock(currTime, mu)
@@ -324,12 +321,8 @@ func (e *Entry) shouldUpdatePoliciesWithLock(currTime time.Time, sp policy.Stage
 		e.metrics.stalePolicy.Inc(1)
 		return false
 	}
-	if e.tombstoned != sp.Tombstoned || e.cutoverNanos != sp.CutoverNanos {
+	if e.cutoverNanos != sp.CutoverNanos {
 		return true
-	}
-	// If the policies have been tombstoned, there is no need to compare the actual policies.
-	if e.tombstoned {
-		return false
 	}
 	policies, useDefaultPolicies := sp.Policies()
 	if e.useDefaultPolicies && useDefaultPolicies {
@@ -360,15 +353,9 @@ func (e *Entry) updatePoliciesWithLock(
 	hasDefaultPoliciesList bool,
 	sp policy.StagedPolicies,
 ) error {
-	var (
-		policies           []policy.Policy
-		useDefaultPolicies bool
-	)
-	if !sp.Tombstoned {
-		policies, useDefaultPolicies = sp.Policies()
-		if useDefaultPolicies {
-			policies = e.opts.DefaultPolicies()
-		}
+	policies, useDefaultPolicies := sp.Policies()
+	if useDefaultPolicies {
+		policies = e.opts.DefaultPolicies()
 	}
 
 	// Fast path to exit in case the policies didn't change.
@@ -376,7 +363,6 @@ func (e *Entry) updatePoliciesWithLock(
 		e.hasDefaultPoliciesList = hasDefaultPoliciesList
 		e.useDefaultPolicies = useDefaultPolicies
 		e.cutoverNanos = sp.CutoverNanos
-		e.tombstoned = sp.Tombstoned
 		e.metrics.policyUpdates.Inc(1)
 		return nil
 	}
@@ -454,7 +440,6 @@ func (e *Entry) updatePoliciesWithLock(
 	e.hasDefaultPoliciesList = hasDefaultPoliciesList
 	e.useDefaultPolicies = useDefaultPolicies
 	e.cutoverNanos = sp.CutoverNanos
-	e.tombstoned = sp.Tombstoned
 	e.metrics.policyUpdates.Inc(1)
 
 	return nil
