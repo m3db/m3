@@ -30,6 +30,7 @@ import (
 var (
 	errEmptyNamespace   = errors.New("empty kv namespace")
 	errEmptyEnvironment = errors.New("empty kv environment")
+	errNoLogger         = errors.New("no kv logger")
 )
 
 type valueWatch struct {
@@ -107,7 +108,7 @@ type options struct {
 
 // NewOptions creates a new kv Options.
 func NewOptions() Options {
-	return options{}
+	return options{logger: log.NullLogger}
 }
 
 func (opts options) Logger() log.Logger {
@@ -143,6 +144,9 @@ func (opts options) Validate() error {
 	}
 	if opts.namespace == "" {
 		return errEmptyNamespace
+	}
+	if opts.logger == nil {
+		return errNoLogger
 	}
 	return nil
 }
