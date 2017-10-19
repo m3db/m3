@@ -93,7 +93,6 @@ func TestEntryResetSetData(t *testing.T) {
 	require.False(t, e.hasDefaultPoliciesList)
 	require.False(t, e.useDefaultPolicies)
 	require.Equal(t, int64(uninitializedCutoverNanos), e.cutoverNanos)
-	require.False(t, e.tombstoned)
 	require.Equal(t, lists, e.lists)
 	require.Equal(t, int32(0), e.numWriters)
 	require.Equal(t, now.UnixNano(), e.lastAccessNanos)
@@ -187,6 +186,7 @@ func TestEntryAddMetricWithPoliciesListDefaultPoliciesList(t *testing.T) {
 		prePopulatePolicies = testDefaultPolicies
 		ownsID              = false
 		inputPoliciesList   = policy.DefaultPoliciesList
+		expectedShouldAdd   = true
 		expectedPolicies    = policy.NewStagedPolicies(0, false, nil)
 		lists               *metricLists
 	)
@@ -194,7 +194,6 @@ func TestEntryAddMetricWithPoliciesListDefaultPoliciesList(t *testing.T) {
 	preAddFn := func(e *Entry, now *time.Time) {
 		e.hasDefaultPoliciesList = true
 		e.cutoverNanos = 0
-		e.tombstoned = false
 		e.useDefaultPolicies = true
 		lists = e.lists
 	}
@@ -210,7 +209,7 @@ func TestEntryAddMetricWithPoliciesListDefaultPoliciesList(t *testing.T) {
 
 	testEntryAddMetricWithPoliciesList(
 		t, withPrepopulation, prePopulatePolicies, ownsID,
-		preAddFn, inputPoliciesList, postAddFn, expectedPolicies,
+		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
@@ -229,15 +228,15 @@ func TestEntryAddMetricWithPoliciesListFuturePolicies(t *testing.T) {
 		inputPoliciesList   = policy.PoliciesList{
 			policy.NewStagedPolicies(nowNanos+100, false, testPolicies),
 		}
-		expectedPolicies = policy.NewStagedPolicies(0, false, nil)
-		lists            *metricLists
+		expectedShouldAdd = true
+		expectedPolicies  = policy.NewStagedPolicies(0, false, nil)
+		lists             *metricLists
 	)
 
 	preAddFn := func(e *Entry, now *time.Time) {
 		*now = time.Unix(0, nowNanos)
 		e.hasDefaultPoliciesList = false
 		e.cutoverNanos = 0
-		e.tombstoned = false
 		e.useDefaultPolicies = true
 		lists = e.lists
 	}
@@ -253,7 +252,7 @@ func TestEntryAddMetricWithPoliciesListFuturePolicies(t *testing.T) {
 
 	testEntryAddMetricWithPoliciesList(
 		t, withPrepopulation, prePopulatePolicies, ownsID,
-		preAddFn, inputPoliciesList, postAddFn, expectedPolicies,
+		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
@@ -266,15 +265,15 @@ func TestEntryAddMetricWithPoliciesListStalePolicies(t *testing.T) {
 		inputPoliciesList   = policy.PoliciesList{
 			policy.NewStagedPolicies(nowNanos-1000, false, testPolicies),
 		}
-		expectedPolicies = policy.NewStagedPolicies(nowNanos-100, false, nil)
-		lists            *metricLists
+		expectedShouldAdd = true
+		expectedPolicies  = policy.NewStagedPolicies(nowNanos-100, false, nil)
+		lists             *metricLists
 	)
 
 	preAddFn := func(e *Entry, now *time.Time) {
 		*now = time.Unix(0, nowNanos)
 		e.hasDefaultPoliciesList = false
 		e.cutoverNanos = nowNanos - 100
-		e.tombstoned = false
 		e.useDefaultPolicies = true
 		lists = e.lists
 	}
@@ -290,7 +289,7 @@ func TestEntryAddMetricWithPoliciesListStalePolicies(t *testing.T) {
 
 	testEntryAddMetricWithPoliciesList(
 		t, withPrepopulation, prePopulatePolicies, ownsID,
-		preAddFn, inputPoliciesList, postAddFn, expectedPolicies,
+		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
@@ -305,15 +304,15 @@ func TestEntryAddMetricWithPoliciesListSameDefaultPolicies(t *testing.T) {
 			policy.NewStagedPolicies(nowNanos-100, false, testDefaultPolicies),
 			policy.NewStagedPolicies(nowNanos+100, false, testPolicies),
 		}
-		expectedPolicies = policy.NewStagedPolicies(nowNanos-100, false, nil)
-		lists            *metricLists
+		expectedShouldAdd = true
+		expectedPolicies  = policy.NewStagedPolicies(nowNanos-100, false, nil)
+		lists             *metricLists
 	)
 
 	preAddFn := func(e *Entry, now *time.Time) {
 		*now = time.Unix(0, nowNanos)
 		e.hasDefaultPoliciesList = false
 		e.cutoverNanos = nowNanos - 100
-		e.tombstoned = false
 		e.useDefaultPolicies = true
 		lists = e.lists
 	}
@@ -329,7 +328,7 @@ func TestEntryAddMetricWithPoliciesListSameDefaultPolicies(t *testing.T) {
 
 	testEntryAddMetricWithPoliciesList(
 		t, withPrepopulation, prePopulatePolicies, ownsID,
-		preAddFn, inputPoliciesList, postAddFn, expectedPolicies,
+		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
@@ -344,15 +343,15 @@ func TestEntryAddMetricWithPoliciesListSameCustomPolicies(t *testing.T) {
 			policy.NewStagedPolicies(nowNanos-100, false, testPolicies),
 			policy.NewStagedPolicies(nowNanos+100, false, testDefaultPolicies),
 		}
-		expectedPolicies = policy.NewStagedPolicies(nowNanos-100, false, testPolicies)
-		lists            *metricLists
+		expectedShouldAdd = true
+		expectedPolicies  = policy.NewStagedPolicies(nowNanos-100, false, testPolicies)
+		lists             *metricLists
 	)
 
 	preAddFn := func(e *Entry, now *time.Time) {
 		*now = time.Unix(0, nowNanos)
 		e.hasDefaultPoliciesList = false
 		e.cutoverNanos = nowNanos - 100
-		e.tombstoned = false
 		e.useDefaultPolicies = false
 		lists = e.lists
 	}
@@ -368,7 +367,7 @@ func TestEntryAddMetricWithPoliciesListSameCustomPolicies(t *testing.T) {
 
 	testEntryAddMetricWithPoliciesList(
 		t, withPrepopulation, prePopulatePolicies, ownsID,
-		preAddFn, inputPoliciesList, postAddFn, expectedPolicies,
+		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
@@ -383,8 +382,9 @@ func TestEntryAddMetricWithPoliciesListDifferentTombstone(t *testing.T) {
 			policy.NewStagedPolicies(nowNanos-100, true, nil),
 			policy.NewStagedPolicies(nowNanos+100, false, testDefaultPolicies),
 		}
-		expectedPolicies = policy.NewStagedPolicies(nowNanos-100, true, nil)
-		lists            *metricLists
+		expectedShouldAdd = false
+		expectedPolicies  = policy.NewStagedPolicies(nowNanos-100, false, testPolicies)
+		lists             *metricLists
 	)
 
 	deletedPolicies := make(map[policy.StoragePolicy]struct{})
@@ -395,46 +395,6 @@ func TestEntryAddMetricWithPoliciesListDifferentTombstone(t *testing.T) {
 		*now = time.Unix(0, nowNanos)
 		e.hasDefaultPoliciesList = false
 		e.cutoverNanos = nowNanos - 100
-		e.tombstoned = false
-		e.useDefaultPolicies = false
-		lists = e.lists
-	}
-	postAddFn := func(t *testing.T) {
-		require.Equal(t, 3, len(lists.lists))
-		for _, p := range testPolicies {
-			list, exists := lists.lists[p.Resolution().Window]
-			require.True(t, exists)
-			require.Equal(t, 1, list.aggregations.Len())
-			checkElemTombstoned(t, list.aggregations.Front().Value.(metricElem), deletedPolicies)
-		}
-	}
-
-	testEntryAddMetricWithPoliciesList(
-		t, withPrepopulation, prePopulatePolicies, ownsID,
-		preAddFn, inputPoliciesList, postAddFn, expectedPolicies,
-	)
-}
-
-func TestEntryAddMetricWithPoliciesListDifferentCutoverSamePolicies(t *testing.T) {
-	var (
-		withPrepopulation   = true
-		prePopulatePolicies = testPolicies
-		ownsID              = false
-		nowNanos            = time.Now().UnixNano()
-		inputPoliciesList   = policy.PoliciesList{
-			policy.NewStagedPolicies(nowNanos-1000, false, testDefaultPolicies),
-			policy.NewStagedPolicies(nowNanos-10, false, testPolicies),
-			policy.NewStagedPolicies(nowNanos+100, false, testDefaultPolicies),
-		}
-		expectedPolicies = policy.NewStagedPolicies(nowNanos-10, false, testPolicies)
-		lists            *metricLists
-	)
-
-	preAddFn := func(e *Entry, now *time.Time) {
-		*now = time.Unix(0, nowNanos)
-		e.hasDefaultPoliciesList = false
-		e.cutoverNanos = nowNanos - 100
-		e.tombstoned = false
 		e.useDefaultPolicies = false
 		lists = e.lists
 	}
@@ -450,7 +410,46 @@ func TestEntryAddMetricWithPoliciesListDifferentCutoverSamePolicies(t *testing.T
 
 	testEntryAddMetricWithPoliciesList(
 		t, withPrepopulation, prePopulatePolicies, ownsID,
-		preAddFn, inputPoliciesList, postAddFn, expectedPolicies,
+		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
+	)
+}
+
+func TestEntryAddMetricWithPoliciesListDifferentCutoverSamePolicies(t *testing.T) {
+	var (
+		withPrepopulation   = true
+		prePopulatePolicies = testPolicies
+		ownsID              = false
+		nowNanos            = time.Now().UnixNano()
+		inputPoliciesList   = policy.PoliciesList{
+			policy.NewStagedPolicies(nowNanos-1000, false, testDefaultPolicies),
+			policy.NewStagedPolicies(nowNanos-10, false, testPolicies),
+			policy.NewStagedPolicies(nowNanos+100, false, testDefaultPolicies),
+		}
+		expectedShouldAdd = true
+		expectedPolicies  = policy.NewStagedPolicies(nowNanos-10, false, testPolicies)
+		lists             *metricLists
+	)
+
+	preAddFn := func(e *Entry, now *time.Time) {
+		*now = time.Unix(0, nowNanos)
+		e.hasDefaultPoliciesList = false
+		e.cutoverNanos = nowNanos - 100
+		e.useDefaultPolicies = false
+		lists = e.lists
+	}
+	postAddFn := func(t *testing.T) {
+		require.Equal(t, 3, len(lists.lists))
+		for _, p := range testPolicies {
+			list, exists := lists.lists[p.Resolution().Window]
+			require.True(t, exists)
+			require.Equal(t, 1, list.aggregations.Len())
+			checkElemTombstoned(t, list.aggregations.Front().Value.(metricElem), nil)
+		}
+	}
+
+	testEntryAddMetricWithPoliciesList(
+		t, withPrepopulation, prePopulatePolicies, ownsID,
+		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
@@ -465,8 +464,9 @@ func TestEntryAddMetricWithPoliciesListDifferentCutoverDifferentPolicies(t *test
 			policy.NewStagedPolicies(nowNanos-10, false, testNewPolicies),
 			policy.NewStagedPolicies(nowNanos+100, false, testPolicies),
 		}
-		expectedPolicies = policy.NewStagedPolicies(nowNanos-10, false, testNewPolicies)
-		lists            *metricLists
+		expectedShouldAdd = true
+		expectedPolicies  = policy.NewStagedPolicies(nowNanos-10, false, testNewPolicies)
+		lists             *metricLists
 	)
 
 	deletedPolicies := make(map[policy.StoragePolicy]struct{})
@@ -477,7 +477,6 @@ func TestEntryAddMetricWithPoliciesListDifferentCutoverDifferentPolicies(t *test
 		*now = time.Unix(0, nowNanos)
 		e.hasDefaultPoliciesList = false
 		e.cutoverNanos = nowNanos - 100
-		e.tombstoned = false
 		e.useDefaultPolicies = false
 		lists = e.lists
 	}
@@ -498,7 +497,7 @@ func TestEntryAddMetricWithPoliciesListDifferentCutoverDifferentPolicies(t *test
 
 	testEntryAddMetricWithPoliciesList(
 		t, withPrepopulation, prePopulatePolicies, ownsID,
-		preAddFn, inputPoliciesList, postAddFn, expectedPolicies,
+		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
@@ -513,8 +512,9 @@ func TestEntryAddMetricWithPoliciesListWithPolicyUpdateIDNotOwnedCopyID(t *testi
 			policy.NewStagedPolicies(nowNanos-10, false, testPolicies),
 			policy.NewStagedPolicies(nowNanos+100, false, testPolicies),
 		}
-		expectedPolicies = policy.NewStagedPolicies(nowNanos-10, false, testPolicies)
-		lists            *metricLists
+		expectedShouldAdd = true
+		expectedPolicies  = policy.NewStagedPolicies(nowNanos-10, false, testPolicies)
+		lists             *metricLists
 	)
 
 	preAddFn := func(e *Entry, now *time.Time) {
@@ -535,7 +535,7 @@ func TestEntryAddMetricWithPoliciesListWithPolicyUpdateIDNotOwnedCopyID(t *testi
 	}
 	testEntryAddMetricWithPoliciesList(
 		t, withPrepopulation, prePopulatePolicies, ownsID,
-		preAddFn, inputPoliciesList, postAddFn, expectedPolicies,
+		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
@@ -550,8 +550,9 @@ func TestEntryAddMetricWithPoliciesListWithPolicyUpdateIDOwnsID(t *testing.T) {
 			policy.NewStagedPolicies(nowNanos-10, false, testPolicies),
 			policy.NewStagedPolicies(nowNanos+100, false, testPolicies),
 		}
-		expectedPolicies = policy.NewStagedPolicies(nowNanos-10, false, testPolicies)
-		lists            *metricLists
+		expectedShouldAdd = true
+		expectedPolicies  = policy.NewStagedPolicies(nowNanos-10, false, testPolicies)
+		lists             *metricLists
 	)
 
 	preAddFn := func(e *Entry, now *time.Time) {
@@ -572,7 +573,7 @@ func TestEntryAddMetricWithPoliciesListWithPolicyUpdateIDOwnsID(t *testing.T) {
 	}
 	testEntryAddMetricWithPoliciesList(
 		t, withPrepopulation, prePopulatePolicies, ownsID,
-		preAddFn, inputPoliciesList, postAddFn, expectedPolicies,
+		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
@@ -672,42 +673,35 @@ func TestShouldUpdatePoliciesWithLock(t *testing.T) {
 	currTimeNanos := time.Now().UnixNano()
 	inputs := []struct {
 		cutoverNanos int64
-		tombstoned   bool
 		sp           policy.StagedPolicies
 		expected     bool
 	}{
 		{
 			cutoverNanos: uninitializedCutoverNanos,
-			tombstoned:   false,
 			sp:           policy.NewStagedPolicies(currTimeNanos-100, false, nil),
 			expected:     true,
 		},
 		{
 			cutoverNanos: currTimeNanos - 100,
-			tombstoned:   false,
 			sp:           policy.NewStagedPolicies(currTimeNanos, false, nil),
 			expected:     true,
 		},
 		{
 			cutoverNanos: currTimeNanos,
-			tombstoned:   false,
-			sp:           policy.NewStagedPolicies(currTimeNanos, true, nil),
+			sp:           policy.NewStagedPolicies(currTimeNanos, false, nil),
 			expected:     true,
 		},
 		{
 			cutoverNanos: currTimeNanos,
-			tombstoned:   false,
-			sp:           policy.NewStagedPolicies(currTimeNanos-100, true, nil),
+			sp:           policy.NewStagedPolicies(currTimeNanos-100, false, nil),
 			expected:     false,
 		},
 	}
 
 	for _, input := range inputs {
 		e.cutoverNanos = input.cutoverNanos
-		e.tombstoned = input.tombstoned
 		require.Equal(t, input.expected, e.shouldUpdatePoliciesWithLock(time.Unix(0, currTimeNanos), input.sp))
 	}
-
 }
 
 func testEntry() (*Entry, *metricLists, *time.Time) {
@@ -798,6 +792,7 @@ func testEntryAddMetricWithPoliciesList(
 	preAddFn testPreProcessFn,
 	inputPoliciesList policy.PoliciesList,
 	postAddFn testPostProcessFn,
+	expectedShouldAdd bool,
 	expectedPolicies policy.StagedPolicies,
 ) {
 	inputs := []testEntryData{
@@ -807,9 +802,13 @@ func testEntryAddMetricWithPoliciesList(
 				id := elem.Value.(*CounterElem).ID()
 				require.Equal(t, testCounterID, id)
 				aggregations := elem.Value.(*CounterElem).values
-				require.Equal(t, 1, len(aggregations))
-				require.Equal(t, alignedStart.UnixNano(), aggregations[0].timeNanos)
-				require.Equal(t, int64(1234), aggregations[0].counter.Sum())
+				if !expectedShouldAdd {
+					require.Equal(t, 0, len(aggregations))
+				} else {
+					require.Equal(t, 1, len(aggregations))
+					require.Equal(t, alignedStart.UnixNano(), aggregations[0].timeNanos)
+					require.Equal(t, int64(1234), aggregations[0].counter.Sum())
+				}
 			},
 		},
 		{
@@ -818,9 +817,13 @@ func testEntryAddMetricWithPoliciesList(
 				id := elem.Value.(*TimerElem).ID()
 				require.Equal(t, testBatchTimerID, id)
 				aggregations := elem.Value.(*TimerElem).values
-				require.Equal(t, 1, len(aggregations))
-				require.Equal(t, alignedStart.UnixNano(), aggregations[0].timeNanos)
-				require.Equal(t, 18.0, aggregations[0].timer.Sum())
+				if !expectedShouldAdd {
+					require.Equal(t, 0, len(aggregations))
+				} else {
+					require.Equal(t, 1, len(aggregations))
+					require.Equal(t, alignedStart.UnixNano(), aggregations[0].timeNanos)
+					require.Equal(t, 18.0, aggregations[0].timer.Sum())
+				}
 			},
 		},
 		{
@@ -829,9 +832,13 @@ func testEntryAddMetricWithPoliciesList(
 				id := elem.Value.(*GaugeElem).ID()
 				require.Equal(t, testGaugeID, id)
 				aggregations := elem.Value.(*GaugeElem).values
-				require.Equal(t, 1, len(aggregations))
-				require.Equal(t, alignedStart.UnixNano(), aggregations[0].timeNanos)
-				require.Equal(t, 123.456, aggregations[0].gauge.Last())
+				if !expectedShouldAdd {
+					require.Equal(t, 0, len(aggregations))
+				} else {
+					require.Equal(t, 1, len(aggregations))
+					require.Equal(t, alignedStart.UnixNano(), aggregations[0].timeNanos)
+					require.Equal(t, 123.456, aggregations[0].gauge.Last())
+				}
 			},
 		},
 	}
@@ -862,7 +869,6 @@ func testEntryAddMetricWithPoliciesList(
 			input.fn(t, elem, now.Truncate(p.Resolution().Window))
 		}
 		require.Equal(t, expectedPolicies.CutoverNanos, e.cutoverNanos)
-		require.Equal(t, expectedPolicies.Tombstoned, e.tombstoned)
 
 		postAddFn(t)
 	}
