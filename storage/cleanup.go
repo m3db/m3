@@ -119,8 +119,6 @@ func (m *cleanupManager) cleanupFilesetFiles(t time.Time) error {
 	for _, n := range namespaces {
 		earliestToRetain := retention.FlushTimeStart(n.Options().RetentionOptions(), t)
 		multiErr = multiErr.Add(n.CleanupFileset(earliestToRetain))
-	}
-	for _, n := range namespaces {
 		multiErr = multiErr.Add(n.DeleteInactiveFilesetFiles())
 	}
 

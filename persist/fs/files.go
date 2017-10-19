@@ -327,13 +327,6 @@ func filesetFiles(filePathPrefix string, namespace ts.ID, shard uint32, pattern 
 	})
 }
 
-func namespaceFilesetFiles(filePathPrefix string, namespace ts.ID, pattern string) ([]string, error) {
-	shardDir := GenericShardDirPath(filePathPrefix, namespace)
-	return findFiles(shardDir, pattern, func(files []string) sort.Interface {
-		return byTimeAscending(files)
-	})
-}
-
 func commitlogFiles(commitLogsDir string, pattern string) ([]string, error) {
 	return findFiles(commitLogsDir, pattern, func(files []string) sort.Interface {
 		return byTimeAndIndexAscending(files)
