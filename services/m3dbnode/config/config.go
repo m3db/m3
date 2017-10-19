@@ -37,14 +37,17 @@ type Configuration struct {
 	// Metrics configuration.
 	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
 
-	// The host and port on which to listen
+	// The host and port on which to listen for the node service
 	ListenAddress string `yaml:"listenAddress" validate:"nonzero"`
 
-	// The HTTP host and port on which to listen for the cluster service
-	HTTPClusterListenAddress string `yaml:"httpClusterListenAddress" validate:"nonzero"`
+	// The host and port on which to listen for the cluster service
+	ClusterListenAddress string `yaml:"clusterListenAddress" validate:"nonzero"`
 
 	// The HTTP host and port on which to listen for the node service
 	HTTPNodeListenAddress string `yaml:"httpNodeListenAddress" validate:"nonzero"`
+
+	// The HTTP host and port on which to listen for the cluster service
+	HTTPClusterListenAddress string `yaml:"httpClusterListenAddress" validate:"nonzero"`
 
 	// The host and port on which to listen for debug endpoints
 	DebugListenAddress string `yaml:"debugListenAddress"`

@@ -20,6 +20,7 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	xclock "github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/integration/generate"
+	"github.com/m3db/m3db/kvconfig"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/tools/dtest/config"
@@ -43,9 +44,8 @@ import (
 )
 
 const (
-	buildFilename        = "m3dbnode"
-	configFilename       = "m3dbnode.yaml"
-	m3dbnodeNamespaceKey = "m3db.node.namespaces"
+	buildFilename  = "m3dbnode"
+	configFilename = "m3dbnode.yaml"
 )
 
 type closeFn func() error
@@ -124,14 +124,14 @@ func New(cliOpts *config.Args, logger xlog.Logger) *DTestHarness {
 		logger.Fatalf("unable to create proto value: %v", err)
 	}
 
-	_, err = kvStore.Set(m3dbnodeNamespaceKey, protoValue)
+	_, err = kvStore.Set(kvconfig.NamespacesKey, protoValue)
 	if err != nil {
 		logger.Fatalf("unable to set initial namespace value: %v", err)
 	}
 
 	// register cleanup in the end
 	dt.addCloser(func() error {
-		_, err := kvStore.Delete(m3dbnodeNamespaceKey)
+		_, err := kvStore.Delete(kvconfig.NamespacesKey)
 		return err
 	})
 

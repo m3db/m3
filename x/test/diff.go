@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,28 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package xtest
 
-import (
-	"flag"
-	// pprof: for debug listen server if configured
-	_ "net/http/pprof"
-	"os"
+import "github.com/sergi/go-diff/diffmatchpatch"
 
-	"github.com/m3db/m3db/services/m3dbnode/server"
-)
-
-var (
-	configFile = flag.String("f", "", "configuration file")
-)
-
-func main() {
-	flag.Parse()
-
-	if len(*configFile) == 0 {
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	server.Run(server.RunOptions{ConfigFile: *configFile})
+// Diff is a helper method to print a terminal pretty diff of two strings
+// for test output purposes.
+func Diff(expected, actual string) string {
+	dmp := diffmatchpatch.New()
+	diffs := dmp.DiffMain(expected, actual, false)
+	return dmp.DiffPrettyText(diffs)
 }

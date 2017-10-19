@@ -21,6 +21,7 @@
 package client
 
 import (
+	"errors"
 	"io"
 	"time"
 
@@ -34,10 +35,15 @@ import (
 	"github.com/m3db/m3x/retry"
 )
 
+var (
+	errConfigurationMustSupplyConfigService = errors.New(
+		"must supply configService when no topology initializer parameter supplied")
+)
+
 // Configuration is a configuration that can be used to construct a client.
 type Configuration struct {
 	// ConfigService is used when a topology initializer is not supplied.
-	ConfigService etcdclient.Configuration `yaml:"configService"`
+	ConfigService *etcdclient.Configuration `yaml:"configService"`
 
 	// WriteConsistencyLevel specifies the write consistency level.
 	WriteConsistencyLevel topology.ConsistencyLevel `yaml:"writeConsistencyLevel"`
@@ -69,7 +75,7 @@ type Configuration struct {
 
 	// BackgroundHealthCheckFailThrottleFactor is the factor of the host connect
 	// time to use when sleeping between a failed health check and the next check.
-	BackgroundHealthCheckFailThrottleFactor float64 `yaml:"backgroundHealthCheckFailThrottleFactor"`
+	BackgroundHealthCheckFailThrottleFactor float64 `yaml:"backgroundHealthCheckFailThrottleFactor" validate:"min=0,max=10"`
 }
 
 // ConfigurationParameters are optional parameters that can be specified
@@ -134,6 +140,10 @@ func (c Configuration) NewAdminClient(
 
 	topoInit := params.TopologyInitializer
 	if topoInit == nil {
+		if c.ConfigService == nil {
+			return nil, errConfigurationMustSupplyConfigService
+		}
+
 		configSvcClient, err := c.ConfigService.NewClient(iopts)
 		if err != nil {
 			return nil, err

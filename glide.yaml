@@ -44,7 +44,7 @@ import:
   version: <4.0.0
 
 - package: github.com/m3db/m3cluster
-  version: 56c031689fb080404de0b2acfc385e91627d93d7
+  version: 6edd2de9c678c51ef4d4d91eb66d191e9d7190f5
   subpackages:
   - client
   - services
@@ -97,3 +97,7 @@ import:
 
 - package: github.com/leanovate/gopter
   version: 9e6101e5a87586b269acf3d0d61f363e4317309f
+
+- package: github.com/sergi/go-diff
+  version: feef008d51ad2b3778f85d387ccf91735543008d
+

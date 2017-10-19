@@ -41,7 +41,7 @@ var (
 	defaultNumProcessorsPerCPU = 0.5
 )
 
-type filesystemConfiguration struct {
+type bootstrapFilesystemConfiguration struct {
 	// NumProcessorsPerCPU is the number of processors per cpu
 	NumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
 }
@@ -52,13 +52,13 @@ type BootstrapConfiguration struct {
 	Bootstrappers []string `yaml:"bootstrappers" validate:"nonzero"`
 
 	// Filesystem bootstrapper configuration
-	FilesystemConfiguration *filesystemConfiguration `yaml:"fs"`
+	Filesystem bootstrapFilesystemConfiguration `yaml:"fs"`
 }
 
 func (bsc BootstrapConfiguration) numProcessors() int {
 	np := defaultNumProcessorsPerCPU
-	if bsc.FilesystemConfiguration != nil {
-		np = bsc.FilesystemConfiguration.NumProcessorsPerCPU
+	if bsc.Filesystem.NumProcessorsPerCPU > 0 {
+		np = bsc.Filesystem.NumProcessorsPerCPU
 	}
 	return int(math.Ceil(float64(runtime.NumCPU()) * np))
 }
@@ -113,7 +113,7 @@ func (bsc BootstrapConfiguration) New(
 				return nil, err
 			}
 		default:
-			return nil, fmt.Errorf("unknown bootstrapper name %s", bsc.Bootstrappers[i])
+			return nil, fmt.Errorf("unknown bootstrapper: %s", bsc.Bootstrappers[i])
 		}
 	}
 
