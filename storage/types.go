@@ -227,8 +227,6 @@ type databaseNamespace interface {
 	// CleanupFileset cleans up fileset files
 	CleanupFileset(earliestToRetain time.Time) error
 
-	DeleteInactiveFilesetFiles() error
-
 	// Truncate truncates the in-memory data for this namespace
 	Truncate() (int64, error)
 

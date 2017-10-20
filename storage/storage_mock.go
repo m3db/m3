@@ -669,16 +669,6 @@ func (_mr *_MockdatabaseNamespaceRecorder) CleanupFileset(arg0 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "CleanupFileset", arg0)
 }
 
-func (_m *MockdatabaseNamespace) DeleteInactiveFilesetFiles() error {
-	ret := _m.ctrl.Call(_m, "DeleteInactiveFilesetFiles")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockdatabaseNamespaceRecorder) DeleteInactiveFilesetFiles() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "DeleteInactiveFilesetFiles")
-}
-
 func (_m *MockdatabaseNamespace) Truncate() (int64, error) {
 	ret := _m.ctrl.Call(_m, "Truncate")
 	ret0, _ := ret[0].(int64)

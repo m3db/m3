@@ -31,8 +31,8 @@ import (
 	ts "github.com/m3db/m3db/ts"
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
-	time0 "github.com/m3db/m3x/time"
-	time "time"
+	time "github.com/m3db/m3x/time"
+	time0 "time"
 )
 
 // Mock of CommitLog interface
@@ -66,7 +66,7 @@ func (_mr *_MockCommitLogRecorder) Open() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open")
 }
 
-func (_m *MockCommitLog) Write(ctx context.Context, series Series, datapoint ts.Datapoint, unit time0.Unit, annotation ts.Annotation) error {
+func (_m *MockCommitLog) Write(ctx context.Context, series Series, datapoint ts.Datapoint, unit time.Unit, annotation ts.Annotation) error {
 	ret := _m.ctrl.Call(_m, "Write", ctx, series, datapoint, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -128,11 +128,11 @@ func (_mr *_MockIteratorRecorder) Next() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
 }
 
-func (_m *MockIterator) Current() (Series, ts.Datapoint, time0.Unit, ts.Annotation) {
+func (_m *MockIterator) Current() (Series, ts.Datapoint, time.Unit, ts.Annotation) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(Series)
 	ret1, _ := ret[1].(ts.Datapoint)
-	ret2, _ := ret[2].(time0.Unit)
+	ret2, _ := ret[2].(time.Unit)
 	ret3, _ := ret[3].(ts.Annotation)
 	return ret0, ret1, ret2, ret3
 }
@@ -230,7 +230,7 @@ func (_mr *_MockOptionsRecorder) InstrumentOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions")
 }
 
-func (_m *MockOptions) SetRetentionPeriod(value time.Duration) Options {
+func (_m *MockOptions) SetRetentionPeriod(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "SetRetentionPeriod", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -240,9 +240,9 @@ func (_mr *_MockOptionsRecorder) SetRetentionPeriod(arg0 interface{}) *gomock.Ca
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRetentionPeriod", arg0)
 }
 
-func (_m *MockOptions) RetentionPeriod() time.Duration {
+func (_m *MockOptions) RetentionPeriod() time0.Duration {
 	ret := _m.ctrl.Call(_m, "RetentionPeriod")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -250,7 +250,7 @@ func (_mr *_MockOptionsRecorder) RetentionPeriod() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "RetentionPeriod")
 }
 
-func (_m *MockOptions) SetBlockSize(value time.Duration) Options {
+func (_m *MockOptions) SetBlockSize(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "SetBlockSize", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -260,9 +260,9 @@ func (_mr *_MockOptionsRecorder) SetBlockSize(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBlockSize", arg0)
 }
 
-func (_m *MockOptions) BlockSize() time.Duration {
+func (_m *MockOptions) BlockSize() time0.Duration {
 	ret := _m.ctrl.Call(_m, "BlockSize")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
@@ -330,7 +330,7 @@ func (_mr *_MockOptionsRecorder) Strategy() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Strategy")
 }
 
-func (_m *MockOptions) SetFlushInterval(value time.Duration) Options {
+func (_m *MockOptions) SetFlushInterval(value time0.Duration) Options {
 	ret := _m.ctrl.Call(_m, "SetFlushInterval", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -340,9 +340,9 @@ func (_mr *_MockOptionsRecorder) SetFlushInterval(arg0 interface{}) *gomock.Call
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFlushInterval", arg0)
 }
 
-func (_m *MockOptions) FlushInterval() time.Duration {
+func (_m *MockOptions) FlushInterval() time0.Duration {
 	ret := _m.ctrl.Call(_m, "FlushInterval")
-	ret0, _ := ret[0].(time.Duration)
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 

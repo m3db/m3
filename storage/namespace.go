@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
-	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
@@ -221,21 +220,20 @@ func newDatabaseNamespace(
 	}
 
 	n := &dbNamespace{
-		id:                         id,
-		shardSet:                   shardSet,
-		blockRetriever:             blockRetriever,
-		opts:                       opts,
-		metadata:                   metadata,
-		nopts:                      nopts,
-		seriesOpts:                 seriesOpts,
-		nowFn:                      opts.ClockOptions().NowFn(),
-		log:                        logger,
-		increasingIndex:            increasingIndex,
-		commitLogWriter:            commitLogWriter,
-		tickWorkers:                tickWorkers,
-		tickWorkersConcurrency:     tickWorkersConcurrency,
-		metrics:                    newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
-		deleteInactiveFilesetFiles: fs.DeleteInactiveFilesets,
+		id:                     id,
+		shardSet:               shardSet,
+		blockRetriever:         blockRetriever,
+		opts:                   opts,
+		metadata:               metadata,
+		nopts:                  nopts,
+		seriesOpts:             seriesOpts,
+		nowFn:                  opts.ClockOptions().NowFn(),
+		log:                    logger,
+		increasingIndex:        increasingIndex,
+		commitLogWriter:        commitLogWriter,
+		tickWorkers:            tickWorkers,
+		tickWorkersConcurrency: tickWorkersConcurrency,
+		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
 	}
 
 	n.initShards(nopts.NeedsBootstrap())
@@ -660,13 +658,15 @@ func (n *dbNamespace) NeedsFlush(alignedInclusiveStart time.Time, alignedInclusi
 }
 
 func (n *dbNamespace) DeleteInactiveFilesetFiles() error {
+	//check if we should be deleting
 	var shardIds []uint32
-	filesetFilePrefix := n.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	// filesetFilePrefix := n.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	activeShards := n.getOwnedShards()
 	for _, shard := range activeShards {
 		shardIds = append(shardIds, shard.ID())
 	}
-	return n.deleteInactiveFilesetFiles(filesetFilePrefix, n.ID(), shardIds)
+	return nil
+	//return n.deleteInactiveFilesetFiles(filesetFilePrefix, n.ID(), shardIds)
 }
 
 func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {
