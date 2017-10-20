@@ -86,22 +86,19 @@ var commitLogWriteNoOp = commitLogWriter(commitLogWriterFn(func(
 	return nil
 }))
 
-type deleteInactiveFilesetFilesFn func(filesetFilePrefix string, namespace ts.ID, activeShards []uint32) error
-
 type dbNamespace struct {
 	sync.RWMutex
 
-	id                         ts.ID
-	shardSet                   sharding.ShardSet
-	blockRetriever             block.DatabaseBlockRetriever
-	opts                       Options
-	metadata                   namespace.Metadata
-	nopts                      namespace.Options
-	seriesOpts                 series.Options
-	nowFn                      clock.NowFn
-	log                        xlog.Logger
-	bs                         bootstrapState
-	deleteInactiveFilesetFiles deleteInactiveFilesetFilesFn
+	id             ts.ID
+	shardSet       sharding.ShardSet
+	blockRetriever block.DatabaseBlockRetriever
+	opts           Options
+	metadata       namespace.Metadata
+	nopts          namespace.Options
+	seriesOpts     series.Options
+	nowFn          clock.NowFn
+	log            xlog.Logger
+	bs             bootstrapState
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
