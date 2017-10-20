@@ -38,10 +38,16 @@ type FilesystemConfiguration struct {
 	FilePathPrefix string `yaml:"filePathPrefix" validate:"nonzero"`
 
 	// Write buffer size
-	WriteBufferSize int `yaml:"writeBufferSize" validate:"min=0"`
+	WriteBufferSize int `yaml:"writeBufferSize" validate:"min=1"`
 
-	// Read buffer size
-	ReadBufferSize int `yaml:"readBufferSize" validate:"min=0"`
+	// Data read buffer size
+	DataReadBufferSize int `yaml:"dataReadBufferSize" validate:"min=1"`
+
+	// Info metadata file read buffer size
+	InfoReadBufferSize int `yaml:"infoReadBufferSize" validate:"min=1"`
+
+	// Seek data read buffer size
+	SeekReadBufferSize int `yaml:"seekReadBufferSize" validate:"min=1"`
 
 	// Disk flush throughput limit in Mb/s
 	ThroughputLimitMbps float64 `yaml:"throughputLimitMbps" validate:"min=0.0"`

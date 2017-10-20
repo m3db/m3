@@ -106,7 +106,9 @@ commitlog:
 fs:
     filePathPrefix: /var/lib/m3db
     writeBufferSize: 65536
-    readBufferSize: 65536
+    dataReadBufferSize: 65536
+    infoReadBufferSize: 128
+    seekReadBufferSize: 4096
     throughputLimitMbps: 100.0
     throughputCheckEvery: 128
 
@@ -306,7 +308,9 @@ bootstrap:
 fs:
   filePathPrefix: /var/lib/m3db
   writeBufferSize: 65536
-  readBufferSize: 65536
+  dataReadBufferSize: 65536
+  infoReadBufferSize: 128
+  seekReadBufferSize: 4096
   throughputLimitMbps: 100
   throughputCheckEvery: 128
   newFileMode: null

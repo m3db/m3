@@ -163,7 +163,9 @@ func Run(runOpts RunOptions) {
 		SetNewFileMode(newFileMode).
 		SetNewDirectoryMode(newDirectoryMode).
 		SetWriterBufferSize(cfg.Filesystem.WriteBufferSize).
-		SetReaderBufferSize(cfg.Filesystem.ReadBufferSize)
+		SetDataReaderBufferSize(cfg.Filesystem.DataReadBufferSize).
+		SetInfoReaderBufferSize(cfg.Filesystem.InfoReadBufferSize).
+		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSize)
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size
