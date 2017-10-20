@@ -276,12 +276,14 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 
 	for arg := range inBuf {
 		readResponse := readResponse{}
+		// If there is a pre-existing error, just pipe it through
 		if arg.err != nil {
 			readResponse.resultErr = arg.err
 			r.writeToOutBuf(outBuf, readResponse)
 			continue
 		}
 
+		// Decode the log entry
 		arg.bytes.IncRef()
 		decoder.Reset(arg.bytes.Get())
 		entry, err := decoder.DecodeLogEntry()
@@ -291,83 +293,19 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			continue
 		}
 
+		// If the log entry has associated metadata, decode that as well
 		if len(entry.Metadata) != 0 {
-			metadataDecoder.Reset(entry.Metadata)
-			decoded, err := metadataDecoder.DecodeLogMetadata()
+			err := r.decodeAndHandleMetadata(metadataDecoder, entry)
 			if err != nil {
 				readResponse.resultErr = err
 				r.writeToOutBuf(outBuf, readResponse)
 				continue
 			}
-
-			id := r.bytesPool.Get(len(decoded.ID))
-			id.IncRef()
-			id.AppendAll(decoded.ID)
-
-			namespace := r.bytesPool.Get(len(decoded.Namespace))
-			namespace.IncRef()
-			namespace.AppendAll(decoded.Namespace)
-
-			r.metadata.Lock()
-			_, ok := r.metadata.lookup[entry.Index]
-			// If the metadata already exists, we can skip this step
-			if ok {
-				id.DecRef()
-				id.Finalize()
-				namespace.DecRef()
-				namespace.Finalize()
-			} else {
-				metadata := Series{
-					UniqueIndex: entry.Index,
-					ID:          ts.BinaryID(id),
-					Namespace:   ts.BinaryID(namespace),
-					Shard:       decoded.Shard,
-				}
-				r.metadata.lookup[entry.Index] = metadata
-				pendingMetadata, ok := r.metadata.pending[entry.Index]
-				// One (or more) goroutines are blocked waiting for this metadata
-				if ok {
-					delete(r.metadata.pending, entry.Index)
-				}
-
-				namespace.DecRef()
-				id.DecRef()
-
-				if ok {
-					for _, p := range pendingMetadata {
-						p.done(metadata, nil)
-					}
-				}
-			}
-			r.metadata.Unlock()
 		}
-
-		var pendingMetadata *readerPendingSeriesMetadataResponse
-		var metadata Series
-		var hasMetadata bool
-
-		// Try cheap read lock first
-		r.metadata.RLock()
-		metadata, hasMetadata = r.metadata.lookup[entry.Index]
-		r.metadata.RUnlock()
-
-		// The required metadata hasn't been processed yet
-		if !hasMetadata {
-			r.metadata.Lock()
-			metadata, hasMetadata = r.metadata.lookup[entry.Index]
-			if !hasMetadata {
-				pendingMetadata = &readerPendingSeriesMetadataResponse{}
-				pendingMetadata.wg.Add(1)
-				r.metadata.pending[entry.Index] = append(r.metadata.pending[entry.Index], pendingMetadata)
-			}
-			r.metadata.Unlock()
-		}
-
-		readResponse.pendingMetadata = pendingMetadata
 
 		// Metadata may or may not actually be nonzero here, the consumer in Read()
 		// will wait if so
-		readResponse.series = metadata
+		readResponse.series, readResponse.pendingMetadata = r.lookupMetadata(entry.Index)
 		readResponse.datapoint = ts.Datapoint{
 			Timestamp: time.Unix(0, entry.Timestamp),
 			Value:     entry.Value,
@@ -383,6 +321,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		arg.bytes.Finalize()
 		r.writeToOutBuf(outBuf, readResponse)
 	}
+
 	r.metadata.Lock()
 	r.metadata.numBlockedOrFinishedDecoders++
 	// If all of the decoders are either finished or blocked then we need to free
@@ -395,6 +334,78 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 	r.metadata.Unlock()
 	// Close the outBuf now that there is no more data to produce to it
 	close(outBuf)
+}
+
+func (r *reader) decodeAndHandleMetadata(metadataDecoder encoding.Decoder, entry schema.LogEntry) error {
+	metadataDecoder.Reset(entry.Metadata)
+	decoded, err := metadataDecoder.DecodeLogMetadata()
+	if err != nil {
+		return err
+	}
+
+	id := r.bytesPool.Get(len(decoded.ID))
+	id.IncRef()
+	id.AppendAll(decoded.ID)
+
+	namespace := r.bytesPool.Get(len(decoded.Namespace))
+	namespace.IncRef()
+	namespace.AppendAll(decoded.Namespace)
+
+	r.metadata.Lock()
+	_, ok := r.metadata.lookup[entry.Index]
+	// If the metadata already exists, we can skip this step
+	if ok {
+		id.DecRef()
+		id.Finalize()
+		namespace.DecRef()
+		namespace.Finalize()
+	} else {
+		metadata := Series{
+			UniqueIndex: entry.Index,
+			ID:          ts.BinaryID(id),
+			Namespace:   ts.BinaryID(namespace),
+			Shard:       decoded.Shard,
+		}
+		r.metadata.lookup[entry.Index] = metadata
+		pendingMetadata, ok := r.metadata.pending[entry.Index]
+
+		namespace.DecRef()
+		id.DecRef()
+
+		// One (or more) goroutines are blocked waiting for this metadata, release them
+		if ok {
+			delete(r.metadata.pending, entry.Index)
+			for _, p := range pendingMetadata {
+				p.done(metadata, nil)
+			}
+		}
+	}
+	r.metadata.Unlock()
+	return nil
+}
+
+func (r *reader) lookupMetadata(entryIndex uint64) (
+	metadata Series,
+	pendingMetadata *readerPendingSeriesMetadataResponse,
+) {
+	// Try cheap read lock first
+	r.metadata.RLock()
+	metadata, hasMetadata := r.metadata.lookup[entryIndex]
+	r.metadata.RUnlock()
+
+	// The required metadata hasn't been processed yet
+	if !hasMetadata {
+		r.metadata.Lock()
+		metadata, hasMetadata = r.metadata.lookup[entryIndex]
+		if !hasMetadata {
+			pendingMetadata = &readerPendingSeriesMetadataResponse{}
+			pendingMetadata.wg.Add(1)
+			r.metadata.pending[entryIndex] = append(r.metadata.pending[entryIndex], pendingMetadata)
+		}
+		r.metadata.Unlock()
+	}
+
+	return metadata, pendingMetadata
 }
 
 func (r *reader) writeToOutBuf(outBuf chan<- readResponse, readResponse readResponse) {
