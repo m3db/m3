@@ -171,6 +171,35 @@ func TestByTimeAscending(t *testing.T) {
 	require.Equal(t, expected, files)
 }
 
+//this should delete by directory not by individual file
+//so file format shouldn't matter
+func TestDeleteInactiveFiles(t *testing.T) {
+	tempPrefix := "temp/"
+	namespaceDir := NamespaceDirPath(tempPrefix, testNs1ID)
+
+	shards := []uint32{uint32(4), uint32(5), uint32(6)}
+	for _, shard := range shards {
+		shardDir := ShardDirPath(tempPrefix, testNs1ID, shard)
+		err := os.MkdirAll(shardDir, os.FileMode(uint32(0777)))
+		require.NoError(t, err)
+		defer os.RemoveAll(shardDir)
+		fmt.Println("created the shardDir", shardDir)
+
+		shardPath := path.Join(shardDir, "data.txt")
+		fmt.Println("creating file", shardPath)
+		_, err = os.Create(shardPath)
+		require.NoError(t, err)
+	}
+
+	shards = shards[1:]
+	err := DeleteInactiveFilesets(tempPrefix, testNs1ID, shards)
+	require.NoError(t, err)
+	f, _ := os.Open(namespaceDir)
+	defer f.Close()
+	dirs, _ := f.Readdir(3)
+	require.Equal(t, len(dirs), 2)
+}
+
 func TestForEachInfoFile(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)

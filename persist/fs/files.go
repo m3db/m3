@@ -98,6 +98,17 @@ func DeleteFiles(filePaths []string) error {
 	return multiErr.FinalError()
 }
 
+func DeleteDirectories(dirPaths []string) error {
+	multiErr := xerrors.NewMultiError()
+	for _, dir := range dirPaths {
+		if err := os.RemoveAll(dir); err != nil {
+			detailedErr := fmt.Errorf("failed to remove dir %s: %v", dir, err)
+			multiErr = multiErr.Add(detailedErr)
+		}
+	}
+	return multiErr.FinalError()
+}
+
 // byTimeAscending sorts files by their block start times in ascending order.
 // If the files do not have block start times in their names, the result is undefined.
 type byTimeAscending []string
@@ -244,11 +255,13 @@ func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards
 	}
 	namespaceDirPath := NamespaceDirPath(filePathPrefix, namespace)
 	allDirs, err := findDirectories(namespaceDirPath)
-	for _, f := range allDirs {
-		fmt.Println(f)
+	if err != nil {
+		return err
 	}
+	fmt.Println("active ones")
 	for _, dir := range activeShardDirs {
 		dirs[dir] = true
+		fmt.Println(dir)
 	}
 
 	if err != nil {
@@ -260,7 +273,7 @@ func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards
 			toDelete = append(toDelete, dir)
 		}
 	}
-	return DeleteFiles(toDelete)
+	return DeleteDirectories(toDelete)
 }
 
 // CommitLogFiles returns all the commit log files in the commit logs directory.
@@ -293,17 +306,16 @@ type toSortableFn func(files []string) sort.Interface
 
 func findDirectories(dirPath string) ([]string, error) {
 	f, err := os.Open(dirPath)
+	defer f.Close()
 	if err != nil {
 		return nil, err
 	}
-	dirs, err := f.Readdir(-1)
-	f.Close()
-	if err != nil {
-		return nil, err
-	}
+	fmt.Println("opened it up", f.Name())
 	var dirPaths []string
-	for i, dir := range dirs {
-		dirPaths[i] = dir.Name()
+	names, err := f.Readdirnames(-1)
+	for _, name := range names {
+		dir := path.Join(dirPath, name)
+		dirPaths = append(dirPaths, dir)
 	}
 	return dirPaths, nil
 }
