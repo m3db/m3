@@ -50,11 +50,11 @@ type FilesystemConfiguration struct {
 	ThroughputCheckEvery int `yaml:"throughputCheckEvery" validate:"nonzero"`
 
 	// NewFileMode is the new file permissions mode to use when
-	// creating files - be sure to specifying leading zero, e.g. 0666.
+	// creating files - specify as three digits, e.g. 666.
 	NewFileMode *string `yaml:"newFileMode"`
 
 	// NewDirectoryMode is the new file permissions mode to use when
-	// creating directories - be sure to specifying leading zero, e.g. 0666.
+	// creating directories - specify as three digits, e.g. 755.
 	NewDirectoryMode *string `yaml:"newDirectoryMode"`
 }
 
@@ -69,11 +69,10 @@ func (p FilesystemConfiguration) ParseNewFileMode() (os.FileMode, error) {
 		return 0, fmt.Errorf("file mode must be 3 chars long")
 	}
 
-	// NB(r): There's no way next line can be ineffectual as it prepends str..
-	str = "0" + str // nolint: ineffassign
+	str = "0" + str
 
 	var v uint32
-	n, err := fmt.Sscanf(*p.NewFileMode, "%o", &v)
+	n, err := fmt.Sscanf(str, "%o", &v)
 	if err != nil {
 		return 0, fmt.Errorf("unable to parse: %v", err)
 	}
@@ -94,11 +93,10 @@ func (p FilesystemConfiguration) ParseNewDirectoryMode() (os.FileMode, error) {
 		return 0, fmt.Errorf("file mode must be 3 chars long")
 	}
 
-	// NB(r): There's no way next line can be ineffectual as it prepends str..
-	str = "0" + str // nolint: ineffassign
+	str = "0" + str
 
 	var v uint32
-	n, err := fmt.Sscanf(*p.NewDirectoryMode, "%o", &v)
+	n, err := fmt.Sscanf(str, "%o", &v)
 	if err != nil {
 		return 0, fmt.Errorf("unable to parse: %v", err)
 	}

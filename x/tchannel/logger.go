@@ -21,6 +21,7 @@
 package xtchannel
 
 import (
+	"fmt"
 	"os"
 
 	tchannel "github.com/uber/tchannel-go"
@@ -33,13 +34,34 @@ type noopLogger struct{}
 // NewNoopLogger returns a default tchannel no-op logger.
 func NewNoopLogger() tchannel.Logger { return noLog }
 
-func (noopLogger) Enabled(_ tchannel.LogLevel) bool                         { return false }
-func (noopLogger) Fatal(msg string)                                         { os.Exit(1) }
-func (noopLogger) Error(msg string)                                         {}
-func (noopLogger) Warn(msg string)                                          {}
-func (noopLogger) Infof(msg string, args ...interface{})                    {}
-func (noopLogger) Info(msg string)                                          {}
-func (noopLogger) Debugf(msg string, args ...interface{})                   {}
-func (noopLogger) Debug(msg string)                                         {}
-func (noopLogger) Fields() tchannel.LogFields                               { return nil }
-func (l noopLogger) WithFields(fields ...tchannel.LogField) tchannel.Logger { return l }
+func (noopLogger) Enabled(_ tchannel.LogLevel) bool {
+	return false
+}
+func (noopLogger) Fatal(msg string) {
+	fmt.Fprintf(os.Stderr, msg)
+	os.Exit(1)
+}
+func (noopLogger) Error(msg string) {
+
+}
+func (noopLogger) Warn(msg string) {
+
+}
+func (noopLogger) Infof(msg string, args ...interface{}) {
+
+}
+func (noopLogger) Info(msg string) {
+
+}
+func (noopLogger) Debugf(msg string, args ...interface{}) {
+
+}
+func (noopLogger) Debug(msg string) {
+
+}
+func (noopLogger) Fields() tchannel.LogFields {
+	return nil
+}
+func (l noopLogger) WithFields(fields ...tchannel.LogField) tchannel.Logger {
+	return l
+}

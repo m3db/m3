@@ -123,7 +123,7 @@ func Run(runOpts RunOptions) {
 	if err := buildReporter.Start(); err != nil {
 		logger.Fatalf("unable to start build reporter: %v", err)
 	}
-	defer buildReporter.Close()
+	defer buildReporter.Stop()
 
 	configSvcClientOpts := cfg.ConfigService.NewOptions().
 		SetInstrumentOptions(
@@ -309,19 +309,15 @@ func Run(runOpts RunOptions) {
 
 	// Set tchannelthrift options
 	blockMetadataPool := tchannelthrift.NewBlockMetadataPool(
-		poolOptions(policy.BlockMetadataPool, scope.SubScope("block-metadata-pool")),
-	)
+		poolOptions(policy.BlockMetadataPool, scope.SubScope("block-metadata-pool")))
 	blockMetadataSlicePool := tchannelthrift.NewBlockMetadataSlicePool(
 		capacityPoolOptions(policy.BlockMetadataSlicePool, scope.SubScope("block-metadata-slice-pool")),
-		policy.BlockMetadataSlicePool.Capacity,
-	)
+		policy.BlockMetadataSlicePool.Capacity)
 	blocksMetadataPool := tchannelthrift.NewBlocksMetadataPool(
-		poolOptions(policy.BlocksMetadataPool, scope.SubScope("blocks-metadata-pool")),
-	)
+		poolOptions(policy.BlocksMetadataPool, scope.SubScope("blocks-metadata-pool")))
 	blocksMetadataSlicePool := tchannelthrift.NewBlocksMetadataSlicePool(
 		capacityPoolOptions(policy.BlocksMetadataSlicePool, scope.SubScope("blocks-metadata-slice-pool")),
-		policy.BlocksMetadataSlicePool.Capacity,
-	)
+		policy.BlocksMetadataSlicePool.Capacity)
 
 	ttopts := tchannelthrift.NewOptions().
 		SetBlockMetadataPool(blockMetadataPool).
@@ -590,7 +586,7 @@ func withEncodingAndPoolingOptions(
 	var bytesPool pool.CheckedBytesPool
 
 	switch policy.Type {
-	case "simple":
+	case config.SimplePooling:
 		bytesPoolOpts := pool.NewObjectPoolOptions().
 			SetRefillLowWatermark(policy.BytesPool.RefillLowWaterMark).
 			SetRefillHighWatermark(policy.BytesPool.RefillHighWaterMark).
@@ -599,13 +595,15 @@ func withEncodingAndPoolingOptions(
 			return pool.NewBytesPool(s, bytesPoolOpts.
 				SetInstrumentOptions(bytesPoolOpts.InstrumentOptions().SetMetricsScope(scope.SubScope("bytes-pool"))))
 		})
-	case "native":
+	case config.NativePooling:
 		bytesPoolOpts := pool.NewObjectPoolOptions().
 			SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope.SubScope("checked-bytes-pool")))
 		bytesPool = pool.NewCheckedBytesPool(buckets, bytesPoolOpts, func(s []pool.Bucket) pool.BytesPool {
 			return pool.NewNativeHeap(s, bytesPoolOpts.
 				SetInstrumentOptions(bytesPoolOpts.InstrumentOptions().SetMetricsScope(scope.SubScope("bytes-pool"))))
 		})
+	default:
+		logger.Fatalf("unrecognized pooling type: %s", policy.Type)
 	}
 
 	bytesPool.Init()

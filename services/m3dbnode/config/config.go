@@ -25,6 +25,7 @@ import (
 
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3x/config/hostid"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 )
@@ -53,7 +54,7 @@ type Configuration struct {
 	DebugListenAddress string `yaml:"debugListenAddress"`
 
 	// HostID is the local host ID configuration.
-	HostID HostIDConfiguration `yaml:"hostID"`
+	HostID hostid.Configuration `yaml:"hostID"`
 
 	// Client configuration, used for inter-node communication and when used as a coordinator.
 	Client client.Configuration `yaml:"client"`
@@ -80,10 +81,10 @@ type Configuration struct {
 	TickInterval time.Duration `yaml:"tickInterval" validate:"nonzero"`
 
 	// The commit log policy for the node
-	CommitLog commitLogPolicy `yaml:"commitlog"`
+	CommitLog CommitLogPolicy `yaml:"commitlog"`
 
 	// The repair policy for repairing in-memory data
-	Repair repairPolicy `yaml:"repair"`
+	Repair RepairPolicy `yaml:"repair"`
 
 	// The pooling policy
 	PoolingPolicy PoolingPolicy `yaml:"poolingPolicy"`
@@ -92,7 +93,8 @@ type Configuration struct {
 	ConfigService etcdclient.Configuration `yaml:"configService"`
 }
 
-type commitLogPolicy struct {
+// CommitLogPolicy is the commit log policy.
+type CommitLogPolicy struct {
 	// The max size the commit log will flush a segment to disk after buffering
 	FlushMaxBytes int `yaml:"flushMaxBytes" validate:"nonzero"`
 
@@ -100,7 +102,7 @@ type commitLogPolicy struct {
 	FlushEvery time.Duration `yaml:"flushEvery" validate:"nonzero"`
 
 	// The queue the commit log will keep in front of the current commit log segment
-	Queue commitLogQueuePolicy `yaml:"queue" validate:"nonzero"`
+	Queue CommitLogQueuePolicy `yaml:"queue" validate:"nonzero"`
 
 	// The commit log retention policy
 	RetentionPeriod time.Duration `yaml:"retentionPeriod" validate:"nonzero"`
@@ -119,7 +121,8 @@ const (
 	CalculationTypePerCPU CalculationType = "percpu"
 )
 
-type commitLogQueuePolicy struct {
+// CommitLogQueuePolicy is the commit log queue policy.
+type CommitLogQueuePolicy struct {
 	// The type of calculation for the size
 	CalculationType CalculationType `yaml:"calculationType"`
 
@@ -127,7 +130,8 @@ type commitLogQueuePolicy struct {
 	Size int `yaml:"size" validate:"nonzero"`
 }
 
-type repairPolicy struct {
+// RepairPolicy is the repair policy.
+type RepairPolicy struct {
 	// Enabled or disabled
 	Enabled bool `yaml:"enabled"`
 
