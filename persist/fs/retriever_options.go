@@ -27,7 +27,7 @@ import (
 
 const (
 	defaultRequestPoolSize  = 16384
-	defaultFetchConcurrency = 1
+	defaultFetchConcurrency = 2
 )
 
 type blockRetrieverOptions struct {

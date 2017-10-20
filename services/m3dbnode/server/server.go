@@ -205,8 +205,11 @@ func Run(runOpts RunOptions) {
 	// Set the block retriever manager
 	retrieverOpts := fs.NewBlockRetrieverOptions().
 		SetBytesPool(opts.BytesPool()).
-		SetSegmentReaderPool(opts.SegmentReaderPool()).
-		SetFetchConcurrency(2)
+		SetSegmentReaderPool(opts.SegmentReaderPool())
+	if cfg.BlockRetrieve.FetchConcurrency > 0 {
+		retrieverOpts = retrieverOpts.
+			SetFetchConcurrency(cfg.BlockRetrieve.FetchConcurrency)
+	}
 	blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
 		func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
 			retriever := fs.NewBlockRetriever(retrieverOpts, fsopts)
