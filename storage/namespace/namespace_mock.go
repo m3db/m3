@@ -24,10 +24,12 @@
 package namespace
 
 import (
+	gomock "github.com/golang/mock/gomock"
+	client "github.com/m3db/m3cluster/client"
 	retention "github.com/m3db/m3db/retention"
 	ts "github.com/m3db/m3db/ts"
-
-	gomock "github.com/golang/mock/gomock"
+	instrument "github.com/m3db/m3x/instrument"
+	time "time"
 )
 
 // Mock of Options interface
@@ -427,4 +429,115 @@ func (_m *MockInitializer) Init() (Registry, error) {
 
 func (_mr *_MockInitializerRecorder) Init() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Init")
+}
+
+// Mock of DynamicOptions interface
+type MockDynamicOptions struct {
+	ctrl     *gomock.Controller
+	recorder *_MockDynamicOptionsRecorder
+}
+
+// Recorder for MockDynamicOptions (not exported)
+type _MockDynamicOptionsRecorder struct {
+	mock *MockDynamicOptions
+}
+
+func NewMockDynamicOptions(ctrl *gomock.Controller) *MockDynamicOptions {
+	mock := &MockDynamicOptions{ctrl: ctrl}
+	mock.recorder = &_MockDynamicOptionsRecorder{mock}
+	return mock
+}
+
+func (_m *MockDynamicOptions) EXPECT() *_MockDynamicOptionsRecorder {
+	return _m.recorder
+}
+
+func (_m *MockDynamicOptions) Validate() error {
+	ret := _m.ctrl.Call(_m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockDynamicOptionsRecorder) Validate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
+}
+
+func (_m *MockDynamicOptions) SetInstrumentOptions(value instrument.Options) DynamicOptions {
+	ret := _m.ctrl.Call(_m, "SetInstrumentOptions", value)
+	ret0, _ := ret[0].(DynamicOptions)
+	return ret0
+}
+
+func (_mr *_MockDynamicOptionsRecorder) SetInstrumentOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInstrumentOptions", arg0)
+}
+
+func (_m *MockDynamicOptions) InstrumentOptions() instrument.Options {
+	ret := _m.ctrl.Call(_m, "InstrumentOptions")
+	ret0, _ := ret[0].(instrument.Options)
+	return ret0
+}
+
+func (_mr *_MockDynamicOptionsRecorder) InstrumentOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions")
+}
+
+func (_m *MockDynamicOptions) SetConfigServiceClient(c client.Client) DynamicOptions {
+	ret := _m.ctrl.Call(_m, "SetConfigServiceClient", c)
+	ret0, _ := ret[0].(DynamicOptions)
+	return ret0
+}
+
+func (_mr *_MockDynamicOptionsRecorder) SetConfigServiceClient(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetConfigServiceClient", arg0)
+}
+
+func (_m *MockDynamicOptions) ConfigServiceClient() client.Client {
+	ret := _m.ctrl.Call(_m, "ConfigServiceClient")
+	ret0, _ := ret[0].(client.Client)
+	return ret0
+}
+
+func (_mr *_MockDynamicOptionsRecorder) ConfigServiceClient() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ConfigServiceClient")
+}
+
+func (_m *MockDynamicOptions) SetNamespaceRegistryKey(k string) DynamicOptions {
+	ret := _m.ctrl.Call(_m, "SetNamespaceRegistryKey", k)
+	ret0, _ := ret[0].(DynamicOptions)
+	return ret0
+}
+
+func (_mr *_MockDynamicOptionsRecorder) SetNamespaceRegistryKey(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetNamespaceRegistryKey", arg0)
+}
+
+func (_m *MockDynamicOptions) NamespaceRegistryKey() string {
+	ret := _m.ctrl.Call(_m, "NamespaceRegistryKey")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockDynamicOptionsRecorder) NamespaceRegistryKey() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "NamespaceRegistryKey")
+}
+
+func (_m *MockDynamicOptions) SetInitTimeout(value time.Duration) DynamicOptions {
+	ret := _m.ctrl.Call(_m, "SetInitTimeout", value)
+	ret0, _ := ret[0].(DynamicOptions)
+	return ret0
+}
+
+func (_mr *_MockDynamicOptionsRecorder) SetInitTimeout(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetInitTimeout", arg0)
+}
+
+func (_m *MockDynamicOptions) InitTimeout() time.Duration {
+	ret := _m.ctrl.Call(_m, "InitTimeout")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+func (_mr *_MockDynamicOptionsRecorder) InitTimeout() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "InitTimeout")
 }

@@ -73,6 +73,7 @@ struct FetchRequest {
 	4: required string id
 	5: optional TimeType rangeType = TimeType.UNIX_SECONDS
 	6: optional TimeType resultTimeType = TimeType.UNIX_SECONDS
+	7: optional bool softRead
 }
 
 struct FetchResult {
@@ -98,6 +99,7 @@ struct FetchBatchRawRequest {
 	3: required binary nameSpace
 	4: required list<binary> ids
 	5: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
+	6: optional bool softRead
 }
 
 struct FetchBatchRawResult {

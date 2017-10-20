@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/storage/read"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/metrics"
@@ -137,7 +138,10 @@ func TestNamespaceReadEncodedShardNotOwned(t *testing.T) {
 	for i := range ns.shards {
 		ns.shards[i] = nil
 	}
-	_, err := ns.ReadEncoded(ctx, ts.StringID("foo"), time.Now(), time.Now())
+	readOptions := read.Options{
+		SoftRead: false,
+	}
+	_, err := ns.ReadEncoded(ctx, ts.StringID("foo"), time.Now(), time.Now(), readOptions)
 	require.Error(t, err)
 }
 
@@ -154,15 +158,18 @@ func TestNamespaceReadEncodedShardOwned(t *testing.T) {
 
 	ns := newTestNamespace(t)
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().ReadEncoded(ctx, id, start, end).Return(nil, nil)
+	readOpts := read.Options{
+		SoftRead: false,
+	}
+	shard.EXPECT().ReadEncoded(ctx, id, start, end, readOpts).Return(nil, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	shard.EXPECT().IsBootstrapped().Return(true)
-	_, err := ns.ReadEncoded(ctx, id, start, end)
+	_, err := ns.ReadEncoded(ctx, id, start, end, readOpts)
 	require.NoError(t, err)
 
 	shard.EXPECT().IsBootstrapped().Return(false)
-	_, err = ns.ReadEncoded(ctx, id, start, end)
+	_, err = ns.ReadEncoded(ctx, id, start, end, readOpts)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))

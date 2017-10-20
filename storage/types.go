@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/storage/read"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
@@ -88,6 +89,7 @@ type Database interface {
 		namespace ts.ID,
 		id ts.ID,
 		start, end time.Time,
+		readOpts read.Options,
 	) ([][]xio.SegmentReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
@@ -190,6 +192,7 @@ type databaseNamespace interface {
 		ctx context.Context,
 		id ts.ID,
 		start, end time.Time,
+		readOpts read.Options,
 	) ([][]xio.SegmentReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
@@ -268,6 +271,7 @@ type databaseShard interface {
 		ctx context.Context,
 		id ts.ID,
 		start, end time.Time,
+		readOpts read.Options,
 	) ([][]xio.SegmentReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.

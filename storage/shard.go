@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/storage/read"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
@@ -575,6 +576,7 @@ func (s *dbShard) ReadEncoded(
 	ctx context.Context,
 	id ts.ID,
 	start, end time.Time,
+	opts read.Options,
 ) ([][]xio.SegmentReader, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
@@ -585,7 +587,7 @@ func (s *dbShard) ReadEncoded(
 	if err != nil {
 		return nil, err
 	}
-	return entry.series.ReadEncoded(ctx, start, end)
+	return entry.series.ReadEncoded(ctx, start, end, opts)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.

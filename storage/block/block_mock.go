@@ -566,16 +566,6 @@ func (_m *MockDatabaseSeriesBlocks) EXPECT() *_MockDatabaseSeriesBlocksRecorder 
 	return _m.recorder
 }
 
-func (_m *MockDatabaseSeriesBlocks) Options() Options {
-	ret := _m.ctrl.Call(_m, "Options")
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockDatabaseSeriesBlocksRecorder) Options() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Options")
-}
-
 func (_m *MockDatabaseSeriesBlocks) Len() int {
 	ret := _m.ctrl.Call(_m, "Len")
 	ret0, _ := ret[0].(int)
