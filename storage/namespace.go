@@ -654,6 +654,18 @@ func (n *dbNamespace) NeedsFlush(alignedInclusiveStart time.Time, alignedInclusi
 	return false
 }
 
+func (n *dbNamespace) DeleteInactiveFilesetFiles() error {
+	//check if we should be deleting
+	var shardIds []uint32
+	// filesetFilePrefix := n.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	activeShards := n.getOwnedShards()
+	for _, shard := range activeShards {
+		shardIds = append(shardIds, shard.ID())
+	}
+	return nil
+	//return n.deleteInactiveFilesetFiles(filesetFilePrefix, n.ID(), shardIds)
+}
+
 func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {
 	if !n.nopts.NeedsFilesetCleanup() {
 		return nil

@@ -86,6 +86,7 @@ func closeAll(closers ...xclose.Closer) error {
 
 // DeleteFiles delete a set of files, returning all the errors encountered during
 // the deletion process.
+// logic might need to be duplicated to handle deletion of directories
 func DeleteFiles(filePaths []string) error {
 	multiErr := xerrors.NewMultiError()
 	for _, file := range filePaths {
@@ -232,6 +233,36 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 	return filesBefore(matched, t)
 }
 
+// DeleteInactiveFilesets deletes any inactive filesets in a given namespace
+func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards []uint32) error {
+	//can use better naming
+	var toDelete []string
+	dirs := make(map[string]bool)
+	activeShardDirs := activeShardDirs(filePathPrefix, namespace, activeShards)
+	for _, f := range activeShardDirs {
+		fmt.Println(f)
+	}
+	namespaceDirPath := NamespaceDirPath(filePathPrefix, namespace)
+	allDirs, err := findDirectories(namespaceDirPath)
+	for _, f := range allDirs {
+		fmt.Println(f)
+	}
+	for _, dir := range activeShardDirs {
+		dirs[dir] = true
+	}
+
+	if err != nil {
+		return err
+	}
+	for _, dir := range allDirs {
+		ok := dirs[dir]
+		if !ok {
+			toDelete = append(toDelete, dir)
+		}
+	}
+	return DeleteFiles(toDelete)
+}
+
 // CommitLogFiles returns all the commit log files in the commit logs directory.
 func CommitLogFiles(commitLogsDir string) ([]string, error) {
 	return commitlogFiles(commitLogsDir, commitLogFilePattern)
@@ -259,6 +290,32 @@ func CommitLogFilesBefore(commitLogsDir string, t time.Time) ([]string, error) {
 }
 
 type toSortableFn func(files []string) sort.Interface
+
+func findDirectories(dirPath string) ([]string, error) {
+	f, err := os.Open(dirPath)
+	if err != nil {
+		return nil, err
+	}
+	dirs, err := f.Readdir(-1)
+	f.Close()
+	if err != nil {
+		return nil, err
+	}
+	var dirPaths []string
+	for i, dir := range dirs {
+		dirPaths[i] = dir.Name()
+	}
+	return dirPaths, nil
+}
+
+func activeShardDirs(filePathPrefix string, namespace ts.ID, active []uint32) []string {
+	var activeShardDirs []string
+	for _, shard := range active {
+		shardDir := ShardDirPath(filePathPrefix, namespace, shard)
+		activeShardDirs = append(activeShardDirs, shardDir)
+	}
+	return activeShardDirs
+}
 
 func findFiles(fileDir string, pattern string, fn toSortableFn) ([]string, error) {
 	matched, err := filepath.Glob(path.Join(fileDir, pattern))
@@ -343,6 +400,12 @@ func NamespaceDirPath(prefix string, namespace ts.ID) string {
 func ShardDirPath(prefix string, namespace ts.ID, shard uint32) string {
 	namespacePath := NamespaceDirPath(prefix, namespace)
 	return path.Join(namespacePath, strconv.Itoa(int(shard)))
+}
+
+// GenericShardDirPath returns the path matching all shards in a namespace
+func GenericShardDirPath(prefix string, namespace ts.ID) string {
+	namespacePath := NamespaceDirPath(prefix, namespace)
+	return path.Join(namespacePath, "*")
 }
 
 // CommitLogsDirPath returns the path to commit logs.
