@@ -87,7 +87,16 @@ func (cfg *Configuration) NewOptions(
 	instrumentOpts instrument.Options,
 ) (Options, error) {
 	// Configure rules kv store.
-	rulesStore, err := kvCluster.Store(cfg.RulesKVConfig.NewOptions())
+	kvOpts, err := cfg.RulesKVConfig.NewOptions()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := kvOpts.Validate(); err != nil {
+		return nil, err
+	}
+
+	rulesStore, err := kvCluster.Store(kvOpts)
 	if err != nil {
 		return nil, err
 	}
