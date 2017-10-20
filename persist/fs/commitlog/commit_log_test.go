@@ -23,6 +23,7 @@ package commitlog
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"strings"
 	"sync"
@@ -30,6 +31,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
@@ -94,6 +96,19 @@ func newTestOptions(
 func cleanup(t *testing.T, opts Options) {
 	filePathPrefix := opts.FilesystemOptions().FilePathPrefix()
 	assert.NoError(t, os.RemoveAll(filePathPrefix))
+}
+
+type mockBitSet struct {
+	indexTestReturn map[uint]bool
+}
+
+func (b *mockBitSet) test(i uint) bool {
+	return b.indexTestReturn[i]
+}
+func (b *mockBitSet) set(i uint) {}
+func (b *mockBitSet) clearAll()  {}
+func (b *mockBitSet) getValues() []uint64 {
+	return []uint64{}
 }
 
 type testWrite struct {
@@ -235,7 +250,7 @@ func writeCommitLogs(
 
 		// Wait for previous writes to enqueue
 		for getAllWrites() != preWrites+i {
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(time.Microsecond)
 		}
 
 		wg.Add(1)
@@ -256,7 +271,7 @@ func writeCommitLogs(
 
 	// Wait for all writes to enqueue
 	for getAllWrites() != preWrites+len(writes) {
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(time.Microsecond)
 	}
 
 	return &wg
@@ -328,6 +343,101 @@ func TestCommitLogWrite(t *testing.T) {
 
 	// Assert writes occurred by reading the commit log
 	assertCommitLogWritesByIterating(t, commitLog, writes)
+}
+
+func TestReadCommitLogMissingMetadata(t *testing.T) {
+	readConc := 4
+	// Make sure we're not leaking goroutines
+	defer leaktest.CheckTimeout(t, 10*time.Second)()
+
+	opts, scope := newTestOptions(t, overrides{
+		strategy: StrategyWriteWait,
+	})
+	// Set read concurrency so that the parallel path is definitely tested
+	opts.SetReadConcurrency(readConc)
+	defer cleanup(t, opts)
+
+	// Replace bitset in writer with one that configurably returns true or false
+	// depending on the series
+	commitLog := newTestCommitLog(t, opts)
+	writer := commitLog.writer.(*writer)
+	mockBitSet := &mockBitSet{
+		indexTestReturn: map[uint]bool{},
+	}
+
+	// Generate fake series, where approximately half will be missing metadata.
+	// This works because the commitlog writer uses the bitset to determine if
+	// the metadata for a particular series had already been written to disk.
+	allSeries := []Series{}
+	for i := 0; i < 200; i++ {
+		willNotHaveMetadata := !(i%2 == 0)
+		allSeries = append(allSeries, testSeries(uint64(i), "hax", uint32(i%100)))
+		mockBitSet.indexTestReturn[uint(i)] = willNotHaveMetadata
+	}
+	writer.seen = mockBitSet
+
+	// Generate fake writes for each of the series
+	writes := []testWrite{}
+	for _, series := range allSeries {
+		for i := 0; i < 10; i++ {
+			writes = append(writes, testWrite{series, time.Now(), rand.Float64(), xtime.Second, []byte{1, 2, 3}, nil})
+		}
+	}
+
+	// Call write sync
+	writeCommitLogs(t, scope, commitLog, writes).Wait()
+
+	// Close the commit log and consequently flush
+	assert.NoError(t, commitLog.Close())
+
+	// Make sure we don't panic / deadlock
+	iter, err := commitLog.Iter()
+	assert.NoError(t, err)
+	for iter.Next() {
+		assert.NoError(t, iter.Err())
+	}
+	iter.Close()
+	assert.NoError(t, commitLog.Close())
+}
+
+func TestCommitLogReaderIsNotReusable(t *testing.T) {
+	// Make sure we're not leaking goroutines
+	defer leaktest.CheckTimeout(t, time.Second)()
+
+	opts, scope := newTestOptions(t, overrides{
+		strategy: StrategyWriteWait,
+	})
+	defer cleanup(t, opts)
+
+	commitLog := newTestCommitLog(t, opts)
+
+	writes := []testWrite{
+		{testSeries(0, "foo.bar", 127), time.Now(), 123.456, xtime.Second, []byte{1, 2, 3}, nil},
+		{testSeries(1, "foo.baz", 150), time.Now(), 456.789, xtime.Second, nil, nil},
+	}
+
+	// Call write sync
+	writeCommitLogs(t, scope, commitLog, writes).Wait()
+
+	// Close the commit log and consequently flush
+	assert.NoError(t, commitLog.Close())
+
+	// Assert writes occurred by reading the commit log
+	assertCommitLogWritesByIterating(t, commitLog, writes)
+
+	// Assert commitlog file exists and retrieve path
+	fsopts := opts.FilesystemOptions()
+	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(files))
+
+	// Assert commitlog cannot be opened more than once
+	reader := newCommitLogReader(opts)
+	_, _, _, err = reader.Open(files[0])
+	assert.NoError(t, err)
+	reader.Close()
+	_, _, _, err = reader.Open(files[0])
+	assert.Equal(t, errCommitLogReaderIsNotReusable, err)
 }
 
 func TestCommitLogWriteBehind(t *testing.T) {

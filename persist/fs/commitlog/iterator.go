@@ -95,14 +95,22 @@ func (i *iterator) Next() bool {
 	var err error
 	i.read.series, i.read.datapoint, i.read.unit, i.read.annotation, err = i.reader.Read()
 	if err == io.EOF {
+		closeErr := i.closeAndResetReader()
+		if closeErr != nil {
+			i.err = closeErr
+		}
 		// Try the next reader
-		i.reader = nil
 		return i.Next()
 	}
 	if err != nil {
 		// Try the next reader, this enables restoring with best effort from commit logs
 		i.metrics.readsErrors.Inc(1)
 		i.log.Errorf("commit log reader returned error, iterator moving to next file: %v", err)
+		i.err = err
+		closeErr := i.closeAndResetReader()
+		if closeErr != nil {
+			i.err = closeErr
+		}
 		return i.Next()
 	}
 	i.setRead = true
@@ -121,15 +129,13 @@ func (i *iterator) Err() error {
 	return i.err
 }
 
+// TODO: Refactor codebase so that it can handle Close() returning an error
 func (i *iterator) Close() {
 	if i.closed {
 		return
 	}
 	i.closed = true
-	if i.reader != nil {
-		i.reader.Close()
-		i.reader = nil
-	}
+	i.closeAndResetReader()
 }
 
 func (i *iterator) hasError() bool {
@@ -141,9 +147,10 @@ func (i *iterator) nextReader() bool {
 		return false
 	}
 
-	if i.reader != nil {
-		i.reader.Close()
-		i.reader = nil
+	err := i.closeAndResetReader()
+	if err != nil {
+		i.err = err
+		return false
 	}
 
 	file := i.files[0]
@@ -176,4 +183,13 @@ func (i *iterator) nextReader() bool {
 
 	i.reader = reader
 	return true
+}
+
+func (i *iterator) closeAndResetReader() error {
+	if i.reader == nil {
+		return nil
+	}
+	reader := i.reader
+	i.reader = nil
+	return reader.Close()
 }

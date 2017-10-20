@@ -162,4 +162,10 @@ type Options interface {
 
 	// BytesPool returns the checked bytes pool
 	BytesPool() pool.CheckedBytesPool
+
+	// SetReadConcurrency sets the concurrency of the reader
+	SetReadConcurrency(concurrency int) Options
+
+	// ReadConcurrency returns the concurrency of the reader
+	ReadConcurrency() int
 }

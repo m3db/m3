@@ -46,6 +46,9 @@ const (
 
 	// defaultBlockSize is the default commit log block size
 	defaultBlockSize = 15 * time.Minute
+
+	// defaultReadConcurrency is the default read concurrency
+	defaultReadConcurrency = 4
 )
 
 var (
@@ -58,6 +61,7 @@ var (
 	errBlockSizePositive              = errors.New("block size must be a positive duration")
 	errRetentionPeriodPositive        = errors.New("retention period must be a positive duration")
 	errRetentionGreaterEqualBlockSize = errors.New("retention period must be >= block size")
+	errReadConcurrencyPositive        = errors.New("read concurrency must be a positive integer")
 )
 
 type options struct {
@@ -71,6 +75,7 @@ type options struct {
 	flushInterval    time.Duration
 	backlogQueueSize int
 	bytesPool        pool.CheckedBytesPool
+	readConcurrency  int
 }
 
 // NewOptions creates new commit log options
@@ -88,6 +93,7 @@ func NewOptions() Options {
 		bytesPool: pool.NewCheckedBytesPool(nil, nil, func(s []pool.Bucket) pool.BytesPool {
 			return pool.NewBytesPool(s, nil)
 		}),
+		readConcurrency: defaultReadConcurrency,
 	}
 	o.bytesPool.Init()
 	return o
@@ -105,6 +111,9 @@ func (o *options) Validate() error {
 	}
 	if o.RetentionPeriod() < o.BlockSize() {
 		return errRetentionGreaterEqualBlockSize
+	}
+	if o.ReadConcurrency() <= 0 {
+		return errReadConcurrencyPositive
 	}
 	return nil
 }
@@ -207,4 +216,14 @@ func (o *options) SetBytesPool(value pool.CheckedBytesPool) Options {
 
 func (o *options) BytesPool() pool.CheckedBytesPool {
 	return o.bytesPool
+}
+
+func (o *options) SetReadConcurrency(concurrency int) Options {
+	opts := *o
+	opts.readConcurrency = concurrency
+	return &opts
+}
+
+func (o *options) ReadConcurrency() int {
+	return o.readConcurrency
 }

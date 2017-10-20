@@ -26,15 +26,22 @@ const (
 	wordMask    = wordSize - 1
 )
 
-type bitSet struct {
+type bitSet interface {
+	test(i uint) bool
+	set(i uint)
+	clearAll()
+	getValues() []uint64
+}
+
+type bitSetImpl struct {
 	values []uint64
 }
 
-func newBitSet(size uint) *bitSet {
-	return &bitSet{values: make([]uint64, bitSetIndexOf(size)+1)}
+func newBitSet(size uint) *bitSetImpl {
+	return &bitSetImpl{values: make([]uint64, bitSetIndexOf(size)+1)}
 }
 
-func (b *bitSet) test(i uint) bool {
+func (b *bitSetImpl) test(i uint) bool {
 	idx := bitSetIndexOf(i)
 	if idx >= len(b.values) {
 		return false
@@ -42,7 +49,7 @@ func (b *bitSet) test(i uint) bool {
 	return b.values[idx]&(1<<(i&wordMask)) != 0
 }
 
-func (b *bitSet) set(i uint) {
+func (b *bitSetImpl) set(i uint) {
 	idx := bitSetIndexOf(i)
 	currLen := len(b.values)
 	if idx >= currLen {
@@ -53,10 +60,14 @@ func (b *bitSet) set(i uint) {
 	b.values[idx] |= 1 << (i & wordMask)
 }
 
-func (b *bitSet) clearAll() {
+func (b *bitSetImpl) clearAll() {
 	for i := range b.values {
 		b.values[i] = 0
 	}
+}
+
+func (b *bitSetImpl) getValues() []uint64 {
+	return b.values
 }
 
 func bitSetIndexOf(i uint) int {
