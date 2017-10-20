@@ -315,6 +315,8 @@ fs:
   throughputCheckEvery: 128
   newFileMode: null
   newDirectoryMode: null
+blockRetrieve:
+  fetchConcurrency: 0
 tickInterval: 10m0s
 commitlog:
   flushMaxBytes: 524288
