@@ -44,6 +44,7 @@ TOOLS :=         \
 	read_index_ids \
 	clone_fileset  \
 	dtest          \
+	verify_commitlogs \
 
 .PHONY: setup
 setup:
