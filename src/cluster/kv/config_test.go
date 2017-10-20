@@ -20,28 +20,20 @@
 
 package kv
 
-import "github.com/m3db/m3x/log"
+import (
+	"testing"
 
-// Configuration is the config for kv options.
-type Configuration struct {
-	Logging     *log.Configuration `yaml:"logging"`
-	Environment string             `yaml:"environment"`
-	Namespace   string             `yaml:"namespace"`
-}
+	"github.com/stretchr/testify/require"
+)
 
-// NewOptions creates a kv.Options.
-func (cfg Configuration) NewOptions() (Options, error) {
-	logger := log.NullLogger
-	if cfg.Logging != nil {
-		var err error
-		logger, err = cfg.Logging.BuildLogger()
-		if err != nil {
-			return nil, err
-		}
+func TestConfigurationNoLogger(t *testing.T) {
+	cfg := Configuration{
+		Environment: "foo",
+		Namespace:   "bar",
 	}
 
-	return NewOptions().
-		SetLogger(logger).
-		SetEnvironment(cfg.Environment).
-		SetNamespace(cfg.Namespace), nil
+	opts, err := cfg.NewOptions()
+	require.NoError(t, err)
+
+	require.NoError(t, opts.Validate())
 }
