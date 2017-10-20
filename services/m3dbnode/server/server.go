@@ -408,7 +408,7 @@ func Run(runOpts RunOptions) {
 
 	var interruptErr error
 	select {
-	case err := <-runOpts.InterruptCh:
+	case err := <-interruptCh:
 		interruptErr = err
 	case sig := <-interrupt():
 		interruptErr = fmt.Errorf("%v", sig)
