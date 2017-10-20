@@ -9,6 +9,7 @@
 *.iws
 *.cov
 *.html
+*.tmp
 test.log
 
 # glide manages this

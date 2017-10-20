@@ -51,8 +51,6 @@ func NewService(client client.Client) rpc.TChanCluster {
 		client: client,
 		health: &rpc.HealthResult_{Ok: true, Status: "up"},
 	}
-	// Attempt to warm session
-	go s.session()
 	return s
 }
 
