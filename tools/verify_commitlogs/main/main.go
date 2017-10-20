@@ -206,6 +206,7 @@ func main() {
 		iter.Reset(r)
 		return iter
 	})
+	bytesPool.Init()
 
 	segmentReaderPool.Init()
 
