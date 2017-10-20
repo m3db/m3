@@ -125,26 +125,6 @@ func Run(runOpts RunOptions) {
 	}
 	defer buildReporter.Stop()
 
-	configSvcClientOpts := cfg.ConfigService.NewOptions().
-		SetInstrumentOptions(
-			instrument.NewOptions().
-				SetLogger(logger).
-				SetMetricsScope(scope))
-	configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
-	if err != nil {
-		logger.Fatalf("could not create m3cluster client: %v", err)
-	}
-
-	dynamicOpts := namespace.NewDynamicOptions().
-		SetInstrumentOptions(iopts).
-		SetConfigServiceClient(configSvcClient).
-		SetNamespaceRegistryKey(kvconfig.NamespacesKey)
-	nsInit := namespace.NewDynamicInitializer(dynamicOpts)
-
-	opts = opts.
-		SetTickInterval(cfg.TickInterval).
-		SetNamespaceInitializer(nsInit)
-
 	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
 	if err != nil {
 		log.Fatalf("could not parse new file mode: %v", err)
@@ -223,7 +203,26 @@ func Run(runOpts RunOptions) {
 	// Set the persistence manager
 	opts = opts.SetPersistManager(fs.NewPersistManager(fsopts))
 
-	logger.Info("creating config service client with m3kv")
+	logger.Info("creating config service client with m3cluster ")
+	configSvcClientOpts := cfg.ConfigService.NewOptions().
+		SetInstrumentOptions(
+			instrument.NewOptions().
+				SetLogger(logger).
+				SetMetricsScope(scope))
+	configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
+	if err != nil {
+		logger.Fatalf("could not create m3cluster client: %v", err)
+	}
+
+	dynamicOpts := namespace.NewDynamicOptions().
+		SetInstrumentOptions(iopts).
+		SetConfigServiceClient(configSvcClient).
+		SetNamespaceRegistryKey(kvconfig.NamespacesKey)
+	nsInit := namespace.NewDynamicInitializer(dynamicOpts)
+
+	opts = opts.
+		SetTickInterval(cfg.TickInterval).
+		SetNamespaceInitializer(nsInit)
 
 	serviceID := services.NewServiceID().
 		SetName(cfg.ConfigService.Service).

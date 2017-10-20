@@ -37,22 +37,24 @@ import (
 )
 
 var (
-	// defaultNumProcessorsPerCPU is the default number of processors per CPU
+	// defaultNumProcessorsPerCPU is the default number of processors per CPU.
 	defaultNumProcessorsPerCPU = 0.5
 )
 
-type bootstrapFilesystemConfiguration struct {
-	// NumProcessorsPerCPU is the number of processors per cpu
-	NumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
-}
-
-// BootstrapConfiguration captures the configuration for bootstrappers.
+// BootstrapConfiguration specifies the config for bootstrappers.
 type BootstrapConfiguration struct {
-	// Bootstrappers is the list of bootstrappers, ordered by precedence in descending order
+	// Bootstrappers is the list of bootstrappers, ordered by precedence in
+	// descending order.
 	Bootstrappers []string `yaml:"bootstrappers" validate:"nonzero"`
 
-	// Filesystem bootstrapper configuration
-	Filesystem bootstrapFilesystemConfiguration `yaml:"fs"`
+	// Filesystem bootstrapper configuration.
+	Filesystem BootstrapFilesystemConfiguration `yaml:"fs"`
+}
+
+// BootstrapFilesystemConfiguration specifies config for the fs bootstrapper.
+type BootstrapFilesystemConfiguration struct {
+	// NumProcessorsPerCPU is the number of processors per CPU.
+	NumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
 }
 
 func (bsc BootstrapConfiguration) numProcessors() int {
