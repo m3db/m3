@@ -24,13 +24,13 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/golang/protobuf/proto"
-
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
 	xwatch "github.com/m3db/m3x/watch"
+
+	"github.com/golang/protobuf/proto"
 )
 
 // NB(r): once a lot more feature complete move this to the m3cluster repository
@@ -105,11 +105,11 @@ func (c *m3ClusterClient) Txn() (kv.TxnStore, error) {
 	return c.txnStore, nil
 }
 
-func (c *m3ClusterClient) Store(namespace string) (kv.Store, error) {
+func (c *m3ClusterClient) Store(opts kv.Options) (kv.Store, error) {
 	return c.kvStore, nil
 }
 
-func (c *m3ClusterClient) TxnStore(namespace string) (kv.TxnStore, error) {
+func (c *m3ClusterClient) TxnStore(opts kv.Options) (kv.TxnStore, error) {
 	return c.txnStore, nil
 }
 
@@ -311,6 +311,15 @@ func (s *m3ClusterPlacementService) PlacementProto() (proto.Message, int, error)
 }
 func (s *m3ClusterPlacementService) SetPlacementProto(p proto.Message) error {
 	return fmt.Errorf("not implemented")
+}
+func (s *m3ClusterPlacementService) CheckAndSetProto(p proto.Message, version int) error {
+	return fmt.Errorf("not implemented")
+}
+func (s *m3ClusterPlacementService) SetProto(p proto.Message) error {
+	return fmt.Errorf("not implemented")
+}
+func (s *m3ClusterPlacementService) Proto() (proto.Message, int, error) {
+	return nil, 0, fmt.Errorf("not implemented")
 }
 
 // NewM3ClusterService creates a new fake m3cluster service

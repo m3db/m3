@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,38 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package kvconfig
 
-import (
-	"fmt"
-	"strings"
-	"testing"
+const (
+	// NamespacesKey is the KV config key for the runtime configuration
+	// specifying the namespaces configured.
+	NamespacesKey = "m3db.node.namespaces"
 
-	"github.com/m3db/m3db/generated/thrift/rpc"
-	xerrors "github.com/m3db/m3x/errors"
+	// BootstrapperKey is the KV config key for the runtime configuration
+	// specifying the set of bootstrappers as a string array.
+	BootstrapperKey = "m3db.node.bootstrapper"
 
-	"github.com/stretchr/testify/assert"
+	// ClusterNewSeriesInsertLimitKey is the KV config key for the runtime
+	// configuration specifying a hard limit for a cluster new series insertions.
+	ClusterNewSeriesInsertLimitKey = "m3db.node.cluster-new-series-insert-limit"
 )
-
-func TestConsistencyResultError(t *testing.T) {
-	topErr := &rpc.Error{
-		Type: rpc.ErrorType_BAD_REQUEST,
-	}
-
-	err := consistencyResultErr{
-		level:       ReadConsistencyLevelMajority,
-		success:     1,
-		enqueued:    3,
-		responded:   3,
-		topLevelErr: topErr,
-		errs:        []error{topErr, fmt.Errorf("another error")},
-	}
-
-	assert.True(t, strings.HasPrefix(err.Error(),
-		"failed to meet consistency level majority with 1/3 success, 3 nodes responded, errors:"))
-	assert.Equal(t, topErr, xerrors.InnerError(err))
-	assert.True(t, IsBadRequestError(err))
-	assert.Equal(t, 3, NumResponded(err))
-	assert.Equal(t, 1, NumSuccess(err))
-	assert.Equal(t, 2, NumError(err))
-}

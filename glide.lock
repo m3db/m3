@@ -1,5 +1,5 @@
-hash: 1250a11856eea1d80a64b0cc96cafcc7d4dde19dfdb1f56d263219614a0f5540
-updated: 2017-10-02T14:04:49.164947784-04:00
+hash: 5330a3dedf6135c6ace524421f97590f734e5f0e37ade0b0f5f71493718b917a
+updated: 2017-10-19T16:50:01.921181047-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -133,16 +133,18 @@ imports:
   - gen
   - prop
 - name: github.com/m3db/m3cluster
-  version: 56c031689fb080404de0b2acfc385e91627d93d7
+  version: 6edd2de9c678c51ef4d4d91eb66d191e9d7190f5
   subpackages:
   - client
   - client/etcd
   - etcd/watchmanager
+  - generated/proto/commonpb
   - generated/proto/metadatapb
   - generated/proto/placementpb
   - integration/etcd
   - kv
   - kv/etcd
+  - kv/util
   - kv/util/runtime
   - placement
   - placement/algo
@@ -169,7 +171,7 @@ imports:
   - os/fs
   - x/grpc
 - name: github.com/m3db/m3x
-  version: 6e9713eca6718643e105f574be392f122bcc062e
+  version: 2552847f8eaf39ec4a4a340e6cb97b6514af6086
   vcs: git
   subpackages:
   - checked
@@ -218,6 +220,10 @@ imports:
   - model
 - name: github.com/prometheus/procfs
   version: 1878d9fbb537119d24b21ca07effd591627cd160
+- name: github.com/sergi/go-diff
+  version: feef008d51ad2b3778f85d387ccf91735543008d
+  subpackages:
+  - diffmatchpatch
 - name: github.com/shirou/gopsutil
   version: b62e301a8b9958eebb7299683eb57fab229a9501
   subpackages:
@@ -270,6 +276,8 @@ imports:
   - codec
 - name: github.com/xiang90/probing
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
+- name: go.uber.org/atomic
+  version: 4e336646b2ef9fc6e47be8e21594178f98e5ebcf
 - name: golang.org/x/crypto
   version: 1351f936d976c60a0a48d728281922cf63eafb8d
   repo: https://github.com/golang/crypto

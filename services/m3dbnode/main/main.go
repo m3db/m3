@@ -22,120 +22,24 @@ package main
 
 import (
 	"flag"
-	"fmt"
+	// pprof: for debug listen server if configured
 	_ "net/http/pprof"
 	"os"
-	"os/signal"
-	"syscall"
-	"time"
 
-	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/services/m3dbnode/server"
-	"github.com/m3db/m3db/storage"
-	"github.com/m3db/m3db/storage/cluster"
-	"github.com/m3db/m3db/storage/namespace"
 )
 
 var (
-	idArg                  = flag.String("id", "", "Node host ID")
-	httpClusterAddrArg     = flag.String("clusterhttpaddr", "0.0.0.0:9000", "Cluster HTTP server address")
-	tchannelClusterAddrArg = flag.String("clustertchanneladdr", "0.0.0.0:9001", "Cluster TChannel server address")
-	httpNodeAddrArg        = flag.String("nodehttpaddr", "0.0.0.0:9002", "Node HTTP server address")
-	tchannelNodeAddrArg    = flag.String("nodetchanneladdr", "0.0.0.0:9003", "Node TChannel server address")
+	configFile = flag.String("f", "", "configuration file")
 )
 
 func main() {
 	flag.Parse()
 
-	if *httpClusterAddrArg == "" ||
-		*tchannelClusterAddrArg == "" ||
-		*httpNodeAddrArg == "" ||
-		*tchannelNodeAddrArg == "" {
+	if len(*configFile) == 0 {
 		flag.Usage()
 		os.Exit(1)
 	}
 
-	id := *idArg
-	httpClusterAddr := *httpClusterAddrArg
-	tchannelClusterAddr := *tchannelClusterAddrArg
-	httpNodeAddr := *httpNodeAddrArg
-	tchannelNodeAddr := *tchannelNodeAddrArg
-
-	storageOpts := storage.NewOptions()
-	log := storageOpts.InstrumentOptions().Logger()
-
-	namespaces, err := server.DefaultNamespaces()
-	if err != nil {
-		log.Fatalf("could not create default namespaces: %v", err)
-	}
-
-	storageOpts = storageOpts.SetNamespaceInitializer(
-		namespace.NewStaticInitializer(namespaces))
-	topoInit, err := server.DefaultTopologyInitializer(id, tchannelNodeAddr)
-	if err != nil {
-		log.Fatalf("could not create topology initializer: %v", err)
-	}
-
-	if id == "" {
-		id, err = os.Hostname()
-		if err != nil {
-			log.Fatalf("could not get hostname: %v", err)
-		}
-	}
-
-	cli, err := client.NewClient(server.DefaultClientOptions(topoInit))
-	if err != nil {
-		log.Fatalf("could not create cluster client: %v", err)
-	}
-
-	repairOpts := storageOpts.RepairOptions().
-		SetAdminClient(cli.(client.AdminClient))
-	storageOpts = storageOpts.
-		SetRepairOptions(repairOpts)
-
-	db, err := cluster.NewDatabase(id, topoInit, storageOpts)
-	if err != nil {
-		log.Fatalf("could not create database: %v", err)
-	}
-	doneCh := make(chan struct{}, 1)
-	closedCh := make(chan struct{}, 1)
-	go func() {
-		if err := server.OpenAndServe(
-			httpClusterAddr, tchannelClusterAddr,
-			httpNodeAddr, tchannelNodeAddr,
-			db, cli, storageOpts, doneCh,
-		); err != nil {
-			log.Fatalf("server fatal error: %v", err)
-		}
-
-		// Server is closed
-		closedCh <- struct{}{}
-	}()
-
-	// Handle interrupt
-	log.Warnf("interrupt: %v", interrupt())
-
-	// Attempt graceful server close
-	cleanCloseTimeout := 10 * time.Second
-
-	select {
-	case doneCh <- struct{}{}:
-	default:
-		// Currently bootstrapping, cannot send close clean signal
-		closedCh <- struct{}{}
-	}
-
-	// Wait then close or hard close
-	select {
-	case <-closedCh:
-		log.Infof("server closed clean")
-	case <-time.After(cleanCloseTimeout):
-		log.Errorf("server closed due to %s timeout", cleanCloseTimeout.String())
-	}
-}
-
-func interrupt() error {
-	c := make(chan os.Signal)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-	return fmt.Errorf("%s", <-c)
+	server.Run(server.RunOptions{ConfigFile: *configFile})
 }

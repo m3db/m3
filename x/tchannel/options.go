@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,38 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package client
+package xtchannel
 
-import (
-	"fmt"
-	"strings"
-	"testing"
+import tchannel "github.com/uber/tchannel-go"
 
-	"github.com/m3db/m3db/generated/thrift/rpc"
-	xerrors "github.com/m3db/m3x/errors"
-
-	"github.com/stretchr/testify/assert"
-)
-
-func TestConsistencyResultError(t *testing.T) {
-	topErr := &rpc.Error{
-		Type: rpc.ErrorType_BAD_REQUEST,
+// NewDefaultChannelOptions returns the default tchannel options used.
+func NewDefaultChannelOptions() *tchannel.ChannelOptions {
+	return &tchannel.ChannelOptions{
+		Logger: NewNoopLogger(),
 	}
-
-	err := consistencyResultErr{
-		level:       ReadConsistencyLevelMajority,
-		success:     1,
-		enqueued:    3,
-		responded:   3,
-		topLevelErr: topErr,
-		errs:        []error{topErr, fmt.Errorf("another error")},
-	}
-
-	assert.True(t, strings.HasPrefix(err.Error(),
-		"failed to meet consistency level majority with 1/3 success, 3 nodes responded, errors:"))
-	assert.Equal(t, topErr, xerrors.InnerError(err))
-	assert.True(t, IsBadRequestError(err))
-	assert.Equal(t, 3, NumResponded(err))
-	assert.Equal(t, 1, NumSuccess(err))
-	assert.Equal(t, 2, NumError(err))
 }

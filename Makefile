@@ -31,9 +31,10 @@ thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 
-BUILD           := $(abspath ./bin)
-LINUX_AMD64_ENV := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
-VENDOR_ENV      := GO15VENDOREXPERIMENT=1
+BUILD            := $(abspath ./bin)
+GO_BUILD_LDFLAGS := $(shell $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package))
+LINUX_AMD64_ENV  := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+VENDOR_ENV       := GO15VENDOREXPERIMENT=1
 
 SERVICES := \
 	m3dbnode
@@ -53,7 +54,7 @@ define SERVICE_RULES
 .PHONY: $(SERVICE)
 $(SERVICE): setup
 	@echo Building $(SERVICE)
-	$(VENDOR_ENV) go build -o $(BUILD)/$(SERVICE) ./services/$(SERVICE)/main/.
+	$(VENDOR_ENV) go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./services/$(SERVICE)/main/.
 
 .PHONY: $(SERVICE)-linux-amd64
 $(SERVICE)-linux-amd64:

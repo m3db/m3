@@ -35,10 +35,10 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 
-	"github.com/uber-go/tally"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestSessionWriteNotOpenError(t *testing.T) {
@@ -303,8 +303,10 @@ func testWriteConsistencyLevel(
 		assert.Error(t, resultErr)
 
 		resultErrStr := fmt.Sprintf("%v", resultErr)
-		assert.True(t, strings.Contains(resultErrStr, fmt.Sprintf("failed to meet %s", level.String())))
-		assert.True(t, strings.Contains(resultErrStr, writeErr))
+		assert.True(t, strings.Contains(resultErrStr,
+			fmt.Sprintf("failed to meet consistency level %s", level.String())))
+		assert.True(t, strings.Contains(resultErrStr,
+			writeErr))
 	}
 
 	assert.NoError(t, session.Close())

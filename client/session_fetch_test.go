@@ -312,8 +312,10 @@ func testFetchConsistencyLevel(
 		assert.True(t, IsInternalServerError(err))
 		assert.False(t, IsBadRequestError(err))
 		resultErrStr := fmt.Sprintf("%v", err)
-		assert.True(t, strings.Contains(resultErrStr, fmt.Sprintf("failed to meet %s with %d/3 success", level.String(), 3-failures)))
-		assert.True(t, strings.Contains(resultErrStr, fetchFailureErrStr))
+		assert.True(t, strings.Contains(resultErrStr,
+			fmt.Sprintf("failed to meet consistency level %s with %d/3 success", level.String(), 3-failures)))
+		assert.True(t, strings.Contains(resultErrStr,
+			fetchFailureErrStr))
 	}
 
 	assert.NoError(t, session.Close())

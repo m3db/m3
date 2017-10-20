@@ -21,6 +21,9 @@
 package topology
 
 import (
+	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/m3db/m3cluster/client"
@@ -155,14 +158,46 @@ const (
 // String returns the consistency level as a string
 func (l ConsistencyLevel) String() string {
 	switch l {
+	case consistencyLevelNone:
+		return "none"
 	case ConsistencyLevelOne:
-		return "ConsistencyLevelOne"
+		return "one"
 	case ConsistencyLevelMajority:
-		return "ConsistencyLevelMajority"
+		return "majority"
 	case ConsistencyLevelAll:
-		return "ConsistencyLevelAll"
+		return "all"
 	}
-	return "ConsistencyLevelNone"
+	return "unknown"
+}
+
+var validConsistencyLevels = []ConsistencyLevel{
+	consistencyLevelNone,
+	ConsistencyLevelOne,
+	ConsistencyLevelMajority,
+	ConsistencyLevelAll,
+}
+
+var errConsistencyLevelUnspecified = errors.New("consistency level not specified")
+
+// UnmarshalYAML unmarshals an ConnectConsistencyLevel into a valid type from string.
+func (l *ConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	if str == "" {
+		return errConsistencyLevelUnspecified
+	}
+	strs := make([]string, len(validConsistencyLevels))
+	for _, valid := range validConsistencyLevels {
+		if str == valid.String() {
+			*l = valid
+			return nil
+		}
+		strs = append(strs, "'"+valid.String()+"'")
+	}
+	return fmt.Errorf("invalid ConsistencyLevel '%s' valid types are: %s",
+		str, strings.Join(strs, ", "))
 }
 
 // StaticOptions is a set of options for static topology

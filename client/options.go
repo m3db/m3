@@ -75,7 +75,7 @@ const (
 	defaultIdentifierPoolSize = 8192
 
 	// defaultWriteOpPoolSize is the default write op pool size
-	defaultWriteOpPoolSize = 262144
+	defaultWriteOpPoolSize = 65536
 
 	// defaultFetchBatchOpPoolSize is the default fetch op pool size
 	defaultFetchBatchOpPoolSize = 8192
@@ -118,7 +118,7 @@ const (
 	defaultBackgroundHealthCheckFailThrottleFactor = 0.5
 
 	// defaultSeriesIteratorPoolSize is the default size of the series iterator pools
-	defaultSeriesIteratorPoolSize = 100000
+	defaultSeriesIteratorPoolSize = 65536
 
 	// defaultFetchSeriesBlocksMaxBlockRetries is the default max retries for fetch series blocks
 	// from a single peer
