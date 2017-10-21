@@ -21,6 +21,7 @@
 package etcd
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -306,6 +307,12 @@ func TestWatchClose(t *testing.T) {
 }
 
 func TestMultipleWatchesFromNotExist(t *testing.T) {
+	for i := 0; i < 10; i++ {
+		testMultipleWatchesFromNotExist(t)
+	}
+}
+
+func testMultipleWatchesFromNotExist(t *testing.T) {
 	sid := services.NewServiceID().SetName("s1").SetEnvironment("e1")
 	ec, opts, closeFn := testStore(t, sid)
 	defer closeFn()
@@ -323,7 +330,9 @@ func TestMultipleWatchesFromNotExist(t *testing.T) {
 
 	w2, err := store.Watch()
 	require.NoError(t, err)
-	require.Equal(t, 0, len(w2.C()))
+	if len(w2.C()) > 0 {
+		require.Fail(t, fmt.Sprintf("expect no update, but got %v", w2.Get().([]string)))
+	}
 	require.Nil(t, w2.Get())
 
 	err = store.Heartbeat(i1, 1*time.Second)
@@ -439,6 +448,7 @@ func testStore(t *testing.T, sid services.ServiceID) (*clientv3.Client, Options,
 
 	closer := func() {
 		ecluster.Terminate(t)
+		ec.Close()
 	}
 	return ec, NewOptions().SetServiceID(sid), closer
 }
