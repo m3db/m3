@@ -10,7 +10,7 @@ env:
     - TEST_TIMEOUT_SCALE=20
     - PACKAGE=github.com/m3db/m3db
   matrix:
-    - MAKE_TARGET="lint metalint test-ci-unit"
+    - MAKE_TARGET="test-ci-unit"
     - MAKE_TARGET="test-ci-integration"
-    - MAKE_TARGET="services tools"
+    - MAKE_TARGET="lint metalint services tools"
 script: "make $MAKE_TARGET"
