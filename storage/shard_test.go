@@ -29,8 +29,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uber-go/tally"
-
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/retention"
@@ -46,6 +44,7 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 type testIncreasingIndex struct {
