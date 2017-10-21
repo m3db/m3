@@ -94,7 +94,7 @@ type dbShard struct {
 	lookup                   map[ts.Hash]*list.Element
 	list                     *list.List
 	bs                       bootstrapState
-	newSeriesBootstrapped    bool
+	newSeriesBootstrapped    int64
 	filesetBeforeFn          filesetBeforeFn
 	deleteFilesFn            deleteFilesFn
 	tickSleepIfAheadEvery    int
@@ -216,7 +216,7 @@ func newDatabaseShard(
 
 	if !needsBootstrap {
 		d.bs = bootstrapped
-		d.newSeriesBootstrapped = true
+		d.newSeriesBootstrapped = 1
 	}
 
 	if blockRetriever != nil {
@@ -645,9 +645,7 @@ func (s *dbShard) tryRetrieveWritableSeries(id ts.ID) (
 }
 
 func (s *dbShard) newShardEntry(id ts.ID) *dbShardEntry {
-	s.Lock()
-	newSeriesBootstrapped := s.newSeriesBootstrapped
-	s.Unlock()
+	newSeriesBootstrapped := atomic.LoadInt64(&s.newSeriesBootstrapped) != 0
 	series := s.seriesPool.Get()
 	seriesID := s.identifierPool.Clone(id)
 	series.Reset(seriesID, newSeriesBootstrapped, s.seriesBlockRetriever, s.seriesOpts)
@@ -908,9 +906,7 @@ func (s *dbShard) Bootstrap(
 	// From this point onwards, all newly created series that aren't in
 	// the existing map should be considered bootstrapped because they
 	// have no data within the retention period.
-	s.Lock()
-	s.newSeriesBootstrapped = true
-	s.Unlock()
+	atomic.StoreInt64(&s.newSeriesBootstrapped, 1)
 
 	// Find the series with no data within the retention period but has
 	// buffered data points since server start. Any new series added

@@ -80,7 +80,7 @@ func TestShardDontNeedBootstrap(t *testing.T) {
 	defer shard.Close()
 
 	require.Equal(t, bootstrapped, shard.bs)
-	require.True(t, shard.newSeriesBootstrapped)
+	require.True(t, shard.newSeriesBootstrapped != 0)
 }
 
 func TestShardFlushStateNotStarted(t *testing.T) {
