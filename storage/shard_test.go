@@ -29,6 +29,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/uber-go/tally"
+
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/retention"
@@ -38,6 +40,7 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
+	xmetrics "github.com/m3db/m3db/x/metrics"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -375,6 +378,85 @@ func TestShardTick(t *testing.T) {
 	shard.Write(ctx, ts.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
 	shard.Write(ctx, ts.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
 	shard.Write(ctx, ts.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
+
+	r := shard.Tick(context.NewNoOpCanncellable(), 6*time.Millisecond)
+	require.Equal(t, 3, r.activeSeries)
+	require.Equal(t, 0, r.expiredSeries)
+	require.Equal(t, 4*time.Millisecond, slept)
+
+	// Ensure flush states by time was expired correctly
+	require.Equal(t, 1, len(shard.flushState.statesByTime))
+	_, ok := shard.flushState.statesByTime[earliestFlush]
+	require.True(t, ok)
+}
+func TestShardWriteAsync(t *testing.T) {
+	testReporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
+	scope, closer := tally.NewRootScope(tally.ScopeOptions{
+		Reporter: testReporter,
+	}, 100*time.Millisecond)
+	defer closer.Close()
+
+	now := time.Now()
+	nowLock := sync.RWMutex{}
+	nowFn := func() time.Time {
+		nowLock.RLock()
+		value := now
+		nowLock.RUnlock()
+		return value
+	}
+	setNow := func(t time.Time) {
+		nowLock.Lock()
+		now = t
+		nowLock.Unlock()
+	}
+
+	opts := testDatabaseOptions()
+	opts = opts.
+		SetInstrumentOptions(
+			opts.InstrumentOptions().
+				SetMetricsScope(scope).
+				SetReportInterval(100 * time.Millisecond)).
+		SetClockOptions(
+			opts.ClockOptions().SetNowFn(nowFn))
+
+	earliestFlush := retention.FlushTimeStart(defaultTestRetentionOpts, now)
+	beforeEarliestFlush := earliestFlush.Add(-defaultTestRetentionOpts.BlockSize())
+
+	shard := testDatabaseShard(t, opts)
+	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
+	defer shard.Close()
+
+	// Also check that it expires flush states by time
+	shard.flushState.statesByTime[earliestFlush] = fileOpState{
+		Status: fileOpSuccess,
+	}
+	shard.flushState.statesByTime[beforeEarliestFlush] = fileOpState{
+		Status: fileOpSuccess,
+	}
+	assert.Equal(t, 2, len(shard.flushState.statesByTime))
+
+	var slept time.Duration
+	shard.sleepFn = func(t time.Duration) {
+		slept += t
+		setNow(nowFn().Add(t))
+	}
+	shard.tickSleepIfAheadEvery = 1
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	go shard.Bootstrap(nil)
+	shard.Write(ctx, ts.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
+	shard.Write(ctx, ts.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
+	shard.Write(ctx, ts.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
+
+	for {
+		counter, ok := testReporter.Counters()["dbshard.insert-queue.inserts"]
+		if ok && counter == 3 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	r := shard.Tick(context.NewNoOpCanncellable(), 6*time.Millisecond)
 	require.Equal(t, 3, r.activeSeries)

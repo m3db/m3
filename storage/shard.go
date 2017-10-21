@@ -645,9 +645,12 @@ func (s *dbShard) tryRetrieveWritableSeries(id ts.ID) (
 }
 
 func (s *dbShard) newShardEntry(id ts.ID) *dbShardEntry {
+	s.Lock()
+	newSeriesBootstrapped := s.newSeriesBootstrapped
+	s.Unlock()
 	series := s.seriesPool.Get()
 	seriesID := s.identifierPool.Clone(id)
-	series.Reset(seriesID, s.newSeriesBootstrapped, s.seriesBlockRetriever, s.seriesOpts)
+	series.Reset(seriesID, newSeriesBootstrapped, s.seriesBlockRetriever, s.seriesOpts)
 	uniqueIndex := s.increasingIndex.nextIndex()
 	return &dbShardEntry{series: series, index: uniqueIndex}
 }
