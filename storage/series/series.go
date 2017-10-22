@@ -72,11 +72,10 @@ type dbSeries struct {
 // NewDatabaseSeries creates a new database series
 func NewDatabaseSeries(id ts.ID, opts Options) DatabaseSeries {
 	var (
-		s                  = newDatabaseSeries()
-		seriesBootstrapped = false
-		blockRetriever     QueryableBlockRetriever
+		s              = newDatabaseSeries()
+		blockRetriever QueryableBlockRetriever
 	)
-	s.Reset(id, seriesBootstrapped, blockRetriever, opts)
+	s.Reset(id, blockRetriever, opts)
 	return s
 }
 

@@ -773,7 +773,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		// Insert still pending, perform the insert
 		entry = inserts[i].entry
-		if s.newSeriesBootstraapped {
+		if s.newSeriesBootstrapped {
 			if err := entry.series.Bootstrap(nil); err != nil {
 				s.metrics.insertAsyncBootstrapErrors.Inc(1)
 			}
