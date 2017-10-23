@@ -26,6 +26,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/storage/namespace"
+	m3dbTime "github.com/m3db/m3db/time"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
@@ -274,7 +275,7 @@ type DatabaseSeriesBlocks interface {
 	BlockAt(t time.Time) (DatabaseBlock, bool)
 
 	// AllBlocks returns all the blocks in the series.
-	AllBlocks() map[int64]DatabaseBlock
+	AllBlocks() map[m3dbTime.UnixNano]DatabaseBlock
 
 	// RemoveBlockAt removes the block at a given time if any.
 	RemoveBlockAt(t time.Time)

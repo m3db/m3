@@ -24,16 +24,18 @@
 package block
 
 import (
+	time "time"
+
 	gomock "github.com/golang/mock/gomock"
 	context "github.com/m3db/m3db/context"
 	encoding "github.com/m3db/m3db/encoding"
 	namespace "github.com/m3db/m3db/storage/namespace"
+	m3dbTime "github.com/m3db/m3db/time"
 	ts "github.com/m3db/m3db/ts"
 	io "github.com/m3db/m3db/x/io"
 	clock "github.com/m3db/m3x/clock"
 	pool "github.com/m3db/m3x/pool"
 	sync "github.com/m3db/m3x/sync"
-	time "time"
 )
 
 // Mock of FilteredBlocksMetadataIter interface
@@ -633,9 +635,9 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) BlockAt(arg0 interface{}) *gomock.
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BlockAt", arg0)
 }
 
-func (_m *MockDatabaseSeriesBlocks) AllBlocks() map[int64]DatabaseBlock {
+func (_m *MockDatabaseSeriesBlocks) AllBlocks() map[m3dbTime.UnixNano]DatabaseBlock {
 	ret := _m.ctrl.Call(_m, "AllBlocks")
-	ret0, _ := ret[0].(map[int64]DatabaseBlock)
+	ret0, _ := ret[0].(map[m3dbTime.UnixNano]DatabaseBlock)
 	return ret0
 }
 
