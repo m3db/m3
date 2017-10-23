@@ -34,7 +34,6 @@ vendor_prefix        := vendor
 BUILD            := $(abspath ./bin)
 GO_BUILD_LDFLAGS := $(shell $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package))
 LINUX_AMD64_ENV  := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
-VENDOR_ENV       := GO15VENDOREXPERIMENT=1
 
 SERVICES := \
 	m3dbnode
@@ -55,7 +54,7 @@ define SERVICE_RULES
 .PHONY: $(SERVICE)
 $(SERVICE): setup
 	@echo Building $(SERVICE)
-	$(VENDOR_ENV) go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./services/$(SERVICE)/main/.
+	go build -ldflags '$(GO_BUILD_LDFLAGS)' -o $(BUILD)/$(SERVICE) ./services/$(SERVICE)/main/.
 
 .PHONY: $(SERVICE)-linux-amd64
 $(SERVICE)-linux-amd64:
@@ -68,7 +67,7 @@ define TOOL_RULES
 .PHONY: $(TOOL)
 $(TOOL): setup
 	@echo Building $(TOOL)
-	$(VENDOR_ENV) go build -o $(BUILD)/$(TOOL) ./tools/$(TOOL)/main/.
+	go build -o $(BUILD)/$(TOOL) ./tools/$(TOOL)/main/.
 
 .PHONY: $(TOOL)-linux-amd64
 $(TOOL)-linux-amd64:
@@ -140,7 +139,7 @@ all-gen: mock-gen thrift-gen proto-gen
 .PHONY: lint
 lint:
 	@which golint > /dev/null || go get -u github.com/golang/lint/golint
-	$(VENDOR_ENV) $(lint_check)
+	$(lint_check)
 
 .PHONY: metalint
 metalint: install-metalinter
@@ -150,12 +149,12 @@ metalint: install-metalinter
 .PHONY: test-internal
 test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
-	@$(VENDOR_ENV) $(test) $(coverfile) | tee $(test_log)
+	$(test) $(coverfile) | tee $(test_log)
 
 # Do not test native pooling for now due to slow travis builds
 .PHONY: test-integration
 test-integration:
-	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false go test -v -tags=integration ./integration
+	TEST_NATIVE_POOLING=false go test -v -tags=integration ./integration
 
 .PHONY: test-xml
 test-xml: test-internal
@@ -181,12 +180,12 @@ test-ci-unit: test-internal
 # Do not test native pooling for now due to slow travis builds
 .PHONY: test-ci-integration
 test-ci-integration:
-	@$(VENDOR_ENV) INTEGRATION_TIMEOUT=2m TEST_NATIVE_POOLING=false $(test_ci_integration)
+	INTEGRATION_TIMEOUT=2m TEST_NATIVE_POOLING=false $(test_ci_integration)
 
 # run as: make test-one-integration test=<test_name>
 .PHONY: test-one-integration
 test-one-integration:
-	@$(VENDOR_ENV) TEST_NATIVE_POOLING=false $(test_one_integration) $(test)
+	TEST_NATIVE_POOLING=false $(test_one_integration) $(test)
 
 .PHONY: clean
 clean:

@@ -343,7 +343,8 @@ func Run(runOpts RunOptions) {
 	tchannelthriftNodeClose, err := ttnode.NewServer(db,
 		cfg.ListenAddress, contextPool, tchannelOpts, ttopts).ListenAndServe()
 	if err != nil {
-		logger.Fatalf("could not open tchannelthrift interface: %v", err)
+		logger.Fatalf("could not open tchannelthrift interface on %s: %v",
+			cfg.ListenAddress, err)
 	}
 	defer tchannelthriftNodeClose()
 	logger.Infof("node tchannelthrift: listening on %v", cfg.ListenAddress)
@@ -351,15 +352,17 @@ func Run(runOpts RunOptions) {
 	tchannelthriftClusterClose, err := ttcluster.NewServer(m3dbClient,
 		cfg.ClusterListenAddress, contextPool, tchannelOpts).ListenAndServe()
 	if err != nil {
-		logger.Fatalf("could not open tchannelthrift interface: %v", err)
+		logger.Fatalf("could not open tchannelthrift interface on %s: %v",
+			cfg.ClusterListenAddress, err)
 	}
 	defer tchannelthriftClusterClose()
-	logger.Infof("node tchannelthrift: listening on %v", cfg.ListenAddress)
+	logger.Infof("cluster tchannelthrift: listening on %v", cfg.ClusterListenAddress)
 
 	httpjsonNodeClose, err := hjnode.NewServer(db,
 		cfg.HTTPNodeListenAddress, contextPool, nil, ttopts).ListenAndServe()
 	if err != nil {
-		logger.Fatalf("could not open httpjson interface: %v", err)
+		logger.Fatalf("could not open httpjson interface on %s: %v",
+			cfg.HTTPNodeListenAddress, err)
 	}
 	defer httpjsonNodeClose()
 	logger.Infof("node httpjson: listening on %v", cfg.HTTPNodeListenAddress)
@@ -367,7 +370,8 @@ func Run(runOpts RunOptions) {
 	httpjsonClusterClose, err := hjcluster.NewServer(m3dbClient,
 		cfg.HTTPClusterListenAddress, contextPool, nil).ListenAndServe()
 	if err != nil {
-		logger.Fatalf("could not open httpjson interface: %v", err)
+		logger.Fatalf("could not open httpjson interface on %s: %v",
+			cfg.HTTPClusterListenAddress, err)
 	}
 	defer httpjsonClusterClose()
 	logger.Infof("cluster httpjson: listening on %v", cfg.HTTPClusterListenAddress)
