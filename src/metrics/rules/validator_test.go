@@ -70,6 +70,23 @@ func TestValidatorValidateMappingRuleInvalidFilter(t *testing.T) {
 	require.Error(t, rs.Validate(validator))
 }
 
+func TestValidatorValidateMappingRuleInvalidFilterTagName(t *testing.T) {
+	invalidChars := []rune{'$'}
+	invalidFilterSnapshot := &mappingRuleSnapshot{
+		rawFilters: map[string]string{
+			"random$Tag": "!=",
+		},
+	}
+	invalidFilterRule := &mappingRule{
+		snapshots: []*mappingRuleSnapshot{invalidFilterSnapshot},
+	}
+	rs := &ruleSet{
+		mappingRules: []*mappingRule{invalidFilterRule},
+	}
+	validator := NewValidator(testValidatorOptions().SetTagNameInvalidChars(invalidChars))
+	require.Error(t, rs.Validate(validator))
+}
+
 func TestValidatorValidateMappingRuleInvalidMetricType(t *testing.T) {
 	ruleSet := testRuleSetWithMappingRules(t, testInvalidMetricTypeMappingRulesConfig())
 	validator := NewValidator(testValidatorOptions())
@@ -178,6 +195,23 @@ func TestValidatorValidateRollupRuleInvalidFilter(t *testing.T) {
 	require.Error(t, rs.Validate(validator))
 }
 
+func TestValidatorValidateRollupRuleInvalidFilterTagName(t *testing.T) {
+	invalidChars := []rune{'$'}
+	invalidFilterSnapshot := &mappingRuleSnapshot{
+		rawFilters: map[string]string{
+			"random$Tag": "!=",
+		},
+	}
+	invalidFilterRule := &mappingRule{
+		snapshots: []*mappingRuleSnapshot{invalidFilterSnapshot},
+	}
+	rs := &ruleSet{
+		mappingRules: []*mappingRule{invalidFilterRule},
+	}
+	validator := NewValidator(testValidatorOptions().SetTagNameInvalidChars(invalidChars))
+	require.Error(t, rs.Validate(validator))
+}
+
 func TestValidatorValidateRollupRuleInvalidMetricType(t *testing.T) {
 	ruleSet := testRuleSetWithRollupRules(t, testInvalidMetricTypeRollupRulesConfig())
 	validator := NewValidator(testValidatorOptions())
@@ -189,6 +223,49 @@ func TestValidatorValidateRollupRuleMissingRequiredTag(t *testing.T) {
 	ruleSet := testRuleSetWithRollupRules(t, testMissingRequiredTagRollupRulesConfig())
 	validator := NewValidator(testValidatorOptions().SetRequiredRollupTags(requiredRollupTags))
 	require.Error(t, ruleSet.Validate(validator))
+}
+
+func TestValidateChars(t *testing.T) {
+	invalidChars := map[rune]struct{}{
+		'$': struct{}{},
+	}
+	require.Error(t, validateChars("test$", invalidChars))
+	require.NoError(t, validateChars("test", invalidChars))
+}
+
+func TestValidatorValidateRollupRuleWithInvalidMetricName(t *testing.T) {
+	invalidChars := []rune{'$'}
+	ruleSet := testRuleSetWithRollupRules(t, testMetricNameRollupRulesConfig())
+	validator := NewValidator(testValidatorOptions().SetMetricNameInvalidChars(invalidChars))
+	require.Error(t, ruleSet.Validate(validator))
+}
+
+func TestValidatorValidateRollupRuleWithEmptyMetricName(t *testing.T) {
+	invalidChars := []rune{'$'}
+	ruleSet := testRuleSetWithRollupRules(t, testEmptyMetricNameRollupRulesConfig())
+	validator := NewValidator(testValidatorOptions().SetMetricNameInvalidChars(invalidChars))
+	require.Error(t, ruleSet.Validate(validator))
+}
+
+func TestValidatorValidateRollupRuleWithValidMetricName(t *testing.T) {
+	invalidChars := []rune{' ', '%'}
+	ruleSet := testRuleSetWithRollupRules(t, testMetricNameRollupRulesConfig())
+	validator := NewValidator(testValidatorOptions().SetMetricNameInvalidChars(invalidChars))
+	require.NoError(t, ruleSet.Validate(validator))
+}
+
+func TestValidatorValidateRollupRuleWithInvalidTagName(t *testing.T) {
+	invalidChars := []rune{'$'}
+	ruleSet := testRuleSetWithRollupRules(t, testTagNameRollupRulesConfig())
+	validator := NewValidator(testValidatorOptions().SetTagNameInvalidChars(invalidChars))
+	require.Error(t, ruleSet.Validate(validator))
+}
+
+func TestValidatorValidateRollupRuleWithValidTagName(t *testing.T) {
+	invalidChars := []rune{' ', '%'}
+	ruleSet := testRuleSetWithRollupRules(t, testTagNameRollupRulesConfig())
+	validator := NewValidator(testValidatorOptions().SetTagNameInvalidChars(invalidChars))
+	require.NoError(t, ruleSet.Validate(validator))
 }
 
 func TestValidatorValidateRollupRulePolicy(t *testing.T) {
@@ -473,6 +550,66 @@ func testMissingRequiredTagRollupRulesConfig() []*schema.RollupRule {
 					Targets: []*schema.RollupTarget{
 						&schema.RollupTarget{
 							Name: "rName1",
+							Tags: []string{"rtagName1", "rtagName2"},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func testTagNameRollupRulesConfig() []*schema.RollupRule {
+	return []*schema.RollupRule{
+		&schema.RollupRule{
+			Uuid: "rollupRule1",
+			Snapshots: []*schema.RollupRuleSnapshot{
+				&schema.RollupRuleSnapshot{
+					Name:       "snapshot1",
+					Tombstoned: false,
+					Targets: []*schema.RollupTarget{
+						&schema.RollupTarget{
+							Name: "rName1",
+							Tags: []string{"rtagName1", "rtagName2$", "$"},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func testMetricNameRollupRulesConfig() []*schema.RollupRule {
+	return []*schema.RollupRule{
+		&schema.RollupRule{
+			Uuid: "rollupRule1",
+			Snapshots: []*schema.RollupRuleSnapshot{
+				&schema.RollupRuleSnapshot{
+					Name:       "snapshot1",
+					Tombstoned: false,
+					Targets: []*schema.RollupTarget{
+						&schema.RollupTarget{
+							Name: "rName$1",
+							Tags: []string{"rtagName1", "rtagName2"},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func testEmptyMetricNameRollupRulesConfig() []*schema.RollupRule {
+	return []*schema.RollupRule{
+		&schema.RollupRule{
+			Uuid: "rollupRule1",
+			Snapshots: []*schema.RollupRuleSnapshot{
+				&schema.RollupRuleSnapshot{
+					Name:       "snapshot1",
+					Tombstoned: false,
+					Targets: []*schema.RollupTarget{
+						&schema.RollupTarget{
+							Name: "",
 							Tags: []string{"rtagName1", "rtagName2"},
 						},
 					},
