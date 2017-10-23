@@ -112,12 +112,13 @@ type dbShardRuntimeOptions struct {
 }
 
 type dbShardMetrics struct {
-	create                  tally.Counter
-	close                   tally.Counter
-	closeStart              tally.Counter
-	closeLatency            tally.Timer
-	insertAsyncInsertErrors tally.Counter
-	insertAsyncWriteErrors  tally.Counter
+	create                     tally.Counter
+	close                      tally.Counter
+	closeStart                 tally.Counter
+	closeLatency               tally.Timer
+	insertAsyncInsertErrors    tally.Counter
+	insertAsyncBootstrapErrors tally.Counter
+	insertAsyncWriteErrors     tally.Counter
 }
 
 func newDatabaseShardMetrics(scope tally.Scope) dbShardMetrics {
@@ -128,6 +129,9 @@ func newDatabaseShardMetrics(scope tally.Scope) dbShardMetrics {
 		closeLatency: scope.Timer("close-latency"),
 		insertAsyncInsertErrors: scope.Tagged(map[string]string{
 			"error_type": "insert-series",
+		}).Counter("insert-async.errors"),
+		insertAsyncBootstrapErrors: scope.Tagged(map[string]string{
+			"error_type": "bootstrap-series",
 		}).Counter("insert-async.errors"),
 		insertAsyncWriteErrors: scope.Tagged(map[string]string{
 			"error_type": "write-value",
@@ -647,7 +651,7 @@ func (s *dbShard) tryRetrieveWritableSeries(id ts.ID) (
 func (s *dbShard) newShardEntry(id ts.ID) *dbShardEntry {
 	series := s.seriesPool.Get()
 	seriesID := s.identifierPool.Clone(id)
-	series.Reset(seriesID, s.newSeriesBootstrapped, s.seriesBlockRetriever, s.seriesOpts)
+	series.Reset(seriesID, s.seriesBlockRetriever, s.seriesOpts)
 	uniqueIndex := s.increasingIndex.nextIndex()
 	return &dbShardEntry{series: series, index: uniqueIndex}
 }
@@ -724,6 +728,12 @@ func (s *dbShard) insertSeriesSync(
 	}
 
 	entry = s.newShardEntry(id)
+	if s.newSeriesBootstrapped {
+		if err := entry.series.Bootstrap(nil); err != nil {
+			entry = nil // Don't increment the writer count for this series
+			return nil, err
+		}
+	}
 	s.lookup[entry.series.ID().Hash()] = s.list.PushBack(entry)
 	return entry, nil
 }
@@ -763,6 +773,11 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 		// Insert still pending, perform the insert
 		entry = inserts[i].entry
+		if s.newSeriesBootstrapped {
+			if err := entry.series.Bootstrap(nil); err != nil {
+				s.metrics.insertAsyncBootstrapErrors.Inc(1)
+			}
+		}
 		s.lookup[entry.series.ID().Hash()] = s.list.PushBack(entry)
 	}
 	s.Unlock()

@@ -86,7 +86,6 @@ type DatabaseSeries interface {
 	// Reset resets the series for reuse
 	Reset(
 		id ts.ID,
-		bootstrapped bool,
 		blockRetriever QueryableBlockRetriever,
 		opts Options,
 	)
