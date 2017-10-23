@@ -59,7 +59,7 @@ func validateBlocks(t *testing.T, blocks *databaseSeriesBlocks, minTime, maxTime
 	allBlocks := blocks.elems
 	require.Equal(t, len(expectedTimes), len(allBlocks))
 	for _, timestamp := range expectedTimes {
-		_, exists := allBlocks[timestamp]
+		_, exists := allBlocks[timestamp.UnixNano()]
 		require.True(t, exists)
 	}
 }

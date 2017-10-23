@@ -274,7 +274,7 @@ type DatabaseSeriesBlocks interface {
 	BlockAt(t time.Time) (DatabaseBlock, bool)
 
 	// AllBlocks returns all the blocks in the series.
-	AllBlocks() map[time.Time]DatabaseBlock
+	AllBlocks() map[int64]DatabaseBlock
 
 	// RemoveBlockAt removes the block at a given time if any.
 	RemoveBlockAt(t time.Time)

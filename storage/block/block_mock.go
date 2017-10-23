@@ -633,9 +633,9 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) BlockAt(arg0 interface{}) *gomock.
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BlockAt", arg0)
 }
 
-func (_m *MockDatabaseSeriesBlocks) AllBlocks() map[time.Time]DatabaseBlock {
+func (_m *MockDatabaseSeriesBlocks) AllBlocks() map[int64]DatabaseBlock {
 	ret := _m.ctrl.Call(_m, "AllBlocks")
-	ret0, _ := ret[0].(map[time.Time]DatabaseBlock)
+	ret0, _ := ret[0].(map[int64]DatabaseBlock)
 	return ret0
 }
 

@@ -287,7 +287,7 @@ func (b *dbBlock) resetMergeTargetWithLock() {
 }
 
 type databaseSeriesBlocks struct {
-	elems map[time.Time]DatabaseBlock
+	elems map[int64]DatabaseBlock
 	min   time.Time
 	max   time.Time
 }
@@ -295,7 +295,7 @@ type databaseSeriesBlocks struct {
 // NewDatabaseSeriesBlocks creates a databaseSeriesBlocks instance.
 func NewDatabaseSeriesBlocks(capacity int) DatabaseSeriesBlocks {
 	return &databaseSeriesBlocks{
-		elems: make(map[time.Time]DatabaseBlock, capacity),
+		elems: make(map[int64]DatabaseBlock, capacity),
 	}
 }
 
@@ -311,7 +311,7 @@ func (dbb *databaseSeriesBlocks) AddBlock(block DatabaseBlock) {
 	if dbb.max.Equal(timeZero) || start.After(dbb.max) {
 		dbb.max = start
 	}
-	dbb.elems[start] = block
+	dbb.elems[start.UnixNano()] = block
 }
 
 func (dbb *databaseSeriesBlocks) AddSeries(other DatabaseSeriesBlocks) {
@@ -335,19 +335,20 @@ func (dbb *databaseSeriesBlocks) MaxTime() time.Time {
 }
 
 func (dbb *databaseSeriesBlocks) BlockAt(t time.Time) (DatabaseBlock, bool) {
-	b, ok := dbb.elems[t]
+	b, ok := dbb.elems[t.UnixNano()]
 	return b, ok
 }
 
-func (dbb *databaseSeriesBlocks) AllBlocks() map[time.Time]DatabaseBlock {
+func (dbb *databaseSeriesBlocks) AllBlocks() map[int64]DatabaseBlock {
 	return dbb.elems
 }
 
 func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
-	if _, exists := dbb.elems[t]; !exists {
+	tNano := t.UnixNano()
+	if _, exists := dbb.elems[tNano]; !exists {
 		return
 	}
-	delete(dbb.elems, t)
+	delete(dbb.elems, tNano)
 	if !dbb.min.Equal(t) && !dbb.max.Equal(t) {
 		return
 	}
@@ -355,12 +356,13 @@ func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
 	if len(dbb.elems) == 0 {
 		return
 	}
-	for k := range dbb.elems {
-		if dbb.min == timeZero || dbb.min.After(k) {
-			dbb.min = k
+	for key := range dbb.elems {
+		keyTime := time.Unix(0, key)
+		if dbb.min == timeZero || dbb.min.After(keyTime) {
+			dbb.min = keyTime
 		}
-		if dbb.max == timeZero || dbb.max.Before(k) {
-			dbb.max = k
+		if dbb.max == timeZero || dbb.max.Before(keyTime) {
+			dbb.max = keyTime
 		}
 	}
 }

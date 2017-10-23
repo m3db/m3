@@ -282,7 +282,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	require.Equal(t, 1, r.MadeExpiredBlocks)
 	require.Equal(t, 1, series.blocks.Len())
 	require.Equal(t, curr, series.blocks.MinTime())
-	_, exists := series.blocks.AllBlocks()[curr]
+	_, exists := series.blocks.AllBlocks()[curr.UnixNano()]
 	require.True(t, exists)
 }
 
@@ -395,7 +395,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	end := now.Add(time.Hour)
 	starts := []time.Time{now.Add(-time.Hour), now, now.Add(time.Second), now.Add(time.Hour)}
 
-	blocks := map[time.Time]block.DatabaseBlock{}
+	blocks := map[int64]block.DatabaseBlock{}
 	b := block.NewMockDatabaseBlock(ctrl)
 	head := checked.NewBytes([]byte{0x1, 0x2}, nil)
 	tail := checked.NewBytes([]byte{0x3, 0x4}, nil)
@@ -405,8 +405,8 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	b.EXPECT().Checksum().Return(expectedChecksum)
 	expectedLastRead := time.Now()
 	b.EXPECT().LastReadTime().Return(expectedLastRead)
-	blocks[starts[0]] = b
-	blocks[starts[3]] = nil
+	blocks[starts[0].UnixNano()] = b
+	blocks[starts[3].UnixNano()] = nil
 
 	// Set up the buffer
 	buffer := NewMockdatabaseBuffer(ctrl)
