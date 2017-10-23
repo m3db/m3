@@ -73,7 +73,7 @@ func (v *validator) validateMappingRules(mrv map[string]*MappingRuleView) error 
 		namesSeen[view.Name] = struct{}{}
 
 		// Validate that the filter is valid.
-		if err := v.validateFilters(view.Filters); err != nil {
+		if err := v.validateFilters(view.Name, view.Filters); err != nil {
 			return err
 		}
 
@@ -111,7 +111,7 @@ func (v *validator) validateRollupRules(rrv map[string]*RollupRuleView) error {
 		namesSeen[view.Name] = struct{}{}
 
 		// Validate that the filter is valid.
-		if err := v.validateFilters(view.Filters); err != nil {
+		if err := v.validateFilters(view.Name, view.Filters); err != nil {
 			return err
 		}
 
@@ -125,6 +125,11 @@ func (v *validator) validateRollupRules(rrv map[string]*RollupRuleView) error {
 		}
 
 		for _, target := range view.Targets {
+			// Validate that rollup metric name is valid.
+			if err := v.validateRollupMetricName(view.Name, target.Name); err != nil {
+				return err
+			}
+
 			// Validate that the rollup tags are valid.
 			if err := v.validateRollupTags(view.Name, target.Tags); err != nil {
 				return err
@@ -153,8 +158,13 @@ func (v *validator) validateRollupRules(rrv map[string]*RollupRuleView) error {
 	return nil
 }
 
-func (v *validator) validateFilters(f map[string]string) error {
-	for _, filter := range f {
+func (v *validator) validateFilters(ruleName string, f map[string]string) error {
+	for tag, filter := range f {
+		// Validating the filter tag name does not contain invalid chars.
+		if err := v.opts.CheckInvalidCharactersForTagName(tag); err != nil {
+			return fmt.Errorf("rule %s with filter tag name %s contains invalid character: %v", ruleName, tag, err)
+		}
+
 		// Validating the filter expression by actually constructing the filter.
 		if _, err := filters.NewFilter([]byte(filter)); err != nil {
 			return err
@@ -164,11 +174,18 @@ func (v *validator) validateFilters(f map[string]string) error {
 }
 
 func (v *validator) validateRollupTags(ruleName string, tags []string) error {
+	// Validating that all tag names have valid characters.
+	for _, tag := range tags {
+		if err := v.opts.CheckInvalidCharactersForTagName(tag); err != nil {
+			return fmt.Errorf("rollup rule %s has invalid rollup tag %s: %v", ruleName, tag, err)
+		}
+	}
+
+	// Validating the list of rollup tags in the rule contain all required tags.
 	requiredTags := v.opts.RequiredRollupTags()
 	if len(requiredTags) == 0 {
 		return nil
 	}
-	// Validating the list of rollup tags in the rule contain all required tags.
 	rollupTags := make(map[string]struct{}, len(tags))
 	for _, tag := range tags {
 		rollupTags[tag] = struct{}{}
@@ -178,6 +195,21 @@ func (v *validator) validateRollupTags(ruleName string, tags []string) error {
 			return fmt.Errorf("rollup rule %s does not have required rollup tag: %s, provided rollup tags are %v", ruleName, requiredTag, tags)
 		}
 	}
+
+	return nil
+}
+
+func (v *validator) validateRollupMetricName(ruleName, metricName string) error {
+	// Validate that rollup metric name is not empty.
+	if metricName == "" {
+		return fmt.Errorf("rollup rule %s has an empty rollup metric name", ruleName)
+	}
+
+	// Validate that rollup metric name has valid characters.
+	if err := v.opts.CheckInvalidCharactersForMetricName(metricName); err != nil {
+		return fmt.Errorf("rollup rule %s has an invalid rollup metric name %s: %v", ruleName, metricName, err)
+	}
+
 	return nil
 }
 

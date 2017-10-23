@@ -21,6 +21,9 @@
 package rules
 
 import (
+	"fmt"
+	"strconv"
+
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
 )
@@ -56,6 +59,20 @@ type ValidatorOptions interface {
 	// RequiredRollupTags returns the list of required rollup tags.
 	RequiredRollupTags() []string
 
+	// SetTagNameInvalidChars sets the list of invalid chars for a tag name.
+	SetTagNameInvalidChars(value []rune) ValidatorOptions
+
+	// CheckInvalidCharactersForTagName checks if the given tag name contains invalid characters
+	// returning an error if invalid character(s) present.
+	CheckInvalidCharactersForTagName(tagName string) error
+
+	// SetMetricNameInvalidChars sets the list of invalid chars for a metric name.
+	SetMetricNameInvalidChars(value []rune) ValidatorOptions
+
+	// CheckInvalidCharactersForMetricName checks if the given metric name contains invalid characters
+	// returning an error if invalid character(s) present.
+	CheckInvalidCharactersForMetricName(metricName string) error
+
 	// IsAllowedStoragePolicyFor determines whether a given storage policy is allowed for the
 	// given metric type.
 	IsAllowedStoragePolicyFor(t metric.Type, p policy.StoragePolicy) bool
@@ -75,6 +92,8 @@ type validatorOptions struct {
 	defaultAllowedCustomAggregationTypes map[policy.AggregationType]struct{}
 	metricTypesFn                        MetricTypesFn
 	requiredRollupTags                   []string
+	metricNameInvalidChars               map[rune]struct{}
+	tagNameInvalidChars                  map[rune]struct{}
 	metadatasByType                      map[metric.Type]validationMetadata
 }
 
@@ -130,6 +149,34 @@ func (o *validatorOptions) RequiredRollupTags() []string {
 	return o.requiredRollupTags
 }
 
+func (o *validatorOptions) SetTagNameInvalidChars(values []rune) ValidatorOptions {
+	tagNameInvalidChars := make(map[rune]struct{}, len(values))
+	for _, v := range values {
+		tagNameInvalidChars[v] = struct{}{}
+	}
+	opts := *o
+	opts.tagNameInvalidChars = tagNameInvalidChars
+	return &opts
+}
+
+func (o *validatorOptions) CheckInvalidCharactersForTagName(tagName string) error {
+	return validateChars(tagName, o.tagNameInvalidChars)
+}
+
+func (o *validatorOptions) SetMetricNameInvalidChars(values []rune) ValidatorOptions {
+	metricNameInvalidChars := make(map[rune]struct{}, len(values))
+	for _, v := range values {
+		metricNameInvalidChars[v] = struct{}{}
+	}
+	opts := *o
+	opts.metricNameInvalidChars = metricNameInvalidChars
+	return &opts
+}
+
+func (o *validatorOptions) CheckInvalidCharactersForMetricName(metricName string) error {
+	return validateChars(metricName, o.metricNameInvalidChars)
+}
+
 func (o *validatorOptions) IsAllowedStoragePolicyFor(t metric.Type, p policy.StoragePolicy) bool {
 	if metadata, exists := o.metadatasByType[t]; exists {
 		_, found := metadata.allowedStoragePolicies[p]
@@ -172,4 +219,18 @@ func toAggregationTypeSet(aggTypes policy.AggregationTypes) map[policy.Aggregati
 		m[t] = struct{}{}
 	}
 	return m
+}
+
+func validateChars(str string, invalidChars map[rune]struct{}) error {
+	if len(invalidChars) == 0 {
+		return nil
+	}
+
+	// Validate that given string doesn't contain an invalid character.
+	for _, char := range str {
+		if _, exists := invalidChars[char]; exists {
+			return fmt.Errorf("%s contains invalid character %s", str, strconv.QuoteRune(char))
+		}
+	}
+	return nil
 }
