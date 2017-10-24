@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	m3dbTime "github.com/m3db/m3db/x/time"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/pool"
 )
@@ -76,7 +77,7 @@ type seekersByTime struct {
 	sync.RWMutex
 	shard    uint32
 	accessed bool
-	seekers  map[time.Time]fileSetSeeker
+	seekers  map[m3dbTime.UnixNano]fileSetSeeker
 }
 
 type seekerManagerPendingClose struct {
@@ -143,8 +144,9 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 	multiErr := xerrors.NewMultiError()
 
 	for t := start; !t.After(end); t = t.Add(blockSize) {
+		tNano := m3dbTime.NewUnixNano(t)
 		byTime.RLock()
-		_, exists := byTime.seekers[t]
+		_, exists := byTime.seekers[tNano]
 		byTime.RUnlock()
 
 		if exists {
@@ -153,7 +155,7 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 		}
 
 		byTime.Lock()
-		_, exists = byTime.seekers[t]
+		_, exists = byTime.seekers[tNano]
 		if exists {
 			byTime.Unlock()
 			continue
@@ -169,7 +171,7 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 			continue
 		}
 
-		byTime.seekers[t] = seeker
+		byTime.seekers[tNano] = seeker
 		byTime.Unlock()
 	}
 
@@ -183,7 +185,8 @@ func (m *seekerManager) Seeker(shard uint32, start time.Time) (FileSetSeeker, er
 	// Track accessed to precache in open/close loop
 	byTime.accessed = true
 
-	seeker, ok := byTime.seekers[start]
+	startNano := m3dbTime.NewUnixNano(start)
+	seeker, ok := byTime.seekers[startNano]
 	if ok {
 		byTime.Unlock()
 		return seeker, nil
@@ -192,7 +195,7 @@ func (m *seekerManager) Seeker(shard uint32, start time.Time) (FileSetSeeker, er
 	var err error
 	seeker, err = m.newOpenSeeker(shard, start)
 	if err == nil {
-		byTime.seekers[start] = seeker
+		byTime.seekers[startNano] = seeker
 	}
 	byTime.Unlock()
 
@@ -265,7 +268,7 @@ func (m *seekerManager) seekersByTime(shard uint32) *seekersByTime {
 		}
 		seekersByShardIdx[i] = &seekersByTime{
 			shard:   uint32(i),
-			seekers: make(map[time.Time]fileSetSeeker),
+			seekers: make(map[m3dbTime.UnixNano]fileSetSeeker),
 		}
 	}
 
@@ -352,7 +355,8 @@ func (m *seekerManager) openCloseLoop() {
 		m.RLock()
 		for shard, byTime := range m.seekersByShardIdx {
 			byTime.RLock()
-			for blockStart := range byTime.seekers {
+			for blockStartNano := range byTime.seekers {
+				blockStart := blockStartNano.Time()
 				if blockStart.Before(earliestSeekableBlockStart) {
 					shouldClose = append(shouldClose, seekerManagerPendingClose{
 						shard:      uint32(shard),
@@ -366,10 +370,11 @@ func (m *seekerManager) openCloseLoop() {
 		if len(shouldClose) > 0 {
 			for _, elem := range shouldClose {
 				byTime := m.seekersByShardIdx[elem.shard]
+				blockStartNano := m3dbTime.NewUnixNano(elem.blockStart)
 				byTime.Lock()
-				seeker := byTime.seekers[elem.blockStart]
+				seeker := byTime.seekers[blockStartNano]
 				closing = append(closing, seeker)
-				delete(byTime.seekers, elem.blockStart)
+				delete(byTime.seekers, blockStartNano)
 				byTime.Unlock()
 			}
 		}
