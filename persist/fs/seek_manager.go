@@ -144,7 +144,7 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 	multiErr := xerrors.NewMultiError()
 
 	for t := start; !t.After(end); t = t.Add(blockSize) {
-		tNano := m3dbTime.NewUnixNano(t)
+		tNano := m3dbTime.ToUnixNano(t)
 		byTime.RLock()
 		_, exists := byTime.seekers[tNano]
 		byTime.RUnlock()
@@ -185,7 +185,7 @@ func (m *seekerManager) Seeker(shard uint32, start time.Time) (FileSetSeeker, er
 	// Track accessed to precache in open/close loop
 	byTime.accessed = true
 
-	startNano := m3dbTime.NewUnixNano(start)
+	startNano := m3dbTime.ToUnixNano(start)
 	seeker, ok := byTime.seekers[startNano]
 	if ok {
 		byTime.Unlock()
@@ -356,7 +356,7 @@ func (m *seekerManager) openCloseLoop() {
 		for shard, byTime := range m.seekersByShardIdx {
 			byTime.RLock()
 			for blockStartNano := range byTime.seekers {
-				blockStart := blockStartNano.Time()
+				blockStart := blockStartNano.ToTime()
 				if blockStart.Before(earliestSeekableBlockStart) {
 					shouldClose = append(shouldClose, seekerManagerPendingClose{
 						shard:      uint32(shard),
@@ -370,7 +370,7 @@ func (m *seekerManager) openCloseLoop() {
 		if len(shouldClose) > 0 {
 			for _, elem := range shouldClose {
 				byTime := m.seekersByShardIdx[elem.shard]
-				blockStartNano := m3dbTime.NewUnixNano(elem.blockStart)
+				blockStartNano := m3dbTime.ToUnixNano(elem.blockStart)
 				byTime.Lock()
 				seeker := byTime.seekers[blockStartNano]
 				closing = append(closing, seeker)
