@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	m3dbtime "github.com/m3db/m3db/x/time"
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/stretchr/testify/assert"
@@ -156,9 +157,9 @@ func TestLastReadAfterPeerBootstrap(t *testing.T) {
 		defer wg.Done()
 		verifyLastReads(t, setups[0], namesp.ID(), start, end, lastReadState{
 			ids: map[string]lastReadIDState{
-				"foo": {blocks: map[time.Time]lastReadBlockState{
-					start: {lastRead: end},
-					start.Add(1 * blockSize): {lastRead: end.Add(5 * time.Minute)},
+				"foo": {blocks: map[m3dbtime.UnixNano]lastReadBlockState{
+					m3dbtime.ToUnixNano(start):                    {lastRead: end},
+					m3dbtime.ToUnixNano(start.Add(1 * blockSize)): {lastRead: end.Add(5 * time.Minute)},
 				}},
 			},
 		})
@@ -168,11 +169,11 @@ func TestLastReadAfterPeerBootstrap(t *testing.T) {
 		defer wg.Done()
 		verifyLastReads(t, setups[1], namesp.ID(), start, end, lastReadState{
 			ids: map[string]lastReadIDState{
-				"bar": {blocks: map[time.Time]lastReadBlockState{
-					start: {lastRead: end},
+				"bar": {blocks: map[m3dbtime.UnixNano]lastReadBlockState{
+					m3dbtime.ToUnixNano(start): {lastRead: end},
 				}},
-				"baz": {blocks: map[time.Time]lastReadBlockState{
-					start.Add(1 * blockSize): {lastRead: end},
+				"baz": {blocks: map[m3dbtime.UnixNano]lastReadBlockState{
+					m3dbtime.ToUnixNano(start.Add(1 * blockSize)): {lastRead: end},
 				}},
 			},
 		})
@@ -195,19 +196,19 @@ func TestLastReadAfterPeerBootstrap(t *testing.T) {
 	// Verify last read times
 	log.Debug("verifying all reads")
 	allRead := lastReadState{ids: map[string]lastReadIDState{
-		"foo": lastReadIDState{blocks: map[time.Time]lastReadBlockState{
-			start: {lastRead: end.Add(7 * time.Minute)},
-			start.Add(1 * blockSize): {lastRead: end.Add(7 * time.Minute)},
-			start.Add(2 * blockSize): {lastRead: end.Add(7 * time.Minute)},
+		"foo": lastReadIDState{blocks: map[m3dbtime.UnixNano]lastReadBlockState{
+			m3dbtime.ToUnixNano(start):                    {lastRead: end.Add(7 * time.Minute)},
+			m3dbtime.ToUnixNano(start.Add(1 * blockSize)): {lastRead: end.Add(7 * time.Minute)},
+			m3dbtime.ToUnixNano(start.Add(2 * blockSize)): {lastRead: end.Add(7 * time.Minute)},
 		}},
-		"bar": lastReadIDState{blocks: map[time.Time]lastReadBlockState{
-			start: {lastRead: end.Add(7 * time.Minute)},
+		"bar": lastReadIDState{blocks: map[m3dbtime.UnixNano]lastReadBlockState{
+			m3dbtime.ToUnixNano(start): {lastRead: end.Add(7 * time.Minute)},
 		}},
-		"baz": lastReadIDState{blocks: map[time.Time]lastReadBlockState{
-			start.Add(1 * blockSize): {lastRead: end.Add(7 * time.Minute)},
+		"baz": lastReadIDState{blocks: map[m3dbtime.UnixNano]lastReadBlockState{
+			m3dbtime.ToUnixNano(start.Add(1 * blockSize)): {lastRead: end.Add(7 * time.Minute)},
 		}},
-		"qux": lastReadIDState{blocks: map[time.Time]lastReadBlockState{
-			start.Add(2 * blockSize): {lastRead: end.Add(7 * time.Minute)},
+		"qux": lastReadIDState{blocks: map[m3dbtime.UnixNano]lastReadBlockState{
+			m3dbtime.ToUnixNano(start.Add(2 * blockSize)): {lastRead: end.Add(7 * time.Minute)},
 		}},
 	}}
 
@@ -223,7 +224,7 @@ type lastReadState struct {
 }
 
 type lastReadIDState struct {
-	blocks map[time.Time]lastReadBlockState
+	blocks map[m3dbtime.UnixNano]lastReadBlockState
 }
 
 type lastReadBlockState struct {
@@ -258,12 +259,12 @@ func verifyLastReads(
 			id := metadata.ID.String()
 			state := actual.ids[id]
 			if state.blocks == nil {
-				state.blocks = map[time.Time]lastReadBlockState{}
+				state.blocks = map[m3dbtime.UnixNano]lastReadBlockState{}
 			}
 
-			block := state.blocks[metadata.Start]
+			block := state.blocks[m3dbtime.ToUnixNano(metadata.Start)]
 			block.lastRead = metadata.LastRead
-			state.blocks[metadata.Start] = block
+			state.blocks[m3dbtime.ToUnixNano(metadata.Start)] = block
 
 			actual.ids[id] = state
 		}
