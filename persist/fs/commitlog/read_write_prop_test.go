@@ -32,6 +32,7 @@ import (
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/ts"
+	m3dbtime "github.com/m3db/m3db/x/time"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/leanovate/gopter"
@@ -266,7 +267,7 @@ func newInitState(dir string, t *testing.T) *clState {
 }
 
 func (s *clState) writesArePresent(writes ...generatedWrite) error {
-	writesOnDisk := make(map[ts.Hash]map[time.Time]generatedWrite)
+	writesOnDisk := make(map[ts.Hash]map[m3dbtime.UnixNano]generatedWrite)
 	iter, err := NewIterator(s.opts)
 	if err != nil {
 		return err
@@ -278,10 +279,10 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 		idHash := series.ID.Hash()
 		seriesMap, ok := writesOnDisk[idHash]
 		if !ok {
-			seriesMap = make(map[time.Time]generatedWrite)
+			seriesMap = make(map[m3dbtime.UnixNano]generatedWrite)
 			writesOnDisk[idHash] = seriesMap
 		}
-		seriesMap[datapoint.Timestamp] = generatedWrite{
+		seriesMap[m3dbtime.ToUnixNano(datapoint.Timestamp)] = generatedWrite{
 			series:     series,
 			datapoint:  datapoint,
 			unit:       unit,
@@ -299,7 +300,7 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 		if !ok {
 			return missingErr
 		}
-		gw, ok := seriesMap[w.datapoint.Timestamp]
+		gw, ok := seriesMap[m3dbtime.ToUnixNano(w.datapoint.Timestamp)]
 		if !ok {
 			return missingErr
 		}
