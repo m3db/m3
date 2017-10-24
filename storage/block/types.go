@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
-	m3dbTime "github.com/m3db/m3db/x/time"
+	m3dbtime "github.com/m3db/m3db/x/time"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
@@ -275,7 +275,7 @@ type DatabaseSeriesBlocks interface {
 	BlockAt(t time.Time) (DatabaseBlock, bool)
 
 	// AllBlocks returns all the blocks in the series.
-	AllBlocks() map[m3dbTime.UnixNano]DatabaseBlock
+	AllBlocks() map[m3dbtime.UnixNano]DatabaseBlock
 
 	// RemoveBlockAt removes the block at a given time if any.
 	RemoveBlockAt(t time.Time)

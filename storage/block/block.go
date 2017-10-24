@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
-	m3dbTime "github.com/m3db/m3db/x/time"
+	m3dbtime "github.com/m3db/m3db/x/time"
 )
 
 var (
@@ -288,7 +288,7 @@ func (b *dbBlock) resetMergeTargetWithLock() {
 }
 
 type databaseSeriesBlocks struct {
-	elems map[m3dbTime.UnixNano]DatabaseBlock
+	elems map[m3dbtime.UnixNano]DatabaseBlock
 	min   time.Time
 	max   time.Time
 }
@@ -296,7 +296,7 @@ type databaseSeriesBlocks struct {
 // NewDatabaseSeriesBlocks creates a databaseSeriesBlocks instance.
 func NewDatabaseSeriesBlocks(capacity int) DatabaseSeriesBlocks {
 	return &databaseSeriesBlocks{
-		elems: make(map[m3dbTime.UnixNano]DatabaseBlock, capacity),
+		elems: make(map[m3dbtime.UnixNano]DatabaseBlock, capacity),
 	}
 }
 
@@ -312,7 +312,7 @@ func (dbb *databaseSeriesBlocks) AddBlock(block DatabaseBlock) {
 	if dbb.max.Equal(timeZero) || start.After(dbb.max) {
 		dbb.max = start
 	}
-	dbb.elems[m3dbTime.ToUnixNano(start)] = block
+	dbb.elems[m3dbtime.ToUnixNano(start)] = block
 }
 
 func (dbb *databaseSeriesBlocks) AddSeries(other DatabaseSeriesBlocks) {
@@ -336,16 +336,16 @@ func (dbb *databaseSeriesBlocks) MaxTime() time.Time {
 }
 
 func (dbb *databaseSeriesBlocks) BlockAt(t time.Time) (DatabaseBlock, bool) {
-	b, ok := dbb.elems[m3dbTime.ToUnixNano(t)]
+	b, ok := dbb.elems[m3dbtime.ToUnixNano(t)]
 	return b, ok
 }
 
-func (dbb *databaseSeriesBlocks) AllBlocks() map[m3dbTime.UnixNano]DatabaseBlock {
+func (dbb *databaseSeriesBlocks) AllBlocks() map[m3dbtime.UnixNano]DatabaseBlock {
 	return dbb.elems
 }
 
 func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
-	tNano := m3dbTime.ToUnixNano(t)
+	tNano := m3dbtime.ToUnixNano(t)
 	if _, exists := dbb.elems[tNano]; !exists {
 		return
 	}
