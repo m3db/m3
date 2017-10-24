@@ -151,7 +151,7 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 		wiredTimeout = ropts.BlockDataExpiryAfterNotAccessedPeriod()
 	)
 	for startNano, currBlock := range s.blocks.AllBlocks() {
-		start := time.Unix(0, int64(startNano))
+		start := startNano.Time()
 		if start.Before(expireCutoff) {
 			s.blocks.RemoveBlockAt(start)
 			currBlock.Close()
@@ -332,7 +332,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 	blocks := s.blocks.AllBlocks()
 
 	for tNano, b := range blocks {
-		t := time.Unix(0, int64(tNano))
+		t := tNano.Time()
 		if !start.Before(t.Add(blockSize)) || !t.Before(end) {
 			continue
 		}
@@ -445,7 +445,7 @@ func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
 		// If any received data falls within the buffer then we emplace it there
 		min, _ := s.buffer.MinMax()
 		for tNano, block := range blocks.AllBlocks() {
-			t := time.Unix(0, int64(tNano))
+			t := tNano.Time()
 			if !t.Before(min) {
 				if err := s.buffer.Bootstrap(block); err != nil {
 					multiErr = multiErr.Add(s.newBootstrapBlockError(block, err))

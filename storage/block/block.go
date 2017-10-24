@@ -312,7 +312,7 @@ func (dbb *databaseSeriesBlocks) AddBlock(block DatabaseBlock) {
 	if dbb.max.Equal(timeZero) || start.After(dbb.max) {
 		dbb.max = start
 	}
-	dbb.elems[m3dbTime.UnixNano(start.UnixNano())] = block
+	dbb.elems[m3dbTime.NewUnixNano(start)] = block
 }
 
 func (dbb *databaseSeriesBlocks) AddSeries(other DatabaseSeriesBlocks) {
@@ -336,7 +336,7 @@ func (dbb *databaseSeriesBlocks) MaxTime() time.Time {
 }
 
 func (dbb *databaseSeriesBlocks) BlockAt(t time.Time) (DatabaseBlock, bool) {
-	b, ok := dbb.elems[m3dbTime.UnixNano(t.UnixNano())]
+	b, ok := dbb.elems[m3dbTime.NewUnixNano(t)]
 	return b, ok
 }
 
@@ -345,7 +345,7 @@ func (dbb *databaseSeriesBlocks) AllBlocks() map[m3dbTime.UnixNano]DatabaseBlock
 }
 
 func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
-	tNano := m3dbTime.UnixNano(t.UnixNano())
+	tNano := m3dbTime.NewUnixNano(t)
 	if _, exists := dbb.elems[tNano]; !exists {
 		return
 	}
@@ -358,7 +358,7 @@ func (dbb *databaseSeriesBlocks) RemoveBlockAt(t time.Time) {
 		return
 	}
 	for key := range dbb.elems {
-		keyTime := time.Unix(0, int64(key))
+		keyTime := key.Time()
 		if dbb.min == timeZero || dbb.min.After(keyTime) {
 			dbb.min = keyTime
 		}
