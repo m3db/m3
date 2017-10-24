@@ -38,6 +38,7 @@ import (
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/metrics"
+	m3dbtime "github.com/m3db/m3db/x/time"
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 
@@ -606,7 +607,7 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 
 type needsFlushTestCase struct {
 	shardNum   uint32
-	needsFlush map[time.Time]bool
+	needsFlush map[m3dbtime.UnixNano]bool
 }
 
 func newNeedsFlushNamespace(t *testing.T, shardNumbers []uint32) *dbNamespace {
@@ -638,11 +639,11 @@ func setShardExpects(ns *dbNamespace, ctrl *gomock.Controller, cases []needsFlus
 		shard.EXPECT().ID().Return(cs.shardNum).AnyTimes()
 		for t, needFlush := range cs.needsFlush {
 			if needFlush {
-				shard.EXPECT().FlushState(t).Return(fileOpState{
+				shard.EXPECT().FlushState(t.ToTime()).Return(fileOpState{
 					Status: fileOpNotStarted,
 				}).AnyTimes()
 			} else {
-				shard.EXPECT().FlushState(t).Return(fileOpState{
+				shard.EXPECT().FlushState(t.ToTime()).Return(fileOpState{
 					Status: fileOpSuccess,
 				}).AnyTimes()
 			}
@@ -664,10 +665,12 @@ func TestNamespaceNeedsFlushRange(t *testing.T) {
 		t0        = t1.Add(-blockSize)
 	)
 
+	t0Nano := m3dbtime.ToUnixNano(t0)
+	t1Nano := m3dbtime.ToUnixNano(t1)
 	inputCases := []needsFlushTestCase{
-		{0, map[time.Time]bool{t0: false, t1: true}},
-		{2, map[time.Time]bool{t0: false, t1: true}},
-		{4, map[time.Time]bool{t0: false, t1: true}},
+		{0, map[m3dbtime.UnixNano]bool{t0Nano: false, t1Nano: true}},
+		{2, map[m3dbtime.UnixNano]bool{t0Nano: false, t1Nano: true}},
+		{4, map[m3dbtime.UnixNano]bool{t0Nano: false, t1Nano: true}},
 	}
 
 	setShardExpects(ns, ctrl, inputCases)
@@ -691,10 +694,13 @@ func TestNamespaceNeedsFlushRangeMultipleShardConflict(t *testing.T) {
 		t0        = t1.Add(-blockSize)
 	)
 
+	t0Nano := m3dbtime.ToUnixNano(t0)
+	t1Nano := m3dbtime.ToUnixNano(t1)
+	t2Nano := m3dbtime.ToUnixNano(t2)
 	inputCases := []needsFlushTestCase{
-		{0, map[time.Time]bool{t0: false, t1: true, t2: true}},
-		{2, map[time.Time]bool{t0: true, t1: false, t2: true}},
-		{4, map[time.Time]bool{t0: false, t1: true, t2: true}},
+		{0, map[m3dbtime.UnixNano]bool{t0Nano: false, t1Nano: true, t2Nano: true}},
+		{2, map[m3dbtime.UnixNano]bool{t0Nano: true, t1Nano: false, t2Nano: true}},
+		{4, map[m3dbtime.UnixNano]bool{t0Nano: false, t1Nano: true, t2Nano: true}},
 	}
 
 	setShardExpects(ns, ctrl, inputCases)
@@ -721,10 +727,13 @@ func TestNamespaceNeedsFlushRangeSingleShardConflict(t *testing.T) {
 		t0        = t1.Add(-blockSize)
 	)
 
+	t0Nano := m3dbtime.ToUnixNano(t0)
+	t1Nano := m3dbtime.ToUnixNano(t1)
+	t2Nano := m3dbtime.ToUnixNano(t2)
 	inputCases := []needsFlushTestCase{
-		{0, map[time.Time]bool{t0: false, t1: false, t2: true}},
-		{2, map[time.Time]bool{t0: true, t1: false, t2: true}},
-		{4, map[time.Time]bool{t0: false, t1: false, t2: true}},
+		{0, map[m3dbtime.UnixNano]bool{t0Nano: false, t1Nano: false, t2Nano: true}},
+		{2, map[m3dbtime.UnixNano]bool{t0Nano: true, t1Nano: false, t2Nano: true}},
+		{4, map[m3dbtime.UnixNano]bool{t0Nano: false, t1Nano: false, t2Nano: true}},
 	}
 
 	setShardExpects(ns, ctrl, inputCases)
