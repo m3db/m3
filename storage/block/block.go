@@ -28,9 +28,9 @@ import (
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
-	m3dbTime "github.com/m3db/m3db/time"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	m3dbTime "github.com/m3db/m3db/x/time"
 )
 
 var (

@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/ts"
+	m3dbTime "github.com/m3db/m3db/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -59,7 +60,7 @@ func validateBlocks(t *testing.T, blocks *databaseSeriesBlocks, minTime, maxTime
 	allBlocks := blocks.elems
 	require.Equal(t, len(expectedTimes), len(allBlocks))
 	for _, timestamp := range expectedTimes {
-		_, exists := allBlocks[timestamp.UnixNano()]
+		_, exists := allBlocks[m3dbTime.UnixNano(timestamp.UnixNano())]
 		require.True(t, exists)
 	}
 }

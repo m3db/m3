@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	m3dbTime "github.com/m3db/m3db/x/time"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
@@ -282,7 +283,7 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	require.Equal(t, 1, r.MadeExpiredBlocks)
 	require.Equal(t, 1, series.blocks.Len())
 	require.Equal(t, curr, series.blocks.MinTime())
-	_, exists := series.blocks.AllBlocks()[curr.UnixNano()]
+	_, exists := series.blocks.AllBlocks()[m3dbTime.UnixNano(curr.UnixNano())]
 	require.True(t, exists)
 }
 
@@ -395,7 +396,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	end := now.Add(time.Hour)
 	starts := []time.Time{now.Add(-time.Hour), now, now.Add(time.Second), now.Add(time.Hour)}
 
-	blocks := map[int64]block.DatabaseBlock{}
+	blocks := map[m3dbTime.UnixNano]block.DatabaseBlock{}
 	b := block.NewMockDatabaseBlock(ctrl)
 	head := checked.NewBytes([]byte{0x1, 0x2}, nil)
 	tail := checked.NewBytes([]byte{0x3, 0x4}, nil)
@@ -405,8 +406,8 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	b.EXPECT().Checksum().Return(expectedChecksum)
 	expectedLastRead := time.Now()
 	b.EXPECT().LastReadTime().Return(expectedLastRead)
-	blocks[starts[0].UnixNano()] = b
-	blocks[starts[3].UnixNano()] = nil
+	blocks[m3dbTime.UnixNano(starts[0].UnixNano())] = b
+	blocks[m3dbTime.UnixNano(starts[3].UnixNano())] = nil
 
 	// Set up the buffer
 	buffer := NewMockdatabaseBuffer(ctrl)
