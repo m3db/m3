@@ -651,8 +651,9 @@ func testTagNameRollupRulesConfig() []*schema.RollupRule {
 					Tombstoned: false,
 					Targets: []*schema.RollupTarget{
 						&schema.RollupTarget{
-							Name: "rName1",
-							Tags: []string{"rtagName1", "rtagName2$", "$"},
+							Name:     "rName1",
+							Tags:     []string{"rtagName1", "rtagName2$", "$"},
+							Policies: testPolicies(),
 						},
 					},
 				},
@@ -671,8 +672,9 @@ func testMetricNameRollupRulesConfig() []*schema.RollupRule {
 					Tombstoned: false,
 					Targets: []*schema.RollupTarget{
 						&schema.RollupTarget{
-							Name: "rName$1",
-							Tags: []string{"rtagName1", "rtagName2"},
+							Name:     "rName$1",
+							Tags:     []string{"rtagName1", "rtagName2"},
+							Policies: testPolicies(),
 						},
 					},
 				},
