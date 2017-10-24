@@ -248,11 +248,11 @@ type seriesDatapoint struct {
 }
 
 func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.SeriesBlocksByStart {
-	blockStartToSeriesMap := make(map[time.Time]map[ts.Hash]generate.Series)
+	blockStartToSeriesMap := make(map[m3dbtime.UnixNano]map[ts.Hash]generate.Series)
 	for _, point := range d {
 		t := point.time
 		trunc := t.Truncate(blockSize)
-		seriesBlock, ok := blockStartToSeriesMap[trunc]
+		seriesBlock, ok := blockStartToSeriesMap[m3dbtime.ToUnixNano(trunc)]
 		if !ok {
 			seriesBlock = make(map[ts.Hash]generate.Series)
 		}
@@ -265,7 +265,7 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 			Value:     point.value,
 		})
 		seriesBlock[point.series.Hash()] = dp
-		blockStartToSeriesMap[trunc] = seriesBlock
+		blockStartToSeriesMap[m3dbtime.ToUnixNano(trunc)] = seriesBlock
 	}
 
 	seriesMap := make(generate.SeriesBlocksByStart, len(blockStartToSeriesMap))
@@ -274,7 +274,7 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 		for _, series := range serieses {
 			seriesSlice = append(seriesSlice, series)
 		}
-		seriesMap[m3dbtime.ToUnixNano(t)] = seriesSlice
+		seriesMap[t] = seriesSlice
 	}
 	return seriesMap
 
