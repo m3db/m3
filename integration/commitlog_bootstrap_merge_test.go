@@ -33,6 +33,7 @@ import (
 	bcl "github.com/m3db/m3db/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/namespace"
+	m3dbtime "github.com/m3db/m3db/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -117,16 +118,19 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	log.Info("generated data")
 
 	log.Info("writing filesets")
+	t0Nano := m3dbtime.ToUnixNano(t0)
+	t1Nano := m3dbtime.ToUnixNano(t1)
 	fsSeriesMaps := generate.SeriesBlocksByStart{
-		t0: seriesMaps[t0],
-		t1: seriesMaps[t1],
+		t0Nano: seriesMaps[t0Nano],
+		t1Nano: seriesMaps[t1Nano],
 	}
 	require.NoError(t, writeTestDataToDisk(ns1, setup, fsSeriesMaps))
 
 	log.Info("writing commit logs")
+	t2Nano := m3dbtime.ToUnixNano(t2)
 	commitlogSeriesMaps := generate.SeriesBlocksByStart{
-		t1: seriesMaps[t1],
-		t2: seriesMaps[t2],
+		t1Nano: seriesMaps[t1Nano],
+		t2Nano: seriesMaps[t2Nano],
 	}
 	writeCommitLogData(t, setup, commitlogSeriesMaps, ns1.ID())
 

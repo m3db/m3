@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	m3dbtime "github.com/m3db/m3db/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -65,7 +66,7 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 
 	// Write test data
 	now := testSetup.getNowFn()
-	seriesMaps := make(map[time.Time]generate.SeriesBlock)
+	seriesMaps := make(map[m3dbtime.UnixNano]generate.SeriesBlock)
 	inputData := []generate.BlockConfig{
 		{[]string{"foo", "bar"}, 100, now},
 		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
@@ -74,7 +75,7 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 		start := input.Start
 		testSetup.setNowFn(start)
 		testData := generate.Block(input)
-		seriesMaps[start] = testData
+		seriesMaps[m3dbtime.ToUnixNano(start)] = testData
 		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
 	}
 	log.Debug("test data is now written")
@@ -109,8 +110,8 @@ func testSetupMetadatas(
 
 func verifySeriesMapsEqual(
 	t *testing.T,
-	expectedSeriesMap map[time.Time]generate.SeriesBlock,
-	observedSeriesMap map[time.Time]generate.SeriesBlock,
+	expectedSeriesMap map[m3dbtime.UnixNano]generate.SeriesBlock,
+	observedSeriesMap map[m3dbtime.UnixNano]generate.SeriesBlock,
 ) {
 	// ensure same length
 	require.Equal(t, len(expectedSeriesMap), len(observedSeriesMap))
@@ -118,7 +119,7 @@ func verifySeriesMapsEqual(
 	// ensure same set of keys
 	for i := range expectedSeriesMap {
 		_, ok := observedSeriesMap[i]
-		require.True(t, ok, "%v is expected but not observed", i.String())
+		require.True(t, ok, "%v is expected but not observed", i.ToTime().String())
 	}
 
 	// given same set of keys, ensure same values too
@@ -137,21 +138,21 @@ func verifySeriesMapsEqual(
 
 				// compare all the values in the series
 				require.Equal(t, len(es.Data), len(os.Data),
-					"data length mismatch for series - [time: %v, seriesID: %v]", i.String(), es.ID.String())
+					"data length mismatch for series - [time: %v, seriesID: %v]", i.ToTime().String(), es.ID.String())
 				for idx := range es.Data {
 					expectedData := es.Data[idx]
 					observedData := os.Data[idx]
 					require.Equal(t, expectedData.Timestamp, observedData.Timestamp,
 						"data mismatch for series - [time: %v, seriesID: %v, idx: %v]",
-						i.String(), es.ID.String(), idx)
+						i.ToTime().String(), es.ID.String(), idx)
 					require.Equal(t, expectedData.Value, observedData.Value,
 						"data mismatch for series - [time: %v, seriesID: %v, idx: %v]",
-						i.String(), es.ID.String(), idx)
+						i.ToTime().String(), es.ID.String(), idx)
 				}
 			}
 
 			require.True(t, found, "unable to find expected series - [time: %v, seriesID: %v]",
-				i.String(), es.ID.String())
+				i.ToTime().String(), es.ID.String())
 		}
 	}
 }
@@ -161,8 +162,8 @@ func testSetupToSeriesMaps(
 	testSetup *testSetup,
 	nsMetadata namespace.Metadata,
 	metadatasByShard map[uint32][]block.ReplicaMetadata,
-) map[time.Time]generate.SeriesBlock {
-	seriesMap := make(map[time.Time]generate.SeriesBlock)
+) map[m3dbtime.UnixNano]generate.SeriesBlock {
+	seriesMap := make(map[m3dbtime.UnixNano]generate.SeriesBlock)
 	resultOpts := newDefaulTestResultOptions(testSetup.storageOpts)
 	iterPool := testSetup.storageOpts.ReaderIteratorPool()
 	session, err := testSetup.m3dbAdminClient.DefaultAdminSession()
@@ -192,12 +193,12 @@ func testSetupToSeriesMaps(
 			require.NotEmpty(t, datapoints)
 
 			firstTs := datapoints[0].Timestamp
-			seriesMapList := seriesMap[firstTs]
+			seriesMapList := seriesMap[m3dbtime.ToUnixNano(firstTs)]
 			seriesMapList = append(seriesMapList, generate.Series{
 				ID:   id,
 				Data: datapoints,
 			})
-			seriesMap[firstTs] = seriesMapList
+			seriesMap[m3dbtime.ToUnixNano(firstTs)] = seriesMapList
 		}
 		require.NoError(t, blocksIter.Err())
 	}

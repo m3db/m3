@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/ts"
+	m3dbtime "github.com/m3db/m3db/x/time"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -120,7 +121,7 @@ func verifySeriesMaps(
 	t *testing.T,
 	ts *testSetup,
 	namespace ts.ID,
-	seriesMaps map[time.Time]generate.SeriesBlock,
+	seriesMaps map[m3dbtime.UnixNano]generate.SeriesBlock,
 ) {
 	debugFilePathPrefix := ts.opts.VerifySeriesDebugFilePathPrefix()
 	expectedDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, fmt.Sprintf("%s-expected.log", namespace.String()))
@@ -131,8 +132,8 @@ func verifySeriesMaps(
 	nsOpts := nsMetadata.Options()
 
 	for timestamp, sm := range seriesMaps {
-		start := timestamp
-		end := timestamp.Add(nsOpts.RetentionOptions().BlockSize())
+		start := timestamp.ToTime()
+		end := start.Add(nsOpts.RetentionOptions().BlockSize())
 		verifySeriesMapForRange(
 			t, ts, start, end, namespace, sm,
 			expectedDebugFilePath, actualDebugFilePath)

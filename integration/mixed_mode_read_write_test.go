@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	m3dbtime "github.com/m3db/m3db/x/time"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -115,7 +116,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 	// current time is 18:50, so we expect data for block starts [15, 18) to be written out
 	// to fileset files, and flushed.
 	expectedFlushedData := datapoints.toSeriesMap(ns1BlockSize)
-	delete(expectedFlushedData, blkStart18)
+	delete(expectedFlushedData, m3dbtime.ToUnixNano(blkStart18))
 	waitTimeout := 30 * time.Second
 	filePathPrefix := setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	log.Infof("waiting till expected fileset files have been written")
@@ -156,7 +157,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 
 	// verify in-memory data matches what we expect
 	// should contain data from 16:00 - 17:59 on disk and 18:00 - 18:50 in mem
-	delete(expectedSeriesMap, blkStart15)
+	delete(expectedSeriesMap, m3dbtime.ToUnixNano(blkStart15))
 	log.Infof("verifying data in database equals expected data")
 	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
 	log.Infof("verified data in database equals expected data")
@@ -273,7 +274,7 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 		for _, series := range serieses {
 			seriesSlice = append(seriesSlice, series)
 		}
-		seriesMap[t] = seriesSlice
+		seriesMap[m3dbtime.ToUnixNano(t)] = seriesSlice
 	}
 	return seriesMap
 

@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/ts"
+	m3dbtime "github.com/m3db/m3db/x/time"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -113,8 +114,8 @@ func writeCommitLogData(
 		ctx := context.NewContext()
 		defer ctx.Close()
 
-		s.setNowFn(ts)
-		m := map[time.Time]generate.SeriesBlock{
+		s.setNowFn(ts.ToTime())
+		m := map[m3dbtime.UnixNano]generate.SeriesBlock{
 			ts: blk,
 		}
 

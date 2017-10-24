@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/ts"
+	m3dbtime "github.com/m3db/m3db/x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -47,14 +48,14 @@ func waitUntilDataFlushed(
 	filePathPrefix string,
 	shardSet sharding.ShardSet,
 	namespace ts.ID,
-	testData map[time.Time]generate.SeriesBlock,
+	testData map[m3dbtime.UnixNano]generate.SeriesBlock,
 	timeout time.Duration,
 ) error {
 	dataFlushed := func() bool {
 		for timestamp, seriesList := range testData {
 			for _, series := range seriesList {
 				shard := shardSet.Lookup(series.ID)
-				if !fs.FilesetExistsAt(filePathPrefix, namespace, shard, timestamp) {
+				if !fs.FilesetExistsAt(filePathPrefix, namespace, shard, timestamp.ToTime()) {
 					return false
 				}
 			}
@@ -120,12 +121,12 @@ func verifyFlushed(
 	shardSet sharding.ShardSet,
 	opts storage.Options,
 	namespace ts.ID,
-	seriesMaps map[time.Time]generate.SeriesBlock,
+	seriesMaps map[m3dbtime.UnixNano]generate.SeriesBlock,
 ) {
 	fsOpts := opts.CommitLogOptions().FilesystemOptions()
 	reader := fs.NewReader(fsOpts.FilePathPrefix(), fsOpts.DataReaderBufferSize(), fsOpts.InfoReaderBufferSize(), opts.BytesPool(), nil)
 	iteratorPool := opts.ReaderIteratorPool()
 	for timestamp, seriesList := range seriesMaps {
-		verifyForTime(t, reader, shardSet, iteratorPool, timestamp, namespace, seriesList)
+		verifyForTime(t, reader, shardSet, iteratorPool, timestamp.ToTime(), namespace, seriesList)
 	}
 }

@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/ts"
+	m3dbtime "github.com/m3db/m3db/x/time"
 	"github.com/m3db/m3x/checked"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -53,17 +54,17 @@ func (w *writer) Write(namespace ts.ID, shardSet sharding.ShardSet, seriesMaps S
 		isValidStart   = func(start time.Time) bool {
 			return start.Equal(retentionStart) || start.After(retentionStart)
 		}
-		starts = make(map[time.Time]struct{})
+		starts = make(map[m3dbtime.UnixNano]struct{})
 	)
 
 	for start := currStart; isValidStart(start); start = start.Add(-blockSize) {
-		starts[start] = struct{}{}
+		starts[m3dbtime.ToUnixNano(start)] = struct{}{}
 	}
 
 	writer := fs.NewWriter(gOpts.FilePathPrefix(), gOpts.WriterBufferSize(), gOpts.NewFileMode(), gOpts.NewDirectoryMode())
 	encoder := gOpts.EncoderPool().Get()
 	for start, data := range seriesMaps {
-		err := writeToDisk(writer, shardSet, encoder, start, namespace, blockSize, data)
+		err := writeToDisk(writer, shardSet, encoder, start.ToTime(), namespace, blockSize, data)
 		if err != nil {
 			return err
 		}
@@ -73,7 +74,7 @@ func (w *writer) Write(namespace ts.ID, shardSet sharding.ShardSet, seriesMaps S
 	// Write remaining files even for empty start periods to avoid unfulfilled ranges
 	if w.opts.WriteEmptyShards() {
 		for start := range starts {
-			err := writeToDisk(writer, shardSet, encoder, start, namespace, blockSize, nil)
+			err := writeToDisk(writer, shardSet, encoder, start.ToTime(), namespace, blockSize, nil)
 			if err != nil {
 				return err
 			}
