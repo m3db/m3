@@ -6,12 +6,12 @@ import "time"
 // nanosecond resolution
 type UnixNano int64
 
-// ToTime converts a UnixNano to a time.Time
-func (u UnixNano) ToTime() time.Time {
+// Time returns a time.Time from a UnixNano
+func (u UnixNano) Time() time.Time {
 	return time.Unix(0, int64(u))
 }
 
-// NewUnixNano returns a UnixNano from time.Time
+// NewUnixNano returns a UnixNano from a time.Time
 func NewUnixNano(t time.Time) UnixNano {
 	return UnixNano(t.UnixNano())
 }
