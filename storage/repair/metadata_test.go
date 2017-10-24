@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	m3dbtime "github.com/m3db/m3db/x/time"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -65,7 +66,7 @@ func TestReplicaBlocksMetadataAdd(t *testing.T) {
 	blocks := m.Blocks()
 	require.Equal(t, 1, len(blocks))
 
-	block, exists := blocks[now]
+	block, exists := blocks[m3dbtime.ToUnixNano(now)]
 	require.True(t, exists)
 	require.Equal(t, now, block.Start())
 }
@@ -80,7 +81,7 @@ func TestReplicaBlocksMetadataGetOrAdd(t *testing.T) {
 	require.Equal(t, now, b.Start())
 	blocks := m.Blocks()
 	require.Equal(t, 1, len(blocks))
-	block, exists := blocks[now]
+	block, exists := blocks[m3dbtime.ToUnixNano(now)]
 	require.True(t, exists)
 	require.Equal(t, now, block.Start())
 
@@ -115,7 +116,7 @@ func assertEqual(t *testing.T, expected []testBlock, actual ReplicaSeriesMetadat
 
 	for _, b := range expected {
 		series := actual.Series()[b.id.Hash()]
-		blocks := series.Metadata.Blocks()[b.ts]
+		blocks := series.Metadata.Blocks()[m3dbtime.ToUnixNano(b.ts)]
 		require.Equal(t, b.blocks, blocks.Metadata())
 	}
 }

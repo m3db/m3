@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	m3dbtime "github.com/m3db/m3db/x/time"
 )
 
 const (
@@ -85,24 +86,27 @@ func (m replicaBlockMetadata) Metadata() []HostBlockMetadata  { return m.metadat
 func (m replicaBlockMetadata) Add(metadata HostBlockMetadata) { m.metadata.Add(metadata) }
 func (m replicaBlockMetadata) Close()                         { m.metadata.Close() }
 
-type replicaBlocksMetadata map[time.Time]ReplicaBlockMetadata
+type replicaBlocksMetadata map[m3dbtime.UnixNano]ReplicaBlockMetadata
 
 // NewReplicaBlocksMetadata creates a new replica blocks metadata
 func NewReplicaBlocksMetadata() ReplicaBlocksMetadata {
 	return make(replicaBlocksMetadata, defaultReplicaBlocksMetadataCapacity)
 }
 
-func (m replicaBlocksMetadata) NumBlocks() int64                           { return int64(len(m)) }
-func (m replicaBlocksMetadata) Blocks() map[time.Time]ReplicaBlockMetadata { return m }
-func (m replicaBlocksMetadata) Add(block ReplicaBlockMetadata)             { m[block.Start()] = block }
+func (m replicaBlocksMetadata) NumBlocks() int64                                   { return int64(len(m)) }
+func (m replicaBlocksMetadata) Blocks() map[m3dbtime.UnixNano]ReplicaBlockMetadata { return m }
+func (m replicaBlocksMetadata) Add(block ReplicaBlockMetadata) {
+	m[m3dbtime.ToUnixNano(block.Start())] = block
+}
 
 func (m replicaBlocksMetadata) GetOrAdd(start time.Time, p HostBlockMetadataSlicePool) ReplicaBlockMetadata {
-	block, exists := m[start]
+	startNano := m3dbtime.ToUnixNano(start)
+	block, exists := m[startNano]
 	if exists {
 		return block
 	}
 	block = NewReplicaBlockMetadata(start, p.Get())
-	m[start] = block
+	m[startNano] = block
 	return block
 }
 

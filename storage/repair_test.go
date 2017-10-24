@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	m3dbtime "github.com/m3db/m3db/x/time"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -320,7 +321,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 	require.True(t, exists)
 	blocks := series.Metadata.Blocks()
 	require.Equal(t, 1, len(blocks))
-	block, exists := blocks[now.Add(time.Hour)]
+	block, exists := blocks[m3dbtime.ToUnixNano(now.Add(time.Hour))]
 	require.True(t, exists)
 	require.Equal(t, now.Add(time.Hour), block.Start())
 	expected := []repair.HostBlockMetadata{
