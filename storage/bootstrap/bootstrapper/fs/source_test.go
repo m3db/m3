@@ -347,7 +347,7 @@ func validateReadResults(
 	for i, id := range ids {
 		allBlocks := allSeries[id].Blocks.AllBlocks()
 		require.Equal(t, 1, len(allBlocks))
-		block := allBlocks[m3dbTime.NewUnixNano(times[i])]
+		block := allBlocks[m3dbTime.ToUnixNano(times[i])]
 		ctx := context.NewContext()
 		stream, err := block.Stream(ctx)
 		require.NoError(t, err)
