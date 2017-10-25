@@ -56,6 +56,11 @@ type encoder struct {
 	enc         encoding.Encoder
 }
 
+type encodersAndRanges struct {
+	encodersBySeries map[ts.Hash]encodersByTime
+	ranges           xtime.Ranges
+}
+
 type encodersByTime struct {
 	id ts.ID
 	// int64 instead of time.Time because there is an optimized map access pattern
@@ -127,9 +132,12 @@ func (s *commitLogSource) Read(
 		workerErrs   = make([]int, numConc)
 	)
 
-	unmerged := make([]map[ts.Hash]encodersByTime, highestShard+1, highestShard+1)
+	unmerged := make([]encodersAndRanges, highestShard+1, highestShard+1)
 	for shard := range shardsTimeRanges {
-		unmerged[shard] = make(map[ts.Hash]encodersByTime)
+		unmerged[shard] = encodersAndRanges{
+			encodersBySeries: make(map[ts.Hash]encodersByTime),
+			ranges:           shardsTimeRanges[shard],
+		}
 	}
 
 	encoderChans := make([]chan encoderArg, numConc, numConc)
@@ -156,7 +164,7 @@ func (s *commitLogSource) Read(
 
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
-		if !s.shouldEncodeSeries(namespace, shardsTimeRanges, blockSize, series, dp) {
+		if !s.shouldEncodeSeries(namespace, unmerged, blockSize, series, dp) {
 			continue
 		}
 
@@ -196,7 +204,7 @@ func (s *commitLogSource) findHighestShard(shardsTimeRanges result.ShardTimeRang
 func (s *commitLogSource) startM3TSZEncodingWorker(
 	workerNum int,
 	ec <-chan encoderArg,
-	unmerged []map[ts.Hash]encodersByTime,
+	unmerged []encodersAndRanges,
 	encoderPool encoding.EncoderPool,
 	workerErrs []int,
 	blopts block.Options,
@@ -211,12 +219,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 			blockStart = arg.blockStart
 		)
 
-		unmergedShard := unmerged[series.Shard]
-		// Should never happen
-		if unmergedShard == nil {
-			s.log.Errorf("no unmergedShard found for shard: %d", series.Shard)
-		}
-
+		unmergedShard := unmerged[series.Shard].encodersBySeries
 		unmergedSeries, ok := unmergedShard[series.ID.Hash()]
 		if !ok {
 			unmergedSeries = encodersByTime{
@@ -287,7 +290,7 @@ func newReadCommitLogPredicate(
 
 func (s *commitLogSource) shouldEncodeSeries(
 	namespace ts.ID,
-	shardsTimeRanges result.ShardTimeRanges,
+	unmerged []encodersAndRanges,
 	blockSize time.Duration,
 	series commitlog.Series,
 	dp ts.Datapoint,
@@ -298,8 +301,9 @@ func (s *commitLogSource) shouldEncodeSeries(
 	}
 
 	// Check if the shard is one of the shards we're trying to bootstrap
-	ranges, ok := shardsTimeRanges[series.Shard]
-	if !ok {
+	ranges := unmerged[series.Shard].ranges
+	if ranges == nil {
+		// Did not allocate map for this shard so not expecting data for it
 		return false
 	}
 
@@ -332,7 +336,7 @@ func (s *commitLogSource) mergeShards(
 	bopts result.Options,
 	blopts block.Options,
 	encoderPool encoding.EncoderPool,
-	unmerged []map[ts.Hash]encodersByTime,
+	unmerged []encodersAndRanges,
 ) result.BootstrapResult {
 	var (
 		shardErrs               = make([]int, numShards)
@@ -349,7 +353,7 @@ func (s *commitLogSource) mergeShards(
 	for shard, unmergedShard := range unmerged {
 		mergeSemaphore <- true
 		wg.Add(1)
-		go func(shard int, unmergedShard map[ts.Hash]encodersByTime) {
+		go func(shard int, unmergedShard encodersAndRanges) {
 			var shardResult result.ShardResult
 			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShard(
 				unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blopts)
@@ -372,14 +376,14 @@ func (s *commitLogSource) mergeShards(
 }
 
 func (s *commitLogSource) mergeShard(
-	unmergedShard map[ts.Hash]encodersByTime,
+	unmergedShard encodersAndRanges,
 	blocksPool block.DatabaseBlockPool,
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	encoderPool encoding.EncoderPool,
 	blopts block.Options,
 ) (shardResult result.ShardResult, numShardEmptyErrs int, numErrs int) {
-	shardResult = result.NewShardResult(len(unmergedShard), s.opts.ResultOptions())
-	for _, unmergedBlocks := range unmergedShard {
+	shardResult = result.NewShardResult(len(unmergedShard.encodersBySeries), s.opts.ResultOptions())
+	for _, unmergedBlocks := range unmergedShard.encodersBySeries {
 		blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
 		for start, unmergedBlockEncoders := range unmergedBlocks.encoders {
 			startInNano := time.Unix(0, start)
