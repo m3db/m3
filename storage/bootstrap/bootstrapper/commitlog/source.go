@@ -127,7 +127,7 @@ func (s *commitLogSource) Read(
 		workerErrs   = make([]int, numConc)
 	)
 
-	encoderChans := []chan encoderArg{}
+	encoderChans := make([]chan encoderArg, 0, numConc)
 	for i := 0; i < numConc; i++ {
 		encoderChans = append(encoderChans, make(chan encoderArg, encoderChanBufSize))
 	}
