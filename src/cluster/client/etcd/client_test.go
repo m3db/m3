@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3x/log"
 
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/integration"
@@ -219,6 +220,38 @@ func TestCacheFileForZone(t *testing.T) {
 
 	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn("/r2/m3agg"), cs.logger, "")
 	require.Equal(t, "/cacheDir/test_app_z1__r2_m3agg.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
+}
+
+func TestSanitizeKVOptionsDefaultLogger(t *testing.T) {
+	opts := testOptions()
+	cs, err := NewConfigServiceClient(opts)
+	require.NoError(t, err)
+
+	inputs := []kv.Options{
+		kv.NewOptions(),
+		kv.NewOptions().SetLogger(log.NullLogger),
+	}
+	for _, input := range inputs {
+		kvOpts, err := cs.(*csclient).sanitizeOptions(input)
+		require.NoError(t, err)
+		require.NoError(t, kvOpts.Validate())
+		require.Equal(t, kvPrefix, kvOpts.Namespace())
+		require.Equal(t, opts.Env(), kvOpts.Environment())
+		require.Equal(t, opts.InstrumentOptions().Logger(), kvOpts.Logger())
+	}
+}
+
+func TestSanitizeKVOptionsCustomLogger(t *testing.T) {
+	opts := testOptions()
+	cs, err := NewConfigServiceClient(opts)
+	require.NoError(t, err)
+
+	logger := log.NewLevelLogger(log.SimpleLogger, log.LevelWarn)
+	kvOpts := kv.NewOptions().SetLogger(logger)
+	kvOpts, err = cs.(*csclient).sanitizeOptions(kvOpts)
+	require.NoError(t, err)
+	require.NoError(t, kvOpts.Validate())
+	require.Equal(t, logger, kvOpts.Logger())
 }
 
 func TestValidateNamespace(t *testing.T) {
