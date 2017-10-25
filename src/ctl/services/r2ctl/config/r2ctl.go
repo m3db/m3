@@ -129,9 +129,11 @@ func (c kvStoreConfig) NewStore(instrumentOpts instrument.Options) (r2.Store, er
 }
 
 type validationConfiguration struct {
-	RequiredRollupTags []string                           `yaml:"requiredRollupTags"`
-	MetricTypes        metricTypesValidationConfiguration `yaml:"metricTypes"`
-	Policies           policiesValidationConfiguration    `yaml:"policies"`
+	RequiredRollupTags     []string                           `yaml:"requiredRollupTags"`
+	MetricTypes            metricTypesValidationConfiguration `yaml:"metricTypes"`
+	Policies               policiesValidationConfiguration    `yaml:"policies"`
+	TagNameInvalidChars    string                             `yaml:"tagNameInvalidChars"`
+	MetricNameInvalidChars string                             `yaml:"metricNameInvalidChars"`
 }
 
 func (c validationConfiguration) NewValidator() rules.Validator {
@@ -139,7 +141,9 @@ func (c validationConfiguration) NewValidator() rules.Validator {
 		SetRequiredRollupTags(c.RequiredRollupTags).
 		SetMetricTypesFn(c.MetricTypes.NewMetricTypesFn()).
 		SetDefaultAllowedStoragePolicies(c.Policies.DefaultAllowed.StoragePolicies).
-		SetDefaultAllowedCustomAggregationTypes(c.Policies.DefaultAllowed.AggregationTypes)
+		SetDefaultAllowedCustomAggregationTypes(c.Policies.DefaultAllowed.AggregationTypes).
+		SetTagNameInvalidChars(toRunes(c.TagNameInvalidChars)).
+		SetMetricNameInvalidChars(toRunes(c.MetricNameInvalidChars))
 	for _, override := range c.Policies.Overrides {
 		opts = opts.
 			SetAllowedStoragePoliciesFor(override.Type, override.Allowed.StoragePolicies).
@@ -194,4 +198,12 @@ type policiesOverrideConfiguration struct {
 type policiesConfiguration struct {
 	StoragePolicies  []policy.StoragePolicy   `yaml:"storagePolicies"`
 	AggregationTypes []policy.AggregationType `yaml:"aggregationTypes"`
+}
+
+func toRunes(s string) []rune {
+	r := make([]rune, 0, len(s))
+	for _, c := range s {
+		r = append(r, c)
+	}
+	return r
 }
