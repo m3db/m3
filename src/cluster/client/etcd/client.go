@@ -109,10 +109,7 @@ func (c *csclient) KV() (kv.Store, error) {
 
 func (c *csclient) Txn() (kv.TxnStore, error) {
 	c.txnOnce.Do(func() {
-		kvOpts := kv.NewOptions().
-			SetNamespace(kvPrefix).
-			SetEnvironment(c.opts.Env())
-		c.txn, c.txnErr = c.createTxnStore(kvOpts)
+		c.txn, c.txnErr = c.TxnStore(kv.NewOptions())
 	})
 	return c.txn, c.txnErr
 }
@@ -311,7 +308,7 @@ func validateTopLevelNamespace(namespace string) error {
 }
 
 func (c *csclient) sanitizeOptions(opts kv.Options) (kv.Options, error) {
-	if opts.Logger() == nil {
+	if logger := opts.Logger(); logger == nil || logger == log.NullLogger {
 		opts = opts.SetLogger(c.logger)
 	}
 
@@ -324,5 +321,9 @@ func (c *csclient) sanitizeOptions(opts kv.Options) (kv.Options, error) {
 		return opts.SetNamespace(kvPrefix), nil
 	}
 
-	return opts, validateTopLevelNamespace(namespace)
+	if err := validateTopLevelNamespace(namespace); err != nil {
+		return nil, err
+	}
+
+	return opts, nil
 }
