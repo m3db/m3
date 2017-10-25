@@ -212,9 +212,9 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		)
 
 		unmergedShard := unmerged[series.Shard]
+		// Should never happen
 		if unmergedShard == nil {
-			unmergedShard = make(map[ts.Hash]encodersByTime)
-			unmerged[series.Shard] = unmergedShard
+			s.log.Errorf("no unmergedShard found for shard: %d", series.Shard)
 		}
 
 		unmergedSeries, ok := unmergedShard[series.ID.Hash()]
@@ -381,18 +381,18 @@ func (s *commitLogSource) mergeShard(
 	shardResult = result.NewShardResult(len(unmergedShard), s.opts.ResultOptions())
 	for _, unmergedBlocks := range unmergedShard {
 		blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
-		for start, unmergedBlock := range unmergedBlocks.encoders {
+		for start, unmergedEncoders := range unmergedBlocks.encoders {
 			startInNano := time.Unix(0, start)
 			block := blocksPool.Get()
-			if len(unmergedBlock) == 0 {
+			if len(unmergedEncoders) == 0 {
 				numShardEmptyErrs++
 				continue
-			} else if len(unmergedBlock) == 1 {
-				block.Reset(startInNano, unmergedBlock[0].enc.Discard())
+			} else if len(unmergedEncoders) == 1 {
+				block.Reset(startInNano, unmergedEncoders[0].enc.Discard())
 			} else {
-				readers := make([]io.Reader, len(unmergedBlock))
-				for i := range unmergedBlock {
-					stream := unmergedBlock[i].enc.Stream()
+				readers := make([]io.Reader, len(unmergedEncoders))
+				for i := range unmergedEncoders {
+					stream := unmergedEncoders[i].enc.Stream()
 					readers[i] = stream
 				}
 
@@ -419,7 +419,7 @@ func (s *commitLogSource) mergeShard(
 				}
 
 				iter.Close()
-				for _, encoder := range unmergedBlock {
+				for _, encoder := range unmergedEncoders {
 					encoder.enc.Close()
 				}
 				for _, reader := range readers {
