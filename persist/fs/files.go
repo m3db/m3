@@ -97,6 +97,19 @@ func DeleteFiles(filePaths []string) error {
 	return multiErr.FinalError()
 }
 
+// DeleteDirectories delets a set of directories and its contents, returning all
+// of the errors encountered during the deletion process.
+func DeleteDirectories(dirPaths []string) error {
+	multiErr := xerrors.NewMultiError()
+	for _, dir := range dirPaths {
+		if err := os.RemoveAll(dir); err != nil {
+			detailedErr := fmt.Errorf("failed to remove dir %s: %v", dir, err)
+			multiErr = multiErr.Add(detailedErr)
+		}
+	}
+	return multiErr.FinalError()
+}
+
 // byTimeAscending sorts files by their block start times in ascending order.
 // If the files do not have block start times in their names, the result is undefined.
 type byTimeAscending []string
@@ -232,6 +245,32 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 	return filesBefore(matched, t)
 }
 
+// DeleteInactiveFilesets deletes any filesets that are not currently owned by the namespace
+func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards []uint32) error {
+	var toDelete []string
+	dirs := make(map[string]bool)
+	activeShardDirs := activeShardDirs(filePathPrefix, namespace, activeShards)
+	namespaceDirPath := NamespaceDirPath(filePathPrefix, namespace)
+	allShardDirs, err := findDirectories(namespaceDirPath)
+	if err == nil {
+		return err
+	}
+
+	//can be extracted to a function perhaps?
+	for _, dir := range activeShardDirs {
+		dirs[dir] = true
+	}
+
+	//is there a general slice function that can handle this?
+	for _, dir := range allShardDirs {
+		ok := dirs[dir]
+		if !ok {
+			toDelete = append(toDelete, dir)
+		}
+	}
+	return DeleteDirectories(toDelete)
+}
+
 // CommitLogFiles returns all the commit log files in the commit logs directory.
 func CommitLogFiles(commitLogsDir string) ([]string, error) {
 	return commitlogFiles(commitLogsDir, commitLogFilePattern)
@@ -267,6 +306,35 @@ func findFiles(fileDir string, pattern string, fn toSortableFn) ([]string, error
 	}
 	sort.Sort(fn(matched))
 	return matched, nil
+}
+
+func findDirectories(osPath string) ([]string, error) {
+	f, err := os.Open(osPath)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var dirs []string
+	names, err := f.Readdirnames(-1)
+	if err != nil {
+		return nil, err
+	}
+	for _, name := range names {
+		dir := path.Join(osPath, name)
+		dirs = append(dirs, dir)
+	}
+	return dirs, nil
+}
+
+//wondering if this naming convention could be generalized?
+func activeShardDirs(filePathPrefix string, namespace ts.ID, active []uint32) []string {
+	var activeShardDirs []string
+	for _, shard := range active {
+		shardDir := ShardDirPath(filePathPrefix, namespace, shard)
+		activeShardDirs = append(activeShardDirs, shardDir)
+	}
+	return activeShardDirs
 }
 
 func filesetFiles(filePathPrefix string, namespace ts.ID, shard uint32, pattern string) ([]string, error) {
