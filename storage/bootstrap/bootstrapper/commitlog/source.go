@@ -119,7 +119,7 @@ func (s *commitLogSource) Read(
 		numShards    = len(shardsTimeRanges)
 		unmerged     = []map[ts.Hash]encodersByTime{}
 		unmergedLock = &sync.RWMutex{}
-		numConc      = s.opts.M3TSZEncodingConcurrency()
+		numConc      = s.opts.EncodingConcurrency()
 		bopts        = s.opts.ResultOptions()
 		blopts       = bopts.DatabaseBlockOptions()
 		blockSize    = ns.Options().RetentionOptions().BlockSize()

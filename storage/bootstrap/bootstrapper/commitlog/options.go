@@ -26,19 +26,19 @@ import (
 )
 
 type options struct {
-	resultOpts               result.Options
-	commitLogOpts            commitlog.Options
-	m3TSZEncodingConcurrency int
-	mergeShardConcurrency    int
+	resultOpts            result.Options
+	commitLogOpts         commitlog.Options
+	encodingConcurrency   int
+	mergeShardConcurrency int
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		resultOpts:               result.NewOptions(),
-		commitLogOpts:            commitlog.NewOptions(),
-		m3TSZEncodingConcurrency: 4,
-		mergeShardConcurrency:    4,
+		resultOpts:            result.NewOptions(),
+		commitLogOpts:         commitlog.NewOptions(),
+		encodingConcurrency:   4,
+		mergeShardConcurrency: 4,
 	}
 }
 
@@ -66,14 +66,14 @@ func (o *options) CommitLogOptions() commitlog.Options {
 	return o.commitLogOpts
 }
 
-func (o *options) SetM3TSZEncodingConcurrency(value int) Options {
+func (o *options) SetEncodingConcurrency(value int) Options {
 	opts := *o
-	opts.m3TSZEncodingConcurrency = value
+	opts.encodingConcurrency = value
 	return &opts
 }
 
-func (o *options) M3TSZEncodingConcurrency() int {
-	return o.m3TSZEncodingConcurrency
+func (o *options) EncodingConcurrency() int {
+	return o.encodingConcurrency
 }
 
 func (o *options) SetMergeShardsConcurrency(value int) Options {
