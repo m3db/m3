@@ -381,18 +381,18 @@ func (s *commitLogSource) mergeShard(
 	shardResult = result.NewShardResult(len(unmergedShard), s.opts.ResultOptions())
 	for _, unmergedBlocks := range unmergedShard {
 		blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
-		for start, unmergedEncoders := range unmergedBlocks.encoders {
+		for start, unmergedBlockEncoders := range unmergedBlocks.encoders {
 			startInNano := time.Unix(0, start)
 			block := blocksPool.Get()
-			if len(unmergedEncoders) == 0 {
+			if len(unmergedBlockEncoders) == 0 {
 				numShardEmptyErrs++
 				continue
-			} else if len(unmergedEncoders) == 1 {
-				block.Reset(startInNano, unmergedEncoders[0].enc.Discard())
+			} else if len(unmergedBlockEncoders) == 1 {
+				block.Reset(startInNano, unmergedBlockEncoders[0].enc.Discard())
 			} else {
-				readers := make([]io.Reader, len(unmergedEncoders))
-				for i := range unmergedEncoders {
-					stream := unmergedEncoders[i].enc.Stream()
+				readers := make([]io.Reader, len(unmergedBlockEncoders))
+				for i := range unmergedBlockEncoders {
+					stream := unmergedBlockEncoders[i].enc.Stream()
 					readers[i] = stream
 				}
 
@@ -419,7 +419,7 @@ func (s *commitLogSource) mergeShard(
 				}
 
 				iter.Close()
-				for _, encoder := range unmergedEncoders {
+				for _, encoder := range unmergedBlockEncoders {
 					encoder.enc.Close()
 				}
 				for _, reader := range readers {
