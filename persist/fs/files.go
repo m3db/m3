@@ -252,7 +252,7 @@ func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards
 	activeShardDirs := activeShardDirs(filePathPrefix, namespace, activeShards)
 	namespaceDirPath := NamespaceDirPath(filePathPrefix, namespace)
 	allShardDirs, err := findDirectories(namespaceDirPath)
-	if err == nil {
+	if err != nil {
 		return err
 	}
 
