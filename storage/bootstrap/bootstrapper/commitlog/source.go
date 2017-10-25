@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	xio "github.com/m3db/m3db/x/io"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -117,8 +118,7 @@ func (s *commitLogSource) Read(
 	var (
 		namespace    = ns.ID()
 		numShards    = len(shardsTimeRanges)
-		unmerged     = []map[ts.Hash]encodersByTime{}
-		unmergedLock = &sync.RWMutex{}
+		highestShard = s.findHighestShard(shardsTimeRanges)
 		numConc      = s.opts.EncodingConcurrency()
 		bopts        = s.opts.ResultOptions()
 		blopts       = bopts.DatabaseBlockOptions()
@@ -127,9 +127,14 @@ func (s *commitLogSource) Read(
 		workerErrs   = make([]int, numConc)
 	)
 
-	encoderChans := make([]chan encoderArg, 0, numConc)
+	unmerged := make([]map[ts.Hash]encodersByTime, highestShard+1, highestShard+1)
+	for shard := range shardsTimeRanges {
+		unmerged[shard] = make(map[ts.Hash]encodersByTime)
+	}
+
+	encoderChans := make([]chan encoderArg, numConc, numConc)
 	for i := 0; i < numConc; i++ {
-		encoderChans = append(encoderChans, make(chan encoderArg, encoderChanBufSize))
+		encoderChans[i] = make(chan encoderArg, encoderChanBufSize)
 	}
 
 	// Spin up numConc background go-routines to handle M3TSZ encoding. This must
@@ -141,8 +146,7 @@ func (s *commitLogSource) Read(
 		go s.startM3TSZEncodingWorker(
 			workerNum,
 			encoderChan,
-			&unmerged,
-			unmergedLock,
+			unmerged,
 			encoderPool,
 			workerErrs,
 			blopts,
@@ -156,31 +160,11 @@ func (s *commitLogSource) Read(
 			continue
 		}
 
-		// We use the unmerged slice for lookup because its faster than a map.
-		// Shard ID's map directly to indices, but we don't know the highest shard
-		// number upfront so we resize when necessary. We don't need to acquire a
-		// lock when we check the length because this is the only goroutine that
-		// change the size of the slice.
-		if len(unmerged) < int(series.Shard+1) {
-			// Resize shard
-			unmergedLock.Lock()
-			oldUnmerged := unmerged
-			unmerged = make([]map[ts.Hash]encodersByTime, series.Shard+1)
-			copy(unmerged, oldUnmerged)
-			unmergedLock.Unlock()
-		}
-
 		// Distribute work such that each encoder goroutine is responsible for
 		// approximately numShards / numConc shards. This also means that all
 		// datapoints for a given shard/series will be processed in a serialized
 		// manner.
-		encoderChans[series.Shard%uint32(numConc)] <- struct {
-			series     commitlog.Series
-			dp         ts.Datapoint
-			unit       xtime.Unit
-			annotation ts.Annotation
-			blockStart time.Time
-		}{
+		encoderChans[series.Shard%uint32(numConc)] <- encoderArg{
 			series:     series,
 			dp:         dp,
 			unit:       unit,
@@ -194,17 +178,25 @@ func (s *commitLogSource) Read(
 
 	// Block until all data has been read and encoded by the worker goroutines
 	wg.Wait()
-	s.printM3TSZEncodingOutcome(workerErrs, iter)
+	s.logEncodingOutcome(workerErrs, iter)
 
 	return s.mergeShards(numShards, bopts, blopts, encoderPool, unmerged), nil
+}
+
+func (s *commitLogSource) findHighestShard(shardsTimeRanges result.ShardTimeRanges) uint32 {
+	var max uint32
+	for shard := range shardsTimeRanges {
+		if shard > max {
+			max = shard
+		}
+	}
+	return max
 }
 
 func (s *commitLogSource) startM3TSZEncodingWorker(
 	workerNum int,
 	ec <-chan encoderArg,
-	// Pass as pointer so slice resizing is reflected elsewhere
-	unmergedPtr *[]map[ts.Hash]encodersByTime,
-	unmergedLock *sync.RWMutex,
+	unmerged []map[ts.Hash]encodersByTime,
 	encoderPool encoding.EncoderPool,
 	workerErrs []int,
 	blopts block.Options,
@@ -219,10 +211,6 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 			blockStart = arg.blockStart
 		)
 
-		unmergedLock.RLock()
-		// Dereference the pointer inside the lock so we're certain that the slice
-		// has been resized already
-		unmerged := *unmergedPtr
 		unmergedShard := unmerged[series.Shard]
 		if unmergedShard == nil {
 			unmergedShard = make(map[ts.Hash]encodersByTime)
@@ -236,7 +224,6 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 				encoders: make(map[int64][]encoder)}
 			unmergedShard[series.ID.Hash()] = unmergedSeries
 		}
-		unmergedLock.RUnlock()
 
 		var (
 			err           error
@@ -327,7 +314,7 @@ func (s *commitLogSource) shouldEncodeSeries(
 	return ranges.Overlaps(blockRange)
 }
 
-func (s *commitLogSource) printM3TSZEncodingOutcome(workerErrs []int, iter commitlog.Iterator) {
+func (s *commitLogSource) logEncodingOutcome(workerErrs []int, iter commitlog.Iterator) {
 	errSum := 0
 	for _, numErrs := range workerErrs {
 		errSum += numErrs
@@ -347,15 +334,17 @@ func (s *commitLogSource) mergeShards(
 	encoderPool encoding.EncoderPool,
 	unmerged []map[ts.Hash]encodersByTime,
 ) result.BootstrapResult {
-	shardErrs := make([]int, numShards)
-	shardEmptyErrs := make([]int, numShards)
-	bootstrapResult := result.NewBootstrapResult()
-	blocksPool := bopts.DatabaseBlockOptions().DatabaseBlockPool()
-	multiReaderIteratorPool := blopts.MultiReaderIteratorPool()
-	// Controls how many shards can be merged in parallel
-	mergeSemaphore := make(chan bool, s.opts.MergeShardsConcurrency())
-	bootstrapResultLock := sync.Mutex{}
-	wg := &sync.WaitGroup{}
+	var (
+		shardErrs               = make([]int, numShards)
+		shardEmptyErrs          = make([]int, numShards)
+		bootstrapResult         = result.NewBootstrapResult()
+		blocksPool              = bopts.DatabaseBlockOptions().DatabaseBlockPool()
+		multiReaderIteratorPool = blopts.MultiReaderIteratorPool()
+		// Controls how many shards can be merged in parallel
+		mergeSemaphore      = make(chan bool, s.opts.MergeShardsConcurrency())
+		bootstrapResultLock sync.Mutex
+		wg                  sync.WaitGroup
+	)
 
 	for shard, unmergedShard := range unmerged {
 		mergeSemaphore <- true
@@ -378,7 +367,7 @@ func (s *commitLogSource) mergeShards(
 
 	// Wait for all merge goroutines to complete
 	wg.Wait()
-	s.printMergeShardsOutcome(shardErrs, shardEmptyErrs)
+	s.logMergeShardsOutcome(shardErrs, shardEmptyErrs)
 	return bootstrapResult
 }
 
@@ -405,7 +394,6 @@ func (s *commitLogSource) mergeShard(
 				for i := range unmergedBlock {
 					stream := unmergedBlock[i].enc.Stream()
 					readers[i] = stream
-					defer stream.Finalize()
 				}
 
 				iter := multiReaderIteratorPool.Get()
@@ -431,8 +419,11 @@ func (s *commitLogSource) mergeShard(
 				}
 
 				iter.Close()
-				for i := range unmergedBlock {
-					unmergedBlock[i].enc.Close()
+				for _, encoder := range unmergedBlock {
+					encoder.enc.Close()
+				}
+				for _, reader := range readers {
+					reader.(xio.SegmentReader).Finalize()
 				}
 
 				if err != nil {
@@ -450,7 +441,7 @@ func (s *commitLogSource) mergeShard(
 	return shardResult, numShardEmptyErrs, numErrs
 }
 
-func (s *commitLogSource) printMergeShardsOutcome(shardErrs []int, shardEmptyErrs []int) {
+func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs []int) {
 	errSum := 0
 	for _, numErrs := range shardErrs {
 		errSum += numErrs
