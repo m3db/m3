@@ -43,6 +43,7 @@ func (a noopAuth) NewAuthHandler(next http.Handler) http.Handler {
 	})
 }
 
+// nolint:unparam
 func (a noopAuth) SetUser(parent context.Context, userID string) context.Context {
 	return parent
 }
