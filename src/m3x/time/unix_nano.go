@@ -35,3 +35,18 @@ func (u UnixNano) ToTime() time.Time {
 func ToUnixNano(t time.Time) UnixNano {
 	return UnixNano(t.UnixNano())
 }
+
+// Before reports whether the time instant u is before t.
+func (u UnixNano) Before(t UnixNano) bool {
+	return u < t
+}
+
+// After reports whether the time instant u is after t.
+func (u UnixNano) After(t UnixNano) bool {
+	return u > t
+}
+
+// Equal reports whether the time instant u is equal to t.
+func (u UnixNano) Equal(t UnixNano) bool {
+	return u == t
+}
