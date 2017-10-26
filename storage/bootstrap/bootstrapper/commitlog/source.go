@@ -132,7 +132,9 @@ func (s *commitLogSource) Read(
 		workerErrs   = make([]int, numConc)
 	)
 
-	unmerged := make([]encodersAndRanges, highestShard+1, highestShard+1)
+	// +1 so we can use the shard number as an index throughout without constantly
+	// remembering to subtract 1 to convert to zero-based indexing
+	unmerged := make([]encodersAndRanges, highestShard+1)
 	for shard := range shardsTimeRanges {
 		unmerged[shard] = encodersAndRanges{
 			encodersBySeries: make(map[ts.Hash]encodersByTime),
@@ -140,7 +142,7 @@ func (s *commitLogSource) Read(
 		}
 	}
 
-	encoderChans := make([]chan encoderArg, numConc, numConc)
+	encoderChans := make([]chan encoderArg, numConc)
 	for i := 0; i < numConc; i++ {
 		encoderChans[i] = make(chan encoderArg, encoderChanBufSize)
 	}
