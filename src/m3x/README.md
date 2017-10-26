@@ -13,3 +13,13 @@ This project is released under the [MIT License](LICENSE.md).
 [ci]: https://travis-ci.org/m3db/m3x
 [cov-img]: https://coveralls.io/repos/m3db/m3x/badge.svg?branch=master&service=github
 [cov]: https://coveralls.io/github/m3db/m3x?branch=master
+
+# Development
+
+## Setup
+
+1. Clone the repo into your $GOPATH
+2. Run `git submodule update --init --recursive`
+3. Run `glide install -v` - [Install Glide first if you don't have it](https://github.com/Masterminds/glide)
+4. Run `make test` and make sure everything passes
+5. Write new code and tests
