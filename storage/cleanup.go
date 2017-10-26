@@ -89,6 +89,11 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 			"encountered errors when cleaning up fileset files for %v: %v", t, err))
 	}
 
+	if err := m.deleteInactiveFilesetFiles(); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when deleting inactive fileset files for %v: %v", t, err))
+	}
+
 	commitLogStart, commitLogTimes, err := m.commitLogTimes(t)
 	if err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
@@ -115,6 +120,19 @@ func (m *cleanupManager) Report() {
 	} else {
 		m.status.Update(0)
 	}
+}
+
+func (m *cleanupManager) deleteInactiveFilesetFiles() error {
+	multiErr := xerrors.NewMultiError()
+	namespaces, err := m.database.GetOwnedNamespaces()
+	if err != nil {
+		return err
+	}
+	for _, n := range namespaces {
+		multiErr = multiErr.Add(n.DeleteInactiveFilesets())
+	}
+
+	return multiErr.FinalError()
 }
 
 func (m *cleanupManager) cleanupFilesetFiles(t time.Time) error {

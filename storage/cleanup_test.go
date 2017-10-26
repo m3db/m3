@@ -64,6 +64,7 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		ns := NewMockdatabaseNamespace(ctrl)
 		ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 		ns.EXPECT().CleanupFileset(start).Return(input.err)
+		ns.EXPECT().DeleteInactiveFilesets().Return(input.err)
 		ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
 		namespaces = append(namespaces, ns)
 	}
