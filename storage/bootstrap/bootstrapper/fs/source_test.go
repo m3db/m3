@@ -38,7 +38,6 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
-	m3dbtime "github.com/m3db/m3db/x/time"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
@@ -347,7 +346,7 @@ func validateReadResults(
 	for i, id := range ids {
 		allBlocks := allSeries[id].Blocks.AllBlocks()
 		require.Equal(t, 1, len(allBlocks))
-		block := allBlocks[m3dbtime.ToUnixNano(times[i])]
+		block := allBlocks[xtime.ToUnixNano(times[i])]
 		ctx := context.NewContext()
 		stream, err := block.Stream(ctx)
 		require.NoError(t, err)
