@@ -183,7 +183,12 @@ export default withFormik({
   handleSubmit: (values, {props}) => {
     props.onSubmit({
       ...values,
-      policies: _.map(values.policies, p => _.union(p.tags, REQUIRED_TAGS)),
+      targets: _.map(values.targets, target => {
+        return {
+          ...target,
+          tags: _.union(target.tags, REQUIRED_TAGS),
+        };
+      }),
     });
   },
 })(RollupRuleEditor);
