@@ -1,12 +1,12 @@
 package: github.com/m3db/m3metrics
 import:
 - package: github.com/m3db/m3x
-  version: 2552847f8eaf39ec4a4a340e6cb97b6514af6086
+  version: 515e3030818e6dab3fd418f05b96174ae4c527df
   subpackages:
   - pool
   - time
 - package: github.com/m3db/m3cluster
-  version: 2548d2d111b039a8e3b3cd3441e88d076f4e367b
+  version: c4d51f0f5087606ca27680e816d318bdd6c6a9bf
   subpackages:
   - kv
   - kv/mem
