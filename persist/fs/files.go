@@ -252,15 +252,15 @@ func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards
 	namespaceDirPath := NamespaceDirPath(filePathPrefix, namespace)
 	allShardDirs, err := findDirectories(namespaceDirPath)
 	if err != nil {
-		return err
+		return nil
 	}
 
-	//set
+	//create shard set, might also be useful to just send in as strings?
 	for _, shard := range activeShards {
-		activeDirNames[string(shard)] = struct{}{}
+		shardName := fmt.Sprint(shard)
+		activeDirNames[shardName] = struct{}{}
 	}
 
-	//is there a general slice function that can handle this?
 	for dirName, dirPath := range allShardDirs {
 		if _, ok := activeDirNames[dirName]; !ok {
 			toDelete = append(toDelete, dirPath)

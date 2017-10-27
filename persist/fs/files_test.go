@@ -174,10 +174,8 @@ func TestDeleteInactiveFiles(t *testing.T) {
 		err := os.MkdirAll(shardDir, os.FileMode(uint32(0777)))
 		require.NoError(t, err)
 		defer os.RemoveAll(shardDir)
-		fmt.Println("created the shardDir", shardDir)
 
 		shardPath := path.Join(shardDir, "data.txt")
-		fmt.Println("creating file", shardPath)
 		_, err = os.Create(shardPath)
 		require.NoError(t, err)
 	}
