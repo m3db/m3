@@ -24,9 +24,11 @@
 package persist
 
 import (
-	gomock "github.com/golang/mock/gomock"
-	namespace "github.com/m3db/m3db/storage/namespace"
 	time "time"
+
+	namespace "github.com/m3db/m3db/storage/namespace"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of Manager interface
