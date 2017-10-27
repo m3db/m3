@@ -324,16 +324,6 @@ func findDirectories(osPath string) (map[string]string, error) {
 	return dirs, nil
 }
 
-//wondering if this naming convention could be generalized?
-func activeShardDirs(filePathPrefix string, namespace ts.ID, active []uint32) []string {
-	var activeShardDirs []string
-	for _, shard := range active {
-		shardDir := ShardDirPath(filePathPrefix, namespace, shard)
-		activeShardDirs = append(activeShardDirs, shardDir)
-	}
-	return activeShardDirs
-}
-
 func filesetFiles(filePathPrefix string, namespace ts.ID, shard uint32, pattern string) ([]string, error) {
 	shardDir := ShardDirPath(filePathPrefix, namespace, shard)
 	return findFiles(shardDir, pattern, func(files []string) sort.Interface {
