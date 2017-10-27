@@ -24,6 +24,7 @@ import _ from 'lodash';
 
 import RollupRuleEditor from 'components/RollupRuleEditor';
 import TableActions from './TableActions';
+import HelpTooltip from './HelpTooltip';
 import {compose} from 'recompose';
 import {connectR2API} from 'hocs';
 import {formatTimestampMilliseconds} from 'utils';
@@ -109,12 +110,20 @@ function RollupRulesTable(props) {
       locale={{emptyText: 'No rollup rules'}}>
       <Column fixed="left" title="Rule Name" dataIndex="name" width={100} />
       <Column
-        title="Metric Filter"
+        title={
+          <div>
+            Metric Filter <HelpTooltip helpTextKey="metric-filter" />
+          </div>
+        }
         dataIndex="filter"
         render={filter => <code>{filter}</code>}
       />
       <Column
-        title="Targets"
+        title={
+          <div>
+            Target <HelpTooltip helpTextKey="target" />
+          </div>
+        }
         dataIndex="targets"
         render={targets => {
           return _.map(targets, (target, i) => (
@@ -133,7 +142,11 @@ function RollupRulesTable(props) {
         render={timestamp => formatTimestampMilliseconds(timestamp)}
       />
       <Column
-        title="Effective Time (Local)"
+        title={
+          <div>
+            Effective Time (Local) <HelpTooltip helpTextKey="effective-time" />
+          </div>
+        }
         dataIndex="cutoverMillis"
         render={cutoverMillis => formatTimestampMilliseconds(cutoverMillis)}
       />

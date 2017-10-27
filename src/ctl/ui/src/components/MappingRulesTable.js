@@ -26,7 +26,7 @@ import TableActions from './TableActions';
 import {compose} from 'recompose';
 import {connectR2API} from 'hocs';
 import {formatTimestampMilliseconds} from 'utils';
-
+import HelpTooltip from './HelpTooltip';
 const {Column} = Table;
 
 function MappingRuleHistoryBase(props) {
@@ -71,12 +71,20 @@ function MappingRulesTable(props) {
       locale={{emptyText: 'No mapping rules'}}>
       <Column fixed="left" title="Rule Name" dataIndex="name" width={100} />
       <Column
-        title="Metric Filter"
+        title={
+          <div>
+            Metric Filter <HelpTooltip helpTextKey="metric-filter" />
+          </div>
+        }
         dataIndex="filter"
         render={filter => <code>{filter}</code>}
       />
       <Column
-        title="Policies"
+        title={
+          <div>
+            Policies <HelpTooltip helpTextKey="policy" />
+          </div>
+        }
         dataIndex="policies"
         render={policies => {
           return _.map(policies, policy => <Tag key={policy}>{policy}</Tag>);
@@ -93,7 +101,11 @@ function MappingRulesTable(props) {
         render={timestamp => formatTimestampMilliseconds(timestamp)}
       />
       <Column
-        title="Effective Time (Local)"
+        title={
+          <div>
+            Effective Time (Local) <HelpTooltip helpTextKey="effective-time" />
+          </div>
+        }
         dataIndex="cutoverMillis"
         render={cutoverMillis => formatTimestampMilliseconds(cutoverMillis)}
       />

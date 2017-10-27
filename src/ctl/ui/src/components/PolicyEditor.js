@@ -24,6 +24,8 @@ import React from 'react';
 import {Select, Icon, Button} from 'antd';
 import _ from 'lodash';
 
+import HelpTooltip from './HelpTooltip';
+
 export const AGGREGATION_FUNCTIONS = [
   'Min',
   'Max',
@@ -136,7 +138,10 @@ export function PolicyEditor(props: Props) {
         </a>
       )}
       <div className="col col-6 px1">
-        <label className="block pb1">Resolution:Retention Period</label>
+        <label className="block pb1">
+          Resolution:Retention Period{' '}
+          <HelpTooltip helpTextKey="resolution:retention-period" />
+        </label>
         <Select
           placeholder="Select a policy"
           value={policy.timePolicy}
@@ -155,7 +160,10 @@ export function PolicyEditor(props: Props) {
         )}
       </div>
       <div className="col col-6" style={{opacity: showAggs ? 1 : 0.5}}>
-        <label className="block pb1">Aggregation Functions</label>
+        <label className="block pb1">
+          Aggregation Functions{' '}
+          <HelpTooltip helpTextKey="aggregation-function" />
+        </label>
         {showAggs ? (
           <Select
             placeholder="Use default if none selected"
@@ -218,7 +226,7 @@ function PoliciesEditor(props) {
           size="small"
           type="dashed"
           onClick={() => {
-            onChange(policies.concat(_.first(POLICIES)));
+            onChange((policies || []).concat(_.first(POLICIES)));
           }}>
           Add Policy
         </Button>

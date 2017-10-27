@@ -28,6 +28,7 @@ import MappingRuleEditor from 'components/MappingRuleEditor';
 import MappingRulesTable from 'components/MappingRulesTable';
 import RollupRuleEditor from 'components/RollupRuleEditor';
 import RollupRulesTable from 'components/RollupRulesTable';
+import {getHelpText} from 'utils/helpText';
 
 const TabPane = Tabs.TabPane;
 
@@ -66,11 +67,13 @@ function Namespace(props) {
           }}>
           <TabPane tab="Mapping Rules" key="mapping-rules">
             <div className="mb2 clearfix">
-              <div className="left">
+              <div className="col col-9">
                 <h3>Mapping Rules</h3>
+                <p>{getHelpText('mapping-rule')}</p>
               </div>
-              <div className="right">
+              <div className="col col-3">
                 <Button
+                  className="right"
                   icon="plus"
                   onClick={() =>
                     props.setModal({
@@ -103,11 +106,13 @@ function Namespace(props) {
           </TabPane>
           <TabPane tab="Rollup Rules" key="rollup-rules">
             <div className="mb2 clearfix">
-              <div className="left">
+              <div className="col col-9">
                 <h3>Rollup Rules</h3>
+                <p>{getHelpText('rollup-rule')}</p>
               </div>
-              <div className="right">
+              <div className="col col-3">
                 <Button
+                  className="right"
                   icon="plus"
                   onClick={() =>
                     props.setModal({

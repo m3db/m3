@@ -25,7 +25,7 @@ import * as util from 'utils';
 import yup from 'yup';
 import PoliciesEditor from './PolicyEditor';
 import {filterPoliciesBasedOnTag} from 'utils';
-
+import {getHelpText} from 'utils/helpText';
 const schema = yup.object().shape({
   name: yup.string('Name filter is required').required(),
   filter: yup.string().required('Metric filter is required'),
@@ -59,7 +59,7 @@ function MappingRuleEditor({
           <FormItem
             required="true"
             colon={false}
-            label="Name"
+            label="Rule Name"
             {...formItemLayout}>
             <Input
               name="name"
@@ -75,7 +75,7 @@ function MappingRuleEditor({
             colon={false}
             label="Metric Filter"
             {...formItemLayout}
-            help="eg. tag1:value1 tag2:value2">
+            help={getHelpText('metric-filter')}>
             <Input
               name="filter"
               autoComplete="off"
@@ -97,7 +97,7 @@ function MappingRuleEditor({
             required={true}
             label="Policies"
             {...formItemLayout}
-            help="eg:1m:10d = 1 min resolution for 10 days">
+            help={getHelpText('policy')}>
             <PoliciesEditor
               typeTag={typeTag}
               value={values.policies}
