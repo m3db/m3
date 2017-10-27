@@ -24,7 +24,7 @@ import {Button, Card, Input, Popconfirm, Table, Icon} from 'antd';
 import _ from 'lodash';
 import {Link} from 'react-router-dom';
 import {connectR2API, withFilter} from 'hocs';
-
+import {getHelpText} from 'utils/helpText';
 const {Column} = Table;
 
 function NamespaceTable(props) {
@@ -68,8 +68,9 @@ function NamespaceTable(props) {
 function CreateNamespaceFormBase(props) {
   const {namespace, onNamespaceChange, onSaveClick} = props;
   return (
-    <div>
+    <div className="mb1">
       <Input
+        placeholder="Namespace Name"
         onPressEnter={onSaveClick}
         style={{width: 200}}
         className="inline-block mr1"
@@ -104,9 +105,11 @@ function Namespaces(props) {
     <div>
       <div className="mb2">
         <h2>Namespaces</h2>
-        <p style={{color: 'gray'}}>A list of all namespaces</p>
+        <p style={{color: 'gray'}}>{getHelpText('namespace')}</p>
       </div>
       <Card>
+        <CreateNamespaceForm onSaveNamespace={props.saveNamespace} />
+
         <Input
           className="mb1"
           value={props.nameFilter}
@@ -114,7 +117,6 @@ function Namespaces(props) {
           placeholder="Namespace Filter"
         />
         <NamespaceTable {...props} />
-        <CreateNamespaceForm onSaveNamespace={props.saveNamespace} />
       </Card>
     </div>
   );

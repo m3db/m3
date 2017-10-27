@@ -26,6 +26,8 @@ import {withFormik} from 'formik';
 import * as util from 'utils';
 import PoliciesEditor from './PolicyEditor';
 import {filterPoliciesBasedOnTag} from 'utils';
+import {getHelpText} from 'utils/helpText';
+import HelpTooltip from './HelpTooltip';
 
 // @TODO Move to config service
 const REQUIRED_TAGS = ['dc', 'env', 'service', 'type'];
@@ -74,7 +76,7 @@ function RollupRuleEditor({values, handleChange, handleSubmit, setFieldValue}) {
             required
             colon={false}
             label="Metric Filter"
-            help="eg. tag1:value1 tag2:value2"
+            help={getHelpText('metric-filter')}
             {...formItemLayout}>
             <Input
               name="filter"
@@ -86,14 +88,22 @@ function RollupRuleEditor({values, handleChange, handleSubmit, setFieldValue}) {
                   ...t,
                   policies: filterPoliciesBasedOnTag(t.policies, newTypeTag),
                 }));
-                setFieldValue('targets', targets);
+                setFieldValue('target', targets);
                 handleChange(e);
               }}
             />
           </FormItem>
         </div>
         <div className="col col-12 px1">
-          <FormItem required label="Targets" colon={false} {...formItemLayout}>
+          <FormItem
+            required
+            label={
+              <span>
+                Targets <HelpTooltip helpTextKey="target" />
+              </span>
+            }
+            colon={false}
+            {...formItemLayout}>
             <TargetsEditor
               typeTag={typeTag}
               value={values.targets}
@@ -134,13 +144,16 @@ const TargetsEditorBase = props => {
                 <Icon type="delete" />
               </a>
             }>
-            <label>New Rollup Metric Name</label>
+            <label className="mb1">Rollup Metric Name</label>
             <Input
+              className="mb2"
               value={t.name}
               onChange={e => handleChange(i, 'name', e.target.value)}
             />
-            <label>Rollup Tags</label>
-            <div>
+            <label>
+              Rollup Tags <HelpTooltip helpTextKey="rollup-tag" />
+            </label>
+            <div className="mb2">
               {_.map(REQUIRED_TAGS, requiredTag => <Tag>{requiredTag}</Tag>)}
               <Select
                 className="inline-block"
@@ -155,7 +168,9 @@ const TargetsEditorBase = props => {
                 notFoundContent={false}
               />
             </div>
-            <label>Policies</label>
+            <label>
+              Policies <HelpTooltip helpTextKey="policy" />
+            </label>
             <PoliciesEditor
               typeTag={typeTag}
               value={t.policies}

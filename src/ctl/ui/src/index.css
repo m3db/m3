@@ -7,3 +7,6 @@ body {
   height: 100%
 }
 
+.ant-form-item-control {
+  line-height: inherit
+}
