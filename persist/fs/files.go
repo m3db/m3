@@ -250,7 +250,7 @@ func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards
 	var toDelete []string
 	activeDirNames := make(map[string]struct{})
 	namespaceDirPath := NamespaceDirPath(filePathPrefix, namespace)
-	allShardDirs, err := findDirectories(namespaceDirPath)
+	allShardDirs, err := findSubDirectoriesAndPaths(namespaceDirPath)
 	if err != nil {
 		return nil
 	}
@@ -306,22 +306,24 @@ func findFiles(fileDir string, pattern string, fn toSortableFn) ([]string, error
 	return matched, nil
 }
 
-func findDirectories(osPath string) (map[string]string, error) {
-	f, err := os.Open(osPath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
+type directoryNamesToPaths map[string]string
 
-	dirs := make(map[string]string)
-	names, err := f.Readdirnames(-1)
+func findSubDirectoriesAndPaths(directoryPath string) (directoryNamesToPaths, error) {
+	parent, err := os.Open(directoryPath)
 	if err != nil {
 		return nil, err
 	}
-	for _, name := range names {
-		dirs[name] = path.Join(osPath, name)
+	defer parent.Close()
+
+	subDirectoriesToPaths := make(directoryNamesToPaths)
+	subDirNames, err := parent.Readdirnames(-1)
+	if err != nil {
+		return nil, err
 	}
-	return dirs, nil
+	for _, dirName := range subDirNames {
+		subDirectoriesToPaths[dirName] = path.Join(directoryPath, dirName)
+	}
+	return subDirectoriesToPaths, nil
 }
 
 func filesetFiles(filePathPrefix string, namespace ts.ID, shard uint32, pattern string) ([]string, error) {
