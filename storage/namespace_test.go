@@ -436,7 +436,7 @@ func TestNamespaceCleanupFilesetDontNeedCleanup(t *testing.T) {
 
 func TestNamespaceDeleteInactiveFilesetsError(t *testing.T) {
 	ns := newTestNamespaceWithIDOpts(t, defaultTestNs1ID, namespace.NewOptions().SetNeedsFilesetCleanup(false))
-	require.Error(t, ns.DeleteInactiveFilesets())
+	require.NoError(t, ns.DeleteInactiveFilesets())
 }
 
 func TestNamespaceCleanupFilesetAllShards(t *testing.T) {
