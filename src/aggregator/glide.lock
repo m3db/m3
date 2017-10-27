@@ -1,5 +1,5 @@
-hash: c964aa1db204cfa498d0b941bd1fdfa95bc427891ab7bf11aaad04cee85d402f
-updated: 2017-10-17T15:04:03.780214827-04:00
+hash: 2624d975a0deecfd7f724138b03592b300b17a5fb27100409fd4696d5f93f54f
+updated: 2017-10-27T10:42:18.909801706-04:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -122,7 +122,7 @@ imports:
 - name: github.com/karlseguin/ccache
   version: a2d62155777b39595c825ed3824279e642a5db3c
 - name: github.com/m3db/m3cluster
-  version: b9650bbb69955b5daf276cd840bd36cc986e9dc9
+  version: c4d51f0f5087606ca27680e816d318bdd6c6a9bf
   subpackages:
   - client
   - client/etcd
@@ -146,7 +146,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3metrics
-  version: 1ec71bb4382bbc73fb1bc0b596ee11289810f48e
+  version: de92bc7d4f57cdfc084f3ebd76c9ec599ef8dc11
   subpackages:
   - generated/proto/schema
   - metric
@@ -156,7 +156,7 @@ imports:
   - policy
   - protocol/msgpack
 - name: github.com/m3db/m3x
-  version: b009e41c873b0fb0fc066114911c87ff6a6f8d77
+  version: 515e3030818e6dab3fd418f05b96174ae4c527df
   subpackages:
   - checked
   - clock
