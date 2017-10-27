@@ -248,23 +248,22 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 // DeleteInactiveFilesets deletes any filesets that are not currently owned by the namespace
 func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards []uint32) error {
 	var toDelete []string
-	dirs := make(map[string]struct{}{})
-	activeShardDirs := activeShardDirs(filePathPrefix, namespace, activeShards)
+	activeDirNames := make(map[string]struct{})
 	namespaceDirPath := NamespaceDirPath(filePathPrefix, namespace)
 	allShardDirs, err := findDirectories(namespaceDirPath)
 	if err != nil {
 		return err
 	}
 
-	//est
-	for _, dir := range activeShardDirs {
-		dirs[dir] = struct{}{}
+	//set
+	for _, shard := range activeShards {
+		activeDirNames[string(shard)] = struct{}{}
 	}
 
 	//is there a general slice function that can handle this?
-	for _, dir := range allShardDirs {
-		if _, ok := dirs[dir]; !ok {
-			toDelete = append(toDelete, dir)
+	for dirName, dirPath := range allShardDirs {
+		if _, ok := activeDirNames[dirName]; !ok {
+			toDelete = append(toDelete, dirPath)
 		}
 	}
 	return DeleteDirectories(toDelete)
@@ -307,21 +306,20 @@ func findFiles(fileDir string, pattern string, fn toSortableFn) ([]string, error
 	return matched, nil
 }
 
-func findDirectories(osPath string) ([]string, error) {
+func findDirectories(osPath string) (map[string]string, error) {
 	f, err := os.Open(osPath)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	var dirs []string
+	dirs := make(map[string]string)
 	names, err := f.Readdirnames(-1)
 	if err != nil {
 		return nil, err
 	}
 	for _, name := range names {
-		dir := path.Join(osPath, name)
-		dirs = append(dirs, dir)
+		dirs[name] = path.Join(osPath, name)
 	}
 	return dirs, nil
 }
