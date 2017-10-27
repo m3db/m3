@@ -248,7 +248,7 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 // DeleteInactiveFilesets deletes any filesets that are not currently owned by the namespace
 func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards []uint32) error {
 	var toDelete []string
-	dirs := make(map[string]bool)
+	dirs := make(map[string]struct{}{})
 	activeShardDirs := activeShardDirs(filePathPrefix, namespace, activeShards)
 	namespaceDirPath := NamespaceDirPath(filePathPrefix, namespace)
 	allShardDirs, err := findDirectories(namespaceDirPath)
@@ -256,15 +256,14 @@ func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards
 		return err
 	}
 
-	//can be extracted to a function perhaps?
+	//est
 	for _, dir := range activeShardDirs {
-		dirs[dir] = true
+		dirs[dir] = struct{}{}
 	}
 
 	//is there a general slice function that can handle this?
 	for _, dir := range allShardDirs {
-		ok := dirs[dir]
-		if !ok {
+		if _, ok := dirs[dir]; !ok {
 			toDelete = append(toDelete, dir)
 		}
 	}
