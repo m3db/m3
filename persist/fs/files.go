@@ -245,23 +245,20 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 	return filesBefore(matched, t)
 }
 
-// DeleteInactiveFilesets deletes any filesets that are not currently owned by the namespace
-func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards []uint32) error {
+// DeleteInactiveDirectories deletes any sub directories that are not currently in use
+func DeleteInactiveDirectories(parentDirPath, activeDirs []string) error {
 	var toDelete []string
 	activeDirNames := make(map[string]struct{})
-	namespaceDirPath := NamespaceDirPath(filePathPrefix, namespace)
-	allShardDirs, err := findSubDirectoriesAndPaths(namespaceDirPath)
+	allDirectories, err := findSubDirectoriesAndPaths(parentDirPath)
 	if err != nil {
 		return nil
 	}
 
-	//create shard set, might also be useful to just send in as strings?
-	for _, shard := range activeShards {
-		shardName := fmt.Sprint(shard)
-		activeDirNames[shardName] = struct{}{}
+	for _, dir := range activeDirs {
+		activeDirNames[dir] = struct{}{}
 	}
 
-	for dirName, dirPath := range allShardDirs {
+	for dirName, dirPath := range allDirectories {
 		if _, ok := activeDirNames[dirName]; !ok {
 			toDelete = append(toDelete, dirPath)
 		}
@@ -308,8 +305,8 @@ func findFiles(fileDir string, pattern string, fn toSortableFn) ([]string, error
 
 type directoryNamesToPaths map[string]string
 
-func findSubDirectoriesAndPaths(directoryPath string) (directoryNamesToPaths, error) {
-	parent, err := os.Open(directoryPath)
+func findSubDirectoriesAndPaths(parentDirPath string) (directoryNamesToPaths, error) {
+	parent, err := os.Open(parentDirectoryPath)
 	if err != nil {
 		return nil, err
 	}
@@ -321,7 +318,7 @@ func findSubDirectoriesAndPaths(directoryPath string) (directoryNamesToPaths, er
 		return nil, err
 	}
 	for _, dirName := range subDirNames {
-		subDirectoriesToPaths[dirName] = path.Join(directoryPath, dirName)
+		subDirectoriesToPaths[dirName] = path.Join(parentDirPath, dirName)
 	}
 	return subDirectoriesToPaths, nil
 }
