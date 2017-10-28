@@ -28,9 +28,9 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
-	m3dbtime "github.com/m3db/m3db/x/time"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/pool"
+	xtime "github.com/m3db/m3x/time"
 )
 
 var (
@@ -77,7 +77,7 @@ type seekersByTime struct {
 	sync.RWMutex
 	shard    uint32
 	accessed bool
-	seekers  map[m3dbtime.UnixNano]fileSetSeeker
+	seekers  map[xtime.UnixNano]fileSetSeeker
 }
 
 type seekerManagerPendingClose struct {
@@ -144,7 +144,7 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 	multiErr := xerrors.NewMultiError()
 
 	for t := start; !t.After(end); t = t.Add(blockSize) {
-		tNano := m3dbtime.ToUnixNano(t)
+		tNano := xtime.ToUnixNano(t)
 		byTime.RLock()
 		_, exists := byTime.seekers[tNano]
 		byTime.RUnlock()
@@ -185,7 +185,7 @@ func (m *seekerManager) Seeker(shard uint32, start time.Time) (FileSetSeeker, er
 	// Track accessed to precache in open/close loop
 	byTime.accessed = true
 
-	startNano := m3dbtime.ToUnixNano(start)
+	startNano := xtime.ToUnixNano(start)
 	seeker, ok := byTime.seekers[startNano]
 	if ok {
 		byTime.Unlock()
@@ -268,7 +268,7 @@ func (m *seekerManager) seekersByTime(shard uint32) *seekersByTime {
 		}
 		seekersByShardIdx[i] = &seekersByTime{
 			shard:   uint32(i),
-			seekers: make(map[m3dbtime.UnixNano]fileSetSeeker),
+			seekers: make(map[xtime.UnixNano]fileSetSeeker),
 		}
 	}
 
@@ -370,7 +370,7 @@ func (m *seekerManager) openCloseLoop() {
 		if len(shouldClose) > 0 {
 			for _, elem := range shouldClose {
 				byTime := m.seekersByShardIdx[elem.shard]
-				blockStartNano := m3dbtime.ToUnixNano(elem.blockStart)
+				blockStartNano := xtime.ToUnixNano(elem.blockStart)
 				byTime.Lock()
 				seeker := byTime.seekers[blockStartNano]
 				closing = append(closing, seeker)
