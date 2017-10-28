@@ -27,7 +27,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
-	m3dbtime "github.com/m3db/m3db/x/time"
+	xtime "github.com/m3db/m3x/time"
 )
 
 // HostBlockMetadata contains a host along with block metadata from that host
@@ -82,7 +82,7 @@ type ReplicaBlocksMetadata interface {
 	NumBlocks() int64
 
 	// Blocks returns the blocks metadata
-	Blocks() map[m3dbtime.UnixNano]ReplicaBlockMetadata
+	Blocks() map[xtime.UnixNano]ReplicaBlockMetadata
 
 	// Add adds a block metadata
 	Add(block ReplicaBlockMetadata)

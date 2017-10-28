@@ -36,7 +36,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/ts"
-	m3dbtime "github.com/m3db/m3db/x/time"
+	xtime "github.com/m3db/m3x/time"
 	xerrors "github.com/m3db/m3x/errors"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
@@ -176,7 +176,7 @@ type repairState struct {
 	NumFailures int
 }
 
-type namespaceRepairStateByTime map[m3dbtime.UnixNano]repairState
+type namespaceRepairStateByTime map[xtime.UnixNano]repairState
 
 type repairStatesByNs map[ts.Hash]namespaceRepairStateByTime
 
@@ -195,7 +195,7 @@ func (r repairStatesByNs) repairStates(
 		return rs, false
 	}
 
-	rs, ok = nsRepairState[m3dbtime.ToUnixNano(t)]
+	rs, ok = nsRepairState[xtime.ToUnixNano(t)]
 	return rs, ok
 }
 
@@ -209,7 +209,7 @@ func (r repairStatesByNs) setRepairState(
 		nsRepairState = make(namespaceRepairStateByTime)
 		r[namespace.Hash()] = nsRepairState
 	}
-	nsRepairState[m3dbtime.ToUnixNano(t)] = state
+	nsRepairState[xtime.ToUnixNano(t)] = state
 }
 
 // NB(prateek): dbRepairer.Repair(...) guarantees atomicity of execution, so all other
