@@ -1,5 +1,5 @@
-hash: 5330a3dedf6135c6ace524421f97590f734e5f0e37ade0b0f5f71493718b917a
-updated: 2017-10-19T16:50:01.921181047-04:00
+hash: 14225747cbe4f4ccc8b7fbcf10b33ea7524ae10fda47b2450d3fbbeaf351c9fc
+updated: 2017-10-26T11:54:34.139208089-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -171,13 +171,14 @@ imports:
   - os/fs
   - x/grpc
 - name: github.com/m3db/m3x
-  version: 2552847f8eaf39ec4a4a340e6cb97b6514af6086
+  version: 74f8fce525a9170e42bdf27983f74f022d356585
   vcs: git
   subpackages:
   - checked
   - clock
   - close
   - config
+  - config/hostid
   - errors
   - instrument
   - log
