@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/commands"

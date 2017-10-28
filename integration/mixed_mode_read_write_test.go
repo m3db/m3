@@ -37,7 +37,6 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
-	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )

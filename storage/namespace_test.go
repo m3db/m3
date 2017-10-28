@@ -38,7 +38,6 @@ import (
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/metrics"
-	xtime "github.com/m3db/m3x/time"
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 
