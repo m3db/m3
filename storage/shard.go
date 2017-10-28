@@ -43,7 +43,6 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
-	m3dbtime "github.com/m3db/m3db/x/time"
 	xclose "github.com/m3db/m3x/close"
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
@@ -162,12 +161,12 @@ type dbShardEntryWorkFn func(entry *dbShardEntry) bool
 
 type shardFlushState struct {
 	sync.RWMutex
-	statesByTime map[m3dbtime.UnixNano]fileOpState
+	statesByTime map[xtime.UnixNano]fileOpState
 }
 
 func newShardFlushState() shardFlushState {
 	return shardFlushState{
-		statesByTime: make(map[m3dbtime.UnixNano]fileOpState),
+		statesByTime: make(map[xtime.UnixNano]fileOpState),
 	}
 }
 
@@ -990,7 +989,7 @@ func (s *dbShard) Flush(
 
 func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
 	s.flushState.RLock()
-	state, ok := s.flushState.statesByTime[m3dbtime.ToUnixNano(blockStart)]
+	state, ok := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
 	if !ok {
 		s.flushState.RUnlock()
 		return fileOpState{Status: fileOpNotStarted}
@@ -1011,16 +1010,16 @@ func (s *dbShard) markFlushStateSuccessOrError(blockStart time.Time, err error) 
 
 func (s *dbShard) markFlushStateSuccess(blockStart time.Time) {
 	s.flushState.Lock()
-	s.flushState.statesByTime[m3dbtime.ToUnixNano(blockStart)] = fileOpState{Status: fileOpSuccess}
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{Status: fileOpSuccess}
 	s.flushState.Unlock()
 }
 
 func (s *dbShard) markFlushStateFail(blockStart time.Time) {
 	s.flushState.Lock()
-	state := s.flushState.statesByTime[m3dbtime.ToUnixNano(blockStart)]
+	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
 	state.Status = fileOpFailed
 	state.NumFailures++
-	s.flushState.statesByTime[m3dbtime.ToUnixNano(blockStart)] = state
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 	s.flushState.Unlock()
 }
 

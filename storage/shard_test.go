@@ -39,7 +39,6 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	xmetrics "github.com/m3db/m3db/x/metrics"
-	m3dbtime "github.com/m3db/m3db/x/time"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -213,7 +212,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
 	s.bs = bootstrapped
-	s.flushState.statesByTime[m3dbtime.ToUnixNano(blockStart)] = fileOpState{
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
 		Status:      fileOpFailed,
 		NumFailures: 1,
 	}
@@ -275,7 +274,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	s := testDatabaseShard(t, testDatabaseOptions())
 	defer s.Close()
 	s.bs = bootstrapped
-	s.flushState.statesByTime[m3dbtime.ToUnixNano(blockStart)] = fileOpState{
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{
 		Status:      fileOpFailed,
 		NumFailures: 1,
 	}
@@ -357,10 +356,10 @@ func TestShardTick(t *testing.T) {
 	defer shard.Close()
 
 	// Also check that it expires flush states by time
-	shard.flushState.statesByTime[m3dbtime.ToUnixNano(earliestFlush)] = fileOpState{
+	shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)] = fileOpState{
 		Status: fileOpSuccess,
 	}
-	shard.flushState.statesByTime[m3dbtime.ToUnixNano(beforeEarliestFlush)] = fileOpState{
+	shard.flushState.statesByTime[xtime.ToUnixNano(beforeEarliestFlush)] = fileOpState{
 		Status: fileOpSuccess,
 	}
 	assert.Equal(t, 2, len(shard.flushState.statesByTime))
@@ -386,7 +385,7 @@ func TestShardTick(t *testing.T) {
 
 	// Ensure flush states by time was expired correctly
 	require.Equal(t, 1, len(shard.flushState.statesByTime))
-	_, ok := shard.flushState.statesByTime[m3dbtime.ToUnixNano(earliestFlush)]
+	_, ok := shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)]
 	require.True(t, ok)
 }
 func TestShardWriteAsync(t *testing.T) {
@@ -427,10 +426,10 @@ func TestShardWriteAsync(t *testing.T) {
 	defer shard.Close()
 
 	// Also check that it expires flush states by time
-	shard.flushState.statesByTime[m3dbtime.ToUnixNano(earliestFlush)] = fileOpState{
+	shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)] = fileOpState{
 		Status: fileOpSuccess,
 	}
-	shard.flushState.statesByTime[m3dbtime.ToUnixNano(beforeEarliestFlush)] = fileOpState{
+	shard.flushState.statesByTime[xtime.ToUnixNano(beforeEarliestFlush)] = fileOpState{
 		Status: fileOpSuccess,
 	}
 	assert.Equal(t, 2, len(shard.flushState.statesByTime))
@@ -465,7 +464,7 @@ func TestShardWriteAsync(t *testing.T) {
 
 	// Ensure flush states by time was expired correctly
 	require.Equal(t, 1, len(shard.flushState.statesByTime))
-	_, ok := shard.flushState.statesByTime[m3dbtime.ToUnixNano(earliestFlush)]
+	_, ok := shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)]
 	require.True(t, ok)
 }
 
