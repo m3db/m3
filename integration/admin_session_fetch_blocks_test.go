@@ -31,7 +31,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
-	m3dbtime "github.com/m3db/m3db/x/time"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -66,7 +66,7 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 
 	// Write test data
 	now := testSetup.getNowFn()
-	seriesMaps := make(map[m3dbtime.UnixNano]generate.SeriesBlock)
+	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	inputData := []generate.BlockConfig{
 		{[]string{"foo", "bar"}, 100, now},
 		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
@@ -75,7 +75,7 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 		start := input.Start
 		testSetup.setNowFn(start)
 		testData := generate.Block(input)
-		seriesMaps[m3dbtime.ToUnixNano(start)] = testData
+		seriesMaps[xtime.ToUnixNano(start)] = testData
 		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
 	}
 	log.Debug("test data is now written")
@@ -110,8 +110,8 @@ func testSetupMetadatas(
 
 func verifySeriesMapsEqual(
 	t *testing.T,
-	expectedSeriesMap map[m3dbtime.UnixNano]generate.SeriesBlock,
-	observedSeriesMap map[m3dbtime.UnixNano]generate.SeriesBlock,
+	expectedSeriesMap map[xtime.UnixNano]generate.SeriesBlock,
+	observedSeriesMap map[xtime.UnixNano]generate.SeriesBlock,
 ) {
 	// ensure same length
 	require.Equal(t, len(expectedSeriesMap), len(observedSeriesMap))
@@ -162,8 +162,8 @@ func testSetupToSeriesMaps(
 	testSetup *testSetup,
 	nsMetadata namespace.Metadata,
 	metadatasByShard map[uint32][]block.ReplicaMetadata,
-) map[m3dbtime.UnixNano]generate.SeriesBlock {
-	seriesMap := make(map[m3dbtime.UnixNano]generate.SeriesBlock)
+) map[xtime.UnixNano]generate.SeriesBlock {
+	seriesMap := make(map[xtime.UnixNano]generate.SeriesBlock)
 	resultOpts := newDefaulTestResultOptions(testSetup.storageOpts)
 	iterPool := testSetup.storageOpts.ReaderIteratorPool()
 	session, err := testSetup.m3dbAdminClient.DefaultAdminSession()
@@ -193,12 +193,12 @@ func testSetupToSeriesMaps(
 			require.NotEmpty(t, datapoints)
 
 			firstTs := datapoints[0].Timestamp
-			seriesMapList := seriesMap[m3dbtime.ToUnixNano(firstTs)]
+			seriesMapList := seriesMap[xtime.ToUnixNano(firstTs)]
 			seriesMapList = append(seriesMapList, generate.Series{
 				ID:   id,
 				Data: datapoints,
 			})
-			seriesMap[m3dbtime.ToUnixNano(firstTs)] = seriesMapList
+			seriesMap[xtime.ToUnixNano(firstTs)] = seriesMapList
 		}
 		require.NoError(t, blocksIter.Err())
 	}

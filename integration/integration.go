@@ -39,7 +39,7 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	xmetrics "github.com/m3db/m3db/x/metrics"
-	m3dbtime "github.com/m3db/m3db/x/time"
+	xtime "github.com/m3db/m3x/time"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 
@@ -240,7 +240,7 @@ func newDefaultBootstrappableTestSetups(
 func writeTestDataToDisk(
 	metadata namespace.Metadata,
 	setup *testSetup,
-	seriesMaps map[m3dbtime.UnixNano]generate.SeriesBlock,
+	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
 ) error {
 	ropts := metadata.Options().RetentionOptions()
 	writer := generate.NewWriter(setup.generatorOptions(ropts))

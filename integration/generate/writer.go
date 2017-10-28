@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/ts"
-	m3dbtime "github.com/m3db/m3db/x/time"
+	xtime "github.com/m3db/m3x/time"
 	"github.com/m3db/m3x/checked"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -54,11 +54,11 @@ func (w *writer) Write(namespace ts.ID, shardSet sharding.ShardSet, seriesMaps S
 		isValidStart   = func(start time.Time) bool {
 			return start.Equal(retentionStart) || start.After(retentionStart)
 		}
-		starts = make(map[m3dbtime.UnixNano]struct{})
+		starts = make(map[xtime.UnixNano]struct{})
 	)
 
 	for start := currStart; isValidStart(start); start = start.Add(-blockSize) {
-		starts[m3dbtime.ToUnixNano(start)] = struct{}{}
+		starts[xtime.ToUnixNano(start)] = struct{}{}
 	}
 
 	writer := fs.NewWriter(gOpts.FilePathPrefix(), gOpts.WriterBufferSize(), gOpts.NewFileMode(), gOpts.NewDirectoryMode())

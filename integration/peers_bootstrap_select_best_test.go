@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
-	m3dbtime "github.com/m3db/m3db/x/time"
+	xtime "github.com/m3db/m3x/time"
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/stretchr/testify/require"
@@ -68,11 +68,11 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 		{[]string{"foo", "bar"}, 180, now.Add(-blockSize)},
 		{[]string{"foo", "baz"}, 90, now},
 	})
-	left := make(map[m3dbtime.UnixNano]generate.SeriesBlock)
-	right := make(map[m3dbtime.UnixNano]generate.SeriesBlock)
+	left := make(map[xtime.UnixNano]generate.SeriesBlock)
+	right := make(map[xtime.UnixNano]generate.SeriesBlock)
 	shouldMissData := false
-	appendSeries := func(target map[m3dbtime.UnixNano]generate.SeriesBlock, start time.Time, s generate.Series) {
-		startNano := m3dbtime.ToUnixNano(start)
+	appendSeries := func(target map[xtime.UnixNano]generate.SeriesBlock, start time.Time, s generate.Series) {
+		startNano := xtime.ToUnixNano(start)
 		if shouldMissData {
 			var dataWithMissing []ts.Datapoint
 			for i := range s.Data {

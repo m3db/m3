@@ -36,7 +36,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
-	m3dbtime "github.com/m3db/m3db/x/time"
+	xtime "github.com/m3db/m3x/time"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -116,7 +116,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 	// current time is 18:50, so we expect data for block starts [15, 18) to be written out
 	// to fileset files, and flushed.
 	expectedFlushedData := datapoints.toSeriesMap(ns1BlockSize)
-	delete(expectedFlushedData, m3dbtime.ToUnixNano(blkStart18))
+	delete(expectedFlushedData, xtime.ToUnixNano(blkStart18))
 	waitTimeout := 30 * time.Second
 	filePathPrefix := setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	log.Infof("waiting till expected fileset files have been written")
@@ -157,7 +157,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 
 	// verify in-memory data matches what we expect
 	// should contain data from 16:00 - 17:59 on disk and 18:00 - 18:50 in mem
-	delete(expectedSeriesMap, m3dbtime.ToUnixNano(blkStart15))
+	delete(expectedSeriesMap, xtime.ToUnixNano(blkStart15))
 	log.Infof("verifying data in database equals expected data")
 	verifySeriesMaps(t, setup, nsID, expectedSeriesMap)
 	log.Infof("verified data in database equals expected data")
@@ -248,11 +248,11 @@ type seriesDatapoint struct {
 }
 
 func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.SeriesBlocksByStart {
-	blockStartToSeriesMap := make(map[m3dbtime.UnixNano]map[ts.Hash]generate.Series)
+	blockStartToSeriesMap := make(map[xtime.UnixNano]map[ts.Hash]generate.Series)
 	for _, point := range d {
 		t := point.time
 		trunc := t.Truncate(blockSize)
-		seriesBlock, ok := blockStartToSeriesMap[m3dbtime.ToUnixNano(trunc)]
+		seriesBlock, ok := blockStartToSeriesMap[xtime.ToUnixNano(trunc)]
 		if !ok {
 			seriesBlock = make(map[ts.Hash]generate.Series)
 		}
@@ -265,7 +265,7 @@ func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.Ser
 			Value:     point.value,
 		})
 		seriesBlock[point.series.Hash()] = dp
-		blockStartToSeriesMap[m3dbtime.ToUnixNano(trunc)] = seriesBlock
+		blockStartToSeriesMap[xtime.ToUnixNano(trunc)] = seriesBlock
 	}
 
 	seriesMap := make(generate.SeriesBlocksByStart, len(blockStartToSeriesMap))

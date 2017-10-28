@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
-	m3dbtime "github.com/m3db/m3db/x/time"
+	xtime "github.com/m3db/m3x/time"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 
@@ -125,7 +125,7 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 		idsPerShard    = 16
 		shardIDs       = make(map[uint32][]ts.ID)
 		dataBytesPerID = 32
-		shardData      = make(map[uint32]map[ts.Hash]map[m3dbtime.UnixNano]checked.Bytes)
+		shardData      = make(map[uint32]map[ts.Hash]map[xtime.UnixNano]checked.Bytes)
 		blockStarts    []time.Time
 	)
 	for st := min; !st.After(max); st = st.Add(ropts.BlockSize()) {
@@ -133,14 +133,14 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 	}
 	for shard := uint32(0); shard < uint32(shards); shard++ {
 		shardIDs[shard] = make([]ts.ID, 0, idsPerShard)
-		shardData[shard] = make(map[ts.Hash]map[m3dbtime.UnixNano]checked.Bytes, idsPerShard)
+		shardData[shard] = make(map[ts.Hash]map[xtime.UnixNano]checked.Bytes, idsPerShard)
 		for _, blockStart := range blockStarts {
 			w, closer := newOpenTestWriter(t, fsopts, shard, blockStart)
 			for i := 0; i < idsPerShard; i++ {
 				id := ts.StringID(fmt.Sprintf("foo.%d", i))
 				shardIDs[shard] = append(shardIDs[shard], id)
 				if _, ok := shardData[shard][id.Hash()]; !ok {
-					shardData[shard][id.Hash()] = make(map[m3dbtime.UnixNano]checked.Bytes, len(blockStarts))
+					shardData[shard][id.Hash()] = make(map[xtime.UnixNano]checked.Bytes, len(blockStarts))
 				}
 
 				data := checked.NewBytes(nil, nil)
@@ -148,7 +148,7 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 				for j := 0; j < dataBytesPerID; j++ {
 					data.Append(byte(rand.Int63n(256)))
 				}
-				shardData[shard][id.Hash()][m3dbtime.ToUnixNano(blockStart)] = data
+				shardData[shard][id.Hash()][xtime.ToUnixNano(blockStart)] = data
 
 				err := w.Write(id, data, digest.Checksum(data.Get()))
 				require.NoError(t, err)
@@ -203,7 +203,7 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 					}
 
 					require.NoError(t, err)
-					compare.Head = shardData[r.shard][r.id.Hash()][m3dbtime.ToUnixNano(r.blockStart)]
+					compare.Head = shardData[r.shard][r.id.Hash()][xtime.ToUnixNano(r.blockStart)]
 					assert.True(t, seg.Equal(&compare))
 				}
 				results = results[:0]

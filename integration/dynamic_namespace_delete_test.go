@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/storage/namespace"
 	xmetrics "github.com/m3db/m3db/x/metrics"
-	m3dbtime "github.com/m3db/m3db/x/time"
+	xtime "github.com/m3db/m3x/time"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/golang/protobuf/proto"
@@ -103,7 +103,7 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 	// Write test data
 	blockSize := ns0.Options().RetentionOptions().BlockSize()
 	now := testSetup.getNowFn()
-	seriesMaps := make(map[m3dbtime.UnixNano]generate.SeriesBlock)
+	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	inputData := []generate.BlockConfig{
 		{[]string{"foo", "bar"}, 100, now},
 		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
@@ -111,7 +111,7 @@ func TestDynamicNamespaceDelete(t *testing.T) {
 	for _, input := range inputData {
 		start := input.Start
 		testData := generate.Block(input)
-		seriesMaps[m3dbtime.ToUnixNano(start)] = testData
+		seriesMaps[xtime.ToUnixNano(start)] = testData
 	}
 	log.Infof("test data is now generated")
 

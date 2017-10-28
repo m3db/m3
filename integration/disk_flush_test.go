@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/integration/generate"
-	m3dbtime "github.com/m3db/m3db/x/time"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -61,7 +61,7 @@ func TestDiskFlush(t *testing.T) {
 
 	// Write test data
 	now := testSetup.getNowFn()
-	seriesMaps := make(map[m3dbtime.UnixNano]generate.SeriesBlock)
+	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	inputData := []generate.BlockConfig{
 		{[]string{"foo", "bar"}, 100, now},
 		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
@@ -69,7 +69,7 @@ func TestDiskFlush(t *testing.T) {
 	for _, input := range inputData {
 		testSetup.setNowFn(input.Start)
 		testData := generate.Block(input)
-		seriesMaps[m3dbtime.ToUnixNano(input.Start)] = testData
+		seriesMaps[xtime.ToUnixNano(input.Start)] = testData
 		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
 	}
 	log.Debug("test data is now written")

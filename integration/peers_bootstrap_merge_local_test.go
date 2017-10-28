@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	xmetrics "github.com/m3db/m3db/x/metrics"
-	m3dbtime "github.com/m3db/m3db/x/time"
+	xtime "github.com/m3db/m3x/time"
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/stretchr/testify/require"
@@ -73,8 +73,8 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 		{[]string{"foo", "bar"}, 180, now.Add(-blockSize)},
 		{[]string{"foo", "baz"}, int(completeAt.Sub(now) / time.Second), now},
 	})
-	firstNodeSeriesMaps := map[m3dbtime.UnixNano]generate.SeriesBlock{}
-	directWritesSeriesMaps := map[m3dbtime.UnixNano]generate.SeriesBlock{}
+	firstNodeSeriesMaps := map[xtime.UnixNano]generate.SeriesBlock{}
+	directWritesSeriesMaps := map[xtime.UnixNano]generate.SeriesBlock{}
 	for start, s := range seriesMaps {
 		for i := range s {
 			isPartialSeries := start.ToTime().Equal(now)
@@ -108,26 +108,26 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 	// Assert test data for first node is correct
 	require.Equal(t, 2, len(firstNodeSeriesMaps))
 
-	require.Equal(t, 2, firstNodeSeriesMaps[m3dbtime.ToUnixNano(now.Add(-blockSize))].Len())
-	require.Equal(t, "foo", firstNodeSeriesMaps[m3dbtime.ToUnixNano(now.Add(-blockSize))][0].ID.String())
-	require.Equal(t, 180, len(firstNodeSeriesMaps[m3dbtime.ToUnixNano(now.Add(-blockSize))][0].Data))
-	require.Equal(t, "bar", firstNodeSeriesMaps[m3dbtime.ToUnixNano(now.Add(-blockSize))][1].ID.String())
-	require.Equal(t, 180, len(firstNodeSeriesMaps[m3dbtime.ToUnixNano(now.Add(-blockSize))][1].Data))
+	require.Equal(t, 2, firstNodeSeriesMaps[xtime.ToUnixNano(now.Add(-blockSize))].Len())
+	require.Equal(t, "foo", firstNodeSeriesMaps[xtime.ToUnixNano(now.Add(-blockSize))][0].ID.String())
+	require.Equal(t, 180, len(firstNodeSeriesMaps[xtime.ToUnixNano(now.Add(-blockSize))][0].Data))
+	require.Equal(t, "bar", firstNodeSeriesMaps[xtime.ToUnixNano(now.Add(-blockSize))][1].ID.String())
+	require.Equal(t, 180, len(firstNodeSeriesMaps[xtime.ToUnixNano(now.Add(-blockSize))][1].Data))
 
-	require.Equal(t, 2, firstNodeSeriesMaps[m3dbtime.ToUnixNano(now)].Len())
-	require.Equal(t, "foo", firstNodeSeriesMaps[m3dbtime.ToUnixNano(now)][0].ID.String())
-	require.Equal(t, 60, len(firstNodeSeriesMaps[m3dbtime.ToUnixNano(now)][0].Data))
-	require.Equal(t, "baz", firstNodeSeriesMaps[m3dbtime.ToUnixNano(now)][1].ID.String())
-	require.Equal(t, 60, len(firstNodeSeriesMaps[m3dbtime.ToUnixNano(now)][1].Data))
+	require.Equal(t, 2, firstNodeSeriesMaps[xtime.ToUnixNano(now)].Len())
+	require.Equal(t, "foo", firstNodeSeriesMaps[xtime.ToUnixNano(now)][0].ID.String())
+	require.Equal(t, 60, len(firstNodeSeriesMaps[xtime.ToUnixNano(now)][0].Data))
+	require.Equal(t, "baz", firstNodeSeriesMaps[xtime.ToUnixNano(now)][1].ID.String())
+	require.Equal(t, 60, len(firstNodeSeriesMaps[xtime.ToUnixNano(now)][1].Data))
 
 	// Assert test data for direct writes is correct
 	require.Equal(t, 1, len(directWritesSeriesMaps))
 
-	require.Equal(t, 2, directWritesSeriesMaps[m3dbtime.ToUnixNano(now)].Len())
-	require.Equal(t, "foo", directWritesSeriesMaps[m3dbtime.ToUnixNano(now)][0].ID.String())
-	require.Equal(t, 120, len(directWritesSeriesMaps[m3dbtime.ToUnixNano(now)][0].Data))
-	require.Equal(t, "baz", directWritesSeriesMaps[m3dbtime.ToUnixNano(now)][1].ID.String())
-	require.Equal(t, 120, len(directWritesSeriesMaps[m3dbtime.ToUnixNano(now)][1].Data))
+	require.Equal(t, 2, directWritesSeriesMaps[xtime.ToUnixNano(now)].Len())
+	require.Equal(t, "foo", directWritesSeriesMaps[xtime.ToUnixNano(now)][0].ID.String())
+	require.Equal(t, 120, len(directWritesSeriesMaps[xtime.ToUnixNano(now)][0].Data))
+	require.Equal(t, "baz", directWritesSeriesMaps[xtime.ToUnixNano(now)][1].ID.String())
+	require.Equal(t, 120, len(directWritesSeriesMaps[xtime.ToUnixNano(now)][1].Data))
 
 	// Write data to first node
 	err = writeTestDataToDisk(namesp, setups[0], firstNodeSeriesMaps)
@@ -149,7 +149,7 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 		require.NoError(
 			t,
 			setups[1].writeBatch(namesp.ID(),
-				directWritesSeriesMaps[m3dbtime.ToUnixNano(now)],
+				directWritesSeriesMaps[xtime.ToUnixNano(now)],
 			),
 		)
 	}()

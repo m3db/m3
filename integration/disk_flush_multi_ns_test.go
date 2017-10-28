@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
-	m3dbtime "github.com/m3db/m3db/x/time"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -83,14 +83,14 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 
 	log.Info("generating test data")
 	// test data for ns1
-	ns1SeriesMaps := make(map[m3dbtime.UnixNano]generate.SeriesBlock)
+	ns1SeriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	ns1InputData := []generate.BlockConfig{
 		{[]string{"foo", "bar"}, 100, now},
 		{[]string{"foo", "baz"}, 50, now.Add(ns1BlockSize)},
 	}
 
 	// test data for ns2
-	ns2SeriesMaps := make(map[m3dbtime.UnixNano]generate.SeriesBlock)
+	ns2SeriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	ns2InputData := []generate.BlockConfig{
 		{[]string{"foo", "bar"}, 20, now},
 	}
@@ -99,7 +99,7 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 		// write the data for ns1, always
 		testSetup.setNowFn(ns1Input.Start)
 		testData := generate.Block(ns1Input)
-		ns1SeriesMaps[m3dbtime.ToUnixNano(ns1Input.Start)] = testData
+		ns1SeriesMaps[xtime.ToUnixNano(ns1Input.Start)] = testData
 		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
 		log.Infof("wrote ns1 for time %v", ns1Input.Start)
 
@@ -109,7 +109,7 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 				continue
 			}
 			testData = generate.Block(ns2Input)
-			ns2SeriesMaps[m3dbtime.ToUnixNano(ns2Input.Start)] = testData
+			ns2SeriesMaps[xtime.ToUnixNano(ns2Input.Start)] = testData
 			log.Infof("wrote ns2 for time %v", ns2Input.Start)
 			require.NoError(t, testSetup.writeBatch(testNamespaces[1], testData))
 		}

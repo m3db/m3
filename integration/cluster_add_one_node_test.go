@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
-	m3dbtime "github.com/m3db/m3db/x/time"
+	xtime "github.com/m3db/m3x/time"
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/stretchr/testify/require"
@@ -132,10 +132,10 @@ func TestClusterAddOneNode(t *testing.T) {
 	require.NoError(t, err)
 
 	// Prepare verification of data on nodes
-	expectedSeriesMaps := make([]map[m3dbtime.UnixNano]generate.SeriesBlock, 2)
+	expectedSeriesMaps := make([]map[xtime.UnixNano]generate.SeriesBlock, 2)
 	expectedSeriesIDs := make([]map[string]struct{}, 2)
 	for i := range expectedSeriesMaps {
-		expectedSeriesMaps[i] = make(map[m3dbtime.UnixNano]generate.SeriesBlock)
+		expectedSeriesMaps[i] = make(map[xtime.UnixNano]generate.SeriesBlock)
 		expectedSeriesIDs[i] = make(map[string]struct{})
 	}
 	for start, series := range seriesMaps {
