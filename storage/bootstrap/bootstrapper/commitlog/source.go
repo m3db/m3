@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xlog "github.com/m3db/m3x/log"
+	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -65,7 +66,7 @@ type encodersByTime struct {
 	id ts.ID
 	// int64 instead of time.Time because there is an optimized map access pattern
 	// for i64's
-	encoders map[xtime.UnixNano][]encoder
+	encoders map[xtime.UnixNano]encoders
 }
 
 // encoderArg contains all the information a worker go-routine needs to encode
@@ -76,6 +77,30 @@ type encoderArg struct {
 	unit       xtime.Unit
 	annotation ts.Annotation
 	blockStart time.Time
+}
+
+type encoders []encoder
+
+type ioReaders []io.Reader
+
+func (e encoders) newReaders() ioReaders {
+	readers := make(ioReaders, len(e))
+	for i := range e {
+		readers[i] = e[i].enc.Stream()
+	}
+	return readers
+}
+
+func (e encoders) close() {
+	for i := range e {
+		e[i].enc.Close()
+	}
+}
+
+func (ir ioReaders) close() {
+	for _, r := range ir {
+		r.(xio.SegmentReader).Finalize()
+	}
 }
 
 func newCommitLogSource(opts Options) bootstrap.Source {
@@ -226,7 +251,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		if !ok {
 			unmergedSeries = encodersByTime{
 				id:       series.ID,
-				encoders: make(map[xtime.UnixNano][]encoder)}
+				encoders: make(map[xtime.UnixNano]encoders)}
 			unmergedShard[series.ID.Hash()] = unmergedSeries
 		}
 
@@ -354,28 +379,30 @@ func (s *commitLogSource) mergeShards(
 		blocksPool              = bopts.DatabaseBlockOptions().DatabaseBlockPool()
 		multiReaderIteratorPool = blopts.MultiReaderIteratorPool()
 		// Controls how many shards can be merged in parallel
-		mergeSemaphore      = make(chan bool, s.opts.MergeShardsConcurrency())
+		workerPool          = xsync.NewWorkerPool(s.opts.MergeShardsConcurrency())
 		bootstrapResultLock sync.Mutex
 		wg                  sync.WaitGroup
 	)
 
+	workerPool.Init()
+
 	for shard, unmergedShard := range unmerged {
-		mergeSemaphore <- true
 		wg.Add(1)
-		go func(shard int, unmergedShard encodersAndRanges) {
+		shard, unmergedShard := shard, unmergedShard
+		mergeShardFunc := func() {
 			var shardResult result.ShardResult
 			shardResult, shardEmptyErrs[shard], shardErrs[shard] = s.mergeShard(
 				unmergedShard, blocksPool, multiReaderIteratorPool, encoderPool, blopts)
-			if len(shardResult.AllSeries()) > 0 {
+			if shardResult != nil && len(shardResult.AllSeries()) > 0 {
 				// Prevent race conditions while updating bootstrapResult from multiple go-routines
 				bootstrapResultLock.Lock()
 				// Shard is a slice index so conversion to uint32 is safe
 				bootstrapResult.Add(uint32(shard), shardResult, nil)
 				bootstrapResultLock.Unlock()
 			}
-			<-mergeSemaphore
 			wg.Done()
-		}(shard, unmergedShard)
+		}
+		workerPool.Go(mergeShardFunc)
 	}
 
 	// Wait for all merge goroutines to complete
@@ -391,7 +418,7 @@ func (s *commitLogSource) mergeShard(
 	encoderPool encoding.EncoderPool,
 	blopts block.Options,
 ) (shardResult result.ShardResult, numShardEmptyErrs int, numErrs int) {
-	shardResult = result.NewShardResult(len(unmergedShard.encodersBySeries), s.opts.ResultOptions())
+
 	for _, unmergedBlocks := range unmergedShard.encodersBySeries {
 		seriesBlocks, numSeriesEmptyErrs, numSeriesErrs := s.mergeSeries(
 			unmergedBlocks,
@@ -401,7 +428,10 @@ func (s *commitLogSource) mergeShard(
 			blopts,
 		)
 
-		if seriesBlocks.Len() > 0 {
+		if seriesBlocks != nil && seriesBlocks.Len() > 0 {
+			if shardResult == nil {
+				shardResult = result.NewShardResult(len(unmergedShard.encodersBySeries), s.opts.ResultOptions())
+			}
 			shardResult.AddSeries(unmergedBlocks.id, seriesBlocks)
 		}
 
@@ -418,31 +448,27 @@ func (s *commitLogSource) mergeSeries(
 	encoderPool encoding.EncoderPool,
 	blopts block.Options,
 ) (seriesBlocks block.DatabaseSeriesBlocks, numEmptyErrs int, numErrs int) {
-	seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
 
 	for startNano, encoders := range unmergedBlocks.encoders {
 		start := startNano.ToTime()
-		block := blocksPool.Get()
 
 		if len(encoders) == 0 {
 			numEmptyErrs++
-			blocksPool.Put(block)
 			continue
 		}
 
 		if len(encoders) == 1 {
-			block.Reset(start, encoders[0].enc.Discard())
-			seriesBlocks.AddBlock(block)
+			pooledBlock := blocksPool.Get()
+			pooledBlock.Reset(start, encoders[0].enc.Discard())
+			if seriesBlocks == nil {
+				seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
+			}
+			seriesBlocks.AddBlock(pooledBlock)
 			continue
 		}
 
 		// Convert encoders to readers so we can use iteration helpers
-		readers := make([]io.Reader, len(encoders))
-		for i := range encoders {
-			stream := encoders[i].enc.Stream()
-			readers[i] = stream
-		}
-
+		readers := encoders.newReaders()
 		iter := multiReaderIteratorPool.Get()
 		iter.Reset(readers)
 
@@ -465,23 +491,22 @@ func (s *commitLogSource) mergeSeries(
 			}
 			numErrs++
 		}
+
 		// Automatically returns iter to the pool
 		iter.Close()
-
-		for _, encoder := range encoders {
-			encoder.enc.Close()
-		}
-		for _, reader := range readers {
-			reader.(xio.SegmentReader).Finalize()
-		}
+		encoders.close()
+		readers.close()
 
 		if err != nil {
-			blocksPool.Put(block)
 			continue
 		}
 
-		block.Reset(start, enc.Discard())
-		seriesBlocks.AddBlock(block)
+		pooledBlock := blocksPool.Get()
+		pooledBlock.Reset(start, enc.Discard())
+		if seriesBlocks == nil {
+			seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
+		}
+		seriesBlocks.AddBlock(pooledBlock)
 	}
 	return seriesBlocks, numEmptyErrs, numErrs
 }
