@@ -132,7 +132,6 @@ func (s *commitLogSource) Read(
 		workerErrs   = make([]int, numConc)
 	)
 
-	fmt.Println("Highest shard: ", highestShard)
 	// +1 so we can use the shard number as an index throughout without constantly
 	// remembering to subtract 1 to convert to zero-based indexing
 	unmerged := make([]encodersAndRanges, highestShard+1)
