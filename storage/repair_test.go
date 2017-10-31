@@ -320,7 +320,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 	require.True(t, exists)
 	blocks := series.Metadata.Blocks()
 	require.Equal(t, 1, len(blocks))
-	block, exists := blocks[now.Add(time.Hour)]
+	block, exists := blocks[xtime.ToUnixNano(now.Add(time.Hour))]
 	require.True(t, exists)
 	require.Equal(t, now.Add(time.Hour), block.Start())
 	expected := []repair.HostBlockMetadata{

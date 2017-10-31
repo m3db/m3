@@ -175,7 +175,7 @@ type repairState struct {
 	NumFailures int
 }
 
-type namespaceRepairStateByTime map[time.Time]repairState
+type namespaceRepairStateByTime map[xtime.UnixNano]repairState
 
 type repairStatesByNs map[ts.Hash]namespaceRepairStateByTime
 
@@ -194,7 +194,7 @@ func (r repairStatesByNs) repairStates(
 		return rs, false
 	}
 
-	rs, ok = nsRepairState[t]
+	rs, ok = nsRepairState[xtime.ToUnixNano(t)]
 	return rs, ok
 }
 
@@ -208,7 +208,7 @@ func (r repairStatesByNs) setRepairState(
 		nsRepairState = make(namespaceRepairStateByTime)
 		r[namespace.Hash()] = nsRepairState
 	}
-	nsRepairState[t] = state
+	nsRepairState[xtime.ToUnixNano(t)] = state
 }
 
 // NB(prateek): dbRepairer.Repair(...) guarantees atomicity of execution, so all other
@@ -321,7 +321,8 @@ func (r *dbRepairer) namespaceRepairTimeRanges(ns databaseNamespace) xtime.Range
 	)
 
 	targetRanges := xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end})
-	for t := range r.repairStatesByNs[ns.ID().Hash()] {
+	for tNano := range r.repairStatesByNs[ns.ID().Hash()] {
+		t := tNano.ToTime()
 		if !r.needsRepair(ns.ID(), t) {
 			targetRanges = targetRanges.RemoveRange(xtime.Range{Start: t, End: t.Add(blockSize)})
 		}
