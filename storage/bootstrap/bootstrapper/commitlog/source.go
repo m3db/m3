@@ -65,7 +65,7 @@ type encodersByTime struct {
 	id ts.ID
 	// int64 instead of time.Time because there is an optimized map access pattern
 	// for i64's
-	encoders map[int64][]encoder
+	encoders map[xtime.UnixNano][]encoder
 }
 
 // encoderArg contains all the information a worker go-routine needs to encode
@@ -226,14 +226,15 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		if !ok {
 			unmergedSeries = encodersByTime{
 				id:       series.ID,
-				encoders: make(map[int64][]encoder)}
+				encoders: make(map[xtime.UnixNano][]encoder)}
 			unmergedShard[series.ID.Hash()] = unmergedSeries
 		}
 
 		var (
-			err           error
-			unmergedBlock = unmergedSeries.encoders[blockStart.UnixNano()]
-			wroteExisting = false
+			err            error
+			blockStartNano = xtime.ToUnixNano(blockStart)
+			unmergedBlock  = unmergedSeries.encoders[blockStartNano]
+			wroteExisting  = false
 		)
 		for i := range unmergedBlock {
 			if unmergedBlock[i].lastWriteAt.Before(dp.Timestamp) {
@@ -253,7 +254,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 					lastWriteAt: dp.Timestamp,
 					enc:         enc,
 				})
-				unmergedSeries.encoders[blockStart.UnixNano()] = unmergedBlock
+				unmergedSeries.encoders[blockStartNano] = unmergedBlock
 			}
 		}
 		if err != nil {
@@ -387,14 +388,14 @@ func (s *commitLogSource) mergeShard(
 	shardResult = result.NewShardResult(len(unmergedShard.encodersBySeries), s.opts.ResultOptions())
 	for _, unmergedBlocks := range unmergedShard.encodersBySeries {
 		blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
-		for start, unmergedBlockEncoders := range unmergedBlocks.encoders {
-			startInNano := time.Unix(0, start)
+		for startNano, unmergedBlockEncoders := range unmergedBlocks.encoders {
+			start := startNano.ToTime()
 			block := blocksPool.Get()
 			if len(unmergedBlockEncoders) == 0 {
 				numShardEmptyErrs++
 				continue
 			} else if len(unmergedBlockEncoders) == 1 {
-				block.Reset(startInNano, unmergedBlockEncoders[0].enc.Discard())
+				block.Reset(start, unmergedBlockEncoders[0].enc.Discard())
 			} else {
 				readers := make([]io.Reader, len(unmergedBlockEncoders))
 				for i := range unmergedBlockEncoders {
@@ -407,7 +408,7 @@ func (s *commitLogSource) mergeShard(
 
 				var err error
 				enc := encoderPool.Get()
-				enc.Reset(startInNano, blopts.DatabaseBlockAllocSize())
+				enc.Reset(start, blopts.DatabaseBlockAllocSize())
 				for iter.Next() {
 					dp, unit, annotation := iter.Current()
 					encodeErr := enc.Encode(dp, unit, annotation)
@@ -436,7 +437,7 @@ func (s *commitLogSource) mergeShard(
 					continue
 				}
 
-				block.Reset(startInNano, enc.Discard())
+				block.Reset(start, enc.Discard())
 			}
 			blocks.AddBlock(block)
 		}
