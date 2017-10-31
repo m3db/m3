@@ -25,6 +25,7 @@ package integration
 import (
 	"errors"
 	"os"
+	"path"
 	"testing"
 	"time"
 
@@ -67,6 +68,13 @@ func writeCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time)
 		_, err := os.Create(commitLogFile)
 		require.NoError(t, err)
 	}
+}
+
+// nolint: deadcode
+func createNamespaceDirPath(t *testing.T, storageOpts storage.Options, ns string) string {
+	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
+	prefix := fsOpts.FilePathPrefix()
+	return path.Join(prefix, "data", ns)
 }
 
 type cleanupTimesCommitLog struct {

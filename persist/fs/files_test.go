@@ -184,7 +184,7 @@ func TestDeleteInactiveFiles(t *testing.T) {
 	err := DeleteInactiveFilesets(tempPrefix, testNs1ID, activeShards)
 	require.NoError(t, err)
 	f, _ := os.Open(namespaceDir)
-	defer f.Close()
+	defer require.NoError(t, f.Close())
 	dirs, _ := f.Readdir(-1)
 	require.Equal(t, 2, len(dirs))
 }
