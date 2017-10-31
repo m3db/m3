@@ -394,67 +394,97 @@ func (s *commitLogSource) mergeShard(
 ) (shardResult result.ShardResult, numShardEmptyErrs int, numErrs int) {
 	shardResult = result.NewShardResult(len(unmergedShard.encodersBySeries), s.opts.ResultOptions())
 	for _, unmergedBlocks := range unmergedShard.encodersBySeries {
-		blocks := block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
-		for startNano, unmergedBlockEncoders := range unmergedBlocks.encoders {
-			start := startNano.ToTime()
-			block := blocksPool.Get()
-			if len(unmergedBlockEncoders) == 0 {
-				numShardEmptyErrs++
-				blocksPool.Put(block)
-				continue
-			} else if len(unmergedBlockEncoders) == 1 {
-				block.Reset(start, unmergedBlockEncoders[0].enc.Discard())
-			} else {
-				readers := make([]io.Reader, len(unmergedBlockEncoders))
-				for i := range unmergedBlockEncoders {
-					stream := unmergedBlockEncoders[i].enc.Stream()
-					readers[i] = stream
-				}
+		seriesBlocks, numSeriesEmptyErrs, numSeriesErrs := s.mergeSeries(
+			unmergedBlocks,
+			blocksPool,
+			multiReaderIteratorPool,
+			encoderPool,
+			blopts,
+		)
 
-				iter := multiReaderIteratorPool.Get()
-				iter.Reset(readers)
-
-				var err error
-				enc := encoderPool.Get()
-				enc.Reset(start, blopts.DatabaseBlockAllocSize())
-				for iter.Next() {
-					dp, unit, annotation := iter.Current()
-					encodeErr := enc.Encode(dp, unit, annotation)
-					if encodeErr != nil {
-						err = encodeErr
-						numErrs++
-						break
-					}
-				}
-				if iterErr := iter.Err(); iterErr != nil {
-					if err == nil {
-						err = iter.Err()
-					}
-					numErrs++
-				}
-
-				iter.Close()
-				for _, encoder := range unmergedBlockEncoders {
-					encoder.enc.Close()
-				}
-				for _, reader := range readers {
-					reader.(xio.SegmentReader).Finalize()
-				}
-
-				if err != nil {
-					blocksPool.Put(block)
-					continue
-				}
-
-				block.Reset(start, enc.Discard())
-			}
-			blocks.AddBlock(block)
+		if seriesBlocks.Len() > 0 {
+			shardResult.AddSeries(unmergedBlocks.id, seriesBlocks)
 		}
-		if blocks.Len() > 0 {
-			shardResult.AddSeries(unmergedBlocks.id, blocks)
-		}
+
+		numShardEmptyErrs += numSeriesEmptyErrs
+		numErrs += numSeriesErrs
 	}
 	return shardResult, numShardEmptyErrs, numErrs
+}
+
+func (s *commitLogSource) mergeSeries(
+	unmergedBlocks encodersByTime,
+	blocksPool block.DatabaseBlockPool,
+	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
+	encoderPool encoding.EncoderPool,
+	blopts block.Options,
+) (seriesBlocks block.DatabaseSeriesBlocks, numEmptyErrs int, numErrs int) {
+	seriesBlocks = block.NewDatabaseSeriesBlocks(len(unmergedBlocks.encoders))
+
+	for startNano, encoders := range unmergedBlocks.encoders {
+		start := startNano.ToTime()
+		block := blocksPool.Get()
+
+		if len(encoders) == 0 {
+			numEmptyErrs++
+			blocksPool.Put(block)
+			continue
+		}
+
+		if len(encoders) == 1 {
+			block.Reset(start, encoders[0].enc.Discard())
+			seriesBlocks.AddBlock(block)
+			continue
+		}
+
+		// Convert encoders to readers so we can use iteration helpers
+		readers := make([]io.Reader, len(encoders))
+		for i := range encoders {
+			stream := encoders[i].enc.Stream()
+			readers[i] = stream
+		}
+
+		iter := multiReaderIteratorPool.Get()
+		iter.Reset(readers)
+
+		var err error
+		enc := encoderPool.Get()
+		enc.Reset(start, blopts.DatabaseBlockAllocSize())
+		for iter.Next() {
+			dp, unit, annotation := iter.Current()
+			encodeErr := enc.Encode(dp, unit, annotation)
+			if encodeErr != nil {
+				err = encodeErr
+				numErrs++
+				break
+			}
+		}
+
+		if iterErr := iter.Err(); iterErr != nil {
+			if err == nil {
+				err = iter.Err()
+			}
+			numErrs++
+		}
+		// Automatically returns iter to the pool
+		iter.Close()
+
+		for _, encoder := range encoders {
+			encoder.enc.Close()
+		}
+		for _, reader := range readers {
+			reader.(xio.SegmentReader).Finalize()
+		}
+
+		if err != nil {
+			blocksPool.Put(block)
+			continue
+		}
+
+		block.Reset(start, enc.Discard())
+		seriesBlocks.AddBlock(block)
+	}
+	return seriesBlocks, numEmptyErrs, numErrs
 }
 
 func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs []int) {
