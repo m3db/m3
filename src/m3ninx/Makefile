@@ -13,7 +13,7 @@ junit_xml            := junit.xml
 license_dir          := .ci/uber-licence
 license_node_modules := $(license_dir)/node_modules
 lint_check           := .ci/lint.sh
-m3index_package      := github.com/m3db/m3index
+m3ninx_package       := github.com/m3db/m3ninx
 metalint_check       := .ci/metalint.sh
 metalint_config      := .metalinter.json
 metalint_exclude     := .excludemetalint
@@ -29,7 +29,7 @@ test_one_integration := .ci/test-one-integration.sh
 vendor_prefix        := vendor
 
 BUILD            := $(abspath ./bin)
-GO_BUILD_LDFLAGS := $(shell $(abspath ./.ci/go-build-ldflags.sh) $(m3index_package))
+GO_BUILD_LDFLAGS := $(shell $(abspath ./.ci/go-build-ldflags.sh) $(m3ninx_package))
 LINUX_AMD64_ENV  := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 
 # SERVICES := \
