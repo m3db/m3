@@ -132,6 +132,7 @@ func (s *commitLogSource) Read(
 		workerErrs   = make([]int, numConc)
 	)
 
+	fmt.Println("Highest shard: ", highestShard)
 	// +1 so we can use the shard number as an index throughout without constantly
 	// remembering to subtract 1 to convert to zero-based indexing
 	unmerged := make([]encodersAndRanges, highestShard+1)
@@ -300,6 +301,12 @@ func (s *commitLogSource) shouldEncodeSeries(
 ) bool {
 	// Check if the series belongs to current namespace being bootstrapped
 	if !namespace.Equal(series.Namespace) {
+		return false
+	}
+
+	// Check if the shard number is higher the amount of space we pre-allocated.
+	// If it is, then it's not one of the shards we're trying to bootstrap
+	if series.Shard > uint32(len(unmerged)-1) {
 		return false
 	}
 
