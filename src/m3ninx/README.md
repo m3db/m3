@@ -1,2 +1,2 @@
-# m3index
-Reverse index 
+# m3ninx
+Reverse index.
