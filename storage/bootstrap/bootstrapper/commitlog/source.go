@@ -400,6 +400,7 @@ func (s *commitLogSource) mergeShard(
 			block := blocksPool.Get()
 			if len(unmergedBlockEncoders) == 0 {
 				numShardEmptyErrs++
+				blocksPool.Put(block)
 				continue
 			} else if len(unmergedBlockEncoders) == 1 {
 				block.Reset(start, unmergedBlockEncoders[0].enc.Discard())
@@ -441,6 +442,7 @@ func (s *commitLogSource) mergeShard(
 				}
 
 				if err != nil {
+					blocksPool.Put(block)
 					continue
 				}
 
