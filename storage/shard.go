@@ -161,12 +161,12 @@ type dbShardEntryWorkFn func(entry *dbShardEntry) bool
 
 type shardFlushState struct {
 	sync.RWMutex
-	statesByTime map[time.Time]fileOpState
+	statesByTime map[xtime.UnixNano]fileOpState
 }
 
 func newShardFlushState() shardFlushState {
 	return shardFlushState{
-		statesByTime: make(map[time.Time]fileOpState),
+		statesByTime: make(map[xtime.UnixNano]fileOpState),
 	}
 }
 
@@ -989,7 +989,7 @@ func (s *dbShard) Flush(
 
 func (s *dbShard) FlushState(blockStart time.Time) fileOpState {
 	s.flushState.RLock()
-	state, ok := s.flushState.statesByTime[blockStart]
+	state, ok := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
 	if !ok {
 		s.flushState.RUnlock()
 		return fileOpState{Status: fileOpNotStarted}
@@ -1010,16 +1010,16 @@ func (s *dbShard) markFlushStateSuccessOrError(blockStart time.Time, err error) 
 
 func (s *dbShard) markFlushStateSuccess(blockStart time.Time) {
 	s.flushState.Lock()
-	s.flushState.statesByTime[blockStart] = fileOpState{Status: fileOpSuccess}
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = fileOpState{Status: fileOpSuccess}
 	s.flushState.Unlock()
 }
 
 func (s *dbShard) markFlushStateFail(blockStart time.Time) {
 	s.flushState.Lock()
-	state := s.flushState.statesByTime[blockStart]
+	state := s.flushState.statesByTime[xtime.ToUnixNano(blockStart)]
 	state.Status = fileOpFailed
 	state.NumFailures++
-	s.flushState.statesByTime[blockStart] = state
+	s.flushState.statesByTime[xtime.ToUnixNano(blockStart)] = state
 	s.flushState.Unlock()
 }
 
@@ -1028,7 +1028,7 @@ func (s *dbShard) removeAnyFlushStatesTooEarly() {
 	now := s.nowFn()
 	earliestFlush := retention.FlushTimeStart(s.nsMetadata.Options().RetentionOptions(), now)
 	for t := range s.flushState.statesByTime {
-		if t.Before(earliestFlush) {
+		if t.ToTime().Before(earliestFlush) {
 			delete(s.flushState.statesByTime, t)
 		}
 	}
