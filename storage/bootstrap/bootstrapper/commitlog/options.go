@@ -25,6 +25,11 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 )
 
+const (
+	defaultEncodingConcurrency   = 4
+	defaultMergeShardConcurrency = 4
+)
+
 type options struct {
 	resultOpts            result.Options
 	commitLogOpts         commitlog.Options
@@ -37,8 +42,8 @@ func NewOptions() Options {
 	return &options{
 		resultOpts:            result.NewOptions(),
 		commitLogOpts:         commitlog.NewOptions(),
-		encodingConcurrency:   4,
-		mergeShardConcurrency: 4,
+		encodingConcurrency:   defaultEncodingConcurrency,
+		mergeShardConcurrency: defaultMergeShardConcurrency,
 	}
 }
 
