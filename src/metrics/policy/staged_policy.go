@@ -63,9 +63,11 @@ func (p StagedPolicies) Policies() ([]Policy, bool) {
 	return p.policies, p.hasDefaultPolicies()
 }
 
-// SamePolicies returns whether two staged policies have the same policy list,
-// assuming the policies are sorted in the same order.
-func (p StagedPolicies) SamePolicies(other StagedPolicies) bool {
+// Equals returns whether two staged policies are equal.
+func (p StagedPolicies) Equals(other StagedPolicies) bool {
+	if p.CutoverNanos != other.CutoverNanos || p.Tombstoned != other.Tombstoned {
+		return false
+	}
 	currPolicies, currIsDefault := p.Policies()
 	otherPolicies, otherIsDefault := other.Policies()
 	if currIsDefault && otherIsDefault {

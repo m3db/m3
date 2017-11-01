@@ -1052,7 +1052,7 @@ func mergeMappingResults(
 		return policy.PoliciesList{nextMappingPolicies}
 	}
 	currMappingPolicies := currMappingResults[len(currMappingResults)-1]
-	if currMappingPolicies.SamePolicies(nextMappingPolicies) {
+	if currMappingPolicies.Equals(nextMappingPolicies) {
 		return currMappingResults
 	}
 	currMappingResults = append(currMappingResults, nextMappingPolicies)
@@ -1082,7 +1082,7 @@ func mergeRollupResults(
 		if compareResult == 0 {
 			currRollupPolicies := currRollupResult.PoliciesList[len(currRollupResult.PoliciesList)-1]
 			nextRollupPolicies := nextRollupResult.PoliciesList[0]
-			if !currRollupPolicies.SamePolicies(nextRollupPolicies) {
+			if !currRollupPolicies.Equals(nextRollupPolicies) {
 				currRollupResults[currRollupIdx].PoliciesList = append(currRollupResults[currRollupIdx].PoliciesList, nextRollupPolicies)
 			}
 			currRollupIdx++
