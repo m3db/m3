@@ -175,6 +175,15 @@ func TestActiveRuleSetForwardMappingPoliciesForNonRollupID(t *testing.T) {
 						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
 					},
 				),
+				policy.NewStagedPolicies(
+					35000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+					},
+				),
 			},
 		},
 		{
@@ -380,6 +389,15 @@ func TestActiveRuleSetReverseMappingPoliciesForNonRollupID(t *testing.T) {
 				),
 				policy.NewStagedPolicies(
 					34000,
+					false,
+					[]policy.Policy{
+						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+						policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+					},
+				),
+				policy.NewStagedPolicies(
+					35000,
 					false,
 					[]policy.Policy{
 						policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
@@ -724,6 +742,13 @@ func TestActiveRuleSetRollupResults(t *testing.T) {
 					PoliciesList: policy.PoliciesList{
 						policy.NewStagedPolicies(
 							22000,
+							false,
+							[]policy.Policy{
+								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+							},
+						),
+						policy.NewStagedPolicies(
+							30000,
 							false,
 							[]policy.Policy{
 								policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
