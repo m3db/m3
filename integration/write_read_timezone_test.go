@@ -20,11 +20,11 @@ type readWriteTZDP struct {
 	timestamp time.Time
 }
 
-// Make sure that everythin works properly end-to-end even if the client issues
+// Make sure that everything works properly end-to-end even if the client issues
 // a write in a timezone other than that of the server.
 func TestWriteReadTimezone(t *testing.T) {
 	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
+		t.SkipNow()
 	}
 
 	// Ensure that the test is running with the local timezone set to US/Pacific
@@ -53,7 +53,7 @@ func TestWriteReadTimezone(t *testing.T) {
 	nyLocation, err := time.LoadLocation("America/New_York")
 	require.NoError(t, err)
 
-	// Generate test datapoints
+	// Generate test datapoints (all with NY timezone)
 	namespace := opts.Namespaces()[0].ID().String()
 	startNy := start.In(nyLocation)
 	writeSeries := []readWriteTZCase{
@@ -95,7 +95,7 @@ func TestWriteReadTimezone(t *testing.T) {
 		},
 	}
 
-	// Write datapoint
+	// Write datapoints
 	for _, series := range writeSeries {
 		for _, write := range series.datapoints {
 			err = session.Write(series.namespace, series.id, write.timestamp, write.value, xtime.Second, nil)
@@ -104,7 +104,7 @@ func TestWriteReadTimezone(t *testing.T) {
 	}
 
 	// Read datapoints back
-	iters, err := session.FetchAll(opts.Namespaces()[0].ID().String(), []string{"some-id-1", "some-id-2"}, startNy, startNy.Add(1*time.Hour))
+	iters, err := session.FetchAll(namespace, []string{"some-id-1", "some-id-2"}, startNy, startNy.Add(1*time.Hour))
 	require.NoError(t, err)
 
 	// Assert datapoints match what we wrote
@@ -112,6 +112,9 @@ func TestWriteReadTimezone(t *testing.T) {
 		for j := 0; iter.Next(); j++ {
 			dp, _, _ := iter.Current()
 			expectedDatapoint := writeSeries[i].datapoints[j]
+			// Datapoints will comeback with the timezone set to the local timezone
+			// of the machine that the client is runnign on. The Equal() method ensures
+			// that the two time.Time struct's refer to the same instant in time
 			require.True(t, expectedDatapoint.timestamp.Equal(dp.Timestamp))
 			require.Equal(t, expectedDatapoint.value, dp.Value)
 		}
