@@ -128,9 +128,8 @@ func parseTypeStringOverride(m map[AggregationType]string) map[AggregationType][
 type transformFnType string
 
 var (
-	unknownTransformType transformFnType = "unknown"
-	noopTransformType    transformFnType = "noop"
-	suffixTransformType  transformFnType = "suffix"
+	noopTransformType   transformFnType = "noop"
+	suffixTransformType transformFnType = "suffix"
 
 	validTypes = []transformFnType{
 		noopTransformType,

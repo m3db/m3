@@ -28,7 +28,12 @@ import (
 
 // AggregationIDCompressor can compress AggregationTypes into an AggregationID.
 type AggregationIDCompressor interface {
+	// Compress compresses a set of aggregation types into an aggregation id.
 	Compress(aggTypes AggregationTypes) (AggregationID, error)
+
+	// MustCompress compresses a set of aggregation types into an aggregation id,
+	// and panics if an error is encountered.
+	MustCompress(aggTypes AggregationTypes) AggregationID
 }
 
 // AggregationIDDecompressor can decompress AggregationID.
@@ -68,6 +73,14 @@ func (c *aggregationIDCompressor) Compress(aggTypes AggregationTypes) (Aggregati
 		id[i] = codes[i]
 	}
 	return id, nil
+}
+
+func (c *aggregationIDCompressor) MustCompress(aggTypes AggregationTypes) AggregationID {
+	id, err := c.Compress(aggTypes)
+	if err != nil {
+		panic(fmt.Errorf("unable to compress %v: %v", aggTypes, err))
+	}
+	return id
 }
 
 type aggregationIDDecompressor struct {

@@ -185,16 +185,14 @@ func IsDefaultPolicies(ps []Policy) bool {
 	return len(ps) == 0
 }
 
-// ByResolutionAsc implements the sort.Sort interface to sort
-// policies by resolution in ascending order, finest resolution first.
-// If two policies have the same resolution, the one with longer
-// retention period comes first.
-type ByResolutionAsc []Policy
+// ByResolutionAscRetentionDesc implements the sort.Sort interface to sort policies first
+// by resolution in ascending order, then by rention in descending order.
+type ByResolutionAscRetentionDesc []Policy
 
-func (pr ByResolutionAsc) Len() int      { return len(pr) }
-func (pr ByResolutionAsc) Swap(i, j int) { pr[i], pr[j] = pr[j], pr[i] }
+func (pr ByResolutionAscRetentionDesc) Len() int      { return len(pr) }
+func (pr ByResolutionAscRetentionDesc) Swap(i, j int) { pr[i], pr[j] = pr[j], pr[i] }
 
-func (pr ByResolutionAsc) Less(i, j int) bool {
+func (pr ByResolutionAscRetentionDesc) Less(i, j int) bool {
 	p1, p2 := pr[i], pr[j]
 	sp1, sp2 := p1.StoragePolicy, p2.StoragePolicy
 	rw1, rw2 := sp1.Resolution().Window, sp2.Resolution().Window

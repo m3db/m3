@@ -444,24 +444,6 @@ func (id AggregationID) IsDefault() bool {
 	return id == DefaultAggregationID
 }
 
-// Merge returns the result of merging another AggregationID, with an indicater whether
-// any new aggregation type was found in the other AggregationID.
-func (id AggregationID) Merge(other AggregationID) (AggregationID, bool) {
-	var merged bool
-	for i, code := range id {
-		otherCode := other[i]
-		if otherCode == 0 {
-			continue
-		}
-		mergeResult := code | otherCode
-		if code != mergeResult {
-			merged = true
-			id[i] = mergeResult
-		}
-	}
-	return id, merged
-}
-
 // Contains checks if the given aggregation type is contained in the aggregation id.
 func (id AggregationID) Contains(aggType AggregationType) bool {
 	if !aggType.IsValid() {
