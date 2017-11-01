@@ -9,7 +9,7 @@
     , "misspell"
     , "unparam"
     , "megacheck"
-    , "aligncheck"
+    , "maligned"
     , "errcheck" ],
   "Deadline": "3m",
   "EnableGC": true

@@ -993,30 +993,17 @@ func (rs *ruleSet) latestRollupRules() (map[string]*RollupRuleView, error) {
 }
 
 // resolvePolicies resolves the conflicts among policies if any, following the rules below:
-// * If two policies have the same resolution but different retention, the one with longer
-//   retention period is chosen.
-// * If two policies have the same resolution but different custom aggregation types, the
-//   aggregation types will be merged.
+// * Duplicate policies are skipped.
 func resolvePolicies(policies []policy.Policy) []policy.Policy {
 	if len(policies) == 0 {
 		return policies
 	}
-	sort.Sort(policy.ByResolutionAsc(policies))
-	// curr is the index of the last policy kept so far.
+	sort.Sort(policy.ByResolutionAscRetentionDesc(policies))
 	curr := 0
 	for i := 1; i < len(policies); i++ {
-		// If the policy has the same resolution, it must have either the same or shorter retention
-		// period due to sorting, so we keep the one with longer retention period and ignore this
-		// policy.
-		if policies[curr].Resolution().Window == policies[i].Resolution().Window {
-			if res, merged := policies[curr].AggregationID.Merge(policies[i].AggregationID); merged {
-				// Merged custom aggregation functions to the current policy.
-				policies[curr] = policy.NewPolicy(policies[curr].StoragePolicy, res)
-			}
+		if policies[curr] == policies[i] {
 			continue
 		}
-		// Now we are guaranteed the policy has lower resolution than the
-		// current one, so we want to keep it.
 		curr++
 		policies[curr] = policies[i]
 	}

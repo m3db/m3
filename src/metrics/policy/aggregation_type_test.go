@@ -203,25 +203,3 @@ func TestCompressedAggregationTypesIsDefault(t *testing.T) {
 	id[0] = 0
 	require.True(t, id.IsDefault())
 }
-
-func TestCompressedAggregationTypesMerge(t *testing.T) {
-	testcases := []struct {
-		input  AggregationID
-		other  AggregationID
-		result AggregationID
-		merged bool
-	}{
-		{DefaultAggregationID, DefaultAggregationID, DefaultAggregationID, false},
-		{MustCompressAggregationTypes(Mean), DefaultAggregationID, MustCompressAggregationTypes(Mean), false},
-		{DefaultAggregationID, MustCompressAggregationTypes(Mean), MustCompressAggregationTypes(Mean), true},
-		{MustCompressAggregationTypes(Min), MustCompressAggregationTypes(Max), MustCompressAggregationTypes(Min, Max), true},
-		{MustCompressAggregationTypes(Min), MustCompressAggregationTypes(Min, Max), MustCompressAggregationTypes(Min, Max), true},
-		{MustCompressAggregationTypes(Min, Max), MustCompressAggregationTypes(Min), MustCompressAggregationTypes(Min, Max), false},
-	}
-
-	for _, test := range testcases {
-		res, merged := test.input.Merge(test.other)
-		require.Equal(t, test.result, res)
-		require.Equal(t, test.merged, merged)
-	}
-}

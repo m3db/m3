@@ -242,6 +242,6 @@ func TestPoliciesByResolutionAsc(t *testing.T) {
 		NewPolicy(NewStoragePolicy(10*time.Minute, xtime.Minute, 48*time.Hour), AggregationID{100}),
 	}
 	expected := []Policy{inputs[2], inputs[0], inputs[1], inputs[5], inputs[4], inputs[3], inputs[7], inputs[6], inputs[8]}
-	sort.Sort(ByResolutionAsc(inputs))
+	sort.Sort(ByResolutionAscRetentionDesc(inputs))
 	require.Equal(t, expected, inputs)
 }
