@@ -33,6 +33,12 @@ func TestWriteReadTimezone(t *testing.T) {
 	require.Equal(t, "PDT", name)
 	require.Equal(t, offset, -25200)
 
+	// Load locations that we'll need later in the tests
+	pacificLocation, err := time.LoadLocation("US/Pacific")
+	require.NoError(t, err)
+	nyLocation, err := time.LoadLocation("America/New_York")
+	require.NoError(t, err)
+
 	// Setup / start server
 	opts := newTestOptions(t)
 	setup, err := newTestSetup(t, opts)
@@ -41,17 +47,15 @@ func TestWriteReadTimezone(t *testing.T) {
 	require.NoError(t, setup.startServer())
 	require.NoError(t, setup.waitUntilServerIsUp())
 
+	// Make sure that the server's internal clock function returns pacific timezone
 	start := setup.getNowFn()
+	setup.setNowFn(start.In(pacificLocation))
 
 	// Instantiate a client
 	client := setup.m3dbClient
 	session, err := client.DefaultSession()
 	require.NoError(t, err)
 	defer session.Close()
-
-	// Load NY timezone
-	nyLocation, err := time.LoadLocation("America/New_York")
-	require.NoError(t, err)
 
 	// Generate test datapoints (all with NY timezone)
 	namespace := opts.Namespaces()[0].ID().String()
