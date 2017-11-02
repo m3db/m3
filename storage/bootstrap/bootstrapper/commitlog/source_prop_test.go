@@ -133,21 +133,21 @@ func genPropTestInputs(ns string) gopter.Gen {
 		return genPropTestInput(start, numDatapoints, ns)
 	}
 	return gopter.CombineGens(
-		gen.TimeRange(time.Now(), 24*time.Hour),
+		// Runs iterations of the test starting 1000 hours in the past/future
+		gen.TimeRange(time.Now().Add(-1000*time.Hour), 1000*time.Hour),
+		// Run iterations of the test with between 0 and 1000 datapoints
 		gen.IntRange(0, 1000),
 	).FlatMap(curriedGenPropTestInput, reflect.TypeOf(propTestInput{}))
 }
 
-func genPropTestInput(start interface{}, numDatapoints int, ns string) gopter.Gen {
-	startTime := start.(time.Time)
-	return gopter.CombineGens(
-		gen.SliceOfN(numDatapoints, genWrite(startTime, ns)),
-	).Map(func(val []interface{}) propTestInput {
-		return propTestInput{
-			currentTime: startTime,
-			writes:      val[0].([]generatedWrite),
-		}
-	})
+func genPropTestInput(start time.Time, numDatapoints int, ns string) gopter.Gen {
+	return gen.SliceOfN(numDatapoints, genWrite(start, ns)).
+		Map(func(val interface{}) propTestInput {
+			return propTestInput{
+				currentTime: start,
+				writes:      val.([]generatedWrite),
+			}
+		})
 }
 
 func genWrite(start time.Time, ns string) gopter.Gen {
@@ -202,6 +202,7 @@ var metricShard = globalMetricShard{
 	idToShard: make(map[string]uint32),
 }
 
+// idToIDX ensures that each string series ID maps to exactly one UniqueIndex
 func idToIdx(s string) uint64 {
 	metricIdx.Lock()
 	defer metricIdx.Unlock()
@@ -217,6 +218,7 @@ func idToIdx(s string) uint64 {
 	return idx
 }
 
+// idToShard ensures that each string series ID maps to exactly one shard
 func idToShard(s string) uint32 {
 	metricShard.Lock()
 	defer metricShard.Unlock()
