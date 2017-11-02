@@ -146,8 +146,7 @@ func (s *commitLogSource) Read(
 	defer iter.Close()
 
 	var (
-		namespace = ns.ID()
-		// numShards    = len(shardsTimeRanges)
+		namespace    = ns.ID()
 		highestShard = s.findHighestShard(shardsTimeRanges)
 		numConc      = s.opts.EncodingConcurrency()
 		bopts        = s.opts.ResultOptions()
