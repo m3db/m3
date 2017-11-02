@@ -23,9 +23,11 @@
 package integration
 
 import (
-	"os"
+	"fmt"
 	"testing"
 	"time"
+
+	"github.com/m3db/m3db/sharding"
 
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +44,6 @@ func TestDiskCleansupInactiveFilesets(t *testing.T) {
 
 	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
 	blockSize := md.Options().RetentionOptions().BlockSize()
-	retentionPeriod := md.Options().RetentionOptions().RetentionPeriod()
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// Start the server
@@ -68,31 +69,17 @@ func TestDiskCleansupInactiveFilesets(t *testing.T) {
 	writeFilesetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
 	writeCommitLogs(t, filePathPrefix, fileTimes)
 
-	// Now create extra fileset files to be cleaned up
-	extraShard := uint32(10)
-	numTimes = 3
-	fileTimes = make([]time.Time, numTimes)
-	now = testSetup.getNowFn()
-	for i := 0; i < numTimes; i++ {
-		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
-	}
-	writeFilesetFiles(t, testSetup.storageOpts, md, extraShard, fileTimes)
+	namespaceDir := newNamespaceDir(testSetup.storageOpts, md)
+	fmt.Println("this is the namespace", namespaceDir)
 
-	// Move now forward by retentionPeriod + 2 * blockSize so fileset files
-	// and commit logs at now will be deleted
-	newNow := now.Add(retentionPeriod).Add(2 * blockSize)
-	testSetup.setNowFn(newNow)
-	namespaceDir := createNamespaceDirPath(t, testSetup.storageOpts, testNamespaces[0].String())
-	f, _ := os.Open(namespaceDir)
-	defer require.NoError(t, f.Close())
-	dirs, _ := f.Readdir(-1)
-	expectedDirCount := len(dirs) - 1
+	shardSet := testSetup.db.ShardSet()
+	shards := shardSet.All()
+	extraShard := shards[0]
+	shardSet, err = sharding.NewShardSet(shards[1:], shardSet.HashFn())
+	require.NoError(t, err)
+	testSetup.db.AssignShardSet(shardSet)
 
 	// Check if files have been deleted
 	waitTimeout := 30 * time.Second
-	require.NoError(t, waitUntilDataCleanedUp(filePathPrefix, testNamespaces[0], shard, now, waitTimeout))
-	dirs, _ = f.Readdir(-1)
-	newDirCount := len(dirs)
-
-	require.Equal(t, expectedDirCount, newDirCount)
+	require.NoError(t, waitUntilFilesetsCleanedUp(filePathPrefix, md.ID(), extraShard.ID(), waitTimeout))
 }

@@ -66,6 +66,9 @@ type Database interface {
 	// release resources held by owned namespaces
 	Close() error
 
+	// ShardSet returns the set of shards currently associated with this namespace
+	ShardSet() sharding.ShardSet
+
 	// Terminate will close the database for writing and reading. Terminate does
 	// NOT release any resources held by owned namespaces, instead relying upon
 	// the GC to do so.

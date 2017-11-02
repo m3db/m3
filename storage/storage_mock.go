@@ -127,6 +127,16 @@ func (_mr *_MockDatabaseRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
+func (_m *MockDatabase) ShardSet() sharding.ShardSet {
+	ret := _m.ctrl.Call(_m, "ShardSet")
+	ret0, _ := ret[0].(sharding.ShardSet)
+	return ret0
+}
+
+func (_mr *_MockDatabaseRecorder) ShardSet() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ShardSet")
+}
+
 func (_m *MockDatabase) Terminate() error {
 	ret := _m.ctrl.Call(_m, "Terminate")
 	ret0, _ := ret[0].(error)
@@ -310,6 +320,16 @@ func (_m *Mockdatabase) Close() error {
 
 func (_mr *_MockdatabaseRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
+func (_m *Mockdatabase) ShardSet() sharding.ShardSet {
+	ret := _m.ctrl.Call(_m, "ShardSet")
+	ret0, _ := ret[0].(sharding.ShardSet)
+	return ret0
+}
+
+func (_mr *_MockdatabaseRecorder) ShardSet() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ShardSet")
 }
 
 func (_m *Mockdatabase) Terminate() error {

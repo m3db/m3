@@ -24,8 +24,8 @@ package integration
 
 import (
 	"errors"
+	"fmt"
 	"os"
-	"path"
 	"testing"
 	"time"
 
@@ -40,6 +40,14 @@ import (
 var (
 	errDataCleanupTimedOut = errors.New("cleaning up data files took too long")
 )
+
+// nolint: deadcode
+func newNamespaceDir(storageOpts storage.Options, md namespace.Metadata) string {
+	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
+	filePathPrefix := fsOpts.FilePathPrefix()
+	fmt.Println(fs.NamespaceDirPath(filePathPrefix, md.ID()))
+	return fs.NamespaceDirPath(filePathPrefix, md.ID())
+}
 
 // nolint: deadcode
 func newFilesetWriter(storageOpts storage.Options) fs.FileSetWriter {
@@ -62,19 +70,22 @@ func writeFilesetFiles(t *testing.T, storageOpts storage.Options, md namespace.M
 }
 
 // nolint: deadcode
+func writeRealFilesetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []time.Time) {
+	rOpts := md.Options().RetentionOptions()
+	writer := newFilesetWriter(storageOpts)
+	for _, start := range fileTimes {
+		require.NoError(t, writer.Open(md.ID(), rOpts.BlockSize(), shard, start))
+		require.NoError(t, writer.Close())
+	}
+}
+
+// nolint: deadcode
 func writeCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time) {
 	for _, start := range fileTimes {
 		commitLogFile, _ := fs.NextCommitLogsFile(filePathPrefix, start)
 		_, err := os.Create(commitLogFile)
 		require.NoError(t, err)
 	}
-}
-
-// nolint: deadcode
-func createNamespaceDirPath(t *testing.T, storageOpts storage.Options, ns string) string {
-	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
-	prefix := fsOpts.FilePathPrefix()
-	return path.Join(prefix, "data", ns)
 }
 
 type cleanupTimesCommitLog struct {
@@ -147,6 +158,18 @@ func waitUntilDataCleanedUpExtended(
 	}
 
 	if waitUntil(dataCleanedUp, timeout) {
+		return nil
+	}
+	return errDataCleanupTimedOut
+}
+
+func waitUntilFilesetsCleanedUp(filePathPrefix string, namespace ts.ID, extraShard uint32, waitTimeout time.Duration) error {
+	dataCleanedUp := func() bool {
+		shardDir := fs.ShardDirPath(filePathPrefix, namespace, extraShard)
+		return !fs.FileExists(shardDir)
+	}
+
+	if waitUntil(dataCleanedUp, waitTimeout) {
 		return nil
 	}
 	return errDataCleanupTimedOut
