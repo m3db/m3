@@ -22,6 +22,7 @@ package commitlog
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -191,6 +192,9 @@ func (i *iterator) nextReader() bool {
 		return false
 	}
 	if duration != i.opts.BlockSize() {
+		fmt.Println("yolo")
+		fmt.Println(duration)
+		fmt.Println(i.opts.BlockSize())
 		i.err = errDurationDoesNotMatch
 		return false
 	}

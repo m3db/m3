@@ -146,8 +146,8 @@ func (s *commitLogSource) Read(
 	defer iter.Close()
 
 	var (
-		namespace    = ns.ID()
-		numShards    = len(shardsTimeRanges)
+		namespace = ns.ID()
+		// numShards    = len(shardsTimeRanges)
 		highestShard = s.findHighestShard(shardsTimeRanges)
 		numConc      = s.opts.EncodingConcurrency()
 		bopts        = s.opts.ResultOptions()
@@ -215,7 +215,7 @@ func (s *commitLogSource) Read(
 	wg.Wait()
 	s.logEncodingOutcome(workerErrs, iter)
 
-	return s.mergeShards(numShards, bopts, blopts, encoderPool, unmerged), nil
+	return s.mergeShards(int(highestShard+1), bopts, blopts, encoderPool, unmerged), nil
 }
 
 func (s *commitLogSource) findHighestShard(shardsTimeRanges result.ShardTimeRanges) uint32 {
@@ -387,6 +387,9 @@ func (s *commitLogSource) mergeShards(
 	workerPool.Init()
 
 	for shard, unmergedShard := range unmerged {
+		if unmergedShard.encodersBySeries == nil {
+			continue
+		}
 		wg.Add(1)
 		shard, unmergedShard := shard, unmergedShard
 		mergeShardFunc := func() {

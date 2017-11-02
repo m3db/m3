@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -159,6 +160,7 @@ func newCommitLogReader(opts Options) commitLogReader {
 }
 
 func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
+	fmt.Println(filePath)
 	// Commitlog reader does not currently support being reused
 	if r.hasBeenOpened {
 		return timeZero, 0, 0, errCommitLogReaderIsNotReusable

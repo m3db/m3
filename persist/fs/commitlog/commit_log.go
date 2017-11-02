@@ -22,6 +22,7 @@ package commitlog
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -320,6 +321,8 @@ func (l *commitLog) openWriter(now time.Time) error {
 	}
 
 	blockSize := l.opts.BlockSize()
+	fmt.Println("lmao")
+	fmt.Println(blockSize)
 	start := now.Truncate(blockSize)
 
 	if err := l.writer.Open(start, blockSize); err != nil {
