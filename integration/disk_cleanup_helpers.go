@@ -70,16 +70,6 @@ func writeFilesetFiles(t *testing.T, storageOpts storage.Options, md namespace.M
 }
 
 // nolint: deadcode
-func writeRealFilesetFiles(t *testing.T, storageOpts storage.Options, md namespace.Metadata, shard uint32, fileTimes []time.Time) {
-	rOpts := md.Options().RetentionOptions()
-	writer := newFilesetWriter(storageOpts)
-	for _, start := range fileTimes {
-		require.NoError(t, writer.Open(md.ID(), rOpts.BlockSize(), shard, start))
-		require.NoError(t, writer.Close())
-	}
-}
-
-// nolint: deadcode
 func writeCommitLogs(t *testing.T, filePathPrefix string, fileTimes []time.Time) {
 	for _, start := range fileTimes {
 		commitLogFile, _ := fs.NextCommitLogsFile(filePathPrefix, start)
@@ -163,6 +153,7 @@ func waitUntilDataCleanedUpExtended(
 	return errDataCleanupTimedOut
 }
 
+// nolint: deadcode
 func waitUntilFilesetsCleanedUp(filePathPrefix string, namespace ts.ID, extraShard uint32, waitTimeout time.Duration) error {
 	dataCleanedUp := func() bool {
 		shardDir := fs.ShardDirPath(filePathPrefix, namespace, extraShard)
