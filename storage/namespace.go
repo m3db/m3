@@ -675,6 +675,9 @@ func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {
 	return multiErr.FinalError()
 }
 
+// DeleteInactiveFilesets deletes the filesets associated with shards that are no longger
+// owned by the namespace. This logic will soon be moved to the cleanup manager to handle
+// namespace deletion as well as fileset deletion.
 func (n *dbNamespace) DeleteInactiveFilesets() error {
 	var shardIds []uint32
 	filePathPrefix := n.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()

@@ -171,7 +171,7 @@ func TestDeleteInactiveFiles(t *testing.T) {
 	shards := []uint32{uint32(4), uint32(5), uint32(6)}
 	for _, shard := range shards {
 		shardDir := ShardDirPath(tempPrefix, testNs1ID, shard)
-		err := os.MkdirAll(shardDir, os.FileMode(uint32(0777)))
+		err := os.MkdirAll(shardDir, defaultNewDirectoryMode)
 		require.NoError(t, err)
 		defer os.RemoveAll(shardDir)
 
