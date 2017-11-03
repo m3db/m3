@@ -40,7 +40,7 @@ var (
 	errDataCleanupTimedOut = errors.New("cleaning up data files took too long")
 )
 
-// nolint: deadcode
+// nolint: deadcode, unused
 func newNamespaceDir(storageOpts storage.Options, md namespace.Metadata) string {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	filePathPrefix := fsOpts.FilePathPrefix()
