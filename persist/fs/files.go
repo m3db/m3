@@ -257,11 +257,14 @@ func DeleteInactiveDirectories(parentDirectory string, activeSubDirectories []st
 	}
 
 	for _, dir := range activeSubDirectories {
+		fmt.Println("active", dir)
 		activeDirNames[dir] = struct{}{}
 	}
 
 	for dirName, dirPath := range allDirs {
+		fmt.Println("full thing", dirName, dirPath)
 		if _, ok := activeDirNames[dirName]; !ok {
+			fmt.Println("going to delete", dirName, dirPath)
 			toDelete = append(toDelete, dirPath)
 		}
 	}
