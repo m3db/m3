@@ -24,7 +24,6 @@ package integration
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -45,7 +44,6 @@ var (
 func newNamespaceDir(storageOpts storage.Options, md namespace.Metadata) string {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
 	filePathPrefix := fsOpts.FilePathPrefix()
-	fmt.Println(fs.NamespaceDirPath(filePathPrefix, md.ID()))
 	return fs.NamespaceDirPath(filePathPrefix, md.ID())
 }
 

@@ -21,7 +21,6 @@
 package fs
 
 import (
-	"fmt"
 	"os"
 	"time"
 
@@ -86,7 +85,6 @@ func (w *writer) Open(
 	blockStart time.Time,
 ) error {
 	shardDir := ShardDirPath(w.filePathPrefix, namespace, shard)
-	fmt.Println("shard dir path", shardDir)
 	if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 		return err
 	}

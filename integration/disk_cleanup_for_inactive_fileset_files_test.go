@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -68,9 +67,6 @@ func TestDiskCleansupInactiveFilesets(t *testing.T) {
 	}
 	writeFilesetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
 	writeCommitLogs(t, filePathPrefix, fileTimes)
-
-	namespaceDir := newNamespaceDir(testSetup.storageOpts, md)
-	fmt.Println("this is the namespace", namespaceDir)
 
 	shardSet := testSetup.db.ShardSet()
 	shards := shardSet.All()
