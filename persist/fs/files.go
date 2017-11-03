@@ -245,7 +245,30 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 	return filesBefore(matched, t)
 }
 
-// DeleteInactiveFilesets deletes any filesets that are not currently owned by the namespace
+// DeleteInactiveDirectories deletes the directories in a given parent directory
+// that are no longer active according to the provided active directories
+func DeleteInactiveDirectories(parentDirectory string, activeSubDirectories []string) error {
+	var toDelete []string
+	activeDirNames := make(map[string]struct{})
+	allDirs, err := findSubDirectoriesAndPaths(parentDirectory)
+
+	if err != nil {
+		return err
+	}
+
+	for _, dir := range activeSubDirectories {
+		activeDirNames[dir] = struct{}{}
+	}
+
+	for dirName, dirPath := range allDirs {
+		if _, ok := activeDirNames[dirName]; !ok {
+			toDelete = append(toDelete, dirPath)
+		}
+	}
+
+	return DeleteDirectories(toDelete)
+}
+
 func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards []uint32) error {
 	var toDelete []string
 	activeDirNames := make(map[string]struct{})
