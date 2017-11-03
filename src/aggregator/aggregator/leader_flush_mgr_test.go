@@ -75,6 +75,31 @@ var (
 		},
 	}
 
+	testFlushBuckets2 = []*flushBucket{
+		&flushBucket{
+			interval: time.Second,
+			flushers: []PeriodicFlusher{
+				&mockFlusher{
+					shard:            0,
+					resolution:       time.Second,
+					flushInterval:    time.Second,
+					lastFlushedNanos: 3669000000000,
+				},
+			},
+		},
+		&flushBucket{
+			interval: time.Hour,
+			flushers: []PeriodicFlusher{
+				&mockFlusher{
+					shard:            3,
+					resolution:       time.Hour,
+					flushInterval:    time.Hour,
+					lastFlushedNanos: 7200000000000,
+				},
+			},
+		},
+	}
+
 	testFlushTimes = &schema.ShardSetFlushTimes{
 		ByShard: map[uint32]*schema.ShardFlushTimes{
 			0: &schema.ShardFlushTimes{
@@ -91,6 +116,32 @@ var (
 			2: &schema.ShardFlushTimes{
 				ByResolution: map[int64]int64{
 					3600000000000: 3600000000000,
+				},
+			},
+		},
+	}
+
+	testFlushTimes2 = &schema.ShardSetFlushTimes{
+		ByShard: map[uint32]*schema.ShardFlushTimes{
+			0: &schema.ShardFlushTimes{
+				ByResolution: map[int64]int64{
+					1000000000:  3669000000000,
+					60000000000: 3660000000000,
+				},
+			},
+			1: &schema.ShardFlushTimes{
+				ByResolution: map[int64]int64{
+					1000000000: 3668000000000,
+				},
+			},
+			2: &schema.ShardFlushTimes{
+				ByResolution: map[int64]int64{
+					3600000000000: 3600000000000,
+				},
+			},
+			3: &schema.ShardFlushTimes{
+				ByResolution: map[int64]int64{
+					3600000000000: 7200000000000,
 				},
 			},
 		},
@@ -140,7 +191,7 @@ func TestLeaderFlushManagerPrepareNoFlushNoPersist(t *testing.T) {
 	require.Equal(t, 0, storeAsyncCount)
 }
 
-func TestLeaderFlushManagerPrepareNoFlushWithPersist(t *testing.T) {
+func TestLeaderFlushManagerPrepareNoFlushWithPersistOnce(t *testing.T) {
 	var (
 		storeAsyncCount int
 		stored          *schema.ShardSetFlushTimes
@@ -170,6 +221,52 @@ func TestLeaderFlushManagerPrepareNoFlushWithPersist(t *testing.T) {
 	require.False(t, mgr.flushedSincePersist)
 	require.Equal(t, 1, storeAsyncCount)
 	require.Equal(t, testFlushTimes, stored)
+}
+
+func TestLeaderFlushManagerPrepareNoFlushWithPersistTwice(t *testing.T) {
+	var (
+		storeAsyncCount int
+		stored          *schema.ShardSetFlushTimes
+		now             = time.Unix(1234, 0)
+		nowFn           = func() time.Time { return now }
+		doneCh          = make(chan struct{})
+	)
+	opts := NewFlushManagerOptions().
+		SetJitterEnabled(false).
+		SetFlushTimesPersistEvery(time.Second)
+	mgr := newLeaderFlushManager(doneCh, opts).(*leaderFlushManager)
+	mgr.nowFn = nowFn
+	mgr.lastPersistAtNanos = now.Add(-2 * time.Second).UnixNano()
+	mgr.flushedSincePersist = true
+	mgr.flushTimesManager = &mockFlushTimesManager{
+		storeAsyncFn: func(value *schema.ShardSetFlushTimes) error {
+			storeAsyncCount++
+			stored = value
+			return nil
+		},
+	}
+
+	// Persist for the first time.
+	mgr.Init(testFlushBuckets)
+	flushTask, dur := mgr.Prepare(testFlushBuckets)
+	require.Nil(t, flushTask)
+	require.Equal(t, time.Second, dur)
+	require.False(t, mgr.flushedSincePersist)
+	require.Equal(t, 1, storeAsyncCount)
+	require.Equal(t, testFlushTimes, stored)
+
+	// Reset state in preparation for the second persistence.
+	mgr.flushedSincePersist = true
+	mgr.lastPersistAtNanos = now.Add(-2 * time.Second).UnixNano()
+
+	// Persist for the second time.
+	mgr.Init(testFlushBuckets2)
+	flushTask, dur = mgr.Prepare(testFlushBuckets2)
+	require.Nil(t, flushTask)
+	require.Equal(t, time.Second, dur)
+	require.False(t, mgr.flushedSincePersist)
+	require.Equal(t, 2, storeAsyncCount)
+	require.Equal(t, testFlushTimes2, stored)
 }
 
 func TestLeaderFlushManagerPrepareWithFlushAndPersist(t *testing.T) {
