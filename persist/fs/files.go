@@ -97,6 +97,19 @@ func DeleteFiles(filePaths []string) error {
 	return multiErr.FinalError()
 }
 
+// DeleteDirectories delets a set of directories and its contents, returning all
+// of the errors encountered during the deletion process.
+func DeleteDirectories(dirPaths []string) error {
+	multiErr := xerrors.NewMultiError()
+	for _, dir := range dirPaths {
+		if err := os.RemoveAll(dir); err != nil {
+			detailedErr := fmt.Errorf("failed to remove dir %s: %v", dir, err)
+			multiErr = multiErr.Add(detailedErr)
+		}
+	}
+	return multiErr.FinalError()
+}
+
 // byTimeAscending sorts files by their block start times in ascending order.
 // If the files do not have block start times in their names, the result is undefined.
 type byTimeAscending []string
@@ -232,6 +245,30 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 	return filesBefore(matched, t)
 }
 
+// DeleteInactiveFilesets deletes any filesets that are not currently owned by the namespace
+func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards []uint32) error {
+	var toDelete []string
+	activeDirNames := make(map[string]struct{})
+	namespaceDirPath := NamespaceDirPath(filePathPrefix, namespace)
+	allShardDirs, err := findSubDirectoriesAndPaths(namespaceDirPath)
+	if err != nil {
+		return nil
+	}
+
+	// Create shard set, might also be useful to just send in as strings?
+	for _, shard := range activeShards {
+		shardName := fmt.Sprint(shard)
+		activeDirNames[shardName] = struct{}{}
+	}
+
+	for dirName, dirPath := range allShardDirs {
+		if _, ok := activeDirNames[dirName]; !ok {
+			toDelete = append(toDelete, dirPath)
+		}
+	}
+	return DeleteDirectories(toDelete)
+}
+
 // CommitLogFiles returns all the commit log files in the commit logs directory.
 func CommitLogFiles(commitLogsDir string) ([]string, error) {
 	return commitlogFiles(commitLogsDir, commitLogFilePattern)
@@ -267,6 +304,31 @@ func findFiles(fileDir string, pattern string, fn toSortableFn) ([]string, error
 	}
 	sort.Sort(fn(matched))
 	return matched, nil
+}
+
+type directoryNamesToPaths map[string]string
+
+func findSubDirectoriesAndPaths(directoryPath string) (directoryNamesToPaths, error) {
+	parent, err := os.Open(directoryPath)
+	if err != nil {
+		return nil, err
+	}
+
+	subDirectoriesToPaths := make(directoryNamesToPaths)
+	subDirNames, err := parent.Readdirnames(-1)
+	if err != nil {
+		return nil, err
+	}
+
+	err = parent.Close()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, dirName := range subDirNames {
+		subDirectoriesToPaths[dirName] = path.Join(directoryPath, dirName)
+	}
+	return subDirectoriesToPaths, nil
 }
 
 func filesetFiles(filePathPrefix string, namespace ts.ID, shard uint32, pattern string) ([]string, error) {

@@ -40,6 +40,13 @@ var (
 	errDataCleanupTimedOut = errors.New("cleaning up data files took too long")
 )
 
+// nolint: deadcode, unused
+func newNamespaceDir(storageOpts storage.Options, md namespace.Metadata) string {
+	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
+	filePathPrefix := fsOpts.FilePathPrefix()
+	return fs.NamespaceDirPath(filePathPrefix, md.ID())
+}
+
 // nolint: deadcode
 func newFilesetWriter(storageOpts storage.Options) fs.FileSetWriter {
 	fsOpts := storageOpts.CommitLogOptions().FilesystemOptions()
@@ -139,6 +146,19 @@ func waitUntilDataCleanedUpExtended(
 	}
 
 	if waitUntil(dataCleanedUp, timeout) {
+		return nil
+	}
+	return errDataCleanupTimedOut
+}
+
+// nolint: deadcode
+func waitUntilFilesetsCleanedUp(filePathPrefix string, namespace ts.ID, extraShard uint32, waitTimeout time.Duration) error {
+	dataCleanedUp := func() bool {
+		shardDir := fs.ShardDirPath(filePathPrefix, namespace, extraShard)
+		return !fs.FileExists(shardDir)
+	}
+
+	if waitUntil(dataCleanedUp, waitTimeout) {
 		return nil
 	}
 	return errDataCleanupTimedOut

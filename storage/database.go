@@ -336,6 +336,13 @@ func (d *db) AssignShardSet(shardSet sharding.ShardSet) {
 	d.queueBootstrapWithLock()
 }
 
+func (d *db) ShardSet() sharding.ShardSet {
+	d.RLock()
+	defer d.RUnlock()
+	shardSet := d.shardSet
+	return shardSet
+}
+
 func (d *db) queueBootstrapWithLock() {
 	// NB(r): Trigger another bootstrap, if already bootstrapping this will
 	// enqueue a new bootstrap to execute before the current bootstrap
