@@ -55,7 +55,7 @@ func TestFollowerFlushManagerOpen(t *testing.T) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
-	require.Equal(t, testFlushTimes, mgr.proto)
+	require.Equal(t, testFlushTimes, mgr.received)
 	close(doneCh)
 	mgr.Close()
 }
@@ -87,7 +87,7 @@ func TestFollowerFlushManagerCanNotLeadFlushWindowsNotEnded(t *testing.T) {
 	}
 	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
-	mgr.proto = testFlushTimes
+	mgr.processed = testFlushTimes
 	mgr.openedAt = time.Unix(3624, 0)
 	require.False(t, mgr.CanLead())
 }
@@ -100,7 +100,7 @@ func TestFollowerFlushManagerCanLead(t *testing.T) {
 	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	mgr.flushTimesState = flushTimesProcessed
-	mgr.proto = testFlushTimes
+	mgr.processed = testFlushTimes
 	mgr.openedAt = time.Unix(3599, 0)
 	require.True(t, mgr.CanLead())
 }
@@ -135,7 +135,7 @@ func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	mgr.nowFn = nowFn
 	mgr.flushTimesState = flushTimesUpdated
-	mgr.proto = testFlushTimes
+	mgr.received = testFlushTimes
 
 	flushTask, dur := mgr.Prepare(testFlushBuckets)
 
@@ -278,7 +278,7 @@ func TestFollowerFlushManagerWatchFlushTimes(t *testing.T) {
 	require.NoError(t, err)
 	for {
 		mgr.RLock()
-		proto := mgr.proto
+		proto := mgr.received
 		flushTimesState := mgr.flushTimesState
 		mgr.RUnlock()
 		if flushTimesState == flushTimesUpdated {

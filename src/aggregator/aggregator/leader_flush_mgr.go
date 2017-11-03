@@ -33,6 +33,11 @@ import (
 	"github.com/uber-go/tally"
 )
 
+const (
+	defaultInitialNumFlushers        = 128
+	defaultInitialFlushTimesCapacity = 32
+)
+
 type leaderFlushManagerMetrics struct {
 	queueSize tally.Gauge
 }
@@ -64,6 +69,7 @@ type leaderFlushManager struct {
 	rand                *rand.Rand
 	randFn              randFn
 	flushTimes          flushMetadataHeap
+	flushedNanos        map[flusherID]int64
 	lastPersistAtNanos  int64
 	flushedSincePersist bool
 	flushTask           *leaderFlushTask
@@ -93,6 +99,7 @@ func newLeaderFlushManager(
 		doneCh:                 doneCh,
 		rand:                   rand,
 		randFn:                 rand.Int63n,
+		flushedNanos:           make(map[flusherID]int64, defaultInitialNumFlushers),
 		lastPersistAtNanos:     nowFn().UnixNano(),
 		metrics:                newLeaderFlushManagerMetrics(scope),
 	}
@@ -215,26 +222,41 @@ func (mgr *leaderFlushManager) computeNextFlushNanos(flushInterval time.Duration
 	return nextFlushNanos
 }
 
+func (mgr *leaderFlushManager) collectFlushTimesWithLock(
+	buckets []*flushBucket,
+) {
+	for _, bucket := range buckets {
+		for _, flusher := range bucket.flushers {
+			flusherID := flusherID{
+				shard:      flusher.Shard(),
+				resolution: flusher.Resolution(),
+			}
+			mgr.flushedNanos[flusherID] = flusher.LastFlushedNanos()
+		}
+	}
+}
+
 func (mgr *leaderFlushManager) prepareFlushTimesWithLock(
 	buckets []*flushBucket,
 ) schema.ShardSetFlushTimes {
+	// Collect the flush times from all the flushers in the buckets.
+	mgr.collectFlushTimesWithLock(buckets)
+
+	// Convert the collected flush times to proto message for persistence.
 	proto := schema.ShardSetFlushTimes{
 		ByShard: make(map[uint32]*schema.ShardFlushTimes, defaultInitialFlushTimesCapacity),
 	}
-	for _, bucket := range buckets {
-		for _, flusher := range bucket.flushers {
-			shard := flusher.Shard()
-			shardFlushTimes, exists := proto.ByShard[shard]
-			if !exists {
-				shardFlushTimes = &schema.ShardFlushTimes{
-					ByResolution: make(map[int64]int64, 2),
-				}
-				proto.ByShard[shard] = shardFlushTimes
+	for flusherID, lastFlushedNanos := range mgr.flushedNanos {
+		shard := flusherID.shard
+		shardFlushTimes, exists := proto.ByShard[shard]
+		if !exists {
+			shardFlushTimes = &schema.ShardFlushTimes{
+				ByResolution: make(map[int64]int64, 2),
 			}
-			resolution := flusher.Resolution()
-			lastFlushedNanos := flusher.LastFlushedNanos()
-			shardFlushTimes.ByResolution[int64(resolution)] = lastFlushedNanos
+			proto.ByShard[shard] = shardFlushTimes
 		}
+		resolution := flusherID.resolution
+		shardFlushTimes.ByResolution[int64(resolution)] = lastFlushedNanos
 	}
 	return proto
 }
@@ -288,6 +310,12 @@ func (t *leaderFlushTask) Run() {
 	}
 	wgWorkers.Wait()
 	t.duration.Record(mgr.nowFn().Sub(start))
+}
+
+// flushID is the id of a flusher.
+type flusherID struct {
+	shard      uint32
+	resolution time.Duration
 }
 
 // flushMetadata contains metadata information for a flush.
