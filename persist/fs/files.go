@@ -255,7 +255,7 @@ func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards
 		return nil
 	}
 
-	//create shard set, might also be useful to just send in as strings?
+	// Create shard set, might also be useful to just send in as strings?
 	for _, shard := range activeShards {
 		shardName := fmt.Sprint(shard)
 		activeDirNames[shardName] = struct{}{}
@@ -313,13 +313,18 @@ func findSubDirectoriesAndPaths(directoryPath string) (directoryNamesToPaths, er
 	if err != nil {
 		return nil, err
 	}
-	defer parent.Close()
 
 	subDirectoriesToPaths := make(directoryNamesToPaths)
 	subDirNames, err := parent.Readdirnames(-1)
 	if err != nil {
 		return nil, err
 	}
+
+	err = parent.Close()
+	if err != nil {
+		return nil, err
+	}
+
 	for _, dirName := range subDirNames {
 		subDirectoriesToPaths[dirName] = path.Join(directoryPath, dirName)
 	}
