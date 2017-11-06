@@ -141,7 +141,7 @@ func writeCommitLogDataBase(
 		ctx := context.NewContext()
 		defer ctx.Close()
 
-		m := map[time.Time]generate.SeriesBlock{
+		m := map[xtime.UnixNano]generate.SeriesBlock{
 			ts: blk,
 		}
 
