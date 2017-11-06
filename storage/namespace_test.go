@@ -434,11 +434,6 @@ func TestNamespaceCleanupFilesetDontNeedCleanup(t *testing.T) {
 	require.NoError(t, ns.CleanupFileset(time.Now()))
 }
 
-func TestNamespaceDeleteInactiveFilesetsError(t *testing.T) {
-	ns := newTestNamespaceWithIDOpts(t, defaultTestNs1ID, namespace.NewOptions().SetNeedsFilesetCleanup(false))
-	require.NoError(t, ns.DeleteInactiveFilesets())
-}
-
 func TestNamespaceCleanupFilesetAllShards(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
