@@ -430,10 +430,6 @@ func (l *commitLog) writeBehind(
 	return nil
 }
 
-func (l *commitLog) Iter() (Iterator, error) {
-	return NewIterator(l.opts)
-}
-
 func (l *commitLog) Close() error {
 	l.Lock()
 	if l.closed {

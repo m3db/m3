@@ -21,7 +21,6 @@
 package commitlog
 
 import (
-	"bufio"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -31,7 +30,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/schema"
@@ -537,113 +535,4 @@ func (r *reader) close() error {
 		return nil
 	}
 	return r.chunkReader.fd.Close()
-}
-
-type chunkReader struct {
-	fd        *os.File
-	buffer    *bufio.Reader
-	remaining int
-	charBuff  []byte
-}
-
-func newChunkReader(bufferLen int) *chunkReader {
-	return &chunkReader{
-		buffer:   bufio.NewReaderSize(nil, bufferLen),
-		charBuff: make([]byte, 1),
-	}
-}
-
-func (r *chunkReader) reset(fd *os.File) {
-	r.fd = fd
-	r.buffer.Reset(fd)
-	r.remaining = 0
-}
-
-func (r *chunkReader) readHeader() error {
-	header, err := r.buffer.Peek(chunkHeaderLen)
-	if err != nil {
-		return err
-	}
-
-	sizeStart, sizeEnd :=
-		0, chunkHeaderSizeLen
-	checksumSizeStart, checksumSizeEnd :=
-		sizeEnd, sizeEnd+chunkHeaderSizeLen
-	checksumDataStart, checksumDataEnd :=
-		checksumSizeEnd, checksumSizeEnd+chunkHeaderChecksumDataLen
-
-	size := endianness.Uint32(header[sizeStart:sizeEnd])
-	checksumSize := digest.
-		Buffer(header[checksumSizeStart:checksumSizeEnd]).
-		ReadDigest()
-	checksumData := digest.
-		Buffer(header[checksumDataStart:checksumDataEnd]).
-		ReadDigest()
-
-	// Verify size checksum
-	if digest.Checksum(header[:4]) != checksumSize {
-		return errCommitLogReaderChunkSizeChecksumMismatch
-	}
-
-	// Discard the peeked header
-	if _, err := r.buffer.Discard(chunkHeaderLen); err != nil {
-		return err
-	}
-
-	// Verify data checksum
-	data, err := r.buffer.Peek(int(size))
-	if err != nil {
-		return err
-	}
-
-	if digest.Checksum(data) != checksumData {
-		return errCommitLogReaderChunkSizeChecksumMismatch
-	}
-
-	// Set remaining data to be consumed
-	r.remaining = int(size)
-
-	return nil
-}
-
-func (r *chunkReader) Read(p []byte) (int, error) {
-	size := len(p)
-	read := 0
-	// Check if requesting for size larger than this chunk
-	if r.remaining < size {
-		// Copy any remaining
-		if r.remaining > 0 {
-			n, err := r.buffer.Read(p[:r.remaining])
-			r.remaining -= n
-			read += n
-			if err != nil {
-				return read, err
-			}
-		}
-
-		// Read next header
-		if err := r.readHeader(); err != nil {
-			return read, err
-		}
-
-		// Reset read target
-		p = p[read:]
-
-		// Perform consecutive read(s)
-		n, err := r.Read(p)
-		read += n
-		return read, err
-	}
-
-	n, err := r.buffer.Read(p)
-	r.remaining -= n
-	read += n
-	return read, err
-}
-
-func (r *chunkReader) ReadByte() (c byte, err error) {
-	if _, err := r.Read(r.charBuff); err != nil {
-		return byte(0), err
-	}
-	return r.charBuff[0], nil
 }

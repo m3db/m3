@@ -61,9 +61,6 @@ type CommitLog interface {
 		annotation ts.Annotation,
 	) error
 
-	// Iter returns an iterator for accessing commit logs
-	Iter() (Iterator, error)
-
 	// Close the commit log
 	Close() error
 }

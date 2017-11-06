@@ -298,7 +298,7 @@ func flushUntilDone(l *commitLog, wg *sync.WaitGroup) {
 }
 
 func assertCommitLogWritesByIterating(t *testing.T, l *commitLog, writes []testWrite) {
-	iter, err := l.Iter()
+	iter, err := NewIterator(l.opts, ReadAllPredicate())
 	assert.NoError(t, err)
 	defer iter.Close()
 
@@ -391,7 +391,7 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	assert.NoError(t, commitLog.Close())
 
 	// Make sure we don't panic / deadlock
-	iter, err := commitLog.Iter()
+	iter, err := NewIterator(opts, ReadAllPredicate())
 	assert.NoError(t, err)
 	for iter.Next() {
 		assert.NoError(t, iter.Err())
@@ -438,6 +438,56 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	reader.Close()
 	_, _, _, err = reader.Open(files[0])
 	assert.Equal(t, errCommitLogReaderIsNotReusable, err)
+}
+
+func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
+	clock := mclock.NewMock()
+	opts, scope := newTestOptions(t, overrides{
+		clock:    clock,
+		strategy: StrategyWriteWait,
+	})
+
+	blockSize := opts.BlockSize()
+	alignedStart := clock.Now().Truncate(blockSize)
+
+	// Writes spaced apart by block size
+	writes := []testWrite{
+		{testSeries(0, "foo.bar", 127), alignedStart, 123.456, xtime.Millisecond, nil, nil},
+		{testSeries(1, "foo.baz", 150), alignedStart.Add(1 * blockSize), 456.789, xtime.Millisecond, nil, nil},
+		{testSeries(2, "foo.qux", 291), alignedStart.Add(2 * blockSize), 789.123, xtime.Millisecond, nil, nil},
+	}
+	defer cleanup(t, opts)
+
+	commitLog := newTestCommitLog(t, opts)
+
+	// Write, making sure that the clock is set properly for each write
+	for _, write := range writes {
+		clock.Add(write.t.Sub(clock.Now()))
+		wg := writeCommitLogs(t, scope, commitLog, []testWrite{write})
+		// Flush until finished, this is required as timed flusher not active when clock is mocked
+		flushUntilDone(commitLog, wg)
+	}
+
+	// Close the commit log and consequently flush
+	assert.NoError(t, commitLog.Close())
+
+	// Make sure multiple commitlog files were generated
+	fsopts := opts.FilesystemOptions()
+	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
+	assert.NoError(t, err)
+	assert.True(t, len(files) == 3)
+
+	// This predicate should eliminate the first commitlog file
+	commitLogPredicate := func(entryTime time.Time, entryDuration time.Duration) bool {
+		return entryTime.After(alignedStart)
+	}
+
+	// Assert that the commitlog iterator honors the predicate and only uses
+	// 2 of the 3 files
+	iter, err := NewIterator(opts, commitLogPredicate)
+	assert.NoError(t, err)
+	iterStruct := iter.(*iterator)
+	assert.True(t, len(iterStruct.files) == 2)
 }
 
 func TestCommitLogWriteBehind(t *testing.T) {

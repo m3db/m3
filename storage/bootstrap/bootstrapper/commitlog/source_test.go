@@ -99,7 +99,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	src.newIteratorFn = func(_ commitlog.Options) (commitlog.Iterator, error) {
+	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.ReadEntryPredicate) (commitlog.Iterator, error) {
 		return nil, fmt.Errorf("an error")
 	}
 
@@ -145,7 +145,7 @@ func TestReadOrderedValues(t *testing.T) {
 		// "baz" is in shard 2 and should not be returned
 		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, nil},
 	}
-	src.newIteratorFn = func(_ commitlog.Options) (commitlog.Iterator, error) {
+	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.ReadEntryPredicate) (commitlog.Iterator, error) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
@@ -189,7 +189,7 @@ func TestReadNamespaceFiltering(t *testing.T) {
 		// "baz" is in another namespace should not be returned
 		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, nil},
 	}
-	src.newIteratorFn = func(_ commitlog.Options) (commitlog.Iterator, error) {
+	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.ReadEntryPredicate) (commitlog.Iterator, error) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
@@ -230,7 +230,7 @@ func TestReadUnorderedValues(t *testing.T) {
 		{foo, start.Add(3 * time.Minute), 4.0, xtime.Second, nil},
 		{foo, start, 5.0, xtime.Second, nil},
 	}
-	src.newIteratorFn = func(_ commitlog.Options) (commitlog.Iterator, error) {
+	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.ReadEntryPredicate) (commitlog.Iterator, error) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
@@ -270,7 +270,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 		{foo, start.Add(1 * time.Minute), 3.0, xtime.Nanosecond, nil},
 		{foo, end.Truncate(blockSize).Add(blockSize).Add(time.Nanosecond), 4.0, xtime.Nanosecond, nil},
 	}
-	src.newIteratorFn = func(_ commitlog.Options) (commitlog.Iterator, error) {
+	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.ReadEntryPredicate) (commitlog.Iterator, error) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
@@ -281,6 +281,115 @@ func TestReadTrimsToRanges(t *testing.T) {
 	require.Equal(t, 1, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
 	requireShardResults(t, values[1:3], res.ShardResults(), opts)
+}
+
+func TestNewReadCommitLogPredicate(t *testing.T) {
+	testCases := []struct {
+		title                    string
+		commitLogTimes           []time.Time
+		shardTimeRanges          []xtime.Range
+		bufferPast               time.Duration
+		bufferFuture             time.Duration
+		blockSize                time.Duration
+		expectedPredicateResults []bool
+	}{
+		{
+			title: "Test no overlap",
+			commitLogTimes: []time.Time{
+				time.Time{},
+			},
+			shardTimeRanges: []xtime.Range{
+				xtime.Range{
+					Start: time.Time{}.Add(2 * time.Hour),
+					End:   time.Time{}.Add(3 * time.Hour),
+				},
+			},
+			bufferPast:               5 * time.Minute,
+			bufferFuture:             10 * time.Minute,
+			blockSize:                time.Hour,
+			expectedPredicateResults: []bool{false},
+		},
+		{
+			title: "Test overlap",
+			commitLogTimes: []time.Time{
+				time.Time{},
+			},
+			shardTimeRanges: []xtime.Range{
+				xtime.Range{
+					Start: time.Time{},
+					End:   time.Time{}.Add(time.Hour),
+				},
+			},
+			bufferPast:               5 * time.Minute,
+			bufferFuture:             10 * time.Minute,
+			blockSize:                time.Hour,
+			expectedPredicateResults: []bool{true},
+		},
+		{
+			title: "Test overlap bufferFuture",
+			commitLogTimes: []time.Time{
+				time.Time{},
+			},
+			shardTimeRanges: []xtime.Range{
+				xtime.Range{
+					Start: time.Time{}.Add(1*time.Hour + 1*time.Minute),
+					End:   time.Time{}.Add(2 * time.Hour),
+				},
+			},
+			bufferPast:               5 * time.Minute,
+			bufferFuture:             10 * time.Minute,
+			blockSize:                time.Hour,
+			expectedPredicateResults: []bool{true},
+		},
+		{
+			title: "Test overlap bufferPast",
+			commitLogTimes: []time.Time{
+				time.Time{},
+			},
+			shardTimeRanges: []xtime.Range{
+				xtime.Range{
+					Start: time.Time{}.Add(-1 * time.Hour),
+					End:   time.Time{}.Add(-1 * time.Minute),
+				},
+			},
+			bufferPast:               5 * time.Minute,
+			bufferFuture:             10 * time.Minute,
+			blockSize:                time.Hour,
+			expectedPredicateResults: []bool{true},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.title, func(t *testing.T) {
+			// Setup opts with specified blocksize
+			opts := testOptions()
+			commitLogOptions := opts.CommitLogOptions().SetBlockSize(tc.blockSize)
+			opts = opts.SetCommitLogOptions(commitLogOptions)
+
+			// Setup namespace with specified bufferPast / bufferFuture
+			nsOptions := namespace.NewOptions()
+			retentionOptions := nsOptions.RetentionOptions().
+				SetBufferPast(tc.bufferPast).
+				SetBufferFuture(tc.bufferFuture)
+			nsOptions = nsOptions.SetRetentionOptions(retentionOptions)
+			ns, err := namespace.NewMetadata(testNamespaceID, nsOptions)
+			require.NoError(t, err)
+
+			// Set up shardTimeRanges with specified ranges
+			shardTimeRanges := result.ShardTimeRanges{}
+			for i, xrange := range tc.shardTimeRanges {
+				ranges := xtime.NewRanges().AddRange(xrange)
+				shardTimeRanges[uint32(i)] = ranges
+			}
+
+			// Instantiate and test predicate
+			predicate := newReadCommitLogPredicate(ns, shardTimeRanges, opts)
+			for i, commitLogTime := range tc.commitLogTimes {
+				predicateResult := predicate(commitLogTime, tc.blockSize)
+				require.Equal(t, tc.expectedPredicateResults[i], predicateResult)
+			}
+		})
+	}
 }
 
 type testValue struct {

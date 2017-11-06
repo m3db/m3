@@ -100,6 +100,28 @@ func writeCommitLogData(
 	data generate.SeriesBlocksByStart,
 	namespace ts.ID,
 ) {
+	writeCommitLogDataBase(t, s, data, namespace, nil)
+}
+
+// nolint: deadcode
+func writeCommitLogDataSpecifiedTS(
+	t *testing.T,
+	s *testSetup,
+	data generate.SeriesBlocksByStart,
+	namespace ts.ID,
+	ts time.Time,
+) {
+	writeCommitLogDataBase(t, s, data, namespace, &ts)
+}
+
+// nolint: deadcode
+func writeCommitLogDataBase(
+	t *testing.T,
+	s *testSetup,
+	data generate.SeriesBlocksByStart,
+	namespace ts.ID,
+	specifiedTS *time.Time,
+) {
 	// ensure commit log is flushing frequently
 	opts := s.storageOpts.CommitLogOptions()
 	require.Equal(t, defaultIntegrationTestFlushInterval, opts.FlushInterval())
@@ -110,11 +132,16 @@ func writeCommitLogData(
 	)
 
 	for ts, blk := range data {
+		if specifiedTS != nil {
+			s.setNowFn(*specifiedTS)
+		} else {
+			s.setNowFn(ts.ToTime())
+		}
+
 		ctx := context.NewContext()
 		defer ctx.Close()
 
-		s.setNowFn(ts.ToTime())
-		m := map[xtime.UnixNano]generate.SeriesBlock{
+		m := map[time.Time]generate.SeriesBlock{
 			ts: blk,
 		}
 

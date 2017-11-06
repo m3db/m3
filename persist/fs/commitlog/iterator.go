@@ -23,9 +23,11 @@ package commitlog
 import (
 	"errors"
 	"io"
+	"time"
 
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/ts"
+	xerrors "github.com/m3db/m3x/errors"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 
@@ -62,15 +64,31 @@ type iteratorRead struct {
 	annotation []byte
 }
 
+// ReadEntryPredicate is a predicate that allows the caller to determine
+// which commitlogs the iterator should read from
+type ReadEntryPredicate func(entryTime time.Time, entryDuration time.Duration) bool
+
+// ReadAllPredicate can be passed as the ReadCommitLogPredicate for callers
+// that want a convenient way to read all the commitlogs
+func ReadAllPredicate() ReadEntryPredicate {
+	return func(entryTime time.Time, entryDuration time.Duration) bool { return true }
+}
+
 // NewIterator creates a new commit log iterator
-func NewIterator(opts Options) (Iterator, error) {
+func NewIterator(opts Options, commitLogPred ReadEntryPredicate) (Iterator, error) {
 	iops := opts.InstrumentOptions()
 	iops = iops.SetMetricsScope(iops.MetricsScope().SubScope("iterator"))
-	fsopts := opts.FilesystemOptions()
-	files, err := fs.CommitLogFiles(fs.CommitLogsDirPath(fsopts.FilePathPrefix()))
+
+	path := fs.CommitLogsDirPath(opts.FilesystemOptions().FilePathPrefix())
+	files, err := fs.CommitLogFiles(path)
 	if err != nil {
 		return nil, err
 	}
+	filteredFiles, err := filterFiles(opts, files, commitLogPred)
+	if err != nil {
+		return nil, err
+	}
+
 	scope := iops.MetricsScope()
 	return &iterator{
 		opts:  opts,
@@ -79,7 +97,7 @@ func NewIterator(opts Options) (Iterator, error) {
 			readsErrors: scope.Counter("reads.errors"),
 		},
 		log:   iops.Logger(),
-		files: files,
+		files: filteredFiles,
 	}, nil
 }
 
@@ -183,6 +201,22 @@ func (i *iterator) nextReader() bool {
 
 	i.reader = reader
 	return true
+}
+
+func filterFiles(opts Options, files []string, predicate ReadEntryPredicate) ([]string, error) {
+	filteredFiles := make([]string, 0, len(files))
+	var multiErr xerrors.MultiError
+	for _, file := range files {
+		start, duration, _, err := ReadLogInfo(file)
+		if err != nil {
+			multiErr.Add(err)
+			continue
+		}
+		if predicate(start, duration) {
+			filteredFiles = append(filteredFiles, file)
+		}
+	}
+	return filteredFiles, multiErr.FinalError()
 }
 
 func (i *iterator) closeAndResetReader() error {
