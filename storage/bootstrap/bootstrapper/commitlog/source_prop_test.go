@@ -80,7 +80,10 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			// Instantiate a commitlog source
-			source := newCommitLogSource(bootstrapOpts)
+			source, err := NewCommitLogBootstrapper(bootstrapOpts, nil)
+			if err != nil {
+				return false, err
+			}
 
 			// Determine time range to bootstrap
 			md := testNsMetadata(t)
@@ -107,7 +110,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			}
 
 			// Perform the bootstrap
-			result, err := source.Read(md, shardTimeRanges, testDefaultRunOpts)
+			result, err := source.Bootstrap(md, shardTimeRanges, testDefaultRunOpts)
 			if err != nil {
 				return false, err
 			}
@@ -190,7 +193,7 @@ func genWrite(start time.Time, ns string) gopter.Gen {
 				ID:          ts.StringID(id),
 				Namespace:   ts.StringID(ns),
 				Shard:       idToShard(id),
-				UniqueIndex: idToIdx(id),
+				UniqueIndex: seriesUniqueIndex(id),
 			},
 			datapoint: ts.Datapoint{
 				Timestamp: t,
@@ -223,19 +226,19 @@ var metricShard = globalMetricShard{
 	idToShard: make(map[string]uint32),
 }
 
-// idToIDX ensures that each string series ID maps to exactly one UniqueIndex
-func idToIdx(s string) uint64 {
+// seriesUniqueIndex ensures that each string series ID maps to exactly one UniqueIndex
+func seriesUniqueIndex(series string) uint64 {
 	metricIdx.Lock()
 	defer metricIdx.Unlock()
 
-	idx, ok := metricIdx.idToIdx[s]
+	idx, ok := metricIdx.idToIdx[series]
 	if ok {
 		return idx
 	}
 
 	idx = metricIdx.idx
 	metricIdx.idx++
-	metricIdx.idToIdx[s] = idx
+	metricIdx.idToIdx[series] = idx
 	return idx
 }
 
