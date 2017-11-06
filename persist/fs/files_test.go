@@ -164,29 +164,29 @@ func TestDeleteFiles(t *testing.T) {
 	}
 }
 
-func TestDeleteInactiveFiles(t *testing.T) {
+func TestDeleteInactiveDirectories(t *testing.T) {
 	tempPrefix := "temp/"
 	namespaceDir := NamespaceDirPath(tempPrefix, testNs1ID)
 
 	shards := []uint32{uint32(4), uint32(5), uint32(6)}
+	activeShards := []string{"4", "5"}
 	for _, shard := range shards {
 		shardDir := ShardDirPath(tempPrefix, testNs1ID, shard)
 		err := os.MkdirAll(shardDir, defaultNewDirectoryMode)
 		require.NoError(t, err)
-		defer os.RemoveAll(shardDir)
 
 		shardPath := path.Join(shardDir, "data.txt")
 		_, err = os.Create(shardPath)
 		require.NoError(t, err)
 	}
 
-	activeShards := shards[1:]
-	err := DeleteInactiveFilesets(tempPrefix, testNs1ID, activeShards)
+	err := DeleteInactiveDirectories(namespaceDir, activeShards)
 	require.NoError(t, err)
 	f, _ := os.Open(namespaceDir)
-	defer require.NoError(t, f.Close())
 	dirs, _ := f.Readdir(-1)
 	require.Equal(t, 2, len(dirs))
+	defer require.NoError(t, os.RemoveAll(namespaceDir))
+	defer require.NoError(t, f.Close())
 }
 
 func TestByTimeAscending(t *testing.T) {
