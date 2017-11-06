@@ -44,17 +44,17 @@ type deleteInactiveDirectoriesFn func(parentDirectoryPath string, activeDirector
 type cleanupManager struct {
 	sync.RWMutex
 
-	database                    database
-	opts                        Options
-	nowFn                       clock.NowFn
-	filePathPrefix              string
-	commitLogsDir               string
-	commitLogFilesBeforeFn      commitLogFilesBeforeFn
-	commitLogFilesForTimeFn     commitLogFilesForTimeFn
-	deleteFilesFn               deleteFilesFn
-	deleteInactiveDirectoriesFn deleteInactiveFilesetsFn
-	cleanupInProgress           bool
-	status                      tally.Gauge
+	database                  database
+	opts                      Options
+	nowFn                     clock.NowFn
+	filePathPrefix            string
+	commitLogsDir             string
+	commitLogFilesBeforeFn    commitLogFilesBeforeFn
+	commitLogFilesForTimeFn   commitLogFilesForTimeFn
+	deleteFilesFn             deleteFilesFn
+	deleteInactiveDirectories deleteInactiveFilesetsFn
+	cleanupInProgress         bool
+	status                    tally.Gauge
 }
 
 func newCleanupManager(database database, scope tally.Scope) databaseCleanupManager {
@@ -144,7 +144,7 @@ func (m *cleanupManager) deleteInactiveFilesetFiles() error {
 		for _, s := range shards {
 			activeShards = append(activeShards, string(s.ID()))
 		}
-		multiErr.Add(m.deleteInactiveDirectoriesFn(namespaceDirPath, activeShards))
+		multiErr.Add(m.deleteInactiveDirectories(namespaceDirPath, activeShards))
 	}
 
 	return multiErr.FinalError()
@@ -160,7 +160,7 @@ func (m *cleanupManager) deleteInactiveNamespaceFiles() error {
 	for _, n := range namespaces {
 		nsDirNames = append(nsDirNames, n.ID().String())
 	}
-	return m.deleteInactiveDirectoriesFn(filePathPrefix, nsDirNames)
+	return m.deleteInactiveDirectories(filePathPrefix, nsDirNames)
 }
 
 func (m *cleanupManager) cleanupFilesetFiles(t time.Time) error {
