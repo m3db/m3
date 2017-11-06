@@ -27,7 +27,12 @@ func TestWriteReadTimezone(t *testing.T) {
 		t.SkipNow()
 	}
 
-	// Ensure that the test is running with the local timezone set to US/Pacific
+	// Ensure that the test is running with the local timezone set to US/Pacific.
+	// Note that we do this instead of just manipulating the NowFn on the test
+	// setup because there are ways to end up with a time object with a non-UTC
+	// timezone besides calling time.Now(). For example, converting a unix
+	// timestamp into a time.Time object will automatically associate the machine's
+	// local timezone.
 	os.Setenv("TZ", "US/Pacific")
 	name, offset := time.Now().Zone()
 	require.Equal(t, "PDT", name)
@@ -117,7 +122,7 @@ func TestWriteReadTimezone(t *testing.T) {
 			dp, _, _ := iter.Current()
 			expectedDatapoint := writeSeries[i].datapoints[j]
 			// Datapoints will comeback with the timezone set to the local timezone
-			// of the machine that the client is runnign on. The Equal() method ensures
+			// of the machine that the client is running on. The Equal() method ensures
 			// that the two time.Time struct's refer to the same instant in time
 			require.True(t, expectedDatapoint.timestamp.Equal(dp.Timestamp))
 			require.Equal(t, expectedDatapoint.value, dp.Value)
