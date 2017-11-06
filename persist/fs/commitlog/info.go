@@ -43,7 +43,7 @@ func ReadLogInfo(filePath string) (start time.Time, duration time.Duration, inde
 		return time.Time{}, 0, 0, err
 	}
 
-	bytes := make([]byte, size, size)
+	bytes := make([]byte, size)
 	_, err = chunkReader.Read(bytes)
 	if err != nil {
 		return time.Time{}, 0, 0, err
