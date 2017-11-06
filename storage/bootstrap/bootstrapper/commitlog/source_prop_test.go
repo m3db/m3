@@ -23,6 +23,7 @@ package commitlog
 import (
 	"fmt"
 	"io/ioutil"
+	"os"
 	"reflect"
 	"sync"
 	"testing"
@@ -56,6 +57,9 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			if err != nil {
 				return false, err
 			}
+			defer func() {
+				os.RemoveAll(dir)
+			}()
 
 			// Configure the commitlog to use the test directory and set the blocksize
 			commitLogOpts := commitlog.NewOptions().
