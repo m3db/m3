@@ -60,7 +60,7 @@ func TestTruncateNamespace(t *testing.T) {
 
 	// Write test data
 	now := testSetup.getNowFn()
-	seriesMaps := make(map[time.Time]generate.SeriesBlock)
+	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	inputData := []struct {
 		namespace ts.ID
 		conf      generate.BlockConfig
@@ -71,7 +71,7 @@ func TestTruncateNamespace(t *testing.T) {
 	for _, input := range inputData {
 		testSetup.setNowFn(input.conf.Start)
 		testData := generate.Block(input.conf)
-		seriesMaps[input.conf.Start] = testData
+		seriesMaps[xtime.ToUnixNano(input.conf.Start)] = testData
 		require.NoError(t, testSetup.writeBatch(input.namespace, testData))
 	}
 	log.Debug("test data is now written")

@@ -113,8 +113,8 @@ func writeCommitLogData(
 		ctx := context.NewContext()
 		defer ctx.Close()
 
-		s.setNowFn(ts)
-		m := map[time.Time]generate.SeriesBlock{
+		s.setNowFn(ts.ToTime())
+		m := map[xtime.UnixNano]generate.SeriesBlock{
 			ts: blk,
 		}
 

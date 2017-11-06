@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	xtime "github.com/m3db/m3x/time"
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/stretchr/testify/require"
@@ -67,10 +68,10 @@ func TestPeersBootstrapMergePeerBlocks(t *testing.T) {
 		{[]string{"foo", "bar"}, 180, now.Add(-blockSize)},
 		{[]string{"foo", "baz"}, 90, now},
 	})
-	left := make(map[time.Time]generate.SeriesBlock)
-	right := make(map[time.Time]generate.SeriesBlock)
+	left := make(map[xtime.UnixNano]generate.SeriesBlock)
+	right := make(map[xtime.UnixNano]generate.SeriesBlock)
 	remainder := 0
-	appendSeries := func(target map[time.Time]generate.SeriesBlock, start time.Time, s generate.Series) {
+	appendSeries := func(target map[xtime.UnixNano]generate.SeriesBlock, start time.Time, s generate.Series) {
 		var dataWithMissing []ts.Datapoint
 		for i := range s.Data {
 			if i%2 != remainder {
@@ -78,13 +79,16 @@ func TestPeersBootstrapMergePeerBlocks(t *testing.T) {
 			}
 			dataWithMissing = append(dataWithMissing, s.Data[i])
 		}
-		target[start] = append(target[start], generate.Series{ID: s.ID, Data: dataWithMissing})
+		target[xtime.ToUnixNano(start)] = append(
+			target[xtime.ToUnixNano(start)],
+			generate.Series{ID: s.ID, Data: dataWithMissing},
+		)
 		remainder = 1 - remainder
 	}
 	for start, data := range seriesMaps {
 		for _, series := range data {
-			appendSeries(left, start, series)
-			appendSeries(right, start, series)
+			appendSeries(left, start.ToTime(), series)
+			appendSeries(right, start.ToTime(), series)
 		}
 	}
 	require.NoError(t, writeTestDataToDisk(namesp, setups[0], left))

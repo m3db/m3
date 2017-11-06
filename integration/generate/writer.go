@@ -53,17 +53,17 @@ func (w *writer) Write(namespace ts.ID, shardSet sharding.ShardSet, seriesMaps S
 		isValidStart   = func(start time.Time) bool {
 			return start.Equal(retentionStart) || start.After(retentionStart)
 		}
-		starts = make(map[time.Time]struct{})
+		starts = make(map[xtime.UnixNano]struct{})
 	)
 
 	for start := currStart; isValidStart(start); start = start.Add(-blockSize) {
-		starts[start] = struct{}{}
+		starts[xtime.ToUnixNano(start)] = struct{}{}
 	}
 
 	writer := fs.NewWriter(gOpts.FilePathPrefix(), gOpts.WriterBufferSize(), gOpts.NewFileMode(), gOpts.NewDirectoryMode())
 	encoder := gOpts.EncoderPool().Get()
 	for start, data := range seriesMaps {
-		err := writeToDisk(writer, shardSet, encoder, start, namespace, blockSize, data)
+		err := writeToDisk(writer, shardSet, encoder, start.ToTime(), namespace, blockSize, data)
 		if err != nil {
 			return err
 		}
@@ -73,7 +73,7 @@ func (w *writer) Write(namespace ts.ID, shardSet sharding.ShardSet, seriesMaps S
 	// Write remaining files even for empty start periods to avoid unfulfilled ranges
 	if w.opts.WriteEmptyShards() {
 		for start := range starts {
-			err := writeToDisk(writer, shardSet, encoder, start, namespace, blockSize, nil)
+			err := writeToDisk(writer, shardSet, encoder, start.ToTime(), namespace, blockSize, nil)
 			if err != nil {
 				return err
 			}

@@ -8,6 +8,7 @@ import (
 
 	"github.com/m3db/m3db/encoding/testgen"
 	"github.com/m3db/m3db/ts"
+	xtime "github.com/m3db/m3x/time"
 )
 
 // Making SeriesBlock sortable
@@ -44,9 +45,9 @@ func Block(conf BlockConfig) SeriesBlock {
 // BlocksByStart generates a map of SeriesBlocks keyed by Start time
 // for the provided configs
 func BlocksByStart(confs []BlockConfig) SeriesBlocksByStart {
-	seriesMaps := make(map[time.Time]SeriesBlock)
+	seriesMaps := make(map[xtime.UnixNano]SeriesBlock)
 	for _, conf := range confs {
-		seriesMaps[conf.Start] = Block(conf)
+		seriesMaps[xtime.ToUnixNano(conf.Start)] = Block(conf)
 	}
 	return seriesMaps
 }

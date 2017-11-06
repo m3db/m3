@@ -8,6 +8,7 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/ts"
+	xtime "github.com/m3db/m3x/time"
 )
 
 // BlockConfig represents the configuration to generate a SeriesBlock
@@ -36,7 +37,7 @@ type SeriesDataPointsByTime []SeriesDataPoint
 type SeriesBlock []Series
 
 // SeriesBlocksByStart is a map of time -> SeriesBlock
-type SeriesBlocksByStart map[time.Time]SeriesBlock
+type SeriesBlocksByStart map[xtime.UnixNano]SeriesBlock
 
 // Writer writes generated data to disk
 type Writer interface {

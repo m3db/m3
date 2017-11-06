@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3cluster/integration/etcd"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/storage/namespace"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
@@ -93,7 +94,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	// Write test data
 	blockSize := ns0.Options().RetentionOptions().BlockSize()
 	now := testSetup.getNowFn()
-	seriesMaps := make(map[time.Time]generate.SeriesBlock)
+	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	inputData := []generate.BlockConfig{
 		{[]string{"foo", "bar"}, 100, now},
 		{[]string{"foo", "baz"}, 50, now.Add(blockSize)},
@@ -101,7 +102,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	for _, input := range inputData {
 		start := input.Start
 		testData := generate.Block(input)
-		seriesMaps[start] = testData
+		seriesMaps[xtime.ToUnixNano(start)] = testData
 	}
 	log.Infof("test data is now generated")
 
@@ -125,7 +126,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 
 	// write to new namespace
 	for start, testData := range seriesMaps {
-		testSetup.setNowFn(start)
+		testSetup.setNowFn(start.ToTime())
 		require.NoError(t, testSetup.writeBatch(ns0.ID(), testData))
 	}
 	log.Infof("test data is now written")

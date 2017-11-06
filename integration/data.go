@@ -120,7 +120,7 @@ func verifySeriesMaps(
 	t *testing.T,
 	ts *testSetup,
 	namespace ts.ID,
-	seriesMaps map[time.Time]generate.SeriesBlock,
+	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
 ) {
 	debugFilePathPrefix := ts.opts.VerifySeriesDebugFilePathPrefix()
 	expectedDebugFilePath := createFileIfPrefixSet(t, debugFilePathPrefix, fmt.Sprintf("%s-expected.log", namespace.String()))
@@ -131,8 +131,8 @@ func verifySeriesMaps(
 	nsOpts := nsMetadata.Options()
 
 	for timestamp, sm := range seriesMaps {
-		start := timestamp
-		end := timestamp.Add(nsOpts.RetentionOptions().BlockSize())
+		start := timestamp.ToTime()
+		end := start.Add(nsOpts.RetentionOptions().BlockSize())
 		verifySeriesMapForRange(
 			t, ts, start, end, namespace, sm,
 			expectedDebugFilePath, actualDebugFilePath)
