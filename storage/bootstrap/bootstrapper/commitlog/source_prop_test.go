@@ -31,6 +31,7 @@ import (
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
 	"github.com/leanovate/gopter/prop"
+	"github.com/spaolacci/murmur3"
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
@@ -39,6 +40,8 @@ import (
 	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
 )
+
+const maxShards = 8192
 
 func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
@@ -182,7 +185,7 @@ func genWrite(start time.Time, ns string) gopter.Gen {
 		gen.Float64Range(-9999999, 99999999),
 		// Some of the commitlog bootstrapping code is O(N) with respect to the
 		// number of shards, so we cap it to prevent timeouts
-		gen.UInt32Range(0, 8192),
+		gen.UInt32Range(0, maxShards),
 	).Map(func(val []interface{}) generatedWrite {
 		id := val[0].(string)
 		t := val[1].(time.Time)
@@ -192,7 +195,7 @@ func genWrite(start time.Time, ns string) gopter.Gen {
 			series: commitlog.Series{
 				ID:          ts.StringID(id),
 				Namespace:   ts.StringID(ns),
-				Shard:       idToShard(id),
+				Shard:       hashIDToShard(ts.StringID(id)),
 				UniqueIndex: seriesUniqueIndex(id),
 			},
 			datapoint: ts.Datapoint{
@@ -242,18 +245,7 @@ func seriesUniqueIndex(series string) uint64 {
 	return idx
 }
 
-// idToShard ensures that each string series ID maps to exactly one shard
-func idToShard(s string) uint32 {
-	metricShard.Lock()
-	defer metricShard.Unlock()
-
-	shard, ok := metricShard.idToShard[s]
-	if ok {
-		return shard
-	}
-
-	shard = metricShard.shard
-	metricShard.shard++
-	metricShard.idToShard[s] = shard
-	return shard
+// hashIDToShard generates a HashFn based on murmur32
+func hashIDToShard(id ts.ID) uint32 {
+	return murmur3.Sum32(id.Data().Get()) % uint32(maxShards)
 }
