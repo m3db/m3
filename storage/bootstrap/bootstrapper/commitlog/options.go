@@ -21,6 +21,8 @@
 package commitlog
 
 import (
+	"errors"
+
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 )
@@ -28,6 +30,11 @@ import (
 const (
 	defaultEncodingConcurrency   = 4
 	defaultMergeShardConcurrency = 4
+)
+
+var (
+	errEncodingConcurrencyPositive   = errors.New("encoding concurrency must be positive")
+	errMergeShardConcurrencyPositive = errors.New("merge shard concurrency must be positive")
 )
 
 type options struct {
@@ -48,6 +55,12 @@ func NewOptions() Options {
 }
 
 func (o *options) Validate() error {
+	if o.encodingConcurrency <= 0 {
+		return errEncodingConcurrencyPositive
+	}
+	if o.mergeShardConcurrency <= 0 {
+		return errMergeShardConcurrencyPositive
+	}
 	return o.commitLogOpts.Validate()
 }
 
