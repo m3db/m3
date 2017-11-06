@@ -35,8 +35,15 @@ func TestWriteReadTimezone(t *testing.T) {
 	// local timezone.
 	os.Setenv("TZ", "US/Pacific")
 	name, offset := time.Now().Zone()
-	require.Equal(t, "PDT", name)
-	require.Equal(t, offset, -25200)
+	// The zone name will be PST or PDT depending on whether daylight savings
+	// is currently in effect
+	if name == "PDT" {
+		require.Equal(t, offset, -25200)
+	} else if name == "PST" {
+		require.Equal(t, offset, -28800)
+	} else {
+		t.Fatalf("Zone should be PDT or PST, but was: %s", name)
+	}
 
 	// Load locations that we'll need later in the tests
 	pacificLocation, err := time.LoadLocation("US/Pacific")
