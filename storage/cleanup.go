@@ -39,19 +39,22 @@ type commitLogFilesForTimeFn func(commitLogsDir string, t time.Time) ([]string, 
 
 type deleteFilesFn func(files []string) error
 
+type deleteInactiveDirectoriesFn func(parentDirPath string, activeDirNames []string) error
+
 type cleanupManager struct {
 	sync.RWMutex
 
-	database                database
-	opts                    Options
-	nowFn                   clock.NowFn
-	filePathPrefix          string
-	commitLogsDir           string
-	commitLogFilesBeforeFn  commitLogFilesBeforeFn
-	commitLogFilesForTimeFn commitLogFilesForTimeFn
-	deleteFilesFn           deleteFilesFn
-	cleanupInProgress       bool
-	status                  tally.Gauge
+	database                    database
+	opts                        Options
+	nowFn                       clock.NowFn
+	filePathPrefix              string
+	commitLogsDir               string
+	commitLogFilesBeforeFn      commitLogFilesBeforeFn
+	commitLogFilesForTimeFn     commitLogFilesForTimeFn
+	deleteFilesFn               deleteFilesFn
+	deleteInactiveDirectoriesFn deleteInactiveDirectoriesFn
+	cleanupInProgress           bool
+	status                      tally.Gauge
 }
 
 func newCleanupManager(database database, scope tally.Scope) databaseCleanupManager {
@@ -60,15 +63,16 @@ func newCleanupManager(database database, scope tally.Scope) databaseCleanupMana
 	commitLogsDir := fs.CommitLogsDirPath(filePathPrefix)
 
 	return &cleanupManager{
-		database:                database,
-		opts:                    opts,
-		nowFn:                   opts.ClockOptions().NowFn(),
-		filePathPrefix:          filePathPrefix,
-		commitLogsDir:           commitLogsDir,
-		commitLogFilesBeforeFn:  fs.CommitLogFilesBefore,
-		commitLogFilesForTimeFn: fs.CommitLogFilesForTime,
-		deleteFilesFn:           fs.DeleteFiles,
-		status:                  scope.Gauge("cleanup"),
+		database:                    database,
+		opts:                        opts,
+		nowFn:                       opts.ClockOptions().NowFn(),
+		filePathPrefix:              filePathPrefix,
+		commitLogsDir:               commitLogsDir,
+		commitLogFilesBeforeFn:      fs.CommitLogFilesBefore,
+		commitLogFilesForTimeFn:     fs.CommitLogFilesForTime,
+		deleteFilesFn:               fs.DeleteFiles,
+		deleteInactiveDirectoriesFn: fs.DeleteInactiveDirectories,
+		status: scope.Gauge("cleanup"),
 	}
 }
 
@@ -92,6 +96,11 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 	if err := m.deleteInactiveFilesetFiles(); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
 			"encountered errors when deleting inactive fileset files for %v: %v", t, err))
+	}
+
+	if err := m.deleteInactiveNamespaceFiles(); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when deleting inactive namespace files for %v: %v", t, err))
 	}
 
 	commitLogStart, commitLogTimes, err := m.commitLogTimes(t)
@@ -122,14 +131,35 @@ func (m *cleanupManager) Report() {
 	}
 }
 
-func (m *cleanupManager) deleteInactiveFilesetFiles() error {
-	multiErr := xerrors.NewMultiError()
+func (m *cleanupManager) deleteInactiveNamespaceFiles() error {
+	var namespaceDirNames []string
+	filePathPrefix := m.database.Options().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	namespaces, err := m.database.GetOwnedNamespaces()
 	if err != nil {
 		return err
 	}
 	for _, n := range namespaces {
-		multiErr = multiErr.Add(n.DeleteInactiveFilesets())
+		namespaceDirNames = append(namespaceDirNames, n.ID().String())
+	}
+	return m.deleteInactiveDirectoriesFn(filePathPrefix, namespaceDirNames)
+}
+
+func (m *cleanupManager) deleteInactiveFilesetFiles() error {
+	multiErr := xerrors.NewMultiError()
+	filePathPrefix := m.database.Options().CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	namespaces, err := m.database.GetOwnedNamespaces()
+	if err != nil {
+		return err
+	}
+	for _, n := range namespaces {
+		var activeShards []string
+		//replace with injection later
+		namespaceDirPath := fs.NamespaceDirPath(filePathPrefix, n.ID())
+		shards := n.Shards()
+		for _, s := range shards {
+			activeShards = append(activeShards, string(s.ID()))
+		}
+		multiErr = multiErr.Add(m.deleteInactiveDirectoriesFn(namespaceDirPath, activeShards))
 	}
 
 	return multiErr.FinalError()
