@@ -2,6 +2,7 @@ language: go
 go:
   - 1.7.6
   - 1.8.3
+  - 1.9.2
 sudo: required
 dist: trusty
 install: make install-ci
