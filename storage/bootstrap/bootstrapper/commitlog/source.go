@@ -101,7 +101,9 @@ func (s *commitLogSource) Read(
 	defer iter.Close()
 
 	var (
-		namespace   = ns.ID()
+		namespace = ns.ID()
+		// +1 so we can use the shard number as an index throughout without constantly
+		// remembering to subtract 1 to convert to zero-based indexing
 		numShards   = s.findHighestShard(shardsTimeRanges) + 1
 		numConc     = s.opts.EncodingConcurrency()
 		bopts       = s.opts.ResultOptions()
@@ -111,8 +113,6 @@ func (s *commitLogSource) Read(
 		workerErrs  = make([]int, numConc)
 	)
 
-	// +1 so we can use the shard number as an index throughout without constantly
-	// remembering to subtract 1 to convert to zero-based indexing
 	unmerged := make([]encodersAndRanges, numShards)
 	for shard := range shardsTimeRanges {
 		unmerged[shard] = encodersAndRanges{
