@@ -496,7 +496,9 @@ func createExpectedShardResult(
 		for start, blockResult := range r.blocks {
 			enc := blockResult.encoder
 			bl := block.NewDatabaseBlock(start, enc.Discard(), blopts)
-			r.result.AddBlock(bl)
+			if r.result != nil {
+				r.result.AddBlock(bl)
+			}
 		}
 
 	}
