@@ -79,7 +79,10 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 
 			// Write all the datapoints to the commitlog
 			for _, write := range input.writes {
-				log.Write(context.NewContext(), write.series, write.datapoint, write.unit, write.annotation)
+				err := log.Write(context.NewContext(), write.series, write.datapoint, write.unit, write.annotation)
+				if err != nil {
+					return false, err
+				}
 			}
 			err = log.Close()
 			if err != nil {
@@ -218,19 +221,8 @@ type globalMetricIdx struct {
 	idToIdx map[string]uint64
 }
 
-type globalMetricShard struct {
-	sync.Mutex
-
-	shard     uint32
-	idToShard map[string]uint32
-}
-
 var metricIdx = globalMetricIdx{
 	idToIdx: make(map[string]uint64),
-}
-
-var metricShard = globalMetricShard{
-	idToShard: make(map[string]uint32),
 }
 
 // seriesUniqueIndex ensures that each string series ID maps to exactly one UniqueIndex

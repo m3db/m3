@@ -57,52 +57,6 @@ type encoder struct {
 	enc         encoding.Encoder
 }
 
-type encodersAndRanges struct {
-	encodersBySeries map[ts.Hash]encodersByTime
-	ranges           xtime.Ranges
-}
-
-type encodersByTime struct {
-	id ts.ID
-	// int64 instead of time.Time because there is an optimized map access pattern
-	// for i64's
-	encoders map[xtime.UnixNano]encoders
-}
-
-// encoderArg contains all the information a worker go-routine needs to encode
-// a data point as M3TSZ
-type encoderArg struct {
-	series     commitlog.Series
-	dp         ts.Datapoint
-	unit       xtime.Unit
-	annotation ts.Annotation
-	blockStart time.Time
-}
-
-type encoders []encoder
-
-type ioReaders []io.Reader
-
-func (e encoders) newReaders() ioReaders {
-	readers := make(ioReaders, len(e))
-	for i := range e {
-		readers[i] = e[i].enc.Stream()
-	}
-	return readers
-}
-
-func (e encoders) close() {
-	for i := range e {
-		e[i].enc.Close()
-	}
-}
-
-func (ir ioReaders) close() {
-	for _, r := range ir {
-		r.(xio.SegmentReader).Finalize()
-	}
-}
-
 func newCommitLogSource(opts Options) bootstrap.Source {
 	return &commitLogSource{
 		opts:          opts,
@@ -146,19 +100,19 @@ func (s *commitLogSource) Read(
 	defer iter.Close()
 
 	var (
-		namespace    = ns.ID()
-		highestShard = s.findHighestShard(shardsTimeRanges)
-		numConc      = s.opts.EncodingConcurrency()
-		bopts        = s.opts.ResultOptions()
-		blopts       = bopts.DatabaseBlockOptions()
-		blockSize    = ns.Options().RetentionOptions().BlockSize()
-		encoderPool  = bopts.DatabaseBlockOptions().EncoderPool()
-		workerErrs   = make([]int, numConc)
+		namespace   = ns.ID()
+		numShards   = s.findHighestShard(shardsTimeRanges) + 1
+		numConc     = s.opts.EncodingConcurrency()
+		bopts       = s.opts.ResultOptions()
+		blopts      = bopts.DatabaseBlockOptions()
+		blockSize   = ns.Options().RetentionOptions().BlockSize()
+		encoderPool = bopts.DatabaseBlockOptions().EncoderPool()
+		workerErrs  = make([]int, numConc)
 	)
 
 	// +1 so we can use the shard number as an index throughout without constantly
 	// remembering to subtract 1 to convert to zero-based indexing
-	unmerged := make([]encodersAndRanges, highestShard+1)
+	unmerged := make([]encodersAndRanges, numShards)
 	for shard := range shardsTimeRanges {
 		unmerged[shard] = encodersAndRanges{
 			encodersBySeries: make(map[ts.Hash]encodersByTime),
@@ -214,17 +168,7 @@ func (s *commitLogSource) Read(
 	wg.Wait()
 	s.logEncodingOutcome(workerErrs, iter)
 
-	return s.mergeShards(int(highestShard+1), bopts, blopts, encoderPool, unmerged), nil
-}
-
-func (s *commitLogSource) findHighestShard(shardsTimeRanges result.ShardTimeRanges) uint32 {
-	var max uint32
-	for shard := range shardsTimeRanges {
-		if shard > max {
-			max = shard
-		}
-	}
-	return max
+	return s.mergeShards(int(numShards), bopts, blopts, encoderPool, unmerged), nil
 }
 
 func (s *commitLogSource) startM3TSZEncodingWorker(
@@ -349,19 +293,6 @@ func (s *commitLogSource) shouldEncodeSeries(
 	}
 
 	return ranges.Overlaps(blockRange)
-}
-
-func (s *commitLogSource) logEncodingOutcome(workerErrs []int, iter commitlog.Iterator) {
-	errSum := 0
-	for _, numErrs := range workerErrs {
-		errSum += numErrs
-	}
-	if errSum > 0 {
-		s.log.Errorf("error bootstrapping from commit log: %d block encode errors", errSum)
-	}
-	if err := iter.Err(); err != nil {
-		s.log.Errorf("error reading commit log: %v", err)
-	}
 }
 
 func (s *commitLogSource) mergeShards(
@@ -513,6 +444,29 @@ func (s *commitLogSource) mergeSeries(
 	return seriesBlocks, numEmptyErrs, numErrs
 }
 
+func (s *commitLogSource) findHighestShard(shardsTimeRanges result.ShardTimeRanges) uint32 {
+	var max uint32
+	for shard := range shardsTimeRanges {
+		if shard > max {
+			max = shard
+		}
+	}
+	return max
+}
+
+func (s *commitLogSource) logEncodingOutcome(workerErrs []int, iter commitlog.Iterator) {
+	errSum := 0
+	for _, numErrs := range workerErrs {
+		errSum += numErrs
+	}
+	if errSum > 0 {
+		s.log.Errorf("error bootstrapping from commit log: %d block encode errors", errSum)
+	}
+	if err := iter.Err(); err != nil {
+		s.log.Errorf("error reading commit log: %v", err)
+	}
+}
+
 func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs []int) {
 	errSum := 0
 	for _, numErrs := range shardErrs {
@@ -528,5 +482,51 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 	}
 	if emptyErrSum > 0 {
 		s.log.Errorf("error bootstrapping from commit log: %d empty unmerged blocks errors", emptyErrSum)
+	}
+}
+
+type encodersAndRanges struct {
+	encodersBySeries map[ts.Hash]encodersByTime
+	ranges           xtime.Ranges
+}
+
+type encodersByTime struct {
+	id ts.ID
+	// int64 instead of time.Time because there is an optimized map access pattern
+	// for i64's
+	encoders map[xtime.UnixNano]encoders
+}
+
+// encoderArg contains all the information a worker go-routine needs to encode
+// a data point as M3TSZ
+type encoderArg struct {
+	series     commitlog.Series
+	dp         ts.Datapoint
+	unit       xtime.Unit
+	annotation ts.Annotation
+	blockStart time.Time
+}
+
+type encoders []encoder
+
+type ioReaders []io.Reader
+
+func (e encoders) newReaders() ioReaders {
+	readers := make(ioReaders, len(e))
+	for i := range e {
+		readers[i] = e[i].enc.Stream()
+	}
+	return readers
+}
+
+func (e encoders) close() {
+	for i := range e {
+		e[i].enc.Close()
+	}
+}
+
+func (ir ioReaders) close() {
+	for _, r := range ir {
+		r.(xio.SegmentReader).Finalize()
 	}
 }
