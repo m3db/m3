@@ -447,7 +447,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	}
 	require.Equal(t, len(expected), len(metadata))
 	for i := 0; i < len(expected); i++ {
-		require.Equal(t, expected[i].start, metadata[i].Start)
+		require.True(t, expected[i].start.Equal(metadata[i].Start))
 		require.Equal(t, expected[i].size, metadata[i].Size)
 		if expected[i].checksum == nil {
 			require.Nil(t, metadata[i].Checksum)
