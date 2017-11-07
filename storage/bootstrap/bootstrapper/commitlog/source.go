@@ -233,33 +233,6 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 	wg.Done()
 }
 
-func newReadCommitLogPredicate(
-	ns namespace.Metadata,
-	shardsTimeRanges result.ShardTimeRanges,
-	opts Options,
-) commitlog.ReadEntryPredicate {
-	// Minimum and maximum times for which we want to bootstrap
-	shardMin, shardMax := shardsTimeRanges.MinMax()
-	shardRange := xtime.Range{
-		Start: shardMin,
-		End:   shardMax,
-	}
-
-	// How far into the past or future a commitlog might contain a write for a
-	// previous or future block
-	bufferPast := ns.Options().RetentionOptions().BufferPast()
-	bufferFuture := ns.Options().RetentionOptions().BufferFuture()
-
-	return func(entryTime time.Time, entryDuration time.Duration) bool {
-		// If there is any amount of overlap between the commitlog range and the
-		// shardRange then we need to read the commitlog file
-		return xtime.Range{
-			Start: entryTime.Add(-bufferPast),
-			End:   entryTime.Add(entryDuration).Add(bufferFuture),
-		}.Overlaps(shardRange)
-	}
-}
-
 func (s *commitLogSource) shouldEncodeSeries(
 	namespace ts.ID,
 	unmerged []encodersAndRanges,
@@ -483,6 +456,33 @@ func (s *commitLogSource) logMergeShardsOutcome(shardErrs []int, shardEmptyErrs 
 	}
 	if emptyErrSum > 0 {
 		s.log.Errorf("error bootstrapping from commit log: %d empty unmerged blocks errors", emptyErrSum)
+	}
+}
+
+func newReadCommitLogPredicate(
+	ns namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+	opts Options,
+) commitlog.ReadEntryPredicate {
+	// Minimum and maximum times for which we want to bootstrap
+	shardMin, shardMax := shardsTimeRanges.MinMax()
+	shardRange := xtime.Range{
+		Start: shardMin,
+		End:   shardMax,
+	}
+
+	// How far into the past or future a commitlog might contain a write for a
+	// previous or future block
+	bufferPast := ns.Options().RetentionOptions().BufferPast()
+	bufferFuture := ns.Options().RetentionOptions().BufferFuture()
+
+	return func(entryTime time.Time, entryDuration time.Duration) bool {
+		// If there is any amount of overlap between the commitlog range and the
+		// shardRange then we need to read the commitlog file
+		return xtime.Range{
+			Start: entryTime.Add(-bufferPast),
+			End:   entryTime.Add(entryDuration).Add(bufferFuture),
+		}.Overlaps(shardRange)
 	}
 }
 
