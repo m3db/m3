@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
@@ -36,7 +35,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCommitLogBootstrap(t *testing.T) {
+func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -48,12 +47,10 @@ func TestCommitLogBootstrap(t *testing.T) {
 	)
 	ns1, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(ropts))
 	require.NoError(t, err)
-	ns2, err := namespace.NewMetadata(testNamespaces[1], namespace.NewOptions().SetRetentionOptions(ropts))
-	require.NoError(t, err)
 	opts := newTestOptions(t).
 		SetCommitLogRetentionPeriod(ropts.RetentionPeriod()).
 		SetCommitLogBlockSize(blockSize).
-		SetNamespaces([]namespace.Metadata{ns1, ns2})
+		SetNamespaces([]namespace.Metadata{ns1})
 
 	setup, err := newTestSetup(t, opts)
 	require.NoError(t, err)
@@ -84,6 +81,23 @@ func TestCommitLogBootstrap(t *testing.T) {
 	writeCommitLogData(t, setup, seriesMaps, testNamespaces[0])
 	log.Info("finished writing data")
 
+	// The datapoints in this generated data are within the retention period and
+	// would oridinarly be bootstrapped, however, we intentionally write them to a
+	// commitlog file that has a timestamp outside of the retention period. This
+	// allows us to verify the commitlog bootstrapping logic will not waste time
+	// reading commitlog files that are outside of the retention period.
+	log.Info("generating data")
+	seriesMapsExpiredCommitlog := generateSeriesMaps(30, now.Add(-2*blockSize), now.Add(-blockSize))
+	log.Info("writing data to commitlog file with out of range timestamp")
+	writeCommitLogDataSpecifiedTS(
+		t,
+		setup,
+		seriesMapsExpiredCommitlog,
+		testNamespaces[0],
+		now.Add(-2*ropts.RetentionPeriod()),
+	)
+	log.Info("finished writing data to commitlog file with out of range timestamp")
+
 	setup.setNowFn(now)
 	// Start the server with filesystem bootstrapper
 	require.NoError(t, setup.startServer())
@@ -96,16 +110,9 @@ func TestCommitLogBootstrap(t *testing.T) {
 	}()
 
 	// Verify in-memory data match what we expect - all writes from seriesMaps
-	// should be present
+	// should be present, and none of the writes from seriesMapsExpiredCommitlog
+	// should be present.
 	metadatasByShard := testSetupMetadatas(t, setup, testNamespaces[0], now.Add(-2*blockSize), now)
 	observedSeriesMaps := testSetupToSeriesMaps(t, setup, ns1, metadatasByShard)
 	verifySeriesMapsEqual(t, seriesMaps, observedSeriesMaps)
-
-	// Verify in-memory data match what we expect - no writes should be present
-	// because we didn't issue any writes for this namespaces
-	emptySeriesMaps := make(generate.SeriesBlocksByStart)
-	metadatasByShard2 := testSetupMetadatas(t, setup, testNamespaces[1], now.Add(-2*blockSize), now)
-	observedSeriesMaps2 := testSetupToSeriesMaps(t, setup, ns2, metadatasByShard2)
-	verifySeriesMapsEqual(t, emptySeriesMaps, observedSeriesMaps2)
-
 }

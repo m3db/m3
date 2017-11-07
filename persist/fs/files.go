@@ -282,17 +282,11 @@ func CommitLogFilesForTime(commitLogsDir string, t time.Time) ([]string, error) 
 
 // CommitLogFilesBefore returns all the commit log files whose timestamps are earlier than a given time.
 func CommitLogFilesBefore(commitLogsDir string, t time.Time) ([]string, error) {
-	var multiErr xerrors.MultiError
-
 	commitLogs, err := CommitLogFiles(commitLogsDir)
 	if err != nil {
-		multiErr = multiErr.Add(err)
+		return nil, err
 	}
-	res, err := filesBefore(commitLogs, t)
-	if err != nil {
-		multiErr = multiErr.Add(err)
-	}
-	return res, multiErr.FinalError()
+	return filesBefore(commitLogs, t)
 }
 
 type toSortableFn func(files []string) sort.Interface

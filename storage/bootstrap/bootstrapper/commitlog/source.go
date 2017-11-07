@@ -36,7 +36,10 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-type newIteratorFn func(opts commitlog.Options) (commitlog.Iterator, error)
+type newIteratorFn func(
+	opts commitlog.Options,
+	commitLogPred commitlog.ReadEntryPredicate,
+) (commitlog.Iterator, error)
 
 type commitLogSource struct {
 	opts          Options
@@ -88,7 +91,8 @@ func (s *commitLogSource) Read(
 		return nil, nil
 	}
 
-	iter, err := s.newIteratorFn(s.opts.CommitLogOptions())
+	readCommitLogPredicate := newReadCommitLogPredicate(ns, shardsTimeRanges, s.opts)
+	iter, err := s.newIteratorFn(s.opts.CommitLogOptions(), readCommitLogPredicate)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
 	}
@@ -255,4 +259,31 @@ func (s *commitLogSource) Read(
 	}
 
 	return bootstrapResult, nil
+}
+
+func newReadCommitLogPredicate(
+	ns namespace.Metadata,
+	shardsTimeRanges result.ShardTimeRanges,
+	opts Options,
+) commitlog.ReadEntryPredicate {
+	// Minimum and maximum times for which we want to bootstrap
+	shardMin, shardMax := shardsTimeRanges.MinMax()
+	shardRange := xtime.Range{
+		Start: shardMin,
+		End:   shardMax,
+	}
+
+	// How far into the past or future a commitlog might contain a write for a
+	// previous or future block
+	bufferPast := ns.Options().RetentionOptions().BufferPast()
+	bufferFuture := ns.Options().RetentionOptions().BufferFuture()
+
+	return func(entryTime time.Time, entryDuration time.Duration) bool {
+		// If there is any amount of overlap between the commitlog range and the
+		// shardRange then we need to read the commitlog file
+		return xtime.Range{
+			Start: entryTime.Add(-bufferPast),
+			End:   entryTime.Add(entryDuration).Add(bufferFuture),
+		}.Overlaps(shardRange)
+	}
 }
