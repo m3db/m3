@@ -41,4 +41,16 @@ type Options interface {
 
 	// CommitLogOptions returns the commit log options
 	CommitLogOptions() commitlog.Options
+
+	// SetEncodingConcurrency sets the concurrency for encoding
+	SetEncodingConcurrency(value int) Options
+
+	// EncodingConcurrency returns the concurrency for encoding
+	EncodingConcurrency() int
+
+	// SetMergeShardConcurrency sets the concurrency for merging shards
+	SetMergeShardsConcurrency(value int) Options
+
+	// MergeShardConcurrency returns the concurrency for merging shards
+	MergeShardsConcurrency() int
 }

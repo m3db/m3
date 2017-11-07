@@ -21,8 +21,10 @@
 package commitlog
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"sort"
 	"testing"
 	"time"
@@ -155,7 +157,7 @@ func TestReadOrderedValues(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
-	requireShardResults(t, values[:4], res.ShardResults(), opts)
+	require.NoError(t, verifyShardResultsAreCorrect(values[:4], res.ShardResults(), opts))
 }
 
 func TestReadNamespaceFiltering(t *testing.T) {
@@ -199,7 +201,7 @@ func TestReadNamespaceFiltering(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 2, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
-	requireShardResults(t, values[:4], res.ShardResults(), opts)
+	require.NoError(t, verifyShardResultsAreCorrect(values[:4], res.ShardResults(), opts))
 }
 
 func TestReadUnorderedValues(t *testing.T) {
@@ -240,7 +242,7 @@ func TestReadUnorderedValues(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
-	requireShardResults(t, values, res.ShardResults(), opts)
+	require.NoError(t, verifyShardResultsAreCorrect(values, res.ShardResults(), opts))
 }
 
 func TestReadTrimsToRanges(t *testing.T) {
@@ -280,7 +282,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, 1, len(res.ShardResults()))
 	require.Equal(t, 0, len(res.Unfulfilled()))
-	requireShardResults(t, values[1:3], res.ShardResults(), opts)
+	require.NoError(t, verifyShardResultsAreCorrect(values[1:3], res.ShardResults(), opts))
 }
 
 func TestNewReadCommitLogPredicate(t *testing.T) {
@@ -400,13 +402,46 @@ type testValue struct {
 	a ts.Annotation
 }
 
-func requireShardResults(
-	t *testing.T,
+type seriesShardResultBlock struct {
+	encoder encoding.Encoder
+}
+
+type seriesShardResult struct {
+	blocks map[time.Time]*seriesShardResultBlock
+	result block.DatabaseSeriesBlocks
+}
+
+func verifyShardResultsAreCorrect(
 	values []testValue,
 	actual result.ShardResults,
 	opts Options,
-) {
+) error {
 	// First create what result should be constructed for test values
+	expected, err := createExpectedShardResult(values, actual, opts)
+	if err != nil {
+		return err
+	}
+
+	// Assert the values
+	if len(expected) != len(actual) {
+		return errors.New("number of shards do not match")
+	}
+	for shard, expectedResult := range expected {
+		actualResult, ok := actual[shard]
+		if !ok {
+			return fmt.Errorf("shard: %d present in expected, but not actual", shard)
+		}
+
+		verifyShardResultsAreEqual(opts, shard, actualResult, expectedResult)
+	}
+	return nil
+}
+
+func createExpectedShardResult(
+	values []testValue,
+	actual result.ShardResults,
+	opts Options,
+) (result.ShardResults, error) {
 	bopts := opts.ResultOptions()
 	blockSize := opts.CommitLogOptions().BlockSize()
 	blopts := bopts.DatabaseBlockOptions()
@@ -415,15 +450,6 @@ func requireShardResults(
 
 	// Sort before iterating to ensure encoding to blocks is correct order
 	sort.Stable(testValuesByTime(values))
-
-	type seriesShardResultBlock struct {
-		encoder encoding.Encoder
-	}
-
-	type seriesShardResult struct {
-		blocks map[time.Time]*seriesShardResultBlock
-		result block.DatabaseSeriesBlocks
-	}
 
 	allResults := make(map[string]*seriesShardResult)
 	for _, v := range values {
@@ -457,79 +483,150 @@ func requireShardResults(
 			r.blocks[blockStart] = b
 		}
 
-		require.NoError(t, b.encoder.Encode(ts.Datapoint{
+		err := b.encoder.Encode(ts.Datapoint{
 			Timestamp: v.t,
 			Value:     v.v,
-		}, v.u, v.a))
+		}, v.u, v.a)
+		if err != nil {
+			return expected, err
+		}
 	}
 
 	for _, r := range allResults {
 		for start, blockResult := range r.blocks {
 			enc := blockResult.encoder
 			bl := block.NewDatabaseBlock(start, enc.Discard(), blopts)
-			r.result.AddBlock(bl)
+			if r.result != nil {
+				r.result.AddBlock(bl)
+			}
+		}
+
+	}
+
+	return expected, nil
+}
+
+func verifyShardResultsAreEqual(opts Options, shard uint32, actualResult, expectedResult result.ShardResult) error {
+	expectedSeries := expectedResult.AllSeries()
+	actualSeries := actualResult.AllSeries()
+	if len(expectedSeries) != len(actualSeries) {
+		return fmt.Errorf(
+			"different number of series for shard: %v . expected: %d , actual: %d",
+			shard,
+			len(expectedSeries),
+			len(actualSeries),
+		)
+	}
+
+	for expectedID, expectedBlocks := range expectedSeries {
+		actualBlocks, ok := actualSeries[expectedID]
+		if !ok {
+			return fmt.Errorf("series: %v present in expected but not actual", expectedID)
+		}
+
+		expectedAllBlocks := expectedBlocks.Blocks.AllBlocks()
+		actualAllBlocks := actualBlocks.Blocks.AllBlocks()
+		if len(expectedAllBlocks) != len(actualAllBlocks) {
+			return fmt.Errorf(
+				"number of expected blocks: %d does not match number of actual blocks: %d",
+				len(expectedAllBlocks),
+				len(actualAllBlocks),
+			)
+		}
+
+		err := verifyBlocksAreEqual(opts, expectedAllBlocks, actualAllBlocks)
+		if err != nil {
+			return err
 		}
 	}
 
-	// Assert the values
-	require.Equal(t, len(expected), len(actual))
-	for shard, result := range expected {
-		otherResult, ok := actual[shard]
-		require.True(t, ok)
+	return nil
+}
 
-		series := result.AllSeries()
-		otherSeries := otherResult.AllSeries()
-		require.Equal(t, len(series), len(otherSeries))
+func verifyBlocksAreEqual(opts Options, expectedAllBlocks, actualAllBlocks map[xtime.UnixNano]block.DatabaseBlock) error {
+	blopts := opts.ResultOptions().DatabaseBlockOptions()
+	for start, actualBlock := range actualAllBlocks {
+		expectedBlock, ok := expectedAllBlocks[start]
+		if !ok {
+			return fmt.Errorf("Expected block for start time: %v", start)
+		}
 
-		for id, blocks := range series {
-			otherBlocks, ok := otherSeries[id]
-			require.True(t, ok)
+		ctx := blopts.ContextPool().Get()
+		defer ctx.Close()
 
-			allBlocks := blocks.Blocks.AllBlocks()
-			otherAllBlocks := otherBlocks.Blocks.AllBlocks()
-			require.Equal(t, len(allBlocks), len(otherAllBlocks))
+		expectedStream, expectedStreamErr := expectedBlock.Stream(ctx)
+		if expectedStreamErr != nil {
+			return fmt.Errorf("err creating expected stream: %s", expectedStreamErr.Error())
+		}
 
-			readerIteratorPool := blopts.ReaderIteratorPool()
-			for start, block := range allBlocks {
-				otherBlock, ok := otherAllBlocks[start]
-				require.True(t, ok)
+		actualStream, actualStreamErr := actualBlock.Stream(ctx)
+		if actualStreamErr != nil {
+			return fmt.Errorf("err creating actual stream: %s", actualStreamErr.Error())
+		}
 
-				ctx := blopts.ContextPool().Get()
-				defer ctx.Close()
+		readerIteratorPool := blopts.ReaderIteratorPool()
 
-				stream, streamErr := block.Stream(ctx)
-				require.NoError(t, streamErr)
+		expectedIter := readerIteratorPool.Get()
+		expectedIter.Reset(expectedStream)
+		defer expectedIter.Close()
 
-				otherStream, otherStreamErr := otherBlock.Stream(ctx)
-				require.NoError(t, otherStreamErr)
+		actualIter := readerIteratorPool.Get()
+		actualIter.Reset(actualStream)
+		defer actualIter.Close()
 
-				it := readerIteratorPool.Get()
-				it.Reset(stream)
-				defer it.Close()
+		for {
+			expectedNext := expectedIter.Next()
+			actualNext := actualIter.Next()
+			if !expectedNext && !actualNext {
+				break
+			}
 
-				otherIt := readerIteratorPool.Get()
-				otherIt.Reset(otherStream)
-				defer otherIt.Close()
+			if !(expectedNext && actualNext) {
+				return fmt.Errorf(
+					"err: expectedNext was: %v, but actualNext was: %v",
+					expectedNext,
+					actualNext,
+				)
+			}
 
-				for {
-					next := it.Next()
-					otherNext := otherIt.Next()
-					if !next && !otherNext {
-						break
-					}
+			expectedValue, expectedUnit, expectedAnnotation := expectedIter.Current()
+			actualValue, actualUnit, actualAnnotation := actualIter.Current()
 
-					require.True(t, next && otherNext)
+			if expectedValue.Timestamp != actualValue.Timestamp {
+				return fmt.Errorf(
+					"expectedValue.Timestamp was: %v, but actualValue.Timestamp was: %v",
+					expectedValue.Timestamp,
+					actualValue.Timestamp,
+				)
+			}
 
-					value, unit, annotation := it.Current()
-					otherValue, otherUnit, otherAnnotation := otherIt.Current()
-					require.True(t, value.Timestamp.Equal(otherValue.Timestamp))
-					require.Equal(t, value.Value, otherValue.Value)
-					require.Equal(t, unit, otherUnit)
-					require.Equal(t, annotation, otherAnnotation)
-				}
+			if expectedValue.Value != actualValue.Value {
+				return fmt.Errorf(
+					"expectedValue.Value was: %v, but actualValue.Value was: %v",
+					expectedValue.Value,
+					actualValue.Value,
+				)
+			}
+
+			if expectedUnit != actualUnit {
+				return fmt.Errorf(
+					"expectedUnit was: %v, but actualUnit was: %v",
+					expectedUnit,
+					actualUnit,
+				)
+			}
+
+			if !reflect.DeepEqual(expectedAnnotation, actualAnnotation) {
+				return fmt.Errorf(
+					"expectedAnnotation was: %v, but actualAnnotation was: %v",
+					expectedAnnotation,
+					actualAnnotation,
+				)
 			}
 		}
 	}
+
+	return nil
 }
 
 type testCommitLogIterator struct {

@@ -21,24 +21,46 @@
 package commitlog
 
 import (
+	"errors"
+
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 )
 
+const (
+	defaultEncodingConcurrency   = 4
+	defaultMergeShardConcurrency = 4
+)
+
+var (
+	errEncodingConcurrencyPositive   = errors.New("encoding concurrency must be positive")
+	errMergeShardConcurrencyPositive = errors.New("merge shard concurrency must be positive")
+)
+
 type options struct {
-	resultOpts    result.Options
-	commitLogOpts commitlog.Options
+	resultOpts            result.Options
+	commitLogOpts         commitlog.Options
+	encodingConcurrency   int
+	mergeShardConcurrency int
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		resultOpts:    result.NewOptions(),
-		commitLogOpts: commitlog.NewOptions(),
+		resultOpts:            result.NewOptions(),
+		commitLogOpts:         commitlog.NewOptions(),
+		encodingConcurrency:   defaultEncodingConcurrency,
+		mergeShardConcurrency: defaultMergeShardConcurrency,
 	}
 }
 
 func (o *options) Validate() error {
+	if o.encodingConcurrency <= 0 {
+		return errEncodingConcurrencyPositive
+	}
+	if o.mergeShardConcurrency <= 0 {
+		return errMergeShardConcurrencyPositive
+	}
 	return o.commitLogOpts.Validate()
 }
 
@@ -60,4 +82,24 @@ func (o *options) SetCommitLogOptions(value commitlog.Options) Options {
 
 func (o *options) CommitLogOptions() commitlog.Options {
 	return o.commitLogOpts
+}
+
+func (o *options) SetEncodingConcurrency(value int) Options {
+	opts := *o
+	opts.encodingConcurrency = value
+	return &opts
+}
+
+func (o *options) EncodingConcurrency() int {
+	return o.encodingConcurrency
+}
+
+func (o *options) SetMergeShardsConcurrency(value int) Options {
+	opts := *o
+	opts.mergeShardConcurrency = value
+	return &opts
+}
+
+func (o *options) MergeShardsConcurrency() int {
+	return o.mergeShardConcurrency
 }
