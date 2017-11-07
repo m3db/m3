@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+
 	xlog "github.com/m3db/m3x/log"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
