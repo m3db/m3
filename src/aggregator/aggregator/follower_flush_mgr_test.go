@@ -92,7 +92,7 @@ func TestFollowerFlushManagerCanNotLeadFlushWindowsNotEnded(t *testing.T) {
 	require.False(t, mgr.CanLead())
 }
 
-func TestFollowerFlushManagerCanLead(t *testing.T) {
+func TestFollowerFlushManagerCanLeadNoTombstonedShards(t *testing.T) {
 	doneCh := make(chan struct{})
 	electionManager := &mockElectionManager{
 		isCampaigningFn: func() bool { return true },
@@ -102,6 +102,19 @@ func TestFollowerFlushManagerCanLead(t *testing.T) {
 	mgr.flushTimesState = flushTimesProcessed
 	mgr.processed = testFlushTimes
 	mgr.openedAt = time.Unix(3599, 0)
+	require.True(t, mgr.CanLead())
+}
+
+func TestFollowerFlushManagerCanLeadWithTombstonedShards(t *testing.T) {
+	doneCh := make(chan struct{})
+	electionManager := &mockElectionManager{
+		isCampaigningFn: func() bool { return true },
+	}
+	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
+	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
+	mgr.flushTimesState = flushTimesProcessed
+	mgr.processed = testFlushTimes2
+	mgr.openedAt = time.Unix(3660, 0)
 	require.True(t, mgr.CanLead())
 }
 
@@ -149,7 +162,7 @@ func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
 				},
 				{
 					flusher:          testFlushBuckets[0].flushers[1],
-					flushBeforeNanos: 3668000000000,
+					flushBeforeNanos: 3658000000000,
 				},
 			},
 		},
