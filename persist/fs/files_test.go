@@ -165,7 +165,8 @@ func TestDeleteFiles(t *testing.T) {
 }
 
 func TestDeleteInactiveFiles(t *testing.T) {
-	tempPrefix := os.TempDir()
+	tempPrefix, err := ioutil.TempDir("", "foo")
+	require.NoError(t, err)
 	defer func() {
 		os.RemoveAll(tempPrefix)
 	}()
@@ -183,7 +184,7 @@ func TestDeleteInactiveFiles(t *testing.T) {
 	}
 
 	activeShards := shards[1:]
-	err := DeleteInactiveFilesets(tempPrefix, testNs1ID, activeShards)
+	err = DeleteInactiveFilesets(tempPrefix, testNs1ID, activeShards)
 	require.NoError(t, err)
 	dirs, err := ioutil.ReadDir(namespaceDir)
 	require.NoError(t, err)
