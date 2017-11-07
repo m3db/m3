@@ -324,7 +324,10 @@ func (s *commitLogSource) mergeShard(
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	encoderPool encoding.EncoderPool,
 	blopts block.Options,
-) (shardResult result.ShardResult, numShardEmptyErrs int, numErrs int) {
+) (result.ShardResult, int, int) {
+	var shardResult result.ShardResult
+	var numShardEmptyErrs int
+	var numErrs int
 
 	for _, unmergedBlocks := range unmergedShard.encodersBySeries {
 		seriesBlocks, numSeriesEmptyErrs, numSeriesErrs := s.mergeSeries(
