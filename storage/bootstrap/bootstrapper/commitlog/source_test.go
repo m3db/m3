@@ -407,7 +407,7 @@ type seriesShardResultBlock struct {
 }
 
 type seriesShardResult struct {
-	blocks map[time.Time]*seriesShardResultBlock
+	blocks map[xtime.UnixNano]*seriesShardResultBlock
 	result block.DatabaseSeriesBlocks
 }
 
@@ -467,20 +467,20 @@ func createExpectedShardResult(
 		r, ok := allResults[v.s.ID.String()]
 		if !ok {
 			r = &seriesShardResult{
-				blocks: make(map[time.Time]*seriesShardResultBlock),
+				blocks: make(map[xtime.UnixNano]*seriesShardResultBlock),
 				result: blocks,
 			}
 			allResults[v.s.ID.String()] = r
 		}
 
-		b, ok := r.blocks[blockStart]
+		b, ok := r.blocks[xtime.ToUnixNano(blockStart)]
 		if !ok {
 			encoder := bopts.DatabaseBlockOptions().EncoderPool().Get()
 			encoder.Reset(v.t, 0)
 			b = &seriesShardResultBlock{
 				encoder: encoder,
 			}
-			r.blocks[blockStart] = b
+			r.blocks[xtime.ToUnixNano(blockStart)] = b
 		}
 
 		err := b.encoder.Encode(ts.Datapoint{
@@ -495,7 +495,7 @@ func createExpectedShardResult(
 	for _, r := range allResults {
 		for start, blockResult := range r.blocks {
 			enc := blockResult.encoder
-			bl := block.NewDatabaseBlock(start, enc.Discard(), blopts)
+			bl := block.NewDatabaseBlock(start.ToTime(), enc.Discard(), blopts)
 			if r.result != nil {
 				r.result.AddBlock(bl)
 			}

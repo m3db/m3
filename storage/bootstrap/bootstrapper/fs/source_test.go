@@ -146,7 +146,7 @@ func validateTimeRanges(t *testing.T, tr xtime.Ranges, expected []xtime.Range) {
 	it := tr.Iter()
 	idx := 0
 	for it.Next() {
-		require.Equal(t, expected[idx], it.Value())
+		require.True(t, expected[idx].Equal(it.Value()))
 		idx++
 	}
 }
