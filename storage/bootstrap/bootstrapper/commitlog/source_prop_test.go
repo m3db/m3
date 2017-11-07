@@ -44,6 +44,7 @@ import (
 )
 
 const maxShards = 8192
+const blockSize = 2 * time.Hour
 
 func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
@@ -169,7 +170,7 @@ func genPropTestInputs(ns string) gopter.Gen {
 	}
 	return gopter.CombineGens(
 		// Runs iterations of the test starting 1000 hours in the past/future
-		gen.TimeRange(time.Now().Add(-1000*time.Hour), 1000*time.Hour),
+		gen.TimeRange(time.Now(), blockSize),
 		// Run iterations of the test with between 0 and 1000 datapoints
 		gen.IntRange(0, 1000),
 	).FlatMap(curriedGenPropTestInput, reflect.TypeOf(propTestInput{}))
