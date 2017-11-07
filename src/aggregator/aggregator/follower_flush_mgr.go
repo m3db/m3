@@ -183,6 +183,10 @@ func (mgr *followerFlushManager) CanLead() bool {
 		return false
 	}
 	for _, shardFlushTimes := range mgr.processed.ByShard {
+		// If the shard is tombstoned, there is no need to examine its flush times.
+		if shardFlushTimes.Tombstoned {
+			continue
+		}
 		for windowNanos, lastFlushedNanos := range shardFlushTimes.ByResolution {
 			windowSize := time.Duration(windowNanos)
 			windowEndAt := mgr.openedAt.Truncate(windowSize)

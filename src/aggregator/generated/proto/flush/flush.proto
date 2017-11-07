@@ -25,4 +25,5 @@ message ShardSetFlushTimes {
 
 message ShardFlushTimes {
   map<int64, int64> by_resolution = 1;
+  bool tombstoned = 2;
 }

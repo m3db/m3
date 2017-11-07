@@ -47,7 +47,7 @@ var (
 					shard:            1,
 					resolution:       time.Second,
 					flushInterval:    time.Second,
-					lastFlushedNanos: 3668000000000,
+					lastFlushedNanos: 3658000000000,
 				},
 			},
 		},
@@ -110,7 +110,7 @@ var (
 			},
 			1: &schema.ShardFlushTimes{
 				ByResolution: map[int64]int64{
-					1000000000: 3668000000000,
+					1000000000: 3658000000000,
 				},
 			},
 			2: &schema.ShardFlushTimes{
@@ -128,21 +128,25 @@ var (
 					1000000000:  3669000000000,
 					60000000000: 3660000000000,
 				},
+				Tombstoned: false,
 			},
 			1: &schema.ShardFlushTimes{
 				ByResolution: map[int64]int64{
-					1000000000: 3668000000000,
+					1000000000: 3658000000000,
 				},
+				Tombstoned: true,
 			},
 			2: &schema.ShardFlushTimes{
 				ByResolution: map[int64]int64{
 					3600000000000: 3600000000000,
 				},
+				Tombstoned: true,
 			},
 			3: &schema.ShardFlushTimes{
 				ByResolution: map[int64]int64{
 					3600000000000: 7200000000000,
 				},
+				Tombstoned: false,
 			},
 		},
 	}
