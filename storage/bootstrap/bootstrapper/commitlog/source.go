@@ -354,7 +354,10 @@ func (s *commitLogSource) mergeSeries(
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool,
 	encoderPool encoding.EncoderPool,
 	blopts block.Options,
-) (seriesBlocks block.DatabaseSeriesBlocks, numEmptyErrs int, numErrs int) {
+) (block.DatabaseSeriesBlocks, int, int) {
+	var seriesBlocks block.DatabaseSeriesBlocks
+	var numEmptyErrs int
+	var numErrs int
 
 	for startNano, encoders := range unmergedBlocks.encoders {
 		start := startNano.ToTime()
