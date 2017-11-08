@@ -185,14 +185,13 @@ func TestDeleteInactiveFiles(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	activeShards := shards[1:]
-	err = DeleteInactiveFilesets(tempPrefix, testNs1ID, activeShards)
+	activeShards := shardDirs[1:]
+	err = DeleteInactiveDirectories(namespaceDir, activeShards)
 	require.NoError(t, err)
 	dirs, err := ioutil.ReadDir(namespaceDir)
 	require.NoError(t, err)
 	require.Equal(t, 2, len(dirs))
 	os.RemoveAll(namespaceDir)
-	require.NoError(t, f.Close())
 }
 
 func TestByTimeAscending(t *testing.T) {

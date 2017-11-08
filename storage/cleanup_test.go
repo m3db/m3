@@ -58,11 +58,17 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		{"baz", nil},
 	}
 
+	var defaultShards []Shard
 	start := timeFor(14400)
 	namespaces := make([]databaseNamespace, 0, len(inputs))
 	for _, input := range inputs {
 		ns := NewMockdatabaseNamespace(ctrl)
 		ns.EXPECT().Options().Return(nsOpts).AnyTimes()
+		ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
+		shard := NewMockShard(ctrl)
+		shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
+		defaultShards = append(defaultShards, shard)
+		ns.EXPECT().Shards().Return(defaultShards).AnyTimes()
 		ns.EXPECT().CleanupFileset(start).Return(input.err)
 		ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
 		namespaces = append(namespaces, ns)
@@ -86,6 +92,11 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	var deletedFiles []string
 	mgr.deleteFilesFn = func(files []string) error {
 		deletedFiles = append(deletedFiles, files...)
+		return nil
+	}
+
+	mgr.deleteInactiveDirectoriesFn = func(dirPath string, files []string) error {
+		files = append(files, dirPath)
 		return nil
 	}
 
