@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3ctl/services/r2ctl/server"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/gorilla/mux"
@@ -164,6 +165,8 @@ type service struct {
 	rootPrefix  string
 	store       Store
 	authService auth.HTTPAuthService
+	metrics     serviceMetrics
+	nowFn       clock.NowFn
 }
 
 // NewService creates a new r2 service using a given store.
@@ -172,8 +175,16 @@ func NewService(
 	rootPrefix string,
 	authService auth.HTTPAuthService,
 	store Store,
+	clockOpts clock.Options,
 ) server.Service {
-	return &service{iOpts: iOpts, store: store, authService: authService, rootPrefix: rootPrefix}
+	return &service{
+		iOpts:       iOpts,
+		store:       store,
+		authService: authService,
+		rootPrefix:  rootPrefix,
+		metrics:     newServiceMetrics(iOpts.MetricsScope()),
+		nowFn:       clockOpts.NowFn(),
+	}
 }
 
 func (s *service) sendResponse(w http.ResponseWriter, statusCode int, data interface{}) error {
@@ -184,224 +195,128 @@ func (s *service) sendResponse(w http.ResponseWriter, statusCode int, data inter
 }
 
 func (s *service) fetchNamespaces(w http.ResponseWriter, _ *http.Request) error {
-	view, err := s.store.FetchNamespaces()
+	data, err := handleRoute(fetchNamespaces, s, nil, "")
 	if err != nil {
 		return err
 	}
-
-	return s.sendResponse(w, http.StatusOK, newNamespacesJSON(view))
+	return s.sendResponse(w, http.StatusOK, data)
 }
 
 func (s *service) fetchNamespace(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	rs, err := s.store.FetchRuleSet(vars[namespaceIDVar])
+	data, err := handleRoute(fetchNamespace, s, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
-	return s.sendResponse(w, http.StatusOK, newRuleSetJSON(rs))
+	return s.sendResponse(w, http.StatusOK, data)
 }
 
 func (s *service) createNamespace(w http.ResponseWriter, r *http.Request) error {
-	var n namespaceJSON
-	if err := parseRequest(&n, r.Body); err != nil {
-		return err
-	}
-
-	uOpts, err := s.newUpdateOptions(r)
+	vars := mux.Vars(r)
+	data, err := handleRoute(createNamespace, s, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
-
-	view, err := s.store.CreateNamespace(n.ID, uOpts)
-	if err != nil {
-		return err
-	}
-
-	return s.sendResponse(w, http.StatusCreated, newNamespaceJSON(view))
+	return s.sendResponse(w, http.StatusCreated, data)
 }
 
 func (s *service) deleteNamespace(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	namespaceID := vars[namespaceIDVar]
-
-	uOpts, err := s.newUpdateOptions(r)
+	data, err := handleRoute(deleteNamespace, s, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
-
-	if err := s.store.DeleteNamespace(namespaceID, uOpts); err != nil {
-		return err
-	}
-	return writeAPIResponse(w, http.StatusOK, fmt.Sprintf("Deleted namespace %s", namespaceID))
+	return writeAPIResponse(w, http.StatusOK, data.(string))
 }
 
 func (s *service) fetchMappingRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	mr, err := s.store.FetchMappingRule(vars[namespaceIDVar], vars[ruleIDVar])
+	data, err := handleRoute(fetchMappingRule, s, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
-	return s.sendResponse(w, http.StatusOK, newMappingRuleJSON(mr))
+	return s.sendResponse(w, http.StatusOK, data)
 }
 
 func (s *service) createMappingRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	var mrj mappingRuleJSON
-	if err := parseRequest(&mrj, r.Body); err != nil {
-		return err
-	}
-
-	uOpts, err := s.newUpdateOptions(r)
+	data, err := handleRoute(createMappingRule, s, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
-
-	mr, err := s.store.CreateMappingRule(
-		vars[namespaceIDVar],
-		mrj.mappingRuleView(),
-		uOpts,
-	)
-
-	if err != nil {
-		return err
-	}
-	return s.sendResponse(w, http.StatusCreated, newMappingRuleJSON(mr))
+	return s.sendResponse(w, http.StatusCreated, data)
 }
 
 func (s *service) updateMappingRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-
-	var mrj mappingRuleJSON
-	if err := parseRequest(&mrj, r.Body); err != nil {
-		return err
-	}
-
-	uOpts, err := s.newUpdateOptions(r)
+	data, err := handleRoute(updateMappingRule, s, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
-
-	mr, err := s.store.UpdateMappingRule(
-		vars[namespaceIDVar],
-		vars[ruleIDVar],
-		mrj.mappingRuleView(),
-		uOpts,
-	)
-
-	if err != nil {
-		return err
-	}
-
-	return s.sendResponse(w, http.StatusOK, newMappingRuleJSON(mr))
+	return s.sendResponse(w, http.StatusOK, data)
 }
 
 func (s *service) deleteMappingRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	namespaceID := vars[namespaceIDVar]
-	mappingRuleID := vars[ruleIDVar]
-
-	uOpts, err := s.newUpdateOptions(r)
+	data, err := handleRoute(deleteMappingRule, s, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
-
-	if err := s.store.DeleteMappingRule(namespaceID, mappingRuleID, uOpts); err != nil {
-		return err
-	}
-
-	return writeAPIResponse(w, http.StatusOK,
-		fmt.Sprintf("Deleted mapping rule: %s in namespace %s", mappingRuleID, namespaceID))
+	return writeAPIResponse(w, http.StatusOK, data.(string))
 }
 
 func (s *service) fetchMappingRuleHistory(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	hist, err := s.store.FetchMappingRuleHistory(vars[namespaceIDVar], vars[ruleIDVar])
+	data, err := handleRoute(fetchMappingRuleHistory, s, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
-	return s.sendResponse(w, http.StatusOK, newMappingRuleHistoryJSON(hist))
+	return s.sendResponse(w, http.StatusOK, data)
 }
 
 func (s *service) fetchRollupRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	rr, err := s.store.FetchRollupRule(vars[namespaceIDVar], vars[ruleIDVar])
+	data, err := handleRoute(fetchRollupRule, s, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
-	return s.sendResponse(w, http.StatusOK, newRollupRuleJSON(rr))
+	return s.sendResponse(w, http.StatusOK, data)
 }
 
 func (s *service) createRollupRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	namespaceID := vars[namespaceIDVar]
-
-	var rrj rollupRuleJSON
-	if err := parseRequest(&rrj, r.Body); err != nil {
-		return err
-	}
-
-	uOpts, err := s.newUpdateOptions(r)
+	data, err := handleRoute(createRollupRule, s, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
-
-	rr, err := s.store.CreateRollupRule(namespaceID, rrj.rollupRuleView(), uOpts)
-	if err != nil {
-		return err
-	}
-	return s.sendResponse(w, http.StatusCreated, newRollupRuleJSON(rr))
+	return s.sendResponse(w, http.StatusCreated, data)
 }
 
 func (s *service) updateRollupRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	var rrj rollupRuleJSON
-	if err := parseRequest(&rrj, r.Body); err != nil {
-		return err
-	}
-
-	uOpts, err := s.newUpdateOptions(r)
+	data, err := handleRoute(updateRollupRule, s, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
-
-	rr, err := s.store.UpdateRollupRule(
-		vars[namespaceIDVar],
-		vars[ruleIDVar],
-		rrj.rollupRuleView(),
-		uOpts,
-	)
-
-	if err != nil {
-		return err
-	}
-	return s.sendResponse(w, http.StatusOK, newRollupRuleJSON(rr))
+	return s.sendResponse(w, http.StatusOK, data)
 }
 
 func (s *service) deleteRollupRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	namespaceID := vars[namespaceIDVar]
-	rollupRuleID := vars[ruleIDVar]
-
-	uOpts, err := s.newUpdateOptions(r)
+	data, err := handleRoute(deleteRollupRule, s, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
-
-	if err := s.store.DeleteRollupRule(namespaceID, rollupRuleID, uOpts); err != nil {
-		return err
-	}
-
-	return writeAPIResponse(w, http.StatusOK,
-		fmt.Sprintf("Deleted rollup rule: %s in namespace %s", rollupRuleID, namespaceID))
+	return writeAPIResponse(w, http.StatusOK, data.(string))
 }
 
 func (s *service) fetchRollupRuleHistory(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	hist, err := s.store.FetchRollupRuleHistory(vars[namespaceIDVar], vars[ruleIDVar])
+	data, err := handleRoute(fetchRollupRuleHistory, s, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
-	return s.sendResponse(w, http.StatusOK, newRollupRuleHistoryJSON(hist))
+	return s.sendResponse(w, http.StatusOK, data)
 }
 
 // RegisterHandlers registers rule handler.
