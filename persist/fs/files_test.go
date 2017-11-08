@@ -164,7 +164,7 @@ func TestDeleteFiles(t *testing.T) {
 	}
 }
 
-func TestDeleteInactiveFiles(t *testing.T) {
+func TestDeleteInactiveDirectories(t *testing.T) {
 	tempPrefix, err := ioutil.TempDir("", "filespath")
 	require.NoError(t, err)
 	defer func() {
