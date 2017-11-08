@@ -1693,7 +1693,7 @@ func TestBlocksResultAddBlockFromPeerReadUnmerged(t *testing.T) {
 		idx := asserted
 		dp, unit, annotation := iter.Current()
 		assert.Equal(t, all[idx].value, dp.Value)
-		assert.Equal(t, all[idx].t, dp.Timestamp)
+		assert.True(t, all[idx].t.Equal(dp.Timestamp))
 		assert.Equal(t, all[idx].unit, unit)
 		assert.Equal(t, all[idx].annotation, []byte(annotation))
 		asserted++

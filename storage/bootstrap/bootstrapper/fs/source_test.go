@@ -146,7 +146,7 @@ func validateTimeRanges(t *testing.T, tr xtime.Ranges, expected []xtime.Range) {
 	it := tr.Iter()
 	idx := 0
 	for it.Next() {
-		require.Equal(t, expected[idx], it.Value())
+		require.True(t, expected[idx].Equal(it.Value()))
 		idx++
 	}
 }
@@ -404,7 +404,7 @@ func TestReadValidateError(t *testing.T) {
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
 	reader.EXPECT().
-		Open(idMatcher, shard, testStart).
+		Open(idMatcher, shard, xtime.NewMatcher(testStart)).
 		Return(nil)
 	reader.EXPECT().
 		Range().
@@ -456,7 +456,7 @@ func TestReadDeleteOnError(t *testing.T) {
 
 	idMatcher := ts.NewIDMatcher(testNs1ID.String())
 	gomock.InOrder(
-		reader.EXPECT().Open(idMatcher, shard, testStart).Return(nil),
+		reader.EXPECT().Open(idMatcher, shard, xtime.NewMatcher(testStart)).Return(nil),
 		reader.EXPECT().
 			Range().
 			Return(xtime.Range{

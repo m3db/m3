@@ -139,7 +139,7 @@ func (s *fileSystemSource) enqueueReaders(
 		readers := make([]fs.FileSetReader, 0, len(files))
 		for i := 0; i < len(files); i++ {
 			r := readerPool.get()
-			t := xtime.FromNanoseconds(files[i].Start)
+			t := xtime.FromNanoseconds(files[i].Start).Round(0).UTC()
 			if err := r.Open(namespace, shard, t); err != nil {
 				s.log.WithFields(
 					xlog.NewField("shard", shard),

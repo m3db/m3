@@ -55,8 +55,8 @@ func testDatabaseSeriesBlocksWithTimes(times []time.Time) *databaseSeriesBlocks 
 }
 
 func validateBlocks(t *testing.T, blocks *databaseSeriesBlocks, minTime, maxTime time.Time, expectedTimes []time.Time) {
-	require.Equal(t, minTime, blocks.MinTime())
-	require.Equal(t, maxTime, blocks.MaxTime())
+	require.True(t, minTime.Equal(blocks.MinTime()))
+	require.True(t, maxTime.Equal(blocks.MaxTime()))
 	allBlocks := blocks.elems
 	require.Equal(t, len(expectedTimes), len(allBlocks))
 	for _, timestamp := range expectedTimes {
