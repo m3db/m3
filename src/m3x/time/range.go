@@ -33,7 +33,7 @@ type Range struct {
 
 // IsEmpty returns whether the time range is empty.
 func (r Range) IsEmpty() bool {
-	return r.Start == r.End
+	return r.Start.Equal(r.End)
 }
 
 // Equal returns whether two time ranges are equal.
