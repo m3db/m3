@@ -24,9 +24,8 @@
 package retention
 
 import (
-	time "time"
-
 	gomock "github.com/golang/mock/gomock"
+	time "time"
 )
 
 // Mock of Options interface
