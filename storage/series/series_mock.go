@@ -24,16 +24,15 @@
 package series
 
 import (
-	time0 "time"
-
+	gomock "github.com/golang/mock/gomock"
 	context "github.com/m3db/m3db/context"
 	persist "github.com/m3db/m3db/persist"
 	block "github.com/m3db/m3db/storage/block"
+	series "github.com/m3db/m3db/storage/series"
 	ts "github.com/m3db/m3db/ts"
-	io "github.com/m3db/m3db/x/io"
 	time "github.com/m3db/m3x/time"
-
-	gomock "github.com/golang/mock/gomock"
+	io "github.com/m3db/m3db/x/io"
+	time0 "time"
 )
 
 // Mock of DatabaseSeries interface
@@ -146,7 +145,7 @@ func (_mr *_MockDatabaseSeriesRecorder) ReadEncoded(arg0, arg1, arg2 interface{}
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadEncoded", arg0, arg1, arg2)
 }
 
-func (_m *MockDatabaseSeries) Reset(_param0 ts.ID, _param1 QueryableBlockRetriever, _param2 Options) {
+func (_m *MockDatabaseSeries) Reset(_param0 ts.ID, _param1 series.QueryableBlockRetriever, _param2 series.Options) {
 	_m.ctrl.Call(_m, "Reset", _param0, _param1, _param2)
 }
 
@@ -154,9 +153,9 @@ func (_mr *_MockDatabaseSeriesRecorder) Reset(arg0, arg1, arg2 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1, arg2)
 }
 
-func (_m *MockDatabaseSeries) Tick() (TickResult, error) {
+func (_m *MockDatabaseSeries) Tick() (series.TickResult, error) {
 	ret := _m.ctrl.Call(_m, "Tick")
-	ret0, _ := ret[0].(TickResult)
+	ret0, _ := ret[0].(series.TickResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
