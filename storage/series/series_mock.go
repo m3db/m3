@@ -145,7 +145,7 @@ func (_mr *_MockDatabaseSeriesRecorder) ReadEncoded(arg0, arg1, arg2 interface{}
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadEncoded", arg0, arg1, arg2)
 }
 
-func (_m *MockDatabaseSeries) Reset(_param0 ts.ID, _param1 series.QueryableBlockRetriever, _param2 series.Options) {
+func (_m *MockDatabaseSeries) Reset(_param0 ts.ID, _param1 QueryableBlockRetriever, _param2 Options) {
 	_m.ctrl.Call(_m, "Reset", _param0, _param1, _param2)
 }
 
@@ -153,9 +153,9 @@ func (_mr *_MockDatabaseSeriesRecorder) Reset(arg0, arg1, arg2 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1, arg2)
 }
 
-func (_m *MockDatabaseSeries) Tick() (series.TickResult, error) {
+func (_m *MockDatabaseSeries) Tick() (TickResult, error) {
 	ret := _m.ctrl.Call(_m, "Tick")
-	ret0, _ := ret[0].(series.TickResult)
+	ret0, _ := ret[0].(TickResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
