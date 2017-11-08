@@ -37,8 +37,6 @@ type I interface {
 // nolint: megacheck
 type T struct {
 	x I
-	y [4096]byte
-	z int
 }
 
 func TestNativePoolBasics(t *testing.T) {

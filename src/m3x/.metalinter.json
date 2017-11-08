@@ -1,4 +1,10 @@
 {
+  "Linters": {
+    "maptime": {
+      "Command": "maptime",
+      "Pattern": "PATH:LINE:COL:MESSAGE"
+    }
+  },
   "Enable":
     [ "deadcode"
     , "varcheck"
@@ -8,7 +14,8 @@
     , "unconvert"
     , "misspell"
     , "unparam"
-    , "megacheck" ],
+    , "megacheck"
+    , "maptime" ],
   "Deadline": "3m",
   "EnableGC": true
 }
