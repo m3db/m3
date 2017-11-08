@@ -478,6 +478,10 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 	return result, nil
 }
 
+func (s *service) FetchBlocksMetadataV2Raw(tctx thrift.Context, req *rpc.FetchBlocksMetadataRawRequest) (*rpc.FetchBlocksMetadataRawResult_, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	callStart := s.nowFn()
 	ctx := tchannelthrift.Context(tctx)
