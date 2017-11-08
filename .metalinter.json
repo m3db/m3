@@ -1,8 +1,18 @@
 {
   "Linters": {
-    "unused":   "unused -tags integration:PATH:LINE:COL:MESSAGE",
-    "gosimple": "gosimple -tags integration:PATH:LINE:COL:MESSAGE",
-    "maptime": "maptime:PATH:LINE:COL:MESSAGE" },
+    "unused": {
+      "Command": "unused -tags integration",
+      "Pattern": "PATH:LINE:COL:MESSAGE"
+    },
+    "gosimple": {
+      "Command": "gosimple -tags integration",
+      "Pattern": "PATH:LINE:COL:MESSAGE"
+    },
+    "maptime": {
+      "Command": "maptime -tags integration",
+      "Pattern": "PATH:LINE:COL:MESSAGE"
+    }
+  },
   "Enable":
     [ "deadcode"
     , "varcheck"
