@@ -44,14 +44,14 @@ import:
   version: <4.0.0
 
 - package: github.com/m3db/m3cluster
-  version: 6edd2de9c678c51ef4d4d91eb66d191e9d7190f5
+  version: 8354845ef3ba8c1a4ddbad288fca248516fb0a50
   subpackages:
   - client
   - services
   - integration/etcd
 
 - package: github.com/m3db/m3x
-  version: 640bad305baa75986e8b4cbacd23b530374f9c76
+  version: f55f7ecf679d192f0f272ce2088e24b2b640c194
   vcs: git
   subpackages:
   - checked

@@ -1,5 +1,5 @@
-hash: 28af70e9a86e892bbdb06c12c9000295565b43967fbe5015d3d30cbce57612bf
-updated: 2017-11-08T13:06:52.812830135-05:00
+hash: 0c0adc2d1d5754541cd25d8602bcff5464bfa76d2d15d6f5840775fbb88d1611
+updated: 2017-11-08T15:19:37.101058172-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -133,7 +133,7 @@ imports:
   - gen
   - prop
 - name: github.com/m3db/m3cluster
-  version: 6edd2de9c678c51ef4d4d91eb66d191e9d7190f5
+  version: 8354845ef3ba8c1a4ddbad288fca248516fb0a50
   subpackages:
   - client
   - client/etcd
@@ -171,7 +171,7 @@ imports:
   - os/fs
   - x/grpc
 - name: github.com/m3db/m3x
-  version: 640bad305baa75986e8b4cbacd23b530374f9c76
+  version: f55f7ecf679d192f0f272ce2088e24b2b640c194
   vcs: git
   subpackages:
   - checked
