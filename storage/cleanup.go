@@ -134,6 +134,7 @@ func (m *cleanupManager) Report() {
 func (m *cleanupManager) deleteInactiveNamespaceFiles() error {
 	var namespaceDirNames []string
 	filePathPrefix := m.database.Options().CommitLogOptions().FilesystemOptions().FilePathPrefix()
+	dataDirPath := fs.DataDirPath(filePathPrefix)
 	namespaces, err := m.database.GetOwnedNamespaces()
 	if err != nil {
 		return err
@@ -141,7 +142,7 @@ func (m *cleanupManager) deleteInactiveNamespaceFiles() error {
 	for _, n := range namespaces {
 		namespaceDirNames = append(namespaceDirNames, n.ID().String())
 	}
-	return m.deleteInactiveDirectoriesFn(filePathPrefix, namespaceDirNames)
+	return m.deleteInactiveDirectoriesFn(dataDirPath, namespaceDirNames)
 }
 
 func (m *cleanupManager) deleteInactiveFilesetFiles() error {

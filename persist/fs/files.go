@@ -390,6 +390,11 @@ func readAndValidate(
 }
 
 // NamespaceDirPath returns the path to a given namespace.
+func DataDirPath(prefix string) string {
+	return path.Join(prefix, dataDirName)
+}
+
+// NamespaceDirPath returns the path to a given namespace.
 func NamespaceDirPath(prefix string, namespace ts.ID) string {
 	return path.Join(prefix, dataDirName, namespace.String())
 }
