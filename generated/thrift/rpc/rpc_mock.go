@@ -146,6 +146,17 @@ func (_mr *_MockTChanNodeRecorder) FetchBlocksMetadataRaw(arg0, arg1 interface{}
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataRaw", arg0, arg1)
 }
 
+func (_m *MockTChanNode) FetchBlocksMetadataRawV2(ctx thrift.Context, req *FetchBlocksMetadataRawV2Request) (*FetchBlocksMetadataRawV2Result_, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataRawV2", ctx, req)
+	ret0, _ := ret[0].(*FetchBlocksMetadataRawV2Result_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockTChanNodeRecorder) FetchBlocksMetadataRawV2(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataRawV2", arg0, arg1)
+}
+
 func (_m *MockTChanNode) FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRawRequest) (*FetchBlocksRawResult_, error) {
 	ret := _m.ctrl.Call(_m, "FetchBlocksRaw", ctx, req)
 	ret0, _ := ret[0].(*FetchBlocksRawResult_)

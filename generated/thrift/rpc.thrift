@@ -50,6 +50,7 @@ service Node {
 	FetchBatchRawResult fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
 	FetchBlocksRawResult fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
 	FetchBlocksMetadataRawResult fetchBlocksMetadataRaw(1: FetchBlocksMetadataRawRequest req) throws (1: Error err)
+	FetchBlocksMetadataRawV2Result fetchBlocksMetadataRawV2(1: FetchBlocksMetadataRawV2Request req) throws (1: Error err)
 	void writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
 	void repair() throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
@@ -176,6 +177,34 @@ struct BlockMetadata {
 	5: optional i64 lastRead
 	6: optional TimeType lastReadTimeType = TimeType.UNIX_SECONDS
 }
+
+struct FetchBlocksMetadataRawV2Request {
+	1: required binary nameSpace
+	2: required i32 shard
+	3: required i64 rangeStart
+	4: required i64 rangeEnd
+	5: required i64 limit
+	6: optional binary pageToken
+	7: optional bool includeSizes
+	8: optional bool includeChecksums
+	9: optional bool includeLastRead
+}
+
+struct FetchBlocksMetadataRawV2Result {
+	1: required list<BlockMetadataV2> elements
+	2: optional i64 nextPageToken
+}
+
+struct BlockMetadataV2 {
+	1: required binary id
+	2: required i64 start
+	3: optional Error err
+	4: optional i64 size
+	5: optional i64 checksum
+	6: optional i64 lastRead
+	7: optional TimeType lastReadTimeType = TimeType.UNIX_SECONDS
+}
+
 
 struct WriteBatchRawRequest {
 	1: required binary nameSpace
