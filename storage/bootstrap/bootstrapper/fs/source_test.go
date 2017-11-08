@@ -404,7 +404,7 @@ func TestReadValidateError(t *testing.T) {
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
 	reader.EXPECT().
-		Open(idMatcher, shard, testStart).
+		Open(idMatcher, shard, xtime.NewMatcher(testStart)).
 		Return(nil)
 	reader.EXPECT().
 		Range().
@@ -456,7 +456,7 @@ func TestReadDeleteOnError(t *testing.T) {
 
 	idMatcher := ts.NewIDMatcher(testNs1ID.String())
 	gomock.InOrder(
-		reader.EXPECT().Open(idMatcher, shard, testStart).Return(nil),
+		reader.EXPECT().Open(idMatcher, shard, xtime.NewMatcher(testStart)).Return(nil),
 		reader.EXPECT().
 			Range().
 			Return(xtime.Range{
