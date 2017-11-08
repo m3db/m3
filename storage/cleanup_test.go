@@ -96,7 +96,6 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	}
 
 	mgr.deleteInactiveDirectoriesFn = func(dirPath string, files []string) error {
-		files = append(files, dirPath)
 		return nil
 	}
 
