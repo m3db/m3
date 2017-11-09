@@ -157,6 +157,17 @@ func (_mr *_MockTChanNodeRecorder) FetchBlocksRaw(arg0, arg1 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksRaw", arg0, arg1)
 }
 
+func (_m *MockTChanNode) FetchMetadataBatchRaw(ctx thrift.Context, req *FetchMetadataBatchRawRequest) (*FetchMetadataBatchRawResult_, error) {
+	ret := _m.ctrl.Call(_m, "FetchMetadataBatchRaw", ctx, req)
+	ret0, _ := ret[0].(*FetchMetadataBatchRawResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockTChanNodeRecorder) FetchMetadataBatchRaw(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchMetadataBatchRaw", arg0, arg1)
+}
+
 func (_m *MockTChanNode) GetPersistRateLimit(ctx thrift.Context) (*NodePersistRateLimitResult_, error) {
 	ret := _m.ctrl.Call(_m, "GetPersistRateLimit", ctx)
 	ret0, _ := ret[0].(*NodePersistRateLimitResult_)

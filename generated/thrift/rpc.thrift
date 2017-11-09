@@ -50,6 +50,7 @@ service Node {
 	FetchBatchRawResult fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
 	FetchBlocksRawResult fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
 	FetchBlocksMetadataRawResult fetchBlocksMetadataRaw(1: FetchBlocksMetadataRawRequest req) throws (1: Error err)
+	FetchMetadataBatchRawResult fetchMetadataBatchRaw(1: FetchMetadataBatchRawRequest req) throws (1: Error err)
 	void writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
 	void repair() throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
@@ -91,6 +92,22 @@ struct WriteRequest {
 	2: required string id
 	3: required Datapoint datapoint
 }
+
+struct FetchMetadataBatchRawRequest {
+	1: required binary nameSpace
+	2: required list<binary> ids
+}
+
+struct FetchMetadataBatchRawResult {
+	1: required list<FetchMetadataRawResult> elements
+}
+
+struct FetchMetadataRawResult {
+	1: required bool exists
+	2: optional i64 lastRead
+	3: optional TimeType lastReadTimeType = TimeType.UNIX_SECONDS
+}
+
 
 struct FetchBatchRawRequest {
 	1: required i64 rangeStart
@@ -144,6 +161,8 @@ struct Block {
 	2: optional Segments segments
 	3: optional Error err
 	4: optional i64 checksum
+	5: optional i64 lastRead
+	6: optional TimeType lastReadTimeType = TimeType.UNIX_SECONDS
 }
 
 struct FetchBlocksMetadataRawRequest {
