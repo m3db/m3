@@ -21,6 +21,7 @@
 package node
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"sync"
@@ -86,17 +87,19 @@ func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
 type service struct {
 	sync.RWMutex
 
-	db                      storage.Database
-	opts                    tchannelthrift.Options
-	nowFn                   clock.NowFn
-	metrics                 serviceMetrics
-	idPool                  ts.IdentifierPool
-	checkedBytesPool        pool.ObjectPool
-	blockMetadataPool       tchannelthrift.BlockMetadataPool
-	blockMetadataSlicePool  tchannelthrift.BlockMetadataSlicePool
-	blocksMetadataPool      tchannelthrift.BlocksMetadataPool
-	blocksMetadataSlicePool tchannelthrift.BlocksMetadataSlicePool
-	health                  *rpc.NodeHealthResult_
+	db                       storage.Database
+	opts                     tchannelthrift.Options
+	nowFn                    clock.NowFn
+	metrics                  serviceMetrics
+	idPool                   ts.IdentifierPool
+	checkedBytesPool         pool.ObjectPool
+	blockMetadataPool        tchannelthrift.BlockMetadataPool
+	blockMetadataV2Pool      tchannelthrift.BlockMetadataV2Pool
+	blockMetadataSlicePool   tchannelthrift.BlockMetadataSlicePool
+	blockMetadataV2SlicePool tchannelthrift.BlockMetadataV2SlicePool
+	blocksMetadataPool       tchannelthrift.BlocksMetadataPool
+	blocksMetadataSlicePool  tchannelthrift.BlocksMetadataSlicePool
+	health                   *rpc.NodeHealthResult_
 }
 
 // NewService creates a new node TChannel Thrift service
@@ -112,15 +115,17 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 	)
 
 	s := &service{
-		db:                      db,
-		opts:                    opts,
-		nowFn:                   db.Options().ClockOptions().NowFn(),
-		metrics:                 newServiceMetrics(scope, iopts.MetricsSamplingRate()),
-		idPool:                  db.Options().IdentifierPool(),
-		blockMetadataPool:       opts.BlockMetadataPool(),
-		blockMetadataSlicePool:  opts.BlockMetadataSlicePool(),
-		blocksMetadataPool:      opts.BlocksMetadataPool(),
-		blocksMetadataSlicePool: opts.BlocksMetadataSlicePool(),
+		db:                       db,
+		opts:                     opts,
+		nowFn:                    db.Options().ClockOptions().NowFn(),
+		metrics:                  newServiceMetrics(scope, iopts.MetricsSamplingRate()),
+		idPool:                   db.Options().IdentifierPool(),
+		blockMetadataPool:        opts.BlockMetadataPool(),
+		blockMetadataV2Pool:      opts.BlockMetadataV2Pool(),
+		blockMetadataSlicePool:   opts.BlockMetadataSlicePool(),
+		blockMetadataV2SlicePool: opts.BlockMetadataV2SlicePool(),
+		blocksMetadataPool:       opts.BlocksMetadataPool(),
+		blocksMetadataSlicePool:  opts.BlocksMetadataSlicePool(),
 		health: &rpc.NodeHealthResult_{
 			Ok:           true,
 			Status:       "up",
@@ -479,7 +484,104 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 }
 
 func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBlocksMetadataRawV2Request) (*rpc.FetchBlocksMetadataRawV2Result_, error) {
-	return nil, errors.New("not implemented")
+	if s.db.IsOverloaded() {
+		s.metrics.overloadRejected.Inc(1)
+		return nil, tterrors.NewInternalError(errServerIsOverloaded)
+	}
+
+	callStart := s.nowFn()
+	ctx := tchannelthrift.Context(tctx)
+
+	start := time.Unix(0, req.RangeStart)
+	end := time.Unix(0, req.RangeEnd)
+
+	if req.Limit <= 0 {
+		s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
+		return nil, nil
+	}
+
+	// TODO: Fix me
+	var pageToken int64
+	if req.PageToken != nil {
+		pageToken = int64(binary.LittleEndian.Uint64(req.PageToken[:8]))
+	}
+
+	var opts block.FetchBlocksMetadataOptions
+	if req.IncludeSizes != nil {
+		opts.IncludeSizes = *req.IncludeSizes
+	}
+	if req.IncludeChecksums != nil {
+		opts.IncludeChecksums = *req.IncludeChecksums
+	}
+	if req.IncludeLastRead != nil {
+		opts.IncludeLastRead = *req.IncludeLastRead
+	}
+
+	nsID := s.newID(ctx, req.NameSpace)
+
+	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx, nsID,
+		uint32(req.Shard), start, end, req.Limit, pageToken, opts)
+	if err != nil {
+		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
+		return nil, convert.ToRPCError(err)
+	}
+	ctx.RegisterFinalizer(context.FinalizerFn(fetched.Close))
+
+	fetchedResults := fetched.Results()
+	result := rpc.NewFetchBlocksMetadataRawV2Result_()
+	result.NextPageToken = nextPageToken
+	result.Elements = s.blockMetadataV2SlicePool.Get()
+
+	// NB(xichen): register a closer with context so objects are returned to pool
+	// when we are done using them
+	ctx.RegisterFinalizer(s.newCloseableMetadataV2Result(result))
+
+	for _, fetchedMetadata := range fetchedResults {
+		fetchedMetadataBlocks := fetchedMetadata.Blocks.Results()
+		id := fetchedMetadata.ID.Data().Get()
+
+		for _, fetchedMetadataBlock := range fetchedMetadataBlocks {
+			blockMetadata := s.blockMetadataV2Pool.Get()
+			blockMetadata.ID = id
+			blockMetadata.Start = xtime.ToNanoseconds(fetchedMetadataBlock.Start)
+
+			if opts.IncludeSizes {
+				size := fetchedMetadataBlock.Size
+				blockMetadata.Size = &size
+			} else {
+				blockMetadata.Size = nil
+			}
+
+			checksum := fetchedMetadataBlock.Checksum
+			if opts.IncludeChecksums && checksum != nil {
+				value := int64(*checksum)
+				blockMetadata.Checksum = &value
+			} else {
+				blockMetadata.Checksum = nil
+			}
+
+			if opts.IncludeLastRead {
+				lastRead := fetchedMetadataBlock.LastRead.UnixNano()
+				blockMetadata.LastRead = &lastRead
+				blockMetadata.LastReadTimeType = rpc.TimeType_UNIX_NANOSECONDS
+			} else {
+				blockMetadata.LastRead = nil
+				blockMetadata.LastReadTimeType = rpc.TimeType(0)
+			}
+
+			if err := fetchedMetadataBlock.Err; err != nil {
+				blockMetadata.Err = convert.ToRPCError(err)
+			} else {
+				blockMetadata.Err = nil
+			}
+
+			result.Elements = append(result.Elements, blockMetadata)
+		}
+	}
+
+	s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
+
+	return result, nil
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
@@ -758,4 +860,22 @@ func (c closeableMetadataResult) Finalize() {
 		c.s.blocksMetadataPool.Put(blocksMetadata)
 	}
 	c.s.blocksMetadataSlicePool.Put(c.result.Elements)
+}
+
+func (s *service) newCloseableMetadataV2Result(
+	res *rpc.FetchBlocksMetadataRawV2Result_,
+) closeableMetadataV2Result {
+	return closeableMetadataV2Result{s: s, result: res}
+}
+
+type closeableMetadataV2Result struct {
+	s      *service
+	result *rpc.FetchBlocksMetadataRawV2Result_
+}
+
+func (c closeableMetadataV2Result) Finalize() {
+	for _, blockMetadata := range c.result.Elements {
+		c.s.blockMetadataV2Pool.Put(blockMetadata)
+	}
+	c.s.blockMetadataV2SlicePool.Put(c.result.Elements)
 }
