@@ -521,7 +521,7 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 
 	nsID := s.newID(ctx, req.NameSpace)
 
-	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx, nsID,
+	fetched, nextShardIndex, err := s.db.FetchBlocksMetadata(ctx, nsID,
 		uint32(req.Shard), start, end, req.Limit, pageToken.ShardIndex, opts)
 	if err != nil {
 		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
@@ -531,7 +531,15 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 
 	fetchedResults := fetched.Results()
 	result := rpc.NewFetchBlocksMetadataRawV2Result_()
-	result.NextPageToken = nextPageToken
+	var nextPageTokenBytes []byte
+	if nextShardIndex != nil {
+		nextPageTokenBytes, err = proto.Marshal(&pt.PageToken{ShardIndex: *nextShardIndex})
+		if err != nil {
+			return nil, convert.ToRPCError(err)
+		}
+	}
+
+	result.NextPageToken = nextPageTokenBytes
 	result.Elements = s.blockMetadataV2SlicePool.Get()
 
 	ctx.RegisterFinalizer(s.newCloseableMetadataV2Result(result))

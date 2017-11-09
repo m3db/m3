@@ -431,6 +431,7 @@ func TestServiceFetchBlocksMetadataRaw(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, len(ids), len(r.Elements))
+
 	for _, elem := range r.Elements {
 		require.NotNil(t, elem)
 
@@ -469,7 +470,7 @@ func TestServiceFetchBlocksMetadataV2Raw(t *testing.T) {
 	limit := int64(2)
 	pageTokenShardIndex := int64(0)
 	next := pageTokenShardIndex + limit
-	nextPageToken := &next
+	nextPageTokenShardIndex := &next
 	includeSizes := true
 	includeChecksums := true
 	includeLastRead := true
@@ -520,7 +521,7 @@ func TestServiceFetchBlocksMetadataV2Raw(t *testing.T) {
 	mockDB.EXPECT().
 		FetchBlocksMetadata(ctx, ts.NewIDMatcher(nsID), uint32(0), start, end,
 			limit, pageTokenShardIndex, opts).
-		Return(mockResult, nextPageToken, nil)
+		Return(mockResult, nextPageTokenShardIndex, nil)
 
 	pageToken := &pt.PageToken{ShardIndex: pageTokenShardIndex}
 	pageTokenSlice, err := proto.Marshal(pageToken)
@@ -539,6 +540,10 @@ func TestServiceFetchBlocksMetadataV2Raw(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, 4, len(r.Elements))
+	expectedNextPageToken := &pt.PageToken{ShardIndex: *nextPageTokenShardIndex}
+	expectedNextPageTokenSlice, err := proto.Marshal(expectedNextPageToken)
+	require.NoError(t, err)
+	require.Equal(t, expectedNextPageTokenSlice, r.NextPageToken)
 	for _, block := range r.Elements {
 		require.NotNil(t, block)
 
