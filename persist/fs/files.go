@@ -258,12 +258,10 @@ func DeleteInactiveDirectories(parentDirectoryPath string, activeDirectories []s
 	// Create shard set, might also be useful to just send in as strings?
 	for _, dir := range activeDirectories {
 		activeDirNames[dir] = struct{}{}
-		fmt.Println("active dir is", dir)
 	}
 
 	for dirName, dirPath := range allSubDirs {
 		if _, ok := activeDirNames[dirName]; !ok {
-			fmt.Println("deleting...", dirPath)
 			toDelete = append(toDelete, dirPath)
 		}
 	}

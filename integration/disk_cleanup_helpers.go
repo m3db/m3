@@ -24,7 +24,6 @@ package integration
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -158,7 +157,6 @@ func waitUntilFilesetsCleanedUp(filePathPrefix string, namespaces []storage.Name
 		for _, n := range namespaces {
 			shardDir := fs.ShardDirPath(filePathPrefix, n.ID(), extraShard)
 			if fs.FileExists(shardDir) {
-				fmt.Println("found file:", shardDir)
 				return false
 			}
 		}
