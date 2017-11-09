@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package commitlog
+package xsets
 
 import (
 	"testing"
@@ -27,26 +27,26 @@ import (
 )
 
 func TestBitSet(t *testing.T) {
-	set := newBitSet(0)
+	set := NewBitSet(0)
 
 	total := uint(16 * 64)
 	for i := uint(0); i < total; i++ {
 		if i%3 == 0 || i%5 == 0 {
-			set.set(i)
+			set.Set(i)
 		}
 	}
 
 	for i := uint(0); i < total; i++ {
 		if i%3 == 0 || i%5 == 0 {
-			assert.True(t, set.test(i))
+			assert.True(t, set.Test(i))
 		} else {
-			assert.False(t, set.test(i))
+			assert.False(t, set.Test(i))
 		}
 	}
 
-	set.clearAll()
+	set.ClearAll()
 
 	for i := uint(0); i < 2*total; i++ {
-		assert.False(t, set.test(i))
+		assert.False(t, set.Test(i))
 	}
 }

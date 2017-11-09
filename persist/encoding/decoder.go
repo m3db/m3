@@ -33,6 +33,9 @@ type Decoder interface {
 	// DecodeIndexEntry decodes index entry
 	DecodeIndexEntry() (schema.IndexEntry, error)
 
+	// DecodeIndexSummary decodes index summary
+	DecodeIndexSummary() (schema.IndexSummary, error)
+
 	// DecodeLogInfo decodes commit log info
 	DecodeLogInfo() (schema.LogInfo, error)
 

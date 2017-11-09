@@ -18,58 +18,36 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package commitlog
+package xsets
 
-const (
-	wordSize    = uint(64)
-	logWordSize = uint(6) // lg(wordSize)
-	wordMask    = wordSize - 1
+import (
+	"encoding/binary"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-type bitSet interface {
-	test(i uint) bool
-	set(i uint)
-	clearAll()
-	getValues() []uint64
+func TestBloomFilterEstimate(t *testing.T) {
+	n := uint(216553)
+	p := 0.01
+	m, k := BloomFilterEstimate(n, p)
+	assert.Equal(t, uint(2075674), m)
+	assert.Equal(t, uint(7), k)
 }
 
-type bitSetImpl struct {
-	values []uint64
-}
-
-func newBitSet(size uint) *bitSetImpl {
-	return &bitSetImpl{values: make([]uint64, bitSetIndexOf(size)+1)}
-}
-
-func (b *bitSetImpl) test(i uint) bool {
-	idx := bitSetIndexOf(i)
-	if idx >= len(b.values) {
-		return false
+// BenchmarkBloomFilterBaseHashes should always be zero alloc or else
+// we're going to have a "bad time" whedn it comes adding millions
+// of entries to the bloom filter. Test with:
+// go test -v -bench BenchmarkBaseHashes -benchmem -gcflags -m
+func BenchmarkBloomFilterBaseHashes(b *testing.B) {
+	d := make([]byte, 32)
+	for i := range d {
+		d[i] = byte(i)
 	}
-	return b.values[idx]&(1<<(i&wordMask)) != 0
-}
-
-func (b *bitSetImpl) set(i uint) {
-	idx := bitSetIndexOf(i)
-	currLen := len(b.values)
-	if idx >= currLen {
-		newValues := make([]uint64, 2*(idx+1))
-		copy(newValues, b.values)
-		b.values = newValues
+	for i := 0; i < b.N; i++ {
+		v := bloomFilterHashes(d)
+		for j := 0; j < len(v); j++ {
+			binary.LittleEndian.PutUint64(d[j*8:(j+1)*8], v[j])
+		}
 	}
-	b.values[idx] |= 1 << (i & wordMask)
-}
-
-func (b *bitSetImpl) clearAll() {
-	for i := range b.values {
-		b.values[i] = 0
-	}
-}
-
-func (b *bitSetImpl) getValues() []uint64 {
-	return b.values
-}
-
-func bitSetIndexOf(i uint) int {
-	return int(i >> logWordSize)
 }

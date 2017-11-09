@@ -32,9 +32,17 @@ import (
 
 var (
 	testIndexInfo = schema.IndexInfo{
-		Start:     time.Now().UnixNano(),
-		BlockSize: int64(2 * time.Hour),
-		Entries:   2000000,
+		Start:        time.Now().UnixNano(),
+		BlockSize:    int64(2 * time.Hour),
+		Entries:      2000000,
+		MajorVersion: schema.MajorVersion,
+		Summaries: schema.IndexSummariesInfo{
+			Summaries: 123,
+		},
+		BloomFilter: schema.IndexBloomFilterInfo{
+			NumElementsM: 2075674,
+			NumHashesK:   7,
+		},
 	}
 
 	testIndexEntry = schema.IndexEntry{
@@ -43,6 +51,12 @@ var (
 		Size:     5456,
 		Offset:   2390423,
 		Checksum: 134245634534,
+	}
+
+	testIndexSummary = schema.IndexSummary{
+		Index:            234,
+		ID:               []byte("testIndexSummary"),
+		IndexEntryOffset: 2390423,
 	}
 
 	testLogInfo = schema.LogInfo{
@@ -98,6 +112,18 @@ func TestIndexEntryRoundtrip(t *testing.T) {
 	res, err := dec.DecodeIndexEntry()
 	require.NoError(t, err)
 	require.Equal(t, testIndexEntry, res)
+}
+
+func TestIndexSummaryRoundtrip(t *testing.T) {
+	var (
+		enc = testEncoder(t)
+		dec = testDecoder(t, nil)
+	)
+	require.NoError(t, enc.EncodeIndexSummary(testIndexSummary))
+	dec.Reset(enc.Bytes())
+	res, err := dec.DecodeIndexSummary()
+	require.NoError(t, err)
+	require.Equal(t, testIndexSummary, res)
 }
 
 func TestLogInfoRoundtrip(t *testing.T) {

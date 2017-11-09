@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/m3db/m3db/clock"
@@ -30,6 +31,12 @@ import (
 )
 
 const (
+	// defaultIndexSummariesPercent is the default percent to save summaries for when writing summary files
+	defaultIndexSummariesPercent = 0.03
+
+	// defaultIndexBloomFilterFalsePositivePercent is the false positive percent to use to calculate size for when writing bloom filters
+	defaultIndexBloomFilterFalsePositivePercent = 0.02
+
 	// defaultWriterBufferSize is the default buffer size for writing TSDB files
 	defaultWriterBufferSize = 65536
 
@@ -50,34 +57,52 @@ var (
 )
 
 type options struct {
-	clockOpts            clock.Options
-	instrumentOpts       instrument.Options
-	runtimeOptsMgr       runtime.OptionsManager
-	decodingOpts         msgpack.DecodingOptions
-	filePathPrefix       string
-	newFileMode          os.FileMode
-	newDirectoryMode     os.FileMode
-	writerBufferSize     int
-	dataReaderBufferSize int
-	infoReaderBufferSize int
-	seekReaderBufferSize int
+	clockOpts                            clock.Options
+	instrumentOpts                       instrument.Options
+	runtimeOptsMgr                       runtime.OptionsManager
+	decodingOpts                         msgpack.DecodingOptions
+	filePathPrefix                       string
+	newFileMode                          os.FileMode
+	newDirectoryMode                     os.FileMode
+	indexSummariesPercent                float64
+	indexBloomFilterFalsePositivePercent float64
+	writerBufferSize                     int
+	dataReaderBufferSize                 int
+	infoReaderBufferSize                 int
+	seekReaderBufferSize                 int
 }
 
 // NewOptions creates a new set of fs options
 func NewOptions() Options {
 	return &options{
-		clockOpts:            clock.NewOptions(),
-		instrumentOpts:       instrument.NewOptions(),
-		runtimeOptsMgr:       runtime.NewOptionsManager(runtime.NewOptions()),
-		decodingOpts:         msgpack.NewDecodingOptions(),
-		filePathPrefix:       defaultFilePathPrefix,
-		newFileMode:          defaultNewFileMode,
-		newDirectoryMode:     defaultNewDirectoryMode,
-		writerBufferSize:     defaultWriterBufferSize,
-		dataReaderBufferSize: defaultDataReaderBufferSize,
-		infoReaderBufferSize: defaultInfoReaderBufferSize,
-		seekReaderBufferSize: defaultSeekReaderBufferSize,
+		clockOpts:                            clock.NewOptions(),
+		instrumentOpts:                       instrument.NewOptions(),
+		runtimeOptsMgr:                       runtime.NewOptionsManager(runtime.NewOptions()),
+		decodingOpts:                         msgpack.NewDecodingOptions(),
+		filePathPrefix:                       defaultFilePathPrefix,
+		newFileMode:                          defaultNewFileMode,
+		newDirectoryMode:                     defaultNewDirectoryMode,
+		indexSummariesPercent:                defaultIndexSummariesPercent,
+		indexBloomFilterFalsePositivePercent: defaultIndexBloomFilterFalsePositivePercent,
+		writerBufferSize:                     defaultWriterBufferSize,
+		dataReaderBufferSize:                 defaultDataReaderBufferSize,
+		infoReaderBufferSize:                 defaultInfoReaderBufferSize,
+		seekReaderBufferSize:                 defaultSeekReaderBufferSize,
 	}
+}
+
+func (o *options) Validate() error {
+	if o.indexSummariesPercent < 0 || o.indexSummariesPercent > 1.0 {
+		return fmt.Errorf(
+			"invalid index summaries percent, must be >= 0 and <= 1: instead %f",
+			o.indexSummariesPercent)
+	}
+	if o.indexBloomFilterFalsePositivePercent < 0 || o.indexBloomFilterFalsePositivePercent > 1.0 {
+		return fmt.Errorf(
+			"invalid index bloom filter false positive percent, must be >= 0 and <= 1: instead %f",
+			o.indexBloomFilterFalsePositivePercent)
+	}
+	return nil
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {
@@ -148,6 +173,26 @@ func (o *options) SetNewDirectoryMode(value os.FileMode) Options {
 
 func (o *options) NewDirectoryMode() os.FileMode {
 	return o.newDirectoryMode
+}
+
+func (o *options) SetIndexSummariesPercent(value float64) Options {
+	opts := *o
+	opts.indexSummariesPercent = value
+	return &opts
+}
+
+func (o *options) IndexSummariesPercent() float64 {
+	return o.indexSummariesPercent
+}
+
+func (o *options) SetIndexBloomFilterFalsePositivePercent(value float64) Options {
+	opts := *o
+	opts.indexBloomFilterFalsePositivePercent = value
+	return &opts
+}
+
+func (o *options) IndexBloomFilterFalsePositivePercent() float64 {
+	return o.indexBloomFilterFalsePositivePercent
 }
 
 func (o *options) SetWriterBufferSize(value int) Options {

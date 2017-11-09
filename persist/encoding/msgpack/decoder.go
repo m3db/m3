@@ -32,11 +32,14 @@ import (
 )
 
 var (
-	emptyIndexInfo   schema.IndexInfo
-	emptyIndexEntry  schema.IndexEntry
-	emptyLogInfo     schema.LogInfo
-	emptyLogEntry    schema.LogEntry
-	emptyLogMetadata schema.LogMetadata
+	emptyIndexInfo            schema.IndexInfo
+	emptyIndexSummariesInfo   schema.IndexSummariesInfo
+	emptyIndexBloomFilterInfo schema.IndexBloomFilterInfo
+	emptyIndexEntry           schema.IndexEntry
+	emptyIndexSummary         schema.IndexSummary
+	emptyLogInfo              schema.LogInfo
+	emptyLogEntry             schema.LogEntry
+	emptyLogMetadata          schema.LogMetadata
 )
 
 type decoder struct {
@@ -93,6 +96,19 @@ func (dec *decoder) DecodeIndexEntry() (schema.IndexEntry, error) {
 	return indexEntry, nil
 }
 
+func (dec *decoder) DecodeIndexSummary() (schema.IndexSummary, error) {
+	if dec.err != nil {
+		return emptyIndexSummary, dec.err
+	}
+	numFieldsToSkip := dec.decodeRootObject(indexSummaryVersion, indexSummaryType)
+	indexSummary := dec.decodeIndexSummary()
+	dec.skip(numFieldsToSkip)
+	if dec.err != nil {
+		return emptyIndexSummary, dec.err
+	}
+	return indexSummary, nil
+}
+
 func (dec *decoder) DecodeLogInfo() (schema.LogInfo, error) {
 	if dec.err != nil {
 		return emptyLogInfo, dec.err
@@ -141,11 +157,44 @@ func (dec *decoder) decodeIndexInfo() schema.IndexInfo {
 	indexInfo.Start = dec.decodeVarint()
 	indexInfo.BlockSize = dec.decodeVarint()
 	indexInfo.Entries = dec.decodeVarint()
+	indexInfo.MajorVersion = dec.decodeVarint()
+	indexInfo.Summaries = dec.decodeIndexSummariesInfo()
+	indexInfo.BloomFilter = dec.decodeIndexBloomFilterInfo()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
+		fmt.Printf("!err2: %v, skip: %v\n", dec.err, numFieldsToSkip)
 		return emptyIndexInfo
 	}
 	return indexInfo
+}
+
+func (dec *decoder) decodeIndexSummariesInfo() schema.IndexSummariesInfo {
+	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexSummariesInfoType)
+	if !ok {
+		return emptyIndexSummariesInfo
+	}
+	var indexSummariesInfo schema.IndexSummariesInfo
+	indexSummariesInfo.Summaries = dec.decodeVarint()
+	dec.skip(numFieldsToSkip)
+	if dec.err != nil {
+		return emptyIndexSummariesInfo
+	}
+	return indexSummariesInfo
+}
+
+func (dec *decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
+	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexBloomFilterInfoType)
+	if !ok {
+		return emptyIndexBloomFilterInfo
+	}
+	var indexBloomFilterInfo schema.IndexBloomFilterInfo
+	indexBloomFilterInfo.NumElementsM = dec.decodeVarint()
+	indexBloomFilterInfo.NumHashesK = dec.decodeVarint()
+	dec.skip(numFieldsToSkip)
+	if dec.err != nil {
+		return emptyIndexBloomFilterInfo
+	}
+	return indexBloomFilterInfo
 }
 
 func (dec *decoder) decodeIndexEntry() schema.IndexEntry {
@@ -164,6 +213,22 @@ func (dec *decoder) decodeIndexEntry() schema.IndexEntry {
 		return emptyIndexEntry
 	}
 	return indexEntry
+}
+
+func (dec *decoder) decodeIndexSummary() schema.IndexSummary {
+	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexSummaryType)
+	if !ok {
+		return emptyIndexSummary
+	}
+	var indexSummary schema.IndexSummary
+	indexSummary.Index = dec.decodeVarint()
+	indexSummary.ID = dec.decodeBytes()
+	indexSummary.IndexEntryOffset = dec.decodeVarint()
+	dec.skip(numFieldsToSkip)
+	if dec.err != nil {
+		return emptyIndexSummary
+	}
+	return indexSummary
 }
 
 func (dec *decoder) decodeLogInfo() schema.LogInfo {

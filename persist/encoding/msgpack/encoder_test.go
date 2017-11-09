@@ -68,6 +68,12 @@ func testExpectedResultForIndexInfo(t *testing.T, indexInfo schema.IndexInfo) []
 		indexInfo.Start,
 		indexInfo.BlockSize,
 		indexInfo.Entries,
+		indexInfo.MajorVersion,
+		numFieldsForType(indexSummariesInfoType),
+		indexInfo.Summaries.Summaries,
+		numFieldsForType(indexBloomFilterInfoType),
+		indexInfo.BloomFilter.NumElementsM,
+		indexInfo.BloomFilter.NumHashesK,
 	}
 }
 

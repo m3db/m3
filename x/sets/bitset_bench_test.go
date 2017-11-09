@@ -18,17 +18,48 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package commitlog
+package xsets
 
 import "testing"
+import "bytes"
+import "encoding/binary"
 
-// go test -bench=LemireCreate
+// go test -bench=BenchmarkBitSet
 // see http://lemire.me/blog/2016/09/22/swift-versus-java-the-bitset-performance-test/
-func BenchmarkLemireCreate(b *testing.B) {
+func BenchmarkBitSetLemireCreate(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		bitmap := newBitSet(0) // we force dynamic memory allocation
+		set := NewBitSet(0) // we force dynamic memory allocation
 		for v := uint(0); v <= 100000000; v += 100 {
-			bitmap.set(v)
+			set.Set(v)
+		}
+	}
+}
+
+func BenchmarkBitSetBinaryWrite(b *testing.B) {
+	set := NewBitSet(10000)
+	buf := bytes.NewBuffer(make([]byte, len(set.values)*8))
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		buf.Reset()
+		binary.Write(buf, binary.LittleEndian, set.values)
+	}
+}
+
+func BenchmarkBitSetPutUint64(b *testing.B) {
+	set := NewBitSet(10000)
+	buf := bytes.NewBuffer(make([]byte, len(set.values)*8))
+	b.ResetTimer()
+
+	var single [8]byte
+	for i := 0; i < b.N; i++ {
+		buf.Reset()
+		for _, x := range set.values {
+			binary.LittleEndian.PutUint64(single[:], x)
+			_, err := buf.Write(single[:])
+			if err != nil {
+				b.Fatalf(err.Error())
+			}
 		}
 	}
 }

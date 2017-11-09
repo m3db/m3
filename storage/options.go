@@ -147,6 +147,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	})
 	bytesPool.Init()
 	seriesOpts := series.NewOptions()
+	pm, _ := fs.NewPersistManager(fs.NewOptions())
 	o := &options{
 		clockOpts:                      clock.NewOptions(),
 		instrumentOpts:                 instrument.NewOptions(),
@@ -159,7 +160,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		repairEnabled:                  defaultRepairEnabled,
 		repairOpts:                     repair.NewOptions(),
 		bootstrapProcess:               defaultBootstrapProcess,
-		persistManager:                 fs.NewPersistManager(fs.NewOptions()),
+		persistManager:                 pm,
 		tickInterval:                   defaultTickInterval,
 		maxFlushRetries:                defaultMaxFlushRetries,
 		poolOpts:                       poolOpts,

@@ -21,7 +21,10 @@
 package fs
 
 import (
+	"bytes"
+	"math"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/m3db/m3db/digest"
@@ -29,6 +32,7 @@ import (
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
+	xsets "github.com/m3db/m3db/x/sets"
 	"github.com/m3db/m3x/checked"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -39,40 +43,73 @@ type writer struct {
 	newFileMode      os.FileMode
 	newDirectoryMode os.FileMode
 
+	summariesPercent                float64
+	bloomFilterFalsePositivePercent float64
+
 	infoFdWithDigest           digest.FdWithDigestWriter
 	indexFdWithDigest          digest.FdWithDigestWriter
+	summariesFdWithDigest      digest.FdWithDigestWriter
+	bloomFilterFdWithDigest    digest.FdWithDigestWriter
 	dataFdWithDigest           digest.FdWithDigestWriter
 	digestFdWithDigestContents digest.FdWithDigestContentsWriter
 	checkpointFilePath         string
+	indexEntries               []indexEntry
 
 	start      time.Time
 	currIdx    int64
 	currOffset int64
 	encoder    encoding.Encoder
 	digestBuf  digest.Buffer
-	idxData    []byte
 	err        error
 }
 
+type indexEntry struct {
+	id               ts.ID
+	size             int64
+	offset           int64
+	checksum         int64
+	offsetForSummary int64
+}
+
+func (e *indexEntry) releaseRefs() {
+	e.id = nil
+}
+
+type indexEntries []indexEntry
+
+func (e indexEntries) Len() int {
+	return len(e)
+}
+
+func (e indexEntries) Less(i, j int) bool {
+	return bytes.Compare(e[i].id.Data().Get(), e[j].id.Data().Get()) < 0
+}
+
+func (e indexEntries) Swap(i, j int) {
+	e[i], e[j] = e[j], e[i]
+}
+
 // NewWriter returns a new writer for a filePathPrefix
-func NewWriter(
-	filePathPrefix string,
-	bufferSize int,
-	newFileMode os.FileMode,
-	newDirectoryMode os.FileMode,
-) FileSetWriter {
-	return &writer{
-		filePathPrefix:             filePathPrefix,
-		newFileMode:                newFileMode,
-		newDirectoryMode:           newDirectoryMode,
-		infoFdWithDigest:           digest.NewFdWithDigestWriter(bufferSize),
-		indexFdWithDigest:          digest.NewFdWithDigestWriter(bufferSize),
-		dataFdWithDigest:           digest.NewFdWithDigestWriter(bufferSize),
-		digestFdWithDigestContents: digest.NewFdWithDigestContentsWriter(bufferSize),
-		encoder:                    msgpack.NewEncoder(),
-		digestBuf:                  digest.NewBuffer(),
-		idxData:                    make([]byte, idxLen),
+func NewWriter(opts Options) (FileSetWriter, error) {
+	if err := opts.Validate(); err != nil {
+		return nil, err
 	}
+	bufferSize := opts.WriterBufferSize()
+	return &writer{
+		filePathPrefix:                  opts.FilePathPrefix(),
+		newFileMode:                     opts.NewFileMode(),
+		newDirectoryMode:                opts.NewDirectoryMode(),
+		summariesPercent:                opts.IndexSummariesPercent(),
+		bloomFilterFalsePositivePercent: opts.IndexBloomFilterFalsePositivePercent(),
+		infoFdWithDigest:                digest.NewFdWithDigestWriter(bufferSize),
+		indexFdWithDigest:               digest.NewFdWithDigestWriter(bufferSize),
+		summariesFdWithDigest:           digest.NewFdWithDigestWriter(bufferSize),
+		bloomFilterFdWithDigest:         digest.NewFdWithDigestWriter(bufferSize),
+		dataFdWithDigest:                digest.NewFdWithDigestWriter(bufferSize),
+		digestFdWithDigestContents:      digest.NewFdWithDigestContentsWriter(bufferSize),
+		encoder:                         msgpack.NewEncoder(),
+		digestBuf:                       digest.NewBuffer(),
+	}, nil
 }
 
 // Open initializes the internal state for writing to the given shard,
@@ -95,14 +132,16 @@ func (w *writer) Open(
 	w.checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	w.err = nil
 
-	var infoFd, indexFd, dataFd, digestFd *os.File
+	var infoFd, indexFd, summariesFd, bloomFilterFd, dataFd, digestFd *os.File
 	if err := openFiles(
 		w.openWritable,
 		map[string]**os.File{
-			filesetPathFromTime(shardDir, blockStart, infoFileSuffix):   &infoFd,
-			filesetPathFromTime(shardDir, blockStart, indexFileSuffix):  &indexFd,
-			filesetPathFromTime(shardDir, blockStart, dataFileSuffix):   &dataFd,
-			filesetPathFromTime(shardDir, blockStart, digestFileSuffix): &digestFd,
+			filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
+			filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &indexFd,
+			filesetPathFromTime(shardDir, blockStart, summariesFileSuffix):   &summariesFd,
+			filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &bloomFilterFd,
+			filesetPathFromTime(shardDir, blockStart, dataFileSuffix):        &dataFd,
+			filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
 		},
 	); err != nil {
 		return err
@@ -110,6 +149,8 @@ func (w *writer) Open(
 
 	w.infoFdWithDigest.Reset(infoFd)
 	w.indexFdWithDigest.Reset(indexFd)
+	w.summariesFdWithDigest.Reset(summariesFd)
+	w.bloomFilterFdWithDigest.Reset(bloomFilterFd)
 	w.dataFdWithDigest.Reset(dataFd)
 	w.digestFdWithDigestContents.Reset(digestFd)
 
@@ -120,7 +161,7 @@ func (w *writer) writeData(data []byte) error {
 	if len(data) == 0 {
 		return nil
 	}
-	written, err := w.dataFdWithDigest.WriteBytes(data)
+	written, err := w.dataFdWithDigest.Write(data)
 	if err != nil {
 		return err
 	}
@@ -168,23 +209,14 @@ func (w *writer) writeAll(
 		return nil
 	}
 
-	entry := schema.IndexEntry{
-		Index:    w.currIdx,
-		ID:       id.Data().Get(),
-		Size:     size,
-		Offset:   w.currOffset,
-		Checksum: int64(checksum),
-	}
-	w.encoder.Reset()
-	if err := w.encoder.EncodeIndexEntry(entry); err != nil {
-		return err
+	entry := indexEntry{
+		id:       id,
+		size:     size,
+		offset:   w.currOffset,
+		checksum: int64(checksum),
 	}
 
 	if err := w.writeData(marker); err != nil {
-		return err
-	}
-	endianness.PutUint64(w.idxData, uint64(w.currIdx))
-	if err := w.writeData(w.idxData); err != nil {
 		return err
 	}
 	for _, d := range data {
@@ -195,19 +227,119 @@ func (w *writer) writeAll(
 			return err
 		}
 	}
-	if _, err := w.indexFdWithDigest.WriteBytes(w.encoder.Bytes()); err != nil {
-		return err
-	}
-	w.currIdx++
+
+	w.indexEntries = append(w.indexEntries, entry)
 
 	return nil
 }
 
-func (w *writer) close() error {
+func (w *writer) writeIndexEntriesSummariesBloomFilter() error {
+	// NB(r): Write the index file in order, in the future we could write
+	// these in order to avoid this sort at the end however that does require
+	// significant changes in the storage/databaseShard to store things in order
+	// which would sacrifice O(1) insertion of new series we currently have.
+	//
+	// Probably do want to do this at the end still however so we don't stripe
+	// writes to two different files during the write loop.
+	sort.Sort(indexEntries(w.indexEntries))
+
+	summariesApprox := float64(len(w.indexEntries)) * w.summariesPercent
+	summaryEvery := 0
+	if summariesApprox > 0 {
+		summaryEvery = int(math.Floor(float64(len(w.indexEntries)) / summariesApprox))
+	}
+
+	// Write the index entries and calculate the bloom filter
+	n, p := uint(w.currIdx), w.bloomFilterFalsePositivePercent
+	m, k := xsets.BloomFilterEstimate(n, p)
+
+	bloomFilter := xsets.NewBloomFilter(m, k)
+
+	var offset int64
+	for i := range w.indexEntries {
+		id := w.indexEntries[i].id.Data().Get()
+
+		entry := schema.IndexEntry{
+			Index:    int64(i),
+			ID:       id,
+			Size:     w.indexEntries[i].size,
+			Offset:   w.indexEntries[i].offset,
+			Checksum: w.indexEntries[i].checksum,
+		}
+
+		w.encoder.Reset()
+		if err := w.encoder.EncodeIndexEntry(entry); err != nil {
+			return err
+		}
+
+		if i%summaryEvery == 0 {
+			// Capture the offset for when we write this summary back, only capture
+			// for every summary we'll actually write to avoid a few memcopies
+			w.indexEntries[i].offsetForSummary = offset
+		}
+
+		data := w.encoder.Bytes()
+		if _, err := w.indexFdWithDigest.Write(data); err != nil {
+			return err
+		}
+
+		// Add to the bloom filter, this must be zero alloc or else this will blow
+		// up memory
+		bloomFilter.Add(id)
+
+		offset += int64(len(data))
+	}
+
+	// Write summaries and start zeroing out memory to avoid holding onto refs
+	summaries := 0
+	for i := range w.indexEntries {
+		if i%summaryEvery != 0 {
+			w.indexEntries[i].releaseRefs()
+			continue
+		}
+
+		summary := schema.IndexSummary{
+			Index:            int64(i),
+			ID:               w.indexEntries[i].id.Data().Get(),
+			IndexEntryOffset: w.indexEntries[i].offsetForSummary,
+		}
+
+		w.encoder.Reset()
+		if err := w.encoder.EncodeIndexSummary(summary); err != nil {
+			return err
+		}
+
+		data := w.encoder.Bytes()
+		if _, err := w.summariesFdWithDigest.Write(data); err != nil {
+			return err
+		}
+
+		w.indexEntries[i].releaseRefs()
+		summaries++
+	}
+
+	// Reset summaries slice to avoid allocs for next shard flush, this avoids
+	// leaking memory as we've released all refs while writing summaries
+	w.indexEntries = w.indexEntries[:0]
+
+	// Write the bloom filter bitset out
+	err := bloomFilter.BitSet().Write(w.bloomFilterFdWithDigest)
+	if err != nil {
+		return err
+	}
+
 	info := schema.IndexInfo{
-		Start:     xtime.ToNanoseconds(w.start),
-		BlockSize: int64(w.blockSize),
-		Entries:   w.currIdx,
+		Start:        xtime.ToNanoseconds(w.start),
+		BlockSize:    int64(w.blockSize),
+		Entries:      w.currIdx,
+		MajorVersion: schema.MajorVersion,
+		Summaries: schema.IndexSummariesInfo{
+			Summaries: int64(summaries),
+		},
+		BloomFilter: schema.IndexBloomFilterInfo{
+			NumElementsM: int64(m),
+			NumHashesK:   int64(k),
+		},
 	}
 
 	w.encoder.Reset()
@@ -215,13 +347,20 @@ func (w *writer) close() error {
 		return err
 	}
 
-	if _, err := w.infoFdWithDigest.WriteBytes(w.encoder.Bytes()); err != nil {
+	_, err = w.infoFdWithDigest.Write(w.encoder.Bytes())
+	return err
+}
+
+func (w *writer) close() error {
+	if err := w.writeIndexEntriesSummariesBloomFilter(); err != nil {
 		return err
 	}
 
 	if err := w.digestFdWithDigestContents.WriteDigests(
 		w.infoFdWithDigest.Digest().Sum32(),
 		w.indexFdWithDigest.Digest().Sum32(),
+		w.summariesFdWithDigest.Digest().Sum32(),
+		w.bloomFilterFdWithDigest.Digest().Sum32(),
 		w.dataFdWithDigest.Digest().Sum32(),
 	); err != nil {
 		return err
@@ -230,6 +369,8 @@ func (w *writer) close() error {
 	return closeAll(
 		w.infoFdWithDigest,
 		w.indexFdWithDigest,
+		w.summariesFdWithDigest,
+		w.bloomFilterFdWithDigest,
 		w.dataFdWithDigest,
 		w.digestFdWithDigestContents,
 	)

@@ -31,6 +31,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/x/sets"
+
 	"github.com/fortytw2/leaktest"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
@@ -96,19 +98,6 @@ func newTestOptions(
 func cleanup(t *testing.T, opts Options) {
 	filePathPrefix := opts.FilesystemOptions().FilePathPrefix()
 	assert.NoError(t, os.RemoveAll(filePathPrefix))
-}
-
-type mockBitSet struct {
-	indexTestReturn map[uint]bool
-}
-
-func (b *mockBitSet) test(i uint) bool {
-	return b.indexTestReturn[i]
-}
-func (b *mockBitSet) set(i uint) {}
-func (b *mockBitSet) clearAll()  {}
-func (b *mockBitSet) getValues() []uint64 {
-	return []uint64{}
 }
 
 type testWrite struct {
@@ -361,9 +350,8 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	// depending on the series
 	commitLog := newTestCommitLog(t, opts)
 	writer := commitLog.writer.(*writer)
-	mockBitSet := &mockBitSet{
-		indexTestReturn: map[uint]bool{},
-	}
+
+	bitSet := xsets.NewBitSet(0)
 
 	// Generate fake series, where approximately half will be missing metadata.
 	// This works because the commitlog writer uses the bitset to determine if
@@ -372,9 +360,11 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	for i := 0; i < 200; i++ {
 		willNotHaveMetadata := !(i%2 == 0)
 		allSeries = append(allSeries, testSeries(uint64(i), "hax", uint32(i%100)))
-		mockBitSet.indexTestReturn[uint(i)] = willNotHaveMetadata
+		if willNotHaveMetadata {
+			bitSet.Set(uint(i))
+		}
 	}
-	writer.seen = mockBitSet
+	writer.seen = bitSet
 
 	// Generate fake writes for each of the series
 	writes := []testWrite{}

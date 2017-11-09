@@ -201,7 +201,11 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
 
 	// Set the persistence manager
-	opts = opts.SetPersistManager(fs.NewPersistManager(fsopts))
+	pm, err := fs.NewPersistManager(fsopts)
+	if err != nil {
+		logger.Fatalf("could not create persist manager: %v", err)
+	}
+	opts = opts.SetPersistManager(pm)
 
 	logger.Info("creating config service client with m3cluster ")
 	configSvcClientOpts := cfg.ConfigService.NewOptions().

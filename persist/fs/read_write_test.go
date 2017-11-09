@@ -42,10 +42,12 @@ type testEntry struct {
 	data []byte
 }
 
-func newTestWriter(filePathPrefix string) FileSetWriter {
-	newFileMode := defaultNewFileMode
-	newDirectoryMode := defaultNewDirectoryMode
-	return NewWriter(filePathPrefix, testWriterBufferSize, newFileMode, newDirectoryMode)
+func newTestWriter(t *testing.T, filePathPrefix string) FileSetWriter {
+	writer, err := NewWriter(NewOptions().
+		SetFilePathPrefix(filePathPrefix).
+		SetWriterBufferSize(testWriterBufferSize))
+	require.NoError(t, err)
+	return writer
 }
 
 func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
@@ -97,7 +99,7 @@ func TestSimpleReadWrite(t *testing.T) {
 		{"echo", []byte{7, 8, 9}},
 	}
 
-	w := newTestWriter(filePathPrefix)
+	w := newTestWriter(t, filePathPrefix)
 	writeTestData(t, w, 0, testWriterStart, entries)
 
 	r := newTestReader(filePathPrefix)
@@ -117,7 +119,7 @@ func TestInfoReadWrite(t *testing.T) {
 		{"echo", []byte{7, 8, 9}},
 	}
 
-	w := newTestWriter(filePathPrefix)
+	w := newTestWriter(t, filePathPrefix)
 	writeTestData(t, w, 0, testWriterStart, entries)
 
 	infoFiles := ReadInfoFiles(filePathPrefix, testNs1ID, 0, 16, nil)
@@ -144,7 +146,7 @@ func TestReusingReaderWriter(t *testing.T) {
 		},
 		{},
 	}
-	w := newTestWriter(filePathPrefix)
+	w := newTestWriter(t, filePathPrefix)
 	for i := range allEntries {
 		writeTestData(t, w, 0, testWriterStart.Add(time.Duration(i)*time.Hour), allEntries[i])
 	}
@@ -164,7 +166,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 		{"foo", []byte{1, 2, 3}},
 		{"bar", []byte{4, 5, 6}},
 	}
-	w := newTestWriter(filePathPrefix)
+	w := newTestWriter(t, filePathPrefix)
 	shard := uint32(0)
 	require.NoError(t, w.Open(testNs1ID, testBlockSize, shard, testWriterStart))
 
@@ -200,7 +202,7 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 		return r
 	}
 
-	w := newTestWriter(filePathPrefix)
+	w := newTestWriter(t, filePathPrefix)
 	err := w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 
