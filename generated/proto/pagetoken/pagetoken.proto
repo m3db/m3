@@ -1,5 +1,6 @@
 syntax = "proto3";
-package page_token;
+package pagetoken
+;
 
 message PageToken {
 	int64 shardIndex = 1;

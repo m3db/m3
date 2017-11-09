@@ -26,7 +26,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3db/digest"
-	pt "github.com/m3db/m3db/generated/proto/page_token"
+	pt "github.com/m3db/m3db/generated/proto/pagetoken"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/runtime"
