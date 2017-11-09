@@ -77,5 +77,6 @@ func TestDiskCleansupInactiveFilesets(t *testing.T) {
 
 	// Check if files have been deleted
 	waitTimeout := 30 * time.Second
-	require.NoError(t, waitUntilFilesetsCleanedUp(filePathPrefix, md.ID(), extraShard.ID(), waitTimeout))
+	require.NoError(t, waitUntilFilesetsCleanedUp(filePathPrefix,
+		testSetup.db.Namespaces(), extraShard.ID(), waitTimeout))
 }

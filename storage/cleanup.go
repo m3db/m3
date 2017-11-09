@@ -142,6 +142,8 @@ func (m *cleanupManager) deleteInactiveNamespaceFiles() error {
 	for _, n := range namespaces {
 		namespaceDirNames = append(namespaceDirNames, n.ID().String())
 	}
+
+	fmt.Println("active namespaces: ", fmt.Sprint("%v", namespaceDirNames))
 	return m.deleteInactiveDirectoriesFn(dataDirPath, namespaceDirNames)
 }
 
@@ -156,9 +158,12 @@ func (m *cleanupManager) deleteInactiveFilesetFiles() error {
 		var activeShards []string
 		//replace with injection later
 		namespaceDirPath := fs.NamespaceDirPath(filePathPrefix, n.ID())
+		fmt.Println("finding active shards for", namespaceDirPath)
 		shards := n.Shards()
 		for _, s := range shards {
-			activeShards = append(activeShards, string(s.ID()))
+			shard := string(s.ID())
+			activeShards = append(activeShards, shard)
+			fmt.Println("found shard", shard, "for namespace", namespaceDirPath)
 		}
 		multiErr = multiErr.Add(m.deleteInactiveDirectoriesFn(namespaceDirPath, activeShards))
 	}

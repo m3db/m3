@@ -258,10 +258,12 @@ func DeleteInactiveDirectories(parentDirectoryPath string, activeDirectories []s
 	// Create shard set, might also be useful to just send in as strings?
 	for _, dir := range activeDirectories {
 		activeDirNames[dir] = struct{}{}
+		fmt.Println("active dir is", dir)
 	}
 
 	for dirName, dirPath := range allSubDirs {
 		if _, ok := activeDirNames[dirName]; !ok {
+			fmt.Println("deleting...", dirPath)
 			toDelete = append(toDelete, dirPath)
 		}
 	}
@@ -389,7 +391,7 @@ func readAndValidate(
 	return buf[:n], nil
 }
 
-// NamespaceDirPath returns the path to a given namespace.
+// DataDirPath returns the path to the data directory belonging to a db
 func DataDirPath(prefix string) string {
 	return path.Join(prefix, dataDirName)
 }

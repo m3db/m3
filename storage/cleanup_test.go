@@ -66,7 +66,7 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 		ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
 		shard := NewMockShard(ctrl)
-		shard.EXPECT().ID().Return(uint32(0)).AnyTimes()
+		shard.EXPECT().ID().Return(uint32(1)).AnyTimes()
 		defaultShards = append(defaultShards, shard)
 		ns.EXPECT().Shards().Return(defaultShards).AnyTimes()
 		ns.EXPECT().CleanupFileset(start).Return(input.err)

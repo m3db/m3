@@ -24,6 +24,7 @@ package integration
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -152,10 +153,16 @@ func waitUntilDataCleanedUpExtended(
 }
 
 // nolint: deadcode
-func waitUntilFilesetsCleanedUp(filePathPrefix string, namespace ts.ID, extraShard uint32, waitTimeout time.Duration) error {
+func waitUntilFilesetsCleanedUp(filePathPrefix string, namespaces []storage.Namespace, extraShard uint32, waitTimeout time.Duration) error {
 	dataCleanedUp := func() bool {
-		shardDir := fs.ShardDirPath(filePathPrefix, namespace, extraShard)
-		return !fs.FileExists(shardDir)
+		for _, n := range namespaces {
+			shardDir := fs.ShardDirPath(filePathPrefix, n.ID(), extraShard)
+			if fs.FileExists(shardDir) {
+				fmt.Println("found file:", shardDir)
+				return false
+			}
+		}
+		return true
 	}
 
 	if waitUntil(dataCleanedUp, waitTimeout) {
