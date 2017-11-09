@@ -505,7 +505,6 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	pageToken := &pt.PageToken{}
 	err := proto.Unmarshal(req.PageToken, pageToken)
 	if err != nil {
-		// TODO: Log
 		return nil, tterrors.NewInternalError(errInvalidPageToken)
 	}
 
@@ -535,8 +534,6 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	result.NextPageToken = nextPageToken
 	result.Elements = s.blockMetadataV2SlicePool.Get()
 
-	// NB(xichen): register a closer with context so objects are returned to pool
-	// when we are done using them
 	ctx.RegisterFinalizer(s.newCloseableMetadataV2Result(result))
 
 	for _, fetchedMetadata := range fetchedResults {
