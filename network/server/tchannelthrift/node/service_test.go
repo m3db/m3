@@ -21,11 +21,12 @@
 package node
 
 import (
-	"encoding/binary"
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3db/digest"
+	pt "github.com/m3db/m3db/generated/proto/page_token"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/runtime"
@@ -466,8 +467,8 @@ func TestServiceFetchBlocksMetadataV2Raw(t *testing.T) {
 	start, end = start.Truncate(time.Hour), end.Truncate(time.Hour)
 
 	limit := int64(2)
-	pageToken := int64(0)
-	next := pageToken + limit
+	pageTokenShardIndex := int64(0)
+	next := pageTokenShardIndex + limit
 	nextPageToken := &next
 	includeSizes := true
 	includeChecksums := true
@@ -518,11 +519,12 @@ func TestServiceFetchBlocksMetadataV2Raw(t *testing.T) {
 	}
 	mockDB.EXPECT().
 		FetchBlocksMetadata(ctx, ts.NewIDMatcher(nsID), uint32(0), start, end,
-			limit, pageToken, opts).
+			limit, pageTokenShardIndex, opts).
 		Return(mockResult, nextPageToken, nil)
 
-	pageTokenSlice := make([]byte, 8)
-	binary.LittleEndian.PutUint64(pageTokenSlice, uint64(pageToken))
+	pageToken := &pt.PageToken{ShardIndex: pageTokenShardIndex}
+	pageTokenSlice, err := proto.Marshal(pageToken)
+	require.NoError(t, err)
 	r, err := service.FetchBlocksMetadataRawV2(tctx, &rpc.FetchBlocksMetadataRawV2Request{
 		NameSpace:        []byte(nsID),
 		Shard:            0,
