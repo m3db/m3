@@ -4564,7 +4564,7 @@ func (p *FetchBlocksMetadataRawV2Request) String() string {
 //  - NextPageToken
 type FetchBlocksMetadataRawV2Result_ struct {
 	Elements      []*BlockMetadataV2 `thrift:"elements,1,required" db:"elements" json:"elements"`
-	NextPageToken *int64             `thrift:"nextPageToken,2" db:"nextPageToken" json:"nextPageToken,omitempty"`
+	NextPageToken []byte             `thrift:"nextPageToken,2" db:"nextPageToken" json:"nextPageToken,omitempty"`
 }
 
 func NewFetchBlocksMetadataRawV2Result_() *FetchBlocksMetadataRawV2Result_ {
@@ -4575,13 +4575,10 @@ func (p *FetchBlocksMetadataRawV2Result_) GetElements() []*BlockMetadataV2 {
 	return p.Elements
 }
 
-var FetchBlocksMetadataRawV2Result__NextPageToken_DEFAULT int64
+var FetchBlocksMetadataRawV2Result__NextPageToken_DEFAULT []byte
 
-func (p *FetchBlocksMetadataRawV2Result_) GetNextPageToken() int64 {
-	if !p.IsSetNextPageToken() {
-		return FetchBlocksMetadataRawV2Result__NextPageToken_DEFAULT
-	}
-	return *p.NextPageToken
+func (p *FetchBlocksMetadataRawV2Result_) GetNextPageToken() []byte {
+	return p.NextPageToken
 }
 func (p *FetchBlocksMetadataRawV2Result_) IsSetNextPageToken() bool {
 	return p.NextPageToken != nil
@@ -4653,10 +4650,10 @@ func (p *FetchBlocksMetadataRawV2Result_) ReadField1(iprot thrift.TProtocol) err
 }
 
 func (p *FetchBlocksMetadataRawV2Result_) ReadField2(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadI64(); err != nil {
+	if v, err := iprot.ReadBinary(); err != nil {
 		return thrift.PrependError("error reading field 2: ", err)
 	} else {
-		p.NextPageToken = &v
+		p.NextPageToken = v
 	}
 	return nil
 }
@@ -4705,10 +4702,10 @@ func (p *FetchBlocksMetadataRawV2Result_) writeField1(oprot thrift.TProtocol) (e
 
 func (p *FetchBlocksMetadataRawV2Result_) writeField2(oprot thrift.TProtocol) (err error) {
 	if p.IsSetNextPageToken() {
-		if err := oprot.WriteFieldBegin("nextPageToken", thrift.I64, 2); err != nil {
+		if err := oprot.WriteFieldBegin("nextPageToken", thrift.STRING, 2); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:nextPageToken: ", p), err)
 		}
-		if err := oprot.WriteI64(int64(*p.NextPageToken)); err != nil {
+		if err := oprot.WriteBinary(p.NextPageToken); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T.nextPageToken (2) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {

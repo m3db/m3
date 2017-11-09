@@ -192,7 +192,7 @@ struct FetchBlocksMetadataRawV2Request {
 
 struct FetchBlocksMetadataRawV2Result {
 	1: required list<BlockMetadataV2> elements
-	2: optional i64 nextPageToken
+	2: optional binary nextPageToken
 }
 
 struct BlockMetadataV2 {
