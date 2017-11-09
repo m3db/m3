@@ -21,15 +21,16 @@
 package node
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
+	pt "github.com/m3db/m3db/generated/proto/page_token"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
@@ -55,6 +56,7 @@ const (
 var (
 	// errServerIsOverloaded raised when trying to process a request when the server is overloaded
 	errServerIsOverloaded = errors.New("server is overloaded")
+	errInvalidPageToken   = errors.New("invalid page token")
 )
 
 type serviceMetrics struct {
@@ -500,10 +502,11 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 		return nil, nil
 	}
 
-	// TODO: Fix me
-	var pageToken int64
-	if req.PageToken != nil {
-		pageToken = int64(binary.LittleEndian.Uint64(req.PageToken[:8]))
+	pageToken := &pt.PageToken{}
+	err := proto.Unmarshal(req.PageToken, pageToken)
+	if err != nil {
+		// TODO: Log
+		return nil, tterrors.NewInternalError(errInvalidPageToken)
 	}
 
 	var opts block.FetchBlocksMetadataOptions
@@ -520,7 +523,7 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	nsID := s.newID(ctx, req.NameSpace)
 
 	fetched, nextPageToken, err := s.db.FetchBlocksMetadata(ctx, nsID,
-		uint32(req.Shard), start, end, req.Limit, pageToken, opts)
+		uint32(req.Shard), start, end, req.Limit, pageToken.ShardIndex, opts)
 	if err != nil {
 		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
