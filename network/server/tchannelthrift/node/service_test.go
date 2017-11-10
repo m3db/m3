@@ -494,6 +494,7 @@ func TestServiceFetchBlocksMetadataV2Raw(t *testing.T) {
 	}
 	ids := make([][]byte, 0, len(series))
 	mockResult := block.NewFetchBlocksMetadataResults()
+	numBlocks := 0
 	for id, s := range series {
 		ids = append(ids, []byte(id))
 		blocks := block.NewFetchBlockMetadataResults()
@@ -502,6 +503,7 @@ func TestServiceFetchBlocksMetadataV2Raw(t *testing.T) {
 			Blocks: blocks,
 		}
 		for _, v := range s {
+			numBlocks++
 			entry := v
 			blocks.Add(block.FetchBlockMetadataResult{
 				Start:    entry.start,
@@ -513,6 +515,8 @@ func TestServiceFetchBlocksMetadataV2Raw(t *testing.T) {
 		}
 		mockResult.Add(metadata)
 	}
+
+	// Setup db expectations based on test data
 	opts := block.FetchBlocksMetadataOptions{
 		IncludeSizes:     includeSizes,
 		IncludeChecksums: includeChecksums,
@@ -523,25 +527,27 @@ func TestServiceFetchBlocksMetadataV2Raw(t *testing.T) {
 			limit, pageTokenShardIndex, opts).
 		Return(mockResult, nextPageTokenShardIndex, nil)
 
-	pageTokenBytes := pageTokenToBytes(t, &pt.PageToken{ShardIndex: pageTokenShardIndex})
+	// Run RPC method
 	r, err := service.FetchBlocksMetadataRawV2(tctx, &rpc.FetchBlocksMetadataRawV2Request{
 		NameSpace:        []byte(nsID),
 		Shard:            0,
 		RangeStart:       start.UnixNano(),
 		RangeEnd:         end.UnixNano(),
 		Limit:            limit,
-		PageToken:        pageTokenBytes,
+		PageToken:        pageTokenToBytes(t, &pt.PageToken{ShardIndex: pageTokenShardIndex}),
 		IncludeSizes:     &includeSizes,
 		IncludeChecksums: &includeChecksums,
 		IncludeLastRead:  &includeLastRead,
 	})
 	require.NoError(t, err)
 
-	require.Equal(t, 4, len(r.Elements))
-	expectedNextPageToken := &pt.PageToken{ShardIndex: *nextPageTokenShardIndex}
-	expectedNextPageTokenSlice, err := proto.Marshal(expectedNextPageToken)
-	require.NoError(t, err)
-	require.Equal(t, expectedNextPageTokenSlice, r.NextPageToken)
+	// Assert response looks OK
+	require.Equal(t, numBlocks, len(r.Elements))
+	expectedNextPageTokenBytes := pageTokenToBytes(
+		t, &pt.PageToken{ShardIndex: *nextPageTokenShardIndex})
+	require.Equal(t, expectedNextPageTokenBytes, r.NextPageToken)
+
+	// Assert all blocks are present
 	for _, block := range r.Elements {
 		require.NotNil(t, block)
 
