@@ -22,8 +22,10 @@ package xsets
 
 import (
 	"encoding/binary"
+	"runtime"
 	"testing"
 
+	"github.com/spaolacci/murmur3"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,17 +37,51 @@ func TestBloomFilterEstimate(t *testing.T) {
 	assert.Equal(t, uint(7), k)
 }
 
-// BenchmarkBloomFilterBaseHashes should always be zero alloc or else
-// we're going to have a "bad time" whedn it comes adding millions
-// of entries to the bloom filter. Test with:
-// go test -v -bench BenchmarkBaseHashes -benchmem -gcflags -m
-func BenchmarkBloomFilterBaseHashes(b *testing.B) {
+func TestBloomFilterHashesZeroAlloc(t *testing.T) {
 	d := make([]byte, 32)
 	for i := range d {
 		d[i] = byte(i)
 	}
+
+	hash := murmur3.New128()
+
+	var stats runtime.MemStats
+	runtime.ReadMemStats(&stats)
+	startAllocs := stats.Mallocs
+
+	n := 4096
+	for i := 0; i < n; i++ {
+		v := bloomFilterHashes(hash, d)
+		for j := 0; j < len(v); j++ {
+			binary.LittleEndian.PutUint64(d[j*8:(j+1)*8], v[j])
+		}
+	}
+
+	runtime.ReadMemStats(&stats)
+	endAllocs := stats.Mallocs
+	avg := float64(endAllocs-startAllocs) / float64(n)
+	// sometimes a background goroutine allocs even though
+	// tests should be done exclusively and sequentially..
+	assert.True(t, avg < 0.01)
+}
+
+// BenchmarkBloomFilterHashes should always be zero alloc or else
+// we're going to have a "bad time" when it comes adding millions
+// of entries to the bloom filter.  The test TestBlomFilterHashesZeroAlloc
+// above also verifies that zero allocations occurs.
+//
+// Test with the following to track down leaks/allocs:
+// go test -v -bench BenchmarkBloomFilterHashes -benchmem -gcflags -m
+func BenchmarkBloomFilterHashes(b *testing.B) {
+	d := make([]byte, 32)
+	for i := range d {
+		d[i] = byte(i)
+	}
+	hash := murmur3.New128()
+	b.ResetTimer()
+
 	for i := 0; i < b.N; i++ {
-		v := bloomFilterHashes(d)
+		v := bloomFilterHashes(hash, d)
 		for j := 0; j < len(v); j++ {
 			binary.LittleEndian.PutUint64(d[j*8:(j+1)*8], v[j])
 		}

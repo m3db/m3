@@ -237,7 +237,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 					if err != nil {
 						s.log.WithFields(
 							xlog.NewField("shard", shard),
-							xlog.NewField("error", err),
+							xlog.NewField("error", err.Error()),
 						).Error("reading data file failed")
 						hasError = true
 						break

@@ -21,16 +21,24 @@
 package xsets
 
 import (
+	"hash"
 	"math"
 
-	xmurmur3 "github.com/m3db/m3db/x/murmur3"
+	"github.com/spaolacci/murmur3"
 )
+
+// Hash128 the golang stdlib does not have a Hash128 definition.
+type Hash128 interface {
+	hash.Hash
+	Sum128() (uint64, uint64)
+}
 
 // BloomFilter is a bloom filter set membership.
 type BloomFilter struct {
-	m   uint64
-	k   uint64
-	set *BitSet
+	m    uint64
+	k    uint64
+	set  *BitSet
+	hash Hash128
 }
 
 // NewBloomFilter creates a new bloom filter that can represent
@@ -43,9 +51,10 @@ func NewBloomFilter(m uint, k uint) *BloomFilter {
 		k = 1
 	}
 	return &BloomFilter{
-		m:   uint64(m),
-		k:   uint64(k),
-		set: NewBitSet(m),
+		m:    uint64(m),
+		k:    uint64(k),
+		set:  NewBitSet(m),
+		hash: murmur3.New128(),
 	}
 }
 
@@ -58,12 +67,14 @@ func BloomFilterEstimate(n uint, p float64) (m uint, k uint) {
 	return
 }
 
-func bloomFilterHashes(data []byte) [4]uint64 {
-	hash := xmurmur3.New128()
-	hash = hash.Write(data)
+var entropy = []byte{1}[:]
+
+func bloomFilterHashes(hash Hash128, data []byte) [4]uint64 {
+	hash.Reset()
+	hash.Write(data)
 	h1, h2 := hash.Sum128()
 	// Add more data
-	hash = hash.Write([]byte{1})
+	hash.Write(entropy)
 	h3, h4 := hash.Sum128()
 	return [4]uint64{h1, h2, h3, h4}
 }
@@ -75,7 +86,7 @@ func bloomFilterLocation(h [4]uint64, i, m uint64) uint {
 
 // Add value to the set.
 func (b *BloomFilter) Add(value []byte) {
-	h := bloomFilterHashes(value)
+	h := bloomFilterHashes(b.hash, value)
 	for i := uint64(0); i < b.k; i++ {
 		b.set.Set(bloomFilterLocation(h, i, b.m))
 	}
@@ -83,7 +94,7 @@ func (b *BloomFilter) Add(value []byte) {
 
 // Test if value is in the set.
 func (b *BloomFilter) Test(value []byte) bool {
-	h := bloomFilterHashes(value)
+	h := bloomFilterHashes(b.hash, value)
 	for i := uint64(0); i < b.k; i++ {
 		if !b.set.Test(bloomFilterLocation(h, i, b.m)) {
 			return false
@@ -109,24 +120,26 @@ func (b *BloomFilter) BitSet() *BitSet {
 
 // ReadOnlyBloomFilter is a read only bloom filter set membership.
 type ReadOnlyBloomFilter struct {
-	m   uint64
-	k   uint64
-	set *ReadOnlyBitSet
+	m    uint64
+	k    uint64
+	set  *ReadOnlyBitSet
+	hash Hash128
 }
 
 // NewReadOnlyBloomFilter returns a new read only bloom filter backed
 // by a byte slice, this means it can be used with a mmap'd bytes ref.
 func NewReadOnlyBloomFilter(m, k uint, data []byte) *ReadOnlyBloomFilter {
 	return &ReadOnlyBloomFilter{
-		m:   uint64(m),
-		k:   uint64(k),
-		set: NewReadOnlyBitSet(data),
+		m:    uint64(m),
+		k:    uint64(k),
+		set:  NewReadOnlyBitSet(data),
+		hash: murmur3.New128(),
 	}
 }
 
 // Test if value is in the set.
 func (b *ReadOnlyBloomFilter) Test(value []byte) bool {
-	h := bloomFilterHashes(value)
+	h := bloomFilterHashes(b.hash, value)
 	for i := uint64(0); i < b.k; i++ {
 		if !b.set.Test(bloomFilterLocation(h, i, b.m)) {
 			return false
