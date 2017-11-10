@@ -60,7 +60,14 @@ func (w *writer) Write(namespace ts.ID, shardSet sharding.ShardSet, seriesMaps S
 		starts[xtime.ToUnixNano(start)] = struct{}{}
 	}
 
-	writer := fs.NewWriter(gOpts.FilePathPrefix(), gOpts.WriterBufferSize(), gOpts.NewFileMode(), gOpts.NewDirectoryMode())
+	writer, err := fs.NewWriter(fs.NewOptions().
+		SetFilePathPrefix(gOpts.FilePathPrefix()).
+		SetWriterBufferSize(gOpts.WriterBufferSize()).
+		SetNewFileMode(gOpts.NewFileMode()).
+		SetNewDirectoryMode(gOpts.NewDirectoryMode()))
+	if err != nil {
+		return err
+	}
 	encoder := gOpts.EncoderPool().Get()
 	for start, data := range seriesMaps {
 		err := writeToDisk(writer, shardSet, encoder, start.ToTime(), namespace, blockSize, data)

@@ -25,6 +25,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 )
 
@@ -49,7 +50,7 @@ func ReadLogInfo(filePath string) (start time.Time, duration time.Duration, inde
 		return time.Time{}, 0, 0, err
 	}
 	logDecoder := msgpack.NewDecoder(nil)
-	logDecoder.Reset(bytes)
+	logDecoder.Reset(encoding.NewDecoderStream(bytes))
 	logInfo, err := logDecoder.DecodeLogInfo()
 	return time.Unix(0, logInfo.Start), time.Duration(logInfo.Duration), logInfo.Index, err
 }

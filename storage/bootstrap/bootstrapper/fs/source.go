@@ -24,7 +24,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -38,38 +37,27 @@ import (
 )
 
 type newFileSetReaderFn func(
-	filePathPrefix string,
-	dataReaderBufferSize int,
-	infoReaderBufferSize int,
 	bytesPool pool.CheckedBytesPool,
-	decodingOpts msgpack.DecodingOptions,
-) fs.FileSetReader
+	opts fs.Options,
+) (fs.FileSetReader, error)
 
 type fileSystemSource struct {
-	opts                 Options
-	log                  xlog.Logger
-	filePathPrefix       string
-	dataReaderBufferSize int
-	infoReaderBufferSize int
-	decodingOpts         msgpack.DecodingOptions
-	newReaderFn          newFileSetReaderFn
-	processors           xsync.WorkerPool
+	opts        Options
+	fsopts      fs.Options
+	log         xlog.Logger
+	newReaderFn newFileSetReaderFn
+	processors  xsync.WorkerPool
 }
 
 func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
 	processors := xsync.NewWorkerPool(opts.NumProcessors())
 	processors.Init()
-
-	fileSystemOpts := opts.FilesystemOptions()
 	return &fileSystemSource{
-		opts:                 opts,
-		log:                  opts.ResultOptions().InstrumentOptions().Logger(),
-		filePathPrefix:       prefix,
-		dataReaderBufferSize: fileSystemOpts.DataReaderBufferSize(),
-		infoReaderBufferSize: fileSystemOpts.InfoReaderBufferSize(),
-		decodingOpts:         fileSystemOpts.DecodingOptions(),
-		newReaderFn:          fs.NewReader,
-		processors:           processors,
+		opts:        opts,
+		fsopts:      opts.FilesystemOptions(),
+		log:         opts.ResultOptions().InstrumentOptions().Logger(),
+		newReaderFn: fs.NewReader,
+		processors:  processors,
 	}
 }
 
@@ -101,7 +89,8 @@ func (s *fileSystemSource) shardAvailability(
 		return nil
 	}
 
-	entries := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.infoReaderBufferSize, s.decodingOpts)
+	entries := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
+		namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
 	if len(entries) == 0 {
 		return nil
 	}
@@ -126,7 +115,8 @@ func (s *fileSystemSource) enqueueReaders(
 	readersCh chan<- shardReaders,
 ) {
 	for shard, tr := range shardsTimeRanges {
-		files := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.infoReaderBufferSize, s.decodingOpts)
+		files := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
+			namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
 		if len(files) == 0 {
 			if tr == nil {
 				tr = xtime.NewRanges()
@@ -138,7 +128,11 @@ func (s *fileSystemSource) enqueueReaders(
 
 		readers := make([]fs.FileSetReader, 0, len(files))
 		for i := 0; i < len(files); i++ {
-			r := readerPool.get()
+			r, err := readerPool.get()
+			if err != nil {
+				s.log.Errorf("unable to get reader from pool")
+				continue
+			}
 			t := xtime.FromNanoseconds(files[i].Start).Round(0).UTC()
 			if err := r.Open(namespace, shard, t); err != nil {
 				s.log.WithFields(
@@ -400,14 +394,9 @@ func (s *fileSystemSource) Read(
 		xlog.NewField("concurrency", s.opts.NumProcessors()),
 		xlog.NewField("metadataOnly", blockRetriever != nil),
 	).Infof("filesystem bootstrapper bootstrapping shards for ranges")
-	readerPool := newReaderPool(func() fs.FileSetReader {
-		return s.newReaderFn(
-			s.filePathPrefix,
-			s.dataReaderBufferSize,
-			s.infoReaderBufferSize,
-			s.opts.ResultOptions().DatabaseBlockOptions().BytesPool(),
-			s.decodingOpts,
-		)
+	bytesPool := s.opts.ResultOptions().DatabaseBlockOptions().BytesPool()
+	readerPool := newReaderPool(func() (fs.FileSetReader, error) {
+		return s.newReaderFn(bytesPool, s.fsopts)
 	})
 	readersCh := make(chan shardReaders)
 	go s.enqueueReaders(nsID, shardsTimeRanges, readerPool, readersCh)
@@ -428,13 +417,13 @@ type readerPool struct {
 	values []fs.FileSetReader
 }
 
-type readerPoolAllocFn func() fs.FileSetReader
+type readerPoolAllocFn func() (fs.FileSetReader, error)
 
 func newReaderPool(alloc readerPoolAllocFn) *readerPool {
 	return &readerPool{alloc: alloc}
 }
 
-func (p *readerPool) get() fs.FileSetReader {
+func (p *readerPool) get() (fs.FileSetReader, error) {
 	p.Lock()
 	if len(p.values) == 0 {
 		p.Unlock()
@@ -444,7 +433,7 @@ func (p *readerPool) get() fs.FileSetReader {
 	value := p.values[length-1]
 	p.values = p.values[:length-1]
 	p.Unlock()
-	return value
+	return value, nil
 }
 
 func (p *readerPool) put(r fs.FileSetReader) {

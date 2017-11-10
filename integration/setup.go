@@ -221,7 +221,11 @@ func newTestSetup(t *testing.T, opts testOptions) (*testSetup, error) {
 			SetBlockSize(opts.CommitLogBlockSize()))
 
 	// Set up persistence manager
-	storageOpts = storageOpts.SetPersistManager(fs.NewPersistManager(fsOpts))
+	pm, err := fs.NewPersistManager(fsOpts)
+	if err != nil {
+		return nil, err
+	}
+	storageOpts = storageOpts.SetPersistManager(pm)
 
 	// Set up repair options
 	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(adminClient))

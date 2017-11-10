@@ -270,7 +270,9 @@ func (r *reader) shutdown() {
 func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse) {
 	decodingOpts := r.opts.FilesystemOptions().DecodingOptions()
 	decoder := msgpack.NewDecoder(decodingOpts)
+	decoderStream := encoding.NewDecoderStream(nil)
 	metadataDecoder := msgpack.NewDecoder(decodingOpts)
+	metadataDecoderStream := encoding.NewDecoderStream(nil)
 
 	for arg := range inBuf {
 		readResponse := readResponse{}
@@ -283,7 +285,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 
 		// Decode the log entry
 		arg.bytes.IncRef()
-		decoder.Reset(arg.bytes.Get())
+		decoderStream.Reset(arg.bytes.Get())
+		decoder.Reset(decoderStream)
 		entry, err := decoder.DecodeLogEntry()
 		if err != nil {
 			readResponse.resultErr = err
@@ -293,7 +296,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 
 		// If the log entry has associated metadata, decode that as well
 		if len(entry.Metadata) != 0 {
-			err := r.decodeAndHandleMetadata(metadataDecoder, entry)
+			err := r.decodeAndHandleMetadata(metadataDecoder, metadataDecoderStream, entry)
 			if err != nil {
 				readResponse.resultErr = err
 				r.writeToOutBuf(outBuf, readResponse)
@@ -334,8 +337,13 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 	close(outBuf)
 }
 
-func (r *reader) decodeAndHandleMetadata(metadataDecoder encoding.Decoder, entry schema.LogEntry) error {
-	metadataDecoder.Reset(entry.Metadata)
+func (r *reader) decodeAndHandleMetadata(
+	metadataDecoder encoding.Decoder,
+	metadataDecoderStream encoding.DecoderStream,
+	entry schema.LogEntry,
+) error {
+	metadataDecoderStream.Reset(entry.Metadata)
+	metadataDecoder.Reset(metadataDecoderStream)
 	decoded, err := metadataDecoder.DecodeLogMetadata()
 	if err != nil {
 		return err
@@ -501,7 +509,7 @@ func (r *reader) readInfo() (schema.LogInfo, error) {
 		return emptyLogInfo, err
 	}
 	data.IncRef()
-	r.logDecoder.Reset(data.Get())
+	r.logDecoder.Reset(encoding.NewDecoderStream(data.Get()))
 	logInfo, err := r.logDecoder.DecodeLogInfo()
 	data.DecRef()
 	data.Finalize()

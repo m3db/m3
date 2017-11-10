@@ -62,6 +62,8 @@ type Decoder interface {
 type DecoderStream interface {
 	io.Reader
 
+	Reset(b []byte)
+
 	// Bytes returns the ref to the backing bytes, note decoders will
 	// call Skip if they "read" any bytes by simply taking refs to them
 	// so it is guarenteed that Read/Skip is called until EOF is reached.
@@ -91,6 +93,13 @@ func NewDecoderStream(b []byte) DecoderStream {
 		lastReadByte: -1,
 		unreadByte:   -1,
 	}
+}
+
+func (s *decoderStream) Reset(b []byte) {
+	s.reader.Reset(b)
+	s.bytes = b
+	s.lastReadByte = -1
+	s.unreadByte = -1
 }
 
 func (s *decoderStream) Read(p []byte) (int, error) {
