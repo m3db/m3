@@ -22,6 +22,7 @@ package r2
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -68,6 +69,8 @@ var (
 	rollupRuleRoot        = fmt.Sprintf("%s/%s", namespacePrefix, rollupRulePrefix)
 	rollupRuleWithIDPath  = fmt.Sprintf("%s/{%s}", rollupRuleRoot, ruleIDVar)
 	rollupRuleHistoryPath = fmt.Sprintf("%s/history", rollupRuleWithIDPath)
+
+	errNilRequest = errors.New("Nil request")
 )
 
 func sendResponse(w http.ResponseWriter, data []byte, status int) error {
@@ -187,6 +190,21 @@ func NewService(
 	}
 }
 
+type routeFunc func(s *service, r *http.Request) (data interface{}, err error)
+
+func (s *service) handleRoute(rf routeFunc, r *http.Request, namespace string) (interface{}, error) {
+	if r == nil {
+		return nil, errNilRequest
+	}
+	start := s.nowFn()
+	data, err := rf(s, r)
+	s.metrics.recordMetric(r.RequestURI, r.Method, namespace, time.Since(start), err)
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
 func (s *service) sendResponse(w http.ResponseWriter, statusCode int, data interface{}) error {
 	if j, err := json.Marshal(data); err == nil {
 		return sendResponse(w, j, statusCode)
@@ -194,8 +212,8 @@ func (s *service) sendResponse(w http.ResponseWriter, statusCode int, data inter
 	return writeAPIResponse(w, http.StatusInternalServerError, "could not create response object")
 }
 
-func (s *service) fetchNamespaces(w http.ResponseWriter, _ *http.Request) error {
-	data, err := handleRoute(fetchNamespaces, s, nil, "")
+func (s *service) fetchNamespaces(w http.ResponseWriter, r *http.Request) error {
+	data, err := s.handleRoute(fetchNamespaces, r, "")
 	if err != nil {
 		return err
 	}
@@ -204,7 +222,7 @@ func (s *service) fetchNamespaces(w http.ResponseWriter, _ *http.Request) error 
 
 func (s *service) fetchNamespace(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	data, err := handleRoute(fetchNamespace, s, r, vars[namespaceIDVar])
+	data, err := s.handleRoute(fetchNamespace, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
@@ -213,7 +231,7 @@ func (s *service) fetchNamespace(w http.ResponseWriter, r *http.Request) error {
 
 func (s *service) createNamespace(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	data, err := handleRoute(createNamespace, s, r, vars[namespaceIDVar])
+	data, err := s.handleRoute(createNamespace, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
@@ -222,7 +240,7 @@ func (s *service) createNamespace(w http.ResponseWriter, r *http.Request) error 
 
 func (s *service) deleteNamespace(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	data, err := handleRoute(deleteNamespace, s, r, vars[namespaceIDVar])
+	data, err := s.handleRoute(deleteNamespace, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
@@ -231,7 +249,7 @@ func (s *service) deleteNamespace(w http.ResponseWriter, r *http.Request) error 
 
 func (s *service) fetchMappingRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	data, err := handleRoute(fetchMappingRule, s, r, vars[namespaceIDVar])
+	data, err := s.handleRoute(fetchMappingRule, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
@@ -240,7 +258,7 @@ func (s *service) fetchMappingRule(w http.ResponseWriter, r *http.Request) error
 
 func (s *service) createMappingRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	data, err := handleRoute(createMappingRule, s, r, vars[namespaceIDVar])
+	data, err := s.handleRoute(createMappingRule, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
@@ -249,7 +267,7 @@ func (s *service) createMappingRule(w http.ResponseWriter, r *http.Request) erro
 
 func (s *service) updateMappingRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	data, err := handleRoute(updateMappingRule, s, r, vars[namespaceIDVar])
+	data, err := s.handleRoute(updateMappingRule, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
@@ -258,7 +276,7 @@ func (s *service) updateMappingRule(w http.ResponseWriter, r *http.Request) erro
 
 func (s *service) deleteMappingRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	data, err := handleRoute(deleteMappingRule, s, r, vars[namespaceIDVar])
+	data, err := s.handleRoute(deleteMappingRule, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
@@ -267,7 +285,7 @@ func (s *service) deleteMappingRule(w http.ResponseWriter, r *http.Request) erro
 
 func (s *service) fetchMappingRuleHistory(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	data, err := handleRoute(fetchMappingRuleHistory, s, r, vars[namespaceIDVar])
+	data, err := s.handleRoute(fetchMappingRuleHistory, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
@@ -276,7 +294,7 @@ func (s *service) fetchMappingRuleHistory(w http.ResponseWriter, r *http.Request
 
 func (s *service) fetchRollupRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	data, err := handleRoute(fetchRollupRule, s, r, vars[namespaceIDVar])
+	data, err := s.handleRoute(fetchRollupRule, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
@@ -285,7 +303,7 @@ func (s *service) fetchRollupRule(w http.ResponseWriter, r *http.Request) error 
 
 func (s *service) createRollupRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	data, err := handleRoute(createRollupRule, s, r, vars[namespaceIDVar])
+	data, err := s.handleRoute(createRollupRule, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
@@ -294,7 +312,7 @@ func (s *service) createRollupRule(w http.ResponseWriter, r *http.Request) error
 
 func (s *service) updateRollupRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	data, err := handleRoute(updateRollupRule, s, r, vars[namespaceIDVar])
+	data, err := s.handleRoute(updateRollupRule, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
@@ -303,7 +321,7 @@ func (s *service) updateRollupRule(w http.ResponseWriter, r *http.Request) error
 
 func (s *service) deleteRollupRule(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	data, err := handleRoute(deleteRollupRule, s, r, vars[namespaceIDVar])
+	data, err := s.handleRoute(deleteRollupRule, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
@@ -312,7 +330,7 @@ func (s *service) deleteRollupRule(w http.ResponseWriter, r *http.Request) error
 
 func (s *service) fetchRollupRuleHistory(w http.ResponseWriter, r *http.Request) error {
 	vars := mux.Vars(r)
-	data, err := handleRoute(fetchRollupRuleHistory, s, r, vars[namespaceIDVar])
+	data, err := s.handleRoute(fetchRollupRuleHistory, r, vars[namespaceIDVar])
 	if err != nil {
 		return err
 	}
