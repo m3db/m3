@@ -529,22 +529,43 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	}
 	ctx.RegisterFinalizer(context.FinalizerFn(fetched.Close))
 
-	fetchedResults := fetched.Results()
+	result, err := s.getResult(nextShardIndex, opts, fetched)
+	if err != nil {
+		return nil, err
+	}
+	ctx.RegisterFinalizer(s.newCloseableMetadataV2Result(result))
+	s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
+
+	return result, nil
+}
+
+func (s *service) getResult(
+	nextShardIndex *int64,
+	opts block.FetchBlocksMetadataOptions,
+	results block.FetchBlocksMetadataResults,
+) (*rpc.FetchBlocksMetadataRawV2Result_, error) {
 	result := rpc.NewFetchBlocksMetadataRawV2Result_()
+
 	var nextPageTokenBytes []byte
+	var err error
 	if nextShardIndex != nil {
 		nextPageTokenBytes, err = proto.Marshal(&pt.PageToken{ShardIndex: *nextShardIndex})
 		if err != nil {
-			return nil, convert.ToRPCError(err)
+			return result, convert.ToRPCError(err)
 		}
 	}
-
 	result.NextPageToken = nextPageTokenBytes
-	result.Elements = s.blockMetadataV2SlicePool.Get()
+	result.Elements = s.getBlocksMetadataV2FromResult(opts, results)
+	return result, nil
+}
 
-	ctx.RegisterFinalizer(s.newCloseableMetadataV2Result(result))
+func (s *service) getBlocksMetadataV2FromResult(
+	opts block.FetchBlocksMetadataOptions,
+	results block.FetchBlocksMetadataResults,
+) []*rpc.BlockMetadataV2 {
+	blocks := s.blockMetadataV2SlicePool.Get()
 
-	for _, fetchedMetadata := range fetchedResults {
+	for _, fetchedMetadata := range results.Results() {
 		fetchedMetadataBlocks := fetchedMetadata.Blocks.Results()
 		id := fetchedMetadata.ID.Data().Get()
 
@@ -583,13 +604,11 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 				blockMetadata.Err = nil
 			}
 
-			result.Elements = append(result.Elements, blockMetadata)
+			blocks = append(blocks, blockMetadata)
 		}
 	}
 
-	s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
-
-	return result, nil
+	return blocks
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
