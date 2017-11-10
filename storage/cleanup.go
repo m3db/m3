@@ -159,7 +159,7 @@ func (m *cleanupManager) deleteInactiveFilesetFiles() error {
 		//replace with injection later
 		namespaceDirPath := fs.NamespaceDirPath(filePathPrefix, n.ID())
 		for _, s := range n.Shards() {
-			shard := fmt.Sprintf("%v", s.ID())
+			shard := fmt.Sprintf("%d", s.ID())
 			activeShards = append(activeShards, shard)
 		}
 		multiErr = multiErr.Add(m.deleteInactiveDirectoriesFn(namespaceDirPath, activeShards))
