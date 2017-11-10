@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
@@ -222,14 +223,21 @@ func (s *fileSystemSource) bootstrapFromReaders(
 				for i := 0; i < numEntries; i++ {
 					var (
 						seriesBlock = blockPool.Get()
-						entryErr    error
+						id          ts.ID
+						data        checked.Bytes
+						length      int
+						checksum    uint32
+						err         error
 					)
-					id, data, checksum, err := r.Read()
+					if retriever == nil {
+						id, data, checksum, err = r.Read()
+					} else {
+						id, length, checksum, err = r.ReadMetadata()
+					}
 					if err != nil {
-						entryErr = err
 						s.log.WithFields(
 							xlog.NewField("shard", shard),
-							xlog.NewField("error", entryErr),
+							xlog.NewField("error", err),
 						).Error("reading data file failed")
 						hasError = true
 						break
@@ -253,12 +261,6 @@ func (s *fileSystemSource) bootstrapFromReaders(
 						seg := ts.NewSegment(data, nil, ts.FinalizeHead)
 						seriesBlock.Reset(start, seg)
 					} else {
-						data.IncRef()
-						length := data.Len()
-						data.DecRef()
-						data.Finalize()
-						data = nil
-
 						metadata := block.RetrievableBlockMetadata{
 							ID:       id,
 							Length:   length,
