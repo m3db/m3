@@ -53,7 +53,7 @@ func mmap(fd, offset, length int, opts mmapOptions) ([]byte, error) {
 		return b, nil
 	}
 
-	if err := syscall.Madvise(r, syscall.MADV_HUGEPAGE); err != nil {
+	if err := syscall.Madvise(b, syscall.MADV_HUGEPAGE); err != nil {
 		return nil, err
 	}
 
