@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
@@ -226,7 +227,7 @@ func ReadInfoFiles(
 	var indexEntries []schema.IndexInfo
 	decoder := msgpack.NewDecoder(decodingOpts)
 	forEachInfoFile(filePathPrefix, namespace, shard, readerBufferSize, func(_ string, data []byte) {
-		decoder.Reset(data)
+		decoder.Reset(encoding.NewDecoderStream(data))
 		info, err := decoder.DecodeIndexInfo()
 		if err != nil {
 			return

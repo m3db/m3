@@ -60,10 +60,12 @@ type writer struct {
 	currOffset int64
 	encoder    encoding.Encoder
 	digestBuf  digest.Buffer
+	idxData    []byte
 	err        error
 }
 
 type indexEntry struct {
+	index            int64
 	id               ts.ID
 	size             int64
 	offset           int64
@@ -109,6 +111,7 @@ func NewWriter(opts Options) (FileSetWriter, error) {
 		digestFdWithDigestContents:      digest.NewFdWithDigestContentsWriter(bufferSize),
 		encoder:                         msgpack.NewEncoder(),
 		digestBuf:                       digest.NewBuffer(),
+		idxData:                         make([]byte, idxLen),
 	}, nil
 }
 
@@ -210,6 +213,7 @@ func (w *writer) writeAll(
 	}
 
 	entry := indexEntry{
+		index:    w.currIdx,
 		id:       id,
 		size:     size,
 		offset:   w.currOffset,
@@ -217,6 +221,10 @@ func (w *writer) writeAll(
 	}
 
 	if err := w.writeData(marker); err != nil {
+		return err
+	}
+	endianness.PutUint64(w.idxData, uint64(w.currIdx))
+	if err := w.writeData(w.idxData); err != nil {
 		return err
 	}
 	for _, d := range data {
@@ -229,6 +237,7 @@ func (w *writer) writeAll(
 	}
 
 	w.indexEntries = append(w.indexEntries, entry)
+	w.currIdx++
 
 	return nil
 }
@@ -252,7 +261,6 @@ func (w *writer) writeIndexEntriesSummariesBloomFilter() error {
 	// Write the index entries and calculate the bloom filter
 	n, p := uint(w.currIdx), w.bloomFilterFalsePositivePercent
 	m, k := xsets.BloomFilterEstimate(n, p)
-
 	bloomFilter := xsets.NewBloomFilter(m, k)
 
 	var offset int64
@@ -260,7 +268,7 @@ func (w *writer) writeIndexEntriesSummariesBloomFilter() error {
 		id := w.indexEntries[i].id.Data().Get()
 
 		entry := schema.IndexEntry{
-			Index:    int64(i),
+			Index:    w.indexEntries[i].index,
 			ID:       id,
 			Size:     w.indexEntries[i].size,
 			Offset:   w.indexEntries[i].offset,
@@ -272,20 +280,21 @@ func (w *writer) writeIndexEntriesSummariesBloomFilter() error {
 			return err
 		}
 
-		if i%summaryEvery == 0 {
-			// Capture the offset for when we write this summary back, only capture
-			// for every summary we'll actually write to avoid a few memcopies
-			w.indexEntries[i].offsetForSummary = offset
-		}
-
 		data := w.encoder.Bytes()
 		if _, err := w.indexFdWithDigest.Write(data); err != nil {
 			return err
 		}
 
-		// Add to the bloom filter, this must be zero alloc or else this will blow
-		// up memory
+		// Add to the bloom filter, note this must be zero alloc or else this will
+		// cause heavy GC churn as we flush millions of series at end of each
+		// time window
 		bloomFilter.Add(id)
+
+		if i%summaryEvery == 0 {
+			// Capture the offset for when we write this summary back, only capture
+			// for every summary we'll actually write to avoid a few memcopies
+			w.indexEntries[i].offsetForSummary = offset
+		}
 
 		offset += int64(len(data))
 	}
@@ -299,7 +308,7 @@ func (w *writer) writeIndexEntriesSummariesBloomFilter() error {
 		}
 
 		summary := schema.IndexSummary{
-			Index:            int64(i),
+			Index:            w.indexEntries[i].index,
 			ID:               w.indexEntries[i].id.Data().Get(),
 			IndexEntryOffset: w.indexEntries[i].offsetForSummary,
 		}
@@ -337,8 +346,8 @@ func (w *writer) writeIndexEntriesSummariesBloomFilter() error {
 			Summaries: int64(summaries),
 		},
 		BloomFilter: schema.IndexBloomFilterInfo{
-			NumElementsM: int64(m),
-			NumHashesK:   int64(k),
+			NumElementsM: int64(bloomFilter.M()),
+			NumHashesK:   int64(bloomFilter.K()),
 		},
 	}
 

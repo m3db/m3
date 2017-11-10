@@ -65,17 +65,18 @@ func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.T
 
 func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
 	err := r.Open(testNs1ID, 0, timestamp)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	assert.Equal(t, len(entries), r.Entries())
-	assert.Equal(t, 0, r.EntriesRead())
+	require.Equal(t, len(entries), r.Entries())
+	require.Equal(t, 0, r.EntriesRead())
 
 	for i := 0; i < r.Entries(); i++ {
 		id, data, checksum, err := r.Read()
+		require.NoError(t, err)
+
 		data.IncRef()
 		defer data.DecRef()
 
-		assert.NoError(t, err)
 		assert.Equal(t, entries[i].id, id.String())
 		assert.True(t, bytes.Equal(entries[i].data, data.Get()))
 		assert.Equal(t, digest.Checksum(entries[i].data), checksum)
@@ -102,7 +103,7 @@ func TestSimpleReadWrite(t *testing.T) {
 	w := newTestWriter(t, filePathPrefix)
 	writeTestData(t, w, 0, testWriterStart, entries)
 
-	r := newTestReader(filePathPrefix)
+	r := newTestReader(t, filePathPrefix)
 	readTestData(t, r, 0, testWriterStart, entries)
 }
 
@@ -151,7 +152,7 @@ func TestReusingReaderWriter(t *testing.T) {
 		writeTestData(t, w, 0, testWriterStart.Add(time.Duration(i)*time.Hour), allEntries[i])
 	}
 
-	r := newTestReader(filePathPrefix)
+	r := newTestReader(t, filePathPrefix)
 	for i := range allEntries {
 		readTestData(t, r, 0, testWriterStart.Add(time.Duration(i)*time.Hour), allEntries[i])
 	}
@@ -183,7 +184,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 		digest.Checksum(entries[1].data)).Error())
 	w.Close()
 
-	r := newTestReader(filePathPrefix)
+	r := newTestReader(t, filePathPrefix)
 	require.Equal(t, errCheckpointFileNotFound, r.Open(testNs1ID, shard, testWriterStart))
 
 	// Now reuse the writer and validate the data are written as expected.
@@ -214,7 +215,7 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 
 	assert.NoError(t, w.Close())
 
-	r := newTestReader(filePathPrefix)
+	r := newTestReader(t, filePathPrefix)
 	readTestData(t, r, 0, testWriterStart, []testEntry{
 		{"foo", []byte{1, 2, 3, 4, 5, 6}},
 	})

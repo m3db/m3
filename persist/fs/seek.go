@@ -229,7 +229,7 @@ func (s *seeker) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
-	s.decoder.Reset(s.unreadBuf[:n])
+	s.decoder.Reset(encoding.NewDecoderStream(s.unreadBuf[:n]))
 	info, err := s.decoder.DecodeIndexInfo()
 	if err != nil {
 		return err
@@ -248,7 +248,7 @@ func (s *seeker) readIndex(size int) error {
 		return err
 	}
 
-	s.decoder.Reset(s.unreadBuf[:n][:])
+	s.decoder.Reset(encoding.NewDecoderStream(s.unreadBuf[:n][:]))
 	if s.indexMap == nil {
 		s.indexMap = make(map[ts.Hash]indexMapEntry, s.entries)
 	}

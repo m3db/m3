@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -34,6 +35,7 @@ import (
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,17 +48,26 @@ const (
 var (
 	testWriterStart = time.Now()
 	testBlockSize   = 2 * time.Hour
+	testBytesPool   pool.CheckedBytesPool
 )
 
-func newTestReader(filePathPrefix string) FileSetReader {
-	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
+func init() {
+	testBytesPool = pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
 		Capacity: 1024,
 		Count:    10,
 	}}, nil, func(s []pool.Bucket) pool.BytesPool {
 		return pool.NewBytesPool(s, nil)
 	})
-	bytesPool.Init()
-	return NewReader(filePathPrefix, testReaderBufferSize, testReaderBufferSize, bytesPool, nil)
+	testBytesPool.Init()
+}
+
+func newTestReader(t *testing.T, filePathPrefix string) FileSetReader {
+	reader, err := NewReader(testBytesPool, NewOptions().
+		SetFilePathPrefix(filePathPrefix).
+		SetInfoReaderBufferSize(testReaderBufferSize).
+		SetDataReaderBufferSize(testReaderBufferSize))
+	require.NoError(t, err)
+	return reader
 }
 
 func bytesRefd(data []byte) checked.Bytes {
@@ -64,6 +75,36 @@ func bytesRefd(data []byte) checked.Bytes {
 	bytes.IncRef()
 	return bytes
 }
+
+// NB(r): This is kind of shitty and brittle, but basically
+// msgpack expects a buffered reader, but we can't use a buffered
+// reader because we need to know where its up to when we need to grab
+// bytes without copying.
+//
+// This test by its very nature compiling means it implements the
+// `bufReader` interface in msgpack decoder library (unless it changes...)
+// in which case this needs to be updated.
+//
+// By it implementing the interface the msgpack decoder actually uses
+// the reader directly without creating a buffered reader to wrap it.
+// This way we can know actually where its up to and can correctly
+// take the right bytes ref address when reading bytes without copying.
+type msgpackBufReader interface {
+	Read([]byte) (int, error)
+	ReadByte() (byte, error)
+	UnreadByte() error
+}
+
+func TestDecoderStreamImplementsMsgpackBufReader(t *testing.T) {
+	r := msgpackBufReader(newDecoderStream())
+	assert.NotNil(t, r)
+}
+
+// NB(r): todo make a test that gives a decoderStream or something
+// looking like a decoder stream to the msgpack library and ensures
+// that it doesn't wrap the reader in a bufio.NewReader(...) by analyzing
+// the goroutine stack with runtime.Stack()
+// ...
 
 func TestReadEmptyIndexUnreadData(t *testing.T) {
 	dir, err := ioutil.TempDir("", "testdb")
@@ -78,47 +119,20 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
-	r := newTestReader(filePathPrefix)
+	r := newTestReader(t, filePathPrefix)
 	err = r.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
 	_, _, _, err = r.Read()
 	assert.Error(t, err)
 
-	assert.NoError(t, r.Close())
-}
-
-func TestReadCorruptIndexEntry(t *testing.T) {
-	dir, err := ioutil.TempDir("", "testdb")
-	if err != nil {
-		t.Fatal(err)
-	}
-	filePathPrefix := filepath.Join(dir, "")
-	defer os.RemoveAll(dir)
-
-	w := newTestWriter(t, filePathPrefix)
-	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
-	assert.NoError(t, err)
-
-	assert.NoError(t, w.Write(
-		ts.StringID("foo"),
-		bytesRefd([]byte{1, 2, 3}),
-		digest.Checksum([]byte{1, 2, 3})))
-	assert.NoError(t, w.Close())
-
-	r := newTestReader(filePathPrefix)
-	err = r.Open(testNs1ID, 0, testWriterStart)
-	assert.NoError(t, err)
-
-	reader := r.(*reader)
-	reader.decoder.Reset(nil)
-
-	_, _, _, err = r.Read()
-	assert.Error(t, err)
 	assert.NoError(t, r.Close())
 }
 
 func TestReadDataError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	dir, err := ioutil.TempDir("", "testdb")
 	if err != nil {
 		t.Fatal(err)
@@ -128,32 +142,32 @@ func TestReadDataError(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
-	assert.NoError(t, err)
-	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
-
-	assert.NoError(t, w.Write(
+	require.NoError(t, err)
+	require.NoError(t, w.Write(
 		ts.StringID("foo"),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
-	assert.NoError(t, w.Close())
+	require.NoError(t, w.Close())
 
-	r := newTestReader(filePathPrefix)
+	r := newTestReader(t, filePathPrefix)
 	err = r.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	// Close out the dataFd and expect an error on next read
+	// Close out the dataFd and use a mock to expect an error on next read
 	reader := r.(*reader)
-	assert.NoError(t, reader.dataFdWithDigest.Fd().Close())
+	require.NoError(t, munmap(reader.dataMmap))
+	require.NoError(t, reader.dataFd.Close())
+
+	mockReader := digest.NewMockReaderWithDigest(ctrl)
+	mockReader.EXPECT().Read(gomock.Any()).Return(0, fmt.Errorf("an error"))
+	reader.dataReader = mockReader
 
 	_, _, _, err = r.Read()
 	assert.Error(t, err)
 
-	// Restore the file to cleanly close
-	fd, err := os.Open(dataFile)
-	assert.NoError(t, err)
-
-	reader.dataFdWithDigest.Reset(fd)
-	assert.NoError(t, r.Close())
+	// Cleanly close
+	require.NoError(t, munmap(reader.indexMmap))
+	require.NoError(t, reader.indexFd.Close())
 }
 
 func TestReadDataUnexpectedSize(t *testing.T) {
@@ -178,7 +192,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	// Truncate one bye
 	assert.NoError(t, os.Truncate(dataFile, 1))
 
-	r := newTestReader(filePathPrefix)
+	r := newTestReader(t, filePathPrefix)
 	err = r.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
@@ -218,7 +232,7 @@ func TestReadBadMarker(t *testing.T) {
 
 	assert.NoError(t, w.Close())
 
-	r := newTestReader(filePathPrefix)
+	r := newTestReader(t, filePathPrefix)
 	err = r.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
@@ -247,16 +261,20 @@ func TestReadWrongIdx(t *testing.T) {
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
 
-	r := newTestReader(filePathPrefix)
-	err = r.Open(testNs1ID, 0, testWriterStart)
-	assert.NoError(t, err)
-
 	// Replace the expected idx with 123
 	enc := msgpack.NewEncoder()
 	entry := schema.IndexEntry{Index: 123}
 	require.NoError(t, enc.EncodeIndexEntry(entry))
-	reader := r.(*reader)
-	reader.decoder.Reset(enc.Bytes())
+
+	shardDir := ShardDirPath(filePathPrefix, testNs1ID, 0)
+	indexFilePath := filesetPathFromTime(shardDir, testWriterStart, indexFileSuffix)
+	err = ioutil.WriteFile(indexFilePath, enc.Bytes(), defaultNewFileMode)
+	require.NoError(t, err)
+
+	r := newTestReader(t, filePathPrefix)
+	err = r.Open(testNs1ID, 0, testWriterStart)
+	require.NoError(t, err)
+
 	_, _, _, err = r.Read()
 	assert.Error(t, err)
 
@@ -289,7 +307,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 	require.True(t, FileExists(checkpointFile))
 	os.Remove(checkpointFile)
 
-	r := NewReader(filePathPrefix, testReaderBufferSize, testReaderBufferSize, nil, nil)
+	r := newTestReader(t, filePathPrefix)
 	err = r.Open(testNs1ID, shard, testWriterStart)
 	require.Equal(t, errCheckpointFileNotFound, err)
 }
@@ -320,7 +338,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 		fd.Close()
 	}
 
-	r := NewReader(filePathPrefix, testReaderBufferSize, testReaderBufferSize, nil, nil)
+	r := newTestReader(t, filePathPrefix)
 	require.Error(t, r.Open(testNs1ID, shard, time.Unix(1000, 0)))
 }
 
@@ -395,7 +413,7 @@ func TestReadValidate(t *testing.T) {
 		digest.Checksum([]byte{0x1})))
 	require.NoError(t, w.Close())
 
-	r := newTestReader(filePathPrefix)
+	r := newTestReader(t, filePathPrefix)
 	require.NoError(t, r.Open(testNs1ID, shard, start))
 	_, _, _, err := r.Read()
 	require.NoError(t, err)

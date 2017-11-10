@@ -21,9 +21,7 @@
 package msgpack
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 
 	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/schema"
@@ -44,8 +42,7 @@ var (
 
 type decoder struct {
 	allocDecodedBytes bool
-	data              []byte
-	reader            *bytes.Reader
+	reader            encoding.DecoderStream
 	dec               *msgpack.Decoder
 	err               error
 }
@@ -55,7 +52,7 @@ func NewDecoder(opts DecodingOptions) encoding.Decoder {
 	if opts == nil {
 		opts = NewDecodingOptions()
 	}
-	reader := bytes.NewReader(nil)
+	reader := encoding.NewDecoderStream(nil)
 	return &decoder{
 		allocDecodedBytes: opts.AllocDecodedBytes(),
 		reader:            reader,
@@ -63,9 +60,8 @@ func NewDecoder(opts DecodingOptions) encoding.Decoder {
 	}
 }
 
-func (dec *decoder) Reset(data []byte) {
-	dec.data = data
-	dec.reader.Reset(data)
+func (dec *decoder) Reset(stream encoding.DecoderStream) {
+	dec.reader = stream
 	dec.dec.Reset(dec.reader)
 	dec.err = nil
 }
@@ -162,7 +158,6 @@ func (dec *decoder) decodeIndexInfo() schema.IndexInfo {
 	indexInfo.BloomFilter = dec.decodeIndexBloomFilterInfo()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
-		fmt.Printf("!err2: %v, skip: %v\n", dec.err, numFieldsToSkip)
 		return emptyIndexInfo
 	}
 	return indexInfo
@@ -397,20 +392,20 @@ func (dec *decoder) decodeBytes() []byte {
 			return nil
 		}
 		var (
-			numBytes  = len(dec.data)
-			currPos   = numBytes - dec.reader.Len()
-			targetPos = currPos + bytesLen
+			backingBytes = dec.reader.Bytes()
+			numBytes     = int64(len(backingBytes))
+			currPos      = numBytes - dec.reader.Remaining()
+			targetPos    = currPos + int64(bytesLen)
 		)
 		if bytesLen < 0 || currPos < 0 || targetPos > numBytes {
 			dec.err = fmt.Errorf("invalid currPos %d, bytesLen %d, numBytes %d", currPos, bytesLen, numBytes)
 			return nil
 		}
-		_, err := dec.reader.Seek(int64(targetPos), io.SeekStart)
-		if err != nil {
+		if err := dec.reader.Skip(int64(bytesLen)); err != nil {
 			dec.err = err
 			return nil
 		}
-		value = dec.data[currPos:targetPos]
+		value = backingBytes[currPos:targetPos]
 	}
 	return value
 }

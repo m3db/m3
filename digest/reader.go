@@ -23,6 +23,7 @@ package digest
 import (
 	"bufio"
 	"errors"
+	"hash"
 	"io"
 	"os"
 )
@@ -163,4 +164,81 @@ func (r *fdWithDigestContentsReader) ReadDigest() (uint32, error) {
 		return 0, errReadFewerThanExpectedBytes
 	}
 	return r.digestBuf.ReadDigest(), nil
+}
+
+// ReaderWithDigest is a reader that that calculates a digest
+// as it is read.
+type ReaderWithDigest interface {
+	io.Reader
+
+	// Reset resets the reader for use with a new reader.
+	Reset(reader io.Reader)
+
+	// Digest returns the digest.
+	Digest() hash.Hash32
+
+	// Validate compares the current digest against the expected digest and returns
+	// an error if they don't match.
+	Validate(expectedDigest uint32) error
+}
+
+type readerWithDigest struct {
+	reader io.Reader
+	digest hash.Hash32
+}
+
+// NewReaderWithDigest creates a new reader that calculates a digest as it
+// reads an input.
+func NewReaderWithDigest(reader io.Reader) ReaderWithDigest {
+	return &readerWithDigest{
+		reader: reader,
+		digest: NewDigest(),
+	}
+}
+
+func (r *readerWithDigest) Reset(reader io.Reader) {
+	r.reader = reader
+	r.digest.Reset()
+}
+
+func (r *readerWithDigest) Digest() hash.Hash32 {
+	return r.digest
+}
+
+func (r *readerWithDigest) readBytes(b []byte) (int, error) {
+	n, err := r.reader.Read(b)
+	if err != nil {
+		return 0, err
+	}
+	// In case the buffered reader only returns what's remaining in
+	// the buffer, recursively read what's left in the underlying reader.
+	if n < len(b) {
+		b = b[n:]
+		remainder, err := r.readBytes(b)
+		return n + remainder, err
+	}
+	return n, err
+}
+
+func (r *readerWithDigest) Read(b []byte) (int, error) {
+	n, err := r.readBytes(b)
+	if err != nil && err != io.EOF {
+		return n, err
+	}
+	// If we encountered an EOF error and didn't read any bytes
+	// given a non-empty slice, we return an EOF error.
+	if err == io.EOF && n == 0 && len(b) > 0 {
+		return 0, err
+	}
+	if _, err := r.digest.Write(b[:n]); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+func (r *readerWithDigest) Validate(expectedDigest uint32) error {
+	if r.digest.Sum32() != expectedDigest {
+		return errCheckSumMismatch
+	}
+	return nil
 }
