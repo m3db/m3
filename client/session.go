@@ -259,7 +259,7 @@ func (s *session) ShardID(id string) (uint32, error) {
 	return value, nil
 }
 
-func (s *session) streamFromPeersMetricsForShard(
+func (s *session) newPeerStreamingMetadataMetrics(
 	shard uint32,
 	resultType resultTypeEnum,
 ) *streamFromPeersMetrics {
@@ -1224,7 +1224,7 @@ func (s *session) FetchBlocksMetadataFromPeers(
 	var (
 		metadataCh = make(chan blocksMetadata, blocksMetadataChannelInitialCapacity)
 		errCh      = make(chan error, 1)
-		m          = s.streamFromPeersMetricsForShard(shard, resultTypeMetadata)
+		m          = s.newPeerStreamingMetadataMetrics(shard, resultTypeMetadata)
 	)
 
 	go func() {
@@ -1257,7 +1257,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 		waitDone = func() error {
 			return <-doneCh
 		}
-		m = s.streamFromPeersMetricsForShard(shard, resultTypeBootstrap)
+		m = s.newPeerStreamingMetadataMetrics(shard, resultTypeBootstrap)
 	)
 
 	peers, err := s.peersForShard(shard)
@@ -1320,7 +1320,7 @@ func (s *session) FetchBlocksFromPeers(
 			default:
 			}
 		}
-		m = s.streamFromPeersMetricsForShard(shard, resultTypeRaw)
+		m = s.newPeerStreamingMetadataMetrics(shard, resultTypeRaw)
 	)
 
 	peers, err := s.peersForShard(shard)
