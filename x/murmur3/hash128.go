@@ -13,6 +13,8 @@ const (
 	c2_128 = 0x4cf5ad432745937f
 )
 
+// Digest128 is a murmur3 128 bit digest that can be written to
+// as many consequent times as necessary without heap allocations.
 type Digest128 struct {
 	clen int // Digested input cumulative length.
 	tail int
@@ -22,17 +24,21 @@ type Digest128 struct {
 	h2   uint64   // Unfinalized running hash part 2.
 }
 
+// New128 returns a new 128 bit digest.
 func New128() Digest128 {
 	return New128WithSeed(0)
 }
 
+// New128WithSeed returns a new 128 bit digest with a seed.
 func New128WithSeed(seed uint32) Digest128 {
 	s := uint64(seed)
 	return Digest128{h1: s, h2: s, seed: seed}
 }
 
+// Size returns the byte size of the digest.
 func (d Digest128) Size() int { return 16 }
 
+// Sum returns the current binary hash appended to input byte ref.
 func (d Digest128) Sum(b []byte) []byte {
 	h1, h2 := d.Sum128()
 	return append(b,
@@ -112,6 +118,7 @@ func (d Digest128) bmixbuf() Digest128 {
 	return d
 }
 
+// Sum128 returns the 128 bit hash of the digest.
 func (d Digest128) Sum128() (h1, h2 uint64) {
 	h1, h2 = d.h1, d.h2
 
@@ -189,6 +196,8 @@ func (d Digest128) Sum128() (h1, h2 uint64) {
 	return h1, h2
 }
 
+// Write will write bytes to the digest and return a new digest
+// representing the derived digest.
 func (d Digest128) Write(p []byte) Digest128 {
 	n := len(p)
 	d.clen += n

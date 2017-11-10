@@ -59,9 +59,19 @@ func TestCloner(t *testing.T) {
 	require.NoError(t, cloner.Clone(src, dest, destBlockSize))
 
 	// verify the two are equal
-	r1 := fs.NewReader(src.PathPrefix, opts.BufferSize(), opts.BufferSize(), opts.BytesPool(), opts.DecodingOptions())
+	r1, err := fs.NewReader(opts.BytesPool(), fs.NewOptions().
+		SetFilePathPrefix(src.PathPrefix).
+		SetDataReaderBufferSize(opts.BufferSize()).
+		SetInfoReaderBufferSize(opts.BufferSize()).
+		SetDecodingOptions(opts.DecodingOptions()))
+	require.NoError(t, err)
 	require.NoError(t, r1.Open(ts.StringID(src.Namespace), src.Shard, src.Blockstart))
-	r2 := fs.NewReader(dest.PathPrefix, opts.BufferSize(), opts.BufferSize(), opts.BytesPool(), opts.DecodingOptions())
+	r2, err := fs.NewReader(opts.BytesPool(), fs.NewOptions().
+		SetFilePathPrefix(dest.PathPrefix).
+		SetDataReaderBufferSize(opts.BufferSize()).
+		SetInfoReaderBufferSize(opts.BufferSize()).
+		SetDecodingOptions(opts.DecodingOptions()))
+	require.NoError(t, err)
 	require.NoError(t, r2.Open(ts.StringID(dest.Namespace), dest.Shard, dest.Blockstart))
 	for {
 		t1, b1, c1, e1 := r1.Read()
@@ -82,7 +92,12 @@ func TestCloner(t *testing.T) {
 }
 
 func writeTestData(t *testing.T, bs time.Duration, src FilesetID, opts Options) {
-	w := fs.NewWriter(src.PathPrefix, opts.BufferSize(), opts.FileMode(), opts.DirMode())
+	w, err := fs.NewWriter(fs.NewOptions().
+		SetFilePathPrefix(src.PathPrefix).
+		SetWriterBufferSize(opts.BufferSize()).
+		SetNewFileMode(opts.FileMode()).
+		SetNewDirectoryMode(opts.DirMode()))
+	require.NoError(t, err)
 	require.NoError(t, w.Open(ts.StringID(src.Namespace), bs, src.Shard, src.Blockstart))
 	for i := 0; i < numTestSeries; i++ {
 		id := ts.StringID(fmt.Sprintf("testSeries.%d", i))

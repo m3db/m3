@@ -54,7 +54,7 @@ func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
 	processors.Init()
 	return &fileSystemSource{
 		opts:        opts,
-		fsopts:      opts.FilesystemOptions(),
+		fsopts:      opts.FilesystemOptions().SetFilePathPrefix(prefix),
 		log:         opts.ResultOptions().InstrumentOptions().Logger(),
 		newReaderFn: fs.NewReader,
 		processors:  processors,

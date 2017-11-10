@@ -22,13 +22,12 @@ func New(opts Options) FilesetCloner {
 
 func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duration) error {
 	fsopts := fs.NewOptions().
-		SetFilePathPrefix(src.PathPrefix).
 		SetDataReaderBufferSize(c.opts.BufferSize()).
 		SetInfoReaderBufferSize(c.opts.BufferSize()).
 		SetWriterBufferSize(c.opts.BufferSize()).
 		SetNewFileMode(c.opts.FileMode()).
 		SetNewDirectoryMode(c.opts.DirMode())
-	reader, err := fs.NewReader(nil, fsopts)
+	reader, err := fs.NewReader(nil, fsopts.SetFilePathPrefix(src.PathPrefix))
 	if err != nil {
 		return fmt.Errorf("unable to create fileset reader: %v", err)
 	}
@@ -36,7 +35,7 @@ func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duratio
 		return fmt.Errorf("unable to read source fileset: %v", err)
 	}
 
-	writer, err := fs.NewWriter(fsopts)
+	writer, err := fs.NewWriter(fsopts.SetFilePathPrefix(dest.PathPrefix))
 	if err != nil {
 		return fmt.Errorf("unable to create fileset writer: %v", err)
 	}

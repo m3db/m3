@@ -96,7 +96,7 @@ func TestIndexInfoRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeIndexInfo(testIndexInfo))
-	dec.Reset(enc.Bytes())
+	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexInfo()
 	require.NoError(t, err)
 	require.Equal(t, testIndexInfo, res)
@@ -108,7 +108,7 @@ func TestIndexEntryRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
-	dec.Reset(enc.Bytes())
+	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry()
 	require.NoError(t, err)
 	require.Equal(t, testIndexEntry, res)
@@ -120,7 +120,7 @@ func TestIndexSummaryRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeIndexSummary(testIndexSummary))
-	dec.Reset(enc.Bytes())
+	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexSummary()
 	require.NoError(t, err)
 	require.Equal(t, testIndexSummary, res)
@@ -132,7 +132,7 @@ func TestLogInfoRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeLogInfo(testLogInfo))
-	dec.Reset(enc.Bytes())
+	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeLogInfo()
 	require.NoError(t, err)
 	require.Equal(t, testLogInfo, res)
@@ -144,7 +144,7 @@ func TestLogEntryRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeLogEntry(testLogEntry))
-	dec.Reset(enc.Bytes())
+	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeLogEntry()
 	require.NoError(t, err)
 	require.Equal(t, testLogEntry, res)
@@ -156,7 +156,7 @@ func TestLogMetadataRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeLogMetadata(testLogMetadata))
-	dec.Reset(enc.Bytes())
+	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeLogMetadata()
 	require.NoError(t, err)
 	require.Equal(t, testLogMetadata, res)
@@ -192,7 +192,7 @@ func TestMultiTypeRoundtripStress(t *testing.T) {
 		}
 	}
 
-	dec.Reset(enc.Bytes())
+	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
 	for i := 0; i < iter; i++ {
 		switch i % 5 {
 		case 0:

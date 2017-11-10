@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"io"
 	"time"
 
 	"github.com/m3db/m3db/digest"
@@ -47,9 +48,6 @@ var (
 
 	// errReadMarkerNotFound returned when the marker is not found at the beginning of a data record
 	errReadMarkerNotFound = errors.New("expected marker not found")
-
-	// errReadMoreThanAvailable returned when reading passed the amount of entries in the volume
-	errReadMoreThanAvailable = errors.New("trying to read more entries than available")
 )
 
 // ErrReadWrongIdx returned when the wrong idx is read in the data file
@@ -362,7 +360,7 @@ func (r *reader) readIndex() error {
 func (r *reader) Read() (ts.ID, checked.Bytes, uint32, error) {
 	var none ts.ID
 	if r.entriesRead >= r.entries {
-		return none, nil, 0, errReadMoreThanAvailable
+		return none, nil, 0, io.EOF
 	}
 
 	entry := r.indexEntriesByOffset[r.entriesRead]
@@ -482,9 +480,5 @@ func (r *reader) Close() error {
 		return err
 	}
 
-	if err := r.dataFd.Close(); err != nil {
-		return err
-	}
-
-	return nil
+	return r.dataFd.Close()
 }

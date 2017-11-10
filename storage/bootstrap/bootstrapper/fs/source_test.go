@@ -31,7 +31,6 @@ import (
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -56,6 +55,14 @@ var (
 	testWriterBufferSize = 10
 	testDefaultRunOpts   = bootstrap.NewRunOptions().SetIncremental(false)
 )
+
+func newTestFsOptions(filePathPrefix string) fs.Options {
+	return fs.NewOptions().
+		SetFilePathPrefix(filePathPrefix).
+		SetWriterBufferSize(testWriterBufferSize).
+		SetNewFileMode(testFileMode).
+		SetNewDirectoryMode(testDirMode)
+}
 
 func testNsMetadata(t *testing.T) namespace.Metadata {
 	ropts := retention.NewOptions().SetBlockSize(testBlockSize)
@@ -123,7 +130,8 @@ func writeGoodFiles(t *testing.T, dir string, namespace ts.ID, shard uint32) {
 }
 
 func writeTSDBFiles(t *testing.T, dir string, namespace ts.ID, shard uint32, start time.Time, id string, data []byte) {
-	w := fs.NewWriter(dir, testWriterBufferSize, testFileMode, testDirMode)
+	w, err := fs.NewWriter(newTestFsOptions(dir))
+	require.NoError(t, err)
 	require.NoError(t, w.Open(namespace, testBlockSize, shard, start))
 
 	bytes := checked.NewBytes(data, nil)
@@ -390,13 +398,10 @@ func TestReadValidateError(t *testing.T) {
 	reader := fs.NewMockFileSetReader(ctrl)
 	src := newFileSystemSource(dir, NewOptions()).(*fileSystemSource)
 	src.newReaderFn = func(
-		filePathPrefix string,
-		dataReaderBufferSize int,
-		infoReaderBufferSize int,
 		b pool.CheckedBytesPool,
-		decodingOpts msgpack.DecodingOptions,
-	) fs.FileSetReader {
-		return reader
+		opts fs.Options,
+	) (fs.FileSetReader, error) {
+		return reader, nil
 	}
 
 	idMatcher := ts.NewIDMatcher(testNs1ID.String())
@@ -441,13 +446,10 @@ func TestReadDeleteOnError(t *testing.T) {
 	reader := fs.NewMockFileSetReader(ctrl)
 	src := newFileSystemSource(dir, NewOptions()).(*fileSystemSource)
 	src.newReaderFn = func(
-		filePathPrefix string,
-		dataReaderBufferSize int,
-		infoReaderBufferSize int,
 		b pool.CheckedBytesPool,
-		decodingOpts msgpack.DecodingOptions,
-	) fs.FileSetReader {
-		return reader
+		opts fs.Options,
+	) (fs.FileSetReader, error) {
+		return reader, nil
 	}
 
 	shard := uint32(0)
