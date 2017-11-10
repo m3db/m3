@@ -491,21 +491,17 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 		return nil, tterrors.NewInternalError(errServerIsOverloaded)
 	}
 
+	var err error
 	callStart := s.nowFn()
+	defer func() {
+		if err != nil {
+			s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
+		}
+	}()
+
 	ctx := tchannelthrift.Context(tctx)
-
-	start := time.Unix(0, req.RangeStart)
-	end := time.Unix(0, req.RangeEnd)
-
 	if req.Limit <= 0 {
-		s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
 		return nil, nil
-	}
-
-	pageToken := &pt.PageToken{}
-	err := proto.Unmarshal(req.PageToken, pageToken)
-	if err != nil {
-		return nil, tterrors.NewInternalError(errInvalidPageToken)
 	}
 
 	var opts block.FetchBlocksMetadataOptions
@@ -519,22 +515,35 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 		opts.IncludeLastRead = *req.IncludeLastRead
 	}
 
-	nsID := s.newID(ctx, req.NameSpace)
+	var (
+		nsID      = s.newID(ctx, req.NameSpace)
+		start     = time.Unix(0, req.RangeStart)
+		end       = time.Unix(0, req.RangeEnd)
+		pageToken = &pt.PageToken{}
+	)
+	err = proto.Unmarshal(req.PageToken, pageToken)
+	if err != nil {
+		return nil, tterrors.NewInternalError(errInvalidPageToken)
+	}
 
-	fetched, nextShardIndex, err := s.db.FetchBlocksMetadata(ctx, nsID,
-		uint32(req.Shard), start, end, req.Limit, pageToken.ShardIndex, opts)
+	fetchedMetadata, nextShardIndex, err := s.db.FetchBlocksMetadata(
+		ctx, nsID, uint32(req.Shard), start, end, req.Limit, pageToken.ShardIndex, opts)
 	if err != nil {
 		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
 	}
-	ctx.RegisterFinalizer(context.FinalizerFn(fetched.Close))
+	ctx.RegisterFinalizer(context.FinalizerFn(fetchedMetadata.Close))
 
-	result, err := s.getResult(nextShardIndex, opts, fetched)
+	result, err := s.getResult(nextShardIndex, opts, fetchedMetadata)
 	if err != nil {
 		return nil, err
 	}
-	ctx.RegisterFinalizer(s.newCloseableMetadataV2Result(result))
-	s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
+	ctx.RegisterFinalizer(context.FinalizerFn(func() {
+		for _, blockMetadata := range result.Elements {
+			s.blockMetadataV2Pool.Put(blockMetadata)
+		}
+		s.blockMetadataV2SlicePool.Put(result.Elements)
+	}))
 
 	return result, nil
 }
