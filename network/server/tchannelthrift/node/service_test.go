@@ -452,31 +452,31 @@ func TestServiceFetchBlocksMetadataV2Raw(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	// Setup mock db / service / context
 	mockDB := storage.NewMockDatabase(ctrl)
 	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
 	mockDB.EXPECT().IsOverloaded().Return(false)
-
 	service := NewService(mockDB, nil).(*service)
-
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
 	defer ctx.Close()
 
-	start := time.Now().Add(-4 * time.Hour)
-	end := start.Add(4 * time.Hour)
+	// Configure constants / options
+	now := time.Now()
+	var (
+		start                   = now.Truncate(time.Hour)
+		end                     = now.Add(4 * time.Hour).Truncate(time.Hour)
+		limit                   = int64(2)
+		pageTokenShardIndex     = int64(0)
+		next                    = pageTokenShardIndex + limit
+		nextPageTokenShardIndex = &next
+		includeSizes            = true
+		includeChecksums        = true
+		includeLastRead         = true
+		nsID                    = "metrics"
+	)
 
-	start, end = start.Truncate(time.Hour), end.Truncate(time.Hour)
-
-	limit := int64(2)
-	pageTokenShardIndex := int64(0)
-	next := pageTokenShardIndex + limit
-	nextPageTokenShardIndex := &next
-	includeSizes := true
-	includeChecksums := true
-	includeLastRead := true
-
-	nsID := "metrics"
-
+	// Prepare test data
 	series := map[string][]struct {
 		start    time.Time
 		size     int64
@@ -523,16 +523,14 @@ func TestServiceFetchBlocksMetadataV2Raw(t *testing.T) {
 			limit, pageTokenShardIndex, opts).
 		Return(mockResult, nextPageTokenShardIndex, nil)
 
-	pageToken := &pt.PageToken{ShardIndex: pageTokenShardIndex}
-	pageTokenSlice, err := proto.Marshal(pageToken)
-	require.NoError(t, err)
+	pageTokenBytes := pageTokenToBytes(t, &pt.PageToken{ShardIndex: pageTokenShardIndex})
 	r, err := service.FetchBlocksMetadataRawV2(tctx, &rpc.FetchBlocksMetadataRawV2Request{
 		NameSpace:        []byte(nsID),
 		Shard:            0,
 		RangeStart:       start.UnixNano(),
 		RangeEnd:         end.UnixNano(),
 		Limit:            limit,
-		PageToken:        pageTokenSlice,
+		PageToken:        pageTokenBytes,
 		IncludeSizes:     &includeSizes,
 		IncludeChecksums: &includeChecksums,
 		IncludeLastRead:  &includeLastRead,
@@ -815,4 +813,10 @@ func TestServiceSetWriteNewSeriesLimitPerShardPerSecond(t *testing.T) {
 	setResp, err := service.SetWriteNewSeriesLimitPerShardPerSecond(tctx, req)
 	require.NoError(t, err)
 	assert.Equal(t, int64(84), setResp.WriteNewSeriesLimitPerShardPerSecond)
+}
+
+func pageTokenToBytes(t *testing.T, pageToken *pt.PageToken) []byte {
+	pageTokenBytes, err := proto.Marshal(pageToken)
+	require.NoError(t, err)
+	return pageTokenBytes
 }
