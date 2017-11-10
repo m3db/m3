@@ -523,7 +523,7 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	)
 	err = proto.Unmarshal(req.PageToken, pageToken)
 	if err != nil {
-		return nil, tterrors.NewInternalError(errInvalidPageToken)
+		return nil, tterrors.NewBadRequestError(errInvalidPageToken)
 	}
 
 	fetchedMetadata, nextShardIndex, err := s.db.FetchBlocksMetadata(
