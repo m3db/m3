@@ -66,7 +66,7 @@ type DecoderStream interface {
 
 	// Bytes returns the ref to the backing bytes, note decoders will
 	// call Skip if they "read" any bytes by simply taking refs to them
-	// so it is guarenteed that Read/Skip is called until EOF is reached.
+	// so it is guaranteed that Read/Skip is called until EOF is reached.
 	Bytes() []byte
 
 	// Skip progresses the reader by a certain amount of bytes, useful

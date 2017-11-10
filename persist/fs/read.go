@@ -24,9 +24,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"sort"
-	"io"
 	"time"
 
 	"github.com/m3db/m3db/digest"
@@ -407,12 +407,16 @@ func (r *reader) Read() (ts.ID, checked.Bytes, uint32, error) {
 
 func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err error) {
 	var none ts.ID
+	if r.metadataRead >= r.entries {
+		return none, 0, 0, io.EOF
+	}
+
 	entry, err := r.decoder.DecodeIndexEntry()
 	if err != nil {
 		return none, 0, 0, err
 	}
 
-	r.entriesRead++
+	r.metadataRead++
 
 	return r.entryID(entry.ID), int(entry.Size), uint32(entry.Checksum), nil
 }
