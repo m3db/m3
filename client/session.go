@@ -62,6 +62,7 @@ const (
 	blocksMetadataInitialCapacity        = 64
 	blocksMetadataChannelInitialCapacity = 4096
 	gaugeReportInterval                  = 500 * time.Millisecond
+	blocksMetadataChBufSize              = 4096
 )
 
 type resultTypeEnum string
@@ -1237,6 +1238,12 @@ func (s *session) FetchBlocksMetadataFromPeers(
 	return newMetadataIter(metadataCh, errCh), nil
 }
 
+// FetchBootstrapBlocksFromPeers will fetch the specified blocks from peers for
+// bootstrapping purposes. It does the following:
+// 1) Fetch all metadata blocks from all peers who own the specified shard
+// 2) Compares metadata from different peers and determines the best peer(s)
+// 		from which to stream the actual data
+// 3) Streams the data from peers
 func (s *session) FetchBootstrapBlocksFromPeers(
 	nsMetadata namespace.Metadata,
 	shard uint32,
@@ -1246,25 +1253,27 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	var (
 		result   = newBulkBlocksResult(s.opts, opts)
 		complete = int64(0)
-		doneCh   = make(chan error, 1)
-		onDone   = func(err error) {
+		// doneCh   = make(chan error, 1)
+		onDone = func(err error) {
 			atomic.StoreInt64(&complete, 1)
-			select {
-			case doneCh <- err:
-			default:
-			}
+			// select {
+			// case doneCh <- err:
+			// default:
+			// }
 		}
-		waitDone = func() error {
-			return <-doneCh
-		}
+		// waitDone = func() error {
+		// 	return <-doneCh
+		// }
 		m = s.newPeerStreamingMetadataMetrics(shard, resultTypeBootstrap)
 	)
 
+	// Determine which peers own the specified shard
 	peers, err := s.peersForShard(shard)
 	if err != nil {
 		return nil, err
 	}
 
+	// Emit a guage indicating whether we're done or not
 	go func() {
 		for atomic.LoadInt64(&complete) == 0 {
 			m.fetchBlocksFromPeers.Update(1)
@@ -1275,7 +1284,9 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 
 	// Begin pulling metadata, if one or multiple peers fail no error will
 	// be returned from this routine as long as one peer succeeds completely
-	metadataCh := make(chan blocksMetadata, 4096)
+	metadataCh := make(chan blocksMetadata, blocksMetadataChBufSize)
+	// Spin up a background goroutine which will begin streaming metadata from
+	// all the peers and pushing them into the metadatach
 	go func() {
 		err := s.streamBlocksMetadataFromPeers(nsMetadata.ID(), shard, peers,
 			start, end, metadataCh, m)
@@ -1288,15 +1299,17 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	}()
 
 	// Begin consuming metadata and making requests
-	go func() {
-		err := s.streamBlocksFromPeers(nsMetadata, shard, peers,
-			metadataCh, opts, result, m, s.streamAndGroupCollectedBlocksMetadata)
-		onDone(err)
-	}()
-
-	if err := waitDone(); err != nil {
+	// go func() {
+	err = s.streamBlocksFromPeers(nsMetadata, shard, peers,
+		metadataCh, opts, result, m, s.streamAndGroupCollectedBlocksMetadata)
+	onDone(err)
+	// }()
+	if err != nil {
 		return nil, err
 	}
+	// if err := waitDone(); err != nil {
+	// 	return nil, err
+	// }
 	return result.result, nil
 }
 
