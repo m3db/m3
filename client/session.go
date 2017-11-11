@@ -1244,6 +1244,16 @@ func (s *session) FetchBlocksMetadataFromPeers(
 // 2) Compares metadata from different peers and determines the best peer(s)
 // 		from which to stream the actual data
 // 3) Streams the data from peers
+//
+// Note that steps 1, 2, and 3 all happen conccurently I.E as metadata streams
+// in, we begin determining which peer is the best source to stream the rest of
+// of the data from, and then we will begin streaming data from that peer all
+// the while we continue to receive metadata.
+//
+// In terms of error handling, if an error occurs during the metadata streaming
+// portion, then this function will return an error. However, if something goes
+// wrong during the data streaming portion, it will not return an error, and
+// the function will just return as much data as it can.
 func (s *session) FetchBootstrapBlocksFromPeers(
 	nsMetadata namespace.Metadata,
 	shard uint32,
@@ -1251,20 +1261,9 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	opts result.Options,
 ) (result.ShardResult, error) {
 	var (
-		result   = newBulkBlocksResult(s.opts, opts)
-		complete = int64(0)
-		// doneCh   = make(chan error, 1)
-		onDone = func(err error) {
-			atomic.StoreInt64(&complete, 1)
-			// select {
-			// case doneCh <- err:
-			// default:
-			// }
-		}
-		// waitDone = func() error {
-		// 	return <-doneCh
-		// }
-		m = s.newPeerStreamingMetadataMetrics(shard, resultTypeBootstrap)
+		result = newBulkBlocksResult(s.opts, opts)
+		doneCh = make(chan struct{})
+		m      = s.newPeerStreamingMetadataMetrics(shard, resultTypeBootstrap)
 	)
 
 	// Determine which peers own the specified shard
@@ -1273,13 +1272,21 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 		return nil, err
 	}
 
-	// Emit a guage indicating whether we're done or not
+	// Emit a gauge indicating whether we're done or not
 	go func() {
-		for atomic.LoadInt64(&complete) == 0 {
-			m.fetchBlocksFromPeers.Update(1)
-			time.Sleep(gaugeReportInterval)
+		for {
+			select {
+			case <-doneCh:
+				m.fetchBlocksFromPeers.Update(0)
+				return
+			default:
+				m.fetchBlocksFromPeers.Update(1)
+				time.Sleep(gaugeReportInterval)
+			}
 		}
-		m.fetchBlocksFromPeers.Update(0)
+	}()
+	defer func() {
+		close(doneCh)
 	}()
 
 	// Begin pulling metadata, if one or multiple peers fail no error will
@@ -1287,29 +1294,28 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	metadataCh := make(chan blocksMetadata, blocksMetadataChBufSize)
 	// Spin up a background goroutine which will begin streaming metadata from
 	// all the peers and pushing them into the metadatach
+	var streamBlocksMetadataErr error
 	go func() {
-		err := s.streamBlocksMetadataFromPeers(nsMetadata.ID(), shard, peers,
-			start, end, metadataCh, m)
-
+		err := s.streamBlocksMetadataFromPeers(
+			nsMetadata.ID(), shard, peers, start, end, metadataCh, m)
 		close(metadataCh)
 		if err != nil {
-			// Bail early
-			onDone(err)
+			streamBlocksMetadataErr = err
 		}
 	}()
 
-	// Begin consuming metadata and making requests
-	// go func() {
-	err = s.streamBlocksFromPeers(nsMetadata, shard, peers,
+	// Begin consuming metadata and making requests. This will block until all
+	// data has been streamed (or failed to stream). Note that this function does
+	// not return an error and if anything goes wrong here we won't report it to
+	// the caller, but metrics and logs are emitted internally.
+	s.streamBlocksFromPeers(nsMetadata, shard, peers,
 		metadataCh, opts, result, m, s.streamAndGroupCollectedBlocksMetadata)
-	onDone(err)
-	// }()
-	if err != nil {
+
+	// Check if an error occurred during the metadata streaming
+	if streamBlocksMetadataErr != nil {
 		return nil, err
 	}
-	// if err := waitDone(); err != nil {
-	// 	return nil, err
-	// }
+
 	return result.result, nil
 }
 
@@ -1383,10 +1389,10 @@ func (s *session) FetchBlocksFromPeers(
 
 	// Begin consuming metadata and making requests
 	go func() {
-		err := s.streamBlocksFromPeers(nsMetadata, shard, peers,
+		s.streamBlocksFromPeers(nsMetadata, shard, peers,
 			metadataCh, opts, result, m, s.passThruBlocksMetadata)
 		close(outputCh)
-		onDone(err)
+		onDone(nil)
 	}()
 
 	pbi := newPeerBlocksIter(outputCh, doneCh)
@@ -1570,7 +1576,7 @@ func (s *session) streamBlocksFromPeers(
 	result blocksResult,
 	m *streamFromPeersMetrics,
 	streamMetadataFn streamBlocksMetadataFn,
-) error {
+) {
 	var (
 		retrier = xretry.NewRetrier(xretry.NewOptions().
 			SetBackoffFactor(2).
@@ -1642,8 +1648,6 @@ func (s *session) streamBlocksFromPeers(
 
 	// Close all queues
 	peerQueues.closeAll()
-
-	return nil
 }
 
 type streamBlocksMetadataFn func(
