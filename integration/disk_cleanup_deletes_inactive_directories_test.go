@@ -31,7 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDiskCleansupInactiveFilesets(t *testing.T) {
+func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -79,4 +79,13 @@ func TestDiskCleansupInactiveFilesets(t *testing.T) {
 	waitTimeout := 30 * time.Second
 	require.NoError(t, waitUntilFilesetsCleanedUp(filePathPrefix,
 		testSetup.db.Namespaces(), extraShard.ID(), waitTimeout))
+
+	ns, _ := testSetup.db.GetOwnedNamespaces()
+	ns = ns[1:]
+	testSetup.db.UpdateOwnedNamespaces(ns)
+
+	waitTimeout = 60 * time.Second
+	require.NoError(t, waitUntilNamespacesCleanedUp(filePathPrefix,
+		testNamespaces[0], waitTimeout))
+
 }

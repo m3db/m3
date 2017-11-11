@@ -152,6 +152,19 @@ func waitUntilDataCleanedUpExtended(
 }
 
 // nolint: deadcode
+func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ts.ID, waitTimeout time.Duration) error {
+	dataCleanedUp := func() bool {
+		namespaceDir := fs.NamespaceDirPath(filePathPrefix, namespace)
+		return !fs.FileExists(namespaceDir)
+	}
+
+	if waitUntil(dataCleanedUp, waitTimeout) {
+		return nil
+	}
+	return errDataCleanupTimedOut
+}
+
+// nolint: deadcode
 func waitUntilFilesetsCleanedUp(filePathPrefix string, namespaces []storage.Namespace, extraShard uint32, waitTimeout time.Duration) error {
 	dataCleanedUp := func() bool {
 		for _, n := range namespaces {
