@@ -1307,7 +1307,8 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	// Begin consuming metadata and making requests. This will block until all
 	// data has been streamed (or failed to stream). Note that this function does
 	// not return an error and if anything goes wrong here we won't report it to
-	// the caller, but metrics and logs are emitted internally.
+	// the caller, but metrics and logs are emitted internally. Also note that the
+	// streamAndGroupCollectedBlocksMetadata function is injected,
 	s.streamBlocksFromPeers(nsMetadata, shard, peers,
 		metadataCh, opts, result, m, s.streamAndGroupCollectedBlocksMetadata)
 
@@ -1567,11 +1568,129 @@ func (s *session) streamBlocksMetadataFromPeer(
 	return nil
 }
 
+func (s *session) streamBlocksMetadataFromPeerV2(
+	namespace ts.ID,
+	shard uint32,
+	peer peer,
+	start, end time.Time,
+	metadataCh chan<- blockMetadataExtra,
+	m *streamFromPeersMetrics,
+) error {
+	var (
+		pageToken []byte
+		retrier   = xretry.NewRetrier(xretry.NewOptions().
+				SetBackoffFactor(2).
+				SetMaxRetries(3).
+				SetInitialBackoff(time.Second).
+				SetJitter(true))
+		optionIncludeSizes     = true
+		optionIncludeChecksums = true
+		optionIncludeLastRead  = true
+		moreResults            = true
+	)
+	// Declare before loop to avoid redeclaring each iteration
+	attemptFn := func(client rpc.TChanNode) error {
+		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
+		req := rpc.NewFetchBlocksMetadataRawV2Request()
+		req.NameSpace = namespace.Data().Get()
+		req.Shard = int32(shard)
+		req.RangeStart = start.UnixNano()
+		req.RangeEnd = end.UnixNano()
+		req.Limit = int64(s.streamBlocksBatchSize)
+		req.PageToken = pageToken
+		req.IncludeSizes = &optionIncludeSizes
+		req.IncludeChecksums = &optionIncludeChecksums
+		req.IncludeLastRead = &optionIncludeLastRead
+
+		m.metadataFetchBatchCall.Inc(1)
+		result, err := client.FetchBlocksMetadataRawV2(tctx, req)
+		if err != nil {
+			m.metadataFetchBatchError.Inc(1)
+			return err
+		}
+
+		m.metadataFetchBatchSuccess.Inc(1)
+		m.metadataReceived.Inc(int64(len(result.Elements)))
+
+		if result.NextPageToken != nil {
+			// Copy the pageToken so we don't have to keep the result around
+			copy(pageToken, result.NextPageToken)
+		} else {
+			// No further results
+			moreResults = false
+		}
+
+		for _, elem := range result.Elements {
+			metadata := blockMetadataExtra{
+				start: time.Unix(0, elem.Start),
+				peer:  peer,
+				id:    ts.BinaryID(checked.NewBytes(elem.ID, nil)),
+			}
+			blockStart := time.Unix(0, elem.Start)
+			// TODO: This doesn't seem sufficient
+			// Error occurred retrieving block metadata, use default values
+			if elem.Err != nil {
+				metadataCh <- metadata
+				continue
+			}
+
+			var size int64
+			if elem.Size != nil {
+				size = *elem.Size
+			}
+
+			var pChecksum *uint32
+			if elem.Checksum != nil {
+				value := uint32(*elem.Checksum)
+				pChecksum = &value
+			}
+
+			var lastRead time.Time
+			if elem.LastRead != nil {
+				value, err := convert.ToTime(*elem.LastRead, elem.LastReadTimeType)
+				if err == nil {
+					lastRead = value
+				}
+			}
+
+			metadataCh <- blockMetadataExtra{
+				start:    blockStart,
+				size:     size,
+				checksum: pChecksum,
+				lastRead: lastRead,
+				peer:     peer,
+				id:       ts.BinaryID(checked.NewBytes(elem.ID, nil)),
+			}
+		}
+		return nil
+	}
+
+	// TODO:
+	// NB(r): split the following methods up so they don't allocate
+	// a closure per fetch blocks call
+	var attemptErr error
+	checkedAttemptFn := func(client rpc.TChanNode) {
+		attemptErr = attemptFn(client)
+	}
+
+	fetchFn := func() error {
+		borrowErr := peer.BorrowConnection(checkedAttemptFn)
+		return xerrors.FirstError(borrowErr, attemptErr)
+	}
+
+	for moreResults {
+		if err := retrier.Attempt(fetchFn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *session) streamBlocksFromPeers(
 	nsMetadata namespace.Metadata,
 	shard uint32,
 	peers []peer,
-	ch <-chan blocksMetadata,
+	metadataCh <-chan blocksMetadata,
 	opts result.Options,
 	result blocksResult,
 	m *streamFromPeersMetrics,
@@ -1588,8 +1707,9 @@ func (s *session) streamBlocksFromPeers(
 	)
 
 	// Consume the incoming metadata and enqueue to the ready channel
+	// Spin up background goroutine to consume
 	go func() {
-		streamMetadataFn(len(peers), ch, enqueueCh)
+		streamMetadataFn(len(peers), metadataCh, enqueueCh)
 		// Begin assessing the queue and how much is processed, once queue
 		// is entirely processed then we can close the enqueue channel
 		enqueueCh.closeOnAllProcessed()
@@ -2772,6 +2892,17 @@ type blockMetadata struct {
 	checksum  *uint32
 	lastRead  time.Time
 	reattempt blockMetadataReattempt
+}
+
+type blockMetadataExtra struct {
+	start     time.Time
+	size      int64
+	checksum  *uint32
+	lastRead  time.Time
+	reattempt blockMetadataReattempt
+	id        ts.ID
+	peer      peer
+	idx       int
 }
 
 type blockMetadataReattempt struct {
