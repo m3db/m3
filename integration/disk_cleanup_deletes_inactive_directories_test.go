@@ -80,12 +80,15 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	require.NoError(t, waitUntilFilesetsCleanedUp(filePathPrefix,
 		testSetup.db.Namespaces(), extraShard.ID(), waitTimeout))
 
-	ns, _ := testSetup.db.GetOwnedNamespaces()
-	ns = ns[1:]
-	testSetup.db.UpdateOwnedNamespaces(ns)
+	// Assigning a shardset of length one will mean there are extra namespaces
+	// that will need to be removed via cleanup
+	shardSet, err = sharding.NewShardSet(shards[:1], shardSet.HashFn())
+	require.NoError(t, err)
+	testSetup.db.AssignShardSet(shardSet)
 
+	// Needs an extra 30 seconds due to race conditions
 	waitTimeout = 60 * time.Second
 	require.NoError(t, waitUntilNamespacesCleanedUp(filePathPrefix,
-		testNamespaces[0], waitTimeout))
+		testNamespaces[1], waitTimeout))
 
 }
