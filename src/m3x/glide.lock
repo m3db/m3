@@ -1,5 +1,5 @@
-hash: 36610071dc288827adec80eb735d435be541d6576cd1241a1fffdc700f27094c
-updated: 2017-10-16T21:03:35.690080455-04:00
+hash: 6f151f7ea402727e6523af35873984b981f89f17359cb5c9c908d5bf8a080317
+updated: 2017-11-10T18:57:40.920349734-08:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -15,6 +15,8 @@ imports:
   - oleutil
 - name: github.com/golang/mock
   version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  subpackages:
+  - gomock
 - name: github.com/shirou/gopsutil
   version: b62e301a8b9958eebb7299683eb57fab229a9501
   subpackages:
@@ -44,6 +46,20 @@ imports:
   - m3/customtransports
   - m3/thrift
   - m3/thriftudp
+- name: github.com/uber-go/zap
+  version: 35aad584952c3e7020db7b839f6b102de6271f89
+- name: go.uber.org/atomic
+  version: 4e336646b2ef9fc6e47be8e21594178f98e5ebcf
+- name: go.uber.org/multierr
+  version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
+- name: go.uber.org/zap
+  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
+  subpackages:
+  - buffer
+  - internal/bufferpool
+  - internal/color
+  - internal/exit
+  - zapcore
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
 - name: gopkg.in/yaml.v2
