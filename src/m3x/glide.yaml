@@ -16,6 +16,9 @@ import:
 - package: github.com/uber-go/tally
   version: ^3.1.0 # ie >= 3.1.0, < 4.0.0
 
+- package: github.com/uber-go/zap
+  version: ^1.0.0 # ie >= 1.0.0, < 2.0.0
+
 - package: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
 
