@@ -533,7 +533,8 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	ctx.RegisterFinalizer(context.FinalizerFn(fetchedMetadata.Close))
 
 	result, err := s.getFetchBlocksMetadataRawV2Result(nextShardIndex, opts, fetchedMetadata)
-	// Finalize pooled datastructures regardless of errors
+	// Finalize pooled datastructures regardless of errors because even in the error
+	// case result contains pooled objects that we need to return.
 	ctx.RegisterFinalizer(s.newCloseableMetadataV2Result(result))
 	if err != nil {
 		return nil, err
@@ -548,6 +549,7 @@ func (s *service) getFetchBlocksMetadataRawV2Result(
 	results block.FetchBlocksMetadataResults,
 ) (*rpc.FetchBlocksMetadataRawV2Result_, error) {
 	result := rpc.NewFetchBlocksMetadataRawV2Result_()
+	result.Elements = s.getBlocksMetadataV2FromResult(opts, results)
 
 	var nextPageTokenBytes []byte
 	var err error
@@ -558,7 +560,7 @@ func (s *service) getFetchBlocksMetadataRawV2Result(
 		}
 	}
 	result.NextPageToken = nextPageTokenBytes
-	result.Elements = s.getBlocksMetadataV2FromResult(opts, results)
+
 	return result, nil
 }
 
