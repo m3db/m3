@@ -174,8 +174,8 @@ func (s *peersSource) Read(
 			for it.Next() {
 				currRange := it.Value()
 
-				shardResult, err := session.FetchBootstrapBlocksFromPeers(nsMetadata,
-					shard, currRange.Start, currRange.End, bopts)
+				shardResult, err := session.FetchBootstrapBlocksFromPeers(
+					nsMetadata, shard, currRange.Start, currRange.End, bopts, true)
 
 				if err == nil && incremental {
 					incrementalQueue <- incrementalFlush{
