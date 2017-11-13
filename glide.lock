@@ -1,5 +1,5 @@
-hash: 0c0adc2d1d5754541cd25d8602bcff5464bfa76d2d15d6f5840775fbb88d1611
-updated: 2017-11-08T15:19:37.101058172-05:00
+hash: 349e015eabe4224f0f22f35d4385aaa203e1c1579be404694557f72252ac53ff
+updated: 2017-11-12T21:32:01.555199882-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -132,6 +132,10 @@ imports:
   - commands
   - gen
   - prop
+- name: github.com/m3db/bitset
+  version: 07973db6b78acb62ac207d0538055e874b49d90d
+- name: github.com/m3db/bloom
+  version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
 - name: github.com/m3db/m3cluster
   version: 8354845ef3ba8c1a4ddbad288fca248516fb0a50
   subpackages:
@@ -189,6 +193,8 @@ imports:
   - tcp
   - time
   - watch
+- name: github.com/m3db/stackmurmur3
+  version: 744c0229c12ed0e4f8cb9d081a2692b3300bf705
 - name: github.com/matttproud/golang_protobuf_extensions
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:

@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	// defaultIndexSummariesPercent is the default percent to save summaries for when writing summary files
+	// defaultIndexSummariesPercent is the default percent of series for which an entry will be written into the metadata summary
 	defaultIndexSummariesPercent = 0.03
 
 	// defaultIndexBloomFilterFalsePositivePercent is the false positive percent to use to calculate size for when writing bloom filters

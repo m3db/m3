@@ -31,9 +31,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/x/sets"
-
-	"github.com/fortytw2/leaktest"
+	"github.com/m3db/bitset"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
@@ -42,6 +40,7 @@ import (
 	xtime "github.com/m3db/m3x/time"
 
 	mclock "github.com/facebookgo/clock"
+	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -351,7 +350,7 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	commitLog := newTestCommitLog(t, opts)
 	writer := commitLog.writer.(*writer)
 
-	bitSet := xsets.NewBitSet(0)
+	bitSet := bitset.NewBitSet(0)
 
 	// Generate fake series, where approximately half will be missing metadata.
 	// This works because the commitlog writer uses the bitset to determine if

@@ -27,12 +27,12 @@ import (
 	"sort"
 	"time"
 
+	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
-	xsets "github.com/m3db/m3db/x/sets"
 	"github.com/m3db/m3x/checked"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -65,12 +65,12 @@ type writer struct {
 }
 
 type indexEntry struct {
-	index            int64
-	id               ts.ID
-	size             int64
-	offset           int64
-	checksum         int64
-	offsetForSummary int64
+	index           int64
+	id              ts.ID
+	dataFileOffset  int64
+	indexFileOffset int64
+	size            uint32
+	checksum        uint32
 }
 
 func (e *indexEntry) releaseRefs() {
@@ -213,11 +213,11 @@ func (w *writer) writeAll(
 	}
 
 	entry := indexEntry{
-		index:    w.currIdx,
-		id:       id,
-		size:     size,
-		offset:   w.currOffset,
-		checksum: int64(checksum),
+		index:          w.currIdx,
+		id:             id,
+		dataFileOffset: w.currOffset,
+		size:           uint32(size),
+		checksum:       checksum,
 	}
 
 	if err := w.writeData(marker); err != nil {
@@ -260,8 +260,8 @@ func (w *writer) writeIndexEntriesSummariesBloomFilter() error {
 
 	// Write the index entries and calculate the bloom filter
 	n, p := uint(w.currIdx), w.bloomFilterFalsePositivePercent
-	m, k := xsets.BloomFilterEstimate(n, p)
-	bloomFilter := xsets.NewBloomFilter(m, k)
+	m, k := bloom.EstimateFalsePositiveRate(n, p)
+	bloomFilter := bloom.NewBloomFilter(m, k)
 
 	var offset int64
 	for i := range w.indexEntries {
@@ -270,9 +270,9 @@ func (w *writer) writeIndexEntriesSummariesBloomFilter() error {
 		entry := schema.IndexEntry{
 			Index:    w.indexEntries[i].index,
 			ID:       id,
-			Size:     w.indexEntries[i].size,
-			Offset:   w.indexEntries[i].offset,
-			Checksum: w.indexEntries[i].checksum,
+			Size:     int64(w.indexEntries[i].size),
+			Offset:   w.indexEntries[i].dataFileOffset,
+			Checksum: int64(w.indexEntries[i].checksum),
 		}
 
 		w.encoder.Reset()
@@ -293,7 +293,7 @@ func (w *writer) writeIndexEntriesSummariesBloomFilter() error {
 		if i%summaryEvery == 0 {
 			// Capture the offset for when we write this summary back, only capture
 			// for every summary we'll actually write to avoid a few memcopies
-			w.indexEntries[i].offsetForSummary = offset
+			w.indexEntries[i].indexFileOffset = offset
 		}
 
 		offset += int64(len(data))
@@ -310,7 +310,7 @@ func (w *writer) writeIndexEntriesSummariesBloomFilter() error {
 		summary := schema.IndexSummary{
 			Index:            w.indexEntries[i].index,
 			ID:               w.indexEntries[i].id.Data().Get(),
-			IndexEntryOffset: w.indexEntries[i].offsetForSummary,
+			IndexEntryOffset: w.indexEntries[i].indexFileOffset,
 		}
 
 		w.encoder.Reset()

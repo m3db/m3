@@ -23,8 +23,10 @@ package server
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
+	"github.com/grafana/grafana/pkg/cmd/grafana-cli/logger"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
 	hjcluster "github.com/m3db/m3db/network/server/httpjson/cluster"
@@ -39,7 +41,9 @@ import (
 	"github.com/m3db/m3db/ts"
 )
 
-const defaultNamespaceName = "default"
+const (
+	defaultNamespaceName = "default"
+)
 
 // DefaultShardSet creates a default shard set
 func DefaultShardSet() (sharding.ShardSet, error) {
@@ -110,6 +114,7 @@ func OpenAndServe(
 	tchannelClusterAddr string,
 	httpNodeAddr string,
 	tchannelNodeAddr string,
+	httpDebugAddr string,
 	db storage.Database,
 	client client.Client,
 	opts storage.Options,
@@ -149,6 +154,14 @@ func OpenAndServe(
 	}
 	defer httpjsonClusterClose()
 	log.Infof("cluster httpjson: listening on %v", httpClusterAddr)
+
+	if httpDebugAddr != "" {
+		go func() {
+			if err := http.ListenAndServe(httpDebugAddr, nil); err != nil {
+				logger.Warnf("debug server could not listen on %s: %v", httpDebugAddr, err)
+			}
+		}()
+	}
 
 	if err := db.Bootstrap(); err != nil {
 		return fmt.Errorf("bootstrapping database encountered error: %v", err)
