@@ -52,10 +52,6 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	log.Debug("server is now up")
 
 	// Stop the server
-	defer func() {
-		require.NoError(t, testSetup.stopServer())
-		log.Debug("server is now down")
-	}()
 
 	// Now create some fileset files and commit logs
 	shard := uint32(0)
@@ -86,9 +82,21 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	require.NoError(t, err)
 	testSetup.db.AssignShardSet(shardSet)
 
+	require.NoError(t, testSetup.stopServer())
+	log.Debug("server is now down to test namespace deletion")
+
+	require.NoError(t, testSetup.startServer())
+	log.Debug("server is now up to test namespace deletion")
+	defer func() {
+		require.NoError(t, testSetup.stopServer())
+		log.Debug("server is now down")
+	}()
+
 	// Needs an extra 30 seconds due to race conditions
 	waitTimeout = 60 * time.Second
 	require.NoError(t, waitUntilNamespacesCleanedUp(filePathPrefix,
 		testNamespaces[1], waitTimeout))
 
+	require.NoError(t, testSetup.stopServer())
+	log.Debug("server is now down")
 }
