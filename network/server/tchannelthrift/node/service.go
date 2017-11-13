@@ -494,9 +494,7 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	var err error
 	callStart := s.nowFn()
 	defer func() {
-		if err != nil {
-			s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
-		}
+		s.metrics.fetchBlocksMetadata.ReportSuccessOrError(err, s.nowFn().Sub(callStart))
 	}()
 
 	ctx := tchannelthrift.Context(tctx)
@@ -536,9 +534,7 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 
 	result, err := s.getFetchBlocksMetadataRawV2Result(nextShardIndex, opts, fetchedMetadata)
 	// Finalize pooled datastructures regardless of errors
-	ctx.RegisterFinalizer(context.FinalizerFn(func() {
-		s.finalizeFetchBlocksMetadataRawV2Result(result)
-	}))
+	ctx.RegisterFinalizer(s.newCloseableMetadataV2Result(result))
 	if err != nil {
 		return nil, err
 	}
