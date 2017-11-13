@@ -908,3 +908,21 @@ func (c closeableMetadataResult) Finalize() {
 	}
 	c.s.blocksMetadataSlicePool.Put(c.result.Elements)
 }
+
+func (s *service) newCloseableMetadataV2Result(
+	res *rpc.FetchBlocksMetadataRawV2Result_,
+) closeableMetadataV2Result {
+	return closeableMetadataV2Result{s: s, result: res}
+}
+
+type closeableMetadataV2Result struct {
+	s      *service
+	result *rpc.FetchBlocksMetadataRawV2Result_
+}
+
+func (c closeableMetadataV2Result) Finalize() {
+	for _, blockMetadata := range c.result.Elements {
+		c.s.blockMetadataV2Pool.Put(blockMetadata)
+	}
+	c.s.blockMetadataV2SlicePool.Put(c.result.Elements)
+}
