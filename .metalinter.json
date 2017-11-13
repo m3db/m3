@@ -8,8 +8,8 @@
       "Command": "gosimple -tags integration",
       "Pattern": "PATH:LINE:COL:MESSAGE"
     },
-    "maptime": {
-      "Command": "maptime -tags integration",
+    "badtime": {
+      "Command": "badtime -tags integration",
       "Pattern": "PATH:LINE:COL:MESSAGE"
     }
   },
@@ -23,6 +23,6 @@
     , "misspell"
     , "gosimple"
     , "unused"
-    , "maptime" ],
+    , "badtime" ],
   "Deadline": "3m",
   "EnableGC": true }
