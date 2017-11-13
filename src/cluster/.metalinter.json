@@ -1,7 +1,7 @@
 {
   "Linters": {
-    "maptime": {
-      "Command": "maptime",
+    "badtime": {
+      "Command": "badtime",
       "Pattern": "PATH:LINE:COL:MESSAGE"
     }
   },
@@ -15,7 +15,7 @@
     , "misspell"
     , "unparam"
     , "megacheck"
-    , "maptime" ],
+    , "badtime" ],
   "Deadline": "3m",
   "EnableGC": true
 }
