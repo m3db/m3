@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// +build big
+// +build adhoc
 
 package server
 
@@ -28,7 +28,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -183,7 +182,6 @@ func TestRun(t *testing.T) {
 
 	// Wait for bootstrap
 	<-bootstrapCh
-	debug.FreeOSMemory()
 
 	// Create client, read and write some data
 	// NB(r): Make sure client config points to the root config
