@@ -1584,7 +1584,6 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 	metadataCh chan<- blocksMetadata,
 	m *streamFromPeersMetrics,
 ) error {
-	fmt.Println("WTF")
 	var (
 		pageToken []byte
 		retrier   = xretry.NewRetrier(xretry.NewOptions().
@@ -1612,13 +1611,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		req.IncludeLastRead = &optionIncludeLastRead
 
 		m.metadataFetchBatchCall.Inc(1)
-		fmt.Println(1)
-		fmt.Println("Calling with req: ", req)
 		result, err := client.FetchBlocksMetadataRawV2(tctx, req)
-		fmt.Println(2)
-		fmt.Println("hmm")
-		fmt.Println(err)
-		fmt.Println(result)
 		if err != nil {
 			m.metadataFetchBatchError.Inc(1)
 			return err
@@ -1627,27 +1620,22 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		m.metadataFetchBatchSuccess.Inc(1)
 		m.metadataReceived.Inc(int64(len(result.Elements)))
 
-		fmt.Println("result.NextPageToken: ", result.NextPageToken)
 		if result.NextPageToken != nil {
 			for len(pageToken) < len(result.NextPageToken) {
 				pageToken = append(pageToken, '\x00')
 			}
 			// Copy the pageToken so we don't have to keep the result around
 			copy(pageToken, result.NextPageToken)
-			fmt.Println("COPIED")
 		} else {
 			// No further results
 			moreResults = false
-			fmt.Println("NO MAS")
 		}
-		fmt.Println("pageToken: ", pageToken)
 
 		for _, elem := range result.Elements {
 			// TODO: This doesn't seem sufficient
 			// Error occurred retrieving block metadata, use default values
 			blockStart := time.Unix(0, elem.Start)
 			if elem.Err != nil {
-				fmt.Println("Enqueing error")
 				metadataCh <- blocksMetadata{
 					peer: peer,
 					id:   ts.BinaryID(checked.NewBytes(elem.ID, nil)),
@@ -1655,7 +1643,6 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 						{start: blockStart},
 					},
 				}
-				fmt.Println("Enqueing error DONE")
 				continue
 			}
 
@@ -1678,7 +1665,6 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 				}
 			}
 
-			fmt.Println("Enqueing")
 			metadataCh <- blocksMetadata{
 				peer: peer,
 				id:   ts.BinaryID(checked.NewBytes(elem.ID, nil)),
@@ -1690,7 +1676,6 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 					},
 				},
 			}
-			fmt.Println("Enqueing done")
 		}
 		return nil
 	}
@@ -1709,8 +1694,6 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 	}
 
 	for moreResults {
-		fmt.Println("looping")
-		fmt.Println("pageToken: ", pageToken)
 		if err := retrier.Attempt(fetchFn); err != nil {
 			return err
 		}

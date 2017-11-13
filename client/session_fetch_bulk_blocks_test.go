@@ -2209,9 +2209,6 @@ func expectFetchMetadataAndReturnV2(
 		}
 
 		call := client.EXPECT().FetchBlocksMetadataRawV2(gomock.Any(), matcher).Return(ret, nil)
-		fmt.Println("Appending call")
-		fmt.Println("Expecting: ", matcher.pageTokenV2)
-		fmt.Println("Returning: ", ret.NextPageToken)
 		calls = append(calls, call)
 	}
 
@@ -2235,7 +2232,6 @@ func (m *fetchMetadataReqMatcher) Matches(x interface{}) bool {
 }
 
 func (m *fetchMetadataReqMatcher) matchesV1(x interface{}) bool {
-	fmt.Println("V1")
 	req, ok := x.(*rpc.FetchBlocksMetadataRawRequest)
 	if !ok {
 		return false
@@ -2279,56 +2275,45 @@ func (m *fetchMetadataReqMatcher) matchesV1(x interface{}) bool {
 }
 
 func (m *fetchMetadataReqMatcher) matchesV2(x interface{}) bool {
-	fmt.Println("MATCHING v2")
 	req, ok := x.(*rpc.FetchBlocksMetadataRawV2Request)
 	if !ok {
-		fmt.Println(1)
 		return false
 	}
 
 	if m.shard != req.Shard {
-		fmt.Println(2)
 		return false
 	}
 
 	if m.limit != req.Limit {
-		fmt.Println(3)
 		return false
 	}
 
 	if m.pageTokenV2 == nil {
 		if req.PageToken != nil {
-			fmt.Println(4)
 			return false
 		}
 	} else {
 		if req.PageToken == nil {
-			fmt.Println(5)
 			return false
 		}
 		if bytes.Compare(req.PageToken, m.pageTokenV2) != 0 {
-			fmt.Println(6)
 			return false
 		}
 	}
 
 	if m.includeSizes == nil {
 		if req.IncludeSizes != nil {
-			fmt.Println(7)
 			return false
 		}
 	} else {
 		if req.IncludeSizes == nil {
-			fmt.Println(8)
 			return false
 		}
 		if *req.IncludeSizes != *m.includeSizes {
-			fmt.Println(9)
 			return false
 		}
 	}
 
-	fmt.Println(10)
 	return true
 }
 
