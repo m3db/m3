@@ -349,7 +349,7 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 		// starts have only a few items, linear search should be okay time-wise to
 		// avoid allocating a map here.
 		for _, start := range starts {
-			if start == bucket.start {
+			if start.Equal(bucket.start) {
 				found = true
 				break
 			}
@@ -491,7 +491,7 @@ func (b *dbBufferBucket) write(
 ) error {
 	var target *inOrderEncoder
 	for i := range b.encoders {
-		if timestamp == b.encoders[i].lastWriteAt {
+		if timestamp.Equal(b.encoders[i].lastWriteAt) {
 			// NB(xichen): We discard datapoints with the same timestamps as the
 			// ones we've already encoded. Immutable/first-write-wins semantics.
 			return nil

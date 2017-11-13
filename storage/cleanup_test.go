@@ -79,7 +79,7 @@ func TestCleanupManagerCleanup(t *testing.T) {
 		return []string{"foo", "bar"}, errors.New("error1")
 	}
 	mgr.commitLogFilesForTimeFn = func(_ string, t time.Time) ([]string, error) {
-		if t == timeFor(14400) {
+		if t.Equal(timeFor(14400)) {
 			return []string{"baz"}, nil
 		}
 		return nil, errors.New("error" + strconv.Itoa(int(t.Unix())))

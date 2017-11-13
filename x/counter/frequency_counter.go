@@ -78,7 +78,7 @@ func (b *frequencyBucket) recordWithLock(t time.Time, n int64) bool {
 		return true
 	}
 	// The timestamp matches so it's safe to record
-	if t == b.timestamp {
+	if t.Equal(b.timestamp) {
 		// NB(xichen): use atomics here so multiple goroutines
 		// can record at the same time
 		atomic.AddInt64(&b.count, n)
