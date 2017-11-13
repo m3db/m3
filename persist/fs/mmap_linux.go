@@ -52,6 +52,7 @@ func mmap(fd, offset, length int, opts mmapOptions) ([]byte, error) {
 		return b, nil
 	}
 
+	// Reduce the number of pagefaults when scanning through large files
 	if err := syscall.Madvise(b, syscall.MADV_HUGEPAGE); err != nil {
 		return nil, err
 	}
