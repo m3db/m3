@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -182,6 +183,7 @@ func TestRun(t *testing.T) {
 
 	// Wait for bootstrap
 	<-bootstrapCh
+	debug.FreeOSMemory()
 
 	// Create client, read and write some data
 	// NB(r): Make sure client config points to the root config
@@ -327,68 +329,68 @@ poolingPolicy:
     blockAllocSize: 16
     type: simple
     seriesPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.001
         highWatermark: 0.002
     blockPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.001
         highWatermark: 0.002
     encoderPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.001
         highWatermark: 0.002
     closersPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.001
         highWatermark: 0.002
     contextPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.001
         highWatermark: 0.002
     segmentReaderPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.01
         highWatermark: 0.02
     iteratorPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.01
         highWatermark: 0.02
     fetchBlockMetadataResultsPool:
-        size: 4096
+        size: 128
         capacity: 32
         lowWatermark: 0.01
         highWatermark: 0.02
     fetchBlocksMetadataResultsPool:
-        size: 32
-        capacity: 4096
+        size: 128
+        capacity: 128
         lowWatermark: 0.01
         highWatermark: 0.02
     hostBlockMetadataSlicePool:
-        size: 4096
+        size: 128
         capacity: 3
         lowWatermark: 0.01
         highWatermark: 0.02
     blockMetadataPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.01
         highWatermark: 0.02
     blockMetadataSlicePool:
-        size: 4096
+        size: 128
         capacity: 32
         lowWatermark: 0.01
         highWatermark: 0.02
     blocksMetadataPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.01
         highWatermark: 0.02
     blocksMetadataSlicePool:
-        size: 32
-        capacity: 4096
+        size: 128
+        capacity: 128
         lowWatermark: 0.01
         highWatermark: 0.02
     identifierPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.001
         highWatermark: 0.002
     bytesPool:
@@ -396,11 +398,11 @@ poolingPolicy:
         highWatermark: 0.002
         buckets:
             - capacity: 32
-              count: 4096
+              count: 128
             - capacity: 512
-              count: 4096
+              count: 128
             - capacity: 4096
-              count: 4096
+              count: 128
 
 configService:
     env: {{.ServiceEnv}}
