@@ -1424,6 +1424,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			// TODO: Swap with V2
 			err := s.streamBlocksMetadataFromPeer(namespace, shard, peer,
 				start, end, ch, m)
 			if err != nil {
