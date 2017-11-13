@@ -21,6 +21,7 @@
 package client
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -2196,27 +2197,45 @@ func expectFetchMetadataAndReturnV2(
 			shard:        0,
 			limit:        int64(batchSize),
 			includeSizes: &includeSizes,
+			isV2:         true,
 		}
 		if i != 0 {
-			expectPageToken := int64(beginIdx)
-			matcher.pageToken = &expectPageToken
+			expectedPageTokenBytes, err := proto.Marshal(&pt.PageToken{ShardIndex: int64(beginIdx)})
+			if err != nil {
+				log.Fatal(err)
+			}
+			// expectPageToken := int64(beginIdx)
+			matcher.pageTokenV2 = expectedPageTokenBytes
 		}
 
 		call := client.EXPECT().FetchBlocksMetadataRawV2(gomock.Any(), matcher).Return(ret, nil)
+		fmt.Println("Appending call")
+		fmt.Println("Expecting: ", matcher.pageTokenV2)
+		fmt.Println("Returning: ", ret.NextPageToken)
 		calls = append(calls, call)
 	}
 
-	gomock.InOrder(calls...)
+	// gomock.InOrder(calls...)
 }
 
 type fetchMetadataReqMatcher struct {
 	shard        int32
 	limit        int64
 	pageToken    *int64
+	pageTokenV2  []byte
 	includeSizes *bool
+	isV2         bool
 }
 
 func (m *fetchMetadataReqMatcher) Matches(x interface{}) bool {
+	if m.isV2 {
+		return m.matchesV2(x)
+	}
+	return m.matchesV1(x)
+}
+
+func (m *fetchMetadataReqMatcher) matchesV1(x interface{}) bool {
+	fmt.Println("V1")
 	req, ok := x.(*rpc.FetchBlocksMetadataRawRequest)
 	if !ok {
 		return false
@@ -2256,6 +2275,60 @@ func (m *fetchMetadataReqMatcher) Matches(x interface{}) bool {
 		}
 	}
 
+	return true
+}
+
+func (m *fetchMetadataReqMatcher) matchesV2(x interface{}) bool {
+	fmt.Println("MATCHING v2")
+	req, ok := x.(*rpc.FetchBlocksMetadataRawV2Request)
+	if !ok {
+		fmt.Println(1)
+		return false
+	}
+
+	if m.shard != req.Shard {
+		fmt.Println(2)
+		return false
+	}
+
+	if m.limit != req.Limit {
+		fmt.Println(3)
+		return false
+	}
+
+	if m.pageTokenV2 == nil {
+		if req.PageToken != nil {
+			fmt.Println(4)
+			return false
+		}
+	} else {
+		if req.PageToken == nil {
+			fmt.Println(5)
+			return false
+		}
+		if bytes.Compare(req.PageToken, m.pageTokenV2) != 0 {
+			fmt.Println(6)
+			return false
+		}
+	}
+
+	if m.includeSizes == nil {
+		if req.IncludeSizes != nil {
+			fmt.Println(7)
+			return false
+		}
+	} else {
+		if req.IncludeSizes == nil {
+			fmt.Println(8)
+			return false
+		}
+		if *req.IncludeSizes != *m.includeSizes {
+			fmt.Println(9)
+			return false
+		}
+	}
+
+	fmt.Println(10)
 	return true
 }
 
