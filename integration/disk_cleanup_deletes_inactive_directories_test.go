@@ -83,6 +83,7 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	testSetup.db.AssignShardSet(shardSet)
 
 	require.NoError(t, testSetup.stopServer())
+	require.NoError(t, testSetup.waitUntilServerIsDown())
 	log.Debug("server is now down to test namespace deletion")
 
 	require.NoError(t, testSetup.startServer())
@@ -97,6 +98,4 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	require.NoError(t, waitUntilNamespacesCleanedUp(filePathPrefix,
 		testNamespaces[1], waitTimeout))
 
-	require.NoError(t, testSetup.stopServer())
-	log.Debug("server is now down")
 }
