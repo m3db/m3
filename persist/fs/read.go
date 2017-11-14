@@ -339,6 +339,7 @@ func (r *reader) readInfo(size int) error {
 	r.blockSize = time.Duration(info.BlockSize)
 	r.entries = int(info.Entries)
 	r.entriesRead = 0
+	r.metadataRead = 0
 	return nil
 }
 
@@ -411,13 +412,8 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 		return none, 0, 0, io.EOF
 	}
 
-	entry, err := r.decoder.DecodeIndexEntry()
-	if err != nil {
-		return none, 0, 0, err
-	}
-
+	entry := r.indexEntriesByOffset[r.metadataRead]
 	r.metadataRead++
-
 	return r.entryID(entry.ID), int(entry.Size), uint32(entry.Checksum), nil
 }
 
@@ -445,11 +441,16 @@ func (r *reader) Validate() error {
 	if err != nil {
 		return fmt.Errorf("could not validate index file: %v", err)
 	}
+	// TODO(r): Make sure to validate checksum when using seeker now that
+	// we don't verify data file if we don't read it on bootstrap.
+	if r.entriesRead == 0 {
+		return nil // Haven't read the records just the IDs
+	}
 	err = r.dataReader.Validate(r.expectedDataDigest)
 	if err != nil {
 		return fmt.Errorf("could not validate data file: %v", err)
 	}
-	return err
+	return nil
 }
 
 func (r *reader) Range() xtime.Range {

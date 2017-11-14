@@ -282,7 +282,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 					if err := r.Validate(); err != nil {
 						s.log.WithFields(
 							xlog.NewField("shard", shard),
-							xlog.NewField("error", err),
+							xlog.NewField("error", err.Error()),
 						).Error("data validation failed")
 						hasError = true
 					}
