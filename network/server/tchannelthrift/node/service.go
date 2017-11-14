@@ -878,19 +878,6 @@ func (s *service) newCloseableMetadataResult(
 	return closeableMetadataResult{s: s, result: res}
 }
 
-func (s *service) finalizeFetchBlocksMetadataRawV2Result(
-	result *rpc.FetchBlocksMetadataRawV2Result_,
-) {
-	// Should never happen
-	if result == nil {
-		return
-	}
-	for _, blockMetadata := range result.Elements {
-		s.blockMetadataV2Pool.Put(blockMetadata)
-	}
-	s.blockMetadataV2SlicePool.Put(result.Elements)
-}
-
 type closeableMetadataResult struct {
 	s      *service
 	result *rpc.FetchBlocksMetadataRawResult_
