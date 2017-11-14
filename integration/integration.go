@@ -39,9 +39,9 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	xmetrics "github.com/m3db/m3db/x/metrics"
-	xtime "github.com/m3db/m3x/time"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -49,7 +49,7 @@ import (
 
 const (
 	multiAddrPortStart = 9000
-	multiAddrPortEach  = 4
+	multiAddrPortEach  = 5
 )
 
 // TODO: refactor and use m3x/clock ...
@@ -74,7 +74,8 @@ func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
 		SetTChannelNodeAddr(fmt.Sprintf("%s:%d", bind, start)).
 		SetTChannelClusterAddr(fmt.Sprintf("%s:%d", bind, start+1)).
 		SetHTTPNodeAddr(fmt.Sprintf("%s:%d", bind, start+2)).
-		SetHTTPClusterAddr(fmt.Sprintf("%s:%d", bind, start+3))
+		SetHTTPClusterAddr(fmt.Sprintf("%s:%d", bind, start+3)).
+		SetHTTPDebugAddr(fmt.Sprintf("%s:%d", bind, start+4))
 }
 
 func newMultiAddrAdminClient(
