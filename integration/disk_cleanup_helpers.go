@@ -152,7 +152,12 @@ func waitUntilDataCleanedUpExtended(
 }
 
 // nolint: deadcode
-func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ts.ID, waitTimeout time.Duration) error {
+func waitUntilNamespacesCleanedUp(testSetup *testSetup, filePathPrefix string, namespace ts.ID, waitTimeout time.Duration) error {
+
+	// The idea would be to have a channel that has notifs (ie, --> func if val 1, 2, or 2)
+	// and pass that to a function that does a function based on that state
+	// this would involve locks on the channel to check the functions aren't called
+	// more than once 
 	dataCleanedUp := func() bool {
 		namespaceDir := fs.NamespaceDirPath(filePathPrefix, namespace)
 		return !fs.FileExists(namespaceDir)
@@ -162,6 +167,28 @@ func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ts.ID, waitTi
 		return nil
 	}
 	return errDataCleanupTimedOut
+}
+
+func waitUntilNamespacesHaveReset(testSetup *testSetup, filePathPrefix string, namespace ts.ID, waitTimeout time.Duration error {
+	// create a channel. stage 1, return 
+	namespacesReset := func() bool {
+		select {
+			// func 1 when this happens, which checks if shutdown has finished.
+			// when it has finished, immediately lock the channel and change it to stage 2
+			// func 2 checks if reset has finished. when it has, immediately lock the channel
+			// and  change it to stage 3, which checks the state of namespaces 
+			// the pattern would be:
+			// if something.hasFinished() {	
+			// 	  LOCK()
+			//    ch <-- new state
+			//    UNLOCK()
+			// }
+			// return false
+}
+			}
+		
+	}
+
 }
 
 // nolint: deadcode
