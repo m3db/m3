@@ -724,7 +724,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAllPeersSucceed(t *testing.T
 	session := s.(*session)
 
 	var (
-		metrics          = session.newPeerStreamingMetadataMetrics(0, resultTypeRaw)
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
@@ -784,7 +784,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeLargerBlocks(t *testing.
 	session := s.(*session)
 
 	var (
-		metrics          = session.newPeerStreamingMetadataMetrics(0, resultTypeRaw)
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
@@ -867,7 +867,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testi
 	session := s.(*session)
 
 	var (
-		metrics          = session.newPeerStreamingMetadataMetrics(0, resultTypeRaw)
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peerC            = NewMockpeer(ctrl)
@@ -952,7 +952,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemp
 	session := s.(*session)
 
 	var (
-		metrics          = session.newPeerStreamingMetadataMetrics(0, resultTypeRaw)
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peerC            = NewMockpeer(ctrl)
@@ -1034,7 +1034,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 	session := s.(*session)
 
 	var (
-		metrics          = session.newPeerStreamingMetadataMetrics(0, resultTypeRaw)
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peerC            = NewMockpeer(ctrl)
@@ -1117,7 +1117,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataPerformsRetries(t *testing.T
 	session := s.(*session)
 
 	var (
-		metrics          = session.newPeerStreamingMetadataMetrics(0, resultTypeRaw)
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
@@ -1200,7 +1200,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataMaintainsBlockOrderAfterPeer
 	session := s.(*session)
 
 	var (
-		metrics          = session.newPeerStreamingMetadataMetrics(0, resultTypeRaw)
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
@@ -1281,7 +1281,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataMaintainsBlockOrderAfterPeer
 	session := s.(*session)
 
 	var (
-		metrics          = session.newPeerStreamingMetadataMetrics(0, resultTypeRaw)
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
@@ -1383,7 +1383,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 		peerIdx   = len(mockHostQueues) - 1
 		peer      = mockHostQueues[peerIdx]
 		client    = mockClients[peerIdx]
-		enqueueCh = newEnqueueChannel(session.newPeerStreamingMetadataMetrics(0, resultTypeRaw))
+		enqueueCh = newEnqueueChannel(session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw))
 		batch     = []*blocksMetadata{
 			&blocksMetadata{id: fooID, blocks: []blockMetadata{
 				{start: start, size: 2, reattempt: blockMetadataReattempt{
@@ -1421,7 +1421,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 
 	// Attempt stream blocks
 	bopts := result.NewOptions()
-	m := session.newPeerStreamingMetadataMetrics(0, resultTypeRaw)
+	m := session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, nil, enqueueCh, retrier, m)
 
 	// Assert result
@@ -1476,7 +1476,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		peerIdx       = len(mockHostQueues) - 1
 		peer          = mockHostQueues[peerIdx]
 		client        = mockClients[peerIdx]
-		enqueueCh     = newEnqueueChannel(session.newPeerStreamingMetadataMetrics(0, resultTypeRaw))
+		enqueueCh     = newEnqueueChannel(session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw))
 		blockChecksum = digest.Checksum(rawBlockData)
 		batch         = []*blocksMetadata{
 			&blocksMetadata{id: fooID, blocks: []blockMetadata{
@@ -1536,7 +1536,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 
 	// Attempt stream blocks
 	bopts := result.NewOptions()
-	m := session.newPeerStreamingMetadataMetrics(0, resultTypeRaw)
+	m := session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 	r := newBulkBlocksResult(opts, bopts)
 	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 
@@ -1605,7 +1605,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 		peerIdx       = len(mockHostQueues) - 1
 		peer          = mockHostQueues[peerIdx]
 		client        = mockClients[peerIdx]
-		enqueueCh     = newEnqueueChannel(session.newPeerStreamingMetadataMetrics(0, resultTypeRaw))
+		enqueueCh     = newEnqueueChannel(session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw))
 		blockChecksum = digest.Checksum(rawBlockData)
 		batch         = []*blocksMetadata{
 			&blocksMetadata{id: fooID, blocks: []blockMetadata{
@@ -1677,7 +1677,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 
 	// Attempt stream blocks
 	bopts := result.NewOptions()
-	m := session.newPeerStreamingMetadataMetrics(0, resultTypeRaw)
+	m := session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 	r := newBulkBlocksResult(opts, bopts)
 	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 	// Assert enqueueChannel contents (bad bar block)
@@ -1862,7 +1862,7 @@ func TestEnqueueChannelEnqueueDelayed(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
-	enqueueCh := newEnqueueChannel(session.newPeerStreamingMetadataMetrics(0, resultTypeRaw))
+	enqueueCh := newEnqueueChannel(session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw))
 
 	// Enqueue multiple blocks metadata
 	numBlocks := 10
