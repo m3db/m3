@@ -1344,7 +1344,7 @@ func (s *session) FetchBlocksFromPeers(
 			default:
 			}
 		}
-		m = s.newPeerMetadataStreamingProgressMetrics(shard, resultTypeRaw)
+		progress = s.newPeerMetadataStreamingProgressMetrics(shard, resultTypeRaw)
 	)
 
 	peers, err := s.peersForShard(shard)
@@ -1358,10 +1358,10 @@ func (s *session) FetchBlocksFromPeers(
 
 	go func() {
 		for atomic.LoadInt64(&complete) == 0 {
-			m.fetchBlocksFromPeers.Update(1)
+			progress.fetchBlocksFromPeers.Update(1)
 			time.Sleep(gaugeReportInterval)
 		}
-		m.fetchBlocksFromPeers.Update(0)
+		progress.fetchBlocksFromPeers.Update(0)
 	}()
 
 	metadataCh := make(chan blocksMetadata, 4096)
@@ -1395,7 +1395,7 @@ func (s *session) FetchBlocksFromPeers(
 	// Begin consuming metadata and making requests
 	go func() {
 		s.streamBlocksFromPeers(nsMetadata, shard, peers,
-			metadataCh, opts, result, m, s.passThruBlocksMetadata)
+			metadataCh, opts, result, progress, s.passThruBlocksMetadata)
 		close(outputCh)
 		onDone(nil)
 	}()
