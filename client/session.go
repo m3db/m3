@@ -1585,7 +1585,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 	peer peer,
 	start, end time.Time,
 	metadataCh chan<- blocksMetadata,
-	m *streamFromPeersMetrics,
+	progress *streamFromPeersMetrics,
 ) error {
 	var (
 		pageToken []byte
@@ -1599,6 +1599,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		optionIncludeLastRead  = true
 		moreResults            = true
 	)
+
 	// Declare before loop to avoid redeclaring each iteration
 	attemptFn := func(client rpc.TChanNode) error {
 		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
@@ -1613,15 +1614,15 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		req.IncludeChecksums = &optionIncludeChecksums
 		req.IncludeLastRead = &optionIncludeLastRead
 
-		m.metadataFetchBatchCall.Inc(1)
+		progress.metadataFetchBatchCall.Inc(1)
 		result, err := client.FetchBlocksMetadataRawV2(tctx, req)
 		if err != nil {
-			m.metadataFetchBatchError.Inc(1)
+			progress.metadataFetchBatchError.Inc(1)
 			return err
 		}
 
-		m.metadataFetchBatchSuccess.Inc(1)
-		m.metadataReceived.Inc(int64(len(result.Elements)))
+		progress.metadataFetchBatchSuccess.Inc(1)
+		progress.metadataReceived.Inc(int64(len(result.Elements)))
 
 		if result.NextPageToken != nil {
 			for len(pageToken) < len(result.NextPageToken) {
@@ -1711,7 +1712,7 @@ func (s *session) streamBlocksFromPeers(
 	metadataCh <-chan blocksMetadata,
 	opts result.Options,
 	result blocksResult,
-	m *streamFromPeersMetrics,
+	progress *streamFromPeersMetrics,
 	streamMetadataFn streamBlocksMetadataFn,
 ) {
 	var (
@@ -1720,7 +1721,7 @@ func (s *session) streamBlocksFromPeers(
 			SetMaxRetries(3).
 			SetInitialBackoff(time.Second).
 			SetJitter(true))
-		enqueueCh           = newEnqueueChannel(m)
+		enqueueCh           = newEnqueueChannel(progress)
 		peerBlocksBatchSize = s.streamBlocksBatchSize
 	)
 
@@ -1742,7 +1743,7 @@ func (s *session) streamBlocksFromPeers(
 		drainEvery := 100 * time.Millisecond
 		processFn := func(batch []*blocksMetadata) {
 			s.streamBlocksBatchFromPeer(nsMetadata, shard, peer, batch, opts,
-				result, enqueueCh, retrier, m)
+				result, enqueueCh, retrier, progress)
 		}
 		queue := s.newPeerBlocksQueueFn(peer, size, drainEvery, workers, processFn)
 		peerQueues = append(peerQueues, queue)
@@ -1756,7 +1757,7 @@ func (s *session) streamBlocksFromPeers(
 		// Filter and select which blocks to retrieve from which peers
 		s.selectBlocksForSeriesFromPeerBlocksMetadata(
 			perPeerBlocksMetadata, peerQueues,
-			currStart, currEligible, blocksMetadataQueues, m)
+			currStart, currEligible, blocksMetadataQueues, progress)
 
 		// Insert work into peer queues
 		queues := uint32(blocksMetadatas(perPeerBlocksMetadata).hasBlocksLen())
