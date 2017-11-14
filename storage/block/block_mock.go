@@ -24,8 +24,6 @@
 package block
 
 import (
-	time "time"
-
 	gomock "github.com/golang/mock/gomock"
 	context "github.com/m3db/m3db/context"
 	encoding "github.com/m3db/m3db/encoding"
@@ -35,7 +33,8 @@ import (
 	clock "github.com/m3db/m3x/clock"
 	pool "github.com/m3db/m3x/pool"
 	sync "github.com/m3db/m3x/sync"
-	xtime "github.com/m3db/m3x/time"
+	time0 "github.com/m3db/m3x/time"
+	time "time"
 )
 
 // Mock of FilteredBlocksMetadataIter interface
@@ -568,16 +567,6 @@ func (_m *MockDatabaseSeriesBlocks) EXPECT() *_MockDatabaseSeriesBlocksRecorder 
 	return _m.recorder
 }
 
-func (_m *MockDatabaseSeriesBlocks) Options() Options {
-	ret := _m.ctrl.Call(_m, "Options")
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockDatabaseSeriesBlocksRecorder) Options() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Options")
-}
-
 func (_m *MockDatabaseSeriesBlocks) Len() int {
 	ret := _m.ctrl.Call(_m, "Len")
 	ret0, _ := ret[0].(int)
@@ -635,9 +624,9 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) BlockAt(arg0 interface{}) *gomock.
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BlockAt", arg0)
 }
 
-func (_m *MockDatabaseSeriesBlocks) AllBlocks() map[xtime.UnixNano]DatabaseBlock {
+func (_m *MockDatabaseSeriesBlocks) AllBlocks() map[time0.UnixNano]DatabaseBlock {
 	ret := _m.ctrl.Call(_m, "AllBlocks")
-	ret0, _ := ret[0].(map[xtime.UnixNano]DatabaseBlock)
+	ret0, _ := ret[0].(map[time0.UnixNano]DatabaseBlock)
 	return ret0
 }
 

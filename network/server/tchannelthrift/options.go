@@ -20,47 +20,24 @@
 
 package tchannelthrift
 
-// Options controls server behavior
-type Options interface {
-	// SetBlockMetadataPool sets the block metadata pool
-	SetBlockMetadataPool(value BlockMetadataPool) Options
-
-	// BlockMetadataPool returns the block metadata pool
-	BlockMetadataPool() BlockMetadataPool
-
-	// SetBlockMetadataSlicePool sets the block metadata slice pool
-	SetBlockMetadataSlicePool(value BlockMetadataSlicePool) Options
-
-	// BlockMetadataSlicePool returns the block metadata slice pool
-	BlockMetadataSlicePool() BlockMetadataSlicePool
-
-	// SetBlocksMetadataPool sets the blocks metadata pool
-	SetBlocksMetadataPool(value BlocksMetadataPool) Options
-
-	// BlocksMetadataPool returns the blocks metadata pool
-	BlocksMetadataPool() BlocksMetadataPool
-
-	// SetBlocksMetadataSlicePool sets the blocks metadata slice pool
-	SetBlocksMetadataSlicePool(value BlocksMetadataSlicePool) Options
-
-	// BlocksMetadataSlicePool returns the blocks metadata slice pool
-	BlocksMetadataSlicePool() BlocksMetadataSlicePool
-}
-
 type options struct {
-	blockMetadataPool       BlockMetadataPool
-	blockMetadataSlicePool  BlockMetadataSlicePool
-	blocksMetadataPool      BlocksMetadataPool
-	blocksMetadataSlicePool BlocksMetadataSlicePool
+	blockMetadataPool        BlockMetadataPool
+	blockMetadataV2Pool      BlockMetadataV2Pool
+	blockMetadataSlicePool   BlockMetadataSlicePool
+	blockMetadataV2SlicePool BlockMetadataV2SlicePool
+	blocksMetadataPool       BlocksMetadataPool
+	blocksMetadataSlicePool  BlocksMetadataSlicePool
 }
 
 // NewOptions creates new options
 func NewOptions() Options {
 	return &options{
-		blockMetadataPool:       NewBlockMetadataPool(nil),
-		blockMetadataSlicePool:  NewBlockMetadataSlicePool(nil, 0),
-		blocksMetadataPool:      NewBlocksMetadataPool(nil),
-		blocksMetadataSlicePool: NewBlocksMetadataSlicePool(nil, 0),
+		blockMetadataPool:        NewBlockMetadataPool(nil),
+		blockMetadataV2Pool:      NewBlockMetadataV2Pool(nil),
+		blockMetadataSlicePool:   NewBlockMetadataSlicePool(nil, 0),
+		blockMetadataV2SlicePool: NewBlockMetadataV2SlicePool(nil, 0),
+		blocksMetadataPool:       NewBlocksMetadataPool(nil),
+		blocksMetadataSlicePool:  NewBlocksMetadataSlicePool(nil, 0),
 	}
 }
 
@@ -74,6 +51,16 @@ func (o *options) BlockMetadataPool() BlockMetadataPool {
 	return o.blockMetadataPool
 }
 
+func (o *options) SetBlockMetadataV2Pool(value BlockMetadataV2Pool) Options {
+	opts := *o
+	opts.blockMetadataV2Pool = value
+	return &opts
+}
+
+func (o *options) BlockMetadataV2Pool() BlockMetadataV2Pool {
+	return o.blockMetadataV2Pool
+}
+
 func (o *options) SetBlockMetadataSlicePool(value BlockMetadataSlicePool) Options {
 	opts := *o
 	opts.blockMetadataSlicePool = value
@@ -82,6 +69,16 @@ func (o *options) SetBlockMetadataSlicePool(value BlockMetadataSlicePool) Option
 
 func (o *options) BlockMetadataSlicePool() BlockMetadataSlicePool {
 	return o.blockMetadataSlicePool
+}
+
+func (o *options) SetBlockMetadataV2SlicePool(value BlockMetadataV2SlicePool) Options {
+	opts := *o
+	opts.blockMetadataV2SlicePool = value
+	return &opts
+}
+
+func (o *options) BlockMetadataV2SlicePool() BlockMetadataV2SlicePool {
+	return o.blockMetadataV2SlicePool
 }
 
 func (o *options) SetBlocksMetadataPool(value BlocksMetadataPool) Options {

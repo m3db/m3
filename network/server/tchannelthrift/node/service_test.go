@@ -24,7 +24,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3db/digest"
+	pt "github.com/m3db/m3db/generated/proto/pagetoken"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/runtime"
@@ -429,6 +431,7 @@ func TestServiceFetchBlocksMetadataRaw(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, len(ids), len(r.Elements))
+
 	for _, elem := range r.Elements {
 		require.NotNil(t, elem)
 
@@ -442,6 +445,125 @@ func TestServiceFetchBlocksMetadataRaw(t *testing.T) {
 			require.NotNil(t, block.Checksum)
 			require.NotNil(t, block.LastRead)
 		}
+	}
+}
+
+func TestServiceFetchBlocksMetadataV2Raw(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	// Setup mock db / service / context
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+	mockDB.EXPECT().IsOverloaded().Return(false)
+	service := NewService(mockDB, nil).(*service)
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	// Configure constants / options
+	now := time.Now()
+	var (
+		start                   = now.Truncate(time.Hour)
+		end                     = now.Add(4 * time.Hour).Truncate(time.Hour)
+		limit                   = int64(2)
+		pageTokenShardIndex     = int64(0)
+		next                    = pageTokenShardIndex + limit
+		nextPageTokenShardIndex = &next
+		includeSizes            = true
+		includeChecksums        = true
+		includeLastRead         = true
+		nsID                    = "metrics"
+	)
+
+	// Prepare test data
+	series := map[string][]struct {
+		start    time.Time
+		size     int64
+		checksum uint32
+		lastRead time.Time
+	}{
+		"foo": {
+			{start.Add(0 * time.Hour), 16, 111, time.Now().Add(-time.Minute)},
+			{start.Add(2 * time.Hour), 32, 222, time.Time{}},
+		},
+		"bar": {
+			{start.Add(0 * time.Hour), 32, 222, time.Time{}},
+			{start.Add(2 * time.Hour), 64, 333, time.Now().Add(-time.Minute)},
+		},
+	}
+	ids := make([][]byte, 0, len(series))
+	mockResult := block.NewFetchBlocksMetadataResults()
+	numBlocks := 0
+	for id, s := range series {
+		ids = append(ids, []byte(id))
+		blocks := block.NewFetchBlockMetadataResults()
+		metadata := block.FetchBlocksMetadataResult{
+			ID:     ts.StringID(id),
+			Blocks: blocks,
+		}
+		for _, v := range s {
+			numBlocks++
+			entry := v
+			blocks.Add(block.FetchBlockMetadataResult{
+				Start:    entry.start,
+				Size:     entry.size,
+				Checksum: &entry.checksum,
+				LastRead: entry.lastRead,
+				Err:      nil,
+			})
+		}
+		mockResult.Add(metadata)
+	}
+
+	// Setup db expectations based on test data
+	opts := block.FetchBlocksMetadataOptions{
+		IncludeSizes:     includeSizes,
+		IncludeChecksums: includeChecksums,
+		IncludeLastRead:  includeLastRead,
+	}
+	mockDB.EXPECT().
+		FetchBlocksMetadata(ctx, ts.NewIDMatcher(nsID), uint32(0), start, end,
+			limit, pageTokenShardIndex, opts).
+		Return(mockResult, nextPageTokenShardIndex, nil)
+
+	// Run RPC method
+	r, err := service.FetchBlocksMetadataRawV2(tctx, &rpc.FetchBlocksMetadataRawV2Request{
+		NameSpace:        []byte(nsID),
+		Shard:            0,
+		RangeStart:       start.UnixNano(),
+		RangeEnd:         end.UnixNano(),
+		Limit:            limit,
+		PageToken:        pageTokenToBytes(t, &pt.PageToken{ShardIndex: pageTokenShardIndex}),
+		IncludeSizes:     &includeSizes,
+		IncludeChecksums: &includeChecksums,
+		IncludeLastRead:  &includeLastRead,
+	})
+	require.NoError(t, err)
+
+	// Assert response looks OK
+	require.Equal(t, numBlocks, len(r.Elements))
+	expectedNextPageTokenBytes := pageTokenToBytes(
+		t, &pt.PageToken{ShardIndex: *nextPageTokenShardIndex})
+	require.Equal(t, expectedNextPageTokenBytes, r.NextPageToken)
+
+	// Assert all blocks are present
+	for _, block := range r.Elements {
+		require.NotNil(t, block)
+
+		expectedBlocks := series[string(block.ID)]
+
+		foundMatch := false
+		for _, expectedBlock := range expectedBlocks {
+			if expectedBlock.start.UnixNano() != block.Start {
+				continue
+			}
+			foundMatch = true
+			require.NotNil(t, block.Size)
+			require.NotNil(t, block.Checksum)
+			require.NotNil(t, block.LastRead)
+		}
+		require.True(t, foundMatch)
 	}
 }
 
@@ -697,4 +819,10 @@ func TestServiceSetWriteNewSeriesLimitPerShardPerSecond(t *testing.T) {
 	setResp, err := service.SetWriteNewSeriesLimitPerShardPerSecond(tctx, req)
 	require.NoError(t, err)
 	assert.Equal(t, int64(84), setResp.WriteNewSeriesLimitPerShardPerSecond)
+}
+
+func pageTokenToBytes(t *testing.T, pageToken *pt.PageToken) []byte {
+	pageTokenBytes, err := proto.Marshal(pageToken)
+	require.NoError(t, err)
+	return pageTokenBytes
 }
