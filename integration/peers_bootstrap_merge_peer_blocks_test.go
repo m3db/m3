@@ -62,7 +62,7 @@ func testPeersBootstrapMergePeerBlocks(t *testing.T, useV2 bool) {
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false, useV2PeerBootstrapper: true},
+		{disablePeersBootstrapper: false, useV2PeerBootstrapper: useV2},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()

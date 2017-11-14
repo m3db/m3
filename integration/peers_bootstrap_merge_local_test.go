@@ -30,17 +30,21 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	xmetrics "github.com/m3db/m3db/x/metrics"
-	xtime "github.com/m3db/m3x/time"
 	xlog "github.com/m3db/m3x/log"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestPeersBootstrapMergeLocal(t *testing.T) {
 	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
+		t.SkipNow()
 	}
 
+	testPeersBootstrapMergeLocal(t, false)
+}
+
+func testPeersBootstrapMergeLocal(t *testing.T, useV2 bool) {
 	// Test setups
 	log := xlog.SimpleLogger
 	retentionOpts := retention.NewOptions().
@@ -58,8 +62,14 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 
 	setupOpts := []bootstrappableTestSetupOptions{
-		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false, testStatsReporter: reporter},
+		{
+			disablePeersBootstrapper: true,
+		},
+		{
+			disablePeersBootstrapper: false,
+			testStatsReporter:        reporter,
+			useV2PeerBootstrapper:    useV2,
+		},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
