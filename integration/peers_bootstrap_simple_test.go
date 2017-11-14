@@ -36,9 +36,13 @@ import (
 
 func TestPeersBootstrapSimple(t *testing.T) {
 	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
+		t.SkipNow()
 	}
 
+	testPeerBootstrapSimple(t, false)
+}
+
+func testPeerBootstrapSimple(t *testing.T, useV2 bool) {
 	// Test setups
 	log := xlog.SimpleLogger
 	retentionOpts := retention.NewOptions().
@@ -53,7 +57,7 @@ func TestPeersBootstrapSimple(t *testing.T) {
 
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false},
+		{disablePeersBootstrapper: false, useV2PeerBootstrapper: useV2},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()

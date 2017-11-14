@@ -22,68 +22,12 @@
 
 package integration
 
-import (
-	"testing"
-	"time"
-
-	"github.com/m3db/m3db/integration/generate"
-	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/storage/namespace"
-	xlog "github.com/m3db/m3x/log"
-
-	"github.com/stretchr/testify/require"
-)
+import "testing"
 
 func TestPeersBootstrapSimpleV2(t *testing.T) {
 	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
+		t.SkipNow()
 	}
 
-	// Test setups
-	log := xlog.SimpleLogger
-	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(6 * time.Hour).
-		SetBlockSize(2 * time.Hour).
-		SetBufferPast(10 * time.Minute).
-		SetBufferFuture(2 * time.Minute)
-	namesp, err := namespace.NewMetadata(testNamespaces[0], namespace.NewOptions().SetRetentionOptions(retentionOpts))
-	require.NoError(t, err)
-	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp})
-
-	setupOpts := []bootstrappableTestSetupOptions{
-		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false, useV2PeerBootstrapper: true},
-	}
-	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
-	defer closeFn()
-
-	// Write test data for first node
-	now := setups[0].getNowFn()
-	blockSize := retentionOpts.BlockSize()
-	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{[]string{"foo", "bar"}, 180, now.Add(-blockSize)},
-		{[]string{"foo", "baz"}, 90, now},
-	})
-	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps))
-
-	// Start the first server with filesystem bootstrapper
-	require.NoError(t, setups[0].startServer())
-
-	// Start the last server with peers and filesystem bootstrappers
-	require.NoError(t, setups[1].startServer())
-	log.Debug("servers are now up")
-
-	// Stop the servers
-	defer func() {
-		setups.parallel(func(s *testSetup) {
-			require.NoError(t, s.stopServer())
-		})
-		log.Debug("servers are now down")
-	}()
-
-	// Verify in-memory data match what we expect
-	for _, setup := range setups {
-		verifySeriesMaps(t, setup, namesp.ID(), seriesMaps)
-	}
+	testPeerBootstrapSimple(t, true)
 }
