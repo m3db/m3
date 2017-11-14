@@ -1410,7 +1410,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 	peers []peer,
 	start, end time.Time,
 	ch chan<- blocksMetadata,
-	m *streamFromPeersMetrics,
+	progress *streamFromPeersMetrics,
 	isV2 bool,
 ) error {
 	var (
@@ -1422,7 +1422,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 	)
 
 	pending = int64(len(peers))
-	m.metadataFetches.Update(float64(pending))
+	progress.metadataFetches.Update(float64(pending))
 	for _, peer := range peers {
 		peer := peer
 
@@ -1432,10 +1432,10 @@ func (s *session) streamBlocksMetadataFromPeers(
 			var err error
 			if isV2 {
 				err = s.streamBlocksMetadataFromPeerV2(
-					namespace, shard, peer, start, end, ch, m)
+					namespace, shard, peer, start, end, ch, progress)
 			} else {
 				err = s.streamBlocksMetadataFromPeer(
-					namespace, shard, peer, start, end, ch, m)
+					namespace, shard, peer, start, end, ch, progress)
 			}
 			if err != nil {
 				errLock.Lock()
@@ -1443,7 +1443,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 				errLen++
 				multiErr = multiErr.Add(err)
 			}
-			m.metadataFetches.Update(float64(atomic.AddInt64(&pending, -1)))
+			progress.metadataFetches.Update(float64(atomic.AddInt64(&pending, -1)))
 		}()
 	}
 
