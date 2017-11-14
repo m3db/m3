@@ -98,6 +98,8 @@ func (s *handler) Handle(conn net.Conn) {
 		if err := s.aggregator.AddMetricWithPoliciesList(metric, policiesList); err != nil {
 			// We sample the error log here because the error rate may scale with
 			// the metrics incoming rate and consume lots of cpu cycles.
+			// TODO(xichen): need to sample this in case there's a large number of errors
+			// due to rate limiting etc.
 			if s.rand.Float64() < s.errLogSamplingRate {
 				s.log.WithFields(
 					log.NewField("metric", metric.String()),

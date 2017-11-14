@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -57,7 +58,7 @@ var (
 )
 
 func TestEntryIncDecWriter(t *testing.T) {
-	e := NewEntry(nil, testOptions())
+	e := NewEntry(nil, runtime.NewOptions(), testOptions())
 	require.Equal(t, int32(0), e.numWriters)
 
 	var (
@@ -90,12 +91,77 @@ func TestEntryResetSetData(t *testing.T) {
 	e, lists, now := testEntry()
 
 	require.False(t, e.closed)
+	require.Nil(t, e.rateLimiter)
 	require.False(t, e.hasDefaultPoliciesList)
 	require.False(t, e.useDefaultPolicies)
 	require.Equal(t, int64(uninitializedCutoverNanos), e.cutoverNanos)
 	require.Equal(t, lists, e.lists)
 	require.Equal(t, int32(0), e.numWriters)
 	require.Equal(t, now.UnixNano(), e.lastAccessNanos)
+}
+
+func TestEntryBatchTimerRateLimiting(t *testing.T) {
+	bt := unaggregated.MetricUnion{
+		Type:          unaggregated.BatchTimerType,
+		ID:            testBatchTimerID,
+		BatchTimerVal: make([]float64, 1000),
+	}
+	e, _, now := testEntry()
+
+	// Reset runtime options to disable rate limiting.
+	noRateLimitRuntimeOpts := runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(0)
+	e.SetRuntimeOptions(noRateLimitRuntimeOpts)
+	require.NoError(t, e.AddMetricWithPoliciesList(bt, policy.DefaultPoliciesList))
+
+	// Reset runtime options to enable a rate limit of 100/s.
+	limitPerSecond := 100
+	runtimeOpts := runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(int64(limitPerSecond))
+	e.SetRuntimeOptions(runtimeOpts)
+	require.Equal(t, errEntryRateLimitExceeded, e.AddMetricWithPoliciesList(bt, policy.DefaultPoliciesList))
+
+	// Reset limit to enable a rate limit of 1000/s.
+	limitPerSecond = 1000
+	runtimeOpts = runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(int64(limitPerSecond))
+	e.SetRuntimeOptions(runtimeOpts)
+	require.NoError(t, e.AddMetricWithPoliciesList(bt, policy.DefaultPoliciesList))
+
+	// Adding a new batch will exceed the limit.
+	require.Equal(t, errEntryRateLimitExceeded, e.AddMetricWithPoliciesList(bt, policy.DefaultPoliciesList))
+
+	// Advancing the time will reset the quota.
+	*now = (*now).Add(time.Second)
+	require.NoError(t, e.AddMetricWithPoliciesList(bt, policy.DefaultPoliciesList))
+}
+
+func TestEntryCounterRateLimiting(t *testing.T) {
+	e, _, now := testEntry()
+
+	// Reset runtime options to disable rate limiting.
+	noRateLimitRuntimeOpts := runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(0)
+	e.SetRuntimeOptions(noRateLimitRuntimeOpts)
+	require.NoError(t, e.AddMetricWithPoliciesList(testCounter, policy.DefaultPoliciesList))
+
+	// Reset runtime options to enable a rate limit of 10/s.
+	limitPerSecond := 10
+	runtimeOpts := runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(int64(limitPerSecond))
+	e.SetRuntimeOptions(runtimeOpts)
+	for i := 0; i < limitPerSecond; i++ {
+		require.NoError(t, e.AddMetricWithPoliciesList(testCounter, policy.DefaultPoliciesList))
+	}
+	require.Equal(t, errEntryRateLimitExceeded, e.AddMetricWithPoliciesList(testCounter, policy.DefaultPoliciesList))
+
+	// Reset limit to enable a rate limit of 100/s.
+	limitPerSecond = 100
+	runtimeOpts = runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(int64(limitPerSecond))
+	e.SetRuntimeOptions(runtimeOpts)
+	for i := 0; i < limitPerSecond; i++ {
+		require.NoError(t, e.AddMetricWithPoliciesList(testCounter, policy.DefaultPoliciesList))
+	}
+	require.Equal(t, errEntryRateLimitExceeded, e.AddMetricWithPoliciesList(testCounter, policy.DefaultPoliciesList))
+
+	// Advancing the time will reset the quota.
+	*now = (*now).Add(time.Second)
+	require.NoError(t, e.AddMetricWithPoliciesList(testCounter, policy.DefaultPoliciesList))
 }
 
 func TestEntryAddBatchTimerWithPoolAlloc(t *testing.T) {
@@ -669,7 +735,7 @@ func TestEntryMaybeExpireWithExpiry(t *testing.T) {
 }
 
 func TestShouldUpdatePoliciesWithLock(t *testing.T) {
-	e := NewEntry(nil, testOptions())
+	e := NewEntry(nil, runtime.NewOptions(), testOptions())
 	currTimeNanos := time.Now().UnixNano()
 	inputs := []struct {
 		cutoverNanos int64
@@ -720,8 +786,9 @@ func testEntry() (*Entry, *metricLists, *time.Time) {
 		return newMetricList(testShard, 0, opts)
 	}
 
-	e := NewEntry(nil, opts)
-	e.ResetSetData(lists, opts)
+	runtimeOpts := runtime.NewOptions()
+	e := NewEntry(nil, runtimeOpts, opts)
+	e.ResetSetData(lists, runtimeOpts, opts)
 
 	return e, lists, &now
 }

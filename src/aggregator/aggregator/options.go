@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
+	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
@@ -71,6 +72,7 @@ type options struct {
 	clockOpts                        clock.Options
 	instrumentOpts                   instrument.Options
 	streamOpts                       cm.Options
+	runtimeOptsManager               runtime.OptionsManager
 	placementManager                 PlacementManager
 	shardFn                          sharding.ShardFn
 	bufferDurationBeforeShardCutover time.Duration
@@ -101,16 +103,17 @@ type options struct {
 // NewOptions create a new set of options.
 func NewOptions() Options {
 	o := &options{
-		aggTypesOptions: policy.NewAggregationTypesOptions(),
-		metricPrefix:    defaultMetricPrefix,
-		counterPrefix:   defaultCounterPrefix,
-		timerPrefix:     defaultTimerPrefix,
-		gaugePrefix:     defaultGaugePrefix,
-		timeLock:        &sync.RWMutex{},
-		clockOpts:       clock.NewOptions(),
-		instrumentOpts:  instrument.NewOptions(),
-		streamOpts:      cm.NewOptions(),
-		shardFn:         defaultShardFn,
+		aggTypesOptions:    policy.NewAggregationTypesOptions(),
+		metricPrefix:       defaultMetricPrefix,
+		counterPrefix:      defaultCounterPrefix,
+		timerPrefix:        defaultTimerPrefix,
+		gaugePrefix:        defaultGaugePrefix,
+		timeLock:           &sync.RWMutex{},
+		clockOpts:          clock.NewOptions(),
+		instrumentOpts:     instrument.NewOptions(),
+		streamOpts:         cm.NewOptions(),
+		runtimeOptsManager: runtime.NewOptionsManager(runtime.NewOptions()),
+		shardFn:            defaultShardFn,
 		bufferDurationBeforeShardCutover: defaultBufferDurationBeforeShardCutover,
 		bufferDurationAfterShardCutoff:   defaultBufferDurationAfterShardCutoff,
 		minFlushInterval:                 defaultMinFlushInterval,
@@ -223,6 +226,16 @@ func (o *options) SetStreamOptions(value cm.Options) Options {
 
 func (o *options) StreamOptions() cm.Options {
 	return o.streamOpts
+}
+
+func (o *options) SetRuntimeOptionsManager(value runtime.OptionsManager) Options {
+	opts := *o
+	opts.runtimeOptsManager = value
+	return &opts
+}
+
+func (o *options) RuntimeOptionsManager() runtime.OptionsManager {
+	return o.runtimeOptsManager
 }
 
 func (o *options) SetPlacementManager(value PlacementManager) Options {
@@ -432,9 +445,10 @@ func (o *options) TimerQuantiles() []float64 {
 }
 
 func (o *options) initPools() {
+	defaultRuntimeOpts := runtime.NewOptions()
 	o.entryPool = NewEntryPool(nil)
 	o.entryPool.Init(func() *Entry {
-		return NewEntry(nil, o)
+		return NewEntry(nil, defaultRuntimeOpts, o)
 	})
 
 	o.counterElemPool = NewCounterElemPool(nil)

@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
@@ -49,6 +50,14 @@ var (
 		),
 	}
 )
+
+func TestMetricMapAddMetricWithPoliciesListMapClosed(t *testing.T) {
+	opts := testOptions()
+	m := newMetricMap(testShard, opts)
+	m.Close()
+
+	require.Equal(t, errMetricMapClosed, m.AddMetricWithPoliciesList(testCounter, testDefaultPoliciesList))
+}
 
 func TestMetricMapAddMetricWithPoliciesList(t *testing.T) {
 	opts := testOptions()
@@ -121,6 +130,32 @@ func TestMetricMapAddMetricWithPoliciesList(t *testing.T) {
 	require.Equal(t, 3, m.metricLists.Len())
 }
 
+func TestMetricMapSetRuntimeOptions(t *testing.T) {
+	opts := testOptions()
+	m := newMetricMap(testShard, opts)
+
+	// Add three metrics.
+	require.NoError(t, m.AddMetricWithPoliciesList(testCounter, testDefaultPoliciesList))
+	require.NoError(t, m.AddMetricWithPoliciesList(testBatchTimer, testDefaultPoliciesList))
+	require.NoError(t, m.AddMetricWithPoliciesList(testGauge, testDefaultPoliciesList))
+
+	// Assert no entries have rate limiters.
+	runtimeOpts := runtime.NewOptions()
+	require.Equal(t, runtimeOpts, m.runtimeOpts)
+	for elem := m.entryList.Front(); elem != nil; elem = elem.Next() {
+		require.Nil(t, elem.Value.(hashedEntry).entry.rateLimiter)
+	}
+
+	// Update runtime options and assert all entries now have rate limiters.
+	newRateLimit := int64(100)
+	runtimeOpts = runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(newRateLimit)
+	m.SetRuntimeOptions(runtimeOpts)
+	require.Equal(t, runtimeOpts, m.runtimeOpts)
+	for elem := m.entryList.Front(); elem != nil; elem = elem.Next() {
+		require.Equal(t, newRateLimit, elem.Value.(hashedEntry).entry.rateLimiter.Limit())
+	}
+}
+
 func TestMetricMapDeleteExpired(t *testing.T) {
 	var (
 		batchPercent = 0.07
@@ -148,7 +183,7 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 	m.sleepFn = func(d time.Duration) { sleepIntervals = append(sleepIntervals, d) }
 
 	// Insert some live entries and some expired entries.
-	numEntries := 100
+	numEntries := 500
 	for i := 0; i < numEntries; i++ {
 		key := entryKey{
 			metricType: unaggregated.CounterType,
@@ -157,12 +192,12 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 		if i%2 == 0 {
 			m.entries[key] = m.entryList.PushBack(hashedEntry{
 				key:   key,
-				entry: NewEntry(m.metricLists, liveEntryOpts),
+				entry: NewEntry(m.metricLists, runtime.NewOptions(), liveEntryOpts),
 			})
 		} else {
 			m.entries[key] = m.entryList.PushBack(hashedEntry{
 				key:   key,
-				entry: NewEntry(m.metricLists, expiredEntryOpts),
+				entry: NewEntry(m.metricLists, runtime.NewOptions(), expiredEntryOpts),
 			})
 		}
 	}
@@ -173,7 +208,7 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 	// Assert there should be only half of the entries left.
 	require.Equal(t, numEntries/2, len(m.entries))
 	require.Equal(t, numEntries/2, m.entryList.Len())
-	require.True(t, len(sleepIntervals) > 0)
+	require.Equal(t, len(sleepIntervals), numEntries/defaultSoftDeadlineCheckEvery)
 	for k, v := range m.entries {
 		e := v.Value.(hashedEntry)
 		require.Equal(t, k, e.key)

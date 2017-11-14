@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3aggregator/runtime"
 	httpserver "github.com/m3db/m3aggregator/server/http"
 	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
 	"github.com/m3db/m3aggregator/services/m3aggregator/serve"
@@ -122,9 +123,10 @@ func newTestSetup(t *testing.T, opts testOptions) *testSetup {
 	aggregatorOpts := aggregator.NewOptions()
 	clockOpts := aggregatorOpts.ClockOptions()
 	aggregatorOpts = aggregatorOpts.SetClockOptions(clockOpts.SetNowFn(getNowFn))
+	runtimeOpts := runtime.NewOptions()
 	entryPool := aggregator.NewEntryPool(nil)
 	entryPool.Init(func() *aggregator.Entry {
-		return aggregator.NewEntry(nil, aggregatorOpts)
+		return aggregator.NewEntry(nil, runtimeOpts, aggregatorOpts)
 	})
 	aggregatorOpts = aggregatorOpts.SetEntryPool(entryPool)
 
