@@ -300,7 +300,7 @@ func (r *dbRepairer) run() {
 		}
 
 		// If we are in the same interval, we must have already repaired, skip
-		if intervalStart == curIntervalStart {
+		if intervalStart.Equal(curIntervalStart) {
 			continue
 		}
 
