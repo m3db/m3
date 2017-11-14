@@ -87,4 +87,11 @@ type Options interface {
 	// NewBlockRetrieverFn returns the block retriever manager to
 	// pass to newly flushed blocks when performing an incremental bootstrap run.
 	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
+
+	// SetUseV2 sets whether the peer bootsrapper should use V2 of the peer
+	// bootstrapping endpoint
+	SetUseV2(value bool) Options
+	// UseV2 returns whether the peer bootstrapper should use V2 of the peer
+	// bootstrapping endpoint
+	UseV2() bool
 }

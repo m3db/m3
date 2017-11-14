@@ -35,6 +35,7 @@ var (
 	defaultDefaultShardConcurrency        = runtime.NumCPU()
 	defaultIncrementalShardConcurrency    = int(math.Max(1, float64(runtime.NumCPU())/2))
 	defaultIncrementalPersistMaxQueueSize = 0
+	defaultUseV2                          = false
 )
 
 var (
@@ -49,6 +50,7 @@ type options struct {
 	incrementalPersistMaxQueueSize int
 	persistManager                 persist.Manager
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
+	useV2                          bool
 }
 
 // NewOptions creates new bootstrap options
@@ -58,6 +60,7 @@ func NewOptions() Options {
 		defaultShardConcurrency:        defaultDefaultShardConcurrency,
 		incrementalShardConcurrency:    defaultIncrementalShardConcurrency,
 		incrementalPersistMaxQueueSize: defaultIncrementalPersistMaxQueueSize,
+		useV2: defaultUseV2,
 	}
 }
 
@@ -138,4 +141,14 @@ func (o *options) SetDatabaseBlockRetrieverManager(
 
 func (o *options) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager {
 	return o.blockRetrieverManager
+}
+
+func (o *options) SetUseV2(value bool) Options {
+	opts := *o
+	opts.useV2 = value
+	return &opts
+}
+
+func (o *options) UseV2() bool {
+	return o.useV2
 }

@@ -53,7 +53,7 @@ func TestPeersBootstrapSimpleV2(t *testing.T) {
 
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false},
+		{disablePeersBootstrapper: false, useV2PeerBootstrapper: true},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()

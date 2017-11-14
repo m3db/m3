@@ -39,9 +39,9 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	xmetrics "github.com/m3db/m3db/x/metrics"
-	xtime "github.com/m3db/m3x/time"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -125,6 +125,7 @@ func newMultiAddrAdminClient(
 
 type bootstrappableTestSetupOptions struct {
 	disablePeersBootstrapper   bool
+	useV2PeerBootstrapper      bool
 	bootstrapBlocksBatchSize   int
 	bootstrapBlocksConcurrency int
 	topologyInitializer        topology.Initializer
@@ -203,7 +204,8 @@ func newDefaultBootstrappableTestSetups(
 				t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
 			peersOpts := peers.NewOptions().
 				SetResultOptions(bsOpts).
-				SetAdminClient(adminClient)
+				SetAdminClient(adminClient).
+				SetUseV2(setupOpts[i].useV2PeerBootstrapper)
 
 			peersBootstrapper, err = peers.NewPeersBootstrapper(peersOpts, noOpAll)
 			require.NoError(t, err)
