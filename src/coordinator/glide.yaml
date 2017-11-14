@@ -1,0 +1,10 @@
+package: github.com/m3db/m3coordinator
+import:
+- package: github.com/golang/protobuf
+  subpackages:
+  - proto
+- package: github.com/golang/snappy
+- package: github.com/gorilla/mux
+  version: ^1.6.0
+- package: go.uber.org/zap
+  version: ^1.7.1
