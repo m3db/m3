@@ -549,6 +549,7 @@ func (s *service) getFetchBlocksMetadataRawV2Result(
 	results block.FetchBlocksMetadataResults,
 ) (*rpc.FetchBlocksMetadataRawV2Result_, error) {
 	result := rpc.NewFetchBlocksMetadataRawV2Result_()
+	result.Elements = s.getBlocksMetadataV2FromResult(opts, results)
 
 	var nextPageTokenBytes []byte
 	var err error
@@ -559,7 +560,6 @@ func (s *service) getFetchBlocksMetadataRawV2Result(
 		}
 	}
 	result.NextPageToken = nextPageTokenBytes
-	result.Elements = s.getBlocksMetadataV2FromResult(opts, results)
 	return result, nil
 }
 
