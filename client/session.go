@@ -1243,6 +1243,8 @@ func (s *session) FetchBlocksMetadataFromPeers(
 	return newMetadataIter(metadataCh, errCh), nil
 }
 
+// TODO:
+// NB(rartoul): Add documentation Markdown with ASCII pictures
 // FetchBootstrapBlocksFromPeers will fetch the specified blocks from peers for
 // bootstrapping purposes. It does the following:
 // 1) Fetch all metadata blocks from all peers who own the specified shard
@@ -1584,9 +1586,9 @@ func (s *session) streamBlocksMetadataFromPeer(
 	return nil
 }
 
-// streamBlocksMetadataFromPeerV2 has several heap allocated anonymous,
-// however, they're only allocated once per peer/shard combination for the
-// entire peer bootstrapping process so performance is acceptable
+// streamBlocksMetadataFromPeerV2 has several heap allocated anonymous
+// function, however, they're only allocated once per peer/shard combination
+// for the entire peer bootstrapping process so performance is acceptable
 func (s *session) streamBlocksMetadataFromPeerV2(
 	namespace ts.ID,
 	shard uint32,
