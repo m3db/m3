@@ -2296,7 +2296,7 @@ func (m *fetchMetadataReqMatcher) matchesV2(x interface{}) bool {
 		if req.PageToken == nil {
 			return false
 		}
-		if bytes.Compare(req.PageToken, m.pageTokenV2) != 0 {
+		if !bytes.Equal(req.PageToken, m.pageTokenV2) {
 			return false
 		}
 	}
