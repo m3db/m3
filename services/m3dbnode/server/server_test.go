@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// +build big
+// +build adhoc
 
 package server
 
@@ -327,68 +327,68 @@ poolingPolicy:
     blockAllocSize: 16
     type: simple
     seriesPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.001
         highWatermark: 0.002
     blockPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.001
         highWatermark: 0.002
     encoderPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.001
         highWatermark: 0.002
     closersPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.001
         highWatermark: 0.002
     contextPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.001
         highWatermark: 0.002
     segmentReaderPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.01
         highWatermark: 0.02
     iteratorPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.01
         highWatermark: 0.02
     fetchBlockMetadataResultsPool:
-        size: 4096
+        size: 128
         capacity: 32
         lowWatermark: 0.01
         highWatermark: 0.02
     fetchBlocksMetadataResultsPool:
-        size: 32
-        capacity: 4096
+        size: 128
+        capacity: 128
         lowWatermark: 0.01
         highWatermark: 0.02
     hostBlockMetadataSlicePool:
-        size: 4096
+        size: 128
         capacity: 3
         lowWatermark: 0.01
         highWatermark: 0.02
     blockMetadataPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.01
         highWatermark: 0.02
     blockMetadataSlicePool:
-        size: 4096
+        size: 128
         capacity: 32
         lowWatermark: 0.01
         highWatermark: 0.02
     blocksMetadataPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.01
         highWatermark: 0.02
     blocksMetadataSlicePool:
-        size: 32
-        capacity: 4096
+        size: 128
+        capacity: 128
         lowWatermark: 0.01
         highWatermark: 0.02
     identifierPool:
-        size: 4096
+        size: 128
         lowWatermark: 0.001
         highWatermark: 0.002
     bytesPool:
@@ -396,11 +396,11 @@ poolingPolicy:
         highWatermark: 0.002
         buckets:
             - capacity: 32
-              count: 4096
+              count: 128
             - capacity: 512
-              count: 4096
+              count: 128
             - capacity: 4096
-              count: 4096
+              count: 128
 
 configService:
     env: {{.ServiceEnv}}

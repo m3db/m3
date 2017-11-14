@@ -494,9 +494,7 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	var err error
 	callStart := s.nowFn()
 	defer func() {
-		if err != nil {
-			s.metrics.fetchBlocksMetadata.ReportSuccess(s.nowFn().Sub(callStart))
-		}
+		s.metrics.fetchBlocksMetadata.ReportSuccessOrError(err, s.nowFn().Sub(callStart))
 	}()
 
 	ctx := tchannelthrift.Context(tctx)
@@ -535,10 +533,9 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	ctx.RegisterFinalizer(context.FinalizerFn(fetchedMetadata.Close))
 
 	result, err := s.getFetchBlocksMetadataRawV2Result(nextShardIndex, opts, fetchedMetadata)
-	// Finalize pooled datastructures regardless of errors
-	ctx.RegisterFinalizer(context.FinalizerFn(func() {
-		s.finalizeFetchBlocksMetadataRawV2Result(result)
-	}))
+	// Finalize pooled datastructures regardless of errors because even in the error
+	// case result contains pooled objects that we need to return.
+	ctx.RegisterFinalizer(s.newCloseableMetadataV2Result(result))
 	if err != nil {
 		return nil, err
 	}
@@ -907,4 +904,22 @@ func (c closeableMetadataResult) Finalize() {
 		c.s.blocksMetadataPool.Put(blocksMetadata)
 	}
 	c.s.blocksMetadataSlicePool.Put(c.result.Elements)
+}
+
+func (s *service) newCloseableMetadataV2Result(
+	res *rpc.FetchBlocksMetadataRawV2Result_,
+) closeableMetadataV2Result {
+	return closeableMetadataV2Result{s: s, result: res}
+}
+
+type closeableMetadataV2Result struct {
+	s      *service
+	result *rpc.FetchBlocksMetadataRawV2Result_
+}
+
+func (c closeableMetadataV2Result) Finalize() {
+	for _, blockMetadata := range c.result.Elements {
+		c.s.blockMetadataV2Pool.Put(blockMetadata)
+	}
+	c.s.blockMetadataV2SlicePool.Put(c.result.Elements)
 }

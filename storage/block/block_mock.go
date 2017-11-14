@@ -33,8 +33,8 @@ import (
 	clock "github.com/m3db/m3x/clock"
 	pool "github.com/m3db/m3x/pool"
 	sync "github.com/m3db/m3x/sync"
-	time "github.com/m3db/m3x/time"
-	time0 "time"
+	time0 "github.com/m3db/m3x/time"
+	time "time"
 )
 
 // Mock of FilteredBlocksMetadataIter interface
@@ -624,9 +624,9 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) BlockAt(arg0 interface{}) *gomock.
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BlockAt", arg0)
 }
 
-func (_m *MockDatabaseSeriesBlocks) AllBlocks() map[time.UnixNano]DatabaseBlock {
+func (_m *MockDatabaseSeriesBlocks) AllBlocks() map[time0.UnixNano]DatabaseBlock {
 	ret := _m.ctrl.Call(_m, "AllBlocks")
-	ret0, _ := ret[0].(map[time.UnixNano]DatabaseBlock)
+	ret0, _ := ret[0].(map[time0.UnixNano]DatabaseBlock)
 	return ret0
 }
 
