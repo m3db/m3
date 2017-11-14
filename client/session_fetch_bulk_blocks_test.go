@@ -106,6 +106,8 @@ func newResultTestOptions() result.Options {
 		SetEncoderPool(encoderPool))
 }
 
+// TODO:
+// NB(rartoul): Delete when we delete the V1 code path
 func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -2099,6 +2101,8 @@ func expectedReqsAndResultFromBlocks(
 	return clientsExpectReqs, clientsBlocksResult
 }
 
+// TODO:
+// NB(rartoul): Delete when we delete the V1 code path
 func expectFetchMetadataAndReturn(
 	client *rpc.MockTChanNode,
 	result []testBlocksMetadata,
