@@ -260,10 +260,10 @@ func (s *session) ShardID(id string) (uint32, error) {
 	return value, nil
 }
 
-// newPeerStreamingMetadataMetrics returns a struct with an embedded list of
-// fields that can be used to emit metrics about the current state of the peer
-// metadata streaming process
-func (s *session) newPeerStreamingMetadataMetrics(
+// newPeerMetadataStreamingProgressMetrics returns a struct with an embedded
+// list of fields that can be used to emit metrics about the current state of
+// the peer metadata streaming process
+func (s *session) newPeerMetadataStreamingProgressMetrics(
 	shard uint32,
 	resultType resultTypeEnum,
 ) *streamFromPeersMetrics {
@@ -1228,7 +1228,7 @@ func (s *session) FetchBlocksMetadataFromPeers(
 	var (
 		metadataCh = make(chan blocksMetadata, blocksMetadataChannelInitialCapacity)
 		errCh      = make(chan error, 1)
-		m          = s.newPeerStreamingMetadataMetrics(shard, resultTypeMetadata)
+		m          = s.newPeerMetadataStreamingProgressMetrics(shard, resultTypeMetadata)
 	)
 
 	go func() {
@@ -1267,7 +1267,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	var (
 		result = newBulkBlocksResult(s.opts, opts)
 		doneCh = make(chan struct{})
-		m      = s.newPeerStreamingMetadataMetrics(shard, resultTypeBootstrap)
+		m      = s.newPeerMetadataStreamingProgressMetrics(shard, resultTypeBootstrap)
 	)
 
 	// Determine which peers own the specified shard
@@ -1344,7 +1344,7 @@ func (s *session) FetchBlocksFromPeers(
 			default:
 			}
 		}
-		m = s.newPeerStreamingMetadataMetrics(shard, resultTypeRaw)
+		m = s.newPeerMetadataStreamingProgressMetrics(shard, resultTypeRaw)
 	)
 
 	peers, err := s.peersForShard(shard)
