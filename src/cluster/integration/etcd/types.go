@@ -75,4 +75,10 @@ type Options interface {
 
 	// Environment returns the environment for KV operations.
 	Environment() string
+
+	// SetZone sets the zone for KV operations.
+	SetZone(value string) Options
+
+	// Zone returns the zone for KV operations.
+	Zone() string
 }

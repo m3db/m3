@@ -31,6 +31,7 @@ const (
 	defaultDir       = "etcd.dir"
 	defaultServiceID = "integration.service"
 	defaultEnv       = "integration.env"
+	defaultZone      = "integration.zone"
 )
 
 type opts struct {
@@ -39,6 +40,7 @@ type opts struct {
 	initTimeout time.Duration
 	serviceID   string
 	env         string
+	zone        string
 }
 
 // NewOptions returns a new options
@@ -49,6 +51,7 @@ func NewOptions() Options {
 		initTimeout: defaulTimeout,
 		serviceID:   defaultServiceID,
 		env:         defaultEnv,
+		zone:        defaultZone,
 	}
 }
 
@@ -100,4 +103,14 @@ func (o *opts) SetEnvironment(value string) Options {
 
 func (o *opts) Environment() string {
 	return o.env
+}
+
+func (o *opts) SetZone(value string) Options {
+	oo := *o
+	oo.zone = value
+	return &oo
+}
+
+func (o *opts) Zone() string {
+	return o.zone
 }

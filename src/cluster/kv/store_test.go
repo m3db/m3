@@ -37,6 +37,9 @@ func TestOptions(t *testing.T) {
 		SetEnvironment("environment").
 		SetNamespace("namespace")
 
+	assert.Error(t, opts.Validate())
+
+	opts = opts.SetZone("zone")
 	// Now valid, should not have to specify a null logger yourself
 	assert.NoError(t, opts.Validate())
 

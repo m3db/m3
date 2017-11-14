@@ -34,5 +34,7 @@ func TestEtcdServer(t *testing.T) {
 	require.NoError(t, err)
 	_, err = c.KV()
 	require.NoError(t, err)
+	_, err = c.Services(nil)
+	require.NoError(t, err)
 	require.NoError(t, kv.Close())
 }

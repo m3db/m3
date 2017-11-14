@@ -135,6 +135,14 @@ func TestClient(t *testing.T) {
 	_, ok := c.clis["zone1"]
 	require.True(t, ok)
 
+	kv5, err := c.Store(kv.NewOptions().SetZone("zone2").SetNamespace("ns"))
+	require.NoError(t, err)
+	require.NotEqual(t, kv4, kv5)
+
+	require.Equal(t, 2, len(c.clis))
+	_, ok = c.clis["zone2"]
+	require.True(t, ok)
+
 	sd1, err := c.Services(nil)
 	require.NoError(t, err)
 
@@ -220,6 +228,19 @@ func TestCacheFileForZone(t *testing.T) {
 
 	kvOpts = cs.newkvOptions("z1", cs.cacheFileFn("/r2/m3agg"), cs.logger, "")
 	require.Equal(t, "/cacheDir/test_app_z1__r2_m3agg.json", kvOpts.CacheFileFn()(kvOpts.Prefix()))
+}
+
+func TestSanitizeKVOptions(t *testing.T) {
+	opts := testOptions()
+	cs, err := NewConfigServiceClient(opts)
+	require.NoError(t, err)
+
+	client := cs.(*csclient)
+	opts1, err := client.sanitizeOptions(kv.NewOptions())
+	require.NoError(t, err)
+	require.Equal(t, opts.Env(), opts1.Environment())
+	require.Equal(t, opts.Zone(), opts1.Zone())
+	require.Equal(t, kvPrefix, opts1.Namespace())
 }
 
 func TestSanitizeKVOptionsDefaultLogger(t *testing.T) {

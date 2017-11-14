@@ -28,8 +28,9 @@ import (
 )
 
 var (
-	errEmptyNamespace   = errors.New("empty kv namespace")
+	errEmptyZone        = errors.New("empty kv zone")
 	errEmptyEnvironment = errors.New("empty kv environment")
+	errEmptyNamespace   = errors.New("empty kv namespace")
 	errNoLogger         = errors.New("no kv logger")
 )
 
@@ -101,8 +102,9 @@ func valueFromWatch(value interface{}) Value {
 }
 
 type options struct {
-	namespace string
+	zone      string
 	env       string
+	namespace string
 	logger    log.Logger
 }
 
@@ -120,12 +122,12 @@ func (opts options) SetLogger(logger log.Logger) Options {
 	return opts
 }
 
-func (opts options) Namespace() string {
-	return opts.namespace
+func (opts options) Zone() string {
+	return opts.zone
 }
 
-func (opts options) SetNamespace(namespace string) Options {
-	opts.namespace = namespace
+func (opts options) SetZone(value string) Options {
+	opts.zone = value
 	return opts
 }
 
@@ -138,7 +140,19 @@ func (opts options) SetEnvironment(env string) Options {
 	return opts
 }
 
+func (opts options) Namespace() string {
+	return opts.namespace
+}
+
+func (opts options) SetNamespace(namespace string) Options {
+	opts.namespace = namespace
+	return opts
+}
+
 func (opts options) Validate() error {
+	if opts.zone == "" {
+		return errEmptyZone
+	}
 	if opts.env == "" {
 		return errEmptyEnvironment
 	}

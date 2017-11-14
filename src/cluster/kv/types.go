@@ -105,6 +105,12 @@ type Options interface {
 	// SetLogger sets the logger of the KV store.
 	SetLogger(logger log.Logger) Options
 
+	// Zone returns the zone of the KV store.
+	Zone() string
+
+	// SetZone sets the zone of the KV store.
+	SetZone(value string) Options
+
 	// Namespace returns the namespace of the KV store.
 	Namespace() string
 
