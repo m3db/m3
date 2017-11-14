@@ -146,7 +146,7 @@ func (c *csclient) createTxnStore(opts kv.Options) (kv.TxnStore, error) {
 	if err := opts.Validate(); err != nil {
 		return nil, err
 	}
-	return c.txnGen(c.opts.Zone(), c.cacheFileFn(), opts.Logger(), opts.Namespace(), opts.Environment())
+	return c.txnGen(opts.Zone(), c.cacheFileFn(), opts.Logger(), opts.Namespace(), opts.Environment())
 }
 
 func (c *csclient) kvGen(fn cacheFileForZoneFn) etcdsd.KVGen {
@@ -310,6 +310,10 @@ func validateTopLevelNamespace(namespace string) error {
 func (c *csclient) sanitizeOptions(opts kv.Options) (kv.Options, error) {
 	if logger := opts.Logger(); logger == nil || logger == log.NullLogger {
 		opts = opts.SetLogger(c.logger)
+	}
+
+	if opts.Zone() == "" {
+		opts = opts.SetZone(c.opts.Zone())
 	}
 
 	if opts.Environment() == "" {

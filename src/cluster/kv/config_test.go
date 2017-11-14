@@ -30,6 +30,7 @@ func TestConfigurationNoLogger(t *testing.T) {
 	cfg := Configuration{
 		Environment: "foo",
 		Namespace:   "bar",
+		Zone:        "zone",
 	}
 
 	opts, err := cfg.NewOptions()

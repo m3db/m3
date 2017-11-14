@@ -25,6 +25,7 @@ import "github.com/m3db/m3x/log"
 // Configuration is the config for kv options.
 type Configuration struct {
 	Logging     *log.Configuration `yaml:"logging"`
+	Zone        string             `yaml:"zone"`
 	Environment string             `yaml:"environment"`
 	Namespace   string             `yaml:"namespace"`
 }
@@ -42,6 +43,7 @@ func (cfg Configuration) NewOptions() (Options, error) {
 
 	return NewOptions().
 		SetLogger(logger).
+		SetZone(cfg.Zone).
 		SetEnvironment(cfg.Environment).
 		SetNamespace(cfg.Namespace), nil
 }

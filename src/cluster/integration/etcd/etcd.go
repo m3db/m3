@@ -140,9 +140,10 @@ func (e *embeddedKV) ConfigServiceClient() (client.Client, error) {
 			InitTimeout: e.opts.InitTimeout(),
 		}).
 		SetClusters([]etcdclient.Cluster{
-			etcdclient.NewCluster().SetEndpoints(e.Endpoints()),
+			etcdclient.NewCluster().SetZone(e.opts.Zone()).SetEndpoints(e.Endpoints()),
 		}).
 		SetService(e.opts.ServiceID()).
-		SetEnv(e.opts.Environment())
+		SetEnv(e.opts.Environment()).
+		SetZone(e.opts.Zone())
 	return etcdclient.NewConfigServiceClient(eopts)
 }
