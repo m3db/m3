@@ -1,4 +1,4 @@
-// +build integration
+// +build integration_disabled
 
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
