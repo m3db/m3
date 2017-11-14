@@ -32,14 +32,17 @@ import (
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/aggregator/handler"
+	aggruntime "github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/kv"
+	kvutil "github.com/m3db/m3cluster/kv/util"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/sync"
@@ -72,6 +75,9 @@ type AggregatorConfiguration struct {
 
 	// Client configuration for key value store.
 	KVClient kvClientConfiguration `yaml:"kvClient" validate:"nonzero"`
+
+	// Runtime options configuration.
+	RuntimeOptions runtimeOptionsConfiguration `yaml:"runtimeOptions"`
 
 	// Placement manager.
 	PlacementManager placementManagerConfiguration `yaml:"placementManager"`
@@ -170,6 +176,14 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	if err != nil {
 		return nil, err
 	}
+
+	// Set runtime options manager.
+	logger := instrumentOpts.Logger()
+	runtimeOptsManager, err := c.RuntimeOptions.NewRuntimeOptionsManager(client, logger)
+	if err != nil {
+		return nil, err
+	}
+	opts = opts.SetRuntimeOptionsManager(runtimeOptsManager)
 
 	// Set placement manager.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("placement-manager"))
@@ -302,8 +316,9 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("entry-pool"))
 	entryPoolOpts := c.EntryPool.NewObjectPoolOptions(iOpts)
 	entryPool := aggregator.NewEntryPool(entryPoolOpts)
+	runtimeOpts := runtimeOptsManager.RuntimeOptions()
 	opts = opts.SetEntryPool(entryPool)
-	entryPool.Init(func() *aggregator.Entry { return aggregator.NewEntry(nil, opts) })
+	entryPool.Init(func() *aggregator.Entry { return aggregator.NewEntry(nil, runtimeOpts, opts) })
 
 	return opts, nil
 }
@@ -377,11 +392,96 @@ type kvClientConfiguration struct {
 	Etcd *etcdclient.Configuration `yaml:"etcd"`
 }
 
-func (c *kvClientConfiguration) NewKVClient(instrumentOpts instrument.Options) (client.Client, error) {
+func (c *kvClientConfiguration) NewKVClient(
+	instrumentOpts instrument.Options,
+) (client.Client, error) {
 	if c.Etcd == nil {
 		return nil, errNoKVClientConfiguration
 	}
 	return c.Etcd.NewClient(instrumentOpts)
+}
+
+type runtimeOptionsConfiguration struct {
+	KVConfig                              kv.Configuration `yaml:"kvConfig"`
+	WriteValuesPerMetricLimitPerSecondKey string           `yaml:"writeValuesPerMetricLimitPerSecondKey" validate:"nonzero"`
+	WriteValuesPerMetricLimitPerSecond    int64            `yaml:"writeValuesPerMetricLimitPerSecond"`
+}
+
+func (c runtimeOptionsConfiguration) NewRuntimeOptionsManager(
+	client client.Client,
+	logger log.Logger,
+) (aggruntime.OptionsManager, error) {
+	initRuntimeOpts := aggruntime.NewOptions().
+		SetWriteValuesPerMetricLimitPerSecond(c.WriteValuesPerMetricLimitPerSecond)
+	runtimeOptsManager := aggruntime.NewOptionsManager(initRuntimeOpts)
+
+	kvOpts, err := c.KVConfig.NewOptions()
+	if err != nil {
+		return nil, err
+	}
+	store, err := client.Store(kvOpts)
+	if err != nil {
+		return nil, err
+	}
+	watchRuntimeOptionChanges(
+		store,
+		c.WriteValuesPerMetricLimitPerSecondKey,
+		c.WriteValuesPerMetricLimitPerSecond,
+		runtimeOptsManager,
+		logger,
+	)
+	return runtimeOptsManager, nil
+}
+
+func watchRuntimeOptionChanges(
+	store kv.Store,
+	limitKey string,
+	defaultLimit int64,
+	runtimeOptsManager aggruntime.OptionsManager,
+	logger log.Logger,
+) {
+	limit := defaultLimit
+	value, err := store.Get(limitKey)
+	if err == nil {
+		limit, err = kvutil.Int64FromValue(value, limitKey, defaultLimit, nil)
+	}
+	if err != nil {
+		logger.Warnf("unable to retrieve per-metric write value limit from kv: %v", err)
+	}
+	logger.Infof("current write value limit is: %d", limit)
+
+	updateRuntimeOptionsManagerOnChange(runtimeOptsManager, limit)
+
+	watch, err := store.Watch(limitKey)
+	if err != nil {
+		logger.Errorf("unable to watch per-metric write value limit: %v", err)
+		return
+	}
+	go func() {
+		for range watch.C() {
+			value := watch.Get()
+			newLimit, err := kvutil.Int64FromValue(value, limitKey, defaultLimit, nil)
+			if err != nil {
+				logger.Errorf("unable to determine per-metric write value limit: %v", err)
+				continue
+			}
+			updateRuntimeOptionsManagerOnChange(runtimeOptsManager, newLimit)
+		}
+	}()
+}
+
+func updateRuntimeOptionsManagerOnChange(
+	runtimeOptsManager aggruntime.OptionsManager,
+	newLimit int64,
+) {
+	currRuntimeOpts := runtimeOptsManager.RuntimeOptions()
+	currLimit := currRuntimeOpts.WriteValuesPerMetricLimitPerSecond()
+	if currLimit == newLimit {
+		// Limit is unchanged, no need to trigger an update.
+		return
+	}
+	newRuntimeOpts := currRuntimeOpts.SetWriteValuesPerMetricLimitPerSecond(newLimit)
+	runtimeOptsManager.SetRuntimeOptions(newRuntimeOpts)
 }
 
 type placementManagerConfiguration struct {

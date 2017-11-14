@@ -28,6 +28,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3aggregator/rate"
+	"github.com/m3db/m3aggregator/runtime"
 	metricid "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -37,12 +39,15 @@ import (
 )
 
 var (
-	errEmptyPoliciesList = errors.New("empty policies list")
-	errEntryClosed       = errors.New("entry is closed")
+	errEmptyPoliciesList      = errors.New("empty policies list")
+	errEntryClosed            = errors.New("entry is closed")
+	errEntryRateLimitExceeded = errors.New("entry rate limit is exceeded")
 )
 
 type entryMetrics struct {
 	emptyPoliciesList tally.Counter
+	rateLimitExceeded tally.Counter
+	droppedValues     tally.Counter
 	stalePolicy       tally.Counter
 	futurePolicy      tally.Counter
 	tombstonedPolicy  tally.Counter
@@ -52,6 +57,8 @@ type entryMetrics struct {
 func newEntryMetrics(scope tally.Scope) entryMetrics {
 	return entryMetrics{
 		emptyPoliciesList: scope.Counter("empty-policies-list"),
+		rateLimitExceeded: scope.Counter("rate-limit-exceeded"),
+		droppedValues:     scope.Counter("dropped-values"),
 		stalePolicy:       scope.Counter("stale-policy"),
 		futurePolicy:      scope.Counter("future-policy"),
 		tombstonedPolicy:  scope.Counter("tombstoned-policy"),
@@ -65,6 +72,7 @@ type Entry struct {
 
 	closed                 bool
 	opts                   Options
+	rateLimiter            *rate.Limiter
 	hasDefaultPoliciesList bool
 	useDefaultPolicies     bool
 	cutoverNanos           int64
@@ -79,14 +87,14 @@ type Entry struct {
 }
 
 // NewEntry creates a new entry.
-func NewEntry(lists *metricLists, opts Options) *Entry {
+func NewEntry(lists *metricLists, runtimeOpts runtime.Options, opts Options) *Entry {
 	scope := opts.InstrumentOptions().MetricsScope().SubScope("entry")
 	e := &Entry{
 		aggregations: make(map[policy.Policy]*list.Element),
 		metrics:      newEntryMetrics(scope),
 		decompressor: policy.NewPooledAggregationIDDecompressor(opts.AggregationTypesOptions().AggregationTypesPool()),
 	}
-	e.ResetSetData(lists, opts)
+	e.ResetSetData(lists, runtimeOpts, opts)
 	return e
 }
 
@@ -99,15 +107,29 @@ func (e *Entry) DecWriter() { atomic.AddInt32(&e.numWriters, -1) }
 // ResetSetData resets the entry and sets initial data.
 // NB(xichen): we need to reset the options here to use the correct
 // time lock contained in the options.
-func (e *Entry) ResetSetData(lists *metricLists, opts Options) {
+func (e *Entry) ResetSetData(lists *metricLists, runtimeOpts runtime.Options, opts Options) {
+	e.Lock()
 	e.closed = false
 	e.opts = opts
+	e.resetRateLimiterWithLock(runtimeOpts)
 	e.hasDefaultPoliciesList = false
 	e.useDefaultPolicies = false
 	e.cutoverNanos = uninitializedCutoverNanos
 	e.lists = lists
 	e.numWriters = 0
 	e.recordLastAccessed(e.opts.ClockOptions().NowFn()())
+	e.Unlock()
+}
+
+// SetRuntimeOptions updates the parameters of the rate limiter.
+func (e *Entry) SetRuntimeOptions(opts runtime.Options) {
+	e.Lock()
+	if e.closed {
+		e.Unlock()
+		return
+	}
+	e.resetRateLimiterWithLock(opts)
+	e.Unlock()
 }
 
 // AddMetricWithPoliciesList adds a metric along with applicable policies list.
@@ -117,12 +139,19 @@ func (e *Entry) AddMetricWithPoliciesList(
 ) error {
 	switch mu.Type {
 	case unaggregated.BatchTimerType:
-		err := e.writeBatchTimerWithPoliciesList(mu, pl)
+		var err error
+		if err = e.applyRateLimit(int64(len(mu.BatchTimerVal))); err == nil {
+			err = e.writeBatchTimerWithPoliciesList(mu, pl)
+		}
 		if mu.BatchTimerVal != nil && mu.TimerValPool != nil {
 			mu.TimerValPool.Put(mu.BatchTimerVal)
 		}
 		return err
 	default:
+		// For counters and gauges, there is a single value in the metric union.
+		if err := e.applyRateLimit(1); err != nil {
+			return err
+		}
 		return e.addMetricWithPoliciesList(mu, pl)
 	}
 }
@@ -459,4 +488,33 @@ func (e *Entry) shouldExpire(now time.Time) bool {
 	// Only expire the entry if there are no active writers
 	// and it has reached its ttl since last accessed.
 	return e.writerCount() == 0 && now.After(e.lastAccessed().Add(e.opts.EntryTTL()))
+}
+
+func (e *Entry) resetRateLimiterWithLock(runtimeOpts runtime.Options) {
+	newLimit := runtimeOpts.WriteValuesPerMetricLimitPerSecond()
+	if newLimit <= 0 {
+		e.rateLimiter = nil
+		return
+	}
+	if e.rateLimiter == nil {
+		nowFn := e.opts.ClockOptions().NowFn()
+		e.rateLimiter = rate.NewLimiter(newLimit, nowFn)
+		return
+	}
+	e.rateLimiter.Reset(newLimit)
+}
+
+func (e *Entry) applyRateLimit(numValues int64) error {
+	e.RLock()
+	rateLimiter := e.rateLimiter
+	e.RUnlock()
+	if rateLimiter == nil {
+		return nil
+	}
+	if rateLimiter.IsAllowed(numValues) {
+		return nil
+	}
+	e.metrics.rateLimitExceeded.Inc(1)
+	e.metrics.droppedValues.Inc(numValues)
+	return errEntryRateLimitExceeded
 }

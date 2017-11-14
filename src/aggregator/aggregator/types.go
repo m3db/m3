@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
+	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3aggregator/sharding"
 	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/policy"
@@ -172,6 +173,12 @@ type Options interface {
 
 	// StreamOptions returns the stream options
 	StreamOptions() cm.Options
+
+	// SetRuntimeOptionsManager sets the runtime options manager.
+	SetRuntimeOptionsManager(value runtime.OptionsManager) Options
+
+	// RuntimeOptionsManager returns the runtime options manager.
+	RuntimeOptionsManager() runtime.OptionsManager
 
 	// SetPlacementManager sets the placement manager.
 	SetPlacementManager(value PlacementManager) Options

@@ -92,6 +92,12 @@ aggregator:
           capacity: 32
         - count: 1024
           capacity: 64
+  runtimeOptions:
+    kvConfig:
+      namespace: /m3aggregator
+      environment: production
+    writeValuesPerMetricLimitPerSecondKey: write-values-per-metric-limit-per-second
+    writeValuesPerMetricLimitPerSecond: 0
   placementManager:
     kvConfig:
       namespace: /m3aggregator

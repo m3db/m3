@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/aggregation/quantile/cm"
+	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 
@@ -117,6 +118,12 @@ func TestSetStreamOptions(t *testing.T) {
 	value := cm.NewOptions()
 	o := NewOptions().SetStreamOptions(value)
 	require.Equal(t, value, o.StreamOptions())
+}
+
+func TestSetRuntimeOptionsManager(t *testing.T) {
+	value := runtime.NewOptionsManager(runtime.NewOptions())
+	o := NewOptions().SetRuntimeOptionsManager(value)
+	require.Equal(t, value, o.RuntimeOptionsManager())
 }
 
 func TestSetTimeLock(t *testing.T) {

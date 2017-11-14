@@ -24,6 +24,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3cluster/generated/proto/commonpb"
+	"github.com/m3db/m3cluster/kv/mem"
+	"github.com/m3db/m3x/log"
+
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -56,5 +62,52 @@ func TestJitterBuckets(t *testing.T) {
 	}
 	for _, input := range inputs {
 		require.Equal(t, input.expectedMaxJitter, maxJitterFn(input.interval))
+	}
+}
+
+func TestRuntimeOptionsConfigurationNewRuntimeOptionsManager(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	config := `
+kvConfig:
+  environment: production
+writeValuesPerMetricLimitPerSecondKey: rate-limit-key
+writeValuesPerMetricLimitPerSecond: 0
+`
+	var runtimeOptionsCfg runtimeOptionsConfiguration
+	require.NoError(t, yaml.Unmarshal([]byte(config), &runtimeOptionsCfg))
+
+	initialLimit := int64(100)
+	proto := &commonpb.Int64Proto{Value: initialLimit}
+	memStore := mem.NewStore()
+	_, err := memStore.Set("rate-limit-key", proto)
+	require.NoError(t, err)
+
+	logger := log.NewLevelLogger(log.SimpleLogger, log.LevelInfo)
+	mockClient := client.NewMockClient(ctrl)
+	mockClient.EXPECT().Store(gomock.Any()).Return(memStore, nil)
+	runtimeOptsManager, err := runtimeOptionsCfg.NewRuntimeOptionsManager(mockClient, logger)
+	require.NoError(t, err)
+	require.Equal(t, initialLimit, runtimeOptsManager.RuntimeOptions().WriteValuesPerMetricLimitPerSecond())
+
+	newLimit := int64(1000)
+	proto.Value = newLimit
+	_, err = memStore.Set("rate-limit-key", proto)
+	require.NoError(t, err)
+	for {
+		if runtimeOptsManager.RuntimeOptions().WriteValuesPerMetricLimitPerSecond() == newLimit {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	_, err = memStore.Delete("rate-limit-key")
+	require.NoError(t, err)
+	for {
+		if runtimeOptsManager.RuntimeOptions().WriteValuesPerMetricLimitPerSecond() == 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
