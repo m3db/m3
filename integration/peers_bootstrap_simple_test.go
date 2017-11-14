@@ -34,6 +34,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TODO:
+// NB(rartoul): Delete this once we've tested V2 in prod
 func TestPeersBootstrapSimple(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()

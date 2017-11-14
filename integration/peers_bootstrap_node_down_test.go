@@ -1,4 +1,4 @@
-// +build integration_disabled
+// +build integration
 
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
@@ -34,11 +34,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TODO:
+// NB(rartoul): Delete this once we've tested V2 in prod
 func TestPeersBootstrapNodeDown(t *testing.T) {
 	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
+		t.SkipNow()
 	}
 
+	testPeersBootstrapNodeDown(t, false)
+}
+
+func testPeersBootstrapNodeDown(t *testing.T, useV2 bool) {
 	// Test setups
 	log := xlog.SimpleLogger
 	retentionOpts := retention.NewOptions().
@@ -47,15 +53,16 @@ func TestPeersBootstrapNodeDown(t *testing.T) {
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
 
-	namesp := namespace.NewMetadata(testNamespaces[0],
+	namesp, err := namespace.NewMetadata(testNamespaces[0],
 		namespace.NewOptions().SetRetentionOptions(retentionOpts))
+	require.NoError(t, err)
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp})
 
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false},
+		{disablePeersBootstrapper: false, useV2PeerBootstrapper: useV2},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
@@ -67,7 +74,7 @@ func TestPeersBootstrapNodeDown(t *testing.T) {
 		{[]string{"foo", "bar"}, 180, now.Add(-blockSize)},
 		{[]string{"foo", "baz"}, 90, now},
 	})
-	err := writeTestDataToDisk(namesp, setups[0], seriesMaps)
+	err = writeTestDataToDisk(namesp, setups[0], seriesMaps)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper

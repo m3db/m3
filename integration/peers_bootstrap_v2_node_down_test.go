@@ -24,10 +24,10 @@ package integration
 
 import "testing"
 
-func TestPeersBootstrapSimpleV2(t *testing.T) {
+func TestPeersBootstrapNodeDownV2(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
 
-	testPeerBootstrapSimple(t, true)
+	testPeersBootstrapNodeDown(t, true)
 }

@@ -135,6 +135,7 @@ type session struct {
 	streamBlocksWorkers              xsync.WorkerPool
 	streamBlocksBatchSize            int
 	streamBlocksMetadataBatchTimeout time.Duration
+	streamBlocksMetadataBatchBackoff time.Duration
 	streamBlocksBatchTimeout         time.Duration
 	metrics                          sessionMetrics
 }
@@ -243,6 +244,7 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksWorkers.Init()
 		s.streamBlocksBatchSize = opts.FetchSeriesBlocksBatchSize()
 		s.streamBlocksMetadataBatchTimeout = opts.FetchSeriesBlocksMetadataBatchTimeout()
+		s.streamBlocksMetadataBatchBackoff = opts.FetchSeriesBlocksMetadataBatchBackoff()
 		s.streamBlocksBatchTimeout = opts.FetchSeriesBlocksBatchTimeout()
 	}
 
@@ -1468,13 +1470,14 @@ func (s *session) streamBlocksMetadataFromPeer(
 		retrier   = xretry.NewRetrier(xretry.NewOptions().
 				SetBackoffFactor(2).
 				SetMaxRetries(3).
-				SetInitialBackoff(time.Second).
+				SetInitialBackoff(s.streamBlocksMetadataBatchBackoff).
 				SetJitter(true))
 		optionIncludeSizes     = true
 		optionIncludeChecksums = true
 		optionIncludeLastRead  = true
 		moreResults            = true
 	)
+
 	// Declare before loop to avoid redeclaring each iteration
 	attemptFn := func(client rpc.TChanNode) error {
 		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
@@ -1592,7 +1595,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		retrier   = xretry.NewRetrier(xretry.NewOptions().
 				SetBackoffFactor(2).
 				SetMaxRetries(3).
-				SetInitialBackoff(time.Second).
+				SetInitialBackoff(s.streamBlocksMetadataBatchBackoff).
 				SetJitter(true))
 		optionIncludeSizes     = true
 		optionIncludeChecksums = true
@@ -1645,7 +1648,8 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		}
 
 		for _, elem := range result.Elements {
-			// TODO: This doesn't seem sufficient
+			// TODO:
+			// NB(rartoul): This error handling doesn't seem sufficient
 			// Error occurred retrieving block metadata, use default values
 			blockStart := time.Unix(0, elem.Start)
 			if elem.Err != nil {
@@ -2920,17 +2924,6 @@ type blockMetadata struct {
 	checksum  *uint32
 	lastRead  time.Time
 	reattempt blockMetadataReattempt
-}
-
-type blockMetadataExtra struct {
-	start     time.Time
-	size      int64
-	checksum  *uint32
-	lastRead  time.Time
-	reattempt blockMetadataReattempt
-	id        ts.ID
-	peer      peer
-	idx       int
 }
 
 type blockMetadataReattempt struct {

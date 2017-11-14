@@ -130,6 +130,9 @@ const (
 	// defaultFetchSeriesBlocksMetadataBatchTimeout is the default series blocks metadata fetch timeout
 	defaultFetchSeriesBlocksMetadataBatchTimeout = 60 * time.Second
 
+	// defaultFetchSeriesBlocksMetadataBatchBackoff is the default series blocks metadata fetch retry backoff
+	defaultFetchSeriesBlocksMetadataBatchBackoff = 1 * time.Second
+
 	// defaultFetchSeriesBlocksMetadataBatchTimeout is the default series blocks contents fetch timeout
 	defaultFetchSeriesBlocksBatchTimeout = 60 * time.Second
 )
@@ -195,6 +198,7 @@ type options struct {
 	fetchSeriesBlocksMaxBlockRetries        int
 	fetchSeriesBlocksBatchSize              int
 	fetchSeriesBlocksMetadataBatchTimeout   time.Duration
+	fetchSeriesBlocksMetadataBatchBackoff   time.Duration
 	fetchSeriesBlocksBatchTimeout           time.Duration
 	fetchSeriesBlocksBatchConcurrency       int
 }
@@ -259,6 +263,7 @@ func newOptions() *options {
 		fetchSeriesBlocksMaxBlockRetries:        defaultFetchSeriesBlocksMaxBlockRetries,
 		fetchSeriesBlocksBatchSize:              defaultFetchSeriesBlocksBatchSize,
 		fetchSeriesBlocksMetadataBatchTimeout:   defaultFetchSeriesBlocksMetadataBatchTimeout,
+		fetchSeriesBlocksMetadataBatchBackoff:   defaultFetchSeriesBlocksMetadataBatchBackoff,
 		fetchSeriesBlocksBatchTimeout:           defaultFetchSeriesBlocksBatchTimeout,
 		fetchSeriesBlocksBatchConcurrency:       defaultFetchSeriesBlocksBatchConcurrency,
 	}
@@ -661,6 +666,16 @@ func (o *options) SetFetchSeriesBlocksMetadataBatchTimeout(value time.Duration) 
 
 func (o *options) FetchSeriesBlocksMetadataBatchTimeout() time.Duration {
 	return o.fetchSeriesBlocksMetadataBatchTimeout
+}
+
+func (o *options) SetFetchSeriesBlocksMetadataBatchBackoff(value time.Duration) AdminOptions {
+	opts := *o
+	opts.fetchSeriesBlocksMetadataBatchBackoff = value
+	return &opts
+}
+
+func (o *options) FetchSeriesBlocksMetadataBatchBackoff() time.Duration {
+	return o.fetchSeriesBlocksMetadataBatchBackoff
 }
 
 func (o *options) SetFetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions {

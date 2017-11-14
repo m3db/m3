@@ -200,6 +200,8 @@ func newDefaultBootstrappableTestSetups(
 			if bootstrapBlocksConcurrency > 0 {
 				adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
 			}
+			// Prevent integration tests from timing out when a node is down
+			adminOpts = adminOpts.SetFetchSeriesBlocksMetadataBatchBackoff(10 * time.Millisecond)
 			adminClient := newMultiAddrAdminClient(
 				t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
 			peersOpts := peers.NewOptions().

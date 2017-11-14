@@ -624,6 +624,12 @@ type AdminOptions interface {
 	// FetchSeriesBlocksMetadataBatchTimeout gets the timeout for fetching series blocks metadata in batch
 	FetchSeriesBlocksMetadataBatchTimeout() time.Duration
 
+	// SetFetchSeriesBlocksMetadataBatchBackoff sets the retry backOff for fetching series blocks metadata in batch
+	SetFetchSeriesBlocksMetadataBatchBackoff(value time.Duration) AdminOptions
+
+	// FetchSeriesBlocksMetadataBatchBackoff gets the retry backOff for fetching series blocks metadata in batch
+	FetchSeriesBlocksMetadataBatchBackoff() time.Duration
+
 	// SetFetchSeriesBlocksBatchTimeout sets the timeout for fetching series blocks in batch
 	SetFetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions
 

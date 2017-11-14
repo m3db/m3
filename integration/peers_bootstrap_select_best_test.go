@@ -30,17 +30,23 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
-	xtime "github.com/m3db/m3x/time"
 	xlog "github.com/m3db/m3x/log"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
+// TODO:
+// NB(rartoul): Delete this once we've tested V2 in prod
 func TestPeersBootstrapSelectBest(t *testing.T) {
 	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
+		t.SkipNow()
 	}
 
+	testPeerBootstrapSelectBest(t, false)
+}
+
+func testPeerBootstrapSelectBest(t *testing.T, useV2 bool) {
 	// Test setups
 	log := xlog.SimpleLogger
 	retentionOpts := retention.NewOptions().
@@ -56,7 +62,7 @@ func TestPeersBootstrapSelectBest(t *testing.T) {
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false},
+		{disablePeersBootstrapper: false, useV2PeerBootstrapper: useV2},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
