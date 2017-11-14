@@ -1625,11 +1625,20 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		progress.metadataReceived.Inc(int64(len(result.Elements)))
 
 		if result.NextPageToken != nil {
-			for len(pageToken) < len(result.NextPageToken) {
-				pageToken = append(pageToken, '\x00')
+			// copy will not extend the destination slice automatically
+			nextPageTokenLen := len(result.NextPageToken)
+			pageTokenLen := len(pageToken)
+			delta := nextPageTokenLen - pageTokenLen
+			if delta > 0 {
+				for i := 0; i < delta; i++ {
+					pageToken = append(pageToken, '\x00')
+				}
 			}
 			// Copy the pageToken so we don't have to keep the result around
 			copy(pageToken, result.NextPageToken)
+			// Make sure we don't include extraneous bytes if the new page token is
+			// shorter than the previous one (for whateve reason)
+			pageToken = pageToken[:nextPageTokenLen]
 		} else {
 			// No further results
 			moreResults = false
