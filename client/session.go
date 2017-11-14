@@ -1582,6 +1582,9 @@ func (s *session) streamBlocksMetadataFromPeer(
 	return nil
 }
 
+// streamBlocksMetadataFromPeerV2 has several heap allocated anonymous,
+// however, they're only allocated once per peer/shard combination for the
+// entire peer bootstrapping process so performance is acceptable
 func (s *session) streamBlocksMetadataFromPeerV2(
 	namespace ts.ID,
 	shard uint32,
@@ -1697,9 +1700,6 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		return nil
 	}
 
-	// TODO:
-	// NB(r): split the following methods up so they don't allocate
-	// a closure per fetch blocks call
 	var attemptErr error
 	checkedAttemptFn := func(client rpc.TChanNode) {
 		attemptErr = attemptFn(client)
