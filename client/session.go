@@ -260,6 +260,9 @@ func (s *session) ShardID(id string) (uint32, error) {
 	return value, nil
 }
 
+// newPeerStreamingMetadataMetrics returns a struct with an embedded list of
+// fields that can be used to emit metrics about the current state of the peer
+// metadata streaming process
 func (s *session) newPeerStreamingMetadataMetrics(
 	shard uint32,
 	resultType resultTypeEnum,
