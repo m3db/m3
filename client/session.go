@@ -1265,9 +1265,9 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	isV2 bool,
 ) (result.ShardResult, error) {
 	var (
-		result = newBulkBlocksResult(s.opts, opts)
-		doneCh = make(chan struct{})
-		m      = s.newPeerMetadataStreamingProgressMetrics(shard, resultTypeBootstrap)
+		result   = newBulkBlocksResult(s.opts, opts)
+		doneCh   = make(chan struct{})
+		progress = s.newPeerMetadataStreamingProgressMetrics(shard, resultTypeBootstrap)
 	)
 
 	// Determine which peers own the specified shard
@@ -1281,10 +1281,10 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 		for {
 			select {
 			case <-doneCh:
-				m.fetchBlocksFromPeers.Update(0)
+				progress.fetchBlocksFromPeers.Update(0)
 				return
 			default:
-				m.fetchBlocksFromPeers.Update(1)
+				progress.fetchBlocksFromPeers.Update(1)
 				time.Sleep(gaugeReportInterval)
 			}
 		}
@@ -1301,7 +1301,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	var streamBlocksMetadataErr error
 	go func() {
 		err := s.streamBlocksMetadataFromPeers(
-			nsMetadata.ID(), shard, peers, start, end, metadataCh, m, isV2)
+			nsMetadata.ID(), shard, peers, start, end, metadataCh, progress, isV2)
 		close(metadataCh)
 		if err != nil {
 			streamBlocksMetadataErr = err
@@ -1314,7 +1314,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	// the caller, but metrics and logs are emitted internally. Also note that the
 	// streamAndGroupCollectedBlocksMetadata function is injected,
 	s.streamBlocksFromPeers(nsMetadata, shard, peers,
-		metadataCh, opts, result, m, s.streamAndGroupCollectedBlocksMetadata)
+		metadataCh, opts, result, progress, s.streamAndGroupCollectedBlocksMetadata)
 
 	// Check if an error occurred during the metadata streaming
 	if streamBlocksMetadataErr != nil {
