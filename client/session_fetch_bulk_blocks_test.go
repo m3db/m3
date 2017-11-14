@@ -2234,6 +2234,8 @@ func (m *fetchMetadataReqMatcher) Matches(x interface{}) bool {
 	return m.matchesV1(x)
 }
 
+// TODO:
+// NB(rartoul): Delete when we delete the V1 code path
 func (m *fetchMetadataReqMatcher) matchesV1(x interface{}) bool {
 	req, ok := x.(*rpc.FetchBlocksMetadataRawRequest)
 	if !ok {
