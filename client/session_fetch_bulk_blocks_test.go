@@ -2208,7 +2208,6 @@ func expectFetchMetadataAndReturnV2(
 			if err != nil {
 				log.Fatal(err)
 			}
-			// expectPageToken := int64(beginIdx)
 			matcher.pageTokenV2 = expectedPageTokenBytes
 		}
 
@@ -2216,7 +2215,7 @@ func expectFetchMetadataAndReturnV2(
 		calls = append(calls, call)
 	}
 
-	// gomock.InOrder(calls...)
+	gomock.InOrder(calls...)
 }
 
 type fetchMetadataReqMatcher struct {
