@@ -508,7 +508,7 @@ func node(t *testing.T, n int, shards shard.Shards) services.ServiceInstance {
 	require.True(t, n < 250) // keep ports sensible
 	return services.NewServiceInstance().
 		SetInstanceID(fmt.Sprintf("testhost%v", n)).
-		SetEndpoint(fmt.Sprintf("127.0.0.1:%v", 9000+4*n)).
+		SetEndpoint(fmt.Sprintf("127.0.0.1:%v", multiAddrPortStart+multiAddrPortEach*n)).
 		SetShards(shards)
 }
 
