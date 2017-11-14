@@ -84,6 +84,7 @@ var (
 	errNamespaceInitializerNotSet = errors.New("namespace registry initializer not set")
 	errRepairOptionsNotSet        = errors.New("repair enabled but repair options are not set")
 	errTickIntervalNegative       = errors.New("tick interval must be a positive duration")
+	errPersistManagerNotSet       = errors.New("persist manager is not set")
 )
 
 // NewSeriesOptionsFromOptions creates a new set of database series options from provided options.
@@ -119,6 +120,7 @@ type options struct {
 	newDecoderFn                   encoding.NewDecoderFn
 	bootstrapProcess               bootstrap.Process
 	persistManager                 persist.Manager
+	persistManagerErr              error
 	tickInterval                   time.Duration
 	maxFlushRetries                int
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
@@ -147,7 +149,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	})
 	bytesPool.Init()
 	seriesOpts := series.NewOptions()
-	pm, _ := fs.NewPersistManager(fs.NewOptions())
+	pm, pmErr := fs.NewPersistManager(fs.NewOptions())
 	o := &options{
 		clockOpts:                      clock.NewOptions(),
 		instrumentOpts:                 instrument.NewOptions(),
@@ -161,6 +163,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		repairOpts:                     repair.NewOptions(),
 		bootstrapProcess:               defaultBootstrapProcess,
 		persistManager:                 pm,
+		persistManagerErr:              pmErr,
 		tickInterval:                   defaultTickInterval,
 		maxFlushRetries:                defaultMaxFlushRetries,
 		poolOpts:                       poolOpts,
@@ -205,6 +208,16 @@ func (o *options) Validate() error {
 		if err := rOpts.Validate(); err != nil {
 			return fmt.Errorf("unable to validate repair options, err: %v", err)
 		}
+	}
+
+	// validate that persist manager is present, if not return
+	// error if error occurred during default creation otherwise
+	// it was set to nil by a caller
+	if o.persistManager == nil {
+		if err := o.persistManagerErr; err != nil {
+			return fmt.Errorf("failed to create default persist manager: %v", err)
+		}
+		return errPersistManagerNotSet
 	}
 
 	return nil
