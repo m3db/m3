@@ -190,6 +190,7 @@ type streamFromPeersMetrics struct {
 	metadataFetchBatchCall     tally.Counter
 	metadataFetchBatchSuccess  tally.Counter
 	metadataFetchBatchError    tally.Counter
+	metadataFetchBatchBlockErr tally.Counter
 	metadataReceived           tally.Counter
 	fetchBlockSuccess          tally.Counter
 	fetchBlockError            tally.Counter
@@ -305,15 +306,16 @@ func (s *session) newPeerMetadataStreamingProgressMetrics(
 		"resultType": string(resultType),
 	})
 	m = streamFromPeersMetrics{
-		fetchBlocksFromPeers:      scope.Gauge("fetch-blocks-inprogress"),
-		metadataFetches:           scope.Gauge("fetch-metadata-peers-inprogress"),
-		metadataFetchBatchCall:    scope.Counter("fetch-metadata-peers-batch-call"),
-		metadataFetchBatchSuccess: scope.Counter("fetch-metadata-peers-batch-success"),
-		metadataFetchBatchError:   scope.Counter("fetch-metadata-peers-batch-error"),
-		metadataReceived:          scope.Counter("fetch-metadata-peers-received"),
-		fetchBlockSuccess:         scope.Counter("fetch-block-success"),
-		fetchBlockError:           scope.Counter("fetch-block-error"),
-		fetchBlockFinalError:      scope.Counter("fetch-block-final-error"),
+		fetchBlocksFromPeers:       scope.Gauge("fetch-blocks-inprogress"),
+		metadataFetches:            scope.Gauge("fetch-metadata-peers-inprogress"),
+		metadataFetchBatchCall:     scope.Counter("fetch-metadata-peers-batch-call"),
+		metadataFetchBatchSuccess:  scope.Counter("fetch-metadata-peers-batch-success"),
+		metadataFetchBatchError:    scope.Counter("fetch-metadata-peers-batch-error"),
+		metadataFetchBatchBlockErr: scope.Counter("fetch-metadata-peers-batch-block-err"),
+		metadataReceived:           scope.Counter("fetch-metadata-peers-received"),
+		fetchBlockSuccess:          scope.Counter("fetch-block-success"),
+		fetchBlockError:            scope.Counter("fetch-block-error"),
+		fetchBlockFinalError:       scope.Counter("fetch-block-final-error"),
 		fetchBlockRetriesReqError: scope.Tagged(map[string]string{
 			"reason": "request-error",
 		}).Counter("fetch-block-retries"),
@@ -1484,7 +1486,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	peer peer,
 	start, end time.Time,
 	ch chan<- blocksMetadata,
-	m *streamFromPeersMetrics,
+	progress *streamFromPeersMetrics,
 ) error {
 	var (
 		pageToken              *int64
@@ -1508,15 +1510,15 @@ func (s *session) streamBlocksMetadataFromPeer(
 		req.IncludeChecksums = &optionIncludeChecksums
 		req.IncludeLastRead = &optionIncludeLastRead
 
-		m.metadataFetchBatchCall.Inc(1)
+		progress.metadataFetchBatchCall.Inc(1)
 		result, err := client.FetchBlocksMetadataRaw(tctx, req)
 		if err != nil {
-			m.metadataFetchBatchError.Inc(1)
+			progress.metadataFetchBatchError.Inc(1)
 			return err
 		}
 
-		m.metadataFetchBatchSuccess.Inc(1)
-		m.metadataReceived.Inc(int64(len(result.Elements)))
+		progress.metadataFetchBatchSuccess.Inc(1)
+		progress.metadataReceived.Inc(int64(len(result.Elements)))
 
 		if result.NextPageToken != nil {
 			// Create space on the heap for the page token and take it's
@@ -1534,8 +1536,9 @@ func (s *session) streamBlocksMetadataFromPeer(
 			for _, b := range elem.Blocks {
 				blockStart := time.Unix(0, b.Start)
 
+				// Error occurred retrieving block metadata, use default values
 				if b.Err != nil {
-					// Error occurred retrieving block metadata, use default values
+					progress.metadataFetchBatchBlockErr.Inc(1)
 					blockMetas = append(blockMetas, blockMetadata{
 						start: blockStart,
 					})
@@ -1662,9 +1665,10 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		}
 
 		for _, elem := range result.Elements {
-			// Error occurred retrieving block metadata, use default values
 			blockStart := time.Unix(0, elem.Start)
+			// Error occurred retrieving block metadata, use default values
 			if elem.Err != nil {
+				progress.metadataFetchBatchBlockErr.Inc(1)
 				metadataCh <- blocksMetadata{
 					peer: peer,
 					id:   ts.BinaryID(checked.NewBytes(elem.ID, nil)),
