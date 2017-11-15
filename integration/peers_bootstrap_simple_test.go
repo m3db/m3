@@ -48,7 +48,7 @@ func testPeerBootstrapSimple(t *testing.T, useV2 bool) {
 	// Test setups
 	log := xlog.SimpleLogger
 	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(6 * time.Hour).
+		SetRetentionPeriod(20 * time.Hour).
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
@@ -67,8 +67,18 @@ func testPeerBootstrapSimple(t *testing.T, useV2 bool) {
 	// Write test data for first node
 	now := setups[0].getNowFn()
 	blockSize := retentionOpts.BlockSize()
+	// Make sure we have multiple blocks of data for multiple series to exercise
+	// the grouping and aggregating logic in the client peer bootstrapping process
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		{[]string{"foo", "bar"}, 180, now.Add(-4 * blockSize)},
+		{[]string{"foo", "bar"}, 180, now.Add(-3 * blockSize)},
+		{[]string{"foo", "bar"}, 180, now.Add(-2 * blockSize)},
 		{[]string{"foo", "bar"}, 180, now.Add(-blockSize)},
+		{[]string{"foo", "bar"}, 180, now},
+		{[]string{"foo", "baz"}, 90, now.Add(-4 * blockSize)},
+		{[]string{"foo", "baz"}, 90, now.Add(-3 * blockSize)},
+		{[]string{"foo", "baz"}, 90, now.Add(-2 * blockSize)},
+		{[]string{"foo", "baz"}, 90, now.Add(-blockSize)},
 		{[]string{"foo", "baz"}, 90, now},
 	})
 	require.NoError(t, writeTestDataToDisk(namesp, setups[0], seriesMaps))

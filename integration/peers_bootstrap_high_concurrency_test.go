@@ -87,6 +87,8 @@ func testPeersBootstrapHighConcurrency(t *testing.T, useV2 bool) {
 	now := setups[0].getNowFn()
 	blockSize := retentionOpts.BlockSize()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		{shardIDs, 3, now.Add(-3 * blockSize)},
+		{shardIDs, 3, now.Add(-2 * blockSize)},
 		{shardIDs, 3, now.Add(-blockSize)},
 		{shardIDs, 3, now},
 	})
