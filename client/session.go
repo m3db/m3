@@ -1316,9 +1316,13 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	// data has been streamed (or failed to stream). Note that this function does
 	// not return an error and if anything goes wrong here we won't report it to
 	// the caller, but metrics and logs are emitted internally. Also note that the
-	// streamAndGroupCollectedBlocksMetadata function is injected,
+	// streamAndGroupCollectedBlocksMetadata function is injected.
+	streamFunc := s.streamAndGroupCollectedBlocksMetadata
+	if isV2 {
+		streamFunc = s.streamAndGroupCollectedBlocksMetadataV2
+	}
 	s.streamBlocksFromPeers(nsMetadata, shard, peers,
-		metadataCh, opts, result, progress, s.streamAndGroupCollectedBlocksMetadata)
+		metadataCh, opts, result, progress, streamFunc)
 
 	// Check if an error occurred during the metadata streaming
 	if streamBlocksMetadataErr != nil {
@@ -1848,6 +1852,48 @@ func (s *session) streamAndGroupCollectedBlocksMetadata(
 				results: make([]*blocksMetadata, 0, peersLen),
 			}
 			metadata[m.id.Hash()] = received
+		}
+		received.results = append(received.results, &m)
+
+		if len(received.results) == peersLen {
+			enqueueCh.enqueue(received.results)
+			received.submitted = true
+		}
+	}
+
+	// Enqueue all unsubmitted received metadata
+	for _, received := range metadata {
+		if received.submitted {
+			continue
+		}
+		enqueueCh.enqueue(received.results)
+	}
+}
+
+func (s *session) streamAndGroupCollectedBlocksMetadataV2(
+	peersLen int,
+	ch <-chan blocksMetadata,
+	enqueueCh *enqueueChannel,
+) {
+	metadata := make(map[hashAndBlockStart]*receivedBlocks)
+
+	// Receive off of metadata channel
+	for {
+		m, ok := <-ch
+		if !ok {
+			break
+		}
+
+		key := hashAndBlockStart{
+			hash:       m.id.Hash(),
+			blockStart: m.blocks[0].start.UnixNano(),
+		}
+		received, ok := metadata[key]
+		if !ok || received.submitted {
+			received = &receivedBlocks{
+				results: make([]*blocksMetadata, 0, peersLen),
+			}
+			metadata[key] = received
 		}
 		received.results = append(received.results, &m)
 
@@ -3030,4 +3076,9 @@ func (it *metadataIter) Current() (topology.Host, block.BlocksMetadata) {
 
 func (it *metadataIter) Err() error {
 	return it.err
+}
+
+type hashAndBlockStart struct {
+	hash       ts.Hash
+	blockStart int64
 }
