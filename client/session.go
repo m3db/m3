@@ -1832,14 +1832,13 @@ func (s *session) passThruBlocksMetadata(
 
 func (s *session) streamAndGroupCollectedBlocksMetadata(
 	peersLen int,
-	ch <-chan blocksMetadata,
+	metadataCh <-chan blocksMetadata,
 	enqueueCh *enqueueChannel,
 ) {
 	metadata := make(map[ts.Hash]*receivedBlocks)
 
-	// Receive off of metadata channel
 	for {
-		m, ok := <-ch
+		m, ok := <-metadataCh
 		if !ok {
 			break
 		}
@@ -1870,14 +1869,13 @@ func (s *session) streamAndGroupCollectedBlocksMetadata(
 
 func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 	peersLen int,
-	ch <-chan blocksMetadata,
+	metadataCh <-chan blocksMetadata,
 	enqueueCh *enqueueChannel,
 ) {
 	metadata := make(map[hashAndBlockStart]*receivedBlocks)
 
-	// Receive off of metadata channel
 	for {
-		m, ok := <-ch
+		m, ok := <-metadataCh
 		if !ok {
 			break
 		}
