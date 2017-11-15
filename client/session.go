@@ -228,7 +228,6 @@ func newSession(opts Options) (clientSession, error) {
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
 		writeRetrier:         opts.WriteRetrier(),
 		fetchRetrier:         opts.FetchRetrier(),
-		streamBlocksRetrier:  opts.StreamBlocksRetrier(),
 		contextPool:          opts.ContextPool(),
 		idPool:               opts.IdentifierPool(),
 		metrics:              newSessionMetrics(scope),
@@ -260,6 +259,7 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksBatchSize = opts.FetchSeriesBlocksBatchSize()
 		s.streamBlocksMetadataBatchTimeout = opts.FetchSeriesBlocksMetadataBatchTimeout()
 		s.streamBlocksBatchTimeout = opts.FetchSeriesBlocksBatchTimeout()
+		s.streamBlocksRetrier = opts.StreamBlocksRetrier()
 	}
 
 	return s, nil

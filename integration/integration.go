@@ -204,11 +204,11 @@ func newDefaultBootstrappableTestSetups(
 
 			// Prevent integration tests from timing out when a node is down
 			retryOpts := xretry.NewOptions().
-				SetInitialBackoff(10 * time.Millisecond).
-				SetMaxRetries(3).
+				SetInitialBackoff(1 * time.Millisecond).
+				SetMaxRetries(1).
 				SetJitter(true)
 			retrier := xretry.NewRetrier(retryOpts)
-			adminOpts.SetStreamBlocksRetrier(retrier)
+			adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
 
 			adminClient := newMultiAddrAdminClient(
 				t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)

@@ -514,7 +514,7 @@ func (o *options) FetchRetrier() xretry.Retrier {
 	return o.fetchRetrier
 }
 
-func (o *options) SetStreamBlocksRetrier(value xretry.Retrier) Options {
+func (o *options) SetStreamBlocksRetrier(value xretry.Retrier) AdminOptions {
 	opts := *o
 	opts.streamBlocksRetrier = value
 	return &opts
