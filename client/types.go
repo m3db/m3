@@ -513,7 +513,7 @@ type Options interface {
 	// a fetch operation. Only retryable errors are retried.
 	SetFetchRetrier(value xretry.Retrier) Options
 
-	// FetchRetrier returns the fetch retrier when perform a write for
+	// FetchRetrier returns the fetch retrier when performing a fetch for
 	// a fetch operation. Only retryable errors are retried.
 	FetchRetrier() xretry.Retrier
 

@@ -1487,12 +1487,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	m *streamFromPeersMetrics,
 ) error {
 	var (
-		pageToken *int64
-		retrier   = xretry.NewRetrier(xretry.NewOptions().
-				SetBackoffFactor(2).
-				SetMaxRetries(3).
-				SetInitialBackoff(s.streamBlocksMetadataBatchBackoff).
-				SetJitter(true))
+		pageToken              *int64
 		optionIncludeSizes     = true
 		optionIncludeChecksums = true
 		optionIncludeLastRead  = true
@@ -1596,7 +1591,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	}
 
 	for moreResults {
-		if err := retrier.Attempt(fetchFn); err != nil {
+		if err := s.fetchRetrier.Attempt(fetchFn); err != nil {
 			return err
 		}
 	}
@@ -1615,12 +1610,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 	progress *streamFromPeersMetrics,
 ) error {
 	var (
-		pageToken []byte
-		retrier   = xretry.NewRetrier(xretry.NewOptions().
-				SetBackoffFactor(2).
-				SetMaxRetries(3).
-				SetInitialBackoff(s.streamBlocksMetadataBatchBackoff).
-				SetJitter(true))
+		pageToken              []byte
 		optionIncludeSizes     = true
 		optionIncludeChecksums = true
 		optionIncludeLastRead  = true
@@ -1730,7 +1720,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 	}
 
 	for moreResults {
-		if err := retrier.Attempt(fetchFn); err != nil {
+		if err := s.fetchRetrier.Attempt(fetchFn); err != nil {
 			return err
 		}
 	}
@@ -1748,11 +1738,6 @@ func (s *session) streamBlocksFromPeers(
 	streamMetadataFn streamBlocksMetadataFn,
 ) {
 	var (
-		retrier = xretry.NewRetrier(xretry.NewOptions().
-			SetBackoffFactor(2).
-			SetMaxRetries(3).
-			SetInitialBackoff(time.Second).
-			SetJitter(true))
 		enqueueCh           = newEnqueueChannel(progress)
 		peerBlocksBatchSize = s.streamBlocksBatchSize
 	)
@@ -1774,8 +1759,8 @@ func (s *session) streamBlocksFromPeers(
 		workers := s.streamBlocksWorkers
 		drainEvery := 100 * time.Millisecond
 		processFn := func(batch []*blocksMetadata) {
-			s.streamBlocksBatchFromPeer(nsMetadata, shard, peer, batch, opts,
-				result, enqueueCh, retrier, progress)
+			s.streamBlocksBatchFromPeer(
+				nsMetadata, shard, peer, batch, opts, result, enqueueCh, s.fetchRetrier, progress)
 		}
 		queue := s.newPeerBlocksQueueFn(peer, size, drainEvery, workers, processFn)
 		peerQueues = append(peerQueues, queue)
