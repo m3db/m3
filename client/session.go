@@ -73,6 +73,17 @@ const (
 	resultTypeRaw                      = "raw"
 )
 
+// FetchBlocksMetadataEndpointsVersion represents an endpoint version for the
+// fetch blocks metadata endpoint
+type FetchBlocksMetadataEndpointsVersion int
+
+const (
+	// FetchBlocksMetadataV1 represents v1 of the fetch blocks metadata endpoint
+	FetchBlocksMetadataV1 FetchBlocksMetadataEndpointsVersion = iota
+	// FetchBlocksMetadataV2 represents v2 of the fetch blocks metadata endpoint
+	FetchBlocksMetadataV2
+)
+
 var (
 	// ErrClusterConnectTimeout is raised when connecting to the cluster and
 	// ensuring at least each partition has an up node with a connection to it
@@ -91,6 +102,9 @@ var (
 	errSessionInvalidConnectClusterConnectConsistencyLevel = errors.New("session has invalid connect consistency level specified")
 	// errSessionHasNoHostQueueForHost is raised when host queue requested for a missing host
 	errSessionHasNoHostQueueForHost = errors.New("session has no host queue for host")
+	// errInvalidFetchBlocksMetadataVersion is raised when an invalid fetch blocks
+	// metadata endpoint version is provided
+	errInvalidFetchBlocksMetadataVersion = errors.New("invalid fetch blocks metadata endpoint version")
 )
 
 type session struct {
@@ -1235,7 +1249,7 @@ func (s *session) FetchBlocksMetadataFromPeers(
 
 	go func() {
 		errCh <- s.streamBlocksMetadataFromPeers(
-			namespace, shard, peers, start, end, metadataCh, m, false)
+			namespace, shard, peers, start, end, metadataCh, m, FetchBlocksMetadataV1)
 		close(metadataCh)
 		close(errCh)
 	}()
@@ -1266,8 +1280,12 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	shard uint32,
 	start, end time.Time,
 	opts result.Options,
-	isV2 bool,
+	version FetchBlocksMetadataEndpointsVersion,
 ) (result.ShardResult, error) {
+	if version != FetchBlocksMetadataV1 && version != FetchBlocksMetadataV2 {
+		return nil, errInvalidFetchBlocksMetadataVersion
+	}
+
 	var (
 		result   = newBulkBlocksResult(s.opts, opts)
 		doneCh   = make(chan struct{})
@@ -1293,23 +1311,18 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 			}
 		}
 	}()
-	defer func() {
-		close(doneCh)
-	}()
+	defer close(doneCh)
 
 	// Begin pulling metadata, if one or multiple peers fail no error will
 	// be returned from this routine as long as one peer succeeds completely
 	metadataCh := make(chan blocksMetadata, blocksMetadataChBufSize)
 	// Spin up a background goroutine which will begin streaming metadata from
 	// all the peers and pushing them into the metadatach
-	var streamBlocksMetadataErr error
+	errCh := make(chan error, 1)
 	go func() {
-		err := s.streamBlocksMetadataFromPeers(
-			nsMetadata.ID(), shard, peers, start, end, metadataCh, progress, isV2)
+		errCh <- s.streamBlocksMetadataFromPeers(
+			nsMetadata.ID(), shard, peers, start, end, metadataCh, progress, version)
 		close(metadataCh)
-		if err != nil {
-			streamBlocksMetadataErr = err
-		}
 	}()
 
 	// Begin consuming metadata and making requests. This will block until all
@@ -1317,15 +1330,15 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	// not return an error and if anything goes wrong here we won't report it to
 	// the caller, but metrics and logs are emitted internally. Also note that the
 	// streamAndGroupCollectedBlocksMetadata function is injected.
-	streamFunc := s.streamAndGroupCollectedBlocksMetadata
-	if isV2 {
-		streamFunc = s.streamAndGroupCollectedBlocksMetadataV2
+	streamFn := s.streamAndGroupCollectedBlocksMetadata
+	if version == FetchBlocksMetadataV2 {
+		streamFn = s.streamAndGroupCollectedBlocksMetadataV2
 	}
 	s.streamBlocksFromPeers(nsMetadata, shard, peers,
-		metadataCh, opts, result, progress, streamFunc)
+		metadataCh, opts, result, progress, streamFn)
 
 	// Check if an error occurred during the metadata streaming
-	if streamBlocksMetadataErr != nil {
+	if err = <-errCh; err != nil {
 		return nil, err
 	}
 
@@ -1419,7 +1432,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 	start, end time.Time,
 	metadataCh chan<- blocksMetadata,
 	progress *streamFromPeersMetrics,
-	isV2 bool,
+	version FetchBlocksMetadataEndpointsVersion,
 ) error {
 	var (
 		wg       sync.WaitGroup
@@ -1438,7 +1451,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 		go func() {
 			defer wg.Done()
 			var err error
-			if isV2 {
+			if version == FetchBlocksMetadataV2 {
 				err = s.streamBlocksMetadataFromPeerV2(
 					namespace, shard, peer, start, end, metadataCh, progress)
 			} else {

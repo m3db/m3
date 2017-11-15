@@ -222,7 +222,8 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	rangeStart := start
 	rangeEnd := start.Add(blockSize * (24 - 1))
 	bootstrapOpts := newResultTestOptions()
-	result, err := session.FetchBootstrapBlocksFromPeers(testsNsMetadata(t), 0, rangeStart, rangeEnd, bootstrapOpts, false)
+	result, err := session.FetchBootstrapBlocksFromPeers(
+		testsNsMetadata(t), 0, rangeStart, rangeEnd, bootstrapOpts, FetchBlocksMetadataV1)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
@@ -346,7 +347,8 @@ func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
 	rangeStart := start
 	rangeEnd := start.Add(blockSize * (24 - 1))
 	bootstrapOpts := newResultTestOptions()
-	result, err := session.FetchBootstrapBlocksFromPeers(testsNsMetadata(t), 0, rangeStart, rangeEnd, bootstrapOpts, true)
+	result, err := session.FetchBootstrapBlocksFromPeers(
+		testsNsMetadata(t), 0, rangeStart, rangeEnd, bootstrapOpts, FetchBlocksMetadataV2)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 

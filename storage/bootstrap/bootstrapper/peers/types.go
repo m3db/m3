@@ -88,10 +88,10 @@ type Options interface {
 	// pass to newly flushed blocks when performing an incremental bootstrap run.
 	DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverManager
 
-	// SetUseV2 sets whether the peer bootsrapper should use V2 of the peer
-	// bootstrapping endpoint
-	SetUseV2(value bool) Options
-	// UseV2 returns whether the peer bootstrapper should use V2 of the peer
-	// bootstrapping endpoint
-	UseV2() bool
+	// SetFetchBlocksMetadataEndpointVersion sets the version of the fetch blocks
+	// metadata endpoint that the peer bootstrapper will use
+	SetFetchBlocksMetadataEndpointVersion(value client.FetchBlocksMetadataEndpointsVersion) Options
+	// SetFetchBlocksMetadataEndpointVersion returns the version of the fetch blocks
+	// metadata endpoint that the peer bootstrapper will use
+	FetchBlocksMetadataEndpointVersion() client.FetchBlocksMetadataEndpointsVersion
 }

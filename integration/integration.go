@@ -124,12 +124,12 @@ func newMultiAddrAdminClient(
 }
 
 type bootstrappableTestSetupOptions struct {
-	disablePeersBootstrapper   bool
-	useV2PeerBootstrapper      bool
-	bootstrapBlocksBatchSize   int
-	bootstrapBlocksConcurrency int
-	topologyInitializer        topology.Initializer
-	testStatsReporter          xmetrics.TestStatsReporter
+	disablePeersBootstrapper           bool
+	fetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointsVersion
+	bootstrapBlocksBatchSize           int
+	bootstrapBlocksConcurrency         int
+	topologyInitializer                topology.Initializer
+	testStatsReporter                  xmetrics.TestStatsReporter
 }
 
 type closeFn func()
@@ -207,7 +207,7 @@ func newDefaultBootstrappableTestSetups(
 			peersOpts := peers.NewOptions().
 				SetResultOptions(bsOpts).
 				SetAdminClient(adminClient).
-				SetUseV2(setupOpts[i].useV2PeerBootstrapper)
+				SetFetchBlocksMetadataEndpointVersion(setupOpts[i].fetchBlocksMetadataEndpointVersion)
 
 			peersBootstrapper, err = peers.NewPeersBootstrapper(peersOpts, noOpAll)
 			require.NoError(t, err)

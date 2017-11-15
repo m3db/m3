@@ -32,41 +32,47 @@ import (
 )
 
 var (
-	defaultDefaultShardConcurrency        = runtime.NumCPU()
-	defaultIncrementalShardConcurrency    = int(math.Max(1, float64(runtime.NumCPU())/2))
-	defaultIncrementalPersistMaxQueueSize = 0
-	defaultUseV2                          = false
+	defaultDefaultShardConcurrency            = runtime.NumCPU()
+	defaultIncrementalShardConcurrency        = int(math.Max(1, float64(runtime.NumCPU())/2))
+	defaultIncrementalPersistMaxQueueSize     = 0
+	defaultFetchBlocksMetadataEndpointVersion = client.FetchBlocksMetadataV1
 )
 
 var (
-	errAdminClientNotSet = errors.New("admin client not set")
+	errAdminClientNotSet                 = errors.New("admin client not set")
+	errInvalidFetchBlocksMetadataVersion = errors.New("invalid fetch blocks metadata endpoint version")
 )
 
 type options struct {
-	resultOpts                     result.Options
-	client                         client.AdminClient
-	defaultShardConcurrency        int
-	incrementalShardConcurrency    int
-	incrementalPersistMaxQueueSize int
-	persistManager                 persist.Manager
-	blockRetrieverManager          block.DatabaseBlockRetrieverManager
-	useV2                          bool
+	resultOpts                         result.Options
+	client                             client.AdminClient
+	defaultShardConcurrency            int
+	incrementalShardConcurrency        int
+	incrementalPersistMaxQueueSize     int
+	persistManager                     persist.Manager
+	blockRetrieverManager              block.DatabaseBlockRetrieverManager
+	fetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointsVersion
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		resultOpts:                     result.NewOptions(),
-		defaultShardConcurrency:        defaultDefaultShardConcurrency,
-		incrementalShardConcurrency:    defaultIncrementalShardConcurrency,
-		incrementalPersistMaxQueueSize: defaultIncrementalPersistMaxQueueSize,
-		useV2: defaultUseV2,
+		resultOpts:                         result.NewOptions(),
+		defaultShardConcurrency:            defaultDefaultShardConcurrency,
+		incrementalShardConcurrency:        defaultIncrementalShardConcurrency,
+		incrementalPersistMaxQueueSize:     defaultIncrementalPersistMaxQueueSize,
+		fetchBlocksMetadataEndpointVersion: defaultFetchBlocksMetadataEndpointVersion,
 	}
 }
 
 func (o *options) Validate() error {
 	if client := o.client; client == nil {
 		return errAdminClientNotSet
+	}
+
+	if o.fetchBlocksMetadataEndpointVersion != client.FetchBlocksMetadataV1 &&
+		o.fetchBlocksMetadataEndpointVersion != client.FetchBlocksMetadataV2 {
+		return errInvalidFetchBlocksMetadataVersion
 	}
 	return nil
 }
@@ -143,12 +149,12 @@ func (o *options) DatabaseBlockRetrieverManager() block.DatabaseBlockRetrieverMa
 	return o.blockRetrieverManager
 }
 
-func (o *options) SetUseV2(value bool) Options {
+func (o *options) SetFetchBlocksMetadataEndpointVersion(value client.FetchBlocksMetadataEndpointsVersion) Options {
 	opts := *o
-	opts.useV2 = value
+	opts.fetchBlocksMetadataEndpointVersion = value
 	return &opts
 }
 
-func (o *options) UseV2() bool {
-	return o.useV2
+func (o *options) FetchBlocksMetadataEndpointVersion() client.FetchBlocksMetadataEndpointsVersion {
+	return o.fetchBlocksMetadataEndpointVersion
 }
