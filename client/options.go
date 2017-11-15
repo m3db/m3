@@ -152,7 +152,7 @@ var (
 	// defaultFetchRetrier is the default fetch retrier for fetch attempts
 	defaultFetchRetrier = xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))
 
-	// defaultStreamBlocksRetrier is the default retrier for streaming blocking
+	// defaultStreamBlocksRetrier is the default retrier for streaming blocks
 	defaultStreamBlocksRetrier = xretry.NewRetrier(
 		xretry.NewOptions().
 			SetBackoffFactor(2).
