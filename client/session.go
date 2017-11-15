@@ -1659,8 +1659,6 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		}
 
 		for _, elem := range result.Elements {
-			// TODO:
-			// NB(rartoul): This error handling doesn't seem sufficient
 			// Error occurred retrieving block metadata, use default values
 			blockStart := time.Unix(0, elem.Start)
 			if elem.Err != nil {
