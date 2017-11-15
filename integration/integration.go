@@ -208,7 +208,7 @@ func newDefaultBootstrappableTestSetups(
 				SetMaxRetries(3).
 				SetJitter(true)
 			retrier := xretry.NewRetrier(retryOpts)
-			adminOpts.SetFetchRetrier(retrier)
+			adminOpts.SetStreamBlocksRetrier(retrier)
 
 			adminClient := newMultiAddrAdminClient(
 				t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)

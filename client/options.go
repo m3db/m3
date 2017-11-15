@@ -130,9 +130,6 @@ const (
 	// defaultFetchSeriesBlocksMetadataBatchTimeout is the default series blocks metadata fetch timeout
 	defaultFetchSeriesBlocksMetadataBatchTimeout = 60 * time.Second
 
-	// defaultFetchSeriesBlocksMetadataBatchInitialBackoff is the default series blocks metadata fetch retry backoff
-	defaultFetchSeriesBlocksMetadataBatchInitialBackoff = 1 * time.Second
-
 	// defaultFetchSeriesBlocksMetadataBatchTimeout is the default series blocks contents fetch timeout
 	defaultFetchSeriesBlocksBatchTimeout = 60 * time.Second
 )
@@ -155,52 +152,61 @@ var (
 	// defaultFetchRetrier is the default fetch retrier for fetch attempts
 	defaultFetchRetrier = xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))
 
+	// defaultStreamBlocksRetrier is the default retrier for streaming blocking
+	defaultStreamBlocksRetrier = xretry.NewRetrier(
+		xretry.NewOptions().
+			SetBackoffFactor(2).
+			SetMaxRetries(3).
+			SetInitialBackoff(1 * time.Second).
+			SetJitter(true),
+	)
+
 	errNoTopologyInitializerSet    = errors.New("no topology initializer set")
 	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
 )
 
 type options struct {
-	clockOpts                                    clock.Options
-	instrumentOpts                               instrument.Options
-	topologyInitializer                          topology.Initializer
-	writeConsistencyLevel                        topology.ConsistencyLevel
-	readConsistencyLevel                         ReadConsistencyLevel
-	channelOptions                               *tchannel.ChannelOptions
-	maxConnectionCount                           int
-	minConnectionCount                           int
-	hostConnectTimeout                           time.Duration
-	clusterConnectTimeout                        time.Duration
-	clusterConnectConsistencyLevel               ConnectConsistencyLevel
-	writeRequestTimeout                          time.Duration
-	fetchRequestTimeout                          time.Duration
-	truncateRequestTimeout                       time.Duration
-	backgroundConnectInterval                    time.Duration
-	backgroundConnectStutter                     time.Duration
-	backgroundHealthCheckInterval                time.Duration
-	backgroundHealthCheckStutter                 time.Duration
-	backgroundHealthCheckFailLimit               int
-	backgroundHealthCheckFailThrottleFactor      float64
-	writeRetrier                                 xretry.Retrier
-	fetchRetrier                                 xretry.Retrier
-	readerIteratorAllocate                       encoding.ReaderIteratorAllocate
-	writeOpPoolSize                              int
-	fetchBatchOpPoolSize                         int
-	writeBatchSize                               int
-	fetchBatchSize                               int
-	identifierPool                               ts.IdentifierPool
-	hostQueueOpsFlushSize                        int
-	hostQueueOpsFlushInterval                    time.Duration
-	hostQueueOpsArrayPoolSize                    int
-	seriesIteratorPoolSize                       int
-	seriesIteratorArrayPoolBuckets               []pool.Bucket
-	contextPool                                  context.Pool
-	origin                                       topology.Host
-	fetchSeriesBlocksMaxBlockRetries             int
-	fetchSeriesBlocksBatchSize                   int
-	fetchSeriesBlocksMetadataBatchTimeout        time.Duration
-	fetchSeriesBlocksMetadataBatchInitialBackoff time.Duration
-	fetchSeriesBlocksBatchTimeout                time.Duration
-	fetchSeriesBlocksBatchConcurrency            int
+	clockOpts                               clock.Options
+	instrumentOpts                          instrument.Options
+	topologyInitializer                     topology.Initializer
+	writeConsistencyLevel                   topology.ConsistencyLevel
+	readConsistencyLevel                    ReadConsistencyLevel
+	channelOptions                          *tchannel.ChannelOptions
+	maxConnectionCount                      int
+	minConnectionCount                      int
+	hostConnectTimeout                      time.Duration
+	clusterConnectTimeout                   time.Duration
+	clusterConnectConsistencyLevel          ConnectConsistencyLevel
+	writeRequestTimeout                     time.Duration
+	fetchRequestTimeout                     time.Duration
+	truncateRequestTimeout                  time.Duration
+	backgroundConnectInterval               time.Duration
+	backgroundConnectStutter                time.Duration
+	backgroundHealthCheckInterval           time.Duration
+	backgroundHealthCheckStutter            time.Duration
+	backgroundHealthCheckFailLimit          int
+	backgroundHealthCheckFailThrottleFactor float64
+	writeRetrier                            xretry.Retrier
+	fetchRetrier                            xretry.Retrier
+	streamBlocksRetrier                     xretry.Retrier
+	readerIteratorAllocate                  encoding.ReaderIteratorAllocate
+	writeOpPoolSize                         int
+	fetchBatchOpPoolSize                    int
+	writeBatchSize                          int
+	fetchBatchSize                          int
+	identifierPool                          ts.IdentifierPool
+	hostQueueOpsFlushSize                   int
+	hostQueueOpsFlushInterval               time.Duration
+	hostQueueOpsArrayPoolSize               int
+	seriesIteratorPoolSize                  int
+	seriesIteratorArrayPoolBuckets          []pool.Bucket
+	contextPool                             context.Pool
+	origin                                  topology.Host
+	fetchSeriesBlocksMaxBlockRetries        int
+	fetchSeriesBlocksBatchSize              int
+	fetchSeriesBlocksMetadataBatchTimeout   time.Duration
+	fetchSeriesBlocksBatchTimeout           time.Duration
+	fetchSeriesBlocksBatchConcurrency       int
 }
 
 // NewOptions creates a new set of client options with defaults
@@ -229,43 +235,43 @@ func newOptions() *options {
 	contextPool := context.NewPool(poolOpts, poolOpts)
 
 	opts := &options{
-		clockOpts:                                    clock.NewOptions(),
-		instrumentOpts:                               instrument.NewOptions(),
-		writeConsistencyLevel:                        defaultWriteConsistencyLevel,
-		readConsistencyLevel:                         defaultReadConsistencyLevel,
-		maxConnectionCount:                           defaultMaxConnectionCount,
-		minConnectionCount:                           defaultMinConnectionCount,
-		hostConnectTimeout:                           defaultHostConnectTimeout,
-		clusterConnectTimeout:                        defaultClusterConnectTimeout,
-		clusterConnectConsistencyLevel:               defaultClusterConnectConsistencyLevel,
-		writeRequestTimeout:                          defaultWriteRequestTimeout,
-		fetchRequestTimeout:                          defaultFetchRequestTimeout,
-		truncateRequestTimeout:                       defaultTruncateRequestTimeout,
-		backgroundConnectInterval:                    defaultBackgroundConnectInterval,
-		backgroundConnectStutter:                     defaultBackgroundConnectStutter,
-		backgroundHealthCheckInterval:                defaultBackgroundHealthCheckInterval,
-		backgroundHealthCheckStutter:                 defaultBackgroundHealthCheckStutter,
-		backgroundHealthCheckFailLimit:               defaultBackgroundHealthCheckFailLimit,
-		backgroundHealthCheckFailThrottleFactor:      defaultBackgroundHealthCheckFailThrottleFactor,
-		writeRetrier:                                 defaultWriteRetrier,
-		fetchRetrier:                                 defaultFetchRetrier,
-		writeOpPoolSize:                              defaultWriteOpPoolSize,
-		fetchBatchOpPoolSize:                         defaultFetchBatchOpPoolSize,
-		writeBatchSize:                               defaultWriteBatchSize,
-		fetchBatchSize:                               defaultFetchBatchSize,
-		identifierPool:                               idPool,
-		hostQueueOpsFlushSize:                        defaultHostQueueOpsFlushSize,
-		hostQueueOpsFlushInterval:                    defaultHostQueueOpsFlushInterval,
-		hostQueueOpsArrayPoolSize:                    defaultHostQueueOpsArrayPoolSize,
-		seriesIteratorPoolSize:                       defaultSeriesIteratorPoolSize,
-		seriesIteratorArrayPoolBuckets:               defaultSeriesIteratorArrayPoolBuckets,
-		contextPool:                                  contextPool,
-		fetchSeriesBlocksMaxBlockRetries:             defaultFetchSeriesBlocksMaxBlockRetries,
-		fetchSeriesBlocksBatchSize:                   defaultFetchSeriesBlocksBatchSize,
-		fetchSeriesBlocksMetadataBatchTimeout:        defaultFetchSeriesBlocksMetadataBatchTimeout,
-		fetchSeriesBlocksMetadataBatchInitialBackoff: defaultFetchSeriesBlocksMetadataBatchInitialBackoff,
-		fetchSeriesBlocksBatchTimeout:                defaultFetchSeriesBlocksBatchTimeout,
-		fetchSeriesBlocksBatchConcurrency:            defaultFetchSeriesBlocksBatchConcurrency,
+		clockOpts:                               clock.NewOptions(),
+		instrumentOpts:                          instrument.NewOptions(),
+		writeConsistencyLevel:                   defaultWriteConsistencyLevel,
+		readConsistencyLevel:                    defaultReadConsistencyLevel,
+		maxConnectionCount:                      defaultMaxConnectionCount,
+		minConnectionCount:                      defaultMinConnectionCount,
+		hostConnectTimeout:                      defaultHostConnectTimeout,
+		clusterConnectTimeout:                   defaultClusterConnectTimeout,
+		clusterConnectConsistencyLevel:          defaultClusterConnectConsistencyLevel,
+		writeRequestTimeout:                     defaultWriteRequestTimeout,
+		fetchRequestTimeout:                     defaultFetchRequestTimeout,
+		truncateRequestTimeout:                  defaultTruncateRequestTimeout,
+		backgroundConnectInterval:               defaultBackgroundConnectInterval,
+		backgroundConnectStutter:                defaultBackgroundConnectStutter,
+		backgroundHealthCheckInterval:           defaultBackgroundHealthCheckInterval,
+		backgroundHealthCheckStutter:            defaultBackgroundHealthCheckStutter,
+		backgroundHealthCheckFailLimit:          defaultBackgroundHealthCheckFailLimit,
+		backgroundHealthCheckFailThrottleFactor: defaultBackgroundHealthCheckFailThrottleFactor,
+		writeRetrier:                            defaultWriteRetrier,
+		fetchRetrier:                            defaultFetchRetrier,
+		streamBlocksRetrier:                     defaultStreamBlocksRetrier,
+		writeOpPoolSize:                         defaultWriteOpPoolSize,
+		fetchBatchOpPoolSize:                    defaultFetchBatchOpPoolSize,
+		writeBatchSize:                          defaultWriteBatchSize,
+		fetchBatchSize:                          defaultFetchBatchSize,
+		identifierPool:                          idPool,
+		hostQueueOpsFlushSize:                   defaultHostQueueOpsFlushSize,
+		hostQueueOpsFlushInterval:               defaultHostQueueOpsFlushInterval,
+		hostQueueOpsArrayPoolSize:               defaultHostQueueOpsArrayPoolSize,
+		seriesIteratorPoolSize:                  defaultSeriesIteratorPoolSize,
+		seriesIteratorArrayPoolBuckets:          defaultSeriesIteratorArrayPoolBuckets,
+		contextPool:                             contextPool,
+		fetchSeriesBlocksMaxBlockRetries:        defaultFetchSeriesBlocksMaxBlockRetries,
+		fetchSeriesBlocksBatchSize:              defaultFetchSeriesBlocksBatchSize,
+		fetchSeriesBlocksMetadataBatchTimeout:   defaultFetchSeriesBlocksMetadataBatchTimeout,
+		fetchSeriesBlocksBatchTimeout:           defaultFetchSeriesBlocksBatchTimeout,
+		fetchSeriesBlocksBatchConcurrency:       defaultFetchSeriesBlocksBatchConcurrency,
 	}
 	return opts.SetEncodingM3TSZ().(*options)
 }
@@ -508,6 +514,16 @@ func (o *options) FetchRetrier() xretry.Retrier {
 	return o.fetchRetrier
 }
 
+func (o *options) SetStreamBlocksRetrier(value xretry.Retrier) Options {
+	opts := *o
+	opts.streamBlocksRetrier = value
+	return &opts
+}
+
+func (o *options) StreamBlocksRetrier() xretry.Retrier {
+	return o.streamBlocksRetrier
+}
+
 func (o *options) SetWriteOpPoolSize(value int) Options {
 	opts := *o
 	opts.writeOpPoolSize = value
@@ -666,16 +682,6 @@ func (o *options) SetFetchSeriesBlocksMetadataBatchTimeout(value time.Duration) 
 
 func (o *options) FetchSeriesBlocksMetadataBatchTimeout() time.Duration {
 	return o.fetchSeriesBlocksMetadataBatchTimeout
-}
-
-func (o *options) SetFetchSeriesBlocksMetadataBatchInitialBackoff(value time.Duration) AdminOptions {
-	opts := *o
-	opts.fetchSeriesBlocksMetadataBatchInitialBackoff = value
-	return &opts
-}
-
-func (o *options) FetchSeriesBlocksMetadataBatchInitialBackoff() time.Duration {
-	return o.fetchSeriesBlocksMetadataBatchInitialBackoff
 }
 
 func (o *options) SetFetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions {

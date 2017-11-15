@@ -1384,6 +1384,26 @@ func (_mr *_MockOptionsRecorder) FetchRetrier() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchRetrier")
 }
 
+func (_m *MockOptions) SetStreamBlocksRetrier(value retry.Retrier) Options {
+	ret := _m.ctrl.Call(_m, "SetStreamBlocksRetrier", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetStreamBlocksRetrier(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetStreamBlocksRetrier", arg0)
+}
+
+func (_m *MockOptions) StreamBlocksRetrier() retry.Retrier {
+	ret := _m.ctrl.Call(_m, "StreamBlocksRetrier")
+	ret0, _ := ret[0].(retry.Retrier)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) StreamBlocksRetrier() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "StreamBlocksRetrier")
+}
+
 func (_m *MockOptions) SetWriteBatchSize(value int) Options {
 	ret := _m.ctrl.Call(_m, "SetWriteBatchSize", value)
 	ret0, _ := ret[0].(Options)
@@ -2105,6 +2125,26 @@ func (_mr *_MockAdminOptionsRecorder) FetchRetrier() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchRetrier")
 }
 
+func (_m *MockAdminOptions) SetStreamBlocksRetrier(value retry.Retrier) Options {
+	ret := _m.ctrl.Call(_m, "SetStreamBlocksRetrier", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) SetStreamBlocksRetrier(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetStreamBlocksRetrier", arg0)
+}
+
+func (_m *MockAdminOptions) StreamBlocksRetrier() retry.Retrier {
+	ret := _m.ctrl.Call(_m, "StreamBlocksRetrier")
+	ret0, _ := ret[0].(retry.Retrier)
+	return ret0
+}
+
+func (_mr *_MockAdminOptionsRecorder) StreamBlocksRetrier() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "StreamBlocksRetrier")
+}
+
 func (_m *MockAdminOptions) SetWriteBatchSize(value int) Options {
 	ret := _m.ctrl.Call(_m, "SetWriteBatchSize", value)
 	ret0, _ := ret[0].(Options)
@@ -2423,26 +2463,6 @@ func (_m *MockAdminOptions) FetchSeriesBlocksMetadataBatchTimeout() time0.Durati
 
 func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksMetadataBatchTimeout() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksMetadataBatchTimeout")
-}
-
-func (_m *MockAdminOptions) SetFetchSeriesBlocksMetadataBatchInitialBackoff(value time0.Duration) AdminOptions {
-	ret := _m.ctrl.Call(_m, "SetFetchSeriesBlocksMetadataBatchInitialBackoff", value)
-	ret0, _ := ret[0].(AdminOptions)
-	return ret0
-}
-
-func (_mr *_MockAdminOptionsRecorder) SetFetchSeriesBlocksMetadataBatchInitialBackoff(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetFetchSeriesBlocksMetadataBatchInitialBackoff", arg0)
-}
-
-func (_m *MockAdminOptions) FetchSeriesBlocksMetadataBatchInitialBackoff() time0.Duration {
-	ret := _m.ctrl.Call(_m, "FetchSeriesBlocksMetadataBatchInitialBackoff")
-	ret0, _ := ret[0].(time0.Duration)
-	return ret0
-}
-
-func (_mr *_MockAdminOptionsRecorder) FetchSeriesBlocksMetadataBatchInitialBackoff() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchSeriesBlocksMetadataBatchInitialBackoff")
 }
 
 func (_m *MockAdminOptions) SetFetchSeriesBlocksBatchTimeout(value time0.Duration) AdminOptions {

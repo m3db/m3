@@ -517,6 +517,11 @@ type Options interface {
 	// a fetch operation. Only retryable errors are retried.
 	FetchRetrier() xretry.Retrier
 
+	// SetStreamBlocksRetrier sets the retrier for streaming blocks
+	SetStreamBlocksRetrier(value xretry.Retrier) Options
+	// StreamBlocksRetrier returns the retrier for streaming blocks
+	StreamBlocksRetrier() xretry.Retrier
+
 	// SetWriteBatchSize sets the writeBatchSize
 	// NB(r): for a write only application load this should match the host
 	// queue ops flush size so that each time a host queue is flushed it can
@@ -623,12 +628,6 @@ type AdminOptions interface {
 
 	// FetchSeriesBlocksMetadataBatchTimeout gets the timeout for fetching series blocks metadata in batch
 	FetchSeriesBlocksMetadataBatchTimeout() time.Duration
-
-	// SetFetchSeriesBlocksMetadataBatchInitialBackoff sets the retry backOff for fetching series blocks metadata in batch
-	SetFetchSeriesBlocksMetadataBatchInitialBackoff(value time.Duration) AdminOptions
-
-	// FetchSeriesBlocksMetadataBatchInitialBackoff gets the retry backOff for fetching series blocks metadata in batch
-	FetchSeriesBlocksMetadataBatchInitialBackoff() time.Duration
 
 	// SetFetchSeriesBlocksBatchTimeout sets the timeout for fetching series blocks in batch
 	SetFetchSeriesBlocksBatchTimeout(value time.Duration) AdminOptions

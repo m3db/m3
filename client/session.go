@@ -127,6 +127,7 @@ type session struct {
 	state                            state
 	writeRetrier                     xretry.Retrier
 	fetchRetrier                     xretry.Retrier
+	streamBlocksRetrier              xretry.Retrier
 	contextPool                      context.Pool
 	idPool                           ts.IdentifierPool
 	writeOpPool                      *writeOpPool
@@ -149,7 +150,6 @@ type session struct {
 	streamBlocksWorkers              xsync.WorkerPool
 	streamBlocksBatchSize            int
 	streamBlocksMetadataBatchTimeout time.Duration
-	streamBlocksMetadataBatchBackoff time.Duration
 	streamBlocksBatchTimeout         time.Duration
 	metrics                          sessionMetrics
 }
@@ -228,6 +228,7 @@ func newSession(opts Options) (clientSession, error) {
 		newPeerBlocksQueueFn: newPeerBlocksQueue,
 		writeRetrier:         opts.WriteRetrier(),
 		fetchRetrier:         opts.FetchRetrier(),
+		streamBlocksRetrier:  opts.StreamBlocksRetrier(),
 		contextPool:          opts.ContextPool(),
 		idPool:               opts.IdentifierPool(),
 		metrics:              newSessionMetrics(scope),
@@ -258,7 +259,6 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksWorkers.Init()
 		s.streamBlocksBatchSize = opts.FetchSeriesBlocksBatchSize()
 		s.streamBlocksMetadataBatchTimeout = opts.FetchSeriesBlocksMetadataBatchTimeout()
-		s.streamBlocksMetadataBatchBackoff = opts.FetchSeriesBlocksMetadataBatchInitialBackoff()
 		s.streamBlocksBatchTimeout = opts.FetchSeriesBlocksBatchTimeout()
 	}
 
@@ -1591,7 +1591,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 	}
 
 	for moreResults {
-		if err := s.fetchRetrier.Attempt(fetchFn); err != nil {
+		if err := s.streamBlocksRetrier.Attempt(fetchFn); err != nil {
 			return err
 		}
 	}
@@ -1720,7 +1720,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 	}
 
 	for moreResults {
-		if err := s.fetchRetrier.Attempt(fetchFn); err != nil {
+		if err := s.streamBlocksRetrier.Attempt(fetchFn); err != nil {
 			return err
 		}
 	}
@@ -1760,7 +1760,7 @@ func (s *session) streamBlocksFromPeers(
 		drainEvery := 100 * time.Millisecond
 		processFn := func(batch []*blocksMetadata) {
 			s.streamBlocksBatchFromPeer(
-				nsMetadata, shard, peer, batch, opts, result, enqueueCh, s.fetchRetrier, progress)
+				nsMetadata, shard, peer, batch, opts, result, enqueueCh, s.streamBlocksRetrier, progress)
 		}
 		queue := s.newPeerBlocksQueueFn(peer, size, drainEvery, workers, processFn)
 		peerQueues = append(peerQueues, queue)
