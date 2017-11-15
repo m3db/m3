@@ -22,12 +22,16 @@
 
 package integration
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/m3db/m3db/client"
+)
 
 func TestPeersBootstrapMergePeerBlocksV2(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow()
 	}
 
-	testPeersBootstrapMergePeerBlocks(t, true)
+	testPeersBootstrapMergePeerBlocks(t, client.FetchBlocksMetadataEndpointV2)
 }

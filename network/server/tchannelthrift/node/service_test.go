@@ -448,7 +448,7 @@ func TestServiceFetchBlocksMetadataRaw(t *testing.T) {
 	}
 }
 
-func TestServiceFetchBlocksMetadataV2Raw(t *testing.T) {
+func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

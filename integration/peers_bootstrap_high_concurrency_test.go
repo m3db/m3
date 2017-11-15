@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
@@ -42,10 +43,11 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 		t.SkipNow()
 	}
 
-	testPeersBootstrapHighConcurrency(t, false)
+	testPeersBootstrapHighConcurrency(t, client.FetchBlocksMetadataEndpointV1)
 }
 
-func testPeersBootstrapHighConcurrency(t *testing.T, useV2 bool) {
+func testPeersBootstrapHighConcurrency(
+	t *testing.T, version client.FetchBlocksMetadataEndpointVersion) {
 	// Test setups
 	log := xlog.SimpleLogger
 	retentionOpts := retention.NewOptions().
@@ -66,10 +68,10 @@ func testPeersBootstrapHighConcurrency(t *testing.T, useV2 bool) {
 			disablePeersBootstrapper: true,
 		},
 		{
-			disablePeersBootstrapper:   false,
-			bootstrapBlocksBatchSize:   batchSize,
-			bootstrapBlocksConcurrency: concurrency,
-			useV2PeerBootstrapper:      useV2,
+			disablePeersBootstrapper:           false,
+			bootstrapBlocksBatchSize:           batchSize,
+			bootstrapBlocksConcurrency:         concurrency,
+			fetchBlocksMetadataEndpointVersion: version,
 		},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)

@@ -465,7 +465,7 @@ func (_mr *_MockAdminSessionRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, a
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataFromPeers", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockAdminSession) FetchBootstrapBlocksFromPeers(namespace namespace.Metadata, shard uint32, start time0.Time, end time0.Time, opts result.Options, version FetchBlocksMetadataEndpointsVersion) (result.ShardResult, error) {
+func (_m *MockAdminSession) FetchBootstrapBlocksFromPeers(namespace namespace.Metadata, shard uint32, start time0.Time, end time0.Time, opts result.Options, version FetchBlocksMetadataEndpointVersion) (result.ShardResult, error) {
 	ret := _m.ctrl.Call(_m, "FetchBootstrapBlocksFromPeers", namespace, shard, start, end, opts, version)
 	ret0, _ := ret[0].(result.ShardResult)
 	ret1, _ := ret[1].(error)
@@ -603,7 +603,7 @@ func (_mr *_MockclientSessionRecorder) FetchBlocksMetadataFromPeers(arg0, arg1, 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataFromPeers", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace namespace.Metadata, shard uint32, start time0.Time, end time0.Time, opts result.Options, version FetchBlocksMetadataEndpointsVersion) (result.ShardResult, error) {
+func (_m *MockclientSession) FetchBootstrapBlocksFromPeers(namespace namespace.Metadata, shard uint32, start time0.Time, end time0.Time, opts result.Options, version FetchBlocksMetadataEndpointVersion) (result.ShardResult, error) {
 	ret := _m.ctrl.Call(_m, "FetchBootstrapBlocksFromPeers", namespace, shard, start, end, opts, version)
 	ret0, _ := ret[0].(result.ShardResult)
 	ret1, _ := ret[1].(error)

@@ -90,8 +90,8 @@ type Options interface {
 
 	// SetFetchBlocksMetadataEndpointVersion sets the version of the fetch blocks
 	// metadata endpoint that the peer bootstrapper will use
-	SetFetchBlocksMetadataEndpointVersion(value client.FetchBlocksMetadataEndpointsVersion) Options
+	SetFetchBlocksMetadataEndpointVersion(value client.FetchBlocksMetadataEndpointVersion) Options
 	// SetFetchBlocksMetadataEndpointVersion returns the version of the fetch blocks
 	// metadata endpoint that the peer bootstrapper will use
-	FetchBlocksMetadataEndpointVersion() client.FetchBlocksMetadataEndpointsVersion
+	FetchBlocksMetadataEndpointVersion() client.FetchBlocksMetadataEndpointVersion
 }

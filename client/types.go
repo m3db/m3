@@ -274,7 +274,7 @@ type AdminSession interface {
 		shard uint32,
 		start, end time.Time,
 		opts result.Options,
-		version FetchBlocksMetadataEndpointsVersion,
+		version FetchBlocksMetadataEndpointVersion,
 	) (result.ShardResult, error)
 
 	// FetchBlocksFromPeers will fetch the required blocks from the

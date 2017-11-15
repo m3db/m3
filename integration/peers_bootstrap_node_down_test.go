@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
@@ -41,10 +42,11 @@ func TestPeersBootstrapNodeDown(t *testing.T) {
 		t.SkipNow()
 	}
 
-	testPeersBootstrapNodeDown(t, false)
+	testPeersBootstrapNodeDown(t, client.FetchBlocksMetadataEndpointV1)
 }
 
-func testPeersBootstrapNodeDown(t *testing.T, useV2 bool) {
+func testPeersBootstrapNodeDown(
+	t *testing.T, version client.FetchBlocksMetadataEndpointVersion) {
 	// Test setups
 	log := xlog.SimpleLogger
 	retentionOpts := retention.NewOptions().
@@ -62,7 +64,7 @@ func testPeersBootstrapNodeDown(t *testing.T, useV2 bool) {
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false, useV2PeerBootstrapper: useV2},
+		{disablePeersBootstrapper: false, fetchBlocksMetadataEndpointVersion: version},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()

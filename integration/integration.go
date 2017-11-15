@@ -126,7 +126,7 @@ func newMultiAddrAdminClient(
 
 type bootstrappableTestSetupOptions struct {
 	disablePeersBootstrapper           bool
-	fetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointsVersion
+	fetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion
 	bootstrapBlocksBatchSize           int
 	bootstrapBlocksConcurrency         int
 	topologyInitializer                topology.Initializer

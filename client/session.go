@@ -73,15 +73,15 @@ const (
 	resultTypeRaw                      = "raw"
 )
 
-// FetchBlocksMetadataEndpointsVersion represents an endpoint version for the
+// FetchBlocksMetadataEndpointVersion represents an endpoint version for the
 // fetch blocks metadata endpoint
-type FetchBlocksMetadataEndpointsVersion int
+type FetchBlocksMetadataEndpointVersion int
 
 const (
-	// FetchBlocksMetadataV1 represents v1 of the fetch blocks metadata endpoint
-	FetchBlocksMetadataV1 FetchBlocksMetadataEndpointsVersion = iota
-	// FetchBlocksMetadataV2 represents v2 of the fetch blocks metadata endpoint
-	FetchBlocksMetadataV2
+	// FetchBlocksMetadataEndpointV1 represents v1 of the fetch blocks metadata endpoint
+	FetchBlocksMetadataEndpointV1 FetchBlocksMetadataEndpointVersion = iota
+	// FetchBlocksMetadataEndpointV2 represents v2 of the fetch blocks metadata endpoint
+	FetchBlocksMetadataEndpointV2
 )
 
 var (
@@ -1249,7 +1249,7 @@ func (s *session) FetchBlocksMetadataFromPeers(
 
 	go func() {
 		errCh <- s.streamBlocksMetadataFromPeers(
-			namespace, shard, peers, start, end, metadataCh, m, FetchBlocksMetadataV1)
+			namespace, shard, peers, start, end, metadataCh, m, FetchBlocksMetadataEndpointV1)
 		close(metadataCh)
 		close(errCh)
 	}()
@@ -1280,9 +1280,9 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	shard uint32,
 	start, end time.Time,
 	opts result.Options,
-	version FetchBlocksMetadataEndpointsVersion,
+	version FetchBlocksMetadataEndpointVersion,
 ) (result.ShardResult, error) {
-	if version != FetchBlocksMetadataV1 && version != FetchBlocksMetadataV2 {
+	if version != FetchBlocksMetadataEndpointV1 && version != FetchBlocksMetadataEndpointV2 {
 		return nil, errInvalidFetchBlocksMetadataVersion
 	}
 
@@ -1331,7 +1331,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	// the caller, but metrics and logs are emitted internally. Also note that the
 	// streamAndGroupCollectedBlocksMetadata function is injected.
 	streamFn := s.streamAndGroupCollectedBlocksMetadata
-	if version == FetchBlocksMetadataV2 {
+	if version == FetchBlocksMetadataEndpointV2 {
 		streamFn = s.streamAndGroupCollectedBlocksMetadataV2
 	}
 	s.streamBlocksFromPeers(nsMetadata, shard, peers,
@@ -1432,7 +1432,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 	start, end time.Time,
 	metadataCh chan<- blocksMetadata,
 	progress *streamFromPeersMetrics,
-	version FetchBlocksMetadataEndpointsVersion,
+	version FetchBlocksMetadataEndpointVersion,
 ) error {
 	var (
 		wg       sync.WaitGroup
@@ -1451,7 +1451,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 		go func() {
 			defer wg.Done()
 			var err error
-			if version == FetchBlocksMetadataV2 {
+			if version == FetchBlocksMetadataEndpointV2 {
 				err = s.streamBlocksMetadataFromPeerV2(
 					namespace, shard, peer, start, end, metadataCh, progress)
 			} else {
