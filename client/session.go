@@ -244,7 +244,7 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksWorkers.Init()
 		s.streamBlocksBatchSize = opts.FetchSeriesBlocksBatchSize()
 		s.streamBlocksMetadataBatchTimeout = opts.FetchSeriesBlocksMetadataBatchTimeout()
-		s.streamBlocksMetadataBatchBackoff = opts.FetchSeriesBlocksMetadataBatchBackoff()
+		s.streamBlocksMetadataBatchBackoff = opts.FetchSeriesBlocksMetadataBatchInitialBackoff()
 		s.streamBlocksBatchTimeout = opts.FetchSeriesBlocksBatchTimeout()
 	}
 
