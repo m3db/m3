@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3aggregator/rate"
 	"github.com/m3db/m3metrics/protocol/msgpack"
 	"github.com/m3db/m3x/log"
 	xserver "github.com/m3db/m3x/server"
@@ -47,24 +48,26 @@ func NewServer(address string, aggregator aggregator.Aggregator, opts Options) x
 }
 
 type handlerMetrics struct {
-	addMetricErrors tally.Counter
-	decodeErrors    tally.Counter
+	addMetricErrors   tally.Counter
+	decodeErrors      tally.Counter
+	errLogRateLimited tally.Counter
 }
 
 func newHandlerMetrics(scope tally.Scope) handlerMetrics {
 	return handlerMetrics{
-		addMetricErrors: scope.Counter("add-metric-errors"),
-		decodeErrors:    scope.Counter("decode-errors"),
+		addMetricErrors:   scope.Counter("add-metric-errors"),
+		decodeErrors:      scope.Counter("decode-errors"),
+		errLogRateLimited: scope.Counter("error-log-rate-limited"),
 	}
 }
 
 type handler struct {
 	sync.Mutex
 
-	opts               Options
-	log                log.Logger
-	errLogSamplingRate float64
-	iteratorPool       msgpack.UnaggregatedIteratorPool
+	opts              Options
+	log               log.Logger
+	errLogRateLimiter *rate.Limiter
+	iteratorPool      msgpack.UnaggregatedIteratorPool
 
 	aggregator aggregator.Aggregator
 	rand       *rand.Rand
@@ -75,14 +78,18 @@ type handler struct {
 func NewHandler(aggregator aggregator.Aggregator, opts Options) xserver.Handler {
 	nowFn := opts.ClockOptions().NowFn()
 	iOpts := opts.InstrumentOptions()
+	var limiter *rate.Limiter
+	if rateLimit := opts.ErrorLogLimitPerSecond(); rateLimit != 0 {
+		limiter = rate.NewLimiter(rateLimit, nowFn)
+	}
 	return &handler{
-		opts:               opts,
-		log:                iOpts.Logger(),
-		errLogSamplingRate: opts.ErrorLogSamplingRate(),
-		iteratorPool:       opts.IteratorPool(),
-		aggregator:         aggregator,
-		rand:               rand.New(rand.NewSource(nowFn().UnixNano())),
-		metrics:            newHandlerMetrics(iOpts.MetricsScope()),
+		opts:              opts,
+		log:               iOpts.Logger(),
+		errLogRateLimiter: limiter,
+		iteratorPool:      opts.IteratorPool(),
+		aggregator:        aggregator,
+		rand:              rand.New(rand.NewSource(nowFn().UnixNano())),
+		metrics:           newHandlerMetrics(iOpts.MetricsScope()),
 	}
 }
 
@@ -96,18 +103,19 @@ func (s *handler) Handle(conn net.Conn) {
 		metric := it.Metric()
 		policiesList := it.PoliciesList()
 		if err := s.aggregator.AddMetricWithPoliciesList(metric, policiesList); err != nil {
-			// We sample the error log here because the error rate may scale with
-			// the metrics incoming rate and consume lots of cpu cycles.
-			// TODO(xichen): need to sample this in case there's a large number of errors
-			// due to rate limiting etc.
-			if s.rand.Float64() < s.errLogSamplingRate {
-				s.log.WithFields(
-					log.NewField("metric", metric.String()),
-					log.NewField("policies", policiesList),
-					log.NewErrField(err),
-				).Errorf("error adding metric with policies")
-			}
 			s.metrics.addMetricErrors.Inc(1)
+			// We rate limit the error log here because the error rate may scale with
+			// the metrics incoming rate and consume lots of cpu cycles.
+			if s.errLogRateLimiter != nil && !s.errLogRateLimiter.IsAllowed(1) {
+				s.metrics.errLogRateLimited.Inc(1)
+				continue
+			}
+			s.log.WithFields(
+				log.NewField("type", metric.Type.String()),
+				log.NewField("id", metric.ID.String()),
+				log.NewField("policies", policiesList),
+				log.NewErrField(err),
+			).Errorf("error adding metric with policies")
 		}
 	}
 

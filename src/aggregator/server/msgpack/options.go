@@ -28,7 +28,8 @@ import (
 )
 
 const (
-	defaultErrorLogSamplingRate = 1.0
+	// A default limit value of 0 means error log rate limiting is disabled.
+	defaultErrorLogLimitPerSecond = 0
 )
 
 // Options provide a set of server options.
@@ -45,11 +46,11 @@ type Options interface {
 	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
 
-	// SetErrorLogSamplingRate sets the error log sampling rate.
-	SetErrorLogSamplingRate(value float64) Options
+	// SetErrorLogLimitPerSecond sets the error log limit per second.
+	SetErrorLogLimitPerSecond(value int64) Options
 
-	// ErrorLogSamplingRate returns the error log sampling rate.
-	ErrorLogSamplingRate() float64
+	// ErrorLogLimitPerSecond returns the error log limit per second.
+	ErrorLogLimitPerSecond() int64
 
 	// SetServerOptions sets the server options.
 	SetServerOptions(value server.Options) Options
@@ -65,11 +66,11 @@ type Options interface {
 }
 
 type options struct {
-	clockOpts          clock.Options
-	instrumentOpts     instrument.Options
-	errLogSamplingRate float64
-	serverOpts         server.Options
-	iteratorPool       msgpack.UnaggregatedIteratorPool
+	clockOpts            clock.Options
+	instrumentOpts       instrument.Options
+	errLogLimitPerSecond int64
+	serverOpts           server.Options
+	iteratorPool         msgpack.UnaggregatedIteratorPool
 }
 
 // NewOptions creates a new set of server options.
@@ -81,11 +82,11 @@ func NewOptions() Options {
 	})
 
 	return &options{
-		clockOpts:          clock.NewOptions(),
-		instrumentOpts:     instrument.NewOptions(),
-		errLogSamplingRate: defaultErrorLogSamplingRate,
-		serverOpts:         server.NewOptions(),
-		iteratorPool:       iteratorPool,
+		clockOpts:            clock.NewOptions(),
+		instrumentOpts:       instrument.NewOptions(),
+		errLogLimitPerSecond: defaultErrorLogLimitPerSecond,
+		serverOpts:           server.NewOptions(),
+		iteratorPool:         iteratorPool,
 	}
 }
 
@@ -109,14 +110,14 @@ func (o *options) InstrumentOptions() instrument.Options {
 	return o.instrumentOpts
 }
 
-func (o *options) SetErrorLogSamplingRate(value float64) Options {
+func (o *options) SetErrorLogLimitPerSecond(value int64) Options {
 	opts := *o
-	opts.errLogSamplingRate = value
+	opts.errLogLimitPerSecond = value
 	return &opts
 }
 
-func (o *options) ErrorLogSamplingRate() float64 {
-	return o.errLogSamplingRate
+func (o *options) ErrorLogLimitPerSecond() int64 {
+	return o.errLogLimitPerSecond
 }
 
 func (o *options) SetServerOptions(value server.Options) Options {
