@@ -41,6 +41,7 @@ import (
 	xmetrics "github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
+	xretry "github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -200,8 +201,15 @@ func newDefaultBootstrappableTestSetups(
 			if bootstrapBlocksConcurrency > 0 {
 				adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
 			}
+
 			// Prevent integration tests from timing out when a node is down
-			adminOpts = adminOpts.SetFetchSeriesBlocksMetadataBatchInitialBackoff(10 * time.Millisecond)
+			retryOpts := xretry.NewOptions().
+				SetInitialBackoff(10 * time.Millisecond).
+				SetMaxRetries(3).
+				SetJitter(true)
+			retrier := xretry.NewRetrier(retryOpts)
+			adminOpts.SetFetchRetrier(retrier)
+
 			adminClient := newMultiAddrAdminClient(
 				t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
 			peersOpts := peers.NewOptions().
