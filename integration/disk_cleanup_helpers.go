@@ -24,6 +24,7 @@ package integration
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -160,7 +161,9 @@ func waitUntilNamespacesCleanedUp(testSetup *testSetup, filePathPrefix string, n
 	// more than once
 
 	c := make(chan error)
-	c <- waitUntilNamespacesHaveReset(testSetup, c)
+	go func() {
+		c <- waitUntilNamespacesHaveReset(testSetup)
+	}()
 	dataCleanedUp := func() bool {
 		namespaceDir := fs.NamespaceDirPath(filePathPrefix, namespace)
 		return !fs.FileExists(namespaceDir)
@@ -173,9 +176,11 @@ func waitUntilNamespacesCleanedUp(testSetup *testSetup, filePathPrefix string, n
 }
 
 // nolint: deadcode, unused
-func waitUntilNamespacesHaveReset(testSetup *testSetup, c chan error) error {
+func waitUntilNamespacesHaveReset(testSetup *testSetup) error {
 	testSetup.waitUntilServerIsDown()
+	fmt.Println("this should be a successful shutdown")
 	testSetup.startServer()
+	fmt.Println("this should be a successful start")
 	return testSetup.waitUntilServerIsUp()
 }
 

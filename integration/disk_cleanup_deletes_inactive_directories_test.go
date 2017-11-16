@@ -75,10 +75,17 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	require.NoError(t, err)
 	testSetup.db.AssignShardSet(shardSet)
 
+	// So some gnarly stuff here to make the testing package a bit more synchronous
+	var fsCleanupErr chan error
+	var nsCleanupErr chan error
 	// Check if files have been deleted
 	waitTimeout := 30 * time.Second
-	require.NoError(t, waitUntilFilesetsCleanedUp(filePathPrefix,
-		testSetup.db.Namespaces(), extraShard.ID(), waitTimeout))
+
+	go func() {
+		fsCleanupErr <- waitUntilFilesetsCleanedUp(filePathPrefix,
+			testSetup.db.Namespaces(), extraShard.ID(), waitTimeout)
+		require.NoError(t, <-fsCleanupErr)
+	}()
 
 	// Assigning a shardset of length one will mean there are extra namespaces
 	// that will need to be removed via cleanup
@@ -86,16 +93,11 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	require.NoError(t, err)
 	testSetup.db.AssignShardSet(shardSet)
 
-	// Delete this crap later
-	require.NoError(t, testSetup.stopServer())
-	require.NoError(t, testSetup.waitUntilServerIsDown())
-	log.Debug("server is now down to test namespace deletion")
-
-	require.NoError(t, testSetup.startServer())
-	log.Debug("server is now up to test namespace deletion")
-
 	// Needs an extra 30 seconds due to race conditions
-	waitTimeout = 60 * time.Second
-	require.NoError(t, waitUntilNamespacesCleanedUp(testSetup, filePathPrefix,
-		testNamespaces[1], waitTimeout))
+	waitTimeout = 160 * time.Second
+	go func() {
+		nsCleanupErr <- waitUntilNamespacesCleanedUp(testSetup, filePathPrefix,
+			testNamespaces[1], waitTimeout)
+		require.NoError(t, <-nsCleanupErr)
+	}()
 }
