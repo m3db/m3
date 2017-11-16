@@ -31,13 +31,26 @@ import (
 
 var (
 	testConfig = SimpleAuthConfig{
-		UserIDHeader: "testHeader",
+		Authentication: authenticationConfig{
+			UserIDHeader: "testHeader",
+		},
+		Authorization: authorizationConfig{
+			ReadWhitelistEnabled:    true,
+			WriteWhitelistEnabled:   false,
+			ReadWhitelistedUserIDs:  []string{"testUser"},
+			WriteWhitelistedUserIDs: []string{},
+		},
 	}
 )
 
 func TestNewSimpleAuth(t *testing.T) {
-	a := testConfig.NewSimpleAuth().(simpleAuth)
-	require.Equal(t, a.userIDHeader, "testHeader")
+	an := testConfig.NewSimpleAuth().(simpleAuth).authentication
+	az := testConfig.NewSimpleAuth().(simpleAuth).authorization
+	require.Equal(t, an.userIDHeader, "testHeader")
+	require.Equal(t, az.readWhitelistEnabled, true)
+	require.Equal(t, az.writeWhitelistEnabled, false)
+	require.Equal(t, az.readWhitelistedUserIDs, []string{"testUser"})
+	require.Equal(t, az.writeWhitelistedUserIDs, []string{})
 }
 
 func TestSetUser(t *testing.T) {
@@ -60,6 +73,29 @@ func TestGetUser(t *testing.T) {
 	id, err = a.GetUser(ctx)
 	require.Equal(t, "foo", id)
 	require.NoError(t, err)
+}
+
+func TestSimpleAuthenticationAuthenticate(t *testing.T) {
+	authentication := simpleAuthentication{
+		userIDHeader: "foo",
+	}
+
+	require.Nil(t, authentication.authenticate("bar"))
+	require.EqualError(t, authentication.authenticate(""), "must provide header: [foo]")
+}
+
+func TestSimpleAuthorizationAuthorize(t *testing.T) {
+	authorization := simpleAuthorization{
+		readWhitelistEnabled:    true,
+		writeWhitelistEnabled:   false,
+		readWhitelistedUserIDs:  []string{"foo", "bar"},
+		writeWhitelistedUserIDs: []string{"foo", "bar"},
+	}
+
+	require.Nil(t, authorization.authorize("GET", "foo"))
+	require.Nil(t, authorization.authorize("POST", "foo"))
+	require.EqualError(t, authorization.authorize("OPTIONS", "foo"), "unsupported request method: OPTIONS")
+	require.EqualError(t, authorization.authorize("GET", "baz"), "supplied userID: [baz] is not authorized")
 }
 
 func TestHealthCheck(t *testing.T) {
