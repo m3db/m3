@@ -1259,24 +1259,8 @@ func (s *session) FetchBlocksMetadataFromPeers(
 	return newMetadataIter(metadataCh, errCh), nil
 }
 
-// TODO:
-// NB(rartoul): Add documentation Markdown with ASCII pictures
 // FetchBootstrapBlocksFromPeers will fetch the specified blocks from peers for
-// bootstrapping purposes. It does the following:
-// 1) Fetch all metadata blocks from all peers who own the specified shard
-// 2) Compares metadata from different peers and determines the best peer(s)
-// 		from which to stream the actual data
-// 3) Streams the data from peers
-//
-// Note that steps 1, 2, and 3 all happen conccurently I.E as metadata streams
-// in, we begin determining which peer is the best source to stream the rest of
-// of the data from, and then we will begin streaming data from that peer all
-// the while we continue to receive metadata.
-//
-// In terms of error handling, if an error occurs during the metadata streaming
-// portion, then this function will return an error. However, if something goes
-// wrong during the data streaming portion, it will not return an error, and
-// the function will just return as much data as it can.
+// bootstrapping purposes. Refer to peer_bootstrapping.md for more details.
 func (s *session) FetchBootstrapBlocksFromPeers(
 	nsMetadata namespace.Metadata,
 	shard uint32,
