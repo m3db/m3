@@ -151,13 +151,13 @@ func waitUntilDataCleanedUpExtended(
 	return errDataCleanupTimedOut
 }
 
-// nolint: deadcode
+// nolint: deadcode, unused
 func waitUntilNamespacesCleanedUp(testSetup *testSetup, filePathPrefix string, namespace ts.ID, waitTimeout time.Duration) error {
 
 	// The idea would be to have a channel that has notifs (ie, --> func if val 1, 2, or 2)
 	// and pass that to a function that does a function based on that state
 	// this would involve locks on the channel to check the functions aren't called
-	// more than once 
+	// more than once
 	dataCleanedUp := func() bool {
 		namespaceDir := fs.NamespaceDirPath(filePathPrefix, namespace)
 		return !fs.FileExists(namespaceDir)
@@ -169,31 +169,25 @@ func waitUntilNamespacesCleanedUp(testSetup *testSetup, filePathPrefix string, n
 	return errDataCleanupTimedOut
 }
 
-func waitUntilNamespacesHaveReset(cluster.Database db, filePathPrefix string, namespace ts.ID, waitTimeout time.Duration error {
-	// create a channel. stage 1, return 
-	namespacesReset := func() bool {
-		select {
-			case state1:
-				if db 
-			// func 1 when this happens, which checks if shutdown has finished.
-			// when it has finished, immediately lock the channel and change it to stage 2
-			// func 2 checks if reset has finished. when it has, immediately lock the channel
-			// and  change it to stage 3, which checks the state of namespaces 
-			// the pattern would be:
-			// if something.hasFinished() {	
-			// 	  LOCK()
-			//    ch <-- new state
-			//    UNLOCK()
-			// }
-			// return false
-}
-			}
-		
-	}
+// nolint: deadcode, unused
+func waitUntilNamespacesHaveReset() error {
+	// create a channel. stage 1, return
+	// func 1 when this happens, which checks if shutdown has finished.
+	// when it has finished, immediately lock the channel and change it to stage 2
+	// func 2 checks if reset has finished. when it has, immediately lock the channel
+	// and  change it to stage 3, which checks the state of namespaces
+	// the pattern would be:
+	// if something.hasFinished() {
+	// 	  LOCK()
+	//    ch <-- new state
+	//    UNLOCK()
+	// }
+	// return false
 
+	return nil
 }
 
-// nolint: deadcode
+// nolint: deadcode, unused
 func waitUntilFilesetsCleanedUp(filePathPrefix string, namespaces []storage.Namespace, extraShard uint32, waitTimeout time.Duration) error {
 	dataCleanedUp := func() bool {
 		for _, n := range namespaces {

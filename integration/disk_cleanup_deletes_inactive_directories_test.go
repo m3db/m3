@@ -22,90 +22,85 @@
 
 package integration
 
-import (
-	"testing"
-	"time"
+//import (
+//	"testing"
+//	"time"
+//
+//	"github.com/m3db/m3db/sharding"
 
-	"github.com/m3db/m3db/sharding"
+//	"github.com/stretchr/testify/require"
+//)
 
-	"github.com/stretchr/testify/require"
-)
-
-func TestDiskCleansupInactiveDirectories(t *testing.T) {
-	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
-	}
-	// Test setup
-	testOpts := newTestOptions(t)
-	testSetup, err := newTestSetup(t, testOpts)
-	setup2, err := newTest			
-	require.NoError(t, err)
-	defer testSetup.close()
-
-	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
-	blockSize := md.Options().RetentionOptions().BlockSize()
-	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-
-	// Start the server
-	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	log.Debug("disk cleanup test")
-	require.NoError(t, testSetup.startServer())
-	log.Debug("server is now up")
-
-	// Stop the server
-	defer func() {
-		require.NoError(t, testSetup.stopServer())
-		log.Debug("server is now down")
-	}()
-
-	// Now create some fileset files and commit logs
-	shard := uint32(0)
-	numTimes := 10
-	fileTimes := make([]time.Time, numTimes)
-	now := testSetup.getNowFn()
-	for i := 0; i < numTimes; i++ {
-		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
-	}
-	writeFilesetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
-	writeCommitLogs(t, filePathPrefix, fileTimes)
-
-	shardSet := testSetup.db.ShardSet()
-	shards := shardSet.All()
-	extraShard := shards[0]
-	shardSet, err = sharding.NewShardSet(shards[1:], shardSet.HashFn())
-	require.NoError(t, err)
-	testSetup.db.AssignShardSet(shardSet)
-
-	testSetup.db
-	// Check if files have been deleted
-	waitTimeout := 30 * time.Second
-	require.NoError(t, waitUntilFilesetsCleanedUp(filePathPrefix,
-		testSetup.db.Namespaces(), extraShard.ID(), waitTimeout))
-
-	// Assigning a shardset of length one will mean there are extra namespaces
-	// that will need to be removed via cleanup
-	shardSet, err = sharding.NewShardSet(shards[:1], shardSet.HashFn())
-	require.NoError(t, err)
-	testSetup.db.AssignShardSet(shardSet)
-
-	// Delete this crap later
-	require.NoError(t, testSetup.stopServer())
-	require.NoError(t, testSetup.waitUntilServerIsDown())
-	log.Debug("server is now down to test namespace deletion")
-
-	require.NoError(t, testSetup.startServer())
-	log.Debug("server is now up to test namespace deletion")
-
-	// Needs an extra 30 seconds due to race conditions
-	waitTimeout = 60 * time.Second
-	require.NoError(t, waitUntilNamespacesCleanedUp(testSetup, filePathPrefix,
-		testNamespaces[1], waitTimeout))
-	stateChan := make(chan int, 1)
-	stateFn := func() {
-		select {
-			case  
-		}
-
-	}
-
-}
+//func TestDiskCleansupInactiveDirectories(t *testing.T) {
+//	if testing.Short() {
+//		t.SkipNow() // Just skip if we're doing a short run
+//	}
+//	// Test setup
+//	testOpts := newTestOptions(t)
+//	testSetup, err := newTestSetup(t, testOpts)
+//	setup2, err := newTest
+//	require.NoError(t, err)
+//	defer testSetup.close()
+//
+//	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
+//	blockSize := md.Options().RetentionOptions().BlockSize()
+//	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
+//
+//	// Start the server
+//	log := testSetup.storageOpts.InstrumentOptions().Logger()
+//	log.Debug("disk cleanup test")
+//	require.NoError(t, testSetup.startServer())
+//	log.Debug("server is now up")
+//
+//	// Stop the server
+//	defer func() {
+//		require.NoError(t, testSetup.stopServer())
+//		log.Debug("server is now down")
+//	}()
+//
+//	// Now create some fileset files and commit logs
+//	shard := uint32(0)
+//	numTimes := 10
+//	fileTimes := make([]time.Time, numTimes)
+//	now := testSetup.getNowFn()
+//	for i := 0; i < numTimes; i++ {
+//		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
+//	}
+//	writeFilesetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
+//	writeCommitLogs(t, filePathPrefix, fileTimes)
+//
+//	shardSet := testSetup.db.ShardSet()
+//	shards := shardSet.All()
+//	extraShard := shards[0]
+//	shardSet, err = sharding.NewShardSet(shards[1:], shardSet.HashFn())
+//	require.NoError(t, err)
+//	testSetup.db.AssignShardSet(shardSet)
+//
+//	testSetup.db
+//	// Check if files have been deleted
+//	waitTimeout := 30 * time.Second
+//	require.NoError(t, waitUntilFilesetsCleanedUp(filePathPrefix,
+//		testSetup.db.Namespaces(), extraShard.ID(), waitTimeout))
+//
+//	// Assigning a shardset of length one will mean there are extra namespaces
+//	// that will need to be removed via cleanup
+//	shardSet, err = sharding.NewShardSet(shards[:1], shardSet.HashFn())
+//	require.NoError(t, err)
+//	testSetup.db.AssignShardSet(shardSet)
+//
+//	// Delete this crap later
+//	require.NoError(t, testSetup.stopServer())
+//	require.NoError(t, testSetup.waitUntilServerIsDown())
+//	log.Debug("server is now down to test namespace deletion")
+//
+//	require.NoError(t, testSetup.startServer())
+//	log.Debug("server is now up to test namespace deletion")
+//
+//	// Needs an extra 30 seconds due to race conditions
+//	waitTimeout = 60 * time.Second
+//	require.NoError(t, waitUntilNamespacesCleanedUp(testSetup, filePathPrefix,
+//		testNamespaces[1], waitTimeout))
+//
+//	//m	ch = make(chan error, 1)
+//
+//}
