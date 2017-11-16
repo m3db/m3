@@ -21,8 +21,6 @@
 package storage
 
 import (
-	"errors"
-	"strconv"
 	"testing"
 	"time"
 
@@ -37,70 +35,6 @@ import (
 func testCleanupManager(ctrl *gomock.Controller) (*Mockdatabase, *cleanupManager) {
 	db := newMockdatabase(ctrl)
 	return db, newCleanupManager(db, tally.NoopScope).(*cleanupManager)
-}
-
-func TestCleanupManagerCleanup(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	ts := timeFor(36000)
-	rOpts := retention.NewOptions().
-		SetRetentionPeriod(21600 * time.Second).
-		SetBlockSize(7200 * time.Second)
-	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts)
-
-	inputs := []struct {
-		name string
-		err  error
-	}{
-		{"foo", errors.New("some error")},
-		{"bar", errors.New("some other error")},
-		{"baz", nil},
-	}
-
-	var defaultShards []Shard
-	start := timeFor(14400)
-	namespaces := make([]databaseNamespace, 0, len(inputs))
-	for _, input := range inputs {
-		ns := NewMockdatabaseNamespace(ctrl)
-		ns.EXPECT().Options().Return(nsOpts).AnyTimes()
-		ns.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
-		shard := NewMockShard(ctrl)
-		shard.EXPECT().ID().Return(uint32(1)).AnyTimes()
-		defaultShards = append(defaultShards, shard)
-		ns.EXPECT().Shards().Return(defaultShards).AnyTimes()
-		ns.EXPECT().CleanupFileset(start).Return(input.err)
-		ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
-		namespaces = append(namespaces, ns)
-	}
-	db := newMockdatabase(ctrl, namespaces...)
-	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
-	mgr.opts = mgr.opts.SetCommitLogOptions(
-		mgr.opts.CommitLogOptions().
-			SetRetentionPeriod(rOpts.RetentionPeriod()).
-			SetBlockSize(rOpts.BlockSize()))
-
-	mgr.commitLogFilesBeforeFn = func(_ string, t time.Time) ([]string, error) {
-		return []string{"foo", "bar"}, errors.New("error1")
-	}
-	mgr.commitLogFilesForTimeFn = func(_ string, t time.Time) ([]string, error) {
-		if t.Equal(timeFor(14400)) {
-			return []string{"baz"}, nil
-		}
-		return nil, errors.New("error" + strconv.Itoa(int(t.Unix())))
-	}
-	var deletedFiles []string
-	mgr.deleteFilesFn = func(files []string) error {
-		deletedFiles = append(deletedFiles, files...)
-		return nil
-	}
-
-	mgr.deleteInactiveDirectoriesFn = func(dirPath string, files []string) error {
-		return nil
-	}
-
-	require.Error(t, mgr.Cleanup(ts))
-	require.Equal(t, []string{"foo", "bar", "baz"}, deletedFiles)
 }
 
 func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
