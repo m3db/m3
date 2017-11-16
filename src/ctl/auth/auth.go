@@ -32,10 +32,10 @@ const (
 	UserIDField keyType = iota
 )
 
-// HTTPAuthService defines how to handle requests for various http authentication methods.
+// HTTPAuthService defines how to handle requests for various http authentication and authorization methods.
 type HTTPAuthService interface {
 	// NewAuthHandler should return a handler that performs some check on the request coming into the given handler
-	// and then runs the handler if it is. If the request is authenticated successfully, it should call SetUser
+	// and then runs the handler if it is. If the request passes authentication/authorization successfully, it should call SetUser
 	// to make the callers id available to the service in a global context.
 	NewAuthHandler(next http.Handler) http.Handler
 

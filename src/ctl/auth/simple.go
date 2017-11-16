@@ -28,30 +28,107 @@ import (
 
 // SimpleAuthConfig holds this configuration necessary for a simple auth implementation.
 type SimpleAuthConfig struct {
-	// This is an http header that identifies the user performing the operation
+	Authentication authenticationConfig `yaml:"authentication"`
+	Authorization  authorizationConfig  `yaml:"authorization"`
+}
+
+// authenticationConfig holds this configuration necessary for a simple authentication implementation.
+type authenticationConfig struct {
+	// This is an http header that identifies the user performing the operation.
 	UserIDHeader string `yaml:"userIDHeader" validate:"nonzero"`
 }
 
-// simpleAuth is an naive authentication method that just checks for a HTTPHeader identifying the user
-// performing the action.
-type simpleAuth struct {
-	userIDHeader string
+// authorizationConfig holds this configuration necessary for a simple authorization implementation.
+type authorizationConfig struct {
+	// This indicates whether reads should use a read whitelist.
+	ReadWhitelistEnabled bool `yaml:"readWhitelistEnabled,omitempty"`
+	// This indicates whether writes should use a write whitelist.
+	WriteWhitelistEnabled bool `yaml:"writeWhitelistEnabled,omitempty"`
+	// This is a list of users that are allowed to perform read operations.
+	ReadWhitelistedUserIDs []string `yaml:"readWhitelistedUserIDs,omitempty"`
+	// This is a list of users that are allowed to perform write operations.
+	WriteWhitelistedUserIDs []string `yaml:"readWhitelistedUserIDs,omitempty"`
 }
 
 // NewSimpleAuth creates a new simple auth instance given using the provided config.
 func (ac SimpleAuthConfig) NewSimpleAuth() HTTPAuthService {
-	return simpleAuth{userIDHeader: ac.UserIDHeader}
+	return simpleAuth{
+		authentication: simpleAuthentication{
+			userIDHeader: ac.Authentication.UserIDHeader,
+		},
+		authorization: simpleAuthorization{
+			readWhitelistEnabled:    ac.Authorization.ReadWhitelistEnabled,
+			writeWhitelistEnabled:   ac.Authorization.WriteWhitelistEnabled,
+			readWhitelistedUserIDs:  ac.Authorization.ReadWhitelistedUserIDs,
+			writeWhitelistedUserIDs: ac.Authorization.WriteWhitelistedUserIDs,
+		},
+	}
+}
+
+type simpleAuth struct {
+	authentication simpleAuthentication
+	authorization  simpleAuthorization
+}
+
+type simpleAuthentication struct {
+	userIDHeader string
+}
+
+func (a simpleAuthentication) authenticate(userID string) error {
+	if userID == "" {
+		return fmt.Errorf("must provide header: [%s]", a.userIDHeader)
+	}
+	return nil
+}
+
+type simpleAuthorization struct {
+	readWhitelistEnabled    bool
+	writeWhitelistEnabled   bool
+	readWhitelistedUserIDs  []string
+	writeWhitelistedUserIDs []string
+}
+
+func (a simpleAuthorization) authorize(httpMethod, userID string) error {
+	switch httpMethod {
+	case http.MethodGet:
+		return a.authorizeUser(a.readWhitelistEnabled, a.readWhitelistedUserIDs, userID)
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return a.authorizeUser(a.writeWhitelistEnabled, a.writeWhitelistedUserIDs, userID)
+	default:
+		return fmt.Errorf("unsupported request method: %s", httpMethod)
+	}
+}
+
+func (a simpleAuthorization) authorizeUser(useWhitelist bool, whitelistedUsers []string, userID string) error {
+	if !useWhitelist {
+		return nil
+	}
+
+	for _, u := range whitelistedUsers {
+		if u == userID {
+			return nil
+		}
+	}
+	return fmt.Errorf("supplied userID: [%s] is not authorized", userID)
 }
 
 // Authenticate looks for a header defining a user name. If it finds it, runs the actual http handler passed as a parameter.
-// Otherwise, it returns an Unathorized http response.
+// Otherwise, it returns an Unauthorized http response.
 func (a simpleAuth) NewAuthHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := r.Header.Get(a.userIDHeader)
-		if userID == "" {
-			http.Error(w, fmt.Sprintf("Must provide header: [%s]", a.userIDHeader), http.StatusUnauthorized)
+		userID := r.Header.Get(a.authentication.userIDHeader)
+		err := a.authentication.authenticate(userID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusUnauthorized)
 			return
 		}
+
+		err = a.authorization.authorize(r.Method, userID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusForbidden)
+			return
+		}
+
 		ctx := a.SetUser(r.Context(), userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
