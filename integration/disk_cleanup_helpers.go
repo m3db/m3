@@ -158,6 +158,9 @@ func waitUntilNamespacesCleanedUp(testSetup *testSetup, filePathPrefix string, n
 	// and pass that to a function that does a function based on that state
 	// this would involve locks on the channel to check the functions aren't called
 	// more than once
+
+	c := make(chan error)
+	c <- waitUntilNamespacesHaveReset(testSetup, c)
 	dataCleanedUp := func() bool {
 		namespaceDir := fs.NamespaceDirPath(filePathPrefix, namespace)
 		return !fs.FileExists(namespaceDir)
@@ -170,21 +173,10 @@ func waitUntilNamespacesCleanedUp(testSetup *testSetup, filePathPrefix string, n
 }
 
 // nolint: deadcode, unused
-func waitUntilNamespacesHaveReset() error {
-	// create a channel. stage 1, return
-	// func 1 when this happens, which checks if shutdown has finished.
-	// when it has finished, immediately lock the channel and change it to stage 2
-	// func 2 checks if reset has finished. when it has, immediately lock the channel
-	// and  change it to stage 3, which checks the state of namespaces
-	// the pattern would be:
-	// if something.hasFinished() {
-	// 	  LOCK()
-	//    ch <-- new state
-	//    UNLOCK()
-	// }
-	// return false
-
-	return nil
+func waitUntilNamespacesHaveReset(testSetup *testSetup, c chan error) error {
+	testSetup.waitUntilServerIsDown()
+	testSetup.startServer()
+	return testSetup.waitUntilServerIsUp()
 }
 
 // nolint: deadcode, unused
