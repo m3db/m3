@@ -169,10 +169,12 @@ func waitUntilNamespacesCleanedUp(testSetup *testSetup, filePathPrefix string, n
 	return errDataCleanupTimedOut
 }
 
-func waitUntilNamespacesHaveReset(testSetup *testSetup, filePathPrefix string, namespace ts.ID, waitTimeout time.Duration error {
+func waitUntilNamespacesHaveReset(cluster.Database db, filePathPrefix string, namespace ts.ID, waitTimeout time.Duration error {
 	// create a channel. stage 1, return 
 	namespacesReset := func() bool {
 		select {
+			case state1:
+				if db 
 			// func 1 when this happens, which checks if shutdown has finished.
 			// when it has finished, immediately lock the channel and change it to stage 2
 			// func 2 checks if reset has finished. when it has, immediately lock the channel

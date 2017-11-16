@@ -153,8 +153,11 @@ type Namespace interface {
 	// NumSeries returns the number of series in the namespace
 	NumSeries() int64
 
-	// Shards returns the shards
+	// Shards returns the shard as storange shards
 	Shards() []Shard
+
+	// GetOwnedShards returns the database shards
+	GetOwnedShards() []databaseShard
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID
@@ -226,9 +229,6 @@ type databaseNamespace interface {
 	// period: [start, end] (both inclusive).
 	// NB: The start/end times are assumed to be aligned to block size boundary.
 	NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool
-
-	// CleanupFileset cleans up fileset files
-	CleanupFileset(earliestToRetain time.Time) error
 
 	// Truncate truncates the in-memory data for this namespace
 	Truncate() (int64, error)

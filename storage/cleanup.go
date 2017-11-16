@@ -158,7 +158,7 @@ func (m *cleanupManager) deleteInactiveFilesetFiles() error {
 		var activeShards []string
 		//replace with injection later
 		namespaceDirPath := fs.NamespaceDirPath(filePathPrefix, n.ID())
-		for _, s := range n.Shards() {
+		for _, s := range n.GetOwnedShards() {
 			shard := fmt.Sprintf("%d", s.ID())
 			activeShards = append(activeShards, shard)
 		}
@@ -176,7 +176,20 @@ func (m *cleanupManager) cleanupFilesetFiles(t time.Time) error {
 	}
 	for _, n := range namespaces {
 		earliestToRetain := retention.FlushTimeStart(n.Options().RetentionOptions(), t)
-		multiErr = multiErr.Add(n.CleanupFileset(earliestToRetain))
+		shards := n.GetOwnedShards()
+		if n.Options().NeedsFilesetCleanup() {
+			multiErr = multiErr.Add(m.cleanupNamespaceFilesetFiles(earliestToRetain, shards))
+		}
+	}
+	return multiErr.FinalError()
+}
+
+func (m *cleanupManager) cleanupNamespaceFilesetFiles(earliestToRetain time.Time, shards []databaseShard) error {
+	multiErr := xerrors.NewMultiError()
+	for _, shard := range shards {
+		if err := shard.CleanupFileset(earliestToRetain); err != nil {
+			multiErr = multiErr.Add(err)
+		}
 	}
 
 	return multiErr.FinalError()

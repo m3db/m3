@@ -248,7 +248,7 @@ func (n *dbNamespace) ID() ts.ID {
 
 func (n *dbNamespace) NumSeries() int64 {
 	var count int64
-	for _, shard := range n.getOwnedShards() {
+	for _, shard := range n.GetOwnedShards() {
 		count += shard.NumSeries()
 	}
 	return count
@@ -337,7 +337,7 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 }
 
 func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) {
-	shards := n.getOwnedShards()
+	shards := n.GetOwnedShards()
 
 	if len(shards) == 0 {
 		return
@@ -489,7 +489,7 @@ func (n *dbNamespace) Bootstrap(
 	}
 
 	var (
-		owned  = n.getOwnedShards()
+		owned  = n.GetOwnedShards()
 		shards = make([]databaseShard, 0, len(owned))
 	)
 	for _, shard := range owned {
@@ -597,7 +597,7 @@ func (n *dbNamespace) Flush(
 	}
 
 	multiErr := xerrors.NewMultiError()
-	shards := n.getOwnedShards()
+	shards := n.GetOwnedShards()
 	for _, shard := range shards {
 		// skip flushing if the shard has already flushed data for the `blockStart`
 		if s := shard.FlushState(blockStart); s.Status == fileOpSuccess {
@@ -654,22 +654,6 @@ func (n *dbNamespace) NeedsFlush(alignedInclusiveStart time.Time, alignedInclusi
 	return false
 }
 
-func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {
-	if !n.nopts.NeedsFilesetCleanup() {
-		return nil
-	}
-
-	multiErr := xerrors.NewMultiError()
-	shards := n.getOwnedShards()
-	for _, shard := range shards {
-		if err := shard.CleanupFileset(earliestToRetain); err != nil {
-			multiErr = multiErr.Add(err)
-		}
-	}
-
-	return multiErr.FinalError()
-}
-
 func (n *dbNamespace) Truncate() (int64, error) {
 	var totalNumSeries int64
 
@@ -712,7 +696,7 @@ func (n *dbNamespace) Repair(
 	)
 
 	multiErr := xerrors.NewMultiError()
-	shards := n.getOwnedShards()
+	shards := n.GetOwnedShards()
 	numShards := len(shards)
 	if numShards > 0 {
 		throttlePerShard = time.Duration(
@@ -770,7 +754,7 @@ func (n *dbNamespace) Repair(
 	return multiErr.FinalError()
 }
 
-func (n *dbNamespace) getOwnedShards() []databaseShard {
+func (n *dbNamespace) GetOwnedShards() []databaseShard {
 	n.RLock()
 	shards := n.shardSet.AllIDs()
 	databaseShards := make([]databaseShard, len(shards))
