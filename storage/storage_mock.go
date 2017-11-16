@@ -519,6 +519,16 @@ func (_mr *_MockNamespaceRecorder) Shards() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Shards")
 }
 
+func (_m *MockNamespace) GetOwnedShards() []databaseShard {
+	ret := _m.ctrl.Call(_m, "GetOwnedShards")
+	ret0, _ := ret[0].([]databaseShard)
+	return ret0
+}
+
+func (_mr *_MockNamespaceRecorder) GetOwnedShards() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetOwnedShards")
+}
+
 // Mock of databaseNamespace interface
 type MockdatabaseNamespace struct {
 	ctrl     *gomock.Controller
@@ -578,6 +588,16 @@ func (_m *MockdatabaseNamespace) Shards() []Shard {
 
 func (_mr *_MockdatabaseNamespaceRecorder) Shards() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Shards")
+}
+
+func (_m *MockdatabaseNamespace) GetOwnedShards() []databaseShard {
+	ret := _m.ctrl.Call(_m, "GetOwnedShards")
+	ret0, _ := ret[0].([]databaseShard)
+	return ret0
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) GetOwnedShards() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetOwnedShards")
 }
 
 func (_m *MockdatabaseNamespace) Close() error {
@@ -678,26 +698,6 @@ func (_m *MockdatabaseNamespace) NeedsFlush(alignedInclusiveStart time0.Time, al
 
 func (_mr *_MockdatabaseNamespaceRecorder) NeedsFlush(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "NeedsFlush", arg0, arg1)
-}
-
-func (_m *MockdatabaseNamespace) CleanupFileset(earliestToRetain time0.Time) error {
-	ret := _m.ctrl.Call(_m, "CleanupFileset", earliestToRetain)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockdatabaseNamespaceRecorder) CleanupFileset(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "CleanupFileset", arg0)
-}
-
-func (_m *MockdatabaseNamespace) DeleteInactiveFilesets() error {
-	ret := _m.ctrl.Call(_m, "DeleteInactiveFilesets")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockdatabaseNamespaceRecorder) DeleteInactiveFilesets() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "DeleteInactiveFilesets")
 }
 
 func (_m *MockdatabaseNamespace) Truncate() (int64, error) {
