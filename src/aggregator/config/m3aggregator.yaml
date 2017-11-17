@@ -57,6 +57,16 @@ msgpack:
     iteratorPool:
       size: 4096
 
+runtimeOptions:
+  kvConfig:
+    namespace: /m3aggregator
+    environment: production
+  writeValuesPerMetricLimitPerSecondKey: write-values-per-metric-limit-per-second
+  writeValuesPerMetricLimitPerSecond: 0
+  writeNewMetricLimitClusterPerSecondKey: write-new-metric-limit-cluster-per-second
+  writeNewMetricLimitClusterPerSecond: 0
+  writeNewMetricNoLimitWarmupDuration: 0
+
 http:
   listenAddress: 0.0.0.0:6001
   readTimeout: 45s
@@ -92,12 +102,6 @@ aggregator:
           capacity: 32
         - count: 1024
           capacity: 64
-  runtimeOptions:
-    kvConfig:
-      namespace: /m3aggregator
-      environment: production
-    writeValuesPerMetricLimitPerSecondKey: write-values-per-metric-limit-per-second
-    writeValuesPerMetricLimitPerSecond: 0
   placementManager:
     kvConfig:
       namespace: /m3aggregator

@@ -20,9 +20,17 @@
 
 package runtime
 
+import "time"
+
 const (
 	// A default rate limit value of 0 means rate limiting is disabled.
 	defaultWriteValuesPerMetricLimitPerSecond = 0
+
+	// A default rate limit value of 0 means rate limiting is disabled.
+	defaultWriteNewMetricLimitPerShardPerSecond = 0
+
+	// A default warmup duration of 0 means there is no warmup.
+	defaultWriteNewMetricNoLimitWarmupDuration = 0
 )
 
 // Options provide a set of options that are configurable at runtime.
@@ -34,16 +42,44 @@ type Options interface {
 	// WriteValuesPerMetricLimitPerSecond returns the rate limit used
 	// to cap the maximum number of values allowed to be written per second.
 	WriteValuesPerMetricLimitPerSecond() int64
+
+	// SetWriteNewMetricLimitPerShardPerSecond sets the rate limit used
+	// to cap the maximum number of new metrics allowed to be written per shard per second.
+	SetWriteNewMetricLimitPerShardPerSecond(value int64) Options
+
+	// WriteNewMetricLimitPerShardPerSecond returns the rate limit used
+	// to cap the maximum number of new metrics allowed to be written per shard per second.
+	WriteNewMetricLimitPerShardPerSecond() int64
+
+	// SetWriteNewMetricNoLimitWarmupDuration sets the warmup duration during which
+	// rate limiting is not applied for writing new metric series for the purpose
+	// of not aggresively limiting new series insertion rate when an instance just
+	// comes online and is ingesting a large number of new series during startup.
+	// The warmup duration is in effect starting from the time when the first entry
+	// is insert into the shard.
+	SetWriteNewMetricNoLimitWarmupDuration(value time.Duration) Options
+
+	// WriteNewMetricNoLimitWarmupDuration returns the warmup duration during which
+	// rate limiting is not applied for writing new metric series for the purpose
+	// of not aggresively limiting new series insertion rate when an instance just
+	// comes online and is ingesting a large number of new series during startup.
+	// The warmup duration is in effect starting from the time when the first entry
+	// is insert into the shard.
+	WriteNewMetricNoLimitWarmupDuration() time.Duration
 }
 
 type options struct {
-	writeValuesPerMetricLimitPerSecond int64
+	writeValuesPerMetricLimitPerSecond   int64
+	writeNewMetricLimitPerShardPerSecond int64
+	writeNewMetricNoLimitWarmupDuration  time.Duration
 }
 
 // NewOptions creates a new set of runtime options.
 func NewOptions() Options {
 	return &options{
-		writeValuesPerMetricLimitPerSecond: defaultWriteValuesPerMetricLimitPerSecond,
+		writeValuesPerMetricLimitPerSecond:   defaultWriteValuesPerMetricLimitPerSecond,
+		writeNewMetricLimitPerShardPerSecond: defaultWriteNewMetricLimitPerShardPerSecond,
+		writeNewMetricNoLimitWarmupDuration:  defaultWriteNewMetricNoLimitWarmupDuration,
 	}
 }
 
@@ -55,4 +91,24 @@ func (o *options) SetWriteValuesPerMetricLimitPerSecond(value int64) Options {
 
 func (o *options) WriteValuesPerMetricLimitPerSecond() int64 {
 	return o.writeValuesPerMetricLimitPerSecond
+}
+
+func (o *options) SetWriteNewMetricLimitPerShardPerSecond(value int64) Options {
+	opts := *o
+	opts.writeNewMetricLimitPerShardPerSecond = value
+	return &opts
+}
+
+func (o *options) WriteNewMetricLimitPerShardPerSecond() int64 {
+	return o.writeNewMetricLimitPerShardPerSecond
+}
+
+func (o *options) SetWriteNewMetricNoLimitWarmupDuration(value time.Duration) Options {
+	opts := *o
+	opts.writeNewMetricNoLimitWarmupDuration = value
+	return &opts
+}
+
+func (o *options) WriteNewMetricNoLimitWarmupDuration() time.Duration {
+	return o.writeNewMetricNoLimitWarmupDuration
 }

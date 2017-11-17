@@ -117,7 +117,7 @@ func TestEntryBatchTimerRateLimiting(t *testing.T) {
 	limitPerSecond := 100
 	runtimeOpts := runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(int64(limitPerSecond))
 	e.SetRuntimeOptions(runtimeOpts)
-	require.Equal(t, errEntryRateLimitExceeded, e.AddMetricWithPoliciesList(bt, policy.DefaultPoliciesList))
+	require.Equal(t, errWriteValueRateLimitExceeded, e.AddMetricWithPoliciesList(bt, policy.DefaultPoliciesList))
 
 	// Reset limit to enable a rate limit of 1000/s.
 	limitPerSecond = 1000
@@ -126,7 +126,7 @@ func TestEntryBatchTimerRateLimiting(t *testing.T) {
 	require.NoError(t, e.AddMetricWithPoliciesList(bt, policy.DefaultPoliciesList))
 
 	// Adding a new batch will exceed the limit.
-	require.Equal(t, errEntryRateLimitExceeded, e.AddMetricWithPoliciesList(bt, policy.DefaultPoliciesList))
+	require.Equal(t, errWriteValueRateLimitExceeded, e.AddMetricWithPoliciesList(bt, policy.DefaultPoliciesList))
 
 	// Advancing the time will reset the quota.
 	*now = (*now).Add(time.Second)
@@ -148,7 +148,7 @@ func TestEntryCounterRateLimiting(t *testing.T) {
 	for i := 0; i < limitPerSecond; i++ {
 		require.NoError(t, e.AddMetricWithPoliciesList(testCounter, policy.DefaultPoliciesList))
 	}
-	require.Equal(t, errEntryRateLimitExceeded, e.AddMetricWithPoliciesList(testCounter, policy.DefaultPoliciesList))
+	require.Equal(t, errWriteValueRateLimitExceeded, e.AddMetricWithPoliciesList(testCounter, policy.DefaultPoliciesList))
 
 	// Reset limit to enable a rate limit of 100/s.
 	limitPerSecond = 100
@@ -157,7 +157,7 @@ func TestEntryCounterRateLimiting(t *testing.T) {
 	for i := 0; i < limitPerSecond; i++ {
 		require.NoError(t, e.AddMetricWithPoliciesList(testCounter, policy.DefaultPoliciesList))
 	}
-	require.Equal(t, errEntryRateLimitExceeded, e.AddMetricWithPoliciesList(testCounter, policy.DefaultPoliciesList))
+	require.Equal(t, errWriteValueRateLimitExceeded, e.AddMetricWithPoliciesList(testCounter, policy.DefaultPoliciesList))
 
 	// Advancing the time will reset the quota.
 	*now = (*now).Add(time.Second)
