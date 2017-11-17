@@ -50,6 +50,7 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	log.Debug("disk cleanup test")
 	require.NoError(t, testSetup.startServer())
 	log.Debug("server is now up")
+	testSetup.waitUntilServerIsUp()
 
 	// Stop the server
 	defer func() {

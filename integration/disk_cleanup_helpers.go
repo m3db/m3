@@ -24,7 +24,6 @@ package integration
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -178,10 +177,9 @@ func waitUntilNamespacesCleanedUp(testSetup *testSetup, filePathPrefix string, n
 // nolint: deadcode, unused
 func waitUntilNamespacesHaveReset(testSetup *testSetup) error {
 	testSetup.waitUntilServerIsDown()
-	fmt.Println("this should be a successful shutdown")
 	testSetup.startServer()
-	fmt.Println("this should be a successful start")
-	return testSetup.waitUntilServerIsUp()
+	testSetup.waitUntilServerIsUp()
+	return nil
 }
 
 // nolint: deadcode, unused
