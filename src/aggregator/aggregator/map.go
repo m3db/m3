@@ -27,12 +27,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3aggregator/rate"
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/close"
 	xid "github.com/m3db/m3x/id"
+
 	"github.com/uber-go/tally"
 )
 
@@ -42,8 +44,9 @@ const (
 )
 
 var (
-	emptyHashedEntry   hashedEntry
-	errMetricMapClosed = errors.New("metric map is already closed")
+	emptyHashedEntry                   hashedEntry
+	errMetricMapClosed                 = errors.New("metric map is already closed")
+	errWriteNewMetricRateLimitExceeded = errors.New("write new metric rate limit is exceeded")
 )
 
 type entryKey struct {
@@ -57,12 +60,18 @@ type hashedEntry struct {
 }
 
 type metricMapMetrics struct {
-	newEntries tally.Counter
+	newEntries                 tally.Counter
+	noRateLimitWarmup          tally.Counter
+	newMetricRateLimitExceeded tally.Counter
+	droppedNewMetrics          tally.Counter
 }
 
 func newMetricMapMetrics(scope tally.Scope) metricMapMetrics {
 	return metricMapMetrics{
-		newEntries: scope.Counter("new-entries"),
+		newEntries:                 scope.Counter("new-entries"),
+		noRateLimitWarmup:          scope.Counter("no-rate-limit-warmup"),
+		newMetricRateLimitExceeded: scope.Counter("new-metric-rate-limit-exceeded"),
+		droppedNewMetrics:          scope.Counter("dropped-new-metrics"),
 	}
 }
 
@@ -82,6 +91,8 @@ type metricMap struct {
 	entries           map[entryKey]*list.Element
 	entryList         *list.List
 	entryListDelLock  sync.Mutex // Must be held when deleting elements from the entry list
+	firstInsertAt     time.Time
+	rateLimiter       *rate.Limiter
 	runtimeOpts       runtime.Options
 	runtimeOptsCloser close.SimpleCloser
 	sleepFn           sleepFn
@@ -104,8 +115,13 @@ func newMetricMap(shard uint32, opts Options) *metricMap {
 		metrics:      newMetricMapMetrics(scope),
 	}
 
-	// Register the metric map as a runtime options watcher.
 	runtimeOptsManager := opts.RuntimeOptionsManager()
+	runtimeOpts := runtimeOptsManager.RuntimeOptions()
+	m.Lock()
+	m.resetRateLimiterWithLock(runtimeOpts)
+	m.Unlock()
+
+	// Register the metric map as a runtime options watcher.
 	closer := runtimeOptsManager.RegisterWatcher(m)
 	m.runtimeOptsCloser = closer
 
@@ -148,6 +164,7 @@ func (m *metricMap) Tick(target time.Duration) tickResult {
 func (m *metricMap) SetRuntimeOptions(opts runtime.Options) {
 	m.Lock()
 	m.runtimeOpts = opts
+	m.resetRateLimiterWithLock(opts)
 	m.Unlock()
 
 	// NB(xichen): we hold onto the entry list deletion lock here to ensure no
@@ -198,17 +215,30 @@ func (m *metricMap) findOrCreate(key entryKey) (*Entry, error) {
 		return nil, errMetricMapClosed
 	}
 	entry, found := m.lookupEntryWithLock(key)
-	if !found {
-		entry = m.entryPool.Get()
-		entry.ResetSetData(m.metricLists, m.runtimeOpts, m.opts)
-		m.entries[key] = m.entryList.PushBack(hashedEntry{
-			key:   key,
-			entry: entry,
-		})
-		m.metrics.newEntries.Inc(1)
+	if found {
+		entry.IncWriter()
+		m.Unlock()
+		return entry, nil
 	}
+
+	// Check if we are allowed to insert a new metric.
+	now := m.nowFn()
+	if m.firstInsertAt.IsZero() {
+		m.firstInsertAt = now
+	}
+	if err := m.applyNewMetricRateLimitWithLock(now); err != nil {
+		m.Unlock()
+		return nil, err
+	}
+	entry = m.entryPool.Get()
+	entry.ResetSetData(m.metricLists, m.runtimeOpts, m.opts)
+	m.entries[key] = m.entryList.PushBack(hashedEntry{
+		key:   key,
+		entry: entry,
+	})
 	entry.IncWriter()
 	m.Unlock()
+	m.metrics.newEntries.Inc(1)
 
 	return entry, nil
 }
@@ -319,6 +349,39 @@ func (m *metricMap) forEachEntry(entryFn hashedEntryFn) {
 		}
 		currEntries = currEntries[:0]
 	}
+}
+
+func (m *metricMap) resetRateLimiterWithLock(runtimeOpts runtime.Options) {
+	newLimit := runtimeOpts.WriteNewMetricLimitPerShardPerSecond()
+	if newLimit <= 0 {
+		m.rateLimiter = nil
+		return
+	}
+	if m.rateLimiter == nil {
+		nowFn := m.opts.ClockOptions().NowFn()
+		m.rateLimiter = rate.NewLimiter(newLimit, nowFn)
+		return
+	}
+	m.rateLimiter.Reset(newLimit)
+}
+
+func (m *metricMap) applyNewMetricRateLimitWithLock(now time.Time) error {
+	if m.rateLimiter == nil {
+		return nil
+	}
+	// If we are still in the warmup phase and possibly ingesting a large amount
+	// of new metrics, no rate limit is applied.
+	noLimitWarmupDuration := m.runtimeOpts.WriteNewMetricNoLimitWarmupDuration()
+	if warmupEnd := m.firstInsertAt.Add(noLimitWarmupDuration); now.Before(warmupEnd) {
+		m.metrics.noRateLimitWarmup.Inc(1)
+		return nil
+	}
+	if m.rateLimiter.IsAllowed(1) {
+		return nil
+	}
+	m.metrics.newMetricRateLimitExceeded.Inc(1)
+	m.metrics.droppedNewMetrics.Inc(1)
+	return errWriteNewMetricRateLimitExceeded
 }
 
 type hashedEntryFn func(hashedEntry)

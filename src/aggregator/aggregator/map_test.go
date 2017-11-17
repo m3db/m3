@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3aggregator/runtime"
+	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
@@ -59,7 +60,7 @@ func TestMetricMapAddMetricWithPoliciesListMapClosed(t *testing.T) {
 	require.Equal(t, errMetricMapClosed, m.AddMetricWithPoliciesList(testCounter, testDefaultPoliciesList))
 }
 
-func TestMetricMapAddMetricWithPoliciesList(t *testing.T) {
+func TestMetricMapAddMetricWithPoliciesListNoRateLimit(t *testing.T) {
 	opts := testOptions()
 	m := newMetricMap(testShard, opts)
 	policies := testDefaultPoliciesList
@@ -154,6 +155,81 @@ func TestMetricMapSetRuntimeOptions(t *testing.T) {
 	for elem := m.entryList.Front(); elem != nil; elem = elem.Next() {
 		require.Equal(t, newRateLimit, elem.Value.(hashedEntry).entry.rateLimiter.Limit())
 	}
+}
+
+func TestMetricMapAddMetricWithPoliciesListWithRateLimit(t *testing.T) {
+	now := time.Now()
+	nowFn := func() time.Time { return now }
+	clockOpts := clock.NewOptions().SetNowFn(nowFn)
+	m := newMetricMap(testShard, testOptions().SetClockOptions(clockOpts))
+
+	// Reset runtime options to disable rate limiting.
+	noRateLimitRuntimeOpts := runtime.NewOptions().SetWriteNewMetricLimitPerShardPerSecond(0)
+	m.SetRuntimeOptions(noRateLimitRuntimeOpts)
+	require.NoError(t, m.AddMetricWithPoliciesList(testCounter, testDefaultPoliciesList))
+
+	// Reset runtime options to enable rate limit of 1/s with a warmup period of 1 minute.
+	limitPerSecond := 1
+	warmupPeriod := time.Minute
+	runtimeOpts := runtime.NewOptions().
+		SetWriteNewMetricLimitPerShardPerSecond(int64(limitPerSecond)).
+		SetWriteNewMetricNoLimitWarmupDuration(warmupPeriod)
+	m.SetRuntimeOptions(runtimeOpts)
+
+	// Verify all insertions should go through.
+	startIdx := 0
+	endIdx := 100
+	for i := startIdx; i < endIdx; i++ {
+		metric := unaggregated.MetricUnion{
+			Type: unaggregated.CounterType,
+			ID:   id.RawID(fmt.Sprintf("testC%d", i)),
+		}
+		require.NoError(t, m.AddMetricWithPoliciesList(metric, testDefaultPoliciesList))
+	}
+	require.Equal(t, now, m.firstInsertAt)
+
+	// Advance time so we are no longer warming up and verify that the second insertion
+	// results in a rate limit exceeded error.
+	oldNow := now
+	now = now.Add(2 * time.Minute)
+	startIdx = endIdx
+	endIdx = startIdx + 1
+	for i := startIdx; i < endIdx; i++ {
+		metric := unaggregated.MetricUnion{
+			Type: unaggregated.CounterType,
+			ID:   id.RawID(fmt.Sprintf("testC%d", i)),
+		}
+		if i == startIdx {
+			require.NoError(t, m.AddMetricWithPoliciesList(metric, testDefaultPoliciesList))
+		}
+		if i == endIdx {
+			require.Equal(t, errWriteNewMetricRateLimitExceeded, m.AddMetricWithPoliciesList(metric, testDefaultPoliciesList))
+		}
+	}
+
+	// Reset runtime options to enable rate limit of 100/s.
+	limitPerSecond = 100
+	runtimeOpts = runtime.NewOptions().SetWriteNewMetricLimitPerShardPerSecond(int64(limitPerSecond))
+	m.SetRuntimeOptions(runtimeOpts)
+	require.Equal(t, oldNow, m.firstInsertAt)
+
+	// Verify we can insert 6 entries without issues.
+	startIdx = endIdx
+	endIdx = startIdx + 100
+	for i := startIdx; i < endIdx; i++ {
+		metric := unaggregated.MetricUnion{
+			Type: unaggregated.CounterType,
+			ID:   id.RawID(fmt.Sprintf("testC%d", i)),
+		}
+		require.NoError(t, m.AddMetricWithPoliciesList(metric, testDefaultPoliciesList))
+	}
+
+	// Verify one more insert results in rate limit violation.
+	metric := unaggregated.MetricUnion{
+		Type: unaggregated.CounterType,
+		ID:   id.RawID(fmt.Sprintf("testC%d", endIdx)),
+	}
+	require.Equal(t, errWriteNewMetricRateLimitExceeded, m.AddMetricWithPoliciesList(metric, testDefaultPoliciesList))
 }
 
 func TestMetricMapDeleteExpired(t *testing.T) {

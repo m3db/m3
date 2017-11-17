@@ -21,30 +21,24 @@
 package config
 
 import (
+	"github.com/m3db/m3cluster/client"
+	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/log"
 )
 
-// Configuration contains top-level configuration.
-type Configuration struct {
-	// Logging configuration.
-	Logging log.Configuration `yaml:"logging"`
+// KVClientConfiguration configures the client for the key-value store.
+// TODO(xichen): add configuration for in-memory client with pre-populated data
+// for different namespaces so we can start up m3aggregator without a real etcd cluster.
+type KVClientConfiguration struct {
+	Etcd *etcdclient.Configuration `yaml:"etcd"`
+}
 
-	// Metrics configuration.
-	Metrics instrument.MetricsConfiguration `yaml:"metrics"`
-
-	// Msgpack server configuration.
-	Msgpack MsgpackServerConfiguration `yaml:"msgpack"`
-
-	// HTTP server configuration.
-	HTTP HTTPServerConfiguration `yaml:"http"`
-
-	// Client configuration for key value store.
-	KVClient KVClientConfiguration `yaml:"kvClient" validate:"nonzero"`
-
-	// Runtime options configuration.
-	RuntimeOptions RuntimeOptionsConfiguration `yaml:"runtimeOptions"`
-
-	// Aggregator configuration.
-	Aggregator AggregatorConfiguration `yaml:"aggregator"`
+// NewKVClient creates a new KV client.
+func (c *KVClientConfiguration) NewKVClient(
+	instrumentOpts instrument.Options,
+) (client.Client, error) {
+	if c.Etcd == nil {
+		return nil, errNoKVClientConfiguration
+	}
+	return c.Etcd.NewClient(instrumentOpts)
 }

@@ -39,30 +39,30 @@ import (
 )
 
 var (
-	errEmptyPoliciesList      = errors.New("empty policies list")
-	errEntryClosed            = errors.New("entry is closed")
-	errEntryRateLimitExceeded = errors.New("entry rate limit is exceeded")
+	errEmptyPoliciesList           = errors.New("empty policies list")
+	errEntryClosed                 = errors.New("entry is closed")
+	errWriteValueRateLimitExceeded = errors.New("write value rate limit is exceeded")
 )
 
 type entryMetrics struct {
-	emptyPoliciesList tally.Counter
-	rateLimitExceeded tally.Counter
-	droppedValues     tally.Counter
-	stalePolicy       tally.Counter
-	futurePolicy      tally.Counter
-	tombstonedPolicy  tally.Counter
-	policyUpdates     tally.Counter
+	emptyPoliciesList      tally.Counter
+	valueRateLimitExceeded tally.Counter
+	droppedValues          tally.Counter
+	stalePolicy            tally.Counter
+	futurePolicy           tally.Counter
+	tombstonedPolicy       tally.Counter
+	policyUpdates          tally.Counter
 }
 
 func newEntryMetrics(scope tally.Scope) entryMetrics {
 	return entryMetrics{
-		emptyPoliciesList: scope.Counter("empty-policies-list"),
-		rateLimitExceeded: scope.Counter("rate-limit-exceeded"),
-		droppedValues:     scope.Counter("dropped-values"),
-		stalePolicy:       scope.Counter("stale-policy"),
-		futurePolicy:      scope.Counter("future-policy"),
-		tombstonedPolicy:  scope.Counter("tombstoned-policy"),
-		policyUpdates:     scope.Counter("policy-updates"),
+		emptyPoliciesList:      scope.Counter("empty-policies-list"),
+		valueRateLimitExceeded: scope.Counter("value-rate-limit-exceeded"),
+		droppedValues:          scope.Counter("dropped-values"),
+		stalePolicy:            scope.Counter("stale-policy"),
+		futurePolicy:           scope.Counter("future-policy"),
+		tombstonedPolicy:       scope.Counter("tombstoned-policy"),
+		policyUpdates:          scope.Counter("policy-updates"),
 	}
 }
 
@@ -140,7 +140,7 @@ func (e *Entry) AddMetricWithPoliciesList(
 	switch mu.Type {
 	case unaggregated.BatchTimerType:
 		var err error
-		if err = e.applyRateLimit(int64(len(mu.BatchTimerVal))); err == nil {
+		if err = e.applyValueRateLimit(int64(len(mu.BatchTimerVal))); err == nil {
 			err = e.writeBatchTimerWithPoliciesList(mu, pl)
 		}
 		if mu.BatchTimerVal != nil && mu.TimerValPool != nil {
@@ -149,7 +149,7 @@ func (e *Entry) AddMetricWithPoliciesList(
 		return err
 	default:
 		// For counters and gauges, there is a single value in the metric union.
-		if err := e.applyRateLimit(1); err != nil {
+		if err := e.applyValueRateLimit(1); err != nil {
 			return err
 		}
 		return e.addMetricWithPoliciesList(mu, pl)
@@ -504,7 +504,7 @@ func (e *Entry) resetRateLimiterWithLock(runtimeOpts runtime.Options) {
 	e.rateLimiter.Reset(newLimit)
 }
 
-func (e *Entry) applyRateLimit(numValues int64) error {
+func (e *Entry) applyValueRateLimit(numValues int64) error {
 	e.RLock()
 	rateLimiter := e.rateLimiter
 	e.RUnlock()
@@ -514,7 +514,7 @@ func (e *Entry) applyRateLimit(numValues int64) error {
 	if rateLimiter.IsAllowed(numValues) {
 		return nil
 	}
-	e.metrics.rateLimitExceeded.Inc(1)
+	e.metrics.valueRateLimitExceeded.Inc(1)
 	e.metrics.droppedValues.Inc(numValues)
-	return errEntryRateLimitExceeded
+	return errWriteValueRateLimitExceeded
 }

@@ -84,9 +84,19 @@ func main() {
 	httpAddr := cfg.HTTP.ListenAddress
 	httpServerOpts := cfg.HTTP.NewHTTPServerOptions()
 
+	// Create the kv client.
+	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("kv-client"))
+	client, err := cfg.KVClient.NewKVClient(iOpts)
+	if err != nil {
+		logger.Fatalf("error creating the kv client: %v", err)
+	}
+
+	// Create the runtime options manager.
+	runtimeOptsManager := cfg.RuntimeOptions.NewRuntimeOptionsManager()
+
 	// Create the aggregator.
 	iOpts = instrumentOpts.SetMetricsScope(scope.SubScope("aggregator"))
-	aggregatorOpts, err := cfg.Aggregator.NewAggregatorOptions(msgpackAddr, iOpts)
+	aggregatorOpts, err := cfg.Aggregator.NewAggregatorOptions(msgpackAddr, client, runtimeOptsManager, iOpts)
 	if err != nil {
 		logger.Fatalf("error creating aggregator options: %v", err)
 	}
@@ -94,6 +104,10 @@ func main() {
 	if err := aggregator.Open(); err != nil {
 		logger.Fatalf("error opening the aggregator: %v", err)
 	}
+
+	// Watch runtime option changes after aggregator is open.
+	placementManager := aggregatorOpts.PlacementManager()
+	cfg.RuntimeOptions.WatchRuntimeOptionChanges(client, runtimeOptsManager, placementManager, logger)
 
 	doneCh := make(chan struct{})
 	closedCh := make(chan struct{})
