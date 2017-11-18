@@ -21,7 +21,6 @@
 package digest
 
 import (
-	"bufio"
 	"errors"
 	"os"
 	"testing"
@@ -36,8 +35,8 @@ const (
 func createTestFdWithDigestReader(t *testing.T) (*fdWithDigestReader, *os.File, *mockDigest) {
 	fd, md := createTestFdWithDigest(t)
 	reader := NewFdWithDigestReader(testReaderBufferSize).(*fdWithDigestReader)
-	reader.FdWithDigest.(*fdWithDigest).digest = md
-	reader.reader = bufio.NewReaderSize(nil, 100)
+	reader.readerWithDigest.(*readerWithDigest).digest = md
+	// reader.reader = bufio.NewReaderSize(nil, 100)
 	reader.Reset(fd)
 	return reader, fd, md
 }
@@ -71,7 +70,7 @@ func TestFdWithDigestReadBytesFileReadError(t *testing.T) {
 	}()
 
 	toRead := make([]byte, 1)
-	_, err := reader.ReadBytes(toRead)
+	_, err := reader.Read(toRead)
 	require.Error(t, err)
 }
 
@@ -90,7 +89,7 @@ func TestFdWithDigestReadBytesDigestWriteError(t *testing.T) {
 
 	md.err = errors.New("foo")
 	reader.Reset(fd)
-	_, err = reader.ReadBytes(b)
+	_, err = reader.Read(b)
 	require.Equal(t, "foo", err.Error())
 }
 
@@ -105,7 +104,7 @@ func TestFdWithDigestReadBytesSuccess(t *testing.T) {
 	fd.Write(b)
 	fd.Seek(-1, 1)
 
-	n, err := reader.ReadBytes(b)
+	n, err := reader.Read(b)
 	require.NoError(t, err)
 	require.Equal(t, 1, n)
 	require.Equal(t, b, md.b)
@@ -125,7 +124,7 @@ func TestFdWithDigestReadBytesBuffered(t *testing.T) {
 
 	for _, readSize := range []int{27, 127} {
 		toRead := make([]byte, readSize)
-		n, err := reader.ReadBytes(toRead)
+		n, err := reader.Read(toRead)
 		require.NoError(t, err)
 		require.Equal(t, readSize, n)
 	}
@@ -173,7 +172,7 @@ func TestFdWithDigestReadAllValidationSuccess(t *testing.T) {
 
 func TestFdWithDigestValidateDigest(t *testing.T) {
 	reader := NewFdWithDigestReader(testReaderBufferSize).(*fdWithDigestReader)
-	reader.FdWithDigest.(*fdWithDigest).digest = &mockDigest{digest: 123}
+	reader.readerWithDigest.(*readerWithDigest).digest = &mockDigest{digest: 123}
 	require.NoError(t, reader.Validate(123))
 	require.Equal(t, errCheckSumMismatch, reader.Validate(100))
 }
