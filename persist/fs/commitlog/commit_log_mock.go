@@ -24,18 +24,15 @@
 package commitlog
 
 import (
-	time0 "time"
-
+	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
 	context "github.com/m3db/m3db/context"
 	fs "github.com/m3db/m3db/persist/fs"
-	retention "github.com/m3db/m3db/retention"
 	ts "github.com/m3db/m3db/ts"
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
 	time "github.com/m3db/m3x/time"
-
-	gomock "github.com/golang/mock/gomock"
+	time0 "time"
 )
 
 // Mock of CommitLog interface
@@ -77,27 +74,6 @@ func (_m *MockCommitLog) Write(ctx context.Context, series Series, datapoint ts.
 
 func (_mr *_MockCommitLogRecorder) Write(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4)
-}
-
-func (_m *MockCommitLog) WriteBehind(ctx context.Context, series Series, datapoint ts.Datapoint, unit time.Unit, annotation ts.Annotation) error {
-	ret := _m.ctrl.Call(_m, "WriteBehind", ctx, series, datapoint, unit, annotation)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockCommitLogRecorder) WriteBehind(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteBehind", arg0, arg1, arg2, arg3, arg4)
-}
-
-func (_m *MockCommitLog) Iter() (Iterator, error) {
-	ret := _m.ctrl.Call(_m, "Iter")
-	ret0, _ := ret[0].(Iterator)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (_mr *_MockCommitLogRecorder) Iter() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Iter")
 }
 
 func (_m *MockCommitLog) Close() error {
@@ -243,24 +219,44 @@ func (_mr *_MockOptionsRecorder) InstrumentOptions() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "InstrumentOptions")
 }
 
-func (_m *MockOptions) SetRetentionOptions(value retention.Options) Options {
-	ret := _m.ctrl.Call(_m, "SetRetentionOptions", value)
+func (_m *MockOptions) SetRetentionPeriod(value time0.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetRetentionPeriod", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) SetRetentionOptions(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRetentionOptions", arg0)
+func (_mr *_MockOptionsRecorder) SetRetentionPeriod(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRetentionPeriod", arg0)
 }
 
-func (_m *MockOptions) RetentionOptions() retention.Options {
-	ret := _m.ctrl.Call(_m, "RetentionOptions")
-	ret0, _ := ret[0].(retention.Options)
+func (_m *MockOptions) RetentionPeriod() time0.Duration {
+	ret := _m.ctrl.Call(_m, "RetentionPeriod")
+	ret0, _ := ret[0].(time0.Duration)
 	return ret0
 }
 
-func (_mr *_MockOptionsRecorder) RetentionOptions() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "RetentionOptions")
+func (_mr *_MockOptionsRecorder) RetentionPeriod() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "RetentionPeriod")
+}
+
+func (_m *MockOptions) SetBlockSize(value time0.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetBlockSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetBlockSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetBlockSize", arg0)
+}
+
+func (_m *MockOptions) BlockSize() time0.Duration {
+	ret := _m.ctrl.Call(_m, "BlockSize")
+	ret0, _ := ret[0].(time0.Duration)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) BlockSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "BlockSize")
 }
 
 func (_m *MockOptions) SetFilesystemOptions(value fs.Options) Options {
@@ -381,4 +377,24 @@ func (_m *MockOptions) BytesPool() pool.CheckedBytesPool {
 
 func (_mr *_MockOptionsRecorder) BytesPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BytesPool")
+}
+
+func (_m *MockOptions) SetReadConcurrency(concurrency int) Options {
+	ret := _m.ctrl.Call(_m, "SetReadConcurrency", concurrency)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetReadConcurrency(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetReadConcurrency", arg0)
+}
+
+func (_m *MockOptions) ReadConcurrency() int {
+	ret := _m.ctrl.Call(_m, "ReadConcurrency")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) ReadConcurrency() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadConcurrency")
 }

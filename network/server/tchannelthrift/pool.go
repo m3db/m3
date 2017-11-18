@@ -26,8 +26,9 @@ import (
 )
 
 var (
-	emptyBlockMetadata  rpc.BlockMetadata
-	emptyBlocksMetadata rpc.BlocksMetadata
+	emptyBlockMetadata   rpc.BlockMetadata
+	emptyBlockMetadataV2 rpc.BlockMetadataV2
+	emptyBlocksMetadata  rpc.BlocksMetadata
 )
 
 // BlockMetadataPool provides a pool for block metadata
@@ -39,6 +40,15 @@ type BlockMetadataPool interface {
 	Put(m *rpc.BlockMetadata)
 }
 
+// BlockMetadataV2Pool provides a pool for block metadata
+type BlockMetadataV2Pool interface {
+	// Get returns a block metadata
+	Get() *rpc.BlockMetadataV2
+
+	// Put puts a block metadata back to pool
+	Put(m *rpc.BlockMetadataV2)
+}
+
 // BlockMetadataSlicePool provides a pool for block metadata slices
 type BlockMetadataSlicePool interface {
 	// Get returns a block metadata slice
@@ -46,6 +56,15 @@ type BlockMetadataSlicePool interface {
 
 	// Put puts a block metadata slice back to pool
 	Put(m []*rpc.BlockMetadata)
+}
+
+// BlockMetadataV2SlicePool provides a pool for block metadata slices
+type BlockMetadataV2SlicePool interface {
+	// Get returns a block metadata slice
+	Get() []*rpc.BlockMetadataV2
+
+	// Put puts a block metadata slice back to pool
+	Put(m []*rpc.BlockMetadataV2)
 }
 
 // BlocksMetadataPool provides a pool for blocks metadata
@@ -90,6 +109,30 @@ func (p *blockMetadataPool) Put(metadata *rpc.BlockMetadata) {
 	}
 }
 
+type blockMetadataV2Pool struct {
+	pool pool.ObjectPool
+}
+
+// NewBlockMetadataV2Pool creates a new block metadata pool
+func NewBlockMetadataV2Pool(opts pool.ObjectPoolOptions) BlockMetadataV2Pool {
+	p := pool.NewObjectPool(opts)
+	p.Init(func() interface{} {
+		return rpc.NewBlockMetadataV2()
+	})
+	return &blockMetadataV2Pool{pool: p}
+}
+
+func (p *blockMetadataV2Pool) Get() *rpc.BlockMetadataV2 {
+	return p.pool.Get().(*rpc.BlockMetadataV2)
+}
+
+func (p *blockMetadataV2Pool) Put(metadata *rpc.BlockMetadataV2) {
+	if metadata != nil {
+		*metadata = emptyBlockMetadataV2
+		p.pool.Put(metadata)
+	}
+}
+
 type blockMetadataSlicePool struct {
 	pool     pool.ObjectPool
 	capacity int
@@ -109,6 +152,36 @@ func (p *blockMetadataSlicePool) Get() []*rpc.BlockMetadata {
 }
 
 func (p *blockMetadataSlicePool) Put(res []*rpc.BlockMetadata) {
+	if res == nil || cap(res) > p.capacity {
+		// Don't return nil or large slices back to pool
+		return
+	}
+	for i := range res {
+		res[i] = nil
+	}
+	res = res[:0]
+	p.pool.Put(res)
+}
+
+type blockMetadataV2SlicePool struct {
+	pool     pool.ObjectPool
+	capacity int
+}
+
+// NewBlockMetadataV2SlicePool creates a new blockMetadataV2Slice pool
+func NewBlockMetadataV2SlicePool(opts pool.ObjectPoolOptions, capacity int) BlockMetadataV2SlicePool {
+	p := pool.NewObjectPool(opts)
+	p.Init(func() interface{} {
+		return make([]*rpc.BlockMetadataV2, 0, capacity)
+	})
+	return &blockMetadataV2SlicePool{pool: p, capacity: capacity}
+}
+
+func (p *blockMetadataV2SlicePool) Get() []*rpc.BlockMetadataV2 {
+	return p.pool.Get().([]*rpc.BlockMetadataV2)
+}
+
+func (p *blockMetadataV2SlicePool) Put(res []*rpc.BlockMetadataV2) {
 	if res == nil || cap(res) > p.capacity {
 		// Don't return nil or large slices back to pool
 		return
