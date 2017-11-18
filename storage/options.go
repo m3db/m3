@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/persist"
-	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/runtime"
@@ -120,7 +119,6 @@ type options struct {
 	newDecoderFn                   encoding.NewDecoderFn
 	bootstrapProcess               bootstrap.Process
 	persistManager                 persist.Manager
-	persistManagerErr              error
 	tickInterval                   time.Duration
 	maxFlushRetries                int
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
@@ -149,7 +147,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	})
 	bytesPool.Init()
 	seriesOpts := series.NewOptions()
-	pm, pmErr := fs.NewPersistManager(fs.NewOptions())
 	o := &options{
 		clockOpts:                      clock.NewOptions(),
 		instrumentOpts:                 instrument.NewOptions(),
@@ -162,8 +159,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		repairEnabled:                  defaultRepairEnabled,
 		repairOpts:                     repair.NewOptions(),
 		bootstrapProcess:               defaultBootstrapProcess,
-		persistManager:                 pm,
-		persistManagerErr:              pmErr,
 		tickInterval:                   defaultTickInterval,
 		maxFlushRetries:                defaultMaxFlushRetries,
 		poolOpts:                       poolOpts,
@@ -214,9 +209,6 @@ func (o *options) Validate() error {
 	// error if error occurred during default creation otherwise
 	// it was set to nil by a caller
 	if o.persistManager == nil {
-		if err := o.persistManagerErr; err != nil {
-			return fmt.Errorf("failed to create default persist manager: %v", err)
-		}
 		return errPersistManagerNotSet
 	}
 

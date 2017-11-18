@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -88,20 +89,20 @@ type reader struct {
 	digestBuf              digest.Buffer
 	bytesPool              pool.CheckedBytesPool
 
-	indexEntriesByOffset []schema.IndexEntry
+	indexEntriesByOffsetAsc []schema.IndexEntry
 }
 
-type indexEntriesByOffset []schema.IndexEntry
+type indexEntriesByOffsetAsc []schema.IndexEntry
 
-func (e indexEntriesByOffset) Len() int {
+func (e indexEntriesByOffsetAsc) Len() int {
 	return len(e)
 }
 
-func (e indexEntriesByOffset) Less(i, j int) bool {
+func (e indexEntriesByOffsetAsc) Less(i, j int) bool {
 	return e[i].Offset < e[j].Offset
 }
 
-func (e indexEntriesByOffset) Swap(i, j int) {
+func (e indexEntriesByOffsetAsc) Swap(i, j int) {
 	e[i], e[j] = e[j], e[i]
 }
 
@@ -350,11 +351,11 @@ func (r *reader) readIndex() error {
 		if err != nil {
 			return err
 		}
-		r.indexEntriesByOffset = append(r.indexEntriesByOffset, entry)
+		r.indexEntriesByOffsetAsc = append(r.indexEntriesByOffsetAsc, entry)
 	}
 	// NB(r): As we decode each block we need access to each index entry
 	// in the order we decode the data
-	sort.Sort(indexEntriesByOffset(r.indexEntriesByOffset))
+	sort.Sort(indexEntriesByOffsetAsc(r.indexEntriesByOffsetAsc))
 	return nil
 }
 
@@ -364,7 +365,7 @@ func (r *reader) Read() (ts.ID, checked.Bytes, uint32, error) {
 		return none, nil, 0, io.EOF
 	}
 
-	entry := r.indexEntriesByOffset[r.entriesRead]
+	entry := r.indexEntriesByOffsetAsc[r.entriesRead]
 
 	n, err := r.dataReader.Read(r.prologue)
 	if err != nil {
@@ -412,7 +413,7 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 		return none, 0, 0, io.EOF
 	}
 
-	entry := r.indexEntriesByOffset[r.metadataRead]
+	entry := r.indexEntriesByOffsetAsc[r.metadataRead]
 	r.metadataRead++
 	return r.entryID(entry.ID), int(entry.Size), uint32(entry.Checksum), nil
 }
@@ -441,8 +442,8 @@ func (r *reader) Validate() error {
 	if err != nil {
 		return fmt.Errorf("could not validate index file: %v", err)
 	}
-	// TODO(r): Make sure to validate checksum when using seeker now that
-	// we don't verify data file if we don't read it on bootstrap.
+	// Note that the seeker must validate the checksum since we don't always
+	// verify the data file if we don't read it on bootstrap and call ReadMetadata instead.
 	if r.entriesRead == 0 {
 		return nil // Haven't read the records just the IDs
 	}
@@ -466,24 +467,24 @@ func (r *reader) EntriesRead() int {
 }
 
 func (r *reader) Close() error {
-	for i := 0; i < len(r.indexEntriesByOffset); i++ {
-		r.indexEntriesByOffset[i].ID = nil
+	for i := 0; i < len(r.indexEntriesByOffsetAsc); i++ {
+		r.indexEntriesByOffsetAsc[i].ID = nil
 	}
-	r.indexEntriesByOffset = r.indexEntriesByOffset[:0]
+	r.indexEntriesByOffsetAsc = r.indexEntriesByOffsetAsc[:0]
 
-	if err := munmap(r.indexMmap); err != nil {
-		return err
-	}
+	multiErr := xerrors.NewMultiError()
+
+	multiErr = multiErr.Add(munmap(r.indexMmap))
 	r.indexMmap = nil
 
-	if err := munmap(r.dataMmap); err != nil {
-		return err
-	}
+	multiErr = multiErr.Add(munmap(r.dataMmap))
 	r.dataMmap = nil
 
-	if err := r.indexFd.Close(); err != nil {
-		return err
-	}
+	multiErr = multiErr.Add(r.indexFd.Close())
+	r.indexFd = nil
 
-	return r.dataFd.Close()
+	multiErr = multiErr.Add(r.dataFd.Close())
+	r.dataFd = nil
+
+	return multiErr.FinalError()
 }

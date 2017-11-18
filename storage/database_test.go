@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
@@ -56,15 +57,25 @@ var (
 	defaultTestCommitlogBlockSize       = 2 * time.Hour
 	defaultTestNs1Opts                  = namespace.NewOptions().SetRetentionOptions(defaultTestRetentionOpts)
 	defaultTestNs2Opts                  = namespace.NewOptions().SetRetentionOptions(defaultTestNs2RetentionOpts)
-	_opts                               = newOptions(pool.NewObjectPoolOptions().SetSize(16))
-	defaultTestDatabaseOptions          = _opts.
-						SetRepairEnabled(false).
-						SetMaxFlushRetries(3).
-						SetTickInterval(10 * time.Minute).
-						SetCommitLogOptions(_opts.CommitLogOptions().
-							SetRetentionPeriod(defaultTestCommitlogRetentionPeriod).
-							SetBlockSize(defaultTestCommitlogBlockSize))
+	defaultTestDatabaseOptions          Options
 )
+
+func init() {
+	opts := newOptions(pool.NewObjectPoolOptions().SetSize(16))
+	pm, err := fs.NewPersistManager(fs.NewOptions())
+	if err != nil {
+		panic(err)
+	}
+
+	defaultTestDatabaseOptions = opts.
+		SetPersistManager(pm).
+		SetRepairEnabled(false).
+		SetMaxFlushRetries(3).
+		SetTickInterval(10 * time.Minute).
+		SetCommitLogOptions(opts.CommitLogOptions().
+			SetRetentionPeriod(defaultTestCommitlogRetentionPeriod).
+			SetBlockSize(defaultTestCommitlogBlockSize))
+}
 
 type nsMapCh chan namespace.Map
 
