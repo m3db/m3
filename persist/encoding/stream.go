@@ -36,10 +36,15 @@ import (
 type DecoderStream interface {
 	io.Reader
 
+	// Reset resets the decoder stream for decoding a new byte slice.
 	Reset(b []byte)
 
+	// ReadByte reads the next byte.
 	ReadByte() (byte, error)
 
+	// UnreadByte unreads the last read byte or returns error if none read
+	// yet. Only a single byte can be unread at a time, a consecutive call
+	// to UnreadByte will result in an error.
 	UnreadByte() error
 
 	// Bytes returns the ref to the backing bytes, note decoders will
