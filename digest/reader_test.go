@@ -36,7 +36,6 @@ func createTestFdWithDigestReader(t *testing.T) (*fdWithDigestReader, *os.File, 
 	fd, md := createTestFdWithDigest(t)
 	reader := NewFdWithDigestReader(testReaderBufferSize).(*fdWithDigestReader)
 	reader.readerWithDigest.(*readerWithDigest).digest = md
-	// reader.reader = bufio.NewReaderSize(nil, 100)
 	reader.Reset(fd)
 	return reader, fd, md
 }
