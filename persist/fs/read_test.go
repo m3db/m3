@@ -51,6 +51,30 @@ var (
 	testBytesPool   pool.CheckedBytesPool
 )
 
+// NB(r): This is kind of brittle, but basically msgpack expects a buffered
+// reader, but we can't use a buffered reader because we need to know where
+// the position of the decoder is when we need to grab bytes without copying.
+//
+// This var declaration by it succesfully compiling means it implements the
+// `bufReader` interface in msgpack decoder library (unless it changes...)
+// in which case this needs to be updated.
+//
+// By it implementing the interface the msgpack decoder actually uses
+// the reader directly without creating a buffered reader to wrap it.
+// This way we can know actually where its position is and can correctly
+// take a valid bytes ref address when reading bytes without copying.
+//
+// We're attempting to address this by making it less brittle but the author
+// is not currently supportive of merging the changes:
+// https://github.com/vmihailenco/msgpack/pull/155
+var _ = msgpackBufReader(newDecoderStream())
+
+type msgpackBufReader interface {
+	Read([]byte) (int, error)
+	ReadByte() (byte, error)
+	UnreadByte() error
+}
+
 func init() {
 	testBytesPool = pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
 		Capacity: 1024,
@@ -75,36 +99,6 @@ func bytesRefd(data []byte) checked.Bytes {
 	bytes.IncRef()
 	return bytes
 }
-
-// NB(r): This is kind of shitty and brittle, but basically
-// msgpack expects a buffered reader, but we can't use a buffered
-// reader because we need to know where its up to when we need to grab
-// bytes without copying.
-//
-// This test by its very nature compiling means it implements the
-// `bufReader` interface in msgpack decoder library (unless it changes...)
-// in which case this needs to be updated.
-//
-// By it implementing the interface the msgpack decoder actually uses
-// the reader directly without creating a buffered reader to wrap it.
-// This way we can know actually where its up to and can correctly
-// take the right bytes ref address when reading bytes without copying.
-type msgpackBufReader interface {
-	Read([]byte) (int, error)
-	ReadByte() (byte, error)
-	UnreadByte() error
-}
-
-func TestDecoderStreamImplementsMsgpackBufReader(t *testing.T) {
-	r := msgpackBufReader(newDecoderStream())
-	assert.NotNil(t, r)
-}
-
-// NB(r): todo make a test that gives a decoderStream or something
-// looking like a decoder stream to the msgpack library and ensures
-// that it doesn't wrap the reader in a bufio.NewReader(...) by analyzing
-// the goroutine stack with runtime.Stack()
-// ...
 
 func TestReadEmptyIndexUnreadData(t *testing.T) {
 	dir, err := ioutil.TempDir("", "testdb")
