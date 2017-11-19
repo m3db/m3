@@ -69,9 +69,9 @@ type reader struct {
 	infoFdWithDigest           digest.FdWithDigestReader
 	digestFdWithDigestContents digest.FdWithDigestContentsReader
 
-	indexFd     *os.File
-	indexMmap   []byte
-	indexReader *decoderStream
+	indexFd            *os.File
+	indexMmap          []byte
+	indexDecoderStream *decoderStream
 
 	dataFd     *os.File
 	dataMmap   []byte
@@ -131,6 +131,8 @@ func (s *decoderStream) Reset(d []byte) {
 }
 
 func (s *decoderStream) Read(p []byte) (int, error) {
+	ref := p
+
 	var numUnreadByte int
 	if s.unreadByte >= 0 {
 		p[0] = byte(s.unreadByte)
@@ -141,7 +143,10 @@ func (s *decoderStream) Read(p []byte) (int, error) {
 	n, err := s.readerWithDigest.Read(p)
 	n += numUnreadByte
 	if n > 0 {
-		s.lastReadByte = int(p[n-1])
+		s.lastReadByte = int(ref[n-1])
+	}
+	if err == io.EOF && n > 0 {
+		return n, nil // return EOF next time, might be returning last byte still
 	}
 	return n, err
 }
@@ -213,7 +218,7 @@ func NewReader(
 		filePathPrefix:             opts.FilePathPrefix(),
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),
-		indexReader:                newDecoderStream(),
+		indexDecoderStream:         newDecoderStream(),
 		dataReader:                 digest.NewReaderWithDigest(nil),
 		prologue:                   make([]byte, markerLen+idxLen),
 		decoder:                    msgpack.NewDecoder(opts.DecodingOptions()),
@@ -261,7 +266,7 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 
-	r.indexReader.Reset(r.indexMmap)
+	r.indexDecoderStream.Reset(r.indexMmap)
 	r.dataReader.Reset(bytes.NewReader(r.dataMmap))
 
 	if err := r.readDigest(); err != nil {
@@ -345,7 +350,7 @@ func (r *reader) readInfo(size int) error {
 }
 
 func (r *reader) readIndex() error {
-	r.decoder.Reset(r.indexReader)
+	r.decoder.Reset(r.indexDecoderStream)
 	for i := 0; i < r.entries; i++ {
 		entry, err := r.decoder.DecodeIndexEntry()
 		if err != nil {
@@ -438,7 +443,7 @@ func (r *reader) entryID(id []byte) ts.ID {
 // NB(xichen): Validate should be called after all data are read because the
 // digest is calculated for the entire data file.
 func (r *reader) Validate() error {
-	err := r.indexReader.readerWithDigest.Validate(r.expectedIndexDigest)
+	err := r.indexDecoderStream.readerWithDigest.Validate(r.expectedIndexDigest)
 	if err != nil {
 		return fmt.Errorf("could not validate index file: %v", err)
 	}

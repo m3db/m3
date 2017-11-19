@@ -37,8 +37,6 @@ type mmapFileDesc struct {
 type mmapOptions struct {
 	// read is whether to make mmap bytes ref readable
 	read bool
-	// write is whether to make mmap bytes ref writable
-	write bool
 }
 
 func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) error {

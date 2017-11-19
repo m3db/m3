@@ -354,7 +354,7 @@ func (w *writer) writeIndexFileContents(
 	//
 	// Probably do want to do this at the end still however so we don't stripe
 	// writes to two different files during the write loop.
-	sort.Sort(indexEntries(w.indexEntries))
+	sort.Sort(w.indexEntries)
 
 	var offset int64
 	for i := range w.indexEntries {

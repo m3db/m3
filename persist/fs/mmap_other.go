@@ -36,9 +36,6 @@ func mmap(fd, offset, length int, opts mmapOptions) ([]byte, error) {
 	if opts.read {
 		prot = prot | syscall.PROT_READ
 	}
-	if opts.write {
-		prot = prot | syscall.PROT_WRITE
-	}
 
 	flags := syscall.MAP_SHARED
 	return syscall.Mmap(fd, int64(offset), length, prot, flags)
