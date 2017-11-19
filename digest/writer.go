@@ -34,7 +34,6 @@ type FdWithDigestWriter interface {
 
 type fdWithDigestWriter struct {
 	FdWithDigest
-
 	writer *bufio.Writer
 }
 
@@ -51,7 +50,7 @@ func (w *fdWithDigestWriter) Reset(fd *os.File) {
 	w.writer.Reset(fd)
 }
 
-// WriteBytes writes the provided bytes into the underlying file.
+// Write bytes to the underlying file.
 func (w *fdWithDigestWriter) Write(b []byte) (int, error) {
 	written, err := w.writer.Write(b)
 	if err != nil {
