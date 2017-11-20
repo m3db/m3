@@ -222,6 +222,8 @@ configService:
               - etcd03-us-west1:2379
               - etcd04-us-west1:2379
               - etcd05-us-west1:2379
+hashing:
+  seed: 1337
 `
 
 	fd, err := ioutil.TempFile("", "config.yaml")
@@ -437,6 +439,8 @@ configService:
     tls: null
   m3sd:
     initTimeout: 0s
+hashing:
+  seed: 1337
 `
 
 	actual := string(data)
