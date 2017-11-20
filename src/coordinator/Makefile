@@ -37,10 +37,6 @@ SERVICES := \
 	m3coordinator
 
 TOOLS :=         \
-	read_ids       \
-	read_index_ids \
-	clone_fileset  \
-	dtest          \
 
 .PHONY: setup
 setup:
