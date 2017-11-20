@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/m3db/m3coordinator/service/httpd"
+	"github.com/m3db/m3coordinator/services/m3coordinator/httpd"
 	"net/http"
 )
 
