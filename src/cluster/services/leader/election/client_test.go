@@ -145,6 +145,13 @@ func TestCampaign_DeadSession(t *testing.T) {
 	case <-time.After(30 * time.Second):
 		t.Error("should receive err from client2 after orphaning session")
 	}
+
+	// Expect that even though cl2 has a dead session it can still lookup leader
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	ld, err := cl2.Leader(ctx)
+	assert.Equal(t, "1", ld)
+	assert.NoError(t, err)
 }
 
 func TestCampaign_DeadSession_Background(t *testing.T) {
