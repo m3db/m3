@@ -56,20 +56,40 @@ func (t Type) String() string {
 	}
 }
 
+// ParseType parses a type string and returns the type.
+func ParseType(typeStr string) (Type, error) {
+	validTypeStrs := make([]string, 0, len(validTypes))
+	for _, valid := range validTypes {
+		if typeStr == valid.String() {
+			return valid, nil
+		}
+		validTypeStrs = append(validTypeStrs, valid.String())
+	}
+	return UnknownType, fmt.Errorf("invalid metric type '%s', valid types are: %s",
+		typeStr, strings.Join(validTypeStrs, ", "))
+}
+
+// MustParseType parses a type string and panics if the input in invalid.
+func MustParseType(typeStr string) Type {
+	t, err := ParseType(typeStr)
+	if err != nil {
+		panic(err.Error())
+	}
+	return t
+}
+
 // UnmarshalYAML unmarshals YAML object into a metric type.
 func (t *Type) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
-	validTypeStrs := make([]string, 0, len(validTypes))
-	for _, valid := range validTypes {
-		if str == valid.String() {
-			*t = valid
-			return nil
-		}
-		validTypeStrs = append(validTypeStrs, valid.String())
+
+	mt, err := ParseType(str)
+	if err != nil {
+		return err
 	}
-	return fmt.Errorf("invalid metric type '%s' valid types are: %s",
-		str, strings.Join(validTypeStrs, ", "))
+
+	*t = mt
+	return nil
 }
