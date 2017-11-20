@@ -146,8 +146,8 @@ func validateShards(shards []shard.Shard) error {
 	return nil
 }
 
-// DefaultHashGen generates a HashFn based on murmur32
-func DefaultHashGen(length int) HashFn {
+// DefaultHashFn generates a HashFn based on murmur32
+func DefaultHashFn(length int) HashFn {
 	return NewHashFn(length, 0)
 }
 

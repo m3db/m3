@@ -865,7 +865,7 @@ func (n *dbNamespace) Close() error {
 	n.Lock()
 	shards := n.shards
 	n.shards = shards[:0]
-	n.shardSet = sharding.NewEmptyShardSet(sharding.DefaultHashGen(1))
+	n.shardSet = sharding.NewEmptyShardSet(sharding.DefaultHashFn(1))
 	n.Unlock()
 	n.closeShards(shards, true)
 	return nil
