@@ -42,12 +42,12 @@ type authenticationConfig struct {
 type authorizationConfig struct {
 	// This indicates whether reads should use a read whitelist.
 	ReadWhitelistEnabled bool `yaml:"readWhitelistEnabled,omitempty"`
-	// This indicates whether writes should use a write whitelist.
-	WriteWhitelistEnabled bool `yaml:"writeWhitelistEnabled,omitempty"`
 	// This is a list of users that are allowed to perform read operations.
 	ReadWhitelistedUserIDs []string `yaml:"readWhitelistedUserIDs,omitempty"`
+	// This indicates whether writes should use a write whitelist.
+	WriteWhitelistEnabled bool `yaml:"writeWhitelistEnabled,omitempty"`
 	// This is a list of users that are allowed to perform write operations.
-	WriteWhitelistedUserIDs []string `yaml:"readWhitelistedUserIDs,omitempty"`
+	WriteWhitelistedUserIDs []string `yaml:"writeWhitelistedUserIDs,omitempty"`
 }
 
 // NewSimpleAuth creates a new simple auth instance given using the provided config.
@@ -58,8 +58,8 @@ func (ac SimpleAuthConfig) NewSimpleAuth() HTTPAuthService {
 		},
 		authorization: simpleAuthorization{
 			readWhitelistEnabled:    ac.Authorization.ReadWhitelistEnabled,
-			writeWhitelistEnabled:   ac.Authorization.WriteWhitelistEnabled,
 			readWhitelistedUserIDs:  ac.Authorization.ReadWhitelistedUserIDs,
+			writeWhitelistEnabled:   ac.Authorization.WriteWhitelistEnabled,
 			writeWhitelistedUserIDs: ac.Authorization.WriteWhitelistedUserIDs,
 		},
 	}
@@ -83,8 +83,8 @@ func (a simpleAuthentication) authenticate(userID string) error {
 
 type simpleAuthorization struct {
 	readWhitelistEnabled    bool
-	writeWhitelistEnabled   bool
 	readWhitelistedUserIDs  []string
+	writeWhitelistEnabled   bool
 	writeWhitelistedUserIDs []string
 }
 
