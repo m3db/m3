@@ -5,7 +5,7 @@ import (
 	"os"
 	"go.uber.org/zap"
 	"github.com/gorilla/mux"
-	"github.com/m3db/m3coordinator/service/handler"
+	"github.com/m3db/m3coordinator/services/m3coordinator/handler"
 	"fmt"
 	"net/http"
 	"time"
@@ -32,6 +32,7 @@ func NewHandler() *Handler {
 	return h
 }
 
+// RegisterRoutes registers all http routes.
 func (h *Handler) RegisterRoutes() {
 	logged := withResponseTimeLogging
 	h.Router.HandleFunc("/api/v1/prom/read", logged(handler.NewPromReadHandler()).ServeHTTP).Methods("POST")
