@@ -9,15 +9,17 @@ import (
 	"fmt"
 )
 
+// PromReadHandler represents a handler for prometheus read endpoint.
 type PromReadHandler struct {
 }
 
+// NewPromReadHandler returns a new instance of handler.
 func NewPromReadHandler() http.Handler {
 	return &PromReadHandler{}
 }
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	_, err := h.ParseRequest(w, r)
+	_, err := h.parseRequest(w, r)
 	if err != nil {
 		return
 	}
@@ -42,7 +44,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
-func (h *PromReadHandler) ParseRequest(w http.ResponseWriter, r *http.Request) (*prompb.ReadRequest, error) {
+func (h *PromReadHandler) parseRequest(w http.ResponseWriter, r *http.Request) (*prompb.ReadRequest, error) {
 	compressed, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		Error(w, err, http.StatusInternalServerError)
