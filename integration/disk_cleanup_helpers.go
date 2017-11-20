@@ -31,7 +31,6 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
-	"github.com/m3db/m3db/storage/cluster"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 
@@ -194,17 +193,6 @@ func waitUntilFilesetsCleanedUp(filePathPrefix string, namespaces []storage.Name
 	}
 
 	if waitUntil(dataCleanedUp, waitTimeout) {
-		return nil
-	}
-	return errDataCleanupTimedOut
-}
-
-func waitUntilServerHasBoostrapped(db cluster.Database, waitTimeout time.Duration) error {
-	bootstrapFinished := func() bool {
-		return db.IsBootstrapped()
-	}
-
-	if waitUntil(bootstrapFinished, waitTimeout) {
 		return nil
 	}
 	return errDataCleanupTimedOut
