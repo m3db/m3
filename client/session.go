@@ -1462,8 +1462,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 	return nil
 }
 
-// TODO:
-// NB(rartoul): Delete this once we delete the V1 code path
+// TODO(rartoul): Delete this once we delete the V1 code path
 func (s *session) streamBlocksMetadataFromPeer(
 	namespace ts.ID,
 	shard uint32,
@@ -2875,8 +2874,7 @@ func (qs peerBlocksQueues) closeAll() {
 type blocksMetadata struct {
 	peer peer
 	id   ts.ID
-	// TODO:
-	// NB(rartoul): Make this not a slice once we delete the V1 code path
+	// TODO(rartoul): Make this not a slice once we delete the V1 code path
 	blocks []blockMetadata
 	idx    int
 }
