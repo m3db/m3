@@ -27,6 +27,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
 var (
@@ -42,6 +43,29 @@ var (
 		},
 	}
 )
+
+func TestSimpleAuthConfigUnmarshal(t *testing.T) {
+	configStr := `
+authentication:
+  userIDHeader: user-id
+authorization:
+  readWhitelistEnabled: true
+  readWhitelistedUserIDs:
+    - foo
+    - bar
+  writeWhitelistEnabled: true
+  writeWhitelistedUserIDs:
+    - bar
+    - baz
+`
+	var cfg SimpleAuthConfig
+	require.NoError(t, yaml.Unmarshal([]byte(configStr), &cfg))
+	require.Equal(t, "user-id", cfg.Authentication.UserIDHeader)
+	require.True(t, cfg.Authorization.ReadWhitelistEnabled)
+	require.Equal(t, []string{"foo", "bar"}, cfg.Authorization.ReadWhitelistedUserIDs)
+	require.True(t, cfg.Authorization.WriteWhitelistEnabled)
+	require.Equal(t, []string{"bar", "baz"}, cfg.Authorization.WriteWhitelistedUserIDs)
+}
 
 func TestNewSimpleAuth(t *testing.T) {
 	an := testConfig.NewSimpleAuth().(simpleAuth).authentication
