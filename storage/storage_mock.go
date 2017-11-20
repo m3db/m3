@@ -519,16 +519,6 @@ func (_mr *_MockNamespaceRecorder) Shards() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Shards")
 }
 
-func (_m *MockNamespace) GetOwnedShards() []databaseShard {
-	ret := _m.ctrl.Call(_m, "GetOwnedShards")
-	ret0, _ := ret[0].([]databaseShard)
-	return ret0
-}
-
-func (_mr *_MockNamespaceRecorder) GetOwnedShards() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetOwnedShards")
-}
-
 // Mock of databaseNamespace interface
 type MockdatabaseNamespace struct {
 	ctrl     *gomock.Controller
@@ -590,16 +580,6 @@ func (_mr *_MockdatabaseNamespaceRecorder) Shards() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Shards")
 }
 
-func (_m *MockdatabaseNamespace) GetOwnedShards() []databaseShard {
-	ret := _m.ctrl.Call(_m, "GetOwnedShards")
-	ret0, _ := ret[0].([]databaseShard)
-	return ret0
-}
-
-func (_mr *_MockdatabaseNamespaceRecorder) GetOwnedShards() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetOwnedShards")
-}
-
 func (_m *MockdatabaseNamespace) Close() error {
 	ret := _m.ctrl.Call(_m, "Close")
 	ret0, _ := ret[0].(error)
@@ -616,6 +596,16 @@ func (_m *MockdatabaseNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 
 func (_mr *_MockdatabaseNamespaceRecorder) AssignShardSet(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AssignShardSet", arg0)
+}
+
+func (_m *MockdatabaseNamespace) GetOwnedShards() []databaseShard {
+	ret := _m.ctrl.Call(_m, "GetOwnedShards")
+	ret0, _ := ret[0].([]databaseShard)
+	return ret0
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) GetOwnedShards() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetOwnedShards")
 }
 
 func (_m *MockdatabaseNamespace) Tick(c context.Cancellable, softDeadline time0.Duration) {

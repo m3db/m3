@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/storage/namespace"
 
 	"github.com/stretchr/testify/require"
 )
@@ -39,66 +40,63 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	testOpts := newTestOptions(t)
 	testSetup, err := newTestSetup(t, testOpts)
 	require.NoError(t, err)
-	defer testSetup.close()
 
-	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
-	blockSize := md.Options().RetentionOptions().BlockSize()
+	md1 := testSetup.namespaceMetadataOrFail(testNamespaces[0])
+	md2 := testSetup.namespaceMetadataOrFail(testNamespaces[1])
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
-	// Start the server
+	// Start tte server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	log.Debug("disk cleanup test")
+	log.Info("disk cleanup directories test")
 	require.NoError(t, testSetup.startServer())
-	log.Debug("server is now up")
-	testSetup.waitUntilServerIsUp()
 
-	// Stop the server
+	// Stop the server at the end of the test
 	defer func() {
 		require.NoError(t, testSetup.stopServer())
 		log.Debug("server is now down")
 	}()
 
-	// Now create some fileset files and commit logs
-	shard := uint32(0)
-	numTimes := 10
-	fileTimes := make([]time.Time, numTimes)
-	now := testSetup.getNowFn()
-	for i := 0; i < numTimes; i++ {
-		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
-	}
-	writeFilesetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
-	writeCommitLogs(t, filePathPrefix, fileTimes)
+	var (
+		fsCleanupErr = make(chan error)
+		nsResetErr   = make(chan error)
+		nsCleanupErr = make(chan error)
 
-	shardSet := testSetup.db.ShardSet()
-	shards := shardSet.All()
-	extraShard := shards[0]
+		fsWaitTimeout = 30 * time.Second
+		nsWaitTimeout = 30 * time.Second
+
+		namespaces = []namespace.Metadata{md1}
+		shardSet   = testSetup.db.ShardSet()
+		shards     = shardSet.All()
+		extraShard = shards[0]
+	)
+
+	// Now create some fileset files and commit logs
 	shardSet, err = sharding.NewShardSet(shards[1:], shardSet.HashFn())
 	require.NoError(t, err)
 	testSetup.db.AssignShardSet(shardSet)
 
-	// So some gnarly stuff here to make the testing package a bit more synchronous
-	var fsCleanupErr chan error
-	var nsCleanupErr chan error
-	// Check if files have been deleted
-	waitTimeout := 30 * time.Second
-
+	// Check filesets are good to go
 	go func() {
 		fsCleanupErr <- waitUntilFilesetsCleanedUp(filePathPrefix,
-			testSetup.db.Namespaces(), extraShard.ID(), waitTimeout)
-		require.NoError(t, <-fsCleanupErr)
+			testSetup.db.Namespaces(), extraShard.ID(), fsWaitTimeout)
 	}()
+	log.Info("blocking until file cleanup is received")
+	require.NoError(t, <-fsCleanupErr)
 
-	// Assigning a shardset of length one will mean there are extra namespaces
-	// that will need to be removed via cleanup
-	shardSet, err = sharding.NewShardSet(shards[:1], shardSet.HashFn())
+	// Delete the namespace we're looking for now
+	_, err = testSetup.db.Truncate(md2.ID())
 	require.NoError(t, err)
-	testSetup.db.AssignShardSet(shardSet)
 
-	// Needs an extra 30 seconds due to race conditions
-	waitTimeout = 160 * time.Second
+	// Server needs to restart for namespace changes to be absorbed
 	go func() {
-		nsCleanupErr <- waitUntilNamespacesCleanedUp(testSetup, filePathPrefix,
-			testNamespaces[1], waitTimeout)
-		require.NoError(t, <-nsCleanupErr)
+		nsResetErr <- waitUntilNamespacesHaveReset(testSetup, namespaces, shardSet)
 	}()
+	log.Info("blocking until namespaces have reset")
+	require.NoError(t, <-nsResetErr)
+
+	go func() {
+		nsCleanupErr <- waitUntilNamespacesCleanedUp(testSetup, filePathPrefix, testNamespaces[1], nsWaitTimeout)
+	}()
+	log.Info("blocking until the namespace cleanup is received")
+	require.NoError(t, <-nsCleanupErr)
 }

@@ -29,7 +29,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/storage/cluster"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 
@@ -153,16 +155,6 @@ func waitUntilDataCleanedUpExtended(
 
 // nolint: deadcode, unused
 func waitUntilNamespacesCleanedUp(testSetup *testSetup, filePathPrefix string, namespace ts.ID, waitTimeout time.Duration) error {
-
-	// The idea would be to have a channel that has notifs (ie, --> func if val 1, 2, or 2)
-	// and pass that to a function that does a function based on that state
-	// this would involve locks on the channel to check the functions aren't called
-	// more than once
-
-	c := make(chan error)
-	go func() {
-		c <- waitUntilNamespacesHaveReset(testSetup)
-	}()
 	dataCleanedUp := func() bool {
 		namespaceDir := fs.NamespaceDirPath(filePathPrefix, namespace)
 		return !fs.FileExists(namespaceDir)
@@ -175,10 +167,17 @@ func waitUntilNamespacesCleanedUp(testSetup *testSetup, filePathPrefix string, n
 }
 
 // nolint: deadcode, unused
-func waitUntilNamespacesHaveReset(testSetup *testSetup) error {
+func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespace.Metadata, newShardSet sharding.ShardSet) error {
+	testSetup.stopServer()
 	testSetup.waitUntilServerIsDown()
+	// Reset to the desired shard set and namespaces
+	// Because restarting the server would bootstrap
+	// To old data we wanted to delete
+	testSetup.opts.SetNamespaces(newNamespaces)
+	testSetup.shardSet = newShardSet
 	testSetup.startServer()
 	testSetup.waitUntilServerIsUp()
+
 	return nil
 }
 
@@ -195,6 +194,17 @@ func waitUntilFilesetsCleanedUp(filePathPrefix string, namespaces []storage.Name
 	}
 
 	if waitUntil(dataCleanedUp, waitTimeout) {
+		return nil
+	}
+	return errDataCleanupTimedOut
+}
+
+func waitUntilServerHasBoostrapped(db cluster.Database, waitTimeout time.Duration) error {
+	bootstrapFinished := func() bool {
+		return db.IsBootstrapped()
+	}
+
+	if waitUntil(bootstrapFinished, waitTimeout) {
 		return nil
 	}
 	return errDataCleanupTimedOut

@@ -153,11 +153,8 @@ type Namespace interface {
 	// NumSeries returns the number of series in the namespace
 	NumSeries() int64
 
-	// Shards returns the shard as storange shards
+	// Shards returns the shard description
 	Shards() []Shard
-
-	// GetOwnedShards returns the database shards
-	GetOwnedShards() []databaseShard
 }
 
 // NamespacesByID is a sortable slice of namespaces by ID
@@ -177,6 +174,9 @@ type databaseNamespace interface {
 
 	// AssignShardSet sets the shard set assignment and returns immediately
 	AssignShardSet(shardSet sharding.ShardSet)
+
+	// GetOwnedShards returns the database shards
+	GetOwnedShards() []databaseShard
 
 	// Tick performs any regular maintenance operations
 	Tick(c context.Cancellable, softDeadline time.Duration)
