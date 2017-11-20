@@ -57,7 +57,7 @@ var (
 // reader, but we can't use a buffered reader because we need to know where
 // the position of the decoder is when we need to grab bytes without copying.
 //
-// This var declaration by it succesfully compiling means it implements the
+// This var declaration by it successfully compiling means it implements the
 // `bufReader` interface in msgpack decoder library (unless it changes...)
 // in which case this needs to be updated.
 //
