@@ -82,7 +82,7 @@ $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 $(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
 
 .PHONY: all
-all: lint metalint test-ci-unit test-ci-integration services tools
+all: install-ci lint metalint test-ci-unit test-ci-integration services tools
 	@echo Made all successfully
 
 .PHONY: install-license-bin
