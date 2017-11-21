@@ -69,7 +69,7 @@ var (
 // We're attempting to address this by making it less brittle but the author
 // is not currently supportive of merging the changes:
 // https://github.com/vmihailenco/msgpack/pull/155
-var _ = msgpackBufReader(newDecoderStream())
+var _ = msgpackBufReader(newReaderDecoderStream())
 
 type msgpackBufReader interface {
 	Read([]byte) (int, error)
@@ -422,7 +422,7 @@ func TestReadValidate(t *testing.T) {
 	require.NoError(t, r.Close())
 }
 
-func reads(buf *decoderStream, m int) string {
+func reads(buf *readerDecoderStream, m int) string {
 	var b [1000]byte
 	if int(buf.Remaining()) > len(b) {
 		panic(fmt.Errorf("cannot read all"))
@@ -450,7 +450,7 @@ func TestDecoderStream(t *testing.T) {
 	}
 	texts[len(texts)-1] = all
 
-	buf := newDecoderStream()
+	buf := newReaderDecoderStream()
 	for i := 0; i < len(texts); i++ {
 		text := texts[i]
 		for j := 1; j <= 8; j++ {
@@ -466,7 +466,7 @@ func TestDecoderStream(t *testing.T) {
 func TestDecoderStreamSkip(t *testing.T) {
 	d := []byte{1, 2, 3, 4, 5}
 	expectedDigest := digest.Checksum(d)
-	buf := newDecoderStream()
+	buf := newReaderDecoderStream()
 	buf.Reset(d)
 	assert.Equal(t, int64(5), buf.Remaining())
 	assert.NoError(t, buf.Skip(3))
@@ -485,7 +485,7 @@ func TestDecoderStreamUnreadByte(t *testing.T) {
 	segments := []string{"Hello, ", "world"}
 	got := ""
 	want := strings.Join(segments, "")
-	r := newDecoderStream()
+	r := newReaderDecoderStream()
 	r.Reset([]byte(want))
 	// Normal execution.
 	for {
@@ -518,7 +518,7 @@ func TestDecoderStreamUnreadByteMultiple(t *testing.T) {
 	segments := []string{"Hello, ", "world"}
 	data := []byte(strings.Join(segments, ""))
 	for n := 0; n <= len(data); n++ {
-		r := newDecoderStream()
+		r := newReaderDecoderStream()
 		r.Reset(data)
 		// Read n bytes.
 		for i := 0; i < n; i++ {
@@ -532,8 +532,16 @@ func TestDecoderStreamUnreadByteMultiple(t *testing.T) {
 		}
 		// Unread one byte if there is one.
 		if n > 0 {
+			remaining := r.Remaining()
+			if expect := int64(len(data) - n); remaining != expect {
+				t.Errorf("n = %d: unexpected remaining before UnreadByte: got %d, want %d", n, remaining, expect)
+			}
 			if err := r.UnreadByte(); err != nil {
 				t.Errorf("n = %d: unexpected error on UnreadByte: %v", n, err)
+			}
+			remaining = r.Remaining()
+			if expect := int64(len(data) - n + 1); remaining != expect {
+				t.Errorf("n = %d: unexpected remaining after UnreadByte: got %d, want %d", n, remaining, expect)
 			}
 		}
 		// Test that we cannot unread any further.

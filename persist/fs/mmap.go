@@ -23,6 +23,8 @@ package fs
 import (
 	"fmt"
 	"os"
+
+	xerrors "github.com/m3db/m3x/errors"
 )
 
 type mmapFileDesc struct {
@@ -40,17 +42,17 @@ type mmapOptions struct {
 }
 
 func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) error {
-	var firstErr error
+	multiErr := xerrors.NewMultiError()
 	for filePath, desc := range files {
 		fd, err := opener(filePath)
 		if err != nil {
-			firstErr = err
+			multiErr = multiErr.Add(err)
 			break
 		}
 
 		b, err := mmapFile(fd, desc.options)
 		if err != nil {
-			firstErr = err
+			multiErr = multiErr.Add(err)
 			break
 		}
 
@@ -58,7 +60,7 @@ func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) error {
 		*desc.bytes = b
 	}
 
-	if firstErr == nil {
+	if multiErr.FinalError() == nil {
 		return nil
 	}
 
@@ -66,11 +68,14 @@ func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) error {
 	// close the ones that have been opened.
 	for _, desc := range files {
 		if *desc.file != nil {
-			(*desc.file).Close()
+			multiErr = multiErr.Add((*desc.file).Close())
+		}
+		if *desc.bytes != nil {
+			multiErr = multiErr.Add(munmap(*desc.bytes))
 		}
 	}
 
-	return firstErr
+	return multiErr.FinalError()
 }
 
 func mmapFile(file *os.File, opts mmapOptions) ([]byte, error) {

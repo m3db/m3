@@ -112,7 +112,8 @@ type reader struct {
 	bytesPool            pool.CheckedBytesPool
 	chunkReader          *chunkReader
 	dataBuffer           []byte
-	logDecoder           encoding.Decoder
+	infoDecoder          encoding.Decoder
+	infoDecoderStream    encoding.DecoderStream
 	decoderBufs          []chan decoderArg
 	outBufs              []chan readResponse
 	cancelCtx            context.Context
@@ -139,16 +140,17 @@ func newCommitLogReader(opts Options) commitLogReader {
 	}
 
 	reader := &reader{
-		opts:        opts,
-		numConc:     numConc,
-		bytesPool:   opts.BytesPool(),
-		chunkReader: newChunkReader(opts.FlushSize()),
-		logDecoder:  msgpack.NewDecoder(decodingOpts),
-		decoderBufs: decoderBufs,
-		outBufs:     outBufs,
-		cancelCtx:   cancelCtx,
-		cancelFunc:  cancelFunc,
-		shutdownCh:  make(chan error),
+		opts:              opts,
+		numConc:           numConc,
+		bytesPool:         opts.BytesPool(),
+		chunkReader:       newChunkReader(opts.FlushSize()),
+		infoDecoder:       msgpack.NewDecoder(decodingOpts),
+		infoDecoderStream: encoding.NewDecoderStream(nil),
+		decoderBufs:       decoderBufs,
+		outBufs:           outBufs,
+		cancelCtx:         cancelCtx,
+		cancelFunc:        cancelFunc,
+		shutdownCh:        make(chan error),
 		metadata: readerMetadata{
 			lookup:  make(map[uint64]Series),
 			pending: make(map[uint64][]*readerPendingSeriesMetadataResponse),
@@ -509,8 +511,9 @@ func (r *reader) readInfo() (schema.LogInfo, error) {
 		return emptyLogInfo, err
 	}
 	data.IncRef()
-	r.logDecoder.Reset(encoding.NewDecoderStream(data.Get()))
-	logInfo, err := r.logDecoder.DecodeLogInfo()
+	r.infoDecoderStream.Reset(data.Get())
+	r.infoDecoder.Reset(r.infoDecoderStream)
+	logInfo, err := r.infoDecoder.DecodeLogInfo()
 	data.DecRef()
 	data.Finalize()
 	return logInfo, err

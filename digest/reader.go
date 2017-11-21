@@ -95,6 +95,9 @@ func (r *fdWithDigestReader) ReadAllAndValidate(b []byte, expectedDigest uint32)
 	if err != nil {
 		return n, err
 	}
+	// NB(r): Attempt next read to prove that the size of the buffer b
+	// was sized correctly to fit all contents into it and that we are
+	// correctly now at the end of input.
 	_, err = r.Read(r.single[:])
 	if err != io.EOF {
 		return 0, errBufferSizeMismatch

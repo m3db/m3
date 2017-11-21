@@ -132,6 +132,7 @@ func (s *fileSystemSource) enqueueReaders(
 			r, err := readerPool.get()
 			if err != nil {
 				s.log.Errorf("unable to get reader from pool")
+				readersCh <- shardReaders{err: err}
 				continue
 			}
 			t := xtime.FromNanoseconds(files[i].Start).Round(0).UTC()
@@ -142,6 +143,7 @@ func (s *fileSystemSource) enqueueReaders(
 					xlog.NewField("error", err.Error()),
 				).Error("unable to open fileset files")
 				readerPool.put(r)
+				readersCh <- shardReaders{err: err}
 				continue
 			}
 			timeRange := r.Range()
@@ -176,6 +178,51 @@ func (s *fileSystemSource) bootstrapFromReaders(
 		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(retriever)
 	}
 
+	readResult := func(
+		shard uint32,
+		remainingRanges xtime.Ranges,
+		shardResult result.ShardResult,
+		timesWithErrors []time.Time,
+	) {
+		// NB(xichen): this is the exceptional case where we encountered errors due to files
+		// being corrupted, which should be fairly rare so we can live with the overhead. We
+		// experimented with adding the series to a temporary map and only adding the temporary map
+		// to the final result but adding series to large map with string keys is expensive, and
+		// the current implementation saves the extra overhead of merging temporary map with the
+		// final result.
+		if len(timesWithErrors) > 0 {
+			s.log.WithFields(
+				xlog.NewField("shard", shard),
+				xlog.NewField("timesWithErrors", timesWithErrors),
+			).Info("deleting entries from results for times with errors")
+
+			resultLock.Lock()
+			shardResult, ok := bootstrapResult.ShardResults()[shard]
+			if ok {
+				for _, series := range shardResult.AllSeries() {
+					for _, t := range timesWithErrors {
+						shardResult.RemoveBlockAt(series.ID, t)
+					}
+				}
+			}
+			resultLock.Unlock()
+		}
+
+		if !remainingRanges.IsEmpty() {
+			resultLock.Lock()
+			unfulfilled := bootstrapResult.Unfulfilled()
+			shardUnfulfilled, ok := unfulfilled[shard]
+			if !ok {
+				shardUnfulfilled = xtime.NewRanges().AddRanges(remainingRanges)
+			} else {
+				shardUnfulfilled = shardUnfulfilled.AddRanges(remainingRanges)
+			}
+
+			unfulfilled[shard] = shardUnfulfilled
+			resultLock.Unlock()
+		}
+	}
+
 	for shardReaders := range readersCh {
 		shardReaders := shardReaders
 		wg.Add(1)
@@ -187,8 +234,14 @@ func (s *fileSystemSource) bootstrapFromReaders(
 				shardResult     result.ShardResult
 				shardRetriever  block.DatabaseShardBlockRetriever
 			)
+			shard, tr, readers, err := shardReaders.shard, shardReaders.tr, shardReaders.readers, shardReaders.err
+			if err != nil {
+				// NB(r): We do not remove any ranges from "tr" before recording the
+				// read result which bubble up the unfulfilled times for this shard
+				readResult(shard, tr, shardResult, timesWithErrors)
+				return
+			}
 
-			shard, tr, readers := shardReaders.shard, shardReaders.tr, shardReaders.readers
 			if shardRetrieverMgr != nil {
 				shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
 			}
@@ -299,43 +352,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 				readerPool.put(r)
 			}
 
-			// NB(xichen): this is the exceptional case where we encountered errors due to files
-			// being corrupted, which should be fairly rare so we can live with the overhead. We
-			// experimented with adding the series to a temporary map and only adding the temporary map
-			// to the final result but adding series to large map with string keys is expensive, and
-			// the current implementation saves the extra overhead of merging temporary map with the
-			// final result.
-			if len(timesWithErrors) > 0 {
-				s.log.WithFields(
-					xlog.NewField("shard", shard),
-					xlog.NewField("timesWithErrors", timesWithErrors),
-				).Info("deleting entries from results for times with errors")
-
-				resultLock.Lock()
-				shardResult, ok := bootstrapResult.ShardResults()[shard]
-				if ok {
-					for _, series := range shardResult.AllSeries() {
-						for _, t := range timesWithErrors {
-							shardResult.RemoveBlockAt(series.ID, t)
-						}
-					}
-				}
-				resultLock.Unlock()
-			}
-
-			if !tr.IsEmpty() {
-				resultLock.Lock()
-				unfulfilled := bootstrapResult.Unfulfilled()
-				shardUnfulfilled, ok := unfulfilled[shard]
-				if !ok {
-					shardUnfulfilled = xtime.NewRanges().AddRanges(tr)
-				} else {
-					shardUnfulfilled = shardUnfulfilled.AddRanges(tr)
-				}
-
-				unfulfilled[shard] = shardUnfulfilled
-				resultLock.Unlock()
-			}
+			readResult(shard, tr, shardResult, timesWithErrors)
 		})
 	}
 
@@ -409,6 +426,7 @@ type shardReaders struct {
 	shard   uint32
 	tr      xtime.Ranges
 	readers []fs.FileSetReader
+	err     error
 }
 
 // readerPool is a lean pool that does not allocate

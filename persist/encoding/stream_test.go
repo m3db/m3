@@ -134,8 +134,16 @@ func TestDecoderStreamUnreadByteMultiple(t *testing.T) {
 		}
 		// Unread one byte if there is one.
 		if n > 0 {
+			remaining := r.Remaining()
+			if expect := int64(len(data) - n); remaining != expect {
+				t.Errorf("n = %d: unexpected remaining before UnreadByte: got %d, want %d", n, remaining, expect)
+			}
 			if err := r.UnreadByte(); err != nil {
 				t.Errorf("n = %d: unexpected error on UnreadByte: %v", n, err)
+			}
+			remaining = r.Remaining()
+			if expect := int64(len(data) - n + 1); remaining != expect {
+				t.Errorf("n = %d: unexpected remaining after UnreadByte: got %d, want %d", n, remaining, expect)
 			}
 		}
 		// Test that we cannot unread any further.

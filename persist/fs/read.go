@@ -69,9 +69,10 @@ type reader struct {
 	infoFdWithDigest           digest.FdWithDigestReader
 	digestFdWithDigestContents digest.FdWithDigestContentsReader
 
-	indexFd            *os.File
-	indexMmap          []byte
-	indexDecoderStream *decoderStream
+	indexFd                 *os.File
+	indexMmap               []byte
+	indexDecoderStream      *readerDecoderStream
+	indexEntriesByOffsetAsc []schema.IndexEntry
 
 	dataFd     *os.File
 	dataMmap   []byte
@@ -88,120 +89,6 @@ type reader struct {
 	decoder                encoding.Decoder
 	digestBuf              digest.Buffer
 	bytesPool              pool.CheckedBytesPool
-
-	indexEntriesByOffsetAsc []schema.IndexEntry
-}
-
-type indexEntriesByOffsetAsc []schema.IndexEntry
-
-func (e indexEntriesByOffsetAsc) Len() int {
-	return len(e)
-}
-
-func (e indexEntriesByOffsetAsc) Less(i, j int) bool {
-	return e[i].Offset < e[j].Offset
-}
-
-func (e indexEntriesByOffsetAsc) Swap(i, j int) {
-	e[i], e[j] = e[j], e[i]
-}
-
-type decoderStream struct {
-	bytesReader      *bytes.Reader
-	readerWithDigest digest.ReaderWithDigest
-	backingBytes     []byte
-	buf              [8]byte
-	lastReadByte     int
-	unreadByte       int
-}
-
-func newDecoderStream() *decoderStream {
-	return &decoderStream{
-		readerWithDigest: digest.NewReaderWithDigest(nil),
-		bytesReader:      bytes.NewReader(nil),
-	}
-}
-
-func (s *decoderStream) Reset(d []byte) {
-	s.bytesReader.Reset(d)
-	s.readerWithDigest.Reset(s.bytesReader)
-	s.backingBytes = d
-	s.lastReadByte = -1
-	s.unreadByte = -1
-}
-
-func (s *decoderStream) Read(p []byte) (int, error) {
-	ref := p
-
-	var numUnreadByte int
-	if s.unreadByte >= 0 {
-		p[0] = byte(s.unreadByte)
-		p = p[1:]
-		s.unreadByte = -1
-		numUnreadByte = 1
-	}
-	n, err := s.readerWithDigest.Read(p)
-	n += numUnreadByte
-	if n > 0 {
-		s.lastReadByte = int(ref[n-1])
-	}
-	if err == io.EOF && n > 0 {
-		return n, nil // return EOF next time, might be returning last byte still
-	}
-	return n, err
-}
-
-func (s *decoderStream) ReadByte() (byte, error) {
-	if s.unreadByte >= 0 {
-		r := byte(s.unreadByte)
-		s.unreadByte = -1
-		return r, nil
-	}
-	n, err := s.readerWithDigest.Read(s.buf[:1])
-	if n > 0 {
-		s.lastReadByte = int(s.buf[0])
-	}
-	return s.buf[0], err
-}
-
-func (s *decoderStream) UnreadByte() error {
-	if s.lastReadByte < 0 {
-		return fmt.Errorf("no previous read byte or already unread byte")
-	}
-	s.unreadByte = s.lastReadByte
-	s.lastReadByte = -1
-	return nil
-}
-
-func (s *decoderStream) Bytes() []byte {
-	return s.backingBytes
-}
-
-func (s *decoderStream) Skip(length int64) error {
-	// NB(r): This ensures the reader with digest is always read
-	// from start to end, i.e. to calculate digest properly.
-	remaining := length
-	for {
-		readEnd := int64(len(s.buf))
-		if remaining < readEnd {
-			readEnd = remaining
-		}
-		n, err := s.Read(s.buf[:readEnd])
-		if err != nil {
-			return err
-		}
-		remaining -= int64(n)
-		if remaining < 0 {
-			return fmt.Errorf("skipped too far, remaining is: %d", remaining)
-		}
-		if remaining == 0 {
-			return nil
-		}
-	}
-}
-
-func (s *decoderStream) Remaining() int64 {
-	return int64(s.bytesReader.Len())
 }
 
 // NewReader returns a new reader and expects all files to exist. Will read the
@@ -218,7 +105,7 @@ func NewReader(
 		filePathPrefix:             opts.FilePathPrefix(),
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),
-		indexDecoderStream:         newDecoderStream(),
+		indexDecoderStream:         newReaderDecoderStream(),
 		dataReader:                 digest.NewReaderWithDigest(nil),
 		prologue:                   make([]byte, markerLen+idxLen),
 		decoder:                    msgpack.NewDecoder(opts.DecodingOptions()),
@@ -492,4 +379,19 @@ func (r *reader) Close() error {
 	r.dataFd = nil
 
 	return multiErr.FinalError()
+}
+
+// indexEntriesByOffsetAsc implements sort.Sort
+type indexEntriesByOffsetAsc []schema.IndexEntry
+
+func (e indexEntriesByOffsetAsc) Len() int {
+	return len(e)
+}
+
+func (e indexEntriesByOffsetAsc) Less(i, j int) bool {
+	return e[i].Offset < e[j].Offset
+}
+
+func (e indexEntriesByOffsetAsc) Swap(i, j int) {
+	e[i], e[j] = e[j], e[i]
 }

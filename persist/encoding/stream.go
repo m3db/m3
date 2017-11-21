@@ -47,9 +47,9 @@ type DecoderStream interface {
 	// to UnreadByte will result in an error.
 	UnreadByte() error
 
-	// Bytes returns the ref to the backing bytes, note decoders will
-	// call Skip if they "read" any bytes by simply taking refs to them
-	// so it is guaranteed that Read/Skip is called until EOF is reached.
+	// Bytes returns the ref to the bytes provided when Reset(...) is
+	// called. To get the current position into the byte slice use:
+	// len(s.Bytes()) - s.Remaining()
 	Bytes() []byte
 
 	// Skip progresses the reader by a certain amount of bytes, useful
@@ -86,6 +86,10 @@ func (s *decoderStream) Reset(b []byte) {
 }
 
 func (s *decoderStream) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+
 	ref := p
 
 	var numUnreadByte int
@@ -144,5 +148,9 @@ func (s *decoderStream) Skip(length int64) error {
 }
 
 func (s *decoderStream) Remaining() int64 {
-	return int64(s.reader.Len())
+	var unreadBytes int64
+	if s.unreadByte != -1 {
+		unreadBytes = 1
+	}
+	return int64(s.reader.Len()) + unreadBytes
 }

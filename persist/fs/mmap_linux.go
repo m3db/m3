@@ -23,7 +23,10 @@ package fs
 import "syscall"
 
 const (
-	hugePageSize = 2 << 20 // 2mb
+	// if file being mmapd is greater than some N * page then it can benefit
+	// from being represented with large pages in the TLB (fewer page faults
+	// and other benefits of huge pages, etc)
+	hugePageSizeThreshold = 2 << 14 // 32kb (8 * 4096 - i.e. >= 8 default pages)
 )
 
 func mmap(fd, offset, length int, opts mmapOptions) ([]byte, error) {
@@ -45,7 +48,7 @@ func mmap(fd, offset, length int, opts mmapOptions) ([]byte, error) {
 		return nil, err
 	}
 
-	if length < hugePageSize {
+	if length < hugePageSizeThreshold {
 		return b, nil
 	}
 
