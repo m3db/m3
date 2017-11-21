@@ -76,6 +76,8 @@ client:
         jitter: true
     backgroundHealthCheckFailLimit: 4
     backgroundHealthCheckFailThrottleFactor: 0.5
+    hashing:
+      seed: 1337
 
 
 gcPercentage: 100
@@ -296,6 +298,8 @@ client:
     jitter: true
   backgroundHealthCheckFailLimit: 4
   backgroundHealthCheckFailThrottleFactor: 0.5
+  hashing:
+    seed: 1337
 gcPercentage: 100
 writeNewSeriesAsync: true
 writeNewSeriesLimitPerSecond: 1048576
