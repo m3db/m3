@@ -4,7 +4,7 @@ import (
 	"io/ioutil"
 	"github.com/golang/snappy"
 	"net/http"
-	"github.com/m3db/m3coordinator/prometheus/prompb"
+	"github.com/m3db/m3coordinator/generated/prometheus/prompb"
 	"github.com/golang/protobuf/proto"
 	"fmt"
 )
