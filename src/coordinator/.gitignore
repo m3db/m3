@@ -19,4 +19,5 @@ bin/
 debug
 debug.test
 
-# Service binary
+# Glide manages this
+vendor
