@@ -78,8 +78,14 @@ type Configuration struct {
 	// time to use when sleeping between a failed health check and the next check.
 	BackgroundHealthCheckFailThrottleFactor float64 `yaml:"backgroundHealthCheckFailThrottleFactor" validate:"min=0,max=10"`
 
-	// The configuration for hashing
+	// HashingConfiguration is the configuration for hashing of IDs to shards
 	HashingConfiguration HashingConfiguration `yaml:"hashing"`
+}
+
+// HashingConfiguration is the configuration for hashing
+type HashingConfiguration struct {
+	// Murmur32 seed value
+	Seed uint32 `yaml:"seed"`
 }
 
 // ConfigurationParameters are optional parameters that can be specified
@@ -197,10 +203,4 @@ func (c Configuration) NewAdminClient(
 	}
 
 	return NewAdminClient(opts)
-}
-
-// HashingConfiguration is the configuration for hashing
-type HashingConfiguration struct {
-	// Murmur32 seed value
-	Seed uint32 `yaml:"seed"`
 }
