@@ -45,7 +45,7 @@ func mmap(fd, offset, length int64, opts mmapOptions) ([]byte, error) {
 	}
 
 	if !opts.hugePages.enabled ||
-		int64(length) < opts.hugePages.threshold {
+		length < opts.hugePages.threshold {
 		return b, nil
 	}
 
