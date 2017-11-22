@@ -22,9 +22,12 @@
 
 package fs
 
-import "syscall"
+import (
+	"fmt"
+	"syscall"
+)
 
-func mmap(fd, offset, length int, opts mmapOptions) ([]byte, error) {
+func mmap(fd, offset, length int64, opts mmapOptions) ([]byte, error) {
 	if length == 0 {
 		// Return an empty slice (but not nil so callers who
 		// use nil to mean something special like not initialized
@@ -38,7 +41,12 @@ func mmap(fd, offset, length int, opts mmapOptions) ([]byte, error) {
 	}
 
 	flags := syscall.MAP_SHARED
-	return syscall.Mmap(fd, int64(offset), length, prot, flags)
+	b, err := syscall.Mmap(int(fd), offset, int(length), prot, flags)
+	if err != nil {
+		return nil, fmt.Errorf("mmap error: %v", err)
+	}
+
+	return b, nil
 }
 
 func munmap(b []byte) error {
@@ -47,5 +55,9 @@ func munmap(b []byte) error {
 		return nil
 	}
 
-	return syscall.Munmap(b)
+	if err := syscall.Munmap(b); err != nil {
+		return fmt.Errorf("munmap error: %v", err)
+	}
+
+	return nil
 }

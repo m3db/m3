@@ -63,6 +63,7 @@ func (e ErrReadWrongIdx) Error() string {
 
 type reader struct {
 	filePathPrefix string
+	hugePagesOpts  mmapHugePagesOptions
 	start          time.Time
 	blockSize      time.Duration
 
@@ -102,7 +103,11 @@ func NewReader(
 		return nil, err
 	}
 	return &reader{
-		filePathPrefix:             opts.FilePathPrefix(),
+		filePathPrefix: opts.FilePathPrefix(),
+		hugePagesOpts: mmapHugePagesOptions{
+			enabled:   opts.MmapEnableHugePages(),
+			threshold: opts.MmapHugePagesThreshold(),
+		},
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),
 		indexDecoderStream:         newReaderDecoderStream(),
@@ -142,12 +147,12 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmapFileDesc{
 			file:    &r.indexFd,
 			bytes:   &r.indexMmap,
-			options: mmapOptions{read: true},
+			options: mmapOptions{read: true, hugePages: r.hugePagesOpts},
 		},
 		filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmapFileDesc{
 			file:    &r.dataFd,
 			bytes:   &r.dataMmap,
-			options: mmapOptions{read: true},
+			options: mmapOptions{read: true, hugePages: r.hugePagesOpts},
 		},
 	}); err != nil {
 		return err

@@ -39,6 +39,17 @@ type mmapFileDesc struct {
 type mmapOptions struct {
 	// read is whether to make mmap bytes ref readable
 	read bool
+	// hugePages is the mmap huge pages options
+	hugePages mmapHugePagesOptions
+}
+
+type mmapHugePagesOptions struct {
+	// enabled determines if using huge pages is enabled for platforms
+	// that support it
+	enabled bool
+	// threshold determines if the size being mmap'd is greater or equal
+	// to this value to use or not use transparent huge pages if enabled
+	threshold int64
 }
 
 func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) error {
@@ -87,5 +98,5 @@ func mmapFile(file *os.File, opts mmapOptions) ([]byte, error) {
 	if stat.IsDir() {
 		return nil, fmt.Errorf("mmap target is directory: %s", name)
 	}
-	return mmap(int(file.Fd()), 0, int(stat.Size()), opts)
+	return mmap(int64(file.Fd()), 0, stat.Size(), opts)
 }

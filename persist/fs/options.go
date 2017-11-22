@@ -48,6 +48,12 @@ const (
 
 	// defaultSeekReaderBufferSize is the default buffer size for fs seeker's data buffer
 	defaultSeekReaderBufferSize = 4096
+
+	// defaultMmapEnableHugePages is the default setting whether to enable huge pages or not
+	defaultMmapEnableHugePages = false
+
+	// defaultMmapHugePagesThreshold is the default threshold for when to enable huge pages if enabled
+	defaultMmapHugePagesThreshold = 2 << 14 // 32kb (or when eclipsing 8 pages of default 4096 page size)
 )
 
 var (
@@ -70,6 +76,8 @@ type options struct {
 	dataReaderBufferSize                 int
 	infoReaderBufferSize                 int
 	seekReaderBufferSize                 int
+	mmapEnableHugePages                  bool
+	mmapHugePagesThreshold               int64
 }
 
 // NewOptions creates a new set of fs options
@@ -88,6 +96,8 @@ func NewOptions() Options {
 		dataReaderBufferSize:                 defaultDataReaderBufferSize,
 		infoReaderBufferSize:                 defaultInfoReaderBufferSize,
 		seekReaderBufferSize:                 defaultSeekReaderBufferSize,
+		mmapEnableHugePages:                  defaultMmapEnableHugePages,
+		mmapHugePagesThreshold:               defaultMmapHugePagesThreshold,
 	}
 }
 
@@ -233,4 +243,24 @@ func (o *options) SetSeekReaderBufferSize(value int) Options {
 
 func (o *options) SeekReaderBufferSize() int {
 	return o.seekReaderBufferSize
+}
+
+func (o *options) SetMmapEnableHugePages(value bool) Options {
+	opts := *o
+	opts.mmapEnableHugePages = value
+	return &opts
+}
+
+func (o *options) MmapEnableHugePages() bool {
+	return o.mmapEnableHugePages
+}
+
+func (o *options) SetMmapHugePagesThreshold(value int64) Options {
+	opts := *o
+	opts.mmapHugePagesThreshold = value
+	return &opts
+}
+
+func (o *options) MmapHugePagesThreshold() int64 {
+	return o.mmapHugePagesThreshold
 }

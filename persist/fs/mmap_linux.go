@@ -20,16 +20,12 @@
 
 package fs
 
-import "syscall"
-
-const (
-	// if file being mmapd is greater than some N * page then it can benefit
-	// from being represented with large pages in the TLB (fewer page faults
-	// and other benefits of huge pages, etc)
-	hugePageSizeThreshold = 2 << 14 // 32kb (8 * 4096 - i.e. >= 8 default pages)
+import (
+	"fmt"
+	"syscall"
 )
 
-func mmap(fd, offset, length int, opts mmapOptions) ([]byte, error) {
+func mmap(fd, offset, length int64, opts mmapOptions) ([]byte, error) {
 	if length == 0 {
 		// Return an empty slice (but not nil so callers who
 		// use nil to mean something special like not initialized
@@ -43,18 +39,19 @@ func mmap(fd, offset, length int, opts mmapOptions) ([]byte, error) {
 	}
 
 	flags := syscall.MAP_SHARED
-	b, err := syscall.Mmap(fd, int64(offset), length, prot, flags)
+	b, err := syscall.Mmap(int(fd), offset, int(length), prot, flags)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("mmap error: %v", err)
 	}
 
-	if length < hugePageSizeThreshold {
+	if !opts.hugePages.enabled ||
+		int64(length) < opts.hugePages.threshold {
 		return b, nil
 	}
 
 	// Reduce the number of pagefaults when scanning through large files
 	if err := syscall.Madvise(b, syscall.MADV_HUGEPAGE); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("madvise error, check platform support: %v", err)
 	}
 
 	return b, nil
@@ -66,5 +63,9 @@ func munmap(b []byte) error {
 		return nil
 	}
 
-	return syscall.Munmap(b)
+	if err := syscall.Munmap(b); err != nil {
+		return fmt.Errorf("munmap error: %v", err)
+	}
+
+	return nil
 }
