@@ -1,0 +1,45 @@
+site_name: M3DB Documentation
+
+theme:
+  # Provide source
+  name: null
+  custom_dir: docs/theme
+
+  # 404 page
+  static_templates:
+    - 404.html
+
+  # Don't include MkDocs' JavaScript
+  include_search_page: false
+  search_index_only: true
+
+  # Do not use tabs for navigation
+  feature:
+    tabs: false
+
+  # Default values, taken from mkdocs_theme.yml
+  language: en
+  palette:
+    primary: indigo
+    accent: indigo
+  font:
+    text: Roboto
+    code: Roboto Mono
+  favicon: assets/images/favicon.png
+  logo:
+    icon: "\uE80C"
+
+edit_uri: edit/master/docs/
+
+repo_name: m3db/m3db
+repo_url: https://github.com/m3db/m3db
+
+pages:
+  - "Introduction": "index.md"
+  - "Architecture":
+    - "Overview": "architecture/index.md"
+    - "Sharding and Replication": "architecture/sharding.md"
+    - "Consistency Levels": "architecture/consistencylevels.md"
+    - "Storage": "architecture/storage.md"
+    - "Commit Logs": "architecture/commitlogs.md"
+    - "Filesets": "architecture/filesets.md"
