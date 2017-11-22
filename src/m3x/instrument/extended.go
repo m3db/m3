@@ -133,6 +133,7 @@ type runtimeMetrics struct {
 	MemoryHeapIdle  tally.Gauge
 	MemoryHeapInuse tally.Gauge
 	MemoryStack     tally.Gauge
+	GCCPUFraction   tally.Gauge
 	NumGC           tally.Counter
 	GcPauseMs       tally.Timer
 	lastNumGC       uint32
@@ -156,6 +157,7 @@ func (r *runtimeMetrics) report(metricsType ExtendedMetricsType) {
 	r.MemoryHeapIdle.Update(float64(memStats.HeapIdle))
 	r.MemoryHeapInuse.Update(float64(memStats.HeapInuse))
 	r.MemoryStack.Update(float64(memStats.StackInuse))
+	r.GCCPUFraction.Update(memStats.GCCPUFraction)
 
 	// memStats.NumGC is a perpetually incrementing counter (unless it wraps at 2^32).
 	num := memStats.NumGC
@@ -219,6 +221,7 @@ func NewExtendedMetricsReporter(
 	r.runtime.MemoryHeapIdle = memoryScope.Gauge("heapidle")
 	r.runtime.MemoryHeapInuse = memoryScope.Gauge("heapinuse")
 	r.runtime.MemoryStack = memoryScope.Gauge("stack")
+	r.runtime.GCCPUFraction = memoryScope.Gauge("gc-cpu-fraction")
 	r.runtime.NumGC = memoryScope.Counter("num-gc")
 	r.runtime.GcPauseMs = memoryScope.Timer("gc-pause-ms")
 	r.runtime.lastNumGC = memstats.NumGC
