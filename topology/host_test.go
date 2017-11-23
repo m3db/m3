@@ -40,7 +40,7 @@ func TestNewHostShardSetFromServiceInstance(t *testing.T) {
 			shard.NewShard(2),
 			shard.NewShard(3),
 		}))
-	hash := sharding.DefaultHashGen(3)
+	hash := sharding.DefaultHashFn(3)
 	host, err := NewHostShardSetFromServiceInstance(i1, hash)
 	assert.NoError(t, err)
 	assert.Equal(t, "h1:9000", host.Host().Address())

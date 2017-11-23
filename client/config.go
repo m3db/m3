@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
+	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/x/tchannel"
 	"github.com/m3db/m3x/instrument"
@@ -76,6 +77,15 @@ type Configuration struct {
 	// BackgroundHealthCheckFailThrottleFactor is the factor of the host connect
 	// time to use when sleeping between a failed health check and the next check.
 	BackgroundHealthCheckFailThrottleFactor float64 `yaml:"backgroundHealthCheckFailThrottleFactor" validate:"min=0,max=10"`
+
+	// HashingConfiguration is the configuration for hashing of IDs to shards
+	HashingConfiguration HashingConfiguration `yaml:"hashing"`
+}
+
+// HashingConfiguration is the configuration for hashing
+type HashingConfiguration struct {
+	// Murmur32 seed value
+	Seed uint32 `yaml:"seed"`
 }
 
 // ConfigurationParameters are optional parameters that can be specified
@@ -156,7 +166,8 @@ func (c Configuration) NewAdminClient(
 				SetEnvironment(c.ConfigService.Env).
 				SetZone(c.ConfigService.Zone)).
 			SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
-			SetInstrumentOptions(iopts)
+			SetInstrumentOptions(iopts).
+			SetHashGen(sharding.NewHashGenWithSeed(c.HashingConfiguration.Seed))
 
 		topoInit = topology.NewDynamicInitializer(initOpts)
 	}

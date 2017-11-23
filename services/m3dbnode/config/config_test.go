@@ -76,6 +76,8 @@ client:
         jitter: true
     backgroundHealthCheckFailLimit: 4
     backgroundHealthCheckFailThrottleFactor: 0.5
+    hashing:
+      seed: 1337
 
 
 gcPercentage: 100
@@ -222,6 +224,8 @@ configService:
               - etcd03-us-west1:2379
               - etcd04-us-west1:2379
               - etcd05-us-west1:2379
+hashing:
+  seed: 1337
 `
 
 	fd, err := ioutil.TempFile("", "config.yaml")
@@ -294,6 +298,8 @@ client:
     jitter: true
   backgroundHealthCheckFailLimit: 4
   backgroundHealthCheckFailThrottleFactor: 0.5
+  hashing:
+    seed: 1337
 gcPercentage: 100
 writeNewSeriesAsync: true
 writeNewSeriesLimitPerSecond: 1048576
@@ -437,6 +443,8 @@ configService:
     tls: null
   m3sd:
     initTimeout: 0s
+hashing:
+  seed: 1337
 `
 
 	actual := string(data)

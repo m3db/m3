@@ -29,7 +29,7 @@ import:
   version: 1878d9fbb537119d24b21ca07effd591627cd160
 
 - package: github.com/spaolacci/murmur3
-  version: 0d12bf811670bf6a1a63828dfbd003eded177fce
+  version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 
 - package: github.com/uber/tchannel-go
   # Must be this hash or higher to include TChannel connection health checks

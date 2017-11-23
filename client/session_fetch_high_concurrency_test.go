@@ -117,7 +117,7 @@ func TestSessionFetchAllHighConcurrency(t *testing.T) {
 		shards[i] = shard.NewShard(uint32(i)).SetState(shard.Available)
 	}
 
-	shardSet, err := sharding.NewShardSet(shards, sharding.DefaultHashGen(numShards))
+	shardSet, err := sharding.NewShardSet(shards, sharding.DefaultHashFn(numShards))
 	require.NoError(t, err)
 
 	hosts := make([]topology.Host, numHosts)
