@@ -40,6 +40,9 @@ import (
 var (
 	// errSeekIDNotFound returned when ID cannot be found in the shard
 	errSeekIDNotFound = errors.New("id not found in shard")
+
+	// errSeekChecksumMismatch returned when data checksum does not match the expected checksum
+	errSeekChecksumMismatch = errors.New("checksum does not match expected checksum")
 )
 
 type seeker struct {
@@ -71,8 +74,9 @@ type seeker struct {
 }
 
 type indexMapEntry struct {
-	size   int64
-	offset int64
+	size     uint32
+	checksum uint32
+	offset   int64
 }
 
 // NewSeeker returns a new seeker.
@@ -229,7 +233,7 @@ func (s *seeker) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
-	s.decoder.Reset(s.unreadBuf[:n])
+	s.decoder.Reset(encoding.NewDecoderStream(s.unreadBuf[:n]))
 	info, err := s.decoder.DecodeIndexInfo()
 	if err != nil {
 		return err
@@ -248,7 +252,7 @@ func (s *seeker) readIndex(size int) error {
 		return err
 	}
 
-	s.decoder.Reset(s.unreadBuf[:n][:])
+	s.decoder.Reset(encoding.NewDecoderStream(s.unreadBuf[:n][:]))
 	if s.indexMap == nil {
 		s.indexMap = make(map[ts.Hash]indexMapEntry, s.entries)
 	}
@@ -259,8 +263,9 @@ func (s *seeker) readIndex(size int) error {
 			return err
 		}
 		s.indexMap[ts.HashFn(entry.ID)] = indexMapEntry{
-			size:   entry.Size,
-			offset: entry.Offset,
+			size:     uint32(entry.Size),
+			checksum: uint32(entry.Checksum),
+			offset:   entry.Offset,
 		}
 
 		if s.keepIndexIDs {
@@ -327,6 +332,12 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 
 	if n != int(entry.size) {
 		return nil, errReadNotExpectedSize
+	}
+
+	// NB(r): _must_ check the checksum against known checksum as the data
+	// file might not have been verified if we haven't read through the file yet.
+	if entry.checksum != digest.Checksum(data.Get()) {
+		return nil, errSeekChecksumMismatch
 	}
 
 	return data, nil

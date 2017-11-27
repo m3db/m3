@@ -137,6 +137,12 @@ type testOptions interface {
 	// TChannelNodeAddr returns the tchannel node address.
 	TChannelNodeAddr() string
 
+	// SetHTTPDebugAddr sets the http debug address.
+	SetHTTPDebugAddr(value string) testOptions
+
+	// HTTPDebugAddr returns the http debug address.
+	HTTPDebugAddr() string
+
 	// SetServerStateChangeTimeout sets the server state change timeout.
 	SetServerStateChangeTimeout(value time.Duration) testOptions
 
@@ -240,6 +246,7 @@ type options struct {
 	tchannelClusterAddr                string
 	httpNodeAddr                       string
 	tchannelNodeAddr                   string
+	httpDebugAddr                      string
 	serverStateChangeTimeout           time.Duration
 	clusterConnectionTimeout           time.Duration
 	readRequestTimeout                 time.Duration
@@ -384,6 +391,16 @@ func (o *options) SetTChannelNodeAddr(value string) testOptions {
 
 func (o *options) TChannelNodeAddr() string {
 	return o.tchannelNodeAddr
+}
+
+func (o *options) SetHTTPDebugAddr(value string) testOptions {
+	opts := *o
+	opts.httpDebugAddr = value
+	return &opts
+}
+
+func (o *options) HTTPDebugAddr() string {
+	return o.httpDebugAddr
 }
 
 func (o *options) SetServerStateChangeTimeout(value time.Duration) testOptions {

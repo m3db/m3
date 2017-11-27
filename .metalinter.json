@@ -1,15 +1,15 @@
 {
   "Linters": {
     "unused": {
-      "Command": "unused -tags integration",
+      "Command": "unused -tags 'integration big adhoc'",
       "Pattern": "PATH:LINE:COL:MESSAGE"
     },
     "gosimple": {
-      "Command": "gosimple -tags integration",
+      "Command": "gosimple -tags 'integration big adhoc'",
       "Pattern": "PATH:LINE:COL:MESSAGE"
     },
     "badtime": {
-      "Command": "badtime -tags integration",
+      "Command": "badtime -tags 'integration big adhoc'",
       "Pattern": "PATH:LINE:COL:MESSAGE"
     }
   },

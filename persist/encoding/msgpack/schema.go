@@ -21,11 +21,12 @@
 package msgpack
 
 const (
-	indexInfoVersion   = 1
-	indexEntryVersion  = 1
-	logInfoVersion     = 1
-	logEntryVersion    = 1
-	logMetadataVersion = 1
+	indexInfoVersion    = 1
+	indexEntryVersion   = 1
+	indexSummaryVersion = 1
+	logInfoVersion      = 1
+	logEntryVersion     = 1
+	logMetadataVersion  = 1
 )
 
 type objectType int
@@ -35,7 +36,10 @@ const (
 	unknownType objectType = iota
 	rootObjectType
 	indexInfoType
+	indexSummariesInfoType
+	indexBloomFilterInfoType
 	indexEntryType
+	indexSummaryType
 	logInfoType
 	logEntryType
 	logMetadataType
@@ -45,12 +49,15 @@ const (
 )
 
 const (
-	numRootObjectFields  = 2
-	numIndexInfoFields   = 3
-	numIndexEntryFields  = 5
-	numLogInfoFields     = 3
-	numLogEntryFields    = 7
-	numLogMetadataFields = 3
+	numRootObjectFields           = 2
+	numIndexInfoFields            = 6
+	numIndexSummariesInfoFields   = 1
+	numIndexBloomFilterInfoFields = 2
+	numIndexEntryFields           = 5
+	numIndexSummaryFields         = 3
+	numLogInfoFields              = 3
+	numLogEntryFields             = 7
+	numLogMetadataFields          = 3
 )
 
 var numObjectFields []int
@@ -68,7 +75,10 @@ func init() {
 
 	setNumFieldsForType(rootObjectType, numRootObjectFields)
 	setNumFieldsForType(indexInfoType, numIndexInfoFields)
+	setNumFieldsForType(indexSummariesInfoType, numIndexSummariesInfoFields)
+	setNumFieldsForType(indexBloomFilterInfoType, numIndexBloomFilterInfoFields)
 	setNumFieldsForType(indexEntryType, numIndexEntryFields)
+	setNumFieldsForType(indexSummaryType, numIndexSummaryFields)
 	setNumFieldsForType(logInfoType, numLogInfoFields)
 	setNumFieldsForType(logEntryType, numLogEntryFields)
 	setNumFieldsForType(logMetadataType, numLogMetadataFields)

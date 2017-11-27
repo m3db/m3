@@ -65,7 +65,7 @@ func TestFdWithDigestWriteBytesFileWriteError(t *testing.T) {
 	}()
 
 	writer.Reset(nil)
-	_, err := writer.WriteBytes([]byte{0x1, 0x2, 0x3})
+	_, err := writer.Write([]byte{0x1, 0x2, 0x3})
 	require.Error(t, err)
 }
 
@@ -77,7 +77,7 @@ func TestFdWithDigestWriteBytesDigestWriteError(t *testing.T) {
 	}()
 
 	md.err = errors.New("foo")
-	_, err := writer.WriteBytes([]byte{0x1, 0x2, 0x3})
+	_, err := writer.Write([]byte{0x1, 0x2, 0x3})
 	require.Equal(t, "foo", err.Error())
 }
 
@@ -90,7 +90,7 @@ func TestFdWithDigestWriteBytesSuccess(t *testing.T) {
 
 	md.digest = 123
 	data := []byte{0x1, 0x2, 0x3}
-	res, err := writer.WriteBytes(data)
+	res, err := writer.Write(data)
 	require.NoError(t, err)
 	require.Equal(t, len(data), res)
 	require.Equal(t, data, md.b)

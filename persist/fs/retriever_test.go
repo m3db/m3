@@ -33,9 +33,9 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
-	xtime "github.com/m3db/m3x/time"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -84,7 +84,7 @@ func newOpenTestWriter(
 	shard uint32,
 	start time.Time,
 ) (FileSetWriter, testCleanupFn) {
-	w := newTestWriter(fsOpts.FilePathPrefix())
+	w := newTestWriter(t, fsOpts.FilePathPrefix())
 	err := w.Open(testNs1ID, testBlockSize, shard, start)
 	require.NoError(t, err)
 	return w, func() {

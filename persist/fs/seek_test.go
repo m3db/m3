@@ -54,7 +54,7 @@ func TestSeekEmptyIndex(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := newTestWriter(filePathPrefix)
+	w := newTestWriter(t, filePathPrefix)
 	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
@@ -77,7 +77,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := newTestWriter(filePathPrefix)
+	w := newTestWriter(t, filePathPrefix)
 	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
@@ -110,7 +110,7 @@ func TestSeekBadMarker(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := newTestWriter(filePathPrefix)
+	w := newTestWriter(t, filePathPrefix)
 	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 
@@ -150,7 +150,7 @@ func TestIDs(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := newTestWriter(filePathPrefix)
+	w := newTestWriter(t, filePathPrefix)
 	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
@@ -194,7 +194,7 @@ func TestSeek(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := newTestWriter(filePathPrefix)
+	w := newTestWriter(t, filePathPrefix)
 	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
@@ -251,7 +251,7 @@ func TestReuseSeeker(t *testing.T) {
 	filePathPrefix := filepath.Join(dir, "")
 	defer os.RemoveAll(dir)
 
-	w := newTestWriter(filePathPrefix)
+	w := newTestWriter(t, filePathPrefix)
 
 	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart.Add(-time.Hour))
 	assert.NoError(t, err)

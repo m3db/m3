@@ -31,8 +31,10 @@ import:
 - package: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 
+- package: github.com/m3db/stackmurmur3
+  version: 744c0229c12ed0e4f8cb9d081a2692b3300bf705
+
 - package: github.com/uber/tchannel-go
-  # Must be this hash or higher to include TChannel connection health checks
   version: 1fcf82ec86967eb43ba0baa9b964f8eb226d242e
   subpackages:
   - thrift
@@ -63,6 +65,12 @@ import:
   - retry
   - time
   - watch
+
+- package: github.com/m3db/bitset
+  version: 07973db6b78acb62ac207d0538055e874b49d90d
+
+- package: github.com/m3db/bloom
+  version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
 
 - package: golang.org/x/net
   version: 61557ac0112b576429a0df080e1c2cef5dfbb642

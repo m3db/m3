@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/m3db/m3db/clock"
@@ -30,6 +31,12 @@ import (
 )
 
 const (
+	// defaultIndexSummariesPercent is the default percent of series for which an entry will be written into the metadata summary
+	defaultIndexSummariesPercent = 0.03
+
+	// defaultIndexBloomFilterFalsePositivePercent is the false positive percent to use to calculate size for when writing bloom filters
+	defaultIndexBloomFilterFalsePositivePercent = 0.02
+
 	// defaultWriterBufferSize is the default buffer size for writing TSDB files
 	defaultWriterBufferSize = 65536
 
@@ -41,6 +48,12 @@ const (
 
 	// defaultSeekReaderBufferSize is the default buffer size for fs seeker's data buffer
 	defaultSeekReaderBufferSize = 4096
+
+	// defaultMmapEnableHugePages is the default setting whether to enable huge pages or not
+	defaultMmapEnableHugePages = false
+
+	// defaultMmapHugePagesThreshold is the default threshold for when to enable huge pages if enabled
+	defaultMmapHugePagesThreshold = 2 << 14 // 32kb (or when eclipsing 8 pages of default 4096 page size)
 )
 
 var (
@@ -50,34 +63,56 @@ var (
 )
 
 type options struct {
-	clockOpts            clock.Options
-	instrumentOpts       instrument.Options
-	runtimeOptsMgr       runtime.OptionsManager
-	decodingOpts         msgpack.DecodingOptions
-	filePathPrefix       string
-	newFileMode          os.FileMode
-	newDirectoryMode     os.FileMode
-	writerBufferSize     int
-	dataReaderBufferSize int
-	infoReaderBufferSize int
-	seekReaderBufferSize int
+	clockOpts                            clock.Options
+	instrumentOpts                       instrument.Options
+	runtimeOptsMgr                       runtime.OptionsManager
+	decodingOpts                         msgpack.DecodingOptions
+	filePathPrefix                       string
+	newFileMode                          os.FileMode
+	newDirectoryMode                     os.FileMode
+	indexSummariesPercent                float64
+	indexBloomFilterFalsePositivePercent float64
+	writerBufferSize                     int
+	dataReaderBufferSize                 int
+	infoReaderBufferSize                 int
+	seekReaderBufferSize                 int
+	mmapEnableHugePages                  bool
+	mmapHugePagesThreshold               int64
 }
 
 // NewOptions creates a new set of fs options
 func NewOptions() Options {
 	return &options{
-		clockOpts:            clock.NewOptions(),
-		instrumentOpts:       instrument.NewOptions(),
-		runtimeOptsMgr:       runtime.NewOptionsManager(runtime.NewOptions()),
-		decodingOpts:         msgpack.NewDecodingOptions(),
-		filePathPrefix:       defaultFilePathPrefix,
-		newFileMode:          defaultNewFileMode,
-		newDirectoryMode:     defaultNewDirectoryMode,
-		writerBufferSize:     defaultWriterBufferSize,
-		dataReaderBufferSize: defaultDataReaderBufferSize,
-		infoReaderBufferSize: defaultInfoReaderBufferSize,
-		seekReaderBufferSize: defaultSeekReaderBufferSize,
+		clockOpts:                            clock.NewOptions(),
+		instrumentOpts:                       instrument.NewOptions(),
+		runtimeOptsMgr:                       runtime.NewOptionsManager(runtime.NewOptions()),
+		decodingOpts:                         msgpack.NewDecodingOptions(),
+		filePathPrefix:                       defaultFilePathPrefix,
+		newFileMode:                          defaultNewFileMode,
+		newDirectoryMode:                     defaultNewDirectoryMode,
+		indexSummariesPercent:                defaultIndexSummariesPercent,
+		indexBloomFilterFalsePositivePercent: defaultIndexBloomFilterFalsePositivePercent,
+		writerBufferSize:                     defaultWriterBufferSize,
+		dataReaderBufferSize:                 defaultDataReaderBufferSize,
+		infoReaderBufferSize:                 defaultInfoReaderBufferSize,
+		seekReaderBufferSize:                 defaultSeekReaderBufferSize,
+		mmapEnableHugePages:                  defaultMmapEnableHugePages,
+		mmapHugePagesThreshold:               defaultMmapHugePagesThreshold,
 	}
+}
+
+func (o *options) Validate() error {
+	if o.indexSummariesPercent < 0 || o.indexSummariesPercent > 1.0 {
+		return fmt.Errorf(
+			"invalid index summaries percent, must be >= 0 and <= 1: instead %f",
+			o.indexSummariesPercent)
+	}
+	if o.indexBloomFilterFalsePositivePercent < 0 || o.indexBloomFilterFalsePositivePercent > 1.0 {
+		return fmt.Errorf(
+			"invalid index bloom filter false positive percent, must be >= 0 and <= 1: instead %f",
+			o.indexBloomFilterFalsePositivePercent)
+	}
+	return nil
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {
@@ -150,6 +185,26 @@ func (o *options) NewDirectoryMode() os.FileMode {
 	return o.newDirectoryMode
 }
 
+func (o *options) SetIndexSummariesPercent(value float64) Options {
+	opts := *o
+	opts.indexSummariesPercent = value
+	return &opts
+}
+
+func (o *options) IndexSummariesPercent() float64 {
+	return o.indexSummariesPercent
+}
+
+func (o *options) SetIndexBloomFilterFalsePositivePercent(value float64) Options {
+	opts := *o
+	opts.indexBloomFilterFalsePositivePercent = value
+	return &opts
+}
+
+func (o *options) IndexBloomFilterFalsePositivePercent() float64 {
+	return o.indexBloomFilterFalsePositivePercent
+}
+
 func (o *options) SetWriterBufferSize(value int) Options {
 	opts := *o
 	opts.writerBufferSize = value
@@ -188,4 +243,24 @@ func (o *options) SetSeekReaderBufferSize(value int) Options {
 
 func (o *options) SeekReaderBufferSize() int {
 	return o.seekReaderBufferSize
+}
+
+func (o *options) SetMmapEnableHugePages(value bool) Options {
+	opts := *o
+	opts.mmapEnableHugePages = value
+	return &opts
+}
+
+func (o *options) MmapEnableHugePages() bool {
+	return o.mmapEnableHugePages
+}
+
+func (o *options) SetMmapHugePagesThreshold(value int64) Options {
+	opts := *o
+	opts.mmapHugePagesThreshold = value
+	return &opts
+}
+
+func (o *options) MmapHugePagesThreshold() int64 {
+	return o.mmapHugePagesThreshold
 }

@@ -62,6 +62,7 @@ var (
 	tchannelClusterAddr = flag.String("clustertchanneladdr", "0.0.0.0:9001", "Cluster TChannel server address")
 	httpNodeAddr        = flag.String("nodehttpaddr", "0.0.0.0:9002", "Node HTTP server address")
 	tchannelNodeAddr    = flag.String("nodetchanneladdr", "0.0.0.0:9003", "Node TChannel server address")
+	httpDebugAddr       = flag.String("debughttpaddr", "0.0.0.0:9004", "HTTP debug server address")
 
 	errServerStartTimedOut   = errors.New("server took too long to start")
 	errServerStopTimedOut    = errors.New("server took too long to stop")
@@ -221,7 +222,11 @@ func newTestSetup(t *testing.T, opts testOptions) (*testSetup, error) {
 			SetBlockSize(opts.CommitLogBlockSize()))
 
 	// Set up persistence manager
-	storageOpts = storageOpts.SetPersistManager(fs.NewPersistManager(fsOpts))
+	pm, err := fs.NewPersistManager(fsOpts)
+	if err != nil {
+		return nil, err
+	}
+	storageOpts = storageOpts.SetPersistManager(pm)
 
 	// Set up repair options
 	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(adminClient))
@@ -382,6 +387,11 @@ func (ts *testSetup) startServer() error {
 		tchannelNodeAddr = addr
 	}
 
+	httpDebugAddr := *httpDebugAddr
+	if addr := ts.opts.HTTPDebugAddr(); addr != "" {
+		httpDebugAddr = addr
+	}
+
 	var err error
 	ts.db, err = cluster.NewDatabase(ts.hostID, ts.topoInit, ts.storageOpts)
 	if err != nil {
@@ -390,7 +400,7 @@ func (ts *testSetup) startServer() error {
 	go func() {
 		if err := server.OpenAndServe(
 			httpClusterAddr, tchannelClusterAddr,
-			httpNodeAddr, tchannelNodeAddr,
+			httpNodeAddr, tchannelNodeAddr, httpDebugAddr,
 			ts.db, ts.m3dbClient, ts.storageOpts, ts.doneCh,
 		); err != nil {
 			select {
@@ -498,7 +508,7 @@ func node(t *testing.T, n int, shards shard.Shards) services.ServiceInstance {
 	require.True(t, n < 250) // keep ports sensible
 	return services.NewServiceInstance().
 		SetInstanceID(fmt.Sprintf("testhost%v", n)).
-		SetEndpoint(fmt.Sprintf("127.0.0.1:%v", 9000+4*n)).
+		SetEndpoint(fmt.Sprintf("127.0.0.1:%v", multiAddrPortStart+multiAddrPortEach*n)).
 		SetShards(shards)
 }
 

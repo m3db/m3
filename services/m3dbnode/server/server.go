@@ -136,6 +136,8 @@ func Run(runOpts RunOptions) {
 		log.Fatalf("could not parse new directory mode: %v", err)
 	}
 
+	mmap := cfg.Filesystem.MmapConfiguration()
+
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
 		SetInstrumentOptions(opts.InstrumentOptions().
@@ -146,7 +148,9 @@ func Run(runOpts RunOptions) {
 		SetWriterBufferSize(cfg.Filesystem.WriteBufferSize).
 		SetDataReaderBufferSize(cfg.Filesystem.DataReadBufferSize).
 		SetInfoReaderBufferSize(cfg.Filesystem.InfoReadBufferSize).
-		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSize)
+		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSize).
+		SetMmapEnableHugePages(mmap.HugePages.Enabled).
+		SetMmapHugePagesThreshold(mmap.HugePages.Threshold)
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size
@@ -202,7 +206,11 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
 
 	// Set the persistence manager
-	opts = opts.SetPersistManager(fs.NewPersistManager(fsopts))
+	pm, err := fs.NewPersistManager(fsopts)
+	if err != nil {
+		logger.Fatalf("could not create persist manager: %v", err)
+	}
+	opts = opts.SetPersistManager(pm)
 
 	logger.Info("creating config service client with m3cluster ")
 	configSvcClientOpts := cfg.ConfigService.NewOptions().

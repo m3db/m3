@@ -22,17 +22,20 @@ package encoding
 
 import "github.com/m3db/m3db/persist/schema"
 
-// Decoder decodes persisted data
-type Decoder interface {
-	// Reset resets the data stream to decode from
-	Reset(data []byte)
-
+// FilesetDecoder decodes fileset related structures
+type FilesetDecoder interface {
 	// DecodeIndexInfo decodes the index info
 	DecodeIndexInfo() (schema.IndexInfo, error)
 
 	// DecodeIndexEntry decodes index entry
 	DecodeIndexEntry() (schema.IndexEntry, error)
 
+	// DecodeIndexSummary decodes index summary
+	DecodeIndexSummary() (schema.IndexSummary, error)
+}
+
+// CommitLogDecoder decodes commit log related structures
+type CommitLogDecoder interface {
 	// DecodeLogInfo decodes commit log info
 	DecodeLogInfo() (schema.LogInfo, error)
 
@@ -41,4 +44,13 @@ type Decoder interface {
 
 	// DecodeLogEntry decodes commit log entry
 	DecodeLogEntry() (schema.LogEntry, error)
+}
+
+// Decoder decodes persisted data
+type Decoder interface {
+	FilesetDecoder
+	CommitLogDecoder
+
+	// Reset resets the data stream to decode from
+	Reset(stream DecoderStream)
 }

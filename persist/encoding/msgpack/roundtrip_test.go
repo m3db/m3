@@ -32,9 +32,17 @@ import (
 
 var (
 	testIndexInfo = schema.IndexInfo{
-		Start:     time.Now().UnixNano(),
-		BlockSize: int64(2 * time.Hour),
-		Entries:   2000000,
+		Start:        time.Now().UnixNano(),
+		BlockSize:    int64(2 * time.Hour),
+		Entries:      2000000,
+		MajorVersion: schema.MajorVersion,
+		Summaries: schema.IndexSummariesInfo{
+			Summaries: 123,
+		},
+		BloomFilter: schema.IndexBloomFilterInfo{
+			NumElementsM: 2075674,
+			NumHashesK:   7,
+		},
 	}
 
 	testIndexEntry = schema.IndexEntry{
@@ -43,6 +51,12 @@ var (
 		Size:     5456,
 		Offset:   2390423,
 		Checksum: 134245634534,
+	}
+
+	testIndexSummary = schema.IndexSummary{
+		Index:            234,
+		ID:               []byte("testIndexSummary"),
+		IndexEntryOffset: 2390423,
 	}
 
 	testLogInfo = schema.LogInfo{
@@ -82,7 +96,7 @@ func TestIndexInfoRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeIndexInfo(testIndexInfo))
-	dec.Reset(enc.Bytes())
+	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexInfo()
 	require.NoError(t, err)
 	require.Equal(t, testIndexInfo, res)
@@ -94,10 +108,22 @@ func TestIndexEntryRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
-	dec.Reset(enc.Bytes())
+	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry()
 	require.NoError(t, err)
 	require.Equal(t, testIndexEntry, res)
+}
+
+func TestIndexSummaryRoundtrip(t *testing.T) {
+	var (
+		enc = testEncoder(t)
+		dec = testDecoder(t, nil)
+	)
+	require.NoError(t, enc.EncodeIndexSummary(testIndexSummary))
+	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
+	res, err := dec.DecodeIndexSummary()
+	require.NoError(t, err)
+	require.Equal(t, testIndexSummary, res)
 }
 
 func TestLogInfoRoundtrip(t *testing.T) {
@@ -106,7 +132,7 @@ func TestLogInfoRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeLogInfo(testLogInfo))
-	dec.Reset(enc.Bytes())
+	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeLogInfo()
 	require.NoError(t, err)
 	require.Equal(t, testLogInfo, res)
@@ -118,7 +144,7 @@ func TestLogEntryRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeLogEntry(testLogEntry))
-	dec.Reset(enc.Bytes())
+	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeLogEntry()
 	require.NoError(t, err)
 	require.Equal(t, testLogEntry, res)
@@ -130,7 +156,7 @@ func TestLogMetadataRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeLogMetadata(testLogMetadata))
-	dec.Reset(enc.Bytes())
+	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeLogMetadata()
 	require.NoError(t, err)
 	require.Equal(t, testLogMetadata, res)
@@ -166,7 +192,7 @@ func TestMultiTypeRoundtripStress(t *testing.T) {
 		}
 	}
 
-	dec.Reset(enc.Bytes())
+	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
 	for i := 0; i < iter; i++ {
 		switch i % 5 {
 		case 0:

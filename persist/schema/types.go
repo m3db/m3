@@ -20,20 +20,46 @@
 
 package schema
 
+// MajorVersion is the major schema version for a set of fileset files,
+// this is only incremented when breaking changes are introduced and
+// tooling needs to upgrade older files to newer files before a server restart
+const MajorVersion = 1
+
 // IndexInfo stores metadata information about block filesets
 type IndexInfo struct {
-	Start     int64
-	BlockSize int64
-	Entries   int64
+	Start        int64
+	BlockSize    int64
+	Entries      int64
+	MajorVersion int64
+	Summaries    IndexSummariesInfo
+	BloomFilter  IndexBloomFilterInfo
 }
 
-// IndexEntry stores entry-level data for easier indexing
+// IndexSummariesInfo stores metadata about the summaries
+type IndexSummariesInfo struct {
+	Summaries int64
+}
+
+// IndexBloomFilterInfo stores metadata about the bloom filter
+type IndexBloomFilterInfo struct {
+	NumElementsM int64
+	NumHashesK   int64
+}
+
+// IndexEntry stores entry-level data indexing
 type IndexEntry struct {
 	Index    int64
 	ID       []byte
 	Size     int64
 	Offset   int64
 	Checksum int64
+}
+
+// IndexSummary stores a summary of an index entry to lookup
+type IndexSummary struct {
+	Index            int64
+	ID               []byte
+	IndexEntryOffset int64
 }
 
 // LogInfo stores summary information about a commit log
