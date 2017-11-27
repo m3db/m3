@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"fmt"
 	"runtime/debug"
 	"testing"
 	"time"
@@ -96,7 +95,6 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 		time.Sleep(10 * time.Second)
 		debug.PrintStack()
 	}()
-	fmt.Println("attempting to delete", nsToDelete)
 	require.NoError(t, <-nsResetErr)
 
 	go func() {

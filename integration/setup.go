@@ -105,10 +105,6 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	if opts == nil {
 		opts = newTestOptions(t)
 	}
-	mds := opts.Namespaces()
-	for _, md := range mds {
-		fmt.Println(opts.ID(), "has starting namespace", md.ID().String())
-	}
 	nsInit := opts.NamespaceInitializer()
 	if nsInit == nil {
 		nsInit = namespace.NewStaticInitializer(opts.Namespaces())

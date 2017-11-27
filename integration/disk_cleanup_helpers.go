@@ -24,7 +24,6 @@ package integration
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -155,11 +154,8 @@ func waitUntilDataCleanedUpExtended(
 
 // nolint: deadcode, unused
 func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ts.ID, waitTimeout time.Duration) error {
-	nsDir := fs.NamespaceDirPath(filePathPrefix, namespace)
-	fmt.Println("Loooking for namespace to be delete:", nsDir)
 	dataCleanedUp := func() bool {
 		namespaceDir := fs.NamespaceDirPath(filePathPrefix, namespace)
-		fmt.Println("found", namespaceDir)
 		return !fs.FileExists(namespaceDir)
 	}
 
@@ -172,19 +168,10 @@ func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ts.ID, waitTi
 // nolint: deadcode, unused
 func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespace.Metadata, newShardSet sharding.ShardSet) (*testSetup, error) {
 	testSetup.stopServer()
-	//	testSetup.waitUntilServerIsDown()
 	// Reset to the desired shard set and namespaces
 	// Because restarting the server would bootstrap
 	// To old data we wanted to delete
-	fmt.Println("resetting the namespaces to the following new namespaces")
-	for _, md := range newNamespaces {
-		fmt.Println("new ns:", md.ID().String())
-	}
 	testSetup.opts = testSetup.opts.SetNamespaces(newNamespaces)
-	testSetupNamespaces := testSetup.opts.Namespaces()
-	for _, md := range testSetupNamespaces {
-		fmt.Println("changed to new ns:", md.ID().String())
-	}
 
 	resetSetup, err := newTestSetup(nil, testSetup.opts, testSetup.fsOpts)
 	if err != nil {
