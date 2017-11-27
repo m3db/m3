@@ -54,6 +54,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	m3dbruntime "github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/services/m3dbnode/config"
+	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/cluster"
@@ -241,7 +242,8 @@ func Run(runOpts RunOptions) {
 		SetConfigServiceClient(configSvcClient).
 		SetServiceID(serviceID).
 		SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
-		SetInstrumentOptions(opts.InstrumentOptions())
+		SetInstrumentOptions(opts.InstrumentOptions()).
+		SetHashGen(sharding.NewHashGenWithSeed(cfg.HashingConfiguration.Seed))
 
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 	topo, err := topoInit.Init()

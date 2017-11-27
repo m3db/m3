@@ -53,7 +53,7 @@ func DefaultShardSet() (sharding.ShardSet, error) {
 	}
 
 	shards := sharding.NewShards(ids, shard.Available)
-	return sharding.NewShardSet(shards, sharding.DefaultHashGen(1024))
+	return sharding.NewShardSet(shards, sharding.DefaultHashFn(1024))
 }
 
 // DefaultTopologyInitializer creates a default topology initializer

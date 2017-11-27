@@ -54,6 +54,8 @@ fetchRetry:
     jitter: true
 backgroundHealthCheckFailLimit: 4
 backgroundHealthCheckFailThrottleFactor: 0.5
+hashing:
+  seed: 1337
 `
 
 	fd, err := ioutil.TempFile("", "config.yaml")
@@ -92,6 +94,9 @@ backgroundHealthCheckFailThrottleFactor: 0.5
 		},
 		BackgroundHealthCheckFailLimit:          4,
 		BackgroundHealthCheckFailThrottleFactor: 0.5,
+		HashingConfiguration: HashingConfiguration{
+			Seed: 1337,
+		},
 	}
 
 	assert.Equal(t, expected, cfg)

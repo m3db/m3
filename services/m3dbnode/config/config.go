@@ -94,6 +94,9 @@ type Configuration struct {
 
 	// The configuration for config service client.
 	ConfigService etcdclient.Configuration `yaml:"configService"`
+
+	// The configuration for hashing
+	HashingConfiguration HashingConfiguration `yaml:"hashing"`
 }
 
 // BlockRetrievePolicy is the block retrieve policy.
@@ -160,4 +163,10 @@ type RepairPolicy struct {
 
 	// The repair check interval.
 	CheckInterval time.Duration `yaml:"checkInterval" validate:"nonzero"`
+}
+
+// HashingConfiguration is the configuration for hashing
+type HashingConfiguration struct {
+	// Murmur32 seed value
+	Seed uint32 `yaml:"seed"`
 }
