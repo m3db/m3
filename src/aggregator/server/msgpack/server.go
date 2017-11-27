@@ -94,6 +94,11 @@ func NewHandler(aggregator aggregator.Aggregator, opts Options) xserver.Handler 
 }
 
 func (s *handler) Handle(conn net.Conn) {
+	remoteAddress := unknownRemoteHostAddress
+	if remoteAddr := conn.RemoteAddr(); remoteAddr != nil {
+		remoteAddress = remoteAddr.String()
+	}
+
 	it := s.iteratorPool.Get()
 	it.Reset(conn)
 	defer it.Close()
@@ -111,6 +116,7 @@ func (s *handler) Handle(conn net.Conn) {
 				continue
 			}
 			s.log.WithFields(
+				log.NewField("remoteAddress", remoteAddress),
 				log.NewField("type", metric.Type.String()),
 				log.NewField("id", metric.ID.String()),
 				log.NewField("policies", policiesList),
@@ -122,10 +128,6 @@ func (s *handler) Handle(conn net.Conn) {
 	// If there is an error during decoding, it's likely due to a broken connection
 	// and therefore we ignore the EOF error.
 	if err := it.Err(); err != nil && err != io.EOF {
-		remoteAddress := unknownRemoteHostAddress
-		if remoteAddr := conn.RemoteAddr(); remoteAddr != nil {
-			remoteAddress = remoteAddr.String()
-		}
 		s.log.WithFields(
 			log.NewField("remoteAddress", remoteAddress),
 			log.NewErrField(err),
