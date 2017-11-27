@@ -143,6 +143,7 @@ type aggregatorMetrics struct {
 	timerBatches              tally.Counter
 	gauges                    tally.Counter
 	invalidMetricTypes        tally.Counter
+	shardNotOwned             tally.Counter
 	addMetricWithPoliciesList instrument.MethodMetrics
 	placement                 aggregatorPlacementMetrics
 	shards                    aggregatorShardsMetrics
@@ -159,6 +160,7 @@ func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMet
 		timerBatches:              scope.Counter("timer-batches"),
 		gauges:                    scope.Counter("gauges"),
 		invalidMetricTypes:        scope.Counter("invalid-metric-types"),
+		shardNotOwned:             scope.Counter("shard-not-owned"),
 		addMetricWithPoliciesList: instrument.NewMethodMetrics(scope, "addMetricWithPoliciesList", samplingRate),
 		placement:                 newAggregatorPlacementMetrics(placementScope),
 		shards:                    newAggregatorShardsMetrics(shardsScope),
@@ -353,6 +355,7 @@ func (agg *aggregator) shardForWithLock(id id.RawID, updateShardsType updateShar
 	numShards := placement.NumShards()
 	shardID := agg.shardFn([]byte(id), numShards)
 	if int(shardID) >= len(agg.shards) || agg.shards[shardID] == nil {
+		agg.metrics.shardNotOwned.Inc(1)
 		return nil, fmt.Errorf("not responsible for shard %d", shardID)
 	}
 	return agg.shards[shardID], nil
