@@ -35,6 +35,7 @@ import (
 )
 
 func TestDiskCleansupInactiveDirectories(t *testing.T) {
+	var resetSetup *testSetup
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -82,7 +83,12 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 
 	// Server needs to restart for namespace changes to be absorbed
 	go func() {
-		nsResetErr <- waitUntilNamespacesHaveReset(testSetup, namespaces, shardSet)
+		var resetErr error
+		resetSetup, resetErr = waitUntilNamespacesHaveReset(testSetup, namespaces, shardSet)
+		nsResetErr <- resetErr
+	}()
+	defer func() {
+		require.NoError(t, resetSetup.stopServer())
 	}()
 	nsToDelete := testNamespaces[1]
 	log.Info("blocking until namespaces have reset and deleted")

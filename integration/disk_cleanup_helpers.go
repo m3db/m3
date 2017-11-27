@@ -170,7 +170,7 @@ func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ts.ID, waitTi
 }
 
 // nolint: deadcode, unused
-func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespace.Metadata, newShardSet sharding.ShardSet) error {
+func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespace.Metadata, newShardSet sharding.ShardSet) (*testSetup, error) {
 	testSetup.stopServer()
 	//	testSetup.waitUntilServerIsDown()
 	// Reset to the desired shard set and namespaces
@@ -186,15 +186,17 @@ func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespac
 		fmt.Println("changed to new ns:", md.ID().String())
 	}
 
-	testSetup, err := newTestSetup(nil, testSetup.opts, testSetup.fsOpts)
+	resetSetup, err := newTestSetup(nil, testSetup.opts, testSetup.fsOpts)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	testSetup.shardSet = newShardSet
-	testSetup.startServer()
-	//	testSetup.waitUntilServerIsUp()
+	resetSetup.shardSet = newShardSet
+	err = resetSetup.startServer()
+	if err != nil {
+		return nil, err
+	}
 
-	return nil
+	return resetSetup, nil
 }
 
 // nolint: deadcode, unused
