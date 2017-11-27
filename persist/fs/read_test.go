@@ -422,7 +422,7 @@ func TestReadValidate(t *testing.T) {
 	require.NoError(t, r.Close())
 }
 
-func reads(buf *readerDecoderStream, m int) string {
+func reads(buf filesetReaderDecoderStream, m int) string {
 	var b [1000]byte
 	if int(buf.Remaining()) > len(b) {
 		panic(fmt.Errorf("cannot read all"))
@@ -478,7 +478,7 @@ func TestDecoderStreamSkip(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []byte{4, 5}, p)
 
-	assert.NoError(t, buf.readerWithDigest.Validate(expectedDigest))
+	assert.NoError(t, buf.reader().Validate(expectedDigest))
 }
 
 func TestDecoderStreamUnreadByte(t *testing.T) {
