@@ -9,6 +9,7 @@ M3DB, inspired by [Gorilla][gorilla] and [InfluxDB][influxdb], is a distributed 
 * Distributed hybrid in-memory and disk time series storage
 * Cluster management built on top of [etcd][etcd]
 * M3TSZ float64 compression inspired by Gorilla TSZ compression
+* Arbitrary time precision down to nanosecond precision with the ability to switch precision with any write
 * Configurable out of order writes
 
 ## Current Limitations
