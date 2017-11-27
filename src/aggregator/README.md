@@ -7,6 +7,7 @@ well as efficient summary metrics for timer data. Supports dynamically changing 
 as query and storage requirements change.
 
 <hr>
+
 This project is released under the [MIT License](LICENSE.md).
 
 [doc-img]: https://godoc.org/github.com/m3db/m3aggregator?status.svg
