@@ -101,11 +101,14 @@ type testSetup struct {
 	closedCh chan struct{}
 }
 
-func newTestSetup(t *testing.T, opts testOptions) (*testSetup, error) {
+func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup, error) {
 	if opts == nil {
 		opts = newTestOptions(t)
 	}
-
+	mds := opts.Namespaces()
+	for _, md := range mds {
+		fmt.Println(opts.ID(), "has starting namespace", md.ID().String())
+	}
 	nsInit := opts.NamespaceInitializer()
 	if nsInit == nil {
 		nsInit = namespace.NewStaticInitializer(opts.Namespaces())
@@ -211,8 +214,10 @@ func newTestSetup(t *testing.T, opts testOptions) (*testSetup, error) {
 		return nil, err
 	}
 
-	fsOpts := fs.NewOptions().
-		SetFilePathPrefix(filePathPrefix)
+	if fsOpts == nil {
+		fsOpts = fs.NewOptions().
+			SetFilePathPrefix(filePathPrefix)
+	}
 
 	storageOpts = storageOpts.SetCommitLogOptions(
 		storageOpts.CommitLogOptions().

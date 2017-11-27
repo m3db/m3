@@ -75,7 +75,7 @@ func TestWriteReadTimezone(t *testing.T) {
 
 	// Setup / start server
 	opts := newTestOptions(t)
-	setup, err := newTestSetup(t, opts)
+	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.close()
 	require.NoError(t, setup.startServer())

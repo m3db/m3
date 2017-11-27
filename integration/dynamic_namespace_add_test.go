@@ -77,7 +77,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test setup
-	testSetup, err := newTestSetup(t, testOpts)
+	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
 

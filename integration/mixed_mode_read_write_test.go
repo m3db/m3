@@ -185,7 +185,7 @@ func waitUntilFilesetFilesCleanedUp(
 }
 
 func newTestSetupWithCommitLogAndFilesystemBootstrapper(t *testing.T, opts testOptions) *testSetup {
-	setup, err := newTestSetup(t, opts)
+	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
 
 	commitLogOpts := setup.storageOpts.CommitLogOptions()

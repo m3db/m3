@@ -40,7 +40,7 @@ func TestTruncateNamespace(t *testing.T) {
 	}
 	// Test setup
 	testOpts := newTestOptions(t)
-	testSetup, err := newTestSetup(t, testOpts)
+	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
 

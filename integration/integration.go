@@ -39,9 +39,9 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	xmetrics "github.com/m3db/m3db/x/metrics"
-	xtime "github.com/m3db/m3x/time"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -174,7 +174,7 @@ func newDefaultBootstrappableTestSetups(
 				SetClusterDatabaseTopologyInitializer(topologyInitializer)
 		}
 
-		setup, err := newTestSetup(t, instanceOpts)
+		setup, err := newTestSetup(t, instanceOpts, nil)
 		require.NoError(t, err)
 
 		instrumentOpts := setup.storageOpts.InstrumentOptions()

@@ -23,6 +23,8 @@
 package integration
 
 import (
+	"fmt"
+	"runtime/debug"
 	"testing"
 	"time"
 
@@ -38,11 +40,10 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	}
 	// Test setup
 	testOpts := newTestOptions(t)
-	testSetup, err := newTestSetup(t, testOpts)
+	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 
-	md1 := testSetup.namespaceMetadataOrFail(testNamespaces[0])
-	md2 := testSetup.namespaceMetadataOrFail(testNamespaces[1])
+	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// Start tte server
@@ -51,10 +52,6 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	require.NoError(t, testSetup.startServer())
 
 	// Stop the server at the end of the test
-	defer func() {
-		require.NoError(t, testSetup.stopServer())
-		log.Debug("server is now down")
-	}()
 
 	var (
 		fsCleanupErr = make(chan error)
@@ -62,9 +59,9 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 		nsCleanupErr = make(chan error)
 
 		fsWaitTimeout = 30 * time.Second
-		nsWaitTimeout = 30 * time.Second
+		nsWaitTimeout = 10 * time.Second
 
-		namespaces = []namespace.Metadata{md1}
+		namespaces = []namespace.Metadata{md}
 		shardSet   = testSetup.db.ShardSet()
 		shards     = shardSet.All()
 		extraShard = shards[0]
@@ -83,19 +80,21 @@ func TestDiskCleansupInactiveDirectories(t *testing.T) {
 	log.Info("blocking until file cleanup is received")
 	require.NoError(t, <-fsCleanupErr)
 
-	// Delete the namespace we're looking for now
-	_, err = testSetup.db.Truncate(md2.ID())
-	require.NoError(t, err)
-
 	// Server needs to restart for namespace changes to be absorbed
 	go func() {
 		nsResetErr <- waitUntilNamespacesHaveReset(testSetup, namespaces, shardSet)
 	}()
-	log.Info("blocking until namespaces have reset")
+	nsToDelete := testNamespaces[1]
+	log.Info("blocking until namespaces have reset and deleted")
+	go func() {
+		time.Sleep(10 * time.Second)
+		debug.PrintStack()
+	}()
+	fmt.Println("attempting to delete", nsToDelete)
 	require.NoError(t, <-nsResetErr)
 
 	go func() {
-		nsCleanupErr <- waitUntilNamespacesCleanedUp(testSetup, filePathPrefix, testNamespaces[1], nsWaitTimeout)
+		nsCleanupErr <- waitUntilNamespacesCleanedUp(filePathPrefix, nsToDelete, nsWaitTimeout)
 	}()
 	log.Info("blocking until the namespace cleanup is received")
 	require.NoError(t, <-nsCleanupErr)

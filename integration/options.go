@@ -21,6 +21,7 @@
 package integration
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -287,8 +288,24 @@ func newTestOptions(t *testing.T) testOptions {
 }
 
 func (o *options) SetNamespaces(value []namespace.Metadata) testOptions {
+	fmt.Println("setting namespaces now.")
 	opts := *o
+	fmt.Println("attempting to set namespaces as:")
+	for _, v := range value {
+		fmt.Println("pNS:", v.ID().String())
+	}
+	fmt.Println("original namespaces:")
+	for _, ns := range opts.namespaces {
+		fmt.Println("ns1:", ns.ID().String())
+	}
+
+	opts.namespaces = opts.namespaces[:0]
 	opts.namespaces = value
+	fmt.Println("namepsaces after set:")
+	for _, ns := range opts.namespaces {
+		fmt.Println("ns1:", ns.ID().String())
+	}
+
 	return &opts
 }
 

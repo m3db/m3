@@ -93,10 +93,11 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 			"encountered errors when cleaning up fileset files for %v: %v", t, err))
 	}
 
-	if err := m.deleteInactiveFilesetFiles(); err != nil {
-		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when deleting inactive fileset files for %v: %v", t, err))
-	}
+	/*
+		if err := m.deleteInactiveFilesetFiles(); err != nil {
+			multiErr = multiErr.Add(fmt.Errorf(
+				"encountered errors when deleting inactive fileset files for %v: %v", t, err))
+		} */
 
 	if err := m.deleteInactiveNamespaceFiles(); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
@@ -135,14 +136,23 @@ func (m *cleanupManager) deleteInactiveNamespaceFiles() error {
 	var namespaceDirNames []string
 	filePathPrefix := m.database.Options().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	dataDirPath := fs.DataDirPath(filePathPrefix)
+	fmt.Println("data dir", dataDirPath)
+	fmt.Println("checking for extra contents")
 	namespaces, err := m.database.GetOwnedNamespaces()
+	fmt.Println("owned namespaces: ")
+	for _, n := range namespaces {
+		fmt.Println("namespace", n.ID().String())
+	}
 	if err != nil {
 		return err
 	}
 
 	for _, n := range namespaces {
 		namespaceDirNames = append(namespaceDirNames, n.ID().String())
+		fmt.Println("namespace dir", n.ID().String())
+		fmt.Println("the path would be", fs.NamespaceDirPath(filePathPrefix, n.ID()))
 	}
+	fmt.Println("filepathPathPefix=", filePathPrefix, ",   dataDirPath=", dataDirPath)
 
 	return m.deleteInactiveDirectoriesFn(dataDirPath, namespaceDirNames)
 }
