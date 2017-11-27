@@ -270,12 +270,13 @@ func (r *reader) shutdown() {
 }
 
 func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse) {
-	decodingOpts := r.opts.FilesystemOptions().DecodingOptions()
-	decoder := msgpack.NewDecoder(decodingOpts)
-	decoderStream := encoding.NewDecoderStream(nil)
-	metadataDecoder := msgpack.NewDecoder(decodingOpts)
-	metadataDecoderStream := encoding.NewDecoderStream(nil)
-
+	var (
+		decodingOpts          = r.opts.FilesystemOptions().DecodingOptions()
+		decoder               = msgpack.NewDecoder(decodingOpts)
+		decoderStream         = encoding.NewDecoderStream(nil)
+		metadataDecoder       = msgpack.NewDecoder(decodingOpts)
+		metadataDecoderStream = encoding.NewDecoderStream(nil)
+	)
 	for arg := range inBuf {
 		readResponse := readResponse{}
 		// If there is a pre-existing error, just pipe it through

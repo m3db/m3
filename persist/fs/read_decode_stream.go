@@ -29,10 +29,13 @@ import (
 	"github.com/m3db/m3db/persist/encoding"
 )
 
-var (
-	// Ensure readerDecoderStream implements encoding.DecoderStream
-	_ encoding.DecoderStream = &readerDecoderStream{}
-)
+type filesetReaderDecoderStream interface {
+	encoding.DecoderStream
+
+	// reader returns the underlying reader with access to the
+	// incremental computed digest
+	reader() digest.ReaderWithDigest
+}
 
 type readerDecoderStream struct {
 	bytesReader      *bytes.Reader
@@ -43,11 +46,15 @@ type readerDecoderStream struct {
 	unreadByte       int
 }
 
-func newReaderDecoderStream() *readerDecoderStream {
+func newReaderDecoderStream() filesetReaderDecoderStream {
 	return &readerDecoderStream{
 		readerWithDigest: digest.NewReaderWithDigest(nil),
 		bytesReader:      bytes.NewReader(nil),
 	}
+}
+
+func (s *readerDecoderStream) reader() digest.ReaderWithDigest {
+	return s.readerWithDigest
 }
 
 func (s *readerDecoderStream) Reset(d []byte) {

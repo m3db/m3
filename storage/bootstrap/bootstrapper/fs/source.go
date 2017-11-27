@@ -414,6 +414,10 @@ func (s *fileSystemSource) Read(
 		xlog.NewField("metadataOnly", blockRetriever != nil),
 	).Infof("filesystem bootstrapper bootstrapping shards for ranges")
 	bytesPool := s.opts.ResultOptions().DatabaseBlockOptions().BytesPool()
+
+	// Create a reader pool once per bootstrap as we don't really want to
+	// allocate and keep around readers outside of the bootstrapping process,
+	// hence why its created on demand each time.
 	readerPool := newReaderPool(func() (fs.FileSetReader, error) {
 		return s.newReaderFn(bytesPool, s.fsopts)
 	})
@@ -432,7 +436,7 @@ type shardReaders struct {
 // readerPool is a lean pool that does not allocate
 // instances up front and is used per bootstrap call
 type readerPool struct {
-	sync.RWMutex
+	sync.Mutex
 	alloc  readerPoolAllocFn
 	values []fs.FileSetReader
 }
@@ -451,6 +455,7 @@ func (p *readerPool) get() (fs.FileSetReader, error) {
 	}
 	length := len(p.values)
 	value := p.values[length-1]
+	p.values[length-1] = nil
 	p.values = p.values[:length-1]
 	p.Unlock()
 	return value, nil

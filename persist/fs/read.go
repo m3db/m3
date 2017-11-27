@@ -72,7 +72,7 @@ type reader struct {
 
 	indexFd                 *os.File
 	indexMmap               []byte
-	indexDecoderStream      *readerDecoderStream
+	indexDecoderStream      filesetReaderDecoderStream
 	indexEntriesByOffsetAsc []schema.IndexEntry
 
 	dataFd     *os.File
@@ -335,7 +335,7 @@ func (r *reader) entryID(id []byte) ts.ID {
 // NB(xichen): Validate should be called after all data are read because the
 // digest is calculated for the entire data file.
 func (r *reader) Validate() error {
-	err := r.indexDecoderStream.readerWithDigest.Validate(r.expectedIndexDigest)
+	err := r.indexDecoderStream.reader().Validate(r.expectedIndexDigest)
 	if err != nil {
 		return fmt.Errorf("could not validate index file: %v", err)
 	}
