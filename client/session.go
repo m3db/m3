@@ -84,6 +84,11 @@ const (
 	FetchBlocksMetadataEndpointV2
 )
 
+var validFetchBlocksMetadataEndpoints = []FetchBlocksMetadataEndpointVersion{
+	FetchBlocksMetadataEndpointV1,
+	FetchBlocksMetadataEndpointV2,
+}
+
 var (
 	// ErrClusterConnectTimeout is raised when connecting to the cluster and
 	// ensuring at least each partition has an up node with a connection to it
@@ -1268,7 +1273,7 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	opts result.Options,
 	version FetchBlocksMetadataEndpointVersion,
 ) (result.ShardResult, error) {
-	if version != FetchBlocksMetadataEndpointV1 && version != FetchBlocksMetadataEndpointV2 {
+	if !IsValidFetchBlocksMetadataEndpoint(version) {
 		return nil, errInvalidFetchBlocksMetadataVersion
 	}
 
@@ -1316,12 +1321,18 @@ func (s *session) FetchBootstrapBlocksFromPeers(
 	// not return an error and if anything goes wrong here we won't report it to
 	// the caller, but metrics and logs are emitted internally. Also note that the
 	// streamAndGroupCollectedBlocksMetadata function is injected.
-	streamFn := s.streamAndGroupCollectedBlocksMetadata
-	if version == FetchBlocksMetadataEndpointV2 {
+	var streamFn streamBlocksMetadataFn
+	switch version {
+	case FetchBlocksMetadataEndpointV1:
+		streamFn = s.streamAndGroupCollectedBlocksMetadata
+	case FetchBlocksMetadataEndpointV2:
 		streamFn = s.streamAndGroupCollectedBlocksMetadataV2
+	// Should never happen
+	default:
+		return nil, errInvalidFetchBlocksMetadataVersion
 	}
-	s.streamBlocksFromPeers(nsMetadata, shard, peers,
-		metadataCh, opts, result, progress, streamFn)
+	s.streamBlocksFromPeers(
+		nsMetadata, shard, peers, metadataCh, opts, result, progress, streamFn)
 
 	// Check if an error occurred during the metadata streaming
 	if err = <-errCh; err != nil {
@@ -1437,13 +1448,20 @@ func (s *session) streamBlocksMetadataFromPeers(
 		go func() {
 			defer wg.Done()
 			var err error
-			if version == FetchBlocksMetadataEndpointV2 {
-				err = s.streamBlocksMetadataFromPeerV2(
-					namespace, shard, peer, start, end, metadataCh, progress)
-			} else {
+
+			switch version {
+			case FetchBlocksMetadataEndpointV1:
 				err = s.streamBlocksMetadataFromPeer(
 					namespace, shard, peer, start, end, metadataCh, progress)
+			case FetchBlocksMetadataEndpointV2:
+				err = s.streamBlocksMetadataFromPeerV2(
+					namespace, shard, peer, start, end, metadataCh, progress)
+			// Should never happen - we validate the version before this function is
+			// ever called
+			default:
+				err = errInvalidFetchBlocksMetadataVersion
 			}
+
 			if err != nil {
 				errLock.Lock()
 				defer errLock.Unlock()
@@ -1628,20 +1646,9 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		progress.metadataReceived.Inc(int64(len(result.Elements)))
 
 		if result.NextPageToken != nil {
-			// copy will not extend the destination slice automatically
-			nextPageTokenLen := len(result.NextPageToken)
-			pageTokenLen := len(pageToken)
-			delta := nextPageTokenLen - pageTokenLen
-			if delta > 0 {
-				for i := 0; i < delta; i++ {
-					pageToken = append(pageToken, '\x00')
-				}
-			}
-			// Copy the pageToken so we don't have to keep the result around
-			copy(pageToken, result.NextPageToken)
-			// Make sure we don't include extraneous bytes if the new page token is
-			// shorter than the previous one (for whateve reason)
-			pageToken = pageToken[:nextPageTokenLen]
+			// Reset pageToken + copy new pageToken into previously allocated memory,
+			// extending as necessary
+			pageToken = append(pageToken[:0], result.NextPageToken...)
 		} else {
 			// No further results
 			moreResults = false
@@ -3061,4 +3068,15 @@ func (it *metadataIter) Err() error {
 type hashAndBlockStart struct {
 	hash       ts.Hash
 	blockStart int64
+}
+
+// IsValidFetchBlocksMetadataEndpoint returns a bool indicating whether the
+// specified endpointVersion is valid
+func IsValidFetchBlocksMetadataEndpoint(endpointVersion FetchBlocksMetadataEndpointVersion) bool {
+	for _, version := range validFetchBlocksMetadataEndpoints {
+		if version == endpointVersion {
+			return true
+		}
+	}
+	return false
 }

@@ -70,8 +70,7 @@ func (o *options) Validate() error {
 		return errAdminClientNotSet
 	}
 
-	if o.fetchBlocksMetadataEndpointVersion != client.FetchBlocksMetadataEndpointV1 &&
-		o.fetchBlocksMetadataEndpointVersion != client.FetchBlocksMetadataEndpointV2 {
+	if !client.IsValidFetchBlocksMetadataEndpoint(o.fetchBlocksMetadataEndpointVersion) {
 		return errInvalidFetchBlocksMetadataVersion
 	}
 	return nil
