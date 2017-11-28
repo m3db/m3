@@ -92,10 +92,6 @@ func (cfg *Configuration) NewOptions(
 		return nil, err
 	}
 
-	if err := kvOpts.Validate(); err != nil {
-		return nil, err
-	}
-
 	rulesStore, err := kvCluster.Store(kvOpts)
 	if err != nil {
 		return nil, err
