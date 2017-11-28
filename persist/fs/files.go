@@ -260,9 +260,7 @@ func DeleteInactiveDirectories(parentDirectoryPath string, activeDirectories []s
 		activeDirNames[dir] = struct{}{}
 	}
 
-	fmt.Println("parent directory", parentDirectoryPath, "contains the following")
 	for dirName, dirPath := range allSubDirs {
-		fmt.Println(dirName, "with path", dirPath)
 		if _, ok := activeDirNames[dirName]; !ok {
 			toDelete = append(toDelete, dirPath)
 		}
