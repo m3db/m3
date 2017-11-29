@@ -83,6 +83,45 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	require.Equal(t, []string{"foo", "bar", "baz"}, deletedFiles)
 }
 
+func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+	ts := timeFor(36000)
+	rOpts := retention.NewOptions().
+		SetRetentionPeriod(21600 * time.Second).
+		SetBlockSize(7200 * time.Second)
+	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts).SetNeedsFilesetCleanup(false)
+
+	namespaces := make([]databaseNamespace, 0, 3)
+	for range namespaces {
+		ns := NewMockdatabaseNamespace(ctrl)
+		ns.EXPECT().Options().Return(nsOpts).AnyTimes()
+		ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
+		namespaces = append(namespaces, ns)
+	}
+	db := newMockdatabase(ctrl, namespaces...)
+	db.EXPECT().GetOwnedNamespaces().Return(namespaces, nil).AnyTimes()
+	mgr := newCleanupManager(db, tally.NoopScope).(*cleanupManager)
+	mgr.opts = mgr.opts.SetCommitLogOptions(
+		mgr.opts.CommitLogOptions().
+			SetRetentionPeriod(rOpts.RetentionPeriod()).
+			SetBlockSize(rOpts.BlockSize()))
+
+	mgr.commitLogFilesBeforeFn = func(_ string, t time.Time) ([]string, error) {
+		return []string{"foo", "bar"}, nil
+	}
+	mgr.commitLogFilesForTimeFn = func(_ string, t time.Time) ([]string, error) {
+		return nil, nil
+	}
+	var deletedFiles []string
+	mgr.deleteFilesFn = func(files []string) error {
+		deletedFiles = append(deletedFiles, files...)
+		return nil
+	}
+
+	require.NoError(t, mgr.Cleanup(ts))
+}
+
 func TestCleanupManagerPropagatesGetOwnedNamespacesError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
