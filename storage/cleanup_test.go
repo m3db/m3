@@ -50,7 +50,7 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	nsOpts := namespace.NewOptions().SetRetentionOptions(rOpts)
 
 	namespaces := make([]databaseNamespace, 0, 3)
-	for _, _ = range namespaces {
+	for range namespaces {
 		ns := NewMockdatabaseNamespace(ctrl)
 		ns.EXPECT().Options().Return(nsOpts).AnyTimes()
 		ns.EXPECT().NeedsFlush(gomock.Any(), gomock.Any()).Return(false).AnyTimes()
