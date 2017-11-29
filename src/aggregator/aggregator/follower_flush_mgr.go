@@ -209,7 +209,7 @@ func (mgr *followerFlushManager) flushersFromKVUpdateWithLock(buckets []*flushBu
 	for i, bucket := range buckets {
 		flushersByInterval[i].interval = bucket.interval
 		flushersByInterval[i].duration = bucket.duration
-		flushersByInterval[i].flushers = make([]flusherWithTime, 0, defaultInitialFlushTimesCapacity)
+		flushersByInterval[i].flushers = make([]flusherWithTime, 0, defaultInitialFlushCapacity)
 		for _, flusher := range bucket.flushers {
 			shard := flusher.Shard()
 			shardFlushTimes, exists := mgr.received.ByShard[shard]
@@ -248,7 +248,7 @@ func (mgr *followerFlushManager) flushersFromForcedFlush(
 	for i, bucket := range buckets {
 		flushersByInterval[i].interval = bucket.interval
 		flushersByInterval[i].duration = bucket.duration
-		flushersByInterval[i].flushers = make([]flusherWithTime, 0, defaultInitialFlushTimesCapacity)
+		flushersByInterval[i].flushers = make([]flusherWithTime, 0, defaultInitialFlushCapacity)
 		for _, flusher := range bucket.flushers {
 			newFlushTarget := flusherWithTime{
 				flusher:          flusher,

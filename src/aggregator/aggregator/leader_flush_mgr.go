@@ -34,7 +34,7 @@ import (
 )
 
 const (
-	defaultInitialFlushTimesCapacity = 32
+	defaultInitialFlushCapacity = 32
 )
 
 type leaderFlushManagerMetrics struct {
@@ -98,11 +98,14 @@ func newLeaderFlushManager(
 		doneCh:                 doneCh,
 		rand:                   rand,
 		randFn:                 rand.Int63n,
-		flushedByShard:         make(map[uint32]*schema.ShardFlushTimes, defaultInitialFlushTimesCapacity),
+		flushedByShard:         make(map[uint32]*schema.ShardFlushTimes, defaultInitialFlushCapacity),
 		lastPersistAtNanos:     nowFn().UnixNano(),
 		metrics:                newLeaderFlushManagerMetrics(scope),
 	}
-	mgr.flushTask = &leaderFlushTask{mgr: mgr}
+	mgr.flushTask = &leaderFlushTask{
+		mgr:      mgr,
+		flushers: make([]PeriodicFlusher, 0, defaultInitialFlushCapacity),
+	}
 	return mgr
 }
 
@@ -122,8 +125,6 @@ func (mgr *leaderFlushManager) Init(buckets []*flushBucket) {
 func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.Duration) {
 	var (
 		shouldFlush = false
-		duration    tally.Timer
-		flushers    []PeriodicFlusher
 		waitFor     = mgr.checkEvery
 	)
 	mgr.Lock()
@@ -135,13 +136,15 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 	if numFlushTimes > 0 {
 		earliestFlush := mgr.flushTimes.Min()
 		if nowNanos >= earliestFlush.timeNanos {
-			// NB(xichen): make a shallow copy of the flushers inside the lock
-			// and use the snapshot for flushing below.
 			shouldFlush = true
 			waitFor = 0
 			bucketIdx := earliestFlush.bucketIdx
-			duration = buckets[bucketIdx].duration
-			flushers = buckets[bucketIdx].flushers
+			// NB(xichen): make a shallow copy of the flushers inside the lock
+			// and use the snapshot for flushing below because the flushers slice
+			// inside the bucket may be modified during task execution when new
+			// flushers are registered or old flushers are unregistered.
+			mgr.flushTask.duration = buckets[bucketIdx].duration
+			mgr.flushTask.flushers = append(mgr.flushTask.flushers[:0], buckets[bucketIdx].flushers...)
 			nextFlushMetadata := flushMetadata{
 				timeNanos: earliestFlush.timeNanos + int64(buckets[bucketIdx].interval),
 				bucketIdx: bucketIdx,
@@ -172,8 +175,6 @@ func (mgr *leaderFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.
 	if !shouldFlush {
 		return nil, waitFor
 	}
-	mgr.flushTask.duration = duration
-	mgr.flushTask.flushers = flushers
 	return mgr.flushTask, waitFor
 }
 
