@@ -132,7 +132,7 @@ func (h r2Handler) wrap(fn r2HandlerFunc) http.Handler {
 			h.handleError(w, err)
 		}
 	})
-	return h.auth.NewAuthHandler(f)
+	return h.auth.NewAuthHandler(f, writeAPIResponse)
 }
 
 func (h r2Handler) handleError(w http.ResponseWriter, opError error) {
