@@ -83,6 +83,7 @@ func TestCleanupManagerCleanup(t *testing.T) {
 	require.Equal(t, []string{"foo", "bar", "baz"}, deletedFiles)
 }
 
+// Test NS doesn't cleanup when flag is present
 func TestCleanupManagerDoesntNeedCleanup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
