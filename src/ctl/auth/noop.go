@@ -37,7 +37,7 @@ func NewNoopAuth() HTTPAuthService {
 	return noopAuth{}
 }
 
-func (a noopAuth) NewAuthHandler(next http.Handler) http.Handler {
+func (a noopAuth) NewAuthHandler(next http.Handler, errHandler errorResponseHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r)
 	})

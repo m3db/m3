@@ -21,6 +21,7 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -130,6 +131,47 @@ func TestHealthCheck(t *testing.T) {
 		require.Equal(t, "testHeader", v)
 	})
 
-	wrappedCall := a.NewAuthHandler(f)
+	wrappedCall := a.NewAuthHandler(f, writeAPIResponse)
 	wrappedCall.ServeHTTP(httptest.NewRecorder(), &http.Request{})
+}
+
+func TestAuthenticateFailure(t *testing.T) {
+	a := testConfig.NewSimpleAuth()
+	f := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		v, err := a.GetUser(r.Context())
+		require.NoError(t, err)
+		require.Equal(t, "testHeader", v)
+	})
+	recorder := httptest.NewRecorder()
+
+	wrappedCall := a.NewAuthHandler(f, writeAPIResponse)
+	wrappedCall.ServeHTTP(recorder, &http.Request{})
+	require.Equal(t, http.StatusUnauthorized, recorder.Code)
+	require.Equal(t, "application/json", recorder.HeaderMap["Content-Type"][0])
+}
+
+func TestAuthorizeFailure(t *testing.T) {
+	a := testConfig.NewSimpleAuth()
+	f := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		v, err := a.GetUser(r.Context())
+		require.NoError(t, err)
+		require.Equal(t, "testHeader", v)
+	})
+	recorder := httptest.NewRecorder()
+	req, err := http.NewRequest("Get", "/create", bytes.NewBuffer(nil))
+	require.NoError(t, err)
+	req.Header.Add("testHeader", "validUserID")
+
+	wrappedCall := a.NewAuthHandler(f, writeAPIResponse)
+	wrappedCall.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusForbidden, recorder.Code)
+	require.Equal(t, "application/json", recorder.HeaderMap["Content-Type"][0])
+}
+
+func writeAPIResponse(w http.ResponseWriter, code int, msg string) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	_, err := w.Write([]byte(msg))
+
+	return err
 }
