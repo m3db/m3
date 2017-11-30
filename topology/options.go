@@ -131,7 +131,7 @@ func NewDynamicOptions() DynamicOptions {
 		queryOptions:      services.NewQueryOptions(),
 		instrumentOptions: instrument.NewOptions(),
 		initTimeout:       defaultInitTimeout,
-		hashGen:           sharding.DefaultHashGen,
+		hashGen:           sharding.DefaultHashFn,
 	}
 }
 

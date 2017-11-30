@@ -18,17 +18,46 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package commitlog
+// +build !linux
 
-import "testing"
+package fs
 
-// go test -bench=LemireCreate
-// see http://lemire.me/blog/2016/09/22/swift-versus-java-the-bitset-performance-test/
-func BenchmarkLemireCreate(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		bitmap := newBitSet(0) // we force dynamic memory allocation
-		for v := uint(0); v <= 100000000; v += 100 {
-			bitmap.set(v)
-		}
+import (
+	"fmt"
+	"syscall"
+)
+
+func mmap(fd, offset, length int64, opts mmapOptions) ([]byte, error) {
+	if length == 0 {
+		// Return an empty slice (but not nil so callers who
+		// use nil to mean something special like not initialized
+		// get back an actual ref)
+		return make([]byte, 0), nil
 	}
+
+	var prot int
+	if opts.read {
+		prot = prot | syscall.PROT_READ
+	}
+
+	flags := syscall.MAP_SHARED
+	b, err := syscall.Mmap(int(fd), offset, int(length), prot, flags)
+	if err != nil {
+		return nil, fmt.Errorf("mmap error: %v", err)
+	}
+
+	return b, nil
+}
+
+func munmap(b []byte) error {
+	if len(b) == 0 {
+		// Never actually mmapd this, just returned empty slice
+		return nil
+	}
+
+	if err := syscall.Munmap(b); err != nil {
+		return fmt.Errorf("munmap error: %v", err)
+	}
+
+	return nil
 }

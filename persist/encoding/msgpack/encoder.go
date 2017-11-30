@@ -95,6 +95,15 @@ func (enc *encoder) EncodeIndexEntry(entry schema.IndexEntry) error {
 	return enc.err
 }
 
+func (enc *encoder) EncodeIndexSummary(summary schema.IndexSummary) error {
+	if enc.err != nil {
+		return enc.err
+	}
+	enc.encodeRootObject(indexSummaryVersion, indexSummaryType)
+	enc.encodeIndexSummary(summary)
+	return enc.err
+}
+
 func (enc *encoder) EncodeLogInfo(info schema.LogInfo) error {
 	if enc.err != nil {
 		return enc.err
@@ -127,6 +136,20 @@ func (enc *encoder) encodeIndexInfo(info schema.IndexInfo) {
 	enc.encodeVarintFn(info.Start)
 	enc.encodeVarintFn(info.BlockSize)
 	enc.encodeVarintFn(info.Entries)
+	enc.encodeVarintFn(info.MajorVersion)
+	enc.encodeIndexSummariesInfo(info.Summaries)
+	enc.encodeIndexBloomFilterInfo(info.BloomFilter)
+}
+
+func (enc *encoder) encodeIndexSummariesInfo(info schema.IndexSummariesInfo) {
+	enc.encodeNumObjectFieldsForFn(indexSummariesInfoType)
+	enc.encodeVarintFn(info.Summaries)
+}
+
+func (enc *encoder) encodeIndexBloomFilterInfo(info schema.IndexBloomFilterInfo) {
+	enc.encodeNumObjectFieldsForFn(indexBloomFilterInfoType)
+	enc.encodeVarintFn(info.NumElementsM)
+	enc.encodeVarintFn(info.NumHashesK)
 }
 
 func (enc *encoder) encodeIndexEntry(entry schema.IndexEntry) {
@@ -136,6 +159,13 @@ func (enc *encoder) encodeIndexEntry(entry schema.IndexEntry) {
 	enc.encodeVarintFn(entry.Size)
 	enc.encodeVarintFn(entry.Offset)
 	enc.encodeVarintFn(entry.Checksum)
+}
+
+func (enc *encoder) encodeIndexSummary(summary schema.IndexSummary) {
+	enc.encodeNumObjectFieldsForFn(indexSummaryType)
+	enc.encodeVarintFn(summary.Index)
+	enc.encodeBytesFn(summary.ID)
+	enc.encodeVarintFn(summary.IndexEntryOffset)
 }
 
 func (enc *encoder) encodeLogInfo(info schema.LogInfo) {

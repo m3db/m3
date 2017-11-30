@@ -23,6 +23,7 @@ package digest
 import (
 	"bufio"
 	"errors"
+	"hash"
 	"io"
 	"os"
 )
@@ -41,9 +42,7 @@ var (
 // FdWithDigestReader provides a buffered reader for reading from the underlying file.
 type FdWithDigestReader interface {
 	FdWithDigest
-
-	// ReadBytes reads bytes from the underlying file into the provided byte slice.
-	ReadBytes(b []byte) (int, error)
+	io.Reader
 
 	// ReadAllAndValidate reads everything in the underlying file and validates
 	// it against the expected digest, returning an error if they don't match.
@@ -57,67 +56,51 @@ type FdWithDigestReader interface {
 }
 
 type fdWithDigestReader struct {
-	FdWithDigest
-
-	reader *bufio.Reader
+	fd               *os.File
+	bufReader        *bufio.Reader
+	readerWithDigest ReaderWithDigest
+	single           [1]byte
 }
 
 // NewFdWithDigestReader creates a new FdWithDigestReader.
 func NewFdWithDigestReader(bufferSize int) FdWithDigestReader {
+	bufReader := bufio.NewReaderSize(nil, bufferSize)
 	return &fdWithDigestReader{
-		FdWithDigest: newFdWithDigest(),
-		reader:       bufio.NewReaderSize(nil, bufferSize),
+		bufReader:        bufReader,
+		readerWithDigest: NewReaderWithDigest(bufReader),
 	}
 }
 
 // Reset resets the underlying file descriptor and the buffered reader.
 func (r *fdWithDigestReader) Reset(fd *os.File) {
-	r.FdWithDigest.Reset(fd)
-	r.reader.Reset(fd)
+	r.fd = fd
+	r.bufReader.Reset(fd)
+	r.readerWithDigest.Reset(r.bufReader)
 }
 
-func (r *fdWithDigestReader) readBytes(b []byte) (int, error) {
-	n, err := r.reader.Read(b)
-	if err != nil {
-		return 0, err
-	}
-	// In case the buffered reader only returns what's remaining in
-	// the buffer, recursively read what's left in the underlying reader.
-	if n < len(b) {
-		b = b[n:]
-		remainder, err := r.readBytes(b)
-		return n + remainder, err
-	}
-	return n, err
+func (r *fdWithDigestReader) Read(b []byte) (int, error) {
+	return r.readerWithDigest.Read(b)
 }
 
-func (r *fdWithDigestReader) ReadBytes(b []byte) (int, error) {
-	n, err := r.readBytes(b)
-	if err != nil && err != io.EOF {
-		return n, err
-	}
-	// If we encountered an EOF error and didn't read any bytes
-	// given a non-empty slice, we return an EOF error.
-	if err == io.EOF && n == 0 && len(b) > 0 {
-		return 0, err
-	}
-	if _, err := r.FdWithDigest.Digest().Write(b[:n]); err != nil {
-		return 0, err
-	}
-	return n, nil
+func (r *fdWithDigestReader) Fd() *os.File {
+	return r.fd
+}
+
+func (r *fdWithDigestReader) Digest() hash.Hash32 {
+	return r.readerWithDigest.Digest()
 }
 
 func (r *fdWithDigestReader) ReadAllAndValidate(b []byte, expectedDigest uint32) (int, error) {
-	n, err := r.readBytes(b)
+	n, err := r.Read(b)
 	if err != nil {
 		return n, err
 	}
-	_, err = r.reader.ReadByte()
+	// NB(r): Attempt next read to prove that the size of the buffer b
+	// was sized correctly to fit all contents into it and that we are
+	// correctly now at the end of input.
+	_, err = r.Read(r.single[:])
 	if err != io.EOF {
 		return 0, errBufferSizeMismatch
-	}
-	if _, err := r.FdWithDigest.Digest().Write(b); err != nil {
-		return n, err
 	}
 	if err := r.Validate(expectedDigest); err != nil {
 		return n, err
@@ -126,10 +109,16 @@ func (r *fdWithDigestReader) ReadAllAndValidate(b []byte, expectedDigest uint32)
 }
 
 func (r *fdWithDigestReader) Validate(expectedDigest uint32) error {
-	if r.FdWithDigest.Digest().Sum32() != expectedDigest {
-		return errCheckSumMismatch
+	return r.readerWithDigest.Validate(expectedDigest)
+}
+
+func (r *fdWithDigestReader) Close() error {
+	if r.fd == nil {
+		return nil
 	}
-	return nil
+	err := r.fd.Close()
+	r.fd = nil
+	return err
 }
 
 // FdWithDigestContentsReader provides additional functionality of reading a digest from the underlying file.
@@ -155,7 +144,7 @@ func NewFdWithDigestContentsReader(bufferSize int) FdWithDigestContentsReader {
 }
 
 func (r *fdWithDigestContentsReader) ReadDigest() (uint32, error) {
-	n, err := r.ReadBytes(r.digestBuf)
+	n, err := r.Read(r.digestBuf)
 	if err != nil {
 		return 0, err
 	}
@@ -163,4 +152,81 @@ func (r *fdWithDigestContentsReader) ReadDigest() (uint32, error) {
 		return 0, errReadFewerThanExpectedBytes
 	}
 	return r.digestBuf.ReadDigest(), nil
+}
+
+// ReaderWithDigest is a reader that that calculates a digest
+// as it is read.
+type ReaderWithDigest interface {
+	io.Reader
+
+	// Reset resets the reader for use with a new reader.
+	Reset(reader io.Reader)
+
+	// Digest returns the digest.
+	Digest() hash.Hash32
+
+	// Validate compares the current digest against the expected digest and returns
+	// an error if they don't match.
+	Validate(expectedDigest uint32) error
+}
+
+type readerWithDigest struct {
+	reader io.Reader
+	digest hash.Hash32
+}
+
+// NewReaderWithDigest creates a new reader that calculates a digest as it
+// reads an input.
+func NewReaderWithDigest(reader io.Reader) ReaderWithDigest {
+	return &readerWithDigest{
+		reader: reader,
+		digest: NewDigest(),
+	}
+}
+
+func (r *readerWithDigest) Reset(reader io.Reader) {
+	r.reader = reader
+	r.digest.Reset()
+}
+
+func (r *readerWithDigest) Digest() hash.Hash32 {
+	return r.digest
+}
+
+func (r *readerWithDigest) readBytes(b []byte) (int, error) {
+	n, err := r.reader.Read(b)
+	if err != nil {
+		return 0, err
+	}
+	// In case the buffered reader only returns what's remaining in
+	// the buffer, recursively read what's left in the underlying reader.
+	if n < len(b) {
+		b = b[n:]
+		remainder, err := r.readBytes(b)
+		return n + remainder, err
+	}
+	return n, err
+}
+
+func (r *readerWithDigest) Read(b []byte) (int, error) {
+	n, err := r.readBytes(b)
+	if err != nil && err != io.EOF {
+		return n, err
+	}
+	// If we encountered an EOF error and didn't read any bytes
+	// given a non-empty slice, we return an EOF error.
+	if err == io.EOF && n == 0 && len(b) > 0 {
+		return 0, err
+	}
+	if _, err := r.digest.Write(b[:n]); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+func (r *readerWithDigest) Validate(expectedDigest uint32) error {
+	if r.digest.Sum32() != expectedDigest {
+		return errCheckSumMismatch
+	}
+	return nil
 }

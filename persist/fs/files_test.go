@@ -64,7 +64,7 @@ func createTempFile(t *testing.T) *os.File {
 }
 
 func createTempDir(t *testing.T) string {
-	dir, err := ioutil.TempDir("", "foo")
+	dir, err := ioutil.TempDir("", "testdir")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -79,7 +79,7 @@ func newTopoView(
 	}
 
 	return topoView{
-		hashFn:     sharding.DefaultHashGen(total / replicas),
+		hashFn:     sharding.DefaultHashFn(total / replicas),
 		assignment: assignment,
 		replicas:   replicas,
 	}

@@ -23,6 +23,7 @@ package server
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/m3db/m3cluster/shard"
@@ -39,7 +40,9 @@ import (
 	"github.com/m3db/m3db/ts"
 )
 
-const defaultNamespaceName = "default"
+const (
+	defaultNamespaceName = "default"
+)
 
 // DefaultShardSet creates a default shard set
 func DefaultShardSet() (sharding.ShardSet, error) {
@@ -50,7 +53,7 @@ func DefaultShardSet() (sharding.ShardSet, error) {
 	}
 
 	shards := sharding.NewShards(ids, shard.Available)
-	return sharding.NewShardSet(shards, sharding.DefaultHashGen(1024))
+	return sharding.NewShardSet(shards, sharding.DefaultHashFn(1024))
 }
 
 // DefaultTopologyInitializer creates a default topology initializer
@@ -110,12 +113,13 @@ func OpenAndServe(
 	tchannelClusterAddr string,
 	httpNodeAddr string,
 	tchannelNodeAddr string,
+	httpDebugAddr string,
 	db storage.Database,
 	client client.Client,
 	opts storage.Options,
 	doneCh chan struct{},
 ) error {
-	log := opts.InstrumentOptions().Logger()
+	logger := opts.InstrumentOptions().Logger()
 	if err := db.Open(); err != nil {
 		return fmt.Errorf("could not open database: %v", err)
 	}
@@ -127,36 +131,44 @@ func OpenAndServe(
 		return fmt.Errorf("could not open tchannelthrift interface %s: %v", tchannelNodeAddr, err)
 	}
 	defer nativeNodeClose()
-	log.Infof("node tchannelthrift: listening on %v", tchannelNodeAddr)
+	logger.Infof("node tchannelthrift: listening on %v", tchannelNodeAddr)
 
 	httpjsonNodeClose, err := hjnode.NewServer(db, httpNodeAddr, contextPool, nil, ttopts).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open httpjson interface %s: %v", httpNodeAddr, err)
 	}
 	defer httpjsonNodeClose()
-	log.Infof("node httpjson: listening on %v", httpNodeAddr)
+	logger.Infof("node httpjson: listening on %v", httpNodeAddr)
 
 	nativeClusterClose, err := ttcluster.NewServer(client, tchannelClusterAddr, contextPool, nil).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open tchannelthrift interface %s: %v", tchannelClusterAddr, err)
 	}
 	defer nativeClusterClose()
-	log.Infof("cluster tchannelthrift: listening on %v", tchannelClusterAddr)
+	logger.Infof("cluster tchannelthrift: listening on %v", tchannelClusterAddr)
 
 	httpjsonClusterClose, err := hjcluster.NewServer(client, httpClusterAddr, contextPool, nil).ListenAndServe()
 	if err != nil {
 		return fmt.Errorf("could not open httpjson interface %s: %v", httpClusterAddr, err)
 	}
 	defer httpjsonClusterClose()
-	log.Infof("cluster httpjson: listening on %v", httpClusterAddr)
+	logger.Infof("cluster httpjson: listening on %v", httpClusterAddr)
+
+	if httpDebugAddr != "" {
+		go func() {
+			if err := http.ListenAndServe(httpDebugAddr, nil); err != nil {
+				logger.Warnf("debug server could not listen on %s: %v", httpDebugAddr, err)
+			}
+		}()
+	}
 
 	if err := db.Bootstrap(); err != nil {
 		return fmt.Errorf("bootstrapping database encountered error: %v", err)
 	}
-	log.Debug("bootstrapped")
+	logger.Debug("bootstrapped")
 
 	<-doneCh
-	log.Debug("server closing")
+	logger.Debug("server closing")
 
 	return db.Terminate()
 }

@@ -22,20 +22,18 @@ package digest
 
 import (
 	"bufio"
+	"io"
 	"os"
 )
 
 // FdWithDigestWriter provides a buffered writer for writing to the underlying file.
 type FdWithDigestWriter interface {
 	FdWithDigest
-
-	// WriteBytes writes the provided bytes into the underlying file.
-	WriteBytes(b []byte) (int, error)
+	io.Writer
 }
 
 type fdWithDigestWriter struct {
 	FdWithDigest
-
 	writer *bufio.Writer
 }
 
@@ -52,8 +50,8 @@ func (w *fdWithDigestWriter) Reset(fd *os.File) {
 	w.writer.Reset(fd)
 }
 
-// WriteBytes writes the provided bytes into the underlying file.
-func (w *fdWithDigestWriter) WriteBytes(b []byte) (int, error) {
+// Write bytes to the underlying file.
+func (w *fdWithDigestWriter) Write(b []byte) (int, error) {
 	written, err := w.writer.Write(b)
 	if err != nil {
 		return 0, err
@@ -98,7 +96,7 @@ func NewFdWithDigestContentsWriter(bufferSize int) FdWithDigestContentsWriter {
 func (w *fdWithDigestContentsWriter) WriteDigests(digests ...uint32) error {
 	for _, digest := range digests {
 		w.digestBuf.WriteDigest(digest)
-		if _, err := w.WriteBytes(w.digestBuf); err != nil {
+		if _, err := w.Write(w.digestBuf); err != nil {
 			return err
 		}
 	}

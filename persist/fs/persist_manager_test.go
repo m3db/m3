@@ -53,7 +53,11 @@ func testManager(
 		SetWriterBufferSize(10)
 
 	writer := NewMockFileSetWriter(ctrl)
-	manager := NewPersistManager(opts).(*persistManager)
+
+	mgr, err := NewPersistManager(opts)
+	require.NoError(t, err)
+
+	manager := mgr.(*persistManager)
 	manager.writer = writer
 
 	return manager, writer, opts

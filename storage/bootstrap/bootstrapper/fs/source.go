@@ -24,13 +24,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/checked"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
@@ -38,38 +38,27 @@ import (
 )
 
 type newFileSetReaderFn func(
-	filePathPrefix string,
-	dataReaderBufferSize int,
-	infoReaderBufferSize int,
 	bytesPool pool.CheckedBytesPool,
-	decodingOpts msgpack.DecodingOptions,
-) fs.FileSetReader
+	opts fs.Options,
+) (fs.FileSetReader, error)
 
 type fileSystemSource struct {
-	opts                 Options
-	log                  xlog.Logger
-	filePathPrefix       string
-	dataReaderBufferSize int
-	infoReaderBufferSize int
-	decodingOpts         msgpack.DecodingOptions
-	newReaderFn          newFileSetReaderFn
-	processors           xsync.WorkerPool
+	opts        Options
+	fsopts      fs.Options
+	log         xlog.Logger
+	newReaderFn newFileSetReaderFn
+	processors  xsync.WorkerPool
 }
 
 func newFileSystemSource(prefix string, opts Options) bootstrap.Source {
 	processors := xsync.NewWorkerPool(opts.NumProcessors())
 	processors.Init()
-
-	fileSystemOpts := opts.FilesystemOptions()
 	return &fileSystemSource{
-		opts:                 opts,
-		log:                  opts.ResultOptions().InstrumentOptions().Logger(),
-		filePathPrefix:       prefix,
-		dataReaderBufferSize: fileSystemOpts.DataReaderBufferSize(),
-		infoReaderBufferSize: fileSystemOpts.InfoReaderBufferSize(),
-		decodingOpts:         fileSystemOpts.DecodingOptions(),
-		newReaderFn:          fs.NewReader,
-		processors:           processors,
+		opts:        opts,
+		fsopts:      opts.FilesystemOptions().SetFilePathPrefix(prefix),
+		log:         opts.ResultOptions().InstrumentOptions().Logger(),
+		newReaderFn: fs.NewReader,
+		processors:  processors,
 	}
 }
 
@@ -101,7 +90,8 @@ func (s *fileSystemSource) shardAvailability(
 		return nil
 	}
 
-	entries := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.infoReaderBufferSize, s.decodingOpts)
+	entries := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
+		namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
 	if len(entries) == 0 {
 		return nil
 	}
@@ -126,7 +116,8 @@ func (s *fileSystemSource) enqueueReaders(
 	readersCh chan<- shardReaders,
 ) {
 	for shard, tr := range shardsTimeRanges {
-		files := fs.ReadInfoFiles(s.filePathPrefix, namespace, shard, s.infoReaderBufferSize, s.decodingOpts)
+		files := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
+			namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
 		if len(files) == 0 {
 			if tr == nil {
 				tr = xtime.NewRanges()
@@ -138,7 +129,12 @@ func (s *fileSystemSource) enqueueReaders(
 
 		readers := make([]fs.FileSetReader, 0, len(files))
 		for i := 0; i < len(files); i++ {
-			r := readerPool.get()
+			r, err := readerPool.get()
+			if err != nil {
+				s.log.Errorf("unable to get reader from pool")
+				readersCh <- shardReaders{err: err}
+				continue
+			}
 			t := xtime.FromNanoseconds(files[i].Start).Round(0).UTC()
 			if err := r.Open(namespace, shard, t); err != nil {
 				s.log.WithFields(
@@ -147,6 +143,7 @@ func (s *fileSystemSource) enqueueReaders(
 					xlog.NewField("error", err.Error()),
 				).Error("unable to open fileset files")
 				readerPool.put(r)
+				readersCh <- shardReaders{err: err}
 				continue
 			}
 			timeRange := r.Range()
@@ -181,6 +178,51 @@ func (s *fileSystemSource) bootstrapFromReaders(
 		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(retriever)
 	}
 
+	readResult := func(
+		shard uint32,
+		remainingRanges xtime.Ranges,
+		shardResult result.ShardResult,
+		timesWithErrors []time.Time,
+	) {
+		// NB(xichen): this is the exceptional case where we encountered errors due to files
+		// being corrupted, which should be fairly rare so we can live with the overhead. We
+		// experimented with adding the series to a temporary map and only adding the temporary map
+		// to the final result but adding series to large map with string keys is expensive, and
+		// the current implementation saves the extra overhead of merging temporary map with the
+		// final result.
+		if len(timesWithErrors) > 0 {
+			s.log.WithFields(
+				xlog.NewField("shard", shard),
+				xlog.NewField("timesWithErrors", timesWithErrors),
+			).Info("deleting entries from results for times with errors")
+
+			resultLock.Lock()
+			shardResult, ok := bootstrapResult.ShardResults()[shard]
+			if ok {
+				for _, series := range shardResult.AllSeries() {
+					for _, t := range timesWithErrors {
+						shardResult.RemoveBlockAt(series.ID, t)
+					}
+				}
+			}
+			resultLock.Unlock()
+		}
+
+		if !remainingRanges.IsEmpty() {
+			resultLock.Lock()
+			unfulfilled := bootstrapResult.Unfulfilled()
+			shardUnfulfilled, ok := unfulfilled[shard]
+			if !ok {
+				shardUnfulfilled = xtime.NewRanges().AddRanges(remainingRanges)
+			} else {
+				shardUnfulfilled = shardUnfulfilled.AddRanges(remainingRanges)
+			}
+
+			unfulfilled[shard] = shardUnfulfilled
+			resultLock.Unlock()
+		}
+	}
+
 	for shardReaders := range readersCh {
 		shardReaders := shardReaders
 		wg.Add(1)
@@ -192,8 +234,14 @@ func (s *fileSystemSource) bootstrapFromReaders(
 				shardResult     result.ShardResult
 				shardRetriever  block.DatabaseShardBlockRetriever
 			)
+			shard, tr, readers, err := shardReaders.shard, shardReaders.tr, shardReaders.readers, shardReaders.err
+			if err != nil {
+				// NB(r): We do not remove any ranges from "tr" before recording the
+				// read result which bubble up the unfulfilled times for this shard
+				readResult(shard, tr, shardResult, timesWithErrors)
+				return
+			}
 
-			shard, tr, readers := shardReaders.shard, shardReaders.tr, shardReaders.readers
 			if shardRetrieverMgr != nil {
 				shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
 			}
@@ -228,14 +276,21 @@ func (s *fileSystemSource) bootstrapFromReaders(
 				for i := 0; i < numEntries; i++ {
 					var (
 						seriesBlock = blockPool.Get()
-						entryErr    error
+						id          ts.ID
+						data        checked.Bytes
+						length      int
+						checksum    uint32
+						err         error
 					)
-					id, data, checksum, err := r.Read()
+					if retriever == nil {
+						id, data, checksum, err = r.Read()
+					} else {
+						id, length, checksum, err = r.ReadMetadata()
+					}
 					if err != nil {
-						entryErr = err
 						s.log.WithFields(
 							xlog.NewField("shard", shard),
-							xlog.NewField("error", entryErr),
+							xlog.NewField("error", err.Error()),
 						).Error("reading data file failed")
 						hasError = true
 						break
@@ -259,12 +314,6 @@ func (s *fileSystemSource) bootstrapFromReaders(
 						seg := ts.NewSegment(data, nil, ts.FinalizeHead)
 						seriesBlock.Reset(start, seg)
 					} else {
-						data.IncRef()
-						length := data.Len()
-						data.DecRef()
-						data.Finalize()
-						data = nil
-
 						metadata := block.RetrievableBlockMetadata{
 							ID:       id,
 							Length:   length,
@@ -286,7 +335,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 					if err := r.Validate(); err != nil {
 						s.log.WithFields(
 							xlog.NewField("shard", shard),
-							xlog.NewField("error", err),
+							xlog.NewField("error", err.Error()),
 						).Error("data validation failed")
 						hasError = true
 					}
@@ -303,43 +352,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 				readerPool.put(r)
 			}
 
-			// NB(xichen): this is the exceptional case where we encountered errors due to files
-			// being corrupted, which should be fairly rare so we can live with the overhead. We
-			// experimented with adding the series to a temporary map and only adding the temporary map
-			// to the final result but adding series to large map with string keys is expensive, and
-			// the current implementation saves the extra overhead of merging temporary map with the
-			// final result.
-			if len(timesWithErrors) > 0 {
-				s.log.WithFields(
-					xlog.NewField("shard", shard),
-					xlog.NewField("timesWithErrors", timesWithErrors),
-				).Info("deleting entries from results for times with errors")
-
-				resultLock.Lock()
-				shardResult, ok := bootstrapResult.ShardResults()[shard]
-				if ok {
-					for _, series := range shardResult.AllSeries() {
-						for _, t := range timesWithErrors {
-							shardResult.RemoveBlockAt(series.ID, t)
-						}
-					}
-				}
-				resultLock.Unlock()
-			}
-
-			if !tr.IsEmpty() {
-				resultLock.Lock()
-				unfulfilled := bootstrapResult.Unfulfilled()
-				shardUnfulfilled, ok := unfulfilled[shard]
-				if !ok {
-					shardUnfulfilled = xtime.NewRanges().AddRanges(tr)
-				} else {
-					shardUnfulfilled = shardUnfulfilled.AddRanges(tr)
-				}
-
-				unfulfilled[shard] = shardUnfulfilled
-				resultLock.Unlock()
-			}
+			readResult(shard, tr, shardResult, timesWithErrors)
 		})
 	}
 
@@ -400,14 +413,13 @@ func (s *fileSystemSource) Read(
 		xlog.NewField("concurrency", s.opts.NumProcessors()),
 		xlog.NewField("metadataOnly", blockRetriever != nil),
 	).Infof("filesystem bootstrapper bootstrapping shards for ranges")
-	readerPool := newReaderPool(func() fs.FileSetReader {
-		return s.newReaderFn(
-			s.filePathPrefix,
-			s.dataReaderBufferSize,
-			s.infoReaderBufferSize,
-			s.opts.ResultOptions().DatabaseBlockOptions().BytesPool(),
-			s.decodingOpts,
-		)
+	bytesPool := s.opts.ResultOptions().DatabaseBlockOptions().BytesPool()
+
+	// Create a reader pool once per bootstrap as we don't really want to
+	// allocate and keep around readers outside of the bootstrapping process,
+	// hence why its created on demand each time.
+	readerPool := newReaderPool(func() (fs.FileSetReader, error) {
+		return s.newReaderFn(bytesPool, s.fsopts)
 	})
 	readersCh := make(chan shardReaders)
 	go s.enqueueReaders(nsID, shardsTimeRanges, readerPool, readersCh)
@@ -418,23 +430,24 @@ type shardReaders struct {
 	shard   uint32
 	tr      xtime.Ranges
 	readers []fs.FileSetReader
+	err     error
 }
 
 // readerPool is a lean pool that does not allocate
 // instances up front and is used per bootstrap call
 type readerPool struct {
-	sync.RWMutex
+	sync.Mutex
 	alloc  readerPoolAllocFn
 	values []fs.FileSetReader
 }
 
-type readerPoolAllocFn func() fs.FileSetReader
+type readerPoolAllocFn func() (fs.FileSetReader, error)
 
 func newReaderPool(alloc readerPoolAllocFn) *readerPool {
 	return &readerPool{alloc: alloc}
 }
 
-func (p *readerPool) get() fs.FileSetReader {
+func (p *readerPool) get() (fs.FileSetReader, error) {
 	p.Lock()
 	if len(p.values) == 0 {
 		p.Unlock()
@@ -442,9 +455,10 @@ func (p *readerPool) get() fs.FileSetReader {
 	}
 	length := len(p.values)
 	value := p.values[length-1]
+	p.values[length-1] = nil
 	p.values = p.values[:length-1]
 	p.Unlock()
-	return value
+	return value, nil
 }
 
 func (p *readerPool) put(r fs.FileSetReader) {
