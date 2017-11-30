@@ -1836,11 +1836,20 @@ func (s *session) streamAndGroupCollectedBlocksMetadata(
 		}
 
 		received, ok := metadata[m.id.Hash()]
-		if !ok || received.submitted {
+		if !ok {
 			received = &receivedBlocks{
 				results: make([]*blocksMetadata, 0, peersLen),
 			}
 			metadata[m.id.Hash()] = received
+		}
+		// Should never happen
+		if received.submitted {
+			s.log.Warnf(
+				"Received metadata for ID: %s from peer: %s, but peer metadata has already been submitted",
+				m.id,
+				m.peer.Host().String(),
+			)
+			continue
 		}
 		received.results = append(received.results, &m)
 
@@ -1877,11 +1886,21 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 			blockStart: m.blocks[0].start.UnixNano(),
 		}
 		received, ok := metadata[key]
-		if !ok || received.submitted {
+		if !ok {
 			received = &receivedBlocks{
 				results: make([]*blocksMetadata, 0, peersLen),
 			}
 			metadata[key] = received
+		}
+		// Should never happen
+		if received.submitted {
+			s.log.Warnf(
+				"Received metadata for ID: %s for block: %s from peer: %s, but peer metadata has already been submitted",
+				m.id,
+				m.blocks[0].start.String(),
+				m.peer.Host().String(),
+			)
+			continue
 		}
 		received.results = append(received.results, &m)
 
