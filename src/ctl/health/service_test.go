@@ -27,6 +27,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gorilla/mux"
+	"github.com/m3db/m3x/instrument"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,18 +44,18 @@ func TestHealthCheck(t *testing.T) {
 	rr := httptest.NewRecorder()
 	// Create a request to pass to our handler. We don't have any query parameters for now, so we'll
 	// pass 'nil' as the third parameter.
-	req := http.Request{Method: "GET", RequestURI: "/health"}
+	req, err := http.NewRequest("GET", "/health", nil)
+	require.NoError(t, err)
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		m3ctlHealthCheck(w, r)
-	})
+	opts := instrument.NewOptions()
+	service := NewService(opts)
+	mux := mux.NewRouter().PathPrefix(service.URLPrefix()).Subrouter()
+	service.RegisterHandlers(mux)
 
-	// Our handlers satisfy http.Handler, so we can call their ServeHTTP method
-	// directly and pass in our Request and ResponseRecorder.
-	handler.ServeHTTP(rr, &req)
+	mux.ServeHTTP(rr, req)
 
 	rawResult := make([]byte, rr.Body.Len())
-	_, err := rr.Body.Read(rawResult)
+	_, err = rr.Body.Read(rawResult)
 	require.NoError(t, err, "Encountered error parsing response")
 
 	var actualResult healthCheckResult
