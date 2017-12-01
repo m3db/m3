@@ -72,14 +72,9 @@ func hostName() string {
 func m3ctlHealthCheck(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	host := hostName()
-	h := healthCheckResult{Host: host, Timestamp: start}
 	status := healthCheck()
+	h := healthCheckResult{Host: host, Timestamp: start, Status: status}
 	h.ResponseTime = time.Since(start)
-
-	h.Status = status
-	if status != ok {
-		w.WriteHeader(http.StatusInternalServerError)
-	}
 
 	body, err := json.Marshal(h)
 	if err != nil {
