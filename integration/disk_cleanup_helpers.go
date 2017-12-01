@@ -167,7 +167,10 @@ func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ts.ID, waitTi
 
 // nolint: deadcode, unused
 func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespace.Metadata, newShardSet sharding.ShardSet) (*testSetup, error) {
-	testSetup.stopServer()
+	err := testSetup.stopServer()
+	if err != nil {
+		return nil, err
+	}
 	// Reset to the desired shard set and namespaces
 	// Because restarting the server would bootstrap
 	// To old data we wanted to delete

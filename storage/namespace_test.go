@@ -429,31 +429,6 @@ func TestNamespaceFlushAllShards(t *testing.T) {
 	require.Error(t, ns.Flush(blockStart, nil))
 }
 
-//func testnamespacecleanupFilesetDontNeedCleanup(t *testing.T) {
-//	ns := newTestNamespaceWithIDOpts(t, defaultTestNs1ID, namespace.NewOptions().SetNeedsFilesetCleanup(false))
-//	require.NoError(t, ns.CleanupFileset(time.Now()))
-//}
-//
-//func TestNamespaceCleanupFilesetAllShards(t *testing.T) {
-//	ctrl := gomock.NewController(t)
-//	defer ctrl.Finish()
-//
-//	ctx := context.NewContext()
-//	defer ctx.Close()
-//
-//	earliestToRetain := time.Now()
-//
-//	ns := newTestNamespace(t)
-//	errs := []error{nil, errors.New("foo")}
-//	for i := range errs {
-//		shard := NewMockdatabaseShard(ctrl)
-//		shard.EXPECT().CleanupFileset(earliestToRetain).Return(errs[i])
-//		ns.shards[testShardIDs[i].ID()] = shard
-//	}
-//
-//	require.Error(t, ns.CleanupFileset(earliestToRetain))
-//}
-//
 func TestNamespaceTruncate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
