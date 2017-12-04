@@ -202,6 +202,27 @@ func (ps *placementService) MarkShardAvailable(instanceID string, shardID uint32
 	return ps.CheckAndSet(p, v)
 }
 
+func (ps *placementService) MarkAllShardsAvailable() (placement.Placement, error) {
+	p, v, err := ps.Placement()
+	if err != nil {
+		return nil, err
+	}
+
+	p, updated, err := ps.algo.MarkAllShardsAvailable(p)
+	if err != nil {
+		return nil, err
+	}
+	if !updated {
+		return p, nil
+	}
+
+	if err := placement.Validate(p); err != nil {
+		return nil, err
+	}
+
+	return p, ps.CheckAndSet(p, v)
+}
+
 func (ps *placementService) MarkInstanceAvailable(instanceID string) error {
 	p, v, err := ps.Placement()
 	if err != nil {

@@ -1164,7 +1164,7 @@ func mustMarkAllShardsAsAvailable(t *testing.T, p placement.Placement, opts plac
 	if opts == nil {
 		opts = placement.NewOptions()
 	}
-	p, err := markAllShardsAvailable(p, opts)
+	p, _, err := markAllShardsAvailable(p, opts)
 	require.NoError(t, err)
 	return p
 }
