@@ -97,6 +97,7 @@ type placementHelper struct {
 	rf                 int
 	uniqueShards       []uint32
 	instances          map[string]placement.Instance
+	maxShardSetID      uint32
 	log                log.Logger
 	opts               placement.Options
 }
@@ -189,11 +190,12 @@ func newReplaceInstanceHelper(
 
 func newHelper(p placement.Placement, targetRF int, opts placement.Options) PlacementHelper {
 	ph := &placementHelper{
-		rf:           targetRF,
-		instances:    make(map[string]placement.Instance, p.NumInstances()),
-		uniqueShards: p.Shards(),
-		log:          opts.InstrumentOptions().Logger(),
-		opts:         opts,
+		rf:            targetRF,
+		instances:     make(map[string]placement.Instance, p.NumInstances()),
+		uniqueShards:  p.Shards(),
+		maxShardSetID: p.MaxShardSetID(),
+		log:           opts.InstrumentOptions().Logger(),
+		opts:          opts,
 	}
 
 	for _, instance := range p.Instances() {
@@ -375,6 +377,7 @@ func (ph *placementHelper) GeneratePlacement() placement.Placement {
 		}
 	}
 
+	maxShardSetID := ph.maxShardSetID
 	for _, instance := range instances {
 		shards := instance.Shards()
 		for _, s := range shards.ShardsForState(shard.Unknown) {
@@ -382,6 +385,9 @@ func (ph *placementHelper) GeneratePlacement() placement.Placement {
 				SetSourceID(s.SourceID()).
 				SetState(shard.Initializing).
 				SetCutoverNanos(ph.opts.ShardCutoverNanosFn()()))
+		}
+		if shardSetID := instance.ShardSetID(); shardSetID >= maxShardSetID {
+			maxShardSetID = shardSetID
 		}
 	}
 
@@ -391,7 +397,8 @@ func (ph *placementHelper) GeneratePlacement() placement.Placement {
 		SetReplicaFactor(ph.rf).
 		SetIsSharded(true).
 		SetIsMirrored(ph.opts.IsMirrored()).
-		SetCutoverNanos(ph.opts.PlacementCutoverNanosFn()())
+		SetCutoverNanos(ph.opts.PlacementCutoverNanosFn()()).
+		SetMaxShardSetID(maxShardSetID)
 }
 
 func (ph *placementHelper) PlaceShards(

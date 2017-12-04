@@ -392,6 +392,7 @@ func TestSelectInitialInstancesForMirrorRF3(t *testing.T) {
 		require.Equal(t, 0, count)
 	}
 }
+
 func TestSelectReplaceInstanceForMirror(t *testing.T) {
 	h1p1 := placement.NewInstance().
 		SetID("h1p1").
@@ -401,7 +402,7 @@ func TestSelectReplaceInstanceForMirror(t *testing.T) {
 		SetZone("z1").
 		SetEndpoint("h1p1e").
 		SetWeight(1).
-		SetShardSetID(0)
+		SetShardSetID(1)
 	h1p2 := placement.NewInstance().
 		SetID("h1p2").
 		SetHostname("h1").
@@ -410,7 +411,7 @@ func TestSelectReplaceInstanceForMirror(t *testing.T) {
 		SetZone("z1").
 		SetEndpoint("h1p2e").
 		SetWeight(1).
-		SetShardSetID(1)
+		SetShardSetID(2)
 	h2p1 := placement.NewInstance().
 		SetID("h2p1").
 		SetHostname("h2").
@@ -419,7 +420,7 @@ func TestSelectReplaceInstanceForMirror(t *testing.T) {
 		SetZone("z1").
 		SetEndpoint("h2p1e").
 		SetWeight(1).
-		SetShardSetID(0)
+		SetShardSetID(1)
 	h2p2 := placement.NewInstance().
 		SetID("h2p2").
 		SetHostname("h2").
@@ -428,7 +429,7 @@ func TestSelectReplaceInstanceForMirror(t *testing.T) {
 		SetZone("z1").
 		SetEndpoint("h2p2e").
 		SetWeight(1).
-		SetShardSetID(1)
+		SetShardSetID(2)
 
 	p := placement.NewPlacement().
 		SetInstances([]placement.Instance{h1p1, h1p2, h2p1, h2p2}).
@@ -502,7 +503,7 @@ func TestSelectReplaceInstancesWithLeaving(t *testing.T) {
 		SetZone("z1").
 		SetEndpoint("h1p1e").
 		SetWeight(1).
-		SetShardSetID(0).
+		SetShardSetID(1).
 		SetShards(shard.NewShards([]shard.Shard{s1}))
 	s2 := shard.NewShard(1).SetState(shard.Initializing)
 	h2p1 := placement.NewInstance().
@@ -513,7 +514,7 @@ func TestSelectReplaceInstancesWithLeaving(t *testing.T) {
 		SetZone("z1").
 		SetEndpoint("h2p1e").
 		SetWeight(1).
-		SetShardSetID(0).
+		SetShardSetID(1).
 		SetShards(shard.NewShards([]shard.Shard{s2}))
 
 	p := placement.NewPlacement().
@@ -575,7 +576,8 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 		SetInstances([]placement.Instance{h1p1, h1p2, h2p1, h2p2}).
 		SetIsMirrored(true).
 		SetIsSharded(true).
-		SetReplicaFactor(2)
+		SetReplicaFactor(2).
+		SetMaxShardSetID(2)
 
 	h3p1 := placement.NewInstance().
 		SetID("h3p1").
@@ -664,18 +666,4 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 		p,
 	)
 	require.Error(t, err)
-}
-
-func TestNextNShardSetIDs(t *testing.T) {
-	res := nextNShardSetIDs(placement.NewPlacement(), 3)
-	require.Equal(t, []uint32{1, 2, 3}, res)
-
-	p := placement.NewPlacement()
-	p.SetInstances([]placement.Instance{
-		placement.NewInstance().SetID("i1").SetShardSetID(0),
-		placement.NewInstance().SetID("i2").SetShardSetID(2),
-	})
-
-	res = nextNShardSetIDs(p, 3)
-	require.Equal(t, []uint32{1, 3, 4}, res)
 }
