@@ -357,15 +357,46 @@ func assignShardsToGroupedInstances(
 	var (
 		instances   = make([]placement.Instance, 0, p.ReplicaFactor()*len(groups))
 		shardSetIDs = nextNShardSetIDs(p, len(groups))
+		ssID        uint32
 	)
-	for i, group := range groups {
-		ssID := shardSetIDs[i]
+	for _, group := range groups {
+		useNewSSID := shouldUseNewShardSetID(group, p)
+
+		if useNewSSID {
+			ssID = shardSetIDs[0]
+			shardSetIDs = shardSetIDs[1:]
+		}
 		for _, instance := range group {
-			instances = append(instances, instance.SetShardSetID(ssID))
+			if useNewSSID {
+				instance = instance.SetShardSetID(ssID)
+			}
+			instances = append(instances, instance)
 		}
 	}
 
 	return instances
+}
+
+func shouldUseNewShardSetID(
+	group []placement.Instance,
+	p placement.Placement,
+) bool {
+	var seenSSID *uint32
+	for _, instance := range group {
+		instanceInPlacement, exist := p.Instance(instance.ID())
+		if !exist {
+			return true
+		}
+		currentSSID := instanceInPlacement.ShardSetID()
+		if seenSSID == nil {
+			seenSSID = &currentSSID
+			continue
+		}
+		if *seenSSID != currentSSID {
+			return true
+		}
+	}
+	return false
 }
 
 // nextNShardSetIDs finds the next n smallest integers that are not used
@@ -381,7 +412,7 @@ func nextNShardSetIDs(p placement.Placement, n int) []uint32 {
 
 	var (
 		result   = make([]uint32, 0, n)
-		curIndex = -1
+		curIndex = 0
 	)
 	// Find the next n smallest integers to be used as shard set ids.
 	for len(result) < n {
