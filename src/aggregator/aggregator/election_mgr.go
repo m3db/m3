@@ -187,6 +187,9 @@ type electionManagerMetrics struct {
 	followerResign                         tally.Counter
 	resignTimeout                          tally.Counter
 	resignErrors                           tally.Counter
+	resignOnCloseSuccess                   tally.Counter
+	resignOnCloseErrors                    tally.Counter
+	resignOnClose                          tally.Gauge
 	followerToPendingFollower              tally.Counter
 	electionState                          tally.Gauge
 	campaignState                          tally.Gauge
@@ -216,6 +219,9 @@ func newElectionManagerMetrics(scope tally.Scope) electionManagerMetrics {
 		followerResign:                         resignScope.Counter("follower-resign"),
 		resignTimeout:                          resignScope.Counter("timeout"),
 		resignErrors:                           resignScope.Counter("errors"),
+		resignOnCloseSuccess:                   resignScope.Counter("on-close-success"),
+		resignOnCloseErrors:                    resignScope.Counter("on-close-errors"),
+		resignOnClose:                          resignScope.Gauge("on-close"),
 		followerToPendingFollower:              scope.Counter("follower-to-pending-follower"),
 		electionState:                          scope.Gauge("election-state"),
 		campaignState:                          scope.Gauge("campaign-state"),
@@ -261,6 +267,7 @@ type electionManager struct {
 	goalStateLock          *sync.RWMutex
 	goalStateWatchable     watch.Watchable
 	campaignIsEnabledFn    campaignIsEnabledFn
+	resignOnClose          int32
 	sleepFn                sleepFn
 	metrics                electionManagerMetrics
 }
@@ -703,9 +710,10 @@ func (mgr *electionManager) campaignLoop(campaignStateWatch watch.Watch) {
 			}); err == nil {
 				atomic.StoreInt32(&mgr.campaigning, 1)
 			} else {
-				// If we get here, either the manager is closed or the campaign is disabled.
-				// If the manager is closed, we return immediately. Otherwise we wait for a
-				// change in the campaign enabled status before continuing campaigning.
+				// If we get here, the campaign failed and either the manager is closed or
+				// the campaign is disabled. If the manager is closed, we return immediately.
+				// Otherwise we wait for a change in the campaign enabled status before continuing
+				// campaigning.
 				select {
 				case <-mgr.doneCh:
 					return
@@ -728,6 +736,19 @@ func (mgr *electionManager) campaignLoop(campaignStateWatch watch.Watch) {
 			}
 			mgr.processCampaignUpdate(campaignStatus)
 		case <-mgr.doneCh:
+			electionKey := mgr.electionKey
+			// Asynchronously resign from ongoing campaign on close to avoid blocking the close
+			// call while still ensuring there are no lingering campaigns that are kept alive
+			// after the campaign manager is closed.
+			go func() {
+				atomic.AddInt32(&mgr.resignOnClose, 1)
+				if err := mgr.leaderService.Resign(electionKey); err != nil {
+					mgr.metrics.resignOnCloseErrors.Inc(1)
+				} else {
+					mgr.metrics.resignOnCloseSuccess.Inc(1)
+				}
+				atomic.AddInt32(&mgr.resignOnClose, -1)
+			}()
 			return
 		}
 	}
@@ -793,9 +814,11 @@ func (mgr *electionManager) reportMetrics() {
 			electionState := mgr.ElectionState()
 			campaignState := mgr.campaignState()
 			campaigning := atomic.LoadInt32(&mgr.campaigning)
+			resignOnClose := atomic.LoadInt32(&mgr.resignOnClose)
 			mgr.metrics.electionState.Update(float64(electionState))
 			mgr.metrics.campaignState.Update(float64(campaignState))
 			mgr.metrics.campaigning.Update(float64(campaigning))
+			mgr.metrics.resignOnClose.Update(float64(resignOnClose))
 		case <-mgr.doneCh:
 			ticker.Stop()
 			return
