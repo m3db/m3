@@ -147,3 +147,13 @@ func (a nonShardedAlgorithm) MarkShardAvailable(
 	// There is no shards in non-sharded algorithm.
 	return p, nil
 }
+
+func (a nonShardedAlgorithm) MarkAllShardsAvailable(
+	p placement.Placement,
+) (placement.Placement, bool, error) {
+	if err := a.IsCompatibleWith(p); err != nil {
+		return nil, false, err
+	}
+	// There is no shards in non-sharded algorithm.
+	return p, false, nil
+}

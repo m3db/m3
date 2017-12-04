@@ -455,6 +455,9 @@ type Service interface {
 	// MarkShardAvailable marks the state of a shard as available.
 	MarkShardAvailable(instanceID string, shardID uint32) error
 
+	// MarkAllShardsAvailable marks shard states as available where applicable.
+	MarkAllShardsAvailable() (Placement, error)
+
 	// MarkInstanceAvailable marks all the shards on a given instance as available.
 	MarkInstanceAvailable(instanceID string) error
 }
@@ -485,6 +488,9 @@ type Algorithm interface {
 
 	// MarkShardAvailable marks a shard as available.
 	MarkShardAvailable(p Placement, instanceID string, shardID uint32) (Placement, error)
+
+	// MarkAllShardsAvailable marks shard states as available where applicable.
+	MarkAllShardsAvailable(p Placement) (Placement, bool, error)
 }
 
 // InstanceSelector selects valid instances for the placement change.

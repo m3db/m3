@@ -773,6 +773,7 @@ func markShardAvailable(p placement.Placement, instanceID string, shardID uint32
 		}
 	}
 
+	p = p.SetCutoverNanos(opts.PlacementCutoverNanosFn()())
 	sourceID := s.SourceID()
 	shards.Add(shard.NewShard(shardID).SetState(shard.Available))
 
@@ -810,18 +811,25 @@ func markShardAvailable(p placement.Placement, instanceID string, shardID uint32
 	return p, nil
 }
 
-func markAllShardsAvailable(p placement.Placement, opts placement.Options) (placement.Placement, error) {
+func markAllShardsAvailable(
+	p placement.Placement,
+	opts placement.Options,
+) (placement.Placement, bool, error) {
+	var (
+		err     error
+		updated = false
+	)
 	p = p.Clone()
-	var err error
 	for _, instance := range p.Instances() {
 		for _, s := range instance.Shards().All() {
 			if s.State() == shard.Initializing {
 				p, err = markShardAvailable(p, instance.ID(), s.ID(), opts)
 				if err != nil {
-					return nil, err
+					return nil, false, err
 				}
+				updated = true
 			}
 		}
 	}
-	return p, nil
+	return p, updated, nil
 }

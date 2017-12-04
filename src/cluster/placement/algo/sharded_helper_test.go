@@ -524,7 +524,7 @@ func TestMarkAllAsAvailable(t *testing.T) {
 		SetReplicaFactor(2)
 
 	opts := placement.NewOptions()
-	_, err := markAllShardsAvailable(p, opts)
+	_, _, err := markAllShardsAvailable(p, opts)
 	assert.NoError(t, err)
 
 	i2.Shards().Add(shard.NewShard(3).SetState(shard.Initializing).SetSourceID("i3"))
@@ -532,7 +532,7 @@ func TestMarkAllAsAvailable(t *testing.T) {
 		SetInstances([]placement.Instance{i1, i2}).
 		SetShards([]uint32{1, 2}).
 		SetReplicaFactor(2)
-	_, err = markAllShardsAvailable(p, opts)
+	_, _, err = markAllShardsAvailable(p, opts)
 	assert.Contains(t, err.Error(), "does not exist in placement")
 }
 
