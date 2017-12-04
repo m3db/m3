@@ -154,6 +154,14 @@ type Placement interface {
 	// SetIsMirrored() sets IsMirrored.
 	SetIsMirrored(v bool) Placement
 
+	// MaxShardSetID returns the maximum shard set id used before to guarantee unique
+	// shard set id generations across placement changes.
+	MaxShardSetID() uint32
+
+	// SetMaxShardSetID sets the maximum shard set id used before to guarantee unique
+	// shard set id generations across placement changes.
+	SetMaxShardSetID(value uint32) Placement
+
 	// String returns a description of the placement
 	String() string
 

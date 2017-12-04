@@ -33,6 +33,10 @@ message Placement {
   int64 cutover_time = 5;
 
   bool is_mirrored = 6;
+
+  // max_shard_set_id stores the maximum shard set id used to guarantee unique
+  // shard set id generations across placement changes.
+  uint32 max_shard_set_id = 7;
 }
 
 message Instance {

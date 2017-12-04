@@ -56,6 +56,7 @@ func TestPlacementHelper(t *testing.T) {
 		NumShards:     3,
 		IsSharded:     true,
 		CutoverTime:   1000,
+		MaxShardSetId: 1,
 	}
 	key := "key"
 	store := mem.NewStore()

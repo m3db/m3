@@ -309,6 +309,74 @@ func TestValidateInstanceWithNoShard(t *testing.T) {
 	assert.Contains(t, err.Error(), "contains no shard")
 }
 
+func TestValidateInstanceWithSameShardSetIDSameShards(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetShardSetID(1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+	i2 := NewEmptyInstance("i2", "r2", "z2", "endpoint2", 1).SetShardSetID(1)
+	i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+	p := NewPlacement().
+		SetInstances([]Instance{i1, i2}).
+		SetShards([]uint32{1}).
+		SetReplicaFactor(2).
+		SetIsSharded(true).
+		SetMaxShardSetID(1)
+	assert.NoError(t, Validate(p))
+}
+
+func TestValidateInstanceWithSameShardSetIDDifferentShards(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint1", 1).SetShardSetID(1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+	i2 := NewEmptyInstance("i2", "r2", "z2", "endpoint2", 1).SetShardSetID(1)
+	i2.Shards().Add(shard.NewShard(2).SetState(shard.Available))
+
+	p := NewPlacement().
+		SetInstances([]Instance{i1, i2}).
+		SetShards([]uint32{1, 2}).
+		SetReplicaFactor(1).
+		SetIsSharded(true).
+		SetMaxShardSetID(1)
+	err := Validate(p)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "have the same shard set id")
+}
+
+func TestValidateInstanceWithValidMaxShardSetID(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint", 1).SetShardSetID(1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+	i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint", 1).SetShardSetID(3)
+	i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+	p := NewPlacement().
+		SetInstances([]Instance{i1, i2}).
+		SetShards([]uint32{1}).
+		SetReplicaFactor(2).
+		SetIsSharded(true).
+		SetMaxShardSetID(3)
+	assert.NoError(t, Validate(p))
+}
+
+func TestValidateInstanceWithShardSetIDLargerThanMax(t *testing.T) {
+	i1 := NewEmptyInstance("i1", "r1", "z1", "endpoint", 1).SetShardSetID(1)
+	i1.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+	i2 := NewEmptyInstance("i2", "r2", "z1", "endpoint", 1).SetShardSetID(3)
+	i2.Shards().Add(shard.NewShard(1).SetState(shard.Available))
+
+	p := NewPlacement().
+		SetInstances([]Instance{i1, i2}).
+		SetShards([]uint32{1}).
+		SetReplicaFactor(1).
+		SetIsSharded(true).
+		SetMaxShardSetID(2)
+	err := Validate(p)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "larger than max shard set id")
+}
+
 func TestInstance(t *testing.T) {
 	i1 := NewInstance().
 		SetID("id").
@@ -412,11 +480,13 @@ func TestClonePlacement(t *testing.T) {
 		SetReplicaFactor(1).
 		SetIsMirrored(false).
 		SetIsSharded(true).
-		SetCutoverNanos(1234)
+		SetCutoverNanos(1234).
+		SetMaxShardSetID(2)
 	copy := p.Clone()
 	assert.Equal(t, p.NumInstances(), copy.NumInstances())
 	assert.Equal(t, p.Shards(), copy.Shards())
 	assert.Equal(t, p.ReplicaFactor(), copy.ReplicaFactor())
+	assert.Equal(t, p.MaxShardSetID(), copy.MaxShardSetID())
 	for _, instance := range p.Instances() {
 		copiedInstance, exist := copy.Instance(instance.ID())
 		assert.True(t, exist)
@@ -466,6 +536,7 @@ func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 		NumShards:     3,
 		IsSharded:     true,
 		CutoverTime:   1234,
+		MaxShardSetId: 1,
 	}
 
 	p, err := NewPlacementFromProto(placementProto)
@@ -475,6 +546,7 @@ func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 	assert.True(t, p.IsSharded())
 	assert.Equal(t, []uint32{0, 1, 2}, p.Shards())
 	assert.Equal(t, int64(1234), p.CutoverNanos())
+	assert.Equal(t, uint32(1), p.MaxShardSetID())
 	instances := p.Instances()
 	assert.Equal(t, uint32(0), instances[0].ShardSetID())
 	assert.Equal(t, uint32(1), instances[1].ShardSetID())
@@ -484,6 +556,7 @@ func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 	assert.Equal(t, placementProto.ReplicaFactor, placementProtoNew.ReplicaFactor)
 	assert.Equal(t, placementProto.NumShards, placementProtoNew.NumShards)
 	assert.Equal(t, placementProto.CutoverTime, placementProtoNew.CutoverTime)
+	assert.Equal(t, placementProto.MaxShardSetId, placementProtoNew.MaxShardSetId)
 	for id, h := range placementProto.Instances {
 		instance := placementProtoNew.Instances[id]
 		assert.Equal(t, h.Id, instance.Id)
