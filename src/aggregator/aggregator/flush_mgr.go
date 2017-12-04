@@ -238,10 +238,11 @@ func (mgr *flushManager) Close() error {
 func (mgr *flushManager) resetWithLock() {
 	mgr.state = flushManagerNotOpen
 	mgr.doneCh = make(chan struct{})
-	mgr.buckets = nil
 	mgr.electionState = FollowerState
 	mgr.leaderMgr = newLeaderFlushManager(mgr.doneCh, mgr.leaderOpts)
+	mgr.leaderMgr.Init(mgr.buckets)
 	mgr.followerMgr = newFollowerFlushManager(mgr.doneCh, mgr.followerOpts)
+	mgr.followerMgr.Init(mgr.buckets)
 }
 
 func (mgr *flushManager) findOrCreateBucketWithLock(l PeriodicFlusher) (*flushBucket, error) {
@@ -263,9 +264,6 @@ func (mgr *flushManager) findOrCreateBucketWithLock(l PeriodicFlusher) (*flushBu
 }
 
 func (mgr *flushManager) findBucketWithLock(l PeriodicFlusher) (*flushBucket, error) {
-	if mgr.state != flushManagerOpen {
-		return nil, errFlushManagerNotOpenOrClosed
-	}
 	flushInterval := l.FlushInterval()
 	for _, bucket := range mgr.buckets {
 		if bucket.interval == flushInterval {

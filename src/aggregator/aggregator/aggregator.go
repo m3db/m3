@@ -137,6 +137,26 @@ func newAggregatorPlacementMetrics(scope tally.Scope) aggregatorPlacementMetrics
 	}
 }
 
+type aggregatorShardSetIDMetrics struct {
+	open    tally.Counter
+	close   tally.Counter
+	clear   tally.Counter
+	reset   tally.Counter
+	same    tally.Counter
+	changed tally.Counter
+}
+
+func newAggregatorShardSetIDMetrics(scope tally.Scope) aggregatorShardSetIDMetrics {
+	return aggregatorShardSetIDMetrics{
+		open:    scope.Counter("open"),
+		close:   scope.Counter("close"),
+		clear:   scope.Counter("clear"),
+		reset:   scope.Counter("reset"),
+		same:    scope.Counter("same"),
+		changed: scope.Counter("changed"),
+	}
+}
+
 type aggregatorMetrics struct {
 	counters                  tally.Counter
 	timers                    tally.Counter
@@ -147,12 +167,14 @@ type aggregatorMetrics struct {
 	addMetricWithPoliciesList instrument.MethodMetrics
 	placement                 aggregatorPlacementMetrics
 	shards                    aggregatorShardsMetrics
+	shardSetID                aggregatorShardSetIDMetrics
 	tick                      aggregatorTickMetrics
 }
 
 func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMetrics {
 	placementScope := scope.SubScope("placement")
 	shardsScope := scope.SubScope("shards")
+	shardSetIDScope := scope.SubScope("shard-set-id")
 	tickScope := scope.SubScope("tick")
 	return aggregatorMetrics{
 		counters:                  scope.Counter("counters"),
@@ -164,6 +186,7 @@ func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMet
 		addMetricWithPoliciesList: instrument.NewMethodMetrics(scope, "addMetricWithPoliciesList", samplingRate),
 		placement:                 newAggregatorPlacementMetrics(placementScope),
 		shards:                    newAggregatorShardsMetrics(shardsScope),
+		shardSetID:                newAggregatorShardSetIDMetrics(shardSetIDScope),
 		tick:                      newAggregatorTickMetrics(tickScope),
 	}
 }
@@ -378,10 +401,10 @@ func (agg *aggregator) processPlacementWithLock(
 	} else {
 		return err
 	}
+	agg.updateShardsWithLock(newStagedPlacement, newPlacement, newShardSet)
 	if err := agg.updateShardSetIDWithLock(instance); err != nil {
 		return err
 	}
-	agg.updateShardsWithLock(newStagedPlacement, newPlacement, newShardSet)
 	agg.metrics.placement.updated.Inc(1)
 	return nil
 }
@@ -416,6 +439,7 @@ func (agg *aggregator) updateShardSetIDWithLock(instance placement.Instance) err
 
 // clearShardSetIDWithLock clears the instance's shard set id.
 func (agg *aggregator) clearShardSetIDWithLock() error {
+	agg.metrics.shardSetID.clear.Inc(1)
 	if !agg.shardSetOpen {
 		return nil
 	}
@@ -430,6 +454,7 @@ func (agg *aggregator) clearShardSetIDWithLock() error {
 // resetShardSetIDWithLock resets the instance's shard set id given the instance from
 // the latest placement.
 func (agg *aggregator) resetShardSetIDWithLock(instance placement.Instance) error {
+	agg.metrics.shardSetID.reset.Inc(1)
 	if !agg.shardSetOpen {
 		shardSetID := instance.ShardSetID()
 		if err := agg.openShardSetWithLock(shardSetID); err != nil {
@@ -440,8 +465,10 @@ func (agg *aggregator) resetShardSetIDWithLock(instance placement.Instance) erro
 		return nil
 	}
 	if instance.ShardSetID() == agg.shardSetID {
+		agg.metrics.shardSetID.same.Inc(1)
 		return nil
 	}
+	agg.metrics.shardSetID.changed.Inc(1)
 	if err := agg.closeShardSetWithLock(); err != nil {
 		return err
 	}
@@ -455,6 +482,7 @@ func (agg *aggregator) resetShardSetIDWithLock(instance placement.Instance) erro
 }
 
 func (agg *aggregator) openShardSetWithLock(shardSetID uint32) error {
+	agg.metrics.shardSetID.open.Inc(1)
 	if err := agg.flushTimesManager.Open(shardSetID); err != nil {
 		return err
 	}
@@ -465,6 +493,7 @@ func (agg *aggregator) openShardSetWithLock(shardSetID uint32) error {
 }
 
 func (agg *aggregator) closeShardSetWithLock() error {
+	agg.metrics.shardSetID.close.Inc(1)
 	if err := agg.flushManager.Close(); err != nil {
 		return err
 	}

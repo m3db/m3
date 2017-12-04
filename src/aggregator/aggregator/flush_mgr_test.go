@@ -69,12 +69,6 @@ func TestFlushManagerOpenSuccess(t *testing.T) {
 	require.NoError(t, mgr.Open())
 }
 
-func TestFlushManagerRegisterClosed(t *testing.T) {
-	mgr, _ := testFlushManager(t)
-	mgr.state = flushManagerClosed
-	require.Equal(t, errFlushManagerNotOpenOrClosed, mgr.Register(nil))
-}
-
 func TestFlushManagerRegisterSuccess(t *testing.T) {
 	mgr, now := testFlushManager(t)
 	*now = time.Unix(1234, 0)
@@ -129,12 +123,6 @@ func TestFlushManagerRegisterSuccess(t *testing.T) {
 		require.Equal(t, expectedBuckets[i].interval, buckets[i].interval)
 		require.Equal(t, expectedBuckets[i].flushers, buckets[i].flushers)
 	}
-}
-
-func TestFlushManagerUnregisterClosed(t *testing.T) {
-	mgr, _ := testFlushManager(t)
-	mgr.state = flushManagerClosed
-	require.Equal(t, errFlushManagerNotOpenOrClosed, mgr.Unregister(nil))
 }
 
 func TestFlushManagerUnregisterBucketNotFound(t *testing.T) {
