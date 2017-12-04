@@ -63,7 +63,7 @@ lint:
 	$(lint_check)
 
 .PHONY: metalint
-metalint: install-metalinter
+metalint: install-metalinter install-linter-badtime
 	@($(metalint_check) $(metalint_config) $(metalint_exclude) && echo "metalinted successfully!") || (echo "metalinter failed" && exit 1)
 
 .PHONY: test-internal
