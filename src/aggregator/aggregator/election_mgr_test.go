@@ -242,7 +242,7 @@ func TestElectionManagerResignSuccess(t *testing.T) {
 	defer cancel()
 
 	var (
-		statusCh = make(chan campaign.Status)
+		statusCh = make(chan campaign.Status, 2)
 		mgr      *electionManager
 	)
 
@@ -259,7 +259,6 @@ func TestElectionManagerResignSuccess(t *testing.T) {
 		},
 		resignFn: func(electionID string) error {
 			statusCh <- campaign.Status{State: campaign.Follower}
-			close(statusCh)
 			return nil
 		},
 	}
@@ -297,6 +296,7 @@ func TestElectionManagerCloseSuccess(t *testing.T) {
 
 func TestElectionManagerCampaignLoop(t *testing.T) {
 	iter := 0
+	var resigned int32
 	leaderValue := "myself"
 	campaignCh := make(chan campaign.Status)
 	nextCampaignCh := make(chan campaign.Status)
@@ -315,8 +315,7 @@ func TestElectionManagerCampaignLoop(t *testing.T) {
 			return "someone else", nil
 		},
 		resignFn: func(electionID string) error {
-			campaignCh <- campaign.NewStatus(campaign.Follower)
-			close(campaignCh)
+			atomic.StoreInt32(&resigned, 1)
 			return nil
 		},
 	}
@@ -400,6 +399,13 @@ func TestElectionManagerCampaignLoop(t *testing.T) {
 	nextCampaignCh <- campaign.NewStatus(campaign.Leader)
 
 	require.NoError(t, mgr.Close())
+
+	for {
+		if atomic.LoadInt32(&resigned) == 1 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func TestElectionManagerVerifyLeaderDelay(t *testing.T) {
@@ -870,9 +876,21 @@ func testElectionManagerOptions(t *testing.T) ElectionManagerOptions {
 			}), nil
 		},
 	}
+	leaderService := &mockLeaderService{
+		campaignFn: func(
+			electionID string,
+			opts services.CampaignOptions,
+		) (<-chan campaign.Status, error) {
+			return make(chan campaign.Status), nil
+		},
+		resignFn: func(electionID string) error {
+			return nil
+		},
+	}
 	return NewElectionManagerOptions().
 		SetCampaignOptions(campaignOpts).
-		SetPlacementManager(placementManager)
+		SetPlacementManager(placementManager).
+		SetLeaderService(leaderService)
 }
 
 type enabledRes struct {
