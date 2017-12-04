@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
@@ -148,11 +149,53 @@ func waitUntilDataCleanedUpExtended(
 	return errDataCleanupTimedOut
 }
 
-// nolint: deadcode
-func waitUntilFilesetsCleanedUp(filePathPrefix string, namespace ts.ID, extraShard uint32, waitTimeout time.Duration) error {
+// nolint: deadcode, unused
+func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ts.ID, waitTimeout time.Duration) error {
 	dataCleanedUp := func() bool {
-		shardDir := fs.ShardDirPath(filePathPrefix, namespace, extraShard)
-		return !fs.FileExists(shardDir)
+		namespaceDir := fs.NamespaceDirPath(filePathPrefix, namespace)
+		return !fs.FileExists(namespaceDir)
+	}
+
+	if waitUntil(dataCleanedUp, waitTimeout) {
+		return nil
+	}
+	return errDataCleanupTimedOut
+}
+
+// nolint: deadcode, unused
+func waitUntilNamespacesHaveReset(testSetup *testSetup, newNamespaces []namespace.Metadata, newShardSet sharding.ShardSet) (*testSetup, error) {
+	err := testSetup.stopServer()
+	if err != nil {
+		return nil, err
+	}
+	// Reset to the desired shard set and namespaces
+	// Because restarting the server would bootstrap
+	// To old data we wanted to delete
+	testSetup.opts = testSetup.opts.SetNamespaces(newNamespaces)
+
+	resetSetup, err := newTestSetup(nil, testSetup.opts, testSetup.fsOpts)
+	if err != nil {
+		return nil, err
+	}
+	resetSetup.shardSet = newShardSet
+	err = resetSetup.startServer()
+	if err != nil {
+		return nil, err
+	}
+
+	return resetSetup, nil
+}
+
+// nolint: deadcode, unused
+func waitUntilFilesetsCleanedUp(filePathPrefix string, namespaces []storage.Namespace, extraShard uint32, waitTimeout time.Duration) error {
+	dataCleanedUp := func() bool {
+		for _, n := range namespaces {
+			shardDir := fs.ShardDirPath(filePathPrefix, n.ID(), extraShard)
+			if fs.FileExists(shardDir) {
+				return false
+			}
+		}
+		return true
 	}
 
 	if waitUntil(dataCleanedUp, waitTimeout) {

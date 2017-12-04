@@ -153,7 +153,7 @@ type Namespace interface {
 	// NumSeries returns the number of series in the namespace
 	NumSeries() int64
 
-	// Shards returns the shards
+	// Shards returns the shard description
 	Shards() []Shard
 }
 
@@ -174,6 +174,9 @@ type databaseNamespace interface {
 
 	// AssignShardSet sets the shard set assignment and returns immediately
 	AssignShardSet(shardSet sharding.ShardSet)
+
+	// GetOwnedShards returns the database shards
+	GetOwnedShards() []databaseShard
 
 	// Tick performs any regular maintenance operations
 	Tick(c context.Cancellable, softDeadline time.Duration)
@@ -226,13 +229,6 @@ type databaseNamespace interface {
 	// period: [start, end] (both inclusive).
 	// NB: The start/end times are assumed to be aligned to block size boundary.
 	NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool
-
-	// CleanupFileset cleans up fileset files
-	CleanupFileset(earliestToRetain time.Time) error
-
-	// DeleteInactiveFilesets deletes filesets no longer owned by the
-	// namespace
-	DeleteInactiveFilesets() error
 
 	// Truncate truncates the in-memory data for this namespace
 	Truncate() (int64, error)

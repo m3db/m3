@@ -246,23 +246,22 @@ func FilesetBefore(filePathPrefix string, namespace ts.ID, shard uint32, t time.
 	return filesBefore(matched, t)
 }
 
-// DeleteInactiveFilesets deletes any filesets that are not currently owned by the namespace
-func DeleteInactiveFilesets(filePathPrefix string, namespace ts.ID, activeShards []uint32) error {
+// DeleteInactiveDirectories deletes any directories that are not currently active, as defined by the
+// inputed active directories within the parent directory
+func DeleteInactiveDirectories(parentDirectoryPath string, activeDirectories []string) error {
 	var toDelete []string
 	activeDirNames := make(map[string]struct{})
-	namespaceDirPath := NamespaceDirPath(filePathPrefix, namespace)
-	allShardDirs, err := findSubDirectoriesAndPaths(namespaceDirPath)
+	allSubDirs, err := findSubDirectoriesAndPaths(parentDirectoryPath)
 	if err != nil {
 		return nil
 	}
 
 	// Create shard set, might also be useful to just send in as strings?
-	for _, shard := range activeShards {
-		shardName := fmt.Sprint(shard)
-		activeDirNames[shardName] = struct{}{}
+	for _, dir := range activeDirectories {
+		activeDirNames[dir] = struct{}{}
 	}
 
-	for dirName, dirPath := range allShardDirs {
+	for dirName, dirPath := range allSubDirs {
 		if _, ok := activeDirNames[dirName]; !ok {
 			toDelete = append(toDelete, dirPath)
 		}
@@ -389,6 +388,11 @@ func readAndValidate(
 		return nil, err
 	}
 	return buf[:n], nil
+}
+
+// DataDirPath returns the path to the data directory belonging to a db
+func DataDirPath(prefix string) string {
+	return path.Join(prefix, dataDirName)
 }
 
 // NamespaceDirPath returns the path to a given namespace.

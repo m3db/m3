@@ -55,7 +55,7 @@ func TestCommitLogBootstrap(t *testing.T) {
 		SetCommitLogBlockSize(blockSize).
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
-	setup, err := newTestSetup(t, opts)
+	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.close()
 

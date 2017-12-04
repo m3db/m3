@@ -23,59 +23,83 @@
 package integration
 
 import (
+	"runtime/debug"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/storage/namespace"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestDiskCleansupInactiveFilesets(t *testing.T) {
+func TestDiskCleansupInactiveDirectories(t *testing.T) {
+	var resetSetup *testSetup
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
 	testOpts := newTestOptions(t)
-	testSetup, err := newTestSetup(t, testOpts)
+	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
-	defer testSetup.close()
 
 	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
-	blockSize := md.Options().RetentionOptions().BlockSize()
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
-	// Start the server
+	// Start tte server
 	log := testSetup.storageOpts.InstrumentOptions().Logger()
-	log.Debug("disk cleanup test")
+	log.Info("disk cleanup directories test")
 	require.NoError(t, testSetup.startServer())
-	log.Debug("server is now up")
 
-	// Stop the server
-	defer func() {
-		require.NoError(t, testSetup.stopServer())
-		log.Debug("server is now down")
-	}()
+	// Stop the server at the end of the test
+
+	var (
+		fsCleanupErr = make(chan error)
+		nsResetErr   = make(chan error)
+		nsCleanupErr = make(chan error)
+
+		fsWaitTimeout = 30 * time.Second
+		nsWaitTimeout = 10 * time.Second
+
+		namespaces = []namespace.Metadata{md}
+		shardSet   = testSetup.db.ShardSet()
+		shards     = shardSet.All()
+		extraShard = shards[0]
+	)
 
 	// Now create some fileset files and commit logs
-	shard := uint32(0)
-	numTimes := 10
-	fileTimes := make([]time.Time, numTimes)
-	now := testSetup.getNowFn()
-	for i := 0; i < numTimes; i++ {
-		fileTimes[i] = now.Add(time.Duration(i) * blockSize)
-	}
-	writeFilesetFiles(t, testSetup.storageOpts, md, shard, fileTimes)
-	writeCommitLogs(t, filePathPrefix, fileTimes)
-
-	shardSet := testSetup.db.ShardSet()
-	shards := shardSet.All()
-	extraShard := shards[0]
 	shardSet, err = sharding.NewShardSet(shards[1:], shardSet.HashFn())
 	require.NoError(t, err)
 	testSetup.db.AssignShardSet(shardSet)
 
-	// Check if files have been deleted
-	waitTimeout := 30 * time.Second
-	require.NoError(t, waitUntilFilesetsCleanedUp(filePathPrefix, md.ID(), extraShard.ID(), waitTimeout))
+	// Check filesets are good to go
+	go func() {
+		fsCleanupErr <- waitUntilFilesetsCleanedUp(filePathPrefix,
+			testSetup.db.Namespaces(), extraShard.ID(), fsWaitTimeout)
+	}()
+	log.Info("blocking until file cleanup is received")
+	require.NoError(t, <-fsCleanupErr)
+
+	// Server needs to restart for namespace changes to be absorbed
+	go func() {
+		var resetErr error
+		resetSetup, resetErr = waitUntilNamespacesHaveReset(testSetup, namespaces, shardSet)
+		nsResetErr <- resetErr
+	}()
+	defer func() {
+		require.NoError(t, resetSetup.stopServer())
+	}()
+	nsToDelete := testNamespaces[1]
+	log.Info("blocking until namespaces have reset and deleted")
+	go func() {
+		time.Sleep(10 * time.Second)
+		debug.PrintStack()
+	}()
+	require.NoError(t, <-nsResetErr)
+
+	go func() {
+		nsCleanupErr <- waitUntilNamespacesCleanedUp(filePathPrefix, nsToDelete, nsWaitTimeout)
+	}()
+	log.Info("blocking until the namespace cleanup is received")
+	require.NoError(t, <-nsCleanupErr)
 }

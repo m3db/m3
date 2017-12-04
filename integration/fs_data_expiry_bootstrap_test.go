@@ -76,7 +76,7 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 
 	opts = opts.SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
 
-	setup, err = newTestSetup(t, opts)
+	setup, err = newTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.close()
 

@@ -71,7 +71,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		SetNamespaces([]namespace.Metadata{ns1})
 
 	// Test setup
-	setup, err := newTestSetup(t, opts)
+	setup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer setup.close()
 

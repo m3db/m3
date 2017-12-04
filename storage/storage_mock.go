@@ -598,6 +598,16 @@ func (_mr *_MockdatabaseNamespaceRecorder) AssignShardSet(arg0 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AssignShardSet", arg0)
 }
 
+func (_m *MockdatabaseNamespace) GetOwnedShards() []databaseShard {
+	ret := _m.ctrl.Call(_m, "GetOwnedShards")
+	ret0, _ := ret[0].([]databaseShard)
+	return ret0
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) GetOwnedShards() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "GetOwnedShards")
+}
+
 func (_m *MockdatabaseNamespace) Tick(c context.Cancellable, softDeadline time0.Duration) {
 	_m.ctrl.Call(_m, "Tick", c, softDeadline)
 }
@@ -678,26 +688,6 @@ func (_m *MockdatabaseNamespace) NeedsFlush(alignedInclusiveStart time0.Time, al
 
 func (_mr *_MockdatabaseNamespaceRecorder) NeedsFlush(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "NeedsFlush", arg0, arg1)
-}
-
-func (_m *MockdatabaseNamespace) CleanupFileset(earliestToRetain time0.Time) error {
-	ret := _m.ctrl.Call(_m, "CleanupFileset", earliestToRetain)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockdatabaseNamespaceRecorder) CleanupFileset(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "CleanupFileset", arg0)
-}
-
-func (_m *MockdatabaseNamespace) DeleteInactiveFilesets() error {
-	ret := _m.ctrl.Call(_m, "DeleteInactiveFilesets")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockdatabaseNamespaceRecorder) DeleteInactiveFilesets() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "DeleteInactiveFilesets")
 }
 
 func (_m *MockdatabaseNamespace) Truncate() (int64, error) {

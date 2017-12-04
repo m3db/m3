@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
-	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
@@ -87,22 +86,19 @@ var commitLogWriteNoOp = commitLogWriter(commitLogWriterFn(func(
 	return nil
 }))
 
-type deleteInactiveFilesetsFn func(filePathPrefix string, namespace ts.ID, activeShards []uint32) error
-
 type dbNamespace struct {
 	sync.RWMutex
 
-	id                       ts.ID
-	shardSet                 sharding.ShardSet
-	blockRetriever           block.DatabaseBlockRetriever
-	opts                     Options
-	metadata                 namespace.Metadata
-	nopts                    namespace.Options
-	seriesOpts               series.Options
-	nowFn                    clock.NowFn
-	deleteInactiveFilesetsFn deleteInactiveFilesetsFn
-	log                      xlog.Logger
-	bs                       bootstrapState
+	id             ts.ID
+	shardSet       sharding.ShardSet
+	blockRetriever block.DatabaseBlockRetriever
+	opts           Options
+	metadata       namespace.Metadata
+	nopts          namespace.Options
+	seriesOpts     series.Options
+	nowFn          clock.NowFn
+	log            xlog.Logger
+	bs             bootstrapState
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
@@ -221,15 +217,14 @@ func newDatabaseNamespace(
 	}
 
 	n := &dbNamespace{
-		id:             id,
-		shardSet:       shardSet,
-		blockRetriever: blockRetriever,
-		opts:           opts,
-		metadata:       metadata,
-		nopts:          nopts,
-		seriesOpts:     seriesOpts,
-		nowFn:          opts.ClockOptions().NowFn(),
-		deleteInactiveFilesetsFn: fs.DeleteInactiveFilesets,
+		id:                     id,
+		shardSet:               shardSet,
+		blockRetriever:         blockRetriever,
+		opts:                   opts,
+		metadata:               metadata,
+		nopts:                  nopts,
+		seriesOpts:             seriesOpts,
+		nowFn:                  opts.ClockOptions().NowFn(),
 		log:                    logger,
 		increasingIndex:        increasingIndex,
 		commitLogWriter:        commitLogWriter,
@@ -253,7 +248,7 @@ func (n *dbNamespace) ID() ts.ID {
 
 func (n *dbNamespace) NumSeries() int64 {
 	var count int64
-	for _, shard := range n.getOwnedShards() {
+	for _, shard := range n.GetOwnedShards() {
 		count += shard.NumSeries()
 	}
 	return count
@@ -342,7 +337,7 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 }
 
 func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) {
-	shards := n.getOwnedShards()
+	shards := n.GetOwnedShards()
 
 	if len(shards) == 0 {
 		return
@@ -494,7 +489,7 @@ func (n *dbNamespace) Bootstrap(
 	}
 
 	var (
-		owned  = n.getOwnedShards()
+		owned  = n.GetOwnedShards()
 		shards = make([]databaseShard, 0, len(owned))
 	)
 	for _, shard := range owned {
@@ -602,7 +597,7 @@ func (n *dbNamespace) Flush(
 	}
 
 	multiErr := xerrors.NewMultiError()
-	shards := n.getOwnedShards()
+	shards := n.GetOwnedShards()
 	for _, shard := range shards {
 		// skip flushing if the shard has already flushed data for the `blockStart`
 		if s := shard.FlushState(blockStart); s.Status == fileOpSuccess {
@@ -659,36 +654,6 @@ func (n *dbNamespace) NeedsFlush(alignedInclusiveStart time.Time, alignedInclusi
 	return false
 }
 
-func (n *dbNamespace) CleanupFileset(earliestToRetain time.Time) error {
-	if !n.nopts.NeedsFilesetCleanup() {
-		return nil
-	}
-
-	multiErr := xerrors.NewMultiError()
-	shards := n.getOwnedShards()
-	for _, shard := range shards {
-		if err := shard.CleanupFileset(earliestToRetain); err != nil {
-			multiErr = multiErr.Add(err)
-		}
-	}
-
-	return multiErr.FinalError()
-}
-
-// DeleteInactiveFilesets deletes the filesets associated with shards that are no longger
-// owned by the namespace. This logic will soon be moved to the cleanup manager to handle
-// namespace deletion as well as fileset deletion.
-func (n *dbNamespace) DeleteInactiveFilesets() error {
-	var shardIds []uint32
-	filePathPrefix := n.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
-	activeShards := n.getOwnedShards()
-	for _, shard := range activeShards {
-		shardIds = append(shardIds, shard.ID())
-	}
-
-	return n.deleteInactiveFilesetsFn(filePathPrefix, n.id, shardIds)
-}
-
 func (n *dbNamespace) Truncate() (int64, error) {
 	var totalNumSeries int64
 
@@ -731,7 +696,7 @@ func (n *dbNamespace) Repair(
 	)
 
 	multiErr := xerrors.NewMultiError()
-	shards := n.getOwnedShards()
+	shards := n.GetOwnedShards()
 	numShards := len(shards)
 	if numShards > 0 {
 		throttlePerShard = time.Duration(
@@ -789,7 +754,7 @@ func (n *dbNamespace) Repair(
 	return multiErr.FinalError()
 }
 
-func (n *dbNamespace) getOwnedShards() []databaseShard {
+func (n *dbNamespace) GetOwnedShards() []databaseShard {
 	n.RLock()
 	shards := n.shardSet.AllIDs()
 	databaseShards := make([]databaseShard, len(shards))

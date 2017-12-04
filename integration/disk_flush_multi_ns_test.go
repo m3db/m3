@@ -59,7 +59,7 @@ func TestDiskFlushMultipleNamespace(t *testing.T) {
 		SetNamespaces([]namespace.Metadata{ns1, ns2})
 
 	// Test setup
-	testSetup, err := newTestSetup(t, opts)
+	testSetup, err := newTestSetup(t, opts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
 

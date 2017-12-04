@@ -295,6 +295,7 @@ func newTestOptions(t *testing.T) testOptions {
 
 func (o *options) SetNamespaces(value []namespace.Metadata) testOptions {
 	opts := *o
+	opts.namespaces = opts.namespaces[:0]
 	opts.namespaces = value
 	return &opts
 }
