@@ -97,14 +97,23 @@ func TestSelectInitialInstancesForMirror(t *testing.T) {
 
 	selector := newMirroredSelector(placement.NewOptions().SetValidZone("z1"))
 	res, err := selector.SelectInitialInstances(
-		[]placement.Instance{h1p1, h1p2, h2p1, h2p2, h3p1, h3p2, h4p1, h4p2},
+		[]placement.Instance{
+			h1p1.SetShardSetID(0),
+			h1p2.SetShardSetID(0),
+			h2p1.SetShardSetID(0),
+			h2p2.SetShardSetID(0),
+			h3p1.SetShardSetID(0),
+			h3p2.SetShardSetID(0),
+			h4p1.SetShardSetID(0),
+			h4p2.SetShardSetID(0),
+		},
 		2,
 	)
 	require.NoError(t, err)
 	require.Equal(t, 8, len(res))
 
 	ssIDs := make(map[uint32]int)
-	for i := 0; i < 4; i++ {
+	for i := 1; i <= 4; i++ {
 		ssIDs[uint32(i)] = 2
 	}
 
@@ -202,7 +211,7 @@ func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 	require.Equal(t, h1p2.ShardSetID(), h2p2.ShardSetID())
 	require.Equal(t, h1p3.ShardSetID(), h2p3.ShardSetID())
 	ssIDs := make(map[uint32]int)
-	for i := 0; i < 3; i++ {
+	for i := 1; i <= 3; i++ {
 		ssIDs[uint32(i)] = 2
 	}
 
@@ -243,7 +252,20 @@ func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 		SetWeight(2)
 
 	res, err = selector.SelectInitialInstances(
-		[]placement.Instance{h1p1, h1p2, h1p3, h2p1, h2p2, h2p3, h3p1, h3p2, h3p3, h4p1, h4p2, h4p3},
+		[]placement.Instance{
+			h1p1.SetShardSetID(0),
+			h1p2.SetShardSetID(0),
+			h1p3.SetShardSetID(0),
+			h2p1.SetShardSetID(0),
+			h2p2.SetShardSetID(0),
+			h2p3.SetShardSetID(0),
+			h3p1.SetShardSetID(0),
+			h3p2.SetShardSetID(0),
+			h3p3.SetShardSetID(0),
+			h4p1.SetShardSetID(0),
+			h4p2.SetShardSetID(0),
+			h4p3.SetShardSetID(0),
+		},
 		2,
 	)
 	require.NoError(t, err)
@@ -256,7 +278,7 @@ func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 	require.Equal(t, h3p3.ShardSetID(), h4p3.ShardSetID())
 
 	ssIDs = make(map[uint32]int)
-	for i := 0; i < 6; i++ {
+	for i := 1; i <= 6; i++ {
 		ssIDs[uint32(i)] = 2
 	}
 
@@ -358,7 +380,7 @@ func TestSelectInitialInstancesForMirrorRF3(t *testing.T) {
 	require.Equal(t, h1p3.ShardSetID(), h3p3.ShardSetID())
 
 	ssIDs := make(map[uint32]int)
-	for i := 0; i < 3; i++ {
+	for i := 1; i <= 3; i++ {
 		ssIDs[uint32(i)] = 3
 	}
 
@@ -520,7 +542,7 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 		SetZone("z1").
 		SetEndpoint("h1p1e").
 		SetWeight(1).
-		SetShardSetID(0)
+		SetShardSetID(1)
 	h1p2 := placement.NewInstance().
 		SetID("h1p2").
 		SetHostname("h1").
@@ -529,7 +551,7 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 		SetZone("z1").
 		SetEndpoint("h1p2e").
 		SetWeight(1).
-		SetShardSetID(1)
+		SetShardSetID(2)
 	h2p1 := placement.NewInstance().
 		SetID("h2p1").
 		SetHostname("h2").
@@ -538,7 +560,7 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 		SetZone("z1").
 		SetEndpoint("h2p1e").
 		SetWeight(1).
-		SetShardSetID(0)
+		SetShardSetID(1)
 	h2p2 := placement.NewInstance().
 		SetID("h2p2").
 		SetHostname("h2").
@@ -547,7 +569,7 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 		SetZone("z1").
 		SetEndpoint("h2p2e").
 		SetWeight(1).
-		SetShardSetID(1)
+		SetShardSetID(2)
 
 	p := placement.NewPlacement().
 		SetInstances([]placement.Instance{h1p1, h1p2, h2p1, h2p2}).
@@ -596,6 +618,31 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 4, len(res))
 
+	h1p1.SetShards(shard.NewShards([]shard.Shard{shard.NewShard(0).SetState(shard.Leaving)}))
+	h2p1.SetShards(shard.NewShards([]shard.Shard{shard.NewShard(0).SetState(shard.Leaving)}))
+
+	require.Equal(t, h1p1.ShardSetID(), h2p1.ShardSetID())
+	require.Equal(t, uint32(1), h1p1.ShardSetID())
+	res, err = selector.SelectAddingInstances(
+		[]placement.Instance{h1p1, h2p1},
+		p,
+	)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(res))
+	for _, instance := range res {
+		require.Equal(t, uint32(1), instance.ShardSetID())
+	}
+
+	res, err = selector.SelectAddingInstances(
+		[]placement.Instance{h1p1, h4p1},
+		p,
+	)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(res))
+	for _, instance := range res {
+		require.Equal(t, uint32(3), instance.ShardSetID())
+	}
+
 	_, err = selector.SelectAddingInstances(
 		[]placement.Instance{h3p2, h4p1},
 		p,
@@ -621,7 +668,7 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 
 func TestNextNShardSetIDs(t *testing.T) {
 	res := nextNShardSetIDs(placement.NewPlacement(), 3)
-	require.Equal(t, []uint32{0, 1, 2}, res)
+	require.Equal(t, []uint32{1, 2, 3}, res)
 
 	p := placement.NewPlacement()
 	p.SetInstances([]placement.Instance{
