@@ -27,7 +27,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/placement"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/log"
@@ -52,7 +51,7 @@ const (
 // Helper is a helper class handling deployments.
 type Helper interface {
 	// Deploy deploys a target revision to the instances in the placement.
-	Deploy(revision string, mode Mode) error
+	Deploy(revision string, placement placement.Placement, mode Mode) error
 }
 
 // TODO(xichen): disable deployment while another is ongoing.
@@ -61,13 +60,11 @@ type helper struct {
 	planner                 planner
 	client                  aggregatorClient
 	mgr                     Manager
-	store                   kv.Store
 	retrier                 retry.Retrier
 	foreverRetrier          retry.Retrier
 	workers                 xsync.WorkerPool
 	toPlacementInstanceIDFn ToPlacementInstanceIDFn
 	toAPIEndpointFn         ToAPIEndpointFn
-	placementWatcher        placement.StagedPlacementWatcher
 	settleBetweenSteps      time.Duration
 }
 
@@ -75,11 +72,6 @@ type helper struct {
 func NewHelper(opts HelperOptions) (Helper, error) {
 	client := newAggregatorClient(opts.HTTPClient())
 	planner := newPlanner(client, opts.PlannerOptions())
-	placementWatcherOpts := opts.StagedPlacementWatcherOptions()
-	placementWatcher := placement.NewStagedPlacementWatcher(placementWatcherOpts)
-	if err := placementWatcher.Watch(); err != nil {
-		return nil, err
-	}
 	retryOpts := opts.RetryOptions()
 	retrier := retry.NewRetrier(retryOpts)
 	foreverRetrier := retry.NewRetrier(retryOpts.SetForever(true))
@@ -88,22 +80,20 @@ func NewHelper(opts HelperOptions) (Helper, error) {
 		planner:                 planner,
 		client:                  client,
 		mgr:                     opts.Manager(),
-		store:                   opts.KVStore(),
 		retrier:                 retrier,
 		foreverRetrier:          foreverRetrier,
 		workers:                 opts.WorkerPool(),
 		toPlacementInstanceIDFn: opts.ToPlacementInstanceIDFn(),
 		toAPIEndpointFn:         opts.ToAPIEndpointFn(),
-		placementWatcher:        placementWatcher,
 		settleBetweenSteps:      opts.SettleDurationBetweenSteps(),
 	}, nil
 }
 
-func (h helper) Deploy(revision string, mode Mode) error {
+func (h helper) Deploy(revision string, placement placement.Placement, mode Mode) error {
 	if revision == "" {
 		return errInvalidRevision
 	}
-	all, err := h.allInstanceMetadatas()
+	all, err := h.allInstanceMetadatas(placement)
 	if err != nil {
 		return fmt.Errorf("unable to get all instance metadatas: %v", err)
 	}
@@ -128,11 +118,6 @@ func (h helper) Deploy(revision string, mode Mode) error {
 	return nil
 }
 
-// Close closes the deployment helper.
-func (h helper) Close() error {
-	return h.placementWatcher.Unwatch()
-}
-
 func (h helper) execute(
 	plan deploymentPlan,
 	revision string,
@@ -145,7 +130,7 @@ func (h helper) execute(
 			return err
 		}
 		h.logger.Infof("deploying step %d succeeded", i+1)
-		if i < numSteps-1 && h.settleBetweenSteps > 0 {
+		if h.settleBetweenSteps > 0 {
 			h.logger.Infof("waiting settle duration after step: %s", h.settleBetweenSteps.String())
 			time.Sleep(h.settleBetweenSteps)
 		}
@@ -302,11 +287,8 @@ func (h helper) forEachTarget(targets deploymentTargets, workFn targetWorkFn) er
 	return multiErr.FinalError()
 }
 
-func (h helper) allInstanceMetadatas() (instanceMetadatas, error) {
-	placementInstances, err := h.placementInstances()
-	if err != nil {
-		return nil, fmt.Errorf("unable to determine instances from placement: %v", err)
-	}
+func (h helper) allInstanceMetadatas(placement placement.Placement) (instanceMetadatas, error) {
+	placementInstances := placement.Instances()
 	deploymentInstances, err := h.mgr.QueryAll()
 	if err != nil {
 		return nil, fmt.Errorf("unable to query all instances from deployment: %v", err)
@@ -369,22 +351,6 @@ func (h helper) computeInstanceMetadatas(
 	}
 
 	return metadatas, nil
-}
-
-func (h helper) placementInstances() ([]placement.Instance, error) {
-	stagedPlacement, onStagedPlacementDoneFn, err := h.placementWatcher.ActiveStagedPlacement()
-	if err != nil {
-		return nil, err
-	}
-	defer onStagedPlacementDoneFn()
-
-	placement, onPlacementDoneFn, err := stagedPlacement.ActivePlacement()
-	if err != nil {
-		return nil, err
-	}
-	defer onPlacementDoneFn()
-
-	return placement.Instances(), nil
 }
 
 type targetWorkFn func(target deploymentTarget) error
