@@ -25,8 +25,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/m3db/m3cluster/kv"
-	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/retry"
 	"github.com/m3db/m3x/sync"
@@ -38,13 +36,11 @@ const (
 )
 
 var (
-	errNoPlannerOptions                = errors.New("no planner options")
-	errNoManager                       = errors.New("no manager")
-	errNoHTTPClient                    = errors.New("no http client")
-	errNoKVStore                       = errors.New("no kv store")
-	errNoToPlacementInstanceIDFn       = errors.New("no to placement instance id function")
-	errNoToAPIEndpointFn               = errors.New("no to api endpoint function")
-	errNoStagedPlacementWatcherOptions = errors.New("no staged placement watcher options")
+	errNoPlannerOptions          = errors.New("no planner options")
+	errNoManager                 = errors.New("no manager")
+	errNoHTTPClient              = errors.New("no http client")
+	errNoToPlacementInstanceIDFn = errors.New("no to placement instance id function")
+	errNoToAPIEndpointFn         = errors.New("no to api endpoint function")
 )
 
 // ToPlacementInstanceIDFn converts a deployment instance id to the corresponding
@@ -81,12 +77,6 @@ type HelperOptions interface {
 	// HTTPClient returns the http client.
 	HTTPClient() *http.Client
 
-	// SetKVStore sets the kv store.
-	SetKVStore(value kv.Store) HelperOptions
-
-	// KVStore returns the kv store.
-	KVStore() kv.Store
-
 	// SetRetryOptions sets the retry options.
 	SetRetryOptions(value retry.Options) HelperOptions
 
@@ -115,12 +105,6 @@ type HelperOptions interface {
 	// instance endpoint to the corresponding aggregator instance api endpoint.
 	ToAPIEndpointFn() ToAPIEndpointFn
 
-	// SetStagedPlacementWatcherOptions sets the staged placement watcher options.
-	SetStagedPlacementWatcherOptions(value placement.StagedPlacementWatcherOptions) HelperOptions
-
-	// StagedPlacementWatcherOptions returns the staged placement watcher options.
-	StagedPlacementWatcherOptions() placement.StagedPlacementWatcherOptions
-
 	// SetSettleDurationBetweenSteps sets the settlement duration between consecutive steps.
 	SetSettleDurationBetweenSteps(value time.Duration) HelperOptions
 
@@ -136,12 +120,10 @@ type helperOptions struct {
 	plannerOpts             PlannerOptions
 	manager                 Manager
 	httpClient              *http.Client
-	store                   kv.Store
 	retryOpts               retry.Options
 	workerPool              sync.WorkerPool
 	toPlacementInstanceIDFn ToPlacementInstanceIDFn
 	toAPIEndpointFn         ToAPIEndpointFn
-	watcherOpts             placement.StagedPlacementWatcherOptions
 	settleDuration          time.Duration
 }
 
@@ -197,16 +179,6 @@ func (o *helperOptions) HTTPClient() *http.Client {
 	return o.httpClient
 }
 
-func (o *helperOptions) SetKVStore(value kv.Store) HelperOptions {
-	opts := *o
-	opts.store = value
-	return &opts
-}
-
-func (o *helperOptions) KVStore() kv.Store {
-	return o.store
-}
-
 func (o *helperOptions) SetRetryOptions(value retry.Options) HelperOptions {
 	opts := *o
 	opts.retryOpts = value
@@ -247,16 +219,6 @@ func (o *helperOptions) ToAPIEndpointFn() ToAPIEndpointFn {
 	return o.toAPIEndpointFn
 }
 
-func (o *helperOptions) SetStagedPlacementWatcherOptions(value placement.StagedPlacementWatcherOptions) HelperOptions {
-	opts := *o
-	opts.watcherOpts = value
-	return &opts
-}
-
-func (o *helperOptions) StagedPlacementWatcherOptions() placement.StagedPlacementWatcherOptions {
-	return o.watcherOpts
-}
-
 func (o *helperOptions) SetSettleDurationBetweenSteps(value time.Duration) HelperOptions {
 	opts := *o
 	opts.settleDuration = value
@@ -277,17 +239,11 @@ func (o *helperOptions) Validate() error {
 	if o.httpClient == nil {
 		return errNoHTTPClient
 	}
-	if o.store == nil {
-		return errNoKVStore
-	}
 	if o.toPlacementInstanceIDFn == nil {
 		return errNoToPlacementInstanceIDFn
 	}
 	if o.toAPIEndpointFn == nil {
 		return errNoToAPIEndpointFn
-	}
-	if o.watcherOpts == nil {
-		return errNoStagedPlacementWatcherOptions
 	}
 	return nil
 }

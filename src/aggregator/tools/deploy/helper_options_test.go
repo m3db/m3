@@ -24,9 +24,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/m3db/m3cluster/kv/mem"
-	"github.com/m3db/m3cluster/placement"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,11 +42,6 @@ func TestValidateNoHTTPClient(t *testing.T) {
 	require.Equal(t, errNoHTTPClient, opts.Validate())
 }
 
-func TestValidateNoKVStore(t *testing.T) {
-	opts := testHelperOptions().SetKVStore(nil)
-	require.Equal(t, errNoKVStore, opts.Validate())
-}
-
 func TestValidateNoToPlacementInstanceIDFn(t *testing.T) {
 	opts := testHelperOptions().SetToPlacementInstanceIDFn(nil)
 	require.Equal(t, errNoToPlacementInstanceIDFn, opts.Validate())
@@ -60,18 +52,11 @@ func TestValidateNoToAPIEndpointFn(t *testing.T) {
 	require.Equal(t, errNoToAPIEndpointFn, opts.Validate())
 }
 
-func TestValidateNoStagedPlacementWatcherOptions(t *testing.T) {
-	opts := testHelperOptions().SetStagedPlacementWatcherOptions(nil)
-	require.Equal(t, errNoStagedPlacementWatcherOptions, opts.Validate())
-}
-
 func testHelperOptions() HelperOptions {
 	return NewHelperOptions().
 		SetPlannerOptions(NewPlannerOptions()).
 		SetManager(&mockManager{}).
 		SetHTTPClient(&http.Client{}).
-		SetKVStore(mem.NewStore()).
-		SetStagedPlacementWatcherOptions(placement.NewStagedPlacementWatcherOptions()).
 		SetToPlacementInstanceIDFn(func(deploymentInstanceID string) (string, error) {
 			return "", nil
 		}).
