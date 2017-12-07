@@ -2,11 +2,13 @@ package handler
 
 import (
 	"io/ioutil"
-	"github.com/golang/snappy"
 	"net/http"
-	"github.com/m3db/m3coordinator/generated/proto/prometheus/prompb"
-	"github.com/golang/protobuf/proto"
 	"fmt"
+
+	"github.com/m3db/m3coordinator/generated/proto/prometheus/prompb"
+
+	"github.com/golang/snappy"
+	"github.com/golang/protobuf/proto"
 )
 
 // PromReadHandler represents a handler for prometheus read endpoint.
@@ -56,7 +58,6 @@ func (h *PromReadHandler) parseRequest(w http.ResponseWriter, r *http.Request) (
 		return nil, err
 	}
 
-	fmt.Println(compressed, "compressed")
 	reqBuf, err := snappy.Decode(nil, compressed)
 	if err != nil {
 		Error(w, err, http.StatusBadRequest)
