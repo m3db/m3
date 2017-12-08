@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
@@ -35,11 +36,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TODO(rartoul): Delete this once we've tested V2 in prod
 func TestPeersBootstrapHighConcurrency(t *testing.T) {
 	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
+		t.SkipNow()
 	}
 
+	testPeersBootstrapHighConcurrency(t, client.FetchBlocksMetadataEndpointV1)
+}
+
+func testPeersBootstrapHighConcurrency(
+	t *testing.T, version client.FetchBlocksMetadataEndpointVersion) {
 	// Test setups
 	log := xlog.SimpleLogger
 	retentionOpts := retention.NewOptions().
@@ -47,8 +54,9 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
-	namesp := namespace.NewMetadata(testNamespaces[0],
+	namesp, err := namespace.NewMetadata(testNamespaces[0],
 		namespace.NewOptions().SetRetentionOptions(retentionOpts))
+	require.NoError(t, err)
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp})
 
@@ -59,9 +67,10 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 			disablePeersBootstrapper: true,
 		},
 		{
-			disablePeersBootstrapper:   false,
-			bootstrapBlocksBatchSize:   batchSize,
-			bootstrapBlocksConcurrency: concurrency,
+			disablePeersBootstrapper:           false,
+			bootstrapBlocksBatchSize:           batchSize,
+			bootstrapBlocksConcurrency:         concurrency,
+			fetchBlocksMetadataEndpointVersion: version,
 		},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
@@ -79,10 +88,12 @@ func TestPeersBootstrapHighConcurrency(t *testing.T) {
 	now := setups[0].getNowFn()
 	blockSize := retentionOpts.BlockSize()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		{shardIDs, 3, now.Add(-3 * blockSize)},
+		{shardIDs, 3, now.Add(-2 * blockSize)},
 		{shardIDs, 3, now.Add(-blockSize)},
 		{shardIDs, 3, now},
 	})
-	err := writeTestDataToDisk(namesp, setups[0], seriesMaps)
+	err = writeTestDataToDisk(namesp, setups[0], seriesMaps)
 	require.NoError(t, err)
 
 	// Start the first server with filesystem bootstrapper

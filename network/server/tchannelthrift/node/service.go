@@ -560,7 +560,6 @@ func (s *service) getFetchBlocksMetadataRawV2Result(
 		}
 	}
 	result.NextPageToken = nextPageTokenBytes
-
 	return result, nil
 }
 

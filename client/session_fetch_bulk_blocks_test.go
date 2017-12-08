@@ -21,8 +21,10 @@
 package client
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"sort"
 	"sync"
@@ -30,10 +32,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
+	pt "github.com/m3db/m3db/generated/proto/pagetoken"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
@@ -102,6 +106,7 @@ func newResultTestOptions() result.Options {
 		SetEncoderPool(encoderPool))
 }
 
+// TODO(rartoul): Delete when we delete the V1 code path
 func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -182,7 +187,7 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	// Expect the fetch metadata calls
 	metadataResult := resultMetadataFromBlocks(blocks)
 	// Skip the first client which is the client for the origin
-	mockClients[1:].expectFetchMetadataAndReturn(metadataResult, opts)
+	mockClients[1:].expectFetchMetadataAndReturn(metadataResult, opts, false)
 
 	// Expect the fetch blocks calls
 	participating := len(mockClients) - 1
@@ -216,7 +221,133 @@ func TestFetchBootstrapBlocksAllPeersSucceed(t *testing.T) {
 	rangeStart := start
 	rangeEnd := start.Add(blockSize * (24 - 1))
 	bootstrapOpts := newResultTestOptions()
-	result, err := session.FetchBootstrapBlocksFromPeers(testsNsMetadata(t), 0, rangeStart, rangeEnd, bootstrapOpts)
+	result, err := session.FetchBootstrapBlocksFromPeers(
+		testsNsMetadata(t), 0, rangeStart, rangeEnd, bootstrapOpts, FetchBlocksMetadataEndpointV1)
+	assert.NoError(t, err)
+	assert.NotNil(t, result)
+
+	// Assert result
+	assertFetchBootstrapBlocksResult(t, blocks, result)
+
+	assert.NoError(t, session.Close())
+}
+
+func TestFetchBootstrapBlocksAllPeersSucceedV2(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestAdminOptions()
+	s, err := newSession(opts)
+	require.NoError(t, err)
+	session := s.(*session)
+
+	mockHostQueues, mockClients := mockHostQueuesAndClientsForFetchBootstrapBlocks(ctrl, opts)
+	session.newHostQueueFn = mockHostQueues.newHostQueueFn()
+
+	// Don't drain the peer blocks queue, explicitly drain ourselves to
+	// avoid unpredictable batches being retrieved from peers
+	var (
+		qs      []*peerBlocksQueue
+		qsMutex sync.RWMutex
+	)
+	session.newPeerBlocksQueueFn = func(
+		peer peer,
+		maxQueueSize int,
+		_ time.Duration,
+		workers xsync.WorkerPool,
+		processFn processFn,
+	) *peerBlocksQueue {
+		qsMutex.Lock()
+		defer qsMutex.Unlock()
+		q := newPeerBlocksQueue(peer, maxQueueSize, 0, workers, processFn)
+		qs = append(qs, q)
+		return q
+	}
+
+	require.NoError(t, session.Open())
+
+	batchSize := opts.FetchSeriesBlocksBatchSize()
+
+	start := time.Now().Truncate(blockSize).Add(blockSize * -(24 - 1))
+
+	blocks := []testBlocks{
+		{
+			id: fooID,
+			blocks: []testBlock{
+				{
+					start: start.Add(blockSize * 1),
+					segments: &testBlockSegments{merged: &testBlockSegment{
+						head: []byte{1, 2},
+						tail: []byte{3},
+					}},
+				},
+			},
+		},
+		{
+			id: barID,
+			blocks: []testBlock{
+				{
+					start: start.Add(blockSize * 2),
+					segments: &testBlockSegments{merged: &testBlockSegment{
+						head: []byte{4, 5},
+						tail: []byte{6},
+					}},
+				},
+			},
+		},
+		{
+			id: bazID,
+			blocks: []testBlock{
+				{
+					start: start.Add(blockSize * 3),
+					segments: &testBlockSegments{merged: &testBlockSegment{
+						head: []byte{7, 8},
+						tail: []byte{9},
+					}},
+				},
+			},
+		},
+	}
+
+	// Expect the fetch metadata calls
+	metadataResult := resultMetadataFromBlocks(blocks)
+	// Skip the first client which is the client for the origin
+	mockClients[1:].expectFetchMetadataAndReturn(metadataResult, opts, true)
+
+	// Expect the fetch blocks calls
+	participating := len(mockClients) - 1
+	blocksExpectedReqs, blocksResult := expectedReqsAndResultFromBlocks(blocks, batchSize, participating)
+	// Skip the first client which is the client for the origin
+	for i, client := range mockClients[1:] {
+		expectFetchBlocksAndReturn(client, blocksExpectedReqs[i], blocksResult[i])
+	}
+
+	// Fetch blocks
+	go func() {
+		// Trigger peer queues to drain explicitly when all work enqueued
+		for {
+			qsMutex.RLock()
+			assigned := 0
+			for _, q := range qs {
+				assigned += int(atomic.LoadUint64(&q.assigned))
+			}
+			qsMutex.RUnlock()
+			if assigned == len(blocks) {
+				qsMutex.Lock()
+				defer qsMutex.Unlock()
+				for _, q := range qs {
+					q.drain()
+				}
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+	rangeStart := start
+	rangeEnd := start.Add(blockSize * (24 - 1))
+	bootstrapOpts := newResultTestOptions()
+	result, err := session.FetchBootstrapBlocksFromPeers(
+		testsNsMetadata(t), 0, rangeStart, rangeEnd, bootstrapOpts, FetchBlocksMetadataEndpointV2)
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 
@@ -596,7 +727,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAllPeersSucceed(t *testing.T
 	session := s.(*session)
 
 	var (
-		metrics          = session.streamFromPeersMetricsForShard(0, resultTypeRaw)
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
@@ -656,7 +787,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeLargerBlocks(t *testing.
 	session := s.(*session)
 
 	var (
-		metrics          = session.streamFromPeersMetricsForShard(0, resultTypeRaw)
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
@@ -739,7 +870,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataTakeAvailableBlocks(t *testi
 	session := s.(*session)
 
 	var (
-		metrics          = session.streamFromPeersMetricsForShard(0, resultTypeRaw)
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peerC            = NewMockpeer(ctrl)
@@ -824,7 +955,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsReattemptingFromAttemp
 	session := s.(*session)
 
 	var (
-		metrics          = session.streamFromPeersMetricsForShard(0, resultTypeRaw)
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peerC            = NewMockpeer(ctrl)
@@ -906,7 +1037,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataAvoidsExhaustedBlocks(t *tes
 	session := s.(*session)
 
 	var (
-		metrics          = session.streamFromPeersMetricsForShard(0, resultTypeRaw)
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peerC            = NewMockpeer(ctrl)
@@ -989,7 +1120,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataPerformsRetries(t *testing.T
 	session := s.(*session)
 
 	var (
-		metrics          = session.streamFromPeersMetricsForShard(0, resultTypeRaw)
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
@@ -1072,7 +1203,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataMaintainsBlockOrderAfterPeer
 	session := s.(*session)
 
 	var (
-		metrics          = session.streamFromPeersMetricsForShard(0, resultTypeRaw)
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
@@ -1153,7 +1284,7 @@ func TestSelectBlocksForSeriesFromPeerBlocksMetadataMaintainsBlockOrderAfterPeer
 	session := s.(*session)
 
 	var (
-		metrics          = session.streamFromPeersMetricsForShard(0, resultTypeRaw)
+		metrics          = session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 		peerA            = NewMockpeer(ctrl)
 		peerB            = NewMockpeer(ctrl)
 		peers            = preparedMockPeers(peerA, peerB)
@@ -1255,7 +1386,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 		peerIdx   = len(mockHostQueues) - 1
 		peer      = mockHostQueues[peerIdx]
 		client    = mockClients[peerIdx]
-		enqueueCh = newEnqueueChannel(session.streamFromPeersMetricsForShard(0, resultTypeRaw))
+		enqueueCh = newEnqueueChannel(session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw))
 		batch     = []*blocksMetadata{
 			&blocksMetadata{id: fooID, blocks: []blockMetadata{
 				{start: start, size: 2, reattempt: blockMetadataReattempt{
@@ -1293,7 +1424,7 @@ func TestStreamBlocksBatchFromPeerReenqueuesOnFailCall(t *testing.T) {
 
 	// Attempt stream blocks
 	bopts := result.NewOptions()
-	m := session.streamFromPeersMetricsForShard(0, resultTypeRaw)
+	m := session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, nil, enqueueCh, retrier, m)
 
 	// Assert result
@@ -1348,7 +1479,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 		peerIdx       = len(mockHostQueues) - 1
 		peer          = mockHostQueues[peerIdx]
 		client        = mockClients[peerIdx]
-		enqueueCh     = newEnqueueChannel(session.streamFromPeersMetricsForShard(0, resultTypeRaw))
+		enqueueCh     = newEnqueueChannel(session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw))
 		blockChecksum = digest.Checksum(rawBlockData)
 		batch         = []*blocksMetadata{
 			&blocksMetadata{id: fooID, blocks: []blockMetadata{
@@ -1408,7 +1539,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockErr(t *testing.T) {
 
 	// Attempt stream blocks
 	bopts := result.NewOptions()
-	m := session.streamFromPeersMetricsForShard(0, resultTypeRaw)
+	m := session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 	r := newBulkBlocksResult(opts, bopts)
 	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 
@@ -1477,7 +1608,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 		peerIdx       = len(mockHostQueues) - 1
 		peer          = mockHostQueues[peerIdx]
 		client        = mockClients[peerIdx]
-		enqueueCh     = newEnqueueChannel(session.streamFromPeersMetricsForShard(0, resultTypeRaw))
+		enqueueCh     = newEnqueueChannel(session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw))
 		blockChecksum = digest.Checksum(rawBlockData)
 		batch         = []*blocksMetadata{
 			&blocksMetadata{id: fooID, blocks: []blockMetadata{
@@ -1549,7 +1680,7 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 
 	// Attempt stream blocks
 	bopts := result.NewOptions()
-	m := session.streamFromPeersMetricsForShard(0, resultTypeRaw)
+	m := session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw)
 	r := newBulkBlocksResult(opts, bopts)
 	session.streamBlocksBatchFromPeer(testsNsMetadata(t), 0, peer, batch, bopts, r, enqueueCh, retrier, m)
 	// Assert enqueueChannel contents (bad bar block)
@@ -1734,7 +1865,7 @@ func TestEnqueueChannelEnqueueDelayed(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 	session := s.(*session)
-	enqueueCh := newEnqueueChannel(session.streamFromPeersMetricsForShard(0, resultTypeRaw))
+	enqueueCh := newEnqueueChannel(session.newPeerMetadataStreamingProgressMetrics(0, resultTypeRaw))
 
 	// Enqueue multiple blocks metadata
 	numBlocks := 10
@@ -1805,9 +1936,14 @@ type MockTChanNodes []*rpc.MockTChanNode
 func (c MockTChanNodes) expectFetchMetadataAndReturn(
 	result []testBlocksMetadata,
 	opts AdminOptions,
+	isV2 bool,
 ) {
 	for _, client := range c {
-		expectFetchMetadataAndReturn(client, result, opts)
+		if isV2 {
+			expectFetchMetadataAndReturnV2(client, result, opts)
+		} else {
+			expectFetchMetadataAndReturn(client, result, opts)
+		}
 	}
 }
 
@@ -1966,6 +2102,7 @@ func expectedReqsAndResultFromBlocks(
 	return clientsExpectReqs, clientsBlocksResult
 }
 
+// TODO(rartoul): Delete when we delete the V1 code path
 func expectFetchMetadataAndReturn(
 	client *rpc.MockTChanNode,
 	result []testBlocksMetadata,
@@ -2020,14 +2157,85 @@ func expectFetchMetadataAndReturn(
 	gomock.InOrder(calls...)
 }
 
+func expectFetchMetadataAndReturnV2(
+	client *rpc.MockTChanNode,
+	result []testBlocksMetadata,
+	opts AdminOptions,
+) {
+	batchSize := opts.FetchSeriesBlocksBatchSize()
+	totalCalls := int(math.Ceil(float64(len(result)) / float64(batchSize)))
+	includeSizes := true
+
+	var calls []*gomock.Call
+	for i := 0; i < totalCalls; i++ {
+		var (
+			ret      = &rpc.FetchBlocksMetadataRawV2Result_{}
+			beginIdx = i * batchSize
+			nextIdx  = int64(0)
+		)
+		for j := beginIdx; j < len(result) && j < beginIdx+batchSize; j++ {
+			id := result[j].id.Data().Get()
+			for k := 0; k < len(result[j].blocks); k++ {
+				bl := &rpc.BlockMetadataV2{}
+				bl.ID = id
+				bl.Start = result[j].blocks[k].start.UnixNano()
+				bl.Size = result[j].blocks[k].size
+				if result[j].blocks[k].checksum != nil {
+					checksum := int64(*result[j].blocks[k].checksum)
+					bl.Checksum = &checksum
+				}
+				ret.Elements = append(ret.Elements, bl)
+			}
+			nextIdx = int64(j) + 1
+		}
+		if i != totalCalls-1 {
+			// Include next page token if not last page
+			nextPageTokenBytes, err := proto.Marshal(&pt.PageToken{ShardIndex: nextIdx})
+			if err != nil {
+				log.Fatal(err)
+			}
+			ret.NextPageToken = nextPageTokenBytes
+		}
+
+		matcher := &fetchMetadataReqMatcher{
+			shard:        0,
+			limit:        int64(batchSize),
+			includeSizes: &includeSizes,
+			isV2:         true,
+		}
+		if i != 0 {
+			expectedPageTokenBytes, err := proto.Marshal(&pt.PageToken{ShardIndex: int64(beginIdx)})
+			if err != nil {
+				log.Fatal(err)
+			}
+			matcher.pageTokenV2 = expectedPageTokenBytes
+		}
+
+		call := client.EXPECT().FetchBlocksMetadataRawV2(gomock.Any(), matcher).Return(ret, nil)
+		calls = append(calls, call)
+	}
+
+	gomock.InOrder(calls...)
+}
+
 type fetchMetadataReqMatcher struct {
 	shard        int32
 	limit        int64
 	pageToken    *int64
+	pageTokenV2  []byte
 	includeSizes *bool
+	isV2         bool
 }
 
 func (m *fetchMetadataReqMatcher) Matches(x interface{}) bool {
+	if m.isV2 {
+		return m.matchesV2(x)
+	}
+	return m.matchesV1(x)
+}
+
+// TODO(rartoul): Delete when we delete the V1 code path
+func (m *fetchMetadataReqMatcher) matchesV1(x interface{}) bool {
 	req, ok := x.(*rpc.FetchBlocksMetadataRawRequest)
 	if !ok {
 		return false
@@ -2050,6 +2258,49 @@ func (m *fetchMetadataReqMatcher) Matches(x interface{}) bool {
 			return false
 		}
 		if *req.PageToken != *m.pageToken {
+			return false
+		}
+	}
+
+	if m.includeSizes == nil {
+		if req.IncludeSizes != nil {
+			return false
+		}
+	} else {
+		if req.IncludeSizes == nil {
+			return false
+		}
+		if *req.IncludeSizes != *m.includeSizes {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (m *fetchMetadataReqMatcher) matchesV2(x interface{}) bool {
+	req, ok := x.(*rpc.FetchBlocksMetadataRawV2Request)
+	if !ok {
+		return false
+	}
+
+	if m.shard != req.Shard {
+		return false
+	}
+
+	if m.limit != req.Limit {
+		return false
+	}
+
+	if m.pageTokenV2 == nil {
+		if req.PageToken != nil {
+			return false
+		}
+	} else {
+		if req.PageToken == nil {
+			return false
+		}
+		if !bytes.Equal(req.PageToken, m.pageTokenV2) {
 			return false
 		}
 	}

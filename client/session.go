@@ -62,6 +62,7 @@ const (
 	blocksMetadataInitialCapacity        = 64
 	blocksMetadataChannelInitialCapacity = 4096
 	gaugeReportInterval                  = 500 * time.Millisecond
+	blocksMetadataChBufSize              = 4096
 )
 
 type resultTypeEnum string
@@ -71,6 +72,22 @@ const (
 	resultTypeBootstrap                = "bootstrap"
 	resultTypeRaw                      = "raw"
 )
+
+// FetchBlocksMetadataEndpointVersion represents an endpoint version for the
+// fetch blocks metadata endpoint
+type FetchBlocksMetadataEndpointVersion int
+
+const (
+	// FetchBlocksMetadataEndpointV1 represents v1 of the fetch blocks metadata endpoint
+	FetchBlocksMetadataEndpointV1 FetchBlocksMetadataEndpointVersion = iota
+	// FetchBlocksMetadataEndpointV2 represents v2 of the fetch blocks metadata endpoint
+	FetchBlocksMetadataEndpointV2
+)
+
+var validFetchBlocksMetadataEndpoints = []FetchBlocksMetadataEndpointVersion{
+	FetchBlocksMetadataEndpointV1,
+	FetchBlocksMetadataEndpointV2,
+}
 
 var (
 	// ErrClusterConnectTimeout is raised when connecting to the cluster and
@@ -90,6 +107,9 @@ var (
 	errSessionInvalidConnectClusterConnectConsistencyLevel = errors.New("session has invalid connect consistency level specified")
 	// errSessionHasNoHostQueueForHost is raised when host queue requested for a missing host
 	errSessionHasNoHostQueueForHost = errors.New("session has no host queue for host")
+	// errInvalidFetchBlocksMetadataVersion is raised when an invalid fetch blocks
+	// metadata endpoint version is provided
+	errInvalidFetchBlocksMetadataVersion = errors.New("invalid fetch blocks metadata endpoint version")
 )
 
 type session struct {
@@ -112,6 +132,7 @@ type session struct {
 	state                            state
 	writeRetrier                     xretry.Retrier
 	fetchRetrier                     xretry.Retrier
+	streamBlocksRetrier              xretry.Retrier
 	contextPool                      context.Pool
 	idPool                           ts.IdentifierPool
 	writeOpPool                      *writeOpPool
@@ -174,6 +195,7 @@ type streamFromPeersMetrics struct {
 	metadataFetchBatchCall     tally.Counter
 	metadataFetchBatchSuccess  tally.Counter
 	metadataFetchBatchError    tally.Counter
+	metadataFetchBatchBlockErr tally.Counter
 	metadataReceived           tally.Counter
 	fetchBlockSuccess          tally.Counter
 	fetchBlockError            tally.Counter
@@ -243,6 +265,7 @@ func newSession(opts Options) (clientSession, error) {
 		s.streamBlocksBatchSize = opts.FetchSeriesBlocksBatchSize()
 		s.streamBlocksMetadataBatchTimeout = opts.FetchSeriesBlocksMetadataBatchTimeout()
 		s.streamBlocksBatchTimeout = opts.FetchSeriesBlocksBatchTimeout()
+		s.streamBlocksRetrier = opts.StreamBlocksRetrier()
 	}
 
 	return s, nil
@@ -259,7 +282,10 @@ func (s *session) ShardID(id string) (uint32, error) {
 	return value, nil
 }
 
-func (s *session) streamFromPeersMetricsForShard(
+// newPeerMetadataStreamingProgressMetrics returns a struct with an embedded
+// list of fields that can be used to emit metrics about the current state of
+// the peer metadata streaming process
+func (s *session) newPeerMetadataStreamingProgressMetrics(
 	shard uint32,
 	resultType resultTypeEnum,
 ) *streamFromPeersMetrics {
@@ -285,15 +311,16 @@ func (s *session) streamFromPeersMetricsForShard(
 		"resultType": string(resultType),
 	})
 	m = streamFromPeersMetrics{
-		fetchBlocksFromPeers:      scope.Gauge("fetch-blocks-inprogress"),
-		metadataFetches:           scope.Gauge("fetch-metadata-peers-inprogress"),
-		metadataFetchBatchCall:    scope.Counter("fetch-metadata-peers-batch-call"),
-		metadataFetchBatchSuccess: scope.Counter("fetch-metadata-peers-batch-success"),
-		metadataFetchBatchError:   scope.Counter("fetch-metadata-peers-batch-error"),
-		metadataReceived:          scope.Counter("fetch-metadata-peers-received"),
-		fetchBlockSuccess:         scope.Counter("fetch-block-success"),
-		fetchBlockError:           scope.Counter("fetch-block-error"),
-		fetchBlockFinalError:      scope.Counter("fetch-block-final-error"),
+		fetchBlocksFromPeers:       scope.Gauge("fetch-blocks-inprogress"),
+		metadataFetches:            scope.Gauge("fetch-metadata-peers-inprogress"),
+		metadataFetchBatchCall:     scope.Counter("fetch-metadata-peers-batch-call"),
+		metadataFetchBatchSuccess:  scope.Counter("fetch-metadata-peers-batch-success"),
+		metadataFetchBatchError:    scope.Counter("fetch-metadata-peers-batch-error"),
+		metadataFetchBatchBlockErr: scope.Counter("fetch-metadata-peers-batch-block-err"),
+		metadataReceived:           scope.Counter("fetch-metadata-peers-received"),
+		fetchBlockSuccess:          scope.Counter("fetch-block-success"),
+		fetchBlockError:            scope.Counter("fetch-block-error"),
+		fetchBlockFinalError:       scope.Counter("fetch-block-final-error"),
 		fetchBlockRetriesReqError: scope.Tagged(map[string]string{
 			"reason": "request-error",
 		}).Counter("fetch-block-retries"),
@@ -1224,12 +1251,12 @@ func (s *session) FetchBlocksMetadataFromPeers(
 	var (
 		metadataCh = make(chan blocksMetadata, blocksMetadataChannelInitialCapacity)
 		errCh      = make(chan error, 1)
-		m          = s.streamFromPeersMetricsForShard(shard, resultTypeMetadata)
+		m          = s.newPeerMetadataStreamingProgressMetrics(shard, resultTypeMetadata)
 	)
 
 	go func() {
-		errCh <- s.streamBlocksMetadataFromPeers(namespace, shard, peers,
-			start, end, metadataCh, m)
+		errCh <- s.streamBlocksMetadataFromPeers(
+			namespace, shard, peers, start, end, metadataCh, m, FetchBlocksMetadataEndpointV1)
 		close(metadataCh)
 		close(errCh)
 	}()
@@ -1237,66 +1264,81 @@ func (s *session) FetchBlocksMetadataFromPeers(
 	return newMetadataIter(metadataCh, errCh), nil
 }
 
+// FetchBootstrapBlocksFromPeers will fetch the specified blocks from peers for
+// bootstrapping purposes. Refer to peer_bootstrapping.md for more details.
 func (s *session) FetchBootstrapBlocksFromPeers(
 	nsMetadata namespace.Metadata,
 	shard uint32,
 	start, end time.Time,
 	opts result.Options,
+	version FetchBlocksMetadataEndpointVersion,
 ) (result.ShardResult, error) {
+	if !IsValidFetchBlocksMetadataEndpoint(version) {
+		return nil, errInvalidFetchBlocksMetadataVersion
+	}
+
 	var (
 		result   = newBulkBlocksResult(s.opts, opts)
-		complete = int64(0)
-		doneCh   = make(chan error, 1)
-		onDone   = func(err error) {
-			atomic.StoreInt64(&complete, 1)
-			select {
-			case doneCh <- err:
-			default:
-			}
-		}
-		waitDone = func() error {
-			return <-doneCh
-		}
-		m = s.streamFromPeersMetricsForShard(shard, resultTypeBootstrap)
+		doneCh   = make(chan struct{})
+		progress = s.newPeerMetadataStreamingProgressMetrics(shard, resultTypeBootstrap)
 	)
 
+	// Determine which peers own the specified shard
 	peers, err := s.peersForShard(shard)
 	if err != nil {
 		return nil, err
 	}
 
+	// Emit a gauge indicating whether we're done or not
 	go func() {
-		for atomic.LoadInt64(&complete) == 0 {
-			m.fetchBlocksFromPeers.Update(1)
-			time.Sleep(gaugeReportInterval)
+		for {
+			select {
+			case <-doneCh:
+				progress.fetchBlocksFromPeers.Update(0)
+				return
+			default:
+				progress.fetchBlocksFromPeers.Update(1)
+				time.Sleep(gaugeReportInterval)
+			}
 		}
-		m.fetchBlocksFromPeers.Update(0)
 	}()
+	defer close(doneCh)
 
 	// Begin pulling metadata, if one or multiple peers fail no error will
 	// be returned from this routine as long as one peer succeeds completely
-	metadataCh := make(chan blocksMetadata, 4096)
+	metadataCh := make(chan blocksMetadata, blocksMetadataChBufSize)
+	// Spin up a background goroutine which will begin streaming metadata from
+	// all the peers and pushing them into the metadatach
+	errCh := make(chan error, 1)
 	go func() {
-		err := s.streamBlocksMetadataFromPeers(nsMetadata.ID(), shard, peers,
-			start, end, metadataCh, m)
-
+		errCh <- s.streamBlocksMetadataFromPeers(
+			nsMetadata.ID(), shard, peers, start, end, metadataCh, progress, version)
 		close(metadataCh)
-		if err != nil {
-			// Bail early
-			onDone(err)
-		}
 	}()
 
-	// Begin consuming metadata and making requests
-	go func() {
-		err := s.streamBlocksFromPeers(nsMetadata, shard, peers,
-			metadataCh, opts, result, m, s.streamAndGroupCollectedBlocksMetadata)
-		onDone(err)
-	}()
+	// Begin consuming metadata and making requests. This will block until all
+	// data has been streamed (or failed to stream). Note that this function does
+	// not return an error and if anything goes wrong here we won't report it to
+	// the caller, but metrics and logs are emitted internally. Also note that the
+	// streamAndGroupCollectedBlocksMetadata function is injected.
+	var streamFn streamBlocksMetadataFn
+	switch version {
+	case FetchBlocksMetadataEndpointV1:
+		streamFn = s.streamAndGroupCollectedBlocksMetadata
+	case FetchBlocksMetadataEndpointV2:
+		streamFn = s.streamAndGroupCollectedBlocksMetadataV2
+	// Should never happen
+	default:
+		return nil, errInvalidFetchBlocksMetadataVersion
+	}
+	s.streamBlocksFromPeers(
+		nsMetadata, shard, peers, metadataCh, opts, result, progress, streamFn)
 
-	if err := waitDone(); err != nil {
+	// Check if an error occurred during the metadata streaming
+	if err = <-errCh; err != nil {
 		return nil, err
 	}
+
 	return result.result, nil
 }
 
@@ -1320,7 +1362,7 @@ func (s *session) FetchBlocksFromPeers(
 			default:
 			}
 		}
-		m = s.streamFromPeersMetricsForShard(shard, resultTypeRaw)
+		progress = s.newPeerMetadataStreamingProgressMetrics(shard, resultTypeRaw)
 	)
 
 	peers, err := s.peersForShard(shard)
@@ -1334,10 +1376,10 @@ func (s *session) FetchBlocksFromPeers(
 
 	go func() {
 		for atomic.LoadInt64(&complete) == 0 {
-			m.fetchBlocksFromPeers.Update(1)
+			progress.fetchBlocksFromPeers.Update(1)
 			time.Sleep(gaugeReportInterval)
 		}
-		m.fetchBlocksFromPeers.Update(0)
+		progress.fetchBlocksFromPeers.Update(0)
 	}()
 
 	metadataCh := make(chan blocksMetadata, 4096)
@@ -1370,10 +1412,10 @@ func (s *session) FetchBlocksFromPeers(
 
 	// Begin consuming metadata and making requests
 	go func() {
-		err := s.streamBlocksFromPeers(nsMetadata, shard, peers,
-			metadataCh, opts, result, m, s.passThruBlocksMetadata)
+		s.streamBlocksFromPeers(nsMetadata, shard, peers,
+			metadataCh, opts, result, progress, s.passThruBlocksMetadata)
 		close(outputCh)
-		onDone(err)
+		onDone(nil)
 	}()
 
 	pbi := newPeerBlocksIter(outputCh, doneCh)
@@ -1385,8 +1427,9 @@ func (s *session) streamBlocksMetadataFromPeers(
 	shard uint32,
 	peers []peer,
 	start, end time.Time,
-	ch chan<- blocksMetadata,
-	m *streamFromPeersMetrics,
+	metadataCh chan<- blocksMetadata,
+	progress *streamFromPeersMetrics,
+	version FetchBlocksMetadataEndpointVersion,
 ) error {
 	var (
 		wg       sync.WaitGroup
@@ -1397,22 +1440,35 @@ func (s *session) streamBlocksMetadataFromPeers(
 	)
 
 	pending = int64(len(peers))
-	m.metadataFetches.Update(float64(pending))
+	progress.metadataFetches.Update(float64(pending))
 	for _, peer := range peers {
 		peer := peer
 
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			err := s.streamBlocksMetadataFromPeer(namespace, shard, peer,
-				start, end, ch, m)
+			var err error
+
+			switch version {
+			case FetchBlocksMetadataEndpointV1:
+				err = s.streamBlocksMetadataFromPeer(
+					namespace, shard, peer, start, end, metadataCh, progress)
+			case FetchBlocksMetadataEndpointV2:
+				err = s.streamBlocksMetadataFromPeerV2(
+					namespace, shard, peer, start, end, metadataCh, progress)
+			// Should never happen - we validate the version before this function is
+			// ever called
+			default:
+				err = errInvalidFetchBlocksMetadataVersion
+			}
+
 			if err != nil {
 				errLock.Lock()
 				defer errLock.Unlock()
 				errLen++
 				multiErr = multiErr.Add(err)
 			}
-			m.metadataFetches.Update(float64(atomic.AddInt64(&pending, -1)))
+			progress.metadataFetches.Update(float64(atomic.AddInt64(&pending, -1)))
 		}()
 	}
 
@@ -1424,26 +1480,23 @@ func (s *session) streamBlocksMetadataFromPeers(
 	return nil
 }
 
+// TODO(rartoul): Delete this once we delete the V1 code path
 func (s *session) streamBlocksMetadataFromPeer(
 	namespace ts.ID,
 	shard uint32,
 	peer peer,
 	start, end time.Time,
 	ch chan<- blocksMetadata,
-	m *streamFromPeersMetrics,
+	progress *streamFromPeersMetrics,
 ) error {
 	var (
-		pageToken *int64
-		retrier   = xretry.NewRetrier(xretry.NewOptions().
-				SetBackoffFactor(2).
-				SetMaxRetries(3).
-				SetInitialBackoff(time.Second).
-				SetJitter(true))
+		pageToken              *int64
 		optionIncludeSizes     = true
 		optionIncludeChecksums = true
 		optionIncludeLastRead  = true
 		moreResults            = true
 	)
+
 	// Declare before loop to avoid redeclaring each iteration
 	attemptFn := func(client rpc.TChanNode) error {
 		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
@@ -1458,15 +1511,15 @@ func (s *session) streamBlocksMetadataFromPeer(
 		req.IncludeChecksums = &optionIncludeChecksums
 		req.IncludeLastRead = &optionIncludeLastRead
 
-		m.metadataFetchBatchCall.Inc(1)
+		progress.metadataFetchBatchCall.Inc(1)
 		result, err := client.FetchBlocksMetadataRaw(tctx, req)
 		if err != nil {
-			m.metadataFetchBatchError.Inc(1)
+			progress.metadataFetchBatchError.Inc(1)
 			return err
 		}
 
-		m.metadataFetchBatchSuccess.Inc(1)
-		m.metadataReceived.Inc(int64(len(result.Elements)))
+		progress.metadataFetchBatchSuccess.Inc(1)
+		progress.metadataReceived.Inc(int64(len(result.Elements)))
 
 		if result.NextPageToken != nil {
 			// Create space on the heap for the page token and take it's
@@ -1484,8 +1537,9 @@ func (s *session) streamBlocksMetadataFromPeer(
 			for _, b := range elem.Blocks {
 				blockStart := time.Unix(0, b.Start)
 
+				// Error occurred retrieving block metadata, use default values
 				if b.Err != nil {
-					// Error occurred retrieving block metadata, use default values
+					progress.metadataFetchBatchBlockErr.Inc(1)
 					blockMetas = append(blockMetas, blockMetadata{
 						start: blockStart,
 					})
@@ -1541,7 +1595,126 @@ func (s *session) streamBlocksMetadataFromPeer(
 	}
 
 	for moreResults {
-		if err := retrier.Attempt(fetchFn); err != nil {
+		if err := s.streamBlocksRetrier.Attempt(fetchFn); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// streamBlocksMetadataFromPeerV2 has several heap allocated anonymous
+// function, however, they're only allocated once per peer/shard combination
+// for the entire peer bootstrapping process so performance is acceptable
+func (s *session) streamBlocksMetadataFromPeerV2(
+	namespace ts.ID,
+	shard uint32,
+	peer peer,
+	start, end time.Time,
+	metadataCh chan<- blocksMetadata,
+	progress *streamFromPeersMetrics,
+) error {
+	var (
+		pageToken              []byte
+		optionIncludeSizes     = true
+		optionIncludeChecksums = true
+		optionIncludeLastRead  = true
+		moreResults            = true
+	)
+
+	// Declare before loop to avoid redeclaring each iteration
+	attemptFn := func(client rpc.TChanNode) error {
+		tctx, _ := thrift.NewContext(s.streamBlocksMetadataBatchTimeout)
+		req := rpc.NewFetchBlocksMetadataRawV2Request()
+		req.NameSpace = namespace.Data().Get()
+		req.Shard = int32(shard)
+		req.RangeStart = start.UnixNano()
+		req.RangeEnd = end.UnixNano()
+		req.Limit = int64(s.streamBlocksBatchSize)
+		req.PageToken = pageToken
+		req.IncludeSizes = &optionIncludeSizes
+		req.IncludeChecksums = &optionIncludeChecksums
+		req.IncludeLastRead = &optionIncludeLastRead
+
+		progress.metadataFetchBatchCall.Inc(1)
+		result, err := client.FetchBlocksMetadataRawV2(tctx, req)
+		if err != nil {
+			progress.metadataFetchBatchError.Inc(1)
+			return err
+		}
+
+		progress.metadataFetchBatchSuccess.Inc(1)
+		progress.metadataReceived.Inc(int64(len(result.Elements)))
+
+		if result.NextPageToken != nil {
+			// Reset pageToken + copy new pageToken into previously allocated memory,
+			// extending as necessary
+			pageToken = append(pageToken[:0], result.NextPageToken...)
+		} else {
+			// No further results
+			moreResults = false
+		}
+
+		for _, elem := range result.Elements {
+			blockStart := time.Unix(0, elem.Start)
+			// Error occurred retrieving block metadata, use default values
+			if elem.Err != nil {
+				progress.metadataFetchBatchBlockErr.Inc(1)
+				metadataCh <- blocksMetadata{
+					peer: peer,
+					id:   ts.BinaryID(checked.NewBytes(elem.ID, nil)),
+					blocks: []blockMetadata{
+						{start: blockStart},
+					},
+				}
+				continue
+			}
+
+			var size int64
+			if elem.Size != nil {
+				size = *elem.Size
+			}
+
+			var pChecksum *uint32
+			if elem.Checksum != nil {
+				value := uint32(*elem.Checksum)
+				pChecksum = &value
+			}
+
+			var lastRead time.Time
+			if elem.LastRead != nil {
+				value, err := convert.ToTime(*elem.LastRead, elem.LastReadTimeType)
+				if err == nil {
+					lastRead = value
+				}
+			}
+
+			metadataCh <- blocksMetadata{
+				peer: peer,
+				id:   ts.BinaryID(checked.NewBytes(elem.ID, nil)),
+				blocks: []blockMetadata{
+					{start: blockStart,
+						size:     size,
+						checksum: pChecksum,
+						lastRead: lastRead,
+					},
+				},
+			}
+		}
+		return nil
+	}
+
+	var attemptErr error
+	checkedAttemptFn := func(client rpc.TChanNode) {
+		attemptErr = attemptFn(client)
+	}
+
+	fetchFn := func() error {
+		borrowErr := peer.BorrowConnection(checkedAttemptFn)
+		return xerrors.FirstError(borrowErr, attemptErr)
+	}
+
+	for moreResults {
+		if err := s.streamBlocksRetrier.Attempt(fetchFn); err != nil {
 			return err
 		}
 	}
@@ -1552,25 +1725,21 @@ func (s *session) streamBlocksFromPeers(
 	nsMetadata namespace.Metadata,
 	shard uint32,
 	peers []peer,
-	ch <-chan blocksMetadata,
+	metadataCh <-chan blocksMetadata,
 	opts result.Options,
 	result blocksResult,
-	m *streamFromPeersMetrics,
+	progress *streamFromPeersMetrics,
 	streamMetadataFn streamBlocksMetadataFn,
-) error {
+) {
 	var (
-		retrier = xretry.NewRetrier(xretry.NewOptions().
-			SetBackoffFactor(2).
-			SetMaxRetries(3).
-			SetInitialBackoff(time.Second).
-			SetJitter(true))
-		enqueueCh           = newEnqueueChannel(m)
+		enqueueCh           = newEnqueueChannel(progress)
 		peerBlocksBatchSize = s.streamBlocksBatchSize
 	)
 
 	// Consume the incoming metadata and enqueue to the ready channel
+	// Spin up background goroutine to consume
 	go func() {
-		streamMetadataFn(len(peers), ch, enqueueCh)
+		streamMetadataFn(len(peers), metadataCh, enqueueCh)
 		// Begin assessing the queue and how much is processed, once queue
 		// is entirely processed then we can close the enqueue channel
 		enqueueCh.closeOnAllProcessed()
@@ -1584,8 +1753,8 @@ func (s *session) streamBlocksFromPeers(
 		workers := s.streamBlocksWorkers
 		drainEvery := 100 * time.Millisecond
 		processFn := func(batch []*blocksMetadata) {
-			s.streamBlocksBatchFromPeer(nsMetadata, shard, peer, batch, opts,
-				result, enqueueCh, retrier, m)
+			s.streamBlocksBatchFromPeer(
+				nsMetadata, shard, peer, batch, opts, result, enqueueCh, s.streamBlocksRetrier, progress)
 		}
 		queue := s.newPeerBlocksQueueFn(peer, size, drainEvery, workers, processFn)
 		peerQueues = append(peerQueues, queue)
@@ -1599,7 +1768,7 @@ func (s *session) streamBlocksFromPeers(
 		// Filter and select which blocks to retrieve from which peers
 		s.selectBlocksForSeriesFromPeerBlocksMetadata(
 			perPeerBlocksMetadata, peerQueues,
-			currStart, currEligible, blocksMetadataQueues, m)
+			currStart, currEligible, blocksMetadataQueues, progress)
 
 		// Insert work into peer queues
 		queues := uint32(blocksMetadatas(perPeerBlocksMetadata).hasBlocksLen())
@@ -1629,8 +1798,6 @@ func (s *session) streamBlocksFromPeers(
 
 	// Close all queues
 	peerQueues.closeAll()
-
-	return nil
 }
 
 type streamBlocksMetadataFn func(
@@ -1657,24 +1824,83 @@ func (s *session) passThruBlocksMetadata(
 
 func (s *session) streamAndGroupCollectedBlocksMetadata(
 	peersLen int,
-	ch <-chan blocksMetadata,
+	metadataCh <-chan blocksMetadata,
 	enqueueCh *enqueueChannel,
 ) {
 	metadata := make(map[ts.Hash]*receivedBlocks)
 
-	// Receive off of metadata channel
 	for {
-		m, ok := <-ch
+		m, ok := <-metadataCh
 		if !ok {
 			break
 		}
 
 		received, ok := metadata[m.id.Hash()]
-		if !ok || received.submitted {
+		if !ok {
 			received = &receivedBlocks{
 				results: make([]*blocksMetadata, 0, peersLen),
 			}
 			metadata[m.id.Hash()] = received
+		}
+		// Should never happen
+		if received.submitted {
+			s.log.Warnf(
+				"Received metadata for ID: %s from peer: %s, but peer metadata has already been submitted",
+				m.id,
+				m.peer.Host().String(),
+			)
+			continue
+		}
+		received.results = append(received.results, &m)
+
+		if len(received.results) == peersLen {
+			enqueueCh.enqueue(received.results)
+			received.submitted = true
+		}
+	}
+
+	// Enqueue all unsubmitted received metadata
+	for _, received := range metadata {
+		if received.submitted {
+			continue
+		}
+		enqueueCh.enqueue(received.results)
+	}
+}
+
+func (s *session) streamAndGroupCollectedBlocksMetadataV2(
+	peersLen int,
+	metadataCh <-chan blocksMetadata,
+	enqueueCh *enqueueChannel,
+) {
+	metadata := make(map[hashAndBlockStart]*receivedBlocks)
+
+	for {
+		m, ok := <-metadataCh
+		if !ok {
+			break
+		}
+
+		key := hashAndBlockStart{
+			hash:       m.id.Hash(),
+			blockStart: m.blocks[0].start.UnixNano(),
+		}
+		received, ok := metadata[key]
+		if !ok {
+			received = &receivedBlocks{
+				results: make([]*blocksMetadata, 0, peersLen),
+			}
+			metadata[key] = received
+		}
+		// Should never happen
+		if received.submitted {
+			s.log.Warnf(
+				"Received metadata for ID: %s for block: %s from peer: %s, but peer metadata has already been submitted",
+				m.id,
+				m.blocks[0].start.String(),
+				m.peer.Host().String(),
+			)
+			continue
 		}
 		received.results = append(received.results, &m)
 
@@ -2672,8 +2898,9 @@ func (qs peerBlocksQueues) closeAll() {
 }
 
 type blocksMetadata struct {
-	peer   peer
-	id     ts.ID
+	peer peer
+	id   ts.ID
+	// TODO(rartoul): Make this not a slice once we delete the V1 code path
 	blocks []blockMetadata
 	idx    int
 }
@@ -2855,4 +3082,20 @@ func (it *metadataIter) Current() (topology.Host, block.BlocksMetadata) {
 
 func (it *metadataIter) Err() error {
 	return it.err
+}
+
+type hashAndBlockStart struct {
+	hash       ts.Hash
+	blockStart int64
+}
+
+// IsValidFetchBlocksMetadataEndpoint returns a bool indicating whether the
+// specified endpointVersion is valid
+func IsValidFetchBlocksMetadataEndpoint(endpointVersion FetchBlocksMetadataEndpointVersion) bool {
+	for _, version := range validFetchBlocksMetadataEndpoints {
+		if version == endpointVersion {
+			return true
+		}
+	}
+	return false
 }

@@ -26,21 +26,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	xmetrics "github.com/m3db/m3db/x/metrics"
-	xtime "github.com/m3db/m3x/time"
 	xlog "github.com/m3db/m3x/log"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
+// TODO(rartoul): Delete this once we've tested V2 in prod
 func TestPeersBootstrapMergeLocal(t *testing.T) {
 	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
+		t.SkipNow()
 	}
 
+	testPeersBootstrapMergeLocal(t, client.FetchBlocksMetadataEndpointV1)
+}
+
+func testPeersBootstrapMergeLocal(
+	t *testing.T, version client.FetchBlocksMetadataEndpointVersion) {
 	// Test setups
 	log := xlog.SimpleLogger
 	retentionOpts := retention.NewOptions().
@@ -58,8 +65,14 @@ func TestPeersBootstrapMergeLocal(t *testing.T) {
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 
 	setupOpts := []bootstrappableTestSetupOptions{
-		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false, testStatsReporter: reporter},
+		{
+			disablePeersBootstrapper: true,
+		},
+		{
+			disablePeersBootstrapper:           false,
+			testStatsReporter:                  reporter,
+			fetchBlocksMetadataEndpointVersion: version,
+		},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()

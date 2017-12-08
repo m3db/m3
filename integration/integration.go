@@ -41,6 +41,7 @@ import (
 	xmetrics "github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
+	xretry "github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -125,11 +126,12 @@ func newMultiAddrAdminClient(
 }
 
 type bootstrappableTestSetupOptions struct {
-	disablePeersBootstrapper   bool
-	bootstrapBlocksBatchSize   int
-	bootstrapBlocksConcurrency int
-	topologyInitializer        topology.Initializer
-	testStatsReporter          xmetrics.TestStatsReporter
+	disablePeersBootstrapper           bool
+	fetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion
+	bootstrapBlocksBatchSize           int
+	bootstrapBlocksConcurrency         int
+	topologyInitializer                topology.Initializer
+	testStatsReporter                  xmetrics.TestStatsReporter
 }
 
 type closeFn func()
@@ -200,11 +202,21 @@ func newDefaultBootstrappableTestSetups(
 			if bootstrapBlocksConcurrency > 0 {
 				adminOpts = adminOpts.SetFetchSeriesBlocksBatchConcurrency(bootstrapBlocksConcurrency)
 			}
+
+			// Prevent integration tests from timing out when a node is down
+			retryOpts := xretry.NewOptions().
+				SetInitialBackoff(1 * time.Millisecond).
+				SetMaxRetries(1).
+				SetJitter(true)
+			retrier := xretry.NewRetrier(retryOpts)
+			adminOpts = adminOpts.SetStreamBlocksRetrier(retrier)
+
 			adminClient := newMultiAddrAdminClient(
 				t, adminOpts, instrumentOpts, setup.shardSet, replicas, instance)
 			peersOpts := peers.NewOptions().
 				SetResultOptions(bsOpts).
-				SetAdminClient(adminClient)
+				SetAdminClient(adminClient).
+				SetFetchBlocksMetadataEndpointVersion(setupOpts[i].fetchBlocksMetadataEndpointVersion)
 
 			peersBootstrapper, err = peers.NewPeersBootstrapper(peersOpts, noOpAll)
 			require.NoError(t, err)

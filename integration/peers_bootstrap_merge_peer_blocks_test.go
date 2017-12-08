@@ -26,25 +26,32 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
-	xtime "github.com/m3db/m3x/time"
 	xlog "github.com/m3db/m3x/log"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
+// TODO(rartoul): Delete this once we've tested V2 in prod
 func TestPeersBootstrapMergePeerBlocks(t *testing.T) {
 	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
+		t.SkipNow()
 	}
 
+	testPeersBootstrapMergePeerBlocks(t, client.FetchBlocksMetadataEndpointV1)
+}
+
+func testPeersBootstrapMergePeerBlocks(
+	t *testing.T, version client.FetchBlocksMetadataEndpointVersion) {
 	// Test setups
 	log := xlog.SimpleLogger
 	retentionOpts := retention.NewOptions().
-		SetRetentionPeriod(6 * time.Hour).
+		SetRetentionPeriod(20 * time.Hour).
 		SetBlockSize(2 * time.Hour).
 		SetBufferPast(10 * time.Minute).
 		SetBufferFuture(2 * time.Minute)
@@ -56,7 +63,7 @@ func TestPeersBootstrapMergePeerBlocks(t *testing.T) {
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
 		{disablePeersBootstrapper: true},
-		{disablePeersBootstrapper: false},
+		{disablePeersBootstrapper: false, fetchBlocksMetadataEndpointVersion: version},
 	}
 	setups, closeFn := newDefaultBootstrappableTestSetups(t, opts, setupOpts)
 	defer closeFn()
@@ -64,8 +71,18 @@ func TestPeersBootstrapMergePeerBlocks(t *testing.T) {
 	// Write test data alternating missing data for left/right nodes
 	now := setups[0].getNowFn()
 	blockSize := retentionOpts.BlockSize()
+	// Make sure we have multiple blocks of data for multiple series to exercise
+	// the grouping and aggregating logic in the client peer bootstrapping process
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
+		{[]string{"foo", "bar"}, 180, now.Add(-4 * blockSize)},
+		{[]string{"foo", "bar"}, 180, now.Add(-3 * blockSize)},
+		{[]string{"foo", "bar"}, 180, now.Add(-2 * blockSize)},
 		{[]string{"foo", "bar"}, 180, now.Add(-blockSize)},
+		{[]string{"foo", "bar"}, 180, now},
+		{[]string{"foo", "baz"}, 90, now.Add(-4 * blockSize)},
+		{[]string{"foo", "baz"}, 90, now.Add(-3 * blockSize)},
+		{[]string{"foo", "baz"}, 90, now.Add(-2 * blockSize)},
+		{[]string{"foo", "baz"}, 90, now.Add(-blockSize)},
 		{[]string{"foo", "baz"}, 90, now},
 	})
 	left := make(map[xtime.UnixNano]generate.SeriesBlock)

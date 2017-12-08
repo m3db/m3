@@ -152,6 +152,15 @@ var (
 	// defaultFetchRetrier is the default fetch retrier for fetch attempts
 	defaultFetchRetrier = xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(0))
 
+	// defaultStreamBlocksRetrier is the default retrier for streaming blocks
+	defaultStreamBlocksRetrier = xretry.NewRetrier(
+		xretry.NewOptions().
+			SetBackoffFactor(2).
+			SetMaxRetries(3).
+			SetInitialBackoff(1 * time.Second).
+			SetJitter(true),
+	)
+
 	errNoTopologyInitializerSet    = errors.New("no topology initializer set")
 	errNoReaderIteratorAllocateSet = errors.New("no reader iterator allocator set, encoding not set")
 )
@@ -179,6 +188,7 @@ type options struct {
 	backgroundHealthCheckFailThrottleFactor float64
 	writeRetrier                            xretry.Retrier
 	fetchRetrier                            xretry.Retrier
+	streamBlocksRetrier                     xretry.Retrier
 	readerIteratorAllocate                  encoding.ReaderIteratorAllocate
 	writeOpPoolSize                         int
 	fetchBatchOpPoolSize                    int
@@ -245,6 +255,7 @@ func newOptions() *options {
 		backgroundHealthCheckFailThrottleFactor: defaultBackgroundHealthCheckFailThrottleFactor,
 		writeRetrier:                            defaultWriteRetrier,
 		fetchRetrier:                            defaultFetchRetrier,
+		streamBlocksRetrier:                     defaultStreamBlocksRetrier,
 		writeOpPoolSize:                         defaultWriteOpPoolSize,
 		fetchBatchOpPoolSize:                    defaultFetchBatchOpPoolSize,
 		writeBatchSize:                          defaultWriteBatchSize,
@@ -501,6 +512,16 @@ func (o *options) SetFetchRetrier(value xretry.Retrier) Options {
 
 func (o *options) FetchRetrier() xretry.Retrier {
 	return o.fetchRetrier
+}
+
+func (o *options) SetStreamBlocksRetrier(value xretry.Retrier) AdminOptions {
+	opts := *o
+	opts.streamBlocksRetrier = value
+	return &opts
+}
+
+func (o *options) StreamBlocksRetrier() xretry.Retrier {
+	return o.streamBlocksRetrier
 }
 
 func (o *options) SetWriteOpPoolSize(value int) Options {

@@ -274,6 +274,7 @@ type AdminSession interface {
 		shard uint32,
 		start, end time.Time,
 		opts result.Options,
+		version FetchBlocksMetadataEndpointVersion,
 	) (result.ShardResult, error)
 
 	// FetchBlocksFromPeers will fetch the required blocks from the
@@ -512,7 +513,7 @@ type Options interface {
 	// a fetch operation. Only retryable errors are retried.
 	SetFetchRetrier(value xretry.Retrier) Options
 
-	// FetchRetrier returns the fetch retrier when perform a write for
+	// FetchRetrier returns the fetch retrier when performing a fetch for
 	// a fetch operation. Only retryable errors are retried.
 	FetchRetrier() xretry.Retrier
 
@@ -634,4 +635,10 @@ type AdminOptions interface {
 
 	// FetchSeriesBlocksBatchConcurrency gets the concurrency for fetching series blocks in batch
 	FetchSeriesBlocksBatchConcurrency() int
+
+	// SetStreamBlocksRetrier sets the retrier for streaming blocks
+	SetStreamBlocksRetrier(value xretry.Retrier) AdminOptions
+
+	// StreamBlocksRetrier returns the retrier for streaming blocks
+	StreamBlocksRetrier() xretry.Retrier
 }

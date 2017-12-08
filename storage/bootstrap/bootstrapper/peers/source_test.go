@@ -121,11 +121,11 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(nsMetadata),
-			uint32(0), start, end, gomock.Any()).
+			uint32(0), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
 		Return(goodResult, nil)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(nsMetadata),
-			uint32(1), start, end, gomock.Any()).
+			uint32(1), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
 		Return(nil, badErr)
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
@@ -190,11 +190,11 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-			uint32(0), start, end, gomock.Any()).
+			uint32(0), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
 		Return(firstResult, nil)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-			uint32(1), start, end, gomock.Any()).
+			uint32(1), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
 		Return(secondResult, nil)
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
@@ -368,19 +368,19 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 	mockAdminSession := client.NewMockAdminSession(ctrl)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-			uint32(0), start, end, gomock.Any()).
+			uint32(0), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
 		Return(firstResult, nil)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-			uint32(1), start, end, gomock.Any()).
+			uint32(1), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
 		Return(secondResult, nil)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-			uint32(2), start, end, gomock.Any()).
+			uint32(2), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
 		Return(thirdResult, nil)
 	mockAdminSession.EXPECT().
 		FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-			uint32(3), start, end, gomock.Any()).
+			uint32(3), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
 		Return(fourthResult, nil)
 
 	mockAdminClient := client.NewMockAdminClient(ctrl)
