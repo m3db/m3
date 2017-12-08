@@ -1495,7 +1495,23 @@ func (s *session) streamBlocksMetadataFromPeer(
 		optionIncludeChecksums = true
 		optionIncludeLastRead  = true
 		moreResults            = true
+
+		// Only used for debug logs
+		peerStr              = peer.Host().ID()
+		metadataCountByBlock = map[xtime.UnixNano]int64{}
 	)
+
+	// Only used for debug logs
+	defer func() {
+		for block, numMetadata := range metadataCountByBlock {
+			s.log.WithFields(
+				xlog.NewField("shard", shard),
+				xlog.NewField("peer", peerStr),
+				xlog.NewField("num_metadata", numMetadata),
+				xlog.NewField("block", block),
+			).Debug("finished streaming blocks metadata from peer")
+		}
+	}()
 
 	// Declare before loop to avoid redeclaring each iteration
 	attemptFn := func(client rpc.TChanNode) error {
@@ -1543,6 +1559,12 @@ func (s *session) streamBlocksMetadataFromPeer(
 					blockMetas = append(blockMetas, blockMetadata{
 						start: blockStart,
 					})
+					s.log.WithFields(
+						xlog.NewField("shard", shard),
+						xlog.NewField("peer", peerStr),
+						xlog.NewField("block", blockStart),
+						xlog.NewField("error", err),
+					).Error("error occurred retrieving block metadata")
 					continue
 				}
 
@@ -1571,6 +1593,8 @@ func (s *session) streamBlocksMetadataFromPeer(
 					checksum: pChecksum,
 					lastRead: lastRead,
 				})
+				// Only used for debug logs
+				metadataCountByBlock[xtime.ToUnixNano(blockStart)]++
 			}
 			ch <- blocksMetadata{
 				peer:   peer,
@@ -1619,7 +1643,22 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		optionIncludeChecksums = true
 		optionIncludeLastRead  = true
 		moreResults            = true
+
+		// Only used for logging
+		peerStr              = peer.Host().ID()
+		metadataCountByBlock = map[xtime.UnixNano]int64{}
 	)
+
+	defer func() {
+		for block, numMetadata := range metadataCountByBlock {
+			s.log.WithFields(
+				xlog.NewField("shard", shard),
+				xlog.NewField("peer", peerStr),
+				xlog.NewField("num_metadata", numMetadata),
+				xlog.NewField("block", block),
+			).Debug("finished streaming blocks metadata from peer")
+		}
+	}()
 
 	// Declare before loop to avoid redeclaring each iteration
 	attemptFn := func(client rpc.TChanNode) error {
@@ -1666,6 +1705,12 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 						{start: blockStart},
 					},
 				}
+				s.log.WithFields(
+					xlog.NewField("shard", shard),
+					xlog.NewField("peer", peerStr),
+					xlog.NewField("block", blockStart),
+					xlog.NewField("error", err),
+				).Error("error occurred retrieving block metadata")
 				continue
 			}
 
@@ -1699,6 +1744,8 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 					},
 				},
 			}
+			// Only used for debug logs
+			metadataCountByBlock[xtime.ToUnixNano(blockStart)]++
 		}
 		return nil
 	}
