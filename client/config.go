@@ -184,7 +184,8 @@ func (c Configuration) NewAdminClient(
 		SetClusterConnectTimeout(c.ConnectTimeout).
 		SetWriteRetrier(c.WriteRetry.NewRetrier(writeRequestScope)).
 		SetFetchRetrier(c.FetchRetry.NewRetrier(fetchRequestScope)).
-		SetChannelOptions(xtchannel.NewDefaultChannelOptions())
+		SetChannelOptions(xtchannel.NewDefaultChannelOptions()).
+		SetInstrumentOptions(iopts)
 
 	encodingOpts := params.EncodingOptions
 	if encodingOpts == nil {
