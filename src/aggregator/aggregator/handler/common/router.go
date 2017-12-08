@@ -103,7 +103,11 @@ func (r *shardedRouter) Route(shard uint32, buffer *RefCountedBuffer) error {
 
 func (r *shardedRouter) Close() {
 	for _, queue := range r.queues {
-		queue.Close()
+		// If the backend is associated with a subset of shards instead of the
+		// full shardset, the unused shards will not have an associated queue.
+		if queue != nil {
+			queue.Close()
+		}
 	}
 }
 

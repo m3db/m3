@@ -108,5 +108,27 @@ func TestShardedRouterRouteErrors(t *testing.T) {
 	}
 	expected := [3][]*RefCountedBuffer{nil, nil, nil}
 	require.Equal(t, expected, enqueued)
+}
 
+func TestShardedRouterPartialShardSetClose(t *testing.T) {
+	var (
+		enqueued      [3][]*RefCountedBuffer
+		shardedQueues []ShardedQueue
+		totalShards   = 1024
+	)
+	ranges := []string{"10..30"}
+	for i, rng := range ranges {
+		sq := ShardedQueue{
+			ShardSet: sharding.MustParseShardSet(rng),
+			Queue: &mockQueue{
+				enqueueFn: func(b *RefCountedBuffer) error {
+					enqueued[i] = append(enqueued[i], b)
+					return nil
+				},
+			},
+		}
+		shardedQueues = append(shardedQueues, sq)
+	}
+	router := NewShardedRouter(shardedQueues, totalShards, tally.NoopScope)
+	require.NotPanics(t, func() { router.Close() })
 }
