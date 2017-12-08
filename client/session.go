@@ -1842,13 +1842,10 @@ func (s *session) streamAndGroupCollectedBlocksMetadata(
 			}
 			metadata[m.id.Hash()] = received
 		}
+
 		// Should never happen
 		if received.submitted {
-			s.log.Warnf(
-				"Received metadata for ID: %s from peer: %s, but peer metadata has already been submitted",
-				m.id,
-				m.peer.Host().String(),
-			)
+			s.emitDuplicateMetadataLog(received, m)
 			continue
 		}
 		received.results = append(received.results, &m)
@@ -1892,14 +1889,10 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 			}
 			metadata[key] = received
 		}
+
 		// Should never happen
 		if received.submitted {
-			s.log.Warnf(
-				"Received metadata for ID: %s for block: %s from peer: %s, but peer metadata has already been submitted",
-				m.id,
-				m.blocks[0].start.String(),
-				m.peer.Host().String(),
-			)
+			s.emitDuplicateMetadataLogV2(received, m)
 			continue
 		}
 		received.results = append(received.results, &m)
@@ -1917,6 +1910,49 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 		}
 		enqueueCh.enqueue(received.results)
 	}
+}
+
+// TODO(rartoul): Delete this when we delete the V1 code path
+func (s *session) emitDuplicateMetadataLog(received *receivedBlocks, metadata blocksMetadata) {
+	fields := make([]xlog.Field, len(received.results)+1)
+	fields = append(fields, xlog.NewField(
+		"incoming_metadata",
+		fmt.Sprintf("ID: %s, peer: %s", metadata.id.String(), metadata.peer.Host().String()),
+	))
+	for i, result := range received.results {
+		fields = append(fields, xlog.NewField(
+			fmt.Sprintf("existing_metadata_%d", i),
+			fmt.Sprintf("ID: %s, peer: %s", result.id.String(), result.peer.Host().String()),
+		))
+	}
+	s.log.WithFields(fields...).Warnf(
+		"Received metadata, but peer metadata has already been submitted")
+}
+
+func (s *session) emitDuplicateMetadataLogV2(received *receivedBlocks, metadata blocksMetadata) {
+	fields := make([]xlog.Field, len(received.results)+1)
+	fields = append(fields, xlog.NewField(
+		"incoming_metadata",
+		fmt.Sprintf(
+			"ID: %s, peer: %s, block: %s",
+			metadata.id.String(),
+			metadata.peer.Host().String(),
+			metadata.blocks[0].start.String(),
+		),
+	))
+	for i, result := range received.results {
+		fields = append(fields, xlog.NewField(
+			fmt.Sprintf("existing_metadata_%d", i),
+			fmt.Sprintf(
+				"ID: %s, peer: %s, block: %s",
+				result.id.String(),
+				result.peer.Host().String(),
+				result.blocks[0].start.String(),
+			),
+		))
+	}
+	s.log.WithFields(fields...).Warnf(
+		"Received metadata, but peer metadata has already been submitted")
 }
 
 func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
