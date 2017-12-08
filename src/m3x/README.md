@@ -5,6 +5,7 @@
 Common utility code shared by all M3DB components.
 
 <hr>
+
 This project is released under the [MIT License](LICENSE.md).
 
 [doc-img]: https://godoc.org/github.com/m3db/m3x?status.svg
