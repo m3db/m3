@@ -1496,12 +1496,12 @@ func (s *session) streamBlocksMetadataFromPeer(
 		optionIncludeLastRead  = true
 		moreResults            = true
 
-		// Only used for debug logs
+		// Only used for logs
 		peerStr              = peer.Host().ID()
 		metadataCountByBlock = map[xtime.UnixNano]int64{}
 	)
 
-	// Only used for debug logs
+	// Only used for logs
 	defer func() {
 		for block, numMetadata := range metadataCountByBlock {
 			s.log.WithFields(
@@ -1593,7 +1593,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 					checksum: pChecksum,
 					lastRead: lastRead,
 				})
-				// Only used for debug logs
+				// Only used for logs
 				metadataCountByBlock[xtime.ToUnixNano(blockStart)]++
 			}
 			ch <- blocksMetadata{
@@ -1644,11 +1644,12 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		optionIncludeLastRead  = true
 		moreResults            = true
 
-		// Only used for logging
+		// Only used for logs
 		peerStr              = peer.Host().ID()
 		metadataCountByBlock = map[xtime.UnixNano]int64{}
 	)
 
+	// Only used for logs
 	defer func() {
 		for block, numMetadata := range metadataCountByBlock {
 			s.log.WithFields(
@@ -1744,7 +1745,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 					},
 				},
 			}
-			// Only used for debug logs
+			// Only used for logs
 			metadataCountByBlock[xtime.ToUnixNano(blockStart)]++
 		}
 		return nil
