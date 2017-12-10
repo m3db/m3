@@ -315,7 +315,10 @@ func TestBufferWriteOutOfOrder(t *testing.T) {
 	// Explicitly merge
 	var mergedResults [][]xio.SegmentReader
 	for i := range buffer.buckets {
-		block := buffer.buckets[i].discardMerged().block
+		mergedResult, err := buffer.buckets[i].discardMerged()
+		require.NoError(t, err)
+
+		block := mergedResult.block
 		require.NotNil(t, block)
 
 		if block.Len() > 0 {
@@ -382,7 +385,10 @@ func newTestBufferBucketWithData(t *testing.T) (*dbBufferBucket, Options, []valu
 func TestBufferBucketMerge(t *testing.T) {
 	b, opts, expected := newTestBufferBucketWithData(t)
 
-	bl := b.discardMerged().block
+	result, err := b.discardMerged()
+	require.NoError(t, err)
+
+	bl := result.block
 	require.NotNil(t, bl)
 
 	assert.Equal(t, 0, len(b.encoders))
@@ -446,7 +452,10 @@ func TestBufferBucketWriteDuplicate(t *testing.T) {
 	require.NoError(t, b.write(curr, 1, xtime.Second, nil))
 	require.Equal(t, 1, len(b.encoders))
 
-	bl := b.discardMerged().block
+	result, err := b.discardMerged()
+	require.NoError(t, err)
+
+	bl := result.block
 	require.NotNil(t, bl)
 
 	ctx := context.NewContext()
@@ -583,3 +592,6 @@ func TestBufferReadEncodedValidAfterDrain(t *testing.T) {
 		assert.NotNil(t, encoder.Stream())
 	}
 }
+
+// TODO: write a test that ensures buffer gets merged if out of order
+// encoders and

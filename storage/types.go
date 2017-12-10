@@ -179,7 +179,7 @@ type databaseNamespace interface {
 	GetOwnedShards() []databaseShard
 
 	// Tick performs any regular maintenance operations
-	Tick(c context.Cancellable, softDeadline time.Duration)
+	Tick(c context.Cancellable)
 
 	// Write writes a data point
 	Write(
@@ -256,7 +256,7 @@ type databaseShard interface {
 	Close() error
 
 	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
-	Tick(c context.Cancellable, softDeadline time.Duration) tickResult
+	Tick(c context.Cancellable) tickResult
 
 	Write(
 		ctx context.Context,
@@ -403,7 +403,7 @@ type databaseTickManager interface {
 	// Tick performs maintenance operations, restarting the current
 	// tick if force is true. It returns nil if a new tick has
 	// completed successfully, and an error otherwise.
-	Tick(softDeadline time.Duration, forceType forceType) error
+	Tick(forceType forceType) error
 }
 
 // databaseMediator mediates actions among various database managers
@@ -424,7 +424,7 @@ type databaseMediator interface {
 	EnableFileOps()
 
 	// Tick performs a tick
-	Tick(softDeadline time.Duration, runType runType, forceType forceType) error
+	Tick(runType runType, forceType forceType) error
 
 	// Repair repairs the database
 	Repair() error
@@ -533,12 +533,6 @@ type Options interface {
 
 	// PersistManager returns the persistence manager
 	PersistManager() persist.Manager
-
-	// SetTickInterval sets the interval taken to tick
-	SetTickInterval(value time.Duration) Options
-
-	// TickInterval returns the interval taken to tick
-	TickInterval() time.Duration
 
 	// SetMaxFlushRetries sets the maximum number of retries when data flushing fails
 	SetMaxFlushRetries(value int) Options

@@ -72,6 +72,22 @@ type Options interface {
 	// limit is primarily offered to defend against unintentional bursts of new
 	// time series being inserted.
 	WriteNewSeriesLimitPerShardPerSecond() int
+
+	// SetTickPerSeriesSleepDuration sets the tick sleep per series value that
+	// provides a constant duration to sleep per series at the end of processing
+	// a batch of series during a background tick, this can directly effect how
+	// fast a block is persisted after is rotated from the mutable series buffer
+	// to a series block (since all series need to be merged/processed before a
+	// persist can occur)
+	SetTickPerSeriesSleepDuration(value time.Duration) Options
+
+	// TickPerSeriesSleepDuration returns the tick sleep per series value that
+	// provides a constant duration to sleep per series at the end of processing
+	// a batch of series during a background tick, this can directly effect how
+	// fast a block is persisted after is rotated from the mutable series buffer
+	// to a series block (since all series need to be merged/processed before a
+	// persist can occur)
+	TickPerSeriesSleepDuration() time.Duration
 }
 
 // OptionsManager updates and supplies runtime options

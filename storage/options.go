@@ -64,9 +64,6 @@ const (
 
 	// defaultErrorThresholdForLoad is the default error threshold for considering server overloaded
 	defaultErrorThresholdForLoad = 1000
-
-	// defaultTickInterval is the default tick interval
-	defaultTickInterval = 2 * time.Minute
 )
 
 var (
@@ -82,7 +79,6 @@ var (
 var (
 	errNamespaceInitializerNotSet = errors.New("namespace registry initializer not set")
 	errRepairOptionsNotSet        = errors.New("repair enabled but repair options are not set")
-	errTickIntervalNegative       = errors.New("tick interval must be a positive duration")
 	errPersistManagerNotSet       = errors.New("persist manager is not set")
 )
 
@@ -119,7 +115,6 @@ type options struct {
 	newDecoderFn                   encoding.NewDecoderFn
 	bootstrapProcess               bootstrap.Process
 	persistManager                 persist.Manager
-	tickInterval                   time.Duration
 	maxFlushRetries                int
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 	poolOpts                       pool.ObjectPoolOptions
@@ -159,7 +154,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		repairEnabled:                  defaultRepairEnabled,
 		repairOpts:                     repair.NewOptions(),
 		bootstrapProcess:               defaultBootstrapProcess,
-		tickInterval:                   defaultTickInterval,
 		maxFlushRetries:                defaultMaxFlushRetries,
 		poolOpts:                       poolOpts,
 		contextPool:                    context.NewPool(poolOpts, poolOpts),
@@ -178,10 +172,6 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 }
 
 func (o *options) Validate() error {
-	if o.tickInterval <= 0 {
-		return errTickIntervalNegative
-	}
-
 	// validate namespace registry
 	init := o.NamespaceInitializer()
 	if init == nil {
@@ -428,16 +418,6 @@ func (o *options) SetPersistManager(value persist.Manager) Options {
 
 func (o *options) PersistManager() persist.Manager {
 	return o.persistManager
-}
-
-func (o *options) SetTickInterval(value time.Duration) Options {
-	opts := *o
-	opts.tickInterval = value
-	return &opts
-}
-
-func (o *options) TickInterval() time.Duration {
-	return o.tickInterval
 }
 
 func (o *options) SetMaxFlushRetries(value int) Options {

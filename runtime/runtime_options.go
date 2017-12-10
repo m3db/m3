@@ -30,6 +30,7 @@ const (
 	defaultWriteNewSeriesAsync                  = false
 	defaultWriteNewSeriesBackoffDuration        = time.Duration(0)
 	defaultWriteNewSeriesLimitPerShardPerSecond = 0
+	defaultTickPerSeriesSleepDuration           = 65 * time.Microsecond
 )
 
 type options struct {
@@ -37,6 +38,7 @@ type options struct {
 	writeNewSeriesAsync                  bool
 	writeNewSeriesBackoffDuration        time.Duration
 	writeNewSeriesLimitPerShardPerSecond int
+	tickPerSeriesSleepDuration           time.Duration
 }
 
 // NewOptions creates a new set of runtime options with defaults
@@ -46,6 +48,7 @@ func NewOptions() Options {
 		writeNewSeriesAsync:                  defaultWriteNewSeriesAsync,
 		writeNewSeriesBackoffDuration:        defaultWriteNewSeriesBackoffDuration,
 		writeNewSeriesLimitPerShardPerSecond: defaultWriteNewSeriesLimitPerShardPerSecond,
+		tickPerSeriesSleepDuration:           defaultTickPerSeriesSleepDuration,
 	}
 }
 
@@ -87,4 +90,14 @@ func (o *options) SetWriteNewSeriesLimitPerShardPerSecond(value int) Options {
 
 func (o *options) WriteNewSeriesLimitPerShardPerSecond() int {
 	return o.writeNewSeriesLimitPerShardPerSecond
+}
+
+func (o *options) SetTickPerSeriesSleepDuration(value time.Duration) Options {
+	opts := *o
+	opts.tickPerSeriesSleepDuration = value
+	return &opts
+}
+
+func (o *options) TickPerSeriesSleepDuration() time.Duration {
+	return o.tickPerSeriesSleepDuration
 }

@@ -87,7 +87,7 @@ func newTickManager(database database, opts Options) databaseTickManager {
 	}
 }
 
-func (mgr *tickManager) Tick(softDeadline time.Duration, forceType forceType) error {
+func (mgr *tickManager) Tick(forceType forceType) error {
 	if forceType == force {
 		acquired := false
 		waiter := time.NewTicker(tokenCheckInterval)
@@ -125,35 +125,13 @@ func (mgr *tickManager) Tick(softDeadline time.Duration, forceType forceType) er
 
 	// Begin ticking
 	start := mgr.nowFn()
-	sizes := make([]int64, 0, len(namespaces))
-	totalSize := int64(0)
 	for _, n := range namespaces {
-		size := n.NumSeries()
-		sizes = append(sizes, size)
-		totalSize += size
-	}
-	for i, n := range namespaces {
-		deadline := float64(softDeadline) * (float64(sizes[i]) / float64(totalSize))
-		n.Tick(mgr.c, time.Duration(deadline))
+		n.Tick(mgr.c)
 	}
 
 	end := mgr.nowFn()
 	duration := end.Sub(start)
 	mgr.metrics.tickDuration.Record(duration)
-
-	if duration > softDeadline {
-		mgr.metrics.tickDeadlineMissed.Inc(1)
-	} else {
-		mgr.metrics.tickDeadlineMet.Inc(1)
-
-		// Throttle to reduce locking overhead during ticking
-		for d := time.Duration(0); d < softDeadline-duration; d += cancellationCheckInterval {
-			if mgr.c.IsCancelled() {
-				break
-			}
-			mgr.sleepFn(cancellationCheckInterval)
-		}
-	}
 
 	if mgr.c.IsCancelled() {
 		mgr.metrics.tickCancelled.Inc(1)

@@ -336,7 +336,7 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 	}
 }
 
-func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) {
+func (n *dbNamespace) Tick(c context.Cancellable) {
 	shards := n.GetOwnedShards()
 
 	if len(shards) == 0 {
@@ -349,8 +349,6 @@ func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) {
 		l  sync.Mutex
 		wg sync.WaitGroup
 	)
-	perShardDeadline := softDeadline / time.Duration(len(shards))
-	perShardDeadline *= time.Duration(n.tickWorkersConcurrency)
 	for _, shard := range shards {
 		shard := shard
 		wg.Add(1)
@@ -360,7 +358,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) {
 			if c.IsCancelled() {
 				return
 			}
-			shardResult := shard.Tick(c, perShardDeadline)
+			shardResult := shard.Tick(c)
 
 			l.Lock()
 			r = r.merge(shardResult)

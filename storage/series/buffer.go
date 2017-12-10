@@ -236,21 +236,28 @@ func (b *dbBuffer) DrainAndReset() drainAndResetResult {
 
 func bucketDrainAndReset(now time.Time, b *dbBuffer, idx int, start time.Time) int {
 	mergedOutOfOrderBlocks := 0
+
 	if b.buckets[idx].needsDrain(now, start) {
-		merged := b.buckets[idx].discardMerged()
-		if merged.merges > 0 {
-			mergedOutOfOrderBlocks = 1
-		}
-		if merged.block.Len() > 0 {
-			// If this block was read mark it as such
-			if lastRead := b.buckets[idx].lastRead(); !lastRead.IsZero() {
-				merged.block.SetLastReadTime(lastRead)
-			}
-			b.drainFn(merged.block)
-		} else {
+		// Rotate the buffer to a block, merging if required
+		result, err := b.buckets[idx].discardMerged()
+		if err != nil {
 			log := b.opts.InstrumentOptions().Logger()
-			log.Errorf("buffer drain tried to drain empty stream for bucket: %v",
-				start.String())
+			log.Errorf("buffer merge encode error: %v", err)
+		} else {
+			if result.merges > 0 {
+				mergedOutOfOrderBlocks++
+			}
+			if result.block.Len() < 1 {
+				log := b.opts.InstrumentOptions().Logger()
+				log.Errorf("buffer drain tried to drain empty stream for bucket: %v",
+					start.String())
+			} else {
+				// If this block was read mark it as such
+				if lastRead := b.buckets[idx].lastRead(); !lastRead.IsZero() {
+					result.block.SetLastReadTime(lastRead)
+				}
+				b.drainFn(result.block)
+			}
 		}
 
 		b.buckets[idx].drained = true
@@ -259,6 +266,18 @@ func bucketDrainAndReset(now time.Time, b *dbBuffer, idx int, start time.Time) i
 	if b.buckets[idx].needsReset(start) {
 		// Reset bucket
 		b.buckets[idx].resetTo(start)
+	}
+
+	if b.buckets[idx].needsMerge() {
+		// Try to merge any out of order encoders to amortize the cost of a drain
+		r, err := b.buckets[idx].merge()
+		if err != nil {
+			log := b.opts.InstrumentOptions().Logger()
+			log.Errorf("buffer merge encode error: %v", err)
+		}
+		if r.merges > 0 {
+			mergedOutOfOrderBlocks++
+		}
 	}
 
 	return mergedOutOfOrderBlocks
@@ -592,39 +611,33 @@ func (b *dbBufferBucket) resetBootstrapped() {
 	b.bootstrapped = nil
 }
 
-type discardMergedResult struct {
-	block  block.DatabaseBlock
+func (b *dbBufferBucket) needsMerge() bool {
+	return b.canRead() && !(b.hasJustSingleEncoder() || b.hasJustSingleBootstrappedBlock())
+}
+
+func (b *dbBufferBucket) hasJustSingleEncoder() bool {
+	return len(b.encoders) == 1 && len(b.bootstrapped) == 0
+}
+
+func (b *dbBufferBucket) hasJustSingleBootstrappedBlock() bool {
+	encodersEmpty := len(b.encoders) == 0 ||
+		(len(b.encoders) == 1 &&
+			b.encoders[0].encoder.StreamLen() == 0)
+	return encodersEmpty && len(b.bootstrapped) == 1
+}
+
+type mergeResult struct {
 	merges int
 }
 
-func (b *dbBufferBucket) discardMerged() discardMergedResult {
-	defer func() {
-		b.resetEncoders()
-		b.resetBootstrapped()
-		b.empty = true
-	}()
+func (b *dbBufferBucket) merge() (mergeResult, error) {
+	merges := 0
+	bopts := b.opts.DatabaseBlockOptions()
+	encoder := bopts.EncoderPool().Get()
+	encoder.Reset(b.start, bopts.DatabaseBlockAllocSize())
 
-	if len(b.encoders) == 1 && len(b.bootstrapped) == 0 {
-		// Already merged as a single encoder
-		encoder := b.encoders[0].encoder
-		newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-		newBlock.Reset(b.start, encoder.Discard())
-		b.encoders = b.encoders[:0]
-		return discardMergedResult{newBlock, 0}
-	}
-
-	if (len(b.encoders) == 0 ||
-		(len(b.encoders) == 1 &&
-			b.encoders[0].encoder.StreamLen() == 0)) &&
-		len(b.bootstrapped) == 1 {
-		// Already merged just a single bootstrapped block
-		existingBlock := b.bootstrapped[0]
-		b.bootstrapped = b.bootstrapped[:0]
-		return discardMergedResult{existingBlock, 0}
-	}
-
-	// If we have to merge bootstrapped from disk during a block rotation
-	// this will make ticking extremely slow, ensure to notify this bug.
+	// If we have to merge bootstrapped from disk during a merge then this
+	// can make ticking very slow, ensure to notify this bug
 	if len(b.bootstrapped) > 0 {
 		unretrieved := 0
 		for i := range b.bootstrapped {
@@ -638,17 +651,11 @@ func (b *dbBufferBucket) discardMerged() discardMergedResult {
 		}
 	}
 
-	merges := 0
-	bopts := b.opts.DatabaseBlockOptions()
-	encoder := bopts.EncoderPool().Get()
-	encoder.Reset(b.start, bopts.DatabaseBlockAllocSize())
-
 	readers := make([]io.Reader, 0, len(b.encoders)+len(b.bootstrapped))
 	for i := range b.encoders {
 		if stream := b.encoders[i].encoder.Stream(); stream != nil {
 			merges++
 			readers = append(readers, stream)
-			defer stream.Finalize()
 		}
 	}
 
@@ -660,20 +667,75 @@ func (b *dbBufferBucket) discardMerged() discardMergedResult {
 		}
 	}
 
+	var lastWriteAt time.Time
 	iter := b.opts.MultiReaderIteratorPool().Get()
 	iter.Reset(readers)
+
+	defer func() {
+		iter.Close()
+		for _, stream := range readers {
+			if resource, ok := stream.(context.Finalizer); ok {
+				resource.Finalize()
+			}
+		}
+	}()
+
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
 		if err := encoder.Encode(dp, unit, annotation); err != nil {
-			log := b.opts.InstrumentOptions().Logger()
-			log.Errorf("buffer merge encode error: %v", err)
-			break
+			return mergeResult{}, err
 		}
+		lastWriteAt = dp.Timestamp
 	}
-	iter.Close()
+
+	b.resetEncoders()
+	b.resetBootstrapped()
+
+	b.encoders = append(b.encoders, inOrderEncoder{
+		lastWriteAt: lastWriteAt,
+		encoder:     encoder,
+	})
+
+	return mergeResult{merges: merges}, nil
+}
+
+type discardMergedResult struct {
+	block  block.DatabaseBlock
+	merges int
+}
+
+func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
+	defer func() {
+		b.resetEncoders()
+		b.resetBootstrapped()
+		b.empty = true
+	}()
+
+	if b.hasJustSingleEncoder() {
+		// Already merged as a single encoder
+		encoder := b.encoders[0].encoder
+		newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
+		newBlock.Reset(b.start, encoder.Discard())
+		b.encoders = b.encoders[:0]
+		return discardMergedResult{newBlock, 0}, nil
+	}
+
+	if b.hasJustSingleBootstrappedBlock() {
+		// Already merged just a single bootstrapped block
+		existingBlock := b.bootstrapped[0]
+		b.bootstrapped = b.bootstrapped[:0]
+		return discardMergedResult{existingBlock, 0}, nil
+	}
+
+	result, err := b.merge()
+	if err != nil {
+		return discardMergedResult{}, err
+	}
+
+	merged := b.encoders[0].encoder
 
 	newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
-	newBlock.Reset(b.start, encoder.Discard())
+	newBlock.Reset(b.start, merged.Discard())
 
-	return discardMergedResult{newBlock, merges}
+	return discardMergedResult{newBlock, result.merges}, nil
 }

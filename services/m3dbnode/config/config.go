@@ -80,9 +80,6 @@ type Configuration struct {
 	// The block retriever policy.
 	BlockRetrieve BlockRetrievePolicy `yaml:"blockRetrieve"`
 
-	// TickInterval controls the tick interval for the node.
-	TickInterval time.Duration `yaml:"tickInterval" validate:"nonzero"`
-
 	// The commit log policy for the node.
 	CommitLog CommitLogPolicy `yaml:"commitlog"`
 

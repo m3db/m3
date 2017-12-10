@@ -229,9 +229,7 @@ func Run(runOpts RunOptions) {
 		SetNamespaceRegistryKey(kvconfig.NamespacesKey)
 	nsInit := namespace.NewDynamicInitializer(dynamicOpts)
 
-	opts = opts.
-		SetTickInterval(cfg.TickInterval).
-		SetNamespaceInitializer(nsInit)
+	opts = opts.SetNamespaceInitializer(nsInit)
 
 	serviceID := services.NewServiceID().
 		SetName(cfg.ConfigService.Service).

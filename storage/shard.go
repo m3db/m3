@@ -51,9 +51,11 @@ import (
 )
 
 const (
-	shardIterateBatchPercent     = 0.01
-	expireBatchLength            = 1024
-	defaultTickSleepIfAheadEvery = 128
+	shardIterateBatchPercent         = 0.01
+	expireBatchLength                = 1024
+	defaultTickSleepBatch            = 4096
+	defaultMinimumTickSleeps         = 128
+	defaultMinimumTickSleepPerSeries = time.Microsecond
 )
 
 var (
@@ -97,7 +99,7 @@ type dbShard struct {
 	newSeriesBootstrapped    bool
 	filesetBeforeFn          filesetBeforeFn
 	deleteFilesFn            deleteFilesFn
-	tickSleepIfAheadEvery    int
+	tickSleepBatch           int
 	sleepFn                  func(time.Duration)
 	identifierPool           ts.IdentifierPool
 	contextPool              context.Pool
@@ -109,6 +111,7 @@ type dbShard struct {
 
 type dbShardRuntimeOptions struct {
 	writeNewSeriesAsync bool
+	tickSleepPerSeries  time.Duration
 }
 
 type dbShardMetrics struct {
@@ -184,25 +187,25 @@ func newDatabaseShard(
 		SubScope("dbshard")
 
 	d := &dbShard{
-		opts:                  opts,
-		seriesOpts:            seriesOpts,
-		nowFn:                 opts.ClockOptions().NowFn(),
-		state:                 dbShardStateOpen,
-		nsMetadata:            namespaceMetadata,
-		shard:                 shard,
-		increasingIndex:       increasingIndex,
-		seriesPool:            opts.DatabaseSeriesPool(),
-		commitLogWriter:       commitLogWriter,
-		lookup:                make(map[ts.Hash]*list.Element),
-		list:                  list.New(),
-		filesetBeforeFn:       fs.FilesetBefore,
-		deleteFilesFn:         fs.DeleteFiles,
-		tickSleepIfAheadEvery: defaultTickSleepIfAheadEvery,
-		sleepFn:               time.Sleep,
-		identifierPool:        opts.IdentifierPool(),
-		contextPool:           opts.ContextPool(),
-		flushState:            newShardFlushState(),
-		metrics:               newDatabaseShardMetrics(scope),
+		opts:            opts,
+		seriesOpts:      seriesOpts,
+		nowFn:           opts.ClockOptions().NowFn(),
+		state:           dbShardStateOpen,
+		nsMetadata:      namespaceMetadata,
+		shard:           shard,
+		increasingIndex: increasingIndex,
+		seriesPool:      opts.DatabaseSeriesPool(),
+		commitLogWriter: commitLogWriter,
+		lookup:          make(map[ts.Hash]*list.Element),
+		list:            list.New(),
+		filesetBeforeFn: fs.FilesetBefore,
+		deleteFilesFn:   fs.DeleteFiles,
+		tickSleepBatch:  defaultTickSleepBatch,
+		sleepFn:         time.Sleep,
+		identifierPool:  opts.IdentifierPool(),
+		contextPool:     opts.ContextPool(),
+		flushState:      newShardFlushState(),
+		metrics:         newDatabaseShardMetrics(scope),
 	}
 	d.insertQueue = newDatabaseShardInsertQueue(d.insertSeriesBatch,
 		d.nowFn, scope)
@@ -236,9 +239,18 @@ func newDatabaseShard(
 }
 
 func (s *dbShard) SetRuntimeOptions(value runtime.Options) {
+	writeNewSeriesAsync := value.WriteNewSeriesAsync()
+
+	tickSleepPerSeries := value.TickPerSeriesSleepDuration()
+	if tickSleepPerSeries < defaultMinimumTickSleepPerSeries {
+		// Avoid completely killing perf by ticking without any wait whatsoever
+		tickSleepPerSeries = defaultMinimumTickSleepPerSeries
+	}
+
 	s.Lock()
 	s.currRuntimeOptions = dbShardRuntimeOptions{
-		writeNewSeriesAsync: value.WriteNewSeriesAsync(),
+		writeNewSeriesAsync: writeNewSeriesAsync,
+		tickSleepPerSeries:  tickSleepPerSeries,
 	}
 	s.Unlock()
 }
@@ -359,45 +371,41 @@ func (s *dbShard) Close() error {
 	// causes the GC to impact performance when closing shards the deadline
 	// should be increased.
 	cancellable := context.NewNoOpCanncellable()
-	softDeadline := s.opts.TickInterval()
-	s.tickAndExpire(cancellable, softDeadline, tickPolicyForceExpiry)
+	s.tickAndExpire(cancellable, tickPolicyForceExpiry)
 
 	return nil
 }
 
-func (s *dbShard) Tick(c context.Cancellable, softDeadline time.Duration) tickResult {
+func (s *dbShard) Tick(c context.Cancellable) tickResult {
 	s.removeAnyFlushStatesTooEarly()
-	return s.tickAndExpire(c, softDeadline, tickPolicyRegular)
+	return s.tickAndExpire(c, tickPolicyRegular)
 }
 
 func (s *dbShard) tickAndExpire(
 	c context.Cancellable,
-	softDeadline time.Duration,
 	policy tickPolicy,
 ) tickResult {
 	var (
-		r                    tickResult
-		perEntrySoftDeadline time.Duration
-		expired              []series.DatabaseSeries
-		i                    int
+		r       tickResult
+		expired []series.DatabaseSeries
+		i       int
+		slept   time.Duration
 	)
-	if size := s.NumSeries(); size > 0 {
-		perEntrySoftDeadline = softDeadline / time.Duration(size)
-	}
-	start := s.nowFn()
+	s.RLock()
+	tickSleepPerSeries := s.currRuntimeOptions.tickSleepPerSeries
+	s.RUnlock()
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
-		if i > 0 && i%s.tickSleepIfAheadEvery == 0 {
+		if i > 0 && i%s.tickSleepBatch == 0 {
 			// NB(xichen): if the tick is cancelled, we bail out immediately.
 			// The cancellation check is performed on every batch of entries
 			// instead of every entry to reduce load.
 			if c.IsCancelled() {
 				return false
 			}
-			// If we are ahead of our our deadline then throttle tick
-			prevEntryDeadline := start.Add(time.Duration(i) * perEntrySoftDeadline)
-			if now := s.nowFn(); now.Before(prevEntryDeadline) {
-				s.sleepFn(prevEntryDeadline.Sub(now))
-			}
+			// Throttle the tick
+			sleepFor := time.Duration(s.tickSleepBatch) * tickSleepPerSeries
+			s.sleepFn(sleepFor)
+			slept += sleepFor
 		}
 		var (
 			result series.TickResult
@@ -444,6 +452,11 @@ func (s *dbShard) tickAndExpire(
 	if len(expired) > 0 {
 		// Purge any series that still haven't been purged yet
 		s.purgeExpiredSeries(expired)
+	}
+
+	minSleep := defaultMinimumTickSleeps * tickSleepPerSeries
+	if slept < minSleep {
+		s.sleepFn(minSleep)
 	}
 
 	return r
