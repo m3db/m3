@@ -41,8 +41,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	}
 
 	// test options
-	testOpts := newTestOptions(t).
-		SetTickInterval(time.Second)
+	testOpts := newTestOptions(t)
 	require.True(t, len(testOpts.Namespaces()) >= 2)
 	ns0 := testOpts.Namespaces()[0]
 	ns1 := testOpts.Namespaces()[1]

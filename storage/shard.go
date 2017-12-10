@@ -456,7 +456,7 @@ func (s *dbShard) tickAndExpire(
 
 	minSleep := defaultMinimumTickSleeps * tickSleepPerSeries
 	if slept < minSleep {
-		s.sleepFn(minSleep)
+		s.sleepFn(minSleep - slept)
 	}
 
 	return r

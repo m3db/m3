@@ -71,7 +71,6 @@ func init() {
 		SetPersistManager(pm).
 		SetRepairEnabled(false).
 		SetMaxFlushRetries(3).
-		SetTickInterval(10 * time.Minute).
 		SetCommitLogOptions(opts.CommitLogOptions().
 			SetRetentionPeriod(defaultTestCommitlogRetentionPeriod).
 			SetBlockSize(defaultTestCommitlogBlockSize))

@@ -131,6 +131,26 @@ func (_mr *_MockOptionsRecorder) WriteNewSeriesLimitPerShardPerSecond() *gomock.
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteNewSeriesLimitPerShardPerSecond")
 }
 
+func (_m *MockOptions) SetTickPerSeriesSleepDuration(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetTickPerSeriesSleepDuration", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetTickPerSeriesSleepDuration(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetTickPerSeriesSleepDuration", arg0)
+}
+
+func (_m *MockOptions) TickPerSeriesSleepDuration() time.Duration {
+	ret := _m.ctrl.Call(_m, "TickPerSeriesSleepDuration")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) TickPerSeriesSleepDuration() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TickPerSeriesSleepDuration")
+}
+
 // Mock of OptionsManager interface
 type MockOptionsManager struct {
 	ctrl     *gomock.Controller

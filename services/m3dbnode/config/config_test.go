@@ -322,7 +322,6 @@ fs:
   mmap: null
 blockRetrieve:
   fetchConcurrency: 0
-tickInterval: 10m0s
 commitlog:
   flushMaxBytes: 524288
   flushEvery: 1s

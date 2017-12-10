@@ -174,13 +174,18 @@ func Run(runOpts RunOptions) {
 		SetRetentionPeriod(cfg.CommitLog.RetentionPeriod).
 		SetBlockSize(cfg.CommitLog.BlockSize))
 
-	runtimeOptsMgr := m3dbruntime.NewOptionsManager(m3dbruntime.NewOptions().
+	runtimeOpts := m3dbruntime.NewOptions().
 		SetPersistRateLimitOptions(ratelimit.NewOptions().
 			SetLimitEnabled(true).
 			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbps).
 			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEvery)).
 		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
-		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration))
+		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration)
+	if value := cfg.TickPerSeriesSleepDuration; value > 0 {
+		runtimeOpts = runtimeOpts.SetTickPerSeriesSleepDuration(value)
+	}
+
+	runtimeOptsMgr := m3dbruntime.NewOptionsManager(runtimeOpts)
 	defer runtimeOptsMgr.Close()
 
 	opts = opts.SetRuntimeOptionsManager(runtimeOptsMgr)

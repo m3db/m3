@@ -24,7 +24,6 @@ package integration
 
 import (
 	"testing"
-	"time"
 
 	"github.com/m3db/m3db/integration/generate"
 	xtime "github.com/m3db/m3x/time"
@@ -37,8 +36,7 @@ func TestRoundtrip(t *testing.T) {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
 	// Test setup
-	testOpts := newTestOptions(t).
-		SetTickInterval(time.Second)
+	testOpts := newTestOptions(t)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()

@@ -71,6 +71,10 @@ type Configuration struct {
 	// Write new series backoff between batches of new series insertions.
 	WriteNewSeriesBackoffDuration time.Duration `yaml:"writeNewSeriesBackoffDuration"`
 
+	// Tick per series sleep at the completion of a tick batch, only used
+	// if the value is greater than zero otherwise the default is used.
+	TickPerSeriesSleepDuration time.Duration `yaml:"tickPerSeriesSleepDuration"`
+
 	// Bootstrap configuration.
 	Bootstrap BootstrapConfiguration `yaml:"bootstrap"`
 

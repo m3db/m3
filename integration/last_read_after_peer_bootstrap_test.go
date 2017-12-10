@@ -33,8 +33,8 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
-	xtime "github.com/m3db/m3x/time"
 	xlog "github.com/m3db/m3x/log"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,8 +61,7 @@ func TestLastReadAfterPeerBootstrap(t *testing.T) {
 		namespace.NewOptions().SetRetentionOptions(ropts))
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp}).
-		SetTickInterval(time.Minute)
+		SetNamespaces([]namespace.Metadata{namesp})
 
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
