@@ -51,7 +51,11 @@ import (
 )
 
 const (
-	ShardMinimumTickPerSeriesSleeps        = 32
+	// ShardMinimumTickPerSeriesSleeps is the minimum per series sleeps
+	// to sleep during a tick (to avoid hot loop ticking)
+	ShardMinimumTickPerSeriesSleeps = 32
+	// ShardMinimumTickPerSeriesSleepDuration is the minimum per series sleep
+	// duration (to avoid hot loop ticking)
 	ShardMinimumTickPerSeriesSleepDuration = time.Microsecond
 )
 

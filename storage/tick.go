@@ -32,8 +32,7 @@ import (
 )
 
 const (
-	tokenCheckInterval        = time.Second
-	cancellationCheckInterval = time.Second
+	tokenCheckInterval = time.Second
 )
 
 var (
