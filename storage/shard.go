@@ -51,11 +51,14 @@ import (
 )
 
 const (
-	shardIterateBatchPercent         = 0.01
-	expireBatchLength                = 1024
-	defaultTickSleepBatch            = 4096
-	defaultMinimumTickSleeps         = 128
-	defaultMinimumTickSleepPerSeries = time.Microsecond
+	ShardMinimumTickPerSeriesSleeps        = 32
+	ShardMinimumTickPerSeriesSleepDuration = time.Microsecond
+)
+
+const (
+	shardIterateBatchPercent = 0.01
+	expireBatchLength        = 1024
+	defaultTickSleepBatch    = 4096
 )
 
 var (
@@ -242,9 +245,9 @@ func (s *dbShard) SetRuntimeOptions(value runtime.Options) {
 	writeNewSeriesAsync := value.WriteNewSeriesAsync()
 
 	tickSleepPerSeries := value.TickPerSeriesSleepDuration()
-	if tickSleepPerSeries < defaultMinimumTickSleepPerSeries {
+	if tickSleepPerSeries < ShardMinimumTickPerSeriesSleepDuration {
 		// Avoid completely killing perf by ticking without any wait whatsoever
-		tickSleepPerSeries = defaultMinimumTickSleepPerSeries
+		tickSleepPerSeries = ShardMinimumTickPerSeriesSleepDuration
 	}
 
 	s.Lock()
@@ -454,7 +457,7 @@ func (s *dbShard) tickAndExpire(
 		s.purgeExpiredSeries(expired)
 	}
 
-	minSleep := defaultMinimumTickSleeps * tickSleepPerSeries
+	minSleep := ShardMinimumTickPerSeriesSleeps * tickSleepPerSeries
 	if slept < minSleep {
 		s.sleepFn(minSleep - slept)
 	}

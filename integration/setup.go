@@ -486,11 +486,30 @@ func (ts *testSetup) close() {
 func (ts *testSetup) sleepFor10xTickInterval() {
 	tickPerSeriesSleep := ts.storageOpts.RuntimeOptionsManager().Get().
 		TickPerSeriesSleepDuration()
+
 	numSeries := int64(0)
 	for _, n := range ts.db.Namespaces() {
 		numSeries += n.NumSeries()
 	}
-	time.Sleep(time.Duration(numSeries) * tickPerSeriesSleep * 10)
+
+	numShards := len(ts.db.ShardSet().AllIDs())
+
+	defaultShardMinSleeps := storage.ShardMinimumTickPerSeriesSleeps
+	minSleep := time.Duration(defaultShardMinSleeps) *
+		tickPerSeriesSleep * time.Duration(numShards)
+	estimateSleep := time.Duration(numSeries) *
+		tickPerSeriesSleep
+
+	tickInterval := estimateSleep
+	if minSleep > tickInterval {
+		tickInterval = minSleep
+	}
+
+	sleepFor := tickInterval * 10
+	logger := ts.storageOpts.InstrumentOptions().Logger()
+	logger.Infof("test setup sleep for 10x tick interval: %v", sleepFor)
+
+	time.Sleep(sleepFor)
 }
 
 type testSetups []*testSetup
