@@ -26,6 +26,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
@@ -89,8 +90,9 @@ func MergedBootstrapResult(i, j BootstrapResult) BootstrapResult {
 }
 
 type shardResult struct {
-	opts   Options
-	blocks map[ts.Hash]DatabaseSeriesBlocks
+	opts        Options
+	blocks      map[ts.Hash]DatabaseSeriesBlocks
+	bloomFilter *bloom.BloomFilter
 }
 
 // NewShardResult creates a new shard result.
@@ -177,6 +179,14 @@ func (sr *shardResult) BlockAt(id ts.ID, t time.Time) (block.DatabaseBlock, bool
 		return nil, false
 	}
 	return series.Blocks.BlockAt(t)
+}
+
+func (sr *shardResult) SetBloomFilter(bloom *bloom.BloomFilter) {
+	sr.bloomFilter = bloom
+}
+
+func (sr *shardResult) BloomFilter() *bloom.BloomFilter {
+	return sr.bloomFilter
 }
 
 // Close closes a shard result.
