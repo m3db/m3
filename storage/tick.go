@@ -164,12 +164,14 @@ func (mgr *tickManager) Tick(forceType forceType) error {
 	min := mgr.runtimeOpts.tickMinInterval
 	mgr.runtimeOpts.RUnlock()
 
-	// Sleep in a loop so that cancellations propogate
-	for mgr.nowFn().Sub(start) < min {
+	// Sleep in a loop so that cancellations propogate if need to
+	// wait to fulfill the tick min interval
+	interval := cancellationCheckInterval
+	for d := time.Duration(0); d < min-took; d += interval {
 		if mgr.c.IsCancelled() {
 			break
 		}
-		mgr.sleepFn(cancellationCheckInterval)
+		mgr.sleepFn(interval)
 	}
 
 	end := mgr.nowFn()
