@@ -51,6 +51,7 @@ func NewOptions() Options {
 		writeNewSeriesBackoffDuration:        defaultWriteNewSeriesBackoffDuration,
 		writeNewSeriesLimitPerShardPerSecond: defaultWriteNewSeriesLimitPerShardPerSecond,
 		tickPerSeriesSleepDuration:           defaultTickPerSeriesSleepDuration,
+		tickMinimumInterval:                  defaultTickMinimumInterval,
 	}
 }
 
