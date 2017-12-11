@@ -54,6 +54,9 @@ const (
 	// defaultWorkerPoolSize is the default number of workers in the worker pool.
 	defaultWorkerPoolSize = 10
 
+	// defaultTickMinimumInterval is the default tick interval.
+	defaultTickMinimumInterval = 1 * time.Second
+
 	// defaultUseTChannelClientForReading determines whether we use the tchannel client for reading by default.
 	defaultUseTChannelClientForReading = true
 
@@ -103,6 +106,12 @@ type testOptions interface {
 
 	// ID returns the node ID.
 	ID() string
+
+	// SetTickMinimumInterval sets the tick interval.
+	SetTickMinimumInterval(value time.Duration) testOptions
+
+	// TickMinimumInterval returns the tick interval.
+	TickMinimumInterval() time.Duration
 
 	// SetHTTPClusterAddr sets the http cluster address.
 	SetHTTPClusterAddr(value string) testOptions
@@ -232,6 +241,7 @@ type options struct {
 	commitlogRetentionPeriod           time.Duration
 	commitlogBlockSize                 time.Duration
 	id                                 string
+	tickMinimumInterval                time.Duration
 	httpClusterAddr                    string
 	tchannelClusterAddr                string
 	httpNodeAddr                       string
@@ -265,10 +275,11 @@ func newTestOptions(t *testing.T) testOptions {
 	}
 
 	return &options{
-		namespaces:               namespaces,
-		commitlogRetentionPeriod: defaultIntegrationTestRetentionOpts.RetentionPeriod(),
-		commitlogBlockSize:       defaultIntegrationTestRetentionOpts.BlockSize(),
-		id:                       defaultID,
+		namespaces:                     namespaces,
+		commitlogRetentionPeriod:       defaultIntegrationTestRetentionOpts.RetentionPeriod(),
+		commitlogBlockSize:             defaultIntegrationTestRetentionOpts.BlockSize(),
+		id:                             defaultID,
+		tickMinimumInterval:            defaultTickMinimumInterval,
 		serverStateChangeTimeout:       defaultServerStateChangeTimeout,
 		clusterConnectionTimeout:       defaultClusterConnectionTimeout,
 		readRequestTimeout:             defaultReadRequestTimeout,
@@ -331,6 +342,16 @@ func (o *options) SetID(value string) testOptions {
 
 func (o *options) ID() string {
 	return o.id
+}
+
+func (o *options) SetTickMinimumInterval(value time.Duration) testOptions {
+	opts := *o
+	opts.tickMinimumInterval = value
+	return &opts
+}
+
+func (o *options) TickMinimumInterval() time.Duration {
+	return o.tickMinimumInterval
 }
 
 func (o *options) SetHTTPClusterAddr(value string) testOptions {

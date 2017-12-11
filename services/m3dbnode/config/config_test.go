@@ -303,6 +303,7 @@ writeNewSeriesAsync: true
 writeNewSeriesLimitPerSecond: 1048576
 writeNewSeriesBackoffDuration: 2ms
 tickPerSeriesSleepDuration: 0s
+tickMinimumInterval: 0s
 bootstrap:
   bootstrappers:
   - filesystem

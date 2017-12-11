@@ -27,12 +27,16 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/runtime"
 
 	"github.com/uber-go/tally"
 )
 
 const (
 	tokenCheckInterval = time.Second
+	// DatabaseConstantTickSleepInterval is the constant amount of sleep
+	// between ticks
+	DatabaseConstantTickSleepInterval = time.Second
 )
 
 var (
@@ -43,6 +47,7 @@ var (
 
 type tickManagerMetrics struct {
 	tickDuration       tally.Timer
+	tickWorkDuration   tally.Timer
 	tickCancelled      tally.Counter
 	tickDeadlineMissed tally.Counter
 	tickDeadlineMet    tally.Counter
@@ -51,6 +56,7 @@ type tickManagerMetrics struct {
 func newTickManagerMetrics(scope tally.Scope) tickManagerMetrics {
 	return tickManagerMetrics{
 		tickDuration:       scope.Timer("duration"),
+		tickWorkDuration:   scope.Timer("work-duration"),
 		tickCancelled:      scope.Counter("cancelled"),
 		tickDeadlineMissed: scope.Counter("deadline.missed"),
 		tickDeadlineMet:    scope.Counter("deadline.met"),
@@ -58,8 +64,6 @@ func newTickManagerMetrics(scope tally.Scope) tickManagerMetrics {
 }
 
 type tickManager struct {
-	sync.RWMutex
-
 	database database
 	opts     Options
 	nowFn    clock.NowFn
@@ -68,6 +72,13 @@ type tickManager struct {
 	metrics tickManagerMetrics
 	c       context.Cancellable
 	tokenCh chan struct{}
+
+	runtimeOpts tickManagerRuntimeOptions
+}
+
+type tickManagerRuntimeOptions struct {
+	sync.RWMutex
+	tickMinInterval time.Duration
 }
 
 func newTickManager(database database, opts Options) databaseTickManager {
@@ -75,7 +86,7 @@ func newTickManager(database database, opts Options) databaseTickManager {
 	tokenCh := make(chan struct{}, 1)
 	tokenCh <- struct{}{}
 
-	return &tickManager{
+	mgr := &tickManager{
 		database: database,
 		opts:     opts,
 		nowFn:    opts.ClockOptions().NowFn(),
@@ -84,6 +95,16 @@ func newTickManager(database database, opts Options) databaseTickManager {
 		c:        context.NewCancellable(),
 		tokenCh:  tokenCh,
 	}
+
+	runtimeOptsMgr := opts.RuntimeOptionsManager()
+	runtimeOptsMgr.RegisterListener(mgr)
+	return mgr
+}
+
+func (mgr *tickManager) SetRuntimeOptions(opts runtime.Options) {
+	mgr.runtimeOpts.Lock()
+	mgr.runtimeOpts.tickMinInterval = opts.TickMinimumInterval()
+	mgr.runtimeOpts.Unlock()
 }
 
 func (mgr *tickManager) Tick(forceType forceType) error {
@@ -126,6 +147,26 @@ func (mgr *tickManager) Tick(forceType forceType) error {
 	start := mgr.nowFn()
 	for _, n := range namespaces {
 		n.Tick(mgr.c)
+	}
+
+	// NB(r): Always sleep for some constant period since ticking
+	// is variable with num series. With a really small amount of series
+	// the per shard amount of constant sleeping is only:
+	// = num shards * min sleeps per shard (32 constant) * sleep per series (65 microseconds default)
+	// This number can be quite small if configuring to have small amount of
+	// shards (say 10 shards):
+	// = 10 num shards * 32 min sleeps * 65 microseconds default sleep per series
+	// = 10*32*0.065 milliseconds
+	// = 20ms
+	// Because of this we always sleep at least some fixed constant amount.
+	took := mgr.nowFn().Sub(start)
+	mgr.metrics.tickWorkDuration.Record(took)
+
+	mgr.runtimeOpts.RLock()
+	min := mgr.runtimeOpts.tickMinInterval
+	mgr.runtimeOpts.RUnlock()
+	if took < min {
+		mgr.sleepFn(min - took)
 	}
 
 	end := mgr.nowFn()

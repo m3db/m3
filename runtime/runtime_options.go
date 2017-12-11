@@ -31,6 +31,7 @@ const (
 	defaultWriteNewSeriesBackoffDuration        = time.Duration(0)
 	defaultWriteNewSeriesLimitPerShardPerSecond = 0
 	defaultTickPerSeriesSleepDuration           = 65 * time.Microsecond
+	defaultTickMinimumInterval                  = time.Minute
 )
 
 type options struct {
@@ -39,6 +40,7 @@ type options struct {
 	writeNewSeriesBackoffDuration        time.Duration
 	writeNewSeriesLimitPerShardPerSecond int
 	tickPerSeriesSleepDuration           time.Duration
+	tickMinimumInterval                  time.Duration
 }
 
 // NewOptions creates a new set of runtime options with defaults
@@ -100,4 +102,14 @@ func (o *options) SetTickPerSeriesSleepDuration(value time.Duration) Options {
 
 func (o *options) TickPerSeriesSleepDuration() time.Duration {
 	return o.tickPerSeriesSleepDuration
+}
+
+func (o *options) SetTickMinimumInterval(value time.Duration) Options {
+	opts := *o
+	opts.tickMinimumInterval = value
+	return &opts
+}
+
+func (o *options) TickMinimumInterval() time.Duration {
+	return o.tickMinimumInterval
 }

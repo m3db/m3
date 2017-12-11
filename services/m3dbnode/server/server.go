@@ -184,6 +184,9 @@ func Run(runOpts RunOptions) {
 	if value := cfg.TickPerSeriesSleepDuration; value > 0 {
 		runtimeOpts = runtimeOpts.SetTickPerSeriesSleepDuration(value)
 	}
+	if value := cfg.TickMinimumInterval; value > 0 {
+		runtimeOpts = runtimeOpts.SetTickMinimumInterval(value)
+	}
 
 	runtimeOptsMgr := m3dbruntime.NewOptionsManager(runtimeOpts)
 	defer runtimeOptsMgr.Close()

@@ -111,8 +111,11 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		nsInit = namespace.NewStaticInitializer(opts.Namespaces())
 	}
 
-	storageOpts := storage.NewOptions().
-		SetNamespaceInitializer(nsInit)
+	storageOpts := storage.NewOptions().SetNamespaceInitializer(nsInit)
+
+	runtimeOptsMgr := storageOpts.RuntimeOptionsManager()
+	runtimeOpts := runtimeOptsMgr.Get().SetTickMinimumInterval(opts.TickMinimumInterval())
+	runtimeOptsMgr.Update(runtimeOpts)
 
 	nativePooling := strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"
 	if nativePooling {
@@ -483,33 +486,8 @@ func (ts *testSetup) close() {
 }
 
 // convenience wrapper used to ensure a tick occurs
-func (ts *testSetup) sleepFor10xTickInterval() {
-	tickPerSeriesSleep := ts.storageOpts.RuntimeOptionsManager().Get().
-		TickPerSeriesSleepDuration()
-
-	numSeries := int64(0)
-	for _, n := range ts.db.Namespaces() {
-		numSeries += n.NumSeries()
-	}
-
-	numShards := len(ts.db.ShardSet().AllIDs())
-
-	defaultShardMinSleeps := storage.ShardMinimumTickPerSeriesSleeps
-	minSleep := time.Duration(defaultShardMinSleeps) *
-		tickPerSeriesSleep * time.Duration(numShards)
-	estimateSleep := time.Duration(numSeries) *
-		tickPerSeriesSleep
-
-	tickInterval := estimateSleep
-	if minSleep > tickInterval {
-		tickInterval = minSleep
-	}
-
-	sleepFor := tickInterval * 10
-	logger := ts.storageOpts.InstrumentOptions().Logger()
-	logger.Infof("test setup sleep for 10x tick interval: %v", sleepFor)
-
-	time.Sleep(sleepFor)
+func (ts *testSetup) sleepFor10xTickMinimumInterval() {
+	time.Sleep(ts.opts.TickMinimumInterval() * 10)
 }
 
 type testSetups []*testSetup
@@ -546,7 +524,9 @@ func newNodes(
 ) (testSetups, topology.Initializer, closeFn) {
 
 	log := xlog.SimpleLogger
-	opts := newTestOptions(t).SetNamespaces(nspaces)
+	opts := newTestOptions(t).
+		SetNamespaces(nspaces).
+		SetTickMinimumInterval(3 * time.Second)
 
 	// NB(bl): We set replication to 3 to mimic production. This can be made
 	// into a variable if needed.

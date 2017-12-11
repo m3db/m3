@@ -78,7 +78,7 @@ type Options interface {
 	// a batch of series during a background tick, this can directly effect how
 	// fast a block is persisted after is rotated from the mutable series buffer
 	// to a series block (since all series need to be merged/processed before a
-	// persist can occur)
+	// persist can occur).
 	SetTickPerSeriesSleepDuration(value time.Duration) Options
 
 	// TickPerSeriesSleepDuration returns the tick sleep per series value that
@@ -86,8 +86,18 @@ type Options interface {
 	// a batch of series during a background tick, this can directly effect how
 	// fast a block is persisted after is rotated from the mutable series buffer
 	// to a series block (since all series need to be merged/processed before a
-	// persist can occur)
+	// persist can occur).
 	TickPerSeriesSleepDuration() time.Duration
+
+	// SetTickMinimumInterval sets the minimum tick interval to run ticks, this
+	// helps throttle the tick when the amount of series is low and the sleeps
+	// on a per series basis is short.
+	SetTickMinimumInterval(value time.Duration) Options
+
+	// TickMinimumInterval returns the minimum tick interval to run ticks, this
+	// helps throttle the tick when the amount of series is low and the sleeps
+	// on a per series basis is short.
+	TickMinimumInterval() time.Duration
 }
 
 // OptionsManager updates and supplies runtime options

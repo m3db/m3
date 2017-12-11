@@ -384,7 +384,7 @@ func TestShardTick(t *testing.T) {
 	r := shard.Tick(context.NewNoOpCanncellable())
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
-	require.Equal(t, ShardMinimumTickPerSeriesSleeps*sleepPerSeries, slept)
+	require.Equal(t, shardMinimumTickPerSeriesSleeps*sleepPerSeries, slept)
 
 	// Ensure flush states by time was expired correctly
 	require.Equal(t, 1, len(shard.flushState.statesByTime))
@@ -466,7 +466,7 @@ func TestShardWriteAsync(t *testing.T) {
 	r := shard.Tick(context.NewNoOpCanncellable())
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
-	require.Equal(t, ShardMinimumTickPerSeriesSleeps*sleepPerSeries, slept)
+	require.Equal(t, shardMinimumTickPerSeriesSleeps*sleepPerSeries, slept)
 
 	// Ensure flush states by time was expired correctly
 	require.Equal(t, 1, len(shard.flushState.statesByTime))

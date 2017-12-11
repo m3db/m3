@@ -75,6 +75,10 @@ type Configuration struct {
 	// if the value is greater than zero otherwise the default is used.
 	TickPerSeriesSleepDuration time.Duration `yaml:"tickPerSeriesSleepDuration"`
 
+	// Tick minimum interval controls the minimum tick interval for the node,
+	// only used if the value is greater than zero otherwise the default is used.
+	TickMinimumInterval time.Duration `yaml:"tickMinimumInterval"`
+
 	// Bootstrap configuration.
 	Bootstrap BootstrapConfiguration `yaml:"bootstrap"`
 

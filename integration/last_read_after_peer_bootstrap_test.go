@@ -61,7 +61,8 @@ func TestLastReadAfterPeerBootstrap(t *testing.T) {
 		namespace.NewOptions().SetRetentionOptions(ropts))
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp})
+		SetNamespaces([]namespace.Metadata{namesp}).
+		SetTickMinimumInterval(time.Minute)
 
 	setupOpts := []bootstrappableTestSetupOptions{
 		{disablePeersBootstrapper: true},
