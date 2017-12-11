@@ -169,12 +169,6 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 
-	r.bloomFilterFd, err = os.Open(
-		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix))
-	if err != nil {
-		return err
-	}
-
 	r.indexDecoderStream.Reset(r.indexMmap)
 	r.dataReader.Reset(bytes.NewReader(r.dataMmap))
 
