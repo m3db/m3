@@ -76,9 +76,9 @@ type ShardResult interface {
 	// RemoveSeries removes a single series of blocks.
 	RemoveSeries(id ts.ID)
 
-	SetBloomFilter(bloom *bloom.BloomFilter)
+	SetBloomFilterAt(block time.Time, bloomFilter *bloom.ReadOnlyBloomFilter)
 
-	BloomFilter() *bloom.BloomFilter
+	BloomFilterAt(block time.Time) (*bloom.ReadOnlyBloomFilter, bool)
 
 	// Close closes a shard result.
 	Close()

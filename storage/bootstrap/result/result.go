@@ -90,9 +90,9 @@ func MergedBootstrapResult(i, j BootstrapResult) BootstrapResult {
 }
 
 type shardResult struct {
-	opts        Options
-	blocks      map[ts.Hash]DatabaseSeriesBlocks
-	bloomFilter *bloom.BloomFilter
+	opts         Options
+	blocks       map[ts.Hash]DatabaseSeriesBlocks
+	bloomFilters map[xtime.UnixNano]*bloom.ReadOnlyBloomFilter
 }
 
 // NewShardResult creates a new shard result.
@@ -181,12 +181,16 @@ func (sr *shardResult) BlockAt(id ts.ID, t time.Time) (block.DatabaseBlock, bool
 	return series.Blocks.BlockAt(t)
 }
 
-func (sr *shardResult) SetBloomFilter(bloom *bloom.BloomFilter) {
-	sr.bloomFilter = bloom
+func (sr *shardResult) SetBloomFilterAt(block time.Time, bloomFilter *bloom.ReadOnlyBloomFilter) {
+	sr.bloomFilters[xtime.ToUnixNano(block)] = bloomFilter
 }
 
-func (sr *shardResult) BloomFilter() *bloom.BloomFilter {
-	return sr.bloomFilter
+func (sr *shardResult) BloomFilterAt(block time.Time) (*bloom.ReadOnlyBloomFilter, bool) {
+	bloomFilter, ok := sr.bloomFilters[xtime.ToUnixNano(block)]
+	if !ok {
+		return nil, false
+	}
+	return bloomFilter, true
 }
 
 // Close closes a shard result.
