@@ -25,7 +25,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/runtime"
@@ -69,7 +68,7 @@ type FileSetReader interface {
 	ReadMetadata() (id ts.ID, length int, checksum uint32, err error)
 
 	// ReadBloomFilter returns the bloom filter stored on disk
-	ReadBloomFilter() (*bloom.ReadOnlyBloomFilter, error)
+	ReadBloomFilter() (block.ShardBlockBloomFilter, error)
 
 	// Validate validates the data and returns an error if the data are corrupted
 	Validate() error

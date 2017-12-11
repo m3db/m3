@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/schema"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
@@ -326,7 +327,7 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 	return r.entryID(entry.ID), int(entry.Size), uint32(entry.Checksum), nil
 }
 
-func (r *reader) ReadBloomFilter() (*bloom.ReadOnlyBloomFilter, error) {
+func (r *reader) ReadBloomFilter() (block.ShardBlockBloomFilter, error) {
 	// Determine how many bytes to request for the mmap'd region
 	r.bloomFilterFWithDigestContents.Reset(r.bloomFilterFd)
 	stat, err := r.bloomFilterFd.Stat()
@@ -355,7 +356,11 @@ func (r *reader) ReadBloomFilter() (*bloom.ReadOnlyBloomFilter, error) {
 	// TODO: Use conccurrent one?
 	bloomFilter := bloom.NewReadOnlyBloomFilter(
 		uint(r.bloomFilterInfo.NumElementsM), uint(r.bloomFilterInfo.NumHashesK), anonMmap)
-	return bloomFilter, nil
+	closeFn := func() error {
+		return munmap(anonMmap)
+	}
+
+	return block.NewShardBlockBloomFilter(bloomFilter, closeFn), nil
 }
 
 func (r *reader) entryID(id []byte) ts.ID {
