@@ -150,10 +150,10 @@ func (mgr *tickManager) Tick(forceType forceType) error {
 	// NB(r): Always sleep for some constant period since ticking
 	// is variable with num series. With a really small amount of series
 	// the per shard amount of constant sleeping is only:
-	// = num shards * min sleeps per shard (32 constant) * sleep per series (100 microseconds default)
+	// = num shards * sleep per series (100 microseconds default)
 	// This number can be quite small if configuring to have small amount of
-	// shards (say 10 shards):
-	// = 10 num shards * 32 min sleeps * 100 microseconds default sleep per series
+	// shards (say 10 shards) with 32 series per shard (total of 320 series):
+	// = 10 num shards * ~32 series per shard * 100 microseconds default sleep per series
 	// = 10*32*0.1 milliseconds
 	// = 32ms
 	// Because of this we always sleep at least some fixed constant amount.
@@ -164,7 +164,7 @@ func (mgr *tickManager) Tick(forceType forceType) error {
 	min := mgr.runtimeOpts.tickMinInterval
 	mgr.runtimeOpts.RUnlock()
 
-	// Sleep in a loop so that cancellations propogate if need to
+	// Sleep in a loop so that cancellations propagate if need to
 	// wait to fulfill the tick min interval
 	interval := cancellationCheckInterval
 	for d := time.Duration(0); d < min-took; d += interval {

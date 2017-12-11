@@ -51,7 +51,6 @@ import (
 )
 
 const (
-	shardMinimumTickPerSeriesSleeps        = 32
 	shardMinimumTickPerSeriesSleepDuration = time.Microsecond
 )
 
@@ -455,11 +454,6 @@ func (s *dbShard) tickAndExpire(
 	if len(expired) > 0 {
 		// Purge any series that still haven't been purged yet
 		s.purgeExpiredSeries(expired)
-	}
-
-	minSleep := shardMinimumTickPerSeriesSleeps * tickSleepPerSeries
-	if slept < minSleep {
-		s.sleepFn(minSleep - slept)
 	}
 
 	return r
