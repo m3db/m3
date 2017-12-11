@@ -29,6 +29,9 @@ import (
 	"sort"
 	"time"
 
+	// "github.com/m3db/bitset"
+	"github.com/m3db/bitset"
+	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
@@ -67,8 +70,9 @@ type reader struct {
 	start          time.Time
 	blockSize      time.Duration
 
-	infoFdWithDigest           digest.FdWithDigestReader
-	digestFdWithDigestContents digest.FdWithDigestContentsReader
+	infoFdWithDigest               digest.FdWithDigestReader
+	digestFdWithDigestContents     digest.FdWithDigestContentsReader
+	bloomFilterFWithDigestContents digest.FdWithDigestContentsReader
 
 	indexFd                 *os.File
 	indexMmap               []byte
@@ -79,17 +83,22 @@ type reader struct {
 	dataMmap   []byte
 	dataReader digest.ReaderWithDigest
 
-	expectedInfoDigest     uint32
-	expectedIndexDigest    uint32
-	expectedDataDigest     uint32
-	expectedDigestOfDigest uint32
-	entries                int
-	entriesRead            int
-	metadataRead           int
-	prologue               []byte
-	decoder                encoding.Decoder
-	digestBuf              digest.Buffer
-	bytesPool              pool.CheckedBytesPool
+	bloomFilterFd   *os.File
+	bloomFilterMmap []byte
+
+	expectedInfoDigest        uint32
+	expectedIndexDigest       uint32
+	expectedDataDigest        uint32
+	expectedDigestOfDigest    uint32
+	expectedBloomFilterDigest uint32
+	entries                   int
+	bloomFilterInfo           schema.IndexBloomFilterInfo
+	entriesRead               int
+	metadataRead              int
+	prologue                  []byte
+	decoder                   encoding.Decoder
+	digestBuf                 digest.Buffer
+	bytesPool                 pool.CheckedBytesPool
 }
 
 // NewReader returns a new reader and expects all files to exist. Will read the
@@ -108,18 +117,21 @@ func NewReader(
 			enabled:   opts.MmapEnableHugePages(),
 			threshold: opts.MmapHugePagesThreshold(),
 		},
-		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
-		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),
-		indexDecoderStream:         newReaderDecoderStream(),
-		dataReader:                 digest.NewReaderWithDigest(nil),
-		prologue:                   make([]byte, markerLen+idxLen),
-		decoder:                    msgpack.NewDecoder(opts.DecodingOptions()),
-		digestBuf:                  digest.NewBuffer(),
-		bytesPool:                  bytesPool,
+		infoFdWithDigest:               digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
+		digestFdWithDigestContents:     digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),
+		bloomFilterFWithDigestContents: digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),
+		indexDecoderStream:             newReaderDecoderStream(),
+		dataReader:                     digest.NewReaderWithDigest(nil),
+		prologue:                       make([]byte, markerLen+idxLen),
+		decoder:                        msgpack.NewDecoder(opts.DecodingOptions()),
+		digestBuf:                      digest.NewBuffer(),
+		bytesPool:                      bytesPool,
 	}, nil
 }
 
 func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
+	var err error
+
 	// If there is no checkpoint file, don't read the data files.
 	shardDir := ShardDirPath(r.filePathPrefix, namespace, shard)
 	if err := r.readCheckpointFile(shardDir, blockStart); err != nil {
@@ -128,8 +140,9 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 
 	var infoFd, digestFd *os.File
 	if err := openFiles(os.Open, map[string]**os.File{
-		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):   &infoFd,
-		filesetPathFromTime(shardDir, blockStart, digestFileSuffix): &digestFd,
+		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
+		filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
+		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &r.bloomFilterFd,
 	}); err != nil {
 		return err
 	}
@@ -155,6 +168,12 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 			options: mmapOptions{read: true, hugePages: r.hugePagesOpts},
 		},
 	}); err != nil {
+		return err
+	}
+
+	r.bloomFilterFd, err = os.Open(
+		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix))
+	if err != nil {
 		return err
 	}
 
@@ -212,8 +231,7 @@ func (r *reader) readDigest() error {
 		// Skip the summaries digest
 		return err
 	}
-	if _, err := r.digestFdWithDigestContents.ReadDigest(); err != nil {
-		// Skip the bloom filter digest
+	if r.expectedBloomFilterDigest, err = r.digestFdWithDigestContents.ReadDigest(); err != nil {
 		return err
 	}
 	if r.expectedDataDigest, err = r.digestFdWithDigestContents.ReadDigest(); err != nil {
@@ -238,6 +256,7 @@ func (r *reader) readInfo(size int) error {
 	r.entries = int(info.Entries)
 	r.entriesRead = 0
 	r.metadataRead = 0
+	r.bloomFilterInfo = info.BloomFilter
 	return nil
 }
 
@@ -313,6 +332,35 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 	entry := r.indexEntriesByOffsetAsc[r.metadataRead]
 	r.metadataRead++
 	return r.entryID(entry.ID), int(entry.Size), uint32(entry.Checksum), nil
+}
+
+func (r *reader) ReadBloomFilter() (*bloom.ReadOnlyBloomFilter, error) {
+	// Determine how many bytes to request for the mmap'd region
+	r.bloomFilterFWithDigestContents.Reset(r.bloomFilterFd)
+	stat, err := r.bloomFilterFd.Stat()
+	if err != nil {
+		return nil, err
+	}
+	numBytes := stat.Size()
+
+	// Request an anonymous (non-file-backed) read-only mmap region
+	anonMmap, err := mmapAnon(numBytes, mmapOptions{read: true})
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate the bytes on disk using the digest, and read them into
+	// the mmap'd region
+	_, err = r.bloomFilterFWithDigestContents.ReadAllAndValidate(
+		anonMmap, r.expectedBloomFilterDigest)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: Use conccurrent one?
+	bloomFilter := bloom.NewReadOnlyBloomFilter(
+		uint(r.bloomFilterInfo.NumElementsM), uint(r.bloomFilterInfo.NumHashesK), anonMmap)
+	return bloomFilter, nil
 }
 
 func (r *reader) entryID(id []byte) ts.ID {
