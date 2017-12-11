@@ -107,6 +107,11 @@ type Bucket struct {
 
 	// Count is the number of fixed elements in the bucket.
 	Count int
+
+	// Options is an optional override to specify options to use for a bucket,
+	// specify nil to use the options specified to the bucketized pool
+	// constructor for this bucket.
+	Options ObjectPoolOptions
 }
 
 // BucketByCapacity is a sortable collection of pool buckets.

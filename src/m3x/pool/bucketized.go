@@ -72,7 +72,12 @@ func (p *bucketizedObjectPool) Init(alloc BucketizedAllocator) {
 		size := p.sizesAsc[i].Count
 		capacity := p.sizesAsc[i].Capacity
 
-		opts := p.opts.SetSize(size)
+		opts := p.opts
+		if perBucketOpts := p.sizesAsc[i].Options; perBucketOpts != nil {
+			opts = perBucketOpts
+		}
+
+		opts = opts.SetSize(size)
 		iopts := opts.InstrumentOptions()
 
 		if iopts.MetricsScope() != nil {
