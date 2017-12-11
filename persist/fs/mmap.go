@@ -39,6 +39,8 @@ type mmapFileDesc struct {
 type mmapOptions struct {
 	// read is whether to make mmap bytes ref readable
 	read bool
+	// write is whether to make mmap bytes ref writable
+	write bool
 	// hugePages is the mmap huge pages options
 	hugePages mmapHugePagesOptions
 }

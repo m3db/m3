@@ -27,7 +27,21 @@ import (
 	"syscall"
 )
 
+// mmap mmaps a file
 func mmap(fd, offset, length int64, opts mmapOptions) ([]byte, error) {
+	// MAP_SHARED because we want writes to the byte slice to be reflected back in the underlying file
+	return mmapBase(fd, offset, length, syscall.MAP_SHARED, opts)
+}
+
+// mmapAnon requests a private (non-shared) region of anonymous (not backed by a file) memory from the O.S
+func mmapAnon(length int64, opts mmapOptions) ([]byte, error) {
+	// offset is 0 because we're not indexing into a file
+	// fd is -1 and MAP_ANON because we're asking for an anonymous region of memory not tied to a file
+	// MAP_PRIVATE because we don't plan on sharing this region of memory with other processes
+	return mmapBase(-1, 0, length, syscall.MAP_ANON|syscall.MAP_PRIVATE, opts)
+}
+
+func mmapBase(fd, offset, length int64, flags int, opts mmapOptions) ([]byte, error) {
 	if length == 0 {
 		// Return an empty slice (but not nil so callers who
 		// use nil to mean something special like not initialized
@@ -39,8 +53,10 @@ func mmap(fd, offset, length int64, opts mmapOptions) ([]byte, error) {
 	if opts.read {
 		prot = prot | syscall.PROT_READ
 	}
+	if opts.write {
+		prot = prot | syscall.PROT_WRITE
+	}
 
-	flags := syscall.MAP_SHARED
 	b, err := syscall.Mmap(int(fd), offset, int(length), prot, flags)
 	if err != nil {
 		return nil, fmt.Errorf("mmap error: %v", err)
