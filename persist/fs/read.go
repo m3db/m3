@@ -426,6 +426,9 @@ func (r *reader) Close() error {
 	multiErr = multiErr.Add(r.dataFd.Close())
 	r.dataFd = nil
 
+	multiErr = multiErr.Add(r.bloomFilterFd.Close())
+	r.bloomFilterFd = nil
+
 	return multiErr.FinalError()
 }
 
