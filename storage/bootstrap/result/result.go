@@ -26,7 +26,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
@@ -92,7 +91,7 @@ func MergedBootstrapResult(i, j BootstrapResult) BootstrapResult {
 type shardResult struct {
 	opts         Options
 	blocks       map[ts.Hash]DatabaseSeriesBlocks
-	bloomFilters map[xtime.UnixNano]*bloom.ReadOnlyBloomFilter
+	bloomFilters map[xtime.UnixNano]block.ShardBlockBloomFilter
 }
 
 // NewShardResult creates a new shard result.
@@ -181,11 +180,11 @@ func (sr *shardResult) BlockAt(id ts.ID, t time.Time) (block.DatabaseBlock, bool
 	return series.Blocks.BlockAt(t)
 }
 
-func (sr *shardResult) SetBloomFilterAt(block time.Time, bloomFilter *bloom.ReadOnlyBloomFilter) {
+func (sr *shardResult) SetBloomFilterAt(block time.Time, bloomFilter block.ShardBlockBloomFilter) {
 	sr.bloomFilters[xtime.ToUnixNano(block)] = bloomFilter
 }
 
-func (sr *shardResult) BloomFilterAt(block time.Time) (*bloom.ReadOnlyBloomFilter, bool) {
+func (sr *shardResult) BloomFilterAt(block time.Time) (block.ShardBlockBloomFilter, bool) {
 	bloomFilter, ok := sr.bloomFilters[xtime.ToUnixNano(block)]
 	if !ok {
 		return nil, false

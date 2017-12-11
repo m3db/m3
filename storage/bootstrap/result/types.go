@@ -23,7 +23,6 @@ package result
 import (
 	"time"
 
-	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
@@ -76,9 +75,9 @@ type ShardResult interface {
 	// RemoveSeries removes a single series of blocks.
 	RemoveSeries(id ts.ID)
 
-	SetBloomFilterAt(block time.Time, bloomFilter *bloom.ReadOnlyBloomFilter)
+	SetBloomFilterAt(block time.Time, bloomFilter block.ShardBlockBloomFilter)
 
-	BloomFilterAt(block time.Time) (*bloom.ReadOnlyBloomFilter, bool)
+	BloomFilterAt(block time.Time) (block.ShardBlockBloomFilter, bool)
 
 	// Close closes a shard result.
 	Close()
