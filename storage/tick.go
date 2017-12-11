@@ -33,10 +33,8 @@ import (
 )
 
 const (
-	tokenCheckInterval = time.Second
-	// DatabaseConstantTickSleepInterval is the constant amount of sleep
-	// between ticks
-	DatabaseConstantTickSleepInterval = time.Second
+	tokenCheckInterval        = time.Second
+	cancellationCheckInterval = time.Second
 )
 
 var (
@@ -152,12 +150,12 @@ func (mgr *tickManager) Tick(forceType forceType) error {
 	// NB(r): Always sleep for some constant period since ticking
 	// is variable with num series. With a really small amount of series
 	// the per shard amount of constant sleeping is only:
-	// = num shards * min sleeps per shard (32 constant) * sleep per series (65 microseconds default)
+	// = num shards * min sleeps per shard (32 constant) * sleep per series (100 microseconds default)
 	// This number can be quite small if configuring to have small amount of
 	// shards (say 10 shards):
-	// = 10 num shards * 32 min sleeps * 65 microseconds default sleep per series
-	// = 10*32*0.065 milliseconds
-	// = 20ms
+	// = 10 num shards * 32 min sleeps * 100 microseconds default sleep per series
+	// = 10*32*0.1 milliseconds
+	// = 32ms
 	// Because of this we always sleep at least some fixed constant amount.
 	took := mgr.nowFn().Sub(start)
 	mgr.metrics.tickWorkDuration.Record(took)
@@ -165,8 +163,13 @@ func (mgr *tickManager) Tick(forceType forceType) error {
 	mgr.runtimeOpts.RLock()
 	min := mgr.runtimeOpts.tickMinInterval
 	mgr.runtimeOpts.RUnlock()
-	if took < min {
-		mgr.sleepFn(min - took)
+
+	// Sleep in a loop so that cancellations propogate
+	for mgr.nowFn().Sub(start) < min {
+		if mgr.c.IsCancelled() {
+			break
+		}
+		mgr.sleepFn(cancellationCheckInterval)
 	}
 
 	end := mgr.nowFn()

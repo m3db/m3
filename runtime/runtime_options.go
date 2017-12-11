@@ -30,7 +30,7 @@ const (
 	defaultWriteNewSeriesAsync                  = false
 	defaultWriteNewSeriesBackoffDuration        = time.Duration(0)
 	defaultWriteNewSeriesLimitPerShardPerSecond = 0
-	defaultTickPerSeriesSleepDuration           = 65 * time.Microsecond
+	defaultTickPerSeriesSleepDuration           = 100 * time.Microsecond
 	defaultTickMinimumInterval                  = time.Minute
 )
 
