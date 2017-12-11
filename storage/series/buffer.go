@@ -90,6 +90,8 @@ type databaseBuffer interface {
 
 	MinMax() (time.Time, time.Time)
 
+	Tick() bufferTickResult
+
 	NeedsDrain() bool
 
 	DrainAndReset() drainAndResetResult
@@ -105,6 +107,10 @@ type bufferStats struct {
 }
 
 type drainAndResetResult struct {
+	mergedOutOfOrderBlocks int
+}
+
+type bufferTickResult struct {
 	mergedOutOfOrderBlocks int
 }
 
@@ -226,6 +232,33 @@ func bucketNeedsDrain(now time.Time, b *dbBuffer, idx int, start time.Time) int 
 	return 0
 }
 
+func (b *dbBuffer) Tick() bufferTickResult {
+	// Avoid capturing any variables with callback
+	mergedOutOfOrder := b.computedForEachBucketAsc(computeAndResetBucketIdx, bucketTick)
+	return bufferTickResult{
+		mergedOutOfOrderBlocks: mergedOutOfOrder,
+	}
+}
+
+func bucketTick(now time.Time, b *dbBuffer, idx int, start time.Time) int {
+	// Perform a drain and reset if necessary
+	mergedOutOfOrderBlocks := bucketDrainAndReset(now, b, idx, start)
+
+	if b.buckets[idx].needsMerge() {
+		// Try to merge any out of order encoders to amortize the cost of a drain
+		r, err := b.buckets[idx].merge()
+		if err != nil {
+			log := b.opts.InstrumentOptions().Logger()
+			log.Errorf("buffer merge encode error: %v", err)
+		}
+		if r.merges > 0 {
+			mergedOutOfOrderBlocks++
+		}
+	}
+
+	return mergedOutOfOrderBlocks
+}
+
 func (b *dbBuffer) DrainAndReset() drainAndResetResult {
 	// Avoid capturing any variables with callback
 	mergedOutOfOrder := b.computedForEachBucketAsc(computeAndResetBucketIdx, bucketDrainAndReset)
@@ -266,18 +299,6 @@ func bucketDrainAndReset(now time.Time, b *dbBuffer, idx int, start time.Time) i
 	if b.buckets[idx].needsReset(start) {
 		// Reset bucket
 		b.buckets[idx].resetTo(start)
-	}
-
-	if b.buckets[idx].needsMerge() {
-		// Try to merge any out of order encoders to amortize the cost of a drain
-		r, err := b.buckets[idx].merge()
-		if err != nil {
-			log := b.opts.InstrumentOptions().Logger()
-			log.Errorf("buffer merge encode error: %v", err)
-		}
-		if r.merges > 0 {
-			mergedOutOfOrderBlocks++
-		}
 	}
 
 	return mergedOutOfOrderBlocks

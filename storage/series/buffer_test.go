@@ -593,5 +593,85 @@ func TestBufferReadEncodedValidAfterDrain(t *testing.T) {
 	}
 }
 
-// TODO: write a test that ensures buffer gets merged if out of order
-// encoders and
+func TestBufferTickReordersOutOfOrderBuffers(t *testing.T) {
+	var drained []block.DatabaseBlock
+	drainFn := func(b block.DatabaseBlock) {
+		drained = append(drained, b)
+	}
+
+	opts := newBufferTestOptions()
+	rops := opts.RetentionOptions()
+	curr := time.Now().Truncate(rops.BlockSize())
+	start := curr
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	buffer := newDatabaseBuffer(drainFn).(*dbBuffer)
+	buffer.Reset(opts)
+
+	// Perform out of order writes that will create two in order encoders
+	data := []value{
+		{curr, 1, xtime.Second, nil},
+		{curr.Add(mins(0.5)), 2, xtime.Second, nil},
+		{curr.Add(mins(0.5)).Add(-5 * time.Second), 3, xtime.Second, nil},
+		{curr.Add(mins(1.0)), 4, xtime.Second, nil},
+		{curr.Add(mins(1.5)), 5, xtime.Second, nil},
+		{curr.Add(mins(1.5)).Add(-5 * time.Second), 6, xtime.Second, nil},
+	}
+	end := data[len(data)-1].timestamp.Add(time.Nanosecond)
+
+	for _, v := range data {
+		curr = v.timestamp
+		ctx := context.NewContext()
+		assert.NoError(t, buffer.Write(ctx, v.timestamp, v.value, v.unit, v.annotation))
+		ctx.Close()
+	}
+
+	var encoders []encoding.Encoder
+	for i := range buffer.buckets {
+		if !buffer.buckets[i].start.Equal(start) {
+			continue
+		}
+		// Current bucket encoders should all have data in them
+		for j := range buffer.buckets[i].encoders {
+			encoder := buffer.buckets[i].encoders[j].encoder
+			assert.NotNil(t, encoder.Stream())
+
+			encoders = append(encoders, encoder)
+		}
+	}
+
+	assert.Equal(t, 2, len(encoders))
+
+	// Perform a tick and ensure merged out of order blocks
+	r := buffer.Tick()
+	assert.Equal(t, 1, r.mergedOutOfOrderBlocks)
+
+	// Check values correct
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	results := buffer.ReadEncoded(ctx, start, end)
+	expected := make([]value, len(data))
+	copy(expected, data)
+	sort.Sort(valuesByTime(expected))
+	assertValuesEqual(t, expected, results, opts)
+
+	// Count the encoders again
+	encoders = encoders[:0]
+	for i := range buffer.buckets {
+		if !buffer.buckets[i].start.Equal(start) {
+			continue
+		}
+		// Current bucket encoders should all have data in them
+		for j := range buffer.buckets[i].encoders {
+			encoder := buffer.buckets[i].encoders[j].encoder
+			assert.NotNil(t, encoder.Stream())
+
+			encoders = append(encoders, encoder)
+		}
+	}
+
+	// Ensure single encoder again
+	assert.Equal(t, 1, len(encoders))
+}
