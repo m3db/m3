@@ -29,8 +29,6 @@ import (
 	"sort"
 	"time"
 
-	// "github.com/m3db/bitset"
-	"github.com/m3db/bitset"
 	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/encoding"
@@ -343,8 +341,11 @@ func (r *reader) ReadBloomFilter() (*bloom.ReadOnlyBloomFilter, error) {
 	}
 	numBytes := stat.Size()
 
-	// Request an anonymous (non-file-backed) read-only mmap region
-	anonMmap, err := mmapAnon(numBytes, mmapOptions{read: true})
+	// Request an anonymous (non-file-backed) mmap region. Note that we're going
+	// to use the mmap'd region to create a read-only bloom filter, but the mmap
+	// region itself needs to be writable so we can copy the bytes from disk
+	// into it
+	anonMmap, err := mmapAnon(numBytes, mmapOptions{read: true, write: true})
 	if err != nil {
 		return nil, err
 	}

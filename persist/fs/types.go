@@ -69,7 +69,7 @@ type FileSetReader interface {
 	ReadMetadata() (id ts.ID, length int, checksum uint32, err error)
 
 	// ReadBloomFilter returns the bloom filter stored on disk
-	ReadBloomFilter() (*bloom.BloomFilter, error)
+	ReadBloomFilter() (*bloom.ReadOnlyBloomFilter, error)
 
 	// Validate validates the data and returns an error if the data are corrupted
 	Validate() error
