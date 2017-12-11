@@ -3,19 +3,22 @@ package httpd
 import (
 	"log"
 	"os"
-	"fmt"
 	"net/http"
 	"time"
+	"context"
 
 	"github.com/m3db/m3coordinator/services/m3coordinator/handler"
+	"github.com/m3db/m3coordinator/util/logging"
 
 	"go.uber.org/zap"
 	"github.com/gorilla/mux"
+	"github.com/pborman/uuid"
 )
+
+var httpContext = context.Background()
 
 // Handler represents an HTTP handler.
 type Handler struct {
-	Logger    *zap.Logger
 	Router    *mux.Router
 	CLFLogger *log.Logger
 }
@@ -31,7 +34,6 @@ func NewHandler() (*Handler, error) {
 	defer logger.Sync() // flushes buffer, if any
 
 	h := &Handler{
-		Logger:    logger,
 		CLFLogger: log.New(os.Stderr, "[httpd] ", 0),
 		Router:    r,
 	}
@@ -41,18 +43,21 @@ func NewHandler() (*Handler, error) {
 // RegisterRoutes registers all http routes.
 func (h *Handler) RegisterRoutes() {
 	logged := withResponseTimeLogging
-	h.Router.HandleFunc("/api/v1/prom/read", logged(handler.NewPromReadHandler(), h.Logger).ServeHTTP).Methods("POST")
+	h.Router.HandleFunc("/api/v1/prom/read", logged(handler.NewPromReadHandler()).ServeHTTP).Methods("POST")
 }
 
-func withResponseTimeLogging(next http.Handler, log *zap.Logger) http.Handler {
+func withResponseTimeLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		startTime := time.Now()
+		// Attach a rqID with all logs so that its simple to trace the whole call stack
+		rqID := uuid.NewRandom()
+		rqCtx := logging.NewContext(httpContext, zap.Stringer("rqID", rqID))
+		logger := logging.WithContext(rqCtx)
 		next.ServeHTTP(w, r)
 		endTime := time.Now()
 		d := endTime.Sub(startTime)
 		if d > time.Second {
-			log.Info(fmt.Sprintf("time=%v, RESPONSE [%0.3f] %s\n", endTime, d.Seconds(), r.URL.RequestURI()))
+			logger.Info("finished handling request", zap.Time("time", endTime), zap.Duration("response", d), zap.String("url", r.URL.RequestURI()))
 		}
 	})
 }
-
