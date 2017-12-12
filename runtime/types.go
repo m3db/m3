@@ -73,6 +73,20 @@ type Options interface {
 	// time series being inserted.
 	WriteNewSeriesLimitPerShardPerSecond() int
 
+	// SetTickSeriesBatchSize sets the batch size to process series together
+	// during a tick before yielding and sleeping the per series duration
+	// multiplied by the batch size.
+	// The higher this value is the more variable CPU utilization will be
+	// but the shorter ticks will ultimately be.
+	SetTickSeriesBatchSize(value int) Options
+
+	// TickSeriesBatchSize returns the batch size to process series together
+	// during a tick before yielding and sleeping the per series duration
+	// multiplied by the batch size.
+	// The higher this value is the more variable CPU utilization will be
+	// but the shorter ticks will ultimately be.
+	TickSeriesBatchSize() int
+
 	// SetTickPerSeriesSleepDuration sets the tick sleep per series value that
 	// provides a constant duration to sleep per series at the end of processing
 	// a batch of series during a background tick, this can directly effect how

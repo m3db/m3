@@ -181,10 +181,13 @@ func Run(runOpts RunOptions) {
 			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEvery)).
 		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
 		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration)
-	if value := cfg.TickPerSeriesSleepDuration; value > 0 {
+	if value := cfg.Tick.SeriesBatchSize; value > 0 {
+		runtimeOpts = runtimeOpts.SetTickSeriesBatchSize(value)
+	}
+	if value := cfg.Tick.PerSeriesSleepDuration; value > 0 {
 		runtimeOpts = runtimeOpts.SetTickPerSeriesSleepDuration(value)
 	}
-	if value := cfg.TickMinimumInterval; value > 0 {
+	if value := cfg.Tick.MinimumInterval; value > 0 {
 		runtimeOpts = runtimeOpts.SetTickMinimumInterval(value)
 	}
 

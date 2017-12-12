@@ -51,13 +51,8 @@ import (
 )
 
 const (
-	shardMinimumTickPerSeriesSleepDuration = time.Microsecond
-)
-
-const (
 	shardIterateBatchPercent = 0.01
 	expireBatchLength        = 1024
-	defaultTickSleepBatch    = 4096
 )
 
 var (
@@ -101,7 +96,6 @@ type dbShard struct {
 	newSeriesBootstrapped    bool
 	filesetBeforeFn          filesetBeforeFn
 	deleteFilesFn            deleteFilesFn
-	tickSleepBatch           int
 	sleepFn                  func(time.Duration)
 	identifierPool           ts.IdentifierPool
 	contextPool              context.Pool
@@ -112,8 +106,9 @@ type dbShard struct {
 }
 
 type dbShardRuntimeOptions struct {
-	writeNewSeriesAsync bool
-	tickSleepPerSeries  time.Duration
+	writeNewSeriesAsync      bool
+	tickSleepSeriesBatchSize int
+	tickSleepPerSeries       time.Duration
 }
 
 type dbShardMetrics struct {
@@ -202,7 +197,6 @@ func newDatabaseShard(
 		list:            list.New(),
 		filesetBeforeFn: fs.FilesetBefore,
 		deleteFilesFn:   fs.DeleteFiles,
-		tickSleepBatch:  defaultTickSleepBatch,
 		sleepFn:         time.Sleep,
 		identifierPool:  opts.IdentifierPool(),
 		contextPool:     opts.ContextPool(),
@@ -241,18 +235,11 @@ func newDatabaseShard(
 }
 
 func (s *dbShard) SetRuntimeOptions(value runtime.Options) {
-	writeNewSeriesAsync := value.WriteNewSeriesAsync()
-
-	tickSleepPerSeries := value.TickPerSeriesSleepDuration()
-	if tickSleepPerSeries < shardMinimumTickPerSeriesSleepDuration {
-		// Avoid completely killing perf by ticking without any wait whatsoever
-		tickSleepPerSeries = shardMinimumTickPerSeriesSleepDuration
-	}
-
 	s.Lock()
 	s.currRuntimeOptions = dbShardRuntimeOptions{
-		writeNewSeriesAsync: writeNewSeriesAsync,
-		tickSleepPerSeries:  tickSleepPerSeries,
+		writeNewSeriesAsync:      value.WriteNewSeriesAsync(),
+		tickSleepSeriesBatchSize: value.TickSeriesBatchSize(),
+		tickSleepPerSeries:       value.TickPerSeriesSleepDuration(),
 	}
 	s.Unlock()
 }
@@ -394,10 +381,11 @@ func (s *dbShard) tickAndExpire(
 		slept   time.Duration
 	)
 	s.RLock()
+	tickSleepBatch := s.currRuntimeOptions.tickSleepSeriesBatchSize
 	tickSleepPerSeries := s.currRuntimeOptions.tickSleepPerSeries
 	s.RUnlock()
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
-		if i > 0 && i%s.tickSleepBatch == 0 {
+		if i > 0 && i%tickSleepBatch == 0 {
 			// NB(xichen): if the tick is cancelled, we bail out immediately.
 			// The cancellation check is performed on every batch of entries
 			// instead of every entry to reduce load.
@@ -405,7 +393,7 @@ func (s *dbShard) tickAndExpire(
 				return false
 			}
 			// Throttle the tick
-			sleepFor := time.Duration(s.tickSleepBatch) * tickSleepPerSeries
+			sleepFor := time.Duration(tickSleepBatch) * tickSleepPerSeries
 			s.sleepFn(sleepFor)
 			slept += sleepFor
 		}
@@ -639,23 +627,29 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 	}
 }
 
+type writableSeriesOptions struct {
+	writeNewSeriesAsync bool
+}
+
 func (s *dbShard) tryRetrieveWritableSeries(id ts.ID) (
 	*dbShardEntry,
-	dbShardRuntimeOptions,
+	writableSeriesOptions,
 	error,
 ) {
 	s.RLock()
-	currRuntimeOpts := s.currRuntimeOptions
+	opts := writableSeriesOptions{
+		writeNewSeriesAsync: s.currRuntimeOptions.writeNewSeriesAsync,
+	}
 	if entry, _, err := s.lookupEntryWithLock(id); err == nil {
 		entry.incrementWriterCount()
 		s.RUnlock()
-		return entry, currRuntimeOpts, nil
+		return entry, opts, nil
 	} else if err != errShardEntryNotFound {
 		s.RUnlock()
-		return nil, currRuntimeOpts, err
+		return nil, opts, err
 	}
 	s.RUnlock()
-	return nil, currRuntimeOpts, nil
+	return nil, opts, nil
 }
 
 func (s *dbShard) newShardEntry(id ts.ID) *dbShardEntry {

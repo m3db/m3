@@ -30,6 +30,7 @@ const (
 	defaultWriteNewSeriesAsync                  = false
 	defaultWriteNewSeriesBackoffDuration        = time.Duration(0)
 	defaultWriteNewSeriesLimitPerShardPerSecond = 0
+	defaultTickSeriesBatchSize                  = 512
 	defaultTickPerSeriesSleepDuration           = 100 * time.Microsecond
 	defaultTickMinimumInterval                  = time.Minute
 )
@@ -39,6 +40,7 @@ type options struct {
 	writeNewSeriesAsync                  bool
 	writeNewSeriesBackoffDuration        time.Duration
 	writeNewSeriesLimitPerShardPerSecond int
+	tickSeriesBatchSize                  int
 	tickPerSeriesSleepDuration           time.Duration
 	tickMinimumInterval                  time.Duration
 }
@@ -50,6 +52,7 @@ func NewOptions() Options {
 		writeNewSeriesAsync:                  defaultWriteNewSeriesAsync,
 		writeNewSeriesBackoffDuration:        defaultWriteNewSeriesBackoffDuration,
 		writeNewSeriesLimitPerShardPerSecond: defaultWriteNewSeriesLimitPerShardPerSecond,
+		tickSeriesBatchSize:                  defaultTickSeriesBatchSize,
 		tickPerSeriesSleepDuration:           defaultTickPerSeriesSleepDuration,
 		tickMinimumInterval:                  defaultTickMinimumInterval,
 	}
@@ -93,6 +96,16 @@ func (o *options) SetWriteNewSeriesLimitPerShardPerSecond(value int) Options {
 
 func (o *options) WriteNewSeriesLimitPerShardPerSecond() int {
 	return o.writeNewSeriesLimitPerShardPerSecond
+}
+
+func (o *options) SetTickSeriesBatchSize(value int) Options {
+	opts := *o
+	opts.tickSeriesBatchSize = value
+	return &opts
+}
+
+func (o *options) TickSeriesBatchSize() int {
+	return o.tickSeriesBatchSize
 }
 
 func (o *options) SetTickPerSeriesSleepDuration(value time.Duration) Options {

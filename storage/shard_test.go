@@ -356,7 +356,8 @@ func TestShardTick(t *testing.T) {
 
 	shard := testDatabaseShard(t, opts)
 	shard.SetRuntimeOptions(runtime.NewOptions().
-		SetTickPerSeriesSleepDuration(sleepPerSeries))
+		SetTickPerSeriesSleepDuration(sleepPerSeries).
+		SetTickSeriesBatchSize(1))
 	defer shard.Close()
 
 	// Also check that it expires flush states by time
@@ -373,7 +374,6 @@ func TestShardTick(t *testing.T) {
 		slept += t
 		setNow(nowFn().Add(t))
 	}
-	shard.tickSleepBatch = 1
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -430,7 +430,8 @@ func TestShardWriteAsync(t *testing.T) {
 	shard := testDatabaseShard(t, opts)
 	shard.SetRuntimeOptions(runtime.NewOptions().
 		SetWriteNewSeriesAsync(true).
-		SetTickPerSeriesSleepDuration(sleepPerSeries))
+		SetTickPerSeriesSleepDuration(sleepPerSeries).
+		SetTickSeriesBatchSize(1))
 	defer shard.Close()
 
 	// Also check that it expires flush states by time
@@ -447,7 +448,6 @@ func TestShardWriteAsync(t *testing.T) {
 		slept += t
 		setNow(nowFn().Add(t))
 	}
-	shard.tickSleepBatch = 1
 
 	ctx := context.NewContext()
 	defer ctx.Close()
