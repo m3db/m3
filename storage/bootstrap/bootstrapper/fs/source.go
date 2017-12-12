@@ -167,63 +167,14 @@ func (s *fileSystemSource) bootstrapFromReaders(
 ) result.BootstrapResult {
 	var (
 		wg                sync.WaitGroup
-		resultLock        sync.RWMutex
+		resultLock        = &sync.RWMutex{}
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 		bootstrapResult   = result.NewBootstrapResult()
 		bopts             = s.opts.ResultOptions()
-		blockPool         = bopts.DatabaseBlockOptions().DatabaseBlockPool()
 	)
 
 	if retriever != nil {
 		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(retriever)
-	}
-
-	readResult := func(
-		shard uint32,
-		remainingRanges xtime.Ranges,
-		shardResult result.ShardResult,
-		timesWithErrors []time.Time,
-	) {
-		// NB(xichen): this is the exceptional case where we encountered errors due to files
-		// being corrupted, which should be fairly rare so we can live with the overhead. We
-		// experimented with adding the series to a temporary map and only adding the temporary map
-		// to the final result but adding series to large map with string keys is expensive, and
-		// the current implementation saves the extra overhead of merging temporary map with the
-		// final result.
-		if len(timesWithErrors) > 0 {
-			s.log.WithFields(
-				xlog.NewField("shard", shard),
-				xlog.NewField("timesWithErrors", timesWithErrors),
-			).Info("deleting entries from results for times with errors")
-
-			resultLock.Lock()
-			shardResult, ok := bootstrapResult.ShardResults()[shard]
-			if ok {
-				for _, series := range shardResult.AllSeries() {
-					for _, t := range timesWithErrors {
-						// The bloom filter should never have been set, but we call remove
-						// here as a precaution because its safe to do so
-						shardResult.RemoveBloomFilterAt(t)
-						shardResult.RemoveBlockAt(series.ID, t)
-					}
-				}
-			}
-			resultLock.Unlock()
-		}
-
-		if !remainingRanges.IsEmpty() {
-			resultLock.Lock()
-			unfulfilled := bootstrapResult.Unfulfilled()
-			shardUnfulfilled, ok := unfulfilled[shard]
-			if !ok {
-				shardUnfulfilled = xtime.NewRanges().AddRanges(remainingRanges)
-			} else {
-				shardUnfulfilled = shardUnfulfilled.AddRanges(remainingRanges)
-			}
-
-			unfulfilled[shard] = shardUnfulfilled
-			resultLock.Unlock()
-		}
 	}
 
 	for shardReaders := range readersCh {
@@ -231,142 +182,10 @@ func (s *fileSystemSource) bootstrapFromReaders(
 		wg.Add(1)
 		s.processors.Go(func() {
 			defer wg.Done()
-
-			var (
-				timesWithErrors []time.Time
-				shardResult     result.ShardResult
-				shardRetriever  block.DatabaseShardBlockRetriever
-			)
-			shard, tr, readers, err := shardReaders.shard, shardReaders.tr, shardReaders.readers, shardReaders.err
-			if err != nil {
-				// NB(r): We do not remove any ranges from "tr" before recording the
-				// read result which bubble up the unfulfilled times for this shard
-				readResult(shard, tr, shardResult, timesWithErrors)
-				return
-			}
-
-			if shardRetrieverMgr != nil {
-				shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
-			}
-
-			for _, r := range readers {
-				if shardResult == nil {
-					resultLock.RLock()
-					results := bootstrapResult.ShardResults()
-					var exists bool
-					shardResult, exists = results[shard]
-					resultLock.RUnlock()
-
-					if !exists {
-						resultLock.Lock()
-						shardResult, exists = results[shard]
-						if !exists {
-							// NB(r): Wait until we have a reader to initialize the shard result
-							// to be able to somewhat estimate the size of it.
-							shardResult = result.NewShardResult(r.Entries(), bopts)
-							results[shard] = shardResult
-						}
-						resultLock.Unlock()
-					}
-				}
-
-				var (
-					timeRange  = r.Range()
-					start      = timeRange.Start
-					hasError   = false
-					numEntries = r.Entries()
-				)
-				for i := 0; i < numEntries; i++ {
-					var (
-						seriesBlock = blockPool.Get()
-						id          ts.ID
-						data        checked.Bytes
-						length      int
-						checksum    uint32
-						err         error
-					)
-					if retriever == nil {
-						id, data, checksum, err = r.Read()
-					} else {
-						id, length, checksum, err = r.ReadMetadata()
-					}
-					if err != nil {
-						s.log.WithFields(
-							xlog.NewField("shard", shard),
-							xlog.NewField("error", err.Error()),
-						).Error("reading data file failed")
-						hasError = true
-						break
-					}
-
-					idHash := id.Hash()
-
-					resultLock.RLock()
-					series, seriesExists := shardResult.AllSeries()[idHash]
-					resultLock.RUnlock()
-
-					if seriesExists {
-						// NB(r): In the case the series is already inserted
-						// we can avoid holding onto this ID and use the already
-						// allocated ID.
-						id.Finalize()
-						id = series.ID
-					}
-
-					if retriever == nil {
-						seg := ts.NewSegment(data, nil, ts.FinalizeHead)
-						seriesBlock.Reset(start, seg)
-					} else {
-						metadata := block.RetrievableBlockMetadata{
-							ID:       id,
-							Length:   length,
-							Checksum: checksum,
-						}
-						seriesBlock.ResetRetrievable(start, shardRetriever, metadata)
-					}
-
-					resultLock.Lock()
-					if seriesExists {
-						series.Blocks.AddBlock(seriesBlock)
-					} else {
-						shardResult.AddBlock(id, seriesBlock)
-					}
-					resultLock.Unlock()
-				}
-
-				if !hasError {
-					if err := r.Validate(); err != nil {
-						s.log.WithFields(
-							xlog.NewField("shard", shard),
-							xlog.NewField("error", err.Error()),
-						).Error("data validation failed")
-						hasError = true
-					}
-				}
-
-				bloomFilter, err := r.ReadBloomFilter()
-				if err != nil {
-					hasError = true
-				} else {
-					shardResult.SetBloomFilterAt(timeRange.Start, bloomFilter)
-				}
-
-				if !hasError {
-					tr = tr.RemoveRange(timeRange)
-				} else {
-					timesWithErrors = append(timesWithErrors, timeRange.Start)
-				}
-			}
-
-			for _, r := range readers {
-				r.Close()
-				readerPool.put(r)
-			}
-
-			readResult(shard, tr, shardResult, timesWithErrors)
+			s.loadShardReadersDataIntoShardResult(
+				resultLock, bootstrapResult, bopts, shardRetrieverMgr, retriever, shardReaders, readerPool)
 		})
 	}
-
 	wg.Wait()
 
 	shardResults := bootstrapResult.ShardResults()
@@ -377,6 +196,204 @@ func (s *fileSystemSource) bootstrapFromReaders(
 	}
 
 	return bootstrapResult
+}
+
+// handleErrorsAndUnfulfilled checks the list of times that had errors and makes
+// sure that we don't return any blocks or bloom filters for them. In addition,
+// it looks at any remaining (unfulfilled) ranges and makes sure they're marked
+// as unfulfilled
+func (s *fileSystemSource) handleErrorsAndUnfulfilled(
+	resultLock *sync.RWMutex,
+	bootstrapResult result.BootstrapResult,
+	shard uint32,
+	remainingRanges xtime.Ranges,
+	shardResult result.ShardResult,
+	timesWithErrors []time.Time,
+) {
+	// NB(xichen): this is the exceptional case where we encountered errors due to files
+	// being corrupted, which should be fairly rare so we can live with the overhead. We
+	// experimented with adding the series to a temporary map and only adding the temporary map
+	// to the final result but adding series to large map with string keys is expensive, and
+	// the current implementation saves the extra overhead of merging temporary map with the
+	// final result.
+	if len(timesWithErrors) > 0 {
+		s.log.WithFields(
+			xlog.NewField("shard", shard),
+			xlog.NewField("timesWithErrors", timesWithErrors),
+		).Info("deleting entries from results for times with errors")
+
+		resultLock.Lock()
+		shardResult, ok := bootstrapResult.ShardResults()[shard]
+		if ok {
+			for _, series := range shardResult.AllSeries() {
+				for _, t := range timesWithErrors {
+					// The bloom filter should never have been set, but we call remove
+					// here as a precaution because its safe to do so
+					shardResult.RemoveBloomFilterAt(t)
+					shardResult.RemoveBlockAt(series.ID, t)
+				}
+			}
+		}
+		resultLock.Unlock()
+	}
+
+	if !remainingRanges.IsEmpty() {
+		resultLock.Lock()
+		unfulfilled := bootstrapResult.Unfulfilled()
+		shardUnfulfilled, ok := unfulfilled[shard]
+		if !ok {
+			shardUnfulfilled = xtime.NewRanges().AddRanges(remainingRanges)
+		} else {
+			shardUnfulfilled = shardUnfulfilled.AddRanges(remainingRanges)
+		}
+
+		unfulfilled[shard] = shardUnfulfilled
+		resultLock.Unlock()
+	}
+}
+
+func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
+	resultLock *sync.RWMutex,
+	bootstrapResult result.BootstrapResult,
+	bopts result.Options,
+	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
+	retriever block.DatabaseBlockRetriever,
+	shardReaders shardReaders,
+	readerPool *readerPool,
+) {
+	var (
+		timesWithErrors []time.Time
+		shardResult     result.ShardResult
+		shardRetriever  block.DatabaseShardBlockRetriever
+		blockPool       = bopts.DatabaseBlockOptions().DatabaseBlockPool()
+	)
+
+	shard, tr, readers, err := shardReaders.shard, shardReaders.tr, shardReaders.readers, shardReaders.err
+	if err != nil {
+		s.handleErrorsAndUnfulfilled(resultLock, bootstrapResult, shard, tr, shardResult, timesWithErrors)
+		return
+	}
+
+	if shardRetrieverMgr != nil {
+		shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
+	}
+
+	for _, r := range readers {
+		if shardResult == nil {
+			resultLock.RLock()
+			results := bootstrapResult.ShardResults()
+			var exists bool
+			shardResult, exists = results[shard]
+			resultLock.RUnlock()
+
+			if !exists {
+				resultLock.Lock()
+				shardResult, exists = results[shard]
+				if !exists {
+					// NB(r): Wait until we have a reader to initialize the shard result
+					// to be able to somewhat estimate the size of it.
+					shardResult = result.NewShardResult(r.Entries(), bopts)
+					results[shard] = shardResult
+				}
+				resultLock.Unlock()
+			}
+		}
+
+		var (
+			timeRange  = r.Range()
+			start      = timeRange.Start
+			hasError   = false
+			numEntries = r.Entries()
+		)
+		for i := 0; i < numEntries; i++ {
+			var (
+				seriesBlock = blockPool.Get()
+				id          ts.ID
+				data        checked.Bytes
+				length      int
+				checksum    uint32
+				err         error
+			)
+			if retriever == nil {
+				id, data, checksum, err = r.Read()
+			} else {
+				id, length, checksum, err = r.ReadMetadata()
+			}
+			if err != nil {
+				s.log.WithFields(
+					xlog.NewField("shard", shard),
+					xlog.NewField("error", err.Error()),
+				).Error("reading data file failed")
+				hasError = true
+				break
+			}
+
+			idHash := id.Hash()
+
+			resultLock.RLock()
+			series, seriesExists := shardResult.AllSeries()[idHash]
+			resultLock.RUnlock()
+
+			if seriesExists {
+				// NB(r): In the case the series is already inserted
+				// we can avoid holding onto this ID and use the already
+				// allocated ID.
+				id.Finalize()
+				id = series.ID
+			}
+
+			if retriever == nil {
+				seg := ts.NewSegment(data, nil, ts.FinalizeHead)
+				seriesBlock.Reset(start, seg)
+			} else {
+				metadata := block.RetrievableBlockMetadata{
+					ID:       id,
+					Length:   length,
+					Checksum: checksum,
+				}
+				seriesBlock.ResetRetrievable(start, shardRetriever, metadata)
+			}
+
+			resultLock.Lock()
+			if seriesExists {
+				series.Blocks.AddBlock(seriesBlock)
+			} else {
+				shardResult.AddBlock(id, seriesBlock)
+			}
+			resultLock.Unlock()
+		}
+
+		if !hasError {
+			if err := r.Validate(); err != nil {
+				s.log.WithFields(
+					xlog.NewField("shard", shard),
+					xlog.NewField("error", err.Error()),
+				).Error("data validation failed")
+				hasError = true
+			}
+		}
+
+		bloomFilter, err := r.ReadBloomFilter()
+		if err != nil {
+			hasError = true
+		} else {
+			shardResult.SetBloomFilterAt(timeRange.Start, bloomFilter)
+		}
+
+		if !hasError {
+			tr = tr.RemoveRange(timeRange)
+		} else {
+			timesWithErrors = append(timesWithErrors, timeRange.Start)
+		}
+	}
+
+	for _, r := range readers {
+		r.Close()
+		readerPool.put(r)
+	}
+
+	s.handleErrorsAndUnfulfilled(
+		resultLock, bootstrapResult, shard, tr, shardResult, timesWithErrors)
 }
 
 func (s *fileSystemSource) Read(
