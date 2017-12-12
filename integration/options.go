@@ -54,7 +54,7 @@ const (
 	// defaultWorkerPoolSize is the default number of workers in the worker pool.
 	defaultWorkerPoolSize = 10
 
-	// defaultTickMinimumInterval is the default tick interval.
+	// defaultTickMinimumInterval is the default minimum tick interval.
 	defaultTickMinimumInterval = 1 * time.Second
 
 	// defaultUseTChannelClientForReading determines whether we use the tchannel client for reading by default.
