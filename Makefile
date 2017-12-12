@@ -94,15 +94,18 @@ all: lint metalint test-ci-unit test-ci-integration services tools
 	@echo Made all successfully
 
 .PHONY: install-license-bin
-install-license-bin: install-vendor
+install-license-bin:
 	@echo Installing node modules
-	git submodule update --init --recursive
-	[ -d $(license_node_modules) ] || (cd $(license_dir) && npm install)
+	[ -d $(license_node_modules) ] || (          \
+		git submodule update --init --recursive && \
+		cd $(license_dir) && npm install           \
+	)
 
 .PHONY: install-mockgen
-install-mockgen: install-vendor
+install-mockgen:
 	@echo Installing mockgen
-	@which mockgen >/dev/null || (rm -rf $(gopath_prefix)/$(mockgen_package)        && \
+	@which mockgen >/dev/null || (make install-vendor                               && \
+		rm -rf $(gopath_prefix)/$(mockgen_package)                                    && \
 		cp -r $(vendor_prefix)/$(mockgen_package) $(gopath_prefix)/$(mockgen_package) && \
 		go install $(mockgen_package)                                                    \
 	)
