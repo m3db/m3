@@ -1,6 +1,6 @@
 package block
 
-// CloseFn represents a functioning for releasing resources associated with the
+// CloseFn represents a function for releasing resources associated with the
 // bloom filter
 type CloseFn func() error
 
