@@ -29,7 +29,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
@@ -213,24 +212,24 @@ func (r *reader) readCheckpointFile(shardDir string, blockStart time.Time) error
 }
 
 func (r *reader) readDigest() error {
-	var err error
-	if r.expectedInfoDigest, err = r.digestFdWithDigestContents.ReadDigest(); err != nil {
+	fsDigests, err := readFilesetDigests(r.digestFdWithDigestContents)
+	if err != nil {
 		return err
 	}
-	if r.expectedIndexDigest, err = r.digestFdWithDigestContents.ReadDigest(); err != nil {
+
+	err = r.digestFdWithDigestContents.Validate(r.expectedDigestOfDigest)
+	if err != nil {
 		return err
 	}
-	if _, err := r.digestFdWithDigestContents.ReadDigest(); err != nil {
-		// Skip the summaries digest
-		return err
-	}
-	if r.expectedBloomFilterDigest, err = r.digestFdWithDigestContents.ReadDigest(); err != nil {
-		return err
-	}
-	if r.expectedDataDigest, err = r.digestFdWithDigestContents.ReadDigest(); err != nil {
-		return err
-	}
-	return r.digestFdWithDigestContents.Validate(r.expectedDigestOfDigest)
+
+	// Note that we skip over the summaries file digest here which is available,
+	// but we don't need
+	r.expectedInfoDigest = fsDigests.infoDigest
+	r.expectedIndexDigest = fsDigests.indexDigest
+	r.expectedBloomFilterDigest = fsDigests.bloomFilterDigest
+	r.expectedDataDigest = fsDigests.dataDigest
+
+	return nil
 }
 
 func (r *reader) readInfo(size int) error {
@@ -328,39 +327,13 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 }
 
 func (r *reader) ReadBloomFilter() (block.ShardBlockBloomFilter, error) {
-	// Determine how many bytes to request for the mmap'd region
-	r.bloomFilterFWithDigestContents.Reset(r.bloomFilterFd)
-	stat, err := r.bloomFilterFd.Stat()
-	if err != nil {
-		return nil, err
-	}
-	numBytes := stat.Size()
-
-	// Request an anonymous (non-file-backed) mmap region. Note that we're going
-	// to use the mmap'd region to create a read-only bloom filter, but the mmap
-	// region itself needs to be writable so we can copy the bytes from disk
-	// into it
-	anonMmap, err := mmapAnon(numBytes, mmapOptions{read: true, write: true})
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate the bytes on disk using the digest, and read them into
-	// the mmap'd region
-	_, err = r.bloomFilterFWithDigestContents.ReadAllAndValidate(
-		anonMmap, r.expectedBloomFilterDigest)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: Use conccurrent one?
-	bloomFilter := bloom.NewReadOnlyBloomFilter(
-		uint(r.bloomFilterInfo.NumElementsM), uint(r.bloomFilterInfo.NumHashesK), anonMmap)
-	closeFn := func() error {
-		return munmap(anonMmap)
-	}
-
-	return block.NewShardBlockBloomFilter(bloomFilter, closeFn), nil
+	return readBloomFilter(
+		r.bloomFilterFd,
+		r.bloomFilterFWithDigestContents,
+		r.expectedBloomFilterDigest,
+		uint(r.bloomFilterInfo.NumElementsM),
+		uint(r.bloomFilterInfo.NumHashesK),
+	)
 }
 
 func (r *reader) entryID(id []byte) ts.ID {

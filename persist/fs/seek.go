@@ -52,8 +52,9 @@ type seeker struct {
 
 	infoFdWithDigest           digest.FdWithDigestReader
 	indexFdWithDigest          digest.FdWithDigestReader
-	dataReader                 *bufio.Reader
+	bloomFilterFdWithDigest    digest.FdWithDigestReader
 	digestFdWithDigestContents digest.FdWithDigestContentsReader
+	dataReader                 *bufio.Reader
 	expectedInfoDigest         uint32
 	expectedIndexDigest        uint32
 
@@ -129,8 +130,9 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		filePathPrefix:             opts.filePathPrefix,
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.infoBufferSize),
 		indexFdWithDigest:          digest.NewFdWithDigestReader(opts.dataBufferSize),
-		dataReader:                 bufio.NewReaderSize(nil, opts.seekBufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.infoBufferSize),
+		bloomFilterFdWithDigest:    digest.NewFdWithDigestContentsReader(opts.dataBufferSize),
+		dataReader:                 bufio.NewReaderSize(nil, opts.seekBufferSize),
 		keepIndexIDs:               opts.keepIndexIDs,
 		keepUnreadBuf:              opts.keepUnreadBuf,
 		prologue:                   make([]byte, markerLen+idxLen),
@@ -145,12 +147,13 @@ func (s *seeker) IDs() []ts.ID {
 
 func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
 	shardDir := ShardDirPath(s.filePathPrefix, namespace, shard)
-	var infoFd, indexFd, dataFd, digestFd *os.File
+	var infoFd, indexFd, dataFd, digestFd, bloomFilterFd *os.File
 	if err := openFiles(os.Open, map[string]**os.File{
-		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):   &infoFd,
-		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):  &indexFd,
-		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):   &dataFd,
-		filesetPathFromTime(shardDir, blockStart, digestFileSuffix): &digestFd,
+		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
+		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &indexFd,
+		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):        &dataFd,
+		filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
+		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &bloomFilterFd,
 	}); err != nil {
 		return err
 	}
@@ -163,6 +166,7 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		// NB(r): We don't need to keep these FDs open as we use these up front
 		s.infoFdWithDigest.Close()
 		s.indexFdWithDigest.Close()
+		s.bloomFilterFdWithDigest.Close()
 		s.digestFdWithDigestContents.Close()
 	}()
 
@@ -198,6 +202,8 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	}
 
 	s.dataFd = dataFd
+
+	// readBloomFilter(bloomFilterFd, s.bloomFilterFdWithDigest)
 	return nil
 }
 
@@ -217,13 +223,14 @@ func (s *seeker) setUnreadBuffer(buf []byte) {
 }
 
 func (s *seeker) readDigest() error {
-	var err error
-	if s.expectedInfoDigest, err = s.digestFdWithDigestContents.ReadDigest(); err != nil {
+	fsDigests, err := readFilesetDigests(s.digestFdWithDigestContents)
+	if err != nil {
 		return err
 	}
-	if s.expectedIndexDigest, err = s.digestFdWithDigestContents.ReadDigest(); err != nil {
-		return err
-	}
+
+	s.expectedInfoDigest = fsDigests.infoDigest
+	s.expectedIndexDigest = fsDigests.indexDigest
+
 	return nil
 }
 
