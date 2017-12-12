@@ -378,7 +378,8 @@ func TestShardTick(t *testing.T) {
 	shard.Write(ctx, ts.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
 	shard.Write(ctx, ts.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
 
-	r := shard.Tick(context.NewNoOpCanncellable(), 6*time.Millisecond)
+	r, err := shard.Tick(context.NewNoOpCanncellable(), 6*time.Millisecond)
+	require.NoError(t, err)
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
 	require.Equal(t, 4*time.Millisecond, slept)
@@ -457,7 +458,8 @@ func TestShardWriteAsync(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	r := shard.Tick(context.NewNoOpCanncellable(), 6*time.Millisecond)
+	r, err := shard.Tick(context.NewNoOpCanncellable(), 6*time.Millisecond)
+	require.NoError(t, err)
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
 	require.Equal(t, 4*time.Millisecond, slept)
@@ -466,6 +468,33 @@ func TestShardWriteAsync(t *testing.T) {
 	require.Equal(t, 1, len(shard.flushState.statesByTime))
 	_, ok := shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)]
 	require.True(t, ok)
+}
+
+// This tests a race in shard ticking with an empty series pending expiration.
+func TestShardTickRace(t *testing.T) {
+	opts := testDatabaseOptions()
+	shard := testDatabaseShard(t, opts)
+	defer shard.Close()
+
+	addTestSeries(shard, ts.StringID("foo"))
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+	go func() {
+		shard.Tick(context.NewNoOpCanncellable(), 0)
+		wg.Done()
+	}()
+
+	go func() {
+		shard.Tick(context.NewNoOpCanncellable(), 0)
+		wg.Done()
+	}()
+
+	wg.Wait()
+
+	shard.RLock()
+	require.Equal(t, 0, len(shard.lookup))
+	shard.RUnlock()
 }
 
 // This tests the scenario where an empty series is expired.

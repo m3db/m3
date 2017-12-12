@@ -39,11 +39,11 @@ LINUX_AMD64_ENV  := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
 SERVICES := \
 	m3dbnode
 
-TOOLS :=         \
-	read_ids       \
-	read_index_ids \
-	clone_fileset  \
-	dtest          \
+TOOLS :=            \
+	read_ids          \
+	read_index_ids    \
+	clone_fileset     \
+	dtest             \
 	verify_commitlogs \
 
 .PHONY: setup
@@ -102,9 +102,10 @@ install-license-bin: install-vendor
 .PHONY: install-mockgen
 install-mockgen: install-vendor
 	@echo Installing mockgen
-	rm -rf $(gopath_prefix)/$(mockgen_package) && \
-	cp -r $(vendor_prefix)/$(mockgen_package) $(gopath_prefix)/$(mockgen_package) && \
-	go install $(mockgen_package)
+	@which mockgen >/dev/null || (rm -rf $(gopath_prefix)/$(mockgen_package)        && \
+		cp -r $(vendor_prefix)/$(mockgen_package) $(gopath_prefix)/$(mockgen_package) && \
+		go install $(mockgen_package)                                                    \
+	)
 
 .PHONY: install-thrift-bin
 install-thrift-bin: install-vendor install-glide

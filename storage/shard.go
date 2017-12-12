@@ -47,6 +47,7 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 
+	uatomic "github.com/uber-go/atomic"
 	"github.com/uber-go/tally"
 )
 
@@ -57,8 +58,9 @@ const (
 )
 
 var (
-	errShardEntryNotFound = errors.New("shard entry not found")
-	errShardNotOpen       = errors.New("shard is not open")
+	errShardEntryNotFound  = errors.New("shard entry not found")
+	errShardNotOpen        = errors.New("shard is not open")
+	errShardAlreadyTicking = errors.New("shard is already ticking")
 )
 
 type filesetBeforeFn func(filePathPrefix string, namespace ts.ID, shardID uint32, t time.Time) ([]string, error)
@@ -102,6 +104,7 @@ type dbShard struct {
 	identifierPool           ts.IdentifierPool
 	contextPool              context.Pool
 	flushState               shardFlushState
+	ticking                  *uatomic.Bool
 	runtimeOptsListenClosers []xclose.SimpleCloser
 	currRuntimeOptions       dbShardRuntimeOptions
 	metrics                  dbShardMetrics
@@ -202,6 +205,7 @@ func newDatabaseShard(
 		identifierPool:        opts.IdentifierPool(),
 		contextPool:           opts.ContextPool(),
 		flushState:            newShardFlushState(),
+		ticking:               uatomic.NewBool(false),
 		metrics:               newDatabaseShardMetrics(scope),
 	}
 	d.insertQueue = newDatabaseShardInsertQueue(d.insertSeriesBatch,
@@ -365,9 +369,19 @@ func (s *dbShard) Close() error {
 	return nil
 }
 
-func (s *dbShard) Tick(c context.Cancellable, softDeadline time.Duration) tickResult {
+func (s *dbShard) Tick(c context.Cancellable, softDeadline time.Duration) (tickResult, error) {
+	if s.ticking.Swap(true) {
+		// i.e. we were previously ticking
+		return tickResult{}, errShardAlreadyTicking
+	}
+
 	s.removeAnyFlushStatesTooEarly()
-	return s.tickAndExpire(c, softDeadline, tickPolicyRegular)
+	result := s.tickAndExpire(c, softDeadline, tickPolicyRegular)
+
+	// reset ticking state
+	s.ticking.Store(false)
+
+	return result, nil
 }
 
 func (s *dbShard) tickAndExpire(

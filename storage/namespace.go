@@ -336,11 +336,11 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 	}
 }
 
-func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) {
+func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) error {
 	shards := n.GetOwnedShards()
 
 	if len(shards) == 0 {
-		return
+		return nil
 	}
 
 	// Tick through the shards sequentially to avoid parallel data flushes
@@ -360,7 +360,8 @@ func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) {
 			if c.IsCancelled() {
 				return
 			}
-			shardResult := shard.Tick(c, perShardDeadline)
+
+			shardResult, _ := shard.Tick(c, perShardDeadline)
 
 			l.Lock()
 			r = r.merge(shardResult)
@@ -371,7 +372,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) {
 	wg.Wait()
 
 	if c.IsCancelled() {
-		return
+		return nil
 	}
 
 	n.metrics.tick.activeSeries.Update(float64(r.activeSeries))
@@ -384,6 +385,8 @@ func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) {
 	n.metrics.tick.madeUnwiredBlocks.Inc(int64(r.madeUnwiredBlocks))
 	n.metrics.tick.mergedOutOfOrderBlocks.Inc(int64(r.mergedOutOfOrderBlocks))
 	n.metrics.tick.errors.Inc(int64(r.errors))
+
+	return nil
 }
 
 func (n *dbNamespace) Write(

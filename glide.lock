@@ -1,5 +1,5 @@
-hash: b1e7dcc0f6920d92e0c04a16f7e263ec0cb3de39d379948862499251aa383d50
-updated: 2017-12-11T20:43:53.223943871-05:00
+hash: 8bff6c3734cbaacfbfa2f2e2fdb29643857f5dae6e4d85c029af4f300caa7f94
+updated: 2017-12-12T18:28:05.074329601-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -212,7 +212,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: 967789050ba94deca04a5e84cce8ad472ce313c1
+  version: c5b7fccd204277076155f10851dad72b76a49317
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model

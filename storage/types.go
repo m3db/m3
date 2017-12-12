@@ -179,7 +179,7 @@ type databaseNamespace interface {
 	GetOwnedShards() []databaseShard
 
 	// Tick performs any regular maintenance operations
-	Tick(c context.Cancellable, softDeadline time.Duration)
+	Tick(c context.Cancellable, softDeadline time.Duration) error
 
 	// Write writes a data point
 	Write(
@@ -256,7 +256,7 @@ type databaseShard interface {
 	Close() error
 
 	// Tick performs any updates to ensure series drain their buffers and blocks are flushed, etc
-	Tick(c context.Cancellable, softDeadline time.Duration) tickResult
+	Tick(c context.Cancellable, softDeadline time.Duration) (tickResult, error)
 
 	Write(
 		ctx context.Context,
