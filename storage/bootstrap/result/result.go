@@ -193,6 +193,12 @@ func (sr *shardResult) BloomFilterAt(block time.Time) (block.ShardBlockBloomFilt
 	return bloomFilter, true
 }
 
+// RemoveBloomFilterAt will remove the bloom filter for the specified block, but it will not
+// call Close() on it, the caller is responsible for that
+func (sr *shardResult) RemoveBloomFilterAt(block time.Time) {
+	delete(sr.bloomFilters, xtime.ToUnixNano(block))
+}
+
 // Close closes a shard result.
 func (sr *shardResult) Close() {
 	for _, series := range sr.blocks {
