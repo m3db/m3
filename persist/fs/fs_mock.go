@@ -25,7 +25,6 @@ package fs
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	block "github.com/m3db/m3db/storage/block"
 	ts "github.com/m3db/m3db/ts"
 	checked "github.com/m3db/m3x/checked"
 	time0 "github.com/m3db/m3x/time"
@@ -175,17 +174,6 @@ func (_m *MockFileSetReader) Read() (ts.ID, checked.Bytes, uint32, error) {
 
 func (_mr *_MockFileSetReaderRecorder) Read() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Read")
-}
-
-func (_m *MockFileSetReader) ReadBloomFilter() (block.ShardBlockBloomFilter, error) {
-	ret := _m.ctrl.Call(_m, "ReadBloomFilter")
-	ret0, _ := ret[0].(block.ShardBlockBloomFilter)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (_mr *_MockFileSetReaderRecorder) ReadBloomFilter() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadBloomFilter")
 }
 
 func (_m *MockFileSetReader) ReadMetadata() (ts.ID, int, uint32, error) {

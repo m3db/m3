@@ -24,15 +24,15 @@
 package series
 
 import (
+	time0 "time"
+
 	gomock "github.com/golang/mock/gomock"
 	context "github.com/m3db/m3db/context"
 	persist "github.com/m3db/m3db/persist"
 	block "github.com/m3db/m3db/storage/block"
-	series "github.com/m3db/m3db/storage/series"
 	ts "github.com/m3db/m3db/ts"
-	time0 "github.com/m3db/m3x/time"
 	io "github.com/m3db/m3db/x/io"
-	time "time"
+	time "github.com/m3db/m3x/time"
 )
 
 // Mock of DatabaseSeries interface
@@ -74,7 +74,7 @@ func (_mr *_MockDatabaseSeriesRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockDatabaseSeries) FetchBlocks(_param0 context.Context, _param1 []time.Time) []block.FetchBlockResult {
+func (_m *MockDatabaseSeries) FetchBlocks(_param0 context.Context, _param1 []time0.Time) []block.FetchBlockResult {
 	ret := _m.ctrl.Call(_m, "FetchBlocks", _param0, _param1)
 	ret0, _ := ret[0].([]block.FetchBlockResult)
 	return ret0
@@ -84,7 +84,7 @@ func (_mr *_MockDatabaseSeriesRecorder) FetchBlocks(arg0, arg1 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1)
 }
 
-func (_m *MockDatabaseSeries) FetchBlocksMetadata(_param0 context.Context, _param1 time.Time, _param2 time.Time, _param3 block.FetchBlocksMetadataOptions) block.FetchBlocksMetadataResult {
+func (_m *MockDatabaseSeries) FetchBlocksMetadata(_param0 context.Context, _param1 time0.Time, _param2 time0.Time, _param3 block.FetchBlocksMetadataOptions) block.FetchBlocksMetadataResult {
 	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", _param0, _param1, _param2, _param3)
 	ret0, _ := ret[0].(block.FetchBlocksMetadataResult)
 	return ret0
@@ -94,7 +94,7 @@ func (_mr *_MockDatabaseSeriesRecorder) FetchBlocksMetadata(arg0, arg1, arg2, ar
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockDatabaseSeries) Flush(_param0 context.Context, _param1 time.Time, _param2 persist.Fn) error {
+func (_m *MockDatabaseSeries) Flush(_param0 context.Context, _param1 time0.Time, _param2 persist.Fn) error {
 	ret := _m.ctrl.Call(_m, "Flush", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -134,7 +134,7 @@ func (_mr *_MockDatabaseSeriesRecorder) IsEmpty() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsEmpty")
 }
 
-func (_m *MockDatabaseSeries) ReadEncoded(_param0 context.Context, _param1 time.Time, _param2 time.Time) ([][]io.SegmentReader, error) {
+func (_m *MockDatabaseSeries) ReadEncoded(_param0 context.Context, _param1 time0.Time, _param2 time0.Time) ([][]io.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", _param0, _param1, _param2)
 	ret0, _ := ret[0].([][]io.SegmentReader)
 	ret1, _ := ret[1].(error)
@@ -145,7 +145,7 @@ func (_mr *_MockDatabaseSeriesRecorder) ReadEncoded(arg0, arg1, arg2 interface{}
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadEncoded", arg0, arg1, arg2)
 }
 
-func (_m *MockDatabaseSeries) Reset(_param0 ts.ID, _param1 series.QueryableBlockRetriever, _param2 series.Options) {
+func (_m *MockDatabaseSeries) Reset(_param0 ts.ID, _param1 QueryableBlockRetriever, _param2 Options) {
 	_m.ctrl.Call(_m, "Reset", _param0, _param1, _param2)
 }
 
@@ -153,9 +153,9 @@ func (_mr *_MockDatabaseSeriesRecorder) Reset(arg0, arg1, arg2 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1, arg2)
 }
 
-func (_m *MockDatabaseSeries) Tick() (series.TickResult, error) {
+func (_m *MockDatabaseSeries) Tick() (TickResult, error) {
 	ret := _m.ctrl.Call(_m, "Tick")
-	ret0, _ := ret[0].(series.TickResult)
+	ret0, _ := ret[0].(TickResult)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -164,7 +164,7 @@ func (_mr *_MockDatabaseSeriesRecorder) Tick() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tick")
 }
 
-func (_m *MockDatabaseSeries) Write(_param0 context.Context, _param1 time.Time, _param2 float64, _param3 time0.Unit, _param4 []byte) error {
+func (_m *MockDatabaseSeries) Write(_param0 context.Context, _param1 time0.Time, _param2 float64, _param3 time.Unit, _param4 []byte) error {
 	ret := _m.ctrl.Call(_m, "Write", _param0, _param1, _param2, _param3, _param4)
 	ret0, _ := ret[0].(error)
 	return ret0
