@@ -346,6 +346,9 @@ func (s *fileSystemSource) bootstrapFromReaders(
 				} else {
 					timesWithErrors = append(timesWithErrors, timeRange.Start)
 				}
+
+				// bloomFilter, err := r.ReadBloomFilter()
+
 			}
 			for _, r := range readers {
 				r.Close()
