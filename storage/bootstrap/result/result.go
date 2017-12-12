@@ -97,8 +97,9 @@ type shardResult struct {
 // NewShardResult creates a new shard result.
 func NewShardResult(capacity int, opts Options) ShardResult {
 	return &shardResult{
-		opts:   opts,
-		blocks: make(map[ts.Hash]DatabaseSeriesBlocks, capacity),
+		opts:         opts,
+		blocks:       make(map[ts.Hash]DatabaseSeriesBlocks, capacity),
+		bloomFilters: make(map[xtime.UnixNano]block.ShardBlockBloomFilter),
 	}
 }
 
