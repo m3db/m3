@@ -55,7 +55,7 @@ fetchRetry:
 backgroundHealthCheckFailLimit: 4
 backgroundHealthCheckFailThrottleFactor: 0.5
 hashing:
-  seed: 1337
+  seed: 42
 `
 
 	fd, err := ioutil.TempFile("", "config.yaml")
@@ -95,7 +95,7 @@ hashing:
 		BackgroundHealthCheckFailLimit:          4,
 		BackgroundHealthCheckFailThrottleFactor: 0.5,
 		HashingConfiguration: HashingConfiguration{
-			Seed: 1337,
+			Seed: 42,
 		},
 	}
 

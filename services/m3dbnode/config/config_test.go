@@ -77,7 +77,7 @@ client:
     backgroundHealthCheckFailLimit: 4
     backgroundHealthCheckFailThrottleFactor: 0.5
     hashing:
-      seed: 1337
+      seed: 42
 
 
 gcPercentage: 100
@@ -127,24 +127,24 @@ poolingPolicy:
     type: simple
     seriesPool:
         size: 5242880
-        lowWatermark: 0.001
-        highWatermark: 0.002
+        lowWatermark: 0.01
+        highWatermark: 0.02
     blockPool:
         size: 4194304
-        lowWatermark: 0.001
-        highWatermark: 0.002
+        lowWatermark: 0.01
+        highWatermark: 0.02
     encoderPool:
         size: 25165824
-        lowWatermark: 0.001
-        highWatermark: 0.002
+        lowWatermark: 0.01
+        highWatermark: 0.02
     closersPool:
         size: 104857
-        lowWatermark: 0.001
-        highWatermark: 0.002
+        lowWatermark: 0.01
+        highWatermark: 0.02
     contextPool:
         size: 524288
-        lowWatermark: 0.001
-        highWatermark: 0.002
+        lowWatermark: 0.01
+        highWatermark: 0.02
     segmentReaderPool:
         size: 16384
         lowWatermark: 0.01
@@ -188,28 +188,42 @@ poolingPolicy:
         highWatermark: 0.02
     identifierPool:
         size: 9437184
-        lowWatermark: 0.001
-        highWatermark: 0.002
+        lowWatermark: 0.01
+        highWatermark: 0.02
     bytesPool:
-        lowWatermark: 0.001
-        highWatermark: 0.002
         buckets:
-            - capacity: 16
-              count: 6291456
-            - capacity: 32
-              count: 3145728
-            - capacity: 64
-              count: 3145728
-            - capacity: 128
-              count: 3145728
-            - capacity: 256
-              count: 3145728
-            - capacity: 1440
-              count: 524288
-            - capacity: 4096
-              count: 524288
-            - capacity: 8192
-              count: 32768
+            - size: 6291456
+              capacity: 16
+              lowWatermark: 0.1
+              highWatermark: 0.12
+            - size: 3145728
+              capacity: 32
+              lowWatermark: 0.1
+              highWatermark: 0.12
+            - size: 3145728
+              capacity: 64
+              lowWatermark: 0.1
+              highWatermark: 0.12
+            - size: 3145728
+              capacity: 128
+              lowWatermark: 0.1
+              highWatermark: 0.12
+            - size: 3145728
+              capacity: 256
+              lowWatermark: 0.1
+              highWatermark: 0.12
+            - size: 524288
+              capacity: 1440
+              lowWatermark: 0.01
+              highWatermark: 0.02
+            - size: 524288
+              capacity: 4096
+              lowWatermark: 0.01
+              highWatermark: 0.02
+            - size: 32768
+              capacity: 8192
+              lowWatermark: 0.01
+              highWatermark: 0.02
 
 configService:
     env: production
@@ -225,7 +239,7 @@ configService:
               - etcd04-us-west1:2379
               - etcd05-us-west1:2379
 hashing:
-  seed: 1337
+  seed: 42
 `
 
 	fd, err := ioutil.TempFile("", "config.yaml")
@@ -299,7 +313,7 @@ client:
   backgroundHealthCheckFailLimit: 4
   backgroundHealthCheckFailThrottleFactor: 0.5
   hashing:
-    seed: 1337
+    seed: 42
 gcPercentage: 100
 writeNewSeriesAsync: true
 writeNewSeriesLimitPerSecond: 1048576
@@ -344,45 +358,59 @@ poolingPolicy:
   blockAllocSize: 16
   type: simple
   bytesPool:
-    lowWatermark: 0.001
-    highWatermark: 0.002
     buckets:
-    - capacity: 16
-      count: 6291456
-    - capacity: 32
-      count: 3145728
-    - capacity: 64
-      count: 3145728
-    - capacity: 128
-      count: 3145728
-    - capacity: 256
-      count: 3145728
-    - capacity: 1440
-      count: 524288
-    - capacity: 4096
-      count: 524288
-    - capacity: 8192
-      count: 32768
+    - size: 6291456
+      capacity: 16
+      lowWatermark: 0.1
+      highWatermark: 0.12
+    - size: 3145728
+      capacity: 32
+      lowWatermark: 0.1
+      highWatermark: 0.12
+    - size: 3145728
+      capacity: 64
+      lowWatermark: 0.1
+      highWatermark: 0.12
+    - size: 3145728
+      capacity: 128
+      lowWatermark: 0.1
+      highWatermark: 0.12
+    - size: 3145728
+      capacity: 256
+      lowWatermark: 0.1
+      highWatermark: 0.12
+    - size: 524288
+      capacity: 1440
+      lowWatermark: 0.01
+      highWatermark: 0.02
+    - size: 524288
+      capacity: 4096
+      lowWatermark: 0.01
+      highWatermark: 0.02
+    - size: 32768
+      capacity: 8192
+      lowWatermark: 0.01
+      highWatermark: 0.02
   closersPool:
     size: 104857
-    lowWatermark: 0.001
-    highWatermark: 0.002
+    lowWatermark: 0.01
+    highWatermark: 0.02
   contextPool:
     size: 524288
-    lowWatermark: 0.001
-    highWatermark: 0.002
+    lowWatermark: 0.01
+    highWatermark: 0.02
   seriesPool:
     size: 5242880
-    lowWatermark: 0.001
-    highWatermark: 0.002
+    lowWatermark: 0.01
+    highWatermark: 0.02
   blockPool:
     size: 4194304
-    lowWatermark: 0.001
-    highWatermark: 0.002
+    lowWatermark: 0.01
+    highWatermark: 0.02
   encoderPool:
     size: 25165824
-    lowWatermark: 0.001
-    highWatermark: 0.002
+    lowWatermark: 0.01
+    highWatermark: 0.02
   iteratorPool:
     size: 2048
     lowWatermark: 0.01
@@ -393,8 +421,8 @@ poolingPolicy:
     highWatermark: 0.02
   identifierPool:
     size: 9437184
-    lowWatermark: 0.001
-    highWatermark: 0.002
+    lowWatermark: 0.01
+    highWatermark: 0.02
   fetchBlockMetadataResultsPool:
     size: 65536
     capacity: 32
@@ -445,7 +473,7 @@ configService:
   m3sd:
     initTimeout: 0s
 hashing:
-  seed: 1337
+  seed: 42
 `
 
 	actual := string(data)

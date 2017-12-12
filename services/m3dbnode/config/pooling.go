@@ -120,22 +120,6 @@ type CapacityPoolPolicy struct {
 
 // BucketPoolPolicy specifies a bucket pool policy.
 type BucketPoolPolicy struct {
-	// The low watermark to start refilling the pool, if zero none
-	RefillLowWaterMark float64 `yaml:"lowWatermark" validate:"min=0.0,max=1.0"`
-
-	// The high watermark to stop refilling the pool, if zero none
-	RefillHighWaterMark float64 `yaml:"highWatermark" validate:"min=0.0,max=1.0"`
-
 	// The pool buckets sizes to use
-	Buckets []PoolingPolicyBytesPoolBucket `yaml:"buckets"`
-}
-
-// PoolingPolicyBytesPoolBucket specifies a bucket policy for a bytes
-// pool policy.
-type PoolingPolicyBytesPoolBucket struct {
-	// The capacity of each item in the bucket
-	Capacity int `yaml:"capacity"`
-
-	// The count of the items in the bucket
-	Count int `yaml:"count"`
+	Buckets []CapacityPoolPolicy `yaml:"buckets"`
 }

@@ -185,6 +185,7 @@ func Run(runOpts RunOptions) {
 
 	opts = opts.SetRuntimeOptionsManager(runtimeOptsMgr)
 
+	// Apply pooling options
 	opts = withEncodingAndPoolingOptions(logger, opts, cfg.PoolingPolicy)
 
 	// Set the block retriever manager
@@ -587,39 +588,47 @@ func withEncodingAndPoolingOptions(
 	opts storage.Options,
 	policy config.PoolingPolicy,
 ) storage.Options {
+	iopts := opts.InstrumentOptions()
 	scope := opts.InstrumentOptions().MetricsScope()
 
 	logger.Infof("using %s pools", policy.Type)
 
+	bytesPoolOpts := pool.NewObjectPoolOptions().
+		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("bytes-pool")))
+	checkedBytesPoolOpts := bytesPoolOpts.
+		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("checked-bytes-pool")))
 	buckets := make([]pool.Bucket, len(policy.BytesPool.Buckets))
 	for i, bucket := range policy.BytesPool.Buckets {
 		var b pool.Bucket
 		b.Capacity = bucket.Capacity
-		b.Count = bucket.Count
+		b.Count = bucket.Size
+		b.Options = bytesPoolOpts.
+			SetRefillLowWatermark(bucket.RefillLowWaterMark).
+			SetRefillHighWatermark(bucket.RefillHighWaterMark)
 		buckets[i] = b
-		logger.Infof("bytes pool registering bucket capacity=%d, count=%d",
-			bucket.Capacity, bucket.Count)
+		logger.Infof("bytes pool registering bucket capacity=%d, size=%d,"+
+			"refillLowWatermark=%d, refillHighWatermark=%d",
+			bucket.Capacity, bucket.Size,
+			bucket.RefillLowWaterMark, bucket.RefillHighWaterMark)
 	}
 
 	var bytesPool pool.CheckedBytesPool
 
 	switch policy.Type {
 	case config.SimplePooling:
-		bytesPoolOpts := pool.NewObjectPoolOptions().
-			SetRefillLowWatermark(policy.BytesPool.RefillLowWaterMark).
-			SetRefillHighWatermark(policy.BytesPool.RefillHighWaterMark).
-			SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope.SubScope("checked-bytes-pool")))
-		bytesPool = pool.NewCheckedBytesPool(buckets, bytesPoolOpts, func(s []pool.Bucket) pool.BytesPool {
-			return pool.NewBytesPool(s, bytesPoolOpts.
-				SetInstrumentOptions(bytesPoolOpts.InstrumentOptions().SetMetricsScope(scope.SubScope("bytes-pool"))))
-		})
+		bytesPool = pool.NewCheckedBytesPool(
+			buckets,
+			checkedBytesPoolOpts,
+			func(s []pool.Bucket) pool.BytesPool {
+				return pool.NewBytesPool(s, bytesPoolOpts)
+			})
 	case config.NativePooling:
-		bytesPoolOpts := pool.NewObjectPoolOptions().
-			SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope.SubScope("checked-bytes-pool")))
-		bytesPool = pool.NewCheckedBytesPool(buckets, bytesPoolOpts, func(s []pool.Bucket) pool.BytesPool {
-			return pool.NewNativeHeap(s, bytesPoolOpts.
-				SetInstrumentOptions(bytesPoolOpts.InstrumentOptions().SetMetricsScope(scope.SubScope("bytes-pool"))))
-		})
+		bytesPool = pool.NewCheckedBytesPool(
+			buckets,
+			checkedBytesPoolOpts,
+			func(s []pool.Bucket) pool.BytesPool {
+				return pool.NewNativeHeap(s, bytesPoolOpts)
+			})
 	default:
 		logger.Fatalf("unrecognized pooling type: %s", policy.Type)
 	}
