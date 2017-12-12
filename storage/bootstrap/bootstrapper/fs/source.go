@@ -201,9 +201,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 			if ok {
 				for _, series := range shardResult.AllSeries() {
 					for _, t := range timesWithErrors {
-						// The bloom filter should never have been set, but we call remove
-						// here as a precaution because its safe to do so
-						shardResult.RemoveBloomFilterAt(t)
+						// TODO: Remove bloomFilter too
 						shardResult.RemoveBlockAt(series.ID, t)
 					}
 				}
@@ -344,20 +342,19 @@ func (s *fileSystemSource) bootstrapFromReaders(
 					}
 				}
 
-				bloomFilter, err := r.ReadBloomFilter()
-				if err != nil {
-					hasError = true
-				} else {
-					shardResult.SetBloomFilterAt(timeRange.Start, bloomFilter)
-				}
-
 				if !hasError {
 					tr = tr.RemoveRange(timeRange)
 				} else {
 					timesWithErrors = append(timesWithErrors, timeRange.Start)
+					continue
 				}
-			}
 
+				bloomFilter, err := r.ReadBloomFilter()
+				if err != nil {
+					timesWithErrors = append(timesWithErrors, timeRange.Start)
+				}
+				shardResult.SetBloomFilterAt(timeRange.Start, bloomFilter)
+			}
 			for _, r := range readers {
 				r.Close()
 				readerPool.put(r)

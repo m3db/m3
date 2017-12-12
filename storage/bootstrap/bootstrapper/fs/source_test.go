@@ -89,13 +89,6 @@ func writeDataFile(t *testing.T, prefix string, namespace ts.ID, shard uint32, s
 	writeFile(t, filePath, data)
 }
 
-func writeBloomFilterFile(t *testing.T, prefix string, namespace ts.ID, shard uint32, start time.Time, data []byte) {
-	shardDir := fs.ShardDirPath(prefix, namespace, shard)
-	// TODO: Make variable public?
-	filePath := path.Join(shardDir, fmt.Sprintf("fileset-%d-bloomfilter.db", xtime.ToNanoseconds(start)))
-	writeFile(t, filePath, data)
-}
-
 func writeDigestFile(t *testing.T, prefix string, namespace ts.ID, shard uint32, start time.Time, data []byte) {
 	shardDir := fs.ShardDirPath(prefix, namespace, shard)
 	filePath := path.Join(shardDir, fmt.Sprintf("fileset-%d-digest.db", xtime.ToNanoseconds(start)))
@@ -306,8 +299,6 @@ func TestReadOpenFileError(t *testing.T) {
 	validateTimeRanges(t, res.Unfulfilled()[testShard], expected)
 }
 
-// Verify it marks the shard as unfulfilled for any time ranges which have a
-// corrupt data file on disk
 func TestReadDataCorruptionError(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
@@ -316,27 +307,6 @@ func TestReadDataCorruptionError(t *testing.T) {
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", []byte{0x1})
 	// Intentionally corrupt the data file
 	writeDataFile(t, dir, testNs1ID, shard, testStart, []byte{0x1})
-
-	src := newFileSystemSource(dir, NewOptions())
-	strs := testShardTimeRanges()
-	res, err := src.Read(testNsMetadata(t), strs, testDefaultRunOpts)
-	require.NoError(t, err)
-	require.NotNil(t, res)
-	require.Equal(t, 0, len(res.ShardResults()))
-	require.Equal(t, 1, len(res.Unfulfilled()))
-	validateTimeRanges(t, res.Unfulfilled()[testShard], rangesArray(strs[testShard]))
-}
-
-// Verify it marks the shard as unfulfilled for any time ranges which have a
-// corrupt bloom filter file on disk
-func TestReadBloomFilterCorruptionError(t *testing.T) {
-	dir := createTempDir(t)
-	defer os.RemoveAll(dir)
-
-	shard := uint32(0)
-	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", []byte{0x1})
-	// Intentionally corrupt the bloom filter file
-	writeBloomFilterFile(t, dir, testNs1ID, shard, testStart, []byte{0x1})
 
 	src := newFileSystemSource(dir, NewOptions())
 	strs := testShardTimeRanges()
@@ -458,7 +428,6 @@ func TestReadValidateError(t *testing.T) {
 		Times(2)
 	reader.EXPECT().Entries().Return(0).Times(2)
 	reader.EXPECT().Validate().Return(errors.New("foo"))
-	reader.EXPECT().ReadBloomFilter().Return(nil, nil)
 	reader.EXPECT().Close().Return(nil)
 
 	res, err := src.Read(testNsMetadata(t), testShardTimeRanges(),
@@ -518,9 +487,6 @@ func TestReadDeleteOnError(t *testing.T) {
 		reader.EXPECT().
 			Read().
 			Return(ts.StringID("bar"), nil, uint32(0), errors.New("foo")),
-		reader.EXPECT().
-			ReadBloomFilter().
-			Return(nil, nil),
 		reader.EXPECT().Close().Return(nil),
 	)
 
