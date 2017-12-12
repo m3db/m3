@@ -940,6 +940,8 @@ func (s *dbShard) Bootstrap(
 	})
 
 	s.Lock()
+	// No merge is required for bloomFilters because we only use them for
+	// immutable blocks
 	s.bloomFilters = bloomFilters
 	s.bs = bootstrapped
 	s.Unlock()
