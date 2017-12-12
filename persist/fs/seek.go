@@ -31,8 +31,11 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/schema"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -47,25 +50,33 @@ var (
 
 type seeker struct {
 	filePathPrefix string
-	start          time.Time
-	blockSize      time.Duration
 
+	// Data read from the indexInfo file
+	start           time.Time
+	blockSize       time.Duration
+	entries         int
+	bloomFilterInfo schema.IndexBloomFilterInfo
+
+	// Readers for each file that will also verify the digest
 	infoFdWithDigest           digest.FdWithDigestReader
 	indexFdWithDigest          digest.FdWithDigestReader
 	bloomFilterFdWithDigest    digest.FdWithDigestReader
 	digestFdWithDigestContents digest.FdWithDigestContentsReader
-	dataReader                 *bufio.Reader
-	expectedInfoDigest         uint32
-	expectedIndexDigest        uint32
-	expectedBloomFilterDigest  uint32
+
+	dataFd     *os.File
+	dataReader *bufio.Reader
+
+	// Expected digests for each file read from the digests file
+	expectedInfoDigest        uint32
+	expectedIndexDigest       uint32
+	expectedBloomFilterDigest uint32
 
 	keepIndexIDs  bool
 	keepUnreadBuf bool
 
 	unreadBuf []byte
 	prologue  []byte
-	entries   int
-	dataFd    *os.File
+
 	// NB(r): specifically use a non pointer type for
 	// key and value in this map to avoid the GC scanning
 	// this large map.
@@ -73,6 +84,10 @@ type seeker struct {
 	indexIDs  []ts.ID
 	decoder   encoding.Decoder
 	bytesPool pool.CheckedBytesPool
+
+	// Bloom filter associated with the shard / block the seeker is responsible
+	// for. Needs to be closed when done.
+	bloomFilter block.ShardBlockBloomFilter
 }
 
 type indexMapEntry struct {
@@ -204,7 +219,17 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 
 	s.dataFd = dataFd
 
-	// readBloomFilter(bloomFilterFd, s.bloomFilterFdWithDigest)
+	s.bloomFilter, err = readBloomFilter(
+		bloomFilterFd,
+		s.bloomFilterFdWithDigest,
+		s.expectedBloomFilterDigest,
+		uint(s.bloomFilterInfo.NumElementsM),
+		uint(s.bloomFilterInfo.NumHashesK),
+	)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -242,14 +267,18 @@ func (s *seeker) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
+
 	s.decoder.Reset(encoding.NewDecoderStream(s.unreadBuf[:n]))
 	info, err := s.decoder.DecodeIndexInfo()
 	if err != nil {
 		return err
 	}
+
 	s.start = xtime.FromNanoseconds(info.Start)
 	s.blockSize = time.Duration(info.BlockSize)
 	s.entries = int(info.Entries)
+	s.bloomFilterInfo = info.BloomFilter
+
 	return nil
 }
 
@@ -373,10 +402,16 @@ func (s *seeker) Close() error {
 	for key := range s.indexMap {
 		delete(s.indexMap, key)
 	}
-	if s.dataFd == nil {
-		return nil
+
+	multiErr := xerrors.NewMultiError()
+	if s.dataFd != nil {
+		multiErr.Add(s.dataFd.Close())
+		s.dataFd = nil
 	}
-	err := s.dataFd.Close()
-	s.dataFd = nil
-	return err
+	if s.bloomFilter != nil {
+		multiErr.Add(s.bloomFilter.Close())
+		s.bloomFilter = nil
+	}
+
+	return multiErr.FinalError()
 }
