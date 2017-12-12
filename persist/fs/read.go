@@ -326,7 +326,7 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 	return r.entryID(entry.ID), int(entry.Size), uint32(entry.Checksum), nil
 }
 
-func (r *reader) ReadBloomFilter() (block.ShardBlockBloomFilter, error) {
+func (r *reader) ReadBloomFilter() (block.ManagedBloomFilter, error) {
 	return readBloomFilter(
 		r.bloomFilterFd,
 		r.bloomFilterFWithDigestContents,

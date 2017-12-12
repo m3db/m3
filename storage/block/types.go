@@ -383,18 +383,17 @@ type Options interface {
 	BytesPool() pool.CheckedBytesPool
 }
 
-// ShardBlockBloomFilter is a container object that implements lifecycle
+// ManagedBloomFilter is a container object that implements lifecycle
 // management ontop of a BloomFilter. I.E it wraps a bloom filter such that
 // all resources are released when the Close() method is called
-// TODO: Rename to ManagedBloomFilter?
-type ShardBlockBloomFilter interface {
-	BloomFilter
+type ManagedBloomFilter interface {
+	bloomFilter
 
-	// Close closes the ShardBlockBloomFilter, releasing any held resoures
+	// Close closes the ManagedBloomFilter, releasing any held resoures
 	Close() error
 }
 
-type BloomFilter interface {
+type bloomFilter interface {
 	// Test whether the Bloom Filter contains a value
 	Test(value []byte) bool
 

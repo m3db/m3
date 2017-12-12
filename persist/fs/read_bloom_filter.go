@@ -34,7 +34,7 @@ func readBloomFilter(
 	expectedDigest uint32,
 	numElementsM uint,
 	numHashesK uint,
-) (block.ShardBlockBloomFilter, error) {
+) (block.ManagedBloomFilter, error) {
 	// Determine how many bytes to request for the mmap'd region
 	bloomFilterFdWithDigest.Reset(bloomFilterFd)
 	stat, err := bloomFilterFd.Stat()
@@ -66,5 +66,5 @@ func readBloomFilter(
 		return munmap(anonMmap)
 	}
 
-	return block.NewShardBlockBloomFilter(bloomFilter, closeFn), nil
+	return block.NewManagedBloomFilter(bloomFilter, closeFn), nil
 }
