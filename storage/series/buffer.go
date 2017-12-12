@@ -280,7 +280,7 @@ func bucketDrainAndReset(now time.Time, b *dbBuffer, idx int, start time.Time) i
 			if result.merges > 0 {
 				mergedOutOfOrderBlocks++
 			}
-			if result.block.Len() < 1 {
+			if !(result.block.Len() > 0) {
 				log := b.opts.InstrumentOptions().Logger()
 				log.Errorf("buffer drain tried to drain empty stream for bucket: %v",
 					start.String())
