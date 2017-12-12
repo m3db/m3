@@ -306,7 +306,8 @@ func TestNamespaceBootstrapAllShards(t *testing.T) {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
 		shard.EXPECT().ID().Return(uint32(i)).AnyTimes()
-		shard.EXPECT().Bootstrap(nil).Return(errs[i])
+		// TODO: Improve this test
+		shard.EXPECT().Bootstrap(nil, nil).Return(errs[i])
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
@@ -352,7 +353,8 @@ func TestNamespaceBootstrapOnlyNonBootstrappedShards(t *testing.T) {
 		shard := NewMockdatabaseShard(ctrl)
 		shard.EXPECT().IsBootstrapped().Return(false)
 		shard.EXPECT().ID().Return(testShard.ID()).AnyTimes()
-		shard.EXPECT().Bootstrap(nil).Return(nil)
+		// TODO: Improve this test
+		shard.EXPECT().Bootstrap(nil, nil).Return(nil)
 		ns.shards[testShard.ID()] = shard
 	}
 	for _, testShard := range alreadyBootstrapped {

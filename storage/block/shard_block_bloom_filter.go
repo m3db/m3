@@ -5,7 +5,7 @@ package block
 type CloseFn func() error
 
 type shardBlockBloomFilter struct {
-	bloomFilter BloomFilter
+	bloomFilter bloomFilter
 	close       func() error
 }
 
@@ -26,7 +26,7 @@ func (bf *shardBlockBloomFilter) Close() error {
 }
 
 // NewShardBlockBloomFilter instantiates a new ShardBlockBloomFilter
-func NewShardBlockBloomFilter(bloomFilter BloomFilter, closeFn CloseFn) ShardBlockBloomFilter {
+func NewShardBlockBloomFilter(bloomFilter bloomFilter, closeFn CloseFn) ShardBlockBloomFilter {
 	return &shardBlockBloomFilter{
 		bloomFilter: bloomFilter,
 		close:       closeFn,

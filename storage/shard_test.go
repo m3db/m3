@@ -136,7 +136,7 @@ func TestShardBootstrapWithError(t *testing.T) {
 		barID.Hash(): {ID: barID, Blocks: barBlocks},
 	}
 
-	err := s.Bootstrap(bootstrappedSeries)
+	err := s.Bootstrap(bootstrappedSeries, nil)
 
 	require.NotNil(t, err)
 	require.Equal(t, "series error", err.Error())
@@ -444,7 +444,7 @@ func TestShardWriteAsync(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	go shard.Bootstrap(nil)
+	go shard.Bootstrap(nil, nil)
 	shard.Write(ctx, ts.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
 	shard.Write(ctx, ts.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
 	shard.Write(ctx, ts.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
