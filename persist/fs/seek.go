@@ -57,6 +57,7 @@ type seeker struct {
 	dataReader                 *bufio.Reader
 	expectedInfoDigest         uint32
 	expectedIndexDigest        uint32
+	expectedBloomFilterDigest  uint32
 
 	keepIndexIDs  bool
 	keepUnreadBuf bool
@@ -230,6 +231,7 @@ func (s *seeker) readDigest() error {
 
 	s.expectedInfoDigest = fsDigests.infoDigest
 	s.expectedIndexDigest = fsDigests.indexDigest
+	s.expectedBloomFilterDigest = fsDigests.bloomFilterDigest
 
 	return nil
 }
