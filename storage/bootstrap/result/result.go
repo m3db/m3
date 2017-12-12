@@ -181,10 +181,6 @@ func (sr *shardResult) BlockAt(id ts.ID, t time.Time) (block.DatabaseBlock, bool
 	return series.Blocks.BlockAt(t)
 }
 
-func (sr *shardResult) AllBloomFilters() map[xtime.UnixNano]block.ShardBlockBloomFilter {
-	return sr.bloomFilters
-}
-
 func (sr *shardResult) SetBloomFilterAt(block time.Time, bloomFilter block.ShardBlockBloomFilter) {
 	sr.bloomFilters[xtime.ToUnixNano(block)] = bloomFilter
 }

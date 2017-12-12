@@ -75,9 +75,6 @@ type ShardResult interface {
 	// RemoveSeries removes a single series of blocks.
 	RemoveSeries(id ts.ID)
 
-	// AllBoomFilters returns all bloom filters
-	AllBloomFilters() map[xtime.UnixNano]block.ShardBlockBloomFilter
-
 	// SetBloomFilterAt sets the bloom filter for the specified block
 	SetBloomFilterAt(block time.Time, bloomFilter block.ShardBlockBloomFilter)
 

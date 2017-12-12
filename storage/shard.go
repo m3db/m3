@@ -93,7 +93,6 @@ type dbShard struct {
 	insertQueue              *dbShardInsertQueue
 	lookup                   map[ts.Hash]*list.Element
 	list                     *list.List
-	bloomFilters             map[xtime.UnixNano]block.ShardBlockBloomFilter
 	bs                       bootstrapState
 	newSeriesBootstrapped    bool
 	filesetBeforeFn          filesetBeforeFn
@@ -878,7 +877,6 @@ func (s *dbShard) FetchBlocksMetadata(
 
 func (s *dbShard) Bootstrap(
 	bootstrappedSeries map[ts.Hash]result.DatabaseSeriesBlocks,
-	bloomFilters map[xtime.UnixNano]block.ShardBlockBloomFilter,
 ) error {
 	s.Lock()
 	if s.bs == bootstrapped {
@@ -940,7 +938,6 @@ func (s *dbShard) Bootstrap(
 	})
 
 	s.Lock()
-	s.bloomFilters = bloomFilters
 	s.bs = bootstrapped
 	s.Unlock()
 

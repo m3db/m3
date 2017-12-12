@@ -539,14 +539,12 @@ func (n *dbNamespace) Bootstrap(
 		shard := shard
 		wg.Add(1)
 		workers.Go(func() {
-			var bootstrappedSeries map[ts.Hash]result.DatabaseSeriesBlocks
-			var bootstrappedBloomFilters map[xtime.UnixNano]block.ShardBlockBloomFilter
+			var bootstrapped map[ts.Hash]result.DatabaseSeriesBlocks
 			if result, ok := results[shard.ID()]; ok {
-				bootstrappedSeries = result.AllSeries()
-				bootstrappedBloomFilters = result.AllBloomFilters()
+				bootstrapped = result.AllSeries()
 			}
 
-			err := shard.Bootstrap(bootstrappedSeries, bootstrappedBloomFilters)
+			err := shard.Bootstrap(bootstrapped)
 
 			mutex.Lock()
 			multiErr = multiErr.Add(err)

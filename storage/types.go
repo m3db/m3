@@ -291,7 +291,6 @@ type databaseShard interface {
 
 	Bootstrap(
 		bootstrappedSeries map[ts.Hash]result.DatabaseSeriesBlocks,
-		bloomFilters map[xtime.UnixNano]block.ShardBlockBloomFilter,
 	) error
 
 	// Flush flushes the series' in this shard.

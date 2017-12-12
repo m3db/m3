@@ -388,13 +388,13 @@ type Options interface {
 // all resources are released when the Close() method is called
 // TODO: Rename to ManagedBloomFilter?
 type ShardBlockBloomFilter interface {
-	bloomFilter
+	BloomFilter
 
 	// Close closes the ShardBlockBloomFilter, releasing any held resoures
 	Close() error
 }
 
-type bloomFilter interface {
+type BloomFilter interface {
 	// Test whether the Bloom Filter contains a value
 	Test(value []byte) bool
 
