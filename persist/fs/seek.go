@@ -226,11 +226,8 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		uint(s.bloomFilterInfo.NumElementsM),
 		uint(s.bloomFilterInfo.NumHashesK),
 	)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }
 
 func (s *seeker) prepareUnreadBuf(size int) {

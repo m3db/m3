@@ -81,8 +81,7 @@ type reader struct {
 	dataMmap   []byte
 	dataReader digest.ReaderWithDigest
 
-	bloomFilterFd   *os.File
-	bloomFilterMmap []byte
+	bloomFilterFd *os.File
 
 	expectedInfoDigest        uint32
 	expectedIndexDigest       uint32
