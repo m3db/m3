@@ -145,8 +145,6 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 
 	assert.Equal(t, 1, len(r.ShardResults()))
 	require.NotNil(t, r.ShardResults()[0])
-	// _, ok := r.ShardResults()[0].BloomFilterAt(start)
-	// require.True(t, ok)
 	require.Nil(t, r.ShardResults()[1])
 
 	require.Nil(t, r.Unfulfilled()[0])

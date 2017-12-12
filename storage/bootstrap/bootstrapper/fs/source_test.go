@@ -344,23 +344,15 @@ func validateReadResults(
 
 	require.Equal(t, 2, len(allSeries))
 
-	ids := []ts.ID{ts.StringID("foo"), ts.StringID("bar")}
+	ids := []ts.Hash{
+		ts.StringID("foo").Hash(), ts.StringID("bar").Hash()}
 	data := [][]byte{
 		{1, 2, 3},
 		{4, 5, 6},
 	}
 	times := []time.Time{testStart, testStart.Add(10 * time.Hour)}
-	for i, blockStart := range times {
-		// Make sure a bloom filter exists for every time period
-		bloomFilter, ok := res.ShardResults()[testShard].BloomFilterAt(blockStart)
-		require.True(t, ok)
-		require.NotNil(t, bloomFilter)
-		// Make sure the bloom filter contains the series
-		require.True(t, bloomFilter.Test(ids[i].Data().Get()))
-	}
-
 	for i, id := range ids {
-		allBlocks := allSeries[id.Hash()].Blocks.AllBlocks()
+		allBlocks := allSeries[id].Blocks.AllBlocks()
 		require.Equal(t, 1, len(allBlocks))
 		block := allBlocks[xtime.ToUnixNano(times[i])]
 		ctx := context.NewContext()
