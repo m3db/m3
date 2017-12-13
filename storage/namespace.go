@@ -423,6 +423,10 @@ func (n *dbNamespace) Tick(c context.Cancellable) error {
 		return multiErr.FinalError()
 	}
 
+	if err := multiErr.FinalError(); err != nil {
+		return err
+	}
+
 	n.statsLastTick.Lock()
 	n.statsLastTick.activeSeries = int64(r.activeSeries)
 	n.statsLastTick.activeBlocks = int64(r.activeBlocks)
@@ -439,7 +443,7 @@ func (n *dbNamespace) Tick(c context.Cancellable) error {
 	n.metrics.tick.mergedOutOfOrderBlocks.Inc(int64(r.mergedOutOfOrderBlocks))
 	n.metrics.tick.errors.Inc(int64(r.errors))
 
-	return multiErr.FinalError()
+	return nil
 }
 
 func (n *dbNamespace) Write(

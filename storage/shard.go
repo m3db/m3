@@ -47,7 +47,6 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 
-	uatomic "github.com/uber-go/atomic"
 	"github.com/uber-go/tally"
 )
 
@@ -103,7 +102,7 @@ type dbShard struct {
 	identifierPool           ts.IdentifierPool
 	contextPool              context.Pool
 	flushState               shardFlushState
-	ticking                  *uatomic.Bool
+	ticking                  bool
 	tickWg                   *sync.WaitGroup
 	runtimeOptsListenClosers []xclose.SimpleCloser
 	currRuntimeOptions       dbShardRuntimeOptions
@@ -211,7 +210,6 @@ func newDatabaseShard(
 		identifierPool:  opts.IdentifierPool(),
 		contextPool:     opts.ContextPool(),
 		flushState:      newShardFlushState(),
-		ticking:         uatomic.NewBool(false),
 		tickWg:          &sync.WaitGroup{},
 		metrics:         newDatabaseShardMetrics(scope),
 	}
@@ -388,9 +386,13 @@ func (s *dbShard) Close() error {
 
 func (s *dbShard) isClosing() bool {
 	s.RLock()
-	state := s.state
+	closing := s.isClosingWithLock()
 	s.RUnlock()
-	return state == dbShardStateClosing
+	return closing
+}
+
+func (s *dbShard) isClosingWithLock() bool {
+	return s.state == dbShardStateClosing
 }
 
 func (s *dbShard) Tick(c context.Cancellable) (tickResult, error) {
@@ -402,31 +404,33 @@ func (s *dbShard) tickAndExpire(
 	c context.Cancellable,
 	policy tickPolicy,
 ) (tickResult, error) {
-	terminateDueToClosing := func() bool {
-		// NB(prateek): we bail out early if the shard is closing,
-		// unless it's the final tick issued during the Close(). This
-		// final tick is required to release resources back to our pools.
-		return policy != tickPolicyCloseShard && s.isClosing()
-	}
-
-	if terminateDueToClosing() {
-		return tickResult{}, errShardClosingTickTerminated
-	}
-
+	s.Lock()
 	// ensure only one tick can execute at a time
-	if s.ticking.Swap(true) {
+	if s.ticking {
+		s.Unlock()
 		// i.e. we were previously ticking
 		return tickResult{}, errShardAlreadyTicking
 	}
 
-	// enable Close() to track the lifecycle of the tick
-	s.tickWg.Add(1)
+	// NB(prateek): we bail out early if the shard is closing,
+	// unless it's the final tick issued during the Close(). This
+	// final tick is required to release resources back to our pools.
+	if policy != tickPolicyCloseShard && s.isClosingWithLock() {
+		s.Unlock()
+		return tickResult{}, errShardClosingTickTerminated
+	}
 
+	// enable Close() to track the lifecycle of the tick
+	s.ticking = true
+	s.tickWg.Add(1)
+	s.Unlock()
+
+	// reset ticking state
 	defer func() {
-		// reset ticking state
-		s.ticking.Store(false)
-		// indicate we're done ticking
+		s.Lock()
+		s.ticking = false
 		s.tickWg.Done()
+		s.Unlock()
 	}()
 
 	var (
@@ -448,7 +452,10 @@ func (s *dbShard) tickAndExpire(
 			if c.IsCancelled() {
 				return false
 			}
-			if terminateDueToClosing() {
+			// NB(prateek): Also bail out early if the shard is closing,
+			// unless it's the final tick issued during the Close(). This
+			// final tick is required to release resources back to our pools.
+			if policy != tickPolicyCloseShard && s.isClosing() {
 				terminatedTickingDueToClosing = true
 				return false
 			}
