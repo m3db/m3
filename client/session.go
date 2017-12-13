@@ -1507,7 +1507,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 			s.log.WithFields(
 				xlog.NewField("shard", shard),
 				xlog.NewField("peer", peerStr),
-				xlog.NewField("num_metadata", numMetadata),
+				xlog.NewField("numMetadata", numMetadata),
 				xlog.NewField("block", block),
 			).Debug("finished streaming blocks metadata from peer")
 		}
@@ -1655,7 +1655,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 			s.log.WithFields(
 				xlog.NewField("shard", shard),
 				xlog.NewField("peer", peerStr),
-				xlog.NewField("num_metadata", numMetadata),
+				xlog.NewField("numMetadata", numMetadata),
 				xlog.NewField("block", block),
 			).Debug("finished streaming blocks metadata from peer")
 		}
@@ -1964,12 +1964,12 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 func (s *session) emitDuplicateMetadataLog(received *receivedBlocks, metadata blocksMetadata) {
 	fields := make([]xlog.Field, len(received.results)+1)
 	fields = append(fields, xlog.NewField(
-		"incoming_metadata",
+		"incomingMetadata",
 		fmt.Sprintf("ID: %s, peer: %s", metadata.id.String(), metadata.peer.Host().String()),
 	))
 	for i, result := range received.results {
 		fields = append(fields, xlog.NewField(
-			fmt.Sprintf("existing_metadata_%d", i),
+			fmt.Sprintf("existingMetadata_%d", i),
 			fmt.Sprintf("ID: %s, peer: %s", result.id.String(), result.peer.Host().String()),
 		))
 	}
@@ -1980,7 +1980,7 @@ func (s *session) emitDuplicateMetadataLog(received *receivedBlocks, metadata bl
 func (s *session) emitDuplicateMetadataLogV2(received *receivedBlocks, metadata blocksMetadata) {
 	fields := make([]xlog.Field, len(received.results)+1)
 	fields = append(fields, xlog.NewField(
-		"incoming_metadata",
+		"incomingMetadata",
 		fmt.Sprintf(
 			"ID: %s, peer: %s, block: %s",
 			metadata.id.String(),
@@ -1990,7 +1990,7 @@ func (s *session) emitDuplicateMetadataLogV2(received *receivedBlocks, metadata 
 	))
 	for i, result := range received.results {
 		fields = append(fields, xlog.NewField(
-			fmt.Sprintf("existing_metadata_%d", i),
+			fmt.Sprintf("existingMetadata_%d", i),
 			fmt.Sprintf(
 				"ID: %s, peer: %s, block: %s",
 				result.id.String(),
