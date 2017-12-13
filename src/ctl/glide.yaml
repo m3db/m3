@@ -2,9 +2,9 @@ package: github.com/m3db/m3ctl
 
 import:
 - package: github.com/m3db/m3cluster
-  version: d9fd14a38efe2eaf43b9a52350055fbd2dac06ec
+  version: 4b25af16e37d029b79bae754d35655e6be382f94
 - package: github.com/m3db/m3metrics
-  version: d79a4684d51d0f6ed86926b822953117bf03e7d3
+  version: a659459d3a5fc2cb9ad02d000bb2b28592467345
 - package: github.com/m3db/m3x
   version: b009e41c873b0fb0fc066114911c87ff6a6f8d77
 - package: github.com/apache/thrift

@@ -110,7 +110,11 @@ func (c kvStoreConfig) NewStore(instrumentOpts instrument.Options) (r2.Store, er
 	if err != nil {
 		return nil, err
 	}
-	store, err := client.TxnStore(c.KVConfig.NewOptions())
+	kvOpts, err := c.KVConfig.NewOptions()
+	if err != nil {
+		return nil, err
+	}
+	store, err := client.TxnStore(kvOpts)
 	if err != nil {
 		return nil, err
 	}
