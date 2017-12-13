@@ -26,8 +26,9 @@ import (
 )
 
 func mmap(fd, offset, length int64, opts mmapOptions) ([]byte, error) {
-	// MAP_SHARED because we want writes to the byte slice to be reflected back in the underlying file
-	return mmapBase(fd, offset, length, syscall.MAP_SHARED, opts)
+	// MAP_PRIVATE because we only want to ever mmap immutable things and we don't
+	// ever want to propagate writes back to the underlying file
+	return mmapBase(fd, offset, length, syscall.MAP_PRIVATE, opts)
 }
 
 func mmapAnon(length int64, opts mmapOptions) ([]byte, error) {
