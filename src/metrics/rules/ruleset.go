@@ -766,7 +766,7 @@ func (rs *ruleSet) AddMappingRule(mrv MappingRuleView, meta UpdateMetadata) (str
 	if err == errNoSuchRule {
 		if m, err = newMappingRuleFromFields(
 			mrv.Name,
-			mrv.Filters,
+			mrv.Filter,
 			mrv.Policies,
 			meta,
 		); err != nil {
@@ -776,7 +776,7 @@ func (rs *ruleSet) AddMappingRule(mrv MappingRuleView, meta UpdateMetadata) (str
 	} else {
 		if err := m.revive(
 			mrv.Name,
-			mrv.Filters,
+			mrv.Filter,
 			mrv.Policies,
 			meta,
 		); err != nil {
@@ -794,7 +794,7 @@ func (rs *ruleSet) UpdateMappingRule(mrv MappingRuleView, meta UpdateMetadata) e
 	}
 	if err := m.addSnapshot(
 		mrv.Name,
-		mrv.Filters,
+		mrv.Filter,
 		mrv.Policies,
 		meta,
 	); err != nil {
@@ -825,7 +825,7 @@ func (rs *ruleSet) AddRollupRule(rrv RollupRuleView, meta UpdateMetadata) (strin
 	if err == errNoSuchRule {
 		if r, err = newRollupRuleFromFields(
 			rrv.Name,
-			rrv.Filters,
+			rrv.Filter,
 			targets,
 			meta,
 		); err != nil {
@@ -835,7 +835,7 @@ func (rs *ruleSet) AddRollupRule(rrv RollupRuleView, meta UpdateMetadata) (strin
 	} else {
 		if err := r.revive(
 			rrv.Name,
-			rrv.Filters,
+			rrv.Filter,
 			targets,
 			meta,
 		); err != nil {
@@ -854,7 +854,7 @@ func (rs *ruleSet) UpdateRollupRule(rrv RollupRuleView, meta UpdateMetadata) err
 	targets := rollupTargetViewsToTargets(rrv.Targets)
 	if err = r.addSnapshot(
 		rrv.Name,
-		rrv.Filters,
+		rrv.Filter,
 		targets,
 		meta,
 	); err != nil {

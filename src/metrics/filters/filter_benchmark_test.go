@@ -33,15 +33,15 @@ var (
 		"tagname4=tagvalue4,tagname2=tagvalue2,tagname6=tagvalue6," +
 		"tagname5=tagvalue5,name=my.test.metric.name,tagname7=tagvalue7")
 
-	testTagsFilterMapOne = map[string]string{
-		"tagname1": "tagvalue1",
+	testTagsFilterMapOne = map[string]FilterValue{
+		"tagname1": FilterValue{Pattern: "tagvalue1"},
 	}
 
-	testTagsFilterMapThree = map[string]string{
-		"tagname1":    "tagvalue1",
-		"tagname2":    "tagvalue2",
-		"tagname3":    "tagvalue3",
-		"faketagname": "faketagvalue",
+	testTagsFilterMapThree = map[string]FilterValue{
+		"tagname1":    FilterValue{Pattern: "tagvalue1"},
+		"tagname2":    FilterValue{Pattern: "tagvalue2"},
+		"tagname3":    FilterValue{Pattern: "tagvalue3"},
+		"faketagname": FilterValue{Pattern: "faketagvalue"},
 	}
 )
 
@@ -201,7 +201,6 @@ func benchRangeFilterRange(b *testing.B, pattern, val []byte, expectedMatch bool
 		if err != nil {
 			b.Errorf("unexpected error: %v", err)
 		}
-
 		if match != expectedMatch {
 			b.FailNow()
 		}
@@ -246,10 +245,13 @@ type testMapTagsFilter struct {
 	iterFn  id.SortedTagIteratorFn
 }
 
-func newTestMapTagsFilter(tagFilters map[string]string, iterFn id.SortedTagIteratorFn) Filter {
+func newTestMapTagsFilter(
+	tagFilters TagFilterValueMap,
+	iterFn id.SortedTagIteratorFn,
+) Filter {
 	filters := make(map[string]Filter, len(tagFilters))
 	for name, value := range tagFilters {
-		filter, _ := NewFilter([]byte(value))
+		filter, _ := NewFilterFromFilterValue(value)
 		filters[name] = filter
 	}
 

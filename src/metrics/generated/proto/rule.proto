@@ -27,7 +27,7 @@ message MappingRuleSnapshot {
   string name = 1;
   bool tombstoned = 2;
   int64 cutover_nanos = 3;
-  map<string,string> tag_filters = 4;
+  string filter = 4;
   repeated Policy policies = 5;
   int64 last_updated_at_nanos = 6;
   string last_updated_by = 7;
@@ -48,7 +48,7 @@ message RollupRuleSnapshot {
   string name = 1;
   bool tombstoned = 2;
   int64 cutover_nanos = 3;
-  map<string,string> tag_filters = 4;
+  string filter = 4;
   repeated RollupTarget targets = 5;
   int64 last_updated_at_nanos = 6;
   string last_updated_by = 7;

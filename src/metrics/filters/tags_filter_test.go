@@ -28,6 +28,57 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestParseTagFilterValueMap(t *testing.T) {
+	inputs := []struct {
+		str      string
+		expected TagFilterValueMap
+	}{
+		{
+			str: "tagName1:tagValue1",
+			expected: TagFilterValueMap{
+				"tagName1": FilterValue{Pattern: "tagValue1", Negate: false},
+			},
+		},
+		{
+			str: "tagName1:tagValue1 tagName2:tagValue2",
+			expected: TagFilterValueMap{
+				"tagName1": FilterValue{Pattern: "tagValue1", Negate: false},
+				"tagName2": FilterValue{Pattern: "tagValue2", Negate: false},
+			},
+		},
+		{
+			str: "  tagName1:tagValue1    tagName2:tagValue2   tagName3:tagValue3  tagName4:tagValue4",
+			expected: TagFilterValueMap{
+				"tagName1": FilterValue{Pattern: "tagValue1", Negate: false},
+				"tagName2": FilterValue{Pattern: "tagValue2", Negate: false},
+				"tagName3": FilterValue{Pattern: "tagValue3", Negate: false},
+				"tagName4": FilterValue{Pattern: "tagValue4", Negate: false},
+			},
+		},
+	}
+
+	for _, input := range inputs {
+		res, err := ParseTagFilterValueMap(input.str)
+		require.NoError(t, err)
+		require.Equal(t, input.expected, res)
+	}
+}
+
+func TestParseTagFilterValueMapErrors(t *testing.T) {
+	inputs := []string{
+		"tagName1=tagValue1",
+		"tagName1:tagValue1 tagName2~=tagValue2",
+		"tagName1:tagValue1  tagName2:tagValue2 tagName1:tagValue3",
+		"tagName:",
+		":tagValue",
+	}
+
+	for _, input := range inputs {
+		_, err := ParseTagFilterValueMap(input)
+		require.Error(t, err)
+	}
+}
+
 func TestEmptyTagsFilterMatches(t *testing.T) {
 	f, err := NewTagsFilter(nil, Conjunction, testTagsFilterOptions())
 	require.NoError(t, err)
@@ -35,9 +86,9 @@ func TestEmptyTagsFilterMatches(t *testing.T) {
 }
 
 func TestTagsFilterMatchesNoNameTag(t *testing.T) {
-	filters := map[string]string{
-		"tagName1": "tagValue1",
-		"tagName2": "tagValue2",
+	filters := map[string]FilterValue{
+		"tagName1": FilterValue{Pattern: "tagValue1"},
+		"tagName2": FilterValue{Pattern: "tagValue2"},
 	}
 	f, err := NewTagsFilter(filters, Conjunction, testTagsFilterOptions())
 	inputs := []mockFilterData{
@@ -71,10 +122,10 @@ func TestTagsFilterMatchesNoNameTag(t *testing.T) {
 }
 
 func TestTagsFilterMatchesWithNameTag(t *testing.T) {
-	filters := map[string]string{
-		"name":     "foo",
-		"tagName1": "tagValue1",
-		"tagName2": "tagValue2",
+	filters := map[string]FilterValue{
+		"name":     FilterValue{Pattern: "foo"},
+		"tagName1": FilterValue{Pattern: "tagValue1"},
+		"tagName2": FilterValue{Pattern: "tagValue2"},
 	}
 
 	f, err := NewTagsFilter(filters, Conjunction, testTagsFilterOptionsWithNameTag())
@@ -108,9 +159,9 @@ func TestTagsFilterMatchesWithNameTag(t *testing.T) {
 }
 
 func TestTagsFilterStringNoNameTag(t *testing.T) {
-	filters := map[string]string{
-		"tagName1": "tagValue1",
-		"tagName2": "tagValue2",
+	filters := map[string]FilterValue{
+		"tagName1": FilterValue{Pattern: "tagValue1"},
+		"tagName2": FilterValue{Pattern: "tagValue2"},
 	}
 	f, err := NewTagsFilter(filters, Conjunction, testTagsFilterOptions())
 	require.NoError(t, err)
@@ -122,10 +173,10 @@ func TestTagsFilterStringNoNameTag(t *testing.T) {
 }
 
 func TestTagsFilterStringWithNameTag(t *testing.T) {
-	filters := map[string]string{
-		"name":     "foo",
-		"tagName1": "tagValue1",
-		"tagName2": "tagValue2",
+	filters := map[string]FilterValue{
+		"name":     FilterValue{Pattern: "foo"},
+		"tagName1": FilterValue{Pattern: "tagValue1"},
+		"tagName2": FilterValue{Pattern: "tagValue2"},
 	}
 	f, err := NewTagsFilter(filters, Conjunction, testTagsFilterOptionsWithNameTag())
 	require.NoError(t, err)

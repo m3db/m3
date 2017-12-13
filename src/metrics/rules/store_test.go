@@ -85,10 +85,7 @@ var (
 						Name:         "foo",
 						Tombstoned:   false,
 						CutoverNanos: 12345,
-						TagFilters: map[string]string{
-							"tag1": "value1",
-							"tag2": "value2",
-						},
+						Filter:       "tag1:value1 tag2:value2",
 						Policies: []*schema.Policy{
 							&schema.Policy{
 								StoragePolicy: &schema.StoragePolicy{
@@ -110,10 +107,7 @@ var (
 						Name:         "foo",
 						Tombstoned:   false,
 						CutoverNanos: 67890,
-						TagFilters: map[string]string{
-							"tag3": "value3",
-							"tag4": "value4",
-						},
+						Filter:       "tag3:value3 tag4:value4",
 						Policies: []*schema.Policy{
 							&schema.Policy{
 								StoragePolicy: &schema.StoragePolicy{
@@ -148,10 +142,7 @@ var (
 						Name:         "dup",
 						Tombstoned:   false,
 						CutoverNanos: 12345,
-						TagFilters: map[string]string{
-							"tag1": "value1",
-							"tag2": "value2",
-						},
+						Filter:       "tag1:value1 tag2:value2",
 						Policies: []*schema.Policy{
 							&schema.Policy{
 								StoragePolicy: &schema.StoragePolicy{
@@ -180,10 +171,7 @@ var (
 						Name:         "foo2",
 						Tombstoned:   false,
 						CutoverNanos: 12345,
-						TagFilters: map[string]string{
-							"tag1": "value1",
-							"tag2": "value2",
-						},
+						Filter:       "tag1:value1 tag2:value2",
 						Targets: []*schema.RollupTarget{
 							&schema.RollupTarget{
 								Name: "rName1",
@@ -208,10 +196,7 @@ var (
 						Name:         "bar",
 						Tombstoned:   true,
 						CutoverNanos: 67890,
-						TagFilters: map[string]string{
-							"tag3": "value3",
-							"tag4": "value4",
-						},
+						Filter:       "tag3:value3 tag4:value4",
 						Targets: []*schema.RollupTarget{
 							&schema.RollupTarget{
 								Name: "rName1",
@@ -255,10 +240,7 @@ var (
 						Name:         "foo",
 						Tombstoned:   false,
 						CutoverNanos: 12345,
-						TagFilters: map[string]string{
-							"tag1": "value1",
-							"tag2": "value2",
-						},
+						Filter:       "tag1:value1 tag2:value2",
 						Targets: []*schema.RollupTarget{
 							&schema.RollupTarget{
 								Name: "rName1",
@@ -283,10 +265,7 @@ var (
 						Name:         "baz",
 						Tombstoned:   false,
 						CutoverNanos: 67890,
-						TagFilters: map[string]string{
-							"tag3": "value3",
-							"tag4": "value4",
-						},
+						Filter:       "tag3:value3 tag4:value4",
 						Targets: []*schema.RollupTarget{
 							&schema.RollupTarget{
 								Name: "rName1",
@@ -330,10 +309,7 @@ var (
 						Name:         "dup",
 						Tombstoned:   false,
 						CutoverNanos: 12345,
-						TagFilters: map[string]string{
-							"tag1": "value1",
-							"tag2": "value2",
-						},
+						Filter:       "tag1:value1 tag2:value2",
 						Targets: []*schema.RollupTarget{
 							&schema.RollupTarget{
 								Name: "rName1",

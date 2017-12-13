@@ -24,9 +24,77 @@ import (
 	"bytes"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/m3db/m3metrics/metric/id"
 )
+
+const (
+	// tagFilterListSeparator splits key:value pairs in a tag filter list.
+	tagFilterListSeparator = " "
+)
+
+var (
+	unknownFilterSeparator tagFilterSeparator
+
+	// defaultFilterSeparator represents the default filter separator with no negation.
+	defaultFilterSeparator = tagFilterSeparator{str: ":", negate: false}
+
+	// validFilterSeparators represent a list of valid filter separators.
+	// NB: the separators here are tried in order during parsing.
+	validFilterSeparators = []tagFilterSeparator{
+		defaultFilterSeparator,
+	}
+)
+
+type tagFilterSeparator struct {
+	str    string
+	negate bool
+}
+
+// TagFilterValueMap is a map containing mappings from tag names to filter values.
+type TagFilterValueMap map[string]FilterValue
+
+// ParseTagFilterValueMap parses the input string and creates a tag filter value map.
+func ParseTagFilterValueMap(str string) (TagFilterValueMap, error) {
+	trimmed := strings.TrimSpace(str)
+	tagPairs := strings.Split(trimmed, tagFilterListSeparator)
+	res := make(map[string]FilterValue, len(tagPairs))
+	for _, p := range tagPairs {
+		sanitized := strings.TrimSpace(p)
+		if sanitized == "" {
+			continue
+		}
+		parts, separator, err := parseTagFilter(sanitized)
+		if err != nil {
+			return nil, err
+		}
+		// NB: we do not allow duplicate tags at the moment.
+		_, exists := res[parts[0]]
+		if exists {
+			return nil, fmt.Errorf("invalid filter %s: duplicate tag %s found", str, parts[0])
+		}
+		res[parts[0]] = FilterValue{Pattern: parts[1], Negate: separator.negate}
+	}
+	return res, nil
+}
+
+func parseTagFilter(str string) ([]string, tagFilterSeparator, error) {
+	// TODO(xichen): support negation of glob patterns.
+	for _, separator := range validFilterSeparators {
+		items := strings.Split(str, separator.str)
+		if len(items) == 2 {
+			if items[0] == "" {
+				return nil, unknownFilterSeparator, fmt.Errorf("invalid filter %s: empty tag name", str)
+			}
+			if items[1] == "" {
+				return nil, unknownFilterSeparator, fmt.Errorf("invalid filter %s: empty filter pattern", str)
+			}
+			return items, separator, nil
+		}
+	}
+	return nil, unknownFilterSeparator, fmt.Errorf("invalid filter %s: expecting tag pattern pairs", str)
+}
 
 // tagFilter is a filter associated with a given tag.
 type tagFilter struct {
@@ -66,7 +134,7 @@ type tagsFilter struct {
 
 // NewTagsFilter creates a new tags filter.
 func NewTagsFilter(
-	filters map[string]string,
+	filters TagFilterValueMap,
 	op LogicalOp,
 	opts TagsFilterOptions,
 ) (Filter, error) {
@@ -75,7 +143,7 @@ func NewTagsFilter(
 		tagFilters = make([]tagFilter, 0, len(filters))
 	)
 	for name, value := range filters {
-		valFilter, err := NewFilter([]byte(value))
+		valFilter, err := NewFilterFromFilterValue(value)
 		if err != nil {
 			return nil, err
 		}
