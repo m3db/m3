@@ -506,6 +506,50 @@ func TestShardTickRace(t *testing.T) {
 	shard.RUnlock()
 }
 
+// This tests ensures the shard returns an error if two ticks are triggered concurrently.
+func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions().
+		SetTickInterval(100 * time.Millisecond)
+	shard := testDatabaseShard(t, opts)
+	shard.tickSleepIfAheadEvery = 1 // setting check batch size to one
+
+	var (
+		foo     = addMockTestSeries(ctrl, shard, ts.StringID("foo"))
+		tick1Wg sync.WaitGroup
+		tick2Wg sync.WaitGroup
+		closeWg sync.WaitGroup
+	)
+
+	tick1Wg.Add(1)
+	tick2Wg.Add(1)
+	closeWg.Add(2)
+
+	// wait to return the other tick has returned error
+	foo.EXPECT().Tick().Do(func() {
+		tick1Wg.Done()
+		tick2Wg.Wait()
+	}).Return(series.TickResult{}, nil)
+
+	go func() {
+		_, err := shard.Tick(context.NewNoOpCanncellable(), 0)
+		require.NoError(t, err)
+		closeWg.Done()
+	}()
+
+	go func() {
+		tick1Wg.Wait()
+		_, err := shard.Tick(context.NewNoOpCanncellable(), 0)
+		require.Error(t, err)
+		tick2Wg.Done()
+		closeWg.Done()
+	}()
+
+	closeWg.Wait()
+}
+
 // This tests ensures the resources held in series contained in the shard are released
 // when closing the shard.
 func TestShardTicksWhenClosed(t *testing.T) {
@@ -541,22 +585,23 @@ func TestShardTicksStopWhenClosing(t *testing.T) {
 	)
 
 	orderWg.Add(1)
-	// loop until the shard is marked for Closing
-	foo.EXPECT().Tick().Do(func() {
-		orderWg.Done()
-		for {
-			if shard.isClosing() {
-				break
+	gomock.InOrder(
+		// loop until the shard is marked for Closing
+		foo.EXPECT().Tick().Do(func() {
+			orderWg.Done()
+			for {
+				if shard.isClosing() {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
 			}
-			time.Sleep(10 * time.Millisecond)
-		}
-	}).Return(series.TickResult{}, nil)
-
-	// for the shard Close purging
-	foo.EXPECT().IsEmpty().Return(true)
-	foo.EXPECT().Close()
-	bar.EXPECT().IsEmpty().Return(true)
-	bar.EXPECT().Close()
+		}).Return(series.TickResult{}, nil),
+		// for the shard Close purging
+		foo.EXPECT().IsEmpty().Return(true),
+		foo.EXPECT().Close(),
+		bar.EXPECT().IsEmpty().Return(true),
+		bar.EXPECT().Close(),
+	)
 
 	closeWg.Add(2)
 	go func() {
@@ -596,7 +641,7 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
 	shard.Write(ctx, ts.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
-	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular, defaultSkipTickIfShardClosing)
+	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular)
 	require.NoError(t, err)
 	require.Equal(t, 1, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
@@ -623,7 +668,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 		shard.Write(ctx, id, nowFn(), 1.0, xtime.Second, nil)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular, defaultSkipTickIfShardClosing)
+	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular)
 	require.NoError(t, err)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
@@ -651,7 +696,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular, defaultSkipTickIfShardClosing)
+	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular)
 	require.NoError(t, err)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)

@@ -59,9 +59,10 @@ const (
 )
 
 var (
-	errShardEntryNotFound  = errors.New("shard entry not found")
-	errShardNotOpen        = errors.New("shard is not open")
-	errShardAlreadyTicking = errors.New("shard is already ticking")
+	errShardEntryNotFound         = errors.New("shard entry not found")
+	errShardNotOpen               = errors.New("shard is not open")
+	errShardAlreadyTicking        = errors.New("shard is already ticking")
+	errShardClosingTickTerminated = errors.New("shard is closing, terminating tick")
 )
 
 type filesetBeforeFn func(filePathPrefix string, namespace ts.ID, shardID uint32, t time.Time) ([]string, error)
@@ -70,7 +71,7 @@ type tickPolicy int
 
 const (
 	tickPolicyRegular tickPolicy = iota
-	tickPolicyForceExpiry
+	tickPolicyCloseShard
 )
 
 type dbShardState int
@@ -377,9 +378,8 @@ func (s *dbShard) Close() error {
 	// should be increased.
 	cancellable := context.NewNoOpCanncellable()
 	softDeadline := s.opts.TickInterval()
-	s.tickAndExpire(cancellable, softDeadline, tickPolicyForceExpiry, false)
-
-	return nil
+	_, err := s.tickAndExpire(cancellable, softDeadline, tickPolicyCloseShard)
+	return err
 }
 
 func (s *dbShard) isClosing() bool {
@@ -391,15 +391,25 @@ func (s *dbShard) isClosing() bool {
 
 func (s *dbShard) Tick(c context.Cancellable, softDeadline time.Duration) (tickResult, error) {
 	s.removeAnyFlushStatesTooEarly()
-	return s.tickAndExpire(c, softDeadline, tickPolicyRegular, defaultSkipTickIfShardClosing)
+	return s.tickAndExpire(c, softDeadline, tickPolicyRegular)
 }
 
 func (s *dbShard) tickAndExpire(
 	c context.Cancellable,
 	softDeadline time.Duration,
 	policy tickPolicy,
-	skipIfClosing bool,
 ) (tickResult, error) {
+	terminateDueToClosing := func() bool {
+		// NB(prateek): we bail out early if the shard is closing,
+		// unless it's the final tick issued during the Close(). This
+		// final tick is required to release resources back to our pools.
+		return policy != tickPolicyCloseShard && s.isClosing()
+	}
+
+	if terminateDueToClosing() {
+		return tickResult{}, errShardClosingTickTerminated
+	}
+
 	// ensure only one tick can execute at a time
 	if s.ticking.Swap(true) {
 		// i.e. we were previously ticking
@@ -417,10 +427,11 @@ func (s *dbShard) tickAndExpire(
 	}()
 
 	var (
-		r                    tickResult
-		perEntrySoftDeadline time.Duration
-		expired              []series.DatabaseSeries
-		i                    int
+		r                             tickResult
+		perEntrySoftDeadline          time.Duration
+		expired                       []series.DatabaseSeries
+		terminatedTickingDueToClosing bool
+		i                             int
 	)
 	if size := s.NumSeries(); size > 0 {
 		perEntrySoftDeadline = softDeadline / time.Duration(size)
@@ -434,10 +445,8 @@ func (s *dbShard) tickAndExpire(
 			if c.IsCancelled() {
 				return false
 			}
-			// NB(prateek): we also bail out early if the shard is closing,
-			// unless it's the final tick issued during the Close(). This
-			// final tick is required to release resources back to our pools.
-			if s.isClosing() && skipIfClosing {
+			if terminateDueToClosing() {
+				terminatedTickingDueToClosing = true
 				return false
 			}
 			// If we are ahead of our our deadline then throttle tick
@@ -453,7 +462,7 @@ func (s *dbShard) tickAndExpire(
 		switch policy {
 		case tickPolicyRegular:
 			result, err = entry.series.Tick()
-		case tickPolicyForceExpiry:
+		case tickPolicyCloseShard:
 			err = series.ErrSeriesAllDatapointsExpired
 		}
 		if err == series.ErrSeriesAllDatapointsExpired {
@@ -491,6 +500,10 @@ func (s *dbShard) tickAndExpire(
 	if len(expired) > 0 {
 		// Purge any series that still haven't been purged yet
 		s.purgeExpiredSeries(expired)
+	}
+
+	if terminatedTickingDueToClosing {
+		return tickResult{}, errShardClosingTickTerminated
 	}
 
 	return r, nil
