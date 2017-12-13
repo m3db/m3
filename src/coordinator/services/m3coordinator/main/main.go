@@ -18,7 +18,9 @@ func main() {
 	}
 	handler.RegisterRoutes()
 
-	logging.WithContext(context.TODO()).Info("Starting server")
+	logger := logging.WithContext(context.TODO())
+	defer logger.Sync()
+	logger.Info("Starting server")
 	http.ListenAndServe(":1234", handler.Router)
 
 }

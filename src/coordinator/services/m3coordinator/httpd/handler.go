@@ -15,6 +15,10 @@ import (
 	"github.com/pborman/uuid"
 )
 
+const (
+	promReadURL = "/api/v1/prom/read"
+)
+
 var httpContext = context.Background()
 
 // Handler represents an HTTP handler.
@@ -32,7 +36,6 @@ func NewHandler() (*Handler, error) {
 	}
 
 	defer logger.Sync() // flushes buffer, if any
-
 	h := &Handler{
 		CLFLogger: log.New(os.Stderr, "[httpd] ", 0),
 		Router:    r,
@@ -43,7 +46,7 @@ func NewHandler() (*Handler, error) {
 // RegisterRoutes registers all http routes.
 func (h *Handler) RegisterRoutes() {
 	logged := withResponseTimeLogging
-	h.Router.HandleFunc("/api/v1/prom/read", logged(handler.NewPromReadHandler()).ServeHTTP).Methods("POST")
+	h.Router.HandleFunc(promReadURL, logged(handler.NewPromReadHandler()).ServeHTTP).Methods("POST")
 }
 
 func withResponseTimeLogging(next http.Handler) http.Handler {

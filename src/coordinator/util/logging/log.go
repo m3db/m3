@@ -12,7 +12,7 @@ type loggerKeyType int
 
 const loggerKey loggerKeyType = iota
 
-var logger zap.Logger
+var logger *zap.Logger
 
 // InitWithCores is used to set up a new logger
 func InitWithCores(cores []zapcore.Core) {
@@ -30,14 +30,14 @@ func InitWithCores(cores []zapcore.Core) {
 	consoleDebugging := zapcore.Lock(os.Stdout)
 
 	if cores == nil {
-		cores = make([]zapcore.Core, 0, 1)
+		cores = make([]zapcore.Core, 0, 2)
 	}
 	cores = append(cores, zapcore.NewCore(consoleEncoder, consoleErrors, highPriority))
 	cores = append(cores, zapcore.NewCore(consoleEncoder, consoleDebugging, lowPriority))
 
 	core := zapcore.NewTee(cores...)
 
-	logger := zap.New(core)
+	logger = zap.New(core)
 	defer logger.Sync()
 	logger.Info("constructed a logger")
 }
@@ -50,11 +50,11 @@ func NewContext(ctx context.Context, fields ...zapcore.Field) context.Context {
 // WithContext returns a zap logger with as much context as possible
 func WithContext(ctx context.Context) *zap.Logger {
 	if ctx == nil {
-		return &logger
+		return logger
 	}
-	if ctxLogger, ok := ctx.Value(loggerKey).(zap.Logger); ok {
-		return &ctxLogger
+	if ctxLogger, ok := ctx.Value(loggerKey).(*zap.Logger); ok {
+		return ctxLogger
 	}
 
-	return &logger
+	return logger
 }
