@@ -56,8 +56,10 @@ const (
 )
 
 var (
-	errShardEntryNotFound = errors.New("shard entry not found")
-	errShardNotOpen       = errors.New("shard is not open")
+	errShardEntryNotFound         = errors.New("shard entry not found")
+	errShardNotOpen               = errors.New("shard is not open")
+	errShardAlreadyTicking        = errors.New("shard is already ticking")
+	errShardClosingTickTerminated = errors.New("shard is closing, terminating tick")
 )
 
 type filesetBeforeFn func(filePathPrefix string, namespace ts.ID, shardID uint32, t time.Time) ([]string, error)
@@ -66,7 +68,7 @@ type tickPolicy int
 
 const (
 	tickPolicyRegular tickPolicy = iota
-	tickPolicyForceExpiry
+	tickPolicyCloseShard
 )
 
 type dbShardState int
@@ -100,6 +102,8 @@ type dbShard struct {
 	identifierPool           ts.IdentifierPool
 	contextPool              context.Pool
 	flushState               shardFlushState
+	ticking                  bool
+	tickWg                   *sync.WaitGroup
 	runtimeOptsListenClosers []xclose.SimpleCloser
 	currRuntimeOptions       dbShardRuntimeOptions
 	metrics                  dbShardMetrics
@@ -206,6 +210,7 @@ func newDatabaseShard(
 		identifierPool:  opts.IdentifierPool(),
 		contextPool:     opts.ContextPool(),
 		flushState:      newShardFlushState(),
+		tickWg:          &sync.WaitGroup{},
 		metrics:         newDatabaseShardMetrics(scope),
 	}
 	d.insertQueue = newDatabaseShardInsertQueue(d.insertSeriesBatch,
@@ -360,17 +365,37 @@ func (s *dbShard) Close() error {
 		stopwatch.Stop()
 	}()
 
+	// NB(prateek): wait till any existing ticks are finished. In the usual
+	// case, no other ticks are running, and tickWg count is at 0, so the
+	// call to Wait() will return immediately.
+	// In the case when there is an existing Tick running, the count for
+	// tickWg will be > 0, and we'll wait until it's reset to zero, which
+	// will happen because earlier in this function we set the shard state
+	// to dbShardStateClosing, which triggers an early termination of
+	// any active ticks.
+	s.tickWg.Wait()
+
 	// NB(r): Asynchronously we purge expired series to ensure pressure on the
 	// GC is not placed all at one time.  If the deadline is too low and still
 	// causes the GC to impact performance when closing shards the deadline
 	// should be increased.
 	cancellable := context.NewNoOpCanncellable()
-	s.tickAndExpire(cancellable, tickPolicyForceExpiry)
-
-	return nil
+	_, err := s.tickAndExpire(cancellable, tickPolicyCloseShard)
+	return err
 }
 
-func (s *dbShard) Tick(c context.Cancellable) tickResult {
+func (s *dbShard) isClosing() bool {
+	s.RLock()
+	closing := s.isClosingWithLock()
+	s.RUnlock()
+	return closing
+}
+
+func (s *dbShard) isClosingWithLock() bool {
+	return s.state == dbShardStateClosing
+}
+
+func (s *dbShard) Tick(c context.Cancellable) (tickResult, error) {
 	s.removeAnyFlushStatesTooEarly()
 	return s.tickAndExpire(c, tickPolicyRegular)
 }
@@ -378,12 +403,42 @@ func (s *dbShard) Tick(c context.Cancellable) tickResult {
 func (s *dbShard) tickAndExpire(
 	c context.Cancellable,
 	policy tickPolicy,
-) tickResult {
+) (tickResult, error) {
+	s.Lock()
+	// ensure only one tick can execute at a time
+	if s.ticking {
+		s.Unlock()
+		// i.e. we were previously ticking
+		return tickResult{}, errShardAlreadyTicking
+	}
+
+	// NB(prateek): we bail out early if the shard is closing,
+	// unless it's the final tick issued during the Close(). This
+	// final tick is required to release resources back to our pools.
+	if policy != tickPolicyCloseShard && s.isClosingWithLock() {
+		s.Unlock()
+		return tickResult{}, errShardClosingTickTerminated
+	}
+
+	// enable Close() to track the lifecycle of the tick
+	s.ticking = true
+	s.tickWg.Add(1)
+	s.Unlock()
+
+	// reset ticking state
+	defer func() {
+		s.Lock()
+		s.ticking = false
+		s.tickWg.Done()
+		s.Unlock()
+	}()
+
 	var (
-		r       tickResult
-		expired []series.DatabaseSeries
-		i       int
-		slept   time.Duration
+		r                             tickResult
+		expired                       []series.DatabaseSeries
+		terminatedTickingDueToClosing bool
+		i                             int
+		slept                         time.Duration
 	)
 	s.RLock()
 	tickSleepBatch := s.currRuntimeOptions.tickSleepSeriesBatchSize
@@ -395,6 +450,13 @@ func (s *dbShard) tickAndExpire(
 			// The cancellation check is performed on every batch of entries
 			// instead of every entry to reduce load.
 			if c.IsCancelled() {
+				return false
+			}
+			// NB(prateek): Also bail out early if the shard is closing,
+			// unless it's the final tick issued during the Close(). This
+			// final tick is required to release resources back to our pools.
+			if policy != tickPolicyCloseShard && s.isClosing() {
+				terminatedTickingDueToClosing = true
 				return false
 			}
 			// Throttle the tick
@@ -409,7 +471,7 @@ func (s *dbShard) tickAndExpire(
 		switch policy {
 		case tickPolicyRegular:
 			result, err = entry.series.Tick()
-		case tickPolicyForceExpiry:
+		case tickPolicyCloseShard:
 			err = series.ErrSeriesAllDatapointsExpired
 		}
 		if err == series.ErrSeriesAllDatapointsExpired {
@@ -449,7 +511,11 @@ func (s *dbShard) tickAndExpire(
 		s.purgeExpiredSeries(expired)
 	}
 
-	return r
+	if terminatedTickingDueToClosing {
+		return tickResult{}, errShardClosingTickTerminated
+	}
+
+	return r, nil
 }
 
 func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {

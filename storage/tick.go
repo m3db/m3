@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/runtime"
+	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/uber-go/tally"
 )
@@ -159,9 +160,12 @@ func (mgr *tickManager) Tick(forceType forceType) error {
 	}
 
 	// Begin ticking
-	start := mgr.nowFn()
+	var (
+		start    = mgr.nowFn()
+		multiErr xerrors.MultiError
+	)
 	for _, n := range namespaces {
-		n.Tick(mgr.c)
+		multiErr = multiErr.Add(n.Tick(mgr.c))
 	}
 
 	// NB(r): Always sleep for some constant period since ticking
@@ -197,5 +201,6 @@ func (mgr *tickManager) Tick(forceType forceType) error {
 		mgr.metrics.tickCancelled.Inc(1)
 		return errTickCancelled
 	}
-	return nil
+
+	return multiErr.FinalError()
 }

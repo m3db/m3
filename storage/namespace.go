@@ -384,18 +384,19 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 	}
 }
 
-func (n *dbNamespace) Tick(c context.Cancellable) {
+func (n *dbNamespace) Tick(c context.Cancellable) error {
 	shards := n.GetOwnedShards()
 
 	if len(shards) == 0 {
-		return
+		return nil
 	}
 
 	// Tick through the shards sequentially to avoid parallel data flushes
 	var (
-		r  tickResult
-		l  sync.Mutex
-		wg sync.WaitGroup
+		r        tickResult
+		multiErr xerrors.MultiError
+		l        sync.Mutex
+		wg       sync.WaitGroup
 	)
 	for _, shard := range shards {
 		shard := shard
@@ -406,18 +407,22 @@ func (n *dbNamespace) Tick(c context.Cancellable) {
 			if c.IsCancelled() {
 				return
 			}
-			shardResult := shard.Tick(c)
+
+			shardResult, err := shard.Tick(c)
 
 			l.Lock()
 			r = r.merge(shardResult)
+			multiErr = multiErr.Add(err)
 			l.Unlock()
 		})
 	}
 
 	wg.Wait()
 
-	if c.IsCancelled() {
-		return
+	// NB: we early terminate here to ensure we are not reporting metrics
+	// based on in-accurate/partial tick results.
+	if err := multiErr.FinalError(); err != nil || c.IsCancelled() {
+		return err
 	}
 
 	n.statsLastTick.Lock()
@@ -435,6 +440,8 @@ func (n *dbNamespace) Tick(c context.Cancellable) {
 	n.metrics.tick.madeUnwiredBlocks.Inc(int64(r.madeUnwiredBlocks))
 	n.metrics.tick.mergedOutOfOrderBlocks.Inc(int64(r.mergedOutOfOrderBlocks))
 	n.metrics.tick.errors.Inc(int64(r.errors))
+
+	return nil
 }
 
 func (n *dbNamespace) Write(

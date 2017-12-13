@@ -322,6 +322,15 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	}, flushState)
 }
 
+func addMockTestSeries(ctrl *gomock.Controller, shard *dbShard, id ts.ID) *series.MockDatabaseSeries {
+	series := series.NewMockDatabaseSeries(ctrl)
+	series.EXPECT().ID().AnyTimes().Return(id)
+	shard.Lock()
+	shard.lookup[id.Hash()] = shard.list.PushBack(&dbShardEntry{series: series})
+	shard.Unlock()
+	return series
+}
+
 func addTestSeries(shard *dbShard, id ts.ID) series.DatabaseSeries {
 	series := series.NewDatabaseSeries(id, shard.seriesOpts)
 	series.Bootstrap(nil)
@@ -382,7 +391,8 @@ func TestShardTick(t *testing.T) {
 	shard.Write(ctx, ts.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
 	shard.Write(ctx, ts.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
 
-	r := shard.Tick(context.NewNoOpCanncellable())
+	r, err := shard.Tick(context.NewNoOpCanncellable())
+	require.NoError(t, err)
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
 	require.Equal(t, 2*sleepPerSeries, slept) // Never sleeps on the first series
@@ -465,7 +475,8 @@ func TestShardWriteAsync(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	r := shard.Tick(context.NewNoOpCanncellable())
+	r, err := shard.Tick(context.NewNoOpCanncellable())
+	require.NoError(t, err)
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
 	require.Equal(t, 2*sleepPerSeries, slept) // Never sleeps on the first series
@@ -474,6 +485,145 @@ func TestShardWriteAsync(t *testing.T) {
 	require.Equal(t, 1, len(shard.flushState.statesByTime))
 	_, ok := shard.flushState.statesByTime[xtime.ToUnixNano(earliestFlush)]
 	require.True(t, ok)
+}
+
+// This tests a race in shard ticking with an empty series pending expiration.
+func TestShardTickRace(t *testing.T) {
+	opts := testDatabaseOptions()
+	shard := testDatabaseShard(t, opts)
+	defer shard.Close()
+
+	addTestSeries(shard, ts.StringID("foo"))
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+	go func() {
+		shard.Tick(context.NewNoOpCanncellable())
+		wg.Done()
+	}()
+
+	go func() {
+		shard.Tick(context.NewNoOpCanncellable())
+		wg.Done()
+	}()
+
+	wg.Wait()
+
+	shard.RLock()
+	require.Equal(t, 0, len(shard.lookup))
+	shard.RUnlock()
+}
+
+// This tests ensures the shard returns an error if two ticks are triggered concurrently.
+func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions()
+	shard := testDatabaseShard(t, opts)
+	shard.currRuntimeOptions.tickSleepSeriesBatchSize = 1
+	shard.currRuntimeOptions.tickSleepPerSeries = time.Millisecond
+
+	var (
+		foo     = addMockTestSeries(ctrl, shard, ts.StringID("foo"))
+		tick1Wg sync.WaitGroup
+		tick2Wg sync.WaitGroup
+		closeWg sync.WaitGroup
+	)
+
+	tick1Wg.Add(1)
+	tick2Wg.Add(1)
+	closeWg.Add(2)
+
+	// wait to return the other tick has returned error
+	foo.EXPECT().Tick().Do(func() {
+		tick1Wg.Done()
+		tick2Wg.Wait()
+	}).Return(series.TickResult{}, nil)
+
+	go func() {
+		_, err := shard.Tick(context.NewNoOpCanncellable())
+		require.NoError(t, err)
+		closeWg.Done()
+	}()
+
+	go func() {
+		tick1Wg.Wait()
+		_, err := shard.Tick(context.NewNoOpCanncellable())
+		require.Error(t, err)
+		tick2Wg.Done()
+		closeWg.Done()
+	}()
+
+	closeWg.Wait()
+}
+
+// This tests ensures the resources held in series contained in the shard are released
+// when closing the shard.
+func TestShardTicksWhenClosed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions()
+	shard := testDatabaseShard(t, opts)
+	s := addMockTestSeries(ctrl, shard, ts.StringID("foo"))
+
+	gomock.InOrder(
+		s.EXPECT().IsEmpty().Return(true),
+		s.EXPECT().Close(),
+	)
+	require.NoError(t, shard.Close())
+}
+
+// This tests ensures the shard terminates Ticks when closing.
+func TestShardTicksStopWhenClosing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions()
+	shard := testDatabaseShard(t, opts)
+	shard.currRuntimeOptions.tickSleepSeriesBatchSize = 1
+	shard.currRuntimeOptions.tickSleepPerSeries = time.Millisecond
+
+	var (
+		foo     = addMockTestSeries(ctrl, shard, ts.StringID("foo"))
+		bar     = addMockTestSeries(ctrl, shard, ts.StringID("bar"))
+		closeWg sync.WaitGroup
+		orderWg sync.WaitGroup
+	)
+
+	orderWg.Add(1)
+	gomock.InOrder(
+		// loop until the shard is marked for Closing
+		foo.EXPECT().Tick().Do(func() {
+			orderWg.Done()
+			for {
+				if shard.isClosing() {
+					break
+				}
+				time.Sleep(10 * time.Millisecond)
+			}
+		}).Return(series.TickResult{}, nil),
+		// for the shard Close purging
+		foo.EXPECT().IsEmpty().Return(true),
+		foo.EXPECT().Close(),
+		bar.EXPECT().IsEmpty().Return(true),
+		bar.EXPECT().Close(),
+	)
+
+	closeWg.Add(2)
+	go func() {
+		shard.Tick(context.NewNoOpCanncellable())
+		closeWg.Done()
+	}()
+
+	go func() {
+		orderWg.Wait()
+		require.NoError(t, shard.Close())
+		closeWg.Done()
+	}()
+
+	closeWg.Wait()
 }
 
 // This tests the scenario where an empty series is expired.
@@ -499,7 +649,8 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
 	shard.Write(ctx, ts.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
-	r := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
+	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
+	require.NoError(t, err)
 	require.Equal(t, 1, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
 }
@@ -525,7 +676,8 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 		shard.Write(ctx, id, nowFn(), 1.0, xtime.Second, nil)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	r := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
+	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
+	require.NoError(t, err)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
 	require.Equal(t, 1, len(shard.lookup))
@@ -552,7 +704,8 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	r := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
+	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
+	require.NoError(t, err)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
 	require.Equal(t, 1, len(shard.lookup))
