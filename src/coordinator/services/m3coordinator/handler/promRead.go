@@ -47,6 +47,12 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (h *PromReadHandler) parseRequest(w http.ResponseWriter, r *http.Request) (*prompb.ReadRequest, error) {
+	if r.Body == nil {
+		err := fmt.Errorf("empty request body")
+		Error(w, err, http.StatusBadRequest)
+		return nil, err
+	}
+
 	compressed, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		Error(w, err, http.StatusInternalServerError)

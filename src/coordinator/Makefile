@@ -82,7 +82,7 @@ $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 $(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
 
 .PHONY: all
-all: install-ci lint metalint test-ci-unit test-ci-integration services tools
+all: install-ci lint metalint test-ci-unit services tools
 	@echo Made all successfully
 
 .PHONY: install-license-bin
@@ -115,7 +115,7 @@ mock-gen: install-mockgen install-license-bin
 	PACKAGE=$(m3coord_package) $(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
 
 .PHONY: all-gen
-all-gen: proto-gen mock-gen
+all-gen: proto-gen
 
 .PHONY: lint
 lint:
