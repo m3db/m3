@@ -161,15 +161,15 @@ type metricTypesValidationConfiguration struct {
 }
 
 func (c metricTypesValidationConfiguration) NewMetricTypesFn() rules.MetricTypesFn {
-	return func(tagFilters map[string]string) ([]metric.Type, error) {
+	return func(tagFilters filters.TagFilterValueMap) ([]metric.Type, error) {
 		allowed := make([]metric.Type, 0, len(c.Allowed))
-		filterStr, exists := tagFilters[c.TypeTag]
+		filterValue, exists := tagFilters[c.TypeTag]
 		if !exists {
 			// If there is not type filter provided, the filter may match any allowed type.
 			allowed = append(allowed, c.Allowed...)
 			return allowed, nil
 		}
-		f, err := filters.NewFilter([]byte(filterStr))
+		f, err := filters.NewFilterFromFilterValue(filterValue)
 		if err != nil {
 			return nil, err
 		}

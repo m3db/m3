@@ -27,7 +27,6 @@ import (
 	"io"
 	"net/http"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -43,12 +42,6 @@ import (
 )
 
 const (
-	// TagFilterListSeparator splits key:value pairs in a tag filter list.
-	tagFilterListSeparator = " "
-
-	// TagFilterSeparator splits keys and values inside of a tag filter.
-	tagFilterSeparator = ":"
-
 	namespacePath     = "/namespaces"
 	mappingRulePrefix = "mapping-rules"
 	rollupRulePrefix  = "rollup-rules"
@@ -404,39 +397,6 @@ func newRuleSetJSON(latest *rules.RuleSetSnapshot) ruleSetJSON {
 	}
 }
 
-// filters is an object that represents the key value tag filters for a rule.
-// It is used for parsing a key:value query string into a map useful for storage.
-type filters map[string]string
-
-func (f filters) MarshalJSON() ([]byte, error) {
-	tmp := make([]string, 0, len(f))
-	for k, v := range f {
-		tmp = append(tmp, fmt.Sprintf("%s%s%s", k, tagFilterSeparator, v))
-	}
-	marshalled := strconv.Quote(strings.Join(tmp, tagFilterListSeparator))
-	return []byte(marshalled), nil
-}
-
-func (f *filters) UnmarshalJSON(data []byte) error {
-	str := string(data)
-	unquoted, err := strconv.Unquote(str)
-	if err != nil {
-		return err
-	}
-	trimmed := strings.TrimSpace(unquoted)
-	tmp := make(map[string]string)
-	tagPairs := strings.Split(trimmed, tagFilterListSeparator)
-	for _, p := range tagPairs {
-		parts := strings.Split(p, tagFilterSeparator)
-		if len(parts) != 2 {
-			return NewBadInputError(fmt.Sprintf("invalid filter: Expecting tag:value pairs. Got: %s", trimmed))
-		}
-		tmp[parts[0]] = parts[1]
-	}
-	*f = tmp
-	return nil
-}
-
 type apiResponse struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
@@ -474,7 +434,7 @@ type mappingRuleJSON struct {
 	ID                  string          `json:"id,omitempty"`
 	Name                string          `json:"name" validate:"required"`
 	CutoverMillis       int64           `json:"cutoverMillis,omitempty"`
-	Filters             filters         `json:"filter" validate:"required"`
+	Filter              string          `json:"filter" validate:"required"`
 	Policies            []policy.Policy `json:"policies" validate:"required"`
 	LastUpdatedBy       string          `json:"lastUpdatedBy"`
 	LastUpdatedAtMillis int64           `json:"lastUpdatedAtMillis"`
@@ -484,7 +444,7 @@ func (m mappingRuleJSON) mappingRuleView() *rules.MappingRuleView {
 	return &rules.MappingRuleView{
 		ID:       m.ID,
 		Name:     m.Name,
-		Filters:  m.Filters,
+		Filter:   m.Filter,
 		Policies: m.Policies,
 	}
 }
@@ -493,7 +453,7 @@ func newMappingRuleJSON(mrv *rules.MappingRuleView) mappingRuleJSON {
 	return mappingRuleJSON{
 		ID:                  mrv.ID,
 		Name:                mrv.Name,
-		Filters:             mrv.Filters,
+		Filter:              mrv.Filter,
 		Policies:            mrv.Policies,
 		CutoverMillis:       mrv.CutoverNanos / nanosPerMilli,
 		LastUpdatedBy:       mrv.LastUpdatedBy,
@@ -538,7 +498,7 @@ func newRollupTargetJSON(t rules.RollupTargetView) rollupTargetJSON {
 type rollupRuleJSON struct {
 	ID                  string             `json:"id,omitempty"`
 	Name                string             `json:"name" validate:"required"`
-	Filters             filters            `json:"filter" validate:"required"`
+	Filter              string             `json:"filter" validate:"required"`
 	Targets             []rollupTargetJSON `json:"targets" validate:"required,dive,required"`
 	CutoverMillis       int64              `json:"cutoverMillis,omitempty"`
 	LastUpdatedBy       string             `json:"lastUpdatedBy"`
@@ -553,7 +513,7 @@ func newRollupRuleJSON(rrv *rules.RollupRuleView) rollupRuleJSON {
 	return rollupRuleJSON{
 		ID:                  rrv.ID,
 		Name:                rrv.Name,
-		Filters:             rrv.Filters,
+		Filter:              rrv.Filter,
 		Targets:             targets,
 		CutoverMillis:       rrv.CutoverNanos / nanosPerMilli,
 		LastUpdatedBy:       rrv.LastUpdatedBy,
@@ -570,7 +530,7 @@ func (r rollupRuleJSON) rollupRuleView() *rules.RollupRuleView {
 	return &rules.RollupRuleView{
 		ID:      r.ID,
 		Name:    r.Name,
-		Filters: r.Filters,
+		Filter:  r.Filter,
 		Targets: targets,
 	}
 }

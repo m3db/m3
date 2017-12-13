@@ -23,6 +23,7 @@ package config
 import (
 	"testing"
 
+	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/metric"
 
 	"github.com/stretchr/testify/require"
@@ -68,7 +69,7 @@ allowed:
 	fn := c.NewMetricTypesFn()
 
 	inputs := []struct {
-		filters       map[string]string
+		filters       filters.TagFilterValueMap
 		expectedTypes []metric.Type
 	}{
 		{
@@ -76,32 +77,32 @@ allowed:
 			expectedTypes: []metric.Type{metric.CounterType, metric.TimerType, metric.GaugeType},
 		},
 		{
-			filters: map[string]string{
-				"randomTag": "counter",
+			filters: filters.TagFilterValueMap{
+				"randomTag": filters.FilterValue{Pattern: "counter"},
 			},
 			expectedTypes: []metric.Type{metric.CounterType, metric.TimerType, metric.GaugeType},
 		},
 		{
-			filters: map[string]string{
-				"type": "counter",
+			filters: filters.TagFilterValueMap{
+				"type": filters.FilterValue{Pattern: "counter"},
 			},
 			expectedTypes: []metric.Type{metric.CounterType},
 		},
 		{
-			filters: map[string]string{
-				"type": "timer",
+			filters: filters.TagFilterValueMap{
+				"type": filters.FilterValue{Pattern: "timer"},
 			},
 			expectedTypes: []metric.Type{metric.TimerType},
 		},
 		{
-			filters: map[string]string{
-				"type": "gauge",
+			filters: filters.TagFilterValueMap{
+				"type": filters.FilterValue{Pattern: "gauge"},
 			},
 			expectedTypes: []metric.Type{metric.GaugeType},
 		},
 		{
-			filters: map[string]string{
-				"type": "*er",
+			filters: filters.TagFilterValueMap{
+				"type": filters.FilterValue{Pattern: "*er"},
 			},
 			expectedTypes: []metric.Type{metric.CounterType, metric.TimerType},
 		},
@@ -127,12 +128,12 @@ allowed:
 	require.NoError(t, yaml.Unmarshal([]byte(cfg), &c))
 	fn := c.NewMetricTypesFn()
 
-	inputs := []map[string]string{
-		map[string]string{
-			"type": "a[b",
+	inputs := []filters.TagFilterValueMap{
+		filters.TagFilterValueMap{
+			"type": filters.FilterValue{Pattern: "a[b"},
 		},
-		map[string]string{
-			"type": "ab{",
+		filters.TagFilterValueMap{
+			"type": filters.FilterValue{Pattern: "ab{"},
 		},
 	}
 	for _, input := range inputs {
