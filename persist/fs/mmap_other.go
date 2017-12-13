@@ -31,7 +31,7 @@ import (
 func mmap(fd, offset, length int64, opts mmapOptions) ([]byte, error) {
 	// MAP_PRIVATE because we only want to ever mmap immutable things and we don't
 	// ever want to propagate writes back to the underlying file
-	return mmapBase(fd, offset, length, syscall.MAP_SHARED, opts)
+	return mmapBase(fd, offset, length, syscall.MAP_PRIVATE, opts)
 }
 
 // mmapAnon requests a private (non-shared) region of anonymous (not backed by a file) memory from the O.S
