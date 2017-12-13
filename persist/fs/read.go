@@ -33,7 +33,6 @@ import (
 	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/schema"
-	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
@@ -325,8 +324,8 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 	return r.entryID(entry.ID), int(entry.Size), uint32(entry.Checksum), nil
 }
 
-func (r *reader) ReadBloomFilter() (block.ManagedBloomFilter, error) {
-	return readBloomFilter(
+func (r *reader) ReadBloomFilter() (managedConcurrentBloomFilter, error) {
+	return readManagedConcurrentBloomFilter(
 		r.bloomFilterFd,
 		r.bloomFilterWithDigest,
 		r.expectedBloomFilterDigest,

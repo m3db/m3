@@ -67,8 +67,9 @@ type FileSetReader interface {
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
 	ReadMetadata() (id ts.ID, length int, checksum uint32, err error)
 
-	// ReadBloomFilter returns the bloom filter stored on disk
-	ReadBloomFilter() (block.ManagedBloomFilter, error)
+	// ReadBloomFilter returns the bloom filter stored on disk in a container object that is safe
+	// for concurrent use and has a Close() method for releasing resources when done.
+	ReadBloomFilter() (managedConcurrentBloomFilter, error)
 
 	// Validate validates the data and returns an error if the data are corrupted
 	Validate() error

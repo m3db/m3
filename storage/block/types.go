@@ -382,24 +382,3 @@ type Options interface {
 	// BytesPool returns the bytesPool
 	BytesPool() pool.CheckedBytesPool
 }
-
-// ManagedBloomFilter is a container object that implements lifecycle
-// management ontop of a BloomFilter. I.E it wraps a bloom filter such that
-// all resources are released when the Close() method is called
-type ManagedBloomFilter interface {
-	bloomFilter
-
-	// Close closes the ManagedBloomFilter, releasing any held resoures
-	Close() error
-}
-
-type bloomFilter interface {
-	// Test whether the Bloom Filter contains a value
-	Test(value []byte) bool
-
-	// Returns the number of elements in the Bloom Filter
-	M() uint
-
-	// Returns the number of hashes used
-	K() uint
-}

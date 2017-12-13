@@ -32,7 +32,6 @@ import (
 	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/schema"
-	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
@@ -87,7 +86,7 @@ type seeker struct {
 
 	// Bloom filter associated with the shard / block the seeker is responsible
 	// for. Needs to be closed when done.
-	bloomFilter block.ManagedBloomFilter
+	bloomFilter managedConcurrentBloomFilter
 }
 
 type indexMapEntry struct {
@@ -219,7 +218,7 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 
 	s.dataFd = dataFd
 
-	s.bloomFilter, err = readBloomFilter(
+	s.bloomFilter, err = readManagedConcurrentBloomFilter(
 		bloomFilterFd,
 		s.bloomFilterFdWithDigest,
 		s.expectedBloomFilterDigest,
