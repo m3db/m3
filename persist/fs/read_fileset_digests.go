@@ -50,7 +50,6 @@ func readFilesetDigests(
 		return fsDigests, err
 	}
 	if fsDigests.summariesDigest, err = digestFdWithDigestContents.ReadDigest(); err != nil {
-		// Skip the summaries digest
 		return fsDigests, err
 	}
 	if fsDigests.bloomFilterDigest, err = digestFdWithDigestContents.ReadDigest(); err != nil {

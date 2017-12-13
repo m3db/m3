@@ -145,8 +145,8 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		filePathPrefix:             opts.filePathPrefix,
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.infoBufferSize),
 		indexFdWithDigest:          digest.NewFdWithDigestReader(opts.dataBufferSize),
+		bloomFilterFdWithDigest:    digest.NewFdWithDigestReader(opts.dataBufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.infoBufferSize),
-		bloomFilterFdWithDigest:    digest.NewFdWithDigestContentsReader(opts.dataBufferSize),
 		dataReader:                 bufio.NewReaderSize(nil, opts.seekBufferSize),
 		keepIndexIDs:               opts.keepIndexIDs,
 		keepUnreadBuf:              opts.keepUnreadBuf,
@@ -209,6 +209,18 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 
+	s.bloomFilter, err = readManagedConcurrentBloomFilter(
+		bloomFilterFd,
+		s.bloomFilterFdWithDigest,
+		s.expectedBloomFilterDigest,
+		uint(s.bloomFilterInfo.NumElementsM),
+		uint(s.bloomFilterInfo.NumHashesK),
+	)
+	if err != nil {
+		s.Close()
+		return err
+	}
+
 	if !s.keepUnreadBuf {
 		// NB(r): Free the unread buffer and reset the decoder as unless
 		// using this seeker in the seeker manager we never use this buffer again
@@ -217,14 +229,6 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	}
 
 	s.dataFd = dataFd
-
-	s.bloomFilter, err = readManagedConcurrentBloomFilter(
-		bloomFilterFd,
-		s.bloomFilterFdWithDigest,
-		s.expectedBloomFilterDigest,
-		uint(s.bloomFilterInfo.NumElementsM),
-		uint(s.bloomFilterInfo.NumHashesK),
-	)
 
 	return err
 }

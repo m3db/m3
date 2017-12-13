@@ -87,6 +87,7 @@ func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Ti
 	for i := 0; i < r.Entries(); i++ {
 		idFromRead, data, checksumFromRead, err := r.Read()
 		require.NoError(t, err)
+		defer idFromRead.Finalize()
 
 		data.IncRef()
 		defer data.DecRef()
