@@ -68,9 +68,9 @@ type reader struct {
 	start          time.Time
 	blockSize      time.Duration
 
-	infoFdWithDigest               digest.FdWithDigestReader
-	digestFdWithDigestContents     digest.FdWithDigestContentsReader
-	bloomFilterFWithDigestContents digest.FdWithDigestContentsReader
+	infoFdWithDigest           digest.FdWithDigestReader
+	bloomFilterWithDigest      digest.FdWithDigestReader
+	digestFdWithDigestContents digest.FdWithDigestContentsReader
 
 	indexFd                 *os.File
 	indexMmap               []byte
@@ -114,15 +114,15 @@ func NewReader(
 			enabled:   opts.MmapEnableHugePages(),
 			threshold: opts.MmapHugePagesThreshold(),
 		},
-		infoFdWithDigest:               digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
-		digestFdWithDigestContents:     digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),
-		bloomFilterFWithDigestContents: digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),
-		indexDecoderStream:             newReaderDecoderStream(),
-		dataReader:                     digest.NewReaderWithDigest(nil),
-		prologue:                       make([]byte, markerLen+idxLen),
-		decoder:                        msgpack.NewDecoder(opts.DecodingOptions()),
-		digestBuf:                      digest.NewBuffer(),
-		bytesPool:                      bytesPool,
+		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
+		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),
+		bloomFilterWithDigest:      digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
+		indexDecoderStream:         newReaderDecoderStream(),
+		dataReader:                 digest.NewReaderWithDigest(nil),
+		prologue:                   make([]byte, markerLen+idxLen),
+		decoder:                    msgpack.NewDecoder(opts.DecodingOptions()),
+		digestBuf:                  digest.NewBuffer(),
+		bytesPool:                  bytesPool,
 	}, nil
 }
 
@@ -328,7 +328,7 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 func (r *reader) ReadBloomFilter() (block.ManagedBloomFilter, error) {
 	return readBloomFilter(
 		r.bloomFilterFd,
-		r.bloomFilterFWithDigestContents,
+		r.bloomFilterWithDigest,
 		r.expectedBloomFilterDigest,
 		uint(r.bloomFilterInfo.NumElementsM),
 		uint(r.bloomFilterInfo.NumHashesK),

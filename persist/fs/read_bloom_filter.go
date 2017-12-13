@@ -60,8 +60,7 @@ func readBloomFilter(
 		return nil, err
 	}
 
-	// TODO: Use conccurrent one?
-	bloomFilter := bloom.NewReadOnlyBloomFilter(numElementsM, numHashesK, anonMmap)
+	bloomFilter := bloom.NewConcurrentReadOnlyBloomFilter(numElementsM, numHashesK, anonMmap)
 	closeFn := func() error {
 		return munmap(anonMmap)
 	}
