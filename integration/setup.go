@@ -115,7 +115,9 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 
 	runtimeOptsMgr := storageOpts.RuntimeOptionsManager()
 	runtimeOpts := runtimeOptsMgr.Get().SetTickMinimumInterval(opts.TickMinimumInterval())
-	runtimeOptsMgr.Update(runtimeOpts)
+	if err := runtimeOptsMgr.Update(runtimeOpts); err != nil {
+		return nil, err
+	}
 
 	nativePooling := strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"
 	if nativePooling {

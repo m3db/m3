@@ -147,7 +147,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		instrumentOpts:                 instrument.NewOptions(),
 		blockOpts:                      block.NewOptions(),
 		commitLogOpts:                  commitlog.NewOptions(),
-		runtimeOptsMgr:                 runtime.NewOptionsManager(runtime.NewOptions()),
+		runtimeOptsMgr:                 runtime.NewOptionsManager(),
 		errCounterOpts:                 xcounter.NewOptions(),
 		errWindowForLoad:               defaultErrorWindowForLoad,
 		errThresholdForLoad:            defaultErrorThresholdForLoad,

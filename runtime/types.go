@@ -27,8 +27,11 @@ import (
 	xclose "github.com/m3db/m3x/close"
 )
 
-// Options is a set of runtime options
+// Options is a set of runtime options.
 type Options interface {
+	// Validate will validate the runtime options are valid.
+	Validate() error
+
 	// SetPersistRateLimitOptions sets the persist rate limit options
 	SetPersistRateLimitOptions(value ratelimit.Options) Options
 
@@ -114,26 +117,26 @@ type Options interface {
 	TickMinimumInterval() time.Duration
 }
 
-// OptionsManager updates and supplies runtime options
+// OptionsManager updates and supplies runtime options.
 type OptionsManager interface {
-	// Update updates the current runtime options
-	Update(value Options)
+	// Update updates the current runtime options.
+	Update(value Options) error
 
-	// Get returns the current values
+	// Get returns the current values.
 	Get() Options
 
 	// RegisterListener registers a listener for updates to runtime options,
 	// it will synchronously call back the listener when this method is called
-	// to deliver the current set of runtime options
+	// to deliver the current set of runtime options.
 	RegisterListener(l OptionsListener) xclose.SimpleCloser
 
-	// Close closes the watcher and all descendent watches
+	// Close closes the watcher and all descendent watches.
 	Close()
 }
 
-// OptionsListener listens for updates to runtime options
+// OptionsListener listens for updates to runtime options.
 type OptionsListener interface {
 	// SetRuntimeOptions is called when the listener is registered
-	// and when any updates occurred passing the new runtime options
+	// and when any updates occurred passing the new runtime options.
 	SetRuntimeOptions(value Options)
 }

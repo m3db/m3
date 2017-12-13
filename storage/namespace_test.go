@@ -865,7 +865,7 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 	assert.True(t, ns.NeedsFlush(blockStart, blockStart))
 }
 
-func TestNamespaceCloseWithShard(t *testing.T) {
+func TestNamespaceCloseWillCloseShard(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -874,15 +874,44 @@ func TestNamespaceCloseWithShard(t *testing.T) {
 
 	// mock namespace + 1 shard
 	ns := newTestNamespace(t)
+
+	// specify a mock shard to test being closed
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().Close().Return(nil)
+	ns.Lock()
 	ns.shards[testShardIDs[0].ID()] = shard
+	ns.Unlock()
 
-	// Close and ensure no goroutines are leaked
+	// Close the namespace
 	require.NoError(t, ns.Close())
-	leaktest.Check(t)()
 
-	// And the namespace no long owns any shards
+	// Check the namespace no long owns any shards
+	require.Empty(t, ns.GetOwnedShards())
+}
+
+func TestNamespaceCloseDoesNotLeak(t *testing.T) {
+	// Need to generate leaktest at top of test as that is when
+	// goroutines that are interesting are captured
+	leakCheck := leaktest.Check(t)
+	defer leakCheck()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	// new namespace
+	ns := newTestNamespace(t)
+	// verify has shards it will need to close
+	ns.RLock()
+	assert.True(t, len(ns.shards) > 0)
+	ns.RUnlock()
+
+	// Close the namespace
+	require.NoError(t, ns.Close())
+
+	// Check the namespace no long owns any shards
 	require.Empty(t, ns.GetOwnedShards())
 }
 

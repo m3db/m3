@@ -708,6 +708,9 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 		}
 		lastWriteAt = dp.Timestamp
 	}
+	if err := iter.Err(); err != nil {
+		return mergeResult{}, err
+	}
 
 	b.resetEncoders()
 	b.resetBootstrapped()

@@ -33,6 +33,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/grafana/grafana/pkg/cmd/grafana-cli/logger"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/generated/proto/commonpb"
 	"github.com/m3db/m3cluster/kv"
@@ -126,6 +127,29 @@ func Run(runOpts RunOptions) {
 	}
 	defer buildReporter.Stop()
 
+	runtimeOpts := m3dbruntime.NewOptions().
+		SetPersistRateLimitOptions(ratelimit.NewOptions().
+			SetLimitEnabled(true).
+			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbps).
+			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEvery)).
+		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
+		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration)
+
+	if tick := cfg.Tick; tick != nil {
+		runtimeOpts = runtimeOpts.
+			SetTickSeriesBatchSize(tick.SeriesBatchSize).
+			SetTickPerSeriesSleepDuration(tick.PerSeriesSleepDuration).
+			SetTickMinimumInterval(tick.MinimumInterval)
+	}
+
+	runtimeOptsMgr := m3dbruntime.NewOptionsManager()
+	if err := runtimeOptsMgr.Update(runtimeOpts); err != nil {
+		logger.Fatalf("could not set initial runtime options: %v", err)
+	}
+	defer runtimeOptsMgr.Close()
+
+	opts = opts.SetRuntimeOptionsManager(runtimeOptsMgr)
+
 	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
 	if err != nil {
 		log.Fatalf("could not parse new file mode: %v", err)
@@ -150,7 +174,8 @@ func Run(runOpts RunOptions) {
 		SetInfoReaderBufferSize(cfg.Filesystem.InfoReadBufferSize).
 		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSize).
 		SetMmapEnableHugePages(mmap.HugePages.Enabled).
-		SetMmapHugePagesThreshold(mmap.HugePages.Threshold)
+		SetMmapHugePagesThreshold(mmap.HugePages.Threshold).
+		SetRuntimeOptionsManager(runtimeOptsMgr)
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size
@@ -173,28 +198,6 @@ func Run(runOpts RunOptions) {
 		SetBacklogQueueSize(commitLogQueueSize).
 		SetRetentionPeriod(cfg.CommitLog.RetentionPeriod).
 		SetBlockSize(cfg.CommitLog.BlockSize))
-
-	runtimeOpts := m3dbruntime.NewOptions().
-		SetPersistRateLimitOptions(ratelimit.NewOptions().
-			SetLimitEnabled(true).
-			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbps).
-			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEvery)).
-		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
-		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration)
-	if value := cfg.Tick.SeriesBatchSize; value > 0 {
-		runtimeOpts = runtimeOpts.SetTickSeriesBatchSize(value)
-	}
-	if value := cfg.Tick.PerSeriesSleepDuration; value > 0 {
-		runtimeOpts = runtimeOpts.SetTickPerSeriesSleepDuration(value)
-	}
-	if value := cfg.Tick.MinimumInterval; value > 0 {
-		runtimeOpts = runtimeOpts.SetTickMinimumInterval(value)
-	}
-
-	runtimeOptsMgr := m3dbruntime.NewOptionsManager(runtimeOpts)
-	defer runtimeOptsMgr.Close()
-
-	opts = opts.SetRuntimeOptionsManager(runtimeOptsMgr)
 
 	opts = withEncodingAndPoolingOptions(logger, opts, cfg.PoolingPolicy)
 
@@ -525,8 +528,11 @@ func setNewSeriesLimitPerShardOnChange(
 		return
 	}
 
-	runtimeOptsMgr.Update(runtimeOpts.
-		SetWriteNewSeriesLimitPerShardPerSecond(perPlacedShardLimit))
+	newRuntimeOpts := runtimeOpts.
+		SetWriteNewSeriesLimitPerShardPerSecond(perPlacedShardLimit)
+	if err := runtimeOptsMgr.Update(newRuntimeOpts); err != nil {
+		logger.Warnf("unable to set cluster new series insert limit: %v", err)
+	}
 }
 
 func clusterLimitToPlacedShardLimit(topo topology.Topology, clusterLimit int) int {

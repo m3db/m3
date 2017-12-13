@@ -76,6 +76,23 @@ type tickManager struct {
 
 type tickManagerRuntimeOptions struct {
 	sync.RWMutex
+	vals tickManagerRuntimeOptionsValues
+}
+
+func (o *tickManagerRuntimeOptions) set(v tickManagerRuntimeOptionsValues) {
+	o.Lock()
+	o.vals = v
+	o.Unlock()
+}
+
+func (o *tickManagerRuntimeOptions) values() tickManagerRuntimeOptionsValues {
+	o.RLock()
+	v := o.vals
+	o.RUnlock()
+	return v
+}
+
+type tickManagerRuntimeOptionsValues struct {
 	tickMinInterval time.Duration
 }
 
@@ -100,9 +117,9 @@ func newTickManager(database database, opts Options) databaseTickManager {
 }
 
 func (mgr *tickManager) SetRuntimeOptions(opts runtime.Options) {
-	mgr.runtimeOpts.Lock()
-	mgr.runtimeOpts.tickMinInterval = opts.TickMinimumInterval()
-	mgr.runtimeOpts.Unlock()
+	mgr.runtimeOpts.set(tickManagerRuntimeOptionsValues{
+		tickMinInterval: opts.TickMinimumInterval(),
+	})
 }
 
 func (mgr *tickManager) Tick(forceType forceType) error {
@@ -160,9 +177,7 @@ func (mgr *tickManager) Tick(forceType forceType) error {
 	took := mgr.nowFn().Sub(start)
 	mgr.metrics.tickWorkDuration.Record(took)
 
-	mgr.runtimeOpts.RLock()
-	min := mgr.runtimeOpts.tickMinInterval
-	mgr.runtimeOpts.RUnlock()
+	min := mgr.runtimeOpts.values().tickMinInterval
 
 	// Sleep in a loop so that cancellations propagate if need to
 	// wait to fulfill the tick min interval

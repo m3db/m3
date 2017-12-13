@@ -71,8 +71,8 @@ type Configuration struct {
 	// Write new series backoff between batches of new series insertions.
 	WriteNewSeriesBackoffDuration time.Duration `yaml:"writeNewSeriesBackoffDuration"`
 
-	// The tick configuration, omit to use default settings.
-	Tick TickConfiguration `yaml:"tick"`
+	// The tick configuration, omit this to use default settings.
+	Tick *TickConfiguration `yaml:"tick"`
 
 	// Bootstrap configuration.
 	Bootstrap BootstrapConfiguration `yaml:"bootstrap"`
@@ -100,22 +100,20 @@ type Configuration struct {
 }
 
 // TickConfiguration is the tick configuration for background processing of
-// series as they rotated and out of order writes are merged.
+// series as blocks are rotated from mutable to immutable and out of order
+// writes are merged.
 type TickConfiguration struct {
 	// Tick series batch size is the batch size to process series together
 	// during a tick before yielding and sleeping the per series duration
-	// multiplied by the batch size, this is only used if the value is
-	// greater than zero otherwise the default is used.
+	// multiplied by the batch size.
 	// The higher this value is the more variable CPU utilization will be
 	// but the shorter ticks will ultimately be.
 	SeriesBatchSize int `yaml:"seriesBatchSize"`
 
-	// Tick per series sleep at the completion of a tick batch, only used
-	// if the value is greater than zero otherwise the default is used.
+	// Tick per series sleep at the completion of a tick batch.
 	PerSeriesSleepDuration time.Duration `yaml:"perSeriesSleepDuration"`
 
-	// Tick minimum interval controls the minimum tick interval for the node,
-	// only used if the value is greater than zero otherwise the default is used.
+	// Tick minimum interval controls the minimum tick interval for the node.
 	MinimumInterval time.Duration `yaml:"minimumInterval"`
 }
 

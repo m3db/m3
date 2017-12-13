@@ -49,10 +49,6 @@ import (
 	"github.com/uber-go/tally"
 )
 
-const (
-	namespaceReportLoopInterval = time.Minute
-)
-
 var (
 	errNamespaceAlreadyClosed = errors.New("namespace already closed")
 )
@@ -274,7 +270,8 @@ func newDatabaseNamespace(
 }
 
 func (n *dbNamespace) reportStatusLoop() {
-	ticker := time.NewTicker(namespaceReportLoopInterval)
+	reportInterval := n.opts.InstrumentOptions().ReportInterval()
+	ticker := time.NewTicker(reportInterval)
 	defer ticker.Stop()
 	for {
 		select {

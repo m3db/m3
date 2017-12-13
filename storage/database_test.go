@@ -62,6 +62,7 @@ var (
 
 func init() {
 	opts := newOptions(pool.NewObjectPoolOptions().SetSize(16))
+
 	pm, err := fs.NewPersistManager(fs.NewOptions())
 	if err != nil {
 		panic(err)
