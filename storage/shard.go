@@ -105,6 +105,11 @@ type dbShard struct {
 	metrics                  dbShardMetrics
 }
 
+// NB(r): dbShardRuntimeOptions does not contain its own
+// mutex as some of the variables are needed each write
+// which already at least acquires read lock from the shard
+// mutex, so to keep the lock acquisitions to a minimum
+// these are protected under the same shard mutex.
 type dbShardRuntimeOptions struct {
 	writeNewSeriesAsync      bool
 	tickSleepSeriesBatchSize int

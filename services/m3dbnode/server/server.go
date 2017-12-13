@@ -33,7 +33,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/grafana/grafana/pkg/cmd/grafana-cli/logger"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/generated/proto/commonpb"
 	"github.com/m3db/m3cluster/kv"
@@ -494,7 +493,10 @@ func kvWatchNewSeriesLimitPerShard(
 		initClusterLimit = defaultClusterNewSeriesLimit
 	}
 
-	setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, initClusterLimit)
+	err = setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, initClusterLimit)
+	if err != nil {
+		logger.Warnf("unable to set cluster new series insert limit: %v", err)
+	}
 
 	watch, err := store.Watch(kvconfig.ClusterNewSeriesInsertLimitKey)
 	if err != nil {
@@ -512,7 +514,11 @@ func kvWatchNewSeriesLimitPerShard(
 			}
 
 			value := int(protoValue.Value)
-			setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, value)
+			err = setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, value)
+			if err != nil {
+				logger.Warnf("unable to set cluster new series insert limit: %v", err)
+				continue
+			}
 		}
 	}()
 }
@@ -521,19 +527,17 @@ func setNewSeriesLimitPerShardOnChange(
 	topo topology.Topology,
 	runtimeOptsMgr m3dbruntime.OptionsManager,
 	clusterLimit int,
-) {
+) error {
 	perPlacedShardLimit := clusterLimitToPlacedShardLimit(topo, clusterLimit)
 	runtimeOpts := runtimeOptsMgr.Get()
 	if runtimeOpts.WriteNewSeriesLimitPerShardPerSecond() == perPlacedShardLimit {
 		// Not changed, no need to set the value and trigger a runtime options update
-		return
+		return nil
 	}
 
 	newRuntimeOpts := runtimeOpts.
 		SetWriteNewSeriesLimitPerShardPerSecond(perPlacedShardLimit)
-	if err := runtimeOptsMgr.Update(newRuntimeOpts); err != nil {
-		logger.Warnf("unable to set cluster new series insert limit: %v", err)
-	}
+	return runtimeOptsMgr.Update(newRuntimeOpts)
 }
 
 func clusterLimitToPlacedShardLimit(topo topology.Topology, clusterLimit int) int {

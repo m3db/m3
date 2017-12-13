@@ -316,10 +316,7 @@ gcPercentage: 100
 writeNewSeriesAsync: true
 writeNewSeriesLimitPerSecond: 1048576
 writeNewSeriesBackoffDuration: 2ms
-tick:
-  seriesBatchSize: 0
-  perSeriesSleepDuration: 0s
-  minimumInterval: 0s
+tick: null
 bootstrap:
   bootstrappers:
   - filesystem
