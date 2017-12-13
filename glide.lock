@@ -1,5 +1,5 @@
-hash: e79808779ec635ee8e85edea607b3ab3c2d5f64697fb09c302aa5999059e8c9c
-updated: 2017-11-27T10:27:08.069982653-05:00
+hash: b1e7dcc0f6920d92e0c04a16f7e263ec0cb3de39d379948862499251aa383d50
+updated: 2017-12-11T20:43:53.223943871-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -175,7 +175,7 @@ imports:
   - os/fs
   - x/grpc
 - name: github.com/m3db/m3x
-  version: f55f7ecf679d192f0f272ce2088e24b2b640c194
+  version: 92df05b731f626e93b1ab9080360ad16bd780e2f
   vcs: git
   subpackages:
   - checked
@@ -260,7 +260,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 95078a8f10668bd1fa73ae46761cdc58d25436b8
+  version: 6c4631652c6aab57c64f65c2e0aaec2e9aae3a64
   subpackages:
   - m3
   - m3/customtransports
@@ -285,6 +285,16 @@ imports:
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: go.uber.org/atomic
   version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+- name: go.uber.org/multierr
+  version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
+- name: go.uber.org/zap
+  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  subpackages:
+  - buffer
+  - internal/bufferpool
+  - internal/color
+  - internal/exit
+  - zapcore
 - name: golang.org/x/crypto
   version: 1351f936d976c60a0a48d728281922cf63eafb8d
   repo: https://github.com/golang/crypto

@@ -53,7 +53,7 @@ import:
   - integration/etcd
 
 - package: github.com/m3db/m3x
-  version: f55f7ecf679d192f0f272ce2088e24b2b640c194
+  version: 92df05b731f626e93b1ab9080360ad16bd780e2f
   vcs: git
   subpackages:
   - checked
