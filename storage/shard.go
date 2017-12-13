@@ -369,7 +369,15 @@ func (s *dbShard) Close() error {
 	return nil
 }
 
+func (s *dbShard) isClosing() bool {
+	s.RLock()
+	state := s.state
+	s.RUnlock()
+	return state == dbShardStateClosing
+}
+
 func (s *dbShard) Tick(c context.Cancellable, softDeadline time.Duration) (tickResult, error) {
+	// CAS the ticking state
 	if s.ticking.Swap(true) {
 		// i.e. we were previously ticking
 		return tickResult{}, errShardAlreadyTicking
@@ -401,10 +409,10 @@ func (s *dbShard) tickAndExpire(
 	start := s.nowFn()
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		if i > 0 && i%s.tickSleepIfAheadEvery == 0 {
-			// NB(xichen): if the tick is cancelled, we bail out immediately.
-			// The cancellation check is performed on every batch of entries
-			// instead of every entry to reduce load.
-			if c.IsCancelled() {
+			// NB(xichen): if the tick is cancelled, or if the shard is closing,
+			// we bail out immediately. The cancellation check is performed on
+			// every batch of entries instead of every entry to reduce load.
+			if c.IsCancelled() || s.isClosing() {
 				return false
 			}
 			// If we are ahead of our our deadline then throttle tick

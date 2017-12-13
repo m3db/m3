@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -88,6 +89,30 @@ func TestTickManagerTickCancelled(t *testing.T) {
 	c.Cancel()
 	ch2 <- struct{}{}
 	wg.Wait()
+}
+
+func TestTickManagerTickErrorFlow(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	d := time.Minute
+	opts := testDatabaseOptions()
+	c := context.NewCancellable()
+
+	fakeErr := errors.New("fake error")
+	namespace := NewMockdatabaseNamespace(ctrl)
+	namespace.EXPECT().NumSeries().Return(int64(10))
+	namespace.EXPECT().Tick(c, d).Return(fakeErr)
+	db := newMockdatabase(ctrl, namespace)
+
+	tm := newTickManager(db, opts).(*tickManager)
+	tm.c = c
+	tm.sleepFn = func(time.Duration) {}
+
+	err := tm.Tick(d, noForce)
+	require.Error(t, err)
+	require.Equal(t, fakeErr.Error(), err.Error())
+	require.Equal(t, 1, len(tm.tokenCh))
 }
 
 func TestTickManagerNonForcedTickDuringOngoingTick(t *testing.T) {

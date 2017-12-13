@@ -86,12 +86,35 @@ func TestNamespaceTick(t *testing.T) {
 	expectedPerShardDeadline := deadline / time.Duration(len(testShardIDs))
 	for i := range testShardIDs {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().Tick(context.NewNoOpCanncellable(), expectedPerShardDeadline)
+		shard.EXPECT().Tick(context.NewNoOpCanncellable(), expectedPerShardDeadline).Return(tickResult{}, nil)
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
 	// Only asserting the expected methods are called
-	ns.Tick(context.NewNoOpCanncellable(), deadline)
+	require.NoError(t, ns.Tick(context.NewNoOpCanncellable(), deadline))
+}
+
+func TestNamespaceTickError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	fakeErr := errors.New("fake error")
+	ns := newTestNamespace(t)
+	deadline := 100 * time.Millisecond
+	expectedPerShardDeadline := deadline / time.Duration(len(testShardIDs))
+	for i := range testShardIDs {
+		shard := NewMockdatabaseShard(ctrl)
+		if i == 0 {
+			shard.EXPECT().Tick(context.NewNoOpCanncellable(), expectedPerShardDeadline).Return(tickResult{}, fakeErr)
+		} else {
+			shard.EXPECT().Tick(context.NewNoOpCanncellable(), expectedPerShardDeadline).Return(tickResult{}, nil)
+		}
+		ns.shards[testShardIDs[i].ID()] = shard
+	}
+
+	err := ns.Tick(context.NewNoOpCanncellable(), deadline)
+	require.NotNil(t, err)
+	require.Equal(t, fakeErr.Error(), err.Error())
 }
 
 func TestNamespaceWriteShardNotOwned(t *testing.T) {

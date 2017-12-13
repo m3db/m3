@@ -345,9 +345,10 @@ func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) er
 
 	// Tick through the shards sequentially to avoid parallel data flushes
 	var (
-		r  tickResult
-		l  sync.Mutex
-		wg sync.WaitGroup
+		r        tickResult
+		multiErr xerrors.MultiError
+		l        sync.Mutex
+		wg       sync.WaitGroup
 	)
 	perShardDeadline := softDeadline / time.Duration(len(shards))
 	perShardDeadline *= time.Duration(n.tickWorkersConcurrency)
@@ -361,10 +362,11 @@ func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) er
 				return
 			}
 
-			shardResult, _ := shard.Tick(c, perShardDeadline)
+			shardResult, err := shard.Tick(c, perShardDeadline)
 
 			l.Lock()
 			r = r.merge(shardResult)
+			multiErr = multiErr.Add(err)
 			l.Unlock()
 		})
 	}
@@ -386,7 +388,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) er
 	n.metrics.tick.mergedOutOfOrderBlocks.Inc(int64(r.mergedOutOfOrderBlocks))
 	n.metrics.tick.errors.Inc(int64(r.errors))
 
-	return nil
+	return multiErr.FinalError()
 }
 
 func (n *dbNamespace) Write(

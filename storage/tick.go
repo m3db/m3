@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
+	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/uber-go/tally"
 )
@@ -124,9 +125,12 @@ func (mgr *tickManager) Tick(softDeadline time.Duration, forceType forceType) er
 	}
 
 	// Begin ticking
-	start := mgr.nowFn()
-	sizes := make([]int64, 0, len(namespaces))
-	totalSize := int64(0)
+	var (
+		start     = mgr.nowFn()
+		sizes     = make([]int64, 0, len(namespaces))
+		totalSize = int64(0)
+		multiErr  xerrors.MultiError
+	)
 	for _, n := range namespaces {
 		size := n.NumSeries()
 		sizes = append(sizes, size)
@@ -134,7 +138,7 @@ func (mgr *tickManager) Tick(softDeadline time.Duration, forceType forceType) er
 	}
 	for i, n := range namespaces {
 		deadline := float64(softDeadline) * (float64(sizes[i]) / float64(totalSize))
-		n.Tick(mgr.c, time.Duration(deadline))
+		multiErr = multiErr.Add(n.Tick(mgr.c, time.Duration(deadline)))
 	}
 
 	end := mgr.nowFn()
@@ -159,5 +163,6 @@ func (mgr *tickManager) Tick(softDeadline time.Duration, forceType forceType) er
 		mgr.metrics.tickCancelled.Inc(1)
 		return errTickCancelled
 	}
-	return nil
+
+	return multiErr.FinalError()
 }

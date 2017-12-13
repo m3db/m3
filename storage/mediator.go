@@ -177,6 +177,9 @@ func (m *mediator) ongoingTick() {
 			err := m.Tick(m.opts.TickInterval(), asyncRun, noForce)
 			if err == errTickInProgress {
 				m.sleepFn(tickCheckInterval)
+			} else if err != nil {
+				log := m.opts.InstrumentOptions().Logger()
+				log.Errorf("error within ongoingTick: %v", err)
 			}
 		}
 	}
