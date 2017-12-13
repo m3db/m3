@@ -54,8 +54,8 @@ const (
 	// defaultWorkerPoolSize is the default number of workers in the worker pool.
 	defaultWorkerPoolSize = 10
 
-	// defaultTickInterval is the default tick interval.
-	defaultTickInterval = 1 * time.Second
+	// defaultTickMinimumInterval is the default minimum tick interval.
+	defaultTickMinimumInterval = 1 * time.Second
 
 	// defaultUseTChannelClientForReading determines whether we use the tchannel client for reading by default.
 	defaultUseTChannelClientForReading = true
@@ -107,11 +107,11 @@ type testOptions interface {
 	// ID returns the node ID.
 	ID() string
 
-	// SetTickInterval sets the tick interval.
-	SetTickInterval(value time.Duration) testOptions
+	// SetTickMinimumInterval sets the tick interval.
+	SetTickMinimumInterval(value time.Duration) testOptions
 
-	// TickInterval returns the tick interval.
-	TickInterval() time.Duration
+	// TickMinimumInterval returns the tick interval.
+	TickMinimumInterval() time.Duration
 
 	// SetHTTPClusterAddr sets the http cluster address.
 	SetHTTPClusterAddr(value string) testOptions
@@ -241,7 +241,7 @@ type options struct {
 	commitlogRetentionPeriod           time.Duration
 	commitlogBlockSize                 time.Duration
 	id                                 string
-	tickInterval                       time.Duration
+	tickMinimumInterval                time.Duration
 	httpClusterAddr                    string
 	tchannelClusterAddr                string
 	httpNodeAddr                       string
@@ -279,7 +279,7 @@ func newTestOptions(t *testing.T) testOptions {
 		commitlogRetentionPeriod:       defaultIntegrationTestRetentionOpts.RetentionPeriod(),
 		commitlogBlockSize:             defaultIntegrationTestRetentionOpts.BlockSize(),
 		id:                             defaultID,
-		tickInterval:                   defaultTickInterval,
+		tickMinimumInterval:            defaultTickMinimumInterval,
 		serverStateChangeTimeout:       defaultServerStateChangeTimeout,
 		clusterConnectionTimeout:       defaultClusterConnectionTimeout,
 		readRequestTimeout:             defaultReadRequestTimeout,
@@ -344,14 +344,14 @@ func (o *options) ID() string {
 	return o.id
 }
 
-func (o *options) SetTickInterval(value time.Duration) testOptions {
+func (o *options) SetTickMinimumInterval(value time.Duration) testOptions {
 	opts := *o
-	opts.tickInterval = value
+	opts.tickMinimumInterval = value
 	return &opts
 }
 
-func (o *options) TickInterval() time.Duration {
-	return o.tickInterval
+func (o *options) TickMinimumInterval() time.Duration {
+	return o.tickMinimumInterval
 }
 
 func (o *options) SetHTTPClusterAddr(value string) testOptions {

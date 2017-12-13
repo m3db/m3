@@ -21,53 +21,12 @@
 package runtime
 
 import (
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-type mockListener struct {
-	sync.RWMutex
-	value Options
-}
-
-func (l *mockListener) SetRuntimeOptions(value Options) {
-	l.Lock()
-	defer l.Unlock()
-	l.value = value
-}
-
-func (l *mockListener) runtimeOptions() Options {
-	l.RLock()
-	defer l.RUnlock()
-	return l.value
-}
-
-func TestRuntimeOptionsManagerUpdate(t *testing.T) {
-	mgr := NewOptionsManager()
-	opts := NewOptions().SetWriteNewSeriesAsync(false)
-	require.NoError(t, mgr.Update(opts))
-
-	assert.Equal(t, false, mgr.Get().WriteNewSeriesAsync())
-
-	l := &mockListener{}
-	assert.Nil(t, l.value)
-
-	// Ensure immediately sets the value
-	mgr.RegisterListener(l)
-	assert.Equal(t, opts, l.runtimeOptions())
-
-	// Update and verify
-	mgr.Update(opts.SetWriteNewSeriesAsync(true))
-
-	// Verify listener receives update
-	for func() bool {
-		return !l.runtimeOptions().WriteNewSeriesAsync()
-	}() {
-		time.Sleep(10 * time.Millisecond)
-	}
-	assert.Equal(t, true, l.runtimeOptions().WriteNewSeriesAsync())
+func TestRuntimeOptionsDefaultsIsValid(t *testing.T) {
+	v := NewOptions()
+	assert.NoError(t, v.Validate())
 }

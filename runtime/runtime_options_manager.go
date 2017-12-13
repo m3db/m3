@@ -30,16 +30,18 @@ type optionsManager struct {
 }
 
 // NewOptionsManager creates a new runtime options manager
-func NewOptionsManager(initialValue Options) OptionsManager {
+func NewOptionsManager() OptionsManager {
 	watchable := xwatch.NewWatchable()
-	watchable.Update(initialValue)
-	return &optionsManager{
-		watchable: watchable,
-	}
+	watchable.Update(NewOptions())
+	return &optionsManager{watchable: watchable}
 }
 
-func (w *optionsManager) Update(value Options) {
+func (w *optionsManager) Update(value Options) error {
+	if err := value.Validate(); err != nil {
+		return err
+	}
 	w.watchable.Update(value)
+	return nil
 }
 
 func (w *optionsManager) Get() Options {

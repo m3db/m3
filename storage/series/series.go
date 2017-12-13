@@ -114,12 +114,8 @@ func (s *dbSeries) Tick() (TickResult, error) {
 
 	s.Lock()
 
-	// NB(r): don't bother to check if needs drain or needs
-	// block update as running both these checks
-	// are relatively expensive and running these methods
-	// will be a no-op in case where work is not needed to be done.
-	drain := s.buffer.DrainAndReset()
-	r.MergedOutOfOrderBlocks = drain.mergedOutOfOrderBlocks
+	bufferResult := s.buffer.Tick()
+	r.MergedOutOfOrderBlocks = bufferResult.mergedOutOfOrderBlocks
 
 	update := s.updateBlocksWithLock()
 	r.TickStatus = update.TickStatus

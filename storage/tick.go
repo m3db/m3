@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/runtime"
 
 	"github.com/uber-go/tally"
 )
@@ -44,6 +45,7 @@ var (
 
 type tickManagerMetrics struct {
 	tickDuration       tally.Timer
+	tickWorkDuration   tally.Timer
 	tickCancelled      tally.Counter
 	tickDeadlineMissed tally.Counter
 	tickDeadlineMet    tally.Counter
@@ -52,6 +54,7 @@ type tickManagerMetrics struct {
 func newTickManagerMetrics(scope tally.Scope) tickManagerMetrics {
 	return tickManagerMetrics{
 		tickDuration:       scope.Timer("duration"),
+		tickWorkDuration:   scope.Timer("work-duration"),
 		tickCancelled:      scope.Counter("cancelled"),
 		tickDeadlineMissed: scope.Counter("deadline.missed"),
 		tickDeadlineMet:    scope.Counter("deadline.met"),
@@ -59,8 +62,6 @@ func newTickManagerMetrics(scope tally.Scope) tickManagerMetrics {
 }
 
 type tickManager struct {
-	sync.RWMutex
-
 	database database
 	opts     Options
 	nowFn    clock.NowFn
@@ -69,6 +70,30 @@ type tickManager struct {
 	metrics tickManagerMetrics
 	c       context.Cancellable
 	tokenCh chan struct{}
+
+	runtimeOpts tickManagerRuntimeOptions
+}
+
+type tickManagerRuntimeOptions struct {
+	sync.RWMutex
+	vals tickManagerRuntimeOptionsValues
+}
+
+func (o *tickManagerRuntimeOptions) set(v tickManagerRuntimeOptionsValues) {
+	o.Lock()
+	o.vals = v
+	o.Unlock()
+}
+
+func (o *tickManagerRuntimeOptions) values() tickManagerRuntimeOptionsValues {
+	o.RLock()
+	v := o.vals
+	o.RUnlock()
+	return v
+}
+
+type tickManagerRuntimeOptionsValues struct {
+	tickMinInterval time.Duration
 }
 
 func newTickManager(database database, opts Options) databaseTickManager {
@@ -76,7 +101,7 @@ func newTickManager(database database, opts Options) databaseTickManager {
 	tokenCh := make(chan struct{}, 1)
 	tokenCh <- struct{}{}
 
-	return &tickManager{
+	mgr := &tickManager{
 		database: database,
 		opts:     opts,
 		nowFn:    opts.ClockOptions().NowFn(),
@@ -85,9 +110,19 @@ func newTickManager(database database, opts Options) databaseTickManager {
 		c:        context.NewCancellable(),
 		tokenCh:  tokenCh,
 	}
+
+	runtimeOptsMgr := opts.RuntimeOptionsManager()
+	runtimeOptsMgr.RegisterListener(mgr)
+	return mgr
 }
 
-func (mgr *tickManager) Tick(softDeadline time.Duration, forceType forceType) error {
+func (mgr *tickManager) SetRuntimeOptions(opts runtime.Options) {
+	mgr.runtimeOpts.set(tickManagerRuntimeOptionsValues{
+		tickMinInterval: opts.TickMinimumInterval(),
+	})
+}
+
+func (mgr *tickManager) Tick(forceType forceType) error {
 	if forceType == force {
 		acquired := false
 		waiter := time.NewTicker(tokenCheckInterval)
@@ -125,35 +160,38 @@ func (mgr *tickManager) Tick(softDeadline time.Duration, forceType forceType) er
 
 	// Begin ticking
 	start := mgr.nowFn()
-	sizes := make([]int64, 0, len(namespaces))
-	totalSize := int64(0)
 	for _, n := range namespaces {
-		size := n.NumSeries()
-		sizes = append(sizes, size)
-		totalSize += size
+		n.Tick(mgr.c)
 	}
-	for i, n := range namespaces {
-		deadline := float64(softDeadline) * (float64(sizes[i]) / float64(totalSize))
-		n.Tick(mgr.c, time.Duration(deadline))
+
+	// NB(r): Always sleep for some constant period since ticking
+	// is variable with num series. With a really small amount of series
+	// the per shard amount of constant sleeping is only:
+	// = num shards * sleep per series (100 microseconds default)
+	// This number can be quite small if configuring to have small amount of
+	// shards (say 10 shards) with 32 series per shard (total of 320 series):
+	// = 10 num shards * ~32 series per shard * 100 microseconds default sleep per series
+	// = 10*32*0.1 milliseconds
+	// = 32ms
+	// Because of this we always sleep at least some fixed constant amount.
+	took := mgr.nowFn().Sub(start)
+	mgr.metrics.tickWorkDuration.Record(took)
+
+	min := mgr.runtimeOpts.values().tickMinInterval
+
+	// Sleep in a loop so that cancellations propagate if need to
+	// wait to fulfill the tick min interval
+	interval := cancellationCheckInterval
+	for d := time.Duration(0); d < min-took; d += interval {
+		if mgr.c.IsCancelled() {
+			break
+		}
+		mgr.sleepFn(interval)
 	}
 
 	end := mgr.nowFn()
 	duration := end.Sub(start)
 	mgr.metrics.tickDuration.Record(duration)
-
-	if duration > softDeadline {
-		mgr.metrics.tickDeadlineMissed.Inc(1)
-	} else {
-		mgr.metrics.tickDeadlineMet.Inc(1)
-
-		// Throttle to reduce locking overhead during ticking
-		for d := time.Duration(0); d < softDeadline-duration; d += cancellationCheckInterval {
-			if mgr.c.IsCancelled() {
-				break
-			}
-			mgr.sleepFn(cancellationCheckInterval)
-		}
-	}
 
 	if mgr.c.IsCancelled() {
 		mgr.metrics.tickCancelled.Inc(1)

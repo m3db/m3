@@ -21,6 +21,7 @@
 package runtime
 
 import (
+	"errors"
 	"time"
 
 	"github.com/m3db/m3db/ratelimit"
@@ -30,6 +31,20 @@ const (
 	defaultWriteNewSeriesAsync                  = false
 	defaultWriteNewSeriesBackoffDuration        = time.Duration(0)
 	defaultWriteNewSeriesLimitPerShardPerSecond = 0
+	defaultTickSeriesBatchSize                  = 512
+	defaultTickPerSeriesSleepDuration           = 100 * time.Microsecond
+	defaultTickMinimumInterval                  = time.Minute
+)
+
+var (
+	errWriteNewSeriesBackoffDurationIsNegative = errors.New(
+		"write new series backoff duration cannot be negative")
+	errWriteNewSeriesLimitPerShardPerSecondIsNegative = errors.New(
+		"write new series limit per shard per cannot be negative")
+	errTickSeriesBatchSizeMustBePositive = errors.New(
+		"tick series batch size must be positive")
+	errTickPerSeriesSleepDurationMustBePositive = errors.New(
+		"tick per series sleep duration must be positive")
 )
 
 type options struct {
@@ -37,6 +52,9 @@ type options struct {
 	writeNewSeriesAsync                  bool
 	writeNewSeriesBackoffDuration        time.Duration
 	writeNewSeriesLimitPerShardPerSecond int
+	tickSeriesBatchSize                  int
+	tickPerSeriesSleepDuration           time.Duration
+	tickMinimumInterval                  time.Duration
 }
 
 // NewOptions creates a new set of runtime options with defaults
@@ -46,7 +64,35 @@ func NewOptions() Options {
 		writeNewSeriesAsync:                  defaultWriteNewSeriesAsync,
 		writeNewSeriesBackoffDuration:        defaultWriteNewSeriesBackoffDuration,
 		writeNewSeriesLimitPerShardPerSecond: defaultWriteNewSeriesLimitPerShardPerSecond,
+		tickSeriesBatchSize:                  defaultTickSeriesBatchSize,
+		tickPerSeriesSleepDuration:           defaultTickPerSeriesSleepDuration,
+		tickMinimumInterval:                  defaultTickMinimumInterval,
 	}
+}
+
+func (o *options) Validate() error {
+	// writeNewSeriesBackoffDuration can be zero to specify no backoff
+	if o.writeNewSeriesBackoffDuration < 0 {
+		return errWriteNewSeriesBackoffDurationIsNegative
+	}
+
+	// writeNewSeriesLimitPerShardPerSecond can be zero to specify that
+	// no limit should be enforced
+	if o.writeNewSeriesLimitPerShardPerSecond < 0 {
+		return errWriteNewSeriesLimitPerShardPerSecondIsNegative
+	}
+
+	if !(o.tickSeriesBatchSize > 0) {
+		return errTickSeriesBatchSizeMustBePositive
+	}
+
+	if !(o.tickPerSeriesSleepDuration > 0) {
+		return errTickPerSeriesSleepDurationMustBePositive
+	}
+
+	// tickMinimumInterval can be zero if user desires
+
+	return nil
 }
 
 func (o *options) SetPersistRateLimitOptions(value ratelimit.Options) Options {
@@ -87,4 +133,34 @@ func (o *options) SetWriteNewSeriesLimitPerShardPerSecond(value int) Options {
 
 func (o *options) WriteNewSeriesLimitPerShardPerSecond() int {
 	return o.writeNewSeriesLimitPerShardPerSecond
+}
+
+func (o *options) SetTickSeriesBatchSize(value int) Options {
+	opts := *o
+	opts.tickSeriesBatchSize = value
+	return &opts
+}
+
+func (o *options) TickSeriesBatchSize() int {
+	return o.tickSeriesBatchSize
+}
+
+func (o *options) SetTickPerSeriesSleepDuration(value time.Duration) Options {
+	opts := *o
+	opts.tickPerSeriesSleepDuration = value
+	return &opts
+}
+
+func (o *options) TickPerSeriesSleepDuration() time.Duration {
+	return o.tickPerSeriesSleepDuration
+}
+
+func (o *options) SetTickMinimumInterval(value time.Duration) Options {
+	opts := *o
+	opts.tickMinimumInterval = value
+	return &opts
+}
+
+func (o *options) TickMinimumInterval() time.Duration {
+	return o.tickMinimumInterval
 }

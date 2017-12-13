@@ -126,6 +126,29 @@ func Run(runOpts RunOptions) {
 	}
 	defer buildReporter.Stop()
 
+	runtimeOpts := m3dbruntime.NewOptions().
+		SetPersistRateLimitOptions(ratelimit.NewOptions().
+			SetLimitEnabled(true).
+			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbps).
+			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEvery)).
+		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
+		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration)
+
+	if tick := cfg.Tick; tick != nil {
+		runtimeOpts = runtimeOpts.
+			SetTickSeriesBatchSize(tick.SeriesBatchSize).
+			SetTickPerSeriesSleepDuration(tick.PerSeriesSleepDuration).
+			SetTickMinimumInterval(tick.MinimumInterval)
+	}
+
+	runtimeOptsMgr := m3dbruntime.NewOptionsManager()
+	if err := runtimeOptsMgr.Update(runtimeOpts); err != nil {
+		logger.Fatalf("could not set initial runtime options: %v", err)
+	}
+	defer runtimeOptsMgr.Close()
+
+	opts = opts.SetRuntimeOptionsManager(runtimeOptsMgr)
+
 	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
 	if err != nil {
 		log.Fatalf("could not parse new file mode: %v", err)
@@ -150,7 +173,8 @@ func Run(runOpts RunOptions) {
 		SetInfoReaderBufferSize(cfg.Filesystem.InfoReadBufferSize).
 		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSize).
 		SetMmapEnableHugePages(mmap.HugePages.Enabled).
-		SetMmapHugePagesThreshold(mmap.HugePages.Threshold)
+		SetMmapHugePagesThreshold(mmap.HugePages.Threshold).
+		SetRuntimeOptionsManager(runtimeOptsMgr)
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size
@@ -174,17 +198,7 @@ func Run(runOpts RunOptions) {
 		SetRetentionPeriod(cfg.CommitLog.RetentionPeriod).
 		SetBlockSize(cfg.CommitLog.BlockSize))
 
-	runtimeOptsMgr := m3dbruntime.NewOptionsManager(m3dbruntime.NewOptions().
-		SetPersistRateLimitOptions(ratelimit.NewOptions().
-			SetLimitEnabled(true).
-			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbps).
-			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEvery)).
-		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
-		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration))
-	defer runtimeOptsMgr.Close()
-
-	opts = opts.SetRuntimeOptionsManager(runtimeOptsMgr)
-
+	// Apply pooling options
 	opts = withEncodingAndPoolingOptions(logger, opts, cfg.PoolingPolicy)
 
 	// Set the block retriever manager
@@ -229,9 +243,7 @@ func Run(runOpts RunOptions) {
 		SetNamespaceRegistryKey(kvconfig.NamespacesKey)
 	nsInit := namespace.NewDynamicInitializer(dynamicOpts)
 
-	opts = opts.
-		SetTickInterval(cfg.TickInterval).
-		SetNamespaceInitializer(nsInit)
+	opts = opts.SetNamespaceInitializer(nsInit)
 
 	serviceID := services.NewServiceID().
 		SetName(cfg.ConfigService.Service).
@@ -481,7 +493,10 @@ func kvWatchNewSeriesLimitPerShard(
 		initClusterLimit = defaultClusterNewSeriesLimit
 	}
 
-	setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, initClusterLimit)
+	err = setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, initClusterLimit)
+	if err != nil {
+		logger.Warnf("unable to set cluster new series insert limit: %v", err)
+	}
 
 	watch, err := store.Watch(kvconfig.ClusterNewSeriesInsertLimitKey)
 	if err != nil {
@@ -499,7 +514,11 @@ func kvWatchNewSeriesLimitPerShard(
 			}
 
 			value := int(protoValue.Value)
-			setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, value)
+			err = setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, value)
+			if err != nil {
+				logger.Warnf("unable to set cluster new series insert limit: %v", err)
+				continue
+			}
 		}
 	}()
 }
@@ -508,16 +527,17 @@ func setNewSeriesLimitPerShardOnChange(
 	topo topology.Topology,
 	runtimeOptsMgr m3dbruntime.OptionsManager,
 	clusterLimit int,
-) {
+) error {
 	perPlacedShardLimit := clusterLimitToPlacedShardLimit(topo, clusterLimit)
 	runtimeOpts := runtimeOptsMgr.Get()
 	if runtimeOpts.WriteNewSeriesLimitPerShardPerSecond() == perPlacedShardLimit {
 		// Not changed, no need to set the value and trigger a runtime options update
-		return
+		return nil
 	}
 
-	runtimeOptsMgr.Update(runtimeOpts.
-		SetWriteNewSeriesLimitPerShardPerSecond(perPlacedShardLimit))
+	newRuntimeOpts := runtimeOpts.
+		SetWriteNewSeriesLimitPerShardPerSecond(perPlacedShardLimit)
+	return runtimeOptsMgr.Update(newRuntimeOpts)
 }
 
 func clusterLimitToPlacedShardLimit(topo topology.Topology, clusterLimit int) int {
@@ -587,39 +607,47 @@ func withEncodingAndPoolingOptions(
 	opts storage.Options,
 	policy config.PoolingPolicy,
 ) storage.Options {
+	iopts := opts.InstrumentOptions()
 	scope := opts.InstrumentOptions().MetricsScope()
 
 	logger.Infof("using %s pools", policy.Type)
 
+	bytesPoolOpts := pool.NewObjectPoolOptions().
+		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("bytes-pool")))
+	checkedBytesPoolOpts := bytesPoolOpts.
+		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("checked-bytes-pool")))
 	buckets := make([]pool.Bucket, len(policy.BytesPool.Buckets))
 	for i, bucket := range policy.BytesPool.Buckets {
 		var b pool.Bucket
 		b.Capacity = bucket.Capacity
-		b.Count = bucket.Count
+		b.Count = bucket.Size
+		b.Options = bytesPoolOpts.
+			SetRefillLowWatermark(bucket.RefillLowWaterMark).
+			SetRefillHighWatermark(bucket.RefillHighWaterMark)
 		buckets[i] = b
-		logger.Infof("bytes pool registering bucket capacity=%d, count=%d",
-			bucket.Capacity, bucket.Count)
+		logger.Infof("bytes pool registering bucket capacity=%d, size=%d,"+
+			"refillLowWatermark=%d, refillHighWatermark=%d",
+			bucket.Capacity, bucket.Size,
+			bucket.RefillLowWaterMark, bucket.RefillHighWaterMark)
 	}
 
 	var bytesPool pool.CheckedBytesPool
 
 	switch policy.Type {
 	case config.SimplePooling:
-		bytesPoolOpts := pool.NewObjectPoolOptions().
-			SetRefillLowWatermark(policy.BytesPool.RefillLowWaterMark).
-			SetRefillHighWatermark(policy.BytesPool.RefillHighWaterMark).
-			SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope.SubScope("checked-bytes-pool")))
-		bytesPool = pool.NewCheckedBytesPool(buckets, bytesPoolOpts, func(s []pool.Bucket) pool.BytesPool {
-			return pool.NewBytesPool(s, bytesPoolOpts.
-				SetInstrumentOptions(bytesPoolOpts.InstrumentOptions().SetMetricsScope(scope.SubScope("bytes-pool"))))
-		})
+		bytesPool = pool.NewCheckedBytesPool(
+			buckets,
+			checkedBytesPoolOpts,
+			func(s []pool.Bucket) pool.BytesPool {
+				return pool.NewBytesPool(s, bytesPoolOpts)
+			})
 	case config.NativePooling:
-		bytesPoolOpts := pool.NewObjectPoolOptions().
-			SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(scope.SubScope("checked-bytes-pool")))
-		bytesPool = pool.NewCheckedBytesPool(buckets, bytesPoolOpts, func(s []pool.Bucket) pool.BytesPool {
-			return pool.NewNativeHeap(s, bytesPoolOpts.
-				SetInstrumentOptions(bytesPoolOpts.InstrumentOptions().SetMetricsScope(scope.SubScope("bytes-pool"))))
-		})
+		bytesPool = pool.NewCheckedBytesPool(
+			buckets,
+			checkedBytesPoolOpts,
+			func(s []pool.Bucket) pool.BytesPool {
+				return pool.NewNativeHeap(s, bytesPoolOpts)
+			})
 	default:
 		logger.Fatalf("unrecognized pooling type: %s", policy.Type)
 	}

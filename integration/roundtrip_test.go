@@ -38,7 +38,7 @@ func TestRoundtrip(t *testing.T) {
 	}
 	// Test setup
 	testOpts := newTestOptions(t).
-		SetTickInterval(time.Second)
+		SetTickMinimumInterval(time.Second)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
@@ -74,7 +74,7 @@ func TestRoundtrip(t *testing.T) {
 
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	testSetup.sleepFor10xTickInterval()
+	testSetup.sleepFor10xTickMinimumInterval()
 
 	// Verify in-memory data match what we've written
 	verifySeriesMaps(t, testSetup, testNamespaces[0], seriesMaps)

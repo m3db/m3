@@ -792,7 +792,9 @@ func (s *service) SetWriteNewSeriesAsync(
 ) (*rpc.NodeWriteNewSeriesAsyncResult_, error) {
 	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
 	set := runtimeOptsMgr.Get().SetWriteNewSeriesAsync(req.WriteNewSeriesAsync)
-	runtimeOptsMgr.Update(set)
+	if err := runtimeOptsMgr.Update(set); err != nil {
+		return nil, tterrors.NewBadRequestError(err)
+	}
 	return s.GetWriteNewSeriesAsync(ctx)
 }
 
@@ -824,7 +826,9 @@ func (s *service) SetWriteNewSeriesBackoffDuration(
 	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
 	value := time.Duration(req.WriteNewSeriesBackoffDuration) * unit
 	set := runtimeOptsMgr.Get().SetWriteNewSeriesBackoffDuration(value)
-	runtimeOptsMgr.Update(set)
+	if err := runtimeOptsMgr.Update(set); err != nil {
+		return nil, tterrors.NewBadRequestError(err)
+	}
 	return s.GetWriteNewSeriesBackoffDuration(ctx)
 }
 
@@ -851,7 +855,9 @@ func (s *service) SetWriteNewSeriesLimitPerShardPerSecond(
 	runtimeOptsMgr := s.db.Options().RuntimeOptionsManager()
 	value := int(req.WriteNewSeriesLimitPerShardPerSecond)
 	set := runtimeOptsMgr.Get().SetWriteNewSeriesLimitPerShardPerSecond(value)
-	runtimeOptsMgr.Update(set)
+	if err := runtimeOptsMgr.Update(set); err != nil {
+		return nil, tterrors.NewBadRequestError(err)
+	}
 	return s.GetWriteNewSeriesLimitPerShardPerSecond(ctx)
 }
 
