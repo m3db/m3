@@ -20,4 +20,4 @@ debug
 debug.test
 
 # Glide manages this
-vendor
+vendor/
