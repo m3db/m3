@@ -1,5 +1,5 @@
-hash: 7cb6b03d65c7fd5f624d9351cc58aa25c973a87d8a05944acbd506de1547004d
-updated: 2017-10-17T17:05:33.507283823-04:00
+hash: 5abeb3231f2ff180b3250c90c57c7ad321a465216be49921e3d2cdf5e5f89a4d
+updated: 2017-12-13T15:22:07.774063867-05:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -21,7 +21,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: d9fd14a38efe2eaf43b9a52350055fbd2dac06ec
+  version: 4b25af16e37d029b79bae754d35655e6be382f94
   subpackages:
   - client
   - generated/proto/metadatapb
@@ -34,7 +34,7 @@ imports:
   - services/leader/campaign
   - shard
 - name: github.com/m3db/m3metrics
-  version: 53ee9f560becd279ed04e3e31d1c5570aa4784b6
+  version: a659459d3a5fc2cb9ad02d000bb2b28592467345
   subpackages:
   - filters
   - generated/proto/schema
@@ -81,7 +81,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 95078a8f10668bd1fa73ae46761cdc58d25436b8
+  version: 6c4631652c6aab57c64f65c2e0aaec2e9aae3a64
   subpackages:
   - m3
   - m3/customtransports
@@ -112,7 +112,7 @@ imports:
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImports:
 - name: github.com/davecgh/go-spew
-  version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
   - spew
 - name: github.com/leanovate/gopter
@@ -125,7 +125,7 @@ testImports:
   subpackages:
   - difflib
 - name: github.com/stretchr/testify
-  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
+  version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
   - assert
   - require
