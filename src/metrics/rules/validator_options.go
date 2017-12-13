@@ -24,12 +24,13 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
 )
 
 // MetricTypesFn determines the possible metric types based on a set of tag based filters.
-type MetricTypesFn func(tagFilters map[string]string) ([]metric.Type, error)
+type MetricTypesFn func(tagFilters filters.TagFilterValueMap) ([]metric.Type, error)
 
 // ValidatorOptions provide a set of options for the validator.
 type ValidatorOptions interface {

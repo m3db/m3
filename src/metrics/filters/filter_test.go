@@ -27,9 +27,101 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type mockFilterData struct {
-	val   string
-	match bool
+func TestNewFilterFromFilterValueInvalidPattern(t *testing.T) {
+	inputs := []string{"ab]c[sdf", "abc[z-a]", "*con[tT]ains*"}
+	for _, input := range inputs {
+		_, err := NewFilterFromFilterValue(FilterValue{Pattern: input})
+		require.Error(t, err)
+	}
+}
+
+func TestNewFilterFromFilterValueWithNegation(t *testing.T) {
+	inputs := []struct {
+		pattern string
+		negate  bool
+		data    []mockFilterData
+	}{
+		{
+			pattern: "foo",
+			negate:  false,
+			data: []mockFilterData{
+				{val: "foo", match: true},
+				{val: "fo", match: false},
+			},
+		},
+		{
+			pattern: "foo*bar",
+			negate:  false,
+			data: []mockFilterData{
+				{val: "foobar", match: true},
+				{val: "foozapbar", match: true},
+				{val: "bazbar", match: false},
+			},
+		},
+		{
+			pattern: "ba?[0-9][!a-z]9",
+			negate:  false,
+			data: []mockFilterData{
+				{val: "bar959", match: true},
+				{val: "bat449", match: true},
+				{val: "bar9", match: false},
+			},
+		},
+		{
+			pattern: "{ba,fo,car}*",
+			negate:  false,
+			data: []mockFilterData{
+				{val: "ba", match: true},
+				{val: "foo", match: true},
+				{val: "car", match: true},
+				{val: "ca", match: false},
+			},
+		},
+		{
+			pattern: "foo",
+			negate:  true,
+			data: []mockFilterData{
+				{val: "foo", match: false},
+				{val: "fo", match: true},
+			},
+		},
+		{
+			pattern: "foo*bar",
+			negate:  true,
+			data: []mockFilterData{
+				{val: "foobar", match: false},
+				{val: "foozapbar", match: false},
+				{val: "bazbar", match: true},
+			},
+		},
+		{
+			pattern: "ba?[0-9][!a-z]9",
+			negate:  true,
+			data: []mockFilterData{
+				{val: "bar959", match: false},
+				{val: "bat449", match: false},
+				{val: "bar9", match: true},
+			},
+		},
+		{
+			pattern: "{ba,fo,car}*",
+			negate:  true,
+			data: []mockFilterData{
+				{val: "ba", match: false},
+				{val: "foo", match: false},
+				{val: "car", match: false},
+				{val: "ca", match: true},
+			},
+		},
+	}
+
+	for _, input := range inputs {
+		f, err := NewFilterFromFilterValue(FilterValue{Pattern: input.pattern, Negate: input.negate})
+		require.NoError(t, err)
+		for _, testcase := range input.data {
+			require.Equal(t, testcase.match, f.Matches([]byte(testcase.val)))
+		}
+	}
 }
 
 func TestFilters(t *testing.T) {
@@ -263,6 +355,11 @@ func validateLookup(t *testing.T, f chainFilter, val string, expectedMatch bool,
 	remainder, match := f.matches([]byte(val))
 	require.Equal(t, expectedMatch, match)
 	require.Equal(t, expectedRemainder, string(remainder))
+}
+
+type mockFilterData struct {
+	val   string
+	match bool
 }
 
 type testPattern struct {

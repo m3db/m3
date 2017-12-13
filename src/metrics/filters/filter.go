@@ -65,6 +65,13 @@ var (
 	multiRangeSplit = []byte(",")
 )
 
+// FilterValue contains the filter pattern and a boolean flag indicating
+// whether the filter should be negated.
+type FilterValue struct {
+	Pattern string
+	Negate  bool
+}
+
 // Filter matches a string against certain conditions.
 type Filter interface {
 	filter
@@ -77,6 +84,18 @@ type filter interface {
 
 	// Matches returns true if the conditions are met.
 	Matches(val []byte) bool
+}
+
+// NewFilterFromFilterValue creates a filter from the given filter value.
+func NewFilterFromFilterValue(fv FilterValue) (Filter, error) {
+	f, err := NewFilter([]byte(fv.Pattern))
+	if err != nil {
+		return nil, err
+	}
+	if !fv.Negate {
+		return f, nil
+	}
+	return newNegationFilter(f), nil
 }
 
 // NewFilter supports startsWith, endsWith, contains and a single wildcard

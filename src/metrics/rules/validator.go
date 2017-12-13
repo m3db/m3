@@ -73,17 +73,18 @@ func (v *validator) validateMappingRules(mrv map[string]*MappingRuleView) error 
 		namesSeen[view.Name] = struct{}{}
 
 		// Validate that the filter is valid.
-		if err := v.validateFilters(view.Name, view.Filters); err != nil {
+		filterValues, err := v.validateFilter(view.Name, view.Filter)
+		if err != nil {
 			return err
 		}
 
 		// Validate the metric types.
-		types, err := v.opts.MetricTypesFn()(view.Filters)
+		types, err := v.opts.MetricTypesFn()(filterValues)
 		if err != nil {
 			return err
 		}
 		if len(types) == 0 {
-			return fmt.Errorf("mapping rule %s does not match any allowed metric types, filter=%v", view.Name, view.Filters)
+			return fmt.Errorf("mapping rule %s does not match any allowed metric types, filter=%s", view.Name, view.Filter)
 		}
 
 		// Validate that the policies are valid.
@@ -107,17 +108,18 @@ func (v *validator) validateRollupRules(rrv map[string]*RollupRuleView) error {
 		namesSeen[view.Name] = struct{}{}
 
 		// Validate that the filter is valid.
-		if err := v.validateFilters(view.Name, view.Filters); err != nil {
+		filterValues, err := v.validateFilter(view.Name, view.Filter)
+		if err != nil {
 			return err
 		}
 
 		// Validate the metric types.
-		types, err := v.opts.MetricTypesFn()(view.Filters)
+		types, err := v.opts.MetricTypesFn()(filterValues)
 		if err != nil {
 			return err
 		}
 		if len(types) == 0 {
-			return fmt.Errorf("rollup rule %s does not match any allowed metric types, filter=%v", view.Name, view.Filters)
+			return fmt.Errorf("rollup rule %s does not match any allowed metric types, filter=%s", view.Name, view.Filter)
 		}
 
 		for _, target := range view.Targets {
@@ -150,19 +152,23 @@ func (v *validator) validateRollupRules(rrv map[string]*RollupRuleView) error {
 	return nil
 }
 
-func (v *validator) validateFilters(ruleName string, f map[string]string) error {
-	for tag, filter := range f {
+func (v *validator) validateFilter(ruleName string, f string) (filters.TagFilterValueMap, error) {
+	filterValues, err := filters.ParseTagFilterValueMap(f)
+	if err != nil {
+		return nil, fmt.Errorf("rule %s has invalid rule filter %s: %v", ruleName, f, err)
+	}
+	for tag, filterValue := range filterValues {
 		// Validating the filter tag name does not contain invalid chars.
 		if err := v.opts.CheckInvalidCharactersForTagName(tag); err != nil {
-			return fmt.Errorf("rule %s with filter tag name %s contains invalid character: %v", ruleName, tag, err)
+			return nil, fmt.Errorf("rule %s has invalid rule filter %s: tag name %s contains invalid character, err: %v", ruleName, f, tag, err)
 		}
 
 		// Validating the filter expression by actually constructing the filter.
-		if _, err := filters.NewFilter([]byte(filter)); err != nil {
-			return err
+		if _, err := filters.NewFilterFromFilterValue(filterValue); err != nil {
+			return nil, fmt.Errorf("rule %s has invalid rule filter %s: filter pattern for tag %s is invalid, err: %v", ruleName, f, tag, err)
 		}
 	}
-	return nil
+	return filterValues, nil
 }
 
 func (v *validator) validatePolicies(ruleName string, policies []policy.Policy, types []metric.Type) error {
