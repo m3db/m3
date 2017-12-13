@@ -703,7 +703,8 @@ func TestServiceSetPersistRateLimit(t *testing.T) {
 	runtimeOpts = runtimeOpts.SetPersistRateLimitOptions(
 		runtimeOpts.PersistRateLimitOptions().
 			SetLimitEnabled(false))
-	runtimeOptsMgr := runtime.NewOptionsManager(runtimeOpts)
+	runtimeOptsMgr := runtime.NewOptionsManager()
+	require.NoError(t, runtimeOptsMgr.Update(runtimeOpts))
 	opts := testServiceOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
 
 	mockDB := storage.NewMockDatabase(ctrl)
@@ -734,7 +735,8 @@ func TestServiceSetWriteNewSeriesAsync(t *testing.T) {
 
 	runtimeOpts := runtime.NewOptions().
 		SetWriteNewSeriesAsync(false)
-	runtimeOptsMgr := runtime.NewOptionsManager(runtimeOpts)
+	runtimeOptsMgr := runtime.NewOptionsManager()
+	require.NoError(t, runtimeOptsMgr.Update(runtimeOpts))
 	opts := testServiceOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
 
 	mockDB := storage.NewMockDatabase(ctrl)
@@ -764,7 +766,8 @@ func TestServiceSetWriteNewSeriesBackoffDuration(t *testing.T) {
 
 	runtimeOpts := runtime.NewOptions().
 		SetWriteNewSeriesBackoffDuration(3 * time.Millisecond)
-	runtimeOptsMgr := runtime.NewOptionsManager(runtimeOpts)
+	runtimeOptsMgr := runtime.NewOptionsManager()
+	require.NoError(t, runtimeOptsMgr.Update(runtimeOpts))
 	opts := testServiceOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
 
 	mockDB := storage.NewMockDatabase(ctrl)
@@ -797,7 +800,8 @@ func TestServiceSetWriteNewSeriesLimitPerShardPerSecond(t *testing.T) {
 
 	runtimeOpts := runtime.NewOptions().
 		SetWriteNewSeriesLimitPerShardPerSecond(42)
-	runtimeOptsMgr := runtime.NewOptionsManager(runtimeOpts)
+	runtimeOptsMgr := runtime.NewOptionsManager()
+	require.NoError(t, runtimeOptsMgr.Update(runtimeOpts))
 	opts := testServiceOpts.SetRuntimeOptionsManager(runtimeOptsMgr)
 
 	mockDB := storage.NewMockDatabase(ctrl)

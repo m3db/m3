@@ -126,6 +126,29 @@ func Run(runOpts RunOptions) {
 	}
 	defer buildReporter.Stop()
 
+	runtimeOpts := m3dbruntime.NewOptions().
+		SetPersistRateLimitOptions(ratelimit.NewOptions().
+			SetLimitEnabled(true).
+			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbps).
+			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEvery)).
+		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
+		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration)
+
+	if tick := cfg.Tick; tick != nil {
+		runtimeOpts = runtimeOpts.
+			SetTickSeriesBatchSize(tick.SeriesBatchSize).
+			SetTickPerSeriesSleepDuration(tick.PerSeriesSleepDuration).
+			SetTickMinimumInterval(tick.MinimumInterval)
+	}
+
+	runtimeOptsMgr := m3dbruntime.NewOptionsManager()
+	if err := runtimeOptsMgr.Update(runtimeOpts); err != nil {
+		logger.Fatalf("could not set initial runtime options: %v", err)
+	}
+	defer runtimeOptsMgr.Close()
+
+	opts = opts.SetRuntimeOptionsManager(runtimeOptsMgr)
+
 	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
 	if err != nil {
 		log.Fatalf("could not parse new file mode: %v", err)
@@ -150,7 +173,8 @@ func Run(runOpts RunOptions) {
 		SetInfoReaderBufferSize(cfg.Filesystem.InfoReadBufferSize).
 		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSize).
 		SetMmapEnableHugePages(mmap.HugePages.Enabled).
-		SetMmapHugePagesThreshold(mmap.HugePages.Threshold)
+		SetMmapHugePagesThreshold(mmap.HugePages.Threshold).
+		SetRuntimeOptionsManager(runtimeOptsMgr)
 
 	var commitLogQueueSize int
 	specified := cfg.CommitLog.Queue.Size
@@ -173,17 +197,6 @@ func Run(runOpts RunOptions) {
 		SetBacklogQueueSize(commitLogQueueSize).
 		SetRetentionPeriod(cfg.CommitLog.RetentionPeriod).
 		SetBlockSize(cfg.CommitLog.BlockSize))
-
-	runtimeOptsMgr := m3dbruntime.NewOptionsManager(m3dbruntime.NewOptions().
-		SetPersistRateLimitOptions(ratelimit.NewOptions().
-			SetLimitEnabled(true).
-			SetLimitMbps(cfg.Filesystem.ThroughputLimitMbps).
-			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEvery)).
-		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
-		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration))
-	defer runtimeOptsMgr.Close()
-
-	opts = opts.SetRuntimeOptionsManager(runtimeOptsMgr)
 
 	// Apply pooling options
 	opts = withEncodingAndPoolingOptions(logger, opts, cfg.PoolingPolicy)
@@ -230,9 +243,7 @@ func Run(runOpts RunOptions) {
 		SetNamespaceRegistryKey(kvconfig.NamespacesKey)
 	nsInit := namespace.NewDynamicInitializer(dynamicOpts)
 
-	opts = opts.
-		SetTickInterval(cfg.TickInterval).
-		SetNamespaceInitializer(nsInit)
+	opts = opts.SetNamespaceInitializer(nsInit)
 
 	serviceID := services.NewServiceID().
 		SetName(cfg.ConfigService.Service).
@@ -482,7 +493,10 @@ func kvWatchNewSeriesLimitPerShard(
 		initClusterLimit = defaultClusterNewSeriesLimit
 	}
 
-	setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, initClusterLimit)
+	err = setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, initClusterLimit)
+	if err != nil {
+		logger.Warnf("unable to set cluster new series insert limit: %v", err)
+	}
 
 	watch, err := store.Watch(kvconfig.ClusterNewSeriesInsertLimitKey)
 	if err != nil {
@@ -500,7 +514,11 @@ func kvWatchNewSeriesLimitPerShard(
 			}
 
 			value := int(protoValue.Value)
-			setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, value)
+			err = setNewSeriesLimitPerShardOnChange(topo, runtimeOptsMgr, value)
+			if err != nil {
+				logger.Warnf("unable to set cluster new series insert limit: %v", err)
+				continue
+			}
 		}
 	}()
 }
@@ -509,16 +527,17 @@ func setNewSeriesLimitPerShardOnChange(
 	topo topology.Topology,
 	runtimeOptsMgr m3dbruntime.OptionsManager,
 	clusterLimit int,
-) {
+) error {
 	perPlacedShardLimit := clusterLimitToPlacedShardLimit(topo, clusterLimit)
 	runtimeOpts := runtimeOptsMgr.Get()
 	if runtimeOpts.WriteNewSeriesLimitPerShardPerSecond() == perPlacedShardLimit {
 		// Not changed, no need to set the value and trigger a runtime options update
-		return
+		return nil
 	}
 
-	runtimeOptsMgr.Update(runtimeOpts.
-		SetWriteNewSeriesLimitPerShardPerSecond(perPlacedShardLimit))
+	newRuntimeOpts := runtimeOpts.
+		SetWriteNewSeriesLimitPerShardPerSecond(perPlacedShardLimit)
+	return runtimeOptsMgr.Update(newRuntimeOpts)
 }
 
 func clusterLimitToPlacedShardLimit(topo topology.Topology, clusterLimit int) int {

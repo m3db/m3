@@ -295,8 +295,6 @@ bootstrap:
     fs:
         numProcessorsPerCPU: 0.125
 
-tickInterval: 10m
-
 commitlog:
     flushMaxBytes: 524288
     flushEvery: 1s

@@ -27,8 +27,11 @@ import (
 	xclose "github.com/m3db/m3x/close"
 )
 
-// Options is a set of runtime options
+// Options is a set of runtime options.
 type Options interface {
+	// Validate will validate the runtime options are valid.
+	Validate() error
+
 	// SetPersistRateLimitOptions sets the persist rate limit options
 	SetPersistRateLimitOptions(value ratelimit.Options) Options
 
@@ -72,28 +75,68 @@ type Options interface {
 	// limit is primarily offered to defend against unintentional bursts of new
 	// time series being inserted.
 	WriteNewSeriesLimitPerShardPerSecond() int
+
+	// SetTickSeriesBatchSize sets the batch size to process series together
+	// during a tick before yielding and sleeping the per series duration
+	// multiplied by the batch size.
+	// The higher this value is the more variable CPU utilization will be
+	// but the shorter ticks will ultimately be.
+	SetTickSeriesBatchSize(value int) Options
+
+	// TickSeriesBatchSize returns the batch size to process series together
+	// during a tick before yielding and sleeping the per series duration
+	// multiplied by the batch size.
+	// The higher this value is the more variable CPU utilization will be
+	// but the shorter ticks will ultimately be.
+	TickSeriesBatchSize() int
+
+	// SetTickPerSeriesSleepDuration sets the tick sleep per series value that
+	// provides a constant duration to sleep per series at the end of processing
+	// a batch of series during a background tick, this can directly effect how
+	// fast a block is persisted after is rotated from the mutable series buffer
+	// to a series block (since all series need to be merged/processed before a
+	// persist can occur).
+	SetTickPerSeriesSleepDuration(value time.Duration) Options
+
+	// TickPerSeriesSleepDuration returns the tick sleep per series value that
+	// provides a constant duration to sleep per series at the end of processing
+	// a batch of series during a background tick, this can directly effect how
+	// fast a block is persisted after is rotated from the mutable series buffer
+	// to a series block (since all series need to be merged/processed before a
+	// persist can occur).
+	TickPerSeriesSleepDuration() time.Duration
+
+	// SetTickMinimumInterval sets the minimum tick interval to run ticks, this
+	// helps throttle the tick when the amount of series is low and the sleeps
+	// on a per series basis is short.
+	SetTickMinimumInterval(value time.Duration) Options
+
+	// TickMinimumInterval returns the minimum tick interval to run ticks, this
+	// helps throttle the tick when the amount of series is low and the sleeps
+	// on a per series basis is short.
+	TickMinimumInterval() time.Duration
 }
 
-// OptionsManager updates and supplies runtime options
+// OptionsManager updates and supplies runtime options.
 type OptionsManager interface {
-	// Update updates the current runtime options
-	Update(value Options)
+	// Update updates the current runtime options.
+	Update(value Options) error
 
-	// Get returns the current values
+	// Get returns the current values.
 	Get() Options
 
 	// RegisterListener registers a listener for updates to runtime options,
 	// it will synchronously call back the listener when this method is called
-	// to deliver the current set of runtime options
+	// to deliver the current set of runtime options.
 	RegisterListener(l OptionsListener) xclose.SimpleCloser
 
-	// Close closes the watcher and all descendent watches
+	// Close closes the watcher and all descendent watches.
 	Close()
 }
 
-// OptionsListener listens for updates to runtime options
+// OptionsListener listens for updates to runtime options.
 type OptionsListener interface {
 	// SetRuntimeOptions is called when the listener is registered
-	// and when any updates occurred passing the new runtime options
+	// and when any updates occurred passing the new runtime options.
 	SetRuntimeOptions(value Options)
 }

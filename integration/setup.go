@@ -111,9 +111,13 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		nsInit = namespace.NewStaticInitializer(opts.Namespaces())
 	}
 
-	storageOpts := storage.NewOptions().
-		SetTickInterval(opts.TickInterval()).
-		SetNamespaceInitializer(nsInit)
+	storageOpts := storage.NewOptions().SetNamespaceInitializer(nsInit)
+
+	runtimeOptsMgr := storageOpts.RuntimeOptionsManager()
+	runtimeOpts := runtimeOptsMgr.Get().SetTickMinimumInterval(opts.TickMinimumInterval())
+	if err := runtimeOptsMgr.Update(runtimeOpts); err != nil {
+		return nil, err
+	}
 
 	nativePooling := strings.ToLower(os.Getenv("TEST_NATIVE_POOLING")) == "true"
 	if nativePooling {
@@ -484,8 +488,8 @@ func (ts *testSetup) close() {
 }
 
 // convenience wrapper used to ensure a tick occurs
-func (ts *testSetup) sleepFor10xTickInterval() {
-	time.Sleep(ts.opts.TickInterval() * 10)
+func (ts *testSetup) sleepFor10xTickMinimumInterval() {
+	time.Sleep(ts.opts.TickMinimumInterval() * 10)
 }
 
 type testSetups []*testSetup
@@ -524,7 +528,7 @@ func newNodes(
 	log := xlog.SimpleLogger
 	opts := newTestOptions(t).
 		SetNamespaces(nspaces).
-		SetTickInterval(3 * time.Second)
+		SetTickMinimumInterval(3 * time.Second)
 
 	// NB(bl): We set replication to 3 to mimic production. This can be made
 	// into a variable if needed.

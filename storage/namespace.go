@@ -21,6 +21,7 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"runtime"
@@ -46,6 +47,10 @@ import (
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
+)
+
+var (
+	errNamespaceAlreadyClosed = errors.New("namespace already closed")
 )
 
 type commitLogWriter interface {
@@ -89,6 +94,8 @@ var commitLogWriteNoOp = commitLogWriter(commitLogWriterFn(func(
 type dbNamespace struct {
 	sync.RWMutex
 
+	closed         bool
+	shutdownCh     chan struct{}
 	id             ts.ID
 	shardSet       sharding.ShardSet
 	blockRetriever block.DatabaseBlockRetriever
@@ -109,8 +116,15 @@ type dbNamespace struct {
 
 	tickWorkers            xsync.WorkerPool
 	tickWorkersConcurrency int
+	statsLastTick          databaseNamespaceStatsLastTick
 
 	metrics databaseNamespaceMetrics
+}
+
+type databaseNamespaceStatsLastTick struct {
+	sync.RWMutex
+	activeSeries int64
+	activeBlocks int64
 }
 
 type databaseNamespaceMetrics struct {
@@ -125,6 +139,7 @@ type databaseNamespaceMetrics struct {
 	bootstrapEnd        tally.Counter
 	shards              databaseNamespaceShardMetrics
 	tick                databaseNamespaceTickMetrics
+	status              databaseNamespaceStatusMetrics
 }
 
 type databaseNamespaceShardMetrics struct {
@@ -146,9 +161,19 @@ type databaseNamespaceTickMetrics struct {
 	errors                 tally.Counter
 }
 
+// databaseNamespaceStatusMetrics are metrics emitted at a fixed interval
+// so that summing the value of gauges across hosts when graphed summarizing
+// values at the same fixed intervals can show meaningful results (vs variably
+// emitted values that can be aggregated across hosts to see a snapshot).
+type databaseNamespaceStatusMetrics struct {
+	activeSeries tally.Gauge
+	activeBlocks tally.Gauge
+}
+
 func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databaseNamespaceMetrics {
 	shardsScope := scope.SubScope("dbnamespace").SubScope("shards")
 	tickScope := scope.SubScope("tick")
+	statusScope := scope.SubScope("status")
 	return databaseNamespaceMetrics{
 		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
 		flush:               instrument.NewMethodMetrics(scope, "flush", samplingRate),
@@ -175,6 +200,10 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 			madeExpiredBlocks:      tickScope.Counter("made-expired-blocks"),
 			mergedOutOfOrderBlocks: tickScope.Counter("merged-out-of-order-blocks"),
 			errors:                 tickScope.Counter("errors"),
+		},
+		status: databaseNamespaceStatusMetrics{
+			activeSeries: statusScope.Gauge("active-series"),
+			activeBlocks: statusScope.Gauge("active-blocks"),
 		},
 	}
 }
@@ -218,6 +247,7 @@ func newDatabaseNamespace(
 
 	n := &dbNamespace{
 		id:                     id,
+		shutdownCh:             make(chan struct{}),
 		shardSet:               shardSet,
 		blockRetriever:         blockRetriever,
 		opts:                   opts,
@@ -234,8 +264,26 @@ func newDatabaseNamespace(
 	}
 
 	n.initShards(nopts.NeedsBootstrap())
+	go n.reportStatusLoop()
 
 	return n, nil
+}
+
+func (n *dbNamespace) reportStatusLoop() {
+	reportInterval := n.opts.InstrumentOptions().ReportInterval()
+	ticker := time.NewTicker(reportInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-n.shutdownCh:
+			return
+		case <-ticker.C:
+			n.statsLastTick.RLock()
+			n.metrics.status.activeSeries.Update(float64(n.statsLastTick.activeSeries))
+			n.metrics.status.activeBlocks.Update(float64(n.statsLastTick.activeBlocks))
+			n.statsLastTick.RUnlock()
+		}
+	}
 }
 
 func (n *dbNamespace) Options() namespace.Options {
@@ -336,7 +384,7 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 	}
 }
 
-func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) error {
+func (n *dbNamespace) Tick(c context.Cancellable) error {
 	shards := n.GetOwnedShards()
 
 	if len(shards) == 0 {
@@ -350,8 +398,6 @@ func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) er
 		l        sync.Mutex
 		wg       sync.WaitGroup
 	)
-	perShardDeadline := softDeadline / time.Duration(len(shards))
-	perShardDeadline *= time.Duration(n.tickWorkersConcurrency)
 	for _, shard := range shards {
 		shard := shard
 		wg.Add(1)
@@ -362,7 +408,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) er
 				return
 			}
 
-			shardResult, err := shard.Tick(c, perShardDeadline)
+			shardResult, err := shard.Tick(c)
 
 			l.Lock()
 			r = r.merge(shardResult)
@@ -376,6 +422,11 @@ func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) er
 	if c.IsCancelled() {
 		return multiErr.FinalError()
 	}
+
+	n.statsLastTick.Lock()
+	n.statsLastTick.activeSeries = int64(r.activeSeries)
+	n.statsLastTick.activeBlocks = int64(r.activeBlocks)
+	n.statsLastTick.Unlock()
 
 	n.metrics.tick.activeSeries.Update(float64(r.activeSeries))
 	n.metrics.tick.expiredSeries.Inc(int64(r.expiredSeries))
@@ -833,10 +884,16 @@ func (n *dbNamespace) initShards(needBootstrap bool) {
 
 func (n *dbNamespace) Close() error {
 	n.Lock()
+	if n.closed {
+		n.Unlock()
+		return errNamespaceAlreadyClosed
+	}
+	n.closed = true
 	shards := n.shards
 	n.shards = shards[:0]
 	n.shardSet = sharding.NewEmptyShardSet(sharding.DefaultHashFn(1))
 	n.Unlock()
 	n.closeShards(shards, true)
+	close(n.shutdownCh)
 	return nil
 }

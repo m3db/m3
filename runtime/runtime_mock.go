@@ -51,6 +51,16 @@ func (_m *MockOptions) EXPECT() *_MockOptionsRecorder {
 	return _m.recorder
 }
 
+func (_m *MockOptions) Validate() error {
+	ret := _m.ctrl.Call(_m, "Validate")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) Validate() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
+}
+
 func (_m *MockOptions) SetPersistRateLimitOptions(value ratelimit.Options) Options {
 	ret := _m.ctrl.Call(_m, "SetPersistRateLimitOptions", value)
 	ret0, _ := ret[0].(Options)
@@ -131,6 +141,66 @@ func (_mr *_MockOptionsRecorder) WriteNewSeriesLimitPerShardPerSecond() *gomock.
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteNewSeriesLimitPerShardPerSecond")
 }
 
+func (_m *MockOptions) SetTickSeriesBatchSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetTickSeriesBatchSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetTickSeriesBatchSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetTickSeriesBatchSize", arg0)
+}
+
+func (_m *MockOptions) TickSeriesBatchSize() int {
+	ret := _m.ctrl.Call(_m, "TickSeriesBatchSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) TickSeriesBatchSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TickSeriesBatchSize")
+}
+
+func (_m *MockOptions) SetTickPerSeriesSleepDuration(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetTickPerSeriesSleepDuration", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetTickPerSeriesSleepDuration(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetTickPerSeriesSleepDuration", arg0)
+}
+
+func (_m *MockOptions) TickPerSeriesSleepDuration() time.Duration {
+	ret := _m.ctrl.Call(_m, "TickPerSeriesSleepDuration")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) TickPerSeriesSleepDuration() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TickPerSeriesSleepDuration")
+}
+
+func (_m *MockOptions) SetTickMinimumInterval(value time.Duration) Options {
+	ret := _m.ctrl.Call(_m, "SetTickMinimumInterval", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetTickMinimumInterval(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetTickMinimumInterval", arg0)
+}
+
+func (_m *MockOptions) TickMinimumInterval() time.Duration {
+	ret := _m.ctrl.Call(_m, "TickMinimumInterval")
+	ret0, _ := ret[0].(time.Duration)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) TickMinimumInterval() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "TickMinimumInterval")
+}
+
 // Mock of OptionsManager interface
 type MockOptionsManager struct {
 	ctrl     *gomock.Controller
@@ -152,8 +222,10 @@ func (_m *MockOptionsManager) EXPECT() *_MockOptionsManagerRecorder {
 	return _m.recorder
 }
 
-func (_m *MockOptionsManager) Update(value Options) {
-	_m.ctrl.Call(_m, "Update", value)
+func (_m *MockOptionsManager) Update(value Options) error {
+	ret := _m.ctrl.Call(_m, "Update", value)
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 func (_mr *_MockOptionsManagerRecorder) Update(arg0 interface{}) *gomock.Call {

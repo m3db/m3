@@ -42,7 +42,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 
 	// test options
 	testOpts := newTestOptions(t).
-		SetTickInterval(time.Second)
+		SetTickMinimumInterval(time.Second)
 	require.True(t, len(testOpts.Namespaces()) >= 2)
 	ns0 := testOpts.Namespaces()[0]
 	ns1 := testOpts.Namespaces()[1]
@@ -134,7 +134,7 @@ func TestDynamicNamespaceAdd(t *testing.T) {
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
 	testSetup.setNowFn(testSetup.getNowFn().Add(2 * blockSize))
 	later := testSetup.getNowFn()
-	testSetup.sleepFor10xTickInterval()
+	testSetup.sleepFor10xTickMinimumInterval()
 
 	metadatasByShard := testSetupMetadatas(t, testSetup, ns0.ID(), now, later)
 	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, ns0, metadatasByShard)

@@ -361,7 +361,12 @@ func TestShardTick(t *testing.T) {
 	earliestFlush := retention.FlushTimeStart(defaultTestRetentionOpts, now)
 	beforeEarliestFlush := earliestFlush.Add(-defaultTestRetentionOpts.BlockSize())
 
+	sleepPerSeries := time.Microsecond
+
 	shard := testDatabaseShard(t, opts)
+	shard.SetRuntimeOptions(runtime.NewOptions().
+		SetTickPerSeriesSleepDuration(sleepPerSeries).
+		SetTickSeriesBatchSize(1))
 	defer shard.Close()
 
 	// Also check that it expires flush states by time
@@ -378,7 +383,6 @@ func TestShardTick(t *testing.T) {
 		slept += t
 		setNow(nowFn().Add(t))
 	}
-	shard.tickSleepIfAheadEvery = 1
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -387,11 +391,11 @@ func TestShardTick(t *testing.T) {
 	shard.Write(ctx, ts.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
 	shard.Write(ctx, ts.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
 
-	r, err := shard.Tick(context.NewNoOpCanncellable(), 6*time.Millisecond)
+	r, err := shard.Tick(context.NewNoOpCanncellable())
 	require.NoError(t, err)
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
-	require.Equal(t, 4*time.Millisecond, slept)
+	require.Equal(t, 2*sleepPerSeries, slept) // Never sleeps on the first series
 
 	// Ensure flush states by time was expired correctly
 	require.Equal(t, 1, len(shard.flushState.statesByTime))
@@ -431,8 +435,13 @@ func TestShardWriteAsync(t *testing.T) {
 	earliestFlush := retention.FlushTimeStart(defaultTestRetentionOpts, now)
 	beforeEarliestFlush := earliestFlush.Add(-defaultTestRetentionOpts.BlockSize())
 
+	sleepPerSeries := time.Microsecond
+
 	shard := testDatabaseShard(t, opts)
-	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
+	shard.SetRuntimeOptions(runtime.NewOptions().
+		SetWriteNewSeriesAsync(true).
+		SetTickPerSeriesSleepDuration(sleepPerSeries).
+		SetTickSeriesBatchSize(1))
 	defer shard.Close()
 
 	// Also check that it expires flush states by time
@@ -449,7 +458,6 @@ func TestShardWriteAsync(t *testing.T) {
 		slept += t
 		setNow(nowFn().Add(t))
 	}
-	shard.tickSleepIfAheadEvery = 1
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -467,11 +475,11 @@ func TestShardWriteAsync(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	r, err := shard.Tick(context.NewNoOpCanncellable(), 6*time.Millisecond)
+	r, err := shard.Tick(context.NewNoOpCanncellable())
 	require.NoError(t, err)
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
-	require.Equal(t, 4*time.Millisecond, slept)
+	require.Equal(t, 2*sleepPerSeries, slept) // Never sleeps on the first series
 
 	// Ensure flush states by time was expired correctly
 	require.Equal(t, 1, len(shard.flushState.statesByTime))
@@ -490,12 +498,12 @@ func TestShardTickRace(t *testing.T) {
 
 	wg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), 0)
+		shard.Tick(context.NewNoOpCanncellable())
 		wg.Done()
 	}()
 
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), 0)
+		shard.Tick(context.NewNoOpCanncellable())
 		wg.Done()
 	}()
 
@@ -511,10 +519,10 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions().
-		SetTickInterval(100 * time.Millisecond)
+	opts := testDatabaseOptions()
 	shard := testDatabaseShard(t, opts)
-	shard.tickSleepIfAheadEvery = 1 // setting check batch size to one
+	shard.currRuntimeOptions.tickSleepSeriesBatchSize = 1
+	shard.currRuntimeOptions.tickSleepPerSeries = time.Millisecond
 
 	var (
 		foo     = addMockTestSeries(ctrl, shard, ts.StringID("foo"))
@@ -534,14 +542,14 @@ func TestShardReturnsErrorForConcurrentTicks(t *testing.T) {
 	}).Return(series.TickResult{}, nil)
 
 	go func() {
-		_, err := shard.Tick(context.NewNoOpCanncellable(), 0)
+		_, err := shard.Tick(context.NewNoOpCanncellable())
 		require.NoError(t, err)
 		closeWg.Done()
 	}()
 
 	go func() {
 		tick1Wg.Wait()
-		_, err := shard.Tick(context.NewNoOpCanncellable(), 0)
+		_, err := shard.Tick(context.NewNoOpCanncellable())
 		require.Error(t, err)
 		tick2Wg.Done()
 		closeWg.Done()
@@ -572,10 +580,10 @@ func TestShardTicksStopWhenClosing(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDatabaseOptions().
-		SetTickInterval(100 * time.Millisecond)
+	opts := testDatabaseOptions()
 	shard := testDatabaseShard(t, opts)
-	shard.tickSleepIfAheadEvery = 1 // setting check batch size to one
+	shard.currRuntimeOptions.tickSleepSeriesBatchSize = 1
+	shard.currRuntimeOptions.tickSleepPerSeries = time.Millisecond
 
 	var (
 		foo     = addMockTestSeries(ctrl, shard, ts.StringID("foo"))
@@ -605,7 +613,7 @@ func TestShardTicksStopWhenClosing(t *testing.T) {
 
 	closeWg.Add(2)
 	go func() {
-		shard.Tick(context.NewNoOpCanncellable(), 0)
+		shard.Tick(context.NewNoOpCanncellable())
 		closeWg.Done()
 	}()
 
@@ -626,7 +634,7 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 
 	addTestSeries(shard, ts.StringID("foo"))
 
-	shard.Tick(context.NewNoOpCanncellable(), 0)
+	shard.Tick(context.NewNoOpCanncellable())
 
 	shard.RLock()
 	require.Equal(t, 0, len(shard.lookup))
@@ -641,7 +649,7 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
 	shard.Write(ctx, ts.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
-	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular)
+	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
 	require.NoError(t, err)
 	require.Equal(t, 1, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
@@ -668,7 +676,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 		shard.Write(ctx, id, nowFn(), 1.0, xtime.Second, nil)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular)
+	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
 	require.NoError(t, err)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
@@ -696,7 +704,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular)
+	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
 	require.NoError(t, err)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)

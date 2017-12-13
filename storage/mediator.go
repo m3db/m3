@@ -131,9 +131,9 @@ func (m *mediator) EnableFileOps() {
 	m.databaseFileSystemManager.Enable()
 }
 
-func (m *mediator) Tick(softDeadline time.Duration, runType runType, forceType forceType) error {
+func (m *mediator) Tick(runType runType, forceType forceType) error {
 	start := m.nowFn()
-	if err := m.databaseTickManager.Tick(softDeadline, forceType); err != nil {
+	if err := m.databaseTickManager.Tick(forceType); err != nil {
 		return err
 	}
 	// NB(r): Cleanup and/or flush if required to cleanup files and/or
@@ -174,7 +174,7 @@ func (m *mediator) ongoingTick() {
 			// NB(xichen): if we attempt to tick while another tick
 			// is in progress, throttle a little to avoid constantly
 			// checking whether the ongoing tick is finished
-			err := m.Tick(m.opts.TickInterval(), asyncRun, noForce)
+			err := m.Tick(asyncRun, noForce)
 			if err == errTickInProgress {
 				m.sleepFn(tickCheckInterval)
 			} else if err != nil {

@@ -82,16 +82,14 @@ func TestNamespaceTick(t *testing.T) {
 	defer ctrl.Finish()
 
 	ns := newTestNamespace(t)
-	deadline := 100 * time.Millisecond
-	expectedPerShardDeadline := deadline / time.Duration(len(testShardIDs))
 	for i := range testShardIDs {
 		shard := NewMockdatabaseShard(ctrl)
-		shard.EXPECT().Tick(context.NewNoOpCanncellable(), expectedPerShardDeadline).Return(tickResult{}, nil)
+		shard.EXPECT().Tick(context.NewNoOpCanncellable()).Return(tickResult{}, nil)
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
 	// Only asserting the expected methods are called
-	require.NoError(t, ns.Tick(context.NewNoOpCanncellable(), deadline))
+	require.NoError(t, ns.Tick(context.NewNoOpCanncellable()))
 }
 
 func TestNamespaceTickError(t *testing.T) {
@@ -100,19 +98,17 @@ func TestNamespaceTickError(t *testing.T) {
 
 	fakeErr := errors.New("fake error")
 	ns := newTestNamespace(t)
-	deadline := 100 * time.Millisecond
-	expectedPerShardDeadline := deadline / time.Duration(len(testShardIDs))
 	for i := range testShardIDs {
 		shard := NewMockdatabaseShard(ctrl)
 		if i == 0 {
-			shard.EXPECT().Tick(context.NewNoOpCanncellable(), expectedPerShardDeadline).Return(tickResult{}, fakeErr)
+			shard.EXPECT().Tick(context.NewNoOpCanncellable()).Return(tickResult{}, fakeErr)
 		} else {
-			shard.EXPECT().Tick(context.NewNoOpCanncellable(), expectedPerShardDeadline).Return(tickResult{}, nil)
+			shard.EXPECT().Tick(context.NewNoOpCanncellable()).Return(tickResult{}, nil)
 		}
 		ns.shards[testShardIDs[i].ID()] = shard
 	}
 
-	err := ns.Tick(context.NewNoOpCanncellable(), deadline)
+	err := ns.Tick(context.NewNoOpCanncellable())
 	require.NotNil(t, err)
 	require.Equal(t, fakeErr.Error(), err.Error())
 }
@@ -890,7 +886,7 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 	assert.True(t, ns.NeedsFlush(blockStart, blockStart))
 }
 
-func TestNamespaceCloseWithShard(t *testing.T) {
+func TestNamespaceCloseWillCloseShard(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -899,15 +895,44 @@ func TestNamespaceCloseWithShard(t *testing.T) {
 
 	// mock namespace + 1 shard
 	ns := newTestNamespace(t)
+
+	// specify a mock shard to test being closed
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().Close().Return(nil)
+	ns.Lock()
 	ns.shards[testShardIDs[0].ID()] = shard
+	ns.Unlock()
 
-	// Close and ensure no goroutines are leaked
+	// Close the namespace
 	require.NoError(t, ns.Close())
-	leaktest.Check(t)()
 
-	// And the namespace no long owns any shards
+	// Check the namespace no long owns any shards
+	require.Empty(t, ns.GetOwnedShards())
+}
+
+func TestNamespaceCloseDoesNotLeak(t *testing.T) {
+	// Need to generate leaktest at top of test as that is when
+	// goroutines that are interesting are captured
+	leakCheck := leaktest.Check(t)
+	defer leakCheck()
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	// new namespace
+	ns := newTestNamespace(t)
+	// verify has shards it will need to close
+	ns.RLock()
+	assert.True(t, len(ns.shards) > 0)
+	ns.RUnlock()
+
+	// Close the namespace
+	require.NoError(t, ns.Close())
+
+	// Check the namespace no long owns any shards
 	require.Empty(t, ns.GetOwnedShards())
 }
 

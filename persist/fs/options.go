@@ -85,7 +85,7 @@ func NewOptions() Options {
 	return &options{
 		clockOpts:                            clock.NewOptions(),
 		instrumentOpts:                       instrument.NewOptions(),
-		runtimeOptsMgr:                       runtime.NewOptionsManager(runtime.NewOptions()),
+		runtimeOptsMgr:                       runtime.NewOptionsManager(),
 		decodingOpts:                         msgpack.NewDecodingOptions(),
 		filePathPrefix:                       defaultFilePathPrefix,
 		newFileMode:                          defaultNewFileMode,

@@ -62,6 +62,7 @@ var (
 
 func init() {
 	opts := newOptions(pool.NewObjectPoolOptions().SetSize(16))
+
 	pm, err := fs.NewPersistManager(fs.NewOptions())
 	if err != nil {
 		panic(err)
@@ -71,7 +72,6 @@ func init() {
 		SetPersistManager(pm).
 		SetRepairEnabled(false).
 		SetMaxFlushRetries(3).
-		SetTickInterval(10 * time.Minute).
 		SetCommitLogOptions(opts.CommitLogOptions().
 			SetRetentionPeriod(defaultTestCommitlogRetentionPeriod).
 			SetBlockSize(defaultTestCommitlogBlockSize))

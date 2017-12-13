@@ -52,10 +52,8 @@ import (
 )
 
 const (
-	shardIterateBatchPercent      = 0.01
-	expireBatchLength             = 1024
-	defaultTickSleepIfAheadEvery  = 128
-	defaultSkipTickIfShardClosing = true
+	shardIterateBatchPercent = 0.01
+	expireBatchLength        = 1024
 )
 
 var (
@@ -101,7 +99,6 @@ type dbShard struct {
 	newSeriesBootstrapped    bool
 	filesetBeforeFn          filesetBeforeFn
 	deleteFilesFn            deleteFilesFn
-	tickSleepIfAheadEvery    int
 	sleepFn                  func(time.Duration)
 	identifierPool           ts.IdentifierPool
 	contextPool              context.Pool
@@ -113,8 +110,15 @@ type dbShard struct {
 	metrics                  dbShardMetrics
 }
 
+// NB(r): dbShardRuntimeOptions does not contain its own
+// mutex as some of the variables are needed each write
+// which already at least acquires read lock from the shard
+// mutex, so to keep the lock acquisitions to a minimum
+// these are protected under the same shard mutex.
 type dbShardRuntimeOptions struct {
-	writeNewSeriesAsync bool
+	writeNewSeriesAsync      bool
+	tickSleepSeriesBatchSize int
+	tickSleepPerSeries       time.Duration
 }
 
 type dbShardMetrics struct {
@@ -190,27 +194,26 @@ func newDatabaseShard(
 		SubScope("dbshard")
 
 	d := &dbShard{
-		opts:                  opts,
-		seriesOpts:            seriesOpts,
-		nowFn:                 opts.ClockOptions().NowFn(),
-		state:                 dbShardStateOpen,
-		nsMetadata:            namespaceMetadata,
-		shard:                 shard,
-		increasingIndex:       increasingIndex,
-		seriesPool:            opts.DatabaseSeriesPool(),
-		commitLogWriter:       commitLogWriter,
-		lookup:                make(map[ts.Hash]*list.Element),
-		list:                  list.New(),
-		filesetBeforeFn:       fs.FilesetBefore,
-		deleteFilesFn:         fs.DeleteFiles,
-		tickSleepIfAheadEvery: defaultTickSleepIfAheadEvery,
-		sleepFn:               time.Sleep,
-		identifierPool:        opts.IdentifierPool(),
-		contextPool:           opts.ContextPool(),
-		flushState:            newShardFlushState(),
-		ticking:               uatomic.NewBool(false),
-		tickWg:                &sync.WaitGroup{},
-		metrics:               newDatabaseShardMetrics(scope),
+		opts:            opts,
+		seriesOpts:      seriesOpts,
+		nowFn:           opts.ClockOptions().NowFn(),
+		state:           dbShardStateOpen,
+		nsMetadata:      namespaceMetadata,
+		shard:           shard,
+		increasingIndex: increasingIndex,
+		seriesPool:      opts.DatabaseSeriesPool(),
+		commitLogWriter: commitLogWriter,
+		lookup:          make(map[ts.Hash]*list.Element),
+		list:            list.New(),
+		filesetBeforeFn: fs.FilesetBefore,
+		deleteFilesFn:   fs.DeleteFiles,
+		sleepFn:         time.Sleep,
+		identifierPool:  opts.IdentifierPool(),
+		contextPool:     opts.ContextPool(),
+		flushState:      newShardFlushState(),
+		ticking:         uatomic.NewBool(false),
+		tickWg:          &sync.WaitGroup{},
+		metrics:         newDatabaseShardMetrics(scope),
 	}
 	d.insertQueue = newDatabaseShardInsertQueue(d.insertSeriesBatch,
 		d.nowFn, scope)
@@ -246,7 +249,9 @@ func newDatabaseShard(
 func (s *dbShard) SetRuntimeOptions(value runtime.Options) {
 	s.Lock()
 	s.currRuntimeOptions = dbShardRuntimeOptions{
-		writeNewSeriesAsync: value.WriteNewSeriesAsync(),
+		writeNewSeriesAsync:      value.WriteNewSeriesAsync(),
+		tickSleepSeriesBatchSize: value.TickSeriesBatchSize(),
+		tickSleepPerSeries:       value.TickPerSeriesSleepDuration(),
 	}
 	s.Unlock()
 }
@@ -377,8 +382,7 @@ func (s *dbShard) Close() error {
 	// causes the GC to impact performance when closing shards the deadline
 	// should be increased.
 	cancellable := context.NewNoOpCanncellable()
-	softDeadline := s.opts.TickInterval()
-	_, err := s.tickAndExpire(cancellable, softDeadline, tickPolicyCloseShard)
+	_, err := s.tickAndExpire(cancellable, tickPolicyCloseShard)
 	return err
 }
 
@@ -389,14 +393,13 @@ func (s *dbShard) isClosing() bool {
 	return state == dbShardStateClosing
 }
 
-func (s *dbShard) Tick(c context.Cancellable, softDeadline time.Duration) (tickResult, error) {
+func (s *dbShard) Tick(c context.Cancellable) (tickResult, error) {
 	s.removeAnyFlushStatesTooEarly()
-	return s.tickAndExpire(c, softDeadline, tickPolicyRegular)
+	return s.tickAndExpire(c, tickPolicyRegular)
 }
 
 func (s *dbShard) tickAndExpire(
 	c context.Cancellable,
-	softDeadline time.Duration,
 	policy tickPolicy,
 ) (tickResult, error) {
 	terminateDueToClosing := func() bool {
@@ -428,17 +431,17 @@ func (s *dbShard) tickAndExpire(
 
 	var (
 		r                             tickResult
-		perEntrySoftDeadline          time.Duration
 		expired                       []series.DatabaseSeries
 		terminatedTickingDueToClosing bool
 		i                             int
+		slept                         time.Duration
 	)
-	if size := s.NumSeries(); size > 0 {
-		perEntrySoftDeadline = softDeadline / time.Duration(size)
-	}
-	start := s.nowFn()
+	s.RLock()
+	tickSleepBatch := s.currRuntimeOptions.tickSleepSeriesBatchSize
+	tickSleepPerSeries := s.currRuntimeOptions.tickSleepPerSeries
+	s.RUnlock()
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
-		if i > 0 && i%s.tickSleepIfAheadEvery == 0 {
+		if i > 0 && i%tickSleepBatch == 0 {
 			// NB(xichen): if the tick is cancelled, we bail out immediately.
 			// The cancellation check is performed on every batch of entries
 			// instead of every entry to reduce load.
@@ -449,11 +452,10 @@ func (s *dbShard) tickAndExpire(
 				terminatedTickingDueToClosing = true
 				return false
 			}
-			// If we are ahead of our our deadline then throttle tick
-			prevEntryDeadline := start.Add(time.Duration(i) * perEntrySoftDeadline)
-			if now := s.nowFn(); now.Before(prevEntryDeadline) {
-				s.sleepFn(prevEntryDeadline.Sub(now))
-			}
+			// Throttle the tick
+			sleepFor := time.Duration(tickSleepBatch) * tickSleepPerSeries
+			s.sleepFn(sleepFor)
+			slept += sleepFor
 		}
 		var (
 			result series.TickResult
@@ -689,23 +691,29 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 	}
 }
 
+type writableSeriesOptions struct {
+	writeNewSeriesAsync bool
+}
+
 func (s *dbShard) tryRetrieveWritableSeries(id ts.ID) (
 	*dbShardEntry,
-	dbShardRuntimeOptions,
+	writableSeriesOptions,
 	error,
 ) {
 	s.RLock()
-	currRuntimeOpts := s.currRuntimeOptions
+	opts := writableSeriesOptions{
+		writeNewSeriesAsync: s.currRuntimeOptions.writeNewSeriesAsync,
+	}
 	if entry, _, err := s.lookupEntryWithLock(id); err == nil {
 		entry.incrementWriterCount()
 		s.RUnlock()
-		return entry, currRuntimeOpts, nil
+		return entry, opts, nil
 	} else if err != errShardEntryNotFound {
 		s.RUnlock()
-		return nil, currRuntimeOpts, err
+		return nil, opts, err
 	}
 	s.RUnlock()
-	return nil, currRuntimeOpts, nil
+	return nil, opts, nil
 }
 
 func (s *dbShard) newShardEntry(id ts.ID) *dbShardEntry {

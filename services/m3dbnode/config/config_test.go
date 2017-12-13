@@ -94,8 +94,6 @@ bootstrap:
     fs:
         numProcessorsPerCPU: 0.125
 
-tickInterval: 10m
-
 commitlog:
     flushMaxBytes: 524288
     flushEvery: 1s
@@ -318,6 +316,7 @@ gcPercentage: 100
 writeNewSeriesAsync: true
 writeNewSeriesLimitPerSecond: 1048576
 writeNewSeriesBackoffDuration: 2ms
+tick: null
 bootstrap:
   bootstrappers:
   - filesystem
@@ -338,7 +337,6 @@ fs:
   mmap: null
 blockRetrieve:
   fetchConcurrency: 0
-tickInterval: 10m0s
 commitlog:
   flushMaxBytes: 524288
   flushEvery: 1s
