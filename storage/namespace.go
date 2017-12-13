@@ -374,7 +374,7 @@ func (n *dbNamespace) Tick(c context.Cancellable, softDeadline time.Duration) er
 	wg.Wait()
 
 	if c.IsCancelled() {
-		return nil
+		return multiErr.FinalError()
 	}
 
 	n.metrics.tick.activeSeries.Update(float64(r.activeSeries))
