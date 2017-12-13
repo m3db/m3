@@ -124,16 +124,6 @@ func (_mr *_MockdatabaseBufferRecorder) MinMax() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "MinMax")
 }
 
-func (_m *MockdatabaseBuffer) Tick() bufferTickResult {
-	ret := _m.ctrl.Call(_m, "Tick")
-	ret0, _ := ret[0].(bufferTickResult)
-	return ret0
-}
-
-func (_mr *_MockdatabaseBufferRecorder) Tick() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tick")
-}
-
 func (_m *MockdatabaseBuffer) NeedsDrain() bool {
 	ret := _m.ctrl.Call(_m, "NeedsDrain")
 	ret0, _ := ret[0].(bool)
