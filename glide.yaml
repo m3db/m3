@@ -89,9 +89,6 @@ import:
 - package: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
 
-- package: go.uber.org/atomic
-  version: ^1.3.0
-
 # NB(prateek): ideally, the following dependencies would be under testImport, but
 # Glide doesn't like that. https://github.com/Masterminds/glide/issues/597
 
