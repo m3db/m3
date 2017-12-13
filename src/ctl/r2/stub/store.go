@@ -78,10 +78,7 @@ var (
 						ID:           "mr_id1",
 						Name:         "mr1",
 						CutoverNanos: cutoverTimestamp,
-						Filters: map[string]string{
-							"tag1": "val1",
-							"tag2": "val2",
-						},
+						Filter:       "tag1:val1 tag2:val2",
 						Policies: []policy.Policy{
 							makePolicy("1m:10d"),
 							makePolicy("10m:30d"),
@@ -91,9 +88,7 @@ var (
 						ID:           "mr_id2",
 						Name:         "mr2",
 						CutoverNanos: cutoverTimestamp,
-						Filters: map[string]string{
-							"tag2": "val2",
-						},
+						Filter:       "tag2:val2",
 						Policies: []policy.Policy{
 							makePolicy("1m:10d"),
 						},
@@ -104,10 +99,7 @@ var (
 						ID:           "rr_id1",
 						Name:         "rr1",
 						CutoverNanos: cutoverTimestamp,
-						Filters: map[string]string{
-							"tag1": "val1",
-							"tag2": "val2",
-						},
+						Filter:       "tag1:val1 tag2:val2",
 						Targets: []rules.RollupTargetView{
 							rules.RollupTargetView{
 								Name: "testTarget",
@@ -122,9 +114,7 @@ var (
 						ID:           "rr_id2",
 						Name:         "rr2",
 						CutoverNanos: cutoverTimestamp,
-						Filters: map[string]string{
-							"tag1": "val1",
-						},
+						Filter:       "tag1:val1",
 						Targets: []rules.RollupTargetView{
 							rules.RollupTargetView{
 								Name: "testTarget",
@@ -147,10 +137,7 @@ var (
 						ID:           "rr_id3",
 						Name:         "rr1",
 						CutoverNanos: cutoverTimestamp,
-						Filters: map[string]string{
-							"tag1": "val1",
-							"tag2": "val2",
-						},
+						Filter:       "tag1:val1 tag2:val2",
 						Targets: []rules.RollupTargetView{
 							rules.RollupTargetView{
 								Name: "testTarget",
@@ -178,10 +165,7 @@ var (
 						ID:           "mr_id1",
 						Name:         "mr1",
 						CutoverNanos: cutoverTimestamp,
-						Filters: map[string]string{
-							"tag1": "val1",
-							"tag2": "val2",
-						},
+						Filter:       "tag1:val1 tag2:val2",
 						Policies: []policy.Policy{
 							makePolicy("1m:10d"),
 							makePolicy("10m:30d"),
@@ -193,10 +177,7 @@ var (
 						ID:           "mr_id2",
 						Name:         "mr2",
 						CutoverNanos: cutoverTimestamp,
-						Filters: map[string]string{
-							"tag1": "val1",
-							"tag2": "val2",
-						},
+						Filter:       "tag1:val1 tag2:val2",
 						Policies: []policy.Policy{
 							makePolicy("1m:10d"),
 							makePolicy("10m:30d"),
@@ -213,10 +194,7 @@ var (
 						ID:           "rr_id1",
 						Name:         "rr1",
 						CutoverNanos: cutoverTimestamp,
-						Filters: map[string]string{
-							"tag1": "val1",
-							"tag2": "val2",
-						},
+						Filter:       "tag1:val1 tag2:val2",
 						Targets: []rules.RollupTargetView{
 							rules.RollupTargetView{
 								Name: "testTarget",
@@ -238,9 +216,7 @@ var (
 						ID:           "rr_id1",
 						Name:         "rr1",
 						CutoverNanos: cutoverTimestamp,
-						Filters: map[string]string{
-							"tag1": "val1",
-						},
+						Filter:       "tag1:val1",
 						Targets: []rules.RollupTargetView{
 							rules.RollupTargetView{
 								Name: "testTarget",
@@ -259,10 +235,7 @@ var (
 						ID:           "rr_id1",
 						Name:         "rr1",
 						CutoverNanos: cutoverTimestamp,
-						Filters: map[string]string{
-							"tag1": "val1",
-							"tag2": "val2",
-						},
+						Filter:       "tag1:val1 tag2:val2",
 						Targets: []rules.RollupTargetView{
 							rules.RollupTargetView{
 								Name: "testTarget",
@@ -407,7 +380,7 @@ func (s *store) CreateMappingRule(
 			ID:           newID,
 			Name:         mrv.Name,
 			CutoverNanos: time.Now().UnixNano(),
-			Filters:      mrv.Filters,
+			Filter:       mrv.Filter,
 			Policies:     mrv.Policies,
 		}
 		rs.MappingRules[newID] = newRule
@@ -438,7 +411,7 @@ func (s *store) UpdateMappingRule(
 					ID:           "new",
 					Name:         mrv.Name,
 					CutoverNanos: time.Now().UnixNano(),
-					Filters:      mrv.Filters,
+					Filter:       mrv.Filter,
 					Policies:     mrv.Policies,
 				}
 				rs.MappingRules[i] = newRule
@@ -533,7 +506,7 @@ func (s *store) CreateRollupRule(
 			ID:           newID,
 			Name:         rrv.Name,
 			CutoverNanos: time.Now().UnixNano(),
-			Filters:      rrv.Filters,
+			Filter:       rrv.Filter,
 			Targets:      rrv.Targets,
 		}
 		rs.RollupRules[newID] = newRule
@@ -567,7 +540,7 @@ func (s *store) UpdateRollupRule(
 			ID:           rollupRuleID,
 			Name:         rrv.Name,
 			CutoverNanos: time.Now().UnixNano(),
-			Filters:      rrv.Filters,
+			Filter:       rrv.Filter,
 			Targets:      rrv.Targets,
 		}
 		rs.RollupRules[rollupRuleID] = newRule
