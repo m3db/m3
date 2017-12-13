@@ -419,11 +419,9 @@ func (n *dbNamespace) Tick(c context.Cancellable) error {
 
 	wg.Wait()
 
-	if c.IsCancelled() {
-		return multiErr.FinalError()
-	}
-
-	if err := multiErr.FinalError(); err != nil {
+	// NB: we early terminate here to ensure we are not reporting metrics
+	// based on in-accurate/partial tick results.
+	if err := multiErr.FinalError(); err != nil || c.IsCancelled() {
 		return err
 	}
 
