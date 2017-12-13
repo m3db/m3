@@ -71,6 +71,9 @@ type Configuration struct {
 	// Write new series backoff between batches of new series insertions.
 	WriteNewSeriesBackoffDuration time.Duration `yaml:"writeNewSeriesBackoffDuration"`
 
+	// The tick configuration, omit this to use default settings.
+	Tick *TickConfiguration `yaml:"tick"`
+
 	// Bootstrap configuration.
 	Bootstrap BootstrapConfiguration `yaml:"bootstrap"`
 
@@ -79,9 +82,6 @@ type Configuration struct {
 
 	// The block retriever policy.
 	BlockRetrieve BlockRetrievePolicy `yaml:"blockRetrieve"`
-
-	// TickInterval controls the tick interval for the node.
-	TickInterval time.Duration `yaml:"tickInterval" validate:"nonzero"`
 
 	// The commit log policy for the node.
 	CommitLog CommitLogPolicy `yaml:"commitlog"`
@@ -97,6 +97,24 @@ type Configuration struct {
 
 	// The configuration for hashing
 	HashingConfiguration HashingConfiguration `yaml:"hashing"`
+}
+
+// TickConfiguration is the tick configuration for background processing of
+// series as blocks are rotated from mutable to immutable and out of order
+// writes are merged.
+type TickConfiguration struct {
+	// Tick series batch size is the batch size to process series together
+	// during a tick before yielding and sleeping the per series duration
+	// multiplied by the batch size.
+	// The higher this value is the more variable CPU utilization will be
+	// but the shorter ticks will ultimately be.
+	SeriesBatchSize int `yaml:"seriesBatchSize"`
+
+	// Tick per series sleep at the completion of a tick batch.
+	PerSeriesSleepDuration time.Duration `yaml:"perSeriesSleepDuration"`
+
+	// Tick minimum interval controls the minimum tick interval for the node.
+	MinimumInterval time.Duration `yaml:"minimumInterval"`
 }
 
 // BlockRetrievePolicy is the block retrieve policy.

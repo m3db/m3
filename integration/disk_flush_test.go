@@ -38,7 +38,7 @@ func TestDiskFlushSimple(t *testing.T) {
 	}
 	// Test setup
 	testOpts := newTestOptions(t).
-		SetTickInterval(time.Second)
+		SetTickMinimumInterval(time.Second)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()

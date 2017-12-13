@@ -45,8 +45,7 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	}
 
 	// Test setup
-	testOpts := newTestOptions(t).
-		SetTickInterval(time.Second)
+	testOpts := newTestOptions(t)
 	testSetup, err := newTestSetup(t, testOpts, nil)
 	require.NoError(t, err)
 	defer testSetup.close()
@@ -83,7 +82,7 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 	// Advance time and sleep for a long enough time so data blocks are sealed during ticking
 	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
 	later := testSetup.getNowFn()
-	testSetup.sleepFor10xTickInterval()
+	testSetup.sleepFor10xTickMinimumInterval()
 
 	metadatasByShard := testSetupMetadatas(t, testSetup, testNamespaces[0], now, later)
 	observedSeriesMaps := testSetupToSeriesMaps(t, testSetup, md, metadatasByShard)

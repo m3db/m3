@@ -352,7 +352,12 @@ func TestShardTick(t *testing.T) {
 	earliestFlush := retention.FlushTimeStart(defaultTestRetentionOpts, now)
 	beforeEarliestFlush := earliestFlush.Add(-defaultTestRetentionOpts.BlockSize())
 
+	sleepPerSeries := time.Microsecond
+
 	shard := testDatabaseShard(t, opts)
+	shard.SetRuntimeOptions(runtime.NewOptions().
+		SetTickPerSeriesSleepDuration(sleepPerSeries).
+		SetTickSeriesBatchSize(1))
 	defer shard.Close()
 
 	// Also check that it expires flush states by time
@@ -369,7 +374,6 @@ func TestShardTick(t *testing.T) {
 		slept += t
 		setNow(nowFn().Add(t))
 	}
-	shard.tickSleepIfAheadEvery = 1
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -378,10 +382,10 @@ func TestShardTick(t *testing.T) {
 	shard.Write(ctx, ts.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
 	shard.Write(ctx, ts.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
 
-	r := shard.Tick(context.NewNoOpCanncellable(), 6*time.Millisecond)
+	r := shard.Tick(context.NewNoOpCanncellable())
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
-	require.Equal(t, 4*time.Millisecond, slept)
+	require.Equal(t, 2*sleepPerSeries, slept) // Never sleeps on the first series
 
 	// Ensure flush states by time was expired correctly
 	require.Equal(t, 1, len(shard.flushState.statesByTime))
@@ -421,8 +425,13 @@ func TestShardWriteAsync(t *testing.T) {
 	earliestFlush := retention.FlushTimeStart(defaultTestRetentionOpts, now)
 	beforeEarliestFlush := earliestFlush.Add(-defaultTestRetentionOpts.BlockSize())
 
+	sleepPerSeries := time.Microsecond
+
 	shard := testDatabaseShard(t, opts)
-	shard.SetRuntimeOptions(runtime.NewOptions().SetWriteNewSeriesAsync(true))
+	shard.SetRuntimeOptions(runtime.NewOptions().
+		SetWriteNewSeriesAsync(true).
+		SetTickPerSeriesSleepDuration(sleepPerSeries).
+		SetTickSeriesBatchSize(1))
 	defer shard.Close()
 
 	// Also check that it expires flush states by time
@@ -439,7 +448,6 @@ func TestShardWriteAsync(t *testing.T) {
 		slept += t
 		setNow(nowFn().Add(t))
 	}
-	shard.tickSleepIfAheadEvery = 1
 
 	ctx := context.NewContext()
 	defer ctx.Close()
@@ -457,10 +465,10 @@ func TestShardWriteAsync(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	r := shard.Tick(context.NewNoOpCanncellable(), 6*time.Millisecond)
+	r := shard.Tick(context.NewNoOpCanncellable())
 	require.Equal(t, 3, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
-	require.Equal(t, 4*time.Millisecond, slept)
+	require.Equal(t, 2*sleepPerSeries, slept) // Never sleeps on the first series
 
 	// Ensure flush states by time was expired correctly
 	require.Equal(t, 1, len(shard.flushState.statesByTime))
@@ -476,7 +484,7 @@ func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 
 	addTestSeries(shard, ts.StringID("foo"))
 
-	shard.Tick(context.NewNoOpCanncellable(), 0)
+	shard.Tick(context.NewNoOpCanncellable())
 
 	shard.RLock()
 	require.Equal(t, 0, len(shard.lookup))
@@ -491,7 +499,7 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
 	shard.Write(ctx, ts.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
-	r := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular)
+	r := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
 	require.Equal(t, 1, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
 }
@@ -517,7 +525,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 		shard.Write(ctx, id, nowFn(), 1.0, xtime.Second, nil)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	r := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular)
+	r := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
 	require.Equal(t, 1, len(shard.lookup))
@@ -544,7 +552,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	r := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular)
+	r := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
 	require.Equal(t, 1, len(shard.lookup))
