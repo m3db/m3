@@ -52,9 +52,10 @@ import (
 )
 
 const (
-	shardIterateBatchPercent     = 0.01
-	expireBatchLength            = 1024
-	defaultTickSleepIfAheadEvery = 128
+	shardIterateBatchPercent      = 0.01
+	expireBatchLength             = 1024
+	defaultTickSleepIfAheadEvery  = 128
+	defaultSkipTickIfShardClosing = true
 )
 
 var (
@@ -105,6 +106,7 @@ type dbShard struct {
 	contextPool              context.Pool
 	flushState               shardFlushState
 	ticking                  *uatomic.Bool
+	tickWg                   *sync.WaitGroup
 	runtimeOptsListenClosers []xclose.SimpleCloser
 	currRuntimeOptions       dbShardRuntimeOptions
 	metrics                  dbShardMetrics
@@ -206,6 +208,7 @@ func newDatabaseShard(
 		contextPool:           opts.ContextPool(),
 		flushState:            newShardFlushState(),
 		ticking:               uatomic.NewBool(false),
+		tickWg:                &sync.WaitGroup{},
 		metrics:               newDatabaseShardMetrics(scope),
 	}
 	d.insertQueue = newDatabaseShardInsertQueue(d.insertSeriesBatch,
@@ -358,13 +361,23 @@ func (s *dbShard) Close() error {
 		stopwatch.Stop()
 	}()
 
+	// NB(prateek): wait till any existing ticks are finished. In the usual
+	// case, no other ticks are running, and tickWg count is at 0, so the
+	// call to Wait() will return immediately.
+	// In the case when there is an existing Tick running, the count for
+	// tickWg will be > 0, and we'll wait until it's reset to zero, which
+	// will happen because earlier in this function we set the shard state
+	// to dbShardStateClosing, which triggers an early termination of
+	// any active ticks.
+	s.tickWg.Wait()
+
 	// NB(r): Asynchronously we purge expired series to ensure pressure on the
 	// GC is not placed all at one time.  If the deadline is too low and still
 	// causes the GC to impact performance when closing shards the deadline
 	// should be increased.
 	cancellable := context.NewNoOpCanncellable()
 	softDeadline := s.opts.TickInterval()
-	s.tickAndExpire(cancellable, softDeadline, tickPolicyForceExpiry)
+	s.tickAndExpire(cancellable, softDeadline, tickPolicyForceExpiry, false)
 
 	return nil
 }
@@ -377,26 +390,32 @@ func (s *dbShard) isClosing() bool {
 }
 
 func (s *dbShard) Tick(c context.Cancellable, softDeadline time.Duration) (tickResult, error) {
-	// CAS the ticking state
-	if s.ticking.Swap(true) {
-		// i.e. we were previously ticking
-		return tickResult{}, errShardAlreadyTicking
-	}
-
 	s.removeAnyFlushStatesTooEarly()
-	result := s.tickAndExpire(c, softDeadline, tickPolicyRegular)
-
-	// reset ticking state
-	s.ticking.Store(false)
-
-	return result, nil
+	return s.tickAndExpire(c, softDeadline, tickPolicyRegular, defaultSkipTickIfShardClosing)
 }
 
 func (s *dbShard) tickAndExpire(
 	c context.Cancellable,
 	softDeadline time.Duration,
 	policy tickPolicy,
-) tickResult {
+	skipIfClosing bool,
+) (tickResult, error) {
+	// ensure only one tick can execute at a time
+	if s.ticking.Swap(true) {
+		// i.e. we were previously ticking
+		return tickResult{}, errShardAlreadyTicking
+	}
+
+	// enable Close() to track the lifecycle of the tick
+	s.tickWg.Add(1)
+
+	defer func() {
+		// reset ticking state
+		s.ticking.Store(false)
+		// indicate we're done ticking
+		s.tickWg.Done()
+	}()
+
 	var (
 		r                    tickResult
 		perEntrySoftDeadline time.Duration
@@ -409,10 +428,16 @@ func (s *dbShard) tickAndExpire(
 	start := s.nowFn()
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		if i > 0 && i%s.tickSleepIfAheadEvery == 0 {
-			// NB(xichen): if the tick is cancelled, or if the shard is closing,
-			// we bail out immediately. The cancellation check is performed on
-			// every batch of entries instead of every entry to reduce load.
-			if c.IsCancelled() || s.isClosing() {
+			// NB(xichen): if the tick is cancelled, we bail out immediately.
+			// The cancellation check is performed on every batch of entries
+			// instead of every entry to reduce load.
+			if c.IsCancelled() {
+				return false
+			}
+			// NB(prateek): we also bail out early if the shard is closing,
+			// unless it's the final tick issued during the Close(). This
+			// final tick is required to release resources back to our pools.
+			if s.isClosing() && skipIfClosing {
 				return false
 			}
 			// If we are ahead of our our deadline then throttle tick
@@ -468,7 +493,7 @@ func (s *dbShard) tickAndExpire(
 		s.purgeExpiredSeries(expired)
 	}
 
-	return r
+	return r, nil
 }
 
 func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {

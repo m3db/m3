@@ -322,6 +322,15 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 	}, flushState)
 }
 
+func addMockTestSeries(ctrl *gomock.Controller, shard *dbShard, id ts.ID) *series.MockDatabaseSeries {
+	series := series.NewMockDatabaseSeries(ctrl)
+	series.EXPECT().ID().AnyTimes().Return(id)
+	shard.Lock()
+	shard.lookup[id.Hash()] = shard.list.PushBack(&dbShardEntry{series: series})
+	shard.Unlock()
+	return series
+}
+
 func addTestSeries(shard *dbShard, id ts.ID) series.DatabaseSeries {
 	series := series.NewDatabaseSeries(id, shard.seriesOpts)
 	series.Bootstrap(nil)
@@ -497,6 +506,73 @@ func TestShardTickRace(t *testing.T) {
 	shard.RUnlock()
 }
 
+// This tests ensures the resources held in series contained in the shard are released
+// when closing the shard.
+func TestShardTicksWhenClosed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions()
+	shard := testDatabaseShard(t, opts)
+	s := addMockTestSeries(ctrl, shard, ts.StringID("foo"))
+
+	gomock.InOrder(
+		s.EXPECT().IsEmpty().Return(true),
+		s.EXPECT().Close(),
+	)
+	require.NoError(t, shard.Close())
+}
+
+// This tests ensures the shard terminates Ticks when closing.
+func TestShardTicksStopWhenClosing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions().
+		SetTickInterval(100 * time.Millisecond)
+	shard := testDatabaseShard(t, opts)
+	shard.tickSleepIfAheadEvery = 1 // setting check batch size to one
+
+	var (
+		foo     = addMockTestSeries(ctrl, shard, ts.StringID("foo"))
+		bar     = addMockTestSeries(ctrl, shard, ts.StringID("bar"))
+		closeWg sync.WaitGroup
+		orderWg sync.WaitGroup
+	)
+
+	orderWg.Add(1)
+	// loop until the shard is marked for Closing
+	foo.EXPECT().Tick().Do(func() {
+		orderWg.Done()
+		for {
+			if shard.isClosing() {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}).Return(series.TickResult{}, nil)
+
+	// for the shard Close purging
+	foo.EXPECT().IsEmpty().Return(true)
+	foo.EXPECT().Close()
+	bar.EXPECT().IsEmpty().Return(true)
+	bar.EXPECT().Close()
+
+	closeWg.Add(2)
+	go func() {
+		shard.Tick(context.NewNoOpCanncellable(), 0)
+		closeWg.Done()
+	}()
+
+	go func() {
+		orderWg.Wait()
+		require.NoError(t, shard.Close())
+		closeWg.Done()
+	}()
+
+	closeWg.Wait()
+}
+
 // This tests the scenario where an empty series is expired.
 func TestPurgeExpiredSeriesEmptySeries(t *testing.T) {
 	opts := testDatabaseOptions()
@@ -520,7 +596,8 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
 	shard.Write(ctx, ts.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
-	r := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular)
+	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular, defaultSkipTickIfShardClosing)
+	require.NoError(t, err)
 	require.Equal(t, 1, r.activeSeries)
 	require.Equal(t, 0, r.expiredSeries)
 }
@@ -546,7 +623,8 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 		shard.Write(ctx, id, nowFn(), 1.0, xtime.Second, nil)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	r := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular)
+	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular, defaultSkipTickIfShardClosing)
+	require.NoError(t, err)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
 	require.Equal(t, 1, len(shard.lookup))
@@ -573,7 +651,8 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 		require.NoError(t, err)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
-	r := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular)
+	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), 0, tickPolicyRegular, defaultSkipTickIfShardClosing)
+	require.NoError(t, err)
 	require.Equal(t, 0, r.activeSeries)
 	require.Equal(t, 1, r.expiredSeries)
 	require.Equal(t, 1, len(shard.lookup))
