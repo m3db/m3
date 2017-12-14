@@ -4,8 +4,10 @@ import (
 	"net/http/httptest"
 	"testing"
 	"net/http"
-	"github.com/stretchr/testify/require"
+
 	"github.com/m3db/m3coordinator/util/logging"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestPromReadGet(t *testing.T) {

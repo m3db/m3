@@ -1,12 +1,13 @@
 package main
 
 import (
-	"github.com/m3db/m3coordinator/services/m3coordinator/httpd"
-	"net/http"
-	"fmt"
-	"os"
-	"github.com/m3db/m3coordinator/util/logging"
 	"context"
+	"fmt"
+	"net/http"
+	"os"
+
+	"github.com/m3db/m3coordinator/services/m3coordinator/httpd"
+	"github.com/m3db/m3coordinator/util/logging"
 )
 
 func main() {
