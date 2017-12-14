@@ -626,7 +626,7 @@ func withEncodingAndPoolingOptions(
 			SetRefillHighWatermark(bucket.RefillHighWaterMark)
 		buckets[i] = b
 		logger.Infof("bytes pool registering bucket capacity=%d, size=%d,"+
-			"refillLowWatermark=%d, refillHighWatermark=%d",
+			"refillLowWatermark=%f, refillHighWatermark=%f",
 			bucket.Capacity, bucket.Size,
 			bucket.RefillLowWaterMark, bucket.RefillHighWaterMark)
 	}
