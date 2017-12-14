@@ -6,7 +6,7 @@ import:
 - package: github.com/m3db/m3metrics
   version: a659459d3a5fc2cb9ad02d000bb2b28592467345
 - package: github.com/m3db/m3x
-  version: b009e41c873b0fb0fc066114911c87ff6a6f8d77
+  version: 515e3030818e6dab3fd418f05b96174ae4c527df
 - package: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
 - package: github.com/beorn7/perks
