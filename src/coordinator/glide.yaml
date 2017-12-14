@@ -1,10 +1,14 @@
 package: github.com/m3db/m3coordinator
 import:
 - package: github.com/golang/protobuf
+  version: 1e59b77b52bf8e4b449a57e6f79f21226d571845
   subpackages:
   - proto
 - package: github.com/golang/snappy
+  version: 553a641470496b2327abcac10b36396bd98e45c9
 - package: github.com/gorilla/mux
   version: ^1.6.0
 - package: go.uber.org/zap
   version: ^1.7.1
+- package: github.com/pborman/uuid
+  version: ^1.1.0
