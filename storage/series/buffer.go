@@ -529,7 +529,7 @@ func (b *dbBufferBucket) write(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	var target *inOrderEncoder
+	idx := -1
 	for i := range b.encoders {
 		if timestamp.Equal(b.encoders[i].lastWriteAt) {
 			// NB(xichen): We discard datapoints with the same timestamps as the
@@ -537,11 +537,11 @@ func (b *dbBufferBucket) write(
 			return nil
 		}
 		if timestamp.After(b.encoders[i].lastWriteAt) {
-			target = &b.encoders[i]
+			idx = i
 			break
 		}
 	}
-	if target == nil {
+	if idx == -1 {
 		bopts := b.opts.DatabaseBlockOptions()
 		blockSize := b.opts.RetentionOptions().BlockSize()
 		blockAllocSize := bopts.DatabaseBlockAllocSize()
@@ -549,17 +549,16 @@ func (b *dbBufferBucket) write(
 		encoder.Reset(timestamp.Truncate(blockSize), blockAllocSize)
 		next := inOrderEncoder{encoder: encoder}
 		b.encoders = append(b.encoders, next)
-		target = &b.encoders[len(b.encoders)-1]
+		idx = len(b.encoders) - 1
 	}
 
-	datapoint := ts.Datapoint{
+	if err := b.encoders[idx].encoder.Encode(ts.Datapoint{
 		Timestamp: timestamp,
 		Value:     value,
-	}
-	if err := target.encoder.Encode(datapoint, unit, annotation); err != nil {
+	}, unit, annotation); err != nil {
 		return err
 	}
-	target.lastWriteAt = timestamp
+	b.encoders[idx].lastWriteAt = timestamp
 	b.empty = false
 	return nil
 }
@@ -673,34 +672,38 @@ func (b *dbBufferBucket) merge() (mergeResult, error) {
 	}
 
 	readers := make([]io.Reader, 0, len(b.encoders)+len(b.bootstrapped))
+	streams := make([]xio.SegmentReader, 0, len(b.encoders))
 	for i := range b.encoders {
 		if stream := b.encoders[i].encoder.Stream(); stream != nil {
 			merges++
 			readers = append(readers, stream)
+			streams = append(streams, stream)
 		}
 	}
 
+	var lastWriteAt time.Time
+	iter := b.opts.MultiReaderIteratorPool().Get()
+	ctx := b.opts.ContextPool().Get()
+	defer func() {
+		iter.Close()
+		ctx.Close()
+		// NB(r): Only need to close the mutable encoder streams as
+		// the context we created for reading the bootstrap blocks
+		// when closed will close those streams.
+		for _, stream := range streams {
+			stream.Finalize()
+		}
+	}()
+
 	for i := range b.bootstrapped {
-		stream, err := b.bootstrapped[i].Stream(b.ctx)
+		stream, err := b.bootstrapped[i].Stream(ctx)
 		if err == nil && stream != nil {
 			merges++
 			readers = append(readers, stream)
 		}
 	}
 
-	var lastWriteAt time.Time
-	iter := b.opts.MultiReaderIteratorPool().Get()
 	iter.Reset(readers)
-
-	defer func() {
-		iter.Close()
-		for _, stream := range readers {
-			if resource, ok := stream.(context.Finalizer); ok {
-				resource.Finalize()
-			}
-		}
-	}()
-
 	for iter.Next() {
 		dp, unit, annotation := iter.Current()
 		if err := encoder.Encode(dp, unit, annotation); err != nil {
@@ -729,30 +732,39 @@ type discardMergedResult struct {
 }
 
 func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
-	defer func() {
-		b.resetEncoders()
-		b.resetBootstrapped()
-		b.empty = true
-	}()
-
 	if b.hasJustSingleEncoder() {
 		// Already merged as a single encoder
 		encoder := b.encoders[0].encoder
 		newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 		newBlock.Reset(b.start, encoder.Discard())
+
+		// The single encoder is already discarded, no need to call resetEncoders
+		// just remove it from the list of encoders
 		b.encoders = b.encoders[:0]
+		b.resetBootstrapped()
+		b.empty = true
+
 		return discardMergedResult{newBlock, 0}, nil
 	}
 
 	if b.hasJustSingleBootstrappedBlock() {
 		// Already merged just a single bootstrapped block
 		existingBlock := b.bootstrapped[0]
-		b.bootstrapped = b.bootstrapped[:0]
+
+		// Need to reset encoders but do not want to finalize the block as we
+		// are passing ownership of it to the caller
+		b.resetEncoders()
+		b.bootstrapped = nil
+		b.empty = true
+
 		return discardMergedResult{existingBlock, 0}, nil
 	}
 
 	result, err := b.merge()
 	if err != nil {
+		b.resetEncoders()
+		b.resetBootstrapped()
+		b.empty = true
 		return discardMergedResult{}, err
 	}
 
@@ -760,6 +772,12 @@ func (b *dbBufferBucket) discardMerged() (discardMergedResult, error) {
 
 	newBlock := b.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	newBlock.Reset(b.start, merged.Discard())
+
+	// The merged encoder is already discarded, no need to call resetEncoders
+	// just remove it from the list of encoders
+	b.encoders = b.encoders[:0]
+	b.resetBootstrapped()
+	b.empty = true
 
 	return discardMergedResult{newBlock, result.merges}, nil
 }
