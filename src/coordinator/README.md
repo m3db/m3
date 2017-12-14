@@ -12,5 +12,5 @@ This project is released under the [MIT License](LICENSE.md).
 [doc]: https://godoc.org/github.com/m3db/m3coordinator
 [ci-img]: https://travis-ci.org/m3db/m3coordinator.svg?branch=master
 [ci]: https://travis-ci.org/m3db/m3coordinator
-[cov-img]: https://coveralls.io/repos/m3db/m3coordinator/badge.svg?branch=master&service=github
+[cov-img]: https://coveralls.io/repos/github/m3db/m3coordinator/badge.svg?branch=master&service=github
 [cov]: https://coveralls.io/github/m3db/m3coordinator?branch=master
