@@ -21,6 +21,7 @@
 package instrument
 
 import (
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -40,15 +41,25 @@ type sampledTimer struct {
 	rate uint64
 }
 
-// NB(xichen): return an error instead of panicing.
-func newSampledTimer(base tally.Timer, rate float64) tally.Timer {
+// NewSampledTimer creates a new sampled timer.
+func NewSampledTimer(base tally.Timer, rate float64) (tally.Timer, error) {
 	if rate <= 0.0 || rate > 1.0 {
-		panic("sampled timer must have a sampling rate between 0.0 and 1.0")
+		return nil, fmt.Errorf("sampling rate %f must be between 0.0 and 1.0", rate)
 	}
 	return &sampledTimer{
 		Timer: base,
 		rate:  uint64(1.0 / rate),
+	}, nil
+}
+
+// MustCreateSampledTimer creates a new sampled timer, and panics if an error
+// is encountered.
+func MustCreateSampledTimer(base tally.Timer, rate float64) tally.Timer {
+	t, err := NewSampledTimer(base, rate)
+	if err != nil {
+		panic(err)
 	}
+	return t
 }
 
 func (t *sampledTimer) shouldSample() bool {
@@ -111,8 +122,8 @@ func NewMethodMetrics(scope tally.Scope, methodName string, samplingRate float64
 	return MethodMetrics{
 		Errors:         scope.Counter(methodName + ".errors"),
 		Success:        scope.Counter(methodName + ".success"),
-		ErrorsLatency:  newSampledTimer(scope.Timer(methodName+".errors-latency"), samplingRate),
-		SuccessLatency: newSampledTimer(scope.Timer(methodName+".success-latency"), samplingRate),
+		ErrorsLatency:  MustCreateSampledTimer(scope.Timer(methodName+".errors-latency"), samplingRate),
+		SuccessLatency: MustCreateSampledTimer(scope.Timer(methodName+".success-latency"), samplingRate),
 	}
 }
 
@@ -136,7 +147,7 @@ func NewBatchMethodMetrics(
 		NonRetryableErrors: scope.Counter(methodName + ".non-retryable-errors"),
 		Errors:             scope.Counter(methodName + ".errors"),
 		Success:            scope.Counter(methodName + ".success"),
-		Latency:            newSampledTimer(scope.Timer(methodName+".latency"), samplingRate),
+		Latency:            MustCreateSampledTimer(scope.Timer(methodName+".latency"), samplingRate),
 	}
 }
 
