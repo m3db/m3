@@ -560,6 +560,51 @@ func TestAggregatorOwnedShards(t *testing.T) {
 	}
 }
 
+func TestAggregatorAddMetricMetrics(t *testing.T) {
+	s := tally.NewTestScope("testScope", nil)
+	m := newAggregatorAddMetricMetrics(s, 1.0)
+	m.ReportSuccess(time.Second)
+	m.ReportError(errInvalidMetricType)
+	m.ReportError(errShardNotOwned)
+	m.ReportError(errAggregatorShardNotWriteable)
+	m.ReportError(errWriteNewMetricRateLimitExceeded)
+	m.ReportError(errWriteValueRateLimitExceeded)
+	m.ReportError(errors.New("foo"))
+
+	snapshot := s.Snapshot()
+	counters, timers, gauges := snapshot.Counters(), snapshot.Timers(), snapshot.Gauges()
+
+	// Validate we count successes and errors correctly.
+	require.Equal(t, 7, len(counters))
+	for _, id := range []string{
+		"testScope.success+",
+		"testScope.errors+reason=invalid-metric-types",
+		"testScope.errors+reason=shard-not-owned",
+		"testScope.errors+reason=shard-not-writeable",
+		"testScope.errors+reason=value-rate-limit-exceeded",
+		"testScope.errors+reason=new-metric-rate-limit-exceeded",
+		"testScope.errors+reason=not-categorized",
+	} {
+		c, exists := counters[id]
+		require.True(t, exists)
+		require.Equal(t, int64(1), c.Value())
+	}
+
+	// Validate we record times correctly.
+	require.Equal(t, 1, len(timers))
+
+	for _, id := range []string{
+		"testScope.success-latency+",
+	} {
+		ti, exists := timers[id]
+		require.True(t, exists)
+		require.Equal(t, []time.Duration{time.Second}, ti.Values())
+	}
+
+	// Validate we do not have any gauges.
+	require.Equal(t, 0, len(gauges))
+}
+
 func testAggregator(t *testing.T) (*aggregator, kv.Store) {
 	proto := testStagedPlacementProtoWithNumShards(t, testInstanceID, testShardSetID, testNumShards)
 	return testAggregatorWithCustomPlacements(t, proto)
