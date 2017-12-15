@@ -23,7 +23,6 @@ package aggregator
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math"
 	"sync"
 	"sync/atomic"
@@ -69,7 +68,72 @@ var (
 	errAggregatorAlreadyOpenOrClosed = errors.New("aggregator is already open or closed")
 	errInvalidMetricType             = errors.New("invalid metric type")
 	errActivePlacementChanged        = errors.New("active placement has changed")
+	errShardNotOwned                 = errors.New("aggregator shard is not owned")
 )
+
+type aggregatorAddMetricMetrics struct {
+	success                    tally.Counter
+	successLatency             tally.Timer
+	invalidMetricTypes         tally.Counter
+	shardNotOwned              tally.Counter
+	shardNotWriteable          tally.Counter
+	valueRateLimitExceeded     tally.Counter
+	newMetricRateLimitExceeded tally.Counter
+	uncategorizedErrors        tally.Counter
+}
+
+func newAggregatorAddMetricMetrics(
+	scope tally.Scope,
+	samplingRate float64,
+) aggregatorAddMetricMetrics {
+	return aggregatorAddMetricMetrics{
+		success:        scope.Counter("success"),
+		successLatency: instrument.MustCreateSampledTimer(scope.Timer("success-latency"), samplingRate),
+		invalidMetricTypes: scope.Tagged(map[string]string{
+			"reason": "invalid-metric-types",
+		}).Counter("errors"),
+		shardNotOwned: scope.Tagged(map[string]string{
+			"reason": "shard-not-owned",
+		}).Counter("errors"),
+		shardNotWriteable: scope.Tagged(map[string]string{
+			"reason": "shard-not-writeable",
+		}).Counter("errors"),
+		valueRateLimitExceeded: scope.Tagged(map[string]string{
+			"reason": "value-rate-limit-exceeded",
+		}).Counter("errors"),
+		newMetricRateLimitExceeded: scope.Tagged(map[string]string{
+			"reason": "new-metric-rate-limit-exceeded",
+		}).Counter("errors"),
+		uncategorizedErrors: scope.Tagged(map[string]string{
+			"reason": "not-categorized",
+		}).Counter("errors"),
+	}
+}
+
+func (m *aggregatorAddMetricMetrics) ReportSuccess(d time.Duration) {
+	m.success.Inc(1)
+	m.successLatency.Record(d)
+}
+
+func (m *aggregatorAddMetricMetrics) ReportError(err error) {
+	if err == nil {
+		return
+	}
+	switch err {
+	case errInvalidMetricType:
+		m.invalidMetricTypes.Inc(1)
+	case errShardNotOwned:
+		m.shardNotOwned.Inc(1)
+	case errAggregatorShardNotWriteable:
+		m.shardNotWriteable.Inc(1)
+	case errWriteNewMetricRateLimitExceeded:
+		m.newMetricRateLimitExceeded.Inc(1)
+	case errWriteValueRateLimitExceeded:
+		m.valueRateLimitExceeded.Inc(1)
+	default:
+		m.uncategorizedErrors.Inc(1)
+	}
+}
 
 type aggregatorTickMetrics struct {
 	scope            tally.Scope
@@ -162,9 +226,7 @@ type aggregatorMetrics struct {
 	timers                    tally.Counter
 	timerBatches              tally.Counter
 	gauges                    tally.Counter
-	invalidMetricTypes        tally.Counter
-	shardNotOwned             tally.Counter
-	addMetricWithPoliciesList instrument.MethodMetrics
+	addMetricWithPoliciesList aggregatorAddMetricMetrics
 	placement                 aggregatorPlacementMetrics
 	shards                    aggregatorShardsMetrics
 	shardSetID                aggregatorShardSetIDMetrics
@@ -172,18 +234,17 @@ type aggregatorMetrics struct {
 }
 
 func newAggregatorMetrics(scope tally.Scope, samplingRate float64) aggregatorMetrics {
+	addMetricScope := scope.SubScope("addMetricWithPoliciesList")
 	placementScope := scope.SubScope("placement")
 	shardsScope := scope.SubScope("shards")
 	shardSetIDScope := scope.SubScope("shard-set-id")
 	tickScope := scope.SubScope("tick")
 	return aggregatorMetrics{
-		counters:                  scope.Counter("counters"),
-		timers:                    scope.Counter("timers"),
-		timerBatches:              scope.Counter("timer-batches"),
-		gauges:                    scope.Counter("gauges"),
-		invalidMetricTypes:        scope.Counter("invalid-metric-types"),
-		shardNotOwned:             scope.Counter("shard-not-owned"),
-		addMetricWithPoliciesList: instrument.NewMethodMetrics(scope, "addMetricWithPoliciesList", samplingRate),
+		counters:     scope.Counter("counters"),
+		timers:       scope.Counter("timers"),
+		timerBatches: scope.Counter("timer-batches"),
+		gauges:       scope.Counter("gauges"),
+		addMetricWithPoliciesList: newAggregatorAddMetricMetrics(addMetricScope, samplingRate),
 		placement:                 newAggregatorPlacementMetrics(placementScope),
 		shards:                    newAggregatorShardsMetrics(shardsScope),
 		shardSetID:                newAggregatorShardSetIDMetrics(shardSetIDScope),
@@ -299,17 +360,20 @@ func (agg *aggregator) AddMetricWithPoliciesList(
 ) error {
 	callStart := agg.nowFn()
 	if err := agg.checkMetricType(mu); err != nil {
-		agg.metrics.addMetricWithPoliciesList.ReportError(agg.nowFn().Sub(callStart))
+		agg.metrics.addMetricWithPoliciesList.ReportError(err)
 		return err
 	}
 	shard, err := agg.shardFor(mu.ID)
 	if err != nil {
-		agg.metrics.addMetricWithPoliciesList.ReportError(agg.nowFn().Sub(callStart))
+		agg.metrics.addMetricWithPoliciesList.ReportError(err)
 		return err
 	}
-	err = shard.AddMetricWithPoliciesList(mu, pl)
-	agg.metrics.addMetricWithPoliciesList.ReportSuccessOrError(err, agg.nowFn().Sub(callStart))
-	return err
+	if err = shard.AddMetricWithPoliciesList(mu, pl); err != nil {
+		agg.metrics.addMetricWithPoliciesList.ReportError(err)
+		return err
+	}
+	agg.metrics.addMetricWithPoliciesList.ReportSuccess(agg.nowFn().Sub(callStart))
+	return nil
 }
 
 func (agg *aggregator) Resign() error {
@@ -378,8 +442,7 @@ func (agg *aggregator) shardForWithLock(id id.RawID, updateShardsType updateShar
 	numShards := placement.NumShards()
 	shardID := agg.shardFn([]byte(id), numShards)
 	if int(shardID) >= len(agg.shards) || agg.shards[shardID] == nil {
-		agg.metrics.shardNotOwned.Inc(1)
-		return nil, fmt.Errorf("not responsible for shard %d", shardID)
+		return nil, errShardNotOwned
 	}
 	return agg.shards[shardID], nil
 }
@@ -576,7 +639,6 @@ func (agg *aggregator) checkMetricType(mu unaggregated.MetricUnion) error {
 		agg.metrics.gauges.Inc(1)
 		return nil
 	default:
-		agg.metrics.invalidMetricTypes.Inc(1)
 		return errInvalidMetricType
 	}
 }
