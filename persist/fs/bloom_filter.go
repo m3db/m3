@@ -27,63 +27,36 @@ import (
 	"github.com/m3db/m3db/digest"
 )
 
-type bloomFilter interface {
-	// Test whether the Bloom Filter contains a value
-	Test(value []byte) bool
-
-	// Returns the number of elements in the Bloom Filter
-	M() uint
-
-	// Returns the number of hashes used
-	K() uint
-}
-
-// managedBloomFilter is a container object that implements lifecycle
-// management ontop of a BloomFilter. I.E it wraps a bloom filter such that
-// all resources are released when the Close() method is called
-type managedBloomFilter interface {
-	bloomFilter
-
-	// Close closes the ManagedBloomFilter, releasing any held resoures
-	Close() error
-}
-
-// managedConcurrentBloomFilter is the same as managedBloomFilter, with the
-// addition that the implementation must be safe for concurrent use
-type managedConcurrentBloomFilter interface {
-	managedBloomFilter
-
-	IsConcurrent()
-}
-
-type managedConcurrentBloomFilterImpl struct {
+// managedConcurrentBloomFilter is a container object that implements lifecycle
+// management on-top of a BloomFilter. I.E it wraps a bloom filter such that
+// all resources are released when the Close() method is called. It's also safe
+// for concurrent access
+type managedConcurrentBloomFilter struct {
 	bloomFilter *bloom.ConcurrentReadOnlyBloomFilter
 	mmapBytes   []byte
 }
 
-func (bf *managedConcurrentBloomFilterImpl) Test(value []byte) bool {
+func (bf *managedConcurrentBloomFilter) Test(value []byte) bool {
 	return bf.bloomFilter.Test(value)
 }
 
-func (bf *managedConcurrentBloomFilterImpl) M() uint {
+func (bf *managedConcurrentBloomFilter) M() uint {
 	return bf.bloomFilter.M()
 }
 
-func (bf *managedConcurrentBloomFilterImpl) K() uint {
+func (bf *managedConcurrentBloomFilter) K() uint {
 	return bf.bloomFilter.K()
 }
 
-func (bf *managedConcurrentBloomFilterImpl) Close() error {
+func (bf *managedConcurrentBloomFilter) Close() error {
 	return munmap(bf.mmapBytes)
 }
 
-func (bf *managedConcurrentBloomFilterImpl) IsConcurrent() {}
-
-func newManagedConcurrentBloomFilterImpl(
+func newManagedConcurrentBloomFilter(
 	bloomFilter *bloom.ConcurrentReadOnlyBloomFilter,
 	mmapBytes []byte,
-) *managedConcurrentBloomFilterImpl {
-	return &managedConcurrentBloomFilterImpl{
+) *managedConcurrentBloomFilter {
+	return &managedConcurrentBloomFilter{
 		bloomFilter: bloomFilter,
 		mmapBytes:   mmapBytes,
 	}
@@ -95,7 +68,7 @@ func readManagedConcurrentBloomFilter(
 	expectedDigest uint32,
 	numElementsM uint,
 	numHashesK uint,
-) (managedConcurrentBloomFilter, error) {
+) (*managedConcurrentBloomFilter, error) {
 	// Determine how many bytes to request for the mmap'd region
 	bloomFilterFdWithDigest.Reset(bloomFilterFd)
 	stat, err := bloomFilterFd.Stat()
@@ -122,5 +95,5 @@ func readManagedConcurrentBloomFilter(
 	}
 
 	bloomFilter := bloom.NewConcurrentReadOnlyBloomFilter(numElementsM, numHashesK, anonMmap)
-	return newManagedConcurrentBloomFilterImpl(bloomFilter, anonMmap), nil
+	return newManagedConcurrentBloomFilter(bloomFilter, anonMmap), nil
 }

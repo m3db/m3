@@ -86,7 +86,7 @@ type seeker struct {
 
 	// Bloom filter associated with the shard / block the seeker is responsible
 	// for. Needs to be closed when done.
-	bloomFilter managedConcurrentBloomFilter
+	bloomFilter *managedConcurrentBloomFilter
 }
 
 type indexMapEntry struct {

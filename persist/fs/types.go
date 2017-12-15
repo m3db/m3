@@ -69,7 +69,7 @@ type FileSetReader interface {
 
 	// ReadBloomFilter returns the bloom filter stored on disk in a container object that is safe
 	// for concurrent use and has a Close() method for releasing resources when done.
-	ReadBloomFilter() (managedConcurrentBloomFilter, error)
+	ReadBloomFilter() (*managedConcurrentBloomFilter, error)
 
 	// Validate validates the data and returns an error if the data are corrupted
 	Validate() error
