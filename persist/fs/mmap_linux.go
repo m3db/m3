@@ -25,20 +25,22 @@ import (
 	"syscall"
 )
 
-func mmap(fd, offset, length int64, opts mmapOptions) ([]byte, error) {
+// mmapFd mmaps a file
+func mmapFd(fd, offset, length int64, opts mmapOptions) ([]byte, error) {
 	// MAP_PRIVATE because we only want to ever mmap immutable things and we don't
 	// ever want to propagate writes back to the underlying file
-	return mmapBase(fd, offset, length, syscall.MAP_PRIVATE, opts)
+	return mmap(fd, offset, length, syscall.MAP_PRIVATE, opts)
 }
 
-func mmapAnon(length int64, opts mmapOptions) ([]byte, error) {
+// mmapBytes requests a private (non-shared) region of anonymous (not backed by a file) memory from the O.S
+func mmapBytes(length int64, opts mmapOptions) ([]byte, error) {
 	// offset is 0 because we're not indexing into a file
 	// fd is -1 and MAP_ANON because we're asking for an anonymous region of memory not tied to a file
 	// MAP_PRIVATE because we don't plan on sharing this region of memory with other processes
-	return mmapBase(-1, 0, length, syscall.MAP_ANON|syscall.MAP_PRIVATE, opts)
+	return mmap(-1, 0, length, syscall.MAP_ANON|syscall.MAP_PRIVATE, opts)
 }
 
-func mmapBase(fd, offset, length int64, flags int, opts mmapOptions) ([]byte, error) {
+func mmap(fd, offset, length int64, flags int, opts mmapOptions) ([]byte, error) {
 	if length == 0 {
 		// Return an empty slice (but not nil so callers who
 		// use nil to mean something special like not initialized
