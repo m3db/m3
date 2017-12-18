@@ -27,36 +27,36 @@ import (
 	"github.com/m3db/m3db/digest"
 )
 
-// managedConcurrentBloomFilter is a container object that implements lifecycle
+// ManagedConcurrentBloomFilter is a container object that implements lifecycle
 // management on-top of a BloomFilter. I.E it wraps a bloom filter such that
 // all resources are released when the Close() method is called. It's also safe
 // for concurrent access
-type managedConcurrentBloomFilter struct {
+type ManagedConcurrentBloomFilter struct {
 	bloomFilter *bloom.ConcurrentReadOnlyBloomFilter
 	mmapBytes   []byte
 }
 
-func (bf *managedConcurrentBloomFilter) Test(value []byte) bool {
+func (bf *ManagedConcurrentBloomFilter) Test(value []byte) bool {
 	return bf.bloomFilter.Test(value)
 }
 
-func (bf *managedConcurrentBloomFilter) M() uint {
+func (bf *ManagedConcurrentBloomFilter) M() uint {
 	return bf.bloomFilter.M()
 }
 
-func (bf *managedConcurrentBloomFilter) K() uint {
+func (bf *ManagedConcurrentBloomFilter) K() uint {
 	return bf.bloomFilter.K()
 }
 
-func (bf *managedConcurrentBloomFilter) Close() error {
+func (bf *ManagedConcurrentBloomFilter) Close() error {
 	return munmap(bf.mmapBytes)
 }
 
 func newManagedConcurrentBloomFilter(
 	bloomFilter *bloom.ConcurrentReadOnlyBloomFilter,
 	mmapBytes []byte,
-) *managedConcurrentBloomFilter {
-	return &managedConcurrentBloomFilter{
+) *ManagedConcurrentBloomFilter {
+	return &ManagedConcurrentBloomFilter{
 		bloomFilter: bloomFilter,
 		mmapBytes:   mmapBytes,
 	}
@@ -68,7 +68,7 @@ func readManagedConcurrentBloomFilter(
 	expectedDigest uint32,
 	numElementsM uint,
 	numHashesK uint,
-) (*managedConcurrentBloomFilter, error) {
+) (*ManagedConcurrentBloomFilter, error) {
 	// Determine how many bytes to request for the mmap'd region
 	bloomFilterFdWithDigest.Reset(bloomFilterFd)
 	stat, err := bloomFilterFd.Stat()
@@ -81,7 +81,7 @@ func readManagedConcurrentBloomFilter(
 	// to use the mmap'd region to create a read-only bloom filter, but the mmap
 	// region itself needs to be writable so we can copy the bytes from disk
 	// into it
-	anonMmap, err := mmapAnon(numBytes, mmapOptions{read: true, write: true})
+	anonMmap, err := mmapBytes(numBytes, mmapOptions{read: true, write: true})
 	if err != nil {
 		return nil, err
 	}

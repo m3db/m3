@@ -100,5 +100,5 @@ func mmapFile(file *os.File, opts mmapOptions) ([]byte, error) {
 	if stat.IsDir() {
 		return nil, fmt.Errorf("mmap target is directory: %s", name)
 	}
-	return mmap(int64(file.Fd()), 0, stat.Size(), opts)
+	return mmapFd(int64(file.Fd()), 0, stat.Size(), opts)
 }

@@ -209,7 +209,7 @@ func filterFiles(opts Options, files []string, predicate ReadEntryPredicate) ([]
 	for _, file := range files {
 		start, duration, _, err := ReadLogInfo(file)
 		if err != nil {
-			multiErr.Add(err)
+			multiErr = multiErr.Add(err)
 			continue
 		}
 		if predicate(start, duration) {

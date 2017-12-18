@@ -86,7 +86,7 @@ type seeker struct {
 
 	// Bloom filter associated with the shard / block the seeker is responsible
 	// for. Needs to be closed when done.
-	bloomFilter *managedConcurrentBloomFilter
+	bloomFilter *ManagedConcurrentBloomFilter
 }
 
 type indexMapEntry struct {
@@ -405,11 +405,11 @@ func (s *seeker) Close() error {
 
 	multiErr := xerrors.NewMultiError()
 	if s.dataFd != nil {
-		multiErr.Add(s.dataFd.Close())
+		multiErr = multiErr.Add(s.dataFd.Close())
 		s.dataFd = nil
 	}
 	if s.bloomFilter != nil {
-		multiErr.Add(s.bloomFilter.Close())
+		multiErr = multiErr.Add(s.bloomFilter.Close())
 		s.bloomFilter = nil
 	}
 
