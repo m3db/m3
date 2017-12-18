@@ -21,8 +21,6 @@ Replica {
 }
 ```
 
-For a
-
 ## Shard state
 
 Each shard can be conceptually defined as:
@@ -47,27 +45,24 @@ enum ShardState {
 
 ## Shard assignment
 
-The assignment of shards is performed by an independent sequentially consistent management service.  The management service simply assigns goal state for the shard assignment.
+The assignment of shards is stored in etcd. When adding, removing or replacing a node shard goal states are assigned for each shard assigned.
 
-For a write to appear as successful for a given replica it must succeed against all assigned hosts for that shard.  That means if there is a given shard with a host assigned as *AVAILABLE* and another host assigned as *INITIALIZING* for a given replica writes to both these hosts must appear as successful to appear as successful to that given replica.
+For a write to appear as successful for a given replica it must succeed against all assigned hosts for that shard.  That means if there is a given shard with a host assigned as *LEAVING* and another host assigned as *INITIALIZING* for a given replica writes to both these hosts must appear as successful to return success for a write to that given replica.  Currently however only *AVAILABLE* shards count towards consistency, the work to group the *LEAVING* and *INITIALIZING* shards together when calculating a write success/error is not complete, see [issue 417](https://github.com/m3db/m3db/issues/417).
 
-It is up to the nodes themselves to bootstrap shards when the assignment of new shards to it are discovered in the *INITIALIZING* state and to transition the state to *AVAILABLE* once bootstrapped by calling the management service back when done.
+It is up to the nodes themselves to bootstrap shards when the assignment of new shards to it are discovered in the *INITIALIZING* state and to transition the state to *AVAILABLE* once bootstrapped by calling the cluster management APIs when done.  Using a compare and set this atomically removes the *LEAVING* shard still assigned to the node that previously owned it and transitions the shard state on the new node from *INITIALIZING* state to *AVAILABLE*.
 
-The management server can then make a decision to remove the shard assignment from a host the shard was transferring from once it sees all shard assignments are *AVAILABLE* for a given shard.
-
-Nodes will not start serving reads for the new shard sets they are assigned until they have bootstrapped data for those shards.
-
+Nodes will not start serving reads for the new shard until it is *AVAILABLE*, meaning not until they have bootstrapped data for those shards.
 
 ## Cluster operations
 
 ### Node add
 
-A node is added to the cluster by calling the management service.  The shards assigned to the new node will become *INITIALIZING* and the node will discover they need to be bootstrapped  and will begin bootstrapping the data using all replicas available to it.
+When a node is added to the cluster it is assigned shards that relieves load fairly from the existing nodes.  The shards assigned to the new node will become *INITIALIZING*, the nodes then discover they need to be bootstrapped and will begin bootstrapping the data using all replicas available.  The shards that will be removed from the existing nodes are marked as *LEAVING*.
 
 ### Node down
 
-A node will not be taken out of the cluster unless specifically removed by calling the management service.  If a node goes down and is unavailable the clients performing reads will be served an error from the replica for the shard range that the node owns.  During this time it will rely on reads from other replicas to continue uninterrupted operation.
+A node needs to be explicitly taken out of the cluster.  If a node goes down and is unavailable the clients performing reads will be served an error from the replica for the shard range that the node owns.  During this time it will rely on reads from other replicas to continue uninterrupted operation.
 
 ### Node remove
 
-A node is removed by calling the management service.  The management service will shuffle shards amongst the replica set.  Remaining servers will discover they are now in possession of shards that need to be bootstrapped and will begin bootstrapping the data using all replicas available to it.
+When a node is removed the shards it owns are assigned to existing nodes in the cluster.  Remaining servers discover they are now in possession of shards that are *INITIALIZING* and need to be bootstrapped and will begin bootstrapping the data using all replicas available.
