@@ -177,6 +177,29 @@ func (s *peersSource) Read(
 				shardResult, err := session.FetchBootstrapBlocksFromPeers(
 					nsMetadata, shard, currRange.Start, currRange.End, bopts, s.opts.FetchBlocksMetadataEndpointVersion())
 
+				// Logging
+				if err == nil {
+					shardBlockSeriesCounter := map[xtime.UnixNano]int64{}
+					for _, series := range shardResult.AllSeries() {
+						for blockStart := range series.Blocks.AllBlocks() {
+							shardBlockSeriesCounter[blockStart]++
+						}
+					}
+
+					for block, numSeries := range shardBlockSeriesCounter {
+						s.log.WithFields(
+							xlog.NewField("shard", shard),
+							xlog.NewField("numSeries", numSeries),
+							xlog.NewField("block", block),
+						).Info("peer bootstrapped shard")
+					}
+				} else {
+					s.log.WithFields(
+						xlog.NewField("shard", shard),
+						xlog.NewField("error", err),
+					).Error("error fetching bootstrap blocks from peers")
+				}
+
 				if err == nil && incremental {
 					incrementalQueue <- incrementalFlush{
 						nsMetadata:        nsMetadata,

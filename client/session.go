@@ -1495,7 +1495,23 @@ func (s *session) streamBlocksMetadataFromPeer(
 		optionIncludeChecksums = true
 		optionIncludeLastRead  = true
 		moreResults            = true
+
+		// Only used for logs
+		peerStr              = peer.Host().ID()
+		metadataCountByBlock = map[xtime.UnixNano]int64{}
 	)
+
+	// Only used for logs
+	defer func() {
+		for block, numMetadata := range metadataCountByBlock {
+			s.log.WithFields(
+				xlog.NewField("shard", shard),
+				xlog.NewField("peer", peerStr),
+				xlog.NewField("numMetadata", numMetadata),
+				xlog.NewField("block", block),
+			).Debug("finished streaming blocks metadata from peer")
+		}
+	}()
 
 	// Declare before loop to avoid redeclaring each iteration
 	attemptFn := func(client rpc.TChanNode) error {
@@ -1543,6 +1559,12 @@ func (s *session) streamBlocksMetadataFromPeer(
 					blockMetas = append(blockMetas, blockMetadata{
 						start: blockStart,
 					})
+					s.log.WithFields(
+						xlog.NewField("shard", shard),
+						xlog.NewField("peer", peerStr),
+						xlog.NewField("block", blockStart),
+						xlog.NewField("error", err),
+					).Error("error occurred retrieving block metadata")
 					continue
 				}
 
@@ -1571,6 +1593,8 @@ func (s *session) streamBlocksMetadataFromPeer(
 					checksum: pChecksum,
 					lastRead: lastRead,
 				})
+				// Only used for logs
+				metadataCountByBlock[xtime.ToUnixNano(blockStart)]++
 			}
 			ch <- blocksMetadata{
 				peer:   peer,
@@ -1619,7 +1643,23 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		optionIncludeChecksums = true
 		optionIncludeLastRead  = true
 		moreResults            = true
+
+		// Only used for logs
+		peerStr              = peer.Host().ID()
+		metadataCountByBlock = map[xtime.UnixNano]int64{}
 	)
+
+	// Only used for logs
+	defer func() {
+		for block, numMetadata := range metadataCountByBlock {
+			s.log.WithFields(
+				xlog.NewField("shard", shard),
+				xlog.NewField("peer", peerStr),
+				xlog.NewField("numMetadata", numMetadata),
+				xlog.NewField("block", block),
+			).Debug("finished streaming blocks metadata from peer")
+		}
+	}()
 
 	// Declare before loop to avoid redeclaring each iteration
 	attemptFn := func(client rpc.TChanNode) error {
@@ -1666,6 +1706,12 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 						{start: blockStart},
 					},
 				}
+				s.log.WithFields(
+					xlog.NewField("shard", shard),
+					xlog.NewField("peer", peerStr),
+					xlog.NewField("block", blockStart),
+					xlog.NewField("error", err),
+				).Error("error occurred retrieving block metadata")
 				continue
 			}
 
@@ -1699,6 +1745,8 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 					},
 				},
 			}
+			// Only used for logs
+			metadataCountByBlock[xtime.ToUnixNano(blockStart)]++
 		}
 		return nil
 	}
@@ -1842,13 +1890,10 @@ func (s *session) streamAndGroupCollectedBlocksMetadata(
 			}
 			metadata[m.id.Hash()] = received
 		}
+
 		// Should never happen
 		if received.submitted {
-			s.log.Warnf(
-				"Received metadata for ID: %s from peer: %s, but peer metadata has already been submitted",
-				m.id,
-				m.peer.Host().String(),
-			)
+			s.emitDuplicateMetadataLog(received, m)
 			continue
 		}
 		received.results = append(received.results, &m)
@@ -1892,14 +1937,10 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 			}
 			metadata[key] = received
 		}
+
 		// Should never happen
 		if received.submitted {
-			s.log.Warnf(
-				"Received metadata for ID: %s for block: %s from peer: %s, but peer metadata has already been submitted",
-				m.id,
-				m.blocks[0].start.String(),
-				m.peer.Host().String(),
-			)
+			s.emitDuplicateMetadataLogV2(received, m)
 			continue
 		}
 		received.results = append(received.results, &m)
@@ -1917,6 +1958,49 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 		}
 		enqueueCh.enqueue(received.results)
 	}
+}
+
+// TODO(rartoul): Delete this when we delete the V1 code path
+func (s *session) emitDuplicateMetadataLog(received *receivedBlocks, metadata blocksMetadata) {
+	fields := make([]xlog.Field, len(received.results)+1)
+	fields = append(fields, xlog.NewField(
+		"incomingMetadata",
+		fmt.Sprintf("ID: %s, peer: %s", metadata.id.String(), metadata.peer.Host().String()),
+	))
+	for i, result := range received.results {
+		fields = append(fields, xlog.NewField(
+			fmt.Sprintf("existingMetadata_%d", i),
+			fmt.Sprintf("ID: %s, peer: %s", result.id.String(), result.peer.Host().String()),
+		))
+	}
+	s.log.WithFields(fields...).Warnf(
+		"Received metadata, but peer metadata has already been submitted")
+}
+
+func (s *session) emitDuplicateMetadataLogV2(received *receivedBlocks, metadata blocksMetadata) {
+	fields := make([]xlog.Field, len(received.results)+1)
+	fields = append(fields, xlog.NewField(
+		"incomingMetadata",
+		fmt.Sprintf(
+			"ID: %s, peer: %s, block: %s",
+			metadata.id.String(),
+			metadata.peer.Host().String(),
+			metadata.blocks[0].start.String(),
+		),
+	))
+	for i, result := range received.results {
+		fields = append(fields, xlog.NewField(
+			fmt.Sprintf("existingMetadata_%d", i),
+			fmt.Sprintf(
+				"ID: %s, peer: %s, block: %s",
+				result.id.String(),
+				result.peer.Host().String(),
+				result.blocks[0].start.String(),
+			),
+		))
+	}
+	s.log.WithFields(fields...).Warnf(
+		"Received metadata, but peer metadata has already been submitted")
 }
 
 func (s *session) selectBlocksForSeriesFromPeerBlocksMetadata(
