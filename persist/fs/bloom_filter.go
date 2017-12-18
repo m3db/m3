@@ -36,18 +36,22 @@ type ManagedConcurrentBloomFilter struct {
 	mmapBytes   []byte
 }
 
+// Test tests whether a value is in the bloom filter
 func (bf *ManagedConcurrentBloomFilter) Test(value []byte) bool {
 	return bf.bloomFilter.Test(value)
 }
 
+// M returns the number of elements in the bloom filter
 func (bf *ManagedConcurrentBloomFilter) M() uint {
 	return bf.bloomFilter.M()
 }
 
+// K returns the number of hash functions in the bloom filter
 func (bf *ManagedConcurrentBloomFilter) K() uint {
 	return bf.bloomFilter.K()
 }
 
+// Close closes the bloom filter, releasing any held resources
 func (bf *ManagedConcurrentBloomFilter) Close() error {
 	return munmap(bf.mmapBytes)
 }
