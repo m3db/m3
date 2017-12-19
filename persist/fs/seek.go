@@ -67,9 +67,8 @@ type seeker struct {
 	dataFd     *os.File
 	dataReader *bufio.Reader
 
-	indexFd     *os.File
-	indexReader *bufio.Reader
-	indexMmap   []byte
+	indexFd   *os.File
+	indexMmap []byte
 
 	// Expected digests for each file read from the digests file
 	expectedInfoDigest        uint32
@@ -157,7 +156,6 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		summariesFdWithDigest:      digest.NewFdWithDigestReader(opts.dataBufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.infoBufferSize),
 		dataReader:                 bufio.NewReaderSize(nil, opts.seekBufferSize),
-		indexReader:                bufio.NewReaderSize(nil, opts.seekBufferSize),
 		keepIndexIDs:               opts.keepIndexIDs,
 		keepUnreadBuf:              opts.keepUnreadBuf,
 		prologue:                   make([]byte, markerLen+idxLen),
