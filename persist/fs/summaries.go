@@ -23,7 +23,6 @@ package fs
 import (
 	"bytes"
 	"os"
-	"sort"
 
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/encoding"
@@ -184,14 +183,19 @@ func readIndexLookupFromSummariesFile(
 		summariesOffsets = append(summariesOffsets, entryMetadata)
 	}
 
+	summariesOffsets = encoding.NewIndexSummaryIDBytesMetadataSortableCollection(
+		summariesOffsets,
+		anonMmap,
+	).Sorted()
+
 	// Again, should never happen because files should be sorted on disk
 	if needsSort {
 		// TODO: Emit log
-		sort.Slice(summariesOffsets, func(i, j int) bool {
-			iBytes := summariesOffsets[i].ID(anonMmap)
-			jBytes := summariesOffsets[j].ID(anonMmap)
-			return bytes.Compare(iBytes, jBytes) <= 0
-		})
+		summariesOffsets = encoding.NewIndexSummaryIDBytesMetadataSortableCollection(
+			summariesOffsets,
+			anonMmap,
+		).Sorted()
 	}
+
 	return newIndexLookupImpl(summariesOffsets, anonMmap, decoder, decoderStream), nil
 }

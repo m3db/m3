@@ -21,6 +21,9 @@
 package encoding
 
 import (
+	"bytes"
+	"sort"
+
 	"gopkg.in/vmihailenco/msgpack.v2"
 )
 
@@ -59,4 +62,54 @@ func (m IndexSummaryIDBytesMetadata) IndexOffset(
 		return -1, err
 	}
 	return int64(indexOffset), nil
+}
+
+// IndexSummaryIDBytesMetadataSortableCollection is a sortable container of IndexSummaryIDBytesMetadata
+type IndexSummaryIDBytesMetadataSortableCollection struct {
+	slice []IndexSummaryIDBytesMetadata
+	// Store the underlying buf that the metadata points into so that we can
+	// perform comparisons in the Less() method
+	buf []byte
+}
+
+// Len returns the number of elements in the collection
+func (s *IndexSummaryIDBytesMetadataSortableCollection) Len() int {
+	return len(s.slice)
+}
+
+// Less reports whether the element
+func (s *IndexSummaryIDBytesMetadataSortableCollection) Less(i, j int) bool {
+	iBytes := s.slice[i].ID(s.buf)
+	jBytes := s.slice[j].ID(s.buf)
+	return bytes.Compare(iBytes, jBytes) <= 0
+}
+
+// Swap swaps the elements with indexes i and j
+func (s *IndexSummaryIDBytesMetadataSortableCollection) Swap(i, j int) {
+	temp := s.slice[i]
+	s.slice[i] = s.slice[j]
+	s.slice[j] = temp
+}
+
+// Element returns the element at index i
+func (s *IndexSummaryIDBytesMetadataSortableCollection) Element(i uint) IndexSummaryIDBytesMetadata {
+	return s.slice[i]
+}
+
+// Sorted returns a sorted slice of IndexSummaryIDBytesMetadata
+func (s *IndexSummaryIDBytesMetadataSortableCollection) Sorted() []IndexSummaryIDBytesMetadata {
+	sort.Sort(s)
+	return s.slice
+}
+
+// NewIndexSummaryIDBytesMetadataSortableCollection creates a new
+// IndexSummaryIDBytesMetadataSortableCollection
+func NewIndexSummaryIDBytesMetadataSortableCollection(
+	slice []IndexSummaryIDBytesMetadata,
+	buf []byte,
+) *IndexSummaryIDBytesMetadataSortableCollection {
+	return &IndexSummaryIDBytesMetadataSortableCollection{
+		slice: slice,
+		buf:   buf,
+	}
 }
