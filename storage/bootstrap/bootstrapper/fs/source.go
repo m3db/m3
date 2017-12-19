@@ -400,7 +400,7 @@ func (s *fileSystemSource) Read(
 	var blockRetriever block.DatabaseBlockRetriever
 	blockRetrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 	if blockRetrieverMgr == nil {
-		panic("FUCK")
+		panic("broken")
 	}
 	if blockRetrieverMgr != nil {
 		s.log.WithFields(
