@@ -55,20 +55,27 @@ type seeker struct {
 	blockSize       time.Duration
 	entries         int
 	bloomFilterInfo schema.IndexBloomFilterInfo
+	summariesInfo   schema.IndexSummariesInfo
 
 	// Readers for each file that will also verify the digest
 	infoFdWithDigest           digest.FdWithDigestReader
 	indexFdWithDigest          digest.FdWithDigestReader
 	bloomFilterFdWithDigest    digest.FdWithDigestReader
+	summariesFdWithDigest      digest.FdWithDigestReader
 	digestFdWithDigestContents digest.FdWithDigestContentsReader
 
 	dataFd     *os.File
 	dataReader *bufio.Reader
 
+	indexFd     *os.File
+	indexReader *bufio.Reader
+	indexMmap   []byte
+
 	// Expected digests for each file read from the digests file
 	expectedInfoDigest        uint32
 	expectedIndexDigest       uint32
 	expectedBloomFilterDigest uint32
+	expectedSummariesDigest   uint32
 
 	keepIndexIDs  bool
 	keepUnreadBuf bool
@@ -87,6 +94,7 @@ type seeker struct {
 	// Bloom filter associated with the shard / block the seeker is responsible
 	// for. Needs to be closed when done.
 	bloomFilter *ManagedConcurrentBloomFilter
+	indexLookup *indexLookup
 }
 
 type indexMapEntry struct {
@@ -146,8 +154,10 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.infoBufferSize),
 		indexFdWithDigest:          digest.NewFdWithDigestReader(opts.dataBufferSize),
 		bloomFilterFdWithDigest:    digest.NewFdWithDigestReader(opts.dataBufferSize),
+		summariesFdWithDigest:      digest.NewFdWithDigestReader(opts.dataBufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.infoBufferSize),
 		dataReader:                 bufio.NewReaderSize(nil, opts.seekBufferSize),
+		indexReader:                bufio.NewReaderSize(nil, opts.seekBufferSize),
 		keepIndexIDs:               opts.keepIndexIDs,
 		keepUnreadBuf:              opts.keepUnreadBuf,
 		prologue:                   make([]byte, markerLen+idxLen),
@@ -160,21 +170,27 @@ func (s *seeker) IDs() []ts.ID {
 	return s.indexIDs
 }
 
+func (s *seeker) IDMaybeExists(id ts.ID) bool {
+	return s.bloomFilter.Test(id.Data().Get())
+}
+
 func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
 	shardDir := ShardDirPath(s.filePathPrefix, namespace, shard)
-	var infoFd, indexFd, dataFd, digestFd, bloomFilterFd *os.File
+	var infoFd, indexFd, dataFd, digestFd, bloomFilterFd, summariesFd *os.File
 	if err := openFiles(os.Open, map[string]**os.File{
 		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
 		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &indexFd,
 		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):        &dataFd,
 		filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
 		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &bloomFilterFd,
+		filesetPathFromTime(shardDir, blockStart, summariesFileSuffix):   &summariesFd,
 	}); err != nil {
 		return err
 	}
 
 	s.infoFdWithDigest.Reset(infoFd)
 	s.indexFdWithDigest.Reset(indexFd)
+	s.summariesFdWithDigest.Reset(summariesFd)
 	s.digestFdWithDigestContents.Reset(digestFd)
 
 	defer func() {
@@ -221,6 +237,18 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 
+	s.indexLookup, err = readIndexLookupFromSummariesFile(
+		summariesFd,
+		s.summariesFdWithDigest,
+		s.expectedSummariesDigest,
+		s.decoder,
+		int(s.summariesInfo.Summaries),
+	)
+	if err != nil {
+		s.Close()
+		return err
+	}
+
 	if !s.keepUnreadBuf {
 		// NB(r): Free the unread buffer and reset the decoder as unless
 		// using this seeker in the seeker manager we never use this buffer again
@@ -228,7 +256,20 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		s.decoder.Reset(nil)
 	}
 
+	indexFd2, err := os.Open(filesetPathFromTime(shardDir, blockStart, indexFileSuffix))
+	if err != nil {
+		s.Close()
+		return err
+	}
+
+	indexMmap, err := mmapFile(indexFd2, mmapOptions{read: true})
+	if err != nil {
+		s.Close()
+		return err
+	}
 	s.dataFd = dataFd
+	s.indexFd = indexFd2
+	s.indexMmap = indexMmap
 
 	return err
 }
@@ -257,6 +298,7 @@ func (s *seeker) readDigest() error {
 	s.expectedInfoDigest = fsDigests.infoDigest
 	s.expectedIndexDigest = fsDigests.indexDigest
 	s.expectedBloomFilterDigest = fsDigests.bloomFilterDigest
+	s.expectedSummariesDigest = fsDigests.summariesDigest
 
 	return nil
 }
@@ -278,6 +320,7 @@ func (s *seeker) readInfo(size int) error {
 	s.blockSize = time.Duration(info.BlockSize)
 	s.entries = int(info.Entries)
 	s.bloomFilterInfo = info.BloomFilter
+	s.summariesInfo = info.Summaries
 
 	return nil
 }
@@ -317,12 +360,12 @@ func (s *seeker) readIndex(size int) error {
 }
 
 func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
-	entry, exists := s.indexMap[id.Hash()]
-	if !exists {
-		return nil, errSeekIDNotFound
+	entry, err := s.SeekIndexEntry(id)
+	if err != nil {
+		return nil, err
 	}
 
-	_, err := s.dataFd.Seek(entry.offset, 0)
+	_, err = s.dataFd.Seek(int64(entry.offset), 0)
 	if err != nil {
 		return nil, err
 	}
@@ -381,10 +424,36 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 	return data, nil
 }
 
+func (s *seeker) SeekIndexEntry(id ts.ID) (indexMapEntry, error) {
+	offset, ok, err := s.indexLookup.getNearestIndexFileOffset(id)
+	if err != nil {
+		panic(err)
+	}
+	if !ok {
+		return indexMapEntry{}, errSeekIDNotFound
+	}
+	s.decoder.Reset(encoding.NewDecoderStream(s.indexMmap[offset:]))
+	// Make sure we don't spin for infinity and panic
+	for {
+		entry, err := s.decoder.DecodeIndexEntry()
+		if err != nil {
+			panic(err)
+		}
+		if bytes.Compare(entry.ID, id.Data().Get()) == 0 {
+			return indexMapEntry{
+				size:     uint32(entry.Size),
+				checksum: uint32(entry.Checksum),
+				offset:   entry.Offset,
+			}, nil
+		}
+	}
+}
+
+// TODO: Make safe for concurrent use
 func (s *seeker) SeekOffset(id ts.ID) int {
-	entry, exists := s.indexMap[id.Hash()]
-	if !exists {
-		return -1
+	entry, err := s.SeekIndexEntry(id)
+	if err != nil {
+		panic(err)
 	}
 	return int(entry.offset)
 }

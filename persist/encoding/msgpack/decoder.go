@@ -30,14 +30,15 @@ import (
 )
 
 var (
-	emptyIndexInfo            schema.IndexInfo
-	emptyIndexSummariesInfo   schema.IndexSummariesInfo
-	emptyIndexBloomFilterInfo schema.IndexBloomFilterInfo
-	emptyIndexEntry           schema.IndexEntry
-	emptyIndexSummary         schema.IndexSummary
-	emptyLogInfo              schema.LogInfo
-	emptyLogEntry             schema.LogEntry
-	emptyLogMetadata          schema.LogMetadata
+	emptyIndexInfo                   schema.IndexInfo
+	emptyIndexSummariesInfo          schema.IndexSummariesInfo
+	emptyIndexBloomFilterInfo        schema.IndexBloomFilterInfo
+	emptyIndexEntry                  schema.IndexEntry
+	emptyIndexSummary                schema.IndexSummary
+	emptyIndexSummaryIDBytesMetadata encoding.IndexSummaryIDBytesMetadata
+	emptyLogInfo                     schema.LogInfo
+	emptyLogEntry                    schema.LogEntry
+	emptyLogMetadata                 schema.LogMetadata
 )
 
 type decoder struct {
@@ -92,17 +93,20 @@ func (dec *decoder) DecodeIndexEntry() (schema.IndexEntry, error) {
 	return indexEntry, nil
 }
 
-func (dec *decoder) DecodeIndexSummary() (schema.IndexSummary, error) {
+func (dec *decoder) DecodeIndexSummary() (
+	schema.IndexSummary, encoding.IndexSummaryIDBytesMetadata, error) {
 	if dec.err != nil {
-		return emptyIndexSummary, dec.err
+		fmt.Println("EMPTY")
+		return emptyIndexSummary, emptyIndexSummaryIDBytesMetadata, dec.err
 	}
 	numFieldsToSkip := dec.decodeRootObject(indexSummaryVersion, indexSummaryType)
-	indexSummary := dec.decodeIndexSummary()
+	indexSummary, indexSummaryMetadata := dec.decodeIndexSummary()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
-		return emptyIndexSummary, dec.err
+		fmt.Println("EMPTY")
+		return emptyIndexSummary, emptyIndexSummaryIDBytesMetadata, dec.err
 	}
-	return indexSummary, nil
+	return indexSummary, indexSummaryMetadata, nil
 }
 
 func (dec *decoder) DecodeLogInfo() (schema.LogInfo, error) {
@@ -210,20 +214,32 @@ func (dec *decoder) decodeIndexEntry() schema.IndexEntry {
 	return indexEntry
 }
 
-func (dec *decoder) decodeIndexSummary() schema.IndexSummary {
+func (dec *decoder) decodeIndexSummary() (schema.IndexSummary, encoding.IndexSummaryIDBytesMetadata) {
 	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexSummaryType)
 	if !ok {
-		return emptyIndexSummary
+		return emptyIndexSummary, emptyIndexSummaryIDBytesMetadata
 	}
-	var indexSummary schema.IndexSummary
+	var (
+		indexSummary                schema.IndexSummary
+		indexSummaryIDBytesMetadata encoding.IndexSummaryIDBytesMetadata
+		idBytesStartOffset          int
+		idBytesLength               int
+	)
 	indexSummary.Index = dec.decodeVarint()
-	indexSummary.ID = dec.decodeBytes()
+	// Keep track of the offset in the byte stream before we decode the bytes so
+	// that we know where exactly to jump to if we want to just grab the ID itself
+	indexSummary.ID, idBytesStartOffset, idBytesLength = dec.decodeBytesBase()
 	indexSummary.IndexEntryOffset = dec.decodeVarint()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
-		return emptyIndexSummary
+		return emptyIndexSummary, emptyIndexSummaryIDBytesMetadata
 	}
-	return indexSummary
+
+	// Downscaling to uint32 is fine because summary files and ID length should
+	// be well below the max value of a uint32
+	indexSummaryIDBytesMetadata.IDBytesStartOffset = uint32(idBytesStartOffset)
+	indexSummaryIDBytesMetadata.IDBytesLength = uint32(idBytesLength)
+	return indexSummary, indexSummaryIDBytesMetadata
 }
 
 func (dec *decoder) decodeLogInfo() schema.LogInfo {
@@ -373,8 +389,13 @@ func (dec *decoder) decodeFloat64() float64 {
 }
 
 func (dec *decoder) decodeBytes() []byte {
+	byteSlice, _, _ := dec.decodeBytesBase()
+	return byteSlice
+}
+
+func (dec *decoder) decodeBytesBase() ([]byte, int, int) {
 	if dec.err != nil {
-		return nil
+		return nil, -1, -1
 	}
 	// If we need to allocate new space for decoded byte slice, we delegate it to msgpack
 	// API which allocates a new slice under the hood, otherwise we simply locate the byte
@@ -382,32 +403,35 @@ func (dec *decoder) decodeBytes() []byte {
 	var value []byte
 	if dec.allocDecodedBytes {
 		value, dec.err = dec.dec.DecodeBytes()
-	} else {
-		bytesLen := dec.decodeBytesLen()
-		if dec.err != nil {
-			return nil
-		}
-		// NB(xichen): DecodeBytesLen() returns -1 if the byte slice is nil
-		if bytesLen == -1 {
-			return nil
-		}
-		var (
-			backingBytes = dec.reader.Bytes()
-			numBytes     = int64(len(backingBytes))
-			currPos      = numBytes - dec.reader.Remaining()
-			targetPos    = currPos + int64(bytesLen)
-		)
-		if bytesLen < 0 || currPos < 0 || targetPos > numBytes {
-			dec.err = fmt.Errorf("invalid currPos %d, bytesLen %d, numBytes %d", currPos, bytesLen, numBytes)
-			return nil
-		}
-		if err := dec.reader.Skip(int64(bytesLen)); err != nil {
-			dec.err = err
-			return nil
-		}
-		value = backingBytes[currPos:targetPos]
+		return value, -1, -1
 	}
-	return value
+
+	var (
+		bytesLen     = dec.decodeBytesLen()
+		backingBytes = dec.reader.Bytes()
+		numBytes     = len(backingBytes)
+		currPos      = int(int64(numBytes) - dec.reader.Remaining())
+	)
+
+	if dec.err != nil {
+		return nil, -1, -1
+	}
+	// NB(xichen): DecodeBytesLen() returns -1 if the byte slice is nil
+	if bytesLen == -1 {
+		return nil, -1, -1
+	}
+
+	targetPos := currPos + bytesLen
+	if bytesLen < 0 || currPos < 0 || targetPos > numBytes {
+		dec.err = fmt.Errorf("invalid currPos %d, bytesLen %d, numBytes %d", currPos, bytesLen, numBytes)
+		return nil, -1, -1
+	}
+	if err := dec.reader.Skip(int64(bytesLen)); err != nil {
+		dec.err = err
+		return nil, -1, -1
+	}
+	value = backingBytes[currPos:targetPos]
+	return value, currPos, bytesLen
 }
 
 func (dec *decoder) decodeArrayLen() int {

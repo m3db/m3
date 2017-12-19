@@ -18,6 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// The block retriever is used to stream blocks of data from disk. It controls
+// the fetch concurrency on a per-Namespace basis I.E if the server is using
+// spinning-disks the concurrency can be set to 1 to serialize all disk fetches
+// for a given namespace, and the concurrency be set higher in the case of SSDs.
+//
+// The block retriever also handles batching of requests for data, as well as
+// re-arranging the order of requests to increase data locality when seeking
+// through and accross files.
+
 package fs
 
 import (
@@ -179,13 +188,21 @@ func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 			continue
 		}
 
-		// NB(r): Files are all by shard and block time, the locality of
+		// Files are all by shard and block time, the locality of
 		// files is therefore foremost by block time as that is when they are
-		// all written.
+		// all written. Note that this sort does NOT mean that we're going to stripe
+		// through different files at once as you might expect at first, but simply
+		// that since all the fileset files are written at the end of a block period
+		// those files are more likely to be physically located close to each other
+		// on disk. In other words, instead of accessing files like this:
+		// 		shard1T1 --> shard1T2 --> shard1T3 --> shard2T1 --> shard2T2 --> shard2T3
+		// its probably faster to access them like this:
+		// 		shard1T1 --> shard2T1 --> shard1T2 --> shard2T2 --> shard1T3 --> shard2T3
+		// so we re-arrange the order of the requests to achieve that
 		sort.Sort(retrieveRequestByStartAscShardAsc(inFlight))
 
-		// Iterate through all in flight and send them to the seeker in batches
-		// of block time + shard.
+		// Iterate through all in flight requests and send them to the seeker in
+		// batches of block time + shard.
 		currBatchShard := uint32(0)
 		currBatchStart := time.Time{}
 		currBatchReqs = currBatchReqs[:0]
@@ -285,6 +302,18 @@ func (r *blockRetriever) Stream(
 	startTime time.Time,
 	onRetrieve block.OnRetrieveBlock,
 ) (xio.SegmentReader, error) {
+	// It doesn't matter what seekerManager you use, so just use the first one
+	// because it's guaranteed to be there
+	seeker, err := r.seekerMgrs[0].Seeker(shard, startTime)
+	if err != nil {
+		return nil, err
+	}
+	// If the ID is not in the seeker's bloom filter, then it's definitely not on
+	// disk and we can return immediately
+	if !seeker.IDMaybeExists(id) {
+		return nil, errSeekIDNotFound
+	}
+
 	reqs, err := r.shardRequests(shard)
 	if err != nil {
 		return nil, err

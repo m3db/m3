@@ -228,7 +228,8 @@ func newDefaultBootstrappableTestSetups(
 		filePathPrefix := fsOpts.FilePathPrefix()
 		bfsOpts := bfs.NewOptions().
 			SetResultOptions(bsOpts).
-			SetFilesystemOptions(fsOpts)
+			SetFilesystemOptions(fsOpts).
+			SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager())
 
 		fsBootstrapper := bfs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, peersBootstrapper)
 		setup.storageOpts = setup.storageOpts.

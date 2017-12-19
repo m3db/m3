@@ -97,7 +97,7 @@ func TestFilesystemDataExpiryBootstrap(t *testing.T) {
 	// Write test data
 	now := setup.getNowFn()
 	seriesMaps := generate.BlocksByStart([]generate.BlockConfig{
-		{[]string{"foo", "bar"}, 100, now.Add(-blockSize)},
+		{[]string{"foo", "bar", "one", "2", "three", "4", "5", "6", "wtffffffffffffffff", "8", "9", "10"}, 100, now.Add(-blockSize)},
 	})
 	require.NoError(t, writeTestDataToDisk(namesp, setup, seriesMaps))
 

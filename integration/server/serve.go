@@ -46,14 +46,14 @@ const (
 
 // DefaultShardSet creates a default shard set
 func DefaultShardSet() (sharding.ShardSet, error) {
-	shardsLen := uint32(1024)
+	shardsLen := uint32(1)
 	var ids []uint32
 	for i := uint32(0); i < shardsLen; i++ {
 		ids = append(ids, i)
 	}
 
 	shards := sharding.NewShards(ids, shard.Available)
-	return sharding.NewShardSet(shards, sharding.DefaultHashFn(1024))
+	return sharding.NewShardSet(shards, sharding.DefaultHashFn(1))
 }
 
 // DefaultTopologyInitializer creates a default topology initializer

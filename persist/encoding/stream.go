@@ -59,11 +59,16 @@ type DecoderStream interface {
 
 	// Remaining returns the remaining bytes in the stream.
 	Remaining() int64
+
+	// Offset returns the current offset in the byte stream
+	Offset() int
 }
 
 type decoderStream struct {
-	reader       *bytes.Reader
-	bytes        []byte
+	reader *bytes.Reader
+	bytes  []byte
+	// Store so we don't have to keep calling len()
+	bytesLen     int
 	lastReadByte int
 	unreadByte   int
 }
@@ -75,6 +80,7 @@ func NewDecoderStream(b []byte) DecoderStream {
 		bytes:        b,
 		lastReadByte: -1,
 		unreadByte:   -1,
+		bytesLen:     len(b),
 	}
 }
 
@@ -83,6 +89,7 @@ func (s *decoderStream) Reset(b []byte) {
 	s.bytes = b
 	s.lastReadByte = -1
 	s.unreadByte = -1
+	s.bytesLen = len(b)
 }
 
 func (s *decoderStream) Read(p []byte) (int, error) {
@@ -153,4 +160,8 @@ func (s *decoderStream) Remaining() int64 {
 		unreadBytes = 1
 	}
 	return int64(s.reader.Len()) + unreadBytes
+}
+
+func (s *decoderStream) Offset() int {
+	return s.bytesLen - int(s.Remaining())
 }

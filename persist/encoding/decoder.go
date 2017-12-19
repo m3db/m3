@@ -31,7 +31,7 @@ type FilesetDecoder interface {
 	DecodeIndexEntry() (schema.IndexEntry, error)
 
 	// DecodeIndexSummary decodes index summary
-	DecodeIndexSummary() (schema.IndexSummary, error)
+	DecodeIndexSummary() (schema.IndexSummary, IndexSummaryIDBytesMetadata, error)
 }
 
 // CommitLogDecoder decodes commit log related structures

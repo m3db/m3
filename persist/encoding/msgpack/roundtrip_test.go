@@ -121,7 +121,7 @@ func TestIndexSummaryRoundtrip(t *testing.T) {
 	)
 	require.NoError(t, enc.EncodeIndexSummary(testIndexSummary))
 	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
-	res, err := dec.DecodeIndexSummary()
+	res, _, err := dec.DecodeIndexSummary()
 	require.NoError(t, err)
 	require.Equal(t, testIndexSummary, res)
 }
