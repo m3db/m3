@@ -2,14 +2,15 @@
 
 ## Client
 
-Peer streaming is managed by the M3DB client.  It fetches all blocks from peers for a specified time range for bootstrapping purposes.  It performs the following three steps:
-1) Fetch all metadata for blocks from all peers who own the specified shard
-2) Compares metadata from different peers and determines the best peer(s) from which to stream the actual data
-3) Streams the block data from peers
+Peer streaming is managed by the M3DB client.  It fetches all blocks from peers for a specified time range for bootstrapping purposes.  It performs the following steps:
 
-Steps 1, 2 and 3 all happen conccurently.  As metadata streams in, we begin determining which peer is the best source to stream a given block's data for a given series from, and then we begin streaming data from that peer all while we continue to receive metadata.
+1. Fetch all metadata for blocks from all peers who own the specified shard
+2. Compares metadata from different peers and determines the best peer(s) from which to stream the actual data
+3. Streams the block data from peers
 
-In terms of error handling, if an error occurs during the metadata streaming portion, then the client will return an error. However, if something goes wrong during the data streaming portion, it will not return an error, and the function will just return as much data as it can.  This is to combat a disaster scenario where a lot of network or load based errors occur and read availability is desired.  This in the future will be configurable so users can decide on which type of behavior they would prefer.
+Steps 1, 2 and 3 all happen concurrently.  As metadata streams in, we begin determining which peer is the best source to stream a given block's data for a given series from, and then we begin streaming data from that peer while we continue to receive metadata.
+
+In terms of error handling, if an error occurs during the metadata streaming portion for all peers, then the client will return an error. However, if something goes wrong during the data streaming portion, it will not return an error, and the function will just return as much data as it can from the peers available.  This is to combat a disaster scenario where a lot of network or load based errors occur and read availability is desired.  This in the future will be configurable so users can decide on which type of behavior they would prefer.
 
 The diagram below depicts the control flow and concurrency (goroutines and channels) in detail:
 
