@@ -1,4 +1,4 @@
-## Sharding
+# Sharding
 
 Timeseries keys are hashed to a fixed set of virtual shards. Virtual shards are then assigned to physical nodes. M3DB can be configured to use any hashing function and a configured number of shards. By default [murmur3](https://en.wikipedia.org/wiki/MurmurHash) is used as the hashing function and 4096 virtual shards are configured.
 

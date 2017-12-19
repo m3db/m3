@@ -42,3 +42,4 @@ pages:
     - "Consistency Levels": "architecture/consistencylevels.md"
     - "Storage": "architecture/storage.md"
     - "Commit Logs": "architecture/commitlogs.md"
+    - "Peer Streaming": "architecture/peer_streaming.md"
