@@ -41,6 +41,12 @@
      <changefreq>daily</changefreq>
     </url>
         
+    <url>
+     <loc>/architecture/peer_streaming/</loc>
+     <lastmod>2017-12-18</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+        
     
 
 </urlset>

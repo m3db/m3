@@ -259,6 +259,8 @@
     
     <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
     
+      
+    
     
       <label class="md-nav__link md-nav__link--active" for="toc">
         Sharding and Replication
@@ -272,16 +274,11 @@
 <nav class="md-nav md-nav--secondary">
   
   
+    
+  
   
     <label class="md-nav__title" for="toc">Table of contents</label>
     <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#sharding" title="Sharding" class="md-nav__link">
-    Sharding
-  </a>
-  
-</li>
       
         <li class="md-nav__item">
   <a href="#replication" title="Replication" class="md-nav__link">
@@ -390,6 +387,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../peer_streaming/" title="Peer Streaming" class="md-nav__link">
+      Peer Streaming
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -409,16 +418,11 @@
 <nav class="md-nav md-nav--secondary">
   
   
+    
+  
   
     <label class="md-nav__title" for="toc">Table of contents</label>
     <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#sharding" title="Sharding" class="md-nav__link">
-    Sharding
-  </a>
-  
-</li>
       
         <li class="md-nav__item">
   <a href="#replication" title="Replication" class="md-nav__link">
@@ -499,9 +503,7 @@
                   <a href="https://github.com/m3db/m3db/edit/master/docs/architecture/sharding.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                  <h1>Sharding and Replication</h1>
-                
-                <h2 id="sharding">Sharding</h2>
+                <h1 id="sharding">Sharding</h1>
 <p>Timeseries keys are hashed to a fixed set of virtual shards. Virtual shards are then assigned to physical nodes. M3DB can be configured to use any hashing function and a configured number of shards. By default <a href="https://en.wikipedia.org/wiki/MurmurHash">murmur3</a> is used as the hashing function and 4096 virtual shards are configured.</p>
 <h2 id="replication">Replication</h2>
 <p>Logical shards are placed on per virtual shard per replica with configurable isolation (zone aware, rack aware, etc). For instance, when using rack aware isolation, the set of datacenter racks that locate a replica’s data are distinct to the racks that locate all other replica’s data.</p>
