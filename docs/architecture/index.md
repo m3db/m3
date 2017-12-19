@@ -1,5 +1,7 @@
 # Architecture
 
+**Please note:** This documentation is a work in progress and more detail is required.
+
 ## Overview
 
 M3DB is written entirely in Go and has a single dependency of etcd which is used for cluster membership and topology definition. In the near future we plan to also support the concept of seed nodes that will run an embedded etcd server, as etcd can be run in an embedded fashion reasonably simply and statically compiled into the M3DB binary itself.

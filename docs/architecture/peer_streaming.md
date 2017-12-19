@@ -15,64 +15,84 @@ In terms of error handling, if an error occurs during the metadata streaming por
 The diagram below depicts the control flow and concurrency (goroutines and channels) in detail:
 
 ```
-                                 ┌───────────────────────────────────────────────┐
-                                 │                                               │
-                                 │                                               │
-                                 │         FetchBootstrapBlocksFromPeers         │
-                                 │                                               │
-                                 │                                               │
-                                 └───────────────────────────────────────────────┘
-                                                         │
-                                                         │
-                              ┌──────────────────────────┴───────────────────────────┐
-                              │                                                      │
-                              ▼                                                      ▼
-              ┌───────────────────────────────┐                      ┌───────────────────────────────┐
-              │         Main routine          │                      │                               │
-              │                               │       Creates        │      Background routine       │
-              │     1) Create metadataCh      │────────(pass ───────▶│                               │
-              │ 2) Spin up background routine │     metadataCh)      │                               │
-              └───────────────────────────────┘                      └───────────────────────────────┘
-                              │                                                 For each peer
-                              │                                                      │
-                              │                                     ┌────────────────┼─────────────────┐
-                              │                                     │                │                 │
-                              │                                     │                │                 │
-                              │                                     ▼                ▼                 ▼
-                              │                                  ┌───────────────────────────────────────────┐
-                              │                                  │       StreamBlocksMetadataFromPeer        │
-                              │                                  │                                           │
-                              │                                  │  Stream paginated blocks metadata from a  │
-                              │                                  │        peer while pageToken != nil        │
-                              │                                  │                                           │
-                              │                                  │ For each blocks metadata --> put metadata │
-                              │                                  │              into metadataCh              │
-                              │                                  └───────────────────────────────────────────┘
-                              │
-                              ▼
-        ┌───────────────────────────────────────────┐
-        │           StreamBlocksFromPeers           │
-        │                                           │                                     ┌──────────────────────────────────────────────────────────┐
-        │ 1) Create a background goroutine (details │                                     │   streamAndGroupCollectedBlocksMetadata (injected via    │
-        │               to the right)               │                                     │                streamMetadataFn variable)                │
-        │                                           │                                     │                                                          │
-        │2) Create a queue per-peer which each have │                                     │ Loop through the metadataCh aggregating blocks metadata  │
-        │   their own internal goroutine and will   │    Creates (pass metadataCh         │per series/block combination from different peers until we│
-        │   stream blocks back per-series from a    │─────────and enqueueCh)─────────────▶│   have them from all peers for a series/block metadata   │
-        │              specific peer.               │                                     │   combination and then "submit" them to the enqueueCh    │
-        │                                           │                                     │                                                          │
-        │  3) Loop through the enqueCh and pick an  │                                     │At the end, flush any remaining series/block combinations │
-        │appropriate peer(s) for each series (based │                                     │(that we received from less than N peers) into the enqueCh│
-        │on whether all the peers have the same data│                                     │                         as well.                         │
-        │ or not) and then put that into the queue  │                                     └──────────────────────────────────────────────────────────┘
-        │for that peer so the data will be streamed │
-        └───────────────────────────────────────────┘
-                        For each peer
-                              │
-                 ┌────────────┼─────────────┐
-                 │            │             │
-                 │            │             │
-                 ▼            ▼             ▼
+             ┌───────────────────────────────────────────────┐
+             │                                               │
+             │         FetchBootstrapBlocksFromPeers         │
+             │                                               │
+             └───────────────────────────────────────────────┘
+                                     │
+                                     │
+                ┌────────────────────┘
+                │
+                ▼  
+┌───────────────────────────────┐
+│         Main routine          │
+│                               │
+│     1) Create metadataCh      │────────────────┐
+│ 2) Spin up background routine │                │
+└───────────────────────────────┘      Create with metadataCh
+                │                                │
+                │                                ▼
+                │                ┌───────────────────────────────┐
+                │                │                               │
+                │                │      Background routine       │
+                │                │                               │
+                │                └───────────────────────────────┘
+                │                                │
+                │                          For each peer
+                │                                │
+                │               ┌────────────────┼─────────────────┐
+                │               │                │                 │
+                │               │                │                 │
+                │               ▼                ▼                 ▼
+                │          ┌───────────────────────────────────────────┐
+                │          │       StreamBlocksMetadataFromPeer        │
+                │          │                                           │
+                │          │  Stream paginated blocks metadata from a  │
+                │          │        peer while pageToken != nil        │
+                │          │                                           │
+                │          │ For each blocks metadata --> put metadata │
+                │          │              into metadataCh              │
+                │          └───────────────────────────────────────────┘
+                ▼
+┌───────────────────────────────────────────┐                        
+│           StreamBlocksFromPeers           │                        
+│                                           │                        
+│ 1) Create a background goroutine (details │                        
+│               to the right)               │                        
+│                                           │                        
+│ 2) Create a queue per-peer which each have│                        
+│   their own internal goroutine and will   │                        
+│   stream blocks back per-series from a    │──────────┐             
+│              specific peer.               │          │             
+│                                           │          │             
+│ 3) Loop through the enqueCh and pick an   │ Creates with metadataCh
+│appropriate peer(s) for each series (based │     and enqueueCh      
+│on whether all the peers have the same data│          │             
+│ or not) and then put that into the queue  │          │             
+│for that peer so the data will be streamed │          │             
+└───────────────────────────────────────────┘          │             
+                │                                      ▼             
+                │    ┌──────────────────────────────────────────────────────────┐
+                │    │   streamAndGroupCollectedBlocksMetadata (injected via    │
+                │    │                streamMetadataFn variable)                │
+                │    │                                                          │
+                │    │ Loop through the metadataCh aggregating blocks metadata  │
+                │    │per series/block combination from different peers until we│
+                │    │   have them from all peers for a series/block metadata   │
+                │    │   combination and then "submit" them to the enqueueCh    │
+                │    │                                                          │
+                │    │At the end, flush any remaining series/block combinations │
+                │    │(that we received from less than N peers) into the enqueCh│
+                │    │                         as well.                         │
+                │    └──────────────────────────────────────────────────────────┘
+                │              
+          For each peer        
+                │              
+   ┌────────────┼─────────────┐
+   │            │             │
+   │            │             │
+   ▼            ▼             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ newPeerBlocksQueue (processFn = streamBlocksBatchFromPeer)  │
 │                                                             │
