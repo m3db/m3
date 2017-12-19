@@ -225,7 +225,7 @@ func (dec *decoder) decodeIndexSummary() (schema.IndexSummary, encoding.IndexSum
 	)
 	indexSummary.Index = dec.decodeVarint()
 	// Keep track of the offset in the byte stream before we decode the bytes so
-	// that we know where exactly to jump to if we want to just grab the ID itself
+	// that we know exactly where to jump to if we want to just grab the ID itself
 	indexSummary.ID, idBytesStartOffset, idBytesLength = dec.decodeBytesBase()
 	indexSummary.IndexEntryOffset = dec.decodeVarint()
 	dec.skip(numFieldsToSkip)
