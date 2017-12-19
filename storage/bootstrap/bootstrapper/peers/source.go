@@ -196,7 +196,7 @@ func (s *peersSource) Read(
 				} else {
 					s.log.WithFields(
 						xlog.NewField("shard", shard),
-						xlog.NewField("error", err),
+						xlog.NewField("error", err.Error()),
 					).Error("error fetching bootstrap blocks from peers")
 				}
 
