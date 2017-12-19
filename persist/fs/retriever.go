@@ -302,8 +302,9 @@ func (r *blockRetriever) Stream(
 	startTime time.Time,
 	onRetrieve block.OnRetrieveBlock,
 ) (xio.SegmentReader, error) {
-	// It doesn't matter what seekerManager you use, so just use the first one
-	// because it's guaranteed to be there
+	// It doesn't matter which seekerManager we use (they're all identical, we
+	// just have multiple for concurrency reasons), so we use the first one
+	// because it's guaranteed to be there (concurrency cannot be < 1)
 	seeker, err := r.seekerMgrs[0].Seeker(shard, startTime)
 	if err != nil {
 		return nil, err
