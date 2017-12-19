@@ -373,21 +373,37 @@ func (s *seeker) SeekIndexEntry(id ts.ID) (indexMapEntry, error) {
 	if !ok {
 		return indexMapEntry{}, errSeekIDNotFound
 	}
-	s.decoder.Reset(encoding.NewDecoderStream(s.indexMmap[offset:]))
-	// Make sure we don't spin for infinity and panic
-	for {
+
+	stream := encoding.NewDecoderStream(s.indexMmap[offset:])
+	s.decoder.Reset(stream)
+
+	// Prevent panic's when we're scanning to the end of the buffer
+	for stream.Remaining() != 0 {
 		entry, err := s.decoder.DecodeIndexEntry()
 		if err != nil {
 			panic(err)
 		}
-		if bytes.Equal(entry.ID, id.Data().Get()) {
+		comparison := bytes.Compare(entry.ID, id.Data().Get())
+		if comparison == 0 {
 			return indexMapEntry{
 				size:     uint32(entry.Size),
 				checksum: uint32(entry.Checksum),
 				offset:   entry.Offset,
 			}, nil
 		}
+
+		// We've scanned far enough through the index file to be sure that the ID
+		// we're looking for doesn't exist
+		// TODO: Cover this
+		if comparison == 1 {
+			return indexMapEntry{}, errSeekIDNotFound
+		}
 	}
+
+	// This should never happen because if we find an ID in the summary file, it
+	// should definitely be in the index file
+	// TODO: Cover this
+	return indexMapEntry{}, errSeekIDNotFound
 }
 
 // TODO: Make safe for concurrent use
