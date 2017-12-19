@@ -75,17 +75,11 @@ type seeker struct {
 	expectedBloomFilterDigest uint32
 	expectedSummariesDigest   uint32
 
-	keepIndexIDs  bool
 	keepUnreadBuf bool
 
 	unreadBuf []byte
 	prologue  []byte
 
-	// NB(r): specifically use a non pointer type for
-	// key and value in this map to avoid the GC scanning
-	// this large map.
-	indexMap  map[ts.Hash]indexMapEntry
-	indexIDs  []ts.ID
 	decoder   encoding.Decoder
 	bytesPool pool.CheckedBytesPool
 
@@ -116,7 +110,6 @@ func NewSeeker(
 		infoBufferSize: infoBufferSize,
 		seekBufferSize: seekBufferSize,
 		bytesPool:      bytesPool,
-		keepIndexIDs:   true,
 		keepUnreadBuf:  false,
 		decodingOpts:   decodingOpts,
 	})
@@ -128,7 +121,6 @@ type seekerOpts struct {
 	dataBufferSize int
 	seekBufferSize int
 	bytesPool      pool.CheckedBytesPool
-	keepIndexIDs   bool
 	keepUnreadBuf  bool
 	decodingOpts   msgpack.DecodingOptions
 }
@@ -155,16 +147,11 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		summariesFdWithDigest:      digest.NewFdWithDigestReader(opts.dataBufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.infoBufferSize),
 		dataReader:                 bufio.NewReaderSize(nil, opts.seekBufferSize),
-		keepIndexIDs:               opts.keepIndexIDs,
 		keepUnreadBuf:              opts.keepUnreadBuf,
 		prologue:                   make([]byte, markerLen+idxLen),
 		bytesPool:                  opts.bytesPool,
 		decoder:                    msgpack.NewDecoder(opts.decodingOpts),
 	}
-}
-
-func (s *seeker) IDs() []ts.ID {
-	return s.indexIDs
 }
 
 func (s *seeker) IDMaybeExists(id ts.ID) bool {
@@ -208,16 +195,7 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		s.Close()
 		return err
 	}
-	indexStat, err := indexFd.Stat()
-	if err != nil {
-		s.Close()
-		return err
-	}
 	if err := s.readInfo(int(infoStat.Size())); err != nil {
-		s.Close()
-		return err
-	}
-	if err := s.readIndex(int(indexStat.Size())); err != nil {
 		s.Close()
 		return err
 	}
@@ -318,40 +296,6 @@ func (s *seeker) readInfo(size int) error {
 	s.entries = int(info.Entries)
 	s.bloomFilterInfo = info.BloomFilter
 	s.summariesInfo = info.Summaries
-
-	return nil
-}
-
-func (s *seeker) readIndex(size int) error {
-	s.prepareUnreadBuf(size)
-	indexBytes := s.unreadBuf[:size]
-	n, err := s.indexFdWithDigest.ReadAllAndValidate(indexBytes, s.expectedIndexDigest)
-	if err != nil {
-		return err
-	}
-
-	s.decoder.Reset(encoding.NewDecoderStream(s.unreadBuf[:n][:]))
-	if s.indexMap == nil {
-		s.indexMap = make(map[ts.Hash]indexMapEntry, s.entries)
-	}
-	// Read all entries of index
-	for read := 0; read < s.entries; read++ {
-		entry, err := s.decoder.DecodeIndexEntry()
-		if err != nil {
-			return err
-		}
-		s.indexMap[ts.HashFn(entry.ID)] = indexMapEntry{
-			size:     uint32(entry.Size),
-			checksum: uint32(entry.Checksum),
-			offset:   entry.Offset,
-		}
-
-		if s.keepIndexIDs {
-			entryID := append([]byte(nil), entry.ID...)
-			id := ts.BinaryID(checked.NewBytes(entryID, nil))
-			s.indexIDs = append(s.indexIDs, id)
-		}
-	}
 
 	return nil
 }
@@ -464,11 +408,6 @@ func (s *seeker) Entries() int {
 }
 
 func (s *seeker) Close() error {
-	// Prepare for reuse
-	for key := range s.indexMap {
-		delete(s.indexMap, key)
-	}
-
 	multiErr := xerrors.NewMultiError()
 	if s.dataFd != nil {
 		multiErr = multiErr.Add(s.dataFd.Close())

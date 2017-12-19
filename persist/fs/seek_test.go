@@ -142,50 +142,6 @@ func TestSeekBadMarker(t *testing.T) {
 	assert.NoError(t, s.Close())
 }
 
-func TestIDs(t *testing.T) {
-	dir, err := ioutil.TempDir("", "testdb")
-	if err != nil {
-		t.Fatal(err)
-	}
-	filePathPrefix := filepath.Join(dir, "")
-	defer os.RemoveAll(dir)
-
-	w := newTestWriter(t, filePathPrefix)
-	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
-	assert.NoError(t, err)
-	assert.NoError(t, w.Write(
-		ts.StringID("foo1"),
-		bytesRefd([]byte{1, 2, 1}),
-		digest.Checksum([]byte{1, 2, 1})))
-	assert.NoError(t, w.Write(
-		ts.StringID("foo2"),
-		bytesRefd([]byte{1, 2, 2}),
-		digest.Checksum([]byte{1, 2, 2})))
-	assert.NoError(t, w.Write(
-		ts.StringID("foo3"),
-		bytesRefd([]byte{1, 2, 3}),
-		digest.Checksum([]byte{1, 2, 3})))
-	assert.NoError(t, w.Close())
-
-	s := newTestSeeker(filePathPrefix)
-	err = s.Open(testNs1ID, 0, testWriterStart)
-	assert.NoError(t, err)
-
-	contains := func(list []ts.ID, s ts.ID) bool {
-		for _, t := range list {
-			if t.Equal(s) {
-				return true
-			}
-		}
-		return false
-	}
-	ids := s.IDs()
-	assert.True(t, ids != nil)
-	assert.True(t, contains(ids, ts.StringID("foo1")))
-	assert.True(t, contains(ids, ts.StringID("foo2")))
-	assert.True(t, contains(ids, ts.StringID("foo3")))
-}
-
 func TestSeek(t *testing.T) {
 	dir, err := ioutil.TempDir("", "testdb")
 	if err != nil {

@@ -201,7 +201,7 @@ func (dec *decoder) decodeIndexEntry() schema.IndexEntry {
 	}
 	var indexEntry schema.IndexEntry
 	indexEntry.Index = dec.decodeVarint()
-	indexEntry.ID = dec.decodeBytes()
+	indexEntry.ID, _, _ = dec.decodeBytes()
 	indexEntry.Size = dec.decodeVarint()
 	indexEntry.Offset = dec.decodeVarint()
 	indexEntry.Checksum = dec.decodeVarint()
@@ -225,7 +225,7 @@ func (dec *decoder) decodeIndexSummary() (schema.IndexSummary, encoding.IndexSum
 	indexSummary.Index = dec.decodeVarint()
 	// Keep track of the offset in the byte stream before we decode the bytes so
 	// that we know exactly where to jump to if we want to just grab the ID itself
-	indexSummary.ID, idBytesStartOffset, idBytesLength = dec.decodeBytesBase()
+	indexSummary.ID, idBytesStartOffset, idBytesLength = dec.decodeBytes()
 	indexSummary.IndexEntryOffset = dec.decodeVarint()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
@@ -264,11 +264,11 @@ func (dec *decoder) decodeLogEntry() schema.LogEntry {
 	var logEntry schema.LogEntry
 	logEntry.Create = dec.decodeVarint()
 	logEntry.Index = dec.decodeVarUint()
-	logEntry.Metadata = dec.decodeBytes()
+	logEntry.Metadata, _, _ = dec.decodeBytes()
 	logEntry.Timestamp = dec.decodeVarint()
 	logEntry.Value = dec.decodeFloat64()
 	logEntry.Unit = uint32(dec.decodeVarUint())
-	logEntry.Annotation = dec.decodeBytes()
+	logEntry.Annotation, _, _ = dec.decodeBytes()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyLogEntry
@@ -282,8 +282,8 @@ func (dec *decoder) decodeLogMetadata() schema.LogMetadata {
 		return emptyLogMetadata
 	}
 	var logMetadata schema.LogMetadata
-	logMetadata.ID = dec.decodeBytes()
-	logMetadata.Namespace = dec.decodeBytes()
+	logMetadata.ID, _, _ = dec.decodeBytes()
+	logMetadata.Namespace, _, _ = dec.decodeBytes()
 	logMetadata.Shard = uint32(dec.decodeVarUint())
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
@@ -386,12 +386,7 @@ func (dec *decoder) decodeFloat64() float64 {
 	return value
 }
 
-func (dec *decoder) decodeBytes() []byte {
-	byteSlice, _, _ := dec.decodeBytesBase()
-	return byteSlice
-}
-
-func (dec *decoder) decodeBytesBase() ([]byte, int, int) {
+func (dec *decoder) decodeBytes() ([]byte, int, int) {
 	if dec.err != nil {
 		return nil, -1, -1
 	}

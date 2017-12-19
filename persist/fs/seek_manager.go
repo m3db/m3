@@ -222,7 +222,6 @@ func (m *seekerManager) newOpenSeeker(
 		infoBufferSize: m.opts.InfoReaderBufferSize(),
 		seekBufferSize: m.opts.SeekReaderBufferSize(),
 		bytesPool:      m.bytesPool,
-		keepIndexIDs:   false,
 		keepUnreadBuf:  true,
 	})
 

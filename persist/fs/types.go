@@ -107,9 +107,6 @@ type FileSetSeeker interface {
 	// Entries returns the count of entries in the volume
 	Entries() int
 
-	// IDs retrieves all the identifiers present in the file set
-	IDs() []ts.ID
-
 	// IDMaybeExists returns a bool indicating whether an ID maybe exists on disk.
 	// If it returns true, the ID may exist on disk, but if it returns false, it
 	// definitely does not.

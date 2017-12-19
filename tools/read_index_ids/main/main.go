@@ -47,19 +47,20 @@ func main() {
 	})
 	bytesPool.Init()
 
-	seeker := fs.NewSeeker(*optPathPrefix, defaultDataBufferReadSize, defaultInfoBufferReadSize, defaultSeekBufferReadSize, bytesPool, nil)
-
-	err := seeker.Open(ts.StringID(*optNamespace), *optShard, time.Unix(0, *optBlockstart))
+	reader := fs.NewReader(bytesPool, opts)
+	err := reader.Open()
 	if err != nil {
-		log.Fatalf("unable to open file: %v", err)
+		log.Fatalf("unable to open reader: %v", err)
 	}
 
-	fileIds := seeker.IDs()
-	if len(fileIds) == 0 {
-		log.Fatalf("no ids in index")
-	}
-
-	for _, id := range fileIds {
-		fmt.Println(id.String())
+	for {
+		id, _, _, err := reader.ReadMetadata()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("err reading metadata: %v", err)
+		}
+		log.Println(id.String())
 	}
 }
