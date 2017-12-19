@@ -96,14 +96,12 @@ func (dec *decoder) DecodeIndexEntry() (schema.IndexEntry, error) {
 func (dec *decoder) DecodeIndexSummary() (
 	schema.IndexSummary, encoding.IndexSummaryIDBytesMetadata, error) {
 	if dec.err != nil {
-		fmt.Println("EMPTY")
 		return emptyIndexSummary, emptyIndexSummaryIDBytesMetadata, dec.err
 	}
 	numFieldsToSkip := dec.decodeRootObject(indexSummaryVersion, indexSummaryType)
 	indexSummary, indexSummaryMetadata := dec.decodeIndexSummary()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
-		fmt.Println("EMPTY")
 		return emptyIndexSummary, emptyIndexSummaryIDBytesMetadata, dec.err
 	}
 	return indexSummary, indexSummaryMetadata, nil
