@@ -35,7 +35,7 @@ var (
 	emptyIndexBloomFilterInfo        schema.IndexBloomFilterInfo
 	emptyIndexEntry                  schema.IndexEntry
 	emptyIndexSummary                schema.IndexSummary
-	emptyIndexSummaryIDBytesMetadata encoding.IndexSummaryIDBytesMetadata
+	emptyIndexSummaryIDBytesMetadata encoding.IndexSummaryToken
 	emptyLogInfo                     schema.LogInfo
 	emptyLogEntry                    schema.LogEntry
 	emptyLogMetadata                 schema.LogMetadata
@@ -94,7 +94,7 @@ func (dec *decoder) DecodeIndexEntry() (schema.IndexEntry, error) {
 }
 
 func (dec *decoder) DecodeIndexSummary() (
-	schema.IndexSummary, encoding.IndexSummaryIDBytesMetadata, error) {
+	schema.IndexSummary, encoding.IndexSummaryToken, error) {
 	if dec.err != nil {
 		return emptyIndexSummary, emptyIndexSummaryIDBytesMetadata, dec.err
 	}
@@ -212,16 +212,15 @@ func (dec *decoder) decodeIndexEntry() schema.IndexEntry {
 	return indexEntry
 }
 
-func (dec *decoder) decodeIndexSummary() (schema.IndexSummary, encoding.IndexSummaryIDBytesMetadata) {
+func (dec *decoder) decodeIndexSummary() (schema.IndexSummary, encoding.IndexSummaryToken) {
 	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexSummaryType)
 	if !ok {
 		return emptyIndexSummary, emptyIndexSummaryIDBytesMetadata
 	}
 	var (
-		indexSummary                schema.IndexSummary
-		indexSummaryIDBytesMetadata encoding.IndexSummaryIDBytesMetadata
-		idBytesStartOffset          int
-		idBytesLength               int
+		indexSummary       schema.IndexSummary
+		idBytesStartOffset int
+		idBytesLength      int
 	)
 	indexSummary.Index = dec.decodeVarint()
 	// Keep track of the offset in the byte stream before we decode the bytes so
@@ -235,8 +234,9 @@ func (dec *decoder) decodeIndexSummary() (schema.IndexSummary, encoding.IndexSum
 
 	// Downscaling to uint32 is fine because summary files and ID length should
 	// be well below the max value of a uint32
-	indexSummaryIDBytesMetadata.IDBytesStartOffset = uint32(idBytesStartOffset)
-	indexSummaryIDBytesMetadata.IDBytesLength = uint32(idBytesLength)
+	indexSummaryIDBytesMetadata := encoding.NewIndexSummaryToken(
+		uint32(idBytesStartOffset), uint32(idBytesLength),
+	)
 	return indexSummary, indexSummaryIDBytesMetadata
 }
 

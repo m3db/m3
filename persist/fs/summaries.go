@@ -35,7 +35,7 @@ import (
 // ID in the index file
 // TODO: Handle concurrent access?
 type indexLookup struct {
-	summaryIDsOffsets []encoding.IndexSummaryIDBytesMetadata
+	summaryIDsOffsets []encoding.IndexSummaryToken
 	// bytes from file mmap'd into anonymous region
 	summariesBytes []byte
 	// reusable decoder stream
@@ -45,7 +45,7 @@ type indexLookup struct {
 }
 
 func newIndexLookupImpl(
-	summaryIDsOffsets []encoding.IndexSummaryIDBytesMetadata,
+	summaryIDsOffsets []encoding.IndexSummaryToken,
 	summariesBytes []byte,
 	decoder encoding.Decoder,
 	decoderStream encoding.DecoderStream,
@@ -163,7 +163,7 @@ func readIndexLookupFromSummariesFile(
 	// for the entries so we can binary-search it)
 	var (
 		decoderStream    = encoding.NewDecoderStream(anonMmap)
-		summariesOffsets = make([]encoding.IndexSummaryIDBytesMetadata, 0, numEntries)
+		summariesOffsets = make([]encoding.IndexSummaryToken, 0, numEntries)
 		lastReadID       []byte
 		needsSort        = false
 	)

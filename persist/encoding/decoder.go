@@ -33,7 +33,7 @@ type FilesetDecoder interface {
 	// DecodeIndexSummary decodes index summary and returns an IndexSummaryIDBytesMetadata
 	// which can be used in conjunction with the underlying buffer to quickly retrieve
 	// a summary entry's series ID and index file offset
-	DecodeIndexSummary() (schema.IndexSummary, IndexSummaryIDBytesMetadata, error)
+	DecodeIndexSummary() (schema.IndexSummary, IndexSummaryToken, error)
 }
 
 // CommitLogDecoder decodes commit log related structures

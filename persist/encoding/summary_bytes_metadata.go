@@ -27,19 +27,21 @@ import (
 	"gopkg.in/vmihailenco/msgpack.v2"
 )
 
-// IndexSummaryIDBytesMetadata contains metadata about the bytes of the ID in
-// the underlying byte stream in which the index summary was decoded
-type IndexSummaryIDBytesMetadata struct {
+// IndexSummaryToken can be used, along with the summaries file buffer, to
+// quickly retrieve the ID or index file offset of an index summary entry.
+// It's structured such that the ID and Index file offset can be retrieved
+// quickly, while only requiring 64-bits of memory per entry.
+type IndexSummaryToken struct {
 	// The offset into the underlying byte array at which the bytes for the ID begin
-	IDBytesStartOffset uint32
+	idStartOffset uint32
 	// The length of the bytes for the ID
-	IDBytesLength uint32
+	idLength uint32
 }
 
 // ID returns the ID that the metadata corresponds to
-func (m IndexSummaryIDBytesMetadata) ID(buf []byte) []byte {
-	idStart := m.IDBytesStartOffset
-	idEnd := idStart + m.IDBytesLength
+func (m IndexSummaryToken) ID(buf []byte) []byte {
+	idStart := m.idStartOffset
+	idEnd := idStart + m.idLength
 	return buf[idStart:idEnd]
 }
 
@@ -47,10 +49,10 @@ func (m IndexSummaryIDBytesMetadata) ID(buf []byte) []byte {
 // metadata corresponds to. The buf, stream, and decoder arguments are passed in
 // so that the IndexSummaryIDBytesMetadata struct can be kept small, as well as
 // so that the caller can have control over re-use and allocations.
-func (m IndexSummaryIDBytesMetadata) IndexOffset(
+func (m IndexSummaryToken) IndexOffset(
 	buf []byte, stream DecoderStream, msgpackDecoder *msgpack.Decoder) (int64, error) {
-	idStart := m.IDBytesStartOffset
-	idEnd := idStart + m.IDBytesLength
+	idStart := m.idStartOffset
+	idEnd := idStart + m.idLength
 	indexOffsetStart := int(idEnd)
 
 	stream.Reset(buf[indexOffsetStart:])
@@ -64,40 +66,43 @@ func (m IndexSummaryIDBytesMetadata) IndexOffset(
 	return int64(indexOffset), nil
 }
 
-// IndexSummaryIDBytesMetadataSortableCollection is a sortable container of IndexSummaryIDBytesMetadata
-type IndexSummaryIDBytesMetadataSortableCollection struct {
-	slice []IndexSummaryIDBytesMetadata
-	// Store the underlying buf that the metadata points into so that we can
-	// perform comparisons in the Less() method
+// NewIndexSummaryToken returns a new IndexSummaryToken
+func NewIndexSummaryToken(idStartOffset, idLength uint32) IndexSummaryToken {
+	return IndexSummaryToken{
+		idStartOffset: idStartOffset,
+		idLength:      idLength,
+	}
+}
+
+// IndexSummaryTokenSortableCollection is a sortable container of IndexSummaryToken
+type IndexSummaryTokenSortableCollection struct {
+	slice []IndexSummaryToken
+	// Store the underlying buf that the token references so that we can perform
+	// comparisons in the Less() method
 	buf []byte
 }
 
 // Len returns the number of elements in the collection
-func (s *IndexSummaryIDBytesMetadataSortableCollection) Len() int {
+func (s *IndexSummaryTokenSortableCollection) Len() int {
 	return len(s.slice)
 }
 
 // Less reports whether the element
-func (s *IndexSummaryIDBytesMetadataSortableCollection) Less(i, j int) bool {
+func (s *IndexSummaryTokenSortableCollection) Less(i, j int) bool {
 	iBytes := s.slice[i].ID(s.buf)
 	jBytes := s.slice[j].ID(s.buf)
 	return bytes.Compare(iBytes, jBytes) <= 0
 }
 
 // Swap swaps the elements with indexes i and j
-func (s *IndexSummaryIDBytesMetadataSortableCollection) Swap(i, j int) {
+func (s *IndexSummaryTokenSortableCollection) Swap(i, j int) {
 	temp := s.slice[i]
 	s.slice[i] = s.slice[j]
 	s.slice[j] = temp
 }
 
-// Element returns the element at index i
-func (s *IndexSummaryIDBytesMetadataSortableCollection) Element(i uint) IndexSummaryIDBytesMetadata {
-	return s.slice[i]
-}
-
 // Sorted returns a sorted slice of IndexSummaryIDBytesMetadata
-func (s *IndexSummaryIDBytesMetadataSortableCollection) Sorted() []IndexSummaryIDBytesMetadata {
+func (s *IndexSummaryTokenSortableCollection) Sorted() []IndexSummaryToken {
 	sort.Sort(s)
 	return s.slice
 }
@@ -105,10 +110,10 @@ func (s *IndexSummaryIDBytesMetadataSortableCollection) Sorted() []IndexSummaryI
 // NewIndexSummaryIDBytesMetadataSortableCollection creates a new
 // IndexSummaryIDBytesMetadataSortableCollection
 func NewIndexSummaryIDBytesMetadataSortableCollection(
-	slice []IndexSummaryIDBytesMetadata,
+	slice []IndexSummaryToken,
 	buf []byte,
-) *IndexSummaryIDBytesMetadataSortableCollection {
-	return &IndexSummaryIDBytesMetadataSortableCollection{
+) *IndexSummaryTokenSortableCollection {
+	return &IndexSummaryTokenSortableCollection{
 		slice: slice,
 		buf:   buf,
 	}
