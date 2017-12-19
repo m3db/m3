@@ -176,10 +176,12 @@ test-ci-unit: test-internal
 	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "Coveralls failed"
 
-# Do not test native pooling for now due to slow travis builds
 .PHONY: test-ci-integration
-test-ci-integration:
+test-ci-integration-mem-policy-all:
 	INTEGRATION_TIMEOUT=2m TEST_NATIVE_POOLING=false MEMORY_STORAGE_POLICY=all $(test_ci_integration)
+
+.PHONY: test-ci-integration
+test-ci-integration-mem-policy-default:
 	INTEGRATION_TIMEOUT=2m TEST_NATIVE_POOLING=false MEMORY_STORAGE_POLICY=default $(test_ci_integration)
 
 # run as: make test-one-integration test=<test_name>
