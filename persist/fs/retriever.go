@@ -265,6 +265,9 @@ func (r *blockRetriever) fetchBatch(
 
 	// Seek and execute all requests
 	for _, req := range reqs {
+		// TODO: This is wasteful because we've already scanned through the index
+		// file in SeekOffset, and now we're doing it again. Optimize this so we
+		// only do it once (allow the offset to be injected)
 		data, err := seeker.Seek(req.id)
 		if err != nil && err != errSeekIDNotFound {
 			req.onError(err)

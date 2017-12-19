@@ -406,10 +406,12 @@ func (s *seeker) SeekIndexEntry(id ts.ID) (indexMapEntry, error) {
 	return indexMapEntry{}, errSeekIDNotFound
 }
 
-// TODO: Make safe for concurrent use
+// SeekOffset returns the offset in the data file for the specified id. It is
+// not safe for concurrent use.
 func (s *seeker) SeekOffset(id ts.ID) int {
 	entry, err := s.SeekIndexEntry(id)
 	if err != nil {
+		// TODO: Don't panic
 		panic(err)
 	}
 	return int(entry.offset)

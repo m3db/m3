@@ -32,8 +32,7 @@ import (
 )
 
 // indexLookup provides a way of quickly determining the nearest offset of an
-// ID in the index file
-// TODO: Handle concurrent access?
+// ID in the index file. It is not safe for concurrent use
 type indexLookup struct {
 	summaryIDsOffsets []encoding.IndexSummaryToken
 	// bytes from file mmap'd into anonymous region
