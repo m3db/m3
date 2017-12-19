@@ -25,7 +25,7 @@
 //
 // The block retriever also handles batching of requests for data, as well as
 // re-arranging the order of requests to increase data locality when seeking
-// through and accross files.
+// through and across files.
 
 package fs
 

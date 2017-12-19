@@ -365,7 +365,7 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 		return nil, err
 	}
 
-	_, err = s.dataFd.Seek(int64(entry.offset), 0)
+	_, err = s.dataFd.Seek(entry.offset, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -439,7 +439,7 @@ func (s *seeker) SeekIndexEntry(id ts.ID) (indexMapEntry, error) {
 		if err != nil {
 			panic(err)
 		}
-		if bytes.Compare(entry.ID, id.Data().Get()) == 0 {
+		if bytes.Equal(entry.ID, id.Data().Get()) {
 			return indexMapEntry{
 				size:     uint32(entry.Size),
 				checksum: uint32(entry.Checksum),
@@ -480,6 +480,10 @@ func (s *seeker) Close() error {
 	if s.bloomFilter != nil {
 		multiErr = multiErr.Add(s.bloomFilter.Close())
 		s.bloomFilter = nil
+	}
+	if s.indexLookup != nil {
+		multiErr = multiErr.Add(s.indexLookup.close())
+		s.indexLookup = nil
 	}
 
 	return multiErr.FinalError()
