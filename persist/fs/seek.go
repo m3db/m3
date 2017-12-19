@@ -67,7 +67,6 @@ type seeker struct {
 	dataFd     *os.File
 	dataReader *bufio.Reader
 
-	indexFd   *os.File
 	indexMmap []byte
 
 	// Expected digests for each file read from the digests file
@@ -254,19 +253,19 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		s.decoder.Reset(nil)
 	}
 
-	indexFd2, err := os.Open(filesetPathFromTime(shardDir, blockStart, indexFileSuffix))
+	// Make sure the indexFd is at the beginning of the file
+	_, err = indexFd.Seek(0, 0)
+	if err != nil {
+		s.Close()
+		return err
+	}
+	indexMmap, err := mmapFile(indexFd, mmapOptions{read: true})
 	if err != nil {
 		s.Close()
 		return err
 	}
 
-	indexMmap, err := mmapFile(indexFd2, mmapOptions{read: true})
-	if err != nil {
-		s.Close()
-		return err
-	}
 	s.dataFd = dataFd
-	s.indexFd = indexFd2
 	s.indexMmap = indexMmap
 
 	return err
