@@ -563,6 +563,12 @@ type Options interface {
 	// ContextPool returns the contextPool
 	ContextPool() context.Pool
 
+	// SetSeriesCachePolicy sets the series cache policy.
+	SetSeriesCachePolicy(value series.CachePolicy) Options
+
+	// SeriesCachePolicy returns the series cache policy.
+	SeriesCachePolicy() series.CachePolicy
+
 	// SetSeriesOptions sets the series options
 	SetSeriesOptions(value series.Options) Options
 

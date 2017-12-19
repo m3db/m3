@@ -27,7 +27,6 @@ import (
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage"
-	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/commitlog"
@@ -69,7 +68,6 @@ func (bsc BootstrapConfiguration) numProcessors() int {
 func (bsc BootstrapConfiguration) New(
 	opts storage.Options,
 	adminClient client.AdminClient,
-	blockRetrieverMgr block.DatabaseBlockRetrieverManager,
 ) (bootstrap.Process, error) {
 	var (
 		bs  bootstrap.Bootstrapper
@@ -94,7 +92,7 @@ func (bsc BootstrapConfiguration) New(
 				SetResultOptions(rsopts).
 				SetFilesystemOptions(fsopts).
 				SetNumProcessors(bsc.numProcessors()).
-				SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
+				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager())
 			bs = fs.NewFileSystemBootstrapper(filePathPrefix, fsbopts, bs)
 		case commitlog.CommitLogBootstrapperName:
 			copts := commitlog.NewOptions().
@@ -109,7 +107,7 @@ func (bsc BootstrapConfiguration) New(
 				SetResultOptions(rsopts).
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
-				SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
+				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager())
 			bs, err = peers.NewPeersBootstrapper(popts, bs)
 			if err != nil {
 				return nil, err

@@ -201,23 +201,33 @@ func Run(runOpts RunOptions) {
 	// Apply pooling options
 	opts = withEncodingAndPoolingOptions(logger, opts, cfg.PoolingPolicy)
 
-	// Set the block retriever manager
-	retrieverOpts := fs.NewBlockRetrieverOptions().
-		SetBytesPool(opts.BytesPool()).
-		SetSegmentReaderPool(opts.SegmentReaderPool())
-	if cfg.BlockRetrieve.FetchConcurrency > 0 {
-		retrieverOpts = retrieverOpts.
-			SetFetchConcurrency(cfg.BlockRetrieve.FetchConcurrency)
+	// Set the series cache policy
+	seriesCachePolicy := cfg.Cache.SeriesConfiguration().Policy
+	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
+
+	switch seriesCachePolicy {
+	case series.CacheAll:
+		// No options needed to be set
+	default:
+		// All other caching strategies require retrieving series from disk
+		// to service a cache miss
+		retrieverOpts := fs.NewBlockRetrieverOptions().
+			SetBytesPool(opts.BytesPool()).
+			SetSegmentReaderPool(opts.SegmentReaderPool())
+		if blockRetrieveCfg := cfg.BlockRetrieve; blockRetrieveCfg != nil {
+			retrieverOpts = retrieverOpts.
+				SetFetchConcurrency(blockRetrieveCfg.FetchConcurrency)
+		}
+		blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
+			func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
+				retriever := fs.NewBlockRetriever(retrieverOpts, fsopts)
+				if err := retriever.Open(md); err != nil {
+					return nil, err
+				}
+				return retriever, nil
+			})
+		opts = opts.SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
 	}
-	blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
-		func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
-			retriever := fs.NewBlockRetriever(retrieverOpts, fsopts)
-			if err := retriever.Open(md); err != nil {
-				return nil, err
-			}
-			return retriever, nil
-		})
-	opts = opts.SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
 
 	// Set the persistence manager
 	pm, err := fs.NewPersistManager(fsopts)
@@ -255,7 +265,7 @@ func Run(runOpts RunOptions) {
 		SetServiceID(serviceID).
 		SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
 		SetInstrumentOptions(opts.InstrumentOptions()).
-		SetHashGen(sharding.NewHashGenWithSeed(cfg.HashingConfiguration.Seed))
+		SetHashGen(sharding.NewHashGenWithSeed(cfg.Hashing.Seed))
 
 	topoInit := topology.NewDynamicInitializer(topoOpts)
 	topo, err := topoInit.Init()
@@ -290,7 +300,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	// Set bootstrap options
-	bs, err := cfg.Bootstrap.New(opts, m3dbClient, blockRetrieverMgr)
+	bs, err := cfg.Bootstrap.New(opts, m3dbClient)
 	if err != nil {
 		logger.Fatalf("could not create bootstrap process: %v", err)
 	}
@@ -306,7 +316,7 @@ func Run(runOpts RunOptions) {
 			}
 
 			cfg.Bootstrap.Bootstrappers = bootstrappers
-			updated, err := cfg.Bootstrap.New(opts, m3dbClient, blockRetrieverMgr)
+			updated, err := cfg.Bootstrap.New(opts, m3dbClient)
 			if err != nil {
 				logger.Errorf("updated bootstrapper list failed: %v", err)
 				return

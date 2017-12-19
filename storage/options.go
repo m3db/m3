@@ -119,6 +119,7 @@ type options struct {
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 	poolOpts                       pool.ObjectPoolOptions
 	contextPool                    context.Pool
+	seriesCachePolicy              series.CachePolicy
 	seriesOpts                     series.Options
 	seriesPool                     series.DatabaseSeriesPool
 	bytesPool                      pool.CheckedBytesPool
@@ -157,6 +158,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		maxFlushRetries:                defaultMaxFlushRetries,
 		poolOpts:                       poolOpts,
 		contextPool:                    context.NewPool(poolOpts, poolOpts),
+		seriesCachePolicy:              series.DefaultCachePolicy(),
 		seriesOpts:                     seriesOpts,
 		seriesPool:                     series.NewDatabaseSeriesPool(poolOpts),
 		bytesPool:                      bytesPool,
@@ -200,6 +202,11 @@ func (o *options) Validate() error {
 	// it was set to nil by a caller
 	if o.persistManager == nil {
 		return errPersistManagerNotSet
+	}
+
+	// validate series cache policy
+	if err := series.ValidateCachePolicy(o.seriesCachePolicy); err != nil {
+		return err
 	}
 
 	return nil
@@ -448,6 +455,16 @@ func (o *options) SetContextPool(value context.Pool) Options {
 
 func (o *options) ContextPool() context.Pool {
 	return o.contextPool
+}
+
+func (o *options) SetSeriesCachePolicy(value series.CachePolicy) Options {
+	opts := *o
+	opts.seriesCachePolicy = value
+	return &opts
+}
+
+func (o *options) SeriesCachePolicy() series.CachePolicy {
+	return o.seriesCachePolicy
 }
 
 func (o *options) SetSeriesOptions(value series.Options) Options {
