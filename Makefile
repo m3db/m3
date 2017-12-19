@@ -179,7 +179,8 @@ test-ci-unit: test-internal
 # Do not test native pooling for now due to slow travis builds
 .PHONY: test-ci-integration
 test-ci-integration:
-	INTEGRATION_TIMEOUT=2m TEST_NATIVE_POOLING=false $(test_ci_integration)
+	INTEGRATION_TIMEOUT=2m TEST_NATIVE_POOLING=false MEMORY_STORAGE_POLICY=all $(test_ci_integration)
+	INTEGRATION_TIMEOUT=2m TEST_NATIVE_POOLING=false MEMORY_STORAGE_POLICY=default $(test_ci_integration)
 
 # run as: make test-one-integration test=<test_name>
 .PHONY: test-one-integration
