@@ -68,6 +68,7 @@ type reader struct {
 	blockSize      time.Duration
 
 	infoFdWithDigest           digest.FdWithDigestReader
+	bloomFilterWithDigest      digest.FdWithDigestReader
 	digestFdWithDigestContents digest.FdWithDigestContentsReader
 
 	indexFd                 *os.File
@@ -79,17 +80,21 @@ type reader struct {
 	dataMmap   []byte
 	dataReader digest.ReaderWithDigest
 
-	expectedInfoDigest     uint32
-	expectedIndexDigest    uint32
-	expectedDataDigest     uint32
-	expectedDigestOfDigest uint32
-	entries                int
-	entriesRead            int
-	metadataRead           int
-	prologue               []byte
-	decoder                encoding.Decoder
-	digestBuf              digest.Buffer
-	bytesPool              pool.CheckedBytesPool
+	bloomFilterFd *os.File
+
+	expectedInfoDigest        uint32
+	expectedIndexDigest       uint32
+	expectedDataDigest        uint32
+	expectedDigestOfDigest    uint32
+	expectedBloomFilterDigest uint32
+	entries                   int
+	bloomFilterInfo           schema.IndexBloomFilterInfo
+	entriesRead               int
+	metadataRead              int
+	prologue                  []byte
+	decoder                   encoding.Decoder
+	digestBuf                 digest.Buffer
+	bytesPool                 pool.CheckedBytesPool
 }
 
 // NewReader returns a new reader and expects all files to exist. Will read the
@@ -110,6 +115,7 @@ func NewReader(
 		},
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),
+		bloomFilterWithDigest:      digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
 		indexDecoderStream:         newReaderDecoderStream(),
 		dataReader:                 digest.NewReaderWithDigest(nil),
 		prologue:                   make([]byte, markerLen+idxLen),
@@ -120,6 +126,8 @@ func NewReader(
 }
 
 func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
+	var err error
+
 	// If there is no checkpoint file, don't read the data files.
 	shardDir := ShardDirPath(r.filePathPrefix, namespace, shard)
 	if err := r.readCheckpointFile(shardDir, blockStart); err != nil {
@@ -128,8 +136,9 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 
 	var infoFd, digestFd *os.File
 	if err := openFiles(os.Open, map[string]**os.File{
-		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):   &infoFd,
-		filesetPathFromTime(shardDir, blockStart, digestFileSuffix): &digestFd,
+		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
+		filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
+		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &r.bloomFilterFd,
 	}); err != nil {
 		return err
 	}
@@ -201,25 +210,24 @@ func (r *reader) readCheckpointFile(shardDir string, blockStart time.Time) error
 }
 
 func (r *reader) readDigest() error {
-	var err error
-	if r.expectedInfoDigest, err = r.digestFdWithDigestContents.ReadDigest(); err != nil {
+	fsDigests, err := readFilesetDigests(r.digestFdWithDigestContents)
+	if err != nil {
 		return err
 	}
-	if r.expectedIndexDigest, err = r.digestFdWithDigestContents.ReadDigest(); err != nil {
+
+	err = r.digestFdWithDigestContents.Validate(r.expectedDigestOfDigest)
+	if err != nil {
 		return err
 	}
-	if _, err := r.digestFdWithDigestContents.ReadDigest(); err != nil {
-		// Skip the summaries digest
-		return err
-	}
-	if _, err := r.digestFdWithDigestContents.ReadDigest(); err != nil {
-		// Skip the bloom filter digest
-		return err
-	}
-	if r.expectedDataDigest, err = r.digestFdWithDigestContents.ReadDigest(); err != nil {
-		return err
-	}
-	return r.digestFdWithDigestContents.Validate(r.expectedDigestOfDigest)
+
+	// Note that we skip over the summaries file digest here which is available,
+	// but we don't need
+	r.expectedInfoDigest = fsDigests.infoDigest
+	r.expectedIndexDigest = fsDigests.indexDigest
+	r.expectedBloomFilterDigest = fsDigests.bloomFilterDigest
+	r.expectedDataDigest = fsDigests.dataDigest
+
+	return nil
 }
 
 func (r *reader) readInfo(size int) error {
@@ -238,6 +246,7 @@ func (r *reader) readInfo(size int) error {
 	r.entries = int(info.Entries)
 	r.entriesRead = 0
 	r.metadataRead = 0
+	r.bloomFilterInfo = info.BloomFilter
 	return nil
 }
 
@@ -315,6 +324,16 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 	return r.entryID(entry.ID), int(entry.Size), uint32(entry.Checksum), nil
 }
 
+func (r *reader) ReadBloomFilter() (*ManagedConcurrentBloomFilter, error) {
+	return readManagedConcurrentBloomFilter(
+		r.bloomFilterFd,
+		r.bloomFilterWithDigest,
+		r.expectedBloomFilterDigest,
+		uint(r.bloomFilterInfo.NumElementsM),
+		uint(r.bloomFilterInfo.NumHashesK),
+	)
+}
+
 func (r *reader) entryID(id []byte) ts.ID {
 	var idClone checked.Bytes
 	if r.bytesPool != nil {
@@ -382,6 +401,9 @@ func (r *reader) Close() error {
 
 	multiErr = multiErr.Add(r.dataFd.Close())
 	r.dataFd = nil
+
+	multiErr = multiErr.Add(r.bloomFilterFd.Close())
+	r.bloomFilterFd = nil
 
 	return multiErr.FinalError()
 }

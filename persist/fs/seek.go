@@ -31,8 +31,10 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -47,23 +49,33 @@ var (
 
 type seeker struct {
 	filePathPrefix string
-	start          time.Time
-	blockSize      time.Duration
 
+	// Data read from the indexInfo file
+	start           time.Time
+	blockSize       time.Duration
+	entries         int
+	bloomFilterInfo schema.IndexBloomFilterInfo
+
+	// Readers for each file that will also verify the digest
 	infoFdWithDigest           digest.FdWithDigestReader
 	indexFdWithDigest          digest.FdWithDigestReader
-	dataReader                 *bufio.Reader
+	bloomFilterFdWithDigest    digest.FdWithDigestReader
 	digestFdWithDigestContents digest.FdWithDigestContentsReader
-	expectedInfoDigest         uint32
-	expectedIndexDigest        uint32
+
+	dataFd     *os.File
+	dataReader *bufio.Reader
+
+	// Expected digests for each file read from the digests file
+	expectedInfoDigest        uint32
+	expectedIndexDigest       uint32
+	expectedBloomFilterDigest uint32
 
 	keepIndexIDs  bool
 	keepUnreadBuf bool
 
 	unreadBuf []byte
 	prologue  []byte
-	entries   int
-	dataFd    *os.File
+
 	// NB(r): specifically use a non pointer type for
 	// key and value in this map to avoid the GC scanning
 	// this large map.
@@ -71,6 +83,10 @@ type seeker struct {
 	indexIDs  []ts.ID
 	decoder   encoding.Decoder
 	bytesPool pool.CheckedBytesPool
+
+	// Bloom filter associated with the shard / block the seeker is responsible
+	// for. Needs to be closed when done.
+	bloomFilter *ManagedConcurrentBloomFilter
 }
 
 type indexMapEntry struct {
@@ -129,8 +145,9 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		filePathPrefix:             opts.filePathPrefix,
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.infoBufferSize),
 		indexFdWithDigest:          digest.NewFdWithDigestReader(opts.dataBufferSize),
-		dataReader:                 bufio.NewReaderSize(nil, opts.seekBufferSize),
+		bloomFilterFdWithDigest:    digest.NewFdWithDigestReader(opts.dataBufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.infoBufferSize),
+		dataReader:                 bufio.NewReaderSize(nil, opts.seekBufferSize),
 		keepIndexIDs:               opts.keepIndexIDs,
 		keepUnreadBuf:              opts.keepUnreadBuf,
 		prologue:                   make([]byte, markerLen+idxLen),
@@ -145,12 +162,13 @@ func (s *seeker) IDs() []ts.ID {
 
 func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
 	shardDir := ShardDirPath(s.filePathPrefix, namespace, shard)
-	var infoFd, indexFd, dataFd, digestFd *os.File
+	var infoFd, indexFd, dataFd, digestFd, bloomFilterFd *os.File
 	if err := openFiles(os.Open, map[string]**os.File{
-		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):   &infoFd,
-		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):  &indexFd,
-		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):   &dataFd,
-		filesetPathFromTime(shardDir, blockStart, digestFileSuffix): &digestFd,
+		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
+		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &indexFd,
+		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):        &dataFd,
+		filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
+		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &bloomFilterFd,
 	}); err != nil {
 		return err
 	}
@@ -163,6 +181,7 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		// NB(r): We don't need to keep these FDs open as we use these up front
 		s.infoFdWithDigest.Close()
 		s.indexFdWithDigest.Close()
+		s.bloomFilterFdWithDigest.Close()
 		s.digestFdWithDigestContents.Close()
 	}()
 
@@ -190,6 +209,18 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 
+	s.bloomFilter, err = readManagedConcurrentBloomFilter(
+		bloomFilterFd,
+		s.bloomFilterFdWithDigest,
+		s.expectedBloomFilterDigest,
+		uint(s.bloomFilterInfo.NumElementsM),
+		uint(s.bloomFilterInfo.NumHashesK),
+	)
+	if err != nil {
+		s.Close()
+		return err
+	}
+
 	if !s.keepUnreadBuf {
 		// NB(r): Free the unread buffer and reset the decoder as unless
 		// using this seeker in the seeker manager we never use this buffer again
@@ -198,7 +229,8 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	}
 
 	s.dataFd = dataFd
-	return nil
+
+	return err
 }
 
 func (s *seeker) prepareUnreadBuf(size int) {
@@ -217,13 +249,15 @@ func (s *seeker) setUnreadBuffer(buf []byte) {
 }
 
 func (s *seeker) readDigest() error {
-	var err error
-	if s.expectedInfoDigest, err = s.digestFdWithDigestContents.ReadDigest(); err != nil {
+	fsDigests, err := readFilesetDigests(s.digestFdWithDigestContents)
+	if err != nil {
 		return err
 	}
-	if s.expectedIndexDigest, err = s.digestFdWithDigestContents.ReadDigest(); err != nil {
-		return err
-	}
+
+	s.expectedInfoDigest = fsDigests.infoDigest
+	s.expectedIndexDigest = fsDigests.indexDigest
+	s.expectedBloomFilterDigest = fsDigests.bloomFilterDigest
+
 	return nil
 }
 
@@ -233,14 +267,18 @@ func (s *seeker) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
+
 	s.decoder.Reset(encoding.NewDecoderStream(s.unreadBuf[:n]))
 	info, err := s.decoder.DecodeIndexInfo()
 	if err != nil {
 		return err
 	}
+
 	s.start = xtime.FromNanoseconds(info.Start)
 	s.blockSize = time.Duration(info.BlockSize)
 	s.entries = int(info.Entries)
+	s.bloomFilterInfo = info.BloomFilter
+
 	return nil
 }
 
@@ -364,10 +402,16 @@ func (s *seeker) Close() error {
 	for key := range s.indexMap {
 		delete(s.indexMap, key)
 	}
-	if s.dataFd == nil {
-		return nil
+
+	multiErr := xerrors.NewMultiError()
+	if s.dataFd != nil {
+		multiErr = multiErr.Add(s.dataFd.Close())
+		s.dataFd = nil
 	}
-	err := s.dataFd.Close()
-	s.dataFd = nil
-	return err
+	if s.bloomFilter != nil {
+		multiErr = multiErr.Add(s.bloomFilter.Close())
+		s.bloomFilter = nil
+	}
+
+	return multiErr.FinalError()
 }
