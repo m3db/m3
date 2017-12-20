@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/tools"
 	"github.com/m3db/m3db/ts"
