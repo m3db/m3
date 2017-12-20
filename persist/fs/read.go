@@ -320,7 +320,7 @@ func (r *reader) Read() (ts.ID, checked.Bytes, uint32, error) {
 	return r.entryID(entry.ID), data, uint32(entry.Checksum), nil
 }
 
-func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, offset int64, err error) {
+func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err error) {
 	var none ts.ID
 	if r.metadataRead >= r.entries {
 		return none, 0, 0, io.EOF
