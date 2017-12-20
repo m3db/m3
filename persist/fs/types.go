@@ -76,7 +76,7 @@ type FileSetReader interface {
 
 	// ReadMetadata returns the next id and metadata or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
-	ReadMetadata() (id ts.ID, length int, checksum uint32, err error)
+	ReadMetadata() (id ts.ID, length int, checksum uint32, offset int64, err error)
 
 	// ReadBloomFilter returns the bloom filter stored on disk in a container object that is safe
 	// for concurrent use and has a Close() method for releasing resources when done.

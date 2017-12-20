@@ -21,6 +21,7 @@ import (
 	commitlogsrc "github.com/m3db/m3db/storage/bootstrap/bootstrapper/commitlog"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/tools"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/instrument"
@@ -40,10 +41,10 @@ var (
 	shardsCountArg        = flagParser.Int("shards-count", 8192, "Shards count - set number too bootstrap all shards in range")
 	shardsArg             = flagParser.String("shards", "", "Shards - set comma separated list of shards")
 	debugListenAddressArg = flagParser.String("debug-listen-address", "", "Debug listen address - if set will expose pprof, i.e. ':8080'")
-	startUnixTimestampArg = flagParser.Int64("start-unix-timestramp", 0, "Start unix timestamp (Seconds) - If set will bootstrap all data after this timestamp up to end-unix-timestamp, defaults to reading from the beginning of the first commitlog")
+	startUnixTimestampArg = flagParser.Int64("start-unix-timestamp", 0, "Start unix timestamp (Seconds) - If set will bootstrap all data after this timestamp up to end-unix-timestamp, defaults to reading from the beginning of the first commitlog")
 	// 1<<63-62135596801 is the largest possible time.Time that can be represented
 	// without causing overflow when passed to functions in the time package
-	endUnixTimestampArg = flagParser.Int64("end-unix-timestramp", 1<<63-62135596801, "End unix timestamp (Seconds) - If set will bootstrap all data from start-unix-timestamp up to this timestamp, defaults to reading up to the end of the last commitlog")
+	endUnixTimestampArg = flagParser.Int64("end-unix-timestamp", 1<<63-62135596801, "End unix timestamp (Seconds) - If set will bootstrap all data from start-unix-timestamp up to this timestamp, defaults to reading up to the end of the last commitlog")
 )
 
 func main() {
@@ -81,7 +82,6 @@ func main() {
 
 	// Ony used for logging
 	var shardsAll []uint32
-
 	// Handle commda-delimited shard list 1,3,5, etc
 	if strings.TrimSpace(shards) != "" {
 		for _, shard := range strings.Split(shards, ",") {
@@ -147,45 +147,7 @@ func main() {
 		SetRefillHighWatermark(0.02)
 	segmentReaderPool := xio.NewSegmentReaderPool(segmentReaderPoolOpts)
 
-	bytesPoolOpts := pool.NewObjectPoolOptions().
-		SetRefillLowWatermark(0.001).
-		SetRefillHighWatermark(0.002)
-	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{
-		pool.Bucket{
-			Capacity: 16,
-			Count:    6291456,
-		},
-		pool.Bucket{
-			Capacity: 32,
-			Count:    3145728,
-		},
-		pool.Bucket{
-			Capacity: 64,
-			Count:    3145728,
-		},
-		pool.Bucket{
-			Capacity: 128,
-			Count:    3145728,
-		},
-		pool.Bucket{
-			Capacity: 256,
-			Count:    3145728,
-		},
-		pool.Bucket{
-			Capacity: 1440,
-			Count:    524288,
-		},
-		pool.Bucket{
-			Capacity: 4096,
-			Count:    524288,
-		},
-		pool.Bucket{
-			Capacity: 8192,
-			Count:    524288,
-		},
-	}, bytesPoolOpts, func(s []pool.Bucket) pool.BytesPool {
-		return pool.NewBytesPool(s, bytesPoolOpts)
-	})
+	bytesPool := tools.NewCheckedBytesPool()
 
 	encodingOpts := encoding.NewOptions().
 		SetEncoderPool(encoderPool).
