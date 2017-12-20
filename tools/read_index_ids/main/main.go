@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -47,8 +47,11 @@ func main() {
 	})
 	bytesPool.Init()
 
-	reader := fs.NewReader(bytesPool, opts)
-	err := reader.Open()
+	reader, err := fs.NewReader(bytesPool, fs.NewOptions())
+	if err != nil {
+		log.Fatalf("Could not create new reader: %v", err)
+	}
+	err = reader.Open(ts.StringID(*optNamespace), *optShard, time.Unix(*optBlockstart, 0))
 	if err != nil {
 		log.Fatalf("unable to open reader: %v", err)
 	}
@@ -61,6 +64,6 @@ func main() {
 		if err != nil {
 			log.Fatalf("err reading metadata: %v", err)
 		}
-		log.Println(id.String())
+		log.Info(id.String())
 	}
 }
