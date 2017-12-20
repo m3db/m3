@@ -14,11 +14,8 @@ import (
 )
 
 const (
-	defaultDataBufferReadSize = 65536
-	defaultInfoBufferReadSize = 64
-	defaultSeekBufferReadSize = 4096
-	defaultBufferCapacity     = 1024 * 1024 * 1024
-	defaultBufferPoolCount    = 10
+	defaultBufferCapacity  = 1024 * 1024 * 1024
+	defaultBufferPoolCount = 10
 )
 
 func main() {
