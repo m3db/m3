@@ -63,7 +63,7 @@ func (m IndexSummaryToken) IndexOffset(
 	if err != nil {
 		return -1, err
 	}
-	return int64(indexOffset), nil
+	return indexOffset, nil
 }
 
 // NewIndexSummaryToken returns a new IndexSummaryToken
