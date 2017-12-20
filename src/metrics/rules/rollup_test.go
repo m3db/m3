@@ -130,11 +130,27 @@ func TestRollupTargetSameTransform(t *testing.T) {
 			result: true,
 		},
 		{
-			target: RollupTarget{Name: b("baz"), Tags: bs("bar1", "bar2")},
+			target: RollupTarget{Name: b("foo"), Tags: bs("bar2", "bar1"), Policies: policies},
+			result: true,
+		},
+		{
+			target: RollupTarget{Name: b("foo"), Tags: bs("bar1")},
+			result: false,
+		},
+		{
+			target: RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar2", "bar3")},
 			result: false,
 		},
 		{
 			target: RollupTarget{Name: b("foo"), Tags: bs("bar1", "bar3")},
+			result: false,
+		},
+		{
+			target: RollupTarget{Name: b("baz"), Tags: bs("bar1", "bar2")},
+			result: false,
+		},
+		{
+			target: RollupTarget{Name: b("baz"), Tags: bs("bar2", "bar1")},
 			result: false,
 		},
 	}

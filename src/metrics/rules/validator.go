@@ -32,6 +32,9 @@ import (
 type Validator interface {
 	// Validate validates a ruleset.
 	Validate(rs RuleSet) error
+
+	// ValidateSnapshot validates a ruleset snapshot.
+	ValidateSnapshot(snapshot *RuleSetSnapshot) error
 }
 
 type validator struct {
@@ -44,23 +47,30 @@ func NewValidator(opts ValidatorOptions) Validator {
 }
 
 func (v *validator) Validate(rs RuleSet) error {
-	if err := v.validate(rs); err != nil {
+	// Only the latest (a.k.a. the first) view needs to be validated
+	// because that is the view that may be invalid due to latest update.
+	latest, err := rs.Latest()
+	if err != nil {
+		return v.wrapError(fmt.Errorf("could not get the latest ruleset snapshot: %v", err))
+	}
+	return v.ValidateSnapshot(latest)
+}
+
+func (v *validator) ValidateSnapshot(snapshot *RuleSetSnapshot) error {
+	if snapshot == nil {
+		return nil
+	}
+	if err := v.validateSnapshot(snapshot); err != nil {
 		return v.wrapError(err)
 	}
 	return nil
 }
 
-func (v *validator) validate(rs RuleSet) error {
-	// Only the latest (a.k.a. the first) view needs to be validated
-	// because that is the view that may be invalid due to latest update.
-	latest, err := rs.Latest()
-	if err != nil {
-		return fmt.Errorf("could not get the latest ruleset snapshot: %v", err)
-	}
-	if err := v.validateMappingRules(latest.MappingRules); err != nil {
+func (v *validator) validateSnapshot(snapshot *RuleSetSnapshot) error {
+	if err := v.validateMappingRules(snapshot.MappingRules); err != nil {
 		return err
 	}
-	return v.validateRollupRules(latest.RollupRules)
+	return v.validateRollupRules(snapshot.RollupRules)
 }
 
 func (v *validator) validateMappingRules(mrv map[string]*MappingRuleView) error {
@@ -172,10 +182,21 @@ func (v *validator) validateFilter(ruleName string, f string) (filters.TagFilter
 }
 
 func (v *validator) validatePolicies(ruleName string, policies []policy.Policy, types []metric.Type) error {
+	// Validating that at least one policy is provided.
 	if len(policies) == 0 {
 		return fmt.Errorf("rule %s has no policies", ruleName)
 	}
 
+	// Validating that no duplicate policies exist.
+	seen := make(map[policy.Policy]struct{}, len(policies))
+	for _, p := range policies {
+		if _, exists := seen[p]; exists {
+			return fmt.Errorf("rule %s has duplicate policy %s, provided policies are %v", ruleName, p.String(), policies)
+		}
+		seen[p] = struct{}{}
+	}
+
+	// Validating that provided policies are allowed for the specified metric type.
 	for _, t := range types {
 		for _, p := range policies {
 			if err := v.validatePolicy(t, p); err != nil {
@@ -194,14 +215,19 @@ func (v *validator) validateRollupTags(ruleName string, tags []string) error {
 		}
 	}
 
+	// Validating that there are no duplicate rollup tags.
+	rollupTags := make(map[string]struct{}, len(tags))
+	for _, tag := range tags {
+		if _, exists := rollupTags[tag]; exists {
+			return fmt.Errorf("rollup rule %s has duplicate rollup tag: %s, provided rollup tags are %v", ruleName, tag, tags)
+		}
+		rollupTags[tag] = struct{}{}
+	}
+
 	// Validating the list of rollup tags in the rule contain all required tags.
 	requiredTags := v.opts.RequiredRollupTags()
 	if len(requiredTags) == 0 {
 		return nil
-	}
-	rollupTags := make(map[string]struct{}, len(tags))
-	for _, tag := range tags {
-		rollupTags[tag] = struct{}{}
 	}
 	for _, requiredTag := range requiredTags {
 		if _, exists := rollupTags[requiredTag]; !exists {

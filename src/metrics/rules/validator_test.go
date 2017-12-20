@@ -133,6 +133,12 @@ func TestValidatorValidateMappingRuleNoPolicies(t *testing.T) {
 	require.Error(t, ruleSet.Validate(validator))
 }
 
+func TestValidatorValidateMappingRuleDuplicatePolicies(t *testing.T) {
+	ruleSet := testRuleSetWithMappingRules(t, testDuplicatePoliciesMappingRulesConfig())
+	validator := NewValidator(testValidatorOptions())
+	require.Error(t, ruleSet.Validate(validator))
+}
+
 func TestValidatorValidateMappingRuleCustomAggregationTypes(t *testing.T) {
 	testAggregationTypes := []policy.AggregationType{policy.Count, policy.Max}
 	ruleSet := testRuleSetWithMappingRules(t, testCustomAggregationTypeMappingRulesConfig())
@@ -213,6 +219,12 @@ func TestValidatorValidateRollupRuleInvalidFilterTagName(t *testing.T) {
 
 func TestValidatorValidateRollupRuleInvalidMetricType(t *testing.T) {
 	ruleSet := testRuleSetWithRollupRules(t, testInvalidMetricTypeRollupRulesConfig())
+	validator := NewValidator(testValidatorOptions())
+	require.Error(t, ruleSet.Validate(validator))
+}
+
+func TestValidatorValidateRollupRuleDuplicateRollupTag(t *testing.T) {
+	ruleSet := testRuleSetWithRollupRules(t, testDuplicateTagRollupRulesConfig())
 	validator := NewValidator(testValidatorOptions())
 	require.Error(t, ruleSet.Validate(validator))
 }
@@ -306,6 +318,12 @@ func TestValidatorValidateRollupRulePolicy(t *testing.T) {
 
 func TestValidatorValidateRollupRuleWithNoPolicies(t *testing.T) {
 	ruleSet := testRuleSetWithRollupRules(t, testNoPoliciesRollupRulesConfig())
+	validator := NewValidator(testValidatorOptions())
+	require.Error(t, ruleSet.Validate(validator))
+}
+
+func TestValidatorValidateRollupRuleWithDuplicatePolicies(t *testing.T) {
+	ruleSet := testRuleSetWithRollupRules(t, testDuplicatePoliciesRollupRulesConfig())
 	validator := NewValidator(testValidatorOptions())
 	require.Error(t, ruleSet.Validate(validator))
 }
@@ -475,6 +493,45 @@ func testNoPoliciesMappingRulesConfig() []*schema.MappingRule {
 	}
 }
 
+func testDuplicatePoliciesMappingRulesConfig() []*schema.MappingRule {
+	return []*schema.MappingRule{
+		&schema.MappingRule{
+			Uuid: "mappingRule1",
+			Snapshots: []*schema.MappingRuleSnapshot{
+				&schema.MappingRuleSnapshot{
+					Name:       "snapshot1",
+					Tombstoned: false,
+					Filter:     testTypeTag + ":" + testTimerType,
+					Policies: []*schema.Policy{
+						&schema.Policy{
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(10 * time.Second),
+									Precision:  int64(time.Second),
+								},
+								Retention: &schema.Retention{
+									Period: int64(24 * time.Hour),
+								},
+							},
+						},
+						&schema.Policy{
+							StoragePolicy: &schema.StoragePolicy{
+								Resolution: &schema.Resolution{
+									WindowSize: int64(10 * time.Second),
+									Precision:  int64(time.Second),
+								},
+								Retention: &schema.Retention{
+									Period: int64(24 * time.Hour),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func testCustomAggregationTypeMappingRulesConfig() []*schema.MappingRule {
 	return []*schema.MappingRule{
 		&schema.MappingRule{
@@ -594,6 +651,27 @@ func testInvalidMetricTypeRollupRulesConfig() []*schema.RollupRule {
 						&schema.RollupTarget{
 							Name:     "rName1",
 							Tags:     []string{"rtagName1", "rtagName2"},
+							Policies: testPolicies(),
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func testDuplicateTagRollupRulesConfig() []*schema.RollupRule {
+	return []*schema.RollupRule{
+		&schema.RollupRule{
+			Uuid: "rollupRule1",
+			Snapshots: []*schema.RollupRuleSnapshot{
+				&schema.RollupRuleSnapshot{
+					Name:       "snapshot1",
+					Tombstoned: false,
+					Targets: []*schema.RollupTarget{
+						&schema.RollupTarget{
+							Name:     "rName1",
+							Tags:     []string{"rtagName1", "rtagName2", "rtagName1"},
 							Policies: testPolicies(),
 						},
 					},
@@ -742,6 +820,51 @@ func testNoPoliciesRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
+func testDuplicatePoliciesRollupRulesConfig() []*schema.RollupRule {
+	return []*schema.RollupRule{
+		&schema.RollupRule{
+			Uuid: "rollupRule1",
+			Snapshots: []*schema.RollupRuleSnapshot{
+				&schema.RollupRuleSnapshot{
+					Name:       "snapshot1",
+					Tombstoned: false,
+					Filter:     testTypeTag + ":" + testTimerType,
+					Targets: []*schema.RollupTarget{
+						&schema.RollupTarget{
+							Name: "rName1",
+							Tags: []string{"rtagName1", "rtagName2"},
+							Policies: []*schema.Policy{
+								&schema.Policy{
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: &schema.Retention{
+											Period: int64(24 * time.Hour),
+										},
+									},
+								},
+								&schema.Policy{
+									StoragePolicy: &schema.StoragePolicy{
+										Resolution: &schema.Resolution{
+											WindowSize: int64(10 * time.Second),
+											Precision:  int64(time.Second),
+										},
+										Retention: &schema.Retention{
+											Period: int64(24 * time.Hour),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func testCustomAggregationTypeRollupRulesConfig() []*schema.RollupRule {
 	return []*schema.RollupRule{
 		&schema.RollupRule{
@@ -821,7 +944,7 @@ func testConflictingTargetsRollupRulesConfig() []*schema.RollupRule {
 					Targets: []*schema.RollupTarget{
 						&schema.RollupTarget{
 							Name: "rName1",
-							Tags: []string{"rtagName1", "rtagName2"},
+							Tags: []string{"rtagName2", "rtagName1"},
 							Policies: []*schema.Policy{
 								&schema.Policy{
 									StoragePolicy: &schema.StoragePolicy{

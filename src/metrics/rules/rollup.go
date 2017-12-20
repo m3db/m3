@@ -42,38 +42,6 @@ var (
 	errNilRollupRuleSchema               = errors.New("nil rollup rule schema")
 )
 
-// RollupTarget dictates how to roll up metrics. Metrics associated with a rollup
-// target will be grouped and rolled up across the provided set of tags, named
-// with the provided name, and aggregated and retained under the provided policies.
-type RollupTarget struct {
-	Name     []byte
-	Tags     [][]byte
-	Policies []policy.Policy
-}
-
-func newRollupTarget(target *schema.RollupTarget) (RollupTarget, error) {
-	if target == nil {
-		return emptyRollupTarget, errNilRollupTargetSchema
-	}
-	policies, err := policy.NewPoliciesFromSchema(target.Policies)
-	if err != nil {
-		return emptyRollupTarget, err
-	}
-	tags := make([]string, len(target.Tags))
-	copy(tags, target.Tags)
-	sort.Strings(tags)
-	return RollupTarget{
-		Name:     []byte(target.Name),
-		Tags:     bytesArrayFromStringArray(tags),
-		Policies: policies,
-	}, nil
-}
-
-// NewRollupTargetFromFields creates a new rollupTarget from a list of its component fields.
-func NewRollupTargetFromFields(name string, tags []string, policies []policy.Policy) RollupTarget {
-	return RollupTarget{Name: []byte(name), Tags: bytesArrayFromStringArray(tags), Policies: policies}
-}
-
 // RollupTargetView is a human friendly representation of a rollup rule target at a given point in time.
 type RollupTargetView struct {
 	Name     string
@@ -105,6 +73,33 @@ func rollupTargetViewsToTargets(views []RollupTargetView) []RollupTarget {
 	return targets
 }
 
+// RollupTarget dictates how to roll up metrics. Metrics associated with a rollup
+// target will be grouped and rolled up across the provided set of tags, named
+// with the provided name, and aggregated and retained under the provided policies.
+type RollupTarget struct {
+	Name     []byte
+	Tags     [][]byte
+	Policies []policy.Policy
+}
+
+func newRollupTarget(target *schema.RollupTarget) (RollupTarget, error) {
+	if target == nil {
+		return emptyRollupTarget, errNilRollupTargetSchema
+	}
+	policies, err := policy.NewPoliciesFromSchema(target.Policies)
+	if err != nil {
+		return emptyRollupTarget, err
+	}
+	tags := make([]string, len(target.Tags))
+	copy(tags, target.Tags)
+	sort.Strings(tags)
+	return RollupTarget{
+		Name:     []byte(target.Name),
+		Tags:     bytesArrayFromStringArray(tags),
+		Policies: policies,
+	}, nil
+}
+
 func (t *RollupTarget) sameTransform(other RollupTarget) bool {
 	if !bytes.Equal(t.Name, other.Name) {
 		return false
@@ -112,8 +107,12 @@ func (t *RollupTarget) sameTransform(other RollupTarget) bool {
 	if len(t.Tags) != len(other.Tags) {
 		return false
 	}
-	for i := 0; i < len(t.Tags); i++ {
-		if !bytes.Equal(t.Tags[i], other.Tags[i]) {
+	clonedTags := stringArrayFromBytesArray(t.Tags)
+	sort.Strings(clonedTags)
+	otherClonedTags := stringArrayFromBytesArray(other.Tags)
+	sort.Strings(otherClonedTags)
+	for i := 0; i < len(clonedTags); i++ {
+		if clonedTags[i] != otherClonedTags[i] {
 			return false
 		}
 	}
