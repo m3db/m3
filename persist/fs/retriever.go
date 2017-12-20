@@ -259,7 +259,12 @@ func (r *blockRetriever) fetchBatch(
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
 	for _, req := range reqs {
-		req.seekOffset = seeker.SeekOffset(req.id)
+		seekOffset, err := seeker.SeekOffset(req.id)
+		if err != nil && err != errSeekIDNotFound {
+			req.onError(err)
+			continue
+		}
+		req.seekOffset = seekOffset
 	}
 	sort.Sort(retrieveRequestByOffsetAsc(reqs))
 

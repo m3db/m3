@@ -92,7 +92,7 @@ func (il *indexLookup) getNearestIndexFileOffset(id ts.ID) (int64, bool, error) 
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted
 			if err != nil {
-				return -1, false, nil
+				return -1, false, err
 			}
 			return indexOffset, true, nil
 		}

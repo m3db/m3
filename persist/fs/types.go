@@ -99,7 +99,7 @@ type FileSetSeeker interface {
 	// the index was not loaded or ID cannot be found the value -1 will be returned.
 	// This can be helpful ahead of issuing a number of seek requests so that the seek
 	// requests can be made in order.
-	SeekOffset(id ts.ID) int
+	SeekOffset(id ts.ID) (int, error)
 
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range

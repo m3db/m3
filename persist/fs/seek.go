@@ -367,8 +367,10 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 
 func (s *seeker) SeekIndexEntry(id ts.ID) (indexMapEntry, error) {
 	offset, ok, err := s.indexLookup.getNearestIndexFileOffset(id)
+	// Should never happen, either something is really wrong with the code or
+	// the file on disk was corrupted
 	if err != nil {
-		panic(err)
+		return indexMapEntry{}, err
 	}
 	if !ok {
 		return indexMapEntry{}, errSeekIDNotFound
@@ -380,8 +382,10 @@ func (s *seeker) SeekIndexEntry(id ts.ID) (indexMapEntry, error) {
 	// Prevent panic's when we're scanning to the end of the buffer
 	for stream.Remaining() != 0 {
 		entry, err := s.decoder.DecodeIndexEntry()
+		// Should never happen, either something is really wrong with the code or
+		// the file on disk was corrupted
 		if err != nil {
-			panic(err)
+			return indexMapEntry{}, err
 		}
 		comparison := bytes.Compare(entry.ID, id.Data().Get())
 		if comparison == 0 {
@@ -408,13 +412,14 @@ func (s *seeker) SeekIndexEntry(id ts.ID) (indexMapEntry, error) {
 
 // SeekOffset returns the offset in the data file for the specified id. It is
 // not safe for concurrent use.
-func (s *seeker) SeekOffset(id ts.ID) int {
+func (s *seeker) SeekOffset(id ts.ID) (int, error) {
 	entry, err := s.SeekIndexEntry(id)
+	// Should never happen, either something is really wrong with the code or
+	// the file on disk was corrupted
 	if err != nil {
-		// TODO: Don't panic
-		panic(err)
+		return -1, err
 	}
-	return int(entry.offset)
+	return int(entry.offset), nil
 }
 
 func (s *seeker) Range() xtime.Range {
