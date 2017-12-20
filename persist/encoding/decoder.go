@@ -30,7 +30,7 @@ type FilesetDecoder interface {
 	// DecodeIndexEntry decodes index entry
 	DecodeIndexEntry() (schema.IndexEntry, error)
 
-	// DecodeIndexSummary decodes index summary and returns an IndexSummaryIDBytesMetadata
+	// DecodeIndexSummary decodes index summary and returns an IndexSummaryToken
 	// which can be used in conjunction with the underlying buffer to quickly retrieve
 	// a summary entry's series ID and index file offset
 	DecodeIndexSummary() (schema.IndexSummary, IndexSummaryToken, error)

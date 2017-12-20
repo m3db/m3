@@ -30,15 +30,15 @@ import (
 )
 
 var (
-	emptyIndexInfo                   schema.IndexInfo
-	emptyIndexSummariesInfo          schema.IndexSummariesInfo
-	emptyIndexBloomFilterInfo        schema.IndexBloomFilterInfo
-	emptyIndexEntry                  schema.IndexEntry
-	emptyIndexSummary                schema.IndexSummary
-	emptyIndexSummaryIDBytesMetadata encoding.IndexSummaryToken
-	emptyLogInfo                     schema.LogInfo
-	emptyLogEntry                    schema.LogEntry
-	emptyLogMetadata                 schema.LogMetadata
+	emptyIndexInfo            schema.IndexInfo
+	emptyIndexSummariesInfo   schema.IndexSummariesInfo
+	emptyIndexBloomFilterInfo schema.IndexBloomFilterInfo
+	emptyIndexEntry           schema.IndexEntry
+	emptyIndexSummary         schema.IndexSummary
+	emptyIndexSummaryToken    encoding.IndexSummaryToken
+	emptyLogInfo              schema.LogInfo
+	emptyLogEntry             schema.LogEntry
+	emptyLogMetadata          schema.LogMetadata
 )
 
 type decoder struct {
@@ -96,13 +96,13 @@ func (dec *decoder) DecodeIndexEntry() (schema.IndexEntry, error) {
 func (dec *decoder) DecodeIndexSummary() (
 	schema.IndexSummary, encoding.IndexSummaryToken, error) {
 	if dec.err != nil {
-		return emptyIndexSummary, emptyIndexSummaryIDBytesMetadata, dec.err
+		return emptyIndexSummary, emptyIndexSummaryToken, dec.err
 	}
 	numFieldsToSkip := dec.decodeRootObject(indexSummaryVersion, indexSummaryType)
 	indexSummary, indexSummaryMetadata := dec.decodeIndexSummary()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
-		return emptyIndexSummary, emptyIndexSummaryIDBytesMetadata, dec.err
+		return emptyIndexSummary, emptyIndexSummaryToken, dec.err
 	}
 	return indexSummary, indexSummaryMetadata, nil
 }
@@ -215,7 +215,7 @@ func (dec *decoder) decodeIndexEntry() schema.IndexEntry {
 func (dec *decoder) decodeIndexSummary() (schema.IndexSummary, encoding.IndexSummaryToken) {
 	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexSummaryType)
 	if !ok {
-		return emptyIndexSummary, emptyIndexSummaryIDBytesMetadata
+		return emptyIndexSummary, emptyIndexSummaryToken
 	}
 	var (
 		indexSummary       schema.IndexSummary
@@ -229,15 +229,15 @@ func (dec *decoder) decodeIndexSummary() (schema.IndexSummary, encoding.IndexSum
 	indexSummary.IndexEntryOffset = dec.decodeVarint()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
-		return emptyIndexSummary, emptyIndexSummaryIDBytesMetadata
+		return emptyIndexSummary, emptyIndexSummaryToken
 	}
 
 	// Downscaling to uint32 is fine because summary files and ID length should
 	// be well below the max value of a uint32
-	indexSummaryIDBytesMetadata := encoding.NewIndexSummaryToken(
+	indexSummaryToken := encoding.NewIndexSummaryToken(
 		uint32(idBytesStartOffset), uint32(idBytesLength),
 	)
-	return indexSummary, indexSummaryIDBytesMetadata
+	return indexSummary, indexSummaryToken
 }
 
 func (dec *decoder) decodeLogInfo() schema.LogInfo {

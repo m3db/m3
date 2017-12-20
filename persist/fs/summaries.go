@@ -182,15 +182,10 @@ func readIndexLookupFromSummariesFile(
 		summariesOffsets = append(summariesOffsets, entryMetadata)
 	}
 
-	summariesOffsets = encoding.NewIndexSummaryIDBytesMetadataSortableCollection(
-		summariesOffsets,
-		anonMmap,
-	).Sorted()
-
 	// Again, should never happen because files should be sorted on disk
 	if needsSort {
 		// TODO: Emit log
-		summariesOffsets = encoding.NewIndexSummaryIDBytesMetadataSortableCollection(
+		summariesOffsets = encoding.NewIndexSummaryTokensSortableCollection(
 			summariesOffsets,
 			anonMmap,
 		).Sorted()

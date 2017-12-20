@@ -47,7 +47,7 @@ func (m IndexSummaryToken) ID(buf []byte) []byte {
 
 // IndexOffset returns the offset in the index file for the series that the
 // metadata corresponds to. The buf, stream, and decoder arguments are passed in
-// so that the IndexSummaryIDBytesMetadata struct can be kept small, as well as
+// so that the IndexSummaryToken struct can be kept small, as well as
 // so that the caller can have control over re-use and allocations.
 func (m IndexSummaryToken) IndexOffset(
 	buf []byte, stream DecoderStream, msgpackDecoder *msgpack.Decoder) (int64, error) {
@@ -101,15 +101,14 @@ func (s *IndexSummaryTokenSortableCollection) Swap(i, j int) {
 	s.slice[j] = temp
 }
 
-// Sorted returns a sorted slice of IndexSummaryIDBytesMetadata
+// Sorted returns a sorted slice of IndexSummaryToken
 func (s *IndexSummaryTokenSortableCollection) Sorted() []IndexSummaryToken {
 	sort.Sort(s)
 	return s.slice
 }
 
-// NewIndexSummaryIDBytesMetadataSortableCollection creates a new
-// IndexSummaryIDBytesMetadataSortableCollection
-func NewIndexSummaryIDBytesMetadataSortableCollection(
+// NewIndexSummaryTokensSortableCollection creates a new IndexSummaryTokenSortableCollection
+func NewIndexSummaryTokensSortableCollection(
 	slice []IndexSummaryToken,
 	buf []byte,
 ) *IndexSummaryTokenSortableCollection {
