@@ -20,13 +20,6 @@ import (
 
 var flagParser = flag.NewFlagSet("Verify Index files", flag.ExitOnError)
 
-// TODO: Delete me
-// defaultDataReaderBufferSize is the default buffer size for reading TSDB data and index files
-const defaultDataReaderBufferSize = 65536
-
-// defaultInfoReaderBufferSize is the default buffer size for reading TSDB info, checkpoint and digest files
-const defaultInfoReaderBufferSize = 64
-
 type seriesChecksums struct {
 	host   string
 	shard  uint32
@@ -55,6 +48,10 @@ var bytesPool pool.CheckedBytesPool
 
 func main() {
 	flagParser.Parse(os.Args[1:])
+
+	log.SetOutput(os.Stdout)
+	log.Println("Initializing bytes pool...")
+	bytesPool = tools.NewCheckedBytesPool()
 
 	var (
 		pathPrefix       = *pathPrefixArg
@@ -225,10 +222,4 @@ func parseBlockArgs(blocks string) []int64 {
 	}
 
 	return allBlocks
-}
-
-func init() {
-	log.SetOutput(os.Stdout)
-	log.Println("Initializing bytes pool...")
-	bytesPool = tools.NewCheckedBytesPool()
 }
