@@ -42,7 +42,6 @@ type checksum uint32
 type series struct {
 	name     string
 	checksum checksum
-	offset   int64
 }
 
 var (
@@ -113,7 +112,7 @@ func seriesChecksumsFromReader(reader fs.FileSetReader, host string, shard uint3
 		block:  block,
 	}
 	for {
-		id, _, checksumVal, offset, err := reader.ReadMetadata()
+		id, _, checksumVal, err := reader.ReadMetadata()
 		if err == io.EOF {
 			return seriesChecksums
 		}
@@ -124,7 +123,6 @@ func seriesChecksumsFromReader(reader fs.FileSetReader, host string, shard uint3
 		seriesMap[idString] = series{
 			name:     idString,
 			checksum: checksum(checksumVal),
-			offset:   offset,
 		}
 	}
 }
@@ -161,11 +159,11 @@ func compareSeriesChecksums(against seriesMap, evaluate seriesChecksums, compare
 	}
 
 	for _, missing := range missingSeries {
-		log.Printf("Host %s is missing %s with offset: %d\n", evaluate.host, missing.name, missing.offset)
+		log.Printf("Host %s is missing %s\n", evaluate.host, missing.name)
 	}
 
 	for _, mismatch := range checksumMismatchSeries {
-		log.Printf("Host %s has mismatching checksum for %s with offset: %d\n", evaluate.host, mismatch.name, mismatch.offset)
+		log.Printf("Host %s has mismatching checksum for %s\n", evaluate.host, mismatch.name)
 	}
 }
 
@@ -180,8 +178,12 @@ func mergeMaps(seriesMaps ...seriesMap) seriesMap {
 }
 
 func newReader(namespace, pathPrefix, hostName string, shard uint32, start time.Time) (fs.FileSetReader, error) {
-	reader := fs.NewReader(path.Join(pathPrefix, hostName), defaultDataReaderBufferSize, defaultInfoReaderBufferSize, bytesPool, msgpack.NewDecodingOptions())
-	err := reader.Open(ts.StringID(namespace), shard, start)
+	fsOpts := fs.NewOptions().SetFilePathPrefix(path.Join(pathPrefix, hostName))
+	reader, err := fs.NewReader(bytesPool, fsOpts)
+	if err != nil {
+		return nil, err
+	}
+	err = reader.Open(ts.StringID(namespace), shard, start)
 	return reader, err
 }
 
