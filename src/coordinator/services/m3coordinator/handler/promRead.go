@@ -1,14 +1,14 @@
 package handler
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
-	"fmt"
 
 	"github.com/m3db/m3coordinator/generated/proto/prometheus/prompb"
 
-	"github.com/golang/snappy"
 	"github.com/golang/protobuf/proto"
+	"github.com/golang/snappy"
 )
 
 // PromReadHandler represents a handler for prometheus read endpoint.
