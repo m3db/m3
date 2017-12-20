@@ -34,8 +34,10 @@ type SimpleAuthConfig struct {
 
 // authenticationConfig holds this configuration necessary for a simple authentication implementation.
 type authenticationConfig struct {
-	// This is an http header that identifies the user performing the operation.
+	// This is an HTTP header that identifies the user performing the operation.
 	UserIDHeader string `yaml:"userIDHeader" validate:"nonzero"`
+	// This is an HTTP header that identifies the user originating the operation.
+	OriginatorIDHeader string `yaml:"originatorIDHeader"`
 }
 
 // authorizationConfig holds this configuration necessary for a simple authorization implementation.
@@ -54,7 +56,8 @@ type authorizationConfig struct {
 func (ac SimpleAuthConfig) NewSimpleAuth() HTTPAuthService {
 	return simpleAuth{
 		authentication: simpleAuthentication{
-			userIDHeader: ac.Authentication.UserIDHeader,
+			userIDHeader:       ac.Authentication.UserIDHeader,
+			originatorIDHeader: ac.Authentication.OriginatorIDHeader,
 		},
 		authorization: simpleAuthorization{
 			readWhitelistEnabled:    ac.Authorization.ReadWhitelistEnabled,
@@ -71,7 +74,8 @@ type simpleAuth struct {
 }
 
 type simpleAuthentication struct {
-	userIDHeader string
+	userIDHeader       string
+	originatorIDHeader string
 }
 
 func (a simpleAuthentication) authenticate(userID string) error {
@@ -116,8 +120,14 @@ func (a simpleAuthorization) authorizeUser(useWhitelist bool, whitelistedUsers [
 // Otherwise, it returns an Unauthorized http response.
 func (a simpleAuth) NewAuthHandler(next http.Handler, errHandler errorResponseHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		userID := r.Header.Get(a.authentication.userIDHeader)
-		err := a.authentication.authenticate(userID)
+		var (
+			userID       = r.Header.Get(a.authentication.userIDHeader)
+			originatorID = r.Header.Get(a.authentication.originatorIDHeader)
+		)
+		if originatorID == "" {
+			originatorID = userID
+		}
+		err := a.authentication.authenticate(originatorID)
 		if err != nil {
 			errHandler(w, http.StatusUnauthorized, err.Error())
 			return
@@ -129,7 +139,7 @@ func (a simpleAuth) NewAuthHandler(next http.Handler, errHandler errorResponseHa
 			return
 		}
 
-		ctx := a.SetUser(r.Context(), userID)
+		ctx := a.SetUser(r.Context(), originatorID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
