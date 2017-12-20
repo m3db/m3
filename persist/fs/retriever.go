@@ -259,12 +259,12 @@ func (r *blockRetriever) fetchBatch(
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
 	for _, req := range reqs {
-		seekOffset, err := seeker.SeekOffset(req.id)
+		entry, err := seeker.SeekIndexEntry(req.id)
 		if err != nil && err != errSeekIDNotFound {
 			req.onError(err)
 			continue
 		}
-		req.seekOffset = seekOffset
+		req.indexEntry = entry
 	}
 	sort.Sort(retrieveRequestByOffsetAsc(reqs))
 
@@ -273,7 +273,7 @@ func (r *blockRetriever) fetchBatch(
 		// TODO: This is wasteful because we've already scanned through the index
 		// file in SeekOffset, and now we're doing it again. Optimize this so we
 		// only do it once (allow the offset to be injected)
-		data, err := seeker.Seek(req.id)
+		data, err := seeker.SeekByIndexEntry(req.indexEntry)
 		if err != nil && err != errSeekIDNotFound {
 			req.onError(err)
 			continue
@@ -429,7 +429,7 @@ type retrieveRequest struct {
 	start      time.Time
 	onRetrieve block.OnRetrieveBlock
 
-	seekOffset int
+	indexEntry IndexEntry
 	reader     xio.SegmentReader
 	err        error
 }
@@ -475,7 +475,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.id = nil
 	req.start = time.Time{}
 	req.onRetrieve = nil
-	req.seekOffset = -1
+	req.indexEntry = IndexEntry{}
 	req.reader = nil
 	req.err = nil
 }
@@ -496,7 +496,7 @@ type retrieveRequestByOffsetAsc []*retrieveRequest
 func (r retrieveRequestByOffsetAsc) Len() int      { return len(r) }
 func (r retrieveRequestByOffsetAsc) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 func (r retrieveRequestByOffsetAsc) Less(i, j int) bool {
-	return r[i].seekOffset < r[j].seekOffset
+	return r[i].indexEntry.Offset < r[j].indexEntry.Offset
 }
 
 type retrieveRequestPool interface {

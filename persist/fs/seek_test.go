@@ -63,7 +63,7 @@ func TestSeekEmptyIndex(t *testing.T) {
 	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, s.Entries())
-	_, err = s.Seek(ts.StringID("foo"))
+	_, err = s.SeekByID(ts.StringID("foo"))
 	assert.Error(t, err)
 	assert.Equal(t, errSeekIDNotFound, err)
 	assert.NoError(t, s.Close())
@@ -95,7 +95,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	_, err = s.Seek(ts.StringID("foo"))
+	_, err = s.SeekByID(ts.StringID("foo"))
 	assert.Error(t, err)
 	assert.Equal(t, errReadNotExpectedSize, err)
 
@@ -135,7 +135,7 @@ func TestSeekBadMarker(t *testing.T) {
 	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	_, err = s.Seek(ts.StringID("foo"))
+	_, err = s.SeekByID(ts.StringID("foo"))
 	assert.Error(t, err)
 	assert.Equal(t, errReadMarkerNotFound, err)
 
@@ -171,25 +171,25 @@ func TestSeek(t *testing.T) {
 	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	data, err := s.Seek(ts.StringID("foo3"))
+	data, err := s.SeekByID(ts.StringID("foo3"))
 	require.NoError(t, err)
 
 	data.IncRef()
 	defer data.DecRef()
 	assert.Equal(t, []byte{1, 2, 3}, data.Get())
 
-	data, err = s.Seek(ts.StringID("foo1"))
+	data, err = s.SeekByID(ts.StringID("foo1"))
 	require.NoError(t, err)
 
 	data.IncRef()
 	defer data.DecRef()
 	assert.Equal(t, []byte{1, 2, 1}, data.Get())
 
-	_, err = s.Seek(ts.StringID("foo"))
+	_, err = s.SeekByID(ts.StringID("foo"))
 	assert.Error(t, err)
 	assert.Equal(t, errSeekIDNotFound, err)
 
-	data, err = s.Seek(ts.StringID("foo2"))
+	data, err = s.SeekByID(ts.StringID("foo2"))
 	require.NoError(t, err)
 
 	data.IncRef()
@@ -229,7 +229,7 @@ func TestReuseSeeker(t *testing.T) {
 	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour))
 	assert.NoError(t, err)
 
-	data, err := s.Seek(ts.StringID("foo"))
+	data, err := s.SeekByID(ts.StringID("foo"))
 	require.NoError(t, err)
 
 	data.IncRef()
@@ -239,7 +239,7 @@ func TestReuseSeeker(t *testing.T) {
 	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	data, err = s.Seek(ts.StringID("foo"))
+	data, err = s.SeekByID(ts.StringID("foo"))
 	require.NoError(t, err)
 
 	data.IncRef()

@@ -89,10 +89,12 @@ type seeker struct {
 	indexLookup *indexLookup
 }
 
-type indexMapEntry struct {
-	size     uint32
-	checksum uint32
-	offset   int64
+// IndexEntry is an entry from the index file which can be passed to
+// SeekUsingIndexEntry to seek to the data for that entry
+type IndexEntry struct {
+	Size     uint32
+	Checksum uint32
+	Offset   int64
 }
 
 // NewSeeker returns a new seeker.
@@ -300,13 +302,22 @@ func (s *seeker) readInfo(size int) error {
 	return nil
 }
 
-func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
+// SeekByID returns the data for the specified ID. An error will be returned if the
+// ID cannot be found.
+func (s *seeker) SeekByID(id ts.ID) (checked.Bytes, error) {
 	entry, err := s.SeekIndexEntry(id)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = s.dataFd.Seek(entry.offset, 0)
+	return s.SeekByIndexEntry(entry)
+}
+
+// SeekByIndexEntry is similar to Seek, but uses the provided IndexEntry
+// instead of looking it up on its own. Useful in cases where you've already
+// obtained an entry and don't want to waste resources looking it up again.
+func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
+	_, err := s.dataFd.Seek(entry.Offset, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -323,12 +334,12 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 
 	var data checked.Bytes
 	if s.bytesPool != nil {
-		data = s.bytesPool.Get(int(entry.size))
+		data = s.bytesPool.Get(int(entry.Size))
 		data.IncRef()
 		defer data.DecRef()
-		data.Resize(int(entry.size))
+		data.Resize(int(entry.Size))
 	} else {
-		data = checked.NewBytes(make([]byte, entry.size), nil)
+		data = checked.NewBytes(make([]byte, entry.Size), nil)
 		data.IncRef()
 		defer data.DecRef()
 	}
@@ -340,7 +351,7 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 
 	// In case the buffered reader only returns what's remaining in
 	// the buffer, repeatedly read what's left in the underlying reader.
-	for n < int(entry.size) {
+	for n < int(entry.Size) {
 		b := data.Get()[n:]
 		remainder, err := s.dataReader.Read(b)
 
@@ -352,28 +363,28 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 		n += remainder
 	}
 
-	if n != int(entry.size) {
+	if n != int(entry.Size) {
 		return nil, errReadNotExpectedSize
 	}
 
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
-	if entry.checksum != digest.Checksum(data.Get()) {
+	if entry.Checksum != digest.Checksum(data.Get()) {
 		return nil, errSeekChecksumMismatch
 	}
 
 	return data, nil
 }
 
-func (s *seeker) SeekIndexEntry(id ts.ID) (indexMapEntry, error) {
+func (s *seeker) SeekIndexEntry(id ts.ID) (IndexEntry, error) {
 	offset, ok, err := s.indexLookup.getNearestIndexFileOffset(id)
 	// Should never happen, either something is really wrong with the code or
 	// the file on disk was corrupted
 	if err != nil {
-		return indexMapEntry{}, err
+		return IndexEntry{}, err
 	}
 	if !ok {
-		return indexMapEntry{}, errSeekIDNotFound
+		return IndexEntry{}, errSeekIDNotFound
 	}
 
 	stream := encoding.NewDecoderStream(s.indexMmap[offset:])
@@ -385,14 +396,14 @@ func (s *seeker) SeekIndexEntry(id ts.ID) (indexMapEntry, error) {
 		// Should never happen, either something is really wrong with the code or
 		// the file on disk was corrupted
 		if err != nil {
-			return indexMapEntry{}, err
+			return IndexEntry{}, err
 		}
 		comparison := bytes.Compare(entry.ID, id.Data().Get())
 		if comparison == 0 {
-			return indexMapEntry{
-				size:     uint32(entry.Size),
-				checksum: uint32(entry.Checksum),
-				offset:   entry.Offset,
+			return IndexEntry{
+				Size:     uint32(entry.Size),
+				Checksum: uint32(entry.Checksum),
+				Offset:   entry.Offset,
 			}, nil
 		}
 
@@ -400,24 +411,12 @@ func (s *seeker) SeekIndexEntry(id ts.ID) (indexMapEntry, error) {
 		// we're looking for doesn't exist
 		// TODO: Cover this
 		if comparison == 1 {
-			return indexMapEntry{}, errSeekIDNotFound
+			return IndexEntry{}, errSeekIDNotFound
 		}
 	}
 
 	// TODO: Cover this
-	return indexMapEntry{}, errSeekIDNotFound
-}
-
-// SeekOffset returns the offset in the data file for the specified id. It is
-// not safe for concurrent use.
-func (s *seeker) SeekOffset(id ts.ID) (int, error) {
-	entry, err := s.SeekIndexEntry(id)
-	// Should never happen, either something is really wrong with the code or
-	// the file on disk was corrupted
-	if err != nil {
-		return -1, err
-	}
-	return int(entry.offset), nil
+	return IndexEntry{}, errSeekIDNotFound
 }
 
 func (s *seeker) Range() xtime.Range {
