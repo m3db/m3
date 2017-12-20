@@ -404,8 +404,6 @@ func (s *seeker) SeekIndexEntry(id ts.ID) (indexMapEntry, error) {
 		}
 	}
 
-	// This should never happen because if we find an ID in the summary file, it
-	// should definitely be in the index file
 	// TODO: Cover this
 	return indexMapEntry{}, errSeekIDNotFound
 }
