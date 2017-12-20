@@ -32,15 +32,31 @@ import (
 )
 
 var (
-	testConfig = SimpleAuthConfig{
+	testUser               = "testUser"
+	testOriginator         = "testOriginator"
+	testUserIDHeader       = "testUserIDHeader"
+	testOriginatorIDHeader = "testOriginatorIDHeader"
+	testConfig             = SimpleAuthConfig{
 		Authentication: authenticationConfig{
 			UserIDHeader: "testHeader",
 		},
 		Authorization: authorizationConfig{
 			ReadWhitelistEnabled:    true,
 			WriteWhitelistEnabled:   false,
-			ReadWhitelistedUserIDs:  []string{"testUser"},
+			ReadWhitelistedUserIDs:  []string{testUser},
 			WriteWhitelistedUserIDs: []string{},
+		},
+	}
+	testConfigWithOriginatorID = SimpleAuthConfig{
+		Authentication: authenticationConfig{
+			UserIDHeader:       testUserIDHeader,
+			OriginatorIDHeader: testOriginatorIDHeader,
+		},
+		Authorization: authorizationConfig{
+			ReadWhitelistEnabled:    true,
+			WriteWhitelistEnabled:   true,
+			ReadWhitelistedUserIDs:  []string{},
+			WriteWhitelistedUserIDs: []string{testUser},
 		},
 	}
 )
@@ -147,6 +163,26 @@ func TestAuthenticateFailure(t *testing.T) {
 	wrappedCall := a.NewAuthHandler(f, writeAPIResponse)
 	wrappedCall.ServeHTTP(recorder, &http.Request{})
 	require.Equal(t, http.StatusUnauthorized, recorder.Code)
+	require.Equal(t, "application/json", recorder.HeaderMap["Content-Type"][0])
+}
+
+func TestAuthenticateWithOriginatorID(t *testing.T) {
+	req, err := http.NewRequest(http.MethodPost, "/update", nil)
+	require.NoError(t, err)
+	req.Header.Add(testUserIDHeader, testUser)
+	req.Header.Add(testOriginatorIDHeader, testOriginator)
+
+	a := testConfigWithOriginatorID.NewSimpleAuth()
+	f := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		v, err := a.GetUser(r.Context())
+		require.NoError(t, err)
+		require.Equal(t, testOriginator, v)
+		writeAPIResponse(w, http.StatusOK, "success!")
+	})
+	recorder := httptest.NewRecorder()
+	wrappedCall := a.NewAuthHandler(f, writeAPIResponse)
+	wrappedCall.ServeHTTP(recorder, req)
+	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, "application/json", recorder.HeaderMap["Content-Type"][0])
 }
 
