@@ -130,27 +130,6 @@ func TestIndexLookupWriteRead(t *testing.T) {
 			}
 		}
 
-		// Filter out any IDs from fake writes that already exist in real writes
-		fakeWrites := []generatedWrite{}
-		for _, fakeWrite := range input.fakeWrites {
-			s := string(fakeWrite.id.Data().Get())
-			if _, ok := unique[s]; ok {
-				continue
-			}
-			fakeWrites = append(fakeWrites, fakeWrite)
-		}
-
-		// // Make sure it returns false for IDs that do not exist
-		// for _, fakeWrite := range fakeWrites {
-		// 	_, ok, err := indexLookup.getNearestIndexFileOffset(fakeWrite.id)
-		// 	if err != nil {
-		// 		return false, fmt.Errorf("Err locating index file offset for: %s, err: %v", fakeWrite.id, err)
-		// 	}
-		// 	if ok {
-		// 		return false, fmt.Errorf("Found locate index file offset for: %s which should not have been found", fakeWrite.id)
-		// 	}
-		// }
-
 		return true, nil
 	}
 
@@ -186,8 +165,6 @@ func writeTestSummariesData(w FileSetWriter, writes []generatedWrite) error {
 type propTestInput struct {
 	// IDs to write and assert against
 	realWrites []generatedWrite
-	// IDs to assert can't be found in the summaries file
-	fakeWrites []generatedWrite
 	// Shard number to use for the files
 	shard uint32
 }
@@ -201,24 +178,20 @@ type generatedWrite struct {
 func genPropTestInputs() gopter.Gen {
 	return gopter.CombineGens(
 		gen.IntRange(0, 1000),
-		gen.IntRange(0, 10),
 	).FlatMap(func(input interface{}) gopter.Gen {
 		inputs := input.([]interface{})
 		numRealWrites := inputs[0].(int)
-		numFakeWrites := inputs[1].(int)
-		return genPropTestInput(numRealWrites, numFakeWrites)
+		return genPropTestInput(numRealWrites)
 	}, reflect.TypeOf(propTestInput{}))
 }
 
-func genPropTestInput(numRealWrites, numFakeWrites int) gopter.Gen {
+func genPropTestInput(numRealWrites) gopter.Gen {
 	return gopter.CombineGens(
 		gen.SliceOfN(numRealWrites, genWrite()),
-		gen.SliceOfN(numFakeWrites, genWrite()),
 		gen.UInt32(),
 	).Map(func(vals []interface{}) propTestInput {
 		return propTestInput{
 			realWrites: vals[0].([]generatedWrite),
-			fakeWrites: vals[1].([]generatedWrite),
 			shard:      vals[2].(uint32),
 		}
 	})
