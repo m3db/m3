@@ -406,19 +406,20 @@
                 
                 
                 <h1 id="m3db-a-distributed-time-series-database">M3DB, a distributed time series database</h1>
-<p>These documents provide documentation on the overview and operational guidelines for M3DB.</p>
+<p><strong>Please note:</strong> This documentation is a work in progress and more detail is required.</p>
 <h2 id="about">About</h2>
-<p>M3DB, inspired by <a href="http://www.vldb.org/pvldb/vol8/p1816-teller.pdf">Gorilla</a> and <a href="https://github.com/influxdata/influxdb">InfluxDB</a>, is a distributed time series database released as open source by <a href="http://uber.github.io">Uber Technologies</a>. It can be used for storing realtime metrics at long retention:</p>
+<p>M3DB, inspired by <a href="http://www.vldb.org/pvldb/vol8/p1816-teller.pdf">Gorilla</a> and <a href="https://github.com/influxdata/influxdb">InfluxDB</a>, is a distributed time series database released as open source by <a href="http://uber.github.io">Uber Technologies</a>. It can be used for storing realtime metrics at long retention.</p>
+<p>Here are some attributes of the project:</p>
 <ul>
-<li>Distributed hybrid in-memory and disk time series storage</li>
+<li>Distributed time series storage, single nodes use a WAL commit log and persists time windows per shard</li>
 <li>Cluster management built on top of <a href="https://github.com/coreos/etcd">etcd</a></li>
-<li>M3TSZ float64 compression inspired by Gorilla TSZ compression</li>
-<li>Arbitrary time precision down to nanosecond precision with the ability to switch precision with any write</li>
-<li>Configurable out of order writes</li>
+<li>M3TSZ float64 compression inspired by Gorilla TSZ compression, configurable as lossless or lossy</li>
+<li>Arbitrary time precision configurable from seconds to nanoseconds precision, able to switch precision with any write</li>
+<li>Configurable out of order writes, currently limited to the size of the configured time window's block size</li>
 </ul>
 <h2 id="current-limitations">Current Limitations</h2>
-<p>Due to the nature of the requirements for the project, which are primarily to reduce the cost of ingesting and storing billions of timeseries and provide fast scalable reads, there are a few limitations currently that make M3DB not suitable for use as a general purpose time series database.</p>
-<p>The project has aimed to avoid compactions when at all possible, currently the only compactions that occur are in memory for the current mutable compressed time series block (default configured at 2 hours). As such out of order writes are limited to the size of a single compressed time series block, and consequently means backfilling large amounts of data is not currently possible.</p>
+<p>Due to the nature of the requirements for the project, which are primarily to reduce the cost of ingesting and storing billions of timeseries and providing fast scalable reads, there are a few limitations currently that make M3DB not suitable for use as a general purpose time series database.</p>
+<p>The project has aimed to avoid compactions when at all possible, currently the only compactions M3DB performs are in-memory for the mutable compressed time series window (default configured at 2 hours).  As such out of order writes are limited to the size of a single compressed time series window.  Consequently backfilling large amounts of data is not currently possible.</p>
 <p>The project has also has optimized for the storage and retrieval of float64 values, as such there is no way to use it as a general time series database of arbitrary data structures just yet.</p>
                 
                   
