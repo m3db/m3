@@ -162,6 +162,10 @@ type ReaderWithDigest interface {
 	// Reset resets the reader for use with a new reader.
 	Reset(reader io.Reader)
 
+	// Resume resets the reader for use with a previous reader
+	// and the incremental digest that was calculated before interruption.
+	Resume(reader io.Reader, checksum uint32)
+
 	// Digest returns the digest.
 	Digest() hash.Hash32
 
@@ -172,7 +176,7 @@ type ReaderWithDigest interface {
 
 type readerWithDigest struct {
 	reader io.Reader
-	digest hash.Hash32
+	digest hash32
 }
 
 // NewReaderWithDigest creates a new reader that calculates a digest as it
@@ -180,13 +184,18 @@ type readerWithDigest struct {
 func NewReaderWithDigest(reader io.Reader) ReaderWithDigest {
 	return &readerWithDigest{
 		reader: reader,
-		digest: NewDigest(),
+		digest: newAdler32(),
 	}
 }
 
 func (r *readerWithDigest) Reset(reader io.Reader) {
 	r.reader = reader
 	r.digest.Reset()
+}
+
+func (r *readerWithDigest) Resume(reader io.Reader, checksum uint32) {
+	r.reader = reader
+	r.digest.ResetTo(checksum)
 }
 
 func (r *readerWithDigest) Digest() hash.Hash32 {

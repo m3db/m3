@@ -198,9 +198,6 @@ func Run(runOpts RunOptions) {
 		SetRetentionPeriod(cfg.CommitLog.RetentionPeriod).
 		SetBlockSize(cfg.CommitLog.BlockSize))
 
-	// Apply pooling options
-	opts = withEncodingAndPoolingOptions(logger, opts, cfg.PoolingPolicy)
-
 	// Set the series cache policy
 	seriesCachePolicy := cfg.Cache.SeriesConfiguration().Policy
 	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
@@ -228,6 +225,9 @@ func Run(runOpts RunOptions) {
 			})
 		opts = opts.SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
 	}
+
+	// Apply pooling options
+	opts = withEncodingAndPoolingOptions(logger, opts, cfg.PoolingPolicy)
 
 	// Set the persistence manager
 	pm, err := fs.NewPersistManager(fsopts)

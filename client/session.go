@@ -84,10 +84,14 @@ const (
 	FetchBlocksMetadataEndpointV2
 )
 
-var validFetchBlocksMetadataEndpoints = []FetchBlocksMetadataEndpointVersion{
-	FetchBlocksMetadataEndpointV1,
-	FetchBlocksMetadataEndpointV2,
-}
+var (
+	validFetchBlocksMetadataEndpoints = []FetchBlocksMetadataEndpointVersion{
+		FetchBlocksMetadataEndpointV1,
+		FetchBlocksMetadataEndpointV2,
+	}
+	errFetchBlocksMetadataEndpointVersionUnspecified = errors.New(
+		"fetch blocks metadata endpoint version unspecified")
+)
 
 var (
 	// ErrClusterConnectTimeout is raised when connecting to the cluster and
@@ -3182,4 +3186,33 @@ func IsValidFetchBlocksMetadataEndpoint(endpointVersion FetchBlocksMetadataEndpo
 		}
 	}
 	return false
+}
+
+// UnmarshalYAML unmarshals an FetchBlocksMetadataEndpointVersion into a valid type from string.
+func (p *FetchBlocksMetadataEndpointVersion) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	if str == "" {
+		return errFetchBlocksMetadataEndpointVersionUnspecified
+	}
+	for _, valid := range validFetchBlocksMetadataEndpoints {
+		if str == valid.String() {
+			*p = valid
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid series CachePolicy '%s' valid types are: %v",
+		str, validFetchBlocksMetadataEndpoints)
+}
+
+func (v FetchBlocksMetadataEndpointVersion) String() string {
+	switch v {
+	case FetchBlocksMetadataEndpointV1:
+		return "v1"
+	case FetchBlocksMetadataEndpointV2:
+		return "v2"
+	}
+	return "unknown"
 }

@@ -165,6 +165,12 @@ type Options interface {
 	// DatabaseBlockOptions returns the database block options
 	DatabaseBlockOptions() block.Options
 
+	// SetCachePolicy sets the series cache policy
+	SetCachePolicy(value CachePolicy) Options
+
+	// CachePolicy returns the series cache policy
+	CachePolicy() CachePolicy
+
 	// SetContextPool sets the contextPool
 	SetContextPool(value context.Pool) Options
 

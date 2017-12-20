@@ -22,7 +22,6 @@ package digest
 
 import (
 	"hash"
-	"hash/adler32"
 
 	"github.com/m3db/m3db/ts"
 )
@@ -30,12 +29,7 @@ import (
 // NewDigest creates a new digest.
 // The default 32-bit hashing algorithm is adler32.
 func NewDigest() hash.Hash32 {
-	return adler32.New()
-}
-
-// Checksum returns the 32-bit data checksum.
-func Checksum(data []byte) uint32 {
-	return adler32.Checksum(data)
+	return newAdler32()
 }
 
 // SegmentChecksum returns the 32-bit checksum for a segment.

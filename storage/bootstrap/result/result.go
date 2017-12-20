@@ -179,6 +179,11 @@ func (sr *shardResult) BlockAt(id ts.ID, t time.Time) (block.DatabaseBlock, bool
 	return series.Blocks.BlockAt(t)
 }
 
+func (sr *shardResult) RemoveAll() {
+	// Faster to set to new instance of map then actually delete all entries
+	sr.blocks = make(map[ts.Hash]DatabaseSeriesBlocks)
+}
+
 // Close closes a shard result.
 func (sr *shardResult) Close() {
 	for _, series := range sr.blocks {

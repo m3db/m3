@@ -67,6 +67,14 @@ type FileSetReader interface {
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
 	ReadMetadata() (id ts.ID, length int, checksum uint32, err error)
 
+	// ReadMetadataPosition returns the current position into the index volume
+	// when reading metadata.
+	ReadMetadataPosition() ReadMetadataPosition
+
+	// ResetReadMetadataPosition resets the current position into the index
+	// volume for continuing to read metadata from a previous position.
+	ResetReadMetadataPosition(position ReadMetadataPosition) error
+
 	// Validate validates the data and returns an error if the data are corrupted
 	Validate() error
 
@@ -78,6 +86,16 @@ type FileSetReader interface {
 
 	// EntriesRead returns the position read into the volume
 	EntriesRead() int
+}
+
+// ReadMetadataPosition describes a position into metadata when reading
+// metadata using a FileSetReader. It can be used to resume reading metadata
+// from a volume at a later time.
+type ReadMetadataPosition struct {
+	Entries  int64
+	Read     int64
+	Offset   int64
+	Checksum uint32
 }
 
 // FileSetSeeker provides an out of order reader for a TSDB file set

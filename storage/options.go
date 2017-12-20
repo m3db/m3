@@ -93,6 +93,7 @@ func NewSeriesOptionsFromOptions(opts Options, ropts retention.Options) series.O
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetRetentionOptions(ropts).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
+		SetCachePolicy(opts.SeriesCachePolicy()).
 		SetContextPool(opts.ContextPool()).
 		SetEncoderPool(opts.EncoderPool()).
 		SetMultiReaderIteratorPool(opts.MultiReaderIteratorPool()).
@@ -158,7 +159,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		maxFlushRetries:                defaultMaxFlushRetries,
 		poolOpts:                       poolOpts,
 		contextPool:                    context.NewPool(poolOpts, poolOpts),
-		seriesCachePolicy:              series.DefaultCachePolicy(),
+		seriesCachePolicy:              series.DefaultCachePolicy,
 		seriesOpts:                     seriesOpts,
 		seriesPool:                     series.NewDatabaseSeriesPool(poolOpts),
 		bytesPool:                      bytesPool,

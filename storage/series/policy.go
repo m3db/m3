@@ -25,6 +25,11 @@ import (
 	"fmt"
 )
 
+const (
+	// DefaultCachePolicy is the default cache policy.
+	DefaultCachePolicy = CacheRecentlyRead
+)
+
 var (
 	errCachePolicyUnspecified = errors.New("series cache policy unspecified")
 )
@@ -37,20 +42,20 @@ const (
 	// which requires loading all into cache on bootstrap and never
 	// expiring series from memory until expired from retention.
 	CacheAll CachePolicy = iota
+	// CacheAllMetadata specifies that all series metadata but not the
+	// data itself must be cached at all times and the metadata is never
+	// expired from memory until expired from retention.
+	// TODO: Remove this once recently read is production grade.
+	CacheAllMetadata
 	// CacheRecentlyRead specifies that series that are recently read
 	// must be cached, configurable by the namespace block expiry after
 	// not accessed period.
 	CacheRecentlyRead
 )
 
-// DefaultCachePolicy returns the default cache policy.
-func DefaultCachePolicy() CachePolicy {
-	return CacheRecentlyRead
-}
-
 // ValidCachePolicies returns the valid series cache policies.
 func ValidCachePolicies() []CachePolicy {
-	return []CachePolicy{CacheAll, CacheRecentlyRead}
+	return []CachePolicy{CacheAll, CacheAllMetadata, CacheRecentlyRead}
 }
 
 // ValidateCachePolicy validates a cache policy.
@@ -73,6 +78,8 @@ func (p CachePolicy) String() string {
 	switch p {
 	case CacheAll:
 		return "all"
+	case CacheAllMetadata:
+		return "all_metadata"
 	case CacheRecentlyRead:
 		return "recently_read"
 	}

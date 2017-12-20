@@ -175,10 +175,6 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		r.Close()
 		return err
 	}
-	if err := r.readIndex(); err != nil {
-		r.Close()
-		return err
-	}
 	return nil
 }
 
@@ -241,7 +237,7 @@ func (r *reader) readInfo(size int) error {
 	return nil
 }
 
-func (r *reader) readIndex() error {
+func (r *reader) readIndexAndSortByOffsetAsc() error {
 	r.decoder.Reset(r.indexDecoderStream)
 	for i := 0; i < r.entries; i++ {
 		entry, err := r.decoder.DecodeIndexEntry()
@@ -258,6 +254,14 @@ func (r *reader) readIndex() error {
 
 func (r *reader) Read() (ts.ID, checked.Bytes, uint32, error) {
 	var none ts.ID
+	if r.entries > 0 && len(r.indexEntriesByOffsetAsc) < r.entries {
+		// Have not read the index yet, this is required when reading
+		// data as we need each index entry in order by by the offset ascending
+		if err := r.readIndexAndSortByOffsetAsc(); err != nil {
+			return none, nil, 0, err
+		}
+	}
+
 	if r.entriesRead >= r.entries {
 		return none, nil, 0, io.EOF
 	}
@@ -309,10 +313,38 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 	if r.metadataRead >= r.entries {
 		return none, 0, 0, io.EOF
 	}
+	if r.metadataRead == 0 {
+		// Reset the decoder the first time
+		r.decoder.Reset(r.indexDecoderStream)
+	}
 
-	entry := r.indexEntriesByOffsetAsc[r.metadataRead]
+	entry, err := r.decoder.DecodeIndexEntry()
+	if err != nil {
+		return none, 0, 0, err
+	}
+
 	r.metadataRead++
 	return r.entryID(entry.ID), int(entry.Size), uint32(entry.Checksum), nil
+}
+
+func (r *reader) ReadMetadataPosition() ReadMetadataPosition {
+	return ReadMetadataPosition{
+		Entries: int64(r.entries),
+		Read: int64(r.metadataRead),
+		Offset: int64(len(r.indexMmap)) - r.indexDecoderStream.Remaining(),
+		Checksum: r.indexDecoderStream.reader().Digest().Sum32(),
+	}
+}
+
+func (r *reader) ResetReadMetadataPosition(pos ReadMetadataPosition) error {
+	err := r.indexDecoderStream.resume(r.indexMmap, pos.Offset, uint32(pos.Checksum))
+	if err != nil {
+		return err
+	}
+	r.decoder.Reset(r.indexDecoderStream)
+	r.entries = int(pos.Entries)
+	r.metadataRead = int(pos.Read)
+	return nil
 }
 
 func (r *reader) entryID(id []byte) ts.ID {
@@ -364,10 +396,15 @@ func (r *reader) EntriesRead() int {
 }
 
 func (r *reader) Close() error {
+	r.entries = 0
+	r.entriesRead = 0
+	r.metadataRead = 0
+	r.indexDecoderStream.Reset(nil)
 	for i := 0; i < len(r.indexEntriesByOffsetAsc); i++ {
 		r.indexEntriesByOffsetAsc[i].ID = nil
 	}
 	r.indexEntriesByOffsetAsc = r.indexEntriesByOffsetAsc[:0]
+	r.dataReader.Reset(bytes.NewReader(nil))
 
 	multiErr := xerrors.NewMultiError()
 

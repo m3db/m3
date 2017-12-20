@@ -45,6 +45,9 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+// PageToken is an opaque paging token.
+type PageToken []byte
+
 // Database is a time series database
 type Database interface {
 	// Options returns the database options
@@ -114,6 +117,19 @@ type Database interface {
 		pageToken int64,
 		opts block.FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResults, *int64, error)
+
+	// FetchBlocksMetadata retrieves blocks metadata for a given shard, returns the
+	// fetched block metadata results, the next page token, and any error encountered.
+	// If we have fetched all the block metadata, we return nil as the next page token.
+	FetchBlocksMetadataV2(
+		ctx context.Context,
+		namespace ts.ID,
+		shard uint32,
+		start, end time.Time,
+		limit int64,
+		pageToken PageToken,
+		opts block.FetchBlocksMetadataOptions,
+	) (block.FetchBlocksMetadataResults, PageToken, error)
 
 	// Bootstrap bootstraps the database.
 	Bootstrap() error
@@ -216,6 +232,16 @@ type databaseNamespace interface {
 		opts block.FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResults, *int64, error)
 
+	// FetchBlocksMetadata retrieves blocks metadata.
+	FetchBlocksMetadataV2(
+		ctx context.Context,
+		shardID uint32,
+		start, end time.Time,
+		limit int64,
+		pageToken PageToken,
+		opts block.FetchBlocksMetadataOptions,
+	) (block.FetchBlocksMetadataResults, PageToken, error)
+
 	// Bootstrap performs bootstrapping
 	Bootstrap(
 		process bootstrap.Process,
@@ -288,6 +314,15 @@ type databaseShard interface {
 		pageToken int64,
 		opts block.FetchBlocksMetadataOptions,
 	) (block.FetchBlocksMetadataResults, *int64)
+
+	// FetchBlocksMetadataV2 retrieves blocks metadata.
+	FetchBlocksMetadataV2(
+		ctx context.Context,
+		start, end time.Time,
+		limit int64,
+		pageToken PageToken,
+		opts block.FetchBlocksMetadataOptions,
+	) (block.FetchBlocksMetadataResults, PageToken, error)
 
 	Bootstrap(
 		bootstrappedSeries map[ts.Hash]result.DatabaseSeriesBlocks,

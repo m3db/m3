@@ -35,6 +35,9 @@ type filesetReaderDecoderStream interface {
 	// reader returns the underlying reader with access to the
 	// incremental computed digest
 	reader() digest.ReaderWithDigest
+
+	// resume allows reseting and resuming to a previous position
+	resume(d []byte, offset int64, checksum uint32) error
 }
 
 type readerDecoderStream struct {
@@ -63,6 +66,18 @@ func (s *readerDecoderStream) Reset(d []byte) {
 	s.backingBytes = d
 	s.lastReadByte = -1
 	s.unreadByte = -1
+}
+
+func (s *readerDecoderStream) resume(d []byte, offset int64, checksum uint32) error {
+	if offset >= int64(len(d)) {
+		return fmt.Errorf("offset %d is invalid for size: %d bytes", offset, len(d))
+	}
+	s.bytesReader.Reset(d[offset:])
+	s.readerWithDigest.Resume(s.bytesReader, checksum)
+	s.backingBytes = d
+	s.lastReadByte = -1
+	s.unreadByte = -1
+	return nil
 }
 
 func (s *readerDecoderStream) Read(p []byte) (int, error) {

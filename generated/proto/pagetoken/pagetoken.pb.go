@@ -49,7 +49,10 @@ var _ = math.Inf
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
 type PageToken struct {
-	ShardIndex int64 `protobuf:"varint,1,opt,name=shardIndex" json:"shardIndex,omitempty"`
+	// Types that are valid to be assigned to Phase:
+	//	*PageToken_ActiveSeriesPhase_
+	//	*PageToken_FlushedSeriesPhase_
+	Phase isPageToken_Phase `protobuf_oneof:"phase"`
 }
 
 func (m *PageToken) Reset()                    { *m = PageToken{} }
@@ -57,18 +60,163 @@ func (m *PageToken) String() string            { return proto.CompactTextString(
 func (*PageToken) ProtoMessage()               {}
 func (*PageToken) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
+type isPageToken_Phase interface {
+	isPageToken_Phase()
+}
+
+type PageToken_ActiveSeriesPhase_ struct {
+	ActiveSeriesPhase *PageToken_ActiveSeriesPhase `protobuf:"bytes,1,opt,name=active_series_phase,json=activeSeriesPhase,oneof"`
+}
+type PageToken_FlushedSeriesPhase_ struct {
+	FlushedSeriesPhase *PageToken_FlushedSeriesPhase `protobuf:"bytes,2,opt,name=flushed_series_phase,json=flushedSeriesPhase,oneof"`
+}
+
+func (*PageToken_ActiveSeriesPhase_) isPageToken_Phase()  {}
+func (*PageToken_FlushedSeriesPhase_) isPageToken_Phase() {}
+
+func (m *PageToken) GetPhase() isPageToken_Phase {
+	if m != nil {
+		return m.Phase
+	}
+	return nil
+}
+
+func (m *PageToken) GetActiveSeriesPhase() *PageToken_ActiveSeriesPhase {
+	if x, ok := m.GetPhase().(*PageToken_ActiveSeriesPhase_); ok {
+		return x.ActiveSeriesPhase
+	}
+	return nil
+}
+
+func (m *PageToken) GetFlushedSeriesPhase() *PageToken_FlushedSeriesPhase {
+	if x, ok := m.GetPhase().(*PageToken_FlushedSeriesPhase_); ok {
+		return x.FlushedSeriesPhase
+	}
+	return nil
+}
+
+// XXX_OneofFuncs is for the internal use of the proto package.
+func (*PageToken) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
+	return _PageToken_OneofMarshaler, _PageToken_OneofUnmarshaler, _PageToken_OneofSizer, []interface{}{
+		(*PageToken_ActiveSeriesPhase_)(nil),
+		(*PageToken_FlushedSeriesPhase_)(nil),
+	}
+}
+
+func _PageToken_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
+	m := msg.(*PageToken)
+	// phase
+	switch x := m.Phase.(type) {
+	case *PageToken_ActiveSeriesPhase_:
+		b.EncodeVarint(1<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.ActiveSeriesPhase); err != nil {
+			return err
+		}
+	case *PageToken_FlushedSeriesPhase_:
+		b.EncodeVarint(2<<3 | proto.WireBytes)
+		if err := b.EncodeMessage(x.FlushedSeriesPhase); err != nil {
+			return err
+		}
+	case nil:
+	default:
+		return fmt.Errorf("PageToken.Phase has unexpected type %T", x)
+	}
+	return nil
+}
+
+func _PageToken_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
+	m := msg.(*PageToken)
+	switch tag {
+	case 1: // phase.active_series_phase
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(PageToken_ActiveSeriesPhase)
+		err := b.DecodeMessage(msg)
+		m.Phase = &PageToken_ActiveSeriesPhase_{msg}
+		return true, err
+	case 2: // phase.flushed_series_phase
+		if wire != proto.WireBytes {
+			return true, proto.ErrInternalBadWireType
+		}
+		msg := new(PageToken_FlushedSeriesPhase)
+		err := b.DecodeMessage(msg)
+		m.Phase = &PageToken_FlushedSeriesPhase_{msg}
+		return true, err
+	default:
+		return false, nil
+	}
+}
+
+func _PageToken_OneofSizer(msg proto.Message) (n int) {
+	m := msg.(*PageToken)
+	// phase
+	switch x := m.Phase.(type) {
+	case *PageToken_ActiveSeriesPhase_:
+		s := proto.Size(x.ActiveSeriesPhase)
+		n += proto.SizeVarint(1<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case *PageToken_FlushedSeriesPhase_:
+		s := proto.Size(x.FlushedSeriesPhase)
+		n += proto.SizeVarint(2<<3 | proto.WireBytes)
+		n += proto.SizeVarint(uint64(s))
+		n += s
+	case nil:
+	default:
+		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
+	}
+	return n
+}
+
+type PageToken_ActiveSeriesPhase struct {
+	IndexCursor int64 `protobuf:"varint,1,opt,name=indexCursor" json:"indexCursor,omitempty"`
+}
+
+func (m *PageToken_ActiveSeriesPhase) Reset()                    { *m = PageToken_ActiveSeriesPhase{} }
+func (m *PageToken_ActiveSeriesPhase) String() string            { return proto.CompactTextString(m) }
+func (*PageToken_ActiveSeriesPhase) ProtoMessage()               {}
+func (*PageToken_ActiveSeriesPhase) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0, 0} }
+
+type PageToken_FlushedSeriesPhase struct {
+	CurrBlockStartUnixNanos int64 `protobuf:"varint,1,opt,name=currBlockStartUnixNanos" json:"currBlockStartUnixNanos,omitempty"`
+	CurrBlockIndexEntries   int64 `protobuf:"varint,2,opt,name=currBlockIndexEntries" json:"currBlockIndexEntries,omitempty"`
+	CurrBlockIndexRead      int64 `protobuf:"varint,3,opt,name=currBlockIndexRead" json:"currBlockIndexRead,omitempty"`
+	CurrBlockIndexOffset    int64 `protobuf:"varint,4,opt,name=currBlockIndexOffset" json:"currBlockIndexOffset,omitempty"`
+	CurrBlockIndexChecksum  int64 `protobuf:"varint,5,opt,name=currBlockIndexChecksum" json:"currBlockIndexChecksum,omitempty"`
+}
+
+func (m *PageToken_FlushedSeriesPhase) Reset()                    { *m = PageToken_FlushedSeriesPhase{} }
+func (m *PageToken_FlushedSeriesPhase) String() string            { return proto.CompactTextString(m) }
+func (*PageToken_FlushedSeriesPhase) ProtoMessage()               {}
+func (*PageToken_FlushedSeriesPhase) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0, 1} }
+
 func init() {
 	proto.RegisterType((*PageToken)(nil), "pagetoken.PageToken")
+	proto.RegisterType((*PageToken_ActiveSeriesPhase)(nil), "pagetoken.PageToken.ActiveSeriesPhase")
+	proto.RegisterType((*PageToken_FlushedSeriesPhase)(nil), "pagetoken.PageToken.FlushedSeriesPhase")
 }
 
 func init() { proto.RegisterFile("pagetoken.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 84 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0xe2, 0x2f, 0x48, 0x4c, 0x4f,
-	0x2d, 0xc9, 0xcf, 0x4e, 0xcd, 0xd3, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0xe2, 0x84, 0x0b, 0x28,
-	0x69, 0x73, 0x71, 0x06, 0x24, 0xa6, 0xa7, 0x86, 0x80, 0x38, 0x42, 0x72, 0x5c, 0x5c, 0xc5, 0x19,
-	0x89, 0x45, 0x29, 0x9e, 0x79, 0x29, 0xa9, 0x15, 0x12, 0x8c, 0x0a, 0x8c, 0x1a, 0xcc, 0x41, 0x48,
-	0x22, 0x49, 0x6c, 0x60, 0xed, 0xc6, 0x80, 0x00, 0x00, 0x00, 0xff, 0xff, 0x9c, 0x7d, 0x8f, 0x81,
-	0x51, 0x00, 0x00, 0x00,
+	// 288 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x74, 0x92, 0x4d, 0x4f, 0x83, 0x40,
+	0x10, 0x86, 0x6d, 0x69, 0x35, 0x9d, 0x1e, 0x4c, 0xc7, 0xaa, 0xa4, 0xa7, 0xc6, 0x83, 0x7a, 0xe2,
+	0x50, 0x3f, 0xe2, 0xd5, 0x36, 0x1a, 0xbd, 0x68, 0x43, 0x35, 0x31, 0xf1, 0xd0, 0xac, 0x30, 0x14,
+	0x42, 0x65, 0xc9, 0xee, 0x62, 0xfa, 0x73, 0xbc, 0xf8, 0x3f, 0x0d, 0xa3, 0x41, 0x29, 0xf4, 0xc8,
+	0xfb, 0xcc, 0xfb, 0x0c, 0x13, 0x80, 0xdd, 0x54, 0x2c, 0xc8, 0xc8, 0x98, 0x12, 0x27, 0x55, 0xd2,
+	0x48, 0xec, 0x14, 0xc1, 0xd1, 0x57, 0x0b, 0x3a, 0x53, 0xb1, 0xa0, 0xa7, 0xfc, 0x09, 0x5f, 0x60,
+	0x4f, 0x78, 0x26, 0xfa, 0xa0, 0xb9, 0x26, 0x15, 0x91, 0x9e, 0xa7, 0xa1, 0xd0, 0x64, 0x37, 0x86,
+	0x8d, 0xd3, 0xee, 0xe8, 0xd8, 0xf9, 0xf3, 0x14, 0x15, 0xe7, 0x9a, 0xe7, 0x67, 0x3c, 0x3e, 0xcd,
+	0xa7, 0xef, 0xb6, 0xdc, 0x9e, 0x58, 0x0f, 0xf1, 0x15, 0xfa, 0xc1, 0x32, 0xd3, 0x21, 0xf9, 0x65,
+	0x75, 0x93, 0xd5, 0x27, 0xb5, 0xea, 0xdb, 0x9f, 0x42, 0xd9, 0x8d, 0x41, 0x25, 0x1d, 0x5c, 0x40,
+	0xaf, 0xf2, 0x1a, 0x38, 0x84, 0x6e, 0x94, 0xf8, 0xb4, 0x9a, 0x64, 0x4a, 0x4b, 0xc5, 0x37, 0x58,
+	0xee, 0xff, 0x68, 0xf0, 0xd9, 0x04, 0xac, 0xee, 0xc0, 0x2b, 0x38, 0xf4, 0x32, 0xa5, 0xc6, 0x4b,
+	0xe9, 0xc5, 0x33, 0x23, 0x94, 0x79, 0x4e, 0xa2, 0xd5, 0x83, 0x48, 0xa4, 0xfe, 0x95, 0x6c, 0xc2,
+	0x78, 0x0e, 0xfb, 0x05, 0xba, 0xcf, 0x17, 0xdd, 0x24, 0x26, 0xf7, 0xf2, 0x95, 0x96, 0x5b, 0x0f,
+	0xd1, 0x01, 0x2c, 0x03, 0x97, 0x84, 0x6f, 0x5b, 0x5c, 0xa9, 0x21, 0x38, 0x82, 0x7e, 0x39, 0x7d,
+	0x0c, 0x02, 0x4d, 0xc6, 0x6e, 0x71, 0xa3, 0x96, 0xe1, 0x25, 0x1c, 0x94, 0xf3, 0x49, 0x48, 0x5e,
+	0xac, 0xb3, 0x77, 0xbb, 0xcd, 0xad, 0x0d, 0x74, 0xbc, 0x03, 0x6d, 0xfe, 0x4e, 0x6f, 0xdb, 0xfc,
+	0xe7, 0x9c, 0x7d, 0x07, 0x00, 0x00, 0xff, 0xff, 0xea, 0xf4, 0x4c, 0xb4, 0x4c, 0x02, 0x00, 0x00,
 }

@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	xlog "github.com/m3db/m3x/log"
@@ -183,7 +185,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 		s.processors.Go(func() {
 			defer wg.Done()
 			s.loadShardReadersDataIntoShardResult(
-				resultLock, bootstrapResult, bopts, shardRetrieverMgr, retriever, shardReaders, readerPool)
+				resultLock, bootstrapResult, bopts, shardRetrieverMgr, shardReaders, readerPool)
 		})
 	}
 	wg.Wait()
@@ -254,15 +256,15 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	bootstrapResult result.BootstrapResult,
 	bopts result.Options,
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
-	retriever block.DatabaseBlockRetriever,
 	shardReaders shardReaders,
 	readerPool *readerPool,
 ) {
 	var (
-		timesWithErrors []time.Time
-		shardResult     result.ShardResult
-		shardRetriever  block.DatabaseShardBlockRetriever
-		blockPool       = bopts.DatabaseBlockOptions().DatabaseBlockPool()
+		timesWithErrors   []time.Time
+		shardResult       result.ShardResult
+		shardRetriever    block.DatabaseShardBlockRetriever
+		blockPool         = bopts.DatabaseBlockOptions().DatabaseBlockPool()
+		seriesCachePolicy = bopts.SeriesCachePolicy()
 	)
 
 	shard, tr, readers, err := shardReaders.shard, shardReaders.tr, shardReaders.readers, shardReaders.err
@@ -273,6 +275,11 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 
 	if shardRetrieverMgr != nil {
 		shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
+	}
+	if seriesCachePolicy == series.CacheAllMetadata && shardRetriever == nil {
+		s.log.Errorf("shard retriever missing for shard: %d", shard)
+		s.handleErrorsAndUnfulfilled(resultLock, bootstrapResult, shard, tr, shardResult, timesWithErrors)
+		return
 	}
 
 	for _, r := range readers {
@@ -311,11 +318,13 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				checksum    uint32
 				err         error
 			)
-			if retriever == nil {
+			switch seriesCachePolicy {
+			case series.CacheAll:
 				id, data, checksum, err = r.Read()
-			} else {
+			case series.CacheAllMetadata:
 				id, length, checksum, err = r.ReadMetadata()
 			}
+
 			if err != nil {
 				s.log.WithFields(
 					xlog.NewField("shard", shard),
@@ -328,21 +337,22 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			idHash := id.Hash()
 
 			resultLock.RLock()
-			series, seriesExists := shardResult.AllSeries()[idHash]
+			s, exists := shardResult.AllSeries()[idHash]
 			resultLock.RUnlock()
 
-			if seriesExists {
+			if exists {
 				// NB(r): In the case the series is already inserted
 				// we can avoid holding onto this ID and use the already
 				// allocated ID.
 				id.Finalize()
-				id = series.ID
+				id = s.ID
 			}
 
-			if retriever == nil {
+			switch seriesCachePolicy {
+			case series.CacheAll:
 				seg := ts.NewSegment(data, nil, ts.FinalizeHead)
 				seriesBlock.Reset(start, seg)
-			} else {
+			case series.CacheAllMetadata:
 				metadata := block.RetrievableBlockMetadata{
 					ID:       id,
 					Length:   length,
@@ -352,8 +362,8 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			}
 
 			resultLock.Lock()
-			if seriesExists {
-				series.Blocks.AddBlock(seriesBlock)
+			if exists {
+				s.Blocks.AddBlock(seriesBlock)
 			} else {
 				shardResult.AddBlock(id, seriesBlock)
 			}
@@ -424,6 +434,33 @@ func (s *fileSystemSource) Read(
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	switch s.opts.ResultOptions().SeriesCachePolicy() {
+	case series.CacheAll:
+		// No checks necessary
+	case series.CacheAllMetadata:
+		// Need to check block retriever available
+		if blockRetriever == nil {
+			return nil, fmt.Errorf(
+				"missing block retriever when using series cache metadata for namespace: %s",
+				md.ID().String())
+		}
+	default:
+		// Unless we're caching all series in memory, we return just the availability
+		// of the files we have
+		bootstrapResult := result.NewBootstrapResult()
+		unfulfilled := bootstrapResult.Unfulfilled()
+		for shard, ranges := range shardsTimeRanges {
+			availability := s.shardAvailability(md.ID(), shard, ranges)
+			if availability == nil {
+				availability = xtime.NewRanges()
+			}
+			remaining := ranges.RemoveRanges(availability)
+			bootstrapResult.Add(shard, nil, remaining)
+		}
+		bootstrapResult.SetUnfulfilled(unfulfilled)
+		return bootstrapResult, nil
 	}
 
 	s.log.WithFields(

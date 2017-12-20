@@ -36,6 +36,7 @@ type options struct {
 	instrumentOpts                instrument.Options
 	retentionOpts                 retention.Options
 	blockOpts                     block.Options
+	cachePolicy                   CachePolicy
 	contextPool                   context.Pool
 	encoderPool                   encoding.EncoderPool
 	multiReaderIteratorPool       encoding.MultiReaderIteratorPool
@@ -56,6 +57,7 @@ func NewOptions() Options {
 		instrumentOpts:                instrument.NewOptions(),
 		retentionOpts:                 retention.NewOptions(),
 		blockOpts:                     block.NewOptions(),
+		cachePolicy:                   DefaultCachePolicy,
 		contextPool:                   context.NewPool(nil, nil),
 		encoderPool:                   encoding.NewEncoderPool(nil),
 		multiReaderIteratorPool:       encoding.NewMultiReaderIteratorPool(nil),
@@ -65,7 +67,10 @@ func NewOptions() Options {
 }
 
 func (o *options) Validate() error {
-	return o.retentionOpts.Validate()
+	if err := o.retentionOpts.Validate(); err != nil {
+		return err
+	}
+	return ValidateCachePolicy(o.cachePolicy)
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {
@@ -106,6 +111,16 @@ func (o *options) SetDatabaseBlockOptions(value block.Options) Options {
 
 func (o *options) DatabaseBlockOptions() block.Options {
 	return o.blockOpts
+}
+
+func (o *options) SetCachePolicy(value CachePolicy) Options {
+	opts := *o
+	opts.cachePolicy = value
+	return &opts
+}
+
+func (o *options) CachePolicy() CachePolicy {
+	return o.cachePolicy
 }
 
 func (o *options) SetContextPool(value context.Pool) Options {

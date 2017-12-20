@@ -26,11 +26,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
-	pt "github.com/m3db/m3db/generated/proto/pagetoken"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
@@ -56,7 +54,6 @@ const (
 var (
 	// errServerIsOverloaded raised when trying to process a request when the server is overloaded
 	errServerIsOverloaded = errors.New("server is overloaded")
-	errInvalidPageToken   = errors.New("invalid page token")
 )
 
 type serviceMetrics struct {
@@ -514,25 +511,19 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	}
 
 	var (
-		nsID      = s.newID(ctx, req.NameSpace)
-		start     = time.Unix(0, req.RangeStart)
-		end       = time.Unix(0, req.RangeEnd)
-		pageToken = &pt.PageToken{}
+		nsID  = s.newID(ctx, req.NameSpace)
+		start = time.Unix(0, req.RangeStart)
+		end   = time.Unix(0, req.RangeEnd)
 	)
-	err = proto.Unmarshal(req.PageToken, pageToken)
-	if err != nil {
-		return nil, tterrors.NewBadRequestError(errInvalidPageToken)
-	}
-
-	fetchedMetadata, nextShardIndex, err := s.db.FetchBlocksMetadata(
-		ctx, nsID, uint32(req.Shard), start, end, req.Limit, pageToken.ShardIndex, opts)
+	fetchedMetadata, nextPageToken, err := s.db.FetchBlocksMetadataV2(
+		ctx, nsID, uint32(req.Shard), start, end, req.Limit, req.PageToken, opts)
 	if err != nil {
 		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
 	}
 	ctx.RegisterFinalizer(context.FinalizerFn(fetchedMetadata.Close))
 
-	result, err := s.getFetchBlocksMetadataRawV2Result(nextShardIndex, opts, fetchedMetadata)
+	result, err := s.getFetchBlocksMetadataRawV2Result(nextPageToken, opts, fetchedMetadata)
 	// Finalize pooled datastructures regardless of errors because even in the error
 	// case result contains pooled objects that we need to return.
 	ctx.RegisterFinalizer(s.newCloseableMetadataV2Result(result))
@@ -544,22 +535,13 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 }
 
 func (s *service) getFetchBlocksMetadataRawV2Result(
-	nextShardIndex *int64,
+	nextPageToken storage.PageToken,
 	opts block.FetchBlocksMetadataOptions,
 	results block.FetchBlocksMetadataResults,
 ) (*rpc.FetchBlocksMetadataRawV2Result_, error) {
 	result := rpc.NewFetchBlocksMetadataRawV2Result_()
+	result.NextPageToken = nextPageToken
 	result.Elements = s.getBlocksMetadataV2FromResult(opts, results)
-
-	var nextPageTokenBytes []byte
-	var err error
-	if nextShardIndex != nil {
-		nextPageTokenBytes, err = proto.Marshal(&pt.PageToken{ShardIndex: *nextShardIndex})
-		if err != nil {
-			return result, convert.ToRPCError(err)
-		}
-	}
-	result.NextPageToken = nextPageTokenBytes
 	return result, nil
 }
 

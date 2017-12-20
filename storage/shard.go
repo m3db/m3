@@ -24,13 +24,16 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/generated/proto/pagetoken"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
@@ -60,6 +63,7 @@ var (
 	errShardNotOpen               = errors.New("shard is not open")
 	errShardAlreadyTicking        = errors.New("shard is already ticking")
 	errShardClosingTickTerminated = errors.New("shard is closing, terminating tick")
+	errShardInvalidPageToken      = errors.New("shard could not unmarshal page token")
 )
 
 type filesetBeforeFn func(filePathPrefix string, namespace ts.ID, shardID uint32, t time.Time) ([]string, error)
@@ -652,13 +656,33 @@ func (s *dbShard) ReadEncoded(
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
 	s.RUnlock()
+
 	if err == errShardEntryNotFound {
-		return nil, nil
+		switch s.opts.SeriesCachePolicy() {
+		case series.CacheAll:
+			// No-op, would be in memory if cached
+			return nil, nil
+		case series.CacheAllMetadata:
+			// No-op, would be in memory if metadata cached
+			return nil, nil
+		}
 	}
+
 	if err != nil {
 		return nil, err
 	}
-	return entry.series.ReadEncoded(ctx, start, end)
+
+	var series series.DatabaseSeries
+	if entry != nil {
+		series = entry.series
+	} else {
+		// Not found, use a temporary series for reading
+		series = s.seriesPool.Get()
+		series.Reset(id, s.seriesBlockRetriever, s.seriesOpts)
+		defer series.Close()
+	}
+
+	return series.ReadEncoded(ctx, start, end)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
@@ -890,13 +914,33 @@ func (s *dbShard) FetchBlocks(
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
 	s.RUnlock()
+
 	if err == errShardEntryNotFound {
-		return nil, nil
+		switch s.opts.SeriesCachePolicy() {
+		case series.CacheAll:
+			// No-op, would be in memory if cached
+			return nil, nil
+		case series.CacheAllMetadata:
+			// No-op, would be in memory if metadata cached
+			return nil, nil
+		}
 	}
+
 	if err != nil {
 		return nil, err
 	}
-	return entry.series.FetchBlocks(ctx, starts), nil
+
+	var series series.DatabaseSeries
+	if entry != nil {
+		series = entry.series
+	} else {
+		// Not found, use a temporary series for reading
+		series = s.seriesPool.Get()
+		series.Reset(id, s.seriesBlockRetriever, s.seriesOpts)
+		defer series.Close()
+	}
+
+	return series.FetchBlocks(ctx, starts), nil
 }
 
 func (s *dbShard) FetchBlocksMetadata(
@@ -948,6 +992,195 @@ func (s *dbShard) FetchBlocksMetadata(
 	})
 
 	return res, pNextPageToken
+}
+
+func (s *dbShard) FetchBlocksMetadataV2(
+	ctx context.Context,
+	start, end time.Time,
+	limit int64,
+	pageToken PageToken,
+	opts block.FetchBlocksMetadataOptions,
+) (block.FetchBlocksMetadataResults, PageToken, error) {
+	var (
+		token = &pagetoken.PageToken{}
+	)
+	if pageToken != nil {
+		if err := proto.Unmarshal(pageToken, token); err != nil {
+			return nil, nil, xerrors.NewInvalidParamsError(errShardInvalidPageToken)
+		}
+	}
+
+	activePhase := token.GetActiveSeriesPhase()
+	flushedPhase := token.GetFlushedSeriesPhase()
+
+	if activePhase != nil || (activePhase == nil && flushedPhase == nil) {
+		// If first phase started or no phases started then return active
+		// series metadata
+		indexCursor := int64(0)
+		if activePhase != nil {
+			indexCursor = activePhase.IndexCursor
+		}
+
+		result, shardIndex := s.FetchBlocksMetadata(ctx, start, end, limit, indexCursor, opts)
+		// Encode the next page token
+		if shardIndex == nil {
+			// Next phase, no more results from active series
+			token.Phase = &pagetoken.PageToken_FlushedSeriesPhase_{
+				FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{},
+			}
+		} else {
+			// This phase is still active
+			token.Phase = &pagetoken.PageToken_ActiveSeriesPhase_{
+				ActiveSeriesPhase: &pagetoken.PageToken_ActiveSeriesPhase{
+					IndexCursor: *shardIndex,
+				},
+			}
+		}
+
+		data, err := proto.Marshal(token)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return result, PageToken(data), nil
+	}
+
+	// Must be in the second phase, start with checking the latest possible
+	// flushed block and work backwards.
+	//
+	// NB(r): We work backwards so we don't hit race conditions with blocks
+	// being flushed and potentially missed between paginations. Working
+	// backwards means that we might duplicate metadata sent back switching
+	// between active phase and flushed phase, but that's better than missing
+	// data working in the opposite direction. De-duping which block time ranges
+	// were actually sent is also difficult as it's not always a consistent view.
+	// Duplicating the metadata sent back means that consumers get a consistent
+	// view of the world if they merge all the results together.
+	// TODO: consider lifecycle of fileset files rather than directly working
+	// with them here while filesystem cleanup manager could delete them
+	// mid-read.
+	var (
+		result          = s.opts.FetchBlocksMetadataResultsPool().Get()
+		ropts           = s.nsMetadata.Options().RetentionOptions()
+		blockSize       = ropts.BlockSize()
+		blockStart      = end.Truncate(blockSize)
+		tokenBlockStart time.Time
+	)
+	if flushedPhase.CurrBlockStartUnixNanos != 0 {
+		tokenBlockStart = time.Unix(0, flushedPhase.CurrBlockStartUnixNanos)
+		blockStart = tokenBlockStart
+	}
+
+	fsopts := s.opts.CommitLogOptions().FilesystemOptions()
+	nsID := s.nsMetadata.ID()
+	numResults := int64(0)
+	// Work backwards while in requested range and not before retention
+	for !blockStart.Before(start) &&
+		!blockStart.Before(retention.FlushTimeStart(ropts, s.nowFn())) {
+		exists := fs.FilesetExistsAt(fsopts.FilePathPrefix(), nsID, s.shard, blockStart)
+		if !exists {
+			// No fileset files here
+			blockStart = blockStart.Add(-1 * blockSize)
+			continue
+		}
+
+		reader, err := fs.NewReader(s.opts.BytesPool(), fsopts)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if err := reader.Open(nsID, s.shard, blockStart); err != nil {
+			return nil, nil, err
+		}
+
+		if !tokenBlockStart.IsZero() {
+			// Was previously seeking through a previous block, need to validate
+			// this is the correct one we found otherwise the file just went missing
+			if !blockStart.Equal(tokenBlockStart) {
+				return nil, nil, fmt.Errorf(
+					"was reading block at %v but next available block is: %v",
+					tokenBlockStart, blockStart)
+			}
+
+			pos := fs.ReadMetadataPosition{
+				Entries:  flushedPhase.CurrBlockIndexEntries,
+				Read:     flushedPhase.CurrBlockIndexRead,
+				Offset:   flushedPhase.CurrBlockIndexOffset,
+				Checksum: uint32(flushedPhase.CurrBlockIndexChecksum),
+			}
+			if err := reader.ResetReadMetadataPosition(pos); err != nil {
+				return nil, nil, fmt.Errorf(
+					"unable to resume reading metadata from position: %v", err)
+			}
+		}
+
+		for numResults < limit {
+			id, size, checksum, err := reader.ReadMetadata()
+			if err == io.EOF {
+				// Done with this reader, make sure not bailing early
+				currPos := reader.ReadMetadataPosition()
+				if currPos.Read != int64(reader.Entries()) {
+					if err := reader.Close(); err != nil {
+						// Best effort to close reader at this point
+						log := s.opts.InstrumentOptions().Logger()
+						log.Warnf("unable to close reader on early EOF: %v", err)
+					}
+					return nil, nil, fmt.Errorf(
+						"reached end of index early for block %v: read=%d, entries=%d",
+						blockStart, currPos.Read, reader.Entries())
+				}
+				// Clean end of volume, we can break now
+				break
+			}
+			if err != nil {
+				return nil, nil, fmt.Errorf(
+					"could not read metadata for block %v: %v",
+					blockStart, err)
+			}
+
+			// Free this ID after this request
+			ctx.RegisterFinalizer(id)
+
+			blockResult := s.opts.FetchBlockMetadataResultsPool().Get()
+			value := block.FetchBlockMetadataResult{
+				Start: blockStart,
+			}
+			if opts.IncludeSizes {
+				value.Size = int64(size)
+			}
+			if opts.IncludeChecksums {
+				v := checksum
+				value.Checksum = &v
+			}
+			blockResult.Add(value)
+
+			numResults++
+			result.Add(block.NewFetchBlocksMetadataResult(id, blockResult))
+		}
+		endPos := reader.ReadMetadataPosition()
+		if err := reader.Close(); err != nil {
+			return nil, nil, err
+		}
+		if numResults >= limit {
+			// We hit the limit, return results with page token
+			token.Phase = &pagetoken.PageToken_FlushedSeriesPhase_{
+				FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{
+					CurrBlockStartUnixNanos: blockStart.UnixNano(),
+					CurrBlockIndexRead:      endPos.Read,
+					CurrBlockIndexOffset:    endPos.Offset,
+					CurrBlockIndexChecksum:  int64(endPos.Checksum),
+				},
+			}
+			data, err := proto.Marshal(token)
+			if err != nil {
+				return nil, nil, err
+			}
+			return result, PageToken(data), nil
+		}
+	}
+
+	// No more results if we fall through
+	return result, nil, nil
 }
 
 func (s *dbShard) Bootstrap(
