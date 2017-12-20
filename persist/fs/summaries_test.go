@@ -185,7 +185,7 @@ func genPropTestInputs() gopter.Gen {
 	}, reflect.TypeOf(propTestInput{}))
 }
 
-func genPropTestInput(numRealWrites) gopter.Gen {
+func genPropTestInput(numRealWrites int) gopter.Gen {
 	return gopter.CombineGens(
 		gen.SliceOfN(numRealWrites, genWrite()),
 		gen.UInt32(),
