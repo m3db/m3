@@ -192,7 +192,7 @@ func genPropTestInput(numRealWrites int) gopter.Gen {
 	).Map(func(vals []interface{}) propTestInput {
 		return propTestInput{
 			realWrites: vals[0].([]generatedWrite),
-			shard:      vals[2].(uint32),
+			shard:      vals[1].(uint32),
 		}
 	})
 }
