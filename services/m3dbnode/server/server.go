@@ -36,8 +36,11 @@ import (
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/generated/proto/commonpb"
 	"github.com/m3db/m3cluster/kv"
+	m3clusterkv "github.com/m3db/m3cluster/kv"
+	m3clusterkvmem "github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3cluster/kv/util"
 	"github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
@@ -226,38 +229,76 @@ func Run(runOpts RunOptions) {
 	}
 	opts = opts.SetPersistManager(pm)
 
-	logger.Info("creating config service client with m3cluster ")
-	configSvcClientOpts := cfg.ConfigService.NewOptions().
-		SetInstrumentOptions(
-			instrument.NewOptions().
-				SetLogger(logger).
-				SetMetricsScope(scope))
-	configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
-	if err != nil {
-		logger.Fatalf("could not create m3cluster client: %v", err)
+	var (
+		topoInit topology.Initializer
+		kv       m3clusterkv.Store
+	)
+	switch {
+	case cfg.ConfigService != nil:
+		logger.Info("creating dynamic config service client with m3cluster")
+		configSvcClientOpts := cfg.ConfigService.NewOptions().
+			SetInstrumentOptions(
+				instrument.NewOptions().
+					SetLogger(logger).
+					SetMetricsScope(scope))
+		configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
+		if err != nil {
+			logger.Fatalf("could not create m3cluster client: %v", err)
+		}
+
+		dynamicOpts := namespace.NewDynamicOptions().
+			SetInstrumentOptions(iopts).
+			SetConfigServiceClient(configSvcClient).
+			SetNamespaceRegistryKey(kvconfig.NamespacesKey)
+		nsInit := namespace.NewDynamicInitializer(dynamicOpts)
+
+		opts = opts.SetNamespaceInitializer(nsInit)
+
+		serviceID := services.NewServiceID().
+			SetName(cfg.ConfigService.Service).
+			SetEnvironment(cfg.ConfigService.Env).
+			SetZone(cfg.ConfigService.Zone)
+
+		topoOpts := topology.NewDynamicOptions().
+			SetConfigServiceClient(configSvcClient).
+			SetServiceID(serviceID).
+			SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
+			SetInstrumentOptions(opts.InstrumentOptions()).
+			SetHashGen(sharding.NewHashGenWithSeed(cfg.HashingConfiguration.Seed))
+
+		topoInit = topology.NewDynamicInitializer(topoOpts)
+
+		kv, err = configSvcClient.KV()
+		if err != nil {
+			logger.Fatalf("could not create KV client, %v", err)
+		}
+
+	case cfg.StaticConfigService != nil:
+		logger.Info("creating static config service client with m3cluster")
+
+		shardSet, hostShardSets, err := createStaticShardSet(cfg.StaticConfigService.Shards, cfg.ListenAddress)
+		if err != nil {
+			logger.Fatalf("unable to create shard set for static config: %v", err)
+		}
+		staticOptions := topology.NewStaticOptions().
+			SetReplicas(1).
+			SetHostShardSets(hostShardSets).
+			SetShardSet(shardSet)
+
+		md, err := createDefaultMetaData("metrics")
+		if err != nil {
+			logger.Fatalf("unable to create metadata for static config: %v", err)
+		}
+		nsInitStatic := namespace.NewStaticInitializer([]namespace.Metadata{md})
+		topoInit = topology.NewStaticInitializer(staticOptions)
+		opts = opts.SetNamespaceInitializer(nsInitStatic)
+
+		kv = m3clusterkvmem.NewStore()
+
+	default:
+		logger.Fatal("configService or staticConfigService required")
 	}
 
-	dynamicOpts := namespace.NewDynamicOptions().
-		SetInstrumentOptions(iopts).
-		SetConfigServiceClient(configSvcClient).
-		SetNamespaceRegistryKey(kvconfig.NamespacesKey)
-	nsInit := namespace.NewDynamicInitializer(dynamicOpts)
-
-	opts = opts.SetNamespaceInitializer(nsInit)
-
-	serviceID := services.NewServiceID().
-		SetName(cfg.ConfigService.Service).
-		SetEnvironment(cfg.ConfigService.Env).
-		SetZone(cfg.ConfigService.Zone)
-
-	topoOpts := topology.NewDynamicOptions().
-		SetConfigServiceClient(configSvcClient).
-		SetServiceID(serviceID).
-		SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
-		SetInstrumentOptions(opts.InstrumentOptions()).
-		SetHashGen(sharding.NewHashGenWithSeed(cfg.HashingConfiguration.Seed))
-
-	topoInit := topology.NewDynamicInitializer(topoOpts)
 	topo, err := topoInit.Init()
 	if err != nil {
 		logger.Fatalf("could not initialize m3db topology: %v", err)
@@ -282,11 +323,6 @@ func Run(runOpts RunOptions) {
 		})
 	if err != nil {
 		logger.Fatalf("could not create m3db client: %v", err)
-	}
-
-	kv, err := configSvcClient.KV()
-	if err != nil {
-		logger.Fatalf("could not create KV client, %v", err)
 	}
 
 	// Set bootstrap options
@@ -789,4 +825,49 @@ func capacityPoolOptions(
 			SetMetricsScope(scope))
 	}
 	return opts
+}
+
+func createStaticShardSet(numShards int, listenAddress string) (sharding.ShardSet, []topology.HostShardSet, error) {
+	var (
+		shardSet      sharding.ShardSet
+		hostShardSets []topology.HostShardSet
+		shardIDs      []uint32
+		err           error
+	)
+
+	for i := uint32(0); i < uint32(numShards); i++ {
+		shardIDs = append(shardIDs, i)
+	}
+
+	shards := sharding.NewShards(shardIDs, shard.Available)
+	shardSet, err = sharding.NewShardSet(shards, sharding.DefaultHashFn(1))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	host := topology.NewHost("localhost", listenAddress)
+	hostShardSet := topology.NewHostShardSet(host, shardSet)
+	hostShardSets = append(hostShardSets, hostShardSet)
+
+	return shardSet, hostShardSets, nil
+}
+
+func createDefaultMetaData(id string) (namespace.Metadata, error) {
+	md, err := namespace.NewMetadata(
+		ts.StringID(id),
+		namespace.NewOptions().
+			SetNeedsBootstrap(true).
+			SetNeedsFilesetCleanup(true).
+			SetNeedsFlush(true).
+			SetNeedsRepair(true).
+			SetWritesToCommitLog(true).
+			SetRetentionOptions(
+				retention.NewOptions().
+					SetBlockSize(1*time.Hour).
+					SetRetentionPeriod(24*time.Hour)))
+	if err != nil {
+		return nil, err
+	}
+
+	return md, nil
 }

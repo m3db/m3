@@ -25,6 +25,7 @@ import (
 
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/config/hostid"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
@@ -92,8 +93,11 @@ type Configuration struct {
 	// The pooling policy.
 	PoolingPolicy PoolingPolicy `yaml:"poolingPolicy"`
 
-	// The configuration for config service client.
-	ConfigService etcdclient.Configuration `yaml:"configService"`
+	// The dynamic etcd configuration for config service client.
+	ConfigService *etcdclient.Configuration `yaml:"configService"`
+
+	// The static configuration for config service client.
+	StaticConfigService *topology.StaticConfiguration `yaml:"staticConfigService"`
 
 	// The configuration for hashing
 	HashingConfiguration HashingConfiguration `yaml:"hashing"`
