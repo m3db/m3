@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
@@ -70,18 +71,45 @@ func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Ti
 	require.Equal(t, len(entries), r.Entries())
 	require.Equal(t, 0, r.EntriesRead())
 
+	bloomFilter, err := r.ReadBloomFilter()
+	assert.NoError(t, err)
+	// Make sure the bloom filter doesn't always return true
+	assert.False(t, bloomFilter.Test([]byte("some_random_data")))
+	expectedM, expectedK := bloom.EstimateFalsePositiveRate(
+		uint(len(entries)), defaultIndexBloomFilterFalsePositivePercent)
+	assert.Equal(t, expectedK, bloomFilter.K())
+	// EstimateFalsePositiveRate always returns at least 1, so skip this check
+	// if len entries is 0
+	if len(entries) > 0 {
+		assert.Equal(t, expectedM, bloomFilter.M())
+	}
+
 	for i := 0; i < r.Entries(); i++ {
-		id, data, checksum, err := r.Read()
+		idFromRead, data, checksumFromRead, err := r.Read()
 		require.NoError(t, err)
 
 		data.IncRef()
-		defer data.DecRef()
 
-		assert.Equal(t, entries[i].id, id.String())
+		assert.Equal(t, entries[i].id, idFromRead.String())
 		assert.True(t, bytes.Equal(entries[i].data, data.Get()))
-		assert.Equal(t, digest.Checksum(entries[i].data), checksum)
+		assert.Equal(t, digest.Checksum(entries[i].data), checksumFromRead)
 
 		assert.Equal(t, i+1, r.EntriesRead())
+
+		idFromReadMetadata, length, checksumFromReadMetadata, err := r.ReadMetadata()
+
+		assert.NoError(t, err)
+		assert.True(t, idFromRead.Equal(idFromReadMetadata))
+		assert.Equal(t, checksumFromRead, checksumFromReadMetadata)
+		assert.Equal(t, len(entries[i].data), length)
+
+		// Verify that the bloomFilter was bootstrapped properly by making sure it
+		// at least contains every ID
+		assert.True(t, bloomFilter.Test(idFromRead.Data().Get()))
+
+		idFromRead.Finalize()
+		data.DecRef()
+		idFromReadMetadata.Finalize()
 	}
 
 	assert.NoError(t, r.Close())

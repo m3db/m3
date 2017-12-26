@@ -27,8 +27,8 @@ import (
 	gomock "github.com/golang/mock/gomock"
 	ts "github.com/m3db/m3db/ts"
 	checked "github.com/m3db/m3x/checked"
-	time "github.com/m3db/m3x/time"
-	time0 "time"
+	time0 "github.com/m3db/m3x/time"
+	time "time"
 )
 
 // Mock of FileSetWriter interface
@@ -62,7 +62,7 @@ func (_mr *_MockFileSetWriterRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockFileSetWriter) Open(_param0 ts.ID, _param1 time0.Duration, _param2 uint32, _param3 time0.Time) error {
+func (_m *MockFileSetWriter) Open(_param0 ts.ID, _param1 time.Duration, _param2 uint32, _param3 time.Time) error {
 	ret := _m.ctrl.Call(_m, "Open", _param0, _param1, _param2, _param3)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -143,7 +143,7 @@ func (_mr *_MockFileSetReaderRecorder) EntriesRead() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "EntriesRead")
 }
 
-func (_m *MockFileSetReader) Open(_param0 ts.ID, _param1 uint32, _param2 time0.Time) error {
+func (_m *MockFileSetReader) Open(_param0 ts.ID, _param1 uint32, _param2 time.Time) error {
 	ret := _m.ctrl.Call(_m, "Open", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -153,9 +153,9 @@ func (_mr *_MockFileSetReaderRecorder) Open(arg0, arg1, arg2 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open", arg0, arg1, arg2)
 }
 
-func (_m *MockFileSetReader) Range() time.Range {
+func (_m *MockFileSetReader) Range() time0.Range {
 	ret := _m.ctrl.Call(_m, "Range")
-	ret0, _ := ret[0].(time.Range)
+	ret0, _ := ret[0].(time0.Range)
 	return ret0
 }
 
@@ -174,6 +174,17 @@ func (_m *MockFileSetReader) Read() (ts.ID, checked.Bytes, uint32, error) {
 
 func (_mr *_MockFileSetReaderRecorder) Read() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Read")
+}
+
+func (_m *MockFileSetReader) ReadBloomFilter() (*ManagedConcurrentBloomFilter, error) {
+	ret := _m.ctrl.Call(_m, "ReadBloomFilter")
+	ret0, _ := ret[0].(*ManagedConcurrentBloomFilter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockFileSetReaderRecorder) ReadBloomFilter() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadBloomFilter")
 }
 
 func (_m *MockFileSetReader) ReadMetadata() (ts.ID, int, uint32, error) {

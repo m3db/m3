@@ -75,6 +75,10 @@ type FileSetReader interface {
 	// volume for continuing to read metadata from a previous position.
 	ResetReadMetadataPosition(position ReadMetadataPosition) error
 
+	// ReadBloomFilter returns the bloom filter stored on disk in a container object that is safe
+	// for concurrent use and has a Close() method for releasing resources when done.
+	ReadBloomFilter() (*ManagedConcurrentBloomFilter, error)
+
 	// Validate validates the data and returns an error if the data are corrupted
 	Validate() error
 
