@@ -484,8 +484,8 @@ func TestBufferFetchBlocks(t *testing.T) {
 
 	res := buffer.FetchBlocks(ctx, []time.Time{b.start, b.start.Add(time.Second)})
 	require.Equal(t, 1, len(res))
-	require.Equal(t, b.start, res[0].Start())
-	assertValuesEqual(t, expected, [][]xio.SegmentReader{res[0].Readers()}, opts)
+	require.Equal(t, b.start, res[0].Start)
+	assertValuesEqual(t, expected, [][]xio.SegmentReader{res[0].Readers}, opts)
 }
 
 func TestBufferFetchBlocksMetadata(t *testing.T) {

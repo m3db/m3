@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
-	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
@@ -48,9 +47,8 @@ var (
 	// ErrSeriesAllDatapointsExpired is returned on tick when all datapoints are expired
 	ErrSeriesAllDatapointsExpired = errors.New("series datapoints are all expired")
 
-	errSeriesReadInvalidRange = errors.New("series invalid time range read argument specified")
-	errSeriesIsBootstrapping  = errors.New("series is bootstrapping")
-	errSeriesNotBootstrapped  = errors.New("series is not yet bootstrapped")
+	errSeriesIsBootstrapping = errors.New("series is bootstrapping")
+	errSeriesNotBootstrapped = errors.New("series is not yet bootstrapped")
 )
 
 type dbSeries struct {
@@ -143,7 +141,7 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 		now          = s.now()
 		ropts        = s.opts.RetentionOptions()
 		retriever    = s.blockRetriever
-		checkUnwire  = retriever != nil && ropts.BlockDataExpiry()
+		cachePolicy  = s.opts.CachePolicy()
 		expireCutoff = now.Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 		wiredTimeout = ropts.BlockDataExpiryAfterNotAccessedPeriod()
 	)
@@ -164,19 +162,33 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 		}
 
 		var unwired bool
-		if checkUnwire {
+		switch {
+		case cachePolicy == CacheAll:
+			// Never unwire
+		case retriever != nil:
+			// Potentially unwire
 			sinceLastRead := now.Sub(currBlock.LastReadTime())
-			if sinceLastRead >= wiredTimeout &&
-				retriever.IsBlockRetrievable(start) {
-				// NB(r): Each block needs shared ref to the series ID
-				// or else each block needs to have a copy of the ID
-				id := s.id
-				metadata := block.RetrievableBlockMetadata{
-					ID:       id,
-					Length:   currBlock.Len(),
-					Checksum: currBlock.Checksum(),
+			shouldUnwire := sinceLastRead >= wiredTimeout &&
+				retriever.IsBlockRetrievable(start)
+			if shouldUnwire {
+				switch cachePolicy {
+				case CacheAllMetadata:
+					// Keep the metadata but remove contents
+
+					// NB(r): Each block needs shared ref to the series ID
+					// or else each block needs to have a copy of the ID
+					id := s.id
+					metadata := block.RetrievableBlockMetadata{
+						ID:       id,
+						Length:   currBlock.Len(),
+						Checksum: currBlock.Checksum(),
+					}
+					currBlock.ResetRetrievable(start, retriever, metadata)
+				default:
+					// Remove the block and it will be looked up later
+					s.blocks.RemoveBlockAt(start)
+					currBlock.Close()
 				}
-				currBlock.ResetRetrievable(start, retriever, metadata)
 
 				unwired = true
 				result.madeUnwiredBlocks++
@@ -232,153 +244,28 @@ func (s *dbSeries) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
-	if end.Before(start) {
-		return nil, xerrors.NewInvalidParamsError(errSeriesReadInvalidRange)
-	}
-
-	// TODO(r): pool these results arrays
-	var results [][]xio.SegmentReader
-
-	now := s.now()
-	cachePolicy := s.opts.CachePolicy()
-	ropts := s.opts.RetentionOptions()
-	blockSize := ropts.BlockSize()
-	alignedStart := start.Truncate(blockSize)
-	alignedEnd := end.Truncate(blockSize)
-	if alignedEnd.Equal(end) {
-		// Move back to make range [start, end)
-		alignedEnd = alignedEnd.Add(-1 * blockSize)
-	}
-
 	s.RLock()
-	defer s.RUnlock()
-
-	numBlocks := s.blocks.Len()
-	if numBlocks < 1 {
-		if earliest := retention.FlushTimeStart(ropts, now); alignedStart.Before(earliest) {
-			alignedStart = earliest
-		}
-		if latest := retention.FlushTimeEnd(ropts, now); alignedEnd.After(latest) {
-			alignedEnd = latest
-		}
-	} else {
-		if min := s.blocks.MinTime(); min.After(alignedStart) {
-			alignedStart = min
-		}
-		if max := s.blocks.MaxTime(); max.Before(alignedEnd) {
-			alignedEnd = max
-		}
-	}
-
-	var clonedID ts.ID
-
-	// Squeeze the lookup window by what's available to make range queries like [0, infinity) possible
-	for blockAt := alignedStart; !blockAt.After(alignedEnd); blockAt = blockAt.Add(blockSize) {
-		if numBlocks > 0 {
-			if block, ok := s.blocks.BlockAt(blockAt); ok {
-				// Block served from in memory
-				stream, err := block.Stream(ctx)
-				if err != nil {
-					return nil, err
-				}
-				if stream != nil {
-					results = append(results, []xio.SegmentReader{stream})
-					// NB(r): Mark this block as read now
-					block.SetLastReadTime(now)
-				}
-				continue
-			}
-		}
-
-		switch cachePolicy {
-		case CacheAll:
-		case CacheAllMetadata:
-		default:
-			// Try to stream from disk
-			if s.blockRetriever.IsBlockRetrievable(blockAt) {
-				if clonedID == nil {
-					// Clone ID as the block retriever uses the ID async from the lock on this series
-					clonedID = s.opts.IdentifierPool().Clone(s.id)
-					ctx.RegisterFinalizer(clonedID)
-				}
-				stream, err := s.blockRetriever.Stream(clonedID, blockAt, nil)
-				if err != nil {
-					return nil, err
-				}
-				if stream != nil {
-					results = append(results, []xio.SegmentReader{stream})
-				}
-			}
-		}
-	}
-
-	bufferResults := s.buffer.ReadEncoded(ctx, start, end)
-	if len(bufferResults) > 0 {
-		results = append(results, bufferResults...)
-	}
-
-	return results, nil
+	r, err := Reader{
+		opts:        s.opts,
+		cloneableID: s.id,
+		retriever:   s.blockRetriever,
+	}.readersWithBlocksMapAndBuffer(ctx, start, end, s.blocks, s.buffer)
+	s.RUnlock()
+	return r, err
 }
 
-func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult {
-	res := make([]block.FetchBlockResult, 0, len(starts))
-
-	var clonedID ts.ID
-	cachePolicy := s.opts.CachePolicy()
-
+func (s *dbSeries) FetchBlocks(
+	ctx context.Context,
+	starts []time.Time,
+) ([]block.FetchBlockResult, error) {
 	s.RLock()
-	defer s.RUnlock()
-
-	for _, start := range starts {
-		if b, exists := s.blocks.BlockAt(start); exists {
-			stream, err := b.Stream(ctx)
-			if err != nil {
-				r := block.NewFetchBlockResult(start, nil,
-					fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",
-						s.id.String(), start, err), nil)
-				res = append(res, r)
-			} else if stream != nil {
-				checksum := b.Checksum()
-				r := block.NewFetchBlockResult(start, []xio.SegmentReader{stream}, nil, &checksum)
-				res = append(res, r)
-			}
-			continue
-		}
-
-		switch cachePolicy {
-		case CacheAll:
-		case CacheAllMetadata:
-		default:
-			// Try to stream from disk
-			if s.blockRetriever.IsBlockRetrievable(start) {
-				if clonedID == nil {
-					// Clone ID as the block retriever uses the ID async from the lock on this series
-					clonedID = s.opts.IdentifierPool().Clone(s.id)
-					ctx.RegisterFinalizer(clonedID)
-				}
-				stream, err := s.blockRetriever.Stream(clonedID, start, nil)
-				if err != nil {
-					r := block.NewFetchBlockResult(start, nil,
-						fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",
-							s.id.String(), start, err), nil)
-					res = append(res, r)
-				} else if stream != nil {
-					// TODO: work out how to pass checksum here or defer till later somehow
-					r := block.NewFetchBlockResult(start, []xio.SegmentReader{stream}, nil, nil)
-					res = append(res, r)
-				}
-			}
-		}
-	}
-
-	if !s.buffer.IsEmpty() {
-		bufferResults := s.buffer.FetchBlocks(ctx, starts)
-		res = append(res, bufferResults...)
-	}
-
-	block.SortFetchBlockResultByTimeAscending(res)
-
-	return res
+	r, err := Reader{
+		opts:        s.opts,
+		cloneableID: s.id,
+		retriever:   s.blockRetriever,
+	}.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, s.blocks, s.buffer)
+	s.RUnlock()
+	return r, err
 }
 
 func (s *dbSeries) FetchBlocksMetadata(

@@ -58,6 +58,18 @@ func ValidCachePolicies() []CachePolicy {
 	return []CachePolicy{CacheAll, CacheAllMetadata, CacheRecentlyRead}
 }
 
+func (p CachePolicy) String() string {
+	switch p {
+	case CacheAll:
+		return "all"
+	case CacheAllMetadata:
+		return "all_metadata"
+	case CacheRecentlyRead:
+		return "recently_read"
+	}
+	return "unknown"
+}
+
 // ValidateCachePolicy validates a cache policy.
 func ValidateCachePolicy(v CachePolicy) error {
 	validSeriesCachePolicy := false
@@ -72,18 +84,6 @@ func ValidateCachePolicy(v CachePolicy) error {
 			uint(v), ValidCachePolicies())
 	}
 	return nil
-}
-
-func (p CachePolicy) String() string {
-	switch p {
-	case CacheAll:
-		return "all"
-	case CacheAllMetadata:
-		return "all_metadata"
-	case CacheRecentlyRead:
-		return "recently_read"
-	}
-	return "unknown"
 }
 
 // UnmarshalYAML unmarshals an CachePolicy into a valid type from string.

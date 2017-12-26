@@ -19,6 +19,8 @@ const (
 	// 255 * n * (n+1) / 2 + (n+1) * (mod-1) <= 2^32-1.
 	// It is mentioned in RFC 1950 (search for "5552").
 	nmax = 5552
+
+	resetValue = uint32(1)
 )
 
 const digestAdler32Size = 4
@@ -37,12 +39,15 @@ type hash32 interface {
 // New returns a new hash.Hash32 computing the Adler-32 checksum.
 // Its Sum method will lay the value out in big-endian byte order.
 func newAdler32() hash32 {
-	d := new(digestAdler32)
-	d.Reset()
-	return d
+	d := newResetAdler32()
+	return &d
 }
 
-func (d *digestAdler32) Reset()           { *d = 1 }
+func newResetAdler32() digestAdler32 {
+	return digestAdler32(resetValue)
+}
+
+func (d *digestAdler32) Reset()           { d.ResetTo(resetValue) }
 func (d *digestAdler32) ResetTo(v uint32) { *d = digestAdler32(v) }
 
 func (d *digestAdler32) Size() int { return digestAdler32Size }

@@ -34,12 +34,12 @@ func NewDigest() hash.Hash32 {
 
 // SegmentChecksum returns the 32-bit checksum for a segment.
 func SegmentChecksum(segment ts.Segment) uint32 {
-	d := NewDigest()
+	d := newResetAdler32()
 	if head := segment.Head; head != nil {
-		d.Write(head.Get())
+		d = update(d, head.Get())
 	}
 	if tail := segment.Tail; tail != nil {
-		d.Write(tail.Get())
+		d = update(d, tail.Get())
 	}
-	return d.Sum32()
+	return uint32(d)
 }

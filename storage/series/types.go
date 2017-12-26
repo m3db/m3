@@ -59,7 +59,10 @@ type DatabaseSeries interface {
 	) ([][]xio.SegmentReader, error)
 
 	// FetchBlocks returns data blocks given a list of block start times
-	FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult
+	FetchBlocks(
+		ctx context.Context,
+		starts []time.Time,
+	) ([]block.FetchBlockResult, error)
 
 	// FetchBlocksMetadata returns the blocks metadata
 	FetchBlocksMetadata(

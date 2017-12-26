@@ -666,23 +666,18 @@ func (s *dbShard) ReadEncoded(
 			// No-op, would be in memory if metadata cached
 			return nil, nil
 		}
-	}
-
-	if err != nil {
+	} else if err != nil {
 		return nil, err
 	}
 
-	var series series.DatabaseSeries
 	if entry != nil {
-		series = entry.series
-	} else {
-		// Not found, use a temporary series for reading
-		series = s.seriesPool.Get()
-		series.Reset(id, s.seriesBlockRetriever, s.seriesOpts)
-		defer series.Close()
+		return entry.series.ReadEncoded(ctx, start, end)
 	}
 
-	return series.ReadEncoded(ctx, start, end)
+	retriever := s.seriesBlockRetriever
+	opts := s.seriesOpts
+	reader := series.NewReaderForRetriever(id, retriever, opts)
+	return reader.ReadEncoded(ctx, start, end)
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
@@ -924,23 +919,18 @@ func (s *dbShard) FetchBlocks(
 			// No-op, would be in memory if metadata cached
 			return nil, nil
 		}
-	}
-
-	if err != nil {
+	} else if err != nil {
 		return nil, err
 	}
 
-	var series series.DatabaseSeries
 	if entry != nil {
-		series = entry.series
-	} else {
-		// Not found, use a temporary series for reading
-		series = s.seriesPool.Get()
-		series.Reset(id, s.seriesBlockRetriever, s.seriesOpts)
-		defer series.Close()
+		return entry.series.FetchBlocks(ctx, starts)
 	}
 
-	return series.FetchBlocks(ctx, starts), nil
+	retriever := s.seriesBlockRetriever
+	opts := s.seriesOpts
+	reader := series.NewReaderForRetriever(id, retriever, opts)
+	return reader.FetchBlocks(ctx, starts)
 }
 
 func (s *dbShard) FetchBlocksMetadata(

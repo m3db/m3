@@ -24,6 +24,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/x/io"
@@ -99,10 +100,18 @@ func ToTimeType(unit xtime.Unit) (rpc.TimeType, error) {
 	return 0, errUnknownUnit
 }
 
+// ToSegmentsResult is the result of a convert to segments call,
+// if the segments were merged then checksum is ptr to the checksum
+// otherwise it is nil.
+type ToSegmentsResult struct {
+	Segments *rpc.Segments
+	Checksum *int64
+}
+
 // ToSegments converts a list of segment readers to segments.
-func ToSegments(readers []xio.SegmentReader) (*rpc.Segments, error) {
+func ToSegments(readers []xio.SegmentReader) (ToSegmentsResult, error) {
 	if len(readers) == 0 {
-		return nil, nil
+		return ToSegmentsResult{}, nil
 	}
 
 	s := &rpc.Segments{}
@@ -110,22 +119,26 @@ func ToSegments(readers []xio.SegmentReader) (*rpc.Segments, error) {
 	if len(readers) == 1 {
 		seg, err := readers[0].Segment()
 		if err != nil {
-			return nil, err
+			return ToSegmentsResult{}, err
 		}
 		if seg.Len() == 0 {
-			return nil, nil
+			return ToSegmentsResult{}, nil
 		}
 		s.Merged = &rpc.Segment{
 			Head: bytesRef(seg.Head),
 			Tail: bytesRef(seg.Tail),
 		}
-		return s, nil
+		checksum := int64(digest.SegmentChecksum(seg))
+		return ToSegmentsResult{
+			Segments: s,
+			Checksum: &checksum,
+		}, nil
 	}
 
 	for _, reader := range readers {
 		seg, err := reader.Segment()
 		if err != nil {
-			return nil, err
+			return ToSegmentsResult{}, err
 		}
 		if seg.Len() == 0 {
 			continue
@@ -136,10 +149,10 @@ func ToSegments(readers []xio.SegmentReader) (*rpc.Segments, error) {
 		})
 	}
 	if len(s.Unmerged) == 0 {
-		return nil, nil
+		return ToSegmentsResult{}, nil
 	}
 
-	return s, nil
+	return ToSegmentsResult{Segments: s}, nil
 }
 
 func bytesRef(data checked.Bytes) []byte {

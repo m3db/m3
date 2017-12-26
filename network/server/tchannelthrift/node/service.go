@@ -271,8 +271,8 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		var streamErr error
 		segments := make([]*rpc.Segments, 0, len(encoded))
 		for _, readers := range encoded {
-			var seg *rpc.Segments
-			seg, streamErr = convert.ToSegments(readers)
+			var converted convert.ToSegmentsResult
+			converted, streamErr = convert.ToSegments(readers)
 			if streamErr != nil {
 				rawResult.Err = convert.ToRPCError(err)
 				if tterrors.IsBadRequestError(rawResult.Err) {
@@ -282,10 +282,10 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 				}
 				break
 			}
-			if seg == nil {
+			if converted.Segments == nil {
 				continue
 			}
-			segments = append(segments, seg)
+			segments = append(segments, converted.Segments)
 		}
 		if streamErr != nil {
 			continue
@@ -349,22 +349,21 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 
 		for _, fetchedBlock := range fetched {
 			block := rpc.NewBlock()
-			block.Start = xtime.ToNanoseconds(fetchedBlock.Start())
-			if ck := fetchedBlock.Checksum(); ck != nil {
-				cki := int64(*ck)
-				block.Checksum = &cki
-			}
-			if err := fetchedBlock.Err(); err != nil {
+			block.Start = xtime.ToNanoseconds(fetchedBlock.Start)
+			if err := fetchedBlock.Err; err != nil {
 				block.Err = convert.ToRPCError(err)
 			} else {
-				block.Segments, err = convert.ToSegments(fetchedBlock.Readers())
+				var converted convert.ToSegmentsResult
+				converted, err = convert.ToSegments(fetchedBlock.Readers)
 				if err != nil {
 					block.Err = convert.ToRPCError(err)
 				}
-				if block.Segments == nil {
+				if converted.Segments == nil {
 					// No data for block, skip this block
 					continue
 				}
+				block.Segments = converted.Segments
+				block.Checksum = converted.Checksum
 			}
 
 			blocks.Blocks = append(blocks.Blocks, block)

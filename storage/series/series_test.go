@@ -359,25 +359,27 @@ func TestSeriesFetchBlocks(t *testing.T) {
 	buffer.EXPECT().FetchBlocks(ctx, starts).Return([]block.FetchBlockResult{block.NewFetchBlockResult(starts[2], nil, nil, nil)})
 
 	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
-	assert.NoError(t, series.Bootstrap(nil))
+	require.NoError(t, series.Bootstrap(nil))
+
 	series.blocks = blocks
 	series.buffer = buffer
-	res := series.FetchBlocks(ctx, starts)
+	res, err := series.FetchBlocks(ctx, starts)
+	require.NoError(t, err)
 
 	expectedTimes := []time.Time{starts[2], starts[0], starts[1]}
 	require.Equal(t, len(expectedTimes), len(res))
 	for i := 0; i < len(starts); i++ {
-		require.Equal(t, expectedTimes[i], res[i].Start())
+		require.Equal(t, expectedTimes[i], res[i].Start)
 		if i == 1 {
-			require.NotNil(t, res[i].Readers())
-			require.Equal(t, &ck0, res[i].Checksum())
+			require.NotNil(t, res[i].Readers)
+			require.Equal(t, &ck0, res[i].Checksum)
 		} else {
-			require.Nil(t, res[i].Readers())
+			require.Nil(t, res[i].Readers)
 		}
 		if i == 2 {
-			require.Error(t, res[i].Err())
+			require.Error(t, res[i].Err)
 		} else {
-			require.NoError(t, res[i].Err())
+			require.NoError(t, res[i].Err)
 		}
 	}
 }
