@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"sort"
 	"path/filepath"
 	"testing"
 	"time"
@@ -41,6 +42,20 @@ import (
 type testEntry struct {
 	id   string
 	data []byte
+}
+
+type testEntriesByID []testEntry
+
+func (e testEntriesByID) Len() int {
+	return len(e)
+}
+
+func (e testEntriesByID) Less(i, j int) bool {
+	return e[i].id < e[j].id
+}
+
+func (e testEntriesByID) Swap(i, j int) {
+	e[i], e[j] = e[j], e[i]
 }
 
 func newTestWriter(t *testing.T, filePathPrefix string) FileSetWriter {
@@ -64,55 +79,95 @@ func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.T
 	assert.NoError(t, w.Close())
 }
 
+type readTestType uint
+
+const (
+	readTestTypeData readTestType = iota
+	readTestTypeMetadata
+)
+
+var readTestTypes = []readTestType{
+	readTestTypeData,
+	readTestTypeMetadata,
+}
+
+// readTestData will test reading back the data matches what was written,
+// note that this test also tests reuse of the reader since it first reads
+// all the data then closes it, reopens and reads through again but just
+// reading the metadata the second time.
+// If it starts to fail during the pass that reads just the metadata it could
+// be a newly introduced reader reuse bug.
 func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
-	err := r.Open(testNs1ID, 0, timestamp)
-	require.NoError(t, err)
+	// Sort entries by ID for comparing results from the read metadata
+	// phase which returns data not in the order it was written but instead
+	// ordered by ID.
+	entriesByID := make([]testEntry, len(entries))
+	copy(entriesByID, entries)
+	sort.Sort(testEntriesByID(entriesByID))
 
-	require.Equal(t, len(entries), r.Entries())
-	require.Equal(t, 0, r.EntriesRead())
-
-	bloomFilter, err := r.ReadBloomFilter()
-	assert.NoError(t, err)
-	// Make sure the bloom filter doesn't always return true
-	assert.False(t, bloomFilter.Test([]byte("some_random_data")))
-	expectedM, expectedK := bloom.EstimateFalsePositiveRate(
-		uint(len(entries)), defaultIndexBloomFilterFalsePositivePercent)
-	assert.Equal(t, expectedK, bloomFilter.K())
-	// EstimateFalsePositiveRate always returns at least 1, so skip this check
-	// if len entries is 0
-	if len(entries) > 0 {
-		assert.Equal(t, expectedM, bloomFilter.M())
-	}
-
-	for i := 0; i < r.Entries(); i++ {
-		idFromRead, data, checksumFromRead, err := r.Read()
+	for _, underTest := range readTestTypes {
+		err := r.Open(testNs1ID, 0, timestamp)
 		require.NoError(t, err)
 
-		data.IncRef()
+		require.Equal(t, len(entries), r.Entries())
+		require.Equal(t, 0, r.EntriesRead())
 
-		assert.Equal(t, entries[i].id, idFromRead.String())
-		assert.True(t, bytes.Equal(entries[i].data, data.Get()))
-		assert.Equal(t, digest.Checksum(entries[i].data), checksumFromRead)
-
-		assert.Equal(t, i+1, r.EntriesRead())
-
-		idFromReadMetadata, length, checksumFromReadMetadata, err := r.ReadMetadata()
-
+		bloomFilter, err := r.ReadBloomFilter()
 		assert.NoError(t, err)
-		assert.True(t, idFromRead.Equal(idFromReadMetadata))
-		assert.Equal(t, checksumFromRead, checksumFromReadMetadata)
-		assert.Equal(t, len(entries[i].data), length)
+		// Make sure the bloom filter doesn't always return true
+		assert.False(t, bloomFilter.Test([]byte("some_random_data")))
+		expectedM, expectedK := bloom.EstimateFalsePositiveRate(
+			uint(len(entries)), defaultIndexBloomFilterFalsePositivePercent)
+		assert.Equal(t, expectedK, bloomFilter.K())
+		// EstimateFalsePositiveRate always returns at least 1, so skip this check
+		// if len entries is 0
+		if len(entries) > 0 {
+			assert.Equal(t, expectedM, bloomFilter.M())
+		}
 
-		// Verify that the bloomFilter was bootstrapped properly by making sure it
-		// at least contains every ID
-		assert.True(t, bloomFilter.Test(idFromRead.Data().Get()))
+		for i := 0; i < r.Entries(); i++ {
+			switch underTest {
+			case readTestTypeData:
+				id, data, checksum, err := r.Read()
+				require.NoError(t, err)
 
-		idFromRead.Finalize()
-		data.DecRef()
-		idFromReadMetadata.Finalize()
+				data.IncRef()
+
+				assert.Equal(t, entries[i].id, id.String())
+				assert.True(t, bytes.Equal(entries[i].data, data.Get()))
+				assert.Equal(t, digest.Checksum(entries[i].data), checksum)
+
+				assert.Equal(t, i+1, r.EntriesRead())
+
+				// Verify that the bloomFilter was bootstrapped properly by making sure it
+				// at least contains every ID
+				assert.True(t, bloomFilter.Test(id.Data().Get()))
+
+				id.Finalize()
+				data.DecRef()
+				data.Finalize()
+			case readTestTypeMetadata:
+				id, length, checksum, err := r.ReadMetadata()
+				require.NoError(t, err)
+
+				assert.True(t, id.Equal(id))
+				assert.Equal(t, digest.Checksum(entriesByID[i].data), checksum)
+				assert.Equal(t, len(entriesByID[i].data), length)
+
+				pos := r.ReadMetadataPosition()
+				assert.Equal(t, len(entries), int(pos.Entries))
+				assert.Equal(t, i+1, int(pos.Read))
+
+				// Verify that the bloomFilter was bootstrapped properly by making sure it
+				// at least contains every ID
+				assert.True(t, bloomFilter.Test(id.Data().Get()))
+
+				id.Finalize()
+			}
+		}
+
+		require.NoError(t, r.Close())
 	}
-
-	assert.NoError(t, r.Close())
 }
 
 func TestSimpleReadWrite(t *testing.T) {

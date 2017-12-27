@@ -322,11 +322,8 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 	if r.metadataRead >= r.entries {
 		return none, 0, 0, io.EOF
 	}
-	if r.metadataRead == 0 {
-		// Reset the decoder the first time
-		r.decoder.Reset(r.indexDecoderStream)
-	}
 
+	r.decoder.Reset(r.indexDecoderStream)
 	entry, err := r.decoder.DecodeIndexEntry()
 	if err != nil {
 		return none, 0, 0, err
@@ -423,7 +420,7 @@ func (r *reader) Close() error {
 		r.indexEntriesByOffsetAsc[i].ID = nil
 	}
 	r.indexEntriesByOffsetAsc = r.indexEntriesByOffsetAsc[:0]
-	r.dataReader.Reset(bytes.NewReader(nil))
+	r.dataReader.Reset(nil)
 
 	multiErr := xerrors.NewMultiError()
 

@@ -762,8 +762,8 @@ func TestShardFetchBlocksIDExists(t *testing.T) {
 	series := addMockSeries(ctrl, shard, id, 0)
 	now := time.Now()
 	starts := []time.Time{now}
-	expected := []block.FetchBlockResult{block.NewFetchBlockResult(now, nil, nil, nil)}
-	series.EXPECT().FetchBlocks(ctx, starts).Return(expected)
+	expected := []block.FetchBlockResult{block.NewFetchBlockResult(now, nil, nil)}
+	series.EXPECT().FetchBlocks(ctx, starts).Return(expected, nil)
 	res, err := shard.FetchBlocks(ctx, id, starts)
 	require.NoError(t, err)
 	require.Equal(t, expected, res)

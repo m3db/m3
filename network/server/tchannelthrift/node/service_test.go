@@ -291,7 +291,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 		mockDB.EXPECT().
 			FetchBlocks(ctx, ts.NewIDMatcher(nsID), uint32(0), ts.NewIDMatcher(id), starts).
 			Return([]block.FetchBlockResult{
-				block.NewFetchBlockResult(start, []xio.SegmentReader{enc.Stream()}, nil, &checksum),
+				block.NewFetchBlockResult(start, []xio.SegmentReader{enc.Stream()}, nil),
 			}, nil)
 	}
 
@@ -464,16 +464,14 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 	// Configure constants / options
 	now := time.Now()
 	var (
-		start                   = now.Truncate(time.Hour)
-		end                     = now.Add(4 * time.Hour).Truncate(time.Hour)
-		limit                   = int64(2)
-		pageTokenShardIndex     = int64(0)
-		next                    = pageTokenShardIndex + limit
-		nextPageTokenShardIndex = &next
-		includeSizes            = true
-		includeChecksums        = true
-		includeLastRead         = true
-		nsID                    = "metrics"
+		start              = now.Truncate(time.Hour)
+		end                = now.Add(4 * time.Hour).Truncate(time.Hour)
+		limit              = int64(2)
+		nextPageTokenBytes = []byte("page_next")
+		includeSizes       = true
+		includeChecksums   = true
+		includeLastRead    = true
+		nsID               = "metrics"
 	)
 
 	// Prepare test data
@@ -523,9 +521,9 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 		IncludeLastRead:  includeLastRead,
 	}
 	mockDB.EXPECT().
-		FetchBlocksMetadata(ctx, ts.NewIDMatcher(nsID), uint32(0), start, end,
-			limit, pageTokenShardIndex, opts).
-		Return(mockResult, nextPageTokenShardIndex, nil)
+		FetchBlocksMetadataV2(ctx, ts.NewIDMatcher(nsID), uint32(0), start, end,
+			limit, nil, opts).
+		Return(mockResult, nextPageTokenBytes, nil)
 
 	// Run RPC method
 	r, err := service.FetchBlocksMetadataRawV2(tctx, &rpc.FetchBlocksMetadataRawV2Request{
@@ -534,7 +532,7 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 		RangeStart:       start.UnixNano(),
 		RangeEnd:         end.UnixNano(),
 		Limit:            limit,
-		PageToken:        pageTokenToBytes(t, &pt.PageToken{ShardIndex: pageTokenShardIndex}),
+		PageToken:        nil,
 		IncludeSizes:     &includeSizes,
 		IncludeChecksums: &includeChecksums,
 		IncludeLastRead:  &includeLastRead,
@@ -543,9 +541,7 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 
 	// Assert response looks OK
 	require.Equal(t, numBlocks, len(r.Elements))
-	expectedNextPageTokenBytes := pageTokenToBytes(
-		t, &pt.PageToken{ShardIndex: *nextPageTokenShardIndex})
-	require.Equal(t, expectedNextPageTokenBytes, r.NextPageToken)
+	require.Equal(t, nextPageTokenBytes, r.NextPageToken)
 
 	// Assert all blocks are present
 	for _, block := range r.Elements {
