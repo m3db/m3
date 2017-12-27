@@ -343,7 +343,7 @@ func (r *reader) ReadMetadataPosition() ReadMetadataPosition {
 }
 
 func (r *reader) ResetReadMetadataPosition(pos ReadMetadataPosition) error {
-	err := r.indexDecoderStream.resume(r.indexMmap, pos.Offset, uint32(pos.Checksum))
+	err := r.indexDecoderStream.resume(r.indexMmap, pos.Offset, pos.Checksum)
 	if err != nil {
 		return err
 	}

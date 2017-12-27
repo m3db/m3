@@ -3189,7 +3189,7 @@ func IsValidFetchBlocksMetadataEndpoint(endpointVersion FetchBlocksMetadataEndpo
 }
 
 // UnmarshalYAML unmarshals an FetchBlocksMetadataEndpointVersion into a valid type from string.
-func (p *FetchBlocksMetadataEndpointVersion) UnmarshalYAML(unmarshal func(interface{}) error) error {
+func (v *FetchBlocksMetadataEndpointVersion) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
@@ -3199,7 +3199,7 @@ func (p *FetchBlocksMetadataEndpointVersion) UnmarshalYAML(unmarshal func(interf
 	}
 	for _, valid := range validFetchBlocksMetadataEndpoints {
 		if str == valid.String() {
-			*p = valid
+			*v = valid
 			return nil
 		}
 	}
@@ -3214,5 +3214,5 @@ func (v FetchBlocksMetadataEndpointVersion) String() string {
 	case FetchBlocksMetadataEndpointV2:
 		return "v2"
 	}
-	return "unknown"
+	return unknown
 }

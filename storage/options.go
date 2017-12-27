@@ -206,11 +206,7 @@ func (o *options) Validate() error {
 	}
 
 	// validate series cache policy
-	if err := series.ValidateCachePolicy(o.seriesCachePolicy); err != nil {
-		return err
-	}
-
-	return nil
+	return series.ValidateCachePolicy(o.seriesCachePolicy)
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {

@@ -24,9 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3db/digest"
-	pt "github.com/m3db/m3db/generated/proto/pagetoken"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/runtime"
@@ -819,10 +817,4 @@ func TestServiceSetWriteNewSeriesLimitPerShardPerSecond(t *testing.T) {
 	setResp, err := service.SetWriteNewSeriesLimitPerShardPerSecond(tctx, req)
 	require.NoError(t, err)
 	assert.Equal(t, int64(84), setResp.WriteNewSeriesLimitPerShardPerSecond)
-}
-
-func pageTokenToBytes(t *testing.T, pageToken *pt.PageToken) []byte {
-	pageTokenBytes, err := proto.Marshal(pageToken)
-	require.NoError(t, err)
-	return pageTokenBytes
 }
