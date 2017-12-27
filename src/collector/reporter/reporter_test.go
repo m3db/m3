@@ -22,16 +22,22 @@ package reporter
 
 import (
 	"errors"
+	"fmt"
 	"math"
+	"os"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 var (
@@ -91,6 +97,8 @@ var (
 )
 
 func TestReporterReportCounterPartialError(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	var (
 		ids          []string
 		vals         []int64
@@ -110,6 +118,8 @@ func TestReporterReportCounterPartialError(t *testing.T) {
 		},
 		testReporterOptions(),
 	)
+	defer reporter.Close()
+
 	require.Error(t, reporter.ReportCounter(mockID("counter"), 1234))
 	require.Equal(t, []string{"counter", "foo"}, ids)
 	require.Equal(t, []int64{1234, 1234}, vals)
@@ -120,6 +130,8 @@ func TestReporterReportCounterPartialError(t *testing.T) {
 }
 
 func TestReporterReportBatchTimerPartialError(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	var (
 		ids          []string
 		vals         [][]float64
@@ -139,6 +151,8 @@ func TestReporterReportBatchTimerPartialError(t *testing.T) {
 		},
 		testReporterOptions(),
 	)
+	defer reporter.Close()
+
 	require.Error(t, reporter.ReportBatchTimer(mockID("batchTimer"), []float64{1.3, 2.4}))
 	require.Equal(t, []string{"batchTimer", "foo"}, ids)
 	require.Equal(t, [][]float64{{1.3, 2.4}, {1.3, 2.4}}, vals)
@@ -149,6 +163,8 @@ func TestReporterReportBatchTimerPartialError(t *testing.T) {
 }
 
 func TestReporterReportGaugePartialError(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	var (
 		ids          []string
 		vals         []float64
@@ -168,6 +184,8 @@ func TestReporterReportGaugePartialError(t *testing.T) {
 		},
 		testReporterOptions(),
 	)
+	defer reporter.Close()
+
 	require.Error(t, reporter.ReportGauge(mockID("gauge"), 1.8))
 	require.Equal(t, []string{"gauge", "foo"}, ids)
 	require.Equal(t, []float64{1.8, 1.8}, vals)
@@ -178,17 +196,82 @@ func TestReporterReportGaugePartialError(t *testing.T) {
 }
 
 func TestReporterFlush(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	var numFlushes int
 	reporter := NewReporter(&mockMatcher{}, &mockServer{
 		flushFn: func() error { numFlushes++; return nil },
 	}, testReporterOptions())
+	defer reporter.Close()
+
 	require.NoError(t, reporter.Flush())
 	require.Equal(t, 1, numFlushes)
 }
 
 func TestReporterClose(t *testing.T) {
+	defer leaktest.Check(t)()
+
 	reporter := NewReporter(&mockMatcher{}, &mockServer{}, testReporterOptions())
 	require.Error(t, reporter.Close())
+}
+
+func TestReporterMultipleCloses(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	r := NewReporter(&mockMatcher{}, &mockServer{}, testReporterOptions())
+	var wg sync.WaitGroup
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			r.Close()
+		}()
+	}
+	wg.Wait()
+	require.Equal(t, int32(1), r.(*reporter).closed)
+}
+
+func TestReporterReportPending(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	reportInterval := 50 * time.Millisecond
+	scope := tally.NewTestScope("", map[string]string{"component": "reporter"})
+	instrumentOpts := instrument.NewOptions().
+		SetMetricsScope(scope).
+		SetReportInterval(reportInterval)
+	opts := testReporterOptions().SetInstrumentOptions(instrumentOpts)
+	r := NewReporter(&mockMatcher{}, &mockServer{}, opts).(*reporter)
+	defer r.Close()
+	require.Equal(t, int64(0), r.currentReportPending())
+
+	hostname, err := os.Hostname()
+	require.NoError(t, err)
+	expectedID := fmt.Sprintf("report-pending+component=reporter,host=%s", hostname)
+
+	// Increment report pending and wait for the metric to be reported.
+	iter := 10
+	for i := 0; i < iter; i++ {
+		r.incrementReportPending()
+	}
+	require.Equal(t, int64(iter), r.currentReportPending())
+	time.Sleep(2 * reportInterval)
+	gauges := scope.Snapshot().Gauges()
+	require.Equal(t, 1, len(gauges))
+	res, exists := gauges[expectedID]
+	require.True(t, exists)
+	require.Equal(t, float64(iter), res.Value())
+
+	// Decrement report pending and wait for the metric to be reported.
+	for i := 0; i < iter; i++ {
+		r.decrementReportPending()
+	}
+	require.Equal(t, int64(0), r.currentReportPending())
+	time.Sleep(2 * reportInterval)
+	gauges = scope.Snapshot().Gauges()
+	require.Equal(t, 1, len(gauges))
+	res, exists = gauges[expectedID]
+	require.True(t, exists)
+	require.Equal(t, 0.0, res.Value())
 }
 
 func testReporterOptions() Options {

@@ -21,13 +21,17 @@
 package reporter
 
 import (
+	"errors"
+	"os"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/m3db/m3collector/backend"
 	"github.com/m3db/m3metrics/matcher"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3x/clock"
-	"github.com/m3db/m3x/errors"
+	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/uber-go/tally"
@@ -51,18 +55,33 @@ type Reporter interface {
 	Close() error
 }
 
+var (
+	errReporterAlreadyClosed = errors.New("reporter is already closed")
+)
+
 type reporterMetrics struct {
 	reportCounter    instrument.MethodMetrics
 	reportBatchTimer instrument.MethodMetrics
 	reportGauge      instrument.MethodMetrics
+	reportPending    tally.Gauge
 	flush            instrument.MethodMetrics
 }
 
-func newReporterMetrics(scope tally.Scope, samplingRate float64) reporterMetrics {
+func newReporterMetrics(instrumentOpts instrument.Options) reporterMetrics {
+	scope := instrumentOpts.MetricsScope()
+	samplingRate := instrumentOpts.MetricsSamplingRate()
+	hostName := "unknown"
+	if name, err := os.Hostname(); err == nil {
+		hostName = name
+	} else {
+		instrumentOpts.Logger().Warnf("unable to determine hostname when creating reporter: %v", err)
+	}
+	hostScope := scope.Tagged(map[string]string{"host": hostName})
 	return reporterMetrics{
 		reportCounter:    instrument.NewMethodMetrics(scope, "report-counter", samplingRate),
 		reportBatchTimer: instrument.NewMethodMetrics(scope, "report-batch-timer", samplingRate),
 		reportGauge:      instrument.NewMethodMetrics(scope, "report-gauge", samplingRate),
+		reportPending:    hostScope.Gauge("report-pending"),
 		flush:            instrument.NewMethodMetrics(scope, "flush", samplingRate),
 	}
 }
@@ -73,7 +92,13 @@ type reporter struct {
 	nowFn           clock.NowFn
 	maxPositiveSkew time.Duration
 	maxNegativeSkew time.Duration
-	metrics         reporterMetrics
+	reportInterval  time.Duration
+
+	closed        int32
+	doneCh        chan struct{}
+	wg            sync.WaitGroup
+	reportPending int64
+	metrics       reporterMetrics
 }
 
 // NewReporter creates a new reporter.
@@ -84,14 +109,20 @@ func NewReporter(
 ) Reporter {
 	clockOpts := opts.ClockOptions()
 	instrumentOpts := opts.InstrumentOptions()
-	return &reporter{
+	r := &reporter{
 		matcher:         matcher,
 		server:          server,
 		nowFn:           clockOpts.NowFn(),
 		maxPositiveSkew: clockOpts.MaxPositiveSkew(),
 		maxNegativeSkew: clockOpts.MaxNegativeSkew(),
-		metrics:         newReporterMetrics(instrumentOpts.MetricsScope(), instrumentOpts.MetricsSamplingRate()),
+		reportInterval:  instrumentOpts.ReportInterval(),
+		doneCh:          make(chan struct{}),
+		metrics:         newReporterMetrics(instrumentOpts),
 	}
+
+	r.wg.Add(1)
+	go r.reportMetrics()
+	return r
 }
 
 func (r *reporter) ReportCounter(id id.ID, value int64) error {
@@ -99,8 +130,9 @@ func (r *reporter) ReportCounter(id id.ID, value int64) error {
 		reportAt  = r.nowFn()
 		fromNanos = reportAt.Add(-r.maxNegativeSkew).UnixNano()
 		toNanos   = reportAt.Add(r.maxPositiveSkew).UnixNano()
-		multiErr  = errors.NewMultiError()
+		multiErr  = xerrors.NewMultiError()
 	)
+	r.incrementReportPending()
 	matchRes := r.matcher.ForwardMatch(id, fromNanos, toNanos)
 	if err := r.server.WriteCounterWithPoliciesList(
 		id.Bytes(),
@@ -120,6 +152,7 @@ func (r *reporter) ReportCounter(id id.ID, value int64) error {
 	}
 	err := multiErr.FinalError()
 	r.metrics.reportCounter.ReportSuccessOrError(err, r.nowFn().Sub(reportAt))
+	r.decrementReportPending()
 	return err
 }
 
@@ -128,8 +161,9 @@ func (r *reporter) ReportBatchTimer(id id.ID, value []float64) error {
 		reportAt  = r.nowFn()
 		fromNanos = reportAt.Add(-r.maxNegativeSkew).UnixNano()
 		toNanos   = reportAt.Add(r.maxPositiveSkew).UnixNano()
-		multiErr  = errors.NewMultiError()
+		multiErr  = xerrors.NewMultiError()
 	)
+	r.incrementReportPending()
 	matchRes := r.matcher.ForwardMatch(id, fromNanos, toNanos)
 	if err := r.server.WriteBatchTimerWithPoliciesList(
 		id.Bytes(),
@@ -149,6 +183,7 @@ func (r *reporter) ReportBatchTimer(id id.ID, value []float64) error {
 	}
 	err := multiErr.FinalError()
 	r.metrics.reportBatchTimer.ReportSuccessOrError(err, r.nowFn().Sub(reportAt))
+	r.decrementReportPending()
 	return err
 }
 
@@ -157,8 +192,9 @@ func (r *reporter) ReportGauge(id id.ID, value float64) error {
 		reportAt  = r.nowFn()
 		fromNanos = reportAt.Add(-r.maxNegativeSkew).UnixNano()
 		toNanos   = reportAt.Add(r.maxPositiveSkew).UnixNano()
-		multiErr  = errors.NewMultiError()
+		multiErr  = xerrors.NewMultiError()
 	)
+	r.incrementReportPending()
 	matchRes := r.matcher.ForwardMatch(id, fromNanos, toNanos)
 	if err := r.server.WriteGaugeWithPoliciesList(
 		id.Bytes(),
@@ -178,6 +214,7 @@ func (r *reporter) ReportGauge(id id.ID, value float64) error {
 	}
 	err := multiErr.FinalError()
 	r.metrics.reportGauge.ReportSuccessOrError(err, r.nowFn().Sub(reportAt))
+	r.decrementReportPending()
 	return err
 }
 
@@ -189,12 +226,36 @@ func (r *reporter) Flush() error {
 }
 
 func (r *reporter) Close() error {
-	multiErr := errors.NewMultiError()
+	if !atomic.CompareAndSwapInt32(&r.closed, 0, 1) {
+		return errReporterAlreadyClosed
+	}
+	close(r.doneCh)
+	multiErr := xerrors.NewMultiError()
 	if err := r.server.Close(); err != nil {
 		multiErr = multiErr.Add(err)
 	}
 	if err := r.matcher.Close(); err != nil {
 		multiErr = multiErr.Add(err)
 	}
+	r.wg.Wait()
 	return multiErr.FinalError()
+}
+
+func (r *reporter) currentReportPending() int64   { return atomic.LoadInt64(&r.reportPending) }
+func (r *reporter) incrementReportPending() int64 { return atomic.AddInt64(&r.reportPending, 1) }
+func (r *reporter) decrementReportPending() int64 { return atomic.AddInt64(&r.reportPending, -1) }
+
+func (r *reporter) reportMetrics() {
+	defer r.wg.Done()
+
+	ticker := time.NewTicker(r.reportInterval)
+	for {
+		select {
+		case <-ticker.C:
+			r.metrics.reportPending.Update(float64(r.currentReportPending()))
+		case <-r.doneCh:
+			ticker.Stop()
+			return
+		}
+	}
 }
