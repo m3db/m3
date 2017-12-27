@@ -120,7 +120,7 @@ repair:
     throttle: 2m
     checkInterval: 1m
 
-poolingPolicy:
+pooling:
     blockAllocSize: 16
     type: simple
     seriesPool:
@@ -324,6 +324,10 @@ bootstrap:
   - noop-all
   fs:
     numProcessorsPerCPU: 0.125
+  peers: null
+blockRetrieve: null
+cache:
+  series: null
 fs:
   filePathPrefix: /var/lib/m3db
   writeBufferSize: 65536
@@ -335,8 +339,6 @@ fs:
   newFileMode: null
   newDirectoryMode: null
   mmap: null
-blockRetrieve:
-  fetchConcurrency: 0
 commitlog:
   flushMaxBytes: 524288
   flushEvery: 1s
@@ -352,7 +354,7 @@ repair:
   jitter: 1h0m0s
   throttle: 2m0s
   checkInterval: 1m0s
-poolingPolicy:
+pooling:
   blockAllocSize: 16
   type: simple
   bytesPool:
