@@ -72,6 +72,9 @@ func NewMatchResult(
 // Version returns the version of the match result.
 func (r *MatchResult) Version() int { return r.version }
 
+// ExpireAtNanos returns the expiration time of the match result in nanoseconds.
+func (r *MatchResult) ExpireAtNanos() int64 { return r.expireAtNanos }
+
 // HasExpired returns whether the match result has expired for a given time.
 func (r *MatchResult) HasExpired(timeNanos int64) bool { return r.expireAtNanos <= timeNanos }
 

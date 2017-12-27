@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3cluster/kv/util/runtime"
 	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
@@ -99,7 +100,7 @@ func TestMatcherClose(t *testing.T) {
 	require.NoError(t, matcher.Close())
 }
 
-func testMatcher(t *testing.T, cache Cache) Matcher {
+func testMatcher(t *testing.T, cache cache.Cache) Matcher {
 	var (
 		store = mem.NewStore()
 		opts  = NewOptions().

@@ -5,6 +5,7 @@ SHELL=/bin/bash -o pipefail
 
 html_report          := coverage.html
 test                 := .ci/test-cover.sh
+test_ci_integration  := .ci/test-integration.sh
 convert-test-data    := .ci/convert-test-data.sh
 coverfile            := cover.out
 coverage_xml         := coverage.xml
@@ -65,6 +66,10 @@ test-internal:
 	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
 	$(test) $(coverfile) | tee $(test_log)
 
+.PHONY: test-integration
+test-integration:
+	go test -v -tags=integration ./integration
+
 .PHONY: test-xml
 test-xml: test-internal
 	go-junit-report < $(test_log) > $(junit_xml)
@@ -86,12 +91,16 @@ test-ci-unit: test-internal
 	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "\x1b[31mCoveralls failed\x1b[m"
 
+.PHONY: test-ci-integration
+test-ci-integration:
+	$(test_ci_integration)
+
 .PHONY: clean
 clean:
 	@rm -f *.html *.xml *.out *.test
 
 .PHONY: all
-all: lint metalint test-ci-unit
+all: lint metalint test-ci-unit test-ci-integration
 	@echo Made all successfully
 
 .DEFAULT_GOAL := all

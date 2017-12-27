@@ -21,6 +21,7 @@
 package matcher
 
 import (
+	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/rules"
 )
@@ -41,11 +42,11 @@ type matcher struct {
 	defaultNamespace []byte
 
 	namespaces Namespaces
-	cache      Cache
+	cache      cache.Cache
 }
 
 // NewMatcher creates a new rule matcher.
-func NewMatcher(cache Cache, opts Options) (Matcher, error) {
+func NewMatcher(cache cache.Cache, opts Options) (Matcher, error) {
 	instrumentOpts := opts.InstrumentOptions()
 	scope := instrumentOpts.MetricsScope()
 	iOpts := instrumentOpts.SetMetricsScope(scope.SubScope("namespaces"))
@@ -57,7 +58,7 @@ func NewMatcher(cache Cache, opts Options) (Matcher, error) {
 			cache.Unregister(namespace)
 		}).
 		SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) {
-			cache.Register(namespace, ruleSet)
+			cache.Refresh(namespace, ruleSet)
 		})
 	key := opts.NamespacesKey()
 	namespaces := NewNamespaces(key, namespacesOpts)

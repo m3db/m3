@@ -18,29 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package matcher
+/*
 
-import "github.com/m3db/m3metrics/rules"
+Package integration contains integration tests.
 
-// Source is a datasource providing match results.
-type Source interface {
-	// ForwardMatch returns the match result for a given id within time range
-	// [fromNanos, toNanos).
-	ForwardMatch(id []byte, fromNanos, toNanos int64) rules.MatchResult
-}
-
-// Cache caches the rule matching result associated with metrics.
-type Cache interface {
-	// ForwardMatch returns the rule matching result associated with a metric id
-	// between [fromNanos, toNanos).
-	ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult
-
-	// Register sets the result source for a given namespace.
-	Register(namespace []byte, source Source)
-
-	// Unregister deletes the cached results for a given namespace.
-	Unregister(namespace []byte)
-
-	// Close closes the cache.
-	Close() error
-}
+*/
+package integration

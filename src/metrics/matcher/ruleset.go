@@ -193,13 +193,15 @@ func (r *ruleSet) toRuleSet(value kv.Value) (interface{}, error) {
 // process processes an ruleset update.
 func (r *ruleSet) process(value interface{}) error {
 	r.Lock()
-	defer r.Unlock()
-
 	ruleSet := value.(rules.RuleSet)
 	r.version = ruleSet.Version()
 	r.cutoverNanos = ruleSet.CutoverNanos()
 	r.tombstoned = ruleSet.Tombstoned()
 	r.matcher = ruleSet.ActiveSet(r.nowFn().Add(-r.matchRangePast).UnixNano())
+	r.Unlock()
+
+	// NB: calling the update callback outside the ruleset lock to avoid circular
+	// lock dependency causing a deadlock.
 	if r.onRuleSetUpdatedFn != nil {
 		r.onRuleSetUpdatedFn(r.namespace, r)
 	}
