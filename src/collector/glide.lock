@@ -1,5 +1,5 @@
 hash: 379da35f7ca630746c1847ce72f40161babc6a035c3716f86c8b57002dcf6bff
-updated: 2017-12-13T19:30:45.491199762-05:00
+updated: 2017-12-25T15:37:06.787895491-05:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -115,6 +115,8 @@ testImports:
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
   - spew
+- name: github.com/fortytw2/leaktest
+  version: 3b724c3d7b8729a35bf4e577f71653aec6e53513
 - name: github.com/leanovate/gopter
   version: 9e6101e5a87586b269acf3d0d61f363e4317309f
   subpackages:
@@ -125,7 +127,7 @@ testImports:
   subpackages:
   - difflib
 - name: github.com/stretchr/testify
-  version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
+  version: d77da356e56a7428ad25149ca77381849a6a5232
   subpackages:
   - assert
   - require
