@@ -6,6 +6,7 @@ Metrics collection agent. Responsible for collecting metrics and forwarding them
 downstream services (e.g., for aggregation or permanent storage).
 
 <hr>
+
 This project is released under the [MIT License](LICENSE.md).
 
 [doc-img]: https://godoc.org/github.com/m3db/m3collector?status.svg
