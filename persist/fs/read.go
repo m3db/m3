@@ -108,6 +108,8 @@ func NewReader(
 		return nil, err
 	}
 	return &reader{
+		// When initializing new fields that should be static, be sure to save
+		// and reset them after Close() resets the fields to all default values.
 		filePathPrefix: opts.FilePathPrefix(),
 		hugePagesOpts: mmapHugePagesOptions{
 			enabled:   opts.MmapEnableHugePages(),
@@ -412,32 +414,50 @@ func (r *reader) EntriesRead() int {
 }
 
 func (r *reader) Close() error {
-	r.entries = 0
-	r.entriesRead = 0
-	r.metadataRead = 0
+	// Close and prepare resources that are to be reused
+	multiErr := xerrors.NewMultiError()
+	multiErr = multiErr.Add(munmap(r.indexMmap))
+	multiErr = multiErr.Add(munmap(r.dataMmap))
+	multiErr = multiErr.Add(r.indexFd.Close())
+	multiErr = multiErr.Add(r.dataFd.Close())
+	multiErr = multiErr.Add(r.bloomFilterFd.Close())
 	r.indexDecoderStream.Reset(nil)
+	r.dataReader.Reset(nil)
 	for i := 0; i < len(r.indexEntriesByOffsetAsc); i++ {
 		r.indexEntriesByOffsetAsc[i].ID = nil
 	}
 	r.indexEntriesByOffsetAsc = r.indexEntriesByOffsetAsc[:0]
-	r.dataReader.Reset(nil)
 
-	multiErr := xerrors.NewMultiError()
+	// Save fields we want to reassign after resetting struct
+	filePathPrefix := r.filePathPrefix
+	hugePagesOpts := r.hugePagesOpts
+	infoFdWithDigest := r.infoFdWithDigest
+	digestFdWithDigestContents := r.digestFdWithDigestContents
+	bloomFilterWithDigest := r.bloomFilterWithDigest
+	indexDecoderStream := r.indexDecoderStream
+	dataReader := r.dataReader
+	prologue := r.prologue
+	decoder := r.decoder
+	digestBuf := r.digestBuf
+	bytesPool := r.bytesPool
+	indexEntriesByOffsetAsc := r.indexEntriesByOffsetAsc
 
-	multiErr = multiErr.Add(munmap(r.indexMmap))
-	r.indexMmap = nil
+	// Reset struct
+	*r = reader{}
 
-	multiErr = multiErr.Add(munmap(r.dataMmap))
-	r.dataMmap = nil
-
-	multiErr = multiErr.Add(r.indexFd.Close())
-	r.indexFd = nil
-
-	multiErr = multiErr.Add(r.dataFd.Close())
-	r.dataFd = nil
-
-	multiErr = multiErr.Add(r.bloomFilterFd.Close())
-	r.bloomFilterFd = nil
+	// Reset the saved fields
+	r.filePathPrefix = filePathPrefix
+	r.hugePagesOpts = hugePagesOpts
+	r.infoFdWithDigest = infoFdWithDigest
+	r.digestFdWithDigestContents = digestFdWithDigestContents
+	r.bloomFilterWithDigest = bloomFilterWithDigest
+	r.indexDecoderStream = indexDecoderStream
+	r.dataReader = dataReader
+	r.prologue = prologue
+	r.decoder = decoder
+	r.digestBuf = digestBuf
+	r.bytesPool = bytesPool
+	r.indexEntriesByOffsetAsc = indexEntriesByOffsetAsc
 
 	return multiErr.FinalError()
 }

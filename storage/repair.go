@@ -107,7 +107,10 @@ func (r shardRepairer) Repair(
 		IncludeSizes:     true,
 		IncludeChecksums: true,
 	}
-	localMetadata, _ := shard.FetchBlocksMetadata(ctx, start, end, math.MaxInt64, 0, opts)
+	localMetadata, _, err := shard.FetchBlocksMetadata(ctx, start, end, math.MaxInt64, 0, opts)
+	if err != nil {
+		return repair.MetadataComparisonResult{}, err
+	}
 	ctx.RegisterFinalizer(context.FinalizerFn(localMetadata.Close))
 
 	localIter := block.NewFilteredBlocksMetadataIter(localMetadata)

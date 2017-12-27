@@ -939,23 +939,47 @@ func (s *dbShard) FetchBlocksMetadata(
 	limit int64,
 	pageToken int64,
 	opts block.FetchBlocksMetadataOptions,
+) (block.FetchBlocksMetadataResults, *int64, error) {
+	switch s.opts.SeriesCachePolicy() {
+	case series.CacheAll:
+	case series.CacheAllMetadata:
+	default:
+		// If not using CacheAll or CacheAllMetadata then calling the v1
+		// API will only return active block metadata (mutable and cached)
+		// hence this call is invalid
+		return nil, nil, fmt.Errorf(
+			"fetch blocks metadata v1 endpoint invalid with cache policy: %s",
+			s.opts.SeriesCachePolicy().String())
+	}
+
+	result, nextPageToken := s.fetchActiveBlocksMetadata(ctx, start, end,
+		limit, pageToken, opts)
+	return result, nextPageToken, nil
+}
+
+func (s *dbShard) fetchActiveBlocksMetadata(
+	ctx context.Context,
+	start, end time.Time,
+	limit int64,
+	indexCursor int64,
+	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, *int64) {
 	var (
-		res            = s.opts.FetchBlocksMetadataResultsPool().Get()
-		tmpCtx         = context.NewContext()
-		pNextPageToken *int64
+		res             = s.opts.FetchBlocksMetadataResultsPool().Get()
+		tmpCtx          = context.NewContext()
+		nextIndexCursor *int64
 	)
 
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		// Break out of the iteration loop once we've accumulated enough entries.
 		if int64(len(res.Results())) >= limit {
-			nextPageToken := int64(entry.index)
-			pNextPageToken = &nextPageToken
+			next := int64(entry.index)
+			nextIndexCursor = &next
 			return false
 		}
 
 		// Fast forward past indexes lower than page token
-		if int64(entry.index) < pageToken {
+		if int64(entry.index) < indexCursor {
 			return true
 		}
 
@@ -981,7 +1005,7 @@ func (s *dbShard) FetchBlocksMetadata(
 		return true
 	})
 
-	return res, pNextPageToken
+	return res, nextIndexCursor
 }
 
 func (s *dbShard) FetchBlocksMetadataV2(
@@ -991,6 +1015,19 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	pageToken PageToken,
 	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, PageToken, error) {
+	switch s.opts.SeriesCachePolicy() {
+	case series.CacheAll:
+		fallthrough
+	case series.CacheAllMetadata:
+		// If either CacheAll or CacheAllMetadata in use then calling the v2
+		// API for fetch blocks metadata does not work because all metadata is
+		// already in memory and will cause a tremendous amount of duplicate
+		// metadata to be sent over the wire
+		return nil, nil, fmt.Errorf(
+			"fetch blocks metadata v2 endpoint invalid with cache policy: %s",
+			s.opts.SeriesCachePolicy().String())
+	}
+
 	var (
 		token = &pagetoken.PageToken{}
 	)
@@ -1011,9 +1048,10 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			indexCursor = activePhase.IndexCursor
 		}
 
-		result, shardIndex := s.FetchBlocksMetadata(ctx, start, end, limit, indexCursor, opts)
+		result, nextIndexCursor := s.fetchActiveBlocksMetadata(ctx, start, end,
+			limit, indexCursor, opts)
 		// Encode the next page token
-		if shardIndex == nil {
+		if nextIndexCursor == nil {
 			// Next phase, no more results from active series
 			token.Phase = &pagetoken.PageToken_FlushedSeriesPhase_{
 				FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{},
@@ -1022,7 +1060,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			// This phase is still active
 			token.Phase = &pagetoken.PageToken_ActiveSeriesPhase_{
 				ActiveSeriesPhase: &pagetoken.PageToken_ActiveSeriesPhase{
-					IndexCursor: *shardIndex,
+					IndexCursor: *nextIndexCursor,
 				},
 			}
 		}

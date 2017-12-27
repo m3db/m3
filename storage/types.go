@@ -313,7 +313,7 @@ type databaseShard interface {
 		limit int64,
 		pageToken int64,
 		opts block.FetchBlocksMetadataOptions,
-	) (block.FetchBlocksMetadataResults, *int64)
+	) (block.FetchBlocksMetadataResults, *int64, error)
 
 	// FetchBlocksMetadataV2 retrieves blocks metadata.
 	FetchBlocksMetadataV2(

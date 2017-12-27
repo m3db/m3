@@ -264,7 +264,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 	any := gomock.Any()
 	shard.EXPECT().
 		FetchBlocksMetadata(any, start, end, any, int64(0), fetchOpts).
-		Return(expectedResults, nil)
+		Return(expectedResults, nil, nil)
 	shard.EXPECT().ID().Return(shardID).AnyTimes()
 
 	peerIter := client.NewMockPeerBlocksMetadataIter(ctrl)

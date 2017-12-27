@@ -806,7 +806,8 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 		}
 	}
 
-	res, nextPageToken := shard.FetchBlocksMetadata(ctx, start, end, 5, 2, fetchOpts)
+	res, nextPageToken, err := shard.FetchBlocksMetadata(ctx, start, end, 5, 2, fetchOpts)
+	require.NoError(t, err)
 	require.Equal(t, len(ids), len(res.Results()))
 	require.Equal(t, int64(8), *nextPageToken)
 	for i := 0; i < len(res.Results()); i++ {

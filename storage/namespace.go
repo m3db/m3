@@ -511,10 +511,10 @@ func (n *dbNamespace) FetchBlocksMetadata(
 		return nil, nil, err
 	}
 
-	res, nextPageToken := shard.FetchBlocksMetadata(ctx, start, end, limit,
+	res, nextPageToken, err := shard.FetchBlocksMetadata(ctx, start, end, limit,
 		pageToken, opts)
 	n.metrics.fetchBlocksMetadata.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return res, nextPageToken, nil
+	return res, nextPageToken, err
 }
 
 func (n *dbNamespace) FetchBlocksMetadataV2(
