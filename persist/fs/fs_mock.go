@@ -25,6 +25,7 @@ package fs
 
 import (
 	gomock "github.com/golang/mock/gomock"
+	
 	ts "github.com/m3db/m3db/ts"
 	checked "github.com/m3db/m3x/checked"
 	time0 "github.com/m3db/m3x/time"
@@ -198,6 +199,26 @@ func (_m *MockFileSetReader) ReadMetadata() (ts.ID, int, uint32, error) {
 
 func (_mr *_MockFileSetReaderRecorder) ReadMetadata() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadMetadata")
+}
+
+func (_m *MockFileSetReader) ReadMetadataPosition() ReadMetadataPosition {
+	ret := _m.ctrl.Call(_m, "ReadMetadataPosition")
+	ret0, _ := ret[0].(ReadMetadataPosition)
+	return ret0
+}
+
+func (_mr *_MockFileSetReaderRecorder) ReadMetadataPosition() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadMetadataPosition")
+}
+
+func (_m *MockFileSetReader) ResetReadMetadataPosition(_param0 ReadMetadataPosition) error {
+	ret := _m.ctrl.Call(_m, "ResetReadMetadataPosition", _param0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockFileSetReaderRecorder) ResetReadMetadataPosition(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ResetReadMetadataPosition", arg0)
 }
 
 func (_m *MockFileSetReader) Validate() error {

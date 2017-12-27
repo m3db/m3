@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"sort"
 	"sync"
@@ -32,12 +31,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
-	pt "github.com/m3db/m3db/generated/proto/pagetoken"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
@@ -2171,7 +2168,6 @@ func expectFetchMetadataAndReturnV2(
 		var (
 			ret      = &rpc.FetchBlocksMetadataRawV2Result_{}
 			beginIdx = i * batchSize
-			nextIdx  = int64(0)
 		)
 		for j := beginIdx; j < len(result) && j < beginIdx+batchSize; j++ {
 			id := result[j].id.Data().Get()
@@ -2186,15 +2182,10 @@ func expectFetchMetadataAndReturnV2(
 				}
 				ret.Elements = append(ret.Elements, bl)
 			}
-			nextIdx = int64(j) + 1
 		}
 		if i != totalCalls-1 {
 			// Include next page token if not last page
-			nextPageTokenBytes, err := proto.Marshal(&pt.PageToken{ShardIndex: nextIdx})
-			if err != nil {
-				log.Fatal(err)
-			}
-			ret.NextPageToken = nextPageTokenBytes
+			ret.NextPageToken = []byte(fmt.Sprintf("token_%d", i+1))
 		}
 
 		matcher := &fetchMetadataReqMatcher{
@@ -2204,11 +2195,7 @@ func expectFetchMetadataAndReturnV2(
 			isV2:         true,
 		}
 		if i != 0 {
-			expectedPageTokenBytes, err := proto.Marshal(&pt.PageToken{ShardIndex: int64(beginIdx)})
-			if err != nil {
-				log.Fatal(err)
-			}
-			matcher.pageTokenV2 = expectedPageTokenBytes
+			matcher.pageTokenV2 = []byte(fmt.Sprintf("token_%d", i))
 		}
 
 		call := client.EXPECT().FetchBlocksMetadataRawV2(gomock.Any(), matcher).Return(ret, nil)

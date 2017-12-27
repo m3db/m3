@@ -19,11 +19,10 @@
 // THE SOFTWARE.
 
 // mockgen rules for generating mocks for exported interfaces (reflection mode)
-//go:generate sh -c "mockgen -package=fs -destination=$GOPATH/src/$PACKAGE/persist/fs/fs_mock.go $PACKAGE/persist/fs FileSetWriter,FileSetReader"
+//go:generate sh -c "mockgen -package=fs $PACKAGE/persist/fs FileSetWriter,FileSetReader | go run $GOPATH/src/$PACKAGE/generated/mocks/writer/writer_main.go -pkg $PACKAGE/persist/fs -out $GOPATH/src/$PACKAGE/persist/fs/fs_mock.go"
 //go:generate sh -c "mockgen -package=xio -destination=$GOPATH/src/$PACKAGE/x/io/io_mock.go $PACKAGE/x/io ReaderSliceReader,SegmentReader"
 //go:generate sh -c "mockgen -package=digest -destination=$GOPATH/src/$PACKAGE/digest/digest_mock.go $PACKAGE/digest ReaderWithDigest"
-// NB(r): Remove self-referential import for series mock.
-//go:generate sh -c "mockgen -package=series $PACKAGE/storage/series DatabaseSeries | sed \"s|series \\\"github.com/m3db/m3db/storage/series\\\"||g\" | sed \"s|series.||g\" > $GOPATH/src/$PACKAGE/storage/series/series_mock.tmp && mv $GOPATH/src/$PACKAGE/storage/series/series_mock.tmp $GOPATH/src/$PACKAGE/storage/series/series_mock.go"
+//go:generate sh -c "mockgen -package=series $PACKAGE/storage/series DatabaseSeries | go run $GOPATH/src/$PACKAGE/generated/mocks/writer/writer_main.go -pkg $PACKAGE/storage/series -out $GOPATH/src/$PACKAGE/storage/series/series_mock.go"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode)
 //go:generate sh -c "mockgen -package=encoding -destination=$GOPATH/src/$PACKAGE/encoding/encoding_mock.go -source=$GOPATH/src/$PACKAGE/encoding/types.go"

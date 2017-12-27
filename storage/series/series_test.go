@@ -341,12 +341,10 @@ func TestSeriesFetchBlocks(t *testing.T) {
 	now := time.Now()
 	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
 	blocks := block.NewMockDatabaseSeriesBlocks(ctrl)
-	ck0 := uint32(42)
 
 	// Set up the blocks
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().Stream(ctx).Return(xio.NewSegmentReader(ts.Segment{}), nil)
-	b.EXPECT().Checksum().Return(ck0)
 	blocks.EXPECT().BlockAt(starts[0]).Return(b, true)
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().Stream(ctx).Return(nil, errors.New("bar"))
@@ -356,7 +354,9 @@ func TestSeriesFetchBlocks(t *testing.T) {
 	// Set up the buffer
 	buffer := NewMockdatabaseBuffer(ctrl)
 	buffer.EXPECT().IsEmpty().Return(false)
-	buffer.EXPECT().FetchBlocks(ctx, starts).Return([]block.FetchBlockResult{block.NewFetchBlockResult(starts[2], nil, nil, nil)})
+	buffer.EXPECT().
+		FetchBlocks(ctx, starts).
+		Return([]block.FetchBlockResult{block.NewFetchBlockResult(starts[2], nil, nil)})
 
 	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
 	require.NoError(t, series.Bootstrap(nil))
@@ -369,17 +369,16 @@ func TestSeriesFetchBlocks(t *testing.T) {
 	expectedTimes := []time.Time{starts[2], starts[0], starts[1]}
 	require.Equal(t, len(expectedTimes), len(res))
 	for i := 0; i < len(starts); i++ {
-		require.Equal(t, expectedTimes[i], res[i].Start)
+		assert.Equal(t, expectedTimes[i], res[i].Start)
 		if i == 1 {
-			require.NotNil(t, res[i].Readers)
-			require.Equal(t, &ck0, res[i].Checksum)
+			assert.NotNil(t, res[i].Readers)
 		} else {
-			require.Nil(t, res[i].Readers)
+			assert.Nil(t, res[i].Readers)
 		}
 		if i == 2 {
-			require.Error(t, res[i].Err)
+			assert.Error(t, res[i].Err)
 		} else {
-			require.NoError(t, res[i].Err)
+			assert.NoError(t, res[i].Err)
 		}
 	}
 }

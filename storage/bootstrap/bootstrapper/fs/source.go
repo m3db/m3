@@ -452,6 +452,9 @@ func (s *fileSystemSource) Read(
 		bootstrapResult := result.NewBootstrapResult()
 		unfulfilled := bootstrapResult.Unfulfilled()
 		for shard, ranges := range shardsTimeRanges {
+			if ranges == nil {
+				continue
+			}
 			availability := s.shardAvailability(md.ID(), shard, ranges)
 			if availability == nil {
 				availability = xtime.NewRanges()
