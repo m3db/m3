@@ -2,7 +2,8 @@
 
 # m3collector [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov]
 
-Metrics data structures and serialization/deserialization protocols.
+Metrics collection agent. Responsible for collecting metrics and forwarding them to
+downstream services (e.g., for aggregation or permanent storage).
 
 <hr>
 This project is released under the [MIT License](LICENSE.md).
