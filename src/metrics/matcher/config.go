@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3metrics/filters"
+	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/id/m3"
 	"github.com/m3db/m3metrics/policy"
@@ -67,7 +68,7 @@ func (cfg *Configuration) NewNamespaces(
 
 // NewMatcher creates a Matcher.
 func (cfg *Configuration) NewMatcher(
-	cache Cache,
+	cache cache.Cache,
 	kvCluster client.Client,
 	clockOpts clock.Options,
 	instrumentOpts instrument.Options,

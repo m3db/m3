@@ -23,12 +23,11 @@ package cache
 import (
 	"time"
 
-	"github.com/m3db/m3metrics/matcher"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 )
 
-// Configuration is config used to create a matcher.Cache.
+// Configuration is config used to create a Cache.
 type Configuration struct {
 	Capacity          int           `yaml:"capacity"`
 	FreshDuration     time.Duration `yaml:"freshDuration"`
@@ -37,11 +36,11 @@ type Configuration struct {
 	DeletionBatchSize int           `yaml:"deletionBatchSize"`
 }
 
-// NewCache creates a matcher.Cache.
+// NewCache creates a Cache.
 func (cfg *Configuration) NewCache(
 	clockOpts clock.Options,
 	instrumentOpts instrument.Options,
-) matcher.Cache {
+) Cache {
 	opts := NewOptions().
 		SetClockOptions(clockOpts).
 		SetInstrumentOptions(instrumentOpts)

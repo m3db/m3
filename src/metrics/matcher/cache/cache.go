@@ -26,7 +26,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3metrics/matcher"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
 	xid "github.com/m3db/m3x/id"
@@ -43,6 +42,32 @@ var (
 	errCacheClosed = errors.New("cache is already closed")
 )
 
+// Source is a datasource providing match results.
+type Source interface {
+	// ForwardMatch returns the match result for a given id within time range
+	// [fromNanos, toNanos).
+	ForwardMatch(id []byte, fromNanos, toNanos int64) rules.MatchResult
+}
+
+// Cache caches the rule matching result associated with metrics.
+type Cache interface {
+	// ForwardMatch returns the rule matching result associated with a metric id
+	// between [fromNanos, toNanos).
+	ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rules.MatchResult
+
+	// Register sets the source for a given namespace.
+	Register(namespace []byte, source Source)
+
+	// Refresh clears the cached results for the given source for a given namespace.
+	Refresh(namespace []byte, source Source)
+
+	// Unregister deletes the cached results for a given namespace.
+	Unregister(namespace []byte)
+
+	// Close closes the cache.
+	Close() error
+}
+
 type setType int
 
 const (
@@ -56,34 +81,44 @@ type elemMap map[xid.Hash]*element
 
 type results struct {
 	elems  elemMap
-	source matcher.Source
+	source Source
 }
 
-func newResults(source matcher.Source) results {
+func newResults(source Source) results {
 	return results{elems: make(elemMap), source: source}
 }
 
 type cacheMetrics struct {
-	hits        tally.Counter
-	misses      tally.Counter
-	expires     tally.Counter
-	registers   tally.Counter
-	unregisters tally.Counter
-	promotions  tally.Counter
-	evictions   tally.Counter
-	deletions   tally.Counter
+	hits                tally.Counter
+	misses              tally.Counter
+	expires             tally.Counter
+	registers           tally.Counter
+	registerExists      tally.Counter
+	updates             tally.Counter
+	updateNotExists     tally.Counter
+	updateStaleSource   tally.Counter
+	unregisters         tally.Counter
+	unregisterNotExists tally.Counter
+	promotions          tally.Counter
+	evictions           tally.Counter
+	deletions           tally.Counter
 }
 
 func newCacheMetrics(scope tally.Scope) cacheMetrics {
 	return cacheMetrics{
-		hits:        scope.Counter("hits"),
-		misses:      scope.Counter("misses"),
-		expires:     scope.Counter("expires"),
-		registers:   scope.Counter("registers"),
-		unregisters: scope.Counter("unregisters"),
-		promotions:  scope.Counter("promotions"),
-		evictions:   scope.Counter("evictions"),
-		deletions:   scope.Counter("deletions"),
+		hits:                scope.Counter("hits"),
+		misses:              scope.Counter("misses"),
+		expires:             scope.Counter("expires"),
+		registers:           scope.Counter("registers"),
+		registerExists:      scope.Counter("register-exists"),
+		updates:             scope.Counter("updates"),
+		updateNotExists:     scope.Counter("update-not-exists"),
+		updateStaleSource:   scope.Counter("update-stale-source"),
+		unregisters:         scope.Counter("unregisters"),
+		unregisterNotExists: scope.Counter("unregister-not-exists"),
+		promotions:          scope.Counter("promotions"),
+		evictions:           scope.Counter("evictions"),
+		deletions:           scope.Counter("deletions"),
 	}
 }
 
@@ -112,7 +147,7 @@ type cache struct {
 }
 
 // NewCache creates a new cache.
-func NewCache(opts Options) matcher.Cache {
+func NewCache(opts Options) Cache {
 	clockOpts := opts.ClockOptions()
 	instrumentOpts := opts.InstrumentOptions()
 	c := &cache{
@@ -153,36 +188,57 @@ func (c *cache) ForwardMatch(namespace, id []byte, fromNanos, toNanos int64) rul
 	return res
 }
 
-func (c *cache) Register(namespace []byte, source matcher.Source) {
+func (c *cache) Register(namespace []byte, source Source) {
 	c.Lock()
+	defer c.Unlock()
+
+	nsHash := xid.HashFn(namespace)
+	if results, exist := c.namespaces[nsHash]; !exist {
+		c.namespaces[nsHash] = newResults(source)
+		c.metrics.registers.Inc(1)
+	} else {
+		c.refreshWithLock(nsHash, source, results)
+		c.metrics.registerExists.Inc(1)
+	}
+}
+
+func (c *cache) Refresh(namespace []byte, source Source) {
+	c.Lock()
+	defer c.Unlock()
+
 	nsHash := xid.HashFn(namespace)
 	results, exist := c.namespaces[nsHash]
+	// NB: The namespace does not exist yet. This could happen if the source update came
+	// before its namespace is registered. It is safe to ignore this premature update
+	// because the namespace will eventually register itself and refreshes the cache.
 	if !exist {
-		results = newResults(source)
-	} else {
-		// Invalidate existing cached results.
-		c.toDelete = append(c.toDelete, results.elems)
-		c.notifyDeletion()
-		results.source = source
-		results.elems = make(elemMap)
+		c.metrics.updateNotExists.Inc(1)
+		return
 	}
-	c.namespaces[nsHash] = results
-	c.Unlock()
-	c.metrics.registers.Inc(1)
+	// NB: The source to update is different from what's stored in the cache. This could
+	// happen if the namespace is changed, removed, and then revived before the rule change
+	// could be processed. It is safe to ignore this stale update because the last rule
+	// change update will eventually be processed and the cache will be refreshed.
+	if results.source != source {
+		c.metrics.updateStaleSource.Inc(1)
+		return
+	}
+	c.refreshWithLock(nsHash, source, results)
+	c.metrics.updates.Inc(1)
 }
 
 func (c *cache) Unregister(namespace []byte) {
 	c.Lock()
+	defer c.Unlock()
+
 	nsHash := xid.HashFn(namespace)
 	results, exists := c.namespaces[nsHash]
 	if !exists {
-		c.Unlock()
+		c.metrics.unregisterNotExists.Inc(1)
 		return
 	}
 	delete(c.namespaces, nsHash)
 	c.toDelete = append(c.toDelete, results.elems)
-	c.Unlock()
-
 	c.notifyDeletion()
 	c.metrics.unregisters.Inc(1)
 }
@@ -274,6 +330,16 @@ func (c *cache) setWithLock(
 	}
 	c.metrics.misses.Inc(1)
 	return res
+}
+
+// refreshWithLock clears the existing cached results for namespace nsHash
+// and associates the namespace results with a new source.
+func (c *cache) refreshWithLock(nsHash xid.Hash, source Source, results results) {
+	c.toDelete = append(c.toDelete, results.elems)
+	c.notifyDeletion()
+	results.source = source
+	results.elems = make(elemMap)
+	c.namespaces[nsHash] = results
 }
 
 func (c *cache) add(elem *element) int {

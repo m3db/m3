@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3metrics/generated/proto/schema"
+	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
@@ -130,14 +131,14 @@ func TestToRuleSetSuccess(t *testing.T) {
 	require.Equal(t, false, actual.Tombstoned())
 }
 
-func TestRuleSetProcess(t *testing.T) {
+func TestRuleSetProcessNamespaceNotRegistered(t *testing.T) {
 	var (
 		inputs = []rules.RuleSet{
-			mockRuleSet{namespace: "ns1", version: 1, cutoverNanos: 1234, tombstoned: false, matcher: &mockMatcher{}},
-			mockRuleSet{namespace: "ns2", version: 2, cutoverNanos: 1235, tombstoned: true, matcher: &mockMatcher{}},
-			mockRuleSet{namespace: "ns3", version: 3, cutoverNanos: 1236, tombstoned: false, matcher: &mockMatcher{}},
-			mockRuleSet{namespace: "ns4", version: 4, cutoverNanos: 1237, tombstoned: true, matcher: &mockMatcher{}},
-			mockRuleSet{namespace: "ns5", version: 5, cutoverNanos: 1238, tombstoned: false, matcher: &mockMatcher{}},
+			&mockRuleSet{namespace: "ns1", version: 1, cutoverNanos: 1234, tombstoned: false, matcher: &mockMatcher{}},
+			&mockRuleSet{namespace: "ns2", version: 2, cutoverNanos: 1235, tombstoned: true, matcher: &mockMatcher{}},
+			&mockRuleSet{namespace: "ns3", version: 3, cutoverNanos: 1236, tombstoned: false, matcher: &mockMatcher{}},
+			&mockRuleSet{namespace: "ns4", version: 4, cutoverNanos: 1237, tombstoned: true, matcher: &mockMatcher{}},
+			&mockRuleSet{namespace: "ns5", version: 5, cutoverNanos: 1238, tombstoned: false, matcher: &mockMatcher{}},
 		}
 	)
 
@@ -151,10 +152,67 @@ func TestRuleSetProcess(t *testing.T) {
 	require.Equal(t, 5, rs.Version())
 	require.Equal(t, int64(1238), rs.CutoverNanos())
 	require.Equal(t, false, rs.Tombstoned())
-	require.NotNil(t, 5, rs.matcher)
+	require.NotNil(t, rs.matcher)
+	require.Equal(t, 0, len(memCache.namespaces))
+}
+
+func TestRuleSetProcessStaleUpdate(t *testing.T) {
+	var (
+		inputs = []rules.RuleSet{
+			&mockRuleSet{namespace: "ns1", version: 1, cutoverNanos: 1234, tombstoned: false, matcher: &mockMatcher{}},
+			&mockRuleSet{namespace: "ns2", version: 2, cutoverNanos: 1235, tombstoned: true, matcher: &mockMatcher{}},
+			&mockRuleSet{namespace: "ns3", version: 3, cutoverNanos: 1236, tombstoned: false, matcher: &mockMatcher{}},
+			&mockRuleSet{namespace: "ns4", version: 4, cutoverNanos: 1237, tombstoned: true, matcher: &mockMatcher{}},
+			&mockRuleSet{namespace: "ns5", version: 5, cutoverNanos: 1238, tombstoned: false, matcher: &mockMatcher{}},
+		}
+	)
+
+	_, cache, rs := testRuleSet()
+	src := newRuleSet(testNamespace, testNamespacesKey, NewOptions())
+	cache.Register([]byte("ns5"), src)
+
+	memCache := cache.(*memCache)
+	for _, input := range inputs {
+		err := rs.process(input)
+		require.NoError(t, err)
+	}
+
+	require.Equal(t, 5, rs.Version())
+	require.Equal(t, int64(1238), rs.CutoverNanos())
+	require.Equal(t, false, rs.Tombstoned())
+	require.NotNil(t, rs.matcher)
 	require.Equal(t, 1, len(memCache.namespaces))
-	_, exists := memCache.namespaces[string(testNamespace)]
-	require.True(t, exists)
+	actual := memCache.namespaces["ns5"]
+	require.Equal(t, src, actual.source)
+}
+
+func TestRuleSetProcessSuccess(t *testing.T) {
+	var (
+		inputs = []rules.RuleSet{
+			&mockRuleSet{namespace: "ns1", version: 1, cutoverNanos: 1234, tombstoned: false, matcher: &mockMatcher{}},
+			&mockRuleSet{namespace: "ns2", version: 2, cutoverNanos: 1235, tombstoned: true, matcher: &mockMatcher{}},
+			&mockRuleSet{namespace: "ns3", version: 3, cutoverNanos: 1236, tombstoned: false, matcher: &mockMatcher{}},
+			&mockRuleSet{namespace: "ns4", version: 4, cutoverNanos: 1237, tombstoned: true, matcher: &mockMatcher{}},
+			&mockRuleSet{namespace: "ns5", version: 5, cutoverNanos: 1238, tombstoned: false, matcher: &mockMatcher{}},
+		}
+	)
+
+	_, cache, rs := testRuleSet()
+	cache.Register([]byte("ns5"), rs)
+
+	memCache := cache.(*memCache)
+	for _, input := range inputs {
+		err := rs.process(input)
+		require.NoError(t, err)
+	}
+
+	require.Equal(t, 5, rs.Version())
+	require.Equal(t, int64(1238), rs.CutoverNanos())
+	require.Equal(t, false, rs.Tombstoned())
+	require.NotNil(t, rs.matcher)
+	require.Equal(t, 1, len(memCache.namespaces))
+	actual := memCache.namespaces["ns5"]
+	require.Equal(t, rs, actual.source)
 }
 
 type mockMatcher struct {
@@ -197,27 +255,27 @@ type mockRuleSet struct {
 	matcher      *mockMatcher
 }
 
-func (r mockRuleSet) Namespace() []byte                         { return []byte(r.namespace) }
-func (r mockRuleSet) Version() int                              { return r.version }
-func (r mockRuleSet) CutoverNanos() int64                       { return r.cutoverNanos }
-func (r mockRuleSet) LastUpdatedAtNanos() int64                 { return 0 }
-func (r mockRuleSet) CreatedAtNanos() int64                     { return 0 }
-func (r mockRuleSet) Tombstoned() bool                          { return r.tombstoned }
-func (r mockRuleSet) ActiveSet(timeNanos int64) rules.Matcher   { return r.matcher }
-func (r mockRuleSet) ToMutableRuleSet() rules.MutableRuleSet    { return nil }
-func (r mockRuleSet) MappingRules() (rules.MappingRules, error) { return nil, nil }
-func (r mockRuleSet) RollupRules() (rules.RollupRules, error)   { return nil, nil }
-func (r mockRuleSet) Latest() (*rules.RuleSetSnapshot, error)   { return nil, nil }
-func (r mockRuleSet) Validate(rules.Validator) error            { return nil }
+func (r *mockRuleSet) Namespace() []byte                         { return []byte(r.namespace) }
+func (r *mockRuleSet) Version() int                              { return r.version }
+func (r *mockRuleSet) CutoverNanos() int64                       { return r.cutoverNanos }
+func (r *mockRuleSet) LastUpdatedAtNanos() int64                 { return 0 }
+func (r *mockRuleSet) CreatedAtNanos() int64                     { return 0 }
+func (r *mockRuleSet) Tombstoned() bool                          { return r.tombstoned }
+func (r *mockRuleSet) ActiveSet(timeNanos int64) rules.Matcher   { return r.matcher }
+func (r *mockRuleSet) ToMutableRuleSet() rules.MutableRuleSet    { return nil }
+func (r *mockRuleSet) MappingRules() (rules.MappingRules, error) { return nil, nil }
+func (r *mockRuleSet) RollupRules() (rules.RollupRules, error)   { return nil, nil }
+func (r *mockRuleSet) Latest() (*rules.RuleSetSnapshot, error)   { return nil, nil }
+func (r *mockRuleSet) Validate(rules.Validator) error            { return nil }
 
-func testRuleSet() (kv.Store, Cache, *ruleSet) {
+func testRuleSet() (kv.Store, cache.Cache, *ruleSet) {
 	store := mem.NewStore()
 	cache := newMemCache()
 	opts := NewOptions().
 		SetInitWatchTimeout(100 * time.Millisecond).
 		SetKVStore(store).
 		SetRuleSetKeyFn(func(ns []byte) string { return fmt.Sprintf("/rules/%s", ns) }).
-		SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) { cache.Register(namespace, ruleSet) }).
+		SetOnRuleSetUpdatedFn(func(namespace []byte, ruleSet RuleSet) { cache.Refresh(namespace, ruleSet) }).
 		SetMatchRangePast(0)
 	return store, cache, newRuleSet(testNamespace, testNamespacesKey, opts).(*ruleSet)
 }
