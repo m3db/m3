@@ -34,9 +34,9 @@ import (
 func TestSortFetchBlockResultByTimeAscending(t *testing.T) {
 	now := time.Now()
 	input := []FetchBlockResult{
-		NewFetchBlockResult(now, nil, nil, nil),
-		NewFetchBlockResult(now.Add(time.Second), nil, nil, nil),
-		NewFetchBlockResult(now.Add(-time.Second), nil, nil, nil),
+		NewFetchBlockResult(now, nil, nil),
+		NewFetchBlockResult(now.Add(time.Second), nil, nil),
+		NewFetchBlockResult(now.Add(-time.Second), nil, nil),
 	}
 	expected := []FetchBlockResult{input[2], input[0], input[1]}
 	sort.Sort(fetchBlockResultByTimeAscending(input))
