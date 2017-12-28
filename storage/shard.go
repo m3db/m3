@@ -1015,19 +1015,6 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	pageToken PageToken,
 	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, PageToken, error) {
-	switch s.opts.SeriesCachePolicy() {
-	case series.CacheAll:
-		fallthrough
-	case series.CacheAllMetadata:
-		// If either CacheAll or CacheAllMetadata in use then calling the v2
-		// API for fetch blocks metadata does not work because all metadata is
-		// already in memory and will cause a tremendous amount of duplicate
-		// metadata to be sent over the wire
-		return nil, nil, fmt.Errorf(
-			"fetch blocks metadata v2 endpoint invalid with cache policy: %s",
-			s.opts.SeriesCachePolicy().String())
-	}
-
 	var (
 		token = &pagetoken.PageToken{}
 	)
@@ -1039,6 +1026,31 @@ func (s *dbShard) FetchBlocksMetadataV2(
 
 	activePhase := token.GetActiveSeriesPhase()
 	flushedPhase := token.GetFlushedSeriesPhase()
+
+	cachePolicy := s.opts.SeriesCachePolicy()
+	if cachePolicy == series.CacheAll || cachePolicy == series.CacheAllMetadata {
+		// If we are using a series cache policy that caches all block metadata
+		// in memory then we only ever perform the active phase
+		indexCursor := int64(0)
+		if activePhase != nil {
+			indexCursor = activePhase.IndexCursor
+		}
+		result, nextIndexCursor, err := s.FetchBlocksMetadata(ctx, start, end,
+			limit, indexCursor, opts)
+		if err != nil {
+			return nil, nil, err
+		}
+		if nextIndexCursor == nil {
+			// No more results and only enacting active phase since we are using
+			// series policy that caches all block metadata in memory
+			return result, nil, nil
+		}
+		data, err := proto.Marshal(token)
+		if err != nil {
+			return nil, nil, err
+		}
+		return result, PageToken(data), nil
+	}
 
 	if activePhase != nil || (activePhase == nil && flushedPhase == nil) {
 		// If first phase started or no phases started then return active
