@@ -18,19 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package rules
+package kv
 
-// RuleConflictError is returned when a rule modification is made that would
-// result in a conflict with the existing set of rules in the ruleset.
-type RuleConflictError string
+import (
+	"github.com/m3db/m3metrics/rules"
+)
 
-// NewRuleConflictError creates a new rule conflict error.
-func NewRuleConflictError(str string) error { return RuleConflictError(str) }
-func (e RuleConflictError) Error() string   { return string(e) }
+// StoreOptions provide a set of options for KV-backed rules store.
+type StoreOptions struct {
+	NamespacesKey string
+	RuleSetKeyFmt string
+	Validator     rules.Validator
+}
 
-// ValidationError is returned when validation failed for a ruleset.
-type ValidationError string
-
-// NewValidationError creates a new validation error.
-func NewValidationError(str string) error { return ValidationError(str) }
-func (e ValidationError) Error() string   { return string(e) }
+// NewStoreOptions creates a new store options struct.
+func NewStoreOptions(
+	namespacesKey string,
+	rulesetKeyFmt string,
+	validator rules.Validator,
+) StoreOptions {
+	return StoreOptions{
+		NamespacesKey: namespacesKey,
+		RuleSetKeyFmt: rulesetKeyFmt,
+		Validator:     validator,
+	}
+}

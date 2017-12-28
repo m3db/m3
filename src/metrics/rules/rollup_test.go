@@ -155,7 +155,7 @@ func TestRollupTargetSameTransform(t *testing.T) {
 		},
 	}
 	for _, input := range inputs {
-		require.Equal(t, input.result, target.sameTransform(input.target))
+		require.Equal(t, input.result, target.SameTransform(input.target))
 	}
 }
 

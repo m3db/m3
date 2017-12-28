@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package rules
+package validator
 
 import (
 	"fmt"
@@ -32,43 +32,43 @@ import (
 // MetricTypesFn determines the possible metric types based on a set of tag based filters.
 type MetricTypesFn func(tagFilters filters.TagFilterValueMap) ([]metric.Type, error)
 
-// ValidatorOptions provide a set of options for the validator.
-type ValidatorOptions interface {
+// Options provide a set of options for the validator.
+type Options interface {
 	// SetDefaultAllowedStoragePolicies sets the default list of allowed storage policies.
-	SetDefaultAllowedStoragePolicies(value []policy.StoragePolicy) ValidatorOptions
+	SetDefaultAllowedStoragePolicies(value []policy.StoragePolicy) Options
 
 	// SetDefaultAllowedCustomAggregationTypes sets the default list of allowed custom
 	// aggregation types.
-	SetDefaultAllowedCustomAggregationTypes(value policy.AggregationTypes) ValidatorOptions
+	SetDefaultAllowedCustomAggregationTypes(value policy.AggregationTypes) Options
 
 	// SetAllowedStoragePoliciesFor sets the list of allowed storage policies for a given metric type.
-	SetAllowedStoragePoliciesFor(t metric.Type, policies []policy.StoragePolicy) ValidatorOptions
+	SetAllowedStoragePoliciesFor(t metric.Type, policies []policy.StoragePolicy) Options
 
 	// SetAllowedCustomAggregationTypesFor sets the list of allowed custom aggregation
 	// types for a given metric type.
-	SetAllowedCustomAggregationTypesFor(t metric.Type, aggTypes policy.AggregationTypes) ValidatorOptions
+	SetAllowedCustomAggregationTypesFor(t metric.Type, aggTypes policy.AggregationTypes) Options
 
 	// SetMetricTypesFn sets the metric types function.
-	SetMetricTypesFn(value MetricTypesFn) ValidatorOptions
+	SetMetricTypesFn(value MetricTypesFn) Options
 
 	// MetricTypesFn returns the metric types function.
 	MetricTypesFn() MetricTypesFn
 
 	// SetRequiredRollupTags sets the list of required rollup tags.
-	SetRequiredRollupTags(value []string) ValidatorOptions
+	SetRequiredRollupTags(value []string) Options
 
 	// RequiredRollupTags returns the list of required rollup tags.
 	RequiredRollupTags() []string
 
 	// SetTagNameInvalidChars sets the list of invalid chars for a tag name.
-	SetTagNameInvalidChars(value []rune) ValidatorOptions
+	SetTagNameInvalidChars(value []rune) Options
 
 	// CheckInvalidCharactersForTagName checks if the given tag name contains invalid characters
 	// returning an error if invalid character(s) present.
 	CheckInvalidCharactersForTagName(tagName string) error
 
 	// SetMetricNameInvalidChars sets the list of invalid chars for a metric name.
-	SetMetricNameInvalidChars(value []rune) ValidatorOptions
+	SetMetricNameInvalidChars(value []rune) Options
 
 	// CheckInvalidCharactersForMetricName checks if the given metric name contains invalid characters
 	// returning an error if invalid character(s) present.
@@ -88,7 +88,7 @@ type validationMetadata struct {
 	allowedCustomAggTypes  map[policy.AggregationType]struct{}
 }
 
-type validatorOptions struct {
+type options struct {
 	defaultAllowedStoragePolicies        map[policy.StoragePolicy]struct{}
 	defaultAllowedCustomAggregationTypes map[policy.AggregationType]struct{}
 	metricTypesFn                        MetricTypesFn
@@ -98,87 +98,84 @@ type validatorOptions struct {
 	metadatasByType                      map[metric.Type]validationMetadata
 }
 
-// NewValidatorOptions create a new set of validator options.
-func NewValidatorOptions() ValidatorOptions {
-	return &validatorOptions{
+// NewOptions create a new set of validator options.
+func NewOptions() Options {
+	return &options{
 		metadatasByType: make(map[metric.Type]validationMetadata),
 	}
 }
 
-func (o *validatorOptions) SetDefaultAllowedStoragePolicies(value []policy.StoragePolicy) ValidatorOptions {
+func (o *options) SetDefaultAllowedStoragePolicies(value []policy.StoragePolicy) Options {
 	o.defaultAllowedStoragePolicies = toStoragePolicySet(value)
 	return o
 }
 
-func (o *validatorOptions) SetDefaultAllowedCustomAggregationTypes(value policy.AggregationTypes) ValidatorOptions {
+func (o *options) SetDefaultAllowedCustomAggregationTypes(value policy.AggregationTypes) Options {
 	o.defaultAllowedCustomAggregationTypes = toAggregationTypeSet(value)
 	return o
 }
 
-func (o *validatorOptions) SetAllowedStoragePoliciesFor(t metric.Type, policies []policy.StoragePolicy) ValidatorOptions {
+func (o *options) SetAllowedStoragePoliciesFor(t metric.Type, policies []policy.StoragePolicy) Options {
 	metadata := o.findOrCreateMetadata(t)
 	metadata.allowedStoragePolicies = toStoragePolicySet(policies)
 	o.metadatasByType[t] = metadata
 	return o
 }
 
-func (o *validatorOptions) SetAllowedCustomAggregationTypesFor(t metric.Type, aggTypes policy.AggregationTypes) ValidatorOptions {
+func (o *options) SetAllowedCustomAggregationTypesFor(t metric.Type, aggTypes policy.AggregationTypes) Options {
 	metadata := o.findOrCreateMetadata(t)
 	metadata.allowedCustomAggTypes = toAggregationTypeSet(aggTypes)
 	o.metadatasByType[t] = metadata
 	return o
 }
 
-func (o *validatorOptions) SetMetricTypesFn(value MetricTypesFn) ValidatorOptions {
+func (o *options) SetMetricTypesFn(value MetricTypesFn) Options {
 	o.metricTypesFn = value
 	return o
 }
 
-func (o *validatorOptions) MetricTypesFn() MetricTypesFn {
+func (o *options) MetricTypesFn() MetricTypesFn {
 	return o.metricTypesFn
 }
 
-func (o *validatorOptions) SetRequiredRollupTags(value []string) ValidatorOptions {
+func (o *options) SetRequiredRollupTags(value []string) Options {
 	requiredRollupTags := make([]string, len(value))
 	copy(requiredRollupTags, value)
-	opts := *o
-	opts.requiredRollupTags = requiredRollupTags
-	return &opts
+	o.requiredRollupTags = requiredRollupTags
+	return o
 }
 
-func (o *validatorOptions) RequiredRollupTags() []string {
+func (o *options) RequiredRollupTags() []string {
 	return o.requiredRollupTags
 }
 
-func (o *validatorOptions) SetTagNameInvalidChars(values []rune) ValidatorOptions {
+func (o *options) SetTagNameInvalidChars(values []rune) Options {
 	tagNameInvalidChars := make(map[rune]struct{}, len(values))
 	for _, v := range values {
 		tagNameInvalidChars[v] = struct{}{}
 	}
-	opts := *o
-	opts.tagNameInvalidChars = tagNameInvalidChars
-	return &opts
+	o.tagNameInvalidChars = tagNameInvalidChars
+	return o
 }
 
-func (o *validatorOptions) CheckInvalidCharactersForTagName(tagName string) error {
+func (o *options) CheckInvalidCharactersForTagName(tagName string) error {
 	return validateChars(tagName, o.tagNameInvalidChars)
 }
 
-func (o *validatorOptions) SetMetricNameInvalidChars(values []rune) ValidatorOptions {
+func (o *options) SetMetricNameInvalidChars(values []rune) Options {
 	metricNameInvalidChars := make(map[rune]struct{}, len(values))
 	for _, v := range values {
 		metricNameInvalidChars[v] = struct{}{}
 	}
-	opts := *o
-	opts.metricNameInvalidChars = metricNameInvalidChars
-	return &opts
+	o.metricNameInvalidChars = metricNameInvalidChars
+	return o
 }
 
-func (o *validatorOptions) CheckInvalidCharactersForMetricName(metricName string) error {
+func (o *options) CheckInvalidCharactersForMetricName(metricName string) error {
 	return validateChars(metricName, o.metricNameInvalidChars)
 }
 
-func (o *validatorOptions) IsAllowedStoragePolicyFor(t metric.Type, p policy.StoragePolicy) bool {
+func (o *options) IsAllowedStoragePolicyFor(t metric.Type, p policy.StoragePolicy) bool {
 	if metadata, exists := o.metadatasByType[t]; exists {
 		_, found := metadata.allowedStoragePolicies[p]
 		return found
@@ -187,7 +184,7 @@ func (o *validatorOptions) IsAllowedStoragePolicyFor(t metric.Type, p policy.Sto
 	return found
 }
 
-func (o *validatorOptions) IsAllowedCustomAggregationTypeFor(t metric.Type, aggType policy.AggregationType) bool {
+func (o *options) IsAllowedCustomAggregationTypeFor(t metric.Type, aggType policy.AggregationType) bool {
 	if metadata, exists := o.metadatasByType[t]; exists {
 		_, found := metadata.allowedCustomAggTypes[aggType]
 		return found
@@ -196,7 +193,7 @@ func (o *validatorOptions) IsAllowedCustomAggregationTypeFor(t metric.Type, aggT
 	return found
 }
 
-func (o *validatorOptions) findOrCreateMetadata(t metric.Type) validationMetadata {
+func (o *options) findOrCreateMetadata(t metric.Type) validationMetadata {
 	if metadata, found := o.metadatasByType[t]; found {
 		return metadata
 	}
