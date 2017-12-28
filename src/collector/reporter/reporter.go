@@ -241,9 +241,9 @@ func (r *reporter) Close() error {
 	return multiErr.FinalError()
 }
 
-func (r *reporter) currentReportPending() int64   { return atomic.LoadInt64(&r.reportPending) }
-func (r *reporter) incrementReportPending() int64 { return atomic.AddInt64(&r.reportPending, 1) }
-func (r *reporter) decrementReportPending() int64 { return atomic.AddInt64(&r.reportPending, -1) }
+func (r *reporter) currentReportPending() int64 { return atomic.LoadInt64(&r.reportPending) }
+func (r *reporter) incrementReportPending()     { atomic.AddInt64(&r.reportPending, 1) }
+func (r *reporter) decrementReportPending()     { atomic.AddInt64(&r.reportPending, -1) }
 
 func (r *reporter) reportMetrics() {
 	defer r.wg.Done()
