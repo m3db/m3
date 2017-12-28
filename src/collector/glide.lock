@@ -1,10 +1,14 @@
-hash: 379da35f7ca630746c1847ce72f40161babc6a035c3716f86c8b57002dcf6bff
-updated: 2017-12-25T15:37:06.787895491-05:00
+hash: e682747d2f6484f225f42b82b0572842cd5a9db09563a50a82e0fee0ca322ef2
+updated: 2017-12-27T16:19:10.71145157-05:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
   subpackages:
   - lib/go/thrift
+- name: github.com/davecgh/go-spew
+  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  subpackages:
+  - spew
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/go-ole/go-ole
@@ -34,11 +38,12 @@ imports:
   - services/leader/campaign
   - shard
 - name: github.com/m3db/m3metrics
-  version: a659459d3a5fc2cb9ad02d000bb2b28592467345
+  version: ce006a053562692b921c167fe4d2c924dbee5a15
   subpackages:
   - filters
   - generated/proto/schema
   - matcher
+  - matcher/cache
   - metric
   - metric/aggregated
   - metric/id
@@ -57,12 +62,19 @@ imports:
   - id
   - instrument
   - log
+  - net
   - pool
   - process
+  - retry
+  - server
   - time
   - watch
 - name: github.com/pborman/uuid
   version: c55201b036063326c5b1b89ccfe45a184973d073
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
 - name: github.com/shirou/gopsutil
   version: b62e301a8b9958eebb7299683eb57fab229a9501
   subpackages:
@@ -78,6 +90,11 @@ imports:
   version: 0d12bf811670bf6a1a63828dfbd003eded177fce
 - name: github.com/StackExchange/wmi
   version: e542ed97d15e640bdc14b5c12162d59e8fc67324
+- name: github.com/stretchr/testify
+  version: d77da356e56a7428ad25149ca77381849a6a5232
+  subpackages:
+  - assert
+  - require
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
@@ -111,10 +128,6 @@ imports:
 - name: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImports:
-- name: github.com/davecgh/go-spew
-  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
-  subpackages:
-  - spew
 - name: github.com/fortytw2/leaktest
   version: 3b724c3d7b8729a35bf4e577f71653aec6e53513
 - name: github.com/leanovate/gopter
@@ -122,12 +135,3 @@ testImports:
   subpackages:
   - gen
   - prop
-- name: github.com/pmezard/go-difflib
-  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
-  subpackages:
-  - difflib
-- name: github.com/stretchr/testify
-  version: d77da356e56a7428ad25149ca77381849a6a5232
-  subpackages:
-  - assert
-  - require
