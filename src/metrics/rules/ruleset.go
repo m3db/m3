@@ -44,7 +44,6 @@ const (
 
 var (
 	errNilRuleSetSchema   = errors.New("nil rule set schema")
-	errNilValidator       = errors.New("no validator provided")
 	errNoSuchRule         = errors.New("no such rule exists")
 	errNotTombstoned      = errors.New("not tombstoned")
 	errNoRuleSnapshots    = errors.New("no snapshots")
@@ -334,7 +333,7 @@ func (as *activeRuleSet) rollupResultsFor(id []byte, timeNanos int64) []RollupRe
 			// If the new target has the same transformation as an existing one,
 			// we merge their policies.
 			for i := range rollups {
-				if rollups[i].sameTransform(target) {
+				if rollups[i].SameTransform(target) {
 					rollups[i].Policies = append(rollups[i].Policies, target.Policies...)
 					found = true
 					break
@@ -488,9 +487,6 @@ type RuleSet interface {
 	// Latest returns the latest snapshot of a ruleset containing the latest snapshots
 	// of each rule in the ruleset.
 	Latest() (*RuleSetSnapshot, error)
-
-	// Validate validates this ruleset.
-	Validate(validator Validator) error
 
 	// ToMutableRuleSet returns a mutable version of this ruleset.
 	ToMutableRuleSet() MutableRuleSet
@@ -713,13 +709,6 @@ func (rs *ruleSet) Latest() (*RuleSetSnapshot, error) {
 		MappingRules: mrs,
 		RollupRules:  rrs,
 	}, nil
-}
-
-func (rs *ruleSet) Validate(validator Validator) error {
-	if validator == nil {
-		return errNilValidator
-	}
-	return validator.Validate(rs)
 }
 
 func (rs *ruleSet) Clone() MutableRuleSet {

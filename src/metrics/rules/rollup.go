@@ -57,7 +57,8 @@ func newRollupTargetView(target RollupTarget) RollupTargetView {
 	}
 }
 
-func (rtv RollupTargetView) rollupTarget() RollupTarget {
+// RollupTarget creates a rollup target from a rollup target view.
+func (rtv RollupTargetView) RollupTarget() RollupTarget {
 	return RollupTarget{
 		Name:     []byte(rtv.Name),
 		Tags:     bytesArrayFromStringArray(rtv.Tags),
@@ -68,7 +69,7 @@ func (rtv RollupTargetView) rollupTarget() RollupTarget {
 func rollupTargetViewsToTargets(views []RollupTargetView) []RollupTarget {
 	targets := make([]RollupTarget, len(views))
 	for i, t := range views {
-		targets[i] = t.rollupTarget()
+		targets[i] = t.RollupTarget()
 	}
 	return targets
 }
@@ -100,7 +101,8 @@ func newRollupTarget(target *schema.RollupTarget) (RollupTarget, error) {
 	}, nil
 }
 
-func (t *RollupTarget) sameTransform(other RollupTarget) bool {
+// SameTransform returns whether two rollup targets have the same transformation.
+func (t *RollupTarget) SameTransform(other RollupTarget) bool {
 	if !bytes.Equal(t.Name, other.Name) {
 		return false
 	}

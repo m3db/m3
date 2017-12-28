@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package rules
+package validator
 
 import (
 	"fmt"
@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/rules"
 
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +44,7 @@ const (
 func TestValidatorValidateDuplicateMappingRules(t *testing.T) {
 	ruleSet := testRuleSetWithMappingRules(t, testDuplicateMappingRulesConfig())
 	validator := NewValidator(testValidatorOptions())
-	err := ruleSet.Validate(validator)
+	err := validator.Validate(ruleSet)
 	require.Error(t, err)
 	_, ok := err.(RuleConflictError)
 	require.True(t, ok)
@@ -52,42 +53,26 @@ func TestValidatorValidateDuplicateMappingRules(t *testing.T) {
 func TestValidatorValidateNoDuplicateMappingRulesWithTombstone(t *testing.T) {
 	ruleSet := testRuleSetWithMappingRules(t, testNoDuplicateMappingRulesConfigWithTombstone())
 	validator := NewValidator(testValidatorOptions())
-	require.NoError(t, ruleSet.Validate(validator))
+	require.NoError(t, validator.Validate(ruleSet))
 }
 
-func TestValidatorValidateMappingRuleInvalidFilter(t *testing.T) {
-	invalidFilterSnapshot := &mappingRuleSnapshot{
-		rawFilter: "randomTag:*too*many*wildcards*",
-	}
-	invalidFilterRule := &mappingRule{
-		snapshots: []*mappingRuleSnapshot{invalidFilterSnapshot},
-	}
-	rs := &ruleSet{
-		mappingRules: []*mappingRule{invalidFilterRule},
-	}
+func TestValidatorValidateMappingRuleInvalidFilterExpr(t *testing.T) {
+	snapshot := testInvalidFilterExprMappingRuleSetSnapshot()
 	validator := NewValidator(testValidatorOptions())
-	require.Error(t, rs.Validate(validator))
+	require.Error(t, validator.ValidateSnapshot(snapshot))
 }
 
 func TestValidatorValidateMappingRuleInvalidFilterTagName(t *testing.T) {
 	invalidChars := []rune{'$'}
-	invalidFilterSnapshot := &mappingRuleSnapshot{
-		rawFilter: "random$Tag:!=",
-	}
-	invalidFilterRule := &mappingRule{
-		snapshots: []*mappingRuleSnapshot{invalidFilterSnapshot},
-	}
-	rs := &ruleSet{
-		mappingRules: []*mappingRule{invalidFilterRule},
-	}
+	snapshot := testInvalidFilterTagNameMappingRuleSetSnapshot()
 	validator := NewValidator(testValidatorOptions().SetTagNameInvalidChars(invalidChars))
-	require.Error(t, rs.Validate(validator))
+	require.Error(t, validator.ValidateSnapshot(snapshot))
 }
 
 func TestValidatorValidateMappingRuleInvalidMetricType(t *testing.T) {
 	ruleSet := testRuleSetWithMappingRules(t, testInvalidMetricTypeMappingRulesConfig())
 	validator := NewValidator(testValidatorOptions())
-	require.Error(t, ruleSet.Validate(validator))
+	require.Error(t, validator.Validate(ruleSet))
 }
 
 func TestValidatorValidateMappingRulePolicy(t *testing.T) {
@@ -97,7 +82,7 @@ func TestValidatorValidateMappingRulePolicy(t *testing.T) {
 	ruleSet := testRuleSetWithMappingRules(t, testPolicyResolutionMappingRulesConfig())
 
 	inputs := []struct {
-		opts      ValidatorOptions
+		opts      Options
 		expectErr bool
 	}{
 		{
@@ -120,9 +105,9 @@ func TestValidatorValidateMappingRulePolicy(t *testing.T) {
 	for _, input := range inputs {
 		validator := NewValidator(input.opts)
 		if input.expectErr {
-			require.Error(t, ruleSet.Validate(validator))
+			require.Error(t, validator.Validate(ruleSet))
 		} else {
-			require.NoError(t, ruleSet.Validate(validator))
+			require.NoError(t, validator.Validate(ruleSet))
 		}
 	}
 }
@@ -130,20 +115,20 @@ func TestValidatorValidateMappingRulePolicy(t *testing.T) {
 func TestValidatorValidateMappingRuleNoPolicies(t *testing.T) {
 	ruleSet := testRuleSetWithMappingRules(t, testNoPoliciesMappingRulesConfig())
 	validator := NewValidator(testValidatorOptions())
-	require.Error(t, ruleSet.Validate(validator))
+	require.Error(t, validator.Validate(ruleSet))
 }
 
 func TestValidatorValidateMappingRuleDuplicatePolicies(t *testing.T) {
 	ruleSet := testRuleSetWithMappingRules(t, testDuplicatePoliciesMappingRulesConfig())
 	validator := NewValidator(testValidatorOptions())
-	require.Error(t, ruleSet.Validate(validator))
+	require.Error(t, validator.Validate(ruleSet))
 }
 
 func TestValidatorValidateMappingRuleCustomAggregationTypes(t *testing.T) {
 	testAggregationTypes := []policy.AggregationType{policy.Count, policy.Max}
 	ruleSet := testRuleSetWithMappingRules(t, testCustomAggregationTypeMappingRulesConfig())
 	inputs := []struct {
-		opts      ValidatorOptions
+		opts      Options
 		expectErr bool
 	}{
 		{
@@ -166,9 +151,9 @@ func TestValidatorValidateMappingRuleCustomAggregationTypes(t *testing.T) {
 	for _, input := range inputs {
 		validator := NewValidator(input.opts)
 		if input.expectErr {
-			require.Error(t, ruleSet.Validate(validator))
+			require.Error(t, validator.Validate(ruleSet))
 		} else {
-			require.NoError(t, ruleSet.Validate(validator))
+			require.NoError(t, validator.Validate(ruleSet))
 		}
 	}
 }
@@ -176,7 +161,7 @@ func TestValidatorValidateMappingRuleCustomAggregationTypes(t *testing.T) {
 func TestValidatorValidateDuplicateRollupRules(t *testing.T) {
 	ruleSet := testRuleSetWithRollupRules(t, testDuplicateRollupRulesConfig())
 	validator := NewValidator(testValidatorOptions())
-	err := ruleSet.Validate(validator)
+	err := validator.Validate(ruleSet)
 	require.Error(t, err)
 	_, ok := err.(RuleConflictError)
 	require.True(t, ok)
@@ -185,55 +170,39 @@ func TestValidatorValidateDuplicateRollupRules(t *testing.T) {
 func TestValidatorValidateNoDuplicateRollupRulesWithTombstone(t *testing.T) {
 	ruleSet := testRuleSetWithRollupRules(t, testNoDuplicateRollupRulesConfigWithTombstone())
 	validator := NewValidator(testValidatorOptions())
-	require.NoError(t, ruleSet.Validate(validator))
+	require.NoError(t, validator.Validate(ruleSet))
 }
 
-func TestValidatorValidateRollupRuleInvalidFilter(t *testing.T) {
-	invalidFilterSnapshot := &rollupRuleSnapshot{
-		rawFilter: "randomTag:*too*many*wildcards*",
-	}
-	invalidFilterRule := &rollupRule{
-		snapshots: []*rollupRuleSnapshot{invalidFilterSnapshot},
-	}
-	rs := &ruleSet{
-		rollupRules: []*rollupRule{invalidFilterRule},
-	}
+func TestValidatorValidateRollupRuleInvalidFilterExpr(t *testing.T) {
+	snapshot := testInvalidFilterExprRollupRuleSetSnapshot()
 	validator := NewValidator(testValidatorOptions())
-	require.Error(t, rs.Validate(validator))
+	require.Error(t, validator.ValidateSnapshot(snapshot))
 }
 
 func TestValidatorValidateRollupRuleInvalidFilterTagName(t *testing.T) {
 	invalidChars := []rune{'$'}
-	invalidFilterSnapshot := &mappingRuleSnapshot{
-		rawFilter: "random$Tag:!=",
-	}
-	invalidFilterRule := &mappingRule{
-		snapshots: []*mappingRuleSnapshot{invalidFilterSnapshot},
-	}
-	rs := &ruleSet{
-		mappingRules: []*mappingRule{invalidFilterRule},
-	}
+	snapshot := testInvalidFilterTagNameRollupRuleSetSnapshot()
 	validator := NewValidator(testValidatorOptions().SetTagNameInvalidChars(invalidChars))
-	require.Error(t, rs.Validate(validator))
+	require.Error(t, validator.ValidateSnapshot(snapshot))
 }
 
 func TestValidatorValidateRollupRuleInvalidMetricType(t *testing.T) {
 	ruleSet := testRuleSetWithRollupRules(t, testInvalidMetricTypeRollupRulesConfig())
 	validator := NewValidator(testValidatorOptions())
-	require.Error(t, ruleSet.Validate(validator))
+	require.Error(t, validator.Validate(ruleSet))
 }
 
 func TestValidatorValidateRollupRuleDuplicateRollupTag(t *testing.T) {
 	ruleSet := testRuleSetWithRollupRules(t, testDuplicateTagRollupRulesConfig())
 	validator := NewValidator(testValidatorOptions())
-	require.Error(t, ruleSet.Validate(validator))
+	require.Error(t, validator.Validate(ruleSet))
 }
 
 func TestValidatorValidateRollupRuleMissingRequiredTag(t *testing.T) {
 	requiredRollupTags := []string{"requiredTag"}
 	ruleSet := testRuleSetWithRollupRules(t, testMissingRequiredTagRollupRulesConfig())
 	validator := NewValidator(testValidatorOptions().SetRequiredRollupTags(requiredRollupTags))
-	require.Error(t, ruleSet.Validate(validator))
+	require.Error(t, validator.Validate(ruleSet))
 }
 
 func TestValidateChars(t *testing.T) {
@@ -248,35 +217,35 @@ func TestValidatorValidateRollupRuleWithInvalidMetricName(t *testing.T) {
 	invalidChars := []rune{'$'}
 	ruleSet := testRuleSetWithRollupRules(t, testMetricNameRollupRulesConfig())
 	validator := NewValidator(testValidatorOptions().SetMetricNameInvalidChars(invalidChars))
-	require.Error(t, ruleSet.Validate(validator))
+	require.Error(t, validator.Validate(ruleSet))
 }
 
 func TestValidatorValidateRollupRuleWithEmptyMetricName(t *testing.T) {
 	invalidChars := []rune{'$'}
 	ruleSet := testRuleSetWithRollupRules(t, testEmptyMetricNameRollupRulesConfig())
 	validator := NewValidator(testValidatorOptions().SetMetricNameInvalidChars(invalidChars))
-	require.Error(t, ruleSet.Validate(validator))
+	require.Error(t, validator.Validate(ruleSet))
 }
 
 func TestValidatorValidateRollupRuleWithValidMetricName(t *testing.T) {
 	invalidChars := []rune{' ', '%'}
 	ruleSet := testRuleSetWithRollupRules(t, testMetricNameRollupRulesConfig())
 	validator := NewValidator(testValidatorOptions().SetMetricNameInvalidChars(invalidChars))
-	require.NoError(t, ruleSet.Validate(validator))
+	require.NoError(t, validator.Validate(ruleSet))
 }
 
 func TestValidatorValidateRollupRuleWithInvalidTagName(t *testing.T) {
 	invalidChars := []rune{'$'}
 	ruleSet := testRuleSetWithRollupRules(t, testTagNameRollupRulesConfig())
 	validator := NewValidator(testValidatorOptions().SetTagNameInvalidChars(invalidChars))
-	require.Error(t, ruleSet.Validate(validator))
+	require.Error(t, validator.Validate(ruleSet))
 }
 
 func TestValidatorValidateRollupRuleWithValidTagName(t *testing.T) {
 	invalidChars := []rune{' ', '%'}
 	ruleSet := testRuleSetWithRollupRules(t, testTagNameRollupRulesConfig())
 	validator := NewValidator(testValidatorOptions().SetTagNameInvalidChars(invalidChars))
-	require.NoError(t, ruleSet.Validate(validator))
+	require.NoError(t, validator.Validate(ruleSet))
 }
 
 func TestValidatorValidateRollupRulePolicy(t *testing.T) {
@@ -286,7 +255,7 @@ func TestValidatorValidateRollupRulePolicy(t *testing.T) {
 	ruleSet := testRuleSetWithRollupRules(t, testPolicyResolutionRollupRulesConfig())
 
 	inputs := []struct {
-		opts      ValidatorOptions
+		opts      Options
 		expectErr bool
 	}{
 		{
@@ -309,9 +278,9 @@ func TestValidatorValidateRollupRulePolicy(t *testing.T) {
 	for _, input := range inputs {
 		validator := NewValidator(input.opts)
 		if input.expectErr {
-			require.Error(t, ruleSet.Validate(validator))
+			require.Error(t, validator.Validate(ruleSet))
 		} else {
-			require.NoError(t, ruleSet.Validate(validator))
+			require.NoError(t, validator.Validate(ruleSet))
 		}
 	}
 }
@@ -319,20 +288,20 @@ func TestValidatorValidateRollupRulePolicy(t *testing.T) {
 func TestValidatorValidateRollupRuleWithNoPolicies(t *testing.T) {
 	ruleSet := testRuleSetWithRollupRules(t, testNoPoliciesRollupRulesConfig())
 	validator := NewValidator(testValidatorOptions())
-	require.Error(t, ruleSet.Validate(validator))
+	require.Error(t, validator.Validate(ruleSet))
 }
 
 func TestValidatorValidateRollupRuleWithDuplicatePolicies(t *testing.T) {
 	ruleSet := testRuleSetWithRollupRules(t, testDuplicatePoliciesRollupRulesConfig())
 	validator := NewValidator(testValidatorOptions())
-	require.Error(t, ruleSet.Validate(validator))
+	require.Error(t, validator.Validate(ruleSet))
 }
 
 func TestValidatorValidateRollupRuleCustomAggregationTypes(t *testing.T) {
 	testAggregationTypes := []policy.AggregationType{policy.Count, policy.Max}
 	ruleSet := testRuleSetWithRollupRules(t, testCustomAggregationTypeRollupRulesConfig())
 	inputs := []struct {
-		opts      ValidatorOptions
+		opts      Options
 		expectErr bool
 	}{
 		{
@@ -355,9 +324,9 @@ func TestValidatorValidateRollupRuleCustomAggregationTypes(t *testing.T) {
 	for _, input := range inputs {
 		validator := NewValidator(input.opts)
 		if input.expectErr {
-			require.Error(t, ruleSet.Validate(validator))
+			require.Error(t, validator.Validate(ruleSet))
 		} else {
-			require.NoError(t, ruleSet.Validate(validator))
+			require.NoError(t, validator.Validate(ruleSet))
 		}
 	}
 }
@@ -366,7 +335,7 @@ func TestValidatorValidateRollupRuleConflictingTargets(t *testing.T) {
 	ruleSet := testRuleSetWithRollupRules(t, testConflictingTargetsRollupRulesConfig())
 	opts := testValidatorOptions()
 	validator := NewValidator(opts)
-	err := ruleSet.Validate(validator)
+	err := validator.Validate(ruleSet)
 	require.Error(t, err)
 	_, ok := err.(RuleConflictError)
 	require.True(t, ok)
@@ -429,6 +398,28 @@ func testNoDuplicateMappingRulesConfigWithTombstone() []*schema.MappingRule {
 					Tombstoned: false,
 					Policies:   testPolicies(),
 				},
+			},
+		},
+	}
+}
+
+func testInvalidFilterExprMappingRuleSetSnapshot() *rules.RuleSetSnapshot {
+	return &rules.RuleSetSnapshot{
+		MappingRules: map[string]*rules.MappingRuleView{
+			"mappingRule1": &rules.MappingRuleView{
+				Name:   "snapshot1",
+				Filter: "randomTag:*too*many*wildcards*",
+			},
+		},
+	}
+}
+
+func testInvalidFilterTagNameMappingRuleSetSnapshot() *rules.RuleSetSnapshot {
+	return &rules.RuleSetSnapshot{
+		MappingRules: map[string]*rules.MappingRuleView{
+			"mappingRule1": &rules.MappingRuleView{
+				Name:   "snapshot1",
+				Filter: "random$Tag:foo",
 			},
 		},
 	}
@@ -633,6 +624,28 @@ func testNoDuplicateRollupRulesConfigWithTombstone() []*schema.RollupRule {
 						},
 					},
 				},
+			},
+		},
+	}
+}
+
+func testInvalidFilterExprRollupRuleSetSnapshot() *rules.RuleSetSnapshot {
+	return &rules.RuleSetSnapshot{
+		RollupRules: map[string]*rules.RollupRuleView{
+			"rollupRule1": &rules.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: "randomTag:*too*many*wildcards*",
+			},
+		},
+	}
+}
+
+func testInvalidFilterTagNameRollupRuleSetSnapshot() *rules.RuleSetSnapshot {
+	return &rules.RuleSetSnapshot{
+		RollupRules: map[string]*rules.RollupRuleView{
+			"rollupRule1": &rules.RollupRuleView{
+				Name:   "snapshot1",
+				Filter: "random$Tag:foo",
 			},
 		},
 	}
@@ -966,25 +979,25 @@ func testConflictingTargetsRollupRulesConfig() []*schema.RollupRule {
 	}
 }
 
-func testRuleSetWithMappingRules(t *testing.T, mrs []*schema.MappingRule) RuleSet {
+func testRuleSetWithMappingRules(t *testing.T, mrs []*schema.MappingRule) rules.RuleSet {
 	rs := &schema.RuleSet{MappingRules: mrs}
-	newRuleSet, err := NewRuleSetFromSchema(1, rs, testRuleSetOptions())
+	newRuleSet, err := rules.NewRuleSetFromSchema(1, rs, rules.NewOptions())
 	require.NoError(t, err)
 	return newRuleSet
 }
 
-func testRuleSetWithRollupRules(t *testing.T, rrs []*schema.RollupRule) RuleSet {
+func testRuleSetWithRollupRules(t *testing.T, rrs []*schema.RollupRule) rules.RuleSet {
 	rs := &schema.RuleSet{RollupRules: rrs}
-	newRuleSet, err := NewRuleSetFromSchema(1, rs, testRuleSetOptions())
+	newRuleSet, err := rules.NewRuleSetFromSchema(1, rs, rules.NewOptions())
 	require.NoError(t, err)
 	return newRuleSet
 }
 
-func testValidatorOptions() ValidatorOptions {
+func testValidatorOptions() Options {
 	testStoragePolicies := []policy.StoragePolicy{
 		policy.MustParseStoragePolicy("10s:6h"),
 	}
-	return NewValidatorOptions().
+	return NewOptions().
 		SetDefaultAllowedStoragePolicies(testStoragePolicies).
 		SetDefaultAllowedCustomAggregationTypes(nil).
 		SetMetricTypesFn(testMetricTypesFn())

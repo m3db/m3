@@ -1209,6 +1209,154 @@ func TestRuleSetActiveSet(t *testing.T) {
 	}
 }
 
+func TestRuleSetLatest(t *testing.T) {
+	schema := &schema.RuleSet{
+		Namespace:    "testNamespace",
+		CutoverNanos: 998234,
+		MappingRules: testMappingRulesConfig(),
+		RollupRules:  testRollupRulesConfig(),
+	}
+	rs, err := NewRuleSetFromSchema(123, schema, testRuleSetOptions())
+	require.NoError(t, err)
+	latest, err := rs.Latest()
+	require.NoError(t, err)
+
+	expected := &RuleSetSnapshot{
+		Namespace:    "testNamespace",
+		Version:      123,
+		CutoverNanos: 998234,
+		MappingRules: map[string]*MappingRuleView{
+			"mappingRule1": &MappingRuleView{
+				ID:           "mappingRule1",
+				Name:         "mappingRule1.snapshot3",
+				Tombstoned:   false,
+				CutoverNanos: 30000,
+				Filter:       "mtagName1:mtagValue1",
+				Policies: []policy.Policy{
+					policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+				},
+			},
+			"mappingRule3": &MappingRuleView{
+				ID:           "mappingRule3",
+				Name:         "mappingRule3.snapshot2",
+				Tombstoned:   false,
+				CutoverNanos: 34000,
+				Filter:       "mtagName1:mtagValue1",
+				Policies: []policy.Policy{
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+					policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+				},
+			},
+			"mappingRule4": &MappingRuleView{
+				ID:           "mappingRule4",
+				Name:         "mappingRule4.snapshot1",
+				Tombstoned:   false,
+				CutoverNanos: 24000,
+				Filter:       "mtagName1:mtagValue2",
+				Policies: []policy.Policy{
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.MustCompressAggregationTypes(policy.P999)),
+				},
+			},
+			"mappingRule5": &MappingRuleView{
+				ID:                 "mappingRule5",
+				Name:               "mappingRule5.snapshot1",
+				Tombstoned:         false,
+				CutoverNanos:       100000,
+				LastUpdatedAtNanos: 123456,
+				LastUpdatedBy:      "test",
+				Filter:             "mtagName1:mtagValue1",
+				Policies: []policy.Policy{
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+				},
+			},
+		},
+		RollupRules: map[string]*RollupRuleView{
+			"rollupRule1": &RollupRuleView{
+				ID:           "rollupRule1",
+				Name:         "rollupRule1.snapshot3",
+				Tombstoned:   false,
+				CutoverNanos: 30000,
+				Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Targets: []RollupTargetView{
+					{
+						Name: "rName1",
+						Tags: []string{"rtagName1", "rtagName2"},
+						Policies: []policy.Policy{
+							policy.NewPolicy(policy.NewStoragePolicy(30*time.Second, xtime.Second, 6*time.Hour), policy.DefaultAggregationID),
+						},
+					},
+				},
+			},
+			"rollupRule3": &RollupRuleView{
+				ID:           "rollupRule3",
+				Name:         "rollupRule3.snapshot2",
+				Tombstoned:   false,
+				CutoverNanos: 34000,
+				Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Targets: []RollupTargetView{
+					{
+						Name: "rName1",
+						Tags: []string{"rtagName1", "rtagName2"},
+						Policies: []policy.Policy{
+							policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 2*time.Hour), policy.DefaultAggregationID),
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+						},
+					},
+				},
+			},
+			"rollupRule4": &RollupRuleView{
+				ID:           "rollupRule4",
+				Name:         "rollupRule4.snapshot1",
+				Tombstoned:   false,
+				CutoverNanos: 24000,
+				Filter:       "rtagName1:rtagValue2",
+				Targets: []RollupTargetView{
+					{
+						Name: "rName3",
+						Tags: []string{"rtagName1", "rtagName2"},
+						Policies: []policy.Policy{
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+						},
+					},
+				},
+			},
+			"rollupRule5": &RollupRuleView{
+				ID:           "rollupRule5",
+				Name:         "rollupRule5.snapshot1",
+				Tombstoned:   false,
+				CutoverNanos: 24000,
+				Filter:       "rtagName1:rtagValue2",
+				Targets: []RollupTargetView{
+					{
+						Name: "rName4",
+						Tags: []string{"rtagName1"},
+						Policies: []policy.Policy{
+							policy.NewPolicy(policy.NewStoragePolicy(time.Second, xtime.Second, time.Minute), policy.DefaultAggregationID),
+						},
+					},
+				},
+			},
+			"rollupRule6": &RollupRuleView{
+				ID:           "rollupRule6",
+				Name:         "rollupRule6.snapshot1",
+				Tombstoned:   false,
+				CutoverNanos: 100000,
+				Filter:       "rtagName1:rtagValue1 rtagName2:rtagValue2",
+				Targets: []RollupTargetView{
+					{
+						Name: "rName3",
+						Tags: []string{"rtagName1", "rtagName2"},
+						Policies: []policy.Policy{
+							policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID),
+						},
+					},
+				},
+			},
+		},
+	}
+	require.Equal(t, expected, latest)
+}
+
 func testMappingRules(t *testing.T) []*mappingRule {
 	filter1, err := filters.NewTagsFilter(
 		filters.TagFilterValueMap{"mtagName1": filters.FilterValue{Pattern: "mtagValue1"}},
