@@ -470,7 +470,7 @@ configService:
     tls: null
   m3sd:
     initTimeout: 0s
-staticConfigService: null
+static: null
 hashing:
   seed: 42
 `
