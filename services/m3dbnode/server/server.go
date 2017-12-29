@@ -273,10 +273,10 @@ func Run(runOpts RunOptions) {
 			logger.Fatalf("could not create KV client, %v", err)
 		}
 
-	case cfg.StaticConfigService != nil:
+	case cfg.StaticConfig != nil && cfg.StaticConfig.TopologyConfig != nil:
 		logger.Info("creating static config service client with m3cluster")
 
-		shardSet, hostShardSets, err := createStaticShardSet(cfg.StaticConfigService.Shards, cfg.ListenAddress)
+		shardSet, hostShardSets, err := createStaticShardSet(cfg.StaticConfig.TopologyConfig.Shards, cfg.ListenAddress)
 		if err != nil {
 			logger.Fatalf("unable to create shard set for static config: %v", err)
 		}

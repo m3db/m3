@@ -97,10 +97,15 @@ type Configuration struct {
 	ConfigService *etcdclient.Configuration `yaml:"configService"`
 
 	// The static configuration for config service client.
-	StaticConfigService *topology.StaticConfiguration `yaml:"staticConfigService"`
+	StaticConfig *StaticConfiguration `yaml:"static"`
 
 	// The configuration for hashing
 	HashingConfiguration HashingConfiguration `yaml:"hashing"`
+}
+
+// StaticConfiguration is used for running M3DB with a static config
+type StaticConfiguration struct {
+	TopologyConfig *topology.StaticConfiguration `yaml:"topology"`
 }
 
 // TickConfiguration is the tick configuration for background processing of
