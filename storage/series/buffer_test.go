@@ -506,10 +506,12 @@ func TestBufferFetchBlocksMetadata(t *testing.T) {
 
 	expectedSize := int64(b.streamsLen())
 
-	fetchOpts := block.FetchBlocksMetadataOptions{
-		IncludeSizes:     true,
-		IncludeChecksums: true,
-		IncludeLastRead:  true,
+	fetchOpts := FetchBlocksMetadataOptions{
+		FetchBlocksMetadataOptions: block.FetchBlocksMetadataOptions{
+			IncludeSizes:     true,
+			IncludeChecksums: true,
+			IncludeLastRead:  true,
+		},
 	}
 	res := buffer.FetchBlocksMetadata(ctx, start, end, fetchOpts).Results()
 	assert.Equal(t, 1, len(res))

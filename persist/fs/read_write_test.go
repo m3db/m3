@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"errors"
 	"os"
-	"sort"
 	"path/filepath"
 	"testing"
 	"time"
@@ -42,20 +41,6 @@ import (
 type testEntry struct {
 	id   string
 	data []byte
-}
-
-type testEntriesByID []testEntry
-
-func (e testEntriesByID) Len() int {
-	return len(e)
-}
-
-func (e testEntriesByID) Less(i, j int) bool {
-	return e[i].id < e[j].id
-}
-
-func (e testEntriesByID) Swap(i, j int) {
-	e[i], e[j] = e[j], e[i]
 }
 
 func newTestWriter(t *testing.T, filePathPrefix string) FileSetWriter {
@@ -98,13 +83,6 @@ var readTestTypes = []readTestType{
 // If it starts to fail during the pass that reads just the metadata it could
 // be a newly introduced reader reuse bug.
 func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Time, entries []testEntry) {
-	// Sort entries by ID for comparing results from the read metadata
-	// phase which returns data not in the order it was written but instead
-	// ordered by ID.
-	entriesByID := make([]testEntry, len(entries))
-	copy(entriesByID, entries)
-	sort.Sort(testEntriesByID(entriesByID))
-
 	for _, underTest := range readTestTypes {
 		err := r.Open(testNs1ID, 0, timestamp)
 		require.NoError(t, err)
@@ -151,12 +129,10 @@ func readTestData(t *testing.T, r FileSetReader, shard uint32, timestamp time.Ti
 				require.NoError(t, err)
 
 				assert.True(t, id.Equal(id))
-				assert.Equal(t, digest.Checksum(entriesByID[i].data), checksum)
-				assert.Equal(t, len(entriesByID[i].data), length)
+				assert.Equal(t, digest.Checksum(entries[i].data), checksum)
+				assert.Equal(t, len(entries[i].data), length)
 
-				pos := r.ReadMetadataPosition()
-				assert.Equal(t, len(entries), int(pos.Entries))
-				assert.Equal(t, i+1, int(pos.Read))
+				assert.Equal(t, i+1, r.MetadataRead())
 
 				// Verify that the bloomFilter was bootstrapped properly by making sure it
 				// at least contains every ID

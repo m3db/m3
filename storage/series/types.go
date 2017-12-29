@@ -68,7 +68,7 @@ type DatabaseSeries interface {
 	FetchBlocksMetadata(
 		ctx context.Context,
 		start, end time.Time,
-		opts block.FetchBlocksMetadataOptions,
+		opts FetchBlocksMetadataOptions,
 	) block.FetchBlocksMetadataResult
 
 	// IsEmpty returns whether series is empty
@@ -92,6 +92,16 @@ type DatabaseSeries interface {
 		blockRetriever QueryableBlockRetriever,
 		opts Options,
 	)
+}
+
+// FetchBlocksMetadataOptions encapsulates block fetch metadata options
+// and specifies a few series specific options too.
+type FetchBlocksMetadataOptions struct {
+	block.FetchBlocksMetadataOptions
+
+	// IncludeCachedBlocks specifies whether to also include cached blocks
+	// when returning series metadata.
+	IncludeCachedBlocks bool
 }
 
 // QueryableBlockRetriever is a block retriever that can tell if a block

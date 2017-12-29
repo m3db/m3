@@ -7,10 +7,7 @@ message PageToken {
 	}
 	message FlushedSeriesPhase {
 		int64 currBlockStartUnixNanos = 1;
-		int64 currBlockIndexEntries = 2;
-		int64 currBlockIndexRead = 3;
-		int64 currBlockIndexOffset = 4;
-		int64 currBlockIndexChecksum = 5;
+		int64 currBlockIndexRead = 2;
 	}
 	oneof phase {
 		ActiveSeriesPhase active_series_phase = 1;

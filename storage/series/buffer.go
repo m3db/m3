@@ -81,7 +81,7 @@ type databaseBuffer interface {
 	FetchBlocksMetadata(
 		ctx context.Context,
 		start, end time.Time,
-		opts block.FetchBlocksMetadataOptions,
+		opts FetchBlocksMetadataOptions,
 	) block.FetchBlockMetadataResults
 
 	IsEmpty() bool
@@ -408,7 +408,7 @@ func (b *dbBuffer) FetchBlocks(ctx context.Context, starts []time.Time) []block.
 func (b *dbBuffer) FetchBlocksMetadata(
 	ctx context.Context,
 	start, end time.Time,
-	opts block.FetchBlocksMetadataOptions,
+	opts FetchBlocksMetadataOptions,
 ) block.FetchBlockMetadataResults {
 	blockSize := b.opts.RetentionOptions().BlockSize()
 	res := b.opts.FetchBlockMetadataResultsPool().Get()

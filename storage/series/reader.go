@@ -138,7 +138,10 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 					clonedID = r.opts.IdentifierPool().Clone(r.cloneableID)
 					ctx.RegisterFinalizer(clonedID)
 				}
-				stream, err := r.retriever.Stream(clonedID, blockAt, nil)
+				// TODO(r): Specify a non-nil OnRetrieveBlock callback to cache the
+				// block back to a series in the shard on a read.
+				var onRetrieve block.OnRetrieveBlock
+				stream, err := r.retriever.Stream(clonedID, blockAt, onRetrieve)
 				if err != nil {
 					return nil, err
 				}
@@ -212,7 +215,13 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 					clonedID = r.opts.IdentifierPool().Clone(r.cloneableID)
 					ctx.RegisterFinalizer(clonedID)
 				}
-				stream, err := r.retriever.Stream(clonedID, start, nil)
+				// NB(r): Always use nil for onRetrieveBlock so we don't cache the
+				// series after fetching it from disk, the fetch blocks API is called
+				// during streaming so to cache it in memory would mean we would
+				// eventually cache all series in memory when we stream results to a
+				// peer.
+				var onRetrieve block.OnRetrieveBlock
+				stream, err := r.retriever.Stream(clonedID, start, onRetrieve)
 				if err != nil {
 					r := block.NewFetchBlockResult(start, nil,
 						fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",

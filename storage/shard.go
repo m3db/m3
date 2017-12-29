@@ -92,6 +92,7 @@ type dbShard struct {
 	nsMetadata               namespace.Metadata
 	seriesBlockRetriever     series.QueryableBlockRetriever
 	shard                    uint32
+	namespaceReaderCache     databaseNamespaceReaderCache
 	increasingIndex          increasingIndex
 	seriesPool               series.DatabaseSeriesPool
 	commitLogWriter          commitLogWriter
@@ -153,21 +154,21 @@ func newDatabaseShardMetrics(scope tally.Scope) dbShardMetrics {
 }
 
 type dbShardEntry struct {
-	series     series.DatabaseSeries
-	index      uint64
-	curWriters int32
+	series         series.DatabaseSeries
+	index          uint64
+	curReadWriters int32
 }
 
-func (entry *dbShardEntry) writerCount() int32 {
-	return atomic.LoadInt32(&entry.curWriters)
+func (entry *dbShardEntry) readerWriterCount() int32 {
+	return atomic.LoadInt32(&entry.curReadWriters)
 }
 
-func (entry *dbShardEntry) incrementWriterCount() {
-	atomic.AddInt32(&entry.curWriters, 1)
+func (entry *dbShardEntry) incrementReaderWriterCount() {
+	atomic.AddInt32(&entry.curReadWriters, 1)
 }
 
-func (entry *dbShardEntry) decrementWriterCount() {
-	atomic.AddInt32(&entry.curWriters, -1)
+func (entry *dbShardEntry) decrementReaderWriterCount() {
+	atomic.AddInt32(&entry.curReadWriters, -1)
 }
 
 type dbShardEntryWorkFn func(entry *dbShardEntry) bool
@@ -187,6 +188,7 @@ func newDatabaseShard(
 	namespaceMetadata namespace.Metadata,
 	shard uint32,
 	blockRetriever block.DatabaseBlockRetriever,
+	namespaceReaderCache databaseNamespaceReaderCache,
 	increasingIndex increasingIndex,
 	commitLogWriter commitLogWriter,
 	needsBootstrap bool,
@@ -197,25 +199,26 @@ func newDatabaseShard(
 		SubScope("dbshard")
 
 	d := &dbShard{
-		opts:            opts,
-		seriesOpts:      seriesOpts,
-		nowFn:           opts.ClockOptions().NowFn(),
-		state:           dbShardStateOpen,
-		nsMetadata:      namespaceMetadata,
-		shard:           shard,
-		increasingIndex: increasingIndex,
-		seriesPool:      opts.DatabaseSeriesPool(),
-		commitLogWriter: commitLogWriter,
-		lookup:          make(map[ts.Hash]*list.Element),
-		list:            list.New(),
-		filesetBeforeFn: fs.FilesetBefore,
-		deleteFilesFn:   fs.DeleteFiles,
-		sleepFn:         time.Sleep,
-		identifierPool:  opts.IdentifierPool(),
-		contextPool:     opts.ContextPool(),
-		flushState:      newShardFlushState(),
-		tickWg:          &sync.WaitGroup{},
-		metrics:         newDatabaseShardMetrics(scope),
+		opts:                 opts,
+		seriesOpts:           seriesOpts,
+		nowFn:                opts.ClockOptions().NowFn(),
+		state:                dbShardStateOpen,
+		nsMetadata:           namespaceMetadata,
+		shard:                shard,
+		namespaceReaderCache: namespaceReaderCache,
+		increasingIndex:      increasingIndex,
+		seriesPool:           opts.DatabaseSeriesPool(),
+		commitLogWriter:      commitLogWriter,
+		lookup:               make(map[ts.Hash]*list.Element),
+		list:                 list.New(),
+		filesetBeforeFn:      fs.FilesetBefore,
+		deleteFilesFn:        fs.DeleteFiles,
+		sleepFn:              time.Sleep,
+		identifierPool:       opts.IdentifierPool(),
+		contextPool:          opts.ContextPool(),
+		flushState:           newShardFlushState(),
+		tickWg:               &sync.WaitGroup{},
+		metrics:              newDatabaseShardMetrics(scope),
 	}
 	d.insertQueue = newDatabaseShardInsertQueue(d.insertSeriesBatch,
 		d.nowFn, scope)
@@ -269,7 +272,7 @@ func (s *dbShard) NumSeries() int64 {
 	return int64(n)
 }
 
-// Stream implements series.SeriesBlockRetriever
+// Stream implements series.QueryableBlockRetriever
 func (s *dbShard) Stream(
 	id ts.ID,
 	start time.Time,
@@ -278,7 +281,7 @@ func (s *dbShard) Stream(
 	return s.DatabaseBlockRetriever.Stream(s.shard, id, start, onRetrieve)
 }
 
-// IsBlockRetrievable implements series.SeriesBlockRetriever
+// IsBlockRetrievable implements series.QueryableBlockRetriever
 func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
 	flushState := s.FlushState(blockStart)
 	switch flushState.Status {
@@ -534,7 +537,10 @@ func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {
 		entry := elem.Value.(*dbShardEntry)
 		// If this series is currently being written to, we don't remove
 		// it even though it's empty in that it might become non-empty soon.
-		if entry.writerCount() > 0 {
+		// For active readers we avoid closing the series during a read as well
+		// to ensure a consistent view of the series if they manage to
+		// take a reference to it.
+		if entry.readerWriterCount() > 0 {
 			continue
 		}
 		// If there have been datapoints written to the series since its
@@ -543,7 +549,7 @@ func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {
 			continue
 		}
 		// NB(xichen): if we get here, we are guaranteed that there can be
-		// no more writes to this series while the lock is held, so it's
+		// no more reads/writes to this series while the lock is held, so it's
 		// safe to remove it.
 		series.Close()
 		s.list.Remove(elem)
@@ -604,7 +610,7 @@ func (s *dbShard) Write(
 		// overhead of ownership tracking. This makes taking a ref here safe.
 		commitLogSeriesID = entry.series.ID()
 		commitLogSeriesUniqueIndex = entry.index
-		entry.decrementWriterCount()
+		entry.decrementReaderWriterCount()
 		if err != nil {
 			return err
 		}
@@ -655,6 +661,12 @@ func (s *dbShard) ReadEncoded(
 ) ([][]xio.SegmentReader, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
+	if entry != nil {
+		// NB(r): Ensure readers have consistent view of this series, do
+		// not expire the series while being read from.
+		entry.incrementReaderWriterCount()
+		defer entry.decrementReaderWriterCount()
+	}
 	s.RUnlock()
 
 	if err == errShardEntryNotFound {
@@ -731,7 +743,7 @@ func (s *dbShard) tryRetrieveWritableSeries(id ts.ID) (
 		writeNewSeriesAsync: s.currRuntimeOptions.writeNewSeriesAsync,
 	}
 	if entry, _, err := s.lookupEntryWithLock(id); err == nil {
-		entry.incrementWriterCount()
+		entry.incrementReaderWriterCount()
 		s.RUnlock()
 		return entry, opts, nil
 	} else if err != errShardEntryNotFound {
@@ -788,7 +800,7 @@ type insertSyncType uint8
 // nolint: deadcode, varcheck, unused
 const (
 	insertSync insertSyncType = iota
-	insertSyncIncWriterCount
+	insertSyncIncReaderWriterCount
 )
 
 func (s *dbShard) insertSeriesSync(
@@ -805,8 +817,8 @@ func (s *dbShard) insertSeriesSync(
 		// Check if we're making a modification to this entry, be sure
 		// to increment the writer count so it's visible when we release
 		// the lock
-		if entry != nil && insertType == insertSyncIncWriterCount {
-			entry.incrementWriterCount()
+		if entry != nil && insertType == insertSyncIncReaderWriterCount {
+			entry.incrementReaderWriterCount()
 		}
 		s.Unlock()
 	}()
@@ -851,7 +863,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		if hasPendingWrite {
 			// We're definitely writing a value, ensure that the pending write is
 			// visible before we release the lookup write lock
-			inserts[i].entry.incrementWriterCount()
+			inserts[i].entry.incrementReaderWriterCount()
 		}
 		if err == nil {
 			// Already inserted
@@ -892,7 +904,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		if err != nil {
 			s.metrics.insertAsyncWriteErrors.Inc(1)
 		}
-		entry.decrementWriterCount()
+		entry.decrementReaderWriterCount()
 	}
 
 	// Avoid goroutine spinning up to close this context
@@ -908,6 +920,12 @@ func (s *dbShard) FetchBlocks(
 ) ([]block.FetchBlockResult, error) {
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
+	if entry != nil {
+		// NB(r): Ensure readers have consistent view of this series, do
+		// not expire the series while being read from.
+		entry.incrementReaderWriterCount()
+		defer entry.decrementReaderWriterCount()
+	}
 	s.RUnlock()
 
 	if err == errShardEntryNotFound {
@@ -933,36 +951,12 @@ func (s *dbShard) FetchBlocks(
 	return reader.FetchBlocks(ctx, starts)
 }
 
-func (s *dbShard) FetchBlocksMetadata(
-	ctx context.Context,
-	start, end time.Time,
-	limit int64,
-	pageToken int64,
-	opts block.FetchBlocksMetadataOptions,
-) (block.FetchBlocksMetadataResults, *int64, error) {
-	switch s.opts.SeriesCachePolicy() {
-	case series.CacheAll:
-	case series.CacheAllMetadata:
-	default:
-		// If not using CacheAll or CacheAllMetadata then calling the v1
-		// API will only return active block metadata (mutable and cached)
-		// hence this call is invalid
-		return nil, nil, fmt.Errorf(
-			"fetch blocks metadata v1 endpoint invalid with cache policy: %s",
-			s.opts.SeriesCachePolicy().String())
-	}
-
-	result, nextPageToken := s.fetchActiveBlocksMetadata(ctx, start, end,
-		limit, pageToken, opts)
-	return result, nextPageToken, nil
-}
-
 func (s *dbShard) fetchActiveBlocksMetadata(
 	ctx context.Context,
 	start, end time.Time,
 	limit int64,
 	indexCursor int64,
-	opts block.FetchBlocksMetadataOptions,
+	opts series.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, *int64) {
 	var (
 		res             = s.opts.FetchBlocksMetadataResultsPool().Get()
@@ -1008,18 +1002,46 @@ func (s *dbShard) fetchActiveBlocksMetadata(
 	return res, nextIndexCursor
 }
 
+func (s *dbShard) FetchBlocksMetadata(
+	ctx context.Context,
+	start, end time.Time,
+	limit int64,
+	pageToken int64,
+	opts block.FetchBlocksMetadataOptions,
+) (block.FetchBlocksMetadataResults, *int64, error) {
+	switch s.opts.SeriesCachePolicy() {
+	case series.CacheAll:
+	case series.CacheAllMetadata:
+	default:
+		// If not using CacheAll or CacheAllMetadata then calling the v1
+		// API will only return active block metadata (mutable and cached)
+		// hence this call is invalid
+		return nil, nil, fmt.Errorf(
+			"fetch blocks metadata v1 endpoint invalid with cache policy: %s",
+			s.opts.SeriesCachePolicy().String())
+	}
+
+	// For v1 endpoint we always include cached blocks because when using
+	// CacheAllMetadata the blocks will appear cached
+	seriesFetchBlocksMetadataOpts := series.FetchBlocksMetadataOptions{
+		FetchBlocksMetadataOptions: opts,
+		IncludeCachedBlocks:        true,
+	}
+	result, nextPageToken := s.fetchActiveBlocksMetadata(ctx, start, end,
+		limit, pageToken, seriesFetchBlocksMetadataOpts)
+	return result, nextPageToken, nil
+}
+
 func (s *dbShard) FetchBlocksMetadataV2(
 	ctx context.Context,
 	start, end time.Time,
 	limit int64,
-	pageToken PageToken,
+	encodedPageToken PageToken,
 	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, PageToken, error) {
-	var (
-		token = &pagetoken.PageToken{}
-	)
-	if pageToken != nil {
-		if err := proto.Unmarshal(pageToken, token); err != nil {
+	token := &pagetoken.PageToken{}
+	if encodedPageToken != nil {
+		if err := proto.Unmarshal(encodedPageToken, token); err != nil {
 			return nil, nil, xerrors.NewInvalidParamsError(errShardInvalidPageToken)
 		}
 	}
@@ -1030,20 +1052,29 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	cachePolicy := s.opts.SeriesCachePolicy()
 	if cachePolicy == series.CacheAll || cachePolicy == series.CacheAllMetadata {
 		// If we are using a series cache policy that caches all block metadata
-		// in memory then we only ever perform the active phase
+		// in memory then we only ever perform the active phase as all metadata
+		// is actively held in memory
 		indexCursor := int64(0)
 		if activePhase != nil {
 			indexCursor = activePhase.IndexCursor
 		}
-		result, nextIndexCursor, err := s.FetchBlocksMetadata(ctx, start, end,
-			limit, indexCursor, opts)
-		if err != nil {
-			return nil, nil, err
+		// We always include cached blocks because when using
+		// CacheAllMetadata the blocks will appear cached
+		seriesFetchBlocksMetadataOpts := series.FetchBlocksMetadataOptions{
+			FetchBlocksMetadataOptions: opts,
+			IncludeCachedBlocks:        true,
 		}
+		result, nextIndexCursor := s.fetchActiveBlocksMetadata(ctx, start, end,
+			limit, indexCursor, seriesFetchBlocksMetadataOpts)
 		if nextIndexCursor == nil {
 			// No more results and only enacting active phase since we are using
 			// series policy that caches all block metadata in memory
 			return result, nil, nil
+		}
+		token.Phase = &pagetoken.PageToken_ActiveSeriesPhase_{
+			ActiveSeriesPhase: &pagetoken.PageToken_ActiveSeriesPhase{
+				IndexCursor: *nextIndexCursor,
+			},
 		}
 		data, err := proto.Marshal(token)
 		if err != nil {
@@ -1052,16 +1083,39 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		return result, PageToken(data), nil
 	}
 
-	if activePhase != nil || (activePhase == nil && flushedPhase == nil) {
+	// NB(r): If returning mixed in memory and disk results, then we return anything
+	// that's mutable in memory first then all disk results.
+	// We work backwards so we don't hit race conditions with blocks
+	// being flushed and potentially missed between paginations. Working
+	// backwards means that we might duplicate metadata sent back switching
+	// between active phase and flushed phase, but that's better than missing
+	// data working in the opposite direction. De-duping which block time ranges
+	// were actually sent is also difficult as it's not always a consistent view
+	// across async pagination.
+	// Duplicating the metadata sent back means that consumers get a consistent
+	// view of the world if they merge all the results together.
+	// In the future we should consider the lifecycle of fileset files rather
+	// than directly working with them here while filesystem cleanup manager
+	// could delete them mid-read, on linux this is ok as it's just an unlink
+	// and we'll finish our read cleanly. If there's a race between us thinking
+	// the file is accessible and us opening a reader to it then this will bubble
+	// an error to the client which will be retried.
+	if (activePhase == nil && flushedPhase == nil) || activePhase != nil {
 		// If first phase started or no phases started then return active
-		// series metadata
+		// series metadata until we find a block start time that we have fileset
+		// files for
 		indexCursor := int64(0)
 		if activePhase != nil {
 			indexCursor = activePhase.IndexCursor
 		}
-
+		// We do not include cached blocks because we'll send metadata for
+		// those blocks when we send metadata directly from the flushed files
+		seriesFetchBlocksMetadataOpts := series.FetchBlocksMetadataOptions{
+			FetchBlocksMetadataOptions: opts,
+			IncludeCachedBlocks:        false,
+		}
 		result, nextIndexCursor := s.fetchActiveBlocksMetadata(ctx, start, end,
-			limit, indexCursor, opts)
+			limit, indexCursor, seriesFetchBlocksMetadataOpts)
 		// Encode the next page token
 		if nextIndexCursor == nil {
 			// Next phase, no more results from active series
@@ -1087,18 +1141,6 @@ func (s *dbShard) FetchBlocksMetadataV2(
 
 	// Must be in the second phase, start with checking the latest possible
 	// flushed block and work backwards.
-	//
-	// NB(r): We work backwards so we don't hit race conditions with blocks
-	// being flushed and potentially missed between paginations. Working
-	// backwards means that we might duplicate metadata sent back switching
-	// between active phase and flushed phase, but that's better than missing
-	// data working in the opposite direction. De-duping which block time ranges
-	// were actually sent is also difficult as it's not always a consistent view.
-	// Duplicating the metadata sent back means that consumers get a consistent
-	// view of the world if they merge all the results together.
-	// TODO: consider lifecycle of fileset files rather than directly working
-	// with them here while filesystem cleanup manager could delete them
-	// mid-read.
 	var (
 		result          = s.opts.FetchBlocksMetadataResultsPool().Get()
 		ropts           = s.nsMetadata.Options().RetentionOptions()
@@ -1106,33 +1148,28 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		blockStart      = end.Truncate(blockSize)
 		tokenBlockStart time.Time
 	)
-	if flushedPhase.CurrBlockStartUnixNanos != 0 {
+	if flushedPhase.CurrBlockStartUnixNanos > 0 {
 		tokenBlockStart = time.Unix(0, flushedPhase.CurrBlockStartUnixNanos)
 		blockStart = tokenBlockStart
 	}
 
-	fsopts := s.opts.CommitLogOptions().FilesystemOptions()
-	nsID := s.nsMetadata.ID()
-	numResults := int64(0)
+	var (
+		fsOpts         = s.opts.CommitLogOptions().FilesystemOptions()
+		filePathPrefix = fsOpts.FilePathPrefix()
+		nsID           = s.nsMetadata.ID()
+		numResults     = int64(0)
+	)
 	// Work backwards while in requested range and not before retention
 	for !blockStart.Before(start) &&
 		!blockStart.Before(retention.FlushTimeStart(ropts, s.nowFn())) {
-		exists := fs.FilesetExistsAt(fsopts.FilePathPrefix(), nsID, s.shard, blockStart)
+		exists := fs.FilesetExistsAt(filePathPrefix, nsID, s.shard, blockStart)
 		if !exists {
 			// No fileset files here
 			blockStart = blockStart.Add(-1 * blockSize)
 			continue
 		}
 
-		reader, err := fs.NewReader(s.opts.BytesPool(), fsopts)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if err := reader.Open(nsID, s.shard, blockStart); err != nil {
-			return nil, nil, err
-		}
-
+		var pos readerPosition
 		if !tokenBlockStart.IsZero() {
 			// Was previously seeking through a previous block, need to validate
 			// this is the correct one we found otherwise the file just went missing
@@ -1141,38 +1178,32 @@ func (s *dbShard) FetchBlocksMetadataV2(
 					"was reading block at %v but next available block is: %v",
 					tokenBlockStart, blockStart)
 			}
+			pos.metadataIdx = int(flushedPhase.CurrBlockIndexRead)
+		}
 
-			pos := fs.ReadMetadataPosition{
-				Entries:  flushedPhase.CurrBlockIndexEntries,
-				Read:     flushedPhase.CurrBlockIndexRead,
-				Offset:   flushedPhase.CurrBlockIndexOffset,
-				Checksum: uint32(flushedPhase.CurrBlockIndexChecksum),
-			}
-			if err := reader.ResetReadMetadataPosition(pos); err != nil {
-				return nil, nil, fmt.Errorf(
-					"unable to resume reading metadata from position: %v", err)
-			}
+		// Open a reader at this position, potentially from cache
+		reader, err := s.namespaceReaderCache.get(s.shard, blockStart, pos)
+		if err != nil {
+			return nil, nil, err
 		}
 
 		for numResults < limit {
 			id, size, checksum, err := reader.ReadMetadata()
 			if err == io.EOF {
-				// Done with this reader, make sure not bailing early
-				currPos := reader.ReadMetadataPosition()
-				if currPos.Read != int64(reader.Entries()) {
-					if err := reader.Close(); err != nil {
-						// Best effort to close reader at this point
-						log := s.opts.InstrumentOptions().Logger()
-						log.Warnf("unable to close reader on early EOF: %v", err)
-					}
-					return nil, nil, fmt.Errorf(
-						"reached end of index early for block %v: read=%d, entries=%d",
-						blockStart, currPos.Read, reader.Entries())
-				}
 				// Clean end of volume, we can break now
+				if err := reader.Close(); err != nil {
+					return nil, nil, fmt.Errorf(
+						"could not close metadata reader for block %v: %v",
+						blockStart, err)
+				}
 				break
 			}
 			if err != nil {
+				// Best effort to close the reader on a read error
+				if err := reader.Close(); err != nil {
+					logger := s.opts.InstrumentOptions().Logger()
+					logger.Errorf("could not close reader on unexpected err: %v", err)
+				}
 				return nil, nil, fmt.Errorf(
 					"could not read metadata for block %v: %v",
 					blockStart, err)
@@ -1197,18 +1228,17 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			numResults++
 			result.Add(block.NewFetchBlocksMetadataResult(id, blockResult))
 		}
-		endPos := reader.ReadMetadataPosition()
-		if err := reader.Close(); err != nil {
-			return nil, nil, err
-		}
+
+		// Return the reader to the cache
+		endPos := int64(reader.MetadataRead())
+		s.namespaceReaderCache.put(reader)
+
 		if numResults >= limit {
 			// We hit the limit, return results with page token
 			token.Phase = &pagetoken.PageToken_FlushedSeriesPhase_{
 				FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{
 					CurrBlockStartUnixNanos: blockStart.UnixNano(),
-					CurrBlockIndexRead:      endPos.Read,
-					CurrBlockIndexOffset:    endPos.Offset,
-					CurrBlockIndexChecksum:  int64(endPos.Checksum),
+					CurrBlockIndexRead:      endPos,
 				},
 			}
 			data, err := proto.Marshal(token)
@@ -1249,7 +1279,8 @@ func (s *dbShard) Bootstrap(
 		if entry == nil {
 			// Synchronously insert to avoid waiting for
 			// the insert queue potential delayed insert
-			entry, err = s.insertSeriesSync(dbBlocks.ID, insertSyncIncWriterCount)
+			entry, err = s.insertSeriesSync(dbBlocks.ID,
+				insertSyncIncReaderWriterCount)
 			if err != nil {
 				multiErr = multiErr.Add(err)
 				continue
@@ -1262,7 +1293,7 @@ func (s *dbShard) Bootstrap(
 		}
 
 		// Always decrement the writer count, avoid continue on bootstrap error
-		entry.decrementWriterCount()
+		entry.decrementReaderWriterCount()
 	}
 
 	// From this point onwards, all newly created series that aren't in

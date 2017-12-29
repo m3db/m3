@@ -83,7 +83,7 @@ func (_mr *_MockdatabaseBufferRecorder) FetchBlocks(arg0, arg1 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1)
 }
 
-func (_m *MockdatabaseBuffer) FetchBlocksMetadata(ctx context.Context, start time.Time, end time.Time, opts block.FetchBlocksMetadataOptions) block.FetchBlockMetadataResults {
+func (_m *MockdatabaseBuffer) FetchBlocksMetadata(ctx context.Context, start time.Time, end time.Time, opts FetchBlocksMetadataOptions) block.FetchBlockMetadataResults {
 	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, start, end, opts)
 	ret0, _ := ret[0].(block.FetchBlockMetadataResults)
 	return ret0

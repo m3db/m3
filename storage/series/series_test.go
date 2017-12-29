@@ -406,6 +406,7 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	b.EXPECT().Checksum().Return(expectedChecksum)
 	expectedLastRead := time.Now()
 	b.EXPECT().LastReadTime().Return(expectedLastRead)
+	b.EXPECT().IsCachedBlock().Return(false)
 	blocks[xtime.ToUnixNano(starts[0])] = b
 	blocks[xtime.ToUnixNano(starts[3])] = nil
 
@@ -414,10 +415,12 @@ func TestSeriesFetchBlocksMetadata(t *testing.T) {
 	expectedResults := block.NewFetchBlockMetadataResults()
 	expectedResults.Add(block.FetchBlockMetadataResult{Start: starts[2]})
 
-	fetchOpts := block.FetchBlocksMetadataOptions{
-		IncludeSizes:     true,
-		IncludeChecksums: true,
-		IncludeLastRead:  true,
+	fetchOpts := FetchBlocksMetadataOptions{
+		FetchBlocksMetadataOptions: block.FetchBlocksMetadataOptions{
+			IncludeSizes:     true,
+			IncludeChecksums: true,
+			IncludeLastRead:  true,
+		},
 	}
 	buffer.EXPECT().IsEmpty().Return(false)
 	buffer.EXPECT().

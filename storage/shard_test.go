@@ -58,8 +58,9 @@ func (i *testIncreasingIndex) nextIndex() uint64 {
 
 func testDatabaseShard(t *testing.T, opts Options) *dbShard {
 	ns := newTestNamespace(t)
+	nsReaderCache := newNamespaceReaderCache(ns.metadata, tally.NoopScope, opts)
 	seriesOpts := NewSeriesOptionsFromOptions(opts, ns.Options().RetentionOptions())
-	return newDatabaseShard(ns.metadata, 0, nil,
+	return newDatabaseShard(ns.metadata, 0, nil, nsReaderCache,
 		&testIncreasingIndex{}, commitLogWriteNoOp, true, opts, seriesOpts).(*dbShard)
 }
 
@@ -75,7 +76,7 @@ func TestShardDontNeedBootstrap(t *testing.T) {
 	opts := testDatabaseOptions()
 	testNs := newTestNamespace(t)
 	seriesOpts := NewSeriesOptionsFromOptions(opts, testNs.Options().RetentionOptions())
-	shard := newDatabaseShard(testNs.metadata, 0, nil,
+	shard := newDatabaseShard(testNs.metadata, 0, nil, nil,
 		&testIncreasingIndex{}, commitLogWriteNoOp, false, opts, seriesOpts).(*dbShard)
 	defer shard.Close()
 
@@ -710,7 +711,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	require.Equal(t, 1, r.expiredSeries)
 	require.Equal(t, 1, len(shard.lookup))
 
-	entry.decrementWriterCount()
+	entry.decrementReaderWriterCount()
 	require.Equal(t, 1, len(shard.lookup))
 }
 
@@ -787,13 +788,17 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 		IncludeChecksums: true,
 		IncludeLastRead:  true,
 	}
+	seriesFetchOpts := series.FetchBlocksMetadataOptions{
+		FetchBlocksMetadataOptions: fetchOpts,
+		IncludeCachedBlocks: true,
+	}
 	lastRead := time.Now().Add(-time.Minute)
 	for i := 0; i < 10; i++ {
 		id := ts.StringID(fmt.Sprintf("foo.%d", i))
 		series := addMockSeries(ctrl, shard, id, uint64(i))
 		if i == 2 {
 			series.EXPECT().
-				FetchBlocksMetadata(gomock.Not(nil), start, end, fetchOpts).
+				FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
 				Return(block.NewFetchBlocksMetadataResult(id, block.NewFetchBlockMetadataResults()))
 		} else if i > 2 && i <= 7 {
 			ids = append(ids, id)
@@ -801,7 +806,7 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 			at := start.Add(time.Duration(i))
 			blocks.Add(block.NewFetchBlockMetadataResult(at, 0, nil, lastRead, nil))
 			series.EXPECT().
-				FetchBlocksMetadata(gomock.Not(nil), start, end, fetchOpts).
+				FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
 				Return(block.NewFetchBlocksMetadataResult(id, blocks))
 		}
 	}

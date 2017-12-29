@@ -79,67 +79,6 @@ func (_mr *_MockFilteredBlocksMetadataIterRecorder) Current() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Current")
 }
 
-// Mock of FetchBlockResult interface
-type MockFetchBlockResult struct {
-	ctrl     *gomock.Controller
-	recorder *_MockFetchBlockResultRecorder
-}
-
-// Recorder for MockFetchBlockResult (not exported)
-type _MockFetchBlockResultRecorder struct {
-	mock *MockFetchBlockResult
-}
-
-func NewMockFetchBlockResult(ctrl *gomock.Controller) *MockFetchBlockResult {
-	mock := &MockFetchBlockResult{ctrl: ctrl}
-	mock.recorder = &_MockFetchBlockResultRecorder{mock}
-	return mock
-}
-
-func (_m *MockFetchBlockResult) EXPECT() *_MockFetchBlockResultRecorder {
-	return _m.recorder
-}
-
-func (_m *MockFetchBlockResult) Start() time0.Time {
-	ret := _m.ctrl.Call(_m, "Start")
-	ret0, _ := ret[0].(time0.Time)
-	return ret0
-}
-
-func (_mr *_MockFetchBlockResultRecorder) Start() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Start")
-}
-
-func (_m *MockFetchBlockResult) Readers() []io.SegmentReader {
-	ret := _m.ctrl.Call(_m, "Readers")
-	ret0, _ := ret[0].([]io.SegmentReader)
-	return ret0
-}
-
-func (_mr *_MockFetchBlockResultRecorder) Readers() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Readers")
-}
-
-func (_m *MockFetchBlockResult) Err() error {
-	ret := _m.ctrl.Call(_m, "Err")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockFetchBlockResultRecorder) Err() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
-}
-
-func (_m *MockFetchBlockResult) Checksum() *uint32 {
-	ret := _m.ctrl.Call(_m, "Checksum")
-	ret0, _ := ret[0].(*uint32)
-	return ret0
-}
-
-func (_mr *_MockFetchBlockResultRecorder) Checksum() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Checksum")
-}
-
 // Mock of FetchBlockMetadataResults interface
 type MockFetchBlockMetadataResults struct {
 	ctrl     *gomock.Controller
@@ -354,6 +293,26 @@ func (_m *MockDatabaseBlock) IsRetrieved() bool {
 
 func (_mr *_MockDatabaseBlockRecorder) IsRetrieved() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsRetrieved")
+}
+
+func (_m *MockDatabaseBlock) WasRetrieved() bool {
+	ret := _m.ctrl.Call(_m, "WasRetrieved")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockDatabaseBlockRecorder) WasRetrieved() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WasRetrieved")
+}
+
+func (_m *MockDatabaseBlock) IsCachedBlock() bool {
+	ret := _m.ctrl.Call(_m, "IsCachedBlock")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockDatabaseBlockRecorder) IsCachedBlock() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsCachedBlock")
 }
 
 func (_m *MockDatabaseBlock) Reset(startTime time0.Time, segment ts.Segment) {

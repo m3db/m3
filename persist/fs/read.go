@@ -64,8 +64,11 @@ func (e ErrReadWrongIdx) Error() string {
 type reader struct {
 	filePathPrefix string
 	hugePagesOpts  mmapHugePagesOptions
+	namespace ts.ID
+	shard uint32
 	start          time.Time
 	blockSize      time.Duration
+	open bool
 
 	infoFdWithDigest           digest.FdWithDigestReader
 	bloomFilterWithDigest      digest.FdWithDigestReader
@@ -186,7 +189,25 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		r.Close()
 		return err
 	}
+	if err := r.readIndexAndSortByOffsetAsc(); err != nil {
+		r.Close()
+		return err
+	}
+
+	r.open = true
+	r.namespace = namespace
+	r.shard = shard
+
 	return nil
+}
+
+func (r *reader) Status() FileSetReaderStatus {
+	return FileSetReaderStatus{
+		Open: r.open,
+		Namespace: r.namespace,
+		Shard: r.shard,
+		BlockStart: r.start,
+	}
 }
 
 func (r *reader) readCheckpointFile(shardDir string, blockStart time.Time) error {
@@ -325,34 +346,10 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 		return none, 0, 0, io.EOF
 	}
 
-	r.decoder.Reset(r.indexDecoderStream)
-	entry, err := r.decoder.DecodeIndexEntry()
-	if err != nil {
-		return none, 0, 0, err
-	}
+	entry := r.indexEntriesByOffsetAsc[r.metadataRead]
 
 	r.metadataRead++
 	return r.entryID(entry.ID), int(entry.Size), uint32(entry.Checksum), nil
-}
-
-func (r *reader) ReadMetadataPosition() ReadMetadataPosition {
-	return ReadMetadataPosition{
-		Entries: int64(r.entries),
-		Read: int64(r.metadataRead),
-		Offset: int64(len(r.indexMmap)) - r.indexDecoderStream.Remaining(),
-		Checksum: r.indexDecoderStream.reader().Digest().Sum32(),
-	}
-}
-
-func (r *reader) ResetReadMetadataPosition(pos ReadMetadataPosition) error {
-	err := r.indexDecoderStream.resume(r.indexMmap, pos.Offset, pos.Checksum)
-	if err != nil {
-		return err
-	}
-	r.decoder.Reset(r.indexDecoderStream)
-	r.entries = int(pos.Entries)
-	r.metadataRead = int(pos.Read)
-	return nil
 }
 
 func (r *reader) ReadBloomFilter() (*ManagedConcurrentBloomFilter, error) {
@@ -382,19 +379,29 @@ func (r *reader) entryID(id []byte) ts.ID {
 	return ts.BinaryID(idClone)
 }
 
-// NB(xichen): Validate should be called after all data are read because the
-// digest is calculated for the entire data file.
+// NB(xichen): Validate should be called after all data is read because
+// the digest is calculated for the entire data file.
 func (r *reader) Validate() error {
+	var multiErr xerrors.MultiError
+	multiErr = multiErr.Add(r.ValidateMetadata())
+	multiErr = multiErr.Add(r.ValidateData())
+	return multiErr.FinalError()
+}
+
+// NB(r): ValidateMetadata can be called as soon as open since the metadata
+// is read upfront.
+func (r *reader) ValidateMetadata() error {
 	err := r.indexDecoderStream.reader().Validate(r.expectedIndexDigest)
 	if err != nil {
 		return fmt.Errorf("could not validate index file: %v", err)
 	}
-	// Note that the seeker must validate the checksum since we don't always
-	// verify the data file if we don't read it on bootstrap and call ReadMetadata instead.
-	if r.entriesRead == 0 {
-		return nil // Haven't read the records just the IDs
-	}
-	err = r.dataReader.Validate(r.expectedDataDigest)
+	return nil
+}
+
+// NB(xichen): ValidateData should be called after all data is read because
+// the digest is calculated for the entire data file.
+func (r *reader) ValidateData() error {
+	err := r.dataReader.Validate(r.expectedDataDigest)
 	if err != nil {
 		return fmt.Errorf("could not validate data file: %v", err)
 	}
@@ -411,6 +418,10 @@ func (r *reader) Entries() int {
 
 func (r *reader) EntriesRead() int {
 	return r.entriesRead
+}
+
+func (r *reader) MetadataRead() int {
+	return r.metadataRead
 }
 
 func (r *reader) Close() error {

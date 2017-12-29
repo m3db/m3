@@ -271,7 +271,7 @@ func (s *dbSeries) FetchBlocks(
 func (s *dbSeries) FetchBlocksMetadata(
 	ctx context.Context,
 	start, end time.Time,
-	opts block.FetchBlocksMetadataOptions,
+	opts FetchBlocksMetadataOptions,
 ) block.FetchBlocksMetadataResult {
 	blockSize := s.opts.RetentionOptions().BlockSize()
 	res := s.opts.FetchBlockMetadataResultsPool().Get()
@@ -284,6 +284,13 @@ func (s *dbSeries) FetchBlocksMetadata(
 	for tNano, b := range blocks {
 		t := tNano.ToTime()
 		if !start.Before(t.Add(blockSize)) || !t.Before(end) {
+			continue
+		}
+		if !opts.IncludeCachedBlocks && b.IsCachedBlock() {
+			// Do not include cached blocks if not specified to, this is
+			// to avoid high amounts of duplication if a significant of
+			// blocks are cached in memory when returning blocks metadata
+			// from both in-memory and disk structures.
 			continue
 		}
 		var (
@@ -316,18 +323,6 @@ func (s *dbSeries) FetchBlocksMetadata(
 			res.Add(result)
 		}
 		bufferResults.Close()
-	}
-
-	// NB(r): it's possible a ref to this series was taken before the series was
-	// closed then the method is called, which means no data and a nil ID.
-	//
-	// Hence we should return an empty result set here.
-	//
-	// In the future we need a way to make sure the call we're performing is for the
-	// series we're originally took a ref to. This will avoid pooling of series messing
-	// with calls to a series that was ref'd before it was closed/reused.
-	if len(res.Results()) == 0 {
-		return block.NewFetchBlocksMetadataResult(nil, res)
 	}
 
 	id := s.opts.IdentifierPool().Clone(s.id)

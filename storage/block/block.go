@@ -53,8 +53,9 @@ type dbBlock struct {
 
 	mergeTarget DatabaseBlock
 
-	retriever  DatabaseShardBlockRetriever
-	retrieveID ts.ID
+	retriever    DatabaseShardBlockRetriever
+	retrieveID   ts.ID
+	wasRetrieved bool
 
 	closed bool
 }
@@ -141,6 +142,7 @@ func (b *dbBlock) OnRetrieveBlock(
 	}
 
 	b.resetSegmentWithLock(segment)
+	b.wasRetrieved = true
 }
 
 func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
@@ -195,6 +197,21 @@ func (b *dbBlock) IsRetrieved() bool {
 	return retrieved
 }
 
+func (b *dbBlock) WasRetrieved() bool {
+	b.RLock()
+	wasRetrieved := b.wasRetrieved
+	b.RUnlock()
+	return wasRetrieved
+}
+
+func (b *dbBlock) IsCachedBlock() bool {
+	b.RLock()
+	retrieved := b.retriever == nil
+	wasRetrieved := b.wasRetrieved
+	b.RUnlock()
+	return !retrieved || wasRetrieved
+}
+
 func (b *dbBlock) Merge(other DatabaseBlock) {
 	b.Lock()
 	b.resetMergeTargetWithLock()
@@ -238,6 +255,7 @@ func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {
 
 	b.retriever = nil
 	b.retrieveID = nil
+	b.wasRetrieved = false
 
 	b.ctx.RegisterFinalizer(&seg)
 }
@@ -252,6 +270,7 @@ func (b *dbBlock) resetRetrievableWithLock(
 
 	b.retriever = retriever
 	b.retrieveID = metadata.ID
+	b.wasRetrieved = false
 }
 
 func (b *dbBlock) Close() {
