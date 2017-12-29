@@ -28,6 +28,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
@@ -238,8 +239,9 @@ func verifyLastReads(
 	start, end time.Time,
 	expected lastReadState,
 ) {
+	version := client.FetchBlocksMetadataEndpointV2
 	metadatas, err := m3dbClientFetchBlocksMetadata(setup.m3dbAdminClient,
-		namespace, setup.shardSet.AllIDs(), start, end)
+		namespace, setup.shardSet.AllIDs(), start, end, version)
 	assert.NoError(t, err)
 	if err != nil {
 		return

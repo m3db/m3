@@ -117,7 +117,8 @@ func (r shardRepairer) Repair(
 	metadata.AddLocalMetadata(origin, localIter)
 
 	// Add peer metadata
-	peerIter, err := session.FetchBlocksMetadataFromPeers(namespace, shard.ID(), start, end)
+	peerIter, err := session.FetchBlocksMetadataFromPeers(namespace,
+		shard.ID(), start, end, client.FetchBlocksMetadataEndpointV2)
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}

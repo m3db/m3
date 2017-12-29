@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/storage/block"
@@ -101,8 +102,9 @@ func testSetupMetadatas(
 	// Retrieve written data using the AdminSession APIs
 	// FetchMetadataBlocksFromPeers/FetchBlocksFromPeers
 	adminClient := testSetup.m3dbAdminClient
-	metadatasByShard, err := m3dbClientFetchBlocksMetadata(
-		adminClient, namespace, testSetup.shardSet.AllIDs(), start, end)
+	version := client.FetchBlocksMetadataEndpointV2
+	metadatasByShard, err := m3dbClientFetchBlocksMetadata(adminClient,
+		namespace, testSetup.shardSet.AllIDs(), start, end, version)
 	require.NoError(t, err)
 	return metadatasByShard
 }

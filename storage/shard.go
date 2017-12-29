@@ -30,7 +30,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/generated/proto/pagetoken"
@@ -50,6 +49,7 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/uber-go/tally"
 )
 
@@ -1039,15 +1039,15 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	encodedPageToken PageToken,
 	opts block.FetchBlocksMetadataOptions,
 ) (block.FetchBlocksMetadataResults, PageToken, error) {
-	token := &pagetoken.PageToken{}
+	token := new(pagetoken.PageToken)
 	if encodedPageToken != nil {
 		if err := proto.Unmarshal(encodedPageToken, token); err != nil {
 			return nil, nil, xerrors.NewInvalidParamsError(errShardInvalidPageToken)
 		}
 	}
 
-	activePhase := token.GetActiveSeriesPhase()
-	flushedPhase := token.GetFlushedSeriesPhase()
+	activePhase := token.ActiveSeriesPhase
+	flushedPhase := token.FlushedSeriesPhase
 
 	cachePolicy := s.opts.SeriesCachePolicy()
 	if cachePolicy == series.CacheAll || cachePolicy == series.CacheAllMetadata {
@@ -1071,7 +1071,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			// series policy that caches all block metadata in memory
 			return result, nil, nil
 		}
-		token.Phase = &pagetoken.PageToken_ActiveSeriesPhase_{
+		token = &pagetoken.PageToken{
 			ActiveSeriesPhase: &pagetoken.PageToken_ActiveSeriesPhase{
 				IndexCursor: *nextIndexCursor,
 			},
@@ -1119,12 +1119,12 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		// Encode the next page token
 		if nextIndexCursor == nil {
 			// Next phase, no more results from active series
-			token.Phase = &pagetoken.PageToken_FlushedSeriesPhase_{
+			token = &pagetoken.PageToken{
 				FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{},
 			}
 		} else {
 			// This phase is still active
-			token.Phase = &pagetoken.PageToken_ActiveSeriesPhase_{
+			token = &pagetoken.PageToken{
 				ActiveSeriesPhase: &pagetoken.PageToken_ActiveSeriesPhase{
 					IndexCursor: *nextIndexCursor,
 				},
@@ -1235,7 +1235,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 
 		if numResults >= limit {
 			// We hit the limit, return results with page token
-			token.Phase = &pagetoken.PageToken_FlushedSeriesPhase_{
+			token = &pagetoken.PageToken{
 				FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{
 					CurrBlockStartUnixNanos: blockStart.UnixNano(),
 					CurrBlockIndexRead:      endPos,

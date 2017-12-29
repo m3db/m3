@@ -1246,6 +1246,7 @@ func (s *session) FetchBlocksMetadataFromPeers(
 	namespace ts.ID,
 	shard uint32,
 	start, end time.Time,
+	version FetchBlocksMetadataEndpointVersion,
 ) (PeerBlocksMetadataIter, error) {
 	peers, err := s.peersForShard(shard)
 	if err != nil {
@@ -1260,7 +1261,7 @@ func (s *session) FetchBlocksMetadataFromPeers(
 
 	go func() {
 		errCh <- s.streamBlocksMetadataFromPeers(
-			namespace, shard, peers, start, end, metadataCh, m, FetchBlocksMetadataEndpointV1)
+			namespace, shard, peers, start, end, metadataCh, m, version)
 		close(metadataCh)
 		close(errCh)
 	}()

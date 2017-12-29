@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/retention"
+	"github.com/m3db/m3db/generated/proto/pagetoken"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
@@ -41,6 +42,7 @@ import (
 	xmetrics "github.com/m3db/m3db/x/metrics"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -815,6 +817,75 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, len(ids), len(res.Results()))
 	require.Equal(t, int64(8), *nextPageToken)
+	for i := 0; i < len(res.Results()); i++ {
+		require.Equal(t, ids[i], res.Results()[i].ID)
+	}
+}
+
+func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions().SetSeriesCachePolicy(series.CacheAll)
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	shard := testDatabaseShard(t, opts)
+	defer shard.Close()
+	start := time.Now()
+	end := start.Add(defaultTestRetentionOpts.BlockSize())
+
+	fetchLimit := int64(5)
+	startCursor := int64(2)
+
+	ids := make([]ts.ID, 0, fetchLimit)
+	fetchOpts := block.FetchBlocksMetadataOptions{
+		IncludeSizes:     true,
+		IncludeChecksums: true,
+		IncludeLastRead:  true,
+	}
+	seriesFetchOpts := series.FetchBlocksMetadataOptions{
+		FetchBlocksMetadataOptions: fetchOpts,
+		IncludeCachedBlocks: true,
+	}
+	lastRead := time.Now().Add(-time.Minute)
+	for i := int64(0); i < 10; i++ {
+		id := ts.StringID(fmt.Sprintf("foo.%d", i))
+		series := addMockSeries(ctrl, shard, id, uint64(i))
+		if i == startCursor {
+			series.EXPECT().
+				FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
+				Return(block.NewFetchBlocksMetadataResult(id, block.NewFetchBlockMetadataResults()))
+		} else if i > startCursor && i <= startCursor+fetchLimit {
+			ids = append(ids, id)
+			blocks := block.NewFetchBlockMetadataResults()
+			at := start.Add(time.Duration(i))
+			blocks.Add(block.NewFetchBlockMetadataResult(at, 0, nil, lastRead, nil))
+			series.EXPECT().
+				FetchBlocksMetadata(gomock.Not(nil), start, end, seriesFetchOpts).
+				Return(block.NewFetchBlocksMetadataResult(id, blocks))
+		}
+	}
+
+	currPageToken, err := proto.Marshal(&pagetoken.PageToken{
+		ActiveSeriesPhase: &pagetoken.PageToken_ActiveSeriesPhase{
+				IndexCursor: startCursor,
+			},
+	})
+	require.NoError(t, err)
+
+	res, nextPageToken, err := shard.FetchBlocksMetadataV2(ctx, start, end,
+		fetchLimit, currPageToken, fetchOpts)
+	require.NoError(t, err)
+	require.Equal(t, len(ids), len(res.Results()))
+
+	pageToken := new(pagetoken.PageToken)
+	err = proto.Unmarshal(nextPageToken, pageToken)
+	require.NoError(t, err)
+
+	require.NotNil(t, pageToken.GetActiveSeriesPhase())
+	require.Equal(t, int64(8), pageToken.GetActiveSeriesPhase().IndexCursor)
+
 	for i := 0; i < len(res.Results()); i++ {
 		require.Equal(t, ids[i], res.Results()[i].ID)
 	}

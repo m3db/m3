@@ -9,8 +9,7 @@ message PageToken {
 		int64 currBlockStartUnixNanos = 1;
 		int64 currBlockIndexRead = 2;
 	}
-	oneof phase {
-		ActiveSeriesPhase active_series_phase = 1;
-		FlushedSeriesPhase flushed_series_phase = 2;
-	}
+
+	ActiveSeriesPhase active_series_phase = 1;
+	FlushedSeriesPhase flushed_series_phase = 2;
 }

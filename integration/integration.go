@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/topology"
 	xmetrics "github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/instrument"
@@ -217,6 +218,12 @@ func newDefaultBootstrappableTestSetups(
 				SetResultOptions(bsOpts).
 				SetAdminClient(adminClient).
 				SetFetchBlocksMetadataEndpointVersion(setupOpts[i].fetchBlocksMetadataEndpointVersion)
+
+			// Force correct series cache policy if using V1 version
+			// TODO: Remove once v1 endpoint is gone
+			if setupOpts[i].fetchBlocksMetadataEndpointVersion == client.FetchBlocksMetadataEndpointV1 {
+				setup.storageOpts = setup.storageOpts.SetSeriesCachePolicy(series.CacheAll)
+			}
 
 			peersBootstrapper, err = peers.NewPeersBootstrapper(peersOpts, noOpAll)
 			require.NoError(t, err)

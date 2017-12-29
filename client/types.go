@@ -269,6 +269,7 @@ type AdminSession interface {
 		namespace ts.ID,
 		shard uint32,
 		start, end time.Time,
+		version FetchBlocksMetadataEndpointVersion,
 	) (PeerBlocksMetadataIter, error)
 
 	// FetchBootstrapBlocksFromPeers will fetch the most fulfilled block

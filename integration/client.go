@@ -187,6 +187,7 @@ func m3dbClientFetchBlocksMetadata(
 	namespace ts.ID,
 	shards []uint32,
 	start, end time.Time,
+	version client.FetchBlocksMetadataEndpointVersion,
 ) (map[uint32][]block.ReplicaMetadata, error) {
 	session, err := c.DefaultAdminSession()
 	if err != nil {
@@ -198,7 +199,8 @@ func m3dbClientFetchBlocksMetadata(
 	// iterate over all shards
 	for _, shardID := range shards {
 		var metadatas []block.ReplicaMetadata
-		iter, err := session.FetchBlocksMetadataFromPeers(namespace, shardID, start, end)
+		iter, err := session.FetchBlocksMetadataFromPeers(namespace,
+			shardID, start, end, version)
 		if err != nil {
 			return nil, err
 		}
