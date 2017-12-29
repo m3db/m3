@@ -94,19 +94,19 @@ var commitLogWriteNoOp = commitLogWriter(commitLogWriterFn(func(
 type dbNamespace struct {
 	sync.RWMutex
 
-	closed               bool
-	shutdownCh           chan struct{}
-	id                   ts.ID
-	shardSet             sharding.ShardSet
-	blockRetriever       block.DatabaseBlockRetriever
-	namespaceReaderCache databaseNamespaceReaderCache
-	opts                 Options
-	metadata             namespace.Metadata
-	nopts                namespace.Options
-	seriesOpts           series.Options
-	nowFn                clock.NowFn
-	log                  xlog.Logger
-	bs                   bootstrapState
+	closed             bool
+	shutdownCh         chan struct{}
+	id                 ts.ID
+	shardSet           sharding.ShardSet
+	blockRetriever     block.DatabaseBlockRetriever
+	namespaceReaderMgr databaseNamespaceReaderManager
+	opts               Options
+	metadata           namespace.Metadata
+	nopts              namespace.Options
+	seriesOpts         series.Options
+	nowFn              clock.NowFn
+	log                xlog.Logger
+	bs                 bootstrapState
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
@@ -251,7 +251,7 @@ func newDatabaseNamespace(
 		shutdownCh:             make(chan struct{}),
 		shardSet:               shardSet,
 		blockRetriever:         blockRetriever,
-		namespaceReaderCache:   newNamespaceReaderCache(metadata, scope, opts),
+		namespaceReaderMgr:     newNamespaceReaderManager(metadata, scope, opts),
 		opts:                   opts,
 		metadata:               metadata,
 		nopts:                  nopts,
@@ -343,7 +343,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		} else {
 			needsBootstrap := n.nopts.NeedsBootstrap()
 			n.shards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-				n.namespaceReaderCache, n.increasingIndex, n.commitLogWriter,
+				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter,
 				needsBootstrap, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
 		}
@@ -389,7 +389,7 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 
 func (n *dbNamespace) Tick(c context.Cancellable) error {
 	// Allow the reader cache to tick
-	n.namespaceReaderCache.tick()
+	n.namespaceReaderMgr.tick()
 
 	// Fetch the owned shards
 	shards := n.GetOwnedShards()
@@ -905,7 +905,7 @@ func (n *dbNamespace) initShards(needBootstrap bool) {
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
 		dbShards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-			n.namespaceReaderCache, n.increasingIndex, n.commitLogWriter,
+			n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter,
 			needBootstrap, n.opts, n.seriesOpts)
 	}
 	n.shards = dbShards

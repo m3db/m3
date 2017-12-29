@@ -30,9 +30,9 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/generated/proto/pagetoken"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/generated/proto/pagetoken"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
@@ -60,9 +60,9 @@ func (i *testIncreasingIndex) nextIndex() uint64 {
 
 func testDatabaseShard(t *testing.T, opts Options) *dbShard {
 	ns := newTestNamespace(t)
-	nsReaderCache := newNamespaceReaderCache(ns.metadata, tally.NoopScope, opts)
+	nsReaderMgr := newNamespaceReaderManager(ns.metadata, tally.NoopScope, opts)
 	seriesOpts := NewSeriesOptionsFromOptions(opts, ns.Options().RetentionOptions())
-	return newDatabaseShard(ns.metadata, 0, nil, nsReaderCache,
+	return newDatabaseShard(ns.metadata, 0, nil, nsReaderMgr,
 		&testIncreasingIndex{}, commitLogWriteNoOp, true, opts, seriesOpts).(*dbShard)
 }
 
@@ -792,7 +792,7 @@ func TestShardFetchBlocksMetadata(t *testing.T) {
 	}
 	seriesFetchOpts := series.FetchBlocksMetadataOptions{
 		FetchBlocksMetadataOptions: fetchOpts,
-		IncludeCachedBlocks: true,
+		IncludeCachedBlocks:        true,
 	}
 	lastRead := time.Now().Add(-time.Minute)
 	for i := 0; i < 10; i++ {
@@ -846,7 +846,7 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 	}
 	seriesFetchOpts := series.FetchBlocksMetadataOptions{
 		FetchBlocksMetadataOptions: fetchOpts,
-		IncludeCachedBlocks: true,
+		IncludeCachedBlocks:        true,
 	}
 	lastRead := time.Now().Add(-time.Minute)
 	for i := int64(0); i < 10; i++ {
@@ -869,8 +869,8 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyCacheAll(t *testing.T) {
 
 	currPageToken, err := proto.Marshal(&pagetoken.PageToken{
 		ActiveSeriesPhase: &pagetoken.PageToken_ActiveSeriesPhase{
-				IndexCursor: startCursor,
-			},
+			IndexCursor: startCursor,
+		},
 	})
 	require.NoError(t, err)
 

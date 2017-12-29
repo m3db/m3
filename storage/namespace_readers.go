@@ -26,6 +26,7 @@ import (
 
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/ts"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
@@ -37,8 +38,23 @@ const (
 	expireCachedReadersAfterNumTicks = 2
 )
 
-type databaseNamespaceReaderCache interface {
-	tick()
+type fsFilesetExistsAtFn func(
+	prefix string,
+	namespace ts.ID,
+	shard uint32,
+	blockStart time.Time,
+) bool
+
+type fsNewReaderFn func(
+	bytesPool pool.CheckedBytesPool,
+	opts fs.Options,
+) (fs.FileSetReader, error)
+
+type databaseNamespaceReaderManager interface {
+	filesetExistsAt(
+		shard uint32,
+		blockStart time.Time,
+	) bool
 
 	get(
 		shard uint32,
@@ -47,10 +63,15 @@ type databaseNamespaceReaderCache interface {
 	) (fs.FileSetReader, error)
 
 	put(reader fs.FileSetReader)
+
+	tick()
 }
 
-type namespaceReaderCache struct {
+type namespaceReaderManager struct {
 	sync.Mutex
+
+	filesetExistsAtFn fsFilesetExistsAtFn
+	newReaderFn       fsNewReaderFn
 
 	namespace namespace.Metadata
 	fsOpts    fs.Options
@@ -61,7 +82,7 @@ type namespaceReaderCache struct {
 	closedReaders []cachedReader
 	openReaders   map[cachedOpenReaderKey]cachedReader
 
-	metrics namespaceReaderCacheMetrics
+	metrics namespaceReaderManagerMetrics
 }
 
 type cachedOpenReaderKey struct {
@@ -80,17 +101,17 @@ type cachedReader struct {
 	ticksSinceUsed int
 }
 
-type namespaceReaderCacheMetrics struct {
+type namespaceReaderManagerMetrics struct {
 	cacheHit              tally.Counter
 	cacheMissAllocReader  tally.Counter
 	cacheMissReusedReader tally.Counter
 }
 
-func newNamespaceReaderCacheMetrics(
+func newNamespaceReaderManagerMetrics(
 	scope tally.Scope,
-) namespaceReaderCacheMetrics {
+) namespaceReaderManagerMetrics {
 	subScope := scope.SubScope("reader-cache")
-	return namespaceReaderCacheMetrics{
+	return namespaceReaderManagerMetrics{
 		cacheHit: subScope.Counter("hit"),
 		cacheMissAllocReader: subScope.Tagged(map[string]string{
 			"miss_type": "alloc_reader",
@@ -101,68 +122,36 @@ func newNamespaceReaderCacheMetrics(
 	}
 }
 
-func newNamespaceReaderCache(
+func newNamespaceReaderManager(
 	namespace namespace.Metadata,
 	namespaceScope tally.Scope,
 	opts Options,
-) databaseNamespaceReaderCache {
-	return &namespaceReaderCache{
-		namespace: namespace,
-		fsOpts:    opts.CommitLogOptions().FilesystemOptions(),
-		bytesPool: opts.BytesPool(),
-		logger:    opts.InstrumentOptions().Logger(),
-		metrics:   newNamespaceReaderCacheMetrics(namespaceScope),
+) databaseNamespaceReaderManager {
+	return &namespaceReaderManager{
+		filesetExistsAtFn: fs.FilesetExistsAt,
+		newReaderFn:       fs.NewReader,
+		namespace:         namespace,
+		fsOpts:            opts.CommitLogOptions().FilesystemOptions(),
+		bytesPool:         opts.BytesPool(),
+		logger:            opts.InstrumentOptions().Logger(),
+		metrics:           newNamespaceReaderManagerMetrics(namespaceScope),
 	}
 }
 
-func (c *namespaceReaderCache) tick() {
-	c.Lock()
-	defer c.Unlock()
-
-	var (
-		threshold            = expireCachedReadersAfterNumTicks
-		expiredClosedReaders = 0
-	)
-	// First increment ticks since used for closed readers
-	for i := range c.closedReaders {
-		c.closedReaders[i].ticksSinceUsed++
-		if c.closedReaders[i].ticksSinceUsed >= threshold {
-			expiredClosedReaders++
-		}
-	}
-	// Expire any closed readers, alloc a new slice to avoid spikes
-	// of use creating slices that are never released
-	if expired := expiredClosedReaders; expired > 0 {
-		newClosedReaders := make([]cachedReader, 0, len(c.closedReaders)-expired)
-		for _, elem := range c.closedReaders {
-			if elem.ticksSinceUsed < threshold {
-				newClosedReaders = append(newClosedReaders, elem)
-			}
-		}
-		c.closedReaders = newClosedReaders
-	}
-
-	// For open readers calculate and expire from map directly
-	for key, elem := range c.openReaders {
-		elem.ticksSinceUsed++
-		if elem.ticksSinceUsed >= threshold {
-			// Close before removing ref
-			if err := elem.reader.Close(); err != nil {
-				c.logger.Errorf("error closing reader from reader cache: %v", err)
-			}
-			delete(c.openReaders, key)
-			continue
-		}
-		c.openReaders[key] = elem
-	}
+func (m *namespaceReaderManager) filesetExistsAt(
+	shard uint32,
+	blockStart time.Time,
+) bool {
+	return m.filesetExistsAtFn(m.fsOpts.FilePathPrefix(),
+		m.namespace.ID(), shard, blockStart)
 }
 
-func (c *namespaceReaderCache) get(
+func (m *namespaceReaderManager) get(
 	shard uint32,
 	blockStart time.Time,
 	position readerPosition,
 ) (fs.FileSetReader, error) {
-	c.Lock()
+	m.Lock()
 
 	key := cachedOpenReaderKey{
 		shard:      shard,
@@ -170,13 +159,13 @@ func (c *namespaceReaderCache) get(
 		position:   position,
 	}
 
-	openReader, ok := c.openReaders[key]
+	openReader, ok := m.openReaders[key]
 	if ok {
 		// Cache hit, take this open reader
-		delete(c.openReaders, key)
-		c.Unlock()
+		delete(m.openReaders, key)
+		m.Unlock()
 
-		c.metrics.cacheHit.Inc(1)
+		m.metrics.cacheHit.Inc(1)
 		return openReader.reader, nil
 	}
 
@@ -185,26 +174,26 @@ func (c *namespaceReaderCache) get(
 		reader fs.FileSetReader
 		err    error
 	)
-	if len(c.closedReaders) > 0 {
-		idx := len(c.closedReaders) - 1
-		reader = c.closedReaders[idx].reader
+	if len(m.closedReaders) > 0 {
+		idx := len(m.closedReaders) - 1
+		reader = m.closedReaders[idx].reader
 		// Zero refs from element in slice and shrink slice
-		c.closedReaders[idx] = cachedReader{}
-		c.closedReaders = c.closedReaders[:idx]
+		m.closedReaders[idx] = cachedReader{}
+		m.closedReaders = m.closedReaders[:idx]
 
-		c.metrics.cacheMissReusedReader.Inc(1)
+		m.metrics.cacheMissReusedReader.Inc(1)
 	} else {
-		reader, err = fs.NewReader(c.bytesPool, c.fsOpts)
+		reader, err = m.newReaderFn(m.bytesPool, m.fsOpts)
 		if err != nil {
 			return nil, err
 		}
 
-		c.metrics.cacheMissAllocReader.Inc(1)
+		m.metrics.cacheMissAllocReader.Inc(1)
 	}
 	// Can release the lock now as we prepare reader for caller
-	c.Unlock()
+	m.Unlock()
 
-	if err := reader.Open(c.namespace.ID(), shard, blockStart); err != nil {
+	if err := reader.Open(m.namespace.ID(), shard, blockStart); err != nil {
 		return nil, err
 	}
 	// We can validate metadata immediately since its read when opened
@@ -232,14 +221,14 @@ func (c *namespaceReaderCache) get(
 	return reader, nil
 }
 
-func (c *namespaceReaderCache) put(reader fs.FileSetReader) {
+func (m *namespaceReaderManager) put(reader fs.FileSetReader) {
 	status := reader.Status()
 
-	c.Lock()
-	defer c.Unlock()
+	m.Lock()
+	defer m.Unlock()
 
 	if !status.Open {
-		c.closedReaders = append(c.closedReaders, cachedReader{
+		m.closedReaders = append(m.closedReaders, cachedReader{
 			reader: reader,
 		})
 		return
@@ -254,20 +243,62 @@ func (c *namespaceReaderCache) put(reader fs.FileSetReader) {
 		},
 	}
 
-	if _, ok := c.openReaders[key]; ok {
+	if _, ok := m.openReaders[key]; ok {
 		// Unlikely, however if so just close the reader we were trying to put
 		// and put into the closed readers
 		if err := reader.Close(); err != nil {
-			c.logger.Errorf("error closing reader on put from reader cache: %v", err)
+			m.logger.Errorf("error closing reader on put from reader cache: %v", err)
 			return
 		}
-		c.closedReaders = append(c.closedReaders, cachedReader{
+		m.closedReaders = append(m.closedReaders, cachedReader{
 			reader: reader,
 		})
 		return
 	}
 
-	c.openReaders[key] = cachedReader{
+	m.openReaders[key] = cachedReader{
 		reader: reader,
+	}
+}
+
+func (m *namespaceReaderManager) tick() {
+	m.Lock()
+	defer m.Unlock()
+
+	var (
+		threshold            = expireCachedReadersAfterNumTicks
+		expiredClosedReaders = 0
+	)
+	// First increment ticks since used for closed readers
+	for i := range m.closedReaders {
+		m.closedReaders[i].ticksSinceUsed++
+		if m.closedReaders[i].ticksSinceUsed >= threshold {
+			expiredClosedReaders++
+		}
+	}
+	// Expire any closed readers, alloc a new slice to avoid spikes
+	// of use creating slices that are never released
+	if expired := expiredClosedReaders; expired > 0 {
+		newClosedReaders := make([]cachedReader, 0, len(m.closedReaders)-expired)
+		for _, elem := range m.closedReaders {
+			if elem.ticksSinceUsed < threshold {
+				newClosedReaders = append(newClosedReaders, elem)
+			}
+		}
+		m.closedReaders = newClosedReaders
+	}
+
+	// For open readers calculate and expire from map directly
+	for key, elem := range m.openReaders {
+		elem.ticksSinceUsed++
+		if elem.ticksSinceUsed >= threshold {
+			// Close before removing ref
+			if err := elem.reader.Close(); err != nil {
+				m.logger.Errorf("error closing reader from reader cache: %v", err)
+			}
+			delete(m.openReaders, key)
+			continue
+		}
+		m.openReaders[key] = elem
 	}
 }

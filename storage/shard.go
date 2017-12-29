@@ -92,7 +92,7 @@ type dbShard struct {
 	nsMetadata               namespace.Metadata
 	seriesBlockRetriever     series.QueryableBlockRetriever
 	shard                    uint32
-	namespaceReaderCache     databaseNamespaceReaderCache
+	namespaceReaderMgr       databaseNamespaceReaderManager
 	increasingIndex          increasingIndex
 	seriesPool               series.DatabaseSeriesPool
 	commitLogWriter          commitLogWriter
@@ -188,7 +188,7 @@ func newDatabaseShard(
 	namespaceMetadata namespace.Metadata,
 	shard uint32,
 	blockRetriever block.DatabaseBlockRetriever,
-	namespaceReaderCache databaseNamespaceReaderCache,
+	namespaceReaderMgr databaseNamespaceReaderManager,
 	increasingIndex increasingIndex,
 	commitLogWriter commitLogWriter,
 	needsBootstrap bool,
@@ -199,26 +199,26 @@ func newDatabaseShard(
 		SubScope("dbshard")
 
 	d := &dbShard{
-		opts:                 opts,
-		seriesOpts:           seriesOpts,
-		nowFn:                opts.ClockOptions().NowFn(),
-		state:                dbShardStateOpen,
-		nsMetadata:           namespaceMetadata,
-		shard:                shard,
-		namespaceReaderCache: namespaceReaderCache,
-		increasingIndex:      increasingIndex,
-		seriesPool:           opts.DatabaseSeriesPool(),
-		commitLogWriter:      commitLogWriter,
-		lookup:               make(map[ts.Hash]*list.Element),
-		list:                 list.New(),
-		filesetBeforeFn:      fs.FilesetBefore,
-		deleteFilesFn:        fs.DeleteFiles,
-		sleepFn:              time.Sleep,
-		identifierPool:       opts.IdentifierPool(),
-		contextPool:          opts.ContextPool(),
-		flushState:           newShardFlushState(),
-		tickWg:               &sync.WaitGroup{},
-		metrics:              newDatabaseShardMetrics(scope),
+		opts:               opts,
+		seriesOpts:         seriesOpts,
+		nowFn:              opts.ClockOptions().NowFn(),
+		state:              dbShardStateOpen,
+		nsMetadata:         namespaceMetadata,
+		shard:              shard,
+		namespaceReaderMgr: namespaceReaderMgr,
+		increasingIndex:    increasingIndex,
+		seriesPool:         opts.DatabaseSeriesPool(),
+		commitLogWriter:    commitLogWriter,
+		lookup:             make(map[ts.Hash]*list.Element),
+		list:               list.New(),
+		filesetBeforeFn:    fs.FilesetBefore,
+		deleteFilesFn:      fs.DeleteFiles,
+		sleepFn:            time.Sleep,
+		identifierPool:     opts.IdentifierPool(),
+		contextPool:        opts.ContextPool(),
+		flushState:         newShardFlushState(),
+		tickWg:             &sync.WaitGroup{},
+		metrics:            newDatabaseShardMetrics(scope),
 	}
 	d.insertQueue = newDatabaseShardInsertQueue(d.insertSeriesBatch,
 		d.nowFn, scope)
@@ -1100,7 +1100,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	// and we'll finish our read cleanly. If there's a race between us thinking
 	// the file is accessible and us opening a reader to it then this will bubble
 	// an error to the client which will be retried.
-	if (activePhase == nil && flushedPhase == nil) || activePhase != nil {
+	if flushedPhase == nil {
 		// If first phase started or no phases started then return active
 		// series metadata until we find a block start time that we have fileset
 		// files for
@@ -1147,22 +1147,17 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		blockSize       = ropts.BlockSize()
 		blockStart      = end.Truncate(blockSize)
 		tokenBlockStart time.Time
+		numResults      int64
 	)
 	if flushedPhase.CurrBlockStartUnixNanos > 0 {
 		tokenBlockStart = time.Unix(0, flushedPhase.CurrBlockStartUnixNanos)
 		blockStart = tokenBlockStart
 	}
 
-	var (
-		fsOpts         = s.opts.CommitLogOptions().FilesystemOptions()
-		filePathPrefix = fsOpts.FilePathPrefix()
-		nsID           = s.nsMetadata.ID()
-		numResults     = int64(0)
-	)
 	// Work backwards while in requested range and not before retention
 	for !blockStart.Before(start) &&
 		!blockStart.Before(retention.FlushTimeStart(ropts, s.nowFn())) {
-		exists := fs.FilesetExistsAt(filePathPrefix, nsID, s.shard, blockStart)
+		exists := s.namespaceReaderMgr.filesetExistsAt(s.shard, blockStart)
 		if !exists {
 			// No fileset files here
 			blockStart = blockStart.Add(-1 * blockSize)
@@ -1182,7 +1177,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 		}
 
 		// Open a reader at this position, potentially from cache
-		reader, err := s.namespaceReaderCache.get(s.shard, blockStart, pos)
+		reader, err := s.namespaceReaderMgr.get(s.shard, blockStart, pos)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1231,7 +1226,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 
 		// Return the reader to the cache
 		endPos := int64(reader.MetadataRead())
-		s.namespaceReaderCache.put(reader)
+		s.namespaceReaderMgr.put(reader)
 
 		if numResults >= limit {
 			// We hit the limit, return results with page token
