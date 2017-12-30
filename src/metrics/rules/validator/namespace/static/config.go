@@ -18,16 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package rules
+package static
 
-// Validator validates a ruleset.
-type Validator interface {
-	// Validate validates a ruleset.
-	Validate(rs RuleSet) error
+import (
+	"github.com/m3db/m3metrics/rules/validator/namespace"
+)
 
-	// ValidateSnapshot validates a ruleset snapshot.
-	ValidateSnapshot(snapshot *RuleSetSnapshot) error
+// NamespaceValidatorConfiguration configures a static namespace validator.
+type NamespaceValidatorConfiguration struct {
+	ValidationResult ValidationResult `yaml:"validationResult"`
+}
 
-	// Close closes the validator.
-	Close()
+// NewNamespaceValidator creates a new namespace validator.
+func (c *NamespaceValidatorConfiguration) NewNamespaceValidator() namespace.Validator {
+	return NewNamespaceValidator(c.ValidationResult)
 }

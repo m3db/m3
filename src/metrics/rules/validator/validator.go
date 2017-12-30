@@ -27,15 +27,20 @@ import (
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3metrics/rules/validator/namespace"
 )
 
 type validator struct {
-	opts Options
+	opts        Options
+	nsValidator namespace.Validator
 }
 
 // NewValidator creates a new validator.
 func NewValidator(opts Options) rules.Validator {
-	return &validator{opts: opts}
+	return &validator{
+		opts:        opts,
+		nsValidator: opts.NamespaceValidator(),
+	}
 }
 
 func (v *validator) Validate(rs rules.RuleSet) error {
@@ -58,11 +63,22 @@ func (v *validator) ValidateSnapshot(snapshot *rules.RuleSetSnapshot) error {
 	return nil
 }
 
+func (v *validator) Close() {
+	v.nsValidator.Close()
+}
+
 func (v *validator) validateSnapshot(snapshot *rules.RuleSetSnapshot) error {
+	if err := v.validateNamespace(snapshot.Namespace); err != nil {
+		return err
+	}
 	if err := v.validateMappingRules(snapshot.MappingRules); err != nil {
 		return err
 	}
 	return v.validateRollupRules(snapshot.RollupRules)
+}
+
+func (v *validator) validateNamespace(ns string) error {
+	return v.nsValidator.Validate(ns)
 }
 
 func (v *validator) validateMappingRules(mrv map[string]*rules.MappingRuleView) error {

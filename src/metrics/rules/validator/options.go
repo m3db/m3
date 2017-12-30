@@ -27,6 +27,8 @@ import (
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3metrics/rules/validator/namespace"
+	"github.com/m3db/m3metrics/rules/validator/namespace/static"
 )
 
 // MetricTypesFn determines the possible metric types based on a set of tag based filters.
@@ -34,6 +36,12 @@ type MetricTypesFn func(tagFilters filters.TagFilterValueMap) ([]metric.Type, er
 
 // Options provide a set of options for the validator.
 type Options interface {
+	// SetNamespaceValidator sets the namespace validator.
+	SetNamespaceValidator(value namespace.Validator) Options
+
+	// NamespaceValidator returns the namespace validator.
+	NamespaceValidator() namespace.Validator
+
 	// SetDefaultAllowedStoragePolicies sets the default list of allowed storage policies.
 	SetDefaultAllowedStoragePolicies(value []policy.StoragePolicy) Options
 
@@ -89,6 +97,7 @@ type validationMetadata struct {
 }
 
 type options struct {
+	namespaceValidator                   namespace.Validator
 	defaultAllowedStoragePolicies        map[policy.StoragePolicy]struct{}
 	defaultAllowedCustomAggregationTypes map[policy.AggregationType]struct{}
 	metricTypesFn                        MetricTypesFn
@@ -101,8 +110,18 @@ type options struct {
 // NewOptions create a new set of validator options.
 func NewOptions() Options {
 	return &options{
-		metadatasByType: make(map[metric.Type]validationMetadata),
+		namespaceValidator: static.NewNamespaceValidator(static.Valid),
+		metadatasByType:    make(map[metric.Type]validationMetadata),
 	}
+}
+
+func (o *options) SetNamespaceValidator(value namespace.Validator) Options {
+	o.namespaceValidator = value
+	return o
+}
+
+func (o *options) NamespaceValidator() namespace.Validator {
+	return o.namespaceValidator
 }
 
 func (o *options) SetDefaultAllowedStoragePolicies(value []policy.StoragePolicy) Options {

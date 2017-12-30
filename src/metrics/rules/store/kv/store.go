@@ -127,6 +127,13 @@ func (s *store) WriteAll(nss *rules.Namespaces, rs rules.MutableRuleSet) error {
 	return err
 }
 
+func (s *store) Close() {
+	if s.opts.Validator == nil {
+		return
+	}
+	s.opts.Validator.Close()
+}
+
 func (s *store) ruleSetKey(ns string) string {
 	return fmt.Sprintf(s.opts.RuleSetKeyFmt, ns)
 }

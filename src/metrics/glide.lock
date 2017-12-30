@@ -1,5 +1,5 @@
 hash: b4d3704dbb2dd49cfa1deedd38443ade08525476bef00b3bcbdaa4d5fadfcdfb
-updated: 2017-12-13T14:55:13.315541113-05:00
+updated: 2017-12-28T22:05:13.649936023-05:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -24,10 +24,12 @@ imports:
   version: 4b25af16e37d029b79bae754d35655e6be382f94
   subpackages:
   - client
+  - generated/proto/commonpb
   - generated/proto/metadatapb
   - generated/proto/placementpb
   - kv
   - kv/mem
+  - kv/util
   - kv/util/runtime
   - placement
   - services
@@ -78,6 +80,8 @@ imports:
   - m3/thriftudp
 - name: github.com/willf/bitset
   version: 988f4f24992fc745de53c42df0da6581e42a6686
+- name: go.uber.org/atomic
+  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: golang.org/x/net
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
   subpackages:
@@ -104,8 +108,12 @@ testImports:
   version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
   subpackages:
   - spew
+- name: github.com/fortytw2/leaktest
+  version: 7dad53304f9614c1c365755c1176a8e876fee3e8
 - name: github.com/stretchr/testify
   version: d77da356e56a7428ad25149ca77381849a6a5232
   subpackages:
   - assert
   - require
+- name: gopkg.in/validator.v2
+  version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
