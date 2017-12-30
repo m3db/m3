@@ -18,16 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package rules
+package namespace
 
-// Validator validates a ruleset.
+// Validator validates namespaces.
 type Validator interface {
-	// Validate validates a ruleset.
-	Validate(rs RuleSet) error
+	// Validate validates whether a given namespace is valid.
+	Validate(ns string) error
 
-	// ValidateSnapshot validates a ruleset snapshot.
-	ValidateSnapshot(snapshot *RuleSetSnapshot) error
-
-	// Close closes the validator.
+	// Close closes the namespace validator.
 	Close()
 }

@@ -21,6 +21,7 @@
 package kv
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -339,6 +340,8 @@ var (
 
 func TestRuleSetKey(t *testing.T) {
 	s := testStore()
+	defer s.Close()
+
 	key := s.(*store).ruleSetKey(testNamespace)
 	require.Equal(t, "rules/fooNs", key)
 }
@@ -347,6 +350,7 @@ func TestNewStore(t *testing.T) {
 	opts := NewStoreOptions(testNamespaceKey, testRuleSetKeyFmt, nil)
 	kvStore := mem.NewStore()
 	s := NewStore(kvStore, opts).(*store)
+	defer s.Close()
 
 	require.Equal(t, s.kvStore, kvStore)
 	require.Equal(t, s.opts, opts)
@@ -354,6 +358,8 @@ func TestNewStore(t *testing.T) {
 
 func TestReadNamespaces(t *testing.T) {
 	s := testStore()
+	defer s.Close()
+
 	_, e := s.(*store).kvStore.Set(testNamespaceKey, testNamespaces)
 	require.NoError(t, e)
 	nss, err := s.ReadNamespaces()
@@ -361,8 +367,10 @@ func TestReadNamespaces(t *testing.T) {
 	require.NotNil(t, nss.Namespaces)
 }
 
-func TestNamespacesError(t *testing.T) {
+func TestReadNamespacesError(t *testing.T) {
 	s := testStore()
+	defer s.Close()
+
 	_, e := s.(*store).kvStore.Set(testNamespaceKey, &schema.RollupRule{Uuid: "x"})
 	require.NoError(t, e)
 	nss, err := s.ReadNamespaces()
@@ -372,6 +380,8 @@ func TestNamespacesError(t *testing.T) {
 
 func TestReadRuleSet(t *testing.T) {
 	s := testStore()
+	defer s.Close()
+
 	_, e := s.(*store).kvStore.Set(testRuleSetKey, testRuleSet)
 	require.NoError(t, e)
 	rs, err := s.ReadRuleSet(testNamespace)
@@ -379,8 +389,10 @@ func TestReadRuleSet(t *testing.T) {
 	require.NotNil(t, rs)
 }
 
-func TestRuleSetError(t *testing.T) {
+func TestReadRuleSetError(t *testing.T) {
 	s := testStore()
+	defer s.Close()
+
 	_, e := s.(*store).kvStore.Set(testRuleSetKey, &schema.Namespace{Name: "x"})
 	require.NoError(t, e)
 	rs, err := s.ReadRuleSet("blah")
@@ -388,8 +400,9 @@ func TestRuleSetError(t *testing.T) {
 	require.Nil(t, rs)
 }
 
-func TestWrite(t *testing.T) {
+func TestWriteAll(t *testing.T) {
 	s := testStore()
+	defer s.Close()
 
 	rs, err := s.ReadRuleSet(testNamespaceKey)
 	require.Error(t, err)
@@ -419,8 +432,19 @@ func TestWrite(t *testing.T) {
 	require.Equal(t, nssSchema, testNamespaces)
 }
 
-func TestWriteErrorAll(t *testing.T) {
+func TestWriteAllValidationError(t *testing.T) {
+	errInvalidRuleSet := errors.New("invalid ruleset")
+	v := &mockValidator{
+		validateFn: func(rules.RuleSet) error { return errInvalidRuleSet },
+	}
+	s := testStoreWithValidator(v)
+	defer s.Close()
+	require.Equal(t, errInvalidRuleSet, s.WriteAll(nil, nil))
+}
+
+func TestWriteAllError(t *testing.T) {
 	s := testStore()
+	defer s.Close()
 
 	rs, err := s.ReadRuleSet(testNamespaceKey)
 	require.Error(t, err)
@@ -461,8 +485,19 @@ func TestWriteErrorAll(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestWriteErrorRuleSet(t *testing.T) {
+func TestWriteRuleSetValidationError(t *testing.T) {
+	errInvalidRuleSet := errors.New("invalid ruleset")
+	v := &mockValidator{
+		validateFn: func(rules.RuleSet) error { return errInvalidRuleSet },
+	}
+	s := testStoreWithValidator(v)
+	defer s.Close()
+	require.Equal(t, errInvalidRuleSet, s.WriteRuleSet(nil))
+}
+
+func TestWriteRuleSetError(t *testing.T) {
 	s := testStore()
+	defer s.Close()
 
 	rs, err := s.ReadRuleSet(testNamespaceKey)
 	require.Error(t, err)
@@ -486,8 +521,9 @@ func TestWriteErrorRuleSet(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestWriteNoNamespace(t *testing.T) {
+func TestWriteAllNoNamespace(t *testing.T) {
 	s := testStore()
+	defer s.Close()
 
 	rs, err := s.ReadRuleSet(testNamespaceKey)
 	require.Error(t, err)
@@ -522,7 +558,11 @@ func TestWriteNoNamespace(t *testing.T) {
 }
 
 func testStore() rules.Store {
-	opts := NewStoreOptions(testNamespaceKey, testRuleSetKeyFmt, nil)
+	return testStoreWithValidator(nil)
+}
+
+func testStoreWithValidator(validator rules.Validator) rules.Store {
+	opts := NewStoreOptions(testNamespaceKey, testRuleSetKeyFmt, validator)
 	kvStore := mem.NewStore()
 	return NewStore(kvStore, opts)
 }
@@ -538,3 +578,13 @@ func newMutableRuleSetFromSchema(
 	require.NoError(t, err)
 	return roRuleSet.ToMutableRuleSet()
 }
+
+type validateFn func(rs rules.RuleSet) error
+
+type mockValidator struct {
+	validateFn validateFn
+}
+
+func (v *mockValidator) Validate(rs rules.RuleSet) error                        { return v.validateFn(rs) }
+func (v *mockValidator) ValidateSnapshot(snapshot *rules.RuleSetSnapshot) error { return nil }
+func (v *mockValidator) Close()                                                 {}

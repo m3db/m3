@@ -25,21 +25,66 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3cluster/generated/proto/commonpb"
+	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3metrics/rules/validator/namespace"
+	"github.com/m3db/m3metrics/rules/validator/namespace/kv"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	testTypeTag     = "type"
-	testCounterType = "counter"
-	testTimerType   = "timer"
-	testGaugeType   = "gauge"
+	testTypeTag       = "type"
+	testCounterType   = "counter"
+	testTimerType     = "timer"
+	testGaugeType     = "gauge"
+	testNamespacesKey = "testNamespaces"
 )
+
+var (
+	testNamespaces = []string{"foo", "bar"}
+)
+
+func TestValidatorDefaultNamespaceValidator(t *testing.T) {
+	v := NewValidator(testValidatorOptions()).(*validator)
+
+	inputs := []string{"foo", "bar", "baz"}
+	for _, input := range inputs {
+		require.NoError(t, v.validateNamespace(input))
+	}
+}
+
+func TestValidatorInvalidNamespace(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	nsValidator := testKVNamespaceValidator(t)
+	opts := testValidatorOptions().SetNamespaceValidator(nsValidator)
+	v := NewValidator(opts)
+	defer v.Close()
+
+	rs, err := rules.NewRuleSetFromSchema(1, &schema.RuleSet{Namespace: "baz"}, rules.NewOptions())
+	require.NoError(t, err)
+	require.Error(t, v.Validate(rs))
+}
+
+func TestValidatorValidNamespace(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	nsValidator := testKVNamespaceValidator(t)
+	opts := testValidatorOptions().SetNamespaceValidator(nsValidator)
+	v := NewValidator(opts)
+	defer v.Close()
+
+	rs, err := rules.NewRuleSetFromSchema(1, &schema.RuleSet{Namespace: "foo"}, rules.NewOptions())
+	require.NoError(t, err)
+	require.NoError(t, v.Validate(rs))
+}
 
 func TestValidatorValidateDuplicateMappingRules(t *testing.T) {
 	ruleSet := testRuleSetWithMappingRules(t, testDuplicateMappingRulesConfig())
@@ -991,6 +1036,18 @@ func testRuleSetWithRollupRules(t *testing.T, rrs []*schema.RollupRule) rules.Ru
 	newRuleSet, err := rules.NewRuleSetFromSchema(1, rs, rules.NewOptions())
 	require.NoError(t, err)
 	return newRuleSet
+}
+
+func testKVNamespaceValidator(t *testing.T) namespace.Validator {
+	store := mem.NewStore()
+	_, err := store.Set(testNamespacesKey, &commonpb.StringArrayProto{Values: testNamespaces})
+	require.NoError(t, err)
+	kvOpts := kv.NewNamespaceValidatorOptions().
+		SetKVStore(store).
+		SetValidNamespacesKey(testNamespacesKey)
+	nsValidator, err := kv.NewNamespaceValidator(kvOpts)
+	require.NoError(t, err)
+	return nsValidator
 }
 
 func testValidatorOptions() Options {

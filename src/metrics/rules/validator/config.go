@@ -21,14 +21,26 @@
 package validator
 
 import (
+	"errors"
+
+	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3metrics/rules/validator/namespace"
+	"github.com/m3db/m3metrics/rules/validator/namespace/kv"
+	"github.com/m3db/m3metrics/rules/validator/namespace/static"
+)
+
+var (
+	errNoNamespaceValidatorConfiguration        = errors.New("no namespace validator configuration provided")
+	errMultipleNamespaceValidatorConfigurations = errors.New("multiple namespace validator configurations provided")
 )
 
 // Configuration is the configuration for rules validation.
 type Configuration struct {
+	Namespace              namespaceValidatorConfiguration    `yaml:"namespace"`
 	RequiredRollupTags     []string                           `yaml:"requiredRollupTags"`
 	MetricTypes            metricTypesValidationConfiguration `yaml:"metricTypes"`
 	Policies               policiesValidationConfiguration    `yaml:"policies"`
@@ -37,8 +49,15 @@ type Configuration struct {
 }
 
 // NewValidator creates a new rules validator based on the given configuration.
-func (c Configuration) NewValidator() rules.Validator {
+func (c Configuration) NewValidator(
+	kvClient client.Client,
+) (rules.Validator, error) {
+	nsValidator, err := c.Namespace.NewNamespaceValidator(kvClient)
+	if err != nil {
+		return nil, err
+	}
 	opts := NewOptions().
+		SetNamespaceValidator(nsValidator).
 		SetRequiredRollupTags(c.RequiredRollupTags).
 		SetMetricTypesFn(c.MetricTypes.NewMetricTypesFn()).
 		SetDefaultAllowedStoragePolicies(c.Policies.DefaultAllowed.StoragePolicies).
@@ -50,7 +69,27 @@ func (c Configuration) NewValidator() rules.Validator {
 			SetAllowedStoragePoliciesFor(override.Type, override.Allowed.StoragePolicies).
 			SetAllowedCustomAggregationTypesFor(override.Type, override.Allowed.AggregationTypes)
 	}
-	return NewValidator(opts)
+	return NewValidator(opts), nil
+}
+
+type namespaceValidatorConfiguration struct {
+	KV     *kv.NamespaceValidatorConfiguration     `yaml:"kv"`
+	Static *static.NamespaceValidatorConfiguration `yaml:"static"`
+}
+
+func (c namespaceValidatorConfiguration) NewNamespaceValidator(
+	kvClient client.Client,
+) (namespace.Validator, error) {
+	if c.KV == nil && c.Static == nil {
+		return nil, errNoNamespaceValidatorConfiguration
+	}
+	if c.KV != nil && c.Static != nil {
+		return nil, errMultipleNamespaceValidatorConfigurations
+	}
+	if c.KV != nil {
+		return c.KV.NewNamespaceValidator(kvClient)
+	}
+	return c.Static.NewNamespaceValidator(), nil
 }
 
 // metricTypesValidationConfiguration is th configuration for metric types validation.

@@ -23,12 +23,78 @@ package validator
 import (
 	"testing"
 
+	"github.com/m3db/m3cluster/client"
+	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/metric"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 )
+
+func TestNamespaceValidatorConfigurationNoConfigurationProvided(t *testing.T) {
+	cfgStr := ""
+	var cfg namespaceValidatorConfiguration
+	require.NoError(t, yaml.Unmarshal([]byte(cfgStr), &cfg))
+	_, err := cfg.NewNamespaceValidator(nil)
+	require.Equal(t, errNoNamespaceValidatorConfiguration, err)
+}
+
+func TestNamespaceValidatorConfigurationMultipleConfigurationProvided(t *testing.T) {
+	cfgStr := `
+kv:
+  kvConfig:
+    zone: testZone
+    environment: testEnvironment
+  initWatchTimeout: 5ms
+  validNamespacesKey: testValidNamespaces
+static:
+  validationResult: valid
+`
+	var cfg namespaceValidatorConfiguration
+	require.NoError(t, yaml.Unmarshal([]byte(cfgStr), &cfg))
+	_, err := cfg.NewNamespaceValidator(nil)
+	require.Equal(t, errMultipleNamespaceValidatorConfigurations, err)
+}
+
+func TestNamespaceValidatorConfigurationKV(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfgStr := `
+kv:
+  kvConfig:
+    zone: testZone
+    environment: testEnvironment
+  initWatchTimeout: 5ms
+  validNamespacesKey: testValidNamespaces
+`
+	var cfg namespaceValidatorConfiguration
+	require.NoError(t, yaml.Unmarshal([]byte(cfgStr), &cfg))
+
+	kvStore := mem.NewStore()
+	kvOpts := kv.NewOptions().SetZone("testZone").SetEnvironment("testEnvironment")
+	kvClient := client.NewMockClient(ctrl)
+	kvClient.EXPECT().Store(kvOpts).Return(kvStore, nil)
+	_, err := cfg.NewNamespaceValidator(kvClient)
+	require.NoError(t, err)
+}
+
+func TestNamespaceValidatorConfigurationStatic(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	cfgStr := `
+static:
+  validationResult: valid
+`
+	var cfg namespaceValidatorConfiguration
+	require.NoError(t, yaml.Unmarshal([]byte(cfgStr), &cfg))
+	_, err := cfg.NewNamespaceValidator(nil)
+	require.NoError(t, err)
+}
 
 func TestConfigurationRequiredRollupTags(t *testing.T) {
 	cfg := `

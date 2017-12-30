@@ -22,15 +22,18 @@ package rules
 
 // Store performs read/write operations for rules and namespaces.
 type Store interface {
+	// ReadNamespaces returns the persisted namespaces in kv store.
+	ReadNamespaces() (*Namespaces, error)
+
+	// ReadRuleSet returns the persisted ruleset in kv store.
+	ReadRuleSet(nsName string) (RuleSet, error)
+
 	// WriteRuleSet saves the given ruleset to the backing store.
 	WriteRuleSet(rs MutableRuleSet) error
 
 	// WriteAll saves both the given ruleset and namespace to the backing store.
 	WriteAll(nss *Namespaces, rs MutableRuleSet) error
 
-	// ReadNamespaces returns the persisted namespaces in kv store.
-	ReadNamespaces() (*Namespaces, error)
-
-	// ReadRuleSet returns the persisted ruleset in kv store.
-	ReadRuleSet(nsName string) (RuleSet, error)
+	// Close closes the store.
+	Close()
 }
