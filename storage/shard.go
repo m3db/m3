@@ -47,6 +47,7 @@ import (
 	xio "github.com/m3db/m3db/x/io"
 	xclose "github.com/m3db/m3x/close"
 	xerrors "github.com/m3db/m3x/errors"
+	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/gogo/protobuf/proto"
@@ -111,6 +112,7 @@ type dbShard struct {
 	tickWg                   *sync.WaitGroup
 	runtimeOptsListenClosers []xclose.SimpleCloser
 	currRuntimeOptions       dbShardRuntimeOptions
+	logger                   xlog.Logger
 	metrics                  dbShardMetrics
 }
 
@@ -218,6 +220,7 @@ func newDatabaseShard(
 		contextPool:        opts.ContextPool(),
 		flushState:         newShardFlushState(),
 		tickWg:             &sync.WaitGroup{},
+		logger:             opts.InstrumentOptions().Logger(),
 		metrics:            newDatabaseShardMetrics(scope),
 	}
 	d.insertQueue = newDatabaseShardInsertQueue(d.insertSeriesBatch,
@@ -1201,8 +1204,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			if err != nil {
 				// Best effort to close the reader on a read error
 				if err := reader.Close(); err != nil {
-					logger := s.opts.InstrumentOptions().Logger()
-					logger.Errorf("could not close reader on unexpected err: %v", err)
+					s.logger.Errorf("could not close reader on unexpected err: %v", err)
 				}
 				return nil, nil, fmt.Errorf(
 					"could not read metadata for block %v: %v",

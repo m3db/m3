@@ -143,7 +143,8 @@ func newDefaulTestResultOptions(
 	return result.NewOptions().
 		SetClockOptions(storageOpts.ClockOptions()).
 		SetInstrumentOptions(storageOpts.InstrumentOptions()).
-		SetDatabaseBlockOptions(storageOpts.DatabaseBlockOptions())
+		SetDatabaseBlockOptions(storageOpts.DatabaseBlockOptions()).
+		SetSeriesCachePolicy(storageOpts.SeriesCachePolicy())
 }
 
 func newDefaultBootstrappableTestSetups(

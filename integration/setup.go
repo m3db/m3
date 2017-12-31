@@ -385,7 +385,7 @@ func (ts *testSetup) waitUntilServerIsDown() error {
 func (ts *testSetup) startServer() error {
 	log := ts.storageOpts.InstrumentOptions().Logger()
 	fields := []xlog.Field{
-		xlog.NewField("nativepooling", ts.nativePooling),
+		xlog.NewField("cachepolicy", ts.storageOpts.SeriesCachePolicy().String()),
 	}
 	log.WithFields(fields...).Infof("starting server")
 
