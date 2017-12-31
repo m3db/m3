@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3ctl/r2"
+	"github.com/m3db/m3ctl/service/r2"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/instrument"
@@ -589,3 +589,5 @@ func (s *store) FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]*rul
 		return hist, nil
 	}
 }
+
+func (s *store) Close() {}

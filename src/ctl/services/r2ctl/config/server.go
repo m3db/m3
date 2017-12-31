@@ -23,7 +23,7 @@ package config
 import (
 	"time"
 
-	"github.com/m3db/m3ctl/services/r2ctl/server"
+	httpserver "github.com/m3db/m3ctl/server/http"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -41,10 +41,10 @@ type serverConfig struct {
 	WriteTimeout time.Duration `yaml:"writeTimeout"`
 }
 
-func (c *serverConfig) NewHTTPServerOptions(
+func (c *serverConfig) NewServerOptions(
 	instrumentOpts instrument.Options,
-) server.Options {
-	opts := server.NewOptions().SetInstrumentOptions(instrumentOpts)
+) httpserver.Options {
+	opts := httpserver.NewOptions().SetInstrumentOptions(instrumentOpts)
 	if c.ReadTimeout != 0 {
 		opts = opts.SetReadTimeout(c.ReadTimeout)
 	}

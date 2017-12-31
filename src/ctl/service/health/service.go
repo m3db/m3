@@ -27,7 +27,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3ctl/services/r2ctl/server"
+	mservice "github.com/m3db/m3ctl/service"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/gorilla/mux"
@@ -53,11 +53,23 @@ type service struct {
 }
 
 // NewService creates a new rules controller.
-func NewService(iOpts instrument.Options) server.Service {
+func NewService(iOpts instrument.Options) mservice.Service {
 	return &service{iOpts: iOpts}
 }
 
-func healthCheck() healthStatus {
+func (s *service) URLPrefix() string {
+	return healthURL
+}
+
+func (s *service) RegisterHandlers(router *mux.Router) {
+	log := s.iOpts.Logger()
+	router.HandleFunc("", healthCheck)
+	log.Infof("Registered health endpoints")
+}
+
+func (s *service) Close() {}
+
+func status() healthStatus {
 	return ok
 }
 
@@ -69,10 +81,10 @@ func hostName() string {
 	return host
 }
 
-func m3ctlHealthCheck(w http.ResponseWriter, r *http.Request) {
+func healthCheck(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	host := hostName()
-	status := healthCheck()
+	status := status()
 	h := healthCheckResult{Host: host, Timestamp: start, Status: status}
 	h.ResponseTime = time.Since(start)
 
@@ -85,15 +97,4 @@ func m3ctlHealthCheck(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(body)
-}
-
-// RegisterHandlers registers health handlers.
-func (s *service) RegisterHandlers(router *mux.Router) {
-	log := s.iOpts.Logger()
-	router.HandleFunc("", m3ctlHealthCheck)
-	log.Infof("Registered health endpoints")
-}
-
-func (s *service) URLPrefix() string {
-	return healthURL
 }

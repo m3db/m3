@@ -31,7 +31,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3ctl/auth"
-	"github.com/m3db/m3ctl/services/r2ctl/server"
+	mservice "github.com/m3db/m3ctl/service"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
@@ -157,31 +157,70 @@ func (h r2Handler) handleError(w http.ResponseWriter, opError error) {
 
 // service handles all of the endpoints for r2.
 type service struct {
-	iOpts       instrument.Options
 	rootPrefix  string
 	store       Store
 	authService auth.HTTPAuthService
-	metrics     serviceMetrics
+	iOpts       instrument.Options
 	nowFn       clock.NowFn
+	metrics     serviceMetrics
 }
 
 // NewService creates a new r2 service using a given store.
 func NewService(
-	iOpts instrument.Options,
 	rootPrefix string,
 	authService auth.HTTPAuthService,
 	store Store,
+	iOpts instrument.Options,
 	clockOpts clock.Options,
-) server.Service {
+) mservice.Service {
 	return &service{
-		iOpts:       iOpts,
+		rootPrefix:  rootPrefix,
 		store:       store,
 		authService: authService,
-		rootPrefix:  rootPrefix,
-		metrics:     newServiceMetrics(iOpts.MetricsScope()),
+		iOpts:       iOpts,
 		nowFn:       clockOpts.NowFn(),
+		metrics:     newServiceMetrics(iOpts.MetricsScope()),
 	}
 }
+
+func (s *service) URLPrefix() string { return s.rootPrefix }
+
+func (s *service) RegisterHandlers(router *mux.Router) {
+	log := s.iOpts.Logger()
+	// Namespaces action
+	h := r2Handler{s.iOpts, s.authService}
+
+	router.Handle(namespacePath, h.wrap(s.fetchNamespaces)).Methods(http.MethodGet)
+	router.Handle(namespacePath, h.wrap(s.createNamespace)).Methods(http.MethodPost)
+
+	// Ruleset actions
+	router.Handle(namespacePrefix, h.wrap(s.fetchNamespace)).Methods(http.MethodGet)
+	router.Handle(namespacePrefix, h.wrap(s.deleteNamespace)).Methods(http.MethodDelete)
+
+	// Mapping Rule actions
+	router.Handle(mappingRuleRoot, h.wrap(s.createMappingRule)).Methods(http.MethodPost)
+
+	router.Handle(mappingRuleWithIDPath, h.wrap(s.fetchMappingRule)).Methods(http.MethodGet)
+	router.Handle(mappingRuleWithIDPath, h.wrap(s.updateMappingRule)).Methods(http.MethodPut, http.MethodPatch)
+	router.Handle(mappingRuleWithIDPath, h.wrap(s.deleteMappingRule)).Methods(http.MethodDelete)
+
+	// Mapping Rule history
+	router.Handle(mappingRuleHistoryPath, h.wrap(s.fetchMappingRuleHistory)).Methods(http.MethodGet)
+
+	// Rollup Rule actions
+	router.Handle(rollupRuleRoot, h.wrap(s.createRollupRule)).Methods(http.MethodPost)
+
+	router.Handle(rollupRuleWithIDPath, h.wrap(s.fetchRollupRule)).Methods(http.MethodGet)
+	router.Handle(rollupRuleWithIDPath, h.wrap(s.updateRollupRule)).Methods(http.MethodPut, http.MethodPatch)
+	router.Handle(rollupRuleWithIDPath, h.wrap(s.deleteRollupRule)).Methods(http.MethodDelete)
+
+	// Rollup Rule history
+	router.Handle(rollupRuleHistoryPath, h.wrap(s.fetchRollupRuleHistory)).Methods(http.MethodGet)
+
+	log.Infof("Registered rules endpoints")
+}
+
+func (s *service) Close() { s.store.Close() }
 
 type routeFunc func(s *service, r *http.Request) (data interface{}, err error)
 
@@ -328,46 +367,6 @@ func (s *service) fetchRollupRuleHistory(w http.ResponseWriter, r *http.Request)
 		return err
 	}
 	return s.sendResponse(w, http.StatusOK, data)
-}
-
-// RegisterHandlers registers rule handler.
-func (s *service) RegisterHandlers(router *mux.Router) {
-	log := s.iOpts.Logger()
-	// Namespaces action
-	h := r2Handler{s.iOpts, s.authService}
-
-	router.Handle(namespacePath, h.wrap(s.fetchNamespaces)).Methods(http.MethodGet)
-	router.Handle(namespacePath, h.wrap(s.createNamespace)).Methods(http.MethodPost)
-
-	// Ruleset actions
-	router.Handle(namespacePrefix, h.wrap(s.fetchNamespace)).Methods(http.MethodGet)
-	router.Handle(namespacePrefix, h.wrap(s.deleteNamespace)).Methods(http.MethodDelete)
-
-	// Mapping Rule actions
-	router.Handle(mappingRuleRoot, h.wrap(s.createMappingRule)).Methods(http.MethodPost)
-
-	router.Handle(mappingRuleWithIDPath, h.wrap(s.fetchMappingRule)).Methods(http.MethodGet)
-	router.Handle(mappingRuleWithIDPath, h.wrap(s.updateMappingRule)).Methods(http.MethodPut, http.MethodPatch)
-	router.Handle(mappingRuleWithIDPath, h.wrap(s.deleteMappingRule)).Methods(http.MethodDelete)
-
-	// Mapping Rule history
-	router.Handle(mappingRuleHistoryPath, h.wrap(s.fetchMappingRuleHistory)).Methods(http.MethodGet)
-
-	// Rollup Rule actions
-	router.Handle(rollupRuleRoot, h.wrap(s.createRollupRule)).Methods(http.MethodPost)
-
-	router.Handle(rollupRuleWithIDPath, h.wrap(s.fetchRollupRule)).Methods(http.MethodGet)
-	router.Handle(rollupRuleWithIDPath, h.wrap(s.updateRollupRule)).Methods(http.MethodPut, http.MethodPatch)
-	router.Handle(rollupRuleWithIDPath, h.wrap(s.deleteRollupRule)).Methods(http.MethodDelete)
-
-	// Rollup Rule history
-	router.Handle(rollupRuleHistoryPath, h.wrap(s.fetchRollupRuleHistory)).Methods(http.MethodGet)
-
-	log.Infof("Registered rules endpoints")
-}
-
-func (s *service) URLPrefix() string {
-	return s.rootPrefix
 }
 
 func (s *service) newUpdateOptions(r *http.Request) (UpdateOptions, error) {

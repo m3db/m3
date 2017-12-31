@@ -18,15 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE
 
-package server
+package service
 
 import "github.com/gorilla/mux"
 
 // Service defines routes and handlers for a given entity.
 type Service interface {
-	// RegisterHandlers wires the http handlers for this Service with the given router.
-	RegisterHandlers(*mux.Router)
-
-	// URLPrefix returns the prefix for all routes of this service
+	// URLPrefix returns the prefix for all routes of this service.
 	URLPrefix() string
+
+	// RegisterHandlers wires the http handlers for this Service with the given router.
+	RegisterHandlers(router *mux.Router)
+
+	// Close closes the service.
+	Close()
 }

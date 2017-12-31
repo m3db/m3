@@ -1,5 +1,5 @@
-hash: 159dea8f8c23a0abe3793c64ac5870e695461cd1e7f9de4990dba38de2d74251
-updated: 2017-12-20T10:32:44.547579121-05:00
+hash: f40e1e9bd0378eef9121f09cb94d595aae796a4feb10cc7db9514fd3937e14fa
+updated: 2017-12-29T19:43:11.292152492-05:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -60,10 +60,12 @@ imports:
   - client
   - client/etcd
   - etcd/watchmanager
+  - generated/proto/commonpb
   - generated/proto/metadatapb
   - generated/proto/placementpb
   - kv
   - kv/etcd
+  - kv/util
   - kv/util/runtime
   - placement
   - placement/algo
@@ -78,7 +80,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3metrics
-  version: 5ec29cb202a5cba188f0fe4a934545a42623a8a7
+  version: f5cc881ab5d3577071d9664d60939bb668ed01c2
   subpackages:
   - filters
   - generated/proto/schema
@@ -86,6 +88,11 @@ imports:
   - metric/id
   - policy
   - rules
+  - rules/store/kv
+  - rules/validator
+  - rules/validator/namespace
+  - rules/validator/namespace/kv
+  - rules/validator/namespace/static
 - name: github.com/m3db/m3x
   version: 515e3030818e6dab3fd418f05b96174ae4c527df
   subpackages:
@@ -147,6 +154,8 @@ imports:
   - m3/thriftudp
 - name: github.com/willf/bitset
   version: 988f4f24992fc745de53c42df0da6581e42a6686
+- name: go.uber.org/atomic
+  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: golang.org/x/net
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
   subpackages:
