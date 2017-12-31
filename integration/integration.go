@@ -162,6 +162,14 @@ func newDefaultBootstrappableTestSetups(
 		defer cleanupFnsMutex.Unlock()
 		cleanupFns = append(cleanupFns, fn)
 	}
+	anySetupUsingFetchBlocksMetadataEndpointV1 := false
+	for i := range setupOpts {
+		v1 := client.FetchBlocksMetadataEndpointV1
+		if setupOpts[i].fetchBlocksMetadataEndpointVersion == v1 {
+			anySetupUsingFetchBlocksMetadataEndpointV1 = true
+			break
+		}
+	}
 	for i := 0; i < replicas; i++ {
 		var (
 			instance                   = i
@@ -180,6 +188,12 @@ func newDefaultBootstrappableTestSetups(
 
 		setup, err := newTestSetup(t, instanceOpts, nil)
 		require.NoError(t, err)
+
+		// Force correct series cache policy if using V1 version
+		// TODO: Remove once v1 endpoint is gone
+		if anySetupUsingFetchBlocksMetadataEndpointV1 {
+			setup.storageOpts = setup.storageOpts.SetSeriesCachePolicy(series.CacheAll)
+		}
 
 		instrumentOpts := setup.storageOpts.InstrumentOptions()
 		logger := instrumentOpts.Logger()
@@ -218,12 +232,6 @@ func newDefaultBootstrappableTestSetups(
 				SetResultOptions(bsOpts).
 				SetAdminClient(adminClient).
 				SetFetchBlocksMetadataEndpointVersion(setupOpts[i].fetchBlocksMetadataEndpointVersion)
-
-			// Force correct series cache policy if using V1 version
-			// TODO: Remove once v1 endpoint is gone
-			if setupOpts[i].fetchBlocksMetadataEndpointVersion == client.FetchBlocksMetadataEndpointV1 {
-				setup.storageOpts = setup.storageOpts.SetSeriesCachePolicy(series.CacheAll)
-			}
 
 			peersBootstrapper, err = peers.NewPeersBootstrapper(peersOpts, noOpAll)
 			require.NoError(t, err)

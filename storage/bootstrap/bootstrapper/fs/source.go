@@ -388,8 +388,9 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	}
 
 	for _, r := range readers {
-		r.Close()
-		readerPool.put(r)
+		if err := r.Close(); err == nil {
+			readerPool.put(r)
+		}
 	}
 
 	s.handleErrorsAndUnfulfilled(
