@@ -174,8 +174,9 @@ func (n *Namespace) revive() error {
 		return errNoNamespaceSnapshots
 	}
 
-	v := n.snapshots[len(n.snapshots)-1].forRuleSetVersion
-	snapshot := NamespaceSnapshot{tombstoned: false, forRuleSetVersion: v}
+	tombstonedRuleSetVersion := n.snapshots[len(n.snapshots)-1].forRuleSetVersion
+	// NB: The revived ruleset version is one after the tombstoned ruleset version.
+	snapshot := NamespaceSnapshot{tombstoned: false, forRuleSetVersion: tombstonedRuleSetVersion + 1}
 	n.snapshots = append(n.snapshots, snapshot)
 	return nil
 }
@@ -319,7 +320,7 @@ func (nss *Namespaces) AddNamespace(nsName string) (bool, error) {
 		return false, nil
 	}
 
-	// Revive the namespace
+	// Revive the namespace.
 	if err = existing.revive(); err != nil {
 		return false, fmt.Errorf(namespaceActionErrorFmt, "revive", nsName, err)
 	}
@@ -327,14 +328,14 @@ func (nss *Namespaces) AddNamespace(nsName string) (bool, error) {
 	return true, nil
 }
 
-// DeleteNamespace tombstones the given namespace mapping it to the given RuleSet version + 1
-func (nss *Namespaces) DeleteNamespace(nsName string, forRuleSetVersion int) error {
+// DeleteNamespace tombstones the given namespace mapping it to the next ruleset version.
+func (nss *Namespaces) DeleteNamespace(nsName string, currRuleSetVersion int) error {
 	existing, err := nss.Namespace(nsName)
 	if err != nil {
 		return fmt.Errorf(namespaceActionErrorFmt, "delete", nsName, err)
 	}
 
-	if err := existing.markTombstoned(forRuleSetVersion + 1); err != nil {
+	if err := existing.markTombstoned(currRuleSetVersion + 1); err != nil {
 		return fmt.Errorf(namespaceActionErrorFmt, "delete", nsName, err)
 	}
 
