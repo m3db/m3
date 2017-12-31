@@ -394,24 +394,30 @@ func TestNamespaceRevive(t *testing.T) {
 
 	nss, err := NewNamespaces(1, testNss)
 	require.NoError(t, err)
-	_, err = nss.Namespace("foo")
+	ns, err := nss.Namespace("foo")
 	require.NoError(t, err)
+	require.Equal(t, len(ns.snapshots), 1)
+	require.False(t, ns.Tombstoned())
+	require.Equal(t, ns.snapshots[0].forRuleSetVersion, 1)
 
 	err = nss.DeleteNamespace("foo", 4)
 	require.NoError(t, err)
-
-	ns, err := nss.Namespace("foo")
+	ns, err = nss.Namespace("foo")
 	require.NoError(t, err)
+	require.Equal(t, len(ns.snapshots), 2)
 	require.True(t, ns.Tombstoned())
+	require.Equal(t, ns.snapshots[0].forRuleSetVersion, 1)
+	require.Equal(t, ns.snapshots[1].forRuleSetVersion, 5)
 
 	revived, err := nss.AddNamespace("foo")
 	require.NoError(t, err)
 	require.True(t, revived)
-
 	ns, err = nss.Namespace("foo")
 	require.NoError(t, err)
-	require.Equal(t, ns.snapshots[len(ns.snapshots)-1].forRuleSetVersion, 5)
 	require.Equal(t, len(ns.snapshots), 3)
+	require.Equal(t, ns.snapshots[0].forRuleSetVersion, 1)
+	require.Equal(t, ns.snapshots[1].forRuleSetVersion, 5)
+	require.Equal(t, ns.snapshots[2].forRuleSetVersion, 6)
 }
 
 func TestNamespaceDelete(t *testing.T) {
