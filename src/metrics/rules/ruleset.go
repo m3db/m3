@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3metrics/metric"
 	metricID "github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
+	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/pborman/uuid"
 )
@@ -47,8 +48,8 @@ var (
 	errNoSuchRule         = errors.New("no such rule exists")
 	errNotTombstoned      = errors.New("not tombstoned")
 	errNoRuleSnapshots    = errors.New("no snapshots")
-	ruleActionErrorFmt    = "cannot %s rule %s. %v"
-	ruleSetActionErrorFmt = "cannot %s ruleset %s. %v"
+	ruleActionErrorFmt    = "cannot %s rule %s"
+	ruleSetActionErrorFmt = "cannot %s ruleset %s"
 )
 
 // Matcher matches metrics against rules to determine applicable policies.
@@ -750,7 +751,7 @@ func (rs *ruleSet) Clone() MutableRuleSet {
 func (rs *ruleSet) AddMappingRule(mrv MappingRuleView, meta UpdateMetadata) (string, error) {
 	m, err := rs.getMappingRuleByName(mrv.Name)
 	if err != nil && err != errNoSuchRule {
-		return "", fmt.Errorf(ruleActionErrorFmt, "add", mrv.Name, err)
+		return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", mrv.Name))
 	}
 	if err == errNoSuchRule {
 		if m, err = newMappingRuleFromFields(
@@ -759,7 +760,7 @@ func (rs *ruleSet) AddMappingRule(mrv MappingRuleView, meta UpdateMetadata) (str
 			mrv.Policies,
 			meta,
 		); err != nil {
-			return "", fmt.Errorf(ruleActionErrorFmt, "add", mrv.Name, err)
+			return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", mrv.Name))
 		}
 		rs.mappingRules = append(rs.mappingRules, m)
 	} else {
@@ -769,7 +770,7 @@ func (rs *ruleSet) AddMappingRule(mrv MappingRuleView, meta UpdateMetadata) (str
 			mrv.Policies,
 			meta,
 		); err != nil {
-			return "", fmt.Errorf(ruleActionErrorFmt, "revive", mrv.Name, err)
+			return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "revive", mrv.Name))
 		}
 	}
 	rs.updateMetadata(meta)
@@ -779,7 +780,7 @@ func (rs *ruleSet) AddMappingRule(mrv MappingRuleView, meta UpdateMetadata) (str
 func (rs *ruleSet) UpdateMappingRule(mrv MappingRuleView, meta UpdateMetadata) error {
 	m, err := rs.getMappingRuleByID(mrv.ID)
 	if err != nil {
-		return fmt.Errorf(ruleActionErrorFmt, "update", mrv.ID, err)
+		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "update", mrv.ID))
 	}
 	if err := m.addSnapshot(
 		mrv.Name,
@@ -787,7 +788,7 @@ func (rs *ruleSet) UpdateMappingRule(mrv MappingRuleView, meta UpdateMetadata) e
 		mrv.Policies,
 		meta,
 	); err != nil {
-		return fmt.Errorf(ruleActionErrorFmt, "update", mrv.Name, err)
+		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "update", mrv.Name))
 	}
 	rs.updateMetadata(meta)
 	return nil
@@ -796,10 +797,10 @@ func (rs *ruleSet) UpdateMappingRule(mrv MappingRuleView, meta UpdateMetadata) e
 func (rs *ruleSet) DeleteMappingRule(id string, meta UpdateMetadata) error {
 	m, err := rs.getMappingRuleByID(id)
 	if err != nil {
-		return fmt.Errorf(ruleActionErrorFmt, "delete", id, err)
+		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "delete", id))
 	}
 	if err := m.markTombstoned(meta.cutoverNanos); err != nil {
-		return fmt.Errorf(ruleActionErrorFmt, "delete", id, err)
+		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "delete", id))
 	}
 	rs.updateMetadata(meta)
 	return nil
@@ -808,7 +809,7 @@ func (rs *ruleSet) DeleteMappingRule(id string, meta UpdateMetadata) error {
 func (rs *ruleSet) AddRollupRule(rrv RollupRuleView, meta UpdateMetadata) (string, error) {
 	r, err := rs.getRollupRuleByName(rrv.Name)
 	if err != nil && err != errNoSuchRule {
-		return "", fmt.Errorf(ruleActionErrorFmt, "add", rrv.Name, err)
+		return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", rrv.Name))
 	}
 	targets := rollupTargetViewsToTargets(rrv.Targets)
 	if err == errNoSuchRule {
@@ -818,7 +819,7 @@ func (rs *ruleSet) AddRollupRule(rrv RollupRuleView, meta UpdateMetadata) (strin
 			targets,
 			meta,
 		); err != nil {
-			return "", fmt.Errorf(ruleActionErrorFmt, "add", rrv.Name, err)
+			return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", rrv.Name))
 		}
 		rs.rollupRules = append(rs.rollupRules, r)
 	} else {
@@ -828,7 +829,7 @@ func (rs *ruleSet) AddRollupRule(rrv RollupRuleView, meta UpdateMetadata) (strin
 			targets,
 			meta,
 		); err != nil {
-			return "", fmt.Errorf(ruleActionErrorFmt, "revive", rrv.Name, err)
+			return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "revive", rrv.Name))
 		}
 	}
 	rs.updateMetadata(meta)
@@ -838,7 +839,7 @@ func (rs *ruleSet) AddRollupRule(rrv RollupRuleView, meta UpdateMetadata) (strin
 func (rs *ruleSet) UpdateRollupRule(rrv RollupRuleView, meta UpdateMetadata) error {
 	r, err := rs.getRollupRuleByID(rrv.ID)
 	if err != nil {
-		return fmt.Errorf(ruleActionErrorFmt, "update", rrv.ID, err)
+		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "update", rrv.ID))
 	}
 	targets := rollupTargetViewsToTargets(rrv.Targets)
 	if err = r.addSnapshot(
@@ -847,7 +848,7 @@ func (rs *ruleSet) UpdateRollupRule(rrv RollupRuleView, meta UpdateMetadata) err
 		targets,
 		meta,
 	); err != nil {
-		return fmt.Errorf(ruleActionErrorFmt, "update", rrv.Name, err)
+		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "update", rrv.Name))
 	}
 	rs.updateMetadata(meta)
 	return nil
@@ -856,10 +857,10 @@ func (rs *ruleSet) UpdateRollupRule(rrv RollupRuleView, meta UpdateMetadata) err
 func (rs *ruleSet) DeleteRollupRule(id string, meta UpdateMetadata) error {
 	r, err := rs.getRollupRuleByID(id)
 	if err != nil {
-		return fmt.Errorf(ruleActionErrorFmt, "delete", id, err)
+		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "delete", id))
 	}
 	if err := r.markTombstoned(meta.cutoverNanos); err != nil {
-		return fmt.Errorf(ruleActionErrorFmt, "delete", id, err)
+		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "delete", id))
 	}
 	rs.updateMetadata(meta)
 	return nil
@@ -891,7 +892,7 @@ func (rs *ruleSet) Delete(meta UpdateMetadata) error {
 
 func (rs *ruleSet) Revive(meta UpdateMetadata) error {
 	if !rs.Tombstoned() {
-		return fmt.Errorf(ruleSetActionErrorFmt, "revive", string(rs.namespace), errNotTombstoned)
+		return xerrors.Wrap(errNotTombstoned, fmt.Sprintf(ruleSetActionErrorFmt, "revive", string(rs.namespace)))
 	}
 
 	rs.tombstoned = false

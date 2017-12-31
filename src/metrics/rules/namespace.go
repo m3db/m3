@@ -25,6 +25,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3metrics/generated/proto/schema"
+	xerrors "github.com/m3db/m3x/errors"
 )
 
 var (
@@ -43,7 +44,7 @@ var (
 	errNamespaceTombstoned              = errors.New("already tombstoned")
 	errNoNamespaceSnapshots             = errors.New("no snapshots")
 
-	namespaceActionErrorFmt = "cannot %s namespace %s. %v"
+	namespaceActionErrorFmt = "cannot %s namespace %s"
 )
 
 // NamespaceSnapshot defines a namespace snapshot for which rules are defined.
@@ -301,10 +302,10 @@ func (nss *Namespaces) Namespace(name string) (*Namespace, error) {
 func (nss *Namespaces) AddNamespace(nsName string) (bool, error) {
 	existing, err := nss.Namespace(nsName)
 	if err != nil && err != errNamespaceNotFound {
-		return false, fmt.Errorf(namespaceActionErrorFmt, "add", nsName, err)
+		return false, xerrors.Wrap(err, fmt.Sprintf(namespaceActionErrorFmt, "add", nsName))
 	}
 
-	// Brand new namespace
+	// Brand new namespace.
 	if err == errNamespaceNotFound {
 		ns := Namespace{
 			name: []byte(nsName),
@@ -322,7 +323,7 @@ func (nss *Namespaces) AddNamespace(nsName string) (bool, error) {
 
 	// Revive the namespace.
 	if err = existing.revive(); err != nil {
-		return false, fmt.Errorf(namespaceActionErrorFmt, "revive", nsName, err)
+		return false, xerrors.Wrap(err, fmt.Sprintf(namespaceActionErrorFmt, "revive", nsName))
 	}
 
 	return true, nil
@@ -332,11 +333,11 @@ func (nss *Namespaces) AddNamespace(nsName string) (bool, error) {
 func (nss *Namespaces) DeleteNamespace(nsName string, currRuleSetVersion int) error {
 	existing, err := nss.Namespace(nsName)
 	if err != nil {
-		return fmt.Errorf(namespaceActionErrorFmt, "delete", nsName, err)
+		return xerrors.Wrap(err, fmt.Sprintf(namespaceActionErrorFmt, "delete", nsName))
 	}
 
 	if err := existing.markTombstoned(currRuleSetVersion + 1); err != nil {
-		return fmt.Errorf(namespaceActionErrorFmt, "delete", nsName, err)
+		return xerrors.Wrap(err, fmt.Sprintf(namespaceActionErrorFmt, "delete", nsName))
 	}
 
 	return nil

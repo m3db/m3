@@ -26,6 +26,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/metric/id"
 )
 
@@ -255,4 +256,21 @@ func (f *tagsFilter) Matches(id []byte) bool {
 	}
 
 	return currIdx == len(f.tagFilters)
+}
+
+// ValidateTagsFilter validates whether a given string is a valid tags filter,
+// returning the filter values if the string is a valid tags filter expression,
+// and the error otherwise.
+func ValidateTagsFilter(str string) (TagFilterValueMap, error) {
+	filterValues, err := ParseTagFilterValueMap(str)
+	if err != nil {
+		return nil, errors.NewValidationError(fmt.Sprintf("tags filter %s is malformed: %v", str, err))
+	}
+	for name, value := range filterValues {
+		// Validating the filter value by actually constructing the filter.
+		if _, err := NewFilterFromFilterValue(value); err != nil {
+			return nil, errors.NewValidationError(fmt.Sprintf("tags filter %s contains invalid filter pattern %s for tag %s: %v", str, value.Pattern, name, err))
+		}
+	}
+	return filterValues, nil
 }

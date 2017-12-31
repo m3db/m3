@@ -23,6 +23,7 @@ package filters
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -185,6 +186,76 @@ func TestTagsFilterStringWithNameTag(t *testing.T) {
 	f, err = NewTagsFilter(filters, Disjunction, testTagsFilterOptionsWithNameTag())
 	require.NoError(t, err)
 	require.Equal(t, `name:Equals("foo") || tagName1:Equals("tagValue1") || tagName2:Equals("tagValue2")`, f.String())
+}
+
+func TestValidateTagsFilter(t *testing.T) {
+	inputs := []struct {
+		str      string
+		expected TagFilterValueMap
+	}{
+		{
+			str: "tagName1:tagValue1",
+			expected: TagFilterValueMap{
+				"tagName1": FilterValue{Pattern: "tagValue1", Negate: false},
+			},
+		},
+		{
+			str: "tagName1:tagValue1 tagName2:tagValue2*tagValue3",
+			expected: TagFilterValueMap{
+				"tagName1": FilterValue{Pattern: "tagValue1", Negate: false},
+				"tagName2": FilterValue{Pattern: "tagValue2*tagValue3", Negate: false},
+			},
+		},
+		{
+			str: "  tagName1:tagValue1?[0-9][!a-z]9    tagName2:{tagValue21,tagValue22}*   tagName3:tagValue3  tagName4:tagValue4",
+			expected: TagFilterValueMap{
+				"tagName1": FilterValue{Pattern: "tagValue1?[0-9][!a-z]9", Negate: false},
+				"tagName2": FilterValue{Pattern: "{tagValue21,tagValue22}*", Negate: false},
+				"tagName3": FilterValue{Pattern: "tagValue3", Negate: false},
+				"tagName4": FilterValue{Pattern: "tagValue4", Negate: false},
+			},
+		},
+	}
+
+	for _, input := range inputs {
+		res, err := ValidateTagsFilter(input.str)
+		require.NoError(t, err)
+		require.Equal(t, input.expected, res)
+	}
+}
+
+func TestValidateTagsFilterError(t *testing.T) {
+	inputs := []struct {
+		str string
+		err string
+	}{
+		{
+			str: "tagName1=tagValue1",
+			err: "tags filter tagName1=tagValue1 is malformed",
+		},
+		{
+			str: "tagName1:tagValue1 tagName2~=tagValue2",
+			err: "tags filter tagName1:tagValue1 tagName2~=tagValue2 is malformed",
+		},
+		{
+			str: "tagName1:tagValue1  tagName2:tagValue2 tagName1:tagValue3",
+			err: "tags filter tagName1:tagValue1  tagName2:tagValue2 tagName1:tagValue3 is malformed",
+		},
+		{
+			str: "tagName1:*too*many*",
+			err: "tags filter tagName1:*too*many* contains invalid filter pattern *too*many* for tag tagName1",
+		},
+		{
+			str: "tagName1:abcsdf tagName2:*con[tT]ains*",
+			err: "tags filter tagName1:abcsdf tagName2:*con[tT]ains* contains invalid filter pattern *con[tT]ains* for tag tagName2",
+		},
+	}
+
+	for _, input := range inputs {
+		_, err := ValidateTagsFilter(input.str)
+		require.Error(t, err)
+		require.True(t, strings.Contains(err.Error(), input.err))
+	}
 }
 
 func testTagsFilterOptions() TagsFilterOptions {

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package validator
+package errors
 
 // RuleConflictError is returned when a rule modification is made that would
 // result in a conflict with the existing set of rules in the ruleset.
@@ -28,7 +28,7 @@ type RuleConflictError string
 func NewRuleConflictError(str string) error { return RuleConflictError(str) }
 func (e RuleConflictError) Error() string   { return string(e) }
 
-// ValidationError is returned when validation failed for a ruleset.
+// ValidationError is returned when validation failed.
 type ValidationError string
 
 // NewValidationError creates a new validation error.
