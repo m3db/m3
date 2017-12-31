@@ -27,20 +27,22 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/m3db/m3ctl/auth"
-	"github.com/m3db/m3ctl/health"
-	"github.com/m3db/m3ctl/r2"
+	"github.com/m3db/m3ctl/server/http"
+	"github.com/m3db/m3ctl/service/health"
+	"github.com/m3db/m3ctl/service/r2"
 	"github.com/m3db/m3ctl/services/r2ctl/config"
-	"github.com/m3db/m3ctl/services/r2ctl/server"
 	"github.com/m3db/m3x/clock"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/instrument"
 )
 
 const (
-	portEnvVar  = "R2CTL_PORT"
-	r2apiPrefix = "/r2/v1/"
+	portEnvVar              = "R2CTL_PORT"
+	r2apiPrefix             = "/r2/v1/"
+	gracefulShutdownTimeout = 15 * time.Second
 )
 
 func main() {
@@ -67,7 +69,7 @@ func main() {
 	envPort := os.Getenv(portEnvVar)
 	if envPort != "" {
 		if p, err := strconv.Atoi(envPort); err == nil {
-			logger.Infof("Using env supplied port var: %s=%d", portEnvVar, p)
+			logger.Infof("using env supplied port var: %s=%d", portEnvVar, p)
 			cfg.HTTP.Port = p
 		} else {
 			logger.Fatalf("%s (%s) is not a valid port number", envPort, portEnvVar)
@@ -75,7 +77,7 @@ func main() {
 	}
 
 	if cfg.HTTP.Port == 0 {
-		logger.Fatalf("No valid port configured. Can't start.")
+		logger.Fatalf("no valid port configured. Can't start.")
 	}
 
 	scope, closer, err := cfg.Metrics.NewRootScope()
@@ -91,7 +93,7 @@ func main() {
 		SetReportInterval(cfg.Metrics.ReportInterval())
 
 	listenAddr := fmt.Sprintf("%s:%d", cfg.HTTP.Host, cfg.HTTP.Port)
-	serverOpts := cfg.HTTP.NewHTTPServerOptions(instrumentOpts)
+	serverOpts := cfg.HTTP.NewServerOptions(instrumentOpts)
 
 	store, err := cfg.Store.NewR2Store(instrumentOpts)
 	if err != nil {
@@ -103,35 +105,37 @@ func main() {
 		authService = cfg.Auth.NewSimpleAuth()
 	}
 
-	r2ApiServer := server.NewServer(
-		listenAddr,
-		serverOpts,
-		r2.NewService(
-			instrumentOpts,
-			r2apiPrefix,
-			authService,
-			store,
-			clock.NewOptions(),
-		),
-		health.NewService(instrumentOpts),
+	r2Service := r2.NewService(
+		r2apiPrefix,
+		authService,
+		store,
+		instrumentOpts,
+		clock.NewOptions(),
 	)
+	healthService := health.NewService(instrumentOpts)
+	server := http.NewServer(listenAddr, serverOpts, r2Service, healthService)
 
-	doneCh := make(chan struct{})
-	go func() {
-		go func() {
-			logger.Infof("Starting http server on: %s", listenAddr)
-			if err = r2ApiServer.ListenAndServe(); err != nil {
-				logger.Fatalf("could not start serving traffic: %v", err)
-			}
-		}()
-		<-doneCh
-		logger.Debug("server stopped")
-	}()
+	logger.Infof("starting HTTP server on: %s", listenAddr)
+	if err := server.ListenAndServe(); err != nil {
+		logger.Fatalf("could not start serving traffic: %v", err)
+	}
 
 	// Handle interrupts.
 	logger.Warnf("interrupt: %v", interrupt())
 
-	close(doneCh)
+	doneCh := make(chan struct{})
+	go func() {
+		server.Close()
+		logger.Infof("HTTP server closed")
+		doneCh <- struct{}{}
+	}()
+
+	select {
+	case <-doneCh:
+		logger.Infof("clean shutdown")
+	case <-time.After(gracefulShutdownTimeout):
+		logger.Warnf("forced shutdown due to timeout after waiting for %v", gracefulShutdownTimeout)
+	}
 }
 
 func interrupt() error {

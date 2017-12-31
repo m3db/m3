@@ -246,3 +246,5 @@ func (s mockStore) DeleteRollupRule(namespaceID, rollupRuleID string, uOpts Upda
 func (s mockStore) FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]*rules.RollupRuleView, error) {
 	return make([]*rules.RollupRuleView, 0), nil
 }
+
+func (s mockStore) Close() {}

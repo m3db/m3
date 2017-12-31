@@ -23,8 +23,9 @@ package kv
 import (
 	"fmt"
 
-	"github.com/m3db/m3ctl/r2"
+	"github.com/m3db/m3ctl/service/r2"
 	"github.com/m3db/m3metrics/rules"
+	"github.com/m3db/m3metrics/rules/validator"
 	"github.com/m3db/m3x/clock"
 )
 
@@ -365,6 +366,8 @@ func (s *store) FetchRollupRuleHistory(namespaceID, rollupRuleID string) ([]*rul
 	return hist, nil
 }
 
+func (s *store) Close() { s.ruleStore.Close() }
+
 func (s *store) newUpdateMeta(uOpts r2.UpdateOptions) rules.UpdateMetadata {
 	return s.updateHelper.NewUpdateMetadata(s.nowFn().UnixNano(), uOpts.Author())
 }
@@ -393,9 +396,9 @@ func (s *store) handleUpstreamError(err error) error {
 	}
 
 	switch err.(type) {
-	case rules.RuleConflictError:
+	case validator.RuleConflictError:
 		return r2.NewConflictError(err.Error())
-	case rules.ValidationError:
+	case validator.ValidationError:
 		return r2.NewBadInputError(err.Error())
 	default:
 		return r2.NewInternalError(err.Error())

@@ -25,12 +25,14 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/client/etcd"
-	clusterKV "github.com/m3db/m3cluster/kv"
+	clusterkv "github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3ctl/auth"
-	"github.com/m3db/m3ctl/r2"
-	"github.com/m3db/m3ctl/r2/kv"
-	"github.com/m3db/m3ctl/r2/stub"
+	"github.com/m3db/m3ctl/service/r2"
+	r2kv "github.com/m3db/m3ctl/service/r2/kv"
+	"github.com/m3db/m3ctl/service/r2/stub"
 	"github.com/m3db/m3metrics/rules"
+	ruleskv "github.com/m3db/m3metrics/rules/store/kv"
+	"github.com/m3db/m3metrics/rules/validator"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/log"
 )
@@ -79,31 +81,31 @@ func (c r2StoreConfiguration) NewR2Store(instrumentOpts instrument.Options) (r2.
 	return c.KV.NewStore(instrumentOpts)
 }
 
-// kvStoreConfig is the configuration for the kv backed implementation of the R2 store.
+// kvStoreConfig is the configuration for the KV backed implementation of the R2 store.
 type kvStoreConfig struct {
 	// KVClient configures the client for key value store.
 	KVClient *etcd.Configuration `yaml:"kvClient" validate:"nonzero"`
 
-	// KVConfig configures the namespace and the environment.
-	KVConfig clusterKV.Configuration `yaml:"kvConfig"`
+	// KV configuration for the rules store.
+	KVConfig clusterkv.Configuration `yaml:"kvConfig"`
+
+	// NamespacesKey is KV key associated with namespaces..
+	NamespacesKey string `yaml:"namespacesKey" validate:"nonzero"`
+
+	// RuleSet key format.
+	RuleSetKeyFmt string `yaml:"ruleSetKeyFmt" validate:"nonzero"`
 
 	// Propagation delay for rule updates.
 	PropagationDelay time.Duration `yaml:"propagationDelay" validate:"nonzero"`
 
-	// NamespacesKey is where the namespace data lives in kv
-	NamespacesKey string `yaml:"namespacesKey" validate:"nonzero"`
-
-	// RuleSetKey fmt
-	RuleSetKeyFmt string `yaml:"ruleSetKeyFmt" validate:"nonzero"`
-
 	// Validation configuration.
-	Validation *rules.ValidationConfiguration `yaml:"validation"`
+	Validation *validator.Configuration `yaml:"validation"`
 }
 
-// NewStore creates a new kv backed store.
+// NewStore creates a new KV backed R2 store.
 func (c kvStoreConfig) NewStore(instrumentOpts instrument.Options) (r2.Store, error) {
 	// Create rules store.
-	client, err := c.KVClient.NewClient(instrumentOpts)
+	kvClient, err := c.KVClient.NewClient(instrumentOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -111,20 +113,23 @@ func (c kvStoreConfig) NewStore(instrumentOpts instrument.Options) (r2.Store, er
 	if err != nil {
 		return nil, err
 	}
-	store, err := client.TxnStore(kvOpts)
+	kvStore, err := kvClient.TxnStore(kvOpts)
 	if err != nil {
 		return nil, err
 	}
 	var validator rules.Validator
 	if c.Validation != nil {
-		validator = c.Validation.NewValidator()
+		validator, err = c.Validation.NewValidator(kvClient)
+		if err != nil {
+			return nil, err
+		}
 	}
-	rulesStoreOpts := rules.NewStoreOptions(c.NamespacesKey, c.RuleSetKeyFmt, validator)
-	rulesStore := rules.NewStore(store, rulesStoreOpts)
+	rulesStoreOpts := ruleskv.NewStoreOptions(c.NamespacesKey, c.RuleSetKeyFmt, validator)
+	rulesStore := ruleskv.NewStore(kvStore, rulesStoreOpts)
 
 	// Create kv store.
-	kvStoreOpts := kv.NewStoreOptions().
+	r2StoreOpts := r2kv.NewStoreOptions().
 		SetInstrumentOptions(instrumentOpts).
 		SetRuleUpdatePropagationDelay(c.PropagationDelay)
-	return kv.NewStore(rulesStore, kvStoreOpts), nil
+	return r2kv.NewStore(rulesStore, r2StoreOpts), nil
 }
