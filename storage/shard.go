@@ -89,7 +89,7 @@ type dbShard struct {
 	seriesOpts               series.Options
 	nowFn                    clock.NowFn
 	state                    dbShardState
-	nsMetadata               namespace.Metadata
+	namespace                namespace.Metadata
 	seriesBlockRetriever     series.QueryableBlockRetriever
 	shard                    uint32
 	namespaceReaderMgr       databaseNamespaceReaderManager
@@ -203,7 +203,7 @@ func newDatabaseShard(
 		seriesOpts:         seriesOpts,
 		nowFn:              opts.ClockOptions().NowFn(),
 		state:              dbShardStateOpen,
-		nsMetadata:         namespaceMetadata,
+		namespace:          namespaceMetadata,
 		shard:              shard,
 		namespaceReaderMgr: namespaceReaderMgr,
 		increasingIndex:    increasingIndex,
@@ -640,7 +640,7 @@ func (s *dbShard) Write(
 	// Write commit log
 	series := commitlog.Series{
 		UniqueIndex: commitLogSeriesUniqueIndex,
-		Namespace:   s.nsMetadata.ID(),
+		Namespace:   s.namespace.ID(),
 		ID:          commitLogSeriesID,
 		Shard:       s.shard,
 	}
@@ -1143,7 +1143,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	// flushed block and work backwards.
 	var (
 		result          = s.opts.FetchBlocksMetadataResultsPool().Get()
-		ropts           = s.nsMetadata.Options().RetentionOptions()
+		ropts           = s.namespace.Options().RetentionOptions()
 		blockSize       = ropts.BlockSize()
 		blockStart      = end.Truncate(blockSize)
 		tokenBlockStart time.Time
@@ -1173,6 +1173,11 @@ func (s *dbShard) FetchBlocksMetadataV2(
 					"was reading block at %v but next available block is: %v",
 					tokenBlockStart, blockStart)
 			}
+
+			// Do not need to check if we move onto the next block that it matches
+			// the token's block start on next iteration
+			tokenBlockStart = time.Time{}
+
 			pos.metadataIdx = int(flushedPhase.CurrBlockIndexRead)
 		}
 
@@ -1242,6 +1247,9 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			}
 			return result, PageToken(data), nil
 		}
+
+		// Otherwise we move on to the previous block
+		blockStart = blockStart.Add(-1 * blockSize)
 	}
 
 	// No more results if we fall through
@@ -1331,7 +1339,7 @@ func (s *dbShard) Flush(
 	s.RUnlock()
 
 	var multiErr xerrors.MultiError
-	prepared, err := flush.Prepare(s.nsMetadata, s.ID(), blockStart)
+	prepared, err := flush.Prepare(s.namespace, s.ID(), blockStart)
 	multiErr = multiErr.Add(err)
 
 	// No action is necessary therefore we bail out early and there is no need to close.
@@ -1400,7 +1408,7 @@ func (s *dbShard) markFlushStateFail(blockStart time.Time) {
 func (s *dbShard) removeAnyFlushStatesTooEarly() {
 	s.flushState.Lock()
 	now := s.nowFn()
-	earliestFlush := retention.FlushTimeStart(s.nsMetadata.Options().RetentionOptions(), now)
+	earliestFlush := retention.FlushTimeStart(s.namespace.Options().RetentionOptions(), now)
 	for t := range s.flushState.statesByTime {
 		if t.ToTime().Before(earliestFlush) {
 			delete(s.flushState.statesByTime, t)
@@ -1412,11 +1420,11 @@ func (s *dbShard) removeAnyFlushStatesTooEarly() {
 func (s *dbShard) CleanupFileset(earliestToRetain time.Time) error {
 	filePathPrefix := s.opts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	multiErr := xerrors.NewMultiError()
-	expired, err := s.filesetBeforeFn(filePathPrefix, s.nsMetadata.ID(), s.ID(), earliestToRetain)
+	expired, err := s.filesetBeforeFn(filePathPrefix, s.namespace.ID(), s.ID(), earliestToRetain)
 	if err != nil {
 		detailedErr :=
 			fmt.Errorf("encountered errors when getting fileset files for prefix %s namespace %s shard %d: %v",
-				filePathPrefix, s.nsMetadata.ID(), s.ID(), err)
+				filePathPrefix, s.namespace.ID(), s.ID(), err)
 		multiErr = multiErr.Add(detailedErr)
 	}
 	if err := s.deleteFilesFn(expired); err != nil {
@@ -1430,5 +1438,5 @@ func (s *dbShard) Repair(
 	tr xtime.Range,
 	repairer databaseShardRepairer,
 ) (repair.MetadataComparisonResult, error) {
-	return repairer.Repair(ctx, s.nsMetadata.ID(), tr, s)
+	return repairer.Repair(ctx, s.namespace.ID(), tr, s)
 }

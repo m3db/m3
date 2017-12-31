@@ -923,6 +923,7 @@ func (n *dbNamespace) Close() error {
 	n.shards = shards[:0]
 	n.shardSet = sharding.NewEmptyShardSet(sharding.DefaultHashFn(1))
 	n.Unlock()
+	n.namespaceReaderMgr.close()
 	n.closeShards(shards, true)
 	close(n.shutdownCh)
 	return nil

@@ -65,6 +65,8 @@ type databaseNamespaceReaderManager interface {
 	put(reader fs.FileSetReader)
 
 	tick()
+
+	close()
 }
 
 type namespaceReaderManager struct {
@@ -134,6 +136,7 @@ func newNamespaceReaderManager(
 		fsOpts:            opts.CommitLogOptions().FilesystemOptions(),
 		bytesPool:         opts.BytesPool(),
 		logger:            opts.InstrumentOptions().Logger(),
+		openReaders:       make(map[cachedOpenReaderKey]cachedReader),
 		metrics:           newNamespaceReaderManagerMetrics(namespaceScope),
 	}
 }
@@ -262,14 +265,20 @@ func (m *namespaceReaderManager) put(reader fs.FileSetReader) {
 }
 
 func (m *namespaceReaderManager) tick() {
+	m.tickWithThreshold(expireCachedReadersAfterNumTicks)
+}
+
+func (m *namespaceReaderManager) close() {
+	// Perform a tick but make the threshold zero so all readers must be expired
+	m.tickWithThreshold(0)
+}
+
+func (m *namespaceReaderManager) tickWithThreshold(threshold int) {
 	m.Lock()
 	defer m.Unlock()
 
-	var (
-		threshold            = expireCachedReadersAfterNumTicks
-		expiredClosedReaders = 0
-	)
 	// First increment ticks since used for closed readers
+	expiredClosedReaders := 0
 	for i := range m.closedReaders {
 		m.closedReaders[i].ticksSinceUsed++
 		if m.closedReaders[i].ticksSinceUsed >= threshold {

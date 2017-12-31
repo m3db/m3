@@ -290,7 +290,8 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		peerIter.EXPECT().Err().Return(nil),
 	)
 	session.EXPECT().
-		FetchBlocksMetadataFromPeers(namespace, shardID, start, end).
+		FetchBlocksMetadataFromPeers(namespace, shardID,
+			start, end, client.FetchBlocksMetadataEndpointV2).
 		Return(peerIter, nil)
 
 	var (
