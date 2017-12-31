@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
@@ -176,9 +177,106 @@ func TestRollupTargetClone(t *testing.T) {
 	require.Equal(t, target.Policies, policies)
 }
 
-func TestRollupRuleSnapshotNilSchema(t *testing.T) {
+func TestNewRollupRuleSnapshotFromSchema(t *testing.T) {
+	res, err := newRollupRuleSnapshot(testRollupRuleSchema.Snapshots[0], testTagsFilterOptions())
+	expectedTargets := []RollupTarget{
+		{
+			Name: b("rName1"),
+			Tags: [][]byte{b("rtagName1"), b("rtagName2")},
+			Policies: []policy.Policy{
+				policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+			},
+		},
+	}
+	require.NoError(t, err)
+	require.Equal(t, "foo", res.name)
+	require.Equal(t, false, res.tombstoned)
+	require.Equal(t, int64(12345), res.cutoverNanos)
+	require.NotNil(t, res.filter)
+	require.Equal(t, "tag1:value1 tag2:value2", res.rawFilter)
+	require.Equal(t, expectedTargets, res.targets)
+	require.Equal(t, int64(12345), res.lastUpdatedAtNanos)
+	require.Equal(t, "someone-else", res.lastUpdatedBy)
+}
+
+func TestNewRollupRuleSnapshotNilSchema(t *testing.T) {
 	_, err := newRollupRuleSnapshot(nil, testTagsFilterOptions())
 	require.Equal(t, errNilRollupRuleSnapshotSchema, err)
+}
+
+func TestNewRollupRuleSnapshotFromSchemaError(t *testing.T) {
+	badFilters := []string{
+		"tag3:",
+		"tag3:*a*b*c*d",
+		"ab[cd",
+	}
+
+	for _, f := range badFilters {
+		cloned := *testRollupRuleSchema.Snapshots[0]
+		cloned.Filter = f
+		_, err := newRollupRuleSnapshot(&cloned, testTagsFilterOptions())
+		require.Error(t, err)
+	}
+}
+
+func TestNewRollupRuleSnapshotFromFields(t *testing.T) {
+	var (
+		name         = "testSnapshot"
+		cutoverNanos = int64(12345)
+		rawFilter    = "tagName1:tagValue1 tagName2:tagValue2"
+		targets      = []RollupTarget{
+			{
+				Name: b("rName1"),
+				Tags: [][]byte{b("rtagName1"), b("rtagName2")},
+				Policies: []policy.Policy{
+					policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+				},
+			},
+		}
+		lastUpdatedAtNanos = int64(67890)
+		lastUpdatedBy      = "testUser"
+	)
+	res, err := newRollupRuleSnapshotFromFields(
+		name,
+		cutoverNanos,
+		rawFilter,
+		targets,
+		nil,
+		lastUpdatedAtNanos,
+		lastUpdatedBy,
+	)
+	require.NoError(t, err)
+	require.Equal(t, name, res.name)
+	require.Equal(t, false, res.tombstoned)
+	require.Equal(t, cutoverNanos, res.cutoverNanos)
+	require.Equal(t, nil, res.filter)
+	require.Equal(t, rawFilter, res.rawFilter)
+	require.Equal(t, targets, res.targets)
+	require.Equal(t, lastUpdatedAtNanos, res.lastUpdatedAtNanos)
+	require.Equal(t, lastUpdatedBy, res.lastUpdatedBy)
+}
+
+func TestNewRollupRuleSnapshotFromFieldsValidationError(t *testing.T) {
+	badFilters := []string{
+		"tag3:",
+		"tag3:*a*b*c*d",
+		"ab[cd",
+	}
+
+	for _, f := range badFilters {
+		_, err := newRollupRuleSnapshotFromFields(
+			"bar",
+			12345,
+			f,
+			nil,
+			nil,
+			1234,
+			"test_user",
+		)
+		require.Error(t, err)
+		_, ok := err.(errors.ValidationError)
+		require.True(t, ok)
+	}
 }
 
 func TestRollupRuleNilSchema(t *testing.T) {

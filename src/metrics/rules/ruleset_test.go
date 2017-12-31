@@ -23,14 +23,17 @@ package rules
 import (
 	"bytes"
 	"math"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/metric"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/policy"
+	xerrors "github.com/m3db/m3x/errors"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -2634,6 +2637,23 @@ func TestAddMappingRule(t *testing.T) {
 	require.Equal(t, updated.Filter, view.Filter)
 	require.Equal(t, updated.LastUpdatedAtNanos, now)
 	require.Equal(t, updated.LastUpdatedBy, testUser)
+}
+
+func TestAddMappingRuleInvalidFilter(t *testing.T) {
+	mutable, _, helper, err := initMutableTest()
+	require.NoError(t, err)
+
+	view := MappingRuleView{
+		Name:     "testInvalidFilter",
+		Filter:   "tag1:value1 tag2:abc[def",
+		Policies: []policy.Policy{policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, time.Hour), policy.DefaultAggregationID)},
+	}
+	newID, err := mutable.AddMappingRule(view, helper.NewUpdateMetadata(time.Now().UnixNano(), testUser))
+	require.Empty(t, newID)
+	require.Error(t, err)
+	require.True(t, strings.Contains(err.Error(), "cannot add rule testInvalidFilter:"))
+	_, ok := xerrors.InnerError(err).(errors.ValidationError)
+	require.True(t, ok)
 }
 
 func TestAddMappingRuleDup(t *testing.T) {

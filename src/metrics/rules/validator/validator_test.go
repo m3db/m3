@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3cluster/generated/proto/commonpb"
 	"github.com/m3db/m3cluster/kv/mem"
+	"github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/metric"
@@ -91,7 +92,7 @@ func TestValidatorValidateDuplicateMappingRules(t *testing.T) {
 	validator := NewValidator(testValidatorOptions())
 	err := validator.Validate(ruleSet)
 	require.Error(t, err)
-	_, ok := err.(RuleConflictError)
+	_, ok := err.(errors.RuleConflictError)
 	require.True(t, ok)
 }
 
@@ -208,7 +209,7 @@ func TestValidatorValidateDuplicateRollupRules(t *testing.T) {
 	validator := NewValidator(testValidatorOptions())
 	err := validator.Validate(ruleSet)
 	require.Error(t, err)
-	_, ok := err.(RuleConflictError)
+	_, ok := err.(errors.RuleConflictError)
 	require.True(t, ok)
 }
 
@@ -382,7 +383,7 @@ func TestValidatorValidateRollupRuleConflictingTargets(t *testing.T) {
 	validator := NewValidator(opts)
 	err := validator.Validate(ruleSet)
 	require.Error(t, err)
-	_, ok := err.(RuleConflictError)
+	_, ok := err.(errors.RuleConflictError)
 	require.True(t, ok)
 }
 

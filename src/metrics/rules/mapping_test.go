@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
@@ -95,9 +96,95 @@ var (
 	}
 )
 
-func TestMappingRuleSnapshotNilSchema(t *testing.T) {
+func TestNewMappingRuleSnapshotFromSchema(t *testing.T) {
+	res, err := newMappingRuleSnapshot(testMappingRuleSchema.Snapshots[0], testTagsFilterOptions())
+	expectedPolicies := []policy.Policy{
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.MustCompressAggregationTypes(policy.P999)),
+	}
+	require.NoError(t, err)
+	require.Equal(t, "foo", res.name)
+	require.Equal(t, false, res.tombstoned)
+	require.Equal(t, int64(12345), res.cutoverNanos)
+	require.NotNil(t, res.filter)
+	require.Equal(t, "tag1:value1 tag2:value2", res.rawFilter)
+	require.Equal(t, expectedPolicies, res.policies)
+	require.Equal(t, int64(1234), res.lastUpdatedAtNanos)
+	require.Equal(t, "someone", res.lastUpdatedBy)
+}
+
+func TestNewMappingRuleSnapshotNilSchema(t *testing.T) {
 	_, err := newMappingRuleSnapshot(nil, testTagsFilterOptions())
 	require.Equal(t, err, errNilMappingRuleSnapshotSchema)
+}
+
+func TestNewMappingRuleSnapshotFromSchemaError(t *testing.T) {
+	badFilters := []string{
+		"tag3:",
+		"tag3:*a*b*c*d",
+		"ab[cd",
+	}
+
+	for _, f := range badFilters {
+		cloned := *testMappingRuleSchema.Snapshots[0]
+		cloned.Filter = f
+		_, err := newMappingRuleSnapshot(&cloned, testTagsFilterOptions())
+		require.Error(t, err)
+	}
+}
+
+func TestNewMappingRuleSnapshotFromFields(t *testing.T) {
+	var (
+		name         = "testSnapshot"
+		cutoverNanos = int64(12345)
+		rawFilter    = "tagName1:tagValue1 tagName2:tagValue2"
+		policies     = []policy.Policy{
+			policy.NewPolicy(policy.NewStoragePolicy(time.Minute, xtime.Minute, 24*time.Hour), policy.DefaultAggregationID),
+			policy.NewPolicy(policy.NewStoragePolicy(5*time.Minute, xtime.Minute, 48*time.Hour), policy.DefaultAggregationID),
+		}
+		lastUpdatedAtNanos = int64(67890)
+		lastUpdatedBy      = "testUser"
+	)
+	res, err := newMappingRuleSnapshotFromFields(
+		name,
+		cutoverNanos,
+		rawFilter,
+		policies,
+		nil,
+		lastUpdatedAtNanos,
+		lastUpdatedBy,
+	)
+	require.NoError(t, err)
+	require.Equal(t, name, res.name)
+	require.Equal(t, false, res.tombstoned)
+	require.Equal(t, cutoverNanos, res.cutoverNanos)
+	require.Equal(t, nil, res.filter)
+	require.Equal(t, rawFilter, res.rawFilter)
+	require.Equal(t, policies, res.policies)
+	require.Equal(t, lastUpdatedAtNanos, res.lastUpdatedAtNanos)
+	require.Equal(t, lastUpdatedBy, res.lastUpdatedBy)
+}
+
+func TestNewMappingRuleSnapshotFromFieldsValidationError(t *testing.T) {
+	badFilters := []string{
+		"tag3:",
+		"tag3:*a*b*c*d",
+		"ab[cd",
+	}
+
+	for _, f := range badFilters {
+		_, err := newMappingRuleSnapshotFromFields(
+			"bar",
+			12345,
+			f,
+			nil,
+			nil,
+			1234,
+			"test_user",
+		)
+		require.Error(t, err)
+		_, ok := err.(errors.ValidationError)
+		require.True(t, ok)
+	}
 }
 
 func TestNewMappingRuleNilSchema(t *testing.T) {

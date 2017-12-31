@@ -191,7 +191,7 @@ func newRollupRuleSnapshot(
 		return nil, err
 	}
 
-	return newRollupRuleSnapshotFromFields(
+	return newRollupRuleSnapshotFromFieldsInternal(
 		r.Name,
 		r.Tombstoned,
 		r.CutoverNanos,
@@ -205,9 +205,35 @@ func newRollupRuleSnapshot(
 
 func newRollupRuleSnapshotFromFields(
 	name string,
+	cutoverNanos int64,
+	rawFilter string,
+	targets []RollupTarget,
+	filter filters.Filter,
+	lastUpdatedAtNanos int64,
+	lastUpdatedBy string,
+) (*rollupRuleSnapshot, error) {
+	if _, err := filters.ValidateTagsFilter(rawFilter); err != nil {
+		return nil, err
+	}
+	return newRollupRuleSnapshotFromFieldsInternal(
+		name,
+		false,
+		cutoverNanos,
+		rawFilter,
+		targets,
+		filter,
+		lastUpdatedAtNanos,
+		lastUpdatedBy,
+	), nil
+}
+
+// newRollupRuleSnapshotFromFieldsInternal creates a new rollup rule snapshot
+// from various given fields assuming the filter has already been validated.
+func newRollupRuleSnapshotFromFieldsInternal(
+	name string,
 	tombstoned bool,
 	cutoverNanos int64,
-	rawfilter string,
+	rawFilter string,
 	targets []RollupTarget,
 	filter filters.Filter,
 	lastUpdatedAtNanos int64,
@@ -219,7 +245,7 @@ func newRollupRuleSnapshotFromFields(
 		cutoverNanos:       cutoverNanos,
 		filter:             filter,
 		targets:            targets,
-		rawFilter:          rawfilter,
+		rawFilter:          rawFilter,
 		lastUpdatedAtNanos: lastUpdatedAtNanos,
 		lastUpdatedBy:      lastUpdatedBy,
 	}
@@ -410,9 +436,8 @@ func (rc *rollupRule) addSnapshot(
 	rollupTargets []RollupTarget,
 	meta UpdateMetadata,
 ) error {
-	snapshot := newRollupRuleSnapshotFromFields(
+	snapshot, err := newRollupRuleSnapshotFromFields(
 		name,
-		false,
 		meta.cutoverNanos,
 		rawFilter,
 		rollupTargets,
@@ -420,6 +445,9 @@ func (rc *rollupRule) addSnapshot(
 		meta.updatedAtNanos,
 		meta.updatedBy,
 	)
+	if err != nil {
+		return err
+	}
 	rc.snapshots = append(rc.snapshots, snapshot)
 	return nil
 }
