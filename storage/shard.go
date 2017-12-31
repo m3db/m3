@@ -1209,9 +1209,6 @@ func (s *dbShard) FetchBlocksMetadataV2(
 					blockStart, err)
 			}
 
-			// Free this ID after this request
-			ctx.RegisterFinalizer(id)
-
 			blockResult := s.opts.FetchBlockMetadataResultsPool().Get()
 			value := block.FetchBlockMetadataResult{
 				Start: blockStart,
