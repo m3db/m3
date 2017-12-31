@@ -198,7 +198,7 @@ func (s *peersSource) Read(
 				} else {
 					s.log.WithFields(
 						xlog.NewField("shard", shard),
-						xlog.NewField("error", err),
+						xlog.NewField("error", err.Error()),
 					).Error("error fetching bootstrap blocks from peers")
 				}
 
@@ -307,6 +307,7 @@ func (s *peersSource) incrementalFlush(
 				// Not caching the series or metadata in memory so finalize the block,
 				// better to do this as we loop through to make blocks return to the
 				// pool earlier than at the end of this flush cycle
+				s.Blocks.RemoveBlockAt(start)
 				bl.Close()
 			}
 		}
@@ -345,9 +346,7 @@ func (s *peersSource) incrementalFlush(
 				bl.ResetRetrievable(start, shardRetriever, metadata)
 			}
 		default:
-			// Not caching anything, we already closed all the blocks just free
-			// empty the shard result
-			shardResult.RemoveAll()
+			// Already removed the blocks we flushed from the shard result
 		}
 	}
 

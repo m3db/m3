@@ -1316,6 +1316,20 @@ func (s *dbShard) Bootstrap(
 		return true
 	})
 
+	// Now iterate flushed time ranges to determine which blocks are
+	// retrievable before servicing reads
+	fsOpts := s.opts.CommitLogOptions().FilesystemOptions()
+	entries := fs.ReadInfoFiles(fsOpts.FilePathPrefix(), s.namespace.ID(), s.shard,
+		fsOpts.InfoReaderBufferSize(), fsOpts.DecodingOptions())
+	for _, info := range entries {
+		at := xtime.FromNanoseconds(info.Start)
+		fs := s.FlushState(at)
+		if fs.Status != fileOpNotStarted {
+			continue // Already recorded progress
+		}
+		s.markFlushStateSuccess(at)
+	}
+
 	s.Lock()
 	s.bs = bootstrapped
 	s.Unlock()

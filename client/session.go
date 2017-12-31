@@ -78,10 +78,12 @@ const (
 type FetchBlocksMetadataEndpointVersion int
 
 const (
+	// FetchBlocksMetadataEndpointDefault represents to use the default fetch blocks metadata endpoint
+	FetchBlocksMetadataEndpointDefault FetchBlocksMetadataEndpointVersion = iota
 	// FetchBlocksMetadataEndpointV1 represents v1 of the fetch blocks metadata endpoint
-	FetchBlocksMetadataEndpointV1 FetchBlocksMetadataEndpointVersion = iota
+	FetchBlocksMetadataEndpointV1
 	// FetchBlocksMetadataEndpointV2 represents v2 of the fetch blocks metadata endpoint
-	FetchBlocksMetadataEndpointV2
+	FetchBlocksMetadataEndpointV2 = FetchBlocksMetadataEndpointDefault
 )
 
 var (

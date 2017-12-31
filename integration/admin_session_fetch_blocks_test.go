@@ -172,14 +172,14 @@ func testSetupToSeriesMaps(
 	require.NotNil(t, session)
 
 	for shardID, metadatas := range metadatasByShard {
-		blocksIter, err := session.FetchBlocksFromPeers(nsMetadata, shardID, metadatas, resultOpts)
+		blocksIter, err := session.FetchBlocksFromPeers(nsMetadata, shardID,
+			metadatas, resultOpts)
 		require.NoError(t, err)
 		require.NotNil(t, blocksIter)
 
 		for blocksIter.Next() {
 			_, id, blk := blocksIter.Current()
 			ctx := context.NewContext()
-			defer ctx.Close()
 			reader, err := blk.Stream(ctx)
 			require.NoError(t, err)
 			readerIter := iterPool.Get()
@@ -192,6 +192,9 @@ func testSetupToSeriesMaps(
 			}
 			require.NoError(t, readerIter.Err())
 			require.NotEmpty(t, datapoints)
+
+			readerIter.Close()
+			ctx.Close()
 
 			firstTs := datapoints[0].Timestamp
 			seriesMapList := seriesMap[xtime.ToUnixNano(firstTs)]

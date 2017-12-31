@@ -94,10 +94,12 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 		alignedEnd = alignedEnd.Add(-1 * size)
 	}
 	// Squeeze the lookup window by what's available to make range queries like [0, infinity) possible
-	if earliest := retention.FlushTimeStart(ropts, now); alignedStart.Before(earliest) {
+	earliest := retention.FlushTimeStart(ropts, now)
+	if alignedStart.Before(earliest) {
 		alignedStart = earliest
 	}
-	if latest := retention.FlushTimeEnd(ropts, now); alignedEnd.After(latest) {
+	latest := now.Add(ropts.BufferFuture()).Truncate(size)
+	if alignedEnd.After(latest) {
 		alignedEnd = latest
 	}
 
