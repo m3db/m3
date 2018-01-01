@@ -60,11 +60,11 @@ import (
 
 var (
 	id                  = flag.String("id", "", "Node host ID")
-	httpClusterAddr     = flag.String("clusterhttpaddr", "0.0.0.0:9000", "Cluster HTTP server address")
-	tchannelClusterAddr = flag.String("clustertchanneladdr", "0.0.0.0:9001", "Cluster TChannel server address")
-	httpNodeAddr        = flag.String("nodehttpaddr", "0.0.0.0:9002", "Node HTTP server address")
-	tchannelNodeAddr    = flag.String("nodetchanneladdr", "0.0.0.0:9003", "Node TChannel server address")
-	httpDebugAddr       = flag.String("debughttpaddr", "0.0.0.0:9004", "HTTP debug server address")
+	httpClusterAddr     = flag.String("clusterhttpaddr", "127.0.0.1:9000", "Cluster HTTP server address")
+	tchannelClusterAddr = flag.String("clustertchanneladdr", "127.0.0.1:9001", "Cluster TChannel server address")
+	httpNodeAddr        = flag.String("nodehttpaddr", "127.0.0.1:9002", "Node HTTP server address")
+	tchannelNodeAddr    = flag.String("nodetchanneladdr", "127.0.0.1:9003", "Node TChannel server address")
+	httpDebugAddr       = flag.String("debughttpaddr", "127.0.0.1:9004", "HTTP debug server address")
 
 	errServerStartTimedOut   = errors.New("server took too long to start")
 	errServerStopTimedOut    = errors.New("server took too long to stop")

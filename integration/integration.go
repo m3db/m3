@@ -69,7 +69,7 @@ func waitUntil(fn conditionFn, timeout time.Duration) bool {
 }
 
 func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
-	bind := "0.0.0.0"
+	bind := "127.0.0.1"
 	start := multiAddrPortStart + (instance * multiAddrPortEach)
 	return opts.
 		SetID(fmt.Sprintf("testhost%d", instance)).
