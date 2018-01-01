@@ -371,7 +371,14 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		}
 
 		if !hasError {
-			if err := r.Validate(); err != nil {
+			var validateErr error
+			switch seriesCachePolicy {
+			case series.CacheAll:
+				validateErr = r.Validate()
+			case series.CacheAllMetadata:
+				validateErr = r.ValidateMetadata()
+			}
+			if validateErr != nil {
 				s.log.WithFields(
 					xlog.NewField("shard", shard),
 					xlog.NewField("error", err.Error()),
