@@ -79,21 +79,20 @@ func (s *store) CreateNamespace(namespaceID string, uOpts r2.UpdateOptions) (*ru
 		return nil, s.handleUpstreamError(err)
 	}
 
-	revived, err := nss.AddNamespace(namespaceID)
+	meta := s.newUpdateMeta(uOpts)
+	revived, err := nss.AddNamespace(namespaceID, meta)
 	if err != nil {
 		return nil, s.handleUpstreamError(err)
 	}
 
-	um := s.newUpdateMeta(uOpts)
-	rs := rules.NewEmptyRuleSet(namespaceID, um)
-
+	rs := rules.NewEmptyRuleSet(namespaceID, meta)
 	if revived {
 		rawRs, err := s.ruleStore.ReadRuleSet(namespaceID)
 		if err != nil {
 			return nil, s.handleUpstreamError(err)
 		}
 		rs = rawRs.ToMutableRuleSet().Clone()
-		if err = rs.Revive(um); err != nil {
+		if err = rs.Revive(meta); err != nil {
 			return nil, s.handleUpstreamError(err)
 		}
 	}
@@ -132,13 +131,14 @@ func (s *store) DeleteNamespace(namespaceID string, uOpts r2.UpdateOptions) erro
 		return s.handleUpstreamError(err)
 	}
 
-	err = nss.DeleteNamespace(namespaceID, rs.Version())
+	meta := s.newUpdateMeta(uOpts)
+	err = nss.DeleteNamespace(namespaceID, rs.Version(), meta)
 	if err != nil {
 		return s.handleUpstreamError(err)
 	}
 
 	mutable := rs.ToMutableRuleSet().Clone()
-	err = mutable.Delete(s.newUpdateMeta(uOpts))
+	err = mutable.Delete(meta)
 	if err != nil {
 		return s.handleUpstreamError(err)
 	}
