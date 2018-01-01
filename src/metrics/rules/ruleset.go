@@ -44,12 +44,12 @@ const (
 )
 
 var (
-	errNilRuleSetSchema   = errors.New("nil rule set schema")
-	errNoSuchRule         = errors.New("no such rule exists")
-	errNotTombstoned      = errors.New("not tombstoned")
-	errNoRuleSnapshots    = errors.New("no snapshots")
-	ruleActionErrorFmt    = "cannot %s rule %s"
-	ruleSetActionErrorFmt = "cannot %s ruleset %s"
+	errNilRuleSetSchema     = errors.New("nil rule set schema")
+	errRuleSetNotTombstoned = errors.New("ruleset is not tombstoned")
+	errRuleNotFound         = errors.New("rule not found")
+	errNoRuleSnapshots      = errors.New("rule has no snapshots")
+	ruleActionErrorFmt      = "cannot %s rule %s"
+	ruleSetActionErrorFmt   = "cannot %s ruleset %s"
 )
 
 // Matcher matches metrics against rules to determine applicable policies.
@@ -750,10 +750,10 @@ func (rs *ruleSet) Clone() MutableRuleSet {
 
 func (rs *ruleSet) AddMappingRule(mrv MappingRuleView, meta UpdateMetadata) (string, error) {
 	m, err := rs.getMappingRuleByName(mrv.Name)
-	if err != nil && err != errNoSuchRule {
+	if err != nil && err != errRuleNotFound {
 		return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", mrv.Name))
 	}
-	if err == errNoSuchRule {
+	if err == errRuleNotFound {
 		if m, err = newMappingRuleFromFields(
 			mrv.Name,
 			mrv.Filter,
@@ -799,7 +799,8 @@ func (rs *ruleSet) DeleteMappingRule(id string, meta UpdateMetadata) error {
 	if err != nil {
 		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "delete", id))
 	}
-	if err := m.markTombstoned(meta.cutoverNanos); err != nil {
+
+	if err := m.markTombstoned(meta); err != nil {
 		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "delete", id))
 	}
 	rs.updateMetadata(meta)
@@ -808,11 +809,11 @@ func (rs *ruleSet) DeleteMappingRule(id string, meta UpdateMetadata) error {
 
 func (rs *ruleSet) AddRollupRule(rrv RollupRuleView, meta UpdateMetadata) (string, error) {
 	r, err := rs.getRollupRuleByName(rrv.Name)
-	if err != nil && err != errNoSuchRule {
+	if err != nil && err != errRuleNotFound {
 		return "", xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "add", rrv.Name))
 	}
 	targets := rollupTargetViewsToTargets(rrv.Targets)
-	if err == errNoSuchRule {
+	if err == errRuleNotFound {
 		if r, err = newRollupRuleFromFields(
 			rrv.Name,
 			rrv.Filter,
@@ -859,7 +860,8 @@ func (rs *ruleSet) DeleteRollupRule(id string, meta UpdateMetadata) error {
 	if err != nil {
 		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "delete", id))
 	}
-	if err := r.markTombstoned(meta.cutoverNanos); err != nil {
+
+	if err := r.markTombstoned(meta); err != nil {
 		return xerrors.Wrap(err, fmt.Sprintf(ruleActionErrorFmt, "delete", id))
 	}
 	rs.updateMetadata(meta)
@@ -877,13 +879,13 @@ func (rs *ruleSet) Delete(meta UpdateMetadata) error {
 	// Make sure that all of the rules in the ruleset are tombstoned as well.
 	for _, m := range rs.mappingRules {
 		if t := m.Tombstoned(); !t {
-			_ = m.markTombstoned(meta.cutoverNanos)
+			_ = m.markTombstoned(meta)
 		}
 	}
 
 	for _, r := range rs.rollupRules {
 		if t := r.Tombstoned(); !t {
-			_ = r.markTombstoned(meta.cutoverNanos)
+			_ = r.markTombstoned(meta)
 		}
 	}
 
@@ -892,7 +894,7 @@ func (rs *ruleSet) Delete(meta UpdateMetadata) error {
 
 func (rs *ruleSet) Revive(meta UpdateMetadata) error {
 	if !rs.Tombstoned() {
-		return xerrors.Wrap(errNotTombstoned, fmt.Sprintf(ruleSetActionErrorFmt, "revive", string(rs.namespace)))
+		return xerrors.Wrap(errRuleSetNotTombstoned, fmt.Sprintf(ruleSetActionErrorFmt, "revive", string(rs.namespace)))
 	}
 
 	rs.tombstoned = false
@@ -917,7 +919,7 @@ func (rs *ruleSet) getMappingRuleByName(name string) (*mappingRule, error) {
 			return m, nil
 		}
 	}
-	return nil, errNoSuchRule
+	return nil, errRuleNotFound
 }
 
 func (rs *ruleSet) getMappingRuleByID(id string) (*mappingRule, error) {
@@ -926,7 +928,7 @@ func (rs *ruleSet) getMappingRuleByID(id string) (*mappingRule, error) {
 			return m, nil
 		}
 	}
-	return nil, errNoSuchRule
+	return nil, errRuleNotFound
 }
 
 func (rs *ruleSet) getRollupRuleByName(name string) (*rollupRule, error) {
@@ -940,7 +942,7 @@ func (rs *ruleSet) getRollupRuleByName(name string) (*rollupRule, error) {
 			return r, nil
 		}
 	}
-	return nil, errNoSuchRule
+	return nil, errRuleNotFound
 }
 
 func (rs *ruleSet) getRollupRuleByID(id string) (*rollupRule, error) {
@@ -949,7 +951,7 @@ func (rs *ruleSet) getRollupRuleByID(id string) (*rollupRule, error) {
 			return r, nil
 		}
 	}
-	return nil, errNoSuchRule
+	return nil, errRuleNotFound
 }
 
 func (rs *ruleSet) latestMappingRules() (map[string]*MappingRuleView, error) {

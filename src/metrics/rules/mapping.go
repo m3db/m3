@@ -293,7 +293,7 @@ func (mc *mappingRule) addSnapshot(
 	return nil
 }
 
-func (mc *mappingRule) markTombstoned(cutoverTime int64) error {
+func (mc *mappingRule) markTombstoned(meta UpdateMetadata) error {
 	n, err := mc.Name()
 	if err != nil {
 		return err
@@ -307,8 +307,10 @@ func (mc *mappingRule) markTombstoned(cutoverTime int64) error {
 	}
 	snapshot := *mc.snapshots[len(mc.snapshots)-1]
 	snapshot.tombstoned = true
-	snapshot.cutoverNanos = cutoverTime
+	snapshot.cutoverNanos = meta.cutoverNanos
 	snapshot.policies = nil
+	snapshot.lastUpdatedAtNanos = meta.updatedAtNanos
+	snapshot.lastUpdatedBy = meta.updatedBy
 	mc.snapshots = append(mc.snapshots, &snapshot)
 	return nil
 }

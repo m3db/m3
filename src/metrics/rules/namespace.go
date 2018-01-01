@@ -40,17 +40,19 @@ var (
 	errNilNamespaceSnapshot             = errors.New("nil namespace snapshot")
 	errMultipleNamespaceMatches         = errors.New("more than one namespace match found")
 	errNamespaceNotFound                = errors.New("namespace not found")
-	errNamespaceNotTombstoned           = errors.New("not tombstoned")
-	errNamespaceTombstoned              = errors.New("already tombstoned")
-	errNoNamespaceSnapshots             = errors.New("no snapshots")
+	errNamespaceNotTombstoned           = errors.New("namespace is not tombstoned")
+	errNamespaceAlreadyTombstoned       = errors.New("namespace is already tombstoned")
+	errNoNamespaceSnapshots             = errors.New("namespace has no snapshots")
 
 	namespaceActionErrorFmt = "cannot %s namespace %s"
 )
 
 // NamespaceSnapshot defines a namespace snapshot for which rules are defined.
 type NamespaceSnapshot struct {
-	forRuleSetVersion int
-	tombstoned        bool
+	forRuleSetVersion  int
+	tombstoned         bool
+	lastUpdatedAtNanos int64
+	lastUpdatedBy      string
 }
 
 func newNamespaceSnapshot(snapshot *schema.NamespaceSnapshot) (NamespaceSnapshot, error) {
@@ -58,8 +60,10 @@ func newNamespaceSnapshot(snapshot *schema.NamespaceSnapshot) (NamespaceSnapshot
 		return emptyNamespaceSnapshot, errNilNamespaceSnapshotSchema
 	}
 	return NamespaceSnapshot{
-		forRuleSetVersion: int(snapshot.ForRulesetVersion),
-		tombstoned:        snapshot.Tombstoned,
+		forRuleSetVersion:  int(snapshot.ForRulesetVersion),
+		tombstoned:         snapshot.Tombstoned,
+		lastUpdatedAtNanos: snapshot.LastUpdatedAtNanos,
+		lastUpdatedBy:      snapshot.LastUpdatedBy,
 	}, nil
 }
 
@@ -69,11 +73,19 @@ func (s NamespaceSnapshot) ForRuleSetVersion() int { return s.forRuleSetVersion 
 // Tombstoned determines whether the namespace has been tombstoned.
 func (s NamespaceSnapshot) Tombstoned() bool { return s.tombstoned }
 
+// LastUpdatedAtNanos returns the time when the namespace is last updated in nanoseconds.
+func (s NamespaceSnapshot) LastUpdatedAtNanos() int64 { return s.lastUpdatedAtNanos }
+
+// LastUpdatedBy returns the user who last updated the namespace.
+func (s NamespaceSnapshot) LastUpdatedBy() string { return s.lastUpdatedBy }
+
 // Schema returns the given Namespace in protobuf form
 func (s NamespaceSnapshot) Schema() *schema.NamespaceSnapshot {
 	return &schema.NamespaceSnapshot{
-		ForRulesetVersion: int32(s.forRuleSetVersion),
-		Tombstoned:        s.tombstoned,
+		ForRulesetVersion:  int32(s.forRuleSetVersion),
+		Tombstoned:         s.tombstoned,
+		LastUpdatedAtNanos: s.lastUpdatedAtNanos,
+		LastUpdatedBy:      s.lastUpdatedBy,
 	}
 }
 
@@ -104,9 +116,11 @@ func newNamespace(namespace *schema.Namespace) (Namespace, error) {
 
 // NamespaceView is a human friendly representation of a namespace at a single point in time.
 type NamespaceView struct {
-	Name              string
-	ForRuleSetVersion int
-	Tombstoned        bool
+	Name               string
+	ForRuleSetVersion  int
+	Tombstoned         bool
+	LastUpdatedAtNanos int64
+	LastUpdatedBy      string
 }
 
 // NamespaceView returns the view representation of a namespace object.
@@ -116,9 +130,11 @@ func (n Namespace) NamespaceView(snapshotIdx int) (*NamespaceView, error) {
 	}
 	s := n.snapshots[snapshotIdx]
 	return &NamespaceView{
-		Name:              string(n.name),
-		ForRuleSetVersion: s.forRuleSetVersion,
-		Tombstoned:        s.tombstoned,
+		Name:               string(n.name),
+		ForRuleSetVersion:  s.forRuleSetVersion,
+		Tombstoned:         s.tombstoned,
+		LastUpdatedAtNanos: s.lastUpdatedAtNanos,
+		LastUpdatedBy:      s.lastUpdatedBy,
 	}, nil
 }
 
@@ -158,16 +174,21 @@ func (n Namespace) Schema() (*schema.Namespace, error) {
 	return res, nil
 }
 
-func (n *Namespace) markTombstoned(tombstonedRSVersion int) error {
+func (n *Namespace) markTombstoned(tombstonedRSVersion int, meta UpdateMetadata) error {
 	if n.Tombstoned() {
-		return errNamespaceTombstoned
+		return errNamespaceAlreadyTombstoned
 	}
-	snapshot := NamespaceSnapshot{tombstoned: true, forRuleSetVersion: tombstonedRSVersion}
+	snapshot := NamespaceSnapshot{
+		forRuleSetVersion:  tombstonedRSVersion,
+		tombstoned:         true,
+		lastUpdatedAtNanos: meta.updatedAtNanos,
+		lastUpdatedBy:      meta.updatedBy,
+	}
 	n.snapshots = append(n.snapshots, snapshot)
 	return nil
 }
 
-func (n *Namespace) revive() error {
+func (n *Namespace) revive(meta UpdateMetadata) error {
 	if !n.Tombstoned() {
 		return errNamespaceNotTombstoned
 	}
@@ -177,7 +198,12 @@ func (n *Namespace) revive() error {
 
 	tombstonedRuleSetVersion := n.snapshots[len(n.snapshots)-1].forRuleSetVersion
 	// NB: The revived ruleset version is one after the tombstoned ruleset version.
-	snapshot := NamespaceSnapshot{tombstoned: false, forRuleSetVersion: tombstonedRuleSetVersion + 1}
+	snapshot := NamespaceSnapshot{
+		forRuleSetVersion:  tombstonedRuleSetVersion + 1,
+		tombstoned:         false,
+		lastUpdatedAtNanos: meta.updatedAtNanos,
+		lastUpdatedBy:      meta.updatedBy,
+	}
 	n.snapshots = append(n.snapshots, snapshot)
 	return nil
 }
@@ -299,7 +325,7 @@ func (nss *Namespaces) Namespace(name string) (*Namespace, error) {
 // This function returns a boolean indicating whether or not the namespace was revived.
 // The revived flag should be used to decided if the corresponding" ruleset should also
 // be revived.
-func (nss *Namespaces) AddNamespace(nsName string) (bool, error) {
+func (nss *Namespaces) AddNamespace(nsName string, meta UpdateMetadata) (bool, error) {
 	existing, err := nss.Namespace(nsName)
 	if err != nil && err != errNamespaceNotFound {
 		return false, xerrors.Wrap(err, fmt.Sprintf(namespaceActionErrorFmt, "add", nsName))
@@ -311,8 +337,10 @@ func (nss *Namespaces) AddNamespace(nsName string) (bool, error) {
 			name: []byte(nsName),
 			snapshots: []NamespaceSnapshot{
 				NamespaceSnapshot{
-					forRuleSetVersion: 1,
-					tombstoned:        false,
+					forRuleSetVersion:  1,
+					tombstoned:         false,
+					lastUpdatedAtNanos: meta.updatedAtNanos,
+					lastUpdatedBy:      meta.updatedBy,
 				},
 			},
 		}
@@ -322,7 +350,7 @@ func (nss *Namespaces) AddNamespace(nsName string) (bool, error) {
 	}
 
 	// Revive the namespace.
-	if err = existing.revive(); err != nil {
+	if err = existing.revive(meta); err != nil {
 		return false, xerrors.Wrap(err, fmt.Sprintf(namespaceActionErrorFmt, "revive", nsName))
 	}
 
@@ -330,13 +358,13 @@ func (nss *Namespaces) AddNamespace(nsName string) (bool, error) {
 }
 
 // DeleteNamespace tombstones the given namespace mapping it to the next ruleset version.
-func (nss *Namespaces) DeleteNamespace(nsName string, currRuleSetVersion int) error {
+func (nss *Namespaces) DeleteNamespace(nsName string, currRuleSetVersion int, meta UpdateMetadata) error {
 	existing, err := nss.Namespace(nsName)
 	if err != nil {
 		return xerrors.Wrap(err, fmt.Sprintf(namespaceActionErrorFmt, "delete", nsName))
 	}
 
-	if err := existing.markTombstoned(currRuleSetVersion + 1); err != nil {
+	if err := existing.markTombstoned(currRuleSetVersion+1, meta); err != nil {
 		return xerrors.Wrap(err, fmt.Sprintf(namespaceActionErrorFmt, "delete", nsName))
 	}
 

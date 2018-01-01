@@ -456,8 +456,68 @@ func TestRollupTombstonedNoSnapshot(t *testing.T) {
 }
 
 func TestRollupTombstoned(t *testing.T) {
-	rr, _ := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	require.NoError(t, err)
 	require.True(t, rr.Tombstoned())
+}
+
+func TestRollupRuleMarkTombstoned(t *testing.T) {
+	schema := &schema.RollupRule{
+		Snapshots: []*schema.RollupRuleSnapshot{testRollupRuleSchema.Snapshots[0]},
+	}
+	rr, err := newRollupRule(schema, testTagsFilterOptions())
+	require.NoError(t, err)
+
+	expectedTargets := []RollupTarget{
+		{
+			Name: b("rName1"),
+			Tags: [][]byte{b("rtagName1"), b("rtagName2")},
+			Policies: []policy.Policy{
+				policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.DefaultAggregationID),
+			},
+		},
+	}
+	require.Equal(t, 1, len(rr.snapshots))
+	lastSnapshot := rr.snapshots[0]
+	require.Equal(t, "foo", lastSnapshot.name)
+	require.False(t, lastSnapshot.tombstoned)
+	require.Equal(t, int64(12345), lastSnapshot.cutoverNanos)
+	require.NotNil(t, lastSnapshot.filter)
+	require.Equal(t, "tag1:value1 tag2:value2", lastSnapshot.rawFilter)
+	require.Equal(t, expectedTargets, lastSnapshot.targets)
+	require.Equal(t, int64(12345), lastSnapshot.lastUpdatedAtNanos)
+	require.Equal(t, "someone-else", lastSnapshot.lastUpdatedBy)
+
+	meta := UpdateMetadata{
+		cutoverNanos:   67890,
+		updatedAtNanos: 10000,
+		updatedBy:      "john",
+	}
+	require.NoError(t, rr.markTombstoned(meta))
+	require.Equal(t, 2, len(rr.snapshots))
+	require.Equal(t, lastSnapshot, rr.snapshots[0])
+	lastSnapshot = rr.snapshots[1]
+	require.Equal(t, "foo", lastSnapshot.name)
+	require.True(t, lastSnapshot.tombstoned)
+	require.Equal(t, int64(67890), lastSnapshot.cutoverNanos)
+	require.NotNil(t, lastSnapshot.filter)
+	require.Equal(t, "tag1:value1 tag2:value2", lastSnapshot.rawFilter)
+	require.Nil(t, lastSnapshot.targets)
+	require.Equal(t, int64(10000), lastSnapshot.lastUpdatedAtNanos)
+	require.Equal(t, "john", lastSnapshot.lastUpdatedBy)
+}
+
+func TestRollupRuleMarkTombstonedNoSnapshots(t *testing.T) {
+	schema := &schema.RollupRule{}
+	rr, err := newRollupRule(schema, testTagsFilterOptions())
+	require.NoError(t, err)
+	require.Error(t, rr.markTombstoned(UpdateMetadata{}))
+}
+
+func TestRollupRuleMarkTombstonedAlreadyTombstoned(t *testing.T) {
+	rr, err := newRollupRule(testRollupRuleSchema, testTagsFilterOptions())
+	require.NoError(t, err)
+	require.Error(t, rr.markTombstoned(UpdateMetadata{}))
 }
 
 func TestRollupRuleClone(t *testing.T) {
