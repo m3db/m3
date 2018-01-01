@@ -234,13 +234,13 @@ func TestMappingRuleActiveSnapshotNotFound(t *testing.T) {
 	require.Nil(t, mr.ActiveSnapshot(0))
 }
 
-func TestMappingRuleActiveSnapshotFound_Second(t *testing.T) {
+func TestMappingRuleActiveSnapshotFoundSecond(t *testing.T) {
 	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, mr.snapshots[1], mr.ActiveSnapshot(100000))
 }
 
-func TestMappingRuleActiveSnapshotFound_First(t *testing.T) {
+func TestMappingRuleActiveSnapshotFoundFirst(t *testing.T) {
 	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, mr.snapshots[0], mr.ActiveSnapshot(20000))
@@ -252,7 +252,7 @@ func TestMappingRuleActiveRuleNotFound(t *testing.T) {
 	require.Equal(t, mr, mr.ActiveRule(0))
 }
 
-func TestMappingRuleActiveRuleFound_Second(t *testing.T) {
+func TestMappingRuleActiveRuleFoundSecond(t *testing.T) {
 	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
 	expected := &mappingRule{
@@ -262,7 +262,7 @@ func TestMappingRuleActiveRuleFound_Second(t *testing.T) {
 	require.Equal(t, expected, mr.ActiveRule(100000))
 }
 
-func TestMappingRuleActiveRuleFound_First(t *testing.T) {
+func TestMappingRuleActiveRuleFoundFirst(t *testing.T) {
 	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
 	require.NoError(t, err)
 	require.Equal(t, mr, mr.ActiveRule(20000))
@@ -333,8 +333,62 @@ func TestMappingTombstonedNoSnapshot(t *testing.T) {
 }
 
 func TestMappingTombstoned(t *testing.T) {
-	mr, _ := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	require.NoError(t, err)
 	require.True(t, mr.Tombstoned())
+}
+
+func TestMappingRuleMarkTombstoned(t *testing.T) {
+	schema := &schema.MappingRule{
+		Snapshots: []*schema.MappingRuleSnapshot{testMappingRuleSchema.Snapshots[0]},
+	}
+	mr, err := newMappingRule(schema, testTagsFilterOptions())
+	require.NoError(t, err)
+
+	expectedPolicies := []policy.Policy{
+		policy.NewPolicy(policy.NewStoragePolicy(10*time.Second, xtime.Second, 24*time.Hour), policy.MustCompressAggregationTypes(policy.P999)),
+	}
+	require.Equal(t, 1, len(mr.snapshots))
+	lastSnapshot := mr.snapshots[0]
+	require.Equal(t, "foo", lastSnapshot.name)
+	require.False(t, lastSnapshot.tombstoned)
+	require.Equal(t, int64(12345), lastSnapshot.cutoverNanos)
+	require.NotNil(t, lastSnapshot.filter)
+	require.Equal(t, "tag1:value1 tag2:value2", lastSnapshot.rawFilter)
+	require.Equal(t, expectedPolicies, lastSnapshot.policies)
+	require.Equal(t, int64(1234), lastSnapshot.lastUpdatedAtNanos)
+	require.Equal(t, "someone", lastSnapshot.lastUpdatedBy)
+
+	meta := UpdateMetadata{
+		cutoverNanos:   67890,
+		updatedAtNanos: 10000,
+		updatedBy:      "someone else",
+	}
+	require.NoError(t, mr.markTombstoned(meta))
+	require.Equal(t, 2, len(mr.snapshots))
+	require.Equal(t, lastSnapshot, mr.snapshots[0])
+	lastSnapshot = mr.snapshots[1]
+	require.Equal(t, "foo", lastSnapshot.name)
+	require.True(t, lastSnapshot.tombstoned)
+	require.Equal(t, int64(67890), lastSnapshot.cutoverNanos)
+	require.NotNil(t, lastSnapshot.filter)
+	require.Equal(t, "tag1:value1 tag2:value2", lastSnapshot.rawFilter)
+	require.Nil(t, lastSnapshot.policies)
+	require.Equal(t, int64(10000), lastSnapshot.lastUpdatedAtNanos)
+	require.Equal(t, "someone else", lastSnapshot.lastUpdatedBy)
+}
+
+func TestMappingRuleMarkTombstonedNoSnapshots(t *testing.T) {
+	schema := &schema.MappingRule{}
+	mr, err := newMappingRule(schema, testTagsFilterOptions())
+	require.NoError(t, err)
+	require.Error(t, mr.markTombstoned(UpdateMetadata{}))
+}
+
+func TestMappingRuleMarkTombstonedAlreadyTombstoned(t *testing.T) {
+	mr, err := newMappingRule(testMappingRuleSchema, testTagsFilterOptions())
+	require.NoError(t, err)
+	require.Error(t, mr.markTombstoned(UpdateMetadata{}))
 }
 
 func TestMappingRuleClone(t *testing.T) {

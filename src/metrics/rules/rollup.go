@@ -452,7 +452,7 @@ func (rc *rollupRule) addSnapshot(
 	return nil
 }
 
-func (rc *rollupRule) markTombstoned(cutoverTime int64) error {
+func (rc *rollupRule) markTombstoned(meta UpdateMetadata) error {
 	n, err := rc.Name()
 	if err != nil {
 		return err
@@ -468,8 +468,10 @@ func (rc *rollupRule) markTombstoned(cutoverTime int64) error {
 
 	snapshot := *rc.snapshots[len(rc.snapshots)-1]
 	snapshot.tombstoned = true
-	snapshot.cutoverNanos = cutoverTime
+	snapshot.cutoverNanos = meta.cutoverNanos
 	snapshot.targets = nil
+	snapshot.lastUpdatedAtNanos = meta.updatedAtNanos
+	snapshot.lastUpdatedBy = meta.updatedBy
 	rc.snapshots = append(rc.snapshots, &snapshot)
 	return nil
 }

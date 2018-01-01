@@ -24,6 +24,8 @@ package schema;
 message NamespaceSnapshot {
   int32 for_ruleset_version = 1;
   bool tombstoned = 2;
+  int64 last_updated_at_nanos = 3;
+  string last_updated_by = 4;
 }
 
 message Namespace {
