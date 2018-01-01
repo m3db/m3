@@ -23,7 +23,6 @@ package server
 import (
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"net/http"
 	"os"
@@ -151,12 +150,12 @@ func Run(runOpts RunOptions) {
 
 	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
 	if err != nil {
-		log.Fatalf("could not parse new file mode: %v", err)
+		logger.Fatalf("could not parse new file mode: %v", err)
 	}
 
 	newDirectoryMode, err := cfg.Filesystem.ParseNewDirectoryMode()
 	if err != nil {
-		log.Fatalf("could not parse new directory mode: %v", err)
+		logger.Fatalf("could not parse new directory mode: %v", err)
 	}
 
 	mmap := cfg.Filesystem.MmapConfiguration()
@@ -184,7 +183,7 @@ func Run(runOpts RunOptions) {
 	case config.CalculationTypePerCPU:
 		commitLogQueueSize = specified * runtime.NumCPU()
 	default:
-		log.Fatalf("unknown commit log queue size type: %v",
+		logger.Fatalf("unknown commit log queue size type: %v",
 			cfg.CommitLog.Queue.CalculationType)
 	}
 
