@@ -24,9 +24,10 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3ctl/service/r2"
+	"github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/rules"
-	"github.com/m3db/m3metrics/rules/validator"
 	"github.com/m3db/m3x/clock"
+	xerrors "github.com/m3db/m3x/errors"
 )
 
 type store struct {
@@ -395,10 +396,15 @@ func (s *store) handleUpstreamError(err error) error {
 		return nil
 	}
 
+	// If this is a contained error, extracts the inner error.
+	if containedErr, ok := err.(xerrors.ContainedError); ok {
+		err = containedErr.InnerError()
+	}
+
 	switch err.(type) {
-	case validator.RuleConflictError:
+	case errors.RuleConflictError:
 		return r2.NewConflictError(err.Error())
-	case validator.ValidationError:
+	case errors.ValidationError:
 		return r2.NewBadInputError(err.Error())
 	default:
 		return r2.NewInternalError(err.Error())
