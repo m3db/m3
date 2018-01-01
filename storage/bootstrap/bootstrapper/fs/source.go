@@ -381,7 +381,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			if validateErr != nil {
 				s.log.WithFields(
 					xlog.NewField("shard", shard),
-					xlog.NewField("error", err.Error()),
+					xlog.NewField("error", validateErr.Error()),
 				).Error("data validation failed")
 				hasError = true
 			}
