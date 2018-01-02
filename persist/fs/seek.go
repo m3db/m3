@@ -441,6 +441,9 @@ func (s *seeker) Close() error {
 		multiErr = multiErr.Add(s.indexLookup.close())
 		s.indexLookup = nil
 	}
-
+	if s.indexMmap != nil {
+		multiErr = multiErr.Add(munmap(s.indexMmap))
+		s.indexMmap = nil
+	}
 	return multiErr.FinalError()
 }
