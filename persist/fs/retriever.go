@@ -316,7 +316,7 @@ func (r *blockRetriever) Stream(
 	}
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately
-	if !seeker.IDMaybeExists(id) {
+	if !seeker.ConcurrentIDBloomFilter().Test(id.Data().Get()) {
 		return nil, errSeekIDNotFound
 	}
 

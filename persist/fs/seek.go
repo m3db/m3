@@ -156,8 +156,8 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 	}
 }
 
-func (s *seeker) IDMaybeExists(id ts.ID) bool {
-	return s.bloomFilter.Test(id.Data().Get())
+func (s *seeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter {
+	return s.bloomFilter
 }
 
 func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {

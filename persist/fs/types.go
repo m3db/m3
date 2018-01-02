@@ -112,10 +112,11 @@ type FileSetSeeker interface {
 	// Entries returns the count of entries in the volume
 	Entries() int
 
-	// IDMaybeExists returns a bool indicating whether an ID maybe exists on disk.
-	// If it returns true, the ID may exist on disk, but if it returns false, it
-	// definitely does not.
-	IDMaybeExists(id ts.ID) bool
+	// ConcurrentIDBloomFilter returns a concurrency-safe bloom filter that can
+	// be used to quickly disqualify ID's that definitely do not exist. I.E if the
+	// Test() method returns true, the ID may exist on disk, but if it returns
+	// false, it definitely does not.
+	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
 }
 
 // FileSetSeekerManager provides management of seekers for a TSDB namespace.
