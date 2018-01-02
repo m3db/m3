@@ -190,36 +190,36 @@ pooling:
         highWatermark: 0.02
     bytesPool:
         buckets:
-            - size: 6291456
-              capacity: 16
-              lowWatermark: 0.1
+            - capacity: 16
+              size: 6291456
+              lowWatermark: 0.10
               highWatermark: 0.12
-            - size: 3145728
-              capacity: 32
-              lowWatermark: 0.1
+            - capacity: 32
+              size: 3145728
+              lowWatermark: 0.10
               highWatermark: 0.12
-            - size: 3145728
-              capacity: 64
-              lowWatermark: 0.1
+            - capacity: 64
+              size: 3145728
+              lowWatermark: 0.10
               highWatermark: 0.12
-            - size: 3145728
-              capacity: 128
-              lowWatermark: 0.1
+            - capacity: 128
+              size: 3145728
+              lowWatermark: 0.10
               highWatermark: 0.12
-            - size: 3145728
-              capacity: 256
-              lowWatermark: 0.1
+            - capacity: 256
+              size: 3145728
+              lowWatermark: 0.10
               highWatermark: 0.12
-            - size: 524288
-              capacity: 1440
+            - capacity: 1440
+              size: 524288
+              lowWatermark: 0.10
+              highWatermark: 0.12
+            - capacity: 4096
+              size: 524288
               lowWatermark: 0.01
               highWatermark: 0.02
-            - size: 524288
-              capacity: 4096
-              lowWatermark: 0.01
-              highWatermark: 0.02
-            - size: 32768
-              capacity: 8192
+            - capacity: 8192
+              size: 32768
               lowWatermark: 0.01
               highWatermark: 0.02
 
@@ -381,8 +381,8 @@ pooling:
       highWatermark: 0.12
     - size: 524288
       capacity: 1440
-      lowWatermark: 0.01
-      highWatermark: 0.02
+      lowWatermark: 0.1
+      highWatermark: 0.12
     - size: 524288
       capacity: 4096
       lowWatermark: 0.01

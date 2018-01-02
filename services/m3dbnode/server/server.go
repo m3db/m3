@@ -619,8 +619,6 @@ func withEncodingAndPoolingOptions(
 	iopts := opts.InstrumentOptions()
 	scope := opts.InstrumentOptions().MetricsScope()
 
-	logger.Infof("using %s pools", policy.Type)
-
 	bytesPoolOpts := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("bytes-pool")))
 	checkedBytesPoolOpts := bytesPoolOpts.
@@ -634,14 +632,13 @@ func withEncodingAndPoolingOptions(
 			SetRefillLowWatermark(bucket.RefillLowWaterMark).
 			SetRefillHighWatermark(bucket.RefillHighWaterMark)
 		buckets[i] = b
-		logger.Infof("bytes pool registering bucket capacity=%d, size=%d,"+
+		logger.Infof("bytes pool registering bucket capacity=%d, size=%d, "+
 			"refillLowWatermark=%f, refillHighWatermark=%f",
 			bucket.Capacity, bucket.Size,
 			bucket.RefillLowWaterMark, bucket.RefillHighWaterMark)
 	}
 
 	var bytesPool pool.CheckedBytesPool
-
 	switch policy.Type {
 	case config.SimplePooling:
 		bytesPool = pool.NewCheckedBytesPool(
@@ -661,6 +658,7 @@ func withEncodingAndPoolingOptions(
 		logger.Fatalf("unrecognized pooling type: %s", policy.Type)
 	}
 
+	logger.Infof("bytes pool %s init", policy.Type)
 	bytesPool.Init()
 
 	segmentReaderPool := m3dbxio.NewSegmentReaderPool(
