@@ -21,6 +21,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -79,6 +80,10 @@ import (
 const (
 	bootstrapConfigInitTimeout = 10 * time.Second
 	serverGracefulCloseTimeout = 10 * time.Second
+)
+
+var (
+	errNilRetention = errors.New("namespace retention options cannot be empty")
 )
 
 // RunOptions provides options for running the server
@@ -273,7 +278,7 @@ func Run(runOpts RunOptions) {
 			logger.Fatalf("could not create KV client, %v", err)
 		}
 
-	case cfg.StaticConfig != nil && cfg.StaticConfig.TopologyConfig != nil:
+	case cfg.StaticConfig != nil && cfg.StaticConfig.TopologyConfig != nil && cfg.StaticConfig.Namespaces != nil:
 		logger.Info("creating static config service client with m3cluster")
 
 		shardSet, hostShardSets, err := createStaticShardSet(cfg.StaticConfig.TopologyConfig.Shards, cfg.ListenAddress)
@@ -285,11 +290,15 @@ func Run(runOpts RunOptions) {
 			SetHostShardSets(hostShardSets).
 			SetShardSet(shardSet)
 
-		md, err := createDefaultMetaData("metrics")
-		if err != nil {
-			logger.Fatalf("unable to create metadata for static config: %v", err)
+		nsList := []namespace.Metadata{}
+		for _, ns := range cfg.StaticConfig.Namespaces {
+			md, err := createMetaData(ns)
+			if err != nil {
+				logger.Fatalf("unable to create metadata for static config: %v", err)
+			}
+			nsList = append(nsList, md)
 		}
-		nsInitStatic := namespace.NewStaticInitializer([]namespace.Metadata{md})
+		nsInitStatic := namespace.NewStaticInitializer(nsList)
 		topoInit = topology.NewStaticInitializer(staticOptions)
 		opts = opts.SetNamespaceInitializer(nsInitStatic)
 
@@ -852,19 +861,31 @@ func createStaticShardSet(numShards int, listenAddress string) (sharding.ShardSe
 	return shardSet, hostShardSets, nil
 }
 
-func createDefaultMetaData(id string) (namespace.Metadata, error) {
+func createMetaData(cfg config.StaticNamespaceConfiguration) (namespace.Metadata, error) {
+	if cfg.Retention == nil {
+		return nil, errNilRetention
+	}
+	if cfg.Options == nil {
+		cfg.Options = &config.StaticNamespaceOptions{
+			NeedsBootstrap:      true,
+			NeedsFilesetCleanup: true,
+			NeedsFlush:          true,
+			NeedsRepair:         true,
+			WritesToCommitLog:   true,
+		}
+	}
 	md, err := namespace.NewMetadata(
-		ts.StringID(id),
+		ts.StringID(cfg.Name),
 		namespace.NewOptions().
-			SetNeedsBootstrap(true).
-			SetNeedsFilesetCleanup(true).
-			SetNeedsFlush(true).
-			SetNeedsRepair(true).
-			SetWritesToCommitLog(true).
+			SetNeedsBootstrap(cfg.Options.NeedsBootstrap).
+			SetNeedsFilesetCleanup(cfg.Options.NeedsFilesetCleanup).
+			SetNeedsFlush(cfg.Options.NeedsFlush).
+			SetNeedsRepair(cfg.Options.NeedsRepair).
+			SetWritesToCommitLog(cfg.Options.WritesToCommitLog).
 			SetRetentionOptions(
 				retention.NewOptions().
-					SetBlockSize(1*time.Hour).
-					SetRetentionPeriod(24*time.Hour)))
+					SetBlockSize(cfg.Retention.BlockSize).
+					SetRetentionPeriod(cfg.Retention.RetentionPeriod)))
 	if err != nil {
 		return nil, err
 	}
