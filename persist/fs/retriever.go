@@ -45,6 +45,7 @@ import (
 var (
 	errBlockRetrieverNotOpen             = errors.New("block retriever is not open")
 	errBlockRetrieverAlreadyOpenOrClosed = errors.New("block retriever already open or is closed")
+	errNoSeekerMgrs                      = errors.New("there are no open seeker managers")
 )
 
 const (
@@ -307,6 +308,10 @@ func (r *blockRetriever) Stream(
 	startTime time.Time,
 	onRetrieve block.OnRetrieveBlock,
 ) (xio.SegmentReader, error) {
+	// This should never happen
+	if len(r.seekerMgrs) < 1 {
+		return nil, errNoSeekerMgrs
+	}
 	// It doesn't matter which seekerManager we use (they're all identical, we
 	// just have multiple for concurrency reasons), so we use the first one
 	// because it's guaranteed to be there (concurrency cannot be < 1)
