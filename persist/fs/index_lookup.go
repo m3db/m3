@@ -134,7 +134,7 @@ func (il *nearestIndexOffsetLookup) close() error {
 
 // mmap file into memory
 // then msgpack decode everything in the mmap to create the offset
-func readIndexLookupFromSummariesFile(
+func readNearestIndexOffsetLookupFromSummaries(
 	summariesFd *os.File,
 	summariesFdWithDigest digest.FdWithDigestReader,
 	expectedSummariesDigest uint32,

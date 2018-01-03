@@ -214,7 +214,7 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 
-	s.indexLookup, err = readIndexLookupFromSummariesFile(
+	s.indexLookup, err = readNearestIndexOffsetLookupFromSummaries(
 		summariesFd,
 		s.summariesFdWithDigest,
 		s.expectedSummariesDigest,
