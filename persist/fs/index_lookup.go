@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// The indexLookup is used to lookup
+
 package fs
 
 import (
@@ -31,9 +33,9 @@ import (
 	"gopkg.in/vmihailenco/msgpack.v2"
 )
 
-// indexLookup provides a way of quickly determining the nearest offset of an
+// nearestIndexOffsetLookup provides a way of quickly determining the nearest offset of an
 // ID in the index file. It is not safe for concurrent use
-type indexLookup struct {
+type nearestIndexOffsetLookup struct {
 	summaryIDsOffsets []encoding.IndexSummaryToken
 	// bytes from file mmap'd into anonymous region
 	summariesBytes []byte
@@ -43,13 +45,13 @@ type indexLookup struct {
 	msgpackDecoder *msgpack.Decoder
 }
 
-func newIndexLookupImpl(
+func newNearestIndexOffsetLookup(
 	summaryIDsOffsets []encoding.IndexSummaryToken,
 	summariesBytes []byte,
 	decoder encoding.Decoder,
 	decoderStream encoding.DecoderStream,
-) *indexLookup {
-	return &indexLookup{
+) *nearestIndexOffsetLookup {
+	return &nearestIndexOffsetLookup{
 		summaryIDsOffsets: summaryIDsOffsets,
 		summariesBytes:    summariesBytes,
 		decoderStream:     decoderStream,
@@ -65,7 +67,9 @@ func newIndexLookupImpl(
 //            1. Is closest to the desired series in the index file
 //            2. Is BEFORE the desired series in the index file (because we
 //               we scan the index file sequentially in a forward-moving manner)
-func (il *indexLookup) getNearestIndexFileOffset(id ts.ID) (int64, bool, error) {
+// In other words, the returned offset can always be used as a starting point to
+// begin scanning the index file for the desired series.
+func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(id ts.ID) (int64, bool, error) {
 	idBytes := id.Data().Get()
 
 	min := 0
@@ -122,7 +126,7 @@ func (il *indexLookup) getNearestIndexFileOffset(id ts.ID) (int64, bool, error) 
 	}
 }
 
-func (il *indexLookup) close() error {
+func (il *nearestIndexOffsetLookup) close() error {
 	return munmap(il.summariesBytes)
 }
 
@@ -134,7 +138,7 @@ func readIndexLookupFromSummariesFile(
 	expectedSummariesDigest uint32,
 	decoder encoding.Decoder,
 	numEntries int,
-) (*indexLookup, error) {
+) (*nearestIndexOffsetLookup, error) {
 	summariesFdWithDigest.Reset(summariesFd)
 	stat, err := summariesFd.Stat()
 	if err != nil {
@@ -191,5 +195,5 @@ func readIndexLookupFromSummariesFile(
 		).Sorted()
 	}
 
-	return newIndexLookupImpl(summariesOffsets, anonMmap, decoder, decoderStream), nil
+	return newNearestIndexOffsetLookup(summariesOffsets, anonMmap, decoder, decoderStream), nil
 }

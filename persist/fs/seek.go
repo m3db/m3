@@ -86,7 +86,7 @@ type seeker struct {
 	// Bloom filter associated with the shard / block the seeker is responsible
 	// for. Needs to be closed when done.
 	bloomFilter *ManagedConcurrentBloomFilter
-	indexLookup *indexLookup
+	indexLookup *nearestIndexOffsetLookup
 }
 
 // IndexEntry is an entry from the index file which can be passed to
