@@ -408,7 +408,7 @@ func (s *seeker) SeekIndexEntry(id ts.ID) (IndexEntry, error) {
 		}
 
 		// We've scanned far enough through the index file to be sure that the ID
-		// we're looking for doesn't exist
+		// we're looking for doesn't exist (because the index is sorted by ID)
 		// TODO: Cover this
 		if comparison == 1 {
 			return IndexEntry{}, errSeekIDNotFound
