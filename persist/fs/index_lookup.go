@@ -24,6 +24,7 @@ package fs
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 
 	"github.com/m3db/m3db/digest"
@@ -164,6 +165,7 @@ func readNearestIndexOffsetLookupFromSummaries(
 	// the mmap'd region
 	_, err = summariesFdWithDigest.ReadAllAndValidate(anonMmap, expectedSummariesDigest)
 	if err != nil {
+		munmap(anonMmap)
 		return nil, err
 	}
 
@@ -173,7 +175,6 @@ func readNearestIndexOffsetLookupFromSummaries(
 		decoderStream    = encoding.NewDecoderStream(anonMmap)
 		summariesOffsets = make([]encoding.IndexSummaryToken, 0, numEntries)
 		lastReadID       []byte
-		needsSort        = false
 	)
 	decoder.Reset(decoderStream)
 
@@ -181,23 +182,17 @@ func readNearestIndexOffsetLookupFromSummaries(
 		// We ignore the entry itself because we don't need any information from it
 		entry, entryMetadata, err := decoder.DecodeIndexSummary()
 		if err != nil {
+			munmap(anonMmap)
 			return nil, err
 		}
 
-		// Should never happen as files should be sorted on disk
+		// Make sure that all the IDs are sorted as we iterate, and return an error
+		// if they're not. This should never happen as files should be sorted on disk.
 		if lastReadID != nil && bytes.Compare(lastReadID, entry.ID) != -1 {
-			needsSort = true
+			munmap(anonMmap)
+			return nil, fmt.Errorf("summaries file is not sorted: %s", summariesFd.Name())
 		}
 		summariesOffsets = append(summariesOffsets, entryMetadata)
-	}
-
-	// Again, should never happen because files should be sorted on disk
-	if needsSort {
-		// TODO: Emit log
-		summariesOffsets = encoding.NewIndexSummaryTokensSortableCollection(
-			summariesOffsets,
-			anonMmap,
-		).Sorted()
 	}
 
 	return newNearestIndexOffsetLookup(summariesOffsets, anonMmap, decoder, decoderStream), nil
