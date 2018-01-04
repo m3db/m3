@@ -281,7 +281,7 @@ func Run(runOpts RunOptions) {
 	case cfg.StaticConfig != nil && cfg.StaticConfig.TopologyConfig != nil && cfg.StaticConfig.Namespaces != nil:
 		logger.Info("creating static config service client with m3cluster")
 
-		shardSet, hostShardSets, err := createStaticShardSet(cfg.StaticConfig.TopologyConfig.Shards, cfg.ListenAddress)
+		shardSet, hostShardSets, err := newStaticShardSet(cfg.StaticConfig.TopologyConfig.Shards, cfg.ListenAddress)
 		if err != nil {
 			logger.Fatalf("unable to create shard set for static config: %v", err)
 		}
@@ -292,7 +292,7 @@ func Run(runOpts RunOptions) {
 
 		nsList := []namespace.Metadata{}
 		for _, ns := range cfg.StaticConfig.Namespaces {
-			md, err := createMetaData(ns)
+			md, err := newNamespaceMetadata(ns)
 			if err != nil {
 				logger.Fatalf("unable to create metadata for static config: %v", err)
 			}
@@ -305,7 +305,7 @@ func Run(runOpts RunOptions) {
 		kv = m3clusterkvmem.NewStore()
 
 	default:
-		logger.Fatal("configService or staticConfigService required")
+		logger.Fatal("config service or static configuration required")
 	}
 
 	topo, err := topoInit.Init()
@@ -836,7 +836,7 @@ func capacityPoolOptions(
 	return opts
 }
 
-func createStaticShardSet(numShards int, listenAddress string) (sharding.ShardSet, []topology.HostShardSet, error) {
+func newStaticShardSet(numShards int, listenAddress string) (sharding.ShardSet, []topology.HostShardSet, error) {
 	var (
 		shardSet      sharding.ShardSet
 		hostShardSets []topology.HostShardSet
@@ -861,7 +861,7 @@ func createStaticShardSet(numShards int, listenAddress string) (sharding.ShardSe
 	return shardSet, hostShardSets, nil
 }
 
-func createMetaData(cfg config.StaticNamespaceConfiguration) (namespace.Metadata, error) {
+func newNamespaceMetadata(cfg config.StaticNamespaceConfiguration) (namespace.Metadata, error) {
 	if cfg.Retention == nil {
 		return nil, errNilRetention
 	}
@@ -885,7 +885,11 @@ func createMetaData(cfg config.StaticNamespaceConfiguration) (namespace.Metadata
 			SetRetentionOptions(
 				retention.NewOptions().
 					SetBlockSize(cfg.Retention.BlockSize).
-					SetRetentionPeriod(cfg.Retention.RetentionPeriod)))
+					SetRetentionPeriod(cfg.Retention.RetentionPeriod).
+					SetBufferFuture(cfg.Retention.BufferFuture).
+					SetBufferPast(cfg.Retention.BufferPast).
+					SetBlockDataExpiry(cfg.Retention.BlockDataExpiry).
+					SetBlockDataExpiryAfterNotAccessedPeriod(cfg.Retention.BlockDataExpiryAfterNotAccessPeriod)))
 	if err != nil {
 		return nil, err
 	}
