@@ -1,6 +1,12 @@
-hash: 20d37950bf52b19cefc3e1fa5f1419ddbe58da5ee6d0c773cb7fc1bdf7f29cd6
-updated: 2017-12-14T00:40:19.926843043-05:00
+hash: 84fc950b972e18504876615d035bfad9b2dbacb74093a9fd007a88298a488f1c
+updated: 2017-12-20T14:07:03.984551503-05:00
 imports:
+- name: github.com/alecthomas/template
+  version: a0175ee3bccc567396460bf5acd36800cb10c49c
+  subpackages:
+  - parse
+- name: github.com/alecthomas/units
+  version: 2efee857e7cfd4f3d0138cc3cbb1b4966962b93a
 - name: github.com/gogo/protobuf
   version: 4168943e65a2802828518e95310aeeed6d84c4e5
   subpackages:
@@ -31,6 +37,8 @@ imports:
   - internal/color
   - internal/exit
   - zapcore
+- name: gopkg.in/alecthomas/kingpin.v2
+  version: 947dcec5ba9c011838740e680966fd7087a71d0d
 testImports:
 - name: github.com/stretchr/testify
   version: efa3c4c36479edac5af79cbcb4bc8cb525e09b13
