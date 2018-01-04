@@ -57,8 +57,8 @@ func mmap(fd, offset, length int64, flags int, opts mmapOptions) (mmapResult, er
 	}
 
 	flagsWithoutHugeTLB := flags
-	shouldUseHugePages := opts.hugePages.enabled && length >= opts.hugePages.threshold
-	if shouldUseHugePages {
+	shouldUseHugeTLB := opts.hugeTLB.enabled && length >= opts.hugeTLB.threshold
+	if shouldUseHugeTLB {
 		// We use the MAP_HUGETLB flag instead of MADV_HUGEPAGE because transparent
 		// hugepages only work with anonymous, private pages. Please see the MADV_HUGEPAGE
 		// section of http://man7.org/linux/man-pages/man2/madvise.2.html and the MAP_HUGETLB
@@ -74,7 +74,7 @@ func mmap(fd, offset, length int64, flags int, opts mmapOptions) (mmapResult, er
 	// See this document for more details: https://www.kernel.org/doc/Documentation/vm/hugetlbpage.txt
 	// Regardless, we don't want to fail hard in that scenario. Instead, we try
 	// and mmap without the hugeTLB flag.
-	if err != nil && shouldUseHugePages {
+	if err != nil && shouldUseHugeTLB {
 		b, err = syscall.Mmap(int(fd), offset, int(length), prot, flagsWithoutHugeTLB)
 		// If it still failed, then return an error
 		if err != nil {
