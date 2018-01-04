@@ -3,7 +3,7 @@ services:
   m3coordinator:
     image: "m3coordinator"
     ports:
-      - ${LOCAL_M3COORD_PORT:-1234}:1234
+      - ${LOCAL_M3COORD_PORT:-4116}:4116
   prometheus:
     image: "quay.io/prometheus/prometheus"
     links:
