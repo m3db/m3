@@ -29,4 +29,4 @@ scrape_configs:
       - targets: ['localhost:9090']
 
 remote_read:
-  - url: http://m3coordinator:1234/api/v1/prom/read
+  - url: http://m3coordinator:4116/api/v1/prom/read

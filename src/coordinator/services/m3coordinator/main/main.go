@@ -3,14 +3,29 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/m3db/m3coordinator/services/m3coordinator/httpd"
 	"github.com/m3db/m3coordinator/util/logging"
+
+	"go.uber.org/zap"
+	"gopkg.in/alecthomas/kingpin.v2"
 )
 
+type m3config struct {
+	configFile           string
+	listenAddress        string
+	maxConcurrentQueries int
+	queryTimeout         time.Duration
+}
+
 func main() {
+	rand.Seed(time.Now().UnixNano())
+	cfg := parseFlags()
 	logging.InitWithCores(nil)
 	handler, err := httpd.NewHandler()
 	if err != nil {
@@ -21,7 +36,36 @@ func main() {
 
 	logger := logging.WithContext(context.TODO())
 	defer logger.Sync()
-	logger.Info("Starting server")
-	http.ListenAndServe(":1234", handler.Router)
+	logger.Info("Starting server", zap.String("address", cfg.listenAddress))
+	http.ListenAndServe(cfg.listenAddress, handler.Router)
+}
 
+func parseFlags() *m3config {
+	cfg := m3config{}
+	a := kingpin.New(filepath.Base(os.Args[0]), "M3Coordinator")
+
+	a.Version("1.0")
+
+	a.HelpFlag.Short('h')
+
+	a.Flag("config.file", "M3Coordinator configuration file path.").
+		Default("coordinator.yml").StringVar(&cfg.configFile)
+
+	a.Flag("query.port", "Address to listen on.").
+		Default("0.0.0.0:4116").StringVar(&cfg.listenAddress)
+
+	a.Flag("query.timeout", "Maximum time a query may take before being aborted.").
+		Default("2m").DurationVar(&cfg.queryTimeout)
+
+	a.Flag("query.max-concurrency", "Maximum number of queries executed concurrently.").
+		Default("20").IntVar(&cfg.maxConcurrentQueries)
+
+	_, err := a.Parse(os.Args[1:])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error parsing commandline arguments, got error %v\n", err)
+		a.Usage(os.Args[1:])
+		os.Exit(2)
+	}
+
+	return &cfg
 }

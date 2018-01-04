@@ -1,14 +1,14 @@
 package handler
 
 import (
-	"fmt"
-	"io/ioutil"
 	"net/http"
 
 	"github.com/m3db/m3coordinator/generated/proto/prometheus/prompb"
+	"github.com/m3db/m3coordinator/util/logging"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/golang/snappy"
+	"go.uber.org/zap"
 )
 
 // PromReadHandler represents a handler for prometheus read endpoint.
@@ -21,12 +21,15 @@ func NewPromReadHandler() http.Handler {
 }
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	_, err := h.parseRequest(w, r)
-	if err != nil {
+	req, rErr := h.parseRequest(r)
+	if rErr != nil {
+		Error(w, rErr.Error(), rErr.Code())
 		return
 	}
 
-	// TODO: Actual read
+	// TODO (nikunj): Actual read instead of logging
+	logging.WithContext(r.Context()).Info("Read request", zap.Any("req", req))
+
 	resp := &prompb.ReadResponse{
 		Results: []*prompb.QueryResult{{}},
 	}
@@ -46,35 +49,16 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
-func (h *PromReadHandler) parseRequest(w http.ResponseWriter, r *http.Request) (*prompb.ReadRequest, error) {
-	if r.Body == nil {
-		err := fmt.Errorf("empty request body")
-		Error(w, err, http.StatusBadRequest)
-		return nil, err
-	}
-
-	compressed, err := ioutil.ReadAll(r.Body)
+func (h *PromReadHandler) parseRequest(r *http.Request) (*prompb.ReadRequest, *ParseError) {
+	reqBuf, err := ParsePromRequest(r)
 	if err != nil {
-		Error(w, err, http.StatusInternalServerError)
-		return nil, err
-	}
-
-	if len(compressed) == 0 {
-		Error(w, fmt.Errorf("empty request body"), http.StatusBadRequest)
-		return nil, err
-	}
-
-	reqBuf, err := snappy.Decode(nil, compressed)
-	if err != nil {
-		Error(w, err, http.StatusBadRequest)
 		return nil, err
 	}
 
 	var req prompb.ReadRequest
 	if err := proto.Unmarshal(reqBuf, &req); err != nil {
-		Error(w, err, http.StatusBadRequest)
-		return nil, err
+		return nil, NewParseError(err, http.StatusBadRequest)
 	}
-	return &req, nil
 
+	return &req, nil
 }

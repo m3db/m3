@@ -1,9 +1,9 @@
 package httpd
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
-	"net/http"
 
 	"github.com/m3db/m3coordinator/util/logging"
 
