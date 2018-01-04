@@ -409,13 +409,14 @@ func (s *seeker) SeekIndexEntry(id ts.ID) (IndexEntry, error) {
 
 		// We've scanned far enough through the index file to be sure that the ID
 		// we're looking for doesn't exist (because the index is sorted by ID)
-		// TODO: Cover this
 		if comparison == 1 {
 			return IndexEntry{}, errSeekIDNotFound
 		}
 	}
 
-	// TODO: Cover this
+	// Similar to the case above where comparison == 1, except in this case we're
+	// sure that the ID we're looking for doesn't exist because we reached the end
+	// of the index file.
 	return IndexEntry{}, errSeekIDNotFound
 }
 

@@ -142,6 +142,8 @@ func TestSeekBadMarker(t *testing.T) {
 	assert.NoError(t, s.Close())
 }
 
+// TestSeek is a basic sanity test that we can seek IDs that have been written,
+// as well as received errSeekIDNotFound for IDs that were not written.
 func TestSeek(t *testing.T) {
 	dir, err := ioutil.TempDir("", "testdb")
 	if err != nil {
@@ -195,6 +197,52 @@ func TestSeek(t *testing.T) {
 	data.IncRef()
 	defer data.DecRef()
 	assert.Equal(t, []byte{1, 2, 2}, data.Get())
+
+	assert.NoError(t, s.Close())
+}
+
+// TestSeekIDNotExists is similar to TestSeek, but it covers more edge cases
+// around IDs not existing.
+func TestSeekIDNotExists(t *testing.T) {
+	dir, err := ioutil.TempDir("", "testdb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	w := newTestWriter(t, filePathPrefix)
+	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
+	assert.NoError(t, err)
+	assert.NoError(t, w.Write(
+		ts.StringID("foo10"),
+		bytesRefd([]byte{1, 2, 1}),
+		digest.Checksum([]byte{1, 2, 1})))
+	assert.NoError(t, w.Write(
+		ts.StringID("foo20"),
+		bytesRefd([]byte{1, 2, 2}),
+		digest.Checksum([]byte{1, 2, 2})))
+	assert.NoError(t, w.Write(
+		ts.StringID("foo30"),
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
+	assert.NoError(t, w.Close())
+
+	s := newTestSeeker(filePathPrefix)
+	err = s.Open(testNs1ID, 0, testWriterStart)
+	assert.NoError(t, err)
+
+	// Test errSeekIDNotFound when we scan far enough into the index file that
+	// we're sure that the ID we're looking for doesn't exist (because the index
+	// file is sorted). In this particular case, we would know foo21 doesn't exist
+	// once we've scanned all the way to foo30 (which does exist).
+	_, err = s.SeekByID(ts.StringID("foo21"))
+	assert.Equal(t, errSeekIDNotFound, err)
+
+	// Test errSeekIDNotFound when we scan to the end of the index file (foo40
+	// would be located at the end of the index file based on the writes we've made)
+	_, err = s.SeekByID(ts.StringID("foo40"))
+	assert.Equal(t, errSeekIDNotFound, err)
 
 	assert.NoError(t, s.Close())
 }
