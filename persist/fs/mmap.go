@@ -59,7 +59,11 @@ type mmapHugeTLBOptions struct {
 	threshold int64
 }
 
-func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) (error, error) { // nolint: golint
+type mmapFilesResult struct {
+	warning error
+}
+
+func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) (mmapFilesResult, error) {
 	multiWarn := xerrors.NewMultiError()
 	multiErr := xerrors.NewMultiError()
 
@@ -85,7 +89,7 @@ func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) (error, error) 
 	}
 
 	if multiErr.FinalError() == nil {
-		return multiWarn.FinalError(), nil
+		return mmapFilesResult{warning: multiWarn.FinalError()}, nil
 	}
 
 	// If we have encountered an error when opening the files,
@@ -99,7 +103,7 @@ func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) (error, error) 
 		}
 	}
 
-	return multiWarn.FinalError(), multiErr.FinalError()
+	return mmapFilesResult{warning: multiWarn.FinalError()}, multiErr.FinalError()
 }
 
 func mmapFile(file *os.File, opts mmapOptions) (mmapResult, error) {

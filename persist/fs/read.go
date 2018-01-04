@@ -154,7 +154,7 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		r.digestFdWithDigestContents.Close()
 	}()
 
-	warn, err := mmapFiles(os.Open, map[string]mmapFileDesc{
+	result, err := mmapFiles(os.Open, map[string]mmapFileDesc{
 		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmapFileDesc{
 			file:    &r.indexFd,
 			bytes:   &r.indexMmap,
@@ -169,9 +169,9 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	if err != nil {
 		return err
 	}
-	if warn != nil {
+	if warning := result.warning; warning != nil {
 		r.opts.InstrumentOptions().Logger().Warnf(
-			"warning while mmapping files in reader: %s", warn.Error())
+			"warning while mmapping files in reader: %s", warning.Error())
 	}
 
 	r.indexDecoderStream.Reset(r.indexMmap)
