@@ -132,8 +132,11 @@ func (il *nearestIndexOffsetLookup) close() error {
 	return munmap(il.summariesBytes)
 }
 
-// mmap file into memory
-// then msgpack decode everything in the mmap to create the offset
+// readNearestIndexOffsetLookupFromSummaries creates an nearestIndexOffsetLookup
+// from an index summaries file by reading the summaries file into an anonymous
+// mmap'd region, and also creating the slice of summaries offsets which is
+// required to binary search the data structure. It will also make sure that
+// the summaries file is sorted (which it always should be).
 func readNearestIndexOffsetLookupFromSummaries(
 	summariesFd *os.File,
 	summariesFdWithDigest digest.FdWithDigestReader,
