@@ -25,6 +25,7 @@ import (
 
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/config/hostid"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
@@ -92,11 +93,46 @@ type Configuration struct {
 	// The pooling policy.
 	PoolingPolicy PoolingPolicy `yaml:"poolingPolicy"`
 
-	// The configuration for config service client.
-	ConfigService etcdclient.Configuration `yaml:"configService"`
+	// The dynamic etcd configuration for config service client.
+	ConfigService *etcdclient.Configuration `yaml:"configService"`
+
+	// The static configuration for config service client.
+	StaticConfig *StaticConfiguration `yaml:"static"`
 
 	// The configuration for hashing
 	HashingConfiguration HashingConfiguration `yaml:"hashing"`
+}
+
+// StaticConfiguration is used for running M3DB with a static config
+type StaticConfiguration struct {
+	Namespaces     []StaticNamespaceConfiguration `yaml:"namespaces"`
+	TopologyConfig *topology.StaticConfiguration  `yaml:"topology"`
+}
+
+// StaticNamespaceConfiguration sets the static namespace
+type StaticNamespaceConfiguration struct {
+	Name      string                    `yaml:"name"`
+	Options   *StaticNamespaceOptions   `yaml:"options"`
+	Retention *StaticNamespaceRetention `yaml:"retention"`
+}
+
+// StaticNamespaceOptions sets namespace options- if nil, default is used
+type StaticNamespaceOptions struct {
+	NeedsBootstrap      bool `yaml:"needsBootstrap"`
+	NeedsFlush          bool `yaml:"needsFlush"`
+	WritesToCommitLog   bool `yaml:"writesToCommitLog"`
+	NeedsFilesetCleanup bool `yaml:"needsFilesetCleanup"`
+	NeedsRepair         bool `yaml:"needsRepair"`
+}
+
+// StaticNamespaceRetention sets the retention per namespace (required)
+type StaticNamespaceRetention struct {
+	RetentionPeriod                     time.Duration `yaml:"retentionPeriod"`
+	BlockSize                           time.Duration `yaml:"blockSize"`
+	BufferFuture                        time.Duration `yaml:"bufferFuture"`
+	BufferPast                          time.Duration `yaml:"bufferPast"`
+	BlockDataExpiry                     bool          `yaml:"blockDataExpiry"`
+	BlockDataExpiryAfterNotAccessPeriod time.Duration `yaml:"blockDataExpiryAfterNotAccessPeriod"`
 }
 
 // TickConfiguration is the tick configuration for background processing of

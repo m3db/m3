@@ -200,6 +200,11 @@ func (l *ConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) erro
 		str, strings.Join(strs, ", "))
 }
 
+// StaticConfiguration is used for standing up M3DB with a static topology
+type StaticConfiguration struct {
+	Shards int `yaml:"shards"`
+}
+
 // StaticOptions is a set of options for static topology
 type StaticOptions interface {
 	// Validate validates the options
