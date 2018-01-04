@@ -24,7 +24,7 @@ Finally, you can spin up the two containers using `docker-compose` within the `d
 
     $ docker-compose up
 
-> Note: The default local ports for Prometheus and m3coordinator are `9090` and `1234`, respectively, and the default `prometheus.yml` file is `docker/prometheus.yml`
+> Note: The default local ports for Prometheus and m3coordinator are `9090` and `7201`, respectively, and the default `prometheus.yml` file is `docker/prometheus.yml`
 >
 >If you want to override these, you can pass in the following environment variables to the `docker-compose` command:
 >
