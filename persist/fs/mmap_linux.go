@@ -67,14 +67,11 @@ func mmap(fd, offset, length int64, flags int, opts mmapOptions) (mmapResult, er
 	}
 
 	var (
-		b          []byte
-		err        error
-		withTLBErr error
-		warning    error
+		b       []byte
+		err     error
+		warning error
 	)
 	b, err = syscall.Mmap(int(fd), offset, int(length), prot, flags)
-	// Save in case we need to include it in the warning later
-	withTLBErr = err
 	// Sometimes allocations that specify huge pages will fail because the O.S
 	// isn't configured properly or there are not enough available huge pages in
 	// the pool. You can try and allocate more by executing:
@@ -83,6 +80,7 @@ func mmap(fd, offset, length int64, flags int, opts mmapOptions) (mmapResult, er
 	// Regardless, we don't want to fail hard in that scenario. Instead, we try
 	// and mmap without the hugeTLB flag.
 	if err != nil && shouldUseHugeTLB {
+		warning = err
 		b, err = syscall.Mmap(int(fd), offset, int(length), prot, flagsWithoutHugeTLB)
 		// If we succeeded the second time, then proceed but make sure the caller
 		// receives a warning that includes the error from when we tried to use the
@@ -97,7 +95,7 @@ func mmap(fd, offset, length int64, flags int, opts mmapOptions) (mmapResult, er
 		return mmapResult{}, fmt.Errorf("mmap error: %v", err)
 	}
 
-	return mmapResult{result: b}, nil
+	return mmapResult{result: b, warning: warning}, nil
 }
 
 func munmap(b []byte) error {
