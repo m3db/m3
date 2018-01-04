@@ -21,9 +21,6 @@
 package encoding
 
 import (
-	"bytes"
-	"sort"
-
 	"gopkg.in/vmihailenco/msgpack.v2"
 )
 
