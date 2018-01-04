@@ -52,7 +52,7 @@ func parseFlags() *m3config {
 		Default("coordinator.yml").StringVar(&cfg.configFile)
 
 	a.Flag("query.port", "Address to listen on.").
-		Default("0.0.0.0:4116").StringVar(&cfg.listenAddress)
+		Default("0.0.0.0:7201").StringVar(&cfg.listenAddress)
 
 	a.Flag("query.timeout", "Maximum time a query may take before being aborted.").
 		Default("2m").DurationVar(&cfg.queryTimeout)
