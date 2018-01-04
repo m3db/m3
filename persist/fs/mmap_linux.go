@@ -69,8 +69,8 @@ func mmap(fd, offset, length int64, flags int, opts mmapOptions) (mmapResult, er
 	var (
 		b          []byte
 		err        error
-		warning    error
 		withTLBErr error
+		warning    error
 	)
 	b, err = syscall.Mmap(int(fd), offset, int(length), prot, flags)
 	// Save incase we need to include it in the warning later
