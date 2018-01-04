@@ -73,7 +73,7 @@ func mmap(fd, offset, length int64, flags int, opts mmapOptions) (mmapResult, er
 		warning    error
 	)
 	b, err = syscall.Mmap(int(fd), offset, int(length), prot, flags)
-	// Save incase we need to include it in the warning later
+	// Save in case we need to include it in the warning later
 	withTLBErr = err
 	// Sometimes allocations that specify huge pages will fail because the O.S
 	// isn't configured properly or there are not enough available huge pages in
