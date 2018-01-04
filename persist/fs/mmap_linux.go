@@ -66,7 +66,15 @@ func mmap(fd, offset, length int64, flags int, opts mmapOptions) (mmapResult, er
 		flags = flags | syscall.MAP_HUGETLB
 	}
 
-	b, err := syscall.Mmap(int(fd), offset, int(length), prot, flags)
+	var (
+		b          []byte
+		err        error
+		warning    error
+		withTLBErr error
+	)
+	b, err = syscall.Mmap(int(fd), offset, int(length), prot, flags)
+	// Save incase we need to include it in the warning later
+	withTLBErr = err
 	// Sometimes allocations that specify huge pages will fail because the O.S
 	// isn't configured properly or there are not enough available huge pages in
 	// the pool. You can try and allocate more by executing:
@@ -76,15 +84,13 @@ func mmap(fd, offset, length int64, flags int, opts mmapOptions) (mmapResult, er
 	// and mmap without the hugeTLB flag.
 	if err != nil && shouldUseHugeTLB {
 		b, err = syscall.Mmap(int(fd), offset, int(length), prot, flagsWithoutHugeTLB)
-		// If it still failed, then return an error
-		if err != nil {
-			return mmapResult{}, fmt.Errorf("mmap error: %v", err)
+		// If we succeeded the second time, then proceed but make sure the caller
+		// receives a warning that includes the error from when we tried to use the
+		// hugeTLB flag.
+		if err == nil {
+			warning = fmt.Errorf(
+				"error while trying to mmap with hugeTLB flag: %s, hugeTLB disabled", withTLBErr.Error())
 		}
-
-		// Otherwise, return success but with an appropriate warning that we were
-		// not able to enable the HUGETLB flag.
-		// TODO:
-		return mmapResult{result: b}, nil
 	}
 
 	if err != nil {
