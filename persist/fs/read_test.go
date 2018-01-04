@@ -369,18 +369,12 @@ func TestReadOpenIndexDigestMismatch(t *testing.T) {
 	enc := msgpack.NewEncoder()
 	require.NoError(t, enc.EncodeIndexInfo(schema.IndexInfo{}))
 	b := enc.Bytes()
-	di := digest.NewDigest()
-	_, err := di.Write(b)
-	require.NoError(t, err)
 
 	// Write the wrong index digest
 	buf := digest.NewBuffer()
-	buf.WriteDigest(di.Sum32())
+	buf.WriteDigest(digest.Checksum(b))
 	digestOfDigest := append(buf, make([]byte, 8)...)
-	di.Reset()
-	_, err = di.Write(digestOfDigest)
-	require.NoError(t, err)
-	buf.WriteDigest(di.Sum32())
+	buf.WriteDigest(digest.Checksum(digestOfDigest))
 
 	testReadOpen(
 		t,

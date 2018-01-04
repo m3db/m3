@@ -1,5 +1,5 @@
-hash: b1e7dcc0f6920d92e0c04a16f7e263ec0cb3de39d379948862499251aa383d50
-updated: 2017-12-11T20:43:53.223943871-05:00
+hash: 87af8addd97e924e22b14521c7c4e998a32b6532e0a6101628f6c246d9ef3532
+updated: 2018-01-04T15:08:15.850469162-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -193,6 +193,8 @@ imports:
   - tcp
   - time
   - watch
+- name: github.com/m3db/stackadler32
+  version: bfebcd73ef6ffe0ee30489227f0330c39064b674
 - name: github.com/m3db/stackmurmur3
   version: 744c0229c12ed0e4f8cb9d081a2692b3300bf705
 - name: github.com/matttproud/golang_protobuf_extensions

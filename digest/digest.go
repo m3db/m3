@@ -21,25 +21,33 @@
 package digest
 
 import (
-	"hash"
+	"hash/adler32"
 
 	"github.com/m3db/m3db/ts"
+
+	"github.com/m3db/stackadler32"
 )
 
 // NewDigest creates a new digest.
 // The default 32-bit hashing algorithm is adler32.
-func NewDigest() hash.Hash32 {
-	return newAdler32()
+func NewDigest() stackadler32.Digest {
+	return stackadler32.NewDigest()
 }
 
-// SegmentChecksum returns the 32-bit checksum for a segment.
+// SegmentChecksum returns the 32-bit checksum for a segment
+// avoiding any allocations.
 func SegmentChecksum(segment ts.Segment) uint32 {
-	d := newResetAdler32()
-	if head := segment.Head; head != nil {
-		d = update(d, head.Get())
+	d := stackadler32.NewDigest()
+	if segment.Head != nil {
+		d = d.Update(segment.Head.Get())
 	}
-	if tail := segment.Tail; tail != nil {
-		d = update(d, tail.Get())
+	if segment.Tail != nil {
+		d = d.Update(segment.Tail.Get())
 	}
-	return uint32(d)
+	return d.Sum32()
+}
+
+// Checksum returns the checksum for a buffer.
+func Checksum(buf []byte) uint32 {
+	return adler32.Checksum(buf)
 }

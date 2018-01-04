@@ -34,6 +34,9 @@ import:
 - package: github.com/m3db/stackmurmur3
   version: 744c0229c12ed0e4f8cb9d081a2692b3300bf705
 
+- package: github.com/m3db/stackadler32
+  version: bfebcd73ef6ffe0ee30489227f0330c39064b674
+
 - package: github.com/uber/tchannel-go
   version: 1fcf82ec86967eb43ba0baa9b964f8eb226d242e
   subpackages:

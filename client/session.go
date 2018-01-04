@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"hash"
 	"io"
 	"math"
 	"sort"
@@ -151,7 +150,6 @@ type session struct {
 	seriesIteratorsPool              encoding.MutableSeriesIteratorsPool
 	writeAttemptPool                 *writeAttemptPool
 	writeStatePool                   *writeStatePool
-	digestPool                       sync.Pool
 	fetchAttemptPool                 *fetchAttemptPool
 	fetchBatchSize                   int
 	newPeerBlocksQueueFn             newPeerBlocksQueueFn
@@ -259,9 +257,6 @@ func newSession(opts Options) (clientSession, error) {
 		))
 	s.fetchAttemptPool = newFetchAttemptPool(s, fetchAttemptPoolOpts)
 	s.fetchAttemptPool.Init()
-	s.digestPool = sync.Pool{New: func() interface{} {
-		return digest.NewDigest()
-	}}
 
 	if opts, ok := opts.(AdminOptions); ok {
 		s.origin = opts.Origin()
@@ -2408,24 +2403,19 @@ func (s *session) verifyFetchedBlock(block *rpc.Block) error {
 		return fmt.Errorf("block segments is bad: merged and unmerged not set")
 	}
 
-	if block.Checksum != nil {
-		expected := uint32(*block.Checksum)
-
-		digest := s.digestPool.Get().(hash.Hash32)
-		digest.Reset()
-		defer s.digestPool.Put(digest)
-
-		if block.Segments.Merged != nil {
-			digest.Write(block.Segments.Merged.Head)
-			digest.Write(block.Segments.Merged.Tail)
+	if checksum := block.Checksum; checksum != nil {
+		var (
+			d        = digest.NewDigest()
+			expected = uint32(*checksum)
+		)
+		if merged := block.Segments.Merged; merged != nil {
+			d = d.Update(merged.Head).Update(merged.Tail)
 		} else {
-			for _, segment := range block.Segments.Unmerged {
-				digest.Write(segment.Head)
-				digest.Write(segment.Tail)
+			for _, s := range block.Segments.Unmerged {
+				d = d.Update(s.Head).Update(s.Tail)
 			}
 		}
-		actual := digest.Sum32()
-		if actual != expected {
+		if actual := d.Sum32(); actual != expected {
 			return fmt.Errorf("block checksum is bad: expected=%d, actual=%d", expected, actual)
 		}
 	}

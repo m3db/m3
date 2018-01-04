@@ -1635,12 +1635,8 @@ func TestStreamBlocksBatchFromPeerVerifiesBlockChecksum(t *testing.T) {
 
 	head := rawBlockData[:len(rawBlockData)-1]
 	tail := []byte{rawBlockData[len(rawBlockData)-1]}
-	di := digest.NewDigest()
-	_, err = di.Write(head)
-	require.NoError(t, err)
-	_, err = di.Write(tail)
-	require.NoError(t, err)
-	validChecksum := int64(di.Sum32())
+	d := digest.NewDigest().Update(head).Update(tail).Sum32()
+	validChecksum := int64(d)
 	invalidChecksum := 1 + validChecksum
 
 	client.EXPECT().
@@ -1984,13 +1980,11 @@ func resultMetadataFromBlocks(
 			d := digest.NewDigest()
 			if merged := bl.segments.merged; merged != nil {
 				size += int64(len(merged.head) + len(merged.tail))
-				d.Write(merged.head)
-				d.Write(merged.tail)
+				d = d.Update(merged.head).Update(merged.tail)
 			}
 			for _, unmerged := range bl.segments.unmerged {
 				size += int64(len(unmerged.head) + len(unmerged.tail))
-				d.Write(unmerged.head)
-				d.Write(unmerged.tail)
+				d = d.Update(unmerged.head).Update(unmerged.tail)
 			}
 			checksum := d.Sum32()
 			m := testBlockMetadata{
