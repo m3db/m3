@@ -225,14 +225,14 @@ type Options interface {
 	// SeekReaderBufferSize size returns the buffer size for seeking TSDB files
 	SeekReaderBufferSize() int
 
-	// SetMmapEnableHugePages sets whether mmap huge pages are enabled when running on linux
-	SetMmapEnableHugePages(value bool) Options
+	// SetMmapEnableHugeTLB sets whether mmap huge pages are enabled when running on linux
+	SetMmapEnableHugeTLB(value bool) Options
 
-	// MmapEnableHugePages returns whether mmap huge pages are enabled when running on linux
-	MmapEnableHugePages() bool
+	// MmapEnableHugeTLB returns whether mmap huge pages are enabled when running on linux
+	MmapEnableHugeTLB() bool
 
-	// SetMmapHugePagesThreshold sets the threshold when to use mmap huge pages for mmap'd files on linux
-	SetMmapHugePagesThreshold(value int64) Options
+	// SetMmapHugeTLBThreshold sets the threshold when to use mmap huge pages for mmap'd files on linux
+	SetMmapHugeTLBThreshold(value int64) Options
 
 	// MmapHugePagesThreshold returns the threshold when to use mmap huge pages for mmap'd files on linux
 	MmapHugePagesThreshold() int64

@@ -35,7 +35,7 @@ const (
 // DefaultMmapConfiguration is the default mmap configuration.
 func DefaultMmapConfiguration() MmapConfiguration {
 	return MmapConfiguration{
-		HugePages: MmapHugePagesConfiguration{
+		HugeTLB: MmapHugeTLBConfiguration{
 			Enabled:   true,    // Enable when on a platform that supports
 			Threshold: 2 << 14, // 32kb and above mappings use huge pages
 		},
@@ -79,17 +79,17 @@ type FilesystemConfiguration struct {
 
 // MmapConfiguration is the mmap configuration.
 type MmapConfiguration struct {
-	// HugePages is the huge pages configuration which will only take affect
+	// HugeTLB is the huge pages configuration which will only take affect
 	// on platforms that support it, currently just linux
-	HugePages MmapHugePagesConfiguration `yaml:"hugePages"`
+	HugeTLB MmapHugeTLBConfiguration `yaml:"hugeTLB"`
 }
 
-// MmapHugePagesConfiguration is the mmap huge pages configuration.
-type MmapHugePagesConfiguration struct {
+// MmapHugeTLBConfiguration is the mmap huge TLB configuration.
+type MmapHugeTLBConfiguration struct {
 	// Enabled if true or disabled if false
 	Enabled bool `yaml:"enabled"`
 
-	// Threshold is the threshold on which to use huge pages if enabled
+	// Threshold is the threshold on which to use the huge TLB flag if enabled
 	Threshold int64 `yaml:"threshold"`
 }
 

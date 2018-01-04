@@ -26,26 +26,26 @@ import (
 )
 
 // mmapFd mmaps a file
-func mmapFd(fd, offset, length int64, opts mmapOptions) ([]byte, error) {
+func mmapFd(fd, offset, length int64, opts mmapOptions) (mmapResult, error) {
 	// MAP_PRIVATE because we only want to ever mmap immutable things and we don't
 	// ever want to propagate writes back to the underlying file
 	return mmap(fd, offset, length, syscall.MAP_PRIVATE, opts)
 }
 
 // mmapBytes requests a private (non-shared) region of anonymous (not backed by a file) memory from the O.S
-func mmapBytes(length int64, opts mmapOptions) ([]byte, error) {
+func mmapBytes(length int64, opts mmapOptions) (mmapResult, error) {
 	// offset is 0 because we're not indexing into a file
 	// fd is -1 and MAP_ANON because we're asking for an anonymous region of memory not tied to a file
 	// MAP_PRIVATE because we don't plan on sharing this region of memory with other processes
 	return mmap(-1, 0, length, syscall.MAP_ANON|syscall.MAP_PRIVATE, opts)
 }
 
-func mmap(fd, offset, length int64, flags int, opts mmapOptions) ([]byte, error) {
+func mmap(fd, offset, length int64, flags int, opts mmapOptions) (mmapResult, error) {
 	if length == 0 {
 		// Return an empty slice (but not nil so callers who
 		// use nil to mean something special like not initialized
 		// get back an actual ref)
-		return make([]byte, 0), nil
+		return mmapResult{result: make([]byte, 0)}, nil
 	}
 
 	var prot int
@@ -56,22 +56,42 @@ func mmap(fd, offset, length int64, flags int, opts mmapOptions) ([]byte, error)
 		prot = prot | syscall.PROT_WRITE
 	}
 
+	flagsWithoutHugeTLB := flags
+	shouldUseHugePages := opts.hugePages.enabled && length >= opts.hugePages.threshold
+	if shouldUseHugePages {
+		// We use the MAP_HUGETLB flag instead of MADV_HUGEPAGE because transparent
+		// hugepages only work with anonymous, private pages. Please see the MADV_HUGEPAGE
+		// section of http://man7.org/linux/man-pages/man2/madvise.2.html and the MAP_HUGETLB
+		// section of http://man7.org/linux/man-pages/man2/mmap.2.html for more details.
+		flags = flags | syscall.MAP_HUGETLB
+	}
+
 	b, err := syscall.Mmap(int(fd), offset, int(length), prot, flags)
+	// Sometimes allocations that specify huge pages will fail because the O.S
+	// isn't configured properly or there are not enough available huge pages in
+	// the pool. You can try and allocate more by executing:
+	// 		echo 20 > /proc/sys/vm/nr_hugepages
+	// See this document for more details: https://www.kernel.org/doc/Documentation/vm/hugetlbpage.txt
+	// Regardless, we don't want to fail hard in that scenario. Instead, we try
+	// and mmap without the hugeTLB flag.
+	if err != nil && shouldUseHugePages {
+		b, err = syscall.Mmap(int(fd), offset, int(length), prot, flagsWithoutHugeTLB)
+		// If it still failed, then return an error
+		if err != nil {
+			return mmapResult{}, fmt.Errorf("mmap error: %v", err)
+		}
+
+		// Otherwise, return success but with an appropriate warning that we were
+		// not able to enable the HUGETLB flag.
+		// TODO:
+		return mmapResult{result: b}, nil
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("mmap error: %v", err)
+		return mmapResult{}, fmt.Errorf("mmap error: %v", err)
 	}
 
-	if !opts.hugePages.enabled ||
-		length < opts.hugePages.threshold {
-		return b, nil
-	}
-
-	// Reduce the number of pagefaults when scanning through large files
-	if err := syscall.Madvise(b, syscall.MADV_HUGEPAGE); err != nil {
-		return nil, fmt.Errorf("madvise error, check platform support: %v", err)
-	}
-
-	return b, nil
+	return mmapResult{result: b}, nil
 }
 
 func munmap(b []byte) error {

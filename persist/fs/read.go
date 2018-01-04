@@ -62,8 +62,9 @@ func (e ErrReadWrongIdx) Error() string {
 }
 
 type reader struct {
+	opts           Options
 	filePathPrefix string
-	hugePagesOpts  mmapHugePagesOptions
+	hugePagesOpts  mmapHugeTLBOptions
 	start          time.Time
 	blockSize      time.Duration
 
@@ -108,9 +109,10 @@ func NewReader(
 		return nil, err
 	}
 	return &reader{
+		opts:           opts,
 		filePathPrefix: opts.FilePathPrefix(),
-		hugePagesOpts: mmapHugePagesOptions{
-			enabled:   opts.MmapEnableHugePages(),
+		hugePagesOpts: mmapHugeTLBOptions{
+			enabled:   opts.MmapEnableHugeTLB(),
 			threshold: opts.MmapHugePagesThreshold(),
 		},
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
@@ -152,19 +154,24 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		r.digestFdWithDigestContents.Close()
 	}()
 
-	if err := mmapFiles(os.Open, map[string]mmapFileDesc{
+	warn, err := mmapFiles(os.Open, map[string]mmapFileDesc{
 		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmapFileDesc{
 			file:    &r.indexFd,
 			bytes:   &r.indexMmap,
-			options: mmapOptions{read: true, hugePages: r.hugePagesOpts},
+			options: mmapOptions{read: true, hugeTLB: r.hugePagesOpts},
 		},
 		filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmapFileDesc{
 			file:    &r.dataFd,
 			bytes:   &r.dataMmap,
-			options: mmapOptions{read: true, hugePages: r.hugePagesOpts},
+			options: mmapOptions{read: true, hugeTLB: r.hugePagesOpts},
 		},
-	}); err != nil {
+	})
+	if err != nil {
 		return err
+	}
+	if warn != nil {
+		r.opts.InstrumentOptions().Logger().Warnf(
+			"warning while mmapping files in reader: %s", warn.Error())
 	}
 
 	r.indexDecoderStream.Reset(r.indexMmap)
