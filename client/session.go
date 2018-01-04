@@ -1962,7 +1962,7 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 
 // TODO(rartoul): Delete this when we delete the V1 code path
 func (s *session) emitDuplicateMetadataLog(received *receivedBlocks, metadata blocksMetadata) {
-	fields := make([]xlog.Field, len(received.results)+1)
+	fields := make([]xlog.Field, 0, len(received.results)+1)
 	fields = append(fields, xlog.NewField(
 		"incomingMetadata",
 		fmt.Sprintf("ID: %s, peer: %s", metadata.id.String(), metadata.peer.Host().String()),
@@ -1978,24 +1978,32 @@ func (s *session) emitDuplicateMetadataLog(received *receivedBlocks, metadata bl
 }
 
 func (s *session) emitDuplicateMetadataLogV2(received *receivedBlocks, metadata blocksMetadata) {
-	fields := make([]xlog.Field, len(received.results)+1)
+	fields := make([]xlog.Field, 0, len(received.results)+1)
+	incomingStart := "<none>"
+	if len(metadata.blocks) != 0 {
+		incomingStart = metadata.blocks[0].start.String()
+	}
 	fields = append(fields, xlog.NewField(
 		"incomingMetadata",
 		fmt.Sprintf(
 			"ID: %s, peer: %s, block: %s",
 			metadata.id.String(),
 			metadata.peer.Host().String(),
-			metadata.blocks[0].start.String(),
+			incomingStart,
 		),
 	))
 	for i, result := range received.results {
+		existingStart := "<none>"
+		if len(result.blocks) != 0 {
+			existingStart = result.blocks[0].start.String()
+		}
 		fields = append(fields, xlog.NewField(
 			fmt.Sprintf("existingMetadata_%d", i),
 			fmt.Sprintf(
 				"ID: %s, peer: %s, block: %s",
 				result.id.String(),
 				result.peer.Host().String(),
-				result.blocks[0].start.String(),
+				existingStart,
 			),
 		))
 	}
