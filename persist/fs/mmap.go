@@ -59,7 +59,7 @@ type mmapHugeTLBOptions struct {
 	threshold int64
 }
 
-func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) (error, error) {
+func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) (error, error) { // nolint: golint
 	multiWarn := xerrors.NewMultiError()
 	multiErr := xerrors.NewMultiError()
 
