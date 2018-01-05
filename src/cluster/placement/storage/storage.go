@@ -154,3 +154,7 @@ func (s *storage) Delete() error {
 func (s *storage) Placement() (placement.Placement, int, error) {
 	return s.helper.Placement()
 }
+
+func (s *storage) PlacementForVersion(version int) (placement.Placement, error) {
+	return s.helper.PlacementForVersion(version)
+}

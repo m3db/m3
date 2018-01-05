@@ -39,10 +39,10 @@ var (
 
 // Helper handles placement marshaling and validation.
 type Helper interface {
-	// Placement retrieves the placement stored on kv.Store.
+	// Placement retrieves the placement stored in kv.Store.
 	Placement() (placement.Placement, int, error)
 
-	// PlacementProto retrieves the proto stored on kv.Store.
+	// PlacementProto retrieves the proto stored in kv.Store.
 	PlacementProto() (proto.Message, int, error)
 
 	// GenerateProto generates the proto message for the new placement, it may read the kv.Store
@@ -51,6 +51,9 @@ type Helper interface {
 
 	// ValidateProto validates if the given proto message is valid for placement.
 	ValidateProto(proto proto.Message) error
+
+	// PlacementForVersion returns the placement of a specific version.
+	PlacementForVersion(version int) (placement.Placement, error)
 }
 
 // newHelper returns a new placement storage helper.
@@ -72,6 +75,19 @@ func newPlacementHelper(store kv.Store, key string) Helper {
 		store: store,
 		key:   key,
 	}
+}
+
+func (h *placementHelper) PlacementForVersion(version int) (placement.Placement, error) {
+	values, err := h.store.History(h.key, version, version+1)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(values) != 1 {
+		return nil, fmt.Errorf("invalid number of placements returned: %d, expecting 1", len(values))
+	}
+
+	return placementFromValue(values[0])
 }
 
 func (h *placementHelper) Placement() (placement.Placement, int, error) {
@@ -187,6 +203,29 @@ func (h *stagedPlacementHelper) placements() (placement.Placements, int, error) 
 
 	ps, err := placementsFromValue(value)
 	return ps, value.Version(), err
+}
+
+func (h *stagedPlacementHelper) PlacementForVersion(version int) (placement.Placement, error) {
+	values, err := h.store.History(h.key, version, version+1)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(values) != 1 {
+		return nil, fmt.Errorf("invalid number of placements returned: %d, expecting 1", len(values))
+	}
+
+	ps, err := placementsFromValue(values[0])
+	if err != nil {
+		return nil, err
+	}
+
+	l := len(ps)
+	if l == 0 {
+		return nil, errNoPlacementInTheSnapshots
+	}
+
+	return ps[l-1], nil
 }
 
 func placementProtoFromValue(v kv.Value) (*placementpb.Placement, error) {

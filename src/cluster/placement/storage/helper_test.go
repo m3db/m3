@@ -69,6 +69,16 @@ func TestPlacementHelper(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, v)
 
+	_, err = helper.PlacementForVersion(0)
+	require.Error(t, err)
+
+	_, err = helper.PlacementForVersion(2)
+	require.Error(t, err)
+
+	h, err := helper.PlacementForVersion(1)
+	require.NoError(t, err)
+	require.Equal(t, p, h)
+
 	m, err := helper.GenerateProto(p)
 	require.NoError(t, err)
 
@@ -139,6 +149,16 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, v)
 
+	_, err = helper.PlacementForVersion(0)
+	require.Error(t, err)
+
+	_, err = helper.PlacementForVersion(2)
+	require.Error(t, err)
+
+	h, err := helper.PlacementForVersion(1)
+	require.NoError(t, err)
+	require.Equal(t, p, h)
+
 	_, err = helper.GenerateProto(p)
 	require.Error(t, err)
 
@@ -188,6 +208,17 @@ func TestPlacementSnapshotsHelper(t *testing.T) {
 	_, _, err = helper.Placement()
 	require.Error(t, err)
 	require.Equal(t, errNoPlacementInTheSnapshots, err)
+
+	_, err = helper.PlacementForVersion(2)
+	require.Error(t, err)
+	require.Equal(t, errNoPlacementInTheSnapshots, err)
+
+	_, err = store.Set(key, newProto)
+	require.NoError(t, err)
+
+	h, err = helper.PlacementForVersion(3)
+	require.NoError(t, err)
+	require.Equal(t, p.SetVersion(3), h)
 }
 
 func getProtoShards(ids []uint32) []*placementpb.Shard {

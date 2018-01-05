@@ -468,6 +468,26 @@ func (_mr *_MockPlacementRecorder) SetIsMirrored(arg0 interface{}) *gomock.Call 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIsMirrored", arg0)
 }
 
+func (_m *MockPlacement) MaxShardSetID() uint32 {
+	ret := _m.ctrl.Call(_m, "MaxShardSetID")
+	ret0, _ := ret[0].(uint32)
+	return ret0
+}
+
+func (_mr *_MockPlacementRecorder) MaxShardSetID() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MaxShardSetID")
+}
+
+func (_m *MockPlacement) SetMaxShardSetID(value uint32) Placement {
+	ret := _m.ctrl.Call(_m, "SetMaxShardSetID", value)
+	ret0, _ := ret[0].(Placement)
+	return ret0
+}
+
+func (_mr *_MockPlacementRecorder) SetMaxShardSetID(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetMaxShardSetID", arg0)
+}
+
 func (_m *MockPlacement) String() string {
 	ret := _m.ctrl.Call(_m, "String")
 	ret0, _ := ret[0].(string)
@@ -1345,6 +1365,17 @@ func (_mr *_MockStorageRecorder) Proto() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Proto")
 }
 
+func (_m *MockStorage) PlacementForVersion(version int) (Placement, error) {
+	ret := _m.ctrl.Call(_m, "PlacementForVersion", version)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockStorageRecorder) PlacementForVersion(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PlacementForVersion", arg0)
+}
+
 // Mock of Service interface
 type MockService struct {
 	ctrl     *gomock.Controller
@@ -1450,6 +1481,17 @@ func (_mr *_MockServiceRecorder) Proto() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Proto")
 }
 
+func (_m *MockService) PlacementForVersion(version int) (Placement, error) {
+	ret := _m.ctrl.Call(_m, "PlacementForVersion", version)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockServiceRecorder) PlacementForVersion(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "PlacementForVersion", arg0)
+}
+
 func (_m *MockService) BuildInitialPlacement(instances []Instance, numShards int, rf int) (Placement, error) {
 	ret := _m.ctrl.Call(_m, "BuildInitialPlacement", instances, numShards, rf)
 	ret0, _ := ret[0].(Placement)
@@ -1515,6 +1557,17 @@ func (_m *MockService) MarkShardAvailable(instanceID string, shardID uint32) err
 
 func (_mr *_MockServiceRecorder) MarkShardAvailable(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "MarkShardAvailable", arg0, arg1)
+}
+
+func (_m *MockService) MarkAllShardsAvailable() (Placement, error) {
+	ret := _m.ctrl.Call(_m, "MarkAllShardsAvailable")
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockServiceRecorder) MarkAllShardsAvailable() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MarkAllShardsAvailable")
 }
 
 func (_m *MockService) MarkInstanceAvailable(instanceID string) error {
@@ -1622,6 +1675,18 @@ func (_m *MockAlgorithm) MarkShardAvailable(p Placement, instanceID string, shar
 
 func (_mr *_MockAlgorithmRecorder) MarkShardAvailable(arg0, arg1, arg2 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "MarkShardAvailable", arg0, arg1, arg2)
+}
+
+func (_m *MockAlgorithm) MarkAllShardsAvailable(p Placement) (Placement, bool, error) {
+	ret := _m.ctrl.Call(_m, "MarkAllShardsAvailable", p)
+	ret0, _ := ret[0].(Placement)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockAlgorithmRecorder) MarkAllShardsAvailable(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MarkAllShardsAvailable", arg0)
 }
 
 // Mock of InstanceSelector interface

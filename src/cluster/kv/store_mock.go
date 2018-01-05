@@ -251,6 +251,26 @@ func (_mr *_MockOptionsRecorder) SetLogger(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetLogger", arg0)
 }
 
+func (_m *MockOptions) Zone() string {
+	ret := _m.ctrl.Call(_m, "Zone")
+	ret0, _ := ret[0].(string)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) Zone() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Zone")
+}
+
+func (_m *MockOptions) SetZone(value string) Options {
+	ret := _m.ctrl.Call(_m, "SetZone", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetZone(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetZone", arg0)
+}
+
 func (_m *MockOptions) Namespace() string {
 	ret := _m.ctrl.Call(_m, "Namespace")
 	ret0, _ := ret[0].(string)
