@@ -22,6 +22,7 @@ package etcd
 
 import (
 	"crypto/tls"
+	"time"
 
 	etcdsd "github.com/m3db/m3cluster/services/client/etcd"
 	"github.com/m3db/m3x/instrument"
@@ -54,7 +55,42 @@ type Options interface {
 	Validate() error
 }
 
-// TLSOptions defines the configuration for TLS.
+// KeepAliveOptions provide a set of client-side keepAlive options.
+type KeepAliveOptions interface {
+	// KeepAliveEnabled determines whether keepAlives are enabled.
+	KeepAliveEnabled() bool
+
+	// SetKeepAliveEnabled sets whether keepAlives are enabled.
+	SetKeepAliveEnabled(value bool) KeepAliveOptions
+
+	// KeepAlivePeriod is the duration of time after which if the client doesn't see
+	// any activity the client pings the server to see if transport is alive.
+	KeepAlivePeriod() time.Duration
+
+	// SetKeepAlivePeriod sets the duration of time after which if the client doesn't see
+	// any activity the client pings the server to see if transport is alive.
+	SetKeepAlivePeriod(value time.Duration) KeepAliveOptions
+
+	// KeepAlivePeriodMaxJitter is used to add some jittering to keep alive period
+	// to avoid a large number of clients all sending keepalive probes at the
+	// same time.
+	KeepAlivePeriodMaxJitter() time.Duration
+
+	// SetKeepAlivePeriodMaxJitter sets the maximum jittering to keep alive period
+	// to avoid a large number of clients all sending keepalive probes at the
+	// same time.
+	SetKeepAlivePeriodMaxJitter(value time.Duration) KeepAliveOptions
+
+	// KeepAliveTimeout is the time that the client waits for a response for the
+	// keep-alive probe. If the response is not received in this time, the connection is closed.
+	KeepAliveTimeout() time.Duration
+
+	// SetKeepAliveTimeout sets the time that the client waits for a response for the
+	// keep-alive probe. If the response is not received in this time, the connection is closed.
+	SetKeepAliveTimeout(value time.Duration) KeepAliveOptions
+}
+
+// TLSOptions defines the options for TLS.
 type TLSOptions interface {
 	CrtPath() string
 	SetCrtPath(string) TLSOptions
@@ -75,6 +111,9 @@ type Cluster interface {
 
 	Endpoints() []string
 	SetEndpoints(endpoints []string) Cluster
+
+	KeepAliveOptions() KeepAliveOptions
+	SetKeepAliveOptions(value KeepAliveOptions) Cluster
 
 	TLSOptions() TLSOptions
 	SetTLSOptions(TLSOptions) Cluster

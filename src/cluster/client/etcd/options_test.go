@@ -28,7 +28,21 @@ import (
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+func TestKeepAliveOptions(t *testing.T) {
+	opts := NewKeepAliveOptions().
+		SetKeepAliveEnabled(true).
+		SetKeepAlivePeriod(10 * time.Second).
+		SetKeepAlivePeriodMaxJitter(5 * time.Second).
+		SetKeepAliveTimeout(time.Second)
+
+	require.Equal(t, true, opts.KeepAliveEnabled())
+	require.Equal(t, 10*time.Second, opts.KeepAlivePeriod())
+	require.Equal(t, 5*time.Second, opts.KeepAlivePeriodMaxJitter())
+	require.Equal(t, time.Second, opts.KeepAliveTimeout())
+}
 
 func TestCluster(t *testing.T) {
 	c := NewCluster()

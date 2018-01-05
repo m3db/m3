@@ -1,5 +1,5 @@
-hash: c27c440c81f4b6b98930dfcd460482c78b707d2f680a2437af1edee497f81ee2
-updated: 2017-10-25T12:00:11.806233583-04:00
+hash: 1e617222eb01cf8535fcb696d3a350f08c872f8fb32139dbefc019a527b0e858
+updated: 2017-11-26T14:43:39.717517478-05:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -9,12 +9,12 @@ imports:
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
   subpackages:
   - quantile
-- name: github.com/boltdb/bolt
-  version: 583e8937c61f1af6513608ccc75c97b6abdf4ff9
 - name: github.com/cockroachdb/cmux
   version: 112f0506e7743d64a6eb8fedbcff13d9979bbf92
+- name: github.com/coreos/bbolt
+  version: 32c383e75ce054674c53b5a07e55de85332aee14
 - name: github.com/coreos/etcd
-  version: 8ba2897a21e4fc51b298ca553d251318425f93ae
+  version: 694728c496e22dfa5719c78ff23cc982e15bcb2f
   subpackages:
   - alarm
   - auth
@@ -22,18 +22,29 @@ imports:
   - client
   - clientv3
   - clientv3/concurrency
+  - clientv3/namespace
+  - clientv3/naming
   - compactor
   - discovery
   - embed
   - error
   - etcdserver
   - etcdserver/api
+  - etcdserver/api/etcdhttp
   - etcdserver/api/v2http
   - etcdserver/api/v2http/httptypes
+  - etcdserver/api/v3client
+  - etcdserver/api/v3election
+  - etcdserver/api/v3election/v3electionpb
+  - etcdserver/api/v3election/v3electionpb/gw
+  - etcdserver/api/v3lock
+  - etcdserver/api/v3lock/v3lockpb
+  - etcdserver/api/v3lock/v3lockpb/gw
   - etcdserver/api/v3rpc
   - etcdserver/api/v3rpc/rpctypes
   - etcdserver/auth
   - etcdserver/etcdserverpb
+  - etcdserver/etcdserverpb/gw
   - etcdserver/membership
   - etcdserver/stats
   - integration
@@ -46,7 +57,9 @@ imports:
   - pkg/adt
   - pkg/contention
   - pkg/cors
+  - pkg/cpuutil
   - pkg/crc
+  - pkg/debugutil
   - pkg/fileutil
   - pkg/httputil
   - pkg/idutil
@@ -58,12 +71,14 @@ imports:
   - pkg/pbutil
   - pkg/runtime
   - pkg/schedule
+  - pkg/srv
   - pkg/testutil
   - pkg/tlsutil
   - pkg/transport
   - pkg/types
   - pkg/wait
   - proxy/grpcproxy
+  - proxy/grpcproxy/adapter
   - proxy/grpcproxy/cache
   - raft
   - raft/raftpb
@@ -75,7 +90,7 @@ imports:
   - wal
   - wal/walpb
 - name: github.com/coreos/go-semver
-  version: 568e959cd89871e61434c1143528d9162da89ef2
+  version: 8ab6407b697782a06568d4b7f1db25550ec2e4c6
   subpackages:
   - semver
 - name: github.com/coreos/go-systemd
@@ -88,48 +103,57 @@ imports:
   version: 3ac0863d7acf3bc44daf49afef8919af12f704ef
   subpackages:
   - capnslog
+- name: github.com/dgrijalva/jwt-go
+  version: d2709f9f1f31ebcda9651b03077758c1f3a0018c
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/ghodss/yaml
-  version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
+  version: 0ca9ea5df5451ffdf184b4428c902747c2c11cd7
 - name: github.com/go-ole/go-ole
   version: de8695c8edbf8236f30d6e1376e20b198a028d42
   subpackages:
   - oleutil
 - name: github.com/gogo/protobuf
-  version: 909568be09de550ed094403c2bf8a261b5bb730a
+  version: 100ba4e885062801d56799d78530b73b178a78f3
   subpackages:
   - proto
+- name: github.com/golang/groupcache
+  version: 02826c3e79038b59d737d3b1c0a1d937f71a4433
+  subpackages:
+  - lru
 - name: github.com/golang/mock
   version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
   subpackages:
   - gomock
   - mockgen
 - name: github.com/golang/protobuf
-  version: 7390af9dcd3c33042ebaf2474a1724a83cf1a7e6
+  version: 5a0f697c9ed9d68fef0116532c6e05cfeae00e55
   subpackages:
   - jsonpb
   - proto
+  - protoc-gen-go/descriptor
+  - ptypes
+  - ptypes/any
+  - ptypes/duration
+  - ptypes/struct
+  - ptypes/timestamp
 - name: github.com/google/btree
   version: 925471ac9e2131377a91e1595defec898166fe49
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
-  version: 84398b94e188ee336f307779b57b3aa91af7063c
+  version: 8cc3a55af3bcf171a1c23a90c4df9cf591706104
   subpackages:
   - runtime
   - runtime/internal
   - utilities
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
-- name: github.com/karlseguin/ccache
-  version: a2d62155777b39595c825ed3824279e642a5db3c
 - name: github.com/m3db/m3x
   version: 515e3030818e6dab3fd418f05b96174ae4c527df
   subpackages:
   - clock
   - close
-  - config
   - errors
   - instrument
   - log
@@ -155,7 +179,9 @@ imports:
   - internal/bitbucket.org/ww/goautoneg
   - model
 - name: github.com/prometheus/procfs
-  version: 1878d9fbb537119d24b21ca07effd591627cd160
+  version: a1dba9ce8baed984a2495b658c82687f8157b98f
+  subpackages:
+  - xfs
 - name: github.com/shirou/gopsutil
   version: b62e301a8b9958eebb7299683eb57fab229a9501
   subpackages:
@@ -185,7 +211,7 @@ imports:
 - name: github.com/xiang90/probing
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: go.uber.org/atomic
-  version: 4e336646b2ef9fc6e47be8e21594178f98e5ebcf
+  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: golang.org/x/crypto
   version: 1351f936d976c60a0a48d728281922cf63eafb8d
   repo: https://github.com/golang/crypto
@@ -194,7 +220,7 @@ imports:
   - bcrypt
   - blowfish
 - name: golang.org/x/net
-  version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
+  version: ab5485076ff3407ad2d02db054635913f017b0ed
   repo: https://github.com/golang/net
   vcs: git
   subpackages:
@@ -209,25 +235,46 @@ imports:
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
   repo: https://github.com/golang/sys
   vcs: git
+  subpackages:
+  - unix
+- name: golang.org/x/text
+  version: 4ee4af566555f5fbe026368b75596286a312663a
+  subpackages:
+  - secure/bidirule
+  - transform
+  - unicode/bidi
+  - unicode/norm
 - name: golang.org/x/time
   version: a4bde12657593d5e90d0533a3e4fd95e635124cb
   repo: https://github.com/golang/time
   vcs: git
   subpackages:
   - rate
-- name: google.golang.org/grpc
-  version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
+- name: google.golang.org/genproto
+  version: 09f6ed296fc66555a25fe4ce95173148778dfa85
   subpackages:
+  - googleapis/api/annotations
+  - googleapis/rpc/status
+- name: google.golang.org/grpc
+  version: 401e0e00e4bb830a10496d64cd95e068c5bf50de
+  subpackages:
+  - balancer
   - codes
+  - connectivity
   - credentials
+  - grpclb/grpc_lb_v1/messages
   - grpclog
+  - health/grpc_health_v1
   - internal
+  - keepalive
   - metadata
   - naming
   - peer
+  - resolver
+  - stats
+  - status
+  - tap
   - transport
-- name: gopkg.in/validator.v2
-  version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
 - name: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImports:

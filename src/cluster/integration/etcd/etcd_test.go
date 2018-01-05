@@ -30,6 +30,8 @@ func TestEtcdServer(t *testing.T) {
 	opts := NewOptions()
 	kv, err := New(opts)
 	require.NoError(t, err)
+	// Must start the embedded server before closing.
+	require.NoError(t, kv.Start())
 	c, err := kv.ConfigServiceClient()
 	require.NoError(t, err)
 	_, err = c.KV()
