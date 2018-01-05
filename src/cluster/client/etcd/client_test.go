@@ -49,7 +49,7 @@ func TestETCDClientGen(t *testing.T) {
 	c2, err := c.etcdClientGen("zone2")
 	require.NoError(t, err)
 	require.Equal(t, 2, len(c.clis))
-	require.NotEqual(t, c1, c2)
+	require.False(t, c1 == c2)
 
 	_, err = c.etcdClientGen("zone3")
 	require.Error(t, err)
@@ -66,7 +66,7 @@ func TestETCDClientGen(t *testing.T) {
 	c1Again, err := c.etcdClientGen("zone1")
 	require.NoError(t, err)
 	require.Equal(t, 2, len(c.clis))
-	require.Equal(t, c1, c1Again)
+	require.True(t, c1 == c1Again)
 }
 
 func TestKVAndHeartbeatServiceSharingETCDClient(t *testing.T) {
@@ -323,7 +323,7 @@ func TestValidateNamespace(t *testing.T) {
 }
 
 func testOptions() Options {
-	return NewOptions().SetClusters([]Cluster{
+	clusters := []Cluster{
 		NewCluster().SetZone("zone1").SetEndpoints([]string{"i1"}),
 		NewCluster().SetZone("zone2").SetEndpoints([]string{"i2"}),
 		NewCluster().SetZone("zone3").SetEndpoints([]string{"i3"}).
@@ -332,7 +332,12 @@ func testOptions() Options {
 			SetTLSOptions(NewTLSOptions().SetCrtPath("foo.crt.pem").SetKeyPath("foo.key.pem")),
 		NewCluster().SetZone("zone5").SetEndpoints([]string{"i5"}).
 			SetTLSOptions(NewTLSOptions().SetCrtPath("foo.crt.pem").SetKeyPath("foo.key.pem").SetCACrtPath("foo_ca.pem")),
-	}).SetService("test_app").SetZone("zone1").SetEnv("env")
+	}
+	return NewOptions().
+		SetClusters(clusters).
+		SetService("test_app").
+		SetZone("zone1").
+		SetEnv("env")
 }
 
 func testNewETCDFn(t *testing.T) (newClientFn, func()) {

@@ -21,58 +21,84 @@
 package etcd
 
 import (
-	"io/ioutil"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/m3db/m3x/config"
-
 	"github.com/stretchr/testify/require"
+	yaml "gopkg.in/yaml.v2"
 )
 
-const testConfig = `
-    env: env1
-    zone: z1
-    service: service1
-    cacheDir: /tmp/cache.json
-    etcdClusters:
-        - zone: z1
-          endpoints:
-              - etcd1:2379
-              - etcd2:2379
-        - zone: z2
-          endpoints:
-              - etcd3:2379
-              - etcd4:2379
-          tls:
-            crtPath: foo.crt.pem
-            keyPath: foo.key.pem
-        - zone: z3
-          endpoints:
-              - etcd5:2379
-              - etcd6:2379
-          tls:
-            crtPath: foo.crt.pem
-            keyPath: foo.key.pem
-            caCrtPath: foo_ca.pem
-    m3sd:
-        initTimeout: 10s
+func TestKeepAliveConfig(t *testing.T) {
+	const cfgStr = `
+enabled: true
+period: 10s
+jitter: 5s
+timeout: 1s
 `
 
+	var cfg keepAliveConfig
+	require.NoError(t, yaml.Unmarshal([]byte(cfgStr), &cfg))
+
+	opts := cfg.NewOptions()
+	require.Equal(t, true, opts.KeepAliveEnabled())
+	require.Equal(t, 10*time.Second, opts.KeepAlivePeriod())
+	require.Equal(t, 5*time.Second, opts.KeepAlivePeriodMaxJitter())
+	require.Equal(t, time.Second, opts.KeepAliveTimeout())
+}
+
 func TestConfig(t *testing.T) {
-	fname := writeFile(t, testConfig)
-	defer os.Remove(fname)
+	const testConfig = `
+env: env1
+zone: z1
+service: service1
+cacheDir: /tmp/cache.json
+etcdClusters:
+  - zone: z1
+    endpoints:
+      - etcd1:2379
+      - etcd2:2379
+    keepAlive:
+      enabled: true
+      period: 10s
+      jitter: 5s
+      timeout: 1s
+  - zone: z2
+    endpoints:
+      - etcd3:2379
+      - etcd4:2379
+    tls:
+      crtPath: foo.crt.pem
+      keyPath: foo.key.pem
+  - zone: z3
+    endpoints:
+      - etcd5:2379
+      - etcd6:2379
+    tls:
+      crtPath: foo.crt.pem
+      keyPath: foo.key.pem
+      caCrtPath: foo_ca.pem
+m3sd:
+  initTimeout: 10s
+`
 
 	var cfg Configuration
-	config.LoadFile(&cfg, fname)
+	require.NoError(t, yaml.Unmarshal([]byte(testConfig), &cfg))
 
 	require.Equal(t, "env1", cfg.Env)
 	require.Equal(t, "z1", cfg.Zone)
 	require.Equal(t, "service1", cfg.Service)
 	require.Equal(t, "/tmp/cache.json", cfg.CacheDir)
 	require.Equal(t, []ClusterConfig{
-		ClusterConfig{Zone: "z1", Endpoints: []string{"etcd1:2379", "etcd2:2379"}},
+		ClusterConfig{
+			Zone:      "z1",
+			Endpoints: []string{"etcd1:2379", "etcd2:2379"},
+			KeepAlive: keepAliveConfig{
+				Enabled: true,
+				Period:  10 * time.Second,
+				Jitter:  5 * time.Second,
+				Timeout: time.Second,
+			},
+		},
 		ClusterConfig{
 			Zone:      "z2",
 			Endpoints: []string{"etcd3:2379", "etcd4:2379"},
@@ -92,17 +118,13 @@ func TestConfig(t *testing.T) {
 		},
 	}, cfg.ETCDClusters)
 	require.Equal(t, 10*time.Second, cfg.SDConfig.InitTimeout)
-}
 
-// nolint: unparam
-func writeFile(t *testing.T, contents string) string {
-	f, err := ioutil.TempFile("", "configtest")
-	require.NoError(t, err)
-
-	defer f.Close()
-
-	_, err = f.Write([]byte(contents))
-	require.NoError(t, err)
-
-	return f.Name()
+	opts := cfg.NewOptions()
+	cluster, exists := opts.ClusterForZone("z1")
+	require.True(t, exists)
+	keepAliveOpts := cluster.KeepAliveOptions()
+	require.Equal(t, true, keepAliveOpts.KeepAliveEnabled())
+	require.Equal(t, 10*time.Second, keepAliveOpts.KeepAlivePeriod())
+	require.Equal(t, 5*time.Second, keepAliveOpts.KeepAlivePeriodMaxJitter())
+	require.Equal(t, time.Second, keepAliveOpts.KeepAliveTimeout())
 }

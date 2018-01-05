@@ -23,10 +23,12 @@ package etcd
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3cluster/kv"
@@ -257,8 +259,23 @@ func newClient(cluster Cluster) (*clientv3.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+	cfg := clientv3.Config{
+		Endpoints: cluster.Endpoints(),
+		TLS:       tls,
+	}
 
-	return clientv3.New(clientv3.Config{Endpoints: cluster.Endpoints(), TLS: tls})
+	if opts := cluster.KeepAliveOptions(); opts.KeepAliveEnabled() {
+		keepAlivePeriod := opts.KeepAlivePeriod()
+		if maxJitter := opts.KeepAlivePeriodMaxJitter(); maxJitter > 0 {
+			rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+			jitter := rnd.Int63n(int64(maxJitter))
+			keepAlivePeriod += time.Duration(jitter)
+		}
+		cfg.DialKeepAliveTime = keepAlivePeriod
+		cfg.DialKeepAliveTimeout = opts.KeepAliveTimeout()
+	}
+
+	return clientv3.New(cfg)
 }
 
 func (c *csclient) cacheFileFn(extraFields ...string) cacheFileForZoneFn {

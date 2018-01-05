@@ -1,7 +1,9 @@
 package: github.com/m3db/m3cluster
 import:
+- package: google.golang.org/grpc
+  version: 1.7.3
 - package: github.com/coreos/etcd
-  version: 8ba2897a21e4fc51b298ca553d251318425f93ae #release-3.1
+  version: 3.2.10
   subpackages:
   - clientv3
   - integration
@@ -12,7 +14,7 @@ import:
   - gomock
   - mockgen
 - package: github.com/golang/protobuf
-  version: 7390af9dcd3c33042ebaf2474a1724a83cf1a7e6
+  version: 5a0f697c9ed9d68fef0116532c6e05cfeae00e55
   subpackages:
   - proto
 - package: github.com/m3db/m3x
@@ -40,7 +42,7 @@ import:
   repo: https://github.com/golang/crypto
   vcs: git
 - package: golang.org/x/net
-  version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
+  version: ab5485076ff3407ad2d02db054635913f017b0ed
   repo: https://github.com/golang/net
   vcs: git
 - package: golang.org/x/sys

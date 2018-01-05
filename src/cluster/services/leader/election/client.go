@@ -171,7 +171,13 @@ func (c *Client) Leader(ctx context.Context) (string, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	return c.election.Leader(ctx)
+	resp, err := c.election.Leader(ctx)
+	if err != nil {
+		return "", err
+	}
+	// NB(xichen): resp.Kv is guaranteed to have at least one value,
+	// otherwise the Leader() call will return ErrElectionNoLeader.
+	return string(resp.Kvs[0].Value), nil
 }
 
 // Close closes the client's underlying session and prevents any further

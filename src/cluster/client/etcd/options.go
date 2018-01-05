@@ -26,10 +26,71 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"time"
 
 	etcdsd "github.com/m3db/m3cluster/services/client/etcd"
 	"github.com/m3db/m3x/instrument"
 )
+
+const (
+	defaultKeepAliveEnabled         = false
+	defaultKeepAlivePeriod          = 30 * time.Minute
+	defaultKeepAlivePeriodMaxJitter = 0
+	defaultKeepAliveTimeout         = 20 * time.Second
+)
+
+type keepAliveOptions struct {
+	keepAliveEnabled         bool
+	keepAlivePeriod          time.Duration
+	keepAlivePeriodMaxJitter time.Duration
+	keepAliveTimeout         time.Duration
+}
+
+// NewKeepAliveOptions provide a set of keepAlive options.
+func NewKeepAliveOptions() KeepAliveOptions {
+	return &keepAliveOptions{
+		keepAliveEnabled:         defaultKeepAliveEnabled,
+		keepAlivePeriod:          defaultKeepAlivePeriod,
+		keepAlivePeriodMaxJitter: defaultKeepAlivePeriodMaxJitter,
+		keepAliveTimeout:         defaultKeepAliveTimeout,
+	}
+}
+
+func (o *keepAliveOptions) KeepAliveEnabled() bool { return o.keepAliveEnabled }
+
+func (o *keepAliveOptions) SetKeepAliveEnabled(value bool) KeepAliveOptions {
+	opts := *o
+	opts.keepAliveEnabled = value
+	return &opts
+}
+
+func (o *keepAliveOptions) KeepAlivePeriod() time.Duration { return o.keepAlivePeriod }
+
+func (o *keepAliveOptions) SetKeepAlivePeriod(value time.Duration) KeepAliveOptions {
+	opts := *o
+	opts.keepAlivePeriod = value
+	return &opts
+}
+
+func (o *keepAliveOptions) KeepAlivePeriodMaxJitter() time.Duration {
+	return o.keepAlivePeriodMaxJitter
+}
+
+func (o *keepAliveOptions) SetKeepAlivePeriodMaxJitter(value time.Duration) KeepAliveOptions {
+	opts := *o
+	opts.keepAlivePeriodMaxJitter = value
+	return &opts
+}
+
+func (o *keepAliveOptions) KeepAliveTimeout() time.Duration {
+	return o.keepAliveTimeout
+}
+
+func (o *keepAliveOptions) SetKeepAliveTimeout(value time.Duration) KeepAliveOptions {
+	opts := *o
+	opts.keepAliveTimeout = value
+	return &opts
+}
 
 // NewTLSOptions creates a set of TLS Options.
 func NewTLSOptions() TLSOptions {
@@ -95,7 +156,9 @@ func (o tlsOptions) Config() (*tls.Config, error) {
 
 // NewOptions creates a set of Options.
 func NewOptions() Options {
-	return options{iopts: instrument.NewOptions()}
+	return options{
+		iopts: instrument.NewOptions(),
+	}
 }
 
 type options struct {
@@ -201,13 +264,17 @@ func (o options) SetInstrumentOptions(iopts instrument.Options) Options {
 
 // NewCluster creates a Cluster.
 func NewCluster() Cluster {
-	return cluster{tlsOpts: NewTLSOptions()}
+	return cluster{
+		keepAliveOpts: NewKeepAliveOptions(),
+		tlsOpts:       NewTLSOptions(),
+	}
 }
 
 type cluster struct {
-	zone      string
-	endpoints []string
-	tlsOpts   TLSOptions
+	zone          string
+	endpoints     []string
+	keepAliveOpts KeepAliveOptions
+	tlsOpts       TLSOptions
 }
 
 func (c cluster) Zone() string {
@@ -225,6 +292,15 @@ func (c cluster) Endpoints() []string {
 
 func (c cluster) SetEndpoints(endpoints []string) Cluster {
 	c.endpoints = endpoints
+	return c
+}
+
+func (c cluster) KeepAliveOptions() KeepAliveOptions {
+	return c.keepAliveOpts
+}
+
+func (c cluster) SetKeepAliveOptions(value KeepAliveOptions) Cluster {
+	c.keepAliveOpts = value
 	return c
 }
 

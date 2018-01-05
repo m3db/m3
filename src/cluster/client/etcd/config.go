@@ -21,6 +21,8 @@
 package etcd
 
 import (
+	"time"
+
 	"github.com/m3db/m3cluster/client"
 	etcdsd "github.com/m3db/m3cluster/services/client/etcd"
 	"github.com/m3db/m3x/instrument"
@@ -28,9 +30,10 @@ import (
 
 // ClusterConfig is the config for a zoned etcd cluster.
 type ClusterConfig struct {
-	Zone      string     `yaml:"zone"`
-	Endpoints []string   `yaml:"endpoints"`
-	TLS       *TLSConfig `yaml:"tls"`
+	Zone      string          `yaml:"zone"`
+	Endpoints []string        `yaml:"endpoints"`
+	KeepAlive keepAliveConfig `yaml:"keepAlive"`
+	TLS       *TLSConfig      `yaml:"tls"`
 }
 
 // TLSConfig is the config for TLS.
@@ -50,6 +53,22 @@ func (c *TLSConfig) newOptions() TLSOptions {
 		SetCrtPath(c.CrtPath).
 		SetKeyPath(c.KeyPath).
 		SetCACrtPath(c.CACrtPath)
+}
+
+// keepAliveConfig configures keepAlive behavior.
+type keepAliveConfig struct {
+	Enabled bool          `yaml:"enabled"`
+	Period  time.Duration `yaml:"period"`
+	Jitter  time.Duration `yaml:"jitter"`
+	Timeout time.Duration `yaml:"timeout"`
+}
+
+func (c *keepAliveConfig) NewOptions() KeepAliveOptions {
+	return NewKeepAliveOptions().
+		SetKeepAliveEnabled(c.Enabled).
+		SetKeepAlivePeriod(c.Period).
+		SetKeepAlivePeriodMaxJitter(c.Jitter).
+		SetKeepAliveTimeout(c.Timeout)
 }
 
 // Configuration is for config service client.
@@ -84,6 +103,7 @@ func (cfg Configuration) etcdClusters() []Cluster {
 		res[i] = NewCluster().
 			SetZone(c.Zone).
 			SetEndpoints(c.Endpoints).
+			SetKeepAliveOptions(c.KeepAlive.NewOptions()).
 			SetTLSOptions(c.TLS.newOptions())
 	}
 
