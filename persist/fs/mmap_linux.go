@@ -80,15 +80,11 @@ func mmap(fd, offset, length int64, flags int, opts mmapOptions) (mmapResult, er
 	// Regardless, we don't want to fail hard in that scenario. Instead, we try
 	// and mmap without the hugeTLB flag.
 	if err != nil && shouldUseHugeTLB {
-		warning = err
+		// In case we succeed the second time, make sure we can propagate the previous
+		// error back to the caller as a warning
+		warning = fmt.Errorf(
+			"error while trying to mmap with hugeTLB flag: %s, hugeTLB disabled", err.Error())
 		b, err = syscall.Mmap(int(fd), offset, int(length), prot, flagsWithoutHugeTLB)
-		// If we succeeded the second time, then proceed but make sure the caller
-		// receives a warning that includes the error from when we tried to use the
-		// hugeTLB flag.
-		if err == nil {
-			warning = fmt.Errorf(
-				"error while trying to mmap with hugeTLB flag: %s, hugeTLB disabled", withTLBErr.Error())
-		}
 	}
 
 	if err != nil {
