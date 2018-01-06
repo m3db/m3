@@ -133,12 +133,12 @@ func (il *nearestIndexOffsetLookup) close() error {
 	return munmap(il.summariesMmap)
 }
 
-// readNearestIndexOffsetLookupFromSummaries creates an nearestIndexOffsetLookup
+// newNearestIndexOffsetLookupFromSummariesFile creates an nearestIndexOffsetLookup
 // from an index summaries file by reading the summaries file into an anonymous
 // mmap'd region, and also creating the slice of summaries offsets which is
 // required to binary search the data structure. It will also make sure that
 // the summaries file is sorted (which it always should be).
-func readNearestIndexOffsetLookupFromSummaries(
+func newNearestIndexOffsetLookupFromSummariesFile(
 	summariesFd *os.File,
 	summariesFdWithDigest digest.FdWithDigestReader,
 	expectedSummariesDigest uint32,

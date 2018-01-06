@@ -202,7 +202,7 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 
-	s.bloomFilter, err = readManagedConcurrentBloomFilter(
+	s.bloomFilter, err = newManagedConcurrentBloomFilterFromFile(
 		bloomFilterFd,
 		s.bloomFilterFdWithDigest,
 		s.expectedBloomFilterDigest,
@@ -214,7 +214,7 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 
-	s.indexLookup, err = readNearestIndexOffsetLookupFromSummaries(
+	s.indexLookup, err = newNearestIndexOffsetLookupFromSummariesFile(
 		summariesFd,
 		s.summariesFdWithDigest,
 		s.expectedSummariesDigest,

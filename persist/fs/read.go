@@ -332,7 +332,7 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 }
 
 func (r *reader) ReadBloomFilter() (*ManagedConcurrentBloomFilter, error) {
-	return readManagedConcurrentBloomFilter(
+	return newManagedConcurrentBloomFilterFromFile(
 		r.bloomFilterFd,
 		r.bloomFilterWithDigest,
 		r.expectedBloomFilterDigest,
