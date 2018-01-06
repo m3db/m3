@@ -116,12 +116,9 @@ func TestIndexLookupWriteRead(t *testing.T) {
 
 		// Make sure it returns the correct index offset for every ID
 		for id, expectedOffset := range expectedIndexFileOffsets {
-			foundOffset, ok, err := indexLookup.getNearestIndexFileOffset(ts.StringID(id))
+			foundOffset, err := indexLookup.getNearestIndexFileOffset(ts.StringID(id))
 			if err != nil {
 				return false, fmt.Errorf("Err locating index file offset for: %s, err: %v", id, err)
-			}
-			if !ok {
-				return false, fmt.Errorf("Unable to locate index file offset for: %s", id)
 			}
 			if expectedOffset != foundOffset {
 				return false, fmt.Errorf(

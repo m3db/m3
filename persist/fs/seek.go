@@ -377,14 +377,11 @@ func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
 }
 
 func (s *seeker) SeekIndexEntry(id ts.ID) (IndexEntry, error) {
-	offset, ok, err := s.indexLookup.getNearestIndexFileOffset(id)
+	offset, err := s.indexLookup.getNearestIndexFileOffset(id)
 	// Should never happen, either something is really wrong with the code or
 	// the file on disk was corrupted
 	if err != nil {
 		return IndexEntry{}, err
-	}
-	if !ok {
-		return IndexEntry{}, errSeekIDNotFound
 	}
 
 	stream := encoding.NewDecoderStream(s.indexMmap[offset:])

@@ -68,7 +68,7 @@ func newNearestIndexOffsetLookup(
 //               we scan the index file sequentially in a forward-moving manner)
 // In other words, the returned offset can always be used as a starting point to
 // begin scanning the index file for the desired series.
-func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(id ts.ID) (int64, bool, error) {
+func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(id ts.ID) (int64, error) {
 	idBytes := id.Data().Get()
 
 	min := 0
@@ -78,15 +78,17 @@ func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(id ts.ID) (int64, 
 	// the index file itself. Because of that, the binary search that we're
 	// performing is "optimistic". We're trying to find either an exact match,
 	// OR the nearest match that is to the left of the series we're searching
-	// for (so we keep track of it everytime we move right).
-	bestMatchSoFar := int64(-1)
+	// for (so we keep track of it everytime we move right). We start with an
+	// assumption that the best match so far is at index 0, because in the worst
+	// case scenario if we don't find a single "match", then the caller should
+	// start at index 0 and scan until they encounter an entry that tells them
+	// that the ID they're looking for does not exist (because the IDs in the
+	// index are sorted).
+	bestMatchSoFar := int64(0)
 
 	for {
 		if min > max {
-			if bestMatchSoFar == -1 {
-				return -1, false, nil
-			}
-			return bestMatchSoFar, true, nil
+			return bestMatchSoFar, nil
 		}
 
 		idx := (max + min) / 2
@@ -101,9 +103,9 @@ func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(id ts.ID) (int64, 
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted
 			if err != nil {
-				return -1, false, err
+				return -1, err
 			}
-			return indexOffset, true, nil
+			return indexOffset, nil
 		}
 
 		// idBytes is smaller than compBytes, go left
@@ -118,7 +120,7 @@ func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(id ts.ID) (int64, 
 			indexOffset, err := summaryBytesMetadata.IndexOffset(
 				il.summariesMmap, il.decoderStream, il.msgpackDecoder)
 			if err != nil {
-				return -1, false, nil
+				return -1, err
 			}
 			// update the bestMatchSoFar everytime we move right
 			bestMatchSoFar = indexOffset
