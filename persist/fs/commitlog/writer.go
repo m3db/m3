@@ -91,8 +91,8 @@ type writer struct {
 	buffer             *bufio.Writer
 	sizeBuffer         []byte
 	seen               *bitset.BitSet
-	logEncoder         msgpack.Encoder
-	metadataEncoder    msgpack.Encoder
+	logEncoder         *msgpack.Encoder
+	metadataEncoder    *msgpack.Encoder
 }
 
 func newCommitLogWriter(
