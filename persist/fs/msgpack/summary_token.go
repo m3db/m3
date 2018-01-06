@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE
 
-package encoding
+package msgpack
 
 import (
 	"gopkg.in/vmihailenco/msgpack.v2"

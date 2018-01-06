@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE
 
-package encoding
+package msgpack
 
 import (
 	"bytes"
@@ -64,6 +64,13 @@ type DecoderStream interface {
 	Offset() int
 }
 
+// DecoderStream is a data stream that is read by the decoder,
+// it takes both a reader and the underlying backing bytes.
+// This is constructed this way since the decoder needs access
+// to the backing bytes when taking refs directly for decoding byte
+// slices without allocating bytes itself but also needs to progress
+// the reader (for instance when a reader is a ReaderWithDigest that
+// is calculating a digest as its being read).
 type decoderStream struct {
 	reader *bytes.Reader
 	bytes  []byte
@@ -84,6 +91,7 @@ func NewDecoderStream(b []byte) DecoderStream {
 	}
 }
 
+// Reset resets the decoder stream for decoding a new byte slice.
 func (s *decoderStream) Reset(b []byte) {
 	s.reader.Reset(b)
 	s.bytes = b
@@ -92,6 +100,7 @@ func (s *decoderStream) Reset(b []byte) {
 	s.bytesLen = len(b)
 }
 
+// Read reads the next n bytes into p
 func (s *decoderStream) Read(p []byte) (int, error) {
 	if len(p) == 0 {
 		return 0, nil
@@ -117,6 +126,7 @@ func (s *decoderStream) Read(p []byte) (int, error) {
 	return n, err
 }
 
+// ReadByte reads the next byte.
 func (s *decoderStream) ReadByte() (byte, error) {
 	if s.unreadByte >= 0 {
 		r := byte(s.unreadByte)
@@ -130,6 +140,9 @@ func (s *decoderStream) ReadByte() (byte, error) {
 	return b, err
 }
 
+// UnreadByte unreads the last read byte or returns error if none read
+// yet. Only a single byte can be unread at a time, a consecutive call
+// to UnreadByte will result in an error.
 func (s *decoderStream) UnreadByte() error {
 	if s.lastReadByte < 0 {
 		return fmt.Errorf("no previous read byte or already unread byte")
@@ -139,10 +152,16 @@ func (s *decoderStream) UnreadByte() error {
 	return nil
 }
 
+// Bytes returns the ref to the bytes provided when Reset(...) is
+// called. To get the current position into the byte slice use:
+// len(s.Bytes()) - s.Remaining()
 func (s *decoderStream) Bytes() []byte {
 	return s.bytes
 }
 
+// Skip progresses the reader by a certain amount of bytes, useful
+// when taking a ref to some of the bytes and progressing the reader
+// itself.
 func (s *decoderStream) Skip(length int64) error {
 	defer func() {
 		if length > 0 {
@@ -154,6 +173,7 @@ func (s *decoderStream) Skip(length int64) error {
 	return err
 }
 
+// Remaining returns the remaining bytes in the stream.
 func (s *decoderStream) Remaining() int64 {
 	var unreadBytes int64
 	if s.unreadByte != -1 {
@@ -162,6 +182,7 @@ func (s *decoderStream) Remaining() int64 {
 	return int64(s.reader.Len()) + unreadBytes
 }
 
+// Offset returns the current offset in the byte stream
 func (s *decoderStream) Offset() int {
 	return s.bytesLen - int(s.Remaining())
 }

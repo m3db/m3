@@ -29,8 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/persist/encoding"
-	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
@@ -80,7 +79,7 @@ type seeker struct {
 	unreadBuf []byte
 	prologue  []byte
 
-	decoder   encoding.Decoder
+	decoder   *msgpack.Decoder
 	bytesPool pool.CheckedBytesPool
 
 	// Bloom filter associated with the shard / block the seeker is responsible
@@ -287,7 +286,7 @@ func (s *seeker) readInfo(size int) error {
 		return err
 	}
 
-	s.decoder.Reset(encoding.NewDecoderStream(s.unreadBuf[:n]))
+	s.decoder.Reset(msgpack.NewDecoderStream(s.unreadBuf[:n]))
 	info, err := s.decoder.DecodeIndexInfo()
 	if err != nil {
 		return err
@@ -384,7 +383,7 @@ func (s *seeker) SeekIndexEntry(id ts.ID) (IndexEntry, error) {
 		return IndexEntry{}, err
 	}
 
-	stream := encoding.NewDecoderStream(s.indexMmap[offset:])
+	stream := msgpack.NewDecoderStream(s.indexMmap[offset:])
 	s.decoder.Reset(stream)
 
 	// Prevent panic's when we're scanning to the end of the buffer

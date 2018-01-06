@@ -30,9 +30,8 @@ import (
 	"github.com/m3db/bitset"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/persist/encoding"
-	"github.com/m3db/m3db/persist/encoding/msgpack"
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
@@ -92,8 +91,8 @@ type writer struct {
 	buffer             *bufio.Writer
 	sizeBuffer         []byte
 	seen               *bitset.BitSet
-	logEncoder         encoding.Encoder
-	metadataEncoder    encoding.Encoder
+	logEncoder         msgpack.Encoder
+	metadataEncoder    msgpack.Encoder
 }
 
 func newCommitLogWriter(

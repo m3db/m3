@@ -30,8 +30,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3db/persist/encoding"
-	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
@@ -112,8 +111,8 @@ type reader struct {
 	bytesPool            pool.CheckedBytesPool
 	chunkReader          *chunkReader
 	dataBuffer           []byte
-	infoDecoder          encoding.Decoder
-	infoDecoderStream    encoding.DecoderStream
+	infoDecoder          *msgpack.Decoder
+	infoDecoderStream    DecoderStream
 	decoderBufs          []chan decoderArg
 	outBufs              []chan readResponse
 	cancelCtx            context.Context

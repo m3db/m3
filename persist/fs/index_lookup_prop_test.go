@@ -32,8 +32,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/persist/encoding"
-	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/ts"
 
 	"github.com/m3db/m3x/checked"
@@ -220,7 +219,7 @@ func readIndexFileOffsets(shardDirPath string, numEntries int, start time.Time) 
 		return nil, fmt.Errorf("err reading index file: %v, ", err)
 	}
 
-	decoderStream := encoding.NewDecoderStream(buf)
+	decoderStream := msgpack.NewDecoderStream(buf)
 	decoder := msgpack.NewDecoder(NewOptions().DecodingOptions())
 	decoder.Reset(decoderStream)
 

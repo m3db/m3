@@ -29,8 +29,7 @@ import (
 
 	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/persist/encoding"
-	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
@@ -58,7 +57,7 @@ type writer struct {
 	start      time.Time
 	currIdx    int64
 	currOffset int64
-	encoder    encoding.Encoder
+	encoder    *msgpack.Encoder
 	digestBuf  digest.Buffer
 	idxData    []byte
 	err        error

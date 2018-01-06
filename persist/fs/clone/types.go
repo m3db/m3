@@ -4,7 +4,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/msgpack"
 	"github.com/m3db/m3x/pool"
 )
 

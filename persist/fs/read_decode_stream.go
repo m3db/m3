@@ -26,11 +26,11 @@ import (
 	"io"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/persist/encoding"
+	"github.com/m3db/m3db/persist/fs/msgpack"
 )
 
 type filesetReaderDecoderStream interface {
-	encoding.DecoderStream
+	msgpack.DecoderStream
 
 	// reader returns the underlying reader with access to the
 	// incremental computed digest

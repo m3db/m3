@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/schema"
 
 	"github.com/stretchr/testify/require"
@@ -82,11 +81,11 @@ var (
 	}
 )
 
-func testEncoder(t *testing.T) encoding.Encoder {
+func testEncoder(t *testing.T) *Encoder {
 	return NewEncoder()
 }
 
-func testDecoder(t *testing.T, opts DecodingOptions) encoding.Decoder {
+func testDecoder(t *testing.T, opts DecodingOptions) *Decoder {
 	return NewDecoder(opts)
 }
 
@@ -96,7 +95,7 @@ func TestIndexInfoRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeIndexInfo(testIndexInfo))
-	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexInfo()
 	require.NoError(t, err)
 	require.Equal(t, testIndexInfo, res)
@@ -108,7 +107,7 @@ func TestIndexEntryRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeIndexEntry(testIndexEntry))
-	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeIndexEntry()
 	require.NoError(t, err)
 	require.Equal(t, testIndexEntry, res)
@@ -120,7 +119,7 @@ func TestIndexSummaryRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeIndexSummary(testIndexSummary))
-	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewDecoderStream(enc.Bytes()))
 	res, _, err := dec.DecodeIndexSummary()
 	require.NoError(t, err)
 	require.Equal(t, testIndexSummary, res)
@@ -132,7 +131,7 @@ func TestLogInfoRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeLogInfo(testLogInfo))
-	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeLogInfo()
 	require.NoError(t, err)
 	require.Equal(t, testLogInfo, res)
@@ -144,7 +143,7 @@ func TestLogEntryRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeLogEntry(testLogEntry))
-	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeLogEntry()
 	require.NoError(t, err)
 	require.Equal(t, testLogEntry, res)
@@ -156,7 +155,7 @@ func TestLogMetadataRoundtrip(t *testing.T) {
 		dec = testDecoder(t, nil)
 	)
 	require.NoError(t, enc.EncodeLogMetadata(testLogMetadata))
-	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeLogMetadata()
 	require.NoError(t, err)
 	require.Equal(t, testLogMetadata, res)
@@ -192,7 +191,7 @@ func TestMultiTypeRoundtripStress(t *testing.T) {
 		}
 	}
 
-	dec.Reset(encoding.NewDecoderStream(enc.Bytes()))
+	dec.Reset(NewDecoderStream(enc.Bytes()))
 	for i := 0; i < iter; i++ {
 		switch i % 5 {
 		case 0:

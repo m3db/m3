@@ -26,29 +26,29 @@ import (
 	"os"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/ts"
 
+	xmsgpack "github.com/m3db/m3db/persist/fs/msgpack"
 	"gopkg.in/vmihailenco/msgpack.v2"
 )
 
 // nearestIndexOffsetLookup provides a way of quickly determining the nearest offset of an
 // ID in the index file. It is not safe for concurrent use
 type nearestIndexOffsetLookup struct {
-	summaryIDsOffsets []encoding.IndexSummaryToken
+	summaryIDsOffsets []xmsgpack.IndexSummaryToken
 	// bytes from file mmap'd into anonymous region
 	summariesMmap []byte
 	// reusable decoder stream
-	decoderStream  encoding.DecoderStream
-	decoder        encoding.Decoder
+	decoderStream  xmsgpack.DecoderStream
+	decoder        *xmsgpack.Decoder
 	msgpackDecoder *msgpack.Decoder
 }
 
 func newNearestIndexOffsetLookup(
-	summaryIDsOffsets []encoding.IndexSummaryToken,
+	summaryIDsOffsets []xmsgpack.IndexSummaryToken,
 	summariesMmap []byte,
-	decoder encoding.Decoder,
-	decoderStream encoding.DecoderStream,
+	decoder *xmsgpack.Decoder,
+	decoderStream xmsgpack.DecoderStream,
 ) *nearestIndexOffsetLookup {
 	return &nearestIndexOffsetLookup{
 		summaryIDsOffsets: summaryIDsOffsets,
@@ -142,7 +142,7 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 	summariesFd *os.File,
 	summariesFdWithDigest digest.FdWithDigestReader,
 	expectedSummariesDigest uint32,
-	decoder encoding.Decoder,
+	decoder *xmsgpack.Decoder,
 	numEntries int,
 ) (*nearestIndexOffsetLookup, error) {
 	summariesFdWithDigest.Reset(summariesFd)
@@ -172,8 +172,8 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 	// Msgpack decode the entire summaries file (we need to store the offsets
 	// for the entries so we can binary-search it)
 	var (
-		decoderStream    = encoding.NewDecoderStream(summariesMmap)
-		summariesOffsets = make([]encoding.IndexSummaryToken, 0, numEntries)
+		decoderStream    = xmsgpack.NewDecoderStream(summariesMmap)
+		summariesOffsets = make([]xmsgpack.IndexSummaryToken, 0, numEntries)
 		lastReadID       []byte
 	)
 	decoder.Reset(decoderStream)

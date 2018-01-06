@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"

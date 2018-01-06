@@ -36,8 +36,8 @@ var (
 	errTestArrayLen = errors.New("test array len error")
 )
 
-func testCapturingEncoder(t *testing.T) (*encoder, *[]interface{}) {
-	encoder := testEncoder(t).(*encoder)
+func testCapturingEncoder(t *testing.T) (*Encoder, *[]interface{}) {
+	encoder := testEncoder(t)
 
 	var result []interface{}
 	encoder.encodeVarintFn = func(value int64) {
