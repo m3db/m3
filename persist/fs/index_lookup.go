@@ -37,7 +37,7 @@ import (
 type nearestIndexOffsetLookup struct {
 	summaryIDsOffsets []encoding.IndexSummaryToken
 	// bytes from file mmap'd into anonymous region
-	summariesBytes []byte
+	summariesMmap []byte
 	// reusable decoder stream
 	decoderStream  encoding.DecoderStream
 	decoder        encoding.Decoder
@@ -46,13 +46,13 @@ type nearestIndexOffsetLookup struct {
 
 func newNearestIndexOffsetLookup(
 	summaryIDsOffsets []encoding.IndexSummaryToken,
-	summariesBytes []byte,
+	summariesMmap []byte,
 	decoder encoding.Decoder,
 	decoderStream encoding.DecoderStream,
 ) *nearestIndexOffsetLookup {
 	return &nearestIndexOffsetLookup{
 		summaryIDsOffsets: summaryIDsOffsets,
-		summariesBytes:    summariesBytes,
+		summariesMmap:     summariesMmap,
 		decoderStream:     decoderStream,
 		decoder:           decoder,
 		msgpackDecoder:    msgpack.NewDecoder(nil),
@@ -91,13 +91,13 @@ func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(id ts.ID) (int64, 
 
 		idx := (max + min) / 2
 		summaryBytesMetadata := il.summaryIDsOffsets[idx]
-		compBytes := summaryBytesMetadata.ID(il.summariesBytes)
+		compBytes := summaryBytesMetadata.ID(il.summariesMmap)
 		comparison := bytes.Compare(idBytes, compBytes)
 
 		// Found it
 		if comparison == 0 {
 			indexOffset, err := summaryBytesMetadata.IndexOffset(
-				il.summariesBytes, il.decoderStream, il.msgpackDecoder)
+				il.summariesMmap, il.decoderStream, il.msgpackDecoder)
 			// Should never happen, either something is really wrong with the code or
 			// the file on disk was corrupted
 			if err != nil {
@@ -116,7 +116,7 @@ func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(id ts.ID) (int64, 
 		if comparison == 1 {
 			min = idx + 1
 			indexOffset, err := summaryBytesMetadata.IndexOffset(
-				il.summariesBytes, il.decoderStream, il.msgpackDecoder)
+				il.summariesMmap, il.decoderStream, il.msgpackDecoder)
 			if err != nil {
 				return -1, false, nil
 			}
@@ -128,7 +128,7 @@ func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(id ts.ID) (int64, 
 }
 
 func (il *nearestIndexOffsetLookup) close() error {
-	return munmap(il.summariesBytes)
+	return munmap(il.summariesMmap)
 }
 
 // readNearestIndexOffsetLookupFromSummaries creates an nearestIndexOffsetLookup
@@ -154,23 +154,23 @@ func readNearestIndexOffsetLookupFromSummaries(
 	// to use the mmap'd region to store the read-only summaries data, but the mmap
 	// region itself needs to be writable so we can copy the bytes from disk
 	// into it
-	anonMmap, err := mmapBytes(numBytes, mmapOptions{read: true, write: true})
+	summariesMmap, err := mmapBytes(numBytes, mmapOptions{read: true, write: true})
 	if err != nil {
 		return nil, err
 	}
 
 	// Validate the bytes on disk using the digest, and read them into
 	// the mmap'd region
-	_, err = summariesFdWithDigest.ReadAllAndValidate(anonMmap, expectedSummariesDigest)
+	_, err = summariesFdWithDigest.ReadAllAndValidate(summariesMmap, expectedSummariesDigest)
 	if err != nil {
-		munmap(anonMmap)
+		munmap(summariesMmap)
 		return nil, err
 	}
 
 	// Msgpack decode the entire summaries file (we need to store the offsets
 	// for the entries so we can binary-search it)
 	var (
-		decoderStream    = encoding.NewDecoderStream(anonMmap)
+		decoderStream    = encoding.NewDecoderStream(summariesMmap)
 		summariesOffsets = make([]encoding.IndexSummaryToken, 0, numEntries)
 		lastReadID       []byte
 	)
@@ -180,18 +180,18 @@ func readNearestIndexOffsetLookupFromSummaries(
 		// We ignore the entry itself because we don't need any information from it
 		entry, entryMetadata, err := decoder.DecodeIndexSummary()
 		if err != nil {
-			munmap(anonMmap)
+			munmap(summariesMmap)
 			return nil, err
 		}
 
 		// Make sure that all the IDs are sorted as we iterate, and return an error
 		// if they're not. This should never happen as files should be sorted on disk.
 		if lastReadID != nil && bytes.Compare(lastReadID, entry.ID) != -1 {
-			munmap(anonMmap)
+			munmap(summariesMmap)
 			return nil, fmt.Errorf("summaries file is not sorted: %s", summariesFd.Name())
 		}
 		summariesOffsets = append(summariesOffsets, entryMetadata)
 	}
 
-	return newNearestIndexOffsetLookup(summariesOffsets, anonMmap, decoder, decoderStream), nil
+	return newNearestIndexOffsetLookup(summariesOffsets, summariesMmap, decoder, decoderStream), nil
 }
