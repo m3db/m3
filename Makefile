@@ -177,12 +177,8 @@ test-ci-unit: test-internal
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "Coveralls failed"
 
 .PHONY: test-ci-integration
-test-ci-integration-mem-policy-all:
-	INTEGRATION_TIMEOUT=2m TEST_NATIVE_POOLING=false MEMORY_STORAGE_POLICY=all $(test_ci_integration)
-
-.PHONY: test-ci-integration
-test-ci-integration-mem-policy-default:
-	INTEGRATION_TIMEOUT=2m TEST_NATIVE_POOLING=false MEMORY_STORAGE_POLICY=default $(test_ci_integration)
+test-ci-integration:
+	INTEGRATION_TIMEOUT=2m TEST_NATIVE_POOLING=false $(test_ci_integration)
 
 # run as: make test-one-integration test=<test_name>
 .PHONY: test-one-integration

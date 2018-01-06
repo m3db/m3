@@ -44,7 +44,6 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
-	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/cluster"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
@@ -107,38 +106,6 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	if opts == nil {
 		opts = newTestOptions(t)
 	}
-
-	// Set up file path prefix
-	idx := atomic.AddUint64(&created, 1) - 1
-	filePathPrefix, err := ioutil.TempDir("", fmt.Sprintf("integration-test-%d", idx))
-	if err != nil {
-		return nil, err
-	}
-
-	if fsOpts == nil {
-		fsOpts = fs.NewOptions().
-			SetFilePathPrefix(filePathPrefix)
-	}
-
-	memStoragePolicy := strings.ToLower(os.Getenv("MEMORY_STORAGE_POLICY"))
-	switch memStoragePolicy {
-	case "all":
-	case "":
-	case "default":
-		blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
-			func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
-				retrieverOpts := fs.NewBlockRetrieverOptions()
-				retriever := fs.NewBlockRetriever(retrieverOpts, fsOpts)
-				if err := retriever.Open(md); err != nil {
-					return nil, err
-				}
-				return retriever, nil
-			})
-		opts = opts.SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
-	default:
-		return nil, fmt.Errorf("invalid memory storage policy: %s", memStoragePolicy)
-	}
-
 	nsInit := opts.NamespaceInitializer()
 	if nsInit == nil {
 		nsInit = namespace.NewStaticInitializer(opts.Namespaces())
@@ -240,6 +207,18 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 		lock.Unlock()
 	}
 	storageOpts = storageOpts.SetClockOptions(storageOpts.ClockOptions().SetNowFn(getNowFn))
+
+	// Set up file path prefix
+	idx := atomic.AddUint64(&created, 1) - 1
+	filePathPrefix, err := ioutil.TempDir("", fmt.Sprintf("integration-test-%d", idx))
+	if err != nil {
+		return nil, err
+	}
+
+	if fsOpts == nil {
+		fsOpts = fs.NewOptions().
+			SetFilePathPrefix(filePathPrefix)
+	}
 
 	storageOpts = storageOpts.SetCommitLogOptions(
 		storageOpts.CommitLogOptions().
