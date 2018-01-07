@@ -40,6 +40,7 @@ var (
 	emptyLogMetadata          schema.LogMetadata
 )
 
+// Decoder decodes persisted msgpack-encoded data
 type Decoder struct {
 	allocDecodedBytes bool
 	reader            DecoderStream
@@ -60,12 +61,14 @@ func NewDecoder(opts DecodingOptions) *Decoder {
 	}
 }
 
+// Reset resets the data stream to decode from
 func (dec *Decoder) Reset(stream DecoderStream) {
 	dec.reader = stream
 	dec.dec.Reset(dec.reader)
 	dec.err = nil
 }
 
+// DecodeIndexInfo decodes the index info
 func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 	if dec.err != nil {
 		return emptyIndexInfo, dec.err
@@ -79,6 +82,7 @@ func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 	return indexInfo, nil
 }
 
+// DecodeIndexEntry decodes index entry
 func (dec *Decoder) DecodeIndexEntry() (schema.IndexEntry, error) {
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
@@ -92,6 +96,7 @@ func (dec *Decoder) DecodeIndexEntry() (schema.IndexEntry, error) {
 	return indexEntry, nil
 }
 
+// DecodeIndexSummary decodes index summary
 func (dec *Decoder) DecodeIndexSummary() (
 	schema.IndexSummary, IndexSummaryToken, error) {
 	if dec.err != nil {
@@ -106,6 +111,7 @@ func (dec *Decoder) DecodeIndexSummary() (
 	return indexSummary, indexSummaryMetadata, nil
 }
 
+// DecodeLogInfo decodes commit log info
 func (dec *Decoder) DecodeLogInfo() (schema.LogInfo, error) {
 	if dec.err != nil {
 		return emptyLogInfo, dec.err
@@ -119,6 +125,7 @@ func (dec *Decoder) DecodeLogInfo() (schema.LogInfo, error) {
 	return logInfo, nil
 }
 
+// DecodeLogEntry decodes commit log entry
 func (dec *Decoder) DecodeLogEntry() (schema.LogEntry, error) {
 	if dec.err != nil {
 		return emptyLogEntry, dec.err
@@ -132,6 +139,7 @@ func (dec *Decoder) DecodeLogEntry() (schema.LogEntry, error) {
 	return logEntry, nil
 }
 
+// DecodeLogMetadata decodes commit log metadata
 func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 	if dec.err != nil {
 		return emptyLogMetadata, dec.err

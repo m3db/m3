@@ -36,6 +36,7 @@ type encodeFloat64Fn func(value float64)
 type encodeBytesFn func(value []byte)
 type encodeArrayLenFn func(value int)
 
+// Encoder encodes data in msgpack format for persistence
 type Encoder struct {
 	buf *bytes.Buffer
 	enc *msgpack.Encoder
@@ -69,13 +70,16 @@ func NewEncoder() *Encoder {
 	return enc
 }
 
+// Reset resets the buffer
 func (enc *Encoder) Reset() {
 	enc.buf.Truncate(0)
 	enc.err = nil
 }
 
+// Bytes returns the encoded bytes
 func (enc *Encoder) Bytes() []byte { return enc.buf.Bytes() }
 
+// EncodeIndexInfo encodes index info
 func (enc *Encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 	if enc.err != nil {
 		return enc.err
@@ -85,6 +89,7 @@ func (enc *Encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 	return enc.err
 }
 
+// EncodeIndexEntry encodes index entry
 func (enc *Encoder) EncodeIndexEntry(entry schema.IndexEntry) error {
 	if enc.err != nil {
 		return enc.err
@@ -94,6 +99,7 @@ func (enc *Encoder) EncodeIndexEntry(entry schema.IndexEntry) error {
 	return enc.err
 }
 
+// EncodeIndexSummary encodes index summary
 func (enc *Encoder) EncodeIndexSummary(summary schema.IndexSummary) error {
 	if enc.err != nil {
 		return enc.err
@@ -103,6 +109,7 @@ func (enc *Encoder) EncodeIndexSummary(summary schema.IndexSummary) error {
 	return enc.err
 }
 
+// EncodeLogInfo encodes commit log info
 func (enc *Encoder) EncodeLogInfo(info schema.LogInfo) error {
 	if enc.err != nil {
 		return enc.err
@@ -112,6 +119,7 @@ func (enc *Encoder) EncodeLogInfo(info schema.LogInfo) error {
 	return enc.err
 }
 
+// EncodeLogEntry encodes commit log entry
 func (enc *Encoder) EncodeLogEntry(entry schema.LogEntry) error {
 	if enc.err != nil {
 		return enc.err
@@ -121,6 +129,7 @@ func (enc *Encoder) EncodeLogEntry(entry schema.LogEntry) error {
 	return enc.err
 }
 
+// EncodeLogMetadata encodes commit log metadata
 func (enc *Encoder) EncodeLogMetadata(entry schema.LogMetadata) error {
 	if enc.err != nil {
 		return enc.err
