@@ -180,8 +180,8 @@ func Run(runOpts RunOptions) {
 		SetDataReaderBufferSize(cfg.Filesystem.DataReadBufferSize).
 		SetInfoReaderBufferSize(cfg.Filesystem.InfoReadBufferSize).
 		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSize).
-		SetMmapEnableHugePages(mmap.HugePages.Enabled).
-		SetMmapHugePagesThreshold(mmap.HugePages.Threshold).
+		SetMmapEnableHugeTLB(mmap.HugeTLB.Enabled).
+		SetMmapHugeTLBThreshold(mmap.HugeTLB.Threshold).
 		SetRuntimeOptionsManager(runtimeOptsMgr)
 
 	var commitLogQueueSize int

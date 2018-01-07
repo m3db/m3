@@ -16,5 +16,5 @@ env:
   matrix:
     - MAKE_TARGET="test-ci-unit"
     - MAKE_TARGET="test-ci-integration"
-    - MAKE_TARGET="lint metalint services tools"
+    - MAKE_TARGET="metalint services tools"
 script: "make $MAKE_TARGET"
