@@ -238,14 +238,14 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		s.Close()
 		return err
 	}
-	indexMmap, err := mmapFile(indexFd, mmapOptions{read: true})
+	indexMmapResult, err := mmapFile(indexFd, mmapOptions{read: true})
 	if err != nil {
 		s.Close()
 		return err
 	}
 
 	s.dataFd = dataFd
-	s.indexMmap = indexMmap
+	s.indexMmap = indexMmapResult.result
 
 	return err
 }

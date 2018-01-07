@@ -156,10 +156,11 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 	// to use the mmap'd region to store the read-only summaries data, but the mmap
 	// region itself needs to be writable so we can copy the bytes from disk
 	// into it
-	summariesMmap, err := mmapBytes(numBytes, mmapOptions{read: true, write: true})
+	mmapResult, err := mmapBytes(numBytes, mmapOptions{read: true, write: true})
 	if err != nil {
 		return nil, err
 	}
+	summariesMmap := mmapResult.result
 
 	// Validate the bytes on disk using the digest, and read them into
 	// the mmap'd region
