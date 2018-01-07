@@ -217,6 +217,9 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 	enqueueWg.Wait()
 }
 
+// TestBlockRetrieverIDDoesNotExist verifies the behavior of the Stream() method
+// on the retriever in the case where the requested ID does not exist. In that
+// case, Stream() should return an empty segment.
 func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	// Make sure reader/writer are looking at the same test directory
 	dir, err := ioutil.TempDir("", "testdb")
@@ -248,6 +251,11 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	closer()
 
 	// Make sure we return the correct error if the ID does not exist
-	_, err = retriever.Stream(shard, ts.StringID("not-exists"), blockStart, nil)
-	assert.Equal(t, errSeekIDNotFound, err)
+	segmentReader, err := retriever.Stream(shard, ts.StringID("not-exists"), blockStart, nil)
+	assert.NoError(t, err)
+
+	segment, err := segmentReader.Segment()
+	assert.NoError(t, err)
+	assert.Equal(t, nil, segment.Head)
+	assert.Equal(t, nil, segment.Tail)
 }

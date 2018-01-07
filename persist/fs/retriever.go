@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 )
 
@@ -265,16 +266,28 @@ func (r *blockRetriever) fetchBatch(
 			req.onError(err)
 			continue
 		}
+
+		if err == errSeekIDNotFound {
+			req.doesNotExist = true
+		}
 		req.indexEntry = entry
 	}
 	sort.Sort(retrieveRequestByOffsetAsc(reqs))
 
 	// Seek and execute all requests
 	for _, req := range reqs {
-		data, err := seeker.SeekByIndexEntry(req.indexEntry)
-		if err != nil && err != errSeekIDNotFound {
-			req.onError(err)
-			continue
+		var data checked.Bytes
+		var err error
+		// If the ID does not exist, don't try to seek to it or we'll get a checksum
+		// mismatch error because default offset value for indexEntry is zero.
+		if req.doesNotExist {
+			data, err = nil, nil
+		} else {
+			data, err = seeker.SeekByIndexEntry(req.indexEntry)
+			if err != nil && err != errSeekIDNotFound {
+				req.onError(err)
+				continue
+			}
 		}
 
 		var seg ts.Segment
@@ -308,6 +321,13 @@ func (r *blockRetriever) Stream(
 	startTime time.Time,
 	onRetrieve block.OnRetrieveBlock,
 ) (xio.SegmentReader, error) {
+	req := r.reqPool.Get()
+	req.shard = shard
+	req.id = id
+	req.start = startTime
+	req.onRetrieve = onRetrieve
+	req.resultWg.Add(1)
+
 	// This should never happen
 	if len(r.seekerMgrs) < 1 {
 		return nil, errNoSeekerMgrs
@@ -322,20 +342,17 @@ func (r *blockRetriever) Stream(
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately
 	if !seeker.ConcurrentIDBloomFilter().Test(id.Data().Get()) {
-		return nil, errSeekIDNotFound
+		if req.onRetrieve != nil {
+			go req.onRetrieve.OnRetrieveBlock(req.id, req.start, ts.Segment{})
+		}
+		req.resultWg.Done()
+		return req, nil
 	}
 
 	reqs, err := r.shardRequests(shard)
 	if err != nil {
 		return nil, err
 	}
-
-	req := r.reqPool.Get()
-	req.shard = shard
-	req.id = id
-	req.start = startTime
-	req.onRetrieve = onRetrieve
-	req.resultWg.Add(1)
 
 	reqs.Lock()
 	reqs.queued = append(reqs.queued, req)
@@ -422,6 +439,7 @@ func (reqs *shardRetrieveRequests) resetQueued() {
 	reqs.queued = reqs.queued[:0]
 }
 
+// Don't forget to update the resetForReuse method when adding a new field
 type retrieveRequest struct {
 	resultWg sync.WaitGroup
 	pool     *reqPool
@@ -433,7 +451,9 @@ type retrieveRequest struct {
 
 	indexEntry IndexEntry
 	reader     xio.SegmentReader
-	err        error
+
+	doesNotExist bool
+	err          error
 }
 
 func (req *retrieveRequest) onError(err error) {
@@ -480,6 +500,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.indexEntry = IndexEntry{}
 	req.reader = nil
 	req.err = nil
+	req.doesNotExist = false
 }
 
 type retrieveRequestByStartAscShardAsc []*retrieveRequest
