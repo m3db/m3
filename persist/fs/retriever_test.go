@@ -248,11 +248,6 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	closer()
 
 	// Make sure we return the correct error if the ID does not exist
-	segmentReader, err := retriever.Stream(shard, ts.StringID("not-exists"), blockStart, nil)
-	assert.NoError(t, err)
-
-	segment, err := segmentReader.Segment()
-	assert.NoError(t, err)
-	assert.Equal(t, nil, segment.Head)
-	assert.Equal(t, nil, segment.Tail)
+	_, err = retriever.Stream(shard, ts.StringID("not-exists"), blockStart, nil)
+	assert.Equal(t, errSeekIDNotFound, err)
 }

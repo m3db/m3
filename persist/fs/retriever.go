@@ -39,7 +39,6 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
-	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 )
 
@@ -266,27 +265,16 @@ func (r *blockRetriever) fetchBatch(
 			req.onError(err)
 			continue
 		}
-
-		if err == errSeekIDNotFound {
-			req.doesNotExist = true
-		}
 		req.indexEntry = entry
 	}
 	sort.Sort(retrieveRequestByOffsetAsc(reqs))
 
 	// Seek and execute all requests
 	for _, req := range reqs {
-		// TODO: Only do this if we didn't get errSeekIDNotFound
-		var data checked.Bytes
-		var err error
-		if req.doesNotExist {
-			data, err = nil, nil
-		} else {
-			data, err = seeker.SeekByIndexEntry(req.indexEntry)
-			if err != nil && err != errSeekIDNotFound {
-				req.onError(err)
-				continue
-			}
+		data, err := seeker.SeekByIndexEntry(req.indexEntry)
+		if err != nil && err != errSeekIDNotFound {
+			req.onError(err)
+			continue
 		}
 
 		var seg ts.Segment
@@ -320,12 +308,6 @@ func (r *blockRetriever) Stream(
 	startTime time.Time,
 	onRetrieve block.OnRetrieveBlock,
 ) (xio.SegmentReader, error) {
-	req := r.reqPool.Get()
-	req.shard = shard
-	req.id = id
-	req.start = startTime
-	req.onRetrieve = onRetrieve
-
 	// This should never happen
 	if len(r.seekerMgrs) < 1 {
 		return nil, errNoSeekerMgrs
@@ -340,17 +322,20 @@ func (r *blockRetriever) Stream(
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately
 	if !seeker.ConcurrentIDBloomFilter().Test(id.Data().Get()) {
-		// TODO: Share this logic with other code
-		if req.onRetrieve != nil {
-			go req.onRetrieve.OnRetrieveBlock(req.id, req.start, ts.Segment{})
-		}
-		return req, nil
+		return nil, errSeekIDNotFound
 	}
 
 	reqs, err := r.shardRequests(shard)
 	if err != nil {
 		return nil, err
 	}
+
+	req := r.reqPool.Get()
+	req.shard = shard
+	req.id = id
+	req.start = startTime
+	req.onRetrieve = onRetrieve
+	req.resultWg.Add(1)
 
 	reqs.Lock()
 	reqs.queued = append(reqs.queued, req)
@@ -448,9 +433,7 @@ type retrieveRequest struct {
 
 	indexEntry IndexEntry
 	reader     xio.SegmentReader
-
-	doesNotExist bool
-	err          error
+	err        error
 }
 
 func (req *retrieveRequest) onError(err error) {
