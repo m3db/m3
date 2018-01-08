@@ -20,8 +20,6 @@
 
 package fs
 
-type mmapFDFuncType func(fd, offset, length int64, opts mmapOptions) (mmapResult, error)
-
 import (
 	"errors"
 	"github.com/stretchr/testify/assert"
@@ -29,6 +27,8 @@ import (
 	"os"
 	"testing"
 )
+
+type mmapFdFuncType func(fd, offset, length int64, opts mmapOptions) (mmapResult, error)
 
 func TestMmapFile(t *testing.T) {
 	fd, err := ioutil.TempFile("", "testfile")
