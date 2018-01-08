@@ -1986,7 +1986,7 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 
 // TODO(rartoul): Delete this when we delete the V1 code path
 func (s *session) emitDuplicateMetadataLog(received *receivedBlocks, metadata blocksMetadata) {
-	fields := make([]xlog.Field, len(received.results)+1)
+	fields := make([]xlog.Field, 0, len(received.results)+1)
 	fields = append(fields, xlog.NewField(
 		"incomingMetadata",
 		fmt.Sprintf("ID: %s, peer: %s", metadata.id.String(), metadata.peer.Host().String()),
@@ -2006,7 +2006,7 @@ func (s *session) emitDuplicateMetadataLog(received *receivedBlocks, metadata bl
 // in a slice that is not safe for concurrent access (I.E logging them here would be
 // racey because other code could be modifying the slice)
 func (s *session) emitDuplicateMetadataLogV2(received *receivedBlocks, metadata blocksMetadata) {
-	fields := make([]xlog.Field, len(received.results)+1)
+	fields := make([]xlog.Field, 0, len(received.results)+1)
 	fields = append(fields, xlog.NewField(
 		"incomingMetadata",
 		fmt.Sprintf(
