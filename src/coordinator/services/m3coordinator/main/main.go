@@ -9,11 +9,13 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/m3db/m3coordinator/services/m3coordinator/config"
 	"github.com/m3db/m3coordinator/services/m3coordinator/httpd"
 	"github.com/m3db/m3coordinator/util/logging"
+	xconfig "github.com/m3db/m3x/config"
 
 	"go.uber.org/zap"
-	"gopkg.in/alecthomas/kingpin.v2"
+	kingpin "gopkg.in/alecthomas/kingpin.v2"
 )
 
 type m3config struct {
@@ -25,7 +27,15 @@ type m3config struct {
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	cfg := parseFlags()
+
+	flags := parseFlags()
+
+	var cfg config.Configuration
+	if err := xconfig.LoadFile(&cfg, flags.configFile); err != nil {
+		fmt.Fprintf(os.Stderr, "unable to load %s: %v", flags.configFile, err)
+		os.Exit(1)
+	}
+
 	logging.InitWithCores(nil)
 	handler, err := httpd.NewHandler()
 	if err != nil {
@@ -36,8 +46,8 @@ func main() {
 
 	logger := logging.WithContext(context.TODO())
 	defer logger.Sync()
-	logger.Info("Starting server", zap.String("address", cfg.listenAddress))
-	http.ListenAndServe(cfg.listenAddress, handler.Router)
+	logger.Info("Starting server", zap.String("address", flags.listenAddress))
+	http.ListenAndServe(flags.listenAddress, handler.Router)
 }
 
 func parseFlags() *m3config {
