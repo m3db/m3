@@ -1892,7 +1892,7 @@ func (s *session) streamAndGroupCollectedBlocksMetadata(
 		}
 
 		// Should never happen
-		if received.submitted {
+		if received.enqueued {
 			s.emitDuplicateMetadataLog(received, m)
 			continue
 		}
@@ -1900,13 +1900,13 @@ func (s *session) streamAndGroupCollectedBlocksMetadata(
 
 		if len(received.results) == peersLen {
 			enqueueCh.enqueue(received.results)
-			received.submitted = true
+			received.enqueued = true
 		}
 	}
 
 	// Enqueue all unsubmitted received metadata
 	for _, received := range metadata {
-		if received.submitted {
+		if received.enqueued {
 			continue
 		}
 		enqueueCh.enqueue(received.results)
@@ -1938,22 +1938,46 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 			metadata[key] = received
 		}
 
-		// Should never happen
-		if received.submitted {
+		// The entry has already been enqueued which means the metadata we just
+		// received is a duplicate. Discard it and move on.
+		if received.enqueued {
 			s.emitDuplicateMetadataLogV2(received, m)
 			continue
 		}
-		received.results = append(received.results, &m)
 
+		// Determine if the incoming metadata is a duplicate by checking if we've
+		// already received metadata from this peer.
+		existingIndex := -1
+		for i, existingMetadata := range received.results {
+			if existingMetadata.peer.Host().ID() == m.peer.Host().ID() {
+				existingIndex = i
+				break
+			}
+		}
+
+		if existingIndex != -1 {
+			// If it is a duplicate, then overwrite it (always keep the most recent
+			// duplicate)
+			received.results[existingIndex] = &m
+		} else {
+			// Otherwise it's not a duplicate, so its safe to append.
+			received.results = append(received.results, &m)
+		}
+
+		// Since we always perform an overwrite instead of an append for duplicates
+		// from the same peer, once len(received.results == peersLen) then we know
+		// that we've received at least one metadata from every peer and its safe
+		// to enqueue the entry.
 		if len(received.results) == peersLen {
 			enqueueCh.enqueue(received.results)
-			received.submitted = true
+			received.enqueued = true
 		}
 	}
 
-	// Enqueue all unsubmitted received metadata
+	// Enqueue all unenqueued received metadata. Note that these entries will have
+	// metadata from only a subset of their peers.
 	for _, received := range metadata {
-		if received.submitted {
+		if received.enqueued {
 			continue
 		}
 		enqueueCh.enqueue(received.results)
@@ -1962,7 +1986,7 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 
 // TODO(rartoul): Delete this when we delete the V1 code path
 func (s *session) emitDuplicateMetadataLog(received *receivedBlocks, metadata blocksMetadata) {
-	fields := make([]xlog.Field, len(received.results)+1)
+	fields := make([]xlog.Field, 0, len(received.results)+1)
 	fields = append(fields, xlog.NewField(
 		"incomingMetadata",
 		fmt.Sprintf("ID: %s, peer: %s", metadata.id.String(), metadata.peer.Host().String()),
@@ -1977,29 +2001,33 @@ func (s *session) emitDuplicateMetadataLog(received *receivedBlocks, metadata bl
 		"Received metadata, but peer metadata has already been submitted")
 }
 
+// emitDuplicateMetadataLogV2 emits a log with the details of the duplicate metadata
+// event. Note that we're unable to log the blocks themselves because they're contained
+// in a slice that is not safe for concurrent access (I.E logging them here would be
+// racey because other code could be modifying the slice)
 func (s *session) emitDuplicateMetadataLogV2(received *receivedBlocks, metadata blocksMetadata) {
-	fields := make([]xlog.Field, len(received.results)+1)
+	fields := make([]xlog.Field, 0, len(received.results)+1)
 	fields = append(fields, xlog.NewField(
 		"incomingMetadata",
 		fmt.Sprintf(
-			"ID: %s, peer: %s, block: %s",
+			"ID: %s, peer: %s",
 			metadata.id.String(),
 			metadata.peer.Host().String(),
-			metadata.blocks[0].start.String(),
 		),
 	))
 	for i, result := range received.results {
 		fields = append(fields, xlog.NewField(
 			fmt.Sprintf("existingMetadata_%d", i),
 			fmt.Sprintf(
-				"ID: %s, peer: %s, block: %s",
+				"ID: %s, peer: %s",
 				result.id.String(),
 				result.peer.Host().String(),
-				result.blocks[0].start.String(),
 			),
 		))
 	}
-	s.log.WithFields(fields...).Warnf(
+	// Debug-level because this is a common enough occurrence that logging it by
+	// default would be noisy
+	s.log.WithFields(fields...).Debugf(
 		"Received metadata, but peer metadata has already been submitted")
 }
 
@@ -2832,8 +2860,8 @@ func (c *enqueueChannel) closeOnAllProcessed() {
 }
 
 type receivedBlocks struct {
-	submitted bool
-	results   []*blocksMetadata
+	enqueued bool
+	results  []*blocksMetadata
 }
 
 type processFn func(batch []*blocksMetadata)
