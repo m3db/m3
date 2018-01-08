@@ -324,7 +324,7 @@ func (r *dbRepairer) namespaceRepairTimeRanges(ns databaseNamespace) xtime.Range
 		end       = now.Add(-rtopts.BufferPast()).Truncate(blockSize)
 	)
 
-	targetRanges := xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end})
+	targetRanges := xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end})
 	for tNano := range r.repairStatesByNs[ns.ID().Hash()] {
 		t := tNano.ToTime()
 		if !r.needsRepair(ns.ID(), t) {

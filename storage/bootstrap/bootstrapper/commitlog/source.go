@@ -253,7 +253,7 @@ func (s *commitLogSource) shouldEncodeSeries(
 
 	// Check if the shard is one of the shards we're trying to bootstrap
 	ranges := unmerged[series.Shard].ranges
-	if ranges == nil {
+	if ranges.IsEmpty() {
 		// Did not allocate map for this shard so not expecting data for it
 		return false
 	}
@@ -304,7 +304,7 @@ func (s *commitLogSource) mergeShards(
 				// Prevent race conditions while updating bootstrapResult from multiple go-routines
 				bootstrapResultLock.Lock()
 				// Shard is a slice index so conversion to uint32 is safe
-				bootstrapResult.Add(uint32(shard), shardResult, nil)
+				bootstrapResult.Add(uint32(shard), shardResult, xtime.Ranges{})
 				bootstrapResultLock.Unlock()
 			}
 			wg.Done()

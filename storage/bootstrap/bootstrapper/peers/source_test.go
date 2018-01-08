@@ -96,8 +96,8 @@ func TestPeersSourceReturnsErrorForAdminSession(t *testing.T) {
 	end := start.Add(ropts.BlockSize())
 
 	target := result.ShardTimeRanges{
-		0: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
-		1: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
+		0: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
+		1: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
 	}
 
 	_, err := src.Read(nsMetadata, target, testDefaultRunOpts)
@@ -139,8 +139,8 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	src := newPeersSource(opts)
 
 	target := result.ShardTimeRanges{
-		0: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
-		1: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
+		0: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
+		1: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
 	}
 
 	r, err := src.Read(nsMetadata, target, testDefaultRunOpts)
@@ -150,8 +150,8 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	require.NotNil(t, r.ShardResults()[0])
 	require.Nil(t, r.ShardResults()[1])
 
-	require.Nil(t, r.Unfulfilled()[0])
-	require.NotNil(t, r.Unfulfilled()[1])
+	require.True(t, r.Unfulfilled()[0].IsEmpty())
+	require.False(t, r.Unfulfilled()[1].IsEmpty())
 	require.Equal(t, 1, r.Unfulfilled()[1].Len())
 
 	block, ok := r.ShardResults()[0].BlockAt(ts.StringID("foo"), start)
@@ -293,8 +293,8 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		src := newPeersSource(opts)
 
 		target := result.ShardTimeRanges{
-			0: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
-			1: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
+			0: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
+			1: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
 		}
 
 		r, err := src.Read(testNsMd, target, testIncrementalRunOpts)
@@ -304,8 +304,8 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		require.NotNil(t, r.ShardResults()[0])
 		require.NotNil(t, r.ShardResults()[1])
 
-		require.Nil(t, r.Unfulfilled()[0])
-		require.Nil(t, r.Unfulfilled()[1])
+		require.True(t, r.Unfulfilled()[0].IsEmpty())
+		require.True(t, r.Unfulfilled()[1].IsEmpty())
 
 		block, ok := r.ShardResults()[0].BlockAt(ts.StringID("foo"), start)
 		require.True(t, ok)
@@ -489,10 +489,10 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 	src := newPeersSource(opts)
 
 	target := result.ShardTimeRanges{
-		0: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
-		1: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
-		2: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
-		3: xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end}),
+		0: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
+		1: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
+		2: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
+		3: xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end}),
 	}
 
 	r, err := src.Read(testNsMd, target, testIncrementalRunOpts)
@@ -503,7 +503,7 @@ func TestPeersSourceContinuesOnIncrementalFlushErrors(t *testing.T) {
 		require.NotNil(t, r.ShardResults()[i])
 	}
 	for i := uint32(0); i < uint32(len(target)); i++ {
-		require.Nil(t, r.Unfulfilled()[i])
+		require.True(t, r.Unfulfilled()[i].IsEmpty())
 	}
 
 	block, ok := r.ShardResults()[0].BlockAt(ts.StringID("foo"), start)

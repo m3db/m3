@@ -214,9 +214,9 @@ func (s *peersSource) Read(
 
 				lock.Lock()
 				if err == nil {
-					result.Add(shard, shardResult, nil)
+					result.Add(shard, shardResult, xtime.Ranges{})
 				} else {
-					result.Add(shard, nil, xtime.NewRanges().AddRange(currRange))
+					result.Add(shard, nil, xtime.Ranges{}.AddRange(currRange))
 				}
 				lock.Unlock()
 			}

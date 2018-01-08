@@ -105,7 +105,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 		return nil, fmt.Errorf("an error")
 	}
 
-	ranges := xtime.NewRanges()
+	ranges := xtime.Ranges{}
 	ranges = ranges.AddRange(xtime.Range{
 		Start: time.Now(),
 		End:   time.Now().Add(time.Hour),
@@ -129,7 +129,7 @@ func TestReadOrderedValues(t *testing.T) {
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
 	require.True(t, blockSize >= minCommitLogRetention)
-	ranges := xtime.NewRanges()
+	ranges := xtime.Ranges{}
 	ranges = ranges.AddRange(xtime.Range{
 		Start: start.Add(time.Minute),
 		End:   end,
@@ -173,7 +173,7 @@ func TestReadNamespaceFiltering(t *testing.T) {
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
 	require.True(t, blockSize >= minCommitLogRetention)
-	ranges := xtime.NewRanges()
+	ranges := xtime.Ranges{}
 	ranges = ranges.AddRange(xtime.Range{
 		Start: start.Add(time.Minute),
 		End:   end,
@@ -217,7 +217,7 @@ func TestReadUnorderedValues(t *testing.T) {
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
 	require.True(t, blockSize >= minCommitLogRetention)
-	ranges := xtime.NewRanges()
+	ranges := xtime.Ranges{}
 	ranges = ranges.AddRange(xtime.Range{
 		Start: start.Add(time.Minute),
 		End:   end,
@@ -258,7 +258,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 	// Request a little after the start of data, because always reading full blocks
 	// it should return the entire block beginning from "start"
 	require.True(t, blockSize >= minCommitLogRetention)
-	ranges := xtime.NewRanges()
+	ranges := xtime.Ranges{}
 	ranges = ranges.AddRange(xtime.Range{
 		Start: start.Add(time.Minute),
 		End:   end,
@@ -380,7 +380,7 @@ func TestNewReadCommitLogPredicate(t *testing.T) {
 			// Set up shardTimeRanges with specified ranges
 			shardTimeRanges := result.ShardTimeRanges{}
 			for i, xrange := range tc.shardTimeRanges {
-				ranges := xtime.NewRanges().AddRange(xrange)
+				ranges := xtime.Ranges{}.AddRange(xrange)
 				shardTimeRanges[uint32(i)] = ranges
 			}
 

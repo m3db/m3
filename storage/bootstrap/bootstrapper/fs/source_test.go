@@ -109,7 +109,7 @@ func writeFile(t *testing.T, filePath string, data []byte) {
 }
 
 func testTimeRanges() xtime.Ranges {
-	return xtime.NewRanges().AddRange(xtime.Range{Start: testStart, End: testStart.Add(11 * time.Hour)})
+	return xtime.Ranges{}.AddRange(xtime.Range{Start: testStart, End: testStart.Add(11 * time.Hour)})
 }
 
 func testShardTimeRanges() result.ShardTimeRanges {
@@ -164,7 +164,7 @@ func validateTimeRanges(t *testing.T, tr xtime.Ranges, expected []xtime.Range) {
 
 func TestAvailableEmptyRangeError(t *testing.T) {
 	src := newFileSystemSource("foo", testDefaultOpts)
-	res := src.Available(testNsMetadata(t), map[uint32]xtime.Ranges{0: nil})
+	res := src.Available(testNsMetadata(t), map[uint32]xtime.Ranges{0: xtime.Ranges{}})
 	require.NotNil(t, res)
 	require.True(t, res.IsEmpty())
 }
@@ -258,7 +258,7 @@ func TestReadEmptyRangeErr(t *testing.T) {
 func TestReadPatternError(t *testing.T) {
 	src := newFileSystemSource("[[", testDefaultOpts)
 	res, err := src.Read(testNsMetadata(t),
-		map[uint32]xtime.Ranges{testShard: xtime.NewRanges()},
+		map[uint32]xtime.Ranges{testShard: xtime.Ranges{}},
 		testDefaultRunOpts)
 	require.NoError(t, err)
 	require.Nil(t, res)
@@ -275,7 +275,7 @@ func TestReadNilTimeRanges(t *testing.T) {
 
 	validateReadResults(t, src, dir, map[uint32]xtime.Ranges{
 		testShard: testTimeRanges(),
-		555:       nil,
+		555:       xtime.Ranges{},
 	})
 }
 

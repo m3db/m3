@@ -255,7 +255,7 @@ func (r ShardResults) Equal(other ShardResults) bool {
 // IsEmpty returns whether the shard time ranges is empty or not.
 func (r ShardTimeRanges) IsEmpty() bool {
 	for _, ranges := range r {
-		if !xtime.IsEmpty(ranges) {
+		if !ranges.IsEmpty() {
 			return false
 		}
 	}
@@ -293,7 +293,7 @@ func (r ShardTimeRanges) Equal(other ShardTimeRanges) bool {
 func (r ShardTimeRanges) Copy() ShardTimeRanges {
 	result := make(map[uint32]xtime.Ranges, len(r))
 	for shard, ranges := range r {
-		result[shard] = xtime.NewRanges().AddRanges(ranges)
+		result[shard] = xtime.Ranges{}.AddRanges(ranges)
 	}
 	return result
 }
@@ -301,7 +301,7 @@ func (r ShardTimeRanges) Copy() ShardTimeRanges {
 // AddRanges adds other shard time ranges to the current shard time ranges.
 func (r ShardTimeRanges) AddRanges(other ShardTimeRanges) {
 	for shard, ranges := range other {
-		if xtime.IsEmpty(ranges) {
+		if ranges.IsEmpty() {
 			continue
 		}
 		if existing, ok := r[shard]; ok {
@@ -344,7 +344,7 @@ func (r ShardTimeRanges) Subtract(other ShardTimeRanges) {
 func (r ShardTimeRanges) MinMax() (time.Time, time.Time) {
 	min, max := time.Time{}, time.Time{}
 	for _, ranges := range r {
-		if xtime.IsEmpty(ranges) {
+		if ranges.IsEmpty() {
 			continue
 		}
 		it := ranges.Iter()

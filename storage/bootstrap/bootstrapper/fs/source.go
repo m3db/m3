@@ -88,17 +88,17 @@ func (s *fileSystemSource) shardAvailability(
 	shard uint32,
 	targetRangesForShard xtime.Ranges,
 ) xtime.Ranges {
-	if targetRangesForShard == nil {
-		return nil
+	if targetRangesForShard.IsEmpty() {
+		return xtime.Ranges{}
 	}
 
 	entries := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
 		namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
 	if len(entries) == 0 {
-		return nil
+		return xtime.Ranges{}
 	}
 
-	tr := xtime.NewRanges()
+	var tr xtime.Ranges
 	for i := 0; i < len(entries); i++ {
 		info := entries[i]
 		t := xtime.FromNanoseconds(info.Start)
@@ -121,9 +121,6 @@ func (s *fileSystemSource) enqueueReaders(
 		files := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
 			namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
 		if len(files) == 0 {
-			if tr == nil {
-				tr = xtime.NewRanges()
-			}
 			// Use default readers value to indicate no readers for this shard
 			readersCh <- shardReaders{shard: shard, tr: tr}
 			continue
@@ -241,7 +238,7 @@ func (s *fileSystemSource) handleErrorsAndUnfulfilled(
 		unfulfilled := bootstrapResult.Unfulfilled()
 		shardUnfulfilled, ok := unfulfilled[shard]
 		if !ok {
-			shardUnfulfilled = xtime.NewRanges().AddRanges(remainingRanges)
+			shardUnfulfilled = xtime.Ranges{}.AddRanges(remainingRanges)
 		} else {
 			shardUnfulfilled = shardUnfulfilled.AddRanges(remainingRanges)
 		}
@@ -460,13 +457,10 @@ func (s *fileSystemSource) Read(
 		bootstrapResult := result.NewBootstrapResult()
 		unfulfilled := bootstrapResult.Unfulfilled()
 		for shard, ranges := range shardsTimeRanges {
-			if ranges == nil {
+			if ranges.IsEmpty() {
 				continue
 			}
 			availability := s.shardAvailability(md.ID(), shard, ranges)
-			if availability == nil {
-				availability = xtime.NewRanges()
-			}
 			remaining := ranges.RemoveRanges(availability)
 			bootstrapResult.Add(shard, nil, remaining)
 		}
