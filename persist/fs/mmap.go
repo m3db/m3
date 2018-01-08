@@ -27,6 +27,9 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 )
 
+// Package-level global for easy mocking
+var mmapFdFn = mmapFd
+
 type mmapFileDesc struct {
 	// file is the *os.File ref to store
 	file **os.File
@@ -81,7 +84,6 @@ func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) (mmapFilesResul
 		}
 		if result.warning != nil {
 			multiWarn = multiWarn.Add(errorWithFilename(filePath, result.warning))
-			break
 		}
 
 		*desc.file = fd
@@ -115,9 +117,12 @@ func mmapFile(file *os.File, opts mmapOptions) (mmapResult, error) {
 	if stat.IsDir() {
 		return mmapResult{}, fmt.Errorf("mmap target is directory: %s", name)
 	}
-	return mmapFd(int64(file.Fd()), 0, stat.Size(), opts)
+	return mmapFdFn(int64(file.Fd()), 0, stat.Size(), opts)
 }
 
 func errorWithFilename(name string, err error) error {
+	if err == nil {
+		return nil
+	}
 	return fmt.Errorf("file %s encountered err: %s", name, err.Error())
 }
