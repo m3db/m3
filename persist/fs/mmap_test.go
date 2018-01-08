@@ -20,6 +20,8 @@
 
 package fs
 
+type mmapFDFuncType func(fd, offset, length int64, opts mmapOptions) (mmapResult, error)
+
 import (
 	"errors"
 	"github.com/stretchr/testify/assert"
