@@ -81,7 +81,6 @@ func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) (mmapFilesResul
 		}
 		if result.warning != nil {
 			multiWarn = multiWarn.Add(errorWithFilename(filePath, result.warning))
-			break
 		}
 
 		*desc.file = fd
