@@ -3,9 +3,13 @@ go:
   - 1.7.6
   - 1.8.3
   - 1.9.2
+branches:
+  only:
+  - master
 install: make install-ci
 env:
- # Set higher timeouts for Travis
- - TEST_TIMEOUT_SCALE=20 PACKAGE=github.com/m3db/m3x
+  global:
+    - TEST_TIMEOUT_SCALE=20
+    - PACKAGE=github.com/m3db/m3x
 script:
  - make all
