@@ -29,6 +29,7 @@ import (
 
 type mmapFdFuncType func(fd, offset, length int64, opts mmapOptions) (mmapResult, error)
 
+// Package-level global for easy mocking
 var mmapFdFunc = mmapFd
 
 type mmapFileDesc struct {
