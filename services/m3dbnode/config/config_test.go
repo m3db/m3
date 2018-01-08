@@ -223,19 +223,20 @@ pooling:
               lowWatermark: 0.01
               highWatermark: 0.02
 
-configService:
-    env: production
-    zone: us-west1
-    service: m3dbnode
-    cacheDir: /var/lib/m3kv
-    etcdClusters:
-        - zone: us-west1
-          endpoints:
-              - etcd01-us-west1:2379
-              - etcd02-us-west1:2379
-              - etcd03-us-west1:2379
-              - etcd04-us-west1:2379
-              - etcd05-us-west1:2379
+config:
+  service:
+      env: production
+      zone: us-west1
+      service: m3dbnode
+      cacheDir: /var/lib/m3kv
+      etcdClusters:
+          - zone: us-west1
+            endpoints:
+                - etcd01-us-west1:2379
+                - etcd02-us-west1:2379
+                - etcd03-us-west1:2379
+                - etcd04-us-west1:2379
+                - etcd05-us-west1:2379
 hashing:
   seed: 42
 `
@@ -287,7 +288,9 @@ hostID:
   value: null
   envVarName: null
 client:
-  configService: null
+  config:
+    service: null
+    static: null
   writeConsistencyLevel: 2
   readConsistencyLevel: 1
   connectConsistencyLevel: 0
@@ -312,6 +315,7 @@ client:
   backgroundHealthCheckFailThrottleFactor: 0.5
   hashing:
     seed: 42
+  listenAddress: ""
 gcPercentage: 100
 writeNewSeriesAsync: true
 writeNewSeriesLimitPerSecond: 1048576
@@ -456,23 +460,24 @@ pooling:
     capacity: 4096
     lowWatermark: 0.01
     highWatermark: 0.02
-configService:
-  zone: us-west1
-  env: production
-  service: m3dbnode
-  cacheDir: /var/lib/m3kv
-  etcdClusters:
-  - zone: us-west1
-    endpoints:
-    - etcd01-us-west1:2379
-    - etcd02-us-west1:2379
-    - etcd03-us-west1:2379
-    - etcd04-us-west1:2379
-    - etcd05-us-west1:2379
-    tls: null
-  m3sd:
-    initTimeout: 0s
-static: null
+config:
+  service:
+    zone: us-west1
+    env: production
+    service: m3dbnode
+    cacheDir: /var/lib/m3kv
+    etcdClusters:
+    - zone: us-west1
+      endpoints:
+      - etcd01-us-west1:2379
+      - etcd02-us-west1:2379
+      - etcd03-us-west1:2379
+      - etcd04-us-west1:2379
+      - etcd05-us-west1:2379
+      tls: null
+    m3sd:
+      initTimeout: 0s
+  static: null
 hashing:
   seed: 42
 `
