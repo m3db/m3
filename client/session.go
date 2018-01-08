@@ -1892,7 +1892,7 @@ func (s *session) streamAndGroupCollectedBlocksMetadata(
 		}
 
 		// Should never happen
-		if received.submitted {
+		if received.enqueued {
 			s.emitDuplicateMetadataLog(received, m)
 			continue
 		}
@@ -1900,13 +1900,13 @@ func (s *session) streamAndGroupCollectedBlocksMetadata(
 
 		if len(received.results) == peersLen {
 			enqueueCh.enqueue(received.results)
-			received.submitted = true
+			received.enqueued = true
 		}
 	}
 
 	// Enqueue all unsubmitted received metadata
 	for _, received := range metadata {
-		if received.submitted {
+		if received.enqueued {
 			continue
 		}
 		enqueueCh.enqueue(received.results)
@@ -1938,15 +1938,15 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 			metadata[key] = received
 		}
 
-		// An entry has already been submitted, discard the (duplicate) metadata that
-		// we just received
-		if received.submitted {
+		// The entry has already been enqueued which means the metadata we just
+		// received is a duplicate. Discard it and move on.
+		if received.enqueued {
 			s.emitDuplicateMetadataLogV2(received, m)
 			continue
 		}
 
-		// Check if the incoming metadata is a duplicate, I.E we've already received
-		// metadata for this id/blockStart combination from this peer
+		// Determine if the incoming metadata is a duplicate by checking if we've
+		// already received metadata from this peer.
 		existingIndex := -1
 		for i, existingMetadata := range received.results {
 			if existingMetadata.peer.Host().ID() == m.peer.Host().ID() {
@@ -1955,27 +1955,29 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 			}
 		}
 
-		// If it is a duplicate, then overwrite it (always keep the most recent
-		// duplicate)
 		if existingIndex != -1 {
+			// If it is a duplicate, then overwrite it (always keep the most recent
+			// duplicate)
 			received.results[existingIndex] = &m
-			// Otherwise it's not a duplicate so we can just append
 		} else {
+			// Otherwise it's not a duplicate, so its safe to append.
 			received.results = append(received.results, &m)
 		}
 
-		// Since we always overwrite for duplicates from the same host, once
-		// len(received.results == peersLen) then we know that we've received at
-		// least one entry from every peer and we can proceed
+		// Since we always perform an overwrite instead of an append for duplicates
+		// from the same peer, once len(received.results == peersLen) then we know
+		// that we've received at least one metadata from every peer and its safe
+		// to enqueue the entry.
 		if len(received.results) == peersLen {
 			enqueueCh.enqueue(received.results)
-			received.submitted = true
+			received.enqueued = true
 		}
 	}
 
-	// Enqueue all unsubmitted received metadata
+	// Enqueue all unenqueued received metadata. Note that these entries will have
+	// metadata from only a subset of their peers.
 	for _, received := range metadata {
-		if received.submitted {
+		if received.enqueued {
 			continue
 		}
 		enqueueCh.enqueue(received.results)
@@ -2858,8 +2860,8 @@ func (c *enqueueChannel) closeOnAllProcessed() {
 }
 
 type receivedBlocks struct {
-	submitted bool
-	results   []*blocksMetadata
+	enqueued bool
+	results  []*blocksMetadata
 }
 
 type processFn func(batch []*blocksMetadata)
