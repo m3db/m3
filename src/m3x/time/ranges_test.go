@@ -28,7 +28,7 @@ import (
 )
 
 func validateResult(t *testing.T, tr Ranges, expected []Range) {
-	l := tr.(*ranges).sortedRanges
+	l := tr.sortedRanges
 	require.Equal(t, len(expected), l.Len())
 	idx := 0
 	for e := l.Front(); e != nil; e = e.Next() {
@@ -37,17 +37,13 @@ func validateResult(t *testing.T, tr Ranges, expected []Range) {
 	}
 }
 
-func validateIter(t *testing.T, it RangeIter, expected []Range) {
+func validateIter(t *testing.T, it *RangeIter, expected []Range) {
 	idx := 0
 	for it.Next() {
 		r := it.Value()
 		require.Equal(t, expected[idx], r)
 		idx++
 	}
-}
-
-func getTypedTimeRanges() *ranges {
-	return NewRanges().(*ranges)
 }
 
 func getRangesToAdd() []Range {
@@ -72,7 +68,7 @@ func getRangesToRemove() []Range {
 }
 
 func getPopulatedRanges(ranges []Range, start, end int) Ranges {
-	tr := NewRanges()
+	var tr Ranges
 	for _, r := range ranges[start:end] {
 		tr = tr.AddRange(r)
 	}
@@ -80,15 +76,12 @@ func getPopulatedRanges(ranges []Range, start, end int) Ranges {
 }
 
 func TestIsEmpty(t *testing.T) {
-	var tr *ranges
+	var tr Ranges
 	require.True(t, tr.IsEmpty())
 
-	tr = getTypedTimeRanges()
-	require.True(t, tr.IsEmpty())
-
+	tr = tr.clone()
 	tr.sortedRanges.PushBack(Range{})
 	require.False(t, tr.IsEmpty())
-
 }
 
 func TestClone(t *testing.T) {
@@ -98,14 +91,14 @@ func TestClone(t *testing.T) {
 	expectedResults := []Range{rangesToAdd[3], rangesToAdd[2], rangesToAdd[0], rangesToAdd[1]}
 	validateResult(t, tr, expectedResults)
 
-	cloned := tr.(*ranges).clone()
+	cloned := tr.clone()
 	tr = tr.RemoveRange(rangesToAdd[0])
 	validateResult(t, cloned, expectedResults)
 	validateResult(t, tr, []Range{rangesToAdd[3], rangesToAdd[2], rangesToAdd[1]})
 }
 
 func TestAddRange(t *testing.T) {
-	tr := NewRanges()
+	var tr Ranges
 	tr = tr.AddRange(Range{})
 	validateResult(t, tr, []Range{})
 
@@ -132,7 +125,7 @@ func TestAddRanges(t *testing.T) {
 	rangesToAdd := getRangesToAdd()
 
 	tr := getPopulatedRanges(rangesToAdd, 0, 4)
-	tr = tr.AddRanges(nil)
+	tr = tr.AddRanges(Ranges{})
 
 	expectedResults := []Range{rangesToAdd[3], rangesToAdd[2], rangesToAdd[0], rangesToAdd[1]}
 	validateResult(t, tr, expectedResults)
@@ -191,7 +184,7 @@ func TestRemoveRange(t *testing.T) {
 
 func TestRemoveRanges(t *testing.T) {
 	tr := getPopulatedRanges(getRangesToAdd(), 0, 4)
-	tr = tr.RemoveRanges(nil)
+	tr = tr.RemoveRanges(Ranges{})
 
 	expectedResults := []Range{
 		{Start: testStart.Add(-8 * time.Second), End: testStart.Add(-5 * time.Second)},
@@ -240,7 +233,7 @@ func TestRangesIter(t *testing.T) {
 }
 
 func TestRangesString(t *testing.T) {
-	tr := NewRanges()
+	var tr Ranges
 	require.Equal(t, "[]", tr.String())
 	start := time.Unix(1465430400, 0).UTC()
 	tr = tr.AddRange(Range{Start: start, End: start.Add(2 * time.Hour)}).
