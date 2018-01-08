@@ -97,15 +97,17 @@ func TestMmapFilesHandlesError(t *testing.T) {
 }
 
 func TestMmapFilesHandlesWarnings(t *testing.T) {
+	mmapFdReturnWarn := func(fd, offset, length int64, opts mmapOptions) (mmapResult, error) {
+		return mmapResult{warning: errors.New("some-error"), result: []byte("a")}, nil
+	}
+	defer mockMmapFdFunc(mmapFdReturnWarn)()
+
 	fd1, err := ioutil.TempFile("", "1")
 	assert.NoError(t, err)
 	fd1Path := fd1.Name()
 
 	bytes1 := []byte{}
 
-	defer mockMmapFdFunc(func(fd, offset, length int64, opts mmapOptions) (mmapResult, error) {
-		return mmapResult{warning: errors.New("some-error"), result: []byte("a")}, nil
-	})()
 	result, err := mmapFiles(os.Open, map[string]mmapFileDesc{
 		fd1Path: mmapFileDesc{
 			file:    &fd1,
