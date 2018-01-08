@@ -27,6 +27,8 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 )
 
+type mmapFDFunc func(fd, offset, length int64, opts mmapOptions) (mmapResult, error)
+
 type mmapFileDesc struct {
 	// file is the *os.File ref to store
 	file **os.File
@@ -64,6 +66,10 @@ type mmapFilesResult struct {
 }
 
 func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) (mmapFilesResult, error) {
+	return mmapFilesWithFunc(opener, files, mmapFd)
+}
+
+func mmapFilesWithFunc(opener fileOpener, files map[string]mmapFileDesc, f mmapFDFunc) (mmapFilesResult, error) {
 	multiWarn := xerrors.NewMultiError()
 	multiErr := xerrors.NewMultiError()
 
@@ -74,7 +80,7 @@ func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) (mmapFilesResul
 			break
 		}
 
-		result, err := mmapFile(fd, desc.options)
+		result, err := mmapFileWithFunc(fd, desc.options, f)
 		if err != nil {
 			multiErr = multiErr.Add(errorWithFilename(filePath, err))
 			break
@@ -105,7 +111,15 @@ func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) (mmapFilesResul
 	return mmapFilesResult{warning: multiWarn.FinalError()}, multiErr.FinalError()
 }
 
+// mmapFile is a convenience function over mmapFileWithFunc that uses mmapFd as
+// the mmapFDFunc
 func mmapFile(file *os.File, opts mmapOptions) (mmapResult, error) {
+	return mmapFileWithFunc(file, opts, mmapFd)
+}
+
+// mmapFileWithFunc mmaps a file using a given mmapFDFunc. Primarily used for
+// testing, use mmapFile in production
+func mmapFileWithFunc(file *os.File, opts mmapOptions, f mmapFDFunc) (mmapResult, error) {
 	name := file.Name()
 	stat, err := os.Stat(name)
 	if err != nil {
@@ -114,9 +128,12 @@ func mmapFile(file *os.File, opts mmapOptions) (mmapResult, error) {
 	if stat.IsDir() {
 		return mmapResult{}, fmt.Errorf("mmap target is directory: %s", name)
 	}
-	return mmapFd(int64(file.Fd()), 0, stat.Size(), opts)
+	return f(int64(file.Fd()), 0, stat.Size(), opts)
 }
 
 func errorWithFilename(name string, err error) error {
+	if err == nil {
+		return nil
+	}
 	return fmt.Errorf("file %s encountered err: %s", name, err.Error())
 }
