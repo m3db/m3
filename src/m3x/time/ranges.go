@@ -26,57 +26,25 @@ import (
 )
 
 // Ranges is a collection of time ranges.
-type Ranges interface {
-
-	// Len returns the number of ranges included.
-	Len() int
-
-	// IsEmpty returns true if the list of time ranges is empty.
-	IsEmpty() bool
-
-	// Overlaps checks if the range overlaps with any of the ranges in the collection.
-	Overlaps(r Range) bool
-
-	// AddRange adds the time range
-	AddRange(r Range) Ranges
-
-	// AddRanges adds the time ranges
-	AddRanges(other Ranges) Ranges
-
-	// Remove removes the time range
-	RemoveRange(r Range) Ranges
-
-	// RemoveRanges removes the given time ranges.
-	RemoveRanges(other Ranges) Ranges
-
-	// Iter returns an iterator that iterates forward over the time ranges included.
-	Iter() RangeIter
-
-	// String returns the string representation of the range.
-	String() string
-}
-
-type ranges struct {
+type Ranges struct {
 	sortedRanges *list.List
 }
 
-// NewRanges creates a collection of time ranges.
-func NewRanges() Ranges {
-	return &ranges{sortedRanges: list.New()}
-}
-
 // Len returns the number of ranges included.
-func (tr *ranges) Len() int {
+func (tr Ranges) Len() int {
+	if tr.sortedRanges == nil {
+		return 0
+	}
 	return tr.sortedRanges.Len()
 }
 
 // IsEmpty returns true if the list of time ranges is empty.
-func (tr *ranges) IsEmpty() bool {
-	return tr == nil || tr.Len() == 0
+func (tr Ranges) IsEmpty() bool {
+	return tr.Len() == 0
 }
 
 // Overlaps checks if the range overlaps with any of the ranges in the collection.
-func (tr *ranges) Overlaps(r Range) bool {
+func (tr Ranges) Overlaps(r Range) bool {
 	if r.IsEmpty() {
 		return false
 	}
@@ -89,14 +57,62 @@ func (tr *ranges) Overlaps(r Range) bool {
 }
 
 // AddRange adds the time range to the collection of ranges.
-func (tr *ranges) AddRange(r Range) Ranges {
+func (tr Ranges) AddRange(r Range) Ranges {
 	res := tr.clone()
 	res.addRangeInPlace(r)
 	return res
 }
 
+// AddRanges adds the time ranges.
+func (tr Ranges) AddRanges(other Ranges) Ranges {
+	res := tr.clone()
+	it := other.Iter()
+	for it.Next() {
+		res.addRangeInPlace(it.Value())
+	}
+	return res
+}
+
+// RemoveRange removes the time range from the collection of ranges.
+func (tr Ranges) RemoveRange(r Range) Ranges {
+	res := tr.clone()
+	res.removeRangeInPlace(r)
+	return res
+}
+
+// RemoveRanges removes the given time ranges from the current one.
+func (tr Ranges) RemoveRanges(other Ranges) Ranges {
+	res := tr.clone()
+	it := other.Iter()
+	for it.Next() {
+		res.removeRangeInPlace(it.Value())
+	}
+	return res
+}
+
+// Iter returns an iterator that iterates over the time ranges included.
+func (tr Ranges) Iter() *RangeIter {
+	return newRangeIter(tr.sortedRanges)
+}
+
+// String returns the string representation of the range.
+func (tr Ranges) String() string {
+	var buf bytes.Buffer
+	buf.WriteString("[")
+	if tr.sortedRanges != nil {
+		for e := tr.sortedRanges.Front(); e != nil; e = e.Next() {
+			buf.WriteString(e.Value.(Range).String())
+			if e.Next() != nil {
+				buf.WriteString(",")
+			}
+		}
+	}
+	buf.WriteString("]")
+	return buf.String()
+}
+
 // addRangeInPlace adds r to tr in place without creating a new copy.
-func (tr *ranges) addRangeInPlace(r Range) {
+func (tr Ranges) addRangeInPlace(r Range) {
 	if r.IsEmpty() {
 		return
 	}
@@ -119,27 +135,7 @@ func (tr *ranges) addRangeInPlace(r Range) {
 	tr.sortedRanges.InsertBefore(r, e)
 }
 
-// AddRanges adds the time ranges.
-func (tr *ranges) AddRanges(other Ranges) Ranges {
-	res := tr.clone()
-	if other == nil {
-		return res
-	}
-	it := other.Iter()
-	for it.Next() {
-		res.addRangeInPlace(it.Value())
-	}
-	return res
-}
-
-// Remove removes the time range from the collection of ranges.
-func (tr *ranges) RemoveRange(r Range) Ranges {
-	cloned := tr.clone()
-	cloned.removeRangeInPlace(r)
-	return cloned
-}
-
-func (tr *ranges) removeRangeInPlace(r Range) {
+func (tr Ranges) removeRangeInPlace(r Range) {
 	if r.IsEmpty() {
 		return
 	}
@@ -163,40 +159,11 @@ func (tr *ranges) removeRangeInPlace(r Range) {
 	}
 }
 
-// RemoveRanges removes the given time ranges from the current one.
-func (tr *ranges) RemoveRanges(other Ranges) Ranges {
-	cloned := tr.clone()
-	if other == nil {
-		return cloned
-	}
-	it := other.Iter()
-	for it.Next() {
-		cloned.removeRangeInPlace(it.Value())
-	}
-	return cloned
-}
-
-// Iter returns an iterator that iterates over the time ranges included.
-func (tr *ranges) Iter() RangeIter {
-	return newRangeIter(tr.sortedRanges)
-}
-
-// String returns the string representation of the range.
-func (tr *ranges) String() string {
-	var buf bytes.Buffer
-	buf.WriteString("[")
-	for e := tr.sortedRanges.Front(); e != nil; e = e.Next() {
-		buf.WriteString(e.Value.(Range).String())
-		if e.Next() != nil {
-			buf.WriteString(",")
-		}
-	}
-	buf.WriteString("]")
-	return buf.String()
-}
-
 // findFirstNotBefore finds the first interval that's not before r.
-func (tr *ranges) findFirstNotBefore(r Range) *list.Element {
+func (tr Ranges) findFirstNotBefore(r Range) *list.Element {
+	if tr.sortedRanges == nil {
+		return nil
+	}
 	for e := tr.sortedRanges.Front(); e != nil; e = e.Next() {
 		if !e.Value.(Range).Before(r) {
 			return e
@@ -206,18 +173,13 @@ func (tr *ranges) findFirstNotBefore(r Range) *list.Element {
 }
 
 // clone returns a copy of the time ranges.
-func (tr *ranges) clone() *ranges {
-	if tr == nil {
-		return nil
+func (tr Ranges) clone() Ranges {
+	res := Ranges{sortedRanges: list.New()}
+	if tr.sortedRanges == nil {
+		return res
 	}
-	res := NewRanges().(*ranges)
 	for e := tr.sortedRanges.Front(); e != nil; e = e.Next() {
 		res.sortedRanges.PushBack(e.Value.(Range))
 	}
 	return res
-}
-
-// IsEmpty returns whether the time range collection is empty.
-func IsEmpty(tr Ranges) bool {
-	return tr == nil || tr.IsEmpty()
 }

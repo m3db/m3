@@ -23,25 +23,17 @@ package time
 import "container/list"
 
 // RangeIter iterates over a collection of time ranges.
-type RangeIter interface {
-	// Next moves to the next item.
-	Next() bool
-
-	// Value returns the current time range.
-	Value() Range
-}
-
-type rangeIter struct {
+type RangeIter struct {
 	ranges *list.List
 	cur    *list.Element
 }
 
-func newRangeIter(ranges *list.List) RangeIter {
-	return &rangeIter{ranges: ranges}
+func newRangeIter(ranges *list.List) *RangeIter {
+	return &RangeIter{ranges: ranges}
 }
 
 // Next moves to the next item.
-func (it *rangeIter) Next() bool {
+func (it *RangeIter) Next() bool {
 	if it.ranges == nil {
 		return false
 	}
@@ -54,6 +46,9 @@ func (it *rangeIter) Next() bool {
 }
 
 // Value returns the current time range.
-func (it *rangeIter) Value() Range {
+func (it *RangeIter) Value() Range {
+	if it.cur == nil {
+		return Range{}
+	}
 	return it.cur.Value.(Range)
 }
