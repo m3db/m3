@@ -126,9 +126,9 @@ func TestMmapFilesHandlesWarnings(t *testing.T) {
 }
 
 func mockMmapFdFunc(f mmapFdFuncType) func() {
-	old := mmapFdFunc
-	mmapFdFunc = f
+	old := mmapFdFn
+	mmapFdFn = f
 	return func() {
-		mmapFdFunc = old
+		mmapFdFn = old
 	}
 }

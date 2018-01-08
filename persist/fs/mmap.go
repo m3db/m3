@@ -28,7 +28,7 @@ import (
 )
 
 // Package-level global for easy mocking
-var mmapFdFunc = mmapFd
+var mmapFdFn = mmapFd
 
 type mmapFileDesc struct {
 	// file is the *os.File ref to store
@@ -117,7 +117,7 @@ func mmapFile(file *os.File, opts mmapOptions) (mmapResult, error) {
 	if stat.IsDir() {
 		return mmapResult{}, fmt.Errorf("mmap target is directory: %s", name)
 	}
-	return mmapFdFunc(int64(file.Fd()), 0, stat.Size(), opts)
+	return mmapFdFn(int64(file.Fd()), 0, stat.Size(), opts)
 }
 
 func errorWithFilename(name string, err error) error {
