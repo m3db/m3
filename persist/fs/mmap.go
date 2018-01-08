@@ -27,7 +27,9 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 )
 
-type mmapFDFunc func(fd, offset, length int64, opts mmapOptions) (mmapResult, error)
+type mmapFdFuncType func(fd, offset, length int64, opts mmapOptions) (mmapResult, error)
+
+var mmapFdFunc = mmapFd
 
 type mmapFileDesc struct {
 	// file is the *os.File ref to store
@@ -66,10 +68,6 @@ type mmapFilesResult struct {
 }
 
 func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) (mmapFilesResult, error) {
-	return mmapFilesWithFunc(opener, files, mmapFd)
-}
-
-func mmapFilesWithFunc(opener fileOpener, files map[string]mmapFileDesc, f mmapFDFunc) (mmapFilesResult, error) {
 	multiWarn := xerrors.NewMultiError()
 	multiErr := xerrors.NewMultiError()
 
@@ -80,7 +78,7 @@ func mmapFilesWithFunc(opener fileOpener, files map[string]mmapFileDesc, f mmapF
 			break
 		}
 
-		result, err := mmapFileWithFunc(fd, desc.options, f)
+		result, err := mmapFile(fd, desc.options)
 		if err != nil {
 			multiErr = multiErr.Add(errorWithFilename(filePath, err))
 			break
@@ -111,15 +109,7 @@ func mmapFilesWithFunc(opener fileOpener, files map[string]mmapFileDesc, f mmapF
 	return mmapFilesResult{warning: multiWarn.FinalError()}, multiErr.FinalError()
 }
 
-// mmapFile is a convenience function over mmapFileWithFunc that uses mmapFd as
-// the mmapFDFunc
 func mmapFile(file *os.File, opts mmapOptions) (mmapResult, error) {
-	return mmapFileWithFunc(file, opts, mmapFd)
-}
-
-// mmapFileWithFunc mmaps a file using a given mmapFDFunc. Primarily used for
-// testing, use mmapFile in production
-func mmapFileWithFunc(file *os.File, opts mmapOptions, f mmapFDFunc) (mmapResult, error) {
 	name := file.Name()
 	stat, err := os.Stat(name)
 	if err != nil {
@@ -128,7 +118,7 @@ func mmapFileWithFunc(file *os.File, opts mmapOptions, f mmapFDFunc) (mmapResult
 	if stat.IsDir() {
 		return mmapResult{}, fmt.Errorf("mmap target is directory: %s", name)
 	}
-	return f(int64(file.Fd()), 0, stat.Size(), opts)
+	return mmapFdFunc(int64(file.Fd()), 0, stat.Size(), opts)
 }
 
 func errorWithFilename(name string, err error) error {

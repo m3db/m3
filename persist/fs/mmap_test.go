@@ -103,20 +103,28 @@ func TestMmapFilesHandlesWarnings(t *testing.T) {
 
 	bytes1 := []byte{}
 
-	warningFunc := func(fd, offset, length int64, opts mmapOptions) (mmapResult, error) {
+	defer mockMmapFdFunc(func(fd, offset, length int64, opts mmapOptions) (mmapResult, error) {
 		return mmapResult{warning: errors.New("some-error"), result: []byte("a")}, nil
-	}
-	result, err := mmapFilesWithFunc(os.Open, map[string]mmapFileDesc{
+	})()
+	result, err := mmapFiles(os.Open, map[string]mmapFileDesc{
 		fd1Path: mmapFileDesc{
 			file:    &fd1,
 			bytes:   &bytes1,
 			options: mmapOptions{},
 		},
-	}, warningFunc)
+	})
 
 	assert.NoError(t, err)
 	// Warning should be present AND byte slice pointer should have been
 	// modified as well
 	assert.Error(t, result.warning)
 	assert.Equal(t, []byte("a"), bytes1)
+}
+
+func mockMmapFdFunc(f mmapFdFuncType) func() {
+	old := mmapFdFunc
+	mmapFdFunc = f
+	return func() {
+		mmapFdFunc = old
+	}
 }
