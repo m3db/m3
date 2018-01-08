@@ -1938,13 +1938,35 @@ func (s *session) streamAndGroupCollectedBlocksMetadataV2(
 			metadata[key] = received
 		}
 
-		// Should never happen
+		// An entry has already been submitted, discard the (duplicate) metadata that
+		// we just received
 		if received.submitted {
 			s.emitDuplicateMetadataLogV2(received, m)
 			continue
 		}
-		received.results = append(received.results, &m)
 
+		// Check if the incoming metadata is a duplicate, I.E we've already received
+		// metadata for this id/blockStart combination from this peer
+		existingIndex := -1
+		for i, existingMetadata := range received.results {
+			if existingMetadata.peer.Host().ID() == m.peer.Host().ID() {
+				existingIndex = i
+				break
+			}
+		}
+
+		// If it is a duplicate, then overwrite it (always keep the most recent
+		// duplicate)
+		if existingIndex != -1 {
+			received.results[existingIndex] = &m
+			// Otherwise it's not a duplicate so we can just append
+		} else {
+			received.results = append(received.results, &m)
+		}
+
+		// Since we always overwrite for duplicates from the same host, once
+		// len(received.results == peersLen) then we know that we've received at
+		// least one entry from every peer and we can proceed
 		if len(received.results) == peersLen {
 			enqueueCh.enqueue(received.results)
 			received.submitted = true
@@ -1977,29 +1999,33 @@ func (s *session) emitDuplicateMetadataLog(received *receivedBlocks, metadata bl
 		"Received metadata, but peer metadata has already been submitted")
 }
 
+// emitDuplicateMetadataLogV2 emits a log with the details of the duplicate metadata
+// event. Note that we're unable to log the blocks themselves because they're contained
+// in a slice that is not safe for concurrent access (I.E logging them here would be
+// racey because other code could be modifying the slice)
 func (s *session) emitDuplicateMetadataLogV2(received *receivedBlocks, metadata blocksMetadata) {
 	fields := make([]xlog.Field, len(received.results)+1)
 	fields = append(fields, xlog.NewField(
 		"incomingMetadata",
 		fmt.Sprintf(
-			"ID: %s, peer: %s, block: %s",
+			"ID: %s, peer: %s",
 			metadata.id.String(),
 			metadata.peer.Host().String(),
-			metadata.blocks[0].start.String(),
 		),
 	))
 	for i, result := range received.results {
 		fields = append(fields, xlog.NewField(
 			fmt.Sprintf("existingMetadata_%d", i),
 			fmt.Sprintf(
-				"ID: %s, peer: %s, block: %s",
+				"ID: %s, peer: %s",
 				result.id.String(),
 				result.peer.Host().String(),
-				result.blocks[0].start.String(),
 			),
 		))
 	}
-	s.log.WithFields(fields...).Warnf(
+	// Debug-level because this is a common enough occurrence that logging it by
+	// default would be noisy
+	s.log.WithFields(fields...).Debugf(
 		"Received metadata, but peer metadata has already been submitted")
 }
 
