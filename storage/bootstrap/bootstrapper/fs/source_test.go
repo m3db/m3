@@ -436,6 +436,44 @@ func TestReadValidateError(t *testing.T) {
 	validateTimeRanges(t, res.Unfulfilled()[testShard], expected)
 }
 
+func TestReadOpenError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dir := createTempDir(t)
+	defer os.RemoveAll(dir)
+
+	reader := fs.NewMockFileSetReader(ctrl)
+	src := newFileSystemSource(dir, NewOptions()).(*fileSystemSource)
+	src.newReaderFn = func(
+		b pool.CheckedBytesPool,
+		opts fs.Options,
+	) (fs.FileSetReader, error) {
+		return reader, nil
+	}
+
+	idMatcher := ts.NewIDMatcher(testNs1ID.String())
+	shard := uint32(0)
+	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
+		"foo", []byte{0x1})
+	reader.EXPECT().
+		Open(idMatcher, shard, xtime.NewMatcher(testStart)).
+		Return(errors.New("error"))
+
+	res, err := src.Read(testNsMetadata(t), testShardTimeRanges(),
+		testDefaultRunOpts)
+	require.NoError(t, err)
+	require.NotNil(t, res)
+	require.Equal(t, 0, len(res.ShardResults()))
+	require.NotNil(t, res.Unfulfilled())
+	require.NotNil(t, res.Unfulfilled()[testShard])
+
+	expected := []xtime.Range{
+		{Start: testStart, End: testStart.Add(11 * time.Hour)},
+	}
+	validateTimeRanges(t, res.Unfulfilled()[testShard], expected)
+}
+
 func TestReadDeleteOnError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
