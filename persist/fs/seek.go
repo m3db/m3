@@ -47,6 +47,7 @@ var (
 )
 
 type seeker struct {
+	opts           Options
 	filePathPrefix string
 
 	// Data read from the indexInfo file
@@ -103,7 +104,9 @@ func NewSeeker(
 	infoBufferSize int,
 	seekBufferSize int,
 	bytesPool pool.CheckedBytesPool,
+	keepUnreadBuf bool,
 	decodingOpts msgpack.DecodingOptions,
+	opts Options,
 ) FileSetSeeker {
 	return newSeeker(seekerOpts{
 		filePathPrefix: filePathPrefix,
@@ -111,8 +114,9 @@ func NewSeeker(
 		infoBufferSize: infoBufferSize,
 		seekBufferSize: seekBufferSize,
 		bytesPool:      bytesPool,
-		keepUnreadBuf:  false,
+		keepUnreadBuf:  keepUnreadBuf,
 		decodingOpts:   decodingOpts,
+		opts:           opts,
 	})
 }
 
@@ -124,6 +128,7 @@ type seekerOpts struct {
 	bytesPool      pool.CheckedBytesPool
 	keepUnreadBuf  bool
 	decodingOpts   msgpack.DecodingOptions
+	opts           Options
 }
 
 // fileSetSeeker adds package level access to further methods
@@ -152,6 +157,7 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		prologue:                   make([]byte, markerLen+idxLen),
 		bytesPool:                  opts.bytesPool,
 		decoder:                    msgpack.NewDecoder(opts.decodingOpts),
+		opts:                       opts.opts,
 	}
 }
 
@@ -236,6 +242,10 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	if err != nil {
 		s.Close()
 		return err
+	}
+	if warning := indexMmapResult.warning; warning != nil {
+		s.opts.InstrumentOptions().Logger().Warnf(
+			"warning while mmapping index file in seeker: %s", warning.Error())
 	}
 
 	s.dataFd = dataFd
