@@ -294,7 +294,8 @@ func (r *blockRetriever) fetchBatch(
 			seg = ts.NewSegment(data, nil, ts.FinalizeHead)
 		}
 
-		if req.onRetrieve != nil {
+		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found
+		if req.onRetrieve != nil && !req.notFound {
 			// NB(r): Need to also trigger callback with a copy of the data.
 			// This is used by the database series to cache the in
 			// memory data.
@@ -349,9 +350,7 @@ func (r *blockRetriever) Stream(
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately
 	if !seeker.ConcurrentIDBloomFilter().Test(id.Data().Get()) {
-		if req.onRetrieve != nil {
-			go req.onRetrieve.OnRetrieveBlock(req.id, req.start, ts.Segment{})
-		}
+		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data
 		req.resultWg.Done()
 		return req, nil
 	}
