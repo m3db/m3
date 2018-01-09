@@ -351,7 +351,7 @@ func (r *blockRetriever) Stream(
 	// disk and we can return immediately
 	if !seeker.ConcurrentIDBloomFilter().Test(id.Data().Get()) {
 		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data
-		req.resultWg.Done()
+		req.onRetrieved(ts.Segment{})
 		return req, nil
 	}
 
