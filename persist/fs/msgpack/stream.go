@@ -64,13 +64,6 @@ type DecoderStream interface {
 	Offset() int
 }
 
-// DecoderStream is a data stream that is read by the decoder,
-// it takes both a reader and the underlying backing bytes.
-// This is constructed this way since the decoder needs access
-// to the backing bytes when taking refs directly for decoding byte
-// slices without allocating bytes itself but also needs to progress
-// the reader (for instance when a reader is a ReaderWithDigest that
-// is calculating a digest as its being read).
 type decoderStream struct {
 	reader *bytes.Reader
 	bytes  []byte
