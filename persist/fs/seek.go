@@ -232,12 +232,6 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		s.decoder.Reset(nil)
 	}
 
-	// Make sure the indexFd is at the beginning of the file
-	_, err = indexFd.Seek(0, 0)
-	if err != nil {
-		s.Close()
-		return err
-	}
 	indexMmapResult, err := mmapFile(indexFd, mmapOptions{read: true})
 	if err != nil {
 		s.Close()
