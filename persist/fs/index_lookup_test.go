@@ -53,18 +53,13 @@ func TestNewNearestIndexOffsetDetectsUnsortedFiles(t *testing.T) {
 	// Write out the out-of-order summaries into the temp file
 	writeSummariesEntries(t, file, outOfOrderSummaries)
 
-	// Determine the size of the file
-	stat, err := file.Stat()
-	require.NoError(t, err)
-	fileSize := stat.Size()
-
-	// Determine the expected digest
+	// Prepare the digest reader
 	summariesFdWithDigest := digest.NewFdWithDigestReader(4096)
 	file.Seek(0, 0)
 	summariesFdWithDigest.Reset(file)
-	_, err = summariesFdWithDigest.Read(make([]byte, fileSize))
-	require.NoError(t, err)
-	expectedDigest := summariesFdWithDigest.Digest().Sum32()
+
+	// Determine the expected digest
+	expectedDigest := calculateExpectedDigest(t, summariesFdWithDigest)
 
 	// Reset the digest reader
 	file.Seek(0, 0)
@@ -90,4 +85,17 @@ func writeSummariesEntries(t *testing.T, fd *os.File, summaries []schema.IndexSu
 		_, err := fd.Write(encoder.Bytes())
 		require.NoError(t, err)
 	}
+}
+
+func calculateExpectedDigest(t *testing.T, digestReader digest.FdWithDigestReader) uint32 {
+	// Determine the size of the file
+	file := digestReader.Fd()
+	stat, err := file.Stat()
+	require.NoError(t, err)
+	fileSize := stat.Size()
+
+	// Calculate the digest
+	_, err = digestReader.Read(make([]byte, fileSize))
+	require.NoError(t, err)
+	return digestReader.Digest().Sum32()
 }
