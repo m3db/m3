@@ -46,7 +46,7 @@ func main() {
 
 	reader, err := fs.NewReader(bytesPool, fs.NewOptions())
 	if err != nil {
-		log.Fatalf("Could not create new reader: %v", err)
+		log.Fatalf("could not create new reader: %v", err)
 	}
 	err = reader.Open(ts.StringID(*optNamespace), *optShard, time.Unix(*optBlockstart, 0))
 	if err != nil {
