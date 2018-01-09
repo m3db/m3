@@ -182,23 +182,24 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	}
 
 	// Mmap necessary files
+	mmapOptions := mmapOptions{
+		read: true,
+		hugeTLB: mmapHugeTLBOptions{
+			enabled:   s.opts.MmapEnableHugeTLB(),
+			threshold: s.opts.MmapHugeTLBThreshold(),
+		},
+	}
 	mmapResult, err := mmapFiles(os.Open, map[string]mmapFileDesc{
 		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmapFileDesc{
 			file:  &indexFd,
 			bytes: &s.indexMmap,
 			// Index files are small enough that they don't warrant hugeTLB
-			options: mmapOptions{read: true, hugeTLB: mmapHugeTLBOptions{enabled: false}},
+			options: mmapOptions,
 		},
 		filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmapFileDesc{
-			file:  &dataFd,
-			bytes: &s.dataMmap,
-			options: mmapOptions{
-				read: true,
-				hugeTLB: mmapHugeTLBOptions{
-					enabled:   s.opts.MmapEnableHugeTLB(),
-					threshold: s.opts.MmapHugeTLBThreshold(),
-				},
-			},
+			file:    &dataFd,
+			bytes:   &s.dataMmap,
+			options: mmapOptions,
 		},
 	})
 	if err != nil {
