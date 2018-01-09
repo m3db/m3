@@ -278,11 +278,10 @@ func (r *blockRetriever) fetchBatch(
 	for _, req := range reqs {
 		var data checked.Bytes
 		var err error
-		// If the ID does not exist, don't try to seek to it or we'll get a checksum
+
+		// Only try to seek the ID if it exists, otherwise we'll get a checksum
 		// mismatch error because default offset value for indexEntry is zero.
-		if req.doesNotExist {
-			data, err = nil, nil
-		} else {
+		if !req.doesNotExist {
 			data, err = seeker.SeekByIndexEntry(req.indexEntry)
 			if err != nil && err != errSeekIDNotFound {
 				req.onError(err)
