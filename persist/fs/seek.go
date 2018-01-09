@@ -207,7 +207,7 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	}
 	if warning := mmapResult.warning; warning != nil {
 		s.opts.InstrumentOptions().Logger().Warnf(
-			"warning while mmapping index file in seeker: %s", warning.Error())
+			"warning while mmaping files in seeker: %s", warning.Error())
 	}
 
 	// Setup digest readers
