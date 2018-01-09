@@ -21,10 +21,8 @@
 package fs
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
-	"io"
 	"os"
 	"time"
 
@@ -44,6 +42,9 @@ var (
 
 	// errSeekChecksumMismatch returned when data checksum does not match the expected checksum
 	errSeekChecksumMismatch = errors.New("checksum does not match expected checksum")
+
+	// errInvalidDataFileOffset returned when the provided offset into the data file is not valid
+	errInvalidDataFileOffset = errors.New("invalid data file offset")
 )
 
 type seeker struct {
@@ -63,8 +64,6 @@ type seeker struct {
 	bloomFilterFdWithDigest    digest.FdWithDigestReader
 	summariesFdWithDigest      digest.FdWithDigestReader
 	digestFdWithDigestContents digest.FdWithDigestContentsReader
-
-	dataReader *bufio.Reader
 
 	dataMmap  []byte
 	indexMmap []byte
@@ -152,7 +151,6 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		bloomFilterFdWithDigest:    digest.NewFdWithDigestReader(opts.dataBufferSize),
 		summariesFdWithDigest:      digest.NewFdWithDigestReader(opts.dataBufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.infoBufferSize),
-		dataReader:                 bufio.NewReaderSize(nil, opts.seekBufferSize),
 		keepUnreadBuf:              opts.keepUnreadBuf,
 		prologue:                   make([]byte, markerLen+idxLen),
 		bytesPool:                  opts.bytesPool,
@@ -341,59 +339,53 @@ func (s *seeker) SeekByID(id ts.ID) (checked.Bytes, error) {
 // instead of looking it up on its own. Useful in cases where you've already
 // obtained an entry and don't want to waste resources looking it up again.
 func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
-	s.dataReader.Reset(bytes.NewReader(s.dataMmap[entry.Offset:]))
+	// Should never happen, but prevent panics if somehow we're provided an index entry
+	// with a negative or too large offset
+	if int(entry.Offset) > len(s.dataMmap)-1 {
+		return nil, errInvalidDataFileOffset
+	}
 
-	n, err := s.dataReader.Read(s.prologue)
-	if err != nil {
-		return nil, err
-	} else if n != cap(s.prologue) {
+	// We'll treat the dataView similar to a reader interface in that we will continue to reslice
+	// it such that the first byte is always the next byte, and we'll focus instead on how much
+	// we want to read.
+	dataView := s.dataMmap[entry.Offset:]
+
+	// Should never happen, but prevents panics in the case of malformed data
+	if len(dataView) < cap(s.prologue) {
 		return nil, errReadNotExpectedSize
-	} else if !bytes.Equal(s.prologue[:markerLen], marker) {
+	}
+	// Should never happen, but prevents panics in the case of malformed data
+	if !bytes.Equal(dataView[:markerLen], marker) {
 		return nil, errReadMarkerNotFound
 	}
 
-	var data checked.Bytes
+	// Reslice past the prologue that we just finished reading
+	dataView = dataView[cap(s.prologue):]
+
+	// Obtain an appropriately sized buffer
+	var buffer checked.Bytes
 	if s.bytesPool != nil {
-		data = s.bytesPool.Get(int(entry.Size))
-		data.IncRef()
-		defer data.DecRef()
-		data.Resize(int(entry.Size))
+		buffer = s.bytesPool.Get(int(entry.Size))
+		buffer.IncRef()
+		defer buffer.DecRef()
+		buffer.Resize(int(entry.Size))
 	} else {
-		data = checked.NewBytes(make([]byte, entry.Size), nil)
-		data.IncRef()
-		defer data.DecRef()
+		buffer = checked.NewBytes(make([]byte, entry.Size), nil)
+		buffer.IncRef()
+		defer buffer.DecRef()
 	}
 
-	n, err = s.dataReader.Read(data.Get())
-	if err != nil {
-		return nil, err
-	}
-
-	// In case the buffered reader only returns what's remaining in
-	// the buffer, repeatedly read what's left in the underlying reader.
-	for n < int(entry.Size) {
-		b := data.Get()[n:]
-		remainder, err := s.dataReader.Read(b)
-
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		n += remainder
-	}
-
-	if n != int(entry.Size) {
-		return nil, errReadNotExpectedSize
-	}
+	// Copy the actual data into the underlying buffer
+	underlyingBuf := buffer.Get()
+	copy(underlyingBuf, dataView[:entry.Size])
 
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
-	if entry.Checksum != digest.Checksum(data.Get()) {
+	if entry.Checksum != digest.Checksum(underlyingBuf) {
 		return nil, errSeekChecksumMismatch
 	}
 
-	return data, nil
+	return buffer, nil
 }
 
 func (s *seeker) SeekIndexEntry(id ts.ID) (IndexEntry, error) {
