@@ -268,7 +268,7 @@ func (r *blockRetriever) fetchBatch(
 		}
 
 		if err == errSeekIDNotFound {
-			req.doesNotExist = true
+			req.notFound = true
 		}
 		req.indexEntry = entry
 	}
@@ -281,7 +281,7 @@ func (r *blockRetriever) fetchBatch(
 
 		// Only try to seek the ID if it exists, otherwise we'll get a checksum
 		// mismatch error because default offset value for indexEntry is zero.
-		if !req.doesNotExist {
+		if !req.notFound {
 			data, err = seeker.SeekByIndexEntry(req.indexEntry)
 			if err != nil && err != errSeekIDNotFound {
 				req.onError(err)
@@ -451,8 +451,8 @@ type retrieveRequest struct {
 	indexEntry IndexEntry
 	reader     xio.SegmentReader
 
-	doesNotExist bool
-	err          error
+	notFound bool
+	err      error
 }
 
 func (req *retrieveRequest) onError(err error) {
@@ -499,7 +499,7 @@ func (req *retrieveRequest) resetForReuse() {
 	req.indexEntry = IndexEntry{}
 	req.reader = nil
 	req.err = nil
-	req.doesNotExist = false
+	req.notFound = false
 }
 
 type retrieveRequestByStartAscShardAsc []*retrieveRequest
