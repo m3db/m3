@@ -327,14 +327,22 @@ func (r *blockRetriever) Stream(
 	req.onRetrieve = onRetrieve
 	req.resultWg.Add(1)
 
+	// Capture variable and RLock() because this slice can be modified in the
+	// Open() method
+	var seekerMgr FileSetSeekerManager
+	r.RLock()
 	// This should never happen
 	if len(r.seekerMgrs) < 1 {
+		r.RUnlock()
 		return nil, errNoSeekerMgrs
 	}
+	seekerMgr = r.seekerMgrs[0]
+	r.RUnlock()
+
 	// It doesn't matter which seekerManager we use (they're all identical, we
 	// just have multiple for concurrency reasons), so we use the first one
 	// because it's guaranteed to be there (concurrency cannot be < 1)
-	seeker, err := r.seekerMgrs[0].Seeker(shard, startTime)
+	seeker, err := seekerMgr.Seeker(shard, startTime)
 	if err != nil {
 		return nil, err
 	}
