@@ -30,8 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/persist/encoding"
-	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
@@ -93,7 +92,7 @@ type reader struct {
 	entriesRead               int
 	metadataRead              int
 	prologue                  []byte
-	decoder                   encoding.Decoder
+	decoder                   *msgpack.Decoder
 	digestBuf                 digest.Buffer
 	bytesPool                 pool.CheckedBytesPool
 }
@@ -243,7 +242,7 @@ func (r *reader) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
-	r.decoder.Reset(encoding.NewDecoderStream(buf[:n]))
+	r.decoder.Reset(msgpack.NewDecoderStream(buf[:n]))
 	info, err := r.decoder.DecodeIndexInfo()
 	if err != nil {
 		return err
@@ -332,7 +331,7 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 }
 
 func (r *reader) ReadBloomFilter() (*ManagedConcurrentBloomFilter, error) {
-	return readManagedConcurrentBloomFilter(
+	return newManagedConcurrentBloomFilterFromFile(
 		r.bloomFilterFd,
 		r.bloomFilterWithDigest,
 		r.expectedBloomFilterDigest,

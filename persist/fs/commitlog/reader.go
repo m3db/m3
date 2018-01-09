@@ -30,8 +30,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3db/persist/encoding"
-	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
@@ -112,8 +111,8 @@ type reader struct {
 	bytesPool            pool.CheckedBytesPool
 	chunkReader          *chunkReader
 	dataBuffer           []byte
-	infoDecoder          encoding.Decoder
-	infoDecoderStream    encoding.DecoderStream
+	infoDecoder          *msgpack.Decoder
+	infoDecoderStream    msgpack.DecoderStream
 	decoderBufs          []chan decoderArg
 	outBufs              []chan readResponse
 	cancelCtx            context.Context
@@ -145,7 +144,7 @@ func newCommitLogReader(opts Options) commitLogReader {
 		bytesPool:         opts.BytesPool(),
 		chunkReader:       newChunkReader(opts.FlushSize()),
 		infoDecoder:       msgpack.NewDecoder(decodingOpts),
-		infoDecoderStream: encoding.NewDecoderStream(nil),
+		infoDecoderStream: msgpack.NewDecoderStream(nil),
 		decoderBufs:       decoderBufs,
 		outBufs:           outBufs,
 		cancelCtx:         cancelCtx,
@@ -273,9 +272,9 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 	var (
 		decodingOpts          = r.opts.FilesystemOptions().DecodingOptions()
 		decoder               = msgpack.NewDecoder(decodingOpts)
-		decoderStream         = encoding.NewDecoderStream(nil)
+		decoderStream         = msgpack.NewDecoderStream(nil)
 		metadataDecoder       = msgpack.NewDecoder(decodingOpts)
-		metadataDecoderStream = encoding.NewDecoderStream(nil)
+		metadataDecoderStream = msgpack.NewDecoderStream(nil)
 	)
 	for arg := range inBuf {
 		readResponse := readResponse{}
@@ -341,8 +340,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 }
 
 func (r *reader) decodeAndHandleMetadata(
-	metadataDecoder encoding.Decoder,
-	metadataDecoderStream encoding.DecoderStream,
+	metadataDecoder *msgpack.Decoder,
+	metadataDecoderStream msgpack.DecoderStream,
 	entry schema.LogEntry,
 ) error {
 	metadataDecoderStream.Reset(entry.Metadata)

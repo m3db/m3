@@ -29,8 +29,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/persist/encoding"
-	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
@@ -48,6 +47,7 @@ var (
 )
 
 type seeker struct {
+	opts           Options
 	filePathPrefix string
 
 	// Data read from the indexInfo file
@@ -55,44 +55,46 @@ type seeker struct {
 	blockSize       time.Duration
 	entries         int
 	bloomFilterInfo schema.IndexBloomFilterInfo
+	summariesInfo   schema.IndexSummariesInfo
 
 	// Readers for each file that will also verify the digest
 	infoFdWithDigest           digest.FdWithDigestReader
 	indexFdWithDigest          digest.FdWithDigestReader
 	bloomFilterFdWithDigest    digest.FdWithDigestReader
+	summariesFdWithDigest      digest.FdWithDigestReader
 	digestFdWithDigestContents digest.FdWithDigestContentsReader
 
 	dataFd     *os.File
 	dataReader *bufio.Reader
 
+	indexMmap []byte
+
 	// Expected digests for each file read from the digests file
 	expectedInfoDigest        uint32
 	expectedIndexDigest       uint32
 	expectedBloomFilterDigest uint32
+	expectedSummariesDigest   uint32
 
-	keepIndexIDs  bool
 	keepUnreadBuf bool
 
 	unreadBuf []byte
 	prologue  []byte
 
-	// NB(r): specifically use a non pointer type for
-	// key and value in this map to avoid the GC scanning
-	// this large map.
-	indexMap  map[ts.Hash]indexMapEntry
-	indexIDs  []ts.ID
-	decoder   encoding.Decoder
+	decoder   *msgpack.Decoder
 	bytesPool pool.CheckedBytesPool
 
 	// Bloom filter associated with the shard / block the seeker is responsible
 	// for. Needs to be closed when done.
 	bloomFilter *ManagedConcurrentBloomFilter
+	indexLookup *nearestIndexOffsetLookup
 }
 
-type indexMapEntry struct {
-	size     uint32
-	checksum uint32
-	offset   int64
+// IndexEntry is an entry from the index file which can be passed to
+// SeekUsingIndexEntry to seek to the data for that entry
+type IndexEntry struct {
+	Size     uint32
+	Checksum uint32
+	Offset   int64
 }
 
 // NewSeeker returns a new seeker.
@@ -102,7 +104,9 @@ func NewSeeker(
 	infoBufferSize int,
 	seekBufferSize int,
 	bytesPool pool.CheckedBytesPool,
+	keepUnreadBuf bool,
 	decodingOpts msgpack.DecodingOptions,
+	opts Options,
 ) FileSetSeeker {
 	return newSeeker(seekerOpts{
 		filePathPrefix: filePathPrefix,
@@ -110,9 +114,9 @@ func NewSeeker(
 		infoBufferSize: infoBufferSize,
 		seekBufferSize: seekBufferSize,
 		bytesPool:      bytesPool,
-		keepIndexIDs:   true,
-		keepUnreadBuf:  false,
+		keepUnreadBuf:  keepUnreadBuf,
 		decodingOpts:   decodingOpts,
+		opts:           opts,
 	})
 }
 
@@ -122,9 +126,9 @@ type seekerOpts struct {
 	dataBufferSize int
 	seekBufferSize int
 	bytesPool      pool.CheckedBytesPool
-	keepIndexIDs   bool
 	keepUnreadBuf  bool
 	decodingOpts   msgpack.DecodingOptions
+	opts           Options
 }
 
 // fileSetSeeker adds package level access to further methods
@@ -146,35 +150,38 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.infoBufferSize),
 		indexFdWithDigest:          digest.NewFdWithDigestReader(opts.dataBufferSize),
 		bloomFilterFdWithDigest:    digest.NewFdWithDigestReader(opts.dataBufferSize),
+		summariesFdWithDigest:      digest.NewFdWithDigestReader(opts.dataBufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.infoBufferSize),
 		dataReader:                 bufio.NewReaderSize(nil, opts.seekBufferSize),
-		keepIndexIDs:               opts.keepIndexIDs,
 		keepUnreadBuf:              opts.keepUnreadBuf,
 		prologue:                   make([]byte, markerLen+idxLen),
 		bytesPool:                  opts.bytesPool,
 		decoder:                    msgpack.NewDecoder(opts.decodingOpts),
+		opts:                       opts.opts,
 	}
 }
 
-func (s *seeker) IDs() []ts.ID {
-	return s.indexIDs
+func (s *seeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter {
+	return s.bloomFilter
 }
 
 func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
 	shardDir := ShardDirPath(s.filePathPrefix, namespace, shard)
-	var infoFd, indexFd, dataFd, digestFd, bloomFilterFd *os.File
+	var infoFd, indexFd, dataFd, digestFd, bloomFilterFd, summariesFd *os.File
 	if err := openFiles(os.Open, map[string]**os.File{
 		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
 		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &indexFd,
 		filesetPathFromTime(shardDir, blockStart, dataFileSuffix):        &dataFd,
 		filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
 		filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &bloomFilterFd,
+		filesetPathFromTime(shardDir, blockStart, summariesFileSuffix):   &summariesFd,
 	}); err != nil {
 		return err
 	}
 
 	s.infoFdWithDigest.Reset(infoFd)
 	s.indexFdWithDigest.Reset(indexFd)
+	s.summariesFdWithDigest.Reset(summariesFd)
 	s.digestFdWithDigestContents.Reset(digestFd)
 
 	defer func() {
@@ -195,26 +202,29 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		s.Close()
 		return err
 	}
-	indexStat, err := indexFd.Stat()
-	if err != nil {
-		s.Close()
-		return err
-	}
 	if err := s.readInfo(int(infoStat.Size())); err != nil {
 		s.Close()
 		return err
 	}
-	if err := s.readIndex(int(indexStat.Size())); err != nil {
-		s.Close()
-		return err
-	}
 
-	s.bloomFilter, err = readManagedConcurrentBloomFilter(
+	s.bloomFilter, err = newManagedConcurrentBloomFilterFromFile(
 		bloomFilterFd,
 		s.bloomFilterFdWithDigest,
 		s.expectedBloomFilterDigest,
 		uint(s.bloomFilterInfo.NumElementsM),
 		uint(s.bloomFilterInfo.NumHashesK),
+	)
+	if err != nil {
+		s.Close()
+		return err
+	}
+
+	s.summariesFdWithDigest.Reset(summariesFd)
+	s.indexLookup, err = newNearestIndexOffsetLookupFromSummariesFile(
+		s.summariesFdWithDigest,
+		s.expectedSummariesDigest,
+		s.decoder,
+		int(s.summariesInfo.Summaries),
 	)
 	if err != nil {
 		s.Close()
@@ -228,7 +238,18 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		s.decoder.Reset(nil)
 	}
 
+	indexMmapResult, err := mmapFile(indexFd, mmapOptions{read: true})
+	if err != nil {
+		s.Close()
+		return err
+	}
+	if warning := indexMmapResult.warning; warning != nil {
+		s.opts.InstrumentOptions().Logger().Warnf(
+			"warning while mmapping index file in seeker: %s", warning.Error())
+	}
+
 	s.dataFd = dataFd
+	s.indexMmap = indexMmapResult.result
 
 	return err
 }
@@ -257,6 +278,7 @@ func (s *seeker) readDigest() error {
 	s.expectedInfoDigest = fsDigests.infoDigest
 	s.expectedIndexDigest = fsDigests.indexDigest
 	s.expectedBloomFilterDigest = fsDigests.bloomFilterDigest
+	s.expectedSummariesDigest = fsDigests.summariesDigest
 
 	return nil
 }
@@ -268,7 +290,7 @@ func (s *seeker) readInfo(size int) error {
 		return err
 	}
 
-	s.decoder.Reset(encoding.NewDecoderStream(s.unreadBuf[:n]))
+	s.decoder.Reset(msgpack.NewDecoderStream(s.unreadBuf[:n]))
 	info, err := s.decoder.DecodeIndexInfo()
 	if err != nil {
 		return err
@@ -278,51 +300,27 @@ func (s *seeker) readInfo(size int) error {
 	s.blockSize = time.Duration(info.BlockSize)
 	s.entries = int(info.Entries)
 	s.bloomFilterInfo = info.BloomFilter
+	s.summariesInfo = info.Summaries
 
 	return nil
 }
 
-func (s *seeker) readIndex(size int) error {
-	s.prepareUnreadBuf(size)
-	indexBytes := s.unreadBuf[:size]
-	n, err := s.indexFdWithDigest.ReadAllAndValidate(indexBytes, s.expectedIndexDigest)
+// SeekByID returns the data for the specified ID. An error will be returned if the
+// ID cannot be found.
+func (s *seeker) SeekByID(id ts.ID) (checked.Bytes, error) {
+	entry, err := s.SeekIndexEntry(id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	s.decoder.Reset(encoding.NewDecoderStream(s.unreadBuf[:n][:]))
-	if s.indexMap == nil {
-		s.indexMap = make(map[ts.Hash]indexMapEntry, s.entries)
-	}
-	// Read all entries of index
-	for read := 0; read < s.entries; read++ {
-		entry, err := s.decoder.DecodeIndexEntry()
-		if err != nil {
-			return err
-		}
-		s.indexMap[ts.HashFn(entry.ID)] = indexMapEntry{
-			size:     uint32(entry.Size),
-			checksum: uint32(entry.Checksum),
-			offset:   entry.Offset,
-		}
-
-		if s.keepIndexIDs {
-			entryID := append([]byte(nil), entry.ID...)
-			id := ts.BinaryID(checked.NewBytes(entryID, nil))
-			s.indexIDs = append(s.indexIDs, id)
-		}
-	}
-
-	return nil
+	return s.SeekByIndexEntry(entry)
 }
 
-func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
-	entry, exists := s.indexMap[id.Hash()]
-	if !exists {
-		return nil, errSeekIDNotFound
-	}
-
-	_, err := s.dataFd.Seek(entry.offset, 0)
+// SeekByIndexEntry is similar to Seek, but uses the provided IndexEntry
+// instead of looking it up on its own. Useful in cases where you've already
+// obtained an entry and don't want to waste resources looking it up again.
+func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
+	_, err := s.dataFd.Seek(entry.Offset, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -339,12 +337,12 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 
 	var data checked.Bytes
 	if s.bytesPool != nil {
-		data = s.bytesPool.Get(int(entry.size))
+		data = s.bytesPool.Get(int(entry.Size))
 		data.IncRef()
 		defer data.DecRef()
-		data.Resize(int(entry.size))
+		data.Resize(int(entry.Size))
 	} else {
-		data = checked.NewBytes(make([]byte, entry.size), nil)
+		data = checked.NewBytes(make([]byte, entry.Size), nil)
 		data.IncRef()
 		defer data.DecRef()
 	}
@@ -356,7 +354,7 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 
 	// In case the buffered reader only returns what's remaining in
 	// the buffer, repeatedly read what's left in the underlying reader.
-	for n < int(entry.size) {
+	for n < int(entry.Size) {
 		b := data.Get()[n:]
 		remainder, err := s.dataReader.Read(b)
 
@@ -368,25 +366,59 @@ func (s *seeker) Seek(id ts.ID) (checked.Bytes, error) {
 		n += remainder
 	}
 
-	if n != int(entry.size) {
+	if n != int(entry.Size) {
 		return nil, errReadNotExpectedSize
 	}
 
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
-	if entry.checksum != digest.Checksum(data.Get()) {
+	if entry.Checksum != digest.Checksum(data.Get()) {
 		return nil, errSeekChecksumMismatch
 	}
 
 	return data, nil
 }
 
-func (s *seeker) SeekOffset(id ts.ID) int {
-	entry, exists := s.indexMap[id.Hash()]
-	if !exists {
-		return -1
+func (s *seeker) SeekIndexEntry(id ts.ID) (IndexEntry, error) {
+	offset, err := s.indexLookup.getNearestIndexFileOffset(id)
+	// Should never happen, either something is really wrong with the code or
+	// the file on disk was corrupted
+	if err != nil {
+		return IndexEntry{}, err
 	}
-	return int(entry.offset)
+
+	stream := msgpack.NewDecoderStream(s.indexMmap[offset:])
+	s.decoder.Reset(stream)
+
+	idBytes := id.Data().Get()
+	// Prevent panic's when we're scanning to the end of the buffer
+	for stream.Remaining() != 0 {
+		entry, err := s.decoder.DecodeIndexEntry()
+		// Should never happen, either something is really wrong with the code or
+		// the file on disk was corrupted
+		if err != nil {
+			return IndexEntry{}, err
+		}
+		comparison := bytes.Compare(entry.ID, idBytes)
+		if comparison == 0 {
+			return IndexEntry{
+				Size:     uint32(entry.Size),
+				Checksum: uint32(entry.Checksum),
+				Offset:   entry.Offset,
+			}, nil
+		}
+
+		// We've scanned far enough through the index file to be sure that the ID
+		// we're looking for doesn't exist (because the index is sorted by ID)
+		if comparison == 1 {
+			return IndexEntry{}, errSeekIDNotFound
+		}
+	}
+
+	// Similar to the case above where comparison == 1, except in this case we're
+	// sure that the ID we're looking for doesn't exist because we reached the end
+	// of the index file.
+	return IndexEntry{}, errSeekIDNotFound
 }
 
 func (s *seeker) Range() xtime.Range {
@@ -398,11 +430,6 @@ func (s *seeker) Entries() int {
 }
 
 func (s *seeker) Close() error {
-	// Prepare for reuse
-	for key := range s.indexMap {
-		delete(s.indexMap, key)
-	}
-
 	multiErr := xerrors.NewMultiError()
 	if s.dataFd != nil {
 		multiErr = multiErr.Add(s.dataFd.Close())
@@ -412,6 +439,13 @@ func (s *seeker) Close() error {
 		multiErr = multiErr.Add(s.bloomFilter.Close())
 		s.bloomFilter = nil
 	}
-
+	if s.indexLookup != nil {
+		multiErr = multiErr.Add(s.indexLookup.close())
+		s.indexLookup = nil
+	}
+	if s.indexMmap != nil {
+		multiErr = multiErr.Add(munmap(s.indexMmap))
+		s.indexMmap = nil
+	}
 	return multiErr.FinalError()
 }

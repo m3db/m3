@@ -53,14 +53,8 @@ func newOpenTestBlockRetriever(
 	t *testing.T,
 	opts testBlockRetrieverOptions,
 ) (*blockRetriever, testCleanupFn) {
-	dir, err := ioutil.TempDir("", "testdb")
-	require.NoError(t, err)
-
 	require.NotNil(t, opts.retrieverOpts)
 	require.NotNil(t, opts.fsOpts)
-
-	filePathPrefix := filepath.Join(dir, "")
-	opts.fsOpts = opts.fsOpts.SetFilePathPrefix(filePathPrefix)
 
 	r := NewBlockRetriever(opts.retrieverOpts, opts.fsOpts)
 	retriever := r.(*blockRetriever)
@@ -68,13 +62,12 @@ func newOpenTestBlockRetriever(
 		retriever.newSeekerMgrFn = opts.newSeekerMgrFn
 	}
 
-	nsPath := NamespaceDirPath(filePathPrefix, testNs1ID)
+	nsPath := NamespaceDirPath(opts.fsOpts.FilePathPrefix(), testNs1ID)
 	require.NoError(t, os.MkdirAll(nsPath, opts.fsOpts.NewDirectoryMode()))
 	require.NoError(t, retriever.Open(testNs1Metadata(t)))
 
 	return retriever, func() {
 		assert.NoError(t, retriever.Close())
-		os.RemoveAll(dir)
 	}
 }
 
@@ -100,6 +93,12 @@ type streamResult struct {
 }
 
 func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
+	dir, err := ioutil.TempDir("", "testdb")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+	filePathPrefix := filepath.Join(dir, "")
+	fsOpts := NewOptions().SetFilePathPrefix(filePathPrefix)
+
 	fetchConcurrency := 4
 	seekConcurrency := 4 * fetchConcurrency
 	opts := testBlockRetrieverOptions{
@@ -109,12 +108,11 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 				// NB(r): Try to make sure same req structs are reused frequently
 				// to surface any race issues that might occur with pooling.
 				SetSize(fetchConcurrency / 2)),
-		fsOpts: NewOptions(),
+		fsOpts: fsOpts,
 	}
 	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
 	defer cleanup()
 
-	fsopts := retriever.fsOpts
 	ropts := testNs1Metadata(t).Options().RetentionOptions()
 
 	now := time.Now().Truncate(ropts.BlockSize())
@@ -135,7 +133,7 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 		shardIDs[shard] = make([]ts.ID, 0, idsPerShard)
 		shardData[shard] = make(map[ts.Hash]map[xtime.UnixNano]checked.Bytes, idsPerShard)
 		for _, blockStart := range blockStarts {
-			w, closer := newOpenTestWriter(t, fsopts, shard, blockStart)
+			w, closer := newOpenTestWriter(t, fsOpts, shard, blockStart)
 			for i := 0; i < idsPerShard; i++ {
 				id := ts.StringID(fmt.Sprintf("foo.%d", i))
 				shardIDs[shard] = append(shardIDs[shard], id)
@@ -217,4 +215,47 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 
 	// Wait until done
 	enqueueWg.Wait()
+}
+
+// TestBlockRetrieverIDDoesNotExist verifies the behavior of the Stream() method
+// on the retriever in the case where the requested ID does not exist. In that
+// case, Stream() should return an empty segment.
+func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
+	// Make sure reader/writer are looking at the same test directory
+	dir, err := ioutil.TempDir("", "testdb")
+	require.NoError(t, err)
+	defer os.RemoveAll(dir)
+	filePathPrefix := filepath.Join(dir, "")
+
+	// Setup constants and config
+	fsOpts := NewOptions().SetFilePathPrefix(filePathPrefix)
+	rOpts := testNs1Metadata(t).Options().RetentionOptions()
+	shard := uint32(0)
+	blockStart := time.Now().Truncate(rOpts.BlockSize())
+
+	// Setup the reader
+	opts := testBlockRetrieverOptions{
+		retrieverOpts: NewBlockRetrieverOptions(),
+		fsOpts:        fsOpts,
+	}
+	retriever, cleanup := newOpenTestBlockRetriever(t, opts)
+	defer cleanup()
+
+	// Write out a test file
+	w, closer := newOpenTestWriter(t, fsOpts, shard, blockStart)
+	data := checked.NewBytes([]byte("Hello world!"), nil)
+	data.IncRef()
+	defer data.DecRef()
+	err = w.Write(ts.StringID("exists"), data, digest.Checksum(data.Get()))
+	assert.NoError(t, err)
+	closer()
+
+	// Make sure we return the correct error if the ID does not exist
+	segmentReader, err := retriever.Stream(shard, ts.StringID("not-exists"), blockStart, nil)
+	assert.NoError(t, err)
+
+	segment, err := segmentReader.Segment()
+	assert.NoError(t, err)
+	assert.Equal(t, nil, segment.Head)
+	assert.Equal(t, nil, segment.Tail)
 }

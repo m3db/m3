@@ -23,7 +23,6 @@ package msgpack
 import (
 	"fmt"
 
-	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/schema"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
@@ -35,38 +34,42 @@ var (
 	emptyIndexBloomFilterInfo schema.IndexBloomFilterInfo
 	emptyIndexEntry           schema.IndexEntry
 	emptyIndexSummary         schema.IndexSummary
+	emptyIndexSummaryToken    IndexSummaryToken
 	emptyLogInfo              schema.LogInfo
 	emptyLogEntry             schema.LogEntry
 	emptyLogMetadata          schema.LogMetadata
 )
 
-type decoder struct {
+// Decoder decodes persisted msgpack-encoded data
+type Decoder struct {
 	allocDecodedBytes bool
-	reader            encoding.DecoderStream
+	reader            DecoderStream
 	dec               *msgpack.Decoder
 	err               error
 }
 
 // NewDecoder creates a new decoder
-func NewDecoder(opts DecodingOptions) encoding.Decoder {
+func NewDecoder(opts DecodingOptions) *Decoder {
 	if opts == nil {
 		opts = NewDecodingOptions()
 	}
-	reader := encoding.NewDecoderStream(nil)
-	return &decoder{
+	reader := NewDecoderStream(nil)
+	return &Decoder{
 		allocDecodedBytes: opts.AllocDecodedBytes(),
 		reader:            reader,
 		dec:               msgpack.NewDecoder(reader),
 	}
 }
 
-func (dec *decoder) Reset(stream encoding.DecoderStream) {
+// Reset resets the data stream to decode from
+func (dec *Decoder) Reset(stream DecoderStream) {
 	dec.reader = stream
 	dec.dec.Reset(dec.reader)
 	dec.err = nil
 }
 
-func (dec *decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
+// DecodeIndexInfo decodes the index info
+func (dec *Decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 	if dec.err != nil {
 		return emptyIndexInfo, dec.err
 	}
@@ -79,7 +82,8 @@ func (dec *decoder) DecodeIndexInfo() (schema.IndexInfo, error) {
 	return indexInfo, nil
 }
 
-func (dec *decoder) DecodeIndexEntry() (schema.IndexEntry, error) {
+// DecodeIndexEntry decodes index entry
+func (dec *Decoder) DecodeIndexEntry() (schema.IndexEntry, error) {
 	if dec.err != nil {
 		return emptyIndexEntry, dec.err
 	}
@@ -92,20 +96,23 @@ func (dec *decoder) DecodeIndexEntry() (schema.IndexEntry, error) {
 	return indexEntry, nil
 }
 
-func (dec *decoder) DecodeIndexSummary() (schema.IndexSummary, error) {
+// DecodeIndexSummary decodes index summary
+func (dec *Decoder) DecodeIndexSummary() (
+	schema.IndexSummary, IndexSummaryToken, error) {
 	if dec.err != nil {
-		return emptyIndexSummary, dec.err
+		return emptyIndexSummary, emptyIndexSummaryToken, dec.err
 	}
 	numFieldsToSkip := dec.decodeRootObject(indexSummaryVersion, indexSummaryType)
-	indexSummary := dec.decodeIndexSummary()
+	indexSummary, indexSummaryMetadata := dec.decodeIndexSummary()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
-		return emptyIndexSummary, dec.err
+		return emptyIndexSummary, emptyIndexSummaryToken, dec.err
 	}
-	return indexSummary, nil
+	return indexSummary, indexSummaryMetadata, nil
 }
 
-func (dec *decoder) DecodeLogInfo() (schema.LogInfo, error) {
+// DecodeLogInfo decodes commit log info
+func (dec *Decoder) DecodeLogInfo() (schema.LogInfo, error) {
 	if dec.err != nil {
 		return emptyLogInfo, dec.err
 	}
@@ -118,7 +125,8 @@ func (dec *decoder) DecodeLogInfo() (schema.LogInfo, error) {
 	return logInfo, nil
 }
 
-func (dec *decoder) DecodeLogEntry() (schema.LogEntry, error) {
+// DecodeLogEntry decodes commit log entry
+func (dec *Decoder) DecodeLogEntry() (schema.LogEntry, error) {
 	if dec.err != nil {
 		return emptyLogEntry, dec.err
 	}
@@ -131,7 +139,8 @@ func (dec *decoder) DecodeLogEntry() (schema.LogEntry, error) {
 	return logEntry, nil
 }
 
-func (dec *decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
+// DecodeLogMetadata decodes commit log metadata
+func (dec *Decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 	if dec.err != nil {
 		return emptyLogMetadata, dec.err
 	}
@@ -144,7 +153,7 @@ func (dec *decoder) DecodeLogMetadata() (schema.LogMetadata, error) {
 	return logMetadata, nil
 }
 
-func (dec *decoder) decodeIndexInfo() schema.IndexInfo {
+func (dec *Decoder) decodeIndexInfo() schema.IndexInfo {
 	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexInfoType)
 	if !ok {
 		return emptyIndexInfo
@@ -163,7 +172,7 @@ func (dec *decoder) decodeIndexInfo() schema.IndexInfo {
 	return indexInfo
 }
 
-func (dec *decoder) decodeIndexSummariesInfo() schema.IndexSummariesInfo {
+func (dec *Decoder) decodeIndexSummariesInfo() schema.IndexSummariesInfo {
 	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexSummariesInfoType)
 	if !ok {
 		return emptyIndexSummariesInfo
@@ -177,7 +186,7 @@ func (dec *decoder) decodeIndexSummariesInfo() schema.IndexSummariesInfo {
 	return indexSummariesInfo
 }
 
-func (dec *decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
+func (dec *Decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexBloomFilterInfoType)
 	if !ok {
 		return emptyIndexBloomFilterInfo
@@ -192,14 +201,14 @@ func (dec *decoder) decodeIndexBloomFilterInfo() schema.IndexBloomFilterInfo {
 	return indexBloomFilterInfo
 }
 
-func (dec *decoder) decodeIndexEntry() schema.IndexEntry {
+func (dec *Decoder) decodeIndexEntry() schema.IndexEntry {
 	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexEntryType)
 	if !ok {
 		return emptyIndexEntry
 	}
 	var indexEntry schema.IndexEntry
 	indexEntry.Index = dec.decodeVarint()
-	indexEntry.ID = dec.decodeBytes()
+	indexEntry.ID, _, _ = dec.decodeBytes()
 	indexEntry.Size = dec.decodeVarint()
 	indexEntry.Offset = dec.decodeVarint()
 	indexEntry.Checksum = dec.decodeVarint()
@@ -210,23 +219,35 @@ func (dec *decoder) decodeIndexEntry() schema.IndexEntry {
 	return indexEntry
 }
 
-func (dec *decoder) decodeIndexSummary() schema.IndexSummary {
+func (dec *Decoder) decodeIndexSummary() (schema.IndexSummary, IndexSummaryToken) {
 	numFieldsToSkip, ok := dec.checkNumFieldsFor(indexSummaryType)
 	if !ok {
-		return emptyIndexSummary
+		return emptyIndexSummary, emptyIndexSummaryToken
 	}
-	var indexSummary schema.IndexSummary
+	var (
+		indexSummary       schema.IndexSummary
+		idBytesStartOffset int
+		idBytesLength      int
+	)
 	indexSummary.Index = dec.decodeVarint()
-	indexSummary.ID = dec.decodeBytes()
+	// Keep track of the offset in the byte stream before we decode the bytes so
+	// that we know exactly where to jump to if we want to just grab the ID itself
+	indexSummary.ID, idBytesStartOffset, idBytesLength = dec.decodeBytes()
 	indexSummary.IndexEntryOffset = dec.decodeVarint()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
-		return emptyIndexSummary
+		return emptyIndexSummary, emptyIndexSummaryToken
 	}
-	return indexSummary
+
+	// Downscaling to uint32 is fine because summary files and ID length should
+	// be well below the max value of a uint32
+	indexSummaryToken := NewIndexSummaryToken(
+		uint32(idBytesStartOffset), uint32(idBytesLength),
+	)
+	return indexSummary, indexSummaryToken
 }
 
-func (dec *decoder) decodeLogInfo() schema.LogInfo {
+func (dec *Decoder) decodeLogInfo() schema.LogInfo {
 	numFieldsToSkip, ok := dec.checkNumFieldsFor(logInfoType)
 	if !ok {
 		return emptyLogInfo
@@ -242,7 +263,7 @@ func (dec *decoder) decodeLogInfo() schema.LogInfo {
 	return logInfo
 }
 
-func (dec *decoder) decodeLogEntry() schema.LogEntry {
+func (dec *Decoder) decodeLogEntry() schema.LogEntry {
 	numFieldsToSkip, ok := dec.checkNumFieldsFor(logEntryType)
 	if !ok {
 		return emptyLogEntry
@@ -250,11 +271,11 @@ func (dec *decoder) decodeLogEntry() schema.LogEntry {
 	var logEntry schema.LogEntry
 	logEntry.Create = dec.decodeVarint()
 	logEntry.Index = dec.decodeVarUint()
-	logEntry.Metadata = dec.decodeBytes()
+	logEntry.Metadata, _, _ = dec.decodeBytes()
 	logEntry.Timestamp = dec.decodeVarint()
 	logEntry.Value = dec.decodeFloat64()
 	logEntry.Unit = uint32(dec.decodeVarUint())
-	logEntry.Annotation = dec.decodeBytes()
+	logEntry.Annotation, _, _ = dec.decodeBytes()
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return emptyLogEntry
@@ -262,14 +283,14 @@ func (dec *decoder) decodeLogEntry() schema.LogEntry {
 	return logEntry
 }
 
-func (dec *decoder) decodeLogMetadata() schema.LogMetadata {
+func (dec *Decoder) decodeLogMetadata() schema.LogMetadata {
 	numFieldsToSkip, ok := dec.checkNumFieldsFor(logMetadataType)
 	if !ok {
 		return emptyLogMetadata
 	}
 	var logMetadata schema.LogMetadata
-	logMetadata.ID = dec.decodeBytes()
-	logMetadata.Namespace = dec.decodeBytes()
+	logMetadata.ID, _, _ = dec.decodeBytes()
+	logMetadata.Namespace, _, _ = dec.decodeBytes()
 	logMetadata.Shard = uint32(dec.decodeVarUint())
 	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
@@ -278,7 +299,7 @@ func (dec *decoder) decodeLogMetadata() schema.LogMetadata {
 	return logMetadata
 }
 
-func (dec *decoder) decodeRootObject(expectedVersion int, expectedType objectType) int {
+func (dec *Decoder) decodeRootObject(expectedVersion int, expectedType objectType) int {
 	dec.checkVersion(expectedVersion)
 	if dec.err != nil {
 		return 0
@@ -298,7 +319,7 @@ func (dec *decoder) decodeRootObject(expectedVersion int, expectedType objectTyp
 	return numFieldsToSkip
 }
 
-func (dec *decoder) checkVersion(expected int) {
+func (dec *Decoder) checkVersion(expected int) {
 	version := int(dec.decodeVarint())
 	if dec.err != nil {
 		return
@@ -308,7 +329,7 @@ func (dec *decoder) checkVersion(expected int) {
 	}
 }
 
-func (dec *decoder) checkNumFieldsFor(objType objectType) (int, bool) {
+func (dec *Decoder) checkNumFieldsFor(objType objectType) (int, bool) {
 	actual := dec.decodeNumObjectFields()
 	if dec.err != nil {
 		return 0, false
@@ -321,7 +342,7 @@ func (dec *decoder) checkNumFieldsFor(objType objectType) (int, bool) {
 	return actual - expected, true
 }
 
-func (dec *decoder) skip(numFields int) {
+func (dec *Decoder) skip(numFields int) {
 	if dec.err != nil {
 		return
 	}
@@ -337,15 +358,15 @@ func (dec *decoder) skip(numFields int) {
 	}
 }
 
-func (dec *decoder) decodeNumObjectFields() int {
+func (dec *Decoder) decodeNumObjectFields() int {
 	return dec.decodeArrayLen()
 }
 
-func (dec *decoder) decodeObjectType() objectType {
+func (dec *Decoder) decodeObjectType() objectType {
 	return objectType(dec.decodeVarint())
 }
 
-func (dec *decoder) decodeVarint() int64 {
+func (dec *Decoder) decodeVarint() int64 {
 	if dec.err != nil {
 		return 0
 	}
@@ -354,7 +375,7 @@ func (dec *decoder) decodeVarint() int64 {
 	return value
 }
 
-func (dec *decoder) decodeVarUint() uint64 {
+func (dec *Decoder) decodeVarUint() uint64 {
 	if dec.err != nil {
 		return 0
 	}
@@ -363,7 +384,7 @@ func (dec *decoder) decodeVarUint() uint64 {
 	return value
 }
 
-func (dec *decoder) decodeFloat64() float64 {
+func (dec *Decoder) decodeFloat64() float64 {
 	if dec.err != nil {
 		return 0.0
 	}
@@ -372,9 +393,9 @@ func (dec *decoder) decodeFloat64() float64 {
 	return value
 }
 
-func (dec *decoder) decodeBytes() []byte {
+func (dec *Decoder) decodeBytes() ([]byte, int, int) {
 	if dec.err != nil {
-		return nil
+		return nil, -1, -1
 	}
 	// If we need to allocate new space for decoded byte slice, we delegate it to msgpack
 	// API which allocates a new slice under the hood, otherwise we simply locate the byte
@@ -382,35 +403,38 @@ func (dec *decoder) decodeBytes() []byte {
 	var value []byte
 	if dec.allocDecodedBytes {
 		value, dec.err = dec.dec.DecodeBytes()
-	} else {
-		bytesLen := dec.decodeBytesLen()
-		if dec.err != nil {
-			return nil
-		}
-		// NB(xichen): DecodeBytesLen() returns -1 if the byte slice is nil
-		if bytesLen == -1 {
-			return nil
-		}
-		var (
-			backingBytes = dec.reader.Bytes()
-			numBytes     = int64(len(backingBytes))
-			currPos      = numBytes - dec.reader.Remaining()
-			targetPos    = currPos + int64(bytesLen)
-		)
-		if bytesLen < 0 || currPos < 0 || targetPos > numBytes {
-			dec.err = fmt.Errorf("invalid currPos %d, bytesLen %d, numBytes %d", currPos, bytesLen, numBytes)
-			return nil
-		}
-		if err := dec.reader.Skip(int64(bytesLen)); err != nil {
-			dec.err = err
-			return nil
-		}
-		value = backingBytes[currPos:targetPos]
+		return value, -1, -1
 	}
-	return value
+
+	var (
+		bytesLen     = dec.decodeBytesLen()
+		backingBytes = dec.reader.Bytes()
+		numBytes     = len(backingBytes)
+		currPos      = int(int64(numBytes) - dec.reader.Remaining())
+	)
+
+	if dec.err != nil {
+		return nil, -1, -1
+	}
+	// NB(xichen): DecodeBytesLen() returns -1 if the byte slice is nil
+	if bytesLen == -1 {
+		return nil, -1, -1
+	}
+
+	targetPos := currPos + bytesLen
+	if bytesLen < 0 || currPos < 0 || targetPos > numBytes {
+		dec.err = fmt.Errorf("invalid currPos %d, bytesLen %d, numBytes %d", currPos, bytesLen, numBytes)
+		return nil, -1, -1
+	}
+	if err := dec.reader.Skip(int64(bytesLen)); err != nil {
+		dec.err = err
+		return nil, -1, -1
+	}
+	value = backingBytes[currPos:targetPos]
+	return value, currPos, bytesLen
 }
 
-func (dec *decoder) decodeArrayLen() int {
+func (dec *Decoder) decodeArrayLen() int {
 	if dec.err != nil {
 		return 0
 	}
@@ -419,7 +443,7 @@ func (dec *decoder) decodeArrayLen() int {
 	return value
 }
 
-func (dec *decoder) decodeBytesLen() int {
+func (dec *Decoder) decodeBytesLen() int {
 	if dec.err != nil {
 		return 0
 	}

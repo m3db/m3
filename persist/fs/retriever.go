@@ -18,6 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+// The block retriever is used to stream blocks of data from disk. It controls
+// the fetch concurrency on a per-Namespace basis I.E if the server is using
+// spinning-disks the concurrency can be set to 1 to serialize all disk fetches
+// for a given namespace, and the concurrency be set higher in the case of SSDs.
+//
+// The block retriever also handles batching of requests for data, as well as
+// re-arranging the order of requests to increase data locality when seeking
+// through and across files.
+
 package fs
 
 import (
@@ -30,12 +39,14 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 )
 
 var (
 	errBlockRetrieverNotOpen             = errors.New("block retriever is not open")
 	errBlockRetrieverAlreadyOpenOrClosed = errors.New("block retriever already open or is closed")
+	errNoSeekerMgrs                      = errors.New("there are no open seeker managers")
 )
 
 const (
@@ -179,13 +190,21 @@ func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 			continue
 		}
 
-		// NB(r): Files are all by shard and block time, the locality of
+		// Files are all by shard and block time, the locality of
 		// files is therefore foremost by block time as that is when they are
-		// all written.
+		// all written. Note that this sort does NOT mean that we're going to stripe
+		// through different files at once as you might expect at first, but simply
+		// that since all the fileset files are written at the end of a block period
+		// those files are more likely to be physically located close to each other
+		// on disk. In other words, instead of accessing files like this:
+		// 		shard1T1 --> shard1T2 --> shard1T3 --> shard2T1 --> shard2T2 --> shard2T3
+		// its probably faster to access them like this:
+		// 		shard1T1 --> shard2T1 --> shard1T2 --> shard2T2 --> shard1T3 --> shard2T3
+		// so we re-arrange the order of the requests to achieve that
 		sort.Sort(retrieveRequestByStartAscShardAsc(inFlight))
 
-		// Iterate through all in flight and send them to the seeker in batches
-		// of block time + shard.
+		// Iterate through all in flight requests and send them to the seeker in
+		// batches of block time + shard.
 		currBatchShard := uint32(0)
 		currBatchStart := time.Time{}
 		currBatchReqs = currBatchReqs[:0]
@@ -242,16 +261,32 @@ func (r *blockRetriever) fetchBatch(
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
 	for _, req := range reqs {
-		req.seekOffset = seeker.SeekOffset(req.id)
+		entry, err := seeker.SeekIndexEntry(req.id)
+		if err != nil && err != errSeekIDNotFound {
+			req.onError(err)
+			continue
+		}
+
+		if err == errSeekIDNotFound {
+			req.notFound = true
+		}
+		req.indexEntry = entry
 	}
 	sort.Sort(retrieveRequestByOffsetAsc(reqs))
 
 	// Seek and execute all requests
 	for _, req := range reqs {
-		data, err := seeker.Seek(req.id)
-		if err != nil && err != errSeekIDNotFound {
-			req.onError(err)
-			continue
+		var data checked.Bytes
+		var err error
+
+		// Only try to seek the ID if it exists, otherwise we'll get a checksum
+		// mismatch error because default offset value for indexEntry is zero.
+		if !req.notFound {
+			data, err = seeker.SeekByIndexEntry(req.indexEntry)
+			if err != nil && err != errSeekIDNotFound {
+				req.onError(err)
+				continue
+			}
 		}
 
 		var seg ts.Segment
@@ -259,7 +294,8 @@ func (r *blockRetriever) fetchBatch(
 			seg = ts.NewSegment(data, nil, ts.FinalizeHead)
 		}
 
-		if req.onRetrieve != nil {
+		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found
+		if req.onRetrieve != nil && !req.notFound {
 			// NB(r): Need to also trigger callback with a copy of the data.
 			// This is used by the database series to cache the in
 			// memory data.
@@ -285,17 +321,44 @@ func (r *blockRetriever) Stream(
 	startTime time.Time,
 	onRetrieve block.OnRetrieveBlock,
 ) (xio.SegmentReader, error) {
-	reqs, err := r.shardRequests(shard)
-	if err != nil {
-		return nil, err
-	}
-
 	req := r.reqPool.Get()
 	req.shard = shard
 	req.id = id
 	req.start = startTime
 	req.onRetrieve = onRetrieve
 	req.resultWg.Add(1)
+
+	// Capture variable and RLock() because this slice can be modified in the
+	// Open() method
+	var seekerMgr FileSetSeekerManager
+	r.RLock()
+	// This should never happen
+	if len(r.seekerMgrs) < 1 {
+		r.RUnlock()
+		return nil, errNoSeekerMgrs
+	}
+	seekerMgr = r.seekerMgrs[0]
+	r.RUnlock()
+
+	// It doesn't matter which seekerManager we use (they're all identical, we
+	// just have multiple for concurrency reasons), so we use the first one
+	// because it's guaranteed to be there (concurrency cannot be < 1)
+	seeker, err := seekerMgr.Seeker(shard, startTime)
+	if err != nil {
+		return nil, err
+	}
+	// If the ID is not in the seeker's bloom filter, then it's definitely not on
+	// disk and we can return immediately
+	if !seeker.ConcurrentIDBloomFilter().Test(id.Data().Get()) {
+		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data
+		req.onRetrieved(ts.Segment{})
+		return req, nil
+	}
+
+	reqs, err := r.shardRequests(shard)
+	if err != nil {
+		return nil, err
+	}
 
 	reqs.Lock()
 	reqs.queued = append(reqs.queued, req)
@@ -382,6 +445,7 @@ func (reqs *shardRetrieveRequests) resetQueued() {
 	reqs.queued = reqs.queued[:0]
 }
 
+// Don't forget to update the resetForReuse method when adding a new field
 type retrieveRequest struct {
 	resultWg sync.WaitGroup
 	pool     *reqPool
@@ -391,9 +455,11 @@ type retrieveRequest struct {
 	start      time.Time
 	onRetrieve block.OnRetrieveBlock
 
-	seekOffset int
+	indexEntry IndexEntry
 	reader     xio.SegmentReader
-	err        error
+
+	notFound bool
+	err      error
 }
 
 func (req *retrieveRequest) onError(err error) {
@@ -437,9 +503,10 @@ func (req *retrieveRequest) resetForReuse() {
 	req.id = nil
 	req.start = time.Time{}
 	req.onRetrieve = nil
-	req.seekOffset = -1
+	req.indexEntry = IndexEntry{}
 	req.reader = nil
 	req.err = nil
+	req.notFound = false
 }
 
 type retrieveRequestByStartAscShardAsc []*retrieveRequest
@@ -458,7 +525,7 @@ type retrieveRequestByOffsetAsc []*retrieveRequest
 func (r retrieveRequestByOffsetAsc) Len() int      { return len(r) }
 func (r retrieveRequestByOffsetAsc) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
 func (r retrieveRequestByOffsetAsc) Less(i, j int) bool {
-	return r[i].seekOffset < r[j].seekOffset
+	return r[i].indexEntry.Offset < r[j].indexEntry.Offset
 }
 
 type retrieveRequestPool interface {

@@ -66,7 +66,7 @@ func newManagedConcurrentBloomFilter(
 	}
 }
 
-func readManagedConcurrentBloomFilter(
+func newManagedConcurrentBloomFilterFromFile(
 	bloomFilterFd *os.File,
 	bloomFilterFdWithDigest digest.FdWithDigestReader,
 	expectedDigest uint32,

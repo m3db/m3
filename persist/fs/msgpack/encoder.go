@@ -23,7 +23,6 @@ package msgpack
 import (
 	"bytes"
 
-	"github.com/m3db/m3db/persist/encoding"
 	"github.com/m3db/m3db/persist/schema"
 
 	"gopkg.in/vmihailenco/msgpack.v2"
@@ -37,7 +36,8 @@ type encodeFloat64Fn func(value float64)
 type encodeBytesFn func(value []byte)
 type encodeArrayLenFn func(value int)
 
-type encoder struct {
+// Encoder encodes data in msgpack format for persistence
+type Encoder struct {
 	buf *bytes.Buffer
 	enc *msgpack.Encoder
 	err error
@@ -52,9 +52,9 @@ type encoder struct {
 }
 
 // NewEncoder creates a new encoder
-func NewEncoder() encoding.Encoder {
+func NewEncoder() *Encoder {
 	buf := bytes.NewBuffer(nil)
-	enc := &encoder{
+	enc := &Encoder{
 		buf: buf,
 		enc: msgpack.NewEncoder(buf),
 	}
@@ -70,14 +70,17 @@ func NewEncoder() encoding.Encoder {
 	return enc
 }
 
-func (enc *encoder) Reset() {
+// Reset resets the buffer
+func (enc *Encoder) Reset() {
 	enc.buf.Truncate(0)
 	enc.err = nil
 }
 
-func (enc *encoder) Bytes() []byte { return enc.buf.Bytes() }
+// Bytes returns the encoded bytes
+func (enc *Encoder) Bytes() []byte { return enc.buf.Bytes() }
 
-func (enc *encoder) EncodeIndexInfo(info schema.IndexInfo) error {
+// EncodeIndexInfo encodes index info
+func (enc *Encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 	if enc.err != nil {
 		return enc.err
 	}
@@ -86,7 +89,8 @@ func (enc *encoder) EncodeIndexInfo(info schema.IndexInfo) error {
 	return enc.err
 }
 
-func (enc *encoder) EncodeIndexEntry(entry schema.IndexEntry) error {
+// EncodeIndexEntry encodes index entry
+func (enc *Encoder) EncodeIndexEntry(entry schema.IndexEntry) error {
 	if enc.err != nil {
 		return enc.err
 	}
@@ -95,7 +99,8 @@ func (enc *encoder) EncodeIndexEntry(entry schema.IndexEntry) error {
 	return enc.err
 }
 
-func (enc *encoder) EncodeIndexSummary(summary schema.IndexSummary) error {
+// EncodeIndexSummary encodes index summary
+func (enc *Encoder) EncodeIndexSummary(summary schema.IndexSummary) error {
 	if enc.err != nil {
 		return enc.err
 	}
@@ -104,7 +109,8 @@ func (enc *encoder) EncodeIndexSummary(summary schema.IndexSummary) error {
 	return enc.err
 }
 
-func (enc *encoder) EncodeLogInfo(info schema.LogInfo) error {
+// EncodeLogInfo encodes commit log info
+func (enc *Encoder) EncodeLogInfo(info schema.LogInfo) error {
 	if enc.err != nil {
 		return enc.err
 	}
@@ -113,7 +119,8 @@ func (enc *encoder) EncodeLogInfo(info schema.LogInfo) error {
 	return enc.err
 }
 
-func (enc *encoder) EncodeLogEntry(entry schema.LogEntry) error {
+// EncodeLogEntry encodes commit log entry
+func (enc *Encoder) EncodeLogEntry(entry schema.LogEntry) error {
 	if enc.err != nil {
 		return enc.err
 	}
@@ -122,7 +129,8 @@ func (enc *encoder) EncodeLogEntry(entry schema.LogEntry) error {
 	return enc.err
 }
 
-func (enc *encoder) EncodeLogMetadata(entry schema.LogMetadata) error {
+// EncodeLogMetadata encodes commit log metadata
+func (enc *Encoder) EncodeLogMetadata(entry schema.LogMetadata) error {
 	if enc.err != nil {
 		return enc.err
 	}
@@ -131,7 +139,7 @@ func (enc *encoder) EncodeLogMetadata(entry schema.LogMetadata) error {
 	return enc.err
 }
 
-func (enc *encoder) encodeIndexInfo(info schema.IndexInfo) {
+func (enc *Encoder) encodeIndexInfo(info schema.IndexInfo) {
 	enc.encodeNumObjectFieldsForFn(indexInfoType)
 	enc.encodeVarintFn(info.Start)
 	enc.encodeVarintFn(info.BlockSize)
@@ -141,18 +149,18 @@ func (enc *encoder) encodeIndexInfo(info schema.IndexInfo) {
 	enc.encodeIndexBloomFilterInfo(info.BloomFilter)
 }
 
-func (enc *encoder) encodeIndexSummariesInfo(info schema.IndexSummariesInfo) {
+func (enc *Encoder) encodeIndexSummariesInfo(info schema.IndexSummariesInfo) {
 	enc.encodeNumObjectFieldsForFn(indexSummariesInfoType)
 	enc.encodeVarintFn(info.Summaries)
 }
 
-func (enc *encoder) encodeIndexBloomFilterInfo(info schema.IndexBloomFilterInfo) {
+func (enc *Encoder) encodeIndexBloomFilterInfo(info schema.IndexBloomFilterInfo) {
 	enc.encodeNumObjectFieldsForFn(indexBloomFilterInfoType)
 	enc.encodeVarintFn(info.NumElementsM)
 	enc.encodeVarintFn(info.NumHashesK)
 }
 
-func (enc *encoder) encodeIndexEntry(entry schema.IndexEntry) {
+func (enc *Encoder) encodeIndexEntry(entry schema.IndexEntry) {
 	enc.encodeNumObjectFieldsForFn(indexEntryType)
 	enc.encodeVarintFn(entry.Index)
 	enc.encodeBytesFn(entry.ID)
@@ -161,21 +169,21 @@ func (enc *encoder) encodeIndexEntry(entry schema.IndexEntry) {
 	enc.encodeVarintFn(entry.Checksum)
 }
 
-func (enc *encoder) encodeIndexSummary(summary schema.IndexSummary) {
+func (enc *Encoder) encodeIndexSummary(summary schema.IndexSummary) {
 	enc.encodeNumObjectFieldsForFn(indexSummaryType)
 	enc.encodeVarintFn(summary.Index)
 	enc.encodeBytesFn(summary.ID)
 	enc.encodeVarintFn(summary.IndexEntryOffset)
 }
 
-func (enc *encoder) encodeLogInfo(info schema.LogInfo) {
+func (enc *Encoder) encodeLogInfo(info schema.LogInfo) {
 	enc.encodeNumObjectFieldsForFn(logInfoType)
 	enc.encodeVarintFn(info.Start)
 	enc.encodeVarintFn(info.Duration)
 	enc.encodeVarintFn(info.Index)
 }
 
-func (enc *encoder) encodeLogEntry(entry schema.LogEntry) {
+func (enc *Encoder) encodeLogEntry(entry schema.LogEntry) {
 	enc.encodeNumObjectFieldsForFn(logEntryType)
 	enc.encodeVarintFn(entry.Create)
 	enc.encodeVarUintFn(entry.Index)
@@ -186,60 +194,60 @@ func (enc *encoder) encodeLogEntry(entry schema.LogEntry) {
 	enc.encodeBytesFn(entry.Annotation)
 }
 
-func (enc *encoder) encodeLogMetadata(metadata schema.LogMetadata) {
+func (enc *Encoder) encodeLogMetadata(metadata schema.LogMetadata) {
 	enc.encodeNumObjectFieldsForFn(logMetadataType)
 	enc.encodeBytesFn(metadata.ID)
 	enc.encodeBytesFn(metadata.Namespace)
 	enc.encodeVarUintFn(uint64(metadata.Shard))
 }
 
-func (enc *encoder) encodeRootObject(version int, objType objectType) {
+func (enc *Encoder) encodeRootObject(version int, objType objectType) {
 	enc.encodeVersionFn(version)
 	enc.encodeNumObjectFieldsForFn(rootObjectType)
 	enc.encodeObjectType(objType)
 }
 
-func (enc *encoder) encodeVersion(version int) {
+func (enc *Encoder) encodeVersion(version int) {
 	enc.encodeVarintFn(int64(version))
 }
 
-func (enc *encoder) encodeNumObjectFieldsFor(objType objectType) {
+func (enc *Encoder) encodeNumObjectFieldsFor(objType objectType) {
 	enc.encodeArrayLenFn(numFieldsForType(objType))
 }
 
-func (enc *encoder) encodeObjectType(objType objectType) {
+func (enc *Encoder) encodeObjectType(objType objectType) {
 	enc.encodeVarintFn(int64(objType))
 }
 
-func (enc *encoder) encodeVarint(value int64) {
+func (enc *Encoder) encodeVarint(value int64) {
 	if enc.err != nil {
 		return
 	}
 	enc.err = enc.enc.EncodeInt64(value)
 }
 
-func (enc *encoder) encodeVarUint(value uint64) {
+func (enc *Encoder) encodeVarUint(value uint64) {
 	if enc.err != nil {
 		return
 	}
 	enc.err = enc.enc.EncodeUint64(value)
 }
 
-func (enc *encoder) encodeFloat64(value float64) {
+func (enc *Encoder) encodeFloat64(value float64) {
 	if enc.err != nil {
 		return
 	}
 	enc.err = enc.enc.EncodeFloat64(value)
 }
 
-func (enc *encoder) encodeBytes(value []byte) {
+func (enc *Encoder) encodeBytes(value []byte) {
 	if enc.err != nil {
 		return
 	}
 	enc.err = enc.enc.EncodeBytes(value)
 }
 
-func (enc *encoder) encodeArrayLen(value int) {
+func (enc *Encoder) encodeArrayLen(value int) {
 	if enc.err != nil {
 		return
 	}
