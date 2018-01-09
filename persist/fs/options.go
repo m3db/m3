@@ -261,6 +261,6 @@ func (o *options) SetMmapHugeTLBThreshold(value int64) Options {
 	return &opts
 }
 
-func (o *options) MmapHugePagesThreshold() int64 {
+func (o *options) MmapHugeTLBThreshold() int64 {
 	return o.mmapHugePagesThreshold
 }

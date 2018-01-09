@@ -112,7 +112,7 @@ func NewReader(
 		filePathPrefix: opts.FilePathPrefix(),
 		hugePagesOpts: mmapHugeTLBOptions{
 			enabled:   opts.MmapEnableHugeTLB(),
-			threshold: opts.MmapHugePagesThreshold(),
+			threshold: opts.MmapHugeTLBThreshold(),
 		},
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),

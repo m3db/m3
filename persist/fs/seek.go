@@ -64,9 +64,9 @@ type seeker struct {
 	summariesFdWithDigest      digest.FdWithDigestReader
 	digestFdWithDigestContents digest.FdWithDigestContentsReader
 
-	dataFd     *os.File
 	dataReader *bufio.Reader
 
+	dataMmap  []byte
 	indexMmap []byte
 
 	// Expected digests for each file read from the digests file
@@ -168,6 +168,8 @@ func (s *seeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter {
 func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
 	shardDir := ShardDirPath(s.filePathPrefix, namespace, shard)
 	var infoFd, indexFd, dataFd, digestFd, bloomFilterFd, summariesFd *os.File
+
+	// Open necessary files
 	if err := openFiles(os.Open, map[string]**os.File{
 		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
 		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &indexFd,
@@ -179,6 +181,37 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 
+	// Mmap necessary files
+	// TODO: Handle hugeTLB
+	mmapResult, err := mmapFiles(os.Open, map[string]mmapFileDesc{
+		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmapFileDesc{
+			file:  &indexFd,
+			bytes: &s.indexMmap,
+			// Index files are small enough that they don't warrant hugeTLB
+			options: mmapOptions{read: true, hugeTLB: mmapHugeTLBOptions{enabled: false}},
+		},
+		filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmapFileDesc{
+			file:  &dataFd,
+			bytes: &s.dataMmap,
+			options: mmapOptions{
+				read: true,
+				hugeTLB: mmapHugeTLBOptions{
+					enabled:   s.opts.MmapEnableHugeTLB(),
+					threshold: s.opts.MmapHugeTLBThreshold(),
+				},
+			},
+		},
+	})
+	if err != nil {
+		s.Close()
+		return err
+	}
+	if warning := mmapResult.warning; warning != nil {
+		s.opts.InstrumentOptions().Logger().Warnf(
+			"warning while mmapping index file in seeker: %s", warning.Error())
+	}
+
+	// Setup digest readers
 	s.infoFdWithDigest.Reset(infoFd)
 	s.indexFdWithDigest.Reset(indexFd)
 	s.summariesFdWithDigest.Reset(summariesFd)
@@ -190,6 +223,7 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		s.indexFdWithDigest.Close()
 		s.bloomFilterFdWithDigest.Close()
 		s.digestFdWithDigestContents.Close()
+		dataFd.Close()
 	}()
 
 	if err := s.readDigest(); err != nil {
@@ -237,19 +271,6 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		s.unreadBuf = nil
 		s.decoder.Reset(nil)
 	}
-
-	indexMmapResult, err := mmapFile(indexFd, mmapOptions{read: true})
-	if err != nil {
-		s.Close()
-		return err
-	}
-	if warning := indexMmapResult.warning; warning != nil {
-		s.opts.InstrumentOptions().Logger().Warnf(
-			"warning while mmapping index file in seeker: %s", warning.Error())
-	}
-
-	s.dataFd = dataFd
-	s.indexMmap = indexMmapResult.result
 
 	return err
 }
@@ -320,11 +341,7 @@ func (s *seeker) SeekByID(id ts.ID) (checked.Bytes, error) {
 // instead of looking it up on its own. Useful in cases where you've already
 // obtained an entry and don't want to waste resources looking it up again.
 func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
-	_, err := s.dataFd.Seek(entry.Offset, 0)
-	if err != nil {
-		return nil, err
-	}
-	s.dataReader.Reset(s.dataFd)
+	s.dataReader.Reset(bytes.NewReader(s.dataMmap[entry.Offset:]))
 
 	n, err := s.dataReader.Read(s.prologue)
 	if err != nil {
@@ -431,10 +448,6 @@ func (s *seeker) Entries() int {
 
 func (s *seeker) Close() error {
 	multiErr := xerrors.NewMultiError()
-	if s.dataFd != nil {
-		multiErr = multiErr.Add(s.dataFd.Close())
-		s.dataFd = nil
-	}
 	if s.bloomFilter != nil {
 		multiErr = multiErr.Add(s.bloomFilter.Close())
 		s.bloomFilter = nil
@@ -446,6 +459,10 @@ func (s *seeker) Close() error {
 	if s.indexMmap != nil {
 		multiErr = multiErr.Add(munmap(s.indexMmap))
 		s.indexMmap = nil
+	}
+	if s.dataMmap != nil {
+		multiErr = multiErr.Add(munmap(s.dataMmap))
+		s.dataMmap = nil
 	}
 	return multiErr.FinalError()
 }
