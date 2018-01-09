@@ -213,8 +213,8 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 
+	s.summariesFdWithDigest.Reset(summariesFd)
 	s.indexLookup, err = newNearestIndexOffsetLookupFromSummariesFile(
-		summariesFd,
 		s.summariesFdWithDigest,
 		s.expectedSummariesDigest,
 		s.decoder,

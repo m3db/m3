@@ -23,7 +23,6 @@ package fs
 import (
 	"bytes"
 	"fmt"
-	"os"
 
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
@@ -40,21 +39,18 @@ type nearestIndexOffsetLookup struct {
 	summariesMmap []byte
 	// reusable decoder stream
 	decoderStream  xmsgpack.DecoderStream
-	decoder        *xmsgpack.Decoder
 	msgpackDecoder *msgpack.Decoder
 }
 
 func newNearestIndexOffsetLookup(
 	summaryIDsOffsets []xmsgpack.IndexSummaryToken,
 	summariesMmap []byte,
-	decoder *xmsgpack.Decoder,
 	decoderStream xmsgpack.DecoderStream,
 ) *nearestIndexOffsetLookup {
 	return &nearestIndexOffsetLookup{
 		summaryIDsOffsets: summaryIDsOffsets,
 		summariesMmap:     summariesMmap,
 		decoderStream:     decoderStream,
-		decoder:           decoder,
 		msgpackDecoder:    msgpack.NewDecoder(nil),
 	}
 }
@@ -139,13 +135,12 @@ func (il *nearestIndexOffsetLookup) close() error {
 // required to binary search the data structure. It will also make sure that
 // the summaries file is sorted (which it always should be).
 func newNearestIndexOffsetLookupFromSummariesFile(
-	summariesFd *os.File,
 	summariesFdWithDigest digest.FdWithDigestReader,
 	expectedSummariesDigest uint32,
 	decoder *xmsgpack.Decoder,
 	numEntries int,
 ) (*nearestIndexOffsetLookup, error) {
-	summariesFdWithDigest.Reset(summariesFd)
+	summariesFd := summariesFdWithDigest.Fd()
 	stat, err := summariesFd.Stat()
 	if err != nil {
 		return nil, err
@@ -196,5 +191,5 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 		summariesOffsets = append(summariesOffsets, entryMetadata)
 	}
 
-	return newNearestIndexOffsetLookup(summariesOffsets, summariesMmap, decoder, decoderStream), nil
+	return newNearestIndexOffsetLookup(summariesOffsets, summariesMmap, decoderStream), nil
 }
