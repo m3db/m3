@@ -182,7 +182,6 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	}
 
 	// Mmap necessary files
-	// TODO: Handle hugeTLB
 	mmapResult, err := mmapFiles(os.Open, map[string]mmapFileDesc{
 		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmapFileDesc{
 			file:  &indexFd,
