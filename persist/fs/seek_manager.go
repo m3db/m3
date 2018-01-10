@@ -216,15 +216,17 @@ func (m *seekerManager) newOpenSeeker(
 	m.unreadBuf.Lock()
 	defer m.unreadBuf.Unlock()
 
-	seeker := newSeeker(seekerOpts{
-		filePathPrefix: m.filePathPrefix,
-		dataBufferSize: m.opts.DataReaderBufferSize(),
-		infoBufferSize: m.opts.InfoReaderBufferSize(),
-		seekBufferSize: m.opts.SeekReaderBufferSize(),
-		bytesPool:      m.bytesPool,
-		keepIndexIDs:   false,
-		keepUnreadBuf:  true,
-	})
+	seekerIface := NewSeeker(
+		m.filePathPrefix,
+		m.opts.DataReaderBufferSize(),
+		m.opts.InfoReaderBufferSize(),
+		m.opts.SeekReaderBufferSize(),
+		m.bytesPool,
+		true,
+		nil,
+		m.opts,
+	)
+	seeker := seekerIface.(*seeker)
 
 	// Set the unread buffer to reuse it amongst all seekers.
 	seeker.setUnreadBuffer(m.unreadBuf.value)

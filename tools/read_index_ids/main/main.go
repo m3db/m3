@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"io"
 	"os"
 	"time"
 
@@ -14,11 +14,8 @@ import (
 )
 
 const (
-	defaultDataBufferReadSize = 65536
-	defaultInfoBufferReadSize = 64
-	defaultSeekBufferReadSize = 4096
-	defaultBufferCapacity     = 1024 * 1024 * 1024
-	defaultBufferPoolCount    = 10
+	defaultBufferCapacity  = 1024 * 1024 * 1024
+	defaultBufferPoolCount = 10
 )
 
 func main() {
@@ -47,19 +44,23 @@ func main() {
 	})
 	bytesPool.Init()
 
-	seeker := fs.NewSeeker(*optPathPrefix, defaultDataBufferReadSize, defaultInfoBufferReadSize, defaultSeekBufferReadSize, bytesPool, nil)
-
-	err := seeker.Open(ts.StringID(*optNamespace), *optShard, time.Unix(0, *optBlockstart))
+	reader, err := fs.NewReader(bytesPool, fs.NewOptions())
 	if err != nil {
-		log.Fatalf("unable to open file: %v", err)
+		log.Fatalf("could not create new reader: %v", err)
+	}
+	err = reader.Open(ts.StringID(*optNamespace), *optShard, time.Unix(*optBlockstart, 0))
+	if err != nil {
+		log.Fatalf("unable to open reader: %v", err)
 	}
 
-	fileIds := seeker.IDs()
-	if len(fileIds) == 0 {
-		log.Fatalf("no ids in index")
-	}
-
-	for _, id := range fileIds {
-		fmt.Println(id.String())
+	for {
+		id, _, _, err := reader.ReadMetadata()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalf("err reading metadata: %v", err)
+		}
+		log.Info(id.String())
 	}
 }

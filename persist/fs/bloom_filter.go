@@ -66,7 +66,7 @@ func newManagedConcurrentBloomFilter(
 	}
 }
 
-func readManagedConcurrentBloomFilter(
+func newManagedConcurrentBloomFilterFromFile(
 	bloomFilterFd *os.File,
 	bloomFilterFdWithDigest digest.FdWithDigestReader,
 	expectedDigest uint32,
@@ -85,10 +85,11 @@ func readManagedConcurrentBloomFilter(
 	// to use the mmap'd region to create a read-only bloom filter, but the mmap
 	// region itself needs to be writable so we can copy the bytes from disk
 	// into it
-	anonMmap, err := mmapBytes(numBytes, mmapOptions{read: true, write: true})
+	result, err := mmapBytes(numBytes, mmapOptions{read: true, write: true})
 	if err != nil {
 		return nil, err
 	}
+	anonMmap := result.result
 
 	// Validate the bytes on disk using the digest, and read them into
 	// the mmap'd region

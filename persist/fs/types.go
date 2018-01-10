@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
@@ -111,15 +111,20 @@ type FileSetSeeker interface {
 	// Open opens the files for the given shard and version for reading
 	Open(namespace ts.ID, shard uint32, start time.Time) error
 
-	// Seek returns the data for specified ID provided the index was loaded upon open. An
+	// SeekByID returns the data for specified ID provided the index was loaded upon open. An
 	// error will be returned if the index was not loaded or ID cannot be found.
-	Seek(id ts.ID) (data checked.Bytes, err error)
+	SeekByID(id ts.ID) (data checked.Bytes, err error)
 
-	// SeekOffset returns the offset for specified ID provided the index was loaded upon open. If
-	// the index was not loaded or ID cannot be found the value -1 will be returned.
-	// This can be helpful ahead of issuing a number of seek requests so that the seek
-	// requests can be made in order.
-	SeekOffset(id ts.ID) int
+	// SeekByIndexEntry is similar to Seek, but uses an IndexEntry instead of
+	// looking it up on its own. Useful in cases where you've already obtained an
+	// entry and don't want to waste resources looking it up again.
+	SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error)
+
+	// SeekIndexEntry returns the IndexEntry for the specified ID. This can be useful
+	// ahead of issuing a number of seek requests so that the seek requests can be
+	// made in order. The returned IndexEntry can also be passed to SeekUsingIndexEntry
+	// to prevent duplicate index lookups.
+	SeekIndexEntry(id ts.ID) (IndexEntry, error)
 
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range
@@ -127,8 +132,11 @@ type FileSetSeeker interface {
 	// Entries returns the count of entries in the volume
 	Entries() int
 
-	// IDs retrieves all the identifiers present in the file set
-	IDs() []ts.ID
+	// ConcurrentIDBloomFilter returns a concurrency-safe bloom filter that can
+	// be used to quickly disqualify ID's that definitely do not exist. I.E if the
+	// Test() method returns true, the ID may exist on disk, but if it returns
+	// false, it definitely does not.
+	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
 }
 
 // FileSetSeekerManager provides management of seekers for a TSDB namespace.
@@ -245,14 +253,14 @@ type Options interface {
 	// SeekReaderBufferSize size returns the buffer size for seeking TSDB files
 	SeekReaderBufferSize() int
 
-	// SetMmapEnableHugePages sets whether mmap huge pages are enabled when running on linux
-	SetMmapEnableHugePages(value bool) Options
+	// SetMmapEnableHugeTLB sets whether mmap huge pages are enabled when running on linux
+	SetMmapEnableHugeTLB(value bool) Options
 
-	// MmapEnableHugePages returns whether mmap huge pages are enabled when running on linux
-	MmapEnableHugePages() bool
+	// MmapEnableHugeTLB returns whether mmap huge pages are enabled when running on linux
+	MmapEnableHugeTLB() bool
 
-	// SetMmapHugePagesThreshold sets the threshold when to use mmap huge pages for mmap'd files on linux
-	SetMmapHugePagesThreshold(value int64) Options
+	// SetMmapHugeTLBThreshold sets the threshold when to use mmap huge pages for mmap'd files on linux
+	SetMmapHugeTLBThreshold(value int64) Options
 
 	// MmapHugePagesThreshold returns the threshold when to use mmap huge pages for mmap'd files on linux
 	MmapHugePagesThreshold() int64

@@ -25,7 +25,7 @@ import (
 	"os"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3x/instrument"
 )
@@ -245,17 +245,17 @@ func (o *options) SeekReaderBufferSize() int {
 	return o.seekReaderBufferSize
 }
 
-func (o *options) SetMmapEnableHugePages(value bool) Options {
+func (o *options) SetMmapEnableHugeTLB(value bool) Options {
 	opts := *o
 	opts.mmapEnableHugePages = value
 	return &opts
 }
 
-func (o *options) MmapEnableHugePages() bool {
+func (o *options) MmapEnableHugeTLB() bool {
 	return o.mmapEnableHugePages
 }
 
-func (o *options) SetMmapHugePagesThreshold(value int64) Options {
+func (o *options) SetMmapHugeTLBThreshold(value int64) Options {
 	opts := *o
 	opts.mmapHugePagesThreshold = value
 	return &opts

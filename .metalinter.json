@@ -21,6 +21,7 @@
     , "ineffassign"
     , "unconvert"
     , "misspell"
+    , "golint"
     , "gosimple"
     , "unused"
     , "badtime" ],

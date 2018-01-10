@@ -30,8 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/persist/encoding"
-	"github.com/m3db/m3db/persist/encoding/msgpack"
+	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
@@ -62,13 +61,16 @@ func (e ErrReadWrongIdx) Error() string {
 }
 
 type reader struct {
+	opts          Options
+	hugePagesOpts mmapHugeTLBOptions
+
 	filePathPrefix string
-	hugePagesOpts  mmapHugePagesOptions
 	namespace      ts.ID
 	shard          uint32
-	start          time.Time
-	blockSize      time.Duration
-	open           bool
+
+	start     time.Time
+	blockSize time.Duration
+	open      bool
 
 	infoFdWithDigest           digest.FdWithDigestReader
 	bloomFilterWithDigest      digest.FdWithDigestReader
@@ -95,7 +97,7 @@ type reader struct {
 	entriesRead               int
 	metadataRead              int
 	prologue                  []byte
-	decoder                   encoding.Decoder
+	decoder                   *msgpack.Decoder
 	digestBuf                 digest.Buffer
 	bytesPool                 pool.CheckedBytesPool
 }
@@ -113,9 +115,10 @@ func NewReader(
 	return &reader{
 		// When initializing new fields that should be static, be sure to save
 		// and reset them after Close() resets the fields to all default values.
+		opts:           opts,
 		filePathPrefix: opts.FilePathPrefix(),
-		hugePagesOpts: mmapHugePagesOptions{
-			enabled:   opts.MmapEnableHugePages(),
+		hugePagesOpts: mmapHugeTLBOptions{
+			enabled:   opts.MmapEnableHugeTLB(),
 			threshold: opts.MmapHugePagesThreshold(),
 		},
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
@@ -157,19 +160,24 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		r.digestFdWithDigestContents.Close()
 	}()
 
-	if err := mmapFiles(os.Open, map[string]mmapFileDesc{
+	result, err := mmapFiles(os.Open, map[string]mmapFileDesc{
 		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmapFileDesc{
 			file:    &r.indexFd,
 			bytes:   &r.indexMmap,
-			options: mmapOptions{read: true, hugePages: r.hugePagesOpts},
+			options: mmapOptions{read: true, hugeTLB: r.hugePagesOpts},
 		},
 		filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmapFileDesc{
 			file:    &r.dataFd,
 			bytes:   &r.dataMmap,
-			options: mmapOptions{read: true, hugePages: r.hugePagesOpts},
+			options: mmapOptions{read: true, hugeTLB: r.hugePagesOpts},
 		},
-	}); err != nil {
+	})
+	if err != nil {
 		return err
+	}
+	if warning := result.warning; warning != nil {
+		r.opts.InstrumentOptions().Logger().Warnf(
+			"warning while mmapping files in reader: %s", warning.Error())
 	}
 
 	r.indexDecoderStream.Reset(r.indexMmap)
@@ -255,7 +263,7 @@ func (r *reader) readInfo(size int) error {
 	if err != nil {
 		return err
 	}
-	r.decoder.Reset(encoding.NewDecoderStream(buf[:n]))
+	r.decoder.Reset(msgpack.NewDecoderStream(buf[:n]))
 	info, err := r.decoder.DecodeIndexInfo()
 	if err != nil {
 		return err
@@ -353,7 +361,7 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 }
 
 func (r *reader) ReadBloomFilter() (*ManagedConcurrentBloomFilter, error) {
-	return readManagedConcurrentBloomFilter(
+	return newManagedConcurrentBloomFilterFromFile(
 		r.bloomFilterFd,
 		r.bloomFilterWithDigest,
 		r.expectedBloomFilterDigest,

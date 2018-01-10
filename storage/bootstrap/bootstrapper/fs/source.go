@@ -122,7 +122,7 @@ func (s *fileSystemSource) enqueueReaders(
 			namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
 		if len(files) == 0 {
 			// Use default readers value to indicate no readers for this shard
-			readersCh <- shardReaders{shard: shard, tr: tr}
+			readersCh <- newShardReaders(shard, tr, nil)
 			continue
 		}
 
@@ -131,7 +131,7 @@ func (s *fileSystemSource) enqueueReaders(
 			r, err := readerPool.get()
 			if err != nil {
 				s.log.Errorf("unable to get reader from pool")
-				readersCh <- shardReaders{err: err}
+				readersCh <- newShardReadersErr(shard, tr, err)
 				continue
 			}
 			t := xtime.FromNanoseconds(files[i].Start).Round(0).UTC()
@@ -142,7 +142,7 @@ func (s *fileSystemSource) enqueueReaders(
 					xlog.NewField("error", err.Error()),
 				).Error("unable to open fileset files")
 				readerPool.put(r)
-				readersCh <- shardReaders{err: err}
+				readersCh <- newShardReadersErr(shard, tr, err)
 				continue
 			}
 			timeRange := r.Range()
@@ -153,7 +153,7 @@ func (s *fileSystemSource) enqueueReaders(
 			}
 			readers = append(readers, r)
 		}
-		readersCh <- shardReaders{shard: shard, tr: tr, readers: readers}
+		readersCh <- newShardReaders(shard, tr, readers)
 	}
 
 	close(readersCh)
@@ -515,6 +515,22 @@ type shardReaders struct {
 	tr      xtime.Ranges
 	readers []fs.FileSetReader
 	err     error
+}
+
+func newShardReaders(shard uint32, tr xtime.Ranges, readers []fs.FileSetReader) shardReaders {
+	return shardReaders{
+		shard:   shard,
+		tr:      tr,
+		readers: readers,
+	}
+}
+
+func newShardReadersErr(shard uint32, tr xtime.Ranges, err error) shardReaders {
+	return shardReaders{
+		shard: shard,
+		tr:    tr,
+		err:   err,
+	}
 }
 
 // readerPool is a lean pool that does not allocate

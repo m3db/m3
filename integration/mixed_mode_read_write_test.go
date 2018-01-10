@@ -208,7 +208,8 @@ func newTestSetupWithCommitLogAndFilesystemBootstrapper(t *testing.T, opts testO
 	filePathPrefix := fsOpts.FilePathPrefix()
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
-		SetFilesystemOptions(fsOpts)
+		SetFilesystemOptions(fsOpts).
+		SetDatabaseBlockRetrieverManager(setup.opts.DatabaseBlockRetrieverManager())
 	fsBootstrapper := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, commitLogBootstrapper)
 
 	// bootstrapper storage opts

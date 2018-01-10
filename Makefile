@@ -12,7 +12,6 @@ html_report          := coverage.html
 junit_xml            := junit.xml
 license_dir          := .ci/uber-licence
 license_node_modules := $(license_dir)/node_modules
-lint_check           := .ci/lint.sh
 m3db_package         := github.com/m3db/m3db
 metalint_check       := .ci/metalint.sh
 metalint_config      := .metalinter.json
@@ -90,7 +89,7 @@ $(foreach SERVICE,$(SERVICES),$(eval $(SERVICE_RULES)))
 $(foreach TOOL,$(TOOLS),$(eval $(TOOL_RULES)))
 
 .PHONY: all
-all: lint metalint test-ci-unit test-ci-integration services tools
+all: metalint test-ci-unit test-ci-integration services tools
 	@echo Made all successfully
 
 .PHONY: install-license-bin
@@ -141,11 +140,6 @@ proto-gen: install-proto-bin install-license-bin
 .PHONY: all-gen
 all-gen: mock-gen thrift-gen proto-gen
 
-.PHONY: lint
-lint:
-	@which golint > /dev/null || go get -u github.com/golang/lint/golint
-	$(lint_check)
-
 .PHONY: metalint
 metalint: install-metalinter install-linter-badtime
 	@($(metalint_check) $(metalint_config) $(metalint_exclude) \
@@ -182,7 +176,6 @@ test-ci-unit: test-internal
 	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
 	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "Coveralls failed"
 
-# Do not test native pooling for now due to slow travis builds
 .PHONY: test-ci-integration
 test-ci-integration:
 	INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false $(test_ci_integration)

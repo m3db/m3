@@ -193,7 +193,7 @@ func TestConfig(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.Client.ConfigService = &cfg.ConfigService
+	cfg.Client.ConfigService = cfg.ConfigService
 
 	cli, err := cfg.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
