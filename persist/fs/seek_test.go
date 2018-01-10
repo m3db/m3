@@ -103,7 +103,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	assert.NoError(t, s.Close())
 }
 
-func TestSeekBadMarker(t *testing.T) {
+func TestSeekBadChecksum(t *testing.T) {
 	dir, err := ioutil.TempDir("", "testdb")
 	if err != nil {
 		t.Fatal(err)
@@ -115,21 +115,11 @@ func TestSeekBadMarker(t *testing.T) {
 	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	// Copy the marker out
-	actualMarker := make([]byte, markerLen)
-	assert.Equal(t, markerLen, copy(actualMarker, marker))
-
-	// Mess up the marker
-	marker[0] = marker[0] + 1
-
+	// Write data with wrong checksum
 	assert.NoError(t, w.Write(
 		ts.StringID("foo"),
 		bytesRefd([]byte{1, 2, 3}),
-		digest.Checksum([]byte{1, 2, 3})))
-
-	// Reset the marker
-	marker = actualMarker
-
+		digest.Checksum([]byte{1, 2, 4})))
 	assert.NoError(t, w.Close())
 
 	s := newTestSeeker(filePathPrefix)
@@ -138,7 +128,7 @@ func TestSeekBadMarker(t *testing.T) {
 
 	_, err = s.SeekByID(ts.StringID("foo"))
 	assert.Error(t, err)
-	assert.Equal(t, errReadMarkerNotFound, err)
+	assert.Equal(t, errSeekChecksumMismatch, err)
 
 	assert.NoError(t, s.Close())
 }
