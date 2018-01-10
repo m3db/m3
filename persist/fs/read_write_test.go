@@ -166,6 +166,28 @@ func TestSimpleReadWrite(t *testing.T) {
 	readTestData(t, r, 0, testWriterStart, entries)
 }
 
+func TestReadWithReusedReader(t *testing.T) {
+	dir := createTempDir(t)
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	entries := []testEntry{
+		{"foo", []byte{1, 2, 3}},
+		{"bar", []byte{4, 5, 6}},
+		{"baz", make([]byte, 65536)},
+		{"cat", make([]byte, 100000)},
+		{"echo", []byte{7, 8, 9}},
+	}
+
+	w := newTestWriter(t, filePathPrefix)
+	writeTestData(t, w, 0, testWriterStart, entries)
+
+	r := newTestReader(t, filePathPrefix)
+	readTestData(t, r, 0, testWriterStart, entries)
+	// Reuse the reader to read again
+	readTestData(t, r, 0, testWriterStart, entries)
+}
+
 func TestInfoReadWrite(t *testing.T) {
 	dir := createTempDir(t)
 	filePathPrefix := filepath.Join(dir, "")

@@ -161,8 +161,9 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 	if warning := result.warning; warning != nil {
-		r.opts.InstrumentOptions().Logger().Warnf(
-			"warning while mmapping files in reader: %s", warning.Error())
+		logger := r.opts.InstrumentOptions().Logger()
+		logger.Warnf("warning while mmapping files in reader: %s",
+			warning.Error())
 	}
 
 	r.indexDecoderStream.Reset(r.indexMmap)
@@ -418,6 +419,7 @@ func (r *reader) Close() error {
 	r.indexEntriesByOffsetAsc = r.indexEntriesByOffsetAsc[:0]
 
 	// Save fields we want to reassign after resetting struct
+	opts := r.opts
 	filePathPrefix := r.filePathPrefix
 	hugePagesOpts := r.hugePagesOpts
 	infoFdWithDigest := r.infoFdWithDigest
@@ -434,6 +436,7 @@ func (r *reader) Close() error {
 	*r = reader{}
 
 	// Reset the saved fields
+	r.opts = opts
 	r.filePathPrefix = filePathPrefix
 	r.hugePagesOpts = hugePagesOpts
 	r.infoFdWithDigest = infoFdWithDigest
