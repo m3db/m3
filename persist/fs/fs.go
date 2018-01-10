@@ -41,17 +41,9 @@ const (
 	filesetFilePattern           = filesetFilePrefix + separator + "[0-9]*" + separator + "[a-z]*" + fileSuffix
 	commitLogFilePattern         = commitLogFilePrefix + separator + "[0-9]*" + separator + "[0-9]*" + fileSuffix
 	commitLogFileForTimeTemplate = commitLogFilePrefix + separator + "%d" + separator + "[0-9]*" + fileSuffix
-
-	// Index ID is int64
-	idxLen = 8
 )
 
 var (
-	// Use an easy marker for out of band analyzing the raw data files
-	marker      = []byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1}
-	markerLen   = len(marker)
-	prologueLen = markerLen + idxLen
-
 	// Endianness is little endian
 	endianness = binary.LittleEndian
 )
