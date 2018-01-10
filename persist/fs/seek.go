@@ -21,10 +21,8 @@
 package fs
 
 import (
-	"bufio"
 	"bytes"
 	"errors"
-	"io"
 	"os"
 	"time"
 
@@ -44,6 +42,12 @@ var (
 
 	// errSeekChecksumMismatch returned when data checksum does not match the expected checksum
 	errSeekChecksumMismatch = errors.New("checksum does not match expected checksum")
+
+	// errInvalidDataFileOffset returned when the provided offset into the data file is not valid
+	errInvalidDataFileOffset = errors.New("invalid data file offset")
+
+	// errNotEnoughBytes returned when the data file doesn't have enough bytes to satisfy a read
+	errNotEnoughBytes = errors.New("invalid data file, not enough bytes to satisfy read")
 )
 
 type seeker struct {
@@ -64,9 +68,7 @@ type seeker struct {
 	summariesFdWithDigest      digest.FdWithDigestReader
 	digestFdWithDigestContents digest.FdWithDigestContentsReader
 
-	dataFd     *os.File
-	dataReader *bufio.Reader
-
+	dataMmap  []byte
 	indexMmap []byte
 
 	// Expected digests for each file read from the digests file
@@ -78,7 +80,6 @@ type seeker struct {
 	keepUnreadBuf bool
 
 	unreadBuf []byte
-	prologue  []byte
 
 	decoder   *msgpack.Decoder
 	bytesPool pool.CheckedBytesPool
@@ -152,9 +153,7 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		bloomFilterFdWithDigest:    digest.NewFdWithDigestReader(opts.dataBufferSize),
 		summariesFdWithDigest:      digest.NewFdWithDigestReader(opts.dataBufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.infoBufferSize),
-		dataReader:                 bufio.NewReaderSize(nil, opts.seekBufferSize),
 		keepUnreadBuf:              opts.keepUnreadBuf,
-		prologue:                   make([]byte, markerLen+idxLen),
 		bytesPool:                  opts.bytesPool,
 		decoder:                    msgpack.NewDecoder(opts.decodingOpts),
 		opts:                       opts.opts,
@@ -168,6 +167,8 @@ func (s *seeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter {
 func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
 	shardDir := ShardDirPath(s.filePathPrefix, namespace, shard)
 	var infoFd, indexFd, dataFd, digestFd, bloomFilterFd, summariesFd *os.File
+
+	// Open necessary files
 	if err := openFiles(os.Open, map[string]**os.File{
 		filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
 		filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &indexFd,
@@ -179,6 +180,7 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 
+	// Setup digest readers
 	s.infoFdWithDigest.Reset(infoFd)
 	s.indexFdWithDigest.Reset(indexFd)
 	s.summariesFdWithDigest.Reset(summariesFd)
@@ -190,7 +192,37 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		s.indexFdWithDigest.Close()
 		s.bloomFilterFdWithDigest.Close()
 		s.digestFdWithDigestContents.Close()
+		dataFd.Close()
 	}()
+
+	// Mmap necessary files
+	mmapOptions := mmapOptions{
+		read: true,
+		hugeTLB: mmapHugeTLBOptions{
+			enabled:   s.opts.MmapEnableHugeTLB(),
+			threshold: s.opts.MmapHugeTLBThreshold(),
+		},
+	}
+	mmapResult, err := mmapFiles(os.Open, map[string]mmapFileDesc{
+		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmapFileDesc{
+			file:    &indexFd,
+			bytes:   &s.indexMmap,
+			options: mmapOptions,
+		},
+		filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmapFileDesc{
+			file:    &dataFd,
+			bytes:   &s.dataMmap,
+			options: mmapOptions,
+		},
+	})
+	if err != nil {
+		s.Close()
+		return err
+	}
+	if warning := mmapResult.warning; warning != nil {
+		s.opts.InstrumentOptions().Logger().Warnf(
+			"warning while mmaping files in seeker: %s", warning.Error())
+	}
 
 	if err := s.readDigest(); err != nil {
 		// Try to close if failed to read
@@ -237,19 +269,6 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		s.unreadBuf = nil
 		s.decoder.Reset(nil)
 	}
-
-	indexMmapResult, err := mmapFile(indexFd, mmapOptions{read: true})
-	if err != nil {
-		s.Close()
-		return err
-	}
-	if warning := indexMmapResult.warning; warning != nil {
-		s.opts.InstrumentOptions().Logger().Warnf(
-			"warning while mmapping index file in seeker: %s", warning.Error())
-	}
-
-	s.dataFd = dataFd
-	s.indexMmap = indexMmapResult.result
 
 	return err
 }
@@ -320,63 +339,52 @@ func (s *seeker) SeekByID(id ts.ID) (checked.Bytes, error) {
 // instead of looking it up on its own. Useful in cases where you've already
 // obtained an entry and don't want to waste resources looking it up again.
 func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
-	_, err := s.dataFd.Seek(entry.Offset, 0)
-	if err != nil {
-		return nil, err
+	// Should never happen, but prevent panics if somehow we're provided an index entry
+	// with a negative or too large offset
+	if int(entry.Offset) > len(s.dataMmap)-1 {
+		return nil, errInvalidDataFileOffset
 	}
-	s.dataReader.Reset(s.dataFd)
 
-	n, err := s.dataReader.Read(s.prologue)
-	if err != nil {
-		return nil, err
-	} else if n != cap(s.prologue) {
-		return nil, errReadNotExpectedSize
-	} else if !bytes.Equal(s.prologue[:markerLen], marker) {
+	// We'll treat "data" similar to a reader interface, I.E after every read we'll
+	// reslice it such that the first byte is the next byte we want to read.
+	data := s.dataMmap[entry.Offset:]
+
+	// Should never happen, but prevents panics in the case of malformed data
+	if len(data) < prologueLen+int(entry.Size) {
+		return nil, errNotEnoughBytes
+	}
+	// Should never happen, but prevents proceeding with corrupted data
+	if !bytes.Equal(data[:markerLen], marker) {
 		return nil, errReadMarkerNotFound
 	}
 
-	var data checked.Bytes
+	// Reslice past the prologue that we just finished reading
+	data = data[prologueLen:]
+
+	// Obtain an appropriately sized buffer
+	var buffer checked.Bytes
 	if s.bytesPool != nil {
-		data = s.bytesPool.Get(int(entry.Size))
-		data.IncRef()
-		defer data.DecRef()
-		data.Resize(int(entry.Size))
+		buffer = s.bytesPool.Get(int(entry.Size))
+		buffer.IncRef()
+		defer buffer.DecRef()
+		buffer.Resize(int(entry.Size))
 	} else {
-		data = checked.NewBytes(make([]byte, entry.Size), nil)
-		data.IncRef()
-		defer data.DecRef()
+		buffer = checked.NewBytes(make([]byte, entry.Size), nil)
+		buffer.IncRef()
+		defer buffer.DecRef()
 	}
 
-	n, err = s.dataReader.Read(data.Get())
-	if err != nil {
-		return nil, err
-	}
-
-	// In case the buffered reader only returns what's remaining in
-	// the buffer, repeatedly read what's left in the underlying reader.
-	for n < int(entry.Size) {
-		b := data.Get()[n:]
-		remainder, err := s.dataReader.Read(b)
-
-		if err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, err
-		}
-		n += remainder
-	}
-
-	if n != int(entry.Size) {
-		return nil, errReadNotExpectedSize
-	}
+	// Copy the actual data into the underlying buffer
+	underlyingBuf := buffer.Get()
+	copy(underlyingBuf, data[:entry.Size])
 
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
-	if entry.Checksum != digest.Checksum(data.Get()) {
+	if entry.Checksum != digest.Checksum(underlyingBuf) {
 		return nil, errSeekChecksumMismatch
 	}
 
-	return data, nil
+	return buffer, nil
 }
 
 func (s *seeker) SeekIndexEntry(id ts.ID) (IndexEntry, error) {
@@ -431,10 +439,6 @@ func (s *seeker) Entries() int {
 
 func (s *seeker) Close() error {
 	multiErr := xerrors.NewMultiError()
-	if s.dataFd != nil {
-		multiErr = multiErr.Add(s.dataFd.Close())
-		s.dataFd = nil
-	}
 	if s.bloomFilter != nil {
 		multiErr = multiErr.Add(s.bloomFilter.Close())
 		s.bloomFilter = nil
@@ -446,6 +450,10 @@ func (s *seeker) Close() error {
 	if s.indexMmap != nil {
 		multiErr = multiErr.Add(munmap(s.indexMmap))
 		s.indexMmap = nil
+	}
+	if s.dataMmap != nil {
+		multiErr = multiErr.Add(munmap(s.dataMmap))
+		s.dataMmap = nil
 	}
 	return multiErr.FinalError()
 }
