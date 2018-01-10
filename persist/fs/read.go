@@ -425,7 +425,6 @@ func (r *reader) Close() error {
 	bloomFilterWithDigest := r.bloomFilterWithDigest
 	indexDecoderStream := r.indexDecoderStream
 	dataReader := r.dataReader
-	prologue := r.prologue
 	decoder := r.decoder
 	digestBuf := r.digestBuf
 	bytesPool := r.bytesPool
@@ -442,7 +441,6 @@ func (r *reader) Close() error {
 	r.bloomFilterWithDigest = bloomFilterWithDigest
 	r.indexDecoderStream = indexDecoderStream
 	r.dataReader = dataReader
-	r.prologue = prologue
 	r.decoder = decoder
 	r.digestBuf = digestBuf
 	r.bytesPool = bytesPool
