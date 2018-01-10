@@ -306,7 +306,7 @@ func TestReadDataCorruptionError(t *testing.T) {
 	shard := uint32(0)
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart, "foo", []byte{0x1})
 	// Intentionally corrupt the data file
-	writeDataFile(t, dir, testNs1ID, shard, testStart, []byte{0x1})
+	writeDataFile(t, dir, testNs1ID, shard, testStart, []byte{0x2})
 
 	src := newFileSystemSource(dir, NewOptions())
 	strs := testShardTimeRanges()

@@ -20,10 +20,6 @@
 
 package fs
 
-import (
-	"encoding/binary"
-)
-
 const (
 	infoFileSuffix        = "info"
 	indexFileSuffix       = "index"
@@ -41,9 +37,4 @@ const (
 	filesetFilePattern           = filesetFilePrefix + separator + "[0-9]*" + separator + "[a-z]*" + fileSuffix
 	commitLogFilePattern         = commitLogFilePrefix + separator + "[0-9]*" + separator + "[0-9]*" + fileSuffix
 	commitLogFileForTimeTemplate = commitLogFilePrefix + separator + "%d" + separator + "[0-9]*" + fileSuffix
-)
-
-var (
-	// Endianness is little endian
-	endianness = binary.LittleEndian
 )

@@ -59,7 +59,6 @@ type writer struct {
 	currOffset int64
 	encoder    *msgpack.Encoder
 	digestBuf  digest.Buffer
-	idxData    []byte
 	err        error
 }
 
