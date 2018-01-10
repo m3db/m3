@@ -320,6 +320,15 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				id, data, checksum, err = r.Read()
 			case series.CacheAllMetadata:
 				id, length, checksum, err = r.ReadMetadata()
+			default:
+				s.log.WithFields(
+					xlog.NewField("shard", shard),
+					xlog.NewField("seriesCachePolicy", seriesCachePolicy.String()),
+				).Error("invalid series cache policy: expected CacheAll or CacheAllMetadata")
+				hasError = true
+			}
+			if hasError {
+				break
 			}
 
 			if err != nil {
@@ -334,7 +343,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			idHash := id.Hash()
 
 			resultLock.RLock()
-			s, exists := shardResult.AllSeries()[idHash]
+			entry, exists := shardResult.AllSeries()[idHash]
 			resultLock.RUnlock()
 
 			if exists {
@@ -342,7 +351,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				// we can avoid holding onto this ID and use the already
 				// allocated ID.
 				id.Finalize()
-				id = s.ID
+				id = entry.ID
 			}
 
 			switch seriesCachePolicy {
@@ -356,11 +365,20 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 					Checksum: checksum,
 				}
 				seriesBlock.ResetRetrievable(start, shardRetriever, metadata)
+			default:
+				s.log.WithFields(
+					xlog.NewField("shard", shard),
+					xlog.NewField("seriesCachePolicy", seriesCachePolicy.String()),
+				).Error("invalid series cache policy: expected CacheAll or CacheAllMetadata")
+				hasError = true
+			}
+			if hasError {
+				break
 			}
 
 			resultLock.Lock()
 			if exists {
-				s.Blocks.AddBlock(seriesBlock)
+				entry.Blocks.AddBlock(seriesBlock)
 			} else {
 				shardResult.AddBlock(id, seriesBlock)
 			}
@@ -374,6 +392,12 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				validateErr = r.Validate()
 			case series.CacheAllMetadata:
 				validateErr = r.ValidateMetadata()
+			default:
+				s.log.WithFields(
+					xlog.NewField("shard", shard),
+					xlog.NewField("seriesCachePolicy", seriesCachePolicy.String()),
+				).Error("invalid series cache policy: expected CacheAll or CacheAllMetadata")
+				hasError = true
 			}
 			if validateErr != nil {
 				s.log.WithFields(
@@ -452,8 +476,8 @@ func (s *fileSystemSource) Read(
 				md.ID().String())
 		}
 	default:
-		// Unless we're caching all series in memory, we return just the availability
-		// of the files we have
+		// Unless we're caching all series (or all series metadata) in memory, we
+		// return just the availability of the files we have
 		bootstrapResult := result.NewBootstrapResult()
 		unfulfilled := bootstrapResult.Unfulfilled()
 		for shard, ranges := range shardsTimeRanges {

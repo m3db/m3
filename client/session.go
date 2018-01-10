@@ -3205,7 +3205,7 @@ func (v *FetchBlocksMetadataEndpointVersion) UnmarshalYAML(unmarshal func(interf
 			return nil
 		}
 	}
-	return fmt.Errorf("invalid series CachePolicy '%s' valid types are: %v",
+	return fmt.Errorf("invalid FetchBlocksMetadataEndpointVersion '%s' valid types are: %v",
 		str, validFetchBlocksMetadataEndpoints)
 }
 

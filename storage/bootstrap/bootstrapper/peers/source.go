@@ -176,8 +176,9 @@ func (s *peersSource) Read(
 			for it.Next() {
 				currRange := it.Value()
 
-				shardResult, err := session.FetchBootstrapBlocksFromPeers(
-					nsMetadata, shard, currRange.Start, currRange.End, bopts, s.opts.FetchBlocksMetadataEndpointVersion())
+				version := s.opts.FetchBlocksMetadataEndpointVersion()
+				shardResult, err := session.FetchBootstrapBlocksFromPeers(nsMetadata,
+					shard, currRange.Start, currRange.End, bopts, version)
 
 				// Logging
 				if err == nil {
@@ -243,6 +244,19 @@ func (s *peersSource) Read(
 	return result, nil
 }
 
+// incrementalFlush is used to incrementally flush peer-bootstrapped shards
+// to disk as they finish so that we're not (necessarily) holding everything
+// in memory at once.
+// incrementalFlush starts by looping through every block in a timerange for
+// a given shard, and then subsequently looping through every series in that
+// shard/block and flushing it to disk. Depending on the series caching policy,
+// the series will either be held in memory, or removed from memory once
+// flushing has completed.
+// Once everything has been flushed to disk then depending on the series
+// caching policy the function is either done, or in the case of the
+// CacheAllMetadata policy we loop through every series and make every block
+// retrievable (so that we can retrieve data for the blocks that we're caching
+// the metadata for).
 func (s *peersSource) incrementalFlush(
 	flush persist.Flush,
 	nsMetadata namespace.Metadata,

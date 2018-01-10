@@ -25,11 +25,6 @@ import (
 	"fmt"
 )
 
-const (
-	// DefaultCachePolicy is the default cache policy.
-	DefaultCachePolicy = CacheRecentlyRead
-)
-
 var (
 	errCachePolicyUnspecified = errors.New("series cache policy unspecified")
 )
@@ -51,6 +46,9 @@ const (
 	// must be cached, configurable by the namespace block expiry after
 	// not accessed period.
 	CacheRecentlyRead
+
+	// DefaultCachePolicy is the default cache policy.
+	DefaultCachePolicy = CacheRecentlyRead
 )
 
 // ValidCachePolicies returns the valid series cache policies.

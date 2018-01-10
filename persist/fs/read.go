@@ -64,11 +64,11 @@ func (e ErrReadWrongIdx) Error() string {
 type reader struct {
 	filePathPrefix string
 	hugePagesOpts  mmapHugePagesOptions
-	namespace ts.ID
-	shard uint32
+	namespace      ts.ID
+	shard          uint32
 	start          time.Time
 	blockSize      time.Duration
-	open bool
+	open           bool
 
 	infoFdWithDigest           digest.FdWithDigestReader
 	bloomFilterWithDigest      digest.FdWithDigestReader
@@ -203,9 +203,9 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 
 func (r *reader) Status() FileSetReaderStatus {
 	return FileSetReaderStatus{
-		Open: r.open,
-		Namespace: r.namespace,
-		Shard: r.shard,
+		Open:       r.open,
+		Namespace:  r.namespace,
+		Shard:      r.shard,
 		BlockStart: r.start,
 	}
 }
@@ -388,8 +388,8 @@ func (r *reader) Validate() error {
 	return multiErr.FinalError()
 }
 
-// NB(r): ValidateMetadata can be called as soon as open since the metadata
-// is read upfront.
+// NB(r): ValidateMetadata can be called immediately after Open(...) since
+// the metadata is read upfront.
 func (r *reader) ValidateMetadata() error {
 	err := r.indexDecoderStream.reader().Validate(r.expectedIndexDigest)
 	if err != nil {

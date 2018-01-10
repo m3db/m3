@@ -76,9 +76,6 @@ type ShardResult interface {
 	// RemoveSeries removes a single series of blocks.
 	RemoveSeries(id ts.ID)
 
-	// RemoveAll removes all series.
-	RemoveAll()
-
 	// Close closes a shard result.
 	Close()
 }

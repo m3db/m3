@@ -38,10 +38,6 @@ import (
 var (
 	// defaultNumProcessorsPerCPU is the default number of processors per CPU.
 	defaultNumProcessorsPerCPU = 0.5
-
-	// defaultFetchBlocksMetadataEndpointVersion is the default client fetch blocks
-	// metadata endpoint version to use
-	defaultFetchBlocksMetadataEndpointVersion = client.FetchBlocksMetadataEndpointV2
 )
 
 // BootstrapConfiguration specifies the config for bootstrappers.
@@ -67,7 +63,7 @@ func (bsc BootstrapConfiguration) fsNumProcessors() int {
 
 // TODO: Remove once v1 endpoint no longer required.
 func (bsc BootstrapConfiguration) peersFetchBlocksMetadataEndpointVersion() client.FetchBlocksMetadataEndpointVersion {
-	version := defaultFetchBlocksMetadataEndpointVersion
+	version := client.FetchBlocksMetadataEndpointDefault
 	if peersCfg := bsc.Peers; peersCfg != nil {
 		version = peersCfg.FetchBlocksMetadataEndpointVersion
 	}

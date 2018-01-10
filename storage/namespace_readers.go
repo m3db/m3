@@ -34,21 +34,28 @@ import (
 	"github.com/uber-go/tally"
 )
 
+// namespaceReaderManager maintains a pool of closed readers which can be
+// re-used (to prevent additional allocations), as well as a cache of recently
+// used open readers based on their position. The cache of recently used open
+// readers is useful during peer bootstrapping because a pageToken (which
+// contains an offset into the reader for both the data and metadata portions
+// of the fileset) is used to communicate the clients current position to the
+// server.
+// In the general case, the client will miss on its first request for a given
+// shard/block start, and then experience a cache hit on every subsequent
+// request because the current client implementation does not perform any
+// parallel requests for a single shard.
+// The closedReaders pool is modeled as a stack (implemented via slice
+// operations) and the open readers cache is implemented as a map where the
+// key is of type cachedOpenReaderKey.
+// The namespaceReaderManager also implements a tick() method which should
+// be called regularly in order to shrunk the closedReaders stack after bursts
+// of usage, as well as to expire cached open readers which have not been used
+// for a configurable number of ticks.
+
 const (
 	expireCachedReadersAfterNumTicks = 2
 )
-
-type fsFilesetExistsAtFn func(
-	prefix string,
-	namespace ts.ID,
-	shard uint32,
-	blockStart time.Time,
-) bool
-
-type fsNewReaderFn func(
-	bytesPool pool.CheckedBytesPool,
-	opts fs.Options,
-) (fs.FileSetReader, error)
 
 type databaseNamespaceReaderManager interface {
 	filesetExistsAt(
@@ -68,6 +75,18 @@ type databaseNamespaceReaderManager interface {
 
 	close()
 }
+
+type fsFilesetExistsAtFn func(
+	prefix string,
+	namespace ts.ID,
+	shard uint32,
+	blockStart time.Time,
+) bool
+
+type fsNewReaderFn func(
+	bytesPool pool.CheckedBytesPool,
+	opts fs.Options,
+) (fs.FileSetReader, error)
 
 type namespaceReaderManager struct {
 	sync.Mutex
@@ -149,56 +168,93 @@ func (m *namespaceReaderManager) filesetExistsAt(
 		m.namespace.ID(), shard, blockStart)
 }
 
+type cachedReaderForKeyResult struct {
+	openReader   fs.FileSetReader
+	closedReader fs.FileSetReader
+}
+
+func (m *namespaceReaderManager) pushClosedReaderWithLock(
+	reader fs.FileSetReader,
+) {
+	m.closedReaders = append(m.closedReaders, cachedReader{
+		reader: reader,
+	})
+}
+
+func (m *namespaceReaderManager) popClosedReaderWithLock() fs.FileSetReader {
+	idx := len(m.closedReaders) - 1
+	reader := m.closedReaders[idx].reader
+	// Zero refs from element in slice and shrink slice
+	m.closedReaders[idx] = cachedReader{}
+	m.closedReaders = m.closedReaders[:idx]
+	return reader
+}
+
+func (m *namespaceReaderManager) cachedReaderForKey(
+	key cachedOpenReaderKey,
+) (cachedReaderForKeyResult, error) {
+	m.Lock()
+	defer m.Unlock()
+
+	openReader, ok := m.openReaders[key]
+	if ok {
+		// Cache hit, take this open reader
+		delete(m.openReaders, key)
+
+		m.metrics.cacheHit.Inc(1)
+
+		return cachedReaderForKeyResult{
+			openReader: openReader.reader,
+		}, nil
+	}
+
+	// Cache miss, need to return a reused reader or open a new reader
+	if len(m.closedReaders) > 0 {
+		reader := m.popClosedReaderWithLock()
+
+		m.metrics.cacheMissReusedReader.Inc(1)
+		return cachedReaderForKeyResult{
+			closedReader: reader,
+		}, nil
+	}
+
+	reader, err := m.newReaderFn(m.bytesPool, m.fsOpts)
+	if err != nil {
+		return cachedReaderForKeyResult{}, err
+	}
+
+	m.metrics.cacheMissAllocReader.Inc(1)
+	return cachedReaderForKeyResult{
+		closedReader: reader,
+	}, nil
+}
+
 func (m *namespaceReaderManager) get(
 	shard uint32,
 	blockStart time.Time,
 	position readerPosition,
 ) (fs.FileSetReader, error) {
-	m.Lock()
-
 	key := cachedOpenReaderKey{
 		shard:      shard,
 		blockStart: xtime.ToUnixNano(blockStart),
 		position:   position,
 	}
 
-	openReader, ok := m.openReaders[key]
-	if ok {
-		// Cache hit, take this open reader
-		delete(m.openReaders, key)
-		m.Unlock()
-
-		m.metrics.cacheHit.Inc(1)
-		return openReader.reader, nil
+	lookup, err := m.cachedReaderForKey(key)
+	if err != nil {
+		return nil, err
+	}
+	if reader := lookup.openReader; reader != nil {
+		return reader, nil // Found an open reader for the position
 	}
 
-	// Cache miss, need to return a reused reader or open a new reader
-	var (
-		reader fs.FileSetReader
-		err    error
-	)
-	if len(m.closedReaders) > 0 {
-		idx := len(m.closedReaders) - 1
-		reader = m.closedReaders[idx].reader
-		// Zero refs from element in slice and shrink slice
-		m.closedReaders[idx] = cachedReader{}
-		m.closedReaders = m.closedReaders[:idx]
-
-		m.metrics.cacheMissReusedReader.Inc(1)
-	} else {
-		reader, err = m.newReaderFn(m.bytesPool, m.fsOpts)
-		if err != nil {
-			return nil, err
-		}
-
-		m.metrics.cacheMissAllocReader.Inc(1)
-	}
-	// Can release the lock now as we prepare reader for caller
-	m.Unlock()
-
+	// We have a closed reader from the cache (either a cached closed
+	// reader or newly allocated, either way need to prepare it)
+	reader := lookup.closedReader
 	if err := reader.Open(m.namespace.ID(), shard, blockStart); err != nil {
 		return nil, err
 	}
+
 	// We can validate metadata immediately since its read when opened
 	if err := reader.ValidateMetadata(); err != nil {
 		return nil, err
@@ -231,9 +287,7 @@ func (m *namespaceReaderManager) put(reader fs.FileSetReader) {
 	defer m.Unlock()
 
 	if !status.Open {
-		m.closedReaders = append(m.closedReaders, cachedReader{
-			reader: reader,
-		})
+		m.pushClosedReaderWithLock(reader)
 		return
 	}
 
@@ -253,15 +307,11 @@ func (m *namespaceReaderManager) put(reader fs.FileSetReader) {
 			m.logger.Errorf("error closing reader on put from reader cache: %v", err)
 			return
 		}
-		m.closedReaders = append(m.closedReaders, cachedReader{
-			reader: reader,
-		})
+		m.pushClosedReaderWithLock(reader)
 		return
 	}
 
-	m.openReaders[key] = cachedReader{
-		reader: reader,
-	}
+	m.openReaders[key] = cachedReader{reader: reader}
 }
 
 func (m *namespaceReaderManager) tick() {
@@ -299,6 +349,7 @@ func (m *namespaceReaderManager) tickWithThreshold(threshold int) {
 
 	// For open readers calculate and expire from map directly
 	for key, elem := range m.openReaders {
+		// Mutate the for-loop copy in place before checking the threshold
 		elem.ticksSinceUsed++
 		if elem.ticksSinceUsed >= threshold {
 			// Close before removing ref
@@ -308,6 +359,7 @@ func (m *namespaceReaderManager) tickWithThreshold(threshold int) {
 			delete(m.openReaders, key)
 			continue
 		}
+		// Save the mutated copy back to the map
 		m.openReaders[key] = elem
 	}
 }
