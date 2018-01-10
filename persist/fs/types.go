@@ -262,8 +262,8 @@ type Options interface {
 	// SetMmapHugeTLBThreshold sets the threshold when to use mmap huge pages for mmap'd files on linux
 	SetMmapHugeTLBThreshold(value int64) Options
 
-	// MmapHugePagesThreshold returns the threshold when to use mmap huge pages for mmap'd files on linux
-	MmapHugePagesThreshold() int64
+	// MmapHugeTLBThreshold returns the threshold when to use mmap huge pages for mmap'd files on linux
+	MmapHugeTLBThreshold() int64
 }
 
 // BlockRetrieverOptions represents the options for block retrieval
