@@ -48,8 +48,9 @@ const (
 
 var (
 	// Use an easy marker for out of band analyzing the raw data files
-	marker    = []byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1}
-	markerLen = len(marker)
+	marker      = []byte{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1}
+	markerLen   = len(marker)
+	prologueLen = markerLen + idxLen
 
 	// Endianness is little endian
 	endianness = binary.LittleEndian

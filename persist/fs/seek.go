@@ -45,6 +45,9 @@ var (
 
 	// errInvalidDataFileOffset returned when the provided offset into the data file is not valid
 	errInvalidDataFileOffset = errors.New("invalid data file offset")
+
+	// errNotEnoughBytes returned when the data file doesn't have enough bytes to satisfy a read
+	errNotEnoughBytes = errors.New("invalid data file, not enough bytes to satisfy read")
 )
 
 type seeker struct {
@@ -77,7 +80,6 @@ type seeker struct {
 	keepUnreadBuf bool
 
 	unreadBuf []byte
-	prologue  []byte
 
 	decoder   *msgpack.Decoder
 	bytesPool pool.CheckedBytesPool
@@ -152,7 +154,6 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		summariesFdWithDigest:      digest.NewFdWithDigestReader(opts.dataBufferSize),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.infoBufferSize),
 		keepUnreadBuf:              opts.keepUnreadBuf,
-		prologue:                   make([]byte, markerLen+idxLen),
 		bytesPool:                  opts.bytesPool,
 		decoder:                    msgpack.NewDecoder(opts.decodingOpts),
 		opts:                       opts.opts,
@@ -179,6 +180,21 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 
+	// Setup digest readers
+	s.infoFdWithDigest.Reset(infoFd)
+	s.indexFdWithDigest.Reset(indexFd)
+	s.summariesFdWithDigest.Reset(summariesFd)
+	s.digestFdWithDigestContents.Reset(digestFd)
+
+	defer func() {
+		// NB(r): We don't need to keep these FDs open as we use these up front
+		s.infoFdWithDigest.Close()
+		s.indexFdWithDigest.Close()
+		s.bloomFilterFdWithDigest.Close()
+		s.digestFdWithDigestContents.Close()
+		dataFd.Close()
+	}()
+
 	// Mmap necessary files
 	mmapOptions := mmapOptions{
 		read: true,
@@ -189,9 +205,8 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	}
 	mmapResult, err := mmapFiles(os.Open, map[string]mmapFileDesc{
 		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmapFileDesc{
-			file:  &indexFd,
-			bytes: &s.indexMmap,
-			// Index files are small enough that they don't warrant hugeTLB
+			file:    &indexFd,
+			bytes:   &s.indexMmap,
 			options: mmapOptions,
 		},
 		filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmapFileDesc{
@@ -208,21 +223,6 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		s.opts.InstrumentOptions().Logger().Warnf(
 			"warning while mmaping files in seeker: %s", warning.Error())
 	}
-
-	// Setup digest readers
-	s.infoFdWithDigest.Reset(infoFd)
-	s.indexFdWithDigest.Reset(indexFd)
-	s.summariesFdWithDigest.Reset(summariesFd)
-	s.digestFdWithDigestContents.Reset(digestFd)
-
-	defer func() {
-		// NB(r): We don't need to keep these FDs open as we use these up front
-		s.infoFdWithDigest.Close()
-		s.indexFdWithDigest.Close()
-		s.bloomFilterFdWithDigest.Close()
-		s.digestFdWithDigestContents.Close()
-		dataFd.Close()
-	}()
 
 	if err := s.readDigest(); err != nil {
 		// Try to close if failed to read
@@ -345,22 +345,21 @@ func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
 		return nil, errInvalidDataFileOffset
 	}
 
-	// We'll treat the dataView similar to a reader interface in that we will continue to reslice
-	// it such that the first byte is always the next byte, and we'll focus instead on how much
-	// we want to read.
-	dataView := s.dataMmap[entry.Offset:]
+	// We'll treat "data" similar to a reader interface, I.E after every read we'll
+	// reslice it such that the first byte is the next byte we want to read.
+	data := s.dataMmap[entry.Offset:]
 
 	// Should never happen, but prevents panics in the case of malformed data
-	if len(dataView) < cap(s.prologue) {
-		return nil, errReadNotExpectedSize
+	if len(data) < prologueLen+int(entry.Size) {
+		return nil, errNotEnoughBytes
 	}
-	// Should never happen, but prevents panics in the case of malformed data
-	if !bytes.Equal(dataView[:markerLen], marker) {
+	// Should never happen, but prevents proceeding with corrupted data
+	if !bytes.Equal(data[:markerLen], marker) {
 		return nil, errReadMarkerNotFound
 	}
 
 	// Reslice past the prologue that we just finished reading
-	dataView = dataView[cap(s.prologue):]
+	data = data[prologueLen:]
 
 	// Obtain an appropriately sized buffer
 	var buffer checked.Bytes
@@ -377,7 +376,7 @@ func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
 
 	// Copy the actual data into the underlying buffer
 	underlyingBuf := buffer.Get()
-	copy(underlyingBuf, dataView[:entry.Size])
+	copy(underlyingBuf, data[:entry.Size])
 
 	// NB(r): _must_ check the checksum against known checksum as the data
 	// file might not have been verified if we haven't read through the file yet.
