@@ -45,20 +45,7 @@ var (
 
 	// errReadNotExpectedSize returned when the size of the next read does not match size specified by the index
 	errReadNotExpectedSize = errors.New("next read not expected size")
-
-	// errReadMarkerNotFound returned when the marker is not found at the beginning of a data record
-	errReadMarkerNotFound = errors.New("expected marker not found")
 )
-
-// ErrReadWrongIdx returned when the wrong idx is read in the data file
-type ErrReadWrongIdx struct {
-	ExpectedIdx int64
-	ActualIdx   int64
-}
-
-func (e ErrReadWrongIdx) Error() string {
-	return fmt.Sprintf("expected idx %d but found idx %d", e.ExpectedIdx, e.ActualIdx)
-}
 
 type reader struct {
 	opts           Options
@@ -91,7 +78,6 @@ type reader struct {
 	bloomFilterInfo           schema.IndexBloomFilterInfo
 	entriesRead               int
 	metadataRead              int
-	prologue                  []byte
 	decoder                   *msgpack.Decoder
 	digestBuf                 digest.Buffer
 	bytesPool                 pool.CheckedBytesPool
@@ -119,7 +105,6 @@ func NewReader(
 		bloomFilterWithDigest:      digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
 		indexDecoderStream:         newReaderDecoderStream(),
 		dataReader:                 digest.NewReaderWithDigest(nil),
-		prologue:                   make([]byte, markerLen+idxLen),
 		decoder:                    msgpack.NewDecoder(opts.DecodingOptions()),
 		digestBuf:                  digest.NewBuffer(),
 		bytesPool:                  bytesPool,
@@ -279,21 +264,6 @@ func (r *reader) Read() (ts.ID, checked.Bytes, uint32, error) {
 
 	entry := r.indexEntriesByOffsetAsc[r.entriesRead]
 
-	n, err := r.dataReader.Read(r.prologue)
-	if err != nil {
-		return none, nil, 0, err
-	}
-	if n != cap(r.prologue) {
-		return none, nil, 0, errReadNotExpectedSize
-	}
-	if !bytes.Equal(r.prologue[:markerLen], marker) {
-		return none, nil, 0, errReadMarkerNotFound
-	}
-	idx := int64(endianness.Uint64(r.prologue[markerLen : markerLen+idxLen]))
-	if idx != entry.Index {
-		return none, nil, 0, ErrReadWrongIdx{ExpectedIdx: entry.Index, ActualIdx: idx}
-	}
-
 	var data checked.Bytes
 	if r.bytesPool != nil {
 		data = r.bytesPool.Get(int(entry.Size))
@@ -306,7 +276,7 @@ func (r *reader) Read() (ts.ID, checked.Bytes, uint32, error) {
 		defer data.DecRef()
 	}
 
-	n, err = r.dataReader.Read(data.Get())
+	n, err := r.dataReader.Read(data.Get())
 	if err != nil {
 		return none, nil, 0, err
 	}

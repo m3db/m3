@@ -350,16 +350,9 @@ func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
 	data := s.dataMmap[entry.Offset:]
 
 	// Should never happen, but prevents panics in the case of malformed data
-	if len(data) < prologueLen+int(entry.Size) {
+	if len(data) < int(entry.Size) {
 		return nil, errNotEnoughBytes
 	}
-	// Should never happen, but prevents proceeding with corrupted data
-	if !bytes.Equal(data[:markerLen], marker) {
-		return nil, errReadMarkerNotFound
-	}
-
-	// Reslice past the prologue that we just finished reading
-	data = data[prologueLen:]
 
 	// Obtain an appropriately sized buffer
 	var buffer checked.Bytes

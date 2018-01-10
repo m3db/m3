@@ -59,7 +59,6 @@ type writer struct {
 	currOffset int64
 	encoder    *msgpack.Encoder
 	digestBuf  digest.Buffer
-	idxData    []byte
 	err        error
 }
 
@@ -112,7 +111,6 @@ func NewWriter(opts Options) (FileSetWriter, error) {
 		digestFdWithDigestContents:      digest.NewFdWithDigestContentsWriter(bufferSize),
 		encoder:                         msgpack.NewEncoder(),
 		digestBuf:                       digest.NewBuffer(),
-		idxData:                         make([]byte, idxLen),
 	}, nil
 }
 
@@ -219,14 +217,6 @@ func (w *writer) writeAll(
 		dataFileOffset: w.currOffset,
 		size:           uint32(size),
 		checksum:       checksum,
-	}
-
-	if err := w.writeData(marker); err != nil {
-		return err
-	}
-	endianness.PutUint64(w.idxData, uint64(w.currIdx))
-	if err := w.writeData(w.idxData); err != nil {
-		return err
 	}
 	for _, d := range data {
 		if d == nil {
