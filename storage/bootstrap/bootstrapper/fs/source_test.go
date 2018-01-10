@@ -279,8 +279,6 @@ func TestReadNilTimeRanges(t *testing.T) {
 	})
 }
 
-// TODO: add nil time ranges test for when using default series cache policy
-
 func TestReadOpenFileError(t *testing.T) {
 	dir := createTempDir(t)
 	defer os.RemoveAll(dir)
@@ -449,7 +447,7 @@ func TestReadOpenError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	reader := fs.NewMockFileSetReader(ctrl)
-	src := newFileSystemSource(dir, NewOptions()).(*fileSystemSource)
+	src := newFileSystemSource(dir, testDefaultOpts).(*fileSystemSource)
 	src.newReaderFn = func(
 		b pool.CheckedBytesPool,
 		opts fs.Options,
