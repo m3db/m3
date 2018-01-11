@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
+	"github.com/uber-go/tally"
 
 	"github.com/stretchr/testify/require"
 )
@@ -39,14 +40,14 @@ func TestHandleRoute(t *testing.T) {
 	s := newTestService()
 	r := newTestGetRequest()
 	expected := newNamespacesJSON(&rules.NamespacesView{})
-	actual, err := s.handleRoute(fetchNamespaces, r, "ns")
+	actual, err := s.handleRoute(fetchNamespaces, r, newTestInstrumentMethodMetrics())
 	require.NoError(t, err)
 	require.Equal(t, expected, actual)
 }
 
 func TestHandleRouteNilRequest(t *testing.T) {
 	s := newTestService()
-	_, err := s.handleRoute(fetchNamespaces, nil, "ns")
+	_, err := s.handleRoute(fetchNamespaces, nil, newTestInstrumentMethodMetrics())
 	require.EqualError(t, err, errNilRequest.Error())
 }
 func TestFetchNamespacesSuccess(t *testing.T) {
@@ -158,11 +159,11 @@ func TestFetchRollupRuleHistorySuccess(t *testing.T) {
 func newTestService() *service {
 	iOpts := instrument.NewOptions()
 	return &service{
-		metrics:     newServiceMetrics(iOpts.MetricsScope()),
+		metrics:     newServiceMetrics(iOpts.MetricsScope(), iOpts.MetricsSamplingRate()),
 		nowFn:       clock.NewOptions().NowFn(),
 		store:       newMockStore(),
 		authService: auth.NewNoopAuth(),
-		iOpts:       iOpts,
+		logger:      iOpts.Logger(),
 	}
 }
 
@@ -184,6 +185,10 @@ func newTestPutRequest(bodyBuff []byte) *http.Request {
 func newTestDeleteRequest() *http.Request {
 	req, _ := http.NewRequest("DELETE", "/route", nil)
 	return req.WithContext(context.Background())
+}
+
+func newTestInstrumentMethodMetrics() instrument.MethodMetrics {
+	return instrument.NewMethodMetrics(tally.NoopScope, "testRoute", 1.0)
 }
 
 type mockStore struct{}

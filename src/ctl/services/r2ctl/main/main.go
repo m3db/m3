@@ -92,28 +92,45 @@ func main() {
 		SetMetricsSamplingRate(cfg.Metrics.SampleRate()).
 		SetReportInterval(cfg.Metrics.ReportInterval())
 
-	listenAddr := fmt.Sprintf("%s:%d", cfg.HTTP.Host, cfg.HTTP.Port)
-	serverOpts := cfg.HTTP.NewServerOptions(instrumentOpts)
-
-	store, err := cfg.Store.NewR2Store(instrumentOpts)
+	// Create R2 store.
+	storeScope := scope.SubScope("r2-store")
+	store, err := cfg.Store.NewR2Store(instrumentOpts.SetMetricsScope(storeScope))
 	if err != nil {
 		logger.Fatalf("error initializing backing store: %v", err)
 	}
 
+	// Create R2 service.
 	authService := auth.NewNoopAuth()
 	if cfg.Auth != nil {
 		authService = cfg.Auth.NewSimpleAuth()
 	}
-
+	r2ServiceScope := scope.Tagged(map[string]string{
+		"service-name": "r2",
+	})
+	r2ServiceInstrumentOpts := instrumentOpts.SetMetricsScope(r2ServiceScope)
 	r2Service := r2.NewService(
 		r2apiPrefix,
 		authService,
 		store,
-		instrumentOpts,
+		r2ServiceInstrumentOpts,
 		clock.NewOptions(),
 	)
-	healthService := health.NewService(instrumentOpts)
-	server := http.NewServer(listenAddr, serverOpts, r2Service, healthService)
+
+	// Create health service.
+	healthServiceScope := scope.Tagged(map[string]string{
+		"service-name": "health",
+	})
+	healthServiceInstrumentOpts := instrumentOpts.SetMetricsScope(healthServiceScope)
+	healthService := health.NewService(healthServiceInstrumentOpts)
+
+	// Create HTTP server.
+	listenAddr := fmt.Sprintf("%s:%d", cfg.HTTP.Host, cfg.HTTP.Port)
+	httpServerScope := scope.Tagged(map[string]string{
+		"server-type": "http",
+	})
+	httpServerInstrumentOpts := instrumentOpts.SetMetricsScope(httpServerScope)
+	httpServerOpts := cfg.HTTP.NewServerOptions(httpServerInstrumentOpts)
+	server := http.NewServer(listenAddr, httpServerOpts, r2Service, healthService)
 
 	logger.Infof("starting HTTP server on: %s", listenAddr)
 	if err := server.ListenAndServe(); err != nil {
