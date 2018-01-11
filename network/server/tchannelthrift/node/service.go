@@ -349,7 +349,7 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 
 		for _, fetchedBlock := range fetched {
 			block := rpc.NewBlock()
-			block.Start = xtime.ToNanoseconds(fetchedBlock.Start)
+			block.Start = fetchedBlock.Start.UnixNano()
 			if err := fetchedBlock.Err; err != nil {
 				block.Err = convert.ToRPCError(err)
 			} else {
@@ -438,7 +438,7 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 		for _, fetchedMetadataBlock := range fetchedMetadataBlocks {
 			blockMetadata := s.blockMetadataPool.Get()
 
-			blockMetadata.Start = xtime.ToNanoseconds(fetchedMetadataBlock.Start)
+			blockMetadata.Start = fetchedMetadataBlock.Start.UnixNano()
 
 			if opts.IncludeSizes {
 				size := fetchedMetadataBlock.Size
@@ -557,7 +557,7 @@ func (s *service) getBlocksMetadataV2FromResult(
 		for _, fetchedMetadataBlock := range fetchedMetadataBlocks {
 			blockMetadata := s.blockMetadataV2Pool.Get()
 			blockMetadata.ID = id
-			blockMetadata.Start = xtime.ToNanoseconds(fetchedMetadataBlock.Start)
+			blockMetadata.Start = fetchedMetadataBlock.Start.UnixNano()
 
 			if opts.IncludeSizes {
 				size := fetchedMetadataBlock.Size

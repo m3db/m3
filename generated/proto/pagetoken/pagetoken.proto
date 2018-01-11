@@ -7,7 +7,7 @@ message PageToken {
 	}
 	message FlushedSeriesPhase {
 		int64 currBlockStartUnixNanos = 1;
-		int64 currBlockIndexRead = 2;
+		int64 currBlockEntryIdx = 2;
 	}
 
 	ActiveSeriesPhase active_series_phase = 1;

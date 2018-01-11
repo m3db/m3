@@ -1181,7 +1181,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			// the token's block start on next iteration
 			tokenBlockStart = time.Time{}
 
-			pos.metadataIdx = int(flushedPhase.CurrBlockIndexRead)
+			pos.metadataIdx = int(flushedPhase.CurrBlockEntryIdx)
 		}
 
 		// Open a reader at this position, potentially from cache
@@ -1237,7 +1237,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 			token = &pagetoken.PageToken{
 				FlushedSeriesPhase: &pagetoken.PageToken_FlushedSeriesPhase{
 					CurrBlockStartUnixNanos: blockStart.UnixNano(),
-					CurrBlockIndexRead:      endPos,
+					CurrBlockEntryIdx:       endPos,
 				},
 			}
 			data, err := proto.Marshal(token)
