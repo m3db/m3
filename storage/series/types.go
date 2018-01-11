@@ -59,13 +59,16 @@ type DatabaseSeries interface {
 	) ([][]xio.SegmentReader, error)
 
 	// FetchBlocks returns data blocks given a list of block start times
-	FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult
+	FetchBlocks(
+		ctx context.Context,
+		starts []time.Time,
+	) ([]block.FetchBlockResult, error)
 
 	// FetchBlocksMetadata returns the blocks metadata
 	FetchBlocksMetadata(
 		ctx context.Context,
 		start, end time.Time,
-		opts block.FetchBlocksMetadataOptions,
+		opts FetchBlocksMetadataOptions,
 	) block.FetchBlocksMetadataResult
 
 	// IsEmpty returns whether series is empty
@@ -89,6 +92,16 @@ type DatabaseSeries interface {
 		blockRetriever QueryableBlockRetriever,
 		opts Options,
 	)
+}
+
+// FetchBlocksMetadataOptions encapsulates block fetch metadata options
+// and specifies a few series specific options too.
+type FetchBlocksMetadataOptions struct {
+	block.FetchBlocksMetadataOptions
+
+	// IncludeCachedBlocks specifies whether to also include cached blocks
+	// when returning series metadata.
+	IncludeCachedBlocks bool
 }
 
 // QueryableBlockRetriever is a block retriever that can tell if a block
@@ -164,6 +177,12 @@ type Options interface {
 
 	// DatabaseBlockOptions returns the database block options
 	DatabaseBlockOptions() block.Options
+
+	// SetCachePolicy sets the series cache policy
+	SetCachePolicy(value CachePolicy) Options
+
+	// CachePolicy returns the series cache policy
+	CachePolicy() CachePolicy
 
 	// SetContextPool sets the contextPool
 	SetContextPool(value context.Pool) Options

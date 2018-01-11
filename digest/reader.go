@@ -24,6 +24,7 @@ import (
 	"bufio"
 	"errors"
 	"hash"
+	"hash/adler32"
 	"io"
 	"os"
 )
@@ -32,8 +33,8 @@ var (
 	// errReadFewerThanExpectedBytes returned when number of bytes read is fewer than expected
 	errReadFewerThanExpectedBytes = errors.New("number of bytes read is fewer than expected")
 
-	// errCheckSumMismatch returned when the calculated checksum doesn't match the stored checksum
-	errCheckSumMismatch = errors.New("calculated checksum doesn't match stored checksum")
+	// errChecksumMismatch returned when the calculated checksum doesn't match the stored checksum
+	errChecksumMismatch = errors.New("calculated checksum doesn't match stored checksum")
 
 	// errBufferSizeMismatch returned when ReadAllAndValidate called without well sized buffer
 	errBufferSizeMismatch = errors.New("buffer passed is not an exact fit for contents")
@@ -180,7 +181,7 @@ type readerWithDigest struct {
 func NewReaderWithDigest(reader io.Reader) ReaderWithDigest {
 	return &readerWithDigest{
 		reader: reader,
-		digest: NewDigest(),
+		digest: adler32.New(),
 	}
 }
 
@@ -226,7 +227,7 @@ func (r *readerWithDigest) Read(b []byte) (int, error) {
 
 func (r *readerWithDigest) Validate(expectedDigest uint32) error {
 	if r.digest.Sum32() != expectedDigest {
-		return errCheckSumMismatch
+		return errChecksumMismatch
 	}
 	return nil
 }

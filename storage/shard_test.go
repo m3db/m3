@@ -58,8 +58,9 @@ func (i *testIncreasingIndex) nextIndex() uint64 {
 
 func testDatabaseShard(t *testing.T, opts Options) *dbShard {
 	ns := newTestNamespace(t)
+	nsReaderMgr := newNamespaceReaderManager(ns.metadata, tally.NoopScope, opts)
 	seriesOpts := NewSeriesOptionsFromOptions(opts, ns.Options().RetentionOptions())
-	return newDatabaseShard(ns.metadata, 0, nil,
+	return newDatabaseShard(ns.metadata, 0, nil, nsReaderMgr,
 		&testIncreasingIndex{}, commitLogWriteNoOp, true, opts, seriesOpts).(*dbShard)
 }
 
@@ -75,7 +76,7 @@ func TestShardDontNeedBootstrap(t *testing.T) {
 	opts := testDatabaseOptions()
 	testNs := newTestNamespace(t)
 	seriesOpts := NewSeriesOptionsFromOptions(opts, testNs.Options().RetentionOptions())
-	shard := newDatabaseShard(testNs.metadata, 0, nil,
+	shard := newDatabaseShard(testNs.metadata, 0, nil, nil,
 		&testIncreasingIndex{}, commitLogWriteNoOp, false, opts, seriesOpts).(*dbShard)
 	defer shard.Close()
 
@@ -161,7 +162,7 @@ func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 	blockStart := time.Unix(21600, 0)
 	flush := persist.NewMockFlush(ctrl)
 	prepared := persist.PreparedPersist{Persist: nil}
-	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.nsMetadata),
+	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
 		s.shard, blockStart).Return(prepared, nil)
 
 	err := s.Flush(blockStart, flush)
@@ -189,7 +190,7 @@ func TestShardFlushNoPersistFuncWithError(t *testing.T) {
 	prepared := persist.PreparedPersist{}
 	expectedErr := errors.New("some error")
 
-	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.nsMetadata),
+	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
 		s.shard, blockStart).Return(prepared, expectedErr)
 
 	actualErr := s.Flush(blockStart, flush)
@@ -224,7 +225,7 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		Close:   func() error { closed = true; return nil },
 	}
 	expectedErr := errors.New("error foo")
-	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.nsMetadata),
+	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
 		s.shard, blockStart).Return(prepared, expectedErr)
 
 	flushed := make(map[int]struct{})
@@ -286,7 +287,7 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		Close:   func() error { closed = true; return nil },
 	}
 
-	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.nsMetadata),
+	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
 		s.shard, blockStart).Return(prepared, nil)
 
 	flushed := make(map[int]struct{})
@@ -462,7 +463,6 @@ func TestShardWriteAsync(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	go shard.Bootstrap(nil)
 	shard.Write(ctx, ts.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
 	shard.Write(ctx, ts.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
 	shard.Write(ctx, ts.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
@@ -710,7 +710,7 @@ func TestPurgeExpiredSeriesWriteAfterPurging(t *testing.T) {
 	require.Equal(t, 1, r.expiredSeries)
 	require.Equal(t, 1, len(shard.lookup))
 
-	entry.decrementWriterCount()
+	entry.decrementReaderWriterCount()
 	require.Equal(t, 1, len(shard.lookup))
 }
 
@@ -762,56 +762,11 @@ func TestShardFetchBlocksIDExists(t *testing.T) {
 	series := addMockSeries(ctrl, shard, id, 0)
 	now := time.Now()
 	starts := []time.Time{now}
-	expected := []block.FetchBlockResult{block.NewFetchBlockResult(now, nil, nil, nil)}
-	series.EXPECT().FetchBlocks(ctx, starts).Return(expected)
+	expected := []block.FetchBlockResult{block.NewFetchBlockResult(now, nil, nil)}
+	series.EXPECT().FetchBlocks(ctx, starts).Return(expected, nil)
 	res, err := shard.FetchBlocks(ctx, id, starts)
 	require.NoError(t, err)
 	require.Equal(t, expected, res)
-}
-
-func TestShardFetchBlocksMetadata(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	opts := testDatabaseOptions()
-	ctx := opts.ContextPool().Get()
-	defer ctx.Close()
-
-	shard := testDatabaseShard(t, opts)
-	defer shard.Close()
-	start := time.Now()
-	end := start.Add(defaultTestRetentionOpts.BlockSize())
-	ids := make([]ts.ID, 0, 5)
-	fetchOpts := block.FetchBlocksMetadataOptions{
-		IncludeSizes:     true,
-		IncludeChecksums: true,
-		IncludeLastRead:  true,
-	}
-	lastRead := time.Now().Add(-time.Minute)
-	for i := 0; i < 10; i++ {
-		id := ts.StringID(fmt.Sprintf("foo.%d", i))
-		series := addMockSeries(ctrl, shard, id, uint64(i))
-		if i == 2 {
-			series.EXPECT().
-				FetchBlocksMetadata(gomock.Not(nil), start, end, fetchOpts).
-				Return(block.NewFetchBlocksMetadataResult(id, block.NewFetchBlockMetadataResults()))
-		} else if i > 2 && i <= 7 {
-			ids = append(ids, id)
-			blocks := block.NewFetchBlockMetadataResults()
-			at := start.Add(time.Duration(i))
-			blocks.Add(block.NewFetchBlockMetadataResult(at, 0, nil, lastRead, nil))
-			series.EXPECT().
-				FetchBlocksMetadata(gomock.Not(nil), start, end, fetchOpts).
-				Return(block.NewFetchBlocksMetadataResult(id, blocks))
-		}
-	}
-
-	res, nextPageToken := shard.FetchBlocksMetadata(ctx, start, end, 5, 2, fetchOpts)
-	require.Equal(t, len(ids), len(res.Results()))
-	require.Equal(t, int64(8), *nextPageToken)
-	for i := 0; i < len(res.Results()); i++ {
-		require.Equal(t, ids[i], res.Results()[i].ID)
-	}
 }
 
 func TestShardCleanupFileset(t *testing.T) {

@@ -93,6 +93,7 @@ func NewSeriesOptionsFromOptions(opts Options, ropts retention.Options) series.O
 		SetInstrumentOptions(opts.InstrumentOptions()).
 		SetRetentionOptions(ropts).
 		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
+		SetCachePolicy(opts.SeriesCachePolicy()).
 		SetContextPool(opts.ContextPool()).
 		SetEncoderPool(opts.EncoderPool()).
 		SetMultiReaderIteratorPool(opts.MultiReaderIteratorPool()).
@@ -119,6 +120,7 @@ type options struct {
 	blockRetrieverManager          block.DatabaseBlockRetrieverManager
 	poolOpts                       pool.ObjectPoolOptions
 	contextPool                    context.Pool
+	seriesCachePolicy              series.CachePolicy
 	seriesOpts                     series.Options
 	seriesPool                     series.DatabaseSeriesPool
 	bytesPool                      pool.CheckedBytesPool
@@ -157,6 +159,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		maxFlushRetries:                defaultMaxFlushRetries,
 		poolOpts:                       poolOpts,
 		contextPool:                    context.NewPool(poolOpts, poolOpts),
+		seriesCachePolicy:              series.DefaultCachePolicy,
 		seriesOpts:                     seriesOpts,
 		seriesPool:                     series.NewDatabaseSeriesPool(poolOpts),
 		bytesPool:                      bytesPool,
@@ -202,7 +205,8 @@ func (o *options) Validate() error {
 		return errPersistManagerNotSet
 	}
 
-	return nil
+	// validate series cache policy
+	return series.ValidateCachePolicy(o.seriesCachePolicy)
 }
 
 func (o *options) SetClockOptions(value clock.Options) Options {
@@ -448,6 +452,16 @@ func (o *options) SetContextPool(value context.Pool) Options {
 
 func (o *options) ContextPool() context.Pool {
 	return o.contextPool
+}
+
+func (o *options) SetSeriesCachePolicy(value series.CachePolicy) Options {
+	opts := *o
+	opts.seriesCachePolicy = value
+	return &opts
+}
+
+func (o *options) SeriesCachePolicy() series.CachePolicy {
+	return o.seriesCachePolicy
 }
 
 func (o *options) SetSeriesOptions(value series.Options) Options {

@@ -162,7 +162,7 @@ func testFdWithDigestReadAllValidation(t *testing.T, expectedDigest uint32, expe
 }
 
 func TestFdWithDigestReadAllValidationError(t *testing.T) {
-	testFdWithDigestReadAllValidation(t, 2, errCheckSumMismatch)
+	testFdWithDigestReadAllValidation(t, 2, errChecksumMismatch)
 }
 
 func TestFdWithDigestReadAllValidationSuccess(t *testing.T) {
@@ -173,7 +173,7 @@ func TestFdWithDigestValidateDigest(t *testing.T) {
 	reader := NewFdWithDigestReader(testReaderBufferSize).(*fdWithDigestReader)
 	reader.readerWithDigest.(*readerWithDigest).digest = &mockDigest{digest: 123}
 	require.NoError(t, reader.Validate(123))
-	require.Equal(t, errCheckSumMismatch, reader.Validate(100))
+	require.Equal(t, errChecksumMismatch, reader.Validate(100))
 }
 
 func TestFdWithDigestReaderClose(t *testing.T) {

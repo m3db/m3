@@ -21,6 +21,7 @@
 package peers
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/m3db/m3db/clock"
@@ -30,6 +31,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/storage/series"
 	xlog "github.com/m3db/m3x/log"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
@@ -151,13 +153,30 @@ func (s *peersSource) Read(
 			defer incrementalWg.Done()
 
 			for flush := range incrementalQueue {
-				err := s.incrementalFlush(persistFlush, flush.nsMetadata,
-					flush.shard, flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
-				if err != nil {
-					s.log.WithFields(
-						xlog.NewField("error", err.Error()),
-					).Infof("peers bootstrapper incremental flush encountered error")
+				err := s.incrementalFlush(persistFlush, flush.nsMetadata, flush.shard,
+					flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
+				if err == nil {
+					continue
 				}
+
+				// Remove results and make unfulfilled if an error occurred
+				s.log.WithFields(
+					xlog.NewField("error", err.Error()),
+				).Errorf("peers bootstrapper incremental flush encountered error")
+
+				// Remove results
+				tr := flush.timeRange
+				blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
+				for _, series := range flush.shardResult.AllSeries() {
+					for at := tr.Start; at.Before(tr.End); at = at.Add(blockSize) {
+						series.Blocks.RemoveBlockAt(at)
+					}
+				}
+
+				// Make unfulfilled
+				lock.Lock()
+				result.Add(flush.shard, nil, xtime.Ranges{}.AddRange(tr))
+				lock.Unlock()
 			}
 		}()
 	}
@@ -174,8 +193,9 @@ func (s *peersSource) Read(
 			for it.Next() {
 				currRange := it.Value()
 
-				shardResult, err := session.FetchBootstrapBlocksFromPeers(
-					nsMetadata, shard, currRange.Start, currRange.End, bopts, s.opts.FetchBlocksMetadataEndpointVersion())
+				version := s.opts.FetchBlocksMetadataEndpointVersion()
+				shardResult, err := session.FetchBootstrapBlocksFromPeers(nsMetadata,
+					shard, currRange.Start, currRange.End, bopts, version)
 
 				// Logging
 				if err == nil {
@@ -212,9 +232,9 @@ func (s *peersSource) Read(
 
 				lock.Lock()
 				if err == nil {
-					result.Add(shard, shardResult, nil)
+					result.Add(shard, shardResult, xtime.Ranges{})
 				} else {
-					result.Add(shard, nil, xtime.NewRanges().AddRange(currRange))
+					result.Add(shard, nil, xtime.Ranges{}.AddRange(currRange))
 				}
 				lock.Unlock()
 			}
@@ -241,6 +261,19 @@ func (s *peersSource) Read(
 	return result, nil
 }
 
+// incrementalFlush is used to incrementally flush peer-bootstrapped shards
+// to disk as they finish so that we're not (necessarily) holding everything
+// in memory at once.
+// incrementalFlush starts by looping through every block in a timerange for
+// a given shard, and then subsequently looping through every series in that
+// shard/block and flushing it to disk. Depending on the series caching policy,
+// the series will either be held in memory, or removed from memory once
+// flushing has completed.
+// Once everything has been flushed to disk then depending on the series
+// caching policy the function is either done, or in the case of the
+// CacheAllMetadata policy we loop through every series and make every block
+// retrievable (so that we can retrieve data for the blocks that we're caching
+// the metadata for).
 func (s *peersSource) incrementalFlush(
 	flush persist.Flush,
 	nsMetadata namespace.Metadata,
@@ -250,11 +283,16 @@ func (s *peersSource) incrementalFlush(
 	tr xtime.Range,
 ) error {
 	var (
-		ropts          = nsMetadata.Options().RetentionOptions()
-		blockSize      = ropts.BlockSize()
-		shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
-		tmpCtx         = context.NewContext()
+		ropts             = nsMetadata.Options().RetentionOptions()
+		blockSize         = ropts.BlockSize()
+		shardRetriever    = shardRetrieverMgr.ShardRetriever(shard)
+		tmpCtx            = context.NewContext()
+		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 	)
+	if seriesCachePolicy == series.CacheAllMetadata && shardRetriever == nil {
+		return fmt.Errorf("shard retriever missing for shard: %d", shard)
+	}
+
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
 		prepared, err := flush.Prepare(nsMetadata, shard, start)
 		if err != nil {
@@ -265,8 +303,8 @@ func (s *peersSource) incrementalFlush(
 			blockErr          error
 			shardResultSeries = shardResult.AllSeries()
 		)
-		for _, series := range shardResultSeries {
-			bl, ok := series.Blocks.BlockAt(start)
+		for _, s := range shardResultSeries {
+			bl, ok := s.Blocks.BlockAt(start)
 			if !ok {
 				continue
 			}
@@ -286,11 +324,35 @@ func (s *peersSource) incrementalFlush(
 				break
 			}
 
-			err = prepared.Persist(series.ID, segment, bl.Checksum())
+			err = prepared.Persist(s.ID, segment, bl.Checksum())
 			tmpCtx.BlockingClose()
 			if err != nil {
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
+			}
+
+			switch seriesCachePolicy {
+			case series.CacheAll:
+				// Leave the blocks in the shard result, we need to return all blocks
+				// so we can cache in memory
+			case series.CacheAllMetadata:
+				// NB(r): We can now make the flushed blocks retrievable, note that we
+				// explicitly perform another loop here and lookup the block again
+				// to avoid a large expensive allocation to hold onto the blocks
+				// that we just flushed that would have to be pooled.
+				// We are explicitly trading CPU time here for lower GC pressure.
+				metadata := block.RetrievableBlockMetadata{
+					ID:       s.ID,
+					Length:   bl.Len(),
+					Checksum: bl.Checksum(),
+				}
+				bl.ResetRetrievable(start, shardRetriever, metadata)
+			default:
+				// Not caching the series or metadata in memory so finalize the block,
+				// better to do this as we loop through to make blocks return to the
+				// pool earlier than at the end of this flush cycle
+				s.Blocks.RemoveBlockAt(start)
+				bl.Close()
 			}
 		}
 
@@ -303,24 +365,6 @@ func (s *peersSource) incrementalFlush(
 		}
 		if err != nil {
 			return err
-		}
-
-		// NB(r): We can now make the flushed blocks retrievable, note that we
-		// explicitly perform another loop here and lookup the block again
-		// to avoid a large expensive allocation to hold onto the blocks
-		// that we just flushed that would have to be pooled.
-		// We are explicitly trading CPU time here for lower GC pressure.
-		for _, series := range shardResultSeries {
-			bl, ok := series.Blocks.BlockAt(start)
-			if !ok {
-				continue
-			}
-			metadata := block.RetrievableBlockMetadata{
-				ID:       series.ID,
-				Length:   bl.Len(),
-				Checksum: bl.Checksum(),
-			}
-			bl.ResetRetrievable(start, shardRetriever, metadata)
 		}
 	}
 

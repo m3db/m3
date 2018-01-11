@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/peers"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/topology"
 	xmetrics "github.com/m3db/m3db/x/metrics"
 	"github.com/m3db/m3x/instrument"
@@ -68,7 +69,7 @@ func waitUntil(fn conditionFn, timeout time.Duration) bool {
 }
 
 func newMultiAddrTestOptions(opts testOptions, instance int) testOptions {
-	bind := "0.0.0.0"
+	bind := "127.0.0.1"
 	start := multiAddrPortStart + (instance * multiAddrPortEach)
 	return opts.
 		SetID(fmt.Sprintf("testhost%d", instance)).
@@ -142,7 +143,8 @@ func newDefaulTestResultOptions(
 	return result.NewOptions().
 		SetClockOptions(storageOpts.ClockOptions()).
 		SetInstrumentOptions(storageOpts.InstrumentOptions()).
-		SetDatabaseBlockOptions(storageOpts.DatabaseBlockOptions())
+		SetDatabaseBlockOptions(storageOpts.DatabaseBlockOptions()).
+		SetSeriesCachePolicy(storageOpts.SeriesCachePolicy())
 }
 
 func newDefaultBootstrappableTestSetups(
@@ -160,6 +162,14 @@ func newDefaultBootstrappableTestSetups(
 		cleanupFnsMutex.Lock()
 		defer cleanupFnsMutex.Unlock()
 		cleanupFns = append(cleanupFns, fn)
+	}
+	anySetupUsingFetchBlocksMetadataEndpointV1 := false
+	for i := range setupOpts {
+		v1 := client.FetchBlocksMetadataEndpointV1
+		if setupOpts[i].fetchBlocksMetadataEndpointVersion == v1 {
+			anySetupUsingFetchBlocksMetadataEndpointV1 = true
+			break
+		}
 	}
 	for i := 0; i < replicas; i++ {
 		var (
@@ -179,6 +189,12 @@ func newDefaultBootstrappableTestSetups(
 
 		setup, err := newTestSetup(t, instanceOpts, nil)
 		require.NoError(t, err)
+
+		// Force correct series cache policy if using V1 version
+		// TODO: Remove once v1 endpoint is gone
+		if anySetupUsingFetchBlocksMetadataEndpointV1 {
+			setup.storageOpts = setup.storageOpts.SetSeriesCachePolicy(series.CacheAll)
+		}
 
 		instrumentOpts := setup.storageOpts.InstrumentOptions()
 		logger := instrumentOpts.Logger()

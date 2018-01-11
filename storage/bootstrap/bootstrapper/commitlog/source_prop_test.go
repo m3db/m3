@@ -102,7 +102,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			blockSize := md.Options().RetentionOptions().BlockSize()
 			start := input.currentTime.Truncate(blockSize)
 			end := input.currentTime.Add(blockSize)
-			ranges := xtime.NewRanges()
+			ranges := xtime.Ranges{}
 			ranges = ranges.AddRange(xtime.Range{
 				Start: start,
 				End:   end,

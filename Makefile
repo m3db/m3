@@ -178,7 +178,7 @@ test-ci-unit: test-internal
 
 .PHONY: test-ci-integration
 test-ci-integration:
-	INTEGRATION_TIMEOUT=2m TEST_NATIVE_POOLING=false $(test_ci_integration)
+	INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false $(test_ci_integration)
 
 # run as: make test-one-integration test=<test_name>
 .PHONY: test-one-integration

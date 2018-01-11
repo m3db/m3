@@ -25,6 +25,7 @@ package fs
 
 import (
 	gomock "github.com/golang/mock/gomock"
+	
 	ts "github.com/m3db/m3db/ts"
 	checked "github.com/m3db/m3x/checked"
 	time0 "github.com/m3db/m3x/time"
@@ -143,6 +144,16 @@ func (_mr *_MockFileSetReaderRecorder) EntriesRead() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "EntriesRead")
 }
 
+func (_m *MockFileSetReader) MetadataRead() int {
+	ret := _m.ctrl.Call(_m, "MetadataRead")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+func (_mr *_MockFileSetReaderRecorder) MetadataRead() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "MetadataRead")
+}
+
 func (_m *MockFileSetReader) Open(_param0 ts.ID, _param1 uint32, _param2 time.Time) error {
 	ret := _m.ctrl.Call(_m, "Open", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
@@ -200,6 +211,16 @@ func (_mr *_MockFileSetReaderRecorder) ReadMetadata() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadMetadata")
 }
 
+func (_m *MockFileSetReader) Status() FileSetReaderStatus {
+	ret := _m.ctrl.Call(_m, "Status")
+	ret0, _ := ret[0].(FileSetReaderStatus)
+	return ret0
+}
+
+func (_mr *_MockFileSetReaderRecorder) Status() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Status")
+}
+
 func (_m *MockFileSetReader) Validate() error {
 	ret := _m.ctrl.Call(_m, "Validate")
 	ret0, _ := ret[0].(error)
@@ -208,4 +229,24 @@ func (_m *MockFileSetReader) Validate() error {
 
 func (_mr *_MockFileSetReaderRecorder) Validate() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Validate")
+}
+
+func (_m *MockFileSetReader) ValidateData() error {
+	ret := _m.ctrl.Call(_m, "ValidateData")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockFileSetReaderRecorder) ValidateData() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ValidateData")
+}
+
+func (_m *MockFileSetReader) ValidateMetadata() error {
+	ret := _m.ctrl.Call(_m, "ValidateMetadata")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockFileSetReaderRecorder) ValidateMetadata() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ValidateMetadata")
 }

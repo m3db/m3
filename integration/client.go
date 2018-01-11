@@ -187,6 +187,7 @@ func m3dbClientFetchBlocksMetadata(
 	namespace ts.ID,
 	shards []uint32,
 	start, end time.Time,
+	version client.FetchBlocksMetadataEndpointVersion,
 ) (map[uint32][]block.ReplicaMetadata, error) {
 	session, err := c.DefaultAdminSession()
 	if err != nil {
@@ -196,16 +197,33 @@ func m3dbClientFetchBlocksMetadata(
 	metadatasByShard := make(map[uint32][]block.ReplicaMetadata, 10)
 
 	// iterate over all shards
+	seen := make(map[ts.Hash]map[xtime.UnixNano]struct{})
 	for _, shardID := range shards {
+		// clear seen
+		for key := range seen {
+			delete(seen, key)
+		}
+
 		var metadatas []block.ReplicaMetadata
-		iter, err := session.FetchBlocksMetadataFromPeers(namespace, shardID, start, end)
+		iter, err := session.FetchBlocksMetadataFromPeers(namespace,
+			shardID, start, end, version)
 		if err != nil {
 			return nil, err
 		}
 
 		for iter.Next() {
 			host, blocksMetadata := iter.Current()
+			idHash := blocksMetadata.ID.Hash()
+			seenBlocks, ok := seen[idHash]
+			if !ok {
+				seenBlocks = make(map[xtime.UnixNano]struct{})
+				seen[idHash] = seenBlocks
+			}
 			for _, blockMetadata := range blocksMetadata.Blocks {
+				if _, ok := seenBlocks[xtime.ToUnixNano(blockMetadata.Start)]; ok {
+					continue // Already seen
+				}
+				seenBlocks[xtime.ToUnixNano(blockMetadata.Start)] = struct{}{}
 				metadatas = append(metadatas, block.ReplicaMetadata{
 					Metadata: blockMetadata,
 					Host:     host,

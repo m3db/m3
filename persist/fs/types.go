@@ -52,12 +52,23 @@ type FileSetWriter interface {
 	WriteAll(id ts.ID, data []checked.Bytes, checksum uint32) error
 }
 
+// FileSetReaderStatus describes the status of a file set reader
+type FileSetReaderStatus struct {
+	Open       bool
+	Namespace  ts.ID
+	Shard      uint32
+	BlockStart time.Time
+}
+
 // FileSetReader provides an unsynchronized reader for a TSDB file set
 type FileSetReader interface {
 	io.Closer
 
 	// Open opens the files for the given shard and version for reading
 	Open(namespace ts.ID, shard uint32, start time.Time) error
+
+	// Status returns the status of the reader
+	Status() FileSetReaderStatus
 
 	// Read returns the next id, data, checksum tuple or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
@@ -71,8 +82,14 @@ type FileSetReader interface {
 	// for concurrent use and has a Close() method for releasing resources when done.
 	ReadBloomFilter() (*ManagedConcurrentBloomFilter, error)
 
-	// Validate validates the data and returns an error if the data are corrupted
+	// Validate validates both the metadata and data and returns an error if either is corrupted
 	Validate() error
+
+	// ValidateMetadata validates the data and returns an error if the data is corrupted
+	ValidateMetadata() error
+
+	// ValidateData validates the data and returns an error if the data is corrupted
+	ValidateData() error
 
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range
@@ -82,6 +99,9 @@ type FileSetReader interface {
 
 	// EntriesRead returns the position read into the volume
 	EntriesRead() int
+
+	// MetadataRead returns the position of metadata read into the volume
+	MetadataRead() int
 }
 
 // FileSetSeeker provides an out of order reader for a TSDB file set

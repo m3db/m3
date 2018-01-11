@@ -191,6 +191,18 @@ func (_mr *_MockDatabaseRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3, ar
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
 }
 
+func (_m *MockDatabase) FetchBlocksMetadataV2(ctx context.Context, namespace ts.ID, shard uint32, start time0.Time, end time0.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataV2", ctx, namespace, shard, start, end, limit, pageToken, opts)
+	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
+	ret1, _ := ret[1].(PageToken)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockDatabaseRecorder) FetchBlocksMetadataV2(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataV2", arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
+}
+
 func (_m *MockDatabase) Bootstrap() error {
 	ret := _m.ctrl.Call(_m, "Bootstrap")
 	ret0, _ := ret[0].(error)
@@ -384,6 +396,18 @@ func (_m *Mockdatabase) FetchBlocksMetadata(ctx context.Context, namespace ts.ID
 
 func (_mr *_MockdatabaseRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
+}
+
+func (_m *Mockdatabase) FetchBlocksMetadataV2(ctx context.Context, namespace ts.ID, shard uint32, start time0.Time, end time0.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataV2", ctx, namespace, shard, start, end, limit, pageToken, opts)
+	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
+	ret1, _ := ret[1].(PageToken)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockdatabaseRecorder) FetchBlocksMetadataV2(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataV2", arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
 }
 
 func (_m *Mockdatabase) Bootstrap() error {
@@ -662,6 +686,18 @@ func (_mr *_MockdatabaseNamespaceRecorder) FetchBlocksMetadata(arg0, arg1, arg2,
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
+func (_m *MockdatabaseNamespace) FetchBlocksMetadataV2(ctx context.Context, shardID uint32, start time0.Time, end time0.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataV2", ctx, shardID, start, end, limit, pageToken, opts)
+	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
+	ret1, _ := ret[1].(PageToken)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) FetchBlocksMetadataV2(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataV2", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+}
+
 func (_m *MockdatabaseNamespace) Bootstrap(process bootstrap.Process, targetRanges []bootstrap.TargetRange) error {
 	ret := _m.ctrl.Call(_m, "Bootstrap", process, targetRanges)
 	ret0, _ := ret[0].(error)
@@ -868,15 +904,28 @@ func (_mr *_MockdatabaseShardRecorder) FetchBlocks(arg0, arg1, arg2 interface{})
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1, arg2)
 }
 
-func (_m *MockdatabaseShard) FetchBlocksMetadata(ctx context.Context, start time0.Time, end time0.Time, limit int64, pageToken int64, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, *int64) {
+func (_m *MockdatabaseShard) FetchBlocksMetadata(ctx context.Context, start time0.Time, end time0.Time, limit int64, pageToken int64, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, *int64, error) {
 	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", ctx, start, end, limit, pageToken, opts)
 	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
 	ret1, _ := ret[1].(*int64)
-	return ret0, ret1
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 func (_mr *_MockdatabaseShardRecorder) FetchBlocksMetadata(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3, arg4, arg5)
+}
+
+func (_m *MockdatabaseShard) FetchBlocksMetadataV2(ctx context.Context, start time0.Time, end time0.Time, limit int64, pageToken PageToken, opts block.FetchBlocksMetadataOptions) (block.FetchBlocksMetadataResults, PageToken, error) {
+	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataV2", ctx, start, end, limit, pageToken, opts)
+	ret0, _ := ret[0].(block.FetchBlocksMetadataResults)
+	ret1, _ := ret[1].(PageToken)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockdatabaseShardRecorder) FetchBlocksMetadataV2(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadataV2", arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
 func (_m *MockdatabaseShard) Bootstrap(bootstrappedSeries map[ts.Hash]result.DatabaseSeriesBlocks) error {
@@ -1789,6 +1838,26 @@ func (_m *MockOptions) ContextPool() context.Pool {
 
 func (_mr *_MockOptionsRecorder) ContextPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ContextPool")
+}
+
+func (_m *MockOptions) SetSeriesCachePolicy(value series.CachePolicy) Options {
+	ret := _m.ctrl.Call(_m, "SetSeriesCachePolicy", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetSeriesCachePolicy(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetSeriesCachePolicy", arg0)
+}
+
+func (_m *MockOptions) SeriesCachePolicy() series.CachePolicy {
+	ret := _m.ctrl.Call(_m, "SeriesCachePolicy")
+	ret0, _ := ret[0].(series.CachePolicy)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SeriesCachePolicy() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SeriesCachePolicy")
 }
 
 func (_m *MockOptions) SetSeriesOptions(value series.Options) Options {

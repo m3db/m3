@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
+	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/pool"
@@ -69,6 +70,7 @@ func init() {
 	}
 
 	defaultTestDatabaseOptions = opts.
+		SetSeriesCachePolicy(series.CacheAll).
 		SetPersistManager(pm).
 		SetRepairEnabled(false).
 		SetMaxFlushRetries(3).
@@ -310,7 +312,7 @@ func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
 	shardID := uint32(0)
 	now := time.Now()
 	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
-	expected := []block.FetchBlockResult{block.NewFetchBlockResult(starts[0], nil, nil, nil)}
+	expected := []block.FetchBlockResult{block.NewFetchBlockResult(starts[0], nil, nil)}
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().FetchBlocks(ctx, shardID, id, starts).Return(expected, nil)
 	d.namespaces[ns.Hash()] = mockNamespace

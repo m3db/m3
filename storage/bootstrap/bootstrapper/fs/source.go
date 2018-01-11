@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	xlog "github.com/m3db/m3x/log"
@@ -86,17 +88,17 @@ func (s *fileSystemSource) shardAvailability(
 	shard uint32,
 	targetRangesForShard xtime.Ranges,
 ) xtime.Ranges {
-	if targetRangesForShard == nil {
-		return nil
+	if targetRangesForShard.IsEmpty() {
+		return xtime.Ranges{}
 	}
 
 	entries := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
 		namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
 	if len(entries) == 0 {
-		return nil
+		return xtime.Ranges{}
 	}
 
-	tr := xtime.NewRanges()
+	var tr xtime.Ranges
 	for i := 0; i < len(entries); i++ {
 		info := entries[i]
 		t := xtime.FromNanoseconds(info.Start)
@@ -119,9 +121,6 @@ func (s *fileSystemSource) enqueueReaders(
 		files := fs.ReadInfoFiles(s.fsopts.FilePathPrefix(),
 			namespace, shard, s.fsopts.InfoReaderBufferSize(), s.fsopts.DecodingOptions())
 		if len(files) == 0 {
-			if tr == nil {
-				tr = xtime.NewRanges()
-			}
 			// Use default readers value to indicate no readers for this shard
 			readersCh <- newShardReaders(shard, tr, nil)
 			continue
@@ -183,7 +182,7 @@ func (s *fileSystemSource) bootstrapFromReaders(
 		s.processors.Go(func() {
 			defer wg.Done()
 			s.loadShardReadersDataIntoShardResult(
-				resultLock, bootstrapResult, bopts, shardRetrieverMgr, retriever, shardReaders, readerPool)
+				resultLock, bootstrapResult, bopts, shardRetrieverMgr, shardReaders, readerPool)
 		})
 	}
 	wg.Wait()
@@ -239,7 +238,7 @@ func (s *fileSystemSource) handleErrorsAndUnfulfilled(
 		unfulfilled := bootstrapResult.Unfulfilled()
 		shardUnfulfilled, ok := unfulfilled[shard]
 		if !ok {
-			shardUnfulfilled = xtime.NewRanges().AddRanges(remainingRanges)
+			shardUnfulfilled = xtime.Ranges{}.AddRanges(remainingRanges)
 		} else {
 			shardUnfulfilled = shardUnfulfilled.AddRanges(remainingRanges)
 		}
@@ -254,15 +253,15 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	bootstrapResult result.BootstrapResult,
 	bopts result.Options,
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
-	retriever block.DatabaseBlockRetriever,
 	shardReaders shardReaders,
 	readerPool *readerPool,
 ) {
 	var (
-		timesWithErrors []time.Time
-		shardResult     result.ShardResult
-		shardRetriever  block.DatabaseShardBlockRetriever
-		blockPool       = bopts.DatabaseBlockOptions().DatabaseBlockPool()
+		timesWithErrors   []time.Time
+		shardResult       result.ShardResult
+		shardRetriever    block.DatabaseShardBlockRetriever
+		blockPool         = bopts.DatabaseBlockOptions().DatabaseBlockPool()
+		seriesCachePolicy = bopts.SeriesCachePolicy()
 	)
 
 	shard, tr, readers, err := shardReaders.shard, shardReaders.tr, shardReaders.readers, shardReaders.err
@@ -273,6 +272,11 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 
 	if shardRetrieverMgr != nil {
 		shardRetriever = shardRetrieverMgr.ShardRetriever(shard)
+	}
+	if seriesCachePolicy == series.CacheAllMetadata && shardRetriever == nil {
+		s.log.Errorf("shard retriever missing for shard: %d", shard)
+		s.handleErrorsAndUnfulfilled(resultLock, bootstrapResult, shard, tr, shardResult, timesWithErrors)
+		return
 	}
 
 	for _, r := range readers {
@@ -311,11 +315,22 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 				checksum    uint32
 				err         error
 			)
-			if retriever == nil {
+			switch seriesCachePolicy {
+			case series.CacheAll:
 				id, data, checksum, err = r.Read()
-			} else {
+			case series.CacheAllMetadata:
 				id, length, checksum, err = r.ReadMetadata()
+			default:
+				s.log.WithFields(
+					xlog.NewField("shard", shard),
+					xlog.NewField("seriesCachePolicy", seriesCachePolicy.String()),
+				).Error("invalid series cache policy: expected CacheAll or CacheAllMetadata")
+				hasError = true
 			}
+			if hasError {
+				break
+			}
+
 			if err != nil {
 				s.log.WithFields(
 					xlog.NewField("shard", shard),
@@ -328,32 +343,42 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 			idHash := id.Hash()
 
 			resultLock.RLock()
-			series, seriesExists := shardResult.AllSeries()[idHash]
+			entry, exists := shardResult.AllSeries()[idHash]
 			resultLock.RUnlock()
 
-			if seriesExists {
+			if exists {
 				// NB(r): In the case the series is already inserted
 				// we can avoid holding onto this ID and use the already
 				// allocated ID.
 				id.Finalize()
-				id = series.ID
+				id = entry.ID
 			}
 
-			if retriever == nil {
+			switch seriesCachePolicy {
+			case series.CacheAll:
 				seg := ts.NewSegment(data, nil, ts.FinalizeHead)
 				seriesBlock.Reset(start, seg)
-			} else {
+			case series.CacheAllMetadata:
 				metadata := block.RetrievableBlockMetadata{
 					ID:       id,
 					Length:   length,
 					Checksum: checksum,
 				}
 				seriesBlock.ResetRetrievable(start, shardRetriever, metadata)
+			default:
+				s.log.WithFields(
+					xlog.NewField("shard", shard),
+					xlog.NewField("seriesCachePolicy", seriesCachePolicy.String()),
+				).Error("invalid series cache policy: expected CacheAll or CacheAllMetadata")
+				hasError = true
+			}
+			if hasError {
+				break
 			}
 
 			resultLock.Lock()
-			if seriesExists {
-				series.Blocks.AddBlock(seriesBlock)
+			if exists {
+				entry.Blocks.AddBlock(seriesBlock)
 			} else {
 				shardResult.AddBlock(id, seriesBlock)
 			}
@@ -361,10 +386,23 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		}
 
 		if !hasError {
-			if err := r.Validate(); err != nil {
+			var validateErr error
+			switch seriesCachePolicy {
+			case series.CacheAll:
+				validateErr = r.Validate()
+			case series.CacheAllMetadata:
+				validateErr = r.ValidateMetadata()
+			default:
 				s.log.WithFields(
 					xlog.NewField("shard", shard),
-					xlog.NewField("error", err.Error()),
+					xlog.NewField("seriesCachePolicy", seriesCachePolicy.String()),
+				).Error("invalid series cache policy: expected CacheAll or CacheAllMetadata")
+				hasError = true
+			}
+			if validateErr != nil {
+				s.log.WithFields(
+					xlog.NewField("shard", shard),
+					xlog.NewField("error", validateErr.Error()),
 				).Error("data validation failed")
 				hasError = true
 			}
@@ -378,8 +416,9 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 	}
 
 	for _, r := range readers {
-		r.Close()
-		readerPool.put(r)
+		if err := r.Close(); err == nil {
+			readerPool.put(r)
+		}
 	}
 
 	s.handleErrorsAndUnfulfilled(
@@ -424,6 +463,33 @@ func (s *fileSystemSource) Read(
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	switch s.opts.ResultOptions().SeriesCachePolicy() {
+	case series.CacheAll:
+		// No checks necessary
+	case series.CacheAllMetadata:
+		// Need to check block retriever available
+		if blockRetriever == nil {
+			return nil, fmt.Errorf(
+				"missing block retriever when using series cache metadata for namespace: %s",
+				md.ID().String())
+		}
+	default:
+		// Unless we're caching all series (or all series metadata) in memory, we
+		// return just the availability of the files we have
+		bootstrapResult := result.NewBootstrapResult()
+		unfulfilled := bootstrapResult.Unfulfilled()
+		for shard, ranges := range shardsTimeRanges {
+			if ranges.IsEmpty() {
+				continue
+			}
+			availability := s.shardAvailability(md.ID(), shard, ranges)
+			remaining := ranges.RemoveRanges(availability)
+			bootstrapResult.Add(shard, nil, remaining)
+		}
+		bootstrapResult.SetUnfulfilled(unfulfilled)
+		return bootstrapResult, nil
 	}
 
 	s.log.WithFields(

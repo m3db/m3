@@ -1,5 +1,5 @@
-hash: b1e7dcc0f6920d92e0c04a16f7e263ec0cb3de39d379948862499251aa383d50
-updated: 2017-12-11T20:43:53.223943871-05:00
+hash: c94da5754aadac0341487951b9576c5e6f2ee465963b56dec88e9311d4c579b7
+updated: 2018-01-08T17:42:29.097299862-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -175,7 +175,7 @@ imports:
   - os/fs
   - x/grpc
 - name: github.com/m3db/m3x
-  version: 92df05b731f626e93b1ab9080360ad16bd780e2f
+  version: c79492efa39435ffea6c04b72faf1402ed784211
   vcs: git
   subpackages:
   - checked
@@ -193,6 +193,8 @@ imports:
   - tcp
   - time
   - watch
+- name: github.com/m3db/stackadler32
+  version: bfebcd73ef6ffe0ee30489227f0330c39064b674
 - name: github.com/m3db/stackmurmur3
   version: 744c0229c12ed0e4f8cb9d081a2692b3300bf705
 - name: github.com/matttproud/golang_protobuf_extensions

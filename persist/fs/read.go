@@ -48,11 +48,16 @@ var (
 )
 
 type reader struct {
-	opts           Options
+	opts          Options
+	hugePagesOpts mmapHugeTLBOptions
+
 	filePathPrefix string
-	hugePagesOpts  mmapHugeTLBOptions
-	start          time.Time
-	blockSize      time.Duration
+	namespace      ts.ID
+	shard          uint32
+
+	start     time.Time
+	blockSize time.Duration
+	open      bool
 
 	infoFdWithDigest           digest.FdWithDigestReader
 	bloomFilterWithDigest      digest.FdWithDigestReader
@@ -94,6 +99,8 @@ func NewReader(
 		return nil, err
 	}
 	return &reader{
+		// When initializing new fields that should be static, be sure to save
+		// and reset them after Close() resets the fields to all default values.
 		opts:           opts,
 		filePathPrefix: opts.FilePathPrefix(),
 		hugePagesOpts: mmapHugeTLBOptions{
@@ -154,8 +161,9 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 	if warning := result.warning; warning != nil {
-		r.opts.InstrumentOptions().Logger().Warnf(
-			"warning while mmapping files in reader: %s", warning.Error())
+		logger := r.opts.InstrumentOptions().Logger()
+		logger.Warnf("warning while mmapping files in reader: %s",
+			warning.Error())
 	}
 
 	r.indexDecoderStream.Reset(r.indexMmap)
@@ -175,11 +183,25 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		r.Close()
 		return err
 	}
-	if err := r.readIndex(); err != nil {
+	if err := r.readIndexAndSortByOffsetAsc(); err != nil {
 		r.Close()
 		return err
 	}
+
+	r.open = true
+	r.namespace = namespace
+	r.shard = shard
+
 	return nil
+}
+
+func (r *reader) Status() FileSetReaderStatus {
+	return FileSetReaderStatus{
+		Open:       r.open,
+		Namespace:  r.namespace,
+		Shard:      r.shard,
+		BlockStart: r.start,
+	}
 }
 
 func (r *reader) readCheckpointFile(shardDir string, blockStart time.Time) error {
@@ -241,7 +263,7 @@ func (r *reader) readInfo(size int) error {
 	return nil
 }
 
-func (r *reader) readIndex() error {
+func (r *reader) readIndexAndSortByOffsetAsc() error {
 	r.decoder.Reset(r.indexDecoderStream)
 	for i := 0; i < r.entries; i++ {
 		entry, err := r.decoder.DecodeIndexEntry()
@@ -258,6 +280,14 @@ func (r *reader) readIndex() error {
 
 func (r *reader) Read() (ts.ID, checked.Bytes, uint32, error) {
 	var none ts.ID
+	if r.entries > 0 && len(r.indexEntriesByOffsetAsc) < r.entries {
+		// Have not read the index yet, this is required when reading
+		// data as we need each index entry in order by by the offset ascending
+		if err := r.readIndexAndSortByOffsetAsc(); err != nil {
+			return none, nil, 0, err
+		}
+	}
+
 	if r.entriesRead >= r.entries {
 		return none, nil, 0, io.EOF
 	}
@@ -296,6 +326,7 @@ func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err erro
 	}
 
 	entry := r.indexEntriesByOffsetAsc[r.metadataRead]
+
 	r.metadataRead++
 	return r.entryID(entry.ID), int(entry.Size), uint32(entry.Checksum), nil
 }
@@ -327,19 +358,29 @@ func (r *reader) entryID(id []byte) ts.ID {
 	return ts.BinaryID(idClone)
 }
 
-// NB(xichen): Validate should be called after all data are read because the
-// digest is calculated for the entire data file.
+// NB(xichen): Validate should be called after all data is read because
+// the digest is calculated for the entire data file.
 func (r *reader) Validate() error {
+	var multiErr xerrors.MultiError
+	multiErr = multiErr.Add(r.ValidateMetadata())
+	multiErr = multiErr.Add(r.ValidateData())
+	return multiErr.FinalError()
+}
+
+// NB(r): ValidateMetadata can be called immediately after Open(...) since
+// the metadata is read upfront.
+func (r *reader) ValidateMetadata() error {
 	err := r.indexDecoderStream.reader().Validate(r.expectedIndexDigest)
 	if err != nil {
 		return fmt.Errorf("could not validate index file: %v", err)
 	}
-	// Note that the seeker must validate the checksum since we don't always
-	// verify the data file if we don't read it on bootstrap and call ReadMetadata instead.
-	if r.entriesRead == 0 {
-		return nil // Haven't read the records just the IDs
-	}
-	err = r.dataReader.Validate(r.expectedDataDigest)
+	return nil
+}
+
+// NB(xichen): ValidateData should be called after all data is read because
+// the digest is calculated for the entire data file.
+func (r *reader) ValidateData() error {
+	err := r.dataReader.Validate(r.expectedDataDigest)
 	if err != nil {
 		return fmt.Errorf("could not validate data file: %v", err)
 	}
@@ -358,28 +399,55 @@ func (r *reader) EntriesRead() int {
 	return r.entriesRead
 }
 
+func (r *reader) MetadataRead() int {
+	return r.metadataRead
+}
+
 func (r *reader) Close() error {
+	// Close and prepare resources that are to be reused
+	multiErr := xerrors.NewMultiError()
+	multiErr = multiErr.Add(munmap(r.indexMmap))
+	multiErr = multiErr.Add(munmap(r.dataMmap))
+	multiErr = multiErr.Add(r.indexFd.Close())
+	multiErr = multiErr.Add(r.dataFd.Close())
+	multiErr = multiErr.Add(r.bloomFilterFd.Close())
+	r.indexDecoderStream.Reset(nil)
+	r.dataReader.Reset(nil)
 	for i := 0; i < len(r.indexEntriesByOffsetAsc); i++ {
 		r.indexEntriesByOffsetAsc[i].ID = nil
 	}
 	r.indexEntriesByOffsetAsc = r.indexEntriesByOffsetAsc[:0]
 
-	multiErr := xerrors.NewMultiError()
+	// Save fields we want to reassign after resetting struct
+	opts := r.opts
+	filePathPrefix := r.filePathPrefix
+	hugePagesOpts := r.hugePagesOpts
+	infoFdWithDigest := r.infoFdWithDigest
+	digestFdWithDigestContents := r.digestFdWithDigestContents
+	bloomFilterWithDigest := r.bloomFilterWithDigest
+	indexDecoderStream := r.indexDecoderStream
+	dataReader := r.dataReader
+	decoder := r.decoder
+	digestBuf := r.digestBuf
+	bytesPool := r.bytesPool
+	indexEntriesByOffsetAsc := r.indexEntriesByOffsetAsc
 
-	multiErr = multiErr.Add(munmap(r.indexMmap))
-	r.indexMmap = nil
+	// Reset struct
+	*r = reader{}
 
-	multiErr = multiErr.Add(munmap(r.dataMmap))
-	r.dataMmap = nil
-
-	multiErr = multiErr.Add(r.indexFd.Close())
-	r.indexFd = nil
-
-	multiErr = multiErr.Add(r.dataFd.Close())
-	r.dataFd = nil
-
-	multiErr = multiErr.Add(r.bloomFilterFd.Close())
-	r.bloomFilterFd = nil
+	// Reset the saved fields
+	r.opts = opts
+	r.filePathPrefix = filePathPrefix
+	r.hugePagesOpts = hugePagesOpts
+	r.infoFdWithDigest = infoFdWithDigest
+	r.digestFdWithDigestContents = digestFdWithDigestContents
+	r.bloomFilterWithDigest = bloomFilterWithDigest
+	r.indexDecoderStream = indexDecoderStream
+	r.dataReader = dataReader
+	r.decoder = decoder
+	r.digestBuf = digestBuf
+	r.bytesPool = bytesPool
+	r.indexEntriesByOffsetAsc = indexEntriesByOffsetAsc
 
 	return multiErr.FinalError()
 }

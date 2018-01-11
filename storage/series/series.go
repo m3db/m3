@@ -47,9 +47,8 @@ var (
 	// ErrSeriesAllDatapointsExpired is returned on tick when all datapoints are expired
 	ErrSeriesAllDatapointsExpired = errors.New("series datapoints are all expired")
 
-	errSeriesReadInvalidRange = errors.New("series invalid time range read argument specified")
-	errSeriesIsBootstrapping  = errors.New("series is bootstrapping")
-	errSeriesNotBootstrapped  = errors.New("series is not yet bootstrapped")
+	errSeriesIsBootstrapping = errors.New("series is bootstrapping")
+	errSeriesNotBootstrapped = errors.New("series is not yet bootstrapped")
 )
 
 type dbSeries struct {
@@ -142,7 +141,7 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 		now          = s.now()
 		ropts        = s.opts.RetentionOptions()
 		retriever    = s.blockRetriever
-		checkUnwire  = retriever != nil && ropts.BlockDataExpiry()
+		cachePolicy  = s.opts.CachePolicy()
 		expireCutoff = now.Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 		wiredTimeout = ropts.BlockDataExpiryAfterNotAccessedPeriod()
 	)
@@ -163,19 +162,33 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 		}
 
 		var unwired bool
-		if checkUnwire {
+		switch {
+		case cachePolicy == CacheAll:
+			// Never unwire
+		case retriever != nil:
+			// Potentially unwire
 			sinceLastRead := now.Sub(currBlock.LastReadTime())
-			if sinceLastRead >= wiredTimeout &&
-				retriever.IsBlockRetrievable(start) {
-				// NB(r): Each block needs shared ref to the series ID
-				// or else each block needs to have a copy of the ID
-				id := s.id
-				metadata := block.RetrievableBlockMetadata{
-					ID:       id,
-					Length:   currBlock.Len(),
-					Checksum: currBlock.Checksum(),
+			shouldUnwire := sinceLastRead >= wiredTimeout &&
+				retriever.IsBlockRetrievable(start)
+			if shouldUnwire {
+				switch cachePolicy {
+				case CacheAllMetadata:
+					// Keep the metadata but remove contents
+
+					// NB(r): Each block needs shared ref to the series ID
+					// or else each block needs to have a copy of the ID
+					id := s.id
+					metadata := block.RetrievableBlockMetadata{
+						ID:       id,
+						Length:   currBlock.Len(),
+						Checksum: currBlock.Checksum(),
+					}
+					currBlock.ResetRetrievable(start, retriever, metadata)
+				default:
+					// Remove the block and it will be looked up later
+					s.blocks.RemoveBlockAt(start)
+					currBlock.Close()
 				}
-				currBlock.ResetRetrievable(start, retriever, metadata)
 
 				unwired = true
 				result.madeUnwiredBlocks++
@@ -231,93 +244,34 @@ func (s *dbSeries) ReadEncoded(
 	ctx context.Context,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
-	if end.Before(start) {
-		return nil, xerrors.NewInvalidParamsError(errSeriesReadInvalidRange)
-	}
-
-	// TODO(r): pool these results arrays
-	var results [][]xio.SegmentReader
-
-	blockSize := s.opts.RetentionOptions().BlockSize()
-	alignedStart := start.Truncate(blockSize)
-	alignedEnd := end.Truncate(blockSize)
-	if alignedEnd.Equal(end) {
-		// Move back to make range [start, end)
-		alignedEnd = alignedEnd.Add(-1 * blockSize)
-	}
-
-	now := s.now()
-
 	s.RLock()
-	defer s.RUnlock()
-
-	if s.blocks.Len() > 0 {
-		// Squeeze the lookup window by what's available to make range queries like [0, infinity) possible
-		if s.blocks.MinTime().After(alignedStart) {
-			alignedStart = s.blocks.MinTime()
-		}
-		if s.blocks.MaxTime().Before(alignedEnd) {
-			alignedEnd = s.blocks.MaxTime()
-		}
-		for blockAt := alignedStart; !blockAt.After(alignedEnd); blockAt = blockAt.Add(blockSize) {
-			if block, ok := s.blocks.BlockAt(blockAt); ok {
-				stream, err := block.Stream(ctx)
-				if err != nil {
-					return nil, err
-				}
-				if stream != nil {
-					results = append(results, []xio.SegmentReader{stream})
-					// NB(r): Mark this block as read now
-					block.SetLastReadTime(now)
-				}
-			}
-		}
-	}
-
-	bufferResults := s.buffer.ReadEncoded(ctx, start, end)
-	if len(bufferResults) > 0 {
-		results = append(results, bufferResults...)
-	}
-
-	return results, nil
+	r, err := Reader{
+		opts:        s.opts,
+		cloneableID: s.id,
+		retriever:   s.blockRetriever,
+	}.readersWithBlocksMapAndBuffer(ctx, start, end, s.blocks, s.buffer)
+	s.RUnlock()
+	return r, err
 }
 
-func (s *dbSeries) FetchBlocks(ctx context.Context, starts []time.Time) []block.FetchBlockResult {
-	res := make([]block.FetchBlockResult, 0, len(starts))
-
+func (s *dbSeries) FetchBlocks(
+	ctx context.Context,
+	starts []time.Time,
+) ([]block.FetchBlockResult, error) {
 	s.RLock()
-	defer s.RUnlock()
-
-	for _, start := range starts {
-		if b, exists := s.blocks.BlockAt(start); exists {
-			stream, err := b.Stream(ctx)
-			if err != nil {
-				r := block.NewFetchBlockResult(start, nil,
-					fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",
-						s.id.String(), start, err), nil)
-				res = append(res, r)
-			} else if stream != nil {
-				checksum := b.Checksum()
-				r := block.NewFetchBlockResult(start, []xio.SegmentReader{stream}, nil, &checksum)
-				res = append(res, r)
-			}
-		}
-	}
-
-	if !s.buffer.IsEmpty() {
-		bufferResults := s.buffer.FetchBlocks(ctx, starts)
-		res = append(res, bufferResults...)
-	}
-
-	block.SortFetchBlockResultByTimeAscending(res)
-
-	return res
+	r, err := Reader{
+		opts:        s.opts,
+		cloneableID: s.id,
+		retriever:   s.blockRetriever,
+	}.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, s.blocks, s.buffer)
+	s.RUnlock()
+	return r, err
 }
 
 func (s *dbSeries) FetchBlocksMetadata(
 	ctx context.Context,
 	start, end time.Time,
-	opts block.FetchBlocksMetadataOptions,
+	opts FetchBlocksMetadataOptions,
 ) block.FetchBlocksMetadataResult {
 	blockSize := s.opts.RetentionOptions().BlockSize()
 	res := s.opts.FetchBlockMetadataResultsPool().Get()
@@ -330,6 +284,13 @@ func (s *dbSeries) FetchBlocksMetadata(
 	for tNano, b := range blocks {
 		t := tNano.ToTime()
 		if !start.Before(t.Add(blockSize)) || !t.Before(end) {
+			continue
+		}
+		if !opts.IncludeCachedBlocks && b.IsCachedBlock() {
+			// Do not include cached blocks if not specified to, this is
+			// to avoid high amounts of duplication if a significant of
+			// blocks are cached in memory when returning blocks metadata
+			// from both in-memory and disk structures.
 			continue
 		}
 		var (
@@ -362,18 +323,6 @@ func (s *dbSeries) FetchBlocksMetadata(
 			res.Add(result)
 		}
 		bufferResults.Close()
-	}
-
-	// NB(r): it's possible a ref to this series was taken before the series was
-	// closed then the method is called, which means no data and a nil ID.
-	//
-	// Hence we should return an empty result set here.
-	//
-	// In the future we need a way to make sure the call we're performing is for the
-	// series we're originally took a ref to. This will avoid pooling of series messing
-	// with calls to a series that was ref'd before it was closed/reused.
-	if len(res.Results()) == 0 {
-		return block.NewFetchBlocksMetadataResult(nil, res)
 	}
 
 	id := s.opts.IdentifierPool().Clone(s.id)

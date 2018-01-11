@@ -22,6 +22,7 @@ package digest
 
 import (
 	"hash"
+	"hash/adler32"
 	"os"
 
 	xclose "github.com/m3db/m3x/close"
@@ -48,7 +49,7 @@ type fdWithDigest struct {
 
 func newFdWithDigest() FdWithDigest {
 	return &fdWithDigest{
-		digest: NewDigest(),
+		digest: adler32.New(),
 	}
 }
 

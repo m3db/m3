@@ -107,14 +107,18 @@ func (r shardRepairer) Repair(
 		IncludeSizes:     true,
 		IncludeChecksums: true,
 	}
-	localMetadata, _ := shard.FetchBlocksMetadata(ctx, start, end, math.MaxInt64, 0, opts)
+	localMetadata, _, err := shard.FetchBlocksMetadata(ctx, start, end, math.MaxInt64, 0, opts)
+	if err != nil {
+		return repair.MetadataComparisonResult{}, err
+	}
 	ctx.RegisterFinalizer(context.FinalizerFn(localMetadata.Close))
 
 	localIter := block.NewFilteredBlocksMetadataIter(localMetadata)
 	metadata.AddLocalMetadata(origin, localIter)
 
 	// Add peer metadata
-	peerIter, err := session.FetchBlocksMetadataFromPeers(namespace, shard.ID(), start, end)
+	peerIter, err := session.FetchBlocksMetadataFromPeers(namespace,
+		shard.ID(), start, end, client.FetchBlocksMetadataEndpointV2)
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}
@@ -320,7 +324,7 @@ func (r *dbRepairer) namespaceRepairTimeRanges(ns databaseNamespace) xtime.Range
 		end       = now.Add(-rtopts.BufferPast()).Truncate(blockSize)
 	)
 
-	targetRanges := xtime.NewRanges().AddRange(xtime.Range{Start: start, End: end})
+	targetRanges := xtime.Ranges{}.AddRange(xtime.Range{Start: start, End: end})
 	for tNano := range r.repairStatesByNs[ns.ID().Hash()] {
 		t := tNano.ToTime()
 		if !r.needsRepair(ns.ID(), t) {

@@ -264,7 +264,7 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 	any := gomock.Any()
 	shard.EXPECT().
 		FetchBlocksMetadata(any, start, end, any, int64(0), fetchOpts).
-		Return(expectedResults, nil)
+		Return(expectedResults, nil, nil)
 	shard.EXPECT().ID().Return(shardID).AnyTimes()
 
 	peerIter := client.NewMockPeerBlocksMetadataIter(ctrl)
@@ -290,7 +290,8 @@ func TestDatabaseShardRepairerRepair(t *testing.T) {
 		peerIter.EXPECT().Err().Return(nil),
 	)
 	session.EXPECT().
-		FetchBlocksMetadataFromPeers(namespace, shardID, start, end).
+		FetchBlocksMetadataFromPeers(namespace, shardID,
+			start, end, client.FetchBlocksMetadataEndpointV2).
 		Return(peerIter, nil)
 
 	var (
@@ -359,7 +360,7 @@ func TestRepairerRepairTimes(t *testing.T) {
 
 	testNs := newTestNamespace(t)
 	res := r.namespaceRepairTimeRanges(testNs)
-	expectedRanges := xtime.NewRanges().
+	expectedRanges := xtime.Ranges{}.
 		AddRange(xtime.Range{Start: time.Unix(14400, 0), End: time.Unix(28800, 0)}).
 		AddRange(xtime.Range{Start: time.Unix(36000, 0), End: time.Unix(43200, 0)}).
 		AddRange(xtime.Range{Start: time.Unix(50400, 0), End: time.Unix(187200, 0)})
@@ -452,7 +453,7 @@ func TestRepairerTimesMultipleNamespaces(t *testing.T) {
 
 	testNs1 := newTestNamespaceWithIDOpts(t, defaultTestNs1ID, defaultTestNs1Opts)
 	res := r.namespaceRepairTimeRanges(testNs1)
-	expectedRanges := xtime.NewRanges().
+	expectedRanges := xtime.Ranges{}.
 		AddRange(xtime.Range{Start: tf2(2), End: tf2(4)}).
 		AddRange(xtime.Range{Start: tf2(5), End: tf2(6)}).
 		AddRange(xtime.Range{Start: tf2(7), End: tf2(26)})
@@ -460,7 +461,7 @@ func TestRepairerTimesMultipleNamespaces(t *testing.T) {
 
 	testNs2 := newTestNamespaceWithIDOpts(t, defaultTestNs2ID, defaultTestNs2Opts)
 	res = r.namespaceRepairTimeRanges(testNs2)
-	expectedRanges = xtime.NewRanges().
+	expectedRanges = xtime.Ranges{}.
 		AddRange(xtime.Range{Start: tf4(1), End: tf4(2)}).
 		AddRange(xtime.Range{Start: tf4(3), End: tf4(6)}).
 		AddRange(xtime.Range{Start: tf4(7), End: tf4(13)})

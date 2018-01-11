@@ -78,11 +78,14 @@ type Configuration struct {
 	// Bootstrap configuration.
 	Bootstrap BootstrapConfiguration `yaml:"bootstrap"`
 
+	// The block retriever policy.
+	BlockRetrieve *BlockRetrievePolicy `yaml:"blockRetrieve"`
+
+	// Cache configurations.
+	Cache CacheConfigurations `yaml:"cache"`
+
 	// The filesystem configuration for the node.
 	Filesystem FilesystemConfiguration `yaml:"fs"`
-
-	// The block retriever policy.
-	BlockRetrieve BlockRetrievePolicy `yaml:"blockRetrieve"`
 
 	// The commit log policy for the node.
 	CommitLog CommitLogPolicy `yaml:"commitlog"`
@@ -91,7 +94,7 @@ type Configuration struct {
 	Repair RepairPolicy `yaml:"repair"`
 
 	// The pooling policy.
-	PoolingPolicy PoolingPolicy `yaml:"poolingPolicy"`
+	PoolingPolicy PoolingPolicy `yaml:"pooling"`
 
 	// The dynamic etcd configuration for config service client.
 	ConfigService *etcdclient.Configuration `yaml:"configService"`
@@ -100,7 +103,7 @@ type Configuration struct {
 	StaticConfig *StaticConfiguration `yaml:"static"`
 
 	// The configuration for hashing
-	HashingConfiguration HashingConfiguration `yaml:"hashing"`
+	Hashing HashingConfiguration `yaml:"hashing"`
 }
 
 // StaticConfiguration is used for running M3DB with a static config
@@ -155,9 +158,8 @@ type TickConfiguration struct {
 
 // BlockRetrievePolicy is the block retrieve policy.
 type BlockRetrievePolicy struct {
-	// FetchConcurrency is the concurrency to fetch blocks from disk,
-	// zero here specifies that the default should be used. For spinning
-	// disks it is highly recommended to set this value to 1.
+	// FetchConcurrency is the concurrency to fetch blocks from disk. For
+	// spinning disks it is highly recommended to set this value to 1.
 	FetchConcurrency int `yaml:"fetchConcurrency" validate:"min=0"`
 }
 
@@ -219,8 +221,8 @@ type RepairPolicy struct {
 	CheckInterval time.Duration `yaml:"checkInterval" validate:"nonzero"`
 }
 
-// HashingConfiguration is the configuration for hashing
+// HashingConfiguration is the configuration for hashing.
 type HashingConfiguration struct {
-	// Murmur32 seed value
+	// Murmur32 seed value.
 	Seed uint32 `yaml:"seed"`
 }

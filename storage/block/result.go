@@ -28,28 +28,24 @@ import (
 	"github.com/m3db/m3db/x/io"
 )
 
-type fetchBlockResult struct {
-	start    time.Time
-	readers  []xio.SegmentReader
-	err      error
-	checksum *uint32
-}
-
 // NewFetchBlockResult creates a new fetch block result
-func NewFetchBlockResult(start time.Time, readers []xio.SegmentReader, err error, checksum *uint32) FetchBlockResult {
-	return fetchBlockResult{start: start, readers: readers, err: err, checksum: checksum}
+func NewFetchBlockResult(
+	start time.Time,
+	readers []xio.SegmentReader,
+	err error,
+) FetchBlockResult {
+	return FetchBlockResult{
+		Start:   start,
+		Readers: readers,
+		Err:     err,
+	}
 }
-
-func (b fetchBlockResult) Start() time.Time             { return b.start }
-func (b fetchBlockResult) Readers() []xio.SegmentReader { return b.readers }
-func (b fetchBlockResult) Err() error                   { return b.err }
-func (b fetchBlockResult) Checksum() *uint32            { return b.checksum }
 
 type fetchBlockResultByTimeAscending []FetchBlockResult
 
 func (e fetchBlockResultByTimeAscending) Len() int           { return len(e) }
 func (e fetchBlockResultByTimeAscending) Swap(i, j int)      { e[i], e[j] = e[j], e[i] }
-func (e fetchBlockResultByTimeAscending) Less(i, j int) bool { return e[i].Start().Before(e[j].Start()) }
+func (e fetchBlockResultByTimeAscending) Less(i, j int) bool { return e[i].Start.Before(e[j].Start) }
 
 // SortFetchBlockResultByTimeAscending sorts fetch block results in time ascending order
 func SortFetchBlockResultByTimeAscending(results []FetchBlockResult) {

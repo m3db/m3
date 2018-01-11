@@ -44,8 +44,10 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/cluster"
 	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xlog "github.com/m3db/m3x/log"
@@ -58,11 +60,11 @@ import (
 
 var (
 	id                  = flag.String("id", "", "Node host ID")
-	httpClusterAddr     = flag.String("clusterhttpaddr", "0.0.0.0:9000", "Cluster HTTP server address")
-	tchannelClusterAddr = flag.String("clustertchanneladdr", "0.0.0.0:9001", "Cluster TChannel server address")
-	httpNodeAddr        = flag.String("nodehttpaddr", "0.0.0.0:9002", "Node HTTP server address")
-	tchannelNodeAddr    = flag.String("nodetchanneladdr", "0.0.0.0:9003", "Node TChannel server address")
-	httpDebugAddr       = flag.String("debughttpaddr", "0.0.0.0:9004", "HTTP debug server address")
+	httpClusterAddr     = flag.String("clusterhttpaddr", "127.0.0.1:9000", "Cluster HTTP server address")
+	tchannelClusterAddr = flag.String("clustertchanneladdr", "127.0.0.1:9001", "Cluster TChannel server address")
+	httpNodeAddr        = flag.String("nodehttpaddr", "127.0.0.1:9002", "Node HTTP server address")
+	tchannelNodeAddr    = flag.String("nodetchanneladdr", "127.0.0.1:9003", "Node TChannel server address")
+	httpDebugAddr       = flag.String("debughttpaddr", "127.0.0.1:9004", "HTTP debug server address")
 
 	errServerStartTimedOut   = errors.New("server took too long to start")
 	errServerStopTimedOut    = errors.New("server took too long to stop")
@@ -239,6 +241,23 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	// Set up block retriever manager
 	if mgr := opts.DatabaseBlockRetrieverManager(); mgr != nil {
 		storageOpts = storageOpts.SetDatabaseBlockRetrieverManager(mgr)
+	} else {
+		switch storageOpts.SeriesCachePolicy() {
+		case series.CacheAll:
+			// Do not need a block retriever for CacheAll policy
+		default:
+			blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
+				func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
+					retrieverOpts := fs.NewBlockRetrieverOptions()
+					retriever := fs.NewBlockRetriever(retrieverOpts, fsOpts)
+					if err := retriever.Open(md); err != nil {
+						return nil, err
+					}
+					return retriever, nil
+				})
+			storageOpts = storageOpts.
+				SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
+		}
 	}
 
 	return &testSetup{
@@ -366,7 +385,7 @@ func (ts *testSetup) waitUntilServerIsDown() error {
 func (ts *testSetup) startServer() error {
 	log := ts.storageOpts.InstrumentOptions().Logger()
 	fields := []xlog.Field{
-		xlog.NewField("nativepooling", ts.nativePooling),
+		xlog.NewField("cachepolicy", ts.storageOpts.SeriesCachePolicy().String()),
 	}
 	log.WithFields(fields...).Infof("starting server")
 

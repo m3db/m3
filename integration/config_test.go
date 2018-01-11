@@ -18,9 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// +build adhoc
+// +build integration
 
-package server
+package integration
 
 import (
 	"bytes"
@@ -43,6 +43,7 @@ import (
 	"github.com/m3db/m3db/kvconfig"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/services/m3dbnode/config"
+	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	xconfig "github.com/m3db/m3x/config"
@@ -63,7 +64,12 @@ const (
 	namespaceID = "metrics"
 )
 
-func TestRun(t *testing.T) {
+// TestConfig tests booting a server using file based configuration.
+func TestConfig(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow() // Just skip if we're doing a short run
+	}
+
 	// Embedded kv
 	embeddedKV, err := etcd.New(etcd.NewOptions())
 	require.NoError(t, err)
@@ -172,7 +178,7 @@ func TestRun(t *testing.T) {
 	)
 	serverWg.Add(1)
 	go func() {
-		Run(RunOptions{
+		server.Run(server.RunOptions{
 			ConfigFile:  configFd.Name(),
 			BootstrapCh: bootstrapCh,
 			InterruptCh: interruptCh,
@@ -187,7 +193,7 @@ func TestRun(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.Client.ConfigService = &cfg.ConfigService
+	cfg.Client.ConfigService = cfg.ConfigService
 
 	cli, err := cfg.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
@@ -321,29 +327,29 @@ repair:
     throttle: 2m
     checkInterval: 1m
 
-poolingPolicy:
+pooling:
     blockAllocSize: 16
     type: simple
     seriesPool:
         size: 128
-        lowWatermark: 0.001
-        highWatermark: 0.002
+        lowWatermark: 0.01
+        highWatermark: 0.02
     blockPool:
         size: 128
-        lowWatermark: 0.001
-        highWatermark: 0.002
+        lowWatermark: 0.01
+        highWatermark: 0.02
     encoderPool:
         size: 128
-        lowWatermark: 0.001
-        highWatermark: 0.002
+        lowWatermark: 0.01
+        highWatermark: 0.02
     closersPool:
         size: 128
-        lowWatermark: 0.001
-        highWatermark: 0.002
+        lowWatermark: 0.01
+        highWatermark: 0.02
     contextPool:
         size: 128
-        lowWatermark: 0.001
-        highWatermark: 0.002
+        lowWatermark: 0.01
+        highWatermark: 0.02
     segmentReaderPool:
         size: 128
         lowWatermark: 0.01
@@ -387,18 +393,16 @@ poolingPolicy:
         highWatermark: 0.02
     identifierPool:
         size: 128
-        lowWatermark: 0.001
-        highWatermark: 0.002
+        lowWatermark: 0.01
+        highWatermark: 0.02
     bytesPool:
-        lowWatermark: 0.001
-        highWatermark: 0.002
         buckets:
             - capacity: 32
-              count: 128
+              size: 128
             - capacity: 512
-              count: 128
+              size: 128
             - capacity: 4096
-              count: 128
+              size: 128
 
 configService:
     env: {{.ServiceEnv}}

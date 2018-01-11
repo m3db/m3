@@ -59,8 +59,7 @@ func testPeersBootstrapMergeLocal(
 		namespace.NewOptions().SetRetentionOptions(retentionOpts))
 	require.NoError(t, err)
 	opts := newTestOptions(t).
-		SetNamespaces([]namespace.Metadata{namesp}).
-		SetVerifySeriesDebugFilePathPrefix("/tmp/")
+		SetNamespaces([]namespace.Metadata{namesp})
 
 	reporter := xmetrics.NewTestStatsReporter(xmetrics.NewTestStatsReporterOptions())
 
@@ -159,12 +158,9 @@ func testPeersBootstrapMergeLocal(
 		setups[1].setNowFn(completeAt)
 
 		// Write data that "arrives" at the second node directly
-		require.NoError(
-			t,
-			setups[1].writeBatch(namesp.ID(),
-				directWritesSeriesMaps[xtime.ToUnixNano(now)],
-			),
-		)
+		err := setups[1].writeBatch(namesp.ID(),
+			directWritesSeriesMaps[xtime.ToUnixNano(now)])
+		require.NoError(t, err)
 	}()
 
 	// Start the last server with peers and filesystem bootstrappers

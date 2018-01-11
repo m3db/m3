@@ -26,11 +26,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
-	pt "github.com/m3db/m3db/generated/proto/pagetoken"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
@@ -56,7 +54,6 @@ const (
 var (
 	// errServerIsOverloaded raised when trying to process a request when the server is overloaded
 	errServerIsOverloaded = errors.New("server is overloaded")
-	errInvalidPageToken   = errors.New("invalid page token")
 )
 
 type serviceMetrics struct {
@@ -274,8 +271,8 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 		var streamErr error
 		segments := make([]*rpc.Segments, 0, len(encoded))
 		for _, readers := range encoded {
-			var seg *rpc.Segments
-			seg, streamErr = convert.ToSegments(readers)
+			var converted convert.ToSegmentsResult
+			converted, streamErr = convert.ToSegments(readers)
 			if streamErr != nil {
 				rawResult.Err = convert.ToRPCError(err)
 				if tterrors.IsBadRequestError(rawResult.Err) {
@@ -285,10 +282,10 @@ func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawReque
 				}
 				break
 			}
-			if seg == nil {
+			if converted.Segments == nil {
 				continue
 			}
-			segments = append(segments, seg)
+			segments = append(segments, converted.Segments)
 		}
 		if streamErr != nil {
 			continue
@@ -352,22 +349,21 @@ func (s *service) FetchBlocksRaw(tctx thrift.Context, req *rpc.FetchBlocksRawReq
 
 		for _, fetchedBlock := range fetched {
 			block := rpc.NewBlock()
-			block.Start = xtime.ToNanoseconds(fetchedBlock.Start())
-			if ck := fetchedBlock.Checksum(); ck != nil {
-				cki := int64(*ck)
-				block.Checksum = &cki
-			}
-			if err := fetchedBlock.Err(); err != nil {
+			block.Start = fetchedBlock.Start.UnixNano()
+			if err := fetchedBlock.Err; err != nil {
 				block.Err = convert.ToRPCError(err)
 			} else {
-				block.Segments, err = convert.ToSegments(fetchedBlock.Readers())
+				var converted convert.ToSegmentsResult
+				converted, err = convert.ToSegments(fetchedBlock.Readers)
 				if err != nil {
 					block.Err = convert.ToRPCError(err)
 				}
-				if block.Segments == nil {
+				if converted.Segments == nil {
 					// No data for block, skip this block
 					continue
 				}
+				block.Segments = converted.Segments
+				block.Checksum = converted.Checksum
 			}
 
 			blocks.Blocks = append(blocks.Blocks, block)
@@ -442,7 +438,7 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 		for _, fetchedMetadataBlock := range fetchedMetadataBlocks {
 			blockMetadata := s.blockMetadataPool.Get()
 
-			blockMetadata.Start = xtime.ToNanoseconds(fetchedMetadataBlock.Start)
+			blockMetadata.Start = fetchedMetadataBlock.Start.UnixNano()
 
 			if opts.IncludeSizes {
 				size := fetchedMetadataBlock.Size
@@ -514,25 +510,19 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 	}
 
 	var (
-		nsID      = s.newID(ctx, req.NameSpace)
-		start     = time.Unix(0, req.RangeStart)
-		end       = time.Unix(0, req.RangeEnd)
-		pageToken = &pt.PageToken{}
+		nsID  = s.newID(ctx, req.NameSpace)
+		start = time.Unix(0, req.RangeStart)
+		end   = time.Unix(0, req.RangeEnd)
 	)
-	err = proto.Unmarshal(req.PageToken, pageToken)
-	if err != nil {
-		return nil, tterrors.NewBadRequestError(errInvalidPageToken)
-	}
-
-	fetchedMetadata, nextShardIndex, err := s.db.FetchBlocksMetadata(
-		ctx, nsID, uint32(req.Shard), start, end, req.Limit, pageToken.ShardIndex, opts)
+	fetchedMetadata, nextPageToken, err := s.db.FetchBlocksMetadataV2(
+		ctx, nsID, uint32(req.Shard), start, end, req.Limit, req.PageToken, opts)
 	if err != nil {
 		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
 	}
 	ctx.RegisterFinalizer(context.FinalizerFn(fetchedMetadata.Close))
 
-	result, err := s.getFetchBlocksMetadataRawV2Result(nextShardIndex, opts, fetchedMetadata)
+	result, err := s.getFetchBlocksMetadataRawV2Result(nextPageToken, opts, fetchedMetadata)
 	// Finalize pooled datastructures regardless of errors because even in the error
 	// case result contains pooled objects that we need to return.
 	ctx.RegisterFinalizer(s.newCloseableMetadataV2Result(result))
@@ -544,22 +534,13 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 }
 
 func (s *service) getFetchBlocksMetadataRawV2Result(
-	nextShardIndex *int64,
+	nextPageToken storage.PageToken,
 	opts block.FetchBlocksMetadataOptions,
 	results block.FetchBlocksMetadataResults,
 ) (*rpc.FetchBlocksMetadataRawV2Result_, error) {
 	result := rpc.NewFetchBlocksMetadataRawV2Result_()
+	result.NextPageToken = nextPageToken
 	result.Elements = s.getBlocksMetadataV2FromResult(opts, results)
-
-	var nextPageTokenBytes []byte
-	var err error
-	if nextShardIndex != nil {
-		nextPageTokenBytes, err = proto.Marshal(&pt.PageToken{ShardIndex: *nextShardIndex})
-		if err != nil {
-			return result, convert.ToRPCError(err)
-		}
-	}
-	result.NextPageToken = nextPageTokenBytes
 	return result, nil
 }
 
@@ -576,7 +557,7 @@ func (s *service) getBlocksMetadataV2FromResult(
 		for _, fetchedMetadataBlock := range fetchedMetadataBlocks {
 			blockMetadata := s.blockMetadataV2Pool.Get()
 			blockMetadata.ID = id
-			blockMetadata.Start = xtime.ToNanoseconds(fetchedMetadataBlock.Start)
+			blockMetadata.Start = fetchedMetadataBlock.Start.UnixNano()
 
 			if opts.IncludeSizes {
 				size := fetchedMetadataBlock.Size

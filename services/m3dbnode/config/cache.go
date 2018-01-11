@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,36 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package digest
+package config
 
-import (
-	"hash/adler32"
+import "github.com/m3db/m3db/storage/series"
 
-	"github.com/m3db/m3db/ts"
-
-	"github.com/m3db/stackadler32"
-)
-
-// NewDigest creates a new digest.
-// The default 32-bit hashing algorithm is adler32.
-func NewDigest() stackadler32.Digest {
-	return stackadler32.NewDigest()
+// CacheConfigurations is the cache configurations.
+type CacheConfigurations struct {
+	// Series cache policy.
+	Series *SeriesCacheConfiguration `yaml:"series"`
 }
 
-// SegmentChecksum returns the 32-bit checksum for a segment
-// avoiding any allocations.
-func SegmentChecksum(segment ts.Segment) uint32 {
-	d := stackadler32.NewDigest()
-	if segment.Head != nil {
-		d = d.Update(segment.Head.Get())
+// SeriesConfiguration returns the series cache configuration or default
+// if none is specified.
+func (c CacheConfigurations) SeriesConfiguration() SeriesCacheConfiguration {
+	if c.Series == nil {
+		// Return default cache configuration
+		return SeriesCacheConfiguration{Policy: series.CacheRecentlyRead}
 	}
-	if segment.Tail != nil {
-		d = d.Update(segment.Tail.Get())
-	}
-	return d.Sum32()
+	return *c.Series
 }
 
-// Checksum returns the checksum for a buffer.
-func Checksum(buf []byte) uint32 {
-	return adler32.Checksum(buf)
+// SeriesCacheConfiguration is the series cache configuration.
+type SeriesCacheConfiguration struct {
+	Policy series.CachePolicy `yaml:"policy"`
 }

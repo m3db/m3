@@ -77,7 +77,7 @@ func (b *bootstrapProcess) Run(
 
 		window := target.Range
 
-		r := xtime.NewRanges().AddRange(window)
+		r := xtime.Ranges{}.AddRange(window)
 		for _, s := range shards {
 			shardsTimeRanges[s] = r
 		}

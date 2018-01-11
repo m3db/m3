@@ -44,6 +44,7 @@ func (md *mockDigest) Write(p []byte) (n int, err error) {
 
 func (md *mockDigest) Sum(b []byte) []byte { return nil }
 func (md *mockDigest) Reset()              {}
+func (md *mockDigest) ResetTo(v uint32)    {}
 func (md *mockDigest) Size() int           { return 0 }
 func (md *mockDigest) BlockSize() int      { return 0 }
 func (md *mockDigest) Sum32() uint32       { return md.digest }

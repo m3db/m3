@@ -23,6 +23,7 @@ package result
 import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -31,19 +32,21 @@ const (
 )
 
 type options struct {
-	clockOpts      clock.Options
-	instrumentOpts instrument.Options
-	blockOpts      block.Options
-	newBlocksLen   int
+	clockOpts         clock.Options
+	instrumentOpts    instrument.Options
+	blockOpts         block.Options
+	newBlocksLen      int
+	seriesCachePolicy series.CachePolicy
 }
 
 // NewOptions creates new bootstrap options
 func NewOptions() Options {
 	return &options{
-		clockOpts:      clock.NewOptions(),
-		instrumentOpts: instrument.NewOptions(),
-		blockOpts:      block.NewOptions(),
-		newBlocksLen:   defaultNewBlocksLen,
+		clockOpts:         clock.NewOptions(),
+		instrumentOpts:    instrument.NewOptions(),
+		blockOpts:         block.NewOptions(),
+		newBlocksLen:      defaultNewBlocksLen,
+		seriesCachePolicy: series.DefaultCachePolicy,
 	}
 }
 
@@ -85,4 +88,14 @@ func (o *options) SetNewBlocksLen(value int) Options {
 
 func (o *options) NewBlocksLen() int {
 	return o.newBlocksLen
+}
+
+func (o *options) SetSeriesCachePolicy(value series.CachePolicy) Options {
+	opts := *o
+	opts.seriesCachePolicy = value
+	return &opts
+}
+
+func (o *options) SeriesCachePolicy() series.CachePolicy {
+	return o.seriesCachePolicy
 }

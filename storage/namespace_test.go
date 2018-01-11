@@ -268,7 +268,7 @@ func TestNamespaceFetchBlocksMetadataShardOwned(t *testing.T) {
 	shard := NewMockdatabaseShard(ctrl)
 	shard.EXPECT().
 		FetchBlocksMetadata(ctx, start, end, limit, pageToken, opts).
-		Return(nil, &nextPageToken)
+		Return(nil, &nextPageToken, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	shard.EXPECT().IsBootstrapped().Return(true)

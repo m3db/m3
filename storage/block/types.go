@@ -69,18 +69,10 @@ type FilteredBlocksMetadataIter interface {
 
 // FetchBlockResult captures the block start time, the readers for the underlying streams, the
 // corresponding checksum and any errors encountered.
-type FetchBlockResult interface {
-	// Start returns the start time of an encoded block
-	Start() time.Time
-
-	// Readers returns the readers for the underlying streams.
-	Readers() []xio.SegmentReader
-
-	// Err returns the error encountered when fetching the block.
-	Err() error
-
-	// Checksum returns the checksum of the underlying block.
-	Checksum() *uint32
+type FetchBlockResult struct {
+	Start   time.Time
+	Readers []xio.SegmentReader
+	Err     error
 }
 
 // FetchBlocksMetadataOptions are options used when fetching blocks metadata.
@@ -169,6 +161,14 @@ type DatabaseBlock interface {
 
 	// IsRetrieved returns whether the block is already retrieved.
 	IsRetrieved() bool
+
+	// WasRetrieved returns whether the block was retrieved from storage.
+	WasRetrieved() bool
+
+	// IsCachedBlock returns whether the block is not retrieved, or rather
+	// only the metadata is currently available, or whether it was retrieved
+	// from storage to serve as a memory cached block for reads.
+	IsCachedBlock() bool
 
 	// Reset resets the block start time and the segment.
 	Reset(startTime time.Time, segment ts.Segment)

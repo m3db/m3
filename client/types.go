@@ -43,6 +43,10 @@ import (
 	tchannel "github.com/uber/tchannel-go"
 )
 
+// unknown string constant, required to fix lint complaining about
+// multiple occurrences of same literal string...
+const unknown = "unknown"
+
 // ConnectConsistencyLevel is the consistency level for connecting to a cluster
 type ConnectConsistencyLevel int
 
@@ -78,7 +82,7 @@ func (l ConnectConsistencyLevel) String() string {
 	case ConnectConsistencyLevelAll:
 		return "all"
 	}
-	return "unknown"
+	return unknown
 }
 
 var validConnectConsistencyLevels = []ConnectConsistencyLevel{
@@ -143,7 +147,7 @@ func (l ReadConsistencyLevel) String() string {
 	case ReadConsistencyLevelAll:
 		return "all"
 	}
-	return "unknown"
+	return unknown
 }
 
 var validReadConsistencyLevels = []ReadConsistencyLevel{
@@ -265,6 +269,7 @@ type AdminSession interface {
 		namespace ts.ID,
 		shard uint32,
 		start, end time.Time,
+		version FetchBlocksMetadataEndpointVersion,
 	) (PeerBlocksMetadataIter, error)
 
 	// FetchBootstrapBlocksFromPeers will fetch the most fulfilled block

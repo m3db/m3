@@ -27,7 +27,6 @@ import (
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage"
-	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper"
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/commitlog"
@@ -48,7 +47,27 @@ type BootstrapConfiguration struct {
 	Bootstrappers []string `yaml:"bootstrappers" validate:"nonzero"`
 
 	// Filesystem bootstrapper configuration.
-	Filesystem BootstrapFilesystemConfiguration `yaml:"fs"`
+	Filesystem *BootstrapFilesystemConfiguration `yaml:"fs"`
+
+	// Peers bootstrapper configuration.
+	Peers *BootstrapPeersConfiguration `yaml:"peers"`
+}
+
+func (bsc BootstrapConfiguration) fsNumProcessors() int {
+	np := defaultNumProcessorsPerCPU
+	if fsCfg := bsc.Filesystem; fsCfg != nil {
+		np = bsc.Filesystem.NumProcessorsPerCPU
+	}
+	return int(math.Ceil(float64(runtime.NumCPU()) * np))
+}
+
+// TODO: Remove once v1 endpoint no longer required.
+func (bsc BootstrapConfiguration) peersFetchBlocksMetadataEndpointVersion() client.FetchBlocksMetadataEndpointVersion {
+	version := client.FetchBlocksMetadataEndpointDefault
+	if peersCfg := bsc.Peers; peersCfg != nil {
+		version = peersCfg.FetchBlocksMetadataEndpointVersion
+	}
+	return version
 }
 
 // BootstrapFilesystemConfiguration specifies config for the fs bootstrapper.
@@ -57,19 +76,17 @@ type BootstrapFilesystemConfiguration struct {
 	NumProcessorsPerCPU float64 `yaml:"numProcessorsPerCPU" validate:"min=0.0"`
 }
 
-func (bsc BootstrapConfiguration) numProcessors() int {
-	np := defaultNumProcessorsPerCPU
-	if bsc.Filesystem.NumProcessorsPerCPU > 0 {
-		np = bsc.Filesystem.NumProcessorsPerCPU
-	}
-	return int(math.Ceil(float64(runtime.NumCPU()) * np))
+// BootstrapPeersConfiguration specifies config for the peers bootstrapper.
+type BootstrapPeersConfiguration struct {
+	// FetchBlocksMetadataEndpointVersion is the endpoint to use when fetching blocks metadata.
+	// TODO: Remove once v1 endpoint no longer required.
+	FetchBlocksMetadataEndpointVersion client.FetchBlocksMetadataEndpointVersion `yaml:"fetchBlocksMetadataEndpointVersion"`
 }
 
 // New creates a bootstrap process based on the bootstrap configuration.
 func (bsc BootstrapConfiguration) New(
 	opts storage.Options,
 	adminClient client.AdminClient,
-	blockRetrieverMgr block.DatabaseBlockRetrieverManager,
 ) (bootstrap.Process, error) {
 	var (
 		bs  bootstrap.Bootstrapper
@@ -78,7 +95,8 @@ func (bsc BootstrapConfiguration) New(
 
 	rsopts := result.NewOptions().
 		SetInstrumentOptions(opts.InstrumentOptions()).
-		SetDatabaseBlockOptions(opts.DatabaseBlockOptions())
+		SetDatabaseBlockOptions(opts.DatabaseBlockOptions()).
+		SetSeriesCachePolicy(opts.SeriesCachePolicy())
 
 	// Start from the end of the list because the bootstrappers are ordered by precedence in descending order.
 	for i := len(bsc.Bootstrappers) - 1; i >= 0; i-- {
@@ -93,8 +111,8 @@ func (bsc BootstrapConfiguration) New(
 			fsbopts := fs.NewOptions().
 				SetResultOptions(rsopts).
 				SetFilesystemOptions(fsopts).
-				SetNumProcessors(bsc.numProcessors()).
-				SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
+				SetNumProcessors(bsc.fsNumProcessors()).
+				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager())
 			bs = fs.NewFileSystemBootstrapper(filePathPrefix, fsbopts, bs)
 		case commitlog.CommitLogBootstrapperName:
 			copts := commitlog.NewOptions().
@@ -109,7 +127,8 @@ func (bsc BootstrapConfiguration) New(
 				SetResultOptions(rsopts).
 				SetAdminClient(adminClient).
 				SetPersistManager(opts.PersistManager()).
-				SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
+				SetDatabaseBlockRetrieverManager(opts.DatabaseBlockRetrieverManager()).
+				SetFetchBlocksMetadataEndpointVersion(bsc.peersFetchBlocksMetadataEndpointVersion())
 			bs, err = peers.NewPeersBootstrapper(popts, bs)
 			if err != nil {
 				return nil, err

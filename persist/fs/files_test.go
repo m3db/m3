@@ -211,7 +211,6 @@ func TestForEachInfoFile(t *testing.T) {
 
 	blockStart := time.Unix(0, 0)
 	buf := digest.NewBuffer()
-	digest := digest.NewDigest()
 
 	// No checkpoint file
 	createDataFile(t, shardDir, blockStart, infoFileSuffix, nil)
@@ -224,17 +223,15 @@ func TestForEachInfoFile(t *testing.T) {
 	// Digest of digest mismatch
 	blockStart = blockStart.Add(time.Nanosecond)
 	digests := []byte{0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc}
-	digest.Write(append(digests, 0xd))
-	buf.WriteDigest(digest.Sum32())
+	buf.WriteDigest(digest.Checksum(append(digests, 0xd)))
 	createDataFile(t, shardDir, blockStart, infoFileSuffix, nil)
 	createDataFile(t, shardDir, blockStart, digestFileSuffix, digests)
 	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
 
 	// Info file digest mismatch
 	blockStart = blockStart.Add(time.Nanosecond)
-	digest.Reset()
-	digest.Write(digests)
-	buf.WriteDigest(digest.Sum32())
+
+	buf.WriteDigest(digest.Checksum(digests))
 	createDataFile(t, shardDir, blockStart, infoFileSuffix, []byte{0x1})
 	createDataFile(t, shardDir, blockStart, digestFileSuffix, digests)
 	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, buf)
@@ -242,13 +239,11 @@ func TestForEachInfoFile(t *testing.T) {
 	// All digests match
 	blockStart = blockStart.Add(time.Nanosecond)
 	infoData := []byte{0x1, 0x2, 0x3, 0x4}
-	digest.Reset()
-	digest.Write(infoData)
-	buf.WriteDigest(digest.Sum32())
+
+	buf.WriteDigest(digest.Checksum(infoData))
+
 	digestOfDigest := append(buf, []byte{0x5, 0x6, 0x7, 0x8, 0x9, 0xa, 0xb, 0xc}...)
-	digest.Reset()
-	digest.Write(digestOfDigest)
-	buf.WriteDigest(digest.Sum32())
+	buf.WriteDigest(digest.Checksum(digestOfDigest))
 	createDataFile(t, shardDir, blockStart, infoFileSuffix, infoData)
 	createDataFile(t, shardDir, blockStart, digestFileSuffix, digestOfDigest)
 	createDataFile(t, shardDir, blockStart, checkpointFileSuffix, buf)

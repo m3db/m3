@@ -2,5 +2,14 @@ syntax = "proto3";
 package pagetoken;
 
 message PageToken {
-	int64 shardIndex = 1;
+	message ActiveSeriesPhase {
+		int64 indexCursor = 1;
+	}
+	message FlushedSeriesPhase {
+		int64 currBlockStartUnixNanos = 1;
+		int64 currBlockEntryIdx = 2;
+	}
+
+	ActiveSeriesPhase active_series_phase = 1;
+	FlushedSeriesPhase flushed_series_phase = 2;
 }

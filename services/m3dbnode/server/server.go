@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"net/http"
 	"os"
@@ -159,12 +158,12 @@ func Run(runOpts RunOptions) {
 
 	newFileMode, err := cfg.Filesystem.ParseNewFileMode()
 	if err != nil {
-		log.Fatalf("could not parse new file mode: %v", err)
+		logger.Fatalf("could not parse new file mode: %v", err)
 	}
 
 	newDirectoryMode, err := cfg.Filesystem.ParseNewDirectoryMode()
 	if err != nil {
-		log.Fatalf("could not parse new directory mode: %v", err)
+		logger.Fatalf("could not parse new directory mode: %v", err)
 	}
 
 	mmap := cfg.Filesystem.MmapConfiguration()
@@ -192,7 +191,7 @@ func Run(runOpts RunOptions) {
 	case config.CalculationTypePerCPU:
 		commitLogQueueSize = specified * runtime.NumCPU()
 	default:
-		log.Fatalf("unknown commit log queue size type: %v",
+		logger.Fatalf("unknown commit log queue size type: %v",
 			cfg.CommitLog.Queue.CalculationType)
 	}
 
@@ -206,26 +205,36 @@ func Run(runOpts RunOptions) {
 		SetRetentionPeriod(cfg.CommitLog.RetentionPeriod).
 		SetBlockSize(cfg.CommitLog.BlockSize))
 
+	// Set the series cache policy
+	seriesCachePolicy := cfg.Cache.SeriesConfiguration().Policy
+	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
+
+	switch seriesCachePolicy {
+	case series.CacheAll:
+		// No options needed to be set
+	default:
+		// All other caching strategies require retrieving series from disk
+		// to service a cache miss
+		retrieverOpts := fs.NewBlockRetrieverOptions().
+			SetBytesPool(opts.BytesPool()).
+			SetSegmentReaderPool(opts.SegmentReaderPool())
+		if blockRetrieveCfg := cfg.BlockRetrieve; blockRetrieveCfg != nil {
+			retrieverOpts = retrieverOpts.
+				SetFetchConcurrency(blockRetrieveCfg.FetchConcurrency)
+		}
+		blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
+			func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
+				retriever := fs.NewBlockRetriever(retrieverOpts, fsopts)
+				if err := retriever.Open(md); err != nil {
+					return nil, err
+				}
+				return retriever, nil
+			})
+		opts = opts.SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
+	}
+
 	// Apply pooling options
 	opts = withEncodingAndPoolingOptions(logger, opts, cfg.PoolingPolicy)
-
-	// Set the block retriever manager
-	retrieverOpts := fs.NewBlockRetrieverOptions().
-		SetBytesPool(opts.BytesPool()).
-		SetSegmentReaderPool(opts.SegmentReaderPool())
-	if cfg.BlockRetrieve.FetchConcurrency > 0 {
-		retrieverOpts = retrieverOpts.
-			SetFetchConcurrency(cfg.BlockRetrieve.FetchConcurrency)
-	}
-	blockRetrieverMgr := block.NewDatabaseBlockRetrieverManager(
-		func(md namespace.Metadata) (block.DatabaseBlockRetriever, error) {
-			retriever := fs.NewBlockRetriever(retrieverOpts, fsopts)
-			if err := retriever.Open(md); err != nil {
-				return nil, err
-			}
-			return retriever, nil
-		})
-	opts = opts.SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
 
 	// Set the persistence manager
 	pm, err := fs.NewPersistManager(fsopts)
@@ -269,7 +278,7 @@ func Run(runOpts RunOptions) {
 			SetServiceID(serviceID).
 			SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
 			SetInstrumentOptions(opts.InstrumentOptions()).
-			SetHashGen(sharding.NewHashGenWithSeed(cfg.HashingConfiguration.Seed))
+			SetHashGen(sharding.NewHashGenWithSeed(cfg.Hashing.Seed))
 
 		topoInit = topology.NewDynamicInitializer(topoOpts)
 
@@ -335,7 +344,7 @@ func Run(runOpts RunOptions) {
 	}
 
 	// Set bootstrap options
-	bs, err := cfg.Bootstrap.New(opts, m3dbClient, blockRetrieverMgr)
+	bs, err := cfg.Bootstrap.New(opts, m3dbClient)
 	if err != nil {
 		logger.Fatalf("could not create bootstrap process: %v", err)
 	}
@@ -351,7 +360,7 @@ func Run(runOpts RunOptions) {
 			}
 
 			cfg.Bootstrap.Bootstrappers = bootstrappers
-			updated, err := cfg.Bootstrap.New(opts, m3dbClient, blockRetrieverMgr)
+			updated, err := cfg.Bootstrap.New(opts, m3dbClient)
 			if err != nil {
 				logger.Errorf("updated bootstrapper list failed: %v", err)
 				return
@@ -655,8 +664,6 @@ func withEncodingAndPoolingOptions(
 	iopts := opts.InstrumentOptions()
 	scope := opts.InstrumentOptions().MetricsScope()
 
-	logger.Infof("using %s pools", policy.Type)
-
 	bytesPoolOpts := pool.NewObjectPoolOptions().
 		SetInstrumentOptions(iopts.SetMetricsScope(scope.SubScope("bytes-pool")))
 	checkedBytesPoolOpts := bytesPoolOpts.
@@ -670,14 +677,13 @@ func withEncodingAndPoolingOptions(
 			SetRefillLowWatermark(bucket.RefillLowWaterMark).
 			SetRefillHighWatermark(bucket.RefillHighWaterMark)
 		buckets[i] = b
-		logger.Infof("bytes pool registering bucket capacity=%d, size=%d,"+
+		logger.Infof("bytes pool registering bucket capacity=%d, size=%d, "+
 			"refillLowWatermark=%f, refillHighWatermark=%f",
 			bucket.Capacity, bucket.Size,
 			bucket.RefillLowWaterMark, bucket.RefillHighWaterMark)
 	}
 
 	var bytesPool pool.CheckedBytesPool
-
 	switch policy.Type {
 	case config.SimplePooling:
 		bytesPool = pool.NewCheckedBytesPool(
@@ -697,6 +703,7 @@ func withEncodingAndPoolingOptions(
 		logger.Fatalf("unrecognized pooling type: %s", policy.Type)
 	}
 
+	logger.Infof("bytes pool %s init", policy.Type)
 	bytesPool.Init()
 
 	segmentReaderPool := m3dbxio.NewSegmentReaderPool(

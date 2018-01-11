@@ -94,18 +94,19 @@ var commitLogWriteNoOp = commitLogWriter(commitLogWriterFn(func(
 type dbNamespace struct {
 	sync.RWMutex
 
-	closed         bool
-	shutdownCh     chan struct{}
-	id             ts.ID
-	shardSet       sharding.ShardSet
-	blockRetriever block.DatabaseBlockRetriever
-	opts           Options
-	metadata       namespace.Metadata
-	nopts          namespace.Options
-	seriesOpts     series.Options
-	nowFn          clock.NowFn
-	log            xlog.Logger
-	bs             bootstrapState
+	closed             bool
+	shutdownCh         chan struct{}
+	id                 ts.ID
+	shardSet           sharding.ShardSet
+	blockRetriever     block.DatabaseBlockRetriever
+	namespaceReaderMgr databaseNamespaceReaderManager
+	opts               Options
+	metadata           namespace.Metadata
+	nopts              namespace.Options
+	seriesOpts         series.Options
+	nowFn              clock.NowFn
+	log                xlog.Logger
+	bs                 bootstrapState
 
 	// Contains an entry to all shards for fast shard lookup, an
 	// entry will be nil when this shard does not belong to current database
@@ -250,6 +251,7 @@ func newDatabaseNamespace(
 		shutdownCh:             make(chan struct{}),
 		shardSet:               shardSet,
 		blockRetriever:         blockRetriever,
+		namespaceReaderMgr:     newNamespaceReaderManager(metadata, scope, opts),
 		opts:                   opts,
 		metadata:               metadata,
 		nopts:                  nopts,
@@ -341,7 +343,8 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		} else {
 			needsBootstrap := n.nopts.NeedsBootstrap()
 			n.shards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-				n.increasingIndex, n.commitLogWriter, needsBootstrap, n.opts, n.seriesOpts)
+				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter,
+				needsBootstrap, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
 		}
 	}
@@ -385,8 +388,11 @@ func (n *dbNamespace) closeShards(shards []databaseShard, blockUntilClosed bool)
 }
 
 func (n *dbNamespace) Tick(c context.Cancellable) error {
-	shards := n.GetOwnedShards()
+	// Allow the reader cache to tick
+	n.namespaceReaderMgr.tick()
 
+	// Fetch the owned shards
+	shards := n.GetOwnedShards()
 	if len(shards) == 0 {
 		return nil
 	}
@@ -511,10 +517,31 @@ func (n *dbNamespace) FetchBlocksMetadata(
 		return nil, nil, err
 	}
 
-	res, nextPageToken := shard.FetchBlocksMetadata(ctx, start, end, limit,
+	res, nextPageToken, err := shard.FetchBlocksMetadata(ctx, start, end, limit,
 		pageToken, opts)
 	n.metrics.fetchBlocksMetadata.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
-	return res, nextPageToken, nil
+	return res, nextPageToken, err
+}
+
+func (n *dbNamespace) FetchBlocksMetadataV2(
+	ctx context.Context,
+	shardID uint32,
+	start, end time.Time,
+	limit int64,
+	pageToken PageToken,
+	opts block.FetchBlocksMetadataOptions,
+) (block.FetchBlocksMetadataResults, PageToken, error) {
+	callStart := n.nowFn()
+	shard, err := n.readableShardAt(shardID)
+	if err != nil {
+		n.metrics.fetchBlocksMetadata.ReportError(n.nowFn().Sub(callStart))
+		return nil, nil, err
+	}
+
+	res, nextPageToken, err := shard.FetchBlocksMetadataV2(ctx, start, end, limit,
+		pageToken, opts)
+	n.metrics.fetchBlocksMetadata.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return res, nextPageToken, err
 }
 
 func (n *dbNamespace) Bootstrap(
@@ -878,7 +905,8 @@ func (n *dbNamespace) initShards(needBootstrap bool) {
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
 		dbShards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-			n.increasingIndex, n.commitLogWriter, needBootstrap, n.opts, n.seriesOpts)
+			n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter,
+			needBootstrap, n.opts, n.seriesOpts)
 	}
 	n.shards = dbShards
 	n.Unlock()
@@ -895,6 +923,7 @@ func (n *dbNamespace) Close() error {
 	n.shards = shards[:0]
 	n.shardSet = sharding.NewEmptyShardSet(sharding.DefaultHashFn(1))
 	n.Unlock()
+	n.namespaceReaderMgr.close()
 	n.closeShards(shards, true)
 	close(n.shutdownCh)
 	return nil

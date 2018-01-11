@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
@@ -91,29 +92,35 @@ type ShardResults map[uint32]ShardResult
 // ShardTimeRanges is a map of shards to time ranges.
 type ShardTimeRanges map[uint32]xtime.Ranges
 
-// Options represents the options for bootstrap results
+// Options represents the options for bootstrap results.
 type Options interface {
-	// SetClockOptions sets the clock options
+	// SetClockOptions sets the clock options.
 	SetClockOptions(value clock.Options) Options
 
-	// ClockOptions returns the clock options
+	// ClockOptions returns the clock options.
 	ClockOptions() clock.Options
 
-	// SetInstrumentOptions sets the instrumentation options
+	// SetInstrumentOptions sets the instrumentation options.
 	SetInstrumentOptions(value instrument.Options) Options
 
-	// InstrumentOptions returns the instrumentation options
+	// InstrumentOptions returns the instrumentation options.
 	InstrumentOptions() instrument.Options
 
-	// SetDatabaseBlockOptions sets the database block options
+	// SetDatabaseBlockOptions sets the database block options.
 	SetDatabaseBlockOptions(value block.Options) Options
 
-	// DatabaseBlockOptions returns the database block options
+	// DatabaseBlockOptions returns the database block options.
 	DatabaseBlockOptions() block.Options
 
-	// SetNewBlocksLen sets the size of a new blocks map size
+	// SetNewBlocksLen sets the size of a new blocks map size.
 	SetNewBlocksLen(value int) Options
 
-	// NewBlocksLen returns the size of a new blocks map size
+	// NewBlocksLen returns the size of a new blocks map size.
 	NewBlocksLen() int
+
+	// SetSeriesCachePolicy sets the series cache policy.
+	SetSeriesCachePolicy(value series.CachePolicy) Options
+
+	// SeriesCachePolicy returns the series cache policy.
+	SeriesCachePolicy() series.CachePolicy
 }

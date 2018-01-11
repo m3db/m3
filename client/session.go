@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"hash"
 	"io"
 	"math"
 	"sort"
@@ -78,16 +77,22 @@ const (
 type FetchBlocksMetadataEndpointVersion int
 
 const (
+	// FetchBlocksMetadataEndpointDefault represents to use the default fetch blocks metadata endpoint
+	FetchBlocksMetadataEndpointDefault FetchBlocksMetadataEndpointVersion = iota
 	// FetchBlocksMetadataEndpointV1 represents v1 of the fetch blocks metadata endpoint
-	FetchBlocksMetadataEndpointV1 FetchBlocksMetadataEndpointVersion = iota
+	FetchBlocksMetadataEndpointV1
 	// FetchBlocksMetadataEndpointV2 represents v2 of the fetch blocks metadata endpoint
-	FetchBlocksMetadataEndpointV2
+	FetchBlocksMetadataEndpointV2 = FetchBlocksMetadataEndpointDefault
 )
 
-var validFetchBlocksMetadataEndpoints = []FetchBlocksMetadataEndpointVersion{
-	FetchBlocksMetadataEndpointV1,
-	FetchBlocksMetadataEndpointV2,
-}
+var (
+	validFetchBlocksMetadataEndpoints = []FetchBlocksMetadataEndpointVersion{
+		FetchBlocksMetadataEndpointV1,
+		FetchBlocksMetadataEndpointV2,
+	}
+	errFetchBlocksMetadataEndpointVersionUnspecified = errors.New(
+		"fetch blocks metadata endpoint version unspecified")
+)
 
 var (
 	// ErrClusterConnectTimeout is raised when connecting to the cluster and
@@ -145,7 +150,6 @@ type session struct {
 	seriesIteratorsPool              encoding.MutableSeriesIteratorsPool
 	writeAttemptPool                 *writeAttemptPool
 	writeStatePool                   *writeStatePool
-	digestPool                       sync.Pool
 	fetchAttemptPool                 *fetchAttemptPool
 	fetchBatchSize                   int
 	newPeerBlocksQueueFn             newPeerBlocksQueueFn
@@ -253,9 +257,6 @@ func newSession(opts Options) (clientSession, error) {
 		))
 	s.fetchAttemptPool = newFetchAttemptPool(s, fetchAttemptPoolOpts)
 	s.fetchAttemptPool.Init()
-	s.digestPool = sync.Pool{New: func() interface{} {
-		return digest.NewDigest()
-	}}
 
 	if opts, ok := opts.(AdminOptions); ok {
 		s.origin = opts.Origin()
@@ -1242,6 +1243,7 @@ func (s *session) FetchBlocksMetadataFromPeers(
 	namespace ts.ID,
 	shard uint32,
 	start, end time.Time,
+	version FetchBlocksMetadataEndpointVersion,
 ) (PeerBlocksMetadataIter, error) {
 	peers, err := s.peersForShard(shard)
 	if err != nil {
@@ -1256,7 +1258,7 @@ func (s *session) FetchBlocksMetadataFromPeers(
 
 	go func() {
 		errCh <- s.streamBlocksMetadataFromPeers(
-			namespace, shard, peers, start, end, metadataCh, m, FetchBlocksMetadataEndpointV1)
+			namespace, shard, peers, start, end, metadataCh, m, version)
 		close(metadataCh)
 		close(errCh)
 	}()
@@ -2420,24 +2422,19 @@ func (s *session) verifyFetchedBlock(block *rpc.Block) error {
 		return fmt.Errorf("block segments is bad: merged and unmerged not set")
 	}
 
-	if block.Checksum != nil {
-		expected := uint32(*block.Checksum)
-
-		digest := s.digestPool.Get().(hash.Hash32)
-		digest.Reset()
-		defer s.digestPool.Put(digest)
-
-		if block.Segments.Merged != nil {
-			digest.Write(block.Segments.Merged.Head)
-			digest.Write(block.Segments.Merged.Tail)
+	if checksum := block.Checksum; checksum != nil {
+		var (
+			d        = digest.NewDigest()
+			expected = uint32(*checksum)
+		)
+		if merged := block.Segments.Merged; merged != nil {
+			d = d.Update(merged.Head).Update(merged.Tail)
 		} else {
-			for _, segment := range block.Segments.Unmerged {
-				digest.Write(segment.Head)
-				digest.Write(segment.Tail)
+			for _, s := range block.Segments.Unmerged {
+				d = d.Update(s.Head).Update(s.Tail)
 			}
 		}
-		actual := digest.Sum32()
-		if actual != expected {
+		if actual := d.Sum32(); actual != expected {
 			return fmt.Errorf("block checksum is bad: expected=%d, actual=%d", expected, actual)
 		}
 	}
@@ -3210,4 +3207,33 @@ func IsValidFetchBlocksMetadataEndpoint(endpointVersion FetchBlocksMetadataEndpo
 		}
 	}
 	return false
+}
+
+// UnmarshalYAML unmarshals an FetchBlocksMetadataEndpointVersion into a valid type from string.
+func (v *FetchBlocksMetadataEndpointVersion) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var str string
+	if err := unmarshal(&str); err != nil {
+		return err
+	}
+	if str == "" {
+		return errFetchBlocksMetadataEndpointVersionUnspecified
+	}
+	for _, valid := range validFetchBlocksMetadataEndpoints {
+		if str == valid.String() {
+			*v = valid
+			return nil
+		}
+	}
+	return fmt.Errorf("invalid FetchBlocksMetadataEndpointVersion '%s' valid types are: %v",
+		str, validFetchBlocksMetadataEndpoints)
+}
+
+func (v FetchBlocksMetadataEndpointVersion) String() string {
+	switch v {
+	case FetchBlocksMetadataEndpointV1:
+		return "v1"
+	case FetchBlocksMetadataEndpointV2:
+		return "v2"
+	}
+	return unknown
 }

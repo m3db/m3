@@ -147,6 +147,7 @@ type fileSetSeeker interface {
 
 func newSeeker(opts seekerOpts) fileSetSeeker {
 	return &seeker{
+		opts:                       opts.opts,
 		filePathPrefix:             opts.filePathPrefix,
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.infoBufferSize),
 		indexFdWithDigest:          digest.NewFdWithDigestReader(opts.dataBufferSize),
@@ -156,7 +157,6 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		keepUnreadBuf:              opts.keepUnreadBuf,
 		bytesPool:                  opts.bytesPool,
 		decoder:                    msgpack.NewDecoder(opts.decodingOpts),
-		opts:                       opts.opts,
 	}
 }
 
@@ -220,8 +220,9 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 	if warning := mmapResult.warning; warning != nil {
-		s.opts.InstrumentOptions().Logger().Warnf(
-			"warning while mmaping files in seeker: %s", warning.Error())
+		logger := s.opts.InstrumentOptions().Logger()
+		logger.Warnf("warning while mmaping files in seeker: %s",
+			warning.Error())
 	}
 
 	if err := s.readDigest(); err != nil {
