@@ -36,6 +36,7 @@ import (
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/log"
 
 	"github.com/gorilla/mux"
 	"gopkg.in/go-playground/validator.v9"
@@ -48,6 +49,10 @@ const (
 
 	namespaceIDVar = "namespaceID"
 	ruleIDVar      = "ruleID"
+
+	namespaceTag = "namespace"
+	methodTag    = "http-method"
+	pathTag      = "route-path"
 
 	nanosPerMilli = int64(time.Millisecond / time.Nanosecond)
 )
@@ -230,11 +235,25 @@ func (s *service) handleRoute(rf routeFunc, r *http.Request, namespace string) (
 	}
 	start := s.nowFn()
 	data, err := rf(s, r)
-	s.metrics.recordMetric(r.RequestURI, r.Method, namespace, time.Since(start), err)
+	t := s.nowFn().Sub(start)
+	s.metrics.recordMetric(r.RequestURI, r.Method, namespace, t, err)
+	s.logRequest(r.RequestURI, r.Method, namespace, t, err)
 	if err != nil {
 		return nil, err
 	}
 	return data, nil
+}
+
+func (s *service) logRequest(path, method, namespace string, d time.Duration, err error) {
+	logger := s.iOpts.Logger().WithFields(
+		log.NewField(namespaceTag, namespace),
+		log.NewField(methodTag, method),
+		log.NewField(pathTag, path),
+	)
+	if err != nil {
+		logger = logger.WithFields(log.NewErrField(err))
+	}
+	logger.Infof("spent %v for the request", d)
 }
 
 func (s *service) sendResponse(w http.ResponseWriter, statusCode int, data interface{}) error {

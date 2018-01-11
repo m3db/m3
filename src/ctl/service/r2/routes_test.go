@@ -162,6 +162,7 @@ func newTestService() *service {
 		nowFn:       clock.NewOptions().NowFn(),
 		store:       newMockStore(),
 		authService: auth.NewNoopAuth(),
+		iOpts:       iOpts,
 	}
 }
 
