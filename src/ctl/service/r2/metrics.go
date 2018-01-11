@@ -69,9 +69,9 @@ func (sm *serviceMetrics) recordMetric(path, method, namespace string, d time.Du
 	sm.Lock()
 	defer sm.Unlock()
 	scope := sm.scope.Tagged(map[string]string{
-		"namespace":   namespace,
-		"http-method": method,
-		"route-path":  path,
+		namespaceTag: namespace,
+		methodTag:    method,
+		pathTag:      path,
 	})
 	m = newServiceMetric(scope, status)
 	sm.metrics[id] = m
