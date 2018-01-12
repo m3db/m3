@@ -244,7 +244,9 @@ func (m *seekerManager) ConcurrentIDBloomFilter(shard uint32, start time.Time) (
 	return seekersAndBloom.bloomFilter, nil
 }
 
-// openSeekers should be called with an unlocked seekersByTime instance
+// openSeekers opens a seeker for the given shard/blockStart, clones it an appropriate number of times to reach
+// the desired fetchConcurrency, and then modifies the state of byTime so that it includes the seekers and
+// bloomFilter. openSeekers should be called with an unlocked seekersByTime instance
 func (m *seekerManager) openSeekers(shard uint32, start time.Time, byTime *seekersByTime) (seekersAndBloom, error) {
 	startNano := xtime.ToUnixNano(start)
 
