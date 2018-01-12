@@ -47,14 +47,18 @@ type server struct {
 }
 
 // NewServer creates a new HTTP server.
-func NewServer(address string, opts Options, services ...service.Service) mserver.Server {
+func NewServer(address string, opts Options, services ...service.Service) (mserver.Server, error) {
 	// Make a copy of the services passed in so they cannot be mutated externally
 	// once the server is constructed.
 	cloned := make([]service.Service, len(services))
 	copy(cloned, services)
+	handler, err := initRouter(cloned)
+	if err != nil {
+		return nil, err
+	}
 	s := &http.Server{
 		Addr:         address,
-		Handler:      initRouter(cloned),
+		Handler:      handler,
 		ReadTimeout:  opts.ReadTimeout(),
 		WriteTimeout: opts.WriteTimeout(),
 	}
@@ -62,7 +66,7 @@ func NewServer(address string, opts Options, services ...service.Service) mserve
 		server:   s,
 		services: cloned,
 		logger:   opts.InstrumentOptions().Logger(),
-	}
+	}, nil
 }
 
 func (s *server) ListenAndServe() error {
@@ -84,11 +88,13 @@ func (s *server) Close() {
 	}
 }
 
-func initRouter(services []service.Service) http.Handler {
+func initRouter(services []service.Service) (http.Handler, error) {
 	router := mux.NewRouter()
 	registerStaticRoutes(router)
-	registerServiceRoutes(router, services)
-	return router
+	if err := registerServiceRoutes(router, services); err != nil {
+		return nil, err
+	}
+	return router, nil
 }
 
 func registerStaticRoutes(router *mux.Router) {
@@ -106,10 +112,13 @@ func registerStaticRoutes(router *mux.Router) {
 	})
 }
 
-func registerServiceRoutes(router *mux.Router, services []service.Service) {
+func registerServiceRoutes(router *mux.Router, services []service.Service) error {
 	for _, service := range services {
 		pathPrefix := service.URLPrefix()
 		subRouter := router.PathPrefix(pathPrefix).Subrouter()
-		service.RegisterHandlers(subRouter)
+		if err := service.RegisterHandlers(subRouter); err != nil {
+			return err
+		}
 	}
+	return nil
 }

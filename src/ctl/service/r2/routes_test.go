@@ -64,6 +64,13 @@ func TestFetchNamespaceSuccess(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
+func TestValidateRuleSetSuccess(t *testing.T) {
+	expected := "Ruleset is valid"
+	actual, err := validateRuleSet(newTestService(), newTestPostRequest([]byte(`{}`)))
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+}
+
 func TestCreateNamespaceSuccess(t *testing.T) {
 	expected := newNamespaceJSON(&rules.NamespaceView{})
 	actual, err := createNamespace(newTestService(), newTestPostRequest([]byte(`{"id": "id"}`)))
@@ -199,6 +206,10 @@ func newMockStore() Store {
 
 func (s mockStore) FetchNamespaces() (*rules.NamespacesView, error) {
 	return &rules.NamespacesView{}, nil
+}
+
+func (s mockStore) ValidateRuleSet(rs *rules.RuleSetSnapshot) error {
+	return nil
 }
 
 func (s mockStore) CreateNamespace(namespaceID string, uOpts UpdateOptions) (*rules.NamespaceView, error) {

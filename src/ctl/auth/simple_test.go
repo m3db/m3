@@ -23,6 +23,7 @@ package auth
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -130,13 +131,34 @@ func TestSimpleAuthorizationAuthorize(t *testing.T) {
 		readWhitelistEnabled:    true,
 		writeWhitelistEnabled:   false,
 		readWhitelistedUserIDs:  []string{"foo", "bar"},
-		writeWhitelistedUserIDs: []string{"foo", "bar"},
+		writeWhitelistedUserIDs: []string{"foo", "bar", "baz"},
 	}
 
-	require.Nil(t, authorization.authorize("GET", "foo"))
-	require.Nil(t, authorization.authorize("POST", "foo"))
-	require.EqualError(t, authorization.authorize("OPTIONS", "foo"), "unsupported request method: OPTIONS")
-	require.EqualError(t, authorization.authorize("GET", "baz"), "supplied userID: [baz] is not authorized")
+	require.Nil(t, authorization.authorize(ReadOnlyAuthorization, "foo"))
+	require.Nil(t, authorization.authorize(WriteOnlyAuthorization, "foo"))
+	require.Nil(t, authorization.authorize(NoAuthorization, "foo"))
+	require.Nil(t, authorization.authorize(WriteOnlyAuthorization, "baz"))
+	require.EqualError(t, authorization.authorize(ReadOnlyAuthorization, "baz"), "supplied userID: [baz] is not authorized")
+	require.EqualError(t, authorization.authorize(ReadWriteAuthorization, "baz"), "supplied userID: [baz] is not authorized")
+	require.EqualError(t, authorization.authorize(AuthorizationType(100), "baz"), "unsupported authorization type 100 passed to handler")
+}
+
+func TestAuthorizeUserForAccess(t *testing.T) {
+	userID := "user2"
+	whitelistedUserIDs := []string{"user1", "user2", "user3"}
+	require.NoError(t, authorizeUserForAccess(userID, whitelistedUserIDs, false))
+	require.NoError(t, authorizeUserForAccess(userID, whitelistedUserIDs, true))
+}
+
+func TestAuthorizeUserForAccessUserNotWhitelisted(t *testing.T) {
+	userID := "user4"
+	whitelistedUserIDs := []string{"user1", "user2", "user3"}
+	require.NoError(t, authorizeUserForAccess(userID, whitelistedUserIDs, false))
+	require.EqualError(
+		t,
+		authorizeUserForAccess(userID, whitelistedUserIDs, true),
+		fmt.Sprintf("supplied userID: [%s] is not authorized", userID),
+	)
 }
 
 func TestHealthCheck(t *testing.T) {
@@ -147,7 +169,7 @@ func TestHealthCheck(t *testing.T) {
 		require.Equal(t, "testHeader", v)
 	})
 
-	wrappedCall := a.NewAuthHandler(f, writeAPIResponse)
+	wrappedCall := a.NewAuthHandler(NoAuthorization, f, writeAPIResponse)
 	wrappedCall.ServeHTTP(httptest.NewRecorder(), &http.Request{})
 }
 
@@ -160,7 +182,7 @@ func TestAuthenticateFailure(t *testing.T) {
 	})
 	recorder := httptest.NewRecorder()
 
-	wrappedCall := a.NewAuthHandler(f, writeAPIResponse)
+	wrappedCall := a.NewAuthHandler(NoAuthorization, f, writeAPIResponse)
 	wrappedCall.ServeHTTP(recorder, &http.Request{})
 	require.Equal(t, http.StatusUnauthorized, recorder.Code)
 	require.Equal(t, "application/json", recorder.HeaderMap["Content-Type"][0])
@@ -180,7 +202,7 @@ func TestAuthenticateWithOriginatorID(t *testing.T) {
 		writeAPIResponse(w, http.StatusOK, "success!")
 	})
 	recorder := httptest.NewRecorder()
-	wrappedCall := a.NewAuthHandler(f, writeAPIResponse)
+	wrappedCall := a.NewAuthHandler(NoAuthorization, f, writeAPIResponse)
 	wrappedCall.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusOK, recorder.Code)
 	require.Equal(t, "application/json", recorder.HeaderMap["Content-Type"][0])
@@ -198,7 +220,7 @@ func TestAuthorizeFailure(t *testing.T) {
 	require.NoError(t, err)
 	req.Header.Add("testHeader", "validUserID")
 
-	wrappedCall := a.NewAuthHandler(f, writeAPIResponse)
+	wrappedCall := a.NewAuthHandler(ReadOnlyAuthorization, f, writeAPIResponse)
 	wrappedCall.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusForbidden, recorder.Code)
 	require.Equal(t, "application/json", recorder.HeaderMap["Content-Type"][0])

@@ -50,7 +50,8 @@ func TestHealthCheck(t *testing.T) {
 	opts := instrument.NewOptions()
 	service := NewService(opts)
 	mux := mux.NewRouter().PathPrefix(service.URLPrefix()).Subrouter()
-	service.RegisterHandlers(mux)
+	err = service.RegisterHandlers(mux)
+	require.NoError(t, err)
 
 	mux.ServeHTTP(rr, req)
 

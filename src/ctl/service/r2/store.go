@@ -27,6 +27,9 @@ type Store interface {
 	// FetchNamespaces fetches namespaces.
 	FetchNamespaces() (*rules.NamespacesView, error)
 
+	// ValidateRuleSet validates a namespace's ruleset.
+	ValidateRuleSet(rs *rules.RuleSetSnapshot) error
+
 	// CreateNamespace creates a namespace for the given namespace ID.
 	CreateNamespace(namespaceID string, uOpts UpdateOptions) (*rules.NamespaceView, error)
 

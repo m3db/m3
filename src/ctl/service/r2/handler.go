@@ -35,13 +35,13 @@ type r2Handler struct {
 	auth   auth.HTTPAuthService
 }
 
-func (h r2Handler) wrap(fn r2HandlerFunc) http.Handler {
+func (h r2Handler) wrap(authType auth.AuthorizationType, fn r2HandlerFunc) http.Handler {
 	f := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := fn(w, r); err != nil {
 			h.handleError(w, err)
 		}
 	})
-	return h.auth.NewAuthHandler(f, writeAPIResponse)
+	return h.auth.NewAuthHandler(authType, f, writeAPIResponse)
 }
 
 func (h r2Handler) handleError(w http.ResponseWriter, opError error) {

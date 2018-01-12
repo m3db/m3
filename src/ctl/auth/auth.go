@@ -27,11 +27,27 @@ import (
 
 type keyType int
 
+// AuthorizationType designates a type of authorization.
+type AuthorizationType int
+
 type errorResponseHandler func(w http.ResponseWriter, code int, msg string) error
 
 const (
 	// UserIDField is a key
 	UserIDField keyType = iota
+)
+
+const (
+	// UnknownAuthorization is the unknown authorizationType case.
+	UnknownAuthorization AuthorizationType = iota
+	// NoAuthorization is the no authorizationType case.
+	NoAuthorization
+	// ReadOnlyAuthorization is the read only authorizationType case.
+	ReadOnlyAuthorization
+	// WriteOnlyAuthorization is the write only authorizationType case.
+	WriteOnlyAuthorization
+	// ReadWriteAuthorization is the read and write authorizationType case.
+	ReadWriteAuthorization
 )
 
 // HTTPAuthService defines how to handle requests for various http authentication and authorization methods.
@@ -40,7 +56,7 @@ type HTTPAuthService interface {
 	// and then runs the handler if it is. If the request passes authentication/authorization successfully, it should call SetUser
 	// to make the callers id available to the service in a global context. errHandler should be passed in to properly format the
 	// the error and respond the the request in the event of bad auth.
-	NewAuthHandler(next http.Handler, errHandler errorResponseHandler) http.Handler
+	NewAuthHandler(authType AuthorizationType, next http.Handler, errHandler errorResponseHandler) http.Handler
 
 	// SetUser sets a userID that identifies the api caller in the global context.
 	SetUser(parent context.Context, userID string) context.Context

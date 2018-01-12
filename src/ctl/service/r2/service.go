@@ -47,7 +47,8 @@ const (
 )
 
 var (
-	namespacePrefix = fmt.Sprintf("%s/{%s}", namespacePath, namespaceIDVar)
+	namespacePrefix     = fmt.Sprintf("%s/{%s}", namespacePath, namespaceIDVar)
+	validateRuleSetPath = fmt.Sprintf("%s/{%s}/ruleset/validate", namespacePath, namespaceIDVar)
 
 	mappingRuleRoot        = fmt.Sprintf("%s/%s", namespacePrefix, mappingRulePrefix)
 	mappingRuleWithIDPath  = fmt.Sprintf("%s/{%s}", mappingRuleRoot, ruleIDVar)
@@ -65,6 +66,7 @@ type serviceMetrics struct {
 	fetchNamespace          instrument.MethodMetrics
 	createNamespace         instrument.MethodMetrics
 	deleteNamespace         instrument.MethodMetrics
+	validateRuleSet         instrument.MethodMetrics
 	fetchMappingRule        instrument.MethodMetrics
 	createMappingRule       instrument.MethodMetrics
 	updateMappingRule       instrument.MethodMetrics
@@ -83,6 +85,7 @@ func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
 		fetchNamespace:          instrument.NewMethodMetrics(scope, "fetchNamespace", samplingRate),
 		createNamespace:         instrument.NewMethodMetrics(scope, "createNamespace", samplingRate),
 		deleteNamespace:         instrument.NewMethodMetrics(scope, "deleteNamespace", samplingRate),
+		validateRuleSet:         instrument.NewMethodMetrics(scope, "validateRuleSet", samplingRate),
 		fetchMappingRule:        instrument.NewMethodMetrics(scope, "fetchMappingRule", samplingRate),
 		createMappingRule:       instrument.NewMethodMetrics(scope, "createMappingRule", samplingRate),
 		updateMappingRule:       instrument.NewMethodMetrics(scope, "updateMappingRule", samplingRate),
@@ -94,6 +97,35 @@ func newServiceMetrics(scope tally.Scope, samplingRate float64) serviceMetrics {
 		deleteRollupRule:        instrument.NewMethodMetrics(scope, "deleteRollupRule", samplingRate),
 		fetchRollupRuleHistory:  instrument.NewMethodMetrics(scope, "fetchRollupRuleHistory", samplingRate),
 	}
+}
+
+var authorizationRegistry = map[route]auth.AuthorizationType{
+	// This validation route should only require read access.
+	{path: validateRuleSetPath, method: http.MethodPost}: auth.ReadOnlyAuthorization,
+}
+
+func defaultAuthorizationTypeForHTTPMethod(method string) (auth.AuthorizationType, error) {
+	switch method {
+	case http.MethodGet:
+		return auth.ReadOnlyAuthorization, nil
+	case http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch:
+		return auth.ReadWriteAuthorization, nil
+	default:
+		return auth.UnknownAuthorization, fmt.Errorf("unknown authorization type for method %s", method)
+	}
+}
+
+func registerRoute(router *mux.Router, path, method string, h r2Handler, hf r2HandlerFunc) error {
+	authType, exists := authorizationRegistry[route{path: path, method: method}]
+	if !exists {
+		var err error
+		if authType, err = defaultAuthorizationTypeForHTTPMethod(method); err != nil {
+			return fmt.Errorf("could not register route for method %s and path %s, error: %v", method, path, err)
+		}
+	}
+	fn := h.wrap(authType, hf)
+	router.Handle(path, fn).Methods(method)
+	return nil
 }
 
 // service handles all of the endpoints for r2.
@@ -126,38 +158,49 @@ func NewService(
 
 func (s *service) URLPrefix() string { return s.rootPrefix }
 
-func (s *service) RegisterHandlers(router *mux.Router) {
-	// Namespaces action
+func (s *service) RegisterHandlers(router *mux.Router) error {
+	routeWithHandlers := []struct {
+		route   route
+		handler r2HandlerFunc
+	}{
+		// Namespaces actions.
+		{route: route{path: namespacePath, method: http.MethodGet}, handler: s.fetchNamespaces},
+		{route: route{path: namespacePath, method: http.MethodPost}, handler: s.createNamespace},
+
+		// Ruleset actions.
+		{route: route{path: namespacePrefix, method: http.MethodGet}, handler: s.fetchNamespace},
+		{route: route{path: namespacePrefix, method: http.MethodDelete}, handler: s.deleteNamespace},
+		{route: route{path: validateRuleSetPath, method: http.MethodPost}, handler: s.validateNamespace},
+
+		// Mapping Rule actions.
+		{route: route{path: mappingRuleRoot, method: http.MethodPost}, handler: s.createMappingRule},
+
+		{route: route{path: mappingRuleWithIDPath, method: http.MethodGet}, handler: s.fetchMappingRule},
+		{route: route{path: mappingRuleWithIDPath, method: http.MethodPut}, handler: s.updateMappingRule},
+		{route: route{path: mappingRuleWithIDPath, method: http.MethodDelete}, handler: s.deleteMappingRule},
+
+		// Mapping Rule history.
+		{route: route{path: mappingRuleHistoryPath, method: http.MethodGet}, handler: s.fetchMappingRuleHistory},
+
+		// Rollup Rule actions.
+		{route: route{path: rollupRuleRoot, method: http.MethodPost}, handler: s.createRollupRule},
+
+		{route: route{path: rollupRuleWithIDPath, method: http.MethodGet}, handler: s.fetchRollupRule},
+		{route: route{path: rollupRuleWithIDPath, method: http.MethodPut}, handler: s.updateRollupRule},
+		{route: route{path: rollupRuleWithIDPath, method: http.MethodDelete}, handler: s.deleteRollupRule},
+
+		// Rollup Rule history.
+		{route: route{path: rollupRuleHistoryPath, method: http.MethodGet}, handler: s.fetchRollupRuleHistory},
+	}
+
 	h := r2Handler{s.logger, s.authService}
-
-	router.Handle(namespacePath, h.wrap(s.fetchNamespaces)).Methods(http.MethodGet)
-	router.Handle(namespacePath, h.wrap(s.createNamespace)).Methods(http.MethodPost)
-
-	// Ruleset actions
-	router.Handle(namespacePrefix, h.wrap(s.fetchNamespace)).Methods(http.MethodGet)
-	router.Handle(namespacePrefix, h.wrap(s.deleteNamespace)).Methods(http.MethodDelete)
-
-	// Mapping Rule actions
-	router.Handle(mappingRuleRoot, h.wrap(s.createMappingRule)).Methods(http.MethodPost)
-
-	router.Handle(mappingRuleWithIDPath, h.wrap(s.fetchMappingRule)).Methods(http.MethodGet)
-	router.Handle(mappingRuleWithIDPath, h.wrap(s.updateMappingRule)).Methods(http.MethodPut, http.MethodPatch)
-	router.Handle(mappingRuleWithIDPath, h.wrap(s.deleteMappingRule)).Methods(http.MethodDelete)
-
-	// Mapping Rule history
-	router.Handle(mappingRuleHistoryPath, h.wrap(s.fetchMappingRuleHistory)).Methods(http.MethodGet)
-
-	// Rollup Rule actions
-	router.Handle(rollupRuleRoot, h.wrap(s.createRollupRule)).Methods(http.MethodPost)
-
-	router.Handle(rollupRuleWithIDPath, h.wrap(s.fetchRollupRule)).Methods(http.MethodGet)
-	router.Handle(rollupRuleWithIDPath, h.wrap(s.updateRollupRule)).Methods(http.MethodPut, http.MethodPatch)
-	router.Handle(rollupRuleWithIDPath, h.wrap(s.deleteRollupRule)).Methods(http.MethodDelete)
-
-	// Rollup Rule history
-	router.Handle(rollupRuleHistoryPath, h.wrap(s.fetchRollupRuleHistory)).Methods(http.MethodGet)
-
+	for _, rh := range routeWithHandlers {
+		if err := registerRoute(router, rh.route.path, rh.route.method, h, rh.handler); err != nil {
+			return err
+		}
+	}
 	s.logger.Info("Registered rules endpoints")
+	return nil
 }
 
 func (s *service) Close() { s.store.Close() }
@@ -220,6 +263,14 @@ func (s *service) createNamespace(w http.ResponseWriter, r *http.Request) error 
 		return err
 	}
 	return s.sendResponse(w, http.StatusCreated, data)
+}
+
+func (s *service) validateNamespace(w http.ResponseWriter, r *http.Request) error {
+	data, err := s.handleRoute(validateRuleSet, r, s.metrics.validateRuleSet)
+	if err != nil {
+		return err
+	}
+	return writeAPIResponse(w, http.StatusOK, data.(string))
 }
 
 func (s *service) deleteNamespace(w http.ResponseWriter, r *http.Request) error {
@@ -308,6 +359,11 @@ func (s *service) fetchRollupRuleHistory(w http.ResponseWriter, r *http.Request)
 		return err
 	}
 	return s.sendResponse(w, http.StatusOK, data)
+}
+
+type route struct {
+	path   string
+	method string
 }
 
 func (s *service) newUpdateOptions(r *http.Request) (UpdateOptions, error) {

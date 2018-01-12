@@ -21,10 +21,11 @@
 package kv
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/m3db/m3ctl/service/r2"
-	"github.com/m3db/m3metrics/errors"
+	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
 	xerrors "github.com/m3db/m3x/errors"
@@ -36,6 +37,8 @@ type store struct {
 	ruleStore    rules.Store
 	updateHelper rules.RuleSetUpdateHelper
 }
+
+var errNilValidator = errors.New("no validator set on StoreOptions so validation is not applicable")
 
 // NewStore returns a new service that knows how to talk to a kv backed r2 store.
 func NewStore(rs rules.Store, opts StoreOptions) r2.Store {
@@ -71,6 +74,15 @@ func (s *store) FetchNamespaces() (*rules.NamespacesView, error) {
 		Namespaces: liveNss,
 		Version:    namespaces.Version,
 	}, nil
+}
+
+func (s *store) ValidateRuleSet(rs *rules.RuleSetSnapshot) error {
+	validator := s.opts.Validator()
+	// If no validator is set, then the validation functionality is not applicable.
+	if validator == nil {
+		return errNilValidator
+	}
+	return validator.ValidateSnapshot(rs)
 }
 
 func (s *store) CreateNamespace(namespaceID string, uOpts r2.UpdateOptions) (*rules.NamespaceView, error) {
@@ -402,9 +414,9 @@ func (s *store) handleUpstreamError(err error) error {
 	}
 
 	switch err.(type) {
-	case errors.RuleConflictError:
+	case merrors.RuleConflictError:
 		return r2.NewConflictError(err.Error())
-	case errors.ValidationError:
+	case merrors.ValidationError:
 		return r2.NewBadInputError(err.Error())
 	default:
 		return r2.NewInternalError(err.Error())

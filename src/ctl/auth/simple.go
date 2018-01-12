@@ -92,23 +92,30 @@ type simpleAuthorization struct {
 	writeWhitelistedUserIDs []string
 }
 
-func (a simpleAuthorization) authorize(httpMethod, userID string) error {
-	switch httpMethod {
-	case http.MethodGet:
-		return a.authorizeUser(a.readWhitelistEnabled, a.readWhitelistedUserIDs, userID)
-	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
-		return a.authorizeUser(a.writeWhitelistEnabled, a.writeWhitelistedUserIDs, userID)
+func (a simpleAuthorization) authorize(authType AuthorizationType, userID string) error {
+	switch authType {
+	case NoAuthorization:
+		return nil
+	case ReadOnlyAuthorization:
+		return a.authorizeUserForRead(userID)
+	case WriteOnlyAuthorization:
+		return a.authorizeUserForWrite(userID)
+	case ReadWriteAuthorization:
+		if err := a.authorizeUserForRead(userID); err != nil {
+			return err
+		}
+		return a.authorizeUserForWrite(userID)
 	default:
-		return fmt.Errorf("unsupported request method: %s", httpMethod)
+		return fmt.Errorf("unsupported authorization type %v passed to handler", authType)
 	}
 }
 
-func (a simpleAuthorization) authorizeUser(useWhitelist bool, whitelistedUsers []string, userID string) error {
-	if !useWhitelist {
+func authorizeUserForAccess(userID string, whitelistedUserIDs []string, enabled bool) error {
+	if !enabled {
 		return nil
 	}
 
-	for _, u := range whitelistedUsers {
+	for _, u := range whitelistedUserIDs {
 		if u == userID {
 			return nil
 		}
@@ -116,9 +123,17 @@ func (a simpleAuthorization) authorizeUser(useWhitelist bool, whitelistedUsers [
 	return fmt.Errorf("supplied userID: [%s] is not authorized", userID)
 }
 
+func (a simpleAuthorization) authorizeUserForRead(userID string) error {
+	return authorizeUserForAccess(userID, a.readWhitelistedUserIDs, a.readWhitelistEnabled)
+}
+
+func (a simpleAuthorization) authorizeUserForWrite(userID string) error {
+	return authorizeUserForAccess(userID, a.writeWhitelistedUserIDs, a.writeWhitelistEnabled)
+}
+
 // Authenticate looks for a header defining a user name. If it finds it, runs the actual http handler passed as a parameter.
 // Otherwise, it returns an Unauthorized http response.
-func (a simpleAuth) NewAuthHandler(next http.Handler, errHandler errorResponseHandler) http.Handler {
+func (a simpleAuth) NewAuthHandler(authType AuthorizationType, next http.Handler, errHandler errorResponseHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var (
 			userID       = r.Header.Get(a.authentication.userIDHeader)
@@ -133,7 +148,7 @@ func (a simpleAuth) NewAuthHandler(next http.Handler, errHandler errorResponseHa
 			return
 		}
 
-		err = a.authorization.authorize(r.Method, userID)
+		err = a.authorization.authorize(authType, userID)
 		if err != nil {
 			errHandler(w, http.StatusForbidden, err.Error())
 			return

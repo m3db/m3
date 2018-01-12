@@ -28,7 +28,7 @@ type Service interface {
 	URLPrefix() string
 
 	// RegisterHandlers wires the http handlers for this Service with the given router.
-	RegisterHandlers(router *mux.Router)
+	RegisterHandlers(router *mux.Router) error
 
 	// Close closes the service.
 	Close()

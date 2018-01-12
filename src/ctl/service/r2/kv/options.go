@@ -23,6 +23,7 @@ package kv
 import (
 	"time"
 
+	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 )
@@ -50,12 +51,19 @@ type StoreOptions interface {
 
 	// RuleUpdatePropagationDelay returns the propagation delay for rule updates.
 	RuleUpdatePropagationDelay() time.Duration
+
+	// SetStoreValidator sets the validator for the store.
+	SetValidator(value rules.Validator) StoreOptions
+
+	// ValidatprOptions returns the validator for the store.
+	Validator() rules.Validator
 }
 
 type storeOptions struct {
 	clockOpts                  clock.Options
 	instrumentOpts             instrument.Options
 	ruleUpdatePropagationDelay time.Duration
+	validator                  rules.Validator
 }
 
 // NewStoreOptions creates a new set of store options.
@@ -95,4 +103,14 @@ func (o *storeOptions) SetRuleUpdatePropagationDelay(value time.Duration) StoreO
 
 func (o *storeOptions) RuleUpdatePropagationDelay() time.Duration {
 	return o.ruleUpdatePropagationDelay
+}
+
+func (o *storeOptions) SetValidator(value rules.Validator) StoreOptions {
+	opts := *o
+	opts.validator = value
+	return &opts
+}
+
+func (o *storeOptions) Validator() rules.Validator {
+	return o.validator
 }
