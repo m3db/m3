@@ -468,7 +468,9 @@ func (s *seeker) Close() error {
 }
 
 // Clone clones a seeker, creating a copy that uses the same underlying resources
-// (mmaps), but that is capable of seeking independently.
+// (mmaps), but that is capable of seeking independently. The original can continue
+// to be used after the clones are closed, but the clones cannot be used after the
+// original is closed.
 func (s *seeker) Clone() (FileSetSeeker, error) {
 	// indexLookup is not concurrency safe, but a parent and its clone can be used
 	// concurrently safely.
