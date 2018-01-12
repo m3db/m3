@@ -475,7 +475,7 @@ func (dt *DTestHarness) newHeartbeatRouter() node.HeartbeatRouter {
 				dt.logger.Fatalf("could not create heartbeat server: %v", err)
 			}
 			// we're closing the server, which will trigger this path. we don't want to error on it
-			dt.logger.Infof("stopping heartbeatserver, err: ", err)
+			dt.logger.Infof("stopping heartbeatserver, server closed or inaccessible. err: %s", err.Error())
 		}
 	}()
 	dt.logger.Infof("serving HeartbeatRouter at %s (i.e. %s)", listenAddress, externalAddress)
