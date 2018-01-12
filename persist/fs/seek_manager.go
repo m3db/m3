@@ -78,6 +78,7 @@ type seekerManager struct {
 	openAnyUnopenSeekersFn openAnyUnopenSeekersFn
 	newOpenSeekerFn        newOpenSeekerFn
 
+	// Used for testing
 	openCloseLoopCallback func()
 }
 
@@ -86,11 +87,15 @@ type seekerUnreadBuf struct {
 	value []byte
 }
 
+// seekersAndBloom contains a slice of seekers for a given shard/blockStart. One of the seeker will be the original,
+// and the others will be clones. The bloomFilter field is a reference to the underlying bloom filter that the
+// original seeker and all of its clones share.
 type seekersAndBloom struct {
 	seekers     []borrowableSeeker
 	bloomFilter *ManagedConcurrentBloomFilter
 }
 
+// borrowableSeeker is just a seeker with an additional field for keeping track of whether or not it has been borrowed.
 type borrowableSeeker struct {
 	seeker     FileSetSeeker
 	isBorrowed bool
@@ -177,7 +182,7 @@ outer:
 		byTime.RUnlock()
 
 		if exists {
-			// Avoid opening a new seeker if already an open seeker
+			// Avoid opening a new seeker if one already exists
 			continue
 		}
 
