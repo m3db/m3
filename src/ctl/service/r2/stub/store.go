@@ -304,6 +304,11 @@ func (s *store) CreateNamespace(namespaceID string, uOpts r2.UpdateOptions) (*ru
 	}
 }
 
+func (s *store) ValidateRuleSet(rs *rules.RuleSetSnapshot) error {
+	// Assumes no validation config for stub store so all rule sets are valid.
+	return nil
+}
+
 func (s *store) DeleteNamespace(namespaceID string, uOpts r2.UpdateOptions) error {
 	switch namespaceID {
 	case s.data.ErrorNamespace:

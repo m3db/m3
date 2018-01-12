@@ -21,8 +21,12 @@
 package r2
 
 import (
+	"fmt"
+
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/rules"
+
+	"github.com/pborman/uuid"
 )
 
 type namespaceJSON struct {
@@ -194,4 +198,49 @@ func newRuleSetJSON(latest *rules.RuleSetSnapshot) ruleSetJSON {
 		MappingRules:  mrJSON,
 		RollupRules:   rrJSON,
 	}
+}
+
+type idGenType int
+
+const (
+	generateID idGenType = iota
+	dontGenerateID
+)
+
+// ruleSetSnapshot create a RuleSetSnapshot from a rulesetJSON. If the ruleSetJSON has no IDs
+// for any of its mapping rules or rollup rules, it generates missing IDs and sets as a string UUID
+// string so they can be stored in a mapping (id -> rule).
+func (r ruleSetJSON) ruleSetSnapshot(idGenType idGenType) (*rules.RuleSetSnapshot, error) {
+	mappingRules := make(map[string]*rules.MappingRuleView, len(r.MappingRules))
+	for _, mr := range r.MappingRules {
+		id := mr.ID
+		if id == "" {
+			if idGenType == dontGenerateID {
+				return nil, fmt.Errorf("can't convert rulesetJSON to ruleSetSnapshot, no mapping rule id for %v", mr)
+			}
+			id = uuid.New()
+			mr.ID = id
+		}
+		mappingRules[id] = mr.mappingRuleView()
+	}
+
+	rollupRules := make(map[string]*rules.RollupRuleView, len(r.RollupRules))
+	for _, rr := range r.RollupRules {
+		id := rr.ID
+		if id == "" {
+			if idGenType == dontGenerateID {
+				return nil, fmt.Errorf("can't convert rulesetJSON to ruleSetSnapshot, no rollup rule id for %v", rr)
+			}
+			id = uuid.New()
+			rr.ID = id
+		}
+		rollupRules[id] = rr.rollupRuleView()
+	}
+
+	return &rules.RuleSetSnapshot{
+		Namespace:    r.Namespace,
+		Version:      r.Version,
+		MappingRules: mappingRules,
+		RollupRules:  rollupRules,
+	}, nil
 }

@@ -130,6 +130,7 @@ func (c kvStoreConfig) NewStore(instrumentOpts instrument.Options) (r2.Store, er
 	// Create kv store.
 	r2StoreOpts := r2kv.NewStoreOptions().
 		SetInstrumentOptions(instrumentOpts).
-		SetRuleUpdatePropagationDelay(c.PropagationDelay)
+		SetRuleUpdatePropagationDelay(c.PropagationDelay).
+		SetValidator(validator)
 	return r2kv.NewStore(rulesStore, r2StoreOpts), nil
 }
