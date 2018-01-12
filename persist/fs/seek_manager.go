@@ -35,6 +35,7 @@ import (
 
 var (
 	errSeekerManagerAlreadyOpenOrClosed              = errors.New("seeker manager already open or is closed")
+	errSeekerManagerAlreadyClosed                    = errors.New("seeker managed already closed")
 	errSeekerManagerFileSetNotFound                  = errors.New("seeker manager lookup fileset not found")
 	errNoAvailableSeekers                            = errors.New("no available seekers")
 	errSeekersDontExist                              = errors.New("seekers don't exist")
@@ -485,6 +486,11 @@ func (m *seekerManager) seekersByTime(shard uint32) *seekersByTime {
 
 func (m *seekerManager) Close() error {
 	m.Lock()
+
+	if m.status == seekerManagerClosed {
+		m.Unlock()
+		return errSeekerManagerAlreadyClosed
+	}
 
 	// Make sure all seekers are returned before allowing the SeekerManager to be closed.
 	// Actual cleanup of the seekers themselves will be handled by the openCloseLoop.
