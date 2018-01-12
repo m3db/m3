@@ -97,13 +97,7 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 // up resources based on their state.
 func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	// Prevent the test from running too slowly
-	defer func() func() {
-		old := seekManagerCloseInterval
-		seekManagerCloseInterval = time.Microsecond
-		return func() {
-			seekManagerCloseInterval = old
-		}
-	}()
+	defer runWithSeekManagerCloseInteral(time.Millisecond)()
 
 	ctrl := gomock.NewController(t)
 
@@ -144,22 +138,33 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 		doneCh <- struct{}{}
 	}
 
-	// Modify the clock on the SeekerManager such that all the seekers we
-	// created are now out of retention
+	// // Modify the clock on the SeekerManager such that all the seekers we
+	// // created are now out of retention
 	metadata := testNs1Metadata(t)
-	newNowFn := func() time.Time {
-		return now.Add(10 * metadata.Options().RetentionOptions().RetentionPeriod())
-	}
-	clockOpts = clockOpts.SetNowFn(newNowFn)
-	m.opts = m.opts.SetClockOptions(clockOpts)
 
 	seekers := []FileSetSeeker{}
+
+	require.NoError(t, m.Open(metadata))
 	// Steps is a series of steps for the test. It is guaranteed that at least
 	// one (not exactly one!) tick of the openCloseLoop will occur between every step.
 	steps := []struct {
 		title string
 		step  func()
 	}{
+		{
+			title: "NOOP, allow at least one tick before the next step",
+			step:  func() {},
+		},
+		{
+			title: "Make sure it didn't clean up the seekers which are still in retention",
+			step: func() {
+				m.RLock()
+				for _, shard := range shards {
+					require.Equal(t, 1, len(m.seekersByTime(shard).seekers[startNano].seekers))
+				}
+				m.RUnlock()
+			},
+		},
 		{
 			title: "Borrow a seeker from each shard and start the openCloseLoop",
 			step: func() {
@@ -169,7 +174,18 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 					require.NotNil(t, seeker)
 					seekers = append(seekers, seeker)
 				}
-				require.NoError(t, m.Open(metadata))
+			},
+		},
+		{
+			title: "Modify the clock on the seekerManager such that all of the seekers are now out of retention",
+			step: func() {
+				newNowFn := func() time.Time {
+					return now.Add(10 * metadata.Options().RetentionOptions().RetentionPeriod())
+				}
+				clockOpts = clockOpts.SetNowFn(newNowFn)
+				m.Lock()
+				m.opts = m.opts.SetClockOptions(clockOpts)
+				m.Unlock()
 			},
 		},
 		{
@@ -179,7 +195,7 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 			},
 		},
 		{
-			title: "Make sure that none of the seekers were cleaned up during the openCloseLoop tick",
+			title: "Make sure that none of the seekers were cleaned up during the openCloseLoop tick (because they're still borrowed)",
 			step: func() {
 				m.RLock()
 				for _, shard := range shards {
@@ -218,5 +234,13 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	for _, step := range steps {
 		step.step()
 		<-doneCh
+	}
+}
+
+func runWithSeekManagerCloseInteral(interval time.Duration) func() {
+	old := seekManagerCloseInterval
+	seekManagerCloseInterval = time.Millisecond
+	return func() {
+		seekManagerCloseInterval = old
 	}
 }
