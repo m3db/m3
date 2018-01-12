@@ -184,6 +184,59 @@
                 }
             }
         },
+        "/namespaces/{namespaceID}/ruleset/validate": {
+            "post": {
+                "tags": [
+                    "namespaces"
+                ],
+                "summary": "Performs validation for a namespace's ruleset.",
+                "operationId": "validateRuleSet",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "namespaceID",
+                        "description": "The name of the namespace",
+                        "type": "string",
+                        "required": true
+                    },
+                    {
+                        "in": "body",
+                        "name": "ruleset",
+                        "description": "The ruleset to validate.",
+                        "required": true,
+                        "schema": {
+                           "$ref": "#/definitions/RuleSet"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The ruleset is valid.",
+                        "schema": {
+                            "$ref": "#/definitions/ApiResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "The ruleset is invalid.",
+                        "schema": {
+                            "$ref": "#/definitions/ApiResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Something went horribly wrong",
+                        "schema": {
+                            "$ref": "#/definitions/ApiResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/namespaces/{namespaceID}/mapping-rules": {
             "post": {
                 "tags": [
