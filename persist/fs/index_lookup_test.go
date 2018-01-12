@@ -123,7 +123,6 @@ func TestClosingCloneDoesNotAffectParent(t *testing.T) {
 	require.NoError(t, indexLookup.close())
 }
 
-// TODO: Add startWg
 func TestParentAndClonesSafeForConcurrentUse(t *testing.T) {
 	numSummaries := 1000
 	numClones := 10
