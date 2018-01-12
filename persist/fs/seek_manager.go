@@ -244,14 +244,20 @@ func (m *seekerManager) ConcurrentIDBloomFilter(shard uint32, start time.Time) (
 	return seekersAndBloom.bloomFilter, nil
 }
 
+// openSeekers should be called with an unlocked seekersByTime instance
 func (m *seekerManager) openSeekers(shard uint32, start time.Time, byTime *seekersByTime) (seekersAndBloom, error) {
-	byTime.Lock()
 	startNano := xtime.ToUnixNano(start)
+
+	byTime.Lock()
+	// openSeekers is called infrequently enough we can afford a defer here
+	defer byTime.Unlock()
+
 	seekersAndBloomInstance, ok := byTime.seekers[startNano]
+	// seekers already open
 	if ok {
-		byTime.Unlock()
 		return seekersAndBloomInstance, nil
 	}
+
 	seekers := make([]borrowableSeeker, 0, m.fetchConcurrency)
 	// Open first one
 	seeker, err := m.newOpenSeekerFn(shard, start)
@@ -259,7 +265,8 @@ func (m *seekerManager) openSeekers(shard uint32, start time.Time, byTime *seeke
 		return seekersAndBloom{}, err
 	}
 	seekers = append(seekers, borrowableSeeker{seeker: seeker})
-	// Clone remaining from original
+
+	// Clone remaining seelers from the original
 	for i := 0; i < m.fetchConcurrency-1; i++ {
 		clone, err := seeker.Clone()
 		if err != nil {
@@ -269,15 +276,16 @@ func (m *seekerManager) openSeekers(shard uint32, start time.Time, byTime *seeke
 				// Don't leak successfully opened seekers
 				multiErr = multiErr.Add(seeker.seeker.Close())
 			}
-			byTime.Unlock()
 			return seekersAndBloom{}, multiErr.FinalError()
 		}
 		seekers = append(seekers, borrowableSeeker{seeker: clone})
 	}
+
 	seekersAndBloomInstance.seekers = seekers
+	// Doesn't matter which seeker we pick to grab the bloom filter from, they all share the same underlying one.
+	// Use index 0 because its guaranteed to be there.
 	seekersAndBloomInstance.bloomFilter = seekers[0].seeker.ConcurrentIDBloomFilter()
 	byTime.seekers[startNano] = seekersAndBloomInstance
-	byTime.Unlock()
 	return seekersAndBloomInstance, nil
 }
 
