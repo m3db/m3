@@ -23,6 +23,7 @@ package fs
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"time"
 
@@ -253,8 +254,10 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 
 	if digest.Checksum(s.indexMmap) != s.expectedIndexDigest {
 		s.Close()
-		// TODO: Fix
-		return errors.New("digest not match")
+		return fmt.Errorf(
+			"index file digest for file: %s does not match the expected digest",
+			filesetPathFromTime(shardDir, blockStart, indexFileSuffix),
+		)
 	}
 
 	s.bloomFilter, err = newManagedConcurrentBloomFilterFromFile(
