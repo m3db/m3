@@ -93,6 +93,14 @@ type streamResult struct {
 }
 
 func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
+	testBlockRetrieverHighConcurrentSeeks(t, false)
+}
+
+func TestBlockRetrieverHighConcurrentSeeksCacheShardIndices(t *testing.T) {
+	testBlockRetrieverHighConcurrentSeeks(t, true)
+}
+
+func testBlockRetrieverHighConcurrentSeeks(t *testing.T, cacheShardIndices bool) {
 	dir, err := ioutil.TempDir("", "testdb")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
@@ -119,7 +127,7 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 	min, max := now.Add(-6*ropts.BlockSize()), now.Add(-ropts.BlockSize())
 
 	var (
-		shards         = 2
+		shards         = []uint32{0, 1, 2}
 		idsPerShard    = 16
 		shardIDs       = make(map[uint32][]ts.ID)
 		dataBytesPerID = 32
@@ -129,7 +137,7 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 	for st := min; !st.After(max); st = st.Add(ropts.BlockSize()) {
 		blockStarts = append(blockStarts, st)
 	}
-	for shard := uint32(0); shard < uint32(shards); shard++ {
+	for _, shard := range shards {
 		shardIDs[shard] = make([]ts.ID, 0, idsPerShard)
 		shardData[shard] = make(map[ts.Hash]map[xtime.UnixNano]checked.Bytes, idsPerShard)
 		for _, blockStart := range blockStarts {
@@ -155,10 +163,12 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 		}
 	}
 
+	retriever.CacheShardIndices(shards)
+
 	var (
 		startWg, readyWg sync.WaitGroup
 		seeksPerID       = 48
-		seeksEach        = shards * idsPerShard * seeksPerID
+		seeksEach        = len(shards) * idsPerShard * seeksPerID
 	)
 
 	var enqueueWg sync.WaitGroup
@@ -177,7 +187,7 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 			results := make([]streamResult, 0, len(blockStarts))
 			compare := ts.Segment{}
 			for j := 0; j < seeksEach; j++ {
-				shard := uint32((j + shardOffset) % shards)
+				shard := uint32((j + shardOffset) % len(shards))
 				idIdx := uint32((j + idOffset) % len(shardIDs[shard]))
 				id := shardIDs[shard][idIdx]
 

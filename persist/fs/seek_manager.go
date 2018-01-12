@@ -34,15 +34,24 @@ import (
 )
 
 var (
-	errSeekerManagerAlreadyOpenOrClosed = errors.New("seeker manager already open or is closed")
-	errSeekerManagerFileSetNotFound     = errors.New("seeker manager lookup fileset not found")
+	errSeekerManagerAlreadyOpenOrClosed              = errors.New("seeker manager already open or is closed")
+	errSeekerManagerFileSetNotFound                  = errors.New("seeker manager lookup fileset not found")
+	errNoAvailableSeekers                            = errors.New("no available seekers")
+	errSeekersDontExist                              = errors.New("seekers don't exist")
+	errCantCloseSeekerManagerWhileSeekersAreBorrowed = errors.New("cant close seeker manager while seekers are borrowed")
+	errReturnedUnmanagedSeeker                       = errors.New("cant return a seeker not managed by the seeker manager")
 )
 
-const (
-	seekManagerCloseInterval = time.Minute
+var (
+	seekManagerCloseInterval = time.Second
 )
 
 type openAnyUnopenSeekersFn func(*seekersByTime) error
+
+type newOpenSeekerFn func(
+	shard uint32,
+	blockStart time.Time,
+) (FileSetSeeker, error)
 
 type seekerManagerStatus int
 
@@ -55,7 +64,8 @@ const (
 type seekerManager struct {
 	sync.RWMutex
 
-	opts Options
+	opts             Options
+	fetchConcurrency int
 
 	bytesPool      pool.CheckedBytesPool
 	filePathPrefix string
@@ -66,6 +76,9 @@ type seekerManager struct {
 	namespaceMetadata      namespace.Metadata
 	unreadBuf              seekerUnreadBuf
 	openAnyUnopenSeekersFn openAnyUnopenSeekersFn
+	newOpenSeekerFn        newOpenSeekerFn
+
+	openCloseLoopCallback func()
 }
 
 type seekerUnreadBuf struct {
@@ -73,11 +86,21 @@ type seekerUnreadBuf struct {
 	value []byte
 }
 
+type seekersAndBloom struct {
+	seekers     []borrowableSeeker
+	bloomFilter *ManagedConcurrentBloomFilter
+}
+
+type borrowableSeeker struct {
+	seeker     FileSetSeeker
+	isBorrowed bool
+}
+
 type seekersByTime struct {
 	sync.RWMutex
 	shard    uint32
 	accessed bool
-	seekers  map[xtime.UnixNano]fileSetSeeker
+	seekers  map[xtime.UnixNano]seekersAndBloom
 }
 
 type seekerManagerPendingClose struct {
@@ -89,13 +112,16 @@ type seekerManagerPendingClose struct {
 func NewSeekerManager(
 	bytesPool pool.CheckedBytesPool,
 	opts Options,
+	fetchConcurrency int,
 ) FileSetSeekerManager {
 	m := &seekerManager{
-		bytesPool:      bytesPool,
-		filePathPrefix: opts.FilePathPrefix(),
-		opts:           opts,
+		bytesPool:        bytesPool,
+		filePathPrefix:   opts.FilePathPrefix(),
+		opts:             opts,
+		fetchConcurrency: fetchConcurrency,
 	}
 	m.openAnyUnopenSeekersFn = m.openAnyUnopenSeekers
+	m.newOpenSeekerFn = m.newOpenSeeker
 	return m
 }
 
@@ -143,6 +169,7 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 	blockSize := m.namespaceMetadata.Options().RetentionOptions().BlockSize()
 	multiErr := xerrors.NewMultiError()
 
+outer:
 	for t := start; !t.After(end); t = t.Add(blockSize) {
 		tNano := xtime.ToUnixNano(t)
 		byTime.RLock()
@@ -161,7 +188,7 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 			continue
 		}
 
-		seeker, err := m.newOpenSeeker(byTime.shard, t)
+		seeker, err := m.newOpenSeekerFn(byTime.shard, t)
 		if err != nil {
 			if err != errSeekerManagerFileSetNotFound {
 				// Best effort to open files, if not there don't bother opening
@@ -171,11 +198,82 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 			continue
 		}
 
-		byTime.seekers[tNano] = seeker
+		seekers := make([]borrowableSeeker, 0, m.fetchConcurrency)
+		seekers = append(seekers, borrowableSeeker{seeker: seeker})
+		for i := 0; i < m.fetchConcurrency-1; i++ {
+			clone, err := seeker.Clone()
+			if err != nil {
+				multiErr = multiErr.Add(err)
+				for _, seeker := range seekers {
+					multiErr = multiErr.Add(seeker.seeker.Close())
+				}
+				continue outer
+			}
+			seekers = append(seekers, borrowableSeeker{seeker: clone})
+		}
+		byTime.seekers[tNano] = seekersAndBloom{
+			seekers:     seekers,
+			bloomFilter: seeker.ConcurrentIDBloomFilter(),
+		}
 		byTime.Unlock()
 	}
 
 	return multiErr.FinalError()
+}
+
+func (m *seekerManager) ConcurrentIDBloomFilter(shard uint32, start time.Time) (*ManagedConcurrentBloomFilter, error) {
+	byTime := m.seekersByTime(shard)
+	byTime.RLock()
+
+	startNano := xtime.ToUnixNano(start)
+	seekersAndBloom, ok := byTime.seekers[startNano]
+	byTime.RUnlock()
+
+	var err error
+	if !ok {
+		seekersAndBloom, err = m.openSeekers(shard, start, byTime)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return seekersAndBloom.bloomFilter, nil
+}
+
+func (m *seekerManager) openSeekers(shard uint32, start time.Time, byTime *seekersByTime) (seekersAndBloom, error) {
+	byTime.Lock()
+	startNano := xtime.ToUnixNano(start)
+	seekersAndBloomInstance, ok := byTime.seekers[startNano]
+	if ok {
+		byTime.Unlock()
+		return seekersAndBloomInstance, nil
+	}
+	seekers := make([]borrowableSeeker, 0, m.fetchConcurrency)
+	// Open first one
+	seeker, err := m.newOpenSeekerFn(shard, start)
+	if err != nil {
+		return seekersAndBloom{}, err
+	}
+	seekers = append(seekers, borrowableSeeker{seeker: seeker})
+	// Clone remaining from original
+	for i := 0; i < m.fetchConcurrency-1; i++ {
+		clone, err := seeker.Clone()
+		if err != nil {
+			multiErr := xerrors.NewMultiError()
+			multiErr = multiErr.Add(err)
+			for _, seeker := range seekers {
+				// Don't leak successfully opened seekers
+				multiErr = multiErr.Add(seeker.seeker.Close())
+			}
+			byTime.Unlock()
+			return seekersAndBloom{}, multiErr.FinalError()
+		}
+		seekers = append(seekers, borrowableSeeker{seeker: clone})
+	}
+	seekersAndBloomInstance.seekers = seekers
+	seekersAndBloomInstance.bloomFilter = seekers[0].seeker.ConcurrentIDBloomFilter()
+	byTime.seekers[startNano] = seekersAndBloomInstance
+	byTime.Unlock()
+	return seekersAndBloomInstance, nil
 }
 
 func (m *seekerManager) Seeker(shard uint32, start time.Time) (FileSetSeeker, error) {
@@ -186,26 +284,91 @@ func (m *seekerManager) Seeker(shard uint32, start time.Time) (FileSetSeeker, er
 	byTime.accessed = true
 
 	startNano := xtime.ToUnixNano(start)
-	seeker, ok := byTime.seekers[startNano]
+	seekersAndBloom, ok := byTime.seekers[startNano]
+	seekers := seekersAndBloom.seekers
 	if ok {
+		availableSeekerIdx := -1
+		availableSeeker := borrowableSeeker{}
+		for i, seeker := range seekers {
+			if !seeker.isBorrowed {
+				availableSeekerIdx = i
+				availableSeeker = seeker
+				break
+			}
+		}
+
+		// Should not occur in the case of a well-behaved caller
+		if availableSeekerIdx == -1 {
+			byTime.Unlock()
+			return nil, errNoAvailableSeekers
+		}
+
+		availableSeeker.isBorrowed = true
+		seekers[availableSeekerIdx] = availableSeeker
+		byTime.seekers[startNano] = seekersAndBloom
 		byTime.Unlock()
-		return seeker, nil
+		return availableSeeker.seeker, nil
 	}
 
+	byTime.Unlock()
 	var err error
-	seeker, err = m.newOpenSeeker(shard, start)
-	if err == nil {
-		byTime.seekers[startNano] = seeker
+	seekersAndBloom, err = m.openSeekers(shard, start, byTime)
+	if err != nil {
+		return nil, err
 	}
+	seekers = seekersAndBloom.seekers
+	byTime.Lock()
+	seeker := seekers[0]
+	seeker.isBorrowed = true
+	seekers[0] = seeker
+	seekersAndBloom.seekers = seekers
+	seekersAndBloom.bloomFilter = seeker.seeker.ConcurrentIDBloomFilter()
+	byTime.seekers[startNano] = seekersAndBloom
 	byTime.Unlock()
 
-	return seeker, err
+	return seeker.seeker, nil
+}
+
+func (m *seekerManager) ReturnSeeker(shard uint32, start time.Time, seeker FileSetSeeker) error {
+	byTime := m.seekersByTime(shard)
+
+	byTime.Lock()
+
+	startNano := xtime.ToUnixNano(start)
+	seekersAndBloom, ok := byTime.seekers[startNano]
+	// Should never happen - This either means that the caller (BlockRetriever) is trying to return seekers
+	// that it never requested, OR its trying to return seekers after the openCloseLoop has already
+	// determined that they were all no longer in use and safe to close. Either way it indicates there is
+	// a bug in the code.
+	if !ok {
+		byTime.Unlock()
+		return errSeekersDontExist
+	}
+
+	found := false
+	for i, compareSeeker := range seekersAndBloom.seekers {
+		if seeker == compareSeeker.seeker {
+			found = true
+			compareSeeker.isBorrowed = false
+			seekersAndBloom.seekers[i] = compareSeeker
+			break
+		}
+	}
+	// Should never happen with a well behaved caller. Either they are trying to return a seeker
+	// that we're not managing, or they provided the wrong shard/start.
+	if !found {
+		return errReturnedUnmanagedSeeker
+	}
+
+	byTime.seekers[startNano] = seekersAndBloom
+	byTime.Unlock()
+	return nil
 }
 
 func (m *seekerManager) newOpenSeeker(
 	shard uint32,
 	blockStart time.Time,
-) (fileSetSeeker, error) {
+) (FileSetSeeker, error) {
 	if !FilesetExistsAt(m.filePathPrefix, m.namespace, shard, blockStart) {
 		return nil, errSeekerManagerFileSetNotFound
 	}
@@ -270,7 +433,7 @@ func (m *seekerManager) seekersByTime(shard uint32) *seekersByTime {
 		}
 		seekersByShardIdx[i] = &seekersByTime{
 			shard:   uint32(i),
-			seekers: make(map[xtime.UnixNano]fileSetSeeker),
+			seekers: make(map[xtime.UnixNano]seekersAndBloom),
 		}
 	}
 
@@ -283,6 +446,21 @@ func (m *seekerManager) seekersByTime(shard uint32) *seekersByTime {
 func (m *seekerManager) Close() error {
 	m.Lock()
 	defer m.Unlock()
+
+	// Make sure all seekers are returned before allowing the SeekerManager to be closed.
+	// Actual cleanup of the seekers themselves will be handled by the openCloseLoop.
+	for _, byTime := range m.seekersByShardIdx {
+		byTime.Lock()
+		for _, seekersByTime := range byTime.seekers {
+			for _, seeker := range seekersByTime.seekers {
+				if seeker.isBorrowed {
+					byTime.Unlock()
+					return errCantCloseSeekerManagerWhileSeekersAreBorrowed
+				}
+			}
+		}
+		byTime.Unlock()
+	}
 
 	m.namespace = nil
 	m.status = seekerManagerClosed
@@ -311,7 +489,7 @@ func (m *seekerManager) openCloseLoop() {
 	var (
 		shouldTryOpen []*seekersByTime
 		shouldClose   []seekerManagerPendingClose
-		closing       []fileSetSeeker
+		closing       []borrowableSeeker
 	)
 	resetSlices := func() {
 		for i := range shouldTryOpen {
@@ -323,7 +501,7 @@ func (m *seekerManager) openCloseLoop() {
 		}
 		shouldClose = shouldClose[:0]
 		for i := range closing {
-			closing[i] = nil
+			closing[i] = borrowableSeeker{}
 		}
 		closing = closing[:0]
 	}
@@ -374,9 +552,21 @@ func (m *seekerManager) openCloseLoop() {
 				byTime := m.seekersByShardIdx[elem.shard]
 				blockStartNano := xtime.ToUnixNano(elem.blockStart)
 				byTime.Lock()
-				seeker := byTime.seekers[blockStartNano]
-				closing = append(closing, seeker)
-				delete(byTime.seekers, blockStartNano)
+				seekersAndBloom := byTime.seekers[blockStartNano]
+				allSeekersAreReturned := true
+				for _, seeker := range seekersAndBloom.seekers {
+					if seeker.isBorrowed {
+						allSeekersAreReturned = false
+						break
+					}
+				}
+				// Never close seekers unless they've all been returned because
+				// some of them are clones of the original and can't be used once
+				// the parent is closed (because they share underlying resources)
+				if allSeekersAreReturned {
+					closing = append(closing, seekersAndBloom.seekers...)
+					delete(byTime.seekers, blockStartNano)
+				}
 				byTime.Unlock()
 			}
 		}
@@ -384,9 +574,12 @@ func (m *seekerManager) openCloseLoop() {
 
 		// Close after releasing lock so any IO is done out of lock
 		for _, seeker := range closing {
-			seeker.Close()
+			seeker.seeker.Close()
 		}
 
+		if m.openCloseLoopCallback != nil {
+			m.openCloseLoopCallback()
+		}
 		time.Sleep(seekManagerCloseInterval)
 
 		resetSlices()
@@ -396,12 +589,20 @@ func (m *seekerManager) openCloseLoop() {
 	m.Lock()
 	for _, byTime := range m.seekersByShardIdx {
 		byTime.Lock()
-		for _, seeker := range byTime.seekers {
-			seeker.Close()
+		for _, seekersByTime := range byTime.seekers {
+			for _, seeker := range seekersByTime.seekers {
+				// We don't need to check if the seeker is borrowed here because we don't allow the
+				// SeekerManager to be closed if any seekers are still outstanding.
+				seeker.seeker.Close()
+			}
 		}
 		byTime.seekers = nil
 		byTime.Unlock()
 	}
 	m.seekersByShardIdx = nil
 	m.Unlock()
+
+	if m.openCloseLoopCallback != nil {
+		m.openCloseLoopCallback()
+	}
 }

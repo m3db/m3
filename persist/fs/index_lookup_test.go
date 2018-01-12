@@ -20,14 +20,20 @@
 package fs
 
 import (
+	"bytes"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"sort"
+	"strconv"
+	"sync"
+	"testing"
+
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
+	"github.com/m3db/m3db/ts"
 	"github.com/stretchr/testify/require"
-	"io/ioutil"
-	"os"
-	"testing"
 )
 
 func TestNewNearestIndexOffsetDetectsUnsortedFiles(t *testing.T) {
@@ -77,6 +83,131 @@ func TestNewNearestIndexOffsetDetectsUnsortedFiles(t *testing.T) {
 	require.Equal(t, expectedErr, err)
 }
 
+func TestCloneCannotBeCloned(t *testing.T) {
+	indexLookup := newNearestIndexOffsetLookup(nil, nil, nil)
+	clone, err := indexLookup.clone()
+	require.NoError(t, err)
+
+	_, err = clone.clone()
+	require.Error(t, err)
+	require.NoError(t, indexLookup.close())
+	require.NoError(t, clone.close())
+}
+
+func TestClosingCloneDoesNotAffectParent(t *testing.T) {
+	indexSummaries := []schema.IndexSummary{
+		schema.IndexSummary{
+			Index:            0,
+			ID:               []byte("0"),
+			IndexEntryOffset: 0,
+		},
+		schema.IndexSummary{
+			Index:            1,
+			ID:               []byte("1"),
+			IndexEntryOffset: 10,
+		},
+	}
+
+	indexLookup := newIndexLookupWithValidData(t, indexSummaries)
+	clone, err := indexLookup.clone()
+	require.NoError(t, err)
+	require.NoError(t, clone.close())
+	for _, summary := range indexSummaries {
+		id := ts.StringID(string(summary.ID))
+		require.NoError(t, err)
+		offset, err := clone.getNearestIndexFileOffset(id)
+		require.NoError(t, err)
+		require.Equal(t, summary.IndexEntryOffset, offset)
+		id.Finalize()
+	}
+	require.NoError(t, indexLookup.close())
+}
+
+// TODO: Add startWg
+func TestParentAndClonesSafeForConcurrentUse(t *testing.T) {
+	numSummaries := 1000
+	numClones := 10
+
+	// Create test summary entries
+	indexSummaries := []schema.IndexSummary{}
+	for i := 0; i < numSummaries; i++ {
+		indexSummaries = append(indexSummaries, schema.IndexSummary{
+			Index:            int64(i),
+			ID:               []byte(strconv.Itoa(i)),
+			IndexEntryOffset: int64(10 * i),
+		})
+	}
+	sort.Sort(sortableSummaries(indexSummaries))
+
+	// Create indexLookup and associated clones
+	indexLookup := newIndexLookupWithValidData(t, indexSummaries)
+	clones := []*nearestIndexOffsetLookup{}
+	for i := 0; i < numClones; i++ {
+		clone, err := indexLookup.clone()
+		require.NoError(t, err)
+		clones = append(clones, clone)
+	}
+
+	// Spin up a goroutine for each clone that looks up every offset
+	wg := sync.WaitGroup{}
+	wg.Add(len(clones) + 1)
+	lookupOffsetsFunc := func(clone *nearestIndexOffsetLookup) {
+		for _, summary := range indexSummaries {
+			id := ts.StringID(string(summary.ID))
+			offset, err := clone.getNearestIndexFileOffset(id)
+			require.NoError(t, err)
+			require.Equal(t, summary.IndexEntryOffset, offset)
+			id.Finalize()
+		}
+		wg.Done()
+	}
+	go lookupOffsetsFunc(indexLookup)
+	for _, clone := range clones {
+		go lookupOffsetsFunc(clone)
+	}
+
+	// Wait for all workers to finish and then make sure everything can be cleaned
+	// up properly
+	wg.Wait()
+	require.NoError(t, indexLookup.close())
+	for _, clone := range clones {
+		require.NoError(t, clone.close())
+	}
+}
+
+func newIndexLookupWithValidData(t *testing.T, indexSummaries []schema.IndexSummary) *nearestIndexOffsetLookup {
+	// Create a temp file
+	file, err := ioutil.TempFile("", "index-lookup-sort")
+	require.NoError(t, err)
+	defer os.Remove(file.Name())
+
+	// Write out the out-of-order summaries into the temp file
+	writeSummariesEntries(t, file, indexSummaries)
+
+	// Prepare the digest reader
+	summariesFdWithDigest := digest.NewFdWithDigestReader(4096)
+	file.Seek(0, 0)
+	summariesFdWithDigest.Reset(file)
+
+	// Determine the expected digest
+	expectedDigest := calculateExpectedDigest(t, summariesFdWithDigest)
+
+	// Reset the digest reader
+	file.Seek(0, 0)
+	summariesFdWithDigest.Reset(file)
+
+	// Try and create the index lookup and make sure it detects the file is out
+	// of order
+	indexLookup, err := newNearestIndexOffsetLookupFromSummariesFile(
+		summariesFdWithDigest,
+		expectedDigest,
+		msgpack.NewDecoder(nil),
+		len(indexSummaries),
+	)
+	require.NoError(t, err)
+	return indexLookup
+}
+
 func writeSummariesEntries(t *testing.T, fd *os.File, summaries []schema.IndexSummary) {
 	encoder := msgpack.NewEncoder()
 	for _, summary := range summaries {
@@ -98,4 +229,20 @@ func calculateExpectedDigest(t *testing.T, digestReader digest.FdWithDigestReade
 	_, err = digestReader.Read(make([]byte, fileSize))
 	require.NoError(t, err)
 	return digestReader.Digest().Sum32()
+}
+
+type sortableSummaries []schema.IndexSummary
+
+func (s sortableSummaries) Len() int {
+	return len(s)
+}
+
+func (s sortableSummaries) Less(i, j int) bool {
+	return bytes.Compare(s[i].ID, s[j].ID) < 0
+}
+
+func (s sortableSummaries) Swap(i, j int) {
+	temp := s[i]
+	s[i] = s[j]
+	s[j] = temp
 }

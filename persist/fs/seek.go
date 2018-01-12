@@ -48,6 +48,9 @@ var (
 
 	// errNotEnoughBytes returned when the data file doesn't have enough bytes to satisfy a read
 	errNotEnoughBytes = errors.New("invalid data file, not enough bytes to satisfy read")
+
+	// errClonesShouldNotBeOpened returned when Open() is called on a clone
+	errClonesShouldNotBeOpened = errors.New("clone should not be opened")
 )
 
 type seeker struct {
@@ -81,13 +84,16 @@ type seeker struct {
 
 	unreadBuf []byte
 
-	decoder   *msgpack.Decoder
-	bytesPool pool.CheckedBytesPool
+	decoder      *msgpack.Decoder
+	decodingOpts msgpack.DecodingOptions
+	bytesPool    pool.CheckedBytesPool
 
 	// Bloom filter associated with the shard / block the seeker is responsible
 	// for. Needs to be closed when done.
 	bloomFilter *ManagedConcurrentBloomFilter
 	indexLookup *nearestIndexOffsetLookup
+
+	isClone bool
 }
 
 // IndexEntry is an entry from the index file which can be passed to
@@ -157,6 +163,8 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		keepUnreadBuf:              opts.keepUnreadBuf,
 		bytesPool:                  opts.bytesPool,
 		decoder:                    msgpack.NewDecoder(opts.decodingOpts),
+		decodingOpts:               opts.decodingOpts,
+		opts:                       opts.opts,
 	}
 }
 
@@ -165,6 +173,10 @@ func (s *seeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter {
 }
 
 func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
+	if s.isClone {
+		return errClonesShouldNotBeOpened
+	}
+
 	shardDir := ShardDirPath(s.filePathPrefix, namespace, shard)
 	var infoFd, indexFd, dataFd, digestFd, bloomFilterFd, summariesFd *os.File
 
@@ -432,6 +444,10 @@ func (s *seeker) Entries() int {
 }
 
 func (s *seeker) Close() error {
+	// Parent should handle cleaning up shared resources
+	if s.isClone {
+		return nil
+	}
 	multiErr := xerrors.NewMultiError()
 	if s.bloomFilter != nil {
 		multiErr = multiErr.Add(s.bloomFilter.Close())
@@ -450,4 +466,29 @@ func (s *seeker) Close() error {
 		s.dataMmap = nil
 	}
 	return multiErr.FinalError()
+}
+
+// Clone clones a seeker, creating a copy that uses the same underlying resources
+// (mmaps), but that is capable of seeking independently.
+func (s *seeker) Clone() (FileSetSeeker, error) {
+	// indexLookup is not concurrency safe, but a parent and its clone can be used
+	// concurrently safely.
+	indexLookupClone, err := s.indexLookup.clone()
+	if err != nil {
+		return nil, err
+	}
+
+	return &seeker{
+		// Bare-minimum required fields for a clone to function properly
+		bytesPool: s.bytesPool,
+		decoder:   msgpack.NewDecoder(s.decodingOpts),
+		opts:      s.opts,
+		// Mmaps are read-only so they're concurrency safe
+		dataMmap:  s.dataMmap,
+		indexMmap: s.indexMmap,
+		// bloomFilter is concurrency safe
+		bloomFilter: s.bloomFilter,
+		indexLookup: indexLookupClone,
+		isClone:     true,
+	}, nil
 }

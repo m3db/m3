@@ -285,3 +285,47 @@ func TestReuseSeeker(t *testing.T) {
 	defer data.DecRef()
 	assert.Equal(t, []byte{1, 2, 3}, data.Get())
 }
+
+func TestCloneSeeker(t *testing.T) {
+	dir, err := ioutil.TempDir("", "testdb")
+	if err != nil {
+		t.Fatal(err)
+	}
+	filePathPrefix := filepath.Join(dir, "")
+	defer os.RemoveAll(dir)
+
+	w := newTestWriter(t, filePathPrefix)
+
+	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart.Add(-time.Hour))
+	assert.NoError(t, err)
+	assert.NoError(t, w.Write(
+		ts.StringID("foo"),
+		bytesRefd([]byte{1, 2, 1}),
+		digest.Checksum([]byte{1, 2, 1})))
+	assert.NoError(t, w.Close())
+
+	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
+	assert.NoError(t, err)
+	assert.NoError(t, w.Write(
+		ts.StringID("foo"),
+		bytesRefd([]byte{1, 2, 3}),
+		digest.Checksum([]byte{1, 2, 3})))
+	assert.NoError(t, w.Close())
+
+	s := newTestSeeker(filePathPrefix)
+	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour))
+	assert.NoError(t, err)
+
+	clone, err := s.Clone()
+	require.NoError(t, err)
+
+	data, err := clone.SeekByID(ts.StringID("foo"))
+	require.NoError(t, err)
+
+	data.IncRef()
+	defer data.DecRef()
+	assert.Equal(t, []byte{1, 2, 1}, data.Get())
+
+	err = clone.Open(testNs1ID, 0, testWriterStart)
+	assert.Equal(t, errClonesShouldNotBeOpened, err)
+}

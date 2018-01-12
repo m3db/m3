@@ -19,7 +19,7 @@
 // THE SOFTWARE.
 
 // mockgen rules for generating mocks for exported interfaces (reflection mode)
-//go:generate sh -c "mockgen -package=fs $PACKAGE/persist/fs FileSetWriter,FileSetReader | go run $GOPATH/src/$PACKAGE/generated/mocks/writer/writer_main.go -pkg $PACKAGE/persist/fs -out $GOPATH/src/$PACKAGE/persist/fs/fs_mock.go"
+//go:generate sh -c "mockgen -package=fs $PACKAGE/persist/fs FileSetWriter,FileSetReader,FileSetSeeker | go run $GOPATH/src/$PACKAGE/generated/mocks/writer/writer_main.go -pkg $PACKAGE/persist/fs -out $GOPATH/src/$PACKAGE/persist/fs/fs_mock.go"
 //go:generate sh -c "mockgen -package=xio -destination=$GOPATH/src/$PACKAGE/x/io/io_mock.go $PACKAGE/x/io ReaderSliceReader,SegmentReader"
 //go:generate sh -c "mockgen -package=digest -destination=$GOPATH/src/$PACKAGE/digest/digest_mock.go $PACKAGE/digest ReaderWithDigest"
 //go:generate sh -c "mockgen -package=series $PACKAGE/storage/series DatabaseSeries | go run $GOPATH/src/$PACKAGE/generated/mocks/writer/writer_main.go -pkg $PACKAGE/storage/series -out $GOPATH/src/$PACKAGE/storage/series/series_mock.go"

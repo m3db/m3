@@ -137,6 +137,10 @@ type FileSetSeeker interface {
 	// Test() method returns true, the ID may exist on disk, but if it returns
 	// false, it definitely does not.
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
+
+	// TODO: Better explanation
+	// Clone clones a FileSetSeeker
+	Clone() (FileSetSeeker, error)
 }
 
 // FileSetSeekerManager provides management of seekers for a TSDB namespace.
@@ -152,6 +156,13 @@ type FileSetSeekerManager interface {
 
 	// Seeker returns an open seeker for a given shard and block start time.
 	Seeker(shard uint32, start time.Time) (FileSetSeeker, error)
+
+	// ReturnSeeker returns an open seeker for a given shard and block start time.
+	ReturnSeeker(shard uint32, start time.Time, seeker FileSetSeeker) error
+
+	// ConcurrentIDBloomFilter returns a concurrent ID bloom filter for a given
+	// shard and block start time
+	ConcurrentIDBloomFilter(shard uint32, start time.Time) (*ManagedConcurrentBloomFilter, error)
 }
 
 // BlockRetriever provides a block retriever for TSDB file sets

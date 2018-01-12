@@ -22,6 +22,7 @@ package fs
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 
 	"github.com/m3db/m3db/digest"
@@ -30,6 +31,8 @@ import (
 	xmsgpack "github.com/m3db/m3db/persist/fs/msgpack"
 	"gopkg.in/vmihailenco/msgpack.v2"
 )
+
+var errCloneShouldNotBeCloned = errors.New("clones should not be cloned")
 
 // nearestIndexOffsetLookup provides a way of quickly determining the nearest offset of an
 // ID in the index file. It is not safe for concurrent use
@@ -40,6 +43,7 @@ type nearestIndexOffsetLookup struct {
 	// reusable decoder stream
 	decoderStream  xmsgpack.DecoderStream
 	msgpackDecoder *msgpack.Decoder
+	isClone        bool
 }
 
 func newNearestIndexOffsetLookup(
@@ -52,7 +56,22 @@ func newNearestIndexOffsetLookup(
 		summariesMmap:     summariesMmap,
 		decoderStream:     decoderStream,
 		msgpackDecoder:    msgpack.NewDecoder(nil),
+		isClone:           false,
 	}
+}
+
+func (il *nearestIndexOffsetLookup) clone() (*nearestIndexOffsetLookup, error) {
+	if il.isClone {
+		return nil, errCloneShouldNotBeCloned
+	}
+
+	return &nearestIndexOffsetLookup{
+		summaryIDsOffsets: il.summaryIDsOffsets,
+		summariesMmap:     il.summariesMmap,
+		decoderStream:     xmsgpack.NewDecoderStream(nil),
+		msgpackDecoder:    msgpack.NewDecoder(nil),
+		isClone:           true,
+	}, nil
 }
 
 // getNearestIndexFileOffset returns either:
@@ -126,6 +145,10 @@ func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(id ts.ID) (int64, 
 }
 
 func (il *nearestIndexOffsetLookup) close() error {
+	// Parent should clean up shared resources
+	if il.isClone {
+		return nil
+	}
 	return munmap(il.summariesMmap)
 }
 
