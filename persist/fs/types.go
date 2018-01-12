@@ -138,8 +138,10 @@ type FileSetSeeker interface {
 	// false, it definitely does not.
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
 
-	// TODO: Better explanation
-	// Clone clones a FileSetSeeker
+	// Clone clones a seeker, creating a copy that uses the same underlying resources
+	// (mmaps), but that is capable of seeking independently. The original can continue
+	// to be used after the clones are closed, but the clones cannot be used after the
+	// original is closed.
 	Clone() (FileSetSeeker, error)
 }
 
