@@ -78,10 +78,8 @@ type seekerManager struct {
 	unreadBuf              seekerUnreadBuf
 	openAnyUnopenSeekersFn openAnyUnopenSeekersFn
 	newOpenSeekerFn        newOpenSeekerFn
+	sleepFn                func(d time.Duration)
 	openCloseLoopDoneCh    chan struct{}
-
-	// Used for testing
-	openCloseLoopCallback func()
 }
 
 type seekerUnreadBuf struct {
@@ -131,6 +129,7 @@ func NewSeekerManager(
 	}
 	m.openAnyUnopenSeekersFn = m.openAnyUnopenSeekers
 	m.newOpenSeekerFn = m.newOpenSeeker
+	m.sleepFn = time.Sleep
 	return m
 }
 
@@ -625,10 +624,7 @@ func (m *seekerManager) openCloseLoop() {
 			seeker.seeker.Close()
 		}
 
-		if m.openCloseLoopCallback != nil {
-			m.openCloseLoopCallback()
-		}
-		time.Sleep(seekManagerCloseInterval)
+		m.sleepFn(seekManagerCloseInterval)
 
 		resetSlices()
 	}

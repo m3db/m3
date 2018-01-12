@@ -142,7 +142,8 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 
 	// Notified everytime the openCloseLoop ticks
 	tickCh := make(chan struct{})
-	m.openCloseLoopCallback = func() {
+	m.sleepFn = func(_ time.Duration) {
+		time.Sleep(time.Millisecond)
 		go func() { tickCh <- struct{}{} }()
 	}
 
