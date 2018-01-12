@@ -61,7 +61,11 @@ type dbBlock struct {
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
-func NewDatabaseBlock(start time.Time, segment ts.Segment, opts Options) DatabaseBlock {
+func NewDatabaseBlock(
+	start time.Time,
+	segment ts.Segment,
+	opts Options,
+) DatabaseBlock {
 	b := &dbBlock{
 		opts:           opts,
 		ctx:            opts.ContextPool().Get(),

@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -135,6 +135,14 @@ func (_mr *_MockDatabaseSeriesRecorder) IsEmpty() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsEmpty")
 }
 
+func (_m *MockDatabaseSeries) OnRetrieveBlock(_param0 ts.ID, _param1 time0.Time, _param2 ts.Segment) {
+	_m.ctrl.Call(_m, "OnRetrieveBlock", _param0, _param1, _param2)
+}
+
+func (_mr *_MockDatabaseSeriesRecorder) OnRetrieveBlock(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "OnRetrieveBlock", arg0, arg1, arg2)
+}
+
 func (_m *MockDatabaseSeries) ReadEncoded(_param0 context.Context, _param1 time0.Time, _param2 time0.Time) ([][]io.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", _param0, _param1, _param2)
 	ret0, _ := ret[0].([][]io.SegmentReader)
@@ -146,12 +154,12 @@ func (_mr *_MockDatabaseSeriesRecorder) ReadEncoded(arg0, arg1, arg2 interface{}
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadEncoded", arg0, arg1, arg2)
 }
 
-func (_m *MockDatabaseSeries) Reset(_param0 ts.ID, _param1 QueryableBlockRetriever, _param2 Options) {
-	_m.ctrl.Call(_m, "Reset", _param0, _param1, _param2)
+func (_m *MockDatabaseSeries) Reset(_param0 ts.ID, _param1 QueryableBlockRetriever, _param2 block.OnRetrieveBlock, _param3 Options) {
+	_m.ctrl.Call(_m, "Reset", _param0, _param1, _param2, _param3)
 }
 
-func (_mr *_MockDatabaseSeriesRecorder) Reset(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1, arg2)
+func (_mr *_MockDatabaseSeriesRecorder) Reset(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1, arg2, arg3)
 }
 
 func (_m *MockDatabaseSeries) Tick() (TickResult, error) {

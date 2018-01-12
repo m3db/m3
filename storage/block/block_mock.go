@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -216,6 +216,14 @@ func NewMockDatabaseBlock(ctrl *gomock.Controller) *MockDatabaseBlock {
 
 func (_m *MockDatabaseBlock) EXPECT() *_MockDatabaseBlockRecorder {
 	return _m.recorder
+}
+
+func (_m *MockDatabaseBlock) OnRetrieveBlock(id ts.ID, startTime time0.Time, segment ts.Segment) {
+	_m.ctrl.Call(_m, "OnRetrieveBlock", id, startTime, segment)
+}
+
+func (_mr *_MockDatabaseBlockRecorder) OnRetrieveBlock(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "OnRetrieveBlock", arg0, arg1, arg2)
 }
 
 func (_m *MockDatabaseBlock) StartTime() time0.Time {

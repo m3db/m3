@@ -297,8 +297,8 @@ func (r *blockRetriever) fetchBatch(
 		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found
 		if req.onRetrieve != nil && !req.notFound {
 			// NB(r): Need to also trigger callback with a copy of the data.
-			// This is used by the database series to cache the in
-			// memory data.
+			// This is used by the database to cache the in memory data for
+			// consequent fetches.
 			var segCopy ts.Segment
 			if data != nil {
 				dataCopy := r.bytesPool.Get(data.Len())

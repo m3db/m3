@@ -67,7 +67,12 @@ var (
 	errShardInvalidPageToken      = errors.New("shard could not unmarshal page token")
 )
 
-type filesetBeforeFn func(filePathPrefix string, namespace ts.ID, shardID uint32, t time.Time) ([]string, error)
+type filesetBeforeFn func(
+	filePathPrefix string,
+	namespace ts.ID,
+	shardID uint32,
+	t time.Time,
+) ([]string, error)
 
 type tickPolicy int
 
@@ -92,6 +97,7 @@ type dbShard struct {
 	state                    dbShardState
 	namespace                namespace.Metadata
 	seriesBlockRetriever     series.QueryableBlockRetriever
+	seriesOnRetrieveBlock    block.OnRetrieveBlock
 	shard                    uint32
 	namespaceReaderMgr       databaseNamespaceReaderManager
 	increasingIndex          increasingIndex
@@ -244,9 +250,11 @@ func newDatabaseShard(
 
 	if blockRetriever != nil {
 		// If passing the block retriever then set the block retriever
-		// and set the series block retriever as the shard itself
+		// and set the series block retriever as the shard itself and
+		// the on retrieve block callback as the shard itself as well
 		d.DatabaseBlockRetriever = blockRetriever
 		d.seriesBlockRetriever = d
+		d.seriesOnRetrieveBlock = d
 	}
 
 	d.metrics.create.Inc(1)
@@ -297,8 +305,54 @@ func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
 		flushState.Status))
 }
 
+func (s *dbShard) OnRetrieveBlock(
+	id ts.ID,
+	startTime time.Time,
+	segment ts.Segment,
+) {
+	s.RLock()
+	entry, _, err := s.lookupEntryWithLock(id)
+	if entry != nil {
+		entry.incrementReaderWriterCount()
+	}
+	s.RUnlock()
+	defer func() {
+		// Decrement reader if we incremented it
+		if entry != nil {
+			entry.decrementReaderWriterCount()
+		}
+		// Finalize the copied ID we passed when trying to
+		// retrieve the block initially
+		id.Finalize()
+	}()
+
+	if err != nil && err != errShardEntryNotFound {
+		return // Likely closing
+	}
+
+	if entry != nil {
+		entry.series.OnRetrieveBlock(id, startTime, segment)
+		return
+	}
+
+	// Insert batched with the retrieved block
+	entry = s.newShardEntry(id)
+	copiedID := entry.series.ID()
+	s.insertQueue.Insert(dbShardInsert{
+		entry: entry,
+		opts: dbShardInsertAsyncOptions{
+			hasPendingRetrievedBlock: true,
+			pendingRetrievedBlock: dbShardPendingRetrievedBlock{
+				id:      copiedID,
+				start:   startTime,
+				segment: segment,
+			},
+		},
+	})
+}
+
 func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
-	// NB(r): consider using a lockless list for ticking
+	// NB(r): consider using a lockless list for ticking.
 	s.RLock()
 	elemsLen := s.list.Len()
 	batchSize := int(math.Ceil(shardIterateBatchPercent * float64(elemsLen)))
@@ -538,11 +592,11 @@ func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {
 			continue
 		}
 		entry := elem.Value.(*dbShardEntry)
-		// If this series is currently being written to, we don't remove
-		// it even though it's empty in that it might become non-empty soon.
-		// For active readers we avoid closing the series during a read as well
-		// to ensure a consistent view of the series if they manage to
-		// take a reference to it.
+		// If this series is currently being written to or read from, we don't
+		// remove it even though it's empty in that it might become non-empty
+		// soon.
+		// We avoid closing the series during a read to ensure a consistent view
+		// of the series if they manage to take a reference to it.
 		if entry.readerWriterCount() > 0 {
 			continue
 		}
@@ -580,9 +634,7 @@ func (s *dbShard) Write(
 	// If no entry and we are not writing new series asynchronously
 	if !writable && !opts.writeNewSeriesAsync {
 		// Avoid double lookup by enqueueing insert immediately
-		result, err := s.insertSeriesAsyncBatched(id, insertAsyncOptions{
-			hasPendingWrite: false,
-		})
+		result, err := s.insertSeriesAsyncBatched(id, dbShardInsertAsyncOptions{})
 		if err != nil {
 			return err
 		}
@@ -619,7 +671,7 @@ func (s *dbShard) Write(
 		}
 	} else {
 		// This is an asynchronous insert and write
-		result, err := s.insertSeriesAsyncBatched(id, insertAsyncOptions{
+		result, err := s.insertSeriesAsyncBatched(id, dbShardInsertAsyncOptions{
 			hasPendingWrite: true,
 			pendingWrite: dbShardPendingWrite{
 				timestamp:  timestamp,
@@ -690,8 +742,9 @@ func (s *dbShard) ReadEncoded(
 	}
 
 	retriever := s.seriesBlockRetriever
+	onRetrieve := s.seriesOnRetrieveBlock
 	opts := s.seriesOpts
-	reader := series.NewReaderForRetriever(id, retriever, opts)
+	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, opts)
 	return reader.ReadEncoded(ctx, start, end)
 }
 
@@ -720,9 +773,7 @@ func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
 		}
 
 		// Not inserted, attempt a batched insert
-		result, err := s.insertSeriesAsyncBatched(id, insertAsyncOptions{
-			hasPendingWrite: false,
-		})
+		result, err := s.insertSeriesAsyncBatched(id, dbShardInsertAsyncOptions{})
 		if err != nil {
 			return nil, err
 		}
@@ -759,15 +810,11 @@ func (s *dbShard) tryRetrieveWritableSeries(id ts.ID) (
 
 func (s *dbShard) newShardEntry(id ts.ID) *dbShardEntry {
 	series := s.seriesPool.Get()
-	seriesID := s.identifierPool.Clone(id)
-	series.Reset(seriesID, s.seriesBlockRetriever, s.seriesOpts)
+	clonedID := s.identifierPool.Clone(id)
+	series.Reset(clonedID, s.seriesBlockRetriever,
+		s.seriesOnRetrieveBlock, s.seriesOpts)
 	uniqueIndex := s.increasingIndex.nextIndex()
 	return &dbShardEntry{series: series, index: uniqueIndex}
-}
-
-type insertAsyncOptions struct {
-	hasPendingWrite bool
-	pendingWrite    dbShardPendingWrite
 }
 
 type insertAsyncResult struct {
@@ -781,14 +828,13 @@ type insertAsyncResult struct {
 
 func (s *dbShard) insertSeriesAsyncBatched(
 	id ts.ID,
-	opts insertAsyncOptions,
+	opts dbShardInsertAsyncOptions,
 ) (insertAsyncResult, error) {
 	entry := s.newShardEntry(id)
 
 	wg, err := s.insertQueue.Insert(dbShardInsert{
-		entry:           entry,
-		hasPendingWrite: opts.hasPendingWrite,
-		pendingWrite:    opts.pendingWrite,
+		entry: entry,
+		opts:  opts,
 	})
 	return insertAsyncResult{
 		wg: wg,
@@ -855,7 +901,8 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// If we are going to write to this entry then increment the
 		// writer count so it does not look empty immediately after
 		// we release the write lock
-		hasPendingWrite := inserts[i].hasPendingWrite
+		hasPendingWrite := inserts[i].opts.hasPendingWrite
+		hasPendingRetrievedBlock := inserts[i].opts.hasPendingRetrievedBlock
 		anyPendingWrites = anyPendingWrites || hasPendingWrite
 
 		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.series.ID())
@@ -863,7 +910,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 			// Already exists so update the entry we're pointed at for this insert
 			inserts[i].entry = entry
 		}
-		if hasPendingWrite {
+		if hasPendingWrite || hasPendingRetrievedBlock {
 			// We're definitely writing a value, ensure that the pending write is
 			// visible before we release the lookup write lock
 			inserts[i].entry.incrementReaderWriterCount()
@@ -895,19 +942,30 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		return nil
 	}
 
-	// Perform any pending writes outside of the lock
+	// Perform any pending writes or pending retrieved blocks outside of lock
 	ctx := s.contextPool.Get()
 	for i := range inserts {
-		if !inserts[i].hasPendingWrite {
-			continue
+		var (
+			entry       = inserts[i].entry
+			readOrWrite = false
+		)
+		switch {
+		case inserts[i].opts.hasPendingWrite:
+			readOrWrite = true
+			write := inserts[i].opts.pendingWrite
+			err := entry.series.Write(ctx, write.timestamp, write.value,
+				write.unit, write.annotation)
+			if err != nil {
+				s.metrics.insertAsyncWriteErrors.Inc(1)
+			}
+		case inserts[i].opts.hasPendingRetrievedBlock:
+			readOrWrite = true
+			block := inserts[i].opts.pendingRetrievedBlock
+			entry.series.OnRetrieveBlock(block.id, block.start, block.segment)
 		}
-		entry := inserts[i].entry
-		write := inserts[i].pendingWrite
-		err := entry.series.Write(ctx, write.timestamp, write.value, write.unit, write.annotation)
-		if err != nil {
-			s.metrics.insertAsyncWriteErrors.Inc(1)
+		if readOrWrite {
+			entry.decrementReaderWriterCount()
 		}
-		entry.decrementReaderWriterCount()
 	}
 
 	// Avoid goroutine spinning up to close this context
@@ -949,8 +1007,9 @@ func (s *dbShard) FetchBlocks(
 	}
 
 	retriever := s.seriesBlockRetriever
+	onRetrieve := s.seriesOnRetrieveBlock
 	opts := s.seriesOpts
-	reader := series.NewReaderForRetriever(id, retriever, opts)
+	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, opts)
 	return reader.FetchBlocks(ctx, starts)
 }
 

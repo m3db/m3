@@ -37,6 +37,8 @@ import (
 
 // DatabaseSeries is a series in the database
 type DatabaseSeries interface {
+	block.OnRetrieveBlock
+
 	// ID returns the ID of the series
 	ID() ts.ID
 
@@ -90,6 +92,7 @@ type DatabaseSeries interface {
 	Reset(
 		id ts.ID,
 		blockRetriever QueryableBlockRetriever,
+		onRetrieveBlock block.OnRetrieveBlock,
 		opts Options,
 	)
 }

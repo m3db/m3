@@ -46,17 +46,24 @@ type Reader struct {
 	opts        Options
 	cloneableID ts.ID
 	retriever   QueryableBlockRetriever
+	onRetrieve  block.OnRetrieveBlock
 }
 
-// NewReaderForRetriever returns a reader for a series
-// block retriever, it will only return data from the block
-// retriever.
-func NewReaderForRetriever(
+// NewReaderUsingRetriever returns a reader for a series
+// block retriever, it will use the block retriever as the
+// source to read blocks from.
+func NewReaderUsingRetriever(
 	id ts.ID,
 	retriever QueryableBlockRetriever,
+	onRetrieveBlock block.OnRetrieveBlock,
 	opts Options,
 ) Reader {
-	return Reader{opts: opts, cloneableID: id, retriever: retriever}
+	return Reader{
+		opts:        opts,
+		cloneableID: id,
+		retriever:   retriever,
+		onRetrieve:  onRetrieveBlock,
+	}
 }
 
 // ReadEncoded reads encoded blocks using just a block retriever.
@@ -140,10 +147,7 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 					clonedID = r.opts.IdentifierPool().Clone(r.cloneableID)
 					ctx.RegisterFinalizer(clonedID)
 				}
-				// TODO(r): Specify a non-nil OnRetrieveBlock callback to cache the
-				// block back to a series in the shard on a read.
-				var onRetrieve block.OnRetrieveBlock
-				stream, err := r.retriever.Stream(clonedID, blockAt, onRetrieve)
+				stream, err := r.retriever.Stream(clonedID, blockAt, r.onRetrieve)
 				if err != nil {
 					return nil, err
 				}
@@ -179,11 +183,18 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 	seriesBlocks block.DatabaseSeriesBlocks,
 	seriesBuffer databaseBuffer,
 ) ([]block.FetchBlockResult, error) {
-	res := make([]block.FetchBlockResult, 0, len(starts))
-
-	var clonedID ts.ID
-	cachePolicy := r.opts.CachePolicy()
-
+	var (
+		// TODO(r): pool these results arrays
+		res         = make([]block.FetchBlockResult, 0, len(starts))
+		cachePolicy = r.opts.CachePolicy()
+		clonedID    ts.ID
+		// NB(r): Always use nil for OnRetrieveBlock so we don't cache the
+		// series after fetching it from disk, the fetch blocks API is called
+		// during streaming so to cache it in memory would mean we would
+		// eventually cache all series in memory when we stream results to a
+		// peer.
+		onRetrieve block.OnRetrieveBlock
+	)
 	for _, start := range starts {
 		if seriesBlocks != nil {
 			if b, exists := seriesBlocks.BlockAt(start); exists {
@@ -217,12 +228,6 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 					clonedID = r.opts.IdentifierPool().Clone(r.cloneableID)
 					ctx.RegisterFinalizer(clonedID)
 				}
-				// NB(r): Always use nil for onRetrieveBlock so we don't cache the
-				// series after fetching it from disk, the fetch blocks API is called
-				// during streaming so to cache it in memory would mean we would
-				// eventually cache all series in memory when we stream results to a
-				// peer.
-				var onRetrieve block.OnRetrieveBlock
 				stream, err := r.retriever.Stream(clonedID, start, onRetrieve)
 				if err != nil {
 					r := block.NewFetchBlockResult(start, nil,

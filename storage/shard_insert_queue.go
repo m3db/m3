@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/ts"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -92,10 +93,16 @@ type dbShardInsertBatch struct {
 	inserts []dbShardInsert
 }
 
+type dbShardInsertAsyncOptions struct {
+	hasPendingWrite          bool
+	pendingWrite             dbShardPendingWrite
+	hasPendingRetrievedBlock bool
+	pendingRetrievedBlock    dbShardPendingRetrievedBlock
+}
+
 type dbShardInsert struct {
-	entry           *dbShardEntry
-	hasPendingWrite bool
-	pendingWrite    dbShardPendingWrite
+	entry *dbShardEntry
+	opts  dbShardInsertAsyncOptions
 }
 
 var dbShardInsertZeroed = dbShardInsert{}
@@ -105,6 +112,12 @@ type dbShardPendingWrite struct {
 	value      float64
 	unit       xtime.Unit
 	annotation []byte
+}
+
+type dbShardPendingRetrievedBlock struct {
+	id      ts.ID
+	start   time.Time
+	segment ts.Segment
 }
 
 func (b *dbShardInsertBatch) reset() {
@@ -270,7 +283,7 @@ func (q *dbShardInsertQueue) Insert(insert dbShardInsert) (*sync.WaitGroup, erro
 		// Loop busy, already ready to consume notification
 	}
 
-	if insert.hasPendingWrite {
+	if insert.opts.hasPendingWrite {
 		q.metrics.insertsPendingWrite.Inc(1)
 	} else {
 		q.metrics.insertsNoPendingWrite.Inc(1)

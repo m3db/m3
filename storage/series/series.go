@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
@@ -61,20 +62,18 @@ type dbSeries struct {
 	// calling series.Reset()).
 	id ts.ID
 
-	buffer         databaseBuffer
-	blocks         block.DatabaseSeriesBlocks
-	bs             bootstrapState
-	blockRetriever QueryableBlockRetriever
-	pool           DatabaseSeriesPool
+	buffer          databaseBuffer
+	blocks          block.DatabaseSeriesBlocks
+	bs              bootstrapState
+	blockRetriever  QueryableBlockRetriever
+	onRetrieveBlock block.OnRetrieveBlock
+	pool            DatabaseSeriesPool
 }
 
 // NewDatabaseSeries creates a new database series
 func NewDatabaseSeries(id ts.ID, opts Options) DatabaseSeries {
-	var (
-		s              = newDatabaseSeries()
-		blockRetriever QueryableBlockRetriever
-	)
-	s.Reset(id, blockRetriever, opts)
+	s := newDatabaseSeries()
+	s.Reset(id, nil, nil, opts)
 	return s
 }
 
@@ -156,44 +155,56 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 
 		result.ActiveBlocks++
 
+		if cachePolicy == CacheAll || retriever == nil {
+			// Never unwire
+			result.WiredBlocks++
+			continue
+		}
+
 		if !currBlock.IsRetrieved() {
+			// Already unwired
 			result.UnwiredBlocks++
 			continue
 		}
 
-		var unwired bool
-		switch {
-		case cachePolicy == CacheAll:
-			// Never unwire
-		case retriever != nil:
-			// Potentially unwire
-			sinceLastRead := now.Sub(currBlock.LastReadTime())
-			shouldUnwire := sinceLastRead >= wiredTimeout &&
-				retriever.IsBlockRetrievable(start)
-			if shouldUnwire {
-				switch cachePolicy {
-				case CacheAllMetadata:
-					// Keep the metadata but remove contents
-
-					// NB(r): Each block needs shared ref to the series ID
-					// or else each block needs to have a copy of the ID
-					id := s.id
-					metadata := block.RetrievableBlockMetadata{
-						ID:       id,
-						Length:   currBlock.Len(),
-						Checksum: currBlock.Checksum(),
-					}
-					currBlock.ResetRetrievable(start, retriever, metadata)
-				default:
-					// Remove the block and it will be looked up later
-					s.blocks.RemoveBlockAt(start)
-					currBlock.Close()
-				}
-
-				unwired = true
-				result.madeUnwiredBlocks++
+		// Potentially unwire
+		var unwired, shouldUnwire bool
+		if retriever.IsBlockRetrievable(start) {
+			switch cachePolicy {
+			case CacheNone:
+				shouldUnwire = true
+			case CacheAllMetadata:
+				// Apply RecentlyRead logic (CacheAllMetadata is being removed soon)
+				fallthrough
+			case CacheRecentlyRead:
+				sinceLastRead := now.Sub(currBlock.LastReadTime())
+				shouldUnwire = sinceLastRead >= wiredTimeout
 			}
 		}
+		if shouldUnwire {
+			switch cachePolicy {
+			case CacheAllMetadata:
+				// Keep the metadata but remove contents
+
+				// NB(r): Each block needs shared ref to the series ID
+				// or else each block needs to have a copy of the ID
+				id := s.id
+				metadata := block.RetrievableBlockMetadata{
+					ID:       id,
+					Length:   currBlock.Len(),
+					Checksum: currBlock.Checksum(),
+				}
+				currBlock.ResetRetrievable(start, retriever, metadata)
+			default:
+				// Remove the block and it will be looked up later
+				s.blocks.RemoveBlockAt(start)
+				currBlock.Close()
+			}
+
+			unwired = true
+			result.madeUnwiredBlocks++
+		}
+
 		if unwired {
 			result.UnwiredBlocks++
 		} else {
@@ -249,6 +260,7 @@ func (s *dbSeries) ReadEncoded(
 		opts:        s.opts,
 		cloneableID: s.id,
 		retriever:   s.blockRetriever,
+		onRetrieve:  s.onRetrieveBlock,
 	}.readersWithBlocksMapAndBuffer(ctx, start, end, s.blocks, s.buffer)
 	s.RUnlock()
 	return r, err
@@ -263,6 +275,7 @@ func (s *dbSeries) FetchBlocks(
 		opts:        s.opts,
 		cloneableID: s.id,
 		retriever:   s.blockRetriever,
+		onRetrieve:  s.onRetrieveBlock,
 	}.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, s.blocks, s.buffer)
 	s.RUnlock()
 	return r, err
@@ -412,6 +425,35 @@ func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
 	return multiErr.FinalError()
 }
 
+func (s *dbSeries) OnRetrieveBlock(
+	id ts.ID,
+	startTime time.Time,
+	segment ts.Segment,
+) {
+	s.Lock()
+	defer s.Unlock()
+
+	if !id.Equal(s.id) {
+		return
+	}
+
+	b := s.opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
+	metadata := block.RetrievableBlockMetadata{
+		ID:       s.id,
+		Length:   segment.Len(),
+		Checksum: digest.SegmentChecksum(segment),
+	}
+	b.ResetRetrievable(startTime, s.blockRetriever, metadata)
+	b.OnRetrieveBlock(id, startTime, segment)
+
+	// NB(r): Blocks retrieved have been triggered by a read, so set the last
+	// read time as now so caching policies are followed.
+	b.SetLastReadTime(s.now())
+
+	// If we retrieved this from disk then we directly emplace it
+	s.blocks.AddBlock(b)
+}
+
 func (s *dbSeries) newBootstrapBlockError(
 	b block.DatabaseBlock,
 	err error,
@@ -480,6 +522,7 @@ func (s *dbSeries) Close() {
 func (s *dbSeries) Reset(
 	id ts.ID,
 	blockRetriever QueryableBlockRetriever,
+	onRetrieveBlock block.OnRetrieveBlock,
 	opts Options,
 ) {
 	s.Lock()
@@ -491,4 +534,5 @@ func (s *dbSeries) Reset(
 	s.opts = opts
 	s.bs = bootstrapNotStarted
 	s.blockRetriever = blockRetriever
+	s.onRetrieveBlock = onRetrieveBlock
 }

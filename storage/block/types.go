@@ -135,6 +135,8 @@ type NewDatabaseBlockFn func() DatabaseBlock
 
 // DatabaseBlock represents a data block.
 type DatabaseBlock interface {
+	OnRetrieveBlock
+
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
