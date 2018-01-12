@@ -153,7 +153,6 @@ type fileSetSeeker interface {
 
 func newSeeker(opts seekerOpts) fileSetSeeker {
 	return &seeker{
-		opts:                       opts.opts,
 		filePathPrefix:             opts.filePathPrefix,
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.infoBufferSize),
 		indexFdWithDigest:          digest.NewFdWithDigestReader(opts.dataBufferSize),
