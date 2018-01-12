@@ -100,7 +100,7 @@ func TestBlockRetrieverHighConcurrentSeeksCacheShardIndices(t *testing.T) {
 	testBlockRetrieverHighConcurrentSeeks(t, true)
 }
 
-func testBlockRetrieverHighConcurrentSeeks(t *testing.T, cacheShardIndices bool) {
+func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices bool) {
 	dir, err := ioutil.TempDir("", "testdb")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
@@ -163,7 +163,9 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, cacheShardIndices bool)
 		}
 	}
 
-	retriever.CacheShardIndices(shards)
+	if shouldCacheShardIndices {
+		retriever.CacheShardIndices(shards)
+	}
 
 	var (
 		startWg, readyWg sync.WaitGroup
