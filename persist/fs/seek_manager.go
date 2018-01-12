@@ -347,47 +347,6 @@ func (m *seekerManager) Borrow(shard uint32, start time.Time) (FileSetSeeker, er
 	byTime.seekers[startNano] = seekersAndBloom
 	byTime.Unlock()
 	return availableSeeker.seeker, nil
-
-	// seekers := seekersAndBloom.seekers
-	// if ok {
-	// 	availableSeekerIdx := -1
-	// 	availableSeeker := borrowableSeeker{}
-	// 	for i, seeker := range seekers {
-	// 		if !seeker.isBorrowed {
-	// 			availableSeekerIdx = i
-	// 			availableSeeker = seeker
-	// 			break
-	// 		}
-	// 	}
-
-	// 	// Should not occur in the case of a well-behaved caller
-	// 	if availableSeekerIdx == -1 {
-	// 		byTime.Unlock()
-	// 		return nil, errNoAvailableSeekers
-	// 	}
-
-	// 	availableSeeker.isBorrowed = true
-	// 	seekers[availableSeekerIdx] = availableSeeker
-	// 	byTime.seekers[startNano] = seekersAndBloom
-	// 	byTime.Unlock()
-	// 	return availableSeeker.seeker, nil
-	// }
-
-	// var err error
-	// seekersAndBloom, err = m.openSeekersWithLock(shard, start, byTime)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// seekers = seekersAndBloom.seekers
-	// seeker := seekers[0]
-	// seeker.isBorrowed = true
-	// seekers[0] = seeker
-	// seekersAndBloom.seekers = seekers
-	// seekersAndBloom.bloomFilter = seeker.seeker.ConcurrentIDBloomFilter()
-	// byTime.seekers[startNano] = seekersAndBloom
-	// byTime.Unlock()
-
-	// return seeker.seeker, nil
 }
 
 func (m *seekerManager) getSeekersForTimeWithLock(shard uint32, start xtime.UnixNano, byTime *seekersByTime) (seekersAndBloom, error) {
@@ -406,7 +365,6 @@ func (m *seekerManager) getSeekersForTimeWithLock(shard uint32, start xtime.Unix
 	byTime.Unlock()
 	seekersAndBloom.wg.Wait()
 	byTime.Lock()
-	// TODO: Make this non-recursive
 	// Need to do the lookup again recursively to see the new state
 	return m.getSeekersForTimeWithLock(shard, start, byTime)
 }
