@@ -249,6 +249,7 @@ func (m *seekerManager) ConcurrentIDBloomFilter(shard uint32, start time.Time) (
 			return nil, err
 		}
 	}
+
 	return seekersAndBloom.bloomFilter, nil
 }
 
@@ -279,15 +280,17 @@ func (m *seekerManager) openSeekersWithLock(shard uint32, start time.Time, byTim
 	// Immediately re-lock once the seeker is open regardless of errors because
 	// thats the contract of this function
 	byTime.Lock()
-	seekersAndBloomInstance.wg = nil
-	byTime.seekers[startNano] = seekersAndBloomInstance
 	// Call done after we re-acquire the lock so that callers who were waiting
 	// won't get the lock before us.
 	wg.Done()
 
 	if err != nil {
+		delete(byTime.seekers, startNano)
 		return seekersAndBloom{}, err
 	}
+
+	seekersAndBloomInstance.wg = nil
+	byTime.seekers[startNano] = seekersAndBloomInstance
 	seekers = append(seekers, borrowableSeeker{seeker: seeker})
 
 	// Clone remaining seekers from the original - No need to release the lock,
@@ -378,9 +381,9 @@ func getSeekersForTimeWithLock(start xtime.UnixNano, byTime *seekersByTime) (see
 	byTime.Unlock()
 	seekersAndBloom.wg.Wait()
 	byTime.Lock()
-	// Need to do the lookup again to see the new state
-	seekersAndBloom, ok = byTime.seekers[start]
-	return seekersAndBloom, ok
+	// TODO: Make this non-recursive
+	// Need to do the lookup again recursively to see the new state
+	return getSeekersForTimeWithLock(start, byTime)
 }
 
 func (m *seekerManager) Return(shard uint32, start time.Time, seeker FileSetSeeker) error {

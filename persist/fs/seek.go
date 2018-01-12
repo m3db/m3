@@ -251,6 +251,12 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		return err
 	}
 
+	if digest.Checksum(s.indexMmap) != s.expectedIndexDigest {
+		s.Close()
+		// TODO: Fix
+		return errors.New("digest not match")
+	}
+
 	s.bloomFilter, err = newManagedConcurrentBloomFilterFromFile(
 		bloomFilterFd,
 		s.bloomFilterFdWithDigest,
