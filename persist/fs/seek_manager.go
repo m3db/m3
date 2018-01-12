@@ -236,7 +236,9 @@ func (m *seekerManager) ConcurrentIDBloomFilter(shard uint32, start time.Time) (
 
 	var err error
 	if !ok {
-		seekersAndBloom, err = m.openSeekers(shard, start, byTime)
+		byTime.Lock()
+		seekersAndBloom, err = m.openSeekersWithLock(shard, start, byTime)
+		byTime.Unlock()
 		if err != nil {
 			return nil, err
 		}
@@ -244,15 +246,11 @@ func (m *seekerManager) ConcurrentIDBloomFilter(shard uint32, start time.Time) (
 	return seekersAndBloom.bloomFilter, nil
 }
 
-// openSeekers opens a seeker for the given shard/blockStart, clones it an appropriate number of times to reach
+// openSeekersWithLock opens a seeker for the given shard/blockStart, clones it an appropriate number of times to reach
 // the desired fetchConcurrency, and then modifies the state of byTime so that it includes the seekers and
-// bloomFilter. openSeekers should be called with an unlocked seekersByTime instance
-func (m *seekerManager) openSeekers(shard uint32, start time.Time, byTime *seekersByTime) (seekersAndBloom, error) {
+// bloomFilter. openSeekersWithLock should be called with a locked seekersByTime instancce.
+func (m *seekerManager) openSeekersWithLock(shard uint32, start time.Time, byTime *seekersByTime) (seekersAndBloom, error) {
 	startNano := xtime.ToUnixNano(start)
-
-	byTime.Lock()
-	// openSeekers is called infrequently enough we can afford a defer here
-	defer byTime.Unlock()
 
 	seekersAndBloomInstance, ok := byTime.seekers[startNano]
 	// seekers already open
@@ -325,14 +323,12 @@ func (m *seekerManager) Borrow(shard uint32, start time.Time) (FileSetSeeker, er
 		return availableSeeker.seeker, nil
 	}
 
-	byTime.Unlock()
 	var err error
-	seekersAndBloom, err = m.openSeekers(shard, start, byTime)
+	seekersAndBloom, err = m.openSeekersWithLock(shard, start, byTime)
 	if err != nil {
 		return nil, err
 	}
 	seekers = seekersAndBloom.seekers
-	byTime.Lock()
 	seeker := seekers[0]
 	seeker.isBorrowed = true
 	seekers[0] = seeker
