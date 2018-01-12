@@ -276,7 +276,7 @@ func (m *seekerManager) openSeekers(shard uint32, start time.Time, byTime *seeke
 	return seekersAndBloomInstance, nil
 }
 
-func (m *seekerManager) Seeker(shard uint32, start time.Time) (FileSetSeeker, error) {
+func (m *seekerManager) Borrow(shard uint32, start time.Time) (FileSetSeeker, error) {
 	byTime := m.seekersByTime(shard)
 
 	byTime.Lock()
@@ -329,7 +329,7 @@ func (m *seekerManager) Seeker(shard uint32, start time.Time) (FileSetSeeker, er
 	return seeker.seeker, nil
 }
 
-func (m *seekerManager) ReturnSeeker(shard uint32, start time.Time, seeker FileSetSeeker) error {
+func (m *seekerManager) Return(shard uint32, start time.Time, seeker FileSetSeeker) error {
 	byTime := m.seekersByTime(shard)
 
 	byTime.Lock()

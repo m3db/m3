@@ -243,7 +243,7 @@ func (r *blockRetriever) fetchBatch(
 	reqs []*retrieveRequest,
 ) {
 	// Resolve the seeker from the seeker mgr
-	seeker, err := seekerMgr.Seeker(shard, blockStart)
+	seeker, err := seekerMgr.Borrow(shard, blockStart)
 	if err != nil {
 		for _, req := range reqs {
 			req.onError(err)
@@ -251,7 +251,7 @@ func (r *blockRetriever) fetchBatch(
 		return
 	}
 	defer func() {
-		err := seekerMgr.ReturnSeeker(shard, blockStart, seeker)
+		err := seekerMgr.Return(shard, blockStart, seeker)
 		if err != nil {
 			for _, req := range reqs {
 				req.onError(err)

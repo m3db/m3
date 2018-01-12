@@ -154,11 +154,11 @@ type FileSetSeekerManager interface {
 	// to improve times when seeking to a block.
 	CacheShardIndices(shards []uint32) error
 
-	// Seeker returns an open seeker for a given shard and block start time.
-	Seeker(shard uint32, start time.Time) (FileSetSeeker, error)
+	// Borrow returns an open seeker for a given shard and block start time.
+	Borrow(shard uint32, start time.Time) (FileSetSeeker, error)
 
-	// ReturnSeeker returns an open seeker for a given shard and block start time.
-	ReturnSeeker(shard uint32, start time.Time, seeker FileSetSeeker) error
+	// Return returns an open seeker for a given shard and block start time.
+	Return(shard uint32, start time.Time, seeker FileSetSeeker) error
 
 	// ConcurrentIDBloomFilter returns a concurrent ID bloom filter for a given
 	// shard and block start time

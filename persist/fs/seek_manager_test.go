@@ -82,7 +82,7 @@ func TestSeekerManagerOpenSeekersLazy(t *testing.T) {
 	metadata := testNs1Metadata(t)
 	require.NoError(t, m.Open(metadata))
 	for _, shard := range shards {
-		_, err := m.Seeker(shard, time.Time{})
+		_, err := m.Borrow(shard, time.Time{})
 		require.NoError(t, err)
 		byTime := m.seekersByTime(shard)
 		seekers := byTime.seekers[xtime.ToUnixNano(time.Time{})]
@@ -159,7 +159,7 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 			title: "Borrow a seeker from each shard and start the openCloseLoop",
 			step: func() {
 				for _, shard := range shards {
-					seeker, err := m.Seeker(shard, now)
+					seeker, err := m.Borrow(shard, now)
 					require.NoError(t, err)
 					require.NotNil(t, seeker)
 					seekers = append(seekers, seeker)
@@ -187,7 +187,7 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 			title: "Return the borrowed seekers",
 			step: func() {
 				for i, seeker := range seekers {
-					require.NoError(t, m.ReturnSeeker(shards[i], now, seeker))
+					require.NoError(t, m.Return(shards[i], now, seeker))
 				}
 			},
 		},
