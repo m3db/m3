@@ -33,10 +33,12 @@ var (
 type CachePolicy uint
 
 const (
+	// CacheNone specifies that no series will be cached by default.
+	CacheNone CachePolicy = iota
 	// CacheAll specifies that all series must be cached at all times
 	// which requires loading all into cache on bootstrap and never
 	// expiring series from memory until expired from retention.
-	CacheAll CachePolicy = iota
+	CacheAll
 	// CacheAllMetadata specifies that all series metadata but not the
 	// data itself must be cached at all times and the metadata is never
 	// expired from memory until expired from retention.
@@ -53,11 +55,13 @@ const (
 
 // ValidCachePolicies returns the valid series cache policies.
 func ValidCachePolicies() []CachePolicy {
-	return []CachePolicy{CacheAll, CacheAllMetadata, CacheRecentlyRead}
+	return []CachePolicy{CacheNone, CacheAll, CacheAllMetadata, CacheRecentlyRead}
 }
 
 func (p CachePolicy) String() string {
 	switch p {
+	case CacheNone:
+		return "none"
 	case CacheAll:
 		return "all"
 	case CacheAllMetadata:

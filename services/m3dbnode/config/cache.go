@@ -33,7 +33,7 @@ type CacheConfigurations struct {
 func (c CacheConfigurations) SeriesConfiguration() SeriesCacheConfiguration {
 	if c.Series == nil {
 		// Return default cache configuration
-		return SeriesCacheConfiguration{Policy: series.CacheRecentlyRead}
+		return SeriesCacheConfiguration{Policy: series.DefaultCachePolicy}
 	}
 	return *c.Series
 }
