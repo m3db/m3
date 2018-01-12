@@ -252,7 +252,7 @@ func Run(runOpts RunOptions) {
 			logger.Fatalf("could not create m3cluster client: %v", err)
 		}
 
-		configureResults, err = cfg.EnvironmentConfig.NewConfigureResults(configSvcClient, iopts, "", cfg.HashingConfiguration.Seed)
+		configureResults, err = cfg.EnvironmentConfig.NewConfigureResults(configSvcClient, iopts, "", cfg.Hashing.Seed)
 		if err != nil {
 			logger.Fatalf("could not initialize dynamic config: %v", err)
 		}

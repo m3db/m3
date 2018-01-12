@@ -1,5 +1,5 @@
-hash: c94da5754aadac0341487951b9576c5e6f2ee465963b56dec88e9311d4c579b7
-updated: 2018-01-08T17:42:29.097299862-05:00
+hash: 11a2a2ca8634eaed8cda541a7b9dd59bed3f75d8e09cf25a3cecce7e0f0f2765
+updated: 2018-01-12T16:25:02.470308932-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -100,7 +100,7 @@ imports:
   subpackages:
   - oleutil
 - name: github.com/gogo/protobuf
-  version: 909568be09de550ed094403c2bf8a261b5bb730a
+  version: 160de10b2537169b5ae3e7e221d28269ef40d311
   subpackages:
   - proto
 - name: github.com/golang/mock
@@ -148,6 +148,7 @@ imports:
   - integration/etcd
   - kv
   - kv/etcd
+  - kv/mem
   - kv/util
   - kv/util/runtime
   - placement
@@ -290,7 +291,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
   subpackages:
   - buffer
   - internal/bufferpool

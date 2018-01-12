@@ -19,6 +19,12 @@ import:
   subpackages:
   - proto
 
+- package: github.com/gogo/protobuf
+  version: 160de10b2537169b5ae3e7e221d28269ef40d311
+
+- package: go.uber.org/zap
+  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
+
 - package: github.com/opentracing/opentracing-go
   version: 855519783f479520497c6b3445611b05fc42f009
 
