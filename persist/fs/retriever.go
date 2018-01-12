@@ -231,9 +231,6 @@ func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 			currBatchReqs = currBatchReqs[:0]
 		}
 	}
-
-	// Close the seekers
-	seekerMgr.Close()
 }
 
 func (r *blockRetriever) fetchBatch(
@@ -425,7 +422,7 @@ func (r *blockRetriever) Close() error {
 	r.nsMetadata = nil
 	r.status = blockRetrieverClosed
 
-	return nil
+	return r.seekerMgr.Close()
 }
 
 type shardRetrieveRequests struct {

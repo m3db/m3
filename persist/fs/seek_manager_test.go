@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -76,20 +77,27 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 		mock := NewMockFileSetSeeker(ctrl)
 		mock.EXPECT().Open(gomock.Any(), gomock.Any(), gomock.Any()).Return(nil)
 		mock.EXPECT().Clone().Return(mock, nil)
-		mock.EXPECT().ConcurrentIDBloomFilter().Return(nil)
-		mock.EXPECT().ConcurrentIDBloomFilter().Return(nil)
+		for i := 0; i < NewBlockRetrieverOptions().FetchConcurrency(); i++ {
+			mock.EXPECT().Close().Return(nil)
+			mock.EXPECT().ConcurrentIDBloomFilter().Return(nil)
+		}
 		return mock, nil
 	}
 
 	metadata := testNs1Metadata(t)
 	require.NoError(t, m.Open(metadata))
 	for _, shard := range shards {
-		_, err := m.Borrow(shard, time.Time{})
+		seeker, err := m.Borrow(shard, time.Time{})
 		require.NoError(t, err)
 		byTime := m.seekersByTime(shard)
+		byTime.RLock()
 		seekers := byTime.seekers[xtime.ToUnixNano(time.Time{})]
 		require.Equal(t, NewBlockRetrieverOptions().FetchConcurrency(), len(seekers.seekers))
+		byTime.RUnlock()
+		require.NoError(t, m.Return(shard, time.Time{}, seeker))
 	}
+
+	require.NoError(t, m.Close())
 }
 
 // TestSeekerManagerOpenCloseLoop tests the openCloseLoop of the SeekerManager
@@ -97,7 +105,8 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 // up resources based on their state.
 func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	// Prevent the test from running too slowly
-	defer runWithSeekManagerCloseInteral(time.Millisecond)()
+	oldInterval := seekManagerCloseInterval
+	seekManagerCloseInterval = time.Millisecond
 
 	ctrl := gomock.NewController(t)
 
@@ -131,18 +140,28 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	// Force all the seekers to be opened
 	require.NoError(t, m.CacheShardIndices(shards))
 
-	// Create a signaling mechanism so that we're notified everytime the
-	// openCloseLoop ticks
-	doneCh := make(chan struct{})
+	// Notified everytime the openCloseLoop ticks
+	tickCh := make(chan struct{})
 	m.openCloseLoopCallback = func() {
-		doneCh <- struct{}{}
+		go func() { tickCh <- struct{}{} }()
 	}
 
 	// // Modify the clock on the SeekerManager such that all the seekers we
 	// // created are now out of retention
 	metadata := testNs1Metadata(t)
-
+	fakeTime := now
+	fakeTimeLock := sync.Mutex{}
 	seekers := []FileSetSeeker{}
+
+	// Setup a function that will allow us to dynamically modify the clock in
+	// a concurrency-safe way
+	newNowFn := func() time.Time {
+		fakeTimeLock.Lock()
+		defer fakeTimeLock.Unlock()
+		return fakeTime
+	}
+	clockOpts = clockOpts.SetNowFn(newNowFn)
+	m.opts = m.opts.SetClockOptions(clockOpts)
 
 	require.NoError(t, m.Open(metadata))
 	// Steps is a series of steps for the test. It is guaranteed that at least
@@ -151,10 +170,6 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 		title string
 		step  func()
 	}{
-		{
-			title: "NOOP, allow at least one tick before the next step",
-			step:  func() {},
-		},
 		{
 			title: "Make sure it didn't clean up the seekers which are still in retention",
 			step: func() {
@@ -166,7 +181,7 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 			},
 		},
 		{
-			title: "Borrow a seeker from each shard and start the openCloseLoop",
+			title: "Borrow a seeker from each shard and then modify the clock such that they're out of retention",
 			step: func() {
 				for _, shard := range shards {
 					seeker, err := m.Borrow(shard, now)
@@ -174,18 +189,10 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 					require.NotNil(t, seeker)
 					seekers = append(seekers, seeker)
 				}
-			},
-		},
-		{
-			title: "Modify the clock on the seekerManager such that all of the seekers are now out of retention",
-			step: func() {
-				newNowFn := func() time.Time {
-					return now.Add(10 * metadata.Options().RetentionOptions().RetentionPeriod())
-				}
-				clockOpts = clockOpts.SetNowFn(newNowFn)
-				m.Lock()
-				m.opts = m.opts.SetClockOptions(clockOpts)
-				m.Unlock()
+
+				fakeTimeLock.Lock()
+				fakeTime = fakeTime.Add(10 * metadata.Options().RetentionOptions().RetentionPeriod())
+				fakeTimeLock.Unlock()
 			},
 		},
 		{
@@ -217,30 +224,23 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 			step: func() {
 				m.RLock()
 				for _, shard := range shards {
-					_, ok := m.seekersByTime(shard).seekers[startNano]
+					byTime := m.seekersByTime(shard)
+					byTime.RLock()
+					_, ok := byTime.seekers[startNano]
+					byTime.RUnlock()
 					require.False(t, ok)
 				}
 				m.RUnlock()
 			},
 		},
-		{
-			title: "Close the seeker manager",
-			step: func() {
-				require.NoError(t, m.Close())
-			},
-		},
 	}
 
 	for _, step := range steps {
+		<-tickCh
 		step.step()
-		<-doneCh
 	}
-}
 
-func runWithSeekManagerCloseInteral(interval time.Duration) func() {
-	old := seekManagerCloseInterval
-	seekManagerCloseInterval = time.Millisecond
-	return func() {
-		seekManagerCloseInterval = old
-	}
+	// Restore previous interval once the openCloseLoop ends
+	require.NoError(t, m.Close())
+	seekManagerCloseInterval = oldInterval
 }
