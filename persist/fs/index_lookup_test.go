@@ -148,10 +148,17 @@ func TestParentAndClonesSafeForConcurrentUse(t *testing.T) {
 		clones = append(clones, clone)
 	}
 
-	// Spin up a goroutine for each clone that looks up every offset
-	wg := sync.WaitGroup{}
-	wg.Add(len(clones) + 1)
+	// Spin up a goroutine for each clone that looks up every offset. Use one waitgroup
+	// to make a best effort attempt to get all the goroutines active before they start
+	// doing work, and then another waitgroup to wait for them to all finish their work.
+	startWg := sync.WaitGroup{}
+	doneWg := sync.WaitGroup{}
+	startWg.Add(len(clones) + 1)
+	doneWg.Add(len(clones) + 1)
+
 	lookupOffsetsFunc := func(clone *nearestIndexOffsetLookup) {
+		startWg.Done()
+		startWg.Wait()
 		for _, summary := range indexSummaries {
 			id := ts.StringID(string(summary.ID))
 			offset, err := clone.getNearestIndexFileOffset(id)
@@ -159,7 +166,7 @@ func TestParentAndClonesSafeForConcurrentUse(t *testing.T) {
 			require.Equal(t, summary.IndexEntryOffset, offset)
 			id.Finalize()
 		}
-		wg.Done()
+		doneWg.Done()
 	}
 	go lookupOffsetsFunc(indexLookup)
 	for _, clone := range clones {
@@ -168,7 +175,7 @@ func TestParentAndClonesSafeForConcurrentUse(t *testing.T) {
 
 	// Wait for all workers to finish and then make sure everything can be cleaned
 	// up properly
-	wg.Wait()
+	doneWg.Wait()
 	require.NoError(t, indexLookup.close())
 	for _, clone := range clones {
 		require.NoError(t, clone.close())
