@@ -62,7 +62,9 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 	}
 }
 
-func TestSeekerManagerOpenSeekersLazy(t *testing.T) {
+// TestSeekerManagerBorrowOpenSeekersLazy tests that the Borrow() method will
+// open seekers lazily if they're not already open.
+func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 	ctrl := gomock.NewController(t)
 
 	shards := []uint32{2, 5, 9, 478, 1023}
@@ -90,6 +92,9 @@ func TestSeekerManagerOpenSeekersLazy(t *testing.T) {
 	}
 }
 
+// TestSeekerManagerOpenCloseLoop tests the openCloseLoop of the SeekerManager
+// by making sure that it makes the right decisions with regards to cleaning
+// up resources based on their state.
 func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	// Prevent the test from running too slowly
 	defer func() func() {
