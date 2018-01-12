@@ -21,11 +21,8 @@ import (
 )
 
 var (
-	errNilRetention           = errors.New("namespace retention options cannot be empty")
-	errMissingNamespaceConfig = errors.New("config service or static namespace configuration required")
-	errMissingTopologyConfig  = errors.New("config service or static topology configuration required")
-	errMissingKVConfig        = errors.New("config service or static kv configuration required")
-	errMissingConfig          = errors.New("must supply service or static config")
+	errNilRetention  = errors.New("namespace retention options cannot be empty")
+	errMissingConfig = errors.New("must supply service or static config")
 )
 
 // Configuration is a configuration that can be used to create namespaces, a topology, and kv store
