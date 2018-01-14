@@ -206,7 +206,7 @@ func newDatabaseShard(
 	scope := opts.InstrumentOptions().MetricsScope().
 		SubScope("dbshard")
 
-	d := &dbShard{
+	s := &dbShard{
 		opts:               opts,
 		seriesOpts:         seriesOpts,
 		nowFn:              opts.ClockOptions().NowFn(),
@@ -229,37 +229,41 @@ func newDatabaseShard(
 		logger:             opts.InstrumentOptions().Logger(),
 		metrics:            newDatabaseShardMetrics(scope),
 	}
-	d.insertQueue = newDatabaseShardInsertQueue(d.insertSeriesBatch,
-		d.nowFn, scope)
+	s.insertQueue = newDatabaseShardInsertQueue(s.insertSeriesBatch,
+		s.nowFn, scope)
 
 	registerRuntimeOptionsListener := func(listener runtime.OptionsListener) {
 		elem := opts.RuntimeOptionsManager().RegisterListener(listener)
-		d.runtimeOptsListenClosers = append(d.runtimeOptsListenClosers, elem)
+		s.runtimeOptsListenClosers = append(s.runtimeOptsListenClosers, elem)
 	}
-	registerRuntimeOptionsListener(d)
-	registerRuntimeOptionsListener(d.insertQueue)
+	registerRuntimeOptionsListener(s)
+	registerRuntimeOptionsListener(s.insertQueue)
 
 	// Start the insert queue after registering runtime options listeners
 	// that may immediately fire with values
-	d.insertQueue.Start()
+	s.insertQueue.Start()
 
 	if !needsBootstrap {
-		d.bs = bootstrapped
-		d.newSeriesBootstrapped = true
+		s.bs = bootstrapped
+		s.newSeriesBootstrapped = true
 	}
 
 	if blockRetriever != nil {
-		// If passing the block retriever then set the block retriever
-		// and set the series block retriever as the shard itself and
-		// the on retrieve block callback as the shard itself as well
-		d.DatabaseBlockRetriever = blockRetriever
-		d.seriesBlockRetriever = d
-		d.seriesOnRetrieveBlock = d
+		s.setBlockRetriever(blockRetriever)
 	}
 
-	d.metrics.create.Inc(1)
+	s.metrics.create.Inc(1)
 
-	return d
+	return s
+}
+
+func (s *dbShard) setBlockRetriever(retriever block.DatabaseBlockRetriever) {
+	// If using the block retriever then set the block retriever field
+	// and set the series block retriever as the shard itself and
+	// the on retrieve block callback as the shard itself as well
+	s.DatabaseBlockRetriever = retriever
+	s.seriesBlockRetriever = s
+	s.seriesOnRetrieveBlock = s
 }
 
 func (s *dbShard) SetRuntimeOptions(value runtime.Options) {
@@ -894,7 +898,7 @@ func (s *dbShard) insertSeriesSync(
 }
 
 func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
-	anyPendingWrites := false
+	anyPendingAction := false
 
 	s.Lock()
 	for i := range inserts {
@@ -903,7 +907,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 		// we release the write lock
 		hasPendingWrite := inserts[i].opts.hasPendingWrite
 		hasPendingRetrievedBlock := inserts[i].opts.hasPendingRetrievedBlock
-		anyPendingWrites = anyPendingWrites || hasPendingWrite
+		anyPendingAction = anyPendingAction || hasPendingWrite || hasPendingRetrievedBlock
 
 		entry, _, err := s.lookupEntryWithLock(inserts[i].entry.series.ID())
 		if entry != nil {
@@ -938,7 +942,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 	}
 	s.Unlock()
 
-	if !anyPendingWrites {
+	if !anyPendingAction {
 		return nil
 	}
 

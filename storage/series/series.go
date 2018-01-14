@@ -231,6 +231,13 @@ func (s *dbSeries) IsEmpty() bool {
 	return false
 }
 
+func (s *dbSeries) NumActiveBlocks() int {
+	s.RLock()
+	value := s.blocks.Len() + s.buffer.Stats().wiredBlocks
+	s.RUnlock()
+	return value
+}
+
 func (s *dbSeries) IsBootstrapped() bool {
 	s.RLock()
 	state := s.bs

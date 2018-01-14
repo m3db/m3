@@ -38,7 +38,9 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
+	xio "github.com/m3db/m3db/x/io"
 	xmetrics "github.com/m3db/m3db/x/metrics"
+	"github.com/m3db/m3x/checked"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -829,4 +831,86 @@ func TestShardRegisterRuntimeOptionsListeners(t *testing.T) {
 	shard.Close()
 
 	assert.Equal(t, 2, closer.called)
+}
+
+func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testDatabaseOptions().SetSeriesCachePolicy(series.CacheRecentlyRead)
+	shard := testDatabaseShard(t, opts)
+	defer shard.Close()
+
+	ropts := shard.seriesOpts.RetentionOptions()
+	end := opts.ClockOptions().NowFn()().Truncate(ropts.BlockSize())
+	start := end.Add(-2 * ropts.BlockSize())
+	shard.markFlushStateSuccess(start)
+	shard.markFlushStateSuccess(start.Add(ropts.BlockSize()))
+
+	retriever := block.NewMockDatabaseBlockRetriever(ctrl)
+	shard.setBlockRetriever(retriever)
+
+	segments := []ts.Segment{
+		ts.NewSegment(checked.NewBytes([]byte("bar"), nil), nil, ts.FinalizeNone),
+		ts.NewSegment(checked.NewBytes([]byte("baz"), nil), nil, ts.FinalizeNone),
+	}
+
+	var segReaders []*xio.MockSegmentReader
+	for range segments {
+		reader := xio.NewMockSegmentReader(ctrl)
+		segReaders = append(segReaders, reader)
+	}
+
+	retriever.EXPECT().
+		Stream(shard.shard, ts.NewIDMatcher("foo"),
+			start, shard.seriesOnRetrieveBlock).
+		Do(func(shard uint32, id ts.ID, at time.Time, onRetrieve block.OnRetrieveBlock) {
+			go onRetrieve.OnRetrieveBlock(id, at, segments[0])
+		}).
+		Return(segReaders[0], nil)
+	retriever.EXPECT().
+		Stream(shard.shard, ts.NewIDMatcher("foo"),
+			start.Add(ropts.BlockSize()), shard.seriesOnRetrieveBlock).
+		Do(func(shard uint32, id ts.ID, at time.Time, onRetrieve block.OnRetrieveBlock) {
+			go onRetrieve.OnRetrieveBlock(id, at, segments[1])
+		}).
+		Return(segReaders[1], nil)
+
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
+	// Check reads as expected
+	r, err := shard.ReadEncoded(ctx, ts.StringID("foo"), start, end)
+	require.NoError(t, err)
+	require.Equal(t, 2, len(r))
+	for i, readers := range r {
+		require.Equal(t, 1, len(readers))
+		assert.Equal(t, segReaders[i], readers[0])
+	}
+
+	// Check that gets cached
+	begin := time.Now()
+	for time.Since(begin) < 10*time.Second {
+		shard.RLock()
+		entry, _, err := shard.lookupEntryWithLock(ts.StringID("foo"))
+		shard.RUnlock()
+		if err == errShardEntryNotFound {
+			time.Sleep(5 * time.Millisecond)
+			continue
+		}
+
+		if err != nil || entry.series.NumActiveBlocks() == 2 {
+			// Expecting at least 2 active blocks and never an error
+			break
+		}
+	}
+
+	shard.RLock()
+	entry, _, err := shard.lookupEntryWithLock(ts.StringID("foo"))
+	shard.RUnlock()
+	require.NoError(t, err)
+	require.NotNil(t, entry)
+
+	assert.False(t, entry.series.IsEmpty())
+	assert.Equal(t, 2, entry.series.NumActiveBlocks())
 }

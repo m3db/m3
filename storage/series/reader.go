@@ -110,10 +110,7 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 		alignedEnd = latest
 	}
 
-	var (
-		first, last = alignedStart, alignedEnd
-		clonedID    ts.ID
-	)
+	first, last := alignedStart, alignedEnd
 	for blockAt := first; !blockAt.After(last); blockAt = blockAt.Add(size) {
 		if seriesBlocks != nil {
 			if block, ok := seriesBlocks.BlockAt(blockAt); ok {
@@ -140,13 +137,10 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 		case r.retriever != nil:
 			// Try to stream from disk
 			if r.retriever.IsBlockRetrievable(blockAt) {
-				if clonedID == nil {
-					// Clone ID as the block retriever uses the ID async so we cannot
-					// be sure about owner not finalizing the cloneableID passed to
-					// the Reader
-					clonedID = r.opts.IdentifierPool().Clone(r.cloneableID)
-					ctx.RegisterFinalizer(clonedID)
-				}
+				// Clone ID as the block retriever uses the ID async so we cannot
+				// be sure about owner not finalizing the cloneableID passed to
+				// the Reader
+				clonedID := r.opts.IdentifierPool().Clone(r.cloneableID)
 				stream, err := r.retriever.Stream(clonedID, blockAt, r.onRetrieve)
 				if err != nil {
 					return nil, err
@@ -187,7 +181,6 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 		// TODO(r): pool these results arrays
 		res         = make([]block.FetchBlockResult, 0, len(starts))
 		cachePolicy = r.opts.CachePolicy()
-		clonedID    ts.ID
 		// NB(r): Always use nil for OnRetrieveBlock so we don't cache the
 		// series after fetching it from disk, the fetch blocks API is called
 		// during streaming so to cache it in memory would mean we would
@@ -221,13 +214,10 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 		case r.retriever != nil:
 			// Try to stream from disk
 			if r.retriever.IsBlockRetrievable(start) {
-				if clonedID == nil {
-					// Clone ID as the block retriever uses the ID async so we cannot
-					// be sure about owner not finalizing the cloneableID passed to
-					// the Reader
-					clonedID = r.opts.IdentifierPool().Clone(r.cloneableID)
-					ctx.RegisterFinalizer(clonedID)
-				}
+				// Clone ID as the block retriever uses the ID async so we cannot
+				// be sure about owner not finalizing the cloneableID passed to
+				// the Reader
+				clonedID := r.opts.IdentifierPool().Clone(r.cloneableID)
 				stream, err := r.retriever.Stream(clonedID, start, onRetrieve)
 				if err != nil {
 					r := block.NewFetchBlockResult(start, nil,

@@ -76,6 +76,9 @@ type DatabaseSeries interface {
 	// IsEmpty returns whether series is empty
 	IsEmpty() bool
 
+	// NumActiveBlocks returns the number of active blocks the series currently holds
+	NumActiveBlocks() int
+
 	// IsBootstrapped returns whether the series is bootstrapped or not
 	IsBootstrapped() bool
 
