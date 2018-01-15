@@ -262,9 +262,17 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker FileSetSeek
 	return nil
 }
 
+// getOrOpenSeekersWithLock checks if the seekers are already open / initialized. If they are, then it
+// returns them. Then, it checks if a different goroutine is in the process of opening them , if so it
+// registers itself as waiting until the other goroutine completes. If neither of those conditions occur,
+// then it begins the process of opening the seekers itself. First, it creates a waitgroup that other
+// goroutines can use so that they're notified when the seekers are open. This is useful because it allows
+// us to prevent multiple goroutines from trying to open the same seeker without having to hold onto a lock
+// of the seekersByTime struct during a I/O heavy workload. Once the wg is created, we relinquish the lock,
+// open the Seeker (I/O heavy), re-acquire the lock (so that the waiting goroutines don't get it before us),
+// and then notify the waiting goroutines that we've finished.
 func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *seekersByTime) (seekersAndBloom, error) {
 	seekers, ok := byTime.seekers[start]
-
 	if ok && seekers.wg == nil {
 		// Seekers are already open
 		return seekers, nil
@@ -300,16 +308,13 @@ func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *s
 	wg.Done()
 
 	if err != nil {
+		// Delete the seekersByTime struct so that the process can be restarted if necessary
 		delete(byTime.seekers, start)
 		return seekersAndBloom{}, err
 	}
 
-	seekers.wg = nil
-	byTime.seekers[start] = seekers
 	borrowableSeekers = append(borrowableSeekers, borrowableSeeker{seeker: seeker})
-
-	// Clone remaining seekers from the original - No need to release the lock,
-	// cloning is cheap.
+	// Clone remaining seekers from the original - No need to release the lock, cloning is cheap.
 	for i := 0; i < m.fetchConcurrency-1; i++ {
 		clone, err := seeker.Clone()
 		if err != nil {
@@ -319,11 +324,14 @@ func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *s
 				// Don't leak successfully opened seekers
 				multiErr = multiErr.Add(seeker.seeker.Close())
 			}
+			// Delete the seekersByTime struct so that the process can be restarted if necessary
+			delete(byTime.seekers, start)
 			return seekersAndBloom{}, multiErr.FinalError()
 		}
 		borrowableSeekers = append(borrowableSeekers, borrowableSeeker{seeker: clone})
 	}
 
+	seekers.wg = nil
 	seekers.seekers = borrowableSeekers
 	// Doesn't matter which seeker we pick to grab the bloom filter from, they all share the same underlying one.
 	// Use index 0 because its guaranteed to be there.
