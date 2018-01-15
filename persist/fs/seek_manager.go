@@ -184,7 +184,7 @@ func (m *seekerManager) ConcurrentIDBloomFilter(shard uint32, start time.Time) (
 	}
 
 	byTime.Lock()
-	seekersAndBloom, err := m.getSeekersForTimeWithLock(startNano, byTime)
+	seekersAndBloom, err := m.getOrOpenSeekersWithLock(startNano, byTime)
 	byTime.Unlock()
 	return seekersAndBloom.bloomFilter, err
 }
@@ -197,7 +197,7 @@ func (m *seekerManager) Borrow(shard uint32, start time.Time) (FileSetSeeker, er
 	byTime.accessed = true
 
 	startNano := xtime.ToUnixNano(start)
-	seekersAndBloom, err := m.getSeekersForTimeWithLock(startNano, byTime)
+	seekersAndBloom, err := m.getOrOpenSeekersWithLock(startNano, byTime)
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +262,7 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker FileSetSeek
 	return nil
 }
 
-func (m *seekerManager) getSeekersForTimeWithLock(start xtime.UnixNano, byTime *seekersByTime) (seekersAndBloom, error) {
+func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *seekersByTime) (seekersAndBloom, error) {
 	seekers, ok := byTime.seekers[start]
 
 	if ok && seekers.wg == nil {
@@ -276,7 +276,7 @@ func (m *seekerManager) getSeekersForTimeWithLock(start xtime.UnixNano, byTime *
 		seekers.wg.Wait()
 		byTime.Lock()
 		// Need to do the lookup again recursively to see the new state
-		return m.getSeekersForTimeWithLock(start, byTime)
+		return m.getOrOpenSeekersWithLock(start, byTime)
 	}
 
 	// Seekers need to be opened
@@ -340,7 +340,7 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 
 	for t := start; !t.After(end); t = t.Add(blockSize) {
 		byTime.Lock()
-		_, err := m.getSeekersForTimeWithLock(xtime.ToUnixNano(t), byTime)
+		_, err := m.getOrOpenSeekersWithLock(xtime.ToUnixNano(t), byTime)
 		byTime.Unlock()
 		if err != nil {
 			multiErr = multiErr.Add(err)
