@@ -124,15 +124,35 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	now := clockOpts.NowFn()()
 	startNano := xtime.ToUnixNano(now)
 
+	fakeTime := now
+	fakeTimeLock := sync.Mutex{}
+	// Setup a function that will allow us to dynamically modify the clock in
+	// a concurrency-safe way
+	newNowFn := func() time.Time {
+		fakeTimeLock.Lock()
+		defer fakeTimeLock.Unlock()
+		return fakeTime
+	}
+	clockOpts = clockOpts.SetNowFn(newNowFn)
+	m.opts = m.opts.SetClockOptions(clockOpts)
+
 	// Initialize some seekers for a time period
 	m.openAnyUnopenSeekersFn = func(byTime *seekersByTime) error {
 		byTime.Lock()
+		defer byTime.Unlock()
 
 		// Don't overwrite if called again
 		if len(byTime.seekers) != 0 {
-			byTime.Unlock()
 			return nil
 		}
+
+		// Don't re-open if they should have expired
+		fakeTimeLock.Lock()
+		defer fakeTimeLock.Unlock()
+		if !fakeTime.Equal(now) {
+			return nil
+		}
+
 		mock := NewMockFileSetSeeker(ctrl)
 		mock.EXPECT().Close().Return(nil)
 		mocks := []borrowableSeeker{}
@@ -141,7 +161,6 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 			seekers:     mocks,
 			bloomFilter: nil,
 		}
-		byTime.Unlock()
 		return nil
 	}
 
@@ -152,33 +171,11 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	tickCh := make(chan struct{})
 	cleanupCh := make(chan struct{})
 	m.sleepFn = func(_ time.Duration) {
-		time.Sleep(time.Millisecond)
-		go func() {
-			select {
-			case tickCh <- struct{}{}:
-				return
-			case <-cleanupCh:
-				return
-			}
-		}()
+		tickCh <- struct{}{}
 	}
 
-	// // Modify the clock on the SeekerManager such that all the seekers we
-	// // created are now out of retention
 	metadata := testNs1Metadata(t)
-	fakeTime := now
-	fakeTimeLock := sync.Mutex{}
 	seekers := []FileSetSeeker{}
-
-	// Setup a function that will allow us to dynamically modify the clock in
-	// a concurrency-safe way
-	newNowFn := func() time.Time {
-		fakeTimeLock.Lock()
-		defer fakeTimeLock.Unlock()
-		return fakeTime
-	}
-	clockOpts = clockOpts.SetNowFn(newNowFn)
-	m.opts = m.opts.SetClockOptions(clockOpts)
 
 	require.NoError(t, m.Open(metadata))
 	// Steps is a series of steps for the test. It is guaranteed that at least
@@ -253,9 +250,25 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	}
 
 	for _, step := range steps {
+		// Wait for two notifications between steps to guarantee that the entirety
+		// of the openCloseLoop is executed at least once
+		<-tickCh
 		<-tickCh
 		step.step()
 	}
+
+	// Background goroutine that will pull notifications off the tickCh so that
+	// the openCloseLoop is not blocked when we call Close()
+	go func() {
+		for {
+			select {
+			case <-tickCh:
+				continue
+			case <-cleanupCh:
+				return
+			}
+		}
+	}()
 
 	// Restore previous interval once the openCloseLoop ends
 	require.NoError(t, m.Close())
