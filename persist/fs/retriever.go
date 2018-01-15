@@ -99,14 +99,16 @@ func NewBlockRetriever(
 	reqPool := newRetrieveRequestPool(segmentReaderPool, reqPoolOpts)
 	reqPool.Init()
 	return &blockRetriever{
-		opts:                       opts,
-		fsOpts:                     fsOpts,
-		newSeekerMgrFn:             NewSeekerManager,
-		reqPool:                    reqPool,
-		bytesPool:                  opts.BytesPool(),
-		status:                     blockRetrieverNotOpen,
-		notifyFetch:                make(chan struct{}, 1),
-		fetchLoopsShouldShutdownCh: make(chan struct{}, opts.FetchConcurrency()),
+		opts:           opts,
+		fsOpts:         fsOpts,
+		newSeekerMgrFn: NewSeekerManager,
+		reqPool:        reqPool,
+		bytesPool:      opts.BytesPool(),
+		status:         blockRetrieverNotOpen,
+		notifyFetch:    make(chan struct{}, 1),
+		// We just close this channel when the fetchLoops should shutdown, so no
+		// buffering is required
+		fetchLoopsShouldShutdownCh: make(chan struct{}),
 		fetchLoopsHaveShutdownCh:   make(chan struct{}, opts.FetchConcurrency()),
 	}
 }
@@ -431,11 +433,7 @@ func (r *blockRetriever) Close() error {
 	r.status = blockRetrieverClosed
 	r.Unlock()
 
-	go func() {
-		for i := 0; i < r.opts.FetchConcurrency(); i++ {
-			r.fetchLoopsShouldShutdownCh <- struct{}{}
-		}
-	}()
+	close(r.fetchLoopsShouldShutdownCh)
 	for i := 0; i < r.opts.FetchConcurrency(); i++ {
 		<-r.fetchLoopsHaveShutdownCh
 	}

@@ -150,10 +150,16 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 
 	// Notified everytime the openCloseLoop ticks
 	tickCh := make(chan struct{})
+	cleanupCh := make(chan struct{})
 	m.sleepFn = func(_ time.Duration) {
 		time.Sleep(time.Millisecond)
 		go func() {
-			tickCh <- struct{}{}
+			select {
+			case tickCh <- struct{}{}:
+				return
+			case <-cleanupCh:
+				return
+			}
 		}()
 	}
 
@@ -255,13 +261,6 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	require.NoError(t, m.Close())
 	// Make sure there are no goroutines still trying to write into the tickCh
 	// to prevent the test itself from interfering with the goroutine leak test
-	for {
-		select {
-		case <-tickCh:
-			continue
-		default:
-			seekManagerCloseInterval = oldInterval
-			return
-		}
-	}
+	close(cleanupCh)
+	seekManagerCloseInterval = oldInterval
 }
