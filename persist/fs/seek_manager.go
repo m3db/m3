@@ -284,7 +284,7 @@ func (m *seekerManager) getSeekersForTimeWithLock(start xtime.UnixNano, byTime *
 
 // openSeekersWithLock opens a seeker for the given shard/blockStart, clones it an appropriate number of times to reach
 // the desired fetchConcurrency, and then modifies the state of byTime so that it includes the seekers and
-// bloomFilter. openSeekersWithLock should be called with a locked seekersByTime instancce.
+// bloomFilter. openSeekersWithLock should be called with a locked seekersByTime instance.
 func (m *seekerManager) openSeekersWithLock(start time.Time, byTime *seekersByTime) (seekersAndBloom, error) {
 	shard := byTime.shard
 	startNano := xtime.ToUnixNano(start)
