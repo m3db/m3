@@ -479,7 +479,7 @@ func (s *seeker) Close() error {
 func (s *seeker) ConcurrentClone() (ConcurrentFileSetSeeker, error) {
 	// indexLookup is not concurrency safe, but a parent and its clone can be used
 	// concurrently safely.
-	indexLookupClone, err := s.indexLookup.clone()
+	indexLookupClone, err := s.indexLookup.concurrentClone()
 	if err != nil {
 		return nil, err
 	}

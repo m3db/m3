@@ -60,7 +60,7 @@ func newNearestIndexOffsetLookup(
 	}
 }
 
-func (il *nearestIndexOffsetLookup) clone() (*nearestIndexOffsetLookup, error) {
+func (il *nearestIndexOffsetLookup) concurrentClone() (*nearestIndexOffsetLookup, error) {
 	if il.isClone {
 		return nil, errCloneShouldNotBeCloned
 	}

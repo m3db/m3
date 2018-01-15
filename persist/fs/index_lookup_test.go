@@ -85,10 +85,10 @@ func TestNewNearestIndexOffsetDetectsUnsortedFiles(t *testing.T) {
 
 func TestCloneCannotBeCloned(t *testing.T) {
 	indexLookup := newNearestIndexOffsetLookup(nil, nil, nil)
-	clone, err := indexLookup.clone()
+	clone, err := indexLookup.concurrentClone()
 	require.NoError(t, err)
 
-	_, err = clone.clone()
+	_, err = clone.concurrentClone()
 	require.Error(t, err)
 	require.NoError(t, indexLookup.close())
 	require.NoError(t, clone.close())
@@ -109,7 +109,7 @@ func TestClosingCloneDoesNotAffectParent(t *testing.T) {
 	}
 
 	indexLookup := newIndexLookupWithValidData(t, indexSummaries)
-	clone, err := indexLookup.clone()
+	clone, err := indexLookup.concurrentClone()
 	require.NoError(t, err)
 	require.NoError(t, clone.close())
 	for _, summary := range indexSummaries {
@@ -142,7 +142,7 @@ func TestParentAndClonesSafeForConcurrentUse(t *testing.T) {
 	indexLookup := newIndexLookupWithValidData(t, indexSummaries)
 	clones := []*nearestIndexOffsetLookup{}
 	for i := 0; i < numClones; i++ {
-		clone, err := indexLookup.clone()
+		clone, err := indexLookup.concurrentClone()
 		require.NoError(t, err)
 		clones = append(clones, clone)
 	}
