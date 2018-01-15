@@ -35,7 +35,7 @@ import (
 
 var (
 	errSeekerManagerAlreadyOpenOrClosed              = errors.New("seeker manager already open or is closed")
-	errSeekerManagerAlreadyClosed                    = errors.New("seeker managed already closed")
+	errSeekerManagerAlreadyClosed                    = errors.New("seeker manager already closed")
 	errSeekerManagerFileSetNotFound                  = errors.New("seeker manager lookup fileset not found")
 	errNoAvailableSeekers                            = errors.New("no available seekers")
 	errSeekersDontExist                              = errors.New("seekers don't exist")
