@@ -145,9 +145,8 @@ type FileSetSeeker interface {
 	ConcurrentClone() (ConcurrentFileSetSeeker, error)
 }
 
-// ConcurrentFileSetSeeker is a limited interface of FileSetSeeker that is
-// returned when ConcurrentClone() is called on FileSetSeeker. The clones can be
-// used together concurrently and share underlying resources. Clones are no
+// ConcurrentFileSetSeeker is a limited interface that is returned when ConcurrentClone() is called on FileSetSeeker.
+// The clones can be used together concurrently and share underlying resources. Clones are no
 // longer usable once the original has been closed.
 type ConcurrentFileSetSeeker interface {
 	io.Closer
