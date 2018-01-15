@@ -184,7 +184,7 @@ func (m *seekerManager) ConcurrentIDBloomFilter(shard uint32, start time.Time) (
 	}
 
 	byTime.Lock()
-	seekersAndBloom, err := m.getSeekersForTimeWithLock(shard, startNano, byTime)
+	seekersAndBloom, err := m.getSeekersForTimeWithLock(startNano, byTime)
 	byTime.Unlock()
 	return seekersAndBloom.bloomFilter, err
 }
@@ -197,7 +197,7 @@ func (m *seekerManager) Borrow(shard uint32, start time.Time) (FileSetSeeker, er
 	byTime.accessed = true
 
 	startNano := xtime.ToUnixNano(start)
-	seekersAndBloom, err := m.getSeekersForTimeWithLock(shard, startNano, byTime)
+	seekersAndBloom, err := m.getSeekersForTimeWithLock(startNano, byTime)
 	if err != nil {
 		return nil, err
 	}
@@ -262,11 +262,11 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker FileSetSeek
 	return nil
 }
 
-func (m *seekerManager) getSeekersForTimeWithLock(shard uint32, start xtime.UnixNano, byTime *seekersByTime) (seekersAndBloom, error) {
+func (m *seekerManager) getSeekersForTimeWithLock(start xtime.UnixNano, byTime *seekersByTime) (seekersAndBloom, error) {
 	seekersAndBloom, ok := byTime.seekers[start]
 	// If its not there, then we should create it
 	if !ok {
-		return m.openSeekersWithLock(shard, start.ToTime(), byTime)
+		return m.openSeekersWithLock(start.ToTime(), byTime)
 	}
 
 	// Seekers are available
@@ -279,13 +279,14 @@ func (m *seekerManager) getSeekersForTimeWithLock(shard uint32, start xtime.Unix
 	seekersAndBloom.wg.Wait()
 	byTime.Lock()
 	// Need to do the lookup again recursively to see the new state
-	return m.getSeekersForTimeWithLock(shard, start, byTime)
+	return m.getSeekersForTimeWithLock(start, byTime)
 }
 
 // openSeekersWithLock opens a seeker for the given shard/blockStart, clones it an appropriate number of times to reach
 // the desired fetchConcurrency, and then modifies the state of byTime so that it includes the seekers and
 // bloomFilter. openSeekersWithLock should be called with a locked seekersByTime instancce.
-func (m *seekerManager) openSeekersWithLock(shard uint32, start time.Time, byTime *seekersByTime) (seekersAndBloom, error) {
+func (m *seekerManager) openSeekersWithLock(start time.Time, byTime *seekersByTime) (seekersAndBloom, error) {
+	shard := byTime.shard
 	startNano := xtime.ToUnixNano(start)
 
 	seekersAndBloomInstance, ok := byTime.seekers[startNano]
@@ -352,10 +353,9 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 	blockSize := m.namespaceMetadata.Options().RetentionOptions().BlockSize()
 	multiErr := xerrors.NewMultiError()
 
-	// outer_loop:
 	for t := start; !t.After(end); t = t.Add(blockSize) {
 		byTime.Lock()
-		_, err := m.openSeekersWithLock(byTime.shard, t, byTime)
+		_, err := m.openSeekersWithLock(t, byTime)
 		byTime.Unlock()
 		if err != nil {
 			multiErr = multiErr.Add(err)
