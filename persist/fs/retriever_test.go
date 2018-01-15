@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -101,6 +102,8 @@ func TestBlockRetrieverHighConcurrentSeeksCacheShardIndices(t *testing.T) {
 }
 
 func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices bool) {
+	defer leaktest.CheckTimeout(t, 10*time.Second)()
+
 	dir, err := ioutil.TempDir("", "testdb")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)

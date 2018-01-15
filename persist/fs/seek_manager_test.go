@@ -25,12 +25,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	xtime "github.com/m3db/m3x/time"
+
+	"github.com/fortytw2/leaktest"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestSeekerManagerCacheShardIndices(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 10*time.Second)()
+
 	shards := []uint32{2, 5, 9, 478, 1023}
 	m := NewSeekerManager(nil, NewOptions(), NewBlockRetrieverOptions().FetchConcurrency()).(*seekerManager)
 	var byTimes []*seekersByTime
@@ -66,6 +70,8 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 // TestSeekerManagerBorrowOpenSeekersLazy tests that the Borrow() method will
 // open seekers lazily if they're not already open.
 func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 10*time.Second)()
+
 	ctrl := gomock.NewController(t)
 
 	shards := []uint32{2, 5, 9, 478, 1023}
@@ -104,6 +110,8 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 // by making sure that it makes the right decisions with regards to cleaning
 // up resources based on their state.
 func TestSeekerManagerOpenCloseLoop(t *testing.T) {
+	defer leaktest.CheckTimeout(t, 10*time.Second)()
+
 	// Prevent the test from running too slowly
 	oldInterval := seekManagerCloseInterval
 	seekManagerCloseInterval = time.Millisecond
@@ -144,7 +152,9 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	tickCh := make(chan struct{})
 	m.sleepFn = func(_ time.Duration) {
 		time.Sleep(time.Millisecond)
-		go func() { tickCh <- struct{}{} }()
+		go func() {
+			tickCh <- struct{}{}
+		}()
 	}
 
 	// // Modify the clock on the SeekerManager such that all the seekers we
@@ -243,5 +253,15 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 
 	// Restore previous interval once the openCloseLoop ends
 	require.NoError(t, m.Close())
-	seekManagerCloseInterval = oldInterval
+	// Make sure there are no goroutines still trying to write into the tickCh
+	// to prevent the test itself from interfering with the goroutine leak test
+	for {
+		select {
+		case <-tickCh:
+			continue
+		default:
+			seekManagerCloseInterval = oldInterval
+			return
+		}
+	}
 }
