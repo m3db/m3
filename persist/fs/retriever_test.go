@@ -111,7 +111,7 @@ func TestBlockRetrieverHighConcurrentSeeksCacheShardIndices(t *testing.T) {
 }
 
 func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices bool) {
-	defer leaktest.CheckTimeout(t, 30*time.Second)()
+	defer leaktest.CheckTimeout(t, 2*time.Minute)()
 
 	dir, err := ioutil.TempDir("", "testdb")
 	require.NoError(t, err)

@@ -33,7 +33,7 @@ import (
 )
 
 func TestSeekerManagerCacheShardIndices(t *testing.T) {
-	defer leaktest.CheckTimeout(t, 10*time.Second)()
+	defer leaktest.CheckTimeout(t, 1*time.Minute)()
 
 	shards := []uint32{2, 5, 9, 478, 1023}
 	m := NewSeekerManager(nil, NewOptions(), NewBlockRetrieverOptions().FetchConcurrency()).(*seekerManager)
@@ -70,7 +70,7 @@ func TestSeekerManagerCacheShardIndices(t *testing.T) {
 // TestSeekerManagerBorrowOpenSeekersLazy tests that the Borrow() method will
 // open seekers lazily if they're not already open.
 func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
-	defer leaktest.CheckTimeout(t, 10*time.Second)()
+	defer leaktest.CheckTimeout(t, 1*time.Minute)()
 
 	ctrl := gomock.NewController(t)
 
@@ -110,7 +110,7 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 // by making sure that it makes the right decisions with regards to cleaning
 // up resources based on their state.
 func TestSeekerManagerOpenCloseLoop(t *testing.T) {
-	defer leaktest.CheckTimeout(t, 10*time.Second)()
+	defer leaktest.CheckTimeout(t, 1*time.Minute)()
 
 	// Prevent the test from running too slowly
 	oldInterval := seekManagerCloseInterval
