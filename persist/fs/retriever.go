@@ -81,10 +81,12 @@ type blockRetriever struct {
 	bytesPool  pool.CheckedBytesPool
 	nsMetadata namespace.Metadata
 
-	status         blockRetrieverStatus
-	reqsByShardIdx []*shardRetrieveRequests
-	seekerMgr      FileSetSeekerManager
-	notifyFetch    chan struct{}
+	status                     blockRetrieverStatus
+	reqsByShardIdx             []*shardRetrieveRequests
+	seekerMgr                  FileSetSeekerManager
+	notifyFetch                chan struct{}
+	fetchLoopsShouldShutdownCh chan struct{}
+	fetchLoopsHaveShutdownCh   chan struct{}
 }
 
 // NewBlockRetriever returns a new block retriever for TSDB file sets.
@@ -97,13 +99,15 @@ func NewBlockRetriever(
 	reqPool := newRetrieveRequestPool(segmentReaderPool, reqPoolOpts)
 	reqPool.Init()
 	return &blockRetriever{
-		opts:           opts,
-		fsOpts:         fsOpts,
-		newSeekerMgrFn: NewSeekerManager,
-		reqPool:        reqPool,
-		bytesPool:      opts.BytesPool(),
-		status:         blockRetrieverNotOpen,
-		notifyFetch:    make(chan struct{}, 1),
+		opts:                       opts,
+		fsOpts:                     fsOpts,
+		newSeekerMgrFn:             NewSeekerManager,
+		reqPool:                    reqPool,
+		bytesPool:                  opts.BytesPool(),
+		status:                     blockRetrieverNotOpen,
+		notifyFetch:                make(chan struct{}, 1),
+		fetchLoopsShouldShutdownCh: make(chan struct{}, opts.FetchConcurrency()),
+		fetchLoopsHaveShutdownCh:   make(chan struct{}, opts.FetchConcurrency()),
 	}
 }
 
@@ -179,8 +183,12 @@ func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 
 		// If no fetches then no work to do, yield
 		if n == 0 {
-			<-r.notifyFetch
-			continue
+			select {
+			case <-r.notifyFetch:
+				continue
+			case <-r.fetchLoopsShouldShutdownCh:
+				break
+			}
 		}
 
 		// Files are all by shard and block time, the locality of
@@ -231,6 +239,8 @@ func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 			currBatchReqs = currBatchReqs[:0]
 		}
 	}
+
+	r.fetchLoopsHaveShutdownCh <- struct{}{}
 }
 
 func (r *blockRetriever) fetchBatch(
@@ -417,12 +427,21 @@ func (r *blockRetriever) shardRequests(
 
 func (r *blockRetriever) Close() error {
 	r.Lock()
-	defer r.Unlock()
-
 	r.nsMetadata = nil
 	r.status = blockRetrieverClosed
+	r.Unlock()
 
-	return r.seekerMgr.Close()
+	go func() {
+		for i := 0; i < r.opts.FetchConcurrency(); i++ {
+			r.fetchLoopsShouldShutdownCh <- struct{}{}
+		}
+	}()
+	for i := 0; i < r.opts.FetchConcurrency(); i++ {
+		<-r.fetchLoopsHaveShutdownCh
+	}
+
+	err := r.seekerMgr.Close()
+	return err
 }
 
 type shardRetrieveRequests struct {
