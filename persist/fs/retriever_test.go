@@ -93,7 +93,7 @@ type streamResult struct {
 	stream     xio.SegmentReader
 }
 
-// TestBlockRetrieverHighConcurrentSeeks tests the retirever with high
+// TestBlockRetrieverHighConcurrentSeeks tests the retriever with high
 // concurrent seeks, but without caching the shard indices. This means that the
 // seekers will be opened lazily by calls to ConcurrentIDBloomFilter() in the
 // SeekerManager
@@ -101,7 +101,7 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 	testBlockRetrieverHighConcurrentSeeks(t, false)
 }
 
-// TestBlockRetrieverHighConcurrentSeeksCacheShardIndices tests the retirever
+// TestBlockRetrieverHighConcurrentSeeksCacheShardIndices tests the retriever
 // with high concurrent seekers and calls cache shard indices at the beginning.
 // This means that the seekers will be opened all at once in the beginning and
 // by the time ConcurrentIDBloomFilter() is called, they seekers will already be
