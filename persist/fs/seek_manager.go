@@ -263,50 +263,35 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker FileSetSeek
 }
 
 func (m *seekerManager) getSeekersForTimeWithLock(start xtime.UnixNano, byTime *seekersByTime) (seekersAndBloom, error) {
-	seekersAndBloom, ok := byTime.seekers[start]
-	// If its not there, then we should create it
-	if !ok {
-		return m.openSeekersWithLock(start.ToTime(), byTime)
+	seekers, ok := byTime.seekers[start]
+
+	if ok && seekers.wg == nil {
+		// Seekers are already open
+		return seekers, nil
 	}
 
-	// Seekers are available
-	if seekersAndBloom.wg == nil {
-		return seekersAndBloom, nil
+	if seekers.wg != nil {
+		// Seekers are being initialized / opened, wait for the that to complete
+		byTime.Unlock()
+		seekers.wg.Wait()
+		byTime.Lock()
+		// Need to do the lookup again recursively to see the new state
+		return m.getSeekersForTimeWithLock(start, byTime)
 	}
 
-	// Seekers are being initialized / opened, wait for the that to complete
-	byTime.Unlock()
-	seekersAndBloom.wg.Wait()
-	byTime.Lock()
-	// Need to do the lookup again recursively to see the new state
-	return m.getSeekersForTimeWithLock(start, byTime)
-}
-
-// openSeekersWithLock opens a seeker for the given shard/blockStart, clones it an appropriate number of times to reach
-// the desired fetchConcurrency, and then modifies the state of byTime so that it includes the seekers and
-// bloomFilter. openSeekersWithLock should be called with a locked seekersByTime instance.
-func (m *seekerManager) openSeekersWithLock(start time.Time, byTime *seekersByTime) (seekersAndBloom, error) {
-	shard := byTime.shard
-	startNano := xtime.ToUnixNano(start)
-
-	seekersAndBloomInstance, ok := byTime.seekers[startNano]
-	// seekers already open
-	if ok {
-		return seekersAndBloomInstance, nil
-	}
-
-	seekers := make([]borrowableSeeker, 0, m.fetchConcurrency)
+	// Seekers need to be opened
+	borrowableSeekers := make([]borrowableSeeker, 0, m.fetchConcurrency)
 	// We're going to release the lock temporarily, so we initialize a WaitGroup
 	// that other routines which would have otherwise attempted to also open this
 	// same seeker can use instead to wait for us to finish.
 	wg := &sync.WaitGroup{}
-	seekersAndBloomInstance.wg = wg
-	seekersAndBloomInstance.wg.Add(1)
-	byTime.seekers[startNano] = seekersAndBloomInstance
+	seekers.wg = wg
+	seekers.wg.Add(1)
+	byTime.seekers[start] = seekers
 	byTime.Unlock()
 	// Open first one - Do this outside the context of the lock because opening
 	// a seeker can be an expensive operation (validating index files)
-	seeker, err := m.newOpenSeekerFn(shard, start)
+	seeker, err := m.newOpenSeekerFn(byTime.shard, start.ToTime())
 	// Immediately re-lock once the seeker is open regardless of errors because
 	// thats the contract of this function
 	byTime.Lock()
@@ -315,13 +300,13 @@ func (m *seekerManager) openSeekersWithLock(start time.Time, byTime *seekersByTi
 	wg.Done()
 
 	if err != nil {
-		delete(byTime.seekers, startNano)
+		delete(byTime.seekers, start)
 		return seekersAndBloom{}, err
 	}
 
-	seekersAndBloomInstance.wg = nil
-	byTime.seekers[startNano] = seekersAndBloomInstance
-	seekers = append(seekers, borrowableSeeker{seeker: seeker})
+	seekers.wg = nil
+	byTime.seekers[start] = seekers
+	borrowableSeekers = append(borrowableSeekers, borrowableSeeker{seeker: seeker})
 
 	// Clone remaining seekers from the original - No need to release the lock,
 	// cloning is cheap.
@@ -330,21 +315,21 @@ func (m *seekerManager) openSeekersWithLock(start time.Time, byTime *seekersByTi
 		if err != nil {
 			multiErr := xerrors.NewMultiError()
 			multiErr = multiErr.Add(err)
-			for _, seeker := range seekers {
+			for _, seeker := range borrowableSeekers {
 				// Don't leak successfully opened seekers
 				multiErr = multiErr.Add(seeker.seeker.Close())
 			}
 			return seekersAndBloom{}, multiErr.FinalError()
 		}
-		seekers = append(seekers, borrowableSeeker{seeker: clone})
+		borrowableSeekers = append(borrowableSeekers, borrowableSeeker{seeker: clone})
 	}
 
-	seekersAndBloomInstance.seekers = seekers
+	seekers.seekers = borrowableSeekers
 	// Doesn't matter which seeker we pick to grab the bloom filter from, they all share the same underlying one.
 	// Use index 0 because its guaranteed to be there.
-	seekersAndBloomInstance.bloomFilter = seekers[0].seeker.ConcurrentIDBloomFilter()
-	byTime.seekers[startNano] = seekersAndBloomInstance
-	return seekersAndBloomInstance, nil
+	seekers.bloomFilter = borrowableSeekers[0].seeker.ConcurrentIDBloomFilter()
+	byTime.seekers[start] = seekers
+	return seekers, nil
 }
 
 func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
@@ -355,7 +340,7 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 
 	for t := start; !t.After(end); t = t.Add(blockSize) {
 		byTime.Lock()
-		_, err := m.openSeekersWithLock(t, byTime)
+		_, err := m.getSeekersForTimeWithLock(xtime.ToUnixNano(t), byTime)
 		byTime.Unlock()
 		if err != nil {
 			multiErr = multiErr.Add(err)
