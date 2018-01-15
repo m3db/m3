@@ -350,7 +350,7 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 		byTime.Lock()
 		_, err := m.getOrOpenSeekersWithLock(xtime.ToUnixNano(t), byTime)
 		byTime.Unlock()
-		if err != nil {
+		if err != nil && err != errSeekerManagerFileSetNotFound {
 			multiErr = multiErr.Add(err)
 		}
 	}
