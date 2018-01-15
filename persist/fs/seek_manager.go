@@ -176,7 +176,7 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 	blockSize := m.namespaceMetadata.Options().RetentionOptions().BlockSize()
 	multiErr := xerrors.NewMultiError()
 
-outer:
+outer_loop:
 	for t := start; !t.After(end); t = t.Add(blockSize) {
 		tNano := xtime.ToUnixNano(t)
 		byTime.RLock()
@@ -214,7 +214,7 @@ outer:
 				for _, seeker := range seekers {
 					multiErr = multiErr.Add(seeker.seeker.Close())
 				}
-				continue outer
+				continue outer_loop
 			}
 			seekers = append(seekers, borrowableSeeker{seeker: clone})
 		}
