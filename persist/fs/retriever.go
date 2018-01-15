@@ -259,15 +259,6 @@ func (r *blockRetriever) fetchBatch(
 		}
 		return
 	}
-	defer func() {
-		err := seekerMgr.Return(shard, blockStart, seeker)
-		if err != nil {
-			for _, req := range reqs {
-				req.onError(err)
-			}
-			return
-		}
-	}()
 
 	// Sort the requests by offset into the file before seeking
 	// to ensure all seeks are in ascending order
@@ -323,6 +314,13 @@ func (r *blockRetriever) fetchBatch(
 		}
 
 		req.onRetrieved(seg)
+	}
+
+	err = seekerMgr.Return(shard, blockStart, seeker)
+	if err != nil {
+		r.fsOpts.InstrumentOptions().Logger().Errorf(
+			"err returning seeker for shard: %d, and blockStart: %d, err: %s",
+			shard, blockStart.Unix(), err.Error())
 	}
 }
 
