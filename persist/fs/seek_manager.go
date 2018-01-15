@@ -352,53 +352,14 @@ func (m *seekerManager) openAnyUnopenSeekers(byTime *seekersByTime) error {
 	blockSize := m.namespaceMetadata.Options().RetentionOptions().BlockSize()
 	multiErr := xerrors.NewMultiError()
 
-outer_loop:
+	// outer_loop:
 	for t := start; !t.After(end); t = t.Add(blockSize) {
-		tNano := xtime.ToUnixNano(t)
-		byTime.RLock()
-		_, exists := byTime.seekers[tNano]
-		byTime.RUnlock()
-
-		if exists {
-			// Avoid opening a new seeker if one already exists
-			continue
-		}
-
 		byTime.Lock()
-		_, exists = byTime.seekers[tNano]
-		if exists {
-			byTime.Unlock()
-			continue
-		}
-
-		seeker, err := m.newOpenSeekerFn(byTime.shard, t)
-		if err != nil {
-			if err != errSeekerManagerFileSetNotFound {
-				// Best effort to open files, if not there don't bother opening
-				multiErr = multiErr.Add(err)
-			}
-			byTime.Unlock()
-			continue
-		}
-
-		seekers := make([]borrowableSeeker, 0, m.fetchConcurrency)
-		seekers = append(seekers, borrowableSeeker{seeker: seeker})
-		for i := 0; i < m.fetchConcurrency-1; i++ {
-			clone, err := seeker.Clone()
-			if err != nil {
-				multiErr = multiErr.Add(err)
-				for _, seeker := range seekers {
-					multiErr = multiErr.Add(seeker.seeker.Close())
-				}
-				continue outer_loop
-			}
-			seekers = append(seekers, borrowableSeeker{seeker: clone})
-		}
-		byTime.seekers[tNano] = seekersAndBloom{
-			seekers:     seekers,
-			bloomFilter: seeker.ConcurrentIDBloomFilter(),
-		}
+		_, err := m.openSeekersWithLock(byTime.shard, t, byTime)
 		byTime.Unlock()
+		if err != nil {
+			multiErr = multiErr.Add(err)
+		}
 	}
 
 	return multiErr.FinalError()
