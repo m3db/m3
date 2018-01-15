@@ -316,7 +316,7 @@ func TestCloneSeeker(t *testing.T) {
 	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour))
 	assert.NoError(t, err)
 
-	clone, err := s.Clone()
+	clone, err := s.ConcurrentClone()
 	require.NoError(t, err)
 
 	data, err := clone.SeekByID(ts.StringID("foo"))
@@ -325,7 +325,4 @@ func TestCloneSeeker(t *testing.T) {
 	data.IncRef()
 	defer data.DecRef()
 	assert.Equal(t, []byte{1, 2, 1}, data.Get())
-
-	err = clone.Open(testNs1ID, 0, testWriterStart)
-	assert.Equal(t, errClonesShouldNotBeOpened, err)
 }

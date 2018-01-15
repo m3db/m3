@@ -97,7 +97,7 @@ type seekersAndBloom struct {
 
 // borrowableSeeker is just a seeker with an additional field for keeping track of whether or not it has been borrowed.
 type borrowableSeeker struct {
-	seeker     FileSetSeeker
+	seeker     ConcurrentFileSetSeeker
 	isBorrowed bool
 }
 
@@ -189,7 +189,7 @@ func (m *seekerManager) ConcurrentIDBloomFilter(shard uint32, start time.Time) (
 	return seekersAndBloom.bloomFilter, err
 }
 
-func (m *seekerManager) Borrow(shard uint32, start time.Time) (FileSetSeeker, error) {
+func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentFileSetSeeker, error) {
 	byTime := m.seekersByTime(shard)
 
 	byTime.Lock()
@@ -226,7 +226,7 @@ func (m *seekerManager) Borrow(shard uint32, start time.Time) (FileSetSeeker, er
 	return availableSeeker.seeker, nil
 }
 
-func (m *seekerManager) Return(shard uint32, start time.Time, seeker FileSetSeeker) error {
+func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentFileSetSeeker) error {
 	byTime := m.seekersByTime(shard)
 
 	byTime.Lock()
@@ -316,7 +316,7 @@ func (m *seekerManager) getOrOpenSeekersWithLock(start xtime.UnixNano, byTime *s
 	borrowableSeekers = append(borrowableSeekers, borrowableSeeker{seeker: seeker})
 	// Clone remaining seekers from the original - No need to release the lock, cloning is cheap.
 	for i := 0; i < m.fetchConcurrency-1; i++ {
-		clone, err := seeker.Clone()
+		clone, err := seeker.ConcurrentClone()
 		if err != nil {
 			multiErr := xerrors.NewMultiError()
 			multiErr = multiErr.Add(err)
