@@ -174,7 +174,7 @@ testhtml: test-internal
 .PHONY: test-ci-unit
 test-ci-unit: test-internal
 	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
-	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "Coveralls failed"
+	goveralls -coverprofile=$(coverfile) -service=travis-ci || (echo -e "Coveralls failed" && exit 1)
 
 .PHONY: test-ci-integration
 test-ci-integration:
