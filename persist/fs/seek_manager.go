@@ -221,7 +221,6 @@ func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentFileSet
 
 	availableSeeker.isBorrowed = true
 	seekers[availableSeekerIdx] = availableSeeker
-	byTime.seekers[startNano] = seekersAndBloom
 	return availableSeeker.seeker, nil
 }
 
