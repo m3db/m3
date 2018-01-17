@@ -88,21 +88,32 @@ func ValidateCachePolicy(v CachePolicy) error {
 	return nil
 }
 
+// ParseCachePolicy parses a CachePolicy from a string.
+func ParseCachePolicy(str string) (CachePolicy, error) {
+	var r CachePolicy
+	if str == "" {
+		return r, errCachePolicyUnspecified
+	}
+	for _, valid := range ValidCachePolicies() {
+		if str == valid.String() {
+			r = valid
+			return r, nil
+		}
+	}
+	return r, fmt.Errorf("invalid series CachePolicy '%s' valid types are: %v",
+		str, ValidCachePolicies())
+}
+
 // UnmarshalYAML unmarshals an CachePolicy into a valid type from string.
 func (p *CachePolicy) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
-	if str == "" {
-		return errCachePolicyUnspecified
+	r, err := ParseCachePolicy(str)
+	if err != nil {
+		return err
 	}
-	for _, valid := range ValidCachePolicies() {
-		if str == valid.String() {
-			*p = valid
-			return nil
-		}
-	}
-	return fmt.Errorf("invalid series CachePolicy '%s' valid types are: %v",
-		str, ValidCachePolicies())
+	*p = r
+	return nil
 }

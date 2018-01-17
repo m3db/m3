@@ -238,6 +238,16 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	// Set up repair options
 	storageOpts = storageOpts.SetRepairOptions(storageOpts.RepairOptions().SetAdminClient(adminClient))
 
+	// Use specified series cache policy from environment if set
+	seriesCachePolicy := strings.ToLower(os.Getenv("TEST_SERIES_CACHE_POLICY"))
+	if seriesCachePolicy != "" {
+		value, err := series.ParseCachePolicy(seriesCachePolicy)
+		if err != nil {
+			return nil, err
+		}
+		storageOpts = storageOpts.SetSeriesCachePolicy(value)
+	}
+
 	// Set up block retriever manager
 	if mgr := opts.DatabaseBlockRetrieverManager(); mgr != nil {
 		storageOpts = storageOpts.SetDatabaseBlockRetrieverManager(mgr)
