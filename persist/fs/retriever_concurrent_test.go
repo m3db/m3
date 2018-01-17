@@ -185,7 +185,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 	var (
 		startWg, readyWg sync.WaitGroup
-		seeksPerID       = 48
+		seeksPerID       = 24
 		seeksEach        = len(shards) * idsPerShard * seeksPerID
 	)
 
