@@ -74,10 +74,7 @@ type ConfigureResults struct {
 }
 
 // Configure creates a new ConfigureResults
-func (c Configuration) Configure(
-	iopts instrument.Options,
-	hashingSeed uint32,
-) (ConfigureResults, error) {
+func (c Configuration) Configure(iopts instrument.Options, hashingSeed uint32) (ConfigureResults, error) {
 
 	var emptyConfig ConfigureResults
 
