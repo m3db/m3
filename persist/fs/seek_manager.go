@@ -228,6 +228,7 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentF
 	byTime := m.seekersByTime(shard)
 
 	byTime.Lock()
+	defer byTime.Unlock()
 
 	startNano := xtime.ToUnixNano(start)
 	seekersAndBloom, ok := byTime.seekers[startNano]
@@ -236,7 +237,6 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentF
 	// determined that they were all no longer in use and safe to close. Either way it indicates there is
 	// a bug in the code.
 	if !ok {
-		byTime.Unlock()
 		return errSeekersDontExist
 	}
 
@@ -255,8 +255,6 @@ func (m *seekerManager) Return(shard uint32, start time.Time, seeker ConcurrentF
 		return errReturnedUnmanagedSeeker
 	}
 
-	byTime.seekers[startNano] = seekersAndBloom
-	byTime.Unlock()
 	return nil
 }
 
