@@ -42,6 +42,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 )
 
@@ -74,6 +75,7 @@ type blockRetriever struct {
 
 	opts   BlockRetrieverOptions
 	fsOpts Options
+	logger log.Logger
 
 	newSeekerMgrFn newSeekerMgrFn
 
@@ -101,6 +103,7 @@ func NewBlockRetriever(
 	return &blockRetriever{
 		opts:           opts,
 		fsOpts:         fsOpts,
+		logger:         fsOpts.InstrumentOptions().Logger(),
 		newSeekerMgrFn: NewSeekerManager,
 		reqPool:        reqPool,
 		bytesPool:      opts.BytesPool(),
@@ -318,7 +321,7 @@ func (r *blockRetriever) fetchBatch(
 
 	err = seekerMgr.Return(shard, blockStart, seeker)
 	if err != nil {
-		r.fsOpts.InstrumentOptions().Logger().Errorf(
+		r.logger.Errorf(
 			"err returning seeker for shard: %d, and blockStart: %d, err: %s",
 			shard, blockStart.Unix(), err.Error())
 	}
