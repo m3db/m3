@@ -446,8 +446,7 @@ func (r *blockRetriever) Close() error {
 		<-r.fetchLoopsHaveShutdownCh
 	}
 
-	err := r.seekerMgr.Close()
-	return err
+	return r.seekerMgr.Close()
 }
 
 type shardRetrieveRequests struct {
