@@ -249,7 +249,5 @@ func (s sortableSummaries) Less(i, j int) bool {
 }
 
 func (s sortableSummaries) Swap(i, j int) {
-	temp := s[i]
-	s[i] = s[j]
-	s[j] = temp
+	s[i], s[j] = s[j], s[i]
 }
