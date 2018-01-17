@@ -268,7 +268,7 @@ type Options interface {
 
 // BlockRetrieverOptions represents the options for block retrieval
 type BlockRetrieverOptions interface {
-	// SetRequestPo'olOptions sets the request pool options
+	// SetRequestPoolOptions sets the request pool options
 	SetRequestPoolOptions(value pool.ObjectPoolOptions) BlockRetrieverOptions
 
 	// RequestPoolOptions returns the request pool options
