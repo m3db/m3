@@ -135,6 +135,8 @@ type NewDatabaseBlockFn func() DatabaseBlock
 
 // DatabaseBlock represents a data block.
 type DatabaseBlock interface {
+	OnRetrieveBlock
+
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
@@ -225,6 +227,7 @@ type DatabaseBlockRetriever interface {
 
 	// Stream will stream a block for a given shard, id and start.
 	Stream(
+		ctx context.Context,
 		shard uint32,
 		id ts.ID,
 		blockStart time.Time,
@@ -236,6 +239,7 @@ type DatabaseBlockRetriever interface {
 type DatabaseShardBlockRetriever interface {
 	// Stream will stream a block for a given id and start.
 	Stream(
+		ctx context.Context,
 		id ts.ID,
 		blockStart time.Time,
 		onRetrieve OnRetrieveBlock,

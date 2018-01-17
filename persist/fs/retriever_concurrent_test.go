@@ -1,3 +1,5 @@
+// +build big
+
 // Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -30,6 +32,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
@@ -87,6 +90,7 @@ func newOpenTestWriter(
 }
 
 type streamResult struct {
+	ctx        context.Context
 	shard      uint32
 	id         ts.ID
 	blockStart time.Time
@@ -181,7 +185,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 	var (
 		startWg, readyWg sync.WaitGroup
-		seeksPerID       = 48
+		seeksPerID       = 24
 		seeksEach        = len(shards) * idsPerShard * seeksPerID
 	)
 
@@ -206,9 +210,11 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 				id := shardIDs[shard][idIdx]
 
 				for k := 0; k < len(blockStarts); k++ {
-					stream, err := retriever.Stream(shard, id, blockStarts[k], nil)
+					ctx := context.NewContext()
+					stream, err := retriever.Stream(ctx, shard, id, blockStarts[k], nil)
 					require.NoError(t, err)
 					results = append(results, streamResult{
+						ctx:        ctx,
 						shard:      shard,
 						id:         id,
 						blockStart: blockStarts[k],
@@ -227,6 +233,8 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 					require.NoError(t, err)
 					compare.Head = shardData[r.shard][r.id.Hash()][xtime.ToUnixNano(r.blockStart)]
 					assert.True(t, seg.Equal(&compare))
+
+					r.ctx.Close()
 				}
 				results = results[:0]
 			}
@@ -275,7 +283,10 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	closer()
 
 	// Make sure we return the correct error if the ID does not exist
-	segmentReader, err := retriever.Stream(shard, ts.StringID("not-exists"), blockStart, nil)
+	ctx := context.NewContext()
+	defer ctx.Close()
+	segmentReader, err := retriever.Stream(ctx, shard,
+		ts.StringID("not-exists"), blockStart, nil)
 	assert.NoError(t, err)
 
 	segment, err := segmentReader.Segment()

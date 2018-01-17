@@ -21,6 +21,7 @@
 package fs
 
 import (
+	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/pool"
 )
@@ -35,6 +36,7 @@ type blockRetrieverOptions struct {
 	bytesPool         pool.CheckedBytesPool
 	segmentReaderPool xio.SegmentReaderPool
 	fetchConcurrency  int
+	identifierPool    ts.IdentifierPool
 }
 
 // NewBlockRetrieverOptions creates a new set of block retriever options
@@ -51,6 +53,7 @@ func NewBlockRetrieverOptions() BlockRetrieverOptions {
 		bytesPool:         bytesPool,
 		segmentReaderPool: xio.NewSegmentReaderPool(nil),
 		fetchConcurrency:  defaultFetchConcurrency,
+		identifierPool:    ts.NewIdentifierPool(bytesPool, nil),
 	}
 	o.segmentReaderPool.Init()
 	return o
@@ -94,4 +97,14 @@ func (o *blockRetrieverOptions) SetFetchConcurrency(value int) BlockRetrieverOpt
 
 func (o *blockRetrieverOptions) FetchConcurrency() int {
 	return o.fetchConcurrency
+}
+
+func (o *blockRetrieverOptions) SetIdentifierPool(value ts.IdentifierPool) BlockRetrieverOptions {
+	opts := *o
+	opts.identifierPool = value
+	return &opts
+}
+
+func (o *blockRetrieverOptions) IdentifierPool() ts.IdentifierPool {
+	return o.identifierPool
 }

@@ -61,7 +61,11 @@ type dbBlock struct {
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
-func NewDatabaseBlock(start time.Time, segment ts.Segment, opts Options) DatabaseBlock {
+func NewDatabaseBlock(
+	start time.Time,
+	segment ts.Segment,
+	opts Options,
+) DatabaseBlock {
 	b := &dbBlock{
 		opts:           opts,
 		ctx:            opts.ContextPool().Get(),
@@ -161,7 +165,8 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 		err    error
 	)
 	if b.retriever != nil {
-		stream, err = b.retriever.Stream(b.retrieveID, b.startWithLock(), b)
+		start := b.startWithLock()
+		stream, err = b.retriever.Stream(blocker, b.retrieveID, start, b)
 		if err != nil {
 			return nil, err
 		}

@@ -64,7 +64,8 @@ func TestFilesystemBootstrap(t *testing.T) {
 	fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 	filePathPrefix := fsOpts.FilePathPrefix()
 	noOpAll := bootstrapper.NewNoOpAllBootstrapper()
-	bsOpts := result.NewOptions()
+	bsOpts := result.NewOptions().
+		SetSeriesCachePolicy(setup.storageOpts.SeriesCachePolicy())
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts)

@@ -33,10 +33,12 @@ var (
 type CachePolicy uint
 
 const (
+	// CacheNone specifies that no series will be cached by default.
+	CacheNone CachePolicy = iota
 	// CacheAll specifies that all series must be cached at all times
 	// which requires loading all into cache on bootstrap and never
 	// expiring series from memory until expired from retention.
-	CacheAll CachePolicy = iota
+	CacheAll
 	// CacheAllMetadata specifies that all series metadata but not the
 	// data itself must be cached at all times and the metadata is never
 	// expired from memory until expired from retention.
@@ -53,11 +55,13 @@ const (
 
 // ValidCachePolicies returns the valid series cache policies.
 func ValidCachePolicies() []CachePolicy {
-	return []CachePolicy{CacheAll, CacheAllMetadata, CacheRecentlyRead}
+	return []CachePolicy{CacheNone, CacheAll, CacheAllMetadata, CacheRecentlyRead}
 }
 
 func (p CachePolicy) String() string {
 	switch p {
+	case CacheNone:
+		return "none"
 	case CacheAll:
 		return "all"
 	case CacheAllMetadata:
@@ -84,21 +88,32 @@ func ValidateCachePolicy(v CachePolicy) error {
 	return nil
 }
 
+// ParseCachePolicy parses a CachePolicy from a string.
+func ParseCachePolicy(str string) (CachePolicy, error) {
+	var r CachePolicy
+	if str == "" {
+		return r, errCachePolicyUnspecified
+	}
+	for _, valid := range ValidCachePolicies() {
+		if str == valid.String() {
+			r = valid
+			return r, nil
+		}
+	}
+	return r, fmt.Errorf("invalid series CachePolicy '%s' valid types are: %v",
+		str, ValidCachePolicies())
+}
+
 // UnmarshalYAML unmarshals an CachePolicy into a valid type from string.
 func (p *CachePolicy) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var str string
 	if err := unmarshal(&str); err != nil {
 		return err
 	}
-	if str == "" {
-		return errCachePolicyUnspecified
+	r, err := ParseCachePolicy(str)
+	if err != nil {
+		return err
 	}
-	for _, valid := range ValidCachePolicies() {
-		if str == valid.String() {
-			*p = valid
-			return nil
-		}
-	}
-	return fmt.Errorf("invalid series CachePolicy '%s' valid types are: %v",
-		str, ValidCachePolicies())
+	*p = r
+	return nil
 }

@@ -209,6 +209,10 @@ func Run(runOpts RunOptions) {
 	seriesCachePolicy := cfg.Cache.SeriesConfiguration().Policy
 	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)
 
+	// Apply pooling options
+	opts = withEncodingAndPoolingOptions(logger, opts, cfg.PoolingPolicy)
+
+	// Setup the block retriever
 	switch seriesCachePolicy {
 	case series.CacheAll:
 		// No options needed to be set
@@ -217,7 +221,8 @@ func Run(runOpts RunOptions) {
 		// to service a cache miss
 		retrieverOpts := fs.NewBlockRetrieverOptions().
 			SetBytesPool(opts.BytesPool()).
-			SetSegmentReaderPool(opts.SegmentReaderPool())
+			SetSegmentReaderPool(opts.SegmentReaderPool()).
+			SetIdentifierPool(opts.IdentifierPool())
 		if blockRetrieveCfg := cfg.BlockRetrieve; blockRetrieveCfg != nil {
 			retrieverOpts = retrieverOpts.
 				SetFetchConcurrency(blockRetrieveCfg.FetchConcurrency)
@@ -232,9 +237,6 @@ func Run(runOpts RunOptions) {
 			})
 		opts = opts.SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
 	}
-
-	// Apply pooling options
-	opts = withEncodingAndPoolingOptions(logger, opts, cfg.PoolingPolicy)
 
 	// Set the persistence manager
 	pm, err := fs.NewPersistManager(fsopts)

@@ -13,6 +13,8 @@ env:
     - PACKAGE=github.com/m3db/m3db
   matrix:
     - MAKE_TARGET="test-ci-unit"
-    - MAKE_TARGET="test-ci-integration"
+    - MAKE_TARGET="test-ci-integration cache_policy=recently_read"
+    - MAKE_TARGET="test-ci-integration cache_policy=none"
+    - MAKE_TARGET="test-ci-integration cache_policy=all"
     - MAKE_TARGET="metalint services tools"
 script: "make $MAKE_TARGET"

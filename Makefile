@@ -21,6 +21,7 @@ thrift_gen_package   := github.com/uber/tchannel-go
 thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
+cache_policy         ?= recently_read
 
 BUILD            := $(abspath ./bin)
 GO_BUILD_LDFLAGS := $(shell $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package))
@@ -162,7 +163,7 @@ test-ci-unit: test-base-ci-unit
 
 .PHONY: test-ci-integration
 test-ci-integration:
-	INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false make test-base-ci-integration
+	INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
 
 .PHONY: clean
 clean:

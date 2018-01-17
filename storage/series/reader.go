@@ -43,20 +43,27 @@ var (
 // It is implemented as a struct so it can be allocated on
 // the stack.
 type Reader struct {
-	opts        Options
-	cloneableID ts.ID
-	retriever   QueryableBlockRetriever
+	opts       Options
+	id         ts.ID
+	retriever  QueryableBlockRetriever
+	onRetrieve block.OnRetrieveBlock
 }
 
-// NewReaderForRetriever returns a reader for a series
-// block retriever, it will only return data from the block
-// retriever.
-func NewReaderForRetriever(
+// NewReaderUsingRetriever returns a reader for a series
+// block retriever, it will use the block retriever as the
+// source to read blocks from.
+func NewReaderUsingRetriever(
 	id ts.ID,
 	retriever QueryableBlockRetriever,
+	onRetrieveBlock block.OnRetrieveBlock,
 	opts Options,
 ) Reader {
-	return Reader{opts: opts, cloneableID: id, retriever: retriever}
+	return Reader{
+		opts:       opts,
+		id:         id,
+		retriever:  retriever,
+		onRetrieve: onRetrieveBlock,
+	}
 }
 
 // ReadEncoded reads encoded blocks using just a block retriever.
@@ -103,10 +110,7 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 		alignedEnd = latest
 	}
 
-	var (
-		first, last = alignedStart, alignedEnd
-		clonedID    ts.ID
-	)
+	first, last := alignedStart, alignedEnd
 	for blockAt := first; !blockAt.After(last); blockAt = blockAt.Add(size) {
 		if seriesBlocks != nil {
 			if block, ok := seriesBlocks.BlockAt(blockAt); ok {
@@ -133,17 +137,7 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 		case r.retriever != nil:
 			// Try to stream from disk
 			if r.retriever.IsBlockRetrievable(blockAt) {
-				if clonedID == nil {
-					// Clone ID as the block retriever uses the ID async so we cannot
-					// be sure about owner not finalizing the cloneableID passed to
-					// the Reader
-					clonedID = r.opts.IdentifierPool().Clone(r.cloneableID)
-					ctx.RegisterFinalizer(clonedID)
-				}
-				// TODO(r): Specify a non-nil OnRetrieveBlock callback to cache the
-				// block back to a series in the shard on a read.
-				var onRetrieve block.OnRetrieveBlock
-				stream, err := r.retriever.Stream(clonedID, blockAt, onRetrieve)
+				stream, err := r.retriever.Stream(ctx, r.id, blockAt, r.onRetrieve)
 				if err != nil {
 					return nil, err
 				}
@@ -179,11 +173,17 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 	seriesBlocks block.DatabaseSeriesBlocks,
 	seriesBuffer databaseBuffer,
 ) ([]block.FetchBlockResult, error) {
-	res := make([]block.FetchBlockResult, 0, len(starts))
-
-	var clonedID ts.ID
-	cachePolicy := r.opts.CachePolicy()
-
+	var (
+		// TODO(r): pool these results arrays
+		res         = make([]block.FetchBlockResult, 0, len(starts))
+		cachePolicy = r.opts.CachePolicy()
+		// NB(r): Always use nil for OnRetrieveBlock so we don't cache the
+		// series after fetching it from disk, the fetch blocks API is called
+		// during streaming so to cache it in memory would mean we would
+		// eventually cache all series in memory when we stream results to a
+		// peer.
+		onRetrieve block.OnRetrieveBlock
+	)
 	for _, start := range starts {
 		if seriesBlocks != nil {
 			if b, exists := seriesBlocks.BlockAt(start); exists {
@@ -191,7 +191,7 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 				if err != nil {
 					r := block.NewFetchBlockResult(start, nil,
 						fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",
-							r.cloneableID.String(), start, err))
+							r.id.String(), start, err))
 					res = append(res, r)
 				}
 				if stream != nil {
@@ -210,28 +210,14 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 		case r.retriever != nil:
 			// Try to stream from disk
 			if r.retriever.IsBlockRetrievable(start) {
-				if clonedID == nil {
-					// Clone ID as the block retriever uses the ID async so we cannot
-					// be sure about owner not finalizing the cloneableID passed to
-					// the Reader
-					clonedID = r.opts.IdentifierPool().Clone(r.cloneableID)
-					ctx.RegisterFinalizer(clonedID)
-				}
-				// NB(r): Always use nil for onRetrieveBlock so we don't cache the
-				// series after fetching it from disk, the fetch blocks API is called
-				// during streaming so to cache it in memory would mean we would
-				// eventually cache all series in memory when we stream results to a
-				// peer.
-				var onRetrieve block.OnRetrieveBlock
-				stream, err := r.retriever.Stream(clonedID, start, onRetrieve)
+				stream, err := r.retriever.Stream(ctx, r.id, start, onRetrieve)
 				if err != nil {
 					r := block.NewFetchBlockResult(start, nil,
 						fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",
-							r.cloneableID.String(), start, err))
+							r.id.String(), start, err))
 					res = append(res, r)
 				}
 				if stream != nil {
-					// TODO: work out how to pass checksum here or defer till later somehow
 					r := block.NewFetchBlockResult(start, []xio.SegmentReader{stream}, nil)
 					res = append(res, r)
 				}

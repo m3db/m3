@@ -37,6 +37,8 @@ import (
 
 // DatabaseSeries is a series in the database
 type DatabaseSeries interface {
+	block.OnRetrieveBlock
+
 	// ID returns the ID of the series
 	ID() ts.ID
 
@@ -74,6 +76,9 @@ type DatabaseSeries interface {
 	// IsEmpty returns whether series is empty
 	IsEmpty() bool
 
+	// NumActiveBlocks returns the number of active blocks the series currently holds
+	NumActiveBlocks() int
+
 	// IsBootstrapped returns whether the series is bootstrapped or not
 	IsBootstrapped() bool
 
@@ -90,6 +95,7 @@ type DatabaseSeries interface {
 	Reset(
 		id ts.ID,
 		blockRetriever QueryableBlockRetriever,
+		onRetrieveBlock block.OnRetrieveBlock,
 		opts Options,
 	)
 }

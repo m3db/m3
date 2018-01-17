@@ -33,8 +33,8 @@ import (
 	clock "github.com/m3db/m3x/clock"
 	pool "github.com/m3db/m3x/pool"
 	sync "github.com/m3db/m3x/sync"
-	time "github.com/m3db/m3x/time"
-	time0 "time"
+	time0 "github.com/m3db/m3x/time"
+	time "time"
 )
 
 // Mock of FilteredBlocksMetadataIter interface
@@ -218,9 +218,17 @@ func (_m *MockDatabaseBlock) EXPECT() *_MockDatabaseBlockRecorder {
 	return _m.recorder
 }
 
-func (_m *MockDatabaseBlock) StartTime() time0.Time {
+func (_m *MockDatabaseBlock) OnRetrieveBlock(id ts.ID, startTime time.Time, segment ts.Segment) {
+	_m.ctrl.Call(_m, "OnRetrieveBlock", id, startTime, segment)
+}
+
+func (_mr *_MockDatabaseBlockRecorder) OnRetrieveBlock(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "OnRetrieveBlock", arg0, arg1, arg2)
+}
+
+func (_m *MockDatabaseBlock) StartTime() time.Time {
 	ret := _m.ctrl.Call(_m, "StartTime")
-	ret0, _ := ret[0].(time0.Time)
+	ret0, _ := ret[0].(time.Time)
 	return ret0
 }
 
@@ -228,7 +236,7 @@ func (_mr *_MockDatabaseBlockRecorder) StartTime() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "StartTime")
 }
 
-func (_m *MockDatabaseBlock) SetLastReadTime(value time0.Time) {
+func (_m *MockDatabaseBlock) SetLastReadTime(value time.Time) {
 	_m.ctrl.Call(_m, "SetLastReadTime", value)
 }
 
@@ -236,9 +244,9 @@ func (_mr *_MockDatabaseBlockRecorder) SetLastReadTime(arg0 interface{}) *gomock
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetLastReadTime", arg0)
 }
 
-func (_m *MockDatabaseBlock) LastReadTime() time0.Time {
+func (_m *MockDatabaseBlock) LastReadTime() time.Time {
 	ret := _m.ctrl.Call(_m, "LastReadTime")
-	ret0, _ := ret[0].(time0.Time)
+	ret0, _ := ret[0].(time.Time)
 	return ret0
 }
 
@@ -315,7 +323,7 @@ func (_mr *_MockDatabaseBlockRecorder) IsCachedBlock() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsCachedBlock")
 }
 
-func (_m *MockDatabaseBlock) Reset(startTime time0.Time, segment ts.Segment) {
+func (_m *MockDatabaseBlock) Reset(startTime time.Time, segment ts.Segment) {
 	_m.ctrl.Call(_m, "Reset", startTime, segment)
 }
 
@@ -323,7 +331,7 @@ func (_mr *_MockDatabaseBlockRecorder) Reset(arg0, arg1 interface{}) *gomock.Cal
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1)
 }
 
-func (_m *MockDatabaseBlock) ResetRetrievable(startTime time0.Time, retriever DatabaseShardBlockRetriever, metadata RetrievableBlockMetadata) {
+func (_m *MockDatabaseBlock) ResetRetrievable(startTime time.Time, retriever DatabaseShardBlockRetriever, metadata RetrievableBlockMetadata) {
 	_m.ctrl.Call(_m, "ResetRetrievable", startTime, retriever, metadata)
 }
 
@@ -360,7 +368,7 @@ func (_m *MockOnRetrieveBlock) EXPECT() *_MockOnRetrieveBlockRecorder {
 	return _m.recorder
 }
 
-func (_m *MockOnRetrieveBlock) OnRetrieveBlock(id ts.ID, startTime time0.Time, segment ts.Segment) {
+func (_m *MockOnRetrieveBlock) OnRetrieveBlock(id ts.ID, startTime time.Time, segment ts.Segment) {
 	_m.ctrl.Call(_m, "OnRetrieveBlock", id, startTime, segment)
 }
 
@@ -399,15 +407,15 @@ func (_mr *_MockDatabaseBlockRetrieverRecorder) CacheShardIndices(arg0 interface
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "CacheShardIndices", arg0)
 }
 
-func (_m *MockDatabaseBlockRetriever) Stream(shard uint32, id ts.ID, blockStart time0.Time, onRetrieve OnRetrieveBlock) (io.SegmentReader, error) {
-	ret := _m.ctrl.Call(_m, "Stream", shard, id, blockStart, onRetrieve)
+func (_m *MockDatabaseBlockRetriever) Stream(ctx context.Context, shard uint32, id ts.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (io.SegmentReader, error) {
+	ret := _m.ctrl.Call(_m, "Stream", ctx, shard, id, blockStart, onRetrieve)
 	ret0, _ := ret[0].(io.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockDatabaseBlockRetrieverRecorder) Stream(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stream", arg0, arg1, arg2, arg3)
+func (_mr *_MockDatabaseBlockRetrieverRecorder) Stream(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stream", arg0, arg1, arg2, arg3, arg4)
 }
 
 // Mock of DatabaseShardBlockRetriever interface
@@ -431,15 +439,15 @@ func (_m *MockDatabaseShardBlockRetriever) EXPECT() *_MockDatabaseShardBlockRetr
 	return _m.recorder
 }
 
-func (_m *MockDatabaseShardBlockRetriever) Stream(id ts.ID, blockStart time0.Time, onRetrieve OnRetrieveBlock) (io.SegmentReader, error) {
-	ret := _m.ctrl.Call(_m, "Stream", id, blockStart, onRetrieve)
+func (_m *MockDatabaseShardBlockRetriever) Stream(ctx context.Context, id ts.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (io.SegmentReader, error) {
+	ret := _m.ctrl.Call(_m, "Stream", ctx, id, blockStart, onRetrieve)
 	ret0, _ := ret[0].(io.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockDatabaseShardBlockRetrieverRecorder) Stream(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stream", arg0, arg1, arg2)
+func (_mr *_MockDatabaseShardBlockRetrieverRecorder) Stream(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stream", arg0, arg1, arg2, arg3)
 }
 
 // Mock of DatabaseBlockRetrieverManager interface
@@ -552,9 +560,9 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) AddSeries(arg0 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AddSeries", arg0)
 }
 
-func (_m *MockDatabaseSeriesBlocks) MinTime() time0.Time {
+func (_m *MockDatabaseSeriesBlocks) MinTime() time.Time {
 	ret := _m.ctrl.Call(_m, "MinTime")
-	ret0, _ := ret[0].(time0.Time)
+	ret0, _ := ret[0].(time.Time)
 	return ret0
 }
 
@@ -562,9 +570,9 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) MinTime() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "MinTime")
 }
 
-func (_m *MockDatabaseSeriesBlocks) MaxTime() time0.Time {
+func (_m *MockDatabaseSeriesBlocks) MaxTime() time.Time {
 	ret := _m.ctrl.Call(_m, "MaxTime")
-	ret0, _ := ret[0].(time0.Time)
+	ret0, _ := ret[0].(time.Time)
 	return ret0
 }
 
@@ -572,7 +580,7 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) MaxTime() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "MaxTime")
 }
 
-func (_m *MockDatabaseSeriesBlocks) BlockAt(t time0.Time) (DatabaseBlock, bool) {
+func (_m *MockDatabaseSeriesBlocks) BlockAt(t time.Time) (DatabaseBlock, bool) {
 	ret := _m.ctrl.Call(_m, "BlockAt", t)
 	ret0, _ := ret[0].(DatabaseBlock)
 	ret1, _ := ret[1].(bool)
@@ -583,9 +591,9 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) BlockAt(arg0 interface{}) *gomock.
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "BlockAt", arg0)
 }
 
-func (_m *MockDatabaseSeriesBlocks) AllBlocks() map[time.UnixNano]DatabaseBlock {
+func (_m *MockDatabaseSeriesBlocks) AllBlocks() map[time0.UnixNano]DatabaseBlock {
 	ret := _m.ctrl.Call(_m, "AllBlocks")
-	ret0, _ := ret[0].(map[time.UnixNano]DatabaseBlock)
+	ret0, _ := ret[0].(map[time0.UnixNano]DatabaseBlock)
 	return ret0
 }
 
@@ -593,7 +601,7 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) AllBlocks() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "AllBlocks")
 }
 
-func (_m *MockDatabaseSeriesBlocks) RemoveBlockAt(t time0.Time) {
+func (_m *MockDatabaseSeriesBlocks) RemoveBlockAt(t time.Time) {
 	_m.ctrl.Call(_m, "RemoveBlockAt", t)
 }
 
