@@ -193,6 +193,7 @@ func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentFileSet
 	byTime := m.seekersByTime(shard)
 
 	byTime.Lock()
+	defer byTime.Unlock()
 	// Track accessed to precache in open/close loop
 	byTime.accessed = true
 
@@ -215,14 +216,12 @@ func (m *seekerManager) Borrow(shard uint32, start time.Time) (ConcurrentFileSet
 
 	// Should not occur in the case of a well-behaved caller
 	if availableSeekerIdx == -1 {
-		byTime.Unlock()
 		return nil, errNoAvailableSeekers
 	}
 
 	availableSeeker.isBorrowed = true
 	seekers[availableSeekerIdx] = availableSeeker
 	byTime.seekers[startNano] = seekersAndBloom
-	byTime.Unlock()
 	return availableSeeker.seeker, nil
 }
 
