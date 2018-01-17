@@ -575,9 +575,7 @@ func (m *seekerManager) openCloseLoop() {
 			err := seeker.seeker.Close()
 			if err != nil {
 				m.logger.
-					WithFields(
-						log.NewField("err", err),
-					).
+					WithFields(log.NewField("err", err.Error())).
 					Error("err closing seeker in SeekerManager openCloseLoop")
 			}
 		}
@@ -598,9 +596,7 @@ func (m *seekerManager) openCloseLoop() {
 				err := seeker.seeker.Close()
 				if err != nil {
 					m.logger.
-						WithFields(
-							log.NewField("err", err),
-						).
+						WithFields(log.NewField("err", err.Error())).
 						Error("err closing seeker in SeekerManager at end of openCloseLoop")
 				}
 			}

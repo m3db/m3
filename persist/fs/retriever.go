@@ -325,7 +325,7 @@ func (r *blockRetriever) fetchBatch(
 		r.logger.WithFields(
 			log.NewField("shard", shard),
 			log.NewField("blockStart", blockStart.Unix()),
-			log.NewField("err", err),
+			log.NewField("err", err.Error()),
 		).Error("err returning seeker for shard")
 	}
 }
