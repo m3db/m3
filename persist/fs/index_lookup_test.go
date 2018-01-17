@@ -108,7 +108,7 @@ func TestClosingCloneDoesNotAffectParent(t *testing.T) {
 		},
 	}
 
-	indexLookup := newIndexLookupWithValidData(t, indexSummaries)
+	indexLookup := newIndexLookupWithSummaries(t, indexSummaries)
 	clone, err := indexLookup.concurrentClone()
 	require.NoError(t, err)
 	require.NoError(t, clone.close())
@@ -139,7 +139,7 @@ func TestParentAndClonesSafeForConcurrentUse(t *testing.T) {
 	sort.Sort(sortableSummaries(indexSummaries))
 
 	// Create indexLookup and associated clones
-	indexLookup := newIndexLookupWithValidData(t, indexSummaries)
+	indexLookup := newIndexLookupWithSummaries(t, indexSummaries)
 	clones := []*nearestIndexOffsetLookup{}
 	for i := 0; i < numClones; i++ {
 		clone, err := indexLookup.concurrentClone()
@@ -181,13 +181,14 @@ func TestParentAndClonesSafeForConcurrentUse(t *testing.T) {
 	}
 }
 
-func newIndexLookupWithValidData(t *testing.T, indexSummaries []schema.IndexSummary) *nearestIndexOffsetLookup {
+// newIndexLookupWithSummaries will return a new index lookup that is backed by the provided
+// indexSummaries (in the order that they are provided).
+func newIndexLookupWithSummaries(t *testing.T, indexSummaries []schema.IndexSummary) *nearestIndexOffsetLookup {
 	// Create a temp file
 	file, err := ioutil.TempFile("", "index-lookup-sort")
 	require.NoError(t, err)
 	defer os.Remove(file.Name())
 
-	// Write out the out-of-order summaries into the temp file
 	writeSummariesEntries(t, file, indexSummaries)
 
 	// Prepare the digest reader
