@@ -49,6 +49,7 @@ import (
 var (
 	errBlockRetrieverNotOpen             = errors.New("block retriever is not open")
 	errBlockRetrieverAlreadyOpenOrClosed = errors.New("block retriever already open or is closed")
+	errBlockRetrieverAlreadyClosed       = errors.New("block retriever already closed")
 	errNoSeekerMgr                       = errors.New("there is no open seeker manager")
 )
 
@@ -432,6 +433,10 @@ func (r *blockRetriever) shardRequests(
 
 func (r *blockRetriever) Close() error {
 	r.Lock()
+	if r.status == blockRetrieverClosed {
+		r.Unlock()
+		return errBlockRetrieverAlreadyClosed
+	}
 	r.nsMetadata = nil
 	r.status = blockRetrieverClosed
 	r.Unlock()
