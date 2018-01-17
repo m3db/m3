@@ -79,9 +79,6 @@ type Configuration struct {
 
 	// HashingConfiguration is the configuration for hashing of IDs to shards.
 	HashingConfiguration HashingConfiguration `yaml:"hashing"`
-
-	// The host and port on which m3db listens.
-	ListenAddress string `yaml:"listenAddress"`
 }
 
 // HashingConfiguration is the configuration for hashing
@@ -150,27 +147,24 @@ func (c Configuration) NewAdminClient(
 	writeRequestScope := iopts.MetricsScope().SubScope("write-req")
 	fetchRequestScope := iopts.MetricsScope().SubScope("fetch-req")
 
-	configureResults := &environment.ConfigureResults{
+	envCfg := environment.ConfigureResults{
 		TopologyInitializer: params.TopologyInitializer,
 	}
 
-	if configureResults.TopologyInitializer == nil {
+	var err error
+	if envCfg.TopologyInitializer == nil {
 		switch {
 		case c.EnvironmentConfig.Service != nil:
-			configSvcClient, err := c.EnvironmentConfig.Service.NewClient(iopts)
-			if err != nil {
-				return nil, err
-			}
 
-			configureResults, err = c.EnvironmentConfig.NewConfigureResults(configSvcClient, iopts, "", c.HashingConfiguration.Seed)
+			envCfg, err = c.EnvironmentConfig.Configure(iopts, c.HashingConfiguration.Seed)
 			if err != nil {
 				err = fmt.Errorf("unable to create dynamic topology initializer, err: %v", err)
 				return nil, err
 			}
 
 		case c.EnvironmentConfig.Static != nil:
-			var err error
-			configureResults, err = c.EnvironmentConfig.NewConfigureResults(nil, nil, c.ListenAddress, 0)
+
+			envCfg, err = c.EnvironmentConfig.Configure(nil, c.HashingConfiguration.Seed)
 			if err != nil {
 				err = fmt.Errorf("unable to create static topology initializer, err: %v", err)
 				return nil, err
@@ -182,7 +176,7 @@ func (c Configuration) NewAdminClient(
 	}
 
 	v := NewAdminOptions().
-		SetTopologyInitializer(configureResults.TopologyInitializer).
+		SetTopologyInitializer(envCfg.TopologyInitializer).
 		SetWriteConsistencyLevel(c.WriteConsistencyLevel).
 		SetReadConsistencyLevel(c.ReadConsistencyLevel).
 		SetClusterConnectConsistencyLevel(c.ConnectConsistencyLevel).

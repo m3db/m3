@@ -315,7 +315,6 @@ client:
   backgroundHealthCheckFailThrottleFactor: 0.5
   hashing:
     seed: 42
-  listenAddress: ""
 gcPercentage: 100
 writeNewSeriesAsync: true
 writeNewSeriesLimitPerSecond: 1048576

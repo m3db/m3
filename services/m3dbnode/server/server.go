@@ -32,9 +32,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/m3db/m3db/environment"
-
-	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/generated/proto/commonpb"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/util"
@@ -42,6 +39,7 @@ import (
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
+	"github.com/m3db/m3db/environment"
 	"github.com/m3db/m3db/kvconfig"
 	hjcluster "github.com/m3db/m3db/network/server/httpjson/cluster"
 	hjnode "github.com/m3db/m3db/network/server/httpjson/node"
@@ -236,23 +234,14 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetPersistManager(pm)
 
 	var (
-		configureResults *environment.ConfigureResults
+		envCfg environment.ConfigureResults
 	)
 
 	switch {
 	case cfg.EnvironmentConfig.Service != nil:
 		logger.Info("creating dynamic config service client with m3cluster")
-		configSvcClientOpts := cfg.EnvironmentConfig.Service.NewOptions().
-			SetInstrumentOptions(
-				instrument.NewOptions().
-					SetLogger(logger).
-					SetMetricsScope(scope))
-		configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
-		if err != nil {
-			logger.Fatalf("could not create m3cluster client: %v", err)
-		}
 
-		configureResults, err = cfg.EnvironmentConfig.NewConfigureResults(configSvcClient, iopts, "", cfg.Hashing.Seed)
+		envCfg, err = cfg.EnvironmentConfig.Configure(iopts, cfg.Hashing.Seed)
 		if err != nil {
 			logger.Fatalf("could not initialize dynamic config: %v", err)
 		}
@@ -260,7 +249,7 @@ func Run(runOpts RunOptions) {
 	case cfg.EnvironmentConfig.Static != nil:
 		logger.Info("creating static config service client with m3cluster")
 
-		configureResults, err = cfg.EnvironmentConfig.NewConfigureResults(nil, nil, cfg.ListenAddress, 0)
+		envCfg, err = cfg.EnvironmentConfig.Configure(nil, cfg.Hashing.Seed)
 		if err != nil {
 			logger.Fatalf("could not initialize static config: %v", err)
 		}
@@ -269,9 +258,9 @@ func Run(runOpts RunOptions) {
 		logger.Fatal("config service or static configuration required")
 	}
 
-	opts = opts.SetNamespaceInitializer(configureResults.NamespaceInitializer)
+	opts = opts.SetNamespaceInitializer(envCfg.NamespaceInitializer)
 
-	topo, err := configureResults.TopologyInitializer.Init()
+	topo, err := envCfg.TopologyInitializer.Init()
 	if err != nil {
 		logger.Fatalf("could not initialize m3db topology: %v", err)
 	}
@@ -285,7 +274,7 @@ func Run(runOpts RunOptions) {
 		client.ConfigurationParameters{
 			InstrumentOptions: iopts.
 				SetMetricsScope(iopts.MetricsScope().SubScope("m3dbclient")),
-			TopologyInitializer: configureResults.TopologyInitializer,
+			TopologyInitializer: envCfg.TopologyInitializer,
 		},
 		func(opts client.AdminOptions) client.AdminOptions {
 			return opts.SetContextPool(opts.ContextPool()).(client.AdminOptions)
@@ -306,7 +295,7 @@ func Run(runOpts RunOptions) {
 	opts = opts.SetBootstrapProcess(bs)
 
 	timeout := bootstrapConfigInitTimeout
-	kvWatchBootstrappers(configureResults.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
+	kvWatchBootstrappers(envCfg.KVStore, logger, timeout, cfg.Bootstrap.Bootstrappers,
 		func(bootstrappers []string) {
 			if len(bootstrappers) == 0 {
 				logger.Errorf("updated bootstrapper list is empty")
@@ -359,7 +348,7 @@ func Run(runOpts RunOptions) {
 		SetBlocksMetadataPool(blocksMetadataPool).
 		SetBlocksMetadataSlicePool(blocksMetadataSlicePool)
 
-	db, err := cluster.NewDatabase(hostID, configureResults.TopologyInitializer, opts)
+	db, err := cluster.NewDatabase(hostID, envCfg.TopologyInitializer, opts)
 	if err != nil {
 		logger.Fatalf("could not construct database: %v", err)
 	}
@@ -429,7 +418,7 @@ func Run(runOpts RunOptions) {
 		logger.Infof("bootstrapped")
 
 		// Only set the write new series limit after bootstrapping
-		kvWatchNewSeriesLimitPerShard(configureResults.KVStore, logger, topo,
+		kvWatchNewSeriesLimitPerShard(envCfg.KVStore, logger, topo,
 			runtimeOptsMgr, cfg.WriteNewSeriesLimitPerSecond)
 	}()
 

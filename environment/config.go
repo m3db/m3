@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3cluster/client"
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/kv"
 	m3clusterkvmem "github.com/m3db/m3cluster/kv/mem"
@@ -38,6 +37,7 @@ type Configuration struct {
 type StaticConfiguration struct {
 	Namespaces     []StaticNamespaceConfiguration `yaml:"namespaces"`
 	TopologyConfig *topology.StaticConfiguration  `yaml:"topology"`
+	ListenAddress  string                         `yaml:"listenAddress"`
 }
 
 // StaticNamespaceConfiguration sets the static namespace
@@ -73,15 +73,24 @@ type ConfigureResults struct {
 	KVStore              kv.Store
 }
 
-// NewConfigureResults creates a new ConfigureResults
-func (c Configuration) NewConfigureResults(configSvcClient client.Client,
+// Configure creates a new ConfigureResults
+func (c Configuration) Configure(
 	iopts instrument.Options,
-	listenAddress string,
-	hashingCfg uint32,
-) (*ConfigureResults, error) {
+	hashingSeed uint32,
+) (ConfigureResults, error) {
+
+	var emptyConfig ConfigureResults
 
 	switch {
 	case c.Service != nil:
+		configSvcClientOpts := c.Service.NewOptions().
+			SetInstrumentOptions(iopts)
+		configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
+		if err != nil {
+			err = fmt.Errorf("could not create m3cluster client: %v", err)
+			return emptyConfig, err
+		}
+
 		dynamicOpts := namespace.NewDynamicOptions().
 			SetInstrumentOptions(iopts).
 			SetConfigServiceClient(configSvcClient).
@@ -98,16 +107,16 @@ func (c Configuration) NewConfigureResults(configSvcClient client.Client,
 			SetServiceID(serviceID).
 			SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
 			SetInstrumentOptions(iopts).
-			SetHashGen(sharding.NewHashGenWithSeed(hashingCfg))
+			SetHashGen(sharding.NewHashGenWithSeed(hashingSeed))
 		topoInit := topology.NewDynamicInitializer(topoOpts)
 
 		kv, err := configSvcClient.KV()
 		if err != nil {
 			err = fmt.Errorf("could not create KV client, %v", err)
-			return nil, err
+			return emptyConfig, err
 		}
 
-		configureResults := &ConfigureResults{
+		configureResults := ConfigureResults{
 			NamespaceInitializer: nsInit,
 			TopologyInitializer:  topoInit,
 			KVStore:              kv,
@@ -120,17 +129,17 @@ func (c Configuration) NewConfigureResults(configSvcClient client.Client,
 			md, err := newNamespaceMetadata(ns)
 			if err != nil {
 				err = fmt.Errorf("unable to create metadata for static config: %v", err)
-				return nil, err
+				return emptyConfig, err
 			}
 			nsList = append(nsList, md)
 		}
 
 		nsInitStatic := namespace.NewStaticInitializer(nsList)
 
-		shardSet, hostShardSets, err := newStaticShardSet(c.Static.TopologyConfig.Shards, listenAddress)
+		shardSet, hostShardSets, err := newStaticShardSet(c.Static.TopologyConfig.Shards, c.Static.ListenAddress)
 		if err != nil {
 			err = fmt.Errorf("unable to create shard set for static config: %v", err)
-			return nil, err
+			return emptyConfig, err
 		}
 		staticOptions := topology.NewStaticOptions().
 			SetReplicas(1).
@@ -141,7 +150,7 @@ func (c Configuration) NewConfigureResults(configSvcClient client.Client,
 
 		kv := m3clusterkvmem.NewStore()
 
-		configureResults := &ConfigureResults{
+		configureResults := ConfigureResults{
 			NamespaceInitializer: nsInitStatic,
 			TopologyInitializer:  topoInit,
 			KVStore:              kv,
@@ -149,7 +158,7 @@ func (c Configuration) NewConfigureResults(configSvcClient client.Client,
 		return configureResults, nil
 
 	default:
-		return nil, errMissingConfig
+		return emptyConfig, errMissingConfig
 	}
 }
 
