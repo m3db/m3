@@ -137,6 +137,31 @@ type FileSetSeeker interface {
 	// Test() method returns true, the ID may exist on disk, but if it returns
 	// false, it definitely does not.
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
+
+	// ConcurrentClone clones a seeker, creating a copy that uses the same underlying resources
+	// (mmaps), but that is capable of seeking independently. The original can continue
+	// to be used after the clones are closed, but the clones cannot be used after the
+	// original is closed.
+	ConcurrentClone() (ConcurrentFileSetSeeker, error)
+}
+
+// ConcurrentFileSetSeeker is a limited interface that is returned when ConcurrentClone() is called on FileSetSeeker.
+// The clones can be used together concurrently and share underlying resources. Clones are no
+// longer usable once the original has been closed.
+type ConcurrentFileSetSeeker interface {
+	io.Closer
+
+	// SeekByID is the same as in FileSetSeeker
+	SeekByID(id ts.ID) (data checked.Bytes, err error)
+
+	// SeekByIndexEntry is the same as in FileSetSeeker
+	SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error)
+
+	// SeekIndexEntry is the same as in FileSetSeeker
+	SeekIndexEntry(id ts.ID) (IndexEntry, error)
+
+	// ConcurrentIDBloomFilter is the same as in FileSetSeeker
+	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
 }
 
 // FileSetSeekerManager provides management of seekers for a TSDB namespace.
@@ -150,8 +175,15 @@ type FileSetSeekerManager interface {
 	// to improve times when seeking to a block.
 	CacheShardIndices(shards []uint32) error
 
-	// Seeker returns an open seeker for a given shard and block start time.
-	Seeker(shard uint32, start time.Time) (FileSetSeeker, error)
+	// Borrow returns an open seeker for a given shard and block start time.
+	Borrow(shard uint32, start time.Time) (ConcurrentFileSetSeeker, error)
+
+	// Return returns an open seeker for a given shard and block start time.
+	Return(shard uint32, start time.Time, seeker ConcurrentFileSetSeeker) error
+
+	// ConcurrentIDBloomFilter returns a concurrent ID bloom filter for a given
+	// shard and block start time
+	ConcurrentIDBloomFilter(shard uint32, start time.Time) (*ManagedConcurrentBloomFilter, error)
 }
 
 // BlockRetriever provides a block retriever for TSDB file sets

@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -92,7 +93,26 @@ type streamResult struct {
 	stream     xio.SegmentReader
 }
 
+// TestBlockRetrieverHighConcurrentSeeks tests the retriever with high
+// concurrent seeks, but without caching the shard indices. This means that the
+// seekers will be opened lazily by calls to ConcurrentIDBloomFilter() in the
+// SeekerManager
 func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
+	testBlockRetrieverHighConcurrentSeeks(t, false)
+}
+
+// TestBlockRetrieverHighConcurrentSeeksCacheShardIndices tests the retriever
+// with high concurrent seekers and calls cache shard indices at the beginning.
+// This means that the seekers will be opened all at once in the beginning and
+// by the time ConcurrentIDBloomFilter() is called, they seekers will already be
+// open.
+func TestBlockRetrieverHighConcurrentSeeksCacheShardIndices(t *testing.T) {
+	testBlockRetrieverHighConcurrentSeeks(t, true)
+}
+
+func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices bool) {
+	defer leaktest.CheckTimeout(t, 2*time.Minute)()
+
 	dir, err := ioutil.TempDir("", "testdb")
 	require.NoError(t, err)
 	defer os.RemoveAll(dir)
@@ -119,7 +139,7 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 	min, max := now.Add(-6*ropts.BlockSize()), now.Add(-ropts.BlockSize())
 
 	var (
-		shards         = 2
+		shards         = []uint32{0, 1, 2}
 		idsPerShard    = 16
 		shardIDs       = make(map[uint32][]ts.ID)
 		dataBytesPerID = 32
@@ -129,7 +149,7 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 	for st := min; !st.After(max); st = st.Add(ropts.BlockSize()) {
 		blockStarts = append(blockStarts, st)
 	}
-	for shard := uint32(0); shard < uint32(shards); shard++ {
+	for _, shard := range shards {
 		shardIDs[shard] = make([]ts.ID, 0, idsPerShard)
 		shardData[shard] = make(map[ts.Hash]map[xtime.UnixNano]checked.Bytes, idsPerShard)
 		for _, blockStart := range blockStarts {
@@ -155,10 +175,14 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 		}
 	}
 
+	if shouldCacheShardIndices {
+		retriever.CacheShardIndices(shards)
+	}
+
 	var (
 		startWg, readyWg sync.WaitGroup
 		seeksPerID       = 48
-		seeksEach        = shards * idsPerShard * seeksPerID
+		seeksEach        = len(shards) * idsPerShard * seeksPerID
 	)
 
 	var enqueueWg sync.WaitGroup
@@ -177,7 +201,7 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 			results := make([]streamResult, 0, len(blockStarts))
 			compare := ts.Segment{}
 			for j := 0; j < seeksEach; j++ {
-				shard := uint32((j + shardOffset) % shards)
+				shard := uint32((j + shardOffset) % len(shards))
 				idIdx := uint32((j + idOffset) % len(shardIDs[shard]))
 				id := shardIDs[shard][idIdx]
 

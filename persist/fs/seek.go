@@ -23,6 +23,7 @@ package fs
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"time"
 
@@ -48,6 +49,9 @@ var (
 
 	// errNotEnoughBytes returned when the data file doesn't have enough bytes to satisfy a read
 	errNotEnoughBytes = errors.New("invalid data file, not enough bytes to satisfy read")
+
+	// errClonesShouldNotBeOpened returned when Open() is called on a clone
+	errClonesShouldNotBeOpened = errors.New("clone should not be opened")
 )
 
 type seeker struct {
@@ -81,13 +85,16 @@ type seeker struct {
 
 	unreadBuf []byte
 
-	decoder   *msgpack.Decoder
-	bytesPool pool.CheckedBytesPool
+	decoder      *msgpack.Decoder
+	decodingOpts msgpack.DecodingOptions
+	bytesPool    pool.CheckedBytesPool
 
 	// Bloom filter associated with the shard / block the seeker is responsible
 	// for. Needs to be closed when done.
 	bloomFilter *ManagedConcurrentBloomFilter
 	indexLookup *nearestIndexOffsetLookup
+
+	isClone bool
 }
 
 // IndexEntry is an entry from the index file which can be passed to
@@ -147,7 +154,6 @@ type fileSetSeeker interface {
 
 func newSeeker(opts seekerOpts) fileSetSeeker {
 	return &seeker{
-		opts:                       opts.opts,
 		filePathPrefix:             opts.filePathPrefix,
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.infoBufferSize),
 		indexFdWithDigest:          digest.NewFdWithDigestReader(opts.dataBufferSize),
@@ -157,6 +163,8 @@ func newSeeker(opts seekerOpts) fileSetSeeker {
 		keepUnreadBuf:              opts.keepUnreadBuf,
 		bytesPool:                  opts.bytesPool,
 		decoder:                    msgpack.NewDecoder(opts.decodingOpts),
+		decodingOpts:               opts.decodingOpts,
+		opts:                       opts.opts,
 	}
 }
 
@@ -165,6 +173,10 @@ func (s *seeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter {
 }
 
 func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
+	if s.isClone {
+		return errClonesShouldNotBeOpened
+	}
+
 	shardDir := ShardDirPath(s.filePathPrefix, namespace, shard)
 	var infoFd, indexFd, dataFd, digestFd, bloomFilterFd, summariesFd *os.File
 
@@ -238,6 +250,14 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	if err := s.readInfo(int(infoStat.Size())); err != nil {
 		s.Close()
 		return err
+	}
+
+	if digest.Checksum(s.indexMmap) != s.expectedIndexDigest {
+		s.Close()
+		return fmt.Errorf(
+			"index file digest for file: %s does not match the expected digest",
+			filesetPathFromTime(shardDir, blockStart, indexFileSuffix),
+		)
 	}
 
 	s.bloomFilter, err = newManagedConcurrentBloomFilterFromFile(
@@ -432,6 +452,10 @@ func (s *seeker) Entries() int {
 }
 
 func (s *seeker) Close() error {
+	// Parent should handle cleaning up shared resources
+	if s.isClone {
+		return nil
+	}
 	multiErr := xerrors.NewMultiError()
 	if s.bloomFilter != nil {
 		multiErr = multiErr.Add(s.bloomFilter.Close())
@@ -450,4 +474,27 @@ func (s *seeker) Close() error {
 		s.dataMmap = nil
 	}
 	return multiErr.FinalError()
+}
+
+func (s *seeker) ConcurrentClone() (ConcurrentFileSetSeeker, error) {
+	// indexLookup is not concurrency safe, but a parent and its clone can be used
+	// concurrently safely.
+	indexLookupClone, err := s.indexLookup.concurrentClone()
+	if err != nil {
+		return nil, err
+	}
+
+	return &seeker{
+		// Bare-minimum required fields for a clone to function properly
+		bytesPool: s.bytesPool,
+		decoder:   msgpack.NewDecoder(s.decodingOpts),
+		opts:      s.opts,
+		// Mmaps are read-only so they're concurrency safe
+		dataMmap:  s.dataMmap,
+		indexMmap: s.indexMmap,
+		// bloomFilter is concurrency safe
+		bloomFilter: s.bloomFilter,
+		indexLookup: indexLookupClone,
+		isClone:     true,
+	}, nil
 }
