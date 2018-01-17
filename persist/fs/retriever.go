@@ -321,9 +321,11 @@ func (r *blockRetriever) fetchBatch(
 
 	err = seekerMgr.Return(shard, blockStart, seeker)
 	if err != nil {
-		r.logger.Errorf(
-			"err returning seeker for shard: %d, and blockStart: %d, err: %s",
-			shard, blockStart.Unix(), err.Error())
+		r.logger.WithFields(
+			log.NewField("shard", shard),
+			log.NewField("blockStart", blockStart.Unix()),
+			log.NewField("err", err),
+		).Error("err returning seeker for shard")
 	}
 }
 
