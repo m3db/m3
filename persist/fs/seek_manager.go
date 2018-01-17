@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -65,6 +66,7 @@ type seekerManager struct {
 
 	opts             Options
 	fetchConcurrency int
+	logger           log.Logger
 
 	bytesPool      pool.CheckedBytesPool
 	filePathPrefix string
@@ -123,6 +125,7 @@ func NewSeekerManager(
 		filePathPrefix:      opts.FilePathPrefix(),
 		opts:                opts,
 		fetchConcurrency:    fetchConcurrency,
+		logger:              opts.InstrumentOptions().Logger(),
 		openCloseLoopDoneCh: make(chan struct{}),
 	}
 	m.openAnyUnopenSeekersFn = m.openAnyUnopenSeekers
@@ -569,7 +572,14 @@ func (m *seekerManager) openCloseLoop() {
 
 		// Close after releasing lock so any IO is done out of lock
 		for _, seeker := range closing {
-			seeker.seeker.Close()
+			err := seeker.seeker.Close()
+			if err != nil {
+				m.logger.
+					WithFields(
+						log.NewField("err", err),
+					).
+					Error("err closing seeker in SeekerManager openCloseLoop")
+			}
 		}
 
 		m.sleepFn(seekManagerCloseInterval)
@@ -585,7 +595,14 @@ func (m *seekerManager) openCloseLoop() {
 			for _, seeker := range seekersByTime.seekers {
 				// We don't need to check if the seeker is borrowed here because we don't allow the
 				// SeekerManager to be closed if any seekers are still outstanding.
-				seeker.seeker.Close()
+				err := seeker.seeker.Close()
+				if err != nil {
+					m.logger.
+						WithFields(
+							log.NewField("err", err),
+						).
+						Error("err closing seeker in SeekerManager at end of openCloseLoop")
+				}
 			}
 		}
 		byTime.seekers = nil
