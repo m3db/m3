@@ -313,10 +313,15 @@ func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
 		s.RUnlock()
 		for _, entry := range currEntries {
 			if continueForEach := entryFn(entry); !continueForEach {
+				// Abort early, decrement reader writer count for all entries first
+				for _, e := range currEntries {
+					e.decrementReaderWriterCount()
+				}
 				return nil
 			}
 		}
 		for i := range currEntries {
+			currEntries[i].decrementReaderWriterCount()
 			currEntries[i] = nil
 		}
 		currEntries = currEntries[:0]
@@ -333,6 +338,7 @@ func (s *dbShard) forBatchWithLock(
 	for ticked := 0; ticked < batchSize && elem != nil; ticked++ {
 		nextElem = elem.Next()
 		entry := elem.Value.(*dbShardEntry)
+		entry.incrementReaderWriterCount()
 		*currEntries = append(*currEntries, entry)
 		elem = nextElem
 	}
