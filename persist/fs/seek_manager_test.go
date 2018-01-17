@@ -112,10 +112,6 @@ func TestSeekerManagerBorrowOpenSeekersLazy(t *testing.T) {
 func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	defer leaktest.CheckTimeout(t, 1*time.Minute)()
 
-	// Prevent the test from running too slowly
-	oldInterval := seekManagerCloseInterval
-	seekManagerCloseInterval = time.Millisecond
-
 	ctrl := gomock.NewController(t)
 
 	shards := []uint32{2, 5, 9, 478, 1023}
@@ -275,5 +271,4 @@ func TestSeekerManagerOpenCloseLoop(t *testing.T) {
 	// Make sure there are no goroutines still trying to write into the tickCh
 	// to prevent the test itself from interfering with the goroutine leak test
 	close(cleanupCh)
-	seekManagerCloseInterval = oldInterval
 }

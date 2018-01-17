@@ -43,8 +43,7 @@ var (
 	errReturnedUnmanagedSeeker                       = errors.New("cant return a seeker not managed by the seeker manager")
 )
 
-// var instead of const so that the tests can modify it
-var seekManagerCloseInterval = time.Second
+const seekManagerCloseInterval = time.Second
 
 type openAnyUnopenSeekersFn func(*seekersByTime) error
 
