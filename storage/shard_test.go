@@ -728,12 +728,25 @@ func TestForEachShardEntry(t *testing.T) {
 			return false
 		}
 
+		// Ensure the readerwriter count is incremented while we operate
+		// on this series
+		assert.Equal(t, int32(1), entry.readerWriterCount())
+
 		count++
 		return true
 	}
 
 	shard.forEachShardEntry(entryFn)
-	require.Equal(t, 8, count)
+
+	assert.Equal(t, 8, count)
+
+	// Ensure that reader writer count gets reset
+	shard.RLock()
+	for elem := shard.list.Front(); elem != nil; elem = elem.Next() {
+		entry := elem.Value.(*dbShardEntry)
+		assert.Equal(t, int32(0), entry.readerWriterCount())
+	}
+	shard.RUnlock()
 }
 
 func TestShardFetchBlocksIDNotExists(t *testing.T) {
