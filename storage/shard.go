@@ -309,7 +309,14 @@ func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
 	currEntries := make([]*dbShardEntry, 0, batchSize)
 	for nextElem != nil {
 		s.RLock()
-		nextElem = s.forBatchWithLock(nextElem, &currEntries, batchSize)
+		elem := nextElem
+		for ticked := 0; ticked < batchSize && elem != nil; ticked++ {
+			nextElem = elem.Next()
+			entry := elem.Value.(*dbShardEntry)
+			entry.incrementReaderWriterCount()
+			currEntries = append(currEntries, entry)
+			elem = nextElem
+		}
 		s.RUnlock()
 		for _, entry := range currEntries {
 			if continueForEach := entryFn(entry); !continueForEach {
@@ -327,22 +334,6 @@ func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
 		currEntries = currEntries[:0]
 	}
 	return nil
-}
-
-func (s *dbShard) forBatchWithLock(
-	elem *list.Element,
-	currEntries *[]*dbShardEntry,
-	batchSize int,
-) *list.Element {
-	var nextElem *list.Element
-	for ticked := 0; ticked < batchSize && elem != nil; ticked++ {
-		nextElem = elem.Next()
-		entry := elem.Value.(*dbShardEntry)
-		entry.incrementReaderWriterCount()
-		*currEntries = append(*currEntries, entry)
-		elem = nextElem
-	}
-	return nextElem
 }
 
 func (s *dbShard) IsBootstrapping() bool {
