@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -77,14 +77,6 @@ func (_m *MockReaderWithDigest) Reset(_param0 io.Reader) {
 
 func (_mr *_MockReaderWithDigestRecorder) Reset(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0)
-}
-
-func (_m *MockReaderWithDigest) Resume(_param0 io.Reader, _param1 uint32) {
-	_m.ctrl.Call(_m, "Resume", _param0, _param1)
-}
-
-func (_mr *_MockReaderWithDigestRecorder) Resume(arg0, arg1 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Resume", arg0, arg1)
 }
 
 func (_m *MockReaderWithDigest) Validate(_param0 uint32) error {

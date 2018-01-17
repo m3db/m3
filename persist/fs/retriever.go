@@ -22,6 +22,8 @@
 // the fetch concurrency on a per-Namespace basis I.E if the server is using
 // spinning-disks the concurrency can be set to 1 to serialize all disk fetches
 // for a given namespace, and the concurrency be set higher in the case of SSDs.
+// This fetch concurrency is primarily implemented via the number of concurrent
+// fetchLoops that the retriever creates.
 //
 // The block retriever also handles batching of requests for data, as well as
 // re-arranging the order of requests to increase data locality when seeking
@@ -42,13 +44,15 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 )
 
 var (
 	errBlockRetrieverNotOpen             = errors.New("block retriever is not open")
 	errBlockRetrieverAlreadyOpenOrClosed = errors.New("block retriever already open or is closed")
-	errNoSeekerMgrs                      = errors.New("there are no open seeker managers")
+	errBlockRetrieverAlreadyClosed       = errors.New("block retriever already closed")
+	errNoSeekerMgr                       = errors.New("there is no open seeker manager")
 )
 
 const (
@@ -60,6 +64,7 @@ type blockRetrieverStatus int
 type newSeekerMgrFn func(
 	bytesPool pool.CheckedBytesPool,
 	opts Options,
+	fetchConcurrency int,
 ) FileSetSeekerManager
 
 const (
@@ -73,6 +78,7 @@ type blockRetriever struct {
 
 	opts   BlockRetrieverOptions
 	fsOpts Options
+	logger log.Logger
 
 	newSeekerMgrFn newSeekerMgrFn
 
@@ -81,10 +87,12 @@ type blockRetriever struct {
 	idPool     ts.IdentifierPool
 	nsMetadata namespace.Metadata
 
-	status         blockRetrieverStatus
-	reqsByShardIdx []*shardRetrieveRequests
-	seekerMgrs     []FileSetSeekerManager
-	notifyFetch    chan struct{}
+	status                     blockRetrieverStatus
+	reqsByShardIdx             []*shardRetrieveRequests
+	seekerMgr                  FileSetSeekerManager
+	notifyFetch                chan struct{}
+	fetchLoopsShouldShutdownCh chan struct{}
+	fetchLoopsHaveShutdownCh   chan struct{}
 }
 
 // NewBlockRetriever returns a new block retriever for TSDB file sets.
@@ -99,12 +107,17 @@ func NewBlockRetriever(
 	return &blockRetriever{
 		opts:           opts,
 		fsOpts:         fsOpts,
+		logger:         fsOpts.InstrumentOptions().Logger(),
 		newSeekerMgrFn: NewSeekerManager,
 		reqPool:        reqPool,
 		bytesPool:      opts.BytesPool(),
 		idPool:         opts.IdentifierPool(),
 		status:         blockRetrieverNotOpen,
 		notifyFetch:    make(chan struct{}, 1),
+		// We just close this channel when the fetchLoops should shutdown, so no
+		// buffering is required
+		fetchLoopsShouldShutdownCh: make(chan struct{}),
+		fetchLoopsHaveShutdownCh:   make(chan struct{}, opts.FetchConcurrency()),
 	}
 }
 
@@ -116,24 +129,16 @@ func (r *blockRetriever) Open(ns namespace.Metadata) error {
 		return errBlockRetrieverAlreadyOpenOrClosed
 	}
 
-	seekerMgrs := make([]FileSetSeekerManager, 0, r.opts.FetchConcurrency())
-	for i := 0; i < r.opts.FetchConcurrency(); i++ {
-		seekerMgr := r.newSeekerMgrFn(r.bytesPool, r.fsOpts)
-		if err := seekerMgr.Open(ns); err != nil {
-			for _, opened := range seekerMgrs {
-				opened.Close()
-			}
-			return err
-		}
-		seekerMgrs = append(seekerMgrs, seekerMgr)
+	seekerMgr := r.newSeekerMgrFn(r.bytesPool, r.fsOpts, r.opts.FetchConcurrency())
+	if err := seekerMgr.Open(ns); err != nil {
+		return err
 	}
 
 	r.nsMetadata = ns
 	r.status = blockRetrieverOpen
-	r.seekerMgrs = seekerMgrs
+	r.seekerMgr = seekerMgr
 
-	for _, seekerMgr := range seekerMgrs {
-		seekerMgr := seekerMgr
+	for i := 0; i < r.opts.FetchConcurrency(); i++ {
 		go r.fetchLoop(seekerMgr)
 	}
 	return nil
@@ -147,10 +152,8 @@ func (r *blockRetriever) CacheShardIndices(shards []uint32) error {
 		return errBlockRetrieverNotOpen
 	}
 
-	for _, seekerMgr := range r.seekerMgrs {
-		if err := seekerMgr.CacheShardIndices(shards); err != nil {
-			return err
-		}
+	if err := r.seekerMgr.CacheShardIndices(shards); err != nil {
+		return err
 	}
 	return nil
 }
@@ -190,8 +193,12 @@ func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 
 		// If no fetches then no work to do, yield
 		if n == 0 {
-			<-r.notifyFetch
-			continue
+			select {
+			case <-r.notifyFetch:
+				continue
+			case <-r.fetchLoopsShouldShutdownCh:
+				break
+			}
 		}
 
 		// Files are all by shard and block time, the locality of
@@ -243,8 +250,7 @@ func (r *blockRetriever) fetchLoop(seekerMgr FileSetSeekerManager) {
 		}
 	}
 
-	// Close the seekers
-	seekerMgr.Close()
+	r.fetchLoopsHaveShutdownCh <- struct{}{}
 }
 
 func (r *blockRetriever) fetchBatch(
@@ -254,7 +260,7 @@ func (r *blockRetriever) fetchBatch(
 	reqs []*retrieveRequest,
 ) {
 	// Resolve the seeker from the seeker mgr
-	seeker, err := seekerMgr.Seeker(shard, blockStart)
+	seeker, err := seekerMgr.Borrow(shard, blockStart)
 	if err != nil {
 		for _, req := range reqs {
 			req.onError(err)
@@ -326,6 +332,15 @@ func (r *blockRetriever) fetchBatch(
 			r.onCallerOrRetrieverDone()
 		}(req)
 	}
+
+	err = seekerMgr.Return(shard, blockStart, seeker)
+	if err != nil {
+		r.logger.WithFields(
+			log.NewField("shard", shard),
+			log.NewField("blockStart", blockStart.Unix()),
+			log.NewField("err", err.Error()),
+		).Error("err returning seeker for shard")
+	}
 }
 
 func (r *blockRetriever) Stream(
@@ -349,26 +364,21 @@ func (r *blockRetriever) Stream(
 
 	// Capture variable and RLock() because this slice can be modified in the
 	// Open() method
-	var seekerMgr FileSetSeekerManager
 	r.RLock()
-	// This should never happen
-	if len(r.seekerMgrs) < 1 {
+	// This should never happen unless caller tries to use Stream() before Open()
+	if r.seekerMgr == nil {
 		r.RUnlock()
-		return nil, errNoSeekerMgrs
+		return nil, errNoSeekerMgr
 	}
-	seekerMgr = r.seekerMgrs[0]
 	r.RUnlock()
 
-	// It doesn't matter which seekerManager we use (they're all identical, we
-	// just have multiple for concurrency reasons), so we use the first one
-	// because it's guaranteed to be there (concurrency cannot be < 1)
-	seeker, err := seekerMgr.Seeker(shard, startTime)
+	bloomFilter, err := r.seekerMgr.ConcurrentIDBloomFilter(shard, startTime)
 	if err != nil {
 		return nil, err
 	}
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately
-	if !seeker.ConcurrentIDBloomFilter().Test(id.Data().Get()) {
+	if !bloomFilter.Test(id.Data().Get()) {
 		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data
 		req.onRetrieved(ts.Segment{})
 		return req, nil
@@ -442,12 +452,20 @@ func (r *blockRetriever) shardRequests(
 
 func (r *blockRetriever) Close() error {
 	r.Lock()
-	defer r.Unlock()
-
+	if r.status == blockRetrieverClosed {
+		r.Unlock()
+		return errBlockRetrieverAlreadyClosed
+	}
 	r.nsMetadata = nil
 	r.status = blockRetrieverClosed
+	r.Unlock()
 
-	return nil
+	close(r.fetchLoopsShouldShutdownCh)
+	for i := 0; i < r.opts.FetchConcurrency(); i++ {
+		<-r.fetchLoopsHaveShutdownCh
+	}
+
+	return r.seekerMgr.Close()
 }
 
 type shardRetrieveRequests struct {
