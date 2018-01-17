@@ -30,6 +30,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
@@ -86,6 +87,7 @@ func newOpenTestWriter(
 }
 
 type streamResult struct {
+	ctx        context.Context
 	shard      uint32
 	id         ts.ID
 	blockStart time.Time
@@ -182,9 +184,11 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 				id := shardIDs[shard][idIdx]
 
 				for k := 0; k < len(blockStarts); k++ {
-					stream, err := retriever.Stream(shard, id, blockStarts[k], nil)
+					ctx := context.NewContext()
+					stream, err := retriever.Stream(ctx, shard, id, blockStarts[k], nil)
 					require.NoError(t, err)
 					results = append(results, streamResult{
+						ctx:        ctx,
 						shard:      shard,
 						id:         id,
 						blockStart: blockStarts[k],
@@ -203,6 +207,8 @@ func TestBlockRetrieverHighConcurrentSeeks(t *testing.T) {
 					require.NoError(t, err)
 					compare.Head = shardData[r.shard][r.id.Hash()][xtime.ToUnixNano(r.blockStart)]
 					assert.True(t, seg.Equal(&compare))
+
+					r.ctx.Close()
 				}
 				results = results[:0]
 			}
@@ -251,7 +257,10 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	closer()
 
 	// Make sure we return the correct error if the ID does not exist
-	segmentReader, err := retriever.Stream(shard, ts.StringID("not-exists"), blockStart, nil)
+	ctx := context.NewContext()
+	defer ctx.Close()
+	segmentReader, err := retriever.Stream(ctx, shard,
+		ts.StringID("not-exists"), blockStart, nil)
 	assert.NoError(t, err)
 
 	segment, err := segmentReader.Segment()

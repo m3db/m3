@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
@@ -100,11 +101,13 @@ func NewDatabaseShardBlockRetriever(
 }
 
 func (r *shardBlockRetriever) Stream(
+	ctx context.Context,
 	id ts.ID,
 	blockStart time.Time,
 	onRetrieve OnRetrieveBlock,
 ) (xio.SegmentReader, error) {
-	return r.DatabaseBlockRetriever.Stream(r.shard, id, blockStart, onRetrieve)
+	return r.DatabaseBlockRetriever.Stream(ctx, r.shard, id,
+		blockStart, onRetrieve)
 }
 
 type shardBlockRetrieverManager struct {

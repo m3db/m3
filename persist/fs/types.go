@@ -268,7 +268,7 @@ type Options interface {
 
 // BlockRetrieverOptions represents the options for block retrieval
 type BlockRetrieverOptions interface {
-	// SetRequestPoolOptions sets the request pool options
+	// SetRequestPo'olOptions sets the request pool options
 	SetRequestPoolOptions(value pool.ObjectPoolOptions) BlockRetrieverOptions
 
 	// RequestPoolOptions returns the request pool options
@@ -291,4 +291,10 @@ type BlockRetrieverOptions interface {
 
 	// FetchConcurrency returns the fetch concurrency
 	FetchConcurrency() int
+
+	// SetIdentifierPool sets the identifierPool
+	SetIdentifierPool(value ts.IdentifierPool) BlockRetrieverOptions
+
+	// IdentifierPool returns the identifierPool
+	IdentifierPool() ts.IdentifierPool
 }

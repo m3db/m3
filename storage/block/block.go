@@ -165,7 +165,8 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 		err    error
 	)
 	if b.retriever != nil {
-		stream, err = b.retriever.Stream(b.retrieveID, b.startWithLock(), b)
+		start := b.startWithLock()
+		stream, err = b.retriever.Stream(blocker, b.retrieveID, start, b)
 		if err != nil {
 			return nil, err
 		}

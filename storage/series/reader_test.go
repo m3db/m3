@@ -55,17 +55,17 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 		segReaders = append(segReaders, reader)
 	}
 
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
 	retriever.EXPECT().
-		Stream(ts.NewIDMatcher("foo"),
+		Stream(ctx, ts.NewIDMatcher("foo"),
 			start, onRetrieveBlock).
 		Return(segReaders[0], nil)
 	retriever.EXPECT().
-		Stream(ts.NewIDMatcher("foo"),
+		Stream(ctx, ts.NewIDMatcher("foo"),
 			start.Add(ropts.BlockSize()), onRetrieveBlock).
 		Return(segReaders[1], nil)
-
-	ctx := opts.ContextPool().Get()
-	defer ctx.Close()
 
 	reader := NewReaderUsingRetriever(ts.StringID("foo"),
 		retriever, onRetrieveBlock, opts)
@@ -102,17 +102,17 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 		segReaders = append(segReaders, reader)
 	}
 
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
 	retriever.EXPECT().
-		Stream(ts.NewIDMatcher("foo"),
+		Stream(ctx, ts.NewIDMatcher("foo"),
 			start, nil).
 		Return(segReaders[0], nil)
 	retriever.EXPECT().
-		Stream(ts.NewIDMatcher("foo"),
+		Stream(ctx, ts.NewIDMatcher("foo"),
 			start.Add(ropts.BlockSize()), nil).
 		Return(segReaders[1], nil)
-
-	ctx := opts.ContextPool().Get()
-	defer ctx.Close()
 
 	reader := NewReaderUsingRetriever(ts.StringID("foo"),
 		retriever, onRetrieveBlock, opts)

@@ -861,23 +861,23 @@ func TestShardReadEncodedCachesSeriesWithRecentlyReadPolicy(t *testing.T) {
 		segReaders = append(segReaders, reader)
 	}
 
+	ctx := opts.ContextPool().Get()
+	defer ctx.Close()
+
 	retriever.EXPECT().
-		Stream(shard.shard, ts.NewIDMatcher("foo"),
+		Stream(ctx, shard.shard, ts.NewIDMatcher("foo"),
 			start, shard.seriesOnRetrieveBlock).
-		Do(func(shard uint32, id ts.ID, at time.Time, onRetrieve block.OnRetrieveBlock) {
+		Do(func(ctx context.Context, shard uint32, id ts.ID, at time.Time, onRetrieve block.OnRetrieveBlock) {
 			go onRetrieve.OnRetrieveBlock(id, at, segments[0])
 		}).
 		Return(segReaders[0], nil)
 	retriever.EXPECT().
-		Stream(shard.shard, ts.NewIDMatcher("foo"),
+		Stream(ctx, shard.shard, ts.NewIDMatcher("foo"),
 			start.Add(ropts.BlockSize()), shard.seriesOnRetrieveBlock).
-		Do(func(shard uint32, id ts.ID, at time.Time, onRetrieve block.OnRetrieveBlock) {
+		Do(func(ctx context.Context, shard uint32, id ts.ID, at time.Time, onRetrieve block.OnRetrieveBlock) {
 			go onRetrieve.OnRetrieveBlock(id, at, segments[1])
 		}).
 		Return(segReaders[1], nil)
-
-	ctx := opts.ContextPool().Get()
-	defer ctx.Close()
 
 	// Check reads as expected
 	r, err := shard.ReadEncoded(ctx, ts.StringID("foo"), start, end)

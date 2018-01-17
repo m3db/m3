@@ -33,8 +33,10 @@ import (
 	"errors"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
@@ -76,6 +78,7 @@ type blockRetriever struct {
 
 	reqPool    retrieveRequestPool
 	bytesPool  pool.CheckedBytesPool
+	idPool     ts.IdentifierPool
 	nsMetadata namespace.Metadata
 
 	status         blockRetrieverStatus
@@ -99,6 +102,7 @@ func NewBlockRetriever(
 		newSeekerMgrFn: NewSeekerManager,
 		reqPool:        reqPool,
 		bytesPool:      opts.BytesPool(),
+		idPool:         opts.IdentifierPool(),
 		status:         blockRetrieverNotOpen,
 		notifyFetch:    make(chan struct{}, 1),
 	}
@@ -289,33 +293,43 @@ func (r *blockRetriever) fetchBatch(
 			}
 		}
 
-		var seg ts.Segment
+		var seg, onRetrieveSeg ts.Segment
 		if data != nil {
 			seg = ts.NewSegment(data, nil, ts.FinalizeHead)
 		}
 
 		// We don't need to call onRetrieve.OnRetrieveBlock if the ID was not found
-		if req.onRetrieve != nil && !req.notFound {
+		callOnRetrieve := req.onRetrieve != nil && !req.notFound
+		if callOnRetrieve {
 			// NB(r): Need to also trigger callback with a copy of the data.
 			// This is used by the database to cache the in memory data for
 			// consequent fetches.
-			var segCopy ts.Segment
 			if data != nil {
 				dataCopy := r.bytesPool.Get(data.Len())
-				segCopy = ts.NewSegment(dataCopy, nil, ts.FinalizeHead)
+				onRetrieveSeg = ts.NewSegment(dataCopy, nil, ts.FinalizeHead)
 				dataCopy.AppendAll(data.Get())
 			}
-
-			// Capture ref to req for async goroutine
-			req := req
-			go req.onRetrieve.OnRetrieveBlock(req.id, req.start, segCopy)
 		}
 
+		// Complete request
 		req.onRetrieved(seg)
+
+		if !callOnRetrieve {
+			// No need to call the onRetrieve callback
+			req.onCallerOrRetrieverDone()
+			continue
+		}
+
+		go func(r *retrieveRequest) {
+			// Call the onRetrieve callback and finalize
+			r.onRetrieve.OnRetrieveBlock(r.id, r.start, onRetrieveSeg)
+			r.onCallerOrRetrieverDone()
+		}(req)
 	}
 }
 
 func (r *blockRetriever) Stream(
+	ctx context.Context,
 	shard uint32,
 	id ts.ID,
 	startTime time.Time,
@@ -323,10 +337,15 @@ func (r *blockRetriever) Stream(
 ) (xio.SegmentReader, error) {
 	req := r.reqPool.Get()
 	req.shard = shard
-	req.id = id
+	// NB(r): Clone the ID as we're not positive it will stay valid throughout
+	// the lifecycle of the async request.
+	req.id = r.idPool.Clone(id)
 	req.start = startTime
 	req.onRetrieve = onRetrieve
 	req.resultWg.Add(1)
+
+	// Ensure to finalize at the end of request
+	ctx.RegisterFinalizer(req)
 
 	// Capture variable and RLock() because this slice can be modified in the
 	// Open() method
@@ -448,7 +467,13 @@ func (reqs *shardRetrieveRequests) resetQueued() {
 // Don't forget to update the resetForReuse method when adding a new field
 type retrieveRequest struct {
 	resultWg sync.WaitGroup
-	pool     *reqPool
+
+	// Finalize requires two calls to finalize (once both the user of the
+	// request and the retriever fetch loop is done, and only then, can
+	// we free this request) so we track this with an atomic here.
+	finalizes uint32
+
+	pool *reqPool
 
 	shard      uint32
 	id         ts.ID
@@ -469,6 +494,17 @@ func (req *retrieveRequest) onError(err error) {
 
 func (req *retrieveRequest) onRetrieved(segment ts.Segment) {
 	req.Reset(segment)
+}
+
+func (req *retrieveRequest) onCallerOrRetrieverDone() {
+	if atomic.AddUint32(&req.finalizes, 1) != 2 {
+		return
+	}
+	req.id.Finalize()
+	req.id = nil
+	req.reader.Finalize()
+	req.reader = nil
+	req.pool.Put(req)
 }
 
 func (req *retrieveRequest) Reset(segment ts.Segment) {
@@ -493,12 +529,14 @@ func (req *retrieveRequest) Segment() (ts.Segment, error) {
 }
 
 func (req *retrieveRequest) Finalize() {
-	req.reader.Finalize()
-	req.pool.Put(req)
+	// May not actually finalize the request, depending on if
+	// retriever is done too
+	req.onCallerOrRetrieverDone()
 }
 
 func (req *retrieveRequest) resetForReuse() {
 	req.resultWg = sync.WaitGroup{}
+	req.finalizes = 0
 	req.shard = 0
 	req.id = nil
 	req.start = time.Time{}

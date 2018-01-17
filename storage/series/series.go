@@ -264,10 +264,10 @@ func (s *dbSeries) ReadEncoded(
 ) ([][]xio.SegmentReader, error) {
 	s.RLock()
 	r, err := Reader{
-		opts:        s.opts,
-		cloneableID: s.id,
-		retriever:   s.blockRetriever,
-		onRetrieve:  s.onRetrieveBlock,
+		opts:       s.opts,
+		id:         s.id,
+		retriever:  s.blockRetriever,
+		onRetrieve: s.onRetrieveBlock,
 	}.readersWithBlocksMapAndBuffer(ctx, start, end, s.blocks, s.buffer)
 	s.RUnlock()
 	return r, err
@@ -279,10 +279,10 @@ func (s *dbSeries) FetchBlocks(
 ) ([]block.FetchBlockResult, error) {
 	s.RLock()
 	r, err := Reader{
-		opts:        s.opts,
-		cloneableID: s.id,
-		retriever:   s.blockRetriever,
-		onRetrieve:  s.onRetrieveBlock,
+		opts:       s.opts,
+		id:         s.id,
+		retriever:  s.blockRetriever,
+		onRetrieve: s.onRetrieveBlock,
 	}.fetchBlocksWithBlocksMapAndBuffer(ctx, starts, s.blocks, s.buffer)
 	s.RUnlock()
 	return r, err

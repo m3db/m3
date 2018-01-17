@@ -224,13 +224,13 @@ func (_mr *_MockQueryableBlockRetrieverRecorder) IsBlockRetrievable(arg0 interfa
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsBlockRetrievable", arg0)
 }
 
-func (_m *MockQueryableBlockRetriever) Stream(_param0 ts.ID, _param1 time.Time, _param2 block.OnRetrieveBlock) (io.SegmentReader, error) {
-	ret := _m.ctrl.Call(_m, "Stream", _param0, _param1, _param2)
+func (_m *MockQueryableBlockRetriever) Stream(_param0 context.Context, _param1 ts.ID, _param2 time.Time, _param3 block.OnRetrieveBlock) (io.SegmentReader, error) {
+	ret := _m.ctrl.Call(_m, "Stream", _param0, _param1, _param2, _param3)
 	ret0, _ := ret[0].(io.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockQueryableBlockRetrieverRecorder) Stream(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stream", arg0, arg1, arg2)
+func (_mr *_MockQueryableBlockRetrieverRecorder) Stream(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Stream", arg0, arg1, arg2, arg3)
 }

@@ -43,10 +43,10 @@ var (
 // It is implemented as a struct so it can be allocated on
 // the stack.
 type Reader struct {
-	opts        Options
-	cloneableID ts.ID
-	retriever   QueryableBlockRetriever
-	onRetrieve  block.OnRetrieveBlock
+	opts       Options
+	id         ts.ID
+	retriever  QueryableBlockRetriever
+	onRetrieve block.OnRetrieveBlock
 }
 
 // NewReaderUsingRetriever returns a reader for a series
@@ -59,10 +59,10 @@ func NewReaderUsingRetriever(
 	opts Options,
 ) Reader {
 	return Reader{
-		opts:        opts,
-		cloneableID: id,
-		retriever:   retriever,
-		onRetrieve:  onRetrieveBlock,
+		opts:       opts,
+		id:         id,
+		retriever:  retriever,
+		onRetrieve: onRetrieveBlock,
 	}
 }
 
@@ -137,11 +137,7 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 		case r.retriever != nil:
 			// Try to stream from disk
 			if r.retriever.IsBlockRetrievable(blockAt) {
-				// Clone ID as the block retriever uses the ID async so we cannot
-				// be sure about owner not finalizing the cloneableID passed to
-				// the Reader
-				clonedID := r.opts.IdentifierPool().Clone(r.cloneableID)
-				stream, err := r.retriever.Stream(clonedID, blockAt, r.onRetrieve)
+				stream, err := r.retriever.Stream(ctx, r.id, blockAt, r.onRetrieve)
 				if err != nil {
 					return nil, err
 				}
@@ -195,7 +191,7 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 				if err != nil {
 					r := block.NewFetchBlockResult(start, nil,
 						fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",
-							r.cloneableID.String(), start, err))
+							r.id.String(), start, err))
 					res = append(res, r)
 				}
 				if stream != nil {
@@ -214,19 +210,14 @@ func (r Reader) fetchBlocksWithBlocksMapAndBuffer(
 		case r.retriever != nil:
 			// Try to stream from disk
 			if r.retriever.IsBlockRetrievable(start) {
-				// Clone ID as the block retriever uses the ID async so we cannot
-				// be sure about owner not finalizing the cloneableID passed to
-				// the Reader
-				clonedID := r.opts.IdentifierPool().Clone(r.cloneableID)
-				stream, err := r.retriever.Stream(clonedID, start, onRetrieve)
+				stream, err := r.retriever.Stream(ctx, r.id, start, onRetrieve)
 				if err != nil {
 					r := block.NewFetchBlockResult(start, nil,
 						fmt.Errorf("unable to retrieve block stream for series %s time %v: %v",
-							r.cloneableID.String(), start, err))
+							r.id.String(), start, err))
 					res = append(res, r)
 				}
 				if stream != nil {
-					// TODO: work out how to pass checksum here or defer till later somehow
 					r := block.NewFetchBlockResult(start, []xio.SegmentReader{stream}, nil)
 					res = append(res, r)
 				}

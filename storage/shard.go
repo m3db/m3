@@ -289,11 +289,12 @@ func (s *dbShard) NumSeries() int64 {
 
 // Stream implements series.QueryableBlockRetriever
 func (s *dbShard) Stream(
+	ctx context.Context,
 	id ts.ID,
 	start time.Time,
 	onRetrieve block.OnRetrieveBlock,
 ) (xio.SegmentReader, error) {
-	return s.DatabaseBlockRetriever.Stream(s.shard, id, start, onRetrieve)
+	return s.DatabaseBlockRetriever.Stream(ctx, s.shard, id, start, onRetrieve)
 }
 
 // IsBlockRetrievable implements series.QueryableBlockRetriever
@@ -318,17 +319,9 @@ func (s *dbShard) OnRetrieveBlock(
 	entry, _, err := s.lookupEntryWithLock(id)
 	if entry != nil {
 		entry.incrementReaderWriterCount()
+		defer entry.decrementReaderWriterCount()
 	}
 	s.RUnlock()
-	defer func() {
-		// Decrement reader if we incremented it
-		if entry != nil {
-			entry.decrementReaderWriterCount()
-		}
-		// Finalize the copied ID we passed when trying to
-		// retrieve the block initially
-		id.Finalize()
-	}()
 
 	if err != nil && err != errShardEntryNotFound {
 		return // Likely closing
