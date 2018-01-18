@@ -51,19 +51,16 @@ export const AGGREGATION_FUNCTIONS = [
 ];
 
 export const POLICIES = [
-  '1s:1h',
-  '10s:6h',
-  '10s:12h',
-  '10s:1d',
   '10s:2d',
   '1m:2d',
-  '1m:7d',
-  '1m:14d',
   '1m:40d',
-  '10m:2d',
-  '10m:7d',
-  '10m:14d',
-  '10m:40d',
+  '10m:180d',
+  '10m:1y',
+  '10m:3y',
+  '10m:5y',
+  '1h:1y',
+  '1h:3y',
+  '1h:5y',
 ];
 
 const Option = Select.Option;
@@ -124,7 +121,7 @@ export function PolicyEditor(props: Props) {
   const showAggs = typeTag === 'timer';
   let policies = policyList;
   if (!_.includes(['gauge', 'counter'], typeTag)) {
-    policies = policies.filter(p => !p.startsWith('10m'));
+    policies = policies.filter(p => !p.startsWith('1h'));
   }
 
   return (
