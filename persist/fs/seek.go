@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/mmap"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/pool"
@@ -208,30 +209,30 @@ func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 	}()
 
 	// Mmap necessary files
-	mmapOptions := mmapOptions{
-		read: true,
-		hugeTLB: mmapHugeTLBOptions{
-			enabled:   s.opts.MmapEnableHugeTLB(),
-			threshold: s.opts.MmapHugeTLBThreshold(),
+	mmapOptions := mmap.Options{
+		Read: true,
+		HugeTLB: mmap.HugeTLBOptions{
+			Enabled:   s.opts.MmapEnableHugeTLB(),
+			Threshold: s.opts.MmapHugeTLBThreshold(),
 		},
 	}
-	mmapResult, err := mmapFiles(os.Open, map[string]mmapFileDesc{
-		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmapFileDesc{
-			file:    &indexFd,
-			bytes:   &s.indexMmap,
-			options: mmapOptions,
+	mmapResult, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
+		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmap.FileDesc{
+			File:    &indexFd,
+			Bytes:   &s.indexMmap,
+			Options: mmapOptions,
 		},
-		filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmapFileDesc{
-			file:    &dataFd,
-			bytes:   &s.dataMmap,
-			options: mmapOptions,
+		filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmap.FileDesc{
+			File:    &dataFd,
+			Bytes:   &s.dataMmap,
+			Options: mmapOptions,
 		},
 	})
 	if err != nil {
 		s.Close()
 		return err
 	}
-	if warning := mmapResult.warning; warning != nil {
+	if warning := mmapResult.Warning; warning != nil {
 		logger := s.opts.InstrumentOptions().Logger()
 		logger.Warnf("warning while mmaping files in seeker: %s",
 			warning.Error())
@@ -466,11 +467,11 @@ func (s *seeker) Close() error {
 		s.indexLookup = nil
 	}
 	if s.indexMmap != nil {
-		multiErr = multiErr.Add(munmap(s.indexMmap))
+		multiErr = multiErr.Add(mmap.Munmap(s.indexMmap))
 		s.indexMmap = nil
 	}
 	if s.dataMmap != nil {
-		multiErr = multiErr.Add(munmap(s.dataMmap))
+		multiErr = multiErr.Add(mmap.Munmap(s.dataMmap))
 		s.dataMmap = nil
 	}
 	return multiErr.FinalError()

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package mmap
 
 import (
 	"fmt"
@@ -27,46 +27,56 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 )
 
+// FileOpener is the signature of a function that MmapFiles can use
+// to open files
+type FileOpener func(filePath string) (*os.File, error)
+
 // Package-level global for easy mocking
-var mmapFdFn = mmapFd
+var mmapFdFn = Fd
 
-type mmapFileDesc struct {
+// FileDesc contains the fields required for Mmaping a file using MmapFiles
+type FileDesc struct {
 	// file is the *os.File ref to store
-	file **os.File
+	File **os.File
 	// bytes is the []byte slice ref to store the mmap'd address
-	bytes *[]byte
+	Bytes *[]byte
 	// options specifies options to use when mmaping a file
-	options mmapOptions
+	Options Options
 }
 
-type mmapOptions struct {
+// Options contains the options for mmap'ing a file
+type Options struct {
 	// read is whether to make mmap bytes ref readable
-	read bool
+	Read bool
 	// write is whether to make mmap bytes ref writable
-	write bool
+	Write bool
 	// hugeTLB is the mmap huge TLB options
-	hugeTLB mmapHugeTLBOptions
+	HugeTLB HugeTLBOptions
 }
 
-type mmapResult struct {
-	result  []byte
-	warning error
+// Result contains the results of a successful mmap
+type Result struct {
+	Result  []byte
+	Warning error
 }
 
-type mmapHugeTLBOptions struct {
+// HugeTLBOptions contains all options related to huge TLB
+type HugeTLBOptions struct {
 	// enabled determines if using the huge TLB flag is enabled for platforms
 	// that support it
-	enabled bool
+	Enabled bool
 	// threshold determines if the size being mmap'd is greater or equal
 	// to this value to use or not use the huge TLB flag if enabled
-	threshold int64
+	Threshold int64
 }
 
-type mmapFilesResult struct {
-	warning error
+// FilesResult contains the result of calling MmapFiles
+type FilesResult struct {
+	Warning error
 }
 
-func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) (mmapFilesResult, error) {
+// Files is a utility function for mmap'ing a group of files at once
+func Files(opener FileOpener, files map[string]FileDesc) (FilesResult, error) {
 	multiWarn := xerrors.NewMultiError()
 	multiErr := xerrors.NewMultiError()
 
@@ -77,45 +87,46 @@ func mmapFiles(opener fileOpener, files map[string]mmapFileDesc) (mmapFilesResul
 			break
 		}
 
-		result, err := mmapFile(fd, desc.options)
+		result, err := File(fd, desc.Options)
 		if err != nil {
 			multiErr = multiErr.Add(errorWithFilename(filePath, err))
 			break
 		}
-		if result.warning != nil {
-			multiWarn = multiWarn.Add(errorWithFilename(filePath, result.warning))
+		if result.Warning != nil {
+			multiWarn = multiWarn.Add(errorWithFilename(filePath, result.Warning))
 		}
 
-		*desc.file = fd
-		*desc.bytes = result.result
+		*desc.File = fd
+		*desc.Bytes = result.Result
 	}
 
 	if multiErr.FinalError() == nil {
-		return mmapFilesResult{warning: multiWarn.FinalError()}, nil
+		return FilesResult{Warning: multiWarn.FinalError()}, nil
 	}
 
 	// If we have encountered an error when opening the files,
 	// close the ones that have been opened.
 	for filePath, desc := range files {
-		if *desc.file != nil {
-			multiErr = multiErr.Add(errorWithFilename(filePath, (*desc.file).Close()))
+		if *desc.File != nil {
+			multiErr = multiErr.Add(errorWithFilename(filePath, (*desc.File).Close()))
 		}
-		if *desc.bytes != nil {
-			multiErr = multiErr.Add(errorWithFilename(filePath, munmap(*desc.bytes)))
+		if *desc.Bytes != nil {
+			multiErr = multiErr.Add(errorWithFilename(filePath, Munmap(*desc.Bytes)))
 		}
 	}
 
-	return mmapFilesResult{warning: multiWarn.FinalError()}, multiErr.FinalError()
+	return FilesResult{Warning: multiWarn.FinalError()}, multiErr.FinalError()
 }
 
-func mmapFile(file *os.File, opts mmapOptions) (mmapResult, error) {
+// File mmap's a file
+func File(file *os.File, opts Options) (Result, error) {
 	name := file.Name()
 	stat, err := os.Stat(name)
 	if err != nil {
-		return mmapResult{}, fmt.Errorf("mmap file could not stat %s: %v", name, err)
+		return Result{}, fmt.Errorf("mmap file could not stat %s: %v", name, err)
 	}
 	if stat.IsDir() {
-		return mmapResult{}, fmt.Errorf("mmap target is directory: %s", name)
+		return Result{}, fmt.Errorf("mmap target is directory: %s", name)
 	}
 	return mmapFdFn(int64(file.Fd()), 0, stat.Size(), opts)
 }

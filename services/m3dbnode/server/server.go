@@ -61,6 +61,7 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	m3dbxio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3db/x/mmap"
 	"github.com/m3db/m3db/x/tchannel"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/instrument"
@@ -156,7 +157,30 @@ func Run(runOpts RunOptions) {
 		logger.Fatalf("could not parse new directory mode: %v", err)
 	}
 
-	mmap := cfg.Filesystem.MmapConfiguration()
+	mmapCfg := cfg.Filesystem.MmapConfiguration()
+
+	if mmapCfg.HugeTLB.Enabled {
+		// Try and determine if the host supports HugeTLB in the first place
+		testMmap, err := mmap.Bytes(10, mmap.Options{
+			HugeTLB: mmap.HugeTLBOptions{
+				Enabled:   true,
+				Threshold: 0,
+			},
+		})
+		if err != nil {
+			logger.Fatalf("could not mmap anonymous region: %v", err)
+		}
+		if testMmap.Warning != nil {
+			// If we got a warning, try mmap'ing without HugeTLB
+			testMmap, err := mmap.Bytes(10, mmap.Options{})
+			if err != nil {
+				logger.Fatalf("could not mmap anonymous region: %v", err)
+			}
+			if testMmap.Warning == nil {
+				// The machine doesn't support HugeTLB
+			}
+		}
+	}
 
 	fsopts := fs.NewOptions().
 		SetClockOptions(opts.ClockOptions()).
@@ -169,8 +193,8 @@ func Run(runOpts RunOptions) {
 		SetDataReaderBufferSize(cfg.Filesystem.DataReadBufferSize).
 		SetInfoReaderBufferSize(cfg.Filesystem.InfoReadBufferSize).
 		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSize).
-		SetMmapEnableHugeTLB(mmap.HugeTLB.Enabled).
-		SetMmapHugeTLBThreshold(mmap.HugeTLB.Threshold).
+		SetMmapEnableHugeTLB(mmapCfg.HugeTLB.Enabled).
+		SetMmapHugeTLBThreshold(mmapCfg.HugeTLB.Threshold).
 		SetRuntimeOptionsManager(runtimeOptsMgr)
 
 	var commitLogQueueSize int

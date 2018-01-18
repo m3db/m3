@@ -20,53 +20,54 @@
 
 // +build !linux
 
-package fs
+package mmap
 
 import (
 	"fmt"
 	"syscall"
 )
 
-// mmapFd mmaps a file
-func mmapFd(fd, offset, length int64, opts mmapOptions) (mmapResult, error) {
+// Fd mmaps a file
+func Fd(fd, offset, length int64, opts Options) (Result, error) {
 	// MAP_PRIVATE because we only want to ever mmap immutable things and we don't
 	// ever want to propagate writes back to the underlying file
 	return mmap(fd, offset, length, syscall.MAP_PRIVATE, opts)
 }
 
-// mmapBytes requests a private (non-shared) region of anonymous (not backed by a file) memory from the O.S
-func mmapBytes(length int64, opts mmapOptions) (mmapResult, error) {
+// Bytes requests a private (non-shared) region of anonymous (not backed by a file) memory from the O.S
+func Bytes(length int64, opts Options) (Result, error) {
 	// offset is 0 because we're not indexing into a file
 	// fd is -1 and MAP_ANON because we're asking for an anonymous region of memory not tied to a file
 	// MAP_PRIVATE because we don't plan on sharing this region of memory with other processes
 	return mmap(-1, 0, length, syscall.MAP_ANON|syscall.MAP_PRIVATE, opts)
 }
 
-func mmap(fd, offset, length int64, flags int, opts mmapOptions) (mmapResult, error) {
+func mmap(fd, offset, length int64, flags int, opts Options) (Result, error) {
 	if length == 0 {
 		// Return an empty slice (but not nil so callers who
 		// use nil to mean something special like not initialized
 		// get back an actual ref)
-		return mmapResult{result: make([]byte, 0)}, nil
+		return Result{Result: make([]byte, 0)}, nil
 	}
 
 	var prot int
-	if opts.read {
+	if opts.Read {
 		prot = prot | syscall.PROT_READ
 	}
-	if opts.write {
+	if opts.Write {
 		prot = prot | syscall.PROT_WRITE
 	}
 
 	b, err := syscall.Mmap(int(fd), offset, int(length), prot, flags)
 	if err != nil {
-		return mmapResult{}, fmt.Errorf("mmap error: %v", err)
+		return Result{}, fmt.Errorf("mmap error: %v", err)
 	}
 
-	return mmapResult{result: b}, nil
+	return Result{Result: b}, nil
 }
 
-func munmap(b []byte) error {
+// Munmap munmaps a byte slice that is backed by an mmap
+func Munmap(b []byte) error {
 	if len(b) == 0 {
 		// Never actually mmapd this, just returned empty slice
 		return nil
