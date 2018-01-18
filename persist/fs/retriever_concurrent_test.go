@@ -35,7 +35,6 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
@@ -216,16 +215,7 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 
 				for k := 0; k < len(blockStarts); k++ {
 					ctx := context.NewContext()
-					onRetrieveBlock := block.NewMockOnRetrieveBlock(ctrl)
-					onRetrieveBlock.EXPECT().
-						OnRetrieveBlock(ts.NewIDMatcher(id.String()),
-							blockStarts[k], gomock.Any()).
-						Do(func(id ts.ID, start time.Time, seg ts.Segment) {
-							blocks := shardData[shard][id.Hash()]
-							compare := ts.Segment{Head: blocks[xtime.ToUnixNano(start)]}
-							assert.True(t, seg.Equal(&compare))
-						})
-					stream, err := retriever.Stream(ctx, shard, id, blockStarts[k], onRetrieveBlock)
+					stream, err := retriever.Stream(ctx, shard, id, blockStarts[k], nil)
 					require.NoError(t, err)
 					results = append(results, streamResult{
 						ctx:        ctx,
