@@ -44,5 +44,5 @@ func NewDefaultContextFn(contextPool m3dbcontext.Pool) ContextFn {
 func DefaulPostResponseFn(ctx context.Context, method string, response apachethrift.TStruct) {
 	value := ctx.Value(contextKey)
 	inner := value.(m3dbcontext.Context)
-	inner.Close()
+	inner.BlockingClose()
 }

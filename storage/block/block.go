@@ -166,12 +166,12 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 		fromBlockRetriever bool
 	)
 	if b.retriever != nil {
+		fromBlockRetriever = true
 		start := b.startWithLock()
 		stream, err = b.retriever.Stream(blocker, b.retrieveID, start, b)
 		if err != nil {
 			return nil, err
 		}
-		fromBlockRetriever = true
 	} else {
 		stream = b.opts.SegmentReaderPool().Get()
 		// NB(r): We explicitly create a new segment to ensure references
@@ -194,7 +194,7 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	if !fromBlockRetriever {
 		// Register the finalizer for the stream, the block retriever already
 		// registers the stream as a finalizer for the context so we only perform
-		// that if we're return a stream directly from the block
+		// this if we return a stream directly from this block
 		blocker.RegisterFinalizer(stream)
 	}
 	return stream, nil
