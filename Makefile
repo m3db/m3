@@ -5,8 +5,6 @@ SHELL=/bin/bash -o pipefail
 
 auto_gen             := .ci/auto-gen.sh
 gopath_prefix        := $(GOPATH)/src
-gopath               := $(GOPATH)
-shell_path           := $(PATH)
 license_dir          := .ci/uber-licence
 license_node_modules := $(license_dir)/node_modules
 m3db_package         := github.com/m3db/m3db
@@ -23,12 +21,16 @@ thrift_gen_package   := github.com/uber/tchannel-go
 thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
-cache_policy         ?= recently_read
+
+go_path              := $(GOPATH)
+shell_path           := $(PATH)
 integration_fd_limit := 65536
 
 BUILD            := $(abspath ./bin)
 GO_BUILD_LDFLAGS := $(shell $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package))
 LINUX_AMD64_ENV  := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
+
+cache_policy ?= recently_read
 
 SERVICES := \
 	m3dbnode
@@ -178,7 +180,7 @@ run-with-limits:
 				$(cmd)) || \
 			echo failed to set ulimit, running with sudo shell && \
 			sudo sh -c "ulimit -n $(integration_fd_limit) && \
-				PATH=$(shell_path) GOPATH=$(gopath) $(cmd)" \
+				PATH=$(shell_path) GOPATH=$(go_path) $(cmd)" \
 		)
 
 .PHONY: clean
