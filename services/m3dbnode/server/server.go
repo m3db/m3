@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3cluster/generated/proto/commonpb"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/util"
+	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
@@ -52,6 +53,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	m3dbruntime "github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/services/m3dbnode/config"
+	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/cluster"
@@ -158,27 +160,16 @@ func Run(runOpts RunOptions) {
 	}
 
 	mmapCfg := cfg.Filesystem.MmapConfiguration()
-
-	if mmapCfg.HugeTLB.Enabled {
-		// Try and determine if the host supports HugeTLB in the first place
-		testMmap, err := mmap.Bytes(10, mmap.Options{
-			HugeTLB: mmap.HugeTLBOptions{
-				Enabled:   true,
-				Threshold: 0,
-			},
-		})
+	shouldUseHugeTLB := mmapCfg.HugeTLB.Enabled
+	if shouldUseHugeTLB {
+		// Make sure the host supports HugeTLB before proceeding with it to prevent
+		// excessive log spam.
+		shouldUseHugeTLB, err = hostSupportsHugeTLB()
 		if err != nil {
-			logger.Fatalf("could not mmap anonymous region: %v", err)
+			logger.Fatalf("could not determine if host supports HugeTLB: %v", err)
 		}
-		if testMmap.Warning != nil {
-			// If we got a warning, try mmap'ing without HugeTLB
-			testMmap, err := mmap.Bytes(10, mmap.Options{})
-			if err != nil {
-				logger.Fatalf("could not mmap anonymous region: %v", err)
-			}
-			if testMmap.Warning == nil {
-				// The machine doesn't support HugeTLB
-			}
+		if !shouldUseHugeTLB {
+			logger.Infof("Host doesn't support HugeTLB, proceeding without it")
 		}
 	}
 
@@ -193,7 +184,7 @@ func Run(runOpts RunOptions) {
 		SetDataReaderBufferSize(cfg.Filesystem.DataReadBufferSize).
 		SetInfoReaderBufferSize(cfg.Filesystem.InfoReadBufferSize).
 		SetSeekReaderBufferSize(cfg.Filesystem.SeekReadBufferSize).
-		SetMmapEnableHugeTLB(mmapCfg.HugeTLB.Enabled).
+		SetMmapEnableHugeTLB(shouldUseHugeTLB).
 		SetMmapHugeTLBThreshold(mmapCfg.HugeTLB.Threshold).
 		SetRuntimeOptionsManager(runtimeOptsMgr)
 
@@ -813,4 +804,98 @@ func capacityPoolOptions(
 			SetMetricsScope(scope))
 	}
 	return opts
+}
+
+func newStaticShardSet(numShards int, listenAddress string) (sharding.ShardSet, []topology.HostShardSet, error) {
+	var (
+		shardSet      sharding.ShardSet
+		hostShardSets []topology.HostShardSet
+		shardIDs      []uint32
+		err           error
+	)
+
+	for i := uint32(0); i < uint32(numShards); i++ {
+		shardIDs = append(shardIDs, i)
+	}
+
+	shards := sharding.NewShards(shardIDs, shard.Available)
+	shardSet, err = sharding.NewShardSet(shards, sharding.DefaultHashFn(1))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	host := topology.NewHost("localhost", listenAddress)
+	hostShardSet := topology.NewHostShardSet(host, shardSet)
+	hostShardSets = append(hostShardSets, hostShardSet)
+
+	return shardSet, hostShardSets, nil
+}
+
+func newNamespaceMetadata(cfg config.StaticNamespaceConfiguration) (namespace.Metadata, error) {
+	if cfg.Retention == nil {
+		return nil, errNilRetention
+	}
+	if cfg.Options == nil {
+		cfg.Options = &config.StaticNamespaceOptions{
+			NeedsBootstrap:      true,
+			NeedsFilesetCleanup: true,
+			NeedsFlush:          true,
+			NeedsRepair:         true,
+			WritesToCommitLog:   true,
+		}
+	}
+	md, err := namespace.NewMetadata(
+		ts.StringID(cfg.Name),
+		namespace.NewOptions().
+			SetNeedsBootstrap(cfg.Options.NeedsBootstrap).
+			SetNeedsFilesetCleanup(cfg.Options.NeedsFilesetCleanup).
+			SetNeedsFlush(cfg.Options.NeedsFlush).
+			SetNeedsRepair(cfg.Options.NeedsRepair).
+			SetWritesToCommitLog(cfg.Options.WritesToCommitLog).
+			SetRetentionOptions(
+				retention.NewOptions().
+					SetBlockSize(cfg.Retention.BlockSize).
+					SetRetentionPeriod(cfg.Retention.RetentionPeriod).
+					SetBufferFuture(cfg.Retention.BufferFuture).
+					SetBufferPast(cfg.Retention.BufferPast).
+					SetBlockDataExpiry(cfg.Retention.BlockDataExpiry).
+					SetBlockDataExpiryAfterNotAccessedPeriod(cfg.Retention.BlockDataExpiryAfterNotAccessPeriod)))
+	if err != nil {
+		return nil, err
+	}
+
+	return md, nil
+}
+
+func hostSupportsHugeTLB() (bool, error) {
+	// Try and determine if the host supports HugeTLB in the first place
+	withHugeTLB, err := mmap.Bytes(10, mmap.Options{
+		HugeTLB: mmap.HugeTLBOptions{
+			Enabled:   true,
+			Threshold: 0,
+		},
+	})
+	if err != nil {
+		return false, fmt.Errorf("could not mmap anonymous region: %v", err)
+	}
+	defer mmap.Munmap(withHugeTLB.Result)
+
+	if withHugeTLB.Warning == nil {
+		// If there was no warning, then the host didn't complain about
+		// usa of huge TLB
+		return true, nil
+	}
+
+	// If we got a warning, try mmap'ing without HugeTLB
+	withoutHugeTLB, err := mmap.Bytes(10, mmap.Options{})
+	if err != nil {
+		return false, fmt.Errorf("could not mmap anonymous region: %v", err)
+	}
+	defer mmap.Munmap(withoutHugeTLB.Result)
+	if withoutHugeTLB.Warning == nil {
+		// The machine doesn't support HugeTLB, proceed without it
+		return false, nil
+	}
+	// The warning was probably caused by something else, proceed using HugeTLB
+	return true, nil
 }
