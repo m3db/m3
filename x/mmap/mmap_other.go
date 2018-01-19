@@ -31,6 +31,8 @@ import (
 func Fd(fd, offset, length int64, opts Options) (Result, error) {
 	// MAP_PRIVATE because we only want to ever mmap immutable things and we don't
 	// ever want to propagate writes back to the underlying file
+	// Set HugeTLB to disabled because its not supported for files
+	opts.HugeTLB.Enabled = false
 	return mmap(fd, offset, length, syscall.MAP_PRIVATE, opts)
 }
 
