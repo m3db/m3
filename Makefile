@@ -158,24 +158,22 @@ test-integration:
 # Usage: make test-single-integration name=<test_name>
 .PHONY: test-single-integration
 test-single-integration:
-	TEST_NATIVE_POOLING=false make test-base-single-integration name=$(name)
+	make run-with-limits cmd="TEST_NATIVE_POOLING=false make test-base-single-integration name=$(name)"
 
 .PHONY: test-ci-unit
 test-ci-unit: test-base-ci-unit
 
 .PHONY: test-ci-integration
 test-ci-integration:
+	make run-with-limits cmd="INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration"
+
+.PHONY: run-with-limits
+run-with-limits:
 	test $(shell ulimit -n) -ge $(integration_fd_limit) && \
-		make test-ci-integration-with-limits || \
+		(echo "fd limit is: $(shell ulimit -n)" && $(cmd)) || \
 		(sudo sh -c "ulimit -n $(integration_fd_limit) && \
 			echo set ulimit to: $(integration_fd_limit) && \
-			GOPATH=$(gopath) make test-ci-integration-with-limits || \
-			echo set ulimit failed")
-
-.PHONY: test-ci-integration-with-limits
-test-ci-integration-with-limits:
-	@echo Running integration tests with fd limits: $(shell ulimit -n)
-	INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
+			GOPATH=$(gopath) $(cmd)")
 
 .PHONY: clean
 clean:
