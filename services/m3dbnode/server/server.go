@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3cluster/generated/proto/commonpb"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/util"
-	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
@@ -53,7 +52,6 @@ import (
 	"github.com/m3db/m3db/retention"
 	m3dbruntime "github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/services/m3dbnode/config"
-	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/cluster"
@@ -804,67 +802,6 @@ func capacityPoolOptions(
 			SetMetricsScope(scope))
 	}
 	return opts
-}
-
-func newStaticShardSet(numShards int, listenAddress string) (sharding.ShardSet, []topology.HostShardSet, error) {
-	var (
-		shardSet      sharding.ShardSet
-		hostShardSets []topology.HostShardSet
-		shardIDs      []uint32
-		err           error
-	)
-
-	for i := uint32(0); i < uint32(numShards); i++ {
-		shardIDs = append(shardIDs, i)
-	}
-
-	shards := sharding.NewShards(shardIDs, shard.Available)
-	shardSet, err = sharding.NewShardSet(shards, sharding.DefaultHashFn(1))
-	if err != nil {
-		return nil, nil, err
-	}
-
-	host := topology.NewHost("localhost", listenAddress)
-	hostShardSet := topology.NewHostShardSet(host, shardSet)
-	hostShardSets = append(hostShardSets, hostShardSet)
-
-	return shardSet, hostShardSets, nil
-}
-
-func newNamespaceMetadata(cfg config.StaticNamespaceConfiguration) (namespace.Metadata, error) {
-	if cfg.Retention == nil {
-		return nil, errNilRetention
-	}
-	if cfg.Options == nil {
-		cfg.Options = &config.StaticNamespaceOptions{
-			NeedsBootstrap:      true,
-			NeedsFilesetCleanup: true,
-			NeedsFlush:          true,
-			NeedsRepair:         true,
-			WritesToCommitLog:   true,
-		}
-	}
-	md, err := namespace.NewMetadata(
-		ts.StringID(cfg.Name),
-		namespace.NewOptions().
-			SetNeedsBootstrap(cfg.Options.NeedsBootstrap).
-			SetNeedsFilesetCleanup(cfg.Options.NeedsFilesetCleanup).
-			SetNeedsFlush(cfg.Options.NeedsFlush).
-			SetNeedsRepair(cfg.Options.NeedsRepair).
-			SetWritesToCommitLog(cfg.Options.WritesToCommitLog).
-			SetRetentionOptions(
-				retention.NewOptions().
-					SetBlockSize(cfg.Retention.BlockSize).
-					SetRetentionPeriod(cfg.Retention.RetentionPeriod).
-					SetBufferFuture(cfg.Retention.BufferFuture).
-					SetBufferPast(cfg.Retention.BufferPast).
-					SetBlockDataExpiry(cfg.Retention.BlockDataExpiry).
-					SetBlockDataExpiryAfterNotAccessedPeriod(cfg.Retention.BlockDataExpiryAfterNotAccessPeriod)))
-	if err != nil {
-		return nil, err
-	}
-
-	return md, nil
 }
 
 func hostSupportsHugeTLB() (bool, error) {
