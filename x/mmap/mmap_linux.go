@@ -47,19 +47,19 @@ func mmap(fd, offset, length int64, flags int, opts Options) (Result, error) {
 		// Return an empty slice (but not nil so callers who
 		// use nil to mean something special like not initialized
 		// get back an actual ref)
-		return Result{result: make([]byte, 0)}, nil
+		return Result{Result: make([]byte, 0)}, nil
 	}
 
 	var prot int
-	if opts.read {
+	if opts.Read {
 		prot = prot | syscall.PROT_READ
 	}
-	if opts.write {
+	if opts.Write {
 		prot = prot | syscall.PROT_WRITE
 	}
 
 	flagsWithoutHugeTLB := flags
-	shouldUseHugeTLB := opts.hugeTLB.enabled && length >= opts.hugeTLB.threshold
+	shouldUseHugeTLB := opts.HugeTLB.enabled && length >= opts.HugeTLB.threshold
 	if shouldUseHugeTLB {
 		// We use the MAP_HUGETLB flag instead of MADV_HUGEPAGE because transparent
 		// hugepages only work with anonymous, private pages. Please see the MADV_HUGEPAGE
@@ -93,7 +93,7 @@ func mmap(fd, offset, length int64, flags int, opts Options) (Result, error) {
 		return Result{}, fmt.Errorf("mmap error: %v", err)
 	}
 
-	return Result{result: b, warning: warning}, nil
+	return Result{Result: b, Warning: warning}, nil
 }
 
 // Munmap munmaps a byte slice that is backed by an mmap
