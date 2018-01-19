@@ -32,7 +32,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
@@ -117,9 +116,6 @@ func TestBlockRetrieverHighConcurrentSeeksCacheShardIndices(t *testing.T) {
 
 func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices bool) {
 	defer leaktest.CheckTimeout(t, 2*time.Minute)()
-
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
 
 	dir, err := ioutil.TempDir("", "testdb")
 	require.NoError(t, err)
