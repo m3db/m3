@@ -59,7 +59,7 @@ func mmap(fd, offset, length int64, flags int, opts Options) (Result, error) {
 	}
 
 	flagsWithoutHugeTLB := flags
-	shouldUseHugeTLB := opts.HugeTLB.enabled && length >= opts.HugeTLB.threshold
+	shouldUseHugeTLB := opts.HugeTLB.Enabled && length >= opts.HugeTLB.Threshold
 	if shouldUseHugeTLB {
 		// We use the MAP_HUGETLB flag instead of MADV_HUGEPAGE because transparent
 		// hugepages only work with anonymous, private pages. Please see the MADV_HUGEPAGE
