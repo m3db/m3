@@ -24,7 +24,7 @@ vendor_prefix        := vendor
 
 go_path              := $(GOPATH)
 shell_path           := $(PATH)
-integration_fd_limit := 65536
+integration_fd_limit := 262144
 
 BUILD            := $(abspath ./bin)
 GO_BUILD_LDFLAGS := $(shell $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package))
@@ -177,9 +177,11 @@ run-with-limits:
 		( \
 			(echo setting ulimit to: $(integration_fd_limit) && \
 				ulimit -n $(integration_fd_limit) && \
+				(ulimit -n | xargs -I{} echo fd limit is: {}) && \
 				$(cmd)) || \
-			echo failed to set ulimit, running with sudo shell && \
+			echo set ulimit failed, using sudo shell && \
 			sudo sh -c "ulimit -n $(integration_fd_limit) && \
+				(ulimit -n | xargs -I{} echo fd limit is: {}) && \
 				PATH=$(shell_path) GOPATH=$(go_path) $(cmd)" \
 		)
 
