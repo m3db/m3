@@ -182,10 +182,12 @@ func (q *dbShardInsertQueue) insertLoop() {
 
 		// Rotate batches
 		var (
+			state   dbShardInsertQueueState
 			backoff time.Duration
 			batch   *dbShardInsertBatch
 		)
 		q.Lock()
+		state = q.state
 		if elapsedSinceLastInsert < q.insertBatchBackoff {
 			// Need to backoff before rotate and insert
 			backoff = q.insertBatchBackoff - elapsedSinceLastInsert
@@ -215,6 +217,10 @@ func (q *dbShardInsertQueue) insertLoop() {
 		freeBatch = batch
 
 		lastInsert = q.nowFn()
+
+		if state != dbShardInsertQueueStateOpen {
+			return // Break if the queue closed
+		}
 	}
 }
 
@@ -247,7 +253,6 @@ func (q *dbShardInsertQueue) Stop() error {
 	default:
 		// Loop busy, already ready to consume notification
 	}
-	close(q.notifyInsert)
 
 	return nil
 }
