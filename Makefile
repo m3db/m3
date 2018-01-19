@@ -21,16 +21,11 @@ thrift_gen_package   := github.com/uber/tchannel-go
 thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
-
-go_path              := $(GOPATH)
-shell_path           := $(PATH)
-integration_fd_limit := 262144
+cache_policy         ?= recently_read
 
 BUILD            := $(abspath ./bin)
 GO_BUILD_LDFLAGS := $(shell $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package))
 LINUX_AMD64_ENV  := GOOS=linux GOARCH=amd64 CGO_ENABLED=0
-
-cache_policy ?= recently_read
 
 SERVICES := \
 	m3dbnode
@@ -161,36 +156,14 @@ test-integration:
 # Usage: make test-single-integration name=<test_name>
 .PHONY: test-single-integration
 test-single-integration:
-	make run-with-limits cmd=" \
-		TEST_NATIVE_POOLING=false \
-		TEST_SERIES_CACHE_POLICY=$(cache_policy) \
-		make test-base-single-integration name=$(name)"
+	TEST_NATIVE_POOLING=false make test-base-single-integration name=$(name)
 
 .PHONY: test-ci-unit
 test-ci-unit: test-base-ci-unit
 
 .PHONY: test-ci-integration
 test-ci-integration:
-	make run-with-limits cmd=" \
-		INTEGRATION_TIMEOUT=10m \
-		TEST_NATIVE_POOLING=false \
-		TEST_SERIES_CACHE_POLICY=$(cache_policy) \
-		make test-base-ci-integration"
-
-.PHONY: run-with-limits
-run-with-limits:
-	test $(shell ulimit -n) -ge $(integration_fd_limit) && \
-		(echo fd limit is: $(shell ulimit -n) && $(cmd)) || \
-		( \
-			(echo setting ulimit to: $(integration_fd_limit) && \
-				ulimit -n $(integration_fd_limit) && \
-				(ulimit -n | xargs -I{} echo fd limit is: {}) && \
-				$(cmd)) || \
-			echo set ulimit failed, using sudo shell && \
-			sudo sh -c "ulimit -n $(integration_fd_limit) && \
-				(ulimit -n | xargs -I{} echo fd limit is: {}) && \
-				PATH=$(shell_path) GOPATH=$(go_path) $(cmd)" \
-		)
+	INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
 
 .PHONY: clean
 clean:
