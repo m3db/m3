@@ -22,14 +22,13 @@ package client
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
-	etcdclient "github.com/m3db/m3cluster/client/etcd"
-	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
-	"github.com/m3db/m3db/sharding"
+	"github.com/m3db/m3db/environment"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/x/tchannel"
 	"github.com/m3db/m3x/instrument"
@@ -37,14 +36,14 @@ import (
 )
 
 var (
-	errConfigurationMustSupplyConfigService = errors.New(
-		"must supply configService when no topology initializer parameter supplied")
+	errConfigurationMustSupplyConfig = errors.New(
+		"must supply config when no topology initializer parameter supplied")
 )
 
 // Configuration is a configuration that can be used to construct a client.
 type Configuration struct {
-	// ConfigService is used when a topology initializer is not supplied.
-	ConfigService *etcdclient.Configuration `yaml:"configService"`
+	// The environment (static or dynamic) configuration.
+	EnvironmentConfig environment.Configuration `yaml:"config"`
 
 	// WriteConsistencyLevel specifies the write consistency level.
 	WriteConsistencyLevel topology.ConsistencyLevel `yaml:"writeConsistencyLevel"`
@@ -78,7 +77,7 @@ type Configuration struct {
 	// time to use when sleeping between a failed health check and the next check.
 	BackgroundHealthCheckFailThrottleFactor float64 `yaml:"backgroundHealthCheckFailThrottleFactor" validate:"min=0,max=10"`
 
-	// HashingConfiguration is the configuration for hashing of IDs to shards
+	// HashingConfiguration is the configuration for hashing of IDs to shards.
 	HashingConfiguration HashingConfiguration `yaml:"hashing"`
 }
 
@@ -148,32 +147,39 @@ func (c Configuration) NewAdminClient(
 	writeRequestScope := iopts.MetricsScope().SubScope("write-req")
 	fetchRequestScope := iopts.MetricsScope().SubScope("fetch-req")
 
-	topoInit := params.TopologyInitializer
-	if topoInit == nil {
-		if c.ConfigService == nil {
-			return nil, errConfigurationMustSupplyConfigService
+	envCfg := environment.ConfigureResults{
+		TopologyInitializer: params.TopologyInitializer,
+	}
+
+	var err error
+	if envCfg.TopologyInitializer == nil {
+		switch {
+		case c.EnvironmentConfig.Service != nil:
+
+			envCfg, err = c.EnvironmentConfig.Configure(environment.ConfigurationParameters{
+				InstrumentOpts: iopts,
+				HashingSeed:    c.HashingConfiguration.Seed,
+			})
+			if err != nil {
+				err = fmt.Errorf("unable to create dynamic topology initializer, err: %v", err)
+				return nil, err
+			}
+
+		case c.EnvironmentConfig.Static != nil:
+
+			envCfg, err = c.EnvironmentConfig.Configure(environment.ConfigurationParameters{})
+			if err != nil {
+				err = fmt.Errorf("unable to create static topology initializer, err: %v", err)
+				return nil, err
+			}
+
+		default:
+			return nil, errConfigurationMustSupplyConfig
 		}
-
-		configSvcClient, err := c.ConfigService.NewClient(iopts)
-		if err != nil {
-			return nil, err
-		}
-
-		initOpts := topology.NewDynamicOptions().
-			SetConfigServiceClient(configSvcClient).
-			SetServiceID(services.NewServiceID().
-				SetName(c.ConfigService.Service).
-				SetEnvironment(c.ConfigService.Env).
-				SetZone(c.ConfigService.Zone)).
-			SetQueryOptions(services.NewQueryOptions().SetIncludeUnhealthy(true)).
-			SetInstrumentOptions(iopts).
-			SetHashGen(sharding.NewHashGenWithSeed(c.HashingConfiguration.Seed))
-
-		topoInit = topology.NewDynamicInitializer(initOpts)
 	}
 
 	v := NewAdminOptions().
-		SetTopologyInitializer(topoInit).
+		SetTopologyInitializer(envCfg.TopologyInitializer).
 		SetWriteConsistencyLevel(c.WriteConsistencyLevel).
 		SetReadConsistencyLevel(c.ReadConsistencyLevel).
 		SetClusterConnectConsistencyLevel(c.ConnectConsistencyLevel).

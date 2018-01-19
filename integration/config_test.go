@@ -122,7 +122,7 @@ func TestConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name())
 	require.NoError(t, err)
 
-	configSvcClient, err := cfg.ConfigService.NewClient(instrument.NewOptions().
+	configSvcClient, err := cfg.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
 		SetLogger(xlog.NullLogger))
 	require.NoError(t, err)
 
@@ -193,7 +193,7 @@ func TestConfig(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.Client.ConfigService = cfg.ConfigService
+	cfg.Client.EnvironmentConfig.Service = cfg.EnvironmentConfig.Service
 
 	cli, err := cfg.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
@@ -404,14 +404,15 @@ pooling:
             - capacity: 4096
               size: 128
 
-configService:
-    env: {{.ServiceEnv}}
-    zone: {{.ServiceZone}}
-    service: {{.ServiceName}}
-    cacheDir: {{.ConfigServiceCacheDir}}
-    etcdClusters:
-        - zone: {{.ServiceZone}}
-          endpoints: {{.EtcdEndpoints}}
+config:
+    service:
+        env: {{.ServiceEnv}}
+        zone: {{.ServiceZone}}
+        service: {{.ServiceName}}
+        cacheDir: {{.ConfigServiceCacheDir}}
+        etcdClusters:
+            - zone: {{.ServiceZone}}
+              endpoints: {{.EtcdEndpoints}}
 `
 
 type cleanup func()
