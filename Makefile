@@ -159,7 +159,9 @@ test-single-integration:
 	TEST_NATIVE_POOLING=false make test-base-single-integration name=$(name)
 
 .PHONY: test-ci-unit
-test-ci-unit: test-base-ci-unit
+test-ci-unit: test-base
+	@which goveralls > /dev/null || go get -u -f github.com/m3db/goveralls
+	goveralls -coverprofile=$(coverfile) -service=semaphore || (echo -e "Coveralls failed" && exit 1)
 
 .PHONY: test-ci-integration
 test-ci-integration:
