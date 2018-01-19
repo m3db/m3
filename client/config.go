@@ -156,7 +156,10 @@ func (c Configuration) NewAdminClient(
 		switch {
 		case c.EnvironmentConfig.Service != nil:
 
-			envCfg, err = c.EnvironmentConfig.Configure(iopts, c.HashingConfiguration.Seed)
+			envCfg, err = c.EnvironmentConfig.Configure(environment.ConfigurationParameters{
+				InstrumentOpts: iopts,
+				HashingSeed:    c.HashingConfiguration.Seed,
+			})
 			if err != nil {
 				err = fmt.Errorf("unable to create dynamic topology initializer, err: %v", err)
 				return nil, err
@@ -164,7 +167,7 @@ func (c Configuration) NewAdminClient(
 
 		case c.EnvironmentConfig.Static != nil:
 
-			envCfg, err = c.EnvironmentConfig.Configure(nil, c.HashingConfiguration.Seed)
+			envCfg, err = c.EnvironmentConfig.Configure(environment.ConfigurationParameters{})
 			if err != nil {
 				err = fmt.Errorf("unable to create static topology initializer, err: %v", err)
 				return nil, err

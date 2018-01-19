@@ -241,7 +241,10 @@ func Run(runOpts RunOptions) {
 	case cfg.EnvironmentConfig.Service != nil:
 		logger.Info("creating dynamic config service client with m3cluster")
 
-		envCfg, err = cfg.EnvironmentConfig.Configure(iopts, cfg.Hashing.Seed)
+		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
+			InstrumentOpts: iopts,
+			HashingSeed:    cfg.Hashing.Seed,
+		})
 		if err != nil {
 			logger.Fatalf("could not initialize dynamic config: %v", err)
 		}
@@ -249,7 +252,7 @@ func Run(runOpts RunOptions) {
 	case cfg.EnvironmentConfig.Static != nil:
 		logger.Info("creating static config service client with m3cluster")
 
-		envCfg, err = cfg.EnvironmentConfig.Configure(nil, cfg.Hashing.Seed)
+		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{})
 		if err != nil {
 			logger.Fatalf("could not initialize static config: %v", err)
 		}
