@@ -161,10 +161,12 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 
 	// If the block retrieve ID is set then it must be retrieved
 	var (
-		stream xio.SegmentReader
-		err    error
+		stream             xio.SegmentReader
+		err                error
+		fromBlockRetriever bool
 	)
 	if b.retriever != nil {
+		fromBlockRetriever = true
 		start := b.startWithLock()
 		stream, err = b.retriever.Stream(blocker, b.retrieveID, start, b)
 		if err != nil {
@@ -189,9 +191,12 @@ func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 		stream = newDatabaseMergedBlockReader(b.startWithLock(), stream, mergeStream, b.opts)
 	}
 
-	// Register the finalizer for the stream
-	blocker.RegisterFinalizer(stream)
-
+	if !fromBlockRetriever {
+		// Register the finalizer for the stream, the block retriever already
+		// registers the stream as a finalizer for the context so we only perform
+		// this if we return a stream directly from this block
+		blocker.RegisterFinalizer(stream)
+	}
 	return stream, nil
 }
 

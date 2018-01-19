@@ -92,7 +92,8 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 	filePathPrefix := fsOpts.FilePathPrefix()
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
-		SetFilesystemOptions(fsOpts)
+		SetFilesystemOptions(fsOpts).
+		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
 	fsBootstrapper := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, commitLogBootstrapper)
 	// bootstrapper storage opts
 	process := bootstrap.NewProcess(fsBootstrapper, bsOpts)

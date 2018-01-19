@@ -116,7 +116,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 	// to fileset files, and flushed.
 	expectedFlushedData := datapoints.toSeriesMap(ns1BlockSize)
 	delete(expectedFlushedData, xtime.ToUnixNano(blkStart18))
-	waitTimeout := 30 * time.Second
+	waitTimeout := 5 * time.Minute
 	filePathPrefix := setup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	log.Infof("waiting till expected fileset files have been written")
 	require.NoError(t, waitUntilDataFlushed(filePathPrefix, setup.shardSet, nsID, expectedFlushedData, waitTimeout))
@@ -209,7 +209,7 @@ func newTestSetupWithCommitLogAndFilesystemBootstrapper(t *testing.T, opts testO
 	bfsOpts := fs.NewOptions().
 		SetResultOptions(bsOpts).
 		SetFilesystemOptions(fsOpts).
-		SetDatabaseBlockRetrieverManager(setup.opts.DatabaseBlockRetrieverManager())
+		SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager())
 	fsBootstrapper := fs.NewFileSystemBootstrapper(filePathPrefix, bfsOpts, commitLogBootstrapper)
 
 	// bootstrapper storage opts
