@@ -5,6 +5,7 @@ SHELL=/bin/bash -o pipefail
 
 auto_gen             := .ci/auto-gen.sh
 gopath_prefix        := $(GOPATH)/src
+gopath               := $(GOPATH)
 license_dir          := .ci/uber-licence
 license_node_modules := $(license_dir)/node_modules
 m3db_package         := github.com/m3db/m3db
@@ -166,10 +167,10 @@ test-ci-unit: test-base-ci-unit
 test-ci-integration:
 	test $(shell ulimit -n) -ge $(integration_fd_limit) && \
 		make test-ci-integration-with-limits || \
-		(sudo ulimit -n $(integration_fd_limit) && \
+		(sudo sh -c "ulimit -n $(integration_fd_limit) && \
 			echo set ulimit to: $(integration_fd_limit) && \
-			make test-ci-integration-with-limits || \
-			echo set ulimit failed)
+			GOPATH=$(gopath) make test-ci-integration-with-limits || \
+			echo set ulimit failed")
 
 .PHONY: test-ci-integration-with-limits
 test-ci-integration-with-limits:
