@@ -22,6 +22,7 @@ thrift_output_dir    := generated/thrift/rpc
 thrift_rules_dir     := generated/thrift
 vendor_prefix        := vendor
 cache_policy         ?= recently_read
+integration_fd_limit := 65536
 
 BUILD            := $(abspath ./bin)
 GO_BUILD_LDFLAGS := $(shell $(abspath ./.ci/go-build-ldflags.sh) $(m3db_package))
@@ -163,6 +164,16 @@ test-ci-unit: test-base-ci-unit
 
 .PHONY: test-ci-integration
 test-ci-integration:
+	test $(shell ulimit -n) -ge $(integration_fd_limit) && \
+		make test-ci-integration-with-limits || \
+		(sudo ulimit -n $(integration_fd_limit) && \
+			echo set ulimit to: $(integration_fd_limit) && \
+			make test-ci-integration-with-limits || \
+			echo set ulimit failed)
+
+.PHONY: test-ci-integration-with-limits
+test-ci-integration-with-limits:
+	@echo Running integration tests with fd limits: $(shell ulimit -n)
 	INTEGRATION_TIMEOUT=4m TEST_NATIVE_POOLING=false TEST_SERIES_CACHE_POLICY=$(cache_policy) make test-base-ci-integration
 
 .PHONY: clean
