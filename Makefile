@@ -6,6 +6,7 @@ SHELL=/bin/bash -o pipefail
 auto_gen             := .ci/auto-gen.sh
 gopath_prefix        := $(GOPATH)/src
 gopath               := $(GOPATH)
+go_bin               := $(shell which go)
 license_dir          := .ci/uber-licence
 license_node_modules := $(license_dir)/node_modules
 m3db_package         := github.com/m3db/m3db
@@ -173,6 +174,7 @@ run-with-limits:
 		(echo "fd limit is: $(shell ulimit -n)" && $(cmd)) || \
 		(sudo sh -c "ulimit -n $(integration_fd_limit) && \
 			echo set ulimit to: $(integration_fd_limit) && \
+			alias go=$(go_bin) && \
 			GOPATH=$(gopath) $(cmd)")
 
 .PHONY: clean
