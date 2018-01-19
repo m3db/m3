@@ -26,7 +26,7 @@ import (
 )
 
 // Fd mmaps a file
-func Fd(fd, offset, length int64, opts mmapOptions) (mmapResult, error) {
+func Fd(fd, offset, length int64, opts MmapOptions) (MmapResult, error) {
 	// MAP_PRIVATE because we only want to ever mmap immutable things and we don't
 	// ever want to propagate writes back to the underlying file
 	// Set HugeTLB to disabled because its not supported for files
@@ -35,19 +35,19 @@ func Fd(fd, offset, length int64, opts mmapOptions) (mmapResult, error) {
 }
 
 // Bytes requests a private (non-shared) region of anonymous (not backed by a file) memory from the O.S
-func Bytes(length int64, opts mmapOptions) (mmapResult, error) {
+func Bytes(length int64, opts MmapOptions) (MmapResult, error) {
 	// offset is 0 because we're not indexing into a file
 	// fd is -1 and MAP_ANON because we're asking for an anonymous region of memory not tied to a file
 	// MAP_PRIVATE because we don't plan on sharing this region of memory with other processes
 	return mmap(-1, 0, length, syscall.MAP_ANON|syscall.MAP_PRIVATE, opts)
 }
 
-func mmap(fd, offset, length int64, flags int, opts mmapOptions) (mmapResult, error) {
+func mmap(fd, offset, length int64, flags int, opts MmapOptions) (MmapResult, error) {
 	if length == 0 {
 		// Return an empty slice (but not nil so callers who
 		// use nil to mean something special like not initialized
 		// get back an actual ref)
-		return mmapResult{result: make([]byte, 0)}, nil
+		return MmapResult{result: make([]byte, 0)}, nil
 	}
 
 	var prot int
@@ -90,10 +90,10 @@ func mmap(fd, offset, length int64, flags int, opts mmapOptions) (mmapResult, er
 	}
 
 	if err != nil {
-		return mmapResult{}, fmt.Errorf("mmap error: %v", err)
+		return MmapResult{}, fmt.Errorf("mmap error: %v", err)
 	}
 
-	return mmapResult{result: b, warning: warning}, nil
+	return MmapResult{result: b, warning: warning}, nil
 }
 
 // Munmap munmaps a byte slice that is backed by an mmap
