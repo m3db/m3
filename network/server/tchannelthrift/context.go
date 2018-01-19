@@ -60,5 +60,5 @@ func Context(ctx thrift.Context) context.Context {
 func postResponseFn(ctx xnetcontext.Context, method string, response apachethrift.TStruct) {
 	value := ctx.Value(contextKey)
 	inner := value.(context.Context)
-	inner.BlockingClose()
+	inner.Close()
 }
