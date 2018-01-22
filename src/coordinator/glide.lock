@@ -1,5 +1,5 @@
-hash: 84fc950b972e18504876615d035bfad9b2dbacb74093a9fd007a88298a488f1c
-updated: 2018-01-05T16:29:18.680351901-05:00
+hash: 105c2757ea9f7d2dbec33a7fd7247c2936b4acb949f9626714a0af236cb76e70
+updated: 2018-01-19T10:45:32.642447048+05:30
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -13,6 +13,10 @@ imports:
   - gogoproto
   - proto
   - protoc-gen-gogo/descriptor
+- name: github.com/golang/mock
+  version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  subpackages:
+  - gomock
 - name: github.com/golang/protobuf
   version: 1e59b77b52bf8e4b449a57e6f79f21226d571845
   subpackages:
@@ -22,11 +26,12 @@ imports:
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
-  version: 7f08801859139f86dfafd1c296e2cba9a80d292e
+  version: 53c1911da2b537f792e7cafcb446b05ffe33b996
 - name: github.com/m3db/m3x
   version: f95d1021f5dbac46cf2f6994b4b2d2d194fb0697
   subpackages:
   - config
+  - time
 - name: github.com/pborman/uuid
   version: e790cca94e6cc75c7064b1332e63811d4aae1a53
 - name: go.uber.org/atomic
