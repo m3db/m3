@@ -167,7 +167,7 @@ func Run(runOpts RunOptions) {
 			logger.Fatalf("could not determine if host supports HugeTLB: %v", err)
 		}
 		if !shouldUseHugeTLB {
-			logger.Infof("Host doesn't support HugeTLB, proceeding without it")
+			logger.Warnf("host doesn't support HugeTLB, proceeding without it")
 		}
 	}
 
