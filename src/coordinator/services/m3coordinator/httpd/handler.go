@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3coordinator/services/m3coordinator/handler"
+	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/util/logging"
 
 	"github.com/gorilla/mux"
@@ -23,10 +24,11 @@ const (
 type Handler struct {
 	Router    *mux.Router
 	CLFLogger *log.Logger
+	storage   storage.Storage
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler() (*Handler, error) {
+func NewHandler(storage storage.Storage) (*Handler, error) {
 	r := mux.NewRouter()
 	logger, err := zap.NewProduction()
 	if err != nil {
@@ -37,6 +39,7 @@ func NewHandler() (*Handler, error) {
 	h := &Handler{
 		CLFLogger: log.New(os.Stderr, "[httpd] ", 0),
 		Router:    r,
+		storage:   storage,
 	}
 	return h, nil
 }

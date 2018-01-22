@@ -11,6 +11,7 @@ import (
 
 	"github.com/m3db/m3coordinator/services/m3coordinator/config"
 	"github.com/m3db/m3coordinator/services/m3coordinator/httpd"
+	"github.com/m3db/m3coordinator/storage/local"
 	"github.com/m3db/m3coordinator/util/logging"
 	xconfig "github.com/m3db/m3x/config"
 
@@ -37,7 +38,9 @@ func main() {
 	}
 
 	logging.InitWithCores(nil)
-	handler, err := httpd.NewHandler()
+
+	storage := local.NewStorage()
+	handler, err := httpd.NewHandler(storage)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to set up handlers, got error %v\n", err)
 		os.Exit(1)
