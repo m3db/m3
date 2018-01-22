@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/mmap"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/pool"
@@ -49,7 +50,7 @@ var (
 
 type reader struct {
 	opts          Options
-	hugePagesOpts mmapHugeTLBOptions
+	hugePagesOpts mmap.HugeTLBOptions
 
 	filePathPrefix string
 	namespace      ts.ID
@@ -103,9 +104,9 @@ func NewReader(
 		// and reset them after Close() resets the fields to all default values.
 		opts:           opts,
 		filePathPrefix: opts.FilePathPrefix(),
-		hugePagesOpts: mmapHugeTLBOptions{
-			enabled:   opts.MmapEnableHugeTLB(),
-			threshold: opts.MmapHugeTLBThreshold(),
+		hugePagesOpts: mmap.HugeTLBOptions{
+			Enabled:   opts.MmapEnableHugeTLB(),
+			Threshold: opts.MmapHugeTLBThreshold(),
 		},
 		infoFdWithDigest:           digest.NewFdWithDigestReader(opts.InfoReaderBufferSize()),
 		digestFdWithDigestContents: digest.NewFdWithDigestContentsReader(opts.InfoReaderBufferSize()),
@@ -145,22 +146,22 @@ func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error
 		r.digestFdWithDigestContents.Close()
 	}()
 
-	result, err := mmapFiles(os.Open, map[string]mmapFileDesc{
-		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmapFileDesc{
-			file:    &r.indexFd,
-			bytes:   &r.indexMmap,
-			options: mmapOptions{read: true, hugeTLB: r.hugePagesOpts},
+	result, err := mmap.Files(os.Open, map[string]mmap.FileDesc{
+		filesetPathFromTime(shardDir, blockStart, indexFileSuffix): mmap.FileDesc{
+			File:    &r.indexFd,
+			Bytes:   &r.indexMmap,
+			Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
 		},
-		filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmapFileDesc{
-			file:    &r.dataFd,
-			bytes:   &r.dataMmap,
-			options: mmapOptions{read: true, hugeTLB: r.hugePagesOpts},
+		filesetPathFromTime(shardDir, blockStart, dataFileSuffix): mmap.FileDesc{
+			File:    &r.dataFd,
+			Bytes:   &r.dataMmap,
+			Options: mmap.Options{Read: true, HugeTLB: r.hugePagesOpts},
 		},
 	})
 	if err != nil {
 		return err
 	}
-	if warning := result.warning; warning != nil {
+	if warning := result.Warning; warning != nil {
 		logger := r.opts.InstrumentOptions().Logger()
 		logger.Warnf("warning while mmapping files in reader: %s",
 			warning.Error())
@@ -406,8 +407,8 @@ func (r *reader) MetadataRead() int {
 func (r *reader) Close() error {
 	// Close and prepare resources that are to be reused
 	multiErr := xerrors.NewMultiError()
-	multiErr = multiErr.Add(munmap(r.indexMmap))
-	multiErr = multiErr.Add(munmap(r.dataMmap))
+	multiErr = multiErr.Add(mmap.Munmap(r.indexMmap))
+	multiErr = multiErr.Add(mmap.Munmap(r.dataMmap))
 	multiErr = multiErr.Add(r.indexFd.Close())
 	multiErr = multiErr.Add(r.dataFd.Close())
 	multiErr = multiErr.Add(r.bloomFilterFd.Close())

@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/x/mmap"
 )
 
 // ManagedConcurrentBloomFilter is a container object that implements lifecycle
@@ -53,7 +54,7 @@ func (bf *ManagedConcurrentBloomFilter) K() uint {
 
 // Close closes the bloom filter, releasing any held resources
 func (bf *ManagedConcurrentBloomFilter) Close() error {
-	return munmap(bf.mmapBytes)
+	return mmap.Munmap(bf.mmapBytes)
 }
 
 func newManagedConcurrentBloomFilter(
@@ -85,17 +86,18 @@ func newManagedConcurrentBloomFilterFromFile(
 	// to use the mmap'd region to create a read-only bloom filter, but the mmap
 	// region itself needs to be writable so we can copy the bytes from disk
 	// into it
-	result, err := mmapBytes(numBytes, mmapOptions{read: true, write: true})
+	result, err := mmap.Bytes(numBytes, mmap.Options{Read: true, Write: true})
 	if err != nil {
 		return nil, err
 	}
-	anonMmap := result.result
+	anonMmap := result.Result
 
 	// Validate the bytes on disk using the digest, and read them into
 	// the mmap'd region
 	_, err = bloomFilterFdWithDigest.ReadAllAndValidate(
 		anonMmap, expectedDigest)
 	if err != nil {
+		mmap.Munmap(anonMmap)
 		return nil, err
 	}
 

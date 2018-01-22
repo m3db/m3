@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/mmap"
 
 	xmsgpack "github.com/m3db/m3db/persist/fs/msgpack"
 	"gopkg.in/vmihailenco/msgpack.v2"
@@ -149,7 +150,7 @@ func (il *nearestIndexOffsetLookup) close() error {
 	if il.isClone {
 		return nil
 	}
-	return munmap(il.summariesMmap)
+	return mmap.Munmap(il.summariesMmap)
 }
 
 // newNearestIndexOffsetLookupFromSummariesFile creates an nearestIndexOffsetLookup
@@ -174,17 +175,17 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 	// to use the mmap'd region to store the read-only summaries data, but the mmap
 	// region itself needs to be writable so we can copy the bytes from disk
 	// into it
-	mmapResult, err := mmapBytes(numBytes, mmapOptions{read: true, write: true})
+	mmapResult, err := mmap.Bytes(numBytes, mmap.Options{Read: true, Write: true})
 	if err != nil {
 		return nil, err
 	}
-	summariesMmap := mmapResult.result
+	summariesMmap := mmapResult.Result
 
 	// Validate the bytes on disk using the digest, and read them into
 	// the mmap'd region
 	_, err = summariesFdWithDigest.ReadAllAndValidate(summariesMmap, expectedSummariesDigest)
 	if err != nil {
-		munmap(summariesMmap)
+		mmap.Munmap(summariesMmap)
 		return nil, err
 	}
 
@@ -201,14 +202,14 @@ func newNearestIndexOffsetLookupFromSummariesFile(
 		// We ignore the entry itself because we don't need any information from it
 		entry, summaryToken, err := decoder.DecodeIndexSummary()
 		if err != nil {
-			munmap(summariesMmap)
+			mmap.Munmap(summariesMmap)
 			return nil, err
 		}
 
 		// Make sure that all the IDs are sorted as we iterate, and return an error
 		// if they're not. This should never happen as files should be sorted on disk.
 		if lastReadID != nil && bytes.Compare(lastReadID, entry.ID) != -1 {
-			munmap(summariesMmap)
+			mmap.Munmap(summariesMmap)
 			return nil, fmt.Errorf("summaries file is not sorted: %s", summariesFd.Name())
 		}
 		summaryTokens = append(summaryTokens, summaryToken)

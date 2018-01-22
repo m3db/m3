@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/x/mmap"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/pool"
 
@@ -151,7 +152,7 @@ func TestReadDataError(t *testing.T) {
 
 	// Close out the dataFd and use a mock to expect an error on next read
 	reader := r.(*reader)
-	require.NoError(t, munmap(reader.dataMmap))
+	require.NoError(t, mmap.Munmap(reader.dataMmap))
 	require.NoError(t, reader.dataFd.Close())
 
 	mockReader := digest.NewMockReaderWithDigest(ctrl)
@@ -162,7 +163,7 @@ func TestReadDataError(t *testing.T) {
 	assert.Error(t, err)
 
 	// Cleanly close
-	require.NoError(t, munmap(reader.indexMmap))
+	require.NoError(t, mmap.Munmap(reader.indexMmap))
 	require.NoError(t, reader.indexFd.Close())
 }
 

@@ -18,28 +18,29 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package fs
+package mmap
 
 import (
 	"errors"
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-type mmapFdFuncType func(fd, offset, length int64, opts mmapOptions) (mmapResult, error)
+type mmapFdFuncType func(fd, offset, length int64, opts Options) (Result, error)
 
 func TestMmapFile(t *testing.T) {
 	fd, err := ioutil.TempFile("", "testfile")
 	assert.NoError(t, err)
 
-	result, err := mmapFile(fd, mmapOptions{})
+	result, err := File(fd, Options{})
 	assert.NoError(t, err)
-	assert.NoError(t, result.warning)
-	assert.Equal(t, []byte{}, result.result)
+	assert.NoError(t, result.Warning)
+	assert.Equal(t, []byte{}, result.Result)
 
-	munmap(result.result)
+	Munmap(result.Result)
 }
 
 func TestMmapFiles(t *testing.T) {
@@ -54,21 +55,21 @@ func TestMmapFiles(t *testing.T) {
 		bytes1 = []byte{}
 		bytes2 = []byte{}
 	)
-	result, err := mmapFiles(os.Open, map[string]mmapFileDesc{
-		fd1Path: mmapFileDesc{
-			file:    &fd1,
-			bytes:   &bytes1,
-			options: mmapOptions{},
+	result, err := Files(os.Open, map[string]FileDesc{
+		fd1Path: FileDesc{
+			File:    &fd1,
+			Bytes:   &bytes1,
+			Options: Options{},
 		},
-		fd2Path: mmapFileDesc{
-			file:    &fd2,
-			bytes:   &bytes2,
-			options: mmapOptions{},
+		fd2Path: FileDesc{
+			File:    &fd2,
+			Bytes:   &bytes2,
+			Options: Options{},
 		},
 	})
 
 	assert.NoError(t, err)
-	assert.NoError(t, result.warning)
+	assert.NoError(t, result.Warning)
 }
 
 func TestMmapFilesHandlesError(t *testing.T) {
@@ -82,16 +83,16 @@ func TestMmapFilesHandlesError(t *testing.T) {
 		bytes1 = []byte{}
 		bytes2 = []byte{}
 	)
-	_, err = mmapFiles(os.Open, map[string]mmapFileDesc{
-		fd1Path: mmapFileDesc{
-			file:    &fd1,
-			bytes:   &bytes1,
-			options: mmapOptions{},
+	_, err = Files(os.Open, map[string]FileDesc{
+		fd1Path: FileDesc{
+			File:    &fd1,
+			Bytes:   &bytes1,
+			Options: Options{},
 		},
-		"does_not_exist": mmapFileDesc{
-			file:    &fd2,
-			bytes:   &bytes2,
-			options: mmapOptions{},
+		"does_not_exist": FileDesc{
+			File:    &fd2,
+			Bytes:   &bytes2,
+			Options: Options{},
 		},
 	})
 
@@ -99,8 +100,8 @@ func TestMmapFilesHandlesError(t *testing.T) {
 }
 
 func TestMmapFilesHandlesWarnings(t *testing.T) {
-	mmapFdReturnWarn := func(fd, offset, length int64, opts mmapOptions) (mmapResult, error) {
-		return mmapResult{warning: errors.New("some-error"), result: []byte("a")}, nil
+	mmapFdReturnWarn := func(fd, offset, length int64, opts Options) (Result, error) {
+		return Result{Warning: errors.New("some-error"), Result: []byte("a")}, nil
 	}
 	defer mockMmapFdFunc(mmapFdReturnWarn)()
 
@@ -110,18 +111,18 @@ func TestMmapFilesHandlesWarnings(t *testing.T) {
 
 	bytes1 := []byte{}
 
-	result, err := mmapFiles(os.Open, map[string]mmapFileDesc{
-		fd1Path: mmapFileDesc{
-			file:    &fd1,
-			bytes:   &bytes1,
-			options: mmapOptions{},
+	result, err := Files(os.Open, map[string]FileDesc{
+		fd1Path: FileDesc{
+			File:    &fd1,
+			Bytes:   &bytes1,
+			Options: Options{},
 		},
 	})
 
 	assert.NoError(t, err)
 	// Warning should be present AND byte slice pointer should have been
 	// modified as well
-	assert.Error(t, result.warning)
+	assert.Error(t, result.Warning)
 	assert.Equal(t, []byte("a"), bytes1)
 }
 
