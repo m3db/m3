@@ -37,7 +37,7 @@ import (
 func testSetup(ctrl *gomock.Controller) (DynamicOptions, *testWatch) {
 	opts := NewDynamicOptions()
 
-	watch := newTestWatch(ctrl, time.Millisecond, time.Millisecond, 10, 10)
+	watch := newTestWatch(ctrl, time.Millisecond, time.Millisecond, 100, 100)
 	mockCSServices := services.NewMockServices(ctrl)
 	mockCSServices.EXPECT().Watch(opts.ServiceID(), opts.QueryOptions()).Return(watch, nil)
 
