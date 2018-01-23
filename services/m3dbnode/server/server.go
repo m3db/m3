@@ -248,6 +248,11 @@ func Run(runOpts RunOptions) {
 	}
 	opts = opts.SetPersistManager(pm)
 
+	hostID, err := cfg.HostID.Resolve()
+	if err != nil {
+		logger.Fatalf("could not resolve local host ID: %v", err)
+	}
+
 	var (
 		envCfg environment.ConfigureResults
 	)
@@ -267,7 +272,9 @@ func Run(runOpts RunOptions) {
 	case cfg.EnvironmentConfig.Static != nil:
 		logger.Info("creating static config service client with m3cluster")
 
-		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{})
+		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
+			HostID: hostID,
+		})
 		if err != nil {
 			logger.Fatalf("could not initialize static config: %v", err)
 		}
@@ -281,11 +288,6 @@ func Run(runOpts RunOptions) {
 	topo, err := envCfg.TopologyInitializer.Init()
 	if err != nil {
 		logger.Fatalf("could not initialize m3db topology: %v", err)
-	}
-
-	hostID, err := cfg.HostID.Resolve()
-	if err != nil {
-		logger.Fatalf("could not resolve local host ID: %v", err)
 	}
 
 	m3dbClient, err := cfg.Client.NewAdminClient(
