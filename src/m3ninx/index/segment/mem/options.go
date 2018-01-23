@@ -18,25 +18,58 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package index
+package mem
 
 import (
 	"github.com/m3db/m3ninx/index/segment"
-
 	"github.com/m3db/m3x/instrument"
 )
 
-// Index is a collection of segments.
-type Index interface {
-	segment.Readable
-	segment.Writable
+const (
+	defaultInitialCapacity = 1024 * 1024
+)
+
+type opts struct {
+	iopts           instrument.Options
+	postingsPool    segment.PostingsListPool
+	initialCapacity int
 }
 
-// Options is a set of knobs by which to tweak Index-ing behaviour.
-type Options interface {
-	// SetInstrumentOptions sets the instrument options.
-	SetInstrumentOptions(value instrument.Options) Options
+// NewOptions returns new options.
+func NewOptions() Options {
+	return &opts{
+		iopts:           instrument.NewOptions(),
+		postingsPool:    segment.NewPostingsListPool(nil, segment.NewPostingsList),
+		initialCapacity: defaultInitialCapacity,
+	}
+}
 
-	// InstrumentOptions returns the instrument options.
-	InstrumentOptions() instrument.Options
+func (o *opts) SetInstrumentOptions(v instrument.Options) Options {
+	opts := *o
+	opts.iopts = v
+	return &opts
+}
+
+func (o *opts) InstrumentOptions() instrument.Options {
+	return o.iopts
+}
+
+func (o *opts) SetPostingsListPool(v segment.PostingsListPool) Options {
+	opts := *o
+	opts.postingsPool = v
+	return &opts
+}
+
+func (o *opts) PostingsListPool() segment.PostingsListPool {
+	return o.postingsPool
+}
+
+func (o *opts) SetInitialCapacity(v int) Options {
+	opts := *o
+	opts.initialCapacity = v
+	return &opts
+}
+
+func (o *opts) InitialCapacity() int {
+	return o.initialCapacity
 }
