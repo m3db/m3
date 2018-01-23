@@ -97,6 +97,7 @@ type ConfigureResults struct {
 type ConfigurationParameters struct {
 	InstrumentOpts instrument.Options
 	HashingSeed    uint32
+	HostID         string
 }
 
 // Configure creates a new ConfigureResults
@@ -159,7 +160,7 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 
 		nsInitStatic := namespace.NewStaticInitializer(nsList)
 
-		shardSet, hostShardSets, err := newStaticShardSet(c.Static.TopologyConfig.Shards, c.Static.ListenAddress)
+		shardSet, hostShardSets, err := newStaticShardSet(c.Static.TopologyConfig.Shards, c.Static.ListenAddress, cfgParams.HostID)
 		if err != nil {
 			err = fmt.Errorf("unable to create shard set for static config: %v", err)
 			return emptyConfig, err
@@ -185,7 +186,7 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 	}
 }
 
-func newStaticShardSet(numShards int, listenAddress string) (sharding.ShardSet, []topology.HostShardSet, error) {
+func newStaticShardSet(numShards int, listenAddress, hostID string) (sharding.ShardSet, []topology.HostShardSet, error) {
 	var (
 		shardSet      sharding.ShardSet
 		hostShardSets []topology.HostShardSet
@@ -203,7 +204,7 @@ func newStaticShardSet(numShards int, listenAddress string) (sharding.ShardSet, 
 		return nil, nil, err
 	}
 
-	host := topology.NewHost("localhost", listenAddress)
+	host := topology.NewHost(hostID, listenAddress)
 	hostShardSet := topology.NewHostShardSet(host, shardSet)
 	hostShardSets = append(hostShardSets, hostShardSet)
 
