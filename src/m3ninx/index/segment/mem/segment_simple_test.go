@@ -18,25 +18,49 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package index
+package mem
 
 import (
+	"testing"
+
+	"github.com/m3db/m3ninx/doc"
 	"github.com/m3db/m3ninx/index/segment"
 
-	"github.com/m3db/m3x/instrument"
+	"github.com/stretchr/testify/require"
 )
 
-// Index is a collection of segments.
-type Index interface {
-	segment.Readable
-	segment.Writable
+func newTestOptions() Options {
+	return NewOptions()
 }
 
-// Options is a set of knobs by which to tweak Index-ing behaviour.
-type Options interface {
-	// SetInstrumentOptions sets the instrument options.
-	SetInstrumentOptions(value instrument.Options) Options
+func TestNewMemSegment(t *testing.T) {
+	opts := newTestOptions()
+	idx, err := New(1, opts)
+	require.NoError(t, err)
 
-	// InstrumentOptions returns the instrument options.
-	InstrumentOptions() instrument.Options
+	testDoc := doc.Document{
+		ID: []byte("some-random-id"),
+		Fields: []doc.Field{
+			doc.Field{Name: []byte("abc"), Value: doc.Value("one")},
+			doc.Field{Name: []byte("def"), Value: doc.Value("two")},
+		},
+	}
+
+	require.NoError(t, idx.Insert(testDoc))
+	docsIter, err := idx.Query(segment.Query{
+		Conjunction: segment.AndConjunction,
+		Filters: []segment.Filter{
+			segment.Filter{
+				FieldName:        []byte("abc"),
+				FieldValueFilter: []byte("one"),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	require.True(t, docsIter.Next())
+	result, tombstoned := docsIter.Current()
+	require.Equal(t, testDoc, result)
+	require.False(t, tombstoned)
+	require.False(t, docsIter.Next())
 }

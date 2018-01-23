@@ -1,4 +1,71 @@
-hash: 31ce8250933fe2d96db7f5f1e52a81fce541f37bc5985b233e9792e8045b81f3
-updated: 2017-10-31T16:06:13.567551484-04:00
-imports: []
-testImports: []
+hash: f8a02f256b8a2d7f7869328b8f8add5dba2830c76d8daa91dc408c4ce7d13766
+updated: 2017-11-02T01:08:57.135534414-04:00
+imports:
+- name: github.com/apache/thrift
+  version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
+  subpackages:
+  - lib/go/thrift
+- name: github.com/facebookgo/clock
+  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
+- name: github.com/glycerine/go-unsnap-stream
+  version: 87275cecd8e984c5875577d22da7ce8945df780e
+- name: github.com/go-ole/go-ole
+  version: de8695c8edbf8236f30d6e1376e20b198a028d42
+  subpackages:
+  - oleutil
+- name: github.com/golang/snappy
+  version: d7b1e156f50d3c4664f683603af70e3e47fa0aa2
+- name: github.com/m3db/m3x
+  version: 74f8fce525a9170e42bdf27983f74f022d356585
+  subpackages:
+  - instrument
+  - log
+  - process
+- name: github.com/mschoch/smat
+  version: 90eadee771aeab36e8bf796039b8c261bebebe4f
+- name: github.com/philhofer/fwd
+  version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
+- name: github.com/RoaringBitmap/roaring
+  version: 4bbba8874933b985c9160558fddea525dde73e63
+- name: github.com/shirou/gopsutil
+  version: b62e301a8b9958eebb7299683eb57fab229a9501
+  subpackages:
+  - cpu
+  - host
+  - internal/common
+  - mem
+  - net
+  - process
+- name: github.com/shirou/w32
+  version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
+- name: github.com/StackExchange/wmi
+  version: e542ed97d15e640bdc14b5c12162d59e8fc67324
+- name: github.com/tinylib/msgp
+  version: 3b556c64540842d4f82967be066a7f7fffc3adad
+  subpackages:
+  - msgp
+- name: github.com/uber-go/atomic
+  version: 4e336646b2ef9fc6e47be8e21594178f98e5ebcf
+- name: github.com/uber-go/tally
+  version: 95078a8f10668bd1fa73ae46761cdc58d25436b8
+  subpackages:
+  - m3
+  - m3/customtransports
+  - m3/thrift
+  - m3/thriftudp
+- name: github.com/willf/bitset
+  version: 988f4f24992fc745de53c42df0da6581e42a6686
+testImports:
+- name: github.com/davecgh/go-spew
+  version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
+  subpackages:
+  - spew
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
+- name: github.com/stretchr/testify
+  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
+  subpackages:
+  - assert
+  - require

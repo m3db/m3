@@ -18,25 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package index
+package segment
 
 import (
-	"github.com/m3db/m3ninx/index/segment"
+	"testing"
 
-	"github.com/m3db/m3x/instrument"
+	"github.com/stretchr/testify/require"
 )
 
-// Index is a collection of segments.
-type Index interface {
-	segment.Readable
-	segment.Writable
+func TestPostingsListPoolGet(t *testing.T) {
+	pl := NewPostingsListPool(nil, NewPostingsList)
+	require.NotNil(t, pl)
+
+	p := pl.Get()
+	require.NotNil(t, p)
+	require.True(t, p.IsEmpty())
 }
 
-// Options is a set of knobs by which to tweak Index-ing behaviour.
-type Options interface {
-	// SetInstrumentOptions sets the instrument options.
-	SetInstrumentOptions(value instrument.Options) Options
+func TestPostingsListPoolPut(t *testing.T) {
+	pl := NewPostingsListPool(nil, NewPostingsList)
+	require.NotNil(t, pl)
 
-	// InstrumentOptions returns the instrument options.
-	InstrumentOptions() instrument.Options
+	p := pl.Get()
+	require.NotNil(t, p)
+	require.True(t, p.IsEmpty())
+
+	pl.Put(p)
 }

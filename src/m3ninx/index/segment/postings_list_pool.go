@@ -18,25 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package index
+package segment
 
 import (
-	"github.com/m3db/m3ninx/index/segment"
-
-	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 )
 
-// Index is a collection of segments.
-type Index interface {
-	segment.Readable
-	segment.Writable
+type postingsListPool struct {
+	pool pool.ObjectPool
 }
 
-// Options is a set of knobs by which to tweak Index-ing behaviour.
-type Options interface {
-	// SetInstrumentOptions sets the instrument options.
-	SetInstrumentOptions(value instrument.Options) Options
+// PostingsListAllocateFn returns a new PostingsList.
+type PostingsListAllocateFn func() PostingsList
 
-	// InstrumentOptions returns the instrument options.
-	InstrumentOptions() instrument.Options
+// NewPostingsListPool returns a new PostingsListPool.
+func NewPostingsListPool(
+	opts pool.ObjectPoolOptions,
+	allocator PostingsListAllocateFn,
+) PostingsListPool {
+	p := &postingsListPool{
+		pool: pool.NewObjectPool(opts),
+	}
+	p.pool.Init(func() interface{} {
+		return allocator()
+	})
+	return p
+}
+
+func (p *postingsListPool) Get() PostingsList {
+	return p.pool.Get().(PostingsList)
+}
+
+func (p *postingsListPool) Put(pl PostingsList) {
+	pl.Reset()
+	p.pool.Put(pl)
 }

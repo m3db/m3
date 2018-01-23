@@ -24,15 +24,6 @@ import (
 	"github.com/m3db/m3ninx/doc"
 )
 
-// ReservedFieldName signifies the field names which are reserved for internal
-// use.
-type ReservedFieldName string
-
-const (
-	// IDFieldName is the fieldname used for the `doc/Document.ID` field.
-	IDFieldName ReservedFieldName = "_id"
-)
-
 // ID is a unique id per segment.
 type ID int64
 
@@ -44,29 +35,26 @@ type Segment interface {
 
 	// Size returns the number of documents indexed.
 	Size() uint32
-
-	// Iter returns a segment document iterator.
-	Iter() Iter
-}
-
-// Iter allows for iteration over the documents indexed in the segment.
-type Iter interface {
-	// Next returns a bool indicating if the iterator has any more documents
-	// to return.
-	Next() bool
-
-	// Current returns the current document and the DocID associated with the
-	// document in the segment.
-	Current() (doc.Document, DocID)
-
-	// Err returns any errors the Iter ran into whilst iterating.
-	Err() error
 }
 
 // Readable is a readable index segment.
 type Readable interface {
 	// Query retrieves the list of documents matching the given criterion.
-	Query(q Query) []doc.Document
+	Query(q Query) (ResultsIter, error)
+}
+
+// ResultsIter is an iterator over query results.
+type ResultsIter interface {
+	// Next returns a bool indicating if the iterator has any more documents
+	// to return.
+	Next() bool
+
+	// Current returns the current document and whether the document was marked
+	// as deleted or not.
+	Current() (d doc.Document, tombstoned bool)
+
+	// Err returns any errors encountered during iteration.
+	Err() error
 }
 
 // Writable is a writable index segment.
@@ -74,36 +62,11 @@ type Writable interface {
 	// Insert inserts the given documents with provided fields.
 	Insert(d doc.Document) error
 
-	// Update updates the given document.
-	Update(d doc.Document) error
-
 	// Delete deletes the given document.
 	Delete(d doc.Document) error
 }
 
-// Writer represents a segment writer.
-type Writer interface {
-	Writable
-
-	// Open prepares the writer to accept writes.
-	Open() error
-
-	// Close closes the writer.
-	Close() error
-}
-
-// Reader represents a segment reader.
-type Reader interface {
-	Readable
-
-	// Open prepares the reader to accept reads.
-	Open() error
-
-	// Close closes the reader.
-	Close() error
-}
-
-// DocID is document identifier internal to each index segment. It's limited to
+// DocID is a document identifier internal to each index segment. It's limited to
 // be at most 2^32.
 type DocID uint32
 
@@ -135,4 +98,61 @@ type Filter struct {
 	// Regexp specifies whether the FieldValueFilter should be treated as a Regexp.
 	// Note: RE2 only, no PCRE (i.e. no backreferences).
 	Regexp bool
+}
+
+// ImmutablePostingsList is a memory efficient collection of docIDs. It only permits
+// for read-only operations.
+type ImmutablePostingsList interface {
+	// Contains returns whether the specified id is contained in the set.
+	Contains(i DocID) bool
+
+	// IsEmpty returns whether the set is empty.
+	IsEmpty() bool
+
+	// Size returns the numbers of ids in the set.
+	Size() uint64
+
+	// Iter returns an iterator over the known values.
+	Iter() PostingsIter
+
+	// Clone returns a copy of the set.
+	Clone() PostingsList
+}
+
+// PostingsList is a memory efficient collection of docIDs.
+type PostingsList interface {
+	ImmutablePostingsList
+
+	// Insert inserts the given id to set.
+	Insert(i DocID) error
+
+	// Intersect modifies the receiver set to contain only those ids by both sets.
+	Intersect(other ImmutablePostingsList) error
+
+	// Difference modifies the receiver set to remove any ids contained by both sets.
+	Difference(other ImmutablePostingsList) error
+
+	// Union modifies the receiver set to contain ids containted in either of the original sets.
+	Union(other ImmutablePostingsList) error
+
+	// Reset resets the internal state of the PostingsList.
+	Reset()
+}
+
+// PostingsIter is an iterator over a set of docIDs.
+type PostingsIter interface {
+	// Current returns the current DocID.
+	Current() DocID
+
+	// Next returns whether we have another DocID.
+	Next() bool
+}
+
+// PostingsListPool provides a pool for PostingsList(s).
+type PostingsListPool interface {
+	// Get retrieves a PostingsList.
+	Get() PostingsList
+
+	// Put releases the provided PostingsList back to the pool.
+	Put(pl PostingsList)
 }
