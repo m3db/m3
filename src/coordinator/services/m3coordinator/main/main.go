@@ -6,13 +6,16 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/m3db/m3coordinator/services/m3coordinator/config"
 	"github.com/m3db/m3coordinator/services/m3coordinator/httpd"
 	"github.com/m3db/m3coordinator/storage/local"
 	"github.com/m3db/m3coordinator/util/logging"
+	"github.com/m3db/m3db/client"
 	xconfig "github.com/m3db/m3x/config"
 
 	"go.uber.org/zap"
@@ -49,8 +52,31 @@ func main() {
 
 	logger := logging.WithContext(context.TODO())
 	defer logger.Sync()
+
+	m3dbClientOpts := cfg.M3DBClientCfg
+	m3dbClient, err := m3dbClientOpts.NewClient(client.ConfigurationParameters{})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to create m3db client, got error %v\n", err)
+		os.Exit(1)
+	}
+
+	session, err := m3dbClient.NewSession()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to create m3db client session, got error %v\n", err)
+		os.Exit(1)
+	}
+
 	logger.Info("Starting server", zap.String("address", flags.listenAddress))
-	http.ListenAndServe(flags.listenAddress, handler.Router)
+	go http.ListenAndServe(flags.listenAddress, handler.Router)
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	<-sigChan
+	if err := session.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to close m3db client session, got error %v\n", err)
+		os.Exit(1)
+	}
 }
 
 func parseFlags() *m3config {
