@@ -531,3 +531,38 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 	require.NoError(t, it.Err())
 	require.Equal(t, expected, actual)
 }
+
+func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
+	opts := newSeriesTestOptions()
+	opts = opts.SetRetentionOptions(opts.RetentionOptions().
+		SetRetentionPeriod(40 * 24 * time.Hour).
+		// A block size of 5 days is not equally as divisible as seconds from time zero and seconds from time epoch.
+		// now := time.Now()
+		// blockSize := 5 * 24 * time.Hour
+		// fmt.Println(now) -> 2018-01-24 14:29:31.624265 -0500 EST m=+0.003810489
+		// fmt.Println(now.Truncate(blockSize)) -> 2018-01-21 19:00:00 -0500 EST
+		// fmt.Println(time.Unix(0, now.UnixNano()/int64(blockSize)*int64(blockSize))) -> 2018-01-23 19:00:00 -0500 EST
+		SetBlockSize(5 * 24 * time.Hour).
+		SetBufferFuture(10 * time.Minute).
+		SetBufferPast(20 * time.Minute))
+	curr := time.Now()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
+	assert.NoError(t, series.Bootstrap(nil))
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	assert.NoError(t, series.Write(ctx, curr.Add(-3*time.Minute), 1, xtime.Second, nil))
+	assert.NoError(t, series.Write(ctx, curr.Add(-2*time.Minute), 2, xtime.Second, nil))
+	assert.NoError(t, series.Write(ctx, curr.Add(-1*time.Minute), 3, xtime.Second, nil))
+
+	results, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute), curr.Add(time.Minute))
+	require.NoError(t, err)
+	values, err := decodedValues(results, opts)
+	require.NoError(t, err)
+
+	require.Equal(t, 3, len(values))
+}
