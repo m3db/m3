@@ -19,7 +19,7 @@
 // THE SOFTWARE.
 
 // This tool can be used to verify that the index files for multiple hosts that
-// share the same shards are the same. If they're not indentical, it will output
+// share the same shards are the same. If they're not identical, it will output
 // the name of any series that are missing, or have mismatched checksums. The tool
 // expects a directory where each subdirectory is the name of the host, and within
 // each of those subdirectories is the "data" directory for that host, exactly as
