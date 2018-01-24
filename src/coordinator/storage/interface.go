@@ -20,7 +20,7 @@ type Storage interface {
 type Querier interface {
 	// Fetch fetches timeseries data based on a query
 	Fetch(
-		ctx context.Context, tagMatchers []*models.Matcher, start time.Time, end time.Time) (*FetchResult, error)
+		ctx context.Context, query *models.ReadQuery) (*FetchResult, error)
 }
 
 // Appender provides batched appends against a storage.

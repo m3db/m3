@@ -11,15 +11,23 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/m3db/m3coordinator/policy/resolver"
 	"github.com/m3db/m3coordinator/services/m3coordinator/config"
 	"github.com/m3db/m3coordinator/services/m3coordinator/httpd"
 	"github.com/m3db/m3coordinator/storage/local"
 	"github.com/m3db/m3coordinator/util/logging"
+
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3metrics/policy"
 	xconfig "github.com/m3db/m3x/config"
+	xtime "github.com/m3db/m3x/time"
 
 	"go.uber.org/zap"
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
+	"gopkg.in/alecthomas/kingpin.v2"
+)
+
+var (
+	namespace = "metrics"
 )
 
 type m3config struct {
@@ -41,15 +49,6 @@ func main() {
 	}
 
 	logging.InitWithCores(nil)
-
-	storage := local.NewStorage()
-	handler, err := httpd.NewHandler(storage)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to set up handlers, got error %v\n", err)
-		os.Exit(1)
-	}
-	handler.RegisterRoutes()
-
 	logger := logging.WithContext(context.TODO())
 	defer logger.Sync()
 
@@ -65,6 +64,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Unable to create m3db client session, got error %v\n", err)
 		os.Exit(1)
 	}
+
+	storage := local.NewStorage(session, namespace, resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
+	handler, err := httpd.NewHandler(storage)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Unable to set up handlers, got error %v\n", err)
+		os.Exit(1)
+	}
+	handler.RegisterRoutes()
+
 
 	logger.Info("Starting server", zap.String("address", flags.listenAddress))
 	go http.ListenAndServe(flags.listenAddress, handler.Router)

@@ -15,11 +15,6 @@ import (
 	"go.uber.org/zap"
 )
 
-const (
-	promReadURL  = "/api/v1/prom/read"
-	promWriteURL = "/api/v1/prom/write"
-)
-
 // Handler represents an HTTP handler.
 type Handler struct {
 	Router    *mux.Router
@@ -47,8 +42,8 @@ func NewHandler(storage storage.Storage) (*Handler, error) {
 // RegisterRoutes registers all http routes.
 func (h *Handler) RegisterRoutes() {
 	logged := withResponseTimeLogging
-	h.Router.HandleFunc(promReadURL, logged(handler.NewPromReadHandler()).ServeHTTP).Methods("POST")
-	h.Router.HandleFunc(promWriteURL, logged(handler.NewPromWriteHandler()).ServeHTTP).Methods("POST")
+	h.Router.HandleFunc(handler.PromReadURL, logged(handler.NewPromReadHandler(h.storage)).ServeHTTP).Methods("POST")
+	h.Router.HandleFunc(handler.PromWriteURL, logged(handler.NewPromWriteHandler()).ServeHTTP).Methods("POST")
 }
 
 func withResponseTimeLogging(next http.Handler) http.Handler {

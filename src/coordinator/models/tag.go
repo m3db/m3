@@ -1,6 +1,7 @@
 package models
 
 import (
+	"fmt"
 	"regexp"
 )
 
@@ -57,6 +58,10 @@ func NewMatcher(t MatchType, n, v string) (*Matcher, error) {
 	return m, nil
 }
 
+func (m *Matcher) String() string {
+	return fmt.Sprintf("%s%s%q", m.Name, m.Type, m.Value)
+}
+
 // Matches returns whether the matcher matches the given string value.
 func (m *Matcher) Matches(s string) bool {
 	switch m.Type {
@@ -70,4 +75,19 @@ func (m *Matcher) Matches(s string) bool {
 		return !m.re.MatchString(s)
 	}
 	panic("labels.Matcher.Matches: invalid match type")
+}
+
+// Matchers is of matchers
+type Matchers []*Matcher
+
+// ID returns a string representation of the matchers
+func (m Matchers) ID() string {
+	sep := ","
+	var b string
+	for _, v := range m {
+		b += v.String()
+		b += sep
+	}
+
+	return b
 }
