@@ -217,7 +217,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 
 	r := newTestReader(t, filePathPrefix)
 	err = r.Open(testNs1ID, shard, testWriterStart)
-	require.Equal(t, errCheckpointFileNotFound, err)
+	require.Equal(t, ErrCheckpointFileNotFound, err)
 }
 
 func testReadOpen(t *testing.T, fileData map[string][]byte) {

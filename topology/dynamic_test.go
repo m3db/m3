@@ -202,14 +202,14 @@ func (w *testWatch) run() {
 
 func (w *testWatch) update() {
 	w.Lock()
-	defer w.Unlock()
 	if w.currentCalled < w.errAfter {
 		w.data = getMockService(w.ctrl)
 	} else {
 		w.data = nil
 	}
-	w.ch <- struct{}{}
 	w.currentCalled++
+	w.Unlock()
+	w.ch <- struct{}{}
 }
 
 func (w *testWatch) Close() {}

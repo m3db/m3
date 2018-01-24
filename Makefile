@@ -36,6 +36,7 @@ TOOLS :=            \
 	clone_fileset     \
 	dtest             \
 	verify_commitlogs \
+	verify_index_files
 
 .PHONY: setup
 setup:
