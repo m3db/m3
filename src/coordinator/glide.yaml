@@ -14,7 +14,15 @@ import:
   version: ^1.1.0
 - package: gopkg.in/alecthomas/kingpin.v2
   version: ^2.2.6
+- package: github.com/spaolacci/murmur3
+  version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
+- package: github.com/m3db/m3x
+  version: c79492efa39435ffea6c04b72faf1402ed784211
 - package: github.com/m3db/m3db
   version: 2cf3dff4e917703d093717210c8dc96e088e4b05
   subpackages:
   - client
+- package: github.com/m3db/m3metrics
+  version: 17e4ddf89f2b0c8fbb16b6d5b71a871b793d2a00
+  subpackages:
+  - policy
