@@ -38,6 +38,7 @@ const (
 	Minute
 	Hour
 	Day
+	Year
 )
 
 var (
@@ -160,6 +161,7 @@ var (
 		Minute:      "m",
 		Hour:        "h",
 		Day:         "d",
+		Year:        "y",
 	}
 
 	durationsToUnit = make(map[time.Duration]Unit)
@@ -171,6 +173,7 @@ var (
 		Minute:      time.Minute,
 		Hour:        time.Hour,
 		Day:         time.Hour * 24,
+		Year:        time.Hour * 24 * 365,
 	}
 	unitsByDurationDesc []Unit
 )
