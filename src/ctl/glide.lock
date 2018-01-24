@@ -1,5 +1,5 @@
-hash: 27998942c63bab464e8d139e1d9033d58e10808f5023cd3f3d13b13aad3e1034
-updated: 2017-12-31T21:31:19.869536634-05:00
+hash: 3086143030b9d1ebad880256603e4ea329c91a71ea0ac1a786158dbbee01a33c
+updated: 2018-01-24T16:38:56.841986-05:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -80,7 +80,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3metrics
-  version: 17e4ddf89f2b0c8fbb16b6d5b71a871b793d2a00
+  version: 90dad18f47ecc0a655384141f0e33ea3fe02a08d
   subpackages:
   - errors
   - filters
@@ -95,7 +95,7 @@ imports:
   - rules/validator/namespace/kv
   - rules/validator/namespace/static
 - name: github.com/m3db/m3x
-  version: 515e3030818e6dab3fd418f05b96174ae4c527df
+  version: a5cc485300c733558a25e1e6c5e9dcf4dbc241c4
   subpackages:
   - checked
   - clock
@@ -157,6 +157,16 @@ imports:
   version: 988f4f24992fc745de53c42df0da6581e42a6686
 - name: go.uber.org/atomic
   version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+- name: go.uber.org/multierr
+  version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
+- name: go.uber.org/zap
+  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  subpackages:
+  - buffer
+  - internal/bufferpool
+  - internal/color
+  - internal/exit
+  - zapcore
 - name: golang.org/x/net
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
   subpackages:
