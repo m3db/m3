@@ -4,31 +4,39 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
+	"github.com/m3db/m3coordinator/policy/resolver"
+	"github.com/m3db/m3coordinator/services/m3coordinator/handler"
 	"github.com/m3db/m3coordinator/storage/local"
 	"github.com/m3db/m3coordinator/util/logging"
+
+	"github.com/m3db/m3metrics/policy"
+	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestPromReadGet(t *testing.T) {
 	logging.InitWithCores(nil)
-	req, _ := http.NewRequest("GET", promReadURL, nil)
+	req, _ := http.NewRequest("GET", handler.PromReadURL, nil)
 	res := httptest.NewRecorder()
-	handler, err := NewHandler(local.NewStorage())
+	storage := local.NewStorage(nil, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
+	h, err := NewHandler(storage)
 	require.Nil(t, err, "unable to setup handler")
-	handler.RegisterRoutes()
-	handler.Router.ServeHTTP(res, req)
+	h.RegisterRoutes()
+	h.Router.ServeHTTP(res, req)
 	require.Equal(t, res.Code, http.StatusMethodNotAllowed, "GET method not defined")
 }
 
 func TestPromReadPost(t *testing.T) {
 	logging.InitWithCores(nil)
-	req, _ := http.NewRequest("POST", promReadURL, nil)
+	req, _ := http.NewRequest("POST", handler.PromReadURL, nil)
 	res := httptest.NewRecorder()
-	handler, err := NewHandler(local.NewStorage())
+	storage := local.NewStorage(nil, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
+	h, err := NewHandler(storage)
 	require.Nil(t, err, "unable to setup handler")
-	handler.RegisterRoutes()
-	handler.Router.ServeHTTP(res, req)
+	h.RegisterRoutes()
+	h.Router.ServeHTTP(res, req)
 	require.Equal(t, res.Code, http.StatusBadRequest, "Empty request")
 }

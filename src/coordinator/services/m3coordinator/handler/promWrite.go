@@ -10,6 +10,11 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// PromWriteURL is the url for prom write handler
+	PromWriteURL = "/api/v1/prom/write"
+)
+
 // PromWriteHandler represents a handler for prometheus write endpoint.
 type PromWriteHandler struct {
 }
