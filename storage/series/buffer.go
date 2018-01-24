@@ -194,7 +194,7 @@ func (b *dbBuffer) Write(
 }
 
 func (b *dbBuffer) writableBucketIdx(t time.Time) int {
-	return int((t.UnixNano() / int64(b.blockSize)) % bucketsLen)
+	return int(t.Truncate(b.blockSize).UnixNano() % bucketsLen)
 }
 
 func (b *dbBuffer) IsEmpty() bool {

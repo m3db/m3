@@ -531,3 +531,32 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 	require.NoError(t, it.Err())
 	require.Equal(t, expected, actual)
 }
+
+func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
+	opts := newSeriesTestOptions()
+	opts = opts.SetRetentionOptions(opts.RetentionOptions().
+		SetRetentionPeriod(40 * 24 * time.Hour).
+		SetBlockSize(5 * 24 * time.Hour).
+		SetBufferFuture(10 * time.Minute).
+		SetBufferPast(20 * time.Minute))
+	curr := time.Now()
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	series := NewDatabaseSeries(ts.StringID("foo"), opts).(*dbSeries)
+	assert.NoError(t, series.Bootstrap(nil))
+
+	ctx := context.NewContext()
+	defer ctx.Close()
+
+	assert.NoError(t, series.Write(ctx, curr.Add(-3*time.Minute), 1, xtime.Second, nil))
+	assert.NoError(t, series.Write(ctx, curr.Add(-2*time.Minute), 2, xtime.Second, nil))
+	assert.NoError(t, series.Write(ctx, curr.Add(-1*time.Minute), 3, xtime.Second, nil))
+
+	results, err := series.ReadEncoded(ctx, curr.Add(-5*time.Minute), curr.Add(time.Minute))
+	require.NoError(t, err)
+	values, err := decodedValues(results, opts)
+	require.NoError(t, err)
+
+	require.Equal(t, 3, len(values))
+}
