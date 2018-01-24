@@ -41,8 +41,8 @@ import (
 )
 
 var (
-	// errCheckpointFileNotFound returned when the checkpoint file doesn't exist
-	errCheckpointFileNotFound = errors.New("checkpoint file does not exist")
+	// ErrCheckpointFileNotFound returned when the checkpoint file doesn't exist
+	ErrCheckpointFileNotFound = errors.New("checkpoint file does not exist")
 
 	// errReadNotExpectedSize returned when the size of the next read does not match size specified by the index
 	errReadNotExpectedSize = errors.New("next read not expected size")
@@ -208,7 +208,7 @@ func (r *reader) Status() FileSetReaderStatus {
 func (r *reader) readCheckpointFile(shardDir string, blockStart time.Time) error {
 	filePath := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	if !FileExists(filePath) {
-		return errCheckpointFileNotFound
+		return ErrCheckpointFileNotFound
 	}
 	fd, err := os.Open(filePath)
 	if err != nil {

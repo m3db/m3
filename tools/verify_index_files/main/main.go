@@ -77,7 +77,7 @@ func main() {
 	flagParser.Parse(os.Args[1:])
 
 	log.SetOutput(os.Stdout)
-	log.Println("Initializing bytes pool...")
+	log.Println("initializing bytes pool...")
 	bytesPool = tools.NewCheckedBytesPool()
 
 	var (
@@ -91,23 +91,23 @@ func main() {
 	blocks := parseBlockArgs(blocksVal)
 	hosts, err := ioutil.ReadDir(pathPrefix)
 	if err != nil {
-		log.Fatalf("Err reading dir: %s, err: %s\n", pathPrefix, err)
+		log.Fatalf("err reading dir: %s, err: %s\n", pathPrefix, err)
 	}
 
 	shards := parseShards(shardsVal)
 	for _, block := range blocks {
 		for _, shard := range shards {
-			log.Printf("Running test for shard: %d\n", shard)
+			log.Printf("running test for shard: %d\n", shard)
 			allHostSeriesChecksumsForShard := []seriesChecksums{}
 			// Accumulate all the series checksums for each host for this shard
 			for _, host := range hosts {
 				hostShardReader, err := newReader(namespaceStr, pathPrefix, host.Name(), shard, time.Unix(block, 0))
 				if err != nil {
 					// Ignore folders for hosts that don't have this data
-					if err.Error() == "checkpoint file does not exist" {
+					if err == fs.ErrCheckpointFileNotFound {
 						continue
 					}
-					log.Fatalf("Err creating new reader: %s\n", err.Error())
+					log.Fatalf("err creating new reader: %s\n", err.Error())
 				}
 				hostShardSeriesChecksums := seriesChecksumsFromReader(hostShardReader, host.Name(), shard, block)
 				allHostSeriesChecksumsForShard = append(allHostSeriesChecksumsForShard, hostShardSeriesChecksums)
@@ -139,7 +139,7 @@ func seriesChecksumsFromReader(reader fs.FileSetReader, host string, shard uint3
 			return seriesChecksums
 		}
 		if err != nil {
-			log.Fatal("Err reading from reader: ", err.Error())
+			log.Fatal("err reading from reader: ", err.Error())
 		}
 		idString := id.String()
 		seriesMap[idString] = series{
@@ -157,12 +157,12 @@ func compareSeriesChecksums(against seriesMap, evaluate seriesChecksums, compare
 
 	if len(againstMap) == len(evaluateMap) {
 		log.Printf(
-			"Host %s has all %d series for shard: %d and block: %d",
+			"host %s has all %d series for shard: %d and block: %d",
 			evaluate.host, len(againstMap), evaluate.shard, evaluate.block,
 		)
 	} else {
 		log.Printf(
-			"Host %s has %d series, but there are a total of %d series in shard: %d and block %d\n",
+			"host %s has %d series, but there are a total of %d series in shard: %d and block %d\n",
 			evaluate.host, len(evaluateMap), len(againstMap), evaluate.shard, evaluate.block,
 		)
 	}
@@ -181,11 +181,11 @@ func compareSeriesChecksums(against seriesMap, evaluate seriesChecksums, compare
 	}
 
 	for _, missing := range missingSeries {
-		log.Printf("Host %s is missing %s\n", evaluate.host, missing.name)
+		log.Printf("host %s is missing %s\n", evaluate.host, missing.name)
 	}
 
 	for _, mismatch := range checksumMismatchSeries {
-		log.Printf("Host %s has mismatching checksum for %s\n", evaluate.host, mismatch.name)
+		log.Printf("host %s has mismatching checksum for %s\n", evaluate.host, mismatch.name)
 	}
 }
 
@@ -220,7 +220,7 @@ func parseShards(shards string) []uint32 {
 	for _, shard := range strings.Split(shards, ",") {
 		shard = strings.TrimSpace(shard)
 		if shard == "" {
-			log.Fatalf("Invalid shard list: '%s'", shards)
+			log.Fatalf("invalid shard list: '%s'", shards)
 		}
 		value, err := strconv.Atoi(shard)
 		if err != nil {
@@ -238,7 +238,7 @@ func parseBlockArgs(blocks string) []int64 {
 	for _, block := range strings.Split(blocks, ",") {
 		block = strings.TrimSpace(block)
 		if block == "" {
-			log.Fatalf("Invalid block list: '%s'", block)
+			log.Fatalf("invalid block list: '%s'", block)
 		}
 		value, err := strconv.Atoi(block)
 		if err != nil {

@@ -14,9 +14,9 @@ $ ./bin/verify_index_files -h
 
 ```bash
 ./verify_index_files \
-  -path-prefix ./hosts-data
-  -namespace metrics
-  -blocks 1513756800,1513764000,1513771200
+  -path-prefix ./hosts-data \
+  -namespace metrics \
+  -blocks 1513756800,1513764000,1513771200 \
   -shards 0,1,2,3,4,5
 ```
 
