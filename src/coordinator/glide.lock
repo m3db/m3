@@ -1,5 +1,5 @@
-hash: 105c2757ea9f7d2dbec33a7fd7247c2936b4acb949f9626714a0af236cb76e70
-updated: 2018-01-19T10:45:32.642447048+05:30
+hash: 848ec742e8a5822bdeb9043a8de0155911011c60070b1d59e543c24a9a1d9cbb
+updated: 2018-01-23T13:53:29.704664197-05:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -7,8 +7,40 @@ imports:
   - parse
 - name: github.com/alecthomas/units
   version: 2efee857e7cfd4f3d0138cc3cbb1b4966962b93a
+- name: github.com/apache/thrift
+  version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
+  subpackages:
+  - lib/go/thrift
+- name: github.com/beorn7/perks
+  version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
+  subpackages:
+  - quantile
+- name: github.com/coreos/etcd
+  version: 8ba2897a21e4fc51b298ca553d251318425f93ae
+  subpackages:
+  - auth/authpb
+  - clientv3
+  - clientv3/concurrency
+  - embed
+  - etcdserver/api/v3rpc/rpctypes
+  - etcdserver/etcdserverpb
+  - integration
+  - mvcc/mvccpb
+  - pkg/tlsutil
+- name: github.com/davecgh/go-spew
+  version: adab96458c51a58dc1783b3335dcce5461522e75
+  subpackages:
+  - spew
+- name: github.com/facebookgo/clock
+  version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
+- name: github.com/ghodss/yaml
+  version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
+- name: github.com/go-ole/go-ole
+  version: de8695c8edbf8236f30d6e1376e20b198a028d42
+  subpackages:
+  - oleutil
 - name: github.com/gogo/protobuf
-  version: 4168943e65a2802828518e95310aeeed6d84c4e5
+  version: 160de10b2537169b5ae3e7e221d28269ef40d311
   subpackages:
   - gogoproto
   - proto
@@ -20,20 +52,164 @@ imports:
 - name: github.com/golang/protobuf
   version: 1e59b77b52bf8e4b449a57e6f79f21226d571845
   subpackages:
+  - jsonpb
   - proto
+  - ptypes/struct
 - name: github.com/golang/snappy
   version: 553a641470496b2327abcac10b36396bd98e45c9
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/mux
   version: 53c1911da2b537f792e7cafcb446b05ffe33b996
-- name: github.com/m3db/m3x
-  version: f95d1021f5dbac46cf2f6994b4b2d2d194fb0697
+- name: github.com/grpc-ecosystem/go-grpc-prometheus
+  version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
+- name: github.com/grpc-ecosystem/grpc-gateway
+  version: 84398b94e188ee336f307779b57b3aa91af7063c
   subpackages:
+  - runtime
+  - runtime/internal
+  - utilities
+- name: github.com/m3db/m3cluster
+  version: 8354845ef3ba8c1a4ddbad288fca248516fb0a50
+  subpackages:
+  - client
+  - client/etcd
+  - etcd/watchmanager
+  - generated/proto/metadatapb
+  - generated/proto/placementpb
+  - integration/etcd
+  - kv
+  - kv/etcd
+  - kv/mem
+  - kv/util/runtime
+  - placement
+  - placement/algo
+  - placement/selector
+  - placement/service
+  - placement/storage
+  - services
+  - services/client/etcd
+  - services/heartbeat/etcd
+  - services/leader
+  - services/leader/campaign
+  - services/leader/election
+  - shard
+- name: github.com/m3db/m3db
+  version: 2cf3dff4e917703d093717210c8dc96e088e4b05
+  subpackages:
+  - client
+  - clock
+  - context
+  - digest
+  - encoding
+  - encoding/m3tsz
+  - environment
+  - generated/proto/namespace
+  - generated/thrift/rpc
+  - kvconfig
+  - network/server/tchannelthrift/convert
+  - network/server/tchannelthrift/errors
+  - network/server/tchannelthrift/node/channel
+  - persist
+  - retention
+  - sharding
+  - storage/block
+  - storage/bootstrap/result
+  - storage/namespace
+  - storage/series
+  - topology
+  - ts
+  - x/io
+  - x/tchannel
+- name: github.com/m3db/m3x
+  version: c79492efa39435ffea6c04b72faf1402ed784211
+  vcs: git
+  subpackages:
+  - checked
+  - clock
+  - close
   - config
+  - errors
+  - instrument
+  - log
+  - pool
+  - process
+  - retry
+  - sync
   - time
+  - watch
+- name: github.com/m3db/stackadler32
+  version: bfebcd73ef6ffe0ee30489227f0330c39064b674
+- name: github.com/matttproud/golang_protobuf_extensions
+  version: c12348ce28de40eed0136aa2b644d0ee0650e56c
+  subpackages:
+  - pbutil
+- name: github.com/opentracing/opentracing-go
+  version: 855519783f479520497c6b3445611b05fc42f009
+  subpackages:
+  - ext
 - name: github.com/pborman/uuid
   version: e790cca94e6cc75c7064b1332e63811d4aae1a53
+- name: github.com/pmezard/go-difflib
+  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  subpackages:
+  - difflib
+- name: github.com/prometheus/client_golang
+  version: 967789050ba94deca04a5e84cce8ad472ce313c1
+  subpackages:
+  - prometheus
+- name: github.com/prometheus/client_model
+  version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
+  subpackages:
+  - go
+- name: github.com/prometheus/common
+  version: 195bde7883f7c39ea62b0d92ab7359b5327065cb
+  subpackages:
+  - expfmt
+  - internal/bitbucket.org/ww/goautoneg
+  - model
+- name: github.com/prometheus/procfs
+  version: 1878d9fbb537119d24b21ca07effd591627cd160
+- name: github.com/shirou/gopsutil
+  version: b62e301a8b9958eebb7299683eb57fab229a9501
+  subpackages:
+  - cpu
+  - host
+  - internal/common
+  - mem
+  - net
+  - process
+- name: github.com/shirou/w32
+  version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
+- name: github.com/spaolacci/murmur3
+  version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
+- name: github.com/StackExchange/wmi
+  version: e542ed97d15e640bdc14b5c12162d59e8fc67324
+- name: github.com/stretchr/testify
+  version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
+  subpackages:
+  - assert
+  - require
+- name: github.com/uber-go/atomic
+  version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
+- name: github.com/uber-go/tally
+  version: 6c4631652c6aab57c64f65c2e0aaec2e9aae3a64
+  subpackages:
+  - m3
+  - m3/customtransports
+  - m3/thrift
+  - m3/thriftudp
+- name: github.com/uber/tchannel-go
+  version: 1fcf82ec86967eb43ba0baa9b964f8eb226d242e
+  subpackages:
+  - internal/argreader
+  - relay
+  - thrift
+  - thrift/gen-go/meta
+  - tnet
+  - tos
+  - trand
+  - typed
 - name: go.uber.org/atomic
   version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: go.uber.org/multierr
@@ -46,23 +222,36 @@ imports:
   - internal/color
   - internal/exit
   - zapcore
+- name: golang.org/x/net
+  version: 61557ac0112b576429a0df080e1c2cef5dfbb642
+  subpackages:
+  - bpf
+  - context
+  - http2
+  - http2/hpack
+  - idna
+  - internal/iana
+  - internal/netreflect
+  - internal/timeseries
+  - ipv4
+  - ipv6
+  - lex/httplex
+  - trace
+- name: google.golang.org/grpc
+  version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
+  subpackages:
+  - codes
+  - credentials
+  - grpclog
+  - internal
+  - metadata
+  - naming
+  - peer
+  - transport
 - name: gopkg.in/alecthomas/kingpin.v2
   version: 947dcec5ba9c011838740e680966fd7087a71d0d
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
 - name: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
-testImports:
-- name: github.com/davecgh/go-spew
-  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
-  subpackages:
-  - spew
-- name: github.com/pmezard/go-difflib
-  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
-  subpackages:
-  - difflib
-- name: github.com/stretchr/testify
-  version: d77da356e56a7428ad25149ca77381849a6a5232
-  subpackages:
-  - assert
-  - require
+testImports: []
