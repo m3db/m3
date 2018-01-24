@@ -536,6 +536,12 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	opts := newSeriesTestOptions()
 	opts = opts.SetRetentionOptions(opts.RetentionOptions().
 		SetRetentionPeriod(40 * 24 * time.Hour).
+		// A block size of 5 days is not equally as divisible as seconds from time zero and seconds from time epoch.
+		// now := time.Now()
+		// blockSize := 5 * 24 * time.Hour
+		// fmt.Println(now) -> 2018-01-24 14:29:31.624265 -0500 EST m=+0.003810489
+		// fmt.Println(now.Truncate(blockSize)) -> 2018-01-21 19:00:00 -0500 EST
+		// fmt.Println(time.Unix(0, now.UnixNano()/int64(blockSize)*int64(blockSize))) -> 2018-01-23 19:00:00 -0500 EST
 		SetBlockSize(5 * 24 * time.Hour).
 		SetBufferFuture(10 * time.Minute).
 		SetBufferPast(20 * time.Minute))
