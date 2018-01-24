@@ -1,5 +1,5 @@
-hash: b4d3704dbb2dd49cfa1deedd38443ade08525476bef00b3bcbdaa4d5fadfcdfb
-updated: 2017-12-28T22:05:13.649936023-05:00
+hash: 9c8396898038498f8a2464f31f06233821fc94f83992fafcef90571e1bf89085
+updated: 2018-01-24T16:22:54.795738-05:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -36,11 +36,12 @@ imports:
   - services/leader/campaign
   - shard
 - name: github.com/m3db/m3x
-  version: 515e3030818e6dab3fd418f05b96174ae4c527df
+  version: a5cc485300c733558a25e1e6c5e9dcf4dbc241c4
   subpackages:
   - checked
   - clock
   - close
+  - errors
   - id
   - instrument
   - log
@@ -82,6 +83,16 @@ imports:
   version: 988f4f24992fc745de53c42df0da6581e42a6686
 - name: go.uber.org/atomic
   version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+- name: go.uber.org/multierr
+  version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
+- name: go.uber.org/zap
+  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  subpackages:
+  - buffer
+  - internal/bufferpool
+  - internal/color
+  - internal/exit
+  - zapcore
 - name: golang.org/x/net
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
   subpackages:
@@ -109,7 +120,7 @@ testImports:
   subpackages:
   - spew
 - name: github.com/fortytw2/leaktest
-  version: 7dad53304f9614c1c365755c1176a8e876fee3e8
+  version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
 - name: github.com/stretchr/testify
   version: d77da356e56a7428ad25149ca77381849a6a5232
   subpackages:
