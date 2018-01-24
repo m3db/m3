@@ -266,7 +266,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	w.Close()
 
 	r := newTestReader(t, filePathPrefix)
-	require.Equal(t, errCheckpointFileNotFound, r.Open(testNs1ID, shard, testWriterStart))
+	require.Equal(t, ErrCheckpointFileNotFound, r.Open(testNs1ID, shard, testWriterStart))
 
 	// Now reuse the writer and validate the data are written as expected.
 	writeTestData(t, w, shard, testWriterStart, entries)
