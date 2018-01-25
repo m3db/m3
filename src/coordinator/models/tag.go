@@ -2,6 +2,7 @@ package models
 
 import (
 	"fmt"
+	"hash/fnv"
 	"regexp"
 )
 
@@ -89,5 +90,7 @@ func (m Matchers) ID() string {
 		b += sep
 	}
 
-	return b
+	h := fnv.New32a()
+	h.Write([]byte(b))
+	return fmt.Sprintf("%d", h.Sum32())
 }
