@@ -33,8 +33,8 @@ func generatePromReadRequest() *prompb.ReadRequest {
 				{Type: prompb.LabelMatcher_RE, Name: "regex", Value: "c"},
 				{Type: prompb.LabelMatcher_NRE, Name: "neqregex", Value: "d"},
 			},
-			StartTimestampMs: 1,
-			EndTimestampMs:   2,
+			StartTimestampMs: time.Now().Add(-1*time.Hour*24).UnixNano()/int64(time.Millisecond),
+			EndTimestampMs:   time.Now().UnixNano()/int64(time.Millisecond),
 		}},
 	}
 	return req
@@ -48,6 +48,8 @@ func generatePromReadBody(t *testing.T) io.Reader {
 	}
 
 	compressed := snappy.Encode(nil, data)
+	// Uncomment the line below to write the data into a file useful for integration testing
+	//ioutil.WriteFile("/tmp/dat1", compressed, 0644)
 	b := bytes.NewReader(compressed)
 	return b
 
@@ -56,14 +58,11 @@ func TestPromReadParsing(t *testing.T) {
 	logging.InitWithCores(nil)
 	storage := local.NewStorage(nil, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
 	promRead := &PromReadHandler{store: storage}
-
 	req, _ := http.NewRequest("POST", PromReadURL, generatePromReadBody(t))
 
 	r, err := promRead.parseRequest(req)
 	require.Nil(t, err, "unable to parse request")
 	require.Equal(t, len(r.Queries), 1)
-	query := r.Queries[0]
-	require.Equal(t, query.StartTimestampMs, int64(1))
 }
 
 func TestPromReadParsingBad(t *testing.T) {
