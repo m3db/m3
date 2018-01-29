@@ -48,6 +48,10 @@ const (
 	// must be cached, configurable by the namespace block expiry after
 	// not accessed period.
 	CacheRecentlyRead
+	// CacheLRU specifies that series that are read will be cached
+	// using an LRU of fixed capacity. Series that are least recently
+	// used will be evicted first.
+	CacheLRU
 
 	// DefaultCachePolicy is the default cache policy.
 	DefaultCachePolicy = CacheRecentlyRead
@@ -55,7 +59,7 @@ const (
 
 // ValidCachePolicies returns the valid series cache policies.
 func ValidCachePolicies() []CachePolicy {
-	return []CachePolicy{CacheNone, CacheAll, CacheAllMetadata, CacheRecentlyRead}
+	return []CachePolicy{CacheNone, CacheAll, CacheAllMetadata, CacheRecentlyRead, CacheLRU}
 }
 
 func (p CachePolicy) String() string {
@@ -68,6 +72,8 @@ func (p CachePolicy) String() string {
 		return "all_metadata"
 	case CacheRecentlyRead:
 		return "recently_read"
+	case CacheLRU:
+		return "lru"
 	}
 	return "unknown"
 }
