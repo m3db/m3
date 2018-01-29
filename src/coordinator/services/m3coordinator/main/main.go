@@ -73,7 +73,6 @@ func main() {
 	}
 	handler.RegisterRoutes()
 
-
 	logger.Info("Starting server", zap.String("address", flags.listenAddress))
 	go http.ListenAndServe(flags.listenAddress, handler.Router)
 
