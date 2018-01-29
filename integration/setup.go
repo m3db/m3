@@ -564,7 +564,7 @@ func newNodes(
 	svc := fake.NewM3ClusterService().
 		SetInstances(instances).
 		SetReplication(services.NewServiceReplication().SetReplicas(3)).
-		SetSharding(services.NewServiceSharding().SetNumShards(1024))
+		SetSharding(services.NewServiceSharding().SetNumShards(server.DefaultNumShards))
 
 	svcs := fake.NewM3ClusterServices()
 	svcs.RegisterService("m3db", svc)
