@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"regexp"
+	"sort"
 )
 
 // Tags is a key/value map of metric tags.
@@ -14,7 +15,7 @@ type MatchType int
 
 // Possible MatchTypes.
 const (
-	MatchEqual     MatchType = iota
+	MatchEqual MatchType = iota
 	MatchNotEqual
 	MatchRegexp
 	MatchNotRegexp
@@ -81,12 +82,37 @@ func (m *Matcher) Matches(s string) bool {
 // Matchers is of matchers
 type Matchers []*Matcher
 
-// ID returns a string representation of the matchers
-func (m Matchers) ID() string {
-	sep := ","
-	var b string
+// ToTags converts Matchers to Tags
+// NB (braskin): this only works for exact matches
+func (m Matchers) ToTags() (Tags, error) {
+	tags := make(Tags, len(m))
 	for _, v := range m {
-		b += v.String()
+		if v.Type != MatchEqual {
+			return nil, fmt.Errorf("illegal match type, got %v, but expecting: %v", v.Type, MatchEqual)
+		}
+		tags[v.Name] = v.Value
+	}
+
+	return tags, nil
+}
+
+// ID returns a string representation of the tags
+func (t Tags) ID() string {
+	sep := ","
+	eq := "="
+
+	var b string
+	var keys []string
+
+	for k := range t {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		b += k
+		b += eq
+		b += t[k]
 		b += sep
 	}
 

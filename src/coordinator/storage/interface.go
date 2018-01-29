@@ -16,17 +16,32 @@ type Storage interface {
 	Appender
 }
 
+// ReadQuery represents the input query which is fetched from M3DB
+type ReadQuery struct {
+	TagMatchers models.Matchers
+	Start       time.Time
+	End         time.Time
+}
+
 // Querier handles queries against a storage.
 type Querier interface {
 	// Fetch fetches timeseries data based on a query
 	Fetch(
-		ctx context.Context, query *models.ReadQuery) (*FetchResult, error)
+		ctx context.Context, query *ReadQuery) (*FetchResult, error)
+}
+
+// WriteQuery represents the input timeseries that is written to M3DB
+type WriteQuery struct {
+	Tags       models.Tags
+	Datapoints ts.Datapoints
+	Unit       xtime.Unit
+	Annotation []byte
 }
 
 // Appender provides batched appends against a storage.
 type Appender interface {
 	// Write value to the database for an ID
-	Write(tags models.Tags, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
+	Write(ctx context.Context, query *WriteQuery) error
 }
 
 // FetchResult provides a fetch result and meta information

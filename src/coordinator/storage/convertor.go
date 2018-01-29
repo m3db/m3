@@ -7,16 +7,56 @@ import (
 	"github.com/m3db/m3coordinator/generated/proto/prometheus/prompb"
 	"github.com/m3db/m3coordinator/models"
 	"github.com/m3db/m3coordinator/ts"
+
+	xtime "github.com/m3db/m3x/time"
 )
 
+const (
+	xTimeUnit = xtime.Millisecond
+)
+
+// PromWriteTSToM3 converts a prometheus write query to an M3 one
+func PromWriteTSToM3(timeseries *prompb.TimeSeries) *WriteQuery {
+	tags := PromLabelsToM3Tags(timeseries.Labels)
+	datapoints := PromSamplesToM3Datapoints(timeseries.Samples)
+
+	return &WriteQuery{
+		Tags:       tags,
+		Datapoints: datapoints,
+		Unit:       xTimeUnit,
+		Annotation: nil,
+	}
+}
+
+// PromLabelsToM3Tags converts Prometheus labels to M3 tags
+func PromLabelsToM3Tags(labels []*prompb.Label) models.Tags {
+	tags := make(models.Tags, len(labels))
+	for _, label := range labels {
+		tags[label.Name] = label.Value
+	}
+
+	return tags
+}
+
+// PromSamplesToM3Datapoints converts Prometheus samples to M3 datapoints
+func PromSamplesToM3Datapoints(samples []*prompb.Sample) ts.Datapoints {
+	datapoints := make(ts.Datapoints, 0, len(samples))
+	for _, sample := range samples {
+		timestamp := PromTimestampToTime(sample.Timestamp)
+		datapoints = append(datapoints, &ts.Datapoint{Timestamp: timestamp, Value: sample.Value})
+	}
+
+	return datapoints
+}
+
 // PromReadQueryToM3 converts a prometheus read query to m3 ready query
-func PromReadQueryToM3(query *prompb.Query) (*models.ReadQuery, error) {
+func PromReadQueryToM3(query *prompb.Query) (*ReadQuery, error) {
 	tagMatchers, err := PromMatchersToM3(query.Matchers)
 	if err != nil {
 		return nil, err
 	}
 
-	return &models.ReadQuery{
+	return &ReadQuery{
 		TagMatchers: tagMatchers,
 		Start:       PromTimestampToTime(query.StartTimestampMs),
 		End:         PromTimestampToTime(query.EndTimestampMs),
@@ -95,7 +135,7 @@ func SeriesToPromResult(series *ts.Series) (*prompb.QueryResult, error) {
 }
 
 // TagsToPromLabels converts tags to prometheus labels
-func TagsToPromLabels(tags models.Tags) ([]*prompb.Label) {
+func TagsToPromLabels(tags models.Tags) []*prompb.Label {
 	labels := make([]*prompb.Label, 0, len(tags))
 	for k, v := range tags {
 		labels = append(labels, &prompb.Label{Name: k, Value: v})
