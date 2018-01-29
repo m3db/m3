@@ -25,13 +25,14 @@ type Series struct {
 }
 
 // NewSeries creates a new Series at a given start time, backed by the provided values
-func NewSeries(ctx context.Context, name string, startTime time.Time, vals Values) *Series {
+func NewSeries(ctx context.Context, name string, startTime time.Time, vals Values, tags models.Tags) *Series {
 	return &Series{
 		name:          name,
 		startTime:     startTime,
 		vals:          vals,
 		ctx:           ctx,
 		Specification: name,
+		Tags:          tags,
 	}
 }
 
@@ -51,4 +52,3 @@ func (b *Series) ValueAt(i int) float64 { return b.vals.ValueAt(i) }
 func (b *Series) StartTimeForStep(n int) time.Time {
 	return b.StartTime().Add(time.Millisecond * time.Duration(n*b.vals.MillisPerStep()))
 }
-
