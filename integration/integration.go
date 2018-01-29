@@ -315,13 +315,9 @@ func waitUntilHasBootstrappedShardsExactly(
 	shards []uint32,
 ) {
 	for {
-		fmt.Println("looping!")
-		fmt.Println(shards)
 		if hasBootstrappedShardsExactly(db, shards) {
-			fmt.Println("Done!")
 			return
 		}
-		fmt.Println("Sleeping!")
 		time.Sleep(time.Second)
 	}
 }
@@ -338,11 +334,9 @@ func hasBootstrappedShardsExactly(
 			pending[shard] = struct{}{}
 		}
 
-		fmt.Println(namespace.Shards())
 		for _, s := range namespace.Shards() {
 			if _, ok := expect[s.ID()]; !ok {
 				// Not expecting shard
-				fmt.Println("unepexted shard: ", s.ID())
 				return false
 			}
 			if s.IsBootstrapped() {
@@ -350,8 +344,6 @@ func hasBootstrappedShardsExactly(
 			}
 		}
 
-		fmt.Println(len(pending))
-		fmt.Println(pending)
 		if len(pending) != 0 {
 			// Not all shards bootstrapped
 			return false
