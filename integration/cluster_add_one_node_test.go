@@ -23,7 +23,6 @@
 package integration
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -123,7 +122,6 @@ func TestClusterAddOneNode(t *testing.T) {
 		{"bar", 5},
 	}
 	shardSet := topo.Get().ShardSet()
-	fmt.Println(shardSet.All())
 	for _, id := range ids {
 		// Verify IDs will map to halves of the shard space
 		require.Equal(t, id.shard, shardSet.Lookup(ts.StringID(id.str)))
@@ -148,7 +146,6 @@ func TestClusterAddOneNode(t *testing.T) {
 	for start, series := range seriesMaps {
 		list := make([]generate.SeriesBlock, 2)
 		for j := range series {
-			fmt.Println(shardSet.Lookup(series[j].ID))
 			if shardSet.Lookup(series[j].ID) < midShard+1 {
 				list[0] = append(list[0], series[j])
 			} else {
@@ -168,8 +165,6 @@ func TestClusterAddOneNode(t *testing.T) {
 			}
 		}
 	}
-	fmt.Println(expectedSeriesIDs[0])
-	fmt.Println(expectedSeriesIDs[1])
 	require.Equal(t, 2, len(expectedSeriesIDs[0]))
 	require.Equal(t, 1, len(expectedSeriesIDs[1]))
 
@@ -232,11 +227,8 @@ func TestClusterAddOneNode(t *testing.T) {
 	log.Debug("resharding to shed shards from first node")
 	svc.SetInstances(instances.added)
 	svcs.NotifyServiceUpdate("m3db")
-	fmt.Println("here!!!!!!!!!")
 	waitUntilHasBootstrappedShardsExactly(setups[0].db, newShardsRange(minShard, midShard))
-	fmt.Println("here!!!!!!!!!!11")
 	waitUntilHasBootstrappedShardsExactly(setups[1].db, newShardsRange(midShard+1, maxShard))
-	fmt.Println("here!!!!!!!!!!22")
 
 	log.Debug("verifying data in servers matches expected data set")
 
