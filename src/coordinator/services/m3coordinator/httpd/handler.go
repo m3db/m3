@@ -3,6 +3,7 @@ package httpd
 import (
 	"log"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"time"
 
@@ -13,6 +14,10 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/pborman/uuid"
 	"go.uber.org/zap"
+)
+
+const (
+	pprofURL = "/debug/pprof/profile"
 )
 
 // Handler represents an HTTP handler.
@@ -44,6 +49,12 @@ func (h *Handler) RegisterRoutes() {
 	logged := withResponseTimeLogging
 	h.Router.HandleFunc(handler.PromReadURL, logged(handler.NewPromReadHandler(h.storage)).ServeHTTP).Methods("POST")
 	h.Router.HandleFunc(handler.PromWriteURL, logged(handler.NewPromWriteHandler(h.storage)).ServeHTTP).Methods("POST")
+	h.registerProfileEndpoints()
+}
+
+// Endpoints useful for profiling the service
+func (h *Handler) registerProfileEndpoints() {
+	h.Router.HandleFunc(pprofURL, pprof.Profile)
 }
 
 func withResponseTimeLogging(next http.Handler) http.Handler {
