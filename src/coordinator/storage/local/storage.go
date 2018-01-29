@@ -4,13 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/m3db/m3coordinator/models"
 	"github.com/m3db/m3coordinator/policy/resolver"
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/ts"
 
 	"github.com/m3db/m3db/client"
-	xtime "github.com/m3db/m3x/time"
 )
 
 const (
@@ -28,7 +26,7 @@ func NewStorage(session client.Session, namespace string, policyResolver resolve
 	return &localStorage{session: session, namespace: namespace, policyResolver: policyResolver}
 }
 
-func (s *localStorage) Fetch(ctx context.Context, query *models.ReadQuery) (*storage.FetchResult, error) {
+func (s *localStorage) Fetch(ctx context.Context, query *storage.ReadQuery) (*storage.FetchResult, error) {
 	fetchReqs, err := s.policyResolver.Resolve(ctx, query.TagMatchers, query.Start, query.End)
 	if err != nil {
 		return nil, err
@@ -58,7 +56,12 @@ func (s *localStorage) Fetch(ctx context.Context, query *models.ReadQuery) (*sto
 	}
 
 	// TODO: Get the correct metric name
-	series := ts.NewSeries(ctx, query.TagMatchers.ID(), reqRange.Start, values)
+	tags, err := query.TagMatchers.ToTags()
+	if err != nil {
+		return nil, err
+	}
+
+	series := ts.NewSeries(ctx, tags.ID(), reqRange.Start, values)
 	seriesList := make([]*ts.Series, 1)
 	seriesList[0] = series
 	return &storage.FetchResult{
@@ -66,6 +69,13 @@ func (s *localStorage) Fetch(ctx context.Context, query *models.ReadQuery) (*sto
 	}, nil
 }
 
-func (s *localStorage) Write(tags models.Tags, t time.Time, value float64, unit xtime.Unit, annotation []byte) error {
+func (s *localStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
+	id := query.Tags.ID()
+	// todo (braskin): parallelize this
+	for _, datapoint := range query.Datapoints {
+		if err := s.session.Write(s.namespace, id, datapoint.Timestamp, datapoint.Value, query.Unit, query.Annotation); err != nil {
+			return err
+		}
+	}
 	return nil
 }
