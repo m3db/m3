@@ -61,7 +61,7 @@ func (s *localStorage) Fetch(ctx context.Context, query *storage.ReadQuery) (*st
 		return nil, err
 	}
 
-	series := ts.NewSeries(ctx, tags.ID(), reqRange.Start, values)
+	series := ts.NewSeries(ctx, tags.ID(), reqRange.Start, values, tags)
 	seriesList := make([]*ts.Series, 1)
 	seriesList[0] = series
 	return &storage.FetchResult{
