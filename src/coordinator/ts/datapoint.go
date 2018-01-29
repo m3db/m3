@@ -12,10 +12,10 @@ type Datapoint struct {
 }
 
 // ValueIsNaN returns true iff underlying value is NaN
-func (d Datapoint) ValueIsNaN() bool { return math.IsNaN(d.Value) }
+func (d *Datapoint) ValueIsNaN() bool { return math.IsNaN(d.Value) }
 
 // Datapoints is a list of datapoints.
-type Datapoints []Datapoint
+type Datapoints []*Datapoint
 
 // Len is the length of the array.
 func (d Datapoints) Len() int { return len(d) }

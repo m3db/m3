@@ -16,7 +16,7 @@ import (
 
 const (
 	// PromReadURL is the url for prom read handler
-	PromReadURL  = "/api/v1/prom/read"
+	PromReadURL = "/api/v1/prom/read"
 )
 
 // PromReadHandler represents a handler for prometheus read endpoint.
