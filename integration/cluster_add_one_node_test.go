@@ -30,7 +30,6 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/integration/fake"
 	"github.com/m3db/m3db/integration/generate"
-	"github.com/m3db/m3db/integration/server"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
@@ -89,7 +88,7 @@ func TestClusterAddOneNode(t *testing.T) {
 	svc := fake.NewM3ClusterService().
 		SetInstances(instances.start).
 		SetReplication(services.NewServiceReplication().SetReplicas(1)).
-		SetSharding(services.NewServiceSharding().SetNumShards(server.DefaultNumShards))
+		SetSharding(services.NewServiceSharding().SetNumShards(opts.NumShards()))
 
 	svcs := fake.NewM3ClusterServices()
 	svcs.RegisterService("m3db", svc)
