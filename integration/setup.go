@@ -39,7 +39,6 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/integration/fake"
 	"github.com/m3db/m3db/integration/generate"
-	"github.com/m3db/m3db/integration/server"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
@@ -137,7 +136,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	}
 
 	// Set up shard set
-	shardSet, err := server.DefaultShardSet()
+	shardSet, err := newTestShardSet(opts.NumShards())
 	if err != nil {
 		return nil, err
 	}
@@ -154,13 +153,13 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 
 	topoInit := opts.ClusterDatabaseTopologyInitializer()
 	if topoInit == nil {
-		topoInit, err = server.DefaultTopologyInitializerForShardSet(id, tchannelNodeAddr, shardSet)
+		topoInit, err = newTopologyInitializerForShardSet(id, tchannelNodeAddr, shardSet)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	clientOpts := server.DefaultClientOptions(topoInit).
+	clientOpts := defaultClientOptions(topoInit).
 		SetClusterConnectTimeout(opts.ClusterConnectionTimeout()).
 		SetWriteConsistencyLevel(opts.WriteConsistencyLevel())
 
@@ -432,7 +431,7 @@ func (ts *testSetup) startServer() error {
 		return err
 	}
 	go func() {
-		if err := server.OpenAndServe(
+		if err := openAndServe(
 			httpClusterAddr, tchannelClusterAddr,
 			httpNodeAddr, tchannelNodeAddr, httpDebugAddr,
 			ts.db, ts.m3dbClient, ts.storageOpts, ts.doneCh,
@@ -564,7 +563,7 @@ func newNodes(
 	svc := fake.NewM3ClusterService().
 		SetInstances(instances).
 		SetReplication(services.NewServiceReplication().SetReplicas(3)).
-		SetSharding(services.NewServiceSharding().SetNumShards(server.DefaultNumShards))
+		SetSharding(services.NewServiceSharding().SetNumShards(opts.NumShards()))
 
 	svcs := fake.NewM3ClusterServices()
 	svcs.RegisterService("m3db", svc)

@@ -69,6 +69,9 @@ const (
 	// defaultWriteConsistencyLevel is the default write consistency level. This
 	// should match the default in client/options.
 	defaultWriteConsistencyLevel = topology.ConsistencyLevelMajority
+
+	// defaultNumShards is the default number of shards to use.
+	defaultNumShards = 12
 )
 
 var (
@@ -232,7 +235,13 @@ type testOptions interface {
 	WriteConsistencyLevel() topology.ConsistencyLevel
 
 	// SetWriteConsistencyLevel sets the consistency level for writing with the m3db client.
-	SetWriteConsistencyLevel(topology.ConsistencyLevel) testOptions
+	SetWriteConsistencyLevel(value topology.ConsistencyLevel) testOptions
+
+	// NumShards returns the number of shards to use.
+	NumShards() int
+
+	// SetNumShards sets the number of shards to use.
+	SetNumShards(value int) testOptions
 }
 
 type options struct {
@@ -260,6 +269,7 @@ type options struct {
 	blockRetrieverManager              block.DatabaseBlockRetrieverManager
 	verifySeriesDebugFilePathPrefix    string
 	writeConsistencyLevel              topology.ConsistencyLevel
+	numShards                          int
 }
 
 func newTestOptions(t *testing.T) testOptions {
@@ -290,6 +300,7 @@ func newTestOptions(t *testing.T) testOptions {
 		useTChannelClientForWriting:    defaultUseTChannelClientForWriting,
 		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
 		writeConsistencyLevel:          defaultWriteConsistencyLevel,
+		numShards:                      defaultNumShards,
 	}
 }
 
@@ -533,5 +544,15 @@ func (o *options) WriteConsistencyLevel() topology.ConsistencyLevel {
 func (o *options) SetWriteConsistencyLevel(cLevel topology.ConsistencyLevel) testOptions {
 	opts := *o
 	opts.writeConsistencyLevel = cLevel
+	return &opts
+}
+
+func (o *options) NumShards() int {
+	return o.numShards
+}
+
+func (o *options) SetNumShards(value int) testOptions {
+	opts := *o
+	opts.numShards = value
 	return &opts
 }
