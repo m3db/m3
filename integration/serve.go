@@ -38,10 +38,6 @@ import (
 	"github.com/m3db/m3db/topology"
 )
 
-const (
-	defaultNamespaceName = "default"
-)
-
 // newTestShardSet creates a default shard set
 func newTestShardSet(numShards int) (sharding.ShardSet, error) {
 	var ids []uint32
