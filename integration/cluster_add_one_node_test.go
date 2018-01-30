@@ -60,7 +60,7 @@ func TestClusterAddOneNode(t *testing.T) {
 		SetNamespaces([]namespace.Metadata{namesp})
 
 	minShard := uint32(0)
-	maxShard := utin32(opts.NumShards()) - uint32(1)
+	maxShard := uint32(opts.NumShards()) - uint32(1)
 	midShard := uint32((maxShard - minShard) / 2)
 
 	instances := struct {
