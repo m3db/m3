@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package server
+package integration
 
 import (
 	"errors"
@@ -35,42 +35,22 @@ import (
 	ttnode "github.com/m3db/m3db/network/server/tchannelthrift/node"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
-	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/ts"
 )
 
-const (
-	defaultNamespaceName = "default"
-)
-
-// DefaultShardSet creates a default shard set
-func DefaultShardSet() (sharding.ShardSet, error) {
-	shardsLen := uint32(1024)
+// newTestShardSet creates a default shard set
+func newTestShardSet(numShards int) (sharding.ShardSet, error) {
 	var ids []uint32
-	for i := uint32(0); i < shardsLen; i++ {
+	for i := uint32(0); i < uint32(numShards); i++ {
 		ids = append(ids, i)
 	}
 
 	shards := sharding.NewShards(ids, shard.Available)
-	return sharding.NewShardSet(shards, sharding.DefaultHashFn(1024))
+	return sharding.NewShardSet(shards, sharding.DefaultHashFn(numShards))
 }
 
-// DefaultTopologyInitializer creates a default topology initializer
-func DefaultTopologyInitializer(
-	hostID string,
-	tchannelNodeAddr string,
-) (topology.Initializer, error) {
-	shardSet, err := DefaultShardSet()
-	if err != nil {
-		return nil, err
-	}
-
-	return DefaultTopologyInitializerForShardSet(hostID, tchannelNodeAddr, shardSet)
-}
-
-// DefaultTopologyInitializerForShardSet creates a default topology initializer for a shard set
-func DefaultTopologyInitializerForShardSet(
+// newTopologyInitializerForShardSet creates a default topology initializer for a shard set
+func newTopologyInitializerForShardSet(
 	hostID string,
 	tchannelNodeAddr string,
 	shardSet sharding.ShardSet,
@@ -91,24 +71,14 @@ func DefaultTopologyInitializerForShardSet(
 	return topology.NewStaticInitializer(staticOptions), nil
 }
 
-// DefaultNamespaces creates a list of default namespaces
-func DefaultNamespaces() ([]namespace.Metadata, error) {
-	opts := namespace.NewOptions()
-	md, err := namespace.NewMetadata(ts.StringID(defaultNamespaceName), opts)
-	if err != nil {
-		return nil, err
-	}
-	return []namespace.Metadata{md}, nil
-}
-
-// DefaultClientOptions creates a default m3db client options
-func DefaultClientOptions(initializer topology.Initializer) client.Options {
+// defaultClientOptions creates a default m3db client options
+func defaultClientOptions(initializer topology.Initializer) client.Options {
 	return client.NewOptions().SetTopologyInitializer(initializer)
 }
 
-// OpenAndServe opens the database, starts up the RPC servers and bootstraps
+// openAndServe opens the database, starts up the RPC servers and bootstraps
 // the database for serving traffic
-func OpenAndServe(
+func openAndServe(
 	httpClusterAddr string,
 	tchannelClusterAddr string,
 	httpNodeAddr string,

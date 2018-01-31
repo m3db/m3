@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -39,6 +40,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+type idShard struct {
+	str   string
+	shard uint32
+}
 
 func TestClusterAddOneNode(t *testing.T) {
 	if testing.Short() {
@@ -59,32 +65,36 @@ func TestClusterAddOneNode(t *testing.T) {
 	opts := newTestOptions(t).
 		SetNamespaces([]namespace.Metadata{namesp})
 
+	minShard := uint32(0)
+	maxShard := uint32(opts.NumShards()) - uint32(1)
+	midShard := uint32((maxShard - minShard) / 2)
+
 	instances := struct {
 		start []services.ServiceInstance
 		add   []services.ServiceInstance
 		added []services.ServiceInstance
 	}{
 		start: []services.ServiceInstance{
-			node(t, 0, newClusterShardsRange(0, 1023, shard.Available)),
+			node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Available)),
 			node(t, 1, newClusterEmptyShardsRange()),
 		},
 
 		add: []services.ServiceInstance{
 			node(t, 0, concatShards(
-				newClusterShardsRange(0, 511, shard.Available),
-				newClusterShardsRange(512, 1023, shard.Leaving))),
-			node(t, 1, newClusterShardsRange(512, 1023, shard.Initializing)),
+				newClusterShardsRange(minShard, midShard, shard.Available),
+				newClusterShardsRange(midShard+1, maxShard, shard.Leaving))),
+			node(t, 1, newClusterShardsRange(midShard+1, maxShard, shard.Initializing)),
 		},
 		added: []services.ServiceInstance{
-			node(t, 0, newClusterShardsRange(0, 511, shard.Available)),
-			node(t, 1, newClusterShardsRange(512, 1023, shard.Available)),
+			node(t, 0, newClusterShardsRange(minShard, midShard, shard.Available)),
+			node(t, 1, newClusterShardsRange(midShard+1, maxShard, shard.Available)),
 		},
 	}
 
 	svc := fake.NewM3ClusterService().
 		SetInstances(instances.start).
 		SetReplication(services.NewServiceReplication().SetReplicas(1)).
-		SetSharding(services.NewServiceSharding().SetNumShards(1024))
+		SetSharding(services.NewServiceSharding().SetNumShards(opts.NumShards()))
 
 	svcs := fake.NewM3ClusterServices()
 	svcs.RegisterService("m3db", svc)
@@ -108,15 +118,31 @@ func TestClusterAddOneNode(t *testing.T) {
 	// Write test data for first node
 	topo, err := topoInit.Init()
 	require.NoError(t, err)
-	ids := []struct {
-		str   string
-		shard uint32
-	}{
-		{"foobarqux", 902},
-		{"bar", 397},
-		{"baz", 234},
-	}
+	ids := []idShard{}
+
+	// Boilerplate code to find two ID's that hash to the first half of the
+	// shards, and one ID that hashes to the second half of the shards.
 	shardSet := topo.Get().ShardSet()
+	i := 0
+	numFirstHalf := 0
+	numSecondHalf := 0
+	for {
+		if numFirstHalf == 2 && numSecondHalf == 1 {
+			break
+		}
+		idStr := strconv.Itoa(i)
+		shard := shardSet.Lookup(ts.StringID(idStr))
+		if shard < midShard && numFirstHalf < 2 {
+			ids = append(ids, idShard{str: idStr, shard: shard})
+			numFirstHalf++
+		}
+		if shard > midShard && numSecondHalf < 1 {
+			ids = append(ids, idShard{idStr, shard})
+			numSecondHalf++
+		}
+		i++
+	}
+
 	for _, id := range ids {
 		// Verify IDs will map to halves of the shard space
 		require.Equal(t, id.shard, shardSet.Lookup(ts.StringID(id.str)))
@@ -141,7 +167,7 @@ func TestClusterAddOneNode(t *testing.T) {
 	for start, series := range seriesMaps {
 		list := make([]generate.SeriesBlock, 2)
 		for j := range series {
-			if shardSet.Lookup(series[j].ID) < 512 {
+			if shardSet.Lookup(series[j].ID) < midShard+1 {
 				list[0] = append(list[0], series[j])
 			} else {
 				list[1] = append(list[1], series[j])
@@ -184,7 +210,7 @@ func TestClusterAddOneNode(t *testing.T) {
 	log.Debug("resharding to initialize shards on second node")
 	svc.SetInstances(instances.add)
 	svcs.NotifyServiceUpdate("m3db")
-	waitUntilHasBootstrappedShardsExactly(setups[1].db, newShardsRange(512, 1023))
+	waitUntilHasBootstrappedShardsExactly(setups[1].db, newShardsRange(midShard+1, maxShard))
 
 	log.Debug("waiting for shards to be marked initialized")
 	allMarkedAvailable := func(
@@ -222,8 +248,8 @@ func TestClusterAddOneNode(t *testing.T) {
 	log.Debug("resharding to shed shards from first node")
 	svc.SetInstances(instances.added)
 	svcs.NotifyServiceUpdate("m3db")
-	waitUntilHasBootstrappedShardsExactly(setups[0].db, newShardsRange(0, 511))
-	waitUntilHasBootstrappedShardsExactly(setups[1].db, newShardsRange(512, 1023))
+	waitUntilHasBootstrappedShardsExactly(setups[0].db, newShardsRange(minShard, midShard))
+	waitUntilHasBootstrappedShardsExactly(setups[1].db, newShardsRange(midShard+1, maxShard))
 
 	log.Debug("verifying data in servers matches expected data set")
 

@@ -42,11 +42,15 @@ func TestNormalQuorumOnlyOneUp(t *testing.T) {
 		t.SkipNow()
 	}
 
+	numShards := defaultNumShards
+	minShard := uint32(0)
+	maxShard := uint32(numShards - 1)
+
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, []services.ServiceInstance{
-		node(t, 0, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
+	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Available)),
+		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
+		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
 	})
 	defer closeFn()
 
@@ -62,11 +66,15 @@ func TestNormalQuorumOnlyTwoUp(t *testing.T) {
 		t.SkipNow()
 	}
 
+	numShards := defaultNumShards
+	minShard := uint32(0)
+	maxShard := uint32(numShards - 1)
+
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, []services.ServiceInstance{
-		node(t, 0, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
+	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Available)),
+		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
+		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
 	})
 	defer closeFn()
 
@@ -83,11 +91,15 @@ func TestNormalQuorumAllUp(t *testing.T) {
 		t.SkipNow()
 	}
 
+	numShards := defaultNumShards
+	minShard := uint32(0)
+	maxShard := uint32(numShards - 1)
+
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, []services.ServiceInstance{
-		node(t, 0, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
+	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Available)),
+		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
+		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
 	})
 	defer closeFn()
 
@@ -105,12 +117,16 @@ func TestAddNodeQuorumOnlyLeavingInitializingUp(t *testing.T) {
 		t.SkipNow()
 	}
 
+	numShards := defaultNumShards
+	minShard := uint32(0)
+	maxShard := uint32(numShards - 1)
+
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, []services.ServiceInstance{
-		node(t, 0, newClusterShardsRange(0, 1023, shard.Leaving)),
-		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 3, newClusterShardsRange(0, 1023, shard.Initializing)),
+	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Leaving)),
+		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
+		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
+		node(t, 3, newClusterShardsRange(minShard, maxShard, shard.Initializing)),
 	})
 	defer closeFn()
 
@@ -127,12 +143,16 @@ func TestAddNodeQuorumOnlyOneNormalAndLeavingInitializingUp(t *testing.T) {
 		t.SkipNow()
 	}
 
+	numShards := defaultNumShards
+	minShard := uint32(0)
+	maxShard := uint32(numShards - 1)
+
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, []services.ServiceInstance{
-		node(t, 0, newClusterShardsRange(0, 1023, shard.Leaving)),
-		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 3, newClusterShardsRange(0, 1023, shard.Initializing)),
+	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Leaving)),
+		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
+		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
+		node(t, 3, newClusterShardsRange(minShard, maxShard, shard.Initializing)),
 	})
 	defer closeFn()
 
@@ -150,12 +170,16 @@ func TestAddNodeQuorumAllUp(t *testing.T) {
 		t.SkipNow()
 	}
 
+	numShards := defaultNumShards
+	minShard := uint32(0)
+	maxShard := uint32(numShards - 1)
+
 	// nodes = m3db nodes
-	nodes, closeFn, testWrite := makeTestWrite(t, []services.ServiceInstance{
-		node(t, 0, newClusterShardsRange(0, 1023, shard.Leaving)),
-		node(t, 1, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 2, newClusterShardsRange(0, 1023, shard.Available)),
-		node(t, 3, newClusterShardsRange(0, 1023, shard.Initializing)),
+	nodes, closeFn, testWrite := makeTestWrite(t, numShards, []services.ServiceInstance{
+		node(t, 0, newClusterShardsRange(minShard, maxShard, shard.Leaving)),
+		node(t, 1, newClusterShardsRange(minShard, maxShard, shard.Available)),
+		node(t, 2, newClusterShardsRange(minShard, maxShard, shard.Available)),
+		node(t, 3, newClusterShardsRange(minShard, maxShard, shard.Initializing)),
 	})
 	defer closeFn()
 
@@ -173,6 +197,7 @@ type testWriteFn func(topology.ConsistencyLevel) error
 
 func makeTestWrite(
 	t *testing.T,
+	numShards int,
 	instances []services.ServiceInstance,
 ) (testSetups, closeFn, testWriteFn) {
 
@@ -184,6 +209,10 @@ func makeTestWrite(
 	nspaces := []namespace.Metadata{md}
 	nodes, topoInit, closeFn := newNodes(t, instances, nspaces)
 	now := nodes[0].getNowFn()
+
+	for _, node := range nodes {
+		node.opts = node.opts.SetNumShards(numShards)
+	}
 
 	clientopts := client.NewOptions().
 		SetClusterConnectConsistencyLevel(client.ConnectConsistencyLevelNone).
