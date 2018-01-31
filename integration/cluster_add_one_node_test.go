@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -39,6 +40,11 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+type idShard struct {
+	str   string
+	shard uint32
+}
 
 func TestClusterAddOneNode(t *testing.T) {
 	if testing.Short() {
@@ -112,15 +118,31 @@ func TestClusterAddOneNode(t *testing.T) {
 	// Write test data for first node
 	topo, err := topoInit.Init()
 	require.NoError(t, err)
-	ids := []struct {
-		str   string
-		shard uint32
-	}{
-		{"jgfadfs", 10},
-		{"foobarqux", 2},
-		{"bar", 5},
-	}
+	ids := []idShard{}
+
+	// Boilerplate code to find two ID's that hash to the first half of the
+	// shards, and one ID that hashes to the second half of the shards.
 	shardSet := topo.Get().ShardSet()
+	i := 0
+	numFirstHalf := 0
+	numSecondHalf := 0
+	for {
+		if numFirstHalf == 2 && numSecondHalf == 1 {
+			break
+		}
+		idStr := strconv.Itoa(i)
+		shard := shardSet.Lookup(ts.StringID(idStr))
+		if shard < midShard && numFirstHalf < 2 {
+			ids = append(ids, idShard{str: idStr, shard: shard})
+			numFirstHalf++
+		}
+		if shard > midShard && numSecondHalf < 1 {
+			ids = append(ids, idShard{idStr, shard})
+			numSecondHalf++
+		}
+		i++
+	}
+
 	for _, id := range ids {
 		// Verify IDs will map to halves of the shard space
 		require.Equal(t, id.shard, shardSet.Lookup(ts.StringID(id.str)))
