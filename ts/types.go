@@ -41,6 +41,18 @@ type ID interface {
 	Reset()
 }
 
+// TagName represents the name of a timeseries tag.
+type TagName ID
+
+// TagValue represents the value of a timeseries tag.
+type TagValue ID
+
+// Tag represents a timeseries tag.
+type Tag struct {
+	Name  TagName
+	Value TagValue
+}
+
 // IdentifierPool represents an automatic pool of IDs.
 type IdentifierPool interface {
 	// GetBinaryID will create a new binary ID and take reference to the bytes.
@@ -48,12 +60,24 @@ type IdentifierPool interface {
 	// the bytes, i.e. it will take ownership of the bytes.
 	GetBinaryID(context.Context, checked.Bytes) ID
 
+	// GetBinaryTag will create a new binary Tag and take reference to the bytes.
+	// When the context closes, the Tag will be finalized and so too will
+	// the bytes, i.e. it will take ownership of the bytes.
+	GetBinaryTag(c context.Context, name checked.Bytes, value checked.Bytes) Tag
+
 	// GetStringID will create a new string ID and create a bytes copy of the
 	// string. When the context closes the ID will be finalized.
 	GetStringID(context.Context, string) ID
 
+	// GetStringTag will create a new string Tag and create a bytes copy of the
+	// string. When the context closes the ID will be finalized.
+	GetStringTag(c context.Context, name string, value string) Tag
+
 	// Put an ID back in the pool.
 	Put(ID)
+
+	// PutTag puts a tag back in the pool.
+	PutTag(Tag)
 
 	// Clone replicates a given ID into a pooled ID.
 	Clone(other ID) ID
