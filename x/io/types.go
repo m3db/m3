@@ -24,7 +24,6 @@ import (
 	"io"
 
 	"github.com/m3db/m3x/resource"
-
 	"github.com/m3db/m3db/ts"
 )
 

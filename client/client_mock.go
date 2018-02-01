@@ -24,7 +24,8 @@
 package client
 
 import (
-	gomock "github.com/golang/mock/gomock"
+	time "time"
+
 	clock "github.com/m3db/m3db/clock"
 	encoding "github.com/m3db/m3db/encoding"
 	rpc "github.com/m3db/m3db/generated/thrift/rpc"
@@ -34,13 +35,12 @@ import (
 	topology "github.com/m3db/m3db/topology"
 	context "github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
-
-	time "time"
-
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
 	retry "github.com/m3db/m3x/retry"
 	time0 "github.com/m3db/m3x/time"
+
+	gomock "github.com/golang/mock/gomock"
 	tchannel_go "github.com/uber/tchannel-go"
 )
 

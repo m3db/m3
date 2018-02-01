@@ -26,11 +26,12 @@ package series
 import (
 	time0 "time"
 
-	gomock "github.com/golang/mock/gomock"
 	block "github.com/m3db/m3db/storage/block"
 	io "github.com/m3db/m3db/x/io"
 	context "github.com/m3db/m3x/context"
 	time "github.com/m3db/m3x/time"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of databaseBuffer interface

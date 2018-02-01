@@ -24,13 +24,13 @@
 package fs
 
 import (
-	gomock "github.com/golang/mock/gomock"
-
 	time0 "time"
 
 	checked "github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	time "github.com/m3db/m3x/time"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of FileSetWriter interface

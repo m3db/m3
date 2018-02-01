@@ -28,8 +28,8 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/x/mmap"
 	"github.com/m3db/m3x/ident"
-
 	xmsgpack "github.com/m3db/m3db/persist/fs/msgpack"
+
 	"gopkg.in/vmihailenco/msgpack.v2"
 )
 

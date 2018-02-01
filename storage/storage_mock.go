@@ -26,7 +26,6 @@ package storage
 import (
 	time0 "time"
 
-	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
 	encoding "github.com/m3db/m3db/encoding"
 	persist "github.com/m3db/m3db/persist"
@@ -46,6 +45,8 @@ import (
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
 	time "github.com/m3db/m3x/time"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of Database interface

@@ -35,7 +35,6 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
-
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/leanovate/gopter"

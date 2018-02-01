@@ -26,7 +26,6 @@ package commitlog
 import (
 	time0 "time"
 
-	gomock "github.com/golang/mock/gomock"
 	clock "github.com/m3db/m3db/clock"
 	fs "github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/ts"
@@ -34,6 +33,8 @@ import (
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
 	time "github.com/m3db/m3x/time"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of CommitLog interface

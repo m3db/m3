@@ -26,11 +26,12 @@ package namespace
 import (
 	time "time"
 
-	gomock "github.com/golang/mock/gomock"
 	client "github.com/m3db/m3cluster/client"
 	retention "github.com/m3db/m3db/retention"
 	"github.com/m3db/m3x/ident"
 	instrument "github.com/m3db/m3x/instrument"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of Options interface

@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/resource"
-
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/context"
 	xtime "github.com/m3db/m3x/time"

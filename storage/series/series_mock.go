@@ -24,17 +24,17 @@
 package series
 
 import (
-	gomock "github.com/golang/mock/gomock"
+	time0 "time"
+
 	persist "github.com/m3db/m3db/persist"
 	block "github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	context "github.com/m3db/m3x/context"
-
-	time0 "time"
-
 	io "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/ident"
 	time "github.com/m3db/m3x/time"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of DatabaseSeries interface
