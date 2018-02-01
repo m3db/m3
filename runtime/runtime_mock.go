@@ -24,10 +24,11 @@
 package runtime
 
 import (
+	time "time"
+
 	gomock "github.com/golang/mock/gomock"
 	ratelimit "github.com/m3db/m3db/ratelimit"
 	close "github.com/m3db/m3x/close"
-	time "time"
 )
 
 // Mock of Options interface

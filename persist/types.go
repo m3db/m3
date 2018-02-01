@@ -25,10 +25,11 @@ import (
 
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 )
 
 // Fn is a function that persists a m3db segment for a given ID.
-type Fn func(id ts.ID, segment ts.Segment, checksum uint32) error
+type Fn func(id ident.ID, segment ts.Segment, checksum uint32) error
 
 // Closer is a function that performs cleanup after persisting the data
 // blocks for a (shard, blockStart) combination.

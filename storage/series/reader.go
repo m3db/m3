@@ -25,12 +25,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
-	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 )
 
 var (
@@ -44,7 +44,7 @@ var (
 // the stack.
 type Reader struct {
 	opts       Options
-	id         ts.ID
+	id         ident.ID
 	retriever  QueryableBlockRetriever
 	onRetrieve block.OnRetrieveBlock
 }
@@ -53,7 +53,7 @@ type Reader struct {
 // block retriever, it will use the block retriever as the
 // source to read blocks from.
 func NewReaderUsingRetriever(
-	id ts.ID,
+	id ident.ID,
 	retriever QueryableBlockRetriever,
 	onRetrieveBlock block.OnRetrieveBlock,
 	opts Options,

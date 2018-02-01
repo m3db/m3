@@ -32,10 +32,10 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/mmap"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -53,7 +53,7 @@ type reader struct {
 	hugePagesOpts mmap.HugeTLBOptions
 
 	filePathPrefix string
-	namespace      ts.ID
+	namespace      ident.ID
 	shard          uint32
 
 	start     time.Time
@@ -119,7 +119,7 @@ func NewReader(
 	}, nil
 }
 
-func (r *reader) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
+func (r *reader) Open(namespace ident.ID, shard uint32, blockStart time.Time) error {
 	var err error
 
 	// If there is no checkpoint file, don't read the data files.
@@ -279,8 +279,8 @@ func (r *reader) readIndexAndSortByOffsetAsc() error {
 	return nil
 }
 
-func (r *reader) Read() (ts.ID, checked.Bytes, uint32, error) {
-	var none ts.ID
+func (r *reader) Read() (ident.ID, checked.Bytes, uint32, error) {
+	var none ident.ID
 	if r.entries > 0 && len(r.indexEntriesByOffsetAsc) < r.entries {
 		// Have not read the index yet, this is required when reading
 		// data as we need each index entry in order by by the offset ascending
@@ -320,8 +320,8 @@ func (r *reader) Read() (ts.ID, checked.Bytes, uint32, error) {
 	return r.entryID(entry.ID), data, uint32(entry.Checksum), nil
 }
 
-func (r *reader) ReadMetadata() (id ts.ID, length int, checksum uint32, err error) {
-	var none ts.ID
+func (r *reader) ReadMetadata() (id ident.ID, length int, checksum uint32, err error) {
+	var none ident.ID
 	if r.metadataRead >= r.entries {
 		return none, 0, 0, io.EOF
 	}
@@ -342,7 +342,7 @@ func (r *reader) ReadBloomFilter() (*ManagedConcurrentBloomFilter, error) {
 	)
 }
 
-func (r *reader) entryID(id []byte) ts.ID {
+func (r *reader) entryID(id []byte) ident.ID {
 	var idClone checked.Bytes
 	if r.bytesPool != nil {
 		idClone = r.bytesPool.Get(len(id))
@@ -356,7 +356,7 @@ func (r *reader) entryID(id []byte) ts.ID {
 
 	idClone.AppendAll(id)
 
-	return ts.BinaryID(idClone)
+	return ident.BinaryID(idClone)
 }
 
 // NB(xichen): Validate should be called after all data is read because

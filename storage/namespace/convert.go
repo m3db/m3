@@ -26,7 +26,7 @@ import (
 
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
 	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -85,7 +85,7 @@ func ToMetadata(
 		SetWritesToCommitLog(opts.WritesToCommitLog).
 		SetRetentionOptions(ropts)
 
-	return NewMetadata(ts.StringID(id), mopts)
+	return NewMetadata(ident.StringID(id), mopts)
 }
 
 // ToProto converts Map to nsproto.Registry

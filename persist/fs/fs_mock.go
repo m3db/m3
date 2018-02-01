@@ -25,11 +25,12 @@ package fs
 
 import (
 	gomock "github.com/golang/mock/gomock"
-	
-	ts "github.com/m3db/m3db/ts"
-	checked "github.com/m3db/m3x/checked"
-	time "github.com/m3db/m3x/time"
+
 	time0 "time"
+
+	checked "github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/ident"
+	time "github.com/m3db/m3x/time"
 )
 
 // Mock of FileSetWriter interface
@@ -63,7 +64,7 @@ func (_mr *_MockFileSetWriterRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockFileSetWriter) Open(_param0 ts.ID, _param1 time0.Duration, _param2 uint32, _param3 time0.Time) error {
+func (_m *MockFileSetWriter) Open(_param0 ident.ID, _param1 time0.Duration, _param2 uint32, _param3 time0.Time) error {
 	ret := _m.ctrl.Call(_m, "Open", _param0, _param1, _param2, _param3)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -73,7 +74,7 @@ func (_mr *_MockFileSetWriterRecorder) Open(arg0, arg1, arg2, arg3 interface{}) 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockFileSetWriter) Write(_param0 ts.ID, _param1 checked.Bytes, _param2 uint32) error {
+func (_m *MockFileSetWriter) Write(_param0 ident.ID, _param1 checked.Bytes, _param2 uint32) error {
 	ret := _m.ctrl.Call(_m, "Write", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -83,7 +84,7 @@ func (_mr *_MockFileSetWriterRecorder) Write(arg0, arg1, arg2 interface{}) *gomo
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2)
 }
 
-func (_m *MockFileSetWriter) WriteAll(_param0 ts.ID, _param1 []checked.Bytes, _param2 uint32) error {
+func (_m *MockFileSetWriter) WriteAll(_param0 ident.ID, _param1 []checked.Bytes, _param2 uint32) error {
 	ret := _m.ctrl.Call(_m, "WriteAll", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -154,7 +155,7 @@ func (_mr *_MockFileSetReaderRecorder) MetadataRead() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "MetadataRead")
 }
 
-func (_m *MockFileSetReader) Open(_param0 ts.ID, _param1 uint32, _param2 time0.Time) error {
+func (_m *MockFileSetReader) Open(_param0 ident.ID, _param1 uint32, _param2 time0.Time) error {
 	ret := _m.ctrl.Call(_m, "Open", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -174,9 +175,9 @@ func (_mr *_MockFileSetReaderRecorder) Range() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Range")
 }
 
-func (_m *MockFileSetReader) Read() (ts.ID, checked.Bytes, uint32, error) {
+func (_m *MockFileSetReader) Read() (ident.ID, checked.Bytes, uint32, error) {
 	ret := _m.ctrl.Call(_m, "Read")
-	ret0, _ := ret[0].(ts.ID)
+	ret0, _ := ret[0].(ident.ID)
 	ret1, _ := ret[1].(checked.Bytes)
 	ret2, _ := ret[2].(uint32)
 	ret3, _ := ret[3].(error)
@@ -198,9 +199,9 @@ func (_mr *_MockFileSetReaderRecorder) ReadBloomFilter() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadBloomFilter")
 }
 
-func (_m *MockFileSetReader) ReadMetadata() (ts.ID, int, uint32, error) {
+func (_m *MockFileSetReader) ReadMetadata() (ident.ID, int, uint32, error) {
 	ret := _m.ctrl.Call(_m, "ReadMetadata")
-	ret0, _ := ret[0].(ts.ID)
+	ret0, _ := ret[0].(ident.ID)
 	ret1, _ := ret[1].(int)
 	ret2, _ := ret[2].(uint32)
 	ret3, _ := ret[3].(error)
@@ -313,7 +314,7 @@ func (_mr *_MockFileSetSeekerRecorder) Entries() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Entries")
 }
 
-func (_m *MockFileSetSeeker) Open(_param0 ts.ID, _param1 uint32, _param2 time0.Time) error {
+func (_m *MockFileSetSeeker) Open(_param0 ident.ID, _param1 uint32, _param2 time0.Time) error {
 	ret := _m.ctrl.Call(_m, "Open", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -333,7 +334,7 @@ func (_mr *_MockFileSetSeekerRecorder) Range() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Range")
 }
 
-func (_m *MockFileSetSeeker) SeekByID(_param0 ts.ID) (checked.Bytes, error) {
+func (_m *MockFileSetSeeker) SeekByID(_param0 ident.ID) (checked.Bytes, error) {
 	ret := _m.ctrl.Call(_m, "SeekByID", _param0)
 	ret0, _ := ret[0].(checked.Bytes)
 	ret1, _ := ret[1].(error)
@@ -355,7 +356,7 @@ func (_mr *_MockFileSetSeekerRecorder) SeekByIndexEntry(arg0 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SeekByIndexEntry", arg0)
 }
 
-func (_m *MockFileSetSeeker) SeekIndexEntry(_param0 ts.ID) (IndexEntry, error) {
+func (_m *MockFileSetSeeker) SeekIndexEntry(_param0 ident.ID) (IndexEntry, error) {
 	ret := _m.ctrl.Call(_m, "SeekIndexEntry", _param0)
 	ret0, _ := ret[0].(IndexEntry)
 	ret1, _ := ret[1].(error)

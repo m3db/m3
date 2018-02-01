@@ -23,7 +23,7 @@ package tchannelthrift
 import (
 	"time"
 
-	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3x/context"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber/tchannel-go"

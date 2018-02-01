@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -370,8 +371,8 @@ func (r *reader) decodeAndHandleMetadata(
 	} else {
 		metadata := Series{
 			UniqueIndex: entry.Index,
-			ID:          ts.BinaryID(id),
-			Namespace:   ts.BinaryID(namespace),
+			ID:          ident.BinaryID(id),
+			Namespace:   ident.BinaryID(namespace),
 			Shard:       decoded.Shard,
 		}
 		r.metadata.lookup[entry.Index] = metadata

@@ -33,9 +33,9 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/mmap"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 
 	"github.com/golang/mock/gomock"
@@ -141,7 +141,7 @@ func TestReadDataError(t *testing.T) {
 	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	require.NoError(t, err)
 	require.NoError(t, w.Write(
-		ts.StringID("foo"),
+		ident.StringID("foo"),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	require.NoError(t, w.Close())
@@ -181,7 +181,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 
 	assert.NoError(t, w.Write(
-		ts.StringID("foo"),
+		ident.StringID("foo"),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -232,7 +232,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	assert.NoError(t, w.Open(testNs1ID, testBlockSize, uint32(shard), start))
 
 	assert.NoError(t, w.Write(
-		ts.StringID("foo"),
+		ident.StringID("foo"),
 		bytesRefd([]byte{0x1}),
 		digest.Checksum([]byte{0x1})))
 	assert.NoError(t, w.Close())
@@ -310,7 +310,7 @@ func TestReadValidate(t *testing.T) {
 	require.NoError(t, w.Open(testNs1ID, testBlockSize, shard, start))
 
 	assert.NoError(t, w.Write(
-		ts.StringID("foo"),
+		ident.StringID("foo"),
 		bytesRefd([]byte{0x1}),
 		digest.Checksum([]byte{0x1})))
 	require.NoError(t, w.Close())

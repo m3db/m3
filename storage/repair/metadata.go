@@ -26,7 +26,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -93,7 +93,7 @@ func NewReplicaBlocksMetadata() ReplicaBlocksMetadata {
 	return make(replicaBlocksMetadata, defaultReplicaBlocksMetadataCapacity)
 }
 
-func (m replicaBlocksMetadata) NumBlocks() int64                                   { return int64(len(m)) }
+func (m replicaBlocksMetadata) NumBlocks() int64                                { return int64(len(m)) }
 func (m replicaBlocksMetadata) Blocks() map[xtime.UnixNano]ReplicaBlockMetadata { return m }
 func (m replicaBlocksMetadata) Add(block ReplicaBlockMetadata) {
 	m[xtime.ToUnixNano(block.Start())] = block
@@ -117,15 +117,15 @@ func (m replicaBlocksMetadata) Close() {
 }
 
 // NB(xichen): replicaSeriesMetadata is not thread-safe
-type replicaSeriesMetadata map[ts.Hash]ReplicaSeriesBlocksMetadata
+type replicaSeriesMetadata map[ident.Hash]ReplicaSeriesBlocksMetadata
 
 // NewReplicaSeriesMetadata creates a new replica series metadata
 func NewReplicaSeriesMetadata() ReplicaSeriesMetadata {
 	return make(replicaSeriesMetadata, defaultReplicaSeriesMetadataCapacity)
 }
 
-func (m replicaSeriesMetadata) NumSeries() int64                                { return int64(len(m)) }
-func (m replicaSeriesMetadata) Series() map[ts.Hash]ReplicaSeriesBlocksMetadata { return m }
+func (m replicaSeriesMetadata) NumSeries() int64                                   { return int64(len(m)) }
+func (m replicaSeriesMetadata) Series() map[ident.Hash]ReplicaSeriesBlocksMetadata { return m }
 
 func (m replicaSeriesMetadata) NumBlocks() int64 {
 	var numBlocks int64
@@ -135,7 +135,7 @@ func (m replicaSeriesMetadata) NumBlocks() int64 {
 	return numBlocks
 }
 
-func (m replicaSeriesMetadata) GetOrAdd(id ts.ID) ReplicaBlocksMetadata {
+func (m replicaSeriesMetadata) GetOrAdd(id ident.ID) ReplicaBlocksMetadata {
 	blocks, exists := m[id.Hash()]
 	if exists {
 		return blocks.Metadata

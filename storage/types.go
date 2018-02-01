@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
@@ -37,9 +36,10 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
-	"github.com/m3db/m3db/ts"
 	xcounter "github.com/m3db/m3db/x/counter"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
@@ -60,7 +60,7 @@ type Database interface {
 	Namespaces() []Namespace
 
 	// Namespace returns the specified namespace
-	Namespace(ns ts.ID) (Namespace, bool)
+	Namespace(ns ident.ID) (Namespace, bool)
 
 	// Open will open the database for writing and reading
 	Open() error
@@ -80,8 +80,8 @@ type Database interface {
 	// Write value to the database for an ID
 	Write(
 		ctx context.Context,
-		namespace ts.ID,
-		id ts.ID,
+		namespace ident.ID,
+		id ident.ID,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
@@ -91,17 +91,17 @@ type Database interface {
 	// ReadEncoded retrieves encoded segments for an ID
 	ReadEncoded(
 		ctx context.Context,
-		namespace ts.ID,
-		id ts.ID,
+		namespace ident.ID,
+		id ident.ID,
 		start, end time.Time,
 	) ([][]xio.SegmentReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
 	FetchBlocks(
 		ctx context.Context,
-		namespace ts.ID,
+		namespace ident.ID,
 		shard uint32,
-		id ts.ID,
+		id ident.ID,
 		starts []time.Time,
 	) ([]block.FetchBlockResult, error)
 
@@ -110,7 +110,7 @@ type Database interface {
 	// If we have fetched all the block metadata, we return nil as the next page token.
 	FetchBlocksMetadata(
 		ctx context.Context,
-		namespace ts.ID,
+		namespace ident.ID,
 		shard uint32,
 		start, end time.Time,
 		limit int64,
@@ -123,7 +123,7 @@ type Database interface {
 	// If we have fetched all the block metadata, we return nil as the next page token.
 	FetchBlocksMetadataV2(
 		ctx context.Context,
-		namespace ts.ID,
+		namespace ident.ID,
 		shard uint32,
 		start, end time.Time,
 		limit int64,
@@ -144,7 +144,7 @@ type Database interface {
 	Repair() error
 
 	// Truncate truncates data for the given namespace
-	Truncate(namespace ts.ID) (int64, error)
+	Truncate(namespace ident.ID) (int64, error)
 }
 
 // database is the internal database interface
@@ -164,7 +164,7 @@ type Namespace interface {
 	Options() namespace.Options
 
 	// ID returns the ID of the namespace
-	ID() ts.ID
+	ID() ident.ID
 
 	// NumSeries returns the number of series in the namespace
 	NumSeries() int64
@@ -200,7 +200,7 @@ type databaseNamespace interface {
 	// Write writes a data point
 	Write(
 		ctx context.Context,
-		id ts.ID,
+		id ident.ID,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
@@ -210,7 +210,7 @@ type databaseNamespace interface {
 	// ReadEncoded reads data for given id within [start, end)
 	ReadEncoded(
 		ctx context.Context,
-		id ts.ID,
+		id ident.ID,
 		start, end time.Time,
 	) ([][]xio.SegmentReader, error)
 
@@ -218,7 +218,7 @@ type databaseNamespace interface {
 	FetchBlocks(
 		ctx context.Context,
 		shardID uint32,
-		id ts.ID,
+		id ident.ID,
 		starts []time.Time,
 	) ([]block.FetchBlockResult, error)
 
@@ -286,7 +286,7 @@ type databaseShard interface {
 
 	Write(
 		ctx context.Context,
-		id ts.ID,
+		id ident.ID,
 		timestamp time.Time,
 		value float64,
 		unit xtime.Unit,
@@ -295,14 +295,14 @@ type databaseShard interface {
 
 	ReadEncoded(
 		ctx context.Context,
-		id ts.ID,
+		id ident.ID,
 		start, end time.Time,
 	) ([][]xio.SegmentReader, error)
 
 	// FetchBlocks retrieves data blocks for a given id and a list of block start times.
 	FetchBlocks(
 		ctx context.Context,
-		id ts.ID,
+		id ident.ID,
 		starts []time.Time,
 	) ([]block.FetchBlockResult, error)
 
@@ -325,7 +325,7 @@ type databaseShard interface {
 	) (block.FetchBlocksMetadataResults, PageToken, error)
 
 	Bootstrap(
-		bootstrappedSeries map[ts.Hash]result.DatabaseSeriesBlocks,
+		bootstrappedSeries map[ident.Hash]result.DatabaseSeriesBlocks,
 	) error
 
 	// Flush flushes the series' in this shard.
@@ -412,7 +412,7 @@ type databaseShardRepairer interface {
 	// Repair repairs the data for a given namespace and shard
 	Repair(
 		ctx context.Context,
-		namespace ts.ID,
+		namespace ident.ID,
 		tr xtime.Range,
 		shard databaseShard,
 	) (repair.MetadataComparisonResult, error)
@@ -647,10 +647,10 @@ type Options interface {
 	MultiReaderIteratorPool() encoding.MultiReaderIteratorPool
 
 	// SetIDPool sets the ID pool.
-	SetIdentifierPool(value ts.IdentifierPool) Options
+	SetIdentifierPool(value ident.IdentifierPool) Options
 
 	// IDPool returns the ID pool.
-	IdentifierPool() ts.IdentifierPool
+	IdentifierPool() ident.IdentifierPool
 
 	// SetFetchBlockMetadataResultsPool sets the fetchBlockMetadataResultsPool
 	SetFetchBlockMetadataResultsPool(value block.FetchBlockMetadataResultsPool) Options

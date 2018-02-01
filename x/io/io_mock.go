@@ -24,9 +24,10 @@
 package xio
 
 import (
-	gomock "github.com/golang/mock/gomock"
-	ts "github.com/m3db/m3db/ts"
 	io "io"
+
+	gomock "github.com/golang/mock/gomock"
+	"github.com/m3db/m3db/ts"
 )
 
 // Mock of ReaderSliceReader interface

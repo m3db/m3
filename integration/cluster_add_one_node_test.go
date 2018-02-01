@@ -34,7 +34,7 @@ import (
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 
@@ -131,7 +131,7 @@ func TestClusterAddOneNode(t *testing.T) {
 			break
 		}
 		idStr := strconv.Itoa(i)
-		shard := shardSet.Lookup(ts.StringID(idStr))
+		shard := shardSet.Lookup(ident.StringID(idStr))
 		if shard < midShard && numFirstHalf < 2 {
 			ids = append(ids, idShard{str: idStr, shard: shard})
 			numFirstHalf++
@@ -145,7 +145,7 @@ func TestClusterAddOneNode(t *testing.T) {
 
 	for _, id := range ids {
 		// Verify IDs will map to halves of the shard space
-		require.Equal(t, id.shard, shardSet.Lookup(ts.StringID(id.str)))
+		require.Equal(t, id.shard, shardSet.Lookup(ident.StringID(id.str)))
 	}
 
 	now := setups[0].getNowFn()

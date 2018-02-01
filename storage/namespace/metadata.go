@@ -24,8 +24,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/ident"
 )
 
 var (
@@ -34,12 +34,12 @@ var (
 )
 
 type metadata struct {
-	id   ts.ID
+	id   ident.ID
 	opts Options
 }
 
 // NewMetadata creates a new namespace metadata
-func NewMetadata(id ts.ID, opts Options) (Metadata, error) {
+func NewMetadata(id ident.ID, opts Options) (Metadata, error) {
 	if id == nil || id.String() == "" {
 		return nil, errIDNotSet
 	}
@@ -55,12 +55,12 @@ func NewMetadata(id ts.ID, opts Options) (Metadata, error) {
 
 	copiedID := checked.NewBytes(append([]byte(nil), id.Data().Get()...), nil)
 	return &metadata{
-		id:   ts.BinaryID(copiedID),
+		id:   ident.BinaryID(copiedID),
 		opts: opts,
 	}, nil
 }
 
-func (m *metadata) ID() ts.ID {
+func (m *metadata) ID() ident.ID {
 	return m.id
 }
 

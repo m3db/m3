@@ -31,7 +31,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/generated/proto/pagetoken"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs"
@@ -46,7 +45,9 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	xclose "github.com/m3db/m3x/close"
+	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 
@@ -69,7 +70,7 @@ var (
 
 type filesetBeforeFn func(
 	filePathPrefix string,
-	namespace ts.ID,
+	namespace ident.ID,
 	shardID uint32,
 	t time.Time,
 ) ([]string, error)
@@ -104,14 +105,14 @@ type dbShard struct {
 	seriesPool               series.DatabaseSeriesPool
 	commitLogWriter          commitLogWriter
 	insertQueue              *dbShardInsertQueue
-	lookup                   map[ts.Hash]*list.Element
+	lookup                   map[ident.Hash]*list.Element
 	list                     *list.List
 	bs                       bootstrapState
 	newSeriesBootstrapped    bool
 	filesetBeforeFn          filesetBeforeFn
 	deleteFilesFn            deleteFilesFn
 	sleepFn                  func(time.Duration)
-	identifierPool           ts.IdentifierPool
+	identifierPool           ident.IdentifierPool
 	contextPool              context.Pool
 	flushState               shardFlushState
 	ticking                  bool
@@ -217,7 +218,7 @@ func newDatabaseShard(
 		increasingIndex:    increasingIndex,
 		seriesPool:         opts.DatabaseSeriesPool(),
 		commitLogWriter:    commitLogWriter,
-		lookup:             make(map[ts.Hash]*list.Element),
+		lookup:             make(map[ident.Hash]*list.Element),
 		list:               list.New(),
 		filesetBeforeFn:    fs.FilesetBefore,
 		deleteFilesFn:      fs.DeleteFiles,
@@ -290,7 +291,7 @@ func (s *dbShard) NumSeries() int64 {
 // Stream implements series.QueryableBlockRetriever
 func (s *dbShard) Stream(
 	ctx context.Context,
-	id ts.ID,
+	id ident.ID,
 	start time.Time,
 	onRetrieve block.OnRetrieveBlock,
 ) (xio.SegmentReader, error) {
@@ -311,7 +312,7 @@ func (s *dbShard) IsBlockRetrievable(blockStart time.Time) bool {
 }
 
 func (s *dbShard) OnRetrieveBlock(
-	id ts.ID,
+	id ident.ID,
 	startTime time.Time,
 	segment ts.Segment,
 ) {
@@ -611,7 +612,7 @@ func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {
 
 func (s *dbShard) Write(
 	ctx context.Context,
-	id ts.ID,
+	id ident.ID,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -645,7 +646,7 @@ func (s *dbShard) Write(
 	}
 
 	var (
-		commitLogSeriesID          ts.ID
+		commitLogSeriesID          ident.ID
 		commitLogSeriesUniqueIndex uint64
 	)
 	if writable {
@@ -705,7 +706,7 @@ func (s *dbShard) Write(
 
 func (s *dbShard) ReadEncoded(
 	ctx context.Context,
-	id ts.ID,
+	id ident.ID,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
 	s.RLock()
@@ -743,7 +744,7 @@ func (s *dbShard) ReadEncoded(
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.
-func (s *dbShard) lookupEntryWithLock(id ts.ID) (*dbShardEntry, *list.Element, error) {
+func (s *dbShard) lookupEntryWithLock(id ident.ID) (*dbShardEntry, *list.Element, error) {
 	if s.state != dbShardStateOpen {
 		// NB(r): Return an invalid params error here so any upstream
 		// callers will not retry this operation
@@ -756,7 +757,7 @@ func (s *dbShard) lookupEntryWithLock(id ts.ID) (*dbShardEntry, *list.Element, e
 	return elem.Value.(*dbShardEntry), elem, nil
 }
 
-func (s *dbShard) writableSeries(id ts.ID) (*dbShardEntry, error) {
+func (s *dbShard) writableSeries(id ident.ID) (*dbShardEntry, error) {
 	for {
 		entry, _, err := s.tryRetrieveWritableSeries(id)
 		if entry != nil {
@@ -781,7 +782,7 @@ type writableSeriesOptions struct {
 	writeNewSeriesAsync bool
 }
 
-func (s *dbShard) tryRetrieveWritableSeries(id ts.ID) (
+func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
 	*dbShardEntry,
 	writableSeriesOptions,
 	error,
@@ -802,7 +803,7 @@ func (s *dbShard) tryRetrieveWritableSeries(id ts.ID) (
 	return nil, opts, nil
 }
 
-func (s *dbShard) newShardEntry(id ts.ID) *dbShardEntry {
+func (s *dbShard) newShardEntry(id ident.ID) *dbShardEntry {
 	series := s.seriesPool.Get()
 	clonedID := s.identifierPool.Clone(id)
 	series.Reset(clonedID, s.seriesBlockRetriever,
@@ -813,7 +814,7 @@ func (s *dbShard) newShardEntry(id ts.ID) *dbShardEntry {
 
 type insertAsyncResult struct {
 	wg       *sync.WaitGroup
-	copiedID ts.ID
+	copiedID ident.ID
 	// entry is not guaranteed to be the final entry
 	// inserted into the shard map in case there is already
 	// an existing entry waiting in the insert queue
@@ -821,7 +822,7 @@ type insertAsyncResult struct {
 }
 
 func (s *dbShard) insertSeriesAsyncBatched(
-	id ts.ID,
+	id ident.ID,
 	opts dbShardInsertAsyncOptions,
 ) (insertAsyncResult, error) {
 	entry := s.newShardEntry(id)
@@ -847,7 +848,7 @@ const (
 )
 
 func (s *dbShard) insertSeriesSync(
-	id ts.ID,
+	id ident.ID,
 	insertType insertSyncType,
 ) (*dbShardEntry, error) {
 	var (
@@ -970,7 +971,7 @@ func (s *dbShard) insertSeriesBatch(inserts []dbShardInsert) error {
 
 func (s *dbShard) FetchBlocks(
 	ctx context.Context,
-	id ts.ID,
+	id ident.ID,
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
 	s.RLock()
@@ -1309,7 +1310,7 @@ func (s *dbShard) FetchBlocksMetadataV2(
 }
 
 func (s *dbShard) Bootstrap(
-	bootstrappedSeries map[ts.Hash]result.DatabaseSeriesBlocks,
+	bootstrappedSeries map[ident.Hash]result.DatabaseSeriesBlocks,
 ) error {
 	s.Lock()
 	if s.bs == bootstrapped {

@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
@@ -61,21 +61,21 @@ func TestRegistryConfig(t *testing.T) {
 
 	nsMap, err := config.Map()
 	require.NoError(t, err)
-	md, err := nsMap.Get(ts.StringID("abc"))
+	md, err := nsMap.Get(ident.StringID("abc"))
 	require.NoError(t, err)
 	mdd, err := config.Metadatas[0].Metadata()
 	require.NoError(t, err)
 	require.Equal(t, mdd.ID().String(), md.ID().String())
 	require.Equal(t, mdd.Options(), md.Options())
 
-	md, err = nsMap.Get(ts.StringID("cde"))
+	md, err = nsMap.Get(ident.StringID("cde"))
 	require.NoError(t, err)
 	mdd, err = config.Metadatas[1].Metadata()
 	require.NoError(t, err)
 	require.Equal(t, mdd.ID().String(), md.ID().String())
 	require.Equal(t, mdd.Options(), md.Options())
 
-	_, err = nsMap.Get(ts.StringID("otherstring"))
+	_, err = nsMap.Get(ident.StringID("otherstring"))
 	require.Error(t, err)
 }
 
@@ -163,7 +163,7 @@ metadatas:
 	mds := nsMap.Metadatas()
 	require.Equal(t, 3, len(mds))
 
-	testmetrics := ts.StringID("testmetrics")
+	testmetrics := ident.StringID("testmetrics")
 	ns, err := nsMap.Get(testmetrics)
 	require.NoError(t, err)
 	require.True(t, ns.ID().Equal(testmetrics))
@@ -180,7 +180,7 @@ metadatas:
 		SetBufferPast(10 * time.Minute)
 	require.True(t, testRetentionOpts.Equal(opts.RetentionOptions()))
 
-	metrics2d := ts.StringID("metrics-10s:2d")
+	metrics2d := ident.StringID("metrics-10s:2d")
 	ns, err = nsMap.Get(metrics2d)
 	require.NoError(t, err)
 	require.True(t, ns.ID().Equal(metrics2d))
@@ -197,7 +197,7 @@ metadatas:
 		SetBufferPast(10 * time.Minute)
 	require.True(t, testRetentionOpts.Equal(opts.RetentionOptions()))
 
-	metrics40d := ts.StringID("metrics-1m:40d")
+	metrics40d := ident.StringID("metrics-1m:40d")
 	ns, err = nsMap.Get(metrics40d)
 	require.NoError(t, err)
 	require.True(t, ns.ID().Equal(metrics40d))

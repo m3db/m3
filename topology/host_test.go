@@ -26,7 +26,7 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -49,6 +49,6 @@ func TestNewHostShardSetFromServiceInstance(t *testing.T) {
 	assert.Equal(t, uint32(1), host.ShardSet().Min())
 	assert.Equal(t, uint32(3), host.ShardSet().Max())
 
-	id := ts.StringID("id")
+	id := ident.StringID("id")
 	assert.Equal(t, host.ShardSet().Lookup(id), hash(id))
 }

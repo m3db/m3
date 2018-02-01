@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
@@ -40,7 +39,9 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xsync "github.com/m3db/m3x/sync"
@@ -96,7 +97,7 @@ type dbNamespace struct {
 
 	closed             bool
 	shutdownCh         chan struct{}
-	id                 ts.ID
+	id                 ident.ID
 	shardSet           sharding.ShardSet
 	blockRetriever     block.DatabaseBlockRetriever
 	namespaceReaderMgr databaseNamespaceReaderManager
@@ -292,7 +293,7 @@ func (n *dbNamespace) Options() namespace.Options {
 	return n.nopts
 }
 
-func (n *dbNamespace) ID() ts.ID {
+func (n *dbNamespace) ID() ident.ID {
 	return n.id
 }
 
@@ -452,7 +453,7 @@ func (n *dbNamespace) Tick(c context.Cancellable) error {
 
 func (n *dbNamespace) Write(
 	ctx context.Context,
-	id ts.ID,
+	id ident.ID,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -471,7 +472,7 @@ func (n *dbNamespace) Write(
 
 func (n *dbNamespace) ReadEncoded(
 	ctx context.Context,
-	id ts.ID,
+	id ident.ID,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
 	callStart := n.nowFn()
@@ -488,7 +489,7 @@ func (n *dbNamespace) ReadEncoded(
 func (n *dbNamespace) FetchBlocks(
 	ctx context.Context,
 	shardID uint32,
-	id ts.ID,
+	id ident.ID,
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
 	callStart := n.nowFn()
@@ -624,7 +625,7 @@ func (n *dbNamespace) Bootstrap(
 		shard := shard
 		wg.Add(1)
 		workers.Go(func() {
-			var bootstrapped map[ts.Hash]result.DatabaseSeriesBlocks
+			var bootstrapped map[ident.Hash]result.DatabaseSeriesBlocks
 			if result, ok := results[shard.ID()]; ok {
 				bootstrapped = result.AllSeries()
 			}
@@ -850,7 +851,7 @@ func (n *dbNamespace) GetOwnedShards() []databaseShard {
 	return databaseShards
 }
 
-func (n *dbNamespace) shardFor(id ts.ID) (databaseShard, error) {
+func (n *dbNamespace) shardFor(id ident.ID) (databaseShard, error) {
 	n.RLock()
 	shardID := n.shardSet.Lookup(id)
 	shard, err := n.shardAtWithRLock(shardID)
@@ -858,7 +859,7 @@ func (n *dbNamespace) shardFor(id ts.ID) (databaseShard, error) {
 	return shard, err
 }
 
-func (n *dbNamespace) readableShardFor(id ts.ID) (databaseShard, error) {
+func (n *dbNamespace) readableShardFor(id ident.ID) (databaseShard, error) {
 	n.RLock()
 	shardID := n.shardSet.Lookup(id)
 	shard, err := n.readableShardAtWithRLock(shardID)

@@ -27,14 +27,14 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xretry "github.com/m3db/m3x/retry"
@@ -244,7 +244,7 @@ type PeerBlocksIter interface {
 
 	// Current returns the metadata, and block data for a single block replica.
 	// These remain valid until Next() is called again.
-	Current() (topology.Host, ts.ID, block.DatabaseBlock)
+	Current() (topology.Host, ident.ID, block.DatabaseBlock)
 
 	// Err returns any error encountered
 	Err() error
@@ -261,12 +261,12 @@ type AdminSession interface {
 	Replicas() int
 
 	// Truncate will truncate the namespace for a given shard
-	Truncate(namespace ts.ID) (int64, error)
+	Truncate(namespace ident.ID) (int64, error)
 
 	// FetchBlocksMetadataFromPeers will fetch the blocks metadata from
 	// available peers
 	FetchBlocksMetadataFromPeers(
-		namespace ts.ID,
+		namespace ident.ID,
 		shard uint32,
 		start, end time.Time,
 		version FetchBlocksMetadataEndpointVersion,
@@ -571,10 +571,10 @@ type Options interface {
 	ContextPool() context.Pool
 
 	// SetIdentifierPool sets the identifier pool
-	SetIdentifierPool(value ts.IdentifierPool) Options
+	SetIdentifierPool(value ident.IdentifierPool) Options
 
 	// IdentifierPool returns the identifier pool
-	IdentifierPool() ts.IdentifierPool
+	IdentifierPool() ident.IdentifierPool
 
 	// HostQueueOpsArrayPoolSize sets the hostQueueOpsArrayPoolSize
 	SetHostQueueOpsArrayPoolSize(value int) Options

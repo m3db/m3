@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -47,7 +48,7 @@ var (
 func waitUntilDataFlushed(
 	filePathPrefix string,
 	shardSet sharding.ShardSet,
-	namespace ts.ID,
+	namespace ident.ID,
 	testData map[xtime.UnixNano]generate.SeriesBlock,
 	timeout time.Duration,
 ) error {
@@ -74,7 +75,7 @@ func verifyForTime(
 	shardSet sharding.ShardSet,
 	iteratorPool encoding.ReaderIteratorPool,
 	timestamp time.Time,
-	namespace ts.ID,
+	namespace ident.ID,
 	expected generate.SeriesBlock,
 ) {
 	shards := make(map[uint32]struct{})
@@ -120,7 +121,7 @@ func verifyFlushed(
 	t *testing.T,
 	shardSet sharding.ShardSet,
 	opts storage.Options,
-	namespace ts.ID,
+	namespace ident.ID,
 	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
 ) {
 	fsOpts := opts.CommitLogOptions().FilesystemOptions()

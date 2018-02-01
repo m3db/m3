@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/ident"
 
 	xlog "github.com/m3db/m3x/log"
 	xsync "github.com/m3db/m3x/sync"
@@ -116,7 +117,7 @@ func (s *commitLogSource) Read(
 	unmerged := make([]encodersAndRanges, numShards)
 	for shard := range shardsTimeRanges {
 		unmerged[shard] = encodersAndRanges{
-			encodersBySeries: make(map[ts.Hash]encodersByTime),
+			encodersBySeries: make(map[ident.Hash]encodersByTime),
 			ranges:           shardsTimeRanges[shard],
 		}
 	}
@@ -234,7 +235,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 }
 
 func (s *commitLogSource) shouldEncodeSeries(
-	namespace ts.ID,
+	namespace ident.ID,
 	unmerged []encodersAndRanges,
 	blockSize time.Duration,
 	series commitlog.Series,
@@ -493,12 +494,12 @@ func newReadCommitLogPredicate(
 }
 
 type encodersAndRanges struct {
-	encodersBySeries map[ts.Hash]encodersByTime
+	encodersBySeries map[ident.Hash]encodersByTime
 	ranges           xtime.Ranges
 }
 
 type encodersByTime struct {
-	id ts.ID
+	id ident.ID
 	// int64 instead of time.Time because there is an optimized map access pattern
 	// for i64's
 	encoders map[xtime.UnixNano]encoders

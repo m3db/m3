@@ -29,10 +29,10 @@ import (
 	"github.com/m3db/m3db/integration/fake"
 	"github.com/m3db/m3db/topology"
 
-	"github.com/uber-go/tally"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 type testHostQueues struct {

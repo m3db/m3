@@ -24,7 +24,6 @@ import (
 	"hash/adler32"
 
 	"github.com/m3db/m3db/ts"
-
 	"github.com/m3db/stackadler32"
 )
 

@@ -28,7 +28,6 @@ import (
 
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
@@ -36,8 +35,9 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xwatch "github.com/m3db/m3x/watch"
 
@@ -48,8 +48,8 @@ import (
 )
 
 var (
-	defaultTestNs1ID         = ts.StringID("testns1")
-	defaultTestNs2ID         = ts.StringID("testns2")
+	defaultTestNs1ID         = ident.StringID("testns1")
+	defaultTestNs2ID         = ident.StringID("testns2")
 	defaultTestRetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
 					SetBlockSize(2 * time.Hour).SetRetentionPeriod(2 * 24 * time.Hour)
 	defaultTestNs2RetentionOpts = retention.NewOptions().SetBufferFuture(10 * time.Minute).SetBufferPast(10 * time.Minute).
@@ -187,7 +187,7 @@ func dbAddNewMockNamespace(
 	d *db,
 	id string,
 ) *MockdatabaseNamespace {
-	ns := ts.StringID(id)
+	ns := ident.StringID(id)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.EXPECT().ID().Return(ns).AnyTimes()
 	d.namespaces[ns.Hash()] = mockNamespace
@@ -247,7 +247,7 @@ func TestDatabaseReadEncodedNamespaceNotOwned(t *testing.T) {
 	defer func() {
 		close(mapCh)
 	}()
-	_, err := d.ReadEncoded(ctx, ts.StringID("nonexistent"), ts.StringID("foo"), time.Now(), time.Now())
+	_, err := d.ReadEncoded(ctx, ident.StringID("nonexistent"), ident.StringID("foo"), time.Now(), time.Now())
 	require.Equal(t, "no such namespace nonexistent", err.Error())
 }
 
@@ -263,8 +263,8 @@ func TestDatabaseReadEncodedNamespaceOwned(t *testing.T) {
 		close(mapCh)
 	}()
 
-	ns := ts.StringID("testns1")
-	id := ts.StringID("bar")
+	ns := ident.StringID("testns1")
+	id := ident.StringID("bar")
 	end := time.Now()
 	start := end.Add(-time.Hour)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
@@ -290,7 +290,7 @@ func TestDatabaseFetchBlocksNamespaceNotOwned(t *testing.T) {
 
 	now := time.Now()
 	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
-	res, err := d.FetchBlocks(ctx, ts.StringID("non-existent-ns"), 0, ts.StringID("foo"), starts)
+	res, err := d.FetchBlocks(ctx, ident.StringID("non-existent-ns"), 0, ident.StringID("foo"), starts)
 	require.Nil(t, res)
 	require.True(t, xerrors.IsInvalidParams(err))
 }
@@ -307,8 +307,8 @@ func TestDatabaseFetchBlocksNamespaceOwned(t *testing.T) {
 		close(mapCh)
 	}()
 
-	ns := ts.StringID("testns1")
-	id := ts.StringID("bar")
+	ns := ident.StringID("testns1")
+	id := ident.StringID("bar")
 	shardID := uint32(0)
 	now := time.Now()
 	starts := []time.Time{now, now.Add(time.Second), now.Add(-time.Second)}
@@ -330,7 +330,7 @@ func TestDatabaseFetchBlocksMetadataShardNotOwned(t *testing.T) {
 	defer ctx.Close()
 
 	var (
-		ns        = ts.StringID("testns1")
+		ns        = ident.StringID("testns1")
 		shardID   = uint32(0)
 		start     = time.Now()
 		end       = start.Add(time.Hour)
@@ -360,7 +360,7 @@ func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
 	defer ctx.Close()
 
 	var (
-		ns        = ts.StringID("testns1")
+		ns        = ident.StringID("testns1")
 		shardID   = uint32(397)
 		start     = time.Now()
 		end       = start.Add(time.Hour)
@@ -379,7 +379,7 @@ func TestDatabaseFetchBlocksMetadataShardOwned(t *testing.T) {
 	}()
 
 	expectedBlocks := block.NewFetchBlocksMetadataResults()
-	expectedBlocks.Add(block.NewFetchBlocksMetadataResult(ts.StringID("bar"), nil))
+	expectedBlocks.Add(block.NewFetchBlocksMetadataResult(ident.StringID("bar"), nil))
 	expectedToken := new(int64)
 	mockNamespace := NewMockdatabaseNamespace(ctrl)
 	mockNamespace.
@@ -558,7 +558,7 @@ func TestDatabaseAddNamespace(t *testing.T) {
 	require.NoError(t, err)
 	md2, err := namespace.NewMetadata(defaultTestNs2ID, defaultTestNs2Opts)
 	require.NoError(t, err)
-	md3, err := namespace.NewMetadata(ts.StringID("and1"), defaultTestNs1Opts)
+	md3, err := namespace.NewMetadata(ident.StringID("and1"), defaultTestNs1Opts)
 	require.NoError(t, err)
 	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2, md3})
 	require.NoError(t, err)
@@ -580,7 +580,7 @@ func TestDatabaseAddNamespace(t *testing.T) {
 	ns2, ok := d.Namespace(defaultTestNs2ID)
 	require.True(t, ok)
 	require.Equal(t, md2.Options(), ns2.Options())
-	ns3, ok := d.Namespace(ts.StringID("and1"))
+	ns3, ok := d.Namespace(ident.StringID("and1"))
 	require.True(t, ok)
 	require.Equal(t, md1.Options(), ns3.Options())
 }

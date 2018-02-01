@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 
@@ -48,7 +48,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("could not create new reader: %v", err)
 	}
-	err = reader.Open(ts.StringID(*optNamespace), *optShard, time.Unix(*optBlockstart, 0))
+	err = reader.Open(ident.StringID(*optNamespace), *optShard, time.Unix(*optBlockstart, 0))
 	if err != nil {
 		log.Fatalf("unable to open reader: %v", err)
 	}

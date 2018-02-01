@@ -34,15 +34,15 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	testNs1ID       = ts.StringID("testNs")
-	testNs2ID       = ts.StringID("testNs2")
+	testNs1ID       = ident.StringID("testNs")
+	testNs2ID       = ident.StringID("testNs2")
 	testNs1Metadata = func(t *testing.T) namespace.Metadata {
 		md, err := namespace.NewMetadata(testNs1ID, namespace.NewOptions().SetRetentionOptions(
 			retention.NewOptions().SetBlockSize(testBlockSize)))
@@ -85,7 +85,7 @@ func createFile(t *testing.T, filePath string, b []byte) {
 	fd.Close()
 }
 
-func createInfoFiles(t *testing.T, namespace ts.ID, shard uint32, iter int) string {
+func createInfoFiles(t *testing.T, namespace ident.ID, shard uint32, iter int) string {
 	dir := createTempDir(t)
 	shardDir := path.Join(dir, dataDirName, namespace.String(), strconv.Itoa(int(shard)))
 	require.NoError(t, os.MkdirAll(shardDir, 0755))

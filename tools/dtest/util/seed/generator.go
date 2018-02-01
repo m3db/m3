@@ -8,7 +8,7 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/sharding"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 )
 
@@ -52,7 +52,7 @@ func NewGenerator(opts Options) Generator {
 	return g
 }
 
-func (g *generator) Generate(namespace ts.ID, shard uint32) error {
+func (g *generator) Generate(namespace ident.ID, shard uint32) error {
 	var (
 		shardSet     = &fakeShardSet{shard}
 		gOpts        = g.opts.GenerateOptions()
@@ -143,7 +143,7 @@ func (f *fakeShardSet) AllIDs() []uint32 {
 	return []uint32{f.shardID}
 }
 
-func (f *fakeShardSet) Lookup(id ts.ID) uint32 {
+func (f *fakeShardSet) Lookup(id ident.ID) uint32 {
 	return f.shardID
 }
 

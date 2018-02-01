@@ -29,13 +29,14 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func createShardDir(t *testing.T, prefix string, namespace ts.ID, shard uint32) string {
+func createShardDir(t *testing.T, prefix string, namespace ident.ID, shard uint32) string {
 	shardDirPath := ShardDirPath(prefix, namespace, shard)
 	err := os.MkdirAll(shardDirPath, os.ModeDir|os.FileMode(0755))
 	require.Nil(t, err)
@@ -103,7 +104,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	blockStart := time.Unix(1000, 0)
 	expectedErr := errors.New("foo")
 
-	writer.EXPECT().Open(ts.NewIDMatcher(testNs1ID.String()),
+	writer.EXPECT().Open(ident.NewIDMatcher(testNs1ID.String()),
 		testBlockSize, shard, blockStart).Return(expectedErr)
 
 	flush, err := pm.StartFlush()
@@ -128,11 +129,11 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	writer.EXPECT().Open(ts.NewIDMatcher(testNs1ID.String()),
+	writer.EXPECT().Open(ident.NewIDMatcher(testNs1ID.String()),
 		testBlockSize, shard, blockStart).Return(nil)
 
 	var (
-		id       = ts.StringID("foo")
+		id       = ident.StringID("foo")
 		head     = checked.NewBytes([]byte{0x1, 0x2}, nil)
 		tail     = checked.NewBytes([]byte{0x3, 0x4}, nil)
 		segment  = ts.NewSegment(head, tail, ts.FinalizeNone)
@@ -185,13 +186,13 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	writer.EXPECT().Open(ts.NewIDMatcher(testNs1ID.String()),
+	writer.EXPECT().Open(ident.NewIDMatcher(testNs1ID.String()),
 		testBlockSize, shard, blockStart).Return(nil)
 
 	var (
 		now      time.Time
 		slept    time.Duration
-		id       = ts.StringID("foo")
+		id       = ident.StringID("foo")
 		head     = checked.NewBytes([]byte{0x1, 0x2}, nil)
 		tail     = checked.NewBytes([]byte{0x3}, nil)
 		segment  = ts.NewSegment(head, tail, ts.FinalizeNone)
@@ -241,7 +242,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		now      time.Time
 		slept    time.Duration
 		iter     = 2
-		id       = ts.StringID("foo")
+		id       = ident.StringID("foo")
 		head     = checked.NewBytes([]byte{0x1, 0x2}, nil)
 		tail     = checked.NewBytes([]byte{0x3}, nil)
 		segment  = ts.NewSegment(head, tail, ts.FinalizeNone)
@@ -251,7 +252,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
 
-	writer.EXPECT().Open(ts.NewIDMatcher(testNs1ID.String()),
+	writer.EXPECT().Open(ident.NewIDMatcher(testNs1ID.String()),
 		testBlockSize, shard, blockStart).Return(nil).Times(iter)
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).AnyTimes()
 	writer.EXPECT().Close().Times(iter)
@@ -329,14 +330,14 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 		assert.NoError(t, flush.Done())
 	}()
 
-	writer.EXPECT().Open(ts.NewIDMatcher(testNs1ID.String()),
+	writer.EXPECT().Open(ident.NewIDMatcher(testNs1ID.String()),
 		testBlockSize, shard, blockStart).Return(nil)
 	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
 	require.NoError(t, err)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)
 
-	writer.EXPECT().Open(ts.NewIDMatcher(testNs2ID.String()),
+	writer.EXPECT().Open(ident.NewIDMatcher(testNs2ID.String()),
 		testBlockSize, shard, blockStart).Return(nil)
 	prepared, err = flush.Prepare(testNs2Metadata(t), shard, blockStart)
 	require.NoError(t, err)

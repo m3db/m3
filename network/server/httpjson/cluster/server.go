@@ -25,11 +25,11 @@ import (
 	"net/http"
 
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/context"
 	ns "github.com/m3db/m3db/network/server"
 	"github.com/m3db/m3db/network/server/httpjson"
 	ttcluster "github.com/m3db/m3db/network/server/tchannelthrift/cluster"
 	xclose "github.com/m3db/m3x/close"
+	"github.com/m3db/m3x/context"
 )
 
 type server struct {

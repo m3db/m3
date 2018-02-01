@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/uber-go/tally"
 )
@@ -120,7 +121,7 @@ func NewPersistManager(opts Options) (persist.Manager, error) {
 }
 
 func (pm *persistManager) persist(
-	id ts.ID,
+	id ident.ID,
 	segment ts.Segment,
 	checksum uint32,
 ) error {

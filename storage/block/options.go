@@ -23,11 +23,11 @@ package block
 import (
 	"io"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 )

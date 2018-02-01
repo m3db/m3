@@ -28,7 +28,7 @@ import (
 
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/leanovate/gopter"
 	"github.com/leanovate/gopter/gen"
@@ -87,7 +87,7 @@ func genMetadata() gopter.Gen {
 			bools     = values[1].([]bool)
 			retention = values[2].(retention.Options)
 		)
-		md, err := namespace.NewMetadata(ts.StringID(id), namespace.NewOptions().
+		md, err := namespace.NewMetadata(ident.StringID(id), namespace.NewOptions().
 			SetNeedsBootstrap(bools[0]).
 			SetNeedsFilesetCleanup(bools[1]).
 			SetNeedsFlush(bools[2]).

@@ -24,8 +24,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/ident"
 )
 
 // NewFetchBlockResult creates a new fetch block result
@@ -121,7 +121,7 @@ func (s *fetchBlockMetadataResults) Close() {
 }
 
 // NewFetchBlocksMetadataResult creates new database blocks metadata
-func NewFetchBlocksMetadataResult(id ts.ID, blocks FetchBlockMetadataResults) FetchBlocksMetadataResult {
+func NewFetchBlocksMetadataResult(id ident.ID, blocks FetchBlockMetadataResults) FetchBlocksMetadataResult {
 	return FetchBlocksMetadataResult{ID: id, Blocks: blocks}
 }
 
@@ -170,7 +170,7 @@ func (s *fetchBlocksMetadataResults) Close() {
 
 type filteredBlocksMetadataIter struct {
 	res      []FetchBlocksMetadataResult
-	id       ts.ID
+	id       ident.ID
 	metadata Metadata
 	resIdx   int
 	blockIdx int
@@ -206,6 +206,6 @@ func (it *filteredBlocksMetadataIter) Next() bool {
 	return true
 }
 
-func (it *filteredBlocksMetadataIter) Current() (ts.ID, Metadata) {
+func (it *filteredBlocksMetadataIter) Current() (ident.ID, Metadata) {
 	return it.id, it.metadata
 }

@@ -21,7 +21,7 @@
 package httpjson
 
 import (
-	m3dbcontext "github.com/m3db/m3db/context"
+	m3dbcontext "github.com/m3db/m3x/context"
 
 	apachethrift "github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber/tchannel-go/thrift"

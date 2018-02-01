@@ -30,7 +30,7 @@ import (
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	nchannel "github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	xretry "github.com/m3db/m3x/retry"
 
@@ -101,7 +101,7 @@ func main() {
 		attemptFn := func() error {
 			tctx, _ := thrift.NewContext(60 * time.Second)
 			req := rpc.NewFetchBlocksMetadataRawRequest()
-			req.NameSpace = ts.StringID(namespace).Data().Get()
+			req.NameSpace = ident.StringID(namespace).Data().Get()
 			req.Shard = int32(shard)
 			req.RangeStart = 0
 			req.RangeEnd = time.Now().Add(365 * 24 * time.Hour).UnixNano()

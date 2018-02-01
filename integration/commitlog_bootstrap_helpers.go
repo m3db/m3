@@ -27,10 +27,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/persist/fs/commitlog"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -98,7 +98,7 @@ func writeCommitLogData(
 	t *testing.T,
 	s *testSetup,
 	data generate.SeriesBlocksByStart,
-	namespace ts.ID,
+	namespace ident.ID,
 ) {
 	writeCommitLogDataBase(t, s, data, namespace, nil)
 }
@@ -108,7 +108,7 @@ func writeCommitLogDataSpecifiedTS(
 	t *testing.T,
 	s *testSetup,
 	data generate.SeriesBlocksByStart,
-	namespace ts.ID,
+	namespace ident.ID,
 	ts time.Time,
 ) {
 	writeCommitLogDataBase(t, s, data, namespace, &ts)
@@ -119,7 +119,7 @@ func writeCommitLogDataBase(
 	t *testing.T,
 	s *testSetup,
 	data generate.SeriesBlocksByStart,
-	namespace ts.ID,
+	namespace ident.ID,
 	specifiedTS *time.Time,
 ) {
 	// ensure commit log is flushing frequently

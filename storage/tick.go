@@ -26,8 +26,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/uber-go/tally"

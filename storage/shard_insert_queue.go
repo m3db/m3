@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -115,7 +116,7 @@ type dbShardPendingWrite struct {
 }
 
 type dbShardPendingRetrievedBlock struct {
-	id      ts.ID
+	id      ident.ID
 	start   time.Time
 	segment ts.Segment
 }

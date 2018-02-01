@@ -27,7 +27,7 @@ import (
 
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,14 +51,14 @@ func TestPeerBlocksMetadataIter(t *testing.T) {
 	checksums := []uint32{1, 2, 3}
 	lastRead := now.Add(-100 * time.Millisecond)
 	inputs := []blocksMetadata{
-		{peer: peer, id: ts.StringID("foo"), blocks: []blockMetadata{
+		{peer: peer, id: ident.StringID("foo"), blocks: []blockMetadata{
 			{start: now, size: int64(1), checksum: &checksums[0]},
 			{start: now.Add(time.Second), size: int64(2), checksum: &checksums[1], lastRead: lastRead},
 		}},
-		{peer: peer, id: ts.StringID("bar"), blocks: []blockMetadata{
+		{peer: peer, id: ident.StringID("bar"), blocks: []blockMetadata{
 			{start: now, size: int64(3), checksum: &checksums[2], lastRead: lastRead},
 		}},
-		{peer: peer, id: ts.StringID("baz"), blocks: []blockMetadata{
+		{peer: peer, id: ident.StringID("baz"), blocks: []blockMetadata{
 			{start: now, size: int64(4), checksum: nil, lastRead: lastRead},
 		}},
 	}
@@ -84,17 +84,17 @@ func TestPeerBlocksMetadataIter(t *testing.T) {
 	}
 
 	expected := []testHostBlocks{
-		{h, block.NewBlocksMetadata(ts.StringID("foo"), []block.Metadata{
+		{h, block.NewBlocksMetadata(ident.StringID("foo"), []block.Metadata{
 			block.NewMetadata(inputs[0].blocks[0].start, inputs[0].blocks[0].size,
 				inputs[0].blocks[0].checksum, inputs[0].blocks[0].lastRead),
 			block.NewMetadata(inputs[0].blocks[1].start, inputs[0].blocks[1].size,
 				inputs[0].blocks[1].checksum, inputs[0].blocks[1].lastRead),
 		})},
-		{h, block.NewBlocksMetadata(ts.StringID("bar"), []block.Metadata{
+		{h, block.NewBlocksMetadata(ident.StringID("bar"), []block.Metadata{
 			block.NewMetadata(inputs[1].blocks[0].start, inputs[1].blocks[0].size,
 				inputs[1].blocks[0].checksum, inputs[1].blocks[0].lastRead),
 		})},
-		{h, block.NewBlocksMetadata(ts.StringID("baz"), []block.Metadata{
+		{h, block.NewBlocksMetadata(ident.StringID("baz"), []block.Metadata{
 			block.NewMetadata(inputs[2].blocks[0].start, inputs[2].blocks[0].size,
 				inputs[2].blocks[0].checksum, inputs[2].blocks[0].lastRead),
 		})},

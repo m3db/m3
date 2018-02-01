@@ -41,7 +41,7 @@ import (
 
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/tools"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 )
 
@@ -205,7 +205,7 @@ func newReader(namespace, pathPrefix, hostName string, shard uint32, start time.
 	if err != nil {
 		return nil, err
 	}
-	err = reader.Open(ts.StringID(namespace), shard, start)
+	err = reader.Open(ident.StringID(namespace), shard, start)
 	return reader, err
 }
 

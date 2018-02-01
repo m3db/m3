@@ -35,7 +35,7 @@ import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -225,7 +225,7 @@ func newNamespaceMetadata(cfg StaticNamespaceConfiguration) (namespace.Metadata,
 		}
 	}
 	md, err := namespace.NewMetadata(
-		ts.StringID(cfg.Name),
+		ident.StringID(cfg.Name),
 		namespace.NewOptions().
 			SetNeedsBootstrap(cfg.Options.NeedsBootstrap).
 			SetNeedsFilesetCleanup(cfg.Options.NeedsFilesetCleanup).

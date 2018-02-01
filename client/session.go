@@ -33,7 +33,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
@@ -45,7 +44,9 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	xretry "github.com/m3db/m3x/retry"
@@ -139,7 +140,7 @@ type session struct {
 	fetchRetrier                     xretry.Retrier
 	streamBlocksRetrier              xretry.Retrier
 	contextPool                      context.Pool
-	idPool                           ts.IdentifierPool
+	idPool                           ident.IdentifierPool
 	writeOpPool                      *writeOpPool
 	fetchBatchOpPool                 *fetchBatchOpPool
 	fetchBatchOpArrayArrayPool       *fetchBatchOpArrayArrayPool
@@ -278,7 +279,7 @@ func (s *session) ShardID(id string) (uint32, error) {
 		s.RUnlock()
 		return 0, errSessionStateNotOpen
 	}
-	value := s.topoMap.ShardSet().Lookup(ts.StringID(id))
+	value := s.topoMap.ShardSet().Lookup(ident.StringID(id))
 	s.RUnlock()
 	return value, nil
 }
@@ -1014,7 +1015,7 @@ func (s *session) fetchAllAttempt(
 			}
 		}
 
-		tsID := ts.StringID(ids[idx])
+		tsID := ident.StringID(ids[idx])
 
 		if err := s.topoMap.RouteForEach(tsID, func(hostIdx int, host topology.Host) {
 			// Inc safely as this for each is sequential
@@ -1178,7 +1179,7 @@ func (s *session) Replicas() int {
 	return int(atomic.LoadInt32(&s.replicas))
 }
 
-func (s *session) Truncate(namespace ts.ID) (int64, error) {
+func (s *session) Truncate(namespace ident.ID) (int64, error) {
 	var (
 		wg            sync.WaitGroup
 		enqueueErr    xerrors.MultiError
@@ -1240,7 +1241,7 @@ func (s *session) peersForShard(shard uint32) ([]peer, error) {
 }
 
 func (s *session) FetchBlocksMetadataFromPeers(
-	namespace ts.ID,
+	namespace ident.ID,
 	shard uint32,
 	start, end time.Time,
 	version FetchBlocksMetadataEndpointVersion,
@@ -1425,7 +1426,7 @@ func (s *session) FetchBlocksFromPeers(
 }
 
 func (s *session) streamBlocksMetadataFromPeers(
-	namespace ts.ID,
+	namespace ident.ID,
 	shard uint32,
 	peers []peer,
 	start, end time.Time,
@@ -1484,7 +1485,7 @@ func (s *session) streamBlocksMetadataFromPeers(
 
 // TODO(rartoul): Delete this once we delete the V1 code path
 func (s *session) streamBlocksMetadataFromPeer(
-	namespace ts.ID,
+	namespace ident.ID,
 	shard uint32,
 	peer peer,
 	start, end time.Time,
@@ -1600,7 +1601,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 			}
 			ch <- blocksMetadata{
 				peer:   peer,
-				id:     ts.BinaryID(checked.NewBytes(elem.ID, nil)),
+				id:     ident.BinaryID(checked.NewBytes(elem.ID, nil)),
 				blocks: blockMetas,
 			}
 		}
@@ -1632,7 +1633,7 @@ func (s *session) streamBlocksMetadataFromPeer(
 // function, however, they're only allocated once per peer/shard combination
 // for the entire peer bootstrapping process so performance is acceptable
 func (s *session) streamBlocksMetadataFromPeerV2(
-	namespace ts.ID,
+	namespace ident.ID,
 	shard uint32,
 	peer peer,
 	start, end time.Time,
@@ -1703,7 +1704,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 				progress.metadataFetchBatchBlockErr.Inc(1)
 				metadataCh <- blocksMetadata{
 					peer: peer,
-					id:   ts.BinaryID(checked.NewBytes(elem.ID, nil)),
+					id:   ident.BinaryID(checked.NewBytes(elem.ID, nil)),
 					blocks: []blockMetadata{
 						{start: blockStart},
 					},
@@ -1738,7 +1739,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 
 			metadataCh <- blocksMetadata{
 				peer: peer,
-				id:   ts.BinaryID(checked.NewBytes(elem.ID, nil)),
+				id:   ident.BinaryID(checked.NewBytes(elem.ID, nil)),
 				blocks: []blockMetadata{
 					{start: blockStart,
 						size:     size,
@@ -1877,7 +1878,7 @@ func (s *session) streamAndGroupCollectedBlocksMetadata(
 	metadataCh <-chan blocksMetadata,
 	enqueueCh *enqueueChannel,
 ) {
-	metadata := make(map[ts.Hash]*receivedBlocks)
+	metadata := make(map[ident.Hash]*receivedBlocks)
 
 	for {
 		m, ok := <-metadataCh
@@ -2517,7 +2518,7 @@ func (s *session) streamBlocksReattemptFromPeersEnqueue(
 }
 
 type blocksResult interface {
-	addBlockFromPeer(id ts.ID, peer topology.Host, block *rpc.Block) error
+	addBlockFromPeer(id ident.ID, peer topology.Host, block *rpc.Block) error
 }
 
 type baseBlocksResult struct {
@@ -2653,12 +2654,12 @@ func newStreamBlocksResult(
 }
 
 type peerBlocksDatapoint struct {
-	id    ts.ID
+	id    ident.ID
 	peer  topology.Host
 	block block.DatabaseBlock
 }
 
-func (s *streamBlocksResult) addBlockFromPeer(id ts.ID, peer topology.Host, block *rpc.Block) error {
+func (s *streamBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, block *rpc.Block) error {
 	result, err := s.newDatabaseBlock(block)
 	if err != nil {
 		return err
@@ -2689,7 +2690,7 @@ func newPeerBlocksIter(
 	}
 }
 
-func (it *peerBlocksIter) Current() (topology.Host, ts.ID, block.DatabaseBlock) {
+func (it *peerBlocksIter) Current() (topology.Host, ident.ID, block.DatabaseBlock) {
 	return it.current.peer, it.current.id, it.current.block
 }
 
@@ -2729,7 +2730,7 @@ func newBulkBlocksResult(
 	}
 }
 
-func (r *bulkBlocksResult) addBlockFromPeer(id ts.ID, peer topology.Host, block *rpc.Block) error {
+func (r *bulkBlocksResult) addBlockFromPeer(id ident.ID, peer topology.Host, block *rpc.Block) error {
 	start := time.Unix(0, block.Start)
 	result, err := r.newDatabaseBlock(block)
 	if err != nil {
@@ -3008,7 +3009,7 @@ func (qs peerBlocksQueues) closeAll() {
 
 type blocksMetadata struct {
 	peer peer
-	id   ts.ID
+	id   ident.ID
 	// TODO(rartoul): Make this not a slice once we delete the V1 code path
 	blocks []blockMetadata
 	idx    int
@@ -3096,7 +3097,7 @@ type blockMetadata struct {
 type blockMetadataReattempt struct {
 	attempt       int
 	failAllowed   *int32
-	id            ts.ID
+	id            ident.ID
 	attempted     []peer
 	errs          []error
 	peersMetadata []blockMetadataReattemptPeerMetadata
@@ -3194,7 +3195,7 @@ func (it *metadataIter) Err() error {
 }
 
 type hashAndBlockStart struct {
-	hash       ts.Hash
+	hash       ident.Hash
 	blockStart int64
 }
 

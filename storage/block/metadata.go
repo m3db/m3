@@ -23,7 +23,7 @@ package block
 import (
 	"time"
 
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 )
 
 // NewMetadata creates a new block metadata
@@ -42,6 +42,6 @@ func NewMetadata(
 }
 
 // NewBlocksMetadata creates a new blocks metadata
-func NewBlocksMetadata(id ts.ID, blocks []Metadata) BlocksMetadata {
+func NewBlocksMetadata(id ident.ID, blocks []Metadata) BlocksMetadata {
 	return BlocksMetadata{ID: id, Blocks: blocks}
 }

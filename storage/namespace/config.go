@@ -24,7 +24,7 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 )
 
 // MapConfiguration is the configuration for a registry of namespaces
@@ -75,5 +75,5 @@ func (mc *MetadataConfiguration) Metadata() (Metadata, error) {
 	if v := mc.NeedsRepair; v != nil {
 		opts = opts.SetNeedsRepair(*v)
 	}
-	return NewMetadata(ts.StringID(mc.ID), opts)
+	return NewMetadata(ident.StringID(mc.ID), opts)
 }

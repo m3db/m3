@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/storage/block"
-	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -59,15 +59,15 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 	defer ctx.Close()
 
 	retriever.EXPECT().
-		Stream(ctx, ts.NewIDMatcher("foo"),
+		Stream(ctx, ident.NewIDMatcher("foo"),
 			start, onRetrieveBlock).
 		Return(segReaders[0], nil)
 	retriever.EXPECT().
-		Stream(ctx, ts.NewIDMatcher("foo"),
+		Stream(ctx, ident.NewIDMatcher("foo"),
 			start.Add(ropts.BlockSize()), onRetrieveBlock).
 		Return(segReaders[1], nil)
 
-	reader := NewReaderUsingRetriever(ts.StringID("foo"),
+	reader := NewReaderUsingRetriever(ident.StringID("foo"),
 		retriever, onRetrieveBlock, opts)
 
 	// Check reads as expected
@@ -106,15 +106,15 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 	defer ctx.Close()
 
 	retriever.EXPECT().
-		Stream(ctx, ts.NewIDMatcher("foo"),
+		Stream(ctx, ident.NewIDMatcher("foo"),
 			start, nil).
 		Return(segReaders[0], nil)
 	retriever.EXPECT().
-		Stream(ctx, ts.NewIDMatcher("foo"),
+		Stream(ctx, ident.NewIDMatcher("foo"),
 			start.Add(ropts.BlockSize()), nil).
 		Return(segReaders[1], nil)
 
-	reader := NewReaderUsingRetriever(ts.StringID("foo"),
+	reader := NewReaderUsingRetriever(ident.StringID("foo"),
 		retriever, onRetrieveBlock, opts)
 
 	// Check reads as expected

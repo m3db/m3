@@ -26,13 +26,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -60,7 +61,7 @@ type dbSeries struct {
 	// series ID before changing ownership semantics (e.g.
 	// pooling the ID rather than releasing it to the GC on
 	// calling series.Reset()).
-	id ts.ID
+	id ident.ID
 
 	buffer          databaseBuffer
 	blocks          block.DatabaseSeriesBlocks
@@ -71,7 +72,7 @@ type dbSeries struct {
 }
 
 // NewDatabaseSeries creates a new database series
-func NewDatabaseSeries(id ts.ID, opts Options) DatabaseSeries {
+func NewDatabaseSeries(id ident.ID, opts Options) DatabaseSeries {
 	s := newDatabaseSeries()
 	s.Reset(id, nil, nil, opts)
 	return s
@@ -100,7 +101,7 @@ func (s *dbSeries) now() time.Time {
 	return nowFn()
 }
 
-func (s *dbSeries) ID() ts.ID {
+func (s *dbSeries) ID() ident.ID {
 	s.RLock()
 	id := s.id
 	s.RUnlock()
@@ -433,7 +434,7 @@ func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
 }
 
 func (s *dbSeries) OnRetrieveBlock(
-	id ts.ID,
+	id ident.ID,
 	startTime time.Time,
 	segment ts.Segment,
 ) {
@@ -527,7 +528,7 @@ func (s *dbSeries) Close() {
 }
 
 func (s *dbSeries) Reset(
-	id ts.ID,
+	id ident.ID,
 	blockRetriever QueryableBlockRetriever,
 	onRetrieveBlock block.OnRetrieveBlock,
 	opts Options,

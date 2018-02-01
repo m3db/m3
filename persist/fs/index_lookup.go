@@ -26,8 +26,8 @@ import (
 	"fmt"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/mmap"
+	"github.com/m3db/m3x/ident"
 
 	xmsgpack "github.com/m3db/m3db/persist/fs/msgpack"
 	"gopkg.in/vmihailenco/msgpack.v2"
@@ -84,7 +84,7 @@ func (il *nearestIndexOffsetLookup) concurrentClone() (*nearestIndexOffsetLookup
 //               we scan the index file sequentially in a forward-moving manner)
 // In other words, the returned offset can always be used as a starting point to
 // begin scanning the index file for the desired series.
-func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(id ts.ID) (int64, error) {
+func (il *nearestIndexOffsetLookup) getNearestIndexFileOffset(id ident.ID) (int64, error) {
 	idBytes := id.Data().Get()
 
 	min := 0

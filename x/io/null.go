@@ -20,9 +20,7 @@
 
 package xio
 
-import (
-	"github.com/m3db/m3db/ts"
-)
+import "github.com/m3db/m3db/ts"
 
 // nolint: deadcode
 type nullSegmentReader struct{}

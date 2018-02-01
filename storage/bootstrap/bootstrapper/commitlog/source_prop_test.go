@@ -29,11 +29,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 
 	xtime "github.com/m3db/m3x/time"
 
@@ -202,9 +203,9 @@ func genWrite(start time.Time, ns string) gopter.Gen {
 
 		return generatedWrite{
 			series: commitlog.Series{
-				ID:          ts.StringID(id),
-				Namespace:   ts.StringID(ns),
-				Shard:       hashIDToShard(ts.StringID(id)),
+				ID:          ident.StringID(id),
+				Namespace:   ident.StringID(ns),
+				Shard:       hashIDToShard(ident.StringID(id)),
 				UniqueIndex: seriesUniqueIndex(id),
 			},
 			datapoint: ts.Datapoint{
@@ -244,6 +245,6 @@ func seriesUniqueIndex(series string) uint64 {
 }
 
 // hashIDToShard generates a HashFn based on murmur32
-func hashIDToShard(id ts.ID) uint32 {
+func hashIDToShard(id ident.ID) uint32 {
 	return murmur3.Sum32(id.Data().Get()) % uint32(maxShards)
 }

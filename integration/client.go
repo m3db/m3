@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/ident"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
 
@@ -51,7 +52,7 @@ func tchannelClient(address string) (*tchannel.Channel, rpc.TChanNode, error) {
 }
 
 // tchannelClientWriteBatch writes a data map using a tchannel client.
-func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, namespace ts.ID, seriesList generate.SeriesBlock) error {
+func tchannelClientWriteBatch(client rpc.TChanNode, timeout time.Duration, namespace ident.ID, seriesList generate.SeriesBlock) error {
 	var elems []*rpc.WriteBatchRawRequestElement
 	for _, series := range seriesList {
 		for _, dp := range series.Data {
@@ -102,7 +103,7 @@ func m3dbAdminClient(opts client.AdminOptions) (client.AdminClient, error) {
 }
 
 // m3dbClientWriteBatch writes a data map using an m3db client.
-func m3dbClientWriteBatch(client client.Client, workerPool xsync.WorkerPool, namespace ts.ID, seriesList generate.SeriesBlock) error {
+func m3dbClientWriteBatch(client client.Client, workerPool xsync.WorkerPool, namespace ident.ID, seriesList generate.SeriesBlock) error {
 	session, err := client.DefaultSession()
 	if err != nil {
 		return err
@@ -178,13 +179,13 @@ func m3dbClientTruncate(c client.Client, req *rpc.TruncateRequest) (int64, error
 		return 0, errors.New("unable to get an admin session")
 	}
 
-	return adminSession.Truncate(ts.BinaryID(checked.NewBytes(req.NameSpace, nil)))
+	return adminSession.Truncate(ident.BinaryID(checked.NewBytes(req.NameSpace, nil)))
 }
 
 // nolint: deadcode
 func m3dbClientFetchBlocksMetadata(
 	c client.AdminClient,
-	namespace ts.ID,
+	namespace ident.ID,
 	shards []uint32,
 	start, end time.Time,
 	version client.FetchBlocksMetadataEndpointVersion,
@@ -197,7 +198,7 @@ func m3dbClientFetchBlocksMetadata(
 	metadatasByShard := make(map[uint32][]block.ReplicaMetadata, 10)
 
 	// iterate over all shards
-	seen := make(map[ts.Hash]map[xtime.UnixNano]struct{})
+	seen := make(map[ident.Hash]map[xtime.UnixNano]struct{})
 	for _, shardID := range shards {
 		// clear seen
 		for key := range seen {

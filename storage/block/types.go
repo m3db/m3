@@ -23,13 +23,14 @@ package block
 import (
 	"time"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
@@ -45,7 +46,7 @@ type Metadata struct {
 
 // BlocksMetadata contains blocks metadata from a peer
 type BlocksMetadata struct {
-	ID     ts.ID
+	ID     ident.ID
 	Blocks []Metadata
 }
 
@@ -54,7 +55,7 @@ type BlocksMetadata struct {
 type ReplicaMetadata struct {
 	Metadata
 
-	ID   ts.ID
+	ID   ident.ID
 	Host topology.Host
 }
 
@@ -64,7 +65,7 @@ type FilteredBlocksMetadataIter interface {
 	Next() bool
 
 	// Current returns the current id and block metadata
-	Current() (ts.ID, Metadata)
+	Current() (ident.ID, Metadata)
 }
 
 // FetchBlockResult captures the block start time, the readers for the underlying streams, the
@@ -111,7 +112,7 @@ type FetchBlockMetadataResults interface {
 
 // FetchBlocksMetadataResult captures the fetch results for multiple blocks.
 type FetchBlocksMetadataResult struct {
-	ID     ts.ID
+	ID     ident.ID
 	Blocks FetchBlockMetadataResults
 }
 
@@ -189,7 +190,7 @@ type DatabaseBlock interface {
 // OnRetrieveBlock is an interface to callback on when a block is retrieved.
 type OnRetrieveBlock interface {
 	OnRetrieveBlock(
-		id ts.ID,
+		id ident.ID,
 		startTime time.Time,
 		segment ts.Segment,
 	)
@@ -198,14 +199,14 @@ type OnRetrieveBlock interface {
 // OnRetrieveBlockFn is a function implementation for the
 // OnRetrieveBlock interface.
 type OnRetrieveBlockFn func(
-	id ts.ID,
+	id ident.ID,
 	startTime time.Time,
 	segment ts.Segment,
 )
 
 // OnRetrieveBlock implements the OnRetrieveBlock interface.
 func (fn OnRetrieveBlockFn) OnRetrieveBlock(
-	id ts.ID,
+	id ident.ID,
 	startTime time.Time,
 	segment ts.Segment,
 ) {
@@ -214,7 +215,7 @@ func (fn OnRetrieveBlockFn) OnRetrieveBlock(
 
 // RetrievableBlockMetadata describes a retrievable block.
 type RetrievableBlockMetadata struct {
-	ID       ts.ID
+	ID       ident.ID
 	Length   int
 	Checksum uint32
 }
@@ -229,7 +230,7 @@ type DatabaseBlockRetriever interface {
 	Stream(
 		ctx context.Context,
 		shard uint32,
-		id ts.ID,
+		id ident.ID,
 		blockStart time.Time,
 		onRetrieve OnRetrieveBlock,
 	) (xio.SegmentReader, error)
@@ -240,7 +241,7 @@ type DatabaseShardBlockRetriever interface {
 	// Stream will stream a block for a given id and start.
 	Stream(
 		ctx context.Context,
-		id ts.ID,
+		id ident.ID,
 		blockStart time.Time,
 		onRetrieve OnRetrieveBlock,
 	) (xio.SegmentReader, error)

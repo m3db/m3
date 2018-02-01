@@ -22,14 +22,14 @@ package sharding
 
 import (
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 )
 
 // HashGen generates HashFn based on the length of shards
 type HashGen func(length int) HashFn
 
 // HashFn is a sharding hash function
-type HashFn func(id ts.ID) uint32
+type HashFn func(id ident.ID) uint32
 
 // ShardSet contains a sharding function and a set of shards, this interface
 // allows for potentially out of order shard sets
@@ -41,7 +41,7 @@ type ShardSet interface {
 	AllIDs() []uint32
 
 	// Lookup will return a shard for a given identifier
-	Lookup(id ts.ID) uint32
+	Lookup(id ident.ID) uint32
 
 	// LookupStateByID returns the state of the shard with a given ID
 	LookupStateByID(shardID uint32) (shard.State, error)

@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
@@ -36,9 +35,10 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/metrics"
+	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/fortytw2/leaktest"
@@ -58,12 +58,12 @@ func newTestNamespace(t *testing.T) *dbNamespace {
 
 func newTestNamespaceWithIDOpts(
 	t *testing.T,
-	nsID ts.ID,
+	nsID ident.ID,
 	opts namespace.Options,
 ) *dbNamespace {
 	metadata, err := namespace.NewMetadata(nsID, opts)
 	require.NoError(t, err)
-	hashFn := func(identifier ts.ID) uint32 { return testShardIDs[0].ID() }
+	hashFn := func(identifier ident.ID) uint32 { return testShardIDs[0].ID() }
 	shardSet, err := sharding.NewShardSet(testShardIDs, hashFn)
 	require.NoError(t, err)
 	dopts := testDatabaseOptions()
@@ -121,7 +121,7 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 	for i := range ns.shards {
 		ns.shards[i] = nil
 	}
-	err := ns.Write(ctx, ts.StringID("foo"), time.Now(), 0.0, xtime.Second, nil)
+	err := ns.Write(ctx, ident.StringID("foo"), time.Now(), 0.0, xtime.Second, nil)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 0", err.Error())
@@ -134,7 +134,7 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	id := ts.StringID("foo")
+	id := ident.StringID("foo")
 	ts := time.Now()
 	val := 0.0
 	unit := xtime.Second
@@ -156,7 +156,7 @@ func TestNamespaceReadEncodedShardNotOwned(t *testing.T) {
 	for i := range ns.shards {
 		ns.shards[i] = nil
 	}
-	_, err := ns.ReadEncoded(ctx, ts.StringID("foo"), time.Now(), time.Now())
+	_, err := ns.ReadEncoded(ctx, ident.StringID("foo"), time.Now(), time.Now())
 	require.Error(t, err)
 }
 
@@ -167,7 +167,7 @@ func TestNamespaceReadEncodedShardOwned(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	id := ts.StringID("foo")
+	id := ident.StringID("foo")
 	start := time.Now()
 	end := time.Now().Add(time.Second)
 
@@ -195,7 +195,7 @@ func TestNamespaceFetchBlocksShardNotOwned(t *testing.T) {
 	for i := range ns.shards {
 		ns.shards[i] = nil
 	}
-	_, err := ns.FetchBlocks(ctx, testShardIDs[0].ID(), ts.StringID("foo"), nil)
+	_, err := ns.FetchBlocks(ctx, testShardIDs[0].ID(), ident.StringID("foo"), nil)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 0", err.Error())
 }
@@ -209,16 +209,16 @@ func TestNamespaceFetchBlocksShardOwned(t *testing.T) {
 
 	ns := newTestNamespace(t)
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().FetchBlocks(ctx, ts.NewIDMatcher("foo"), nil).Return(nil, nil)
+	shard.EXPECT().FetchBlocks(ctx, ident.NewIDMatcher("foo"), nil).Return(nil, nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
 	shard.EXPECT().IsBootstrapped().Return(true)
-	res, err := ns.FetchBlocks(ctx, testShardIDs[0].ID(), ts.StringID("foo"), nil)
+	res, err := ns.FetchBlocks(ctx, testShardIDs[0].ID(), ident.StringID("foo"), nil)
 	require.NoError(t, err)
 	require.Nil(t, res)
 
 	shard.EXPECT().IsBootstrapped().Return(false)
-	_, err = ns.FetchBlocks(ctx, testShardIDs[0].ID(), ts.StringID("foo"), nil)
+	_, err = ns.FetchBlocks(ctx, testShardIDs[0].ID(), ident.StringID("foo"), nil)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, errShardNotBootstrappedToRead, xerrors.GetInnerRetryableError(err))
@@ -537,7 +537,7 @@ func TestNamespaceAssignShardSet(t *testing.T) {
 
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID, namespace.NewOptions())
 	require.NoError(t, err)
-	hashFn := func(identifier ts.ID) uint32 { return shards[0].ID() }
+	hashFn := func(identifier ident.ID) uint32 { return shards[0].ID() }
 	shardSet, err := sharding.NewShardSet(prevAssignment.All(), hashFn)
 	require.NoError(t, err)
 	dopts := testDatabaseOptions()
@@ -608,7 +608,7 @@ func newNeedsFlushNamespace(t *testing.T, shardNumbers []uint32) *dbNamespace {
 	dopts := testDatabaseOptions()
 
 	var (
-		hashFn = func(identifier ts.ID) uint32 { return shards[0].ID() }
+		hashFn = func(identifier ident.ID) uint32 { return shards[0].ID() }
 	)
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
@@ -750,7 +750,7 @@ func TestNamespaceNeedsFlushAllSuccess(t *testing.T) {
 	)
 
 	var (
-		hashFn = func(identifier ts.ID) uint32 { return shards[0].ID() }
+		hashFn = func(identifier ident.ID) uint32 { return shards[0].ID() }
 	)
 	metadata, err := namespace.NewMetadata(defaultTestNs1ID, defaultTestNs1Opts)
 	require.NoError(t, err)
@@ -794,7 +794,7 @@ func TestNamespaceNeedsFlushCountsLeastNumFailures(t *testing.T) {
 
 	var (
 		ropts  = testNs.Options().RetentionOptions()
-		hashFn = func(identifier ts.ID) uint32 { return shards[0].ID() }
+		hashFn = func(identifier ident.ID) uint32 { return shards[0].ID() }
 	)
 	shardSet, err := sharding.NewShardSet(shards, hashFn)
 	require.NoError(t, err)
@@ -848,7 +848,7 @@ func TestNamespaceNeedsFlushAnyNotStarted(t *testing.T) {
 
 	var (
 		ropts  = testNs.Options().RetentionOptions()
-		hashFn = func(identifier ts.ID) uint32 { return shards[0].ID() }
+		hashFn = func(identifier ident.ID) uint32 { return shards[0].ID() }
 	)
 	shardSet, err := sharding.NewShardSet(shards, hashFn)
 	require.NoError(t, err)

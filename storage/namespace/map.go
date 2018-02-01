@@ -24,8 +24,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/m3db/m3db/ts"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 )
 
 var (
@@ -33,8 +33,8 @@ var (
 )
 
 type nsMap struct {
-	namespaces map[ts.Hash]Metadata
-	ids        []ts.ID
+	namespaces map[ident.Hash]Metadata
+	ids        []ident.ID
 	metadatas  []Metadata
 }
 
@@ -45,10 +45,10 @@ func NewMap(metadatas []Metadata) (Map, error) {
 	}
 
 	var (
-		ns          = make(map[ts.Hash]Metadata, len(metadatas))
-		ids         = make([]ts.ID, 0, len(metadatas))
+		ns          = make(map[ident.Hash]Metadata, len(metadatas))
+		ids         = make([]ident.ID, 0, len(metadatas))
 		nsMetadatas = make([]Metadata, 0, len(metadatas))
-		idsMap      = make(map[ts.Hash]struct{})
+		idsMap      = make(map[ident.Hash]struct{})
 		multiErr    xerrors.MultiError
 	)
 	for _, m := range metadatas {
@@ -75,7 +75,7 @@ func NewMap(metadatas []Metadata) (Map, error) {
 	}, nil
 }
 
-func (r *nsMap) Get(namespace ts.ID) (Metadata, error) {
+func (r *nsMap) Get(namespace ident.ID) (Metadata, error) {
 	idHash := namespace.Hash()
 	metadata, ok := r.namespaces[idHash]
 	if !ok {
@@ -84,7 +84,7 @@ func (r *nsMap) Get(namespace ts.ID) (Metadata, error) {
 	return metadata, nil
 }
 
-func (r *nsMap) IDs() []ts.ID {
+func (r *nsMap) IDs() []ident.ID {
 	return r.ids
 }
 

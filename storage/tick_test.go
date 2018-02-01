@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3x/context"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"

@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/persist"
@@ -39,9 +38,10 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/counter"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 )
@@ -128,7 +128,7 @@ type options struct {
 	segmentReaderPool              xio.SegmentReaderPool
 	readerIteratorPool             encoding.ReaderIteratorPool
 	multiReaderIteratorPool        encoding.MultiReaderIteratorPool
-	identifierPool                 ts.IdentifierPool
+	identifierPool                 ident.IdentifierPool
 	fetchBlockMetadataResultsPool  block.FetchBlockMetadataResultsPool
 	fetchBlocksMetadataResultsPool block.FetchBlocksMetadataResultsPool
 }
@@ -167,7 +167,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		segmentReaderPool:              xio.NewSegmentReaderPool(poolOpts),
 		readerIteratorPool:             encoding.NewReaderIteratorPool(poolOpts),
 		multiReaderIteratorPool:        encoding.NewMultiReaderIteratorPool(poolOpts),
-		identifierPool:                 ts.NewIdentifierPool(bytesPool, poolOpts),
+		identifierPool:                 ident.NewIdentifierPool(bytesPool, poolOpts),
 		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(poolOpts, 0),
 		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
 	}
@@ -534,13 +534,13 @@ func (o *options) MultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 	return o.multiReaderIteratorPool
 }
 
-func (o *options) SetIdentifierPool(value ts.IdentifierPool) Options {
+func (o *options) SetIdentifierPool(value ident.IdentifierPool) Options {
 	opts := *o
 	opts.identifierPool = value
 	return &opts
 }
 
-func (o *options) IdentifierPool() ts.IdentifierPool {
+func (o *options) IdentifierPool() ident.IdentifierPool {
 	return o.identifierPool
 }
 

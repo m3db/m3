@@ -26,7 +26,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -103,10 +103,10 @@ type ReplicaSeriesMetadata interface {
 	NumBlocks() int64
 
 	// Series returns the series metadata
-	Series() map[ts.Hash]ReplicaSeriesBlocksMetadata
+	Series() map[ident.Hash]ReplicaSeriesBlocksMetadata
 
 	// GetOrAdd returns the series metadata for an id, creating one if it doesn't exist
-	GetOrAdd(id ts.ID) ReplicaBlocksMetadata
+	GetOrAdd(id ident.ID) ReplicaBlocksMetadata
 
 	// Close performs cleanup
 	Close()
@@ -114,7 +114,7 @@ type ReplicaSeriesMetadata interface {
 
 // ReplicaSeriesBlocksMetadata represents series metadata and an associated ID.
 type ReplicaSeriesBlocksMetadata struct {
-	ID       ts.ID
+	ID       ident.ID
 	Metadata ReplicaBlocksMetadata
 }
 

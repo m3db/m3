@@ -22,11 +22,11 @@ package cluster
 
 import (
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	ns "github.com/m3db/m3db/network/server"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	xclose "github.com/m3db/m3x/close"
+	"github.com/m3db/m3x/context"
 
 	"github.com/uber/tchannel-go"
 )

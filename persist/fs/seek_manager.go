@@ -27,8 +27,8 @@ import (
 
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/ts"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
@@ -73,7 +73,7 @@ type seekerManager struct {
 
 	status                 seekerManagerStatus
 	seekersByShardIdx      []*seekersByTime
-	namespace              ts.ID
+	namespace              ident.ID
 	namespaceMetadata      namespace.Metadata
 	unreadBuf              seekerUnreadBuf
 	openAnyUnopenSeekersFn openAnyUnopenSeekersFn

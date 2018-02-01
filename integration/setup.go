@@ -49,6 +49,7 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
@@ -67,7 +68,7 @@ var (
 
 	errServerStartTimedOut   = errors.New("server took too long to start")
 	errServerStopTimedOut    = errors.New("server took too long to stop")
-	testNamespaces           = []ts.ID{ts.StringID("testNs1"), ts.StringID("testNs2")}
+	testNamespaces           = []ident.ID{ident.StringID("testNs1"), ident.StringID("testNs2")}
 	testNativePoolingBuckets = []pool.Bucket{{Capacity: 4096, Count: 256}}
 
 	created = uint64(0)
@@ -130,7 +131,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 
 		storageOpts = storageOpts.SetBytesPool(bytesPool)
 
-		idPool := ts.NewNativeIdentifierPool(bytesPool, nil)
+		idPool := ident.NewNativeIdentifierPool(bytesPool, nil)
 
 		storageOpts = storageOpts.SetIdentifierPool(idPool)
 	}
@@ -338,7 +339,7 @@ func guessBestTruncateBlockSize(mds []namespace.Metadata) (time.Duration, bool) 
 	return guess, true
 }
 
-func (ts *testSetup) namespaceMetadataOrFail(id ts.ID) namespace.Metadata {
+func (ts *testSetup) namespaceMetadataOrFail(id ident.ID) namespace.Metadata {
 	for _, md := range ts.namespaces {
 		if md.ID().Equal(id) {
 			return md
@@ -481,7 +482,7 @@ func (ts *testSetup) stopServer() error {
 	return nil
 }
 
-func (ts *testSetup) writeBatch(namespace ts.ID, seriesList generate.SeriesBlock) error {
+func (ts *testSetup) writeBatch(namespace ident.ID, seriesList generate.SeriesBlock) error {
 	if ts.opts.UseTChannelClientForWriting() {
 		return tchannelClientWriteBatch(ts.tchannelClient, ts.opts.WriteRequestTimeout(), namespace, seriesList)
 	}

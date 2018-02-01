@@ -27,7 +27,7 @@ import (
 	nsproto "github.com/m3db/m3db/generated/proto/namespace"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/require"
 )
@@ -124,21 +124,21 @@ func TestFromProto(t *testing.T) {
 	nsMap, err := namespace.FromProto(validRegistry)
 	require.NoError(t, err)
 
-	md1, err := nsMap.Get(ts.StringID("testns1"))
+	md1, err := nsMap.Get(ident.StringID("testns1"))
 	require.NoError(t, err)
 	assertEqualMetadata(t, "testns1", validNamespaceOpts, md1)
 
-	md2, err := nsMap.Get(ts.StringID("testns2"))
+	md2, err := nsMap.Get(ident.StringID("testns2"))
 	require.NoError(t, err)
 	assertEqualMetadata(t, "testns2", validNamespaceOpts, md2)
 }
 
 func TestToProto(t *testing.T) {
 	// make ns map
-	md1, err := namespace.NewMetadata(ts.StringID("ns1"),
+	md1, err := namespace.NewMetadata(ident.StringID("ns1"),
 		namespace.NewOptions().SetNeedsBootstrap(true))
 	require.NoError(t, err)
-	md2, err := namespace.NewMetadata(ts.StringID("ns2"),
+	md2, err := namespace.NewMetadata(ident.StringID("ns2"),
 		namespace.NewOptions().SetNeedsBootstrap(false))
 	require.NoError(t, err)
 	nsMap, err := namespace.NewMap([]namespace.Metadata{md1, md2})

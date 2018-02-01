@@ -30,7 +30,7 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -48,7 +48,7 @@ func newMultipleFlushManagerNeedsFlush(t *testing.T, ctrl *gomock.Controller) (
 	namespace.EXPECT().ID().Return(defaultTestNs1ID).AnyTimes()
 	otherNamespace := NewMockdatabaseNamespace(ctrl)
 	otherNamespace.EXPECT().Options().Return(options).AnyTimes()
-	otherNamespace.EXPECT().ID().Return(ts.StringID("someString")).AnyTimes()
+	otherNamespace.EXPECT().ID().Return(ident.StringID("someString")).AnyTimes()
 
 	db := newMockdatabase(ctrl, namespace, otherNamespace)
 	fm := newFlushManager(db, tally.NoopScope).(*flushManager)

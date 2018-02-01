@@ -26,11 +26,11 @@ import (
 	"sync"
 
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 )
 
@@ -40,7 +40,7 @@ var (
 )
 
 type writeOp struct {
-	namespace    ts.ID
+	namespace    ident.ID
 	shardID      uint32
 	request      rpc.WriteBatchRawRequestElement
 	datapoint    rpc.Datapoint
@@ -97,8 +97,8 @@ type writeState struct {
 	topoMap           topology.Map
 	op                *writeOp
 	ctx               context.Context
-	nsID              ts.ID
-	tsID              ts.ID
+	nsID              ident.ID
+	tsID              ident.ID
 	majority, pending int32
 	success           int32
 	errors            []error

@@ -25,7 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -33,7 +33,7 @@ import (
 
 func TestMetadataEqualsTrue(t *testing.T) {
 
-	testID := ts.StringID("some-string")
+	testID := ident.StringID("some-string")
 	testOpts := NewOptions()
 	md1, err := NewMetadata(testID, testOpts)
 	require.NoError(t, err)
@@ -46,8 +46,8 @@ func TestMetadataEqualsTrue(t *testing.T) {
 }
 
 func TestMetadataEqualsIDsDiffer(t *testing.T) {
-	testID1 := ts.StringID("some-string-1")
-	testID2 := ts.StringID("some-string-2")
+	testID1 := ident.StringID("some-string-1")
+	testID2 := ident.StringID("some-string-2")
 	testOpts := NewOptions()
 	md1, err := NewMetadata(testID1, testOpts)
 	require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestMetadataEqualsIDsDiffer(t *testing.T) {
 }
 
 func TestMetadataEqualsOptsDiffer(t *testing.T) {
-	testID := ts.StringID("some-string")
+	testID := ident.StringID("some-string")
 	testOpts1 := NewOptions()
 	testOpts2 := testOpts1.SetNeedsBootstrap(!testOpts1.NeedsBootstrap())
 	md1, err := NewMetadata(testID, testOpts1)
@@ -70,7 +70,7 @@ func TestMetadataEqualsOptsDiffer(t *testing.T) {
 }
 
 func TestMetadataEqualsRetentionOptsDiffer(t *testing.T) {
-	testID := ts.StringID("some-string")
+	testID := ident.StringID("some-string")
 	testOpts1 := NewOptions()
 	ropts := testOpts1.RetentionOptions()
 	testOpts2 := testOpts1.SetRetentionOptions(ropts.SetBlockSize(ropts.BlockSize() * 2))
@@ -83,7 +83,7 @@ func TestMetadataEqualsRetentionOptsDiffer(t *testing.T) {
 }
 
 func TestMetadataValidateEmptyID(t *testing.T) {
-	testID := ts.StringID("")
+	testID := ident.StringID("")
 	testOpts1 := NewOptions()
 	_, err := NewMetadata(testID, testOpts1)
 	require.Error(t, err)
@@ -94,7 +94,7 @@ func TestMetadataValidateRetentionErr(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockROpts := retention.NewMockOptions(ctrl)
-	testID := ts.StringID("some-string")
+	testID := ident.StringID("some-string")
 	testOpts1 := NewOptions().SetRetentionOptions(mockROpts)
 
 	mockROpts.EXPECT().Validate().Return(nil)

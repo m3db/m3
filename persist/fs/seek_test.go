@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/assert"
@@ -64,7 +64,7 @@ func TestSeekEmptyIndex(t *testing.T) {
 	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, s.Entries())
-	_, err = s.SeekByID(ts.StringID("foo"))
+	_, err = s.SeekByID(ident.StringID("foo"))
 	assert.Error(t, err)
 	assert.Equal(t, errSeekIDNotFound, err)
 	assert.NoError(t, s.Close())
@@ -84,7 +84,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 
 	assert.NoError(t, w.Write(
-		ts.StringID("foo"),
+		ident.StringID("foo"),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -96,7 +96,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	_, err = s.SeekByID(ts.StringID("foo"))
+	_, err = s.SeekByID(ident.StringID("foo"))
 	assert.Error(t, err)
 	assert.Equal(t, errNotEnoughBytes, err)
 
@@ -117,7 +117,7 @@ func TestSeekBadChecksum(t *testing.T) {
 
 	// Write data with wrong checksum
 	assert.NoError(t, w.Write(
-		ts.StringID("foo"),
+		ident.StringID("foo"),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 4})))
 	assert.NoError(t, w.Close())
@@ -126,7 +126,7 @@ func TestSeekBadChecksum(t *testing.T) {
 	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	_, err = s.SeekByID(ts.StringID("foo"))
+	_, err = s.SeekByID(ident.StringID("foo"))
 	assert.Error(t, err)
 	assert.Equal(t, errSeekChecksumMismatch, err)
 
@@ -147,15 +147,15 @@ func TestSeek(t *testing.T) {
 	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ts.StringID("foo1"),
+		ident.StringID("foo1"),
 		bytesRefd([]byte{1, 2, 1}),
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Write(
-		ts.StringID("foo2"),
+		ident.StringID("foo2"),
 		bytesRefd([]byte{1, 2, 2}),
 		digest.Checksum([]byte{1, 2, 2})))
 	assert.NoError(t, w.Write(
-		ts.StringID("foo3"),
+		ident.StringID("foo3"),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -164,25 +164,25 @@ func TestSeek(t *testing.T) {
 	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	data, err := s.SeekByID(ts.StringID("foo3"))
+	data, err := s.SeekByID(ident.StringID("foo3"))
 	require.NoError(t, err)
 
 	data.IncRef()
 	defer data.DecRef()
 	assert.Equal(t, []byte{1, 2, 3}, data.Get())
 
-	data, err = s.SeekByID(ts.StringID("foo1"))
+	data, err = s.SeekByID(ident.StringID("foo1"))
 	require.NoError(t, err)
 
 	data.IncRef()
 	defer data.DecRef()
 	assert.Equal(t, []byte{1, 2, 1}, data.Get())
 
-	_, err = s.SeekByID(ts.StringID("foo"))
+	_, err = s.SeekByID(ident.StringID("foo"))
 	assert.Error(t, err)
 	assert.Equal(t, errSeekIDNotFound, err)
 
-	data, err = s.SeekByID(ts.StringID("foo2"))
+	data, err = s.SeekByID(ident.StringID("foo2"))
 	require.NoError(t, err)
 
 	data.IncRef()
@@ -206,15 +206,15 @@ func TestSeekIDNotExists(t *testing.T) {
 	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ts.StringID("foo10"),
+		ident.StringID("foo10"),
 		bytesRefd([]byte{1, 2, 1}),
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Write(
-		ts.StringID("foo20"),
+		ident.StringID("foo20"),
 		bytesRefd([]byte{1, 2, 2}),
 		digest.Checksum([]byte{1, 2, 2})))
 	assert.NoError(t, w.Write(
-		ts.StringID("foo30"),
+		ident.StringID("foo30"),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -227,12 +227,12 @@ func TestSeekIDNotExists(t *testing.T) {
 	// we're sure that the ID we're looking for doesn't exist (because the index
 	// file is sorted). In this particular case, we would know foo21 doesn't exist
 	// once we've scanned all the way to foo30 (which does exist).
-	_, err = s.SeekByID(ts.StringID("foo21"))
+	_, err = s.SeekByID(ident.StringID("foo21"))
 	assert.Equal(t, errSeekIDNotFound, err)
 
 	// Test errSeekIDNotFound when we scan to the end of the index file (foo40
 	// would be located at the end of the index file based on the writes we've made)
-	_, err = s.SeekByID(ts.StringID("foo40"))
+	_, err = s.SeekByID(ident.StringID("foo40"))
 	assert.Equal(t, errSeekIDNotFound, err)
 
 	assert.NoError(t, s.Close())
@@ -251,7 +251,7 @@ func TestReuseSeeker(t *testing.T) {
 	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart.Add(-time.Hour))
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ts.StringID("foo"),
+		ident.StringID("foo"),
 		bytesRefd([]byte{1, 2, 1}),
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Close())
@@ -259,7 +259,7 @@ func TestReuseSeeker(t *testing.T) {
 	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ts.StringID("foo"),
+		ident.StringID("foo"),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -268,7 +268,7 @@ func TestReuseSeeker(t *testing.T) {
 	err = s.Open(testNs1ID, 0, testWriterStart.Add(-time.Hour))
 	assert.NoError(t, err)
 
-	data, err := s.SeekByID(ts.StringID("foo"))
+	data, err := s.SeekByID(ident.StringID("foo"))
 	require.NoError(t, err)
 
 	data.IncRef()
@@ -278,7 +278,7 @@ func TestReuseSeeker(t *testing.T) {
 	err = s.Open(testNs1ID, 0, testWriterStart)
 	assert.NoError(t, err)
 
-	data, err = s.SeekByID(ts.StringID("foo"))
+	data, err = s.SeekByID(ident.StringID("foo"))
 	require.NoError(t, err)
 
 	data.IncRef()
@@ -299,7 +299,7 @@ func TestCloneSeeker(t *testing.T) {
 	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart.Add(-time.Hour))
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ts.StringID("foo"),
+		ident.StringID("foo"),
 		bytesRefd([]byte{1, 2, 1}),
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Close())
@@ -307,7 +307,7 @@ func TestCloneSeeker(t *testing.T) {
 	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Write(
-		ts.StringID("foo"),
+		ident.StringID("foo"),
 		bytesRefd([]byte{1, 2, 3}),
 		digest.Checksum([]byte{1, 2, 3})))
 	assert.NoError(t, w.Close())
@@ -319,7 +319,7 @@ func TestCloneSeeker(t *testing.T) {
 	clone, err := s.ConcurrentClone()
 	require.NoError(t, err)
 
-	data, err := clone.SeekByID(ts.StringID("foo"))
+	data, err := clone.SeekByID(ident.StringID("foo"))
 	require.NoError(t, err)
 
 	data.IncRef()

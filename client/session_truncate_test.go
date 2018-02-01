@@ -25,7 +25,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -57,7 +57,7 @@ func TestTruncate(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	n, err := s.Truncate(ts.StringID("metrics"))
+	n, err := s.Truncate(ident.StringID("metrics"))
 	require.NoError(t, err)
 	assert.Equal(t, expected, n)
 

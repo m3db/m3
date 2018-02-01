@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -117,7 +118,7 @@ func TestServiceFetch(t *testing.T) {
 	}
 
 	mockDB.EXPECT().
-		ReadEncoded(ctx, ts.NewIDMatcher(nsID), ts.NewIDMatcher("foo"), start, end).
+		ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher("foo"), start, end).
 		Return([][]xio.SegmentReader{
 			[]xio.SegmentReader{enc.Stream()},
 		}, nil)
@@ -187,7 +188,7 @@ func TestServiceFetchBatchRaw(t *testing.T) {
 		streams[id] = enc.Stream()
 
 		mockDB.EXPECT().
-			ReadEncoded(ctx, ts.NewIDMatcher(nsID), ts.NewIDMatcher(id), start, end).
+			ReadEncoded(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), start, end).
 			Return([][]xio.SegmentReader{
 				[]xio.SegmentReader{enc.Stream()},
 			}, nil)
@@ -239,7 +240,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 	mockNs := storage.NewMockNamespace(ctrl)
 	mockNs.EXPECT().Options().Return(namespace.NewOptions()).AnyTimes()
 	mockDB := storage.NewMockDatabase(ctrl)
-	mockDB.EXPECT().Namespace(ts.NewIDMatcher(nsID)).Return(mockNs, true).AnyTimes()
+	mockDB.EXPECT().Namespace(ident.NewIDMatcher(nsID)).Return(mockNs, true).AnyTimes()
 	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
 	mockDB.EXPECT().IsOverloaded().Return(false)
 
@@ -287,7 +288,7 @@ func TestServiceFetchBlocksRaw(t *testing.T) {
 		checksums[id] = checksum
 
 		mockDB.EXPECT().
-			FetchBlocks(ctx, ts.NewIDMatcher(nsID), uint32(0), ts.NewIDMatcher(id), starts).
+			FetchBlocks(ctx, ident.NewIDMatcher(nsID), uint32(0), ident.NewIDMatcher(id), starts).
 			Return([]block.FetchBlockResult{
 				block.NewFetchBlockResult(start, []xio.SegmentReader{enc.Stream()}, nil),
 			}, nil)
@@ -390,7 +391,7 @@ func TestServiceFetchBlocksMetadataRaw(t *testing.T) {
 		ids = append(ids, []byte(id))
 		blocks := block.NewFetchBlockMetadataResults()
 		metadata := block.FetchBlocksMetadataResult{
-			ID:     ts.StringID(id),
+			ID:     ident.StringID(id),
 			Blocks: blocks,
 		}
 		for _, v := range s {
@@ -411,7 +412,7 @@ func TestServiceFetchBlocksMetadataRaw(t *testing.T) {
 		IncludeLastRead:  includeLastRead,
 	}
 	mockDB.EXPECT().
-		FetchBlocksMetadata(ctx, ts.NewIDMatcher(nsID), uint32(0), start, end,
+		FetchBlocksMetadata(ctx, ident.NewIDMatcher(nsID), uint32(0), start, end,
 			limit, pageToken, opts).
 		Return(mockResult, nextPageToken, nil)
 
@@ -495,7 +496,7 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 		ids = append(ids, []byte(id))
 		blocks := block.NewFetchBlockMetadataResults()
 		metadata := block.FetchBlocksMetadataResult{
-			ID:     ts.StringID(id),
+			ID:     ident.StringID(id),
 			Blocks: blocks,
 		}
 		for _, v := range s {
@@ -519,7 +520,7 @@ func TestServiceFetchBlocksMetadataEndpointV2Raw(t *testing.T) {
 		IncludeLastRead:  includeLastRead,
 	}
 	mockDB.EXPECT().
-		FetchBlocksMetadataV2(ctx, ts.NewIDMatcher(nsID), uint32(0), start, end,
+		FetchBlocksMetadataV2(ctx, ident.NewIDMatcher(nsID), uint32(0), start, end,
 			limit, nil, opts).
 		Return(mockResult, nextPageTokenBytes, nil)
 
@@ -582,7 +583,7 @@ func TestServiceWrite(t *testing.T) {
 	value := 42.42
 
 	mockDB.EXPECT().
-		Write(ctx, ts.NewIDMatcher(nsID), ts.NewIDMatcher(id), at, value, xtime.Second, nil).
+		Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), at, value, xtime.Second, nil).
 		Return(nil)
 
 	err := service.Write(tctx, &rpc.WriteRequest{
@@ -622,7 +623,7 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 	}
 	for _, w := range values {
 		mockDB.EXPECT().
-			Write(ctx, ts.NewIDMatcher(nsID), ts.NewIDMatcher(w.id), w.t, w.v, xtime.Second, nil).
+			Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(w.id), w.t, w.v, xtime.Second, nil).
 			Return(nil)
 	}
 
@@ -682,7 +683,7 @@ func TestServiceTruncate(t *testing.T) {
 
 	truncated := int64(123)
 
-	mockDB.EXPECT().Truncate(ts.NewIDMatcher(nsID)).Return(truncated, nil)
+	mockDB.EXPECT().Truncate(ident.NewIDMatcher(nsID)).Return(truncated, nil)
 
 	r, err := service.Truncate(tctx, &rpc.TruncateRequest{NameSpace: []byte(nsID)})
 	require.NoError(t, err)
