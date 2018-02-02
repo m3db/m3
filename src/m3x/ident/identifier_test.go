@@ -45,7 +45,7 @@ func TestConstructorEquality(t *testing.T) {
 	assert.Equal(t, a.Hash(), b.Hash())
 }
 
-func testPooling(t *testing.T, p IdentifierPool) {
+func testPooling(t *testing.T, p Pool) {
 	ctx := context.NewContext()
 
 	a := p.GetStringID(ctx, "abc")
@@ -65,11 +65,11 @@ func TestSimplePooling(t *testing.T) {
 			return pool.NewBytesPool(s, nil)
 		})
 	bytesPool.Init()
-	testPooling(t, NewIdentifierPool(bytesPool, pool.NewObjectPoolOptions()))
+	testPooling(t, NewPool(bytesPool, pool.NewObjectPoolOptions()))
 }
 
 func TestNativePooling(t *testing.T) {
-	testPooling(t, NewNativeIdentifierPool(nil, pool.NewObjectPoolOptions()))
+	testPooling(t, NewNativePool(nil, pool.NewObjectPoolOptions()))
 }
 
 func TestHashing(t *testing.T) {
@@ -111,7 +111,7 @@ func BenchmarkHashCaching(b *testing.B) {
 }
 
 func BenchmarkPooling(b *testing.B) {
-	p := NewNativeIdentifierPool(nil, pool.NewObjectPoolOptions())
+	p := NewNativePool(nil, pool.NewObjectPoolOptions())
 	ctx := context.NewContext()
 
 	v := checked.NewBytes([]byte{'a', 'b', 'c'}, nil)

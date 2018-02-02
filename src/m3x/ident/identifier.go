@@ -44,7 +44,7 @@ func StringID(str string) ID {
 type id struct {
 	data checked.Bytes
 	hash Hash
-	pool IdentifierPool
+	pool Pool
 	flag int32
 }
 

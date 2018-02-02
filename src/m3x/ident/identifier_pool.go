@@ -26,12 +26,12 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
-// NewIdentifierPool constructs a new simple IdentifierPool.
-func NewIdentifierPool(
+// NewPool constructs a new simple Pool.
+func NewPool(
 	bytesPool pool.CheckedBytesPool,
 	options pool.ObjectPoolOptions,
-) IdentifierPool {
-	p := &simpleIdentifierPool{
+) Pool {
+	p := &simplePool{
 		bytesPool: bytesPool,
 		pool:      pool.NewObjectPool(options),
 	}
@@ -40,12 +40,12 @@ func NewIdentifierPool(
 	return p
 }
 
-type simpleIdentifierPool struct {
+type simplePool struct {
 	bytesPool pool.CheckedBytesPool
 	pool      pool.ObjectPool
 }
 
-func (p *simpleIdentifierPool) GetBinaryID(ctx context.Context, v checked.Bytes) ID {
+func (p *simplePool) GetBinaryID(ctx context.Context, v checked.Bytes) ID {
 	id := p.pool.Get().(*id)
 	ctx.RegisterFinalizer(id)
 
@@ -55,7 +55,18 @@ func (p *simpleIdentifierPool) GetBinaryID(ctx context.Context, v checked.Bytes)
 	return id
 }
 
-func (p *simpleIdentifierPool) GetStringID(ctx context.Context, v string) ID {
+func (p *simplePool) GetBinaryTag(
+	ctx context.Context,
+	name checked.Bytes,
+	value checked.Bytes,
+) Tag {
+	return Tag{
+		Name:  TagName(p.GetBinaryID(ctx, name)),
+		Value: TagValue(p.GetBinaryID(ctx, value)),
+	}
+}
+
+func (p *simplePool) GetStringID(ctx context.Context, v string) ID {
 	data := p.bytesPool.Get(len(v))
 	data.IncRef()
 	data.AppendAll([]byte(v))
@@ -63,12 +74,24 @@ func (p *simpleIdentifierPool) GetStringID(ctx context.Context, v string) ID {
 	return p.GetBinaryID(ctx, data)
 }
 
-func (p *simpleIdentifierPool) Put(v ID) {
+func (p *simplePool) Put(v ID) {
 	v.Reset()
 	p.pool.Put(v)
 }
 
-func (p *simpleIdentifierPool) Clone(existing ID) ID {
+func (p *simplePool) PutTag(t Tag) {
+	p.Put(t.Name)
+	p.Put(t.Value)
+}
+
+func (p *simplePool) GetStringTag(ctx context.Context, name string, value string) Tag {
+	return Tag{
+		Name:  TagName(p.GetStringID(ctx, name)),
+		Value: TagValue(p.GetStringID(ctx, value)),
+	}
+}
+
+func (p *simplePool) Clone(existing ID) ID {
 	id := p.pool.Get().(*id)
 
 	data := existing.Data()
@@ -85,18 +108,27 @@ func (p *simpleIdentifierPool) Clone(existing ID) ID {
 	return id
 }
 
-// NewNativeIdentifierPool constructs a new NativeIdentifierPool.
-func NewNativeIdentifierPool(
+func (p *simplePool) CloneIDs(iter Iterator) IDs {
+	ids := make(IDs, 0, iter.Remaining())
+	for iter.Next() {
+		id := iter.Current()
+		ids = append(ids, p.Clone(id))
+	}
+	return ids
+}
+
+// NewNativePool constructs a new NativePool.
+func NewNativePool(
 	heap pool.CheckedBytesPool,
 	opts pool.ObjectPoolOptions,
-) IdentifierPool {
+) Pool {
 	if opts == nil {
 		opts = pool.NewObjectPoolOptions()
 	}
 
 	iopts := opts.InstrumentOptions()
 
-	p := &nativeIdentifierPool{
+	p := &nativePool{
 		pool: pool.NewObjectPool(opts.SetInstrumentOptions(
 			iopts.SetMetricsScope(iopts.MetricsScope().SubScope("id-pool")))),
 		heap: configureHeap(heap),
@@ -107,7 +139,7 @@ func NewNativeIdentifierPool(
 	return p
 }
 
-type nativeIdentifierPool struct {
+type nativePool struct {
 	// NB(r): We originally were using a `pool.NativePool`` here for pooling the
 	// `id` structs and this worked fine when the `id` structs had no references
 	// to anything except longly lived objects.  Now however the `id` structs
@@ -142,7 +174,7 @@ func configureHeap(heap pool.CheckedBytesPool) pool.CheckedBytesPool {
 }
 
 // GetBinaryID returns a new ID based on a binary value.
-func (p *nativeIdentifierPool) GetBinaryID(ctx context.Context, v checked.Bytes) ID {
+func (p *nativePool) GetBinaryID(ctx context.Context, v checked.Bytes) ID {
 	id := p.pool.Get().(*id)
 	ctx.RegisterFinalizer(id)
 
@@ -152,8 +184,20 @@ func (p *nativeIdentifierPool) GetBinaryID(ctx context.Context, v checked.Bytes)
 	return id
 }
 
+// GetBinaryTag returns a new Tag based on binary values.
+func (p *nativePool) GetBinaryTag(
+	ctx context.Context,
+	name checked.Bytes,
+	value checked.Bytes,
+) Tag {
+	return Tag{
+		Name:  TagName(p.GetBinaryID(ctx, name)),
+		Value: TagValue(p.GetBinaryID(ctx, value)),
+	}
+}
+
 // GetStringID returns a new ID based on a string value.
-func (p *nativeIdentifierPool) GetStringID(ctx context.Context, str string) ID {
+func (p *nativePool) GetStringID(ctx context.Context, str string) ID {
 	id := p.pool.Get().(*id)
 	ctx.RegisterFinalizer(id)
 
@@ -166,13 +210,26 @@ func (p *nativeIdentifierPool) GetStringID(ctx context.Context, str string) ID {
 	return id
 }
 
-func (p *nativeIdentifierPool) Put(v ID) {
+// GetStringTag returns a new Tag based on string values.
+func (p *nativePool) GetStringTag(ctx context.Context, name string, value string) Tag {
+	return Tag{
+		Name:  TagName(p.GetStringID(ctx, name)),
+		Value: TagValue(p.GetStringID(ctx, value)),
+	}
+}
+
+func (p *nativePool) Put(v ID) {
 	v.Reset()
 	p.pool.Put(v.(*id))
 }
 
+func (p *nativePool) PutTag(t Tag) {
+	p.Put(t.Name)
+	p.Put(t.Value)
+}
+
 // Clone replicates given ID into a new ID from the pool.
-func (p *nativeIdentifierPool) Clone(existing ID) ID {
+func (p *nativePool) Clone(existing ID) ID {
 	id := p.pool.Get().(*id)
 
 	data := existing.Data()
@@ -187,4 +244,13 @@ func (p *nativeIdentifierPool) Clone(existing ID) ID {
 	id.pool, id.data = p, v
 
 	return id
+}
+
+func (p *nativePool) CloneIDs(iter Iterator) IDs {
+	ids := make(IDs, 0, iter.Remaining())
+	for iter.Next() {
+		id := iter.Current()
+		ids = append(ids, p.Clone(id))
+	}
+	return ids
 }

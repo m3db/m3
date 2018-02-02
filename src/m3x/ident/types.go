@@ -43,23 +43,86 @@ type ID interface {
 	Reset()
 }
 
-// IdentifierPool represents an automatic pool of IDs.
-type IdentifierPool interface {
+// TagName represents the name of a timeseries tag.
+type TagName ID
+
+// TagValue represents the value of a timeseries tag.
+type TagValue ID
+
+// Tag represents a timeseries tag.
+type Tag struct {
+	Name  TagName
+	Value TagValue
+}
+
+// Pool represents an automatic pool of `ident` objects.
+type Pool interface {
 	// GetBinaryID will create a new binary ID and take reference to the bytes.
 	// When the context closes the ID will be finalized and so too will
 	// the bytes, i.e. it will take ownership of the bytes.
 	GetBinaryID(context.Context, checked.Bytes) ID
 
+	// GetBinaryTag will create a new binary Tag and take reference to the bytes.
+	// When the context closes, the Tag will be finalized and so too will
+	// the bytes, i.e. it will take ownership of the bytes.
+	GetBinaryTag(c context.Context, name checked.Bytes, value checked.Bytes) Tag
+
 	// GetStringID will create a new string ID and create a bytes copy of the
 	// string. When the context closes the ID will be finalized.
-	GetStringID(context.Context, string) ID
+	GetStringID(c context.Context, id string) ID
+
+	// GetStringTag will create a new string Tag and create a bytes copy of the
+	// string. When the context closes the ID will be finalized.
+	GetStringTag(c context.Context, name string, value string) Tag
 
 	// Put an ID back in the pool.
 	Put(ID)
 
+	// PutTag puts a tag back in the pool.
+	PutTag(Tag)
+
 	// Clone replicates a given ID into a pooled ID.
 	Clone(other ID) ID
+
+	// CloneIDs replicates the given IDs into pooled IDs.
+	CloneIDs(Iterator) IDs
 }
+
+// Iterator represents an iterator over `ID` instances. It is not thread-safe.
+type Iterator interface {
+	// Next returns a bool indicating the presence of the next ID instance.
+	Next() bool
+
+	// Current returns the current ID instance.
+	Current() ID
+
+	// Err returns any errors encountered during iteration.
+	Err() error
+
+	// Remaining returns the number of elements remaining to be iterated over.
+	Remaining() int
+}
+
+// TagIterator represents an iterator over `Tag` instances. It is not thread-safe.
+type TagIterator interface {
+	// Next returns a bool indicating the presence of the next Tag instance.
+	Next() bool
+
+	// Current returns the current Tag instance.
+	Current() Tag
+
+	// Err returns any errors encountered during iteration.
+	Err() error
+
+	// Remaining returns the number of elements remaining to be iterated over.
+	Remaining() int
+}
+
+// IDs is a collection of ID instances.
+type IDs []ID
+
+// Tags is a collection of Tag instances.
+type Tags []Tag
 
 // Hash represents a form of ID suitable to be used as map keys.
 type Hash [md5.Size]byte
