@@ -82,7 +82,8 @@ func (s *store) ValidateRuleSet(rs *rules.RuleSetSnapshot) error {
 	if validator == nil {
 		return errNilValidator
 	}
-	return validator.ValidateSnapshot(rs)
+
+	return s.handleUpstreamError(validator.ValidateSnapshot(rs))
 }
 
 func (s *store) CreateNamespace(namespaceID string, uOpts r2.UpdateOptions) (*rules.NamespaceView, error) {
