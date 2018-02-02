@@ -26,6 +26,8 @@ import (
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/m3db/m3x/resource"
 )
 
 const (
@@ -231,7 +233,7 @@ func (d *debugger) String() string {
 
 type debuggerRef struct {
 	debugger
-	finalizer Finalizer
+	finalizer resource.Finalizer
 }
 
 func (d *debuggerRef) Finalize() {

@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3x/retry"
+
 	"github.com/stretchr/testify/require"
 )
 

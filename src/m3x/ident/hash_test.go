@@ -18,28 +18,22 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package id provides utilities for generating ID's from hash functions.
-package id
+package ident
 
 import (
 	"crypto/md5"
+	"testing"
 
-	"github.com/spaolacci/murmur3"
+	"github.com/stretchr/testify/require"
 )
 
-// Hash represents a form of ID suitable to be used as map keys.
-type Hash [md5.Size]byte
-
-// HashFn is the default hashing implementation for IDs.
-func HashFn(data []byte) Hash {
-	return md5.Sum(data)
+func TestHashFn(t *testing.T) {
+	input := []byte{0x1, 0x2, 0x3}
+	require.Equal(t, Hash(md5.Sum(input)), HashFn(input))
 }
 
-// Hash128 is a 128-bit hash of an ID consisting of two unsigned 64-bit ints.
-type Hash128 [2]uint64
-
-// Murmur3Hash128 computes the 128-bit hash of an id.
-func Murmur3Hash128(data []byte) Hash128 {
-	h0, h1 := murmur3.Sum128(data)
-	return Hash128{h0, h1}
+func TestMurmur3Hash128(t *testing.T) {
+	input := []byte("foo.bar.baz")
+	expected := Hash128{0xf14b7935f63800a5, 0x57d98c62725b8ebd}
+	require.Equal(t, expected, Murmur3Hash128(input))
 }
