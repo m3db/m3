@@ -24,17 +24,20 @@
 package block
 
 import (
-	gomock "github.com/golang/mock/gomock"
-	context "github.com/m3db/m3db/context"
+	time "time"
+
 	encoding "github.com/m3db/m3db/encoding"
 	namespace "github.com/m3db/m3db/storage/namespace"
-	ts "github.com/m3db/m3db/ts"
+	"github.com/m3db/m3db/ts"
 	io "github.com/m3db/m3db/x/io"
 	clock "github.com/m3db/m3x/clock"
+	context "github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	pool "github.com/m3db/m3x/pool"
 	sync "github.com/m3db/m3x/sync"
 	time0 "github.com/m3db/m3x/time"
-	time "time"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of FilteredBlocksMetadataIter interface
@@ -68,9 +71,9 @@ func (_mr *_MockFilteredBlocksMetadataIterRecorder) Next() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
 }
 
-func (_m *MockFilteredBlocksMetadataIter) Current() (ts.ID, Metadata) {
+func (_m *MockFilteredBlocksMetadataIter) Current() (ident.ID, Metadata) {
 	ret := _m.ctrl.Call(_m, "Current")
-	ret0, _ := ret[0].(ts.ID)
+	ret0, _ := ret[0].(ident.ID)
 	ret1, _ := ret[1].(Metadata)
 	return ret0, ret1
 }
@@ -218,7 +221,7 @@ func (_m *MockDatabaseBlock) EXPECT() *_MockDatabaseBlockRecorder {
 	return _m.recorder
 }
 
-func (_m *MockDatabaseBlock) OnRetrieveBlock(id ts.ID, startTime time.Time, segment ts.Segment) {
+func (_m *MockDatabaseBlock) OnRetrieveBlock(id ident.ID, startTime time.Time, segment ts.Segment) {
 	_m.ctrl.Call(_m, "OnRetrieveBlock", id, startTime, segment)
 }
 
@@ -368,7 +371,7 @@ func (_m *MockOnRetrieveBlock) EXPECT() *_MockOnRetrieveBlockRecorder {
 	return _m.recorder
 }
 
-func (_m *MockOnRetrieveBlock) OnRetrieveBlock(id ts.ID, startTime time.Time, segment ts.Segment) {
+func (_m *MockOnRetrieveBlock) OnRetrieveBlock(id ident.ID, startTime time.Time, segment ts.Segment) {
 	_m.ctrl.Call(_m, "OnRetrieveBlock", id, startTime, segment)
 }
 
@@ -407,7 +410,7 @@ func (_mr *_MockDatabaseBlockRetrieverRecorder) CacheShardIndices(arg0 interface
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "CacheShardIndices", arg0)
 }
 
-func (_m *MockDatabaseBlockRetriever) Stream(ctx context.Context, shard uint32, id ts.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (io.SegmentReader, error) {
+func (_m *MockDatabaseBlockRetriever) Stream(ctx context.Context, shard uint32, id ident.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (io.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "Stream", ctx, shard, id, blockStart, onRetrieve)
 	ret0, _ := ret[0].(io.SegmentReader)
 	ret1, _ := ret[1].(error)
@@ -439,7 +442,7 @@ func (_m *MockDatabaseShardBlockRetriever) EXPECT() *_MockDatabaseShardBlockRetr
 	return _m.recorder
 }
 
-func (_m *MockDatabaseShardBlockRetriever) Stream(ctx context.Context, id ts.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (io.SegmentReader, error) {
+func (_m *MockDatabaseShardBlockRetriever) Stream(ctx context.Context, id ident.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (io.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "Stream", ctx, id, blockStart, onRetrieve)
 	ret0, _ := ret[0].(io.SegmentReader)
 	ret1, _ := ret[1].(error)

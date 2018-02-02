@@ -8,6 +8,7 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -20,14 +21,14 @@ type BlockConfig struct {
 
 // Series represents a generated series of data
 type Series struct {
-	ID   ts.ID
+	ID   ident.ID
 	Data []ts.Datapoint
 }
 
 // SeriesDataPoint represents a single data point of a generated series of data
 type SeriesDataPoint struct {
 	ts.Datapoint
-	ID ts.ID
+	ID ident.ID
 }
 
 // SeriesDataPointsByTime are a sorted list of SeriesDataPoints
@@ -42,7 +43,7 @@ type SeriesBlocksByStart map[xtime.UnixNano]SeriesBlock
 // Writer writes generated data to disk
 type Writer interface {
 	// Write writes the data
-	Write(ns ts.ID, shards sharding.ShardSet, data SeriesBlocksByStart) error
+	Write(ns ident.ID, shards sharding.ShardSet, data SeriesBlocksByStart) error
 }
 
 // Options represent the parameters needed for the Writer

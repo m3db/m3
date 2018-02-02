@@ -28,8 +28,8 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/sharding"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -44,7 +44,7 @@ func NewWriter(opts Options) Writer {
 	}
 }
 
-func (w *writer) Write(namespace ts.ID, shardSet sharding.ShardSet, seriesMaps SeriesBlocksByStart) error {
+func (w *writer) Write(namespace ident.ID, shardSet sharding.ShardSet, seriesMaps SeriesBlocksByStart) error {
 	var (
 		gOpts          = w.opts
 		blockSize      = gOpts.BlockSize()
@@ -95,7 +95,7 @@ func writeToDisk(
 	shardSet sharding.ShardSet,
 	encoder encoding.Encoder,
 	start time.Time,
-	namespace ts.ID,
+	namespace ident.ID,
 	blockSize time.Duration,
 	seriesList SeriesBlock,
 ) error {

@@ -32,7 +32,8 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -113,7 +114,7 @@ func TestClosingCloneDoesNotAffectParent(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, clone.close())
 	for _, summary := range indexSummaries {
-		id := ts.StringID(string(summary.ID))
+		id := ident.StringID(string(summary.ID))
 		require.NoError(t, err)
 		offset, err := clone.getNearestIndexFileOffset(id)
 		require.NoError(t, err)
@@ -159,7 +160,7 @@ func TestParentAndClonesSafeForConcurrentUse(t *testing.T) {
 		startWg.Done()
 		startWg.Wait()
 		for _, summary := range indexSummaries {
-			id := ts.StringID(string(summary.ID))
+			id := ident.StringID(string(summary.ID))
 			offset, err := clone.getNearestIndexFileOffset(id)
 			require.NoError(t, err)
 			require.Equal(t, summary.IndexEntryOffset, offset)

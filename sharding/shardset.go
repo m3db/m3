@@ -25,7 +25,7 @@ import (
 	"math"
 
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/spaolacci/murmur3"
 )
@@ -73,7 +73,7 @@ func newValidatedShardSet(shards []shard.Shard, fn HashFn) ShardSet {
 	}
 }
 
-func (s *shardSet) Lookup(identifier ts.ID) uint32 {
+func (s *shardSet) Lookup(identifier ident.ID) uint32 {
 	return s.fn(identifier)
 }
 
@@ -160,7 +160,7 @@ func NewHashGenWithSeed(seed uint32) HashGen {
 
 // NewHashFn generates a HashFN based on murmur32 with a given seed
 func NewHashFn(length int, seed uint32) HashFn {
-	return func(id ts.ID) uint32 {
+	return func(id ident.ID) uint32 {
 		return murmur3.Sum32WithSeed(id.Data().Get(), seed) % uint32(length)
 	}
 }

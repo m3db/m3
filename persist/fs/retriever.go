@@ -38,12 +38,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 )
@@ -84,7 +85,7 @@ type blockRetriever struct {
 
 	reqPool    retrieveRequestPool
 	bytesPool  pool.CheckedBytesPool
-	idPool     ts.IdentifierPool
+	idPool     ident.Pool
 	nsMetadata namespace.Metadata
 
 	status                     blockRetrieverStatus
@@ -346,7 +347,7 @@ func (r *blockRetriever) fetchBatch(
 func (r *blockRetriever) Stream(
 	ctx context.Context,
 	shard uint32,
-	id ts.ID,
+	id ident.ID,
 	startTime time.Time,
 	onRetrieve block.OnRetrieveBlock,
 ) (xio.SegmentReader, error) {
@@ -494,7 +495,7 @@ type retrieveRequest struct {
 	pool *reqPool
 
 	shard      uint32
-	id         ts.ID
+	id         ident.ID
 	start      time.Time
 	onRetrieve block.OnRetrieveBlock
 

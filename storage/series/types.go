@@ -24,13 +24,13 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
-	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -40,7 +40,7 @@ type DatabaseSeries interface {
 	block.OnRetrieveBlock
 
 	// ID returns the ID of the series
-	ID() ts.ID
+	ID() ident.ID
 
 	// Tick executes any updates to ensure buffer drains, blocks are flushed, etc
 	Tick() (TickResult, error)
@@ -93,7 +93,7 @@ type DatabaseSeries interface {
 
 	// Reset resets the series for reuse
 	Reset(
-		id ts.ID,
+		id ident.ID,
 		blockRetriever QueryableBlockRetriever,
 		onRetrieveBlock block.OnRetrieveBlock,
 		opts Options,
@@ -215,8 +215,8 @@ type Options interface {
 	FetchBlockMetadataResultsPool() block.FetchBlockMetadataResultsPool
 
 	// SetIdentifierPool sets the identifierPool
-	SetIdentifierPool(value ts.IdentifierPool) Options
+	SetIdentifierPool(value ident.Pool) Options
 
 	// IdentifierPool returns the identifierPool
-	IdentifierPool() ts.IdentifierPool
+	IdentifierPool() ident.Pool
 }

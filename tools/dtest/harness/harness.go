@@ -26,7 +26,6 @@ import (
 	"github.com/m3db/m3db/tools/dtest/config"
 	"github.com/m3db/m3db/tools/dtest/util"
 	"github.com/m3db/m3db/tools/dtest/util/seed"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/m3em/convert"
 	m3emnode "github.com/m3db/m3db/x/m3em/node"
 	"github.com/m3db/m3em/build"
@@ -36,6 +35,7 @@ import (
 	xgrpc "github.com/m3db/m3em/x/grpc"
 	m3xclock "github.com/m3db/m3x/clock"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xtcp "github.com/m3db/m3x/tcp"
@@ -314,7 +314,7 @@ func (dt *DTestHarness) seedWithConfig(nodes []node.ServiceNode, seedConf config
 		SetGenerateOptions(generateOpts)
 
 	generator := seed.NewGenerator(seedDataOpts)
-	outputNamespace := ts.StringID(seedConf.Namespace)
+	outputNamespace := ident.StringID(seedConf.Namespace)
 
 	if err := generator.Generate(outputNamespace, seedConf.LocalShardNum); err != nil {
 		return fmt.Errorf("unable to generate data: %v", err)
@@ -356,14 +356,14 @@ func (dt *DTestHarness) seedWithConfig(nodes []node.ServiceNode, seedConf config
 	return nil
 }
 
-func newShardDir(prefix string, ns ts.ID, shard uint32) string {
+func newShardDir(prefix string, ns ident.ID, shard uint32) string {
 	return path.Join(prefix, ns.String(), strconv.FormatUint(uint64(shard), 10))
 }
 
 func generatePaths(
 	placement placement.Placement,
 	n node.ServiceNode,
-	ns ts.ID,
+	ns ident.ID,
 	file string,
 	dataDir string,
 ) []string {
@@ -530,7 +530,7 @@ func newConfig(logger xlog.Logger, filename string) build.ServiceConfiguration {
 
 func defaultNamespaceProtoValue() (proto.Message, error) {
 	md, err := namespace.NewMetadata(
-		ts.StringID("metrics"),
+		ident.StringID("metrics"),
 		namespace.NewOptions().
 			SetNeedsBootstrap(true).
 			SetNeedsFilesetCleanup(true).

@@ -28,7 +28,7 @@ import (
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/integration/generate"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -62,7 +62,7 @@ func TestTruncateNamespace(t *testing.T) {
 	now := testSetup.getNowFn()
 	seriesMaps := make(map[xtime.UnixNano]generate.SeriesBlock)
 	inputData := []struct {
-		namespace ts.ID
+		namespace ident.ID
 		conf      generate.BlockConfig
 	}{
 		{testNamespaces[0], generate.BlockConfig{[]string{"foo"}, 100, now}},

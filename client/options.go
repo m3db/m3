@@ -28,11 +28,11 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xretry "github.com/m3db/m3x/retry"
@@ -194,7 +194,7 @@ type options struct {
 	fetchBatchOpPoolSize                    int
 	writeBatchSize                          int
 	fetchBatchSize                          int
-	identifierPool                          ts.IdentifierPool
+	identifierPool                          ident.Pool
 	hostQueueOpsFlushSize                   int
 	hostQueueOpsFlushInterval               time.Duration
 	hostQueueOpsArrayPoolSize               int
@@ -230,7 +230,7 @@ func newOptions() *options {
 	poolOpts := pool.NewObjectPoolOptions().
 		SetSize(defaultIdentifierPoolSize)
 
-	idPool := ts.NewIdentifierPool(bytesPool, poolOpts)
+	idPool := ident.NewPool(bytesPool, poolOpts)
 
 	contextPool := context.NewPool(poolOpts, poolOpts)
 
@@ -574,13 +574,13 @@ func (o *options) FetchBatchSize() int {
 	return o.fetchBatchSize
 }
 
-func (o *options) SetIdentifierPool(value ts.IdentifierPool) Options {
+func (o *options) SetIdentifierPool(value ident.Pool) Options {
 	opts := *o
 	opts.identifierPool = value
 	return &opts
 }
 
-func (o *options) IdentifierPool() ts.IdentifierPool {
+func (o *options) IdentifierPool() ident.Pool {
 	return o.identifierPool
 }
 

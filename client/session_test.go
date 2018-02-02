@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 
 	"github.com/golang/mock/gomock"
@@ -62,7 +62,7 @@ func sessionTestShardSet() sharding.ShardSet {
 	}
 
 	shards := sharding.NewShards(ids, shard.Available)
-	hashFn := func(id ts.ID) uint32 { return 0 }
+	hashFn := func(id ident.ID) uint32 { return 0 }
 	shardSet, _ := sharding.NewShardSet(shards, hashFn)
 	return shardSet
 }

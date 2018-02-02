@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	xsync "github.com/m3db/m3x/sync"
@@ -84,7 +85,7 @@ func (s *fileSystemSource) Available(
 }
 
 func (s *fileSystemSource) shardAvailability(
-	namespace ts.ID,
+	namespace ident.ID,
 	shard uint32,
 	targetRangesForShard xtime.Ranges,
 ) xtime.Ranges {
@@ -112,7 +113,7 @@ func (s *fileSystemSource) shardAvailability(
 }
 
 func (s *fileSystemSource) enqueueReaders(
-	namespace ts.ID,
+	namespace ident.ID,
 	shardsTimeRanges result.ShardTimeRanges,
 	readerPool *readerPool,
 	readersCh chan<- shardReaders,
@@ -309,7 +310,7 @@ func (s *fileSystemSource) loadShardReadersDataIntoShardResult(
 		for i := 0; i < numEntries; i++ {
 			var (
 				seriesBlock = blockPool.Get()
-				id          ts.ID
+				id          ident.ID
 				data        checked.Bytes
 				length      int
 				checksum    uint32

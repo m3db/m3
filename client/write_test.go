@@ -26,9 +26,9 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3db/topology"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/golang/mock/gomock"

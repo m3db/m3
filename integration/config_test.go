@@ -35,7 +35,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/m3db/m3cluster/integration/etcd"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
@@ -45,12 +44,13 @@ import (
 	"github.com/m3db/m3db/services/m3dbnode/config"
 	"github.com/m3db/m3db/services/m3dbnode/server"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/ts"
 	xconfig "github.com/m3db/m3x/config"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -461,7 +461,7 @@ func endpoint(ip string, port uint32) string {
 
 func newNamespaceProtoValue(id string) (proto.Message, error) {
 	md, err := namespace.NewMetadata(
-		ts.StringID(id),
+		ident.StringID(id),
 		namespace.NewOptions().
 			SetNeedsBootstrap(true).
 			SetNeedsFilesetCleanup(true).

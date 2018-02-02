@@ -24,12 +24,14 @@
 package namespace
 
 import (
-	gomock "github.com/golang/mock/gomock"
+	time "time"
+
 	client "github.com/m3db/m3cluster/client"
 	retention "github.com/m3db/m3db/retention"
-	ts "github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	instrument "github.com/m3db/m3x/instrument"
-	time "time"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of Options interface
@@ -224,9 +226,9 @@ func (_mr *_MockMetadataRecorder) Equal(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Equal", arg0)
 }
 
-func (_m *MockMetadata) ID() ts.ID {
+func (_m *MockMetadata) ID() ident.ID {
 	ret := _m.ctrl.Call(_m, "ID")
-	ret0, _ := ret[0].(ts.ID)
+	ret0, _ := ret[0].(ident.ID)
 	return ret0
 }
 
@@ -275,7 +277,7 @@ func (_mr *_MockMapRecorder) Equal(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Equal", arg0)
 }
 
-func (_m *MockMap) Get(_param0 ts.ID) (Metadata, error) {
+func (_m *MockMap) Get(_param0 ident.ID) (Metadata, error) {
 	ret := _m.ctrl.Call(_m, "Get", _param0)
 	ret0, _ := ret[0].(Metadata)
 	ret1, _ := ret[1].(error)
@@ -286,9 +288,9 @@ func (_mr *_MockMapRecorder) Get(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Get", arg0)
 }
 
-func (_m *MockMap) IDs() []ts.ID {
+func (_m *MockMap) IDs() []ident.ID {
 	ret := _m.ctrl.Call(_m, "IDs")
-	ret0, _ := ret[0].([]ts.ID)
+	ret0, _ := ret[0].([]ident.ID)
 	return ret0
 }
 

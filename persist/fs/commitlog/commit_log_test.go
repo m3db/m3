@@ -33,9 +33,10 @@ import (
 
 	"github.com/m3db/bitset"
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
 
@@ -115,8 +116,8 @@ func testSeries(
 ) Series {
 	return Series{
 		UniqueIndex: uniqueIndex,
-		Namespace:   ts.StringID("testNS"),
-		ID:          ts.StringID(id),
+		Namespace:   ident.StringID("testNS"),
+		ID:          ident.StringID(id),
 		Shard:       shard,
 	}
 }

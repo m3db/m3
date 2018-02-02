@@ -22,11 +22,11 @@ package series
 
 import (
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/block"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 )
@@ -41,7 +41,7 @@ type options struct {
 	encoderPool                   encoding.EncoderPool
 	multiReaderIteratorPool       encoding.MultiReaderIteratorPool
 	fetchBlockMetadataResultsPool block.FetchBlockMetadataResultsPool
-	identifierPool                ts.IdentifierPool
+	identifierPool                ident.Pool
 }
 
 // NewOptions creates new database series options
@@ -62,7 +62,7 @@ func NewOptions() Options {
 		encoderPool:                   encoding.NewEncoderPool(nil),
 		multiReaderIteratorPool:       encoding.NewMultiReaderIteratorPool(nil),
 		fetchBlockMetadataResultsPool: block.NewFetchBlockMetadataResultsPool(nil, 0),
-		identifierPool:                ts.NewIdentifierPool(bytesPool, nil),
+		identifierPool:                ident.NewPool(bytesPool, nil),
 	}
 }
 
@@ -163,12 +163,12 @@ func (o *options) FetchBlockMetadataResultsPool() block.FetchBlockMetadataResult
 	return o.fetchBlockMetadataResultsPool
 }
 
-func (o *options) SetIdentifierPool(value ts.IdentifierPool) Options {
+func (o *options) SetIdentifierPool(value ident.Pool) Options {
 	opts := *o
 	opts.identifierPool = value
 	return &opts
 }
 
-func (o *options) IdentifierPool() ts.IdentifierPool {
+func (o *options) IdentifierPool() ident.Pool {
 	return o.identifierPool
 }

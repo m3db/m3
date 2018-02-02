@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/integration/generate"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
@@ -49,7 +49,7 @@ func TestGenerator(t *testing.T) {
 	defer ctrl.Finish()
 
 	shard := uint32(123)
-	require.NoError(t, generator.Generate(ts.StringID("testmetrics"), shard))
+	require.NoError(t, generator.Generate(ident.StringID("testmetrics"), shard))
 
 	te := newFileInfoExtractor()
 	require.NoError(t, filepath.Walk(dir, te.visit))

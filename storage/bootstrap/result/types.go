@@ -26,7 +26,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/series"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -53,28 +53,28 @@ type ShardResult interface {
 
 	// BlockAt returns the block at a given time for a given id,
 	// or nil if there is no such block.
-	BlockAt(id ts.ID, t time.Time) (block.DatabaseBlock, bool)
+	BlockAt(id ident.ID, t time.Time) (block.DatabaseBlock, bool)
 
 	// AllSeries returns all series of blocks.
-	AllSeries() map[ts.Hash]DatabaseSeriesBlocks
+	AllSeries() map[ident.Hash]DatabaseSeriesBlocks
 
 	// NumSeries returns the number of distinct series'.
 	NumSeries() int64
 
 	// AddBlock adds a data block.
-	AddBlock(id ts.ID, block block.DatabaseBlock)
+	AddBlock(id ident.ID, block block.DatabaseBlock)
 
 	// AddSeries adds a single series of blocks.
-	AddSeries(id ts.ID, rawSeries block.DatabaseSeriesBlocks)
+	AddSeries(id ident.ID, rawSeries block.DatabaseSeriesBlocks)
 
 	// AddResult adds a shard result.
 	AddResult(other ShardResult)
 
 	// RemoveBlockAt removes a data block at a given timestamp
-	RemoveBlockAt(id ts.ID, t time.Time)
+	RemoveBlockAt(id ident.ID, t time.Time)
 
 	// RemoveSeries removes a single series of blocks.
-	RemoveSeries(id ts.ID)
+	RemoveSeries(id ident.ID)
 
 	// Close closes a shard result.
 	Close()
@@ -82,7 +82,7 @@ type ShardResult interface {
 
 // DatabaseSeriesBlocks represents a series of blocks and a associated series ID.
 type DatabaseSeriesBlocks struct {
-	ID     ts.ID
+	ID     ident.ID
 	Blocks block.DatabaseSeriesBlocks
 }
 

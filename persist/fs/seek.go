@@ -30,10 +30,10 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/mmap"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -173,7 +173,7 @@ func (s *seeker) ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter {
 	return s.bloomFilter
 }
 
-func (s *seeker) Open(namespace ts.ID, shard uint32, blockStart time.Time) error {
+func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) error {
 	if s.isClone {
 		return errClonesShouldNotBeOpened
 	}
@@ -348,7 +348,7 @@ func (s *seeker) readInfo(size int) error {
 
 // SeekByID returns the data for the specified ID. An error will be returned if the
 // ID cannot be found.
-func (s *seeker) SeekByID(id ts.ID) (checked.Bytes, error) {
+func (s *seeker) SeekByID(id ident.ID) (checked.Bytes, error) {
 	entry, err := s.SeekIndexEntry(id)
 	if err != nil {
 		return nil, err
@@ -402,7 +402,7 @@ func (s *seeker) SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error) {
 	return buffer, nil
 }
 
-func (s *seeker) SeekIndexEntry(id ts.ID) (IndexEntry, error) {
+func (s *seeker) SeekIndexEntry(id ident.ID) (IndexEntry, error) {
 	offset, err := s.indexLookup.getNearestIndexFileOffset(id)
 	// Should never happen, either something is really wrong with the code or
 	// the file on disk was corrupted

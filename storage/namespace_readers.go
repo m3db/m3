@@ -26,7 +26,7 @@ import (
 
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
@@ -78,7 +78,7 @@ type databaseNamespaceReaderManager interface {
 
 type fsFilesetExistsAtFn func(
 	prefix string,
-	namespace ts.ID,
+	namespace ident.ID,
 	shard uint32,
 	blockStart time.Time,
 ) bool

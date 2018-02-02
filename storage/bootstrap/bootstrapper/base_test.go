@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -36,7 +37,7 @@ import (
 )
 
 var (
-	testNamespaceID    = ts.StringID("testNamespace")
+	testNamespaceID    = ident.StringID("testNamespace")
 	testTargetStart    = time.Now()
 	testShard          = uint32(0)
 	testDefaultRunOpts = bootstrap.NewRunOptions().SetIncremental(false)
@@ -79,7 +80,7 @@ func shardResult(entries ...testBlockEntry) result.ShardResult {
 	for _, entry := range entries {
 		block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 		block.Reset(entry.t, ts.Segment{})
-		res.AddBlock(ts.StringID(entry.id), block)
+		res.AddBlock(ident.StringID(entry.id), block)
 	}
 	return res
 }

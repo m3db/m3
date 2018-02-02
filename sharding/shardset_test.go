@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/require"
 )
@@ -32,7 +32,7 @@ import (
 func TestShardSet(t *testing.T) {
 	ss, err := NewShardSet(
 		NewShards([]uint32{1, 1}, shard.Available),
-		func(id ts.ID) uint32 {
+		func(id ident.ID) uint32 {
 			return 0
 		})
 	require.Equal(t, ErrDuplicateShards, err)
@@ -41,7 +41,7 @@ func TestShardSet(t *testing.T) {
 	staticShard := uint32(1)
 	ss, err = NewShardSet(
 		NewShards([]uint32{1, 5, 3}, shard.Available),
-		func(id ts.ID) uint32 {
+		func(id ident.ID) uint32 {
 			return staticShard
 		})
 	require.NoError(t, err)
@@ -50,7 +50,7 @@ func TestShardSet(t *testing.T) {
 	require.Equal(t, uint32(1), ss.Min())
 	require.Equal(t, uint32(5), ss.Max())
 
-	id := ts.StringID("bla")
+	id := ident.StringID("bla")
 	s := ss.Lookup(id)
 	require.Equal(t, staticShard, s)
 	fn := ss.HashFn()
@@ -61,7 +61,7 @@ func TestLookupShardState(t *testing.T) {
 	staticShard := uint32(1)
 	ss, err := NewShardSet(
 		NewShards([]uint32{1, 5, 3}, shard.Available),
-		func(id ts.ID) uint32 {
+		func(id ident.ID) uint32 {
 			return staticShard
 		})
 	require.NoError(t, err)

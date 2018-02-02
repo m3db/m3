@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/persist/fs"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 )
 
 type cloner struct {
@@ -31,7 +31,7 @@ func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duratio
 	if err != nil {
 		return fmt.Errorf("unable to create fileset reader: %v", err)
 	}
-	if err := reader.Open(ts.StringID(src.Namespace), src.Shard, src.Blockstart); err != nil {
+	if err := reader.Open(ident.StringID(src.Namespace), src.Shard, src.Blockstart); err != nil {
 		return fmt.Errorf("unable to read source fileset: %v", err)
 	}
 
@@ -39,7 +39,7 @@ func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duratio
 	if err != nil {
 		return fmt.Errorf("unable to create fileset writer: %v", err)
 	}
-	if err := writer.Open(ts.StringID(dest.Namespace), destBlocksize, dest.Shard, dest.Blockstart); err != nil {
+	if err := writer.Open(ident.StringID(dest.Namespace), destBlocksize, dest.Shard, dest.Blockstart); err != nil {
 		return fmt.Errorf("unable to open fileset writer: %v", err)
 	}
 

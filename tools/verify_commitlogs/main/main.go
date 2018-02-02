@@ -44,6 +44,7 @@ import (
 	"github.com/m3db/m3db/tools"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
@@ -235,7 +236,7 @@ func main() {
 		log.Fatal(err.Error())
 	}
 
-	nsID := ts.StringID(namespaceStr)
+	nsID := ident.StringID(namespaceStr)
 	runOpts := bootstrap.NewRunOptions().
 		// Dont save intermediate results
 		SetIncremental(false)

@@ -36,7 +36,6 @@ import (
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/util"
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
 	"github.com/m3db/m3db/environment"
@@ -64,6 +63,8 @@ import (
 	"github.com/m3db/m3db/x/mmap"
 	"github.com/m3db/m3db/x/tchannel"
 	xconfig "github.com/m3db/m3x/config"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
@@ -682,15 +683,15 @@ func withEncodingAndPoolingOptions(
 	multiIteratorPool := encoding.NewMultiReaderIteratorPool(
 		poolOptions(policy.IteratorPool, scope.SubScope("multi-iterator-pool")))
 
-	var identifierPool ts.IdentifierPool
+	var identifierPool ident.Pool
 
 	switch policy.Type {
 	case "simple":
-		identifierPool = ts.NewIdentifierPool(
+		identifierPool = ident.NewPool(
 			bytesPool,
 			poolOptions(policy.IdentifierPool, scope.SubScope("identifier-pool")))
 	case "native":
-		identifierPool = ts.NewNativeIdentifierPool(
+		identifierPool = ident.NewNativePool(
 			bytesPool,
 			poolOptions(policy.IdentifierPool, scope.SubScope("identifier-pool")))
 	}

@@ -33,8 +33,7 @@ import (
 
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/fs/msgpack"
-	"github.com/m3db/m3db/ts"
-
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/checked"
 
 	"github.com/leanovate/gopter"
@@ -116,7 +115,7 @@ func TestIndexLookupWriteRead(t *testing.T) {
 
 		// Make sure it returns the correct index offset for every ID
 		for id, expectedOffset := range expectedIndexFileOffsets {
-			foundOffset, err := indexLookup.getNearestIndexFileOffset(ts.StringID(id))
+			foundOffset, err := indexLookup.getNearestIndexFileOffset(ident.StringID(id))
 			if err != nil {
 				return false, fmt.Errorf("err locating index file offset for: %s, err: %v", id, err)
 			}
@@ -167,7 +166,7 @@ type propTestInput struct {
 }
 
 type generatedWrite struct {
-	id       ts.ID
+	id       ident.ID
 	data     checked.Bytes
 	checksum uint32
 }
@@ -206,7 +205,7 @@ func genWrite() gopter.Gen {
 		data := vals[1].([]byte)
 
 		return generatedWrite{
-			id:       ts.StringID(id),
+			id:       ident.StringID(id),
 			data:     bytesRefd(data),
 			checksum: digest.Checksum(data),
 		}

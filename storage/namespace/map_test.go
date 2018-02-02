@@ -23,7 +23,7 @@ package namespace
 import (
 	"testing"
 
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
@@ -37,7 +37,7 @@ func TestMapEmpty(t *testing.T) {
 func TestMapSingleElement(t *testing.T) {
 	var (
 		opts = NewOptions()
-		id   = ts.StringID("someID")
+		id   = ident.StringID("someID")
 	)
 	md1, err := NewMetadata(id, opts)
 	require.NoError(t, err)
@@ -56,8 +56,8 @@ func TestMapMultipleElements(t *testing.T) {
 	var (
 		opts1 = NewOptions()
 		opts2 = opts1.SetNeedsRepair(true)
-		id1   = ts.StringID("someID1")
-		id2   = ts.StringID("someID2")
+		id1   = ident.StringID("someID1")
+		id2   = ident.StringID("someID2")
 	)
 	md1, err := NewMetadata(id1, opts1)
 	require.NoError(t, err)
@@ -82,8 +82,8 @@ func testMap(t *testing.T) Map {
 	var (
 		opts1 = NewOptions()
 		opts2 = opts1.SetNeedsRepair(true)
-		id1   = ts.StringID("someID1")
-		id2   = ts.StringID("someID2")
+		id1   = ident.StringID("someID1")
+		id2   = ident.StringID("someID2")
 	)
 	md1, err := NewMetadata(id1, opts1)
 	require.NoError(t, err)
@@ -110,7 +110,7 @@ func TestMapValidateDuplicateID(t *testing.T) {
 
 	var (
 		opts = NewMockOptions(ctrl)
-		id   = ts.StringID("someID")
+		id   = ident.StringID("someID")
 	)
 	opts.EXPECT().Validate().Return(nil).AnyTimes()
 

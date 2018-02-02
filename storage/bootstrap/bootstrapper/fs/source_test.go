@@ -29,7 +29,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
@@ -37,8 +36,9 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/series"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 
@@ -48,7 +48,7 @@ import (
 
 var (
 	testShard             = uint32(0)
-	testNs1ID             = ts.StringID("testNs")
+	testNs1ID             = ident.StringID("testNs")
 	testStart             = time.Now()
 	testBlockSize         = 2 * time.Hour
 	testFileMode          = os.FileMode(0666)
@@ -80,19 +80,19 @@ func createTempDir(t *testing.T) string {
 	return dir
 }
 
-func writeInfoFile(t *testing.T, prefix string, namespace ts.ID, shard uint32, start time.Time, data []byte) {
+func writeInfoFile(t *testing.T, prefix string, namespace ident.ID, shard uint32, start time.Time, data []byte) {
 	shardDir := fs.ShardDirPath(prefix, namespace, shard)
 	filePath := path.Join(shardDir, fmt.Sprintf("fileset-%d-info.db", xtime.ToNanoseconds(start)))
 	writeFile(t, filePath, data)
 }
 
-func writeDataFile(t *testing.T, prefix string, namespace ts.ID, shard uint32, start time.Time, data []byte) {
+func writeDataFile(t *testing.T, prefix string, namespace ident.ID, shard uint32, start time.Time, data []byte) {
 	shardDir := fs.ShardDirPath(prefix, namespace, shard)
 	filePath := path.Join(shardDir, fmt.Sprintf("fileset-%d-data.db", xtime.ToNanoseconds(start)))
 	writeFile(t, filePath, data)
 }
 
-func writeDigestFile(t *testing.T, prefix string, namespace ts.ID, shard uint32, start time.Time, data []byte) {
+func writeDigestFile(t *testing.T, prefix string, namespace ident.ID, shard uint32, start time.Time, data []byte) {
 	shardDir := fs.ShardDirPath(prefix, namespace, shard)
 	filePath := path.Join(shardDir, fmt.Sprintf("fileset-%d-digest.db", xtime.ToNanoseconds(start)))
 	writeFile(t, filePath, data)
@@ -116,7 +116,7 @@ func testShardTimeRanges() result.ShardTimeRanges {
 	return map[uint32]xtime.Ranges{testShard: testTimeRanges()}
 }
 
-func writeGoodFiles(t *testing.T, dir string, namespace ts.ID, shard uint32) {
+func writeGoodFiles(t *testing.T, dir string, namespace ident.ID, shard uint32) {
 	inputs := []struct {
 		start time.Time
 		id    string
@@ -132,14 +132,14 @@ func writeGoodFiles(t *testing.T, dir string, namespace ts.ID, shard uint32) {
 	}
 }
 
-func writeTSDBFiles(t *testing.T, dir string, namespace ts.ID, shard uint32, start time.Time, id string, data []byte) {
+func writeTSDBFiles(t *testing.T, dir string, namespace ident.ID, shard uint32, start time.Time, id string, data []byte) {
 	w, err := fs.NewWriter(newTestFsOptions(dir))
 	require.NoError(t, err)
 	require.NoError(t, w.Open(namespace, testBlockSize, shard, start))
 
 	bytes := checked.NewBytes(data, nil)
 	bytes.IncRef()
-	require.NoError(t, w.Write(ts.StringID(id), bytes, digest.Checksum(bytes.Get())))
+	require.NoError(t, w.Write(ident.StringID(id), bytes, digest.Checksum(bytes.Get())))
 	require.NoError(t, w.Close())
 }
 
@@ -347,8 +347,8 @@ func validateReadResults(
 
 	require.Equal(t, 2, len(allSeries))
 
-	ids := []ts.Hash{
-		ts.StringID("foo").Hash(), ts.StringID("bar").Hash()}
+	ids := []ident.Hash{
+		ident.StringID("foo").Hash(), ident.StringID("bar").Hash()}
 	data := [][]byte{
 		{1, 2, 3},
 		{4, 5, 6},
@@ -407,7 +407,7 @@ func TestReadValidateError(t *testing.T) {
 		return reader, nil
 	}
 
-	idMatcher := ts.NewIDMatcher(testNs1ID.String())
+	idMatcher := ident.NewIDMatcher(testNs1ID.String())
 	shard := uint32(0)
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
@@ -455,7 +455,7 @@ func TestReadOpenError(t *testing.T) {
 		return reader, nil
 	}
 
-	idMatcher := ts.NewIDMatcher(testNs1ID.String())
+	idMatcher := ident.NewIDMatcher(testNs1ID.String())
 	shard := uint32(0)
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
@@ -497,7 +497,7 @@ func TestReadDeleteOnError(t *testing.T) {
 	writeTSDBFiles(t, dir, testNs1ID, shard, testStart,
 		"foo", []byte{0x1})
 
-	idMatcher := ts.NewIDMatcher(testNs1ID.String())
+	idMatcher := ident.NewIDMatcher(testNs1ID.String())
 	gomock.InOrder(
 		reader.EXPECT().Open(idMatcher, shard, xtime.NewMatcher(testStart)).Return(nil),
 		reader.EXPECT().
@@ -516,10 +516,10 @@ func TestReadDeleteOnError(t *testing.T) {
 		reader.EXPECT().Entries().Return(2),
 		reader.EXPECT().
 			Read().
-			Return(ts.StringID("foo"), nil, digest.Checksum(nil), nil),
+			Return(ident.StringID("foo"), nil, digest.Checksum(nil), nil),
 		reader.EXPECT().
 			Read().
-			Return(ts.StringID("bar"), nil, uint32(0), errors.New("foo")),
+			Return(ident.StringID("bar"), nil, uint32(0), errors.New("foo")),
 		reader.EXPECT().Close().Return(nil),
 	)
 

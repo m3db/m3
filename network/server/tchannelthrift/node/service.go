@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
@@ -35,12 +34,14 @@ import (
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
-	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -90,7 +91,7 @@ type service struct {
 	opts                     tchannelthrift.Options
 	nowFn                    clock.NowFn
 	metrics                  serviceMetrics
-	idPool                   ts.IdentifierPool
+	idPool                   ident.Pool
 	checkedBytesPool         pool.ObjectPool
 	blockMetadataPool        tchannelthrift.BlockMetadataPool
 	blockMetadataV2Pool      tchannelthrift.BlockMetadataV2Pool
@@ -418,7 +419,7 @@ func (s *service) FetchBlocksMetadataRaw(tctx thrift.Context, req *rpc.FetchBloc
 		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
 	}
-	ctx.RegisterFinalizer(context.FinalizerFn(fetched.Close))
+	ctx.RegisterFinalizer(resource.FinalizerFn(fetched.Close))
 
 	fetchedResults := fetched.Results()
 	result := rpc.NewFetchBlocksMetadataRawResult_()
@@ -520,7 +521,7 @@ func (s *service) FetchBlocksMetadataRawV2(tctx thrift.Context, req *rpc.FetchBl
 		s.metrics.fetchBlocksMetadata.ReportError(s.nowFn().Sub(callStart))
 		return nil, convert.ToRPCError(err)
 	}
-	ctx.RegisterFinalizer(context.FinalizerFn(fetchedMetadata.Close))
+	ctx.RegisterFinalizer(resource.FinalizerFn(fetchedMetadata.Close))
 
 	result, err := s.getFetchBlocksMetadataRawV2Result(nextPageToken, opts, fetchedMetadata)
 	// Finalize pooled datastructures regardless of errors because even in the error
@@ -849,7 +850,7 @@ func (s *service) isOverloaded() bool {
 	return s.db.IsOverloaded()
 }
 
-func (s *service) newID(ctx context.Context, id []byte) ts.ID {
+func (s *service) newID(ctx context.Context, id []byte) ident.ID {
 	checkedBytes := s.checkedBytesPool.Get().(checked.Bytes)
 	checkedBytes.IncRef()
 	checkedBytes.Reset(id)

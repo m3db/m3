@@ -32,12 +32,13 @@ import (
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/repair"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/uber-go/tally"
@@ -48,7 +49,7 @@ var (
 	errRepairInProgress = errors.New("repair already in progress")
 )
 
-type recordFn func(namespace ts.ID, shard databaseShard, diffRes repair.MetadataComparisonResult)
+type recordFn func(namespace ident.ID, shard databaseShard, diffRes repair.MetadataComparisonResult)
 
 type shardRepairer struct {
 	opts     Options
@@ -83,7 +84,7 @@ func (r shardRepairer) Options() repair.Options {
 
 func (r shardRepairer) Repair(
 	ctx context.Context,
-	namespace ts.ID,
+	namespace ident.ID,
 	tr xtime.Range,
 	shard databaseShard,
 ) (repair.MetadataComparisonResult, error) {
@@ -111,7 +112,7 @@ func (r shardRepairer) Repair(
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}
-	ctx.RegisterFinalizer(context.FinalizerFn(localMetadata.Close))
+	ctx.RegisterFinalizer(resource.FinalizerFn(localMetadata.Close))
 
 	localIter := block.NewFilteredBlocksMetadataIter(localMetadata)
 	metadata.AddLocalMetadata(origin, localIter)
@@ -134,7 +135,7 @@ func (r shardRepairer) Repair(
 }
 
 func (r shardRepairer) recordDifferences(
-	namespace ts.ID,
+	namespace ident.ID,
 	shard databaseShard,
 	diffRes repair.MetadataComparisonResult,
 ) {
@@ -181,14 +182,14 @@ type repairState struct {
 
 type namespaceRepairStateByTime map[xtime.UnixNano]repairState
 
-type repairStatesByNs map[ts.Hash]namespaceRepairStateByTime
+type repairStatesByNs map[ident.Hash]namespaceRepairStateByTime
 
 func newRepairStates() repairStatesByNs {
 	return make(repairStatesByNs)
 }
 
 func (r repairStatesByNs) repairStates(
-	namespace ts.ID,
+	namespace ident.ID,
 	t time.Time,
 ) (repairState, bool) {
 	var rs repairState
@@ -203,7 +204,7 @@ func (r repairStatesByNs) repairStates(
 }
 
 func (r repairStatesByNs) setRepairState(
-	namespace ts.ID,
+	namespace ident.ID,
 	t time.Time,
 	state repairState,
 ) {
@@ -335,7 +336,7 @@ func (r *dbRepairer) namespaceRepairTimeRanges(ns databaseNamespace) xtime.Range
 	return targetRanges
 }
 
-func (r *dbRepairer) needsRepair(ns ts.ID, t time.Time) bool {
+func (r *dbRepairer) needsRepair(ns ident.ID, t time.Time) bool {
 	repairState, exists := r.repairStatesByNs.repairStates(ns, t)
 	if !exists {
 		return true

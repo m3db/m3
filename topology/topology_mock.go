@@ -24,13 +24,15 @@
 package topology
 
 import (
-	gomock "github.com/golang/mock/gomock"
+	time "time"
+
 	client "github.com/m3db/m3cluster/client"
 	services "github.com/m3db/m3cluster/services"
 	sharding "github.com/m3db/m3db/sharding"
-	ts "github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	instrument "github.com/m3db/m3x/instrument"
-	time "time"
+
+	gomock "github.com/golang/mock/gomock"
 )
 
 // Mock of Host interface
@@ -388,7 +390,7 @@ func (_mr *_MockMapRecorder) ShardSet() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ShardSet")
 }
 
-func (_m *MockMap) Route(id ts.ID) (uint32, []Host, error) {
+func (_m *MockMap) Route(id ident.ID) (uint32, []Host, error) {
 	ret := _m.ctrl.Call(_m, "Route", id)
 	ret0, _ := ret[0].(uint32)
 	ret1, _ := ret[1].([]Host)
@@ -400,7 +402,7 @@ func (_mr *_MockMapRecorder) Route(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Route", arg0)
 }
 
-func (_m *MockMap) RouteForEach(id ts.ID, forEachFn RouteForEachFn) error {
+func (_m *MockMap) RouteForEach(id ident.ID, forEachFn RouteForEachFn) error {
 	ret := _m.ctrl.Call(_m, "RouteForEach", id, forEachFn)
 	ret0, _ := ret[0].(error)
 	return ret0

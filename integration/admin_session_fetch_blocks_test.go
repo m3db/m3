@@ -27,11 +27,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/client"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -95,7 +96,7 @@ func TestAdminSessionFetchBlocksFromPeers(t *testing.T) {
 func testSetupMetadatas(
 	t *testing.T,
 	testSetup *testSetup,
-	namespace ts.ID,
+	namespace ident.ID,
 	start time.Time,
 	end time.Time,
 ) map[uint32][]block.ReplicaMetadata {

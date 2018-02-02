@@ -21,46 +21,8 @@
 package ts
 
 import (
-	"crypto/md5"
-	"fmt"
 	"time"
-
-	"github.com/m3db/m3db/context"
-	"github.com/m3db/m3x/checked"
 )
-
-// ID represents an immutable identifier for a timeseries.
-type ID interface {
-	fmt.Stringer
-
-	Data() checked.Bytes
-	Hash() Hash
-	Equal(value ID) bool
-
-	Finalize()
-	Reset()
-}
-
-// IdentifierPool represents an automatic pool of IDs.
-type IdentifierPool interface {
-	// GetBinaryID will create a new binary ID and take reference to the bytes.
-	// When the context closes the ID will be finalized and so too will
-	// the bytes, i.e. it will take ownership of the bytes.
-	GetBinaryID(context.Context, checked.Bytes) ID
-
-	// GetStringID will create a new string ID and create a bytes copy of the
-	// string. When the context closes the ID will be finalized.
-	GetStringID(context.Context, string) ID
-
-	// Put an ID back in the pool.
-	Put(ID)
-
-	// Clone replicates a given ID into a pooled ID.
-	Clone(other ID) ID
-}
-
-// Hash represents a form of ID suitable to be used as map keys.
-type Hash [md5.Size]byte
 
 // A Datapoint is a single data value reported at a given time.
 type Datapoint struct {

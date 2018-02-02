@@ -30,9 +30,9 @@ import (
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
@@ -43,19 +43,19 @@ type FileSetWriter interface {
 	io.Closer
 
 	// Open opens the files for writing data to the given shard in the given namespace
-	Open(namespace ts.ID, blockSize time.Duration, shard uint32, start time.Time) error
+	Open(namespace ident.ID, blockSize time.Duration, shard uint32, start time.Time) error
 
 	// Write will write the id and data pair and returns an error on a write error
-	Write(id ts.ID, data checked.Bytes, checksum uint32) error
+	Write(id ident.ID, data checked.Bytes, checksum uint32) error
 
 	// WriteAll will write the id and all byte slices and returns an error on a write error
-	WriteAll(id ts.ID, data []checked.Bytes, checksum uint32) error
+	WriteAll(id ident.ID, data []checked.Bytes, checksum uint32) error
 }
 
 // FileSetReaderStatus describes the status of a file set reader
 type FileSetReaderStatus struct {
 	Open       bool
-	Namespace  ts.ID
+	Namespace  ident.ID
 	Shard      uint32
 	BlockStart time.Time
 }
@@ -65,18 +65,18 @@ type FileSetReader interface {
 	io.Closer
 
 	// Open opens the files for the given shard and version for reading
-	Open(namespace ts.ID, shard uint32, start time.Time) error
+	Open(namespace ident.ID, shard uint32, start time.Time) error
 
 	// Status returns the status of the reader
 	Status() FileSetReaderStatus
 
 	// Read returns the next id, data, checksum tuple or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
-	Read() (id ts.ID, data checked.Bytes, checksum uint32, err error)
+	Read() (id ident.ID, data checked.Bytes, checksum uint32, err error)
 
 	// ReadMetadata returns the next id and metadata or error, will return io.EOF at end of volume.
 	// Use either Read or ReadMetadata to progress through a volume, but not both.
-	ReadMetadata() (id ts.ID, length int, checksum uint32, err error)
+	ReadMetadata() (id ident.ID, length int, checksum uint32, err error)
 
 	// ReadBloomFilter returns the bloom filter stored on disk in a container object that is safe
 	// for concurrent use and has a Close() method for releasing resources when done.
@@ -109,11 +109,11 @@ type FileSetSeeker interface {
 	io.Closer
 
 	// Open opens the files for the given shard and version for reading
-	Open(namespace ts.ID, shard uint32, start time.Time) error
+	Open(namespace ident.ID, shard uint32, start time.Time) error
 
 	// SeekByID returns the data for specified ID provided the index was loaded upon open. An
 	// error will be returned if the index was not loaded or ID cannot be found.
-	SeekByID(id ts.ID) (data checked.Bytes, err error)
+	SeekByID(id ident.ID) (data checked.Bytes, err error)
 
 	// SeekByIndexEntry is similar to Seek, but uses an IndexEntry instead of
 	// looking it up on its own. Useful in cases where you've already obtained an
@@ -124,7 +124,7 @@ type FileSetSeeker interface {
 	// ahead of issuing a number of seek requests so that the seek requests can be
 	// made in order. The returned IndexEntry can also be passed to SeekUsingIndexEntry
 	// to prevent duplicate index lookups.
-	SeekIndexEntry(id ts.ID) (IndexEntry, error)
+	SeekIndexEntry(id ident.ID) (IndexEntry, error)
 
 	// Range returns the time range associated with data in the volume
 	Range() xtime.Range
@@ -152,13 +152,13 @@ type ConcurrentFileSetSeeker interface {
 	io.Closer
 
 	// SeekByID is the same as in FileSetSeeker
-	SeekByID(id ts.ID) (data checked.Bytes, err error)
+	SeekByID(id ident.ID) (data checked.Bytes, err error)
 
 	// SeekByIndexEntry is the same as in FileSetSeeker
 	SeekByIndexEntry(entry IndexEntry) (checked.Bytes, error)
 
 	// SeekIndexEntry is the same as in FileSetSeeker
-	SeekIndexEntry(id ts.ID) (IndexEntry, error)
+	SeekIndexEntry(id ident.ID) (IndexEntry, error)
 
 	// ConcurrentIDBloomFilter is the same as in FileSetSeeker
 	ConcurrentIDBloomFilter() *ManagedConcurrentBloomFilter
@@ -325,8 +325,8 @@ type BlockRetrieverOptions interface {
 	FetchConcurrency() int
 
 	// SetIdentifierPool sets the identifierPool
-	SetIdentifierPool(value ts.IdentifierPool) BlockRetrieverOptions
+	SetIdentifierPool(value ident.Pool) BlockRetrieverOptions
 
 	// IdentifierPool returns the identifierPool
-	IdentifierPool() ts.IdentifierPool
+	IdentifierPool() ident.Pool
 }

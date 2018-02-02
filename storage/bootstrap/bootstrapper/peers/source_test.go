@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -43,7 +44,7 @@ import (
 )
 
 var (
-	testNamespace         = ts.StringID("testnamespace")
+	testNamespace         = ident.StringID("testnamespace")
 	testNamespaceMetadata = func(t *testing.T) namespace.Metadata {
 		ns, err := namespace.NewMetadata(testNamespace, namespace.NewOptions())
 		require.NoError(t, err)
@@ -118,7 +119,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 
 	goodResult := result.NewShardResult(0, opts.ResultOptions())
 	fooBlock := block.NewDatabaseBlock(start, ts.Segment{}, testBlockOpts)
-	goodResult.AddBlock(ts.StringID("foo"), fooBlock)
+	goodResult.AddBlock(ident.StringID("foo"), fooBlock)
 	badErr := fmt.Errorf("an error")
 
 	mockAdminSession := client.NewMockAdminSession(ctrl)
@@ -154,7 +155,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 	require.False(t, r.Unfulfilled()[1].IsEmpty())
 	require.Equal(t, 1, r.Unfulfilled()[1].Len())
 
-	block, ok := r.ShardResults()[0].BlockAt(ts.StringID("foo"), start)
+	block, ok := r.ShardResults()[0].BlockAt(ident.StringID("foo"), start)
 	require.True(t, ok)
 	require.Equal(t, fooBlock, block)
 
@@ -186,14 +187,14 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		barBlock := block.NewDatabaseBlock(start.Add(ropts.BlockSize()),
 			ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
 			testBlockOpts)
-		firstResult.AddBlock(ts.StringID("foo"), fooBlock)
-		firstResult.AddBlock(ts.StringID("bar"), barBlock)
+		firstResult.AddBlock(ident.StringID("foo"), fooBlock)
+		firstResult.AddBlock(ident.StringID("bar"), barBlock)
 
 		secondResult := result.NewShardResult(0, opts.ResultOptions())
 		bazBlock := block.NewDatabaseBlock(start,
 			ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
 			testBlockOpts)
-		secondResult.AddBlock(ts.StringID("baz"), bazBlock)
+		secondResult.AddBlock(ident.StringID("baz"), bazBlock)
 
 		mockAdminSession := client.NewMockAdminSession(ctrl)
 		mockAdminSession.EXPECT().
@@ -230,7 +231,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		mockFlush.EXPECT().
 			Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(0), start).
 			Return(persist.PreparedPersist{
-				Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+				Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 					persists["foo"]++
 					assert.Equal(t, "foo", id.String())
 					assert.Equal(t, []byte{1, 2, 3}, segment.Head.Get())
@@ -245,7 +246,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		mockFlush.EXPECT().
 			Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(0), start.Add(ropts.BlockSize())).
 			Return(persist.PreparedPersist{
-				Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+				Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 					persists["bar"]++
 					assert.Equal(t, "bar", id.String())
 					assert.Equal(t, []byte{4, 5, 6}, segment.Head.Get())
@@ -260,7 +261,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		mockFlush.EXPECT().
 			Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(1), start).
 			Return(persist.PreparedPersist{
-				Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+				Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 					persists["baz"]++
 					assert.Equal(t, "baz", id.String())
 					assert.Equal(t, []byte{7, 8, 9}, segment.Head.Get())
@@ -275,7 +276,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		mockFlush.EXPECT().
 			Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(1), start.Add(ropts.BlockSize())).
 			Return(persist.PreparedPersist{
-				Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+				Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 					assert.Fail(t, "no expected shard 1 second block")
 					return nil
 				},
@@ -307,7 +308,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		require.True(t, r.Unfulfilled()[0].IsEmpty())
 		require.True(t, r.Unfulfilled()[1].IsEmpty())
 
-		block, ok := r.ShardResults()[0].BlockAt(ts.StringID("foo"), start)
+		block, ok := r.ShardResults()[0].BlockAt(ident.StringID("foo"), start)
 		require.True(t, ok)
 		assert.Equal(t, fooBlock, block)
 		switch cachePolicy {
@@ -319,7 +320,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 			require.FailNow(t, "testing unknown cache policy: "+cachePolicy.String())
 		}
 
-		block, ok = r.ShardResults()[0].BlockAt(ts.StringID("bar"), start.Add(ropts.BlockSize()))
+		block, ok = r.ShardResults()[0].BlockAt(ident.StringID("bar"), start.Add(ropts.BlockSize()))
 		require.True(t, ok)
 		assert.Equal(t, barBlock, block)
 		switch cachePolicy {
@@ -331,7 +332,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 			require.FailNow(t, "testing unknown cache policy: "+cachePolicy.String())
 		}
 
-		block, ok = r.ShardResults()[1].BlockAt(ts.StringID("baz"), start)
+		block, ok = r.ShardResults()[1].BlockAt(ident.StringID("baz"), start)
 		require.True(t, ok)
 		assert.Equal(t, bazBlock, block)
 		switch cachePolicy {
@@ -374,7 +375,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	results := make(map[resultsKey]result.ShardResult)
 	addResult := func(shard uint32, id string, b block.DatabaseBlock) {
 		r := result.NewShardResult(0, opts.ResultOptions())
-		r.AddBlock(ts.StringID(id), b)
+		r.AddBlock(ident.StringID(id), b)
 		start := b.StartTime()
 		end := start.Add(ropts.BlockSize())
 		results[resultsKey{shard, start.UnixNano(), end.UnixNano()}] = r
@@ -466,7 +467,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockFlush.EXPECT().
 		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(0), start).
 		Return(persist.PreparedPersist{
-			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 				assert.Fail(t, "not expecting to flush shard 0 at start")
 				return nil
 			},
@@ -478,7 +479,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockFlush.EXPECT().
 		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(0), midway).
 		Return(persist.PreparedPersist{
-			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 				persists["foo"]++
 				return nil
 			},
@@ -492,7 +493,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockFlush.EXPECT().
 		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(1), start).
 		Return(persist.PreparedPersist{
-			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 				assert.Fail(t, "not expecting to flush shard 0 at start + block size")
 				return nil
 			},
@@ -504,7 +505,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockFlush.EXPECT().
 		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(1), midway).
 		Return(persist.PreparedPersist{
-			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 				persists["bar"]++
 				return nil
 			},
@@ -518,7 +519,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockFlush.EXPECT().
 		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(2), start).
 		Return(persist.PreparedPersist{
-			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 				persists["baz"]++
 				return fmt.Errorf("a persist error")
 			},
@@ -530,7 +531,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockFlush.EXPECT().
 		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(2), midway).
 		Return(persist.PreparedPersist{
-			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 				persists["baz"]++
 				return nil
 			},
@@ -544,7 +545,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockFlush.EXPECT().
 		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(3), start).
 		Return(persist.PreparedPersist{
-			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 				persists["qux"]++
 				return nil
 			},
@@ -556,7 +557,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	mockFlush.EXPECT().
 		Prepare(namespace.NewMetadataMatcher(testNsMd), uint32(3), midway).
 		Return(persist.PreparedPersist{
-			Persist: func(id ts.ID, segment ts.Segment, checksum uint32) error {
+			Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 				persists["qux"]++
 				return nil
 			},
@@ -603,19 +604,19 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 		}).String(), r.Unfulfilled()[i].String())
 	}
 
-	block, ok := r.ShardResults()[0].BlockAt(ts.StringID("foo"), midway)
+	block, ok := r.ShardResults()[0].BlockAt(ident.StringID("foo"), midway)
 	require.True(t, ok)
 	assert.Equal(t, fooBlocks[1], block)
 
-	block, ok = r.ShardResults()[1].BlockAt(ts.StringID("bar"), midway)
+	block, ok = r.ShardResults()[1].BlockAt(ident.StringID("bar"), midway)
 	require.True(t, ok)
 	assert.Equal(t, barBlocks[1], block)
 
-	block, ok = r.ShardResults()[2].BlockAt(ts.StringID("baz"), midway)
+	block, ok = r.ShardResults()[2].BlockAt(ident.StringID("baz"), midway)
 	require.True(t, ok)
 	assert.Equal(t, bazBlocks[1], block)
 
-	block, ok = r.ShardResults()[3].BlockAt(ts.StringID("qux"), midway)
+	block, ok = r.ShardResults()[3].BlockAt(ident.StringID("qux"), midway)
 	require.True(t, ok)
 	assert.Equal(t, quxBlocks[1], block)
 

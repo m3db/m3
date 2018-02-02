@@ -32,11 +32,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 
@@ -92,7 +93,7 @@ func newOpenTestWriter(
 type streamResult struct {
 	ctx        context.Context
 	shard      uint32
-	id         ts.ID
+	id         ident.ID
 	blockStart time.Time
 	stream     xio.SegmentReader
 }
@@ -145,21 +146,21 @@ func testBlockRetrieverHighConcurrentSeeks(t *testing.T, shouldCacheShardIndices
 	var (
 		shards         = []uint32{0, 1, 2}
 		idsPerShard    = 16
-		shardIDs       = make(map[uint32][]ts.ID)
+		shardIDs       = make(map[uint32][]ident.ID)
 		dataBytesPerID = 32
-		shardData      = make(map[uint32]map[ts.Hash]map[xtime.UnixNano]checked.Bytes)
+		shardData      = make(map[uint32]map[ident.Hash]map[xtime.UnixNano]checked.Bytes)
 		blockStarts    []time.Time
 	)
 	for st := min; !st.After(max); st = st.Add(ropts.BlockSize()) {
 		blockStarts = append(blockStarts, st)
 	}
 	for _, shard := range shards {
-		shardIDs[shard] = make([]ts.ID, 0, idsPerShard)
-		shardData[shard] = make(map[ts.Hash]map[xtime.UnixNano]checked.Bytes, idsPerShard)
+		shardIDs[shard] = make([]ident.ID, 0, idsPerShard)
+		shardData[shard] = make(map[ident.Hash]map[xtime.UnixNano]checked.Bytes, idsPerShard)
 		for _, blockStart := range blockStarts {
 			w, closer := newOpenTestWriter(t, fsOpts, shard, blockStart)
 			for i := 0; i < idsPerShard; i++ {
-				id := ts.StringID(fmt.Sprintf("foo.%d", i))
+				id := ident.StringID(fmt.Sprintf("foo.%d", i))
 				shardIDs[shard] = append(shardIDs[shard], id)
 				if _, ok := shardData[shard][id.Hash()]; !ok {
 					shardData[shard][id.Hash()] = make(map[xtime.UnixNano]checked.Bytes, len(blockStarts))
@@ -278,7 +279,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	data := checked.NewBytes([]byte("Hello world!"), nil)
 	data.IncRef()
 	defer data.DecRef()
-	err = w.Write(ts.StringID("exists"), data, digest.Checksum(data.Get()))
+	err = w.Write(ident.StringID("exists"), data, digest.Checksum(data.Get()))
 	assert.NoError(t, err)
 	closer()
 
@@ -286,7 +287,7 @@ func TestBlockRetrieverIDDoesNotExist(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 	segmentReader, err := retriever.Stream(ctx, shard,
-		ts.StringID("not-exists"), blockStart, nil)
+		ident.StringID("not-exists"), blockStart, nil)
 	assert.NoError(t, err)
 
 	segment, err := segmentReader.Segment()

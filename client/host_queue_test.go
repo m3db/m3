@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -688,7 +688,7 @@ func testWriteOp(
 ) *writeOp {
 	w := &writeOp{}
 	w.reset()
-	w.namespace = ts.StringID(namespace)
+	w.namespace = ident.StringID(namespace)
 	w.request.ID = []byte(id)
 	w.request.Datapoint = &rpc.Datapoint{
 		Value:             value,

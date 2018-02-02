@@ -27,7 +27,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/integration/generate"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/storage/bootstrap"
@@ -36,6 +35,8 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/bootstrapper/fs"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -164,7 +165,7 @@ func TestMixedModeReadWrite(t *testing.T) {
 
 func waitUntilFilesetFilesCleanedUp(
 	setup *testSetup,
-	namespace ts.ID,
+	namespace ident.ID,
 	toDelete time.Time,
 	timeout time.Duration,
 ) error {
@@ -242,19 +243,19 @@ func generateDatapoints(start time.Time, numPoints int, ig *idGen) dataPointsInT
 type dataPointsInTimeOrder []seriesDatapoint
 
 type seriesDatapoint struct {
-	series ts.ID
+	series ident.ID
 	time   time.Time
 	value  float64
 }
 
 func (d dataPointsInTimeOrder) toSeriesMap(blockSize time.Duration) generate.SeriesBlocksByStart {
-	blockStartToSeriesMap := make(map[xtime.UnixNano]map[ts.Hash]generate.Series)
+	blockStartToSeriesMap := make(map[xtime.UnixNano]map[ident.Hash]generate.Series)
 	for _, point := range d {
 		t := point.time
 		trunc := t.Truncate(blockSize)
 		seriesBlock, ok := blockStartToSeriesMap[xtime.ToUnixNano(trunc)]
 		if !ok {
-			seriesBlock = make(map[ts.Hash]generate.Series)
+			seriesBlock = make(map[ident.Hash]generate.Series)
 		}
 		dp, ok := seriesBlock[point.series.Hash()]
 		if !ok {
@@ -285,12 +286,12 @@ type idGen struct {
 	baseID string
 }
 
-func (i *idGen) base() ts.ID {
-	return ts.StringID(i.baseID)
+func (i *idGen) base() ident.ID {
+	return ident.StringID(i.baseID)
 }
 
-func (i *idGen) nth(n int) ts.ID {
-	return ts.StringID(fmt.Sprintf("%s%d", i.baseID, n))
+func (i *idGen) nth(n int) ident.ID {
+	return ident.StringID(fmt.Sprintf("%s%d", i.baseID, n))
 }
 
 const (

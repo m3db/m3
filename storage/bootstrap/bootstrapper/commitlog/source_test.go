@@ -37,13 +37,14 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	testNamespaceID       = ts.StringID("testnamespace")
+	testNamespaceID       = ident.StringID("testnamespace")
 	testDefaultRunOpts    = bootstrap.NewRunOptions().SetIncremental(true)
 	minCommitLogRetention = 10 * time.Minute
 )
@@ -135,9 +136,9 @@ func TestReadOrderedValues(t *testing.T) {
 		End:   end,
 	})
 
-	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ts.StringID("foo")}
-	bar := commitlog.Series{Namespace: testNamespaceID, Shard: 1, ID: ts.StringID("bar")}
-	baz := commitlog.Series{Namespace: testNamespaceID, Shard: 2, ID: ts.StringID("baz")}
+	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
+	bar := commitlog.Series{Namespace: testNamespaceID, Shard: 1, ID: ident.StringID("bar")}
+	baz := commitlog.Series{Namespace: testNamespaceID, Shard: 2, ID: ident.StringID("baz")}
 
 	values := []testValue{
 		{foo, start, 1.0, xtime.Second, nil},
@@ -179,9 +180,9 @@ func TestReadNamespaceFiltering(t *testing.T) {
 		End:   end,
 	})
 
-	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ts.StringID("foo")}
-	bar := commitlog.Series{Namespace: testNamespaceID, Shard: 1, ID: ts.StringID("bar")}
-	baz := commitlog.Series{Namespace: ts.StringID("someID"), Shard: 0, ID: ts.StringID("baz")}
+	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
+	bar := commitlog.Series{Namespace: testNamespaceID, Shard: 1, ID: ident.StringID("bar")}
+	baz := commitlog.Series{Namespace: ident.StringID("someID"), Shard: 0, ID: ident.StringID("baz")}
 
 	values := []testValue{
 		{foo, start, 1.0, xtime.Second, nil},
@@ -223,7 +224,7 @@ func TestReadUnorderedValues(t *testing.T) {
 		End:   end,
 	})
 
-	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ts.StringID("foo")}
+	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
 
 	values := []testValue{
 		{foo, start.Add(10 * time.Minute), 1.0, xtime.Second, nil},
@@ -264,7 +265,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 		End:   end,
 	})
 
-	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ts.StringID("foo")}
+	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
 
 	values := []testValue{
 		{foo, start.Add(-1 * time.Minute), 1.0, xtime.Nanosecond, nil},

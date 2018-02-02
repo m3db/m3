@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/require"
 )
@@ -101,7 +101,7 @@ func (c *cleanupTimesCommitLog) allExist() bool {
 
 type cleanupTimesFileset struct {
 	filePathPrefix string
-	namespace      ts.ID
+	namespace      ident.ID
 	shard          uint32
 	times          []time.Time
 }
@@ -150,7 +150,7 @@ func waitUntilDataCleanedUpExtended(
 }
 
 // nolint: deadcode, unused
-func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ts.ID, waitTimeout time.Duration) error {
+func waitUntilNamespacesCleanedUp(filePathPrefix string, namespace ident.ID, waitTimeout time.Duration) error {
 	dataCleanedUp := func() bool {
 		namespaceDir := fs.NamespaceDirPath(filePathPrefix, namespace)
 		return !fs.FileExists(namespaceDir)
@@ -205,7 +205,7 @@ func waitUntilFilesetsCleanedUp(filePathPrefix string, namespaces []storage.Name
 }
 
 // nolint: deadcode
-func waitUntilDataCleanedUp(filePathPrefix string, namespace ts.ID, shard uint32, toDelete time.Time, timeout time.Duration) error {
+func waitUntilDataCleanedUp(filePathPrefix string, namespace ident.ID, shard uint32, toDelete time.Time, timeout time.Duration) error {
 	return waitUntilDataCleanedUpExtended(
 		[]cleanupTimesFileset{
 			cleanupTimesFileset{

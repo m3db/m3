@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/sharding"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,7 +43,7 @@ func newTestShardSet(
 }
 
 func TestStaticMap(t *testing.T) {
-	hashFn := func(id ts.ID) uint32 {
+	hashFn := func(id ident.ID) uint32 {
 		switch id.String() {
 		case "foo":
 			return 0
@@ -96,14 +96,14 @@ func TestStaticMap(t *testing.T) {
 		assert.Equal(t, h.shards, m.HostShardSets()[i].ShardSet().AllIDs())
 	}
 
-	shard, targetHosts, err := m.Route(ts.StringID("foo"))
+	shard, targetHosts, err := m.Route(ident.StringID("foo"))
 	require.NoError(t, err)
 	assert.Equal(t, uint32(0), shard)
 	require.Equal(t, 2, len(targetHosts))
 	assert.Equal(t, "h1", targetHosts[0].ID())
 	assert.Equal(t, "h3", targetHosts[1].ID())
 
-	_, _, err = m.Route(ts.StringID("unowned"))
+	_, _, err = m.Route(ident.StringID("unowned"))
 	require.Error(t, err)
 	assert.Equal(t, errUnownedShard, err)
 
@@ -117,7 +117,7 @@ func TestStaticMap(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, errUnownedShard, err)
 
-	err = m.RouteForEach(ts.StringID("bar"), func(idx int, h Host) {
+	err = m.RouteForEach(ident.StringID("bar"), func(idx int, h Host) {
 		switch idx {
 		case 1:
 			assert.Equal(t, "h2", h.ID())
@@ -129,7 +129,7 @@ func TestStaticMap(t *testing.T) {
 	})
 	assert.NoError(t, err)
 
-	err = m.RouteForEach(ts.StringID("unowned"), func(idx int, h Host) {})
+	err = m.RouteForEach(ident.StringID("unowned"), func(idx int, h Host) {})
 	require.Error(t, err)
 	assert.Equal(t, errUnownedShard, err)
 

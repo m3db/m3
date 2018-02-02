@@ -30,8 +30,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/leanovate/gopter"
@@ -266,7 +267,7 @@ func newInitState(dir string, t *testing.T) *clState {
 }
 
 func (s *clState) writesArePresent(writes ...generatedWrite) error {
-	writesOnDisk := make(map[ts.Hash]map[xtime.UnixNano]generatedWrite)
+	writesOnDisk := make(map[ident.Hash]map[xtime.UnixNano]generatedWrite)
 	iter, err := NewIterator(s.opts, ReadAllPredicate())
 	if err != nil {
 		return err
@@ -340,8 +341,8 @@ func genWrite() gopter.Gen {
 
 		return generatedWrite{
 			series: Series{
-				ID:          ts.StringID(id),
-				Namespace:   ts.StringID(ns),
+				ID:          ident.StringID(id),
+				Namespace:   ident.StringID(ns),
 				Shard:       shard,
 				UniqueIndex: uniqueID(id),
 			},

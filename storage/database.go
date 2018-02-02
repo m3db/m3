@@ -29,15 +29,15 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/counter"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 
@@ -78,7 +78,7 @@ type db struct {
 
 	nsWatch    databaseNamespaceWatch
 	shardSet   sharding.ShardSet
-	namespaces map[ts.Hash]databaseNamespace
+	namespaces map[ident.Hash]databaseNamespace
 	commitLog  commitlog.CommitLog
 
 	state    databaseState
@@ -138,7 +138,7 @@ func NewDatabase(
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
 		shardSet:     shardSet,
-		namespaces:   make(map[ts.Hash]databaseNamespace),
+		namespaces:   make(map[ident.Hash]databaseNamespace),
 		commitLog:    commitLog,
 		scope:        scope,
 		metrics:      newDatabaseMetrics(scope),
@@ -216,10 +216,10 @@ func (d *db) UpdateOwnedNamespaces(newNamespaces namespace.Map) error {
 	return nil
 }
 
-func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ts.ID, []namespace.Metadata, []namespace.Metadata) {
+func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ident.ID, []namespace.Metadata, []namespace.Metadata) {
 	var (
 		existing = d.namespaces
-		removes  []ts.ID
+		removes  []ident.ID
 		adds     []namespace.Metadata
 		updates  []namespace.Metadata
 	)
@@ -257,7 +257,7 @@ func (d *db) namespaceDeltaWithLock(newNamespaces namespace.Map) ([]ts.ID, []nam
 	return removes, adds, updates
 }
 
-func (d *db) logNamespaceUpdate(removes []ts.ID, adds, updates []namespace.Metadata) error {
+func (d *db) logNamespaceUpdate(removes []ident.ID, adds, updates []namespace.Metadata) error {
 	removalString, err := tsIDs(removes).String()
 	if err != nil {
 		return fmt.Errorf("unable to format removal, err = %v", err)
@@ -356,7 +356,7 @@ func (d *db) queueBootstrapWithLock() {
 	}
 }
 
-func (d *db) Namespace(id ts.ID) (Namespace, bool) {
+func (d *db) Namespace(id ident.ID) (Namespace, bool) {
 	d.RLock()
 	defer d.RUnlock()
 	ns, ok := d.namespaces[id.Hash()]
@@ -448,8 +448,8 @@ func (d *db) Close() error {
 
 func (d *db) Write(
 	ctx context.Context,
-	namespace ts.ID,
-	id ts.ID,
+	namespace ident.ID,
+	id ident.ID,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -470,8 +470,8 @@ func (d *db) Write(
 
 func (d *db) ReadEncoded(
 	ctx context.Context,
-	namespace ts.ID,
-	id ts.ID,
+	namespace ident.ID,
+	id ident.ID,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
 	n, err := d.namespaceFor(namespace)
@@ -485,9 +485,9 @@ func (d *db) ReadEncoded(
 
 func (d *db) FetchBlocks(
 	ctx context.Context,
-	namespace ts.ID,
+	namespace ident.ID,
 	shardID uint32,
-	id ts.ID,
+	id ident.ID,
 	starts []time.Time,
 ) ([]block.FetchBlockResult, error) {
 	n, err := d.namespaceFor(namespace)
@@ -501,7 +501,7 @@ func (d *db) FetchBlocks(
 
 func (d *db) FetchBlocksMetadata(
 	ctx context.Context,
-	namespace ts.ID,
+	namespace ident.ID,
 	shardID uint32,
 	start, end time.Time,
 	limit int64,
@@ -520,7 +520,7 @@ func (d *db) FetchBlocksMetadata(
 
 func (d *db) FetchBlocksMetadataV2(
 	ctx context.Context,
-	namespace ts.ID,
+	namespace ident.ID,
 	shardID uint32,
 	start, end time.Time,
 	limit int64,
@@ -552,7 +552,7 @@ func (d *db) Repair() error {
 	return d.mediator.Repair()
 }
 
-func (d *db) Truncate(namespace ts.ID) (int64, error) {
+func (d *db) Truncate(namespace ident.ID) (int64, error) {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		return 0, err
@@ -564,7 +564,7 @@ func (d *db) IsOverloaded() bool {
 	return d.errors.Count(d.errWindow) > d.errThreshold
 }
 
-func (d *db) namespaceFor(namespace ts.ID) (databaseNamespace, error) {
+func (d *db) namespaceFor(namespace ident.ID) (databaseNamespace, error) {
 	d.RLock()
 	n, exists := d.namespaces[namespace.Hash()]
 	d.RUnlock()
@@ -597,7 +597,7 @@ func (d *db) nextIndex() uint64 {
 	return created - 1
 }
 
-type tsIDs []ts.ID
+type tsIDs []ident.ID
 
 func (t tsIDs) String() (string, error) {
 	var buf bytes.Buffer

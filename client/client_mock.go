@@ -24,22 +24,24 @@
 package client
 
 import (
-	gomock "github.com/golang/mock/gomock"
+	time "time"
+
 	clock "github.com/m3db/m3db/clock"
-	context "github.com/m3db/m3db/context"
 	encoding "github.com/m3db/m3db/encoding"
 	rpc "github.com/m3db/m3db/generated/thrift/rpc"
 	block "github.com/m3db/m3db/storage/block"
 	result "github.com/m3db/m3db/storage/bootstrap/result"
 	namespace "github.com/m3db/m3db/storage/namespace"
 	topology "github.com/m3db/m3db/topology"
-	ts "github.com/m3db/m3db/ts"
+	context "github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	instrument "github.com/m3db/m3x/instrument"
 	pool "github.com/m3db/m3x/pool"
 	retry "github.com/m3db/m3x/retry"
 	time0 "github.com/m3db/m3x/time"
+
+	gomock "github.com/golang/mock/gomock"
 	tchannel_go "github.com/uber/tchannel-go"
-	time "time"
 )
 
 // Mock of Client interface
@@ -327,10 +329,10 @@ func (_mr *_MockPeerBlocksIterRecorder) Next() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
 }
 
-func (_m *MockPeerBlocksIter) Current() (topology.Host, ts.ID, block.DatabaseBlock) {
+func (_m *MockPeerBlocksIter) Current() (topology.Host, ident.ID, block.DatabaseBlock) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(topology.Host)
-	ret1, _ := ret[1].(ts.ID)
+	ret1, _ := ret[1].(ident.ID)
 	ret2, _ := ret[2].(block.DatabaseBlock)
 	return ret0, ret1, ret2
 }
@@ -443,7 +445,7 @@ func (_mr *_MockAdminSessionRecorder) Replicas() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Replicas")
 }
 
-func (_m *MockAdminSession) Truncate(namespace ts.ID) (int64, error) {
+func (_m *MockAdminSession) Truncate(namespace ident.ID) (int64, error) {
 	ret := _m.ctrl.Call(_m, "Truncate", namespace)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
@@ -454,7 +456,7 @@ func (_mr *_MockAdminSessionRecorder) Truncate(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate", arg0)
 }
 
-func (_m *MockAdminSession) FetchBlocksMetadataFromPeers(namespace ts.ID, shard uint32, start time.Time, end time.Time, version FetchBlocksMetadataEndpointVersion) (PeerBlocksMetadataIter, error) {
+func (_m *MockAdminSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, version FetchBlocksMetadataEndpointVersion) (PeerBlocksMetadataIter, error) {
 	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, version)
 	ret0, _ := ret[0].(PeerBlocksMetadataIter)
 	ret1, _ := ret[1].(error)
@@ -581,7 +583,7 @@ func (_mr *_MockclientSessionRecorder) Replicas() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Replicas")
 }
 
-func (_m *MockclientSession) Truncate(namespace ts.ID) (int64, error) {
+func (_m *MockclientSession) Truncate(namespace ident.ID) (int64, error) {
 	ret := _m.ctrl.Call(_m, "Truncate", namespace)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
@@ -592,7 +594,7 @@ func (_mr *_MockclientSessionRecorder) Truncate(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Truncate", arg0)
 }
 
-func (_m *MockclientSession) FetchBlocksMetadataFromPeers(namespace ts.ID, shard uint32, start time.Time, end time.Time, version FetchBlocksMetadataEndpointVersion) (PeerBlocksMetadataIter, error) {
+func (_m *MockclientSession) FetchBlocksMetadataFromPeers(namespace ident.ID, shard uint32, start time.Time, end time.Time, version FetchBlocksMetadataEndpointVersion) (PeerBlocksMetadataIter, error) {
 	ret := _m.ctrl.Call(_m, "FetchBlocksMetadataFromPeers", namespace, shard, start, end, version)
 	ret0, _ := ret[0].(PeerBlocksMetadataIter)
 	ret1, _ := ret[1].(error)
@@ -1524,7 +1526,7 @@ func (_mr *_MockOptionsRecorder) ContextPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ContextPool")
 }
 
-func (_m *MockOptions) SetIdentifierPool(value ts.IdentifierPool) Options {
+func (_m *MockOptions) SetIdentifierPool(value ident.Pool) Options {
 	ret := _m.ctrl.Call(_m, "SetIdentifierPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1534,9 +1536,9 @@ func (_mr *_MockOptionsRecorder) SetIdentifierPool(arg0 interface{}) *gomock.Cal
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIdentifierPool", arg0)
 }
 
-func (_m *MockOptions) IdentifierPool() ts.IdentifierPool {
+func (_m *MockOptions) IdentifierPool() ident.Pool {
 	ret := _m.ctrl.Call(_m, "IdentifierPool")
-	ret0, _ := ret[0].(ts.IdentifierPool)
+	ret0, _ := ret[0].(ident.Pool)
 	return ret0
 }
 
@@ -2245,7 +2247,7 @@ func (_mr *_MockAdminOptionsRecorder) ContextPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ContextPool")
 }
 
-func (_m *MockAdminOptions) SetIdentifierPool(value ts.IdentifierPool) Options {
+func (_m *MockAdminOptions) SetIdentifierPool(value ident.Pool) Options {
 	ret := _m.ctrl.Call(_m, "SetIdentifierPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2255,9 +2257,9 @@ func (_mr *_MockAdminOptionsRecorder) SetIdentifierPool(arg0 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIdentifierPool", arg0)
 }
 
-func (_m *MockAdminOptions) IdentifierPool() ts.IdentifierPool {
+func (_m *MockAdminOptions) IdentifierPool() ident.Pool {
 	ret := _m.ctrl.Call(_m, "IdentifierPool")
-	ret0, _ := ret[0].(ts.IdentifierPool)
+	ret0, _ := ret[0].(ident.Pool)
 	return ret0
 }
 

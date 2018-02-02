@@ -24,10 +24,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/storage/namespace"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 )
 
 // NewDatabaseBlockRetrieverFn is a method for constructing
@@ -43,14 +43,14 @@ func NewDatabaseBlockRetrieverManager(
 ) DatabaseBlockRetrieverManager {
 	return &blockRetrieverManager{
 		newRetrieverFn: newDatabaseBlockRetrieverFn,
-		retrievers:     make(map[ts.Hash]DatabaseBlockRetriever),
+		retrievers:     make(map[ident.Hash]DatabaseBlockRetriever),
 	}
 }
 
 type blockRetrieverManager struct {
 	sync.RWMutex
 	newRetrieverFn NewDatabaseBlockRetrieverFn
-	retrievers     map[ts.Hash]DatabaseBlockRetriever
+	retrievers     map[ident.Hash]DatabaseBlockRetriever
 }
 
 func (m *blockRetrieverManager) Retriever(
@@ -102,7 +102,7 @@ func NewDatabaseShardBlockRetriever(
 
 func (r *shardBlockRetriever) Stream(
 	ctx context.Context,
-	id ts.ID,
+	id ident.ID,
 	blockStart time.Time,
 	onRetrieve OnRetrieveBlock,
 ) (xio.SegmentReader, error) {

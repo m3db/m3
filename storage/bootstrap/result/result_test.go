@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -56,18 +57,18 @@ func TestResultAddMergesExistingShardResults(t *testing.T) {
 		NewShardResult(0, opts),
 	}
 
-	srs[0].AddBlock(ts.StringID("foo"), blocks[0])
-	srs[0].AddBlock(ts.StringID("foo"), blocks[1])
-	srs[1].AddBlock(ts.StringID("bar"), blocks[2])
+	srs[0].AddBlock(ident.StringID("foo"), blocks[0])
+	srs[0].AddBlock(ident.StringID("foo"), blocks[1])
+	srs[1].AddBlock(ident.StringID("bar"), blocks[2])
 
 	r := NewBootstrapResult()
 	r.Add(0, srs[0], xtime.Ranges{})
 	r.Add(0, srs[1], xtime.Ranges{})
 
 	srMerged := NewShardResult(0, opts)
-	srMerged.AddBlock(ts.StringID("foo"), blocks[0])
-	srMerged.AddBlock(ts.StringID("foo"), blocks[1])
-	srMerged.AddBlock(ts.StringID("bar"), blocks[2])
+	srMerged.AddBlock(ident.StringID("foo"), blocks[0])
+	srMerged.AddBlock(ident.StringID("foo"), blocks[1])
+	srMerged.AddBlock(ident.StringID("bar"), blocks[2])
 
 	merged := NewBootstrapResult()
 	merged.Add(0, srMerged, xtime.Ranges{})
@@ -147,9 +148,9 @@ func TestResultNumSeries(t *testing.T) {
 		NewShardResult(0, opts),
 	}
 
-	srs[0].AddBlock(ts.StringID("foo"), blocks[0])
-	srs[0].AddBlock(ts.StringID("foo"), blocks[1])
-	srs[1].AddBlock(ts.StringID("bar"), blocks[2])
+	srs[0].AddBlock(ident.StringID("foo"), blocks[0])
+	srs[0].AddBlock(ident.StringID("foo"), blocks[1])
+	srs[1].AddBlock(ident.StringID("bar"), blocks[2])
 
 	r := NewBootstrapResult()
 	r.Add(0, srs[0], xtime.Ranges{})
@@ -175,9 +176,9 @@ func TestResultAddResult(t *testing.T) {
 		NewShardResult(0, opts),
 	}
 
-	srs[0].AddBlock(ts.StringID("foo"), blocks[0])
-	srs[0].AddBlock(ts.StringID("foo"), blocks[1])
-	srs[1].AddBlock(ts.StringID("bar"), blocks[2])
+	srs[0].AddBlock(ident.StringID("foo"), blocks[0])
+	srs[0].AddBlock(ident.StringID("foo"), blocks[1])
+	srs[1].AddBlock(ident.StringID("bar"), blocks[2])
 
 	rs := []BootstrapResult{
 		NewBootstrapResult(),
@@ -197,9 +198,9 @@ func TestResultAddResult(t *testing.T) {
 	r := MergedBootstrapResult(rs[0], rs[1])
 
 	srMerged := NewShardResult(0, opts)
-	srMerged.AddBlock(ts.StringID("foo"), blocks[0])
-	srMerged.AddBlock(ts.StringID("foo"), blocks[1])
-	srMerged.AddBlock(ts.StringID("bar"), blocks[2])
+	srMerged.AddBlock(ident.StringID("foo"), blocks[0])
+	srMerged.AddBlock(ident.StringID("foo"), blocks[1])
+	srMerged.AddBlock(ident.StringID("bar"), blocks[2])
 
 	expected := struct {
 		shardResults ShardResults
@@ -225,7 +226,7 @@ func TestShardResultIsEmpty(t *testing.T) {
 	require.True(t, sr.IsEmpty())
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	block.Reset(time.Now(), ts.Segment{})
-	sr.AddBlock(ts.StringID("foo"), block)
+	sr.AddBlock(ident.StringID("foo"), block)
 	require.False(t, sr.IsEmpty())
 }
 
@@ -244,12 +245,12 @@ func TestShardResultAddBlock(t *testing.T) {
 	for _, input := range inputs {
 		block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 		block.Reset(input.timestamp, ts.Segment{})
-		sr.AddBlock(ts.StringID(input.id), block)
+		sr.AddBlock(ident.StringID(input.id), block)
 	}
 	allSeries := sr.AllSeries()
 	require.Len(t, allSeries, 2)
-	require.Equal(t, 2, allSeries[ts.StringID("foo").Hash()].Blocks.Len())
-	require.Equal(t, 1, allSeries[ts.StringID("bar").Hash()].Blocks.Len())
+	require.Equal(t, 2, allSeries[ident.StringID("foo").Hash()].Blocks.Len())
+	require.Equal(t, 1, allSeries[ident.StringID("bar").Hash()].Blocks.Len())
 }
 
 func TestShardResultAddSeries(t *testing.T) {
@@ -264,17 +265,17 @@ func TestShardResultAddSeries(t *testing.T) {
 		{"bar", block.NewDatabaseSeriesBlocks(0)},
 	}
 	for _, input := range inputs {
-		sr.AddSeries(ts.StringID(input.id), input.series)
+		sr.AddSeries(ident.StringID(input.id), input.series)
 	}
 	moreSeries := block.NewDatabaseSeriesBlocks(0)
 	block := opts.DatabaseBlockOptions().DatabaseBlockPool().Get()
 	block.Reset(start, ts.Segment{})
 	moreSeries.AddBlock(block)
-	sr.AddSeries(ts.StringID("foo"), moreSeries)
+	sr.AddSeries(ident.StringID("foo"), moreSeries)
 	allSeries := sr.AllSeries()
 	require.Len(t, allSeries, 2)
-	require.Equal(t, 1, allSeries[ts.StringID("foo").Hash()].Blocks.Len())
-	require.Equal(t, 0, allSeries[ts.StringID("bar").Hash()].Blocks.Len())
+	require.Equal(t, 1, allSeries[ident.StringID("foo").Hash()].Blocks.Len())
+	require.Equal(t, 0, allSeries[ident.StringID("bar").Hash()].Blocks.Len())
 }
 
 func TestShardResultAddResult(t *testing.T) {
@@ -283,8 +284,8 @@ func TestShardResultAddResult(t *testing.T) {
 	sr.AddResult(nil)
 	require.True(t, sr.IsEmpty())
 	other := NewShardResult(0, opts)
-	other.AddSeries(ts.StringID("foo"), block.NewDatabaseSeriesBlocks(0))
-	other.AddSeries(ts.StringID("bar"), block.NewDatabaseSeriesBlocks(0))
+	other.AddSeries(ident.StringID("foo"), block.NewDatabaseSeriesBlocks(0))
+	other.AddSeries(ident.StringID("bar"), block.NewDatabaseSeriesBlocks(0))
 	sr.AddResult(other)
 	require.Len(t, sr.AllSeries(), 2)
 }
@@ -295,8 +296,8 @@ func TestShardResultNumSeries(t *testing.T) {
 	sr.AddResult(nil)
 	require.True(t, sr.IsEmpty())
 	other := NewShardResult(0, opts)
-	other.AddSeries(ts.StringID("foo"), block.NewDatabaseSeriesBlocks(0))
-	other.AddSeries(ts.StringID("bar"), block.NewDatabaseSeriesBlocks(0))
+	other.AddSeries(ident.StringID("foo"), block.NewDatabaseSeriesBlocks(0))
+	other.AddSeries(ident.StringID("bar"), block.NewDatabaseSeriesBlocks(0))
 	sr.AddResult(other)
 	require.Equal(t, int64(2), sr.NumSeries())
 }
@@ -312,12 +313,12 @@ func TestShardResultRemoveSeries(t *testing.T) {
 		{"bar", block.NewDatabaseSeriesBlocks(0)},
 	}
 	for _, input := range inputs {
-		sr.AddSeries(ts.StringID(input.id), input.series)
+		sr.AddSeries(ident.StringID(input.id), input.series)
 	}
 	require.Equal(t, 2, len(sr.AllSeries()))
-	sr.RemoveSeries(ts.StringID("foo"))
+	sr.RemoveSeries(ident.StringID("foo"))
 	require.Equal(t, 1, len(sr.AllSeries()))
-	sr.RemoveSeries(ts.StringID("nonexistent"))
+	sr.RemoveSeries(ident.StringID("nonexistent"))
 	require.Equal(t, 1, len(sr.AllSeries()))
 }
 

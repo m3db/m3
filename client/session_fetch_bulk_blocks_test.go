@@ -31,7 +31,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
@@ -44,6 +43,8 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/io"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	xretry "github.com/m3db/m3x/retry"
 	xsync "github.com/m3db/m3x/sync"
 	xtime "github.com/m3db/m3x/time"
@@ -56,13 +57,13 @@ import (
 var (
 	timeZero        = time.Time{}
 	blockSize       = 2 * time.Hour
-	nsID            = ts.StringID("testNs1")
+	nsID            = ident.StringID("testNs1")
 	nsRetentionOpts = retention.NewOptions().
 			SetBlockSize(blockSize).
 			SetRetentionPeriod(48 * blockSize)
-	fooID    = ts.StringID("foo")
-	barID    = ts.StringID("bar")
-	bazID    = ts.StringID("baz")
+	fooID    = ident.StringID("foo")
+	barID    = ident.StringID("bar")
+	bazID    = ident.StringID("baz")
 	testHost = topology.NewHost("testhost", "testhost:9000")
 )
 
@@ -2365,7 +2366,7 @@ func (m *fetchBlocksReqMatcher) Matches(x interface{}) bool {
 	}
 
 	for i := range params {
-		reqID := ts.BinaryID(checked.NewBytes(req.Elements[i].ID, nil))
+		reqID := ident.BinaryID(checked.NewBytes(req.Elements[i].ID, nil))
 		if !params[i].id.Equal(reqID) {
 			return false
 		}
@@ -2391,12 +2392,12 @@ type fetchBlocksReq struct {
 }
 
 type fetchBlocksReqParam struct {
-	id     ts.ID
+	id     ident.ID
 	starts []time.Time
 }
 
 type testBlocksMetadata struct {
-	id     ts.ID
+	id     ident.ID
 	blocks []testBlockMetadata
 }
 
@@ -2407,7 +2408,7 @@ type testBlockMetadata struct {
 }
 
 type testBlocks struct {
-	id     ts.ID
+	id     ident.ID
 	blocks []testBlock
 }
 

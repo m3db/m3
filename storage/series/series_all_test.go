@@ -24,9 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/storage/block"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/context"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"

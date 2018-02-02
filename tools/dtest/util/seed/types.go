@@ -4,13 +4,13 @@ import (
 	"math/rand"
 
 	"github.com/m3db/m3db/integration/generate"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 )
 
 // Generator generates data
 type Generator interface {
-	Generate(namespace ts.ID, shard uint32) error
+	Generate(namespace ident.ID, shard uint32) error
 }
 
 // Options control the knobs to generate data

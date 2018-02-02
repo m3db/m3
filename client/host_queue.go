@@ -29,7 +29,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 
 	"github.com/uber/tchannel-go/thrift"
@@ -177,8 +177,8 @@ func (q *queue) rotateOpsWithLock() []op {
 
 func (q *queue) drain() {
 	var (
-		currWriteOpsByNamespace      = make(map[ts.Hash][]op)
-		currBatchElementsByNamespace = make(map[ts.Hash][]*rpc.WriteBatchRawRequestElement)
+		currWriteOpsByNamespace      = make(map[ident.Hash][]op)
+		currBatchElementsByNamespace = make(map[ident.Hash][]*rpc.WriteBatchRawRequestElement)
 		writeBatchSize               = q.opts.WriteBatchSize()
 	)
 
@@ -243,7 +243,7 @@ func (q *queue) drain() {
 }
 
 func (q *queue) asyncWrite(
-	namespace ts.ID,
+	namespace ident.ID,
 	ops []op,
 	elems []*rpc.WriteBatchRawRequestElement,
 ) {

@@ -31,8 +31,8 @@ import (
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
-	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -64,7 +64,7 @@ type writer struct {
 
 type indexEntry struct {
 	index           int64
-	id              ts.ID
+	id              ident.ID
 	dataFileOffset  int64
 	indexFileOffset int64
 	size            uint32
@@ -118,7 +118,7 @@ func NewWriter(opts Options) (FileSetWriter, error) {
 // specifically creating the shard directory if it doesn't exist, and
 // opening / truncating files associated with that shard for writing.
 func (w *writer) Open(
-	namespace ts.ID,
+	namespace ident.ID,
 	blockSize time.Duration,
 	shard uint32,
 	blockStart time.Time,
@@ -172,7 +172,7 @@ func (w *writer) writeData(data []byte) error {
 }
 
 func (w *writer) Write(
-	id ts.ID,
+	id ident.ID,
 	data checked.Bytes,
 	checksum uint32,
 ) error {
@@ -180,7 +180,7 @@ func (w *writer) Write(
 }
 
 func (w *writer) WriteAll(
-	id ts.ID,
+	id ident.ID,
 	data []checked.Bytes,
 	checksum uint32,
 ) error {
@@ -196,7 +196,7 @@ func (w *writer) WriteAll(
 }
 
 func (w *writer) writeAll(
-	id ts.ID,
+	id ident.ID,
 	data []checked.Bytes,
 	checksum uint32,
 ) error {

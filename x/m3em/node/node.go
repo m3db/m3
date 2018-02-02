@@ -24,9 +24,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/m3db/m3em/node"
 	m3dbrpc "github.com/m3db/m3db/generated/thrift/rpc"
 	m3dbchannel "github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
+	"github.com/m3db/m3em/node"
 
 	tchannel "github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"

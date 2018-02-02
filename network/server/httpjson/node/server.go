@@ -24,12 +24,12 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/m3db/m3db/context"
 	ns "github.com/m3db/m3db/network/server"
 	"github.com/m3db/m3db/network/server/httpjson"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	ttnode "github.com/m3db/m3db/network/server/tchannelthrift/node"
 	"github.com/m3db/m3db/storage"
+	"github.com/m3db/m3x/context"
 )
 
 type server struct {

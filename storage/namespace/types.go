@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3cluster/client"
 	"github.com/m3db/m3db/retention"
-	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -80,7 +80,7 @@ type Metadata interface {
 	Equal(value Metadata) bool
 
 	// ID is the ID of the namespace
-	ID() ts.ID
+	ID() ident.ID
 
 	// Options is the namespace options
 	Options() Options
@@ -92,10 +92,10 @@ type Map interface {
 	Equal(value Map) bool
 
 	// Get gets the metadata for the provided namespace
-	Get(ts.ID) (Metadata, error)
+	Get(ident.ID) (Metadata, error)
 
 	// IDs returns the ID of known namespaces
-	IDs() []ts.ID
+	IDs() []ident.ID
 
 	// Metadatas returns the metadata of known namespaces
 	Metadatas() []Metadata

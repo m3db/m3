@@ -24,9 +24,10 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
@@ -86,10 +87,10 @@ type Series struct {
 	UniqueIndex uint64
 
 	// Namespace is the namespace the series belongs to
-	Namespace ts.ID
+	Namespace ident.ID
 
 	// ID is the series identifier
-	ID ts.ID
+	ID ident.ID
 
 	// Shard is the shard the series belongs to
 	Shard uint32

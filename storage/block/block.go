@@ -26,10 +26,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/m3db/m3db/context"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/ts"
 	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -54,7 +55,7 @@ type dbBlock struct {
 	mergeTarget DatabaseBlock
 
 	retriever    DatabaseShardBlockRetriever
-	retrieveID   ts.ID
+	retrieveID   ident.ID
 	wasRetrieved bool
 
 	closed bool
@@ -132,7 +133,7 @@ func (b *dbBlock) Checksum() uint32 {
 }
 
 func (b *dbBlock) OnRetrieveBlock(
-	id ts.ID,
+	id ident.ID,
 	startTime time.Time,
 	segment ts.Segment,
 ) {

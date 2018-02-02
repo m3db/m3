@@ -176,7 +176,7 @@ imports:
   - os/fs
   - x/grpc
 - name: github.com/m3db/m3x
-  version: c79492efa39435ffea6c04b72faf1402ed784211
+  version: 7ea8c2f35f9fa0f52bd189e44b11113d708acada
   vcs: git
   subpackages:
   - checked
@@ -194,6 +194,7 @@ imports:
   - tcp
   - time
   - watch
+  - ident
 - name: github.com/m3db/stackadler32
   version: bfebcd73ef6ffe0ee30489227f0330c39064b674
 - name: github.com/m3db/stackmurmur3

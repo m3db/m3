@@ -23,7 +23,7 @@ package xio
 import (
 	"io"
 
-	"github.com/m3db/m3db/context"
+	"github.com/m3db/m3x/resource"
 	"github.com/m3db/m3db/ts"
 )
 
@@ -37,7 +37,7 @@ type ReaderSliceReader interface {
 // SegmentReader implements the io reader interface backed by a segment
 type SegmentReader interface {
 	io.Reader
-	context.Finalizer
+	resource.Finalizer
 
 	// Segment gets the segment read by this reader
 	Segment() (ts.Segment, error)
