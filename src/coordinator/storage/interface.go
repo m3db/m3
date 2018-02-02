@@ -10,10 +10,24 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+// Type describes the type of storage
+type Type int
+
+const (
+	// TypeLocalDC is for storages that reside in the local datacenter
+	TypeLocalDC Type = iota
+	// TypeRemoteDC is for storages that reside in a remote datacenter
+	TypeRemoteDC
+	// TypeMultiDC is for storages that will aggregate multiple datacenters
+	TypeMultiDC
+)
+
 // Storage provides an interface for reading and writing to the tsdb
 type Storage interface {
 	Querier
 	Appender
+	// Type identifies the type of the underlying storage
+	Type() Type
 }
 
 // ReadQuery represents the input query which is fetched from M3DB

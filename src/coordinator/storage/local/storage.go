@@ -79,3 +79,7 @@ func (s *localStorage) Write(ctx context.Context, query *storage.WriteQuery) err
 	}
 	return nil
 }
+
+func (s *localStorage) Type() storage.Type {
+	return storage.TypeLocalDC
+}
