@@ -571,10 +571,10 @@ type Options interface {
 	ContextPool() context.Pool
 
 	// SetIdentifierPool sets the identifier pool
-	SetIdentifierPool(value ident.IdentifierPool) Options
+	SetIdentifierPool(value ident.Pool) Options
 
 	// IdentifierPool returns the identifier pool
-	IdentifierPool() ident.IdentifierPool
+	IdentifierPool() ident.Pool
 
 	// HostQueueOpsArrayPoolSize sets the hostQueueOpsArrayPoolSize
 	SetHostQueueOpsArrayPoolSize(value int) Options

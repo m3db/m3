@@ -41,7 +41,7 @@ type options struct {
 	encoderPool                   encoding.EncoderPool
 	multiReaderIteratorPool       encoding.MultiReaderIteratorPool
 	fetchBlockMetadataResultsPool block.FetchBlockMetadataResultsPool
-	identifierPool                ident.IdentifierPool
+	identifierPool                ident.Pool
 }
 
 // NewOptions creates new database series options
@@ -62,7 +62,7 @@ func NewOptions() Options {
 		encoderPool:                   encoding.NewEncoderPool(nil),
 		multiReaderIteratorPool:       encoding.NewMultiReaderIteratorPool(nil),
 		fetchBlockMetadataResultsPool: block.NewFetchBlockMetadataResultsPool(nil, 0),
-		identifierPool:                ident.NewIdentifierPool(bytesPool, nil),
+		identifierPool:                ident.NewPool(bytesPool, nil),
 	}
 }
 
@@ -163,12 +163,12 @@ func (o *options) FetchBlockMetadataResultsPool() block.FetchBlockMetadataResult
 	return o.fetchBlockMetadataResultsPool
 }
 
-func (o *options) SetIdentifierPool(value ident.IdentifierPool) Options {
+func (o *options) SetIdentifierPool(value ident.Pool) Options {
 	opts := *o
 	opts.identifierPool = value
 	return &opts
 }
 
-func (o *options) IdentifierPool() ident.IdentifierPool {
+func (o *options) IdentifierPool() ident.Pool {
 	return o.identifierPool
 }

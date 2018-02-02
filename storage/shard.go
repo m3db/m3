@@ -112,7 +112,7 @@ type dbShard struct {
 	filesetBeforeFn          filesetBeforeFn
 	deleteFilesFn            deleteFilesFn
 	sleepFn                  func(time.Duration)
-	identifierPool           ident.IdentifierPool
+	identifierPool           ident.Pool
 	contextPool              context.Pool
 	flushState               shardFlushState
 	ticking                  bool

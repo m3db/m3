@@ -36,7 +36,7 @@ type blockRetrieverOptions struct {
 	bytesPool         pool.CheckedBytesPool
 	segmentReaderPool xio.SegmentReaderPool
 	fetchConcurrency  int
-	identifierPool    ident.IdentifierPool
+	identifierPool    ident.Pool
 }
 
 // NewBlockRetrieverOptions creates a new set of block retriever options
@@ -53,7 +53,7 @@ func NewBlockRetrieverOptions() BlockRetrieverOptions {
 		bytesPool:         bytesPool,
 		segmentReaderPool: xio.NewSegmentReaderPool(nil),
 		fetchConcurrency:  defaultFetchConcurrency,
-		identifierPool:    ident.NewIdentifierPool(bytesPool, nil),
+		identifierPool:    ident.NewPool(bytesPool, nil),
 	}
 	o.segmentReaderPool.Init()
 	return o
@@ -99,12 +99,12 @@ func (o *blockRetrieverOptions) FetchConcurrency() int {
 	return o.fetchConcurrency
 }
 
-func (o *blockRetrieverOptions) SetIdentifierPool(value ident.IdentifierPool) BlockRetrieverOptions {
+func (o *blockRetrieverOptions) SetIdentifierPool(value ident.Pool) BlockRetrieverOptions {
 	opts := *o
 	opts.identifierPool = value
 	return &opts
 }
 
-func (o *blockRetrieverOptions) IdentifierPool() ident.IdentifierPool {
+func (o *blockRetrieverOptions) IdentifierPool() ident.Pool {
 	return o.identifierPool
 }

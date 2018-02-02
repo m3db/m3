@@ -683,15 +683,15 @@ func withEncodingAndPoolingOptions(
 	multiIteratorPool := encoding.NewMultiReaderIteratorPool(
 		poolOptions(policy.IteratorPool, scope.SubScope("multi-iterator-pool")))
 
-	var identifierPool ident.IdentifierPool
+	var identifierPool ident.Pool
 
 	switch policy.Type {
 	case "simple":
-		identifierPool = ident.NewIdentifierPool(
+		identifierPool = ident.NewPool(
 			bytesPool,
 			poolOptions(policy.IdentifierPool, scope.SubScope("identifier-pool")))
 	case "native":
-		identifierPool = ident.NewNativeIdentifierPool(
+		identifierPool = ident.NewNativePool(
 			bytesPool,
 			poolOptions(policy.IdentifierPool, scope.SubScope("identifier-pool")))
 	}

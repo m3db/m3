@@ -91,7 +91,7 @@ type service struct {
 	opts                     tchannelthrift.Options
 	nowFn                    clock.NowFn
 	metrics                  serviceMetrics
-	idPool                   ident.IdentifierPool
+	idPool                   ident.Pool
 	checkedBytesPool         pool.ObjectPool
 	blockMetadataPool        tchannelthrift.BlockMetadataPool
 	blockMetadataV2Pool      tchannelthrift.BlockMetadataV2Pool

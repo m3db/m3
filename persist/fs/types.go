@@ -325,8 +325,8 @@ type BlockRetrieverOptions interface {
 	FetchConcurrency() int
 
 	// SetIdentifierPool sets the identifierPool
-	SetIdentifierPool(value ident.IdentifierPool) BlockRetrieverOptions
+	SetIdentifierPool(value ident.Pool) BlockRetrieverOptions
 
 	// IdentifierPool returns the identifierPool
-	IdentifierPool() ident.IdentifierPool
+	IdentifierPool() ident.Pool
 }

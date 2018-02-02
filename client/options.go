@@ -194,7 +194,7 @@ type options struct {
 	fetchBatchOpPoolSize                    int
 	writeBatchSize                          int
 	fetchBatchSize                          int
-	identifierPool                          ident.IdentifierPool
+	identifierPool                          ident.Pool
 	hostQueueOpsFlushSize                   int
 	hostQueueOpsFlushInterval               time.Duration
 	hostQueueOpsArrayPoolSize               int
@@ -230,7 +230,7 @@ func newOptions() *options {
 	poolOpts := pool.NewObjectPoolOptions().
 		SetSize(defaultIdentifierPoolSize)
 
-	idPool := ident.NewIdentifierPool(bytesPool, poolOpts)
+	idPool := ident.NewPool(bytesPool, poolOpts)
 
 	contextPool := context.NewPool(poolOpts, poolOpts)
 
@@ -574,13 +574,13 @@ func (o *options) FetchBatchSize() int {
 	return o.fetchBatchSize
 }
 
-func (o *options) SetIdentifierPool(value ident.IdentifierPool) Options {
+func (o *options) SetIdentifierPool(value ident.Pool) Options {
 	opts := *o
 	opts.identifierPool = value
 	return &opts
 }
 
-func (o *options) IdentifierPool() ident.IdentifierPool {
+func (o *options) IdentifierPool() ident.Pool {
 	return o.identifierPool
 }
 

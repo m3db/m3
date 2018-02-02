@@ -128,7 +128,7 @@ type options struct {
 	segmentReaderPool              xio.SegmentReaderPool
 	readerIteratorPool             encoding.ReaderIteratorPool
 	multiReaderIteratorPool        encoding.MultiReaderIteratorPool
-	identifierPool                 ident.IdentifierPool
+	identifierPool                 ident.Pool
 	fetchBlockMetadataResultsPool  block.FetchBlockMetadataResultsPool
 	fetchBlocksMetadataResultsPool block.FetchBlocksMetadataResultsPool
 }
@@ -167,7 +167,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		segmentReaderPool:              xio.NewSegmentReaderPool(poolOpts),
 		readerIteratorPool:             encoding.NewReaderIteratorPool(poolOpts),
 		multiReaderIteratorPool:        encoding.NewMultiReaderIteratorPool(poolOpts),
-		identifierPool:                 ident.NewIdentifierPool(bytesPool, poolOpts),
+		identifierPool:                 ident.NewPool(bytesPool, poolOpts),
 		fetchBlockMetadataResultsPool:  block.NewFetchBlockMetadataResultsPool(poolOpts, 0),
 		fetchBlocksMetadataResultsPool: block.NewFetchBlocksMetadataResultsPool(poolOpts, 0),
 	}
@@ -534,13 +534,13 @@ func (o *options) MultiReaderIteratorPool() encoding.MultiReaderIteratorPool {
 	return o.multiReaderIteratorPool
 }
 
-func (o *options) SetIdentifierPool(value ident.IdentifierPool) Options {
+func (o *options) SetIdentifierPool(value ident.Pool) Options {
 	opts := *o
 	opts.identifierPool = value
 	return &opts
 }
 
-func (o *options) IdentifierPool() ident.IdentifierPool {
+func (o *options) IdentifierPool() ident.Pool {
 	return o.identifierPool
 }
 

@@ -215,8 +215,8 @@ type Options interface {
 	FetchBlockMetadataResultsPool() block.FetchBlockMetadataResultsPool
 
 	// SetIdentifierPool sets the identifierPool
-	SetIdentifierPool(value ident.IdentifierPool) Options
+	SetIdentifierPool(value ident.Pool) Options
 
 	// IdentifierPool returns the identifierPool
-	IdentifierPool() ident.IdentifierPool
+	IdentifierPool() ident.Pool
 }

@@ -140,7 +140,7 @@ type session struct {
 	fetchRetrier                     xretry.Retrier
 	streamBlocksRetrier              xretry.Retrier
 	contextPool                      context.Pool
-	idPool                           ident.IdentifierPool
+	idPool                           ident.Pool
 	writeOpPool                      *writeOpPool
 	fetchBatchOpPool                 *fetchBatchOpPool
 	fetchBatchOpArrayArrayPool       *fetchBatchOpArrayArrayPool

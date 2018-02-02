@@ -647,10 +647,10 @@ type Options interface {
 	MultiReaderIteratorPool() encoding.MultiReaderIteratorPool
 
 	// SetIDPool sets the ID pool.
-	SetIdentifierPool(value ident.IdentifierPool) Options
+	SetIdentifierPool(value ident.Pool) Options
 
 	// IDPool returns the ID pool.
-	IdentifierPool() ident.IdentifierPool
+	IdentifierPool() ident.Pool
 
 	// SetFetchBlockMetadataResultsPool sets the fetchBlockMetadataResultsPool
 	SetFetchBlockMetadataResultsPool(value block.FetchBlockMetadataResultsPool) Options

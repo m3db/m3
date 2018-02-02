@@ -131,7 +131,7 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 
 		storageOpts = storageOpts.SetBytesPool(bytesPool)
 
-		idPool := ident.NewNativeIdentifierPool(bytesPool, nil)
+		idPool := ident.NewNativePool(bytesPool, nil)
 
 		storageOpts = storageOpts.SetIdentifierPool(idPool)
 	}

@@ -2002,7 +2002,7 @@ func (_mr *_MockOptionsRecorder) MultiReaderIteratorPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "MultiReaderIteratorPool")
 }
 
-func (_m *MockOptions) SetIdentifierPool(value ident.IdentifierPool) Options {
+func (_m *MockOptions) SetIdentifierPool(value ident.Pool) Options {
 	ret := _m.ctrl.Call(_m, "SetIdentifierPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -2012,9 +2012,9 @@ func (_mr *_MockOptionsRecorder) SetIdentifierPool(arg0 interface{}) *gomock.Cal
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIdentifierPool", arg0)
 }
 
-func (_m *MockOptions) IdentifierPool() ident.IdentifierPool {
+func (_m *MockOptions) IdentifierPool() ident.Pool {
 	ret := _m.ctrl.Call(_m, "IdentifierPool")
-	ret0, _ := ret[0].(ident.IdentifierPool)
+	ret0, _ := ret[0].(ident.Pool)
 	return ret0
 }
 

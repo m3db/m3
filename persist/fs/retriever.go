@@ -85,7 +85,7 @@ type blockRetriever struct {
 
 	reqPool    retrieveRequestPool
 	bytesPool  pool.CheckedBytesPool
-	idPool     ident.IdentifierPool
+	idPool     ident.Pool
 	nsMetadata namespace.Metadata
 
 	status                     blockRetrieverStatus
