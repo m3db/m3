@@ -1,0 +1,74 @@
+// Copyright (c) 2018 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
+package ident
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+func testTags() Tags {
+	return Tags{
+		StringTag("hello", "there"),
+		StringTag("foo", "bar"),
+		StringTag("and", "done"),
+	}
+}
+
+func TestTagSliceIterator(t *testing.T) {
+	expected := map[string]string{
+		"foo":   "bar",
+		"hello": "there",
+		"and":   "done",
+	}
+	iter := NewTagSliceIterator(testTags())
+	require.Equal(t, len(expected), iter.Remaining())
+	for iter.Next() {
+		c := iter.Current()
+		if c.Value.String() == expected[c.Name.String()] {
+			delete(expected, c.Name.String())
+			continue
+		}
+		require.Equal(t, len(expected), iter.Remaining())
+		require.Fail(t, "unknown tag", c)
+	}
+	require.Empty(t, expected)
+}
+
+func TestTagIterator(t *testing.T) {
+	expected := map[string]string{
+		"foo":   "bar",
+		"hello": "there",
+	}
+	iter := NewTagIterator(StringTag("hello", "there"), StringTag("foo", "bar"))
+	require.Equal(t, len(expected), iter.Remaining())
+	for iter.Next() {
+		c := iter.Current()
+		if c.Value.String() == expected[c.Name.String()] {
+			delete(expected, c.Name.String())
+			continue
+		}
+		require.Equal(t, len(expected), iter.Remaining())
+		require.Fail(t, "unknown tag", c)
+	}
+	require.Empty(t, expected)
+}
