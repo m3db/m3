@@ -26,6 +26,8 @@ import (
 	"runtime"
 	"sync/atomic"
 	"unsafe"
+
+	"github.com/m3db/m3x/resource"
 )
 
 // RefCount is an embeddable checked.Ref.
@@ -79,8 +81,8 @@ func (c *RefCount) Finalize() {
 }
 
 // Finalizer returns the finalizer if any or nil otherwise.
-func (c *RefCount) Finalizer() Finalizer {
-	finalizerPtr := (*Finalizer)(atomic.LoadPointer(&c.finalizer))
+func (c *RefCount) Finalizer() resource.Finalizer {
+	finalizerPtr := (*resource.Finalizer)(atomic.LoadPointer(&c.finalizer))
 	if finalizerPtr == nil {
 		return nil
 	}
@@ -88,7 +90,7 @@ func (c *RefCount) Finalizer() Finalizer {
 }
 
 // SetFinalizer sets the finalizer.
-func (c *RefCount) SetFinalizer(f Finalizer) {
+func (c *RefCount) SetFinalizer(f resource.Finalizer) {
 	atomic.StorePointer(&c.finalizer, unsafe.Pointer(&f))
 }
 

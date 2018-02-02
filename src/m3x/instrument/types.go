@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"
-
 	"go.uber.org/zap"
 )
 

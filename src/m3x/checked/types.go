@@ -21,18 +21,9 @@
 // Package checked implements reference counted resources.
 package checked
 
-// Finalizer finalizes a checked resource.
-type Finalizer interface {
-	Finalize()
-}
-
-// FinalizerFn is a function literal that is a finalizer.
-type FinalizerFn func()
-
-// Finalize will call the function literal as a finalizer.
-func (fn FinalizerFn) Finalize() {
-	fn()
-}
+import (
+	"github.com/m3db/m3x/resource"
+)
 
 // Ref is an entity that checks ref counts.
 type Ref interface {
@@ -52,10 +43,10 @@ type Ref interface {
 	Finalize()
 
 	// Finalizer returns the finalizer if any or nil otherwise.
-	Finalizer() Finalizer
+	Finalizer() resource.Finalizer
 
 	// SetFinalizer sets the finalizer.
-	SetFinalizer(f Finalizer)
+	SetFinalizer(f resource.Finalizer)
 
 	// TrackObject sets up the initial internal state of the Ref for
 	// leak detection.

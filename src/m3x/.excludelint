@@ -3,3 +3,4 @@
 (gen-go/)
 (mocks/)
 (.pb.go)
+(_mock.go)

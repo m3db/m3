@@ -16,7 +16,7 @@ make test
 ## Making A Change
 
 *Before making any significant changes, please [open an
-issue](https://github.com/m3db/m3db/issues).* Discussing your proposed
+issue](https://github.com/m3db/m3x/issues).* Discussing your proposed
 changes ahead of time will make the contribution process smooth for everyone.
 
 Once we've discussed your changes and you've got your code ready, make sure
@@ -29,4 +29,3 @@ pull request is most likely to be accepted if it:
   review comments](https://github.com/golang/go/wiki/CodeReviewComments).
 * Has a [good commit
   message](http://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html).
- 
