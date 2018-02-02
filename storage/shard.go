@@ -613,6 +613,7 @@ func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {
 func (s *dbShard) Write(
 	ctx context.Context,
 	id ident.ID,
+	tags ident.TagIterator,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,

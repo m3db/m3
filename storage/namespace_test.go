@@ -121,7 +121,7 @@ func TestNamespaceWriteShardNotOwned(t *testing.T) {
 	for i := range ns.shards {
 		ns.shards[i] = nil
 	}
-	err := ns.Write(ctx, ident.StringID("foo"), time.Now(), 0.0, xtime.Second, nil)
+	err := ns.Write(ctx, ident.StringID("foo"), ident.EmptyTagIterator, time.Now(), 0.0, xtime.Second, nil)
 	require.Error(t, err)
 	require.True(t, xerrors.IsRetryableError(err))
 	require.Equal(t, "not responsible for shard 0", err.Error())
@@ -142,10 +142,10 @@ func TestNamespaceWriteShardOwned(t *testing.T) {
 
 	ns := newTestNamespace(t)
 	shard := NewMockdatabaseShard(ctrl)
-	shard.EXPECT().Write(ctx, id, ts, val, unit, ant).Return(nil)
+	shard.EXPECT().Write(ctx, id, ident.EmptyTagIterator, ts, val, unit, ant).Return(nil)
 	ns.shards[testShardIDs[0].ID()] = shard
 
-	require.NoError(t, ns.Write(ctx, id, ts, val, unit, ant))
+	require.NoError(t, ns.Write(ctx, id, ident.EmptyTagIterator, ts, val, unit, ant))
 }
 
 func TestNamespaceReadEncodedShardNotOwned(t *testing.T) {

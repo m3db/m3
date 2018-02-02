@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/x/xcounter"
 	"github.com/m3db/m3db/x/xio"
@@ -450,6 +451,7 @@ func (d *db) Write(
 	ctx context.Context,
 	namespace ident.ID,
 	id ident.ID,
+	tags ident.TagIterator,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -461,11 +463,19 @@ func (d *db) Write(
 		return err
 	}
 
-	err = n.Write(ctx, id, timestamp, value, unit, annotation)
+	err = n.Write(ctx, id, tags, timestamp, value, unit, annotation)
 	if err == commitlog.ErrCommitLogQueueFull {
 		d.errors.Record(1)
 	}
 	return err
+}
+
+func (d *db) QueryIDs(
+	ctx context.Context,
+	query index.Query,
+	start, end time.Time,
+) (index.ResultsIterator, error) {
+	return nil, nil
 }
 
 func (d *db) ReadEncoded(
