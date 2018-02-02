@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"sort"
 
+	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/policy"
@@ -487,7 +488,7 @@ func (rc *rollupRule) revive(
 		return err
 	}
 	if !rc.Tombstoned() {
-		return fmt.Errorf("%s is not tombstoned", n)
+		return merrors.NewRuleConflictError(fmt.Sprintf("%s is not tombstoned", n))
 	}
 	return rc.addSnapshot(name, rawFilter, targets, meta)
 }

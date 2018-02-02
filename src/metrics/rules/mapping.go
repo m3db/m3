@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 
+	merrors "github.com/m3db/m3metrics/errors"
 	"github.com/m3db/m3metrics/filters"
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/policy"
@@ -326,7 +327,7 @@ func (mc *mappingRule) revive(
 		return err
 	}
 	if !mc.Tombstoned() {
-		return fmt.Errorf("%s is not tombstoned", n)
+		return merrors.NewRuleConflictError(fmt.Sprintf("%s is not tombstoned", n))
 	}
 	return mc.addSnapshot(name, rawFilter, policies, meta)
 }
