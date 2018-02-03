@@ -8,8 +8,9 @@ M3DB, inspired by [Gorilla][gorilla] and [InfluxDB][influxdb], is a distributed 
 
 Here are some attributes of the project:
 
-* Distributed time series storage, single nodes use a WAL commit log and persists time windows per shard
+* Distributed time series storage, single nodes use a WAL commit log and persists time windows per shard independently
 * Cluster management built on top of [etcd][etcd]
+* Built-in synchronous replication with configurable durability and read consistency (one, majority, all, etc)
 * M3TSZ float64 compression inspired by Gorilla TSZ compression, configurable as lossless or lossy
 * Arbitrary time precision configurable from seconds to nanoseconds precision, able to switch precision with any write
 * Configurable out of order writes, currently limited to the size of the configured time window's block size
