@@ -34,7 +34,9 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/metrics"
+	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
+	xretry "github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -134,6 +136,58 @@ func TestSessionFetchAll(t *testing.T) {
 		// Fulfill fetch ops once enqueued
 		enqueueWg.Wait()
 		fulfillTszFetchBatchOps(t, fetches, *fetchBatchOps, 0)
+	}()
+
+	assert.NoError(t, session.Open())
+
+	results, err := session.FetchAll(testNamespaceName, fetches.IDs(), start, end)
+	assert.NoError(t, err)
+	assertFetchResults(t, start, end, fetches, results)
+
+	assert.NoError(t, session.Close())
+}
+
+func TestSessionFetchIDsWithRetries(t *testing.T) {
+	checked.EnableTracebacks()
+	checked.EnableLeakDetection()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestOptions().
+		SetFetchBatchSize(2).
+		SetFetchRetrier(
+			xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(1)))
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	session := s.(*session)
+
+	start := time.Now().Truncate(time.Hour)
+	end := start.Add(2 * time.Hour)
+
+	fetches := testFetches([]testFetch{
+		{"foo", []testValue{
+			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
+			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
+			{3.0, start.Add(3 * time.Second), xtime.Second, nil},
+		}},
+		{"bar", []testValue{
+			{4.0, start.Add(1 * time.Second), xtime.Second, []byte{4, 5, 6}},
+			{5.0, start.Add(2 * time.Second), xtime.Second, nil},
+			{6.0, start.Add(3 * time.Second), xtime.Second, nil},
+		}},
+		{"baz", []testValue{
+			{7.0, start.Add(1 * time.Minute), xtime.Second, []byte{7, 8, 9}},
+			{8.0, start.Add(2 * time.Minute), xtime.Second, nil},
+			{9.0, start.Add(3 * time.Minute), xtime.Second, nil},
+		}},
+	})
+
+	successBatchOps, enqueueWg := prepareEnqueuesWithErrors(t, ctrl, session, fetches)
+
+	go func() {
+		// Fulfill fetch ops once enqueued
+		enqueueWg.Wait()
+		fulfillTszFetchBatchOps(t, fetches, *successBatchOps, 0)
 	}()
 
 	assert.NoError(t, session.Open())
@@ -343,6 +397,41 @@ func testFetchConsistencyLevel(
 			}
 		}
 	}
+}
+
+func prepareEnqueuesWithErrors(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	session *session,
+	fetches []testFetch,
+) (*[]*fetchBatchOp, *sync.WaitGroup) {
+	failureEnqueueFn := func(idx int, op op) {
+		fetch, ok := op.(*fetchBatchOp)
+		assert.True(t, ok)
+		go func() {
+			fetch.complete(idx, nil, fmt.Errorf("random error"))
+		}()
+	}
+
+	var successBatchOps []*fetchBatchOp
+	successEnqueueFn := func(idx int, op op) {
+		fetch, ok := op.(*fetchBatchOp)
+		assert.True(t, ok)
+		successBatchOps = append(successBatchOps, fetch)
+	}
+
+	var enqueueFns []testEnqueueFn
+	fetchBatchSize := session.opts.FetchBatchSize()
+	for i := 0; i < int(math.Ceil(float64(len(fetches))/float64(fetchBatchSize))); i++ {
+		enqueueFns = append(enqueueFns, failureEnqueueFn)
+	}
+
+	for i := 0; i < int(math.Ceil(float64(len(fetches))/float64(fetchBatchSize))); i++ {
+		enqueueFns = append(enqueueFns, successEnqueueFn)
+	}
+
+	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, enqueueFns)
+	return &successBatchOps, enqueueWg
 }
 
 func prepareEnqueues(
