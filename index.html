@@ -411,8 +411,9 @@
 <p>M3DB, inspired by <a href="http://www.vldb.org/pvldb/vol8/p1816-teller.pdf">Gorilla</a> and <a href="https://github.com/influxdata/influxdb">InfluxDB</a>, is a distributed time series database released as open source by <a href="http://uber.github.io">Uber Technologies</a>. It can be used for storing realtime metrics at long retention.</p>
 <p>Here are some attributes of the project:</p>
 <ul>
-<li>Distributed time series storage, single nodes use a WAL commit log and persists time windows per shard</li>
+<li>Distributed time series storage, single nodes use a WAL commit log and persists time windows per shard independently</li>
 <li>Cluster management built on top of <a href="https://github.com/coreos/etcd">etcd</a></li>
+<li>Built-in synchronous replication with configurable durability and read consistency (one, majority, all, etc)</li>
 <li>M3TSZ float64 compression inspired by Gorilla TSZ compression, configurable as lossless or lossy</li>
 <li>Arbitrary time precision configurable from seconds to nanoseconds precision, able to switch precision with any write</li>
 <li>Configurable out of order writes, currently limited to the size of the configured time window's block size</li>
