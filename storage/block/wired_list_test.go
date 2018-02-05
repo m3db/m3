@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
 
 	"github.com/golang/mock/gomock"
@@ -69,7 +70,7 @@ func newTestUnwireableBlock(
 	bl := NewDatabaseBlock(time.Time{}, segment, opts).(*dbBlock)
 	bl.Lock()
 	bl.retriever = NewMockDatabaseShardBlockRetriever(ctrl)
-	bl.retrieveID = ts.StringID(name)
+	bl.retrieveID = ident.StringID(name)
 	bl.Unlock()
 
 	return bl
