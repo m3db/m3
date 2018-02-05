@@ -171,6 +171,9 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 
 		// Potentially unwire
 		var unwired, shouldUnwire bool
+		// IsBlockRetrievable makes sure that the block has been flushed. This
+		// prevents us from unwiring blocks that haven't been flushed yet which
+		// would cause data loss.
 		if retriever.IsBlockRetrievable(start) {
 			switch cachePolicy {
 			case CacheNone:
