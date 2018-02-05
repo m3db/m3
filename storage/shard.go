@@ -352,6 +352,26 @@ func (s *dbShard) OnRetrieveBlock(
 	})
 }
 
+func (s *dbShard) OnEvictedFromWiredList(block block.DatabaseBlock) {
+	s.RLock()
+	entry, _, err := s.lookupEntryWithLock(block.RetrieveID())
+	s.RUnlock()
+
+	if err != nil && err != errShardEntryNotFound {
+		return // Shard is probably closing
+	}
+
+	if entry == nil {
+		// This could happen in a situation where the WiredList had a reference
+		// to a block that was in a series which has since been evicted. For
+		// example, if a tick caused an entire series to be flushed, but one
+		// of its blocks was still in the WiredList this might happen.
+		return
+	}
+
+	entry.series.OnEvictedFromWiredList(block)
+}
+
 func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
 	// NB(r): consider using a lockless list for ticking.
 	s.RLock()
@@ -748,13 +768,18 @@ func (s *dbShard) ReadEncoded(
 	}
 
 	if entry != nil {
+		// TODO: Is it possible for this to return an error about
+		// trying to read from a closed block due to a delay between
+		// the wired list closing a block and the series itself being
+		// notified that it was closed? If so, do we need to handle that
+		// case? Perhaps in readersWithBlocksMapAndBuffer
 		return entry.series.ReadEncoded(ctx, start, end)
 	}
 
 	retriever := s.seriesBlockRetriever
 	onRetrieve := s.seriesOnRetrieveBlock
 	opts := s.seriesOpts
-	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, opts)
+	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, nil, opts)
 	return reader.ReadEncoded(ctx, start, end)
 }
 
@@ -821,8 +846,8 @@ func (s *dbShard) tryRetrieveWritableSeries(id ident.ID) (
 func (s *dbShard) newShardEntry(id ident.ID) *dbShardEntry {
 	series := s.seriesPool.Get()
 	clonedID := s.identifierPool.Clone(id)
-	series.Reset(clonedID, s.seriesBlockRetriever,
-		s.seriesOnRetrieveBlock, s.seriesOpts)
+	series.Reset(
+		clonedID, s.seriesBlockRetriever, s.seriesOnRetrieveBlock, s, s.seriesOpts)
 	uniqueIndex := s.increasingIndex.nextIndex()
 	return &dbShardEntry{series: series, index: uniqueIndex}
 }
@@ -1019,7 +1044,9 @@ func (s *dbShard) FetchBlocks(
 	retriever := s.seriesBlockRetriever
 	onRetrieve := s.seriesOnRetrieveBlock
 	opts := s.seriesOpts
-	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, opts)
+	// Nil for onRead callback because we don't want peer bootstrapping to impact
+	// the behavior of the LRU
+	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, nil, opts)
 	return reader.FetchBlocks(ctx, starts)
 }
 

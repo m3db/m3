@@ -47,6 +47,7 @@ type Reader struct {
 	id         ident.ID
 	retriever  QueryableBlockRetriever
 	onRetrieve block.OnRetrieveBlock
+	onRead     func(block.DatabaseBlock)
 }
 
 // NewReaderUsingRetriever returns a reader for a series
@@ -56,6 +57,7 @@ func NewReaderUsingRetriever(
 	id ident.ID,
 	retriever QueryableBlockRetriever,
 	onRetrieveBlock block.OnRetrieveBlock,
+	onReadBlock func(block.DatabaseBlock),
 	opts Options,
 ) Reader {
 	return Reader{
@@ -63,6 +65,7 @@ func NewReaderUsingRetriever(
 		id:         id,
 		retriever:  retriever,
 		onRetrieve: onRetrieveBlock,
+		onRead:     onReadBlock,
 	}
 }
 
@@ -96,10 +99,12 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 		alignedStart = start.Truncate(size)
 		alignedEnd   = end.Truncate(size)
 	)
+
 	if alignedEnd.Equal(end) {
 		// Move back to make range [start, end)
 		alignedEnd = alignedEnd.Add(-1 * size)
 	}
+
 	// Squeeze the lookup window by what's available to make range queries like [0, infinity) possible
 	earliest := retention.FlushTimeStart(ropts, now)
 	if alignedStart.Before(earliest) {
@@ -124,6 +129,9 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 					results = append(results, []xio.SegmentReader{stream})
 					// NB(r): Mark this block as read now
 					block.SetLastReadTime(now)
+					if r.onRead != nil {
+						r.onRead(block)
+					}
 				}
 				continue
 			}

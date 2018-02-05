@@ -56,10 +56,25 @@ type dbBlock struct {
 	retriever  DatabaseShardBlockRetriever
 	retrieveID ident.ID
 
+	owner Owner
+
+	// listState contains state that the Wired List requires in order to track a block's
+	// position in the wired list. All the state in this struct is "owned" by the wired
+	// list and should only be accessed by the Wired List itself.
+	listState listState
+
 	checksum uint32
+
+	closed bool
 
 	wasRetrieved bool
 	closed       bool
+}
+
+type listState struct {
+	next                      DatabaseBlock
+	prev                      DatabaseBlock
+	nextPrevUpdatedAtUnixNano int64
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.
@@ -133,6 +148,13 @@ func (b *dbBlock) Checksum() uint32 {
 	return checksum
 }
 
+func (b *dbBlock) RetrieveID() ident.ID {
+	b.RLock()
+	id := b.retrieveID
+	b.RUnlock()
+	return id
+}
+
 func (b *dbBlock) OnRetrieveBlock(
 	id ident.ID,
 	startTime time.Time,
@@ -148,6 +170,7 @@ func (b *dbBlock) OnRetrieveBlock(
 	}
 
 	b.resetSegmentWithLock(segment)
+	b.retrieveID = id
 	b.wasRetrieved = true
 }
 
@@ -316,6 +339,73 @@ func (b *dbBlock) resetMergeTargetWithLock() {
 		b.mergeTarget.Close()
 	}
 	b.mergeTarget = nil
+}
+
+// Should only be used by the WiredList.
+func (b *dbBlock) next() DatabaseBlock {
+	return b.listState.next
+}
+
+// Should only be used by the WiredList.
+func (b *dbBlock) setNext(value DatabaseBlock) {
+	b.listState.next = value
+}
+
+// Should only be used by the WiredList.
+func (b *dbBlock) prev() DatabaseBlock {
+	return b.listState.prev
+}
+
+// Should only be used by the WiredList.
+func (b *dbBlock) setPrev(value DatabaseBlock) {
+	b.listState.prev = value
+}
+
+// Should only be used by the WiredList.
+func (b *dbBlock) nextPrevUpdatedAtUnixNano() int64 {
+	return b.listState.nextPrevUpdatedAtUnixNano
+}
+
+// Should only be used by the WiredList.
+func (b *dbBlock) setNextPrevUpdatedAtUnixNano(value int64) {
+	b.listState.nextPrevUpdatedAtUnixNano = value
+}
+
+// WiredListEntry is a snapshot of a subset of the block's state that the WiredList
+// uses to determine if a block is eligible for inclusion in the WiredList.
+type WiredListEntry struct {
+	Closed       bool
+	Retriever    DatabaseShardBlockRetriever
+	RetrieveID   ident.ID
+	WasRetrieved bool
+}
+
+// wiredListEntry generates a wiredListEntry for the block, and should only
+// be used by the WiredList.
+func (b *dbBlock) wiredListEntry() WiredListEntry {
+	b.RLock()
+	result := WiredListEntry{
+		Closed:       b.closed,
+		Retriever:    b.retriever,
+		RetrieveID:   b.retrieveID,
+		WasRetrieved: b.wasRetrieved,
+	}
+	b.RUnlock()
+	return result
+}
+
+// SetOwner sets the owner of the block.
+func (b *dbBlock) SetOwner(owner Owner) {
+	b.Lock()
+	b.owner = owner
+	b.Unlock()
+}
+
+func (b *dbBlock) Owner() Owner {
+	b.RLock()
+	owner := b.owner
+	b.RUnlock()
+	return owner
 }
 
 type databaseSeriesBlocks struct {

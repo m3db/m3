@@ -68,13 +68,14 @@ type dbSeries struct {
 	bs              bootstrapState
 	blockRetriever  QueryableBlockRetriever
 	onRetrieveBlock block.OnRetrieveBlock
+	blockOwner      block.Owner
 	pool            DatabaseSeriesPool
 }
 
 // NewDatabaseSeries creates a new database series
 func NewDatabaseSeries(id ident.ID, opts Options) DatabaseSeries {
 	s := newDatabaseSeries()
-	s.Reset(id, nil, nil, opts)
+	s.Reset(id, nil, nil, nil, opts)
 	return s
 }
 
@@ -180,6 +181,15 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 			case CacheRecentlyRead:
 				sinceLastRead := now.Sub(currBlock.LastReadTime())
 				shouldUnwire = sinceLastRead >= wiredTimeout
+			case CacheLRU:
+				// TODO: Is this correct?
+				// If its never been read before then its not controlled by the WiredList
+				// and it will leak if we don't close it. If it is read between now and
+				// the actual unwiring further below thats fine too, the WiredList will just
+				// have a stale entry that will eventually get evicted.
+				if currBlock.LastReadTime().Equal(time.Unix(0, 0)) {
+					shouldUnwire = true
+				}
 			}
 		}
 		if shouldUnwire {
@@ -264,12 +274,14 @@ func (s *dbSeries) ReadEncoded(
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
 	s.RLock()
-	r, err := Reader{
-		opts:       s.opts,
-		id:         s.id,
-		retriever:  s.blockRetriever,
-		onRetrieve: s.onRetrieveBlock,
-	}.readersWithBlocksMapAndBuffer(ctx, start, end, s.blocks, s.buffer)
+	// TODO: Dont create new func, pass struct as interface
+	onRead := func(b block.DatabaseBlock) {
+		if list := s.opts.DatabaseBlockOptions().WiredList(); list != nil {
+			list.Update(b)
+		}
+	}
+	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, onRead, s.opts)
+	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.blocks, s.buffer)
 	s.RUnlock()
 	return r, err
 }
@@ -309,7 +321,7 @@ func (s *dbSeries) FetchBlocksMetadata(
 		}
 		if !opts.IncludeCachedBlocks && b.IsCachedBlock() {
 			// Do not include cached blocks if not specified to, this is
-			// to avoid high amounts of duplication if a significant of
+			// to avoid high amounts of duplication if a significant number of
 			// blocks are cached in memory when returning blocks metadata
 			// from both in-memory and disk structures.
 			continue
@@ -370,14 +382,19 @@ func (s *dbSeries) mergeBlock(
 	// If we don't have an existing block just insert the new block.
 	existingBlock, ok := blocks.BlockAt(blockStart)
 	if !ok {
-		blocks.AddBlock(newBlock)
+		s.addBlock(newBlock)
 		return
 	}
 
 	// We are performing this in a lock, cannot wait for the existing
 	// block potentially to be retrieved from disk, lazily merge the stream.
 	newBlock.Merge(existingBlock)
-	blocks.AddBlock(newBlock)
+	s.addBlock(newBlock)
+}
+
+func (s *dbSeries) addBlock(b block.DatabaseBlock) {
+	b.SetOwner(s.blockOwner)
+	s.blocks.AddBlock(b)
 }
 
 // NB(xichen): we are holding a big lock here to drain the in-memory buffer.
@@ -452,14 +469,36 @@ func (s *dbSeries) OnRetrieveBlock(
 		Checksum: digest.SegmentChecksum(segment),
 	}
 	b.ResetRetrievable(startTime, s.blockRetriever, metadata)
-	b.OnRetrieveBlock(id, startTime, segment)
+	// Use s.id instead of id here, because id is finalized by the context whereas
+	// we rely on the G.C to reclaim s.id. This is important because the block will
+	// hold onto the id ref, and (if the LRU caching policy is enabled) the shard
+	// will need it later when the WiredList calls its OnEvictedFromWiredList method.
+	b.OnRetrieveBlock(s.id, startTime, segment)
 
 	// NB(r): Blocks retrieved have been triggered by a read, so set the last
 	// read time as now so caching policies are followed.
 	b.SetLastReadTime(s.now())
 
 	// If we retrieved this from disk then we directly emplace it
-	s.blocks.AddBlock(b)
+	s.addBlock(b)
+
+	if list := s.opts.DatabaseBlockOptions().WiredList(); list != nil {
+		list.Update(b)
+	}
+}
+
+func (s *dbSeries) OnEvictedFromWiredList(block block.DatabaseBlock) {
+	s.Lock()
+
+	id := block.RetrieveID()
+	// Should never happen
+	if !id.Equal(s.id) {
+		s.Unlock()
+		return
+	}
+
+	s.blocks.RemoveBlockAt(block.StartTime())
+	s.Unlock()
 }
 
 func (s *dbSeries) newBootstrapBlockError(
@@ -514,7 +553,15 @@ func (s *dbSeries) Close() {
 	// NB(r): We explicitly do not place this ID back into an
 	// existing pool as high frequency users of series IDs such
 	// as the commit log need to use the reference without the
-	// overhead of ownership tracking.
+	// overhead of ownership tracking. In addition, the blocks
+	// themselves have a reference to the ID which is required
+	// for the LRU/WiredList caching strategy eviction process.
+	// Since the wired list can still have a reference to a
+	// DatabaseBlock for which the corresponding DatabaseSeries
+	// has been closed, its important that the ID itself is still
+	// available because the process of kicking a DatabaseBlock
+	// out of the WiredList requires the ID.
+	//
 	// Since series are purged so infrequently the overhead
 	// of not releasing back an ID to a pool is amortized over
 	// a long period of time.
@@ -534,6 +581,7 @@ func (s *dbSeries) Reset(
 	id ident.ID,
 	blockRetriever QueryableBlockRetriever,
 	onRetrieveBlock block.OnRetrieveBlock,
+	blockOwner block.Owner,
 	opts Options,
 ) {
 	s.Lock()
@@ -546,4 +594,5 @@ func (s *dbSeries) Reset(
 	s.bs = bootstrapNotStarted
 	s.blockRetriever = blockRetriever
 	s.onRetrieveBlock = onRetrieveBlock
+	s.blockOwner = blockOwner
 }

@@ -34,6 +34,10 @@ const (
 	defaultTickSeriesBatchSize                  = 512
 	defaultTickPerSeriesSleepDuration           = 100 * time.Microsecond
 	defaultTickMinimumInterval                  = time.Minute
+	// defaultMaxWiredBlocks is 2MM by default which if using 2hr block sizes
+	// and writing every 10s at 1.4 point/byte (m3tsz) should use roughly 4gb:
+	// 1.4 * 6 * 120 * (2^21) = ~2gb
+	defaultMaxWiredBlocks = 2097152
 )
 
 var (
@@ -55,6 +59,7 @@ type options struct {
 	tickSeriesBatchSize                  int
 	tickPerSeriesSleepDuration           time.Duration
 	tickMinimumInterval                  time.Duration
+	maxWiredBlocks                       int
 }
 
 // NewOptions creates a new set of runtime options with defaults
@@ -67,6 +72,7 @@ func NewOptions() Options {
 		tickSeriesBatchSize:                  defaultTickSeriesBatchSize,
 		tickPerSeriesSleepDuration:           defaultTickPerSeriesSleepDuration,
 		tickMinimumInterval:                  defaultTickMinimumInterval,
+		maxWiredBlocks:                       defaultMaxWiredBlocks,
 	}
 }
 
@@ -163,4 +169,14 @@ func (o *options) SetTickMinimumInterval(value time.Duration) Options {
 
 func (o *options) TickMinimumInterval() time.Duration {
 	return o.tickMinimumInterval
+}
+
+func (o *options) SetMaxWiredBlocks(value int) Options {
+	opts := *o
+	opts.maxWiredBlocks = value
+	return &opts
+}
+
+func (o *options) MaxWiredBlocks() int {
+	return o.maxWiredBlocks
 }

@@ -54,6 +54,7 @@ type options struct {
 	bytesPool               pool.CheckedBytesPool
 	readerIteratorPool      encoding.ReaderIteratorPool
 	multiReaderIteratorPool encoding.MultiReaderIteratorPool
+	wiredList               *WiredList
 }
 
 // NewOptions creates new database block options
@@ -192,4 +193,14 @@ func (o *options) SetBytesPool(value pool.CheckedBytesPool) Options {
 
 func (o *options) BytesPool() pool.CheckedBytesPool {
 	return o.bytesPool
+}
+
+func (o *options) SetWiredList(value *WiredList) Options {
+	opts := *o
+	opts.wiredList = value
+	return &opts
+}
+
+func (o *options) WiredList() *WiredList {
+	return o.wiredList
 }

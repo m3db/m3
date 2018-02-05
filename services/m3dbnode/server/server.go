@@ -744,6 +744,12 @@ func withEncodingAndPoolingOptions(
 		SetEncoderPool(encoderPool).
 		SetSegmentReaderPool(segmentReaderPool).
 		SetBytesPool(bytesPool)
+
+	if opts.SeriesCachePolicy() == series.CacheLRU {
+		runtimeOpts := opts.RuntimeOptionsManager()
+		wiredList := block.NewWiredList(runtimeOpts, iopts, opts.ClockOptions())
+		blockOpts = blockOpts.SetWiredList(wiredList)
+	}
 	blockPool := block.NewDatabaseBlockPool(poolOptions(policy.BlockPool,
 		scope.SubScope("block-pool")))
 	blockPool.Init(func() block.DatabaseBlock {

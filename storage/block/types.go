@@ -153,6 +153,9 @@ type DatabaseBlock interface {
 	// Checksum returns the block checksum.
 	Checksum() uint32
 
+	// RetrieveID is the id the block as set during retrieval (can be nil)
+	RetrieveID() ident.ID
+
 	// Stream returns the encoded byte stream.
 	Stream(blocker context.Context) (xio.SegmentReader, error)
 
@@ -185,6 +188,29 @@ type DatabaseBlock interface {
 
 	// Close closes the block.
 	Close()
+
+	// SetOwner sets the owner of the block
+	SetOwner(Owner)
+
+	// Owner returns the owner of the block
+	Owner() Owner
+
+	// Private methods because only the Wired List itself should use them.
+	next() DatabaseBlock
+	setNext(block DatabaseBlock)
+	prev() DatabaseBlock
+	setPrev(block DatabaseBlock)
+	nextPrevUpdatedAtUnixNano() int64
+	setNextPrevUpdatedAtUnixNano(value int64)
+	wiredListEntry() WiredListEntry
+}
+
+// Owner is implemented by an "owner" of a block that should
+// be notified when a block is evicted from the wired list (and thus unavailable
+// for reads.)
+type Owner interface {
+	// OnEvictedFromWiredList is called when a block is evicted from the wired list.
+	OnEvictedFromWiredList(DatabaseBlock)
 }
 
 // OnRetrieveBlock is an interface to callback on when a block is retrieved.
@@ -389,4 +415,10 @@ type Options interface {
 
 	// BytesPool returns the bytesPool
 	BytesPool() pool.CheckedBytesPool
+
+	// SetWiredList sets the database block wired list
+	SetWiredList(value *WiredList) Options
+
+	// WiredList returns the database block wired list
+	WiredList() *WiredList
 }

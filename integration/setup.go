@@ -116,7 +116,9 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 	storageOpts := storage.NewOptions().SetNamespaceInitializer(nsInit)
 
 	runtimeOptsMgr := storageOpts.RuntimeOptionsManager()
-	runtimeOpts := runtimeOptsMgr.Get().SetTickMinimumInterval(opts.TickMinimumInterval())
+	runtimeOpts := runtimeOptsMgr.Get().
+		SetTickMinimumInterval(opts.TickMinimumInterval()).
+		SetMaxWiredBlocks(opts.MaxWiredBlocks())
 	if err := runtimeOptsMgr.Update(runtimeOpts); err != nil {
 		return nil, err
 	}
@@ -268,6 +270,24 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 			storageOpts = storageOpts.
 				SetDatabaseBlockRetrieverManager(blockRetrieverMgr)
 		}
+	}
+
+	// Set up wired list if required
+	if storageOpts.SeriesCachePolicy() == series.CacheLRU {
+		wiredList := block.NewWiredList(
+			runtimeOptsMgr,
+			storageOpts.InstrumentOptions(),
+			storageOpts.ClockOptions(),
+		)
+		blockOpts := storageOpts.DatabaseBlockOptions().SetWiredList(wiredList)
+		blockPool := block.NewDatabaseBlockPool(nil)
+		// Have to manually set the blockpool because the default one uses a constructor
+		// function that doesn't have the updated blockOpts.
+		blockPool.Init(func() block.DatabaseBlock {
+			return block.NewDatabaseBlock(time.Time{}, ts.Segment{}, blockOpts)
+		})
+		blockOpts = blockOpts.SetDatabaseBlockPool(blockPool)
+		storageOpts = storageOpts.SetDatabaseBlockOptions(blockOpts)
 	}
 
 	return &testSetup{

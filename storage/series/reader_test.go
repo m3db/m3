@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"code.uber.internal/infra/statsdex/oss_repos/src/github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/ident"
@@ -67,8 +68,8 @@ func TestReaderUsingRetrieverReadEncoded(t *testing.T) {
 			start.Add(ropts.BlockSize()), onRetrieveBlock).
 		Return(segReaders[1], nil)
 
-	reader := NewReaderUsingRetriever(ident.StringID("foo"),
-		retriever, onRetrieveBlock, opts)
+	reader := NewReaderUsingRetriever(
+		ts.StringID("foo"), retriever, onRetrieveBlock, nil, opts)
 
 	// Check reads as expected
 	r, err := reader.ReadEncoded(ctx, start, end)
@@ -114,8 +115,8 @@ func TestReaderUsingRetrieverFetchBlocks(t *testing.T) {
 			start.Add(ropts.BlockSize()), nil).
 		Return(segReaders[1], nil)
 
-	reader := NewReaderUsingRetriever(ident.StringID("foo"),
-		retriever, onRetrieveBlock, opts)
+	reader := NewReaderUsingRetriever(
+		ts.StringID("foo"), retriever, onRetrieveBlock, nil, opts)
 
 	// Check reads as expected
 	times := []time.Time{
