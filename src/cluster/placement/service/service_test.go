@@ -563,25 +563,32 @@ func TestFindReplaceInstance(t *testing.T) {
 	}
 
 	p := NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1")).(*placementService)
-	i, err := p.selector.SelectReplaceInstances(candidates, []string{i4.ID()}, s)
+	res, err := p.selector.SelectReplaceInstances(candidates, []string{i4.ID()}, s)
 	assert.Error(t, err)
-	assert.Nil(t, i)
+	assert.Nil(t, res)
 
 	noConflictCandidates := []placement.Instance{
 		placement.NewEmptyInstance("i11", "r0", "z1", "endpoint", 1),
 		placement.NewEmptyInstance("i22", "r0", "z2", "endpoint", 1),
 	}
-	i, err = p.selector.SelectReplaceInstances(noConflictCandidates, []string{i3.ID()}, s)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "could not find enough instance to replace")
-	assert.Nil(t, i)
+	res, err = p.selector.SelectReplaceInstances(noConflictCandidates, []string{i3.ID()}, s)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(res))
+	assert.Equal(t, noConflictCandidates[0], res[0])
 
+	// Enable LooseRackCheck, so the rack with less conflicts will be picked.
 	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1").SetLooseRackCheck(true)).(*placementService)
-	i, err = p.selector.SelectReplaceInstances(candidates, []string{i4.ID()}, s)
+	res, err = p.selector.SelectReplaceInstances(candidates, []string{i4.ID()}, s)
 	assert.NoError(t, err)
 	// gonna prefer r1 because r1 would only conflict shard 2, r2 would conflict 7,8,9
-	assert.Equal(t, 1, len(i))
-	assert.Equal(t, "r11", i[0].Rack())
+	assert.Equal(t, 1, len(res))
+	assert.Equal(t, "r11", res[0].Rack())
+
+	// Disable AllowPartialReplace, so the weight from the candidate instances must be more than the replacing instance.
+	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1").SetAllowPartialReplace(false)).(*placementService)
+	_, err = p.selector.SelectReplaceInstances(noConflictCandidates, []string{i3.ID()}, s)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "could not find enough instance to replace")
 }
 
 func TestMirrorWorkflow(t *testing.T) {

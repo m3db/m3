@@ -34,22 +34,22 @@ var (
 	errNoValidInstance = errors.New("no valid instance in the candidate list")
 )
 
-type nonMirroredFilter struct {
+type nonMirroredSelector struct {
 	opts placement.Options
 }
 
 func newNonMirroredSelector(opts placement.Options) placement.InstanceSelector {
-	return &nonMirroredFilter{opts: opts}
+	return &nonMirroredSelector{opts: opts}
 }
 
-func (f *nonMirroredFilter) SelectInitialInstances(
+func (f *nonMirroredSelector) SelectInitialInstances(
 	candidates []placement.Instance,
 	rf int,
 ) ([]placement.Instance, error) {
 	return getValidCandidates(placement.NewPlacement(), candidates, f.opts)
 }
 
-func (f *nonMirroredFilter) SelectAddingInstances(
+func (f *nonMirroredSelector) SelectAddingInstances(
 	candidates []placement.Instance,
 	p placement.Placement,
 ) ([]placement.Instance, error) {
@@ -94,7 +94,7 @@ func (f *nonMirroredFilter) SelectAddingInstances(
 	return nil, errNoValidInstance
 }
 
-func (f *nonMirroredFilter) SelectReplaceInstances(
+func (f *nonMirroredSelector) SelectReplaceInstances(
 	candidates []placement.Instance,
 	leavingInstanceIDs []string,
 	p placement.Placement,
@@ -144,7 +144,7 @@ func (f *nonMirroredFilter) SelectReplaceInstances(
 	}
 	result, leftWeight := fillWeight(groups, int(totalWeight))
 
-	if leftWeight > 0 {
+	if leftWeight > 0 && !f.opts.AllowPartialReplace() {
 		return nil, fmt.Errorf("could not find enough instance to replace %v, %d weight could not be replaced",
 			leavingInstances, leftWeight)
 	}
