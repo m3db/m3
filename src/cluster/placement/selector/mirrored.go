@@ -34,13 +34,13 @@ var (
 	errNoValidMirrorInstance = errors.New("no valid instance for mirror placement in the candidate list")
 )
 
-type mirroredFilter struct {
+type mirroredSelector struct {
 	opts   placement.Options
 	logger log.Logger
 }
 
 func newMirroredSelector(opts placement.Options) placement.InstanceSelector {
-	return &mirroredFilter{
+	return &mirroredSelector{
 		opts:   opts,
 		logger: opts.InstrumentOptions().Logger(),
 	}
@@ -48,7 +48,7 @@ func newMirroredSelector(opts placement.Options) placement.InstanceSelector {
 
 // SelectInitialInstances tries to make as many groups as possible from
 // the candidate instances to make the initial placement.
-func (f *mirroredFilter) SelectInitialInstances(
+func (f *mirroredSelector) SelectInitialInstances(
 	candidates []placement.Instance,
 	rf int,
 ) ([]placement.Instance, error) {
@@ -91,7 +91,7 @@ func (f *mirroredFilter) SelectInitialInstances(
 
 // SelectAddingInstances tries to make just one group of hosts from
 // the candidate instances to be added to the placement.
-func (f *mirroredFilter) SelectAddingInstances(
+func (f *mirroredSelector) SelectAddingInstances(
 	candidates []placement.Instance,
 	p placement.Placement,
 ) ([]placement.Instance, error) {
@@ -131,7 +131,7 @@ func (f *mirroredFilter) SelectAddingInstances(
 // Two main use cases:
 // 1, find a new host from a pool of hosts to replace a host in the placement.
 // 2, back out of a replacement, both leaving and adding host are still in the placement.
-func (f *mirroredFilter) SelectReplaceInstances(
+func (f *mirroredSelector) SelectReplaceInstances(
 	candidates []placement.Instance,
 	leavingInstanceIDs []string,
 	p placement.Placement,
