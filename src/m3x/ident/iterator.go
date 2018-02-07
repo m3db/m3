@@ -58,11 +58,25 @@ func (i *idSliceIter) Err() error {
 	return nil
 }
 
+func (i *idSliceIter) Close() {
+	i.backingSlice = nil
+	i.currentIdx = 0
+	i.currentID = nil
+}
+
 func (i *idSliceIter) Remaining() int {
 	if r := len(i.backingSlice) - 1 - i.currentIdx; r >= 0 {
 		return r
 	}
 	return 0
+}
+
+func (i *idSliceIter) Clone() Iterator {
+	return &idSliceIter{
+		backingSlice: i.backingSlice,
+		currentIdx:   i.currentIdx,
+		currentID:    i.currentID,
+	}
 }
 
 // NewStringIDsIterator returns a new Iterator over the given IDs.
@@ -103,9 +117,23 @@ func (i *stringSliceIter) Err() error {
 	return nil
 }
 
+func (i *stringSliceIter) Close() {
+	i.backingSlice = nil
+	i.currentIdx = 0
+	i.currentID = nil
+}
+
 func (i *stringSliceIter) Remaining() int {
 	if r := len(i.backingSlice) - 1 - i.currentIdx; r >= 0 {
 		return r
 	}
 	return 0
+}
+
+func (i *stringSliceIter) Clone() Iterator {
+	return &stringSliceIter{
+		backingSlice: i.backingSlice,
+		currentIdx:   i.currentIdx,
+		currentID:    i.currentID,
+	}
 }
