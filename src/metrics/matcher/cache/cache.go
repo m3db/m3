@@ -28,7 +28,7 @@ import (
 
 	"github.com/m3db/m3metrics/rules"
 	"github.com/m3db/m3x/clock"
-	xid "github.com/m3db/m3x/id"
+	xid "github.com/m3db/m3x/ident"
 
 	"github.com/uber-go/tally"
 )

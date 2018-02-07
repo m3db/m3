@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3metrics/generated/proto/schema"
 	"github.com/m3db/m3metrics/matcher/cache"
 	"github.com/m3db/m3metrics/rules"
-	xid "github.com/m3db/m3x/id"
+	xid "github.com/m3db/m3x/ident"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
