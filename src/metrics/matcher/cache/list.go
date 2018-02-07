@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3metrics/rules"
-	xid "github.com/m3db/m3x/id"
+	xid "github.com/m3db/m3x/ident"
 )
 
 // element is a list element
