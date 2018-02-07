@@ -72,3 +72,25 @@ func TestTagIterator(t *testing.T) {
 	}
 	require.Empty(t, expected)
 }
+
+func TestTagIteratorClone(t *testing.T) {
+	expected := map[string]string{
+		"foo":   "bar",
+		"hello": "there",
+	}
+	iter := NewTagIterator(StringTag("hello", "there"), StringTag("foo", "bar"))
+	clone := iter.Clone()
+	expectedLen := len(expected)
+	require.Equal(t, expectedLen, iter.Remaining())
+	for iter.Next() {
+		c := iter.Current()
+		if c.Value.String() == expected[c.Name.String()] {
+			delete(expected, c.Name.String())
+			continue
+		}
+		require.Equal(t, len(expected), iter.Remaining())
+		require.Fail(t, "unknown tag", c)
+	}
+	require.Empty(t, expected)
+	require.Equal(t, expectedLen, clone.Remaining())
+}
