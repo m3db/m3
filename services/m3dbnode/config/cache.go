@@ -40,5 +40,6 @@ func (c CacheConfigurations) SeriesConfiguration() SeriesCacheConfiguration {
 
 // SeriesCacheConfiguration is the series cache configuration.
 type SeriesCacheConfiguration struct {
-	Policy series.CachePolicy `yaml:"policy"`
+	Policy       series.CachePolicy `yaml:"policy"`
+	MaxLRUBlocks int                `yaml:"max_lru_blocks"`
 }

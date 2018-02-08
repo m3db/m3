@@ -243,8 +243,8 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 			}
 		}
 
-		// TODO: Swap remove and Close() order so that we can distinguish between "clean"
-		// closes and "dirty" closes.
+		// Call remove before Close because Close will only return the block to the pool if
+		// its not present in the WiredList anymore.
 		l.remove(bl)
 		bl.Close()
 
