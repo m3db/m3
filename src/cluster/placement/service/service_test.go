@@ -559,36 +559,62 @@ func TestFindReplaceInstance(t *testing.T) {
 
 	candidates := []placement.Instance{
 		placement.NewEmptyInstance("i11", "r11", "z1", "endpoint", 1),
-		placement.NewEmptyInstance("i22", "r22", "z2", "endpoint", 1), // bad zone
+		placement.NewEmptyInstance("i22", "r22", "z2", "endpoint", 1),
 	}
-
-	p := NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1")).(*placementService)
-	res, err := p.selector.SelectReplaceInstances(candidates, []string{i4.ID()}, s)
-	assert.Error(t, err)
-	assert.Nil(t, res)
-
 	noConflictCandidates := []placement.Instance{
 		placement.NewEmptyInstance("i11", "r0", "z1", "endpoint", 1),
 		placement.NewEmptyInstance("i22", "r0", "z2", "endpoint", 1),
 	}
-	res, err = p.selector.SelectReplaceInstances(noConflictCandidates, []string{i3.ID()}, s)
-	assert.Nil(t, err)
-	assert.Equal(t, 1, len(res))
-	assert.Equal(t, noConflictCandidates[0], res[0])
 
-	// Enable LooseRackCheck, so the rack with less conflicts will be picked.
-	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1").SetLooseRackCheck(true)).(*placementService)
-	res, err = p.selector.SelectReplaceInstances(candidates, []string{i4.ID()}, s)
-	assert.NoError(t, err)
-	// gonna prefer r1 because r1 would only conflict shard 2, r2 would conflict 7,8,9
-	assert.Equal(t, 1, len(res))
-	assert.Equal(t, "r11", res[0].Rack())
-
-	// Disable AllowPartialReplace, so the weight from the candidate instances must be more than the replacing instance.
-	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1").SetAllowPartialReplace(false)).(*placementService)
-	_, err = p.selector.SelectReplaceInstances(noConflictCandidates, []string{i3.ID()}, s)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "could not find enough instance to replace")
+	testCases := []struct {
+		opts       placement.Options
+		input      []placement.Instance
+		replaceIDs []string
+		expectRes  []placement.Instance
+		expectErr  bool
+	}{
+		{
+			opts:       placement.NewOptions().SetValidZone("z1"),
+			input:      candidates,
+			replaceIDs: []string{i4.ID()},
+			expectRes:  []placement.Instance{candidates[0]},
+		},
+		{
+			opts:       placement.NewOptions().SetValidZone("z1").SetAllowPartialReplace(false),
+			input:      candidates,
+			replaceIDs: []string{i4.ID()},
+			expectErr:  true,
+		},
+		{
+			opts:       placement.NewOptions().SetValidZone("z1"),
+			input:      noConflictCandidates,
+			replaceIDs: []string{i3.ID()},
+			expectRes:  []placement.Instance{noConflictCandidates[0]},
+		},
+		{
+			// Enable LooseRackCheck, so the rack with less conflicts will be picked.
+			opts:       placement.NewOptions().SetValidZone("z1").SetLooseRackCheck(true),
+			input:      candidates,
+			replaceIDs: []string{i4.ID()},
+			expectRes:  []placement.Instance{candidates[0]},
+		},
+		{
+			// Disable AllowPartialReplace, so the weight from the candidate instances must be more than the replacing instance.
+			opts:       placement.NewOptions().SetValidZone("z1").SetAllowPartialReplace(false),
+			input:      noConflictCandidates,
+			replaceIDs: []string{i3.ID()},
+			expectErr:  true,
+		},
+	}
+	for _, test := range testCases {
+		p := NewPlacementService(nil, test.opts).(*placementService)
+		res, err := p.selector.SelectReplaceInstances(test.input, test.replaceIDs, s)
+		if test.expectErr {
+			assert.Error(t, err)
+			continue
+		}
+		assert.Equal(t, test.expectRes, res)
+	}
 }
 
 func TestMirrorWorkflow(t *testing.T) {
