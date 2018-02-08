@@ -138,11 +138,11 @@ func (a mirroredAlgorithm) RemoveInstances(
 			return nil, err
 		}
 		// Place the shards from the leaving instance to the rest of the cluster
-		if err := ph.PlaceShards(leavingInstance.Shards().All(), leavingInstance, ph.Instances()); err != nil {
+		if err := ph.placeShards(leavingInstance.Shards().All(), leavingInstance, ph.Instances()); err != nil {
 			return nil, err
 		}
 
-		if mirrorPlacement, _, err = addInstanceToPlacement(ph.GeneratePlacement(), leavingInstance, withShards); err != nil {
+		if mirrorPlacement, _, err = addInstanceToPlacement(ph.generatePlacement(), leavingInstance, withShards); err != nil {
 			return nil, err
 		}
 	}
@@ -194,11 +194,11 @@ func (a mirroredAlgorithm) AddInstances(
 			return nil, err
 		}
 
-		if err = ph.AddInstance(instance); err != nil {
+		if err = ph.addInstance(instance); err != nil {
 			return nil, err
 		}
 
-		mirrorPlacement = ph.GeneratePlacement()
+		mirrorPlacement = ph.generatePlacement()
 	}
 
 	return placementFromMirror(mirrorPlacement, append(p.Instances(), addingInstances...), p.ReplicaFactor())
@@ -341,12 +341,12 @@ func (a mirroredAlgorithm) returnInitializingShards(
 				return nil, err
 			}
 			numInitShards := instance.Shards().NumShardsForState(shard.Initializing)
-			ph.ReturnInitializingShards(instance)
+			ph.returnInitializingShards(instance)
 			if instance.Shards().NumShardsForState(shard.Initializing) < numInitShards {
 				// Made some progress on returning shards.
 				madeProgess = true
 			}
-			p = ph.GeneratePlacement()
+			p = ph.generatePlacement()
 			if instance.Shards().NumShards() > 0 {
 				p = p.SetInstances(append(p.Instances(), instance))
 			}
@@ -384,12 +384,12 @@ func (a mirroredAlgorithm) reclaimLeavingShards(
 				return nil, err
 			}
 			numLeavingShards := instance.Shards().NumShardsForState(shard.Leaving)
-			ph.ReclaimLeavingShards(instance)
+			ph.reclaimLeavingShards(instance)
 			if instance.Shards().NumShardsForState(shard.Leaving) < numLeavingShards {
 				// Made some progress on reclaiming shards.
 				madeProgess = true
 			}
-			p = ph.GeneratePlacement()
+			p = ph.generatePlacement()
 		}
 		if !madeProgess {
 			break

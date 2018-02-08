@@ -1192,7 +1192,7 @@ func validateCutoverCutoffNanos(t *testing.T, p placement.Placement, opts placem
 
 func validateDistribution(t *testing.T, p placement.Placement, expectPeakOverAvg float64, testCase string) {
 	assert.NoError(t, placement.Validate(p), "placement validation failed")
-	ph := NewPlacementHelper(p, placement.NewOptions()).(*placementHelper)
+	ph := NewPlacementHelper(p, placement.NewOptions()).(*helper)
 	total := 0
 	for _, i := range p.Instances() {
 		load := loadOnInstance(i)
@@ -1217,7 +1217,7 @@ func validateDistribution(t *testing.T, p placement.Placement, expectPeakOverAvg
 	assert.Equal(t, p.ReplicaFactor()*p.NumShards(), total, fmt.Sprintf("Wrong total shards: expecting %v, but got %v", p.ReplicaFactor()*p.NumShards(), total))
 }
 
-func getWeightedLoad(ph *placementHelper, weight uint32) int {
+func getWeightedLoad(ph *helper, weight uint32) int {
 	return ph.rf * len(ph.shardToInstanceMap) * int(weight) / int(ph.totalWeight)
 }
 

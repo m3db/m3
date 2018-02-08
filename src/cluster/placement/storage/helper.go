@@ -37,8 +37,8 @@ var (
 	errNoPlacementInTheSnapshots         = errors.New("not placement in the snapshots")
 )
 
-// Helper handles placement marshaling and validation.
-type Helper interface {
+// helper handles placement marshaling and validation.
+type helper interface {
 	// Placement retrieves the placement stored in kv.Store.
 	Placement() (placement.Placement, int, error)
 
@@ -57,7 +57,7 @@ type Helper interface {
 }
 
 // newHelper returns a new placement storage helper.
-func newHelper(store kv.Store, key string, opts placement.Options) Helper {
+func newHelper(store kv.Store, key string, opts placement.Options) helper {
 	if opts.IsStaged() {
 		return newStagedPlacementHelper(store, key)
 	}
@@ -70,7 +70,7 @@ type placementHelper struct {
 	key   string
 }
 
-func newPlacementHelper(store kv.Store, key string) Helper {
+func newPlacementHelper(store kv.Store, key string) helper {
 	return &placementHelper{
 		store: store,
 		key:   key,
@@ -133,7 +133,7 @@ type stagedPlacementHelper struct {
 	key   string
 }
 
-func newStagedPlacementHelper(store kv.Store, key string) Helper {
+func newStagedPlacementHelper(store kv.Store, key string) helper {
 	return &stagedPlacementHelper{
 		store: store,
 		key:   key,
