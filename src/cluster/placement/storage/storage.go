@@ -29,7 +29,7 @@ import (
 )
 
 type storage struct {
-	helper Helper
+	helper helper
 	key    string
 	store  kv.Store
 	opts   placement.Options
