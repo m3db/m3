@@ -552,6 +552,7 @@ func (s *dbSeries) Flush(
 	if err != nil {
 		return err
 	}
+
 	return persistFn(s.id, segment, b.Checksum())
 }
 

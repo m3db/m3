@@ -60,23 +60,17 @@ type dbBlock struct {
 
 	// listState contains state that the Wired List requires in order to track a block's
 	// position in the wired list. All the state in this struct is "owned" by the wired
-	// list and should only be accessed by the Wired List itself.
+	// list and should only be accessed by the Wired List itself. Does not require any
+	// synchronization because the WiredList is not concurrent.
 	listState listState
 
 	checksum uint32
-
-	closed bool
 
 	wasRetrieved bool
 	closed       bool
 }
 
 type listState struct {
-	// This mutex should have almost no contention since the primary consumer of this state
-	// is the wiredList itself which exhibits no parallelism, but we still need it so that
-	// the close method can determine if a block is in the wiredList before returning it to
-	// the pool.
-	sync.RWMutex
 	next                      DatabaseBlock
 	prev                      DatabaseBlock
 	nextPrevUpdatedAtUnixNano int64
@@ -332,11 +326,9 @@ func (b *dbBlock) Close() {
 		// to because this rules out a lot of possible bugs in the LRU lifecycle. This will
 		// cause additional allocation pressure, but the frequency at which this occurs is
 		// so small that it shouldn't matter.
-		b.listState.RLock()
-		if b.listState.next == nil && b.listState.prev == nil {
+		if !b.isInWiredList() {
 			pool.Put(b)
 		}
-		b.listState.RUnlock()
 	}
 }
 
@@ -349,32 +341,22 @@ func (b *dbBlock) resetMergeTargetWithLock() {
 
 // Should only be used by the WiredList.
 func (b *dbBlock) next() DatabaseBlock {
-	b.listState.RLock()
-	next := b.listState.next
-	b.listState.RUnlock()
-	return next
+	return b.listState.next
 }
 
 // Should only be used by the WiredList.
 func (b *dbBlock) setNext(value DatabaseBlock) {
-	b.listState.Lock()
 	b.listState.next = value
-	b.listState.Unlock()
 }
 
 // Should only be used by the WiredList.
 func (b *dbBlock) prev() DatabaseBlock {
-	b.listState.RLock()
-	prev := b.listState.prev
-	b.listState.RUnlock()
-	return prev
+	return b.listState.prev
 }
 
 // Should only be used by the WiredList.
 func (b *dbBlock) setPrev(value DatabaseBlock) {
-	b.listState.Lock()
 	b.listState.prev = value
-	b.listState.Unlock()
 }
 
 // Should only be used by the WiredList.
@@ -385,6 +367,19 @@ func (b *dbBlock) nextPrevUpdatedAtUnixNano() int64 {
 // Should only be used by the WiredList.
 func (b *dbBlock) setNextPrevUpdatedAtUnixNano(value int64) {
 	b.listState.nextPrevUpdatedAtUnixNano = value
+}
+
+// Should only be used by the WiredList.
+func (b *dbBlock) setIsInWiredList(value bool) {
+	num := int32(0)
+	if value {
+		num = 1
+	}
+	atomic.StoreInt32(&b.isInList, num)
+}
+
+func (b *dbBlock) isInWiredList() bool {
+	return atomic.LoadInt32(&b.isInList) == 1
 }
 
 // WiredListEntry is a snapshot of a subset of the block's state that the WiredList

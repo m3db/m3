@@ -192,6 +192,9 @@ func (l *WiredList) processUpdateBlock(v DatabaseBlock) {
 	// If a block is still unwireable then its worth keeping track of in the wired list
 	// so we push it back.
 	if unwireable {
+		// Mark the block as in the wired list so that unsafe operations (like returning it to a pool)
+		// are not taken on it.
+		v.setIsInWiredList(true)
 		l.pushBack(v)
 		return
 	}
@@ -264,6 +267,7 @@ func (l *WiredList) remove(v DatabaseBlock) {
 	v.next().setPrev(v.prev())
 	v.setNext(nil) // avoid memory leaks
 	v.setPrev(nil) // avoid memory leaks
+	v.setIsInWiredList(false)
 	l.length--
 }
 
