@@ -330,11 +330,11 @@ func (b *dbBlock) Close() {
 
 	b.resetMergeTargetWithLock()
 	if pool := b.opts.DatabaseBlockPool(); pool != nil {
-		// TODO: Could be defensive here and check if prev != nil and next != nil,
-		// and if they are then we don't put it back in the pool. This would prevent
-		// us from returning blocks to the pool which the WiredList is still holding
-		// references to which rules out a lot of possible bugs in the LRU lifecycle.
-		pool.Put(b)
+		// Don't return blocks to the pool that the WiredList is still holding references
+		// to because this rules out a lot of possible bugs in the LRU lifecycle.
+		if b.listState.next == nil && b.listState.prev == nil {
+			pool.Put(b)
+		}
 	}
 }
 

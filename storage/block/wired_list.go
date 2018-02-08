@@ -245,9 +245,8 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 
 		// TODO: Swap remove and Close() order so that we can distinguish between "clean"
 		// closes and "dirty" closes.
-		bl.Close()
-		// Successfully unwired the block
 		l.remove(bl)
+		bl.Close()
 
 		l.metrics.evicted.Inc(1)
 
