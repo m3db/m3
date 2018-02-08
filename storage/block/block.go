@@ -153,13 +153,6 @@ func (b *dbBlock) Checksum() uint32 {
 	return checksum
 }
 
-func (b *dbBlock) RetrieveID() ident.ID {
-	b.RLock()
-	id := b.retrieveID
-	b.RUnlock()
-	return id
-}
-
 func (b *dbBlock) OnRetrieveBlock(
 	id ident.ID,
 	startTime time.Time,
@@ -336,7 +329,9 @@ func (b *dbBlock) Close() {
 	b.resetMergeTargetWithLock()
 	if pool := b.opts.DatabaseBlockPool(); pool != nil {
 		// Don't return blocks to the pool that the WiredList is still holding references
-		// to because this rules out a lot of possible bugs in the LRU lifecycle.
+		// to because this rules out a lot of possible bugs in the LRU lifecycle. This will
+		// cause additional allocation pressure, but the frequency at which this occurs is
+		// so small that it shouldn't matter.
 		b.listState.RLock()
 		if b.listState.next == nil && b.listState.prev == nil {
 			pool.Put(b)

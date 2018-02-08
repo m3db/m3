@@ -153,9 +153,6 @@ type DatabaseBlock interface {
 	// Checksum returns the block checksum.
 	Checksum() uint32
 
-	// RetrieveID is the id the block as set during retrieval (can be nil)
-	RetrieveID() ident.ID
-
 	// Stream returns the encoded byte stream.
 	Stream(blocker context.Context) (xio.SegmentReader, error)
 
