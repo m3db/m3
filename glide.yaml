@@ -76,6 +76,9 @@ import:
   - watch
   - ident
 
+- package: github.com/m3db/m3ninx
+  version: b2628ee8f986f6df48d3f7589d85a6f390f174a2
+
 - package: github.com/m3db/bitset
   version: 07973db6b78acb62ac207d0538055e874b49d90d
 

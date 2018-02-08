@@ -93,6 +93,7 @@ var (
 	}
 	errFetchBlocksMetadataEndpointVersionUnspecified = errors.New(
 		"fetch blocks metadata endpoint version unspecified")
+	errNotImplemented = errors.New("not implemented")
 )
 
 var (
@@ -735,6 +736,17 @@ func (s *session) Write(
 	return err
 }
 
+func (s *session) WriteTagged(
+	namespace, id string,
+	tags ident.TagIterator,
+	t time.Time,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
+	return errNotImplemented
+}
+
 func (s *session) writeAttempt(
 	namespace, id string,
 	t time.Time,
@@ -854,6 +866,20 @@ func (s *session) FetchAll(
 	result := f.result
 	s.fetchAttemptPool.Put(f)
 	return result, err
+}
+
+func (s *session) FetchTagged(
+	q Query,
+	startInclusive, endExclusive time.Time,
+) (encoding.SeriesIterators, error) {
+	return nil, errNotImplemented
+}
+
+func (s *session) FetchTaggedIDs(
+	q Query,
+	startInclusive, endExclusive time.Time,
+) (encoding.SeriesIterators, error) {
+	return nil, errNotImplemented
 }
 
 func (s *session) fetchAllAttempt(

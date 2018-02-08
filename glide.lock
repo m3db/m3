@@ -1,5 +1,5 @@
-hash: 11a2a2ca8634eaed8cda541a7b9dd59bed3f75d8e09cf25a3cecce7e0f0f2765
-updated: 2018-01-12T16:25:02.470308932-05:00
+hash: 9d791bbbfd1396a656697c712f1e8b4ee8443eef0d39adc442ecf09eab09734f
+updated: 2018-02-01T23:06:11.115528815-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -95,6 +95,8 @@ imports:
   version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
+- name: github.com/glycerine/go-unsnap-stream
+  version: 87275cecd8e984c5875577d22da7ce8945df780e
 - name: github.com/go-ole/go-ole
   version: de8695c8edbf8236f30d6e1376e20b198a028d42
   subpackages:
@@ -112,6 +114,8 @@ imports:
   subpackages:
   - jsonpb
   - proto
+- name: github.com/golang/snappy
+  version: d7b1e156f50d3c4664f683603af70e3e47fa0aa2
 - name: github.com/google/btree
   version: 925471ac9e2131377a91e1595defec898166fe49
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
@@ -175,6 +179,11 @@ imports:
   - node/mocks
   - os/fs
   - x/grpc
+- name: github.com/m3db/m3ninx
+  version: b2628ee8f986f6df48d3f7589d85a6f390f174a2
+  subpackages:
+  - doc
+  - index/segment
 - name: github.com/m3db/m3x
   version: 7ea8c2f35f9fa0f52bd189e44b11113d708acada
   vcs: git
@@ -203,6 +212,8 @@ imports:
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
   - pbutil
+- name: github.com/mschoch/smat
+  version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/nu7hatch/gouuid
   version: 179d4d0c4d8d407a32af483c2354df1d2c91e6c3
 - name: github.com/opentracing/opentracing-go
@@ -211,12 +222,14 @@ imports:
   - ext
 - name: github.com/pborman/getopt
   version: ec82d864f599c39673eef89f91b93fa5576567a1
+- name: github.com/philhofer/fwd
+  version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: 967789050ba94deca04a5e84cce8ad472ce313c1
+  version: c5b7fccd204277076155f10851dad72b76a49317
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
@@ -231,6 +244,8 @@ imports:
   - model
 - name: github.com/prometheus/procfs
   version: 1878d9fbb537119d24b21ca07effd591627cd160
+- name: github.com/RoaringBitmap/roaring
+  version: 4bbba8874933b985c9160558fddea525dde73e63
 - name: github.com/sergi/go-diff
   version: feef008d51ad2b3778f85d387ccf91735543008d
   subpackages:
@@ -261,8 +276,12 @@ imports:
   subpackages:
   - assert
   - require
+- name: github.com/tinylib/msgp
+  version: 3b556c64540842d4f82967be066a7f7fffc3adad
+  subpackages:
+  - msgp
 - name: github.com/uber-go/atomic
-  version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
+  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: github.com/uber-go/tally
   version: 6c4631652c6aab57c64f65c2e0aaec2e9aae3a64
   subpackages:
@@ -285,6 +304,8 @@ imports:
   version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
   subpackages:
   - codec
+- name: github.com/willf/bitset
+  version: 1ea0245d2bc8ce44623f24a1ae162beb06ad8cd6
 - name: github.com/xiang90/probing
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: go.uber.org/atomic

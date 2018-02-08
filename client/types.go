@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -197,11 +198,20 @@ type Session interface {
 	// Write value to the database for an ID
 	Write(namespace string, id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
+	// WriteTagged value to the database for an ID and given tags.
+	WriteTagged(namespace string, id string, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
+
 	// Fetch values from the database for an ID
 	Fetch(namespace string, id string, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error)
 
 	// FetchAll values from the database for a set of IDs
 	FetchAll(namespace string, ids []string, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
+
+	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
+	FetchTagged(q Query, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
+
+	// FetchTaggedIDs resolves the provided query to known IDs.
+	FetchTaggedIDs(q Query, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
 
 	// ShardID returns the given shard for an ID for callers
 	// to easily discern what shard is failing when operations
@@ -210,6 +220,11 @@ type Session interface {
 
 	// Close the session
 	Close() error
+}
+
+// Query is a rich end user query to describe a set of constraints on required IDs.
+type Query struct {
+	segment.Query
 }
 
 // AdminClient can create administration sessions
