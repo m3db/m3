@@ -42,16 +42,38 @@ func TestGroupInstancesByConflict(t *testing.T) {
 		sortableValue{value: i4, weight: 2},
 	}
 
-	groups := groupInstancesByConflict(instanceConflicts, true)
-	assert.Equal(t, 4, len(groups))
-	assert.Equal(t, i2, groups[0][0])
-	assert.Equal(t, i1, groups[1][0])
-	assert.Equal(t, i4, groups[2][0])
-	assert.Equal(t, i3, groups[3][0])
-
-	groups = groupInstancesByConflict(instanceConflicts, false)
-	assert.Equal(t, 1, len(groups))
-	assert.Equal(t, i2, groups[0][0])
+	testCases := []struct {
+		opts     placement.Options
+		expected [][]placement.Instance
+	}{
+		{
+			opts: placement.NewOptions().SetAllowPartialReplace(true).SetLooseRackCheck(false),
+			expected: [][]placement.Instance{
+				[]placement.Instance{i2},
+				[]placement.Instance{i1},
+				[]placement.Instance{i4},
+				[]placement.Instance{i3},
+			},
+		},
+		{
+			opts: placement.NewOptions().SetAllowPartialReplace(false).SetLooseRackCheck(true),
+			expected: [][]placement.Instance{
+				[]placement.Instance{i2},
+				[]placement.Instance{i1},
+				[]placement.Instance{i4},
+				[]placement.Instance{i3},
+			},
+		},
+		{
+			opts: placement.NewOptions().SetAllowPartialReplace(false).SetLooseRackCheck(false),
+			expected: [][]placement.Instance{
+				[]placement.Instance{i2},
+			},
+		},
+	}
+	for _, test := range testCases {
+		assert.Equal(t, test.expected, groupInstancesByConflict(instanceConflicts, test.opts))
+	}
 }
 
 func TestKnapSack(t *testing.T) {

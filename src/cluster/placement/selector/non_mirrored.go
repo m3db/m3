@@ -133,7 +133,7 @@ func (f *nonMirroredSelector) SelectReplaceInstances(
 		}
 	}
 
-	groups := groupInstancesByConflict(instances, f.opts.LooseRackCheck())
+	groups := groupInstancesByConflict(instances, f.opts)
 	if len(groups) == 0 {
 		return nil, errNoValidInstance
 	}
@@ -151,7 +151,8 @@ func (f *nonMirroredSelector) SelectReplaceInstances(
 	return result, nil
 }
 
-func groupInstancesByConflict(instancesSortedByConflicts []sortableValue, allowConflict bool) [][]placement.Instance {
+func groupInstancesByConflict(instancesSortedByConflicts []sortableValue, opts placement.Options) [][]placement.Instance {
+	allowConflict := opts.AllowPartialReplace() || opts.LooseRackCheck()
 	sort.Sort(sortableValues(instancesSortedByConflicts))
 	var groups [][]placement.Instance
 	lastSeenConflict := -1
