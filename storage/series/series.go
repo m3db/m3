@@ -210,6 +210,8 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 				}
 				currBlock.ResetRetrievable(start, retriever, metadata)
 			default:
+				// TODO: Call Update() on WiredList to prevent keeping the stale entry around in cases where the LRU isn't
+				// full anyways?
 				// Remove the block and it will be looked up later
 				s.blocks.RemoveBlockAt(start)
 				currBlock.Close()
