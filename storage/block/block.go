@@ -378,7 +378,7 @@ func (b *dbBlock) prev() DatabaseBlock {
 // Should only be used by the WiredList.
 func (b *dbBlock) setPrev(value DatabaseBlock) {
 	b.listState.Lock()
-	b.listState.next = value
+	b.listState.prev = value
 	b.listState.Unlock()
 }
 
