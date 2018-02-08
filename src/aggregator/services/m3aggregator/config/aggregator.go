@@ -264,7 +264,7 @@ func (c *AggregatorConfiguration) NewAggregatorOptions(
 	// Set default policies.
 	policies := make([]policy.Policy, len(c.DefaultPolicies))
 	copy(policies, c.DefaultPolicies)
-	sort.Sort(policy.ByResolutionAsc(policies))
+	sort.Sort(policy.ByResolutionAscRetentionDesc(policies))
 	opts = opts.SetDefaultPolicies(policies)
 
 	// Set counter elem pool.

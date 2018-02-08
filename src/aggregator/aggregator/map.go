@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/close"
-	xid "github.com/m3db/m3x/id"
+	xid "github.com/m3db/m3x/ident"
 
 	"github.com/uber-go/tally"
 )
