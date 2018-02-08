@@ -210,7 +210,7 @@ type DatabaseBlock interface {
 // for reads.)
 type Owner interface {
 	// OnEvictedFromWiredList is called when a block is evicted from the wired list.
-	OnEvictedFromWiredList(DatabaseBlock)
+	OnEvictedFromWiredList(id ident.ID, blockStart time.Time)
 }
 
 // OnRetrieveBlock is an interface to callback on when a block is retrieved.

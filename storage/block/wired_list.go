@@ -228,7 +228,11 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 		// performs updates one at a time and in order) or do we need to be defensive
 		// about errors relating to reading from closed blocks in the ReadEncoded path?
 		if owner := bl.Owner(); owner != nil {
-			owner.OnEvictedFromWiredList(bl)
+			// Used wiredListEntry method instead of RetrieveID() and StartTime()
+			// to guarantee consistent view (since blocks are pooled / can be closed
+			// by other parts of the code.)
+			wlEntry := bl.wiredListEntry()
+			owner.OnEvictedFromWiredList(wlEntry.RetrieveID, wlEntry.StartTime)
 		}
 		bl.Close()
 		// Successfully unwired the block

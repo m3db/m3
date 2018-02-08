@@ -492,17 +492,16 @@ func (s *dbSeries) OnRetrieveBlock(
 	}
 }
 
-func (s *dbSeries) OnEvictedFromWiredList(block block.DatabaseBlock) {
+func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	s.Lock()
 
-	id := block.RetrieveID()
 	// Should never happen
 	if !id.Equal(s.id) {
 		s.Unlock()
 		return
 	}
 
-	s.blocks.RemoveBlockAt(block.StartTime())
+	s.blocks.RemoveBlockAt(blockStart)
 	s.Unlock()
 }
 

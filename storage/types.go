@@ -312,7 +312,7 @@ type databaseShard interface {
 	// OnEvictedFromWiredList is the same as block.Owner. Had to duplicate
 	// it here because mockgen chokes on embedded interfaces sometimes:
 	// https://github.com/golang/mock/issues/10
-	OnEvictedFromWiredList(block.DatabaseBlock)
+	OnEvictedFromWiredList(id ident.ID, blockStart time.Time)
 
 	// Close will release the shard resources and close the shard
 	Close() error

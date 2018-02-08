@@ -378,6 +378,7 @@ type WiredListEntry struct {
 	Retriever    DatabaseShardBlockRetriever
 	RetrieveID   ident.ID
 	WasRetrieved bool
+	StartTime    time.Time
 }
 
 // wiredListEntry generates a wiredListEntry for the block, and should only
@@ -389,6 +390,7 @@ func (b *dbBlock) wiredListEntry() WiredListEntry {
 		Retriever:    b.retriever,
 		RetrieveID:   b.retrieveID,
 		WasRetrieved: b.wasRetrieved,
+		StartTime:    b.startWithLock(),
 	}
 	b.RUnlock()
 	return result

@@ -352,9 +352,10 @@ func (s *dbShard) OnRetrieveBlock(
 	})
 }
 
-func (s *dbShard) OnEvictedFromWiredList(block block.DatabaseBlock) {
+func (s *dbShard) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
+	// TODO: Handle nil id
 	s.RLock()
-	entry, _, err := s.lookupEntryWithLock(block.RetrieveID())
+	entry, _, err := s.lookupEntryWithLock(id)
 	s.RUnlock()
 
 	if err != nil && err != errShardEntryNotFound {
@@ -369,7 +370,7 @@ func (s *dbShard) OnEvictedFromWiredList(block block.DatabaseBlock) {
 		return
 	}
 
-	entry.series.OnEvictedFromWiredList(block)
+	entry.series.OnEvictedFromWiredList(id, blockStart)
 }
 
 func (s *dbShard) forEachShardEntry(entryFn dbShardEntryWorkFn) error {
