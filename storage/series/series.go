@@ -501,7 +501,12 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 		return
 	}
 
-	s.blocks.RemoveBlockAt(blockStart)
+	// Only remove the block if it was previously retrieved. This is a sanity
+	// check to make sure that we never remove blocks that haven't been flushed
+	// to disk yet (would cause data loss).
+	if block, ok := s.blocks.BlockAt(blockStart); ok && block.WasRetrieved() {
+		s.blocks.RemoveBlockAt(blockStart)
+	}
 	s.Unlock()
 }
 

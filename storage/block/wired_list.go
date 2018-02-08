@@ -232,8 +232,19 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 			// to guarantee consistent view (since blocks are pooled / can be closed
 			// by other parts of the code.)
 			wlEntry := bl.wiredListEntry()
-			owner.OnEvictedFromWiredList(wlEntry.RetrieveID, wlEntry.StartTime)
+			// Its possible that the block has already been closed / reset / put back into
+			// the pool by the Series itself. In that case, its possible for the ID to be
+			// nil. To prevent implementors from having to deal with that, we check here
+			// before calling OnEvictedFromWiredList. Note its also possible that the block
+			// has already been reused and the ID corresponds to a different block entirely
+			// than what it was when it was placed in the WiredList. TODO: Dirty bit?
+			if wlEntry.RetrieveID != nil {
+				owner.OnEvictedFromWiredList(wlEntry.RetrieveID, wlEntry.StartTime)
+			}
 		}
+
+		// TODO: Swap remove and Close() order so that we can distinguish between "clean"
+		// closes and "dirty" closes.
 		bl.Close()
 		// Successfully unwired the block
 		l.remove(bl)
