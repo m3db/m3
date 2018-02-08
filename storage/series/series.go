@@ -163,6 +163,8 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 			continue
 		}
 
+		// Make sense in the cache all metadata world
+		// TODO: Rename this fucking thing
 		if !currBlock.IsRetrieved() {
 			// Already unwired
 			result.UnwiredBlocks++
