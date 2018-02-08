@@ -72,6 +72,11 @@ type dbBlock struct {
 }
 
 type listState struct {
+	// This mutex should have almost no contention since the primary consumer of this state
+	// is the wiredList itself which exhibits no parallelism, but we still need it so that
+	// the close method can determine if a block is in the wiredList before returning it to
+	// the pool.
+	sync.RWMutex
 	next                      DatabaseBlock
 	prev                      DatabaseBlock
 	nextPrevUpdatedAtUnixNano int64
@@ -332,9 +337,11 @@ func (b *dbBlock) Close() {
 	if pool := b.opts.DatabaseBlockPool(); pool != nil {
 		// Don't return blocks to the pool that the WiredList is still holding references
 		// to because this rules out a lot of possible bugs in the LRU lifecycle.
+		b.listState.RLock()
 		if b.listState.next == nil && b.listState.prev == nil {
 			pool.Put(b)
 		}
+		b.listState.RUnlock()
 	}
 }
 
@@ -347,22 +354,32 @@ func (b *dbBlock) resetMergeTargetWithLock() {
 
 // Should only be used by the WiredList.
 func (b *dbBlock) next() DatabaseBlock {
-	return b.listState.next
+	b.listState.RLock()
+	next := b.listState.next
+	b.listState.RUnlock()
+	return next
 }
 
 // Should only be used by the WiredList.
 func (b *dbBlock) setNext(value DatabaseBlock) {
+	b.listState.Lock()
 	b.listState.next = value
+	b.listState.Unlock()
 }
 
 // Should only be used by the WiredList.
 func (b *dbBlock) prev() DatabaseBlock {
-	return b.listState.prev
+	b.listState.RLock()
+	prev := b.listState.prev
+	b.listState.RUnlock()
+	return prev
 }
 
 // Should only be used by the WiredList.
 func (b *dbBlock) setPrev(value DatabaseBlock) {
-	b.listState.prev = value
+	b.listState.Lock()
+	b.listState.next = value
+	b.listState.Unlock()
 }
 
 // Should only be used by the WiredList.
