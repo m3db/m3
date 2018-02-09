@@ -12,7 +12,6 @@ import (
 	"github.com/m3db/m3coordinator/util/logging"
 
 	"github.com/gorilla/mux"
-	"github.com/pborman/uuid"
 	"go.uber.org/zap"
 )
 
@@ -60,10 +59,10 @@ func (h *Handler) registerProfileEndpoints() {
 func withResponseTimeLogging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		startTime := time.Now()
-		// Attach a rqID with all logs so that its simple to trace the whole call stack
-		rqID := uuid.NewRandom()
-		rqCtx := logging.NewContext(r.Context(), zap.Stringer("rqID", rqID))
+
+		rqCtx := logging.NewContextWithGeneratedID(r.Context())
 		logger := logging.WithContext(rqCtx)
+
 		// Propagate the context with the reqId
 		next.ServeHTTP(w, r.WithContext(rqCtx))
 		endTime := time.Now()
