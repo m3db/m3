@@ -194,6 +194,8 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 				if !currBlock.WasRetrieved() {
 					shouldUnwire = true
 				}
+			default:
+				panic(fmt.Sprintf("Unhandled cache policy in series tick: %s", cachePolicy))
 			}
 		}
 
@@ -593,6 +595,21 @@ func (s *dbSeries) Close() {
 	// back into the pool and be re-used.
 	s.buffer.Reset(s.opts)
 	s.blocks.Reset()
+
+	switch s.opts.CachePolicy() {
+	case CacheLRU:
+		// In the CacheLRU case, blocks that were retrieved from disk are owned
+		// by the WiredList and should not be closed here. They will eventually
+		// be evicted and closed by  the WiredList when it needs to make room
+		// for new blocks.
+		for _, block := range s.blocks.AllBlocks() {
+			if !block.WasRetrieved() {
+				block.Close()
+			}
+		}
+	default:
+		s.blocks.Close()
+	}
 
 	if s.pool != nil {
 		s.pool.Put(s)

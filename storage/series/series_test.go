@@ -568,3 +568,30 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 
 	require.Equal(t, 3, len(values))
 }
+
+func TestSeriesCloseCacheLRUPolicy(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions().
+		SetCachePolicy(CacheLRU)
+	series := NewDatabaseSeries(ident.StringID("foo"), opts).(*dbSeries)
+
+	start := time.Now()
+	blocks := block.NewDatabaseSeriesBlocks(0)
+	// Add a block that was retrieved from disk
+	diskBlock := block.NewMockDatabaseBlock(ctrl)
+	diskBlock.EXPECT().StartTime().Return(start).AnyTimes()
+	diskBlock.EXPECT().WasRetrieved().Return(true)
+	blocks.AddBlock(diskBlock)
+
+	// Add block that was not retrieved from disk
+	nonDiskBlock := block.NewMockDatabaseBlock(ctrl)
+	nonDiskBlock.EXPECT().StartTime().Return(start.Add(opts.RetentionOptions().BlockSize())).AnyTimes()
+	nonDiskBlock.EXPECT().WasRetrieved().Return(false)
+	nonDiskBlock.EXPECT().Close()
+	blocks.AddBlock(nonDiskBlock)
+
+	series.blocks = blocks
+	series.Close()
+}
