@@ -287,6 +287,80 @@ func TestSeriesTickNeedsBlockExpiry(t *testing.T) {
 	require.True(t, exists)
 }
 
+func TestSeriesTickNotRetrieved(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	ropts := opts.RetentionOptions()
+	curr := time.Now().Truncate(ropts.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	series := NewDatabaseSeries(ident.StringID("foo"), opts).(*dbSeries)
+	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
+	series.blockRetriever = blockRetriever
+	require.NoError(t, series.Bootstrap(nil))
+
+	b := block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr)
+	b.EXPECT().IsRetrieved().Return(false).AnyTimes()
+
+	series.blocks.AddBlock(b)
+
+	tickResult, err := series.Tick()
+	require.NoError(t, err)
+	require.Equal(t, 1, tickResult.UnwiredBlocks)
+}
+
+func TestSeriesTickRecentlyRead(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	opts = opts.
+		SetCachePolicy(CacheRecentlyRead).
+		SetRetentionOptions(opts.RetentionOptions().SetBlockDataExpiryAfterNotAccessedPeriod(10 * time.Minute))
+	ropts := opts.RetentionOptions()
+	curr := time.Now().Truncate(ropts.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	series := NewDatabaseSeries(ident.StringID("foo"), opts).(*dbSeries)
+	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
+	series.blockRetriever = blockRetriever
+	require.NoError(t, series.Bootstrap(nil))
+
+	// Test case where block has been read within expiry period - won't be removed
+	b := block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr)
+	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
+	b.EXPECT().LastReadTime().Return(
+		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() / 2))
+	series.blocks.AddBlock(b)
+
+	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
+
+	tickResult, err := series.Tick()
+	require.NoError(t, err)
+	require.Equal(t, 0, tickResult.UnwiredBlocks)
+
+	// Test case where block has not been read within expiry period - will be removed
+	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr)
+	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
+	b.EXPECT().LastReadTime().Return(
+		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() * 2))
+	b.EXPECT().Close().Return()
+	series.blocks.AddBlock(b)
+
+	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
+
+	tickResult, err = series.Tick()
+	require.NoError(t, err)
+	require.Equal(t, 1, tickResult.UnwiredBlocks)
+}
+
 func TestSeriesBootstrapWithError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
