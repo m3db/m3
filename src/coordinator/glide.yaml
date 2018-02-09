@@ -26,3 +26,5 @@ import:
   version: 17e4ddf89f2b0c8fbb16b6d5b71a871b793d2a00
   subpackages:
   - policy
+- package: github.com/pkg/profile
+  version: 5b67d428864e92711fcbd2f8629456121a56d91f

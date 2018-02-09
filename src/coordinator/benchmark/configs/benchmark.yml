@@ -1,0 +1,42 @@
+client:
+  config:
+    static:
+      # listenAddress: 0.0.0.0:9000
+      topology:
+          shards: 64
+          hosts:
+            - host: localhost1
+              listenAddress: "0.0.0.0:9000"
+            - host: localhost2
+              listenAddress: "0.0.0.0:9010"
+            - host: localhost3
+              listenAddress: "0.0.0.0:9020"
+      namespaces:
+          - name: metrics
+            options:
+            retention:
+              retentionPeriod: 24h
+              blockSize: 1h
+          - name: other_metrics
+            retention:
+              retentionPeriod: 24h
+              blockSize: 1h
+            options:
+  writeConsistencyLevel: majority
+  readConsistencyLevel: unstrict_majority
+  clusterConnectConsistencyLevel: any
+  writeTimeout: 10s
+  fetchTimeout: 15s
+  connectTimeout: 20s
+  writeRetry:
+      initialBackoff: 500ms
+      backoffFactor: 3
+      maxRetries: 2
+      jitter: true
+  fetchRetry:
+      initialBackoff: 500ms
+      backoffFactor: 2
+      maxRetries: 3
+      jitter: true
+  backgroundHealthCheckFailLimit: 4
+  backgroundHealthCheckFailThrottleFactor: 0.5

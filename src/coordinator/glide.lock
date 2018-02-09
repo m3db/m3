@@ -1,5 +1,5 @@
-hash: 1444e3e6e18f6eaaaa85d87271fdbd61668cf4b0825f25ac4b1f6da925f6a0be
-updated: 2018-01-24T18:46:03.484154189-05:00
+hash: d5e16b88859460d2b2e2514e83abc4e358b0dbd70638c14f7b1ad454968c7256
+updated: 2018-02-05T14:57:53.410130721-05:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -8,7 +8,7 @@ imports:
 - name: github.com/alecthomas/units
   version: 2efee857e7cfd4f3d0138cc3cbb1b4966962b93a
 - name: github.com/apache/thrift
-  version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
+  version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
   subpackages:
   - lib/go/thrift
 - name: github.com/beorn7/perks
@@ -70,13 +70,14 @@ imports:
   - runtime/internal
   - utilities
 - name: github.com/m3db/m3cluster
-  version: 4b25af16e37d029b79bae754d35655e6be382f94
+  version: 8354845ef3ba8c1a4ddbad288fca248516fb0a50
   subpackages:
   - client
   - client/etcd
   - etcd/watchmanager
   - generated/proto/metadatapb
   - generated/proto/placementpb
+  - integration/etcd
   - kv
   - kv/etcd
   - kv/mem
@@ -154,6 +155,8 @@ imports:
   - ext
 - name: github.com/pborman/uuid
   version: e790cca94e6cc75c7064b1332e63811d4aae1a53
+- name: github.com/pkg/profile
+  version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
@@ -229,7 +232,7 @@ imports:
   - internal/exit
   - zapcore
 - name: golang.org/x/net
-  version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
+  version: 61557ac0112b576429a0df080e1c2cef5dfbb642
   subpackages:
   - bpf
   - context
