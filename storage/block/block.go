@@ -367,10 +367,10 @@ func (b *dbBlock) setNextPrevUpdatedAtUnixNano(value int64) {
 // wiredListEntry is a snapshot of a subset of the block's state that the WiredList
 // uses to determine if a block is eligible for inclusion in the WiredList.
 type wiredListEntry struct {
-	closed       bool
-	retrieveID   ident.ID
-	wasRetrieved bool
-	startTime    time.Time
+	closed               bool
+	retrieveID           ident.ID
+	wasRetrievedFromDisk bool
+	startTime            time.Time
 }
 
 // wiredListEntry generates a wiredListEntry for the block, and should only
@@ -378,10 +378,10 @@ type wiredListEntry struct {
 func (b *dbBlock) wiredListEntry() wiredListEntry {
 	b.RLock()
 	result := wiredListEntry{
-		closed:       b.closed,
-		retrieveID:   b.retrieveID,
-		wasRetrieved: b.wasRetrievedFromDisk,
-		startTime:    b.startWithLock(),
+		closed:               b.closed,
+		retrieveID:           b.retrieveID,
+		wasRetrievedFromDisk: b.wasRetrievedFromDisk,
+		startTime:            b.startWithLock(),
 	}
 	b.RUnlock()
 	return result

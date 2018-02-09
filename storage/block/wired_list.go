@@ -181,7 +181,7 @@ func (l *WiredList) processUpdateBlock(v DatabaseBlock) {
 	entry := v.wiredListEntry()
 	// The WiredList should never receive closed blocks or blocks that were not retrieved
 	// from disk, but we include the sanity check for posterity.
-	unwireable := !entry.closed && entry.wasRetrieved
+	unwireable := !entry.closed && entry.wasRetrievedFromDisk
 
 	// If a block is still unwireable then its worth keeping track of in the wired list
 	// so we push it back.
