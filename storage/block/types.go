@@ -162,7 +162,8 @@ type DatabaseBlock interface {
 	// rather than merging three blocks together.
 	Merge(other DatabaseBlock)
 
-	// IsRetrieved returns whether the block is already retrieved.
+	// IsRetrieved returns whether the block is already retrieved. Only
+	// meaningful in the context of the CacheAllMetadata series caching policy.
 	IsRetrieved() bool
 
 	// WasRetrievedFromDisk returns whether the block was retrieved from storage.
