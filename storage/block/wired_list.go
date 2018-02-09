@@ -186,8 +186,7 @@ func (l *WiredList) Update(v DatabaseBlock) {
 // this method is the only way blocks are ever added into the WiredList.
 func (l *WiredList) processUpdateBlock(v DatabaseBlock) {
 	entry := v.wiredListEntry()
-	// TODO: Simplify this, can probably just rely on WasRetrieved
-	unwireable := !entry.Closed && ((entry.Retriever != nil && entry.RetrieveID != nil) || entry.WasRetrieved)
+	unwireable := !entry.closed && entry.wasRetrieved
 
 	// If a block is still unwireable then its worth keeping track of in the wired list
 	// so we push it back.
@@ -232,7 +231,7 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 			// to guarantee consistent view (since blocks are pooled / can be closed
 			// by other parts of the code.)
 			wlEntry := bl.wiredListEntry()
-			owner.OnEvictedFromWiredList(wlEntry.RetrieveID, wlEntry.StartTime)
+			owner.OnEvictedFromWiredList(wlEntry.retrieveID, wlEntry.startTime)
 		}
 
 		// Call remove before Close because Close will only return the block to the pool if

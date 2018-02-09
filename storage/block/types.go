@@ -199,7 +199,7 @@ type DatabaseBlock interface {
 	setPrev(block DatabaseBlock)
 	nextPrevUpdatedAtUnixNano() int64
 	setNextPrevUpdatedAtUnixNano(value int64)
-	wiredListEntry() WiredListEntry
+	wiredListEntry() wiredListEntry
 }
 
 // Owner is implemented by an "owner" of a block that should
