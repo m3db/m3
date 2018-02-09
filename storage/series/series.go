@@ -192,7 +192,7 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 				// The tick is responsible for managing the lifecycle of blocks that were not
 				// read from disk (not retrieved), and the WiredList will manage those that were
 				// retrieved from disk.
-				if !currBlock.WasRetrieved() {
+				if !currBlock.WasRetrievedFromDisk() {
 					shouldUnwire = true
 				}
 			default:
@@ -493,7 +493,7 @@ func (s *dbSeries) OnReadBlock(b block.DatabaseBlock) {
 	if list := s.opts.DatabaseBlockOptions().WiredList(); list != nil {
 		// The WiredList is only responsible for managing the lifecycle of blocks
 		// retrieved from disk.
-		if b.WasRetrieved() {
+		if b.WasRetrievedFromDisk() {
 			list.Update(b)
 		}
 	}
@@ -510,7 +510,7 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 
 	block, ok := s.blocks.BlockAt(blockStart)
 	if ok {
-		if !block.WasRetrieved() {
+		if !block.WasRetrievedFromDisk() {
 			// Should never happen - invalid application state could cause data loss
 			s.opts.InstrumentOptions().Logger().WithFields(
 				xlog.NewField("id", id.String()),
@@ -604,7 +604,7 @@ func (s *dbSeries) Close() {
 		// be evicted and closed by  the WiredList when it needs to make room
 		// for new blocks.
 		for _, block := range s.blocks.AllBlocks() {
-			if !block.WasRetrieved() {
+			if !block.WasRetrievedFromDisk() {
 				block.Close()
 			}
 		}

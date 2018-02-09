@@ -165,8 +165,8 @@ type DatabaseBlock interface {
 	// IsRetrieved returns whether the block is already retrieved.
 	IsRetrieved() bool
 
-	// WasRetrieved returns whether the block was retrieved from storage.
-	WasRetrieved() bool
+	// WasRetrievedFromDisk returns whether the block was retrieved from storage.
+	WasRetrievedFromDisk() bool
 
 	// IsCachedBlock returns whether the block is not retrieved, or rather
 	// only the metadata is currently available, or whether it was retrieved

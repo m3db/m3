@@ -224,7 +224,7 @@ func (b *dbBlock) IsRetrieved() bool {
 	return retrieved
 }
 
-func (b *dbBlock) WasRetrieved() bool {
+func (b *dbBlock) WasRetrievedFromDisk() bool {
 	b.RLock()
 	wasRetrieved := b.wasRetrieved
 	b.RUnlock()
