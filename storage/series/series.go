@@ -34,6 +34,7 @@ import (
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
+	xlog "github.com/m3db/m3x/log"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -278,17 +279,7 @@ func (s *dbSeries) ReadEncoded(
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
 	s.RLock()
-	// TODO: Dont create new func, pass struct as interface
-	onRead := func(b block.DatabaseBlock) {
-		if list := s.opts.DatabaseBlockOptions().WiredList(); list != nil {
-			// The WiredList is only responsible for managing the lifecycle of blocks
-			// retrieved from disk.
-			if b.WasRetrieved() {
-				list.Update(b)
-			}
-		}
-	}
-	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, onRead, s.opts)
+	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, s, s.opts)
 	r, err := reader.readersWithBlocksMapAndBuffer(ctx, start, end, s.blocks, s.buffer)
 	s.RUnlock()
 	return r, err
@@ -495,6 +486,16 @@ func (s *dbSeries) OnRetrieveBlock(
 	}
 }
 
+func (s *dbSeries) OnReadBlock(b block.DatabaseBlock) {
+	if list := s.opts.DatabaseBlockOptions().WiredList(); list != nil {
+		// The WiredList is only responsible for managing the lifecycle of blocks
+		// retrieved from disk.
+		if b.WasRetrieved() {
+			list.Update(b)
+		}
+	}
+}
+
 func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	s.Lock()
 
@@ -510,7 +511,7 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 			// Should never happen - invalid application state could cause data loss
 			s.opts.InstrumentOptions().Logger().WithFields(
 				xlog.NewField("id", id.String()),
-				xlog.NewField("blockStart", blockStart)
+				xlog.NewField("blockStart", blockStart),
 			).Errorf("tried to evict block that was not retrieved from disk")
 			s.Unlock()
 			return

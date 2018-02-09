@@ -219,6 +219,11 @@ type OnRetrieveBlock interface {
 	)
 }
 
+// OnReadBlock is an interface to callback on when a block is read.
+type OnReadBlock interface {
+	OnReadBlock(b DatabaseBlock)
+}
+
 // OnRetrieveBlockFn is a function implementation for the
 // OnRetrieveBlock interface.
 type OnRetrieveBlockFn func(

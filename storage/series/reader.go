@@ -47,7 +47,7 @@ type Reader struct {
 	id         ident.ID
 	retriever  QueryableBlockRetriever
 	onRetrieve block.OnRetrieveBlock
-	onRead     func(block.DatabaseBlock)
+	onRead     block.OnReadBlock
 }
 
 // NewReaderUsingRetriever returns a reader for a series
@@ -57,7 +57,7 @@ func NewReaderUsingRetriever(
 	id ident.ID,
 	retriever QueryableBlockRetriever,
 	onRetrieveBlock block.OnRetrieveBlock,
-	onReadBlock func(block.DatabaseBlock),
+	onReadBlock block.OnReadBlock,
 	opts Options,
 ) Reader {
 	return Reader{
@@ -130,7 +130,7 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 					// NB(r): Mark this block as read now
 					block.SetLastReadTime(now)
 					if r.onRead != nil {
-						r.onRead(block)
+						r.onRead.OnReadBlock(block)
 					}
 				}
 				continue
