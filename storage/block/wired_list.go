@@ -43,7 +43,9 @@
 // are created by rotating recently-written data out of buffers and into new
 // DatabaseBlocks are managed by the background ticks of the series. The background
 // tick will avoid closing blocks that were read from disk, and a block will never
-// be provided to the WiredList if it wasn't read from disk.
+// be provided to the WiredList if it wasn't read from disk. This prevents tricky
+// ownership semantics where both the background tick and and the WiredList are
+// competing for ownership / trying to close the same blocks.
 
 package block
 
