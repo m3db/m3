@@ -485,6 +485,10 @@ func (s *dbSeries) OnRetrieveBlock(
 	s.addBlock(b)
 
 	if list := s.opts.DatabaseBlockOptions().WiredList(); list != nil {
+		// Need to update the WiredList so blocks that were read from disk
+		// can enter the list (OnReadBlock is only called for blocks that
+		// were read from memory, regardless of whether the data originated
+		// from disk or a buffer rotation.)
 		list.Update(b)
 	}
 }
@@ -495,6 +499,8 @@ func (s *dbSeries) OnReadBlock(b block.DatabaseBlock) {
 		// The WiredList is only responsible for managing the lifecycle of blocks
 		// retrieved from disk.
 		if b.WasRetrievedFromDisk() {
+			// Need to update the WiredList so it knows which blocks have been
+			// most recently read.
 			list.Update(b)
 		}
 	}
