@@ -472,6 +472,9 @@ func (s *dbSeries) OnRetrieveBlock(
 	// we rely on the G.C to reclaim s.id. This is important because the block will
 	// hold onto the id ref, and (if the LRU caching policy is enabled) the shard
 	// will need it later when the WiredList calls its OnEvictedFromWiredList method.
+	// Also note that ResetRetrievable will mark the block as not retrieved from disk,
+	// but OnRetrieveBlock will then properly mark it as retrieved from disk so subsequent
+	// calls to WasRetrievedFromDisk will return true.
 	b.OnRetrieveBlock(s.id, startTime, segment)
 
 	// NB(r): Blocks retrieved have been triggered by a read, so set the last
@@ -486,6 +489,7 @@ func (s *dbSeries) OnRetrieveBlock(
 	}
 }
 
+// OnReadBlock is only called
 func (s *dbSeries) OnReadBlock(b block.DatabaseBlock) {
 	if list := s.opts.DatabaseBlockOptions().WiredList(); list != nil {
 		// The WiredList is only responsible for managing the lifecycle of blocks
