@@ -192,9 +192,6 @@ func (l *WiredList) processUpdateBlock(v DatabaseBlock) {
 	// If a block is still unwireable then its worth keeping track of in the wired list
 	// so we push it back.
 	if unwireable {
-		// Mark the block as in the wired list so that unsafe operations (like returning it to a pool)
-		// are not taken on it.
-		v.setIsInWiredList(true)
 		l.pushBack(v)
 		return
 	}
@@ -235,15 +232,7 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 			// to guarantee consistent view (since blocks are pooled / can be closed
 			// by other parts of the code.)
 			wlEntry := bl.wiredListEntry()
-			// Its possible that the block has already been closed / reset / put back into
-			// the pool by the Series itself. In that case, its possible for the ID to be
-			// nil. To prevent implementors from having to deal with that, we check here
-			// before calling OnEvictedFromWiredList. Note its also possible that the block
-			// has already been reused and the ID corresponds to a different block entirely
-			// than what it was when it was placed in the WiredList. TODO: Dirty bit?
-			if wlEntry.RetrieveID != nil {
-				owner.OnEvictedFromWiredList(wlEntry.RetrieveID, wlEntry.StartTime)
-			}
+			owner.OnEvictedFromWiredList(wlEntry.RetrieveID, wlEntry.StartTime)
 		}
 
 		// Call remove before Close because Close will only return the block to the pool if
@@ -267,7 +256,6 @@ func (l *WiredList) remove(v DatabaseBlock) {
 	v.next().setPrev(v.prev())
 	v.setNext(nil) // avoid memory leaks
 	v.setPrev(nil) // avoid memory leaks
-	v.setIsInWiredList(false)
 	l.length--
 }
 

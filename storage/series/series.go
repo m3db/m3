@@ -187,16 +187,15 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 				sinceLastRead := now.Sub(currBlock.LastReadTime())
 				shouldUnwire = sinceLastRead >= wiredTimeout
 			case CacheLRU:
-				// TODO: Is this correct?
-				// If its never been read before then its not controlled by the WiredList
-				// and it will leak if we don't close it. If it is read between now and
-				// the actual unwiring further below thats fine too, the WiredList will just
-				// have a stale entry that will eventually get evicted.
-				if currBlock.LastReadTime().Equal(time.Unix(0, 0)) {
+				// The tick is responsible for managing the lifecycle of blocks that were not
+				// read from disk (not retrieved), and the WiredList will manage those that were
+				// retrieved from disk.
+				if !currBlock.WasRetrieved() {
 					shouldUnwire = true
 				}
 			}
 		}
+
 		if shouldUnwire {
 			switch cachePolicy {
 			case CacheAllMetadata:
@@ -212,8 +211,6 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 				}
 				currBlock.ResetRetrievable(start, retriever, metadata)
 			default:
-				// TODO: Call Update() on WiredList to prevent keeping the stale entry around in cases where the LRU isn't
-				// full anyways?
 				// Remove the block and it will be looked up later
 				s.blocks.RemoveBlockAt(start)
 				currBlock.Close()
@@ -284,7 +281,11 @@ func (s *dbSeries) ReadEncoded(
 	// TODO: Dont create new func, pass struct as interface
 	onRead := func(b block.DatabaseBlock) {
 		if list := s.opts.DatabaseBlockOptions().WiredList(); list != nil {
-			list.Update(b)
+			// The WiredList is only responsible for managing the lifecycle of blocks
+			// retrieved from disk.
+			if b.WasRetrieved() {
+				list.Update(b)
+			}
 		}
 	}
 	reader := NewReaderUsingRetriever(s.id, s.blockRetriever, s.onRetrieveBlock, onRead, s.opts)
@@ -503,10 +504,18 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 		return
 	}
 
-	// Only remove the block if it was previously retrieved. This is a sanity
-	// check to make sure that we never remove blocks that haven't been flushed
-	// to disk yet (would cause data loss).
-	if block, ok := s.blocks.BlockAt(blockStart); ok && block.WasRetrieved() {
+	block, ok := s.blocks.BlockAt(blockStart)
+	if ok {
+		if !block.WasRetrieved() {
+			// Should never happen - invalid application state could cause data loss
+			s.opts.InstrumentOptions().Logger().WithFields(
+				xlog.NewField("id", id.String()),
+				xlog.NewField("blockStart", blockStart)
+			).Errorf("tried to evict block that was not retrieved from disk")
+			s.Unlock()
+			return
+		}
+
 		s.blocks.RemoveBlockAt(blockStart)
 	}
 	s.Unlock()

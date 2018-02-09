@@ -199,7 +199,6 @@ type DatabaseBlock interface {
 	setPrev(block DatabaseBlock)
 	nextPrevUpdatedAtUnixNano() int64
 	setNextPrevUpdatedAtUnixNano(value int64)
-	setIsInWiredList(value bool)
 	wiredListEntry() WiredListEntry
 }
 

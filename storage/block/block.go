@@ -322,13 +322,7 @@ func (b *dbBlock) Close() {
 
 	b.resetMergeTargetWithLock()
 	if pool := b.opts.DatabaseBlockPool(); pool != nil {
-		// Don't return blocks to the pool that the WiredList is still holding references
-		// to because this rules out a lot of possible bugs in the LRU lifecycle. This will
-		// cause additional allocation pressure, but the frequency at which this occurs is
-		// so small that it shouldn't matter.
-		if !b.isInWiredList() {
-			pool.Put(b)
-		}
+		pool.Put(b)
 	}
 }
 
@@ -367,19 +361,6 @@ func (b *dbBlock) nextPrevUpdatedAtUnixNano() int64 {
 // Should only be used by the WiredList.
 func (b *dbBlock) setNextPrevUpdatedAtUnixNano(value int64) {
 	b.listState.nextPrevUpdatedAtUnixNano = value
-}
-
-// Should only be used by the WiredList.
-func (b *dbBlock) setIsInWiredList(value bool) {
-	num := int32(0)
-	if value {
-		num = 1
-	}
-	atomic.StoreInt32(&b.isInList, num)
-}
-
-func (b *dbBlock) isInWiredList() bool {
-	return atomic.LoadInt32(&b.isInList) == 1
 }
 
 // WiredListEntry is a snapshot of a subset of the block's state that the WiredList
