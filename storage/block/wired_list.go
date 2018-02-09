@@ -87,6 +87,8 @@ type wiredListMetrics struct {
 	unwireable           tally.Gauge
 	limit                tally.Gauge
 	evicted              tally.Counter
+	pushedBack           tally.Counter
+	inserted             tally.Counter
 	evictedAfterDuration tally.Timer
 }
 
@@ -101,9 +103,18 @@ func NewWiredList(
 	l := &WiredList{
 		nowFn: copts.NowFn(),
 		metrics: wiredListMetrics{
-			unwireable:           scope.Gauge("unwireable"),
-			limit:                scope.Gauge("limit"),
-			evicted:              scope.Counter("evicted"),
+			// Keeps track of how many blocks are in the list
+			unwireable: scope.Gauge("unwireable"),
+			limit:      scope.Gauge("limit"),
+			// Incremented when a block is evicted
+			evicted: scope.Counter("evicted"),
+			// Incremented when a block is "pushed back" in the list, I.E
+			// it was already in the list
+			pushedBack: scope.Counter("pushed-back"),
+			// Incremented when a block is inserted into the list, I.E
+			// it wasn't already present
+			inserted: scope.Counter("inserted"),
+			// Measure how much time blocks spend in the list before being evicted
 			evictedAfterDuration: scope.Timer("evicted-after-duration"),
 		},
 	}
@@ -236,9 +247,12 @@ func (l *WiredList) remove(v DatabaseBlock) {
 
 func (l *WiredList) pushBack(v DatabaseBlock) {
 	if l.exists(v) {
+		l.metrics.pushedBack.Inc(1)
 		l.moveToBack(v)
 		return
 	}
+
+	l.metrics.inserted.Inc(1)
 	l.insertAfter(v, l.root.prev())
 }
 
