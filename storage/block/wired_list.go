@@ -67,7 +67,6 @@ const (
 )
 
 // WiredList is a database block wired list.
-// TODO: Consider renaming to BlockLRU?
 type WiredList struct {
 	sync.Mutex
 
