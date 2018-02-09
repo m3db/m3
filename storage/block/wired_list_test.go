@@ -69,8 +69,8 @@ func newTestUnwireableBlock(
 
 	bl := NewDatabaseBlock(time.Time{}, segment, opts).(*dbBlock)
 	bl.Lock()
-	bl.retriever = NewMockDatabaseShardBlockRetriever(ctrl)
 	bl.retrieveID = ident.StringID(name)
+	bl.wasRetrieved = true
 	bl.Unlock()
 
 	return bl
