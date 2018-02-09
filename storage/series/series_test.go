@@ -291,7 +291,8 @@ func TestSeriesTickNotRetrieved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := newSeriesTestOptions()
+	opts := newSeriesTestOptions().
+		SetCachePolicy(CacheAllMetadata)
 	ropts := opts.RetentionOptions()
 	curr := time.Now().Truncate(ropts.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
@@ -359,6 +360,17 @@ func TestSeriesTickRecentlyRead(t *testing.T) {
 	tickResult, err = series.Tick()
 	require.NoError(t, err)
 	require.Equal(t, 1, tickResult.UnwiredBlocks)
+
+	// Test case where block is not flushed yet (not retrievable) - Will not be removed
+	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr)
+	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
+	series.blocks.AddBlock(b)
+	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
+
+	tickResult, err = series.Tick()
+	require.NoError(t, err)
+	require.Equal(t, 0, tickResult.UnwiredBlocks)
 }
 
 func TestSeriesTickCacheLRU(t *testing.T) {
@@ -383,7 +395,7 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b := block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
-	b.EXPECT().WasRetrieved().Return(false)
+	b.EXPECT().WasRetrievedFromDisk().Return(false)
 	b.EXPECT().Close().Return()
 	series.blocks.AddBlock(b)
 
@@ -397,10 +409,122 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	b = block.NewMockDatabaseBlock(ctrl)
 	b.EXPECT().StartTime().Return(curr)
 	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
-	b.EXPECT().WasRetrieved().Return(true)
+	b.EXPECT().WasRetrievedFromDisk().Return(true)
 	series.blocks.AddBlock(b)
 
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
+
+	tickResult, err = series.Tick()
+	require.NoError(t, err)
+	require.Equal(t, 0, tickResult.UnwiredBlocks)
+
+	// Test case where block is not flushed yet (not retrievable) - Will not be removed
+	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr)
+	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
+	series.blocks.AddBlock(b)
+	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
+
+	tickResult, err = series.Tick()
+	require.NoError(t, err)
+	require.Equal(t, 0, tickResult.UnwiredBlocks)
+}
+
+func TestSeriesTickCacheAllMetadata(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	opts = opts.
+		SetCachePolicy(CacheAllMetadata).
+		SetRetentionOptions(opts.RetentionOptions().SetBlockDataExpiryAfterNotAccessedPeriod(10 * time.Minute))
+	ropts := opts.RetentionOptions()
+	curr := time.Now().Truncate(ropts.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	series := NewDatabaseSeries(ident.StringID("foo"), opts).(*dbSeries)
+	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
+	series.blockRetriever = blockRetriever
+	require.NoError(t, series.Bootstrap(nil))
+
+	// Test case where block has been read within expiry period - won't be reset to only have metadata
+	b := block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr)
+	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
+	b.EXPECT().LastReadTime().Return(
+		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() / 2))
+	series.blocks.AddBlock(b)
+
+	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
+
+	tickResult, err := series.Tick()
+	require.NoError(t, err)
+	require.Equal(t, 0, tickResult.UnwiredBlocks)
+
+	// Test case where block has not been read within expiry period - will be reset to only have metadata
+	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr)
+	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
+	b.EXPECT().LastReadTime().Return(
+		curr.Add(-opts.RetentionOptions().BlockDataExpiryAfterNotAccessedPeriod() * 2))
+	b.EXPECT().Len().Return(1)
+	b.EXPECT().Checksum().Return(uint32(0))
+	b.EXPECT().ResetRetrievable(curr, blockRetriever, gomock.Any()).Return()
+	series.blocks.AddBlock(b)
+
+	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
+
+	tickResult, err = series.Tick()
+	require.NoError(t, err)
+	require.Equal(t, 1, tickResult.UnwiredBlocks)
+
+	// Test case where block is not flushed yet (not retrievable) - won't be reset to only have metadata
+	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr)
+	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
+	series.blocks.AddBlock(b)
+	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
+
+	tickResult, err = series.Tick()
+	require.NoError(t, err)
+	require.Equal(t, 0, tickResult.UnwiredBlocks)
+}
+
+func TestSeriesTickCacheNone(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions()
+	opts = opts.
+		SetCachePolicy(CacheNone).
+		SetRetentionOptions(opts.RetentionOptions().SetBlockDataExpiryAfterNotAccessedPeriod(10 * time.Minute))
+	ropts := opts.RetentionOptions()
+	curr := time.Now().Truncate(ropts.BlockSize())
+	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
+		return curr
+	}))
+	series := NewDatabaseSeries(ident.StringID("foo"), opts).(*dbSeries)
+	blockRetriever := NewMockQueryableBlockRetriever(ctrl)
+	series.blockRetriever = blockRetriever
+	require.NoError(t, series.Bootstrap(nil))
+
+	// Retrievable blocks should be removed
+	b := block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr)
+	b.EXPECT().Close().Return()
+	series.blocks.AddBlock(b)
+	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(true)
+
+	tickResult, err := series.Tick()
+	require.NoError(t, err)
+	require.Equal(t, 1, tickResult.UnwiredBlocks)
+
+	// Non-retrievable blocks should not be removed
+	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr)
+	series.blocks.AddBlock(b)
+	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
 
 	tickResult, err = series.Tick()
 	require.NoError(t, err)
@@ -689,6 +813,25 @@ func TestSeriesWriteReadFromTheSameBucket(t *testing.T) {
 	require.Equal(t, 3, len(values))
 }
 
+func TestSeriesCloseNonCacheLRUPolicy(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSeriesTestOptions().
+		SetCachePolicy(CacheRecentlyRead)
+	series := NewDatabaseSeries(ident.StringID("foo"), opts).(*dbSeries)
+
+	start := time.Now()
+	blocks := block.NewDatabaseSeriesBlocks(0)
+	diskBlock := block.NewMockDatabaseBlock(ctrl)
+	diskBlock.EXPECT().StartTime().Return(start).AnyTimes()
+	diskBlock.EXPECT().Close()
+	blocks.AddBlock(diskBlock)
+
+	series.blocks = blocks
+	series.Close()
+}
+
 func TestSeriesCloseCacheLRUPolicy(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -702,13 +845,13 @@ func TestSeriesCloseCacheLRUPolicy(t *testing.T) {
 	// Add a block that was retrieved from disk
 	diskBlock := block.NewMockDatabaseBlock(ctrl)
 	diskBlock.EXPECT().StartTime().Return(start).AnyTimes()
-	diskBlock.EXPECT().WasRetrieved().Return(true)
+	diskBlock.EXPECT().WasRetrievedFromDisk().Return(true)
 	blocks.AddBlock(diskBlock)
 
 	// Add block that was not retrieved from disk
 	nonDiskBlock := block.NewMockDatabaseBlock(ctrl)
 	nonDiskBlock.EXPECT().StartTime().Return(start.Add(opts.RetentionOptions().BlockSize())).AnyTimes()
-	nonDiskBlock.EXPECT().WasRetrieved().Return(false)
+	nonDiskBlock.EXPECT().WasRetrievedFromDisk().Return(false)
 	nonDiskBlock.EXPECT().Close()
 	blocks.AddBlock(nonDiskBlock)
 

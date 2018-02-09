@@ -164,10 +164,7 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 			continue
 		}
 
-		// Make sense in the cache all metadata world
-		// TODO: Rename this
-		// TODO: This still seems fishy to me
-		if !currBlock.IsRetrieved() {
+		if cachePolicy == CacheAllMetadata && !currBlock.IsRetrieved() {
 			// Already unwired
 			result.UnwiredBlocks++
 			continue
