@@ -768,11 +768,6 @@ func (s *dbShard) ReadEncoded(
 	}
 
 	if entry != nil {
-		// TODO: Is it possible for this to return an error about
-		// trying to read from a closed block due to a delay between
-		// the wired list closing a block and the series itself being
-		// notified that it was closed? If so, do we need to handle that
-		// case? Perhaps in readersWithBlocksMapAndBuffer
 		return entry.series.ReadEncoded(ctx, start, end)
 	}
 
