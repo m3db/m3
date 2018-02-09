@@ -223,13 +223,7 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 	for bl := l.root.next(); l.length > maxWired && bl != &l.root; bl = bl.next() {
 		// Evict the block before closing it so that callers of series.ReadEncoded()
 		// don't get errors about trying to read from a closed block.
-		// TODO: Does this eliminate the race entirely (since the WiredList only
-		// performs updates one at a time and in order) or do we need to be defensive
-		// about errors relating to reading from closed blocks in the ReadEncoded path?
 		if owner := bl.Owner(); owner != nil {
-			// Used wiredListEntry method instead of RetrieveID() and StartTime()
-			// to guarantee consistent view (since blocks are pooled / can be closed
-			// by other parts of the code.)
 			wlEntry := bl.wiredListEntry()
 			owner.OnEvictedFromWiredList(wlEntry.retrieveID, wlEntry.startTime)
 		}
