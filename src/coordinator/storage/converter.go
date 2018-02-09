@@ -42,7 +42,7 @@ func PromLabelsToM3Tags(labels []*prompb.Label) models.Tags {
 func PromSamplesToM3Datapoints(samples []*prompb.Sample) ts.Datapoints {
 	datapoints := make(ts.Datapoints, 0, len(samples))
 	for _, sample := range samples {
-		timestamp := PromTimestampToTime(sample.Timestamp)
+		timestamp := TimestampToTime(sample.Timestamp)
 		datapoints = append(datapoints, &ts.Datapoint{Timestamp: timestamp, Value: sample.Value})
 	}
 
@@ -58,8 +58,8 @@ func PromReadQueryToM3(query *prompb.Query) (*ReadQuery, error) {
 
 	return &ReadQuery{
 		TagMatchers: tagMatchers,
-		Start:       PromTimestampToTime(query.StartTimestampMs),
-		End:         PromTimestampToTime(query.EndTimestampMs),
+		Start:       TimestampToTime(query.StartTimestampMs),
+		End:         TimestampToTime(query.EndTimestampMs),
 	}, nil
 }
 
@@ -105,9 +105,14 @@ func PromTypeToM3(labelType prompb.LabelMatcher_Type) (models.MatchType, error) 
 	}
 }
 
-// PromTimestampToTime converts a prometheus timestamp to time.Time
-func PromTimestampToTime(timestampMS int64) time.Time {
+// TimestampToTime converts a prometheus timestamp to time.Time
+func TimestampToTime(timestampMS int64) time.Time {
 	return time.Unix(0, timestampMS*int64(time.Millisecond))
+}
+
+// TimeToTimestamp converts a time.Time to prometheus timestamp
+func TimeToTimestamp(timestamp time.Time) int64 {
+	return timestamp.UnixNano() / int64(time.Millisecond)
 }
 
 // FetchResultToPromResults converts fetch results from M3 to Prometheus results
