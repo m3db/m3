@@ -212,10 +212,8 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 			owner.OnEvictedFromWiredList(wlEntry.retrieveID, wlEntry.startTime)
 		}
 
-		// Call remove before Close because Close will only return the block to the pool if
-		// its not present in the WiredList anymore.
-		l.remove(bl)
 		bl.Close()
+		l.remove(bl)
 
 		l.metrics.evicted.Inc(1)
 
