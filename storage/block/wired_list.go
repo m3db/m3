@@ -165,27 +165,11 @@ func (l *WiredList) Update(v DatabaseBlock) {
 }
 
 // processUpdateBlock inspects a block that has been modified or read recently
-// and determines what outcome its state should have on the wired list. In the LRU
-// caching policy, there are only two possible types of dbBlocks:
-// 		1) Sealed blocks which have just been rotated out of the active write buffers,
-// 		   but have not been flushed to disk yet.
-// 		2) Sealed blocks which have been flushed to disk and are only in memory
-// 		   because a read caused them to be temporarily cached.
-//
-// Blocks of type 1 must not be closed / "unwired" otherwise they will never get
-// flushed to disk and we'll lose that data. Blocks of type 2 can be safely closed /
-// "unwired" because they've already been flished.
-//
-// The processUpdateBlock function must distinguish between these two types of blocks.
-// If the block is unwireable (I.E has been read from disk), then its safe to push it
-// back because if it eventually gets removed from the wired list and closed, we can
-// always retrieve it again later. If the block is not unwireable, it must not be
-// pushed back (or really ever inserted into the Wired List) because it will be closed
-// when its kicked out and we'll lose the unflushed data. This effectively prevents
-// blocks of type 1 from ever making it into the WiredList in the first place because
-// this method is the only way blocks are ever added into the WiredList.
+// and determines what outcome its state should have on the wired list.
 func (l *WiredList) processUpdateBlock(v DatabaseBlock) {
 	entry := v.wiredListEntry()
+	// The WiredList should never receive closed blocks or blocks that were not retrieved
+	// from disk, but we include the sanity check for posterity.
 	unwireable := !entry.closed && entry.wasRetrieved
 
 	// If a block is still unwireable then its worth keeping track of in the wired list
