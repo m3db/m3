@@ -160,13 +160,13 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 
 		nsInitStatic := namespace.NewStaticInitializer(nsList)
 
-		shardSet, hostShardSets, err := newStaticShardSet(c.Static.TopologyConfig.Shards, c.Static.ListenAddress, cfgParams.HostID)
+		shardSet, hostShardSets, err := newStaticShardSet(c.Static.TopologyConfig.Shards, c.Static.TopologyConfig.Hosts)
 		if err != nil {
 			err = fmt.Errorf("unable to create shard set for static config: %v", err)
 			return emptyConfig, err
 		}
 		staticOptions := topology.NewStaticOptions().
-			SetReplicas(1).
+			SetReplicas(len(c.Static.TopologyConfig.Hosts)).
 			SetHostShardSets(hostShardSets).
 			SetShardSet(shardSet)
 
@@ -186,7 +186,7 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 	}
 }
 
-func newStaticShardSet(numShards int, listenAddress, hostID string) (sharding.ShardSet, []topology.HostShardSet, error) {
+func newStaticShardSet(numShards int, hosts []topology.HostShardConfig) (sharding.ShardSet, []topology.HostShardSet, error) {
 	var (
 		shardSet      sharding.ShardSet
 		hostShardSets []topology.HostShardSet
@@ -204,9 +204,12 @@ func newStaticShardSet(numShards int, listenAddress, hostID string) (sharding.Sh
 		return nil, nil, err
 	}
 
-	host := topology.NewHost(hostID, listenAddress)
-	hostShardSet := topology.NewHostShardSet(host, shardSet)
-	hostShardSets = append(hostShardSets, hostShardSet)
+	for _, i := range hosts {
+		fmt.Println(i.Host, i.ListenAddress)
+		host := topology.NewHost(i.Host, i.ListenAddress)
+		hostShardSet := topology.NewHostShardSet(host, shardSet)
+		hostShardSets = append(hostShardSets, hostShardSet)
+	}
 
 	return shardSet, hostShardSets, nil
 }

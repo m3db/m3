@@ -202,7 +202,13 @@ func (l *ConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) erro
 
 // StaticConfiguration is used for standing up M3DB with a static topology
 type StaticConfiguration struct {
-	Shards int `yaml:"shards"`
+	Shards int               `yaml:"shards"`
+	Hosts  []HostShardConfig `yaml:"hosts"`
+}
+
+type HostShardConfig struct {
+	Host          string `yaml:"host"`
+	ListenAddress string `yaml:"listenAddress"`
 }
 
 // StaticOptions is a set of options for static topology
