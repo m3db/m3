@@ -39,12 +39,11 @@
 // existed in virtual sorted order via the prev/next pointers they contain, but
 // which are only manipulated by the WiredList.
 //
-// The WiredList fits into the lifecycles of M3DB in three different ways:
-// 		1) It is started and stopped in the Database
-// 		2) It is "updated" everytime a block is retrieved from disk and
-// 		   everytime a block that is already in memory is read.
-// 		3) It notifies other structures when it has evicted a block from
-// 		   memory (so that they can update their corresponding data-structures).
+// The WiredList ONLY keeps track of blocks that are read from disk. Blocks that
+// are created by rotating recently-written data out of buffers and into new
+// DatabaseBlocks are managed by the background ticks of the series. The background
+// tick will avoid closing blocks that were read from disk, and a block will never
+// be provided to the WiredList if it wasn't read from disk.
 
 package block
 
