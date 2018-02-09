@@ -53,8 +53,9 @@ type dbBlock struct {
 
 	mergeTarget DatabaseBlock
 
-	retriever  DatabaseShardBlockRetriever
-	retrieveID ident.ID
+	retriever            DatabaseShardBlockRetriever
+	retrieveID           ident.ID
+	wasRetrievedFromDisk bool
 
 	owner Owner
 
@@ -163,7 +164,7 @@ func (b *dbBlock) OnRetrieveBlock(
 
 	b.resetSegmentWithLock(segment)
 	b.retrieveID = id
-	b.wasRetrieved = true
+	b.wasRetrievedFromDisk = true
 }
 
 func (b *dbBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
@@ -226,7 +227,7 @@ func (b *dbBlock) IsRetrieved() bool {
 
 func (b *dbBlock) WasRetrievedFromDisk() bool {
 	b.RLock()
-	wasRetrieved := b.wasRetrieved
+	wasRetrieved := b.wasRetrievedFromDisk
 	b.RUnlock()
 	return wasRetrieved
 }
@@ -234,7 +235,7 @@ func (b *dbBlock) WasRetrievedFromDisk() bool {
 func (b *dbBlock) IsCachedBlock() bool {
 	b.RLock()
 	retrieved := b.retriever == nil
-	wasRetrieved := b.wasRetrieved
+	wasRetrieved := b.wasRetrievedFromDisk
 	b.RUnlock()
 	return !retrieved || wasRetrieved
 }
@@ -282,7 +283,7 @@ func (b *dbBlock) resetSegmentWithLock(seg ts.Segment) {
 
 	b.retriever = nil
 	b.retrieveID = nil
-	b.wasRetrieved = false
+	b.wasRetrievedFromDisk = false
 
 	b.ctx.RegisterFinalizer(&seg)
 }
@@ -297,7 +298,7 @@ func (b *dbBlock) resetRetrievableWithLock(
 
 	b.retriever = retriever
 	b.retrieveID = metadata.ID
-	b.wasRetrieved = false
+	b.wasRetrievedFromDisk = false
 }
 
 func (b *dbBlock) Close() {
@@ -379,7 +380,7 @@ func (b *dbBlock) wiredListEntry() wiredListEntry {
 	result := wiredListEntry{
 		closed:       b.closed,
 		retrieveID:   b.retrieveID,
-		wasRetrieved: b.wasRetrieved,
+		wasRetrieved: b.wasRetrievedFromDisk,
 		startTime:    b.startWithLock(),
 	}
 	b.RUnlock()
