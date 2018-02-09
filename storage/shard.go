@@ -353,7 +353,6 @@ func (s *dbShard) OnRetrieveBlock(
 }
 
 func (s *dbShard) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
-	// TODO: Handle nil id
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
 	s.RUnlock()
