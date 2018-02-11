@@ -22,12 +22,12 @@ type Args struct {
 	// NumNodes specifies the number of nodes to use from the m3em configuration
 	NumNodes int
 
+	// SessionToken specifies the token used during remote operations
+	SessionToken string
+
 	// SessionOverride specifies if exisiting dtests maybe overridden on remote
 	// agents
 	SessionOverride bool
-
-	// SessionToken specifies the token used during remote operations
-	SessionToken string
 
 	// InitialReset specifies if a Teardown() call should be made to remote
 	// agents before running a test. It's useful to reset a running agent

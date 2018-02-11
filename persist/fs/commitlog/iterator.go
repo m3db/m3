@@ -52,8 +52,8 @@ type iterator struct {
 	files   []string
 	reader  commitLogReader
 	read    iteratorRead
-	setRead bool
 	err     error
+	setRead bool
 	closed  bool
 }
 

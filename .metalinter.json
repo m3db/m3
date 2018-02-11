@@ -24,6 +24,7 @@
     , "golint"
     , "gosimple"
     , "unused"
-    , "badtime" ],
+    , "badtime"
+    , "maligned" ],
   "Deadline": "3m",
   "EnableGC": true }

@@ -53,16 +53,16 @@ type encoder struct {
 	vb  uint64        // current value as float bits
 	xor uint64        // current float XOR
 
-	intOptimized       bool    // whether the encoding scheme is optimized for ints
-	isFloat            bool    // whether we are encoding ints/floats
-	intVal             float64 // current int val
-	maxMult            uint8   // current max multiplier for int vals
-	numSig             uint8   // current largest number of significant places for int diffs
+	ant ts.Annotation // current annotation
+
+	intVal             float64    // current int val
+	tu                 xtime.Unit // current time unit
+	intOptimized       bool       // whether the encoding scheme is optimized for ints
+	isFloat            bool       // whether we are encoding ints/floats
+	maxMult            uint8      // current max multiplier for int vals
+	numSig             uint8      // current largest number of significant places for int diffs
 	curHighestLowerSig uint8
 	numLowerSig        uint8
-
-	ant ts.Annotation // current annotation
-	tu  xtime.Unit    // current time unit
 
 	closed bool
 }

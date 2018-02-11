@@ -54,11 +54,9 @@ type reader struct {
 
 	filePathPrefix string
 	namespace      ident.ID
-	shard          uint32
 
 	start     time.Time
 	blockSize time.Duration
-	open      bool
 
 	infoFdWithDigest           digest.FdWithDigestReader
 	bloomFilterWithDigest      digest.FdWithDigestReader
@@ -75,18 +73,21 @@ type reader struct {
 
 	bloomFilterFd *os.File
 
+	entries         int
+	bloomFilterInfo schema.IndexBloomFilterInfo
+	entriesRead     int
+	metadataRead    int
+	decoder         *msgpack.Decoder
+	digestBuf       digest.Buffer
+	bytesPool       pool.CheckedBytesPool
+
 	expectedInfoDigest        uint32
 	expectedIndexDigest       uint32
 	expectedDataDigest        uint32
 	expectedDigestOfDigest    uint32
 	expectedBloomFilterDigest uint32
-	entries                   int
-	bloomFilterInfo           schema.IndexBloomFilterInfo
-	entriesRead               int
-	metadataRead              int
-	decoder                   *msgpack.Decoder
-	digestBuf                 digest.Buffer
-	bytesPool                 pool.CheckedBytesPool
+	shard                     uint32
+	open                      bool
 }
 
 // NewReader returns a new reader and expects all files to exist. Will read the
