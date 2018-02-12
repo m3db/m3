@@ -316,7 +316,6 @@ client:
   hashing:
     seed: 42
 gcPercentage: 100
-writeNewSeriesAsync: true
 writeNewSeriesLimitPerSecond: 1048576
 writeNewSeriesBackoffDuration: 2ms
 tick: null
@@ -479,6 +478,7 @@ config:
   static: null
 hashing:
   seed: 42
+writeNewSeriesAsync: true
 `
 
 	actual := string(data)
