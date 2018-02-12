@@ -50,13 +50,13 @@ func PromSamplesToM3Datapoints(samples []*prompb.Sample) ts.Datapoints {
 }
 
 // PromReadQueryToM3 converts a prometheus read query to m3 ready query
-func PromReadQueryToM3(query *prompb.Query) (*ReadQuery, error) {
+func PromReadQueryToM3(query *prompb.Query) (*FetchQuery, error) {
 	tagMatchers, err := PromMatchersToM3(query.Matchers)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ReadQuery{
+	return &FetchQuery{
 		TagMatchers: tagMatchers,
 		Start:       PromTimestampToTime(query.StartTimestampMs),
 		End:         PromTimestampToTime(query.EndTimestampMs),
@@ -110,28 +110,25 @@ func PromTimestampToTime(timestampMS int64) time.Time {
 	return time.Unix(0, timestampMS*int64(time.Millisecond))
 }
 
-// FetchResultToPromResults converts fetch results from M3 to Prometheus results
-func FetchResultToPromResults(result *FetchResult) ([]*prompb.QueryResult, error) {
-	results := make([]*prompb.QueryResult, len(result.SeriesList))
-	for idx, series := range result.SeriesList {
-		result, err := SeriesToPromResult(series)
-		if err != nil {
-			return nil, err
-		}
+// FetchResultToPromResult converts fetch results from M3 to Prometheus result
+func FetchResultToPromResult(result *FetchResult) *prompb.QueryResult {
+	timeseries := make([]*prompb.TimeSeries, 0)
 
-		results[idx] = result
+	for _, series := range result.SeriesList {
+		promTs := SeriesToPromTS(series)
+		timeseries = append(timeseries, promTs)
 	}
 
-	return results, nil
+	return &prompb.QueryResult{
+		Timeseries: timeseries,
+	}
 }
 
-// SeriesToPromResult converts a series to prometheus result
-func SeriesToPromResult(series *ts.Series) (*prompb.QueryResult, error) {
+// SeriesToPromTS converts a series to prometheus timeseries
+func SeriesToPromTS(series *ts.Series) (*prompb.TimeSeries) {
 	labels := TagsToPromLabels(series.Tags)
 	samples := SeriesToPromSamples(series)
-	timeseries := make([]*prompb.TimeSeries, 1)
-	timeseries[0] = &prompb.TimeSeries{Labels: labels, Samples: samples}
-	return &prompb.QueryResult{Timeseries: timeseries}, nil
+	return &prompb.TimeSeries{Labels: labels, Samples: samples}
 }
 
 // TagsToPromLabels converts tags to prometheus labels
