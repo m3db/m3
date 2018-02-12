@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"net/http"
 	"os"
@@ -14,7 +15,6 @@ import (
 	"github.com/m3db/m3coordinator/services/m3coordinator/config"
 	"github.com/m3db/m3coordinator/services/m3coordinator/httpd"
 	"github.com/m3db/m3coordinator/storage/local"
-	"github.com/m3db/m3coordinator/tsdb/remote"
 	"github.com/m3db/m3coordinator/util/logging"
 
 	"github.com/m3db/m3db/client"
@@ -33,7 +33,6 @@ var (
 type m3config struct {
 	configFile           string
 	listenAddress        string
-	rpcAddress           string
 	maxConcurrentQueries int
 	queryTimeout         time.Duration
 }
@@ -41,47 +40,38 @@ type m3config struct {
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-	logging.InitWithCores(nil)
-	ctx := context.TODO()
-	logger := logging.WithContext(ctx)
-	defer logger.Sync()
-
-	flags := parseFlags(logger)
+	flags := parseFlags()
 
 	var cfg config.Configuration
 	if err := xconfig.LoadFile(&cfg, flags.configFile); err != nil {
-		logger.Fatal("Unable to load", zap.String("configFile", flags.configFile), zap.Any("error", err))
+		fmt.Fprintf(os.Stderr, "unable to load %s: %v", flags.configFile, err)
+		os.Exit(1)
 	}
+
+	logging.InitWithCores(nil)
+	logger := logging.WithContext(context.TODO())
+	defer logger.Sync()
 
 	m3dbClientOpts := cfg.M3DBClientCfg
 	m3dbClient, err := m3dbClientOpts.NewClient(client.ConfigurationParameters{})
 	if err != nil {
-		logger.Fatal("Unable to create m3db client", zap.Any("error", err))
+		fmt.Fprintf(os.Stderr, "Unable to create m3db client, got error %v\n", err)
+		os.Exit(1)
 	}
 
 	session, err := m3dbClient.NewSession()
 	if err != nil {
-
-		logger.Fatal("Unable to create m3db client session", zap.Any("error", err))
+		fmt.Fprintf(os.Stderr, "Unable to create m3db client session, got error %v\n", err)
+		os.Exit(1)
 	}
 
 	storage := local.NewStorage(session, namespace, resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
 	handler, err := httpd.NewHandler(storage)
 	if err != nil {
-		logger.Fatal("Unable to set up handlers", zap.Any("error", err))
+		fmt.Fprintf(os.Stderr, "Unable to set up handlers, got error %v\n", err)
+		os.Exit(1)
 	}
 	handler.RegisterRoutes()
-
-	logger.Info("Creating gRPC server")
-	server := remote.CreateNewGrpcServer(storage)
-
-	go func() {
-		logger.Info("Starting gRPC server")
-		err = remote.StartNewGrpcServer(server, flags.rpcAddress)
-		if err != nil {
-			logger.Fatal("Unable to start gRPC server", zap.Any("error", err))
-		}
-	}()
 
 	logger.Info("Starting server", zap.String("address", flags.listenAddress))
 	go http.ListenAndServe(flags.listenAddress, handler.Router)
@@ -91,11 +81,12 @@ func main() {
 
 	<-sigChan
 	if err := session.Close(); err != nil {
-		logger.Fatal("Unable to close m3db client session", zap.Any("error", err))
+		fmt.Fprintf(os.Stderr, "Unable to close m3db client session, got error %v\n", err)
+		os.Exit(1)
 	}
 }
 
-func parseFlags(logger *zap.Logger) *m3config {
+func parseFlags() *m3config {
 	cfg := m3config{}
 	a := kingpin.New(filepath.Base(os.Args[0]), "M3Coordinator")
 
@@ -115,12 +106,9 @@ func parseFlags(logger *zap.Logger) *m3config {
 	a.Flag("query.max-concurrency", "Maximum number of queries executed concurrently.").
 		Default("20").IntVar(&cfg.maxConcurrentQueries)
 
-	a.Flag("rpc.port", "Address which the remote gRPC server will listen on for outbound connections.").
-		Default("0.0.0.0:7288").StringVar(&cfg.rpcAddress)
-
 	_, err := a.Parse(os.Args[1:])
 	if err != nil {
-		logger.Error("Error parsing commandline arguments", zap.Any("error", err))
+		fmt.Fprintf(os.Stderr, "Error parsing commandline arguments, got error %v\n", err)
 		a.Usage(os.Args[1:])
 		os.Exit(2)
 	}

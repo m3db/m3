@@ -4,24 +4,23 @@ import (
 	"context"
 
 	"github.com/m3db/m3coordinator/storage"
-	"github.com/m3db/m3coordinator/tsdb/remote"
 )
 
 type remoteStorage struct {
-	client remote.Client
+
 }
 
 // NewStorage creates a new remote Storage instance.
-func NewStorage(c remote.Client) storage.Storage {
-	return &remoteStorage{client: c}
+func NewStorage() storage.Storage {
+	return &remoteStorage{}
 }
 
 func (s *remoteStorage) Fetch(ctx context.Context, query *storage.ReadQuery) (*storage.FetchResult, error) {
-	return s.client.Fetch(ctx, query)
+	return nil, nil
 }
 
 func (s *remoteStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
-	return s.client.Write(ctx, query)
+	return nil
 }
 
 func (s *remoteStorage) Type() storage.Type {
