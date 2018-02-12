@@ -21,10 +21,8 @@
 package config
 
 import (
+	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/instrument"
-
-	"github.com/spf13/viper"
-	validator "gopkg.in/validator.v2"
 )
 
 // Configuration represents the knobs available to configure a m3nsch_server
@@ -37,33 +35,19 @@ type Configuration struct {
 // ServerConfiguration represents the knobs available to configure server properties
 type ServerConfiguration struct {
 	ListenAddress string  `yaml:"listenAddress" validate:"nonzero"`
-	DebugAddress  string  `yaml:"debugAddress"  validate:"nonzero"`
-	CPUFactor     float64 `yaml:"cpuFactor"     validate:"min=0.5,max=3.0"`
+	DebugAddress  string  `yaml:"debugAddress" validate:"nonzero"`
+	CPUFactor     float64 `yaml:"cpuFactor" validate:"min=0.5,max=3.0"`
 }
 
 // M3nschConfiguration represents the knobs available to configure m3nsch properties
 type M3nschConfiguration struct {
-	Concurrency       int `yaml:"concurrency"       validate:"min=500,max=5000"`
+	Concurrency       int `yaml:"concurrency" validate:"min=500,max=5000"`
 	NumPointsPerDatum int `yaml:"numPointsPerDatum" validate:"min=10,max=120"`
 }
 
 // New returns a Configuration read from the specified path
 func New(filename string) (Configuration, error) {
-	viper.SetConfigType("yaml")
-	viper.SetConfigFile(filename)
 	var conf Configuration
-
-	if err := viper.ReadInConfig(); err != nil {
-		return conf, err
-	}
-
-	if err := viper.Unmarshal(&conf); err != nil {
-		return conf, err
-	}
-
-	if err := validator.Validate(conf); err != nil {
-		return conf, err
-	}
-
-	return conf, nil
+	err := xconfig.LoadFile(&conf, filename)
+	return conf, err
 }
