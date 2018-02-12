@@ -1,8 +1,13 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
+	"strings"
 )
+
+// ErrInvalidParams is returned when input parameters are invalid
+var ErrInvalidParams = errors.New("invalid request params")
 
 // Error will serve an HTTP error
 func Error(w http.ResponseWriter, err error, code int) {
@@ -28,4 +33,17 @@ func (e *ParseError) Error() error {
 // Code returns the error code
 func (e *ParseError) Code() int {
 	return e.code
+}
+
+// IsInvalidParams returns true if this is an invalid params error
+func IsInvalidParams(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if strings.HasPrefix(err.Error(), ErrInvalidParams.Error()) {
+		return true
+	}
+
+	return false
 }
