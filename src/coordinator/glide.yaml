@@ -28,3 +28,5 @@ import:
   - policy
 - package: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
+- package: github.com/golang/mock
+  version: ^1.0.0

@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3coordinator/executor"
 	"github.com/m3db/m3coordinator/services/m3coordinator/handler"
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/util/logging"
@@ -25,10 +26,11 @@ type Handler struct {
 	Router    *mux.Router
 	CLFLogger *log.Logger
 	storage   storage.Storage
+	engine    *executor.Engine
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler(storage storage.Storage) (*Handler, error) {
+func NewHandler(storage storage.Storage, engine *executor.Engine) (*Handler, error) {
 	r := mux.NewRouter()
 	logger, err := zap.NewProduction()
 	if err != nil {
@@ -40,6 +42,7 @@ func NewHandler(storage storage.Storage) (*Handler, error) {
 		CLFLogger: log.New(os.Stderr, "[httpd] ", 0),
 		Router:    r,
 		storage:   storage,
+		engine:    engine,
 	}
 	return h, nil
 }
@@ -47,7 +50,7 @@ func NewHandler(storage storage.Storage) (*Handler, error) {
 // RegisterRoutes registers all http routes.
 func (h *Handler) RegisterRoutes() {
 	logged := withResponseTimeLogging
-	h.Router.HandleFunc(handler.PromReadURL, logged(handler.NewPromReadHandler(h.storage)).ServeHTTP).Methods("POST")
+	h.Router.HandleFunc(handler.PromReadURL, logged(handler.NewPromReadHandler(h.engine)).ServeHTTP).Methods("POST")
 	h.Router.HandleFunc(handler.PromWriteURL, logged(handler.NewPromWriteHandler(h.storage)).ServeHTTP).Methods("POST")
 	h.registerProfileEndpoints()
 }

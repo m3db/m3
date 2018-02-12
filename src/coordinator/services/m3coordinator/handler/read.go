@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/m3db/m3coordinator/executor"
 	"github.com/m3db/m3coordinator/generated/proto/prometheus/prompb"
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/util/logging"
@@ -21,24 +22,31 @@ const (
 
 // PromReadHandler represents a handler for prometheus read endpoint.
 type PromReadHandler struct {
-	store storage.Storage
+	engine *executor.Engine
 }
 
 // NewPromReadHandler returns a new instance of handler.
-func NewPromReadHandler(store storage.Storage) http.Handler {
-	return &PromReadHandler{store: store}
+func NewPromReadHandler(engine *executor.Engine) http.Handler {
+	return &PromReadHandler{engine: engine}
 }
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	params, err := ParseRequestParams(r)
+	logger := logging.WithContext(r.Context())
+	if err != nil {
+		Error(w, err, http.StatusBadRequest)
+		return
+	}
+
 	req, rErr := h.parseRequest(r)
 	if rErr != nil {
 		Error(w, rErr.Error(), rErr.Code())
 		return
 	}
 
-	result, err := h.read(r.Context(), req)
+	result, err := h.read(r.Context(), w, req, params)
 	if err != nil {
-		logging.WithContext(r.Context()).Error("Read error", zap.Any("err", err))
+		logger.Error("unable to fetch data", zap.Any("error", err))
 		Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -49,7 +57,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	data, err := proto.Marshal(resp)
 	if err != nil {
-		logging.WithContext(r.Context()).Error("Read error", zap.Any("err", err))
+		logger.Error("unable to marshal read results to protobuf", zap.Any("error", err))
 		Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -59,7 +67,7 @@ func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	compressed := snappy.Encode(nil, data)
 	if _, err := w.Write(compressed); err != nil {
-		logging.WithContext(r.Context()).Error("Write error", zap.Any("err", err))
+		logger.Error("unable to encode read results to snappy", zap.Any("err", err))
 		Error(w, err, http.StatusInternalServerError)
 		return
 	}
@@ -78,22 +86,68 @@ func (h *PromReadHandler) parseRequest(r *http.Request) (*prompb.ReadRequest, *P
 	return &req, nil
 }
 
-func (h *PromReadHandler) read(ctx context.Context, r *prompb.ReadRequest) ([]*prompb.QueryResult, error) {
+func (h *PromReadHandler) read(reqCtx context.Context, w http.ResponseWriter, r *prompb.ReadRequest, params *RequestParams) ([]*prompb.QueryResult, error) {
 	// TODO: Handle multi query use case
 	if len(r.Queries) != 1 {
 		return nil, fmt.Errorf("prometheus read endpoint currently only supports one query at a time")
 	}
 
+	ctx, cancel := context.WithTimeout(reqCtx, params.Timeout)
+	defer cancel()
 	promQuery := r.Queries[0]
 	query, err := storage.PromReadQueryToM3(promQuery)
 	if err != nil {
 		return nil, err
 	}
 
-	result, err := h.store.Fetch(ctx, query)
-	if err != nil {
-		return nil, err
+	// Results is closed by execute
+	results := make(chan *storage.QueryResult)
+
+	opts := &executor.EngineOptions{}
+	// Detect clients closing connections
+	abortCh, closingCh := CloseWatcher(ctx, w)
+	opts.AbortCh = abortCh
+
+	go h.engine.Execute(ctx, query, opts, closingCh, results)
+
+	promResults := make([]*prompb.QueryResult, 0, 1)
+	for result := range results {
+		if result.Err != nil {
+			return nil, result.Err
+		}
+
+		promRes := storage.FetchResultToPromResult(result.FetchResult)
+		promResults = append(promResults, promRes)
 	}
 
-	return storage.FetchResultToPromResults(result)
+	return promResults, nil
+}
+
+// CloseWatcher watches for CloseNotify and context timeout. It is best effort and may sometimes not close the channel relying on gc
+func CloseWatcher(ctx context.Context, w http.ResponseWriter) (<-chan bool, <-chan bool) {
+	closing := make(chan bool)
+	logger := logging.WithContext(ctx)
+	var doneChan <-chan bool
+	if notifier, ok := w.(http.CloseNotifier); ok {
+		done := make(chan bool)
+
+		notify := notifier.CloseNotify()
+		go func() {
+			// Wait for either the request to finish
+			// or for the client to disconnect
+			select {
+			case <-done:
+			case <-notify:
+				logger.Warn("connection closed by client")
+				close(closing)
+			case <-ctx.Done():
+				logger.Warn("request timed out")
+				close(closing)
+			}
+			close(done)
+		}()
+		doneChan = done
+	}
+
+	return doneChan, closing
 }

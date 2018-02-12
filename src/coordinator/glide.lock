@@ -1,5 +1,5 @@
-hash: d5e16b88859460d2b2e2514e83abc4e358b0dbd70638c14f7b1ad454968c7256
-updated: 2018-02-05T14:57:53.410130721-05:00
+hash: 73810516bc2f9b63cf649bf40a239958298aef2c1b1671ab448be97eeaf47bb9
+updated: 2018-02-09T17:44:38.585301398-05:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -46,7 +46,7 @@ imports:
   - proto
   - protoc-gen-gogo/descriptor
 - name: github.com/golang/mock
-  version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  version: 13f360950a79f5864a972c786a10a50e44b69541
   subpackages:
   - gomock
 - name: github.com/golang/protobuf

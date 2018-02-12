@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/m3db/m3coordinator/errors"
 	"github.com/m3db/m3coordinator/policy/resolver"
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/ts"
@@ -26,10 +27,17 @@ func NewStorage(session client.Session, namespace string, policyResolver resolve
 	return &localStorage{session: session, namespace: namespace, policyResolver: policyResolver}
 }
 
-func (s *localStorage) Fetch(ctx context.Context, query *storage.ReadQuery) (*storage.FetchResult, error) {
+func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.FetchResult, error) {
 	fetchReqs, err := s.policyResolver.Resolve(ctx, query.TagMatchers, query.Start, query.End)
 	if err != nil {
 		return nil, err
+	}
+
+	// Check if the query was interrupted.
+	select {
+	case <-options.KillChan:
+		return nil, errors.ErrQueryInterrupted
+	default:
 	}
 
 	req := fetchReqs[0]
