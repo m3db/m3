@@ -46,3 +46,7 @@ CommitLogMetadata {
 ### Garbage Collected
 
 Commit logs are garbage collected after all blocks within the retention period in which data inside the commit logs could be applicable have already been flushed to disk as immutable compressed filesets.
+
+### Compaction
+
+There is currently no compaction process for commitlogs. They are written once and remain as they are until they fall out of retention period and are deleted.
