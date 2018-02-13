@@ -59,9 +59,9 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
-	m3db"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3db/x/mmap"
 	"github.com/m3db/m3db/x/tchannel"
+	"github.com/m3db/m3db/x/xio"
 	xconfig "github.com/m3db/m3x/config"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
@@ -670,7 +670,7 @@ func withEncodingAndPoolingOptions(
 	logger.Infof("bytes pool %s init", policy.Type)
 	bytesPool.Init()
 
-	segmentReaderPool := m3dbxio.NewSegmentReaderPool(
+	segmentReaderPool := xio.NewSegmentReaderPool(
 		poolOptions(policy.SegmentReaderPool, scope.SubScope("segment-reader-pool")))
 	segmentReaderPool.Init()
 	encoderPool := encoding.NewEncoderPool(
