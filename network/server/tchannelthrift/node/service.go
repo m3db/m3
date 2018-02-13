@@ -34,7 +34,7 @@ import (
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
-	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"

@@ -59,7 +59,7 @@ import (
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
-	m3dbxio "github.com/m3db/m3db/x/io"
+	m3db"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3db/x/mmap"
 	"github.com/m3db/m3db/x/tchannel"
 	xconfig "github.com/m3db/m3x/config"

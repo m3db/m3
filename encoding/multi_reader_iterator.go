@@ -25,7 +25,7 @@ import (
 	"io"
 
 	"github.com/m3db/m3db/ts"
-	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3db/x/xio"
 	xtime "github.com/m3db/m3x/time"
 )
 

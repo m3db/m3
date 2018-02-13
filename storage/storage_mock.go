@@ -38,8 +38,8 @@ import (
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
-	"github.com/m3db/m3db/x/counter"
-	"github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3db/x/xcounter"
+	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -159,9 +159,9 @@ func (_mr *_MockDatabaseRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5, arg6
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
-func (_m *MockDatabase) ReadEncoded(ctx context.Context, namespace ident.ID, id ident.ID, start time.Time, end time.Time) ([][]io.SegmentReader, error) {
+func (_m *MockDatabase) ReadEncoded(ctx context.Context, namespace ident.ID, id ident.ID, start time.Time, end time.Time) ([][]xio.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, namespace, id, start, end)
-	ret0, _ := ret[0].([][]io.SegmentReader)
+	ret0, _ := ret[0].([][]xio.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -366,9 +366,9 @@ func (_mr *_MockdatabaseRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5, arg6
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
-func (_m *Mockdatabase) ReadEncoded(ctx context.Context, namespace ident.ID, id ident.ID, start time.Time, end time.Time) ([][]io.SegmentReader, error) {
+func (_m *Mockdatabase) ReadEncoded(ctx context.Context, namespace ident.ID, id ident.ID, start time.Time, end time.Time) ([][]xio.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, namespace, id, start, end)
-	ret0, _ := ret[0].([][]io.SegmentReader)
+	ret0, _ := ret[0].([][]xio.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -654,9 +654,9 @@ func (_mr *_MockdatabaseNamespaceRecorder) Write(arg0, arg1, arg2, arg3, arg4, a
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
-func (_m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id ident.ID, start time.Time, end time.Time) ([][]io.SegmentReader, error) {
+func (_m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id ident.ID, start time.Time, end time.Time) ([][]xio.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, id, start, end)
-	ret0, _ := ret[0].([][]io.SegmentReader)
+	ret0, _ := ret[0].([][]xio.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -884,9 +884,9 @@ func (_mr *_MockdatabaseShardRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
-func (_m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ident.ID, start time.Time, end time.Time) ([][]io.SegmentReader, error) {
+func (_m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ident.ID, start time.Time, end time.Time) ([][]xio.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, id, start, end)
-	ret0, _ := ret[0].([][]io.SegmentReader)
+	ret0, _ := ret[0].([][]xio.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1642,7 +1642,7 @@ func (_mr *_MockOptionsRecorder) RuntimeOptionsManager() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "RuntimeOptionsManager")
 }
 
-func (_m *MockOptions) SetErrorCounterOptions(value counter.Options) Options {
+func (_m *MockOptions) SetErrorCounterOptions(value xcounter.Options) Options {
 	ret := _m.ctrl.Call(_m, "SetErrorCounterOptions", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1652,9 +1652,9 @@ func (_mr *_MockOptionsRecorder) SetErrorCounterOptions(arg0 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetErrorCounterOptions", arg0)
 }
 
-func (_m *MockOptions) ErrorCounterOptions() counter.Options {
+func (_m *MockOptions) ErrorCounterOptions() xcounter.Options {
 	ret := _m.ctrl.Call(_m, "ErrorCounterOptions")
-	ret0, _ := ret[0].(counter.Options)
+	ret0, _ := ret[0].(xcounter.Options)
 	return ret0
 }
 
@@ -1942,7 +1942,7 @@ func (_mr *_MockOptionsRecorder) EncoderPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "EncoderPool")
 }
 
-func (_m *MockOptions) SetSegmentReaderPool(value io.SegmentReaderPool) Options {
+func (_m *MockOptions) SetSegmentReaderPool(value xio.SegmentReaderPool) Options {
 	ret := _m.ctrl.Call(_m, "SetSegmentReaderPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -1952,9 +1952,9 @@ func (_mr *_MockOptionsRecorder) SetSegmentReaderPool(arg0 interface{}) *gomock.
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetSegmentReaderPool", arg0)
 }
 
-func (_m *MockOptions) SegmentReaderPool() io.SegmentReaderPool {
+func (_m *MockOptions) SegmentReaderPool() xio.SegmentReaderPool {
 	ret := _m.ctrl.Call(_m, "SegmentReaderPool")
-	ret0, _ := ret[0].(io.SegmentReaderPool)
+	ret0, _ := ret[0].(xio.SegmentReaderPool)
 	return ret0
 }
 

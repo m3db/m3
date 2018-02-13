@@ -32,7 +32,7 @@ import (
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	time0 "github.com/m3db/m3x/time"
-	"github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3db/x/xio"
 
 	"github.com/golang/mock/gomock"
 )
@@ -155,9 +155,9 @@ func (_mr *_MockDatabaseSeriesRecorder) OnRetrieveBlock(arg0, arg1, arg2 interfa
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "OnRetrieveBlock", arg0, arg1, arg2)
 }
 
-func (_m *MockDatabaseSeries) ReadEncoded(_param0 context.Context, _param1 time.Time, _param2 time.Time) ([][]io.SegmentReader, error) {
+func (_m *MockDatabaseSeries) ReadEncoded(_param0 context.Context, _param1 time.Time, _param2 time.Time) ([][]xio.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", _param0, _param1, _param2)
-	ret0, _ := ret[0].([][]io.SegmentReader)
+	ret0, _ := ret[0].([][]xio.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -226,9 +226,9 @@ func (_mr *_MockQueryableBlockRetrieverRecorder) IsBlockRetrievable(arg0 interfa
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsBlockRetrievable", arg0)
 }
 
-func (_m *MockQueryableBlockRetriever) Stream(_param0 context.Context, _param1 ident.ID, _param2 time.Time, _param3 block.OnRetrieveBlock) (io.SegmentReader, error) {
+func (_m *MockQueryableBlockRetriever) Stream(_param0 context.Context, _param1 ident.ID, _param2 time.Time, _param3 block.OnRetrieveBlock) (xio.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "Stream", _param0, _param1, _param2, _param3)
-	ret0, _ := ret[0].(io.SegmentReader)
+	ret0, _ := ret[0].(xio.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/storage/block"
-	"github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/context"
 	time0 "github.com/m3db/m3x/time"
 
@@ -65,9 +65,9 @@ func (_mr *_MockdatabaseBufferRecorder) Write(arg0, arg1, arg2, arg3, arg4 inter
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4)
 }
 
-func (_m *MockdatabaseBuffer) ReadEncoded(ctx context.Context, start time.Time, end time.Time) [][]io.SegmentReader {
+func (_m *MockdatabaseBuffer) ReadEncoded(ctx context.Context, start time.Time, end time.Time) [][]xio.SegmentReader {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, start, end)
-	ret0, _ := ret[0].([][]io.SegmentReader)
+	ret0, _ := ret[0].([][]xio.SegmentReader)
 	return ret0
 }
 
