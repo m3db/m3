@@ -1,14 +1,17 @@
-1) TODO: We don't have an index
-2) TODO: We don't support deletes, updates
-3) TODO: We don't support writing into the future or the past
-4) TODO: Caching strategies
-5) TODO: Explain fileset files per shard/block start and no compaction
-6) TODO: Explain commitlog is never used to satisfy a read, just used for data recovery
+
 7) TODO: Explain data retention
 
 # Overview
 
 M3DB is a Timeseries Database that was primarily designed to be horizontally scalable and handle a large volume of monitoring time series data.
+
+## Caveats / Limitations
+
+M3DB currently does not support the following:
+
+1. Any form of indexing. While M3DB is useful as a horizontally scalable datastore that provides extremely high compression ratios for timeseries data, it does not currently perform any type of indexing. This feature is currently under development and future versions of M3DB will have support for a built-in index that can be used standalone for smaller M3DB clusters (up to 10 nodes).
+2. Updates / deletes. All data written to M3DB is immutable.
+3. Writing very far into the past and future. M3DB was originally designed for storing high volumes of monitoring data, and thus writing data at arbitrary timestamps in the past and future was never an intended design goal. That said, this feature is currently under development and future versions of M3DB will have support for this.
 
 ## Architecture
 
@@ -16,15 +19,71 @@ M3DB is a persistent database with durable storage, but it is best understood vi
 
 ### In-Memory Datastructures
 
+```
+   ┌─────────────────────────────────────────────────────────────────┐
+   │                                                                 │
+   │     ┌────────────────────────────────────────────────────┐      │
+   │     │                                                    │      │
+   │     │    ┌─────────────────────────────────────────┐     │      │
+   │     │    │  ┌──────────────────────────────────┐   │     │      │
+   │     │    │  │ ┌─────────────────────────────┐  │   │     │      │
+   │     │    │  │ │      Block [2PM - 4PM]      │  │   │     │      │
+   │     │    │  │ ├─────────────────────────────┤  │   │     │      │
+   │     │    │  │ │      Block [4PM - 6PM]      │  │   │     │      │
+   │     │    │  │ ├─────────────────────────────┤  │   │     │      │
+   │     │    │  │ │       ┌────────────┐        │  │   │     │      │
+   │     │    │  │ └───────┤   Blocks   ├────────┘  │   │     │      │
+   │     │    │  │         └────────────┘           │   │     │      │
+   │     │    │  │                                  │   │     │      │
+   │     │    │  │                                  │   │     │      │
+   │     │    │  │  ┌────────────────────────────┐  │   │     │      │
+   │     │    │  │  │                            │  │   │     │      │
+   │     │    │  │  │     Block [6PM - 8PM]      │  │   │     │      │
+   │     │    │  │  │                            │  │   │     │      │
+   │     │    │  │  ├────────────────────────────┤  │   │     │      │
+   │     │    │  │  │ Active Buffers (encoders)  │  │   │     │      │
+   │     │    │  │  └────────────────────────────┘  │   │     │      │
+   │     │    │  │                                  │   │     │      │
+   │     │    │  │                                  │   │     │      │
+   │     │    │  │                                  │   │     │      │
+   │     │    │  │                                  │   │     │      │
+   │     │    │  │          ┌───────────┐           │   │     │      │
+   │     │    │  └──────────┤ Series 1  ├───────────┘   │     │      │
+   │     │    │             └───────────┘               │     │      │
+   │     │    │                                         │     │      │
+   │     │    │                                         │     │      │
+   │     │    │                                         │     │      │
+   │     │    │                                         │     │      │
+   │     │    │                                         │     │      │
+   │     │    │                                         │     │      │
+   │     │    │                                         │     │      │
+   │     │    │                                         │     │      │
+   │     │    │                                         │     │      │
+   │     │    │               ┌───────┐                 │     │      │
+   │     │    └───────────────┤Shard 1├─────────────────┘     │      │
+   │     │                    └───────┘                       │      │
+   │     │             ┌──────────────────────┐               │      │
+   │     └─────────────┤     Namespace 1      ├───────────────┘      │
+   │                   └──────────────────────┘                      │
+   │                                                                 │
+   │                                                                 │
+   │                                                                 │
+   │              ┌───────────────────────────────┐                  │
+   └──────────────┤           Database            ├──────────────────┘
+                  └───────────────────────────────┘
+```
+
 The in-memory portion of M3DB is implemented via a hierarchy of datastructures:
 
 1. A "database" (one per M3DB node, effectively a singleton)
-2. "Namespaces" which are similar to tables or namespaces in other databases. A database "owns" numerous namespaces, and each namespace has a unique name as well as distinct configuration with regards to retention and blocksize (which we will discuss in more detail later)
-3. "Shards" (TODO: Link to shards documentation) which are owned by namespaces. Shards are effectively the same as "virtual shards" in Cassandra in that they provide arbitrary distribution of timeseries data via a simple hash of the series ID. Shards are useful through the entire M3DB stack in that they make horizontal scaling and adding / removing nodes without downtime trivial at the cluster level, as well as providing more fine grained lock granularity at the memory level, and finally they inform the filesystem organization in that data belonging to the same shard will be used / dropped together and can be kept in the smae file.
-4. "Series" which are owned by shards. A series is the minimum unit that comes to mind when you think of "timeseries" data. Ex. The CPU level for a single host in a datacenter over a period of time could be represented as a series with id "<HOST_IDENTIFIER>.system.cpu.utilization" and a vector of tuples in the form of (<TIMESTAMP>, <CPU_LEVEL>)
-5. "Blocks" belong to a series and are central to M3DB's design. In order to understand blocks, we must first understand that one of M3DB's biggest strengths as a timeseries database (as opposed to using a more general-purpose horizontally scalable, distributed database like Cassandra) is its ability to compress time-series data resulting in huge memory and disk savings. This high compression ratio is implemented via a variant of MTSZ (Link to Guerilla paper and M3TSZ and explain slight difference) which is an algorithm for implementing streaming timeseries compression. A "block" then is simply a sealed (no longer writable) stream of compressed timeseries data. The compression ratio will vary depending on the workload and configuration, but with careful tuning its possible to encode data with an average of 1.4 bytes per datapoint. The compression comes with a few caveats though, namely that a compressed block cannot be scanned or indexed into, the entire block must be decompressed from the beginning until you reach the datapoint you're looking for.
 
-(TODO: Diagram this out)
+2. "Namespaces" which are similar to tables or namespaces in other databases. A database "owns" numerous namespaces, and each namespace has a unique name as well as distinct configuration with regards to data retention and blocksize (which we will discuss in more detail later).
+
+3. ["Shards"](sharding.md) which are owned by namespaces. Shards are effectively the same as "virtual shards" in Cassandra in that they provide arbitrary distribution of timeseries data via a simple hash of the series ID. Shards are useful through the entire M3DB stack in that they make horizontal scaling and adding / removing nodes without downtime trivial at the cluster level, as well as providing more fine grained lock granularity at the memory level, and finally they inform the filesystem organization in that data belonging to the same shard will be used / dropped together and can be kept in the same file.
+
+4. "Series" which are owned by shards. A series is the minimum unit that comes to mind when you think of "timeseries" data. Ex. The CPU level for a single host in a datacenter over a period of time could be represented as a series with id "<HOST_IDENTIFIER>.system.cpu.utilization" and a vector of tuples in the form of (<TIMESTAMP>, <CPU_LEVEL>)
+
+5. "Blocks" belong to a series and are central to M3DB's design. In order to understand blocks, we must first understand that one of M3DB's biggest strengths as a timeseries database (as opposed to using a more general-purpose horizontally scalable, distributed database like Cassandra) is its ability to compress time-series data resulting in huge memory and disk savings. This high compression ratio is implemented via a variant of MTSZ (Link to Guerilla paper and M3TSZ and explain slight difference) which is an algorithm for implementing streaming timeseries compression. A "block" then is simply a sealed (no longer writable) stream of compressed timeseries data. The compression ratio will vary depending on the workload and configuration, but with careful tuning its possible to encode data with an average of 1.4 bytes per datapoint. The compression comes with a few caveats though, namely that a compressed block cannot be scanned or indexed into, the entire block must be decompressed from the beginning until you reach the datapoint you're looking for.
 
 If M3DB kept everything in memory (and in fact, early versions of it did), than you could conceptually think of it as having a single top-level database which contained an internal map of <NAMEPSACE_ID>:<NAMESPACE_OBJECT> and each
 namespace would have an internal map of <SHARD_NUMBER>:<SHARD_OBJECT> and each shard would have an internal map of
@@ -38,10 +97,12 @@ While in-memory databases can be useful (and M3DB supports operating in a memory
 
 Like many databases, M3DB takes a two-pronged approach to persistent storage:
 
-1) All writes are persisted to a commitlog (the commitlog can be configured to fsync every write, or optionally batch writes together which is much faster but leaves open the possibility of small amounts of data loss in the case of a catastrophic failure). The commitlog is completely uncompressed and exists only to recover "unflushed" data in the case of a database shutdown (intentional or not.)
+1) All writes are persisted to a commitlog (the commitlog can be configured to fsync every write, or optionally batch writes together which is much faster but leaves open the possibility of small amounts of data loss in the case of a catastrophic failure). The commitlog is completely uncompressed and exists only to recover "unflushed" data in the case of a database shutdown (intentional or not.) and is never used to satisfy a read request.
 2) Periodically (based on the configured blocksize) all "active" blocks are "sealed" (marked as immutable) and written out to disk into "fileset" files. These files are highly compressed and can be indexed into via their complementary index files.
 
 #### Fileset files
+
+The primary unit of long-term storage for M3DB are fileset files. A set of fileset files are created for every shard/block start combination.
 
 A fileset has the following files:
 
@@ -149,6 +210,28 @@ Then M3DB will need to consolidate:
 
 1) The not-yet-sealed block from the active buffers / encoders (located inside an internal lookup in the Series object) [6PM - 8PM]
 2) The in-memory cached block (also located inside an internal lookup in the Series object) [4PM - 6PM]
-3) The block from disk (the block retrieve from disk will then be cached according to the current series caching policy (TODO: Link to caching policies), discussed in more detail later) [2PM - 4PM]
+3) The block from disk (the block retrieve from disk will then be cached according to the current [series caching policy](engine.md#caching-policies) [2PM - 4PM]
 
 M3DB will retrieve the three blocks from their respective locations in memory / on-disk, and transmit all of the data back to the client. Note that since M3DB nodes return compressed blocks (the M3DB client decompresses them) its not possible to return "partial results" for a given block. If any portion of a read requests spans a given block, then that block in its entirety must be transmitted back to the client. In practice, this ends up being not much of an issue because of the high compression ratio that M3DB is able to achieve.
+
+## Caching policies
+
+Blocks that are still being actively compressed / M3TSZ encoded must be kept in memory until they are sealed and flushed to disk. Blocks that have already been sealed, however, don't need to remain in-memory. In order to support efficient reads, M3DB implements various caching policies which determine which flushed blocks are kept in memory, and which are not. The "cache" itself is not a separate datastructure in memory, cached blocks are simply stored in their respective series object.
+
+### None Cache Policy
+
+The none cache policy is the simplest. As soon as a block is sealed, its flushed to disk and never retained in memory again. This cache policy will have the lowest memory consumption, but also the poorest read performance as every read for a block that is already flushed will require a disk read.
+
+### All Cache Policy
+
+The all cache policy is the opposite of the none cache policy. All blocks are kept in memory until their retention period is over. This policy can be useful for read-heavy workloads with small datasets, but is obviously limited by the amount of memory on the host machine. Also keep in mind that this cache policy may have unintended side-effects on write throughput as keeping every block in memory creates a lot of work for the Golang garbage collector.
+
+### Recently Read Cache Policy
+
+The recently read cache policy keeps all blocks that are read from disk in memory for a configurable duration of time. For example, if the Recently Read cache policy is set with a duration of 10 minutes, then everytime a block is read from disk it will be kept in memory for at least 10 minutes. This policy can be very effective if only a small portion of your overall dataset is ever read, and especially if that subset is read frequently (I.E as is common in the case of database backing an automatic alerting system), but it can cause very high memory usage during workloads that involve sequentially scanning all of the data.
+
+### Least Recently Used (LRU) Cache Policy
+
+The LRU cache policy uses an LRU list with a configurable max size to keep track of which blocks have been read least recently, and evicts those blocks first
+when the capacity of the list is full and a new block needs to be read from disk. This cache policy strikes the best overall balance and is the recommended policy for general case workloads. (TODO: Link to WiredList documentation if people want more information)
+
