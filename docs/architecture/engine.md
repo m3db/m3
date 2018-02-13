@@ -132,13 +132,11 @@ Determining whether the series exists is simple. M3DB looks up the series in the
 
 If the series exists, then for every block that the request spans, M3DB needs to consolidate data from the active buffers, in-memory cache, and fileset files (disk).
 
-Lets imagine a read for a given series that requests the last 8 hours worth of data, and an M3DB namespace that is configured with a blocksize of 2 hours (I.E we need to find 4 different blocks.)
+Lets imagine a read for a given series that requests the last 6 hours worth of data, and an M3DB namespace that is configured with a blocksize of 2 hours (I.E we need to find 3 different blocks.)
 
 If the current time is 8PM, then the location of the requested blocks might be as follows:
 
 (TODO: Make this a nice diagram)
-
-[12PM - 2PM (Fileset file)] - Because this block was sealed and flushed and hasn't been read recently
 
 [2PM - 4PM (Fileset file)] - Because this block was sealed and flushed and hasn't been read recently
 
@@ -149,6 +147,8 @@ If the current time is 8PM, then the location of the requested blocks might be a
 
 Then M3DB will need to consolidate:
 
-1) The not-yet-sealed block from the active buffer / encoders
-2) 
-M3DB will hash the series ID to determine which shard it belongs to,
+1) The not-yet-sealed block from the active buffers / encoders (located inside an internal lookup in the Series object) [6PM - 8PM]
+2) The in-memory cached block (also located inside an internal lookup in the Series object) [4PM - 6PM]
+3) The block from disk (the block retrieve from disk will then be cached according to the current series caching policy (TODO: Link to caching policies), discussed in more detail later) [2PM - 4PM]
+
+M3DB will retrieve the three blocks from their respective locations in memory / on-disk, and transmit all of the data back to the client. Note that since M3DB nodes return compressed blocks (the M3DB client decompresses them) its not possible to return "partial results" for a given block. If any portion of a read requests spans a given block, then that block in its entirety must be transmitted back to the client. In practice, this ends up being not much of an issue because of the high compression ratio that M3DB is able to achieve.
