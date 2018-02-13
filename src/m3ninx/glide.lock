@@ -1,5 +1,5 @@
-hash: f8a02f256b8a2d7f7869328b8f8add5dba2830c76d8daa91dc408c4ce7d13766
-updated: 2017-11-02T01:08:57.135534414-04:00
+hash: 473b58e320bb2678ccf1b5cda610f9c3fbc31861b5ca2b1100646ba0a50f2130
+updated: 2018-02-07T10:18:01.931207-05:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -8,19 +8,30 @@ imports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/glycerine/go-unsnap-stream
-  version: 87275cecd8e984c5875577d22da7ce8945df780e
+  version: 62a9a9eb44fd8932157b1a8ace2149eff5971af6
 - name: github.com/go-ole/go-ole
   version: de8695c8edbf8236f30d6e1376e20b198a028d42
   subpackages:
   - oleutil
 - name: github.com/golang/snappy
-  version: d7b1e156f50d3c4664f683603af70e3e47fa0aa2
-- name: github.com/m3db/m3x
-  version: 74f8fce525a9170e42bdf27983f74f022d356585
+  version: 553a641470496b2327abcac10b36396bd98e45c9
+- name: github.com/google/codesearch
+  version: a45d81b686e85d01f2838439deaf72126ccd5a96
   subpackages:
+  - sparse
+- name: github.com/m3db/codesearch
+  version: a45d81b686e85d01f2838439deaf72126ccd5a96
+  subpackages:
+  - index
+- name: github.com/m3db/m3x
+  version: dbdbd564ff2f64388a641ce61f541eceb7d2e416
+  subpackages:
+  - checked
   - instrument
   - log
+  - pool
   - process
+  - resource
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/philhofer/fwd
@@ -41,31 +52,44 @@ imports:
 - name: github.com/StackExchange/wmi
   version: e542ed97d15e640bdc14b5c12162d59e8fc67324
 - name: github.com/tinylib/msgp
-  version: 3b556c64540842d4f82967be066a7f7fffc3adad
+  version: 03a79185462ad029a6e7e05b2f3f3e0498d0a6c0
   subpackages:
   - msgp
 - name: github.com/uber-go/atomic
-  version: 4e336646b2ef9fc6e47be8e21594178f98e5ebcf
+  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: github.com/uber-go/tally
-  version: 95078a8f10668bd1fa73ae46761cdc58d25436b8
+  version: 6c4631652c6aab57c64f65c2e0aaec2e9aae3a64
   subpackages:
   - m3
   - m3/customtransports
   - m3/thrift
   - m3/thriftudp
 - name: github.com/willf/bitset
-  version: 988f4f24992fc745de53c42df0da6581e42a6686
+  version: 1a37ad96e8c1a11b20900a232874843b5174221f
+- name: go.uber.org/atomic
+  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+- name: go.uber.org/multierr
+  version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
+- name: go.uber.org/zap
+  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
+  subpackages:
+  - buffer
+  - internal/bufferpool
+  - internal/color
+  - internal/exit
+  - zapcore
 testImports:
 - name: github.com/davecgh/go-spew
-  version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
+  version: 87df7c60d5820d0f8ae11afede5aa52325c09717
   subpackages:
   - spew
 - name: github.com/pmezard/go-difflib
-  version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  version: 792786c7400a136282c1664665ae0a8db921c6c2
   subpackages:
   - difflib
 - name: github.com/stretchr/testify
-  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
+  version: 12b6f73e6084dad08a7c6e575284b177ecafbc71
   subpackages:
   - assert
   - require
+  - suite

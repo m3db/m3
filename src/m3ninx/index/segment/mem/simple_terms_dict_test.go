@@ -28,20 +28,20 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
-type newTermsDictFn func() termsDictionary
+type newSimpleTermsDictFn func() *simpleTermsDictionary
 
-type termsDictionaryTestSuite struct {
+type simpleTermsDictionaryTestSuite struct {
 	suite.Suite
 
-	fn        newTermsDictFn
-	termsDict termsDictionary
+	fn        newSimpleTermsDictFn
+	termsDict *simpleTermsDictionary
 }
 
-func (t *termsDictionaryTestSuite) SetupTest() {
+func (t *simpleTermsDictionaryTestSuite) SetupTest() {
 	t.termsDict = t.fn()
 }
 
-func (t *termsDictionaryTestSuite) TestInsert() {
+func (t *simpleTermsDictionaryTestSuite) TestInsert() {
 	err := t.termsDict.Insert(doc.Field{
 		Name:  []byte("abc"),
 		Value: doc.Value("efg"),
@@ -55,7 +55,7 @@ func (t *termsDictionaryTestSuite) TestInsert() {
 	t.True(ids.Contains(1))
 }
 
-func (t *termsDictionaryTestSuite) TestInsertIdempotent() {
+func (t *simpleTermsDictionaryTestSuite) TestInsertIdempotent() {
 	err := t.termsDict.Insert(doc.Field{
 		Name:  []byte("abc"),
 		Value: doc.Value("efg"),
@@ -74,7 +74,7 @@ func (t *termsDictionaryTestSuite) TestInsertIdempotent() {
 	t.True(ids.Contains(1))
 }
 
-func (t *termsDictionaryTestSuite) TestFetchRegex() {
+func (t *simpleTermsDictionaryTestSuite) TestFetchRegex() {
 	err := t.termsDict.Insert(doc.Field{
 		Name:  []byte("abc"),
 		Value: doc.Value("efg"),
@@ -96,8 +96,8 @@ func (t *termsDictionaryTestSuite) TestFetchRegex() {
 
 func TestSimpleTermsDictionary(t *testing.T) {
 	opts := NewOptions()
-	suite.Run(t, &termsDictionaryTestSuite{
-		fn: func() termsDictionary {
+	suite.Run(t, &simpleTermsDictionaryTestSuite{
+		fn: func() *simpleTermsDictionary {
 			return newSimpleTermsDictionary(opts)
 		},
 	})
