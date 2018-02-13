@@ -24,20 +24,20 @@
 package block
 
 import (
-	time "time"
+	"time"
 
-	encoding "github.com/m3db/m3db/encoding"
-	namespace "github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
-	io "github.com/m3db/m3db/x/io"
-	clock "github.com/m3db/m3x/clock"
-	context "github.com/m3db/m3x/context"
+	"github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
-	pool "github.com/m3db/m3x/pool"
-	sync "github.com/m3db/m3x/sync"
+	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/sync"
 	time0 "github.com/m3db/m3x/time"
 
-	gomock "github.com/golang/mock/gomock"
+	"github.com/golang/mock/gomock"
 )
 
 // Mock of FilteredBlocksMetadataIter interface

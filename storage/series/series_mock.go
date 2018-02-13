@@ -24,17 +24,17 @@
 package series
 
 import (
-	time0 "time"
+	"time"
 
-	persist "github.com/m3db/m3db/persist"
-	block "github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/persist"
+	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/ts"
-	context "github.com/m3db/m3x/context"
-	io "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
-	time "github.com/m3db/m3x/time"
+	time0 "github.com/m3db/m3x/time"
+	"github.com/m3db/m3db/x/io"
 
-	gomock "github.com/golang/mock/gomock"
+	"github.com/golang/mock/gomock"
 )
 
 // Mock of DatabaseSeries interface
@@ -76,7 +76,7 @@ func (_mr *_MockDatabaseSeriesRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockDatabaseSeries) FetchBlocks(_param0 context.Context, _param1 []time0.Time) ([]block.FetchBlockResult, error) {
+func (_m *MockDatabaseSeries) FetchBlocks(_param0 context.Context, _param1 []time.Time) ([]block.FetchBlockResult, error) {
 	ret := _m.ctrl.Call(_m, "FetchBlocks", _param0, _param1)
 	ret0, _ := ret[0].([]block.FetchBlockResult)
 	ret1, _ := ret[1].(error)
@@ -87,7 +87,7 @@ func (_mr *_MockDatabaseSeriesRecorder) FetchBlocks(arg0, arg1 interface{}) *gom
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocks", arg0, arg1)
 }
 
-func (_m *MockDatabaseSeries) FetchBlocksMetadata(_param0 context.Context, _param1 time0.Time, _param2 time0.Time, _param3 FetchBlocksMetadataOptions) block.FetchBlocksMetadataResult {
+func (_m *MockDatabaseSeries) FetchBlocksMetadata(_param0 context.Context, _param1 time.Time, _param2 time.Time, _param3 FetchBlocksMetadataOptions) block.FetchBlocksMetadataResult {
 	ret := _m.ctrl.Call(_m, "FetchBlocksMetadata", _param0, _param1, _param2, _param3)
 	ret0, _ := ret[0].(block.FetchBlocksMetadataResult)
 	return ret0
@@ -97,7 +97,7 @@ func (_mr *_MockDatabaseSeriesRecorder) FetchBlocksMetadata(arg0, arg1, arg2, ar
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksMetadata", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockDatabaseSeries) Flush(_param0 context.Context, _param1 time0.Time, _param2 persist.Fn) error {
+func (_m *MockDatabaseSeries) Flush(_param0 context.Context, _param1 time.Time, _param2 persist.Fn) error {
 	ret := _m.ctrl.Call(_m, "Flush", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -147,7 +147,7 @@ func (_mr *_MockDatabaseSeriesRecorder) NumActiveBlocks() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "NumActiveBlocks")
 }
 
-func (_m *MockDatabaseSeries) OnRetrieveBlock(_param0 ident.ID, _param1 time0.Time, _param2 ts.Segment) {
+func (_m *MockDatabaseSeries) OnRetrieveBlock(_param0 ident.ID, _param1 time.Time, _param2 ts.Segment) {
 	_m.ctrl.Call(_m, "OnRetrieveBlock", _param0, _param1, _param2)
 }
 
@@ -155,7 +155,7 @@ func (_mr *_MockDatabaseSeriesRecorder) OnRetrieveBlock(arg0, arg1, arg2 interfa
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "OnRetrieveBlock", arg0, arg1, arg2)
 }
 
-func (_m *MockDatabaseSeries) ReadEncoded(_param0 context.Context, _param1 time0.Time, _param2 time0.Time) ([][]io.SegmentReader, error) {
+func (_m *MockDatabaseSeries) ReadEncoded(_param0 context.Context, _param1 time.Time, _param2 time.Time) ([][]io.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", _param0, _param1, _param2)
 	ret0, _ := ret[0].([][]io.SegmentReader)
 	ret1, _ := ret[1].(error)
@@ -185,7 +185,7 @@ func (_mr *_MockDatabaseSeriesRecorder) Tick() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tick")
 }
 
-func (_m *MockDatabaseSeries) Write(_param0 context.Context, _param1 time0.Time, _param2 float64, _param3 time.Unit, _param4 []byte) error {
+func (_m *MockDatabaseSeries) Write(_param0 context.Context, _param1 time.Time, _param2 float64, _param3 time0.Unit, _param4 []byte) error {
 	ret := _m.ctrl.Call(_m, "Write", _param0, _param1, _param2, _param3, _param4)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -216,7 +216,7 @@ func (_m *MockQueryableBlockRetriever) EXPECT() *_MockQueryableBlockRetrieverRec
 	return _m.recorder
 }
 
-func (_m *MockQueryableBlockRetriever) IsBlockRetrievable(_param0 time0.Time) bool {
+func (_m *MockQueryableBlockRetriever) IsBlockRetrievable(_param0 time.Time) bool {
 	ret := _m.ctrl.Call(_m, "IsBlockRetrievable", _param0)
 	ret0, _ := ret[0].(bool)
 	return ret0
@@ -226,7 +226,7 @@ func (_mr *_MockQueryableBlockRetrieverRecorder) IsBlockRetrievable(arg0 interfa
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsBlockRetrievable", arg0)
 }
 
-func (_m *MockQueryableBlockRetriever) Stream(_param0 context.Context, _param1 ident.ID, _param2 time0.Time, _param3 block.OnRetrieveBlock) (io.SegmentReader, error) {
+func (_m *MockQueryableBlockRetriever) Stream(_param0 context.Context, _param1 ident.ID, _param2 time.Time, _param3 block.OnRetrieveBlock) (io.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "Stream", _param0, _param1, _param2, _param3)
 	ret0, _ := ret[0].(io.SegmentReader)
 	ret1, _ := ret[1].(error)

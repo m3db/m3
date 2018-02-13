@@ -24,10 +24,10 @@
 package digest
 
 import (
-	hash "hash"
-	io "io"
+	"hash"
+	"io"
 
-	gomock "github.com/golang/mock/gomock"
+	"github.com/golang/mock/gomock"
 )
 
 // Mock of ReaderWithDigest interface

@@ -24,13 +24,13 @@
 package fs
 
 import (
-	time0 "time"
+	"time"
 
-	checked "github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
-	time "github.com/m3db/m3x/time"
+	time0 "github.com/m3db/m3x/time"
 
-	gomock "github.com/golang/mock/gomock"
+	"github.com/golang/mock/gomock"
 )
 
 // Mock of FileSetWriter interface
@@ -64,7 +64,7 @@ func (_mr *_MockFileSetWriterRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockFileSetWriter) Open(_param0 ident.ID, _param1 time0.Duration, _param2 uint32, _param3 time0.Time) error {
+func (_m *MockFileSetWriter) Open(_param0 ident.ID, _param1 time.Duration, _param2 uint32, _param3 time.Time) error {
 	ret := _m.ctrl.Call(_m, "Open", _param0, _param1, _param2, _param3)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -155,7 +155,7 @@ func (_mr *_MockFileSetReaderRecorder) MetadataRead() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "MetadataRead")
 }
 
-func (_m *MockFileSetReader) Open(_param0 ident.ID, _param1 uint32, _param2 time0.Time) error {
+func (_m *MockFileSetReader) Open(_param0 ident.ID, _param1 uint32, _param2 time.Time) error {
 	ret := _m.ctrl.Call(_m, "Open", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -165,9 +165,9 @@ func (_mr *_MockFileSetReaderRecorder) Open(arg0, arg1, arg2 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open", arg0, arg1, arg2)
 }
 
-func (_m *MockFileSetReader) Range() time.Range {
+func (_m *MockFileSetReader) Range() time0.Range {
 	ret := _m.ctrl.Call(_m, "Range")
-	ret0, _ := ret[0].(time.Range)
+	ret0, _ := ret[0].(time0.Range)
 	return ret0
 }
 
@@ -314,7 +314,7 @@ func (_mr *_MockFileSetSeekerRecorder) Entries() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Entries")
 }
 
-func (_m *MockFileSetSeeker) Open(_param0 ident.ID, _param1 uint32, _param2 time0.Time) error {
+func (_m *MockFileSetSeeker) Open(_param0 ident.ID, _param1 uint32, _param2 time.Time) error {
 	ret := _m.ctrl.Call(_m, "Open", _param0, _param1, _param2)
 	ret0, _ := ret[0].(error)
 	return ret0
@@ -324,9 +324,9 @@ func (_mr *_MockFileSetSeekerRecorder) Open(arg0, arg1, arg2 interface{}) *gomoc
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Open", arg0, arg1, arg2)
 }
 
-func (_m *MockFileSetSeeker) Range() time.Range {
+func (_m *MockFileSetSeeker) Range() time0.Range {
 	ret := _m.ctrl.Call(_m, "Range")
-	ret0, _ := ret[0].(time.Range)
+	ret0, _ := ret[0].(time0.Range)
 	return ret0
 }
 

@@ -24,23 +24,23 @@
 package client
 
 import (
-	time "time"
+	"time"
 
-	clock "github.com/m3db/m3db/clock"
-	encoding "github.com/m3db/m3db/encoding"
-	rpc "github.com/m3db/m3db/generated/thrift/rpc"
-	block "github.com/m3db/m3db/storage/block"
-	result "github.com/m3db/m3db/storage/bootstrap/result"
-	namespace "github.com/m3db/m3db/storage/namespace"
-	topology "github.com/m3db/m3db/topology"
-	context "github.com/m3db/m3x/context"
+	"github.com/m3db/m3db/clock"
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
-	instrument "github.com/m3db/m3x/instrument"
-	pool "github.com/m3db/m3x/pool"
-	retry "github.com/m3db/m3x/retry"
+	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/retry"
 	time0 "github.com/m3db/m3x/time"
 
-	gomock "github.com/golang/mock/gomock"
+	"github.com/golang/mock/gomock"
 	tchannel_go "github.com/uber/tchannel-go"
 )
 
