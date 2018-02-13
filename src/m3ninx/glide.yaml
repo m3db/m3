@@ -15,3 +15,7 @@ testImport:
   version: ^1.2.0
   subpackages:
   - require
+- package: github.com/davecgh/go-spew
+  version: ^1.0.0
+- package: github.com/leanovate/gopter
+  version: 0.2.0

@@ -1,5 +1,5 @@
-hash: 473b58e320bb2678ccf1b5cda610f9c3fbc31861b5ca2b1100646ba0a50f2130
-updated: 2018-02-07T10:18:01.931207-05:00
+hash: 9369108084d181614800f6f01439818f5bcddbcbec9503cf94d6041bdb9291d8
+updated: 2018-02-13T17:57:03.7232-05:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -14,7 +14,7 @@ imports:
   subpackages:
   - oleutil
 - name: github.com/golang/snappy
-  version: 553a641470496b2327abcac10b36396bd98e45c9
+  version: d7b1e156f50d3c4664f683603af70e3e47fa0aa2
 - name: github.com/google/codesearch
   version: a45d81b686e85d01f2838439deaf72126ccd5a96
   subpackages:
@@ -24,14 +24,13 @@ imports:
   subpackages:
   - index
 - name: github.com/m3db/m3x
-  version: dbdbd564ff2f64388a641ce61f541eceb7d2e416
+  version: 640bad305baa75986e8b4cbacd23b530374f9c76
   subpackages:
   - checked
   - instrument
   - log
   - pool
   - process
-  - resource
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/philhofer/fwd
@@ -52,7 +51,7 @@ imports:
 - name: github.com/StackExchange/wmi
   version: e542ed97d15e640bdc14b5c12162d59e8fc67324
 - name: github.com/tinylib/msgp
-  version: 03a79185462ad029a6e7e05b2f3f3e0498d0a6c0
+  version: 4b2b2ac00eb1c1f32da648403859ea59033f0bab
   subpackages:
   - msgp
 - name: github.com/uber-go/atomic
@@ -65,24 +64,17 @@ imports:
   - m3/thrift
   - m3/thriftudp
 - name: github.com/willf/bitset
-  version: 1a37ad96e8c1a11b20900a232874843b5174221f
-- name: go.uber.org/atomic
-  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
-- name: go.uber.org/multierr
-  version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
-- name: go.uber.org/zap
-  version: f85c78b1dd998214c5f2138155b320a4a43fbe36
-  subpackages:
-  - buffer
-  - internal/bufferpool
-  - internal/color
-  - internal/exit
-  - zapcore
+  version: 1ea0245d2bc8ce44623f24a1ae162beb06ad8cd6
 testImports:
 - name: github.com/davecgh/go-spew
-  version: 87df7c60d5820d0f8ae11afede5aa52325c09717
+  version: 346938d642f2ec3594ed81d874461961cd0faa76
   subpackages:
   - spew
+- name: github.com/leanovate/gopter
+  version: ed879adfa983372d181640d83cbb2851480335d4
+  subpackages:
+  - gen
+  - prop
 - name: github.com/pmezard/go-difflib
   version: 792786c7400a136282c1664665ae0a8db921c6c2
   subpackages:
