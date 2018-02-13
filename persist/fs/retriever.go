@@ -487,14 +487,8 @@ func (reqs *shardRetrieveRequests) resetQueued() {
 type retrieveRequest struct {
 	resultWg sync.WaitGroup
 
-	// Finalize requires two calls to finalize (once both the user of the
-	// request and the retriever fetch loop is done, and only then, can
-	// we free this request) so we track this with an atomic here.
-	finalizes uint32
-
 	pool *reqPool
 
-	shard      uint32
 	id         ident.ID
 	start      time.Time
 	onRetrieve block.OnRetrieveBlock
@@ -502,8 +496,15 @@ type retrieveRequest struct {
 	indexEntry IndexEntry
 	reader     xio.SegmentReader
 
+	err error
+
+	// Finalize requires two calls to finalize (once both the user of the
+	// request and the retriever fetch loop is done, and only then, can
+	// we free this request) so we track this with an atomic here.
+	finalizes uint32
+	shard     uint32
+
 	notFound bool
-	err      error
 }
 
 func (req *retrieveRequest) onError(err error) {

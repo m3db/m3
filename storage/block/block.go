@@ -48,17 +48,18 @@ type dbBlock struct {
 	startUnixNanos int64
 	segment        ts.Segment
 	length         int
-	checksum       uint32
 
 	lastReadUnixNanos int64
 
 	mergeTarget DatabaseBlock
 
-	retriever    DatabaseShardBlockRetriever
-	retrieveID   ident.ID
-	wasRetrieved bool
+	retriever  DatabaseShardBlockRetriever
+	retrieveID ident.ID
 
-	closed bool
+	checksum uint32
+
+	wasRetrieved bool
+	closed       bool
 }
 
 // NewDatabaseBlock creates a new DatabaseBlock instance.

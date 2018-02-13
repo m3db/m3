@@ -62,9 +62,6 @@ type Configuration struct {
 	// The initial garbage collection target percentage.
 	GCPercentage int `yaml:"gcPercentage" validate:"max=100"`
 
-	// Write new series asynchronously for fast ingestion of new ID bursts.
-	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
-
 	// Write new series limit per second to limit overwhelming during new ID bursts.
 	WriteNewSeriesLimitPerSecond int `yaml:"writeNewSeriesLimitPerSecond"`
 
@@ -100,6 +97,9 @@ type Configuration struct {
 
 	// The configuration for hashing
 	Hashing HashingConfiguration `yaml:"hashing"`
+
+	// Write new series asynchronously for fast ingestion of new ID bursts.
+	WriteNewSeriesAsync bool `yaml:"writeNewSeriesAsync"`
 }
 
 // TickConfiguration is the tick configuration for background processing of

@@ -38,8 +38,8 @@ type Node interface {
 
 // NodeHealth provides Health information for a M3DB node
 type NodeHealth struct {
-	Bootstrapped bool
 	Status       string
+	Bootstrapped bool
 	OK           bool
 }
 

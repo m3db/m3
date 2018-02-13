@@ -76,14 +76,6 @@ type seeker struct {
 	dataMmap  []byte
 	indexMmap []byte
 
-	// Expected digests for each file read from the digests file
-	expectedInfoDigest        uint32
-	expectedIndexDigest       uint32
-	expectedBloomFilterDigest uint32
-	expectedSummariesDigest   uint32
-
-	keepUnreadBuf bool
-
 	unreadBuf []byte
 
 	decoder      *msgpack.Decoder
@@ -94,6 +86,14 @@ type seeker struct {
 	// for. Needs to be closed when done.
 	bloomFilter *ManagedConcurrentBloomFilter
 	indexLookup *nearestIndexOffsetLookup
+
+	// Expected digests for each file read from the digests file
+	expectedInfoDigest        uint32
+	expectedIndexDigest       uint32
+	expectedBloomFilterDigest uint32
+	expectedSummariesDigest   uint32
+
+	keepUnreadBuf bool
 
 	isClone bool
 }

@@ -137,8 +137,7 @@ all-gen: thrift-gen proto-gen mock-gen
 
 .PHONY: metalint
 metalint: install-metalinter install-linter-badtime
-	@($(metalint_check) $(metalint_config) $(metalint_exclude) \
-		&& echo "metalinted successfully!") || (echo "metalinter failed" && exit 1)
+	@($(metalint_check) $(metalint_config) $(metalint_exclude))
 
 .PHONY: test
 test: test-base
