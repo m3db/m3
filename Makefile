@@ -131,7 +131,9 @@ proto-gen: install-proto-bin install-license-bin
 	PACKAGE=$(m3db_package) $(auto_gen) $(proto_output_dir) $(proto_rules_dir)
 
 .PHONY: all-gen
-all-gen: mock-gen thrift-gen proto-gen
+# NB(prateek): order matters here, mock-gen needs to be last because we sometimes
+# generate mocks for thrift/proto generated code.
+all-gen: thrift-gen proto-gen mock-gen
 
 .PHONY: metalint
 metalint: install-metalinter install-linter-badtime
