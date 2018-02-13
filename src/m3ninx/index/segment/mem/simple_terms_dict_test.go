@@ -21,11 +21,47 @@
 package mem
 
 import (
+	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3ninx/index/segment"
 
+	"github.com/leanovate/gopter"
+	"github.com/leanovate/gopter/gen"
+	"github.com/leanovate/gopter/prop"
 	"github.com/stretchr/testify/suite"
+)
+
+var (
+	testRandomSeeed        int64 = 42
+	testMinSuccessfulTests       = 1000
+
+	sampleRegexes = []interface{}{
+		`a`,
+		`a.`,
+		`a.b`,
+		`ab`,
+		`a.b.c`,
+		`abc`,
+		`a|^`,
+		`a|b`,
+		`(a)`,
+		`(a)|b`,
+		`a*`,
+		`a+`,
+		`a?`,
+		`a{2}`,
+		`a{2,3}`,
+		`a{2,}`,
+		`a*?`,
+		`a+?`,
+		`a??`,
+		`a{2}?`,
+		`a{2,3}?`,
+		`a{2,}?`,
+	}
 )
 
 type newSimpleTermsDictFn func() *simpleTermsDictionary
@@ -42,56 +78,109 @@ func (t *simpleTermsDictionaryTestSuite) SetupTest() {
 }
 
 func (t *simpleTermsDictionaryTestSuite) TestInsert() {
-	err := t.termsDict.Insert(doc.Field{
-		Name:  []byte("abc"),
-		Value: doc.Value("efg"),
-	}, 1)
-	t.NoError(err)
+	props := getProperties()
+	props.Property(
+		"Inserted fields should be immediately searchable",
+		prop.ForAll(
+			func(f doc.Field, id segment.DocID) (bool, error) {
+				err := t.termsDict.Insert(f, id)
+				if err != nil {
+					return false, fmt.Errorf("unexpected error inserting %v into terms dictionary: %v", f, err)
+				}
 
-	ids, err := t.termsDict.Fetch([]byte("abc"), []byte("efg"), termFetchOptions{false})
-	t.NoError(err)
-	t.NotNil(ids)
-	t.Equal(uint64(1), ids.Size())
-	t.True(ids.Contains(1))
+				ids, err := t.termsDict.Fetch(f.Name, []byte(f.Value), termFetchOptions{false})
+				if err != nil {
+					return false, fmt.Errorf("unexpected error searching for %v in terms dictionary: %v", f, err)
+				}
+
+				if ids == nil {
+					return false, fmt.Errorf("ids of documents matching query should not be nil")
+				}
+				if !ids.Contains(id) {
+					return false, fmt.Errorf("id of new document '%v' is not in list of matching documents", id)
+				}
+
+				return true, nil
+			},
+			genField(),
+			genDocID(),
+		))
+
+	props.TestingRun(t.T())
 }
 
 func (t *simpleTermsDictionaryTestSuite) TestInsertIdempotent() {
-	err := t.termsDict.Insert(doc.Field{
-		Name:  []byte("abc"),
-		Value: doc.Value("efg"),
-	}, 1)
-	t.NoError(err)
-	err = t.termsDict.Insert(doc.Field{
-		Name:  []byte("abc"),
-		Value: doc.Value("efg"),
-	}, 1)
-	t.NoError(err)
+	props := getProperties()
+	props.Property(
+		"Inserting the same field into the terms dictionary should be idempotent",
+		prop.ForAll(
+			func(f doc.Field, id segment.DocID) (bool, error) {
+				err := t.termsDict.Insert(f, id)
+				if err != nil {
+					return false, fmt.Errorf("unexpected error inserting %v into terms dictionary: %v", f, err)
+				}
 
-	ids, err := t.termsDict.Fetch([]byte("abc"), []byte("efg"), termFetchOptions{false})
-	t.NoError(err)
-	t.NotNil(ids)
-	t.Equal(uint64(1), ids.Size())
-	t.True(ids.Contains(1))
+				// Inserting the same field is a valid operation.
+				err = t.termsDict.Insert(f, id)
+				if err != nil {
+					return false, fmt.Errorf("unexpected error re-inserting %v into terms dictionary: %v", f, err)
+				}
+
+				ids, err := t.termsDict.Fetch(f.Name, []byte(f.Value), termFetchOptions{false})
+				if err != nil {
+					return false, fmt.Errorf("unexpected error searching for %v in terms dictionary: %v", f, err)
+				}
+
+				if ids == nil {
+					return false, fmt.Errorf("ids of documents matching query should not be nil")
+				}
+				if !ids.Contains(segment.DocID(id)) {
+					return false, fmt.Errorf("id of new document '%v' is not in list of matching documents", id)
+				}
+
+				return true, nil
+			},
+			genField(),
+			genDocID(),
+		))
+
+	props.TestingRun(t.T())
 }
 
 func (t *simpleTermsDictionaryTestSuite) TestFetchRegex() {
-	err := t.termsDict.Insert(doc.Field{
-		Name:  []byte("abc"),
-		Value: doc.Value("efg"),
-	}, 1)
-	t.NoError(err)
-	err = t.termsDict.Insert(doc.Field{
-		Name:  []byte("abc"),
-		Value: doc.Value("efgh"),
-	}, 2)
-	t.NoError(err)
+	props := getProperties()
+	props.Property(
+		"The dictionary should support regular expression queries",
+		prop.ForAll(
+			func(input fieldAndRegex, id segment.DocID) (bool, error) {
+				var (
+					f  = input.field
+					re = input.re
+				)
+				err := t.termsDict.Insert(f, id)
+				if err != nil {
+					return false, fmt.Errorf("unexpected error inserting %v into terms dictionary: %v", f, err)
+				}
 
-	ids, err := t.termsDict.Fetch([]byte("abc"), []byte("efg.*"), termFetchOptions{true})
-	t.NoError(err)
-	t.NotNil(ids)
-	t.Equal(uint64(2), ids.Size())
-	t.True(ids.Contains(1))
-	t.True(ids.Contains(2))
+				ids, err := t.termsDict.Fetch(f.Name, []byte(re), termFetchOptions{true})
+				if err != nil {
+					return false, fmt.Errorf("unexpected error searching for %v in terms dictionary: %v", f, err)
+				}
+
+				if ids == nil {
+					return false, fmt.Errorf("ids of documents matching query should not be nil")
+				}
+				if !ids.Contains(id) {
+					return false, fmt.Errorf("id of new document '%v' is not in list of matching documents", id)
+				}
+
+				return true, nil
+			},
+			genFieldAndRegex(),
+			genDocID(),
+		))
+
+	props.TestingRun(t.T())
 }
 
 func TestSimpleTermsDictionary(t *testing.T) {
@@ -100,5 +189,66 @@ func TestSimpleTermsDictionary(t *testing.T) {
 		fn: func() *simpleTermsDictionary {
 			return newSimpleTermsDictionary(opts)
 		},
+	})
+}
+
+func getProperties() *gopter.Properties {
+	params := gopter.DefaultTestParameters()
+	params.Rng.Seed(testRandomSeeed)
+	params.MinSuccessfulTests = testMinSuccessfulTests
+	return gopter.NewProperties(params)
+}
+
+func genField() gopter.Gen {
+	return gopter.CombineGens(
+		gen.AnyString(),
+		gen.AnyString(),
+	).Map(func(values []interface{}) doc.Field {
+		var (
+			name  = values[0].(string)
+			value = values[1].(string)
+		)
+		f := doc.Field{
+			Name:  []byte(name),
+			Value: doc.Value(value),
+		}
+		return f
+	})
+}
+
+func genDocID() gopter.Gen {
+	return gen.UInt32().
+		Map(func(value uint32) segment.DocID {
+			return segment.DocID(value)
+		})
+}
+
+type fieldAndRegex struct {
+	field doc.Field
+	re    string
+}
+
+func genFieldAndRegex() gopter.Gen {
+	return gen.OneConstOf(sampleRegexes...).
+		FlatMap(func(value interface{}) gopter.Gen {
+			re := value.(string)
+			return fieldFromRegex(re)
+		}, reflect.TypeOf(fieldAndRegex{}))
+}
+
+func fieldFromRegex(re string) gopter.Gen {
+	return gopter.CombineGens(
+		gen.AnyString(),
+		gen.RegexMatch(re),
+	).Map(func(values []interface{}) fieldAndRegex {
+		var (
+			name  = values[0].(string)
+			value = values[1].(string)
+		)
+		f := doc.Field{
+			Name:  []byte(name),
+			Value: doc.Value(value),
+		}
+		return fieldAndRegex{field: f, re: re}
 	})
 }
