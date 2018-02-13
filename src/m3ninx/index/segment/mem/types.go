@@ -55,16 +55,6 @@ type Options interface {
 	InitialCapacity() int
 }
 
-// termDictionary represents a mapping from doc.Field -> doc
-type termsDictionary interface {
-	// Insert inserts a mapping from field `f` to document ID `docID`.
-	Insert(f doc.Field, docID segment.DocID) error
-
-	// Fetch returns all the docIDs matching the given filter.
-	// NB(prateek): the returned PostingsList is safe to modify.
-	Fetch(fieldName []byte, fieldValueFilter []byte, opts termFetchOptions) (segment.PostingsList, error)
-}
-
 // termFetchOptions are the set of options accompanying the term.
 type termFetchOptions struct {
 	isRegexp bool

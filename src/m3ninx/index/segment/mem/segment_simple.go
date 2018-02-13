@@ -47,7 +47,7 @@ type simpleSegment struct {
 	}
 
 	// field (Name+Value) -> postingsManagerOffset
-	termsDict termsDictionary
+	termsDict *simpleTermsDictionary
 
 	searcher searcher
 	// TODO(prateek): add a delete documents bitmap to optimise fetch

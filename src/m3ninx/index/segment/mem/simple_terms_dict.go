@@ -47,7 +47,7 @@ type simpleTermsDictionary struct {
 	}
 }
 
-func newSimpleTermsDictionary(opts Options) termsDictionary {
+func newSimpleTermsDictionary(opts Options) *simpleTermsDictionary {
 	dict := &simpleTermsDictionary{
 		opts: opts,
 	}
