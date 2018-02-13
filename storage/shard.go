@@ -43,7 +43,7 @@ import (
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
-	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3db/x/xio"
 	xclose "github.com/m3db/m3x/close"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"

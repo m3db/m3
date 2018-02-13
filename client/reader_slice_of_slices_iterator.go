@@ -25,7 +25,7 @@ import (
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/ts"
-	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/checked"
 )
 

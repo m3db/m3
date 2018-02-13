@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
-	xio "github.com/m3db/m3db/x/io"
+	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 	xsync "github.com/m3db/m3x/sync"

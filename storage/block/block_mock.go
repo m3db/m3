@@ -24,20 +24,20 @@
 package block
 
 import (
-	time "time"
+	"time"
 
-	encoding "github.com/m3db/m3db/encoding"
-	namespace "github.com/m3db/m3db/storage/namespace"
+	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
-	io "github.com/m3db/m3db/x/io"
-	clock "github.com/m3db/m3x/clock"
-	context "github.com/m3db/m3x/context"
+	"github.com/m3db/m3db/x/xio"
+	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
-	pool "github.com/m3db/m3x/pool"
-	sync "github.com/m3db/m3x/sync"
+	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/sync"
 	time0 "github.com/m3db/m3x/time"
 
-	gomock "github.com/golang/mock/gomock"
+	"github.com/golang/mock/gomock"
 )
 
 // Mock of FilteredBlocksMetadataIter interface
@@ -277,9 +277,9 @@ func (_mr *_MockDatabaseBlockRecorder) Checksum() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Checksum")
 }
 
-func (_m *MockDatabaseBlock) Stream(blocker context.Context) (io.SegmentReader, error) {
+func (_m *MockDatabaseBlock) Stream(blocker context.Context) (xio.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "Stream", blocker)
-	ret0, _ := ret[0].(io.SegmentReader)
+	ret0, _ := ret[0].(xio.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -410,9 +410,9 @@ func (_mr *_MockDatabaseBlockRetrieverRecorder) CacheShardIndices(arg0 interface
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "CacheShardIndices", arg0)
 }
 
-func (_m *MockDatabaseBlockRetriever) Stream(ctx context.Context, shard uint32, id ident.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (io.SegmentReader, error) {
+func (_m *MockDatabaseBlockRetriever) Stream(ctx context.Context, shard uint32, id ident.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (xio.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "Stream", ctx, shard, id, blockStart, onRetrieve)
-	ret0, _ := ret[0].(io.SegmentReader)
+	ret0, _ := ret[0].(xio.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -442,9 +442,9 @@ func (_m *MockDatabaseShardBlockRetriever) EXPECT() *_MockDatabaseShardBlockRetr
 	return _m.recorder
 }
 
-func (_m *MockDatabaseShardBlockRetriever) Stream(ctx context.Context, id ident.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (io.SegmentReader, error) {
+func (_m *MockDatabaseShardBlockRetriever) Stream(ctx context.Context, id ident.ID, blockStart time.Time, onRetrieve OnRetrieveBlock) (xio.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "Stream", ctx, id, blockStart, onRetrieve)
-	ret0, _ := ret[0].(io.SegmentReader)
+	ret0, _ := ret[0].(xio.SegmentReader)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -934,7 +934,7 @@ func (_mr *_MockOptionsRecorder) MultiReaderIteratorPool() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "MultiReaderIteratorPool")
 }
 
-func (_m *MockOptions) SetSegmentReaderPool(value io.SegmentReaderPool) Options {
+func (_m *MockOptions) SetSegmentReaderPool(value xio.SegmentReaderPool) Options {
 	ret := _m.ctrl.Call(_m, "SetSegmentReaderPool", value)
 	ret0, _ := ret[0].(Options)
 	return ret0
@@ -944,9 +944,9 @@ func (_mr *_MockOptionsRecorder) SetSegmentReaderPool(arg0 interface{}) *gomock.
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetSegmentReaderPool", arg0)
 }
 
-func (_m *MockOptions) SegmentReaderPool() io.SegmentReaderPool {
+func (_m *MockOptions) SegmentReaderPool() xio.SegmentReaderPool {
 	ret := _m.ctrl.Call(_m, "SegmentReaderPool")
-	ret0, _ := ret[0].(io.SegmentReaderPool)
+	ret0, _ := ret[0].(xio.SegmentReaderPool)
 	return ret0
 }
 
