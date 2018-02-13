@@ -1,5 +1,6 @@
 
 7) TODO: Explain data retention
+8) TODO: Explain background ticks
 
 # Overview
 
