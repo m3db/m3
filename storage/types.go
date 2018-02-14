@@ -83,6 +83,17 @@ type Database interface {
 		ctx context.Context,
 		namespace ident.ID,
 		id ident.ID,
+		timestamp time.Time,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+	) error
+
+	// WriteTagged values to the database for an ID
+	WriteTagged(
+		ctx context.Context,
+		namespace ident.ID,
+		id ident.ID,
 		tags ident.TagIterator,
 		timestamp time.Time,
 		value float64,
@@ -94,8 +105,8 @@ type Database interface {
 	QueryIDs(
 		ctx context.Context,
 		query index.Query,
-		start, end time.Time,
-	) (index.ResultsIterator, error)
+		opts index.QueryOptions,
+	) (index.QueryResults, error)
 
 	// ReadEncoded retrieves encoded segments for an ID
 	ReadEncoded(
@@ -210,6 +221,16 @@ type databaseNamespace interface {
 	Write(
 		ctx context.Context,
 		id ident.ID,
+		timestamp time.Time,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+	) error
+
+	// WriteTagged values to the namespace for an ID
+	WriteTagged(
+		ctx context.Context,
+		id ident.ID,
 		tags ident.TagIterator,
 		timestamp time.Time,
 		value float64,
@@ -297,6 +318,16 @@ type databaseShard interface {
 	Write(
 		ctx context.Context,
 		id ident.ID,
+		timestamp time.Time,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+	) error
+
+	// WriteTagged values to the shard for an ID
+	WriteTagged(
+		ctx context.Context,
+		id ident.ID,
 		tags ident.TagIterator,
 		timestamp time.Time,
 		value float64,
@@ -373,8 +404,8 @@ type databaseIndex interface {
 	Query(
 		ctx context.Context,
 		query index.Query,
-		start, end time.Time,
-	) (index.ResultsIterator, error)
+		opts index.QueryOptions,
+	) (index.QueryResults, error)
 }
 
 // databaseBootstrapManager manages the bootstrap process.

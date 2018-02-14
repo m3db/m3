@@ -66,6 +66,7 @@ var (
 	errShardAlreadyTicking        = errors.New("shard is already ticking")
 	errShardClosingTickTerminated = errors.New("shard is closing, terminating tick")
 	errShardInvalidPageToken      = errors.New("shard could not unmarshal page token")
+	errNotImplemented             = errors.New("method is not implemented")
 )
 
 type filesetBeforeFn func(
@@ -610,10 +611,21 @@ func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {
 	s.Unlock()
 }
 
-func (s *dbShard) Write(
+func (s *dbShard) WriteTagged(
 	ctx context.Context,
 	id ident.ID,
 	tags ident.TagIterator,
+	timestamp time.Time,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
+	return errNotImplemented
+}
+
+func (s *dbShard) Write(
+	ctx context.Context,
+	id ident.ID,
 	timestamp time.Time,
 	value float64,
 	unit xtime.Unit,

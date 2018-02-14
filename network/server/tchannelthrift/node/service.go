@@ -622,7 +622,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 
 	if err = s.db.Write(
 		ctx, s.idPool.GetStringID(ctx, req.NameSpace), s.idPool.GetStringID(ctx, req.ID),
-		ident.EmptyTagIterator, xtime.FromNormalizedTime(dp.Timestamp, d), dp.Value, unit, dp.Annotation,
+		xtime.FromNormalizedTime(dp.Timestamp, d), dp.Value, unit, dp.Annotation,
 	); err != nil {
 		s.metrics.write.ReportError(s.nowFn().Sub(callStart))
 		return convert.ToRPCError(err)
@@ -661,7 +661,7 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 		}
 
 		if err = s.db.Write(
-			ctx, nsID, s.newID(ctx, elem.ID), ident.EmptyTagIterator,
+			ctx, nsID, s.newID(ctx, elem.ID),
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value, unit, elem.Datapoint.Annotation,
 		); err != nil && xerrors.IsInvalidParams(err) {

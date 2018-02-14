@@ -454,6 +454,25 @@ func (n *dbNamespace) Tick(c context.Cancellable) error {
 func (n *dbNamespace) Write(
 	ctx context.Context,
 	id ident.ID,
+	timestamp time.Time,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
+	callStart := n.nowFn()
+	shard, err := n.shardFor(id)
+	if err != nil {
+		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
+		return err
+	}
+	err = shard.Write(ctx, id, timestamp, value, unit, annotation)
+	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return err
+}
+
+func (n *dbNamespace) WriteTagged(
+	ctx context.Context,
+	id ident.ID,
 	tags ident.TagIterator,
 	timestamp time.Time,
 	value float64,
@@ -466,7 +485,7 @@ func (n *dbNamespace) Write(
 		n.metrics.write.ReportError(n.nowFn().Sub(callStart))
 		return err
 	}
-	err = shard.Write(ctx, id, tags, timestamp, value, unit, annotation)
+	err = shard.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return err
 }

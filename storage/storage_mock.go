@@ -150,25 +150,35 @@ func (_mr *_MockDatabaseRecorder) Terminate() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Terminate")
 }
 
-func (_m *MockDatabase) Write(ctx context.Context, namespace ident.ID, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
-	ret := _m.ctrl.Call(_m, "Write", ctx, namespace, id, tags, timestamp, value, unit, annotation)
+func (_m *MockDatabase) Write(ctx context.Context, namespace ident.ID, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "Write", ctx, namespace, id, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockDatabaseRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
+func (_mr *_MockDatabaseRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
-func (_m *MockDatabase) QueryIDs(ctx context.Context, query index.Query, start time.Time, end time.Time) (index.ResultsIterator, error) {
-	ret := _m.ctrl.Call(_m, "QueryIDs", ctx, query, start, end)
-	ret0, _ := ret[0].(index.ResultsIterator)
+func (_m *MockDatabase) WriteTagged(ctx context.Context, namespace ident.ID, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "WriteTagged", ctx, namespace, id, tags, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockDatabaseRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteTagged", arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
+}
+
+func (_m *MockDatabase) QueryIDs(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "QueryIDs", ctx, query, opts)
+	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockDatabaseRecorder) QueryIDs(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "QueryIDs", arg0, arg1, arg2, arg3)
+func (_mr *_MockDatabaseRecorder) QueryIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "QueryIDs", arg0, arg1, arg2)
 }
 
 func (_m *MockDatabase) ReadEncoded(ctx context.Context, namespace ident.ID, id ident.ID, start time.Time, end time.Time) ([][]xio.SegmentReader, error) {
@@ -368,25 +378,35 @@ func (_mr *_MockdatabaseRecorder) Terminate() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Terminate")
 }
 
-func (_m *Mockdatabase) Write(ctx context.Context, namespace ident.ID, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
-	ret := _m.ctrl.Call(_m, "Write", ctx, namespace, id, tags, timestamp, value, unit, annotation)
+func (_m *Mockdatabase) Write(ctx context.Context, namespace ident.ID, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "Write", ctx, namespace, id, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
+func (_mr *_MockdatabaseRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
-func (_m *Mockdatabase) QueryIDs(ctx context.Context, query index.Query, start time.Time, end time.Time) (index.ResultsIterator, error) {
-	ret := _m.ctrl.Call(_m, "QueryIDs", ctx, query, start, end)
-	ret0, _ := ret[0].(index.ResultsIterator)
+func (_m *Mockdatabase) WriteTagged(ctx context.Context, namespace ident.ID, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "WriteTagged", ctx, namespace, id, tags, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteTagged", arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
+}
+
+func (_m *Mockdatabase) QueryIDs(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "QueryIDs", ctx, query, opts)
+	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockdatabaseRecorder) QueryIDs(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "QueryIDs", arg0, arg1, arg2, arg3)
+func (_mr *_MockdatabaseRecorder) QueryIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "QueryIDs", arg0, arg1, arg2)
 }
 
 func (_m *Mockdatabase) ReadEncoded(ctx context.Context, namespace ident.ID, id ident.ID, start time.Time, end time.Time) ([][]xio.SegmentReader, error) {
@@ -667,14 +687,24 @@ func (_mr *_MockdatabaseNamespaceRecorder) Tick(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tick", arg0)
 }
 
-func (_m *MockdatabaseNamespace) Write(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
-	ret := _m.ctrl.Call(_m, "Write", ctx, id, tags, timestamp, value, unit, annotation)
+func (_m *MockdatabaseNamespace) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "Write", ctx, id, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseNamespaceRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+func (_mr *_MockdatabaseNamespaceRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
+}
+
+func (_m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteTagged", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
 func (_m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id ident.ID, start time.Time, end time.Time) ([][]xio.SegmentReader, error) {
@@ -897,14 +927,24 @@ func (_mr *_MockdatabaseShardRecorder) Tick(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tick", arg0)
 }
 
-func (_m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
-	ret := _m.ctrl.Call(_m, "Write", ctx, id, tags, timestamp, value, unit, annotation)
+func (_m *MockdatabaseShard) Write(ctx context.Context, id ident.ID, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "Write", ctx, id, timestamp, value, unit, annotation)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseShardRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+func (_mr *_MockdatabaseShardRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
+}
+
+func (_m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseShardRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteTagged", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
 }
 
 func (_m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ident.ID, start time.Time, end time.Time) ([][]xio.SegmentReader, error) {
@@ -1035,15 +1075,15 @@ func (_mr *_MockdatabaseIndexRecorder) Write(arg0, arg1, arg2, arg3 interface{})
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockdatabaseIndex) Query(ctx context.Context, query index.Query, start time.Time, end time.Time) (index.ResultsIterator, error) {
-	ret := _m.ctrl.Call(_m, "Query", ctx, query, start, end)
-	ret0, _ := ret[0].(index.ResultsIterator)
+func (_m *MockdatabaseIndex) Query(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "Query", ctx, query, opts)
+	ret0, _ := ret[0].(index.QueryResults)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-func (_mr *_MockdatabaseIndexRecorder) Query(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Query", arg0, arg1, arg2, arg3)
+func (_mr *_MockdatabaseIndexRecorder) Query(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Query", arg0, arg1, arg2)
 }
 
 // Mock of databaseBootstrapManager interface

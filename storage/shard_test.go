@@ -391,9 +391,9 @@ func TestShardTick(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	shard.Write(ctx, ident.StringID("foo"), ident.EmptyTagIterator, nowFn(), 1.0, xtime.Second, nil)
-	shard.Write(ctx, ident.StringID("bar"), ident.EmptyTagIterator, nowFn(), 2.0, xtime.Second, nil)
-	shard.Write(ctx, ident.StringID("baz"), ident.EmptyTagIterator, nowFn(), 3.0, xtime.Second, nil)
+	shard.Write(ctx, ident.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
+	shard.Write(ctx, ident.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
+	shard.Write(ctx, ident.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
 
 	r, err := shard.Tick(context.NewNoOpCanncellable())
 	require.NoError(t, err)
@@ -466,9 +466,9 @@ func TestShardWriteAsync(t *testing.T) {
 	ctx := context.NewContext()
 	defer ctx.Close()
 
-	shard.Write(ctx, ident.StringID("foo"), ident.EmptyTagIterator, nowFn(), 1.0, xtime.Second, nil)
-	shard.Write(ctx, ident.StringID("bar"), ident.EmptyTagIterator, nowFn(), 2.0, xtime.Second, nil)
-	shard.Write(ctx, ident.StringID("baz"), ident.EmptyTagIterator, nowFn(), 3.0, xtime.Second, nil)
+	shard.Write(ctx, ident.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
+	shard.Write(ctx, ident.StringID("bar"), nowFn(), 2.0, xtime.Second, nil)
+	shard.Write(ctx, ident.StringID("baz"), nowFn(), 3.0, xtime.Second, nil)
 
 	for {
 		counter, ok := testReporter.Counters()["dbshard.insert-queue.inserts"]
@@ -651,7 +651,7 @@ func TestPurgeExpiredSeriesNonEmptySeries(t *testing.T) {
 	defer shard.Close()
 	ctx := opts.ContextPool().Get()
 	nowFn := opts.ClockOptions().NowFn()
-	shard.Write(ctx, ident.StringID("foo"), ident.EmptyTagIterator, nowFn(), 1.0, xtime.Second, nil)
+	shard.Write(ctx, ident.StringID("foo"), nowFn(), 1.0, xtime.Second, nil)
 	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)
 	require.NoError(t, err)
 	require.Equal(t, 1, r.activeSeries)
@@ -676,7 +676,7 @@ func TestPurgeExpiredSeriesWriteAfterTicking(t *testing.T) {
 
 		ctx := opts.ContextPool().Get()
 		nowFn := opts.ClockOptions().NowFn()
-		shard.Write(ctx, id, ident.EmptyTagIterator, nowFn(), 1.0, xtime.Second, nil)
+		shard.Write(ctx, id, nowFn(), 1.0, xtime.Second, nil)
 	}).Return(series.TickResult{}, series.ErrSeriesAllDatapointsExpired)
 
 	r, err := shard.tickAndExpire(context.NewNoOpCanncellable(), tickPolicyRegular)

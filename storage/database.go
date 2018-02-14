@@ -451,6 +451,28 @@ func (d *db) Write(
 	ctx context.Context,
 	namespace ident.ID,
 	id ident.ID,
+	timestamp time.Time,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceWrite.Inc(1)
+		return err
+	}
+
+	err = n.Write(ctx, id, timestamp, value, unit, annotation)
+	if err == commitlog.ErrCommitLogQueueFull {
+		d.errors.Record(1)
+	}
+	return err
+}
+
+func (d *db) WriteTagged(
+	ctx context.Context,
+	namespace ident.ID,
+	id ident.ID,
 	tags ident.TagIterator,
 	timestamp time.Time,
 	value float64,
@@ -463,7 +485,7 @@ func (d *db) Write(
 		return err
 	}
 
-	err = n.Write(ctx, id, tags, timestamp, value, unit, annotation)
+	err = n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
 	if err == commitlog.ErrCommitLogQueueFull {
 		d.errors.Record(1)
 	}
@@ -473,9 +495,9 @@ func (d *db) Write(
 func (d *db) QueryIDs(
 	ctx context.Context,
 	query index.Query,
-	start, end time.Time,
-) (index.ResultsIterator, error) {
-	return nil, nil
+	opts index.QueryOptions,
+) (index.QueryResults, error) {
+	return index.QueryResults{}, errNotImplemented
 }
 
 func (d *db) ReadEncoded(

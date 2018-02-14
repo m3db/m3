@@ -21,18 +21,45 @@
 package index
 
 import (
+	"time"
+
 	inx "github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/ident"
 )
 
-// Query ...
+// Query is a rich end user query to describe a set of constraints on required IDs.
 type Query struct {
 	inx.Query
 }
 
-// ResultsIterator ...
-type ResultsIterator interface {
+// QueryOptions enables users to specify constraints on query execution.
+type QueryOptions struct {
+	StartInclusive time.Time
+	EndExclusive   time.Time
+	Limit          int
+	PageToken      QueryResultsPageToken
+}
+
+// QueryResultsPageToken is an opaque token for query result pagination.
+type QueryResultsPageToken []byte
+
+// QueryResults is the collection of results for a query.
+type QueryResults struct {
+	Iter      TaggedIDsIter
+	HasMore   bool
+	PageToken QueryResultsPageToken
+}
+
+// TaggedIDsIter iterates over a collection of IDs with associated
+// tags and namespace
+type TaggedIDsIter interface {
+	// Next returns whether there are more items in the collection
 	Next() bool
-	Current() (id ident.ID, namespace ident.ID, tags ident.TagIterator)
+
+	// Current returns the ID, Tags and Namespace for a single timeseries.
+	// These remain valid until Next() is called again.
+	Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.TagIterator)
+
+	// Err returns any error encountered
 	Err() error
 }
