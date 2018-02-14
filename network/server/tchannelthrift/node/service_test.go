@@ -583,8 +583,7 @@ func TestServiceWrite(t *testing.T) {
 	value := 42.42
 
 	mockDB.EXPECT().
-		Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id),
-			at, value, xtime.Second, nil).
+		Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(id), at, value, xtime.Second, nil).
 		Return(nil)
 
 	err := service.Write(tctx, &rpc.WriteRequest{
@@ -624,8 +623,7 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 	}
 	for _, w := range values {
 		mockDB.EXPECT().
-			Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(w.id),
-				w.t, w.v, xtime.Second, nil).
+			Write(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(w.id), w.t, w.v, xtime.Second, nil).
 			Return(nil)
 	}
 
