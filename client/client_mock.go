@@ -160,26 +160,30 @@ func (_mr *_MockSessionRecorder) FetchAll(arg0, arg1, arg2, arg3 interface{}) *g
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchAll", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockSession) FetchTagged(q Query, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterators, error) {
-	ret := _m.ctrl.Call(_m, "FetchTagged", q, startInclusive, endExclusive)
+func (_m *MockSession) FetchTagged(q Query, opts QueryOptions) (encoding.SeriesIterators, QueryResultsPageToken, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTagged", q, opts)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(QueryResultsPageToken)
+	ret2, _ := ret[2].(bool)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
 }
 
-func (_mr *_MockSessionRecorder) FetchTagged(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTagged", arg0, arg1, arg2)
+func (_mr *_MockSessionRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTagged", arg0, arg1)
 }
 
-func (_m *MockSession) FetchTaggedIDs(q Query, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterators, error) {
-	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", q, startInclusive, endExclusive)
-	ret0, _ := ret[0].(encoding.SeriesIterators)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+func (_m *MockSession) FetchTaggedIDs(q Query, opts QueryOptions) (TaggedIDsIter, QueryResultsPageToken, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", q, opts)
+	ret0, _ := ret[0].(TaggedIDsIter)
+	ret1, _ := ret[1].(QueryResultsPageToken)
+	ret2, _ := ret[2].(bool)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
 }
 
-func (_mr *_MockSessionRecorder) FetchTaggedIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTaggedIDs", arg0, arg1, arg2)
+func (_mr *_MockSessionRecorder) FetchTaggedIDs(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTaggedIDs", arg0, arg1)
 }
 
 func (_m *MockSession) ShardID(id string) (uint32, error) {
@@ -383,6 +387,59 @@ func (_mr *_MockPeerBlocksIterRecorder) Err() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
 }
 
+// Mock of TaggedIDsIter interface
+type MockTaggedIDsIter struct {
+	ctrl     *gomock.Controller
+	recorder *_MockTaggedIDsIterRecorder
+}
+
+// Recorder for MockTaggedIDsIter (not exported)
+type _MockTaggedIDsIterRecorder struct {
+	mock *MockTaggedIDsIter
+}
+
+func NewMockTaggedIDsIter(ctrl *gomock.Controller) *MockTaggedIDsIter {
+	mock := &MockTaggedIDsIter{ctrl: ctrl}
+	mock.recorder = &_MockTaggedIDsIterRecorder{mock}
+	return mock
+}
+
+func (_m *MockTaggedIDsIter) EXPECT() *_MockTaggedIDsIterRecorder {
+	return _m.recorder
+}
+
+func (_m *MockTaggedIDsIter) Next() bool {
+	ret := _m.ctrl.Call(_m, "Next")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockTaggedIDsIterRecorder) Next() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
+}
+
+func (_m *MockTaggedIDsIter) Current() (ident.ID, ident.ID, ident.TagIterator) {
+	ret := _m.ctrl.Call(_m, "Current")
+	ret0, _ := ret[0].(ident.ID)
+	ret1, _ := ret[1].(ident.ID)
+	ret2, _ := ret[2].(ident.TagIterator)
+	return ret0, ret1, ret2
+}
+
+func (_mr *_MockTaggedIDsIterRecorder) Current() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Current")
+}
+
+func (_m *MockTaggedIDsIter) Err() error {
+	ret := _m.ctrl.Call(_m, "Err")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockTaggedIDsIterRecorder) Err() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
+}
+
 // Mock of AdminSession interface
 type MockAdminSession struct {
 	ctrl     *gomock.Controller
@@ -446,26 +503,30 @@ func (_mr *_MockAdminSessionRecorder) FetchAll(arg0, arg1, arg2, arg3 interface{
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchAll", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockAdminSession) FetchTagged(q Query, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterators, error) {
-	ret := _m.ctrl.Call(_m, "FetchTagged", q, startInclusive, endExclusive)
+func (_m *MockAdminSession) FetchTagged(q Query, opts QueryOptions) (encoding.SeriesIterators, QueryResultsPageToken, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTagged", q, opts)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(QueryResultsPageToken)
+	ret2, _ := ret[2].(bool)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
 }
 
-func (_mr *_MockAdminSessionRecorder) FetchTagged(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTagged", arg0, arg1, arg2)
+func (_mr *_MockAdminSessionRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTagged", arg0, arg1)
 }
 
-func (_m *MockAdminSession) FetchTaggedIDs(q Query, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterators, error) {
-	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", q, startInclusive, endExclusive)
-	ret0, _ := ret[0].(encoding.SeriesIterators)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+func (_m *MockAdminSession) FetchTaggedIDs(q Query, opts QueryOptions) (TaggedIDsIter, QueryResultsPageToken, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", q, opts)
+	ret0, _ := ret[0].(TaggedIDsIter)
+	ret1, _ := ret[1].(QueryResultsPageToken)
+	ret2, _ := ret[2].(bool)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
 }
 
-func (_mr *_MockAdminSessionRecorder) FetchTaggedIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTaggedIDs", arg0, arg1, arg2)
+func (_mr *_MockAdminSessionRecorder) FetchTaggedIDs(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTaggedIDs", arg0, arg1)
 }
 
 func (_m *MockAdminSession) ShardID(id string) (uint32, error) {
@@ -616,26 +677,30 @@ func (_mr *_MockclientSessionRecorder) FetchAll(arg0, arg1, arg2, arg3 interface
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchAll", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockclientSession) FetchTagged(q Query, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterators, error) {
-	ret := _m.ctrl.Call(_m, "FetchTagged", q, startInclusive, endExclusive)
+func (_m *MockclientSession) FetchTagged(q Query, opts QueryOptions) (encoding.SeriesIterators, QueryResultsPageToken, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTagged", q, opts)
 	ret0, _ := ret[0].(encoding.SeriesIterators)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret1, _ := ret[1].(QueryResultsPageToken)
+	ret2, _ := ret[2].(bool)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
 }
 
-func (_mr *_MockclientSessionRecorder) FetchTagged(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTagged", arg0, arg1, arg2)
+func (_mr *_MockclientSessionRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTagged", arg0, arg1)
 }
 
-func (_m *MockclientSession) FetchTaggedIDs(q Query, startInclusive time.Time, endExclusive time.Time) (encoding.SeriesIterators, error) {
-	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", q, startInclusive, endExclusive)
-	ret0, _ := ret[0].(encoding.SeriesIterators)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+func (_m *MockclientSession) FetchTaggedIDs(q Query, opts QueryOptions) (TaggedIDsIter, QueryResultsPageToken, bool, error) {
+	ret := _m.ctrl.Call(_m, "FetchTaggedIDs", q, opts)
+	ret0, _ := ret[0].(TaggedIDsIter)
+	ret1, _ := ret[1].(QueryResultsPageToken)
+	ret2, _ := ret[2].(bool)
+	ret3, _ := ret[3].(error)
+	return ret0, ret1, ret2, ret3
 }
 
-func (_mr *_MockclientSessionRecorder) FetchTaggedIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTaggedIDs", arg0, arg1, arg2)
+func (_mr *_MockclientSessionRecorder) FetchTaggedIDs(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTaggedIDs", arg0, arg1)
 }
 
 func (_m *MockclientSession) ShardID(id string) (uint32, error) {

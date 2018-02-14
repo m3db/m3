@@ -111,11 +111,13 @@ struct FetchBatchRawResult {
 }
 
 struct FetchTaggedRequest {
-	1: required i64 rangeStart
-	2: required i64 rangeEnd
-	3: required IdxQuery query
+	1: required IdxQuery query
+	2: required i64 rangeStart
+	3: required i64 rangeEnd
 	4: required bool fetchData
-	5: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
+	5: optional i64 limit
+	6: optional binary pageToken
+	7: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
 }
 
 struct IdxQuery {
@@ -137,6 +139,8 @@ struct IdxTagFilter {
 
 struct FetchTaggedResult {
 	1: required list<FetchTaggedIDResult> elements
+	2: required bool hasMore
+	3: optional binary pageToken
 }
 
 struct FetchTaggedIDResult {
@@ -144,7 +148,7 @@ struct FetchTaggedIDResult {
 	2: required binary nameSpace
 	3: required list<binary> tagNames
 	4: required list<binary> tagValues
-	5: optional FetchRawResult data
+	5: optional list<Datapoint> datapoints
 	6: optional Error err
 }
 

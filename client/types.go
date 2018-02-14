@@ -208,10 +208,10 @@ type Session interface {
 	FetchAll(namespace string, ids []string, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
 
 	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
-	FetchTagged(q Query, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
+	FetchTagged(q Query, opts QueryOptions) (i encoding.SeriesIterators, t QueryResultsPageToken, moreResults bool, err error)
 
 	// FetchTaggedIDs resolves the provided query to known IDs.
-	FetchTaggedIDs(q Query, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
+	FetchTaggedIDs(q Query, opts QueryOptions) (i TaggedIDsIter, t QueryResultsPageToken, moreResults bool, err error)
 
 	// ShardID returns the given shard for an ID for callers
 	// to easily discern what shard is failing when operations
@@ -226,6 +226,17 @@ type Session interface {
 type Query struct {
 	segment.Query
 }
+
+// QueryOptions enables users to specify constraints on query execution.
+type QueryOptions struct {
+	StartInclusive time.Time
+	EndExclusive   time.Time
+	Limit          int
+	PageToken      QueryResultsPageToken
+}
+
+// QueryResultsPageToken is an opaque token for query result pagination.
+type QueryResultsPageToken []byte
 
 // AdminClient can create administration sessions
 type AdminClient interface {
@@ -260,6 +271,20 @@ type PeerBlocksIter interface {
 	// Current returns the metadata, and block data for a single block replica.
 	// These remain valid until Next() is called again.
 	Current() (topology.Host, ident.ID, block.DatabaseBlock)
+
+	// Err returns any error encountered
+	Err() error
+}
+
+// TaggedIDsIter iterates over a collection of IDs with associated
+// tags and namespace
+type TaggedIDsIter interface {
+	// Next returns whether there are more items in the collection
+	Next() bool
+
+	// Current returns the ID, Tags and Namespace for a single timeseries.
+	// These remain valid until Next() is called again.
+	Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.TagIterator)
 
 	// Err returns any error encountered
 	Err() error

@@ -869,17 +869,15 @@ func (s *session) FetchAll(
 }
 
 func (s *session) FetchTagged(
-	q Query,
-	startInclusive, endExclusive time.Time,
-) (encoding.SeriesIterators, error) {
-	return nil, errNotImplemented
+	q Query, opts QueryOptions,
+) (encoding.SeriesIterators, QueryResultsPageToken, bool, error) {
+	return nil, nil, false, errNotImplemented
 }
 
 func (s *session) FetchTaggedIDs(
-	q Query,
-	startInclusive, endExclusive time.Time,
-) (encoding.SeriesIterators, error) {
-	return nil, errNotImplemented
+	q Query, opts QueryOptions,
+) (TaggedIDsIter, QueryResultsPageToken, bool, error) {
+	return nil, nil, false, errNotImplemented
 }
 
 func (s *session) fetchAllAttempt(

@@ -35,6 +35,7 @@ import (
 // TChanCluster is the interface that defines the server handler and client interface.
 type TChanCluster interface {
 	Fetch(ctx thrift.Context, req *FetchRequest) (*FetchResult_, error)
+	FetchTagged(ctx thrift.Context, req *FetchTaggedRequest) (*FetchTaggedResult_, error)
 	Health(ctx thrift.Context) (*HealthResult_, error)
 	Truncate(ctx thrift.Context, req *TruncateRequest) (*TruncateResult_, error)
 	Write(ctx thrift.Context, req *WriteRequest) error
@@ -47,6 +48,7 @@ type TChanNode interface {
 	FetchBlocksMetadataRaw(ctx thrift.Context, req *FetchBlocksMetadataRawRequest) (*FetchBlocksMetadataRawResult_, error)
 	FetchBlocksMetadataRawV2(ctx thrift.Context, req *FetchBlocksMetadataRawV2Request) (*FetchBlocksMetadataRawV2Result_, error)
 	FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRawRequest) (*FetchBlocksRawResult_, error)
+	FetchTagged(ctx thrift.Context, req *FetchTaggedRequest) (*FetchTaggedResult_, error)
 	GetPersistRateLimit(ctx thrift.Context) (*NodePersistRateLimitResult_, error)
 	GetWriteNewSeriesAsync(ctx thrift.Context) (*NodeWriteNewSeriesAsyncResult_, error)
 	GetWriteNewSeriesBackoffDuration(ctx thrift.Context) (*NodeWriteNewSeriesBackoffDurationResult_, error)
@@ -93,6 +95,24 @@ func (c *tchanClusterClient) Fetch(ctx thrift.Context, req *FetchRequest) (*Fetc
 			err = resp.Err
 		default:
 			err = fmt.Errorf("received no result or unknown exception for fetch")
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
+func (c *tchanClusterClient) FetchTagged(ctx thrift.Context, req *FetchTaggedRequest) (*FetchTaggedResult_, error) {
+	var resp ClusterFetchTaggedResult
+	args := ClusterFetchTaggedArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "fetchTagged", &args, &resp)
+	if err == nil && !success {
+		switch {
+		case resp.Err != nil:
+			err = resp.Err
+		default:
+			err = fmt.Errorf("received no result or unknown exception for fetchTagged")
 		}
 	}
 
@@ -170,6 +190,7 @@ func (s *tchanClusterServer) Service() string {
 func (s *tchanClusterServer) Methods() []string {
 	return []string{
 		"fetch",
+		"fetchTagged",
 		"health",
 		"truncate",
 		"write",
@@ -180,6 +201,8 @@ func (s *tchanClusterServer) Handle(ctx thrift.Context, methodName string, proto
 	switch methodName {
 	case "fetch":
 		return s.handleFetch(ctx, protocol)
+	case "fetchTagged":
+		return s.handleFetchTagged(ctx, protocol)
 	case "health":
 		return s.handleHealth(ctx, protocol)
 	case "truncate":
@@ -202,6 +225,34 @@ func (s *tchanClusterServer) handleFetch(ctx thrift.Context, protocol athrift.TP
 
 	r, err :=
 		s.handler.Fetch(ctx, req.Req)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanClusterServer) handleFetchTagged(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req ClusterFetchTaggedArgs
+	var res ClusterFetchTaggedResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.FetchTagged(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
@@ -404,6 +455,24 @@ func (c *tchanNodeClient) FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRaw
 			err = resp.Err
 		default:
 			err = fmt.Errorf("received no result or unknown exception for fetchBlocksRaw")
+		}
+	}
+
+	return resp.GetSuccess(), err
+}
+
+func (c *tchanNodeClient) FetchTagged(ctx thrift.Context, req *FetchTaggedRequest) (*FetchTaggedResult_, error) {
+	var resp NodeFetchTaggedResult
+	args := NodeFetchTaggedArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "fetchTagged", &args, &resp)
+	if err == nil && !success {
+		switch {
+		case resp.Err != nil:
+			err = resp.Err
+		default:
+			err = fmt.Errorf("received no result or unknown exception for fetchTagged")
 		}
 	}
 
@@ -655,6 +724,7 @@ func (s *tchanNodeServer) Methods() []string {
 		"fetchBlocksMetadataRaw",
 		"fetchBlocksMetadataRawV2",
 		"fetchBlocksRaw",
+		"fetchTagged",
 		"getPersistRateLimit",
 		"getWriteNewSeriesAsync",
 		"getWriteNewSeriesBackoffDuration",
@@ -683,6 +753,8 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleFetchBlocksMetadataRawV2(ctx, protocol)
 	case "fetchBlocksRaw":
 		return s.handleFetchBlocksRaw(ctx, protocol)
+	case "fetchTagged":
+		return s.handleFetchTagged(ctx, protocol)
 	case "getPersistRateLimit":
 		return s.handleGetPersistRateLimit(ctx, protocol)
 	case "getWriteNewSeriesAsync":
@@ -837,6 +909,34 @@ func (s *tchanNodeServer) handleFetchBlocksRaw(ctx thrift.Context, protocol athr
 
 	r, err :=
 		s.handler.FetchBlocksRaw(ctx, req.Req)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *Error:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+		res.Success = r
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleFetchTagged(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeFetchTaggedArgs
+	var res NodeFetchTaggedResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	r, err :=
+		s.handler.FetchTagged(ctx, req.Req)
 
 	if err != nil {
 		switch v := err.(type) {
