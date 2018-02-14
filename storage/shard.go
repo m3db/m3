@@ -66,7 +66,6 @@ var (
 	errShardAlreadyTicking        = errors.New("shard is already ticking")
 	errShardClosingTickTerminated = errors.New("shard is closing, terminating tick")
 	errShardInvalidPageToken      = errors.New("shard could not unmarshal page token")
-	errNotImplemented             = errors.New("method is not implemented")
 )
 
 type filesetBeforeFn func(
@@ -105,6 +104,7 @@ type dbShard struct {
 	increasingIndex          increasingIndex
 	seriesPool               series.DatabaseSeriesPool
 	commitLogWriter          commitLogWriter
+	indexWriter              databaseIndexWriter
 	insertQueue              *dbShardInsertQueue
 	lookup                   map[ident.Hash]*list.Element
 	list                     *list.List
@@ -201,6 +201,7 @@ func newDatabaseShard(
 	namespaceReaderMgr databaseNamespaceReaderManager,
 	increasingIndex increasingIndex,
 	commitLogWriter commitLogWriter,
+	indexWriter databaseIndexWriter,
 	needsBootstrap bool,
 	opts Options,
 	seriesOpts series.Options,
@@ -219,6 +220,7 @@ func newDatabaseShard(
 		increasingIndex:    increasingIndex,
 		seriesPool:         opts.DatabaseSeriesPool(),
 		commitLogWriter:    commitLogWriter,
+		indexWriter:        indexWriter,
 		lookup:             make(map[ident.Hash]*list.Element),
 		list:               list.New(),
 		filesetBeforeFn:    fs.FilesetBefore,
@@ -620,7 +622,7 @@ func (s *dbShard) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	return errNotImplemented
+	return errIndexingNotImplemented
 }
 
 func (s *dbShard) Write(

@@ -81,6 +81,7 @@ type db struct {
 	shardSet   sharding.ShardSet
 	namespaces map[ident.Hash]databaseNamespace
 	commitLog  commitlog.CommitLog
+	index      databaseIndex
 
 	state    databaseState
 	mediator databaseMediator
@@ -100,6 +101,7 @@ type db struct {
 type databaseMetrics struct {
 	unknownNamespaceRead                tally.Counter
 	unknownNamespaceWrite               tally.Counter
+	unknownNamespaceWriteTagged         tally.Counter
 	unknownNamespaceFetchBlocks         tally.Counter
 	unknownNamespaceFetchBlocksMetadata tally.Counter
 }
@@ -109,6 +111,7 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 	return databaseMetrics{
 		unknownNamespaceRead:                unknownNamespaceScope.Counter("read"),
 		unknownNamespaceWrite:               unknownNamespaceScope.Counter("write"),
+		unknownNamespaceWriteTagged:         unknownNamespaceScope.Counter("write-tagged"),
 		unknownNamespaceFetchBlocks:         unknownNamespaceScope.Counter("fetch-blocks"),
 		unknownNamespaceFetchBlocksMetadata: unknownNamespaceScope.Counter("fetch-blocks-metadata"),
 	}
@@ -135,12 +138,21 @@ func NewDatabase(
 	scope := iopts.MetricsScope().SubScope("database")
 	logger := iopts.Logger()
 
+	index := databaseIndexNoOp
+	if opts.IndexingEnabled() {
+		index, err = newDatabaseIndex(opts)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	d := &db{
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
 		shardSet:     shardSet,
 		namespaces:   make(map[ident.Hash]databaseNamespace),
 		commitLog:    commitLog,
+		index:        index,
 		scope:        scope,
 		metrics:      newDatabaseMetrics(scope),
 		log:          logger,
@@ -319,7 +331,7 @@ func (d *db) newDatabaseNamespace(
 		}
 	}
 	return newDatabaseNamespace(md, d.shardSet, retriever,
-		d, d.commitLog, d.opts)
+		d, d.commitLog, d.index, d.opts)
 }
 
 func (d *db) Options() Options {
@@ -481,7 +493,7 @@ func (d *db) WriteTagged(
 ) error {
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
-		d.metrics.unknownNamespaceWrite.Inc(1)
+		d.metrics.unknownNamespaceWriteTagged.Inc(1)
 		return err
 	}
 
@@ -497,7 +509,7 @@ func (d *db) QueryIDs(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResults, error) {
-	return index.QueryResults{}, errNotImplemented
+	return d.index.Query(ctx, query, opts)
 }
 
 func (d *db) ReadEncoded(
