@@ -68,22 +68,6 @@ type databaseIndexWriter interface {
 	) error
 }
 
-type databaseIndexWriteFn func(
-	ctx context.Context,
-	namespace ident.ID,
-	id ident.ID,
-	tags ident.TagIterator,
-) error
-
-func (fn databaseIndexWriteFn) Write(
-	ctx context.Context,
-	namespace ident.ID,
-	id ident.ID,
-	tags ident.TagIterator,
-) error {
-	return fn(ctx, namespace, id, tags)
-}
-
 type dbIndexNoOp struct{}
 
 func (n dbIndexNoOp) Write(context.Context, ident.ID, ident.ID, ident.TagIterator) error {
