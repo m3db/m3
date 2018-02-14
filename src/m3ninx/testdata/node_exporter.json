@@ -1,0 +1,2080 @@
+{"__name__": "go_gc_duration_seconds", "quantile": "0"}
+{"__name__": "go_gc_duration_seconds", "quantile": "0.25"}
+{"__name__": "go_gc_duration_seconds", "quantile": "0.5"}
+{"__name__": "go_gc_duration_seconds", "quantile": "0.75"}
+{"__name__": "go_gc_duration_seconds", "quantile": "1"}
+{"__name__": "go_gc_duration_seconds_sum"}
+{"__name__": "go_gc_duration_seconds_count"}
+{"__name__": "go_goroutines"}
+{"__name__": "go_info", "version": "go1.9.3"}
+{"__name__": "go_memstats_alloc_bytes"}
+{"__name__": "go_memstats_alloc_bytes_total"}
+{"__name__": "go_memstats_buck_hash_sys_bytes"}
+{"__name__": "go_memstats_frees_total"}
+{"__name__": "go_memstats_gc_cpu_fraction"}
+{"__name__": "go_memstats_gc_sys_bytes"}
+{"__name__": "go_memstats_heap_alloc_bytes"}
+{"__name__": "go_memstats_heap_idle_bytes"}
+{"__name__": "go_memstats_heap_inuse_bytes"}
+{"__name__": "go_memstats_heap_objects"}
+{"__name__": "go_memstats_heap_released_bytes"}
+{"__name__": "go_memstats_heap_sys_bytes"}
+{"__name__": "go_memstats_last_gc_time_seconds"}
+{"__name__": "go_memstats_lookups_total"}
+{"__name__": "go_memstats_mallocs_total"}
+{"__name__": "go_memstats_mcache_inuse_bytes"}
+{"__name__": "go_memstats_mcache_sys_bytes"}
+{"__name__": "go_memstats_mspan_inuse_bytes"}
+{"__name__": "go_memstats_mspan_sys_bytes"}
+{"__name__": "go_memstats_next_gc_bytes"}
+{"__name__": "go_memstats_other_sys_bytes"}
+{"__name__": "go_memstats_stack_inuse_bytes"}
+{"__name__": "go_memstats_stack_sys_bytes"}
+{"__name__": "go_memstats_sys_bytes"}
+{"__name__": "go_threads"}
+{"__name__": "http_request_duration_microseconds", "handler": "prometheus", "quantile": "0.5"}
+{"__name__": "http_request_duration_microseconds", "handler": "prometheus", "quantile": "0.9"}
+{"__name__": "http_request_duration_microseconds", "handler": "prometheus", "quantile": "0.99"}
+{"__name__": "http_request_duration_microseconds_sum", "handler": "prometheus"}
+{"__name__": "http_request_duration_microseconds_count", "handler": "prometheus"}
+{"__name__": "http_request_size_bytes", "handler": "prometheus", "quantile": "0.5"}
+{"__name__": "http_request_size_bytes", "handler": "prometheus", "quantile": "0.9"}
+{"__name__": "http_request_size_bytes", "handler": "prometheus", "quantile": "0.99"}
+{"__name__": "http_request_size_bytes_sum", "handler": "prometheus"}
+{"__name__": "http_request_size_bytes_count", "handler": "prometheus"}
+{"__name__": "http_response_size_bytes", "handler": "prometheus", "quantile": "0.5"}
+{"__name__": "http_response_size_bytes", "handler": "prometheus", "quantile": "0.9"}
+{"__name__": "http_response_size_bytes", "handler": "prometheus", "quantile": "0.99"}
+{"__name__": "http_response_size_bytes_sum", "handler": "prometheus"}
+{"__name__": "http_response_size_bytes_count", "handler": "prometheus"}
+{"__name__": "node_arp_entries", "device": "eth0"}
+{"__name__": "node_boot_time_seconds"}
+{"__name__": "node_context_switches_total"}
+{"__name__": "node_cpu_guest_seconds_total", "cpu": "0", "mode": "nice"}
+{"__name__": "node_cpu_guest_seconds_total", "cpu": "0", "mode": "user"}
+{"__name__": "node_cpu_seconds_total", "cpu": "cpu0", "mode": "idle"}
+{"__name__": "node_cpu_seconds_total", "cpu": "cpu0", "mode": "iowait"}
+{"__name__": "node_cpu_seconds_total", "cpu": "cpu0", "mode": "irq"}
+{"__name__": "node_cpu_seconds_total", "cpu": "cpu0", "mode": "nice"}
+{"__name__": "node_cpu_seconds_total", "cpu": "cpu0", "mode": "softirq"}
+{"__name__": "node_cpu_seconds_total", "cpu": "cpu0", "mode": "steal"}
+{"__name__": "node_cpu_seconds_total", "cpu": "cpu0", "mode": "system"}
+{"__name__": "node_cpu_seconds_total", "cpu": "cpu0", "mode": "user"}
+{"__name__": "node_disk_io_now", "device": "vda"}
+{"__name__": "node_disk_io_time_seconds_total", "device": "vda"}
+{"__name__": "node_disk_io_time_weighted_seconds_total", "device": "vda"}
+{"__name__": "node_disk_read_bytes_total", "device": "vda"}
+{"__name__": "node_disk_read_time_seconds_total", "device": "vda"}
+{"__name__": "node_disk_reads_completed_total", "device": "vda"}
+{"__name__": "node_disk_reads_merged_total", "device": "vda"}
+{"__name__": "node_disk_write_time_seconds_total", "device": "vda"}
+{"__name__": "node_disk_writes_completed_total", "device": "vda"}
+{"__name__": "node_disk_writes_merged_total", "device": "vda"}
+{"__name__": "node_disk_written_bytes_total", "device": "vda"}
+{"__name__": "node_entropy_available_bits"}
+{"__name__": "node_exporter_build_info", "branch": "", "goversion": "go1.9.3", "revision": "", "version": ""}
+{"__name__": "node_filefd_allocated"}
+{"__name__": "node_filefd_maximum"}
+{"__name__": "node_filesystem_avail_bytes", "device": "/dev/vda1", "fstype": "ext4", "mountpoint": "/"}
+{"__name__": "node_filesystem_avail_bytes", "device": "/dev/vda15", "fstype": "vfat", "mountpoint": "/boot/efi"}
+{"__name__": "node_filesystem_avail_bytes", "device": "lxcfs", "fstype": "fuse.lxcfs", "mountpoint": "/var/lib/lxcfs"}
+{"__name__": "node_filesystem_avail_bytes", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run"}
+{"__name__": "node_filesystem_avail_bytes", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run/lock"}
+{"__name__": "node_filesystem_avail_bytes", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run/user/0"}
+{"__name__": "node_filesystem_device_error", "device": "/dev/vda1", "fstype": "ext4", "mountpoint": "/"}
+{"__name__": "node_filesystem_device_error", "device": "/dev/vda15", "fstype": "vfat", "mountpoint": "/boot/efi"}
+{"__name__": "node_filesystem_device_error", "device": "lxcfs", "fstype": "fuse.lxcfs", "mountpoint": "/var/lib/lxcfs"}
+{"__name__": "node_filesystem_device_error", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run"}
+{"__name__": "node_filesystem_device_error", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run/lock"}
+{"__name__": "node_filesystem_device_error", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run/user/0"}
+{"__name__": "node_filesystem_files", "device": "/dev/vda1", "fstype": "ext4", "mountpoint": "/"}
+{"__name__": "node_filesystem_files", "device": "/dev/vda15", "fstype": "vfat", "mountpoint": "/boot/efi"}
+{"__name__": "node_filesystem_files", "device": "lxcfs", "fstype": "fuse.lxcfs", "mountpoint": "/var/lib/lxcfs"}
+{"__name__": "node_filesystem_files", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run"}
+{"__name__": "node_filesystem_files", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run/lock"}
+{"__name__": "node_filesystem_files", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run/user/0"}
+{"__name__": "node_filesystem_files_free", "device": "/dev/vda1", "fstype": "ext4", "mountpoint": "/"}
+{"__name__": "node_filesystem_files_free", "device": "/dev/vda15", "fstype": "vfat", "mountpoint": "/boot/efi"}
+{"__name__": "node_filesystem_files_free", "device": "lxcfs", "fstype": "fuse.lxcfs", "mountpoint": "/var/lib/lxcfs"}
+{"__name__": "node_filesystem_files_free", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run"}
+{"__name__": "node_filesystem_files_free", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run/lock"}
+{"__name__": "node_filesystem_files_free", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run/user/0"}
+{"__name__": "node_filesystem_free_bytes", "device": "/dev/vda1", "fstype": "ext4", "mountpoint": "/"}
+{"__name__": "node_filesystem_free_bytes", "device": "/dev/vda15", "fstype": "vfat", "mountpoint": "/boot/efi"}
+{"__name__": "node_filesystem_free_bytes", "device": "lxcfs", "fstype": "fuse.lxcfs", "mountpoint": "/var/lib/lxcfs"}
+{"__name__": "node_filesystem_free_bytes", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run"}
+{"__name__": "node_filesystem_free_bytes", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run/lock"}
+{"__name__": "node_filesystem_free_bytes", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run/user/0"}
+{"__name__": "node_filesystem_readonly", "device": "/dev/vda1", "fstype": "ext4", "mountpoint": "/"}
+{"__name__": "node_filesystem_readonly", "device": "/dev/vda15", "fstype": "vfat", "mountpoint": "/boot/efi"}
+{"__name__": "node_filesystem_readonly", "device": "lxcfs", "fstype": "fuse.lxcfs", "mountpoint": "/var/lib/lxcfs"}
+{"__name__": "node_filesystem_readonly", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run"}
+{"__name__": "node_filesystem_readonly", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run/lock"}
+{"__name__": "node_filesystem_readonly", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run/user/0"}
+{"__name__": "node_filesystem_size_bytes", "device": "/dev/vda1", "fstype": "ext4", "mountpoint": "/"}
+{"__name__": "node_filesystem_size_bytes", "device": "/dev/vda15", "fstype": "vfat", "mountpoint": "/boot/efi"}
+{"__name__": "node_filesystem_size_bytes", "device": "lxcfs", "fstype": "fuse.lxcfs", "mountpoint": "/var/lib/lxcfs"}
+{"__name__": "node_filesystem_size_bytes", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run"}
+{"__name__": "node_filesystem_size_bytes", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run/lock"}
+{"__name__": "node_filesystem_size_bytes", "device": "tmpfs", "fstype": "tmpfs", "mountpoint": "/run/user/0"}
+{"__name__": "node_forks_total"}
+{"__name__": "node_intr_total"}
+{"__name__": "node_load1"}
+{"__name__": "node_load15"}
+{"__name__": "node_load5"}
+{"__name__": "node_memory_Active_anon_bytes"}
+{"__name__": "node_memory_Active_bytes"}
+{"__name__": "node_memory_Active_file_bytes"}
+{"__name__": "node_memory_AnonHugePages_bytes"}
+{"__name__": "node_memory_AnonPages_bytes"}
+{"__name__": "node_memory_Bounce_bytes"}
+{"__name__": "node_memory_Buffers_bytes"}
+{"__name__": "node_memory_Cached_bytes"}
+{"__name__": "node_memory_CmaFree_bytes"}
+{"__name__": "node_memory_CmaTotal_bytes"}
+{"__name__": "node_memory_CommitLimit_bytes"}
+{"__name__": "node_memory_Committed_AS_bytes"}
+{"__name__": "node_memory_DirectMap1G_bytes"}
+{"__name__": "node_memory_DirectMap2M_bytes"}
+{"__name__": "node_memory_DirectMap4k_bytes"}
+{"__name__": "node_memory_Dirty_bytes"}
+{"__name__": "node_memory_HardwareCorrupted_bytes"}
+{"__name__": "node_memory_HugePages_Free"}
+{"__name__": "node_memory_HugePages_Rsvd"}
+{"__name__": "node_memory_HugePages_Surp"}
+{"__name__": "node_memory_HugePages_Total"}
+{"__name__": "node_memory_Hugepagesize_bytes"}
+{"__name__": "node_memory_Inactive_anon_bytes"}
+{"__name__": "node_memory_Inactive_bytes"}
+{"__name__": "node_memory_Inactive_file_bytes"}
+{"__name__": "node_memory_KernelStack_bytes"}
+{"__name__": "node_memory_Mapped_bytes"}
+{"__name__": "node_memory_MemAvailable_bytes"}
+{"__name__": "node_memory_MemFree_bytes"}
+{"__name__": "node_memory_MemTotal_bytes"}
+{"__name__": "node_memory_Mlocked_bytes"}
+{"__name__": "node_memory_NFS_Unstable_bytes"}
+{"__name__": "node_memory_PageTables_bytes"}
+{"__name__": "node_memory_SReclaimable_bytes"}
+{"__name__": "node_memory_SUnreclaim_bytes"}
+{"__name__": "node_memory_Shmem_bytes"}
+{"__name__": "node_memory_Slab_bytes"}
+{"__name__": "node_memory_SwapCached_bytes"}
+{"__name__": "node_memory_SwapFree_bytes"}
+{"__name__": "node_memory_SwapTotal_bytes"}
+{"__name__": "node_memory_Unevictable_bytes"}
+{"__name__": "node_memory_VmallocChunk_bytes"}
+{"__name__": "node_memory_VmallocTotal_bytes"}
+{"__name__": "node_memory_VmallocUsed_bytes"}
+{"__name__": "node_memory_WritebackTmp_bytes"}
+{"__name__": "node_memory_Writeback_bytes"}
+{"__name__": "node_memory_numa_Active", "node": "0"}
+{"__name__": "node_memory_numa_Active_anon", "node": "0"}
+{"__name__": "node_memory_numa_Active_file", "node": "0"}
+{"__name__": "node_memory_numa_AnonHugePages", "node": "0"}
+{"__name__": "node_memory_numa_AnonPages", "node": "0"}
+{"__name__": "node_memory_numa_Bounce", "node": "0"}
+{"__name__": "node_memory_numa_Dirty", "node": "0"}
+{"__name__": "node_memory_numa_FilePages", "node": "0"}
+{"__name__": "node_memory_numa_HugePages_Free", "node": "0"}
+{"__name__": "node_memory_numa_HugePages_Surp", "node": "0"}
+{"__name__": "node_memory_numa_HugePages_Total", "node": "0"}
+{"__name__": "node_memory_numa_Inactive", "node": "0"}
+{"__name__": "node_memory_numa_Inactive_anon", "node": "0"}
+{"__name__": "node_memory_numa_Inactive_file", "node": "0"}
+{"__name__": "node_memory_numa_KernelStack", "node": "0"}
+{"__name__": "node_memory_numa_Mapped", "node": "0"}
+{"__name__": "node_memory_numa_MemFree", "node": "0"}
+{"__name__": "node_memory_numa_MemTotal", "node": "0"}
+{"__name__": "node_memory_numa_MemUsed", "node": "0"}
+{"__name__": "node_memory_numa_Mlocked", "node": "0"}
+{"__name__": "node_memory_numa_NFS_Unstable", "node": "0"}
+{"__name__": "node_memory_numa_PageTables", "node": "0"}
+{"__name__": "node_memory_numa_SReclaimable", "node": "0"}
+{"__name__": "node_memory_numa_SUnreclaim", "node": "0"}
+{"__name__": "node_memory_numa_Shmem", "node": "0"}
+{"__name__": "node_memory_numa_Slab", "node": "0"}
+{"__name__": "node_memory_numa_Unevictable", "node": "0"}
+{"__name__": "node_memory_numa_Writeback", "node": "0"}
+{"__name__": "node_memory_numa_WritebackTmp", "node": "0"}
+{"__name__": "node_memory_numa_interleave_hit_total", "node": "0"}
+{"__name__": "node_memory_numa_local_node_total", "node": "0"}
+{"__name__": "node_memory_numa_numa_foreign_total", "node": "0"}
+{"__name__": "node_memory_numa_numa_hit_total", "node": "0"}
+{"__name__": "node_memory_numa_numa_miss_total", "node": "0"}
+{"__name__": "node_memory_numa_other_node_total", "node": "0"}
+{"__name__": "node_netstat_Icmp6_InCsumErrors"}
+{"__name__": "node_netstat_Icmp6_InDestUnreachs"}
+{"__name__": "node_netstat_Icmp6_InEchoReplies"}
+{"__name__": "node_netstat_Icmp6_InEchos"}
+{"__name__": "node_netstat_Icmp6_InErrors"}
+{"__name__": "node_netstat_Icmp6_InGroupMembQueries"}
+{"__name__": "node_netstat_Icmp6_InGroupMembReductions"}
+{"__name__": "node_netstat_Icmp6_InGroupMembResponses"}
+{"__name__": "node_netstat_Icmp6_InMLDv2Reports"}
+{"__name__": "node_netstat_Icmp6_InMsgs"}
+{"__name__": "node_netstat_Icmp6_InNeighborAdvertisements"}
+{"__name__": "node_netstat_Icmp6_InNeighborSolicits"}
+{"__name__": "node_netstat_Icmp6_InParmProblems"}
+{"__name__": "node_netstat_Icmp6_InPktTooBigs"}
+{"__name__": "node_netstat_Icmp6_InRedirects"}
+{"__name__": "node_netstat_Icmp6_InRouterAdvertisements"}
+{"__name__": "node_netstat_Icmp6_InRouterSolicits"}
+{"__name__": "node_netstat_Icmp6_InTimeExcds"}
+{"__name__": "node_netstat_Icmp6_OutDestUnreachs"}
+{"__name__": "node_netstat_Icmp6_OutEchoReplies"}
+{"__name__": "node_netstat_Icmp6_OutEchos"}
+{"__name__": "node_netstat_Icmp6_OutErrors"}
+{"__name__": "node_netstat_Icmp6_OutGroupMembQueries"}
+{"__name__": "node_netstat_Icmp6_OutGroupMembReductions"}
+{"__name__": "node_netstat_Icmp6_OutGroupMembResponses"}
+{"__name__": "node_netstat_Icmp6_OutMLDv2Reports"}
+{"__name__": "node_netstat_Icmp6_OutMsgs"}
+{"__name__": "node_netstat_Icmp6_OutNeighborAdvertisements"}
+{"__name__": "node_netstat_Icmp6_OutNeighborSolicits"}
+{"__name__": "node_netstat_Icmp6_OutParmProblems"}
+{"__name__": "node_netstat_Icmp6_OutPktTooBigs"}
+{"__name__": "node_netstat_Icmp6_OutRedirects"}
+{"__name__": "node_netstat_Icmp6_OutRouterAdvertisements"}
+{"__name__": "node_netstat_Icmp6_OutRouterSolicits"}
+{"__name__": "node_netstat_Icmp6_OutTimeExcds"}
+{"__name__": "node_netstat_Icmp6_OutType133"}
+{"__name__": "node_netstat_Icmp6_OutType135"}
+{"__name__": "node_netstat_Icmp6_OutType143"}
+{"__name__": "node_netstat_IcmpMsg_InType3"}
+{"__name__": "node_netstat_IcmpMsg_OutType3"}
+{"__name__": "node_netstat_Icmp_InAddrMaskReps"}
+{"__name__": "node_netstat_Icmp_InAddrMasks"}
+{"__name__": "node_netstat_Icmp_InCsumErrors"}
+{"__name__": "node_netstat_Icmp_InDestUnreachs"}
+{"__name__": "node_netstat_Icmp_InEchoReps"}
+{"__name__": "node_netstat_Icmp_InEchos"}
+{"__name__": "node_netstat_Icmp_InErrors"}
+{"__name__": "node_netstat_Icmp_InMsgs"}
+{"__name__": "node_netstat_Icmp_InParmProbs"}
+{"__name__": "node_netstat_Icmp_InRedirects"}
+{"__name__": "node_netstat_Icmp_InSrcQuenchs"}
+{"__name__": "node_netstat_Icmp_InTimeExcds"}
+{"__name__": "node_netstat_Icmp_InTimestampReps"}
+{"__name__": "node_netstat_Icmp_InTimestamps"}
+{"__name__": "node_netstat_Icmp_OutAddrMaskReps"}
+{"__name__": "node_netstat_Icmp_OutAddrMasks"}
+{"__name__": "node_netstat_Icmp_OutDestUnreachs"}
+{"__name__": "node_netstat_Icmp_OutEchoReps"}
+{"__name__": "node_netstat_Icmp_OutEchos"}
+{"__name__": "node_netstat_Icmp_OutErrors"}
+{"__name__": "node_netstat_Icmp_OutMsgs"}
+{"__name__": "node_netstat_Icmp_OutParmProbs"}
+{"__name__": "node_netstat_Icmp_OutRedirects"}
+{"__name__": "node_netstat_Icmp_OutSrcQuenchs"}
+{"__name__": "node_netstat_Icmp_OutTimeExcds"}
+{"__name__": "node_netstat_Icmp_OutTimestampReps"}
+{"__name__": "node_netstat_Icmp_OutTimestamps"}
+{"__name__": "node_netstat_Ip6_FragCreates"}
+{"__name__": "node_netstat_Ip6_FragFails"}
+{"__name__": "node_netstat_Ip6_FragOKs"}
+{"__name__": "node_netstat_Ip6_InAddrErrors"}
+{"__name__": "node_netstat_Ip6_InBcastOctets"}
+{"__name__": "node_netstat_Ip6_InCEPkts"}
+{"__name__": "node_netstat_Ip6_InDelivers"}
+{"__name__": "node_netstat_Ip6_InDiscards"}
+{"__name__": "node_netstat_Ip6_InECT0Pkts"}
+{"__name__": "node_netstat_Ip6_InECT1Pkts"}
+{"__name__": "node_netstat_Ip6_InHdrErrors"}
+{"__name__": "node_netstat_Ip6_InMcastOctets"}
+{"__name__": "node_netstat_Ip6_InMcastPkts"}
+{"__name__": "node_netstat_Ip6_InNoECTPkts"}
+{"__name__": "node_netstat_Ip6_InNoRoutes"}
+{"__name__": "node_netstat_Ip6_InOctets"}
+{"__name__": "node_netstat_Ip6_InReceives"}
+{"__name__": "node_netstat_Ip6_InTooBigErrors"}
+{"__name__": "node_netstat_Ip6_InTruncatedPkts"}
+{"__name__": "node_netstat_Ip6_InUnknownProtos"}
+{"__name__": "node_netstat_Ip6_OutBcastOctets"}
+{"__name__": "node_netstat_Ip6_OutDiscards"}
+{"__name__": "node_netstat_Ip6_OutForwDatagrams"}
+{"__name__": "node_netstat_Ip6_OutMcastOctets"}
+{"__name__": "node_netstat_Ip6_OutMcastPkts"}
+{"__name__": "node_netstat_Ip6_OutNoRoutes"}
+{"__name__": "node_netstat_Ip6_OutOctets"}
+{"__name__": "node_netstat_Ip6_OutRequests"}
+{"__name__": "node_netstat_Ip6_ReasmFails"}
+{"__name__": "node_netstat_Ip6_ReasmOKs"}
+{"__name__": "node_netstat_Ip6_ReasmReqds"}
+{"__name__": "node_netstat_Ip6_ReasmTimeout"}
+{"__name__": "node_netstat_IpExt_InBcastOctets"}
+{"__name__": "node_netstat_IpExt_InBcastPkts"}
+{"__name__": "node_netstat_IpExt_InCEPkts"}
+{"__name__": "node_netstat_IpExt_InCsumErrors"}
+{"__name__": "node_netstat_IpExt_InECT0Pkts"}
+{"__name__": "node_netstat_IpExt_InECT1Pkts"}
+{"__name__": "node_netstat_IpExt_InMcastOctets"}
+{"__name__": "node_netstat_IpExt_InMcastPkts"}
+{"__name__": "node_netstat_IpExt_InNoECTPkts"}
+{"__name__": "node_netstat_IpExt_InNoRoutes"}
+{"__name__": "node_netstat_IpExt_InOctets"}
+{"__name__": "node_netstat_IpExt_InTruncatedPkts"}
+{"__name__": "node_netstat_IpExt_OutBcastOctets"}
+{"__name__": "node_netstat_IpExt_OutBcastPkts"}
+{"__name__": "node_netstat_IpExt_OutMcastOctets"}
+{"__name__": "node_netstat_IpExt_OutMcastPkts"}
+{"__name__": "node_netstat_IpExt_OutOctets"}
+{"__name__": "node_netstat_Ip_DefaultTTL"}
+{"__name__": "node_netstat_Ip_ForwDatagrams"}
+{"__name__": "node_netstat_Ip_Forwarding"}
+{"__name__": "node_netstat_Ip_FragCreates"}
+{"__name__": "node_netstat_Ip_FragFails"}
+{"__name__": "node_netstat_Ip_FragOKs"}
+{"__name__": "node_netstat_Ip_InAddrErrors"}
+{"__name__": "node_netstat_Ip_InDelivers"}
+{"__name__": "node_netstat_Ip_InDiscards"}
+{"__name__": "node_netstat_Ip_InHdrErrors"}
+{"__name__": "node_netstat_Ip_InReceives"}
+{"__name__": "node_netstat_Ip_InUnknownProtos"}
+{"__name__": "node_netstat_Ip_OutDiscards"}
+{"__name__": "node_netstat_Ip_OutNoRoutes"}
+{"__name__": "node_netstat_Ip_OutRequests"}
+{"__name__": "node_netstat_Ip_ReasmFails"}
+{"__name__": "node_netstat_Ip_ReasmOKs"}
+{"__name__": "node_netstat_Ip_ReasmReqds"}
+{"__name__": "node_netstat_Ip_ReasmTimeout"}
+{"__name__": "node_netstat_TcpExt_ArpFilter"}
+{"__name__": "node_netstat_TcpExt_BusyPollRxPackets"}
+{"__name__": "node_netstat_TcpExt_DelayedACKLocked"}
+{"__name__": "node_netstat_TcpExt_DelayedACKLost"}
+{"__name__": "node_netstat_TcpExt_DelayedACKs"}
+{"__name__": "node_netstat_TcpExt_EmbryonicRsts"}
+{"__name__": "node_netstat_TcpExt_IPReversePathFilter"}
+{"__name__": "node_netstat_TcpExt_ListenDrops"}
+{"__name__": "node_netstat_TcpExt_ListenOverflows"}
+{"__name__": "node_netstat_TcpExt_LockDroppedIcmps"}
+{"__name__": "node_netstat_TcpExt_OfoPruned"}
+{"__name__": "node_netstat_TcpExt_OutOfWindowIcmps"}
+{"__name__": "node_netstat_TcpExt_PAWSActive"}
+{"__name__": "node_netstat_TcpExt_PAWSEstab"}
+{"__name__": "node_netstat_TcpExt_PAWSPassive"}
+{"__name__": "node_netstat_TcpExt_PruneCalled"}
+{"__name__": "node_netstat_TcpExt_RcvPruned"}
+{"__name__": "node_netstat_TcpExt_SyncookiesFailed"}
+{"__name__": "node_netstat_TcpExt_SyncookiesRecv"}
+{"__name__": "node_netstat_TcpExt_SyncookiesSent"}
+{"__name__": "node_netstat_TcpExt_TCPACKSkippedChallenge"}
+{"__name__": "node_netstat_TcpExt_TCPACKSkippedFinWait2"}
+{"__name__": "node_netstat_TcpExt_TCPACKSkippedPAWS"}
+{"__name__": "node_netstat_TcpExt_TCPACKSkippedSeq"}
+{"__name__": "node_netstat_TcpExt_TCPACKSkippedSynRecv"}
+{"__name__": "node_netstat_TcpExt_TCPACKSkippedTimeWait"}
+{"__name__": "node_netstat_TcpExt_TCPAbortFailed"}
+{"__name__": "node_netstat_TcpExt_TCPAbortOnClose"}
+{"__name__": "node_netstat_TcpExt_TCPAbortOnData"}
+{"__name__": "node_netstat_TcpExt_TCPAbortOnLinger"}
+{"__name__": "node_netstat_TcpExt_TCPAbortOnMemory"}
+{"__name__": "node_netstat_TcpExt_TCPAbortOnTimeout"}
+{"__name__": "node_netstat_TcpExt_TCPAutoCorking"}
+{"__name__": "node_netstat_TcpExt_TCPBacklogDrop"}
+{"__name__": "node_netstat_TcpExt_TCPChallengeACK"}
+{"__name__": "node_netstat_TcpExt_TCPDSACKIgnoredNoUndo"}
+{"__name__": "node_netstat_TcpExt_TCPDSACKIgnoredOld"}
+{"__name__": "node_netstat_TcpExt_TCPDSACKOfoRecv"}
+{"__name__": "node_netstat_TcpExt_TCPDSACKOfoSent"}
+{"__name__": "node_netstat_TcpExt_TCPDSACKOldSent"}
+{"__name__": "node_netstat_TcpExt_TCPDSACKRecv"}
+{"__name__": "node_netstat_TcpExt_TCPDSACKUndo"}
+{"__name__": "node_netstat_TcpExt_TCPDeferAcceptDrop"}
+{"__name__": "node_netstat_TcpExt_TCPDirectCopyFromBacklog"}
+{"__name__": "node_netstat_TcpExt_TCPDirectCopyFromPrequeue"}
+{"__name__": "node_netstat_TcpExt_TCPFACKReorder"}
+{"__name__": "node_netstat_TcpExt_TCPFastOpenActive"}
+{"__name__": "node_netstat_TcpExt_TCPFastOpenActiveFail"}
+{"__name__": "node_netstat_TcpExt_TCPFastOpenCookieReqd"}
+{"__name__": "node_netstat_TcpExt_TCPFastOpenListenOverflow"}
+{"__name__": "node_netstat_TcpExt_TCPFastOpenPassive"}
+{"__name__": "node_netstat_TcpExt_TCPFastOpenPassiveFail"}
+{"__name__": "node_netstat_TcpExt_TCPFastRetrans"}
+{"__name__": "node_netstat_TcpExt_TCPForwardRetrans"}
+{"__name__": "node_netstat_TcpExt_TCPFromZeroWindowAdv"}
+{"__name__": "node_netstat_TcpExt_TCPFullUndo"}
+{"__name__": "node_netstat_TcpExt_TCPHPAcks"}
+{"__name__": "node_netstat_TcpExt_TCPHPHits"}
+{"__name__": "node_netstat_TcpExt_TCPHPHitsToUser"}
+{"__name__": "node_netstat_TcpExt_TCPHystartDelayCwnd"}
+{"__name__": "node_netstat_TcpExt_TCPHystartDelayDetect"}
+{"__name__": "node_netstat_TcpExt_TCPHystartTrainCwnd"}
+{"__name__": "node_netstat_TcpExt_TCPHystartTrainDetect"}
+{"__name__": "node_netstat_TcpExt_TCPKeepAlive"}
+{"__name__": "node_netstat_TcpExt_TCPLossFailures"}
+{"__name__": "node_netstat_TcpExt_TCPLossProbeRecovery"}
+{"__name__": "node_netstat_TcpExt_TCPLossProbes"}
+{"__name__": "node_netstat_TcpExt_TCPLossUndo"}
+{"__name__": "node_netstat_TcpExt_TCPLostRetransmit"}
+{"__name__": "node_netstat_TcpExt_TCPMD5NotFound"}
+{"__name__": "node_netstat_TcpExt_TCPMD5Unexpected"}
+{"__name__": "node_netstat_TcpExt_TCPMTUPFail"}
+{"__name__": "node_netstat_TcpExt_TCPMTUPSuccess"}
+{"__name__": "node_netstat_TcpExt_TCPMemoryPressures"}
+{"__name__": "node_netstat_TcpExt_TCPMinTTLDrop"}
+{"__name__": "node_netstat_TcpExt_TCPOFODrop"}
+{"__name__": "node_netstat_TcpExt_TCPOFOMerge"}
+{"__name__": "node_netstat_TcpExt_TCPOFOQueue"}
+{"__name__": "node_netstat_TcpExt_TCPOrigDataSent"}
+{"__name__": "node_netstat_TcpExt_TCPPartialUndo"}
+{"__name__": "node_netstat_TcpExt_TCPPrequeueDropped"}
+{"__name__": "node_netstat_TcpExt_TCPPrequeued"}
+{"__name__": "node_netstat_TcpExt_TCPPureAcks"}
+{"__name__": "node_netstat_TcpExt_TCPRcvCoalesce"}
+{"__name__": "node_netstat_TcpExt_TCPRcvCollapsed"}
+{"__name__": "node_netstat_TcpExt_TCPRenoFailures"}
+{"__name__": "node_netstat_TcpExt_TCPRenoRecovery"}
+{"__name__": "node_netstat_TcpExt_TCPRenoRecoveryFail"}
+{"__name__": "node_netstat_TcpExt_TCPRenoReorder"}
+{"__name__": "node_netstat_TcpExt_TCPReqQFullDoCookies"}
+{"__name__": "node_netstat_TcpExt_TCPReqQFullDrop"}
+{"__name__": "node_netstat_TcpExt_TCPRetransFail"}
+{"__name__": "node_netstat_TcpExt_TCPSACKDiscard"}
+{"__name__": "node_netstat_TcpExt_TCPSACKReneging"}
+{"__name__": "node_netstat_TcpExt_TCPSACKReorder"}
+{"__name__": "node_netstat_TcpExt_TCPSYNChallenge"}
+{"__name__": "node_netstat_TcpExt_TCPSackFailures"}
+{"__name__": "node_netstat_TcpExt_TCPSackMerged"}
+{"__name__": "node_netstat_TcpExt_TCPSackRecovery"}
+{"__name__": "node_netstat_TcpExt_TCPSackRecoveryFail"}
+{"__name__": "node_netstat_TcpExt_TCPSackShiftFallback"}
+{"__name__": "node_netstat_TcpExt_TCPSackShifted"}
+{"__name__": "node_netstat_TcpExt_TCPSchedulerFailed"}
+{"__name__": "node_netstat_TcpExt_TCPSlowStartRetrans"}
+{"__name__": "node_netstat_TcpExt_TCPSpuriousRTOs"}
+{"__name__": "node_netstat_TcpExt_TCPSpuriousRtxHostQueues"}
+{"__name__": "node_netstat_TcpExt_TCPSynRetrans"}
+{"__name__": "node_netstat_TcpExt_TCPTSReorder"}
+{"__name__": "node_netstat_TcpExt_TCPTimeWaitOverflow"}
+{"__name__": "node_netstat_TcpExt_TCPTimeouts"}
+{"__name__": "node_netstat_TcpExt_TCPToZeroWindowAdv"}
+{"__name__": "node_netstat_TcpExt_TCPWantZeroWindowAdv"}
+{"__name__": "node_netstat_TcpExt_TCPWinProbe"}
+{"__name__": "node_netstat_TcpExt_TW"}
+{"__name__": "node_netstat_TcpExt_TWKilled"}
+{"__name__": "node_netstat_TcpExt_TWRecycled"}
+{"__name__": "node_netstat_Tcp_ActiveOpens"}
+{"__name__": "node_netstat_Tcp_AttemptFails"}
+{"__name__": "node_netstat_Tcp_CurrEstab"}
+{"__name__": "node_netstat_Tcp_EstabResets"}
+{"__name__": "node_netstat_Tcp_InCsumErrors"}
+{"__name__": "node_netstat_Tcp_InErrs"}
+{"__name__": "node_netstat_Tcp_InSegs"}
+{"__name__": "node_netstat_Tcp_MaxConn"}
+{"__name__": "node_netstat_Tcp_OutRsts"}
+{"__name__": "node_netstat_Tcp_OutSegs"}
+{"__name__": "node_netstat_Tcp_PassiveOpens"}
+{"__name__": "node_netstat_Tcp_RetransSegs"}
+{"__name__": "node_netstat_Tcp_RtoAlgorithm"}
+{"__name__": "node_netstat_Tcp_RtoMax"}
+{"__name__": "node_netstat_Tcp_RtoMin"}
+{"__name__": "node_netstat_Udp6_IgnoredMulti"}
+{"__name__": "node_netstat_Udp6_InCsumErrors"}
+{"__name__": "node_netstat_Udp6_InDatagrams"}
+{"__name__": "node_netstat_Udp6_InErrors"}
+{"__name__": "node_netstat_Udp6_NoPorts"}
+{"__name__": "node_netstat_Udp6_OutDatagrams"}
+{"__name__": "node_netstat_Udp6_RcvbufErrors"}
+{"__name__": "node_netstat_Udp6_SndbufErrors"}
+{"__name__": "node_netstat_UdpLite6_InCsumErrors"}
+{"__name__": "node_netstat_UdpLite6_InDatagrams"}
+{"__name__": "node_netstat_UdpLite6_InErrors"}
+{"__name__": "node_netstat_UdpLite6_NoPorts"}
+{"__name__": "node_netstat_UdpLite6_OutDatagrams"}
+{"__name__": "node_netstat_UdpLite6_RcvbufErrors"}
+{"__name__": "node_netstat_UdpLite6_SndbufErrors"}
+{"__name__": "node_netstat_UdpLite_IgnoredMulti"}
+{"__name__": "node_netstat_UdpLite_InCsumErrors"}
+{"__name__": "node_netstat_UdpLite_InDatagrams"}
+{"__name__": "node_netstat_UdpLite_InErrors"}
+{"__name__": "node_netstat_UdpLite_NoPorts"}
+{"__name__": "node_netstat_UdpLite_OutDatagrams"}
+{"__name__": "node_netstat_UdpLite_RcvbufErrors"}
+{"__name__": "node_netstat_UdpLite_SndbufErrors"}
+{"__name__": "node_netstat_Udp_IgnoredMulti"}
+{"__name__": "node_netstat_Udp_InCsumErrors"}
+{"__name__": "node_netstat_Udp_InDatagrams"}
+{"__name__": "node_netstat_Udp_InErrors"}
+{"__name__": "node_netstat_Udp_NoPorts"}
+{"__name__": "node_netstat_Udp_OutDatagrams"}
+{"__name__": "node_netstat_Udp_RcvbufErrors"}
+{"__name__": "node_netstat_Udp_SndbufErrors"}
+{"__name__": "node_network_receive_bytes_total", "device": "eth0"}
+{"__name__": "node_network_receive_bytes_total", "device": "lo"}
+{"__name__": "node_network_receive_compressed_total", "device": "eth0"}
+{"__name__": "node_network_receive_compressed_total", "device": "lo"}
+{"__name__": "node_network_receive_drop_total", "device": "eth0"}
+{"__name__": "node_network_receive_drop_total", "device": "lo"}
+{"__name__": "node_network_receive_errs_total", "device": "eth0"}
+{"__name__": "node_network_receive_errs_total", "device": "lo"}
+{"__name__": "node_network_receive_fifo_total", "device": "eth0"}
+{"__name__": "node_network_receive_fifo_total", "device": "lo"}
+{"__name__": "node_network_receive_frame_total", "device": "eth0"}
+{"__name__": "node_network_receive_frame_total", "device": "lo"}
+{"__name__": "node_network_receive_multicast_total", "device": "eth0"}
+{"__name__": "node_network_receive_multicast_total", "device": "lo"}
+{"__name__": "node_network_receive_packets_total", "device": "eth0"}
+{"__name__": "node_network_receive_packets_total", "device": "lo"}
+{"__name__": "node_network_transmit_bytes_total", "device": "eth0"}
+{"__name__": "node_network_transmit_bytes_total", "device": "lo"}
+{"__name__": "node_network_transmit_compressed_total", "device": "eth0"}
+{"__name__": "node_network_transmit_compressed_total", "device": "lo"}
+{"__name__": "node_network_transmit_drop_total", "device": "eth0"}
+{"__name__": "node_network_transmit_drop_total", "device": "lo"}
+{"__name__": "node_network_transmit_errs_total", "device": "eth0"}
+{"__name__": "node_network_transmit_errs_total", "device": "lo"}
+{"__name__": "node_network_transmit_fifo_total", "device": "eth0"}
+{"__name__": "node_network_transmit_fifo_total", "device": "lo"}
+{"__name__": "node_network_transmit_frame_total", "device": "eth0"}
+{"__name__": "node_network_transmit_frame_total", "device": "lo"}
+{"__name__": "node_network_transmit_multicast_total", "device": "eth0"}
+{"__name__": "node_network_transmit_multicast_total", "device": "lo"}
+{"__name__": "node_network_transmit_packets_total", "device": "eth0"}
+{"__name__": "node_network_transmit_packets_total", "device": "lo"}
+{"__name__": "node_procs_blocked"}
+{"__name__": "node_procs_running"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "arp"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "bcache"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "conntrack"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "cpu"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "diskstats"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "edac"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "entropy"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "filefd"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "filesystem"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "hwmon"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "infiniband"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "ipvs"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "loadavg"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "mdadm"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "meminfo"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "meminfo_numa"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "netdev"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "netstat"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "sockstat"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "stat"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "systemd"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "tcpstat"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "textfile"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "time"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "uname"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "vmstat"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "wifi"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "xfs"}
+{"__name__": "node_scrape_collector_duration_seconds", "collector": "zfs"}
+{"__name__": "node_scrape_collector_success", "collector": "arp"}
+{"__name__": "node_scrape_collector_success", "collector": "bcache"}
+{"__name__": "node_scrape_collector_success", "collector": "conntrack"}
+{"__name__": "node_scrape_collector_success", "collector": "cpu"}
+{"__name__": "node_scrape_collector_success", "collector": "diskstats"}
+{"__name__": "node_scrape_collector_success", "collector": "edac"}
+{"__name__": "node_scrape_collector_success", "collector": "entropy"}
+{"__name__": "node_scrape_collector_success", "collector": "filefd"}
+{"__name__": "node_scrape_collector_success", "collector": "filesystem"}
+{"__name__": "node_scrape_collector_success", "collector": "hwmon"}
+{"__name__": "node_scrape_collector_success", "collector": "infiniband"}
+{"__name__": "node_scrape_collector_success", "collector": "ipvs"}
+{"__name__": "node_scrape_collector_success", "collector": "loadavg"}
+{"__name__": "node_scrape_collector_success", "collector": "mdadm"}
+{"__name__": "node_scrape_collector_success", "collector": "meminfo"}
+{"__name__": "node_scrape_collector_success", "collector": "meminfo_numa"}
+{"__name__": "node_scrape_collector_success", "collector": "netdev"}
+{"__name__": "node_scrape_collector_success", "collector": "netstat"}
+{"__name__": "node_scrape_collector_success", "collector": "sockstat"}
+{"__name__": "node_scrape_collector_success", "collector": "stat"}
+{"__name__": "node_scrape_collector_success", "collector": "systemd"}
+{"__name__": "node_scrape_collector_success", "collector": "tcpstat"}
+{"__name__": "node_scrape_collector_success", "collector": "textfile"}
+{"__name__": "node_scrape_collector_success", "collector": "time"}
+{"__name__": "node_scrape_collector_success", "collector": "uname"}
+{"__name__": "node_scrape_collector_success", "collector": "vmstat"}
+{"__name__": "node_scrape_collector_success", "collector": "wifi"}
+{"__name__": "node_scrape_collector_success", "collector": "xfs"}
+{"__name__": "node_scrape_collector_success", "collector": "zfs"}
+{"__name__": "node_sockstat_FRAG_inuse"}
+{"__name__": "node_sockstat_FRAG_memory"}
+{"__name__": "node_sockstat_RAW_inuse"}
+{"__name__": "node_sockstat_TCP_alloc"}
+{"__name__": "node_sockstat_TCP_inuse"}
+{"__name__": "node_sockstat_TCP_mem"}
+{"__name__": "node_sockstat_TCP_mem_bytes"}
+{"__name__": "node_sockstat_TCP_orphan"}
+{"__name__": "node_sockstat_TCP_tw"}
+{"__name__": "node_sockstat_UDPLITE_inuse"}
+{"__name__": "node_sockstat_UDP_inuse"}
+{"__name__": "node_sockstat_UDP_mem"}
+{"__name__": "node_sockstat_UDP_mem_bytes"}
+{"__name__": "node_sockstat_sockets_used"}
+{"__name__": "node_systemd_system_running"}
+{"__name__": "node_systemd_unit_state", "name": "-.mount", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "-.mount", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "-.mount", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "-.mount", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "-.mount", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "-.slice", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "-.slice", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "-.slice", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "-.slice", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "-.slice", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "NetworkManager.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "NetworkManager.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "NetworkManager.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "NetworkManager.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "NetworkManager.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "accounts-daemon.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "accounts-daemon.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "accounts-daemon.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "accounts-daemon.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "accounts-daemon.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "acpid.path", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "acpid.path", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "acpid.path", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "acpid.path", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "acpid.path", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "acpid.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "acpid.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "acpid.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "acpid.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "acpid.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "acpid.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "acpid.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "acpid.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "acpid.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "acpid.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "apparmor.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "apparmor.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "apparmor.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "apparmor.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "apparmor.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "apport-forward.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "apport-forward.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "apport-forward.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "apport-forward.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "apport-forward.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "apport.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "apport.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "apport.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "apport.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "apport.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily-upgrade.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily-upgrade.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily-upgrade.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily-upgrade.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily-upgrade.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily-upgrade.timer", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily-upgrade.timer", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily-upgrade.timer", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily-upgrade.timer", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily-upgrade.timer", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily.timer", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily.timer", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily.timer", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily.timer", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "apt-daily.timer", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "atd.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "atd.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "atd.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "atd.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "atd.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "auditd.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "auditd.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "auditd.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "auditd.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "auditd.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "basic.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "basic.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "basic.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "basic.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "basic.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "boot-efi.mount", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "boot-efi.mount", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "boot-efi.mount", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "boot-efi.mount", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "boot-efi.mount", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-config.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-config.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-config.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-config.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-config.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-config.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-config.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-config.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-config.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-config.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-final.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-final.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-final.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-final.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-final.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-init-local.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-init-local.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-init-local.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-init-local.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-init-local.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-init.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-init.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-init.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-init.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-init.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-init.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-init.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-init.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-init.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "cloud-init.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "console-screen.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "console-screen.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "console-screen.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "console-screen.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "console-screen.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "console-setup.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "console-setup.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "console-setup.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "console-setup.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "console-setup.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "cron.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "cron.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "cron.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "cron.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "cron.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "cryptsetup.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "cryptsetup.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "cryptsetup.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "cryptsetup.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "cryptsetup.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dbus.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dbus.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dbus.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dbus.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dbus.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dbus.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dbus.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dbus.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dbus.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dbus.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dlabel-UEFI.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dlabel-UEFI.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dlabel-UEFI.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dlabel-UEFI.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dlabel-UEFI.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dlabel-cloudimg\\\\x2drootfs.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dlabel-cloudimg\\\\x2drootfs.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dlabel-cloudimg\\\\x2drootfs.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dlabel-cloudimg\\\\x2drootfs.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dlabel-cloudimg\\\\x2drootfs.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpartuuid-0c1c2d3d\\\\x2d8506\\\\x2d4411\\\\x2d94a3\\\\x2d7a5dc8424000.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpartuuid-0c1c2d3d\\\\x2d8506\\\\x2d4411\\\\x2d94a3\\\\x2d7a5dc8424000.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpartuuid-0c1c2d3d\\\\x2d8506\\\\x2d4411\\\\x2d94a3\\\\x2d7a5dc8424000.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpartuuid-0c1c2d3d\\\\x2d8506\\\\x2d4411\\\\x2d94a3\\\\x2d7a5dc8424000.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpartuuid-0c1c2d3d\\\\x2d8506\\\\x2d4411\\\\x2d94a3\\\\x2d7a5dc8424000.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpartuuid-89214de7\\\\x2deba6\\\\x2d49d4\\\\x2db54e\\\\x2d344a2ee14912.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpartuuid-89214de7\\\\x2deba6\\\\x2d49d4\\\\x2db54e\\\\x2d344a2ee14912.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpartuuid-89214de7\\\\x2deba6\\\\x2d49d4\\\\x2db54e\\\\x2d344a2ee14912.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpartuuid-89214de7\\\\x2deba6\\\\x2d49d4\\\\x2db54e\\\\x2d344a2ee14912.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpartuuid-89214de7\\\\x2deba6\\\\x2d49d4\\\\x2db54e\\\\x2d344a2ee14912.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpartuuid-9ef1fe04\\\\x2d638a\\\\x2d41e0\\\\x2d9eb7\\\\x2dd3be6c2a12e6.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpartuuid-9ef1fe04\\\\x2d638a\\\\x2d41e0\\\\x2d9eb7\\\\x2dd3be6c2a12e6.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpartuuid-9ef1fe04\\\\x2d638a\\\\x2d41e0\\\\x2d9eb7\\\\x2dd3be6c2a12e6.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpartuuid-9ef1fe04\\\\x2d638a\\\\x2d41e0\\\\x2d9eb7\\\\x2dd3be6c2a12e6.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpartuuid-9ef1fe04\\\\x2d638a\\\\x2d41e0\\\\x2d9eb7\\\\x2dd3be6c2a12e6.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0\\\\x2dpart1.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0\\\\x2dpart1.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0\\\\x2dpart1.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0\\\\x2dpart1.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0\\\\x2dpart1.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0\\\\x2dpart14.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0\\\\x2dpart14.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0\\\\x2dpart14.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0\\\\x2dpart14.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0\\\\x2dpart14.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0\\\\x2dpart15.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0\\\\x2dpart15.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0\\\\x2dpart15.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0\\\\x2dpart15.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2dpath-virtio\\\\x2dpci\\\\x2d0000:00:05.0\\\\x2dpart15.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2duuid-4817\\\\x2d65C6.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2duuid-4817\\\\x2d65C6.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2duuid-4817\\\\x2d65C6.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2duuid-4817\\\\x2d65C6.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2duuid-4817\\\\x2d65C6.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2duuid-a9b6d43b\\\\x2ddd20\\\\x2d4077\\\\x2da5c4\\\\x2dd462d8d0d073.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2duuid-a9b6d43b\\\\x2ddd20\\\\x2d4077\\\\x2da5c4\\\\x2dd462d8d0d073.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2duuid-a9b6d43b\\\\x2ddd20\\\\x2d4077\\\\x2da5c4\\\\x2dd462d8d0d073.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2duuid-a9b6d43b\\\\x2ddd20\\\\x2d4077\\\\x2da5c4\\\\x2dd462d8d0d073.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-disk-by\\\\x2duuid-a9b6d43b\\\\x2ddd20\\\\x2d4077\\\\x2da5c4\\\\x2dd462d8d0d073.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-hugepages.mount", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-hugepages.mount", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-hugepages.mount", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-hugepages.mount", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-hugepages.mount", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-mqueue.mount", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-mqueue.mount", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-mqueue.mount", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-mqueue.mount", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-mqueue.mount", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-rfkill.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-rfkill.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-rfkill.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-rfkill.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-rfkill.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS0.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS0.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS0.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS0.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS0.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS1.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS1.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS1.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS1.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS1.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS10.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS10.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS10.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS10.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS10.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS11.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS11.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS11.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS11.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS11.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS12.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS12.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS12.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS12.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS12.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS13.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS13.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS13.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS13.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS13.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS14.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS14.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS14.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS14.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS14.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS15.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS15.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS15.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS15.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS15.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS16.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS16.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS16.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS16.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS16.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS17.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS17.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS17.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS17.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS17.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS18.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS18.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS18.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS18.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS18.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS19.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS19.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS19.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS19.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS19.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS2.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS2.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS2.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS2.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS2.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS20.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS20.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS20.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS20.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS20.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS21.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS21.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS21.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS21.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS21.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS22.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS22.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS22.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS22.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS22.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS23.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS23.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS23.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS23.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS23.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS24.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS24.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS24.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS24.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS24.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS25.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS25.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS25.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS25.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS25.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS26.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS26.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS26.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS26.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS26.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS27.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS27.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS27.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS27.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS27.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS28.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS28.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS28.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS28.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS28.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS29.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS29.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS29.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS29.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS29.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS3.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS3.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS3.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS3.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS3.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS30.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS30.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS30.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS30.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS30.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS31.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS31.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS31.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS31.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS31.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS4.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS4.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS4.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS4.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS4.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS5.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS5.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS5.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS5.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS5.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS6.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS6.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS6.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS6.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS6.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS7.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS7.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS7.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS7.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS7.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS8.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS8.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS8.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS8.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS8.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS9.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS9.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS9.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS9.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyS9.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyprintk.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyprintk.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyprintk.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyprintk.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-ttyprintk.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda1.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda1.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda1.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda1.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda1.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda14.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda14.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda14.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda14.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda14.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda15.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda15.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda15.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda15.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dev-vda15.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "display-manager.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "display-manager.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "display-manager.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "display-manager.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "display-manager.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dm-event.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dm-event.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dm-event.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dm-event.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dm-event.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "dm-event.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "dm-event.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "dm-event.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "dm-event.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "dm-event.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "emergency.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "emergency.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "emergency.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "emergency.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "emergency.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "emergency.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "emergency.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "emergency.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "emergency.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "emergency.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "friendly-recovery.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "friendly-recovery.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "friendly-recovery.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "friendly-recovery.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "friendly-recovery.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "getty-static.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "getty-static.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "getty-static.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "getty-static.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "getty-static.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "getty.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "getty.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "getty.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "getty.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "getty.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "getty@tty1.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "getty@tty1.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "getty@tty1.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "getty@tty1.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "getty@tty1.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "graphical.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "graphical.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "graphical.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "graphical.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "graphical.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "grub-common.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "grub-common.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "grub-common.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "grub-common.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "grub-common.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "irqbalance.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "irqbalance.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "irqbalance.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "irqbalance.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "irqbalance.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "iscsid.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "iscsid.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "iscsid.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "iscsid.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "iscsid.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "kbd.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "kbd.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "kbd.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "kbd.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "kbd.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "keyboard-setup.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "keyboard-setup.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "keyboard-setup.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "keyboard-setup.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "keyboard-setup.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "kmod-static-nodes.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "kmod-static-nodes.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "kmod-static-nodes.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "kmod-static-nodes.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "kmod-static-nodes.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "local-fs-pre.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "local-fs-pre.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "local-fs-pre.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "local-fs-pre.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "local-fs-pre.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "local-fs.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "local-fs.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "local-fs.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "local-fs.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "local-fs.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-activation.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-activation.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-activation.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-activation.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-activation.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmetad.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmetad.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmetad.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmetad.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmetad.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmetad.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmetad.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmetad.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmetad.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmetad.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmpolld.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmpolld.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmpolld.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmpolld.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmpolld.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmpolld.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmpolld.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmpolld.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmpolld.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-lvmpolld.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-monitor.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-monitor.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-monitor.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-monitor.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "lvm2-monitor.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "lxc.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "lxc.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "lxc.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "lxc.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "lxc.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "lxcfs.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "lxcfs.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "lxcfs.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "lxcfs.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "lxcfs.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "lxd-bridge.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "lxd-bridge.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "lxd-bridge.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "lxd-bridge.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "lxd-bridge.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "lxd-containers.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "lxd-containers.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "lxd-containers.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "lxd-containers.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "lxd-containers.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "lxd.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "lxd.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "lxd.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "lxd.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "lxd.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "lxd.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "lxd.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "lxd.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "lxd.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "lxd.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "mdadm.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "mdadm.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "mdadm.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "mdadm.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "mdadm.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "multi-user.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "multi-user.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "multi-user.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "multi-user.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "multi-user.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "network-online.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "network-online.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "network-online.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "network-online.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "network-online.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "network-pre.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "network-pre.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "network-pre.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "network-pre.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "network-pre.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "network.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "network.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "network.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "network.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "network.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "networking.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "networking.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "networking.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "networking.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "networking.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "nss-user-lookup.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "nss-user-lookup.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "nss-user-lookup.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "nss-user-lookup.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "nss-user-lookup.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "ondemand.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "ondemand.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "ondemand.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "ondemand.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "ondemand.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "open-iscsi.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "open-iscsi.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "open-iscsi.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "open-iscsi.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "open-iscsi.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "open-vm-tools.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "open-vm-tools.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "open-vm-tools.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "open-vm-tools.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "open-vm-tools.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "openvswitch-switch.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "openvswitch-switch.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "openvswitch-switch.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "openvswitch-switch.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "openvswitch-switch.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "org.freedesktop.network1.busname", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "org.freedesktop.network1.busname", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "org.freedesktop.network1.busname", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "org.freedesktop.network1.busname", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "org.freedesktop.network1.busname", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "paths.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "paths.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "paths.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "paths.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "paths.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-quit-wait.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-quit-wait.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-quit-wait.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-quit-wait.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-quit-wait.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-quit.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-quit.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-quit.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-quit.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-quit.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-read-write.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-read-write.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-read-write.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-read-write.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-read-write.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-start.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-start.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-start.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-start.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "plymouth-start.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "polkitd.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "polkitd.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "polkitd.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "polkitd.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "polkitd.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "pollinate.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "pollinate.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "pollinate.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "pollinate.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "pollinate.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "proc-sys-fs-binfmt_misc.automount", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "proc-sys-fs-binfmt_misc.automount", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "proc-sys-fs-binfmt_misc.automount", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "proc-sys-fs-binfmt_misc.automount", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "proc-sys-fs-binfmt_misc.automount", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "proc-sys-fs-binfmt_misc.mount", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "proc-sys-fs-binfmt_misc.mount", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "proc-sys-fs-binfmt_misc.mount", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "proc-sys-fs-binfmt_misc.mount", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "proc-sys-fs-binfmt_misc.mount", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "rc-local.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "rc-local.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "rc-local.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "rc-local.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "rc-local.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "remote-fs-pre.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "remote-fs-pre.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "remote-fs-pre.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "remote-fs-pre.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "remote-fs-pre.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "remote-fs.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "remote-fs.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "remote-fs.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "remote-fs.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "remote-fs.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "rescue.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "rescue.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "rescue.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "rescue.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "rescue.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "rescue.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "rescue.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "rescue.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "rescue.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "rescue.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "resolvconf.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "resolvconf.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "resolvconf.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "resolvconf.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "resolvconf.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "rsyslog.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "rsyslog.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "rsyslog.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "rsyslog.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "rsyslog.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "run-user-0.mount", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "run-user-0.mount", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "run-user-0.mount", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "run-user-0.mount", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "run-user-0.mount", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "serial-getty@ttyS0.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "serial-getty@ttyS0.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "serial-getty@ttyS0.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "serial-getty@ttyS0.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "serial-getty@ttyS0.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "setvtrgb.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "setvtrgb.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "setvtrgb.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "setvtrgb.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "setvtrgb.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "shutdown.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "shutdown.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "shutdown.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "shutdown.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "shutdown.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "slices.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "slices.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "slices.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "slices.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "slices.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.autoimport.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.autoimport.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.autoimport.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.autoimport.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.autoimport.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.core-fixup.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.core-fixup.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.core-fixup.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.core-fixup.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.core-fixup.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.refresh.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.refresh.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.refresh.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.refresh.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.refresh.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.refresh.timer", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.refresh.timer", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.refresh.timer", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.refresh.timer", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.refresh.timer", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.snap-repair.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.snap-repair.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.snap-repair.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.snap-repair.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.snap-repair.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.snap-repair.timer", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.snap-repair.timer", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.snap-repair.timer", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.snap-repair.timer", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.snap-repair.timer", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "snapd.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sockets.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sockets.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sockets.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sockets.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sockets.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "ssh.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "ssh.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "ssh.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "ssh.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "ssh.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sshd-keygen.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sshd-keygen.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sshd-keygen.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sshd-keygen.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sshd-keygen.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "swap.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "swap.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "swap.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "swap.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "swap.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:03.0-virtio0-net-ens3.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:03.0-virtio0-net-ens3.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:03.0-virtio0-net-ens3.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:03.0-virtio0-net-ens3.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:03.0-virtio0-net-ens3.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:03.0-virtio0-net-eth0.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:03.0-virtio0-net-eth0.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:03.0-virtio0-net-eth0.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:03.0-virtio0-net-eth0.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:03.0-virtio0-net-eth0.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda-vda1.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda-vda1.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda-vda1.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda-vda1.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda-vda1.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda-vda14.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda-vda14.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda-vda14.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda-vda14.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda-vda14.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda-vda15.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda-vda15.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda-vda15.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda-vda15.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda-vda15.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pci0000:00-0000:00:05.0-virtio2-block-vda.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS1.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS1.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS1.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS1.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS1.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS10.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS10.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS10.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS10.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS10.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS11.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS11.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS11.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS11.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS11.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS12.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS12.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS12.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS12.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS12.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS13.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS13.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS13.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS13.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS13.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS14.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS14.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS14.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS14.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS14.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS15.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS15.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS15.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS15.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS15.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS16.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS16.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS16.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS16.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS16.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS17.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS17.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS17.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS17.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS17.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS18.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS18.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS18.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS18.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS18.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS19.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS19.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS19.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS19.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS19.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS2.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS2.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS2.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS2.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS2.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS20.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS20.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS20.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS20.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS20.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS21.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS21.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS21.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS21.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS21.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS22.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS22.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS22.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS22.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS22.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS23.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS23.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS23.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS23.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS23.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS24.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS24.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS24.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS24.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS24.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS25.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS25.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS25.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS25.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS25.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS26.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS26.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS26.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS26.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS26.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS27.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS27.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS27.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS27.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS27.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS28.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS28.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS28.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS28.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS28.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS29.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS29.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS29.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS29.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS29.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS3.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS3.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS3.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS3.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS3.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS30.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS30.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS30.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS30.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS30.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS31.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS31.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS31.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS31.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS31.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS4.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS4.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS4.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS4.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS4.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS5.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS5.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS5.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS5.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS5.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS6.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS6.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS6.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS6.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS6.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS7.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS7.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS7.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS7.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS7.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS8.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS8.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS8.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS8.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS8.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS9.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS9.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS9.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS9.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-platform-serial8250-tty-ttyS9.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pnp0-00:04-tty-ttyS0.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pnp0-00:04-tty-ttyS0.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pnp0-00:04-tty-ttyS0.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pnp0-00:04-tty-ttyS0.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-pnp0-00:04-tty-ttyS0.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-virtual-misc-rfkill.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-virtual-misc-rfkill.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-virtual-misc-rfkill.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-virtual-misc-rfkill.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-virtual-misc-rfkill.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-virtual-tty-ttyprintk.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-virtual-tty-ttyprintk.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-virtual-tty-ttyprintk.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-virtual-tty-ttyprintk.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-devices-virtual-tty-ttyprintk.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-fs-fuse-connections.mount", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-fs-fuse-connections.mount", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-fs-fuse-connections.mount", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-fs-fuse-connections.mount", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-fs-fuse-connections.mount", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-kernel-config.mount", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-kernel-config.mount", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-kernel-config.mount", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-kernel-config.mount", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-kernel-config.mount", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-kernel-debug.mount", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-kernel-debug.mount", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-kernel-debug.mount", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-kernel-debug.mount", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-kernel-debug.mount", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-module-fuse.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-module-fuse.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-module-fuse.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-module-fuse.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-module-fuse.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-subsystem-net-devices-ens3.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-subsystem-net-devices-ens3.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-subsystem-net-devices-ens3.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-subsystem-net-devices-ens3.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-subsystem-net-devices-ens3.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sys-subsystem-net-devices-eth0.device", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-subsystem-net-devices-eth0.device", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sys-subsystem-net-devices-eth0.device", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sys-subsystem-net-devices-eth0.device", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sys-subsystem-net-devices-eth0.device", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "sysinit.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "sysinit.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "sysinit.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "sysinit.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "sysinit.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "syslog.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "syslog.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "syslog.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "syslog.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "syslog.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "system-getty.slice", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "system-getty.slice", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "system-getty.slice", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "system-getty.slice", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "system-getty.slice", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "system-serial\\\\x2dgetty.slice", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "system-serial\\\\x2dgetty.slice", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "system-serial\\\\x2dgetty.slice", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "system-serial\\\\x2dgetty.slice", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "system-serial\\\\x2dgetty.slice", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "system.slice", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "system.slice", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "system.slice", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "system.slice", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "system.slice", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-console.path", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-console.path", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-console.path", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-console.path", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-console.path", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-console.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-console.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-console.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-console.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-console.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-plymouth.path", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-plymouth.path", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-plymouth.path", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-plymouth.path", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-plymouth.path", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-plymouth.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-plymouth.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-plymouth.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-plymouth.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-plymouth.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-wall.path", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-wall.path", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-wall.path", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-wall.path", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-wall.path", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-wall.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-wall.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-wall.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-wall.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-ask-password-wall.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-binfmt.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-binfmt.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-binfmt.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-binfmt.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-binfmt.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-fsck-root.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-fsck-root.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-fsck-root.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-fsck-root.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-fsck-root.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-fsckd.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-fsckd.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-fsckd.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-fsckd.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-fsckd.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-fsckd.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-fsckd.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-fsckd.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-fsckd.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-fsckd.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-hwdb-update.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-hwdb-update.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-hwdb-update.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-hwdb-update.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-hwdb-update.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-initctl.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-initctl.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-initctl.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-initctl.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-initctl.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-initctl.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-initctl.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-initctl.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-initctl.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-initctl.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journal-flush.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journal-flush.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journal-flush.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journal-flush.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journal-flush.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald-audit.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald-audit.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald-audit.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald-audit.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald-audit.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald-dev-log.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald-dev-log.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald-dev-log.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald-dev-log.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald-dev-log.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-journald.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-logind.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-logind.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-logind.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-logind.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-logind.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-machine-id-commit.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-machine-id-commit.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-machine-id-commit.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-machine-id-commit.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-machine-id-commit.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-modules-load.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-modules-load.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-modules-load.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-modules-load.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-modules-load.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd-resolvconf-update.path", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd-resolvconf-update.path", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd-resolvconf-update.path", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd-resolvconf-update.path", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd-resolvconf-update.path", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd-resolvconf-update.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd-resolvconf-update.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd-resolvconf-update.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd-resolvconf-update.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd-resolvconf-update.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd-wait-online.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd-wait-online.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd-wait-online.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd-wait-online.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd-wait-online.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-networkd.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-random-seed.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-random-seed.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-random-seed.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-random-seed.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-random-seed.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-remount-fs.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-remount-fs.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-remount-fs.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-remount-fs.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-remount-fs.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-rfkill.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-rfkill.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-rfkill.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-rfkill.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-rfkill.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-rfkill.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-rfkill.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-rfkill.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-rfkill.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-rfkill.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-sysctl.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-sysctl.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-sysctl.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-sysctl.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-sysctl.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-sysusers.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-sysusers.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-sysusers.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-sysusers.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-sysusers.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-timesyncd.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-timesyncd.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-timesyncd.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-timesyncd.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-timesyncd.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-clean.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-clean.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-clean.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-clean.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-clean.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-clean.timer", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-clean.timer", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-clean.timer", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-clean.timer", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-clean.timer", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-setup-dev.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-setup-dev.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-setup-dev.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-setup-dev.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-setup-dev.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-setup.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-setup.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-setup.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-setup.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-tmpfiles-setup.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udev-trigger.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udev-trigger.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udev-trigger.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udev-trigger.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udev-trigger.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udevd-control.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udevd-control.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udevd-control.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udevd-control.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udevd-control.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udevd-kernel.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udevd-kernel.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udevd-kernel.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udevd-kernel.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udevd-kernel.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udevd.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udevd.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udevd.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udevd.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-udevd.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-update-done.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-update-done.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-update-done.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-update-done.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-update-done.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-update-utmp-runlevel.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-update-utmp-runlevel.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-update-utmp-runlevel.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-update-utmp-runlevel.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-update-utmp-runlevel.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-update-utmp.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-update-utmp.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-update-utmp.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-update-utmp.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-update-utmp.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-user-sessions.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-user-sessions.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-user-sessions.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-user-sessions.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-user-sessions.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-vconsole-setup.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-vconsole-setup.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-vconsole-setup.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-vconsole-setup.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "systemd-vconsole-setup.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "time-sync.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "time-sync.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "time-sync.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "time-sync.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "time-sync.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "timers.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "timers.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "timers.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "timers.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "timers.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "tmp.mount", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "tmp.mount", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "tmp.mount", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "tmp.mount", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "tmp.mount", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "ufw.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "ufw.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "ufw.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "ufw.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "ufw.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "umount.target", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "umount.target", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "umount.target", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "umount.target", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "umount.target", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "unattended-upgrades.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "unattended-upgrades.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "unattended-upgrades.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "unattended-upgrades.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "unattended-upgrades.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "ureadahead-stop.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "ureadahead-stop.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "ureadahead-stop.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "ureadahead-stop.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "ureadahead-stop.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "ureadahead-stop.timer", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "ureadahead-stop.timer", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "ureadahead-stop.timer", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "ureadahead-stop.timer", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "ureadahead-stop.timer", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "ureadahead.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "ureadahead.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "ureadahead.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "ureadahead.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "ureadahead.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "user-0.slice", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "user-0.slice", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "user-0.slice", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "user-0.slice", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "user-0.slice", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "user.slice", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "user.slice", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "user.slice", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "user.slice", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "user.slice", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "user@0.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "user@0.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "user@0.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "user@0.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "user@0.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "uuidd.service", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "uuidd.service", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "uuidd.service", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "uuidd.service", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "uuidd.service", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "uuidd.socket", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "uuidd.socket", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "uuidd.socket", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "uuidd.socket", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "uuidd.socket", "state": "inactive"}
+{"__name__": "node_systemd_unit_state", "name": "var-lib-lxcfs.mount", "state": "activating"}
+{"__name__": "node_systemd_unit_state", "name": "var-lib-lxcfs.mount", "state": "active"}
+{"__name__": "node_systemd_unit_state", "name": "var-lib-lxcfs.mount", "state": "deactivating"}
+{"__name__": "node_systemd_unit_state", "name": "var-lib-lxcfs.mount", "state": "failed"}
+{"__name__": "node_systemd_unit_state", "name": "var-lib-lxcfs.mount", "state": "inactive"}
+{"__name__": "node_systemd_units", "state": "activating"}
+{"__name__": "node_systemd_units", "state": "active"}
+{"__name__": "node_systemd_units", "state": "deactivating"}
+{"__name__": "node_systemd_units", "state": "failed"}
+{"__name__": "node_systemd_units", "state": "inactive"}
+{"__name__": "node_tcp_connection_states", "state": "established"}
+{"__name__": "node_tcp_connection_states", "state": "listen"}
+{"__name__": "node_tcp_connection_states", "state": "time_wait"}
+{"__name__": "node_textfile_scrape_error"}
+{"__name__": "node_time"}
+{"__name__": "node_uname_info", "domainname": "(none)", "machine": "x86_64", "nodename": "ubuntu-s-1vcpu-1gb-nyc3-01", "release": "4.4.0-112-generic", "sysname": "Linux", "version": "#135-Ubunt"}
+{"__name__": "node_vmstat_allocstall"}
+{"__name__": "node_vmstat_balloon_deflate"}
+{"__name__": "node_vmstat_balloon_inflate"}
+{"__name__": "node_vmstat_balloon_migrate"}
+{"__name__": "node_vmstat_compact_fail"}
+{"__name__": "node_vmstat_compact_free_scanned"}
+{"__name__": "node_vmstat_compact_isolated"}
+{"__name__": "node_vmstat_compact_migrate_scanned"}
+{"__name__": "node_vmstat_compact_stall"}
+{"__name__": "node_vmstat_compact_success"}
+{"__name__": "node_vmstat_drop_pagecache"}
+{"__name__": "node_vmstat_drop_slab"}
+{"__name__": "node_vmstat_htlb_buddy_alloc_fail"}
+{"__name__": "node_vmstat_htlb_buddy_alloc_success"}
+{"__name__": "node_vmstat_kswapd_high_wmark_hit_quickly"}
+{"__name__": "node_vmstat_kswapd_inodesteal"}
+{"__name__": "node_vmstat_kswapd_low_wmark_hit_quickly"}
+{"__name__": "node_vmstat_nr_active_anon"}
+{"__name__": "node_vmstat_nr_active_file"}
+{"__name__": "node_vmstat_nr_alloc_batch"}
+{"__name__": "node_vmstat_nr_anon_pages"}
+{"__name__": "node_vmstat_nr_anon_transparent_hugepages"}
+{"__name__": "node_vmstat_nr_bounce"}
+{"__name__": "node_vmstat_nr_dirtied"}
+{"__name__": "node_vmstat_nr_dirty"}
+{"__name__": "node_vmstat_nr_dirty_background_threshold"}
+{"__name__": "node_vmstat_nr_dirty_threshold"}
+{"__name__": "node_vmstat_nr_file_pages"}
+{"__name__": "node_vmstat_nr_free_cma"}
+{"__name__": "node_vmstat_nr_free_pages"}
+{"__name__": "node_vmstat_nr_inactive_anon"}
+{"__name__": "node_vmstat_nr_inactive_file"}
+{"__name__": "node_vmstat_nr_isolated_anon"}
+{"__name__": "node_vmstat_nr_isolated_file"}
+{"__name__": "node_vmstat_nr_kernel_stack"}
+{"__name__": "node_vmstat_nr_mapped"}
+{"__name__": "node_vmstat_nr_mlock"}
+{"__name__": "node_vmstat_nr_overhead"}
+{"__name__": "node_vmstat_nr_page_table_pages"}
+{"__name__": "node_vmstat_nr_pages_scanned"}
+{"__name__": "node_vmstat_nr_shmem"}
+{"__name__": "node_vmstat_nr_slab_reclaimable"}
+{"__name__": "node_vmstat_nr_slab_unreclaimable"}
+{"__name__": "node_vmstat_nr_unevictable"}
+{"__name__": "node_vmstat_nr_unstable"}
+{"__name__": "node_vmstat_nr_vmscan_immediate_reclaim"}
+{"__name__": "node_vmstat_nr_vmscan_write"}
+{"__name__": "node_vmstat_nr_writeback"}
+{"__name__": "node_vmstat_nr_writeback_temp"}
+{"__name__": "node_vmstat_nr_written"}
+{"__name__": "node_vmstat_numa_foreign"}
+{"__name__": "node_vmstat_numa_hint_faults"}
+{"__name__": "node_vmstat_numa_hint_faults_local"}
+{"__name__": "node_vmstat_numa_hit"}
+{"__name__": "node_vmstat_numa_huge_pte_updates"}
+{"__name__": "node_vmstat_numa_interleave"}
+{"__name__": "node_vmstat_numa_local"}
+{"__name__": "node_vmstat_numa_miss"}
+{"__name__": "node_vmstat_numa_other"}
+{"__name__": "node_vmstat_numa_pages_migrated"}
+{"__name__": "node_vmstat_numa_pte_updates"}
+{"__name__": "node_vmstat_pageoutrun"}
+{"__name__": "node_vmstat_pgactivate"}
+{"__name__": "node_vmstat_pgalloc_dma"}
+{"__name__": "node_vmstat_pgalloc_dma32"}
+{"__name__": "node_vmstat_pgalloc_movable"}
+{"__name__": "node_vmstat_pgalloc_normal"}
+{"__name__": "node_vmstat_pgdeactivate"}
+{"__name__": "node_vmstat_pgfault"}
+{"__name__": "node_vmstat_pgfree"}
+{"__name__": "node_vmstat_pginodesteal"}
+{"__name__": "node_vmstat_pgmajfault"}
+{"__name__": "node_vmstat_pgmigrate_fail"}
+{"__name__": "node_vmstat_pgmigrate_success"}
+{"__name__": "node_vmstat_pgpgin"}
+{"__name__": "node_vmstat_pgpgout"}
+{"__name__": "node_vmstat_pgrefill_dma"}
+{"__name__": "node_vmstat_pgrefill_dma32"}
+{"__name__": "node_vmstat_pgrefill_movable"}
+{"__name__": "node_vmstat_pgrefill_normal"}
+{"__name__": "node_vmstat_pgrotated"}
+{"__name__": "node_vmstat_pgscan_direct_dma"}
+{"__name__": "node_vmstat_pgscan_direct_dma32"}
+{"__name__": "node_vmstat_pgscan_direct_movable"}
+{"__name__": "node_vmstat_pgscan_direct_normal"}
+{"__name__": "node_vmstat_pgscan_direct_throttle"}
+{"__name__": "node_vmstat_pgscan_kswapd_dma"}
+{"__name__": "node_vmstat_pgscan_kswapd_dma32"}
+{"__name__": "node_vmstat_pgscan_kswapd_movable"}
+{"__name__": "node_vmstat_pgscan_kswapd_normal"}
+{"__name__": "node_vmstat_pgsteal_direct_dma"}
+{"__name__": "node_vmstat_pgsteal_direct_dma32"}
+{"__name__": "node_vmstat_pgsteal_direct_movable"}
+{"__name__": "node_vmstat_pgsteal_direct_normal"}
+{"__name__": "node_vmstat_pgsteal_kswapd_dma"}
+{"__name__": "node_vmstat_pgsteal_kswapd_dma32"}
+{"__name__": "node_vmstat_pgsteal_kswapd_movable"}
+{"__name__": "node_vmstat_pgsteal_kswapd_normal"}
+{"__name__": "node_vmstat_pswpin"}
+{"__name__": "node_vmstat_pswpout"}
+{"__name__": "node_vmstat_slabs_scanned"}
+{"__name__": "node_vmstat_thp_collapse_alloc"}
+{"__name__": "node_vmstat_thp_collapse_alloc_failed"}
+{"__name__": "node_vmstat_thp_fault_alloc"}
+{"__name__": "node_vmstat_thp_fault_fallback"}
+{"__name__": "node_vmstat_thp_split"}
+{"__name__": "node_vmstat_thp_zero_page_alloc"}
+{"__name__": "node_vmstat_thp_zero_page_alloc_failed"}
+{"__name__": "node_vmstat_unevictable_pgs_cleared"}
+{"__name__": "node_vmstat_unevictable_pgs_culled"}
+{"__name__": "node_vmstat_unevictable_pgs_mlocked"}
+{"__name__": "node_vmstat_unevictable_pgs_munlocked"}
+{"__name__": "node_vmstat_unevictable_pgs_rescued"}
+{"__name__": "node_vmstat_unevictable_pgs_scanned"}
+{"__name__": "node_vmstat_unevictable_pgs_stranded"}
+{"__name__": "node_vmstat_workingset_activate"}
+{"__name__": "node_vmstat_workingset_nodereclaim"}
+{"__name__": "node_vmstat_workingset_refault"}
+{"__name__": "node_vmstat_zone_reclaim_failed"}
+{"__name__": "process_cpu_seconds_total"}
+{"__name__": "process_max_fds"}
+{"__name__": "process_open_fds"}
+{"__name__": "process_resident_memory_bytes"}
+{"__name__": "process_start_time_seconds"}
+{"__name__": "process_virtual_memory_bytes"}
