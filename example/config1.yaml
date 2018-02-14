@@ -1,6 +1,5 @@
 logging:
   level: info
-  # file: /var/log/m3dbnode.log
 
 metrics:
   m3:
@@ -19,8 +18,7 @@ debugListenAddress: 0.0.0.0:9004
 
 hostID:
   resolver: config
-  value: localhost1
-  # value: {{.HostID}}
+  value: m3db_server_1
 
 client:
   writeConsistencyLevel: majority

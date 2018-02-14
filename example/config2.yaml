@@ -1,6 +1,5 @@
 logging:
   level: info
-  # file: /var/log/m3dbnode.log
 
 metrics:
   m3:
@@ -11,16 +10,15 @@ metrics:
   samplingRate: 0.01
   runtime: simple
 
-listenAddress: 0.0.0.0:9020
-clusterListenAddress: 0.0.0.0:9021
-httpNodeListenAddress: 0.0.0.0:9022
-httpClusterListenAddress: 0.0.0.0:9023
-debugListenAddress: 0.0.0.0:9024
+listenAddress: 0.0.0.0:9010
+clusterListenAddress: 0.0.0.0:9011
+httpNodeListenAddress: 0.0.0.0:9012
+httpClusterListenAddress: 0.0.0.0:9013
+debugListenAddress: 0.0.0.0:9014
 
 hostID:
   resolver: config
-  value: localhost3
-  # value: {{.HostID}}
+  value: m3db_server_2
 
 client:
   writeConsistencyLevel: majority
