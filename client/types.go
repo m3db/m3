@@ -31,9 +31,9 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
@@ -208,10 +208,10 @@ type Session interface {
 	FetchAll(namespace string, ids []string, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
 
 	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
-	FetchTagged(q Query, opts QueryOptions) (i encoding.SeriesIterators, t QueryResultsPageToken, moreResults bool, err error)
+	FetchTagged(index.Query, index.QueryOptions) (index.QueryResults, error)
 
 	// FetchTaggedIDs resolves the provided query to known IDs.
-	FetchTaggedIDs(q Query, opts QueryOptions) (i TaggedIDsIter, t QueryResultsPageToken, moreResults bool, err error)
+	FetchTaggedIDs(index.Query, index.QueryOptions) (index.QueryResults, error)
 
 	// ShardID returns the given shard for an ID for callers
 	// to easily discern what shard is failing when operations
@@ -221,22 +221,6 @@ type Session interface {
 	// Close the session
 	Close() error
 }
-
-// Query is a rich end user query to describe a set of constraints on required IDs.
-type Query struct {
-	segment.Query
-}
-
-// QueryOptions enables users to specify constraints on query execution.
-type QueryOptions struct {
-	StartInclusive time.Time
-	EndExclusive   time.Time
-	Limit          int
-	PageToken      QueryResultsPageToken
-}
-
-// QueryResultsPageToken is an opaque token for query result pagination.
-type QueryResultsPageToken []byte
 
 // AdminClient can create administration sessions
 type AdminClient interface {

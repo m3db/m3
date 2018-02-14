@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
@@ -869,15 +870,15 @@ func (s *session) FetchAll(
 }
 
 func (s *session) FetchTagged(
-	q Query, opts QueryOptions,
-) (encoding.SeriesIterators, QueryResultsPageToken, bool, error) {
-	return nil, nil, false, errNotImplemented
+	q index.Query, opts index.QueryOptions,
+) (index.QueryResults, error) {
+	return index.QueryResults{}, errNotImplemented
 }
 
 func (s *session) FetchTaggedIDs(
-	q Query, opts QueryOptions,
-) (TaggedIDsIter, QueryResultsPageToken, bool, error) {
-	return nil, nil, false, errNotImplemented
+	q index.Query, opts index.QueryOptions,
+) (index.QueryResults, error) {
+	return index.QueryResults{}, errNotImplemented
 }
 
 func (s *session) fetchAllAttempt(
