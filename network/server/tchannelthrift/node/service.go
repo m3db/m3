@@ -55,6 +55,9 @@ const (
 var (
 	// errServerIsOverloaded raised when trying to process a request when the server is overloaded
 	errServerIsOverloaded = errors.New("server is overloaded")
+
+	// errNotImplemented raised when attempting to execute an un-implemented method
+	errNotImplemented = errors.New("method is not implemented")
 )
 
 type serviceMetrics struct {
@@ -228,6 +231,10 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	s.metrics.fetch.ReportSuccess(s.nowFn().Sub(callStart))
 
 	return result, nil
+}
+
+func (s *service) FetchTagged(ctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
+	return nil, tterrors.NewInternalError(errNotImplemented)
 }
 
 func (s *service) FetchBatchRaw(tctx thrift.Context, req *rpc.FetchBatchRawRequest) (*rpc.FetchBatchRawResult_, error) {

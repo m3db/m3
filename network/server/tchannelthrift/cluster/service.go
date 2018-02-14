@@ -37,6 +37,11 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 )
 
+var (
+	// errNotImplemented raised when attempting to execute an un-implemented method
+	errNotImplemented = errors.New("method is not implemented")
+)
+
 type service struct {
 	sync.RWMutex
 
@@ -140,6 +145,10 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 	}
 
 	return result, nil
+}
+
+func (s *service) FetchTagged(ctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
+	return nil, tterrors.NewInternalError(errNotImplemented)
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
