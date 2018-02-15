@@ -52,6 +52,35 @@ Run Prometheus Docker image:
 
     $ docker run -p 9090:9090 -v $GOPATH/src/github.com/m3db/m3coordinator/docker/prometheus-mac.yml:/etc/prometheus/prometheus.yml quay.io/prometheus/prometheus
 
+### Running on GCP
+
+[Setup GCP for m3db](https://github.com/m3db/m3db/pull/452/files?short_path=20bfc3f#diff-20bfc3ff6a860483887b93bf9cf0d135)
+
+
+Setup GCP for m3coordinator:
+
+    1. Make sure you select a base image with Docker pre-installed
+    2. Follow steps 1-5 from the above section (clone `m3coordinator` instead of `m3db`)
+        - Depending on the status of https://github.com/m3db/m3db/pull/452, you may need to update the version of m3db (6874b8af8e9ec682551d49ad3e3250dfb4f4ae1f) and m3x (7ea8c2f35f9fa0f52bd189e44b11113d708acada) in `glide.yaml`
+    3. The config file, which is located at `m3coordinator/benchmark/configs/benchmark.yml` will need the same config topology as the m3db config
+    4. Run m3coordinator - you should see this message with the number of hosts you specified: `[I] successfully updated topology to 3 hosts` with no other warning or error messsages
+        $ ./bin/m3coordinator --config.file benchmark/configs/benchmark.yml
+
+Setup and run Prometheus:
+
+    1. You can run Prometheus from the same box as m3coordinator
+    2. Update the `prometheus.yml` in `m3coordinator/docker` so that the `remote_read` and `remote_write` endpoints are bound to the IP address of the host that m3coordinator is running on:
+        - e.g.
+            ```
+            remote_read:
+                - url: http://10.142.0.8:7201/api/v1/prom/read
+
+            remote_write:
+                - url: http://10.142.0.8:7201/api/v1/prom/write
+            ```
+    3. Run Prometheus
+        $ sudo docker run -p 9090:9090 -v $GOPATH/src/github.com/m3db/m3coordinator/docker/prometheus.yml:/etc/prometheus/prometheus.yml quay.io/prometheus/prometheus
+
 <hr>
 
 This project is released under the [MIT License](LICENSE.md).

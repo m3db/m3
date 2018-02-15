@@ -5,12 +5,12 @@ client:
       topology:
           shards: 64
           hosts:
-            - host: localhost1
+            - host: m3db_server_1
               listenAddress: "0.0.0.0:9000"
-            - host: localhost2
-              listenAddress: "0.0.0.0:9010"
-            - host: localhost3
-              listenAddress: "0.0.0.0:9020"
+            - host: m3db_server_2
+              listenAddress: "0.0.0.0:9000"
+            - host: m3db_server_3
+              listenAddress: "0.0.0.0:9000"
       namespaces:
           - name: metrics
             options:
