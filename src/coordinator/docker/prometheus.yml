@@ -29,7 +29,7 @@ scrape_configs:
       - targets: ['localhost:9090']
 
 remote_read:
-  - url: http://m3coordinator:7201/api/v1/prom/read
+  - url: http://m3coordinator:7201/api/v1/prom/read # when running on GCP, change to IP address of m3coordinator
 
 remote_write:
-  - url: http://m3coordinator:7201/api/v1/prom/write
+  - url: http://m3coordinator:7201/api/v1/prom/write # when running on GCP, change to IP address of m3coordinator
