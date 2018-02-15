@@ -166,9 +166,12 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 			return emptyConfig, err
 		}
 		staticOptions := topology.NewStaticOptions().
-			SetReplicas(len(c.Static.TopologyConfig.Hosts)).
 			SetHostShardSets(hostShardSets).
 			SetShardSet(shardSet)
+
+		if c.Static.TopologyConfig.Replicas != 0 {
+			staticOptions = staticOptions.SetReplicas(c.Static.TopologyConfig.Replicas)
+		}
 
 		topoInit := topology.NewStaticInitializer(staticOptions)
 
