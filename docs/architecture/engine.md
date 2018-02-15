@@ -1,7 +1,7 @@
 
 7) TODO: Explain data retention
-8) TODO: Explain background ticks
 9) TODO: Explain supported datatypes (upcoming future work)
+10) TODO: Add dedication section blocksize and its implicatons (its expained throughout but needs a dedicated section I think)
 
 # Overview
 
