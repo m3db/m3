@@ -256,3 +256,7 @@ M3TSZ is designed for compressing timeseries data in which each datapoint has a 
 #### Removing expired / flushed series and blocks from memory
 
 Depending on the configured [caching policy](engine.md#caching-policies), the [in-memory datastructures](engine.md#in-memory-datastructures) can end up with references to series or data blocks that are expired (have fallen out of the retention period) or no longer need to be in memory (due to the data being flushed to disk or no longer needing to be cached). The background tick will identify these structures and release them from memory.
+
+### Flushing
+
+As discussed in the [architecture](engine.md#architecture) section, writes that being actively buffered / compressed in-memory are periodically flushed to disk. The frequency of these flushes is dictated by the configured blocksize, and whenever a given block is sealed and no longer writable a corresponding flush will be triggered which will generate the relevant [fileset files](#engine.md#fileset-files). The no longer needed in-memory datastructures will then be removed from memory in the subsequent tick.
