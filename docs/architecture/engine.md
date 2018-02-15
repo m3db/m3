@@ -259,4 +259,4 @@ Depending on the configured [caching policy](engine.md#caching-policies), the [i
 
 ### Flushing
 
-As discussed in the [architecture](engine.md#architecture) section, writes that being actively buffered / compressed in-memory are periodically flushed to disk. The frequency of these flushes is dictated by the configured blocksize, and whenever a given block is sealed and no longer writable a corresponding flush will be triggered which will generate the relevant [fileset files](#engine.md#fileset-files). The no longer needed in-memory datastructures will then be removed from memory in the subsequent tick.
+As discussed in the [architecture](engine.md#architecture) section, writes that are being actively buffered / compressed in-memory are periodically flushed to disk. The frequency of these flushes is dictated by the configured blocksize and whenever a given block is sealed and no longer writable a corresponding flush will be triggered which will generate the relevant [fileset files](#engine.md#fileset-files). The no longer needed in-memory datastructures will then be removed from memory in the subsequent tick.
