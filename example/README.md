@@ -7,9 +7,9 @@ Setup GCP for m3db:
     1. Download necessary packages
         $ sudo apt-get install golang golint make git golang-glide
     2. Set GOPATH:
-        $ export GOPATH=/home/<user_name>/code
+        $ export GOPATH=$HOME/code
     3. Create m3db directory
-        $ mkdir -p /home/<user_name>/code/src/github.com/m3db
+        $ mkdir -p $HOME/code/src/github.com/m3db
     4. cd into m3db directory and git clone m3db
         $ git clone https://github.com/m3db/m3db
     5. Build m3db
