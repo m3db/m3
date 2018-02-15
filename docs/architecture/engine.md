@@ -1,6 +1,7 @@
 
 7) TODO: Explain data retention
 8) TODO: Explain background ticks
+9) TODO: Explain supported datatypes (upcoming future work)
 
 # Overview
 
@@ -98,7 +99,7 @@ While in-memory databases can be useful (and M3DB supports operating in a memory
 
 Like many databases, M3DB takes a two-pronged approach to persistent storage:
 
-1) All writes are persisted to a commitlog (the commitlog can be configured to fsync every write, or optionally batch writes together which is much faster but leaves open the possibility of small amounts of data loss in the case of a catastrophic failure). The commitlog is completely uncompressed and exists only to recover "unflushed" data in the case of a database shutdown (intentional or not.) and is never used to satisfy a read request.
+1) All writes are persisted to a commitlog (the commitlog can be configured to fsync every write, or optionally batch writes together which is much faster but leaves open the possibility of small amounts of data loss in the case of a catastrophic failure). The commitlog is completely uncompressed and exists only to recover "unflushed" data in the case of a database shutdown (intentional or not) and is never used to satisfy a read request.
 2) Periodically (based on the configured blocksize) all "active" blocks are "sealed" (marked as immutable) and written out to disk into "fileset" files. These files are highly compressed and can be indexed into via their complementary index files.
 
 #### Fileset files
@@ -179,7 +180,7 @@ The write will exist only in this "active buffer" and the commitlog until the bl
 
 ## Lifecycle of a read
 
-A read begin when an M3DB client calls the Read or ReadBatch (TODO: API name?) endpoint on M3DB's thrift server. The read request will contain the following information:
+A read begins when an M3DB client calls the Read or ReadBatch (TODO: API name?) endpoint on M3DB's thrift server. The read request will contain the following information:
 
 1. The namespace
 2. The series ID (byte blob)
@@ -211,7 +212,7 @@ Then M3DB will need to consolidate:
 
 1) The not-yet-sealed block from the active buffers / encoders (located inside an internal lookup in the Series object) [6PM - 8PM]
 2) The in-memory cached block (also located inside an internal lookup in the Series object) [4PM - 6PM]
-3) The block from disk (the block retrieve from disk will then be cached according to the current [series caching policy](engine.md#caching-policies) [2PM - 4PM]
+3) The block from disk (the block retrieve from disk will then be cached according to the current [caching policy](engine.md#caching-policies) [2PM - 4PM]
 
 M3DB will retrieve the three blocks from their respective locations in memory / on-disk, and transmit all of the data back to the client. Note that since M3DB nodes return compressed blocks (the M3DB client decompresses them) its not possible to return "partial results" for a given block. If any portion of a read requests spans a given block, then that block in its entirety must be transmitted back to the client. In practice, this ends up being not much of an issue because of the high compression ratio that M3DB is able to achieve.
 
@@ -236,3 +237,22 @@ The recently read cache policy keeps all blocks that are read from disk in memor
 The LRU cache policy uses an LRU list with a configurable max size to keep track of which blocks have been read least recently, and evicts those blocks first
 when the capacity of the list is full and a new block needs to be read from disk. This cache policy strikes the best overall balance and is the recommended policy for general case workloads. (TODO: Link to WiredList documentation if people want more information)
 
+## Background processes
+
+M3DB has a variety of processes that run in the background during normal operation.
+
+### Ticking
+
+The ticking process runs continously in the background and is responsible for a variety of tasks:
+
+1. Merging duplicate encoders for a given series / block start combination
+2. Removing expired / flushed series and blocks from memory
+
+
+#### Merging duplicate encoders
+
+M3TSZ is designed for compressing timeseries data in which each datapoint has a timestamp that is larger than the last encoded datapoint. For monitoring workloads this works very well because every subsequent datapoint is almost always larger than the previous one. However, real world systems are messy and occassionally out of order writes will be received. When this happens, M3DB will allocate a new encoder for the out of order datapoints. The duplicate encoders need to be merged before flushing the data to disk, but to prevent huge memory spikes during the flushing process we continuously merge out of order encoders in the background.
+
+#### Removing expired / flushed series and blocks from memory
+
+Depending on the configured [caching policy](engine.md#caching-policies), the [in-memory datastructures](engine.md#in-memory-datastructures) can end up with references to series or data blocks that are expired (have fallen out of the retention period) or no longer need to be in memory (due to the data being flushed to disk or no longer needing to be cached). The background tick will identify these structures and release them from memory.
