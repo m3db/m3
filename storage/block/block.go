@@ -53,9 +53,8 @@ type dbBlock struct {
 
 	mergeTarget DatabaseBlock
 
-	retriever            DatabaseShardBlockRetriever
-	retrieveID           ident.ID
-	wasRetrievedFromDisk bool
+	retriever  DatabaseShardBlockRetriever
+	retrieveID ident.ID
 
 	owner Owner
 
@@ -67,8 +66,8 @@ type dbBlock struct {
 
 	checksum uint32
 
-	wasRetrieved bool
-	closed       bool
+	wasRetrievedFromDisk bool
+	closed               bool
 }
 
 type listState struct {
@@ -367,10 +366,10 @@ func (b *dbBlock) setNextPrevUpdatedAtUnixNano(value int64) {
 // wiredListEntry is a snapshot of a subset of the block's state that the WiredList
 // uses to determine if a block is eligible for inclusion in the WiredList.
 type wiredListEntry struct {
-	closed               bool
 	retrieveID           ident.ID
-	wasRetrievedFromDisk bool
 	startTime            time.Time
+	closed               bool
+	wasRetrievedFromDisk bool
 }
 
 // wiredListEntry generates a wiredListEntry for the block, and should only
