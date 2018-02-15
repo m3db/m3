@@ -202,7 +202,7 @@ func newStaticShardSet(numShards int, hosts []topology.HostShardConfig) (shardin
 	}
 
 	shards := sharding.NewShards(shardIDs, shard.Available)
-	shardSet, err = sharding.NewShardSet(shards, sharding.DefaultHashFn(1))
+	shardSet, err = sharding.NewShardSet(shards, sharding.DefaultHashFn(len(shards)))
 	if err != nil {
 		return nil, nil, err
 	}

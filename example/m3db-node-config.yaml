@@ -18,7 +18,7 @@ debugListenAddress: 0.0.0.0:9004
 
 hostID:
   resolver: config
-  value: m3db_server_3
+  value: m3db_server
 
 client:
   writeConsistencyLevel: majority
@@ -182,13 +182,10 @@ config:
   static:
       topology:
           shards: 64
+          replicas: 1
           hosts:
-            - host: m3db_server_1
-              listenAddress: "0.0.0.0:9000"
-            - host: m3db_server_2
-              listenAddress: "0.0.0.0:9000"
-            - host: m3db_server_3
-              listenAddress: "0.0.0.0:9000"
+              - host: m3db_server
+                listenAddress: "0.0.0.0:9000"
       namespaces:
           - name: metrics
             options:
