@@ -179,6 +179,10 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 	return nil
 }
 
+func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) error {
+	return tterrors.NewInternalError(errNotImplemented)
+}
+
 func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (*rpc.TruncateResult_, error) {
 	session, err := s.session()
 	if err != nil {

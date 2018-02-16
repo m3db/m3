@@ -103,6 +103,16 @@ func (_mr *_MockTChanClusterRecorder) Write(arg0, arg1 interface{}) *gomock.Call
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1)
 }
 
+func (_m *MockTChanCluster) WriteTagged(ctx thrift.Context, req *WriteTaggedRequest) error {
+	ret := _m.ctrl.Call(_m, "WriteTagged", ctx, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockTChanClusterRecorder) WriteTagged(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteTagged", arg0, arg1)
+}
+
 // Mock of TChanNode interface
 type MockTChanNode struct {
 	ctrl     *gomock.Controller
@@ -328,4 +338,14 @@ func (_m *MockTChanNode) WriteBatchRaw(ctx thrift.Context, req *WriteBatchRawReq
 
 func (_mr *_MockTChanNodeRecorder) WriteBatchRaw(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteBatchRaw", arg0, arg1)
+}
+
+func (_m *MockTChanNode) WriteTagged(ctx thrift.Context, req *WriteTaggedRequest) error {
+	ret := _m.ctrl.Call(_m, "WriteTagged", ctx, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockTChanNodeRecorder) WriteTagged(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteTagged", arg0, arg1)
 }

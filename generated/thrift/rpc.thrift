@@ -45,9 +45,10 @@ service Node {
 	// Friendly not highly performant read/write endpoints
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
 	FetchTaggedResult fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
+	void write(1: WriteRequest req) throws (1: Error err)
+	void writeTagged(1: WriteTaggedRequest req) throws (1: Error err)
 
 	// Performant read/write endpoints
-	void write(1: WriteRequest req) throws (1: Error err)
 	FetchBatchRawResult fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
 	FetchBlocksRawResult fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
 
@@ -55,6 +56,7 @@ service Node {
 	FetchBlocksMetadataRawResult fetchBlocksMetadataRaw(1: FetchBlocksMetadataRawRequest req) throws (1: Error err)
 	FetchBlocksMetadataRawV2Result fetchBlocksMetadataRawV2(1: FetchBlocksMetadataRawV2Request req) throws (1: Error err)
 	void writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
+	// TODO(prateek): add writeTaggedBatchRaw code path
 	void repair() throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
 
@@ -94,8 +96,14 @@ struct WriteRequest {
 	1: required string nameSpace
 	2: required string id
 	3: required Datapoint datapoint
-	4: optional list<binary> tagNames
-	5: optional list<binary> tagValues
+}
+
+struct WriteTaggedRequest {
+	1: required string nameSpace
+	2: required string id
+	3: required Datapoint datapoint
+	4: required list<binary> tagNames
+	5: required list<binary> tagValues
 }
 
 struct FetchBatchRawRequest {
@@ -325,6 +333,7 @@ struct NodeSetWriteNewSeriesLimitPerShardPerSecondRequest {
 service Cluster {
 	HealthResult health() throws (1: Error err)
 	void write(1: WriteRequest req) throws (1: Error err)
+	void writeTagged(1: WriteTaggedRequest req) throws (1: Error err)
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
 	FetchTaggedResult fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
