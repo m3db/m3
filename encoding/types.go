@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 )
@@ -148,6 +149,12 @@ type SeriesIterator interface {
 
 	// ID gets the ID of the series
 	ID() string
+
+	// Tags returns an iterator over the tags associated with the ID.
+	Tags() ident.TagIterator
+
+	// Namespace returns the namespace associated with the ID.
+	Namespace() ident.ID
 
 	// Start returns the start time filter specified for the iterator
 	Start() time.Time

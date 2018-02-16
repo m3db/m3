@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/context"
@@ -197,11 +198,20 @@ type Session interface {
 	// Write value to the database for an ID
 	Write(namespace string, id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
+	// WriteTagged value to the database for an ID and given tags.
+	WriteTagged(namespace string, id string, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
+
 	// Fetch values from the database for an ID
 	Fetch(namespace string, id string, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error)
 
 	// FetchAll values from the database for a set of IDs
 	FetchAll(namespace string, ids []string, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
+
+	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
+	FetchTagged(index.Query, index.QueryOptions) (index.QueryResults, error)
+
+	// FetchTaggedIDs resolves the provided query to known IDs.
+	FetchTaggedIDs(index.Query, index.QueryOptions) (index.QueryResults, error)
 
 	// ShardID returns the given shard for an ID for callers
 	// to easily discern what shard is failing when operations

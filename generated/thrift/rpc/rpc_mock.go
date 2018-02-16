@@ -60,6 +60,17 @@ func (_mr *_MockTChanClusterRecorder) Fetch(arg0, arg1 interface{}) *gomock.Call
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Fetch", arg0, arg1)
 }
 
+func (_m *MockTChanCluster) FetchTagged(ctx thrift.Context, req *FetchTaggedRequest) (*FetchTaggedResult_, error) {
+	ret := _m.ctrl.Call(_m, "FetchTagged", ctx, req)
+	ret0, _ := ret[0].(*FetchTaggedResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockTChanClusterRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTagged", arg0, arg1)
+}
+
 func (_m *MockTChanCluster) Health(ctx thrift.Context) (*HealthResult_, error) {
 	ret := _m.ctrl.Call(_m, "Health", ctx)
 	ret0, _ := ret[0].(*HealthResult_)
@@ -90,6 +101,16 @@ func (_m *MockTChanCluster) Write(ctx thrift.Context, req *WriteRequest) error {
 
 func (_mr *_MockTChanClusterRecorder) Write(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1)
+}
+
+func (_m *MockTChanCluster) WriteTagged(ctx thrift.Context, req *WriteTaggedRequest) error {
+	ret := _m.ctrl.Call(_m, "WriteTagged", ctx, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockTChanClusterRecorder) WriteTagged(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteTagged", arg0, arg1)
 }
 
 // Mock of TChanNode interface
@@ -166,6 +187,17 @@ func (_m *MockTChanNode) FetchBlocksRaw(ctx thrift.Context, req *FetchBlocksRawR
 
 func (_mr *_MockTChanNodeRecorder) FetchBlocksRaw(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchBlocksRaw", arg0, arg1)
+}
+
+func (_m *MockTChanNode) FetchTagged(ctx thrift.Context, req *FetchTaggedRequest) (*FetchTaggedResult_, error) {
+	ret := _m.ctrl.Call(_m, "FetchTagged", ctx, req)
+	ret0, _ := ret[0].(*FetchTaggedResult_)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockTChanNodeRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchTagged", arg0, arg1)
 }
 
 func (_m *MockTChanNode) GetPersistRateLimit(ctx thrift.Context) (*NodePersistRateLimitResult_, error) {
@@ -306,4 +338,14 @@ func (_m *MockTChanNode) WriteBatchRaw(ctx thrift.Context, req *WriteBatchRawReq
 
 func (_mr *_MockTChanNodeRecorder) WriteBatchRaw(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteBatchRaw", arg0, arg1)
+}
+
+func (_m *MockTChanNode) WriteTagged(ctx thrift.Context, req *WriteTaggedRequest) error {
+	ret := _m.ctrl.Call(_m, "WriteTagged", ctx, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockTChanNodeRecorder) WriteTagged(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteTagged", arg0, arg1)
 }
