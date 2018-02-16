@@ -1869,7 +1869,6 @@ func (p *FetchBatchRawResult_) String() string {
 //  - RangeEnd
 //  - FetchData
 //  - Limit
-//  - PageToken
 //  - RangeTimeType
 type FetchTaggedRequest struct {
 	Query         *IdxQuery `thrift:"query,1,required" db:"query" json:"query"`
@@ -1877,8 +1876,7 @@ type FetchTaggedRequest struct {
 	RangeEnd      int64     `thrift:"rangeEnd,3,required" db:"rangeEnd" json:"rangeEnd"`
 	FetchData     bool      `thrift:"fetchData,4,required" db:"fetchData" json:"fetchData"`
 	Limit         *int64    `thrift:"limit,5" db:"limit" json:"limit,omitempty"`
-	PageToken     []byte    `thrift:"pageToken,6" db:"pageToken" json:"pageToken,omitempty"`
-	RangeTimeType TimeType  `thrift:"rangeTimeType,7" db:"rangeTimeType" json:"rangeTimeType,omitempty"`
+	RangeTimeType TimeType  `thrift:"rangeTimeType,6" db:"rangeTimeType" json:"rangeTimeType,omitempty"`
 }
 
 func NewFetchTaggedRequest() *FetchTaggedRequest {
@@ -1917,12 +1915,6 @@ func (p *FetchTaggedRequest) GetLimit() int64 {
 	return *p.Limit
 }
 
-var FetchTaggedRequest_PageToken_DEFAULT []byte
-
-func (p *FetchTaggedRequest) GetPageToken() []byte {
-	return p.PageToken
-}
-
 var FetchTaggedRequest_RangeTimeType_DEFAULT TimeType = 0
 
 func (p *FetchTaggedRequest) GetRangeTimeType() TimeType {
@@ -1934,10 +1926,6 @@ func (p *FetchTaggedRequest) IsSetQuery() bool {
 
 func (p *FetchTaggedRequest) IsSetLimit() bool {
 	return p.Limit != nil
-}
-
-func (p *FetchTaggedRequest) IsSetPageToken() bool {
-	return p.PageToken != nil
 }
 
 func (p *FetchTaggedRequest) IsSetRangeTimeType() bool {
@@ -1989,10 +1977,6 @@ func (p *FetchTaggedRequest) Read(iprot thrift.TProtocol) error {
 			}
 		case 6:
 			if err := p.ReadField6(iprot); err != nil {
-				return err
-			}
-		case 7:
-			if err := p.ReadField7(iprot); err != nil {
 				return err
 			}
 		default:
@@ -2067,17 +2051,8 @@ func (p *FetchTaggedRequest) ReadField5(iprot thrift.TProtocol) error {
 }
 
 func (p *FetchTaggedRequest) ReadField6(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadBinary(); err != nil {
-		return thrift.PrependError("error reading field 6: ", err)
-	} else {
-		p.PageToken = v
-	}
-	return nil
-}
-
-func (p *FetchTaggedRequest) ReadField7(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadI32(); err != nil {
-		return thrift.PrependError("error reading field 7: ", err)
+		return thrift.PrependError("error reading field 6: ", err)
 	} else {
 		temp := TimeType(v)
 		p.RangeTimeType = temp
@@ -2106,9 +2081,6 @@ func (p *FetchTaggedRequest) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField6(oprot); err != nil {
-			return err
-		}
-		if err := p.writeField7(oprot); err != nil {
 			return err
 		}
 	}
@@ -2189,30 +2161,15 @@ func (p *FetchTaggedRequest) writeField5(oprot thrift.TProtocol) (err error) {
 }
 
 func (p *FetchTaggedRequest) writeField6(oprot thrift.TProtocol) (err error) {
-	if p.IsSetPageToken() {
-		if err := oprot.WriteFieldBegin("pageToken", thrift.STRING, 6); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 6:pageToken: ", p), err)
-		}
-		if err := oprot.WriteBinary(p.PageToken); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.pageToken (6) field write error: ", p), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 6:pageToken: ", p), err)
-		}
-	}
-	return err
-}
-
-func (p *FetchTaggedRequest) writeField7(oprot thrift.TProtocol) (err error) {
 	if p.IsSetRangeTimeType() {
-		if err := oprot.WriteFieldBegin("rangeTimeType", thrift.I32, 7); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 7:rangeTimeType: ", p), err)
+		if err := oprot.WriteFieldBegin("rangeTimeType", thrift.I32, 6); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 6:rangeTimeType: ", p), err)
 		}
 		if err := oprot.WriteI32(int32(p.RangeTimeType)); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.rangeTimeType (7) field write error: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T.rangeTimeType (6) field write error: ", p), err)
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 7:rangeTimeType: ", p), err)
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 6:rangeTimeType: ", p), err)
 		}
 	}
 	return err
@@ -2455,8 +2412,8 @@ func (p *IdxQuery) String() string {
 //  - Negate
 //  - Regexp
 type IdxTagFilter struct {
-	TagName        []byte `thrift:"tagName,1,required" db:"tagName" json:"tagName"`
-	TagValueFilter []byte `thrift:"tagValueFilter,2,required" db:"tagValueFilter" json:"tagValueFilter"`
+	TagName        string `thrift:"tagName,1,required" db:"tagName" json:"tagName"`
+	TagValueFilter string `thrift:"tagValueFilter,2,required" db:"tagValueFilter" json:"tagValueFilter"`
 	Negate         bool   `thrift:"negate,3,required" db:"negate" json:"negate"`
 	Regexp         bool   `thrift:"regexp,4,required" db:"regexp" json:"regexp"`
 }
@@ -2465,11 +2422,11 @@ func NewIdxTagFilter() *IdxTagFilter {
 	return &IdxTagFilter{}
 }
 
-func (p *IdxTagFilter) GetTagName() []byte {
+func (p *IdxTagFilter) GetTagName() string {
 	return p.TagName
 }
 
-func (p *IdxTagFilter) GetTagValueFilter() []byte {
+func (p *IdxTagFilter) GetTagValueFilter() string {
 	return p.TagValueFilter
 }
 
@@ -2547,7 +2504,7 @@ func (p *IdxTagFilter) Read(iprot thrift.TProtocol) error {
 }
 
 func (p *IdxTagFilter) ReadField1(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadBinary(); err != nil {
+	if v, err := iprot.ReadString(); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
 		p.TagName = v
@@ -2556,7 +2513,7 @@ func (p *IdxTagFilter) ReadField1(iprot thrift.TProtocol) error {
 }
 
 func (p *IdxTagFilter) ReadField2(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadBinary(); err != nil {
+	if v, err := iprot.ReadString(); err != nil {
 		return thrift.PrependError("error reading field 2: ", err)
 	} else {
 		p.TagValueFilter = v
@@ -2613,7 +2570,7 @@ func (p *IdxTagFilter) writeField1(oprot thrift.TProtocol) (err error) {
 	if err := oprot.WriteFieldBegin("tagName", thrift.STRING, 1); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:tagName: ", p), err)
 	}
-	if err := oprot.WriteBinary(p.TagName); err != nil {
+	if err := oprot.WriteString(string(p.TagName)); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T.tagName (1) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
@@ -2626,7 +2583,7 @@ func (p *IdxTagFilter) writeField2(oprot thrift.TProtocol) (err error) {
 	if err := oprot.WriteFieldBegin("tagValueFilter", thrift.STRING, 2); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:tagValueFilter: ", p), err)
 	}
-	if err := oprot.WriteBinary(p.TagValueFilter); err != nil {
+	if err := oprot.WriteString(string(p.TagValueFilter)); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T.tagValueFilter (2) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
@@ -2670,12 +2627,10 @@ func (p *IdxTagFilter) String() string {
 
 // Attributes:
 //  - Elements
-//  - HasMore
-//  - PageToken
+//  - Exhaustive
 type FetchTaggedResult_ struct {
-	Elements  []*FetchTaggedIDResult_ `thrift:"elements,1,required" db:"elements" json:"elements"`
-	HasMore   bool                    `thrift:"hasMore,2,required" db:"hasMore" json:"hasMore"`
-	PageToken []byte                  `thrift:"pageToken,3" db:"pageToken" json:"pageToken,omitempty"`
+	Elements   []*FetchTaggedIDResult_ `thrift:"elements,1,required" db:"elements" json:"elements"`
+	Exhaustive bool                    `thrift:"exhaustive,2,required" db:"exhaustive" json:"exhaustive"`
 }
 
 func NewFetchTaggedResult_() *FetchTaggedResult_ {
@@ -2686,26 +2641,16 @@ func (p *FetchTaggedResult_) GetElements() []*FetchTaggedIDResult_ {
 	return p.Elements
 }
 
-func (p *FetchTaggedResult_) GetHasMore() bool {
-	return p.HasMore
+func (p *FetchTaggedResult_) GetExhaustive() bool {
+	return p.Exhaustive
 }
-
-var FetchTaggedResult__PageToken_DEFAULT []byte
-
-func (p *FetchTaggedResult_) GetPageToken() []byte {
-	return p.PageToken
-}
-func (p *FetchTaggedResult_) IsSetPageToken() bool {
-	return p.PageToken != nil
-}
-
 func (p *FetchTaggedResult_) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
 
 	var issetElements bool = false
-	var issetHasMore bool = false
+	var issetExhaustive bool = false
 
 	for {
 		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
@@ -2725,11 +2670,7 @@ func (p *FetchTaggedResult_) Read(iprot thrift.TProtocol) error {
 			if err := p.ReadField2(iprot); err != nil {
 				return err
 			}
-			issetHasMore = true
-		case 3:
-			if err := p.ReadField3(iprot); err != nil {
-				return err
-			}
+			issetExhaustive = true
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -2745,8 +2686,8 @@ func (p *FetchTaggedResult_) Read(iprot thrift.TProtocol) error {
 	if !issetElements {
 		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Elements is not set"))
 	}
-	if !issetHasMore {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field HasMore is not set"))
+	if !issetExhaustive {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Exhaustive is not set"))
 	}
 	return nil
 }
@@ -2775,16 +2716,7 @@ func (p *FetchTaggedResult_) ReadField2(iprot thrift.TProtocol) error {
 	if v, err := iprot.ReadBool(); err != nil {
 		return thrift.PrependError("error reading field 2: ", err)
 	} else {
-		p.HasMore = v
-	}
-	return nil
-}
-
-func (p *FetchTaggedResult_) ReadField3(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadBinary(); err != nil {
-		return thrift.PrependError("error reading field 3: ", err)
-	} else {
-		p.PageToken = v
+		p.Exhaustive = v
 	}
 	return nil
 }
@@ -2798,9 +2730,6 @@ func (p *FetchTaggedResult_) Write(oprot thrift.TProtocol) error {
 			return err
 		}
 		if err := p.writeField2(oprot); err != nil {
-			return err
-		}
-		if err := p.writeField3(oprot); err != nil {
 			return err
 		}
 	}
@@ -2835,29 +2764,14 @@ func (p *FetchTaggedResult_) writeField1(oprot thrift.TProtocol) (err error) {
 }
 
 func (p *FetchTaggedResult_) writeField2(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("hasMore", thrift.BOOL, 2); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:hasMore: ", p), err)
+	if err := oprot.WriteFieldBegin("exhaustive", thrift.BOOL, 2); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:exhaustive: ", p), err)
 	}
-	if err := oprot.WriteBool(bool(p.HasMore)); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.hasMore (2) field write error: ", p), err)
+	if err := oprot.WriteBool(bool(p.Exhaustive)); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.exhaustive (2) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:hasMore: ", p), err)
-	}
-	return err
-}
-
-func (p *FetchTaggedResult_) writeField3(oprot thrift.TProtocol) (err error) {
-	if p.IsSetPageToken() {
-		if err := oprot.WriteFieldBegin("pageToken", thrift.STRING, 3); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:pageToken: ", p), err)
-		}
-		if err := oprot.WriteBinary(p.PageToken); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T.pageToken (3) field write error: ", p), err)
-		}
-		if err := oprot.WriteFieldEnd(); err != nil {
-			return thrift.PrependError(fmt.Sprintf("%T write field end error 3:pageToken: ", p), err)
-		}
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:exhaustive: ", p), err)
 	}
 	return err
 }
@@ -2877,10 +2791,10 @@ func (p *FetchTaggedResult_) String() string {
 //  - Datapoints
 //  - Err
 type FetchTaggedIDResult_ struct {
-	ID         []byte       `thrift:"id,1,required" db:"id" json:"id"`
-	NameSpace  []byte       `thrift:"nameSpace,2,required" db:"nameSpace" json:"nameSpace"`
-	TagNames   [][]byte     `thrift:"tagNames,3,required" db:"tagNames" json:"tagNames"`
-	TagValues  [][]byte     `thrift:"tagValues,4,required" db:"tagValues" json:"tagValues"`
+	ID         string       `thrift:"id,1,required" db:"id" json:"id"`
+	NameSpace  string       `thrift:"nameSpace,2,required" db:"nameSpace" json:"nameSpace"`
+	TagNames   []string     `thrift:"tagNames,3,required" db:"tagNames" json:"tagNames"`
+	TagValues  []string     `thrift:"tagValues,4,required" db:"tagValues" json:"tagValues"`
 	Datapoints []*Datapoint `thrift:"datapoints,5" db:"datapoints" json:"datapoints,omitempty"`
 	Err        *Error       `thrift:"err,6" db:"err" json:"err,omitempty"`
 }
@@ -2889,19 +2803,19 @@ func NewFetchTaggedIDResult_() *FetchTaggedIDResult_ {
 	return &FetchTaggedIDResult_{}
 }
 
-func (p *FetchTaggedIDResult_) GetID() []byte {
+func (p *FetchTaggedIDResult_) GetID() string {
 	return p.ID
 }
 
-func (p *FetchTaggedIDResult_) GetNameSpace() []byte {
+func (p *FetchTaggedIDResult_) GetNameSpace() string {
 	return p.NameSpace
 }
 
-func (p *FetchTaggedIDResult_) GetTagNames() [][]byte {
+func (p *FetchTaggedIDResult_) GetTagNames() []string {
 	return p.TagNames
 }
 
-func (p *FetchTaggedIDResult_) GetTagValues() [][]byte {
+func (p *FetchTaggedIDResult_) GetTagValues() []string {
 	return p.TagValues
 }
 
@@ -3002,7 +2916,7 @@ func (p *FetchTaggedIDResult_) Read(iprot thrift.TProtocol) error {
 }
 
 func (p *FetchTaggedIDResult_) ReadField1(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadBinary(); err != nil {
+	if v, err := iprot.ReadString(); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
 		p.ID = v
@@ -3011,7 +2925,7 @@ func (p *FetchTaggedIDResult_) ReadField1(iprot thrift.TProtocol) error {
 }
 
 func (p *FetchTaggedIDResult_) ReadField2(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadBinary(); err != nil {
+	if v, err := iprot.ReadString(); err != nil {
 		return thrift.PrependError("error reading field 2: ", err)
 	} else {
 		p.NameSpace = v
@@ -3024,11 +2938,11 @@ func (p *FetchTaggedIDResult_) ReadField3(iprot thrift.TProtocol) error {
 	if err != nil {
 		return thrift.PrependError("error reading list begin: ", err)
 	}
-	tSlice := make([][]byte, 0, size)
+	tSlice := make([]string, 0, size)
 	p.TagNames = tSlice
 	for i := 0; i < size; i++ {
-		var _elem9 []byte
-		if v, err := iprot.ReadBinary(); err != nil {
+		var _elem9 string
+		if v, err := iprot.ReadString(); err != nil {
 			return thrift.PrependError("error reading field 0: ", err)
 		} else {
 			_elem9 = v
@@ -3046,11 +2960,11 @@ func (p *FetchTaggedIDResult_) ReadField4(iprot thrift.TProtocol) error {
 	if err != nil {
 		return thrift.PrependError("error reading list begin: ", err)
 	}
-	tSlice := make([][]byte, 0, size)
+	tSlice := make([]string, 0, size)
 	p.TagValues = tSlice
 	for i := 0; i < size; i++ {
-		var _elem10 []byte
-		if v, err := iprot.ReadBinary(); err != nil {
+		var _elem10 string
+		if v, err := iprot.ReadString(); err != nil {
 			return thrift.PrependError("error reading field 0: ", err)
 		} else {
 			_elem10 = v
@@ -3132,7 +3046,7 @@ func (p *FetchTaggedIDResult_) writeField1(oprot thrift.TProtocol) (err error) {
 	if err := oprot.WriteFieldBegin("id", thrift.STRING, 1); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:id: ", p), err)
 	}
-	if err := oprot.WriteBinary(p.ID); err != nil {
+	if err := oprot.WriteString(string(p.ID)); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T.id (1) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
@@ -3145,7 +3059,7 @@ func (p *FetchTaggedIDResult_) writeField2(oprot thrift.TProtocol) (err error) {
 	if err := oprot.WriteFieldBegin("nameSpace", thrift.STRING, 2); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:nameSpace: ", p), err)
 	}
-	if err := oprot.WriteBinary(p.NameSpace); err != nil {
+	if err := oprot.WriteString(string(p.NameSpace)); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T.nameSpace (2) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
@@ -3162,7 +3076,7 @@ func (p *FetchTaggedIDResult_) writeField3(oprot thrift.TProtocol) (err error) {
 		return thrift.PrependError("error writing list begin: ", err)
 	}
 	for _, v := range p.TagNames {
-		if err := oprot.WriteBinary(v); err != nil {
+		if err := oprot.WriteString(string(v)); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T. (0) field write error: ", p), err)
 		}
 	}
@@ -3183,7 +3097,7 @@ func (p *FetchTaggedIDResult_) writeField4(oprot thrift.TProtocol) (err error) {
 		return thrift.PrependError("error writing list begin: ", err)
 	}
 	for _, v := range p.TagValues {
-		if err := oprot.WriteBinary(v); err != nil {
+		if err := oprot.WriteString(string(v)); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T. (0) field write error: ", p), err)
 		}
 	}

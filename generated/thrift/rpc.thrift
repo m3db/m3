@@ -45,9 +45,9 @@ service Node {
 	// Friendly not highly performant read/write endpoints
 	FetchResult fetch(1: FetchRequest req) throws (1: Error err)
 	FetchTaggedResult fetchTagged(1: FetchTaggedRequest req) throws (1: Error err)
-	void write(1: WriteRequest req) throws (1: Error err)
 
 	// Performant read/write endpoints
+	void write(1: WriteRequest req) throws (1: Error err)
 	FetchBatchRawResult fetchBatchRaw(1: FetchBatchRawRequest req) throws (1: Error err)
 	FetchBlocksRawResult fetchBlocksRaw(1: FetchBlocksRawRequest req) throws (1: Error err)
 
@@ -116,8 +116,7 @@ struct FetchTaggedRequest {
 	3: required i64 rangeEnd
 	4: required bool fetchData
 	5: optional i64 limit
-	6: optional binary pageToken
-	7: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
+	6: optional TimeType rangeTimeType = TimeType.UNIX_SECONDS
 }
 
 struct IdxQuery {
@@ -131,23 +130,22 @@ enum BooleanOperator {
 }
 
 struct IdxTagFilter {
-	1: required binary tagName
-	2: required binary tagValueFilter
+	1: required string tagName
+	2: required string tagValueFilter
 	3: required bool negate
 	4: required bool regexp
 }
 
 struct FetchTaggedResult {
 	1: required list<FetchTaggedIDResult> elements
-	2: required bool hasMore
-	3: optional binary pageToken
+	2: required bool exhaustive
 }
 
 struct FetchTaggedIDResult {
-	1: required binary id
-	2: required binary nameSpace
-	3: required list<binary> tagNames
-	4: required list<binary> tagValues
+	1: required string id
+	2: required string nameSpace
+	3: required list<string> tagNames
+	4: required list<string> tagValues
 	5: optional list<Datapoint> datapoints
 	6: optional Error err
 }

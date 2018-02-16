@@ -23,13 +23,13 @@ package index
 import (
 	"time"
 
-	inx "github.com/m3db/m3ninx/index/segment"
+	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/ident"
 )
 
 // Query is a rich end user query to describe a set of constraints on required IDs.
 type Query struct {
-	inx.Query
+	segment.Query
 }
 
 // QueryOptions enables users to specify constraints on query execution.
@@ -45,9 +45,8 @@ type QueryResultsPageToken []byte
 
 // QueryResults is the collection of results for a query.
 type QueryResults struct {
-	Iter      TaggedIDsIter
-	HasMore   bool
-	PageToken QueryResultsPageToken
+	Iter       TaggedIDsIter
+	Exhaustive bool
 }
 
 // TaggedIDsIter iterates over a collection of IDs with associated

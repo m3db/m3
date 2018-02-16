@@ -384,59 +384,6 @@ func (_mr *_MockPeerBlocksIterRecorder) Err() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
 }
 
-// Mock of TaggedIDsIter interface
-type MockTaggedIDsIter struct {
-	ctrl     *gomock.Controller
-	recorder *_MockTaggedIDsIterRecorder
-}
-
-// Recorder for MockTaggedIDsIter (not exported)
-type _MockTaggedIDsIterRecorder struct {
-	mock *MockTaggedIDsIter
-}
-
-func NewMockTaggedIDsIter(ctrl *gomock.Controller) *MockTaggedIDsIter {
-	mock := &MockTaggedIDsIter{ctrl: ctrl}
-	mock.recorder = &_MockTaggedIDsIterRecorder{mock}
-	return mock
-}
-
-func (_m *MockTaggedIDsIter) EXPECT() *_MockTaggedIDsIterRecorder {
-	return _m.recorder
-}
-
-func (_m *MockTaggedIDsIter) Next() bool {
-	ret := _m.ctrl.Call(_m, "Next")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-func (_mr *_MockTaggedIDsIterRecorder) Next() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
-}
-
-func (_m *MockTaggedIDsIter) Current() (ident.ID, ident.ID, ident.TagIterator) {
-	ret := _m.ctrl.Call(_m, "Current")
-	ret0, _ := ret[0].(ident.ID)
-	ret1, _ := ret[1].(ident.ID)
-	ret2, _ := ret[2].(ident.TagIterator)
-	return ret0, ret1, ret2
-}
-
-func (_mr *_MockTaggedIDsIterRecorder) Current() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Current")
-}
-
-func (_m *MockTaggedIDsIter) Err() error {
-	ret := _m.ctrl.Call(_m, "Err")
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-func (_mr *_MockTaggedIDsIterRecorder) Err() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Err")
-}
-
 // Mock of AdminSession interface
 type MockAdminSession struct {
 	ctrl     *gomock.Controller

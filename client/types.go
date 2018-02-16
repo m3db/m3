@@ -260,20 +260,6 @@ type PeerBlocksIter interface {
 	Err() error
 }
 
-// TaggedIDsIter iterates over a collection of IDs with associated
-// tags and namespace
-type TaggedIDsIter interface {
-	// Next returns whether there are more items in the collection
-	Next() bool
-
-	// Current returns the ID, Tags and Namespace for a single timeseries.
-	// These remain valid until Next() is called again.
-	Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.TagIterator)
-
-	// Err returns any error encountered
-	Err() error
-}
-
 // AdminSession can perform administrative and node-to-node operations
 type AdminSession interface {
 	Session
