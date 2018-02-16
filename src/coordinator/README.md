@@ -54,8 +54,9 @@ Run Prometheus Docker image:
 
 ### Running on GCP
 
-[Setup GCP for m3db](https://github.com/m3db/m3db/pull/452/files?short_path=20bfc3f#diff-20bfc3ff6a860483887b93bf9cf0d135)
+Setup GCP for [single m3db node](https://github.com/m3db/m3db/pull/452/files?short_path=20bfc3f#diff-20bfc3ff6a860483887b93bf9cf0d135)
 
+> For a multi-node cluster, [see here](https://github.com/m3db/m3coordinator/tree/master/benchmark)
 
 Setup GCP for m3coordinator:
 
