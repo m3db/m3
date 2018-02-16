@@ -143,6 +143,29 @@ func (ids IDs) Finalize() {
 // Tags is a collection of Tag instances.
 type Tags []Tag
 
+// Finalize finalizes all Tags.
+func (tags Tags) Finalize() {
+	for _, t := range tags {
+		t.Name.Finalize()
+		t.Value.Finalize()
+	}
+}
+
+// Equal returns a bool indicating if the tags are equal. It requires
+// the two slices are ordered the same.
+func (tags Tags) Equal(other Tags) bool {
+	if len(tags) != len(other) {
+		return false
+	}
+	for i := 0; i < len(tags); i++ {
+		equal := tags[i].Name.Equal(other[i].Name) && tags[i].Value.Equal(other[i].Value)
+		if !equal {
+			return false
+		}
+	}
+	return true
+}
+
 // Hash represents a form of ID suitable to be used as map keys.
 type Hash [md5.Size]byte
 
