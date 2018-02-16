@@ -37,11 +37,7 @@ type QueryOptions struct {
 	StartInclusive time.Time
 	EndExclusive   time.Time
 	Limit          int
-	PageToken      QueryResultsPageToken
 }
-
-// QueryResultsPageToken is an opaque token for query result pagination.
-type QueryResultsPageToken []byte
 
 // QueryResults is the collection of results for a query.
 type QueryResults struct {
