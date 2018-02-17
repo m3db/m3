@@ -54,10 +54,11 @@ type FileSetWriter interface {
 
 // FileSetReaderStatus describes the status of a file set reader
 type FileSetReaderStatus struct {
-	Open       bool
 	Namespace  ident.ID
-	Shard      uint32
 	BlockStart time.Time
+
+	Shard uint32
+	Open  bool
 }
 
 // FileSetReader provides an unsynchronized reader for a TSDB file set

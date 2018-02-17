@@ -103,11 +103,13 @@ install-mockgen:
 	)
 
 .PHONY: install-thrift-bin
-install-thrift-bin: install-vendor install-glide
+install-thrift-bin: install-glide
 	@echo Installing thrift binaries
 	@echo Note: the thrift binary should be installed from https://github.com/apache/thrift at commit 9b954e6a469fef18682314458e6fc4af2dd84add.
-	go get $(thrift_gen_package) && cd $(GOPATH)/src/$(thrift_gen_package) && glide install
-	go install $(thrift_gen_package)/thrift/thrift-gen
+	@which thrift-gen >/dev/null || (make install-vendor                                      && \
+		go get $(thrift_gen_package) && cd $(GOPATH)/src/$(thrift_gen_package) && glide install && \
+		go install $(thrift_gen_package)/thrift/thrift-gen                                         \
+	)
 
 .PHONY: install-proto-bin
 install-proto-bin: install-vendor
@@ -137,8 +139,7 @@ all-gen: thrift-gen proto-gen mock-gen
 
 .PHONY: metalint
 metalint: install-metalinter install-linter-badtime
-	@($(metalint_check) $(metalint_config) $(metalint_exclude) \
-		&& echo "metalinted successfully!") || (echo "metalinter failed" && exit 1)
+	@($(metalint_check) $(metalint_config) $(metalint_exclude))
 
 .PHONY: test
 test: test-base

@@ -99,7 +99,6 @@ type dbShard struct {
 	namespace                namespace.Metadata
 	seriesBlockRetriever     series.QueryableBlockRetriever
 	seriesOnRetrieveBlock    block.OnRetrieveBlock
-	shard                    uint32
 	namespaceReaderMgr       databaseNamespaceReaderManager
 	increasingIndex          increasingIndex
 	seriesPool               series.DatabaseSeriesPool
@@ -109,19 +108,20 @@ type dbShard struct {
 	lookup                   map[ident.Hash]*list.Element
 	list                     *list.List
 	bs                       bootstrapState
-	newSeriesBootstrapped    bool
 	filesetBeforeFn          filesetBeforeFn
 	deleteFilesFn            deleteFilesFn
 	sleepFn                  func(time.Duration)
 	identifierPool           ident.Pool
 	contextPool              context.Pool
 	flushState               shardFlushState
-	ticking                  bool
 	tickWg                   *sync.WaitGroup
 	runtimeOptsListenClosers []xclose.SimpleCloser
 	currRuntimeOptions       dbShardRuntimeOptions
 	logger                   xlog.Logger
 	metrics                  dbShardMetrics
+	newSeriesBootstrapped    bool
+	ticking                  bool
+	shard                    uint32
 }
 
 // NB(r): dbShardRuntimeOptions does not contain its own

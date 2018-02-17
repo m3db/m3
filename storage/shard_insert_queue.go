@@ -95,10 +95,11 @@ type dbShardInsertBatch struct {
 }
 
 type dbShardInsertAsyncOptions struct {
+	pendingWrite          dbShardPendingWrite
+	pendingRetrievedBlock dbShardPendingRetrievedBlock
+
 	hasPendingWrite          bool
-	pendingWrite             dbShardPendingWrite
 	hasPendingRetrievedBlock bool
-	pendingRetrievedBlock    dbShardPendingRetrievedBlock
 }
 
 type dbShardInsert struct {

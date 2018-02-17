@@ -24,7 +24,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/ts"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
+)
+
+var (
+	emptyStringID = ident.StringID("")
 )
 
 type seriesIterator struct {
@@ -52,6 +57,14 @@ func NewSeriesIterator(
 
 func (it *seriesIterator) ID() string {
 	return it.id
+}
+
+func (it *seriesIterator) Namespace() ident.ID {
+	return emptyStringID
+}
+
+func (it *seriesIterator) Tags() ident.TagIterator {
+	return ident.EmptyTagIterator
 }
 
 func (it *seriesIterator) Start() time.Time {

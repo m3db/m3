@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	time0 "github.com/m3db/m3x/time"
 
@@ -560,6 +561,26 @@ func (_m *MockSeriesIterator) ID() string {
 
 func (_mr *_MockSeriesIteratorRecorder) ID() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ID")
+}
+
+func (_m *MockSeriesIterator) Tags() ident.TagIterator {
+	ret := _m.ctrl.Call(_m, "Tags")
+	ret0, _ := ret[0].(ident.TagIterator)
+	return ret0
+}
+
+func (_mr *_MockSeriesIteratorRecorder) Tags() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tags")
+}
+
+func (_m *MockSeriesIterator) Namespace() ident.ID {
+	ret := _m.ctrl.Call(_m, "Namespace")
+	ret0, _ := ret[0].(ident.ID)
+	return ret0
+}
+
+func (_mr *_MockSeriesIteratorRecorder) Namespace() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Namespace")
 }
 
 func (_m *MockSeriesIterator) Start() time.Time {

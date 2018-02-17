@@ -235,10 +235,10 @@ type dbRepairer struct {
 	repairTimeJitter    time.Duration
 	repairCheckInterval time.Duration
 	repairMaxRetries    int
-	running             int32
 	status              tally.Gauge
 
 	closedLock sync.Mutex
+	running    int32
 	closed     bool
 }
 

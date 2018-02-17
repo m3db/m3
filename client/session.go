@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
@@ -93,6 +94,7 @@ var (
 	}
 	errFetchBlocksMetadataEndpointVersionUnspecified = errors.New(
 		"fetch blocks metadata endpoint version unspecified")
+	errNotImplemented = errors.New("not implemented")
 )
 
 var (
@@ -735,6 +737,17 @@ func (s *session) Write(
 	return err
 }
 
+func (s *session) WriteTagged(
+	namespace, id string,
+	tags ident.TagIterator,
+	t time.Time,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
+	return errNotImplemented
+}
+
 func (s *session) writeAttempt(
 	namespace, id string,
 	t time.Time,
@@ -854,6 +867,18 @@ func (s *session) FetchAll(
 	result := f.result
 	s.fetchAttemptPool.Put(f)
 	return result, err
+}
+
+func (s *session) FetchTagged(
+	q index.Query, opts index.QueryOptions,
+) (index.QueryResults, error) {
+	return index.QueryResults{}, errNotImplemented
+}
+
+func (s *session) FetchTaggedIDs(
+	q index.Query, opts index.QueryOptions,
+) (index.QueryResults, error) {
+	return index.QueryResults{}, errNotImplemented
 }
 
 func (s *session) fetchAllAttempt(

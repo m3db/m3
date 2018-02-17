@@ -41,22 +41,25 @@ type readerIterator struct {
 	mes  encoding.MarkerEncodingScheme
 
 	// internal bookkeeping
-	t    time.Time     // current time
-	dt   time.Duration // current time delta
-	vb   uint64        // current float value
-	xor  uint64        // current float xor
-	done bool          // has reached the end
-	err  error         // current error
+	t   time.Time     // current time
+	dt  time.Duration // current time delta
+	vb  uint64        // current float value
+	xor uint64        // current float xor
+	err error         // current error
 
-	intOptimized bool    // whether encoding scheme is optimized for ints
-	isFloat      bool    // whether encoding is in int or float
-	intVal       float64 // current int value
-	mult         uint8   // current int multiplier
-	sig          uint8   // current number of significant bits for int diff
+	intVal float64 // current int value
 
-	ant       ts.Annotation // current annotation
-	tu        xtime.Unit    // current time unit
-	tuChanged bool          // whether we have a new time unit
+	ant ts.Annotation // current annotation
+	tu  xtime.Unit    // current time unit
+
+	mult uint8 // current int multiplier
+	sig  uint8 // current number of significant bits for int diff
+
+	intOptimized bool // whether encoding scheme is optimized for ints
+	isFloat      bool // whether encoding is in int or float
+
+	tuChanged bool // whether we have a new time unit
+	done      bool // has reached the end
 	closed    bool
 }
 
