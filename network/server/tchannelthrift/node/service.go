@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/clock"
-	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
@@ -186,10 +185,9 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
-	encoded, err := s.db.ReadEncoded(ctx,
-		s.idPool.GetStringID(ctx, req.NameSpace),
-		s.idPool.GetStringID(ctx, req.ID),
-		start, end)
+	tsID := s.idPool.GetStringID(ctx, req.ID)
+	nsID := s.idPool.GetStringID(ctx, req.NameSpace)
+	encoded, err := s.db.ReadEncoded(ctx, nsID, tsID, start, end)
 	if err != nil {
 		s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
 		rpcErr := convert.ToRPCError(err)
@@ -203,11 +201,10 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 
 	multiIt := s.db.Options().MultiReaderIteratorPool().Get()
 	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded))
-	it := encoding.NewSeriesIterator(req.ID, start, end, []encoding.Iterator{multiIt}, nil)
-	defer it.Close()
+	defer multiIt.Close()
 
-	for it.Next() {
-		dp, _, annotation := it.Current()
+	for multiIt.Next() {
+		dp, _, annotation := multiIt.Current()
 
 		timestamp, timestampErr := convert.ToValue(dp.Timestamp, req.ResultTimeType)
 		if timestampErr != nil {
@@ -223,7 +220,7 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 		result.Datapoints = append(result.Datapoints, datapoint)
 	}
 
-	if err := it.Err(); err != nil {
+	if err := multiIt.Err(); err != nil {
 		s.metrics.fetch.ReportError(s.nowFn().Sub(callStart))
 		return nil, tterrors.NewInternalError(err)
 	}

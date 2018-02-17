@@ -28,12 +28,9 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
-var (
-	emptyStringID = ident.StringID("")
-)
-
 type seriesIterator struct {
-	id        string
+	id        ident.ID
+	nsID      ident.ID
 	start     time.Time
 	end       time.Time
 	iters     iterators
@@ -43,24 +40,26 @@ type seriesIterator struct {
 	pool      SeriesIteratorPool
 }
 
-// NewSeriesIterator creates a new series iterator
+// NewSeriesIterator creates a new series iterator.
+// NB: The returned SeriesIterator assumes ownership of the provided `ident.ID`.
 func NewSeriesIterator(
-	id string,
+	id ident.ID,
+	nsID ident.ID,
 	startInclusive, endExclusive time.Time,
 	replicas []Iterator,
 	pool SeriesIteratorPool,
 ) SeriesIterator {
 	it := &seriesIterator{pool: pool}
-	it.Reset(id, startInclusive, endExclusive, replicas)
+	it.Reset(id, nsID, startInclusive, endExclusive, replicas)
 	return it
 }
 
-func (it *seriesIterator) ID() string {
+func (it *seriesIterator) ID() ident.ID {
 	return it.id
 }
 
 func (it *seriesIterator) Namespace() ident.ID {
-	return emptyStringID
+	return it.nsID
 }
 
 func (it *seriesIterator) Tags() ident.TagIterator {
@@ -99,14 +98,17 @@ func (it *seriesIterator) Close() {
 		return
 	}
 	it.closed = true
+	it.id.Finalize()
+	it.nsID.Finalize()
 	it.iters.reset()
 	if it.pool != nil {
 		it.pool.Put(it)
 	}
 }
 
-func (it *seriesIterator) Reset(id string, startInclusive, endExclusive time.Time, replicas []Iterator) {
+func (it *seriesIterator) Reset(id ident.ID, nsID ident.ID, startInclusive, endExclusive time.Time, replicas []Iterator) {
 	it.id = id
+	it.nsID = nsID
 	it.start = startInclusive
 	it.end = endExclusive
 	it.iters.reset()

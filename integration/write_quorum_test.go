@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/topology"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -227,7 +228,7 @@ func makeTestWrite(
 		s, err := c.NewSession()
 		require.NoError(t, err)
 
-		return s.Write(nspaces[0].ID().String(), "quorumTest", now, 42, xtime.Second, nil)
+		return s.Write(nspaces[0].ID(), ident.StringID("quorumTest"), now, 42, xtime.Second, nil)
 	}
 
 	return nodes, closeFn, testWrite

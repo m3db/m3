@@ -215,7 +215,7 @@ func TestConfig(t *testing.T) {
 	}
 
 	for _, v := range values {
-		err := session.Write(namespaceID, "foo", v.at, v.value, v.unit, nil)
+		err := session.Write(ident.StringID(namespaceID), ident.StringID("foo"), v.at, v.value, v.unit, nil)
 		require.NoError(t, err)
 	}
 
@@ -226,7 +226,7 @@ func TestConfig(t *testing.T) {
 	// the "end" param to fetch being exclusive
 	fetchEnd := values[len(values)-1].at.Truncate(time.Second).Add(time.Nanosecond)
 
-	iter, err := session.Fetch(namespaceID, "foo", fetchStart, fetchEnd)
+	iter, err := session.Fetch(ident.StringID(namespaceID), ident.StringID("foo"), fetchStart, fetchEnd)
 	require.NoError(t, err)
 
 	for _, v := range values {

@@ -148,13 +148,13 @@ type SeriesIterator interface {
 	Iterator
 
 	// ID gets the ID of the series
-	ID() string
+	ID() ident.ID
+
+	// Namespace gets the namespace of the series
+	Namespace() ident.ID
 
 	// Tags returns an iterator over the tags associated with the ID.
 	Tags() ident.TagIterator
-
-	// Namespace returns the namespace associated with the ID.
-	Namespace() ident.ID
 
 	// Start returns the start time filter specified for the iterator
 	Start() time.Time
@@ -163,8 +163,10 @@ type SeriesIterator interface {
 	End() time.Time
 
 	// Reset resets the iterator to read from a set of iterators from different replicas, one
-	// must note that this can be an array with nil entries if some replicas did not return successfully
-	Reset(id string, startInclusive, endExclusive time.Time, replicas []Iterator)
+	// must note that this can be an array with nil entries if some replicas did not return successfully.
+	// NB: the SeriesIterator assumes ownership of the provided ids, this includes calling `id.Finalize()` upon
+	// iter.Close().
+	Reset(id ident.ID, ns ident.ID, startInclusive, endExclusive time.Time, replicas []Iterator)
 }
 
 // SeriesIterators is a collection of SeriesIterator that can close all iterators

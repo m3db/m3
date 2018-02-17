@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 
 	"github.com/golang/mock/gomock"
@@ -125,12 +124,13 @@ func TestShardNotAvailable(t *testing.T) {
 
 // utils
 
-func getWriteState(s *session) *writeState {
+func getWriteState(s *session, w writeStub) *writeState {
 	wState := s.writeStatePool.Get()
-	wState.ctx = context.NewContext()
 	wState.topoMap = s.topoMap
 	wState.op = s.writeOpPool.Get()
 	wState.op.shardID = 0 // Any valid shardID
+	wState.nsID = w.ns
+	wState.tsID = w.id
 	return wState
 }
 
@@ -168,7 +168,7 @@ func writeTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *sessio
 
 	host := s.topoMap.Hosts()[0] // any host
 
-	wState := getWriteState(s)
+	wState := getWriteState(s, w)
 	wState.incRef() // for the test
 	wState.incRef() // allow introspection
 

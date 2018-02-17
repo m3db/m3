@@ -275,13 +275,13 @@ func newSession(opts Options) (clientSession, error) {
 	return s, nil
 }
 
-func (s *session) ShardID(id string) (uint32, error) {
+func (s *session) ShardID(id ident.ID) (uint32, error) {
 	s.RLock()
 	if s.state != stateOpen {
 		s.RUnlock()
 		return 0, errSessionStateNotOpen
 	}
-	value := s.topoMap.ShardSet().Lookup(ident.StringID(id))
+	value := s.topoMap.ShardSet().Lookup(id)
 	s.RUnlock()
 	return value, nil
 }
@@ -721,15 +721,14 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQue
 }
 
 func (s *session) Write(
-	namespace, id string,
+	namespace, id ident.ID,
 	t time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
 	w := s.writeAttemptPool.Get()
-	w.args.namespace, w.args.id =
-		namespace, id
+	w.args.namespace, w.args.id = namespace, id
 	w.args.t, w.args.value, w.args.unit, w.args.annotation =
 		t, value, unit, annotation
 	err := s.writeRetrier.Attempt(w.attemptFn)
@@ -749,7 +748,7 @@ func (s *session) WriteTagged(
 }
 
 func (s *session) writeAttempt(
-	namespace, id string,
+	namespace, id ident.ID,
 	t time.Time,
 	value float64,
 	unit xtime.Unit,
@@ -758,9 +757,13 @@ func (s *session) writeAttempt(
 	var (
 		enqueued int32
 		majority = atomic.LoadInt32(&s.majority)
-		ctx      = s.contextPool.Get()
-		nsID     = s.idPool.GetStringID(ctx, namespace)
-		tsID     = s.idPool.GetStringID(ctx, id)
+		// NB(prateek): We retain an individual copy of the namespace, ID per
+		// writeState, as each writeState tracks the lifecycle of it's resources in
+		// use in the various queues. Tracking per writeAttempt isn't sufficient as
+		// we may enqueue multiple writeStates concurrently depending on retries
+		// and consistency level checks.
+		nsID = s.idPool.Clone(namespace)
+		tsID = s.idPool.Clone(id)
 	)
 
 	timeType, timeTypeErr := convert.ToTimeType(unit)
@@ -784,7 +787,7 @@ func (s *session) writeAttempt(
 
 	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
 	state.op, state.majority = s.writeOpPool.Get(), majority
-	state.ctx, state.nsID, state.tsID = ctx, nsID, tsID
+	state.nsID, state.tsID = nsID, tsID
 
 	state.op.namespace = nsID
 	state.op.request.ID = tsID.Data().Get()
@@ -838,11 +841,12 @@ func (s *session) writeAttempt(
 }
 
 func (s *session) Fetch(
-	namespace string,
-	id string,
+	namespace ident.ID,
+	id ident.ID,
 	startInclusive, endExclusive time.Time,
 ) (encoding.SeriesIterator, error) {
-	results, err := s.FetchAll(namespace, []string{id}, startInclusive, endExclusive)
+	tsIDs := ident.NewIDsIterator(id)
+	results, err := s.FetchIDs(namespace, tsIDs, startInclusive, endExclusive)
 	if err != nil {
 		return nil, err
 	}
@@ -855,14 +859,14 @@ func (s *session) Fetch(
 	return iter, nil
 }
 
-func (s *session) FetchAll(
-	namespace string,
-	ids []string,
+func (s *session) FetchIDs(
+	namespace ident.ID,
+	ids ident.Iterator,
 	startInclusive, endExclusive time.Time,
 ) (encoding.SeriesIterators, error) {
 	f := s.fetchAttemptPool.Get()
-	f.args.namespace, f.args.ids, f.args.start, f.args.end =
-		namespace, ids, startInclusive, endExclusive
+	f.args.namespace, f.args.ids = namespace, ids
+	f.args.start, f.args.end = startInclusive, endExclusive
 	err := s.fetchRetrier.Attempt(f.attemptFn)
 	result := f.result
 	s.fetchAttemptPool.Put(f)
@@ -881,9 +885,9 @@ func (s *session) FetchTaggedIDs(
 	return index.QueryResults{}, errNotImplemented
 }
 
-func (s *session) fetchAllAttempt(
-	namespace string,
-	ids []string,
+func (s *session) fetchIDsAttempt(
+	inputNamespace ident.ID,
+	inputIDs ident.Iterator,
 	startInclusive, endExclusive time.Time,
 ) (encoding.SeriesIterators, error) {
 	var (
@@ -896,9 +900,17 @@ func (s *session) fetchAllAttempt(
 		resultErrs             int32
 		majority               int32
 		fetchBatchOpsByHostIdx [][]*fetchBatchOp
-		nsID                   = []byte(namespace)
 		success                = false
 	)
+
+	// NB(prateek): need to make a copy of inputNamespace and inputIDs to control
+	// their life-cycle within this function.
+	namespace := s.idPool.Clone(inputNamespace)
+	idsClone := inputIDs.Clone()
+	ids := s.idPool.CloneIDs(idsClone)
+
+	// can release cloned iterator as we have a copy of underlying IDs.
+	idsClone.Close()
 
 	rangeStart, tsErr := convert.ToValue(startInclusive, rpc.TimeType_UNIX_NANOSECONDS)
 	if tsErr != nil {
@@ -937,16 +949,27 @@ func (s *session) fetchAllAttempt(
 
 	majority = atomic.LoadInt32(&s.majority)
 
+	// NB(prateek): namespaceAccessors tracks the number of pending accessors for nsID.
+	// It is set to incremented by `replica` for each requested ID during fetch enqueuing,
+	// and once by initial request, and is decremented for each replica retrieved, inside
+	// completionFn, and once by the allCompletionFn. So know we can Finalize `namespace`
+	// once it's value reaches 0.
+	namespaceAccessors := int32(0)
+
 	for idx := range ids {
 		idx := idx
 
 		var (
+			tsID = ids[idx]
+
 			wgIsDone int32
-			// NB(xichen): resultsAccessors gets initialized to number of replicas + 1 before enqueuing
-			// (incremented when iterating over the replicas for this ID), and gets decremented for each
-			// replica as well as inside the allCompletionFn so we know when resultsAccessors is 0,
-			// results are no longer accessed and it's safe to return results to the pool.
+			// NB(xichen): resultsAccessors and idAccessors get initialized to number of replicas + 1
+			// before enqueuing (incremented when iterating over the replicas for this ID), and gets
+			// decremented for each replica as well as inside the allCompletionFn so we know when
+			// resultsAccessors is 0, results are no longer accessed and it's safe to return results
+			// to the pool.
 			resultsAccessors int32 = 1
+			idAccessors      int32 = 1
 			resultsLock      sync.RWMutex
 			results          []encoding.Iterator
 			enqueued         int32
@@ -955,6 +978,10 @@ func (s *session) fetchAllAttempt(
 			errors           []error
 			errs             int32
 		)
+
+		// increment namespaceAccesors by 1 to indicate it still needs to be handled by the
+		// allCompletionFn for tsID.
+		atomic.AddInt32(&namespaceAccessors, 1)
 
 		wg.Add(1)
 		allCompletionFn := func() {
@@ -980,11 +1007,23 @@ func (s *session) fetchAllAttempt(
 				successIters := results[:success]
 				resultsLock.RUnlock()
 				iter := s.seriesIteratorPool.Get()
-				iter.Reset(ids[idx], startInclusive, endExclusive, successIters)
+				// NB(prateek): we need to allocate a copy of ident.ID to allow the seriesIterator
+				// to have control over the lifecycle of ID. We cannot allow seriesIterator
+				// to control the lifecycle of the original ident.ID, as it might still be in use
+				// due to a pending request in queue.
+				seriesID := s.idPool.Clone(tsID)
+				namespaceID := s.idPool.Clone(namespace)
+				iter.Reset(seriesID, namespaceID, startInclusive, endExclusive, successIters)
 				iters.SetAt(idx, iter)
 			}
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
 				s.iteratorArrayPool.Put(results)
+			}
+			if atomic.AddInt32(&idAccessors, -1) == 0 {
+				tsID.Finalize()
+			}
+			if atomic.AddInt32(&namespaceAccessors, -1) == 0 {
+				namespace.Finalize()
 			}
 			wg.Done()
 		}
@@ -1038,9 +1077,13 @@ func (s *session) fetchAllAttempt(
 			if atomic.AddInt32(&resultsAccessors, -1) == 0 {
 				s.iteratorArrayPool.Put(results)
 			}
+			if atomic.AddInt32(&idAccessors, -1) == 0 {
+				tsID.Finalize()
+			}
+			if atomic.AddInt32(&namespaceAccessors, -1) == 0 {
+				namespace.Finalize()
+			}
 		}
-
-		tsID := ident.StringID(ids[idx])
 
 		if err := s.topoMap.RouteForEach(tsID, func(hostIdx int, host topology.Host) {
 			// Inc safely as this for each is sequential
@@ -1048,6 +1091,8 @@ func (s *session) fetchAllAttempt(
 			pending++
 			allPending++
 			resultsAccessors++
+			namespaceAccessors++
+			idAccessors++
 
 			ops := fetchBatchOpsByHostIdx[hostIdx]
 
@@ -1070,7 +1115,7 @@ func (s *session) fetchAllAttempt(
 			}
 
 			// Append IDWithNamespace to this request
-			f.append(nsID, tsID.Data().Get(), completionFn)
+			f.append(namespace.Data().Get(), tsID.Data().Get(), completionFn)
 		}); err != nil {
 			routeErr = err
 			break

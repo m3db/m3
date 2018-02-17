@@ -24,6 +24,7 @@ import (
 	"time"
 
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xretry "github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
@@ -40,8 +41,8 @@ type writeAttempt struct {
 }
 
 type writeAttemptArgs struct {
-	namespace  string
-	id         string
+	namespace  ident.ID
+	id         ident.ID
 	t          time.Time
 	value      float64
 	unit       xtime.Unit

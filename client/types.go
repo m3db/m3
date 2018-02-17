@@ -183,6 +183,9 @@ func (l *ReadConsistencyLevel) UnmarshalYAML(unmarshal func(interface{}) error) 
 
 // Client can create sessions to write and read to a cluster
 type Client interface {
+	// Options returns the Client Options.
+	Options() Options
+
 	// NewSession creates a new session
 	NewSession() (Session, error)
 
@@ -196,16 +199,16 @@ type Client interface {
 // Session can write and read to a cluster
 type Session interface {
 	// Write value to the database for an ID
-	Write(namespace string, id string, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
+	Write(namespace ident.ID, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
 	// WriteTagged value to the database for an ID and given tags.
 	WriteTagged(namespace string, id string, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
 	// Fetch values from the database for an ID
-	Fetch(namespace string, id string, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error)
+	Fetch(namespace ident.ID, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error)
 
-	// FetchAll values from the database for a set of IDs
-	FetchAll(namespace string, ids []string, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
+	// FetchIDs values from the database for a set of IDs
+	FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
 
 	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
 	FetchTagged(index.Query, index.QueryOptions) (index.QueryResults, error)
@@ -216,7 +219,7 @@ type Session interface {
 	// ShardID returns the given shard for an ID for callers
 	// to easily discern what shard is failing when operations
 	// for given IDs begin failing
-	ShardID(id string) (uint32, error)
+	ShardID(id ident.ID) (uint32, error)
 
 	// Close the session
 	Close() error
