@@ -331,7 +331,7 @@ func (d *db) newDatabaseNamespace(
 		}
 	}
 	return newDatabaseNamespace(md, d.shardSet, retriever,
-		d, d.commitLog, d.index, d.opts)
+		d, d.commitLog, d.index.Write, d.opts)
 }
 
 func (d *db) Options() Options {
