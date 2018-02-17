@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3db/ts"
 	xclose "github.com/m3db/m3x/close"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -46,7 +47,7 @@ type noopCloser struct{}
 
 func (noopCloser) Close() {}
 
-func TestSessionFetchAllHighConcurrency(t *testing.T) {
+func TestSessionFetchIDsHighConcurrency(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -186,7 +187,8 @@ func TestSessionFetchAllHighConcurrency(t *testing.T) {
 
 			for j := 0; j < fetchAllEach; j++ {
 				ids := fetchAllTypes[j%len(fetchAllTypes)].ids
-				iters, err := session.FetchAll(testNamespaceName, ids, start, end)
+				iters, err := session.FetchIDs(ident.StringID(testNamespaceName),
+					ident.NewStringIDsSliceIterator(ids), start, end)
 				if err != nil {
 					panic(err)
 				}

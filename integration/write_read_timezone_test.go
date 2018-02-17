@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/require"
@@ -137,13 +138,15 @@ func TestWriteReadTimezone(t *testing.T) {
 	// Write datapoints
 	for _, series := range writeSeries {
 		for _, write := range series.datapoints {
-			err = session.Write(series.namespace, series.id, write.timestamp, write.value, xtime.Second, nil)
+			err = session.Write(ident.StringID(series.namespace), ident.StringID(series.id), write.timestamp, write.value, xtime.Second, nil)
 			require.NoError(t, err)
 		}
 	}
 
 	// Read datapoints back
-	iters, err := session.FetchAll(namespace, []string{"some-id-1", "some-id-2"}, startNy, startNy.Add(1*time.Hour))
+	iters, err := session.FetchIDs(ident.StringID(namespace),
+		ident.NewIDsIterator(ident.StringID("some-id-1"), ident.StringID("some-id-2")),
+		startNy, startNy.Add(1*time.Hour))
 	require.NoError(t, err)
 
 	// Assert datapoints match what we wrote

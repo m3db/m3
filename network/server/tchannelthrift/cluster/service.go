@@ -27,6 +27,7 @@ import (
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3x/checked"
@@ -47,6 +48,8 @@ type service struct {
 
 	client client.Client
 	active client.Session
+	opts   client.Options
+	idPool ident.Pool
 	health *rpc.HealthResult_
 }
 
@@ -54,6 +57,8 @@ type service struct {
 func NewService(client client.Client) rpc.TChanCluster {
 	s := &service{
 		client: client,
+		opts:   client.Options(),
+		idPool: client.Options().IdentifierPool(),
 		health: &rpc.HealthResult_{Ok: true, Status: "up"},
 	}
 	return s
@@ -113,7 +118,11 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 		return nil, tterrors.NewBadRequestError(xerrors.FirstError(rangeStartErr, rangeEndErr))
 	}
 
-	it, err := session.Fetch(req.NameSpace, req.ID, start, end)
+	ctx := tchannelthrift.Context(tctx)
+	nsID := s.idPool.GetStringID(ctx, req.NameSpace)
+	tsID := s.idPool.GetStringID(ctx, req.ID)
+
+	it, err := session.Fetch(nsID, tsID, start, end)
 	if err != nil {
 		if client.IsBadRequestError(err) {
 			return nil, tterrors.NewBadRequestError(err)
@@ -169,7 +178,11 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 		return tterrors.NewBadRequestError(err)
 	}
 	ts := xtime.FromNormalizedTime(dp.Timestamp, d)
-	err = session.Write(req.NameSpace, req.ID, ts, dp.Value, unit, dp.Annotation)
+
+	ctx := tchannelthrift.Context(tctx)
+	nsID := s.idPool.GetStringID(ctx, req.NameSpace)
+	tsID := s.idPool.GetStringID(ctx, req.ID)
+	err = session.Write(nsID, tsID, ts, dp.Value, unit, dp.Annotation)
 	if err != nil {
 		if client.IsBadRequestError(err) {
 			return tterrors.NewBadRequestError(err)

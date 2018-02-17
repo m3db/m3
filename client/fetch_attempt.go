@@ -25,6 +25,7 @@ import (
 
 	"github.com/m3db/m3db/encoding"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 	xretry "github.com/m3db/m3x/retry"
 )
@@ -42,8 +43,8 @@ type fetchAttempt struct {
 }
 
 type fetchAttemptArgs struct {
-	namespace string
-	ids       []string
+	namespace ident.ID
+	ids       ident.Iterator
 	start     time.Time
 	end       time.Time
 }
@@ -54,7 +55,7 @@ func (f *fetchAttempt) reset() {
 }
 
 func (f *fetchAttempt) perform() error {
-	result, err := f.session.fetchAllAttempt(f.args.namespace,
+	result, err := f.session.fetchIDsAttempt(f.args.namespace,
 		f.args.ids, f.args.start, f.args.end)
 	f.result = result
 

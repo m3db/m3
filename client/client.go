@@ -86,6 +86,10 @@ func (c *client) defaultSession() (AdminSession, error) {
 	return session, nil
 }
 
+func (c *client) Options() Options {
+	return c.opts
+}
+
 func (c *client) NewSession() (Session, error) {
 	return c.newSession()
 }

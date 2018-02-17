@@ -122,7 +122,7 @@ func m3dbClientWriteBatch(client client.Client, workerPool xsync.WorkerPool, nam
 				defer wg.Done()
 
 				if err := session.Write(
-					namespace.String(), id.String(), d.Timestamp, d.Value, xtime.Second, nil); err != nil {
+					namespace, id, d.Timestamp, d.Value, xtime.Second, nil); err != nil {
 					select {
 					case errCh <- err:
 					default:
@@ -146,8 +146,8 @@ func m3dbClientFetch(client client.Client, req *rpc.FetchRequest) ([]ts.Datapoin
 	}
 
 	iter, err := session.Fetch(
-		req.NameSpace,
-		req.ID,
+		ident.StringID(req.NameSpace),
+		ident.StringID(req.ID),
 		xtime.FromNormalizedTime(req.RangeStart, time.Second),
 		xtime.FromNormalizedTime(req.RangeEnd, time.Second),
 	)

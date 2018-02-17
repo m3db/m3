@@ -117,7 +117,7 @@ func TestSessionShardID(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 
-	_, err = s.ShardID("foo")
+	_, err = s.ShardID(ident.StringID("foo"))
 	assert.Error(t, err)
 	assert.Equal(t, errSessionStateNotOpen, err)
 
@@ -126,7 +126,7 @@ func TestSessionShardID(t *testing.T) {
 	require.NoError(t, s.Open())
 
 	// The shard set we create in newSessionTestOptions always hashes to uint32
-	shard, err := s.ShardID("foo")
+	shard, err := s.ShardID(ident.StringID("foo"))
 	require.NoError(t, err)
 	assert.Equal(t, uint32(0), shard)
 

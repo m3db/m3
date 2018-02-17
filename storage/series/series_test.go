@@ -480,6 +480,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 	var (
 		ctx        = context.NewContext()
 		id         = ident.StringID("foo")
+		nsID       = ident.StringID("bar")
 		startValue = 1.0
 		blockSize  = opts.RetentionOptions().BlockSize()
 		numPoints  = 10
@@ -520,7 +521,7 @@ func TestSeriesOutOfOrderWritesAndRotate(t *testing.T) {
 
 	multiIt := opts.MultiReaderIteratorPool().Get()
 	multiIt.ResetSliceOfSlices(xio.NewReaderSliceOfSlicesFromSegmentReadersIterator(encoded))
-	it := encoding.NewSeriesIterator(id.String(), qStart, qEnd, []encoding.Iterator{multiIt}, nil)
+	it := encoding.NewSeriesIterator(id, nsID, qStart, qEnd, []encoding.Iterator{multiIt}, nil)
 	defer it.Close()
 
 	var actual []ts.Datapoint

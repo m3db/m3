@@ -28,7 +28,6 @@ import (
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
-	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
@@ -96,7 +95,6 @@ type writeState struct {
 	session           *session
 	topoMap           topology.Map
 	op                *writeOp
-	ctx               context.Context
 	nsID              ident.ID
 	tsID              ident.ID
 	majority, pending int32
@@ -117,6 +115,9 @@ func (w *writeState) close() {
 	w.op.reset()
 	w.session.writeOpPool.Put(w.op)
 
+	w.nsID.Finalize()
+	w.tsID.Finalize()
+
 	w.op, w.majority, w.pending, w.success = nil, 0, 0, 0
 	w.nsID, w.tsID = nil, nil
 
@@ -129,9 +130,6 @@ func (w *writeState) close() {
 		w.queues[i] = nil
 	}
 	w.queues = w.queues[:0]
-
-	w.ctx.BlockingClose()
-	w.ctx = nil
 
 	w.session.writeStatePool.Put(w)
 }

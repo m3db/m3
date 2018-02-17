@@ -35,6 +35,8 @@ import (
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/metrics"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
+	xretry "github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -66,6 +68,10 @@ func (f testFetches) IDs() []string {
 	return ids
 }
 
+func (f testFetches) IDsIter() ident.Iterator {
+	return ident.NewStringIDsSliceIterator(f.IDs())
+}
+
 type testValue struct {
 	value      float64
 	t          time.Time
@@ -93,12 +99,12 @@ func TestSessionFetchNotOpenError(t *testing.T) {
 	s, err := newSession(opts)
 	assert.NoError(t, err)
 
-	_, err = s.Fetch("namespace", "foo", time.Now().Add(-time.Hour), time.Now())
+	_, err = s.Fetch(ident.StringID("namespace"), ident.StringID("foo"), time.Now().Add(-time.Hour), time.Now())
 	assert.Error(t, err)
 	assert.Equal(t, errSessionStateNotOpen, err)
 }
 
-func TestSessionFetchAll(t *testing.T) {
+func TestSessionFetchIDs(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -138,14 +144,54 @@ func TestSessionFetchAll(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	results, err := session.FetchAll(testNamespaceName, fetches.IDs(), start, end)
+	results, err := session.FetchIDs(ident.StringID(testNamespaceName), fetches.IDsIter(), start, end)
 	assert.NoError(t, err)
 	assertFetchResults(t, start, end, fetches, results)
 
 	assert.NoError(t, session.Close())
 }
 
-func TestSessionFetchAllTrimsWindowsInTimeWindow(t *testing.T) {
+func TestSessionFetchIDsWithRetries(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := newSessionTestOptions().
+		SetFetchBatchSize(2).
+		SetFetchRetrier(
+			xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(1)))
+	s, err := newSession(opts)
+	assert.NoError(t, err)
+	session := s.(*session)
+
+	start := time.Now().Truncate(time.Hour)
+	end := start.Add(2 * time.Hour)
+
+	fetches := testFetches([]testFetch{
+		{"foo", []testValue{
+			{1.0, start.Add(1 * time.Second), xtime.Second, []byte{1, 2, 3}},
+			{2.0, start.Add(2 * time.Second), xtime.Second, nil},
+			{3.0, start.Add(3 * time.Second), xtime.Second, nil},
+		}},
+	})
+
+	successBatchOps, enqueueWg := prepareEnqueuesWithErrors(t, ctrl, session, fetches)
+
+	go func() {
+		// Fulfill success fetch ops once all are enqueued
+		enqueueWg.Wait()
+		fulfillTszFetchBatchOps(t, fetches, *successBatchOps, 0)
+	}()
+
+	assert.NoError(t, session.Open())
+
+	results, err := session.FetchIDs(ident.StringID(testNamespaceName), fetches.IDsIter(), start, end)
+	assert.NoError(t, err)
+	assertFetchResults(t, start, end, fetches, results)
+
+	assert.NoError(t, session.Close())
+}
+
+func TestSessionFetchIDsTrimsWindowsInTimeWindow(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -177,7 +223,7 @@ func TestSessionFetchAllTrimsWindowsInTimeWindow(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	result, err := session.Fetch(testNamespaceName, fetches[0].id, start, end)
+	result, err := session.Fetch(ident.StringID(testNamespaceName), ident.StringID(fetches[0].id), start, end)
 	assert.NoError(t, err)
 	assertion := assertFetchResults(t, start, end, fetches, seriesIterators(result))
 	assert.Equal(t, 2, assertion.trimToTimeRange)
@@ -185,7 +231,7 @@ func TestSessionFetchAllTrimsWindowsInTimeWindow(t *testing.T) {
 	assert.NoError(t, session.Close())
 }
 
-func TestSessionFetchAllBadRequestErrorIsNonRetryable(t *testing.T) {
+func TestSessionFetchIDsBadRequestErrorIsNonRetryable(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -210,7 +256,9 @@ func TestSessionFetchAllBadRequestErrorIsNonRetryable(t *testing.T) {
 
 	assert.NoError(t, session.Open())
 
-	_, err = session.FetchAll(testNamespaceName, []string{"foo", "bar"}, start, end)
+	_, err = session.FetchIDs(
+		ident.StringID(testNamespaceName),
+		ident.NewIDsIterator(ident.StringID("foo"), ident.StringID("bar")), start, end)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsNonRetryableError(err))
 
@@ -303,7 +351,8 @@ func testFetchConsistencyLevel(
 
 	assert.NoError(t, session.Open())
 
-	results, err := session.FetchAll(testNamespaceName, fetches.IDs(), start, end)
+	results, err := session.FetchIDs(ident.StringID(testNamespaceName),
+		fetches.IDsIter(), start, end)
 	if expected == outcomeSuccess {
 		assert.NoError(t, err)
 		assertFetchResults(t, start, end, fetches, results)
@@ -343,6 +392,38 @@ func testFetchConsistencyLevel(
 			}
 		}
 	}
+}
+
+func prepareEnqueuesWithErrors(
+	t *testing.T,
+	ctrl *gomock.Controller,
+	session *session,
+	fetches []testFetch,
+) (*[]*fetchBatchOp, *sync.WaitGroup) {
+	failureEnqueueFn := func(idx int, op op) {
+		fetch, ok := op.(*fetchBatchOp)
+		assert.True(t, ok)
+		go func() {
+			fetch.CompletionFn()(nil, fmt.Errorf("random failure"))
+		}()
+	}
+
+	var successBatchOps []*fetchBatchOp
+	successEnqueueFn := func(idx int, op op) {
+		fetch, ok := op.(*fetchBatchOp)
+		assert.True(t, ok)
+		successBatchOps = append(successBatchOps, fetch)
+	}
+
+	var enqueueFns []testEnqueueFn
+	fetchBatchSize := session.opts.FetchBatchSize()
+	for i := 0; i < int(math.Ceil(float64(len(fetches))/float64(fetchBatchSize))); i++ {
+		enqueueFns = append(enqueueFns, failureEnqueueFn)
+		enqueueFns = append(enqueueFns, successEnqueueFn)
+	}
+
+	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, enqueueFns)
+	return &successBatchOps, enqueueWg
 }
 
 func prepareEnqueues(
@@ -428,7 +509,7 @@ func assertFetchResults(
 
 	for i, series := range results.Iters() {
 		expected := fetches[i]
-		assert.Equal(t, expected.id, series.ID())
+		assert.Equal(t, expected.id, series.ID().String())
 		assert.Equal(t, start, series.Start())
 		assert.Equal(t, end, series.End())
 

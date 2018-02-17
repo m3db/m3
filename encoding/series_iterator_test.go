@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/stretchr/testify/assert"
@@ -31,6 +32,7 @@ import (
 
 type testSeries struct {
 	id          string
+	nsID        string
 	start       time.Time
 	end         time.Time
 	input       [][]testValue
@@ -67,6 +69,7 @@ func TestMultiReaderMergesReplicas(t *testing.T) {
 
 	test := testSeries{
 		id:       "foo",
+		nsID:     "bar",
 		start:    start,
 		end:      end,
 		input:    values,
@@ -91,6 +94,7 @@ func TestMultiReaderFiltersToRange(t *testing.T) {
 
 	test := testSeries{
 		id:       "foo",
+		nsID:     "bar",
 		start:    start,
 		end:      end,
 		input:    [][]testValue{values, values, values},
@@ -112,6 +116,7 @@ func TestSeriesIteratorIgnoresEmptyReplicas(t *testing.T) {
 
 	test := testSeries{
 		id:       "foo",
+		nsID:     "bar",
 		start:    start,
 		end:      end,
 		input:    [][]testValue{values, []testValue{}, values},
@@ -133,6 +138,7 @@ func TestSeriesIteratorErrorOnOutOfOrder(t *testing.T) {
 
 	test := testSeries{
 		id:       "foo",
+		nsID:     "bar",
 		start:    start,
 		end:      end,
 		input:    [][]testValue{values},
@@ -159,10 +165,11 @@ func assertTestSeriesIterator(
 		}
 	}
 
-	iter := NewSeriesIterator(series.id, series.start, series.end, iters, nil)
+	iter := NewSeriesIterator(ident.StringID(series.id), ident.StringID(series.nsID), series.start, series.end, iters, nil)
 	defer iter.Close()
 
-	assert.Equal(t, series.id, iter.ID())
+	assert.Equal(t, series.id, iter.ID().String())
+	assert.Equal(t, series.nsID, iter.Namespace().String())
 	assert.Equal(t, series.start, iter.Start())
 	assert.Equal(t, series.end, iter.End())
 	for i := 0; i < len(series.expected); i++ {

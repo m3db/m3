@@ -33,6 +33,8 @@ import (
 	"github.com/m3db/m3db/topology"
 	xmetrics "github.com/m3db/m3db/x/metrics"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
+	xretry "github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -47,7 +49,7 @@ func TestSessionWriteNotOpenError(t *testing.T) {
 
 	s := newDefaultTestSession(t)
 
-	err := s.Write("namespace", "foo", time.Now(), 1.337, xtime.Second, nil)
+	err := s.Write(ident.StringID("namespace"), ident.StringID("foo"), time.Now(), 1.337, xtime.Second, nil)
 	assert.Equal(t, errSessionStateNotOpen, err)
 }
 
@@ -63,7 +65,7 @@ func TestSessionWrite(t *testing.T) {
 		completionFn = op.CompletionFn()
 		write, ok := op.(*writeOp)
 		assert.True(t, ok)
-		assert.Equal(t, w.id, string(write.request.ID))
+		assert.Equal(t, w.id.String(), string(write.request.ID))
 		assert.Equal(t, w.value, write.request.Datapoint.Value)
 		assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
 		assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
@@ -106,15 +108,15 @@ func TestSessionWriteBadUnitErr(t *testing.T) {
 	session := newDefaultTestSession(t).(*session)
 
 	w := struct {
-		ns         string
-		id         string
+		ns         ident.ID
+		id         ident.ID
 		value      float64
 		t          time.Time
 		unit       xtime.Unit
 		annotation []byte
 	}{
-		ns:         "testNs",
-		id:         "foo",
+		ns:         ident.StringID("testNs"),
+		id:         ident.StringID("foo"),
 		value:      1.0,
 		t:          time.Now(),
 		unit:       xtime.Unit(byte(255)),
@@ -137,15 +139,15 @@ func TestSessionWriteBadRequestErrorIsNonRetryable(t *testing.T) {
 	session := newDefaultTestSession(t).(*session)
 
 	w := struct {
-		ns         string
-		id         string
+		ns         ident.ID
+		id         ident.ID
 		value      float64
 		t          time.Time
 		unit       xtime.Unit
 		annotation []byte
 	}{
-		ns:         "testNs",
-		id:         "foo",
+		ns:         ident.StringID("testNs"),
+		id:         ident.StringID("foo"),
 		value:      1.0,
 		t:          time.Now(),
 		unit:       xtime.Second,
@@ -174,6 +176,79 @@ func TestSessionWriteBadRequestErrorIsNonRetryable(t *testing.T) {
 	err := session.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
 	assert.Error(t, err)
 	assert.True(t, xerrors.IsNonRetryableError(err))
+
+	assert.NoError(t, session.Close())
+}
+
+func TestSessionWriteRetry(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	session := newRetryEnabledTestSession(t).(*session)
+
+	w := struct {
+		ns         ident.ID
+		id         ident.ID
+		value      float64
+		t          time.Time
+		unit       xtime.Unit
+		annotation []byte
+	}{
+		ns:         ident.StringID("testNs"),
+		id:         ident.StringID("foo"),
+		value:      1.0,
+		t:          time.Now(),
+		unit:       xtime.Second,
+		annotation: nil,
+	}
+
+	var hosts []topology.Host
+	var completionFn completionFn
+	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{
+		func(idx int, op op) {
+			go func() {
+				op.CompletionFn()(hosts[idx], &rpc.Error{
+					Type:    rpc.ErrorType_INTERNAL_ERROR,
+					Message: "random internal issue",
+				})
+			}()
+		},
+		func(idx int, op op) {
+			write, ok := op.(*writeOp)
+			assert.True(t, ok)
+			assert.Equal(t, w.id.String(), string(write.request.ID))
+			assert.Equal(t, w.value, write.request.Datapoint.Value)
+			assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
+			assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
+			assert.NotNil(t, write.completionFn)
+			completionFn = write.completionFn
+		},
+	})
+
+	assert.NoError(t, session.Open())
+
+	session.RLock()
+	hosts = session.topoMap.Hosts()
+	session.RUnlock()
+
+	// Begin write
+	var resultErr error
+	var writeWg sync.WaitGroup
+	writeWg.Add(1)
+	go func() {
+		resultErr = session.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
+		writeWg.Done()
+	}()
+
+	// Callback
+	enqueueWg.Wait()
+	for i := 0; i < session.topoMap.Replicas(); i++ {
+		completionFn(session.topoMap.Hosts()[0], nil)
+	}
+
+	// Wait for write to complete
+	writeWg.Wait()
+	assert.Nil(t, resultErr)
 
 	assert.NoError(t, session.Close())
 }
@@ -238,15 +313,15 @@ func testWriteConsistencyLevel(
 	session := newTestSession(t, opts).(*session)
 
 	w := struct {
-		ns         string
-		id         string
+		ns         ident.ID
+		id         ident.ID
 		value      float64
 		t          time.Time
 		unit       xtime.Unit
 		annotation []byte
 	}{
-		ns:         "testNs",
-		id:         "foo",
+		ns:         ident.StringID("testNs"),
+		id:         ident.StringID("foo"),
 		value:      1.0,
 		t:          time.Now(),
 		unit:       xtime.Second,
@@ -337,8 +412,8 @@ func testWriteConsistencyLevel(
 }
 
 type writeStub struct {
-	ns         string
-	id         string
+	ns         ident.ID
+	id         ident.ID
 	value      float64
 	t          time.Time
 	unit       xtime.Unit
@@ -355,10 +430,17 @@ func newDefaultTestSession(t *testing.T) clientSession {
 	return newTestSession(t, newSessionTestOptions())
 }
 
+func newRetryEnabledTestSession(t *testing.T) clientSession {
+	opts := newSessionTestOptions().
+		SetWriteRetrier(
+			xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(1)))
+	return newTestSession(t, opts)
+}
+
 func newWriteStub() writeStub {
 	return writeStub{
-		ns:         "testNs",
-		id:         "foo",
+		ns:         ident.StringID("testNs"),
+		id:         ident.StringID("foo"),
 		value:      1.0,
 		t:          time.Now(),
 		unit:       xtime.Second,

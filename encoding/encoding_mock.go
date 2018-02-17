@@ -553,24 +553,14 @@ func (_mr *_MockSeriesIteratorRecorder) Close() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
 }
 
-func (_m *MockSeriesIterator) ID() string {
+func (_m *MockSeriesIterator) ID() ident.ID {
 	ret := _m.ctrl.Call(_m, "ID")
-	ret0, _ := ret[0].(string)
+	ret0, _ := ret[0].(ident.ID)
 	return ret0
 }
 
 func (_mr *_MockSeriesIteratorRecorder) ID() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ID")
-}
-
-func (_m *MockSeriesIterator) Tags() ident.TagIterator {
-	ret := _m.ctrl.Call(_m, "Tags")
-	ret0, _ := ret[0].(ident.TagIterator)
-	return ret0
-}
-
-func (_mr *_MockSeriesIteratorRecorder) Tags() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tags")
 }
 
 func (_m *MockSeriesIterator) Namespace() ident.ID {
@@ -581,6 +571,16 @@ func (_m *MockSeriesIterator) Namespace() ident.ID {
 
 func (_mr *_MockSeriesIteratorRecorder) Namespace() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Namespace")
+}
+
+func (_m *MockSeriesIterator) Tags() ident.TagIterator {
+	ret := _m.ctrl.Call(_m, "Tags")
+	ret0, _ := ret[0].(ident.TagIterator)
+	return ret0
+}
+
+func (_mr *_MockSeriesIteratorRecorder) Tags() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tags")
 }
 
 func (_m *MockSeriesIterator) Start() time.Time {
@@ -603,12 +603,12 @@ func (_mr *_MockSeriesIteratorRecorder) End() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "End")
 }
 
-func (_m *MockSeriesIterator) Reset(id string, startInclusive time.Time, endExclusive time.Time, replicas []Iterator) {
-	_m.ctrl.Call(_m, "Reset", id, startInclusive, endExclusive, replicas)
+func (_m *MockSeriesIterator) Reset(id ident.ID, ns ident.ID, startInclusive time.Time, endExclusive time.Time, replicas []Iterator) {
+	_m.ctrl.Call(_m, "Reset", id, ns, startInclusive, endExclusive, replicas)
 }
 
-func (_mr *_MockSeriesIteratorRecorder) Reset(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1, arg2, arg3)
+func (_mr *_MockSeriesIteratorRecorder) Reset(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1, arg2, arg3, arg4)
 }
 
 // Mock of SeriesIterators interface
