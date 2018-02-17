@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
@@ -87,6 +88,25 @@ type Database interface {
 		unit xtime.Unit,
 		annotation []byte,
 	) error
+
+	// WriteTagged values to the database for an ID
+	WriteTagged(
+		ctx context.Context,
+		namespace ident.ID,
+		id ident.ID,
+		tags ident.TagIterator,
+		timestamp time.Time,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+	) error
+
+	// QueryIDs resolves the given query into known IDs.
+	QueryIDs(
+		ctx context.Context,
+		query index.Query,
+		opts index.QueryOptions,
+	) (index.QueryResults, error)
 
 	// ReadEncoded retrieves encoded segments for an ID
 	ReadEncoded(
@@ -207,6 +227,17 @@ type databaseNamespace interface {
 		annotation []byte,
 	) error
 
+	// WriteTagged values to the namespace for an ID
+	WriteTagged(
+		ctx context.Context,
+		id ident.ID,
+		tags ident.TagIterator,
+		timestamp time.Time,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+	) error
+
 	// ReadEncoded reads data for given id within [start, end)
 	ReadEncoded(
 		ctx context.Context,
@@ -293,6 +324,17 @@ type databaseShard interface {
 		annotation []byte,
 	) error
 
+	// WriteTagged values to the shard for an ID
+	WriteTagged(
+		ctx context.Context,
+		id ident.ID,
+		tags ident.TagIterator,
+		timestamp time.Time,
+		value float64,
+		unit xtime.Unit,
+		annotation []byte,
+	) error
+
 	ReadEncoded(
 		ctx context.Context,
 		id ident.ID,
@@ -346,6 +388,24 @@ type databaseShard interface {
 		tr xtime.Range,
 		repairer databaseShardRepairer,
 	) (repair.MetadataComparisonResult, error)
+}
+
+// databaseIndex indexes database writes.
+type databaseIndex interface {
+	// Write writes a timeseries ID and Tags.
+	Write(
+		ctx context.Context,
+		namespace ident.ID,
+		id ident.ID,
+		tags ident.TagIterator,
+	) error
+
+	// Query resolves the given query into known IDs.
+	Query(
+		ctx context.Context,
+		query index.Query,
+		opts index.QueryOptions,
+	) (index.QueryResults, error)
 }
 
 // databaseBootstrapManager manages the bootstrap process.
@@ -544,6 +604,12 @@ type Options interface {
 
 	// ErrorThresholdForLoad returns the error threshold for load
 	ErrorThresholdForLoad() int64
+
+	// SetIndexingEnabled sets whether or not to enable indexing
+	SetIndexingEnabled(b bool) Options
+
+	// IndexingEnabled returns whether the indexing is enabled
+	IndexingEnabled() bool
 
 	// SetRepairEnabled sets whether or not to enable the repair
 	SetRepairEnabled(b bool) Options

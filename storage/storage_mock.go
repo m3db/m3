@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap"
 	"github.com/m3db/m3db/storage/bootstrap/result"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3db/storage/series"
@@ -157,6 +158,27 @@ func (_m *MockDatabase) Write(ctx context.Context, namespace ident.ID, id ident.
 
 func (_mr *_MockDatabaseRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+}
+
+func (_m *MockDatabase) WriteTagged(ctx context.Context, namespace ident.ID, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "WriteTagged", ctx, namespace, id, tags, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockDatabaseRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteTagged", arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
+}
+
+func (_m *MockDatabase) QueryIDs(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "QueryIDs", ctx, query, opts)
+	ret0, _ := ret[0].(index.QueryResults)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockDatabaseRecorder) QueryIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "QueryIDs", arg0, arg1, arg2)
 }
 
 func (_m *MockDatabase) ReadEncoded(ctx context.Context, namespace ident.ID, id ident.ID, start time.Time, end time.Time) ([][]xio.SegmentReader, error) {
@@ -364,6 +386,27 @@ func (_m *Mockdatabase) Write(ctx context.Context, namespace ident.ID, id ident.
 
 func (_mr *_MockdatabaseRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+}
+
+func (_m *Mockdatabase) WriteTagged(ctx context.Context, namespace ident.ID, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "WriteTagged", ctx, namespace, id, tags, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteTagged", arg0, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
+}
+
+func (_m *Mockdatabase) QueryIDs(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "QueryIDs", ctx, query, opts)
+	ret0, _ := ret[0].(index.QueryResults)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockdatabaseRecorder) QueryIDs(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "QueryIDs", arg0, arg1, arg2)
 }
 
 func (_m *Mockdatabase) ReadEncoded(ctx context.Context, namespace ident.ID, id ident.ID, start time.Time, end time.Time) ([][]xio.SegmentReader, error) {
@@ -654,6 +697,16 @@ func (_mr *_MockdatabaseNamespaceRecorder) Write(arg0, arg1, arg2, arg3, arg4, a
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
+func (_m *MockdatabaseNamespace) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseNamespaceRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteTagged", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+}
+
 func (_m *MockdatabaseNamespace) ReadEncoded(ctx context.Context, id ident.ID, start time.Time, end time.Time) ([][]xio.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, id, start, end)
 	ret0, _ := ret[0].([][]xio.SegmentReader)
@@ -884,6 +937,16 @@ func (_mr *_MockdatabaseShardRecorder) Write(arg0, arg1, arg2, arg3, arg4, arg5 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3, arg4, arg5)
 }
 
+func (_m *MockdatabaseShard) WriteTagged(ctx context.Context, id ident.ID, tags ident.TagIterator, timestamp time.Time, value float64, unit time0.Unit, annotation []byte) error {
+	ret := _m.ctrl.Call(_m, "WriteTagged", ctx, id, tags, timestamp, value, unit, annotation)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseShardRecorder) WriteTagged(arg0, arg1, arg2, arg3, arg4, arg5, arg6 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteTagged", arg0, arg1, arg2, arg3, arg4, arg5, arg6)
+}
+
 func (_m *MockdatabaseShard) ReadEncoded(ctx context.Context, id ident.ID, start time.Time, end time.Time) ([][]xio.SegmentReader, error) {
 	ret := _m.ctrl.Call(_m, "ReadEncoded", ctx, id, start, end)
 	ret0, _ := ret[0].([][]xio.SegmentReader)
@@ -979,6 +1042,48 @@ func (_m *MockdatabaseShard) Repair(ctx context.Context, tr time0.Range, repaire
 
 func (_mr *_MockdatabaseShardRecorder) Repair(arg0, arg1, arg2 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Repair", arg0, arg1, arg2)
+}
+
+// Mock of databaseIndex interface
+type MockdatabaseIndex struct {
+	ctrl     *gomock.Controller
+	recorder *_MockdatabaseIndexRecorder
+}
+
+// Recorder for MockdatabaseIndex (not exported)
+type _MockdatabaseIndexRecorder struct {
+	mock *MockdatabaseIndex
+}
+
+func NewMockdatabaseIndex(ctrl *gomock.Controller) *MockdatabaseIndex {
+	mock := &MockdatabaseIndex{ctrl: ctrl}
+	mock.recorder = &_MockdatabaseIndexRecorder{mock}
+	return mock
+}
+
+func (_m *MockdatabaseIndex) EXPECT() *_MockdatabaseIndexRecorder {
+	return _m.recorder
+}
+
+func (_m *MockdatabaseIndex) Write(ctx context.Context, namespace ident.ID, id ident.ID, tags ident.TagIterator) error {
+	ret := _m.ctrl.Call(_m, "Write", ctx, namespace, id, tags)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockdatabaseIndexRecorder) Write(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3)
+}
+
+func (_m *MockdatabaseIndex) Query(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {
+	ret := _m.ctrl.Call(_m, "Query", ctx, query, opts)
+	ret0, _ := ret[0].(index.QueryResults)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (_mr *_MockdatabaseIndexRecorder) Query(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Query", arg0, arg1, arg2)
 }
 
 // Mock of databaseBootstrapManager interface
@@ -1700,6 +1805,26 @@ func (_m *MockOptions) ErrorThresholdForLoad() int64 {
 
 func (_mr *_MockOptionsRecorder) ErrorThresholdForLoad() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ErrorThresholdForLoad")
+}
+
+func (_m *MockOptions) SetIndexingEnabled(b bool) Options {
+	ret := _m.ctrl.Call(_m, "SetIndexingEnabled", b)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetIndexingEnabled(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIndexingEnabled", arg0)
+}
+
+func (_m *MockOptions) IndexingEnabled() bool {
+	ret := _m.ctrl.Call(_m, "IndexingEnabled")
+	ret0, _ := ret[0].(bool)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) IndexingEnabled() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IndexingEnabled")
 }
 
 func (_m *MockOptions) SetRepairEnabled(b bool) Options {

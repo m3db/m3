@@ -64,6 +64,9 @@ const (
 
 	// defaultErrorThresholdForLoad is the default error threshold for considering server overloaded
 	defaultErrorThresholdForLoad = 1000
+
+	// defaultIndexingEnabled disables indexing by default
+	defaultIndexingEnabled = false
 )
 
 var (
@@ -110,6 +113,7 @@ type options struct {
 	errCounterOpts                 xcounter.Options
 	errWindowForLoad               time.Duration
 	errThresholdForLoad            int64
+	indexingEnabled                bool
 	repairEnabled                  bool
 	repairOpts                     repair.Options
 	newEncoderFn                   encoding.NewEncoderFn
@@ -153,6 +157,7 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 		errCounterOpts:                 xcounter.NewOptions(),
 		errWindowForLoad:               defaultErrorWindowForLoad,
 		errThresholdForLoad:            defaultErrorThresholdForLoad,
+		indexingEnabled:                defaultIndexingEnabled,
 		repairEnabled:                  defaultRepairEnabled,
 		repairOpts:                     repair.NewOptions(),
 		bootstrapProcess:               defaultBootstrapProcess,
@@ -302,6 +307,16 @@ func (o *options) SetErrorThresholdForLoad(value int64) Options {
 
 func (o *options) ErrorThresholdForLoad() int64 {
 	return o.errThresholdForLoad
+}
+
+func (o *options) SetIndexingEnabled(b bool) Options {
+	opts := *o
+	opts.indexingEnabled = b
+	return &opts
+}
+
+func (o *options) IndexingEnabled() bool {
+	return o.indexingEnabled
 }
 
 func (o *options) SetRepairEnabled(b bool) Options {

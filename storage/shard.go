@@ -103,6 +103,7 @@ type dbShard struct {
 	increasingIndex          increasingIndex
 	seriesPool               series.DatabaseSeriesPool
 	commitLogWriter          commitLogWriter
+	indexWriter              databaseIndexWriter
 	insertQueue              *dbShardInsertQueue
 	lookup                   map[ident.Hash]*list.Element
 	list                     *list.List
@@ -200,6 +201,7 @@ func newDatabaseShard(
 	namespaceReaderMgr databaseNamespaceReaderManager,
 	increasingIndex increasingIndex,
 	commitLogWriter commitLogWriter,
+	indexWriter databaseIndexWriter,
 	needsBootstrap bool,
 	opts Options,
 	seriesOpts series.Options,
@@ -218,6 +220,7 @@ func newDatabaseShard(
 		increasingIndex:    increasingIndex,
 		seriesPool:         opts.DatabaseSeriesPool(),
 		commitLogWriter:    commitLogWriter,
+		indexWriter:        indexWriter,
 		lookup:             make(map[ident.Hash]*list.Element),
 		list:               list.New(),
 		filesetBeforeFn:    fs.FilesetBefore,
@@ -608,6 +611,18 @@ func (s *dbShard) purgeExpiredSeries(expired []series.DatabaseSeries) {
 		delete(s.lookup, hash)
 	}
 	s.Unlock()
+}
+
+func (s *dbShard) WriteTagged(
+	ctx context.Context,
+	id ident.ID,
+	tags ident.TagIterator,
+	timestamp time.Time,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
+	return errIndexingNotImplemented
 }
 
 func (s *dbShard) Write(

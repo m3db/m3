@@ -32,6 +32,7 @@ import (
 	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/sharding"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/x/xcounter"
 	"github.com/m3db/m3db/x/xio"
@@ -80,6 +81,7 @@ type db struct {
 	shardSet   sharding.ShardSet
 	namespaces map[ident.Hash]databaseNamespace
 	commitLog  commitlog.CommitLog
+	index      databaseIndex
 
 	state    databaseState
 	mediator databaseMediator
@@ -99,6 +101,7 @@ type db struct {
 type databaseMetrics struct {
 	unknownNamespaceRead                tally.Counter
 	unknownNamespaceWrite               tally.Counter
+	unknownNamespaceWriteTagged         tally.Counter
 	unknownNamespaceFetchBlocks         tally.Counter
 	unknownNamespaceFetchBlocksMetadata tally.Counter
 }
@@ -108,6 +111,7 @@ func newDatabaseMetrics(scope tally.Scope) databaseMetrics {
 	return databaseMetrics{
 		unknownNamespaceRead:                unknownNamespaceScope.Counter("read"),
 		unknownNamespaceWrite:               unknownNamespaceScope.Counter("write"),
+		unknownNamespaceWriteTagged:         unknownNamespaceScope.Counter("write-tagged"),
 		unknownNamespaceFetchBlocks:         unknownNamespaceScope.Counter("fetch-blocks"),
 		unknownNamespaceFetchBlocksMetadata: unknownNamespaceScope.Counter("fetch-blocks-metadata"),
 	}
@@ -134,12 +138,21 @@ func NewDatabase(
 	scope := iopts.MetricsScope().SubScope("database")
 	logger := iopts.Logger()
 
+	index := databaseIndexNoOp
+	if opts.IndexingEnabled() {
+		index, err = newDatabaseIndex(opts)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	d := &db{
 		opts:         opts,
 		nowFn:        opts.ClockOptions().NowFn(),
 		shardSet:     shardSet,
 		namespaces:   make(map[ident.Hash]databaseNamespace),
 		commitLog:    commitLog,
+		index:        index,
 		scope:        scope,
 		metrics:      newDatabaseMetrics(scope),
 		log:          logger,
@@ -318,7 +331,7 @@ func (d *db) newDatabaseNamespace(
 		}
 	}
 	return newDatabaseNamespace(md, d.shardSet, retriever,
-		d, d.commitLog, d.opts)
+		d, d.commitLog, d.index, d.opts)
 }
 
 func (d *db) Options() Options {
@@ -466,6 +479,37 @@ func (d *db) Write(
 		d.errors.Record(1)
 	}
 	return err
+}
+
+func (d *db) WriteTagged(
+	ctx context.Context,
+	namespace ident.ID,
+	id ident.ID,
+	tags ident.TagIterator,
+	timestamp time.Time,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
+	n, err := d.namespaceFor(namespace)
+	if err != nil {
+		d.metrics.unknownNamespaceWriteTagged.Inc(1)
+		return err
+	}
+
+	err = n.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	if err == commitlog.ErrCommitLogQueueFull {
+		d.errors.Record(1)
+	}
+	return err
+}
+
+func (d *db) QueryIDs(
+	ctx context.Context,
+	query index.Query,
+	opts index.QueryOptions,
+) (index.QueryResults, error) {
+	return d.index.Query(ctx, query, opts)
 }
 
 func (d *db) ReadEncoded(

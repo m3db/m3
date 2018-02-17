@@ -115,6 +115,7 @@ type dbNamespace struct {
 
 	increasingIndex increasingIndex
 	commitLogWriter commitLogWriter
+	indexWriter     databaseIndexWriter
 
 	tickWorkers            xsync.WorkerPool
 	tickWorkersConcurrency int
@@ -133,6 +134,7 @@ type databaseNamespaceMetrics struct {
 	bootstrap           instrument.MethodMetrics
 	flush               instrument.MethodMetrics
 	write               instrument.MethodMetrics
+	writeTagged         instrument.MethodMetrics
 	read                instrument.MethodMetrics
 	fetchBlocks         instrument.MethodMetrics
 	fetchBlocksMetadata instrument.MethodMetrics
@@ -180,6 +182,7 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 		bootstrap:           instrument.NewMethodMetrics(scope, "bootstrap", samplingRate),
 		flush:               instrument.NewMethodMetrics(scope, "flush", samplingRate),
 		write:               instrument.NewMethodMetrics(scope, "write", samplingRate),
+		writeTagged:         instrument.NewMethodMetrics(scope, "write-tagged", samplingRate),
 		read:                instrument.NewMethodMetrics(scope, "read", samplingRate),
 		fetchBlocks:         instrument.NewMethodMetrics(scope, "fetchBlocks", samplingRate),
 		fetchBlocksMetadata: instrument.NewMethodMetrics(scope, "fetchBlocksMetadata", samplingRate),
@@ -216,6 +219,7 @@ func newDatabaseNamespace(
 	blockRetriever block.DatabaseBlockRetriever,
 	increasingIndex increasingIndex,
 	commitLogWriter commitLogWriter,
+	indexWriter databaseIndexWriter,
 	opts Options,
 ) (databaseNamespace, error) {
 	var (
@@ -261,6 +265,7 @@ func newDatabaseNamespace(
 		log:                    logger,
 		increasingIndex:        increasingIndex,
 		commitLogWriter:        commitLogWriter,
+		indexWriter:            indexWriter,
 		tickWorkers:            tickWorkers,
 		tickWorkersConcurrency: tickWorkersConcurrency,
 		metrics:                newDatabaseNamespaceMetrics(scope, iops.MetricsSamplingRate()),
@@ -344,7 +349,7 @@ func (n *dbNamespace) AssignShardSet(shardSet sharding.ShardSet) {
 		} else {
 			needsBootstrap := n.nopts.NeedsBootstrap()
 			n.shards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter,
+				n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.indexWriter,
 				needsBootstrap, n.opts, n.seriesOpts)
 			n.metrics.shards.add.Inc(1)
 		}
@@ -467,6 +472,26 @@ func (n *dbNamespace) Write(
 	}
 	err = shard.Write(ctx, id, timestamp, value, unit, annotation)
 	n.metrics.write.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
+	return err
+}
+
+func (n *dbNamespace) WriteTagged(
+	ctx context.Context,
+	id ident.ID,
+	tags ident.TagIterator,
+	timestamp time.Time,
+	value float64,
+	unit xtime.Unit,
+	annotation []byte,
+) error {
+	callStart := n.nowFn()
+	shard, err := n.shardFor(id)
+	if err != nil {
+		n.metrics.writeTagged.ReportError(n.nowFn().Sub(callStart))
+		return err
+	}
+	err = shard.WriteTagged(ctx, id, tags, timestamp, value, unit, annotation)
+	n.metrics.writeTagged.ReportSuccessOrError(err, n.nowFn().Sub(callStart))
 	return err
 }
 
@@ -906,7 +931,7 @@ func (n *dbNamespace) initShards(needBootstrap bool) {
 	dbShards := make([]databaseShard, n.shardSet.Max()+1)
 	for _, shard := range shards {
 		dbShards[shard] = newDatabaseShard(n.metadata, shard, n.blockRetriever,
-			n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter,
+			n.namespaceReaderMgr, n.increasingIndex, n.commitLogWriter, n.indexWriter,
 			needBootstrap, n.opts, n.seriesOpts)
 	}
 	n.shards = dbShards
