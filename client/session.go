@@ -906,7 +906,11 @@ func (s *session) fetchIDsAttempt(
 	// NB(prateek): need to make a copy of inputNamespace and inputIDs to control
 	// their life-cycle within this function.
 	namespace := s.idPool.Clone(inputNamespace)
+	// First, we clone the iterator (only the struct referencing the underlying slice,
+	// not the slice itself). Need this to be able to iterate the original iterator
+	// multiple times in case of retries.
 	idsClone := inputIDs.Clone()
+	// Now we actually clones the ids in the slice.
 	ids := s.idPool.CloneIDs(idsClone)
 
 	// can release cloned iterator as we have a copy of underlying IDs.
