@@ -21,34 +21,47 @@
 package storage
 
 import (
-	"errors"
-
 	"github.com/m3db/m3db/storage/index"
+	"github.com/m3db/m3ninx/doc"
+	"github.com/m3db/m3ninx/index/segment/mem"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
 )
 
-var (
-	errIndexingNotImplemented = errors.New("indexing is not implemented")
-)
-
 type dbIndex struct {
-	opts Options
+	segment mem.Segment
+
+	idPool ident.Pool
+
+	opts  Options
+	mopts mem.Options // TODO(prateek): migrate mem.Options -> Options
 }
 
 func newDatabaseIndex(o Options) (databaseIndex, error) {
+	mopts := mem.NewOptions().
+		SetInstrumentOptions(o.InstrumentOptions())
+
+	seg, err := mem.New(1, mopts)
+	if err != nil {
+		return nil, err
+	}
+
 	return &dbIndex{
-		opts: o,
+		segment: seg,
+
+		idPool: o.IdentifierPool(),
+		opts:   o,
+		mopts:  mopts,
 	}, nil
 }
 
 func (i *dbIndex) Write(
-	ctx context.Context,
 	namespace ident.ID,
 	id ident.ID,
-	tags ident.TagIterator,
+	tags ident.Tags,
 ) error {
-	return errIndexingNotImplemented
+	d := i.doc(namespace, id, tags)
+	return i.segment.Insert(d)
 }
 
 func (i *dbIndex) Query(
@@ -56,21 +69,54 @@ func (i *dbIndex) Query(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResults, error) {
-	return index.QueryResults{}, errIndexingNotImplemented
+	// TODO(prateek): use QueryOptions to restrict results
+	iter, err := i.segment.Query(query.Query)
+	if err != nil {
+		return index.QueryResults{}, err
+	}
+
+	return index.QueryResults{
+		Iterator:   index.NewIterator(iter, i.idPool),
+		Exhaustive: true,
+	}, nil
 }
 
-type databaseIndexWriter interface {
-	Write(
-		ctx context.Context,
-		namespace ident.ID,
-		id ident.ID,
-		tags ident.TagIterator,
-	) error
+func (i *dbIndex) doc(ns, id ident.ID, tags ident.Tags) doc.Document {
+	// TODO(prateek): need to figure out copy/release semantics for ident.ID cloning.
+	// Could probably keep a clone registered to a context per mem.Segment. With it,
+	// we could release the ids once the segment is cleared, without requiring any
+	// clone semantics within m3ninx itself.
+	nsCopy := i.idPool.Clone(ns)
+	idCopy := i.idPool.Clone(id)
+	fields := make([]doc.Field, 0, 1+len(tags))
+	fields = append(fields, doc.Field{
+		Name:      index.ReservedFieldNameNamespace,
+		Value:     nsCopy.Data().Get(),
+		ValueType: doc.StringValueType,
+	})
+	for j := 0; j < len(tags); j++ {
+		t := tags[j]
+		fields = append(fields, doc.Field{
+			Name:      i.idPool.Clone(t.Name).Data().Get(),
+			Value:     i.idPool.Clone(t.Value).Data().Get(),
+			ValueType: doc.StringValueType,
+		})
+	}
+	return doc.Document{
+		ID:     idCopy.Data().Get(),
+		Fields: fields,
+	}
 }
+
+type databaseIndexWriteFn func(
+	namespace ident.ID,
+	id ident.ID,
+	tags ident.Tags,
+) error
 
 type dbIndexNoOp struct{}
 
-func (n dbIndexNoOp) Write(context.Context, ident.ID, ident.ID, ident.TagIterator) error {
+func (n dbIndexNoOp) Write(ident.ID, ident.ID, ident.Tags) error {
 	return nil
 }
 
@@ -79,3 +125,5 @@ func (n dbIndexNoOp) Query(context.Context, index.Query, index.QueryOptions) (in
 }
 
 var databaseIndexNoOp databaseIndex = dbIndexNoOp{}
+
+var databaseIndexNoOpWriteFn databaseIndexWriteFn = databaseIndexNoOp.Write

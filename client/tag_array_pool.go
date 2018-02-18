@@ -18,51 +18,60 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package index
+package client
 
 import (
-	"time"
-
-	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
 )
 
-var (
-	// ReservedFieldNameNamespace is the field name used to index namespace in the
-	// m3ninx subsytem.
-	ReservedFieldNameNamespace = []byte("_m3db-namespace")
-)
+// DefaultTagArrayPoolSize ...
+const DefaultTagArrayPoolSize = 65536
 
-// Query is a rich end user query to describe a set of constraints on required IDs.
-type Query struct {
-	segment.Query
+// DefaultTagArrayCapacity ...
+const DefaultTagArrayCapacity = 8
+
+// TagArrayPool ...
+type TagArrayPool interface {
+	// Init pool
+	Init()
+
+	// Get an array of ident.Tag objects
+	Get() []ident.Tag
+
+	// Put an array of ident.Tag objects
+	Put([]ident.Tag)
 }
 
-// QueryOptions enables users to specify constraints on query execution.
-type QueryOptions struct {
-	StartInclusive time.Time
-	EndExclusive   time.Time
-	Limit          int
+type poolOfIdentTags struct {
+	pool     pool.ObjectPool
+	capacity int
 }
 
-// QueryResults is the collection of results for a query.
-type QueryResults struct {
-	Iterator   Iterator
-	Exhaustive bool
+// TODO(prateek): migrate to m3x/ident
+// NewTagArrayPool ...
+func NewTagArrayPool(
+	opts pool.ObjectPoolOptions, capacity int) TagArrayPool {
+
+	p := pool.NewObjectPool(opts)
+	return &poolOfIdentTags{p, capacity}
 }
 
-// Iterator iterates over a collection of IDs with associated
-// tags and namespace.
-type Iterator interface {
-	// Next returns whether there are more items in the collection
-	Next() bool
-
-	// Current returns the ID, Tags and Namespace for a single timeseries.
-	// These remain valid until Next() is called again.
-	Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.Tags)
-
-	// Err returns any error encountered
-	Err() error
+func (p *poolOfIdentTags) Init() {
+	p.pool.Init(func() interface{} {
+		return make([]ident.Tag, 0, p.capacity)
+	})
 }
 
-// TODO(prateek): create IteratorPool
+func (p *poolOfIdentTags) Get() []ident.Tag {
+	return p.pool.Get().([]ident.Tag)
+}
+
+func (p *poolOfIdentTags) Put(tags []ident.Tag) {
+	for _, t := range tags {
+		t.Name.Finalize()
+		t.Value.Finalize()
+	}
+	tags = tags[:0]
+	p.pool.Put(tags)
+}

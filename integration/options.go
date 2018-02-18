@@ -72,6 +72,9 @@ const (
 
 	// defaultNumShards is the default number of shards to use.
 	defaultNumShards = 12
+
+	// defaultIndexingEnabled disables indexing by default.
+	defaultIndexingEnabled = false
 )
 
 var (
@@ -242,8 +245,15 @@ type testOptions interface {
 
 	// SetNumShards sets the number of shards to use.
 	SetNumShards(value int) testOptions
+
+	// IndexingEnabled returns whether the indexing is enabled
+	IndexingEnabled() bool
+
+	// SetIndexingEnabled sets whether or not to enable indexing
+	SetIndexingEnabled(b bool) testOptions
 }
 
+// nolint: maligned
 type options struct {
 	namespaces                         []namespace.Metadata
 	nsInitializer                      namespace.Initializer
@@ -270,6 +280,7 @@ type options struct {
 	verifySeriesDebugFilePathPrefix    string
 	writeConsistencyLevel              topology.ConsistencyLevel
 	numShards                          int
+	indexingEnabled                    bool
 }
 
 func newTestOptions(t *testing.T) testOptions {
@@ -301,6 +312,7 @@ func newTestOptions(t *testing.T) testOptions {
 		useTChannelClientForTruncation: defaultUseTChannelClientForTruncation,
 		writeConsistencyLevel:          defaultWriteConsistencyLevel,
 		numShards:                      defaultNumShards,
+		indexingEnabled:                defaultIndexingEnabled,
 	}
 }
 
@@ -554,5 +566,15 @@ func (o *options) NumShards() int {
 func (o *options) SetNumShards(value int) testOptions {
 	opts := *o
 	opts.numShards = value
+	return &opts
+}
+
+func (o *options) IndexingEnabled() bool {
+	return o.indexingEnabled
+}
+
+func (o *options) SetIndexingEnabled(b bool) testOptions {
+	opts := *o
+	opts.indexingEnabled = b
 	return &opts
 }

@@ -18,51 +18,48 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package index
+package client
 
 import (
-	"time"
-
-	"github.com/m3db/m3ninx/index/segment"
-	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3x/pool"
 )
 
 var (
-	// ReservedFieldNameNamespace is the field name used to index namespace in the
-	// m3ninx subsytem.
-	ReservedFieldNameNamespace = []byte("_m3db-namespace")
+	writeTaggedBatchRawRequestZeroed rpc.WriteTaggedBatchRawRequest
 )
 
-// Query is a rich end user query to describe a set of constraints on required IDs.
-type Query struct {
-	segment.Query
+type writeTaggedBatchRawRequestPool interface {
+	// Init pool
+	Init()
+
+	// Get a write batch request
+	Get() *rpc.WriteTaggedBatchRawRequest
+
+	// Put a write batch request
+	Put(w *rpc.WriteTaggedBatchRawRequest)
 }
 
-// QueryOptions enables users to specify constraints on query execution.
-type QueryOptions struct {
-	StartInclusive time.Time
-	EndExclusive   time.Time
-	Limit          int
+type poolOfWriteTaggedBatchRawRequest struct {
+	pool pool.ObjectPool
 }
 
-// QueryResults is the collection of results for a query.
-type QueryResults struct {
-	Iterator   Iterator
-	Exhaustive bool
+func newWriteTaggedBatchRawRequestPool(opts pool.ObjectPoolOptions) writeTaggedBatchRawRequestPool {
+	p := pool.NewObjectPool(opts)
+	return &poolOfWriteTaggedBatchRawRequest{p}
 }
 
-// Iterator iterates over a collection of IDs with associated
-// tags and namespace.
-type Iterator interface {
-	// Next returns whether there are more items in the collection
-	Next() bool
-
-	// Current returns the ID, Tags and Namespace for a single timeseries.
-	// These remain valid until Next() is called again.
-	Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.Tags)
-
-	// Err returns any error encountered
-	Err() error
+func (p *poolOfWriteTaggedBatchRawRequest) Init() {
+	p.pool.Init(func() interface{} {
+		return &rpc.WriteTaggedBatchRawRequest{}
+	})
 }
 
-// TODO(prateek): create IteratorPool
+func (p *poolOfWriteTaggedBatchRawRequest) Get() *rpc.WriteTaggedBatchRawRequest {
+	return p.pool.Get().(*rpc.WriteTaggedBatchRawRequest)
+}
+
+func (p *poolOfWriteTaggedBatchRawRequest) Put(w *rpc.WriteTaggedBatchRawRequest) {
+	*w = writeTaggedBatchRawRequestZeroed
+	p.pool.Put(w)
+}

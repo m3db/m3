@@ -94,6 +94,8 @@ var (
 	}
 	errFetchBlocksMetadataEndpointVersionUnspecified = errors.New(
 		"fetch blocks metadata endpoint version unspecified")
+	errUnknownWriteAttemptType = errors.New(
+		"unknown write attempt type specified, internal error")
 	errNotImplemented = errors.New("not implemented")
 )
 
@@ -144,9 +146,11 @@ type session struct {
 	contextPool                      context.Pool
 	idPool                           ident.Pool
 	writeOperationPool               *writeOperationPool
+	writeTaggedOpPool                *writeTaggedOpPool
 	fetchBatchOpPool                 *fetchBatchOpPool
 	fetchBatchOpArrayArrayPool       *fetchBatchOpArrayArrayPool
 	iteratorArrayPool                encoding.IteratorArrayPool
+	tagArrayPool                     TagArrayPool
 	readerSliceOfSlicesIteratorPool  *readerSliceOfSlicesIteratorPool
 	multiReaderIteratorPool          encoding.MultiReaderIteratorPool
 	seriesIteratorPool               encoding.SeriesIteratorPool
@@ -216,6 +220,8 @@ type newHostQueueFn func(
 	host topology.Host,
 	writeBatchRawRequestPool writeBatchRawRequestPool,
 	writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
+	writeTaggedBatchRawRequestPool writeTaggedBatchRawRequestPool,
+	writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool,
 	opts Options,
 ) hostQueue
 
@@ -253,6 +259,7 @@ func newSession(opts Options) (clientSession, error) {
 		))
 	s.writeAttemptPool = newWriteAttemptPool(s, writeAttemptPoolOpts)
 	s.writeAttemptPool.Init()
+
 	fetchAttemptPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(opts.FetchBatchOpPoolSize()).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
@@ -260,6 +267,14 @@ func newSession(opts Options) (clientSession, error) {
 		))
 	s.fetchAttemptPool = newFetchAttemptPool(s, fetchAttemptPoolOpts)
 	s.fetchAttemptPool.Init()
+
+	tagArrayPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(DefaultTagArrayPoolSize).
+		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
+			scope.SubScope("tag-array-pool"),
+		))
+	s.tagArrayPool = NewTagArrayPool(tagArrayPoolOpts, DefaultTagArrayCapacity)
+	s.tagArrayPool.Init()
 
 	if opts, ok := opts.(AdminOptions); ok {
 		s.origin = opts.Origin()
@@ -407,12 +422,20 @@ func (s *session) Open() error {
 		))
 	s.writeOperationPool = newWriteOperationPool(writeOperationPoolOpts)
 	s.writeOperationPool.Init()
+	// TODO(prateek): add Options knob to tweak tagged pool sizes (either replicate opts) or include multiplier?
+	writeTaggedOpPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(s.opts.WriteOpPoolSize()).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("write-op-tagged-pool"),
+		))
+	s.writeTaggedOpPool = newWriteTaggedOpPool(writeTaggedOpPoolOpts)
+	s.writeTaggedOpPool.Init()
 	writeStatePoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.WriteOpPoolSize()).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-state-pool"),
 		))
-	s.writeStatePool = newWriteStatePool(s.writeLevel, writeStatePoolOpts)
+	s.writeStatePool = newWriteStatePool(s.writeLevel, s.tagArrayPool, writeStatePoolOpts)
 	s.writeStatePool.Init()
 	fetchBatchOpPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.FetchBatchOpPoolSize()).
@@ -700,6 +723,7 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQue
 	totalBatches := topoMap.Replicas() *
 		int(math.Ceil(float64(s.opts.WriteOpPoolSize())/float64(s.opts.WriteBatchSize())))
 	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topoMap.HostsLen())))
+
 	writeBatchRequestPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(hostBatches).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
@@ -707,6 +731,15 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQue
 		))
 	writeBatchRequestPool := newWriteBatchRawRequestPool(writeBatchRequestPoolOpts)
 	writeBatchRequestPool.Init()
+
+	writeTaggedBatchRequestPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(hostBatches).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("write-tagged-batch-request-pool"),
+		))
+	writeTaggedBatchRequestPool := newWriteTaggedBatchRawRequestPool(writeTaggedBatchRequestPoolOpts)
+	writeTaggedBatchRequestPool.Init()
+
 	writeBatchRawRequestElementArrayPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(hostBatches).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
@@ -715,7 +748,20 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQue
 	writeBatchRawRequestElementArrayPool := newWriteBatchRawRequestElementArrayPool(
 		writeBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
 	writeBatchRawRequestElementArrayPool.Init()
-	hostQueue := s.newHostQueueFn(host, writeBatchRequestPool, writeBatchRawRequestElementArrayPool, s.opts)
+
+	writeTaggedBatchRawRequestElementArrayPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(hostBatches).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("id-tagged-datapoint-array-pool"),
+		))
+	writeTaggedBatchRawRequestElementArrayPool := newWriteTaggedBatchRawRequestElementArrayPool(
+		writeTaggedBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
+	writeTaggedBatchRawRequestElementArrayPool.Init()
+
+	hostQueue := s.newHostQueueFn(host,
+		writeBatchRequestPool, writeBatchRawRequestElementArrayPool,
+		writeTaggedBatchRequestPool, writeTaggedBatchRawRequestElementArrayPool,
+		s.opts)
 	hostQueue.Open()
 	return hostQueue
 }
@@ -728,7 +774,9 @@ func (s *session) Write(
 	annotation []byte,
 ) error {
 	w := s.writeAttemptPool.Get()
+	w.args.attemptType = untaggedWriteAttemptType
 	w.args.namespace, w.args.id = namespace, id
+	w.args.tags = ident.EmptyTagIterator
 	w.args.t, w.args.value, w.args.unit, w.args.annotation =
 		t, value, unit, annotation
 	err := s.writeRetrier.Attempt(w.attemptFn)
@@ -737,34 +785,36 @@ func (s *session) Write(
 }
 
 func (s *session) WriteTagged(
-	namespace, id string,
+	namespace, id ident.ID,
 	tags ident.TagIterator,
 	t time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	return errNotImplemented
+	w := s.writeAttemptPool.Get()
+	w.args.attemptType = taggedWriteAttemptType
+	w.args.namespace, w.args.id, w.args.tags = namespace, id, tags
+	w.args.t, w.args.value, w.args.unit, w.args.annotation =
+		t, value, unit, annotation
+	err := s.writeRetrier.Attempt(w.attemptFn)
+	s.writeAttemptPool.Put(w)
+	return err
 }
 
 func (s *session) writeAttempt(
+	wType writeAttemptType,
 	namespace, id ident.ID,
+	inputTags ident.TagIterator,
 	t time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	var (
-		enqueued int32
-		majority = atomic.LoadInt32(&s.majority)
-		// NB(prateek): We retain an individual copy of the namespace, ID per
-		// writeState, as each writeState tracks the lifecycle of it's resources in
-		// use in the various queues. Tracking per writeAttempt isn't sufficient as
-		// we may enqueue multiple writeStates concurrently depending on retries
-		// and consistency level checks.
-		nsID = s.idPool.Clone(namespace)
-		tsID = s.idPool.Clone(id)
-	)
+	if wType != untaggedWriteAttemptType && wType != taggedWriteAttemptType {
+		// should never happen
+		return errUnknownWriteAttemptType
+	}
 
 	timeType, timeTypeErr := convert.ToTimeType(unit)
 	if timeTypeErr != nil {
@@ -781,24 +831,65 @@ func (s *session) writeAttempt(
 		return errSessionStateNotOpen
 	}
 
+	var (
+		enqueued int32
+		majority = atomic.LoadInt32(&s.majority)
+	)
+
+	// NB(prateek): We retain an individual copy of the namespace, ID per
+	// writeState, as each writeState tracks the lifecycle of it's resources in
+	// use in the various queues. Tracking per writeAttempt isn't sufficient as
+	// we may enqueue multiple writeStates concurrently depending on retries
+	// and consistency level checks.
+	nsID := s.idPool.Clone(namespace)
+	tsID := s.idPool.Clone(id)
+	var tags ident.Tags
+	if wType == taggedWriteAttemptType {
+		tags = s.cloneTags(inputTags)
+	}
+
 	state := s.writeStatePool.Get()
 	state.topoMap = s.topoMap
 	state.incRef()
 
-	op := s.writeOperationPool.Get()
-	op.namespace = nsID
-	op.request.ID = tsID.Data().Get()
-	op.shardID = s.topoMap.ShardSet().Lookup(tsID)
-	op.request.ID = tsID.Data().Get()
-	op.request.Datapoint.Value = value
-	op.request.Datapoint.Timestamp = timestamp
-	op.request.Datapoint.TimestampTimeType = timeType
-	op.request.Datapoint.Annotation = annotation
-	op.completionFn = state.completionFn
+	var op writeOp
+	switch wType {
+	case untaggedWriteAttemptType:
+		wop := s.writeOperationPool.Get()
+		wop.namespace = nsID
+		wop.shardID = s.topoMap.ShardSet().Lookup(tsID)
+		wop.request.ID = tsID.Data().Get()
+		wop.request.Datapoint.Value = value
+		wop.request.Datapoint.Timestamp = timestamp
+		wop.request.Datapoint.TimestampTimeType = timeType
+		wop.request.Datapoint.Annotation = annotation
+		op = wop
+	case taggedWriteAttemptType:
+		wop := s.writeTaggedOpPool.Get()
+		wop.namespace = nsID
+		wop.shardID = s.topoMap.ShardSet().Lookup(tsID)
+		wop.request.ID = tsID.Data().Get()
+		for _, t := range tags {
+			// TODO(prateek): pool rpc.TagRaw
+			wop.request.Tags = append(wop.request.Tags, &rpc.TagRaw{
+				Name:  t.Name.Data().Get(),
+				Value: t.Value.Data().Get(),
+			})
+		}
+		wop.request.Datapoint.Value = value
+		wop.request.Datapoint.Timestamp = timestamp
+		wop.request.Datapoint.TimestampTimeType = timeType
+		wop.request.Datapoint.Annotation = annotation
+		op = wop
+	default:
+		// should never happen
+		return errUnknownWriteAttemptType
+	}
 
-	// todo@bl: Can we combine the writeOperationPool and the writeStatePool?
+	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
 	state.op, state.majority = op, majority
-	state.nsID, state.tsID = nsID, tsID
+	state.nsID, state.tsID, state.tags = nsID, tsID, tags
+	op.SetCompletionFn(state.completionFn)
 
 	if err := s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
 		// Count pending write requests before we enqueue the completion fns,
@@ -841,6 +932,22 @@ func (s *session) writeAttempt(
 	return err
 }
 
+// TODO(prateek): add ident.Pool method: `CloneTags(TagIterator) Tags`
+func (s *session) cloneTags(tags ident.TagIterator) ident.Tags {
+	tags = tags.Clone()
+	clone := s.tagArrayPool.Get()
+	// clone := make(ident.Tags, 0, tags.Remaining())
+	defer tags.Close()
+	for tags.Next() {
+		t := tags.Current()
+		clone = append(clone, ident.Tag{
+			Name:  s.idPool.Clone(t.Name),
+			Value: s.idPool.Clone(t.Value),
+		})
+	}
+	return clone
+}
+
 func (s *session) Fetch(
 	namespace ident.ID,
 	id ident.ID,
@@ -876,8 +983,8 @@ func (s *session) FetchIDs(
 
 func (s *session) FetchTagged(
 	q index.Query, opts index.QueryOptions,
-) (index.QueryResults, error) {
-	return index.QueryResults{}, errNotImplemented
+) (encoding.SeriesIterators, error) {
+	return nil, errNotImplemented
 }
 
 func (s *session) FetchTaggedIDs(

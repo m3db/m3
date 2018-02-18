@@ -52,12 +52,14 @@ type writeState struct {
 	op                writeOp
 	nsID              ident.ID
 	tsID              ident.ID
+	tags              ident.Tags
 	majority, pending int32
 	success           int32
 	errors            []error
 
-	queues []hostQueue
-	pool   *writeStatePool
+	queues       []hostQueue
+	pool         *writeStatePool
+	tagArrayPool TagArrayPool
 }
 
 func (w *writeState) reset() {
@@ -73,8 +75,12 @@ func (w *writeState) close() {
 	w.nsID.Finalize()
 	w.tsID.Finalize()
 
+	if tags := w.tags; tags != nil {
+		w.tagArrayPool.Put(tags)
+	}
+
 	w.op, w.majority, w.pending, w.success = nil, 0, 0, 0
-	w.nsID, w.tsID = nil, nil
+	w.nsID, w.tsID, w.tags = nil, nil, nil
 
 	for i := range w.errors {
 		w.errors[i] = nil
@@ -150,20 +156,22 @@ func (w *writeState) completionFn(result interface{}, err error) {
 
 type writeStatePool struct {
 	pool             pool.ObjectPool
+	tagArrayPool     TagArrayPool
 	consistencyLevel topology.ConsistencyLevel
 }
 
 func newWriteStatePool(
 	consistencyLevel topology.ConsistencyLevel,
+	tagArrayPool TagArrayPool,
 	opts pool.ObjectPoolOptions,
 ) *writeStatePool {
 	p := pool.NewObjectPool(opts)
-	return &writeStatePool{pool: p, consistencyLevel: consistencyLevel}
+	return &writeStatePool{pool: p, tagArrayPool: tagArrayPool, consistencyLevel: consistencyLevel}
 }
 
 func (p *writeStatePool) Init() {
 	p.pool.Init(func() interface{} {
-		w := &writeState{consistencyLevel: p.consistencyLevel, pool: p}
+		w := &writeState{consistencyLevel: p.consistencyLevel, pool: p, tagArrayPool: p.tagArrayPool}
 		w.reset()
 		return w
 	})

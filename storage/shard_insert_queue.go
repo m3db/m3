@@ -98,6 +98,8 @@ type dbShardInsertAsyncOptions struct {
 	pendingWrite          dbShardPendingWrite
 	pendingRetrievedBlock dbShardPendingRetrievedBlock
 
+	indexWriteFn databaseIndexWriteFn
+
 	hasPendingWrite          bool
 	hasPendingRetrievedBlock bool
 }
