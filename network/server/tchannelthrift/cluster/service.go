@@ -39,8 +39,11 @@ import (
 )
 
 var (
-	// errNotImplemented raised when attempting to execute an un-implemented method
-	errNotImplemented = errors.New("method is not implemented")
+	// errIllegalTagValues raised when the tags specified are in-correct
+	errIllegalTagValues = errors.New("illegal tag values specified")
+
+	// errRequiresDatapoint raised when a datapoint is not provided
+	errRequiresDatapoint = fmt.Errorf("requires datapoint")
 )
 
 type service struct {
@@ -157,7 +160,32 @@ func (s *service) Fetch(tctx thrift.Context, req *rpc.FetchRequest) (*rpc.FetchR
 }
 
 func (s *service) FetchTagged(ctx thrift.Context, req *rpc.FetchTaggedRequest) (*rpc.FetchTaggedResult_, error) {
-	return nil, tterrors.NewInternalError(errNotImplemented)
+	if req == nil {
+		return nil, tterrors.NewBadRequestError(fmt.Errorf("nil request"))
+	}
+
+	opts, err := convert.ToIndexQueryOpts(req)
+	if err != nil {
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	query, err := convert.ToIndexQuery(req.Query)
+	if err != nil {
+		return nil, tterrors.NewBadRequestError(err)
+	}
+
+	session, err := s.session()
+	if err != nil {
+		return nil, tterrors.NewInternalError(err)
+	}
+
+	// TODO(prateek): support reading data too (i.e. check req.FetchData)
+	queryResults, err := session.FetchTaggedIDs(query, opts)
+	if err != nil {
+		return nil, tterrors.NewInternalError(err)
+	}
+
+	return convert.ToRPCTaggedResult(queryResults)
 }
 
 func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
@@ -166,7 +194,7 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 		return tterrors.NewInternalError(err)
 	}
 	if req.Datapoint == nil {
-		return tterrors.NewBadRequestError(fmt.Errorf("requires datapoint"))
+		return tterrors.NewBadRequestError(errRequiresDatapoint)
 	}
 	dp := req.Datapoint
 	unit, unitErr := convert.ToUnit(dp.TimestampTimeType)
@@ -193,7 +221,52 @@ func (s *service) Write(tctx thrift.Context, req *rpc.WriteRequest) error {
 }
 
 func (s *service) WriteTagged(tctx thrift.Context, req *rpc.WriteTaggedRequest) error {
-	return tterrors.NewInternalError(errNotImplemented)
+	if req.Datapoint == nil {
+		return tterrors.NewBadRequestError(errRequiresDatapoint)
+	}
+
+	dp := req.Datapoint
+	unit, unitErr := convert.ToUnit(dp.TimestampTimeType)
+	if unitErr != nil {
+		return tterrors.NewBadRequestError(unitErr)
+	}
+
+	d, err := unit.Value()
+	if err != nil {
+		return tterrors.NewBadRequestError(err)
+	}
+
+	if req.TagNames == nil ||
+		req.TagValues == nil ||
+		len(req.TagNames) != len(req.TagValues) {
+		return tterrors.NewBadRequestError(errIllegalTagValues)
+	}
+
+	session, err := s.session()
+	if err != nil {
+		return tterrors.NewInternalError(err)
+	}
+
+	iter, err := convert.ToTagsIter(req)
+	if err != nil {
+		return tterrors.NewBadRequestError(err)
+	}
+
+	var (
+		ts   = xtime.FromNormalizedTime(dp.Timestamp, d)
+		ctx  = tchannelthrift.Context(tctx)
+		nsID = s.idPool.GetStringID(ctx, req.NameSpace)
+		tsID = s.idPool.GetStringID(ctx, req.ID)
+	)
+
+	err = session.WriteTagged(nsID, tsID, iter, ts, dp.Value, unit, dp.Annotation)
+	if err != nil {
+		if client.IsBadRequestError(err) {
+			return tterrors.NewBadRequestError(err)
+		}
+		return tterrors.NewInternalError(err)
+	}
+	return nil
 }
 
 func (s *service) Truncate(tctx thrift.Context, req *rpc.TruncateRequest) (*rpc.TruncateResult_, error) {

@@ -22,69 +22,24 @@ package client
 
 import (
 	"fmt"
-	"math"
 	"sync"
 
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 )
 
-var (
-	writeOpZeroed = writeOp{shardID: math.MaxUint32}
-	// NB(bl): use an invalid shardID for the zerod op
-)
+// writableOp represents a generic write operation
+type writableOp interface {
+	op
 
-type writeOp struct {
-	namespace    ident.ID
-	shardID      uint32
-	request      rpc.WriteBatchRawRequestElement
-	datapoint    rpc.Datapoint
-	completionFn completionFn
-}
+	ShardID() uint32
 
-func (w *writeOp) reset() {
-	*w = writeOpZeroed
-	w.request.Datapoint = &w.datapoint
-}
+	SetCompletionFn(fn completionFn)
 
-func (w *writeOp) Size() int {
-	// Writes always represent a single write
-	return 1
-}
-
-func (w *writeOp) CompletionFn() completionFn {
-	return w.completionFn
-}
-
-type writeOpPool struct {
-	pool pool.ObjectPool
-}
-
-func newWriteOpPool(opts pool.ObjectPoolOptions) *writeOpPool {
-	p := pool.NewObjectPool(opts)
-	return &writeOpPool{pool: p}
-}
-
-func (p *writeOpPool) Init() {
-	p.pool.Init(func() interface{} {
-		w := &writeOp{}
-		w.reset()
-		return w
-	})
-}
-
-func (p *writeOpPool) Get() *writeOp {
-	w := p.pool.Get().(*writeOp)
-	return w
-}
-
-func (p *writeOpPool) Put(w *writeOp) {
-	w.reset()
-	p.pool.Put(w)
+	Close()
 }
 
 type writeState struct {
@@ -94,9 +49,10 @@ type writeState struct {
 
 	session           *session
 	topoMap           topology.Map
-	op                *writeOp
+	op                writableOp
 	nsID              ident.ID
 	tsID              ident.ID
+	tags              ident.Tags
 	majority, pending int32
 	success           int32
 	errors            []error
@@ -112,11 +68,11 @@ func (w *writeState) reset() {
 }
 
 func (w *writeState) close() {
-	w.op.reset()
-	w.session.writeOpPool.Put(w.op)
+	w.op.Close()
 
 	w.nsID.Finalize()
 	w.tsID.Finalize()
+	w.tags.Finalize()
 
 	w.op, w.majority, w.pending, w.success = nil, 0, 0, 0
 	w.nsID, w.tsID = nil, nil
@@ -148,9 +104,9 @@ func (w *writeState) completionFn(result interface{}, err error) {
 	} else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
 		errStr := "missing host shard in writeState completionFn: %s"
 		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, hostID))
-	} else if shardState, err := hostShardSet.ShardSet().LookupStateByID(w.op.shardID); err != nil {
+	} else if shardState, err := hostShardSet.ShardSet().LookupStateByID(w.op.ShardID()); err != nil {
 		errStr := "missing shard %d in host %s"
-		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.shardID, hostID))
+		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 	} else if shardState != shard.Available {
 		// NB(bl): only count writes to available shards towards success
 		var errStr string
@@ -162,7 +118,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		default:
 			errStr = "shard %d in host %s not available (unknown state)"
 		}
-		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.shardID, hostID))
+		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 	} else {
 		w.success++
 	}
