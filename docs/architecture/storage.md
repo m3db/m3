@@ -2,7 +2,7 @@
 
 ## Overview
 
-Time series values are stored in compressed streams in filesets, one per shard and block time window size.  They are flushed to disk after a block time window becomes unreachable, that is the end of the time window for that block can no longer be written to.  If a process is killed before it has a chance to flush the data for the current time window to disk it must be restored from the commit log (or a peer that is responsible for the same shard if replication factor is larger than 1.)
+Time series values are stored in compressed streams in filesets, one per shard and block time window size.  They are flushed to disk after a block time window becomes unreachable, that is the end of the time window for which that block can no longer be written to.  If a process is killed before it has a chance to flush the data for the current time window to disk it must be restored from the commit log (or a peer that is responsible for the same shard if replication factor is larger than 1.)
 
 ## Filesets
 

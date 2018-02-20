@@ -156,11 +156,11 @@ The first thing to discuss is when does data move from memory to the filesystem?
 
 The blocksize is simply a duration of time that dictates how long active writes will be compressed (in a streaming manner) in memory before being "sealed" (marked as immutable) and flushed to disk. Lets use a blocksize of two hours as an example.
 
-If the blocksize is set to two hours, then all writes for all series for a given shard will be buffered in memory for two hours at a time. Datapoints will be compressed using M3TSZ as they arrive (an active M3TSZ "encoder" object will be held in memory for each series), and at the end of the two hour period all of the fileset files discussed above will be generates, written to disk, and then the in-memory datastructures can be released and replaces with new ones for the new block.
+If the blocksize is set to two hours, then all writes for all series for a given shard will be buffered in memory for two hours at a time. Datapoints will be compressed using M3TSZ as they arrive (an active M3TSZ "encoder" object will be held in memory for each series), and at the end of the two hour period all of the fileset files discussed above will be generates, written to disk, and then the in-memory datastructures can be released and replaced with new ones for the new block.
 
 If the database is stopped for any reason inbetween "flushes" (writing fileset files out to disk), then when the node is started back up those writes will need to be recovered by reading the commitlog or streaming in the data from a peer responsible for the same shard (if the replication factor is larger than 1.)
 
-Generally speaking, this means that your commitlog retention needs to be at least as larger as your blocksize to prevent dataloss during node failure.
+Generally speaking, this means that your commitlog retention needs to be at least as large as your blocksize to prevent dataloss during node failure.
 
 The blocksize parameter is the most important variable that needs to be tuned for your workload. A small blocksize will mean more frequent flushing and a smaller memory footprint for the data that is being actively compressed, but it will also reduce the compression ratio and your data will take up more space on disk.
 
