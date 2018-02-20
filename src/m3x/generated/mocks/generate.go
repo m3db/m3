@@ -18,6 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate sh -c "mockgen -package=ident github.com/m3db/m3x/ident ID | sed -e 's/ident\.//g' -e '/ident \"github.com/d' | sponge $GOPATH/src/github.com/m3db/m3x/ident/ident_mock.go"
+//go:generate sh -c "mockgen -package=ident github.com/m3db/m3x/ident ID | mockclean -pkg github.com/m3db/m3x/ident -out $GOPATH/src/github.com/m3db/m3x/ident/ident_mock.go"
+//go:generate sh -c "mockgen -package=checked github.com/m3db/m3x/checked Bytes | mockclean -pkg github.com/m3db/m3x/checked -out $GOPATH/src/github.com/m3db/m3x/checked/checked_mock.go"
+//go:generate sh -c "mockgen -package=pool github.com/m3db/m3x/pool CheckedBytesPool | mockclean -pkg github.com/m3db/m3x/pool -out $GOPATH/src/github.com/m3db/m3x/pool/pool_mock.go"
 
-package ident
+package generated
