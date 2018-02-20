@@ -112,10 +112,12 @@ install-thrift-bin: install-glide
 	)
 
 .PHONY: install-proto-bin
-install-proto-bin: install-vendor
+install-proto-bin: install-glide
 	@echo Installing protobuf binaries
 	@echo Note: the protobuf compiler v3.0.0 can be downloaded from https://github.com/google/protobuf/releases or built from source at https://github.com/google/protobuf.
-	go install $(m3db_package)/$(vendor_prefix)/$(protoc_go_package)
+	@which protoc-gen-go >/dev/null || (make install-vendor            && \
+		go install $(m3db_package)/$(vendor_prefix)/$(protoc_go_package)    \
+	)
 
 .PHONY: mock-gen
 mock-gen: install-mockgen install-license-bin install-util-mockclean

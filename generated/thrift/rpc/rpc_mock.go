@@ -349,3 +349,13 @@ func (_m *MockTChanNode) WriteTagged(ctx thrift.Context, req *WriteTaggedRequest
 func (_mr *_MockTChanNodeRecorder) WriteTagged(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteTagged", arg0, arg1)
 }
+
+func (_m *MockTChanNode) WriteTaggedBatchRaw(ctx thrift.Context, req *WriteTaggedBatchRawRequest) error {
+	ret := _m.ctrl.Call(_m, "WriteTaggedBatchRaw", ctx, req)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+func (_mr *_MockTChanNodeRecorder) WriteTaggedBatchRaw(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "WriteTaggedBatchRaw", arg0, arg1)
+}

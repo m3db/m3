@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -64,6 +64,7 @@ type TChanNode interface {
 	Write(ctx thrift.Context, req *WriteRequest) error
 	WriteBatchRaw(ctx thrift.Context, req *WriteBatchRawRequest) error
 	WriteTagged(ctx thrift.Context, req *WriteTaggedRequest) error
+	WriteTaggedBatchRaw(ctx thrift.Context, req *WriteTaggedBatchRawRequest) error
 }
 
 // Implementation of a client and service handler.
@@ -769,6 +770,24 @@ func (c *tchanNodeClient) WriteTagged(ctx thrift.Context, req *WriteTaggedReques
 	return err
 }
 
+func (c *tchanNodeClient) WriteTaggedBatchRaw(ctx thrift.Context, req *WriteTaggedBatchRawRequest) error {
+	var resp NodeWriteTaggedBatchRawResult
+	args := NodeWriteTaggedBatchRawArgs{
+		Req: req,
+	}
+	success, err := c.client.Call(ctx, c.thriftService, "writeTaggedBatchRaw", &args, &resp)
+	if err == nil && !success {
+		switch {
+		case resp.Err != nil:
+			err = resp.Err
+		default:
+			err = fmt.Errorf("received no result or unknown exception for writeTaggedBatchRaw")
+		}
+	}
+
+	return err
+}
+
 type tchanNodeServer struct {
 	handler TChanNode
 }
@@ -807,6 +826,7 @@ func (s *tchanNodeServer) Methods() []string {
 		"write",
 		"writeBatchRaw",
 		"writeTagged",
+		"writeTaggedBatchRaw",
 	}
 }
 
@@ -852,6 +872,8 @@ func (s *tchanNodeServer) Handle(ctx thrift.Context, methodName string, protocol
 		return s.handleWriteBatchRaw(ctx, protocol)
 	case "writeTagged":
 		return s.handleWriteTagged(ctx, protocol)
+	case "writeTaggedBatchRaw":
+		return s.handleWriteTaggedBatchRaw(ctx, protocol)
 
 	default:
 		return false, nil, fmt.Errorf("method %v not found in service %v", methodName, s.Service())
@@ -1403,6 +1425,33 @@ func (s *tchanNodeServer) handleWriteTagged(ctx thrift.Context, protocol athrift
 		case *Error:
 			if v == nil {
 				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *Error but nil value")
+			}
+			res.Err = v
+		default:
+			return false, nil, err
+		}
+	} else {
+	}
+
+	return err == nil, &res, nil
+}
+
+func (s *tchanNodeServer) handleWriteTaggedBatchRaw(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
+	var req NodeWriteTaggedBatchRawArgs
+	var res NodeWriteTaggedBatchRawResult
+
+	if err := req.Read(protocol); err != nil {
+		return false, nil, err
+	}
+
+	err :=
+		s.handler.WriteTaggedBatchRaw(ctx, req.Req)
+
+	if err != nil {
+		switch v := err.(type) {
+		case *WriteBatchRawErrors:
+			if v == nil {
+				return false, nil, fmt.Errorf("Handler for err returned non-nil error type *WriteBatchRawErrors but nil value")
 			}
 			res.Err = v
 		default:
