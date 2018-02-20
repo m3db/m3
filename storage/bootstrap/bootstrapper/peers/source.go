@@ -92,8 +92,11 @@ func (s *peersSource) Read(
 		incremental       = false
 	)
 	if opts.Incremental() {
+		fmt.Println("INCREMENTAL!!!")
 		retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 		persistManager := s.opts.PersistManager()
+		fmt.Println("retrieverMgr: ", retrieverMgr)
+		fmt.Println("persistManager: ", persistManager)
 		if retrieverMgr != nil && persistManager != nil {
 			s.log.WithFields(
 				xlog.NewField("namespace", namespace.String()),
@@ -146,6 +149,7 @@ func (s *peersSource) Read(
 		xlog.NewField("incremental", incremental),
 	).Infof("peers bootstrapper bootstrapping shards for ranges")
 	if incremental {
+		fmt.Println("in the conditional")
 		// If performing an incremental bootstrap then flush one
 		// at a time as shard results are gathered
 		incrementalWg.Add(1)
@@ -283,6 +287,7 @@ func (s *peersSource) incrementalFlush(
 	shardResult result.ShardResult,
 	tr xtime.Range,
 ) error {
+	fmt.Println("Flushing incrementally!")
 	var (
 		ropts             = nsMetadata.Options().RetentionOptions()
 		blockSize         = ropts.BlockSize()
@@ -357,6 +362,9 @@ func (s *peersSource) incrementalFlush(
 		// Always close before attempting to check if block error occurred,
 		// avoid using a defer here as this needs to be done for each inner loop
 		err = prepared.Close()
+		if err != nil {
+			panic(err)
+		}
 		if blockErr != nil {
 			// A block error is more interesting to bubble up than a close error
 			err = blockErr
