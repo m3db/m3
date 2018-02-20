@@ -63,7 +63,7 @@ func TestSessionWrite(t *testing.T) {
 	var completionFn completionFn
 	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
 		completionFn = op.CompletionFn()
-		write, ok := op.(*writeOp)
+		write, ok := op.(*writeOperation)
 		assert.True(t, ok)
 		assert.Equal(t, w.id.String(), string(write.request.ID))
 		assert.Equal(t, w.value, write.request.Datapoint.Value)
@@ -214,7 +214,7 @@ func TestSessionWriteRetry(t *testing.T) {
 			}()
 		},
 		func(idx int, op op) {
-			write, ok := op.(*writeOp)
+			write, ok := op.(*writeOperation)
 			assert.True(t, ok)
 			assert.Equal(t, w.id.String(), string(write.request.ID))
 			assert.Equal(t, w.value, write.request.Datapoint.Value)

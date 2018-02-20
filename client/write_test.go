@@ -106,8 +106,8 @@ func TestBadShardID(t *testing.T) {
 	var writeWg sync.WaitGroup
 
 	wState, _, host := writeTestSetup(t, &writeWg)
-	o := wState.op.(*writeOp)
-	o.shardID = writeOpZeroed.shardID
+	o := wState.op.(*writeOperation)
+	o.shardID = writeOperationZeroed.shardID
 	wState.completionFn(host, nil)
 	retryabilityCheck(t, wState, xerrors.IsRetryableError)
 	writeTestTeardown(wState, &writeWg)
@@ -128,7 +128,7 @@ func TestShardNotAvailable(t *testing.T) {
 func getWriteState(s *session, w writeStub) *writeState {
 	wState := s.writeStatePool.Get()
 	wState.topoMap = s.topoMap
-	o := s.writeOpPool.Get()
+	o := s.writeOperationPool.Get()
 	o.shardID = 0 // Any valid shardID
 	wState.op = o
 	wState.nsID = w.ns

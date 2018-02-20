@@ -190,7 +190,7 @@ type options struct {
 	fetchRetrier                            xretry.Retrier
 	streamBlocksRetrier                     xretry.Retrier
 	readerIteratorAllocate                  encoding.ReaderIteratorAllocate
-	writeOpPoolSize                         int
+	writeOperationPoolSize                  int
 	fetchBatchOpPoolSize                    int
 	writeBatchSize                          int
 	fetchBatchSize                          int
@@ -256,7 +256,7 @@ func newOptions() *options {
 		writeRetrier:                            defaultWriteRetrier,
 		fetchRetrier:                            defaultFetchRetrier,
 		streamBlocksRetrier:                     defaultStreamBlocksRetrier,
-		writeOpPoolSize:                         defaultWriteOpPoolSize,
+		writeOperationPoolSize:                  defaultWriteOpPoolSize,
 		fetchBatchOpPoolSize:                    defaultFetchBatchOpPoolSize,
 		writeBatchSize:                          defaultWriteBatchSize,
 		fetchBatchSize:                          defaultFetchBatchSize,
@@ -526,12 +526,12 @@ func (o *options) StreamBlocksRetrier() xretry.Retrier {
 
 func (o *options) SetWriteOpPoolSize(value int) Options {
 	opts := *o
-	opts.writeOpPoolSize = value
+	opts.writeOperationPoolSize = value
 	return &opts
 }
 
 func (o *options) WriteOpPoolSize() int {
-	return o.writeOpPoolSize
+	return o.writeOperationPoolSize
 }
 
 func (o *options) SetFetchBatchOpPoolSize(value int) Options {

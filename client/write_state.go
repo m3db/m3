@@ -31,8 +31,8 @@ import (
 	"github.com/m3db/m3x/pool"
 )
 
-// writableOp represents a generic write operation
-type writableOp interface {
+// writeOp represents a generic write operation
+type writeOp interface {
 	op
 
 	ShardID() uint32
@@ -49,7 +49,7 @@ type writeState struct {
 
 	session           *session
 	topoMap           topology.Map
-	op                writableOp
+	op                writeOp
 	nsID              ident.ID
 	tsID              ident.ID
 	tags              ident.Tags

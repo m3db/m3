@@ -143,7 +143,7 @@ type session struct {
 	streamBlocksRetrier              xretry.Retrier
 	contextPool                      context.Pool
 	idPool                           ident.Pool
-	writeOpPool                      *writeOpPool
+	writeOperationPool               *writeOperationPool
 	fetchBatchOpPool                 *fetchBatchOpPool
 	fetchBatchOpArrayArrayPool       *fetchBatchOpArrayArrayPool
 	iteratorArrayPool                encoding.IteratorArrayPool
@@ -400,13 +400,13 @@ func (s *session) Open() error {
 
 	// NB(r): Alloc pools that can take some time in Open, expectation
 	// is already that Open will take some time
-	writeOpPoolOpts := pool.NewObjectPoolOptions().
+	writeOperationPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.WriteOpPoolSize()).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-op-pool"),
 		))
-	s.writeOpPool = newWriteOpPool(writeOpPoolOpts)
-	s.writeOpPool.Init()
+	s.writeOperationPool = newWriteOperationPool(writeOperationPoolOpts)
+	s.writeOperationPool.Init()
 	writeStatePoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.WriteOpPoolSize()).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
@@ -785,7 +785,7 @@ func (s *session) writeAttempt(
 	state.topoMap = s.topoMap
 	state.incRef()
 
-	op := s.writeOpPool.Get()
+	op := s.writeOperationPool.Get()
 	op.namespace = nsID
 	op.request.ID = tsID.Data().Get()
 	op.shardID = s.topoMap.ShardSet().Lookup(tsID)
@@ -796,7 +796,7 @@ func (s *session) writeAttempt(
 	op.request.Datapoint.Annotation = annotation
 	op.completionFn = state.completionFn
 
-	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
+	// todo@bl: Can we combine the writeOperationPool and the writeStatePool?
 	state.op, state.majority = op, majority
 	state.nsID, state.tsID = nsID, tsID
 

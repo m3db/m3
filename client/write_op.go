@@ -30,24 +30,24 @@ import (
 
 var (
 	// NB(bl): use an invalid shardID for the zerod op
-	writeOpZeroed = writeOp{shardID: math.MaxUint32}
+	writeOperationZeroed = writeOperation{shardID: math.MaxUint32}
 )
 
-type writeOp struct {
+type writeOperation struct {
 	namespace    ident.ID
 	shardID      uint32
 	request      rpc.WriteBatchRawRequestElement
 	datapoint    rpc.Datapoint
 	completionFn completionFn
-	pool         *writeOpPool
+	pool         *writeOperationPool
 }
 
-func (w *writeOp) reset() {
-	*w = writeOpZeroed
+func (w *writeOperation) reset() {
+	*w = writeOperationZeroed
 	w.request.Datapoint = &w.datapoint
 }
 
-func (w *writeOp) Close() {
+func (w *writeOperation) Close() {
 	p := w.pool
 	w.reset()
 	if p != nil {
@@ -55,47 +55,47 @@ func (w *writeOp) Close() {
 	}
 }
 
-func (w *writeOp) Size() int {
+func (w *writeOperation) Size() int {
 	// Writes always represent a single write
 	return 1
 }
 
-func (w *writeOp) CompletionFn() completionFn {
+func (w *writeOperation) CompletionFn() completionFn {
 	return w.completionFn
 }
 
-func (w *writeOp) SetCompletionFn(fn completionFn) {
+func (w *writeOperation) SetCompletionFn(fn completionFn) {
 	w.completionFn = fn
 }
 
-func (w *writeOp) ShardID() uint32 {
+func (w *writeOperation) ShardID() uint32 {
 	return w.shardID
 }
 
-type writeOpPool struct {
+type writeOperationPool struct {
 	pool pool.ObjectPool
 }
 
-func newWriteOpPool(opts pool.ObjectPoolOptions) *writeOpPool {
+func newWriteOperationPool(opts pool.ObjectPoolOptions) *writeOperationPool {
 	p := pool.NewObjectPool(opts)
-	return &writeOpPool{pool: p}
+	return &writeOperationPool{pool: p}
 }
 
-func (p *writeOpPool) Init() {
+func (p *writeOperationPool) Init() {
 	p.pool.Init(func() interface{} {
-		w := &writeOp{}
+		w := &writeOperation{}
 		w.reset()
 		return w
 	})
 }
 
-func (p *writeOpPool) Get() *writeOp {
-	w := p.pool.Get().(*writeOp)
+func (p *writeOperationPool) Get() *writeOperation {
+	w := p.pool.Get().(*writeOperation)
 	w.pool = p
 	return w
 }
 
-func (p *writeOpPool) Put(w *writeOp) {
+func (p *writeOperationPool) Put(w *writeOperation) {
 	w.reset()
 	p.pool.Put(w)
 }
