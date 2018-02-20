@@ -43,7 +43,7 @@ func (q *WriteQuery) query() {}
 
 // FetchQuery represents the input query which is fetched from M3DB
 type FetchQuery struct {
-	Raw        string
+	Raw         string
 	TagMatchers models.Matchers
 	Start       time.Time
 	End         time.Time
@@ -88,6 +88,7 @@ type Appender interface {
 type FetchResult struct {
 	SeriesList []*ts.Series // The aggregated list of results across all underlying storage calls
 	LocalOnly  bool
+	HasNext    bool
 }
 
 // QueryResult is the result from a query

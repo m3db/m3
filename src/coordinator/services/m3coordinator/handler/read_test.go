@@ -37,7 +37,7 @@ func generatePromReadRequest() *prompb.ReadRequest {
 			Matchers: []*prompb.LabelMatcher{
 				{Type: prompb.LabelMatcher_EQ, Name: "eq", Value: "a"},
 			},
-			StartTimestampMs: time.Now().Add(-1 * time.Hour * 24).UnixNano() / int64(time.Millisecond),
+			StartTimestampMs: time.Now().Add(-1*time.Hour*24).UnixNano() / int64(time.Millisecond),
 			EndTimestampMs:   time.Now().UnixNano() / int64(time.Millisecond),
 		}},
 	}
@@ -59,7 +59,7 @@ func generatePromReadBody(t *testing.T) io.Reader {
 
 }
 
-func setupServer(t *testing.T) *httptest.Server{
+func setupServer(t *testing.T) *httptest.Server {
 	logging.InitWithCores(nil)
 	ctrl := gomock.NewController(t)
 	// No calls expected on session object
@@ -67,7 +67,7 @@ func setupServer(t *testing.T) *httptest.Server{
 	mockResolver := mocks.NewMockPolicyResolver(gomock.NewController(t))
 
 	mockResolver.EXPECT().Resolve(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Do(func(_, _, _, _ interface{}) {
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}).Return([]tsdb.FetchRequest{}, nil)
 
 	storage := local.NewStorage(session, "metrics", mockResolver)
@@ -137,7 +137,7 @@ func TestQueryKillOnClientDisconnect(t *testing.T) {
 func TestQueryKillOnTimeout(t *testing.T) {
 	server := setupServer(t)
 	defer server.Close()
-	
+
 	req, _ := http.NewRequest("POST", server.URL, generatePromReadBody(t))
 	req.Header.Add("Content-Type", "application/x-protobuf")
 	req.Header.Add("timeout", "1ms")
