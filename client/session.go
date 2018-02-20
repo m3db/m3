@@ -785,19 +785,20 @@ func (s *session) writeAttempt(
 	state.topoMap = s.topoMap
 	state.incRef()
 
-	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
-	state.op, state.majority = s.writeOpPool.Get(), majority
-	state.nsID, state.tsID = nsID, tsID
+	op := s.writeOpPool.Get()
+	op.namespace = nsID
+	op.request.ID = tsID.Data().Get()
+	op.shardID = s.topoMap.ShardSet().Lookup(tsID)
+	op.request.ID = tsID.Data().Get()
+	op.request.Datapoint.Value = value
+	op.request.Datapoint.Timestamp = timestamp
+	op.request.Datapoint.TimestampTimeType = timeType
+	op.request.Datapoint.Annotation = annotation
+	op.completionFn = state.completionFn
 
-	state.op.namespace = nsID
-	state.op.request.ID = tsID.Data().Get()
-	state.op.shardID = s.topoMap.ShardSet().Lookup(tsID)
-	state.op.request.ID = tsID.Data().Get()
-	state.op.request.Datapoint.Value = value
-	state.op.request.Datapoint.Timestamp = timestamp
-	state.op.request.Datapoint.TimestampTimeType = timeType
-	state.op.request.Datapoint.Annotation = annotation
-	state.op.completionFn = state.completionFn
+	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
+	state.op, state.majority = op, majority
+	state.nsID, state.tsID = nsID, tsID
 
 	if err := s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
 		// Count pending write requests before we enqueue the completion fns,
