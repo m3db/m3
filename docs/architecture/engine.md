@@ -2,17 +2,16 @@
 7) TODO: Explain data retention
 9) TODO: Explain supported datatypes (upcoming future work)
 10) TODO: Add dedication section blocksize and its implicatons (its expained throughout but needs a dedicated section I think)
-11) TODO: Link to Guerilla paper and M3TSZ and explain slight difference
 
 # Overview
 
-M3DB is a Timeseries Database that was primarily designed to be horizontally scalable and handle a large volume of monitoring time series data.
+M3DB is a time series Database that was primarily designed to be horizontally scalable and handle a large volume of monitoring time series data.
 
 ## Caveats / Limitations
 
 M3DB currently does not support the following:
 
-1. Any form of indexing. While M3DB is useful as a horizontally scalable datastore that provides extremely high compression ratios for timeseries data, it does not currently perform any type of indexing. This feature is currently under development and future versions of M3DB will have support for a built-in index that can be used standalone for smaller M3DB clusters (up to 10 nodes).
+1. Any form of indexing. While M3DB is useful as a horizontally scalable datastore that provides extremely high compression ratios for time series data, it does not currently perform any type of indexing. This feature is currently under development and future versions of M3DB will have support for a built-in index that can be used standalone for smaller M3DB clusters (up to 10 nodes).
 2. Updates / deletes. All data written to M3DB is immutable.
 3. Writing very far into the past and future. M3DB was originally designed for storing high volumes of monitoring data, and thus writing data at arbitrary timestamps in the past and future was never an intended design goal. That said, this feature is currently under development and future versions of M3DB will have support for this.
 
@@ -82,11 +81,11 @@ The in-memory portion of M3DB is implemented via a hierarchy of datastructures:
 
 2. "Namespaces" which are similar to tables or namespaces in other databases. A database "owns" numerous namespaces, and each namespace has a unique name as well as distinct configuration with regards to data retention and blocksize (which we will discuss in more detail later).
 
-3. ["Shards"](sharding.md) which are owned by namespaces. Shards are effectively the same as "virtual shards" in Cassandra in that they provide arbitrary distribution of timeseries data via a simple hash of the series ID. Shards are useful through the entire M3DB stack in that they make horizontal scaling and adding / removing nodes without downtime trivial at the cluster level, as well as providing more fine grained lock granularity at the memory level, and finally they inform the filesystem organization in that data belonging to the same shard will be used / dropped together and can be kept in the same file.
+3. ["Shards"](sharding.md) which are owned by namespaces. Shards are effectively the same as "virtual shards" in Cassandra in that they provide arbitrary distribution of time series data via a simple hash of the series ID. Shards are useful through the entire M3DB stack in that they make horizontal scaling and adding / removing nodes without downtime trivial at the cluster level, as well as providing more fine grained lock granularity at the memory level, and finally they inform the filesystem organization in that data belonging to the same shard will be used / dropped together and can be kept in the same file.
 
-4. "Series" which are owned by shards. A series is the minimum unit that comes to mind when you think of "timeseries" data. Ex. The CPU level for a single host in a datacenter over a period of time could be represented as a series with id "<HOST_IDENTIFIER>.system.cpu.utilization" and a vector of tuples in the form of (<TIMESTAMP>,<CPU_LEVEL>)
+4. "Series" which are owned by shards. A series is the minimum unit that comes to mind when you think of "time series" data. Ex. The CPU level for a single host in a datacenter over a period of time could be represented as a series with id "<HOST_IDENTIFIER>.system.cpu.utilization" and a vector of tuples in the form of (<TIMESTAMP>,<CPU_LEVEL>)
 
-5. "Blocks" belong to a series and are central to M3DB's design. In order to understand blocks, we must first understand that one of M3DB's biggest strengths as a timeseries database (as opposed to using a more general-purpose horizontally scalable, distributed database like Cassandra) is its ability to compress timeseries data resulting in huge memory and disk savings. This high compression ratio is implemented via a variant of MTSZ (Link to Guerilla paper and M3TSZ and explain slight difference) which is an algorithm for implementing streaming timeseries compression. A "block" then is simply a sealed (no longer writable) stream of compressed timeseries data. The compression ratio will vary depending on the workload and configuration, but with careful tuning its possible to encode data with an average of 1.4 bytes per datapoint. The compression comes with a few caveats though, namely that you cannot read individual datapoints in a compressed block. In other words, in order to read a single datapoint you must decompress the entire block up to the datapoint that you're trying to read.
+5. "Blocks" belong to a series and are central to M3DB's design. In order to understand blocks, we must first understand that one of M3DB's biggest strengths as a time series database (as opposed to using a more general-purpose horizontally scalable, distributed database like Cassandra) is its ability to compress time series data resulting in huge memory and disk savings. This high compression ratio is implemented via the M3TSZ algorithm, a variant of the streaming time series compression algorithm described in [Facebook's Gorilla paper](http://www.vldb.org/pvldb/vol8/p1816-teller.pdf) with a few small differences. A "block" then is simply a sealed (no longer writable) stream of compressed time series data. The compression ratio will vary depending on the workload and configuration, but with careful tuning its possible to encode data with an average of 1.4 bytes per datapoint. The compression comes with a few caveats though, namely that you cannot read individual datapoints in a compressed block. In other words, in order to read a single datapoint you must decompress the entire block up to the datapoint that you're trying to read.
 
 If M3DB kept everything in memory (and in fact, early versions of it did), than you could conceptually think of it as having a single top-level database which contained an internal map of <NAMEPSACE_ID>:<NAMESPACE_OBJECT> and each
 namespace would have an internal map of <SHARD_NUMBER>:<SHARD_OBJECT> and each shard would have an internal map of
@@ -96,7 +95,7 @@ In fact, even though M3DB does implement persistent storage as well, all of the 
 
 ### Persistent storage
 
-While in-memory databases can be useful (and M3DB supports operating in a memory-only mode), with large volumes of data it becomes prohibitively expensive to keep all of the data in memory. In addition, monitoring timeseries data often follows a "write-once, read-never" pattern where less than a few percent of all the data thats ever stored is ever read. With that type of workload, its wasteful to keep all of that data in memory when it could be persisted on disk and retrieved when required (with an appropriate caching policy for frequently accessed data).
+While in-memory databases can be useful (and M3DB supports operating in a memory-only mode), with large volumes of data it becomes prohibitively expensive to keep all of the data in memory. In addition, monitoring time series data often follows a "write-once, read-never" pattern where less than a few percent of all the data thats ever stored is ever read. With that type of workload, its wasteful to keep all of that data in memory when it could be persisted on disk and retrieved when required (with an appropriate caching policy for frequently accessed data).
 
 Like many databases, M3DB takes a two-pronged approach to persistent storage:
 
@@ -252,7 +251,7 @@ The ticking process runs continously in the background and is responsible for a 
 
 #### Merging duplicate encoders
 
-M3TSZ is designed for compressing timeseries data in which each datapoint has a timestamp that is larger than the last encoded datapoint. For monitoring workloads this works very well because every subsequent datapoint is almost always larger than the previous one. However, real world systems are messy and occassionally out of order writes will be received. When this happens, M3DB will allocate a new encoder for the out of order datapoints. The duplicate encoders need to be merged before flushing the data to disk, but to prevent huge memory spikes during the flushing process we continuously merge out of order encoders in the background.
+M3TSZ is designed for compressing time series data in which each datapoint has a timestamp that is larger than the last encoded datapoint. For monitoring workloads this works very well because every subsequent datapoint is almost always larger than the previous one. However, real world systems are messy and occassionally out of order writes will be received. When this happens, M3DB will allocate a new encoder for the out of order datapoints. The duplicate encoders need to be merged before flushing the data to disk, but to prevent huge memory spikes during the flushing process we continuously merge out of order encoders in the background.
 
 #### Removing expired / flushed series and blocks from memory
 
