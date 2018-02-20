@@ -2,6 +2,7 @@
 7) TODO: Explain data retention
 9) TODO: Explain supported datatypes (upcoming future work)
 10) TODO: Add dedication section blocksize and its implicatons (its expained throughout but needs a dedicated section I think)
+11) TODO: Link to Guerilla paper and M3TSZ and explain slight difference
 
 # Overview
 
@@ -83,15 +84,15 @@ The in-memory portion of M3DB is implemented via a hierarchy of datastructures:
 
 3. ["Shards"](sharding.md) which are owned by namespaces. Shards are effectively the same as "virtual shards" in Cassandra in that they provide arbitrary distribution of timeseries data via a simple hash of the series ID. Shards are useful through the entire M3DB stack in that they make horizontal scaling and adding / removing nodes without downtime trivial at the cluster level, as well as providing more fine grained lock granularity at the memory level, and finally they inform the filesystem organization in that data belonging to the same shard will be used / dropped together and can be kept in the same file.
 
-4. "Series" which are owned by shards. A series is the minimum unit that comes to mind when you think of "timeseries" data. Ex. The CPU level for a single host in a datacenter over a period of time could be represented as a series with id "<HOST_IDENTIFIER>.system.cpu.utilization" and a vector of tuples in the form of (<TIMESTAMP>, <CPU_LEVEL>)
+4. "Series" which are owned by shards. A series is the minimum unit that comes to mind when you think of "timeseries" data. Ex. The CPU level for a single host in a datacenter over a period of time could be represented as a series with id "<HOST_IDENTIFIER>.system.cpu.utilization" and a vector of tuples in the form of (<TIMESTAMP>,<CPU_LEVEL>)
 
-5. "Blocks" belong to a series and are central to M3DB's design. In order to understand blocks, we must first understand that one of M3DB's biggest strengths as a timeseries database (as opposed to using a more general-purpose horizontally scalable, distributed database like Cassandra) is its ability to compress time-series data resulting in huge memory and disk savings. This high compression ratio is implemented via a variant of MTSZ (Link to Guerilla paper and M3TSZ and explain slight difference) which is an algorithm for implementing streaming timeseries compression. A "block" then is simply a sealed (no longer writable) stream of compressed timeseries data. The compression ratio will vary depending on the workload and configuration, but with careful tuning its possible to encode data with an average of 1.4 bytes per datapoint. The compression comes with a few caveats though, namely that a compressed block cannot be scanned or indexed into, the entire block must be decompressed from the beginning until you reach the datapoint you're looking for.
+5. "Blocks" belong to a series and are central to M3DB's design. In order to understand blocks, we must first understand that one of M3DB's biggest strengths as a timeseries database (as opposed to using a more general-purpose horizontally scalable, distributed database like Cassandra) is its ability to compress timeseries data resulting in huge memory and disk savings. This high compression ratio is implemented via a variant of MTSZ (Link to Guerilla paper and M3TSZ and explain slight difference) which is an algorithm for implementing streaming timeseries compression. A "block" then is simply a sealed (no longer writable) stream of compressed timeseries data. The compression ratio will vary depending on the workload and configuration, but with careful tuning its possible to encode data with an average of 1.4 bytes per datapoint. The compression comes with a few caveats though, namely that you cannot read individual datapoints in a compressed block. In other words, in order to read a single datapoint you must decompress the entire block up to the datapoint that you're trying to read.
 
 If M3DB kept everything in memory (and in fact, early versions of it did), than you could conceptually think of it as having a single top-level database which contained an internal map of <NAMEPSACE_ID>:<NAMESPACE_OBJECT> and each
 namespace would have an internal map of <SHARD_NUMBER>:<SHARD_OBJECT> and each shard would have an internal map of
 <SERIES_ID (in reality we use a hash)>:<SERIES_OBJECT> and each series would have an internal map of <BLOCK_START_TIME:BLOCK_OBJECT> where a block object is a thin wrapper around a compressed block of M3TSZ encoded data.
 
-In fact, even though M3DB does implement persistent storage, the in-memory datastructures described above conceptually map closely to the actual implementation of the in-memory structures.
+In fact, even though M3DB does implement persistent storage as well, all of the in-memory datastructures described above exist in the M3DB codebase.
 
 ### Persistent storage
 
