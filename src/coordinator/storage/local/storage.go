@@ -35,6 +35,8 @@ func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, opt
 
 	// Check if the query was interrupted.
 	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	case <-options.KillChan:
 		return nil, errors.ErrQueryInterrupted
 	default:
@@ -78,6 +80,13 @@ func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, opt
 }
 
 func (s *localStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
+	// Check if the query was interrupted.
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+
 	id := query.Tags.ID()
 	// todo (braskin): parallelize this
 	for _, datapoint := range query.Datapoints {

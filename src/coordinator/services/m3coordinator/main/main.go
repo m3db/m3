@@ -12,9 +12,12 @@ import (
 	"time"
 
 	"github.com/m3db/m3coordinator/executor"
+	"github.com/m3db/m3coordinator/policy/filter"
 	"github.com/m3db/m3coordinator/policy/resolver"
 	"github.com/m3db/m3coordinator/services/m3coordinator/config"
 	"github.com/m3db/m3coordinator/services/m3coordinator/httpd"
+	"github.com/m3db/m3coordinator/storage"
+	"github.com/m3db/m3coordinator/storage/fanout"
 	"github.com/m3db/m3coordinator/storage/local"
 	"github.com/m3db/m3coordinator/util/logging"
 
@@ -66,8 +69,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	storage := local.NewStorage(session, namespace, resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
-	handler, err := httpd.NewHandler(storage, executor.NewEngine(storage))
+	fanoutStorage := setupStorages(session)
+	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Unable to set up handlers, got error %v\n", err)
 		os.Exit(1)
@@ -115,4 +118,12 @@ func parseFlags() *m3config {
 	}
 
 	return &cfg
+}
+
+// Setup all the storages
+func setupStorages(session client.Session) storage.Storage {
+	localStorage := local.NewStorage(session, namespace, resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
+	stores := []storage.Storage{localStorage}
+	fanoutStorage := fanout.NewStorage(stores, filter.LocalOnly, filter.LocalOnly)
+	return fanoutStorage
 }

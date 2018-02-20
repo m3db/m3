@@ -1,5 +1,5 @@
-hash: 73810516bc2f9b63cf649bf40a239958298aef2c1b1671ab448be97eeaf47bb9
-updated: 2018-02-09T17:44:38.585301398-05:00
+hash: 5025184e8304272800fb90463ad47dd45843dc9f74ebb55285b91f8bde012d4d
+updated: 2018-02-16T13:34:11.449517667-05:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -246,6 +246,10 @@ imports:
   - ipv6
   - lex/httplex
   - trace
+- name: golang.org/x/sync
+  version: fd80eb99c8f653c847d294a001bdf2a3a6f768f5
+  subpackages:
+  - errgroup
 - name: google.golang.org/grpc
   version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
   subpackages:

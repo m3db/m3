@@ -30,3 +30,6 @@ import:
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - package: github.com/golang/mock
   version: ^1.0.0
+- package: golang.org/x/sync
+  subpackages:
+  - errgroup
