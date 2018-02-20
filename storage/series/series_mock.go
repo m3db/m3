@@ -166,12 +166,22 @@ func (_mr *_MockDatabaseSeriesRecorder) ReadEncoded(arg0, arg1, arg2 interface{}
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "ReadEncoded", arg0, arg1, arg2)
 }
 
-func (_m *MockDatabaseSeries) Reset(_param0 ident.ID, _param1 QueryableBlockRetriever, _param2 block.OnRetrieveBlock, _param3 Options) {
-	_m.ctrl.Call(_m, "Reset", _param0, _param1, _param2, _param3)
+func (_m *MockDatabaseSeries) Reset(_param0 ident.ID, _param1 ident.Tags, _param2 QueryableBlockRetriever, _param3 block.OnRetrieveBlock, _param4 Options) {
+	_m.ctrl.Call(_m, "Reset", _param0, _param1, _param2, _param3, _param4)
 }
 
-func (_mr *_MockDatabaseSeriesRecorder) Reset(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1, arg2, arg3)
+func (_mr *_MockDatabaseSeriesRecorder) Reset(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset", arg0, arg1, arg2, arg3, arg4)
+}
+
+func (_m *MockDatabaseSeries) Tags() ident.Tags {
+	ret := _m.ctrl.Call(_m, "Tags")
+	ret0, _ := ret[0].(ident.Tags)
+	return ret0
+}
+
+func (_mr *_MockDatabaseSeriesRecorder) Tags() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Tags")
 }
 
 func (_m *MockDatabaseSeries) Tick() (TickResult, error) {

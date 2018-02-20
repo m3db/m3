@@ -27,6 +27,12 @@ import (
 	"github.com/m3db/m3x/ident"
 )
 
+var (
+	// ReservedFieldNameNamespace is the field name used to index namespace in the
+	// m3ninx subsytem.
+	ReservedFieldNameNamespace = []byte("_m3db-namespace")
+)
+
 // Query is a rich end user query to describe a set of constraints on required IDs.
 type Query struct {
 	segment.Query
@@ -41,20 +47,22 @@ type QueryOptions struct {
 
 // QueryResults is the collection of results for a query.
 type QueryResults struct {
-	Iter       TaggedIDsIter
+	Iterator   Iterator
 	Exhaustive bool
 }
 
-// TaggedIDsIter iterates over a collection of IDs with associated
-// tags and namespace
-type TaggedIDsIter interface {
+// Iterator iterates over a collection of IDs with associated
+// tags and namespace.
+type Iterator interface {
 	// Next returns whether there are more items in the collection
 	Next() bool
 
 	// Current returns the ID, Tags and Namespace for a single timeseries.
 	// These remain valid until Next() is called again.
-	Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.TagIterator)
+	Current() (namespaceID ident.ID, seriesID ident.ID, tags ident.Tags)
 
 	// Err returns any error encountered
 	Err() error
 }
+
+// TODO(prateek): create IteratorPool
