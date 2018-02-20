@@ -156,6 +156,10 @@ func (s *peersSource) Read(
 				err := s.incrementalFlush(persistFlush, flush.nsMetadata, flush.shard,
 					flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
 				if err == nil {
+					// Safe to add to the shared bootstrap result now
+					lock.Lock()
+					result.Add(flush.shard, flush.shardResult, xtime.Ranges{})
+					lock.Unlock()
 					continue
 				}
 
@@ -164,18 +168,9 @@ func (s *peersSource) Read(
 					xlog.NewField("error", err.Error()),
 				).Errorf("peers bootstrapper incremental flush encountered error")
 
-				// Remove results
-				tr := flush.timeRange
-				blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
-				for _, series := range flush.shardResult.AllSeries() {
-					for at := tr.Start; at.Before(tr.End); at = at.Add(blockSize) {
-						series.Blocks.RemoveBlockAt(at)
-					}
-				}
-
 				// Make unfulfilled
 				lock.Lock()
-				result.Add(flush.shard, nil, xtime.Ranges{}.AddRange(tr))
+				result.Add(flush.shard, nil, xtime.Ranges{}.AddRange(flush.timeRange))
 				lock.Unlock()
 			}
 		}()
@@ -220,7 +215,21 @@ func (s *peersSource) Read(
 					).Error("error fetching bootstrap blocks from peers")
 				}
 
-				if err == nil && incremental {
+				if err != nil {
+					// Do not add result at all to the bootstrap result
+					lock.Lock()
+					result.Add(shard, nil, xtime.Ranges{}.AddRange(currRange))
+					lock.Unlock()
+					continue
+				}
+
+				if !incremental {
+					// If not waiting to incremental flush, add straight away to bootstrap result
+					lock.Lock()
+					result.Add(shard, shardResult, xtime.Ranges{})
+					lock.Unlock()
+				} else {
+					// Otherwise add at the end of the incremental flush cycle
 					incrementalQueue <- incrementalFlush{
 						nsMetadata:        nsMetadata,
 						shard:             shard,
@@ -229,14 +238,6 @@ func (s *peersSource) Read(
 						timeRange:         currRange,
 					}
 				}
-
-				lock.Lock()
-				if err == nil {
-					result.Add(shard, shardResult, xtime.Ranges{})
-				} else {
-					result.Add(shard, nil, xtime.Ranges{}.AddRange(currRange))
-				}
-				lock.Unlock()
 			}
 		})
 	}
