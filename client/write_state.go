@@ -52,7 +52,6 @@ type writeState struct {
 	op                writeOp
 	nsID              ident.ID
 	tsID              ident.ID
-	tags              ident.Tags
 	majority, pending int32
 	success           int32
 	errors            []error
@@ -72,7 +71,6 @@ func (w *writeState) close() {
 
 	w.nsID.Finalize()
 	w.tsID.Finalize()
-	w.tags.Finalize()
 
 	w.op, w.majority, w.pending, w.success = nil, 0, 0, 0
 	w.nsID, w.tsID = nil, nil
