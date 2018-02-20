@@ -172,7 +172,7 @@ We now have enough context of M3DB's architecture to discuss the lifecycle of a 
 3. The timestamp
 4. The value itself
 
-M3DB will consult the database object to check if the namespace exists, and if it does, then it will hash the series ID to determine which shard it belongs to. If the node receiving the write owns that shard, then it will lookup the series in the shard object. If the series exists, then it will lookup the series corresponding encoder (TODO: Talk about out of order writes) and encode the datapoint into the compressed stream. If the encoder doesn't exist (no writes for this series have occurred yet as part of this block) then a new encoder will be allocated and it will begin a compressed M3TSZ stream with that datapoint.
+M3DB will consult the database object to check if the namespace exists, and if it does, then it will hash the series ID to determine which shard it belongs to. If the node receiving the write owns that shard, then it will lookup the series in the shard object. If the series exists, then it will lookup the series corresponding encoder and encode the datapoint into the compressed stream. If the encoder doesn't exist (no writes for this series have occurred yet as part of this block) then a new encoder will be allocated and it will begin a compressed M3TSZ stream with that datapoint. There is also some special logic for handling out-of-order writes which is discussed in the [merging duplicate encoders section](engine.md#merging-duplicate-enoders).
 
 At the same time, the write will be appended to the commitlog queue (and depending on the commitlog configuration immediately fsync'd to disk or batched together with other writes and flushed out all at once).
 
@@ -226,7 +226,7 @@ Once M3DB has retrieved the three blocks from their respective locations in memo
 
 ## Caching policies
 
-Blocks that are still being actively compressed / M3TSZ encoded must be kept in memory until they are sealed and flushed to disk. Blocks that have already been sealed, however, don't need to remain in-memory. In order to support efficient reads, M3DB implements various caching policies which determine which flushed blocks are kept in memory, and which are not. The "cache" itself is not a separate datastructure in memory, cached blocks are simply stored in their respective series object.
+Blocks that are still being actively compressed / M3TSZ encoded must be kept in memory until they are sealed and flushed to disk. Blocks that have already been sealed, however, don't need to remain in-memory. In order to support efficient reads, M3DB implements various caching policies which determine which flushed blocks are kept in memory, and which are not. The "cache" itself is not a separate datastructure in memory, cached blocks are simply stored in their respective in-memory datastructures with various different mechanisms (depending on the chosen cache policy) determining which series / blocks are evicted and which are retained.
 
 ### None Cache Policy
 
@@ -240,10 +240,11 @@ The all cache policy is the opposite of the none cache policy. All blocks are ke
 
 The recently read cache policy keeps all blocks that are read from disk in memory for a configurable duration of time. For example, if the Recently Read cache policy is set with a duration of 10 minutes, then everytime a block is read from disk it will be kept in memory for at least 10 minutes. This policy can be very effective if only a small portion of your overall dataset is ever read, and especially if that subset is read frequently (I.E as is common in the case of database backing an automatic alerting system), but it can cause very high memory usage during workloads that involve sequentially scanning all of the data.
 
+Data eviction from memory is triggered by the "ticking" process described in the [background processes section](engine.md#background-processes)
+
 ### Least Recently Used (LRU) Cache Policy
 
-The LRU cache policy uses an LRU list with a configurable max size to keep track of which blocks have been read least recently, and evicts those blocks first
-when the capacity of the list is full and a new block needs to be read from disk. This cache policy strikes the best overall balance and is the recommended policy for general case workloads. Review the comments in `wired_list.go` for implementation details.
+The LRU cache policy uses an LRU list with a configurable max size to keep track of which blocks have been read least recently, and evicts those blocks first when the capacity of the list is full and a new block needs to be read from disk. This cache policy strikes the best overall balance and is the recommended policy for general case workloads. Review the comments in `wired_list.go` for implementation details.
 
 ## Background processes
 
