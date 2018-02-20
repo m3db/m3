@@ -288,6 +288,9 @@ type DatabaseSeriesBlocks interface {
 	// RemoveAll removes all blocks.
 	RemoveAll()
 
+	// Reset resets the DatabaseSeriesBlocks so they can be re-used
+	Reset()
+
 	// Close closes all the blocks.
 	Close()
 }

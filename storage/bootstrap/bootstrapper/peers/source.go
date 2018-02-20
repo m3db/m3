@@ -299,11 +299,8 @@ func (s *peersSource) incrementalFlush(
 			return err
 		}
 
-		var (
-			blockErr          error
-			shardResultSeries = shardResult.AllSeries()
-		)
-		for _, s := range shardResultSeries {
+		var blockErr error
+		for _, s := range shardResult.AllSeries() {
 			bl, ok := s.Blocks.BlockAt(start)
 			if !ok {
 				continue
@@ -353,6 +350,19 @@ func (s *peersSource) incrementalFlush(
 				// pool earlier than at the end of this flush cycle
 				s.Blocks.RemoveBlockAt(start)
 				bl.Close()
+			}
+		}
+
+		if seriesCachePolicy != series.CacheAll && seriesCachePolicy != series.CacheAllMetadata {
+			// If we're not going to keep all of the data, or at least all of the metadata in memory
+			// then we don't want to keep these series in the shard result. If we leave them in, then
+			// they will all get loaded into the shard object, and then immediately evicted on the next
+			// tick which causes unnecessary memory pressure.
+			for _, s := range shardResult.AllSeries() {
+				shardResult.RemoveSeries(s.ID)
+				s.Blocks.Close()
+				// Safe to finalize these IDs because they haven't been shared with anything else yet
+				s.ID.Finalize()
 			}
 		}
 
