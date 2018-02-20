@@ -1,6 +1,5 @@
 
 7) TODO: Explain data retention
-9) TODO: Explain supported datatypes (upcoming future work)
 10) TODO: Add dedication section blocksize and its implicatons (its expained throughout but needs a dedicated section I think)
 
 # Overview
@@ -14,6 +13,7 @@ M3DB currently does not support the following:
 1. Any form of indexing. While M3DB is useful as a horizontally scalable datastore that provides extremely high compression ratios for time series data, it does not currently perform any type of indexing. This feature is currently under development and future versions of M3DB will have support for a built-in index that can be used standalone for smaller M3DB clusters (up to 10 nodes).
 2. Updates / deletes. All data written to M3DB is immutable.
 3. Writing very far into the past and future. M3DB was originally designed for storing high volumes of monitoring data, and thus writing data at arbitrary timestamps in the past and future was never an intended design goal. That said, this feature is currently under development and future versions of M3DB will have support for this.
+4. Writing datapoints with values other than double-precision floats. We have planned work on our roadmap to improve the state of affairs so that arbitrary data types can be encoded.
 
 ## Architecture
 
@@ -224,7 +224,7 @@ Retrieving blocks from the active buffers and in-memory cache is simple, the dat
 
 Once M3DB has retrieved the three blocks from their respective locations in memory / on-disk, it will transmit all of the data back to the client. 
 
-**Note:** that since M3DB nodes return compressed blocks (the M3DB client decompresses them) its not possible to return "partial results" for a given block. If any portion of a read requests spans a given block, then that block in its entirety must be transmitted back to the client. In practice, this ends up being not much of an issue because of the high compression ratio that M3DB is able to achieve.
+**Note:** Since M3DB nodes return compressed blocks (the M3DB client decompresses them) its not possible to return "partial results" for a given block. If any portion of a read requests spans a given block, then that block in its entirety must be transmitted back to the client. In practice, this ends up being not much of an issue because of the high compression ratio that M3DB is able to achieve.
 
 ## Caching policies
 
