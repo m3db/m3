@@ -214,7 +214,17 @@ Then M3DB will need to consolidate:
 2) The in-memory cached block (also located inside an internal lookup in the Series object) [4PM - 6PM]
 3) The block from disk (the block retrieve from disk will then be cached according to the current [caching policy](engine.md#caching-policies) [2PM - 4PM]
 
-M3DB will retrieve the three blocks from their respective locations in memory / on-disk, and transmit all of the data back to the client. Note that since M3DB nodes return compressed blocks (the M3DB client decompresses them) its not possible to return "partial results" for a given block. If any portion of a read requests spans a given block, then that block in its entirety must be transmitted back to the client. In practice, this ends up being not much of an issue because of the high compression ratio that M3DB is able to achieve.
+Retrieving blocks from the active buffers and in-memory cache is simple, the data is already present in memory and easily accessible via hashmaps keyed by series ID. Retrieving a block from disk is more complicated. The flow for retrieviing a block from disk is as follows:
+
+1. Consult the in-memory bloom filter to determine if its possible the series exists on disk.
+2. If the bloom filter returns positive, then binary search the in-memory index summaries to find the nearest index entry that is *before* the series ID that we're searching for.
+3. Jump to the offset in the index file that we obtained from the binary search in the previous step, and begin scanning forward until we identify the index entry for the series ID we're lookiing for *or* we get far enough in the index file that it becomes clear that the ID we're looking for doesn't exist (this is possible because the index file is sorted by ID)
+4. Jump to the offset in the data file that we obtained from scanning the index file in the previous step, and begin streaming data.
+
+
+Once M3DB has retrieved the three blocks from their respective locations in memory / on-disk, it will transmit all of the data back to the client. 
+
+**Note:** that since M3DB nodes return compressed blocks (the M3DB client decompresses them) its not possible to return "partial results" for a given block. If any portion of a read requests spans a given block, then that block in its entirety must be transmitted back to the client. In practice, this ends up being not much of an issue because of the high compression ratio that M3DB is able to achieve.
 
 ## Caching policies
 
