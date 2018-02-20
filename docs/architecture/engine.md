@@ -1,6 +1,3 @@
-
-10) TODO: Add dedication section blocksize and its implicatons (its expained throughout but needs a dedicated section I think)
-
 # Overview
 
 M3DB is a time series Database that was primarily designed to be horizontally scalable and handle a large volume of monitoring time series data.
