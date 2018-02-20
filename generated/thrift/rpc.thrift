@@ -56,7 +56,7 @@ service Node {
 	FetchBlocksMetadataRawResult fetchBlocksMetadataRaw(1: FetchBlocksMetadataRawRequest req) throws (1: Error err)
 	FetchBlocksMetadataRawV2Result fetchBlocksMetadataRawV2(1: FetchBlocksMetadataRawV2Request req) throws (1: Error err)
 	void writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
-	// TODO(prateek): add writeTaggedBatchRaw code path
+	void writeTaggedBatchRaw(1: WriteTaggedBatchRawRequest req) throws (1: WriteBatchRawErrors err)
 	void repair() throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
 
@@ -102,8 +102,8 @@ struct WriteTaggedRequest {
 	1: required string nameSpace
 	2: required string id
 	3: required Datapoint datapoint
-	4: required list<binary> tagNames
-	5: required list<binary> tagValues
+	4: required list<string> tagNames
+	5: required list<string> tagValues
 }
 
 struct FetchBatchRawRequest {
@@ -262,7 +262,6 @@ struct BlockMetadataV2 {
 	7: optional TimeType lastReadTimeType = TimeType.UNIX_SECONDS
 }
 
-
 struct WriteBatchRawRequest {
 	1: required binary nameSpace
 	2: required list<WriteBatchRawRequestElement> elements
@@ -271,6 +270,18 @@ struct WriteBatchRawRequest {
 struct WriteBatchRawRequestElement {
 	1: required binary id
 	2: required Datapoint datapoint
+}
+
+struct WriteTaggedBatchRawRequest {
+	1: required binary nameSpace
+	2: required list<WriteTaggedBatchRawRequestElement> elements
+}
+
+struct WriteTaggedBatchRawRequestElement {
+	1: required binary id
+	2: required list<binary> tagNames
+	3: required list<binary> tagValues
+	4: required Datapoint datapoint
 }
 
 struct WriteBatchRawError {

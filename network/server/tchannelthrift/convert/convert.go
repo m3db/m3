@@ -22,21 +22,28 @@ package convert
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3db/x/xio"
+	"github.com/m3db/m3ninx/index/segment"
 	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
 
 var (
-	errUnknownTimeType = errors.New("unknown time type")
-	errUnknownUnit     = errors.New("unknown unit")
-	timeZero           time.Time
+	errUnknownTimeType     = errors.New("unknown time type")
+	errUnknownUnit         = errors.New("unknown unit")
+	errIllegalLimit        = errors.New("illegal limit specified in query")
+	errNilQuery            = errors.New("illegal query: nil")
+	errUnequalTagNameValue = errors.New("un-equal length of tag names and tag values")
+	timeZero               time.Time
 )
 
 // ToTime converts a value to a time
@@ -171,4 +178,182 @@ func ToRPCError(err error) *rpc.Error {
 		return tterrors.NewBadRequestError(err)
 	}
 	return tterrors.NewInternalError(err)
+}
+
+// ToRPCTaggedResult converts an index.QueryResults -> appropriate RPC types.
+func ToRPCTaggedResult(queryResult index.QueryResults) (*rpc.FetchTaggedResult_, error) {
+	result := rpc.NewFetchTaggedResult_()
+	result.Exhaustive = queryResult.Exhaustive
+	// Make Elements an initialized empty array for JSON serialization as empty array than null
+	result.Elements = make([]*rpc.FetchTaggedIDResult_, 0)
+	iter := queryResult.Iter
+	for iter.Next() {
+		ns, id, tags := iter.Current()
+		elem := &rpc.FetchTaggedIDResult_{
+			NameSpace: ns.String(),
+			ID:        id.String(),
+		}
+		defer tags.Close()
+		for tags.Next() {
+			t := tags.Current()
+			elem.TagNames = append(elem.TagNames, t.Name.String())
+			elem.TagValues = append(elem.TagValues, t.Value.String())
+		}
+		if err := tags.Err(); err != nil {
+			elem.Err = ToRPCError(err)
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, ToRPCError(err)
+	}
+
+	return result, nil
+}
+
+// ToIndexQueryOpts converts a FetchTaggedRequest to an `index.QueryOptions`.
+func ToIndexQueryOpts(r *rpc.FetchTaggedRequest) (index.QueryOptions, error) {
+	start, err := ToTime(r.RangeStart, r.RangeTimeType)
+	if err != nil {
+		return index.QueryOptions{}, err
+	}
+	end, err := ToTime(r.RangeEnd, r.RangeTimeType)
+	if err != nil {
+		return index.QueryOptions{}, err
+	}
+	limit := 0
+	if r.Limit != nil {
+		limit = int(*r.Limit)
+		if limit < 0 {
+			return index.QueryOptions{}, errIllegalLimit
+		}
+	}
+	return index.QueryOptions{
+		StartInclusive: start,
+		EndExclusive:   end,
+		Limit:          limit,
+	}, nil
+}
+
+// ToIndexQuery converts a IdxQuery to an `index.Query`.
+func ToIndexQuery(q *rpc.IdxQuery) (index.Query, error) {
+	if q == nil {
+		return index.Query{}, errNilQuery
+	}
+
+	if q.Operator != rpc.BooleanOperator_AND_OPERATOR {
+		return index.Query{}, fmt.Errorf("illegal query operator: %v", q.Operator.String())
+	}
+
+	query := index.Query{
+		segment.Query{
+			Conjunction: segment.AndConjunction,
+		},
+	}
+
+	for _, f := range q.Filters {
+		filter, err := toIndexFilter(f)
+		if err != nil {
+			return index.Query{}, err
+		}
+		query.Filters = append(query.Filters, filter)
+	}
+
+	for _, s := range q.SubQueries {
+		subQuery, err := ToIndexQuery(s)
+		if err != nil {
+			return index.Query{}, err
+		}
+		query.SubQueries = append(query.SubQueries, subQuery.Query)
+	}
+
+	return query, nil
+}
+
+func toIndexFilter(f *rpc.IdxTagFilter) (segment.Filter, error) {
+	if f == nil {
+		return segment.Filter{}, fmt.Errorf("illegal query filter: %v", f)
+	}
+
+	return segment.Filter{
+		FieldName:        []byte(f.TagName),
+		FieldValueFilter: []byte(f.TagValueFilter),
+		Regexp:           f.Regexp,
+		Negate:           f.Negate,
+	}, nil
+}
+
+// ToTagsIter returns a tag iterator over the given request.
+func ToTagsIter(r *rpc.WriteTaggedRequest) (ident.TagIterator, error) {
+	if r == nil {
+		return nil, errNilQuery
+	}
+
+	if len(r.TagNames) != len(r.TagValues) {
+		return nil, errUnequalTagNameValue
+	}
+
+	return &writeTaggedIter{
+		rawRequest: r,
+		currentIdx: -1,
+	}, nil
+}
+
+// TODO(prateek): add tests for writeTaggedIter
+type writeTaggedIter struct {
+	rawRequest *rpc.WriteTaggedRequest
+	currentIdx int
+	currentTag ident.Tag
+}
+
+func (w *writeTaggedIter) Next() bool {
+	w.release()
+	w.currentIdx++
+	if w.currentIdx < len(w.rawRequest.TagNames) {
+		// TODO(prateek): use an ident.Pool for writeTaggedIter allocations
+		w.currentTag.Name = ident.StringID(w.rawRequest.TagNames[w.currentIdx])
+		w.currentTag.Value = ident.StringID(w.rawRequest.TagValues[w.currentIdx])
+		return true
+	}
+	return false
+}
+
+func (w *writeTaggedIter) release() {
+	if i := w.currentTag.Name; i != nil {
+		w.currentTag.Name = nil
+		// w.identPool.Put(i)
+	}
+	if i := w.currentTag.Value; i != nil {
+		w.currentTag.Value = nil
+		// w.identPool.Put(i)
+	}
+}
+
+func (w *writeTaggedIter) Current() ident.Tag {
+	return w.currentTag
+}
+
+func (w *writeTaggedIter) Err() error {
+	return nil
+}
+
+func (w *writeTaggedIter) Close() {
+	w.release()
+	w.currentIdx = -1
+}
+
+func (w *writeTaggedIter) Remaining() int {
+	if r := len(w.rawRequest.TagNames) - 1 - w.currentIdx; r >= 0 {
+		return r
+	}
+	return 0
+}
+
+func (w *writeTaggedIter) Clone() ident.TagIterator {
+	return &writeTaggedIter{
+		rawRequest: w.rawRequest,
+		currentIdx: -1,
+
+		// identPool: w.identPool,
+	}
 }

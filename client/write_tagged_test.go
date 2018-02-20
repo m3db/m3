@@ -29,6 +29,7 @@ import (
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
 	"github.com/m3db/m3db/topology"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -37,10 +38,10 @@ import (
 
 // shard state tests
 
-func testWriteSuccess(t *testing.T, state shard.State, success bool) {
+func testWriteTaggedSuccess(t *testing.T, state shard.State, success bool) {
 	var writeWg sync.WaitGroup
 
-	wState, s, host := writeTestSetup(t, &writeWg)
+	wState, s, host := writeTaggedTestSetup(t, &writeWg)
 	setShardStates(t, s, host, state)
 	wState.completionFn(host, nil)
 
@@ -50,113 +51,97 @@ func testWriteSuccess(t *testing.T, state shard.State, success bool) {
 		assert.Equal(t, int32(0), wState.success)
 	}
 
-	writeTestTeardown(wState, &writeWg)
+	writeTaggedTestTeardown(wState, &writeWg)
 }
 
-func TestWriteToAvailableShards(t *testing.T) {
-	testWriteSuccess(t, shard.Available, true)
+func TestWriteTaggedToAvailableShards(t *testing.T) {
+	testWriteTaggedSuccess(t, shard.Available, true)
 }
 
-func TestWriteToInitializingShards(t *testing.T) {
-	testWriteSuccess(t, shard.Initializing, false)
+func TestWriteTaggedToInitializingShards(t *testing.T) {
+	testWriteTaggedSuccess(t, shard.Initializing, false)
 }
 
-func TestWriteToLeavingShards(t *testing.T) {
-	testWriteSuccess(t, shard.Leaving, false)
+func TestWriteTaggedToLeavingShards(t *testing.T) {
+	testWriteTaggedSuccess(t, shard.Leaving, false)
 }
 
 // retryability test
 
-type errTestFn func(error) bool
-
-func retryabilityCheck(t *testing.T, wState *writeState, testFn errTestFn) {
+func retryabilityCheckTagged(t *testing.T, wState *writeState, testFn errTestFn) {
 	require.True(t, len(wState.errors) == 1)
 	assert.True(t, testFn(wState.errors[0]))
 }
 
-func simpleRetryableTest(t *testing.T, passedErr error, customHost topology.Host, testFn errTestFn) {
+func simpleRetryableTestTagged(t *testing.T, passedErr error, customHost topology.Host, testFn errTestFn) {
 	var writeWg sync.WaitGroup
 
-	wState, _, host := writeTestSetup(t, &writeWg)
+	wState, _, host := writeTaggedTestSetup(t, &writeWg)
 	if customHost != nil {
 		host = customHost
 	}
 	wState.completionFn(host, passedErr)
-	retryabilityCheck(t, wState, testFn)
-	writeTestTeardown(wState, &writeWg)
+	retryabilityCheckTagged(t, wState, testFn)
+	writeTaggedTestTeardown(wState, &writeWg)
 }
 
-func TestNonRetryableError(t *testing.T) {
-	simpleRetryableTest(t, xerrors.NewNonRetryableError(errors.New("")), nil, xerrors.IsNonRetryableError)
+func TestNonRetryableErrorTagged(t *testing.T) {
+	simpleRetryableTestTagged(t, xerrors.NewNonRetryableError(errors.New("")), nil, xerrors.IsNonRetryableError)
 }
 
-func TestBadRequestError(t *testing.T) {
-	simpleRetryableTest(t, tterrors.NewBadRequestError(errors.New("")), nil, IsBadRequestError)
+func TestBadRequestErrorTagged(t *testing.T) {
+	simpleRetryableTestTagged(t, tterrors.NewBadRequestError(errors.New("")), nil, IsBadRequestError)
 }
 
-func TestRetryableError(t *testing.T) {
-	simpleRetryableTest(t, xerrors.NewRetryableError(errors.New("")), nil, xerrors.IsRetryableError)
+func TestRetryableErrorTagged(t *testing.T) {
+	simpleRetryableTestTagged(t, xerrors.NewRetryableError(errors.New("")), nil, xerrors.IsRetryableError)
 }
 
-func TestBadHostID(t *testing.T) {
-	simpleRetryableTest(t, nil, fakeHost{id: "not a real host"}, xerrors.IsRetryableError)
+func TestBadHostIDTagged(t *testing.T) {
+	simpleRetryableTestTagged(t, nil, fakeHost{id: "not a real host"}, xerrors.IsRetryableError)
 }
 
-func TestBadShardID(t *testing.T) {
+func TestBadShardIDTagged(t *testing.T) {
 	var writeWg sync.WaitGroup
 
-	wState, _, host := writeTestSetup(t, &writeWg)
-	o := wState.op.(*writeOp)
+	wState, _, host := writeTaggedTestSetup(t, &writeWg)
+	o := wState.op.(*writeTaggedOp)
 	o.shardID = writeOpZeroed.shardID
 	wState.completionFn(host, nil)
-	retryabilityCheck(t, wState, xerrors.IsRetryableError)
-	writeTestTeardown(wState, &writeWg)
+	retryabilityCheckTagged(t, wState, xerrors.IsRetryableError)
+	writeTaggedTestTeardown(wState, &writeWg)
 }
 
-func TestShardNotAvailable(t *testing.T) {
+func TestShardNotAvailableTagged(t *testing.T) {
 	var writeWg sync.WaitGroup
 
-	wState, s, host := writeTestSetup(t, &writeWg)
+	wState, s, host := writeTaggedTestSetup(t, &writeWg)
 	setShardStates(t, s, host, shard.Initializing)
 	wState.completionFn(host, nil)
-	retryabilityCheck(t, wState, xerrors.IsRetryableError)
-	writeTestTeardown(wState, &writeWg)
+	retryabilityCheckTagged(t, wState, xerrors.IsRetryableError)
+	writeTaggedTestTeardown(wState, &writeWg)
 }
 
 // utils
 
-func getWriteState(s *session, w writeStub) *writeState {
+func getWriteTaggedState(s *session, w writeTaggedStub) *writeState {
 	wState := s.writeStatePool.Get()
 	wState.topoMap = s.topoMap
-	o := s.writeOpPool.Get()
+	o := s.writeTaggedOpPool.Get()
 	o.shardID = 0 // Any valid shardID
 	wState.op = o
 	wState.nsID = w.ns
 	wState.tsID = w.id
+	wState.tags = w.tags
 	return wState
 }
 
-func setShardStates(t *testing.T, s *session, host topology.Host, state shard.State) {
-	hostShardSet, ok := s.topoMap.LookupHostShardSet(host.ID())
-	require.True(t, ok)
-
-	for _, hostShard := range hostShardSet.ShardSet().All() {
-		hostShard.SetState(state)
-	}
-}
-
-type fakeHost struct{ id string }
-
-func (f fakeHost) ID() string      { return f.id }
-func (f fakeHost) Address() string { return "" }
-func (f fakeHost) String() string  { return "" }
-
-func writeTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *session, topology.Host) {
+func writeTaggedTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *session, topology.Host) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	s := newDefaultTestSession(t).(*session)
-	w := newWriteStub()
+	w := newWriteTaggedStub()
 
 	var completionFn completionFn
 	enqueueWg := mockHostQueues(ctrl, s, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
@@ -170,14 +155,14 @@ func writeTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *sessio
 
 	host := s.topoMap.Hosts()[0] // any host
 
-	wState := getWriteState(s, w)
+	wState := getWriteTaggedState(s, w)
 	wState.incRef() // for the test
 	wState.incRef() // allow introspection
 
 	// Begin write
 	writeWg.Add(1)
 	go func() {
-		s.Write(w.ns, w.id, w.t, w.value, w.unit, w.annotation)
+		s.WriteTagged(w.ns, w.id, ident.NewTagSliceIterator(w.tags), w.t, w.value, w.unit, w.annotation)
 		writeWg.Done()
 	}()
 
@@ -192,7 +177,7 @@ func writeTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *sessio
 	return wState, s, host
 }
 
-func writeTestTeardown(wState *writeState, writeWg *sync.WaitGroup) {
+func writeTaggedTestTeardown(wState *writeState, writeWg *sync.WaitGroup) {
 	wState.decRef() // end introspection
 	writeWg.Wait()  // wait for write to complete
 }

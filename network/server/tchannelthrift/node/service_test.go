@@ -598,6 +598,49 @@ func TestServiceWrite(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestServiceWriteTagged(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+
+	service := NewService(mockDB, nil).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	var (
+		nsID      = "metrics"
+		id        = "foo"
+		tagNames  = []string{"foo", "bar", "baz"}
+		tagValues = []string{"cmon", "keep", "going"}
+		at        = time.Now().Truncate(time.Second)
+		value     = 42.42
+	)
+
+	mockDB.EXPECT().WriteTagged(ctx,
+		ident.NewIDMatcher(nsID),
+		ident.NewIDMatcher(id),
+		gomock.Any(), // TODO(prateek): create and use ident.TagIterMatcher
+		at, value, xtime.Second, nil,
+	).Return(nil)
+
+	err := service.WriteTagged(tctx, &rpc.WriteTaggedRequest{
+		NameSpace: nsID,
+		ID:        id,
+		Datapoint: &rpc.Datapoint{
+			Timestamp:         at.Unix(),
+			TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
+			Value:             value,
+		},
+		TagNames:  tagNames,
+		TagValues: tagValues,
+	})
+	require.NoError(t, err)
+}
+
 func TestServiceWriteBatchRaw(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -647,6 +690,67 @@ func TestServiceWriteBatchRaw(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestServiceWriteTaggedBatchRaw(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockDB := storage.NewMockDatabase(ctrl)
+	mockDB.EXPECT().Options().Return(testServiceOpts).AnyTimes()
+
+	service := NewService(mockDB, nil).(*service)
+
+	tctx, _ := tchannelthrift.NewContext(time.Minute)
+	ctx := tchannelthrift.Context(tctx)
+	defer ctx.Close()
+
+	nsID := "metrics"
+
+	values := []struct {
+		id        string
+		tagNames  []string
+		tagValues []string
+		t         time.Time
+		v         float64
+	}{
+		{"foo", []string{"a"}, []string{"b"}, time.Now().Truncate(time.Second), 12.34},
+		{"bar", []string{"c"}, []string{"d"}, time.Now().Truncate(time.Second), 42.42},
+	}
+	for _, w := range values {
+		mockDB.EXPECT().
+			WriteTagged(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(w.id),
+				gomock.Any(), // TODO(prateek): create and use ident.TagIterMatcher
+				w.t, w.v, xtime.Second, nil).
+			Return(nil)
+	}
+
+	var elements []*rpc.WriteTaggedBatchRawRequestElement
+	for _, w := range values {
+		tagNames := make([][]byte, 0, len(w.tagNames))
+		tagValues := make([][]byte, 0, len(w.tagValues))
+		for i := range w.tagNames {
+			tagNames = append(tagNames, []byte(w.tagNames[i]))
+			tagValues = append(tagValues, []byte(w.tagValues[i]))
+		}
+
+		elem := &rpc.WriteTaggedBatchRawRequestElement{
+			ID:        []byte(w.id),
+			TagNames:  tagNames,
+			TagValues: tagValues,
+			Datapoint: &rpc.Datapoint{
+				Timestamp:         w.t.Unix(),
+				TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
+				Value:             w.v,
+			},
+		}
+		elements = append(elements, elem)
+	}
+
+	err := service.WriteTaggedBatchRaw(tctx, &rpc.WriteTaggedBatchRawRequest{
+		NameSpace: []byte(nsID),
+		Elements:  elements,
+	})
+	require.NoError(t, err)
+}
 func TestServiceRepair(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
