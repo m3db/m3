@@ -620,6 +620,14 @@ func (_mr *_MockDatabaseSeriesBlocksRecorder) RemoveAll() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "RemoveAll")
 }
 
+func (_m *MockDatabaseSeriesBlocks) Reset() {
+	_m.ctrl.Call(_m, "Reset")
+}
+
+func (_mr *_MockDatabaseSeriesBlocksRecorder) Reset() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Reset")
+}
+
 func (_m *MockDatabaseSeriesBlocks) Close() {
 	_m.ctrl.Call(_m, "Close")
 }
