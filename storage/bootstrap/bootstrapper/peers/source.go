@@ -353,6 +353,14 @@ func (s *peersSource) incrementalFlush(
 			}
 		}
 
+		// Always close before attempting to check if block error occurred,
+		// avoid using a defer here as this needs to be done for each inner loop
+		err = prepared.Close()
+		if blockErr != nil {
+			// A block error is more interesting to bubble up than a close error
+			err = blockErr
+		}
+
 		if seriesCachePolicy != series.CacheAll && seriesCachePolicy != series.CacheAllMetadata {
 			// If we're not going to keep all of the data, or at least all of the metadata in memory
 			// then we don't want to keep these series in the shard result. If we leave them in, then
@@ -361,18 +369,12 @@ func (s *peersSource) incrementalFlush(
 			for _, s := range shardResult.AllSeries() {
 				shardResult.RemoveSeries(s.ID)
 				s.Blocks.Close()
-				// Safe to finalize these IDs because they haven't been shared with anything else yet
+				// Safe to finalize these IDs because the prepared object was the only other thing
+				// using them, and it has been closed.
 				s.ID.Finalize()
 			}
 		}
 
-		// Always close before attempting to check if block error occurred,
-		// avoid using a defer here as this needs to be done for each inner loop
-		err = prepared.Close()
-		if blockErr != nil {
-			// A block error is more interesting to bubble up than a close error
-			err = blockErr
-		}
 		if err != nil {
 			return err
 		}
