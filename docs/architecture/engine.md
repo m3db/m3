@@ -81,7 +81,7 @@ The in-memory portion of M3DB is implemented via a hierarchy of datastructures:
 
 3. ["Shards"](sharding.md) which are owned by namespaces. Shards are effectively the same as "virtual shards" in Cassandra in that they provide arbitrary distribution of time series data via a simple hash of the series ID. Shards are useful through the entire M3DB stack in that they make horizontal scaling and adding / removing nodes without downtime trivial at the cluster level, as well as providing more fine grained lock granularity at the memory level, and finally they inform the filesystem organization in that data belonging to the same shard will be used / dropped together and can be kept in the same file.
 
-4. "Series" which are owned by shards. A series is the minimum unit that comes to mind when you think of "time series" data. Ex. The CPU level for a single host in a datacenter over a period of time could be represented as a series with id "<HOST_IDENTIFIER>.system.cpu.utilization" and a vector of tuples in the form of (<TIMESTAMP>,<CPU_LEVEL>)
+4. "Series" which are owned by shards. A series is the minimum unit that comes to mind when you think of "time series" data. Ex. The CPU level for a single host in a datacenter over a period of time could be represented as a series with id "<HOST_IDENTIFIER>.system.cpu.utilization" and a vector of tuples in the form of (TIMESTAMP, CPU_LEVEL)
 
 5. "Blocks" belong to a series and are central to M3DB's design. In order to understand blocks, we must first understand that one of M3DB's biggest strengths as a time series database (as opposed to using a more general-purpose horizontally scalable, distributed database like Cassandra) is its ability to compress time series data resulting in huge memory and disk savings. This high compression ratio is implemented via the M3TSZ algorithm, a variant of the streaming time series compression algorithm described in [Facebook's Gorilla paper](http://www.vldb.org/pvldb/vol8/p1816-teller.pdf) with a few small differences. A "block" then is simply a sealed (no longer writable) stream of compressed time series data. The compression ratio will vary depending on the workload and configuration, but with careful tuning its possible to encode data with an average of 1.4 bytes per datapoint. The compression comes with a few caveats though, namely that you cannot read individual datapoints in a compressed block. In other words, in order to read a single datapoint you must decompress the entire block up to the datapoint that you're trying to read.
 
@@ -165,7 +165,7 @@ The blocksize parameter is the most important variable that needs to be tuned fo
 
 ## Lifecycle of a write
 
-We now have enough context of M3DB's architecture to discuss the lifecycle of a write. A write begins when an M3DB client calls the Write or WriteBatch (TODO: API name?) endpoint on M3DB's thrift server. The write itself will contain the following information:
+We now have enough context of M3DB's architecture to discuss the lifecycle of a write. A write begins when an M3DB client calls the `writeBatchRaw` endpoint on M3DB's thrift server. The write itself will contain the following information:
 
 1. The namespace
 2. The series ID (byte blob)
@@ -180,7 +180,7 @@ The write will exist only in this "active buffer" and the commitlog until the bl
 
 ## Lifecycle of a read
 
-A read begins when an M3DB client calls the Read or ReadBatch (TODO: API name?) endpoint on M3DB's thrift server. The read request will contain the following information:
+A read begins when an M3DB client calls the `FetchBatchResult` or `FetchBlocksRawResult` endpoint on M3DB's thrift server. The read request will contain the following information:
 
 1. The namespace
 2. The series ID (byte blob)
@@ -245,7 +245,7 @@ The recently read cache policy keeps all blocks that are read from disk in memor
 ### Least Recently Used (LRU) Cache Policy
 
 The LRU cache policy uses an LRU list with a configurable max size to keep track of which blocks have been read least recently, and evicts those blocks first
-when the capacity of the list is full and a new block needs to be read from disk. This cache policy strikes the best overall balance and is the recommended policy for general case workloads. (TODO: Link to WiredList documentation if people want more information)
+when the capacity of the list is full and a new block needs to be read from disk. This cache policy strikes the best overall balance and is the recommended policy for general case workloads. Review the comments in `wired_list.go` for implementation details.
 
 ## Background processes
 
