@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"net/http"
 	"os"
@@ -17,8 +16,11 @@ import (
 	"github.com/m3db/m3coordinator/services/m3coordinator/config"
 	"github.com/m3db/m3coordinator/services/m3coordinator/httpd"
 	"github.com/m3db/m3coordinator/storage"
+
 	"github.com/m3db/m3coordinator/storage/fanout"
 	"github.com/m3db/m3coordinator/storage/local"
+	"github.com/m3db/m3coordinator/storage/remote"
+	tsdbRemote "github.com/m3db/m3coordinator/tsdb/remote"
 	"github.com/m3db/m3coordinator/util/logging"
 
 	"github.com/m3db/m3db/client"
@@ -27,6 +29,7 @@ import (
 	xtime "github.com/m3db/m3x/time"
 
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
 
@@ -37,6 +40,9 @@ var (
 type m3config struct {
 	configFile           string
 	listenAddress        string
+	rpcEnabled           bool
+	rpcAddress           string
+	remotes              []string
 	maxConcurrentQueries int
 	queryTimeout         time.Duration
 }
@@ -44,40 +50,39 @@ type m3config struct {
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-	flags := parseFlags()
+	logging.InitWithCores(nil)
+	ctx := context.Background()
+	logger := logging.WithContext(ctx)
+	defer logger.Sync()
+
+	flags := parseFlags(logger)
 
 	var cfg config.Configuration
 	if err := xconfig.LoadFile(&cfg, flags.configFile); err != nil {
-		fmt.Fprintf(os.Stderr, "unable to load %s: %v", flags.configFile, err)
-		os.Exit(1)
+		logger.Fatal("unable to load", zap.String("configFile", flags.configFile), zap.Any("error", err))
 	}
-
-	logging.InitWithCores(nil)
-	logger := logging.WithContext(context.TODO())
-	defer logger.Sync()
 
 	m3dbClientOpts := cfg.M3DBClientCfg
 	m3dbClient, err := m3dbClientOpts.NewClient(client.ConfigurationParameters{})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to create m3db client, got error %v\n", err)
-		os.Exit(1)
+		logger.Fatal("unable to create m3db client", zap.Any("error", err))
 	}
 
 	session, err := m3dbClient.NewSession()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to create m3db client session, got error %v\n", err)
-		os.Exit(1)
+		logger.Fatal("unable to create m3db client session", zap.Any("error", err))
 	}
 
-	fanoutStorage := setupStorages(session)
+	fanoutStorage, storageCleanup := setupStorages(logger, session, flags)
+	defer storageCleanup()
+
 	handler, err := httpd.NewHandler(fanoutStorage, executor.NewEngine(fanoutStorage))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to set up handlers, got error %v\n", err)
-		os.Exit(1)
+		logger.Fatal("unable to set up handlers", zap.Any("error", err))
 	}
 	handler.RegisterRoutes()
 
-	logger.Info("Starting server", zap.String("address", flags.listenAddress))
+	logger.Info("starting server", zap.String("address", flags.listenAddress))
 	go http.ListenAndServe(flags.listenAddress, handler.Router)
 
 	sigChan := make(chan os.Signal, 1)
@@ -85,12 +90,11 @@ func main() {
 
 	<-sigChan
 	if err := session.Close(); err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to close m3db client session, got error %v\n", err)
-		os.Exit(1)
+		logger.Fatal("unable to close m3db client session", zap.Any("error", err))
 	}
 }
 
-func parseFlags() *m3config {
+func parseFlags(logger *zap.Logger) *m3config {
 	cfg := m3config{}
 	a := kingpin.New(filepath.Base(os.Args[0]), "M3Coordinator")
 
@@ -110,9 +114,18 @@ func parseFlags() *m3config {
 	a.Flag("query.max-concurrency", "Maximum number of queries executed concurrently.").
 		Default("20").IntVar(&cfg.maxConcurrentQueries)
 
+	a.Flag("rpc.enabled", "True enables remote clients.").
+		Default("false").BoolVar(&cfg.rpcEnabled)
+
+	a.Flag("rpc.port", "Address which the remote gRPC server will listen on for outbound connections.").
+		Default("0.0.0.0:7288").StringVar(&cfg.rpcAddress)
+
+	a.Flag("rpc.remotes", "Address which the remote gRPC server will listen on for outbound connections.").
+		Default("[]").StringsVar(&cfg.remotes)
+
 	_, err := a.Parse(os.Args[1:])
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error parsing commandline arguments, got error %v\n", err)
+		logger.Error("unable to parse command line arguments", zap.Any("error", err))
 		a.Usage(os.Args[1:])
 		os.Exit(2)
 	}
@@ -120,10 +133,40 @@ func parseFlags() *m3config {
 	return &cfg
 }
 
+func startGrpcServer(logger *zap.Logger, storage storage.Storage, flags *m3config) *grpc.Server {
+	logger.Info("creating gRPC server")
+	server := tsdbRemote.CreateNewGrpcServer(storage)
+	waitForStart := make(chan struct{})
+	go func() {
+		logger.Info("starting gRPC server")
+		err := tsdbRemote.StartNewGrpcServer(server, flags.rpcAddress, waitForStart)
+		if err != nil {
+			logger.Fatal("unable to start gRPC server", zap.Any("error", err))
+		}
+	}()
+	<-waitForStart
+	return server
+}
+
 // Setup all the storages
-func setupStorages(session client.Session) storage.Storage {
+func setupStorages(logger *zap.Logger, session client.Session, flags *m3config) (storage.Storage, func()) {
+	cleanup := func() {}
 	localStorage := local.NewStorage(session, namespace, resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
 	stores := []storage.Storage{localStorage}
+	if flags.rpcEnabled {
+		logger.Info("rpc enabled")
+		server := startGrpcServer(logger, localStorage, flags)
+		cleanup = func() {
+			server.GracefulStop()
+		}
+		if len(flags.remotes) > 0 {
+			client, err := tsdbRemote.NewGrpcClient(flags.remotes)
+			if err != nil {
+				logger.Fatal("unable to start remote clients for addresses", zap.Any("error", err))
+			}
+			stores = append(stores, remote.NewStorage(client))
+		}
+	}
 	fanoutStorage := fanout.NewStorage(stores, filter.LocalOnly, filter.LocalOnly)
-	return fanoutStorage
+	return fanoutStorage, cleanup
 }
