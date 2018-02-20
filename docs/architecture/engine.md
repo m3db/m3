@@ -199,26 +199,24 @@ Lets imagine a read for a given series that requests the last 6 hours worth of d
 
 If the current time is 8PM, then the location of the requested blocks might be as follows:
 
-(TODO: Make this a nice diagram)
+**[2PM - 4PM (Fileset file)]** - Because this block was sealed and flushed and hasn't been read recently
 
-[2PM - 4PM (Fileset file)] - Because this block was sealed and flushed and hasn't been read recently
+**[4PM - 6PM (In-memory cache)]** - Because this block was read from disk recently and cached
 
-[4PM - 6PM (In-memory cache)] - Because this block was read from disk recently and cached
-
-[6PM - 8PM (active buffer)] - Because this block hasn't been sealed and flushed to disk yet
+**[6PM - 8PM (active buffer)]** - Because this block hasn't been sealed and flushed to disk yet
 
 
 Then M3DB will need to consolidate:
 
-1) The not-yet-sealed block from the active buffers / encoders (located inside an internal lookup in the Series object) [6PM - 8PM]
-2) The in-memory cached block (also located inside an internal lookup in the Series object) [4PM - 6PM]
-3) The block from disk (the block retrieve from disk will then be cached according to the current [caching policy](engine.md#caching-policies) [2PM - 4PM]
+1) The not-yet-sealed block from the active buffers / encoders (located inside an internal lookup in the Series object) **[6PM - 8PM]**
+2) The in-memory cached block (also located inside an internal lookup in the Series object) **[4PM - 6PM]**
+3) The block from disk (the block retrieve from disk will then be cached according to the current [caching policy](engine.md#caching-policies) **[2PM - 4PM]**
 
-Retrieving blocks from the active buffers and in-memory cache is simple, the data is already present in memory and easily accessible via hashmaps keyed by series ID. Retrieving a block from disk is more complicated. The flow for retrieviing a block from disk is as follows:
+Retrieving blocks from the active buffers and in-memory cache is simple, the data is already present in memory and easily accessible via hashmaps keyed by series ID. Retrieving a block from disk is more complicated. The flow for retrieving a block from disk is as follows:
 
 1. Consult the in-memory bloom filter to determine if its possible the series exists on disk.
-2. If the bloom filter returns positive, then binary search the in-memory index summaries to find the nearest index entry that is *before* the series ID that we're searching for.
-3. Jump to the offset in the index file that we obtained from the binary search in the previous step, and begin scanning forward until we identify the index entry for the series ID we're lookiing for *or* we get far enough in the index file that it becomes clear that the ID we're looking for doesn't exist (this is possible because the index file is sorted by ID)
+2. If the bloom filter returns positive, then binary search the in-memory index summaries to find the nearest index entry that is *before* the series ID that we're searching for. Review the `index_lookup.go` file for implementation details.
+3. Jump to the offset in the index file that we obtained from the binary search in the previous step, and begin scanning forward until we identify the index entry for the series ID we're looking for *or* we get far enough in the index file that it becomes clear that the ID we're looking for doesn't exist (this is possible because the index file is sorted by ID)
 4. Jump to the offset in the data file that we obtained from scanning the index file in the previous step, and begin streaming data.
 
 
