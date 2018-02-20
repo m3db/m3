@@ -520,7 +520,7 @@ func (s *dbSeries) Close() {
 	// a long period of time.
 	s.id = nil
 	s.buffer.Reset(s.opts)
-	s.blocks.Close()
+	s.blocks.Reset()
 
 	if s.pool != nil {
 		s.pool.Put(s)
@@ -537,7 +537,7 @@ func (s *dbSeries) Reset(
 	defer s.Unlock()
 
 	s.id = id
-	s.blocks.RemoveAll()
+	s.blocks.Reset()
 	s.buffer.Reset(opts)
 	s.opts = opts
 	s.bs = bootstrapNotStarted
