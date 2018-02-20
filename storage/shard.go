@@ -724,6 +724,7 @@ func (s *dbShard) ReadEncoded(
 	id ident.ID,
 	start, end time.Time,
 ) ([][]xio.SegmentReader, error) {
+	fmt.Println("READING ENCODED")
 	s.RLock()
 	entry, _, err := s.lookupEntryWithLock(id)
 	if entry != nil {
@@ -737,25 +738,38 @@ func (s *dbShard) ReadEncoded(
 	if err == errShardEntryNotFound {
 		switch s.opts.SeriesCachePolicy() {
 		case series.CacheAll:
+			fmt.Println("1")
 			// No-op, would be in memory if cached
 			return nil, nil
 		case series.CacheAllMetadata:
+			fmt.Println("2")
 			// No-op, would be in memory if metadata cached
 			return nil, nil
 		}
 	} else if err != nil {
+		fmt.Println("ERROR: ", err)
 		return nil, err
 	}
 
 	if entry != nil {
-		return entry.series.ReadEncoded(ctx, start, end)
+		fmt.Println("3")
+		segmentReader, err := entry.series.ReadEncoded(ctx, start, end)
+		if err != nil {
+			fmt.Println("ERROR1: ", err)
+		}
+		return segmentReader, err
 	}
 
 	retriever := s.seriesBlockRetriever
 	onRetrieve := s.seriesOnRetrieveBlock
 	opts := s.seriesOpts
 	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, opts)
-	return reader.ReadEncoded(ctx, start, end)
+	segmentReader, err := reader.ReadEncoded(ctx, start, end)
+	if err != nil {
+		fmt.Println("ERROR2: ", err)
+	}
+	fmt.Println("4")
+	return segmentReader, err
 }
 
 // lookupEntryWithLock returns the entry for a given id while holding a read lock or a write lock.

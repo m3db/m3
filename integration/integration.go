@@ -140,6 +140,7 @@ type closeFn func()
 func newDefaulTestResultOptions(
 	storageOpts storage.Options,
 ) result.Options {
+	fmt.Println("WTF: ", storageOpts.SeriesCachePolicy())
 	return result.NewOptions().
 		SetClockOptions(storageOpts.ClockOptions()).
 		SetInstrumentOptions(storageOpts.InstrumentOptions()).
@@ -190,6 +191,8 @@ func newDefaultBootstrappableTestSetups(
 		setup, err := newTestSetup(t, instanceOpts, nil)
 		require.NoError(t, err)
 
+		fmt.Println("ADTER: ", setup.storageOpts.SeriesCachePolicy())
+
 		// Force correct series cache policy if using V1 version
 		// TODO: Remove once v1 endpoint is gone
 		if anySetupUsingFetchBlocksMetadataEndpointV1 {
@@ -232,7 +235,11 @@ func newDefaultBootstrappableTestSetups(
 			peersOpts := peers.NewOptions().
 				SetResultOptions(bsOpts).
 				SetAdminClient(adminClient).
-				SetFetchBlocksMetadataEndpointVersion(setupOpts[i].fetchBlocksMetadataEndpointVersion)
+				SetFetchBlocksMetadataEndpointVersion(setupOpts[i].fetchBlocksMetadataEndpointVersion).
+				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
+				// the incremental path
+				SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
+				SetPersistManager(setup.storageOpts.PersistManager())
 
 			peersBootstrapper, err = peers.NewPeersBootstrapper(peersOpts, noOpAll)
 			require.NoError(t, err)
@@ -242,6 +249,7 @@ func newDefaultBootstrappableTestSetups(
 
 		fsOpts := setup.storageOpts.CommitLogOptions().FilesystemOptions()
 		filePathPrefix := fsOpts.FilePathPrefix()
+		fmt.Println("hmm: ", setup.storageOpts.DatabaseBlockRetrieverManager())
 		bfsOpts := bfs.NewOptions().
 			SetResultOptions(bsOpts).
 			SetFilesystemOptions(fsOpts).

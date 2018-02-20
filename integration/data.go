@@ -64,6 +64,7 @@ func verifySeriesMapForRange(
 	expectedDebugFilePath string,
 	actualDebugFilePath string,
 ) {
+	fmt.Println("Starting again!")
 	actual := make(generate.SeriesBlock, len(expected))
 	req := rpc.NewFetchRequest()
 	for i := range expected {
@@ -80,6 +81,8 @@ func verifySeriesMapForRange(
 			Data: fetched,
 		}
 	}
+
+	fmt.Println("here")
 
 	if len(expectedDebugFilePath) > 0 {
 		writeVerifyDebugOutput(t, expectedDebugFilePath, start, end, expected)
