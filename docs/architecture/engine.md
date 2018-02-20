@@ -199,12 +199,11 @@ Lets imagine a read for a given series that requests the last 6 hours worth of d
 
 If the current time is 8PM, then the location of the requested blocks might be as follows:
 
-**[2PM - 4PM (Fileset file)]** - Because this block was sealed and flushed and hasn't been read recently
-
-**[4PM - 6PM (In-memory cache)]** - Because this block was read from disk recently and cached
-
-**[6PM - 8PM (active buffer)]** - Because this block hasn't been sealed and flushed to disk yet
-
+```
+[2PM - 4PM (Fileset file)] - Sealed and flushed block that isn't cached
+[4PM - 6PM (In-memory cache)] - Sealed and flush block that is cached
+[6PM - 8PM (active buffer)] - Hasn't been sealed or flushed yet
+```
 
 Then M3DB will need to consolidate:
 
