@@ -1,5 +1,4 @@
 
-7) TODO: Explain data retention
 10) TODO: Add dedication section blocksize and its implicatons (its expained throughout but needs a dedicated section I think)
 
 # Overview
@@ -14,6 +13,8 @@ M3DB currently does not support the following:
 2. Updates / deletes. All data written to M3DB is immutable.
 3. Writing very far into the past and future. M3DB was originally designed for storing high volumes of monitoring data, and thus writing data at arbitrary timestamps in the past and future was never an intended design goal. That said, this feature is currently under development and future versions of M3DB will have support for this.
 4. Writing datapoints with values other than double-precision floats. We have planned work on our roadmap to improve the state of affairs so that arbitrary data types can be encoded.
+5. Storing data permanently. Every namespace in M3DB is required to have a retention policy which specifies how long data in that namespace will be retained for. While there is no upper bound on that value (Uber has production databases running with retention periods as high as 5 years), its still required and generally speaking M3DB is optimized for workloads with a well-defined [TTL](https://en.wikipedia.org/wiki/Time_to_live).
+6. Writing / reading from languages other than Golang. Communicating with M3DB currently requires use of a "fat" (logic-heavy) client, and there is only a Golang implementation at the moment.
 
 ## Architecture
 
@@ -148,6 +149,8 @@ A fileset has the following files:
 ```
 
 In the diagram above you can see that the data file stores compressed blocks for a given shard / block start combination. The index file (which is sorted by ID and thus can be binary searched or scanned) can be used to find the offset of a specific ID.
+
+Fileset files will be kept for every shard / block start combination that is within the retention period. Once the files fall out of the period defined in the configurable namespace retention period they will be deleted.
 
 Now that we understand the in-memory datastructures, as well as the files on disk, we can discuss how they interact to create a database where only a portion of the data exists in memory at any given time.
 
