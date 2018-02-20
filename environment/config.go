@@ -169,7 +169,21 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 			SetHostShardSets(hostShardSets).
 			SetShardSet(shardSet)
 
-		if c.Static.TopologyConfig.Replicas != 0 {
+		numHosts := len(c.Static.TopologyConfig.Hosts)
+		numReplicas := c.Static.TopologyConfig.Replicas
+
+		switch numReplicas {
+		case 0:
+			if numHosts != 1 {
+				err := fmt.Errorf("number of hosts (%d) must be 1 if replicas is not set", numHosts)
+				return emptyConfig, err
+			}
+			staticOptions = staticOptions.SetReplicas(1)
+		default:
+			if numHosts != numReplicas {
+				err := fmt.Errorf("number of hosts (%d) not equal to number of replicas (%d)", numHosts, numReplicas)
+				return emptyConfig, err
+			}
 			staticOptions = staticOptions.SetReplicas(c.Static.TopologyConfig.Replicas)
 		}
 
