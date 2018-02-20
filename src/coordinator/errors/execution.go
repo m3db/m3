@@ -25,6 +25,9 @@ var (
 
 	// ErrQueryTimeoutLimitExceeded is an error when the query hits the max time allowed to run.
 	ErrQueryTimeoutLimitExceeded = errors.New("query timeout limit exceeded")
+
+	// ErrNoClientAddresses is an error when there are no addresses passed to the remote client
+	ErrNoClientAddresses = errors.New("no client addresses given")
 )
 
 // ErrMaxConcurrentQueriesLimitExceeded is an error when the query cannot be run

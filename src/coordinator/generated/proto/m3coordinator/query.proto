@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package rpc;
+
+service Query {
+	rpc Fetch(FetchMessage) returns (stream FetchResult);
+	rpc Write(stream WriteMessage) returns (Error);
+}
+
+message WriteMessage {
+	WriteQuery query = 1;
+	WriteOptions options = 2;
+}
+
+message WriteQuery {
+	int32 unit = 1;
+	bytes annotation = 2;
+	repeated Datapoint datapoints = 3;
+	map<string, string> tags = 4;
+}
+
+message WriteOptions {
+	string id = 1;
+}
+
+message Datapoint {
+	int64 timestamp = 1;
+	float value = 2;
+}
+
+message Error {
+	string error = 1;
+}
+
+message FetchMessage {
+	FetchQuery query = 1;
+	FetchOptions options = 2;
+}
+
+message FetchQuery {
+	int64 start = 1;
+	int64 end = 2;
+	repeated Matcher tagMatchers = 3;
+}
+
+message FetchOptions {
+	string id = 1;
+}
+
+message Matcher {
+	string name = 1;
+	string value = 2;
+	int64 type = 3;
+}
+
+message FetchResult {
+	repeated Series series = 1;
+}
+
+message Series {
+	string name = 1;
+	int64 startTime = 2;
+	repeated float values = 3;
+	map<string, string> tags = 4;
+	string specification = 5;
+	int32 millisPerStep = 6;
+}
