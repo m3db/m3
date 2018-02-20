@@ -101,9 +101,9 @@ struct WriteRequest {
 struct WriteTaggedRequest {
 	1: required string nameSpace
 	2: required string id
-	3: required Datapoint datapoint
-	4: required list<string> tagNames
-	5: required list<string> tagValues
+	3: required list<string> tagNames
+	4: required list<string> tagValues
+	5: required Datapoint datapoint
 }
 
 struct FetchBatchRawRequest {

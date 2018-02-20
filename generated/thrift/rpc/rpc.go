@@ -1334,15 +1334,15 @@ func (p *WriteRequest) String() string {
 // Attributes:
 //  - NameSpace
 //  - ID
-//  - Datapoint
 //  - TagNames
 //  - TagValues
+//  - Datapoint
 type WriteTaggedRequest struct {
 	NameSpace string     `thrift:"nameSpace,1,required" db:"nameSpace" json:"nameSpace"`
 	ID        string     `thrift:"id,2,required" db:"id" json:"id"`
-	Datapoint *Datapoint `thrift:"datapoint,3,required" db:"datapoint" json:"datapoint"`
-	TagNames  []string   `thrift:"tagNames,4,required" db:"tagNames" json:"tagNames"`
-	TagValues []string   `thrift:"tagValues,5,required" db:"tagValues" json:"tagValues"`
+	TagNames  []string   `thrift:"tagNames,3,required" db:"tagNames" json:"tagNames"`
+	TagValues []string   `thrift:"tagValues,4,required" db:"tagValues" json:"tagValues"`
+	Datapoint *Datapoint `thrift:"datapoint,5,required" db:"datapoint" json:"datapoint"`
 }
 
 func NewWriteTaggedRequest() *WriteTaggedRequest {
@@ -1357,6 +1357,14 @@ func (p *WriteTaggedRequest) GetID() string {
 	return p.ID
 }
 
+func (p *WriteTaggedRequest) GetTagNames() []string {
+	return p.TagNames
+}
+
+func (p *WriteTaggedRequest) GetTagValues() []string {
+	return p.TagValues
+}
+
 var WriteTaggedRequest_Datapoint_DEFAULT *Datapoint
 
 func (p *WriteTaggedRequest) GetDatapoint() *Datapoint {
@@ -1364,14 +1372,6 @@ func (p *WriteTaggedRequest) GetDatapoint() *Datapoint {
 		return WriteTaggedRequest_Datapoint_DEFAULT
 	}
 	return p.Datapoint
-}
-
-func (p *WriteTaggedRequest) GetTagNames() []string {
-	return p.TagNames
-}
-
-func (p *WriteTaggedRequest) GetTagValues() []string {
-	return p.TagValues
 }
 func (p *WriteTaggedRequest) IsSetDatapoint() bool {
 	return p.Datapoint != nil
@@ -1384,9 +1384,9 @@ func (p *WriteTaggedRequest) Read(iprot thrift.TProtocol) error {
 
 	var issetNameSpace bool = false
 	var issetID bool = false
-	var issetDatapoint bool = false
 	var issetTagNames bool = false
 	var issetTagValues bool = false
+	var issetDatapoint bool = false
 
 	for {
 		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
@@ -1411,17 +1411,17 @@ func (p *WriteTaggedRequest) Read(iprot thrift.TProtocol) error {
 			if err := p.ReadField3(iprot); err != nil {
 				return err
 			}
-			issetDatapoint = true
+			issetTagNames = true
 		case 4:
 			if err := p.ReadField4(iprot); err != nil {
 				return err
 			}
-			issetTagNames = true
+			issetTagValues = true
 		case 5:
 			if err := p.ReadField5(iprot); err != nil {
 				return err
 			}
-			issetTagValues = true
+			issetDatapoint = true
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -1440,14 +1440,14 @@ func (p *WriteTaggedRequest) Read(iprot thrift.TProtocol) error {
 	if !issetID {
 		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field ID is not set"))
 	}
-	if !issetDatapoint {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Datapoint is not set"))
-	}
 	if !issetTagNames {
 		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field TagNames is not set"))
 	}
 	if !issetTagValues {
 		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field TagValues is not set"))
+	}
+	if !issetDatapoint {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Datapoint is not set"))
 	}
 	return nil
 }
@@ -1471,16 +1471,6 @@ func (p *WriteTaggedRequest) ReadField2(iprot thrift.TProtocol) error {
 }
 
 func (p *WriteTaggedRequest) ReadField3(iprot thrift.TProtocol) error {
-	p.Datapoint = &Datapoint{
-		TimestampTimeType: 0,
-	}
-	if err := p.Datapoint.Read(iprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Datapoint), err)
-	}
-	return nil
-}
-
-func (p *WriteTaggedRequest) ReadField4(iprot thrift.TProtocol) error {
 	_, size, err := iprot.ReadListBegin()
 	if err != nil {
 		return thrift.PrependError("error reading list begin: ", err)
@@ -1502,7 +1492,7 @@ func (p *WriteTaggedRequest) ReadField4(iprot thrift.TProtocol) error {
 	return nil
 }
 
-func (p *WriteTaggedRequest) ReadField5(iprot thrift.TProtocol) error {
+func (p *WriteTaggedRequest) ReadField4(iprot thrift.TProtocol) error {
 	_, size, err := iprot.ReadListBegin()
 	if err != nil {
 		return thrift.PrependError("error reading list begin: ", err)
@@ -1520,6 +1510,16 @@ func (p *WriteTaggedRequest) ReadField5(iprot thrift.TProtocol) error {
 	}
 	if err := iprot.ReadListEnd(); err != nil {
 		return thrift.PrependError("error reading list end: ", err)
+	}
+	return nil
+}
+
+func (p *WriteTaggedRequest) ReadField5(iprot thrift.TProtocol) error {
+	p.Datapoint = &Datapoint{
+		TimestampTimeType: 0,
+	}
+	if err := p.Datapoint.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Datapoint), err)
 	}
 	return nil
 }
@@ -1581,21 +1581,8 @@ func (p *WriteTaggedRequest) writeField2(oprot thrift.TProtocol) (err error) {
 }
 
 func (p *WriteTaggedRequest) writeField3(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("datapoint", thrift.STRUCT, 3); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:datapoint: ", p), err)
-	}
-	if err := p.Datapoint.Write(oprot); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Datapoint), err)
-	}
-	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 3:datapoint: ", p), err)
-	}
-	return err
-}
-
-func (p *WriteTaggedRequest) writeField4(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("tagNames", thrift.LIST, 4); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:tagNames: ", p), err)
+	if err := oprot.WriteFieldBegin("tagNames", thrift.LIST, 3); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:tagNames: ", p), err)
 	}
 	if err := oprot.WriteListBegin(thrift.STRING, len(p.TagNames)); err != nil {
 		return thrift.PrependError("error writing list begin: ", err)
@@ -1609,14 +1596,14 @@ func (p *WriteTaggedRequest) writeField4(oprot thrift.TProtocol) (err error) {
 		return thrift.PrependError("error writing list end: ", err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 4:tagNames: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 3:tagNames: ", p), err)
 	}
 	return err
 }
 
-func (p *WriteTaggedRequest) writeField5(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("tagValues", thrift.LIST, 5); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 5:tagValues: ", p), err)
+func (p *WriteTaggedRequest) writeField4(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("tagValues", thrift.LIST, 4); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:tagValues: ", p), err)
 	}
 	if err := oprot.WriteListBegin(thrift.STRING, len(p.TagValues)); err != nil {
 		return thrift.PrependError("error writing list begin: ", err)
@@ -1630,7 +1617,20 @@ func (p *WriteTaggedRequest) writeField5(oprot thrift.TProtocol) (err error) {
 		return thrift.PrependError("error writing list end: ", err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 5:tagValues: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 4:tagValues: ", p), err)
+	}
+	return err
+}
+
+func (p *WriteTaggedRequest) writeField5(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("datapoint", thrift.STRUCT, 5); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 5:datapoint: ", p), err)
+	}
+	if err := p.Datapoint.Write(oprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Datapoint), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 5:datapoint: ", p), err)
 	}
 	return err
 }
