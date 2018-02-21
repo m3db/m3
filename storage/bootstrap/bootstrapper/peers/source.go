@@ -372,16 +372,24 @@ func (s *peersSource) incrementalFlush(
 		// then we don't want to keep these series in the shard result. If we leave them in, then
 		// they will all get loaded into the shard object, and then immediately evicted on the next
 		// tick which causes unnecessary memory pressure.
-		for _, s := range shardResult.AllSeries() {
-			shardResult.RemoveSeries(s.ID)
-			// TODO: Does this make sense?
-			if len(s.Blocks.AllBlocks()) > 0 {
-				panic("hmm")
+		for _, series := range shardResult.AllSeries() {
+			numBlocksRemaining := len(series.Blocks.AllBlocks())
+			// Should never happen since we removed all the block in the previous loop and fetching
+			// bootstrap blocks should always be exclusive on the end side.
+			if numBlocksRemaining > 0 {
+				s.log.WithFields(
+					xlog.NewField("start", tr.Start),
+					xlog.NewField("end", tr.End),
+					xlog.NewField("numBlocks", numBlocksRemaining),
+				).Error("error trying to remove series that still has blocks")
+				continue
 			}
-			s.Blocks.Close()
+
+			shardResult.RemoveSeries(series.ID)
+			series.Blocks.Close()
 			// Safe to finalize these IDs because the prepared object was the only other thing
 			// using them, and it has been closed.
-			s.ID.Finalize()
+			series.ID.Finalize()
 		}
 	}
 
