@@ -116,7 +116,6 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 			if block, ok := seriesBlocks.BlockAt(blockAt); ok {
 				// Block served from in-memory or in-memory metadata
 				// will defer to disk read
-				fmt.Println("4")
 				stream, err := block.Stream(ctx)
 				if err != nil {
 					return nil, err
@@ -137,9 +136,7 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 			// No-op, block metadata should have been in-memory
 		case r.retriever != nil:
 			// Try to stream from disk
-			fmt.Println("5")
 			if r.retriever.IsBlockRetrievable(blockAt) {
-				fmt.Println("6")
 				stream, err := r.retriever.Stream(ctx, r.id, blockAt, r.onRetrieve)
 				if err != nil {
 					return nil, err
@@ -152,10 +149,8 @@ func (r Reader) readersWithBlocksMapAndBuffer(
 	}
 
 	if seriesBuffer != nil {
-		fmt.Println("7")
 		bufferResults := seriesBuffer.ReadEncoded(ctx, start, end)
 		if len(bufferResults) > 0 {
-			fmt.Println("8")
 			results = append(results, bufferResults...)
 		}
 	}

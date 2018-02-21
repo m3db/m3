@@ -1827,6 +1827,9 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 				}
 			}
 
+			if blockStart == end {
+				panic("received inclusive end!")
+			}
 			metadataCh <- blocksMetadata{
 				peer: peer,
 				id:   clonedID,

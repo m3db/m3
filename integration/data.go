@@ -64,7 +64,6 @@ func verifySeriesMapForRange(
 	expectedDebugFilePath string,
 	actualDebugFilePath string,
 ) {
-	fmt.Println("Starting again!")
 	actual := make(generate.SeriesBlock, len(expected))
 	req := rpc.NewFetchRequest()
 	for i := range expected {
@@ -75,17 +74,12 @@ func verifySeriesMapForRange(
 		req.RangeEnd = xtime.ToNormalizedTime(end, time.Second)
 		req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 		fetched, err := ts.fetch(req)
-		if err != nil {
-			fmt.Printf("Error fetching id: %s for block: %d -> %d\n", req.ID, req.RangeStart, req.RangeEnd)
-		}
 		require.NoError(t, err)
 		actual[i] = generate.Series{
 			ID:   s.ID,
 			Data: fetched,
 		}
 	}
-
-	fmt.Println("here")
 
 	if len(expectedDebugFilePath) > 0 {
 		writeVerifyDebugOutput(t, expectedDebugFilePath, start, end, expected)

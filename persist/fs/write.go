@@ -22,7 +22,6 @@ package fs
 
 import (
 	"bytes"
-	"fmt"
 	"math"
 	"os"
 	"sort"
@@ -297,7 +296,6 @@ func (w *writer) openWritable(filePath string) (*os.File, error) {
 }
 
 func (w *writer) writeIndexRelatedFiles() error {
-	fmt.Println("writing index related files!")
 	summariesApprox := float64(len(w.indexEntries)) * w.summariesPercent
 	summaryEvery := 0
 	if summariesApprox > 0 {
@@ -372,7 +370,6 @@ func (w *writer) writeIndexFileContents(
 		// Add to the bloom filter, note this must be zero alloc or else this will
 		// cause heavy GC churn as we flush millions of series at end of each
 		// time window
-		fmt.Printf("Adding: %s to bloom filter for block: %d\n", id, w.start.Unix())
 		bloomFilter.Add(id)
 
 		if i%summaryEvery == 0 {
