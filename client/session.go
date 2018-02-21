@@ -1569,10 +1569,9 @@ func (s *session) streamBlocksMetadataFromPeer(
 		optionIncludeChecksums = true
 		optionIncludeLastRead  = true
 		moreResults            = true
-		// bytesPool              = resultOpts.DatabaseBlockOptions().BytesPool()
-		idPool        = s.idPool
-		reusedIDBytes = checked.NewBytes(nil, nil)
-		reusedID      = ident.BinaryID(reusedIDBytes)
+		idPool                 = s.idPool
+		reusedIDBytes          = checked.NewBytes(nil, nil)
+		reusedID               = ident.BinaryID(reusedIDBytes)
 
 		// Only used for logs
 		peerStr              = peer.Host().ID()
