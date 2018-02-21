@@ -282,6 +282,7 @@ type AdminSession interface {
 		namespace ident.ID,
 		shard uint32,
 		start, end time.Time,
+		result result.Options,
 		version FetchBlocksMetadataEndpointVersion,
 	) (PeerBlocksMetadataIter, error)
 

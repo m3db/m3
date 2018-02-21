@@ -372,6 +372,7 @@ func (w *writer) writeIndexFileContents(
 		// Add to the bloom filter, note this must be zero alloc or else this will
 		// cause heavy GC churn as we flush millions of series at end of each
 		// time window
+		fmt.Printf("Adding: %s to bloom filter for block: %d\n", id, w.start.Unix())
 		bloomFilter.Add(id)
 
 		if i%summaryEvery == 0 {

@@ -75,6 +75,9 @@ func verifySeriesMapForRange(
 		req.RangeEnd = xtime.ToNormalizedTime(end, time.Second)
 		req.ResultTimeType = rpc.TimeType_UNIX_SECONDS
 		fetched, err := ts.fetch(req)
+		if err != nil {
+			fmt.Printf("Error fetching id: %s for block: %d -> %d\n", req.ID, req.RangeStart, req.RangeEnd)
+		}
 		require.NoError(t, err)
 		actual[i] = generate.Series{
 			ID:   s.ID,
