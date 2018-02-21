@@ -101,9 +101,8 @@ struct WriteRequest {
 struct WriteTaggedRequest {
 	1: required string nameSpace
 	2: required string id
-	3: required list<string> tagNames
-	4: required list<string> tagValues
-	5: required Datapoint datapoint
+	3: required list<TagString> tags
+	4: required Datapoint datapoint
 }
 
 struct FetchBatchRawRequest {
@@ -116,6 +115,21 @@ struct FetchBatchRawRequest {
 
 struct FetchBatchRawResult {
 	1: required list<FetchRawResult> elements
+}
+
+struct FetchRawResult {
+	1: required list<Segments> segments
+	2: optional Error err
+}
+
+struct Segments {
+	1: optional Segment merged
+	2: optional list<Segment> unmerged
+}
+
+struct Segment {
+	1: required binary head
+	2: required binary tail
 }
 
 struct FetchTaggedRequest {
@@ -152,25 +166,9 @@ struct FetchTaggedResult {
 struct FetchTaggedIDResult {
 	1: required string id
 	2: required string nameSpace
-	3: required list<string> tagNames
-	4: required list<string> tagValues
+	3: required list<TagString> tags
 	5: optional list<Datapoint> datapoints
 	6: optional Error err
-}
-
-struct FetchRawResult {
-	1: required list<Segments> segments
-	2: optional Error err
-}
-
-struct Segments {
-	1: optional Segment merged
-	2: optional list<Segment> unmerged
-}
-
-struct Segment {
-	1: required binary head
-	2: required binary tail
 }
 
 struct FetchBlocksRawRequest {
@@ -198,6 +196,16 @@ struct Block {
 	2: optional Segments segments
 	3: optional Error err
 	4: optional i64 checksum
+}
+
+struct TagString {
+  1: required string name
+  2: required string value
+}
+
+struct TagRaw {
+  1: required binary name
+  2: required binary value
 }
 
 // TODO(rartoul): Delete this once we delete the V1 code path
@@ -279,9 +287,8 @@ struct WriteTaggedBatchRawRequest {
 
 struct WriteTaggedBatchRawRequestElement {
 	1: required binary id
-	2: required list<binary> tagNames
-	3: required list<binary> tagValues
-	4: required Datapoint datapoint
+	2: required list<TagRaw> tags
+	3: required Datapoint datapoint
 }
 
 struct WriteBatchRawError {
