@@ -1214,9 +1214,10 @@ func (s *dbShard) FetchBlocksMetadataV2(
 	// Must be in the second phase, start with checking the latest possible
 	// flushed block and work backwards.
 	var (
-		result          = s.opts.FetchBlocksMetadataResultsPool().Get()
-		ropts           = s.namespace.Options().RetentionOptions()
-		blockSize       = ropts.BlockSize()
+		result    = s.opts.FetchBlocksMetadataResultsPool().Get()
+		ropts     = s.namespace.Options().RetentionOptions()
+		blockSize = ropts.BlockSize()
+		// Subtract one blocksize because all fetch requests are exclusive on the end side
 		blockStart      = end.Truncate(blockSize).Add(-1 * blockSize)
 		tokenBlockStart time.Time
 		numResults      int64
