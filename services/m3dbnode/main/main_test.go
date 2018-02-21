@@ -66,10 +66,6 @@ const (
 
 // TestConfig tests booting a server using file based configuration.
 func TestConfig(t *testing.T) {
-	if testing.Short() {
-		t.SkipNow() // Just skip if we're doing a short run
-	}
-
 	// Embedded kv
 	embeddedKV, err := etcd.New(etcd.NewOptions())
 	require.NoError(t, err)
