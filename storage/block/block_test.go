@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3x/resource"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/context"
+	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -215,4 +215,31 @@ func TestDatabaseSeriesBlocksRemoveAll(t *testing.T) {
 
 	blocks.RemoveAll()
 	require.Equal(t, 0, len(blocks.AllBlocks()))
+}
+
+func TestDatabaseSeriesBlocksClose(t *testing.T) {
+	now := time.Now()
+	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
+	require.Equal(t, len(blockTimes), len(blocks.AllBlocks()))
+
+	blocks.Close()
+	require.Equal(t, 0, len(blocks.AllBlocks()))
+
+	var nilPointer map[xtime.UnixNano]DatabaseBlock
+	require.Equal(t, nilPointer, blocks.elems)
+}
+
+func TestDatabaseSeriesBlocksReset(t *testing.T) {
+	now := time.Now()
+	blockTimes := []time.Time{now, now.Add(-time.Second), now.Add(time.Hour)}
+	blocks := testDatabaseSeriesBlocksWithTimes(blockTimes)
+	require.Equal(t, len(blockTimes), len(blocks.AllBlocks()))
+
+	blocks.Reset()
+
+	require.Equal(t, 0, len(blocks.AllBlocks()))
+	require.Equal(t, 0, len(blocks.elems))
+	require.True(t, blocks.min.Equal(time.Time{}))
+	require.True(t, blocks.max.Equal(time.Time{}))
 }

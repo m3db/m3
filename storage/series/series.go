@@ -519,6 +519,9 @@ func (s *dbSeries) Close() {
 	// of not releasing back an ID to a pool is amortized over
 	// a long period of time.
 	s.id = nil
+
+	// Reset (not close) underlying resources because the series will go
+	// back into the pool and be re-used.
 	s.buffer.Reset(s.opts)
 	s.blocks.Reset()
 
