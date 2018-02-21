@@ -190,7 +190,7 @@ func (q *queue) drain() {
 		)
 		for i := 0; i < opsLen; i++ {
 			switch v := ops[i].(type) {
-			case *writeOp:
+			case *writeOperation:
 				namespace := v.namespace
 				namespaceKey := namespace.Hash()
 				currWriteOps = currWriteOpsByNamespace[namespaceKey]
@@ -222,11 +222,11 @@ func (q *queue) drain() {
 		}
 
 		// If any outstanding write ops, async write
-		for _, writeOps := range currWriteOpsByNamespace {
-			if len(writeOps) > 0 {
-				namespace := writeOps[0].(*writeOp).namespace
+		for _, writeOperations := range currWriteOpsByNamespace {
+			if len(writeOperations) > 0 {
+				namespace := writeOperations[0].(*writeOperation).namespace
 				namespaceKey := namespace.Hash()
-				q.asyncWrite(namespace, writeOps, currBatchElementsByNamespace[namespaceKey])
+				q.asyncWrite(namespace, writeOperations, currBatchElementsByNamespace[namespaceKey])
 				currWriteOpsByNamespace[namespaceKey] = nil
 				currBatchElementsByNamespace[namespaceKey] = nil
 			}

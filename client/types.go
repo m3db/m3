@@ -553,10 +553,10 @@ type Options interface {
 	// FetchBatchSize returns the fetchBatchSize
 	FetchBatchSize() int
 
-	// SetWriteOpPoolSize sets the writeOpPoolSize
+	// SetWriteOpPoolSize sets the writeOperationPoolSize
 	SetWriteOpPoolSize(value int) Options
 
-	// WriteOpPoolSize returns the writeOpPoolSize
+	// WriteOpPoolSize returns the writeOperationPoolSize
 	WriteOpPoolSize() int
 
 	// SetFetchBatchOpPoolSize sets the fetchBatchOpPoolSize

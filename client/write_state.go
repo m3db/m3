@@ -22,69 +22,24 @@ package client
 
 import (
 	"fmt"
-	"math"
 	"sync"
 
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/topology"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 )
 
-var (
-	writeOpZeroed = writeOp{shardID: math.MaxUint32}
-	// NB(bl): use an invalid shardID for the zerod op
-)
+// writeOp represents a generic write operation
+type writeOp interface {
+	op
 
-type writeOp struct {
-	namespace    ident.ID
-	shardID      uint32
-	request      rpc.WriteBatchRawRequestElement
-	datapoint    rpc.Datapoint
-	completionFn completionFn
-}
+	ShardID() uint32
 
-func (w *writeOp) reset() {
-	*w = writeOpZeroed
-	w.request.Datapoint = &w.datapoint
-}
+	SetCompletionFn(fn completionFn)
 
-func (w *writeOp) Size() int {
-	// Writes always represent a single write
-	return 1
-}
-
-func (w *writeOp) CompletionFn() completionFn {
-	return w.completionFn
-}
-
-type writeOpPool struct {
-	pool pool.ObjectPool
-}
-
-func newWriteOpPool(opts pool.ObjectPoolOptions) *writeOpPool {
-	p := pool.NewObjectPool(opts)
-	return &writeOpPool{pool: p}
-}
-
-func (p *writeOpPool) Init() {
-	p.pool.Init(func() interface{} {
-		w := &writeOp{}
-		w.reset()
-		return w
-	})
-}
-
-func (p *writeOpPool) Get() *writeOp {
-	w := p.pool.Get().(*writeOp)
-	return w
-}
-
-func (p *writeOpPool) Put(w *writeOp) {
-	w.reset()
-	p.pool.Put(w)
+	Close()
 }
 
 type writeState struct {
@@ -92,9 +47,9 @@ type writeState struct {
 	sync.Mutex
 	refCounter
 
-	session           *session
+	consistencyLevel  topology.ConsistencyLevel
 	topoMap           topology.Map
-	op                *writeOp
+	op                writeOp
 	nsID              ident.ID
 	tsID              ident.ID
 	majority, pending int32
@@ -102,6 +57,7 @@ type writeState struct {
 	errors            []error
 
 	queues []hostQueue
+	pool   *writeStatePool
 }
 
 func (w *writeState) reset() {
@@ -112,8 +68,7 @@ func (w *writeState) reset() {
 }
 
 func (w *writeState) close() {
-	w.op.reset()
-	w.session.writeOpPool.Put(w.op)
+	w.op.Close()
 
 	w.nsID.Finalize()
 	w.tsID.Finalize()
@@ -131,7 +86,10 @@ func (w *writeState) close() {
 	}
 	w.queues = w.queues[:0]
 
-	w.session.writeStatePool.Put(w)
+	if w.pool == nil {
+		return
+	}
+	w.pool.Put(w)
 }
 
 func (w *writeState) completionFn(result interface{}, err error) {
@@ -148,9 +106,9 @@ func (w *writeState) completionFn(result interface{}, err error) {
 	} else if hostShardSet, ok := w.topoMap.LookupHostShardSet(hostID); !ok {
 		errStr := "missing host shard in writeState completionFn: %s"
 		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, hostID))
-	} else if shardState, err := hostShardSet.ShardSet().LookupStateByID(w.op.shardID); err != nil {
+	} else if shardState, err := hostShardSet.ShardSet().LookupStateByID(w.op.ShardID()); err != nil {
 		errStr := "missing shard %d in host %s"
-		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.shardID, hostID))
+		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 	} else if shardState != shard.Available {
 		// NB(bl): only count writes to available shards towards success
 		var errStr string
@@ -162,7 +120,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		default:
 			errStr = "shard %d in host %s not available (unknown state)"
 		}
-		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.shardID, hostID))
+		wErr = xerrors.NewRetryableError(fmt.Errorf(errStr, w.op.ShardID(), hostID))
 	} else {
 		w.success++
 	}
@@ -171,7 +129,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		w.errors = append(w.errors, wErr)
 	}
 
-	switch w.session.writeLevel {
+	switch w.consistencyLevel {
 	case topology.ConsistencyLevelOne:
 		if w.success > 0 || w.pending == 0 {
 			w.Signal()
@@ -191,21 +149,21 @@ func (w *writeState) completionFn(result interface{}, err error) {
 }
 
 type writeStatePool struct {
-	pool    pool.ObjectPool
-	session *session
+	pool             pool.ObjectPool
+	consistencyLevel topology.ConsistencyLevel
 }
 
 func newWriteStatePool(
-	session *session,
+	consistencyLevel topology.ConsistencyLevel,
 	opts pool.ObjectPoolOptions,
 ) *writeStatePool {
 	p := pool.NewObjectPool(opts)
-	return &writeStatePool{pool: p, session: session}
+	return &writeStatePool{pool: p, consistencyLevel: consistencyLevel}
 }
 
 func (p *writeStatePool) Init() {
 	p.pool.Init(func() interface{} {
-		w := &writeState{session: p.session}
+		w := &writeState{consistencyLevel: p.consistencyLevel, pool: p}
 		w.reset()
 		return w
 	})
