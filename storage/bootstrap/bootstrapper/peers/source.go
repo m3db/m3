@@ -357,9 +357,6 @@ func (s *peersSource) incrementalFlush(
 		// Always close before attempting to check if block error occurred,
 		// avoid using a defer here as this needs to be done for each inner loop
 		err = prepared.Close()
-		if err != nil {
-			panic(err)
-		}
 		if blockErr != nil {
 			// A block error is more interesting to bubble up than a close error
 			err = blockErr
