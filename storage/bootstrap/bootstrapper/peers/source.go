@@ -294,7 +294,6 @@ func (s *peersSource) incrementalFlush(
 		return fmt.Errorf("shard retriever missing for shard: %d", shard)
 	}
 
-	// TODO: Is it ok to add the equals here?
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
 		prepared, err := flush.Prepare(nsMetadata, shard, start)
 		if err != nil {
