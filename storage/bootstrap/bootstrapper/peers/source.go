@@ -299,22 +299,30 @@ func (s *peersSource) incrementalFlush(
 		return fmt.Errorf("shard retriever missing for shard: %d", shard)
 	}
 
-	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
+	fmt.Println("start: ", tr.Start)
+	fmt.Println("end: ", tr.End)
+	fmt.Println("blocksize: ", blockSize)
+	for start := tr.Start; start.Before(tr.End) || start.Equal(tr.End); start = start.Add(blockSize) {
+		fmt.Println("?")
 		prepared, err := flush.Prepare(nsMetadata, shard, start)
 		if err != nil {
+			fmt.Println("??")
 			return err
 		}
 
 		var blockErr error
 		for _, s := range shardResult.AllSeries() {
+			fmt.Println("???")
 			bl, ok := s.Blocks.BlockAt(start)
 			if !ok {
+				fmt.Println("????")
 				continue
 			}
 
 			tmpCtx.Reset()
 			stream, err := bl.Stream(tmpCtx)
 			if err != nil {
+				fmt.Println("?????")
 				tmpCtx.BlockingClose()
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
@@ -322,6 +330,7 @@ func (s *peersSource) incrementalFlush(
 
 			segment, err := stream.Segment()
 			if err != nil {
+				fmt.Println("??????")
 				tmpCtx.BlockingClose()
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
@@ -330,6 +339,7 @@ func (s *peersSource) incrementalFlush(
 			err = prepared.Persist(s.ID, segment, bl.Checksum())
 			tmpCtx.BlockingClose()
 			if err != nil {
+				fmt.Println("????????")
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
 			}
@@ -355,6 +365,7 @@ func (s *peersSource) incrementalFlush(
 				// better to do this as we loop through to make blocks return to the
 				// pool earlier than at the end of this flush cycle
 				s.Blocks.RemoveBlockAt(start)
+				fmt.Println("Removed block at: ", start)
 				bl.Close()
 			}
 		}
@@ -370,22 +381,30 @@ func (s *peersSource) incrementalFlush(
 			err = blockErr
 		}
 
-		if seriesCachePolicy != series.CacheAll && seriesCachePolicy != series.CacheAllMetadata {
-			// If we're not going to keep all of the data, or at least all of the metadata in memory
-			// then we don't want to keep these series in the shard result. If we leave them in, then
-			// they will all get loaded into the shard object, and then immediately evicted on the next
-			// tick which causes unnecessary memory pressure.
-			for _, s := range shardResult.AllSeries() {
-				shardResult.RemoveSeries(s.ID)
-				s.Blocks.Close()
-				// Safe to finalize these IDs because the prepared object was the only other thing
-				// using them, and it has been closed.
-				s.ID.Finalize()
-			}
-		}
-
 		if err != nil {
 			return err
+		}
+	}
+
+	if seriesCachePolicy != series.CacheAll && seriesCachePolicy != series.CacheAllMetadata {
+		// If we're not going to keep all of the data, or at least all of the metadata in memory
+		// then we don't want to keep these series in the shard result. If we leave them in, then
+		// they will all get loaded into the shard object, and then immediately evicted on the next
+		// tick which causes unnecessary memory pressure.
+		for _, s := range shardResult.AllSeries() {
+			shardResult.RemoveSeries(s.ID)
+			if len(s.Blocks.AllBlocks()) > 0 {
+				for start := range s.Blocks.AllBlocks() {
+					fmt.Println("Existing block: ", start)
+				}
+				fmt.Println(s.Blocks.MinTime())
+				fmt.Println(s.Blocks.MaxTime())
+				panic("hmm")
+			}
+			s.Blocks.Close()
+			// Safe to finalize these IDs because the prepared object was the only other thing
+			// using them, and it has been closed.
+			s.ID.Finalize()
 		}
 	}
 
