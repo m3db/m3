@@ -47,7 +47,7 @@ type writeState struct {
 	sync.Mutex
 	refCounter
 
-	session           *session
+	consistencyLevel  topology.ConsistencyLevel
 	topoMap           topology.Map
 	op                writeOp
 	nsID              ident.ID
@@ -57,6 +57,7 @@ type writeState struct {
 	errors            []error
 
 	queues []hostQueue
+	pool   *writeStatePool
 }
 
 func (w *writeState) reset() {
@@ -85,7 +86,10 @@ func (w *writeState) close() {
 	}
 	w.queues = w.queues[:0]
 
-	w.session.writeStatePool.Put(w)
+	if w.pool == nil {
+		return
+	}
+	w.pool.Put(w)
 }
 
 func (w *writeState) completionFn(result interface{}, err error) {
@@ -125,7 +129,7 @@ func (w *writeState) completionFn(result interface{}, err error) {
 		w.errors = append(w.errors, wErr)
 	}
 
-	switch w.session.writeLevel {
+	switch w.consistencyLevel {
 	case topology.ConsistencyLevelOne:
 		if w.success > 0 || w.pending == 0 {
 			w.Signal()
@@ -145,21 +149,21 @@ func (w *writeState) completionFn(result interface{}, err error) {
 }
 
 type writeStatePool struct {
-	pool    pool.ObjectPool
-	session *session
+	pool             pool.ObjectPool
+	consistencyLevel topology.ConsistencyLevel
 }
 
 func newWriteStatePool(
-	session *session,
+	consistencyLevel topology.ConsistencyLevel,
 	opts pool.ObjectPoolOptions,
 ) *writeStatePool {
 	p := pool.NewObjectPool(opts)
-	return &writeStatePool{pool: p, session: session}
+	return &writeStatePool{pool: p, consistencyLevel: consistencyLevel}
 }
 
 func (p *writeStatePool) Init() {
 	p.pool.Init(func() interface{} {
-		w := &writeState{session: p.session}
+		w := &writeState{consistencyLevel: p.consistencyLevel, pool: p}
 		w.reset()
 		return w
 	})

@@ -412,7 +412,7 @@ func (s *session) Open() error {
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-state-pool"),
 		))
-	s.writeStatePool = newWriteStatePool(s, writeStatePoolOpts)
+	s.writeStatePool = newWriteStatePool(s.writeLevel, writeStatePoolOpts)
 	s.writeStatePool.Init()
 	fetchBatchOpPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.FetchBatchOpPoolSize()).
