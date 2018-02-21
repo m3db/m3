@@ -21,7 +21,6 @@
 package fs
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/m3db/bloom"
@@ -82,7 +81,6 @@ func newManagedConcurrentBloomFilterFromFile(
 		return nil, err
 	}
 	numBytes := stat.Size()
-	fmt.Println("Bloom filter had bytes: ", numBytes)
 
 	// Request an anonymous (non-file-backed) mmap region. Note that we're going
 	// to use the mmap'd region to create a read-only bloom filter, but the mmap

@@ -240,13 +240,11 @@ func newTestSetup(t *testing.T, opts testOptions, fsOpts fs.Options) (*testSetup
 
 	// Use specified series cache policy from environment if set
 	seriesCachePolicy := strings.ToLower(os.Getenv("TEST_SERIES_CACHE_POLICY"))
-	fmt.Println("RAWR: ", seriesCachePolicy)
 	if seriesCachePolicy != "" {
 		value, err := series.ParseCachePolicy(seriesCachePolicy)
 		if err != nil {
 			return nil, err
 		}
-		fmt.Println("RAWR: ", value)
 		storageOpts = storageOpts.SetSeriesCachePolicy(value)
 	}
 

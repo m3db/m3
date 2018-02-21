@@ -92,11 +92,8 @@ func (s *peersSource) Read(
 		incremental       = false
 	)
 	if opts.Incremental() {
-		fmt.Println("INCREMENTAL!!!")
 		retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 		persistManager := s.opts.PersistManager()
-		fmt.Println("retrieverMgr: ", retrieverMgr)
-		fmt.Println("persistManager: ", persistManager)
 		if retrieverMgr != nil && persistManager != nil {
 			s.log.WithFields(
 				xlog.NewField("namespace", namespace.String()),
@@ -149,7 +146,6 @@ func (s *peersSource) Read(
 		xlog.NewField("incremental", incremental),
 	).Infof("peers bootstrapper bootstrapping shards for ranges")
 	if incremental {
-		fmt.Println("in the conditional")
 		// If performing an incremental bootstrap then flush one
 		// at a time as shard results are gathered
 		incrementalWg.Add(1)
@@ -287,7 +283,6 @@ func (s *peersSource) incrementalFlush(
 	shardResult result.ShardResult,
 	tr xtime.Range,
 ) error {
-	fmt.Println("Flushing incrementally!")
 	var (
 		ropts             = nsMetadata.Options().RetentionOptions()
 		blockSize         = ropts.BlockSize()
@@ -299,30 +294,23 @@ func (s *peersSource) incrementalFlush(
 		return fmt.Errorf("shard retriever missing for shard: %d", shard)
 	}
 
-	fmt.Println("start: ", tr.Start)
-	fmt.Println("end: ", tr.End)
-	fmt.Println("blocksize: ", blockSize)
-	for start := tr.Start; start.Before(tr.End) || start.Equal(tr.End); start = start.Add(blockSize) {
-		fmt.Println("?")
+	// TODO: Is it ok to add the equals here?
+	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
 		prepared, err := flush.Prepare(nsMetadata, shard, start)
 		if err != nil {
-			fmt.Println("??")
 			return err
 		}
 
 		var blockErr error
 		for _, s := range shardResult.AllSeries() {
-			fmt.Println("???")
 			bl, ok := s.Blocks.BlockAt(start)
 			if !ok {
-				fmt.Println("????")
 				continue
 			}
 
 			tmpCtx.Reset()
 			stream, err := bl.Stream(tmpCtx)
 			if err != nil {
-				fmt.Println("?????")
 				tmpCtx.BlockingClose()
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
@@ -330,7 +318,6 @@ func (s *peersSource) incrementalFlush(
 
 			segment, err := stream.Segment()
 			if err != nil {
-				fmt.Println("??????")
 				tmpCtx.BlockingClose()
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
@@ -339,7 +326,6 @@ func (s *peersSource) incrementalFlush(
 			err = prepared.Persist(s.ID, segment, bl.Checksum())
 			tmpCtx.BlockingClose()
 			if err != nil {
-				fmt.Println("????????")
 				blockErr = err // Need to call prepared.Close, avoid return
 				break
 			}
@@ -365,7 +351,6 @@ func (s *peersSource) incrementalFlush(
 				// better to do this as we loop through to make blocks return to the
 				// pool earlier than at the end of this flush cycle
 				s.Blocks.RemoveBlockAt(start)
-				fmt.Println("Removed block at: ", start)
 				bl.Close()
 			}
 		}
@@ -393,12 +378,8 @@ func (s *peersSource) incrementalFlush(
 		// tick which causes unnecessary memory pressure.
 		for _, s := range shardResult.AllSeries() {
 			shardResult.RemoveSeries(s.ID)
+			// TODO: Does this make sense?
 			if len(s.Blocks.AllBlocks()) > 0 {
-				for start := range s.Blocks.AllBlocks() {
-					fmt.Println("Existing block: ", start)
-				}
-				fmt.Println(s.Blocks.MinTime())
-				fmt.Println(s.Blocks.MaxTime())
 				panic("hmm")
 			}
 			s.Blocks.Close()

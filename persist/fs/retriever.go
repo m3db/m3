@@ -33,7 +33,6 @@ package fs
 
 import (
 	"errors"
-	"fmt"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -352,7 +351,6 @@ func (r *blockRetriever) Stream(
 	startTime time.Time,
 	onRetrieve block.OnRetrieveBlock,
 ) (xio.SegmentReader, error) {
-	fmt.Println("A")
 	req := r.reqPool.Get()
 	req.shard = shard
 	// NB(r): Clone the ID as we're not positive it will stay valid throughout
@@ -375,23 +373,19 @@ func (r *blockRetriever) Stream(
 	}
 	r.RUnlock()
 
-	fmt.Println("B")
 	bloomFilter, err := r.seekerMgr.ConcurrentIDBloomFilter(shard, startTime)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println("C")
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately
 	if !bloomFilter.Test(id.Data().Get()) {
-		fmt.Printf("didn't find id: %s for block start: %d\n", id, startTime.Unix())
 		// No need to call req.onRetrieve.OnRetrieveBlock if there is no data
 		req.onRetrieved(ts.Segment{})
 		return req, nil
 	}
 
-	fmt.Println("Made it")
 	reqs, err := r.shardRequests(shard)
 	if err != nil {
 		return nil, err
