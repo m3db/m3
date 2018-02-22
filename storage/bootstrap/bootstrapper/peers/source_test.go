@@ -166,6 +166,7 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 
 func TestPeersSourceIncrementalRun(t *testing.T) {
 	for _, cachePolicy := range []series.CachePolicy{
+		series.CacheAll,
 		series.CacheAllMetadata,
 	} {
 		ctrl := gomock.NewController(t)
