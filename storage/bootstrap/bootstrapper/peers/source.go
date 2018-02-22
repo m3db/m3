@@ -227,7 +227,9 @@ func (s *peersSource) Read(
 	wg.Wait()
 
 	close(incrementalQueue)
-	<-incrementalWorkerDoneCh
+	if incremental {
+		<-incrementalWorkerDoneCh
+	}
 
 	if incremental {
 		// Now cache the incremental results
