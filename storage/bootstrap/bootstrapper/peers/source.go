@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
@@ -92,7 +93,7 @@ func (s *peersSource) Read(
 		incremental       = false
 		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 	)
-	if opts.Incremental() {
+	if opts.Incremental() && seriesCachePolicy != series.CacheAll {
 		retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 		persistManager := s.opts.PersistManager()
 
@@ -282,6 +283,78 @@ func (s *peersSource) startIncrementalQueueWorker(
 		lock.Unlock()
 	}
 	close(doneCh)
+}
+
+func (s *peersSource) fetchBootstrapBlocksFromPeers(
+	wg *sync.WaitGroup,
+	shard uint32,
+	ranges xtime.Ranges,
+	nsMetadata namespace.Metadata,
+	session client.AdminSession,
+	bopts result.Options,
+	bootstrapResult result.BootstrapResult,
+	lock *sync.Mutex,
+	incremental bool,
+	incrementalQueue chan incrementalFlush,
+	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
+) {
+	defer wg.Done()
+
+	it := ranges.Iter()
+	for it.Next() {
+		currRange := it.Value()
+
+		version := s.opts.FetchBlocksMetadataEndpointVersion()
+		shardResult, err := session.FetchBootstrapBlocksFromPeers(nsMetadata,
+			shard, currRange.Start, currRange.End, bopts, version)
+
+		// Logging
+		if err == nil {
+			shardBlockSeriesCounter := map[xtime.UnixNano]int64{}
+			for _, series := range shardResult.AllSeries() {
+				for blockStart := range series.Blocks.AllBlocks() {
+					shardBlockSeriesCounter[blockStart]++
+				}
+			}
+
+			for block, numSeries := range shardBlockSeriesCounter {
+				s.log.WithFields(
+					xlog.NewField("shard", shard),
+					xlog.NewField("numSeries", numSeries),
+					xlog.NewField("block", block),
+				).Info("peer bootstrapped shard")
+			}
+		} else {
+			s.log.WithFields(
+				xlog.NewField("shard", shard),
+				xlog.NewField("error", err.Error()),
+			).Error("error fetching bootstrap blocks from peers")
+		}
+
+		if err != nil {
+			// Do not add result at all to the bootstrap result
+			lock.Lock()
+			bootstrapResult.Add(shard, nil, xtime.Ranges{}.AddRange(currRange))
+			lock.Unlock()
+			continue
+		}
+
+		if !incremental {
+			// If not waiting to incremental flush, add straight away to bootstrap result
+			lock.Lock()
+			bootstrapResult.Add(shard, shardResult, xtime.Ranges{})
+			lock.Unlock()
+		} else {
+			// Otherwise add at the end of the incremental flush cycle
+			incrementalQueue <- incrementalFlush{
+				nsMetadata:        nsMetadata,
+				shard:             shard,
+				shardRetrieverMgr: shardRetrieverMgr,
+				shardResult:       shardResult,
+				timeRange:         currRange,
+			}
+		}
+	}
 }
 
 // incrementalFlush is used to incrementally flush peer-bootstrapped shards
