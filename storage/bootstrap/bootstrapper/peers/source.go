@@ -135,14 +135,14 @@ func (s *peersSource) Read(
 	}
 
 	var (
-		lock                sync.Mutex
-		wg                  sync.WaitGroup
-		incrementalWg       sync.WaitGroup
-		incrementalMaxQueue = s.opts.IncrementalPersistMaxQueueSize()
-		incrementalQueue    = make(chan incrementalFlush, incrementalMaxQueue)
-		bopts               = s.opts.ResultOptions()
-		count               = len(shardsTimeRanges)
-		concurrency         = s.opts.DefaultShardConcurrency()
+		lock                    sync.Mutex
+		wg                      sync.WaitGroup
+		incrementalWorkerDoneCh = make(chan struct{})
+		incrementalMaxQueue     = s.opts.IncrementalPersistMaxQueueSize()
+		incrementalQueue        = make(chan incrementalFlush, incrementalMaxQueue)
+		bopts                   = s.opts.ResultOptions()
+		count                   = len(shardsTimeRanges)
+		concurrency             = s.opts.DefaultShardConcurrency()
 	)
 	if incremental {
 		concurrency = s.opts.IncrementalShardConcurrency()
@@ -154,34 +154,8 @@ func (s *peersSource) Read(
 		xlog.NewField("incremental", incremental),
 	).Infof("peers bootstrapper bootstrapping shards for ranges")
 	if incremental {
-		// If performing an incremental bootstrap then flush one
-		// at a time as shard results are gathered
-		incrementalWg.Add(1)
-		go func() {
-			defer incrementalWg.Done()
-
-			for flush := range incrementalQueue {
-				err := s.incrementalFlush(persistFlush, flush.nsMetadata, flush.shard,
-					flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
-				if err == nil {
-					// Safe to add to the shared bootstrap result now
-					lock.Lock()
-					result.Add(flush.shard, flush.shardResult, xtime.Ranges{})
-					lock.Unlock()
-					continue
-				}
-
-				// Remove results and make unfulfilled if an error occurred
-				s.log.WithFields(
-					xlog.NewField("error", err.Error()),
-				).Errorf("peers bootstrapper incremental flush encountered error")
-
-				// Make unfulfilled
-				lock.Lock()
-				result.Add(flush.shard, nil, xtime.Ranges{}.AddRange(flush.timeRange))
-				lock.Unlock()
-			}
-		}()
+		go s.startIncrementalQueueWorker(
+			incrementalWorkerDoneCh, incrementalQueue, persistFlush, result, &lock)
 	}
 
 	workers := xsync.NewWorkerPool(concurrency)
@@ -253,7 +227,7 @@ func (s *peersSource) Read(
 	wg.Wait()
 
 	close(incrementalQueue)
-	incrementalWg.Wait()
+	<-incrementalWorkerDoneCh
 
 	if incremental {
 		// Now cache the incremental results
@@ -270,37 +244,43 @@ func (s *peersSource) Read(
 	return result, nil
 }
 
-// func (s *peersSource) startIncrementalQueueWorker(
-// 	doneCh chan struct{},
-// 	incrementalQueue chan incrementalFlush,
-// 	persistFlush persist.Flush,
-// 	bootstrapResult result.BootsrapResult,
-// ) {
-// 	// If performing an incremental bootstrap then flush one
-// 	// at a time as shard results are gathered
-// 	for flush := range incrementalQueue {
-// 		err := s.incrementalFlush(persistFlush, flush.nsMetadata, flush.shard,
-// 			flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
-// 		if err == nil {
-// 			// Safe to add to the shared bootstrap result now
-// 			lock.Lock()
-// 			bootstrapResult.Add(flush.shard, flush.shardResult, xtime.Ranges{})
-// 			lock.Unlock()
-// 			continue
-// 		}
+// startIncrementalQueueWorker is meant to be run in its own goroutine, and it creates a worker that
+// loops through the incrementalQueue and performs an incrementalFlush for each entry, ensuring that
+// no more than one incremental flush is ever happening at once. Once the incrementalQueue channel
+// is closed, and the worker has completed flushing all the remaining entries, it will close the
+// provided doneCh so that callers can block until everything has been successfully flushed.
+func (s *peersSource) startIncrementalQueueWorker(
+	doneCh chan struct{},
+	incrementalQueue chan incrementalFlush,
+	persistFlush persist.Flush,
+	bootstrapResult result.BootstrapResult,
+	lock *sync.Mutex,
+) {
+	// If performing an incremental bootstrap then flush one
+	// at a time as shard results are gathered
+	for flush := range incrementalQueue {
+		err := s.incrementalFlush(persistFlush, flush.nsMetadata, flush.shard,
+			flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
+		if err == nil {
+			// Safe to add to the shared bootstrap result now
+			lock.Lock()
+			bootstrapResult.Add(flush.shard, flush.shardResult, xtime.Ranges{})
+			lock.Unlock()
+			continue
+		}
 
-// 		// Remove results and make unfulfilled if an error occurred
-// 		s.log.WithFields(
-// 			xlog.NewField("error", err.Error()),
-// 		).Errorf("peers bootstrapper incremental flush encountered error")
+		// Remove results and make unfulfilled if an error occurred
+		s.log.WithFields(
+			xlog.NewField("error", err.Error()),
+		).Errorf("peers bootstrapper incremental flush encountered error")
 
-// 		// Make unfulfilled
-// 		lock.Lock()
-// 		bootstrapResult.Add(flush.shard, nil, xtime.Ranges{}.AddRange(flush.timeRange))
-// 		lock.Unlock()
-// 	}
-// 	close(doneCh)
-// }
+		// Make unfulfilled
+		lock.Lock()
+		bootstrapResult.Add(flush.shard, nil, xtime.Ranges{}.AddRange(flush.timeRange))
+		lock.Unlock()
+	}
+	close(doneCh)
+}
 
 // incrementalFlush is used to incrementally flush peer-bootstrapped shards
 // to disk as they finish so that we're not (necessarily) holding everything
