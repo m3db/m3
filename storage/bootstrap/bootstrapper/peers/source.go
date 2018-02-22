@@ -172,20 +172,16 @@ func (s *peersSource) Read(
 	}
 
 	wg.Wait()
-
 	close(incrementalQueue)
 	if incremental {
+		// Wait for the incrementalQueueWorker to finish incrementally flushing everything
 		<-incrementalWorkerDoneCh
 	}
 
 	if incremental {
 		// Now cache the incremental results
-		shards := make([]uint32, 0, len(shardsTimeRanges))
-		for shard := range shardsTimeRanges {
-			shards = append(shards, shard)
-		}
-
-		if err := blockRetriever.CacheShardIndices(shards); err != nil {
+		err := s.cacheShardIndices(shardsTimeRanges, blockRetriever)
+		if err != nil {
 			return nil, err
 		}
 	}
@@ -447,6 +443,23 @@ func (s *peersSource) incrementalFlush(
 			// using them, and it has been closed.
 			series.ID.Finalize()
 		}
+	}
+
+	return nil
+}
+
+func (s *peersSource) cacheShardIndices(
+	shardsTimeRanges result.ShardTimeRanges,
+	blockRetriever block.DatabaseBlockRetriever,
+) error {
+	// Now cache the incremental results
+	shards := make([]uint32, 0, len(shardsTimeRanges))
+	for shard := range shardsTimeRanges {
+		shards = append(shards, shard)
+	}
+
+	if err := blockRetriever.CacheShardIndices(shards); err != nil {
+		return err
 	}
 
 	return nil
