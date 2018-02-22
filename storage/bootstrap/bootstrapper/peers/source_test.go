@@ -366,7 +366,11 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDefaultOpts
+	opts := testDefaultOpts.
+		SetResultOptions(testDefaultOpts.
+			ResultOptions().
+			SetSeriesCachePolicy(series.CacheRecentlyRead),
+		)
 	testNsMd := testNamespaceMetadata(t)
 	ropts := testNsMd.Options().RetentionOptions()
 
@@ -600,10 +604,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	r, err := src.Read(testNsMd, target, testIncrementalRunOpts)
 	assert.NoError(t, err)
 
-	assert.Equal(t, 4, len(r.ShardResults()))
-	for i := uint32(0); i < uint32(len(target)); i++ {
-		require.NotNil(t, r.ShardResults()[i])
-	}
+	assert.Equal(t, 0, len(r.ShardResults()))
 	for i := uint32(0); i < uint32(len(target)); i++ {
 		require.False(t, r.Unfulfilled()[i].IsEmpty())
 		require.Equal(t, xtime.Ranges{}.AddRange(xtime.Range{
@@ -611,22 +612,6 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 			End:   midway,
 		}).String(), r.Unfulfilled()[i].String())
 	}
-
-	block, ok := r.ShardResults()[0].BlockAt(ident.StringID("foo"), midway)
-	require.True(t, ok)
-	assert.Equal(t, fooBlocks[1], block)
-
-	block, ok = r.ShardResults()[1].BlockAt(ident.StringID("bar"), midway)
-	require.True(t, ok)
-	assert.Equal(t, barBlocks[1], block)
-
-	block, ok = r.ShardResults()[2].BlockAt(ident.StringID("baz"), midway)
-	require.True(t, ok)
-	assert.Equal(t, bazBlocks[1], block)
-
-	block, ok = r.ShardResults()[3].BlockAt(ident.StringID("qux"), midway)
-	require.True(t, ok)
-	assert.Equal(t, quxBlocks[1], block)
 
 	assert.Equal(t, map[string]int{
 		"foo": 1, "bar": 1, "baz": 2, "qux": 2,
