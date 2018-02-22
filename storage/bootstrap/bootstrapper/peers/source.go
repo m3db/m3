@@ -90,16 +90,17 @@ func (s *peersSource) Read(
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 		persistFlush      persist.Flush
 		incremental       = false
+		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 	)
 	if opts.Incremental() {
 		retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 		persistManager := s.opts.PersistManager()
 
 		// Neither of these should ever happen
-		if retrieverMgr == nil {
+		if seriesCachePolicy != series.CacheAll && retrieverMgr == nil {
 			panic("Tried to perform incremental flush without retriever manager")
 		}
-		if persistManager == nil {
+		if seriesCachePolicy != series.CacheAll && persistManager == nil {
 			panic("Tried to perform incremental flush without persist manager")
 		}
 
@@ -268,6 +269,38 @@ func (s *peersSource) Read(
 
 	return result, nil
 }
+
+// func (s *peersSource) startIncrementalQueueWorker(
+// 	doneCh chan struct{},
+// 	incrementalQueue chan incrementalFlush,
+// 	persistFlush persist.Flush,
+// 	bootstrapResult result.BootsrapResult,
+// ) {
+// 	// If performing an incremental bootstrap then flush one
+// 	// at a time as shard results are gathered
+// 	for flush := range incrementalQueue {
+// 		err := s.incrementalFlush(persistFlush, flush.nsMetadata, flush.shard,
+// 			flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
+// 		if err == nil {
+// 			// Safe to add to the shared bootstrap result now
+// 			lock.Lock()
+// 			bootstrapResult.Add(flush.shard, flush.shardResult, xtime.Ranges{})
+// 			lock.Unlock()
+// 			continue
+// 		}
+
+// 		// Remove results and make unfulfilled if an error occurred
+// 		s.log.WithFields(
+// 			xlog.NewField("error", err.Error()),
+// 		).Errorf("peers bootstrapper incremental flush encountered error")
+
+// 		// Make unfulfilled
+// 		lock.Lock()
+// 		bootstrapResult.Add(flush.shard, nil, xtime.Ranges{}.AddRange(flush.timeRange))
+// 		lock.Unlock()
+// 	}
+// 	close(doneCh)
+// }
 
 // incrementalFlush is used to incrementally flush peer-bootstrapped shards
 // to disk as they finish so that we're not (necessarily) holding everything
