@@ -166,62 +166,8 @@ func (s *peersSource) Read(
 		wg.Add(1)
 		workers.Go(func() {
 			defer wg.Done()
-
-			it := ranges.Iter()
-			for it.Next() {
-				currRange := it.Value()
-
-				version := s.opts.FetchBlocksMetadataEndpointVersion()
-				shardResult, err := session.FetchBootstrapBlocksFromPeers(nsMetadata,
-					shard, currRange.Start, currRange.End, bopts, version)
-
-				// Logging
-				if err == nil {
-					shardBlockSeriesCounter := map[xtime.UnixNano]int64{}
-					for _, series := range shardResult.AllSeries() {
-						for blockStart := range series.Blocks.AllBlocks() {
-							shardBlockSeriesCounter[blockStart]++
-						}
-					}
-
-					for block, numSeries := range shardBlockSeriesCounter {
-						s.log.WithFields(
-							xlog.NewField("shard", shard),
-							xlog.NewField("numSeries", numSeries),
-							xlog.NewField("block", block),
-						).Info("peer bootstrapped shard")
-					}
-				} else {
-					s.log.WithFields(
-						xlog.NewField("shard", shard),
-						xlog.NewField("error", err.Error()),
-					).Error("error fetching bootstrap blocks from peers")
-				}
-
-				if err != nil {
-					// Do not add result at all to the bootstrap result
-					lock.Lock()
-					result.Add(shard, nil, xtime.Ranges{}.AddRange(currRange))
-					lock.Unlock()
-					continue
-				}
-
-				if !incremental {
-					// If not waiting to incremental flush, add straight away to bootstrap result
-					lock.Lock()
-					result.Add(shard, shardResult, xtime.Ranges{})
-					lock.Unlock()
-				} else {
-					// Otherwise add at the end of the incremental flush cycle
-					incrementalQueue <- incrementalFlush{
-						nsMetadata:        nsMetadata,
-						shard:             shard,
-						shardRetrieverMgr: shardRetrieverMgr,
-						shardResult:       shardResult,
-						timeRange:         currRange,
-					}
-				}
-			}
+			s.fetchBootstrapBlocksFromPeers(shard, ranges, nsMetadata,
+				session, bopts, result, &lock, incremental, incrementalQueue, shardRetrieverMgr)
 		})
 	}
 
@@ -285,8 +231,13 @@ func (s *peersSource) startIncrementalQueueWorker(
 	close(doneCh)
 }
 
+// fetchBootstrapBlocksFromPeers loops through all the provided ranges for a given shard and
+// fetches all the bootstrap blocks from the appropriate peers.
+// 		Non-incremental case: Immediately add the results to the bootstrap result
+// 		Incremental case: Don't add the results yet, but push an incrementalFlush into the
+// 						  incremental queue. The incrementalQueue worker will eventually
+// 						  add the results once its performed the incremental flush.
 func (s *peersSource) fetchBootstrapBlocksFromPeers(
-	wg *sync.WaitGroup,
 	shard uint32,
 	ranges xtime.Ranges,
 	nsMetadata namespace.Metadata,
@@ -298,8 +249,6 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	incrementalQueue chan incrementalFlush,
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
 ) {
-	defer wg.Done()
-
 	it := ranges.Iter()
 	for it.Next() {
 		currRange := it.Value()
@@ -308,28 +257,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 		shardResult, err := session.FetchBootstrapBlocksFromPeers(nsMetadata,
 			shard, currRange.Start, currRange.End, bopts, version)
 
-		// Logging
-		if err == nil {
-			shardBlockSeriesCounter := map[xtime.UnixNano]int64{}
-			for _, series := range shardResult.AllSeries() {
-				for blockStart := range series.Blocks.AllBlocks() {
-					shardBlockSeriesCounter[blockStart]++
-				}
-			}
-
-			for block, numSeries := range shardBlockSeriesCounter {
-				s.log.WithFields(
-					xlog.NewField("shard", shard),
-					xlog.NewField("numSeries", numSeries),
-					xlog.NewField("block", block),
-				).Info("peer bootstrapped shard")
-			}
-		} else {
-			s.log.WithFields(
-				xlog.NewField("shard", shard),
-				xlog.NewField("error", err.Error()),
-			).Error("error fetching bootstrap blocks from peers")
-		}
+		s.logFetchBootstrapBlocksFromPeersOutcome(shard, shardResult, err)
 
 		if err != nil {
 			// Do not add result at all to the bootstrap result
@@ -339,13 +267,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 			continue
 		}
 
-		if !incremental {
-			// If not waiting to incremental flush, add straight away to bootstrap result
-			lock.Lock()
-			bootstrapResult.Add(shard, shardResult, xtime.Ranges{})
-			lock.Unlock()
-		} else {
-			// Otherwise add at the end of the incremental flush cycle
+		if incremental {
 			incrementalQueue <- incrementalFlush{
 				nsMetadata:        nsMetadata,
 				shard:             shard,
@@ -353,7 +275,41 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 				shardResult:       shardResult,
 				timeRange:         currRange,
 			}
+			continue
 		}
+
+		// If not waiting to incremental flush, add straight away to bootstrap result
+		lock.Lock()
+		bootstrapResult.Add(shard, shardResult, xtime.Ranges{})
+		lock.Unlock()
+	}
+}
+
+func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
+	shard uint32,
+	shardResult result.ShardResult,
+	err error,
+) {
+	if err == nil {
+		shardBlockSeriesCounter := map[xtime.UnixNano]int64{}
+		for _, series := range shardResult.AllSeries() {
+			for blockStart := range series.Blocks.AllBlocks() {
+				shardBlockSeriesCounter[blockStart]++
+			}
+		}
+
+		for block, numSeries := range shardBlockSeriesCounter {
+			s.log.WithFields(
+				xlog.NewField("shard", shard),
+				xlog.NewField("numSeries", numSeries),
+				xlog.NewField("block", block),
+			).Info("peer bootstrapped shard")
+		}
+	} else {
+		s.log.WithFields(
+			xlog.NewField("shard", shard),
+			xlog.NewField("error", err.Error()),
+		).Error("error fetching bootstrap blocks from peers")
 	}
 }
 
