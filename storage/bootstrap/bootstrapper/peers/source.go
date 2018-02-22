@@ -252,9 +252,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	for it.Next() {
 		currRange := it.Value()
 
-		fmt.Println("Shard: ", shard, " start: ", currRange.Start, " end: ", currRange.End)
 		for start := currRange.Start; start.Before(currRange.End); start = start.Add(blockSize) {
-			fmt.Println("Fetching shard: ", shard, " and blockStart: ", start)
 			version := s.opts.FetchBlocksMetadataEndpointVersion()
 			shardResult, err := session.FetchBootstrapBlocksFromPeers(nsMetadata,
 				shard, start, start.Add(blockSize), bopts, version)
@@ -359,8 +357,6 @@ func (s *peersSource) incrementalFlush(
 			return err
 		}
 
-		fmt.Println("Flushing shard: ", shard, " and block: ", start)
-
 		var blockErr error
 		for _, s := range shardResult.AllSeries() {
 			bl, ok := s.Blocks.BlockAt(start)
@@ -443,9 +439,6 @@ func (s *peersSource) incrementalFlush(
 					xlog.NewField("end", tr.End.Unix()),
 					xlog.NewField("numBlocks", numBlocksRemaining),
 				).Error("error trying to remove series that still has blocks")
-				for t := range series.Blocks.AllBlocks() {
-					fmt.Println("still have block for: ", t)
-				}
 				continue
 			}
 

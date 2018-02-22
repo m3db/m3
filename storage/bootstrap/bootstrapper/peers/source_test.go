@@ -166,7 +166,6 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 
 func TestPeersSourceIncrementalRun(t *testing.T) {
 	for _, cachePolicy := range []series.CachePolicy{
-		series.CacheAll,
 		series.CacheAllMetadata,
 	} {
 		ctrl := gomock.NewController(t)
@@ -176,6 +175,7 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		resultOpts := testDefaultResultOpts.SetSeriesCachePolicy(cachePolicy)
 		opts := testDefaultOpts.SetResultOptions(resultOpts)
 		ropts := testNsMd.Options().RetentionOptions()
+		blockSize := ropts.BlockSize()
 
 		start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 		end := start.Add(2 * ropts.BlockSize())
@@ -199,11 +199,19 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		mockAdminSession := client.NewMockAdminSession(ctrl)
 		mockAdminSession.EXPECT().
 			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-				uint32(0), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+				uint32(0), start, start.Add(blockSize), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
 			Return(firstResult, nil)
 		mockAdminSession.EXPECT().
 			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-				uint32(1), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+				uint32(0), start.Add(blockSize), start.Add(blockSize*2), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+			Return(firstResult, nil)
+		mockAdminSession.EXPECT().
+			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
+				uint32(1), start, start.Add(blockSize), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+			Return(secondResult, nil)
+		mockAdminSession.EXPECT().
+			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
+				uint32(1), start.Add(blockSize), start.Add(blockSize*2), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
 			Return(secondResult, nil)
 
 		mockAdminClient := client.NewMockAdminClient(ctrl)
