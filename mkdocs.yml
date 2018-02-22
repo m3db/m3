@@ -38,8 +38,10 @@ pages:
   - "Introduction": "index.md"
   - "Architecture":
     - "Overview": "architecture/index.md"
+    - "Storage Engine": "architecture/engine.md"
     - "Sharding and Replication": "architecture/sharding.md"
     - "Consistency Levels": "architecture/consistencylevels.md"
     - "Storage": "architecture/storage.md"
     - "Commit Logs": "architecture/commitlogs.md"
     - "Peer Streaming": "architecture/peer_streaming.md"
+    - "Caching": "architecture/caching.md"
