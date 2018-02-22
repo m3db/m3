@@ -86,6 +86,7 @@ database_obect      => map<namepace_name, namespace_object>
 namespace_object    => map<shard_id, shard_object>
 shard_object        => map<series_id, series_object>
 series_object       => map<block_start_time, block_object>
+series_object       => map<block_start_time, active_buffers(encoders)> (This map should only have one or two entries)
 
 ### Persistent storage
 
@@ -202,4 +203,3 @@ If the blocksize is set to two hours, then all writes for all series for a given
 4. M3DB does not support writing datapoints with values other than double-precision floats. Future versions of M3DB will have support for storing arbitrary values.
 5. M3DB does not support storing data with an indefinite retention period, every namespace in M3DB is required to have a retention policy which specifies how long data in that namespace will be retained for. While there is no upper bound on that value (Uber has production databases running with retention periods as high as 5 years), its still required and generally speaking M3DB is optimized for workloads with a well-defined [TTL](https://en.wikipedia.org/wiki/Time_to_live).
 6. M3DB does not support either background data repair or Cassandra-style [read repairs](https://docs.datastax.com/en/cassandra/2.1/cassandra/operations/opsRepairNodesReadRepair.html). Future versions of M3DB will support automatic repairs of data as an ongoing background process.
-7. Writing / reading from languages other than Golang. Communicating with M3DB currently requires use of a "fat" (logic-heavy) client, and there is only a Golang implementation at the moment.
