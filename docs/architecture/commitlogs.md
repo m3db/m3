@@ -1,5 +1,9 @@
 # Commit Logs
 
+## Overview
+
+M3DB has a commit log that is equivalent to the commit log or write-ahead-log in other databases. The commit logs are completely uncompressed (no M3TSZ encoding), and there is one per database (multiple namespaces in a single process will share a commit log.)
+
 ## Integrity Levels
 
 There are two integrity levels available for commit logs:
@@ -46,3 +50,7 @@ CommitLogMetadata {
 ### Garbage Collected
 
 Commit logs are garbage collected after all blocks within the retention period in which data inside the commit logs could be applicable have already been flushed to disk as immutable compressed filesets.
+
+### Compaction
+
+There is currently no compaction process for commitlogs. They are deleted once they fall out of their configurable retention period *or* all the [fileset files](storage.md) for that period are flushed.

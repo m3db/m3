@@ -2,6 +2,14 @@
 
 Timeseries keys are hashed to a fixed set of virtual shards. Virtual shards are then assigned to physical nodes. M3DB can be configured to use any hashing function and a configured number of shards. By default [murmur3](https://en.wikipedia.org/wiki/MurmurHash) is used as the hashing function and 4096 virtual shards are configured.
 
+## Benefits
+
+Shards provide a variety of benefits throughout the M3DB stack:
+
+1. They make horizontal scaling easier and adding / removing nodes without downtime trivial at the cluster level.
+2. They provide more fine grained lock granularity at the memory level.
+3. They inform the filesystem organization in that data belonging to the same shard will be used / dropped together and can be kept in the same file.
+
 ## Replication
 
 Logical shards are placed on per virtual shard per replica with configurable isolation (zone aware, rack aware, etc). For instance, when using rack aware isolation, the set of datacenter racks that locate a replica’s data are distinct to the racks that locate all other replica’s data.
