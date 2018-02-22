@@ -4,7 +4,7 @@
     
     <url>
      <loc>/</loc>
-     <lastmod>2018-02-03</lastmod>
+     <lastmod>2018-02-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
     
@@ -13,37 +13,49 @@
         
     <url>
      <loc>/architecture/</loc>
-     <lastmod>2018-02-03</lastmod>
+     <lastmod>2018-02-22</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+        
+    <url>
+     <loc>/architecture/engine/</loc>
+     <lastmod>2018-02-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/architecture/sharding/</loc>
-     <lastmod>2018-02-03</lastmod>
+     <lastmod>2018-02-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/architecture/consistencylevels/</loc>
-     <lastmod>2018-02-03</lastmod>
+     <lastmod>2018-02-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/architecture/storage/</loc>
-     <lastmod>2018-02-03</lastmod>
+     <lastmod>2018-02-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/architecture/commitlogs/</loc>
-     <lastmod>2018-02-03</lastmod>
+     <lastmod>2018-02-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         
     <url>
      <loc>/architecture/peer_streaming/</loc>
-     <lastmod>2018-02-03</lastmod>
+     <lastmod>2018-02-22</lastmod>
+     <changefreq>daily</changefreq>
+    </url>
+        
+    <url>
+     <loc>/architecture/caching/</loc>
+     <lastmod>2018-02-22</lastmod>
      <changefreq>daily</changefreq>
     </url>
         

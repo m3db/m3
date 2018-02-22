@@ -32,7 +32,7 @@
     
     
       
-        <title>Consistency Levels - M3DB Documentation</title>
+        <title>Caching - M3DB Documentation</title>
       
     
     
@@ -94,7 +94,7 @@
                 M3DB Documentation
               </span>
               <span class="md-header-nav__topic">
-                Consistency Levels
+                Caching
               </span>
             
           
@@ -276,61 +276,11 @@
           
           
 
-  
 
-
-  <li class="md-nav__item md-nav__item--active">
-    
-    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
-    
-      
-    
-    
-      <label class="md-nav__link md-nav__link--active" for="toc">
-        Consistency Levels
-      </label>
-    
-    <a href="./" title="Consistency Levels" class="md-nav__link md-nav__link--active">
+  <li class="md-nav__item">
+    <a href="../consistencylevels/" title="Consistency Levels" class="md-nav__link">
       Consistency Levels
     </a>
-    
-      
-<nav class="md-nav md-nav--secondary">
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="toc">Table of contents</label>
-    <ul class="md-nav__list" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#write-consistency-levels" title="Write consistency levels" class="md-nav__link">
-    Write consistency levels
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#read-consistency-levels" title="Read consistency levels" class="md-nav__link">
-    Read consistency levels
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#connect-consistency-levels" title="Connect consistency levels" class="md-nav__link">
-    Connect consistency levels
-  </a>
-  
-</li>
-      
-      
-      
-    </ul>
-  
-</nav>
-    
   </li>
 
         
@@ -374,11 +324,75 @@
           
           
 
+  
 
-  <li class="md-nav__item">
-    <a href="../caching/" title="Caching" class="md-nav__link">
+
+  <li class="md-nav__item md-nav__item--active">
+    
+    <input class="md-toggle md-nav__toggle" data-md-toggle="toc" type="checkbox" id="toc">
+    
+      
+    
+    
+      <label class="md-nav__link md-nav__link--active" for="toc">
+        Caching
+      </label>
+    
+    <a href="./" title="Caching" class="md-nav__link md-nav__link--active">
       Caching
     </a>
+    
+      
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="toc">Table of contents</label>
+    <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" title="Overview" class="md-nav__link">
+    Overview
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#none-cache-policy" title="None Cache Policy" class="md-nav__link">
+    None Cache Policy
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#all-cache-policy" title="All Cache Policy" class="md-nav__link">
+    All Cache Policy
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recently-read-cache-policy" title="Recently Read Cache Policy" class="md-nav__link">
+    Recently Read Cache Policy
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#least-recently-used-lru-cache-policy" title="Least Recently Used (LRU) Cache Policy" class="md-nav__link">
+    Least Recently Used (LRU) Cache Policy
+  </a>
+  
+</li>
+      
+      
+      
+    </ul>
+  
+</nav>
+    
   </li>
 
         
@@ -408,22 +422,36 @@
     <ul class="md-nav__list" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#write-consistency-levels" title="Write consistency levels" class="md-nav__link">
-    Write consistency levels
+  <a href="#overview" title="Overview" class="md-nav__link">
+    Overview
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#read-consistency-levels" title="Read consistency levels" class="md-nav__link">
-    Read consistency levels
+  <a href="#none-cache-policy" title="None Cache Policy" class="md-nav__link">
+    None Cache Policy
   </a>
   
 </li>
       
         <li class="md-nav__item">
-  <a href="#connect-consistency-levels" title="Connect consistency levels" class="md-nav__link">
-    Connect consistency levels
+  <a href="#all-cache-policy" title="All Cache Policy" class="md-nav__link">
+    All Cache Policy
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#recently-read-cache-policy" title="Recently Read Cache Policy" class="md-nav__link">
+    Recently Read Cache Policy
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#least-recently-used-lru-cache-policy" title="Least Recently Used (LRU) Cache Policy" class="md-nav__link">
+    Least Recently Used (LRU) Cache Policy
   </a>
   
 </li>
@@ -442,57 +470,22 @@
             <article class="md-content__inner md-typeset">
               
                 
-                  <a href="https://github.com/m3db/m3db/edit/master/docs/architecture/consistencylevels.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
+                  <a href="https://github.com/m3db/m3db/edit/master/docs/architecture/caching.md" title="Edit this page" class="md-icon md-content__icon">&#xE3C9;</a>
                 
                 
-                <h1 id="consistency-levels">Consistency Levels</h1>
-<p>M3DB provides variable consistency levels for read and write operations, as well as cluster connection operations. These consistency levels are handled at the client level.</p>
-<h2 id="write-consistency-levels">Write consistency levels</h2>
-<ul>
-<li>
-<p><strong>One:</strong> Corresponds to a single node succeeding for an operation to succeed.</p>
-</li>
-<li>
-<p><strong>Majority:</strong> Corresponds to the majority of nodes succeeding for an operation to succeed.</p>
-</li>
-<li>
-<p><strong>All:</strong> Corresponds to all nodes succeeding for an operation to succeed.</p>
-</li>
-</ul>
-<h2 id="read-consistency-levels">Read consistency levels</h2>
-<ul>
-<li>
-<p><strong>One</strong>: Corresponds to reading from a single node to designate success.</p>
-</li>
-<li>
-<p><strong>UnstrictMajority</strong>: Corresponds to reading from the majority of nodes but relaxing the constraint when it cannot be met, falling back to returning success when reading from at least a single node after attempting reading from the majority of nodes.</p>
-</li>
-<li>
-<p><strong>Majority</strong>: Corresponds to reading from the majority of nodes to designate success.</p>
-</li>
-<li>
-<p><strong>All:</strong> Corresponds to reading from all of the nodes to designate success.</p>
-</li>
-</ul>
-<h2 id="connect-consistency-levels">Connect consistency levels</h2>
-<p>Connect consistency levels are used to determine when a client session is deemed as connected before operations can be attempted.</p>
-<ul>
-<li>
-<p><strong>Any:</strong> Corresponds to connecting to any number of nodes for all shards, this strategy will attempt to connect to all, then the majority, then one and then fallback to none and as such will always succeed.</p>
-</li>
-<li>
-<p><strong>None:</strong> Corresponds to connecting to no nodes for all shards and as such will always succeed.</p>
-</li>
-<li>
-<p><strong>One:</strong> Corresponds to connecting to a single node for all shards.</p>
-</li>
-<li>
-<p><strong>Majority:</strong> Corresponds to connecting to the majority of nodes for all shards.</p>
-</li>
-<li>
-<p><strong>All:</strong> Corresponds to connecting to all of the nodes for all shards.</p>
-</li>
-</ul>
+                <h1 id="caching-policies">Caching policies</h1>
+<h2 id="overview">Overview</h2>
+<p>Blocks that are still being actively compressed / M3TSZ encoded must be kept in memory until they are sealed and flushed to disk. Blocks that have already been sealed, however, don't need to remain in-memory. In order to support efficient reads, M3DB implements various caching policies which determine which flushed blocks are kept in memory, and which are not. The "cache" itself is not a separate datastructure in memory, cached blocks are simply stored in their respective <a href="../engine/#in-memory-object-layout">in-memory objects</a> with various different mechanisms (depending on the chosen cache policy) determining which series / blocks are evicted and which are retained.</p>
+<p>For general purpose workloads, the <code>lru</code> caching policy is reccommended.</p>
+<h2 id="none-cache-policy">None Cache Policy</h2>
+<p>The <code>none</code> cache policy is the simplest. As soon as a block is sealed, its flushed to disk and never retained in memory again. This cache policy will have the lowest memory consumption, but also the poorest read performance as every read for a block that is already flushed will require a disk read.</p>
+<h2 id="all-cache-policy">All Cache Policy</h2>
+<p>The <code>all</code> cache policy is the opposite of the <code>none</code> cache policy. All blocks are kept in memory until their retention period is over. This policy can be useful for read-heavy workloads with small datasets, but is obviously limited by the amount of memory on the host machine. Also keep in mind that this cache policy may have unintended side-effects on write throughput as keeping every block in memory creates a lot of work for the Golang garbage collector.</p>
+<h2 id="recently-read-cache-policy">Recently Read Cache Policy</h2>
+<p>The <code>recently_read</code> cache policy keeps all blocks that are read from disk in memory for a configurable duration of time. For example, if the <code>recently_read</code> cache policy is set with a duration of 10 minutes, then everytime a block is read from disk it will be kept in memory for at least 10 minutes. This policy can be very effective if only a small portion of your overall dataset is ever read, and especially if that subset is read frequently (i.e as is common in the case of database backing an automatic alerting system), but it can cause very high memory usage during workloads that involve sequentially scanning all of the data.</p>
+<p>Data eviction from memory is triggered by the "ticking" process described in the <a href="../engine/#background-processes">background processes section</a></p>
+<h2 id="least-recently-used-lru-cache-policy">Least Recently Used (LRU) Cache Policy</h2>
+<p>The <code>lru</code> cache policy uses an <code>lru</code> list with a configurable max size to keep track of which blocks have been read least recently, and evicts those blocks first when the capacity of the list is full and a new block needs to be read from disk. This cache policy strikes the best overall balance and is the recommended policy for general case workloads. Review the comments in <code>wired_list.go</code> for implementation details.</p>
                 
                   
                 
@@ -511,7 +504,7 @@
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../sharding/" title="Sharding and Replication" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../peer_streaming/" title="Peer Streaming" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -520,25 +513,11 @@
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Sharding and Replication
+                Peer Streaming
               </span>
             </div>
           </a>
         
-        
-          <a href="../storage/" title="Storage" class="md-flex md-footer-nav__link md-footer-nav__link--next" rel="next">
-            <div class="md-flex__cell md-flex__cell--stretch md-footer-nav__title">
-              <span class="md-flex__ellipsis">
-                <span class="md-footer-nav__direction">
-                  Next
-                </span>
-                Storage
-              </span>
-            </div>
-            <div class="md-flex__cell md-flex__cell--shrink">
-              <i class="md-icon md-icon--arrow-forward md-footer-nav__button"></i>
-            </div>
-          </a>
         
       </nav>
     </div>

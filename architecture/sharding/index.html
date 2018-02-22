@@ -252,6 +252,18 @@
           
           
 
+
+  <li class="md-nav__item">
+    <a href="../engine/" title="Storage Engine" class="md-nav__link">
+      Storage Engine
+    </a>
+  </li>
+
+        
+          
+          
+          
+
   
 
 
@@ -279,6 +291,13 @@
   
     <label class="md-nav__title" for="toc">Table of contents</label>
     <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#benefits" title="Benefits" class="md-nav__link">
+    Benefits
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#replication" title="Replication" class="md-nav__link">
@@ -399,6 +418,18 @@
   </li>
 
         
+          
+          
+          
+
+
+  <li class="md-nav__item">
+    <a href="../caching/" title="Caching" class="md-nav__link">
+      Caching
+    </a>
+  </li>
+
+        
       </ul>
     </nav>
   </li>
@@ -423,6 +454,13 @@
   
     <label class="md-nav__title" for="toc">Table of contents</label>
     <ul class="md-nav__list" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#benefits" title="Benefits" class="md-nav__link">
+    Benefits
+  </a>
+  
+</li>
       
         <li class="md-nav__item">
   <a href="#replication" title="Replication" class="md-nav__link">
@@ -505,6 +543,13 @@
                 
                 <h1 id="sharding">Sharding</h1>
 <p>Timeseries keys are hashed to a fixed set of virtual shards. Virtual shards are then assigned to physical nodes. M3DB can be configured to use any hashing function and a configured number of shards. By default <a href="https://en.wikipedia.org/wiki/MurmurHash">murmur3</a> is used as the hashing function and 4096 virtual shards are configured.</p>
+<h2 id="benefits">Benefits</h2>
+<p>Shards provide a variety of benefits throughout the M3DB stack:</p>
+<ol>
+<li>They make horizontal scaling easier and adding / removing nodes without downtime trivial at the cluster level.</li>
+<li>They provide more fine grained lock granularity at the memory level.</li>
+<li>They inform the filesystem organization in that data belonging to the same shard will be used / dropped together and can be kept in the same file.</li>
+</ol>
 <h2 id="replication">Replication</h2>
 <p>Logical shards are placed on per virtual shard per replica with configurable isolation (zone aware, rack aware, etc). For instance, when using rack aware isolation, the set of datacenter racks that locate a replica’s data are distinct to the racks that locate all other replica’s data.</p>
 <p>Replication is synchronization during a write and depending on the consistency level configured will notify the client on whether a write succeeded or failed with respect to the consistency level and replication achieved.</p>
@@ -566,7 +611,7 @@ enum ShardState {
     <div class="md-footer-nav">
       <nav class="md-footer-nav__inner md-grid">
         
-          <a href="../" title="Overview" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
+          <a href="../engine/" title="Storage Engine" class="md-flex md-footer-nav__link md-footer-nav__link--prev" rel="prev">
             <div class="md-flex__cell md-flex__cell--shrink">
               <i class="md-icon md-icon--arrow-back md-footer-nav__button"></i>
             </div>
@@ -575,7 +620,7 @@ enum ShardState {
                 <span class="md-footer-nav__direction">
                   Previous
                 </span>
-                Overview
+                Storage Engine
               </span>
             </div>
           </a>
