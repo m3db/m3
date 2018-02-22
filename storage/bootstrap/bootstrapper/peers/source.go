@@ -458,9 +458,5 @@ func (s *peersSource) cacheShardIndices(
 		shards = append(shards, shard)
 	}
 
-	if err := blockRetriever.CacheShardIndices(shards); err != nil {
-		return err
-	}
-
-	return nil
+	return blockRetriever.CacheShardIndices(shards)
 }
