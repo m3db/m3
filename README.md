@@ -1,8 +1,10 @@
-## WARNING: This is Alpha software and not intended for use until a stable release.
+## WARNING: This is pre-release software, and is not intended for use until a stable release.
 
 # M3DB [![GoDoc][doc-img]][doc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov]
 
 A time series database.
+
+Documentation: https://m3db.github.io/m3db/
 
 <hr>
 
