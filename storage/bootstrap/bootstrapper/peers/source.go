@@ -94,28 +94,35 @@ func (s *peersSource) Read(
 	if opts.Incremental() {
 		retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 		persistManager := s.opts.PersistManager()
-		if retrieverMgr != nil && persistManager != nil {
-			s.log.WithFields(
-				xlog.NewField("namespace", namespace.String()),
-			).Infof("peers bootstrapper resolving block retriever")
 
-			r, err := retrieverMgr.Retriever(nsMetadata)
-			if err != nil {
-				return nil, err
-			}
-
-			flush, err := persistManager.StartFlush()
-			if err != nil {
-				return nil, err
-			}
-
-			defer flush.Done()
-
-			incremental = true
-			blockRetriever = r
-			shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(r)
-			persistFlush = flush
+		// Neither of these should ever happen
+		if retrieverMgr == nil {
+			panic("Tried to perform incremental flush without retriever manager")
 		}
+		if persistManager == nil {
+			panic("Tried to perform incremental flush without persist manager")
+		}
+
+		s.log.WithFields(
+			xlog.NewField("namespace", namespace.String()),
+		).Infof("peers bootstrapper resolving block retriever")
+
+		r, err := retrieverMgr.Retriever(nsMetadata)
+		if err != nil {
+			return nil, err
+		}
+
+		flush, err := persistManager.StartFlush()
+		if err != nil {
+			return nil, err
+		}
+
+		defer flush.Done()
+
+		incremental = true
+		blockRetriever = r
+		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(r)
+		persistFlush = flush
 	}
 
 	result := result.NewBootstrapResult()
@@ -275,6 +282,11 @@ func (s *peersSource) Read(
 // CacheAllMetadata policy we loop through every series and make every block
 // retrievable (so that we can retrieve data for the blocks that we're caching
 // the metadata for).
+// In addition, if the caching policy is not CacheAll or CacheAllMetadata, then
+// at the end we remove all the series objects from the shard result as well
+// (since all their corresponding blocks have been removed anyways) to prevent
+// a huge memory spike caused by adding lots of unused series to the Shard
+// object and then immediately evicting them in the next tick.
 func (s *peersSource) incrementalFlush(
 	flush persist.Flush,
 	nsMetadata namespace.Metadata,
