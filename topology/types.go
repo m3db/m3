@@ -209,7 +209,7 @@ type StaticConfiguration struct {
 
 // HostShardConfig stores host information for fanout
 type HostShardConfig struct {
-	Host          string `yaml:"host"`
+	HostID        string `yaml:"hostID"`
 	ListenAddress string `yaml:"listenAddress"`
 }
 

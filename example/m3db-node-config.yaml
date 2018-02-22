@@ -184,12 +184,12 @@ config:
           shards: 64
           replicas: 1
           hosts:
-              - host: m3db_server
+              - hostID: m3db_server
                 listenAddress: "0.0.0.0:9000"
       namespaces:
           - name: metrics
             options:
             retention:
               retentionPeriod: 24h
-              blockSize: 4h
-              bufferPast: 2h
+              blockSize: 2h
+              bufferPast: 1h

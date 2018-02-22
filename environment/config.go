@@ -222,7 +222,7 @@ func newStaticShardSet(numShards int, hosts []topology.HostShardConfig) (shardin
 	}
 
 	for _, i := range hosts {
-		host := topology.NewHost(i.Host, i.ListenAddress)
+		host := topology.NewHost(i.HostID, i.ListenAddress)
 		hostShardSet := topology.NewHostShardSet(host, shardSet)
 		hostShardSets = append(hostShardSets, hostShardSet)
 	}
