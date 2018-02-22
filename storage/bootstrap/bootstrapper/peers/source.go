@@ -23,6 +23,7 @@ package peers
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/clock"
@@ -144,6 +145,7 @@ func (s *peersSource) Read(
 		bopts                   = s.opts.ResultOptions()
 		count                   = len(shardsTimeRanges)
 		concurrency             = s.opts.DefaultShardConcurrency()
+		blockSize               = nsMetadata.Options().RetentionOptions().BlockSize()
 	)
 	if incremental {
 		concurrency = s.opts.IncrementalShardConcurrency()
@@ -167,7 +169,7 @@ func (s *peersSource) Read(
 		workers.Go(func() {
 			defer wg.Done()
 			s.fetchBootstrapBlocksFromPeers(shard, ranges, nsMetadata,
-				session, bopts, result, &lock, incremental, incrementalQueue, shardRetrieverMgr)
+				session, bopts, result, &lock, incremental, incrementalQueue, shardRetrieverMgr, blockSize)
 		})
 	}
 
@@ -244,40 +246,45 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	incremental bool,
 	incrementalQueue chan incrementalFlush,
 	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
+	blockSize time.Duration,
 ) {
 	it := ranges.Iter()
 	for it.Next() {
 		currRange := it.Value()
 
-		version := s.opts.FetchBlocksMetadataEndpointVersion()
-		shardResult, err := session.FetchBootstrapBlocksFromPeers(nsMetadata,
-			shard, currRange.Start, currRange.End, bopts, version)
+		fmt.Println("Shard: ", shard, " start: ", currRange.Start, " end: ", currRange.End)
+		for start := currRange.Start; start.Before(currRange.End); start = start.Add(blockSize) {
+			fmt.Println("Fetching shard: ", shard, " and blockStart: ", start)
+			version := s.opts.FetchBlocksMetadataEndpointVersion()
+			shardResult, err := session.FetchBootstrapBlocksFromPeers(nsMetadata,
+				shard, start, start.Add(blockSize), bopts, version)
 
-		s.logFetchBootstrapBlocksFromPeersOutcome(shard, shardResult, err)
+			s.logFetchBootstrapBlocksFromPeersOutcome(shard, shardResult, err)
 
-		if err != nil {
-			// Do not add result at all to the bootstrap result
-			lock.Lock()
-			bootstrapResult.Add(shard, nil, xtime.Ranges{}.AddRange(currRange))
-			lock.Unlock()
-			continue
-		}
-
-		if incremental {
-			incrementalQueue <- incrementalFlush{
-				nsMetadata:        nsMetadata,
-				shard:             shard,
-				shardRetrieverMgr: shardRetrieverMgr,
-				shardResult:       shardResult,
-				timeRange:         currRange,
+			if err != nil {
+				// Do not add result at all to the bootstrap result
+				lock.Lock()
+				bootstrapResult.Add(shard, nil, xtime.Ranges{}.AddRange(currRange))
+				lock.Unlock()
+				continue
 			}
-			continue
-		}
 
-		// If not waiting to incremental flush, add straight away to bootstrap result
-		lock.Lock()
-		bootstrapResult.Add(shard, shardResult, xtime.Ranges{})
-		lock.Unlock()
+			if incremental {
+				incrementalQueue <- incrementalFlush{
+					nsMetadata:        nsMetadata,
+					shard:             shard,
+					shardRetrieverMgr: shardRetrieverMgr,
+					shardResult:       shardResult,
+					timeRange:         xtime.Range{Start: start, End: start.Add(blockSize)},
+				}
+				continue
+			}
+
+			// If not waiting to incremental flush, add straight away to bootstrap result
+			lock.Lock()
+			bootstrapResult.Add(shard, shardResult, xtime.Ranges{})
+			lock.Unlock()
+		}
 	}
 }
 
@@ -352,6 +359,8 @@ func (s *peersSource) incrementalFlush(
 			return err
 		}
 
+		fmt.Println("Flushing shard: ", shard, " and block: ", start)
+
 		var blockErr error
 		for _, s := range shardResult.AllSeries() {
 			bl, ok := s.Blocks.BlockAt(start)
@@ -370,7 +379,7 @@ func (s *peersSource) incrementalFlush(
 			segment, err := stream.Segment()
 			if err != nil {
 				tmpCtx.BlockingClose()
-				blockErr = err // Need to call prepared.Close, avoid return
+				blockErr = err // Need to  call prepared.Close, avoid return
 				break
 			}
 
@@ -430,10 +439,13 @@ func (s *peersSource) incrementalFlush(
 			// bootstrap blocks should always be exclusive on the end side.
 			if numBlocksRemaining > 0 {
 				s.log.WithFields(
-					xlog.NewField("start", tr.Start),
-					xlog.NewField("end", tr.End),
+					xlog.NewField("start", tr.Start.Unix()),
+					xlog.NewField("end", tr.End.Unix()),
 					xlog.NewField("numBlocks", numBlocksRemaining),
 				).Error("error trying to remove series that still has blocks")
+				for t := range series.Blocks.AllBlocks() {
+					fmt.Println("still have block for: ", t)
+				}
 				continue
 			}
 
