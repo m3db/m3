@@ -64,7 +64,7 @@ func TestHostQueueWriteErrorBeforeOpen(t *testing.T) {
 	opts := newHostQueueTestOptions()
 	queue := newHostQueue(h, testWriteBatchRawPool, testWriteArrayPool, opts)
 
-	assert.Error(t, queue.Enqueue(&writeOp{}))
+	assert.Error(t, queue.Enqueue(&writeOperation{}))
 }
 
 func TestHostQueueWriteErrorAfterClose(t *testing.T) {
@@ -74,7 +74,7 @@ func TestHostQueueWriteErrorAfterClose(t *testing.T) {
 	queue.Open()
 	queue.Close()
 
-	assert.Error(t, queue.Enqueue(&writeOp{}))
+	assert.Error(t, queue.Enqueue(&writeOperation{}))
 }
 
 func TestHostQueueWriteBatches(t *testing.T) {
@@ -103,7 +103,7 @@ func TestHostQueueWriteBatches(t *testing.T) {
 	}
 
 	// Prepare writes
-	writes := []*writeOp{
+	writes := []*writeOperation{
 		testWriteOp("testNs", "foo", 1.0, 1000, rpc.TimeType_UNIX_SECONDS, callback),
 		testWriteOp("testNs", "bar", 2.0, 2000, rpc.TimeType_UNIX_SECONDS, callback),
 		testWriteOp("testNs", "baz", 3.0, 3000, rpc.TimeType_UNIX_SECONDS, callback),
@@ -183,7 +183,7 @@ func TestHostQueueWriteBatchesDifferentNamespaces(t *testing.T) {
 	}
 
 	// Prepare writes
-	writes := []*writeOp{
+	writes := []*writeOperation{
 		testWriteOp("testNs1", "foo", 1.0, 1000, rpc.TimeType_UNIX_SECONDS, callback),
 		testWriteOp("testNs1", "bar", 2.0, 2000, rpc.TimeType_UNIX_SECONDS, callback),
 		testWriteOp("testNs1", "baz", 3.0, 3000, rpc.TimeType_UNIX_SECONDS, callback),
@@ -194,7 +194,7 @@ func TestHostQueueWriteBatchesDifferentNamespaces(t *testing.T) {
 	// Prepare mocks for flush
 	mockClient := rpc.NewMockTChanNode(ctrl)
 	writeBatch := func(ctx thrift.Context, req *rpc.WriteBatchRawRequest) {
-		var writesForNamespace []*writeOp
+		var writesForNamespace []*writeOperation
 		if string(req.NameSpace) == "testNs1" {
 			writesForNamespace = writes[:3]
 		} else {
@@ -296,7 +296,7 @@ func TestHostQueueWriteBatchesPartialBatchErrs(t *testing.T) {
 	// Prepare writes
 	var wg sync.WaitGroup
 	writeErr := "a write error"
-	writes := []*writeOp{
+	writes := []*writeOperation{
 		testWriteOp("testNs", "foo", 1.0, 1000, rpc.TimeType_UNIX_SECONDS, func(r interface{}, err error) {
 			assert.Error(t, err)
 			rpcErr, ok := err.(*rpc.Error)
@@ -371,7 +371,7 @@ func TestHostQueueWriteBatchesEntireBatchErr(t *testing.T) {
 		assert.Equal(t, writeErr, err)
 		wg.Done()
 	}
-	writes := []*writeOp{
+	writes := []*writeOperation{
 		testWriteOp("testNs", "foo", 1.0, 1000, rpc.TimeType_UNIX_SECONDS, callback),
 		testWriteOp("testNs", "bar", 2.0, 2000, rpc.TimeType_UNIX_SECONDS, callback),
 	}
@@ -522,7 +522,7 @@ func TestHostQueueDrainOnClose(t *testing.T) {
 	}
 
 	// Prepare writes
-	writes := []*writeOp{
+	writes := []*writeOperation{
 		testWriteOp("testNs", "foo", 1.0, 1000, rpc.TimeType_UNIX_SECONDS, callback),
 		testWriteOp("testNs", "bar", 2.0, 2000, rpc.TimeType_UNIX_SECONDS, callback),
 		testWriteOp("testNs", "baz", 3.0, 3000, rpc.TimeType_UNIX_SECONDS, callback),
@@ -685,8 +685,8 @@ func testWriteOp(
 	timestamp int64,
 	timeType rpc.TimeType,
 	completionFn completionFn,
-) *writeOp {
-	w := &writeOp{}
+) *writeOperation {
+	w := &writeOperation{}
 	w.reset()
 	w.namespace = ident.StringID(namespace)
 	w.request.ID = []byte(id)
