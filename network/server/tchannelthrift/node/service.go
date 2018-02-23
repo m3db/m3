@@ -697,6 +697,10 @@ func (s *service) WriteBatchRaw(tctx thrift.Context, req *rpc.WriteBatchRawReque
 	return nil
 }
 
+func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) error {
+	return tterrors.NewInternalError(errNotImplemented)
+}
+
 func (s *service) Repair(tctx thrift.Context) error {
 	callStart := s.nowFn()
 

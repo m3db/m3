@@ -56,7 +56,7 @@ service Node {
 	FetchBlocksMetadataRawResult fetchBlocksMetadataRaw(1: FetchBlocksMetadataRawRequest req) throws (1: Error err)
 	FetchBlocksMetadataRawV2Result fetchBlocksMetadataRawV2(1: FetchBlocksMetadataRawV2Request req) throws (1: Error err)
 	void writeBatchRaw(1: WriteBatchRawRequest req) throws (1: WriteBatchRawErrors err)
-	// TODO(prateek): add writeTaggedBatchRaw code path
+	void writeTaggedBatchRaw(1: WriteTaggedBatchRawRequest req) throws (1: WriteBatchRawErrors err)
 	void repair() throws (1: Error err)
 	TruncateResult truncate(1: TruncateRequest req) throws (1: Error err)
 
@@ -101,9 +101,8 @@ struct WriteRequest {
 struct WriteTaggedRequest {
 	1: required string nameSpace
 	2: required string id
-	3: required Datapoint datapoint
-	4: required list<binary> tagNames
-	5: required list<binary> tagValues
+	3: required list<TagString> tags
+	4: required Datapoint datapoint
 }
 
 struct FetchBatchRawRequest {
@@ -116,6 +115,21 @@ struct FetchBatchRawRequest {
 
 struct FetchBatchRawResult {
 	1: required list<FetchRawResult> elements
+}
+
+struct FetchRawResult {
+	1: required list<Segments> segments
+	2: optional Error err
+}
+
+struct Segments {
+	1: optional Segment merged
+	2: optional list<Segment> unmerged
+}
+
+struct Segment {
+	1: required binary head
+	2: required binary tail
 }
 
 struct FetchTaggedRequest {
@@ -152,25 +166,9 @@ struct FetchTaggedResult {
 struct FetchTaggedIDResult {
 	1: required string id
 	2: required string nameSpace
-	3: required list<string> tagNames
-	4: required list<string> tagValues
+	3: required list<TagString> tags
 	5: optional list<Datapoint> datapoints
 	6: optional Error err
-}
-
-struct FetchRawResult {
-	1: required list<Segments> segments
-	2: optional Error err
-}
-
-struct Segments {
-	1: optional Segment merged
-	2: optional list<Segment> unmerged
-}
-
-struct Segment {
-	1: required binary head
-	2: required binary tail
 }
 
 struct FetchBlocksRawRequest {
@@ -198,6 +196,16 @@ struct Block {
 	2: optional Segments segments
 	3: optional Error err
 	4: optional i64 checksum
+}
+
+struct TagString {
+  1: required string name
+  2: required string value
+}
+
+struct TagRaw {
+  1: required binary name
+  2: required binary value
 }
 
 // TODO(rartoul): Delete this once we delete the V1 code path
@@ -262,7 +270,6 @@ struct BlockMetadataV2 {
 	7: optional TimeType lastReadTimeType = TimeType.UNIX_SECONDS
 }
 
-
 struct WriteBatchRawRequest {
 	1: required binary nameSpace
 	2: required list<WriteBatchRawRequestElement> elements
@@ -271,6 +278,17 @@ struct WriteBatchRawRequest {
 struct WriteBatchRawRequestElement {
 	1: required binary id
 	2: required Datapoint datapoint
+}
+
+struct WriteTaggedBatchRawRequest {
+	1: required binary nameSpace
+	2: required list<WriteTaggedBatchRawRequestElement> elements
+}
+
+struct WriteTaggedBatchRawRequestElement {
+	1: required binary id
+	2: required list<TagRaw> tags
+	3: required Datapoint datapoint
 }
 
 struct WriteBatchRawError {
