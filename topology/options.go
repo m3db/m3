@@ -34,6 +34,7 @@ import (
 const (
 	defaultServiceName = "m3db"
 	defaultInitTimeout = 10 * time.Second
+	defaultReplicas    = 3
 )
 
 var (
@@ -50,7 +51,9 @@ type staticOptions struct {
 
 // NewStaticOptions creates a new set of static topology options
 func NewStaticOptions() StaticOptions {
-	return &staticOptions{}
+	return &staticOptions{
+		replicas: defaultReplicas,
+	}
 }
 
 func (o *staticOptions) Validate() error {

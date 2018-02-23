@@ -160,15 +160,32 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 
 		nsInitStatic := namespace.NewStaticInitializer(nsList)
 
-		shardSet, hostShardSets, err := newStaticShardSet(c.Static.TopologyConfig.Shards, c.Static.ListenAddress, cfgParams.HostID)
+		shardSet, hostShardSets, err := newStaticShardSet(c.Static.TopologyConfig.Shards, c.Static.TopologyConfig.Hosts)
 		if err != nil {
 			err = fmt.Errorf("unable to create shard set for static config: %v", err)
 			return emptyConfig, err
 		}
 		staticOptions := topology.NewStaticOptions().
-			SetReplicas(1).
 			SetHostShardSets(hostShardSets).
 			SetShardSet(shardSet)
+
+		numHosts := len(c.Static.TopologyConfig.Hosts)
+		numReplicas := c.Static.TopologyConfig.Replicas
+
+		switch numReplicas {
+		case 0:
+			if numHosts != 1 {
+				err := fmt.Errorf("number of hosts (%d) must be 1 if replicas is not set", numHosts)
+				return emptyConfig, err
+			}
+			staticOptions = staticOptions.SetReplicas(1)
+		default:
+			if numHosts != numReplicas {
+				err := fmt.Errorf("number of hosts (%d) not equal to number of replicas (%d)", numHosts, numReplicas)
+				return emptyConfig, err
+			}
+			staticOptions = staticOptions.SetReplicas(c.Static.TopologyConfig.Replicas)
+		}
 
 		topoInit := topology.NewStaticInitializer(staticOptions)
 
@@ -186,7 +203,7 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 	}
 }
 
-func newStaticShardSet(numShards int, listenAddress, hostID string) (sharding.ShardSet, []topology.HostShardSet, error) {
+func newStaticShardSet(numShards int, hosts []topology.HostShardConfig) (sharding.ShardSet, []topology.HostShardSet, error) {
 	var (
 		shardSet      sharding.ShardSet
 		hostShardSets []topology.HostShardSet
@@ -199,14 +216,16 @@ func newStaticShardSet(numShards int, listenAddress, hostID string) (sharding.Sh
 	}
 
 	shards := sharding.NewShards(shardIDs, shard.Available)
-	shardSet, err = sharding.NewShardSet(shards, sharding.DefaultHashFn(1))
+	shardSet, err = sharding.NewShardSet(shards, sharding.DefaultHashFn(len(shards)))
 	if err != nil {
 		return nil, nil, err
 	}
 
-	host := topology.NewHost(hostID, listenAddress)
-	hostShardSet := topology.NewHostShardSet(host, shardSet)
-	hostShardSets = append(hostShardSets, hostShardSet)
+	for _, i := range hosts {
+		host := topology.NewHost(i.HostID, i.ListenAddress)
+		hostShardSet := topology.NewHostShardSet(host, shardSet)
+		hostShardSets = append(hostShardSets, hostShardSet)
+	}
 
 	return shardSet, hostShardSets, nil
 }

@@ -1,5 +1,5 @@
-hash: 9d791bbbfd1396a656697c712f1e8b4ee8443eef0d39adc442ecf09eab09734f
-updated: 2018-02-01T23:06:11.115528815-05:00
+hash: 5581a7acb9bae997db3e2c95da9442ecfa2807c2d2bdc6cce51d36eaf02f9629
+updated: 2018-02-09T17:56:56.875815588-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -193,17 +193,19 @@ imports:
   - close
   - config
   - config/hostid
+  - context
   - errors
+  - ident
   - instrument
   - log
   - pool
   - process
+  - resource
   - retry
   - sync
   - tcp
   - time
   - watch
-  - ident
 - name: github.com/m3db/stackadler32
   version: bfebcd73ef6ffe0ee30489227f0330c39064b674
 - name: github.com/m3db/stackmurmur3
