@@ -142,7 +142,10 @@ func CloseWatcher(ctx context.Context, w http.ResponseWriter) (<-chan bool, <-ch
 				logger.Warn("connection closed by client")
 				close(closing)
 			case <-ctx.Done():
-				logger.Warn("request timed out")
+				// We only care about the time out case and not other cancellations
+				if ctx.Err() == context.DeadlineExceeded {
+					logger.Warn("request timed out")
+				}
 				close(closing)
 			}
 			close(done)
