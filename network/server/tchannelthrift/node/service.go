@@ -31,6 +31,7 @@ import (
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
 	tterrors "github.com/m3db/m3db/network/server/tchannelthrift/errors"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/x/xio"
@@ -48,8 +49,8 @@ import (
 )
 
 const (
-	checkedBytesPoolSize   = 65536
-	defaultTagIterPoolSize = 65536
+	checkedBytesPoolSize = 65536
+	tagDecoderPoolSize   = 65536
 )
 
 var (
@@ -103,8 +104,7 @@ type service struct {
 	opts                     tchannelthrift.Options
 	nowFn                    clock.NowFn
 	metrics                  serviceMetrics
-	decodingTagIterPool      decodingTagIterPool
-	tagIterPool              tagIterPool
+	tagDecoderPool           serialize.DecoderPool
 	idPool                   ident.Pool
 	checkedBytesPool         pool.ObjectPool
 	blockMetadataPool        tchannelthrift.BlockMetadataPool
@@ -128,27 +128,20 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 		map[string]string{"serviceName": "node"},
 	)
 
-	iterPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(defaultTagIterPoolSize).
+	tagDecoderPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(tagDecoderPoolSize).
 		SetInstrumentOptions(iopts.SetMetricsScope(
-			scope.SubScope("tag-iter-pool")))
-	iterPool := newTagIterPool(db.Options().IdentifierPool(), iterPoolOpts)
-	iterPool.Init()
-
-	decodingIterPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(defaultTagIterPoolSize).
-		SetInstrumentOptions(iopts.SetMetricsScope(
-			scope.SubScope("decoding-tag-iter-pool")))
-	decodingIterPool := newDecodingTagIterPool(db.Options().IdentifierPool(), decodingIterPoolOpts)
-	decodingIterPool.Init()
+			scope.SubScope("tag-decoder-pool")))
+	tagDecoderPool := serialize.NewDecoderPool(
+		db.Options().BytesPool(), tagDecoderPoolOpts)
+	tagDecoderPool.Init()
 
 	s := &service{
 		db:                       db,
 		opts:                     opts,
 		nowFn:                    db.Options().ClockOptions().NowFn(),
 		metrics:                  newServiceMetrics(scope, iopts.MetricsSamplingRate()),
-		tagIterPool:              iterPool,
-		decodingTagIterPool:      decodingIterPool,
+		tagDecoderPool:           tagDecoderPool,
 		idPool:                   db.Options().IdentifierPool(),
 		blockMetadataPool:        opts.BlockMetadataPool(),
 		blockMetadataV2Pool:      opts.BlockMetadataV2Pool(),
@@ -827,9 +820,14 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			continue
 		}
 
-		iter := s.decodingTagIterPool.Get()
-		iter.Reset(elem.ID)
-		defer iter.Close()
+		iter := s.tagDecoderPool.Get()
+		iter.Reset(elem.EncodedTags)
+		if err := iter.Err(); err != nil {
+			nonRetryableErrors++
+			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, err))
+			continue
+		}
+		defer iter.Finalize()
 
 		if err = s.db.WriteTagged(
 			ctx, nsID, s.newID(ctx, elem.ID), iter,
@@ -1029,13 +1027,6 @@ func (s *service) newID(ctx context.Context, id []byte) ident.ID {
 	checkedBytes.DecRef()
 
 	return s.idPool.GetBinaryID(ctx, checkedBytes)
-}
-
-// TODO(prateek): could we avoid the extra copy here by creating a wrapper iterator over the input bytes?
-func (s *service) newTagsIter(ctx context.Context, tags []*rpc.TagRaw) ident.TagIterator {
-	iter := s.tagIterPool.Get()
-	iter.Reset(tags)
-	return iter
 }
 
 func (s *service) newCloseableMetadataResult(

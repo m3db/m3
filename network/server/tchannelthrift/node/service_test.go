@@ -28,6 +28,7 @@ import (
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift"
 	"github.com/m3db/m3db/runtime"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/namespace"
@@ -706,6 +707,14 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 
 	service := NewService(mockDB, nil).(*service)
 
+	mockDecoder := serialize.NewMockDecoder(ctrl)
+	mockDecoder.EXPECT().Reset(gomock.Any()).AnyTimes()
+	mockDecoder.EXPECT().Err().Return(nil).AnyTimes()
+	mockDecoder.EXPECT().Finalize().AnyTimes()
+	mockDecoderPool := serialize.NewMockDecoderPool(ctrl)
+	mockDecoderPool.EXPECT().Get().Return(mockDecoder).AnyTimes()
+	service.tagDecoderPool = mockDecoderPool
+
 	tctx, _ := tchannelthrift.NewContext(time.Minute)
 	ctx := tchannelthrift.Context(tctx)
 	defer ctx.Close()
@@ -714,35 +723,26 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 
 	values := []struct {
 		id        string
-		tagNames  []string
-		tagValues []string
+		tagEncode string
 		t         time.Time
 		v         float64
 	}{
-		{"foo", []string{"a"}, []string{"b"}, time.Now().Truncate(time.Second), 12.34},
-		{"bar", []string{"c"}, []string{"d"}, time.Now().Truncate(time.Second), 42.42},
+		{"foo", "a|b", time.Now().Truncate(time.Second), 12.34},
+		{"bar", "c|dd", time.Now().Truncate(time.Second), 42.42},
 	}
 	for _, w := range values {
 		mockDB.EXPECT().
 			WriteTagged(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(w.id),
-				gomock.Any(), // TODO(prateek): create and use ident.TagIterMatcher
+				mockDecoder,
 				w.t, w.v, xtime.Second, nil).
 			Return(nil)
 	}
 
 	var elements []*rpc.WriteTaggedBatchRawRequestElement
 	for _, w := range values {
-		tags := make([]*rpc.TagRaw, 0, len(w.tagNames))
-		for i := range w.tagNames {
-			tags = append(tags, &rpc.TagRaw{
-				Name:  []byte(w.tagNames[i]),
-				Value: []byte(w.tagValues[i]),
-			})
-		}
-
 		elem := &rpc.WriteTaggedBatchRawRequestElement{
-			ID:   []byte(w.id),
-			Tags: tags,
+			ID:          []byte(w.id),
+			EncodedTags: []byte(w.tagEncode),
 			Datapoint: &rpc.Datapoint{
 				Timestamp:         w.t.Unix(),
 				TimestampTimeType: rpc.TimeType_UNIX_SECONDS,
