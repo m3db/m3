@@ -103,6 +103,7 @@ type service struct {
 	opts                     tchannelthrift.Options
 	nowFn                    clock.NowFn
 	metrics                  serviceMetrics
+	decodingTagIterPool      decodingTagIterPool
 	tagIterPool              tagIterPool
 	idPool                   ident.Pool
 	checkedBytesPool         pool.ObjectPool
@@ -134,12 +135,20 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 	iterPool := newTagIterPool(db.Options().IdentifierPool(), iterPoolOpts)
 	iterPool.Init()
 
+	decodingIterPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(defaultTagIterPoolSize).
+		SetInstrumentOptions(iopts.SetMetricsScope(
+			scope.SubScope("decoding-tag-iter-pool")))
+	decodingIterPool := newDecodingTagIterPool(db.Options().IdentifierPool(), decodingIterPoolOpts)
+	decodingIterPool.Init()
+
 	s := &service{
 		db:                       db,
 		opts:                     opts,
 		nowFn:                    db.Options().ClockOptions().NowFn(),
 		metrics:                  newServiceMetrics(scope, iopts.MetricsSamplingRate()),
 		tagIterPool:              iterPool,
+		decodingTagIterPool:      decodingIterPool,
 		idPool:                   db.Options().IdentifierPool(),
 		blockMetadataPool:        opts.BlockMetadataPool(),
 		blockMetadataV2Pool:      opts.BlockMetadataV2Pool(),
@@ -818,7 +827,8 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 			continue
 		}
 
-		iter := s.newTagsIter(ctx, elem.Tags)
+		iter := s.decodingTagIterPool.Get()
+		iter.Reset(elem.ID)
 		defer iter.Close()
 
 		if err = s.db.WriteTagged(
