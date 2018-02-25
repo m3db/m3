@@ -47,6 +47,9 @@ type Encoder interface {
 	// Data returns the encoded bytes.
 	Data() []byte
 
+	// Reset resets the internal state to allow reuse of the encoder.
+	Reset()
+
 	// Finalize releases any held resources.
 	Finalize()
 }
