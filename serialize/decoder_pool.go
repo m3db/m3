@@ -27,6 +27,7 @@ type decoderPool struct {
 	bytesPool pool.CheckedBytesPool
 }
 
+// NewDecoderPool returns a new DecoderPool.
 func NewDecoderPool(
 	bytesPool pool.CheckedBytesPool,
 	opts pool.ObjectPoolOptions,

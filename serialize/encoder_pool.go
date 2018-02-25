@@ -27,6 +27,7 @@ type encoderPool struct {
 	initEncoderSize int
 }
 
+// NewEncoderPool returns a new EncoderPool.
 func NewEncoderPool(initEncoderSize int, opts pool.ObjectPoolOptions) EncoderPool {
 	pool := pool.NewObjectPool(opts)
 	return &encoderPool{

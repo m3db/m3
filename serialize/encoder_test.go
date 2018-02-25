@@ -28,6 +28,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	initialBufferLength = 1 << 12
+)
+
 func newTestEncoder() Encoder {
 	return newEncoder(initialBufferLength, nil)
 }

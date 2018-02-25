@@ -38,12 +38,11 @@ import (
 )
 
 var (
-	errUnknownTimeType     = errors.New("unknown time type")
-	errUnknownUnit         = errors.New("unknown unit")
-	errIllegalLimit        = errors.New("illegal limit specified in query")
-	errNilQuery            = errors.New("illegal query: nil")
-	errUnequalTagNameValue = errors.New("un-equal length of tag names and tag values")
-	timeZero               time.Time
+	errUnknownTimeType = errors.New("unknown time type")
+	errUnknownUnit     = errors.New("unknown unit")
+	errIllegalLimit    = errors.New("illegal limit specified in query")
+	errNilQuery        = errors.New("illegal query: nil")
+	timeZero           time.Time
 )
 
 // ToTime converts a value to a time

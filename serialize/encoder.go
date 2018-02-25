@@ -49,9 +49,8 @@ import (
  */
 
 var (
-	initialBufferLength                  = 1 << 12
-	byteOrder           binary.ByteOrder = binary.LittleEndian
-	headerMagicBytes                     = encodeUInt16(HeaderMagicNumber)
+	byteOrder        binary.ByteOrder = binary.LittleEndian
+	headerMagicBytes                  = encodeUInt16(HeaderMagicNumber)
 )
 
 var (
@@ -83,7 +82,7 @@ func (e *encoder) Encode(srcTags ident.TagIterator) error {
 	defer tags.Close()
 
 	numTags := tags.Remaining()
-	if numTags > int(MaxNumberTags) {
+	if numTags > MaxNumberTags {
 		return fmt.Errorf("too many tags to encode (%d), limit is: %d", numTags, MaxNumberTags)
 	}
 
