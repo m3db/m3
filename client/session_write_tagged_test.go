@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/topology"
 	xmetrics "github.com/m3db/m3db/x/metrics"
 	xerrors "github.com/m3db/m3x/errors"
@@ -57,21 +58,24 @@ func TestSessionWriteTagged(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	session := newDefaultTestSession(t).(*session)
-
 	w := newWriteTaggedStub()
+	session := newDefaultTestSession(t).(*session)
+	mockEncoder := serialize.NewMockEncoder(ctrl)
+	mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags)).AnyTimes()
+	mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil).AnyTimes()
+	mockEncoder.EXPECT().Finalize().AnyTimes()
+	mockEncoderPool := serialize.NewMockEncoderPool(ctrl)
+	mockEncoderPool.EXPECT().Get().Return(mockEncoder).AnyTimes()
+	session.tagEncoderPool = mockEncoderPool
+
 	var completionFn completionFn
 	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{func(idx int, op op) {
 		completionFn = op.CompletionFn()
-		write, ok := op.(*writeTaggedOp)
+		write, ok := op.(*writeTaggedOperation)
 		assert.True(t, ok)
 		assert.Equal(t, w.ns.String(), write.namespace.String())
 		assert.Equal(t, w.id.String(), string(write.request.ID))
-		assert.Equal(t, len(w.tags), len(write.request.Tags))
-		for i := range w.tags {
-			assert.Equal(t, w.tags[i].Name.String(), string(write.request.Tags[i].Name))
-			assert.Equal(t, w.tags[i].Value.String(), string(write.request.Tags[i].Value))
-		}
+		assert.Equal(t, testEncodeTags(w.tags), write.request.EncodedTags)
 		assert.Equal(t, w.value, write.request.Datapoint.Value)
 		assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
 		assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
@@ -240,8 +244,16 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 	defer ctrl.Finish()
 
 	session := newRetryEnabledTestSession(t).(*session)
-
 	w := newWriteTaggedStub()
+
+	mockEncoder := serialize.NewMockEncoder(ctrl)
+	mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags)).AnyTimes()
+	mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil).AnyTimes()
+	mockEncoder.EXPECT().Finalize().AnyTimes()
+	mockEncoderPool := serialize.NewMockEncoderPool(ctrl)
+	mockEncoderPool.EXPECT().Get().Return(mockEncoder).AnyTimes()
+	session.tagEncoderPool = mockEncoderPool
+
 	var hosts []topology.Host
 	var completionFn completionFn
 	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{
@@ -254,14 +266,10 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 			}()
 		},
 		func(idx int, op op) {
-			write, ok := op.(*writeTaggedOp)
+			write, ok := op.(*writeTaggedOperation)
 			assert.True(t, ok)
 			assert.Equal(t, w.id.String(), string(write.request.ID))
-			assert.Equal(t, len(w.tags), len(write.request.Tags))
-			for i := range w.tags {
-				assert.Equal(t, w.tags[i].Name.String(), string(write.request.Tags[i].Name))
-				assert.Equal(t, w.tags[i].Value.String(), string(write.request.Tags[i].Value))
-			}
+			assert.Equal(t, string(testEncodeTags(w.tags)), string(write.request.EncodedTags))
 			assert.Equal(t, w.value, write.request.Datapoint.Value)
 			assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
 			assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
@@ -466,4 +474,12 @@ func newWriteTaggedStub() writeTaggedStub {
 		unit:       xtime.Second,
 		annotation: nil,
 	}
+}
+
+func testEncodeTags(tags ident.Tags) []byte {
+	m := make(map[string]string)
+	for _, t := range tags {
+		m[t.Name.String()] = t.Value.String()
+	}
+	return testEncode(m)
 }

@@ -30,27 +30,24 @@ import (
 
 var (
 	// NB(bl): use an invalid shardID for the zerod op
-	writeTaggedOpZeroed = writeTaggedOp{shardID: math.MaxUint32}
+	writeTaggedOperationZeroed = writeTaggedOperation{shardID: math.MaxUint32}
 )
 
-type writeTaggedOp struct {
+type writeTaggedOperation struct {
 	namespace    ident.ID
 	shardID      uint32
 	request      rpc.WriteTaggedBatchRawRequestElement
 	datapoint    rpc.Datapoint
 	completionFn completionFn
-	pool         *writeTaggedOpPool
+	pool         *writeTaggedOperationPool
 }
 
-func (w *writeTaggedOp) reset() {
-	*w = writeTaggedOpZeroed
+func (w *writeTaggedOperation) reset() {
+	*w = writeTaggedOperationZeroed
 	w.request.Datapoint = &w.datapoint
-	// TODO(prateek): need to test if this works; further if we can actually
-	// use the pooled parts of the arrays
-	w.request.Tags = w.request.Tags[:0]
 }
 
-func (w *writeTaggedOp) Close() {
+func (w *writeTaggedOperation) Close() {
 	p := w.pool
 	w.reset()
 	if p != nil {
@@ -58,47 +55,47 @@ func (w *writeTaggedOp) Close() {
 	}
 }
 
-func (w *writeTaggedOp) Size() int {
+func (w *writeTaggedOperation) Size() int {
 	// Writes always represent a single write
 	return 1
 }
 
-func (w *writeTaggedOp) CompletionFn() completionFn {
+func (w *writeTaggedOperation) CompletionFn() completionFn {
 	return w.completionFn
 }
 
-func (w *writeTaggedOp) SetCompletionFn(fn completionFn) {
+func (w *writeTaggedOperation) SetCompletionFn(fn completionFn) {
 	w.completionFn = fn
 }
 
-func (w *writeTaggedOp) ShardID() uint32 {
+func (w *writeTaggedOperation) ShardID() uint32 {
 	return w.shardID
 }
 
-type writeTaggedOpPool struct {
+type writeTaggedOperationPool struct {
 	pool pool.ObjectPool
 }
 
-func newWriteTaggedOpPool(opts pool.ObjectPoolOptions) *writeTaggedOpPool {
+func newWriteTaggedOpPool(opts pool.ObjectPoolOptions) *writeTaggedOperationPool {
 	p := pool.NewObjectPool(opts)
-	return &writeTaggedOpPool{pool: p}
+	return &writeTaggedOperationPool{pool: p}
 }
 
-func (p *writeTaggedOpPool) Init() {
+func (p *writeTaggedOperationPool) Init() {
 	p.pool.Init(func() interface{} {
-		w := &writeTaggedOp{}
+		w := &writeTaggedOperation{}
 		w.reset()
 		return w
 	})
 }
 
-func (p *writeTaggedOpPool) Get() *writeTaggedOp {
-	w := p.pool.Get().(*writeTaggedOp)
+func (p *writeTaggedOperationPool) Get() *writeTaggedOperation {
+	w := p.pool.Get().(*writeTaggedOperation)
 	w.pool = p
 	return w
 }
 
-func (p *writeTaggedOpPool) Put(w *writeTaggedOp) {
+func (p *writeTaggedOperationPool) Put(w *writeTaggedOperation) {
 	w.reset()
 	p.pool.Put(w)
 }

@@ -22,6 +22,7 @@ package client
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -81,7 +82,7 @@ func TestHostQueueWriteTaggedErrorBeforeOpen(t *testing.T) {
 		testWriteArrayPool, testWriteTaggedBatchRawPool,
 		testWriteTaggedArrayPool, opts)
 
-	assert.Error(t, queue.Enqueue(&writeTaggedOp{}))
+	assert.Error(t, queue.Enqueue(&writeTaggedOperation{}))
 }
 
 func TestHostQueueWriteErrorAfterClose(t *testing.T) {
@@ -105,7 +106,7 @@ func TestHostQueueWriteTaggedErrorAfterClose(t *testing.T) {
 	queue.Open()
 	queue.Close()
 
-	assert.Error(t, queue.Enqueue(&writeTaggedOp{}))
+	assert.Error(t, queue.Enqueue(&writeTaggedOperation{}))
 }
 
 func TestHostQueueWriteBatches(t *testing.T) {
@@ -215,7 +216,7 @@ func TestHostQueueWriteTaggedBatches(t *testing.T) {
 	}
 
 	// Prepare writes
-	writes := []*writeTaggedOp{
+	writes := []*writeTaggedOperation{
 		testWriteTaggedOp("testNs", "foo", map[string]string{
 			"tag": "value",
 			"sup": "holmes",
@@ -248,13 +249,7 @@ func TestHostQueueWriteTaggedBatches(t *testing.T) {
 		for i, write := range writes {
 			assert.Equal(t, req.Elements[i].ID, write.request.ID)
 			assert.Equal(t, req.Elements[i].Datapoint, write.request.Datapoint)
-			assert.Equal(t, len(req.Elements[i].Tags), len(write.request.Tags))
-			for j := range req.Elements[i].Tags {
-				t1 := req.Elements[i].Tags[j]
-				t2 := write.request.Tags[j]
-				assert.Equal(t, t1.Name, t2.Name)
-				assert.Equal(t, t1.Value, t2.Value)
-			}
+			assert.Equal(t, req.Elements[i].EncodedTags, write.request.EncodedTags)
 		}
 	}
 	mockClient.EXPECT().WriteTaggedBatchRaw(gomock.Any(), gomock.Any()).Do(writeBatch).Return(nil)
@@ -397,7 +392,7 @@ func TestHostQueueWriteTaggedBatchesDifferentNamespaces(t *testing.T) {
 	}
 
 	// Prepare writes
-	writes := []*writeTaggedOp{
+	writes := []*writeTaggedOperation{
 		testWriteTaggedOp("testNs1", "foo", map[string]string{
 			"tag": "value",
 			"sup": "holmes",
@@ -419,7 +414,7 @@ func TestHostQueueWriteTaggedBatchesDifferentNamespaces(t *testing.T) {
 	// Prepare mocks for flush
 	mockClient := rpc.NewMockTChanNode(ctrl)
 	writeBatch := func(ctx thrift.Context, req *rpc.WriteTaggedBatchRawRequest) {
-		var writesForNamespace []*writeTaggedOp
+		var writesForNamespace []*writeTaggedOperation
 		if string(req.NameSpace) == "testNs1" {
 			writesForNamespace = writes[:3]
 		} else {
@@ -429,13 +424,7 @@ func TestHostQueueWriteTaggedBatchesDifferentNamespaces(t *testing.T) {
 		for i, write := range writesForNamespace {
 			assert.Equal(t, req.Elements[i].ID, write.request.ID)
 			assert.Equal(t, req.Elements[i].Datapoint, write.request.Datapoint)
-			assert.Equal(t, len(req.Elements[i].Tags), len(write.request.Tags))
-			for j := range req.Elements[i].Tags {
-				t1 := req.Elements[i].Tags[j]
-				t2 := write.request.Tags[j]
-				assert.Equal(t, t1.Name, t2.Name)
-				assert.Equal(t, t1.Value, t2.Value)
-			}
+			assert.Equal(t, req.Elements[i].EncodedTags, write.request.EncodedTags)
 		}
 	}
 
@@ -649,7 +638,7 @@ func TestHostQueueWriteTaggedBatchesPartialBatchErrs(t *testing.T) {
 	// Prepare writes
 	var wg sync.WaitGroup
 	writeErr := "a write error"
-	writes := []*writeTaggedOp{
+	writes := []*writeTaggedOperation{
 		testWriteTaggedOp("testNs", "foo", map[string]string{
 			"mmm": "kay",
 		}, 1.0, 1000, rpc.TimeType_UNIX_SECONDS, func(r interface{}, err error) {
@@ -675,13 +664,7 @@ func TestHostQueueWriteTaggedBatchesPartialBatchErrs(t *testing.T) {
 		for i, write := range writes {
 			assert.Equal(t, req.Elements[i].ID, write.request.ID)
 			assert.Equal(t, req.Elements[i].Datapoint, write.request.Datapoint)
-			assert.Equal(t, len(req.Elements[i].Tags), len(write.request.Tags))
-			for j := range req.Elements[i].Tags {
-				t1 := req.Elements[i].Tags[j]
-				t2 := write.request.Tags[j]
-				assert.Equal(t, t1.Name, t2.Name)
-				assert.Equal(t, t1.Value, t2.Value)
-			}
+			assert.Equal(t, req.Elements[i].EncodedTags, write.request.EncodedTags)
 		}
 	}
 	batchErrs := &rpc.WriteBatchRawErrors{Errors: []*rpc.WriteBatchRawError{
@@ -798,7 +781,7 @@ func TestHostQueueWriteTaggedBatchesEntireBatchErr(t *testing.T) {
 		assert.Equal(t, writeErr, err)
 		wg.Done()
 	}
-	writes := []*writeTaggedOp{
+	writes := []*writeTaggedOperation{
 		testWriteTaggedOp("testNs", "foo", map[string]string{"abc": "def"}, 1.0, 1000, rpc.TimeType_UNIX_SECONDS, callback),
 		testWriteTaggedOp("testNs", "bar", map[string]string{"ghi": "klm"}, 2.0, 2000, rpc.TimeType_UNIX_SECONDS, callback),
 	}
@@ -810,13 +793,7 @@ func TestHostQueueWriteTaggedBatchesEntireBatchErr(t *testing.T) {
 		for i, write := range writes {
 			assert.Equal(t, req.Elements[i].ID, write.request.ID)
 			assert.Equal(t, req.Elements[i].Datapoint, write.request.Datapoint)
-			assert.Equal(t, len(req.Elements[i].Tags), len(write.request.Tags))
-			for j := range req.Elements[i].Tags {
-				t1 := req.Elements[i].Tags[j]
-				t2 := write.request.Tags[j]
-				assert.Equal(t, t1.Name, t2.Name)
-				assert.Equal(t, t1.Value, t2.Value)
-			}
+			assert.Equal(t, req.Elements[i].EncodedTags, write.request.EncodedTags)
 		}
 	}
 	mockClient.EXPECT().WriteTaggedBatchRaw(gomock.Any(), gomock.Any()).Do(writeBatch).Return(writeErr)
@@ -1039,7 +1016,7 @@ func TestHostQueueDrainOnCloseTaggedWrite(t *testing.T) {
 	}
 
 	// Prepare writes
-	writes := []*writeTaggedOp{
+	writes := []*writeTaggedOperation{
 		testWriteTaggedOp("testNs", "foo", map[string]string{"a": "b"}, 1.0, 1000, rpc.TimeType_UNIX_SECONDS, callback),
 		testWriteTaggedOp("testNs", "bar", map[string]string{"k": "l"}, 2.0, 2000, rpc.TimeType_UNIX_SECONDS, callback),
 		testWriteTaggedOp("testNs", "baz", map[string]string{"e": "f"}, 3.0, 3000, rpc.TimeType_UNIX_SECONDS, callback),
@@ -1059,13 +1036,7 @@ func TestHostQueueDrainOnCloseTaggedWrite(t *testing.T) {
 		for i, write := range writes {
 			assert.Equal(t, req.Elements[i].ID, write.request.ID)
 			assert.Equal(t, req.Elements[i].Datapoint, write.request.Datapoint)
-			assert.Equal(t, len(req.Elements[i].Tags), len(write.request.Tags))
-			for j := range req.Elements[i].Tags {
-				t1 := req.Elements[i].Tags[j]
-				t2 := write.request.Tags[j]
-				assert.Equal(t, t1.Name, t2.Name)
-				assert.Equal(t, t1.Value, t2.Value)
-			}
+			assert.Equal(t, req.Elements[i].EncodedTags, write.request.EncodedTags)
 		}
 	}
 	mockClient.EXPECT().WriteTaggedBatchRaw(gomock.Any(), gomock.Any()).Do(writeBatch).Return(nil)
@@ -1212,8 +1183,8 @@ func testWriteTaggedOp(
 	timestamp int64,
 	timeType rpc.TimeType,
 	completionFn completionFn,
-) *writeTaggedOp {
-	w := &writeTaggedOp{}
+) *writeTaggedOperation {
+	w := &writeTaggedOperation{}
 	w.reset()
 	w.namespace = ident.StringID(namespace)
 	w.request.ID = []byte(id)
@@ -1222,14 +1193,26 @@ func testWriteTaggedOp(
 		Timestamp:         timestamp,
 		TimestampTimeType: timeType,
 	}
-	for k, v := range tags {
-		w.request.Tags = append(w.request.Tags, &rpc.TagRaw{
-			Name:  []byte(k),
-			Value: []byte(v),
-		})
-	}
+	w.request.EncodedTags = testEncode(tags)
 	w.completionFn = completionFn
 	return w
+}
+
+func testEncode(tags map[string]string) []byte {
+	keys := make([]string, 0, len(tags))
+	for k := range tags {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var b []byte
+	for _, k := range keys {
+		b = append(b, []byte(k)...)
+		b = append(b, []byte("=")...)
+		b = append(b, []byte(tags[k])...)
+		b = append(b, []byte("|")...)
+	}
+	return b
 }
 
 func testWriteOp(

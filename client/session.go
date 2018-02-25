@@ -32,6 +32,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/m3db/m3db/serialize"
+
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/digest"
 	"github.com/m3db/m3db/encoding"
@@ -64,6 +66,8 @@ const (
 	blocksMetadataChannelInitialCapacity = 4096
 	gaugeReportInterval                  = 500 * time.Millisecond
 	blocksMetadataChBufSize              = 4096
+	defaultTagEncoderPoolSize            = 4096
+	defaultTagEncoderInitSize            = 4096
 )
 
 type resultTypeEnum string
@@ -146,11 +150,11 @@ type session struct {
 	contextPool                      context.Pool
 	idPool                           ident.Pool
 	writeOperationPool               *writeOperationPool
-	writeTaggedOpPool                *writeTaggedOpPool
+	writeTaggedOperationPool         *writeTaggedOperationPool
 	fetchBatchOpPool                 *fetchBatchOpPool
 	fetchBatchOpArrayArrayPool       *fetchBatchOpArrayArrayPool
 	iteratorArrayPool                encoding.IteratorArrayPool
-	tagArrayPool                     TagArrayPool
+	tagEncoderPool                   serialize.EncoderPool
 	readerSliceOfSlicesIteratorPool  *readerSliceOfSlicesIteratorPool
 	multiReaderIteratorPool          encoding.MultiReaderIteratorPool
 	seriesIteratorPool               encoding.SeriesIteratorPool
@@ -268,13 +272,13 @@ func newSession(opts Options) (clientSession, error) {
 	s.fetchAttemptPool = newFetchAttemptPool(s, fetchAttemptPoolOpts)
 	s.fetchAttemptPool.Init()
 
-	tagArrayPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(DefaultTagArrayPoolSize).
+	tagEncoderPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(defaultTagEncoderPoolSize).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
-			scope.SubScope("tag-array-pool"),
+			scope.SubScope("tag-encoder-pool"),
 		))
-	s.tagArrayPool = NewTagArrayPool(tagArrayPoolOpts, DefaultTagArrayCapacity)
-	s.tagArrayPool.Init()
+	s.tagEncoderPool = serialize.NewEncoderPool(defaultTagEncoderInitSize, tagEncoderPoolOpts)
+	s.tagEncoderPool.Init()
 
 	if opts, ok := opts.(AdminOptions); ok {
 		s.origin = opts.Origin()
@@ -423,19 +427,19 @@ func (s *session) Open() error {
 	s.writeOperationPool = newWriteOperationPool(writeOperationPoolOpts)
 	s.writeOperationPool.Init()
 	// TODO(prateek): add Options knob to tweak tagged pool sizes (either replicate opts) or include multiplier?
-	writeTaggedOpPoolOpts := pool.NewObjectPoolOptions().
+	writeTaggedOperationPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.WriteOpPoolSize()).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-op-tagged-pool"),
 		))
-	s.writeTaggedOpPool = newWriteTaggedOpPool(writeTaggedOpPoolOpts)
-	s.writeTaggedOpPool.Init()
+	s.writeTaggedOperationPool = newWriteTaggedOpPool(writeTaggedOperationPoolOpts)
+	s.writeTaggedOperationPool.Init()
 	writeStatePoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.WriteOpPoolSize()).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-state-pool"),
 		))
-	s.writeStatePool = newWriteStatePool(s.writeLevel, s.tagArrayPool, writeStatePoolOpts)
+	s.writeStatePool = newWriteStatePool(s.writeLevel, s.tagEncoderPool, writeStatePoolOpts)
 	s.writeStatePool.Init()
 	fetchBatchOpPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.FetchBatchOpPoolSize()).
@@ -843,10 +847,7 @@ func (s *session) writeAttempt(
 	// and consistency level checks.
 	nsID := s.idPool.Clone(namespace)
 	tsID := s.idPool.Clone(id)
-	var tags ident.Tags
-	if wType == taggedWriteAttemptType {
-		tags = s.cloneTags(inputTags)
-	}
+	var tagEncoder serialize.Encoder
 
 	state := s.writeStatePool.Get()
 	state.topoMap = s.topoMap
@@ -865,17 +866,19 @@ func (s *session) writeAttempt(
 		wop.request.Datapoint.Annotation = annotation
 		op = wop
 	case taggedWriteAttemptType:
-		wop := s.writeTaggedOpPool.Get()
+		tagEncoder = s.tagEncoderPool.Get()
+		if err := tagEncoder.Encode(inputTags); err != nil {
+			state.decRef()
+			tagEncoder.Finalize()
+			s.RUnlock()
+			return err
+		}
+
+		wop := s.writeTaggedOperationPool.Get()
 		wop.namespace = nsID
 		wop.shardID = s.topoMap.ShardSet().Lookup(tsID)
 		wop.request.ID = tsID.Data().Get()
-		for _, t := range tags {
-			// TODO(prateek): pool rpc.TagRaw
-			wop.request.Tags = append(wop.request.Tags, &rpc.TagRaw{
-				Name:  t.Name.Data().Get(),
-				Value: t.Value.Data().Get(),
-			})
-		}
+		wop.request.EncodedTags = tagEncoder.Data()
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
@@ -888,7 +891,7 @@ func (s *session) writeAttempt(
 
 	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
 	state.op, state.majority = op, majority
-	state.nsID, state.tsID, state.tags = nsID, tsID, tags
+	state.nsID, state.tsID, state.tagEncoder = nsID, tsID, tagEncoder
 	op.SetCompletionFn(state.completionFn)
 
 	if err := s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
@@ -930,22 +933,6 @@ func (s *session) writeAttempt(
 	state.decRef()
 
 	return err
-}
-
-// TODO(prateek): add ident.Pool method: `CloneTags(TagIterator) Tags`
-func (s *session) cloneTags(tags ident.TagIterator) ident.Tags {
-	tags = tags.Clone()
-	clone := s.tagArrayPool.Get()
-	// clone := make(ident.Tags, 0, tags.Remaining())
-	defer tags.Close()
-	for tags.Next() {
-		t := tags.Current()
-		clone = append(clone, ident.Tag{
-			Name:  s.idPool.Clone(t.Name),
-			Value: s.idPool.Clone(t.Value),
-		})
-	}
-	return clone
 }
 
 func (s *session) Fetch(

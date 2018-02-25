@@ -105,7 +105,7 @@ func TestBadShardIDTagged(t *testing.T) {
 	var writeWg sync.WaitGroup
 
 	wState, _, host := writeTaggedTestSetup(t, &writeWg)
-	o := wState.op.(*writeTaggedOp)
+	o := wState.op.(*writeTaggedOperation)
 	o.shardID = writeOperationZeroed.shardID
 	wState.completionFn(host, nil)
 	retryabilityCheckTagged(t, wState, xerrors.IsRetryableError)
@@ -124,15 +124,15 @@ func TestShardNotAvailableTagged(t *testing.T) {
 
 // utils
 
-func getWriteTaggedState(s *session, w writeTaggedStub) *writeState {
+func getWriteTaggedState(ctrl *gomock.Controller, s *session, w writeTaggedStub) *writeState {
 	wState := s.writeStatePool.Get()
 	wState.topoMap = s.topoMap
-	o := s.writeTaggedOpPool.Get()
+	o := s.writeTaggedOperationPool.Get()
 	o.shardID = 0 // Any valid shardID
 	wState.op = o
 	wState.nsID = w.ns
 	wState.tsID = w.id
-	wState.tags = w.tags
+	wState.tagEncoder = s.tagEncoderPool.Get()
 	return wState
 }
 
@@ -155,7 +155,7 @@ func writeTaggedTestSetup(t *testing.T, writeWg *sync.WaitGroup) (*writeState, *
 
 	host := s.topoMap.Hosts()[0] // any host
 
-	wState := getWriteTaggedState(s, w)
+	wState := getWriteTaggedState(ctrl, s, w)
 	wState.incRef() // for the test
 	wState.incRef() // allow introspection
 
