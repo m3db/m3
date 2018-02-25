@@ -41,6 +41,10 @@ func init() {
 	testBytesPool = bytesPool
 }
 
+func newTestDecoder() Decoder {
+	return newDecoder(nil, testBytesPool)
+}
+
 func testDecoderBytes() []byte {
 	var b []byte
 	b = append(b, headerMagicBytes...)
@@ -79,7 +83,7 @@ func TestDecodeHeaderMissing(t *testing.T) {
 	b = append(b, []byte{0x0, 0x0}...)
 	b = append(b, []byte{0x0, 0x0}...)
 
-	d := newDecoder(nil, testBytesPool)
+	d := newTestDecoder()
 	d.Reset(b)
 	require.False(t, d.Next())
 	require.Error(t, d.Err())
@@ -89,7 +93,7 @@ func TestDecodeHeaderMissing(t *testing.T) {
 
 func TestDecodeSimple(t *testing.T) {
 	b := testDecoderBytes()
-	d := newDecoder(nil, testBytesPool)
+	d := newTestDecoder()
 	d.Reset(b)
 	require.NoError(t, d.Err())
 
@@ -115,7 +119,7 @@ func TestDecodeMissingTags(t *testing.T) {
 	b = append(b, headerMagicBytes...)
 	b = append(b, encodeUInt16(uint16(2))...) /* num tags */
 
-	d := newDecoder(nil, testBytesPool)
+	d := newTestDecoder()
 	d.Reset(b)
 	require.NoError(t, d.Err())
 
@@ -136,7 +140,7 @@ func TestDecodeMissingValue(t *testing.T) {
 	b = append(b, encodeUInt16(1)...) /* len x */
 	b = append(b, []byte("x")...)
 
-	d := newDecoder(nil, testBytesPool)
+	d := newTestDecoder()
 	d.Reset(b)
 	require.NoError(t, d.Err())
 

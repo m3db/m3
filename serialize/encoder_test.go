@@ -28,8 +28,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func newTestEncoder() Encoder {
+	return newEncoder(initialBufferLength, nil)
+}
+
 func TestEmptyEncode(t *testing.T) {
-	e := newEncoder(initialBufferLength, nil)
+	e := newTestEncoder()
 	require.NoError(t, e.Encode(ident.EmptyTagIterator))
 
 	b := e.Data()
@@ -39,13 +43,25 @@ func TestEmptyEncode(t *testing.T) {
 }
 
 func TestInuseEncode(t *testing.T) {
-	e := newEncoder(initialBufferLength, nil)
+	e := newTestEncoder()
 	require.NoError(t, e.Encode(ident.EmptyTagIterator))
 	require.Error(t, e.Encode(ident.EmptyTagIterator))
 }
 
+func TestEncoderLeavesOriginalIterator(t *testing.T) {
+	e := newTestEncoder()
+	tags := ident.NewTagIterator(
+		ident.StringTag("abc", "defg"),
+		ident.StringTag("x", "bar"),
+	)
+
+	require.Equal(t, 2, tags.Remaining())
+	require.NoError(t, e.Encode(tags))
+	require.Equal(t, 2, tags.Remaining())
+}
+
 func TestSimpleEncode(t *testing.T) {
-	e := newEncoder(initialBufferLength, nil)
+	e := newTestEncoder()
 
 	tags := ident.NewTagIterator(
 		ident.StringTag("abc", "defg"),
