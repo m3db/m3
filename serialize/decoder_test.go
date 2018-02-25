@@ -41,6 +41,26 @@ func init() {
 	testBytesPool = bytesPool
 }
 
+func testDecoderBytes() []byte {
+	var b []byte
+	b = append(b, headerMagicBytes...)
+	b = append(b, encodeUInt16(uint16(2))...) /* num tags */
+
+	b = append(b, encodeUInt16(3)...) /* len abc */
+	b = append(b, []byte("abc")...)
+
+	b = append(b, encodeUInt16(4)...) /* len defg */
+	b = append(b, []byte("defg")...)
+
+	b = append(b, encodeUInt16(1)...) /* len x */
+	b = append(b, []byte("x")...)
+
+	b = append(b, encodeUInt16(3)...) /* len bar */
+	b = append(b, []byte("bar")...)
+
+	return b
+}
+
 func TestEmptyDecode(t *testing.T) {
 	var b []byte
 	b = append(b, headerMagicBytes...)
@@ -68,22 +88,7 @@ func TestDecodeHeaderMissing(t *testing.T) {
 }
 
 func TestDecodeSimple(t *testing.T) {
-	var b []byte
-	b = append(b, headerMagicBytes...)
-	b = append(b, encodeUInt16(uint16(2))...) /* num tags */
-
-	b = append(b, encodeUInt16(3)...) /* len abc */
-	b = append(b, []byte("abc")...)
-
-	b = append(b, encodeUInt16(4)...) /* len defg */
-	b = append(b, []byte("defg")...)
-
-	b = append(b, encodeUInt16(1)...) /* len x */
-	b = append(b, []byte("x")...)
-
-	b = append(b, encodeUInt16(3)...) /* len bar */
-	b = append(b, []byte("bar")...)
-
+	b := testDecoderBytes()
 	d := newDecoder(nil, testBytesPool)
 	d.Reset(b)
 	require.NoError(t, d.Err())
