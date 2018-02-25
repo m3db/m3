@@ -27,7 +27,7 @@ import (
 )
 
 func newTestDecoderPool() DecoderPool {
-	return NewDecoderPool(testBytesPool, nil)
+	return NewDecoderPool(testIDPool, nil)
 }
 
 func TestDecoderPool(t *testing.T) {

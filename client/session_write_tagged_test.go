@@ -61,8 +61,8 @@ func TestSessionWriteTagged(t *testing.T) {
 	w := newWriteTaggedStub()
 	session := newDefaultTestSession(t).(*session)
 	mockEncoder := serialize.NewMockEncoder(ctrl)
-	mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags)).AnyTimes()
-	mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil).AnyTimes()
+	mockEncoder.EXPECT().Data().Return(testEncodeTags(w.id, w.tags)).AnyTimes()
+	mockEncoder.EXPECT().Encode(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
 	mockEncoder.EXPECT().Finalize().AnyTimes()
 	mockEncoderPool := serialize.NewMockEncoderPool(ctrl)
 	mockEncoderPool.EXPECT().Get().Return(mockEncoder).AnyTimes()
@@ -74,8 +74,7 @@ func TestSessionWriteTagged(t *testing.T) {
 		write, ok := op.(*writeTaggedOperation)
 		assert.True(t, ok)
 		assert.Equal(t, w.ns.String(), write.namespace.String())
-		assert.Equal(t, w.id.String(), string(write.request.ID))
-		assert.Equal(t, testEncodeTags(w.tags), write.request.EncodedTags)
+		assert.Equal(t, testEncodeTags(w.id, w.tags), write.request.EncodedIDTags)
 		assert.Equal(t, w.value, write.request.Datapoint.Value)
 		assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
 		assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
@@ -239,6 +238,69 @@ func TestSessionWriteTaggedBadRequestErrorIsNonRetryable(t *testing.T) {
 	assert.NoError(t, session.Close())
 }
 
+func TestSessionWriteTaggedRetryErrClientSide(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	session := newRetryEnabledTestSession(t).(*session)
+	w := newWriteTaggedStub()
+
+	mockFn := func(err error) *serialize.MockEncoder {
+		mockEncoder := serialize.NewMockEncoder(ctrl)
+		mockEncoder.EXPECT().Encode(gomock.Any(), gomock.Any()).Return(err)
+		if err == nil {
+			mockEncoder.EXPECT().Data().Return(testEncodeTags(w.id, w.tags))
+		}
+		mockEncoder.EXPECT().Finalize()
+		return mockEncoder
+	}
+
+	mockEncoderPool := serialize.NewMockEncoderPool(ctrl)
+	gomock.InOrder(
+		mockEncoderPool.EXPECT().Get().Return(mockFn(fmt.Errorf("random error"))),
+		mockEncoderPool.EXPECT().Get().Return(mockFn(nil)),
+	)
+	session.tagEncoderPool = mockEncoderPool
+
+	var completionFn completionFn
+	enqueueWg := mockHostQueues(ctrl, session, sessionTestReplicas, []testEnqueueFn{
+		func(idx int, op op) {
+			write, ok := op.(*writeTaggedOperation)
+			assert.True(t, ok)
+			assert.Equal(t, string(testEncodeTags(w.id, w.tags)), string(write.request.EncodedIDTags))
+			assert.Equal(t, w.value, write.request.Datapoint.Value)
+			assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
+			assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
+			assert.NotNil(t, write.completionFn)
+			completionFn = write.completionFn
+		},
+	})
+
+	assert.NoError(t, session.Open())
+
+	// Begin write
+	var resultErr error
+	var writeWg sync.WaitGroup
+	writeWg.Add(1)
+	go func() {
+		resultErr = session.WriteTagged(
+			w.ns, w.id, ident.NewTagSliceIterator(w.tags), w.t, w.value, w.unit, w.annotation)
+		writeWg.Done()
+	}()
+
+	// Callback
+	enqueueWg.Wait()
+	for i := 0; i < session.topoMap.Replicas(); i++ {
+		completionFn(session.topoMap.Hosts()[0], nil)
+	}
+
+	// Wait for write to complete
+	writeWg.Wait()
+	assert.Nil(t, resultErr)
+
+	assert.NoError(t, session.Close())
+}
+
 func TestSessionWriteTaggedRetry(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -246,12 +308,19 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 	session := newRetryEnabledTestSession(t).(*session)
 	w := newWriteTaggedStub()
 
-	mockEncoder := serialize.NewMockEncoder(ctrl)
-	mockEncoder.EXPECT().Data().Return(testEncodeTags(w.tags)).AnyTimes()
-	mockEncoder.EXPECT().Encode(gomock.Any()).Return(nil).AnyTimes()
-	mockEncoder.EXPECT().Finalize().AnyTimes()
+	mockFn := func() *serialize.MockEncoder {
+		mockEncoder := serialize.NewMockEncoder(ctrl)
+		mockEncoder.EXPECT().Data().Return(testEncodeTags(w.id, w.tags))
+		mockEncoder.EXPECT().Encode(gomock.Any(), gomock.Any()).Return(nil)
+		mockEncoder.EXPECT().Finalize()
+		return mockEncoder
+	}
+
 	mockEncoderPool := serialize.NewMockEncoderPool(ctrl)
-	mockEncoderPool.EXPECT().Get().Return(mockEncoder).AnyTimes()
+	gomock.InOrder(
+		mockEncoderPool.EXPECT().Get().Return(mockFn()),
+		mockEncoderPool.EXPECT().Get().Return(mockFn()),
+	)
 	session.tagEncoderPool = mockEncoderPool
 
 	var hosts []topology.Host
@@ -268,8 +337,7 @@ func TestSessionWriteTaggedRetry(t *testing.T) {
 		func(idx int, op op) {
 			write, ok := op.(*writeTaggedOperation)
 			assert.True(t, ok)
-			assert.Equal(t, w.id.String(), string(write.request.ID))
-			assert.Equal(t, string(testEncodeTags(w.tags)), string(write.request.EncodedTags))
+			assert.Equal(t, string(testEncodeTags(w.id, w.tags)), string(write.request.EncodedIDTags))
 			assert.Equal(t, w.value, write.request.Datapoint.Value)
 			assert.Equal(t, w.t.Unix(), write.request.Datapoint.Timestamp)
 			assert.Equal(t, rpc.TimeType_UNIX_SECONDS, write.request.Datapoint.TimestampTimeType)
@@ -476,10 +544,10 @@ func newWriteTaggedStub() writeTaggedStub {
 	}
 }
 
-func testEncodeTags(tags ident.Tags) []byte {
+func testEncodeTags(id ident.ID, tags ident.Tags) []byte {
 	m := make(map[string]string)
 	for _, t := range tags {
 		m[t.Name.String()] = t.Value.String()
 	}
-	return testEncode(m)
+	return testEncode(id.String(), m)
 }

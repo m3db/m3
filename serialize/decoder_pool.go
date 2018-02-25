@@ -20,28 +20,31 @@
 
 package serialize
 
-import "github.com/m3db/m3x/pool"
+import (
+	"github.com/m3db/m3x/ident"
+	"github.com/m3db/m3x/pool"
+)
 
 type decoderPool struct {
-	pool      pool.ObjectPool
-	bytesPool pool.CheckedBytesPool
+	pool   pool.ObjectPool
+	idPool ident.Pool
 }
 
 // NewDecoderPool returns a new DecoderPool.
 func NewDecoderPool(
-	bytesPool pool.CheckedBytesPool,
+	idPool ident.Pool,
 	opts pool.ObjectPoolOptions,
 ) DecoderPool {
 	pool := pool.NewObjectPool(opts)
 	return &decoderPool{
-		pool:      pool,
-		bytesPool: bytesPool,
+		pool:   pool,
+		idPool: idPool,
 	}
 }
 
 func (p *decoderPool) Init() {
 	p.pool.Init(func() interface{} {
-		return newDecoder(p, p.bytesPool)
+		return newDecoder(p, p.idPool)
 	})
 }
 

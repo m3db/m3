@@ -32,14 +32,15 @@ import (
 /*
  * Serialization scheme to combat Thrift's allocation hell.
  *
- * Given Tags (i.e. key-values) this allows the bijective serialization to,
+ * Given ID + Tags (i.e. key-values) this allows the bijective serialization to,
  * and from Tags <--> []byte.
  *
- * Consider example, Tags: {"abc": "defg", "x": "foo"}
+ * Consider example, ID: "axle", Tags: {"abc": "defg", "x": "foo"}
  * this translates to:
  * []byte(
  *    MAGIC_MARKER + NUMBER_TAGS
- *                 + LENGTH([]byte("abc"))  + []byte("abc")
+ *                 + LENGTH([]byte("axle")) + []byte("axle") // ID
+ *                 + LENGTH([]byte("abc"))  + []byte("abc")  // Tags
  *                 + LENGTH([]byte("defg")) + []byte("abc")
  *                 + LENGTH([]byte("x"))    + []byte("x")
  *                 + LENGTH([]byte("foo"))  + []byte("foo")
@@ -73,7 +74,7 @@ func newEncoder(initialSize int, pool EncoderPool) Encoder {
 	}
 }
 
-func (e *encoder) Encode(srcTags ident.TagIterator) error {
+func (e *encoder) Encode(id ident.ID, srcTags ident.TagIterator) error {
 	if e.inuse {
 		return errEncoderInUse
 	}
@@ -92,6 +93,10 @@ func (e *encoder) Encode(srcTags ident.TagIterator) error {
 	}
 
 	if _, err := e.buf.Write(encodeUInt16(uint16(numTags))); err != nil {
+		return err
+	}
+
+	if err := e.encodeID(id); err != nil {
 		return err
 	}
 

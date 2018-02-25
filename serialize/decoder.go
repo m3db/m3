@@ -24,7 +24,6 @@ import (
 	"errors"
 
 	"github.com/m3db/m3x/ident"
-	"github.com/m3db/m3x/pool"
 )
 
 var (
@@ -38,17 +37,18 @@ type decoder struct {
 	data      []byte
 	remaining int
 
+	id         ident.ID
 	hasCurrent bool
 	current    ident.Tag
 
-	pool      DecoderPool
-	bytesPool pool.CheckedBytesPool
+	pool   DecoderPool
+	idPool ident.Pool
 }
 
-func newDecoder(pool DecoderPool, bytesPool pool.CheckedBytesPool) Decoder {
+func newDecoder(pool DecoderPool, idPool ident.Pool) Decoder {
 	return &decoder{
-		pool:      pool,
-		bytesPool: bytesPool,
+		pool:   pool,
+		idPool: idPool,
 	}
 }
 
@@ -73,6 +73,13 @@ func (d *decoder) Reset(b []byte) {
 	}
 
 	d.remaining = int(remain)
+
+	id, err := d.decodeID()
+	if err != nil {
+		d.err = err
+		return
+	}
+	d.id = id
 }
 
 func (d *decoder) Next() bool {
@@ -91,6 +98,10 @@ func (d *decoder) Next() bool {
 	d.current = t
 	d.hasCurrent = true
 	return true
+}
+
+func (d *decoder) ID() ident.ID {
+	return d.id
 }
 
 func (d *decoder) Current() ident.Tag {
@@ -122,14 +133,10 @@ func (d *decoder) decodeID() (ident.ID, error) {
 		return nil, errInvalidByteStreamIDDecoding
 	}
 
-	b := d.bytesPool.Get(int(l))
-	b.IncRef()
-	b.AppendAll(d.data[:l])
-	b.DecRef()
-
+	id := d.idPool.BinaryID(d.data[:l])
 	d.data = d.data[l:]
 
-	return ident.BinaryID(b), nil
+	return id, nil
 }
 
 func (d *decoder) decodeUInt16() (uint16, error) {
@@ -151,6 +158,7 @@ func (d *decoder) release() {
 		// TODO(prateek): use Tag.Finalize()
 		d.current.Name.Finalize()
 		d.current.Value.Finalize()
+		d.current = ident.Tag{}
 		d.hasCurrent = false
 	}
 }
@@ -168,6 +176,10 @@ func (d *decoder) Close() {
 
 func (d *decoder) Finalize() {
 	d.Close()
+	if d.id != nil {
+		d.id.Finalize()
+		d.id = nil
+	}
 	if d.pool == nil {
 		return
 	}
@@ -182,6 +194,10 @@ func (d *decoder) Clone() ident.TagIterator {
 			copy.current.Name.String(),
 			copy.current.Value.String(),
 		)
+	}
+	if copy.id != nil {
+		// TODO(prateek): use idPool.Clone
+		copy.id = ident.StringID(d.ID().String())
 	}
 	return &copy
 }

@@ -23,12 +23,16 @@ package serialize
 import (
 	"testing"
 
+	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 
 	"github.com/stretchr/testify/require"
 )
 
-var testBytesPool pool.CheckedBytesPool
+var (
+	testBytesPool pool.CheckedBytesPool
+	testIDPool    ident.Pool
+)
 
 func init() {
 	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
@@ -39,16 +43,21 @@ func init() {
 	})
 	bytesPool.Init()
 	testBytesPool = bytesPool
+
+	testIDPool = ident.NewPool(testBytesPool, nil)
 }
 
 func newTestDecoder() Decoder {
-	return newDecoder(nil, testBytesPool)
+	return newDecoder(nil, testIDPool)
 }
 
 func testDecoderBytes() []byte {
 	var b []byte
 	b = append(b, headerMagicBytes...)
 	b = append(b, encodeUInt16(uint16(2))...) /* num tags */
+
+	b = append(b, encodeUInt16(4)...) /* len x */
+	b = append(b, []byte("dogo")...)
 
 	b = append(b, encodeUInt16(3)...) /* len abc */
 	b = append(b, []byte("abc")...)
@@ -69,9 +78,11 @@ func TestEmptyDecode(t *testing.T) {
 	var b []byte
 	b = append(b, headerMagicBytes...)
 	b = append(b, []byte{0x0, 0x0}...)
+	b = append(b, []byte{0x0, 0x0}...)
 
-	d := newDecoder(nil, testBytesPool)
+	d := newTestDecoder()
 	d.Reset(b)
+	require.Equal(t, "", d.ID().String())
 	require.False(t, d.Next())
 	require.NoError(t, d.Err())
 	d.Close()
@@ -97,15 +108,18 @@ func TestDecodeSimple(t *testing.T) {
 	d.Reset(b)
 	require.NoError(t, d.Err())
 
+	require.Equal(t, "dogo", d.ID().String())
 	require.True(t, d.Next())
 	tag := d.Current()
 	require.Equal(t, "abc", tag.Name.String())
 	require.Equal(t, "defg", tag.Value.String())
+	require.Equal(t, "dogo", d.ID().String())
 
 	require.True(t, d.Next())
 	tag = d.Current()
 	require.Equal(t, "x", tag.Name.String())
 	require.Equal(t, "bar", tag.Value.String())
+	require.Equal(t, "dogo", d.ID().String())
 
 	require.False(t, d.Next())
 	require.NoError(t, d.Err())
@@ -114,14 +128,27 @@ func TestDecodeSimple(t *testing.T) {
 	d.Finalize()
 }
 
-func TestDecodeMissingTags(t *testing.T) {
+func TestDecodeMissingID(t *testing.T) {
 	var b []byte
 	b = append(b, headerMagicBytes...)
 	b = append(b, encodeUInt16(uint16(2))...) /* num tags */
 
 	d := newTestDecoder()
 	d.Reset(b)
+	require.Error(t, d.Err())
+}
+
+func TestDecodeMissingTags(t *testing.T) {
+	var b []byte
+	b = append(b, headerMagicBytes...)
+	b = append(b, encodeUInt16(uint16(2))...) /* num tags */
+	b = append(b, encodeUInt16(4)...)
+	b = append(b, []byte("dogo")...)
+
+	d := newTestDecoder()
+	d.Reset(b)
 	require.NoError(t, d.Err())
+	require.Equal(t, "dogo", d.ID().String())
 
 	require.False(t, d.Next())
 	require.Error(t, d.Err())
@@ -136,6 +163,9 @@ func TestDecodeMissingValue(t *testing.T) {
 
 	b = append(b, encodeUInt16(4)...) /* len defg */
 	b = append(b, []byte("defg")...)
+
+	b = append(b, encodeUInt16(1)...) /* len x */
+	b = append(b, []byte("x")...)
 
 	b = append(b, encodeUInt16(1)...) /* len x */
 	b = append(b, []byte("x")...)

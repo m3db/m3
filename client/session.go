@@ -846,7 +846,7 @@ func (s *session) writeAttempt(
 	// we may enqueue multiple writeStates concurrently depending on retries
 	// and consistency level checks.
 	nsID := s.idPool.Clone(namespace)
-	tsID := s.idPool.Clone(id)
+	tsID := s.idPool.Clone(id) // TODO(prateek): can avoid this copy for the taggedWritePool
 	var tagEncoder serialize.Encoder
 
 	state := s.writeStatePool.Get()
@@ -867,7 +867,7 @@ func (s *session) writeAttempt(
 		op = wop
 	case taggedWriteAttemptType:
 		tagEncoder = s.tagEncoderPool.Get()
-		if err := tagEncoder.Encode(inputTags); err != nil {
+		if err := tagEncoder.Encode(tsID, inputTags); err != nil {
 			state.decRef()
 			tagEncoder.Finalize()
 			s.RUnlock()
@@ -877,8 +877,7 @@ func (s *session) writeAttempt(
 		wop := s.writeTaggedOperationPool.Get()
 		wop.namespace = nsID
 		wop.shardID = s.topoMap.ShardSet().Lookup(tsID)
-		wop.request.ID = tsID.Data().Get()
-		wop.request.EncodedTags = tagEncoder.Data()
+		wop.request.EncodedIDTags = tagEncoder.Data()
 		wop.request.Datapoint.Value = value
 		wop.request.Datapoint.Timestamp = timestamp
 		wop.request.Datapoint.TimestampTimeType = timeType
@@ -1006,7 +1005,10 @@ func (s *session) fetchIDsAttempt(
 	// multiple times in case of retries.
 	idsClone := inputIDs.Clone()
 	// Now we actually clones the ids in the slice.
-	ids := s.idPool.CloneIDs(idsClone)
+	ids, cloneErr := s.idPool.CloneIDs(idsClone)
+	if cloneErr != nil {
+		return nil, cloneErr
+	}
 
 	// can release cloned iterator as we have a copy of underlying IDs.
 	idsClone.Close()

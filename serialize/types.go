@@ -31,18 +31,18 @@ var (
 	MaxNumberTags = math.MaxUint16
 
 	// MaxTagLiteralLength is the maximum length of a tag Name/Value.
-	MaxTagLiteralLength uint16 = 4096
+	MaxTagLiteralLength uint16 = math.MaxUint16
 
 	// HeaderMagicNumber is an internal header used to denote the beginning of
 	// an encoded stream.
 	HeaderMagicNumber uint16 = 10101
 )
 
-// Encoder encodes provided Tag iterators.
+// Encoder encodes provided ID, and Tag iterators.
 type Encoder interface {
 	// Encode encodes the provided iterator into it's internal byte stream.
 	// NB: leaves the original iterator un-modified.
-	Encode(ident.TagIterator) error
+	Encode(ident.ID, ident.TagIterator) error
 
 	// Data returns the encoded bytes.
 	Data() []byte
@@ -67,9 +67,12 @@ type EncoderPool interface {
 	Put(Encoder)
 }
 
-// Decoder decodes an encoded byte stream to a TagIterator.
+// Decoder decodes an encoded byte stream to a ID, and a TagIterator.
 type Decoder interface {
 	ident.TagIterator
+
+	// ID returns the decoded ID.
+	ID() ident.ID
 
 	// Reset resets internal state to iterate over the provided bytes.
 	Reset([]byte)

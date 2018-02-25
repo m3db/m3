@@ -71,10 +71,17 @@ func (w *writeState) reset() {
 }
 
 func (w *writeState) close() {
-	w.op.Close()
+	if w.op != nil {
+		w.op.Close()
+	}
 
-	w.nsID.Finalize()
-	w.tsID.Finalize()
+	if w.nsID != nil {
+		w.nsID.Finalize()
+	}
+
+	if w.tsID != nil {
+		w.tsID.Finalize()
+	}
 
 	if enc := w.tagEncoder; enc != nil {
 		enc.Finalize()

@@ -708,7 +708,8 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 	service := NewService(mockDB, nil).(*service)
 
 	mockDecoder := serialize.NewMockDecoder(ctrl)
-	mockDecoder.EXPECT().Reset(gomock.Any()).AnyTimes()
+	mockDecoder.EXPECT().Reset(gomock.Any()).AnyTimes() // TODO(prateek): don't use gomock.Any here (check rest of the file here)
+	mockDecoder.EXPECT().ID().Return(nil).AnyTimes()    // TODO(prateek): don't use nil here
 	mockDecoder.EXPECT().Err().Return(nil).AnyTimes()
 	mockDecoder.EXPECT().Finalize().AnyTimes()
 	mockDecoderPool := serialize.NewMockDecoderPool(ctrl)
@@ -732,7 +733,8 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 	}
 	for _, w := range values {
 		mockDB.EXPECT().
-			WriteTagged(ctx, ident.NewIDMatcher(nsID), ident.NewIDMatcher(w.id),
+			WriteTagged(ctx, ident.NewIDMatcher(nsID),
+				gomock.Any(), // TODO(prateek): don't use gomock.Any here
 				mockDecoder,
 				w.t, w.v, xtime.Second, nil).
 			Return(nil)
@@ -741,8 +743,7 @@ func TestServiceWriteTaggedBatchRaw(t *testing.T) {
 	var elements []*rpc.WriteTaggedBatchRawRequestElement
 	for _, w := range values {
 		elem := &rpc.WriteTaggedBatchRawRequestElement{
-			ID:          []byte(w.id),
-			EncodedTags: []byte(w.tagEncode),
+			EncodedIDTags: []byte(w.id + w.tagEncode),
 			Datapoint: &rpc.Datapoint{
 				Timestamp:         w.t.Unix(),
 				TimestampTimeType: rpc.TimeType_UNIX_SECONDS,

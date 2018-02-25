@@ -133,7 +133,7 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 		SetInstrumentOptions(iopts.SetMetricsScope(
 			scope.SubScope("tag-decoder-pool")))
 	tagDecoderPool := serialize.NewDecoderPool(
-		db.Options().BytesPool(), tagDecoderPoolOpts)
+		db.Options().IdentifierPool(), tagDecoderPoolOpts)
 	tagDecoderPool.Init()
 
 	s := &service{
@@ -821,7 +821,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 		}
 
 		iter := s.tagDecoderPool.Get()
-		iter.Reset(elem.EncodedTags)
+		iter.Reset(elem.EncodedIDTags)
 		if err := iter.Err(); err != nil {
 			nonRetryableErrors++
 			errs = append(errs, tterrors.NewBadRequestWriteBatchRawError(i, err))
@@ -829,8 +829,7 @@ func (s *service) WriteTaggedBatchRaw(tctx thrift.Context, req *rpc.WriteTaggedB
 		}
 		defer iter.Finalize()
 
-		if err = s.db.WriteTagged(
-			ctx, nsID, s.newID(ctx, elem.ID), iter,
+		if err = s.db.WriteTagged(ctx, nsID, iter.ID(), iter,
 			xtime.FromNormalizedTime(elem.Datapoint.Timestamp, d),
 			elem.Datapoint.Value, unit, elem.Datapoint.Annotation,
 		); err != nil && xerrors.IsInvalidParams(err) {

@@ -36,10 +36,11 @@ func TestEncoderPool(t *testing.T) {
 	p.Init()
 	e := p.Get()
 	e.Reset()
-	require.NoError(t, e.Encode(ident.EmptyTagIterator))
+	require.NoError(t, e.Encode(ident.StringID(""), ident.EmptyTagIterator))
 
 	e.Reset()
 	require.NoError(t, e.Encode(
+		ident.StringID("fooz"),
 		ident.NewTagIterator(ident.StringTag("hey", "jude"))))
 
 	e.Finalize()

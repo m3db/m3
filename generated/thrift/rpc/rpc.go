@@ -7367,25 +7367,19 @@ func (p *WriteTaggedBatchRawRequest) String() string {
 }
 
 // Attributes:
-//  - ID
-//  - EncodedTags
+//  - EncodedIDTags
 //  - Datapoint
 type WriteTaggedBatchRawRequestElement struct {
-	ID          []byte     `thrift:"id,1,required" db:"id" json:"id"`
-	EncodedTags []byte     `thrift:"encodedTags,2,required" db:"encodedTags" json:"encodedTags"`
-	Datapoint   *Datapoint `thrift:"datapoint,3,required" db:"datapoint" json:"datapoint"`
+	EncodedIDTags []byte     `thrift:"encodedIDTags,1,required" db:"encodedIDTags" json:"encodedIDTags"`
+	Datapoint     *Datapoint `thrift:"datapoint,2,required" db:"datapoint" json:"datapoint"`
 }
 
 func NewWriteTaggedBatchRawRequestElement() *WriteTaggedBatchRawRequestElement {
 	return &WriteTaggedBatchRawRequestElement{}
 }
 
-func (p *WriteTaggedBatchRawRequestElement) GetID() []byte {
-	return p.ID
-}
-
-func (p *WriteTaggedBatchRawRequestElement) GetEncodedTags() []byte {
-	return p.EncodedTags
+func (p *WriteTaggedBatchRawRequestElement) GetEncodedIDTags() []byte {
+	return p.EncodedIDTags
 }
 
 var WriteTaggedBatchRawRequestElement_Datapoint_DEFAULT *Datapoint
@@ -7405,8 +7399,7 @@ func (p *WriteTaggedBatchRawRequestElement) Read(iprot thrift.TProtocol) error {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
 	}
 
-	var issetID bool = false
-	var issetEncodedTags bool = false
+	var issetEncodedIDTags bool = false
 	var issetDatapoint bool = false
 
 	for {
@@ -7422,14 +7415,9 @@ func (p *WriteTaggedBatchRawRequestElement) Read(iprot thrift.TProtocol) error {
 			if err := p.ReadField1(iprot); err != nil {
 				return err
 			}
-			issetID = true
+			issetEncodedIDTags = true
 		case 2:
 			if err := p.ReadField2(iprot); err != nil {
-				return err
-			}
-			issetEncodedTags = true
-		case 3:
-			if err := p.ReadField3(iprot); err != nil {
 				return err
 			}
 			issetDatapoint = true
@@ -7445,11 +7433,8 @@ func (p *WriteTaggedBatchRawRequestElement) Read(iprot thrift.TProtocol) error {
 	if err := iprot.ReadStructEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
 	}
-	if !issetID {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field ID is not set"))
-	}
-	if !issetEncodedTags {
-		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field EncodedTags is not set"))
+	if !issetEncodedIDTags {
+		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field EncodedIDTags is not set"))
 	}
 	if !issetDatapoint {
 		return thrift.NewTProtocolExceptionWithType(thrift.INVALID_DATA, fmt.Errorf("Required field Datapoint is not set"))
@@ -7461,21 +7446,12 @@ func (p *WriteTaggedBatchRawRequestElement) ReadField1(iprot thrift.TProtocol) e
 	if v, err := iprot.ReadBinary(); err != nil {
 		return thrift.PrependError("error reading field 1: ", err)
 	} else {
-		p.ID = v
+		p.EncodedIDTags = v
 	}
 	return nil
 }
 
 func (p *WriteTaggedBatchRawRequestElement) ReadField2(iprot thrift.TProtocol) error {
-	if v, err := iprot.ReadBinary(); err != nil {
-		return thrift.PrependError("error reading field 2: ", err)
-	} else {
-		p.EncodedTags = v
-	}
-	return nil
-}
-
-func (p *WriteTaggedBatchRawRequestElement) ReadField3(iprot thrift.TProtocol) error {
 	p.Datapoint = &Datapoint{
 		TimestampTimeType: 0,
 	}
@@ -7496,9 +7472,6 @@ func (p *WriteTaggedBatchRawRequestElement) Write(oprot thrift.TProtocol) error 
 		if err := p.writeField2(oprot); err != nil {
 			return err
 		}
-		if err := p.writeField3(oprot); err != nil {
-			return err
-		}
 	}
 	if err := oprot.WriteFieldStop(); err != nil {
 		return thrift.PrependError("write field stop error: ", err)
@@ -7510,40 +7483,27 @@ func (p *WriteTaggedBatchRawRequestElement) Write(oprot thrift.TProtocol) error 
 }
 
 func (p *WriteTaggedBatchRawRequestElement) writeField1(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("id", thrift.STRING, 1); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:id: ", p), err)
+	if err := oprot.WriteFieldBegin("encodedIDTags", thrift.STRING, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:encodedIDTags: ", p), err)
 	}
-	if err := oprot.WriteBinary(p.ID); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.id (1) field write error: ", p), err)
+	if err := oprot.WriteBinary(p.EncodedIDTags); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T.encodedIDTags (1) field write error: ", p), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:id: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:encodedIDTags: ", p), err)
 	}
 	return err
 }
 
 func (p *WriteTaggedBatchRawRequestElement) writeField2(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("encodedTags", thrift.STRING, 2); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:encodedTags: ", p), err)
-	}
-	if err := oprot.WriteBinary(p.EncodedTags); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T.encodedTags (2) field write error: ", p), err)
-	}
-	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:encodedTags: ", p), err)
-	}
-	return err
-}
-
-func (p *WriteTaggedBatchRawRequestElement) writeField3(oprot thrift.TProtocol) (err error) {
-	if err := oprot.WriteFieldBegin("datapoint", thrift.STRUCT, 3); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field begin error 3:datapoint: ", p), err)
+	if err := oprot.WriteFieldBegin("datapoint", thrift.STRUCT, 2); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 2:datapoint: ", p), err)
 	}
 	if err := p.Datapoint.Write(oprot); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Datapoint), err)
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
-		return thrift.PrependError(fmt.Sprintf("%T write field end error 3:datapoint: ", p), err)
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 2:datapoint: ", p), err)
 	}
 	return err
 }

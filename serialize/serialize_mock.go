@@ -60,14 +60,14 @@ func (_mr *_MockEncoderRecorder) Data() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Data")
 }
 
-func (_m *MockEncoder) Encode(_param0 ident.TagIterator) error {
-	ret := _m.ctrl.Call(_m, "Encode", _param0)
+func (_m *MockEncoder) Encode(_param0 ident.ID, _param1 ident.TagIterator) error {
+	ret := _m.ctrl.Call(_m, "Encode", _param0, _param1)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockEncoderRecorder) Encode(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Encode", arg0)
+func (_mr *_MockEncoderRecorder) Encode(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Encode", arg0, arg1)
 }
 
 func (_m *MockEncoder) Finalize() {
@@ -198,6 +198,16 @@ func (_m *MockDecoder) Finalize() {
 
 func (_mr *_MockDecoderRecorder) Finalize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Finalize")
+}
+
+func (_m *MockDecoder) ID() ident.ID {
+	ret := _m.ctrl.Call(_m, "ID")
+	ret0, _ := ret[0].(ident.ID)
+	return ret0
+}
+
+func (_mr *_MockDecoderRecorder) ID() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ID")
 }
 
 func (_m *MockDecoder) Next() bool {
