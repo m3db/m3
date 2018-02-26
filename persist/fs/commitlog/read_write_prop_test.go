@@ -77,7 +77,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 	require.NoError(t, err)
 	defer iter.Close()
 	for ; iter.Next(); i++ {
-		series, datapoint, _, _ := iter.Current()
+		series, datapoint, _, _, _ := iter.Current()
 		write := writes[i]
 		require.Equal(t, write.series.ID.String(), series.ID.String())
 		require.Equal(t, write.series.Namespace.String(), series.Namespace.String())
@@ -275,7 +275,7 @@ func (s *clState) writesArePresent(writes ...generatedWrite) error {
 
 	defer iter.Close()
 	for iter.Next() {
-		series, datapoint, unit, annotation := iter.Current()
+		series, datapoint, unit, _, annotation := iter.Current()
 		idHash := series.ID.Hash()
 		seriesMap, ok := writesOnDisk[idHash]
 		if !ok {

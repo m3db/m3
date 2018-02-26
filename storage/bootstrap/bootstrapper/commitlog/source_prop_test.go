@@ -130,7 +130,7 @@ func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 			// Create testValues for each datapoint for comparison
 			values := []testValue{}
 			for _, write := range input.writes {
-				values = append(values, testValue{write.series, write.datapoint.Timestamp, write.datapoint.Value, write.unit, write.annotation})
+				values = append(values, testValue{write.series, write.datapoint.Timestamp, write.datapoint.Value, write.unit, 0, write.annotation})
 			}
 
 			err = verifyShardResultsAreCorrect(values, result.ShardResults(), bootstrapOpts)

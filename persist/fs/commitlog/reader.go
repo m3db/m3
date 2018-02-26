@@ -21,6 +21,7 @@
 package commitlog
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -40,7 +41,7 @@ import (
 )
 
 const decoderInBufChanSize = 100
-const decoderOutBufChanSize = 1000
+const decoderOutBufChanSize = 10000
 
 var (
 	emptyLogInfo schema.LogInfo
@@ -79,7 +80,7 @@ type commitLogReader interface {
 	Open(filePath string) (time.Time, time.Duration, int, error)
 
 	// Read returns the next id and data pair or error, will return io.EOF at end of volume
-	Read() (Series, ts.Datapoint, xtime.Unit, ts.Annotation, error)
+	Read() (Series, ts.Datapoint, xtime.Unit, ts.Annotation, uint64, error)
 
 	// Close the reader
 	Close() error
@@ -91,6 +92,7 @@ type readResponse struct {
 	datapoint       ts.Datapoint
 	unit            xtime.Unit
 	annotation      ts.Annotation
+	uniqueIndex     uint64
 	resultErr       error
 }
 
@@ -99,16 +101,21 @@ type decoderArg struct {
 	err   error
 }
 
+type lockableMetadataLookup struct {
+	*sync.RWMutex
+	lookup  map[uint64]Series
+	pending map[uint64][]*readerPendingSeriesMetadataResponse
+}
+
 type readerMetadata struct {
 	sync.RWMutex
-	numBlockedOrFinishedDecoders int
-	lookup                       map[uint64]Series
-	pending                      map[uint64][]*readerPendingSeriesMetadataResponse
+	numBlockedOrFinishedDecoders int64
+	shardedLookup                []lockableMetadataLookup
 }
 
 type reader struct {
 	opts                 Options
-	numConc              int
+	numConc              int64
 	bytesPool            pool.CheckedBytesPool
 	chunkReader          *chunkReader
 	dataBuffer           []byte
@@ -120,9 +127,10 @@ type reader struct {
 	cancelFunc           context.CancelFunc
 	shutdownCh           chan error
 	metadata             readerMetadata
-	nextIndex            int
+	nextIndex            int64
 	hasBeenOpened        bool
 	bgWorkersInitialized int64
+	yolo                 []byte
 }
 
 func newCommitLogReader(opts Options) commitLogReader {
@@ -139,9 +147,18 @@ func newCommitLogReader(opts Options) commitLogReader {
 		outBufs = append(outBufs, make(chan readResponse, decoderOutBufChanSize))
 	}
 
+	shardedLookup := make([]lockableMetadataLookup, 0, 1000)
+	for i := 0; i < numConc; i++ {
+		shardedLookup = append(shardedLookup, lockableMetadataLookup{
+			RWMutex: &sync.RWMutex{},
+			lookup:  make(map[uint64]Series),
+			pending: make(map[uint64][]*readerPendingSeriesMetadataResponse),
+		})
+	}
+
 	reader := &reader{
 		opts:              opts,
-		numConc:           numConc,
+		numConc:           int64(numConc),
 		bytesPool:         opts.BytesPool(),
 		chunkReader:       newChunkReader(opts.FlushSize()),
 		infoDecoder:       msgpack.NewDecoder(decodingOpts),
@@ -152,10 +169,10 @@ func newCommitLogReader(opts Options) commitLogReader {
 		cancelFunc:        cancelFunc,
 		shutdownCh:        make(chan error),
 		metadata: readerMetadata{
-			lookup:  make(map[uint64]Series),
-			pending: make(map[uint64][]*readerPendingSeriesMetadataResponse),
+			shardedLookup: shardedLookup,
 		},
 		nextIndex: 0,
+		yolo:      []byte("metricslol"),
 	}
 	return reader
 }
@@ -190,12 +207,14 @@ func (r *reader) Read() (
 	datapoint ts.Datapoint,
 	unit xtime.Unit,
 	annotation ts.Annotation,
+	uniqueIndex uint64,
 	resultErr error,
 ) {
-	if r.nextIndex == 0 {
+	nextIndex := atomic.LoadInt64(&r.nextIndex)
+	if nextIndex == 0 {
 		err := r.startBackgroundWorkers()
 		if err != nil {
-			return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), err
+			return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), 0, err
 		}
 	}
 	// Data is written into these channels in round-robin fashion, so reading them
@@ -212,14 +231,14 @@ func (r *reader) Read() (
 	// end up with the correct global ordering: a, b, c, d
 	rr, ok := <-r.outBufs[r.nextIndex%r.numConc]
 	if !ok {
-		return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), io.EOF
+		return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), 0, io.EOF
 	}
 	if rr.pendingMetadata != nil {
 		// Wait for metadata to be available
 		rr.series, rr.resultErr = rr.pendingMetadata.wait()
 	}
-	r.nextIndex++
-	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.resultErr
+	atomic.StoreInt64(&r.nextIndex, nextIndex+1)
+	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.uniqueIndex, rr.resultErr
 }
 
 func (r *reader) startBackgroundWorkers() error {
@@ -240,9 +259,18 @@ func (r *reader) startBackgroundWorkers() error {
 }
 
 func (r *reader) readLoop() {
-	index := 0
+	index := int64(0)
 	defer r.shutdown()
 	for {
+		numRead := atomic.LoadInt64(&r.nextIndex)
+		numPending := index - numRead
+		numPendingPerBuf := numPending / r.numConc
+		if numPendingPerBuf > 0.8*decoderOutBufChanSize {
+			// If the number of datapoints that have been read is less than 80% of the
+			// datapoints that have pushed downstream, then back off.
+			time.Sleep(time.Millisecond)
+			continue
+		}
 		select {
 		case <-r.cancelCtx.Done():
 			return
@@ -282,18 +310,20 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// If there is a pre-existing error, just pipe it through
 		if arg.err != nil {
 			readResponse.resultErr = arg.err
-			r.writeToOutBuf(outBuf, readResponse)
+			outBuf <- readResponse
+			// r.writeToOutBuf(outBuf, readResponse)
 			continue
 		}
 
 		// Decode the log entry
-		arg.bytes.IncRef()
+		// arg.bytes.IncRef()
 		decoderStream.Reset(arg.bytes.Get())
 		decoder.Reset(decoderStream)
 		entry, err := decoder.DecodeLogEntry()
 		if err != nil {
 			readResponse.resultErr = err
-			r.writeToOutBuf(outBuf, readResponse)
+			outBuf <- readResponse
+			// r.writeToOutBuf(outBuf, readResponse)
 			continue
 		}
 
@@ -302,7 +332,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			err := r.decodeAndHandleMetadata(metadataDecoder, metadataDecoderStream, entry)
 			if err != nil {
 				readResponse.resultErr = err
-				r.writeToOutBuf(outBuf, readResponse)
+				outBuf <- readResponse
+				// r.writeToOutBuf(outBuf, readResponse)
 				continue
 			}
 		}
@@ -315,6 +346,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			Value:     entry.Value,
 		}
 		readResponse.unit = xtime.Unit(byte(entry.Unit))
+		readResponse.uniqueIndex = entry.Index
 		// Copy annotation to prevent reference to pooled byte slice
 		if len(entry.Annotation) > 0 {
 			readResponse.annotation = append([]byte(nil), entry.Annotation...)
@@ -323,7 +355,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// byte slice is still referenced by metadata and annotation
 		arg.bytes.DecRef()
 		arg.bytes.Finalize()
-		r.writeToOutBuf(outBuf, readResponse)
+		outBuf <- readResponse
+		// r.writeToOutBuf(outBuf, readResponse)
 	}
 
 	r.metadata.Lock()
@@ -360,8 +393,13 @@ func (r *reader) decodeAndHandleMetadata(
 	namespace.IncRef()
 	namespace.AppendAll(decoded.Namespace)
 
-	r.metadata.Lock()
-	_, ok := r.metadata.lookup[entry.Index]
+	if bytes.Equal(namespace.Get(), r.yolo) {
+		panic("Wtf")
+	}
+
+	lookup := r.metadata.shardedLookup[entry.Index%uint64(r.numConc)]
+	lookup.Lock()
+	_, ok := lookup.lookup[entry.Index]
 	// If the metadata already exists, we can skip this step
 	if ok {
 		id.DecRef()
@@ -375,21 +413,21 @@ func (r *reader) decodeAndHandleMetadata(
 			Namespace:   ident.BinaryID(namespace),
 			Shard:       decoded.Shard,
 		}
-		r.metadata.lookup[entry.Index] = metadata
-		pendingMetadata, ok := r.metadata.pending[entry.Index]
+		lookup.lookup[entry.Index] = metadata
+		pendingMetadata, ok := lookup.pending[entry.Index]
 
 		namespace.DecRef()
 		id.DecRef()
 
 		// One (or more) goroutines are blocked waiting for this metadata, release them
 		if ok {
-			delete(r.metadata.pending, entry.Index)
+			delete(lookup.pending, entry.Index)
 			for _, p := range pendingMetadata {
 				p.done(metadata, nil)
 			}
 		}
 	}
-	r.metadata.Unlock()
+	lookup.Unlock()
 	return nil
 }
 
@@ -397,26 +435,28 @@ func (r *reader) lookupMetadata(entryIndex uint64) (
 	metadata Series,
 	pendingMetadata *readerPendingSeriesMetadataResponse,
 ) {
+	lookup := r.metadata.shardedLookup[entryIndex%uint64(r.numConc)]
 	// Try cheap read lock first
-	r.metadata.RLock()
-	metadata, hasMetadata := r.metadata.lookup[entryIndex]
-	r.metadata.RUnlock()
+	lookup.RLock()
+	metadata, hasMetadata := lookup.lookup[entryIndex]
+	lookup.RUnlock()
 
 	// The required metadata hasn't been processed yet
 	if !hasMetadata {
-		r.metadata.Lock()
-		metadata, hasMetadata = r.metadata.lookup[entryIndex]
+		lookup.Lock()
+		metadata, hasMetadata = lookup.lookup[entryIndex]
 		if !hasMetadata {
 			pendingMetadata = &readerPendingSeriesMetadataResponse{}
 			pendingMetadata.wg.Add(1)
-			r.metadata.pending[entryIndex] = append(r.metadata.pending[entryIndex], pendingMetadata)
+			lookup.pending[entryIndex] = append(lookup.pending[entryIndex], pendingMetadata)
 		}
-		r.metadata.Unlock()
+		lookup.Unlock()
 	}
 
 	return metadata, pendingMetadata
 }
 
+// TODO: Might not need this function anymore
 func (r *reader) writeToOutBuf(outBuf chan<- readResponse, readResponse readResponse) {
 	// Guard against all of the decoder loops having full outBuffers (deadlock).
 	// This could happen in the scenario where the commitlog is missing metadata
@@ -462,13 +502,15 @@ func (r *reader) writeToOutBuf(outBuf chan<- readResponse, readResponse readResp
 }
 
 func (r *reader) freeAllPendingWaiters() {
-	for _, pending := range r.metadata.pending {
-		for _, p := range pending {
-			p.done(Series{}, errCommitLogReaderPendingMetadataNeverFulfilled)
+	for _, shardedLookup := range r.metadata.shardedLookup {
+		for _, pending := range shardedLookup.pending {
+			for _, p := range pending {
+				p.done(Series{}, errCommitLogReaderPendingMetadataNeverFulfilled)
+			}
 		}
-	}
-	for k := range r.metadata.pending {
-		delete(r.metadata.pending, k)
+		for k := range shardedLookup.pending {
+			delete(shardedLookup.pending, k)
+		}
 	}
 }
 
@@ -480,30 +522,36 @@ func (r *reader) readChunk() (checked.Bytes, error) {
 	}
 
 	// Extend buffer as necessary
-	if len(r.dataBuffer) < int(size) {
-		diff := int(size) - len(r.dataBuffer)
-		for i := 0; i < diff; i++ {
-			r.dataBuffer = append(r.dataBuffer, 0)
-		}
-	}
+	// if len(r.dataBuffer) < int(size) {
+	// 	diff := int(size) - len(r.dataBuffer)
+	// 	for i := 0; i < diff; i++ {
+	// 		r.dataBuffer = append(r.dataBuffer, 0)
+	// 	}
+	// }
 
 	// Size the target buffer for reading and unmarshalling
-	buffer := r.dataBuffer[:size]
+	// buffer := r.dataBuffer[:size]
+	checkedBytes := r.bytesPool.Get(int(size))
+	checkedBytes.IncRef()
+	checkedBytes.Resize(int(size))
 
 	// Read message
-	if _, err := r.chunkReader.Read(buffer); err != nil {
+
+	if _, err := r.chunkReader.Read(checkedBytes.Get()); err != nil {
+		// checkedBytes.DecRef()
 		return nil, err
 	}
+	// checkedBytes.DecRef()
 
 	// Copy message into pooled byte slice. Reading happens synchronously so its
 	// safe to reuse the same buffer repeatedly, but decoding happens in parallel
 	// so we need to make sure that the byte slice we return won't be mutated
 	// until the caller is done with it.
-	pooled := r.bytesPool.Get(int(size))
-	pooled.IncRef()
-	pooled.AppendAll(buffer)
-	pooled.DecRef()
-	return pooled, nil
+	// pooled := r.bytesPool.Get(int(size))
+	// pooled.IncRef()
+	// pooled.AppendAll(buffer)
+	// pooled.DecRef()
+	return checkedBytes, nil
 }
 
 func (r *reader) readInfo() (schema.LogInfo, error) {

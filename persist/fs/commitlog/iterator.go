@@ -58,10 +58,11 @@ type iterator struct {
 }
 
 type iteratorRead struct {
-	series     Series
-	datapoint  ts.Datapoint
-	unit       xtime.Unit
-	annotation []byte
+	series      Series
+	datapoint   ts.Datapoint
+	unit        xtime.Unit
+	uniqueIndex uint64
+	annotation  []byte
 }
 
 // ReadEntryPredicate is a predicate that allows the caller to determine
@@ -111,7 +112,7 @@ func (i *iterator) Next() bool {
 		}
 	}
 	var err error
-	i.read.series, i.read.datapoint, i.read.unit, i.read.annotation, err = i.reader.Read()
+	i.read.series, i.read.datapoint, i.read.unit, i.read.annotation, i.read.uniqueIndex, err = i.reader.Read()
 	if err == io.EOF {
 		closeErr := i.closeAndResetReader()
 		if closeErr != nil {
@@ -135,12 +136,12 @@ func (i *iterator) Next() bool {
 	return true
 }
 
-func (i *iterator) Current() (Series, ts.Datapoint, xtime.Unit, ts.Annotation) {
+func (i *iterator) Current() (Series, ts.Datapoint, xtime.Unit, uint64, ts.Annotation) {
 	read := i.read
 	if i.hasError() || i.closed || !i.setRead {
 		read = iteratorRead{}
 	}
-	return read.series, read.datapoint, read.unit, read.annotation
+	return read.series, read.datapoint, read.unit, read.uniqueIndex, read.annotation
 }
 
 func (i *iterator) Err() error {

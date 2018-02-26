@@ -116,7 +116,7 @@ func (s *commitLogSource) Read(
 	unmerged := make([]encodersAndRanges, numShards)
 	for shard := range shardsTimeRanges {
 		unmerged[shard] = encodersAndRanges{
-			encodersBySeries: make(map[ident.Hash]encodersByTime),
+			encodersBySeries: make(map[uint64]encodersByTime),
 			ranges:           shardsTimeRanges[shard],
 		}
 	}
@@ -144,7 +144,7 @@ func (s *commitLogSource) Read(
 	}
 
 	for iter.Next() {
-		series, dp, unit, annotation := iter.Current()
+		series, dp, unit, uniqueIndex, annotation := iter.Current()
 		if !s.shouldEncodeSeries(namespace, unmerged, blockSize, series, dp) {
 			continue
 		}
@@ -154,13 +154,15 @@ func (s *commitLogSource) Read(
 		// datapoints for a given shard/series will be processed in a serialized
 		// manner.
 		encoderChans[series.Shard%uint32(numConc)] <- encoderArg{
-			series:     series,
-			dp:         dp,
-			unit:       unit,
-			annotation: annotation,
-			blockStart: dp.Timestamp.Truncate(blockSize),
+			series:      series,
+			dp:          dp,
+			unit:        unit,
+			annotation:  annotation,
+			uniqueIndex: uniqueIndex,
+			blockStart:  dp.Timestamp.Truncate(blockSize),
 		}
 	}
+
 	for _, encoderChan := range encoderChans {
 		close(encoderChan)
 	}
@@ -191,12 +193,12 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		)
 
 		unmergedShard := unmerged[series.Shard].encodersBySeries
-		unmergedSeries, ok := unmergedShard[series.ID.Hash()]
+		unmergedSeries, ok := unmergedShard[arg.uniqueIndex]
 		if !ok {
 			unmergedSeries = encodersByTime{
 				id:       series.ID,
 				encoders: make(map[xtime.UnixNano]encoders)}
-			unmergedShard[series.ID.Hash()] = unmergedSeries
+			unmergedShard[arg.uniqueIndex] = unmergedSeries
 		}
 
 		var (
@@ -241,9 +243,9 @@ func (s *commitLogSource) shouldEncodeSeries(
 	dp ts.Datapoint,
 ) bool {
 	// Check if the series belongs to current namespace being bootstrapped
-	if !namespace.Equal(series.Namespace) {
-		return false
-	}
+	// if !namespace.Equal(series.Namespace) {
+	// 	return false
+	// }
 
 	// Check if the shard number is higher the amount of space we pre-allocated.
 	// If it is, then it's not one of the shards we're trying to bootstrap
@@ -493,7 +495,7 @@ func newReadCommitLogPredicate(
 }
 
 type encodersAndRanges struct {
-	encodersBySeries map[ident.Hash]encodersByTime
+	encodersBySeries map[uint64]encodersByTime
 	ranges           xtime.Ranges
 }
 
@@ -507,11 +509,12 @@ type encodersByTime struct {
 // encoderArg contains all the information a worker go-routine needs to encode
 // a data point as M3TSZ
 type encoderArg struct {
-	series     commitlog.Series
-	dp         ts.Datapoint
-	unit       xtime.Unit
-	annotation ts.Annotation
-	blockStart time.Time
+	series      commitlog.Series
+	dp          ts.Datapoint
+	unit        xtime.Unit
+	annotation  ts.Annotation
+	uniqueIndex uint64
+	blockStart  time.Time
 }
 
 type encoders []encoder

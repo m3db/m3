@@ -141,12 +141,12 @@ func TestReadOrderedValues(t *testing.T) {
 	baz := commitlog.Series{Namespace: testNamespaceID, Shard: 2, ID: ident.StringID("baz")}
 
 	values := []testValue{
-		{foo, start, 1.0, xtime.Second, nil},
-		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
-		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
-		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, nil},
+		{foo, start, 1.0, xtime.Second, 0, nil},
+		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, 0, nil},
+		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, 1, nil},
+		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, 1, nil},
 		// "baz" is in shard 2 and should not be returned
-		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, nil},
+		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, 2, nil},
 	}
 	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.ReadEntryPredicate) (commitlog.Iterator, error) {
 		return newTestCommitLogIterator(values, nil), nil
@@ -185,12 +185,12 @@ func TestReadNamespaceFiltering(t *testing.T) {
 	baz := commitlog.Series{Namespace: ident.StringID("someID"), Shard: 0, ID: ident.StringID("baz")}
 
 	values := []testValue{
-		{foo, start, 1.0, xtime.Second, nil},
-		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
-		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, nil},
-		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, nil},
+		{foo, start, 1.0, xtime.Second, 0, nil},
+		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, 0, nil},
+		{bar, start.Add(2 * time.Minute), 1.0, xtime.Second, 1, nil},
+		{bar, start.Add(3 * time.Minute), 2.0, xtime.Second, 1, nil},
 		// "baz" is in another namespace should not be returned
-		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, nil},
+		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, 2, nil},
 	}
 	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.ReadEntryPredicate) (commitlog.Iterator, error) {
 		return newTestCommitLogIterator(values, nil), nil
@@ -227,11 +227,11 @@ func TestReadUnorderedValues(t *testing.T) {
 	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
 
 	values := []testValue{
-		{foo, start.Add(10 * time.Minute), 1.0, xtime.Second, nil},
-		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, nil},
-		{foo, start.Add(2 * time.Minute), 3.0, xtime.Second, nil},
-		{foo, start.Add(3 * time.Minute), 4.0, xtime.Second, nil},
-		{foo, start, 5.0, xtime.Second, nil},
+		{foo, start.Add(10 * time.Minute), 1.0, xtime.Second, 0, nil},
+		{foo, start.Add(1 * time.Minute), 2.0, xtime.Second, 0, nil},
+		{foo, start.Add(2 * time.Minute), 3.0, xtime.Second, 0, nil},
+		{foo, start.Add(3 * time.Minute), 4.0, xtime.Second, 0, nil},
+		{foo, start, 5.0, xtime.Second, 0, nil},
 	}
 	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.ReadEntryPredicate) (commitlog.Iterator, error) {
 		return newTestCommitLogIterator(values, nil), nil
@@ -268,10 +268,10 @@ func TestReadTrimsToRanges(t *testing.T) {
 	foo := commitlog.Series{Namespace: testNamespaceID, Shard: 0, ID: ident.StringID("foo")}
 
 	values := []testValue{
-		{foo, start.Add(-1 * time.Minute), 1.0, xtime.Nanosecond, nil},
-		{foo, start, 2.0, xtime.Nanosecond, nil},
-		{foo, start.Add(1 * time.Minute), 3.0, xtime.Nanosecond, nil},
-		{foo, end.Truncate(blockSize).Add(blockSize).Add(time.Nanosecond), 4.0, xtime.Nanosecond, nil},
+		{foo, start.Add(-1 * time.Minute), 1.0, xtime.Nanosecond, 0, nil},
+		{foo, start, 2.0, xtime.Nanosecond, 0, nil},
+		{foo, start.Add(1 * time.Minute), 3.0, xtime.Nanosecond, 0, nil},
+		{foo, end.Truncate(blockSize).Add(blockSize).Add(time.Nanosecond), 4.0, xtime.Nanosecond, 0, nil},
 	}
 	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.ReadEntryPredicate) (commitlog.Iterator, error) {
 		return newTestCommitLogIterator(values, nil), nil
@@ -396,11 +396,12 @@ func TestNewReadCommitLogPredicate(t *testing.T) {
 }
 
 type testValue struct {
-	s commitlog.Series
-	t time.Time
-	v float64
-	u xtime.Unit
-	a ts.Annotation
+	s    commitlog.Series
+	t    time.Time
+	v    float64
+	u    xtime.Unit
+	uIdx uint64
+	a    ts.Annotation
 }
 
 type seriesShardResultBlock struct {
@@ -654,13 +655,13 @@ func (i *testCommitLogIterator) Next() bool {
 	return i.idx < len(i.values)
 }
 
-func (i *testCommitLogIterator) Current() (commitlog.Series, ts.Datapoint, xtime.Unit, ts.Annotation) {
+func (i *testCommitLogIterator) Current() (commitlog.Series, ts.Datapoint, xtime.Unit, uint64, ts.Annotation) {
 	idx := i.idx
 	if idx == -1 {
 		idx = 0
 	}
 	v := i.values[idx]
-	return v.s, ts.Datapoint{Timestamp: v.t, Value: v.v}, v.u, v.a
+	return v.s, ts.Datapoint{Timestamp: v.t, Value: v.v}, v.u, v.uIdx, v.a
 }
 
 func (i *testCommitLogIterator) Err() error {

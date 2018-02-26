@@ -36,7 +36,7 @@ func ReadLogInfo(filePath string) (start time.Time, duration time.Duration, inde
 		return time.Time{}, 0, 0, err
 	}
 
-	chunkReader := newChunkReader(defaultFlushSize)
+	chunkReader := newChunkReader(524288)
 	chunkReader.reset(fd)
 	size, err := binary.ReadUvarint(chunkReader)
 	if err != nil {
