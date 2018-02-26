@@ -1,5 +1,5 @@
-hash: 6f151f7ea402727e6523af35873984b981f89f17359cb5c9c908d5bf8a080317
-updated: 2017-11-10T18:57:40.920349734-08:00
+hash: 6b94ffbd1ae608c1b0f019c52ef31be903d6432a6a9e740ff40d9042b6c6ba33
+updated: 2018-02-26T13:31:51.245614-05:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -8,17 +8,17 @@ imports:
 - name: github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fortytw2/leaktest
-  version: 3b724c3d7b8729a35bf4e577f71653aec6e53513
+  version: 7dad53304f9614c1c365755c1176a8e876fee3e8
 - name: github.com/go-ole/go-ole
-  version: de8695c8edbf8236f30d6e1376e20b198a028d42
+  version: a41e3c4b706f6ae8dfbff342b06e40fa4d2d0506
   subpackages:
   - oleutil
 - name: github.com/golang/mock
-  version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  version: 13f360950a79f5864a972c786a10a50e44b69541
   subpackages:
   - gomock
 - name: github.com/shirou/gopsutil
-  version: b62e301a8b9958eebb7299683eb57fab229a9501
+  version: c432be29ccce470088d07eea25b3ea7e68a8afbb
   subpackages:
   - cpu
   - host
@@ -29,18 +29,13 @@ imports:
 - name: github.com/shirou/w32
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
 - name: github.com/spaolacci/murmur3
-  version: 0d12bf811670bf6a1a63828dfbd003eded177fce
+  version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 - name: github.com/StackExchange/wmi
-  version: e542ed97d15e640bdc14b5c12162d59e8fc67324
-- name: github.com/stretchr/testify
-  version: d77da356e56a7428ad25149ca77381849a6a5232
-  subpackages:
-  - assert
-  - require
+  version: 5d049714c4a64225c3c79a7cf7d02f7fb5b96338
 - name: github.com/uber-go/atomic
-  version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
+  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: github.com/uber-go/tally
-  version: 95078a8f10668bd1fa73ae46761cdc58d25436b8
+  version: 522328b48efad0c6034dba92bf39228694e9d31f
   subpackages:
   - m3
   - m3/customtransports
@@ -49,7 +44,7 @@ imports:
 - name: github.com/uber-go/zap
   version: 35aad584952c3e7020db7b839f6b102de6271f89
 - name: go.uber.org/atomic
-  version: 4e336646b2ef9fc6e47be8e21594178f98e5ebcf
+  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
@@ -60,16 +55,26 @@ imports:
   - internal/color
   - internal/exit
   - zapcore
+- name: golang.org/x/sys
+  version: f6cff0780e542efa0c8e864dc8fa522808f6a598
+  subpackages:
+  - unix
+  - windows
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
 - name: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImports:
 - name: github.com/davecgh/go-spew
-  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  version: 346938d642f2ec3594ed81d874461961cd0faa76
   subpackages:
   - spew
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
+- name: github.com/stretchr/testify
+  version: 12b6f73e6084dad08a7c6e575284b177ecafbc71
+  subpackages:
+  - assert
+  - require
