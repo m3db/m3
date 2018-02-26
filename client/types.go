@@ -199,19 +199,19 @@ type Client interface {
 // Session can write and read to a cluster
 type Session interface {
 	// Write value to the database for an ID
-	Write(namespace ident.ID, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
+	Write(namespace, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
 	// WriteTagged value to the database for an ID and given tags.
-	WriteTagged(namespace string, id string, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
+	WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
 	// Fetch values from the database for an ID
-	Fetch(namespace ident.ID, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error)
+	Fetch(namespace, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error)
 
 	// FetchIDs values from the database for a set of IDs
 	FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
 
 	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
-	FetchTagged(index.Query, index.QueryOptions) (index.QueryResults, error)
+	FetchTagged(index.Query, index.QueryOptions) (encoding.SeriesIterators, error)
 
 	// FetchTaggedIDs resolves the provided query to known IDs.
 	FetchTaggedIDs(index.Query, index.QueryOptions) (index.QueryResults, error)

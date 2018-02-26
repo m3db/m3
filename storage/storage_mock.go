@@ -1065,14 +1065,14 @@ func (_m *MockdatabaseIndex) EXPECT() *_MockdatabaseIndexRecorder {
 	return _m.recorder
 }
 
-func (_m *MockdatabaseIndex) Write(ctx context.Context, namespace ident.ID, id ident.ID, tags ident.TagIterator) error {
-	ret := _m.ctrl.Call(_m, "Write", ctx, namespace, id, tags)
+func (_m *MockdatabaseIndex) Write(namespace ident.ID, id ident.ID, tags ident.Tags) error {
+	ret := _m.ctrl.Call(_m, "Write", namespace, id, tags)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-func (_mr *_MockdatabaseIndexRecorder) Write(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2, arg3)
+func (_mr *_MockdatabaseIndexRecorder) Write(arg0, arg1, arg2 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Write", arg0, arg1, arg2)
 }
 
 func (_m *MockdatabaseIndex) Query(ctx context.Context, query index.Query, opts index.QueryOptions) (index.QueryResults, error) {

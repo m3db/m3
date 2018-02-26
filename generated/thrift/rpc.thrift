@@ -286,9 +286,8 @@ struct WriteTaggedBatchRawRequest {
 }
 
 struct WriteTaggedBatchRawRequestElement {
-	1: required binary id
-	2: required list<TagRaw> tags
-	3: required Datapoint datapoint
+	1: required binary encodedIDTags
+	2: required Datapoint datapoint
 }
 
 struct WriteBatchRawError {

@@ -39,25 +39,29 @@ type queue struct {
 	sync.WaitGroup
 	sync.RWMutex
 
-	opts                                 Options
-	nowFn                                clock.NowFn
-	host                                 topology.Host
-	connPool                             connectionPool
-	writeBatchRawRequestPool             writeBatchRawRequestPool
-	writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool
-	size                                 int
-	ops                                  []op
-	opsSumSize                           int
-	opsLastRotatedAt                     time.Time
-	opsArrayPool                         *opArrayPool
-	drainIn                              chan []op
-	state                                state
+	opts                                       Options
+	nowFn                                      clock.NowFn
+	host                                       topology.Host
+	connPool                                   connectionPool
+	writeBatchRawRequestPool                   writeBatchRawRequestPool
+	writeBatchRawRequestElementArrayPool       writeBatchRawRequestElementArrayPool
+	writeTaggedBatchRawRequestPool             writeTaggedBatchRawRequestPool
+	writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool
+	size                                       int
+	ops                                        []op
+	opsSumSize                                 int
+	opsLastRotatedAt                           time.Time
+	opsArrayPool                               *opArrayPool
+	drainIn                                    chan []op
+	state                                      state
 }
 
 func newHostQueue(
 	host topology.Host,
 	writeBatchRawRequestPool writeBatchRawRequestPool,
 	writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
+	writeTaggedBatchRawRequestPool writeTaggedBatchRawRequestPool,
+	writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool,
 	opts Options,
 ) hostQueue {
 	scope := opts.InstrumentOptions().MetricsScope().
@@ -81,12 +85,14 @@ func newHostQueue(
 	opArrayPool.Init()
 
 	return &queue{
-		opts:                                 opts,
-		nowFn:                                opts.ClockOptions().NowFn(),
-		host:                                 host,
-		connPool:                             newConnectionPool(host, opts),
-		writeBatchRawRequestPool:             writeBatchRawRequestPool,
-		writeBatchRawRequestElementArrayPool: writeBatchRawRequestElementArrayPool,
+		opts:                                       opts,
+		nowFn:                                      opts.ClockOptions().NowFn(),
+		host:                                       host,
+		connPool:                                   newConnectionPool(host, opts),
+		writeBatchRawRequestPool:                   writeBatchRawRequestPool,
+		writeBatchRawRequestElementArrayPool:       writeBatchRawRequestElementArrayPool,
+		writeTaggedBatchRawRequestPool:             writeTaggedBatchRawRequestPool,
+		writeTaggedBatchRawRequestElementArrayPool: writeTaggedBatchRawRequestElementArrayPool,
 		size:         size,
 		ops:          opArrayPool.Get(),
 		opsArrayPool: opArrayPool,
@@ -177,16 +183,20 @@ func (q *queue) rotateOpsWithLock() []op {
 
 func (q *queue) drain() {
 	var (
-		currWriteOpsByNamespace      = make(map[ident.Hash][]op)
-		currBatchElementsByNamespace = make(map[ident.Hash][]*rpc.WriteBatchRawRequestElement)
-		writeBatchSize               = q.opts.WriteBatchSize()
+		currWriteOpsByNamespace            = make(map[ident.Hash][]op)
+		currBatchElementsByNamespace       = make(map[ident.Hash][]*rpc.WriteBatchRawRequestElement)
+		currTaggedWriteOpsByNamespace      = make(map[ident.Hash][]op)
+		currTaggedBatchElementsByNamespace = make(map[ident.Hash][]*rpc.WriteTaggedBatchRawRequestElement)
+		writeBatchSize                     = q.opts.WriteBatchSize()
 	)
 
 	for ops := range q.drainIn {
 		var (
-			currWriteOps      []op
-			currBatchElements []*rpc.WriteBatchRawRequestElement
-			opsLen            = len(ops)
+			currWriteOps            []op
+			currBatchElements       []*rpc.WriteBatchRawRequestElement
+			currTaggedWriteOps      []op
+			currTaggedBatchElements []*rpc.WriteTaggedBatchRawRequestElement
+			opsLen                  = len(ops)
 		)
 		for i := 0; i < opsLen; i++ {
 			switch v := ops[i].(type) {
@@ -211,6 +221,27 @@ func (q *queue) drain() {
 					currWriteOpsByNamespace[namespaceKey] = nil
 					currBatchElementsByNamespace[namespaceKey] = nil
 				}
+			case *writeTaggedOperation:
+				namespace := v.namespace
+				namespaceKey := namespace.Hash()
+				currTaggedWriteOps = currTaggedWriteOpsByNamespace[namespaceKey]
+				currTaggedBatchElements = currTaggedBatchElementsByNamespace[namespaceKey]
+				if currTaggedWriteOps == nil {
+					currTaggedWriteOps = q.opsArrayPool.Get()
+					currTaggedBatchElements = q.writeTaggedBatchRawRequestElementArrayPool.Get()
+				}
+
+				currTaggedWriteOps = append(currTaggedWriteOps, ops[i])
+				currTaggedBatchElements = append(currTaggedBatchElements, &v.request)
+				currTaggedWriteOpsByNamespace[namespaceKey] = currTaggedWriteOps
+				currTaggedBatchElementsByNamespace[namespaceKey] = currTaggedBatchElements
+
+				if len(currTaggedWriteOps) == writeBatchSize {
+					// Reached write batch limit, write async and reset
+					q.asyncTaggedWrite(namespace, currTaggedWriteOps, currTaggedBatchElements)
+					currTaggedWriteOpsByNamespace[namespaceKey] = nil
+					currTaggedBatchElementsByNamespace[namespaceKey] = nil
+				}
 			case *fetchBatchOp:
 				q.asyncFetch(v)
 			case *truncateOp:
@@ -232,6 +263,17 @@ func (q *queue) drain() {
 			}
 		}
 
+		// If any outstanding tagged write ops, async write
+		for _, writeOps := range currTaggedWriteOpsByNamespace {
+			if len(writeOps) > 0 {
+				namespace := writeOps[0].(*writeTaggedOperation).namespace
+				namespaceKey := namespace.Hash()
+				q.asyncTaggedWrite(namespace, writeOps, currTaggedBatchElementsByNamespace[namespaceKey])
+				currTaggedWriteOpsByNamespace[namespaceKey] = nil
+				currTaggedBatchElementsByNamespace[namespaceKey] = nil
+			}
+		}
+
 		if ops != nil {
 			q.opsArrayPool.Put(ops)
 		}
@@ -240,6 +282,71 @@ func (q *queue) drain() {
 	// Close the connection pool after all requests done
 	q.Wait()
 	q.connPool.Close()
+}
+
+func (q *queue) asyncTaggedWrite(
+	namespace ident.ID,
+	ops []op,
+	elems []*rpc.WriteTaggedBatchRawRequestElement,
+) {
+	q.Add(1)
+	// TODO(r): Use a worker pool to avoid creating new go routines for async writes
+	go func() {
+		req := q.writeTaggedBatchRawRequestPool.Get()
+		req.NameSpace = namespace.Data().Get()
+		req.Elements = elems
+
+		// NB(r): Defer is slow in the hot path unfortunately
+		cleanup := func() {
+			q.writeTaggedBatchRawRequestPool.Put(req)
+			q.writeTaggedBatchRawRequestElementArrayPool.Put(elems)
+			q.opsArrayPool.Put(ops)
+			q.Done()
+		}
+
+		// NB(bl): host is passed to writeState to determine the state of the
+		// shard on the node we're writing to
+
+		client, err := q.connPool.NextClient()
+		if err != nil {
+			// No client available
+			callAllCompletionFns(ops, q.host, err)
+			cleanup()
+			return
+		}
+
+		ctx, _ := thrift.NewContext(q.opts.WriteRequestTimeout())
+		err = client.WriteTaggedBatchRaw(ctx, req)
+		if err == nil {
+			// All succeeded
+			callAllCompletionFns(ops, q.host, nil)
+			cleanup()
+			return
+		}
+
+		if batchErrs, ok := err.(*rpc.WriteBatchRawErrors); ok {
+			// Callback all writes with errors
+			hasErr := make(map[int]struct{})
+			for _, batchErr := range batchErrs.Errors {
+				op := ops[batchErr.Index]
+				op.CompletionFn()(q.host, batchErr.Err)
+				hasErr[int(batchErr.Index)] = struct{}{}
+			}
+			// Callback all writes with no errors
+			for i := range ops {
+				if _, ok := hasErr[i]; !ok {
+					// No error
+					ops[i].CompletionFn()(q.host, nil)
+				}
+			}
+			cleanup()
+			return
+		}
+
+		// Entire batch failed
+		callAllCompletionFns(ops, q.host, err)
+		cleanup()
+	}()
 }
 
 func (q *queue) asyncWrite(

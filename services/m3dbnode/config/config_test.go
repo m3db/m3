@@ -349,6 +349,8 @@ commitlog:
     size: 2097152
   retentionPeriod: 24h0m0s
   blockSize: 10m0s
+index:
+  enabled: false
 repair:
   enabled: false
   interval: 2h0m0s

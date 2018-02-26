@@ -55,8 +55,11 @@ var (
 	// errDatabaseAlreadyClosed raised when trying to open a database that is already closed
 	errDatabaseAlreadyClosed = errors.New("database is already closed")
 
-	// errDatabaseIsClosed raise when trying to perform an action that requires an open database
+	// errDatabaseIsClosed raised when trying to perform an action that requires an open database
 	errDatabaseIsClosed = errors.New("database is closed")
+
+	// errIndexingDisabled raised when trying to perform an action requiring a index in the database
+	errIndexingDisabled = errors.New("database indexing is disabled")
 )
 
 type databaseState int
@@ -331,7 +334,7 @@ func (d *db) newDatabaseNamespace(
 		}
 	}
 	return newDatabaseNamespace(md, d.shardSet, retriever,
-		d, d.commitLog, d.index, d.opts)
+		d, d.commitLog, d.index.Write, d.opts)
 }
 
 func (d *db) Options() Options {
@@ -491,6 +494,10 @@ func (d *db) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
+	if !d.opts.IndexingEnabled() {
+		return errIndexingDisabled
+	}
+
 	n, err := d.namespaceFor(namespace)
 	if err != nil {
 		d.metrics.unknownNamespaceWriteTagged.Inc(1)
@@ -509,6 +516,10 @@ func (d *db) QueryIDs(
 	query index.Query,
 	opts index.QueryOptions,
 ) (index.QueryResults, error) {
+	if !d.opts.IndexingEnabled() {
+		return index.QueryResults{}, errIndexingDisabled
+	}
+
 	return d.index.Query(ctx, query, opts)
 }
 
