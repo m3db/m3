@@ -87,7 +87,7 @@ func (v *validator) validateMappingRules(mrv map[string]*rules.MappingRuleView) 
 	for _, view := range mrv {
 		// Validate that no rules with the same name exist.
 		if _, exists := namesSeen[view.Name]; exists {
-			return errors.NewRuleConflictError(fmt.Sprintf("mapping rule %s already exists", view.Name))
+			return errors.NewRuleConflictError(fmt.Sprintf("mapping rule '%s' already exists", view.Name))
 		}
 		namesSeen[view.Name] = struct{}{}
 
@@ -103,7 +103,7 @@ func (v *validator) validateMappingRules(mrv map[string]*rules.MappingRuleView) 
 			return err
 		}
 		if len(types) == 0 {
-			return fmt.Errorf("mapping rule %s does not match any allowed metric types, filter=%s", view.Name, view.Filter)
+			return fmt.Errorf("mapping rule '%s' does not match any allowed metric types, filter=%s", view.Name, view.Filter)
 		}
 
 		// Validate that the policies are valid.
@@ -122,7 +122,7 @@ func (v *validator) validateRollupRules(rrv map[string]*rules.RollupRuleView) er
 	for _, view := range rrv {
 		// Validate that no rules with the same name exist.
 		if _, exists := namesSeen[view.Name]; exists {
-			return errors.NewRuleConflictError(fmt.Sprintf("rollup rule %s already exists", view.Name))
+			return errors.NewRuleConflictError(fmt.Sprintf("rollup rule '%s' already exists", view.Name))
 		}
 		namesSeen[view.Name] = struct{}{}
 
@@ -138,7 +138,7 @@ func (v *validator) validateRollupRules(rrv map[string]*rules.RollupRuleView) er
 			return err
 		}
 		if len(types) == 0 {
-			return fmt.Errorf("rollup rule %s does not match any allowed metric types, filter=%s", view.Name, view.Filter)
+			return fmt.Errorf("rollup rule '%s' does not match any allowed metric types, filter=%s", view.Name, view.Filter)
 		}
 
 		for _, target := range view.Targets {
@@ -161,7 +161,7 @@ func (v *validator) validateRollupRules(rrv map[string]*rules.RollupRuleView) er
 			current := target.RollupTarget()
 			for _, seenTarget := range targetsSeen {
 				if current.SameTransform(seenTarget) {
-					return errors.NewRuleConflictError(fmt.Sprintf("rollup target with name %s and tags %s already exists", current.Name, current.Tags))
+					return errors.NewRuleConflictError(fmt.Sprintf("rollup target with name '%s' and tags '%s' already exists", current.Name, current.Tags))
 				}
 			}
 			targetsSeen = append(targetsSeen, current)
@@ -174,12 +174,12 @@ func (v *validator) validateRollupRules(rrv map[string]*rules.RollupRuleView) er
 func (v *validator) validateFilter(ruleName string, f string) (filters.TagFilterValueMap, error) {
 	filterValues, err := filters.ValidateTagsFilter(f)
 	if err != nil {
-		return nil, fmt.Errorf("rule %s has invalid rule filter %s: %v", ruleName, f, err)
+		return nil, fmt.Errorf("rule '%s' has invalid rule filter '%s': %v", ruleName, f, err)
 	}
 	for tag := range filterValues {
 		// Validating the filter tag name does not contain invalid chars.
 		if err := v.opts.CheckInvalidCharactersForTagName(tag); err != nil {
-			return nil, fmt.Errorf("rule %s has invalid rule filter %s: tag name %s contains invalid character, err: %v", ruleName, f, tag, err)
+			return nil, fmt.Errorf("rule '%s' has invalid rule filter '%s': tag name '%s' contains invalid character, err: %v", ruleName, f, tag, err)
 		}
 	}
 	return filterValues, nil
@@ -195,7 +195,7 @@ func (v *validator) validatePolicies(ruleName string, policies []policy.Policy, 
 	seen := make(map[policy.Policy]struct{}, len(policies))
 	for _, p := range policies {
 		if _, exists := seen[p]; exists {
-			return fmt.Errorf("rule %s has duplicate policy %s, provided policies are %v", ruleName, p.String(), policies)
+			return fmt.Errorf("rule '%s' has duplicate policy '%s', provided policies are %v", ruleName, p.String(), policies)
 		}
 		seen[p] = struct{}{}
 	}
@@ -215,7 +215,7 @@ func (v *validator) validateRollupTags(ruleName string, tags []string) error {
 	// Validating that all tag names have valid characters.
 	for _, tag := range tags {
 		if err := v.opts.CheckInvalidCharactersForTagName(tag); err != nil {
-			return fmt.Errorf("rollup rule %s has invalid rollup tag %s: %v", ruleName, tag, err)
+			return fmt.Errorf("rollup rule '%s' has invalid rollup tag '%s': %v", ruleName, tag, err)
 		}
 	}
 
@@ -223,7 +223,7 @@ func (v *validator) validateRollupTags(ruleName string, tags []string) error {
 	rollupTags := make(map[string]struct{}, len(tags))
 	for _, tag := range tags {
 		if _, exists := rollupTags[tag]; exists {
-			return fmt.Errorf("rollup rule %s has duplicate rollup tag: %s, provided rollup tags are %v", ruleName, tag, tags)
+			return fmt.Errorf("rollup rule '%s' has duplicate rollup tag: '%s', provided rollup tags are %v", ruleName, tag, tags)
 		}
 		rollupTags[tag] = struct{}{}
 	}
@@ -235,7 +235,7 @@ func (v *validator) validateRollupTags(ruleName string, tags []string) error {
 	}
 	for _, requiredTag := range requiredTags {
 		if _, exists := rollupTags[requiredTag]; !exists {
-			return fmt.Errorf("rollup rule %s does not have required rollup tag: %s, provided rollup tags are %v", ruleName, requiredTag, tags)
+			return fmt.Errorf("rollup rule '%s' does not have required rollup tag: '%s', provided rollup tags are %v", ruleName, requiredTag, tags)
 		}
 	}
 
@@ -245,12 +245,12 @@ func (v *validator) validateRollupTags(ruleName string, tags []string) error {
 func (v *validator) validateRollupMetricName(ruleName, metricName string) error {
 	// Validate that rollup metric name is not empty.
 	if metricName == "" {
-		return fmt.Errorf("rollup rule %s has an empty rollup metric name", ruleName)
+		return fmt.Errorf("rollup rule '%s' has an empty rollup metric name", ruleName)
 	}
 
 	// Validate that rollup metric name has valid characters.
 	if err := v.opts.CheckInvalidCharactersForMetricName(metricName); err != nil {
-		return fmt.Errorf("rollup rule %s has an invalid rollup metric name %s: %v", ruleName, metricName, err)
+		return fmt.Errorf("rollup rule '%s' has an invalid rollup metric name '%s': %v", ruleName, metricName, err)
 	}
 
 	return nil
