@@ -6,7 +6,7 @@ M3DB is a time series database that was primarily designed to be horizontally sc
 
 One of M3DB's biggest strengths as a time series database (as opposed to using a more general-purpose horizontally scalable, distributed database like Cassandra) is its ability to compress time series data resulting in huge memory and disk savings. This high compression ratio is implemented via the M3TSZ algorithm, a variant of the streaming time series compression algorithm described in [Facebook's Gorilla paper](http://www.vldb.org/pvldb/vol8/p1816-teller.pdf) with a few small differences.
 
-The compression ratio will vary depending on the workload and configuration, but with careful tuning its possible to encode data with an average of 1.4 bytes per datapoint.
+The compression ratio will vary depending on the workload and configuration, but we found that with M3TSZ we were able to achieve a compression ratio of 1.45 bytes/datapoint with Uber's production workloads. This was a 40% improvement over standard TSZ which only gave us a compression ratio of 2.42 bytes/datapoint under the same conditions.
 
 ## Architecture
 
