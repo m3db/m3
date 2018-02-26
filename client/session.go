@@ -1786,6 +1786,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 			reusedIDBytes.AppendAll(elem.ID)
 
 			// Clone the ID
+			// TODO(Prateek): undo reusedIDBytes .. once https://github.com/m3db/m3x/pull/125 is merged 			
 			clonedID := idPool.Clone(reusedID)
 
 			// Error occurred retrieving block metadata, use default values
