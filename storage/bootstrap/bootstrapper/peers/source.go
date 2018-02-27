@@ -156,6 +156,10 @@ func (s *peersSource) Read(
 				err := s.incrementalFlush(persistFlush, flush.nsMetadata, flush.shard,
 					flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
 				if err == nil {
+					// Safe to add to the shared bootstrap result now
+					lock.Lock()
+					result.Add(flush.shard, flush.shardResult, xtime.Ranges{})
+					lock.Unlock()
 					continue
 				}
 
@@ -164,18 +168,9 @@ func (s *peersSource) Read(
 					xlog.NewField("error", err.Error()),
 				).Errorf("peers bootstrapper incremental flush encountered error")
 
-				// Remove results
-				tr := flush.timeRange
-				blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
-				for _, series := range flush.shardResult.AllSeries() {
-					for at := tr.Start; at.Before(tr.End); at = at.Add(blockSize) {
-						series.Blocks.RemoveBlockAt(at)
-					}
-				}
-
 				// Make unfulfilled
 				lock.Lock()
-				result.Add(flush.shard, nil, xtime.Ranges{}.AddRange(tr))
+				result.Add(flush.shard, nil, xtime.Ranges{}.AddRange(flush.timeRange))
 				lock.Unlock()
 			}
 		}()
@@ -220,7 +215,21 @@ func (s *peersSource) Read(
 					).Error("error fetching bootstrap blocks from peers")
 				}
 
-				if err == nil && incremental {
+				if err != nil {
+					// Do not add result at all to the bootstrap result
+					lock.Lock()
+					result.Add(shard, nil, xtime.Ranges{}.AddRange(currRange))
+					lock.Unlock()
+					continue
+				}
+
+				if !incremental {
+					// If not waiting to incremental flush, add straight away to bootstrap result
+					lock.Lock()
+					result.Add(shard, shardResult, xtime.Ranges{})
+					lock.Unlock()
+				} else {
+					// Otherwise add at the end of the incremental flush cycle
 					incrementalQueue <- incrementalFlush{
 						nsMetadata:        nsMetadata,
 						shard:             shard,
@@ -229,14 +238,6 @@ func (s *peersSource) Read(
 						timeRange:         currRange,
 					}
 				}
-
-				lock.Lock()
-				if err == nil {
-					result.Add(shard, shardResult, xtime.Ranges{})
-				} else {
-					result.Add(shard, nil, xtime.Ranges{}.AddRange(currRange))
-				}
-				lock.Unlock()
 			}
 		})
 	}
@@ -299,11 +300,8 @@ func (s *peersSource) incrementalFlush(
 			return err
 		}
 
-		var (
-			blockErr          error
-			shardResultSeries = shardResult.AllSeries()
-		)
-		for _, s := range shardResultSeries {
+		var blockErr error
+		for _, s := range shardResult.AllSeries() {
 			bl, ok := s.Blocks.BlockAt(start)
 			if !ok {
 				continue
@@ -363,8 +361,35 @@ func (s *peersSource) incrementalFlush(
 			// A block error is more interesting to bubble up than a close error
 			err = blockErr
 		}
+
 		if err != nil {
 			return err
+		}
+	}
+
+	if seriesCachePolicy != series.CacheAll && seriesCachePolicy != series.CacheAllMetadata {
+		// If we're not going to keep all of the data, or at least all of the metadata in memory
+		// then we don't want to keep these series in the shard result. If we leave them in, then
+		// they will all get loaded into the shard object, and then immediately evicted on the next
+		// tick which causes unnecessary memory pressure.
+		for _, series := range shardResult.AllSeries() {
+			numBlocksRemaining := len(series.Blocks.AllBlocks())
+			// Should never happen since we removed all the block in the previous loop and fetching
+			// bootstrap blocks should always be exclusive on the end side.
+			if numBlocksRemaining > 0 {
+				s.log.WithFields(
+					xlog.NewField("start", tr.Start),
+					xlog.NewField("end", tr.End),
+					xlog.NewField("numBlocks", numBlocksRemaining),
+				).Error("error trying to remove series that still has blocks")
+				continue
+			}
+
+			shardResult.RemoveSeries(series.ID)
+			series.Blocks.Close()
+			// Safe to finalize these IDs because the prepared object was the only other thing
+			// using them, and it has been closed.
+			series.ID.Finalize()
 		}
 	}
 

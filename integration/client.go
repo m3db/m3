@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/integration/generate"
 	nchannel "github.com/m3db/m3db/network/server/tchannelthrift/node/channel"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
@@ -207,7 +208,7 @@ func m3dbClientFetchBlocksMetadata(
 
 		var metadatas []block.ReplicaMetadata
 		iter, err := session.FetchBlocksMetadataFromPeers(namespace,
-			shardID, start, end, version)
+			shardID, start, end, result.NewOptions(), version)
 		if err != nil {
 			return nil, err
 		}

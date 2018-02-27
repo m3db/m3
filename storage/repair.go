@@ -33,6 +33,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/storage/block"
+	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/repair"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
@@ -119,7 +120,7 @@ func (r shardRepairer) Repair(
 
 	// Add peer metadata
 	peerIter, err := session.FetchBlocksMetadataFromPeers(namespace,
-		shard.ID(), start, end, client.FetchBlocksMetadataEndpointV2)
+		shard.ID(), start, end, result.NewOptions(), client.FetchBlocksMetadataEndpointV2)
 	if err != nil {
 		return repair.MetadataComparisonResult{}, err
 	}
