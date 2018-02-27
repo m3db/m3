@@ -59,8 +59,8 @@ func generatePromWriteBody(t *testing.T) io.Reader {
 	compressed := snappy.Encode(nil, data)
 	b := bytes.NewReader(compressed)
 	return b
-
 }
+
 func TestPromWriteParsing(t *testing.T) {
 	logging.InitWithCores(nil)
 
