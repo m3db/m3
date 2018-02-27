@@ -153,14 +153,14 @@ func newCommitLogReader(opts Options) commitLogReader {
 	// }
 	outBuf := make(chan readResponse, decoderOutBufChanSize*numConc)
 
-	shardedLookup := make([]lockableMetadataLookup, 0, 1000)
-	for i := 0; i < numConc; i++ {
-		shardedLookup = append(shardedLookup, lockableMetadataLookup{
-			RWMutex: &sync.RWMutex{},
-			lookup:  make(map[uint64]Series),
-			pending: make(map[uint64][]*readerPendingSeriesMetadataResponse),
-		})
-	}
+	// shardedLookup := make([]lockableMetadataLookup, 0, 1000)
+	// for i := 0; i < numConc; i++ {
+	// 	shardedLookup = append(shardedLookup, lockableMetadataLookup{
+	// 		RWMutex: &sync.RWMutex{},
+	// 		lookup:  make(map[uint64]Series),
+	// 		pending: make(map[uint64][]*readerPendingSeriesMetadataResponse),
+	// 	})
+	// }
 
 	reader := &reader{
 		opts:              opts,
@@ -175,8 +175,8 @@ func newCommitLogReader(opts Options) commitLogReader {
 		cancelCtx:  cancelCtx,
 		cancelFunc: cancelFunc,
 		shutdownCh: make(chan error),
-		metadata: readerMetadata{
-			shardedLookup: shardedLookup,
+		metadata:   readerMetadata{
+		// 	shardedLookup: shardedLookup,
 		},
 		nextIndex: 0,
 		yolo:      []byte("metricslol"),
@@ -338,6 +338,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		decoderStream         = msgpack.NewDecoderStream(nil)
 		metadataDecoder       = msgpack.NewDecoder(decodingOpts)
 		metadataDecoderStream = msgpack.NewDecoderStream(nil)
+		metadataLookup        = make(map[uint64]Series)
 	)
 	total := 0
 	count := 0
@@ -368,7 +369,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 
 		// If the log entry has associated metadata, decode that as well
 		if len(entry.Metadata) != 0 {
-			err := r.decodeAndHandleMetadata(metadataDecoder, metadataDecoderStream, entry)
+			err := r.decodeAndHandleMetadata(metadataLookup, metadataDecoder, metadataDecoderStream, entry)
 			if err != nil {
 				readResponse.resultErr = err
 				// outBuf <- readResponse
@@ -379,7 +380,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 
 		// Metadata may or may not actually be nonzero here, the consumer in Read()
 		// will wait if so
-		readResponse.series, readResponse.pendingMetadata = r.lookupMetadata(entry.Index)
+		readResponse.series = r.lookupMetadata(metadataLookup, entry.Index)
 		readResponse.datapoint = ts.Datapoint{
 			Timestamp: time.Unix(0, entry.Timestamp),
 			Value:     entry.Value,
@@ -418,6 +419,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 }
 
 func (r *reader) decodeAndHandleMetadata(
+	metadataLookup map[uint64]Series,
 	metadataDecoder *msgpack.Decoder,
 	metadataDecoderStream msgpack.DecoderStream,
 	entry schema.LogEntry,
@@ -441,9 +443,7 @@ func (r *reader) decodeAndHandleMetadata(
 		panic("Wtf")
 	}
 
-	lookup := r.metadata.shardedLookup[entry.Index%uint64(r.numConc)]
-	lookup.Lock()
-	_, ok := lookup.lookup[entry.Index]
+	_, ok := metadataLookup[entry.Index]
 	// If the metadata already exists, we can skip this step
 	if ok {
 		id.DecRef()
@@ -457,47 +457,23 @@ func (r *reader) decodeAndHandleMetadata(
 			Namespace:   ident.BinaryID(namespace),
 			Shard:       decoded.Shard,
 		}
-		lookup.lookup[entry.Index] = metadata
-		pendingMetadata, ok := lookup.pending[entry.Index]
+		metadataLookup[entry.Index] = metadata
 
 		namespace.DecRef()
 		id.DecRef()
-
-		// One (or more) goroutines are blocked waiting for this metadata, release them
-		if ok {
-			delete(lookup.pending, entry.Index)
-			for _, p := range pendingMetadata {
-				p.done(metadata, nil)
-			}
-		}
 	}
-	lookup.Unlock()
 	return nil
 }
 
-func (r *reader) lookupMetadata(entryIndex uint64) (
-	metadata Series,
-	pendingMetadata *readerPendingSeriesMetadataResponse,
-) {
-	lookup := r.metadata.shardedLookup[entryIndex%uint64(r.numConc)]
-	// Try cheap read lock first
-	lookup.RLock()
-	metadata, hasMetadata := lookup.lookup[entryIndex]
-	lookup.RUnlock()
+func (r *reader) lookupMetadata(metadataLookup map[uint64]Series, entryIndex uint64) Series {
+	metadata, hasMetadata := metadataLookup[entryIndex]
 
 	// The required metadata hasn't been processed yet
 	if !hasMetadata {
-		lookup.Lock()
-		metadata, hasMetadata = lookup.lookup[entryIndex]
-		if !hasMetadata {
-			pendingMetadata = &readerPendingSeriesMetadataResponse{}
-			pendingMetadata.wg.Add(1)
-			lookup.pending[entryIndex] = append(lookup.pending[entryIndex], pendingMetadata)
-		}
-		lookup.Unlock()
+		panic("MISSING METADATA")
 	}
 
-	return metadata, pendingMetadata
+	return metadata
 }
 
 // TODO: Might not need this function anymore
