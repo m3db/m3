@@ -352,9 +352,7 @@ func (s *peersSource) incrementalFlush(
 		return fmt.Errorf("shard retriever missing for shard: %d", shard)
 	}
 
-	// TODO: Delete the .Add(blockSize) on tr.End once all clusters are on the version
-	// of M3DB that does not return an extra block.
-	for start := tr.Start; start.Before(tr.End.Add(blockSize)); start = start.Add(blockSize) {
+	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
 		prepared, err := flush.Prepare(nsMetadata, shard, start)
 		if err != nil {
 			return err
@@ -425,6 +423,19 @@ func (s *peersSource) incrementalFlush(
 		if err != nil {
 			return err
 		}
+	}
+
+	// TODO: We need this right now because nodes with older versions of M3DB will return an extra
+	// block when requesting bootstrapped blocks. Once all the clusters have been upgraded we can
+	// remove this code.
+	blockToRemove := tr.End.Add(blockSize)
+	for _, s := range shardResult.AllSeries() {
+		bl, ok := s.Blocks.BlockAt(blockToRemove)
+		if !ok {
+			continue
+		}
+		s.Blocks.RemoveBlockAt(blockToRemove)
+		bl.Close()
 	}
 
 	if seriesCachePolicy != series.CacheAll && seriesCachePolicy != series.CacheAllMetadata {
