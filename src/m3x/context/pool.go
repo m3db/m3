@@ -25,10 +25,6 @@ import (
 	"github.com/m3db/m3x/resource"
 )
 
-const (
-	defaultFinalizersCapacity = 4
-)
-
 // finalizersPool provides a pool for finalizer slices.
 type finalizersPool interface {
 	// Get provides a pre-allocated slice to store finalizers.
@@ -39,15 +35,20 @@ type finalizersPool interface {
 }
 
 type poolOfFinalizers struct {
-	pool pool.ObjectPool
+	pool                  pool.ObjectPool
+	maxPooledFinalizerCap int
 }
 
 // newFinalizerPool creates a new finalizers pool.
-func newFinalizersPool(opts pool.ObjectPoolOptions) finalizersPool {
-	p := &poolOfFinalizers{pool: pool.NewObjectPool(opts)}
+func newFinalizersPool(opts Options) finalizersPool {
+	p := &poolOfFinalizers{
+		pool: pool.NewObjectPool(opts.FinalizerPoolOptions()),
+		maxPooledFinalizerCap: opts.MaxPooledFinalizerCapacity(),
+	}
 
+	init := opts.InitPooledFinalizerCapacity()
 	p.pool.Init(func() interface{} {
-		return allocateFinalizers()
+		return allocateFinalizers(init)
 	})
 
 	return p
@@ -63,7 +64,7 @@ func (p *poolOfFinalizers) Put(finalizers []resource.Finalizer) {
 		finalizers[i] = nil
 	}
 
-	if len(finalizers) > defaultFinalizersCapacity {
+	if cap(finalizers) > p.maxPooledFinalizerCap {
 		// Free any large arrays that are created.
 		return
 	}
@@ -77,10 +78,10 @@ type poolOfContexts struct {
 }
 
 // NewPool creates a new context pool.
-func NewPool(opts pool.ObjectPoolOptions, copts pool.ObjectPoolOptions) Pool {
+func NewPool(opts Options) Pool {
 	p := &poolOfContexts{
-		ctxPool:        pool.NewObjectPool(opts),
-		finalizersPool: newFinalizersPool(copts),
+		ctxPool:        pool.NewObjectPool(opts.ContextPoolOptions()),
+		finalizersPool: newFinalizersPool(opts),
 	}
 
 	p.ctxPool.Init(func() interface{} {
@@ -106,6 +107,6 @@ func (p *poolOfContexts) PutFinalizers(finalizers []resource.Finalizer) {
 	p.finalizersPool.Put(finalizers)
 }
 
-func allocateFinalizers() []resource.Finalizer {
-	return make([]resource.Finalizer, 0, defaultFinalizersCapacity)
+func allocateFinalizers(initLen int) []resource.Finalizer {
+	return make([]resource.Finalizer, 0, initLen)
 }

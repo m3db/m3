@@ -20,7 +20,10 @@
 
 package context
 
-import "github.com/m3db/m3x/resource"
+import (
+	"github.com/m3db/m3x/pool"
+	"github.com/m3db/m3x/resource"
+)
 
 // Cancellable is an object that can be cancelled
 type Cancellable interface {
@@ -66,6 +69,37 @@ type Pool interface {
 
 	// Put returns a context to the pool.
 	Put(Context)
+}
+
+// Options controls knobs for context pooling.
+type Options interface {
+	// SetContextPoolOptions sets the context pool options.
+	SetContextPoolOptions(pool.ObjectPoolOptions) Options
+
+	// ContextPoolOptions returns the context pool options.
+	ContextPoolOptions() pool.ObjectPoolOptions
+
+	// SetFinalizerPoolOptions sets the finalizer pool options.
+	SetFinalizerPoolOptions(pool.ObjectPoolOptions) Options
+
+	// FinalizerPoolOptions returns the finalizer pool options.
+	FinalizerPoolOptions() pool.ObjectPoolOptions
+
+	// SetMaxPooledFinalizerCapacity sets the maximum capacity allowed
+	// for a finalizer to be pooled.
+	SetMaxPooledFinalizerCapacity(int) Options
+
+	// MaxPooledFinalizerCapacity returns the maximum capacity allowed
+	// for a finalizer to be pooled.
+	MaxPooledFinalizerCapacity() int
+
+	// SetInitPooledFinalizerCapacity sets the capacity finalizers are
+	// initialized to.
+	SetInitPooledFinalizerCapacity(int) Options
+
+	// InitPooledFinalizerCapacity return the capacity finalizers are
+	// initialized to.
+	InitPooledFinalizerCapacity() int
 }
 
 // contextPool is the internal pool interface for contexts.
