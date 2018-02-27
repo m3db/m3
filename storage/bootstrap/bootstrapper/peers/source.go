@@ -428,13 +428,12 @@ func (s *peersSource) incrementalFlush(
 	// TODO: We need this right now because nodes with older versions of M3DB will return an extra
 	// block when requesting bootstrapped blocks. Once all the clusters have been upgraded we can
 	// remove this code.
-	blockToRemove := tr.End.Add(blockSize)
 	for _, s := range shardResult.AllSeries() {
-		bl, ok := s.Blocks.BlockAt(blockToRemove)
+		bl, ok := s.Blocks.BlockAt(tr.End)
 		if !ok {
 			continue
 		}
-		s.Blocks.RemoveBlockAt(blockToRemove)
+		s.Blocks.RemoveBlockAt(tr.End)
 		bl.Close()
 	}
 
