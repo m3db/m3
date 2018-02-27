@@ -63,7 +63,7 @@ func NewOptions() Options {
 		databaseBlockAllocSize:  defaultDatabaseBlockAllocSize,
 		closeContextWorkers:     xsync.NewWorkerPool(defaultCloseContextConcurrency),
 		databaseBlockPool:       NewDatabaseBlockPool(nil),
-		contextPool:             context.NewPool(nil, nil),
+		contextPool:             context.NewPool(context.NewOptions()),
 		encoderPool:             encoding.NewEncoderPool(nil),
 		readerIteratorPool:      encoding.NewReaderIteratorPool(nil),
 		multiReaderIteratorPool: encoding.NewMultiReaderIteratorPool(nil),

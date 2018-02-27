@@ -907,15 +907,10 @@ func (s *session) fetchIDsAttempt(
 	// NB(prateek): need to make a copy of inputNamespace and inputIDs to control
 	// their life-cycle within this function.
 	namespace := s.idPool.Clone(inputNamespace)
-	// First, we clone the iterator (only the struct referencing the underlying slice,
+	// First, we duplicate the iterator (only the struct referencing the underlying slice,
 	// not the slice itself). Need this to be able to iterate the original iterator
 	// multiple times in case of retries.
-	idsClone := inputIDs.Clone()
-	// Now we actually clones the ids in the slice.
-	ids := s.idPool.CloneIDs(idsClone)
-
-	// can release cloned iterator as we have a copy of underlying IDs.
-	idsClone.Close()
+	ids := inputIDs.Duplicate()
 
 	rangeStart, tsErr := convert.ToValue(startInclusive, rpc.TimeType_UNIX_NANOSECONDS)
 	if tsErr != nil {
@@ -933,8 +928,8 @@ func (s *session) fetchIDsAttempt(
 		return nil, errSessionStateNotOpen
 	}
 
-	iters := s.seriesIteratorsPool.Get(len(ids))
-	iters.Reset(len(ids))
+	iters := s.seriesIteratorsPool.Get(ids.Remaining())
+	iters.Reset(ids.Remaining())
 
 	defer func() {
 		// NB(r): Ensure we cover all edge cases and close the iters in any case
@@ -961,11 +956,10 @@ func (s *session) fetchIDsAttempt(
 	// once it's value reaches 0.
 	namespaceAccessors := int32(0)
 
-	for idx := range ids {
-		idx := idx
-
+	for idx := 0; ids.Next(); idx++ {
 		var (
-			tsID = ids[idx]
+			idx  = idx // capture loop variable
+			tsID = s.idPool.Clone(ids.Current())
 
 			wgIsDone int32
 			// NB(xichen): resultsAccessors and idAccessors get initialized to number of replicas + 1

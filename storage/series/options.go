@@ -58,7 +58,7 @@ func NewOptions() Options {
 		retentionOpts:                 retention.NewOptions(),
 		blockOpts:                     block.NewOptions(),
 		cachePolicy:                   DefaultCachePolicy,
-		contextPool:                   context.NewPool(nil, nil),
+		contextPool:                   context.NewPool(context.NewOptions()),
 		encoderPool:                   encoding.NewEncoderPool(nil),
 		multiReaderIteratorPool:       encoding.NewMultiReaderIteratorPool(nil),
 		fetchBlockMetadataResultsPool: block.NewFetchBlockMetadataResultsPool(nil, 0),
