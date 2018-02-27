@@ -211,7 +211,7 @@ type Session interface {
 	FetchIDs(namespace ident.ID, ids ident.Iterator, startInclusive, endExclusive time.Time) (encoding.SeriesIterators, error)
 
 	// FetchTagged resolves the provided query to known IDs, and fetches the data for them.
-	FetchTagged(index.Query, index.QueryOptions) (index.QueryResults, error)
+	FetchTagged(index.Query, index.QueryOptions) (results encoding.SeriesIterators, exhaustive bool, err error)
 
 	// FetchTaggedIDs resolves the provided query to known IDs.
 	FetchTaggedIDs(index.Query, index.QueryOptions) (index.QueryResults, error)
