@@ -6,6 +6,7 @@ import (
 
 	"github.com/m3db/m3coordinator/generated/proto/prometheus/prompb"
 	"github.com/m3db/m3coordinator/storage"
+	"github.com/m3db/m3coordinator/util/execution"
 	"github.com/m3db/m3coordinator/util/logging"
 
 	"github.com/golang/protobuf/proto"
@@ -58,11 +59,25 @@ func (h *PromWriteHandler) parseRequest(r *http.Request) (*prompb.WriteRequest, 
 }
 
 func (h *PromWriteHandler) write(ctx context.Context, r *prompb.WriteRequest) error {
-	for _, t := range r.Timeseries {
-		writeQuery := storage.PromWriteTSToM3(t)
-		if err := h.store.Write(ctx, writeQuery); err != nil {
-			return err
-		}
+	requests := make([]execution.Request, len(r.Timeseries))
+	for idx, t := range r.Timeseries {
+		requests[idx] = newLocalWriteRequest(storage.PromWriteTSToM3(t), h.store)
 	}
-	return nil
+	return execution.ExecuteParallel(ctx, requests)
+}
+
+func (w *localWriteRequest) Process(ctx context.Context) error {
+	return w.store.Write(ctx, w.writeQuery)
+}
+
+type localWriteRequest struct {
+	store      storage.Storage
+	writeQuery *storage.WriteQuery
+}
+
+func newLocalWriteRequest(writeQuery *storage.WriteQuery, store storage.Storage) execution.Request {
+	return &localWriteRequest{
+		store:      store,
+		writeQuery: writeQuery,
+	}
 }
