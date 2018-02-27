@@ -100,10 +100,10 @@ func (s *peersSource) Read(
 
 		// Neither of these should ever happen
 		if seriesCachePolicy != series.CacheAll && retrieverMgr == nil {
-			panic("Tried to perform incremental flush without retriever manager")
+			s.log.Fatal("tried to perform incremental flush without retriever manager")
 		}
 		if seriesCachePolicy != series.CacheAll && persistManager == nil {
-			panic("Tried to perform incremental flush without persist manager")
+			s.log.Fatal("tried to perform incremental flush without persist manager")
 		}
 
 		s.log.WithFields(
@@ -137,7 +137,7 @@ func (s *peersSource) Read(
 	}
 
 	var (
-		lock                    sync.Mutex
+		resultLock              sync.Mutex
 		wg                      sync.WaitGroup
 		incrementalWorkerDoneCh = make(chan struct{})
 		incrementalMaxQueue     = s.opts.IncrementalPersistMaxQueueSize()
@@ -157,8 +157,8 @@ func (s *peersSource) Read(
 		xlog.NewField("incremental", incremental),
 	).Infof("peers bootstrapper bootstrapping shards for ranges")
 	if incremental {
-		go s.startIncrementalQueueWorker(
-			incrementalWorkerDoneCh, incrementalQueue, persistFlush, result, &lock)
+		go s.startIncrementalQueueWorkerLoop(
+			incrementalWorkerDoneCh, incrementalQueue, persistFlush, result, &resultLock)
 	}
 
 	workers := xsync.NewWorkerPool(concurrency)
@@ -169,7 +169,7 @@ func (s *peersSource) Read(
 		workers.Go(func() {
 			defer wg.Done()
 			s.fetchBootstrapBlocksFromPeers(shard, ranges, nsMetadata,
-				session, bopts, result, &lock, incremental, incrementalQueue, shardRetrieverMgr, blockSize)
+				session, bopts, result, &resultLock, incremental, incrementalQueue, shardRetrieverMgr, blockSize)
 		})
 	}
 
@@ -191,12 +191,12 @@ func (s *peersSource) Read(
 	return result, nil
 }
 
-// startIncrementalQueueWorker is meant to be run in its own goroutine, and it creates a worker that
+// startIncrementalQueueWorkerLoop is meant to be run in its own goroutine, and it creates a worker that
 // loops through the incrementalQueue and performs an incrementalFlush for each entry, ensuring that
 // no more than one incremental flush is ever happening at once. Once the incrementalQueue channel
 // is closed, and the worker has completed flushing all the remaining entries, it will close the
 // provided doneCh so that callers can block until everything has been successfully flushed.
-func (s *peersSource) startIncrementalQueueWorker(
+func (s *peersSource) startIncrementalQueueWorkerLoop(
 	doneCh chan struct{},
 	incrementalQueue chan incrementalFlush,
 	persistFlush persist.Flush,
@@ -252,10 +252,11 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 	for it.Next() {
 		currRange := it.Value()
 
-		for start := currRange.Start; start.Before(currRange.End); start = start.Add(blockSize) {
+		for blockStart := currRange.Start; blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
 			version := s.opts.FetchBlocksMetadataEndpointVersion()
-			shardResult, err := session.FetchBootstrapBlocksFromPeers(nsMetadata,
-				shard, start, start.Add(blockSize), bopts, version)
+			blockEnd := blockStart.Add(blockSize)
+			shardResult, err := session.FetchBootstrapBlocksFromPeers(
+				nsMetadata, shard, blockStart, blockEnd, bopts, version)
 
 			s.logFetchBootstrapBlocksFromPeersOutcome(shard, shardResult, err)
 
@@ -273,7 +274,7 @@ func (s *peersSource) fetchBootstrapBlocksFromPeers(
 					shard:             shard,
 					shardRetrieverMgr: shardRetrieverMgr,
 					shardResult:       shardResult,
-					timeRange:         xtime.Range{Start: start, End: start.Add(blockSize)},
+					timeRange:         xtime.Range{Start: blockStart, End: blockEnd},
 				}
 				continue
 			}
@@ -429,16 +430,13 @@ func (s *peersSource) incrementalFlush(
 		// then we don't want to keep these series in the shard result. If we leave them in, then
 		// they will all get loaded into the shard object, and then immediately evicted on the next
 		// tick which causes unnecessary memory pressure.
+		numSeriesTriedToRemoveWithRemainingBlocks := 0
 		for _, series := range shardResult.AllSeries() {
 			numBlocksRemaining := len(series.Blocks.AllBlocks())
 			// Should never happen since we removed all the block in the previous loop and fetching
 			// bootstrap blocks should always be exclusive on the end side.
 			if numBlocksRemaining > 0 {
-				s.log.WithFields(
-					xlog.NewField("start", tr.Start.Unix()),
-					xlog.NewField("end", tr.End.Unix()),
-					xlog.NewField("numBlocks", numBlocksRemaining),
-				).Error("error trying to remove series that still has blocks")
+				numSeriesTriedToRemoveWithRemainingBlocks++
 				continue
 			}
 
@@ -447,6 +445,13 @@ func (s *peersSource) incrementalFlush(
 			// Safe to finalize these IDs because the prepared object was the only other thing
 			// using them, and it has been closed.
 			series.ID.Finalize()
+		}
+		if numSeriesTriedToRemoveWithRemainingBlocks > 0 {
+			s.log.WithFields(
+				xlog.NewField("start", tr.Start.Unix()),
+				xlog.NewField("end", tr.End.Unix()),
+				xlog.NewField("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
+			).Error("error tried to remove series that still has blocks")
 		}
 	}
 
