@@ -40,8 +40,9 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+// decoderInBufChanSize should be less than 20% of decoderOutBufChanSize
 const decoderInBufChanSize = 100
-const decoderOutBufChanSize = 10000
+const decoderOutBufChanSize = 0
 
 var (
 	emptyLogInfo schema.LogInfo
@@ -266,8 +267,33 @@ func (r *reader) readLoop() {
 		numPending := index - numRead
 		numPendingPerBuf := numPending / r.numConc
 		if numPendingPerBuf > 0.8*decoderOutBufChanSize {
+			// 	// We have to free all pending waiters in case the reason the decoderOutBufs
+			// 	// are backing up is because the commit log is corrupt (missing metadata) and
+			// 	// the Read() method is stuck waiting for metadata that will never come.
+			// 	// This is safe to do in the non-corrupt path as well because its guaranteed
+			// 	// that it won't release any waiters prematurely because the
+			// r.metadata.Lock()
+			// allZero := true
+			// for _, hmm := range r.decoderBufs {
+			// 	if len(hmm) != 0 {
+			// 		allZero = false
+			// 	}
+			// }
+			// if allZero {
+			// 	r.freeAllPendingWaitersWithLock()
+			// }
+			// 	// fmt.Println(r.metadata.numBlockedOrFinishedDecoders)
+			// 	// if r.metadata.numBlockedOrFinishedDecoders >= r.numConc {
+			// 	r.freeAllPendingWaitersWithLock()
+			// 	// }
+			// 	// if r.metadata.numBlockedOrFinishedDecoders >= r.numConc {
+			// 	// r.freeAllPendingWaitersWithLock()
+			// 	// }
+			// 	r.metadata.Unlock()
+
 			// If the number of datapoints that have been read is less than 80% of the
-			// datapoints that have pushed downstream, then back off.
+			// datapoints that have been pushed downstream, start backing off to accomodate
+			// a slow reader and prevent the decoderOutBufs from all filling up.
 			time.Sleep(time.Millisecond)
 			continue
 		}
@@ -310,8 +336,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// If there is a pre-existing error, just pipe it through
 		if arg.err != nil {
 			readResponse.resultErr = arg.err
-			outBuf <- readResponse
-			// r.writeToOutBuf(outBuf, readResponse)
+			// outBuf <- readResponse
+			r.writeToOutBuf(outBuf, readResponse)
 			continue
 		}
 
@@ -322,8 +348,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		entry, err := decoder.DecodeLogEntry()
 		if err != nil {
 			readResponse.resultErr = err
-			outBuf <- readResponse
-			// r.writeToOutBuf(outBuf, readResponse)
+			// outBuf <- readResponse
+			r.writeToOutBuf(outBuf, readResponse)
 			continue
 		}
 
@@ -332,8 +358,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			err := r.decodeAndHandleMetadata(metadataDecoder, metadataDecoderStream, entry)
 			if err != nil {
 				readResponse.resultErr = err
-				outBuf <- readResponse
-				// r.writeToOutBuf(outBuf, readResponse)
+				// outBuf <- readResponse
+				r.writeToOutBuf(outBuf, readResponse)
 				continue
 			}
 		}
@@ -355,8 +381,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// byte slice is still referenced by metadata and annotation
 		arg.bytes.DecRef()
 		arg.bytes.Finalize()
-		outBuf <- readResponse
-		// r.writeToOutBuf(outBuf, readResponse)
+		// outBuf <- readResponse
+		r.writeToOutBuf(outBuf, readResponse)
 	}
 
 	r.metadata.Lock()
@@ -366,7 +392,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 	// finish will free up any pending waiters (and by then any still-pending
 	// metadata is definitely missing from the commitlog)
 	if r.metadata.numBlockedOrFinishedDecoders >= r.numConc {
-		r.freeAllPendingWaiters()
+		r.freeAllPendingWaitersWithLock()
 	}
 	r.metadata.Unlock()
 	// Close the outBuf now that there is no more data to produce to it
@@ -462,8 +488,9 @@ func (r *reader) writeToOutBuf(outBuf chan<- readResponse, readResponse readResp
 	// This could happen in the scenario where the commitlog is missing metadata
 	// and the .Wait() call in Read() is blocked waiting for data that will
 	// never arrive and thus is unable to empty the outBufs.
-	// In that case, its clear that the commitlog is malformatted (missing
-	// metadata) so we signal that the Read() call should proceed.
+	// It can also occur in the case that the reader is unable to keep up with the
+	// background workers, in which case the outBufs can also fill up. We guard against
+	// the latter case by implementing back-off in the readLoop.
 	for {
 		select {
 		// Happy path, outBuf is not full and our write succeeds immediately
@@ -475,9 +502,9 @@ func (r *reader) writeToOutBuf(outBuf chan<- readResponse, readResponse readResp
 
 		r.metadata.Lock()
 		// Check if all the other decoderLoops are finished or blocked too
-		allBlockedOrFinished := r.metadata.numBlockedOrFinishedDecoders < r.numConc
+		notAllBlockedOrFinished := r.metadata.numBlockedOrFinishedDecoders+1 < r.numConc
 		// If they're not then register ourselves as blocked and perform a blocking write
-		if !allBlockedOrFinished {
+		if notAllBlockedOrFinished {
 			r.metadata.numBlockedOrFinishedDecoders++
 			// Release the lock because we're about to perform a potentially blocking
 			// channel write
@@ -496,12 +523,12 @@ func (r *reader) writeToOutBuf(outBuf chan<- readResponse, readResponse readResp
 
 		// If all the other workers are blocked or finished, then performing a
 		// blocking write would cause deadlock so we free all pending waiters
-		r.freeAllPendingWaiters()
+		r.freeAllPendingWaitersWithLock()
 		r.metadata.Unlock()
 	}
 }
 
-func (r *reader) freeAllPendingWaiters() {
+func (r *reader) freeAllPendingWaitersWithLock() {
 	for _, shardedLookup := range r.metadata.shardedLookup {
 		for _, pending := range shardedLookup.pending {
 			for _, p := range pending {

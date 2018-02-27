@@ -22,11 +22,9 @@ package commitlog
 
 import (
 	"bufio"
-	"bytes"
 	"os"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/x/mmap"
 )
 
 const (
@@ -47,19 +45,14 @@ type chunkReader struct {
 
 func newChunkReader(bufferLen int) *chunkReader {
 	return &chunkReader{
-		buffer:   bufio.NewReaderSize(nil, bufferLen*10),
+		buffer:   bufio.NewReaderSize(nil, bufferLen),
 		charBuff: make([]byte, 1),
 	}
 }
 
 func (r *chunkReader) reset(fd *os.File) {
 	r.fd = fd
-	byteSlice, err := mmap.File(fd, mmap.Options{Read: true})
-	if err != nil {
-		panic(err)
-	}
-	// r.buffer = bufio.NewReader(bytes.NewReader(byteSlice.Result))
-	r.buffer.Reset(bytes.NewReader(byteSlice.Result))
+	r.buffer.Reset(fd)
 	r.remaining = 0
 }
 

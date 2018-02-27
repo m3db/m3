@@ -133,7 +133,7 @@ func TestCommitLogAndFSMergeBootstrap(t *testing.T) {
 		t1Nano: seriesMaps[t1Nano],
 		t2Nano: seriesMaps[t2Nano],
 	}
-	writeCommitLogData(t, setup, commitlogSeriesMaps, ns1.ID())
+	writeCommitLogData(t, setup, commitLogOpts, commitlogSeriesMaps, ns1.ID())
 
 	log.Info("moving time forward and starting server")
 	setup.setNowFn(t3)

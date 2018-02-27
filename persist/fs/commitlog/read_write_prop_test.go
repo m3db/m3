@@ -78,12 +78,14 @@ func TestCommitLogReadWrite(t *testing.T) {
 	defer iter.Close()
 	for ; iter.Next(); i++ {
 		series, datapoint, _, _, _ := iter.Current()
+		require.NoError(t, iter.Err())
 		write := writes[i]
 		require.Equal(t, write.series.ID.String(), series.ID.String())
 		require.Equal(t, write.series.Namespace.String(), series.Namespace.String())
 		require.Equal(t, write.series.Shard, series.Shard)
 		require.Equal(t, write.datapoint.Value, datapoint.Value)
 		require.True(t, write.datapoint.Timestamp.Equal(datapoint.Timestamp))
+		time.Sleep(100 * time.Millisecond)
 	}
 	require.Equal(t, len(writes), i)
 }
