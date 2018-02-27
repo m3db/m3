@@ -67,19 +67,23 @@ func TestSliceIterator(t *testing.T) {
 		require.Fail(t, "unknown id", c.String())
 	}
 	require.Empty(t, expected)
+	// repeated close should be idempotent
+	iter.Close()
+	iter.Close()
 }
 
-func TestSliceIteratorClone(t *testing.T) {
+func TestSliceIteratorDuplicate(t *testing.T) {
 	expected := map[string]struct{}{
 		"foo": struct{}{},
 		"bar": struct{}{},
 		"baz": struct{}{},
 	}
 	iter := NewIDSliceIterator(testIDs())
-	clone := iter.Clone()
+	clone := iter.Duplicate()
 	expectedLen := len(expected)
 	require.Equal(t, expectedLen, iter.Remaining())
 	require.Equal(t, expectedLen, clone.Remaining())
+	defer iter.Close()
 	for iter.Next() {
 		c := iter.Current()
 		if _, ok := expected[c.String()]; ok {
@@ -112,14 +116,14 @@ func TestStringSliceIterator(t *testing.T) {
 	}
 	require.Empty(t, expected)
 }
-func TestStringSliceIteratorClone(t *testing.T) {
+func TestStringSliceIteratorDuplicate(t *testing.T) {
 	expected := map[string]struct{}{
 		"foo": struct{}{},
 		"bar": struct{}{},
 		"baz": struct{}{},
 	}
 	iter := NewStringIDsSliceIterator(stringIDs())
-	clone := iter.Clone()
+	clone := iter.Duplicate()
 	expectedLen := len(expected)
 	require.Equal(t, expectedLen, iter.Remaining())
 	require.Equal(t, expectedLen, clone.Remaining())

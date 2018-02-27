@@ -73,13 +73,13 @@ func TestTagIterator(t *testing.T) {
 	require.Empty(t, expected)
 }
 
-func TestTagIteratorClone(t *testing.T) {
+func TestTagIteratorDuplicate(t *testing.T) {
 	expected := map[string]string{
 		"foo":   "bar",
 		"hello": "there",
 	}
 	iter := NewTagIterator(StringTag("hello", "there"), StringTag("foo", "bar"))
-	clone := iter.Clone()
+	clone := iter.Duplicate()
 	expectedLen := len(expected)
 	require.Equal(t, expectedLen, iter.Remaining())
 	for iter.Next() {
