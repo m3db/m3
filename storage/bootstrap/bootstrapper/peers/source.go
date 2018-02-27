@@ -352,8 +352,9 @@ func (s *peersSource) incrementalFlush(
 		return fmt.Errorf("shard retriever missing for shard: %d", shard)
 	}
 
-	// TODO: Remove this extra add on the tr.End
-	for start := tr.Start; start.Before(tr.End.Add(blockSize)); start = start.Add(blockSize) {
+	// TODO: Delete the .Add(blockSize) on tr.End once all clusters are on the version
+	// of M3DB that does not return an extra block.
+	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
 		prepared, err := flush.Prepare(nsMetadata, shard, start)
 		if err != nil {
 			return err
