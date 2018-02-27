@@ -4,12 +4,7 @@ include $(SELF_DIR)/.ci/common.mk
 SHELL=/bin/bash -o pipefail
 
 auto_gen             := .ci/auto-gen.sh
-convert-test-data    := .ci/convert-test-data.sh
-coverage_xml         := coverage.xml
-coverfile            := cover.out
 gopath_prefix        := $(GOPATH)/src
-html_report          := coverage.html
-junit_xml            := junit.xml
 license_dir          := .ci/uber-licence
 license_node_modules := $(license_dir)/node_modules
 lint_check           := .ci/lint.sh
@@ -22,10 +17,6 @@ mocks_output_dir     := generated/mocks/mocks
 mocks_rules_dir      := generated/mocks
 proto_rules_dir      := generated/proto
 protoc_go_package    := github.com/golang/protobuf/protoc-gen-go
-test                 := .ci/test-cover.sh
-test_ci_integration  := .ci/test-integration.sh
-test_log             := test.log
-test_one_integration := .ci/test-one-integration.sh
 vendor_prefix        := vendor
 
 BUILD            := $(abspath ./bin)
@@ -105,46 +96,25 @@ metalint: install-metalinter
 	@($(metalint_check) $(metalint_config) $(metalint_exclude) \
 		&& echo "metalinted successfully!") || (echo "metalinter failed" && exit 1)
 
-.PHONY: test-internal
-test-internal:
-	@which go-junit-report > /dev/null || go get -u github.com/sectioneight/go-junit-report
-	$(test) $(coverfile) | tee $(test_log)
-
-# Do not test native pooling for now due to slow travis builds
-.PHONY: test-integration
-test-integration:
-	TEST_NATIVE_POOLING=false go test -v -tags=integration ./integration
-
-.PHONY: test-xml
-test-xml: test-internal
-	go-junit-report < $(test_log) > $(junit_xml)
-	gocov convert $(coverfile) | gocov-xml > $(coverage_xml)
-	@$(convert-test-data) $(coverage_xml)
-	@rm $(coverfile) &> /dev/null
-
 .PHONY: test
-test: test-internal
+test: test-base
 	gocov convert $(coverfile) | gocov report
 
-.PHONY: testhtml
-testhtml: test-internal
-	gocov convert $(coverfile) | gocov-html > $(html_report) && open $(html_report)
-	@rm -f $(test_log) &> /dev/null
+.PHONY: test-integration
+test-integration: test-base-integration
+
+.PHONY: test-xml
+test-xml: test-base-xml
+
+.PHONY: test-html
+testhtml: test-base-html
 
 .PHONY: test-ci-unit
-test-ci-unit: test-internal
-	@which goveralls > /dev/null || go get -u -f github.com/mattn/goveralls
-	goveralls -coverprofile=$(coverfile) -service=travis-ci || echo -e "Coveralls failed"
+test-ci-unit: test-base-ci-unit
 
-# Do not test native pooling for now due to slow travis builds
 .PHONY: test-ci-integration
 test-ci-integration:
-	INTEGRATION_TIMEOUT=2m TEST_NATIVE_POOLING=false $(test_ci_integration)
-
-# run as: make test-one-integration test=<test_name>
-.PHONY: test-one-integration
-test-one-integration:
-	TEST_NATIVE_POOLING=false $(test_one_integration) $(test)
+	INTEGRATION_TIMEOUT=4m make test-base-ci-integration
 
 .PHONY: clean
 clean:
