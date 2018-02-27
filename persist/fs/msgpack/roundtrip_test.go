@@ -1,7 +1,7 @@
 // Copyright (c) 2016 Uber Technologies, Inc
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
+// of this software and associated documentation files (the "Software"), to LOal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
@@ -146,6 +146,24 @@ func TestLogEntryRoundtrip(t *testing.T) {
 	dec.Reset(NewDecoderStream(enc.Bytes()))
 	res, err := dec.DecodeLogEntry()
 	require.NoError(t, err)
+	require.Equal(t, testLogEntry, res)
+}
+
+func TestLogEntryRoundtripParts(t *testing.T) {
+	var (
+		enc = testEncoder(t)
+		dec = testDecoder(t, nil)
+	)
+	require.NoError(t, enc.EncodeLogEntry(testLogEntry))
+	dec.Reset(NewDecoderStream(enc.Bytes()))
+	create, idx, err := dec.DecodeLogEntryPart1()
+	require.NoError(t, err)
+
+	res, err := dec.DecodeLogEntryPart2()
+	require.NoError(t, err)
+
+	res.Create = create
+	res.Index = idx
 	require.Equal(t, testLogEntry, res)
 }
 

@@ -25,6 +25,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -307,6 +308,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		metadataDecoder       = msgpack.NewDecoder(decodingOpts)
 		metadataDecoderStream = msgpack.NewDecoderStream(nil)
 	)
+	total := 0
+	count := 0
 	for arg := range inBuf {
 		readResponse := readResponse{}
 		// If there is a pre-existing error, just pipe it through
@@ -319,6 +322,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 
 		// Decode the log entry
 		// arg.bytes.IncRef()
+		total += arg.bytes.Len()
+		count += 1
 		decoderStream.Reset(arg.bytes.Get())
 		decoder.Reset(decoderStream)
 		entry, err := decoder.DecodeLogEntry()
@@ -360,6 +365,8 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// outBuf <- readResponse
 		r.writeToOutBuf(outBuf, readResponse)
 	}
+
+	fmt.Println("average: ", total/count)
 
 	r.metadata.Lock()
 	r.metadata.numBlockedOrFinishedDecoders++
