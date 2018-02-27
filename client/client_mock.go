@@ -171,11 +171,12 @@ func (_mr *_MockSessionRecorder) FetchIDs(arg0, arg1, arg2, arg3 interface{}) *g
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchIDs", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptions) (index.QueryResults, error) {
+func (_m *MockSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptions) (encoding.SeriesIterators, bool, error) {
 	ret := _m.ctrl.Call(_m, "FetchTagged", _param0, _param1)
-	ret0, _ := ret[0].(index.QueryResults)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(encoding.SeriesIterators)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 func (_mr *_MockSessionRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
@@ -467,11 +468,12 @@ func (_mr *_MockAdminSessionRecorder) FetchIDs(arg0, arg1, arg2, arg3 interface{
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchIDs", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockAdminSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptions) (index.QueryResults, error) {
+func (_m *MockAdminSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptions) (encoding.SeriesIterators, bool, error) {
 	ret := _m.ctrl.Call(_m, "FetchTagged", _param0, _param1)
-	ret0, _ := ret[0].(index.QueryResults)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(encoding.SeriesIterators)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 func (_mr *_MockAdminSessionRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {
@@ -637,11 +639,12 @@ func (_mr *_MockclientSessionRecorder) FetchIDs(arg0, arg1, arg2, arg3 interface
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "FetchIDs", arg0, arg1, arg2, arg3)
 }
 
-func (_m *MockclientSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptions) (index.QueryResults, error) {
+func (_m *MockclientSession) FetchTagged(_param0 index.Query, _param1 index.QueryOptions) (encoding.SeriesIterators, bool, error) {
 	ret := _m.ctrl.Call(_m, "FetchTagged", _param0, _param1)
-	ret0, _ := ret[0].(index.QueryResults)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(encoding.SeriesIterators)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
 }
 
 func (_mr *_MockclientSessionRecorder) FetchTagged(arg0, arg1 interface{}) *gomock.Call {

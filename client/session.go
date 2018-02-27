@@ -876,8 +876,8 @@ func (s *session) FetchIDs(
 
 func (s *session) FetchTagged(
 	q index.Query, opts index.QueryOptions,
-) (index.QueryResults, error) {
-	return index.QueryResults{}, errNotImplemented
+) (encoding.SeriesIterators, bool, error) {
+	return nil, false, errNotImplemented
 }
 
 func (s *session) FetchTaggedIDs(
