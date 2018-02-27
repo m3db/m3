@@ -42,7 +42,7 @@ import (
 
 // decoderInBufChanSize should be less than 20% of decoderOutBufChanSize
 const decoderInBufChanSize = 100
-const decoderOutBufChanSize = 0
+const decoderOutBufChanSize = 1000
 
 var (
 	emptyLogInfo schema.LogInfo
@@ -267,30 +267,6 @@ func (r *reader) readLoop() {
 		numPending := index - numRead
 		numPendingPerBuf := numPending / r.numConc
 		if numPendingPerBuf > 0.8*decoderOutBufChanSize {
-			// 	// We have to free all pending waiters in case the reason the decoderOutBufs
-			// 	// are backing up is because the commit log is corrupt (missing metadata) and
-			// 	// the Read() method is stuck waiting for metadata that will never come.
-			// 	// This is safe to do in the non-corrupt path as well because its guaranteed
-			// 	// that it won't release any waiters prematurely because the
-			// r.metadata.Lock()
-			// allZero := true
-			// for _, hmm := range r.decoderBufs {
-			// 	if len(hmm) != 0 {
-			// 		allZero = false
-			// 	}
-			// }
-			// if allZero {
-			// 	r.freeAllPendingWaitersWithLock()
-			// }
-			// 	// fmt.Println(r.metadata.numBlockedOrFinishedDecoders)
-			// 	// if r.metadata.numBlockedOrFinishedDecoders >= r.numConc {
-			// 	r.freeAllPendingWaitersWithLock()
-			// 	// }
-			// 	// if r.metadata.numBlockedOrFinishedDecoders >= r.numConc {
-			// 	// r.freeAllPendingWaitersWithLock()
-			// 	// }
-			// 	r.metadata.Unlock()
-
 			// If the number of datapoints that have been read is less than 80% of the
 			// datapoints that have been pushed downstream, start backing off to accomodate
 			// a slow reader and prevent the decoderOutBufs from all filling up.
