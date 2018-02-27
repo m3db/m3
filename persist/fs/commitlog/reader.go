@@ -118,15 +118,14 @@ type readerMetadata struct {
 }
 
 type reader struct {
-	opts              Options
-	numConc           int64
-	bytesPool         pool.CheckedBytesPool
-	chunkReader       *chunkReader
-	dataBuffer        []byte
-	infoDecoder       *msgpack.Decoder
-	infoDecoderStream msgpack.DecoderStream
-	decoderBufs       []chan decoderArg
-	// outBufs              []chan readResponse
+	opts                 Options
+	numConc              int64
+	bytesPool            pool.CheckedBytesPool
+	chunkReader          *chunkReader
+	dataBuffer           []byte
+	infoDecoder          *msgpack.Decoder
+	infoDecoderStream    msgpack.DecoderStream
+	decoderBufs          []chan decoderArg
 	outBuf               chan readResponse
 	cancelCtx            context.Context
 	cancelFunc           context.CancelFunc
@@ -147,20 +146,7 @@ func newCommitLogReader(opts Options) commitLogReader {
 	for i := 0; i < numConc; i++ {
 		decoderBufs = append(decoderBufs, make(chan decoderArg, decoderInBufChanSize))
 	}
-	// outBufs := make([]chan readResponse, 0, numConc)
-	// for i := 0; i < numConc; i++ {
-	// 	outBufs = append(outBufs, make(chan readResponse, decoderOutBufChanSize))
-	// }
 	outBuf := make(chan readResponse, decoderOutBufChanSize*numConc)
-
-	// shardedLookup := make([]lockableMetadataLookup, 0, 1000)
-	// for i := 0; i < numConc; i++ {
-	// 	shardedLookup = append(shardedLookup, lockableMetadataLookup{
-	// 		RWMutex: &sync.RWMutex{},
-	// 		lookup:  make(map[uint64]Series),
-	// 		pending: make(map[uint64][]*readerPendingSeriesMetadataResponse),
-	// 	})
-	// }
 
 	reader := &reader{
 		opts:              opts,
@@ -170,16 +156,13 @@ func newCommitLogReader(opts Options) commitLogReader {
 		infoDecoder:       msgpack.NewDecoder(decodingOpts),
 		infoDecoderStream: msgpack.NewDecoderStream(nil),
 		decoderBufs:       decoderBufs,
-		// outBufs:           outBufs,
-		outBuf:     outBuf,
-		cancelCtx:  cancelCtx,
-		cancelFunc: cancelFunc,
-		shutdownCh: make(chan error),
-		metadata:   readerMetadata{
-		// 	shardedLookup: shardedLookup,
-		},
-		nextIndex: 0,
-		yolo:      []byte("metricslol"),
+		outBuf:            outBuf,
+		cancelCtx:         cancelCtx,
+		cancelFunc:        cancelFunc,
+		shutdownCh:        make(chan error),
+		metadata:          readerMetadata{},
+		nextIndex:         0,
+		yolo:              []byte("metricslol"),
 	}
 	return reader
 }
@@ -217,8 +200,7 @@ func (r *reader) Read() (
 	uniqueIndex uint64,
 	resultErr error,
 ) {
-	nextIndex := atomic.LoadInt64(&r.nextIndex)
-	if nextIndex == 0 {
+	if r.nextIndex == 0 {
 		err := r.startBackgroundWorkers()
 		if err != nil {
 			return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), 0, err
@@ -244,7 +226,7 @@ func (r *reader) Read() (
 		// Wait for metadata to be available
 		rr.series, rr.resultErr = rr.pendingMetadata.wait()
 	}
-	atomic.StoreInt64(&r.nextIndex, nextIndex+1)
+	r.nextIndex++
 	return rr.series, rr.datapoint, rr.unit, rr.annotation, rr.uniqueIndex, rr.resultErr
 }
 
@@ -258,7 +240,6 @@ func (r *reader) startBackgroundWorkers() error {
 	// Start background worker goroutines
 	go r.readLoop()
 	for _, decoderBuf := range r.decoderBufs {
-		// localDecoderBuf, outBuf := decoderBuf, r.outBufs[i]
 		localDecoderBuf := decoderBuf
 		go r.decoderLoop(localDecoderBuf, r.outBuf)
 	}
@@ -267,34 +248,18 @@ func (r *reader) startBackgroundWorkers() error {
 }
 
 func (r *reader) readLoop() {
-	// index := int64(0)
 	defer r.shutdown()
 
 	decodingOpts := r.opts.FilesystemOptions().DecodingOptions()
 	decoder := msgpack.NewDecoder(decodingOpts)
 	decoderStream := msgpack.NewDecoderStream(nil)
 	for {
-		// numRead := atomic.LoadInt64(&r.nextIndex)
-		// numPending := index - numRead
-		// numPendingPerBuf := numPending / r.numConc
-		// if numPendingPerBuf > 0.8*decoderOutBufChanSize {
-		// 	// If the number of datapoints that have been read is less than 80% of the
-		// 	// datapoints that have been pushed downstream, start backing off to accomodate
-		// 	// a slow reader and prevent the decoderOutBufs from all filling up.
-		// 	time.Sleep(time.Millisecond)
-		// 	continue
-		// }
 		select {
 		case <-r.cancelCtx.Done():
 			return
 		default:
 			data, err := r.readChunk()
 			if err != nil {
-				// r.decoderBufs[index%r.numConc] <- decoderArg{
-				// 	bytes: data,
-				// 	err:   err,
-				// }
-				// index++
 				if err == io.EOF {
 					return
 				}
@@ -316,10 +281,6 @@ func (r *reader) readLoop() {
 				index:  index,
 				offset: decoderStream.Offset(),
 			}
-			// index++
-			// if err == io.EOF {
-			// 	return
-			// }
 		}
 	}
 }
@@ -347,13 +308,11 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// If there is a pre-existing error, just pipe it through
 		if arg.err != nil {
 			readResponse.resultErr = arg.err
-			// outBuf <- readResponse
-			r.writeToOutBuf(outBuf, readResponse)
+			outBuf <- readResponse
 			continue
 		}
 
 		// Decode the log entry
-		// arg.bytes.IncRef()
 		total += arg.bytes.Len()
 		count += 1
 		decoderStream.Reset(arg.bytes.Get()[arg.offset:])
@@ -361,8 +320,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		entry, err := decoder.DecodeLogEntryPart2()
 		if err != nil {
 			readResponse.resultErr = err
-			// outBuf <- readResponse
-			r.writeToOutBuf(outBuf, readResponse)
+			outBuf <- readResponse
 			continue
 		}
 		entry.Index = arg.index
@@ -372,8 +330,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			err := r.decodeAndHandleMetadata(metadataLookup, metadataDecoder, metadataDecoderStream, entry)
 			if err != nil {
 				readResponse.resultErr = err
-				// outBuf <- readResponse
-				r.writeToOutBuf(outBuf, readResponse)
+				outBuf <- readResponse
 				continue
 			}
 		}
@@ -395,8 +352,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// byte slice is still referenced by metadata and annotation
 		arg.bytes.DecRef()
 		arg.bytes.Finalize()
-		// outBuf <- readResponse
-		r.writeToOutBuf(outBuf, readResponse)
+		outBuf <- readResponse
 	}
 
 	if count > 0 {
@@ -410,12 +366,9 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 	// finish will free up any pending waiters (and by then any still-pending
 	// metadata is definitely missing from the commitlog)
 	if r.metadata.numBlockedOrFinishedDecoders >= r.numConc {
-		r.freeAllPendingWaitersWithLock()
 		close(outBuf)
 	}
 	r.metadata.Unlock()
-	// Close the outBuf now that there is no more data to produce to it
-	// close(outBuf)
 }
 
 func (r *reader) decodeAndHandleMetadata(
@@ -476,65 +429,6 @@ func (r *reader) lookupMetadata(metadataLookup map[uint64]Series, entryIndex uin
 	return metadata
 }
 
-// TODO: Might not need this function anymore
-func (r *reader) writeToOutBuf(outBuf chan<- readResponse, readResponse readResponse) {
-	// Guard against all of the decoder loops having full outBuffers (deadlock).
-	// This could happen in the scenario where the commitlog is missing metadata
-	// and the .Wait() call in Read() is blocked waiting for data that will
-	// never arrive and thus is unable to empty the outBufs.
-	// It can also occur in the case that the reader is unable to keep up with the
-	// background workers, in which case the outBufs can also fill up. We guard against
-	// the latter case by implementing back-off in the readLoop.
-	for {
-		select {
-		// Happy path, outBuf is not full and our write succeeds immediately
-		case outBuf <- readResponse:
-			return
-		// outBuf is full - fallthrough into remaining code
-		default:
-		}
-
-		r.metadata.Lock()
-		// Check if all the other decoderLoops are finished or blocked too
-		notAllBlockedOrFinished := r.metadata.numBlockedOrFinishedDecoders+1 < r.numConc
-		// If they're not then register ourselves as blocked and perform a blocking write
-		if notAllBlockedOrFinished {
-			r.metadata.numBlockedOrFinishedDecoders++
-			// Release the lock because we're about to perform a potentially blocking
-			// channel write
-			r.metadata.Unlock()
-
-			// Safe to perform a blocking write because we will be free'd by the
-			// final decoderLoop if its about to block or finish
-			outBuf <- readResponse
-
-			// Unregister as blocked
-			r.metadata.Lock()
-			r.metadata.numBlockedOrFinishedDecoders--
-			r.metadata.Unlock()
-			return
-		}
-
-		// If all the other workers are blocked or finished, then performing a
-		// blocking write would cause deadlock so we free all pending waiters
-		r.freeAllPendingWaitersWithLock()
-		r.metadata.Unlock()
-	}
-}
-
-func (r *reader) freeAllPendingWaitersWithLock() {
-	for _, shardedLookup := range r.metadata.shardedLookup {
-		for _, pending := range shardedLookup.pending {
-			for _, p := range pending {
-				p.done(Series{}, errCommitLogReaderPendingMetadataNeverFulfilled)
-			}
-		}
-		for k := range shardedLookup.pending {
-			delete(shardedLookup.pending, k)
-		}
-	}
-}
-
 func (r *reader) readChunk() (checked.Bytes, error) {
 	// Read size of message
 	size, err := binary.ReadUvarint(r.chunkReader)
@@ -542,36 +436,16 @@ func (r *reader) readChunk() (checked.Bytes, error) {
 		return nil, err
 	}
 
-	// Extend buffer as necessary
-	// if len(r.dataBuffer) < int(size) {
-	// 	diff := int(size) - len(r.dataBuffer)
-	// 	for i := 0; i < diff; i++ {
-	// 		r.dataBuffer = append(r.dataBuffer, 0)
-	// 	}
-	// }
-
 	// Size the target buffer for reading and unmarshalling
-	// buffer := r.dataBuffer[:size]
 	checkedBytes := r.bytesPool.Get(int(size))
 	checkedBytes.IncRef()
 	checkedBytes.Resize(int(size))
 
 	// Read message
-
 	if _, err := r.chunkReader.Read(checkedBytes.Get()); err != nil {
-		// checkedBytes.DecRef()
 		return nil, err
 	}
-	// checkedBytes.DecRef()
 
-	// Copy message into pooled byte slice. Reading happens synchronously so its
-	// safe to reuse the same buffer repeatedly, but decoding happens in parallel
-	// so we need to make sure that the byte slice we return won't be mutated
-	// until the caller is done with it.
-	// pooled := r.bytesPool.Get(int(size))
-	// pooled.IncRef()
-	// pooled.AppendAll(buffer)
-	// pooled.DecRef()
 	return checkedBytes, nil
 }
 
