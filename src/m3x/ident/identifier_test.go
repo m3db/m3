@@ -45,33 +45,6 @@ func TestConstructorEquality(t *testing.T) {
 	assert.Equal(t, a.Hash(), b.Hash())
 }
 
-func testPooling(t *testing.T, p Pool) {
-	ctx := context.NewContext()
-
-	a := p.GetStringID(ctx, "abc")
-	b := p.Clone(a)
-
-	require.True(t, a.Equal(b))
-
-	ctx.BlockingClose()
-
-	require.Nil(t, a.Data())
-	require.NotEmpty(t, b.Data().Get())
-}
-
-func TestSimplePooling(t *testing.T) {
-	bytesPool := pool.NewCheckedBytesPool(nil, nil,
-		func(s []pool.Bucket) pool.BytesPool {
-			return pool.NewBytesPool(s, nil)
-		})
-	bytesPool.Init()
-	testPooling(t, NewPool(bytesPool, pool.NewObjectPoolOptions()))
-}
-
-func TestNativePooling(t *testing.T) {
-	testPooling(t, NewNativePool(nil, pool.NewObjectPoolOptions()))
-}
-
 func TestHashing(t *testing.T) {
 	var (
 		wg         sync.WaitGroup

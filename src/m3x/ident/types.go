@@ -55,6 +55,18 @@ type Tag struct {
 	Value TagValue
 }
 
+// Finalize releases all resources held by the Tag.
+func (t *Tag) Finalize() {
+	if t.Name != nil {
+		t.Name.Finalize()
+		t.Name = nil
+	}
+	if t.Value != nil {
+		t.Value.Finalize()
+		t.Value = nil
+	}
+}
+
 // Pool represents an automatic pool of `ident` objects.
 type Pool interface {
 	// GetBinaryID will create a new binary ID and take reference to the bytes.
@@ -62,18 +74,32 @@ type Pool interface {
 	// the bytes, i.e. it will take ownership of the bytes.
 	GetBinaryID(context.Context, checked.Bytes) ID
 
+	// BinaryID will create a new binary ID and take a reference to the bytes.
+	BinaryID(checked.Bytes) ID
+
 	// GetBinaryTag will create a new binary Tag and take reference to the bytes.
 	// When the context closes, the Tag will be finalized and so too will
 	// the bytes, i.e. it will take ownership of the bytes.
 	GetBinaryTag(c context.Context, name checked.Bytes, value checked.Bytes) Tag
 
+	// BinaryTag will create a new binary Tag and take a reference to the provided bytes.
+	BinaryTag(name checked.Bytes, value checked.Bytes) Tag
+
 	// GetStringID will create a new string ID and create a bytes copy of the
 	// string. When the context closes the ID will be finalized.
 	GetStringID(c context.Context, id string) ID
 
+	// StringID will create a new string ID and create a bytes copy of the
+	// string.
+	StringID(id string) ID
+
 	// GetStringTag will create a new string Tag and create a bytes copy of the
 	// string. When the context closes the ID will be finalized.
 	GetStringTag(c context.Context, name string, value string) Tag
+
+	// StringTag will create a new string Tag and create a bytes copy of the
+	// string.
+	StringTag(name string, value string) Tag
 
 	// Put an ID back in the pool.
 	Put(ID)
@@ -82,10 +108,10 @@ type Pool interface {
 	PutTag(Tag)
 
 	// Clone replicates a given ID into a pooled ID.
-	Clone(other ID) ID
+	Clone(ID) ID
 
-	// CloneIDs replicates the given IDs into pooled IDs.
-	CloneIDs(Iterator) IDs
+	// CloneTag replicates a given Tag into a pooled Tag.
+	CloneTag(Tag) Tag
 }
 
 // Iterator represents an iterator over `ID` instances. It is not thread-safe.
@@ -105,8 +131,8 @@ type Iterator interface {
 	// Remaining returns the number of elements remaining to be iterated over.
 	Remaining() int
 
-	// Clone returns an independent clone of the iterator.
-	Clone() Iterator
+	// Dupe returns an independent duplicate of the iterator.
+	Duplicate() Iterator
 }
 
 // TagIterator represents an iterator over `Tag` instances. It is not thread-safe.
@@ -126,8 +152,8 @@ type TagIterator interface {
 	// Remaining returns the number of elements remaining to be iterated over.
 	Remaining() int
 
-	// Clone returns an independent clone of the iterator.
-	Clone() TagIterator
+	// Dupe returns an independent duplicate of the iterator.
+	Duplicate() TagIterator
 }
 
 // IDs is a collection of ID instances.
@@ -145,9 +171,9 @@ type Tags []Tag
 
 // Finalize finalizes all Tags.
 func (tags Tags) Finalize() {
-	for _, t := range tags {
-		t.Name.Finalize()
-		t.Value.Finalize()
+	for i := range tags {
+		t := tags[i]
+		t.Finalize()
 	}
 }
 

@@ -71,7 +71,7 @@ func (i *idSliceIter) Remaining() int {
 	return 0
 }
 
-func (i *idSliceIter) Clone() Iterator {
+func (i *idSliceIter) Duplicate() Iterator {
 	return &idSliceIter{
 		backingSlice: i.backingSlice,
 		currentIdx:   i.currentIdx,
@@ -130,7 +130,7 @@ func (i *stringSliceIter) Remaining() int {
 	return 0
 }
 
-func (i *stringSliceIter) Clone() Iterator {
+func (i *stringSliceIter) Duplicate() Iterator {
 	return &stringSliceIter{
 		backingSlice: i.backingSlice,
 		currentIdx:   i.currentIdx,

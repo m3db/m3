@@ -46,12 +46,15 @@ type simplePool struct {
 }
 
 func (p *simplePool) GetBinaryID(ctx context.Context, v checked.Bytes) ID {
-	id := p.pool.Get().(*id)
+	id := p.BinaryID(v)
 	ctx.RegisterFinalizer(id)
+	return id
+}
 
+func (p *simplePool) BinaryID(v checked.Bytes) ID {
+	id := p.pool.Get().(*id)
 	v.IncRef()
 	id.pool, id.data = p, v
-
 	return id
 }
 
@@ -66,12 +69,29 @@ func (p *simplePool) GetBinaryTag(
 	}
 }
 
+func (p *simplePool) BinaryTag(
+	name checked.Bytes,
+	value checked.Bytes,
+) Tag {
+	return Tag{
+		Name:  TagName(p.BinaryID(name)),
+		Value: TagValue(p.BinaryID(value)),
+	}
+}
+
 func (p *simplePool) GetStringID(ctx context.Context, v string) ID {
+	id := p.StringID(v)
+	ctx.RegisterFinalizer(id)
+	return id
+}
+
+func (p *simplePool) StringID(v string) ID {
 	data := p.bytesPool.Get(len(v))
 	data.IncRef()
 	data.AppendAll([]byte(v))
 	data.DecRef()
-	return p.GetBinaryID(ctx, data)
+
+	return p.BinaryID(data)
 }
 
 func (p *simplePool) Put(v ID) {
@@ -88,6 +108,13 @@ func (p *simplePool) GetStringTag(ctx context.Context, name string, value string
 	return Tag{
 		Name:  TagName(p.GetStringID(ctx, name)),
 		Value: TagValue(p.GetStringID(ctx, value)),
+	}
+}
+
+func (p *simplePool) StringTag(name string, value string) Tag {
+	return Tag{
+		Name:  TagName(p.StringID(name)),
+		Value: TagValue(p.StringID(value)),
 	}
 }
 
@@ -108,13 +135,11 @@ func (p *simplePool) Clone(existing ID) ID {
 	return id
 }
 
-func (p *simplePool) CloneIDs(iter Iterator) IDs {
-	ids := make(IDs, 0, iter.Remaining())
-	for iter.Next() {
-		id := iter.Current()
-		ids = append(ids, p.Clone(id))
+func (p *simplePool) CloneTag(t Tag) Tag {
+	return Tag{
+		Name:  p.Clone(t.Name),
+		Value: p.Clone(t.Value),
 	}
-	return ids
 }
 
 // NewNativePool constructs a new NativePool.
@@ -173,7 +198,14 @@ func configureHeap(heap pool.CheckedBytesPool) pool.CheckedBytesPool {
 	return p
 }
 
-// GetBinaryID returns a new ID based on a binary value.
+func (p *nativePool) BinaryID(raw checked.Bytes) ID {
+	id := p.pool.Get().(*id)
+	raw.IncRef()
+	id.pool, id.data = p, raw
+
+	return id
+}
+
 func (p *nativePool) GetBinaryID(ctx context.Context, v checked.Bytes) ID {
 	id := p.pool.Get().(*id)
 	ctx.RegisterFinalizer(id)
@@ -184,7 +216,13 @@ func (p *nativePool) GetBinaryID(ctx context.Context, v checked.Bytes) ID {
 	return id
 }
 
-// GetBinaryTag returns a new Tag based on binary values.
+func (p *nativePool) BinaryTag(name checked.Bytes, value checked.Bytes) Tag {
+	return Tag{
+		Name:  TagName(p.BinaryID(name)),
+		Value: TagValue(p.BinaryID(value)),
+	}
+}
+
 func (p *nativePool) GetBinaryTag(
 	ctx context.Context,
 	name checked.Bytes,
@@ -196,10 +234,8 @@ func (p *nativePool) GetBinaryTag(
 	}
 }
 
-// GetStringID returns a new ID based on a string value.
-func (p *nativePool) GetStringID(ctx context.Context, str string) ID {
+func (p *nativePool) StringID(str string) ID {
 	id := p.pool.Get().(*id)
-	ctx.RegisterFinalizer(id)
 
 	v := p.heap.Get(len(str))
 	v.IncRef()
@@ -210,11 +246,23 @@ func (p *nativePool) GetStringID(ctx context.Context, str string) ID {
 	return id
 }
 
-// GetStringTag returns a new Tag based on string values.
+func (p *nativePool) GetStringID(ctx context.Context, str string) ID {
+	id := p.StringID(str)
+	ctx.RegisterFinalizer(id)
+	return id
+}
+
 func (p *nativePool) GetStringTag(ctx context.Context, name string, value string) Tag {
 	return Tag{
 		Name:  TagName(p.GetStringID(ctx, name)),
 		Value: TagValue(p.GetStringID(ctx, value)),
+	}
+}
+
+func (p *nativePool) StringTag(name string, value string) Tag {
+	return Tag{
+		Name:  TagName(p.StringID(name)),
+		Value: TagValue(p.StringID(value)),
 	}
 }
 
@@ -228,7 +276,6 @@ func (p *nativePool) PutTag(t Tag) {
 	p.Put(t.Value)
 }
 
-// Clone replicates given ID into a new ID from the pool.
 func (p *nativePool) Clone(existing ID) ID {
 	id := p.pool.Get().(*id)
 
@@ -246,11 +293,9 @@ func (p *nativePool) Clone(existing ID) ID {
 	return id
 }
 
-func (p *nativePool) CloneIDs(iter Iterator) IDs {
-	ids := make(IDs, 0, iter.Remaining())
-	for iter.Next() {
-		id := iter.Current()
-		ids = append(ids, p.Clone(id))
+func (p *nativePool) CloneTag(t Tag) Tag {
+	return Tag{
+		Name:  p.Clone(t.Name),
+		Value: p.Clone(t.Value),
 	}
-	return ids
 }
