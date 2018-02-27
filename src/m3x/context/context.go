@@ -69,7 +69,7 @@ func (c *ctx) RegisterFinalizer(f resource.Finalizer) {
 	if c.pool != nil {
 		c.finalizers = append(c.pool.GetFinalizers(), f)
 	} else {
-		c.finalizers = append(allocateFinalizers(), f)
+		c.finalizers = append(allocateFinalizers(defaultInitFinalizersCap), f)
 	}
 
 	c.Unlock()
