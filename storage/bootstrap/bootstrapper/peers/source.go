@@ -376,7 +376,7 @@ func (s *peersSource) incrementalFlush(
 			segment, err := stream.Segment()
 			if err != nil {
 				tmpCtx.BlockingClose()
-				blockErr = err // Need to  call prepared.Close, avoid return
+				blockErr = err // Need to call prepared.Close, avoid return
 				break
 			}
 
