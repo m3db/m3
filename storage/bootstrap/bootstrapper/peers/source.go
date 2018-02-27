@@ -352,7 +352,8 @@ func (s *peersSource) incrementalFlush(
 		return fmt.Errorf("shard retriever missing for shard: %d", shard)
 	}
 
-	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
+	// TODO: Remove this extra add on the tr.End
+	for start := tr.Start; start.Before(tr.End.Add(blockSize)); start = start.Add(blockSize) {
 		prepared, err := flush.Prepare(nsMetadata, shard, start)
 		if err != nil {
 			return err
