@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -104,10 +105,9 @@ func (b *benchmarker) allAddresses() []string {
 	var all []string
 	for _, addr := range strings.Split(b.benchmarkers, ",") {
 		addr = strings.TrimSpace(addr)
-		if addr == "" {
-			continue
+		if addr != "" {
+			all = append(all, addr)
 		}
-		all = append(all, addr)
 	}
 	return all
 }
@@ -146,7 +146,7 @@ func (b *benchmarker) waitForBenchmarkers() {
 		}()
 	}
 
-	fmt.Printf("all ready, now synchronizing to nearest 10s...\n")
+	log.Println("all ready, now synchronizing to nearest 10s...")
 	sync := 5 * time.Second
 	now := time.Now()
 	waitFor := now.Truncate(sync).Add(sync).Sub(now)

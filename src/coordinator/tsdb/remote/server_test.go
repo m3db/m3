@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"sync"
 	"testing"
 	"time"
@@ -144,7 +143,7 @@ func checkFetch(ctx context.Context, t *testing.T, client Client, read *storage.
 
 func checkWrite(ctx context.Context, t *testing.T, client Client, write *storage.WriteQuery) {
 	err := client.Write(ctx, write)
-	require.Equal(t, io.EOF, err)
+	require.Nil(t, err)
 }
 
 func checkErrorFetch(ctx context.Context, t *testing.T, client Client, read *storage.FetchQuery, readOpts *storage.FetchOptions) {

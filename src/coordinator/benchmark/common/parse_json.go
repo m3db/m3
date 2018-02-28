@@ -4,18 +4,18 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"log"
 	"os"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/m3db/m3coordinator/generated/proto/prometheus/prompb"
 	"github.com/m3db/m3coordinator/storage"
-)
 
-var (
-	wg sync.WaitGroup
+	"github.com/golang/protobuf/proto"
+	"github.com/golang/snappy"
 )
 
 const (
@@ -40,28 +40,62 @@ type M3Metric struct {
 
 // ConvertToM3 parses the json file that is generated from InfluxDB's bulk_data_gen tool
 func ConvertToM3(fileName string, workers int, f func(*M3Metric)) {
+	metricChannel := make(chan *M3Metric, MetricsLen)
+	dataChannel := make(chan []byte, MetricsLen)
+	wg := new(sync.WaitGroup)
+	workFunction := func() {
+		for w := 0; w < workers; w++ {
+			wg.Add(1)
+			go func() {
+				unmarshalMetrics(dataChannel, metricChannel)
+				wg.Done()
+			}()
+		}
+		go func() {
+			for metric := range metricChannel {
+				f(metric)
+			}
+		}()
+		wg.Wait()
+		close(metricChannel)
+	}
+
+	convertToGeneric(fileName, dataChannel, workFunction)
+}
+
+// ConvertToProm parses the json file that is generated from InfluxDB's bulk_data_gen tool into Prom format
+func ConvertToProm(fileName string, workers int, batchSize int, f func(*bytes.Reader)) {
+	metricChannel := make(chan *bytes.Reader, MetricsLen)
+	dataChannel := make(chan []byte, MetricsLen)
+	wg := new(sync.WaitGroup)
+	workFunction := func() {
+		for w := 0; w < workers; w++ {
+			wg.Add(1)
+			go func() {
+				marshalTSDBToProm(dataChannel, metricChannel, batchSize)
+				wg.Done()
+			}()
+		}
+		go func() {
+			for metric := range metricChannel {
+				f(metric)
+			}
+		}()
+		wg.Wait()
+		close(metricChannel)
+	}
+	convertToGeneric(fileName, dataChannel, workFunction)
+}
+
+func convertToGeneric(fileName string, dataChannel chan<- []byte, workFunction func()) {
 	fd, err := os.OpenFile(fileName, os.O_RDONLY, 0)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Unable to read json file, got error: %v", err)
-		os.Exit(1)
+		log.Fatalf("unable to read json file, got error: %v\n", err)
 	}
 
 	defer fd.Close()
 
 	scanner := bufio.NewScanner(fd)
-
-	dataChannel := make(chan []byte, MetricsLen)
-	metricChannel := make(chan *M3Metric, MetricsLen)
-	for w := 0; w < workers; w++ {
-		wg.Add(1)
-		go unmarshalMetrics(dataChannel, metricChannel)
-	}
-
-	go func() {
-		for metric := range metricChannel {
-			f(metric)
-		}
-	}()
 
 	for scanner.Scan() {
 		data := bytes.TrimSpace(scanner.Bytes())
@@ -69,27 +103,26 @@ func ConvertToM3(fileName string, workers int, f func(*M3Metric)) {
 		copy(b, data)
 		dataChannel <- b
 	}
-
 	close(dataChannel)
-	wg.Wait()
-	close(metricChannel)
+	workFunction()
+
 	if err := scanner.Err(); err != nil {
-		panic(err)
+		log.Fatalf("scanner encountered error: %v\n", err)
 	}
 }
 
-func unmarshalMetrics(dataChannel chan []byte, metricChannel chan *M3Metric) {
+func unmarshalMetrics(dataChannel <-chan []byte, metricChannel chan<- *M3Metric) {
 	for data := range dataChannel {
-		if len(data) != 0 {
-			var m Metrics
-			if err := json.Unmarshal(data, &m); err != nil {
-				panic(err)
-			}
-
-			metricChannel <- &M3Metric{ID: id(m.Tags, m.Name), Time: storage.TimestampToTime(m.Time), Value: m.Value}
+		if len(data) == 0 {
+			continue
 		}
+		var m Metrics
+		if err := json.Unmarshal(data, &m); err != nil {
+			log.Fatalf("failed to unmarshal metrics, got error: %v\n", err)
+		}
+
+		metricChannel <- &M3Metric{ID: id(m.Tags, m.Name), Time: storage.TimestampToTime(m.Time), Value: m.Value}
 	}
-	wg.Done()
 }
 
 func id(lowerCaseTags map[string]string, name string) string {
@@ -111,4 +144,56 @@ func id(lowerCaseTags map[string]string, name string) string {
 	}
 
 	return buffer.String()
+}
+
+func metricsToPromTS(m Metrics) *prompb.TimeSeries {
+	labels := storage.TagsToPromLabels(m.Tags)
+	samples := metricsPointsToSamples(m.Value, m.Time)
+	return &prompb.TimeSeries{
+		Labels:  labels,
+		Samples: samples,
+	}
+}
+
+func marshalTSDBToProm(dataChannel <-chan []byte, metricChannel chan<- *bytes.Reader, batchSize int) {
+	timeseries := make([]*prompb.TimeSeries, batchSize)
+	idx := 0
+	for data := range dataChannel {
+		if len(data) == 0 {
+			continue
+		}
+		var m Metrics
+		if err := json.Unmarshal(data, &m); err != nil {
+			log.Fatalf("failed to unmarshal metrics for prom conversion, got error: %v\n", err)
+		}
+		timeseries[idx] = metricsToPromTS(m)
+		idx++
+		if idx == batchSize {
+			metricChannel <- encodeWriteRequest(timeseries)
+			idx = 0
+		}
+	}
+	if idx > 0 {
+		// Send the remaining series
+		metricChannel <- encodeWriteRequest(timeseries[:idx])
+	}
+}
+
+func encodeWriteRequest(ts []*prompb.TimeSeries) *bytes.Reader {
+	req := &prompb.WriteRequest{
+		Timeseries: ts,
+	}
+	data, _ := proto.Marshal(req)
+	compressed := snappy.Encode(nil, data)
+	b := bytes.NewReader(compressed)
+	return b
+}
+
+func metricsPointsToSamples(value float64, timestamp int64) []*prompb.Sample {
+	return []*prompb.Sample{
+		&prompb.Sample{
+			Value:     value,
+			Timestamp: timestamp,
+		},
+	}
 }
