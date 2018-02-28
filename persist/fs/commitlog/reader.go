@@ -240,7 +240,11 @@ func (r *reader) readLoop() {
 				if err == io.EOF {
 					return
 				}
-				panic(err)
+				r.decoderBufs[0] <- decoderArg{
+					bytes: data,
+					err:   err,
+				}
+				continue
 			}
 
 			decoderStream.Reset(data)
