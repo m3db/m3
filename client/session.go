@@ -1719,8 +1719,7 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		optionIncludeLastRead  = true
 		moreResults            = true
 		idPool                 = s.idPool
-		reusedIDBytes          = checked.NewBytes(nil, nil)
-		reusedID               = ident.BinaryID(reusedIDBytes)
+		bytesPool              = resultOpts.DatabaseBlockOptions().BytesPool()
 
 		// Only used for logs
 		peerStr              = peer.Host().ID()
@@ -1775,12 +1774,12 @@ func (s *session) streamBlocksMetadataFromPeerV2(
 		for _, elem := range result.Elements {
 			blockStart := time.Unix(0, elem.Start)
 
-			// Reset the reused ID data
-			reusedIDBytes.Resize(0)
-			reusedIDBytes.AppendAll(elem.ID)
+			data := bytesPool.Get(len(elem.ID))
+			data.IncRef()
+			data.AppendAll(elem.ID)
+			data.DecRef()
 
-			// Clone the ID
-			clonedID := idPool.Clone(reusedID)
+			clonedID := idPool.BinaryID(data)
 
 			// Error occurred retrieving block metadata, use default values
 			if elem.Err != nil {
