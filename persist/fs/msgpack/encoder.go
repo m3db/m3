@@ -185,8 +185,8 @@ func (enc *Encoder) encodeLogInfo(info schema.LogInfo) {
 
 func (enc *Encoder) encodeLogEntry(entry schema.LogEntry) {
 	enc.encodeNumObjectFieldsForFn(logEntryType)
-	enc.encodeVarintFn(entry.Create)
 	enc.encodeVarUintFn(entry.Index)
+	enc.encodeVarintFn(entry.Create)
 	enc.encodeBytesFn(entry.Metadata)
 	enc.encodeVarintFn(entry.Timestamp)
 	enc.encodeFloat64Fn(entry.Value)

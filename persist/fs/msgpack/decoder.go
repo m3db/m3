@@ -161,7 +161,6 @@ func (dec *Decoder) DecodeLogEntryUniqueIndex() (DecodeLogEntryRemainingToken, u
 	if !ok {
 		return emptyLogEntryRemainingToken, 0, errors.New("unable to determine num fields to skip")
 	}
-	dec.decodeVarint()
 	idx := dec.decodeVarUint()
 
 	token := DecodeLogEntryRemainingToken{
@@ -180,6 +179,7 @@ func (dec *Decoder) DecodeLogEntryRemaining(token DecodeLogEntryRemainingToken, 
 
 	var logEntry schema.LogEntry
 	logEntry.Index = index
+	logEntry.Create = dec.decodeVarint()
 	logEntry.Metadata, _, _ = dec.decodeBytes()
 	logEntry.Timestamp = dec.decodeVarint()
 	logEntry.Value = dec.decodeFloat64()
@@ -328,8 +328,8 @@ func (dec *Decoder) decodeLogEntry() schema.LogEntry {
 		return emptyLogEntry
 	}
 	var logEntry schema.LogEntry
-	logEntry.Create = dec.decodeVarint()
 	logEntry.Index = dec.decodeVarUint()
+	logEntry.Create = dec.decodeVarint()
 	logEntry.Metadata, _, _ = dec.decodeBytes()
 	logEntry.Timestamp = dec.decodeVarint()
 	logEntry.Value = dec.decodeFloat64()
