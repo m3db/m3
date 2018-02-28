@@ -165,11 +165,12 @@ func (dec *Decoder) DecodeLogEntryUniqueIndex() (int64, uint64, error) {
 
 // DecodeLogEntryRemaining can only be called after DecodeLogEntryUniqueIndex,
 // and it returns a complete schema.LogEntry.
-func (dec *Decoder) DecodeLogEntryRemaining() (schema.LogEntry, error) {
+func (dec *Decoder) DecodeLogEntryRemaining(index uint64) (schema.LogEntry, error) {
 	if dec.err != nil {
 		return emptyLogEntry, dec.err
 	}
 	var logEntry schema.LogEntry
+	logEntry.Index = index
 	logEntry.Metadata, _, _ = dec.decodeBytes()
 	logEntry.Timestamp = dec.decodeVarint()
 	logEntry.Value = dec.decodeFloat64()

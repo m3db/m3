@@ -285,13 +285,12 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// Decode the log entry
 		decoderStream.Reset(arg.bytes[arg.offset:])
 		decoder.Reset(decoderStream)
-		entry, err := decoder.DecodeLogEntryRemaining()
+		entry, err := decoder.DecodeLogEntryRemaining(arg.uniqueIndex)
 		if err != nil {
 			readResponse.resultErr = err
 			outBuf <- readResponse
 			continue
 		}
-		entry.Index = arg.uniqueIndex
 
 		// If the log entry has associated metadata, decode that as well
 		if len(entry.Metadata) != 0 {
