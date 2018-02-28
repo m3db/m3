@@ -394,10 +394,9 @@ type databaseShard interface {
 type databaseIndex interface {
 	// Write writes a timeseries ID and Tags.
 	Write(
-		ctx context.Context,
 		namespace ident.ID,
 		id ident.ID,
-		tags ident.TagIterator,
+		tags ident.Tags,
 	) error
 
 	// Query resolves the given query into known IDs.

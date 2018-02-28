@@ -209,6 +209,11 @@ func Run(runOpts RunOptions) {
 		SetRetentionPeriod(cfg.CommitLog.RetentionPeriod).
 		SetBlockSize(cfg.CommitLog.BlockSize))
 
+	// Set the indexing configuration
+	if cfg.Index.Enabled {
+		opts = opts.SetIndexingEnabled(true)
+	}
+
 	// Set the series cache policy
 	seriesCachePolicy := cfg.Cache.SeriesConfiguration().Policy
 	opts = opts.SetSeriesCachePolicy(seriesCachePolicy)

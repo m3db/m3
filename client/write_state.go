@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/topology"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
@@ -52,12 +53,14 @@ type writeState struct {
 	op                writeOp
 	nsID              ident.ID
 	tsID              ident.ID
+	tagEncoder        serialize.Encoder
 	majority, pending int32
 	success           int32
 	errors            []error
 
-	queues []hostQueue
-	pool   *writeStatePool
+	queues         []hostQueue
+	tagEncoderPool serialize.EncoderPool
+	pool           *writeStatePool
 }
 
 func (w *writeState) reset() {
@@ -73,8 +76,12 @@ func (w *writeState) close() {
 	w.nsID.Finalize()
 	w.tsID.Finalize()
 
+	if enc := w.tagEncoder; enc != nil {
+		enc.Finalize()
+	}
+
 	w.op, w.majority, w.pending, w.success = nil, 0, 0, 0
-	w.nsID, w.tsID = nil, nil
+	w.nsID, w.tsID, w.tagEncoder = nil, nil, nil
 
 	for i := range w.errors {
 		w.errors[i] = nil
@@ -150,20 +157,30 @@ func (w *writeState) completionFn(result interface{}, err error) {
 
 type writeStatePool struct {
 	pool             pool.ObjectPool
+	tagEncoderPool   serialize.EncoderPool
 	consistencyLevel topology.ConsistencyLevel
 }
 
 func newWriteStatePool(
 	consistencyLevel topology.ConsistencyLevel,
+	tagEncoderPool serialize.EncoderPool,
 	opts pool.ObjectPoolOptions,
 ) *writeStatePool {
 	p := pool.NewObjectPool(opts)
-	return &writeStatePool{pool: p, consistencyLevel: consistencyLevel}
+	return &writeStatePool{
+		pool:             p,
+		tagEncoderPool:   tagEncoderPool,
+		consistencyLevel: consistencyLevel,
+	}
 }
 
 func (p *writeStatePool) Init() {
 	p.pool.Init(func() interface{} {
-		w := &writeState{consistencyLevel: p.consistencyLevel, pool: p}
+		w := &writeState{
+			consistencyLevel: p.consistencyLevel,
+			pool:             p,
+			tagEncoderPool:   p.tagEncoderPool,
+		}
 		w.reset()
 		return w
 	})

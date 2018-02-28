@@ -23,6 +23,8 @@
 //go:generate sh -c "mockgen -package=xio -destination=$GOPATH/src/$PACKAGE/x/xio/io_mock.go $PACKAGE/x/xio ReaderSliceReader,SegmentReader"
 //go:generate sh -c "mockgen -package=digest -destination=$GOPATH/src/$PACKAGE/digest/digest_mock.go $PACKAGE/digest ReaderWithDigest"
 //go:generate sh -c "mockgen -package=series $PACKAGE/storage/series DatabaseSeries,QueryableBlockRetriever | mockclean -pkg $PACKAGE/storage/series -out $GOPATH/src/$PACKAGE/storage/series/series_mock.go"
+//go:generate sh -c "mockgen -package=index $PACKAGE/storage/index Iterator | mockclean -pkg $PACKAGE/storage/index -out $GOPATH/src/$PACKAGE/storage/index/index_mock.go"
+//go:generate sh -c "mockgen -package=serialize $PACKAGE/serialize Encoder,EncoderPool,Decoder,DecoderPool | mockclean -pkg $PACKAGE/serialize -out $GOPATH/src/$PACKAGE/serialize/serialize_mock.go"
 
 // mockgen rules for generating mocks for unexported interfaces (file mode)
 //go:generate sh -c "mockgen -package=encoding -destination=$GOPATH/src/$PACKAGE/encoding/encoding_mock.go -source=$GOPATH/src/$PACKAGE/encoding/types.go"

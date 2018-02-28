@@ -113,6 +113,8 @@ func TestSessionTopologyChangeCreatesNewClosesOldHostQueues(t *testing.T) {
 		host topology.Host,
 		_ writeBatchRawRequestPool,
 		_ writeBatchRawRequestElementArrayPool,
+		_ writeTaggedBatchRawRequestPool,
+		_ writeTaggedBatchRawRequestElementArrayPool,
 		opts Options,
 	) hostQueue {
 		queue := NewMockhostQueue(ctrl)
