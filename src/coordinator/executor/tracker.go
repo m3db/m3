@@ -75,8 +75,8 @@ func (q *QueryTask) setError(err error) {
 // NewTracker creates a new tracker.
 func NewTracker() *Tracker {
 	return &Tracker{
-		queries:      make(map[uint64]*QueryTask),
-		nextID:       1,
+		queries: make(map[uint64]*QueryTask),
+		nextID:  1,
 	}
 }
 

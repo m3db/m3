@@ -36,7 +36,6 @@ func (h *PromWriteHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Error(w, rErr.Error(), rErr.Code())
 		return
 	}
-
 	if err := h.write(r.Context(), req); err != nil {
 		logging.WithContext(r.Context()).Error("Write error", zap.Any("err", err))
 		Error(w, err, http.StatusInternalServerError)

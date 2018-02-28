@@ -138,7 +138,7 @@ func startGrpcServer(logger *zap.Logger, storage storage.Storage, flags *m3confi
 	server := tsdbRemote.CreateNewGrpcServer(storage)
 	waitForStart := make(chan struct{})
 	go func() {
-		logger.Info("starting gRPC server")
+		logger.Info("starting gRPC server on port", zap.Any("rpc", flags.rpcAddress))
 		err := tsdbRemote.StartNewGrpcServer(server, flags.rpcAddress, waitForStart)
 		if err != nil {
 			logger.Fatal("unable to start gRPC server", zap.Any("error", err))

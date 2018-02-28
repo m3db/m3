@@ -1,8 +1,8 @@
 package main
 
 import (
+	"bytes"
 	"flag"
-	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -29,9 +29,8 @@ var (
 	memprofile    bool
 	cpuprofile    bool
 
-	wg           sync.WaitGroup
-	inputDone    chan struct{}
-	itemsWritten chan int
+	writeEndpoint string
+	coordinator   bool
 )
 
 func init() {
@@ -44,16 +43,31 @@ func init() {
 	flag.StringVar(&benchmarkers, "benchmarkers", "localhost:8888", "Comma separated host:ports addresses of benchmarkers to coordinate")
 	flag.BoolVar(&memprofile, "memprofile", false, "Enable memory profile")
 	flag.BoolVar(&cpuprofile, "cpuprofile", false, "Enable cpu profile")
+	flag.StringVar(&writeEndpoint, "writeEndpoint", "http://localhost:7201/api/v1/prom/write", "Write endpoint for m3coordinator")
+	flag.BoolVar(&coordinator, "coordinator", false, "Benchmark through coordinator rather than m3db directly")
 	flag.Parse()
 }
 
 func main() {
+	if coordinator {
+		log.Println("Benchmarking writes on m3coordinator over http endpoint...")
+		benchmarkCoordinator()
+	} else {
+		log.Println("Benchmarking writes on m3db...")
+		benchmarkM3DB()
+	}
+}
+
+func benchmarkM3DB() {
+	//Setup
 	metrics := make([]*common.M3Metric, 0, common.MetricsLen)
 	common.ConvertToM3(dataFile, workers, func(m *common.M3Metric) {
 		metrics = append(metrics, m)
 	})
+
 	ch := make(chan *common.M3Metric, workers)
-	inputDone = make(chan struct{})
+	inputDone := make(chan struct{})
+	wg := new(sync.WaitGroup)
 
 	var cfg config.Configuration
 	if err := xconfig.LoadFile(&cfg, m3dbClientCfg); err != nil {
@@ -73,42 +87,105 @@ func main() {
 		log.Fatalf("Unable to create m3db client session, got error %v\n", err)
 	}
 
+	workerFunction := func() {
+		wg.Add(1)
+		writeToM3DB(session, ch)
+		wg.Done()
+	}
+
+	appendReadCount := func() int {
+		var items int
+		for _, query := range metrics {
+			ch <- query
+			items++
+		}
+		close(inputDone)
+		return items
+	}
+
+	cleanup := func() {
+		<-inputDone
+		close(ch)
+		wg.Wait()
+		if err := session.Close(); err != nil {
+			log.Fatalf("Unable to close m3db client session, got error %v\n", err)
+		}
+	}
+
+	genericBenchmarker(workerFunction, appendReadCount, cleanup)
+}
+
+func benchmarkCoordinator() {
+	// Setup
+	metrics := make([]*bytes.Reader, 0, common.MetricsLen/batch)
+	common.ConvertToProm(dataFile, workers, batch, func(m *bytes.Reader) {
+		metrics = append(metrics, m)
+	})
+
+	ch := make(chan *bytes.Reader, workers)
+	wg := new(sync.WaitGroup)
+
+	workerFunction := func() {
+		wg.Add(1)
+		writeToCoordinator(ch)
+		wg.Done()
+	}
+
+	inputDone := make(chan struct{})
+	appendReadCount := func() int {
+		var items int
+		for _, query := range metrics {
+			ch <- query
+			items++
+		}
+		close(inputDone)
+		return items
+	}
+
+	cleanup := func() {
+		<-inputDone
+		close(ch)
+		wg.Wait()
+	}
+	genericBenchmarker(workerFunction, appendReadCount, cleanup)
+}
+
+func genericBenchmarker(workerFunction func(), appendReadCount func() int, cleanup func()) {
 	if cpuprofile {
 		p := profile.Start(profile.CPUProfile)
 		defer p.Stop()
-	}
-
-	if memprofile {
+		if memprofile {
+			log.Println("cannot have both cpu and mem profile active at once; defaulting to cpu profiling")
+		}
+	} else if memprofile {
 		p := profile.Start(profile.MemProfile)
 		defer p.Stop()
 	}
 
-	itemsWritten = make(chan int)
+	// send over http
 	var waitForInit sync.WaitGroup
 	for i := 0; i < workers; i++ {
-		wg.Add(1)
 		waitForInit.Add(1)
 		go func() {
 			waitForInit.Done()
-			writeToM3DB(session, ch, itemsWritten)
+			workerFunction()
 		}()
 	}
 
-	fmt.Printf("waiting for workers to spin up...\n")
+	log.Println("waiting for workers to spin up...")
 	waitForInit.Wait()
-	fmt.Printf("done\n")
 
 	b := &benchmarker{address: address, benchmarkers: benchmarkers}
 	go b.serve()
-	fmt.Printf("waiting for other benchmarkers to spin up...\n")
+	log.Println("waiting for other benchmarkers to spin up...")
 	b.waitForBenchmarkers()
-	fmt.Printf("done\n")
 
 	var (
 		start          = time.Now()
-		itemsRead      = addMetricsToChan(ch, metrics)
+		itemsRead      = appendReadCount()
 		endNanosAtomic int64
 	)
+	log.Println("Started benchmark at:", start.Format(time.StampMilli))
 	go func() {
 		for {
 			time.Sleep(time.Second)
@@ -120,53 +197,46 @@ func main() {
 		}
 	}()
 
-	<-inputDone
-	close(ch)
-
-	wg.Wait()
-	sum := 0
-	for i := 0; i < workers; i++ {
-		sum += <-itemsWritten
-	}
+	cleanup()
 
 	end := time.Now()
+	log.Println("Finished benchmark at:", start.Format(time.StampMilli))
 	took := end.Sub(start)
 	atomic.StoreInt64(&endNanosAtomic, end.UnixNano())
 	rate := float64(itemsRead) / took.Seconds()
+	perWorker := rate / float64(workers)
 
-	fmt.Printf("loaded %d items in %fsec with %d workers (mean values rate %f/sec)\n", itemsRead, took.Seconds(), workers, rate)
-
-	if err := session.Close(); err != nil {
-		log.Fatalf("Unable to close m3db client session, got error %v\n", err)
-	}
-
-	select {}
+	log.Printf("loaded %d items in %fsec with %d workers (mean values rate %f/sec); per worker %f/sec\n", itemsRead, took.Seconds(), workers, rate, perWorker)
 }
 
-func addMetricsToChan(ch chan *common.M3Metric, wq []*common.M3Metric) int {
-	var items int
-	for _, query := range wq {
-		ch <- query
-		items++
+func writeToCoordinator(ch <-chan *bytes.Reader) {
+	for query := range ch {
+		if r, err := common.PostEncodedSnappy(writeEndpoint, query); err != nil {
+			log.Println(err)
+		} else {
+			if r.StatusCode != 200 {
+				b := make([]byte, r.ContentLength)
+				r.Body.Read(b)
+				r.Body.Close()
+				log.Println(string(b))
+			}
+			stat.incWrites()
+		}
 	}
-	close(inputDone)
-	return items
 }
 
-func writeToM3DB(session client.Session, ch chan *common.M3Metric, itemsWrittenCh chan int) {
+func writeToM3DB(session client.Session, ch <-chan *common.M3Metric) {
 	var itemsWritten int
 	for query := range ch {
 		id := query.ID
 		if err := session.Write(namespace, id, query.Time, query.Value, xtime.Millisecond, nil); err != nil {
-			fmt.Println(err)
+			log.Println(err)
 		} else {
 			stat.incWrites()
 		}
 		if itemsWritten > 0 && itemsWritten%10000 == 0 {
-			fmt.Println(itemsWritten)
+			log.Println(itemsWritten)
 		}
 		itemsWritten++
 	}
-	wg.Done()
-	itemsWrittenCh <- itemsWritten
 }
