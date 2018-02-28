@@ -131,7 +131,7 @@ func TestCommitLogBootstrapMultipleNamespaces(t *testing.T) {
 	verifySeriesMaps(t, setup, testNamespaces[0], ns1SeriesMap)
 	log.Info("verified ns1 data")
 
-	// log.Info("verifying ns2 data")
-	// verifySeriesMaps(t, setup, testNamespaces[1], ns2SeriesMap)
-	// log.Info("verified ns2 data")
+	log.Info("verifying ns2 data")
+	verifySeriesMaps(t, setup, testNamespaces[1], ns2SeriesMap)
+	log.Info("verified ns2 data")
 }
