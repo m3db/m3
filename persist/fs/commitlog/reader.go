@@ -117,7 +117,6 @@ type reader struct {
 	hasBeenOpened        bool
 	bgWorkersInitialized int64
 	seriesPredicate      ReadSeriesPredicate
-	yolo                 []byte
 }
 
 func newCommitLogReader(opts Options, seriesPredicate ReadSeriesPredicate) commitLogReader {
@@ -145,7 +144,6 @@ func newCommitLogReader(opts Options, seriesPredicate ReadSeriesPredicate) commi
 		metadata:          readerMetadata{},
 		nextIndex:         0,
 		seriesPredicate:   seriesPredicate,
-		yolo:              []byte("metricslol"),
 	}
 	return reader
 }
