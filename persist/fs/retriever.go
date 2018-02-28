@@ -377,6 +377,7 @@ func (r *blockRetriever) Stream(
 	if err != nil {
 		return nil, err
 	}
+
 	// If the ID is not in the seeker's bloom filter, then it's definitely not on
 	// disk and we can return immediately
 	if !bloomFilter.Test(id.Data().Get()) {

@@ -406,6 +406,19 @@ func (dbb *databaseSeriesBlocks) RemoveAll() {
 	}
 }
 
+func (dbb *databaseSeriesBlocks) Reset() {
+	dbb.RemoveAll()
+	// Ensure the old, possibly large map is GC'd
+	dbb.elems = nil
+	dbb.elems = make(map[xtime.UnixNano]DatabaseBlock)
+	dbb.min = time.Time{}
+	dbb.max = time.Time{}
+}
+
 func (dbb *databaseSeriesBlocks) Close() {
 	dbb.RemoveAll()
+	// Mark the map as nil to prevent maps that have grown large from wasting
+	// space in the pool (Deleting elements from a large map will not cause
+	// the underlying resources to shrink)
+	dbb.elems = nil
 }

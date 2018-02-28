@@ -23,7 +23,9 @@ package peers
 import (
 	"fmt"
 	"sync"
+	"time"
 
+	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/storage/block"
@@ -90,32 +92,40 @@ func (s *peersSource) Read(
 		shardRetrieverMgr block.DatabaseShardBlockRetrieverManager
 		persistFlush      persist.Flush
 		incremental       = false
+		seriesCachePolicy = s.opts.ResultOptions().SeriesCachePolicy()
 	)
-	if opts.Incremental() {
+	if opts.Incremental() && seriesCachePolicy != series.CacheAll {
 		retrieverMgr := s.opts.DatabaseBlockRetrieverManager()
 		persistManager := s.opts.PersistManager()
-		if retrieverMgr != nil && persistManager != nil {
-			s.log.WithFields(
-				xlog.NewField("namespace", namespace.String()),
-			).Infof("peers bootstrapper resolving block retriever")
 
-			r, err := retrieverMgr.Retriever(nsMetadata)
-			if err != nil {
-				return nil, err
-			}
-
-			flush, err := persistManager.StartFlush()
-			if err != nil {
-				return nil, err
-			}
-
-			defer flush.Done()
-
-			incremental = true
-			blockRetriever = r
-			shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(r)
-			persistFlush = flush
+		// Neither of these should ever happen
+		if seriesCachePolicy != series.CacheAll && retrieverMgr == nil {
+			s.log.Fatal("tried to perform incremental flush without retriever manager")
 		}
+		if seriesCachePolicy != series.CacheAll && persistManager == nil {
+			s.log.Fatal("tried to perform incremental flush without persist manager")
+		}
+
+		s.log.WithFields(
+			xlog.NewField("namespace", namespace.String()),
+		).Infof("peers bootstrapper resolving block retriever")
+
+		r, err := retrieverMgr.Retriever(nsMetadata)
+		if err != nil {
+			return nil, err
+		}
+
+		flush, err := persistManager.StartFlush()
+		if err != nil {
+			return nil, err
+		}
+
+		defer flush.Done()
+
+		incremental = true
+		blockRetriever = r
+		shardRetrieverMgr = block.NewDatabaseShardBlockRetrieverManager(r)
+		persistFlush = flush
 	}
 
 	result := result.NewBootstrapResult()
@@ -127,14 +137,15 @@ func (s *peersSource) Read(
 	}
 
 	var (
-		lock                sync.Mutex
-		wg                  sync.WaitGroup
-		incrementalWg       sync.WaitGroup
-		incrementalMaxQueue = s.opts.IncrementalPersistMaxQueueSize()
-		incrementalQueue    = make(chan incrementalFlush, incrementalMaxQueue)
-		bopts               = s.opts.ResultOptions()
-		count               = len(shardsTimeRanges)
-		concurrency         = s.opts.DefaultShardConcurrency()
+		resultLock              sync.Mutex
+		wg                      sync.WaitGroup
+		incrementalWorkerDoneCh = make(chan struct{})
+		incrementalMaxQueue     = s.opts.IncrementalPersistMaxQueueSize()
+		incrementalQueue        = make(chan incrementalFlush, incrementalMaxQueue)
+		bopts                   = s.opts.ResultOptions()
+		count                   = len(shardsTimeRanges)
+		concurrency             = s.opts.DefaultShardConcurrency()
+		blockSize               = nsMetadata.Options().RetentionOptions().BlockSize()
 	)
 	if incremental {
 		concurrency = s.opts.IncrementalShardConcurrency()
@@ -146,39 +157,8 @@ func (s *peersSource) Read(
 		xlog.NewField("incremental", incremental),
 	).Infof("peers bootstrapper bootstrapping shards for ranges")
 	if incremental {
-		// If performing an incremental bootstrap then flush one
-		// at a time as shard results are gathered
-		incrementalWg.Add(1)
-		go func() {
-			defer incrementalWg.Done()
-
-			for flush := range incrementalQueue {
-				err := s.incrementalFlush(persistFlush, flush.nsMetadata, flush.shard,
-					flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
-				if err == nil {
-					continue
-				}
-
-				// Remove results and make unfulfilled if an error occurred
-				s.log.WithFields(
-					xlog.NewField("error", err.Error()),
-				).Errorf("peers bootstrapper incremental flush encountered error")
-
-				// Remove results
-				tr := flush.timeRange
-				blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
-				for _, series := range flush.shardResult.AllSeries() {
-					for at := tr.Start; at.Before(tr.End); at = at.Add(blockSize) {
-						series.Blocks.RemoveBlockAt(at)
-					}
-				}
-
-				// Make unfulfilled
-				lock.Lock()
-				result.Add(flush.shard, nil, xtime.Ranges{}.AddRange(tr))
-				lock.Unlock()
-			}
-		}()
+		go s.startIncrementalQueueWorkerLoop(
+			incrementalWorkerDoneCh, incrementalQueue, persistFlush, result, &resultLock)
 	}
 
 	workers := xsync.NewWorkerPool(concurrency)
@@ -188,77 +168,151 @@ func (s *peersSource) Read(
 		wg.Add(1)
 		workers.Go(func() {
 			defer wg.Done()
-
-			it := ranges.Iter()
-			for it.Next() {
-				currRange := it.Value()
-
-				version := s.opts.FetchBlocksMetadataEndpointVersion()
-				shardResult, err := session.FetchBootstrapBlocksFromPeers(nsMetadata,
-					shard, currRange.Start, currRange.End, bopts, version)
-
-				// Logging
-				if err == nil {
-					shardBlockSeriesCounter := map[xtime.UnixNano]int64{}
-					for _, series := range shardResult.AllSeries() {
-						for blockStart := range series.Blocks.AllBlocks() {
-							shardBlockSeriesCounter[blockStart]++
-						}
-					}
-
-					for block, numSeries := range shardBlockSeriesCounter {
-						s.log.WithFields(
-							xlog.NewField("shard", shard),
-							xlog.NewField("numSeries", numSeries),
-							xlog.NewField("block", block),
-						).Info("peer bootstrapped shard")
-					}
-				} else {
-					s.log.WithFields(
-						xlog.NewField("shard", shard),
-						xlog.NewField("error", err.Error()),
-					).Error("error fetching bootstrap blocks from peers")
-				}
-
-				if err == nil && incremental {
-					incrementalQueue <- incrementalFlush{
-						nsMetadata:        nsMetadata,
-						shard:             shard,
-						shardRetrieverMgr: shardRetrieverMgr,
-						shardResult:       shardResult,
-						timeRange:         currRange,
-					}
-				}
-
-				lock.Lock()
-				if err == nil {
-					result.Add(shard, shardResult, xtime.Ranges{})
-				} else {
-					result.Add(shard, nil, xtime.Ranges{}.AddRange(currRange))
-				}
-				lock.Unlock()
-			}
+			s.fetchBootstrapBlocksFromPeers(shard, ranges, nsMetadata,
+				session, bopts, result, &resultLock, incremental, incrementalQueue, shardRetrieverMgr, blockSize)
 		})
 	}
 
 	wg.Wait()
-
 	close(incrementalQueue)
-	incrementalWg.Wait()
+	if incremental {
+		// Wait for the incrementalQueueWorker to finish incrementally flushing everything
+		<-incrementalWorkerDoneCh
+	}
 
 	if incremental {
 		// Now cache the incremental results
-		shards := make([]uint32, 0, len(shardsTimeRanges))
-		for shard := range shardsTimeRanges {
-			shards = append(shards, shard)
-		}
-
-		if err := blockRetriever.CacheShardIndices(shards); err != nil {
+		err := s.cacheShardIndices(shardsTimeRanges, blockRetriever)
+		if err != nil {
 			return nil, err
 		}
 	}
 
 	return result, nil
+}
+
+// startIncrementalQueueWorkerLoop is meant to be run in its own goroutine, and it creates a worker that
+// loops through the incrementalQueue and performs an incrementalFlush for each entry, ensuring that
+// no more than one incremental flush is ever happening at once. Once the incrementalQueue channel
+// is closed, and the worker has completed flushing all the remaining entries, it will close the
+// provided doneCh so that callers can block until everything has been successfully flushed.
+func (s *peersSource) startIncrementalQueueWorkerLoop(
+	doneCh chan struct{},
+	incrementalQueue chan incrementalFlush,
+	persistFlush persist.Flush,
+	bootstrapResult result.BootstrapResult,
+	lock *sync.Mutex,
+) {
+	// If performing an incremental bootstrap then flush one
+	// at a time as shard results are gathered
+	for flush := range incrementalQueue {
+		err := s.incrementalFlush(persistFlush, flush.nsMetadata, flush.shard,
+			flush.shardRetrieverMgr, flush.shardResult, flush.timeRange)
+		if err == nil {
+			// Safe to add to the shared bootstrap result now
+			lock.Lock()
+			bootstrapResult.Add(flush.shard, flush.shardResult, xtime.Ranges{})
+			lock.Unlock()
+			continue
+		}
+
+		// Remove results and make unfulfilled if an error occurred
+		s.log.WithFields(
+			xlog.NewField("error", err.Error()),
+		).Errorf("peers bootstrapper incremental flush encountered error")
+
+		// Make unfulfilled
+		lock.Lock()
+		bootstrapResult.Add(flush.shard, nil, xtime.Ranges{}.AddRange(flush.timeRange))
+		lock.Unlock()
+	}
+	close(doneCh)
+}
+
+// fetchBootstrapBlocksFromPeers loops through all the provided ranges for a given shard and
+// fetches all the bootstrap blocks from the appropriate peers.
+// 		Non-incremental case: Immediately add the results to the bootstrap result
+// 		Incremental case: Don't add the results yet, but push an incrementalFlush into the
+// 						  incremental queue. The incrementalQueue worker will eventually
+// 						  add the results once its performed the incremental flush.
+func (s *peersSource) fetchBootstrapBlocksFromPeers(
+	shard uint32,
+	ranges xtime.Ranges,
+	nsMetadata namespace.Metadata,
+	session client.AdminSession,
+	bopts result.Options,
+	bootstrapResult result.BootstrapResult,
+	lock *sync.Mutex,
+	incremental bool,
+	incrementalQueue chan incrementalFlush,
+	shardRetrieverMgr block.DatabaseShardBlockRetrieverManager,
+	blockSize time.Duration,
+) {
+	it := ranges.Iter()
+	for it.Next() {
+		currRange := it.Value()
+
+		for blockStart := currRange.Start; blockStart.Before(currRange.End); blockStart = blockStart.Add(blockSize) {
+			version := s.opts.FetchBlocksMetadataEndpointVersion()
+			blockEnd := blockStart.Add(blockSize)
+			shardResult, err := session.FetchBootstrapBlocksFromPeers(
+				nsMetadata, shard, blockStart, blockEnd, bopts, version)
+
+			s.logFetchBootstrapBlocksFromPeersOutcome(shard, shardResult, err)
+
+			if err != nil {
+				// Do not add result at all to the bootstrap result
+				lock.Lock()
+				bootstrapResult.Add(shard, nil, xtime.Ranges{}.AddRange(currRange))
+				lock.Unlock()
+				continue
+			}
+
+			if incremental {
+				incrementalQueue <- incrementalFlush{
+					nsMetadata:        nsMetadata,
+					shard:             shard,
+					shardRetrieverMgr: shardRetrieverMgr,
+					shardResult:       shardResult,
+					timeRange:         xtime.Range{Start: blockStart, End: blockEnd},
+				}
+				continue
+			}
+
+			// If not waiting to incremental flush, add straight away to bootstrap result
+			lock.Lock()
+			bootstrapResult.Add(shard, shardResult, xtime.Ranges{})
+			lock.Unlock()
+		}
+	}
+}
+
+func (s *peersSource) logFetchBootstrapBlocksFromPeersOutcome(
+	shard uint32,
+	shardResult result.ShardResult,
+	err error,
+) {
+	if err == nil {
+		shardBlockSeriesCounter := map[xtime.UnixNano]int64{}
+		for _, series := range shardResult.AllSeries() {
+			for blockStart := range series.Blocks.AllBlocks() {
+				shardBlockSeriesCounter[blockStart]++
+			}
+		}
+
+		for block, numSeries := range shardBlockSeriesCounter {
+			s.log.WithFields(
+				xlog.NewField("shard", shard),
+				xlog.NewField("numSeries", numSeries),
+				xlog.NewField("block", block),
+			).Info("peer bootstrapped shard")
+		}
+	} else {
+		s.log.WithFields(
+			xlog.NewField("shard", shard),
+			xlog.NewField("error", err.Error()),
+		).Error("error fetching bootstrap blocks from peers")
+	}
 }
 
 // incrementalFlush is used to incrementally flush peer-bootstrapped shards
@@ -274,6 +328,11 @@ func (s *peersSource) Read(
 // CacheAllMetadata policy we loop through every series and make every block
 // retrievable (so that we can retrieve data for the blocks that we're caching
 // the metadata for).
+// In addition, if the caching policy is not CacheAll or CacheAllMetadata, then
+// at the end we remove all the series objects from the shard result as well
+// (since all their corresponding blocks have been removed anyways) to prevent
+// a huge memory spike caused by adding lots of unused series to the Shard
+// object and then immediately evicting them in the next tick.
 func (s *peersSource) incrementalFlush(
 	flush persist.Flush,
 	nsMetadata namespace.Metadata,
@@ -299,11 +358,8 @@ func (s *peersSource) incrementalFlush(
 			return err
 		}
 
-		var (
-			blockErr          error
-			shardResultSeries = shardResult.AllSeries()
-		)
-		for _, s := range shardResultSeries {
+		var blockErr error
+		for _, s := range shardResult.AllSeries() {
 			bl, ok := s.Blocks.BlockAt(start)
 			if !ok {
 				continue
@@ -363,10 +419,66 @@ func (s *peersSource) incrementalFlush(
 			// A block error is more interesting to bubble up than a close error
 			err = blockErr
 		}
+
 		if err != nil {
 			return err
 		}
 	}
 
+	if seriesCachePolicy != series.CacheAll && seriesCachePolicy != series.CacheAllMetadata {
+		// TODO: We need this right now because nodes with older versions of M3DB will return an extra
+		// block when requesting bootstrapped blocks. Once all the clusters have been upgraded we can
+		// remove this code.
+		for _, s := range shardResult.AllSeries() {
+			bl, ok := s.Blocks.BlockAt(tr.End)
+			if !ok {
+				continue
+			}
+			s.Blocks.RemoveBlockAt(tr.End)
+			bl.Close()
+		}
+
+		// If we're not going to keep all of the data, or at least all of the metadata in memory
+		// then we don't want to keep these series in the shard result. If we leave them in, then
+		// they will all get loaded into the shard object, and then immediately evicted on the next
+		// tick which causes unnecessary memory pressure.
+		numSeriesTriedToRemoveWithRemainingBlocks := 0
+		for _, series := range shardResult.AllSeries() {
+			numBlocksRemaining := len(series.Blocks.AllBlocks())
+			// Should never happen since we removed all the block in the previous loop and fetching
+			// bootstrap blocks should always be exclusive on the end side.
+			if numBlocksRemaining > 0 {
+				numSeriesTriedToRemoveWithRemainingBlocks++
+				continue
+			}
+
+			shardResult.RemoveSeries(series.ID)
+			series.Blocks.Close()
+			// Safe to finalize these IDs because the prepared object was the only other thing
+			// using them, and it has been closed.
+			series.ID.Finalize()
+		}
+		if numSeriesTriedToRemoveWithRemainingBlocks > 0 {
+			s.log.WithFields(
+				xlog.NewField("start", tr.Start.Unix()),
+				xlog.NewField("end", tr.End.Unix()),
+				xlog.NewField("numTimes", numSeriesTriedToRemoveWithRemainingBlocks),
+			).Error("error tried to remove series that still has blocks")
+		}
+	}
+
 	return nil
+}
+
+func (s *peersSource) cacheShardIndices(
+	shardsTimeRanges result.ShardTimeRanges,
+	blockRetriever block.DatabaseBlockRetriever,
+) error {
+	// Now cache the incremental results
+	shards := make([]uint32, 0, len(shardsTimeRanges))
+	for shard := range shardsTimeRanges {
+		shards = append(shards, shard)
+	}
+
+	return blockRetriever.CacheShardIndices(shards)
 }

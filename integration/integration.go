@@ -232,7 +232,11 @@ func newDefaultBootstrappableTestSetups(
 			peersOpts := peers.NewOptions().
 				SetResultOptions(bsOpts).
 				SetAdminClient(adminClient).
-				SetFetchBlocksMetadataEndpointVersion(setupOpts[i].fetchBlocksMetadataEndpointVersion)
+				SetFetchBlocksMetadataEndpointVersion(setupOpts[i].fetchBlocksMetadataEndpointVersion).
+				// DatabaseBlockRetrieverManager and PersistManager need to be set or we will never execute
+				// the incremental path
+				SetDatabaseBlockRetrieverManager(setup.storageOpts.DatabaseBlockRetrieverManager()).
+				SetPersistManager(setup.storageOpts.PersistManager())
 
 			peersBootstrapper, err = peers.NewPeersBootstrapper(peersOpts, noOpAll)
 			require.NoError(t, err)

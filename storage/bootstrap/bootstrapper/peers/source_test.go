@@ -166,8 +166,8 @@ func TestPeersSourceReturnsFulfilledAndUnfulfilled(t *testing.T) {
 
 func TestPeersSourceIncrementalRun(t *testing.T) {
 	for _, cachePolicy := range []series.CachePolicy{
-		series.CacheAll,
 		series.CacheAllMetadata,
+		series.CacheRecentlyRead,
 	} {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
@@ -176,35 +176,46 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		resultOpts := testDefaultResultOpts.SetSeriesCachePolicy(cachePolicy)
 		opts := testDefaultOpts.SetResultOptions(resultOpts)
 		ropts := testNsMd.Options().RetentionOptions()
+		blockSize := ropts.BlockSize()
 
 		start := time.Now().Add(-ropts.RetentionPeriod()).Truncate(ropts.BlockSize())
 		end := start.Add(2 * ropts.BlockSize())
 
-		firstResult := result.NewShardResult(0, opts.ResultOptions())
+		shard0ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
+		shard0ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
 		fooBlock := block.NewDatabaseBlock(start,
 			ts.NewSegment(checked.NewBytes([]byte{1, 2, 3}, nil), nil, ts.FinalizeNone),
 			testBlockOpts)
 		barBlock := block.NewDatabaseBlock(start.Add(ropts.BlockSize()),
 			ts.NewSegment(checked.NewBytes([]byte{4, 5, 6}, nil), nil, ts.FinalizeNone),
 			testBlockOpts)
-		firstResult.AddBlock(ident.StringID("foo"), fooBlock)
-		firstResult.AddBlock(ident.StringID("bar"), barBlock)
+		shard0ResultBlock1.AddBlock(ident.StringID("foo"), fooBlock)
+		shard0ResultBlock2.AddBlock(ident.StringID("bar"), barBlock)
 
-		secondResult := result.NewShardResult(0, opts.ResultOptions())
+		shard1ResultBlock1 := result.NewShardResult(0, opts.ResultOptions())
+		shard1ResultBlock2 := result.NewShardResult(0, opts.ResultOptions())
 		bazBlock := block.NewDatabaseBlock(start,
 			ts.NewSegment(checked.NewBytes([]byte{7, 8, 9}, nil), nil, ts.FinalizeNone),
 			testBlockOpts)
-		secondResult.AddBlock(ident.StringID("baz"), bazBlock)
+		shard1ResultBlock1.AddBlock(ident.StringID("baz"), bazBlock)
 
 		mockAdminSession := client.NewMockAdminSession(ctrl)
 		mockAdminSession.EXPECT().
 			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-				uint32(0), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
-			Return(firstResult, nil)
+				uint32(0), start, start.Add(blockSize), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+			Return(shard0ResultBlock1, nil)
 		mockAdminSession.EXPECT().
 			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
-				uint32(1), start, end, gomock.Any(), client.FetchBlocksMetadataEndpointV1).
-			Return(secondResult, nil)
+				uint32(0), start.Add(blockSize), start.Add(blockSize*2), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+			Return(shard0ResultBlock2, nil)
+		mockAdminSession.EXPECT().
+			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
+				uint32(1), start, start.Add(blockSize), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+			Return(shard1ResultBlock1, nil)
+		mockAdminSession.EXPECT().
+			FetchBootstrapBlocksFromPeers(namespace.NewMetadataMatcher(testNsMd),
+				uint32(1), start.Add(blockSize), start.Add(blockSize*2), gomock.Any(), client.FetchBlocksMetadataEndpointV1).
+			Return(shard1ResultBlock2, nil)
 
 		mockAdminClient := client.NewMockAdminClient(ctrl)
 		mockAdminClient.EXPECT().DefaultAdminSession().Return(mockAdminSession, nil)
@@ -301,47 +312,32 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		r, err := src.Read(testNsMd, target, testIncrementalRunOpts)
 		assert.NoError(t, err)
 
-		assert.Equal(t, 2, len(r.ShardResults()))
-		require.NotNil(t, r.ShardResults()[0])
-		require.NotNil(t, r.ShardResults()[1])
-
 		require.True(t, r.Unfulfilled()[0].IsEmpty())
 		require.True(t, r.Unfulfilled()[1].IsEmpty())
 
-		block, ok := r.ShardResults()[0].BlockAt(ident.StringID("foo"), start)
-		require.True(t, ok)
-		assert.Equal(t, fooBlock, block)
-		switch cachePolicy {
-		case series.CacheAll:
-			assert.True(t, fooBlock.IsRetrieved())
-		case series.CacheAllMetadata:
-			assert.False(t, fooBlock.IsRetrieved())
-		default:
-			require.FailNow(t, "testing unknown cache policy: "+cachePolicy.String())
-		}
+		if cachePolicy == series.CacheAllMetadata {
+			assert.Equal(t, 2, len(r.ShardResults()))
+			require.NotNil(t, r.ShardResults()[0])
+			require.NotNil(t, r.ShardResults()[1])
 
-		block, ok = r.ShardResults()[0].BlockAt(ident.StringID("bar"), start.Add(ropts.BlockSize()))
-		require.True(t, ok)
-		assert.Equal(t, barBlock, block)
-		switch cachePolicy {
-		case series.CacheAll:
-			assert.True(t, barBlock.IsRetrieved())
-		case series.CacheAllMetadata:
-			assert.False(t, barBlock.IsRetrieved())
-		default:
-			require.FailNow(t, "testing unknown cache policy: "+cachePolicy.String())
-		}
+			block, ok := r.ShardResults()[0].BlockAt(ident.StringID("foo"), start)
+			require.True(t, ok)
+			assert.Equal(t, fooBlock.Checksum(), block.Checksum())
+			assert.False(t, block.IsRetrieved())
 
-		block, ok = r.ShardResults()[1].BlockAt(ident.StringID("baz"), start)
-		require.True(t, ok)
-		assert.Equal(t, bazBlock, block)
-		switch cachePolicy {
-		case series.CacheAll:
-			assert.True(t, bazBlock.IsRetrieved())
-		case series.CacheAllMetadata:
-			assert.False(t, bazBlock.IsRetrieved())
-		default:
-			require.FailNow(t, "testing unknown cache policy: "+cachePolicy.String())
+			block, ok = r.ShardResults()[0].BlockAt(ident.StringID("bar"), start.Add(ropts.BlockSize()))
+			require.True(t, ok)
+			assert.Equal(t, barBlock.Checksum(), block.Checksum())
+			assert.False(t, block.IsRetrieved())
+
+			block, ok = r.ShardResults()[1].BlockAt(ident.StringID("baz"), start)
+			require.True(t, ok)
+			assert.Equal(t, bazBlock.Checksum(), block.Checksum())
+			assert.False(t, block.IsRetrieved())
+		} else {
+			assert.Equal(t, 0, len(r.ShardResults()))
+			require.Nil(t, r.ShardResults()[0])
+			require.Nil(t, r.ShardResults()[1])
 		}
 
 		assert.Equal(t, map[string]int{
@@ -358,7 +354,11 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	opts := testDefaultOpts
+	opts := testDefaultOpts.
+		SetResultOptions(testDefaultOpts.
+			ResultOptions().
+			SetSeriesCachePolicy(series.CacheRecentlyRead),
+		)
 	testNsMd := testNamespaceMetadata(t)
 	ropts := testNsMd.Options().RetentionOptions()
 
@@ -592,10 +592,7 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 	r, err := src.Read(testNsMd, target, testIncrementalRunOpts)
 	assert.NoError(t, err)
 
-	assert.Equal(t, 4, len(r.ShardResults()))
-	for i := uint32(0); i < uint32(len(target)); i++ {
-		require.NotNil(t, r.ShardResults()[i])
-	}
+	assert.Equal(t, 0, len(r.ShardResults()))
 	for i := uint32(0); i < uint32(len(target)); i++ {
 		require.False(t, r.Unfulfilled()[i].IsEmpty())
 		require.Equal(t, xtime.Ranges{}.AddRange(xtime.Range{
@@ -603,22 +600,6 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 			End:   midway,
 		}).String(), r.Unfulfilled()[i].String())
 	}
-
-	block, ok := r.ShardResults()[0].BlockAt(ident.StringID("foo"), midway)
-	require.True(t, ok)
-	assert.Equal(t, fooBlocks[1], block)
-
-	block, ok = r.ShardResults()[1].BlockAt(ident.StringID("bar"), midway)
-	require.True(t, ok)
-	assert.Equal(t, barBlocks[1], block)
-
-	block, ok = r.ShardResults()[2].BlockAt(ident.StringID("baz"), midway)
-	require.True(t, ok)
-	assert.Equal(t, bazBlocks[1], block)
-
-	block, ok = r.ShardResults()[3].BlockAt(ident.StringID("qux"), midway)
-	require.True(t, ok)
-	assert.Equal(t, quxBlocks[1], block)
 
 	assert.Equal(t, map[string]int{
 		"foo": 1, "bar": 1, "baz": 2, "qux": 2,
