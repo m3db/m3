@@ -21,10 +21,10 @@
 package commitlog
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -134,6 +134,7 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesPredicate) commitLog
 	reader := &reader{
 		opts:              opts,
 		numConc:           int64(numConc),
+		checkedBytesPool:  opts.BytesPool(),
 		chunkReader:       newChunkReader(opts.FlushSize()),
 		infoDecoder:       msgpack.NewDecoder(decodingOpts),
 		infoDecoderStream: msgpack.NewDecoderStream(nil),
@@ -314,6 +315,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		}
 
 		if !metadata.passedPredicate {
+			fmt.Println("skipping: ", entry.Value)
 			continue
 		}
 
@@ -365,10 +367,6 @@ func (r *reader) decodeAndHandleMetadata(
 	namespace.IncRef()
 	namespace.AppendAll(decoded.Namespace)
 
-	if bytes.Equal(namespace.Get(), r.yolo) {
-		panic("Wtf")
-	}
-
 	_, ok := metadataLookup[entry.Index]
 	// If the metadata already exists, we can skip this step
 	if ok {
@@ -383,8 +381,10 @@ func (r *reader) decodeAndHandleMetadata(
 			Namespace:   ident.BinaryID(namespace),
 			Shard:       decoded.Shard,
 		}
-		passedPredicate := r.seriesPredicate(metadata.ID, metadata.Namespace)
-		metadataLookup[entry.Index] = seriesMetadata{Series: metadata, passedPredicate: passedPredicate}
+		metadataLookup[entry.Index] = seriesMetadata{
+			Series:          metadata,
+			passedPredicate: r.seriesPredicate(metadata.ID, metadata.Namespace),
+		}
 
 		namespace.DecRef()
 		id.DecRef()

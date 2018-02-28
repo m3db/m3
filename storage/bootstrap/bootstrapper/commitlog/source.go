@@ -103,7 +103,6 @@ func (s *commitLogSource) Read(
 	defer iter.Close()
 
 	var (
-		namespace = ns.ID()
 		// +1 so we can use the shard number as an index throughout without constantly
 		// remembering to subtract 1 to convert to zero-based indexing
 		numShards   = s.findHighestShard(shardsTimeRanges) + 1
@@ -147,7 +146,7 @@ func (s *commitLogSource) Read(
 
 	for iter.Next() {
 		series, dp, unit, uniqueIndex, annotation := iter.Current()
-		if !s.shouldEncodeSeries(namespace, unmerged, blockSize, series, dp) {
+		if !s.shouldEncodeSeries(unmerged, blockSize, series, dp) {
 			continue
 		}
 
@@ -186,6 +185,7 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 	wg *sync.WaitGroup,
 ) {
 	for arg := range ec {
+		fmt.Println(arg)
 		var (
 			series     = arg.series
 			dp         = arg.dp
@@ -238,17 +238,11 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 }
 
 func (s *commitLogSource) shouldEncodeSeries(
-	namespace ident.ID,
 	unmerged []encodersAndRanges,
 	blockSize time.Duration,
 	series commitlog.Series,
 	dp ts.Datapoint,
 ) bool {
-	// Check if the series belongs to current namespace being bootstrapped
-	// if !namespace.Equal(series.Namespace) {
-	// 	return false
-	// }
-
 	// Check if the shard number is higher the amount of space we pre-allocated.
 	// If it is, then it's not one of the shards we're trying to bootstrap
 	if series.Shard > uint32(len(unmerged)-1) {
@@ -394,6 +388,7 @@ func (s *commitLogSource) mergeSeries(
 		enc.Reset(start, blopts.DatabaseBlockAllocSize())
 		for iter.Next() {
 			dp, unit, annotation := iter.Current()
+			fmt.Println(dp)
 			encodeErr := enc.Encode(dp, unit, annotation)
 			if encodeErr != nil {
 				err = encodeErr
@@ -499,6 +494,9 @@ func newReadCommitLogPredicate(
 func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesPredicate {
 	nsID := ns.ID()
 	return func(id ident.ID, namespace ident.ID) bool {
+		fmt.Println(nsID)
+		fmt.Println(namespace)
+		fmt.Println(nsID.Equal(namespace))
 		return nsID.Equal(namespace)
 	}
 }
