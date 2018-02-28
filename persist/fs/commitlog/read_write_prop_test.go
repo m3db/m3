@@ -45,6 +45,11 @@ const (
 	defaultTestFlushInterval = time.Millisecond
 )
 
+type seriesWritesAndReadPosition struct {
+	writes       []generatedWrite
+	readPosition int
+}
+
 func TestCommitLogReadWrite(t *testing.T) {
 	baseTestPath, err := ioutil.TempDir("", "commit-log-test-base-dir")
 	require.NoError(t, err)
@@ -76,16 +81,35 @@ func TestCommitLogReadWrite(t *testing.T) {
 	iter, err := NewIterator(opts, ReadAllPredicate())
 	require.NoError(t, err)
 	defer iter.Close()
+
+	// Conver the writes to be in-order, but keyed by series ID because the
+	// commitlog reader only guarantees the same order on disk within a
+	// given series
+	writesBySeries := map[string]seriesWritesAndReadPosition{}
+	for _, write := range writes {
+		seriesWrites := writesBySeries[write.series.ID.String()]
+		if seriesWrites.writes == nil {
+			seriesWrites.writes = []generatedWrite{}
+		}
+		seriesWrites.writes = append(seriesWrites.writes, write)
+		writesBySeries[write.series.ID.String()] = seriesWrites
+	}
+
 	for ; iter.Next(); i++ {
 		series, datapoint, _, _, _ := iter.Current()
 		require.NoError(t, iter.Err())
-		write := writes[i]
+
+		seriesWrites := writesBySeries[series.ID.String()]
+		write := seriesWrites.writes[seriesWrites.readPosition]
+
 		require.Equal(t, write.series.ID.String(), series.ID.String())
 		require.Equal(t, write.series.Namespace.String(), series.Namespace.String())
 		require.Equal(t, write.series.Shard, series.Shard)
 		require.Equal(t, write.datapoint.Value, datapoint.Value)
 		require.True(t, write.datapoint.Timestamp.Equal(datapoint.Timestamp))
-		time.Sleep(100 * time.Millisecond)
+
+		seriesWrites.readPosition++
+		writesBySeries[series.ID.String()] = seriesWrites
 	}
 	require.Equal(t, len(writes), i)
 }
