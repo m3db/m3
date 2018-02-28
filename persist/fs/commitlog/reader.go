@@ -249,7 +249,7 @@ func (r *reader) readLoop() {
 
 			decoderStream.Reset(data)
 			decoder.Reset(decoderStream)
-			_, uniqueIndex, err := decoder.DecodeLogEntryPart1()
+			_, uniqueIndex, err := decoder.DecodeLogEntryUniqueIndex()
 
 			// Distribute work by the uniqueIndex so that each decoder loop is receiving
 			// all datapoints for a given series within relative order.
@@ -285,7 +285,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// Decode the log entry
 		decoderStream.Reset(arg.bytes[arg.offset:])
 		decoder.Reset(decoderStream)
-		entry, err := decoder.DecodeLogEntryPart2()
+		entry, err := decoder.DecodeLogEntryRemaining()
 		if err != nil {
 			readResponse.resultErr = err
 			outBuf <- readResponse

@@ -140,32 +140,32 @@ func (dec *Decoder) DecodeLogEntry() (schema.LogEntry, error) {
 	return logEntry, nil
 }
 
-func (dec *Decoder) DecodeLogEntryPart1() (int64, uint64, error) {
+// DecodeLogEntryUniqueIndex decodes a log entry as much as is required to return
+// the series unique index. Call DecodeLogEntryRemaining afterwards to decode the
+// remaining fields.
+func (dec *Decoder) DecodeLogEntryUniqueIndex() (int64, uint64, error) {
 	if dec.err != nil {
 		return 0, 0, dec.err
 	}
 
 	dec.decodeRootObject(logEntryVersion, logEntryType)
-	// numFieldsToSkip1 := dec.decodeRootObject(logEntryVersion, logEntryType)
-	numFieldsToSkip2, ok := dec.checkNumFieldsFor(logEntryType)
+	numFieldsToSkip, ok := dec.checkNumFieldsFor(logEntryType)
 	if !ok {
 		return 0, 0, errors.New("wtf")
 	}
 	create := dec.decodeVarint()
 	idx := dec.decodeVarUint()
-	dec.skip(numFieldsToSkip2)
+	dec.skip(numFieldsToSkip)
 	if dec.err != nil {
 		return 0, 0, dec.err
 	}
 
-	// dec.skip(numFieldsToSkip1)
-	// if dec.err != nil {
-	// 	return 0, dec.err
-	// }
 	return create, idx, nil
 }
 
-func (dec *Decoder) DecodeLogEntryPart2() (schema.LogEntry, error) {
+// DecodeLogEntryRemaining can only be called after DecodeLogEntryUniqueIndex,
+// and it returns a complete schema.LogEntry.
+func (dec *Decoder) DecodeLogEntryRemaining() (schema.LogEntry, error) {
 	if dec.err != nil {
 		return emptyLogEntry, dec.err
 	}
@@ -175,10 +175,6 @@ func (dec *Decoder) DecodeLogEntryPart2() (schema.LogEntry, error) {
 	logEntry.Value = dec.decodeFloat64()
 	logEntry.Unit = uint32(dec.decodeVarUint())
 	logEntry.Annotation, _, _ = dec.decodeBytes()
-	// dec.skip(numFieldsToSkip)
-	// if dec.err != nil {
-	// 	return emptyLogEntry, dec.err
-	// }
 	return logEntry, nil
 }
 
