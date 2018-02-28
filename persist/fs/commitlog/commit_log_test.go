@@ -23,6 +23,7 @@ package commitlog
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"strings"
 	"sync"
@@ -30,6 +31,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/bitset"
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/ts"
@@ -356,61 +358,62 @@ func TestCommitLogWrite(t *testing.T) {
 	assertCommitLogWritesByIterating(t, commitLog, writes)
 }
 
-// func TestReadCommitLogMissingMetadata(t *testing.T) {
-// 	readConc := 4
-// 	// Make sure we're not leaking goroutines
-// 	defer leaktest.CheckTimeout(t, 10*time.Second)()
+func TestReadCommitLogMissingMetadata(t *testing.T) {
+	readConc := 4
+	// Make sure we're not leaking goroutines
+	defer leaktest.CheckTimeout(t, 10*time.Second)()
 
-// 	opts, scope := newTestOptions(t, overrides{
-// 		strategy: StrategyWriteWait,
-// 	})
-// 	// Set read concurrency so that the parallel path is definitely tested
-// 	opts.SetReadConcurrency(readConc)
-// 	defer cleanup(t, opts)
+	opts, scope := newTestOptions(t, overrides{
+		strategy: StrategyWriteWait,
+	})
+	// Set read concurrency so that the parallel path is definitely tested
+	opts.SetReadConcurrency(readConc)
+	defer cleanup(t, opts)
 
-// 	// Replace bitset in writer with one that configurably returns true or false
-// 	// depending on the series
-// 	commitLog := newTestCommitLog(t, opts)
-// 	writer := commitLog.writer.(*writer)
+	// Replace bitset in writer with one that configurably returns true or false
+	// depending on the series
+	commitLog := newTestCommitLog(t, opts)
+	writer := commitLog.writer.(*writer)
 
-// 	bitSet := bitset.NewBitSet(0)
+	bitSet := bitset.NewBitSet(0)
 
-// 	// Generate fake series, where approximately half will be missing metadata.
-// 	// This works because the commitlog writer uses the bitset to determine if
-// 	// the metadata for a particular series had already been written to disk.
-// 	allSeries := []Series{}
-// 	for i := 0; i < 200; i++ {
-// 		willNotHaveMetadata := !(i%2 == 0)
-// 		allSeries = append(allSeries, testSeries(uint64(i), "hax", uint32(i%100)))
-// 		if willNotHaveMetadata {
-// 			bitSet.Set(uint(i))
-// 		}
-// 	}
-// 	writer.seen = bitSet
+	// Generate fake series, where approximately half will be missing metadata.
+	// This works because the commitlog writer uses the bitset to determine if
+	// the metadata for a particular series had already been written to disk.
+	allSeries := []Series{}
+	for i := 0; i < 200; i++ {
+		willNotHaveMetadata := !(i%2 == 0)
+		allSeries = append(allSeries, testSeries(uint64(i), "hax", uint32(i%100)))
+		if willNotHaveMetadata {
+			bitSet.Set(uint(i))
+		}
+	}
+	writer.seen = bitSet
 
-// 	// Generate fake writes for each of the series
-// 	writes := []testWrite{}
-// 	for _, series := range allSeries {
-// 		for i := 0; i < 10; i++ {
-// 			writes = append(writes, testWrite{series, time.Now(), rand.Float64(), xtime.Second, []byte{1, 2, 3}, nil})
-// 		}
-// 	}
+	// Generate fake writes for each of the series
+	writes := []testWrite{}
+	for _, series := range allSeries {
+		for i := 0; i < 10; i++ {
+			writes = append(writes, testWrite{series, time.Now(), rand.Float64(), xtime.Second, []byte{1, 2, 3}, nil})
+		}
+	}
 
-// 	// Call write sync
-// 	writeCommitLogs(t, scope, commitLog, writes).Wait()
+	// Call write sync
+	writeCommitLogs(t, scope, commitLog, writes).Wait()
 
-// 	// Close the commit log and consequently flush
-// 	assert.NoError(t, commitLog.Close())
+	// Close the commit log and consequently flush
+	assert.NoError(t, commitLog.Close())
 
-// 	// Make sure we don't panic / deadlock
-// 	iter, err := NewIterator(opts, ReadAllPredicate())
-// 	assert.NoError(t, err)
-// 	for iter.Next() {
-// 		assert.NoError(t, iter.Err())
-// 	}
-// 	iter.Close()
-// 	assert.NoError(t, commitLog.Close())
-// }
+	// Make sure we don't panic / deadlock
+	iter, err := NewIterator(opts, ReadAllPredicate(), ReadAllSeriesPredicate())
+	assert.NoError(t, err)
+	for iter.Next() {
+		assert.NoError(t, iter.Err())
+	}
+	assert.Equal(t, errCommitLogReaderMissingMetadata, iter.Err())
+	iter.Close()
+	assert.NoError(t, commitLog.Close())
+}
 
 func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	// Make sure we're not leaking goroutines

@@ -304,7 +304,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 
 		metadata, hasMetadata := metadataLookup[entry.Index]
 		if !hasMetadata {
-			// Corrupt commit lot
+			// Corrupt commit log
 			readResponse.resultErr = errCommitLogReaderMissingMetadata
 			outBuf <- readResponse
 			continue
