@@ -425,19 +425,19 @@ func (s *peersSource) incrementalFlush(
 		}
 	}
 
-	// TODO: We need this right now because nodes with older versions of M3DB will return an extra
-	// block when requesting bootstrapped blocks. Once all the clusters have been upgraded we can
-	// remove this code.
-	for _, s := range shardResult.AllSeries() {
-		bl, ok := s.Blocks.BlockAt(tr.End)
-		if !ok {
-			continue
-		}
-		s.Blocks.RemoveBlockAt(tr.End)
-		bl.Close()
-	}
-
 	if seriesCachePolicy != series.CacheAll && seriesCachePolicy != series.CacheAllMetadata {
+		// TODO: We need this right now because nodes with older versions of M3DB will return an extra
+		// block when requesting bootstrapped blocks. Once all the clusters have been upgraded we can
+		// remove this code.
+		for _, s := range shardResult.AllSeries() {
+			bl, ok := s.Blocks.BlockAt(tr.End)
+			if !ok {
+				continue
+			}
+			s.Blocks.RemoveBlockAt(tr.End)
+			bl.Close()
+		}
+
 		// If we're not going to keep all of the data, or at least all of the metadata in memory
 		// then we don't want to keep these series in the shard result. If we leave them in, then
 		// they will all get loaded into the shard object, and then immediately evicted on the next
