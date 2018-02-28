@@ -32,19 +32,21 @@ func NewPromReadHandler(engine *executor.Engine) http.Handler {
 
 func (h *PromReadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	params, err := ParseRequestParams(r)
-	logger := logging.WithContext(r.Context())
+	ctx := r.Context()
+	logger := logging.WithContext(ctx)
 	if err != nil {
 		Error(w, err, http.StatusBadRequest)
 		return
 	}
 
 	req, rErr := h.parseRequest(r)
+
 	if rErr != nil {
 		Error(w, rErr.Error(), rErr.Code())
 		return
 	}
 
-	result, err := h.read(r.Context(), w, req, params)
+	result, err := h.read(ctx, w, req, params)
 	if err != nil {
 		logger.Error("unable to fetch data", zap.Any("error", err))
 		Error(w, err, http.StatusInternalServerError)

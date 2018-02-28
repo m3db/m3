@@ -56,7 +56,6 @@ func generatePromReadBody(t *testing.T) io.Reader {
 	//ioutil.WriteFile("/tmp/dat1", compressed, 0644)
 	b := bytes.NewReader(compressed)
 	return b
-
 }
 
 func setupServer(t *testing.T) *httptest.Server {
