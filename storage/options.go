@@ -149,21 +149,23 @@ func newOptions(poolOpts pool.ObjectPoolOptions) Options {
 	bytesPool.Init()
 	seriesOpts := series.NewOptions()
 	o := &options{
-		clockOpts:                      clock.NewOptions(),
-		instrumentOpts:                 instrument.NewOptions(),
-		blockOpts:                      block.NewOptions(),
-		commitLogOpts:                  commitlog.NewOptions(),
-		runtimeOptsMgr:                 runtime.NewOptionsManager(),
-		errCounterOpts:                 xcounter.NewOptions(),
-		errWindowForLoad:               defaultErrorWindowForLoad,
-		errThresholdForLoad:            defaultErrorThresholdForLoad,
-		indexingEnabled:                defaultIndexingEnabled,
-		repairEnabled:                  defaultRepairEnabled,
-		repairOpts:                     repair.NewOptions(),
-		bootstrapProcess:               defaultBootstrapProcess,
-		maxFlushRetries:                defaultMaxFlushRetries,
-		poolOpts:                       poolOpts,
-		contextPool:                    context.NewPool(poolOpts, poolOpts),
+		clockOpts:           clock.NewOptions(),
+		instrumentOpts:      instrument.NewOptions(),
+		blockOpts:           block.NewOptions(),
+		commitLogOpts:       commitlog.NewOptions(),
+		runtimeOptsMgr:      runtime.NewOptionsManager(),
+		errCounterOpts:      xcounter.NewOptions(),
+		errWindowForLoad:    defaultErrorWindowForLoad,
+		errThresholdForLoad: defaultErrorThresholdForLoad,
+		indexingEnabled:     defaultIndexingEnabled,
+		repairEnabled:       defaultRepairEnabled,
+		repairOpts:          repair.NewOptions(),
+		bootstrapProcess:    defaultBootstrapProcess,
+		maxFlushRetries:     defaultMaxFlushRetries,
+		poolOpts:            poolOpts,
+		contextPool: context.NewPool(context.NewOptions().
+			SetContextPoolOptions(poolOpts).
+			SetFinalizerPoolOptions(poolOpts)),
 		seriesCachePolicy:              series.DefaultCachePolicy,
 		seriesOpts:                     seriesOpts,
 		seriesPool:                     series.NewDatabaseSeriesPool(poolOpts),
@@ -354,7 +356,9 @@ func (o *options) SetEncodingM3TSZPooled() Options {
 	opts.bytesPool = bytesPool
 
 	// initialize context pool
-	opts.contextPool = context.NewPool(opts.poolOpts, opts.poolOpts)
+	opts.contextPool = context.NewPool(context.NewOptions().
+		SetContextPoolOptions(opts.poolOpts).
+		SetFinalizerPoolOptions(opts.poolOpts))
 
 	encoderPool := encoding.NewEncoderPool(opts.poolOpts)
 	readerIteratorPool := encoding.NewReaderIteratorPool(opts.poolOpts)

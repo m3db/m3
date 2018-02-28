@@ -185,7 +185,7 @@ imports:
   - doc
   - index/segment
 - name: github.com/m3db/m3x
-  version: 870290a8e708beb5e2ea2165d0c4517ddc8ca534
+  version: a7ed464be22a80c9e219ac0c65ee051f7a7ee13e
   vcs: git
   subpackages:
   - checked

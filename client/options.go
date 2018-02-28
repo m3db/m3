@@ -232,7 +232,9 @@ func newOptions() *options {
 
 	idPool := ident.NewPool(bytesPool, poolOpts)
 
-	contextPool := context.NewPool(poolOpts, poolOpts)
+	contextPool := context.NewPool(context.NewOptions().
+		SetContextPoolOptions(poolOpts).
+		SetFinalizerPoolOptions(poolOpts))
 
 	opts := &options{
 		clockOpts:                               clock.NewOptions(),
