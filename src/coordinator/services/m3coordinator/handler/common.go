@@ -21,12 +21,14 @@ type RequestParams struct {
 
 // ParsePromRequest parses a snappy compressed request from Prometheus
 func ParsePromRequest(r *http.Request) ([]byte, *ParseError) {
+	body := r.Body
 	if r.Body == nil {
 		err := fmt.Errorf("empty request body")
 		return nil, NewParseError(err, http.StatusBadRequest)
 	}
+	defer body.Close()
+	compressed, err := ioutil.ReadAll(body)
 
-	compressed, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return nil, NewParseError(err, http.StatusInternalServerError)
 	}
