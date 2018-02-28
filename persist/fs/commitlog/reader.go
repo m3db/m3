@@ -104,7 +104,6 @@ type reader struct {
 	opts                 Options
 	numConc              int64
 	checkedBytesPool     pool.CheckedBytesPool
-	bytesPool            pool.BytesPool
 	chunkReader          *chunkReader
 	infoDecoder          *msgpack.Decoder
 	infoDecoderStream    msgpack.DecoderStream
