@@ -34,12 +34,11 @@ import (
 	"github.com/m3db/m3db/storage"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/x/xio"
-	"github.com/m3db/m3x/checked"
+	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3x/context"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
 
@@ -93,8 +92,8 @@ type service struct {
 	opts                     tchannelthrift.Options
 	nowFn                    clock.NowFn
 	metrics                  serviceMetrics
+	checkedBytesWrapperPool  xpool.CheckedBytesWrapperPool
 	idPool                   ident.Pool
-	checkedBytesPool         pool.ObjectPool
 	blockMetadataPool        tchannelthrift.BlockMetadataPool
 	blockMetadataV2Pool      tchannelthrift.BlockMetadataV2Pool
 	blockMetadataSlicePool   tchannelthrift.BlockMetadataSlicePool
@@ -116,11 +115,15 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 		map[string]string{"serviceName": "node"},
 	)
 
+	wrapperPool := xpool.NewCheckedBytesWrapperPool(checkedBytesPoolSize)
+	wrapperPool.Init()
+
 	s := &service{
 		db:                       db,
 		opts:                     opts,
 		nowFn:                    db.Options().ClockOptions().NowFn(),
 		metrics:                  newServiceMetrics(scope, iopts.MetricsSamplingRate()),
+		checkedBytesWrapperPool:  wrapperPool,
 		idPool:                   db.Options().IdentifierPool(),
 		blockMetadataPool:        opts.BlockMetadataPool(),
 		blockMetadataV2Pool:      opts.BlockMetadataV2Pool(),
@@ -134,17 +137,6 @@ func NewService(db storage.Database, opts tchannelthrift.Options) rpc.TChanNode 
 			Bootstrapped: false,
 		},
 	}
-	checkedBytesPoolOpts := checked.NewBytesOptions().
-		SetFinalizer(checked.BytesFinalizerFn(func(b checked.Bytes) {
-			b.IncRef()
-			b.Reset(nil)
-			b.DecRef()
-			s.checkedBytesPool.Put(b)
-		}))
-	s.checkedBytesPool = pool.NewObjectPool(pool.NewObjectPoolOptions().SetSize(checkedBytesPoolSize))
-	s.checkedBytesPool.Init(func() interface{} {
-		return checked.NewBytes(nil, checkedBytesPoolOpts)
-	})
 
 	return s
 }
@@ -863,11 +855,7 @@ func (s *service) isOverloaded() bool {
 }
 
 func (s *service) newID(ctx context.Context, id []byte) ident.ID {
-	checkedBytes := s.checkedBytesPool.Get().(checked.Bytes)
-	checkedBytes.IncRef()
-	checkedBytes.Reset(id)
-	checkedBytes.DecRef()
-
+	checkedBytes := s.checkedBytesWrapperPool.Get(id)
 	return s.idPool.GetBinaryID(ctx, checkedBytes)
 }
 
