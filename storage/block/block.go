@@ -489,7 +489,6 @@ func (dbb *databaseSeriesBlocks) RemoveAll() {
 }
 
 func (dbb *databaseSeriesBlocks) Reset() {
-	dbb.RemoveAll()
 	// Ensure the old, possibly large map is GC'd
 	dbb.elems = nil
 	dbb.elems = make(map[xtime.UnixNano]DatabaseBlock)

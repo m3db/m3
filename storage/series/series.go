@@ -599,11 +599,6 @@ func (s *dbSeries) Close() {
 	// a long period of time.
 	s.id = nil
 
-	// Reset (not close) underlying resources because the series will go
-	// back into the pool and be re-used.
-	s.buffer.Reset(s.opts)
-	s.blocks.Reset()
-
 	switch s.opts.CachePolicy() {
 	case CacheLRU:
 		// In the CacheLRU case, blocks that were retrieved from disk are owned
@@ -616,8 +611,13 @@ func (s *dbSeries) Close() {
 			}
 		}
 	default:
-		s.blocks.Close()
+		s.blocks.RemoveAll()
 	}
+
+	// Reset (not close) underlying resources because the series will go
+	// back into the pool and be re-used.
+	s.buffer.Reset(s.opts)
+	s.blocks.Reset()
 
 	if s.pool != nil {
 		s.pool.Put(s)
