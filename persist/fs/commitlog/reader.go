@@ -88,10 +88,11 @@ type readResponse struct {
 }
 
 type decoderArg struct {
-	bytes       []byte
-	err         error
-	uniqueIndex uint64
-	offset      int
+	bytes                []byte
+	err                  error
+	decodeRemainingToken msgpack.DecodeLogEntryRemainingToken
+	uniqueIndex          uint64
+	offset               int
 }
 
 type readerMetadata struct {
@@ -249,15 +250,16 @@ func (r *reader) readLoop() {
 
 			decoderStream.Reset(data)
 			decoder.Reset(decoderStream)
-			_, uniqueIndex, err := decoder.DecodeLogEntryUniqueIndex()
+			decodeRemainingToken, uniqueIndex, err := decoder.DecodeLogEntryUniqueIndex()
 
 			// Distribute work by the uniqueIndex so that each decoder loop is receiving
 			// all datapoints for a given series within relative order.
 			r.decoderBufs[uniqueIndex%uint64(r.numConc)] <- decoderArg{
-				bytes:       data,
-				err:         err,
-				uniqueIndex: uniqueIndex,
-				offset:      decoderStream.Offset(),
+				bytes:                data,
+				err:                  err,
+				decodeRemainingToken: decodeRemainingToken,
+				uniqueIndex:          uniqueIndex,
+				offset:               decoderStream.Offset(),
 			}
 		}
 	}
@@ -285,7 +287,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// Decode the log entry
 		decoderStream.Reset(arg.bytes[arg.offset:])
 		decoder.Reset(decoderStream)
-		entry, err := decoder.DecodeLogEntryRemaining(arg.uniqueIndex)
+		entry, err := decoder.DecodeLogEntryRemaining(arg.decodeRemainingToken, arg.uniqueIndex)
 		if err != nil {
 			readResponse.resultErr = err
 			outBuf <- readResponse
