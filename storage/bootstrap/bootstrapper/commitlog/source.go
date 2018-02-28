@@ -45,8 +45,7 @@ const encoderChanBufSize = 1000
 type newIteratorFn func(
 	opts commitlog.Options,
 	commitLogPred commitlog.ReadEntryPredicate,
-	seriesPred commitlog.SeriesPredicate,
-) (commitlog.Iterator, error)
+	seriesPred commitlog.ReadSeriesPredicate) (commitlog.Iterator, error)
 
 type commitLogSource struct {
 	opts          Options
@@ -489,7 +488,7 @@ func newReadCommitLogPredicate(
 	}
 }
 
-func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesPredicate {
+func newReadSeriesPredicate(ns namespace.Metadata) commitlog.ReadSeriesPredicate {
 	nsID := ns.ID()
 	return func(id ident.ID, namespace ident.ID) bool {
 		return nsID.Equal(namespace)

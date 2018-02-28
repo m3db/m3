@@ -53,7 +53,7 @@ type iterator struct {
 	reader     commitLogReader
 	read       iteratorRead
 	err        error
-	seriesPred SeriesPredicate
+	seriesPred ReadSeriesPredicate
 	setRead    bool
 	closed     bool
 }
@@ -77,7 +77,7 @@ func ReadAllPredicate() ReadEntryPredicate {
 }
 
 // NewIterator creates a new commit log iterator
-func NewIterator(opts Options, commitLogPred ReadEntryPredicate, seriesPred SeriesPredicate) (Iterator, error) {
+func NewIterator(opts Options, commitLogPred ReadEntryPredicate, seriesPred ReadSeriesPredicate) (Iterator, error) {
 	iops := opts.InstrumentOptions()
 	iops = iops.SetMetricsScope(iops.MetricsScope().SubScope("iterator"))
 

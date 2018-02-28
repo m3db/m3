@@ -88,10 +88,10 @@ type readResponse struct {
 }
 
 type decoderArg struct {
-	bytes  []byte
-	err    error
-	index  uint64
-	offset int
+	bytes       []byte
+	err         error
+	uniqueIndex uint64
+	offset      int
 }
 
 type readerMetadata struct {
@@ -245,18 +245,15 @@ func (r *reader) readLoop() {
 
 			decoderStream.Reset(data)
 			decoder.Reset(decoderStream)
-			_, index, err := decoder.DecodeLogEntryPart1()
-			if err != nil {
-				panic(err)
-			}
+			_, uniqueIndex, err := decoder.DecodeLogEntryPart1()
 
-			// Distribute the decoding work in round-robin fashion so that when we
-			// read round-robin, we get the data back in the original order.
-			r.decoderBufs[index%uint64(r.numConc)] <- decoderArg{
-				bytes:  data,
-				err:    err,
-				index:  index,
-				offset: decoderStream.Offset(),
+			// Distribute work by the uniqueIndex so that each decoder loop is receiving
+			// all datapoints for a given series within relative order.
+			r.decoderBufs[uniqueIndex%uint64(r.numConc)] <- decoderArg{
+				bytes:       data,
+				err:         err,
+				uniqueIndex: uniqueIndex,
+				offset:      decoderStream.Offset(),
 			}
 		}
 	}
@@ -290,7 +287,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			outBuf <- readResponse
 			continue
 		}
-		entry.Index = arg.index
+		entry.Index = arg.uniqueIndex
 
 		// If the log entry has associated metadata, decode that as well
 		if len(entry.Metadata) != 0 {
