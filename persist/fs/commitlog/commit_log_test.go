@@ -294,7 +294,7 @@ func assertCommitLogWritesByIterating(t *testing.T, l *commitLog, writes []testW
 	assert.NoError(t, err)
 	defer iter.Close()
 
-	// Conver the writes to be in-order, but keyed by series ID because the
+	// Convert the writes to be in-order, but keyed by series ID because the
 	// commitlog reader only guarantees the same order on disk within a
 	// given series
 	writesBySeries := map[string]seriesTestWritesAndReadPosition{}
