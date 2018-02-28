@@ -50,15 +50,15 @@ var (
 	errCommitLogReaderMissingMetadata           = errors.New("commit log reader encountered a datapoint without corresponding metadata")
 )
 
-// SeriesPredicate is a predicate that determines whether datapoints for a given series
+// ReadSeriesPredicate is a predicate that determines whether datapoints for a given series
 // should be returned from the Commit log reader. The predicate is pushed down to the
 // reader level to prevent having to run the same function for every datapoint for a
 // given series.
-type SeriesPredicate func(id ident.ID, namespace ident.ID) bool
+type ReadSeriesPredicate func(id ident.ID, namespace ident.ID) bool
 
 // ReadAllSeriesPredicate can be passed as the seriesPredicate for callers
 // that want a convenient way to read all series in the commitlogs
-func ReadAllSeriesPredicate() SeriesPredicate {
+func ReadAllSeriesPredicate() ReadSeriesPredicate {
 	return func(id ident.ID, namespace ident.ID) bool { return true }
 }
 
@@ -116,11 +116,11 @@ type reader struct {
 	nextIndex            int64
 	hasBeenOpened        bool
 	bgWorkersInitialized int64
-	seriesPredicate      SeriesPredicate
+	seriesPredicate      ReadSeriesPredicate
 	yolo                 []byte
 }
 
-func newCommitLogReader(opts Options, seriesPredicate SeriesPredicate) commitLogReader {
+func newCommitLogReader(opts Options, seriesPredicate ReadSeriesPredicate) commitLogReader {
 	decodingOpts := opts.FilesystemOptions().DecodingOptions()
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 
