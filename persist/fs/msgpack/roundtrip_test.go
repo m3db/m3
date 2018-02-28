@@ -181,10 +181,9 @@ func TestLogEntryRoundtripUniqueIndexAndRemaining(t *testing.T) {
 	create, idx, err := dec.DecodeLogEntryUniqueIndex()
 	require.NoError(t, err)
 
-	res, err := dec.DecodeLogEntryRemaining(idx)
+	res, err := dec.DecodeLogEntryRemaining(create, idx)
 	require.NoError(t, err)
 
-	res.Create = create
 	res.Index = idx
 	require.Equal(t, testLogEntry, res)
 }

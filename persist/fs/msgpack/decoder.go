@@ -30,15 +30,16 @@ import (
 )
 
 var (
-	emptyIndexInfo            schema.IndexInfo
-	emptyIndexSummariesInfo   schema.IndexSummariesInfo
-	emptyIndexBloomFilterInfo schema.IndexBloomFilterInfo
-	emptyIndexEntry           schema.IndexEntry
-	emptyIndexSummary         schema.IndexSummary
-	emptyIndexSummaryToken    IndexSummaryToken
-	emptyLogInfo              schema.LogInfo
-	emptyLogEntry             schema.LogEntry
-	emptyLogMetadata          schema.LogMetadata
+	emptyIndexInfo              schema.IndexInfo
+	emptyIndexSummariesInfo     schema.IndexSummariesInfo
+	emptyIndexBloomFilterInfo   schema.IndexBloomFilterInfo
+	emptyIndexEntry             schema.IndexEntry
+	emptyIndexSummary           schema.IndexSummary
+	emptyIndexSummaryToken      IndexSummaryToken
+	emptyLogInfo                schema.LogInfo
+	emptyLogEntry               schema.LogEntry
+	emptyLogMetadata            schema.LogMetadata
+	emptyLogEntryRemainingToken DecodeLogEntryRemainingToken
 )
 
 // Decoder decodes persisted msgpack-encoded data
@@ -140,35 +141,43 @@ func (dec *Decoder) DecodeLogEntry() (schema.LogEntry, error) {
 	return logEntry, nil
 }
 
+// DecodeLogEntryRemainingToken contains all the information that DecodeLogEntryRemaining
+// requires to continue decoding a log entry after a call to DecodeLogEntryUniqueIndex.
+type DecodeLogEntryRemainingToken struct {
+	numFieldsToSkip1 int
+	numFieldsToSkip2 int
+}
+
 // DecodeLogEntryUniqueIndex decodes a log entry as much as is required to return
 // the series unique index. Call DecodeLogEntryRemaining afterwards to decode the
 // remaining fields.
-func (dec *Decoder) DecodeLogEntryUniqueIndex() (int64, uint64, error) {
+func (dec *Decoder) DecodeLogEntryUniqueIndex() (DecodeLogEntryRemainingToken, uint64, error) {
 	if dec.err != nil {
-		return 0, 0, dec.err
+		return emptyLogEntryRemainingToken, 0, dec.err
 	}
 
-	dec.decodeRootObject(logEntryVersion, logEntryType)
-	numFieldsToSkip, ok := dec.checkNumFieldsFor(logEntryType)
+	numFieldsToSkip1 := dec.decodeRootObject(logEntryVersion, logEntryType)
+	numFieldsToSkip2, ok := dec.checkNumFieldsFor(logEntryType)
 	if !ok {
-		return 0, 0, errors.New("wtf")
+		return emptyLogEntryRemainingToken, 0, errors.New("unable to determine num fields to skip")
 	}
-	create := dec.decodeVarint()
+	dec.decodeVarint()
 	idx := dec.decodeVarUint()
-	dec.skip(numFieldsToSkip)
-	if dec.err != nil {
-		return 0, 0, dec.err
-	}
 
-	return create, idx, nil
+	token := DecodeLogEntryRemainingToken{
+		numFieldsToSkip1: numFieldsToSkip1,
+		numFieldsToSkip2: numFieldsToSkip2,
+	}
+	return token, idx, nil
 }
 
 // DecodeLogEntryRemaining can only be called after DecodeLogEntryUniqueIndex,
 // and it returns a complete schema.LogEntry.
-func (dec *Decoder) DecodeLogEntryRemaining(index uint64) (schema.LogEntry, error) {
+func (dec *Decoder) DecodeLogEntryRemaining(token DecodeLogEntryRemainingToken, index uint64) (schema.LogEntry, error) {
 	if dec.err != nil {
 		return emptyLogEntry, dec.err
 	}
+
 	var logEntry schema.LogEntry
 	logEntry.Index = index
 	logEntry.Metadata, _, _ = dec.decodeBytes()
@@ -176,6 +185,16 @@ func (dec *Decoder) DecodeLogEntryRemaining(index uint64) (schema.LogEntry, erro
 	logEntry.Value = dec.decodeFloat64()
 	logEntry.Unit = uint32(dec.decodeVarUint())
 	logEntry.Annotation, _, _ = dec.decodeBytes()
+
+	dec.skip(token.numFieldsToSkip1)
+	if dec.err != nil {
+		return emptyLogEntry, dec.err
+	}
+	dec.skip(token.numFieldsToSkip2)
+	if dec.err != nil {
+		return emptyLogEntry, dec.err
+	}
+
 	return logEntry, nil
 }
 
