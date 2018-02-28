@@ -185,7 +185,6 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 	wg *sync.WaitGroup,
 ) {
 	for arg := range ec {
-		fmt.Println(arg)
 		var (
 			series     = arg.series
 			dp         = arg.dp
@@ -388,7 +387,6 @@ func (s *commitLogSource) mergeSeries(
 		enc.Reset(start, blopts.DatabaseBlockAllocSize())
 		for iter.Next() {
 			dp, unit, annotation := iter.Current()
-			fmt.Println(dp)
 			encodeErr := enc.Encode(dp, unit, annotation)
 			if encodeErr != nil {
 				err = encodeErr
@@ -494,9 +492,6 @@ func newReadCommitLogPredicate(
 func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesPredicate {
 	nsID := ns.ID()
 	return func(id ident.ID, namespace ident.ID) bool {
-		fmt.Println(nsID)
-		fmt.Println(namespace)
-		fmt.Println(nsID.Equal(namespace))
 		return nsID.Equal(namespace)
 	}
 }

@@ -24,7 +24,6 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -222,7 +221,11 @@ func (r *reader) startBackgroundWorkers() error {
 }
 
 func (r *reader) readLoop() {
-	defer r.shutdown()
+	defer func() {
+		for _, decoderBuf := range r.decoderBufs {
+			close(decoderBuf)
+		}
+	}()
 
 	decodingOpts := r.opts.FilesystemOptions().DecodingOptions()
 	decoder := msgpack.NewDecoder(decodingOpts)
@@ -257,13 +260,6 @@ func (r *reader) readLoop() {
 			}
 		}
 	}
-}
-
-func (r *reader) shutdown() {
-	for _, decoderBuf := range r.decoderBufs {
-		close(decoderBuf)
-	}
-	r.shutdownCh <- r.close()
 }
 
 func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse) {
@@ -315,7 +311,6 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		}
 
 		if !metadata.passedPredicate {
-			fmt.Println("skipping: ", entry.Value)
 			continue
 		}
 
@@ -438,8 +433,8 @@ func (r *reader) Close() error {
 			break
 		}
 	}
-	shutdownErr := <-r.shutdownCh
-	return shutdownErr
+
+	return r.close()
 }
 
 func (r *reader) close() error {
