@@ -21,6 +21,10 @@
 package msgpack
 
 import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -147,6 +151,102 @@ func TestLogEntryRoundtrip(t *testing.T) {
 	res, err := dec.DecodeLogEntry()
 	require.NoError(t, err)
 	require.Equal(t, testLogEntry, res)
+}
+
+func BenchmarkLogEntryDecoder(b *testing.B) {
+	testLogEntry.Metadata = nil
+	testLogEntry.Annotation = nil
+	var (
+		enc    = NewEncoder()
+		dec    = NewDecoder(nil)
+		stream = NewDecoderStream(nil)
+		res    schema.LogEntry
+		err    error
+	)
+
+	require.NoError(b, enc.EncodeLogEntry(testLogEntry))
+	buf := enc.Bytes()
+	for n := 0; n < b.N; n++ {
+		stream.Reset(buf)
+		dec.Reset(stream)
+		res, err = dec.DecodeLogEntry()
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	fmt.Println(len(buf))
+	fmt.Println(res)
+}
+
+func BenchmarkLogEntryDecoderOther(b *testing.B) {
+	testLogEntry.Metadata = nil
+	testLogEntry.Annotation = nil
+	size := 8 * 7
+	offset := 0
+	buf := make([]byte, size)
+	binary.LittleEndian.PutUint64(buf[offset:], uint64(testLogEntry.Create))
+	offset += 8
+	offset += binary.PutUvarint(buf[offset:], testLogEntry.Index)
+
+	binary.LittleEndian.PutUint64(buf[offset:], uint64(testLogEntry.Timestamp))
+	offset += 8
+	binary.LittleEndian.PutUint64(buf[offset:], math.Float64bits(testLogEntry.Value))
+	offset += 8
+	binary.LittleEndian.PutUint64(buf[offset:], uint64(testLogEntry.Unit))
+	offset += 8
+
+	res := schema.LogEntry{}
+	var err error
+	reader := bytes.NewReader(buf)
+	for n := 0; n < b.N; n++ {
+		reader.Reset(buf)
+		res.Create, err = binary.ReadVarint(reader)
+		if err != nil {
+			panic(err)
+		}
+		res.Index, err = binary.ReadUvarint(reader)
+		if err != nil {
+			panic(err)
+		}
+		// bytesLen, err := binary.ReadVarint(reader)
+		// if err != nil {
+		// 	panic(err)
+		// }
+		// if testLogEntry.Metadata != nil {
+		// 	res.Metadata = buf[len(buf)-reader.Len() : bytesLen]
+		// 	for i := 0; i < int(bytesLen); i++ {
+		// 		reader.ReadByte()
+		// 	}
+		// }
+		res.Timestamp, err = binary.ReadVarint(reader)
+		if err != nil {
+			panic(err)
+		}
+		float64Bits, err := binary.ReadUvarint(reader)
+		if err != nil {
+			panic(err)
+		}
+		res.Value = math.Float64frombits(float64Bits)
+		unit, err := binary.ReadVarint(reader)
+		if err != nil {
+			panic(err)
+		}
+		res.Unit = uint32(unit)
+		// bytesLen, err = binary.ReadVarint(reader)
+		// if err != nil {
+		// 	panic(err)
+		// }
+		// if testLogEntry.Annotation != nil {
+		// 	fmt.Println(len(buf))
+		// 	fmt.Println(reader.Len())
+		// 	fmt.Println(bytesLen)
+		// 	res.Annotation = buf[len(buf)-reader.Len() : bytesLen]
+		// }
+	}
+
+	fmt.Println(len(buf))
+	fmt.Println(res)
 }
 
 func TestLogEntryRoundtripParts(t *testing.T) {
