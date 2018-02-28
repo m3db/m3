@@ -45,33 +45,27 @@ const decoderOutBufChanSize = 1000
 var (
 	emptyLogInfo schema.LogInfo
 
-	errCommitLogReaderChunkSizeChecksumMismatch     = errors.New("commit log reader encountered chunk size checksum mismatch")
-	errCommitLogReaderIsNotReusable                 = errors.New("commit log reader is not reusable")
-	errCommitLogReaderMultipleReadloops             = errors.New("commitlog reader tried to open multiple readLoops, do not call Read() concurrently")
-	errCommitLogReaderPendingResponseCompletedTwice = errors.New("commit log reader pending response was completed twice")
-	errCommitLogReaderPendingMetadataNeverFulfilled = errors.New("commit log reader pending metadata was never fulfilled")
+	errCommitLogReaderChunkSizeChecksumMismatch = errors.New("commit log reader encountered chunk size checksum mismatch")
+	errCommitLogReaderIsNotReusable             = errors.New("commit log reader is not reusable")
+	errCommitLogReaderMultipleReadloops         = errors.New("commit log reader tried to open multiple readLoops, do not call Read() concurrently")
+	errCommitLogReaderMissingMetadata           = errors.New("commit log reader encountered a datapoint without corresponding metadata")
 )
 
-type readerPendingSeriesMetadataResponse struct {
-	wg       sync.WaitGroup
-	competed uint32
-	value    Series
-	err      error
+// SeriesPredicate is a predicate that determines whether datapoints for a given series
+// should be returned from the Commit log reader. The predicate is pushed down to the
+// reader level to prevent having to run the same function for every datapoint for a
+// given series.
+type SeriesPredicate func(id ident.ID, namespace ident.ID) bool
+
+// ReadAllSeriesPredicate can be passed as the seriesPredicate for callers
+// that want a convenient way to read all series in the commitlogs
+func ReadAllSeriesPredicate() SeriesPredicate {
+	return func(id ident.ID, namespace ident.ID) bool { return true }
 }
 
-func (p *readerPendingSeriesMetadataResponse) done(value Series, err error) error {
-	if !atomic.CompareAndSwapUint32(&p.competed, 0, 1) {
-		return errCommitLogReaderPendingResponseCompletedTwice
-	}
-	p.value = value
-	p.err = err
-	p.wg.Done()
-	return nil
-}
-
-func (p *readerPendingSeriesMetadataResponse) wait() (Series, error) {
-	p.wg.Wait()
-	return p.value, p.err
+type seriesMetadata struct {
+	Series
+	passedPredicate bool
 }
 
 type commitLogReader interface {
@@ -112,7 +106,6 @@ type reader struct {
 	checkedBytesPool     pool.CheckedBytesPool
 	bytesPool            pool.BytesPool
 	chunkReader          *chunkReader
-	dataBuffer           []byte
 	infoDecoder          *msgpack.Decoder
 	infoDecoderStream    msgpack.DecoderStream
 	decoderBufs          []chan decoderArg
@@ -124,10 +117,11 @@ type reader struct {
 	nextIndex            int64
 	hasBeenOpened        bool
 	bgWorkersInitialized int64
+	seriesPredicate      SeriesPredicate
 	yolo                 []byte
 }
 
-func newCommitLogReader(opts Options) commitLogReader {
+func newCommitLogReader(opts Options, seriesPredicate SeriesPredicate) commitLogReader {
 	decodingOpts := opts.FilesystemOptions().DecodingOptions()
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 
@@ -137,11 +131,9 @@ func newCommitLogReader(opts Options) commitLogReader {
 		decoderBufs = append(decoderBufs, make(chan decoderArg, decoderInBufChanSize))
 	}
 	outBuf := make(chan readResponse, decoderOutBufChanSize*numConc)
-
 	reader := &reader{
 		opts:              opts,
 		numConc:           int64(numConc),
-		checkedBytesPool:  opts.BytesPool(),
 		chunkReader:       newChunkReader(opts.FlushSize()),
 		infoDecoder:       msgpack.NewDecoder(decodingOpts),
 		infoDecoderStream: msgpack.NewDecoderStream(nil),
@@ -152,6 +144,7 @@ func newCommitLogReader(opts Options) commitLogReader {
 		shutdownCh:        make(chan error),
 		metadata:          readerMetadata{},
 		nextIndex:         0,
+		seriesPredicate:   seriesPredicate,
 		yolo:              []byte("metricslol"),
 	}
 	return reader
@@ -182,6 +175,12 @@ func (r *reader) Open(filePath string) (time.Time, time.Duration, int, error) {
 	return start, duration, index, nil
 }
 
+// Read guarantees that the datapoints it returns will be in the same order as they are on disk
+// for a given series, but they will not be in the same order they are on disk across series.
+// I.E, if the commit log looked like this (letters are series and numbers are writes):
+// A1, B1, B2, A2, C1, D1, D2, A3, B3, D2
+// Then the caller is guaranteed to receive A1 before A2 and A2 before A3, and they are guaranteed
+// to see B1 before B2, but they may see B1 before A1 and D2 before B3.
 func (r *reader) Read() (
 	series Series,
 	datapoint ts.Datapoint,
@@ -273,7 +272,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		decoderStream         = msgpack.NewDecoderStream(nil)
 		metadataDecoder       = msgpack.NewDecoder(decodingOpts)
 		metadataDecoderStream = msgpack.NewDecoderStream(nil)
-		metadataLookup        = make(map[uint64]Series)
+		metadataLookup        = make(map[uint64]seriesMetadata)
 	)
 
 	for arg := range inBuf {
@@ -307,11 +306,18 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		}
 
 		metadata, hasMetadata := metadataLookup[entry.Index]
-		// The required metadata hasn't been processed yet
 		if !hasMetadata {
-			panic("MISSING METADATA")
+			// Corrupt commit lot
+			readResponse.resultErr = errCommitLogReaderMissingMetadata
+			outBuf <- readResponse
+			continue
 		}
-		readResponse.series = metadata
+
+		if !metadata.passedPredicate {
+			continue
+		}
+
+		readResponse.series = metadata.Series
 
 		readResponse.datapoint = ts.Datapoint{
 			Timestamp: time.Unix(0, entry.Timestamp),
@@ -339,7 +345,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 }
 
 func (r *reader) decodeAndHandleMetadata(
-	metadataLookup map[uint64]Series,
+	metadataLookup map[uint64]seriesMetadata,
 	metadataDecoder *msgpack.Decoder,
 	metadataDecoderStream msgpack.DecoderStream,
 	entry schema.LogEntry,
@@ -377,23 +383,13 @@ func (r *reader) decodeAndHandleMetadata(
 			Namespace:   ident.BinaryID(namespace),
 			Shard:       decoded.Shard,
 		}
-		metadataLookup[entry.Index] = metadata
+		passedPredicate := r.seriesPredicate(metadata.ID, metadata.Namespace)
+		metadataLookup[entry.Index] = seriesMetadata{Series: metadata, passedPredicate: passedPredicate}
 
 		namespace.DecRef()
 		id.DecRef()
 	}
 	return nil
-}
-
-func (r *reader) lookupMetadata(metadataLookup map[uint64]Series, entryIndex uint64) Series {
-	metadata, hasMetadata := metadataLookup[entryIndex]
-
-	// The required metadata hasn't been processed yet
-	if !hasMetadata {
-		panic("MISSING METADATA")
-	}
-
-	return metadata
 }
 
 func (r *reader) readChunk() ([]byte, error) {

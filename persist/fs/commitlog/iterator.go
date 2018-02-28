@@ -45,16 +45,17 @@ type iteratorMetrics struct {
 }
 
 type iterator struct {
-	opts    Options
-	scope   tally.Scope
-	metrics iteratorMetrics
-	log     xlog.Logger
-	files   []string
-	reader  commitLogReader
-	read    iteratorRead
-	err     error
-	setRead bool
-	closed  bool
+	opts       Options
+	scope      tally.Scope
+	metrics    iteratorMetrics
+	log        xlog.Logger
+	files      []string
+	reader     commitLogReader
+	read       iteratorRead
+	err        error
+	seriesPred SeriesPredicate
+	setRead    bool
+	closed     bool
 }
 
 type iteratorRead struct {
@@ -76,7 +77,7 @@ func ReadAllPredicate() ReadEntryPredicate {
 }
 
 // NewIterator creates a new commit log iterator
-func NewIterator(opts Options, commitLogPred ReadEntryPredicate) (Iterator, error) {
+func NewIterator(opts Options, commitLogPred ReadEntryPredicate, seriesPred SeriesPredicate) (Iterator, error) {
 	iops := opts.InstrumentOptions()
 	iops = iops.SetMetricsScope(iops.MetricsScope().SubScope("iterator"))
 
@@ -97,8 +98,9 @@ func NewIterator(opts Options, commitLogPred ReadEntryPredicate) (Iterator, erro
 		metrics: iteratorMetrics{
 			readsErrors: scope.Counter("reads.errors"),
 		},
-		log:   iops.Logger(),
-		files: filteredFiles,
+		log:        iops.Logger(),
+		files:      filteredFiles,
+		seriesPred: seriesPred,
 	}, nil
 }
 
@@ -181,7 +183,7 @@ func (i *iterator) nextReader() bool {
 		return false
 	}
 
-	reader := newCommitLogReader(i.opts)
+	reader := newCommitLogReader(i.opts, i.seriesPred)
 	start, duration, index, err := reader.Open(file)
 	if err != nil {
 		i.err = err

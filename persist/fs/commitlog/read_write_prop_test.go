@@ -78,7 +78,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 	require.NoError(t, cl.Close())
 
 	i := 0
-	iter, err := NewIterator(opts, ReadAllPredicate())
+	iter, err := NewIterator(opts, ReadAllPredicate(), ReadAllSeriesPredicate())
 	require.NoError(t, err)
 	defer iter.Close()
 
@@ -294,7 +294,7 @@ func newInitState(dir string, t *testing.T) *clState {
 
 func (s *clState) writesArePresent(writes ...generatedWrite) error {
 	writesOnDisk := make(map[ident.Hash]map[xtime.UnixNano]generatedWrite)
-	iter, err := NewIterator(s.opts, ReadAllPredicate())
+	iter, err := NewIterator(s.opts, ReadAllPredicate(), ReadAllSeriesPredicate())
 	if err != nil {
 		return err
 	}

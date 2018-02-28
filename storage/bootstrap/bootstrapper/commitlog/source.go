@@ -45,6 +45,7 @@ const encoderChanBufSize = 1000
 type newIteratorFn func(
 	opts commitlog.Options,
 	commitLogPred commitlog.ReadEntryPredicate,
+	seriesPred commitlog.SeriesPredicate,
 ) (commitlog.Iterator, error)
 
 type commitLogSource struct {
@@ -93,7 +94,8 @@ func (s *commitLogSource) Read(
 	}
 
 	readCommitLogPredicate := newReadCommitLogPredicate(ns, shardsTimeRanges, s.opts)
-	iter, err := s.newIteratorFn(s.opts.CommitLogOptions(), readCommitLogPredicate)
+	readSeriesPredicate := newReadSeriesPredicate(ns)
+	iter, err := s.newIteratorFn(s.opts.CommitLogOptions(), readCommitLogPredicate, readSeriesPredicate)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
 	}
@@ -491,6 +493,13 @@ func newReadCommitLogPredicate(
 			Start: entryTime.Add(-bufferPast),
 			End:   entryTime.Add(entryDuration).Add(bufferFuture),
 		}.Overlaps(shardRange)
+	}
+}
+
+func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesPredicate {
+	nsID := ns.ID()
+	return func(id ident.ID, namespace ident.ID) bool {
+		return nsID.Equal(namespace)
 	}
 }
 

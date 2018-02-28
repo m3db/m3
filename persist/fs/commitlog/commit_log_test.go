@@ -290,7 +290,7 @@ type seriesTestWritesAndReadPosition struct {
 }
 
 func assertCommitLogWritesByIterating(t *testing.T, l *commitLog, writes []testWrite) {
-	iter, err := NewIterator(l.opts, ReadAllPredicate())
+	iter, err := NewIterator(l.opts, ReadAllPredicate(), ReadAllSeriesPredicate())
 	assert.NoError(t, err)
 	defer iter.Close()
 
@@ -444,7 +444,7 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	assert.Equal(t, 1, len(files))
 
 	// Assert commitlog cannot be opened more than once
-	reader := newCommitLogReader(opts)
+	reader := newCommitLogReader(opts, ReadAllSeriesPredicate())
 	_, _, _, err = reader.Open(files[0])
 	assert.NoError(t, err)
 	reader.Close()
@@ -496,7 +496,7 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 
 	// Assert that the commitlog iterator honors the predicate and only uses
 	// 2 of the 3 files
-	iter, err := NewIterator(opts, commitLogPredicate)
+	iter, err := NewIterator(opts, commitLogPredicate, ReadAllSeriesPredicate())
 	assert.NoError(t, err)
 	iterStruct := iter.(*iterator)
 	assert.True(t, len(iterStruct.files) == 2)
