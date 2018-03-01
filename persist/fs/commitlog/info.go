@@ -25,12 +25,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 )
 
 // ReadLogInfo reads the commit log info out of a commitlog file
-func ReadLogInfo(filePath string, opts commitlog.Options) (start time.Time, duration time.Duration, index int64, err error) {
+func ReadLogInfo(filePath string, opts Options) (start time.Time, duration time.Duration, index int64, err error) {
 	fd, err := os.Open(filePath)
 	defer fd.Close()
 	if err != nil {
@@ -51,6 +50,12 @@ func ReadLogInfo(filePath string, opts commitlog.Options) (start time.Time, dura
 	}
 	logDecoder := msgpack.NewDecoder(nil)
 	logDecoder.Reset(msgpack.NewDecoderStream(bytes))
-	logInfo, err := logDecoder.DecodeLogInfo()
-	return time.Unix(0, logInfo.Start), time.Duration(logInfo.Duration), logInfo.Index, err
+	logInfo, decoderErr := logDecoder.DecodeLogInfo()
+
+	err = fd.Close()
+	if err != nil {
+		return time.Time{}, 0, 0, err
+	}
+
+	return time.Unix(0, logInfo.Start), time.Duration(logInfo.Duration), logInfo.Index, decoderErr
 }
