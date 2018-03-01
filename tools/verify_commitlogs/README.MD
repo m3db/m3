@@ -17,7 +17,6 @@ $ ./bin/verify_commitlogs -h
    -namespace metrics         \
    -block-size 2h             \
    -start-unix-timestamp 1507667028 \
-                         1519400400
    -end-unix-timestamp 1507677000 \
    -debug-listen-address :8080 \
 ```

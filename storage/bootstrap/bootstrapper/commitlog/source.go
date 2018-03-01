@@ -92,7 +92,7 @@ func (s *commitLogSource) Read(
 	readCommitLogPredicate := newReadCommitLogPredicate(ns, shardsTimeRanges, s.opts)
 	readSeriesPredicate := newReadSeriesPredicate(ns)
 	iterOpts := commitlog.IteratorOpts{
-		CommitLogOpts:         s.opts.CommitLogOptions(),
+		CommitLogOptions:      s.opts.CommitLogOptions(),
 		FileFilterPredicate:   readCommitLogPredicate,
 		SeriesFilterPredicate: readSeriesPredicate,
 	}
@@ -146,7 +146,7 @@ func (s *commitLogSource) Read(
 	}
 
 	for iter.Next() {
-		series, dp, unit, uniqueIndex, annotation := iter.Current()
+		series, dp, unit, annotation := iter.Current()
 		if !s.shouldEncodeSeries(unmerged, blockSize, series, dp) {
 			continue
 		}
@@ -155,13 +155,16 @@ func (s *commitLogSource) Read(
 		// approximately numShards / numConc shards. This also means that all
 		// datapoints for a given shard/series will be processed in a serialized
 		// manner.
+		// We choose to distribute work by shard instead of series.UniqueIndex
+		// because it means that all accesses to the unmerged slice don't need
+		// to be synchronized because each index belong to a single shard so it
+		// will only be accessed serially from a single worker routine.
 		encoderChans[series.Shard%uint32(numConc)] <- encoderArg{
-			series:      series,
-			dp:          dp,
-			unit:        unit,
-			annotation:  annotation,
-			uniqueIndex: uniqueIndex,
-			blockStart:  dp.Timestamp.Truncate(blockSize),
+			series:     series,
+			dp:         dp,
+			unit:       unit,
+			annotation: annotation,
+			blockStart: dp.Timestamp.Truncate(blockSize),
 		}
 	}
 
@@ -195,12 +198,12 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		)
 
 		unmergedShard := unmerged[series.Shard].encodersBySeries
-		unmergedSeries, ok := unmergedShard[arg.uniqueIndex]
+		unmergedSeries, ok := unmergedShard[series.UniqueIndex]
 		if !ok {
 			unmergedSeries = encodersByTime{
 				id:       series.ID,
 				encoders: make(map[xtime.UnixNano]encoders)}
-			unmergedShard[arg.uniqueIndex] = unmergedSeries
+			unmergedShard[series.UniqueIndex] = unmergedSeries
 		}
 
 		var (
@@ -512,12 +515,11 @@ type encodersByTime struct {
 // encoderArg contains all the information a worker go-routine needs to encode
 // a data point as M3TSZ
 type encoderArg struct {
-	series      commitlog.Series
-	dp          ts.Datapoint
-	unit        xtime.Unit
-	annotation  ts.Annotation
-	uniqueIndex uint64
-	blockStart  time.Time
+	series     commitlog.Series
+	dp         ts.Datapoint
+	unit       xtime.Unit
+	annotation ts.Annotation
+	blockStart time.Time
 }
 
 type encoders []encoder
