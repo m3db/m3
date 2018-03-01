@@ -157,7 +157,7 @@ func (s *commitLogSource) Read(
 		// manner.
 		// We choose to distribute work by shard instead of series.UniqueIndex
 		// because it means that all accesses to the unmerged slice don't need
-		// to be synchronized because each index belong to a single shard so it
+		// to be synchronized because each index belongs to a single shard so it
 		// will only be accessed serially from a single worker routine.
 		encoderChans[series.Shard%uint32(numConc)] <- encoderArg{
 			series:     series,
