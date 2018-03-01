@@ -40,6 +40,7 @@ import (
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/instrument"
+	"github.com/m3db/m3x/pool"
 	"github.com/m3db/m3x/resource"
 	xtime "github.com/m3db/m3x/time"
 
@@ -1015,7 +1016,7 @@ func (s *service) newID(ctx context.Context, id []byte) ident.ID {
 }
 
 func (s *service) newTagsDecoder(ctx context.Context, encodedTags []byte) (serialize.Decoder, error) {
-	checkedBytes := s.wrapperPool.Get(encodedTags)
+	checkedBytes := s.checkedBytesWrapperPool.Get(encodedTags)
 	dec := s.tagDecoderPool.Get()
 	ctx.RegisterFinalizer(dec)
 	dec.Reset(checkedBytes)
