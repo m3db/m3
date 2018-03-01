@@ -119,14 +119,13 @@ func (_mr *_MockIteratorRecorder) Next() *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Next")
 }
 
-func (_m *MockIterator) Current() (Series, ts.Datapoint, time0.Unit, uint64, ts.Annotation) {
+func (_m *MockIterator) Current() (Series, ts.Datapoint, time0.Unit, ts.Annotation) {
 	ret := _m.ctrl.Call(_m, "Current")
 	ret0, _ := ret[0].(Series)
 	ret1, _ := ret[1].(ts.Datapoint)
 	ret2, _ := ret[2].(time0.Unit)
-	ret3, _ := ret[3].(uint64)
-	ret4, _ := ret[4].(ts.Annotation)
-	return ret0, ret1, ret2, ret3, ret4
+	ret3, _ := ret[3].(ts.Annotation)
+	return ret0, ret1, ret2, ret3
 }
 
 func (_mr *_MockIteratorRecorder) Current() *gomock.Call {
