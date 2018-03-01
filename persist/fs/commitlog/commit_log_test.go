@@ -292,7 +292,12 @@ type seriesTestWritesAndReadPosition struct {
 }
 
 func assertCommitLogWritesByIterating(t *testing.T, l *commitLog, writes []testWrite) {
-	iter, err := NewIterator(l.opts, ReadAllPredicate(), ReadAllSeriesPredicate())
+	iterOpts := IteratorOpts{
+		CommitLogOptions:      l.opts,
+		FileFilterPredicate:   ReadAllPredicate(),
+		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+	}
+	iter, err := NewIterator(iterOpts)
 	assert.NoError(t, err)
 	defer iter.Close()
 
@@ -310,7 +315,7 @@ func assertCommitLogWritesByIterating(t *testing.T, l *commitLog, writes []testW
 	}
 
 	for iter.Next() {
-		series, datapoint, unit, _, annotation := iter.Current()
+		series, datapoint, unit, annotation := iter.Current()
 
 		seriesWrites := writesBySeries[series.ID.String()]
 		write := seriesWrites.writes[seriesWrites.readPosition]
@@ -405,7 +410,12 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	assert.NoError(t, commitLog.Close())
 
 	// Make sure we don't panic / deadlock
-	iter, err := NewIterator(opts, ReadAllPredicate(), ReadAllSeriesPredicate())
+	iterOpts := IteratorOpts{
+		CommitLogOptions:      opts,
+		FileFilterPredicate:   ReadAllPredicate(),
+		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+	}
+	iter, err := NewIterator(iterOpts)
 	assert.NoError(t, err)
 	for iter.Next() {
 		assert.NoError(t, iter.Err())
@@ -499,7 +509,12 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 
 	// Assert that the commitlog iterator honors the predicate and only uses
 	// 2 of the 3 files
-	iter, err := NewIterator(opts, commitLogPredicate, ReadAllSeriesPredicate())
+	iterOpts := IteratorOpts{
+		CommitLogOptions:      opts,
+		FileFilterPredicate:   commitLogPredicate,
+		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+	}
+	iter, err := NewIterator(iterOpts)
 	assert.NoError(t, err)
 	iterStruct := iter.(*iterator)
 	assert.True(t, len(iterStruct.files) == 2)

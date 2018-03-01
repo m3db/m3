@@ -78,7 +78,12 @@ func TestCommitLogReadWrite(t *testing.T) {
 	require.NoError(t, cl.Close())
 
 	i := 0
-	iter, err := NewIterator(opts, ReadAllPredicate(), ReadAllSeriesPredicate())
+	iterOpts := IteratorOpts{
+		CommitLogOptions:      opts,
+		FileFilterPredicate:   ReadAllPredicate(),
+		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+	}
+	iter, err := NewIterator(iterOpts)
 	require.NoError(t, err)
 	defer iter.Close()
 
@@ -96,7 +101,7 @@ func TestCommitLogReadWrite(t *testing.T) {
 	}
 
 	for ; iter.Next(); i++ {
-		series, datapoint, _, _, _ := iter.Current()
+		series, datapoint, _, _ := iter.Current()
 		require.NoError(t, iter.Err())
 
 		seriesWrites := writesBySeries[series.ID.String()]
@@ -294,14 +299,19 @@ func newInitState(dir string, t *testing.T) *clState {
 
 func (s *clState) writesArePresent(writes ...generatedWrite) error {
 	writesOnDisk := make(map[ident.Hash]map[xtime.UnixNano]generatedWrite)
-	iter, err := NewIterator(s.opts, ReadAllPredicate(), ReadAllSeriesPredicate())
+	iterOpts := IteratorOpts{
+		CommitLogOptions:      s.opts,
+		FileFilterPredicate:   ReadAllPredicate(),
+		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+	}
+	iter, err := NewIterator(iterOpts)
 	if err != nil {
 		return err
 	}
 
 	defer iter.Close()
 	for iter.Next() {
-		series, datapoint, unit, _, annotation := iter.Current()
+		series, datapoint, unit, annotation := iter.Current()
 		idHash := series.ID.Hash()
 		seriesMap, ok := writesOnDisk[idHash]
 		if !ok {

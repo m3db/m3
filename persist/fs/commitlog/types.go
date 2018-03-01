@@ -72,13 +72,20 @@ type Iterator interface {
 	Next() bool
 
 	// Current returns the current commit log entry
-	Current() (Series, ts.Datapoint, xtime.Unit, uint64, ts.Annotation)
+	Current() (Series, ts.Datapoint, xtime.Unit, ts.Annotation)
 
 	// Err returns an error if an error occurred
 	Err() error
 
 	// Close the iterator
 	Close()
+}
+
+// IteratorOpts is a struct that contains coptions for the Iterator
+type IteratorOpts struct {
+	CommitLogOptions      Options
+	FileFilterPredicate   FileFilterPredicate
+	SeriesFilterPredicate SeriesFilterPredicate
 }
 
 // Series describes a series in the commit log

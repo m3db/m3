@@ -59,11 +59,10 @@ type iterator struct {
 }
 
 type iteratorRead struct {
-	series      Series
-	datapoint   ts.Datapoint
-	unit        xtime.Unit
-	uniqueIndex uint64
-	annotation  []byte
+	series     Series
+	datapoint  ts.Datapoint
+	unit       xtime.Unit
+	annotation []byte
 }
 
 // ReadAllPredicate can be passed as the ReadCommitLogPredicate for callers
@@ -73,7 +72,8 @@ func ReadAllPredicate() FileFilterPredicate {
 }
 
 // NewIterator creates a new commit log iterator
-func NewIterator(opts Options, commitLogPred FileFilterPredicate, seriesPred SeriesFilterPredicate) (Iterator, error) {
+func NewIterator(iterOpts IteratorOpts) (Iterator, error) {
+	opts := iterOpts.CommitLogOptions
 	iops := opts.InstrumentOptions()
 	iops = iops.SetMetricsScope(iops.MetricsScope().SubScope("iterator"))
 
@@ -82,7 +82,7 @@ func NewIterator(opts Options, commitLogPred FileFilterPredicate, seriesPred Ser
 	if err != nil {
 		return nil, err
 	}
-	filteredFiles, err := filterFiles(opts, files, commitLogPred)
+	filteredFiles, err := filterFiles(opts, files, iterOpts.FileFilterPredicate)
 	if err != nil {
 		return nil, err
 	}
@@ -96,7 +96,7 @@ func NewIterator(opts Options, commitLogPred FileFilterPredicate, seriesPred Ser
 		},
 		log:        iops.Logger(),
 		files:      filteredFiles,
-		seriesPred: seriesPred,
+		seriesPred: iterOpts.SeriesFilterPredicate,
 	}, nil
 }
 
@@ -110,7 +110,7 @@ func (i *iterator) Next() bool {
 		}
 	}
 	var err error
-	i.read.series, i.read.datapoint, i.read.unit, i.read.annotation, i.read.uniqueIndex, err = i.reader.Read()
+	i.read.series, i.read.datapoint, i.read.unit, i.read.annotation, err = i.reader.Read()
 	if err == io.EOF {
 		closeErr := i.closeAndResetReader()
 		if closeErr != nil {
@@ -134,12 +134,12 @@ func (i *iterator) Next() bool {
 	return true
 }
 
-func (i *iterator) Current() (Series, ts.Datapoint, xtime.Unit, uint64, ts.Annotation) {
+func (i *iterator) Current() (Series, ts.Datapoint, xtime.Unit, ts.Annotation) {
 	read := i.read
 	if i.hasError() || i.closed || !i.setRead {
 		read = iteratorRead{}
 	}
-	return read.series, read.datapoint, read.unit, read.uniqueIndex, read.annotation
+	return read.series, read.datapoint, read.unit, read.annotation
 }
 
 func (i *iterator) Err() error {
