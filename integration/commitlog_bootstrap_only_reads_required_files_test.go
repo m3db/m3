@@ -78,7 +78,7 @@ func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
 	now := setup.getNowFn()
 	seriesMaps := generateSeriesMaps(30, now.Add(-2*blockSize), now.Add(-blockSize))
 	log.Info("writing data")
-	writeCommitLogData(t, setup, seriesMaps, testNamespaces[0])
+	writeCommitLogData(t, setup, commitLogOpts, seriesMaps, testNamespaces[0])
 	log.Info("finished writing data")
 
 	// The datapoints in this generated data are within the retention period and
@@ -92,6 +92,7 @@ func TestCommitLogBootstrapOnlyReadsRequiredFiles(t *testing.T) {
 	writeCommitLogDataSpecifiedTS(
 		t,
 		setup,
+		commitLogOpts,
 		seriesMapsExpiredCommitlog,
 		testNamespaces[0],
 		now.Add(-2*ropts.RetentionPeriod()),

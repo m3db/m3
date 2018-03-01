@@ -65,7 +65,10 @@ var (
 	startUnixTimestampArg = flagParser.Int64("start-unix-timestamp", 0, "Start unix timestamp (Seconds) - If set will bootstrap all data after this timestamp up to end-unix-timestamp, defaults to reading from the beginning of the first commitlog")
 	// 1<<63-62135596801 is the largest possible time.Time that can be represented
 	// without causing overflow when passed to functions in the time package
-	endUnixTimestampArg = flagParser.Int64("end-unix-timestamp", 1<<63-62135596801, "End unix timestamp (Seconds) - If set will bootstrap all data from start-unix-timestamp up to this timestamp, defaults to reading up to the end of the last commitlog")
+	endUnixTimestampArg    = flagParser.Int64("end-unix-timestamp", 1<<63-62135596801, "End unix timestamp (Seconds) - If set will bootstrap all data from start-unix-timestamp up to this timestamp, defaults to reading up to the end of the last commitlog")
+	readConcurrency        = flagParser.Int("read-concurrency", 4, "Commitlog read concurrency")
+	encodingConcurrency    = flagParser.Int("encoding-concurrency", 4, "Encoding concurrency")
+	mergeShardsConcurrency = flagParser.Int("merge-shards-concurrency", 4, "Merge shards concurrency")
 )
 
 func main() {
@@ -103,7 +106,7 @@ func main() {
 
 	// Ony used for logging
 	var shardsAll []uint32
-	// Handle commda-delimited shard list 1,3,5, etc
+	// Handle comma-delimited shard list 1,3,5, etc
 	if strings.TrimSpace(shards) != "" {
 		for _, shard := range strings.Split(shards, ",") {
 			shard = strings.TrimSpace(shard)
@@ -221,11 +224,15 @@ func main() {
 		SetInstrumentOptions(instrumentOpts).
 		SetFilesystemOptions(fsOpts).
 		SetFlushSize(flushSize).
-		SetBlockSize(blockSize)
+		SetBlockSize(blockSize).
+		SetReadConcurrency(*readConcurrency).
+		SetBytesPool(bytesPool)
 
 	opts := commitlogsrc.NewOptions().
 		SetResultOptions(resultOpts).
-		SetCommitLogOptions(commitLogOpts)
+		SetCommitLogOptions(commitLogOpts).
+		SetEncodingConcurrency(*encodingConcurrency).
+		SetMergeShardsConcurrency(*mergeShardsConcurrency)
 
 	log.Infof("bootstrapping")
 

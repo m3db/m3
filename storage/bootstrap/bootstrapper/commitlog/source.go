@@ -42,10 +42,7 @@ import (
 
 const encoderChanBufSize = 1000
 
-type newIteratorFn func(
-	opts commitlog.Options,
-	commitLogPred commitlog.ReadEntryPredicate,
-) (commitlog.Iterator, error)
+type newIteratorFn func(opts commitlog.IteratorOpts) (commitlog.Iterator, error)
 
 type commitLogSource struct {
 	opts          Options
@@ -93,7 +90,13 @@ func (s *commitLogSource) Read(
 	}
 
 	readCommitLogPredicate := newReadCommitLogPredicate(ns, shardsTimeRanges, s.opts)
-	iter, err := s.newIteratorFn(s.opts.CommitLogOptions(), readCommitLogPredicate)
+	readSeriesPredicate := newReadSeriesPredicate(ns)
+	iterOpts := commitlog.IteratorOpts{
+		CommitLogOptions:      s.opts.CommitLogOptions(),
+		FileFilterPredicate:   readCommitLogPredicate,
+		SeriesFilterPredicate: readSeriesPredicate,
+	}
+	iter, err := s.newIteratorFn(iterOpts)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create commit log iterator: %v", err)
 	}
@@ -101,7 +104,6 @@ func (s *commitLogSource) Read(
 	defer iter.Close()
 
 	var (
-		namespace = ns.ID()
 		// +1 so we can use the shard number as an index throughout without constantly
 		// remembering to subtract 1 to convert to zero-based indexing
 		numShards   = s.findHighestShard(shardsTimeRanges) + 1
@@ -116,7 +118,7 @@ func (s *commitLogSource) Read(
 	unmerged := make([]encodersAndRanges, numShards)
 	for shard := range shardsTimeRanges {
 		unmerged[shard] = encodersAndRanges{
-			encodersBySeries: make(map[ident.Hash]encodersByTime),
+			encodersBySeries: make(map[uint64]encodersByTime),
 			ranges:           shardsTimeRanges[shard],
 		}
 	}
@@ -145,7 +147,7 @@ func (s *commitLogSource) Read(
 
 	for iter.Next() {
 		series, dp, unit, annotation := iter.Current()
-		if !s.shouldEncodeSeries(namespace, unmerged, blockSize, series, dp) {
+		if !s.shouldEncodeSeries(unmerged, blockSize, series, dp) {
 			continue
 		}
 
@@ -153,6 +155,10 @@ func (s *commitLogSource) Read(
 		// approximately numShards / numConc shards. This also means that all
 		// datapoints for a given shard/series will be processed in a serialized
 		// manner.
+		// We choose to distribute work by shard instead of series.UniqueIndex
+		// because it means that all accesses to the unmerged slice don't need
+		// to be synchronized because each index belongs to a single shard so it
+		// will only be accessed serially from a single worker routine.
 		encoderChans[series.Shard%uint32(numConc)] <- encoderArg{
 			series:     series,
 			dp:         dp,
@@ -161,6 +167,7 @@ func (s *commitLogSource) Read(
 			blockStart: dp.Timestamp.Truncate(blockSize),
 		}
 	}
+
 	for _, encoderChan := range encoderChans {
 		close(encoderChan)
 	}
@@ -191,12 +198,12 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 		)
 
 		unmergedShard := unmerged[series.Shard].encodersBySeries
-		unmergedSeries, ok := unmergedShard[series.ID.Hash()]
+		unmergedSeries, ok := unmergedShard[series.UniqueIndex]
 		if !ok {
 			unmergedSeries = encodersByTime{
 				id:       series.ID,
 				encoders: make(map[xtime.UnixNano]encoders)}
-			unmergedShard[series.ID.Hash()] = unmergedSeries
+			unmergedShard[series.UniqueIndex] = unmergedSeries
 		}
 
 		var (
@@ -234,17 +241,11 @@ func (s *commitLogSource) startM3TSZEncodingWorker(
 }
 
 func (s *commitLogSource) shouldEncodeSeries(
-	namespace ident.ID,
 	unmerged []encodersAndRanges,
 	blockSize time.Duration,
 	series commitlog.Series,
 	dp ts.Datapoint,
 ) bool {
-	// Check if the series belongs to current namespace being bootstrapped
-	if !namespace.Equal(series.Namespace) {
-		return false
-	}
-
 	// Check if the shard number is higher the amount of space we pre-allocated.
 	// If it is, then it's not one of the shards we're trying to bootstrap
 	if series.Shard > uint32(len(unmerged)-1) {
@@ -469,7 +470,7 @@ func newReadCommitLogPredicate(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts Options,
-) commitlog.ReadEntryPredicate {
+) commitlog.FileFilterPredicate {
 	// Minimum and maximum times for which we want to bootstrap
 	shardMin, shardMax := shardsTimeRanges.MinMax()
 	shardRange := xtime.Range{
@@ -492,8 +493,15 @@ func newReadCommitLogPredicate(
 	}
 }
 
+func newReadSeriesPredicate(ns namespace.Metadata) commitlog.SeriesFilterPredicate {
+	nsID := ns.ID()
+	return func(id ident.ID, namespace ident.ID) bool {
+		return nsID.Equal(namespace)
+	}
+}
+
 type encodersAndRanges struct {
-	encodersBySeries map[ident.Hash]encodersByTime
+	encodersBySeries map[uint64]encodersByTime
 	ranges           xtime.Ranges
 }
 

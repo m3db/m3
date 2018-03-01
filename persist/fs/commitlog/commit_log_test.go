@@ -286,15 +286,44 @@ func flushUntilDone(l *commitLog, wg *sync.WaitGroup) {
 	blockWg.Wait()
 }
 
+type seriesTestWritesAndReadPosition struct {
+	writes       []testWrite
+	readPosition int
+}
+
 func assertCommitLogWritesByIterating(t *testing.T, l *commitLog, writes []testWrite) {
-	iter, err := NewIterator(l.opts, ReadAllPredicate())
+	iterOpts := IteratorOpts{
+		CommitLogOptions:      l.opts,
+		FileFilterPredicate:   ReadAllPredicate(),
+		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+	}
+	iter, err := NewIterator(iterOpts)
 	assert.NoError(t, err)
 	defer iter.Close()
 
+	// Convert the writes to be in-order, but keyed by series ID because the
+	// commitlog reader only guarantees the same order on disk within a
+	// given series
+	writesBySeries := map[string]seriesTestWritesAndReadPosition{}
 	for _, write := range writes {
-		assert.True(t, iter.Next())
+		seriesWrites := writesBySeries[write.series.ID.String()]
+		if seriesWrites.writes == nil {
+			seriesWrites.writes = []testWrite{}
+		}
+		seriesWrites.writes = append(seriesWrites.writes, write)
+		writesBySeries[write.series.ID.String()] = seriesWrites
+	}
+
+	for iter.Next() {
 		series, datapoint, unit, annotation := iter.Current()
+
+		seriesWrites := writesBySeries[series.ID.String()]
+		write := seriesWrites.writes[seriesWrites.readPosition]
+
 		write.assert(t, series, datapoint, unit, annotation)
+
+		seriesWrites.readPosition++
+		writesBySeries[series.ID.String()] = seriesWrites
 	}
 
 	assert.NoError(t, iter.Err())
@@ -381,11 +410,17 @@ func TestReadCommitLogMissingMetadata(t *testing.T) {
 	assert.NoError(t, commitLog.Close())
 
 	// Make sure we don't panic / deadlock
-	iter, err := NewIterator(opts, ReadAllPredicate())
+	iterOpts := IteratorOpts{
+		CommitLogOptions:      opts,
+		FileFilterPredicate:   ReadAllPredicate(),
+		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+	}
+	iter, err := NewIterator(iterOpts)
 	assert.NoError(t, err)
 	for iter.Next() {
 		assert.NoError(t, iter.Err())
 	}
+	assert.Equal(t, errCommitLogReaderMissingMetadata, iter.Err())
 	iter.Close()
 	assert.NoError(t, commitLog.Close())
 }
@@ -422,7 +457,7 @@ func TestCommitLogReaderIsNotReusable(t *testing.T) {
 	assert.Equal(t, 1, len(files))
 
 	// Assert commitlog cannot be opened more than once
-	reader := newCommitLogReader(opts)
+	reader := newCommitLogReader(opts, ReadAllSeriesPredicate())
 	_, _, _, err = reader.Open(files[0])
 	assert.NoError(t, err)
 	reader.Close()
@@ -474,7 +509,12 @@ func TestCommitLogIteratorUsesPredicateFilter(t *testing.T) {
 
 	// Assert that the commitlog iterator honors the predicate and only uses
 	// 2 of the 3 files
-	iter, err := NewIterator(opts, commitLogPredicate)
+	iterOpts := IteratorOpts{
+		CommitLogOptions:      opts,
+		FileFilterPredicate:   commitLogPredicate,
+		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+	}
+	iter, err := NewIterator(iterOpts)
 	assert.NoError(t, err)
 	iterStruct := iter.(*iterator)
 	assert.True(t, len(iterStruct.files) == 2)

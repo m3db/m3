@@ -97,33 +97,35 @@ func generateSeriesMaps(numBlocks int, starts ...time.Time) generate.SeriesBlock
 func writeCommitLogData(
 	t *testing.T,
 	s *testSetup,
+	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	namespace ident.ID,
 ) {
-	writeCommitLogDataBase(t, s, data, namespace, nil)
+	writeCommitLogDataBase(t, s, opts, data, namespace, nil)
 }
 
 // nolint: deadcode
 func writeCommitLogDataSpecifiedTS(
 	t *testing.T,
 	s *testSetup,
+	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	namespace ident.ID,
 	ts time.Time,
 ) {
-	writeCommitLogDataBase(t, s, data, namespace, &ts)
+	writeCommitLogDataBase(t, s, opts, data, namespace, &ts)
 }
 
 // nolint: deadcode
 func writeCommitLogDataBase(
 	t *testing.T,
 	s *testSetup,
+	opts commitlog.Options,
 	data generate.SeriesBlocksByStart,
 	namespace ident.ID,
 	specifiedTS *time.Time,
 ) {
 	// ensure commit log is flushing frequently
-	opts := s.storageOpts.CommitLogOptions()
 	require.Equal(t, defaultIntegrationTestFlushInterval, opts.FlushInterval())
 
 	var (

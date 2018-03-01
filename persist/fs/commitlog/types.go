@@ -81,6 +81,13 @@ type Iterator interface {
 	Close()
 }
 
+// IteratorOpts is a struct that contains coptions for the Iterator
+type IteratorOpts struct {
+	CommitLogOptions      Options
+	FileFilterPredicate   FileFilterPredicate
+	SeriesFilterPredicate SeriesFilterPredicate
+}
+
 // Series describes a series in the commit log
 type Series struct {
 	// UniqueIndex is the unique index assigned to this series
@@ -167,3 +174,13 @@ type Options interface {
 	// ReadConcurrency returns the concurrency of the reader
 	ReadConcurrency() int
 }
+
+// FileFilterPredicate is a predicate that allows the caller to determine
+// which commitlogs the iterator should read from
+type FileFilterPredicate func(entryTime time.Time, entryDuration time.Duration) bool
+
+// SeriesFilterPredicate is a predicate that determines whether datapoints for a given series
+// should be returned from the Commit log reader. The predicate is pushed down to the
+// reader level to prevent having to run the same function for every datapoint for a
+// given series.
+type SeriesFilterPredicate func(id ident.ID, namespace ident.ID) bool

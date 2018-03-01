@@ -1,6 +1,6 @@
 # verify_commitlogs
 
-`verify_commitlogs` is a utility to verify a set of commit logs to ensure they are valid. It's also useful for testing / benchmarking the commitlog bootstrapper.
+`verify_commitlogs` is a utility to verify a set of commit logs to ensure they are valid. It's also useful for testing / benchmarking the commitlog bootstrapper. Note that it requires the commitlogs to be present in a folder called "commitlogs" inside of the directory provided as the -path-prefix argument.
 
 # Usage
 

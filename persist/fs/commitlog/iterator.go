@@ -45,16 +45,17 @@ type iteratorMetrics struct {
 }
 
 type iterator struct {
-	opts    Options
-	scope   tally.Scope
-	metrics iteratorMetrics
-	log     xlog.Logger
-	files   []string
-	reader  commitLogReader
-	read    iteratorRead
-	err     error
-	setRead bool
-	closed  bool
+	opts       Options
+	scope      tally.Scope
+	metrics    iteratorMetrics
+	log        xlog.Logger
+	files      []string
+	reader     commitLogReader
+	read       iteratorRead
+	err        error
+	seriesPred SeriesFilterPredicate
+	setRead    bool
+	closed     bool
 }
 
 type iteratorRead struct {
@@ -64,18 +65,15 @@ type iteratorRead struct {
 	annotation []byte
 }
 
-// ReadEntryPredicate is a predicate that allows the caller to determine
-// which commitlogs the iterator should read from
-type ReadEntryPredicate func(entryTime time.Time, entryDuration time.Duration) bool
-
 // ReadAllPredicate can be passed as the ReadCommitLogPredicate for callers
 // that want a convenient way to read all the commitlogs
-func ReadAllPredicate() ReadEntryPredicate {
+func ReadAllPredicate() FileFilterPredicate {
 	return func(entryTime time.Time, entryDuration time.Duration) bool { return true }
 }
 
 // NewIterator creates a new commit log iterator
-func NewIterator(opts Options, commitLogPred ReadEntryPredicate) (Iterator, error) {
+func NewIterator(iterOpts IteratorOpts) (Iterator, error) {
+	opts := iterOpts.CommitLogOptions
 	iops := opts.InstrumentOptions()
 	iops = iops.SetMetricsScope(iops.MetricsScope().SubScope("iterator"))
 
@@ -84,7 +82,7 @@ func NewIterator(opts Options, commitLogPred ReadEntryPredicate) (Iterator, erro
 	if err != nil {
 		return nil, err
 	}
-	filteredFiles, err := filterFiles(opts, files, commitLogPred)
+	filteredFiles, err := filterFiles(opts, files, iterOpts.FileFilterPredicate)
 	if err != nil {
 		return nil, err
 	}
@@ -96,8 +94,9 @@ func NewIterator(opts Options, commitLogPred ReadEntryPredicate) (Iterator, erro
 		metrics: iteratorMetrics{
 			readsErrors: scope.Counter("reads.errors"),
 		},
-		log:   iops.Logger(),
-		files: filteredFiles,
+		log:        iops.Logger(),
+		files:      filteredFiles,
+		seriesPred: iterOpts.SeriesFilterPredicate,
 	}, nil
 }
 
@@ -180,7 +179,7 @@ func (i *iterator) nextReader() bool {
 		return false
 	}
 
-	reader := newCommitLogReader(i.opts)
+	reader := newCommitLogReader(i.opts, i.seriesPred)
 	start, duration, index, err := reader.Open(file)
 	if err != nil {
 		i.err = err
@@ -203,11 +202,11 @@ func (i *iterator) nextReader() bool {
 	return true
 }
 
-func filterFiles(opts Options, files []string, predicate ReadEntryPredicate) ([]string, error) {
+func filterFiles(opts Options, files []string, predicate FileFilterPredicate) ([]string, error) {
 	filteredFiles := make([]string, 0, len(files))
 	var multiErr xerrors.MultiError
 	for _, file := range files {
-		start, duration, _, err := ReadLogInfo(file)
+		start, duration, _, err := ReadLogInfo(file, opts)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue

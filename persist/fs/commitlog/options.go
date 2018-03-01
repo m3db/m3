@@ -35,11 +35,11 @@ const (
 	// defaultStrategy is the default commit log write strategy
 	defaultStrategy = StrategyWriteBehind
 
-	// defaultFlushSize is the default commit log flush size
-	defaultFlushSize = 65536
-
 	// defaultFlushInterval is the default commit log flush interval
 	defaultFlushInterval = time.Second
+
+	// defaultFlushSize is the default commit log flush size
+	defaultFlushSize = 65536
 
 	// defaultRetentionPeriod is the default commit log retention period
 	defaultRetentionPeriod = 2 * 24 * time.Hour

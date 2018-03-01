@@ -45,6 +45,11 @@ const (
 	defaultTestFlushInterval = time.Millisecond
 )
 
+type seriesWritesAndReadPosition struct {
+	writes       []generatedWrite
+	readPosition int
+}
+
 func TestCommitLogReadWrite(t *testing.T) {
 	baseTestPath, err := ioutil.TempDir("", "commit-log-test-base-dir")
 	require.NoError(t, err)
@@ -73,17 +78,43 @@ func TestCommitLogReadWrite(t *testing.T) {
 	require.NoError(t, cl.Close())
 
 	i := 0
-	iter, err := NewIterator(opts, ReadAllPredicate())
+	iterOpts := IteratorOpts{
+		CommitLogOptions:      opts,
+		FileFilterPredicate:   ReadAllPredicate(),
+		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+	}
+	iter, err := NewIterator(iterOpts)
 	require.NoError(t, err)
 	defer iter.Close()
+
+	// Convert the writes to be in-order, but keyed by series ID because the
+	// commitlog reader only guarantees the same order on disk within a
+	// given series
+	writesBySeries := map[string]seriesWritesAndReadPosition{}
+	for _, write := range writes {
+		seriesWrites := writesBySeries[write.series.ID.String()]
+		if seriesWrites.writes == nil {
+			seriesWrites.writes = []generatedWrite{}
+		}
+		seriesWrites.writes = append(seriesWrites.writes, write)
+		writesBySeries[write.series.ID.String()] = seriesWrites
+	}
+
 	for ; iter.Next(); i++ {
 		series, datapoint, _, _ := iter.Current()
-		write := writes[i]
+		require.NoError(t, iter.Err())
+
+		seriesWrites := writesBySeries[series.ID.String()]
+		write := seriesWrites.writes[seriesWrites.readPosition]
+
 		require.Equal(t, write.series.ID.String(), series.ID.String())
 		require.Equal(t, write.series.Namespace.String(), series.Namespace.String())
 		require.Equal(t, write.series.Shard, series.Shard)
 		require.Equal(t, write.datapoint.Value, datapoint.Value)
 		require.True(t, write.datapoint.Timestamp.Equal(datapoint.Timestamp))
+
+		seriesWrites.readPosition++
+		writesBySeries[series.ID.String()] = seriesWrites
 	}
 	require.Equal(t, len(writes), i)
 }
@@ -257,7 +288,11 @@ func genState(basePath string, t *testing.T) gopter.Gen {
 func newInitState(dir string, t *testing.T) *clState {
 	opts := NewOptions().
 		SetStrategy(StrategyWriteBehind).
-		SetFlushInterval(defaultTestFlushInterval)
+		SetFlushInterval(defaultTestFlushInterval).
+		// Need to set this to a relatively low value otherwise the test will
+		// time out because its allocating so much memory for the byte pools
+		// in the commit log reader.
+		SetFlushSize(1024)
 	fsOpts := opts.FilesystemOptions().SetFilePathPrefix(dir)
 	opts = opts.SetFilesystemOptions(fsOpts)
 	return &clState{
@@ -268,7 +303,12 @@ func newInitState(dir string, t *testing.T) *clState {
 
 func (s *clState) writesArePresent(writes ...generatedWrite) error {
 	writesOnDisk := make(map[ident.Hash]map[xtime.UnixNano]generatedWrite)
-	iter, err := NewIterator(s.opts, ReadAllPredicate())
+	iterOpts := IteratorOpts{
+		CommitLogOptions:      s.opts,
+		FileFilterPredicate:   ReadAllPredicate(),
+		SeriesFilterPredicate: ReadAllSeriesPredicate(),
+	}
+	iter, err := NewIterator(iterOpts)
 	if err != nil {
 		return err
 	}
