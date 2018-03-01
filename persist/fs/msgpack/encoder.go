@@ -185,6 +185,8 @@ func (enc *Encoder) encodeLogInfo(info schema.LogInfo) {
 
 func (enc *Encoder) encodeLogEntry(entry schema.LogEntry) {
 	enc.encodeNumObjectFieldsForFn(logEntryType)
+	// Encode the index first because the commitlog reader needs this information first
+	// to distribute the rest of the decoding to a group of workers.
 	enc.encodeVarUintFn(entry.Index)
 	enc.encodeVarintFn(entry.Create)
 	enc.encodeBytesFn(entry.Metadata)

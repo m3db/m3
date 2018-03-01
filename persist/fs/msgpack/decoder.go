@@ -42,6 +42,8 @@ var (
 	emptyLogEntryRemainingToken DecodeLogEntryRemainingToken
 )
 
+var errorUnableToDetermineNumFieldsToSkip = errors.New("unable to determine num fields to skip")
+
 // Decoder decodes persisted msgpack-encoded data
 type Decoder struct {
 	allocDecodedBytes bool
@@ -159,7 +161,7 @@ func (dec *Decoder) DecodeLogEntryUniqueIndex() (DecodeLogEntryRemainingToken, u
 	numFieldsToSkip1 := dec.decodeRootObject(logEntryVersion, logEntryType)
 	numFieldsToSkip2, ok := dec.checkNumFieldsFor(logEntryType)
 	if !ok {
-		return emptyLogEntryRemainingToken, 0, errors.New("unable to determine num fields to skip")
+		return emptyLogEntryRemainingToken, 0, errorUnableToDetermineNumFieldsToSkip
 	}
 	// dec.decodeVarint()
 	idx := dec.decodeVarUint()

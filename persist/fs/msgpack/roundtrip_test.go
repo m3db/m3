@@ -1,7 +1,7 @@
 // Copyright (c) 2016 Uber Technologies, Inc
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to LOal
+// of this software and associated documentation files (the "Software"), to deal
 // in the Software without restriction, including without limitation the rights
 // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 // copies of the Software, and to permit persons to whom the Software is
@@ -150,8 +150,10 @@ func TestLogEntryRoundtrip(t *testing.T) {
 }
 
 func BenchmarkLogEntryDecoder(b *testing.B) {
-	testLogEntry.Metadata = nil
-	testLogEntry.Annotation = nil
+	// Copy so we don't mutate global state
+	logEntry := testLogEntry
+	logEntry.Metadata = nil
+	logEntry.Annotation = nil
 	var (
 		enc    = NewEncoder()
 		dec    = NewDecoder(nil)
@@ -159,7 +161,7 @@ func BenchmarkLogEntryDecoder(b *testing.B) {
 		err    error
 	)
 
-	require.NoError(b, enc.EncodeLogEntry(testLogEntry))
+	require.NoError(b, enc.EncodeLogEntry(logEntry))
 	buf := enc.Bytes()
 	for n := 0; n < b.N; n++ {
 		stream.Reset(buf)
