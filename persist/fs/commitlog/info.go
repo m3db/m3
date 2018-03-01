@@ -29,9 +29,16 @@ import (
 )
 
 // ReadLogInfo reads the commit log info out of a commitlog file
-func ReadLogInfo(filePath string, opts Options) (start time.Time, duration time.Duration, index int64, err error) {
-	fd, err := os.Open(filePath)
-	defer fd.Close()
+func ReadLogInfo(filePath string, opts Options) (time.Time, time.Duration, int64, error) {
+	var fd *os.File
+	var err error
+	defer func() {
+		if fd == nil {
+			fd.Close()
+		}
+	}()
+
+	fd, err = os.Open(filePath)
 	if err != nil {
 		return time.Time{}, 0, 0, err
 	}
@@ -53,6 +60,7 @@ func ReadLogInfo(filePath string, opts Options) (start time.Time, duration time.
 	logInfo, decoderErr := logDecoder.DecodeLogInfo()
 
 	err = fd.Close()
+	fd = nil
 	if err != nil {
 		return time.Time{}, 0, 0, err
 	}
