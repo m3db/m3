@@ -325,7 +325,11 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 
 		metadata, hasMetadata := metadataLookup[entry.Index]
 		if !hasMetadata {
-			// Corrupt commit log
+			// In this case we know the commit log is corrupt because the commit log writer guarantees
+			// that the first entry for a series in the commit log includes its metadata. In addition,
+			// even though we are performing parallel decoding, the work is distributed to the workers
+			// based on the series unique index which means that all commit log entries for a given
+			// series are decoded in-order by a single decoder loop.
 			readResponse.resultErr = errCommitLogReaderMissingMetadata
 			// arg.bufPool <- arg.bytes
 			outBuf <- readResponse
