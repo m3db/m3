@@ -38,6 +38,7 @@ import (
 	xtime "github.com/m3db/m3x/time"
 )
 
+const defaultDecodeEntryBufSize = 1024
 const decoderInBufChanSize = 1000
 const decoderOutBufChanSize = 1000
 
@@ -120,15 +121,16 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 
 	numConc := opts.ReadConcurrency()
 	decoderQueues := make([]chan decoderArg, 0, numConc)
-	// decoderBufs := make([]chan []byte, 0, numConc)
+	decoderBufs := make([]chan []byte, 0, numConc)
 	for i := 0; i < numConc; i++ {
 		decoderQueues = append(decoderQueues, make(chan decoderArg, decoderInBufChanSize))
 
-		// chanBufs := make(chan []byte, decoderInBufChanSize+1)
-		// for i := 0; i < decoderInBufChanSize+1; i++ {
-		// 	chanBufs <- make([]byte, opts.FlushSize())
-		// }
-		// decoderBufs = append(decoderBufs, chanBufs)
+		chanBufs := make(chan []byte, decoderInBufChanSize+1)
+		for i := 0; i < decoderInBufChanSize+1; i++ {
+			// Bufs will be resized as needed, so its ok if our default isn't big enough
+			chanBufs <- make([]byte, defaultDecodeEntryBufSize)
+		}
+		decoderBufs = append(decoderBufs, chanBufs)
 	}
 	outBuf := make(chan readResponse, decoderOutBufChanSize*numConc)
 	reader := &reader{
@@ -139,14 +141,14 @@ func newCommitLogReader(opts Options, seriesPredicate SeriesFilterPredicate) com
 		infoDecoder:       msgpack.NewDecoder(decodingOpts),
 		infoDecoderStream: msgpack.NewDecoderStream(nil),
 		decoderQueues:     decoderQueues,
-		// decoderBufPools:   decoderBufs,
-		outChan:         outBuf,
-		cancelCtx:       cancelCtx,
-		cancelFunc:      cancelFunc,
-		shutdownCh:      make(chan error),
-		metadata:        readerMetadata{},
-		nextIndex:       0,
-		seriesPredicate: seriesPredicate,
+		decoderBufPools:   decoderBufs,
+		outChan:           outBuf,
+		cancelCtx:         cancelCtx,
+		cancelFunc:        cancelFunc,
+		shutdownCh:        make(chan error),
+		metadata:          readerMetadata{},
+		nextIndex:         0,
+		seriesPredicate:   seriesPredicate,
 	}
 	return reader
 }
@@ -254,28 +256,34 @@ func (r *reader) readLoop() {
 			decoder.Reset(decoderStream)
 			decodeRemainingToken, uniqueIndex, err := decoder.DecodeLogEntryUniqueIndex()
 
-			// bufPool := r.decoderBufPools[uniqueIndex%uint64(r.numConc)]
-			// buf := <-bufPool
-			// bufCap := cap(buf)
-			// dataLen := len(data)
-			// if bufCap < dataLen {
-			// 	diff := dataLen - bufCap
-			// 	for i := 0; i < diff; i++ {
-			// 		buf = append(buf, 0)
-			// 	}
-			// }
-			// buf = buf[:dataLen]
-			// copy(buf, data)
+			// Grab a buffer from a pool specific to the decoder loop we're gonna send it to
+			shardedIdx := uniqueIndex % uint64(r.numConc)
+			bufPool := r.decoderBufPools[shardedIdx]
+			buf := <-bufPool
+
+			// Resize the buffer as necessary
+			bufCap := len(buf)
+			dataLen := len(data)
+			if bufCap < dataLen {
+				diff := dataLen - bufCap
+				for i := 0; i < diff; i++ {
+					buf = append(buf, 0)
+				}
+			}
+			buf = buf[:dataLen]
+
+			// Copy into the buffer
+			copy(buf, data)
 
 			// Distribute work by the uniqueIndex so that each decoder loop is receiving
 			// all datapoints for a given series within relative order.
-			r.decoderQueues[uniqueIndex%uint64(r.numConc)] <- decoderArg{
-				bytes:                data,
+			r.decoderQueues[shardedIdx] <- decoderArg{
+				bytes:                buf,
 				err:                  err,
 				decodeRemainingToken: decodeRemainingToken,
 				uniqueIndex:          uniqueIndex,
 				offset:               decoderStream.Offset(),
-				// bufPool:              bufPool,
+				bufPool:              bufPool,
 			}
 		}
 	}
@@ -296,7 +304,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// If there is a pre-existing error, just pipe it through
 		if arg.err != nil {
 			readResponse.resultErr = arg.err
-			// arg.bufPool <- arg.bytes
+			arg.bufPool <- arg.bytes
 			outBuf <- readResponse
 			continue
 		}
@@ -307,7 +315,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		entry, err := decoder.DecodeLogEntryRemaining(arg.decodeRemainingToken, arg.uniqueIndex)
 		if err != nil {
 			readResponse.resultErr = err
-			// arg.bufPool <- arg.bytes
+			arg.bufPool <- arg.bytes
 			outBuf <- readResponse
 			continue
 		}
@@ -317,7 +325,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			err := r.decodeAndHandleMetadata(metadataLookup, metadataDecoder, metadataDecoderStream, entry)
 			if err != nil {
 				readResponse.resultErr = err
-				// arg.bufPool <- arg.bytes
+				arg.bufPool <- arg.bytes
 				outBuf <- readResponse
 				continue
 			}
@@ -331,7 +339,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			// based on the series unique index which means that all commit log entries for a given
 			// series are decoded in-order by a single decoder loop.
 			readResponse.resultErr = errCommitLogReaderMissingMetadata
-			// arg.bufPool <- arg.bytes
+			arg.bufPool <- arg.bytes
 			outBuf <- readResponse
 			continue
 		}
@@ -351,7 +359,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		if len(entry.Annotation) > 0 {
 			readResponse.annotation = append([]byte(nil), entry.Annotation...)
 		}
-		// arg.bufPool <- arg.bytes
+		arg.bufPool <- arg.bytes
 		outBuf <- readResponse
 	}
 
@@ -419,16 +427,15 @@ func (r *reader) readChunk(buf []byte) ([]byte, error) {
 	}
 
 	// Extend buffer as necessary
-	// if cap(buf) < int(size) {
-	// 	diff := int(size) - len(buf)
-	// 	for i := 0; i < diff; i++ {
-	// 		buf = append(buf, 0)
-	// 	}
-	// }
+	if len(buf) < int(size) {
+		diff := int(size) - len(buf)
+		for i := 0; i < diff; i++ {
+			buf = append(buf, 0)
+		}
+	}
 
 	// Size target buffer for reading
-	// buf = buf[:size]
-	buf = make([]byte, size)
+	buf = buf[:size]
 
 	// Read message
 	if _, err := r.chunkReader.Read(buf); err != nil {

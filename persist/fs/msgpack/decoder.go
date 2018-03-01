@@ -163,7 +163,6 @@ func (dec *Decoder) DecodeLogEntryUniqueIndex() (DecodeLogEntryRemainingToken, u
 	if !ok {
 		return emptyLogEntryRemainingToken, 0, errorUnableToDetermineNumFieldsToSkip
 	}
-	// dec.decodeVarint()
 	idx := dec.decodeVarUint()
 
 	token := DecodeLogEntryRemainingToken{

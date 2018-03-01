@@ -288,7 +288,11 @@ func genState(basePath string, t *testing.T) gopter.Gen {
 func newInitState(dir string, t *testing.T) *clState {
 	opts := NewOptions().
 		SetStrategy(StrategyWriteBehind).
-		SetFlushInterval(defaultTestFlushInterval)
+		SetFlushInterval(defaultTestFlushInterval).
+		// Need to set this to a relatively low value otherwise the test will
+		// time out because its allocating so much memory for the byte pools
+		// in the commit log reader.
+		SetFlushSize(1024)
 	fsOpts := opts.FilesystemOptions().SetFilePathPrefix(dir)
 	opts = opts.SetFilesystemOptions(fsOpts)
 	return &clState{
