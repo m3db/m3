@@ -27,6 +27,8 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/m3db/m3db/serialize"
+
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
@@ -120,6 +122,9 @@ const (
 	// defaultSeriesIteratorPoolSize is the default size of the series iterator pools
 	defaultSeriesIteratorPoolSize = 65536
 
+	// defaultTagEncoderPoolSize is the default size of the tag encoder pool.
+	defaultTagEncoderPoolSize = 4096
+
 	// defaultFetchSeriesBlocksMaxBlockRetries is the default max retries for fetch series blocks
 	// from a single peer
 	defaultFetchSeriesBlocksMaxBlockRetries = 2
@@ -186,6 +191,8 @@ type options struct {
 	backgroundHealthCheckStutter            time.Duration
 	backgroundHealthCheckFailLimit          int
 	backgroundHealthCheckFailThrottleFactor float64
+	tagEncoderOpts                          serialize.TagEncoderOptions
+	tagEncoderPoolSize                      int
 	writeRetrier                            xretry.Retrier
 	fetchRetrier                            xretry.Retrier
 	streamBlocksRetrier                     xretry.Retrier
@@ -257,6 +264,8 @@ func newOptions() *options {
 		backgroundHealthCheckFailThrottleFactor: defaultBackgroundHealthCheckFailThrottleFactor,
 		writeRetrier:                            defaultWriteRetrier,
 		fetchRetrier:                            defaultFetchRetrier,
+		tagEncoderPoolSize:                      defaultTagEncoderPoolSize,
+		tagEncoderOpts:                          serialize.NewTagEncoderOptions(),
 		streamBlocksRetrier:                     defaultStreamBlocksRetrier,
 		writeOperationPoolSize:                  defaultWriteOpPoolSize,
 		fetchBatchOpPoolSize:                    defaultFetchBatchOpPoolSize,
@@ -514,6 +523,26 @@ func (o *options) SetFetchRetrier(value xretry.Retrier) Options {
 
 func (o *options) FetchRetrier() xretry.Retrier {
 	return o.fetchRetrier
+}
+
+func (o *options) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
+	opts := *o
+	opts.tagEncoderOpts = value
+	return &opts
+}
+
+func (o *options) TagEncoderOptions() serialize.TagEncoderOptions {
+	return o.tagEncoderOpts
+}
+
+func (o *options) SetTagEncoderPoolSize(value int) Options {
+	opts := *o
+	opts.tagEncoderPoolSize = value
+	return &opts
+}
+
+func (o *options) TagEncoderPoolSize() int {
+	return o.tagEncoderPoolSize
 }
 
 func (o *options) SetStreamBlocksRetrier(value xretry.Retrier) AdminOptions {

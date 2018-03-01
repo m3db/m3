@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/network/server/tchannelthrift/convert"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/index"
@@ -94,6 +95,8 @@ var (
 	}
 	errFetchBlocksMetadataEndpointVersionUnspecified = errors.New(
 		"fetch blocks metadata endpoint version unspecified")
+	errUnknownWriteAttemptType = errors.New(
+		"unknown write attempt type specified, internal error")
 	errNotImplemented = errors.New("not implemented")
 )
 
@@ -118,6 +121,9 @@ var (
 	// errInvalidFetchBlocksMetadataVersion is raised when an invalid fetch blocks
 	// metadata endpoint version is provided
 	errInvalidFetchBlocksMetadataVersion = errors.New("invalid fetch blocks metadata endpoint version")
+	// errUnableToEncodeTags is raised when the server is unable to encode provided tags
+	// to be sent over the wire.
+	errUnableToEncodeTags = errors.New("unable to include tags")
 )
 
 type session struct {
@@ -144,9 +150,11 @@ type session struct {
 	contextPool                      context.Pool
 	idPool                           ident.Pool
 	writeOperationPool               *writeOperationPool
+	writeTaggedOperationPool         *writeTaggedOperationPool
 	fetchBatchOpPool                 *fetchBatchOpPool
 	fetchBatchOpArrayArrayPool       *fetchBatchOpArrayArrayPool
 	iteratorArrayPool                encoding.IteratorArrayPool
+	tagEncoderPool                   serialize.TagEncoderPool
 	readerSliceOfSlicesIteratorPool  *readerSliceOfSlicesIteratorPool
 	multiReaderIteratorPool          encoding.MultiReaderIteratorPool
 	seriesIteratorPool               encoding.SeriesIteratorPool
@@ -216,6 +224,8 @@ type newHostQueueFn func(
 	host topology.Host,
 	writeBatchRawRequestPool writeBatchRawRequestPool,
 	writeBatchRawRequestElementArrayPool writeBatchRawRequestElementArrayPool,
+	writeTaggedBatchRawRequestPool writeTaggedBatchRawRequestPool,
+	writeTaggedBatchRawRequestElementArrayPool writeTaggedBatchRawRequestElementArrayPool,
 	opts Options,
 ) hostQueue
 
@@ -253,6 +263,7 @@ func newSession(opts Options) (clientSession, error) {
 		))
 	s.writeAttemptPool = newWriteAttemptPool(s, writeAttemptPoolOpts)
 	s.writeAttemptPool.Init()
+
 	fetchAttemptPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(opts.FetchBatchOpPoolSize()).
 		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
@@ -260,6 +271,14 @@ func newSession(opts Options) (clientSession, error) {
 		))
 	s.fetchAttemptPool = newFetchAttemptPool(s, fetchAttemptPoolOpts)
 	s.fetchAttemptPool.Init()
+
+	tagEncoderPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(opts.TagEncoderPoolSize()).
+		SetInstrumentOptions(opts.InstrumentOptions().SetMetricsScope(
+			scope.SubScope("tag-encoder-pool"),
+		))
+	s.tagEncoderPool = serialize.NewTagEncoderPool(opts.TagEncoderOptions(), tagEncoderPoolOpts)
+	s.tagEncoderPool.Init()
 
 	if opts, ok := opts.(AdminOptions); ok {
 		s.origin = opts.Origin()
@@ -407,12 +426,20 @@ func (s *session) Open() error {
 		))
 	s.writeOperationPool = newWriteOperationPool(writeOperationPoolOpts)
 	s.writeOperationPool.Init()
+	// TODO(prateek): add Options knob to tweak tagged pool sizes (either replicate opts) or include multiplier?
+	writeTaggedOperationPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(s.opts.WriteOpPoolSize()).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("write-op-tagged-pool"),
+		))
+	s.writeTaggedOperationPool = newWriteTaggedOpPool(writeTaggedOperationPoolOpts)
+	s.writeTaggedOperationPool.Init()
 	writeStatePoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.WriteOpPoolSize()).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-state-pool"),
 		))
-	s.writeStatePool = newWriteStatePool(s.writeLevel, writeStatePoolOpts)
+	s.writeStatePool = newWriteStatePool(s.writeLevel, s.tagEncoderPool, writeStatePoolOpts)
 	s.writeStatePool.Init()
 	fetchBatchOpPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.FetchBatchOpPoolSize()).
@@ -700,6 +727,7 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQue
 	totalBatches := topoMap.Replicas() *
 		int(math.Ceil(float64(s.opts.WriteOpPoolSize())/float64(s.opts.WriteBatchSize())))
 	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topoMap.HostsLen())))
+
 	writeBatchRequestPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(hostBatches).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
@@ -707,6 +735,15 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQue
 		))
 	writeBatchRequestPool := newWriteBatchRawRequestPool(writeBatchRequestPoolOpts)
 	writeBatchRequestPool.Init()
+
+	writeTaggedBatchRequestPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(hostBatches).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("write-tagged-batch-request-pool"),
+		))
+	writeTaggedBatchRequestPool := newWriteTaggedBatchRawRequestPool(writeTaggedBatchRequestPoolOpts)
+	writeTaggedBatchRequestPool.Init()
+
 	writeBatchRawRequestElementArrayPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(hostBatches).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
@@ -715,7 +752,20 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQue
 	writeBatchRawRequestElementArrayPool := newWriteBatchRawRequestElementArrayPool(
 		writeBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
 	writeBatchRawRequestElementArrayPool.Init()
-	hostQueue := s.newHostQueueFn(host, writeBatchRequestPool, writeBatchRawRequestElementArrayPool, s.opts)
+
+	writeTaggedBatchRawRequestElementArrayPoolOpts := pool.NewObjectPoolOptions().
+		SetSize(hostBatches).
+		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
+			s.scope.SubScope("id-tagged-datapoint-array-pool"),
+		))
+	writeTaggedBatchRawRequestElementArrayPool := newWriteTaggedBatchRawRequestElementArrayPool(
+		writeTaggedBatchRawRequestElementArrayPoolOpts, s.opts.WriteBatchSize())
+	writeTaggedBatchRawRequestElementArrayPool.Init()
+
+	hostQueue := s.newHostQueueFn(host,
+		writeBatchRequestPool, writeBatchRawRequestElementArrayPool,
+		writeTaggedBatchRequestPool, writeTaggedBatchRawRequestElementArrayPool,
+		s.opts)
 	hostQueue.Open()
 	return hostQueue
 }
@@ -728,7 +778,9 @@ func (s *session) Write(
 	annotation []byte,
 ) error {
 	w := s.writeAttemptPool.Get()
+	w.args.attemptType = untaggedWriteAttemptType
 	w.args.namespace, w.args.id = namespace, id
+	w.args.tags = ident.EmptyTagIterator
 	w.args.t, w.args.value, w.args.unit, w.args.annotation =
 		t, value, unit, annotation
 	err := s.writeRetrier.Attempt(w.attemptFn)
@@ -744,27 +796,29 @@ func (s *session) WriteTagged(
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	return errNotImplemented
+	w := s.writeAttemptPool.Get()
+	w.args.attemptType = taggedWriteAttemptType
+	w.args.namespace, w.args.id, w.args.tags = namespace, id, tags
+	w.args.t, w.args.value, w.args.unit, w.args.annotation =
+		t, value, unit, annotation
+	err := s.writeRetrier.Attempt(w.attemptFn)
+	s.writeAttemptPool.Put(w)
+	return err
 }
 
 func (s *session) writeAttempt(
+	wType writeAttemptType,
 	namespace, id ident.ID,
+	inputTags ident.TagIterator,
 	t time.Time,
 	value float64,
 	unit xtime.Unit,
 	annotation []byte,
 ) error {
-	var (
-		enqueued int32
-		majority = atomic.LoadInt32(&s.majority)
-		// NB(prateek): We retain an individual copy of the namespace, ID per
-		// writeState, as each writeState tracks the lifecycle of it's resources in
-		// use in the various queues. Tracking per writeAttempt isn't sufficient as
-		// we may enqueue multiple writeStates concurrently depending on retries
-		// and consistency level checks.
-		nsID = s.idPool.Clone(namespace)
-		tsID = s.idPool.Clone(id)
-	)
+	if wType != untaggedWriteAttemptType && wType != taggedWriteAttemptType {
+		// should never happen
+		return errUnknownWriteAttemptType
+	}
 
 	timeType, timeTypeErr := convert.ToTimeType(unit)
 	if timeTypeErr != nil {
@@ -781,24 +835,104 @@ func (s *session) writeAttempt(
 		return errSessionStateNotOpen
 	}
 
+	state, majority, enqueued, err := s.writeAttemptWithRLock(
+		wType, namespace, id, inputTags, timestamp, value, timeType, annotation)
+	s.RUnlock()
+
+	if err != nil {
+		return err
+	}
+
+	// it's safe to Wait() here, as we still own the lock on state, after it's
+	// returned from writeAttemptWithRLock.
+	state.Wait()
+
+	err = s.writeConsistencyResult(
+		majority, enqueued, enqueued-state.pending, int32(len(state.errors)), state.errors)
+
+	s.incWriteMetrics(err, int32(len(state.errors)))
+
+	// must Unlock before decRef'ing, as the latter releases the writeState back into a
+	// pool if ref count == 0.
+	state.Unlock()
+	state.decRef()
+
+	return err
+}
+
+// NB(prateek): the returned writeState, if valid, still holds the lock. Its ownership
+// is transferred to the calling function, and is expected to manage the lifecycle of
+// of the object (including releasing the lock/decRef'ing it).
+func (s *session) writeAttemptWithRLock(
+	wType writeAttemptType,
+	namespace, id ident.ID,
+	inputTags ident.TagIterator,
+	timestamp int64,
+	value float64,
+	timeType rpc.TimeType,
+	annotation []byte,
+) (*writeState, int32, int32, error) {
+	var (
+		majority = atomic.LoadInt32(&s.majority)
+		enqueued int32
+	)
+
+	// NB(prateek): We retain an individual copy of the namespace, ID per
+	// writeState, as each writeState tracks the lifecycle of it's resources in
+	// use in the various queues. Tracking per writeAttempt isn't sufficient as
+	// we may enqueue multiple writeStates concurrently depending on retries
+	// and consistency level checks.
+	nsID := s.idPool.Clone(namespace)
+	tsID := s.idPool.Clone(id)
+	var tagEncoder serialize.TagEncoder
+	if wType == taggedWriteAttemptType {
+		tagEncoder = s.tagEncoderPool.Get()
+		if err := tagEncoder.Encode(inputTags); err != nil {
+			tagEncoder.Finalize()
+			return nil, 0, 0, err
+		}
+	}
+
+	var op writeOp
+	switch wType {
+	case untaggedWriteAttemptType:
+		wop := s.writeOperationPool.Get()
+		wop.namespace = nsID
+		wop.shardID = s.topoMap.ShardSet().Lookup(tsID)
+		wop.request.ID = tsID.Data().Get()
+		wop.request.Datapoint.Value = value
+		wop.request.Datapoint.Timestamp = timestamp
+		wop.request.Datapoint.TimestampTimeType = timeType
+		wop.request.Datapoint.Annotation = annotation
+		op = wop
+	case taggedWriteAttemptType:
+		wop := s.writeTaggedOperationPool.Get()
+		wop.namespace = nsID
+		wop.shardID = s.topoMap.ShardSet().Lookup(tsID)
+		wop.request.ID = tsID.Data().Get()
+		encodedTagBytes, ok := tagEncoder.Data()
+		if !ok {
+			return nil, 0, 0, errUnableToEncodeTags
+		}
+		wop.request.EncodedTags = encodedTagBytes.Get()
+		wop.request.Datapoint.Value = value
+		wop.request.Datapoint.Timestamp = timestamp
+		wop.request.Datapoint.TimestampTimeType = timeType
+		wop.request.Datapoint.Annotation = annotation
+		op = wop
+	default:
+		// should never happen
+		return nil, 0, 0, errUnknownWriteAttemptType
+	}
+
 	state := s.writeStatePool.Get()
 	state.topoMap = s.topoMap
 	state.incRef()
 
-	op := s.writeOperationPool.Get()
-	op.namespace = nsID
-	op.request.ID = tsID.Data().Get()
-	op.shardID = s.topoMap.ShardSet().Lookup(tsID)
-	op.request.ID = tsID.Data().Get()
-	op.request.Datapoint.Value = value
-	op.request.Datapoint.Timestamp = timestamp
-	op.request.Datapoint.TimestampTimeType = timeType
-	op.request.Datapoint.Annotation = annotation
-	op.completionFn = state.completionFn
-
-	// todo@bl: Can we combine the writeOperationPool and the writeStatePool?
+	// todo@bl: Can we combine the writeOpPool and the writeStatePool?
 	state.op, state.majority = op, majority
-	state.nsID, state.tsID = nsID, tsID
+	state.nsID, state.tsID, state.tagEncoder = nsID, tsID, tagEncoder
+	op.SetCompletionFn(state.completionFn)
 
 	if err := s.topoMap.RouteForEach(tsID, func(idx int, host topology.Host) {
 		// Count pending write requests before we enqueue the completion fns,
@@ -807,12 +941,10 @@ func (s *session) writeAttempt(
 		state.queues = append(state.queues, s.queues[idx])
 	}); err != nil {
 		state.decRef()
-		s.RUnlock()
-		return err
+		return nil, 0, 0, err
 	}
 
 	state.Lock()
-
 	for i := range state.queues {
 		state.incRef()
 		if err := state.queues[i].Enqueue(state.op); err != nil {
@@ -821,24 +953,15 @@ func (s *session) writeAttempt(
 
 			// NB(r): if this happens we have a bug, once we are in the read
 			// lock the current queues should never be closed
-			s.RUnlock()
 			s.opts.InstrumentOptions().Logger().Errorf("failed to enqueue write: %v", err)
-			return err
+			return nil, 0, 0, err
 		}
-
 		enqueued++
 	}
 
-	s.RUnlock()
-	state.Wait()
-
-	err := s.writeConsistencyResult(majority, enqueued, enqueued-state.pending, int32(len(state.errors)), state.errors)
-	s.incWriteMetrics(err, int32(len(state.errors)))
-
-	state.Unlock()
-	state.decRef()
-
-	return err
+	// NB(prateek): the current go-routine still holds a lock on the
+	// returned writeState object.
+	return state, majority, enqueued, nil
 }
 
 func (s *session) Fetch(

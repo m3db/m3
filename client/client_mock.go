@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/index"
@@ -1765,6 +1766,54 @@ func (_mr *MockOptionsMockRecorder) FetchRetrier() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchRetrier", reflect.TypeOf((*MockOptions)(nil).FetchRetrier))
 }
 
+// SetTagEncoderOptions mocks base method
+func (_m *MockOptions) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
+	ret := _m.ctrl.Call(_m, "SetTagEncoderOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagEncoderOptions indicates an expected call of SetTagEncoderOptions
+func (_mr *MockOptionsMockRecorder) SetTagEncoderOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagEncoderOptions", reflect.TypeOf((*MockOptions)(nil).SetTagEncoderOptions), arg0)
+}
+
+// TagEncoderOptions mocks base method
+func (_m *MockOptions) TagEncoderOptions() serialize.TagEncoderOptions {
+	ret := _m.ctrl.Call(_m, "TagEncoderOptions")
+	ret0, _ := ret[0].(serialize.TagEncoderOptions)
+	return ret0
+}
+
+// TagEncoderOptions indicates an expected call of TagEncoderOptions
+func (_mr *MockOptionsMockRecorder) TagEncoderOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagEncoderOptions", reflect.TypeOf((*MockOptions)(nil).TagEncoderOptions))
+}
+
+// SetTagEncoderPoolSize mocks base method
+func (_m *MockOptions) SetTagEncoderPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetTagEncoderPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagEncoderPoolSize indicates an expected call of SetTagEncoderPoolSize
+func (_mr *MockOptionsMockRecorder) SetTagEncoderPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagEncoderPoolSize", reflect.TypeOf((*MockOptions)(nil).SetTagEncoderPoolSize), arg0)
+}
+
+// TagEncoderPoolSize mocks base method
+func (_m *MockOptions) TagEncoderPoolSize() int {
+	ret := _m.ctrl.Call(_m, "TagEncoderPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TagEncoderPoolSize indicates an expected call of TagEncoderPoolSize
+func (_mr *MockOptionsMockRecorder) TagEncoderPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagEncoderPoolSize", reflect.TypeOf((*MockOptions)(nil).TagEncoderPoolSize))
+}
+
 // SetWriteBatchSize mocks base method
 func (_m *MockOptions) SetWriteBatchSize(value int) Options {
 	ret := _m.ctrl.Call(_m, "SetWriteBatchSize", value)
@@ -2626,6 +2675,54 @@ func (_m *MockAdminOptions) FetchRetrier() retry.Retrier {
 // FetchRetrier indicates an expected call of FetchRetrier
 func (_mr *MockAdminOptionsMockRecorder) FetchRetrier() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "FetchRetrier", reflect.TypeOf((*MockAdminOptions)(nil).FetchRetrier))
+}
+
+// SetTagEncoderOptions mocks base method
+func (_m *MockAdminOptions) SetTagEncoderOptions(value serialize.TagEncoderOptions) Options {
+	ret := _m.ctrl.Call(_m, "SetTagEncoderOptions", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagEncoderOptions indicates an expected call of SetTagEncoderOptions
+func (_mr *MockAdminOptionsMockRecorder) SetTagEncoderOptions(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagEncoderOptions", reflect.TypeOf((*MockAdminOptions)(nil).SetTagEncoderOptions), arg0)
+}
+
+// TagEncoderOptions mocks base method
+func (_m *MockAdminOptions) TagEncoderOptions() serialize.TagEncoderOptions {
+	ret := _m.ctrl.Call(_m, "TagEncoderOptions")
+	ret0, _ := ret[0].(serialize.TagEncoderOptions)
+	return ret0
+}
+
+// TagEncoderOptions indicates an expected call of TagEncoderOptions
+func (_mr *MockAdminOptionsMockRecorder) TagEncoderOptions() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagEncoderOptions", reflect.TypeOf((*MockAdminOptions)(nil).TagEncoderOptions))
+}
+
+// SetTagEncoderPoolSize mocks base method
+func (_m *MockAdminOptions) SetTagEncoderPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetTagEncoderPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetTagEncoderPoolSize indicates an expected call of SetTagEncoderPoolSize
+func (_mr *MockAdminOptionsMockRecorder) SetTagEncoderPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetTagEncoderPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetTagEncoderPoolSize), arg0)
+}
+
+// TagEncoderPoolSize mocks base method
+func (_m *MockAdminOptions) TagEncoderPoolSize() int {
+	ret := _m.ctrl.Call(_m, "TagEncoderPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// TagEncoderPoolSize indicates an expected call of TagEncoderPoolSize
+func (_mr *MockAdminOptionsMockRecorder) TagEncoderPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "TagEncoderPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).TagEncoderPoolSize))
 }
 
 // SetWriteBatchSize mocks base method

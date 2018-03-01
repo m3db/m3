@@ -101,7 +101,7 @@ struct WriteRequest {
 struct WriteTaggedRequest {
 	1: required string nameSpace
 	2: required string id
-	3: required list<TagString> tags
+	3: required list<Tag> tags
 	4: required Datapoint datapoint
 }
 
@@ -166,7 +166,7 @@ struct FetchTaggedResult {
 struct FetchTaggedIDResult {
 	1: required string id
 	2: required string nameSpace
-	3: required list<TagString> tags
+	3: required list<Tag> tags
 	5: optional list<Datapoint> datapoints
 	6: optional Error err
 }
@@ -198,14 +198,9 @@ struct Block {
 	4: optional i64 checksum
 }
 
-struct TagString {
+struct Tag {
   1: required string name
   2: required string value
-}
-
-struct TagRaw {
-  1: required binary name
-  2: required binary value
 }
 
 // TODO(rartoul): Delete this once we delete the V1 code path
@@ -287,7 +282,7 @@ struct WriteTaggedBatchRawRequest {
 
 struct WriteTaggedBatchRawRequestElement {
 	1: required binary id
-	2: required list<TagRaw> tags
+	2: required binary encodedTags
 	3: required Datapoint datapoint
 }
 
