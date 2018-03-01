@@ -53,7 +53,7 @@ type iterator struct {
 	reader     commitLogReader
 	read       iteratorRead
 	err        error
-	seriesPred ReadSeriesPredicate
+	seriesPred SeriesFilterPredicate
 	setRead    bool
 	closed     bool
 }
@@ -66,18 +66,14 @@ type iteratorRead struct {
 	annotation  []byte
 }
 
-// ReadEntryPredicate is a predicate that allows the caller to determine
-// which commitlogs the iterator should read from
-type ReadEntryPredicate func(entryTime time.Time, entryDuration time.Duration) bool
-
 // ReadAllPredicate can be passed as the ReadCommitLogPredicate for callers
 // that want a convenient way to read all the commitlogs
-func ReadAllPredicate() ReadEntryPredicate {
+func ReadAllPredicate() FileFilterPredicate {
 	return func(entryTime time.Time, entryDuration time.Duration) bool { return true }
 }
 
 // NewIterator creates a new commit log iterator
-func NewIterator(opts Options, commitLogPred ReadEntryPredicate, seriesPred ReadSeriesPredicate) (Iterator, error) {
+func NewIterator(opts Options, commitLogPred FileFilterPredicate, seriesPred SeriesFilterPredicate) (Iterator, error) {
 	iops := opts.InstrumentOptions()
 	iops = iops.SetMetricsScope(iops.MetricsScope().SubScope("iterator"))
 
@@ -206,7 +202,7 @@ func (i *iterator) nextReader() bool {
 	return true
 }
 
-func filterFiles(opts Options, files []string, predicate ReadEntryPredicate) ([]string, error) {
+func filterFiles(opts Options, files []string, predicate FileFilterPredicate) ([]string, error) {
 	filteredFiles := make([]string, 0, len(files))
 	var multiErr xerrors.MultiError
 	for _, file := range files {

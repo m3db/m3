@@ -168,8 +168,12 @@ type Options interface {
 	ReadConcurrency() int
 }
 
-// ReadSeriesPredicate is a predicate that determines whether datapoints for a given series
+// FileFilterPredicate is a predicate that allows the caller to determine
+// which commitlogs the iterator should read from
+type FileFilterPredicate func(entryTime time.Time, entryDuration time.Duration) bool
+
+// SeriesFilterPredicate is a predicate that determines whether datapoints for a given series
 // should be returned from the Commit log reader. The predicate is pushed down to the
 // reader level to prevent having to run the same function for every datapoint for a
 // given series.
-type ReadSeriesPredicate func(id ident.ID, namespace ident.ID) bool
+type SeriesFilterPredicate func(id ident.ID, namespace ident.ID) bool

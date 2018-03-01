@@ -44,7 +44,7 @@ const encoderChanBufSize = 1000
 
 type newIteratorFn func(
 	opts commitlog.Options,
-	commitLogPred commitlog.ReadEntryPredicate,
+	commitLogPred commitlog.FileFilterPredicate,
 	seriesPred commitlog.ReadSeriesPredicate) (commitlog.Iterator, error)
 
 type commitLogSource struct {
@@ -465,7 +465,7 @@ func newReadCommitLogPredicate(
 	ns namespace.Metadata,
 	shardsTimeRanges result.ShardTimeRanges,
 	opts Options,
-) commitlog.ReadEntryPredicate {
+) commitlog.FileFilterPredicate {
 	// Minimum and maximum times for which we want to bootstrap
 	shardMin, shardMax := shardsTimeRanges.MinMax()
 	shardRange := xtime.Range{

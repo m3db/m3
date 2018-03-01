@@ -102,7 +102,7 @@ func TestReadErrorOnNewIteratorError(t *testing.T) {
 	opts := testOptions()
 	src := newCommitLogSource(opts).(*commitLogSource)
 
-	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.ReadEntryPredicate, _ commitlog.ReadSeriesPredicate) (commitlog.Iterator, error) {
+	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.FileFilterPredicate, _ commitlog.ReadSeriesPredicate) (commitlog.Iterator, error) {
 		return nil, fmt.Errorf("an error")
 	}
 
@@ -148,7 +148,7 @@ func TestReadOrderedValues(t *testing.T) {
 		// "baz" is in shard 2 and should not be returned
 		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, 2, nil},
 	}
-	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.ReadEntryPredicate, _ commitlog.ReadSeriesPredicate) (commitlog.Iterator, error) {
+	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.FileFilterPredicate, _ commitlog.ReadSeriesPredicate) (commitlog.Iterator, error) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
@@ -192,7 +192,7 @@ func TestReadNamespaceFiltering(t *testing.T) {
 		// "baz" is in another namespace should not be returned
 		{baz, start.Add(4 * time.Minute), 1.0, xtime.Second, 2, nil},
 	}
-	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.ReadEntryPredicate, _ commitlog.ReadSeriesPredicate) (commitlog.Iterator, error) {
+	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.FileFilterPredicate, _ commitlog.ReadSeriesPredicate) (commitlog.Iterator, error) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
@@ -233,7 +233,7 @@ func TestReadUnorderedValues(t *testing.T) {
 		{foo, start.Add(3 * time.Minute), 4.0, xtime.Second, 0, nil},
 		{foo, start, 5.0, xtime.Second, 0, nil},
 	}
-	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.ReadEntryPredicate, _ commitlog.ReadSeriesPredicate) (commitlog.Iterator, error) {
+	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.FileFilterPredicate, _ commitlog.ReadSeriesPredicate) (commitlog.Iterator, error) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
@@ -273,7 +273,7 @@ func TestReadTrimsToRanges(t *testing.T) {
 		{foo, start.Add(1 * time.Minute), 3.0, xtime.Nanosecond, 0, nil},
 		{foo, end.Truncate(blockSize).Add(blockSize).Add(time.Nanosecond), 4.0, xtime.Nanosecond, 0, nil},
 	}
-	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.ReadEntryPredicate, _ commitlog.ReadSeriesPredicate) (commitlog.Iterator, error) {
+	src.newIteratorFn = func(_ commitlog.Options, _ commitlog.FileFilterPredicate, _ commitlog.ReadSeriesPredicate) (commitlog.Iterator, error) {
 		return newTestCommitLogIterator(values, nil), nil
 	}
 
