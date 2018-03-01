@@ -210,7 +210,7 @@ func filterFiles(opts Options, files []string, predicate ReadEntryPredicate) ([]
 	filteredFiles := make([]string, 0, len(files))
 	var multiErr xerrors.MultiError
 	for _, file := range files {
-		start, duration, _, err := ReadLogInfo(file, opts.FlushSize())
+		start, duration, _, err := ReadLogInfo(file, opts)
 		if err != nil {
 			multiErr = multiErr.Add(err)
 			continue

@@ -25,18 +25,19 @@ import (
 	"os"
 	"time"
 
+	"github.com/m3db/m3db/persist/fs/commitlog"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 )
 
 // ReadLogInfo reads the commit log info out of a commitlog file
-func ReadLogInfo(filePath string, flushSize int) (start time.Time, duration time.Duration, index int64, err error) {
+func ReadLogInfo(filePath string, opts commitlog.Options) (start time.Time, duration time.Duration, index int64, err error) {
 	fd, err := os.Open(filePath)
 	defer fd.Close()
 	if err != nil {
 		return time.Time{}, 0, 0, err
 	}
 
-	chunkReader := newChunkReader(flushSize)
+	chunkReader := newChunkReader(opts.FlushSize())
 	chunkReader.reset(fd)
 	size, err := binary.ReadUvarint(chunkReader)
 	if err != nil {

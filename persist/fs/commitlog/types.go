@@ -167,3 +167,9 @@ type Options interface {
 	// ReadConcurrency returns the concurrency of the reader
 	ReadConcurrency() int
 }
+
+// ReadSeriesPredicate is a predicate that determines whether datapoints for a given series
+// should be returned from the Commit log reader. The predicate is pushed down to the
+// reader level to prevent having to run the same function for every datapoint for a
+// given series.
+type ReadSeriesPredicate func(id ident.ID, namespace ident.ID) bool

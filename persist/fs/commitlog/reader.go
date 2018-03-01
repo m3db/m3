@@ -24,6 +24,7 @@ import (
 	"context"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -49,12 +50,6 @@ var (
 	errCommitLogReaderMultipleReadloops         = errors.New("commit log reader tried to open multiple readLoops, do not call Read() concurrently")
 	errCommitLogReaderMissingMetadata           = errors.New("commit log reader encountered a datapoint without corresponding metadata")
 )
-
-// ReadSeriesPredicate is a predicate that determines whether datapoints for a given series
-// should be returned from the Commit log reader. The predicate is pushed down to the
-// reader level to prevent having to run the same function for every datapoint for a
-// given series.
-type ReadSeriesPredicate func(id ident.ID, namespace ident.ID) bool
 
 // ReadAllSeriesPredicate can be passed as the seriesPredicate for callers
 // that want a convenient way to read all series in the commitlogs
@@ -93,6 +88,7 @@ type decoderArg struct {
 	decodeRemainingToken msgpack.DecodeLogEntryRemainingToken
 	uniqueIndex          uint64
 	offset               int
+	bufPool              chan []byte
 }
 
 type readerMetadata struct {
@@ -107,8 +103,9 @@ type reader struct {
 	chunkReader          *chunkReader
 	infoDecoder          *msgpack.Decoder
 	infoDecoderStream    msgpack.DecoderStream
-	decoderBufs          []chan decoderArg
-	outBuf               chan readResponse
+	decoderQueues        []chan decoderArg
+	decoderBufPools      []chan []byte
+	outChan              chan readResponse
 	cancelCtx            context.Context
 	cancelFunc           context.CancelFunc
 	shutdownCh           chan error
@@ -124,9 +121,16 @@ func newCommitLogReader(opts Options, seriesPredicate ReadSeriesPredicate) commi
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 
 	numConc := opts.ReadConcurrency()
-	decoderBufs := make([]chan decoderArg, 0, numConc)
+	decoderQueues := make([]chan decoderArg, 0, numConc)
+	decoderBufs := make([]chan []byte, 0, numConc)
 	for i := 0; i < numConc; i++ {
-		decoderBufs = append(decoderBufs, make(chan decoderArg, decoderInBufChanSize))
+		decoderQueues = append(decoderQueues, make(chan decoderArg, decoderInBufChanSize))
+
+		chanBufs := make(chan []byte, decoderInBufChanSize+1)
+		for i := 0; i < decoderInBufChanSize+1; i++ {
+			chanBufs <- make([]byte, opts.FlushSize())
+		}
+		decoderBufs = append(decoderBufs, chanBufs)
 	}
 	outBuf := make(chan readResponse, decoderOutBufChanSize*numConc)
 	reader := &reader{
@@ -136,8 +140,9 @@ func newCommitLogReader(opts Options, seriesPredicate ReadSeriesPredicate) commi
 		chunkReader:       newChunkReader(opts.FlushSize()),
 		infoDecoder:       msgpack.NewDecoder(decodingOpts),
 		infoDecoderStream: msgpack.NewDecoderStream(nil),
-		decoderBufs:       decoderBufs,
-		outBuf:            outBuf,
+		decoderQueues:     decoderQueues,
+		decoderBufPools:   decoderBufs,
+		outChan:           outBuf,
 		cancelCtx:         cancelCtx,
 		cancelFunc:        cancelFunc,
 		shutdownCh:        make(chan error),
@@ -193,7 +198,7 @@ func (r *reader) Read() (
 			return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), 0, err
 		}
 	}
-	rr, ok := <-r.outBuf
+	rr, ok := <-r.outChan
 	if !ok {
 		return Series{}, ts.Datapoint{}, xtime.Unit(0), ts.Annotation(nil), 0, io.EOF
 	}
@@ -210,9 +215,9 @@ func (r *reader) startBackgroundWorkers() error {
 
 	// Start background worker goroutines
 	go r.readLoop()
-	for _, decoderBuf := range r.decoderBufs {
-		localDecoderBuf := decoderBuf
-		go r.decoderLoop(localDecoderBuf, r.outBuf)
+	for _, decoderQueue := range r.decoderQueues {
+		localDecoderQueue := decoderQueue
+		go r.decoderLoop(localDecoderQueue, r.outChan)
 	}
 
 	return nil
@@ -220,25 +225,28 @@ func (r *reader) startBackgroundWorkers() error {
 
 func (r *reader) readLoop() {
 	defer func() {
-		for _, decoderBuf := range r.decoderBufs {
-			close(decoderBuf)
+		for _, decoderQueue := range r.decoderQueues {
+			close(decoderQueue)
 		}
 	}()
 
 	decodingOpts := r.opts.FilesystemOptions().DecodingOptions()
 	decoder := msgpack.NewDecoder(decodingOpts)
 	decoderStream := msgpack.NewDecoderStream(nil)
+
+	reusedBytes := make([]byte, 0, r.opts.FlushSize())
+
 	for {
 		select {
 		case <-r.cancelCtx.Done():
 			return
 		default:
-			data, err := r.readChunk()
+			data, err := r.readChunk(reusedBytes)
 			if err != nil {
 				if err == io.EOF {
 					return
 				}
-				r.decoderBufs[0] <- decoderArg{
+				r.decoderQueues[0] <- decoderArg{
 					bytes: data,
 					err:   err,
 				}
@@ -249,14 +257,30 @@ func (r *reader) readLoop() {
 			decoder.Reset(decoderStream)
 			decodeRemainingToken, uniqueIndex, err := decoder.DecodeLogEntryUniqueIndex()
 
+			fmt.Println("pulling")
+			bufPool := r.decoderBufPools[uniqueIndex%uint64(r.numConc)]
+			buf := <-bufPool
+			fmt.Println("done")
+			bufCap := cap(buf)
+			dataLen := len(data)
+			if bufCap < dataLen {
+				diff := dataLen - bufCap
+				for i := 0; i < diff; i++ {
+					buf = append(buf, 0)
+				}
+			}
+			buf = buf[:dataLen]
+			copy(buf, data)
+
 			// Distribute work by the uniqueIndex so that each decoder loop is receiving
 			// all datapoints for a given series within relative order.
-			r.decoderBufs[uniqueIndex%uint64(r.numConc)] <- decoderArg{
-				bytes:                data,
+			r.decoderQueues[uniqueIndex%uint64(r.numConc)] <- decoderArg{
+				bytes:                buf,
 				err:                  err,
 				decodeRemainingToken: decodeRemainingToken,
 				uniqueIndex:          uniqueIndex,
 				offset:               decoderStream.Offset(),
+				bufPool:              bufPool,
 			}
 		}
 	}
@@ -277,6 +301,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		// If there is a pre-existing error, just pipe it through
 		if arg.err != nil {
 			readResponse.resultErr = arg.err
+			arg.bufPool <- arg.bytes
 			outBuf <- readResponse
 			continue
 		}
@@ -287,6 +312,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		entry, err := decoder.DecodeLogEntryRemaining(arg.decodeRemainingToken, arg.uniqueIndex)
 		if err != nil {
 			readResponse.resultErr = err
+			arg.bufPool <- arg.bytes
 			outBuf <- readResponse
 			continue
 		}
@@ -296,6 +322,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 			err := r.decodeAndHandleMetadata(metadataLookup, metadataDecoder, metadataDecoderStream, entry)
 			if err != nil {
 				readResponse.resultErr = err
+				arg.bufPool <- arg.bytes
 				outBuf <- readResponse
 				continue
 			}
@@ -305,6 +332,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		if !hasMetadata {
 			// Corrupt commit log
 			readResponse.resultErr = errCommitLogReaderMissingMetadata
+			arg.bufPool <- arg.bytes
 			outBuf <- readResponse
 			continue
 		}
@@ -325,6 +353,7 @@ func (r *reader) decoderLoop(inBuf <-chan decoderArg, outBuf chan<- readResponse
 		if len(entry.Annotation) > 0 {
 			readResponse.annotation = append([]byte(nil), entry.Annotation...)
 		}
+		arg.bufPool <- arg.bytes
 		outBuf <- readResponse
 	}
 
@@ -386,25 +415,34 @@ func (r *reader) decodeAndHandleMetadata(
 	return nil
 }
 
-func (r *reader) readChunk() ([]byte, error) {
+func (r *reader) readChunk(buf []byte) ([]byte, error) {
 	// Read size of message
 	size, err := binary.ReadUvarint(r.chunkReader)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: Consider pooling this
-	b := make([]byte, int(size))
+	// Extend buffer as necessary
+	if cap(buf) < int(size) {
+		diff := int(size) - len(buf)
+		for i := 0; i < diff; i++ {
+			buf = append(buf, 0)
+		}
+	}
+
+	// Size target buffer for reading
+	buf = buf[:size]
+
 	// Read message
-	if _, err := r.chunkReader.Read(b); err != nil {
+	if _, err := r.chunkReader.Read(buf); err != nil {
 		return nil, err
 	}
 
-	return b, nil
+	return buf, nil
 }
 
 func (r *reader) readInfo() (schema.LogInfo, error) {
-	data, err := r.readChunk()
+	data, err := r.readChunk([]byte{})
 	if err != nil {
 		return emptyLogInfo, err
 	}
@@ -426,7 +464,7 @@ func (r *reader) Close() error {
 	// Drain any unread data from the outBuffers to free any decoderLoops curently
 	// in a blocking write
 	for {
-		_, ok := <-r.outBuf
+		_, ok := <-r.outChan
 		r.nextIndex++
 		if !ok {
 			break
