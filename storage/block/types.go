@@ -137,7 +137,13 @@ type NewDatabaseBlockFn func() DatabaseBlock
 // DatabaseBlock represents a data block.
 type DatabaseBlock interface {
 	OnRetrieveBlock
+	DatabaseBlockPublic
+	// Private methods because only the Wired List itself should use them.
+	databaseBlockPrivate
+}
 
+// DatabaseBlockPublic is the public portion of the DatabaseBlock interface
+type DatabaseBlockPublic interface {
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
@@ -192,8 +198,10 @@ type DatabaseBlock interface {
 
 	// Owner returns the owner of the block
 	Owner() Owner
+}
 
-	// Private methods because only the Wired List itself should use them.
+// databaseBlockPrivate is the private portion of the DatabaseBlock interface
+type databaseBlockPrivate interface {
 	next() DatabaseBlock
 	setNext(block DatabaseBlock)
 	prev() DatabaseBlock
