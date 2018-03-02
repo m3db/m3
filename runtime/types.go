@@ -128,7 +128,7 @@ type Options interface {
 	// being written to, cannot be unwired. Similarly, blocks which have
 	// just been rotated out of the buffer but have not been flushed yet
 	// can also not be unwired. This means that the limit is best effort.
-	MaxWiredBlocks() int
+	MaxWiredBlocks() uint
 }
 
 // OptionsManager updates and supplies runtime options.

@@ -247,10 +247,10 @@ type testOptions interface {
 	SetNumShards(value int) testOptions
 
 	// MaxWiredBlocks returns the maximum number of wired blocks to keep in memory using the LRU cache.
-	MaxWiredBlocks() int
+	MaxWiredBlocks() uint
 
 	// SetMaxWiredBlocks sets the maximum number of wired blocks to keep in memory using the LRU cache.
-	SetMaxWiredBlocks(value int) testOptions
+	SetMaxWiredBlocks(value uint) testOptions
 }
 
 type options struct {
@@ -279,7 +279,7 @@ type options struct {
 	verifySeriesDebugFilePathPrefix    string
 	writeConsistencyLevel              topology.ConsistencyLevel
 	numShards                          int
-	maxWiredBlocks                     int
+	maxWiredBlocks                     uint
 }
 
 func newTestOptions(t *testing.T) testOptions {
@@ -568,11 +568,11 @@ func (o *options) SetNumShards(value int) testOptions {
 	return &opts
 }
 
-func (o *options) MaxWiredBlocks() int {
+func (o *options) MaxWiredBlocks() uint {
 	return o.maxWiredBlocks
 }
 
-func (o *options) SetMaxWiredBlocks(value int) testOptions {
+func (o *options) SetMaxWiredBlocks(value uint) testOptions {
 	opts := *o
 	opts.maxWiredBlocks = value
 	return &opts
