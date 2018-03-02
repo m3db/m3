@@ -202,7 +202,7 @@ type Session interface {
 	Write(namespace ident.ID, id ident.ID, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
 	// WriteTagged value to the database for an ID and given tags.
-	WriteTagged(namespace string, id string, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
+	WriteTagged(namespace, id ident.ID, tags ident.TagIterator, t time.Time, value float64, unit xtime.Unit, annotation []byte) error
 
 	// Fetch values from the database for an ID
 	Fetch(namespace ident.ID, id ident.ID, startInclusive, endExclusive time.Time) (encoding.SeriesIterator, error)
