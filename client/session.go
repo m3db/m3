@@ -737,7 +737,7 @@ func (s *session) Write(
 }
 
 func (s *session) WriteTagged(
-	namespace, id string,
+	namespace, id ident.ID,
 	tags ident.TagIterator,
 	t time.Time,
 	value float64,
