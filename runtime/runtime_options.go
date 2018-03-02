@@ -37,7 +37,7 @@ const (
 	// defaultMaxWiredBlocks is 2MM by default which if using 2hr block sizes
 	// and writing every 10s at 1.4 point/byte (m3tsz) should use roughly 4gb:
 	// 1.4 * 6 * 120 * (2^21) = ~2gb
-	defaultMaxWiredBlocks = 2097152
+	defaultMaxWiredBlocks = 1 << 31
 )
 
 var (

@@ -121,7 +121,7 @@ type Options interface {
 	// being written to, cannot be unwired. Similarly, blocks which have
 	// just been rotated out of the buffer but have not been flushed yet
 	// can also not be unwired. This means that the limit is best effort.
-	SetMaxWiredBlocks(value int) Options
+	SetMaxWiredBlocks(value uint) Options
 
 	// MaxWiredBlocks returns the max blocks to keep wired, zero is used
 	// to specify no limit. Wired blocks that are in the buffer, I.E are

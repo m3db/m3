@@ -1041,7 +1041,8 @@ func (s *dbShard) FetchBlocks(
 	opts := s.seriesOpts
 	// Nil for onRead callback because we don't want peer bootstrapping to impact
 	// the behavior of the LRU
-	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, nil, opts)
+	onReadCb := nil
+	reader := series.NewReaderUsingRetriever(id, retriever, onRetrieve, onReadCb, opts)
 	return reader.FetchBlocks(ctx, starts)
 }
 
