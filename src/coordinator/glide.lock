@@ -1,5 +1,5 @@
-hash: 5025184e8304272800fb90463ad47dd45843dc9f74ebb55285b91f8bde012d4d
-updated: 2018-02-16T13:34:11.449517667-05:00
+hash: e70f521b4aeddc0ab09bb996221d26ae1b944404d7d566944bffb6a8ed04dcc3
+updated: 2018-03-02T21:44:04.85763136-05:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -35,12 +35,14 @@ imports:
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
+- name: github.com/glycerine/go-unsnap-stream
+  version: 62a9a9eb44fd8932157b1a8ace2149eff5971af6
 - name: github.com/go-ole/go-ole
-  version: de8695c8edbf8236f30d6e1376e20b198a028d42
+  version: a41e3c4b706f6ae8dfbff342b06e40fa4d2d0506
   subpackages:
   - oleutil
 - name: github.com/gogo/protobuf
-  version: 160de10b2537169b5ae3e7e221d28269ef40d311
+  version: d5bc08a2c4c572e9bcff820aa125fe38ac3a3a42
   subpackages:
   - gogoproto
   - proto
@@ -54,7 +56,11 @@ imports:
   subpackages:
   - jsonpb
   - proto
+  - ptypes
+  - ptypes/any
+  - ptypes/duration
   - ptypes/struct
+  - ptypes/timestamp
 - name: github.com/golang/snappy
   version: 553a641470496b2327abcac10b36396bd98e45c9
 - name: github.com/gorilla/context
@@ -95,11 +101,10 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3db
-  version: 2cf3dff4e917703d093717210c8dc96e088e4b05
+  version: 97032294de3b590557c9d3b692533f5ca22ab92b
   subpackages:
   - client
   - clock
-  - context
   - digest
   - encoding
   - encoding/m3tsz
@@ -115,30 +120,39 @@ imports:
   - sharding
   - storage/block
   - storage/bootstrap/result
+  - storage/index
   - storage/namespace
   - storage/series
   - topology
   - ts
-  - x/io
   - x/tchannel
+  - x/xio
 - name: github.com/m3db/m3metrics
   version: 17e4ddf89f2b0c8fbb16b6d5b71a871b793d2a00
   subpackages:
   - generated/proto/schema
   - metric
   - policy
+- name: github.com/m3db/m3ninx
+  version: b2628ee8f986f6df48d3f7589d85a6f390f174a2
+  subpackages:
+  - doc
+  - index/segment
 - name: github.com/m3db/m3x
-  version: c79492efa39435ffea6c04b72faf1402ed784211
+  version: a7ed464be22a80c9e219ac0c65ee051f7a7ee13e
   subpackages:
   - checked
   - clock
   - close
   - config
+  - context
   - errors
+  - ident
   - instrument
   - log
   - pool
   - process
+  - resource
   - retry
   - sync
   - time
@@ -149,12 +163,16 @@ imports:
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
   subpackages:
   - pbutil
+- name: github.com/mschoch/smat
+  version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/opentracing/opentracing-go
   version: 855519783f479520497c6b3445611b05fc42f009
   subpackages:
   - ext
 - name: github.com/pborman/uuid
   version: e790cca94e6cc75c7064b1332e63811d4aae1a53
+- name: github.com/philhofer/fwd
+  version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - name: github.com/pmezard/go-difflib
@@ -177,8 +195,10 @@ imports:
   - model
 - name: github.com/prometheus/procfs
   version: 1878d9fbb537119d24b21ca07effd591627cd160
+- name: github.com/RoaringBitmap/roaring
+  version: 4bbba8874933b985c9160558fddea525dde73e63
 - name: github.com/shirou/gopsutil
-  version: b62e301a8b9958eebb7299683eb57fab229a9501
+  version: c432be29ccce470088d07eea25b3ea7e68a8afbb
   subpackages:
   - cpu
   - host
@@ -191,16 +211,20 @@ imports:
 - name: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 - name: github.com/StackExchange/wmi
-  version: e542ed97d15e640bdc14b5c12162d59e8fc67324
+  version: 5d049714c4a64225c3c79a7cf7d02f7fb5b96338
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
   - assert
   - require
+- name: github.com/tinylib/msgp
+  version: 3b5c87ab5fb00c660bf85b888445d9a01db64db4
+  subpackages:
+  - msgp
 - name: github.com/uber-go/atomic
-  version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
+  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: github.com/uber-go/tally
-  version: 6c4631652c6aab57c64f65c2e0aaec2e9aae3a64
+  version: 522328b48efad0c6034dba92bf39228694e9d31f
   subpackages:
   - m3
   - m3/customtransports
@@ -250,16 +274,41 @@ imports:
   version: fd80eb99c8f653c847d294a001bdf2a3a6f768f5
   subpackages:
   - errgroup
+- name: golang.org/x/sys
+  version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  repo: https://github.com/golang/sys
+  vcs: git
+  subpackages:
+  - unix
+  - windows
+- name: google.golang.org/genproto
+  version: 2c5e7ac708aaa719366570dd82bda44541ca2a63
+  subpackages:
+  - googleapis/rpc/status
 - name: google.golang.org/grpc
   version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
   subpackages:
+  - balancer
+  - balancer/base
+  - balancer/roundrobin
   - codes
+  - connectivity
   - credentials
+  - encoding
+  - encoding/proto
+  - grpclb/grpc_lb_v1/messages
   - grpclog
   - internal
+  - keepalive
   - metadata
   - naming
   - peer
+  - resolver
+  - resolver/dns
+  - resolver/passthrough
+  - stats
+  - status
+  - tap
   - transport
 - name: gopkg.in/alecthomas/kingpin.v2
   version: 947dcec5ba9c011838740e680966fd7087a71d0d
