@@ -17,15 +17,17 @@ import:
 - package: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 - package: github.com/m3db/m3x
-  version: c79492efa39435ffea6c04b72faf1402ed784211
+  version: a7ed464be22a80c9e219ac0c65ee051f7a7ee13e
 - package: github.com/m3db/m3db
-  version: 2cf3dff4e917703d093717210c8dc96e088e4b05
+  version: 97032294de3b590557c9d3b692533f5ca22ab92b
   subpackages:
   - client
 - package: github.com/m3db/m3metrics
   version: 17e4ddf89f2b0c8fbb16b6d5b71a871b793d2a00
   subpackages:
   - policy
+- package: github.com/m3db/m3ninx
+  version: b2628ee8f986f6df48d3f7589d85a6f390f174a2
 - package: github.com/pkg/profile
   version: 5b67d428864e92711fcbd2f8629456121a56d91f
 - package: github.com/golang/mock

@@ -16,6 +16,7 @@ import (
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3metrics/policy"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -30,7 +31,9 @@ func filterFunc(output bool) filter.Storage {
 }
 
 func fakeIterator() encoding.SeriesIterator {
-	return encoding.NewSeriesIterator("id", time.Now(), time.Now(), nil, nil)
+	id := ident.StringID("id")
+	namespace := ident.StringID("metrics")
+	return encoding.NewSeriesIterator(id, namespace, time.Now(), time.Now(), nil, nil)
 }
 
 type fetchResponse struct {
