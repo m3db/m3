@@ -97,13 +97,15 @@ func convertToGeneric(fileName string, dataChannel chan<- []byte, workFunction f
 
 	scanner := bufio.NewScanner(fd)
 
-	for scanner.Scan() {
-		data := bytes.TrimSpace(scanner.Bytes())
-		b := make([]byte, len(data))
-		copy(b, data)
-		dataChannel <- b
-	}
-	close(dataChannel)
+	go func() {
+		for scanner.Scan() {
+			data := bytes.TrimSpace(scanner.Bytes())
+			b := make([]byte, len(data))
+			copy(b, data)
+			dataChannel <- b
+		}
+		close(dataChannel)
+	}()
 	workFunction()
 
 	if err := scanner.Err(); err != nil {
