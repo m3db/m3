@@ -11,6 +11,7 @@ import (
 	"github.com/m3db/m3coordinator/util/execution"
 
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 )
 
@@ -46,7 +47,9 @@ func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, opt
 
 	req := fetchReqs[0]
 	reqRange := req.Ranges[0]
-	iter, err := s.session.Fetch(s.namespace, req.ID, reqRange.Start, reqRange.End)
+	id := ident.StringID(req.ID)
+	namespace := ident.StringID(s.namespace)
+	iter, err := s.session.Fetch(namespace, id, reqRange.Start, reqRange.End)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +118,9 @@ func (s *localStorage) Type() storage.Type {
 func (w *writeRequest) Process(ctx context.Context) error {
 	common := w.writeRequestCommon
 	store := common.store
-	return store.session.Write(store.namespace, common.id, w.timestamp, w.value, common.unit, common.annotation)
+	id := ident.StringID(common.id)
+	namespace := ident.StringID(store.namespace)
+	return store.session.Write(namespace, id, w.timestamp, w.value, common.unit, common.annotation)
 }
 
 type writeRequestCommon struct {
