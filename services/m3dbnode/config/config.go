@@ -21,13 +21,26 @@
 package config
 
 import (
+	"errors"
+	"fmt"
+	"net/url"
+	"path"
+	"strings"
 	"time"
 
+	"github.com/coreos/etcd/embed"
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/environment"
 	"github.com/m3db/m3x/config/hostid"
 	"github.com/m3db/m3x/instrument"
 	xlog "github.com/m3db/m3x/log"
+)
+
+const (
+	defaultETCDDirSuffix  = "etcd"
+	defaultETCDListenHost = "http://0.0.0.0"
+	defaultETCDClientPort = ":2379"
+	defaultETCDServerPort = ":2380"
 )
 
 // Configuration is the configuration for a M3DB node.
@@ -189,4 +202,135 @@ type RepairPolicy struct {
 type HashingConfiguration struct {
 	// Murmur32 seed value.
 	Seed uint32 `yaml:"seed"`
+}
+
+// GetETCDConfig creates a new embedded etcd config from kv config.
+func GetETCDConfig(cfg Configuration) (*embed.Config, error) {
+	newKVCfg := embed.NewConfig()
+	kvCfg := cfg.EnvironmentConfig.KV.Server
+
+	dir := kvCfg.Dir
+	if dir == "" {
+		dir = path.Join(cfg.Filesystem.FilePathPrefix, defaultETCDDirSuffix)
+	}
+	newKVCfg.Dir = dir
+
+	// listen-peer-urls
+	LPUrls, err := convertToURLsWithDefault(kvCfg.LPUrls, defaultETCDListenHost+defaultETCDServerPort)
+	if err != nil {
+		return nil, err
+	}
+	newKVCfg.LPUrls = LPUrls
+
+	// listen-client-urls
+	LCUrls, err := convertToURLsWithDefault(kvCfg.LCUrls, defaultETCDListenHost+defaultETCDClientPort)
+	if err != nil {
+		return nil, err
+	}
+	newKVCfg.LCUrls = LCUrls
+
+	host, err := getHostFromHostID(kvCfg.InitialCluster, kvCfg.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	// initial-advertise-peer-urls
+	APUrls, err := convertToURLsWithDefault(kvCfg.APUrls, host+defaultETCDServerPort)
+	if err != nil {
+		return nil, err
+	}
+	newKVCfg.APUrls = APUrls
+
+	// advertise-client-urls
+	ACUrls, err := convertToURLsWithDefault(kvCfg.ACUrls, host+defaultETCDClientPort)
+	if err != nil {
+		return nil, err
+	}
+	newKVCfg.ACUrls = ACUrls
+
+	newKVCfg.Name = kvCfg.Name
+	newKVCfg.InitialCluster = kvCfg.InitialCluster
+
+	return newKVCfg, nil
+}
+
+func convertToURLsWithDefault(rawURLs []string, def ...string) ([]url.URL, error) {
+	if rawURLs == nil || len(rawURLs) == 0 {
+		rawURLs = def
+	}
+
+	var urls []url.URL
+
+	for _, u := range rawURLs {
+		parsed, err := url.Parse(u)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse URL: %s", u)
+		}
+		urls = append(urls, *parsed)
+	}
+	return urls, nil
+}
+
+func getHostFromHostID(initialCluster, hostID string) (string, error) {
+	if len(initialCluster) == 0 {
+		return "", errors.New("zero nodes in initialCluster")
+	}
+
+	nodesStr := strings.Split(initialCluster, ",")
+
+	for _, nodeStr := range nodesStr {
+		nodeData := strings.Split(nodeStr, "=")
+
+		if len(nodeData) != 2 {
+			return "", errors.New("invalid initialCluster format")
+		}
+
+		if hostID == nodeData[0] {
+			endpoint := nodeData[1]
+
+			colonIdx := strings.LastIndex(endpoint, ":")
+			if colonIdx == -1 {
+				return "", errors.New("invalid initialCluster format")
+			}
+
+			return endpoint[:colonIdx], nil
+		}
+	}
+
+	return "", errors.New("host not in initialCluster list")
+}
+
+// InitialClusterToETCDEndpoints converts the etcd config initialCluster into etcdClusters config
+// for m3cluster.
+func InitialClusterToETCDEndpoints(initialCluster string) ([]string, error) {
+	if len(initialCluster) == 0 {
+		return nil, errors.New("zero nodes in initialCluster")
+	}
+
+	nodesStr := strings.Split(initialCluster, ",")
+	endpoints := make([]string, 0, len(nodesStr))
+
+	for _, nodeStr := range nodesStr {
+		nodeData := strings.Split(nodeStr, "=")
+
+		if len(nodeData) != 2 {
+			return nil, errors.New("invalid initialCluster format")
+		}
+
+		endpoint := nodeData[1]
+
+		colonIdx := strings.LastIndex(endpoint, ":")
+		if colonIdx == -1 {
+			return nil, errors.New("invalid initialCluster format")
+		}
+
+		endpoints = append(endpoints, endpoint[:colonIdx]+defaultETCDClientPort)
+	}
+
+	return endpoints, nil
+}
+
+// IsETCDNode returns whether the given hostID is an etcd node.
+func IsETCDNode(initialCluster, hostID string) bool {
+	return strings.Contains(initialCluster, hostID)
 }

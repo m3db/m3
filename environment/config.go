@@ -27,7 +27,6 @@ import (
 
 	etcdclient "github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/kv"
-	m3clusterkvmem "github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3db/kvconfig"
@@ -39,6 +38,10 @@ import (
 	"github.com/m3db/m3x/instrument"
 )
 
+const (
+	defaultSDTimeout = 10 * time.Minute
+)
+
 var (
 	errNilRetention  = errors.New("namespace retention options cannot be empty")
 	errMissingConfig = errors.New("must supply service or static config")
@@ -46,11 +49,33 @@ var (
 
 // Configuration is a configuration that can be used to create namespaces, a topology, and kv store
 type Configuration struct {
-	// Service is used when a topology initializer is not supplied.
-	Service *etcdclient.Configuration `yaml:"service"`
-
 	// StaticConfiguration is used for running M3DB with a static config
 	Static *StaticConfiguration `yaml:"static"`
+
+	// KV sets the kv configuration for either a clustered or embedded etcd
+	KV *KVConfig `yaml:"kv"`
+}
+
+// KVConfig sets the configs for the KV client and server
+type KVConfig struct {
+	Client *etcdclient.Configuration `yaml:"client"`
+
+	// Presence of a (etcd) server in this config denotes an embedded cluster
+	Server *EmbeddedKV `yaml:"server"`
+}
+
+// EmbeddedKV defines specific fields for the embedded kv server
+type EmbeddedKV struct {
+	Dir            string   `yaml:"dir"`
+	APUrls         []string `yaml:"initialAdvertisePeerUrls"`
+	ACUrls         []string `yaml:"advertiseClientUrls"`
+	LPUrls         []string `yaml:"listenPeerUrls"`
+	LCUrls         []string `yaml:"listenClientUrls"`
+	InitialCluster string   `yaml:"initialCluster"`
+	Name           string   `yaml:"name"`
+
+	// NamespaceTimeout is the timeout duration for setting a namespace
+	NamespaceTimeout time.Duration `yaml:"namespaceTimeout"`
 }
 
 // StaticConfiguration is used for running M3DB with a static config
@@ -95,36 +120,42 @@ type ConfigureResults struct {
 
 // ConfigurationParameters are options used to create new ConfigureResults
 type ConfigurationParameters struct {
-	InstrumentOpts instrument.Options
-	HashingSeed    uint32
-	HostID         string
+	InstrumentOpts   instrument.Options
+	HashingSeed      uint32
+	HostID           string
+	NamespaceTimeout time.Duration
 }
 
 // Configure creates a new ConfigureResults
 func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureResults, error) {
-
 	var emptyConfig ConfigureResults
 
-	switch {
-	case c.Service != nil:
-		configSvcClientOpts := c.Service.NewOptions().
-			SetInstrumentOptions(cfgParams.InstrumentOpts)
-		configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
-		if err != nil {
-			err = fmt.Errorf("could not create m3cluster client: %v", err)
-			return emptyConfig, err
-		}
+	if c.KV.Client.SDConfig.InitTimeout == 0 {
+		c.KV.Client.SDConfig.InitTimeout = defaultSDTimeout
+	}
 
+	configSvcClientOpts := c.KV.Client.NewOptions().
+		SetInstrumentOptions(cfgParams.InstrumentOpts).
+		SetServiceDiscoveryConfig(c.KV.Client.SDConfig)
+	configSvcClient, err := etcdclient.NewConfigServiceClient(configSvcClientOpts)
+	if err != nil {
+		err = fmt.Errorf("could not create m3cluster client: %v", err)
+		return emptyConfig, err
+	}
+
+	switch {
+	case c.Static == nil:
 		dynamicOpts := namespace.NewDynamicOptions().
 			SetInstrumentOptions(cfgParams.InstrumentOpts).
 			SetConfigServiceClient(configSvcClient).
-			SetNamespaceRegistryKey(kvconfig.NamespacesKey)
+			SetNamespaceRegistryKey(kvconfig.NamespacesKey).
+			SetInitTimeout(cfgParams.NamespaceTimeout)
 		nsInit := namespace.NewDynamicInitializer(dynamicOpts)
 
 		serviceID := services.NewServiceID().
-			SetName(c.Service.Service).
-			SetEnvironment(c.Service.Env).
-			SetZone(c.Service.Zone)
+			SetName(c.KV.Client.Service).
+			SetEnvironment(c.KV.Client.Env).
+			SetZone(c.KV.Client.Zone)
 
 		topoOpts := topology.NewDynamicOptions().
 			SetConfigServiceClient(configSvcClient).
@@ -189,7 +220,11 @@ func (c Configuration) Configure(cfgParams ConfigurationParameters) (ConfigureRe
 
 		topoInit := topology.NewStaticInitializer(staticOptions)
 
-		kv := m3clusterkvmem.NewStore()
+		kv, err := configSvcClient.KV()
+		if err != nil {
+			err = fmt.Errorf("could not create KV client, %v", err)
+			return emptyConfig, err
+		}
 
 		configureResults := ConfigureResults{
 			NamespaceInitializer: nsInitStatic,

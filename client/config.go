@@ -154,7 +154,7 @@ func (c Configuration) NewAdminClient(
 	var err error
 	if envCfg.TopologyInitializer == nil {
 		switch {
-		case c.EnvironmentConfig.Service != nil:
+		case c.EnvironmentConfig.Static == nil && c.EnvironmentConfig.KV != nil:
 
 			envCfg, err = c.EnvironmentConfig.Configure(environment.ConfigurationParameters{
 				InstrumentOpts: iopts,
@@ -165,7 +165,7 @@ func (c Configuration) NewAdminClient(
 				return nil, err
 			}
 
-		case c.EnvironmentConfig.Static != nil:
+		case c.EnvironmentConfig.Static != nil && c.EnvironmentConfig.KV != nil:
 
 			envCfg, err = c.EnvironmentConfig.Configure(environment.ConfigurationParameters{})
 			if err != nil {

@@ -32,6 +32,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/m3db/m3cluster/client/etcd"
 	"github.com/m3db/m3cluster/generated/proto/commonpb"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/util"
@@ -69,12 +70,14 @@ import (
 	xlog "github.com/m3db/m3x/log"
 	"github.com/m3db/m3x/pool"
 
+	"github.com/coreos/etcd/embed"
 	"github.com/uber-go/tally"
 )
 
 const (
 	bootstrapConfigInitTimeout = 10 * time.Second
 	serverGracefulCloseTimeout = 10 * time.Second
+	namespaceInitTimeout       = 10 * time.Minute
 )
 
 // RunOptions provides options for running the server
@@ -109,6 +112,58 @@ func Run(runOpts RunOptions) {
 	scope, _, err := cfg.Metrics.NewRootScope()
 	if err != nil {
 		logger.Fatalf("could not connect to metrics: %v", err)
+	}
+
+	if cfg.EnvironmentConfig.KV == nil {
+		logger.Fatal("kv config cannot be nil")
+	}
+
+	// Presence of KV server config indicates embedded etcd cluster
+	if cfg.EnvironmentConfig.KV.Server != nil {
+		// Default etcd node name to HostID
+		if cfg.EnvironmentConfig.KV.Server.Name == "" {
+			name, err := cfg.HostID.Resolve()
+			if err != nil {
+				logger.Fatal("unable to resolve HostID")
+			}
+
+			logger.Infof("setting KV server name to: %s", name)
+
+			cfg.EnvironmentConfig.KV.Server.Name = name
+		}
+
+		// Default etcd client clusters if not set already
+		clusters := cfg.EnvironmentConfig.KV.Client.ETCDClusters
+		if clusters == nil || len(clusters) == 0 {
+			endpoints, err := config.InitialClusterToETCDEndpoints(cfg.EnvironmentConfig.KV.Server.InitialCluster)
+			if err != nil {
+				logger.Fatalf("unable to create etcd clusters: %v", err)
+			}
+
+			zone := cfg.EnvironmentConfig.KV.Client.Zone
+
+			logger.Infof("setting client etcd cluster to zone [%s], endpoints %v", zone, endpoints)
+
+			cfg.EnvironmentConfig.KV.Client.ETCDClusters = []etcd.ClusterConfig{etcd.ClusterConfig{
+				Zone:      zone,
+				Endpoints: endpoints,
+			}}
+		}
+
+		if config.IsETCDNode(cfg.EnvironmentConfig.KV.Server.InitialCluster, cfg.EnvironmentConfig.KV.Server.Name) {
+			logger.Info("is a seed node; starting etcd server")
+
+			etcdCfg, err := config.GetETCDConfig(cfg)
+			if err != nil {
+				logger.Fatalf("unable to create etcd config: %v", err)
+			}
+
+			e, err := embed.StartEtcd(etcdCfg)
+			if err != nil {
+				logger.Fatalf("could not start embedded etcd: %v", err)
+			}
+			defer e.Close()
+		}
 	}
 
 	opts := storage.NewOptions()
@@ -260,30 +315,33 @@ func Run(runOpts RunOptions) {
 	var (
 		envCfg environment.ConfigureResults
 	)
-	switch {
-	case cfg.EnvironmentConfig.Service != nil:
+
+	if cfg.EnvironmentConfig.Static == nil {
 		logger.Info("creating dynamic config service client with m3cluster")
 
+		namespaceTimeout := cfg.EnvironmentConfig.KV.Server.NamespaceTimeout
+		if namespaceTimeout <= 0 {
+			namespaceTimeout = namespaceInitTimeout
+		}
+
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			InstrumentOpts: iopts,
-			HashingSeed:    cfg.Hashing.Seed,
+			InstrumentOpts:   iopts,
+			HashingSeed:      cfg.Hashing.Seed,
+			NamespaceTimeout: namespaceTimeout,
 		})
 		if err != nil {
 			logger.Fatalf("could not initialize dynamic config: %v", err)
 		}
-
-	case cfg.EnvironmentConfig.Static != nil:
+	} else {
 		logger.Info("creating static config service client with m3cluster")
 
 		envCfg, err = cfg.EnvironmentConfig.Configure(environment.ConfigurationParameters{
-			HostID: hostID,
+			InstrumentOpts: iopts,
+			HostID:         hostID,
 		})
 		if err != nil {
 			logger.Fatalf("could not initialize static config: %v", err)
 		}
-
-	default:
-		logger.Fatal("config service or static configuration required")
 	}
 
 	opts = opts.SetNamespaceInitializer(envCfg.NamespaceInitializer)

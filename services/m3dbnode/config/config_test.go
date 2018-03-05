@@ -224,19 +224,30 @@ pooling:
               highWatermark: 0.02
 
 config:
-  service:
-      env: production
-      zone: us-west1
-      service: m3dbnode
-      cacheDir: /var/lib/m3kv
-      etcdClusters:
-          - zone: us-west1
-            endpoints:
-                - etcd01-us-west1:2379
-                - etcd02-us-west1:2379
-                - etcd03-us-west1:2379
-                - etcd04-us-west1:2379
-                - etcd05-us-west1:2379
+    kv:
+        client:
+            env: production
+            zone: embedded
+            service: m3db
+            cacheDir: /var/lib/m3kv
+            etcdClusters:
+                - zone: embedded
+                  endpoints:
+                    - 1.1.1.1:2379
+                    - 1.1.1.2:2379
+                    - 1.1.1.3:2379
+        server:
+            listenPeerUrls:
+                - http://0.0.0.0:2380
+            listenClientUrls:
+                - http://0.0.0.0:2379
+            dir: '/var/lib/etcd'
+            initialAdvertisePeerUrls:
+                - http://1.1.1.1:2380
+            advertiseClientUrls:
+                - http://1.1.1.1:2379
+            initialCluster: host1=http://1.1.1.1:2380,host2=http://1.1.1.2:2380,host3=http://1.1.1.3:2380
+            name: host1
 hashing:
   seed: 42
 writeNewSeriesAsync: true
@@ -290,8 +301,8 @@ hostID:
   envVarName: null
 client:
   config:
-    service: null
     static: null
+    kv: null
   writeConsistencyLevel: 2
   readConsistencyLevel: 2
   connectConsistencyLevel: 0
@@ -461,28 +472,35 @@ pooling:
     lowWatermark: 0.01
     highWatermark: 0.02
 config:
-  service:
-    zone: us-west1
-    env: production
-    service: m3dbnode
-    cacheDir: /var/lib/m3kv
-    etcdClusters:
-    - zone: us-west1
-      endpoints:
-      - etcd01-us-west1:2379
-      - etcd02-us-west1:2379
-      - etcd03-us-west1:2379
-      - etcd04-us-west1:2379
-      - etcd05-us-west1:2379
-      keepAlive:
-        enabled: false
-        period: 0s
-        jitter: 0s
-        timeout: 0s
-      tls: null
-    m3sd:
-      initTimeout: null
   static: null
+  kv:
+    client:
+      zone: embedded
+      env: production
+      service: m3db
+      cacheDir: /var/lib/m3kv
+      etcdClusters:
+      - zone: embedded
+        endpoints:
+        - 1.1.1.1:2379
+        - 1.1.1.2:2379
+        - 1.1.1.3:2379
+        tls: null
+      m3sd:
+        initTimeout: 0s
+    server:
+      dir: /var/lib/etcd
+      initialAdvertisePeerUrls:
+      - http://1.1.1.1:2380
+      advertiseClientUrls:
+      - http://1.1.1.1:2379
+      listenPeerUrls:
+      - http://0.0.0.0:2380
+      listenClientUrls:
+      - http://0.0.0.0:2379
+      initialCluster: host1=http://1.1.1.1:2380,host2=http://1.1.1.2:2380,host3=http://1.1.1.3:2380
+      name: host1
+      namespaceTimeout: 0s
 hashing:
   seed: 42
 writeNewSeriesAsync: true
@@ -493,4 +511,40 @@ writeNewSeriesAsync: true
 		diff := xtest.Diff(expected, actual)
 		require.FailNow(t, "reverse config did not match:\n"+diff)
 	}
+}
+
+func TestInitialClusterToETCDEndpoints(t *testing.T) {
+	endpoints, err := InitialClusterToETCDEndpoints("host1=http://1.1.1.1:2380")
+	require.NoError(t, err)
+	require.NotNil(t, endpoints)
+	assert.Equal(t, 1, len(endpoints))
+	assert.Equal(t, "http://1.1.1.1:2379", endpoints[0])
+
+	endpoints, err = InitialClusterToETCDEndpoints("host1=http://1.1.1.1:2380,host2=http://1.1.1.2:2380,host3=http://1.1.1.3:2380")
+	require.NoError(t, err)
+	require.NotNil(t, endpoints)
+	assert.Equal(t, 3, len(endpoints))
+	assert.Equal(t, "http://1.1.1.1:2379", endpoints[0])
+	assert.Equal(t, "http://1.1.1.2:2379", endpoints[1])
+	assert.Equal(t, "http://1.1.1.3:2379", endpoints[2])
+
+	endpoints, err = InitialClusterToETCDEndpoints("")
+	require.Error(t, err)
+
+	endpoints, err = InitialClusterToETCDEndpoints("host1")
+	require.Error(t, err)
+
+	endpoints, err = InitialClusterToETCDEndpoints("http://1.1.1.1:2380")
+	require.Error(t, err)
+}
+
+func TestIsETCDNode(t *testing.T) {
+	res := IsETCDNode("host1=http://1.1.1.1:2380", "host1")
+	assert.Equal(t, true, res)
+
+	res = IsETCDNode("host1=http://1.1.1.1:2380,host2=http://1.1.1.2:2380,host3=http://1.1.1.3:2380", "host2")
+	assert.Equal(t, true, res)
+
+	res = IsETCDNode("host1=http://1.1.1.1:2380,host2=http://1.1.1.2:2380", "host4")
+	assert.Equal(t, false, res)
 }
