@@ -44,11 +44,12 @@ func main() {
 	})
 	bytesPool.Init()
 
-	reader, err := fs.NewReader(bytesPool, fs.NewOptions())
+	fsOpts := fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
+	reader, err := fs.NewReader(bytesPool, fsOpts)
 	if err != nil {
 		log.Fatalf("could not create new reader: %v", err)
 	}
-	err = reader.Open(ident.StringID(*optNamespace), *optShard, time.Unix(*optBlockstart, 0))
+	err = reader.Open(ident.StringID(*optNamespace), *optShard, time.Unix(0, *optBlockstart))
 	if err != nil {
 		log.Fatalf("unable to open reader: %v", err)
 	}
