@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/tools"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
 
@@ -35,7 +36,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	bytesPool := NewCheckedBytesPool()
+	bytesPool := tools.NewCheckedBytesPool()
 	bytesPool.Init()
 
 	fsOpts := fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
