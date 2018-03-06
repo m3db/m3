@@ -3,18 +3,23 @@ updated: 2018-02-09T17:56:56.875815588-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
+  repo: http://github.com/apache/thrift
   subpackages:
   - lib/go/thrift
 - name: github.com/beorn7/perks
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
+  repo: http://github.com/beorn7/perks
   subpackages:
   - quantile
 - name: github.com/boltdb/bolt
   version: 583e8937c61f1af6513608ccc75c97b6abdf4ff9
+  repo: http://github.com/boltdb/bolt
 - name: github.com/cockroachdb/cmux
   version: 112f0506e7743d64a6eb8fedbcff13d9979bbf92
+  repo: http://github.com/cockroachdb/cmux
 - name: github.com/coreos/etcd
   version: 8ba2897a21e4fc51b298ca553d251318425f93ae
+  repo: http://github.com/coreos/etcd
   subpackages:
   - alarm
   - auth
@@ -73,75 +78,97 @@ imports:
   - wal/walpb
 - name: github.com/coreos/go-semver
   version: 568e959cd89871e61434c1143528d9162da89ef2
+  repo: http://github.com/coreos/go-semver
   subpackages:
   - semver
 - name: github.com/coreos/go-systemd
   version: 48702e0da86bd25e76cfef347e2adeb434a0d0a6
+  repo: http://github.com/coreos/go-systemd
   subpackages:
   - daemon
   - journal
   - util
 - name: github.com/coreos/pkg
   version: 3ac0863d7acf3bc44daf49afef8919af12f704ef
+  repo: http://github.com/coreos/pkg
   subpackages:
   - capnslog
 - name: github.com/davecgh/go-spew
   version: adab96458c51a58dc1783b3335dcce5461522e75
+  repo: http://github.com/davecgh/go-spew
   subpackages:
   - spew
 - name: github.com/facebookgo/clock
+  repo: http://github.com/facebookgo/clock
   version: 600d898af40aa09a7a93ecb9265d87b0504b6f03
 - name: github.com/fortytw2/leaktest
   version: 3677f62bb30dbf3b042c4c211245d072aa9ee075
+  repo: http://github.com/fortytw2/leaktest
 - name: github.com/ghodss/yaml
+  repo: http://github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
 - name: github.com/glycerine/go-unsnap-stream
   version: 87275cecd8e984c5875577d22da7ce8945df780e
+  repo: http://github.com/glycerine/go-unsnap-stream
 - name: github.com/go-ole/go-ole
   version: de8695c8edbf8236f30d6e1376e20b198a028d42
+  repo: http://github.com/go-ole/go-ole
   subpackages:
   - oleutil
 - name: github.com/gogo/protobuf
   version: 160de10b2537169b5ae3e7e221d28269ef40d311
+  repo: http://github.com/gogo/protobuf
   subpackages:
   - proto
 - name: github.com/golang/mock
   version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  repo: http://github.com/golang/mock
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
   version: 3852dcfda249c2097355a6aabb199a28d97b30df
+  repo: http://github.com/golang/protobuf
   subpackages:
   - jsonpb
   - proto
 - name: github.com/golang/snappy
   version: d7b1e156f50d3c4664f683603af70e3e47fa0aa2
+  repo: http://github.com/golang/snappy
 - name: github.com/google/btree
   version: 925471ac9e2131377a91e1595defec898166fe49
+  repo: http://github.com/google/btree
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
+  repo: http://github.com/grpc-ecosystem/go-grpc-prometheus
 - name: github.com/grpc-ecosystem/grpc-gateway
   version: 84398b94e188ee336f307779b57b3aa91af7063c
+  repo: http://github.com/grpc-ecosystem/grpc-gateway
   subpackages:
   - runtime
   - runtime/internal
   - utilities
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+  repo: http://github.com/inconshreveable/mousetrap
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
+  repo: http://github.com/jonboulle/clockwork
 - name: github.com/leanovate/gopter
   version: 9e6101e5a87586b269acf3d0d61f363e4317309f
+  repo: http://github.com/leanovate/gopter
   subpackages:
   - commands
   - gen
   - prop
 - name: github.com/m3db/bitset
   version: 07973db6b78acb62ac207d0538055e874b49d90d
+  repo: http://github.com/m3db/bitset
 - name: github.com/m3db/bloom
   version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
+  repo: http://github.com/m3db/bloom
 - name: github.com/m3db/m3cluster
   version: 8354845ef3ba8c1a4ddbad288fca248516fb0a50
+  repo: http://github.com/m3db/m3cluster
   subpackages:
   - client
   - client/etcd
@@ -169,6 +196,7 @@ imports:
   - shard
 - name: github.com/m3db/m3em
   version: 3a93476c799a6077306f1e25800bf6b058d1aba8
+  repo: http://github.com/m3db/m3em
   subpackages:
   - build
   - checksum
@@ -181,11 +209,13 @@ imports:
   - x/grpc
 - name: github.com/m3db/m3ninx
   version: b2628ee8f986f6df48d3f7589d85a6f390f174a2
+  repo: http://github.com/m3db/m3ninx
   subpackages:
   - doc
   - index/segment
 - name: github.com/m3db/m3x
   version: a7ed464be22a80c9e219ac0c65ee051f7a7ee13e
+  repo: http://github.com/m3db/m3x
   vcs: git
   subpackages:
   - checked
@@ -208,52 +238,68 @@ imports:
   - watch
 - name: github.com/m3db/stackadler32
   version: bfebcd73ef6ffe0ee30489227f0330c39064b674
+  repo: http://github.com/m3db/stackadler32
 - name: github.com/m3db/stackmurmur3
   version: 744c0229c12ed0e4f8cb9d081a2692b3300bf705
+  repo: http://github.com/m3db/stackmurmur3
 - name: github.com/matttproud/golang_protobuf_extensions
   version: c12348ce28de40eed0136aa2b644d0ee0650e56c
+  repo: http://github.com/matttproud/golang_protobuf_extensions
   subpackages:
   - pbutil
 - name: github.com/mschoch/smat
   version: 90eadee771aeab36e8bf796039b8c261bebebe4f
+  repo: http://github.com/mschoch/smat
 - name: github.com/nu7hatch/gouuid
   version: 179d4d0c4d8d407a32af483c2354df1d2c91e6c3
+  repo: http://github.com/nu7hatch/gouuid
 - name: github.com/opentracing/opentracing-go
   version: 855519783f479520497c6b3445611b05fc42f009
+  repo: http://github.com/opentracing/opentracing-go
   subpackages:
   - ext
 - name: github.com/pborman/getopt
   version: ec82d864f599c39673eef89f91b93fa5576567a1
+  repo: http://github.com/pborman/getopt
 - name: github.com/philhofer/fwd
   version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
+  repo: http://github.com/philhofer/fwd
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
+  repo: http://github.com/pmezard/go-difflib
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
   version: c5b7fccd204277076155f10851dad72b76a49317
+  repo: http://github.com/prometheus/client_golang
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
   version: fa8ad6fec33561be4280a8f0514318c79d7f6cb6
+  repo: http://github.com/prometheus/client_model
   subpackages:
   - go
 - name: github.com/prometheus/common
   version: 195bde7883f7c39ea62b0d92ab7359b5327065cb
+  repo: http://github.com/prometheus/common
   subpackages:
   - expfmt
   - internal/bitbucket.org/ww/goautoneg
   - model
 - name: github.com/prometheus/procfs
   version: 1878d9fbb537119d24b21ca07effd591627cd160
+  repo: http://github.com/prometheus/procfs
 - name: github.com/RoaringBitmap/roaring
   version: 4bbba8874933b985c9160558fddea525dde73e63
+  repo: http://github.com/RoaringBitmap/roaring
 - name: github.com/sergi/go-diff
   version: feef008d51ad2b3778f85d387ccf91735543008d
+  repo: http://github.com/sergi/go-diff
   subpackages:
   - diffmatchpatch
 - name: github.com/shirou/gopsutil
   version: b62e301a8b9958eebb7299683eb57fab229a9501
+  repo: http://github.com/shirou/gopsutil
   subpackages:
   - cpu
   - host
@@ -263,29 +309,38 @@ imports:
   - process
 - name: github.com/shirou/w32
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
+  repo: http://github.com/shirou/w32
 - name: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
+  repo: http://github.com/spaolacci/murmur3
 - name: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f
+  repo: http://github.com/spf13/cobra
   subpackages:
   - cobra
 - name: github.com/spf13/pflag
   version: 4f9190456aed1c2113ca51ea9b89219747458dc1
+  repo: http://github.com/spf13/pflag
 - name: github.com/StackExchange/wmi
   version: e542ed97d15e640bdc14b5c12162d59e8fc67324
+  repo: http://github.com/StackExchange/wmi
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
+  repo: http://github.com/stretchr/testify
   subpackages:
   - assert
   - require
 - name: github.com/tinylib/msgp
   version: 3b556c64540842d4f82967be066a7f7fffc3adad
+  repo: http://github.com/tinylib/msgp
   subpackages:
   - msgp
 - name: github.com/uber-go/atomic
   version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+  repo: http://github.com/uber-go/atomic
 - name: github.com/uber-go/tally
   version: 6c4631652c6aab57c64f65c2e0aaec2e9aae3a64
+  repo: http://github.com/uber-go/tally
   subpackages:
   - m3
   - m3/customtransports
@@ -293,6 +348,7 @@ imports:
   - m3/thriftudp
 - name: github.com/uber/tchannel-go
   version: 1fcf82ec86967eb43ba0baa9b964f8eb226d242e
+  repo: http://github.com/uber/tchannel-go
   subpackages:
   - internal/argreader
   - relay
@@ -304,18 +360,24 @@ imports:
   - typed
 - name: github.com/ugorji/go
   version: ded73eae5db7e7a0ef6f55aace87a2873c5d2b74
+  repo: http://github.com/ugorji/go
   subpackages:
   - codec
 - name: github.com/willf/bitset
   version: 1ea0245d2bc8ce44623f24a1ae162beb06ad8cd6
+  repo: http://github.com/willf/bitset
 - name: github.com/xiang90/probing
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
+  repo: http://github.com/xiang90/probing
 - name: go.uber.org/atomic
   version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+  repo: http://go.uber.org/atomic
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
+  repo: http://go.uber.org/multierr
 - name: go.uber.org/zap
   version: f85c78b1dd998214c5f2138155b320a4a43fbe36
+  repo: http://go.uber.org/zap
   subpackages:
   - buffer
   - internal/bufferpool
@@ -324,13 +386,14 @@ imports:
   - zapcore
 - name: golang.org/x/crypto
   version: 1351f936d976c60a0a48d728281922cf63eafb8d
-  repo: https://github.com/golang/crypto
+  repo: http://github.com/golang/crypto
   vcs: git
   subpackages:
   - bcrypt
   - blowfish
 - name: golang.org/x/net
   version: 61557ac0112b576429a0df080e1c2cef5dfbb642
+  repo: http://golang.org/x/net
   subpackages:
   - bpf
   - context
@@ -346,12 +409,13 @@ imports:
   - trace
 - name: golang.org/x/sys
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
-  repo: https://github.com/golang/sys
+  repo: http://github.com/golang/sys
   vcs: git
   subpackages:
   - unix
 - name: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
+  repo: http://google.golang.org/appengine
   subpackages:
   - datastore
   - internal
@@ -363,6 +427,7 @@ imports:
   - internal/remote_api
 - name: google.golang.org/grpc
   version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
+  repo: http://google.golang.org/grpc
   subpackages:
   - codes
   - credentials
@@ -374,10 +439,13 @@ imports:
   - transport
 - name: gopkg.in/validator.v2
   version: 3e4f037f12a1221a0864cf0dd2e81c452ab22448
+  repo: http://gopkg.in/validator.v2
 - name: gopkg.in/vmihailenco/msgpack.v2
   version: a1382b1ce0c749733b814157c245e02cc1f41076
+  repo: http://gopkg.in/vmihailenco/msgpack.v2
   subpackages:
   - codes
 - name: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
+  repo: http://gopkg.in/yaml.v2
 testImports: []
