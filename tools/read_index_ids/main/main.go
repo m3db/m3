@@ -8,7 +8,6 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/pool"
 
 	"github.com/pborman/getopt"
 )
@@ -36,12 +35,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
-		Capacity: defaultBufferCapacity,
-		Count:    defaultBufferPoolCount,
-	}}, nil, func(buckets []pool.Bucket) pool.BytesPool {
-		return pool.NewBytesPool(buckets, nil)
-	})
+	bytesPool := NewCheckedBytesPool()
 	bytesPool.Init()
 
 	fsOpts := fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
