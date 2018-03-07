@@ -402,7 +402,7 @@ func (d *db) Open() error {
 
 	// Start the wired list
 	if wiredList := d.opts.DatabaseBlockOptions().WiredList(); wiredList != nil {
-		err = wiredList.Start()
+		err := wiredList.Start()
 		if err != nil {
 			return err
 		}
@@ -433,7 +433,7 @@ func (d *db) terminateWithLock() error {
 
 	// Stop the wired list
 	if wiredList := d.opts.DatabaseBlockOptions().WiredList(); wiredList != nil {
-		err = wiredList.Stop()
+		err := wiredList.Stop()
 		if err != nil {
 			return err
 		}
