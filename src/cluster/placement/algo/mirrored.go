@@ -133,16 +133,10 @@ func (a mirroredAlgorithm) RemoveInstances(
 	}
 
 	for _, instance := range mirrorInstances {
-		ph, leavingInstance, err := newRemoveInstanceHelper(mirrorPlacement, instance.ID(), a.opts)
-		if err != nil {
-			return nil, err
-		}
-		// Place the shards from the leaving instance to the rest of the cluster
-		if err := ph.placeShards(leavingInstance.Shards().All(), leavingInstance, ph.Instances()); err != nil {
-			return nil, err
-		}
-
-		if mirrorPlacement, _, err = addInstanceToPlacement(ph.generatePlacement(), leavingInstance, withShards); err != nil {
+		if mirrorPlacement, err = a.shardedAlgo.RemoveInstances(
+			mirrorPlacement,
+			[]string{instance.ID()},
+		); err != nil {
 			return nil, err
 		}
 	}
@@ -185,20 +179,12 @@ func (a mirroredAlgorithm) AddInstances(
 	}
 
 	for _, instance := range mirrorInstances {
-		if _, ok := mirrorPlacement.Instance(instance.ID()); ok {
-			return nil, fmt.Errorf("shard set id %d already exist in current placement", instance.ShardSetID())
-		}
-
-		ph, instance, err := newAddInstanceHelper(mirrorPlacement, instance, a.opts, withLeavingShardsOnly)
-		if err != nil {
+		if mirrorPlacement, err = a.shardedAlgo.AddInstances(
+			mirrorPlacement,
+			[]placement.Instance{instance},
+		); err != nil {
 			return nil, err
 		}
-
-		if err = ph.addInstance(instance); err != nil {
-			return nil, err
-		}
-
-		mirrorPlacement = ph.generatePlacement()
 	}
 
 	return placementFromMirror(mirrorPlacement, append(p.Instances(), addingInstances...), p.ReplicaFactor())
@@ -238,8 +224,11 @@ func (a mirroredAlgorithm) ReplaceInstances(
 	}
 	for i := range leavingInstanceIDs {
 		// We want full replacement for each instance.
-		p, err = a.shardedAlgo.ReplaceInstances(p, leavingInstanceIDs[i:i+1], addingInstances[i:i+1])
-		if err != nil {
+		if p, err = a.shardedAlgo.ReplaceInstances(
+			p,
+			leavingInstanceIDs[i:i+1],
+			addingInstances[i:i+1],
+		); err != nil {
 			return nil, err
 		}
 	}
