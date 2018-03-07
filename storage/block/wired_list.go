@@ -58,6 +58,7 @@ import (
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3x/instrument"
+	xlog "github.com/m3db/m3x/log"
 
 	"github.com/uber-go/tally"
 )
@@ -87,6 +88,7 @@ type WiredList struct {
 	doneCh    chan struct{}
 
 	metrics wiredListMetrics
+	logger  xlog.Logger
 }
 
 type wiredListMetrics struct {
@@ -127,6 +129,7 @@ func NewWiredList(
 	l := &WiredList{
 		nowFn:   copts.NowFn(),
 		metrics: newWiredListMetrics(scope),
+		logger:  iopts.Logger(),
 	}
 	l.root.setNext(&l.root)
 	l.root.setPrev(&l.root)
@@ -211,11 +214,15 @@ func (l *WiredList) processUpdateBlock(v DatabaseBlock) {
 		return
 	}
 
-	// If a block is not unwireable, there is no point in keeping track of it in the wired list
-	// so we remove it or just don't add it in the first place since the remove method is a noop
-	// for blocks that aren't already in the WiredList and the pushBack method used above is the
-	// only way for blocks to be added to the WiredList.
+	// We should never reach this code path, but if a block is not unwireable there is no point
+	// in keeping track of it in the WiredList, so we remove it or don't add it in the first place.
+	// This works because the remove method is a noop for blocks that aren't already in the WiredList
+	// and the pushBack method used above is the only way for blocks to be added.
 	l.remove(v)
+	l.logger.WithFields(
+		xlog.NewField("closed", entry.closed),
+		xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
+	).Errorf("wired list tried to process a block that was not unwireable")
 }
 
 func (l *WiredList) insertAfter(v, at DatabaseBlock) {
