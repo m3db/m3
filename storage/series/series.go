@@ -510,10 +510,10 @@ func (s *dbSeries) OnReadBlock(b block.DatabaseBlock) {
 
 func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	s.Lock()
+	defer s.Unlock()
 
 	// Should never happen
 	if !id.Equal(s.id) {
-		s.Unlock()
 		return
 	}
 
@@ -525,13 +525,11 @@ func (s *dbSeries) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 				xlog.NewField("id", id.String()),
 				xlog.NewField("blockStart", blockStart),
 			).Errorf("tried to evict block that was not retrieved from disk")
-			s.Unlock()
 			return
 		}
 
 		s.blocks.RemoveBlockAt(blockStart)
 	}
-	s.Unlock()
 }
 
 func (s *dbSeries) newBootstrapBlockError(
