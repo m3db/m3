@@ -370,10 +370,10 @@ func (s *dbSeries) bufferDrained(newBlock block.DatabaseBlock) {
 	// lock already. Executing the drain method occurs during a write if the
 	// buffer needs to drain or if tick is called and series explicitly asks
 	// the buffer to drain ready buckets.
-	s.mergeBlock(s.blocks, newBlock)
+	s.mergeBlockWithLock(s.blocks, newBlock)
 }
 
-func (s *dbSeries) mergeBlock(
+func (s *dbSeries) mergeBlockWithLock(
 	blocks block.DatabaseSeriesBlocks,
 	newBlock block.DatabaseBlock,
 ) {
@@ -440,7 +440,7 @@ func (s *dbSeries) Bootstrap(blocks block.DatabaseSeriesBlocks) error {
 		// If we're overwriting the blocks then merge any existing blocks
 		// already drained
 		for _, existingBlock := range existingBlocks.AllBlocks() {
-			s.mergeBlock(blocks, existingBlock)
+			s.mergeBlockWithLock(blocks, existingBlock)
 		}
 	}
 
