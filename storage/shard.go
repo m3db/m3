@@ -362,10 +362,15 @@ func (s *dbShard) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	}
 
 	if entry == nil {
-		// This could happen in a situation where the WiredList had a reference
-		// to a block that was in a series which has since been evicted. For
-		// example, if a tick caused an entire series to be flushed, but one
-		// of its blocks was still in the WiredList this might happen.
+		// Should never happen. The series should always be present because the only
+		// way for it to be removed is if the background tick removes it. That shouldn't
+		// happen if it still has blocks, and it should still have at least one block
+		// because we reached this code path which means that there should have been at
+		// least one block in the series (the one that was retrieved from disk and
+		// controlled by the wired list.)
+		s.logger.Errorf(
+			"tried to evict block: %d for series: %s, but series does not exist",
+			blockStart.Unix(), id.String())
 		return
 	}
 
