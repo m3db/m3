@@ -92,6 +92,24 @@ type wiredListMetrics struct {
 	evictedAfterDuration tally.Timer
 }
 
+func newWiredListMetrics(scope tally.Scope) wiredListMetrics {
+	return wiredListMetrics{
+		// Keeps track of how many blocks are in the list
+		unwireable: scope.Gauge("unwireable"),
+		limit:      scope.Gauge("limit"),
+		// Incremented when a block is evicted
+		evicted: scope.Counter("evicted"),
+		// Incremented when a block is "pushed back" in the list, I.E
+		// it was already in the list
+		pushedBack: scope.Counter("pushed-back"),
+		// Incremented when a block is inserted into the list, I.E
+		// it wasn't already present
+		inserted: scope.Counter("inserted"),
+		// Measure how much time blocks spend in the list before being evicted
+		evictedAfterDuration: scope.Timer("evicted-after-duration"),
+	}
+}
+
 // NewWiredList returns a new database block wired list.
 func NewWiredList(
 	runtimeOptsMgr runtime.OptionsManager,
@@ -101,22 +119,8 @@ func NewWiredList(
 	scope := iopts.MetricsScope().
 		SubScope("wired-list")
 	l := &WiredList{
-		nowFn: copts.NowFn(),
-		metrics: wiredListMetrics{
-			// Keeps track of how many blocks are in the list
-			unwireable: scope.Gauge("unwireable"),
-			limit:      scope.Gauge("limit"),
-			// Incremented when a block is evicted
-			evicted: scope.Counter("evicted"),
-			// Incremented when a block is "pushed back" in the list, I.E
-			// it was already in the list
-			pushedBack: scope.Counter("pushed-back"),
-			// Incremented when a block is inserted into the list, I.E
-			// it wasn't already present
-			inserted: scope.Counter("inserted"),
-			// Measure how much time blocks spend in the list before being evicted
-			evictedAfterDuration: scope.Timer("evicted-after-duration"),
-		},
+		nowFn:   copts.NowFn(),
+		metrics: newWiredListMetrics(scope),
 	}
 	l.root.setNext(&l.root)
 	l.root.setPrev(&l.root)
