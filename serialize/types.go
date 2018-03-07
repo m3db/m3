@@ -46,9 +46,7 @@ type Encoder interface {
 	Encode(ident.TagIterator) error
 
 	// Data returns the encoded bytes.
-	// NB: Data() requires Encode() be called first, and it returning no
-	// error. Calling Data() without condition will cause a panic.
-	Data() checked.Bytes
+	Data() (checked.Bytes, bool)
 
 	// Reset resets the internal state to allow reuse of the encoder.
 	Reset()

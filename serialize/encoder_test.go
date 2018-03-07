@@ -41,7 +41,10 @@ func TestEmptyEncode(t *testing.T) {
 	e := newTestEncoder()
 	require.NoError(t, e.Encode(ident.EmptyTagIterator))
 
-	b := e.Data().Get()
+	bc, ok := e.Data()
+	require.True(t, ok)
+	require.NotNil(t, bc)
+	b := bc.Get()
 	require.Len(t, b, 4)
 	require.Equal(t, headerMagicBytes, b[:2])
 	require.Equal(t, []byte{0x0, 0x0}, b[2:4])
@@ -82,7 +85,10 @@ func TestSimpleEncode(t *testing.T) {
 	)
 	require.NoError(t, e.Encode(tags))
 
-	b := e.Data().Get()
+	bc, ok := e.Data()
+	require.True(t, ok)
+	require.NotNil(t, bc)
+	b := bc.Get()
 	numExpectedBytes := 2 /* header */ + 2 /* num tags */ +
 		2 /* abc length */ + len("abc") +
 		2 /* defg length */ + len("defg") +
@@ -109,10 +115,9 @@ func TestEncoderErrorEncoding(t *testing.T) {
 	)
 
 	require.Error(t, e.Encode(tags))
-	require.Panics(t, func() {
-		// no valid data to return
-		e.Data().Get()
-	})
+	d, ok := e.Data()
+	require.Nil(t, d)
+	require.False(t, ok)
 
 	e.Reset()
 	tags = ident.NewTagIterator(ident.StringTag("abc", "defg"))

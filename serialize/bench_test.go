@@ -45,7 +45,7 @@ func BenchmarkCustomReadWrite(b *testing.B) {
 		copy := iter.Duplicate()
 		enc.Reset()
 		enc.Encode(copy)
-		data := enc.Data()
+		data, _ := enc.Data()
 		dec.Reset(data)
 	}
 }

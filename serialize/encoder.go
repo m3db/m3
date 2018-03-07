@@ -118,8 +118,11 @@ func (e *encoder) Encode(srcTags ident.TagIterator) error {
 	return nil
 }
 
-func (e *encoder) Data() checked.Bytes {
-	return e.checkedBytes
+func (e *encoder) Data() (checked.Bytes, bool) {
+	if e.checkedBytes.NumRef() == 0 {
+		return nil, false
+	}
+	return e.checkedBytes, true
 }
 
 func (e *encoder) Reset() {

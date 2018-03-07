@@ -96,7 +96,10 @@ func encodeAndDecode(t ident.TagIterator) (ident.TagIterator, error) {
 	if err := enc.Encode(copy); err != nil {
 		return nil, err
 	}
-	data := enc.Data()
+	data, ok := enc.Data()
+	if !ok {
+		return nil, fmt.Errorf("unable to retrieve data")
+	}
 	dec := newDecoder(nil, checkedBytesWrapperPool)
 	dec.Reset(data)
 	return dec, nil
