@@ -134,16 +134,10 @@ type FetchBlocksMetadataResults interface {
 // NewDatabaseBlockFn creates a new database block.
 type NewDatabaseBlockFn func() DatabaseBlock
 
-// DatabaseBlock represents a data block.
+// DatabaseBlock is the interface for a DatabaseBlock
 type DatabaseBlock interface {
 	OnRetrieveBlock
-	DatabaseBlockPublic
-	// Private methods because only the Wired List itself should use them.
-	databaseBlockPrivate
-}
 
-// DatabaseBlockPublic is the public portion of the DatabaseBlock interface
-type DatabaseBlockPublic interface {
 	// StartTime returns the start time of the block.
 	StartTime() time.Time
 
@@ -198,10 +192,13 @@ type DatabaseBlockPublic interface {
 
 	// OnEvictedFromWiredList returns the owner of the block
 	OnEvictedFromWiredList() OnEvictedFromWiredList
+
+	// Private methods because only the Wired List itself should use them.
+	databaseBlock
 }
 
-// databaseBlockPrivate is the private portion of the DatabaseBlock interface
-type databaseBlockPrivate interface {
+// databaseBlock is the private portion of the DatabaseBlock interface
+type databaseBlock interface {
 	next() DatabaseBlock
 	setNext(block DatabaseBlock)
 	prev() DatabaseBlock
