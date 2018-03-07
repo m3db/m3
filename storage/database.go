@@ -402,7 +402,10 @@ func (d *db) Open() error {
 
 	// Start the wired list
 	if wiredList := d.opts.DatabaseBlockOptions().WiredList(); wiredList != nil {
-		wiredList.Start()
+		err = wiredList.Start()
+		if err != nil {
+			return err
+		}
 	}
 
 	return d.mediator.Open()
@@ -430,7 +433,10 @@ func (d *db) terminateWithLock() error {
 
 	// Stop the wired list
 	if wiredList := d.opts.DatabaseBlockOptions().WiredList(); wiredList != nil {
-		wiredList.Stop()
+		err = wiredList.Stop()
+		if err != nil {
+			return err
+		}
 	}
 
 	// NB(prateek): Terminate is meant to return quickly, so we rely upon

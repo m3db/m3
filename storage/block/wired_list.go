@@ -50,6 +50,7 @@
 package block
 
 import (
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -64,6 +65,11 @@ import (
 const (
 	wiredListEventsChannelLength = 65536
 	wiredListSampleGaugesEvery   = 100
+)
+
+var (
+	errAlreadyStarted = errors.New("wired list already started")
+	errAlreadyStopped = errors.New("wired list already stopped")
 )
 
 // WiredList is a database block wired list.
@@ -135,11 +141,11 @@ func (l *WiredList) SetRuntimeOptions(value runtime.Options) {
 }
 
 // Start starts processing the wired list
-func (l *WiredList) Start() {
+func (l *WiredList) Start() error {
 	l.Lock()
 	defer l.Unlock()
 	if l.updatesCh != nil {
-		return
+		return errAlreadyStarted
 	}
 
 	l.updatesCh = make(chan DatabaseBlock, wiredListEventsChannelLength)
@@ -156,10 +162,19 @@ func (l *WiredList) Start() {
 		}
 		l.doneCh <- struct{}{}
 	}()
+
+	return nil
 }
 
 // Stop stops processing the wired list
-func (l *WiredList) Stop() {
+func (l *WiredList) Stop() error {
+	l.Lock()
+	defer l.Unlock()
+
+	if l.updatesCh == nil {
+		return errAlreadyStopped
+	}
+
 	close(l.updatesCh)
 	<-l.doneCh
 
@@ -168,6 +183,8 @@ func (l *WiredList) Stop() {
 	l.updatesCh = nil
 	close(l.doneCh)
 	l.doneCh = nil
+
+	return nil
 }
 
 // Update places the block into the channel of blocks which are waiting to notify the
