@@ -203,8 +203,21 @@ func (l *WiredList) Update(v DatabaseBlock) {
 // and determines what outcome its state should have on the wired list.
 func (l *WiredList) processUpdateBlock(v DatabaseBlock) {
 	entry := v.wiredListEntry()
-	// The WiredList should never receive closed blocks or blocks that were not retrieved
-	// from disk, but we include the sanity check for posterity.
+
+	if !entry.wasRetrievedFromDisk {
+		// The WiredList should should never receive blocks that were not retrieved from disk,
+		// but we check for posterity.
+		l.logger.WithFields(
+			xlog.NewField("closed", entry.closed),
+			xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
+		).Errorf("wired list tried to process a block that was not unwireable")
+	}
+
+	// In some cases the WiredList can receive blocks that are closed. This can happen if a block is
+	// in the updatesCh (because it was read) but also already in the WiredList, and while its still
+	// in the updatesCh, it is evicted from the wired list to make room for some other block that is
+	// being processed. The eviction of the block will close it, but the enqueued update is still in
+	// the updateCh even though its an update for a closed block.
 	unwireable := !entry.closed && entry.wasRetrievedFromDisk
 
 	// If a block is still unwireable then its worth keeping track of in the wired list
@@ -214,15 +227,11 @@ func (l *WiredList) processUpdateBlock(v DatabaseBlock) {
 		return
 	}
 
-	// We should never reach this code path, but if a block is not unwireable there is no point
-	// in keeping track of it in the WiredList, so we remove it or don't add it in the first place.
-	// This works because the remove method is a noop for blocks that aren't already in the WiredList
-	// and the pushBack method used above is the only way for blocks to be added.
+	// If a block is not unwireable there is no point in keeping track of it in the WiredList,
+	// so we remove it or don't add it in the first place. This works because the remove method
+	// is a noop for blocks that aren't already in the WiredList and the pushBack method used
+	// above is the only way for blocks to be added.
 	l.remove(v)
-	l.logger.WithFields(
-		xlog.NewField("closed", entry.closed),
-		xlog.NewField("wasRetrievedFromDisk", entry.wasRetrievedFromDisk),
-	).Errorf("wired list tried to process a block that was not unwireable")
 }
 
 func (l *WiredList) insertAfter(v, at DatabaseBlock) {

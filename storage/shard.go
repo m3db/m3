@@ -362,15 +362,16 @@ func (s *dbShard) OnEvictedFromWiredList(id ident.ID, blockStart time.Time) {
 	}
 
 	if entry == nil {
-		// Should never happen. The series should always be present because the only
-		// way for it to be removed is if the background tick removes it. That shouldn't
-		// happen if it still has blocks, and it should still have at least one block
-		// because we reached this code path which means that there should have been at
-		// least one block in the series (the one that was retrieved from disk and
-		// controlled by the wired list.)
-		s.logger.Errorf(
-			"tried to evict block: %d for series: %s, but series does not exist",
-			blockStart.Unix(), id.String())
+		// Its counter-intuitive that this can ever occur because the series should
+		// always exist if it has any active blocks, and if we've reached this point
+		// then the WiredList had a reference to a block that should still be in the
+		// series, and thus the series should exist. The reason this can occur is that
+		// even though the WiredList controls the lifecycle of blocks retrieved from
+		// disk, those blocks can still be removed from the series if they've completely
+		// fallen out of the retention period. In that case, the series tick will still
+		// remove the block, and then the shard tick can remove the series. At that point,
+		// it's possible for the WiredList to have a reference to an expired block for a
+		// series that is no longer in the shard.
 		return
 	}
 
