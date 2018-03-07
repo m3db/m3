@@ -493,7 +493,8 @@ func (s *dbSeries) OnRetrieveBlock(
 	}
 }
 
-// OnReadBlock is only called
+// OnReadBlock is only called for blocks that were read from memory, regardless of
+// whether the data originated from disk or buffer rotation.
 func (s *dbSeries) OnReadBlock(b block.DatabaseBlock) {
 	if list := s.opts.DatabaseBlockOptions().WiredList(); list != nil {
 		// The WiredList is only responsible for managing the lifecycle of blocks
