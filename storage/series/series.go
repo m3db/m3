@@ -382,17 +382,17 @@ func (s *dbSeries) mergeBlockWithLock(
 	// If we don't have an existing block just insert the new block.
 	existingBlock, ok := blocks.BlockAt(blockStart)
 	if !ok {
-		s.addBlock(newBlock)
+		s.addBlockWithLock(newBlock)
 		return
 	}
 
 	// We are performing this in a lock, cannot wait for the existing
 	// block potentially to be retrieved from disk, lazily merge the stream.
 	newBlock.Merge(existingBlock)
-	s.addBlock(newBlock)
+	s.addBlockWithLock(newBlock)
 }
 
-func (s *dbSeries) addBlock(b block.DatabaseBlock) {
+func (s *dbSeries) addBlockWithLock(b block.DatabaseBlock) {
 	b.SetOnEvictedFromWiredList(s.blockOnEvictedFromWiredList)
 	s.blocks.AddBlock(b)
 }
@@ -483,7 +483,7 @@ func (s *dbSeries) OnRetrieveBlock(
 	b.SetLastReadTime(s.now())
 
 	// If we retrieved this from disk then we directly emplace it
-	s.addBlock(b)
+	s.addBlockWithLock(b)
 
 	if list := s.opts.DatabaseBlockOptions().WiredList(); list != nil {
 		// Need to update the WiredList so blocks that were read from disk
