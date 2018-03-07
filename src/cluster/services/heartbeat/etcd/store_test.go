@@ -21,7 +21,6 @@
 package etcd
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -96,12 +95,16 @@ func TestHeartbeat(t *testing.T) {
 	require.NoError(t, err)
 	store := c.(*client)
 
+	ids, err := store.Get()
+	require.Equal(t, 0, len(ids))
+	require.NoError(t, err)
+
 	err = store.Heartbeat(i1, 2*time.Second)
 	require.NoError(t, err)
 	err = store.Heartbeat(i2, time.Minute)
 	require.NoError(t, err)
 
-	ids, err := store.Get()
+	ids, err = store.Get()
 	require.NoError(t, err)
 	require.Equal(t, 2, len(ids))
 	require.Contains(t, ids, "i1")
@@ -211,8 +214,8 @@ func TestWatch(t *testing.T) {
 
 	w1, err := store.Watch()
 	require.NoError(t, err)
-	require.Equal(t, 0, len(w1.C()))
-	require.Nil(t, w1.Get())
+	<-w1.C()
+	require.Empty(t, w1.Get())
 
 	err = store.Heartbeat(i1, 2*time.Second)
 	require.NoError(t, err)
@@ -307,12 +310,6 @@ func TestWatchClose(t *testing.T) {
 }
 
 func TestMultipleWatchesFromNotExist(t *testing.T) {
-	for i := 0; i < 10; i++ {
-		testMultipleWatchesFromNotExist(t)
-	}
-}
-
-func testMultipleWatchesFromNotExist(t *testing.T) {
 	sid := services.NewServiceID().SetName("s1").SetEnvironment("e1")
 	ec, opts, closeFn := testStore(t, sid)
 	defer closeFn()
@@ -325,15 +322,13 @@ func testMultipleWatchesFromNotExist(t *testing.T) {
 
 	w1, err := store.Watch()
 	require.NoError(t, err)
-	require.Equal(t, 0, len(w1.C()))
-	require.Nil(t, w1.Get())
+	<-w1.C()
+	require.Empty(t, w1.Get())
 
 	w2, err := store.Watch()
 	require.NoError(t, err)
-	if len(w2.C()) > 0 {
-		require.Fail(t, fmt.Sprintf("expect no update, but got %v", w2.Get().([]string)))
-	}
-	require.Nil(t, w2.Get())
+	<-w2.C()
+	require.Empty(t, w2.Get())
 
 	err = store.Heartbeat(i1, 1*time.Second)
 	require.NoError(t, err)
