@@ -192,9 +192,12 @@ func (c *client) get(key string) ([]string, error) {
 	ctx, cancel := c.context()
 	defer cancel()
 
-	resp, err := c.kv.Get(ctx, key,
+	resp, err := c.kv.Get(
+		ctx,
+		key,
 		clientv3.WithPrefix(),
-		clientv3.WithKeysOnly())
+		clientv3.WithKeysOnly(),
+	)
 
 	if err != nil {
 		c.m.etcdGetError.Inc(1)
