@@ -193,7 +193,8 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 					shouldUnwire = true
 				}
 			default:
-				panic(fmt.Sprintf("Unhandled cache policy in series tick: %s", cachePolicy))
+				s.opts.InstrumentOptions().Logger().Fatalf(
+					"unhandled cache policy in series tick: %s", cachePolicy)
 			}
 		}
 
