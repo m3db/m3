@@ -73,6 +73,7 @@ type Decoder interface {
 	ident.TagIterator
 
 	// Reset resets internal state to iterate over the provided bytes.
+	// NB: the Decoder takes ownership of the provided checked.Bytes.
 	Reset(checked.Bytes)
 
 	// Finalize releases any held resources.

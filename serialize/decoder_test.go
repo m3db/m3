@@ -102,6 +102,28 @@ func TestDecodeMissingTags(t *testing.T) {
 	require.Error(t, d.Err())
 }
 
+func TestDecodeOwnershipFinalize(t *testing.T) {
+	var b []byte
+	b = append(b, headerMagicBytes...)
+	b = append(b, encodeUInt16(uint16(2))...) /* num tags */
+
+	wrappedBytes := wrapAsCheckedBytes(b)
+	require.Equal(t, 0, wrappedBytes.NumRef())
+
+	d := newTestDecoder()
+	d.Reset(wrappedBytes)
+	require.NoError(t, d.Err())
+	require.NotEqual(t, 0, wrappedBytes.NumRef())
+
+	require.False(t, d.Next())
+	require.Error(t, d.Err())
+
+	d.Finalize()
+	require.Equal(t, 0, wrappedBytes.NumRef())
+	wrappedBytes.IncRef()
+	require.Nil(t, wrappedBytes.Get())
+}
+
 func TestDecodeMissingValue(t *testing.T) {
 	var b []byte
 	b = append(b, headerMagicBytes...)
@@ -149,7 +171,13 @@ func newTestDecoder() Decoder {
 }
 
 func wrapAsCheckedBytes(b []byte) checked.Bytes {
-	cb := checked.NewBytes(nil, nil)
+	opts := checked.NewBytesOptions().SetFinalizer(
+		checked.BytesFinalizerFn(func(b checked.Bytes) {
+			b.IncRef()
+			b.Reset(nil)
+			b.DecRef()
+		}))
+	cb := checked.NewBytes(nil, opts)
 	cb.IncRef()
 	cb.Reset(b)
 	cb.DecRef()

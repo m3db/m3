@@ -170,10 +170,14 @@ func (d *decoder) Close() {
 	d.data = nil
 	d.err = nil
 	d.remaining = 0
-	if d.checkedData != nil {
-		d.checkedData.DecRef()
-		d.checkedData = nil
+	if d.checkedData == nil {
+		return
 	}
+	d.checkedData.DecRef()
+	if d.checkedData.NumRef() == 0 {
+		d.checkedData.Finalize()
+	}
+	d.checkedData = nil
 }
 
 func (d *decoder) Finalize() {
