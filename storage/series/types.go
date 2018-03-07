@@ -38,7 +38,7 @@ import (
 // DatabaseSeries is a series in the database
 type DatabaseSeries interface {
 	block.OnRetrieveBlock
-	block.Owner
+	block.OnEvictedFromWiredList
 
 	// ID returns the ID of the series
 	ID() ident.ID
@@ -97,7 +97,7 @@ type DatabaseSeries interface {
 		id ident.ID,
 		blockRetriever QueryableBlockRetriever,
 		onRetrieveBlock block.OnRetrieveBlock,
-		blockOwner block.Owner,
+		onEvictedFromWiredList block.OnEvictedFromWiredList,
 		opts Options,
 	)
 }

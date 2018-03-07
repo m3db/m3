@@ -193,11 +193,11 @@ type DatabaseBlockPublic interface {
 	// Close closes the block.
 	Close()
 
-	// SetOwner sets the owner of the block
-	SetOwner(Owner)
+	// SetOnEvictedFromWiredList sets the owner of the block
+	SetOnEvictedFromWiredList(OnEvictedFromWiredList)
 
-	// Owner returns the owner of the block
-	Owner() Owner
+	// OnEvictedFromWiredList returns the owner of the block
+	OnEvictedFromWiredList() OnEvictedFromWiredList
 }
 
 // databaseBlockPrivate is the private portion of the DatabaseBlock interface
@@ -211,10 +211,9 @@ type databaseBlockPrivate interface {
 	wiredListEntry() wiredListEntry
 }
 
-// Owner is implemented by an "owner" of a block that should
-// be notified when a block is evicted from the wired list (and thus unavailable
-// for reads.)
-type Owner interface {
+// OnEvictedFromWiredList is implemented by a struct that wants to be notified
+// when a block is evicted from the wired list.
+type OnEvictedFromWiredList interface {
 	// OnEvictedFromWiredList is called when a block is evicted from the wired list.
 	OnEvictedFromWiredList(id ident.ID, blockStart time.Time)
 }

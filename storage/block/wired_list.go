@@ -218,9 +218,9 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 	for bl := l.root.next(); l.length > maxWired && bl != &l.root; bl = bl.next() {
 		// Evict the block before closing it so that callers of series.ReadEncoded()
 		// don't get errors about trying to read from a closed block.
-		if owner := bl.Owner(); owner != nil {
+		if onEvict := bl.OnEvictedFromWiredList(); onEvict != nil {
 			wlEntry := bl.wiredListEntry()
-			owner.OnEvictedFromWiredList(wlEntry.retrieveID, wlEntry.startTime)
+			onEvict.OnEvictedFromWiredList(wlEntry.retrieveID, wlEntry.startTime)
 		}
 
 		bl.Close()

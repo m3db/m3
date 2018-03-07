@@ -64,13 +64,13 @@ type dbSeries struct {
 	// calling series.Reset()).
 	id ident.ID
 
-	buffer          databaseBuffer
-	blocks          block.DatabaseSeriesBlocks
-	bs              bootstrapState
-	blockRetriever  QueryableBlockRetriever
-	onRetrieveBlock block.OnRetrieveBlock
-	blockOwner      block.Owner
-	pool            DatabaseSeriesPool
+	buffer                      databaseBuffer
+	blocks                      block.DatabaseSeriesBlocks
+	bs                          bootstrapState
+	blockRetriever              QueryableBlockRetriever
+	onRetrieveBlock             block.OnRetrieveBlock
+	blockOnEvictedFromWiredList block.OnEvictedFromWiredList
+	pool                        DatabaseSeriesPool
 }
 
 // NewDatabaseSeries creates a new database series
@@ -392,7 +392,7 @@ func (s *dbSeries) mergeBlock(
 }
 
 func (s *dbSeries) addBlock(b block.DatabaseBlock) {
-	b.SetOwner(s.blockOwner)
+	b.SetOnEvictedFromWiredList(s.blockOnEvictedFromWiredList)
 	s.blocks.AddBlock(b)
 }
 
@@ -628,7 +628,7 @@ func (s *dbSeries) Reset(
 	id ident.ID,
 	blockRetriever QueryableBlockRetriever,
 	onRetrieveBlock block.OnRetrieveBlock,
-	blockOwner block.Owner,
+	onEvictedFromWiredList block.OnEvictedFromWiredList,
 	opts Options,
 ) {
 	s.Lock()
@@ -641,5 +641,5 @@ func (s *dbSeries) Reset(
 	s.bs = bootstrapNotStarted
 	s.blockRetriever = blockRetriever
 	s.onRetrieveBlock = onRetrieveBlock
-	s.blockOwner = blockOwner
+	s.blockOnEvictedFromWiredList = onEvictedFromWiredList
 }

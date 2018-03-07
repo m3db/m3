@@ -34,10 +34,7 @@ const (
 	defaultTickSeriesBatchSize                  = 512
 	defaultTickPerSeriesSleepDuration           = 100 * time.Microsecond
 	defaultTickMinimumInterval                  = time.Minute
-	// defaultMaxWiredBlocks is 2MM by default which if using 2hr block sizes
-	// and writing every 10s at 1.4 point/byte (m3tsz) should use roughly 4gb:
-	// 1.4 * 6 * 120 * (2^21) = ~2gb
-	defaultMaxWiredBlocks = uint(1 << 31)
+	defaultMaxWiredBlocks                       = uint(1 << 18) // 262,144
 )
 
 var (
