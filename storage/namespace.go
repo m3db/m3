@@ -759,7 +759,93 @@ func (n *dbNamespace) Flush(
 	return res
 }
 
+func (n *dbNamespace) Snapshot(flush persist.Flush) error {
+	callStart := n.nowFn()
+
+	n.RLock()
+	if n.bs != bootstrapped {
+		n.RUnlock()
+		// TODO: New metric
+		// n.metrics.flush.ReportError(n.nowFn().Sub(callStart))
+		return errNamespaceNotBootstrapped
+	}
+	n.RUnlock()
+
+	// TODO: Allow snapshotting to be configurably disabled?
+	// if !n.nopts.NeedsFlush() {
+	// 	n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
+	// 	return nil
+	// }
+
+	multiErr := xerrors.NewMultiError()
+	shards := n.GetOwnedShards()
+	for _, shard := range shards {
+		isSnapshotting, lastSuccessfulSnapshot := shard.SnapshotState()
+		if isSnapshotting {
+			// TODO: Emit log, should never happen
+			continue
+		}
+
+		// TODO: Make time period configurable
+		if callStart.Sub(lastSuccessfulSnapshot) < 15*time.Minute {
+			// Skip snapshotting if not enough time has elapsed since
+			// the previous snapshot
+			continue
+		}
+
+		err := shard.Snapshot(callStart, flush)
+		if err != nil {
+			// Log / metric?
+			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)
+			multiErr = multiErr.Add(detailedErr)
+			// Continue with remaining shards
+		}
+	}
+
+	res := multiErr.FinalError()
+	// TODO: Metrics
+	// n.metrics.flush.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
+	return res
+}
+
 func (n *dbNamespace) NeedsFlush(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool {
+	var (
+		blockSize   = n.nopts.RetentionOptions().BlockSize()
+		blockStarts = timesInRange(alignedInclusiveStart, alignedInclusiveEnd, blockSize)
+	)
+
+	// NB(r): Essentially if all are success, we don't need to flush, if any
+	// are failed with the minimum num failures less than max retries then
+	// we need to flush - otherwise if any in progress we can't flush and if
+	// any not started then we need to flush.
+	n.RLock()
+	defer n.RUnlock()
+
+	// NB(prateek): we do not check if any other flush is in progress in this method,
+	// instead relying on the databaseFlushManager to ensure atomicity of flushes.
+
+	maxRetries := n.opts.MaxFlushRetries()
+	// Check for not started or failed that might need a flush
+	for _, shard := range n.shards {
+		if shard == nil {
+			continue
+		}
+		for _, blockStart := range blockStarts {
+			state := shard.FlushState(blockStart)
+			if state.Status == fileOpNotStarted {
+				return true
+			}
+			if state.Status == fileOpFailed && state.NumFailures < maxRetries {
+				return true
+			}
+		}
+	}
+
+	// All success or failed and reached max retries
+	return false
+}
+
+func (n *dbNamespace) NeedsSnapshot(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool {
 	var (
 		blockSize   = n.nopts.RetentionOptions().BlockSize()
 		blockStarts = timesInRange(alignedInclusiveStart, alignedInclusiveEnd, blockSize)

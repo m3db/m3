@@ -114,6 +114,7 @@ type dbShard struct {
 	identifierPool           ident.Pool
 	contextPool              context.Pool
 	flushState               shardFlushState
+	snapshotState            shardSnapshotState
 	tickWg                   *sync.WaitGroup
 	runtimeOptsListenClosers []xclose.SimpleCloser
 	currRuntimeOptions       dbShardRuntimeOptions
@@ -223,6 +224,12 @@ func newShardFlushState() shardFlushState {
 	return shardFlushState{
 		statesByTime: make(map[xtime.UnixNano]fileOpState),
 	}
+}
+
+type shardSnapshotState struct {
+	sync.RWMutex
+	isSnapshotting         bool
+	lastSuccessfulSnapshot time.Time
 }
 
 func newDatabaseShard(
@@ -1684,6 +1691,12 @@ func (s *dbShard) Snapshot(
 	s.RUnlock()
 
 	var multiErr xerrors.MultiError
+
+	s.markIsSnapshotting()
+	defer func() {
+		s.markDoneSnapshotting(multiErr.FinalError() == nil, snapshotStart)
+	}()
+
 	prepared, err := flush.Prepare(s.namespace, s.ID(), snapshotStart)
 	multiErr = multiErr.Add(err)
 
@@ -1760,6 +1773,27 @@ func (s *dbShard) removeAnyFlushStatesTooEarly() {
 		}
 	}
 	s.flushState.Unlock()
+}
+
+func (s *dbShard) SnapshotState() (bool, time.Time) {
+	s.snapshotState.RLock()
+	defer s.snapshotState.RUnlock()
+	return s.snapshotState.isSnapshotting, s.snapshotState.lastSuccessfulSnapshot
+}
+
+func (s *dbShard) markIsSnapshotting() {
+	s.snapshotState.Lock()
+	s.snapshotState.isSnapshotting = true
+	s.snapshotState.Unlock()
+}
+
+func (s *dbShard) markDoneSnapshotting(success bool, completionTime time.Time) {
+	s.snapshotState.Lock()
+	s.snapshotState.isSnapshotting = false
+	if success {
+		s.snapshotState.lastSuccessfulSnapshot = completionTime
+	}
+	s.snapshotState.Unlock()
 }
 
 func (s *dbShard) CleanupFileset(earliestToRetain time.Time) error {
