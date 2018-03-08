@@ -62,27 +62,29 @@ func TestWatchChan(t *testing.T) {
 func TestWatchSimple(t *testing.T) {
 	wh, ec, updateCalled, shouldStop, doneCh, closer := testSetup(t)
 	defer closer()
+	require.Equal(t, int32(0), atomic.LoadInt32(updateCalled))
 
 	go wh.Watch("foo")
 
-	require.Equal(t, int32(0), atomic.LoadInt32(updateCalled))
-
 	time.Sleep(3 * wh.opts.WatchChanInitTimeout())
+
+	lastRead := atomic.LoadInt32(updateCalled)
 	_, err := ec.Put(context.Background(), "foo", "v")
 	require.NoError(t, err)
 
 	for {
-		if atomic.LoadInt32(updateCalled) == 1 {
+		if atomic.LoadInt32(updateCalled) >= lastRead+1 {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 
+	lastRead = atomic.LoadInt32(updateCalled)
 	_, err = ec.Put(context.Background(), "foo", "v")
 	require.NoError(t, err)
 
 	for {
-		if atomic.LoadInt32(updateCalled) == 2 {
+		if atomic.LoadInt32(updateCalled) >= lastRead+1 {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -92,15 +94,16 @@ func TestWatchSimple(t *testing.T) {
 	atomic.AddInt32(shouldStop, 1)
 	<-doneCh
 
+	lastRead = atomic.LoadInt32(updateCalled)
 	_, err = ec.Put(context.Background(), "foo", "v")
 	require.NoError(t, err)
 	// put no longer triggers anything
-	require.Equal(t, int32(2), atomic.LoadInt32(updateCalled))
+	require.Equal(t, lastRead, atomic.LoadInt32(updateCalled))
 
 	// sleep enough time and make sure nothing happens
 	time.Sleep(3 * wh.opts.WatchChanCheckInterval())
 
-	require.Equal(t, int32(2), atomic.LoadInt32(updateCalled))
+	require.Equal(t, lastRead, atomic.LoadInt32(updateCalled))
 }
 
 func TestWatchRecreate(t *testing.T) {

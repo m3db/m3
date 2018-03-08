@@ -445,5 +445,5 @@ func testStore(t *testing.T, sid services.ServiceID) (*clientv3.Client, Options,
 		ecluster.Terminate(t)
 		ec.Close()
 	}
-	return ec, NewOptions().SetServiceID(sid), closer
+	return ec, NewOptions().SetServiceID(sid).SetRequestTimeout(20 * time.Second), closer
 }
