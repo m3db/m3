@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -11,11 +12,6 @@ import (
 	xlog "github.com/m3db/m3x/log"
 
 	"github.com/pborman/getopt"
-)
-
-const (
-	defaultBufferCapacity  = 1024 * 1024 * 1024
-	defaultBufferPoolCount = 10
 )
 
 func main() {
@@ -57,6 +53,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("err reading metadata: %v", err)
 		}
-		log.Info(id.String())
+		// Use fmt package so it goes to stdout instead of stderr
+		fmt.Println(id.String())
 	}
 }
