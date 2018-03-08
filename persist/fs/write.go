@@ -130,13 +130,17 @@ func (w *writer) Open(opts WriterOpenOptions) error {
 
 	var shardDir string
 	if opts.IsSnapshot {
-
+		shardDir = ShardSnapshotsDirPath(w.filePathPrefix, opts.Namespace, opts.Shard)
+		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
+			return err
+		}
 	} else {
 		shardDir = ShardDataDirPath(w.filePathPrefix, opts.Namespace, opts.Shard)
 		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 			return err
 		}
 	}
+
 	w.blockSize = opts.BlockSize
 	w.start = opts.BlockStart
 	w.currIdx = 0
