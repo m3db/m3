@@ -98,7 +98,13 @@ func writeTestData(t *testing.T, bs time.Duration, src FilesetID, opts Options) 
 		SetNewFileMode(opts.FileMode()).
 		SetNewDirectoryMode(opts.DirMode()))
 	require.NoError(t, err)
-	require.NoError(t, w.Open(ident.StringID(src.Namespace), bs, src.Shard, src.Blockstart))
+	writerOpts := fs.WriterOpenOptions{
+		Namespace:  ident.StringID(src.Namespace),
+		BlockSize:  bs,
+		Shard:      src.Shard,
+		BlockStart: src.Blockstart,
+	}
+	require.NoError(t, w.Open(writerOpts))
 	for i := 0; i < numTestSeries; i++ {
 		id := ident.StringID(fmt.Sprintf("testSeries.%d", i))
 		for j := 0; j < numTestPoints; j++ {

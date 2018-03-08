@@ -212,7 +212,13 @@ func TestShardFetchBlocksMetadataV2WithSeriesCachePolicyNotCacheAll(t *testing.T
 		writer, err := fs.NewWriter(fsOpts)
 		require.NoError(t, err)
 
-		err = writer.Open(shard.namespace.ID(), blockSize, shard.shard, at)
+		writerOpts := fs.WriterOpenOptions{
+			Namespace:  shard.namespace.ID(),
+			BlockSize:  blockSize,
+			Shard:      shard.shard,
+			BlockStart: at,
+		}
+		err = writer.Open(writerOpts)
 		require.NoError(t, err)
 
 		for i := 0; i < numFlushedSeries; i++ {

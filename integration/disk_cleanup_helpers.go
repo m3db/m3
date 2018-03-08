@@ -60,7 +60,13 @@ func writeFilesetFiles(t *testing.T, storageOpts storage.Options, md namespace.M
 	writer, err := newFilesetWriter(storageOpts)
 	require.NoError(t, err)
 	for _, start := range fileTimes {
-		require.NoError(t, writer.Open(md.ID(), rOpts.BlockSize(), shard, start))
+		writerOpts := fs.WriterOpenOptions{
+			Namespace:  md.ID(),
+			BlockSize:  rOpts.BlockSize(),
+			Shard:      shard,
+			BlockStart: start,
+		}
+		require.NoError(t, writer.Open(writerOpts))
 		require.NoError(t, writer.Close())
 	}
 }

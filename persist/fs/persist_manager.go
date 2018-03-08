@@ -240,7 +240,13 @@ func (pm *persistManager) Prepare(
 	}
 
 	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
-	if err := pm.writer.Open(nsID, blockSize, shard, blockStart); err != nil {
+	writerOpts := WriterOpenOptions{
+		Namespace:  nsID,
+		BlockSize:  blockSize,
+		Shard:      shard,
+		BlockStart: blockStart,
+	}
+	if err := pm.writer.Open(writerOpts); err != nil {
 		return prepared, err
 	}
 

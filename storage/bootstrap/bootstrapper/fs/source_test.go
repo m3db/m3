@@ -135,7 +135,13 @@ func writeGoodFiles(t *testing.T, dir string, namespace ident.ID, shard uint32) 
 func writeTSDBFiles(t *testing.T, dir string, namespace ident.ID, shard uint32, start time.Time, id string, data []byte) {
 	w, err := fs.NewWriter(newTestFsOptions(dir))
 	require.NoError(t, err)
-	require.NoError(t, w.Open(namespace, testBlockSize, shard, start))
+	writerOpts := fs.WriterOpenOptions{
+		Namespace:  namespace,
+		BlockSize:  testBlockSize,
+		Shard:      shard,
+		BlockStart: start,
+	}
+	require.NoError(t, w.Open(writerOpts))
 
 	bytes := checked.NewBytes(data, nil)
 	bytes.IncRef()

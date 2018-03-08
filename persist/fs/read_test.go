@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/x/mmap"
@@ -112,7 +113,13 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
+	writerOpts := fs.WriterOpenOptions{
+		Namespace:  testNs1ID,
+		BlockSize:  testBlockSize,
+		Shard:      0,
+		BlockStart: testWriterStart,
+	}
+	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
@@ -138,7 +145,13 @@ func TestReadDataError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
+	writerOpts := fs.WriterOpenOptions{
+		Namespace:  testNs1ID,
+		BlockSize:  testBlockSize,
+		Shard:      0,
+		BlockStart: testWriterStart,
+	}
+	err = w.Open(writerOpts)
 	require.NoError(t, err)
 	require.NoError(t, w.Write(
 		ident.StringID("foo"),
@@ -176,7 +189,13 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	err = w.Open(testNs1ID, testBlockSize, 0, testWriterStart)
+	writerOpts := fs.WriterOpenOptions{
+		Namespace:  testNs1ID,
+		BlockSize:  testBlockSize,
+		Shard:      0,
+		BlockStart: testWriterStart,
+	}
+	err = w.Open(writerOpts)
 	assert.NoError(t, err)
 	dataFile := w.(*writer).dataFdWithDigest.Fd().Name()
 
@@ -206,7 +225,13 @@ func TestReadNoCheckpointFile(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 	shard := uint32(0)
-	err := w.Open(testNs1ID, testBlockSize, shard, testWriterStart)
+	writerOpts := fs.WriterOpenOptions{
+		Namespace:  testNs1ID,
+		BlockSize:  testBlockSize,
+		Shard:      shard,
+		BlockStart: testWriterStart,
+	}
+	err := w.Open(writerOpts)
 	assert.NoError(t, err)
 	assert.NoError(t, w.Close())
 
@@ -229,7 +254,13 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	shardDir := ShardDirPath(filePathPrefix, testNs1ID, shard)
 
 	w := newTestWriter(t, filePathPrefix)
-	assert.NoError(t, w.Open(testNs1ID, testBlockSize, uint32(shard), start))
+	writerOpts := fs.WriterOpenOptions{
+		Namespace:  testNs1ID,
+		BlockSize:  testBlockSize,
+		Shard:      uint32(shard),
+		BlockStart: start,
+	}
+	assert.NoError(t, w.Open(writerOpts))
 
 	assert.NoError(t, w.Write(
 		ident.StringID("foo"),
@@ -307,7 +338,13 @@ func TestReadValidate(t *testing.T) {
 	shard := uint32(0)
 	start := time.Unix(1000, 0)
 	w := newTestWriter(t, filePathPrefix)
-	require.NoError(t, w.Open(testNs1ID, testBlockSize, shard, start))
+	writerOpts := fs.WriterOpenOptions{
+		Namespace:  testNs1ID,
+		BlockSize:  testBlockSize,
+		Shard:      shard,
+		BlockStart: start,
+	}
+	require.NoError(t, w.Open(writerOpts))
 
 	assert.NoError(t, w.Write(
 		ident.StringID("foo"),

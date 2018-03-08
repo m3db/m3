@@ -62,6 +62,14 @@ type writer struct {
 	err        error
 }
 
+// WriterOpenOptions is the options struct for the Open method on the FilesetWriter
+type WriterOpenOptions struct {
+	Namespace  ident.ID
+	BlockSize  time.Duration
+	Shard      uint32
+	BlockStart time.Time
+}
+
 type indexEntry struct {
 	index           int64
 	id              ident.ID
@@ -117,33 +125,29 @@ func NewWriter(opts Options) (FileSetWriter, error) {
 // Open initializes the internal state for writing to the given shard,
 // specifically creating the shard directory if it doesn't exist, and
 // opening / truncating files associated with that shard for writing.
-func (w *writer) Open(
-	namespace ident.ID,
-	blockSize time.Duration,
-	shard uint32,
-	blockStart time.Time,
-) error {
-	shardDir := ShardDirPath(w.filePathPrefix, namespace, shard)
+func (w *writer) Open(opts WriterOpenOptions) error {
+
+	shardDir := ShardDirPath(w.filePathPrefix, opts.Namespace, opts.Shard)
 	if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
 		return err
 	}
-	w.blockSize = blockSize
-	w.start = blockStart
+	w.blockSize = opts.BlockSize
+	w.start = opts.BlockStart
 	w.currIdx = 0
 	w.currOffset = 0
-	w.checkpointFilePath = filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	w.checkpointFilePath = filesetPathFromTime(shardDir, opts.BlockStart, checkpointFileSuffix)
 	w.err = nil
 
 	var infoFd, indexFd, summariesFd, bloomFilterFd, dataFd, digestFd *os.File
 	if err := openFiles(
 		w.openWritable,
 		map[string]**os.File{
-			filesetPathFromTime(shardDir, blockStart, infoFileSuffix):        &infoFd,
-			filesetPathFromTime(shardDir, blockStart, indexFileSuffix):       &indexFd,
-			filesetPathFromTime(shardDir, blockStart, summariesFileSuffix):   &summariesFd,
-			filesetPathFromTime(shardDir, blockStart, bloomFilterFileSuffix): &bloomFilterFd,
-			filesetPathFromTime(shardDir, blockStart, dataFileSuffix):        &dataFd,
-			filesetPathFromTime(shardDir, blockStart, digestFileSuffix):      &digestFd,
+			filesetPathFromTime(shardDir, opts.BlockStart, infoFileSuffix):        &infoFd,
+			filesetPathFromTime(shardDir, opts.BlockStart, indexFileSuffix):       &indexFd,
+			filesetPathFromTime(shardDir, opts.BlockStart, summariesFileSuffix):   &summariesFd,
+			filesetPathFromTime(shardDir, opts.BlockStart, bloomFilterFileSuffix): &bloomFilterFd,
+			filesetPathFromTime(shardDir, opts.BlockStart, dataFileSuffix):        &dataFd,
+			filesetPathFromTime(shardDir, opts.BlockStart, digestFileSuffix):      &digestFd,
 		},
 	); err != nil {
 		return err
@@ -446,4 +450,35 @@ func (w *writer) writeInfoFileContents(
 
 	_, err := w.infoFdWithDigest.Write(w.encoder.Bytes())
 	return err
+}
+
+// WriterOpenOptionsMatcher satisfies the gomock.Matcher interface for WriterOpenOptions
+type WriterOpenOptionsMatcher struct {
+	Namespace  ident.ID
+	BlockSize  time.Duration
+	Shard      uint32
+	BlockStart time.Time
+}
+
+// Matches determine whether m matches a WriterOpenOptions
+func (m *WriterOpenOptionsMatcher) Matches(x interface{}) bool {
+	writerOpenOptions, ok := x.(WriterOpenOptions)
+	if !ok {
+		return false
+	}
+
+	if !m.Namespace.Equal(writerOpenOptions.Namespace) {
+		return false
+	}
+	if m.BlockSize != writerOpenOptions.BlockSize {
+		return false
+	}
+	if m.Shard != writerOpenOptions.Shard {
+		return false
+	}
+	if !m.BlockStart.Equal(writerOpenOptions.BlockStart) {
+		return false
+	}
+
+	return true
 }

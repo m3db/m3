@@ -104,8 +104,13 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	blockStart := time.Unix(1000, 0)
 	expectedErr := errors.New("foo")
 
-	writer.EXPECT().Open(ident.NewIDMatcher(testNs1ID.String()),
-		testBlockSize, shard, blockStart).Return(expectedErr)
+	writerOpts := WriterOpenOptionsMatcher{
+		Namespace:  ident.NewIDMatcher(testNs1ID.String()),
+		BlockSize:  testBlockSize,
+		Shard:      shard,
+		BlockStart: blockStart,
+	}
+	writer.EXPECT().Open(writerOpts).Return(expectedErr)
 
 	flush, err := pm.StartFlush()
 	require.NoError(t, err)
@@ -129,8 +134,13 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	writer.EXPECT().Open(ident.NewIDMatcher(testNs1ID.String()),
-		testBlockSize, shard, blockStart).Return(nil)
+	writerOpts := WriterOpenOptionsMatcher{
+		Namespace:  testNs1ID,
+		BlockSize:  testBlockSize,
+		Shard:      shard,
+		BlockStart: blockStart,
+	}
+	writer.EXPECT().Open(writerOpts).Return(nil)
 
 	var (
 		id       = ident.StringID("foo")
@@ -186,8 +196,13 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 
 	shard := uint32(0)
 	blockStart := time.Unix(1000, 0)
-	writer.EXPECT().Open(ident.NewIDMatcher(testNs1ID.String()),
-		testBlockSize, shard, blockStart).Return(nil)
+	writerOpts := WriterOpenOptionsMatcher{
+		Namespace:  testNs1ID,
+		BlockSize:  testBlockSize,
+		Shard:      shard,
+		BlockStart: blockStart,
+	}
+	writer.EXPECT().Open(writerOpts).Return(nil)
 
 	var (
 		now      time.Time
@@ -252,8 +267,13 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 	pm.nowFn = func() time.Time { return now }
 	pm.sleepFn = func(d time.Duration) { slept += d }
 
-	writer.EXPECT().Open(ident.NewIDMatcher(testNs1ID.String()),
-		testBlockSize, shard, blockStart).Return(nil).Times(iter)
+	writerOpts := WriterOpenOptionsMatcher{
+		Namespace:  testNs1ID,
+		BlockSize:  testBlockSize,
+		Shard:      shard,
+		BlockStart: blockStart,
+	}
+	writer.EXPECT().Open(writerOpts).Return(nil).Times(iter)
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).AnyTimes()
 	writer.EXPECT().Close().Times(iter)
 
@@ -330,15 +350,25 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 		assert.NoError(t, flush.Done())
 	}()
 
-	writer.EXPECT().Open(ident.NewIDMatcher(testNs1ID.String()),
-		testBlockSize, shard, blockStart).Return(nil)
+	writerOpts := WriterOpenOptionsMatcher{
+		Namespace:  testNs1ID,
+		BlockSize:  testBlockSize,
+		Shard:      shard,
+		BlockStart: blockStart,
+	}
+	writer.EXPECT().Open(writerOpts).Return(nil)
 	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
 	require.NoError(t, err)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)
 
-	writer.EXPECT().Open(ident.NewIDMatcher(testNs2ID.String()),
-		testBlockSize, shard, blockStart).Return(nil)
+	writerOpts = WriterOpenOptionsMatcher{
+		Namespace:  testNs2ID,
+		BlockSize:  testBlockSize,
+		Shard:      shard,
+		BlockStart: blockStart,
+	}
+	writer.EXPECT().Open(writerOpts).Return(nil)
 	prepared, err = flush.Prepare(testNs2Metadata(t), shard, blockStart)
 	require.NoError(t, err)
 	require.NotNil(t, prepared.Persist)
