@@ -181,8 +181,6 @@ func (l *WiredList) Stop() error {
 	close(l.updatesCh)
 	<-l.doneCh
 
-	l.Lock()
-	defer l.Unlock()
 	l.updatesCh = nil
 	close(l.doneCh)
 	l.doneCh = nil
