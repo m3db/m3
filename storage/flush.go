@@ -38,6 +38,7 @@ var (
 	errFlushAlreadyInProgress = errors.New("flush already in progress")
 )
 
+// TODO: Rename this?
 type flushManager struct {
 	sync.RWMutex
 
@@ -91,6 +92,13 @@ func (m *flushManager) Flush(curr time.Time) error {
 	for _, ns := range namespaces {
 		flushTimes := m.namespaceFlushTimes(ns, curr)
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, flushTimes, flush))
+
+		// Do flush first to prevent situations where we perform a snapshot right before a flush
+		if err := ns.Snapshot(flush); err != nil {
+			detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
+				ns.ID().String(), err)
+			multiErr = multiErr.Add(detailedErr)
+		}
 	}
 
 	// mark flush finished

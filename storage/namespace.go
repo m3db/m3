@@ -787,6 +787,8 @@ func (n *dbNamespace) Snapshot(flush persist.Flush) error {
 		}
 
 		// TODO: Make time period configurable
+		// TODO: Should probably have some relationship with flush timing as well. I.E
+		// we should not perform a snapshot 3 seconds before we're about to flush.
 		if callStart.Sub(lastSuccessfulSnapshot) < 15*time.Minute {
 			// Skip snapshotting if not enough time has elapsed since
 			// the previous snapshot
