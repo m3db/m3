@@ -149,7 +149,7 @@ func newNamespaceReaderManager(
 	opts Options,
 ) databaseNamespaceReaderManager {
 	return &namespaceReaderManager{
-		filesetExistsAtFn: fs.FilesetExistsAt,
+		filesetExistsAtFn: fs.DataFilesetExistsAt,
 		newReaderFn:       fs.NewReader,
 		namespace:         namespace,
 		fsOpts:            opts.CommitLogOptions().FilesystemOptions(),

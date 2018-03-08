@@ -56,7 +56,7 @@ func waitUntilDataFlushed(
 		for timestamp, seriesList := range testData {
 			for _, series := range seriesList {
 				shard := shardSet.Lookup(series.ID)
-				if !fs.FilesetExistsAt(filePathPrefix, namespace, shard, timestamp.ToTime()) {
+				if !fs.DataFilesetExistsAt(filePathPrefix, namespace, shard, timestamp.ToTime()) {
 					return false
 				}
 			}

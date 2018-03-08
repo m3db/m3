@@ -235,7 +235,7 @@ func (pm *persistManager) Prepare(
 	// NB(xichen): if the checkpoint file for blockStart already exists, bail.
 	// This allows us to retry failed flushing attempts because they wouldn't
 	// have created the checkpoint file.
-	if FilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart) {
+	if DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart) {
 		return prepared, nil
 	}
 
