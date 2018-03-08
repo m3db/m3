@@ -1651,7 +1651,6 @@ func (s *dbShard) Flush(
 		return s.markFlushStateSuccessOrError(blockStart, multiErr.FinalError())
 	}
 
-	// If we encounter an error when persisting a series, we continue regardless.
 	tmpCtx := context.NewContext()
 	s.forEachShardEntry(func(entry *dbShardEntry) bool {
 		series := entry.series
@@ -1661,6 +1660,7 @@ func (s *dbShard) Flush(
 		err := series.Flush(tmpCtx, blockStart, prepared.Persist)
 		tmpCtx.BlockingClose()
 		multiErr = multiErr.Add(err)
+		// If we encounter an error when persisting a series, we continue regardless.
 		return true
 	})
 
@@ -1669,6 +1669,49 @@ func (s *dbShard) Flush(
 	}
 
 	return s.markFlushStateSuccessOrError(blockStart, multiErr.FinalError())
+}
+
+func (s *dbShard) Snapshot(
+	snapshotStart time.Time,
+	flush persist.Flush,
+) error {
+	// We don't snapshot data when the shard is still bootstrapping
+	s.RLock()
+	if s.bs != bootstrapped {
+		s.RUnlock()
+		return errShardNotBootstrappedToFlush
+	}
+	s.RUnlock()
+
+	var multiErr xerrors.MultiError
+	prepared, err := flush.Prepare(s.namespace, s.ID(), snapshotStart)
+	multiErr = multiErr.Add(err)
+
+	// No action is necessary therefore we bail out early and there is no need to close.
+	if prepared.Persist == nil {
+		// TODO: What to do here? Probably just continue because the snapshot file already
+		// exists?
+		return nil
+	}
+
+	tmpCtx := context.NewContext()
+	s.forEachShardEntry(func(entry *dbShardEntry) bool {
+		series := entry.series
+		// Use a temporary context here so the stream readers can be returned to
+		// pool after we finish fetching flushing the series
+		tmpCtx.Reset()
+		err := series.Snapshot(tmpCtx, prepared.Persist)
+		tmpCtx.BlockingClose()
+		multiErr = multiErr.Add(err)
+		// If we encounter an error when persisting a series, we continue regardless.
+		return true
+	})
+
+	if err := prepared.Close(); err != nil {
+		multiErr = multiErr.Add(err)
+	}
+
+	return multiErr.FinalError()
 }
 
 func (s *dbShard) FlushState(blockStart time.Time) fileOpState {

@@ -92,6 +92,10 @@ type DatabaseSeries interface {
 	// Flush flushes the data blocks of this series for a given start time
 	Flush(ctx context.Context, blockStart time.Time, persistFn persist.Fn) error
 
+	// Snapshot snapshots the buffer buckets of this series for any data that has
+	// not been rotated into a block yet
+	Snapshot(ctx context.Context, persistFn persist.Fn) error
+
 	// Close will close the series and if pooled returned to the pool
 	Close()
 
