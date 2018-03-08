@@ -210,6 +210,7 @@ func (pm *persistManager) reset() {
 	pm.slept = 0
 }
 
+// TODO: in the case of a snapshot it won't be a blockstart
 func (pm *persistManager) Prepare(
 	nsMetadata namespace.Metadata,
 	shard uint32,
@@ -230,6 +231,7 @@ func (pm *persistManager) Prepare(
 		return prepared, errPersistManagerCannotPrepareNotFlushing
 	}
 
+	// TODO: Need to change this to check for a snapshot file optionally
 	// NB(xichen): if the checkpoint file for blockStart already exists, bail.
 	// This allows us to retry failed flushing attempts because they wouldn't
 	// have created the checkpoint file.
