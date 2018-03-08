@@ -31,7 +31,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/persist/fs/msgpack"
 	"github.com/m3db/m3db/persist/schema"
 	"github.com/m3db/m3db/x/mmap"
@@ -113,7 +112,7 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      0,
@@ -145,7 +144,7 @@ func TestReadDataError(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      0,
@@ -189,7 +188,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      0,
@@ -225,7 +224,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 	shard := uint32(0)
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      shard,
@@ -254,7 +253,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 	shardDir := ShardDirPath(filePathPrefix, testNs1ID, shard)
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      uint32(shard),
@@ -338,7 +337,7 @@ func TestReadValidate(t *testing.T) {
 	shard := uint32(0)
 	start := time.Unix(1000, 0)
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      shard,

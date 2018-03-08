@@ -394,14 +394,14 @@ func DataDirPath(prefix string) string {
 	return path.Join(prefix, dataDirName)
 }
 
-// NamespaceDirPath returns the path to a given namespace.
-func NamespaceDirPath(prefix string, namespace ident.ID) string {
+// NamespaceDataDirPath returns the path to a given namespace.
+func NamespaceDataDirPath(prefix string, namespace ident.ID) string {
 	return path.Join(prefix, dataDirName, namespace.String())
 }
 
 // ShardDirPath returns the path to a given shard.
 func ShardDirPath(prefix string, namespace ident.ID, shard uint32) string {
-	namespacePath := NamespaceDirPath(prefix, namespace)
+	namespacePath := NamespaceDataDirPath(prefix, namespace)
 	return path.Join(namespacePath, strconv.Itoa(int(shard)))
 }
 

@@ -105,7 +105,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 	expectedErr := errors.New("foo")
 
 	writerOpts := WriterOpenOptionsMatcher{
-		Namespace:  ident.NewIDMatcher(testNs1ID.String()),
+		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      shard,
 		BlockStart: blockStart,

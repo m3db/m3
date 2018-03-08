@@ -28,7 +28,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3x/ident"
 	"github.com/m3db/m3x/pool"
 
@@ -57,7 +56,7 @@ func TestSeekEmptyIndex(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      0,
@@ -86,7 +85,7 @@ func TestSeekDataUnexpectedSize(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      0,
@@ -125,7 +124,7 @@ func TestSeekBadChecksum(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      0,
@@ -163,7 +162,7 @@ func TestSeek(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      0,
@@ -228,7 +227,7 @@ func TestSeekIDNotExists(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      0,
@@ -279,7 +278,7 @@ func TestReuseSeeker(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      0,
@@ -293,7 +292,7 @@ func TestReuseSeeker(t *testing.T) {
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Close())
 
-	writerOpts = fs.WriterOpenOptions{
+	writerOpts = WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      0,
@@ -339,7 +338,7 @@ func TestCloneSeeker(t *testing.T) {
 
 	w := newTestWriter(t, filePathPrefix)
 
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      0,
@@ -353,7 +352,7 @@ func TestCloneSeeker(t *testing.T) {
 		digest.Checksum([]byte{1, 2, 1})))
 	assert.NoError(t, w.Close())
 
-	writerOpts = fs.WriterOpenOptions{
+	writerOpts = WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      0,

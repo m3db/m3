@@ -32,7 +32,6 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3db/x/xio"
 	"github.com/m3db/m3x/checked"
@@ -83,7 +82,7 @@ func newOpenTestWriter(
 	start time.Time,
 ) (FileSetWriter, testCleanupFn) {
 	w := newTestWriter(t, fsOpts.FilePathPrefix())
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      shard,

@@ -68,6 +68,7 @@ type WriterOpenOptions struct {
 	BlockSize  time.Duration
 	Shard      uint32
 	BlockStart time.Time
+	IsSnapshot bool
 }
 
 type indexEntry struct {

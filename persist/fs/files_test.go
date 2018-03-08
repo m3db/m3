@@ -170,7 +170,7 @@ func TestDeleteInactiveDirectories(t *testing.T) {
 	defer func() {
 		os.RemoveAll(tempPrefix)
 	}()
-	namespaceDir := NamespaceDirPath(tempPrefix, testNs1ID)
+	namespaceDir := NamespaceDataDirPath(tempPrefix, testNs1ID)
 
 	// Test shard deletion within a namespace
 	shards := []uint32{uint32(4), uint32(5), uint32(6)}

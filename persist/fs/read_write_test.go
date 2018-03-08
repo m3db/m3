@@ -30,7 +30,6 @@ import (
 
 	"github.com/m3db/bloom"
 	"github.com/m3db/m3db/digest"
-	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -53,7 +52,7 @@ func newTestWriter(t *testing.T, filePathPrefix string) FileSetWriter {
 }
 
 func writeTestData(t *testing.T, w FileSetWriter, shard uint32, timestamp time.Time, entries []testEntry) {
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      shard,
@@ -257,7 +256,7 @@ func TestReusingWriterAfterWriteError(t *testing.T) {
 	}
 	w := newTestWriter(t, filePathPrefix)
 	shard := uint32(0)
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      shard,
@@ -298,7 +297,7 @@ func TestWriterOnlyWritesNonNilBytes(t *testing.T) {
 	}
 
 	w := newTestWriter(t, filePathPrefix)
-	writerOpts := fs.WriterOpenOptions{
+	writerOpts := WriterOpenOptions{
 		Namespace:  testNs1ID,
 		BlockSize:  testBlockSize,
 		Shard:      0,

@@ -156,7 +156,7 @@ func (m *cleanupManager) deleteInactiveFilesetFiles() error {
 	}
 	for _, n := range namespaces {
 		var activeShards []string
-		namespaceDirPath := fs.NamespaceDirPath(filePathPrefix, n.ID())
+		namespaceDirPath := fs.NamespaceDataDirPath(filePathPrefix, n.ID())
 		for _, s := range n.GetOwnedShards() {
 			shard := fmt.Sprintf("%d", s.ID())
 			activeShards = append(activeShards, shard)
