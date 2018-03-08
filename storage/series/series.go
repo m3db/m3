@@ -609,6 +609,45 @@ func (s *dbSeries) Flush(
 	return persistFn(s.id, segment, b.Checksum())
 }
 
+func (s *dbSeries) Snapshot(
+	ctx context.Context,
+	persistFn persist.Fn,
+) error {
+	// NB(r): Do not use defer here as we need to make sure the
+	// call to sr.Segment() which may fetch data from disk is not
+	// blocking the series lock.
+	s.RLock()
+
+	if s.bs != bootstrapped {
+		s.RUnlock()
+		return errSeriesNotBootstrapped
+	}
+
+	var (
+		min, max = s.buffer.MinMax()
+		buckets  = s.buffer.ReadEncoded(ctx, min, max)
+		multiErr = xerrors.NewMultiError()
+	)
+
+	for _, bucket := range buckets {
+		for _, stream := range bucket {
+			segment, err := stream.Segment()
+			if err != nil {
+				multiErr = multiErr.Add(err)
+				continue
+			}
+
+			err = persistFn(s.id, segment, digest.SegmentChecksum(segment))
+			if err != nil {
+				multiErr = multiErr.Add(err)
+				continue
+			}
+		}
+	}
+
+	return multiErr.FinalError()
+}
+
 func (s *dbSeries) Close() {
 	s.Lock()
 	defer s.Unlock()
