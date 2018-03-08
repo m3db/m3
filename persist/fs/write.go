@@ -128,9 +128,14 @@ func NewWriter(opts Options) (FileSetWriter, error) {
 // opening / truncating files associated with that shard for writing.
 func (w *writer) Open(opts WriterOpenOptions) error {
 
-	shardDir := ShardDirPath(w.filePathPrefix, opts.Namespace, opts.Shard)
-	if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
-		return err
+	var shardDir string
+	if opts.IsSnapshot {
+
+	} else {
+		shardDir = ShardDataDirPath(w.filePathPrefix, opts.Namespace, opts.Shard)
+		if err := os.MkdirAll(shardDir, w.newDirectoryMode); err != nil {
+			return err
+		}
 	}
 	w.blockSize = opts.BlockSize
 	w.start = opts.BlockStart

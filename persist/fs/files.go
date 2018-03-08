@@ -42,6 +42,7 @@ var timeZero time.Time
 
 const (
 	dataDirName       = "data"
+	snapshotDirName   = "snapshots"
 	commitLogsDirName = "commitlogs"
 )
 
@@ -179,7 +180,7 @@ func forEachInfoFile(filePathPrefix string, namespace ident.ID, shard uint32, re
 		return
 	}
 
-	shardDir := ShardDirPath(filePathPrefix, namespace, shard)
+	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
 	digestBuf := digest.NewBuffer()
 	for i := range matched {
 		t, err := TimeFromFileName(matched[i])
@@ -325,7 +326,7 @@ func findSubDirectoriesAndPaths(directoryPath string) (directoryNamesToPaths, er
 }
 
 func filesetFiles(filePathPrefix string, namespace ident.ID, shard uint32, pattern string) ([]string, error) {
-	shardDir := ShardDirPath(filePathPrefix, namespace, shard)
+	shardDir := ShardDataDirPath(filePathPrefix, namespace, shard)
 	return findFiles(shardDir, pattern, func(files []string) sort.Interface {
 		return byTimeAscending(files)
 	})
@@ -394,14 +395,30 @@ func DataDirPath(prefix string) string {
 	return path.Join(prefix, dataDirName)
 }
 
-// NamespaceDataDirPath returns the path to a given namespace.
+// SnapshotDirPath returns the path to the snapshot directory belong to a db
+func SnapshotDirPath(prefix string) string {
+	return path.Join(prefix, snapshotDirName)
+}
+
+// NamespaceDataDirPath returns the path to the data directory for a given namespace.
 func NamespaceDataDirPath(prefix string, namespace ident.ID) string {
 	return path.Join(prefix, dataDirName, namespace.String())
 }
 
-// ShardDirPath returns the path to a given shard.
-func ShardDirPath(prefix string, namespace ident.ID, shard uint32) string {
+// NamespaceSnapshotsDirPath returns the path to the snapshots directory for a given namespace.
+func NamespaceSnapshotsDirPath(prefix string, namespace ident.ID) string {
+	return path.Join(prefix, snapshotDirName, namespace.String())
+}
+
+// ShardDataDirPath returns the path to the data directory for a given shard.
+func ShardDataDirPath(prefix string, namespace ident.ID, shard uint32) string {
 	namespacePath := NamespaceDataDirPath(prefix, namespace)
+	return path.Join(namespacePath, strconv.Itoa(int(shard)))
+}
+
+// ShardSnapshotsDirPath returns the path to the snapshots directory for a given shard.
+func ShardSnapshotsDirPath(prefix string, namespace ident.ID, shard uint32) string {
+	namespacePath := NamespaceSnapshotsDirPath(prefix, namespace)
 	return path.Join(namespacePath, strconv.Itoa(int(shard)))
 }
 
@@ -412,7 +429,7 @@ func CommitLogsDirPath(prefix string) string {
 
 // FilesetExistsAt determines whether a data file exists for the given namespace, shard, and block start time.
 func FilesetExistsAt(prefix string, namespace ident.ID, shard uint32, blockStart time.Time) bool {
-	shardDir := ShardDirPath(prefix, namespace, shard)
+	shardDir := ShardDataDirPath(prefix, namespace, shard)
 	checkpointFile := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	return FileExists(checkpointFile)
 }
