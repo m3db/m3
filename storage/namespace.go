@@ -717,10 +717,13 @@ func (n *dbNamespace) Flush(
 	blockStart time.Time,
 	flush persist.Flush,
 ) error {
+	fmt.Println(1)
 	callStart := n.nowFn()
 
 	n.RLock()
+	fmt.Println(2)
 	if n.bs != bootstrapped {
+		fmt.Println(3)
 		n.RUnlock()
 		n.metrics.flush.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
@@ -728,6 +731,7 @@ func (n *dbNamespace) Flush(
 	n.RUnlock()
 
 	if !n.nopts.NeedsFlush() {
+		fmt.Println(4)
 		n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
@@ -735,19 +739,26 @@ func (n *dbNamespace) Flush(
 	// check if blockStart is aligned with the namespace's retention options
 	bs := n.nopts.RetentionOptions().BlockSize()
 	if t := blockStart.Truncate(bs); !blockStart.Equal(t) {
+		fmt.Println(5)
 		return fmt.Errorf("failed to flush at time %v, not aligned to blockSize", blockStart.String())
 	}
 
 	multiErr := xerrors.NewMultiError()
+	fmt.Println(6)
 	shards := n.GetOwnedShards()
+	fmt.Println(7)
 	for _, shard := range shards {
+		fmt.Println(8)
 		// skip flushing if the shard has already flushed data for the `blockStart`
 		if s := shard.FlushState(blockStart); s.Status == fileOpSuccess {
+			fmt.Println(9)
 			continue
 		}
 		// NB(xichen): we still want to proceed if a shard fails to flush its data.
 		// Probably want to emit a counter here, but for now just log it.
+		fmt.Println(10)
 		if err := shard.Flush(blockStart, flush); err != nil {
+			fmt.Println(11)
 			detailedErr := fmt.Errorf("shard %d failed to flush data: %v",
 				shard.ID(), err)
 			multiErr = multiErr.Add(detailedErr)
@@ -756,6 +767,7 @@ func (n *dbNamespace) Flush(
 
 	res := multiErr.FinalError()
 	n.metrics.flush.ReportSuccessOrError(res, n.nowFn().Sub(callStart))
+	fmt.Println(12)
 	return res
 }
 

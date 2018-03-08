@@ -91,14 +91,18 @@ func (m *flushManager) Flush(curr time.Time) error {
 	multiErr := xerrors.NewMultiError()
 	for _, ns := range namespaces {
 		flushTimes := m.namespaceFlushTimes(ns, curr)
+		fmt.Println("flushing namespaces")
 		multiErr = multiErr.Add(m.flushNamespaceWithTimes(ns, flushTimes, flush))
+		fmt.Println("done flushing namespaces")
 
 		// Do flush first to prevent situations where we perform a snapshot right before a flush
+		fmt.Println("snapshotting")
 		if err := ns.Snapshot(flush); err != nil {
 			detailedErr := fmt.Errorf("namespace %s failed to snapshot data: %v",
 				ns.ID().String(), err)
 			multiErr = multiErr.Add(detailedErr)
 		}
+		fmt.Println("done snapshotting")
 	}
 
 	// mark flush finished

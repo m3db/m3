@@ -1639,20 +1639,25 @@ func (s *dbShard) Flush(
 	blockStart time.Time,
 	flush persist.Flush,
 ) error {
+	fmt.Println("f1")
 	// We don't flush data when the shard is still bootstrapping
 	s.RLock()
 	if s.bs != bootstrapped {
+		fmt.Println("f2")
 		s.RUnlock()
 		return errShardNotBootstrappedToFlush
 	}
 	s.RUnlock()
 
 	var multiErr xerrors.MultiError
+	fmt.Println("f3")
 	prepared, err := flush.Prepare(s.namespace, s.ID(), blockStart)
+	fmt.Println("f4")
 	multiErr = multiErr.Add(err)
 
 	// No action is necessary therefore we bail out early and there is no need to close.
 	if prepared.Persist == nil {
+		fmt.Println("f5")
 		// NB(r): Need to mark state without mulitErr as success so IsBlockRetrievable can
 		// return true when querying if a block is retrievable for this time
 		return s.markFlushStateSuccessOrError(blockStart, multiErr.FinalError())
@@ -1664,14 +1669,18 @@ func (s *dbShard) Flush(
 		// Use a temporary context here so the stream readers can be returned to
 		// pool after we finish fetching flushing the series
 		tmpCtx.Reset()
+		fmt.Println("f6")
 		err := series.Flush(tmpCtx, blockStart, prepared.Persist)
+		fmt.Println("f7")
 		tmpCtx.BlockingClose()
 		multiErr = multiErr.Add(err)
 		// If we encounter an error when persisting a series, we continue regardless.
 		return true
 	})
 
+	fmt.Println("f8")
 	if err := prepared.Close(); err != nil {
+		fmt.Println("f9")
 		multiErr = multiErr.Add(err)
 	}
 
