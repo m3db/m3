@@ -124,7 +124,7 @@ func (r *reader) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 	var err error
 
 	// If there is no checkpoint file, don't read the data files.
-	shardDir := ShardDirPath(r.filePathPrefix, namespace, shard)
+	shardDir := ShardDataDirPath(r.filePathPrefix, namespace, shard)
 	if err := r.readCheckpointFile(shardDir, blockStart); err != nil {
 		return err
 	}

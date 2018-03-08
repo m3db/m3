@@ -176,7 +176,7 @@ func TestDeleteInactiveDirectories(t *testing.T) {
 	shards := []uint32{uint32(4), uint32(5), uint32(6)}
 	shardDirs := []string{"4", "5", "6"}
 	for _, shard := range shards {
-		shardDir := ShardDirPath(tempPrefix, testNs1ID, shard)
+		shardDir := ShardDataDirPath(tempPrefix, testNs1ID, shard)
 		err := os.MkdirAll(shardDir, defaultNewDirectoryMode)
 		require.NoError(t, err)
 
@@ -206,7 +206,7 @@ func TestForEachInfoFile(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	shard := uint32(0)
-	shardDir := ShardDirPath(dir, testNs1ID, shard)
+	shardDir := ShardDataDirPath(dir, testNs1ID, shard)
 	require.NoError(t, os.MkdirAll(shardDir, os.ModeDir|os.FileMode(0755)))
 
 	blockStart := time.Unix(0, 0)
@@ -309,7 +309,7 @@ func TestFileExists(t *testing.T) {
 
 	shard := uint32(10)
 	start := time.Now()
-	shardDir := ShardDirPath(dir, testNs1ID, shard)
+	shardDir := ShardDataDirPath(dir, testNs1ID, shard)
 	err := os.MkdirAll(shardDir, defaultNewDirectoryMode)
 	require.NoError(t, err)
 
@@ -328,8 +328,8 @@ func TestFileExists(t *testing.T) {
 }
 
 func TestShardDirPath(t *testing.T) {
-	require.Equal(t, "foo/bar/data/testNs/12", ShardDirPath("foo/bar", testNs1ID, 12))
-	require.Equal(t, "foo/bar/data/testNs/12", ShardDirPath("foo/bar/", testNs1ID, 12))
+	require.Equal(t, "foo/bar/data/testNs/12", ShardDataDirPath("foo/bar", testNs1ID, 12))
+	require.Equal(t, "foo/bar/data/testNs/12", ShardDataDirPath("foo/bar/", testNs1ID, 12))
 }
 
 func TestFilePathFromTime(t *testing.T) {

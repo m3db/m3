@@ -427,9 +427,16 @@ func CommitLogsDirPath(prefix string) string {
 	return path.Join(prefix, commitLogsDirName)
 }
 
-// FilesetExistsAt determines whether a data file exists for the given namespace, shard, and block start time.
-func FilesetExistsAt(prefix string, namespace ident.ID, shard uint32, blockStart time.Time) bool {
+// DataFilesetExistsAt determines whether data fileset files exist for the given namespace, shard, and block start time.
+func DataFilesetExistsAt(prefix string, namespace ident.ID, shard uint32, blockStart time.Time) bool {
 	shardDir := ShardDataDirPath(prefix, namespace, shard)
+	checkpointFile := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
+	return FileExists(checkpointFile)
+}
+
+// SnapshotFilesetExistsAt determines whether snapshot fileset files exist for the given namespace, shard, and block start time.
+func SnapshotFilesetExistsAt(prefix string, namespace ident.ID, shard uint32, blockStart time.Time) bool {
+	shardDir := ShardSnapshotsDirPath(prefix, namespace, shard)
 	checkpointFile := filesetPathFromTime(shardDir, blockStart, checkpointFileSuffix)
 	return FileExists(checkpointFile)
 }

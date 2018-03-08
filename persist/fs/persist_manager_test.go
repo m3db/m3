@@ -37,7 +37,7 @@ import (
 )
 
 func createShardDir(t *testing.T, prefix string, namespace ident.ID, shard uint32) string {
-	shardDirPath := ShardDirPath(prefix, namespace, shard)
+	shardDirPath := ShardDataDirPath(prefix, namespace, shard)
 	err := os.MkdirAll(shardDirPath, os.ModeDir|os.FileMode(0755))
 	require.Nil(t, err)
 	return shardDirPath

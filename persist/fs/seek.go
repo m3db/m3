@@ -178,7 +178,7 @@ func (s *seeker) Open(namespace ident.ID, shard uint32, blockStart time.Time) er
 		return errClonesShouldNotBeOpened
 	}
 
-	shardDir := ShardDirPath(s.filePathPrefix, namespace, shard)
+	shardDir := ShardDataDirPath(s.filePathPrefix, namespace, shard)
 	var infoFd, indexFd, dataFd, digestFd, bloomFilterFd, summariesFd *os.File
 
 	// Open necessary files
