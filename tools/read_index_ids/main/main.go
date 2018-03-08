@@ -1,21 +1,17 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"time"
 
 	"github.com/m3db/m3db/persist/fs"
+	"github.com/m3db/m3db/tools"
 	"github.com/m3db/m3x/ident"
 	xlog "github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/pool"
 
 	"github.com/pborman/getopt"
-)
-
-const (
-	defaultBufferCapacity  = 1024 * 1024 * 1024
-	defaultBufferPoolCount = 10
 )
 
 func main() {
@@ -36,19 +32,15 @@ func main() {
 		os.Exit(1)
 	}
 
-	bytesPool := pool.NewCheckedBytesPool([]pool.Bucket{pool.Bucket{
-		Capacity: defaultBufferCapacity,
-		Count:    defaultBufferPoolCount,
-	}}, nil, func(buckets []pool.Bucket) pool.BytesPool {
-		return pool.NewBytesPool(buckets, nil)
-	})
+	bytesPool := tools.NewCheckedBytesPool()
 	bytesPool.Init()
 
-	reader, err := fs.NewReader(bytesPool, fs.NewOptions())
+	fsOpts := fs.NewOptions().SetFilePathPrefix(*optPathPrefix)
+	reader, err := fs.NewReader(bytesPool, fsOpts)
 	if err != nil {
 		log.Fatalf("could not create new reader: %v", err)
 	}
-	err = reader.Open(ident.StringID(*optNamespace), *optShard, time.Unix(*optBlockstart, 0))
+	err = reader.Open(ident.StringID(*optNamespace), *optShard, time.Unix(0, *optBlockstart))
 	if err != nil {
 		log.Fatalf("unable to open reader: %v", err)
 	}
@@ -61,6 +53,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("err reading metadata: %v", err)
 		}
-		log.Info(id.String())
+		// Use fmt package so it goes to stdout instead of stderr
+		fmt.Println(id.String())
 	}
 }
