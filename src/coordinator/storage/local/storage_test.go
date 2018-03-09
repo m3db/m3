@@ -5,12 +5,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3coordinator/errors"
+	"github.com/m3db/m3coordinator/models"
 	"github.com/m3db/m3coordinator/policy/resolver"
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/ts"
 	"github.com/m3db/m3coordinator/util/logging"
 
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
 
@@ -22,6 +25,26 @@ func setup() {
 	logging.InitWithCores(nil)
 	logger := logging.WithContext(context.TODO())
 	defer logger.Sync()
+}
+
+func newSearchReq() *storage.FetchQuery {
+	matchers := models.Matchers{
+		{
+			Type:  models.MatchEqual,
+			Name:  "foo",
+			Value: "bar",
+		},
+		{
+			Type:  models.MatchEqual,
+			Name:  "biz",
+			Value: "baz",
+		},
+	}
+	return &storage.FetchQuery{
+		TagMatchers: matchers,
+		Start:       time.Now().Add(-10 * time.Minute),
+		End:         time.Now(),
+	}
 }
 
 func newWriteQuery() *storage.WriteQuery {
@@ -61,4 +84,20 @@ func TestLocalWriteSuccess(t *testing.T) {
 	writeQuery := newWriteQuery()
 	err := store.Write(context.TODO(), writeQuery)
 	assert.NoError(t, err)
+}
+
+func setupLocalSearch(t *testing.T) storage.Storage {
+	setup()
+	ctrl := gomock.NewController(t)
+	session := client.NewMockSession(ctrl)
+	session.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any()).Return(index.QueryResults{}, errors.ErrNotImplemented)
+	store := NewStorage(session, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48)))
+	return store
+}
+
+func TestLocalSearchExpectedFail(t *testing.T) {
+	store := setupLocalSearch(t)
+	searchReq := newSearchReq()
+	_, err := store.FetchTags(context.TODO(), searchReq, &storage.FetchOptions{Limit: 100})
+	assert.Error(t, err)
 }

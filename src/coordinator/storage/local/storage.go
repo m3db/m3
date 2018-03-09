@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3coordinator/errors"
+	"github.com/m3db/m3coordinator/models"
 	"github.com/m3db/m3coordinator/policy/resolver"
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/ts"
@@ -81,6 +82,36 @@ func (s *localStorage) Fetch(ctx context.Context, query *storage.FetchQuery, opt
 	seriesList[0] = series
 	return &storage.FetchResult{
 		SeriesList: seriesList,
+	}, nil
+}
+
+func (s *localStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {
+	// Check if the query was interrupted.
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-options.KillChan:
+		return nil, errors.ErrQueryInterrupted
+	default:
+	}
+
+	m3query := storage.FetchQueryToM3Query(query)
+	opts := storage.FetchOptionsToM3Options(options, query)
+	results, err := s.session.FetchTaggedIDs(m3query, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	iter := results.Iter
+
+	var metrics models.Metrics
+	for iter.Next() {
+		m := storage.FromM3IdentToMetric(results.Iter.Current())
+		metrics = append(metrics, m)
+	}
+
+	return &storage.SearchResults{
+		Metrics: metrics,
 	}, nil
 }
 
