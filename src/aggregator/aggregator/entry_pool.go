@@ -26,7 +26,7 @@ type entryPool struct {
 	pool pool.ObjectPool
 }
 
-// NewEntryPool creates a new pool for entries
+// NewEntryPool creates a new pool for entries.
 func NewEntryPool(opts pool.ObjectPoolOptions) EntryPool {
 	return &entryPool{pool: pool.NewObjectPool(opts)}
 }

@@ -52,7 +52,7 @@ type options struct {
 	centroidsPool CentroidsPool
 }
 
-// NewOptions creates a new options
+// NewOptions creates a new options.
 func NewOptions() Options {
 	centroidsPool := NewCentroidsPool(defaultBuckets, nil)
 	centroidsPool.Init()

@@ -22,17 +22,17 @@ package cm
 
 var emptySample Sample
 
-// newSample creates a new sample
+// newSample creates a new sample.
 func newSample() *Sample {
 	return &Sample{}
 }
 
-// reset resets a sample
+// reset resets a sample.
 func (s *Sample) reset() {
 	*s = emptySample
 }
 
-// setData sets sample data
+// setData sets sample data.
 // nolint: unparam
 func (s *Sample) setData(value float64, numRanks int64, delta int64) {
 	s.value = value

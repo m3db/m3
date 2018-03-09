@@ -36,7 +36,7 @@ func TestSameIDMultiType(t *testing.T) {
 		t.SkipNow()
 	}
 
-	// Test setup
+	// Test setup.
 	testSetup := newTestSetup(t, newTestOptions())
 	defer testSetup.close()
 
@@ -45,7 +45,7 @@ func TestSameIDMultiType(t *testing.T) {
 			SetEntryCheckInterval(time.Second).
 			SetMinFlushInterval(0)
 
-	// Start the server
+	// Start the server.
 	log := testSetup.aggregatorOpts.InstrumentOptions().Logger()
 	log.Info("test one client sending multiple types of metrics")
 	require.NoError(t, testSetup.startServer())
@@ -96,7 +96,7 @@ func TestSameIDMultiType(t *testing.T) {
 		}
 		require.NoError(t, client.flush())
 
-		// Give server some time to process the incoming packets
+		// Give server some time to process the incoming packets.
 		time.Sleep(100 * time.Millisecond)
 	}
 
@@ -106,11 +106,11 @@ func TestSameIDMultiType(t *testing.T) {
 	testSetup.setNowFn(finalTime)
 	time.Sleep(4 * time.Second)
 
-	// Stop the server
+	// Stop the server.
 	require.NoError(t, testSetup.stopServer())
 	log.Info("server is now down")
 
-	// Validate results
+	// Validate results.
 	expected := toExpectedResults(t, finalTime, input, testSetup.aggregatorOpts)
 	actual := testSetup.sortedResults()
 	require.Equal(t, expected, actual)

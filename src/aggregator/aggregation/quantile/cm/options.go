@@ -61,7 +61,7 @@ type options struct {
 	floatsPool             pool.FloatsPool
 }
 
-// NewOptions creates a new options
+// NewOptions creates a new options.
 func NewOptions() Options {
 	o := &options{
 		eps:                    defaultEps,

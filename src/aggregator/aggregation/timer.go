@@ -130,7 +130,7 @@ func (t *Timer) ValueOf(aggType policy.AggregationType) float64 {
 	return 0
 }
 
-// Close closes the timer
+// Close closes the timer.
 func (t *Timer) Close() {
 	t.stream.Close()
 }

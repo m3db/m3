@@ -26,7 +26,7 @@ type samplePool struct {
 	pool pool.ObjectPool
 }
 
-// NewSamplePool creates a new pool for samples
+// NewSamplePool creates a new pool for samples.
 func NewSamplePool(opts pool.ObjectPoolOptions) SamplePool {
 	return &samplePool{pool: pool.NewObjectPool(opts)}
 }
@@ -42,7 +42,7 @@ func (p *samplePool) Get() *Sample {
 }
 
 func (p *samplePool) Put(sample *Sample) {
-	// Reset sample to reduce GC sweep overhead
+	// Reset sample to reduce GC sweep overhead.
 	sample.reset()
 	p.pool.Put(sample)
 }

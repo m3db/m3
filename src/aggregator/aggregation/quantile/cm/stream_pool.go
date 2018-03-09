@@ -26,7 +26,7 @@ type streamPool struct {
 	pool pool.ObjectPool
 }
 
-// NewStreamPool creates a new pool for streams
+// NewStreamPool creates a new pool for streams.
 func NewStreamPool(opts pool.ObjectPoolOptions) StreamPool {
 	return &streamPool{pool: pool.NewObjectPool(opts)}
 }

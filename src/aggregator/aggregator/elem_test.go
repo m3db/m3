@@ -148,7 +148,7 @@ func TestElemBaseMarkAsTombStoned(t *testing.T) {
 	e := &elemBase{}
 	require.False(t, e.tombstoned)
 
-	// Marking a closed element tombstoned has no impact
+	// Marking a closed element tombstoned has no impact.
 	e.closed = true
 	e.MarkAsTombstoned()
 	require.False(t, e.tombstoned)
@@ -161,7 +161,7 @@ func TestElemBaseMarkAsTombStoned(t *testing.T) {
 func TestCounterElemAddMetric(t *testing.T) {
 	e := NewCounterElem(testCounterID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions())
 
-	// Add a counter metric
+	// Add a counter metric.
 	require.NoError(t, e.AddMetric(testTimestamps[0], testCounter))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
@@ -170,7 +170,7 @@ func TestCounterElemAddMetric(t *testing.T) {
 	require.Equal(t, int64(0), e.values[0].counter.SumSq())
 
 	// Add the counter metric at slightly different time
-	// but still within the same aggregation interval
+	// but still within the same aggregation interval.
 	require.NoError(t, e.AddMetric(testTimestamps[1], testCounter))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
@@ -178,7 +178,7 @@ func TestCounterElemAddMetric(t *testing.T) {
 	require.Equal(t, int64(2), e.values[0].counter.Count())
 	require.Equal(t, int64(0), e.values[0].counter.SumSq())
 
-	// Add the counter metric in the next aggregation interval
+	// Add the counter metric in the next aggregation interval.
 	require.NoError(t, e.AddMetric(testTimestamps[2], testCounter))
 	require.Equal(t, 2, len(e.values))
 	for i := 0; i < len(e.values); i++ {
@@ -188,7 +188,7 @@ func TestCounterElemAddMetric(t *testing.T) {
 	require.Equal(t, int64(2), e.values[0].counter.Count())
 	require.Equal(t, int64(0), e.values[0].counter.SumSq())
 
-	// Adding the counter metric to a closed element results in an error
+	// Adding the counter metric to a closed element results in an error.
 	e.closed = true
 	require.Equal(t, errCounterElemClosed, e.AddMetric(testTimestamps[2], testCounter))
 }
@@ -196,7 +196,7 @@ func TestCounterElemAddMetric(t *testing.T) {
 func TestCounterElemAddMetricWithCustomAggregation(t *testing.T) {
 	e := NewCounterElem(testCounterID, testStoragePolicy, testAggregationTypesExpensive, testOptions())
 
-	// Add a counter metric
+	// Add a counter metric.
 	require.NoError(t, e.AddMetric(testTimestamps[0], testCounter))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
@@ -205,14 +205,14 @@ func TestCounterElemAddMetricWithCustomAggregation(t *testing.T) {
 	require.Equal(t, int64(testCounter.CounterVal*testCounter.CounterVal), e.values[0].counter.SumSq())
 
 	// Add the counter metric at slightly different time
-	// but still within the same aggregation interval
+	// but still within the same aggregation interval.
 	require.NoError(t, e.AddMetric(testTimestamps[1], testCounter))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
 	require.Equal(t, 2*testCounter.CounterVal, e.values[0].counter.Sum())
 	require.Equal(t, testCounter.CounterVal, e.values[0].counter.Max())
 
-	// Add the counter metric in the next aggregation interval
+	// Add the counter metric in the next aggregation interval.
 	require.NoError(t, e.AddMetric(testTimestamps[2], testCounter))
 	require.Equal(t, 2, len(e.values))
 	for i := 0; i < len(e.values); i++ {
@@ -221,7 +221,7 @@ func TestCounterElemAddMetricWithCustomAggregation(t *testing.T) {
 	require.Equal(t, testCounter.CounterVal, e.values[1].counter.Sum())
 	require.Equal(t, testCounter.CounterVal, e.values[0].counter.Max())
 
-	// Adding the counter metric to a closed element results in an error
+	// Adding the counter metric to a closed element results in an error.
 	e.closed = true
 	require.Equal(t, errCounterElemClosed, e.AddMetric(testTimestamps[2], testCounter))
 }
@@ -229,32 +229,32 @@ func TestCounterElemAddMetricWithCustomAggregation(t *testing.T) {
 func TestCounterElemReadAndDiscard(t *testing.T) {
 	e := testCounterElem(policy.DefaultAggregationTypes)
 
-	// Read and discard values before an early-enough time
+	// Read and discard values before an early-enough time.
 	fn, res := testAggMetricFn()
 	require.False(t, e.Consume(0, fn))
 	require.Equal(t, 0, len(*res))
 	require.Equal(t, 2, len(e.values))
 
-	// Read and discard one value
+	// Read and discard one value.
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[1], fn))
 	require.Equal(t, expectedAggMetricsForCounter(testAlignedStarts[1], testStoragePolicy, policy.DefaultAggregationTypes), *res)
 	require.Equal(t, 1, len(e.values))
 
-	// Read and discard all values
+	// Read and discard all values.
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, expectedAggMetricsForCounter(testAlignedStarts[2], testStoragePolicy, policy.DefaultAggregationTypes), *res)
 	require.Equal(t, 0, len(e.values))
 
-	// Tombstone the element and discard all values
+	// Tombstone the element and discard all values.
 	e.tombstoned = true
 	fn, res = testAggMetricFn()
 	require.True(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(*res))
 	require.Equal(t, 0, len(e.values))
 
-	// Reading and discarding values from a closed element is no op
+	// Reading and discarding values from a closed element is no op.
 	e.closed = true
 	fn, _ = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
@@ -264,32 +264,32 @@ func TestCounterElemReadAndDiscard(t *testing.T) {
 func TestCounterElemReadAndDiscardWithCustomAggregation(t *testing.T) {
 	e := testCounterElem(testAggregationTypes)
 
-	// Read and discard values before an early-enough time
+	// Read and discard values before an early-enough time.
 	fn, res := testAggMetricFn()
 	require.False(t, e.Consume(0, fn))
 	require.Equal(t, 0, len(*res))
 	require.Equal(t, 2, len(e.values))
 
-	// Read and discard one value
+	// Read and discard one value.
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[1], fn))
 	require.Equal(t, expectedAggMetricsForCounter(testAlignedStarts[1], testStoragePolicy, testAggregationTypes), *res)
 	require.Equal(t, 1, len(e.values))
 
-	// Read and discard all values
+	// Read and discard all values.
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, expectedAggMetricsForCounter(testAlignedStarts[2], testStoragePolicy, testAggregationTypes), *res)
 	require.Equal(t, 0, len(e.values))
 
-	// Tombstone the element and discard all values
+	// Tombstone the element and discard all values.
 	e.tombstoned = true
 	fn, res = testAggMetricFn()
 	require.True(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(*res))
 	require.Equal(t, 0, len(e.values))
 
-	// Reading and discarding values from a closed element is no op
+	// Reading and discarding values from a closed element is no op.
 	e.closed = true
 	fn, _ = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
@@ -300,10 +300,10 @@ func TestCounterElemClose(t *testing.T) {
 	e := testCounterElem(policy.DefaultAggregationTypes)
 	require.False(t, e.closed)
 
-	// Closing the element
+	// Closing the element.
 	e.Close()
 
-	// Closing a second time should have no impact
+	// Closing a second time should have no impact.
 	e.Close()
 
 	require.True(t, e.closed)
@@ -337,7 +337,7 @@ func TestCounterFindOrInsert(t *testing.T) {
 func TestTimerElemAddMetric(t *testing.T) {
 	e := NewTimerElem(testBatchTimerID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions())
 
-	// Add a timer metric
+	// Add a timer metric.
 	require.NoError(t, e.AddMetric(testTimestamps[0], testBatchTimer))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
@@ -349,7 +349,7 @@ func TestTimerElemAddMetric(t *testing.T) {
 	require.Equal(t, 6.5, timer.Quantile(0.99))
 
 	// Add the timer metric at slightly different time
-	// but still within the same aggregation interval
+	// but still within the same aggregation interval.
 	require.NoError(t, e.AddMetric(testTimestamps[1], testBatchTimer))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
@@ -360,7 +360,7 @@ func TestTimerElemAddMetric(t *testing.T) {
 	require.Equal(t, 6.5, timer.Quantile(0.95))
 	require.Equal(t, 6.5, timer.Quantile(0.99))
 
-	// Add the timer metric in the next aggregation interval
+	// Add the timer metric in the next aggregation interval.
 	require.NoError(t, e.AddMetric(testTimestamps[2], testBatchTimer))
 	require.Equal(t, 2, len(e.values))
 	for i := 0; i < len(e.values); i++ {
@@ -373,114 +373,114 @@ func TestTimerElemAddMetric(t *testing.T) {
 	require.Equal(t, 6.5, timer.Quantile(0.95))
 	require.Equal(t, 6.5, timer.Quantile(0.99))
 
-	// Adding the timer metric to a closed element results in an error
+	// Adding the timer metric to a closed element results in an error.
 	e.closed = true
 	require.Equal(t, errTimerElemClosed, e.AddMetric(testTimestamps[2], testBatchTimer))
 }
 
 func TestTimerElemConsume(t *testing.T) {
-	// Set up stream options
+	// Set up stream options.
 	streamOpts, p, numAlloc := testStreamOptions(t, len(testAlignedStarts)-1)
 
-	// Verify the pool is big enough to supply all the streams
+	// Verify the pool is big enough to supply all the streams.
 	opts := testOptions().SetStreamOptions(streamOpts)
 	e := testTimerElem(policy.DefaultAggregationTypes, opts)
 	verifyStreamPoolSize(t, p, 0, numAlloc)
 
-	// Read and discard values before an early-enough time
+	// Read and discard values before an early-enough time.
 	fn, res := testAggMetricFn()
 	require.False(t, e.Consume(0, fn))
 	require.Equal(t, 0, len(*res))
 	require.Equal(t, 2, len(e.values))
 
-	// Read and discard one value
+	// Read and discard one value.
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[1], fn))
 	require.Equal(t, expectedAggMetricsForTimer(testAlignedStarts[1], testStoragePolicy, policy.DefaultAggregationTypes), *res)
 	require.Equal(t, 1, len(e.values))
 
-	// Read and discard all values
+	// Read and discard all values.
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, expectedAggMetricsForTimer(testAlignedStarts[2], testStoragePolicy, policy.DefaultAggregationTypes), *res)
 	require.Equal(t, 0, len(e.values))
 
-	// Tombstone the element and discard all values
+	// Tombstone the element and discard all values.
 	e.tombstoned = true
 	fn, res = testAggMetricFn()
 	require.True(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(*res))
 	require.Equal(t, 0, len(e.values))
 
-	// Reading and discarding values from a closed element is no op
+	// Reading and discarding values from a closed element is no op.
 	e.closed = true
 	fn, _ = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(e.values))
 
-	// Verify the streams have been returned to pool
+	// Verify the streams have been returned to pool.
 	verifyStreamPoolSize(t, p, len(testAlignedStarts)-1, numAlloc)
 }
 
 func TestTimerElemReadAndDiscardWithCustomAggregation(t *testing.T) {
-	// Set up stream options
+	// Set up stream options.
 	streamOpts, p, numAlloc := testStreamOptions(t, len(testAlignedStarts)-1)
 
-	// Verify the pool is big enough to supply all the streams
+	// Verify the pool is big enough to supply all the streams.
 	opts := testOptions().SetStreamOptions(streamOpts)
 	e := testTimerElem(testTimerAggregationTypes, opts)
 	verifyStreamPoolSize(t, p, 0, numAlloc)
 
-	// Read and discard values before an early-enough time
+	// Read and discard values before an early-enough time.
 	fn, res := testAggMetricFn()
 	require.False(t, e.Consume(0, fn))
 	require.Equal(t, 0, len(*res))
 	require.Equal(t, 2, len(e.values))
 
-	// Read and discard one value
+	// Read and discard one value.
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[1], fn))
 	require.Equal(t, expectedAggMetricsForTimer(testAlignedStarts[1], testStoragePolicy, testTimerAggregationTypes), *res)
 	require.Equal(t, 1, len(e.values))
 
-	// Read and discard all values
+	// Read and discard all values.
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, expectedAggMetricsForTimer(testAlignedStarts[2], testStoragePolicy, testTimerAggregationTypes), *res)
 	require.Equal(t, 0, len(e.values))
 
-	// Tombstone the element and discard all values
+	// Tombstone the element and discard all values.
 	e.tombstoned = true
 	fn, res = testAggMetricFn()
 	require.True(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(*res))
 	require.Equal(t, 0, len(e.values))
 
-	// Reading and discarding values from a closed element is no op
+	// Reading and discarding values from a closed element is no op.
 	e.closed = true
 	fn, _ = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, 0, len(e.values))
 
-	// Verify the streams have been returned to pool
+	// Verify the streams have been returned to pool.
 	verifyStreamPoolSize(t, p, len(testAlignedStarts)-1, numAlloc)
 }
 
 func TestTimerElemClose(t *testing.T) {
-	// Set up stream options
+	// Set up stream options.
 	streamOpts, p, numAlloc := testStreamOptions(t, len(testAlignedStarts)-1)
 
-	// Verify the pool is big enough to supply all the streams
+	// Verify the pool is big enough to supply all the streams.
 	opts := testOptions().SetStreamOptions(streamOpts)
 	e := testTimerElem(policy.DefaultAggregationTypes, opts)
 	verifyStreamPoolSize(t, p, 0, numAlloc)
 
 	require.False(t, e.closed)
 
-	// Closing the element
+	// Closing the element.
 	e.Close()
 
-	// Closing a second time should have no impact
+	// Closing a second time should have no impact.
 	e.Close()
 
 	require.True(t, e.closed)
@@ -488,7 +488,7 @@ func TestTimerElemClose(t *testing.T) {
 	require.Equal(t, 0, len(e.values))
 	require.NotNil(t, e.values)
 
-	// Verify the streams have been returned to pool
+	// Verify the streams have been returned to pool.
 	verifyStreamPoolSize(t, p, len(testAlignedStarts)-1, numAlloc)
 }
 
@@ -517,7 +517,7 @@ func TestTimerFindOrInsert(t *testing.T) {
 func TestGaugeElemAddMetric(t *testing.T) {
 	e := NewGaugeElem(testGaugeID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions())
 
-	// Add a gauge metric
+	// Add a gauge metric.
 	require.NoError(t, e.AddMetric(testTimestamps[0], testGauge))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
@@ -526,7 +526,7 @@ func TestGaugeElemAddMetric(t *testing.T) {
 	require.Equal(t, 0.0, e.values[0].gauge.SumSq())
 
 	// Add the gauge metric at slightly different time
-	// but still within the same aggregation interval
+	// but still within the same aggregation interval.
 	require.NoError(t, e.AddMetric(testTimestamps[1], testGauge))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
@@ -534,7 +534,7 @@ func TestGaugeElemAddMetric(t *testing.T) {
 	require.Equal(t, 2*testGauge.GaugeVal, e.values[0].gauge.Sum())
 	require.Equal(t, 0.0, e.values[0].gauge.SumSq())
 
-	// Add the gauge metric in the next aggregation interval
+	// Add the gauge metric in the next aggregation interval.
 	require.NoError(t, e.AddMetric(testTimestamps[2], testGauge))
 	require.Equal(t, 2, len(e.values))
 	for i := 0; i < len(e.values); i++ {
@@ -544,7 +544,7 @@ func TestGaugeElemAddMetric(t *testing.T) {
 	require.Equal(t, testGauge.GaugeVal, e.values[1].gauge.Sum())
 	require.Equal(t, 0.0, e.values[1].gauge.SumSq())
 
-	// Adding the gauge metric to a closed element results in an error
+	// Adding the gauge metric to a closed element results in an error.
 	e.closed = true
 	require.Equal(t, errGaugeElemClosed, e.AddMetric(testTimestamps[2], testGauge))
 }
@@ -552,7 +552,7 @@ func TestGaugeElemAddMetric(t *testing.T) {
 func TestGaugeElemAddMetricWithCustomAggregation(t *testing.T) {
 	e := NewGaugeElem(testGaugeID, testStoragePolicy, testAggregationTypesExpensive, testOptions())
 
-	// Add a gauge metric
+	// Add a gauge metric.
 	require.NoError(t, e.AddMetric(testTimestamps[0], testGauge))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
@@ -563,7 +563,7 @@ func TestGaugeElemAddMetricWithCustomAggregation(t *testing.T) {
 	require.Equal(t, testGauge.GaugeVal*testGauge.GaugeVal, e.values[0].gauge.SumSq())
 
 	// Add the gauge metric at slightly different time
-	// but still within the same aggregation interval
+	// but still within the same aggregation interval.
 	require.NoError(t, e.AddMetric(testTimestamps[1], testGauge))
 	require.Equal(t, 1, len(e.values))
 	require.Equal(t, testAlignedStarts[0], e.values[0].timeNanos)
@@ -572,7 +572,7 @@ func TestGaugeElemAddMetricWithCustomAggregation(t *testing.T) {
 	require.Equal(t, 2*testGauge.GaugeVal, e.values[0].gauge.Sum())
 	require.Equal(t, 2*testGauge.GaugeVal*testGauge.GaugeVal, e.values[0].gauge.SumSq())
 
-	// Add the gauge metric in the next aggregation interval
+	// Add the gauge metric in the next aggregation interval.
 	require.NoError(t, e.AddMetric(testTimestamps[2], testGauge))
 	require.Equal(t, 2, len(e.values))
 	for i := 0; i < len(e.values); i++ {
@@ -581,7 +581,7 @@ func TestGaugeElemAddMetricWithCustomAggregation(t *testing.T) {
 	require.Equal(t, testGauge.GaugeVal, e.values[1].gauge.Last())
 	require.Equal(t, testGauge.GaugeVal, e.values[1].gauge.Max())
 
-	// Adding the gauge metric to a closed element results in an error
+	// Adding the gauge metric to a closed element results in an error.
 	e.closed = true
 	require.Equal(t, errGaugeElemClosed, e.AddMetric(testTimestamps[2], testGauge))
 }
@@ -589,25 +589,25 @@ func TestGaugeElemAddMetricWithCustomAggregation(t *testing.T) {
 func TestGaugeElemReadAndDiscard(t *testing.T) {
 	e := testGaugeElem(policy.DefaultAggregationTypes)
 
-	// Read and discard values before an early-enough time
+	// Read and discard values before an early-enough time.
 	fn, res := testAggMetricFn()
 	require.False(t, e.Consume(0, fn))
 	require.Equal(t, 0, len(*res))
 	require.Equal(t, 2, len(e.values))
 
-	// Read and discard one value
+	// Read and discard one value.
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[1], fn))
 	require.Equal(t, expectedAggMetricsForGauge(testAlignedStarts[1], testStoragePolicy, policy.DefaultAggregationTypes), *res)
 	require.Equal(t, 1, len(e.values))
 
-	// Read and discard all values
+	// Read and discard all values.
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, expectedAggMetricsForGauge(testAlignedStarts[2], testStoragePolicy, policy.DefaultAggregationTypes), *res)
 	require.Equal(t, 0, len(e.values))
 
-	// Tombstone the element and discard all values
+	// Tombstone the element and discard all values.
 	e.tombstoned = true
 	fn, res = testAggMetricFn()
 	require.True(t, e.Consume(testAlignedStarts[2], fn))
@@ -615,7 +615,7 @@ func TestGaugeElemReadAndDiscard(t *testing.T) {
 	require.Equal(t, 0, len(e.values))
 	require.Equal(t, 0, len(e.values))
 
-	// Reading and discarding values from a closed element is no op
+	// Reading and discarding values from a closed element is no op.
 	e.closed = true
 	fn, _ = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
@@ -625,25 +625,25 @@ func TestGaugeElemReadAndDiscard(t *testing.T) {
 func TestGaugeElemReadAndDiscardWithCustomAggregation(t *testing.T) {
 	e := testGaugeElem(testAggregationTypes)
 
-	// Read and discard values before an early-enough time
+	// Read and discard values before an early-enough time.
 	fn, res := testAggMetricFn()
 	require.False(t, e.Consume(0, fn))
 	require.Equal(t, 0, len(*res))
 	require.Equal(t, 2, len(e.values))
 
-	// Read and discard one value
+	// Read and discard one value.
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[1], fn))
 	require.Equal(t, expectedAggMetricsForGauge(testAlignedStarts[1], testStoragePolicy, testAggregationTypes), *res)
 	require.Equal(t, 1, len(e.values))
 
-	// Read and discard all values
+	// Read and discard all values.
 	fn, res = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
 	require.Equal(t, expectedAggMetricsForGauge(testAlignedStarts[2], testStoragePolicy, testAggregationTypes), *res)
 	require.Equal(t, 0, len(e.values))
 
-	// Tombstone the element and discard all values
+	// Tombstone the element and discard all values.
 	e.tombstoned = true
 	fn, res = testAggMetricFn()
 	require.True(t, e.Consume(testAlignedStarts[2], fn))
@@ -651,7 +651,7 @@ func TestGaugeElemReadAndDiscardWithCustomAggregation(t *testing.T) {
 	require.Equal(t, 0, len(e.values))
 	require.Equal(t, 0, len(e.values))
 
-	// Reading and discarding values from a closed element is no op
+	// Reading and discarding values from a closed element is no op.
 	e.closed = true
 	fn, _ = testAggMetricFn()
 	require.False(t, e.Consume(testAlignedStarts[2], fn))
@@ -662,10 +662,10 @@ func TestGaugeElemClose(t *testing.T) {
 	e := testGaugeElem(policy.DefaultAggregationTypes)
 	require.False(t, e.closed)
 
-	// Closing the element
+	// Closing the element.
 	e.Close()
 
-	// Closing a second time should have no impact
+	// Closing a second time should have no impact.
 	e.Close()
 
 	require.True(t, e.closed)
@@ -836,7 +836,7 @@ func expectedAggMetricsForTimer(
 	sp policy.StoragePolicy,
 	aggTypes policy.AggregationTypes,
 ) []testAggMetric {
-	// this needs to be a list as the order of the result matters in some test
+	// this needs to be a list as the order of the result matters in some test.
 	data := []testSuffixAndValue{
 		{policy.Sum, 18.0},
 		{policy.SumSq, 83.38},

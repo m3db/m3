@@ -28,7 +28,7 @@ import (
 	msgpackserver "github.com/m3db/m3aggregator/server/msgpack"
 )
 
-// Serve starts serving RPC traffic
+// Serve starts serving RPC traffic.
 func Serve(
 	msgpackAddr string,
 	msgpackServerOpts msgpackserver.Options,
@@ -54,7 +54,7 @@ func Serve(
 	defer httpServer.Close()
 	log.Infof("http server: listening on %s", httpAddr)
 
-	// Wait for exit signal
+	// Wait for exit signal.
 	<-doneCh
 
 	return nil

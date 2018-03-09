@@ -57,11 +57,11 @@ var (
 func TestMockAggregator(t *testing.T) {
 	agg := NewAggregator()
 
-	// Adding an invalid metric should result in an error
+	// Adding an invalid metric should result in an error.
 	policies := testDefaultPoliciesList
 	require.Error(t, agg.AddMetricWithPoliciesList(testInvalid, policies))
 
-	// Add valid metrics with policies
+	// Add valid metrics with policies.
 	var expected SnapshotResult
 	for _, mu := range []unaggregated.MetricUnion{testCounter, testBatchTimer, testGauge} {
 		switch mu.Type {

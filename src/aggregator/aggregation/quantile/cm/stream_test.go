@@ -190,11 +190,11 @@ func TestStreamClose(t *testing.T) {
 	s := NewStream(testQuantiles, opts).(*stream)
 	require.False(t, s.closed)
 
-	// Close the stream
+	// Close the stream.
 	s.Close()
 	require.True(t, s.closed)
 
-	// Close the stream again, should be a no-op
+	// Close the stream again, should be a no-op.
 	s.Close()
 	require.True(t, s.closed)
 }
@@ -214,12 +214,12 @@ func TestStreamAddToMinHeap(t *testing.T) {
 
 	inputs := []float64{1.0, 2.0}
 
-	// Push one value to the heap, still under capacity
+	// Push one value to the heap, still under capacity.
 	s.addToMinHeap(&heap, inputs[0])
 	require.Equal(t, inputs[:1], []float64(heap))
 	require.Equal(t, 1, cap(heap))
 
-	// Push another value to the heap, which causes the capacity to grow
+	// Push another value to the heap, which causes the capacity to grow.
 	s.addToMinHeap(&heap, inputs[1])
 	require.Equal(t, inputs, []float64(heap))
 	require.Equal(t, 2, cap(heap))
@@ -291,7 +291,7 @@ func testStreamWithSkewedDistribution(t *testing.T, opts Options) {
 		s.Add(1.0)
 	}
 
-	// Add a huge sample value (10M)
+	// Add a huge sample value (10M).
 	s.Add(10000000.0)
 	s.Flush()
 
