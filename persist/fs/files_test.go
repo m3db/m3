@@ -316,12 +316,12 @@ func TestFileExists(t *testing.T) {
 	infoFilePath := filesetPathFromTime(shardDir, start, infoFileSuffix)
 	createDataFile(t, shardDir, start, infoFileSuffix, nil)
 	require.True(t, FileExists(infoFilePath))
-	require.False(t, FilesetExistsAt(dir, testNs1ID, uint32(shard), start))
+	require.False(t, DataFilesetExistsAt(dir, testNs1ID, uint32(shard), start))
 
 	checkpointFilePath := filesetPathFromTime(shardDir, start, checkpointFileSuffix)
 	createDataFile(t, shardDir, start, checkpointFileSuffix, nil)
 	require.True(t, FileExists(checkpointFilePath))
-	require.True(t, FilesetExistsAt(dir, testNs1ID, uint32(shard), start))
+	require.True(t, DataFilesetExistsAt(dir, testNs1ID, uint32(shard), start))
 
 	os.Remove(infoFilePath)
 	require.False(t, FileExists(infoFilePath))

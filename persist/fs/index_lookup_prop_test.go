@@ -89,7 +89,7 @@ func TestIndexLookupWriteRead(t *testing.T) {
 		if err != nil {
 			return false, fmt.Errorf("err opening writer: %v, ", err)
 		}
-		shardDirPath := ShardDirPath(filePathPrefix, testNs1ID, shard)
+		shardDirPath := ShardDataDirPath(filePathPrefix, testNs1ID, shard)
 		err = writeTestSummariesData(w, writes)
 		if err != nil {
 			return false, fmt.Errorf("err writing test summaries data: %v, ", err)

@@ -22,6 +22,7 @@ package fs
 
 import (
 	"bytes"
+	"fmt"
 	"math"
 	"os"
 	"sort"
@@ -34,6 +35,8 @@ import (
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
+
+	"github.com/golang/mock/gomock"
 )
 
 type writer struct {
@@ -66,8 +69,8 @@ type writer struct {
 type WriterOpenOptions struct {
 	Namespace  ident.ID
 	BlockSize  time.Duration
-	Shard      uint32
 	BlockStart time.Time
+	Shard      uint32
 	IsSnapshot bool
 }
 
@@ -462,6 +465,10 @@ func (w *writer) writeInfoFileContents(
 	return err
 }
 
+type WriterOpenOptionsMatcherIFace interface {
+	gomock.Matcher
+}
+
 // WriterOpenOptionsMatcher satisfies the gomock.Matcher interface for WriterOpenOptions
 type WriterOpenOptionsMatcher struct {
 	Namespace  ident.ID
@@ -470,8 +477,12 @@ type WriterOpenOptionsMatcher struct {
 	BlockStart time.Time
 }
 
+func (m WriterOpenOptionsMatcher) ToIFace() WriterOpenOptionsMatcherIFace {
+	return m
+}
+
 // Matches determine whether m matches a WriterOpenOptions
-func (m *WriterOpenOptionsMatcher) Matches(x interface{}) bool {
+func (m WriterOpenOptionsMatcher) Matches(x interface{}) bool {
 	writerOpenOptions, ok := x.(WriterOpenOptions)
 	if !ok {
 		return false
@@ -491,4 +502,11 @@ func (m *WriterOpenOptionsMatcher) Matches(x interface{}) bool {
 	}
 
 	return true
+}
+
+func (m WriterOpenOptionsMatcher) String() string {
+	return fmt.Sprintf(
+		"namespace: %s, blocksize: %d, shard: %d, blockstart: %d",
+		m.Namespace.String(), m.BlockSize, m.Shard, m.BlockStart.Unix(),
+	)
 }

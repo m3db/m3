@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/m3db/m3db/digest"
+	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
@@ -86,7 +87,12 @@ func TestPersistenceManagerPrepareFileExists(t *testing.T) {
 		assert.NoError(t, flush.Done())
 	}()
 
-	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+	prepareOpts := persist.PrepareOptions{
+		NsMetadata: testNs1Metadata(t),
+		Shard:      shard,
+		BlockStart: blockStart,
+	}
+	prepared, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
@@ -110,7 +116,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 		Shard:      shard,
 		BlockStart: blockStart,
 	}
-	writer.EXPECT().Open(writerOpts).Return(expectedErr)
+	writer.EXPECT().Open(writerOpts.ToIFace()).Return(expectedErr)
 
 	flush, err := pm.StartFlush()
 	require.NoError(t, err)
@@ -119,7 +125,12 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 		assert.NoError(t, flush.Done())
 	}()
 
-	prepared, err := flush.Prepare(ns1Md, shard, blockStart)
+	prepareOpts := persist.PrepareOptions{
+		NsMetadata: ns1Md,
+		Shard:      shard,
+		BlockStart: blockStart,
+	}
+	prepared, err := flush.Prepare(prepareOpts)
 	require.Equal(t, expectedErr, err)
 	require.Nil(t, prepared.Persist)
 	require.Nil(t, prepared.Close)
@@ -140,7 +151,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 		Shard:      shard,
 		BlockStart: blockStart,
 	}
-	writer.EXPECT().Open(writerOpts).Return(nil)
+	writer.EXPECT().Open(writerOpts.ToIFace()).Return(nil)
 
 	var (
 		id       = ident.StringID("foo")
@@ -164,7 +175,12 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 	pm.count = 123
 	pm.bytesWritten = 100
 
-	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+	prepareOpts := persist.PrepareOptions{
+		NsMetadata: testNs1Metadata(t),
+		Shard:      shard,
+		BlockStart: blockStart,
+	}
+	prepared, err := flush.Prepare(prepareOpts)
 	defer prepared.Close()
 
 	require.Nil(t, err)
@@ -202,7 +218,7 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 		Shard:      shard,
 		BlockStart: blockStart,
 	}
-	writer.EXPECT().Open(writerOpts).Return(nil)
+	writer.EXPECT().Open(writerOpts.ToIFace()).Return(nil)
 
 	var (
 		now      time.Time
@@ -227,7 +243,12 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 	}()
 
 	// prepare the flush
-	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+	prepareOpts := persist.PrepareOptions{
+		NsMetadata: testNs1Metadata(t),
+		Shard:      shard,
+		BlockStart: blockStart,
+	}
+	prepared, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
 
 	// Start persistence
@@ -273,7 +294,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		Shard:      shard,
 		BlockStart: blockStart,
 	}
-	writer.EXPECT().Open(writerOpts).Return(nil).Times(iter)
+	writer.EXPECT().Open(writerOpts.ToIFace()).Return(nil).Times(iter)
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).AnyTimes()
 	writer.EXPECT().Close().Times(iter)
 
@@ -303,7 +324,12 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		require.NoError(t, err)
 
 		// prepare the flush
-		prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+		prepareOpts := persist.PrepareOptions{
+			NsMetadata: testNs1Metadata(t),
+			Shard:      shard,
+			BlockStart: blockStart,
+		}
+		prepared, err := flush.Prepare(prepareOpts)
 		require.NoError(t, err)
 
 		// Start persistence
@@ -356,8 +382,13 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 		Shard:      shard,
 		BlockStart: blockStart,
 	}
-	writer.EXPECT().Open(writerOpts).Return(nil)
-	prepared, err := flush.Prepare(testNs1Metadata(t), shard, blockStart)
+	writer.EXPECT().Open(writerOpts.ToIFace()).Return(nil)
+	prepareOpts := persist.PrepareOptions{
+		NsMetadata: testNs1Metadata(t),
+		Shard:      shard,
+		BlockStart: blockStart,
+	}
+	prepared, err := flush.Prepare(prepareOpts)
 	require.NoError(t, err)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)
@@ -368,8 +399,13 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 		Shard:      shard,
 		BlockStart: blockStart,
 	}
-	writer.EXPECT().Open(writerOpts).Return(nil)
-	prepared, err = flush.Prepare(testNs2Metadata(t), shard, blockStart)
+	writer.EXPECT().Open(writerOpts.ToIFace()).Return(nil)
+	prepareOpts = persist.PrepareOptions{
+		NsMetadata: testNs2Metadata(t),
+		Shard:      shard,
+		BlockStart: blockStart,
+	}
+	prepared, err = flush.Prepare(prepareOpts)
 	require.NoError(t, err)
 	require.NotNil(t, prepared.Persist)
 	require.NotNil(t, prepared.Close)

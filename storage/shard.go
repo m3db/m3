@@ -1651,7 +1651,12 @@ func (s *dbShard) Flush(
 
 	var multiErr xerrors.MultiError
 	fmt.Println("f3")
-	prepared, err := flush.Prepare(s.namespace, s.ID(), blockStart)
+	prepareOpts := persist.PrepareOptions{
+		NsMetadata: s.namespace,
+		Shard:      s.ID(),
+		BlockStart: blockStart,
+	}
+	prepared, err := flush.Prepare(prepareOpts)
 	fmt.Println("f4")
 	multiErr = multiErr.Add(err)
 
@@ -1706,7 +1711,12 @@ func (s *dbShard) Snapshot(
 		s.markDoneSnapshotting(multiErr.FinalError() == nil, snapshotStart)
 	}()
 
-	prepared, err := flush.Prepare(s.namespace, s.ID(), snapshotStart)
+	prepareOpts := persist.PrepareOptions{
+		NsMetadata: s.namespace,
+		Shard:      s.ID(),
+		BlockStart: snapshotStart,
+	}
+	prepared, err := flush.Prepare(prepareOpts)
 	multiErr = multiErr.Add(err)
 
 	// No action is necessary therefore we bail out early and there is no need to close.

@@ -66,7 +66,7 @@ func newOpenTestBlockRetriever(
 		retriever.newSeekerMgrFn = opts.newSeekerMgrFn
 	}
 
-	nsPath := NamespaceDirPath(opts.fsOpts.FilePathPrefix(), testNs1ID)
+	nsPath := NamespaceDataDirPath(opts.fsOpts.FilePathPrefix(), testNs1ID)
 	require.NoError(t, os.MkdirAll(nsPath, opts.fsOpts.NewDirectoryMode()))
 	require.NoError(t, retriever.Open(testNs1Metadata(t)))
 

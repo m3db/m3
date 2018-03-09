@@ -53,8 +53,15 @@ type Flush interface {
 	// Prepare prepares writing data for a given (shard, blockStart) combination,
 	// returning a PreparedPersist object and any error encountered during
 	// preparation if any.
-	Prepare(ns namespace.Metadata, shard uint32, blockStart time.Time) (PreparedPersist, error)
+	Prepare(opts PrepareOptions) (PreparedPersist, error)
 
 	// Done marks the flush as complete.
 	Done() error
+}
+
+// PrepareOptions is the options struct for the PersistManager's Prepare method.
+type PrepareOptions struct {
+	NsMetadata namespace.Metadata
+	Shard      uint32
+	BlockStart time.Time
 }

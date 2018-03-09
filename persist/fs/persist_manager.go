@@ -29,7 +29,6 @@ import (
 	"github.com/m3db/m3db/persist"
 	"github.com/m3db/m3db/ratelimit"
 	"github.com/m3db/m3db/runtime"
-	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/ts"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
@@ -211,15 +210,14 @@ func (pm *persistManager) reset() {
 }
 
 // TODO: in the case of a snapshot it won't be a blockstart
-func (pm *persistManager) Prepare(
-	nsMetadata namespace.Metadata,
-	shard uint32,
-	blockStart time.Time,
-) (persist.PreparedPersist, error) {
+func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.PreparedPersist, error) {
 
 	var (
-		nsID     = nsMetadata.ID()
-		prepared persist.PreparedPersist
+		nsMetadata = opts.NsMetadata
+		shard      = opts.Shard
+		blockStart = opts.BlockStart
+		nsID       = opts.NsMetadata.ID()
+		prepared   persist.PreparedPersist
 	)
 
 	// ensure StartFlush has been called

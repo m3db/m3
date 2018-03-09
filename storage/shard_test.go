@@ -34,7 +34,6 @@ import (
 	"github.com/m3db/m3db/runtime"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
-	"github.com/m3db/m3db/storage/namespace"
 	"github.com/m3db/m3db/storage/series"
 	"github.com/m3db/m3db/ts"
 	xmetrics "github.com/m3db/m3db/x/metrics"
@@ -176,8 +175,12 @@ func TestShardFlushNoPersistFuncNoError(t *testing.T) {
 	blockStart := time.Unix(21600, 0)
 	flush := persist.NewMockFlush(ctrl)
 	prepared := persist.PreparedPersist{Persist: nil}
-	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
-		s.shard, blockStart).Return(prepared, nil)
+	prepareOpts := persist.PrepareOptionsMatcher{
+		NsMetadata: s.namespace,
+		Shard:      s.shard,
+		BlockStart: blockStart,
+	}
+	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
 
 	err := s.Flush(blockStart, flush)
 	require.Nil(t, err)
@@ -204,8 +207,12 @@ func TestShardFlushNoPersistFuncWithError(t *testing.T) {
 	prepared := persist.PreparedPersist{}
 	expectedErr := errors.New("some error")
 
-	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
-		s.shard, blockStart).Return(prepared, expectedErr)
+	prepareOpts := persist.PrepareOptionsMatcher{
+		NsMetadata: s.namespace,
+		Shard:      s.shard,
+		BlockStart: blockStart,
+	}
+	flush.EXPECT().Prepare(prepareOpts).Return(prepared, expectedErr)
 
 	actualErr := s.Flush(blockStart, flush)
 	require.NotNil(t, actualErr)
@@ -239,8 +246,12 @@ func TestShardFlushSeriesFlushError(t *testing.T) {
 		Close:   func() error { closed = true; return nil },
 	}
 	expectedErr := errors.New("error foo")
-	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
-		s.shard, blockStart).Return(prepared, expectedErr)
+	prepareOpts := persist.PrepareOptionsMatcher{
+		NsMetadata: s.namespace,
+		Shard:      s.shard,
+		BlockStart: blockStart,
+	}
+	flush.EXPECT().Prepare(prepareOpts).Return(prepared, expectedErr)
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
@@ -301,8 +312,12 @@ func TestShardFlushSeriesFlushSuccess(t *testing.T) {
 		Close:   func() error { closed = true; return nil },
 	}
 
-	flush.EXPECT().Prepare(namespace.NewMetadataMatcher(s.namespace),
-		s.shard, blockStart).Return(prepared, nil)
+	prepareOpts := persist.PrepareOptionsMatcher{
+		NsMetadata: s.namespace,
+		Shard:      s.shard,
+		BlockStart: blockStart,
+	}
+	flush.EXPECT().Prepare(prepareOpts).Return(prepared, nil)
 
 	flushed := make(map[int]struct{})
 	for i := 0; i < 2; i++ {
