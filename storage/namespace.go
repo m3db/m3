@@ -771,11 +771,11 @@ func (n *dbNamespace) Snapshot(flush persist.Flush) error {
 	}
 	n.RUnlock()
 
-	// TODO: Allow snapshotting to be configurably disabled?
-	// if !n.nopts.NeedsFlush() {
-	// 	n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
-	// 	return nil
-	// }
+	if !n.nopts.NeedsSnapshot() {
+		// TODO: Emit metrics
+		// n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
+		return nil
+	}
 
 	multiErr := xerrors.NewMultiError()
 	shards := n.GetOwnedShards()

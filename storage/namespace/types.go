@@ -49,6 +49,12 @@ type Options interface {
 	// NeedsFlush returns whether the in-memory data for this namespace needs to be flushed
 	NeedsFlush() bool
 
+	// SetNeedsSnapshot sets whether the in-memory data for this namespace should be snapshotted regularly
+	SetNeedsSnapshot(value bool) Options
+
+	// NeedsSnapshot returns whether the in-memory data for this namespace should be snapshotted regularly
+	NeedsSnapshot() bool
+
 	// SetWritesToCommitLog sets whether writes for series in this namespace need to go to commit log
 	SetWritesToCommitLog(value bool) Options
 

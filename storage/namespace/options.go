@@ -31,6 +31,10 @@ const (
 	// Namespace requires flushing by default
 	defaultNeedsFlush = true
 
+	// Namespace requires snapshotting by default
+	// TODO: Set this to true once snapshotting works end-to-end
+	defaultNeedsSnapshot = false
+
 	// Namespace writes go to commit logs by default
 	defaultWritesToCommitLog = true
 
@@ -44,6 +48,7 @@ const (
 type options struct {
 	needsBootstrap      bool
 	needsFlush          bool
+	needsSnapshot       bool
 	writesToCommitLog   bool
 	needsFilesetCleanup bool
 	needsRepair         bool
@@ -55,6 +60,7 @@ func NewOptions() Options {
 	return &options{
 		needsBootstrap:      defaultNeedsBootstrap,
 		needsFlush:          defaultNeedsFlush,
+		needsSnapshot:       defaultNeedsSnapshot,
 		writesToCommitLog:   defaultWritesToCommitLog,
 		needsFilesetCleanup: defaultNeedsFilesetCleanup,
 		needsRepair:         defaultNeedsRepair,
@@ -93,6 +99,16 @@ func (o *options) SetNeedsFlush(value bool) Options {
 
 func (o *options) NeedsFlush() bool {
 	return o.needsFlush
+}
+
+func (o *options) SetNeedsSnapshot(value bool) Options {
+	opts := *o
+	opts.needsSnapshot = value
+	return &opts
+}
+
+func (o *options) NeedsSnapshot() bool {
+	return o.needsSnapshot
 }
 
 func (o *options) SetWritesToCommitLog(value bool) Options {
