@@ -33,7 +33,7 @@ import (
 	"github.com/m3db/m3cluster/placement/storage"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3x/log"
-	"github.com/m3db/m3x/watch"
+	xwatch "github.com/m3db/m3x/watch"
 
 	"github.com/uber-go/tally"
 )
@@ -251,7 +251,7 @@ func (c *client) Query(sid services.ServiceID, opts services.QueryOptions) (serv
 	return service, nil
 }
 
-func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (watch.Watch, error) {
+func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (services.Watch, error) {
 	if err := validateServiceID(sid); err != nil {
 		return nil, err
 	}
@@ -273,7 +273,7 @@ func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (watc
 	watchable, exist := kvm.serviceWatchables[sid.String()]
 	kvm.RUnlock()
 	if exist {
-		_, w, err := watchable.Watch()
+		_, w, err := watchable.watch()
 		return w, err
 	}
 
@@ -300,11 +300,11 @@ func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (watc
 	if exist {
 		// if a watchable already exist now, we need to clean up the placement watch we just created
 		placementWatch.Close()
-		_, w, err := watchable.Watch()
+		_, w, err := watchable.watch()
 		return w, err
 	}
 
-	watchable = watch.NewWatchable()
+	watchable = newServiceWatchable()
 	sdm := newServiceDiscoveryMetrics(c.serviceTaggedScope(sid))
 
 	if !opts.IncludeUnhealthy() {
@@ -318,10 +318,10 @@ func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (watc
 			placementWatch.Close()
 			return nil, err
 		}
-		watchable.Update(filterInstancesWithWatch(initService, heartbeatWatch))
+		watchable.update(filterInstancesWithWatch(initService, heartbeatWatch))
 		go c.watchPlacementAndHeartbeat(watchable, placementWatch, heartbeatWatch, initValue, sid, initService, sdm.serviceUnmalshalErr)
 	} else {
-		watchable.Update(initService)
+		watchable.update(initService)
 		go c.watchPlacement(watchable, placementWatch, initValue, sid, sdm.serviceUnmalshalErr)
 	}
 
@@ -329,7 +329,7 @@ func (c *client) Watch(sid services.ServiceID, opts services.QueryOptions) (watc
 
 	go updateVersionGauge(placementWatch, sdm.versionGauge)
 
-	_, w, err := watchable.Watch()
+	_, w, err := watchable.watch()
 	return w, err
 }
 
@@ -421,7 +421,7 @@ func (c *client) getKVManager(zone string) (*kvManager, error) {
 
 	m = &kvManager{
 		kv:                kv,
-		serviceWatchables: map[string]watch.Watchable{},
+		serviceWatchables: map[string]serviceWatchable{},
 	}
 
 	c.kvManagers[zone] = m
@@ -429,7 +429,7 @@ func (c *client) getKVManager(zone string) (*kvManager, error) {
 }
 
 func (c *client) watchPlacement(
-	w watch.Watchable,
+	w serviceWatchable,
 	vw kv.ValueWatch,
 	initValue kv.Value,
 	sid services.ServiceID,
@@ -441,14 +441,14 @@ func (c *client) watchPlacement(
 			continue
 		}
 
-		w.Update(newService)
+		w.update(newService)
 	}
 }
 
 func (c *client) watchPlacementAndHeartbeat(
-	w watch.Watchable,
+	w serviceWatchable,
 	vw kv.ValueWatch,
-	heartbeatWatch watch.Watch,
+	heartbeatWatch xwatch.Watch,
 	initValue kv.Value,
 	sid services.ServiceID,
 	service services.Service,
@@ -466,7 +466,7 @@ func (c *client) watchPlacementAndHeartbeat(
 		case <-heartbeatWatch.C():
 			c.logger.Infof("received heartbeat update")
 		}
-		w.Update(filterInstancesWithWatch(service, heartbeatWatch))
+		w.update(filterInstancesWithWatch(service, heartbeatWatch))
 	}
 }
 
@@ -535,7 +535,7 @@ func filterInstances(s services.Service, ids []string) services.Service {
 		SetReplication(s.Replication())
 }
 
-func filterInstancesWithWatch(s services.Service, hbw watch.Watch) services.Service {
+func filterInstancesWithWatch(s services.Service, hbw xwatch.Watch) services.Service {
 	if hbw.Get() == nil {
 		return s
 	}
@@ -605,7 +605,7 @@ type kvManager struct {
 	sync.RWMutex
 
 	kv                kv.Store
-	serviceWatchables map[string]watch.Watchable
+	serviceWatchables map[string]serviceWatchable
 }
 
 func newServiceDiscoveryMetrics(m tally.Scope) serviceDiscoveryMetrics {

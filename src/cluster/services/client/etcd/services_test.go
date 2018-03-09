@@ -35,7 +35,7 @@ import (
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3cluster/shard"
 	"github.com/m3db/m3x/instrument"
-	"github.com/m3db/m3x/watch"
+	xwatch "github.com/m3db/m3x/watch"
 
 	"github.com/coreos/etcd/integration"
 	"github.com/golang/mock/gomock"
@@ -779,7 +779,7 @@ func TestMultipleWatches(t *testing.T) {
 
 	require.Equal(t, 1, len(kvm.serviceWatchables))
 	for _, w := range kvm.serviceWatchables {
-		require.Equal(t, 2, w.NumWatches())
+		require.Equal(t, 2, w.watches())
 	}
 	<-w1.C()
 	<-w2.C()
@@ -1071,7 +1071,7 @@ func (m *mockHBGen) genMockStore(sid services.ServiceID) (*mockHBStore, error) {
 	}
 	s = &mockHBStore{
 		hbs:        map[string]map[string]time.Time{},
-		watchables: map[string]watch.Watchable{},
+		watchables: map[string]xwatch.Watchable{},
 		sid:        sid,
 	}
 
@@ -1092,7 +1092,7 @@ type mockHBStore struct {
 
 	sid        services.ServiceID
 	hbs        map[string]map[string]time.Time
-	watchables map[string]watch.Watchable
+	watchables map[string]xwatch.Watchable
 }
 
 func (hb *mockHBStore) Heartbeat(instance placement.Instance, ttl time.Duration) error {
@@ -1141,7 +1141,7 @@ func (hb *mockHBStore) GetInstances() ([]placement.Instance, error) {
 	return r, nil
 }
 
-func (hb *mockHBStore) Watch() (watch.Watch, error) {
+func (hb *mockHBStore) Watch() (xwatch.Watch, error) {
 	hb.Lock()
 	defer hb.Unlock()
 
@@ -1151,14 +1151,14 @@ func (hb *mockHBStore) Watch() (watch.Watch, error) {
 		return w, err
 	}
 
-	watchable = watch.NewWatchable()
+	watchable = xwatch.NewWatchable()
 	hb.watchables[serviceKey(hb.sid)] = watchable
 
 	_, w, err := watchable.Watch()
 	return w, err
 }
 
-func (hb *mockHBStore) getWatchable(s string) (watch.Watchable, bool) {
+func (hb *mockHBStore) getWatchable(s string) (xwatch.Watchable, bool) {
 	hb.Lock()
 	defer hb.Unlock()
 
