@@ -146,7 +146,7 @@ func generateTestData(
 	for timestamp := start; timestamp.Before(stop); timestamp = timestamp.Add(interval) {
 		mp := make([]unaggregated.MetricUnion, 0, len(ids))
 		for i := 0; i < len(ids); i++ {
-			// Randomly generate metrics with slightly pertubrations to the values
+			// Randomly generate metrics with slightly pertubrations to the values.
 			var mu unaggregated.MetricUnion
 			metricType := typeFn(timestamp, i)
 			switch metricType {
@@ -222,7 +222,7 @@ func toExpectedResults(
 
 	decompressor := policy.NewAggregationIDDecompressor()
 	aggTypeOpts := opts.AggregationTypesOptions()
-	// Aggregate metrics by policies
+	// Aggregate metrics by policies.
 	for _, dataValues := range dsp.dataset {
 		for _, mu := range dataValues.metrics {
 			for policy, metrics := range byPolicy {
@@ -265,7 +265,7 @@ func toExpectedResults(
 						require.Fail(t, fmt.Sprintf("unrecognized metric type %v", mu.Type))
 					}
 				}
-				// Add current metric to the value
+				// Add current metric to the value.
 				switch mu.Type {
 				case unaggregated.CounterType:
 					v := values.(aggregation.Counter)
@@ -286,7 +286,7 @@ func toExpectedResults(
 		}
 	}
 
-	// Convert metrics by policy to sorted aggregated metrics slice
+	// Convert metrics by policy to sorted aggregated metrics slice.
 	var expected []aggregated.MetricWithStoragePolicy
 	for policy, metrics := range byPolicy {
 		alignedCutoffNanos := now.Truncate(policy.Resolution().Window).UnixNano()
@@ -294,7 +294,7 @@ func toExpectedResults(
 			for timeNanos, values := range datapoints {
 				endAtNanos := timeNanos + int64(policy.Resolution().Window)
 				// The end time must be no later than the aligned cutoff time
-				// for the data to be flushed
+				// for the data to be flushed.
 				if endAtNanos <= alignedCutoffNanos {
 					expected = append(expected, toAggregatedMetrics(t, key, endAtNanos, values, policy.StoragePolicy, metrics.aggTypes, opts)...)
 				}
@@ -302,7 +302,7 @@ func toExpectedResults(
 		}
 	}
 
-	// Sort the aggregated metrics
+	// Sort the aggregated metrics.
 	sort.Sort(byTimeIDPolicyAscending(expected))
 
 	return expected

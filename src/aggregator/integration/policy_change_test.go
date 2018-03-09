@@ -34,7 +34,7 @@ func TestPolicyChange(t *testing.T) {
 		t.SkipNow()
 	}
 
-	// Test setup
+	// Test setup.
 	testSetup := newTestSetup(t, newTestOptions())
 	defer testSetup.close()
 
@@ -43,7 +43,7 @@ func TestPolicyChange(t *testing.T) {
 			SetEntryCheckInterval(time.Second).
 			SetMinFlushInterval(0)
 
-	// Start the server
+	// Start the server.
 	log := testSetup.aggregatorOpts.InstrumentOptions().Logger()
 	log.Info("test policy change")
 	require.NoError(t, testSetup.startServer())
@@ -74,7 +74,7 @@ func TestPolicyChange(t *testing.T) {
 			}
 			require.NoError(t, client.flush())
 
-			// Give server some time to process the incoming packets
+			// Give server some time to process the incoming packets.
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
@@ -85,11 +85,11 @@ func TestPolicyChange(t *testing.T) {
 	testSetup.setNowFn(finalTime)
 	time.Sleep(6 * time.Second)
 
-	// Stop the server
+	// Stop the server.
 	require.NoError(t, testSetup.stopServer())
 	log.Info("server is now down")
 
-	// Validate results
+	// Validate results.
 	expected := toExpectedResults(t, finalTime, input1, testSetup.aggregatorOpts)
 	expected = append(expected, toExpectedResults(t, finalTime, input2, testSetup.aggregatorOpts)...)
 	actual := testSetup.sortedResults()

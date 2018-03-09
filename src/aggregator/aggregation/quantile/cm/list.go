@@ -24,29 +24,29 @@ var (
 	emptySampleList sampleList
 )
 
-// sampleList is a list of samples
+// sampleList is a list of samples.
 type sampleList struct {
 	head *Sample
 	tail *Sample
 	len  int
 }
 
-// Empty returns true if the list is empty
+// Empty returns true if the list is empty.
 func (l *sampleList) Empty() bool { return l.len == 0 }
 
-// Len returns the number of samples in the list
+// Len returns the number of samples in the list.
 func (l *sampleList) Len() int { return l.len }
 
-// Front returns the first sample in the list
+// Front returns the first sample in the list.
 func (l *sampleList) Front() *Sample { return l.head }
 
-// Back returns the last sample in the list
+// Back returns the last sample in the list.
 func (l *sampleList) Back() *Sample { return l.tail }
 
-// Reset resets the list
+// Reset resets the list.
 func (l *sampleList) Reset() { *l = emptySampleList }
 
-// PushBack pushes a sample to the end of the list
+// PushBack pushes a sample to the end of the list.
 func (l *sampleList) PushBack(sample *Sample) {
 	if sample == nil {
 		return
@@ -65,7 +65,7 @@ func (l *sampleList) PushBack(sample *Sample) {
 	l.len++
 }
 
-// InsertBefore inserts a sample before the mark
+// InsertBefore inserts a sample before the mark.
 func (l *sampleList) InsertBefore(sample *Sample, mark *Sample) {
 	if sample == nil || mark == nil {
 		return
@@ -85,7 +85,7 @@ func (l *sampleList) InsertBefore(sample *Sample, mark *Sample) {
 	l.len++
 }
 
-// Remove removes a sample from the list
+// Remove removes a sample from the list.
 func (l *sampleList) Remove(sample *Sample) {
 	if sample == nil {
 		return

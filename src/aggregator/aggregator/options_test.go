@@ -48,7 +48,7 @@ func validateDerivedPrefix(
 func TestOptionsValidateDefault(t *testing.T) {
 	o := NewOptions()
 
-	// Validate base options
+	// Validate base options.
 	require.Equal(t, defaultMetricPrefix, o.MetricPrefix())
 	require.Equal(t, defaultCounterPrefix, o.CounterPrefix())
 	require.Equal(t, defaultTimerPrefix, o.TimerPrefix())
@@ -66,7 +66,7 @@ func TestOptionsValidateDefault(t *testing.T) {
 	require.NotNil(t, o.TimerElemPool())
 	require.NotNil(t, o.GaugeElemPool())
 
-	// Validate derived options
+	// Validate derived options.
 	validateDerivedPrefix(t, o.FullCounterPrefix(), o.MetricPrefix(), o.CounterPrefix())
 	validateDerivedPrefix(t, o.FullTimerPrefix(), o.MetricPrefix(), o.TimerPrefix())
 	validateDerivedPrefix(t, o.FullGaugePrefix(), o.MetricPrefix(), o.GaugePrefix())

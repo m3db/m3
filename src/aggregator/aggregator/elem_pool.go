@@ -28,7 +28,7 @@ type counterElemPool struct {
 	pool pool.ObjectPool
 }
 
-// NewCounterElemPool creates a new pool for counter elements
+// NewCounterElemPool creates a new pool for counter elements.
 func NewCounterElemPool(opts pool.ObjectPoolOptions) CounterElemPool {
 	return &counterElemPool{pool: pool.NewObjectPool(opts)}
 }
@@ -51,7 +51,7 @@ type timerElemPool struct {
 	pool pool.ObjectPool
 }
 
-// NewTimerElemPool creates a new pool for timer elements
+// NewTimerElemPool creates a new pool for timer elements.
 func NewTimerElemPool(opts pool.ObjectPoolOptions) TimerElemPool {
 	return &timerElemPool{pool: pool.NewObjectPool(opts)}
 }
@@ -74,7 +74,7 @@ type gaugeElemPool struct {
 	pool pool.ObjectPool
 }
 
-// NewGaugeElemPool creates a new pool for gauge elements
+// NewGaugeElemPool creates a new pool for gauge elements.
 func NewGaugeElemPool(opts pool.ObjectPoolOptions) GaugeElemPool {
 	return &gaugeElemPool{pool: pool.NewObjectPool(opts)}
 }

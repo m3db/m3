@@ -20,75 +20,75 @@
 
 package tdigest
 
-// Centroid represents the center of a cluster
+// Centroid represents the center of a cluster.
 type Centroid struct {
 	Mean   float64
 	Weight float64
 }
 
-// CentroidsPool provides a pool for variable-sized centroid slices
+// CentroidsPool provides a pool for variable-sized centroid slices.
 type CentroidsPool interface {
-	// Init initializes the pool
+	// Init initializes the pool.
 	Init()
 
-	// Get provides a centroid slice from the pool
+	// Get provides a centroid slice from the pool.
 	Get(capacity int) []Centroid
 
-	// Put returns a centroid slice to the pool
+	// Put returns a centroid slice to the pool.
 	Put(value []Centroid)
 }
 
-// TDigest is the t-digest interface
+// TDigest is the t-digest interface.
 type TDigest interface {
 
-	// Merged returns the merged centroids
+	// Merged returns the merged centroids.
 	Merged() []Centroid
 
-	// Unmerged returns the unmerged centroids
+	// Unmerged returns the unmerged centroids.
 	Unmerged() []Centroid
 
-	// Add adds a value
+	// Add adds a value.
 	Add(value float64)
 
-	// Min returns the minimum value
+	// Min returns the minimum value.
 	Min() float64
 
-	// Max returns the maximum value
+	// Max returns the maximum value.
 	Max() float64
 
-	// Quantile returns the quantile value
+	// Quantile returns the quantile value.
 	Quantile(q float64) float64
 
-	// Merge merges another t-digest
+	// Merge merges another t-digest.
 	Merge(tdigest TDigest)
 
-	// Close clsoes the t-digest
+	// Close clsoes the t-digest.
 	Close()
 
-	// Reset resets the t-digest
+	// Reset resets the t-digest.
 	Reset()
 }
 
-// Options provides a set of t-digest options
+// Options provides a set of t-digest options.
 type Options interface {
-	// SetCompression sets the compression
+	// SetCompression sets the compression.
 	SetCompression(value float64) Options
 
-	// Compression returns the compression
+	// Compression returns the compression.
 	Compression() float64
 
-	// SetPrecision sets the quantile precision
+	// SetPrecision sets the quantile precision.
 	SetPrecision(value int) Options
 
-	// Precision returns the quantile precision
+	// Precision returns the quantile precision.
 	Precision() int
 
-	// SetCentroidsPool sets the centroids pool
+	// SetCentroidsPool sets the centroids pool.
 	SetCentroidsPool(value CentroidsPool) Options
 
-	// CentroidsPool returns the centroids pool
+	// CentroidsPool returns the centroids pool.
 	CentroidsPool() CentroidsPool
 
-	// Validate validates the options
+	// Validate validates the options.
 	Validate() error
 }

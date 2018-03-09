@@ -35,63 +35,63 @@ import (
 	"github.com/uber-go/tally"
 )
 
-// CounterElemAlloc allocates a new counter element
+// CounterElemAlloc allocates a new counter element.
 type CounterElemAlloc func() *CounterElem
 
-// CounterElemPool provides a pool of counter elements
+// CounterElemPool provides a pool of counter elements.
 type CounterElemPool interface {
-	// Init initializes the counter element pool
+	// Init initializes the counter element pool.
 	Init(alloc CounterElemAlloc)
 
-	// Get gets a counter element from the pool
+	// Get gets a counter element from the pool.
 	Get() *CounterElem
 
-	// Put returns a counter element to the pool
+	// Put returns a counter element to the pool.
 	Put(value *CounterElem)
 }
 
-// TimerElemAlloc allocates a new timer element
+// TimerElemAlloc allocates a new timer element.
 type TimerElemAlloc func() *TimerElem
 
-// TimerElemPool provides a pool of timer elements
+// TimerElemPool provides a pool of timer elements.
 type TimerElemPool interface {
-	// Init initializes the timer element pool
+	// Init initializes the timer element pool.
 	Init(alloc TimerElemAlloc)
 
-	// Get gets a timer element from the pool
+	// Get gets a timer element from the pool.
 	Get() *TimerElem
 
-	// Put returns a timer element to the pool
+	// Put returns a timer element to the pool.
 	Put(value *TimerElem)
 }
 
-// GaugeElemAlloc allocates a new gauge element
+// GaugeElemAlloc allocates a new gauge element.
 type GaugeElemAlloc func() *GaugeElem
 
-// GaugeElemPool provides a pool of gauge elements
+// GaugeElemPool provides a pool of gauge elements.
 type GaugeElemPool interface {
-	// Init initializes the gauge element pool
+	// Init initializes the gauge element pool.
 	Init(alloc GaugeElemAlloc)
 
-	// Get gets a gauge element from the pool
+	// Get gets a gauge element from the pool.
 	Get() *GaugeElem
 
-	// Put returns a gauge element to the pool
+	// Put returns a gauge element to the pool.
 	Put(value *GaugeElem)
 }
 
-// EntryAlloc allocates a new entry
+// EntryAlloc allocates a new entry.
 type EntryAlloc func() *Entry
 
-// EntryPool provides a pool of entries
+// EntryPool provides a pool of entries.
 type EntryPool interface {
-	// Init initializes the entry pool
+	// Init initializes the entry pool.
 	Init(alloc EntryAlloc)
 
-	// Get gets a entry from the pool
+	// Get gets a entry from the pool.
 	Get() *Entry
 
-	// Put returns a entry to the pool
+	// Put returns a entry to the pool.
 	Put(value *Entry)
 }
 
@@ -116,38 +116,38 @@ type Writer interface {
 	Close() error
 }
 
-// Options provide a set of base and derived options for the aggregator
+// Options provide a set of base and derived options for the aggregator.
 type Options interface {
-	/// Read-write base options
+	/// Read-write base options.
 
-	// SetMetricPrefix sets the common prefix for all metric types
+	// SetMetricPrefix sets the common prefix for all metric types.
 	SetMetricPrefix(value []byte) Options
 
-	// MetricPrefix returns the common prefix for all metric types
+	// MetricPrefix returns the common prefix for all metric types.
 	MetricPrefix() []byte
 
-	// SetCounterPrefix sets the prefix for counters
+	// SetCounterPrefix sets the prefix for counters.
 	SetCounterPrefix(value []byte) Options
 
-	// CounterPrefix returns the prefix for counters
+	// CounterPrefix returns the prefix for counters.
 	CounterPrefix() []byte
 
-	// SetTimerPrefix sets the prefix for timers
+	// SetTimerPrefix sets the prefix for timers.
 	SetTimerPrefix(value []byte) Options
 
-	// TimerPrefix returns the prefix for timers
+	// TimerPrefix returns the prefix for timers.
 	TimerPrefix() []byte
 
-	// SetGaugePrefix sets the prefix for gauges
+	// SetGaugePrefix sets the prefix for gauges.
 	SetGaugePrefix(value []byte) Options
 
-	// GaugePrefix returns the prefix for gauges
+	// GaugePrefix returns the prefix for gauges.
 	GaugePrefix() []byte
 
-	// SetTimeLock sets the time lock
+	// SetTimeLock sets the time lock.
 	SetTimeLock(value *sync.RWMutex) Options
 
-	// TimeLock returns the time lock
+	// TimeLock returns the time lock.
 	TimeLock() *sync.RWMutex
 
 	// SetAggregationTypesOptions sets the aggregation types options.
@@ -156,22 +156,22 @@ type Options interface {
 	// AggregationTypesOptions returns the aggregation types options.
 	AggregationTypesOptions() policy.AggregationTypesOptions
 
-	// SetClockOptions sets the clock options
+	// SetClockOptions sets the clock options.
 	SetClockOptions(value clock.Options) Options
 
-	// ClockOptions returns the clock options
+	// ClockOptions returns the clock options.
 	ClockOptions() clock.Options
 
-	// SetInstrumentOptions sets the instrument options
+	// SetInstrumentOptions sets the instrument options.
 	SetInstrumentOptions(value instrument.Options) Options
 
-	// InstrumentOptions returns the instrument options
+	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
 
-	// SetStreamOptions sets the stream options
+	// SetStreamOptions sets the stream options.
 	SetStreamOptions(value cm.Options) Options
 
-	// StreamOptions returns the stream options
+	// StreamOptions returns the stream options.
 	StreamOptions() cm.Options
 
 	// SetRuntimeOptionsManager sets the runtime options manager.
@@ -222,34 +222,34 @@ type Options interface {
 	// FlushManager returns the flush manager.
 	FlushManager() FlushManager
 
-	// SetMinFlushInterval sets the minimum flush interval
+	// SetMinFlushInterval sets the minimum flush interval.
 	SetMinFlushInterval(value time.Duration) Options
 
-	// MinFlushInterval returns the minimum flush interval
+	// MinFlushInterval returns the minimum flush interval.
 	MinFlushInterval() time.Duration
 
-	// SetFlushHandler sets the handler that flushes buffered encoders
+	// SetFlushHandler sets the handler that flushes buffered encoders.
 	SetFlushHandler(value Handler) Options
 
-	// FlushHandler returns the handler that flushes buffered encoders
+	// FlushHandler returns the handler that flushes buffered encoders.
 	FlushHandler() Handler
 
-	// SetEntryTTL sets the ttl for expiring stale entries
+	// SetEntryTTL sets the ttl for expiring stale entries.
 	SetEntryTTL(value time.Duration) Options
 
-	// EntryTTL returns the ttl for expiring stale entries
+	// EntryTTL returns the ttl for expiring stale entries.
 	EntryTTL() time.Duration
 
-	// SetEntryCheckInterval sets the interval for checking expired entries
+	// SetEntryCheckInterval sets the interval for checking expired entries.
 	SetEntryCheckInterval(value time.Duration) Options
 
-	// EntryCheckInterval returns the interval for checking expired entries
+	// EntryCheckInterval returns the interval for checking expired entries.
 	EntryCheckInterval() time.Duration
 
-	// SetEntryCheckBatchPercent sets the batch percentage for checking expired entries
+	// SetEntryCheckBatchPercent sets the batch percentage for checking expired entries.
 	SetEntryCheckBatchPercent(value float64) Options
 
-	// EntryCheckBatchPercent returns the batch percentage for checking expired entries
+	// EntryCheckBatchPercent returns the batch percentage for checking expired entries.
 	EntryCheckBatchPercent() float64
 
 	// SetMaxTimerBatchSizePerWrite sets the maximum timer batch size for each batched write.
@@ -270,10 +270,10 @@ type Options interface {
 	// ResignTimeout returns the resign timeout.
 	ResignTimeout() time.Duration
 
-	// SetEntryPool sets the entry pool
+	// SetEntryPool sets the entry pool.
 	SetEntryPool(value EntryPool) Options
 
-	// EntryPool returns the entry pool
+	// EntryPool returns the entry pool.
 	EntryPool() EntryPool
 
 	// SetCounterElemPool sets the counter element pool.
@@ -296,12 +296,12 @@ type Options interface {
 
 	/// Read-only derived options.
 
-	// FullCounterPrefix returns the full prefix for counters
+	// FullCounterPrefix returns the full prefix for counters.
 	FullCounterPrefix() []byte
 
-	// FullTimerPrefix returns the full prefix for timers
+	// FullTimerPrefix returns the full prefix for timers.
 	FullTimerPrefix() []byte
 
-	// FullGaugePrefix returns the full prefix for gauges
+	// FullGaugePrefix returns the full prefix for gauges.
 	FullGaugePrefix() []byte
 }

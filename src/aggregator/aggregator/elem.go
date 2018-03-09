@@ -54,28 +54,28 @@ type aggMetricFn func(
 	sp policy.StoragePolicy,
 )
 
-// metricElem is the common interface for metric elements
+// metricElem is the common interface for metric elements.
 type metricElem interface {
 	// ID returns the metric id.
 	ID() id.RawID
 
-	// ResetSetData resets the element and sets data
+	// ResetSetData resets the element and sets data.
 	ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes)
 
-	// AddMetric adds a new metric value
-	// TODO(xichen): a value union would suffice here
+	// AddMetric adds a new metric value.
+	// TODO(xichen): a value union would suffice here.
 	AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) error
 
 	// Consume processes values before a given time and discards
 	// them afterwards, returning whether the element can be collected
-	// after discarding the values
+	// after discarding the values.
 	Consume(earlierThanNanos int64, fn aggMetricFn) bool
 
 	// MarkAsTombstoned marks an element as tombstoned, which means this element
-	// will be deleted once its aggregated values have been flushed
+	// will be deleted once its aggregated values have been flushed.
 	MarkAsTombstoned()
 
-	// Close closes the element
+	// Close closes the element.
 	Close()
 }
 
@@ -108,7 +108,7 @@ type elemBase struct {
 	closed                bool
 }
 
-// CounterElem is the counter element
+// CounterElem is the counter element.
 type CounterElem struct {
 	elemBase
 
@@ -116,7 +116,7 @@ type CounterElem struct {
 	toConsume []timedCounter
 }
 
-// TimerElem is the timer element
+// TimerElem is the timer element.
 type TimerElem struct {
 	elemBase
 
@@ -127,7 +127,7 @@ type TimerElem struct {
 	toConsume []timedTimer
 }
 
-// GaugeElem is the gauge element
+// GaugeElem is the gauge element.
 type GaugeElem struct {
 	elemBase
 
@@ -174,7 +174,7 @@ func (e *elemBase) MarkAsTombstoned() {
 	e.Unlock()
 }
 
-// NewCounterElem creates a new counter element
+// NewCounterElem creates a new counter element.
 func NewCounterElem(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes, opts Options) *CounterElem {
 	e := &CounterElem{
 		elemBase: newElemBase(opts),
@@ -194,7 +194,7 @@ func (e *CounterElem) ResetSetData(id id.RawID, sp policy.StoragePolicy, aggType
 	e.elemBase.resetSetData(id, sp, aggTypes, useDefaultAggregation)
 }
 
-// AddMetric adds a new counter value
+// AddMetric adds a new counter value.
 func (e *CounterElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
 	counter, err := e.findOrCreate(alignedStart)
@@ -218,7 +218,7 @@ func (e *CounterElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 	}
 	idx := 0
 	for range e.values {
-		// Bail as soon as the timestamp is no later than the target time
+		// Bail as soon as the timestamp is no later than the target time.
 		if e.values[idx].timeNanos >= earlierThanNanos {
 			break
 		}
@@ -226,7 +226,7 @@ func (e *CounterElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 	}
 	e.toConsume = e.toConsume[:0]
 	if idx > 0 {
-		// Shift remaining values to the left and shrink the values slice
+		// Shift remaining values to the left and shrink the values slice.
 		e.toConsume = append(e.toConsume, e.values[:idx]...)
 		n := copy(e.values[0:], e.values[idx:])
 		e.values = e.values[:n]
@@ -246,7 +246,7 @@ func (e *CounterElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 	return canCollect
 }
 
-// Close closes the counter element
+// Close closes the counter element.
 func (e *CounterElem) Close() {
 	e.Lock()
 	if e.closed {
@@ -313,13 +313,13 @@ func (e *CounterElem) findOrCreate(alignedStart int64) (*aggregation.LockedCount
 // exact match, false otherwise.
 func (e *CounterElem) indexOfWithLock(alignedStart int64) (int, bool) {
 	numValues := len(e.values)
-	// Optimize for the common case
+	// Optimize for the common case.
 	if numValues > 0 && e.values[numValues-1].timeNanos == alignedStart {
 		return numValues - 1, true
 	}
 	// Binary search for the unusual case. We intentionally do not
 	// use the sort.Search() function because it requires passing
-	// in a closure
+	// in a closure.
 	left, right := 0, numValues
 	for left < right {
 		mid := left + (right-left)/2 // avoid overflow
@@ -330,7 +330,7 @@ func (e *CounterElem) indexOfWithLock(alignedStart int64) (int, bool) {
 		}
 	}
 	// If the current timestamp is equal to or larger than the target time,
-	// return the index as is
+	// return the index as is.
 	if left < numValues && e.values[left].timeNanos == alignedStart {
 		return left, true
 	}
@@ -445,7 +445,7 @@ func (e *TimerElem) Close() {
 	e.closed = true
 	e.id = nil
 	for idx := range e.values {
-		// Returning the underlying stream to pool
+		// Returning the underlying stream to pool.
 		e.values[idx].timer.Close()
 		e.values[idx] = emptyTimedTimer
 	}
@@ -518,7 +518,7 @@ func (e *TimerElem) indexOfWithLock(alignedStart int64) (int, bool) {
 	}
 	// Binary search for the unusual case. We intentionally do not
 	// use the sort.Search() function because it requires passing
-	// in a closure
+	// in a closure.
 	left, right := 0, numValues
 	for left < right {
 		mid := left + (right-left)/2 // avoid overflow
@@ -529,7 +529,7 @@ func (e *TimerElem) indexOfWithLock(alignedStart int64) (int, bool) {
 		}
 	}
 	// If the current timestamp is equal to or larger than the target time,
-	// return the index as is
+	// return the index as is.
 	if left < numValues && e.values[left].timeNanos == alignedStart {
 		return left, true
 	}
@@ -553,7 +553,7 @@ func (e *TimerElem) processValue(timeNanos int64, agg aggregation.Timer, fn aggM
 	}
 }
 
-// NewGaugeElem creates a new gauge element
+// NewGaugeElem creates a new gauge element.
 func NewGaugeElem(id id.RawID, sp policy.StoragePolicy, aggTypes policy.AggregationTypes, opts Options) *GaugeElem {
 	e := &GaugeElem{
 		elemBase: newElemBase(opts),
@@ -573,7 +573,7 @@ func (e *GaugeElem) ResetSetData(id id.RawID, sp policy.StoragePolicy, aggTypes 
 	e.elemBase.resetSetData(id, sp, aggTypes, useDefaultAggregation)
 }
 
-// AddMetric adds a new gauge value
+// AddMetric adds a new gauge value.
 func (e *GaugeElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) error {
 	alignedStart := timestamp.Truncate(e.sp.Resolution().Window).UnixNano()
 	gauge, err := e.findOrCreate(alignedStart)
@@ -588,7 +588,7 @@ func (e *GaugeElem) AddMetric(timestamp time.Time, mu unaggregated.MetricUnion) 
 
 // Consume processes values before a given time and discards
 // them afterwards, returning whether the element can be collected
-// after discarding the values
+// after discarding the values.
 func (e *GaugeElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 	e.Lock()
 	if e.closed {
@@ -597,7 +597,7 @@ func (e *GaugeElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 	}
 	idx := 0
 	for range e.values {
-		// Bail as soon as the timestamp is no later than the target time
+		// Bail as soon as the timestamp is no later than the target time.
 		if e.values[idx].timeNanos >= earlierThanNanos {
 			break
 		}
@@ -605,7 +605,7 @@ func (e *GaugeElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 	}
 	e.toConsume = e.toConsume[:0]
 	if idx > 0 {
-		// Shift remaining values to the left and shrink the values slice
+		// Shift remaining values to the left and shrink the values slice.
 		e.toConsume = append(e.toConsume, e.values[:idx]...)
 		n := copy(e.values[0:], e.values[idx:])
 		e.values = e.values[:n]
@@ -624,7 +624,7 @@ func (e *GaugeElem) Consume(earlierThanNanos int64, fn aggMetricFn) bool {
 	return canCollect
 }
 
-// Close closes the gauge element
+// Close closes the gauge element.
 func (e *GaugeElem) Close() {
 	e.Lock()
 	if e.closed {
@@ -691,13 +691,13 @@ func (e *GaugeElem) findOrCreate(alignedStart int64) (*aggregation.LockedGauge, 
 // exact match, false otherwise.
 func (e *GaugeElem) indexOfWithLock(alignedStart int64) (int, bool) {
 	numValues := len(e.values)
-	// Optimize for the common case
+	// Optimize for the common case.
 	if numValues > 0 && e.values[numValues-1].timeNanos == alignedStart {
 		return numValues - 1, true
 	}
 	// Binary search for the unusual case. We intentionally do not
 	// use the sort.Search() function because it requires passing
-	// in a closure
+	// in a closure.
 	left, right := 0, numValues
 	for left < right {
 		mid := left + (right-left)/2 // avoid overflow
@@ -708,7 +708,7 @@ func (e *GaugeElem) indexOfWithLock(alignedStart int64) (int, bool) {
 		}
 	}
 	// If the current timestamp is equal to or larger than the target time,
-	// return the index as is
+	// return the index as is.
 	if left < numValues && e.values[left].timeNanos == alignedStart {
 		return left, true
 	}

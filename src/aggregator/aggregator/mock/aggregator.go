@@ -32,7 +32,7 @@ import (
 
 // mockAggregator is a no-op aggregator that simply captures
 // metrics coming into the aggregator without actually performing
-// aggregations
+// aggregations.
 type mockAggregator struct {
 	sync.RWMutex
 

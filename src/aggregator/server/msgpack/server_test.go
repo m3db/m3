@@ -111,14 +111,14 @@ func TestHandleUnaggregatedMsgpack(t *testing.T) {
 	require.NoError(t, err)
 
 	s := xserver.NewServer(testListenAddress, h, xserver.NewOptions())
-	// Start server
+	// Start server.
 	require.NoError(t, s.Serve(listener))
 
-	// Now establish multiple connections and send data to the server
+	// Now establish multiple connections and send data to the server.
 	for i := 0; i < numClients; i++ {
 		wgClient.Add(1)
 
-		// Add test metrics to expected result
+		// Add test metrics to expected result.
 		expectedResult.CountersWithPoliciesList = append(expectedResult.CountersWithPoliciesList, testCounterWithPoliciesList)
 		expectedResult.BatchTimersWithPoliciesList = append(expectedResult.BatchTimersWithPoliciesList, testBatchTimerWithPoliciesList)
 		expectedResult.GaugesWithPoliciesList = append(expectedResult.GaugesWithPoliciesList, testGaugeWithPoliciesList)
@@ -139,14 +139,14 @@ func TestHandleUnaggregatedMsgpack(t *testing.T) {
 		}()
 	}
 
-	// Wait for all metrics to be processed
+	// Wait for all metrics to be processed.
 	for agg.NumMetricsAdded() < numClients*3 {
 		time.Sleep(50 * time.Millisecond)
 	}
 
-	// Close the server
+	// Close the server.
 	s.Close()
 
-	// Assert the snapshot match expectations
+	// Assert the snapshot match expectations.
 	require.Equal(t, expectedResult, agg.Snapshot())
 }

@@ -167,11 +167,11 @@ func TestTDigestClose(t *testing.T) {
 	d := NewTDigest(opts).(*tDigest)
 	require.False(t, d.closed)
 
-	// Close the t-digest
+	// Close the t-digest.
 	d.Close()
 	require.True(t, d.closed)
 
-	// Close the t-digest again, should be a no-op
+	// Close the t-digest again, should be a no-op.
 	d.Close()
 	require.True(t, d.closed)
 }
@@ -194,12 +194,12 @@ func TestTDigestAppendCentroid(t *testing.T) {
 		{Mean: 2.0, Weight: 0.8},
 	}
 
-	// Append one centroid, still under capacity
+	// Append one centroid, still under capacity.
 	centroids = d.appendCentroid(centroids, inputs[0])
 	require.Equal(t, []Centroid{inputs[0]}, centroids)
 	require.Equal(t, 1, cap(centroids))
 
-	// Append another centroid, which causes the capacity to grow
+	// Append another centroid, which causes the capacity to grow.
 	centroids = d.appendCentroid(centroids, inputs[1])
 	require.Equal(t, inputs, centroids)
 	require.Equal(t, 2, cap(centroids))

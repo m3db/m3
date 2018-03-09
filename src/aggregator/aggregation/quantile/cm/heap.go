@@ -26,19 +26,19 @@ package cm
 // therefore avoiding the memory and GC overhead due to the additional allocations.
 type minHeap []float64
 
-// Len returns the number of values in the heap
+// Len returns the number of values in the heap.
 func (h minHeap) Len() int { return len(h) }
 
-// Min returns the minimum value from the heap
+// Min returns the minimum value from the heap.
 func (h minHeap) Min() float64 { return h[0] }
 
-// Push pushes a value onto the heap
+// Push pushes a value onto the heap.
 func (h *minHeap) Push(value float64) {
 	*h = append(*h, value)
 	h.shiftUp(h.Len() - 1)
 }
 
-// Pop pops the minimum value from the heap
+// Pop pops the minimum value from the heap.
 func (h *minHeap) Pop() float64 {
 	var (
 		old = *h

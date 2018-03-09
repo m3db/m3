@@ -94,13 +94,13 @@ func (c *client) write(mu unaggregated.MetricUnion, pl policy.PoliciesList) erro
 		return err
 	}
 	sizeAfter := encoder.Buffer().Len()
-	// If the buffer size is not big enough, do nothing
+	// If the buffer size is not big enough, do nothing.
 	if sizeAfter < c.batchSize {
 		return nil
 	}
 	// Otherwise we get a new buffer and copy the bytes exceeding the max
 	// flush size to it, swap the new buffer with the old one, and flush out
-	// the old buffer
+	// the old buffer.
 	encoder2 := msgpack.NewPooledBufferedEncoder(nil)
 	data := encoder.Bytes()
 	encoder2.Buffer().Write(data[sizeBefore:sizeAfter])

@@ -28,7 +28,7 @@ type centroidsPool struct {
 	pool pool.BucketizedObjectPool
 }
 
-// NewCentroidsPool creates a new centroids pool
+// NewCentroidsPool creates a new centroids pool.
 func NewCentroidsPool(sizes []pool.Bucket, opts pool.ObjectPoolOptions) CentroidsPool {
 	return &centroidsPool{pool: pool.NewBucketizedObjectPool(sizes, opts)}
 }

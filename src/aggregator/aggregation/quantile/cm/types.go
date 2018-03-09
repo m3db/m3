@@ -22,7 +22,7 @@ package cm
 
 import "github.com/m3db/m3x/pool"
 
-// Sample represents a sampled value
+// Sample represents a sampled value.
 type Sample struct {
 	value    float64 // sampled value
 	numRanks int64   // number of ranks represented
@@ -31,69 +31,69 @@ type Sample struct {
 	next     *Sample // next sample
 }
 
-// SamplePool is a pool of samples
+// SamplePool is a pool of samples.
 type SamplePool interface {
-	// Init initializes the pool
+	// Init initializes the pool.
 	Init()
 
-	// Get returns a sample from the pool
+	// Get returns a sample from the pool.
 	Get() *Sample
 
-	// Put returns a sample to the pool
+	// Put returns a sample to the pool.
 	Put(sample *Sample)
 }
 
-// Stream represents a data sample stream for floating point numbers
+// Stream represents a data sample stream for floating point numbers.
 type Stream interface {
-	// Add adds a sample value
+	// Add adds a sample value.
 	Add(value float64)
 
-	// Flush flushes the internal buffer
+	// Flush flushes the internal buffer.
 	Flush()
 
-	// Min returns the minimum value
+	// Min returns the minimum value.
 	Min() float64
 
-	// Max returns the maximum value
+	// Max returns the maximum value.
 	Max() float64
 
-	// Quantile returns the quantile value
+	// Quantile returns the quantile value.
 	Quantile(q float64) float64
 
-	// Close closes the stream
+	// Close closes the stream.
 	Close()
 
-	// ResetSetData resets the stream and sets data
+	// ResetSetData resets the stream and sets data.
 	ResetSetData(quantiles []float64)
 }
 
-// StreamAlloc allocates a stream
+// StreamAlloc allocates a stream.
 type StreamAlloc func() Stream
 
-// StreamPool provides a pool for streams
+// StreamPool provides a pool for streams.
 type StreamPool interface {
-	// Init initializes the pool
+	// Init initializes the pool.
 	Init(alloc StreamAlloc)
 
-	// Get provides a stream from the pool
+	// Get provides a stream from the pool.
 	Get() Stream
 
-	// Put returns a stream to the pool
+	// Put returns a stream to the pool.
 	Put(value Stream)
 }
 
-// Options represent various options for computing quantiles
+// Options represent various options for computing quantiles.
 type Options interface {
-	// SetEps sets the desired epsilon for errors
+	// SetEps sets the desired epsilon for errors.
 	SetEps(value float64) Options
 
-	// Eps returns the desired epsilon for errors
+	// Eps returns the desired epsilon for errors.
 	Eps() float64
 
-	// SetCapacity sets the initial heap capacity
+	// SetCapacity sets the initial heap capacity.
 	SetCapacity(value int) Options
 
-	// Capacity returns the initial heap capacity
+	// Capacity returns the initial heap capacity.
 	Capacity() int
 
 	// SetInsertAndCompressEvery sets how frequently the timer values are
@@ -116,24 +116,24 @@ type Options interface {
 	// the stream.
 	FlushEvery() int
 
-	// SetStreamPool sets the stream pool
+	// SetStreamPool sets the stream pool.
 	SetStreamPool(value StreamPool) Options
 
-	// StreamPool returns the stream pool
+	// StreamPool returns the stream pool.
 	StreamPool() StreamPool
 
-	// SetSamplePool sets the sample pool
+	// SetSamplePool sets the sample pool.
 	SetSamplePool(value SamplePool) Options
 
-	// SamplePool returns the sample pool
+	// SamplePool returns the sample pool.
 	SamplePool() SamplePool
 
-	// SetFloatsPool sets the floats pool
+	// SetFloatsPool sets the floats pool.
 	SetFloatsPool(value pool.FloatsPool) Options
 
-	// FloatsPool returns the floats pool
+	// FloatsPool returns the floats pool.
 	FloatsPool() pool.FloatsPool
 
-	// Validate validates the options
+	// Validate validates the options.
 	Validate() error
 }

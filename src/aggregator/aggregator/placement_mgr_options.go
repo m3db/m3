@@ -32,16 +32,16 @@ const (
 
 // PlacementManagerOptions provide a set of options for the placement manager.
 type PlacementManagerOptions interface {
-	// SetClockOptions sets the clock options
+	// SetClockOptions sets the clock options.
 	SetClockOptions(value clock.Options) PlacementManagerOptions
 
-	// ClockOptions returns the clock options
+	// ClockOptions returns the clock options.
 	ClockOptions() clock.Options
 
-	// SetInstrumentOptions sets the instrument options
+	// SetInstrumentOptions sets the instrument options.
 	SetInstrumentOptions(value instrument.Options) PlacementManagerOptions
 
-	// InstrumentOptions returns the instrument options
+	// InstrumentOptions returns the instrument options.
 	InstrumentOptions() instrument.Options
 
 	// SetInstanceID sets the instance id.

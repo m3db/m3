@@ -40,7 +40,7 @@ type acquireSampleFn func() *Sample
 // releaseSampleFn releases a sample.
 type releaseSampleFn func(*Sample)
 
-// stream represents a data stream
+// stream represents a data stream.
 type stream struct {
 	eps                    float64         // desired epsilon for errors
 	quantiles              []float64       // sorted target quantiles
@@ -64,8 +64,7 @@ type stream struct {
 	compressMinRank          int64      // compression min rank
 }
 
-// NewStream creates a new sample stream
-// TODO(xichen): add metrics
+// NewStream creates a new sample stream.
 func NewStream(quantiles []float64, opts Options) Stream {
 	if opts == nil {
 		opts = NewOptions()
@@ -194,7 +193,7 @@ func (s *stream) Close() {
 	}
 	s.closed = true
 
-	// Returning resources back to pools
+	// Returning resources back to pools.
 	s.floatsPool.Put(s.bufLess)
 	s.floatsPool.Put(s.bufMore)
 	sample := s.samples.Front()
@@ -204,7 +203,7 @@ func (s *stream) Close() {
 		sample = next
 	}
 
-	// Clear out slices/lists/pointer to reduce GC overhead
+	// Clear out slices/lists/pointer to reduce GC overhead.
 	s.bufLess = nil
 	s.bufMore = nil
 	s.samples.Reset()
@@ -213,7 +212,7 @@ func (s *stream) Close() {
 	s.streamPool.Put(s)
 }
 
-// addToBuffer adds a new sample to the buffer
+// addToBuffer adds a new sample to the buffer.
 func (s *stream) addToBuffer(value float64) {
 	if s.numValues > 0 && value < s.insertPointValue() {
 		s.addToMinHeap(&s.bufLess, value)
@@ -222,7 +221,7 @@ func (s *stream) addToBuffer(value float64) {
 	}
 }
 
-// insert inserts a sample into the stream
+// insert inserts a sample into the stream.
 func (s *stream) insert() {
 	if s.samples.Len() == 0 {
 		if s.bufMore.Len() == 0 {
@@ -269,9 +268,9 @@ func (s *stream) insert() {
 	s.resetInsertCursor()
 }
 
-// compress compresses the samples in the stream
+// compress compresses the samples in the stream.
 func (s *stream) compress() {
-	// Bail early if there is nothing to compress
+	// Bail early if there is nothing to compress.
 	if s.samples.Len() < minSamplesToCompress {
 		return
 	}
@@ -311,7 +310,7 @@ func (s *stream) compress() {
 	}
 }
 
-// threshold computes the minimum threshold value
+// threshold computes the minimum threshold value.
 func (s *stream) threshold(rank int64) int64 {
 	minVal := int64(math.MaxInt64)
 	for _, quantile := range s.quantiles {
@@ -328,18 +327,18 @@ func (s *stream) threshold(rank int64) int64 {
 	return minVal
 }
 
-// resetInsertCursor resets the insert cursor
+// resetInsertCursor resets the insert cursor.
 func (s *stream) resetInsertCursor() {
 	s.bufLess, s.bufMore = s.bufMore, s.bufLess
 	s.insertCursor = nil
 }
 
-// cursorIncrement computes the number of items to process
+// cursorIncrement computes the number of items to process.
 func (s *stream) cursorIncrement() int {
 	return int(math.Ceil(float64(s.samples.Len()) * s.eps))
 }
 
-// insertPointValue returns the value under the insertion cursor
+// insertPointValue returns the value under the insertion cursor.
 func (s *stream) insertPointValue() float64 {
 	if s.insertCursor == nil {
 		return 0.0
@@ -347,11 +346,11 @@ func (s *stream) insertPointValue() float64 {
 	return s.insertCursor.value
 }
 
-// addToMinHeap adds a value to a min heap
+// addToMinHeap adds a value to a min heap.
 func (s *stream) addToMinHeap(heap *minHeap, value float64) {
 	curr := *heap
 	// If we are at capacity, get a bigger heap from the pool
-	// and return the current heap to the pool
+	// and return the current heap to the pool.
 	if len(curr) == cap(curr) {
 		newHeap := s.floatsPool.Get(2 * len(curr))
 		newHeap = append(newHeap, curr...)

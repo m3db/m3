@@ -63,19 +63,19 @@ type tDigest struct {
 	maxValue       float64    // maximum value
 }
 
-// mergedCapacity computes the capacity of the merged centroid slice
+// mergedCapacity computes the capacity of the merged centroid slice.
 func mergedCapacity(compression float64) int {
 	return int(math.Ceil(math.Pi*compression + 0.5))
 }
 
 func unmergedCapacity(compression float64) int {
 	// NB: the formula is taken from tdunning's implementation by
-	// regressing against known sizes for sample compression values
+	// regressing against known sizes for sample compression values.
 	compression = math.Min(math.Max(20, compression), 1000)
 	return int(7.5 + 0.37*compression - 2e-4*compression*compression)
 }
 
-// NewTDigest creates a new t-digest
+// NewTDigest creates a new t-digest.
 // TODO(xichen): add pooling for t-digests
 // TODO(xichen): add metrics
 func NewTDigest(opts Options) TDigest {
@@ -127,10 +127,10 @@ func (d *tDigest) Quantile(q float64) float64 {
 		return nan
 	}
 
-	// compress the centroids first
+	// compress the centroids first.
 	d.compress()
 
-	// If the digest is empty, return 0
+	// If the digest is empty, return 0.
 	if len(d.merged) == 0 {
 		return 0.0
 	}
@@ -152,10 +152,10 @@ func (d *tDigest) Quantile(q float64) float64 {
 	for i, c := range d.merged {
 		upperBound = d.upperBound(i)
 		if targetWeight <= currWeight+c.Weight {
-			// The quantile falls within this centroid
+			// The quantile falls within this centroid.
 			ratio := (targetWeight - currWeight) / c.Weight
 			quantile := lowerBound + ratio*(upperBound-lowerBound)
-			// If there is a desired precision, we truncate the quantile per the precision requirement
+			// If there is a desired precision, we truncate the quantile per the precision requirement.
 			if d.multiplier != 0 {
 				quantile = math.Trunc(quantile*float64(d.multiplier)) / float64(d.multiplier)
 			}
@@ -166,7 +166,7 @@ func (d *tDigest) Quantile(q float64) float64 {
 	}
 
 	// NB(xichen): should never get here unless the centroids array are empty
-	// because the target weight should always be no larger than the total weight
+	// because the target weight should always be no larger than the total weight.
 	return nan
 }
 
@@ -201,7 +201,7 @@ func (d *tDigest) Reset() {
 	d.maxValue = negativeInfinity
 }
 
-// compress merges unmerged centroids and merged centroids
+// compress merges unmerged centroids and merged centroids.
 func (d *tDigest) compress() {
 	if len(d.unmerged) == 0 {
 		return
@@ -247,7 +247,7 @@ func (d *tDigest) compress() {
 	d.unmergedWeight = 0.0
 }
 
-// mergeCentroid merges a centroid into the list of merged centroids
+// mergeCentroid merges a centroid into the list of merged centroids.
 func (d *tDigest) mergeCentroid(
 	currIndex float64,
 	currWeight float64,
@@ -257,24 +257,24 @@ func (d *tDigest) mergeCentroid(
 ) (float64, []Centroid) {
 	nextIndex := d.nextIndex((currWeight + c.Weight) / totalWeight)
 	if nextIndex-currIndex > 1 || len(mergeResult) == 0 {
-		// This is the first centroid added, or the next index is too far away from the current index
+		// This is the first centroid added, or the next index is too far away from the current index.
 		mergeResult = d.appendCentroid(mergeResult, c)
 		return d.nextIndex(currWeight / totalWeight), mergeResult
 	}
 
-	// The new centroid falls within the range of the current centroid
+	// The new centroid falls within the range of the current centroid.
 	numResults := len(mergeResult)
 	mergeResult[numResults-1].Weight += c.Weight
 	mergeResult[numResults-1].Mean += (c.Mean - mergeResult[numResults-1].Mean) * c.Weight / mergeResult[numResults-1].Weight
 	return currIndex, mergeResult
 }
 
-// nextIndex estimates the index of the next centroid
+// nextIndex estimates the index of the next centroid.
 func (d *tDigest) nextIndex(quantile float64) float64 {
 	return d.compression * (math.Asin(2*quantile-1)/math.Pi + 0.5)
 }
 
-// add adds a weighted value
+// add adds a weighted value.
 func (d *tDigest) add(value float64, weight float64) {
 	if len(d.unmerged) == d.unmergedCapacity {
 		d.compress()

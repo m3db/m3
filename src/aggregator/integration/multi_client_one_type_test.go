@@ -37,7 +37,7 @@ func TestMultiClientOneType(t *testing.T) {
 		t.SkipNow()
 	}
 
-	// Test setup
+	// Test setup.
 	testSetup := newTestSetup(t, newTestOptions())
 	defer testSetup.close()
 
@@ -46,7 +46,7 @@ func TestMultiClientOneType(t *testing.T) {
 			SetEntryCheckInterval(time.Second).
 			SetMinFlushInterval(0)
 
-	// Start the server
+	// Start the server.
 	log := testSetup.aggregatorOpts.InstrumentOptions().Logger()
 	log.Info("test multiple clients sending one type of metrics")
 	require.NoError(t, testSetup.startServer())
@@ -75,7 +75,7 @@ func TestMultiClientOneType(t *testing.T) {
 	for _, data := range input.dataset {
 		testSetup.setNowFn(data.timestamp)
 		for _, mu := range data.metrics {
-			// Randomly pick one client to write the metric
+			// Randomly pick one client to write the metric.
 			client := clients[rand.Int63n(int64(numClients))]
 			require.NoError(t, client.write(mu, input.policiesList))
 		}
@@ -83,7 +83,7 @@ func TestMultiClientOneType(t *testing.T) {
 			require.NoError(t, client.flush())
 		}
 
-		// Give server some time to process the incoming packets
+		// Give server some time to process the incoming packets.
 		time.Sleep(100 * time.Millisecond)
 	}
 
@@ -93,11 +93,11 @@ func TestMultiClientOneType(t *testing.T) {
 	testSetup.setNowFn(finalTime)
 	time.Sleep(4 * time.Second)
 
-	// Stop the server
+	// Stop the server.
 	require.NoError(t, testSetup.stopServer())
 	log.Info("server is now down")
 
-	// Validate results
+	// Validate results.
 	expected := toExpectedResults(t, finalTime, input, testSetup.aggregatorOpts)
 	actual := testSetup.sortedResults()
 	require.Equal(t, expected, actual)

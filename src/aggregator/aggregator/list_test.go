@@ -42,7 +42,7 @@ func TestMetricListPushBack(t *testing.T) {
 	require.NoError(t, err)
 	elem := NewCounterElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, l.opts)
 
-	// Push a counter to the list
+	// Push a counter to the list.
 	e, err := l.PushBack(elem)
 	require.NoError(t, err)
 	require.Equal(t, 1, l.aggregations.Len())
