@@ -5,7 +5,7 @@
 # Usage
 ```
 $ git clone git@github.com:m3db/m3db.git
-$ make tools
+$ make read_index_ids
 $ ./bin/read_index_ids
 Usage: read_index_ids [-b value] [-n value] [-p value] [-s value] [parameters ...]
  -b, --block-start=value
@@ -15,7 +15,7 @@ Usage: read_index_ids [-b value] [-n value] [-p value] [-s value] [parameters ..
  -p, --path-prefix=value
        Path prefix [e.g. /var/lib/m3db]
  -s, --shard=value
-       Shard ID [expected format uint32]
+       Shard [expected format uint32]
 
 # example usage
 # read_index_ids -b1480960800000000000 -n metrics -p /var/lib/m3db -s 451 > /tmp/sample-index.out
