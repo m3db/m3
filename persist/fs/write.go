@@ -129,6 +129,10 @@ func NewWriter(opts Options) (FileSetWriter, error) {
 // Open initializes the internal state for writing to the given shard,
 // specifically creating the shard directory if it doesn't exist, and
 // opening / truncating files associated with that shard for writing.
+// TODO: May need to make a distinction between blockstart and writtenat
+// for the sake of snapshotting. For snapshots they would be different, for
+// non-snapshots they would be the same. Probably going to have to modify the
+// file format on disk....
 func (w *writer) Open(opts WriterOpenOptions) error {
 
 	var shardDir string
