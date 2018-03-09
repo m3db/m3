@@ -8,6 +8,9 @@ var (
 	// ErrNilWriteQuery is returned when trying to write a nil query
 	ErrNilWriteQuery = errors.New("nil write query")
 
+	// ErrNotImplemented is returned when the storage endpoint is not implemented
+	ErrNotImplemented = errors.New("not implemented")
+
 	// ErrInvalidFetchResponse is returned when fetch fails from storage.
 	ErrInvalidFetchResponse = errors.New("invalid response from fetch")
 

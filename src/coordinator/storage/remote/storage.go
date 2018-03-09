@@ -3,6 +3,7 @@ package remote
 import (
 	"context"
 
+	"github.com/m3db/m3coordinator/errors"
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/tsdb/remote"
 )
@@ -18,6 +19,11 @@ func NewStorage(c remote.Client) storage.Storage {
 
 func (s *remoteStorage) Fetch(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.FetchResult, error) {
 	return s.client.Fetch(ctx, query, options)
+}
+
+func (s *remoteStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {
+	// todo (braskin): implement remote FetchTags
+	return nil, errors.ErrNotImplemented
 }
 
 func (s *remoteStorage) Write(ctx context.Context, query *storage.WriteQuery) error {

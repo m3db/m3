@@ -83,6 +83,10 @@ func (s *mockStorage) Fetch(ctx context.Context, query *storage.FetchQuery, _ *s
 	}, nil
 }
 
+func (s *mockStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, _ *storage.FetchOptions) (*storage.SearchResults, error) {
+	return nil, nil
+}
+
 func (s *mockStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
 	writeQueriesAreEqual(s.t, s.write, query)
 	return nil
@@ -273,6 +277,10 @@ type errStorage struct {
 func (s *errStorage) Fetch(ctx context.Context, query *storage.FetchQuery, _ *storage.FetchOptions) (*storage.FetchResult, error) {
 	readQueriesAreEqual(s.t, s.read, query)
 	return nil, errRead
+}
+
+func (s *errStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, _ *storage.FetchOptions) (*storage.SearchResults, error) {
+	return nil, m3err.ErrNotImplemented
 }
 
 func (s *errStorage) Write(ctx context.Context, query *storage.WriteQuery) error {

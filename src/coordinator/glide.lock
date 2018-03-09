@@ -1,5 +1,5 @@
-hash: e70f521b4aeddc0ab09bb996221d26ae1b944404d7d566944bffb6a8ed04dcc3
-updated: 2018-03-02T21:44:04.85763136-05:00
+hash: 5df3d076fc0b0cbde32574cf11b97a44939c5f962fc22484af886af1b598403a
+updated: 2018-03-07T08:11:04.138421218-05:00
 imports:
 - name: github.com/alecthomas/template
   version: a0175ee3bccc567396460bf5acd36800cb10c49c
@@ -101,7 +101,7 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3db
-  version: 97032294de3b590557c9d3b692533f5ca22ab92b
+  version: eb29e62b58f8c77b9a9d54919c377b7a43f1fc39
   subpackages:
   - client
   - clock
@@ -139,7 +139,7 @@ imports:
   - doc
   - index/segment
 - name: github.com/m3db/m3x
-  version: a7ed464be22a80c9e219ac0c65ee051f7a7ee13e
+  version: 73f3a41ef5c250e122ef225893ce0ac5962456e7
   subpackages:
   - checked
   - clock
@@ -282,7 +282,7 @@ imports:
   - unix
   - windows
 - name: google.golang.org/genproto
-  version: 2c5e7ac708aaa719366570dd82bda44541ca2a63
+  version: df60624c1e9b9d2973e889c7a1cff73155da81c4
   subpackages:
   - googleapis/rpc/status
 - name: google.golang.org/grpc

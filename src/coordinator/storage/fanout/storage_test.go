@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/m3db/m3coordinator/errors"
 	"github.com/m3db/m3coordinator/policy/filter"
 	"github.com/m3db/m3coordinator/policy/resolver"
 	"github.com/m3db/m3coordinator/storage"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/m3db/m3db/client"
 	"github.com/m3db/m3db/encoding"
+	"github.com/m3db/m3db/storage/index"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
@@ -58,6 +60,8 @@ func setupFanoutRead(t *testing.T, output bool, response ...*fetchResponse) stor
 	session2 := client.NewMockSession(ctrl)
 	session1.EXPECT().Fetch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(response[0].result, response[0].err)
 	session2.EXPECT().Fetch(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(response[len(response)-1].result, response[len(response)-1].err)
+	session1.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any()).Return(index.QueryResults{}, errors.ErrNotImplemented)
+	session2.EXPECT().FetchTaggedIDs(gomock.Any(), gomock.Any()).Return(index.QueryResults{}, errors.ErrNotImplemented)
 	stores := []storage.Storage{
 		local.NewStorage(session1, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48))),
 		local.NewStorage(session2, "metrics", resolver.NewStaticResolver(policy.NewStoragePolicy(time.Second, xtime.Second, time.Hour*48))),
@@ -101,6 +105,20 @@ func TestFanoutReadSuccess(t *testing.T) {
 	res, err := store.Fetch(context.TODO(), &storage.FetchQuery{}, &storage.FetchOptions{})
 	require.NoError(t, err, "no error on read")
 	assert.NotNil(t, res)
+}
+
+func TestFanoutSearchEmpty(t *testing.T) {
+	store := setupFanoutRead(t, false)
+	res, err := store.FetchTags(context.TODO(), nil, nil)
+	assert.NoError(t, err, "No error")
+	require.NotNil(t, res, "Non empty result")
+	assert.Len(t, res.Metrics, 0, "No series")
+}
+
+func TestFanoutSearchError(t *testing.T) {
+	store := setupFanoutRead(t, true)
+	_, err := store.FetchTags(context.TODO(), &storage.FetchQuery{}, &storage.FetchOptions{})
+	assert.Error(t, err)
 }
 
 func TestFanoutWriteEmpty(t *testing.T) {

@@ -44,9 +44,9 @@ func (q *WriteQuery) query() {}
 // FetchQuery represents the input query which is fetched from M3DB
 type FetchQuery struct {
 	Raw         string
-	TagMatchers models.Matchers
-	Start       time.Time
-	End         time.Time
+	TagMatchers models.Matchers `json:"matchers"`
+	Start       time.Time       `json:"start"`
+	End         time.Time       `json:"end"`
 }
 
 func (q *FetchQuery) String() string {
@@ -55,6 +55,7 @@ func (q *FetchQuery) String() string {
 
 // FetchOptions represents the options for fetch query
 type FetchOptions struct {
+	Limit    int
 	KillChan chan struct{}
 }
 
@@ -63,6 +64,8 @@ type Querier interface {
 	// Fetch fetches timeseries data based on a query
 	Fetch(
 		ctx context.Context, query *FetchQuery, options *FetchOptions) (*FetchResult, error)
+	FetchTags(
+		ctx context.Context, query *FetchQuery, options *FetchOptions) (*SearchResults, error)
 }
 
 // WriteQuery represents the input timeseries that is written to M3DB
@@ -82,6 +85,11 @@ func (q *WriteQuery) String() string {
 type Appender interface {
 	// Write value to the database for an ID
 	Write(ctx context.Context, query *WriteQuery) error
+}
+
+// SearchResults is the result from a search
+type SearchResults struct {
+	Metrics models.Metrics
 }
 
 // FetchResult provides a fetch result and meta information

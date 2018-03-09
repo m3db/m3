@@ -78,6 +78,10 @@ func (c *grpcClient) Fetch(ctx context.Context, query *storage.FetchQuery, optio
 	return &storage.FetchResult{LocalOnly: false, SeriesList: tsSeries}, nil
 }
 
+func (c *grpcClient) FetchTags(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {
+	return nil, nil
+}
+
 // Write writes to remote client storage
 func (c *grpcClient) Write(ctx context.Context, query *storage.WriteQuery) error {
 	client := c.client
