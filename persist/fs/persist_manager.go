@@ -212,11 +212,11 @@ func (pm *persistManager) reset() {
 func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.PreparedPersist, error) {
 
 	var (
-		nsMetadata = opts.NsMetadata
-		shard      = opts.Shard
-		blockStart = opts.PersistTime
-		nsID       = opts.NsMetadata.ID()
-		prepared   persist.PreparedPersist
+		nsMetadata  = opts.NsMetadata
+		shard       = opts.Shard
+		persistTime = opts.PersistTime
+		nsID        = opts.NsMetadata.ID()
+		prepared    persist.PreparedPersist
 	)
 
 	// ensure StartFlush has been called
@@ -229,15 +229,19 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 	}
 
 	if opts.IsSnapshot {
-		if SnapshotFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart) {
+		// If the checkpoint file for the snapshot already exists, bail. This allows us
+		// to retry failed snapshot attempts because they wouldn't have created the
+		// checkpoint file. Although in practice this is unlikely because unlike flushes,
+		// every snapshot has a unique timestamp that is not block-aligned.
+		if SnapshotFilesetExistsAt(pm.filePathPrefix, nsID, shard, persistTime) {
 			// TODO: Don't return nil, nil. Return an error or something.
 			return prepared, nil
 		}
 	} else {
-		// NB(xichen): if the checkpoint file for blockStart already exists, bail.
+		// NB(xichen): if the checkpoint file for persistTime already exists, bail.
 		// This allows us to retry failed flushing attempts because they wouldn't
 		// have created the checkpoint file.
-		if DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart) {
+		if DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, persistTime) {
 			// TODO: Don't return nil, nil. Return an error or something.
 			return prepared, nil
 		}
@@ -248,7 +252,7 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 		Namespace:  nsID,
 		BlockSize:  blockSize,
 		Shard:      shard,
-		BlockStart: blockStart,
+		BlockStart: persistTime,
 		IsSnapshot: opts.IsSnapshot,
 	}
 	if err := pm.writer.Open(writerOpts); err != nil {
