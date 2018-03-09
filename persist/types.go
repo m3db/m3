@@ -64,4 +64,5 @@ type PrepareOptions struct {
 	NsMetadata namespace.Metadata
 	Shard      uint32
 	BlockStart time.Time
+	IsSnapshot bool
 }

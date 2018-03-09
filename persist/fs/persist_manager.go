@@ -229,12 +229,19 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 		return prepared, errPersistManagerCannotPrepareNotFlushing
 	}
 
-	// TODO: Need to change this to check for a snapshot file optionally
-	// NB(xichen): if the checkpoint file for blockStart already exists, bail.
-	// This allows us to retry failed flushing attempts because they wouldn't
-	// have created the checkpoint file.
-	if DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart) {
-		return prepared, nil
+	if opts.IsSnapshot {
+		if SnapshotFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart) {
+			// TODO: Don't return nil, nil. Return an error or something.
+			return prepared, nil
+		}
+	} else {
+		// NB(xichen): if the checkpoint file for blockStart already exists, bail.
+		// This allows us to retry failed flushing attempts because they wouldn't
+		// have created the checkpoint file.
+		if DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart) {
+			// TODO: Don't return nil, nil. Return an error or something.
+			return prepared, nil
+		}
 	}
 
 	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
@@ -243,6 +250,7 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 		BlockSize:  blockSize,
 		Shard:      shard,
 		BlockStart: blockStart,
+		IsSnapshot: opts.IsSnapshot,
 	}
 	if err := pm.writer.Open(writerOpts); err != nil {
 		return prepared, err
