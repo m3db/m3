@@ -58,25 +58,20 @@ func (a rackAwarePlacementAlgorithm) InitialPlacement(
 		return nil, err
 	}
 
-	p := ph.generatePlacement()
+	var (
+		p   = ph.generatePlacement()
+		err error
+	)
 	for i := 1; i < rf; i++ {
-		ph := newAddReplicaHelper(p, a.opts)
-		if err := ph.placeShards(newShards(p.Shards()), nil, ph.Instances()); err != nil {
+		p, err = a.AddReplica(p)
+		if err != nil {
 			return nil, err
 		}
-		if err := ph.optimize(safe); err != nil {
-			return nil, err
-		}
-		p = ph.generatePlacement()
 	}
 
 	// NB(r): All new placements should appear as available for
 	// proper client semantics when calculating consistency results
-	p, _, err := markAllShardsAvailable(
-		p,
-		a.opts.SetIsShardCutoverFn(nil).SetIsShardCutoffFn(nil),
-	)
-	return p, err
+	return cleanupShardState(p, a.opts)
 }
 
 func (a rackAwarePlacementAlgorithm) AddReplica(p placement.Placement) (placement.Placement, error) {
@@ -94,7 +89,7 @@ func (a rackAwarePlacementAlgorithm) AddReplica(p placement.Placement) (placemen
 		return nil, err
 	}
 
-	return ph.generatePlacement(), nil
+	return tryCleanupShardState(ph.generatePlacement(), a.opts)
 }
 
 func (a rackAwarePlacementAlgorithm) RemoveInstances(
@@ -124,7 +119,7 @@ func (a rackAwarePlacementAlgorithm) RemoveInstances(
 			return nil, err
 		}
 	}
-	return p, nil
+	return tryCleanupShardState(p, a.opts)
 }
 
 func (a rackAwarePlacementAlgorithm) AddInstances(
@@ -149,7 +144,7 @@ func (a rackAwarePlacementAlgorithm) AddInstances(
 		p = ph.generatePlacement()
 	}
 
-	return p, nil
+	return tryCleanupShardState(p, a.opts)
 }
 
 func (a rackAwarePlacementAlgorithm) ReplaceInstances(
@@ -200,7 +195,7 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstances(
 			return nil, err
 		}
 	}
-	return p, nil
+	return tryCleanupShardState(p, a.opts)
 }
 
 func (a rackAwarePlacementAlgorithm) MarkShardAvailable(

@@ -1285,3 +1285,126 @@ func TestMarkShardAsAvailableWithMirroredAlgo(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NoError(t, placement.Validate(p))
 }
+
+func TestMirrorAlgoWithSimpleShardStateType(t *testing.T) {
+	i1 := placement.NewInstance().
+		SetID("i1").
+		SetRack("r1").
+		SetEndpoint("endpoint1").
+		SetShardSetID(1).
+		SetWeight(1)
+	i2 := placement.NewInstance().
+		SetID("i2").
+		SetRack("r2").
+		SetEndpoint("endpoint2").
+		SetShardSetID(1).
+		SetWeight(1)
+	i3 := placement.NewInstance().
+		SetID("i3").
+		SetRack("r3").
+		SetEndpoint("endpoint3").
+		SetShardSetID(2).
+		SetWeight(2)
+	i4 := placement.NewInstance().
+		SetID("i4").
+		SetRack("r4").
+		SetEndpoint("endpoint4").
+		SetShardSetID(2).
+		SetWeight(2)
+	i5 := placement.NewInstance().
+		SetID("i5").
+		SetRack("r5").
+		SetEndpoint("endpoint5").
+		SetShardSetID(3).
+		SetWeight(3)
+	i6 := placement.NewInstance().
+		SetID("i6").
+		SetRack("r6").
+		SetEndpoint("endpoint6").
+		SetShardSetID(3).
+		SetWeight(3)
+
+	instances := []placement.Instance{i1, i2, i3, i4, i5, i6}
+
+	numShards := 1024
+	ids := make([]uint32, numShards)
+	for i := 0; i < len(ids); i++ {
+		ids[i] = uint32(i)
+	}
+
+	a := NewAlgorithm(placement.NewOptions().SetIsMirrored(true).
+		SetPlacementCutoverNanosFn(timeNanosGen(1)).
+		SetShardStateMode(placement.StableShardStateOnly))
+	p, err := a.InitialPlacement(instances, ids, 2)
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
+	verifyAllShardsInAvailableState(t, p)
+
+	i7 := placement.NewInstance().
+		SetID("i7").
+		SetRack("r7").
+		SetEndpoint("endpoint7").
+		SetShardSetID(4).
+		SetWeight(4)
+	i8 := placement.NewInstance().
+		SetID("i8").
+		SetRack("r8").
+		SetEndpoint("endpoint8").
+		SetShardSetID(4).
+		SetWeight(4)
+	p, err = a.AddInstances(p, []placement.Instance{i7, i8})
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
+	verifyAllShardsInAvailableState(t, p)
+
+	p, err = a.RemoveInstances(p, []string{i7.ID(), i8.ID()})
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
+	verifyAllShardsInAvailableState(t, p)
+
+	p, err = a.ReplaceInstances(p, []string{"i6"}, []placement.Instance{
+		placement.NewInstance().
+			SetID("i16").
+			SetRack("r6").
+			SetEndpoint("endpoint6").
+			SetShardSetID(3).
+			SetWeight(3),
+	})
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
+	verifyAllShardsInAvailableState(t, p)
+
+	i9 := placement.NewInstance().
+		SetID("i9").
+		SetRack("r9").
+		SetEndpoint("endpoint9").
+		SetShardSetID(5).
+		SetWeight(1)
+	i10 := placement.NewInstance().
+		SetID("i10").
+		SetRack("r10").
+		SetEndpoint("endpoint10").
+		SetShardSetID(5).
+		SetWeight(1)
+	p, err = a.AddInstances(p, []placement.Instance{i9, i10})
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
+	verifyAllShardsInAvailableState(t, p)
+
+	p, err = a.ReplaceInstances(p, []string{"i9"}, []placement.Instance{
+		placement.NewInstance().
+			SetID("i19").
+			SetRack("r9").
+			SetEndpoint("endpoint19").
+			SetShardSetID(5).
+			SetWeight(1),
+	})
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
+	verifyAllShardsInAvailableState(t, p)
+
+	p, err = a.RemoveInstances(p, []string{"i19", "i10"})
+	assert.NoError(t, err)
+	assert.NoError(t, placement.Validate(p))
+	verifyAllShardsInAvailableState(t, p)
+}

@@ -74,17 +74,7 @@ func (a mirroredAlgorithm) InitialPlacement(
 		return nil, err
 	}
 
-	p, err := placementFromMirror(mirrorPlacement, instances, rf)
-	if err != nil {
-		return nil, err
-	}
-
-	// NB(cw): Do not validate shards for initial placement.
-	p, _, err = markAllShardsAvailable(
-		p,
-		a.opts.SetIsShardCutoverFn(nil).SetIsShardCutoffFn(nil),
-	)
-	return p, err
+	return placementFromMirror(mirrorPlacement, instances, rf)
 }
 
 func (a mirroredAlgorithm) AddReplica(p placement.Placement) (placement.Placement, error) {
