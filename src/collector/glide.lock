@@ -1,5 +1,5 @@
-hash: e682747d2f6484f225f42b82b0572842cd5a9db09563a50a82e0fee0ca322ef2
-updated: 2017-12-27T16:19:10.71145157-05:00
+hash: 28e040843fe0aa26c24ac890244d9bd14e40324d536983d76886616671f8ae61
+updated: 2018-03-09T14:40:59.701351172-05:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -16,7 +16,7 @@ imports:
   subpackages:
   - oleutil
 - name: github.com/golang/mock
-  version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  version: 13f360950a79f5864a972c786a10a50e44b69541
   subpackages:
   - gomock
   - mockgen
@@ -25,7 +25,7 @@ imports:
   subpackages:
   - proto
 - name: github.com/m3db/m3cluster
-  version: 4b25af16e37d029b79bae754d35655e6be382f94
+  version: 6b9b5a7eae36b0f3fc23823250d4536f6518332f
   subpackages:
   - client
   - generated/proto/metadatapb
@@ -38,8 +38,9 @@ imports:
   - services/leader/campaign
   - shard
 - name: github.com/m3db/m3metrics
-  version: ce006a053562692b921c167fe4d2c924dbee5a15
+  version: 1ed6b292f4f6a1dfa4d6bfcb4fa5cb98578bf7e8
   subpackages:
+  - errors
   - filters
   - generated/proto/schema
   - matcher
@@ -53,18 +54,20 @@ imports:
   - protocol/msgpack
   - rules
 - name: github.com/m3db/m3x
-  version: 515e3030818e6dab3fd418f05b96174ae4c527df
+  version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
   subpackages:
   - checked
   - clock
   - close
+  - context
   - errors
-  - id
+  - ident
   - instrument
   - log
   - net
   - pool
   - process
+  - resource
   - retry
   - server
   - time
@@ -76,7 +79,7 @@ imports:
   subpackages:
   - difflib
 - name: github.com/shirou/gopsutil
-  version: b62e301a8b9958eebb7299683eb57fab229a9501
+  version: c432be29ccce470088d07eea25b3ea7e68a8afbb
   subpackages:
   - cpu
   - host
@@ -98,7 +101,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
 - name: github.com/uber-go/tally
-  version: 6c4631652c6aab57c64f65c2e0aaec2e9aae3a64
+  version: 522328b48efad0c6034dba92bf39228694e9d31f
   subpackages:
   - m3
   - m3/customtransports
@@ -106,10 +109,31 @@ imports:
   - m3/thriftudp
 - name: github.com/willf/bitset
   version: 988f4f24992fc745de53c42df0da6581e42a6686
+- name: go.uber.org/atomic
+  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+- name: go.uber.org/multierr
+  version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
+- name: go.uber.org/zap
+  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  subpackages:
+  - buffer
+  - internal/bufferpool
+  - internal/color
+  - internal/exit
+  - zapcore
 - name: golang.org/x/net
-  version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
+  version: ab5485076ff3407ad2d02db054635913f017b0ed
+  repo: https://github.com/golang/net
+  vcs: git
   subpackages:
   - context
+- name: golang.org/x/sys
+  version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  repo: https://github.com/golang/sys
+  vcs: git
+  subpackages:
+  - unix
+  - windows
 - name: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
   subpackages:
@@ -129,7 +153,7 @@ imports:
   version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImports:
 - name: github.com/fortytw2/leaktest
-  version: 3b724c3d7b8729a35bf4e577f71653aec6e53513
+  version: 7dad53304f9614c1c365755c1176a8e876fee3e8
 - name: github.com/leanovate/gopter
   version: 9e6101e5a87586b269acf3d0d61f363e4317309f
   subpackages:
