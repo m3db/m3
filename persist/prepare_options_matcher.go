@@ -4,13 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3db/storage/namespace"
 )
-
-type PrepareOptionsMatcherIFace interface {
-	gomock.Matcher
-}
 
 // PrepareOptionsMatcher satisfies the gomock.Matcher interface for PrepareOptions
 type PrepareOptionsMatcher struct {

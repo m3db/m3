@@ -62,7 +62,7 @@ type Flush interface {
 // PrepareOptions is the options struct for the PersistManager's Prepare method.
 type PrepareOptions struct {
 	NsMetadata  namespace.Metadata
-	Shard       uint32
 	PersistTime time.Time
+	Shard       uint32
 	IsSnapshot  bool
 }

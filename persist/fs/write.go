@@ -35,8 +35,6 @@ import (
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
-
-	"github.com/golang/mock/gomock"
 )
 
 type writer struct {
@@ -467,10 +465,6 @@ func (w *writer) writeInfoFileContents(
 
 	_, err := w.infoFdWithDigest.Write(w.encoder.Bytes())
 	return err
-}
-
-type WriterOpenOptionsMatcherIFace interface {
-	gomock.Matcher
 }
 
 // WriterOpenOptionsMatcher satisfies the gomock.Matcher interface for WriterOpenOptions

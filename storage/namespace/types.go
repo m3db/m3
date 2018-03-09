@@ -30,6 +30,7 @@ import (
 )
 
 // Options controls namespace behavior
+// TODO: Rename these to use should instead of need
 type Options interface {
 	// Validate validates the options
 	Validate() error

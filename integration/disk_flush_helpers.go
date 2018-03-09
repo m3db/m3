@@ -44,6 +44,7 @@ var (
 	errDiskFlushTimedOut = errors.New("flushing data to disk took too long")
 )
 
+// nolint: deadcode
 func waitUntilSnapshotFilesFlushed(
 	filePathPrefix string,
 	shardSet sharding.ShardSet,
