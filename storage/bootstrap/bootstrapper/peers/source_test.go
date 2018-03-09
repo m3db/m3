@@ -240,12 +240,12 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 		persists := make(map[string]int)
 		closes := make(map[string]int)
 		prepareOpts := persist.PrepareOptionsMatcher{
-			NsMetadata: testNsMd,
-			Shard:      uint32(0),
-			BlockStart: start,
+			NsMetadata:  testNsMd,
+			Shard:       uint32(0),
+			PersistTime: start,
 		}
 		mockFlush.EXPECT().
-			Prepare(prepareOpts.ToIFace()).
+			Prepare(prepareOpts).
 			Return(persist.PreparedPersist{
 				Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 					persists["foo"]++
@@ -260,12 +260,12 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 				},
 			}, nil)
 		prepareOpts = persist.PrepareOptionsMatcher{
-			NsMetadata: testNsMd,
-			Shard:      uint32(0),
-			BlockStart: start.Add(ropts.BlockSize()),
+			NsMetadata:  testNsMd,
+			Shard:       uint32(0),
+			PersistTime: start.Add(ropts.BlockSize()),
 		}
 		mockFlush.EXPECT().
-			Prepare(prepareOpts.ToIFace()).
+			Prepare(prepareOpts).
 			Return(persist.PreparedPersist{
 				Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 					persists["bar"]++
@@ -280,12 +280,12 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 				},
 			}, nil)
 		prepareOpts = persist.PrepareOptionsMatcher{
-			NsMetadata: testNsMd,
-			Shard:      uint32(1),
-			BlockStart: start,
+			NsMetadata:  testNsMd,
+			Shard:       uint32(1),
+			PersistTime: start,
 		}
 		mockFlush.EXPECT().
-			Prepare(prepareOpts.ToIFace()).
+			Prepare(prepareOpts).
 			Return(persist.PreparedPersist{
 				Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 					persists["baz"]++
@@ -300,12 +300,12 @@ func TestPeersSourceIncrementalRun(t *testing.T) {
 				},
 			}, nil)
 		prepareOpts = persist.PrepareOptionsMatcher{
-			NsMetadata: testNsMd,
-			Shard:      uint32(1),
-			BlockStart: start.Add(ropts.BlockSize()),
+			NsMetadata:  testNsMd,
+			Shard:       uint32(1),
+			PersistTime: start.Add(ropts.BlockSize()),
 		}
 		mockFlush.EXPECT().
-			Prepare(prepareOpts.ToIFace()).
+			Prepare(prepareOpts).
 			Return(persist.PreparedPersist{
 				Persist: func(id ident.ID, segment ts.Segment, checksum uint32) error {
 					assert.Fail(t, "no expected shard 1 second block")
@@ -485,9 +485,9 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 
 	// expect foo
 	prepareOpts := persist.PrepareOptionsMatcher{
-		NsMetadata: testNsMd,
-		Shard:      uint32(0),
-		BlockStart: start,
+		NsMetadata:  testNsMd,
+		Shard:       uint32(0),
+		PersistTime: start,
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
@@ -502,9 +502,9 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 			},
 		}, nil)
 	prepareOpts = persist.PrepareOptionsMatcher{
-		NsMetadata: testNsMd,
-		Shard:      uint32(0),
-		BlockStart: midway,
+		NsMetadata:  testNsMd,
+		Shard:       uint32(0),
+		PersistTime: midway,
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
@@ -521,9 +521,9 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 
 	// expect bar
 	prepareOpts = persist.PrepareOptionsMatcher{
-		NsMetadata: testNsMd,
-		Shard:      uint32(1),
-		BlockStart: start,
+		NsMetadata:  testNsMd,
+		Shard:       uint32(1),
+		PersistTime: start,
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
@@ -538,9 +538,9 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 			},
 		}, nil)
 	prepareOpts = persist.PrepareOptionsMatcher{
-		NsMetadata: testNsMd,
-		Shard:      uint32(1),
-		BlockStart: midway,
+		NsMetadata:  testNsMd,
+		Shard:       uint32(1),
+		PersistTime: midway,
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
@@ -557,9 +557,9 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 
 	// expect baz
 	prepareOpts = persist.PrepareOptionsMatcher{
-		NsMetadata: testNsMd,
-		Shard:      uint32(2),
-		BlockStart: start,
+		NsMetadata:  testNsMd,
+		Shard:       uint32(2),
+		PersistTime: start,
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
@@ -574,9 +574,9 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 			},
 		}, nil)
 	prepareOpts = persist.PrepareOptionsMatcher{
-		NsMetadata: testNsMd,
-		Shard:      uint32(2),
-		BlockStart: midway,
+		NsMetadata:  testNsMd,
+		Shard:       uint32(2),
+		PersistTime: midway,
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
@@ -593,9 +593,9 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 
 		// expect qux
 	prepareOpts = persist.PrepareOptionsMatcher{
-		NsMetadata: testNsMd,
-		Shard:      uint32(3),
-		BlockStart: start,
+		NsMetadata:  testNsMd,
+		Shard:       uint32(3),
+		PersistTime: start,
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).
@@ -610,9 +610,9 @@ func TestPeersSourceMarksUnfulfilledOnIncrementalFlushErrors(t *testing.T) {
 			},
 		}, nil)
 	prepareOpts = persist.PrepareOptionsMatcher{
-		NsMetadata: testNsMd,
-		Shard:      uint32(3),
-		BlockStart: midway,
+		NsMetadata:  testNsMd,
+		Shard:       uint32(3),
+		PersistTime: midway,
 	}
 	mockFlush.EXPECT().
 		Prepare(prepareOpts).

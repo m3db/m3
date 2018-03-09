@@ -481,10 +481,6 @@ type WriterOpenOptionsMatcher struct {
 	BlockStart time.Time
 }
 
-func (m WriterOpenOptionsMatcher) ToIFace() WriterOpenOptionsMatcherIFace {
-	return m
-}
-
 // Matches determine whether m matches a WriterOpenOptions
 func (m WriterOpenOptionsMatcher) Matches(x interface{}) bool {
 	writerOpenOptions, ok := x.(WriterOpenOptions)

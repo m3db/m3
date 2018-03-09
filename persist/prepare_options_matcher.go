@@ -14,13 +14,9 @@ type PrepareOptionsMatcherIFace interface {
 
 // PrepareOptionsMatcher satisfies the gomock.Matcher interface for PrepareOptions
 type PrepareOptionsMatcher struct {
-	NsMetadata namespace.Metadata
-	Shard      uint32
-	BlockStart time.Time
-}
-
-func (p PrepareOptionsMatcher) ToIFace() PrepareOptionsMatcherIFace {
-	return &p
+	NsMetadata  namespace.Metadata
+	Shard       uint32
+	PersistTime time.Time
 }
 
 // Matches determines whether a PrepareOptionsMatcher matches a PrepareOptions
@@ -36,7 +32,7 @@ func (p PrepareOptionsMatcher) Matches(x interface{}) bool {
 	if p.Shard != prepareOptions.Shard {
 		return false
 	}
-	if !p.BlockStart.Equal(prepareOptions.PersistTime) {
+	if !p.PersistTime.Equal(prepareOptions.PersistTime) {
 		return false
 	}
 
@@ -46,5 +42,5 @@ func (p PrepareOptionsMatcher) Matches(x interface{}) bool {
 func (p PrepareOptionsMatcher) String() string {
 	return fmt.Sprintf(
 		"id: %s, shard: %d, BlockStart: %d",
-		p.NsMetadata.ID().String(), p.Shard, p.BlockStart.Unix())
+		p.NsMetadata.ID().String(), p.Shard, p.PersistTime.Unix())
 }
