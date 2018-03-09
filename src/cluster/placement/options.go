@@ -59,6 +59,7 @@ func defaultShardValidationFn(s shard.Shard) error { return nil }
 type options struct {
 	looseRackCheck      bool
 	allowPartialReplace bool
+	shardStateMode      ShardStateMode
 	isSharded           bool
 	isMirrored          bool
 	isStaged            bool
@@ -78,6 +79,7 @@ func NewOptions() Options {
 	return options{
 		allowPartialReplace: defaultAllowPartialReplace,
 		isSharded:           defaultIsSharded,
+		shardStateMode:      IncludeTransitionalShardStates,
 		iopts:               instrument.NewOptions(),
 		placementCutOverFn:  defaultTimeNanosFn,
 		shardCutOverFn:      defaultTimeNanosFn,
@@ -112,6 +114,15 @@ func (o options) IsSharded() bool {
 
 func (o options) SetIsSharded(sharded bool) Options {
 	o.isSharded = sharded
+	return o
+}
+
+func (o options) ShardStateMode() ShardStateMode {
+	return o.shardStateMode
+}
+
+func (o options) SetShardStateMode(value ShardStateMode) Options {
+	o.shardStateMode = value
 	return o
 }
 
