@@ -1,5 +1,5 @@
-hash: d239f992a5cdce8e976c5c63ff113f5b5fca23ca9d3711a3d701a76646986ff6
-updated: 2018-01-30T13:37:21.290049-05:00
+hash: 7be68255a4b4737db2a327ac9cc144ce2c8bbc20f4a4185ef9ba956b97c0beef
+updated: 2018-03-09T01:53:07.052332117-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -33,12 +33,14 @@ imports:
   version: 47d58efa69556a936a3c15eb2ed42706d968ab01
 - name: github.com/ghodss/yaml
   version: 73d445a93680fa1a78ae23a5839bad48f32ba1ee
+- name: github.com/glycerine/go-unsnap-stream
+  version: 62a9a9eb44fd8932157b1a8ace2149eff5971af6
 - name: github.com/go-ole/go-ole
-  version: de8695c8edbf8236f30d6e1376e20b198a028d42
+  version: a41e3c4b706f6ae8dfbff342b06e40fa4d2d0506
   subpackages:
   - oleutil
 - name: github.com/golang/mock
-  version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  version: 13f360950a79f5864a972c786a10a50e44b69541
   subpackages:
   - gomock
 - name: github.com/golang/protobuf
@@ -47,6 +49,8 @@ imports:
   - jsonpb
   - proto
   - ptypes/timestamp
+- name: github.com/golang/snappy
+  version: d7b1e156f50d3c4664f683603af70e3e47fa0aa2
 - name: github.com/grpc-ecosystem/go-grpc-prometheus
   version: 6b7015e65d366bf3f19b2b2a000a831940f0f7e0
 - name: github.com/grpc-ecosystem/grpc-gateway
@@ -94,11 +98,10 @@ imports:
   - services/leader/election
   - shard
 - name: github.com/m3db/m3db
-  version: 474b8b89d5699f994e7c10cf204087674195e363
+  version: 429eb6f48a82fb1a46d6c0bdc8bc4a3c30ba9f2a
   subpackages:
   - client
   - clock
-  - context
   - digest
   - encoding
   - encoding/m3tsz
@@ -114,23 +117,33 @@ imports:
   - sharding
   - storage/block
   - storage/bootstrap/result
+  - storage/index
   - storage/namespace
   - storage/series
   - topology
   - ts
-  - x/io
   - x/tchannel
+  - x/xio
+- name: github.com/m3db/m3ninx
+  version: b2628ee8f986f6df48d3f7589d85a6f390f174a2
+  subpackages:
+  - doc
+  - index/segment
 - name: github.com/m3db/m3x
-  version: c79492efa39435ffea6c04b72faf1402ed784211
+  version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
   subpackages:
   - checked
   - clock
   - close
+  - config
+  - context
   - errors
+  - ident
   - instrument
   - log
   - pool
   - process
+  - resource
   - retry
   - sync
   - time
@@ -145,6 +158,8 @@ imports:
   - pbutil
 - name: github.com/mitchellh/mapstructure
   version: 53818660ed4955e899c0bcafa97299a388bd7c8e
+- name: github.com/mschoch/smat
+  version: 90eadee771aeab36e8bf796039b8c261bebebe4f
 - name: github.com/opentracing/opentracing-go
   version: 855519783f479520497c6b3445611b05fc42f009
   subpackages:
@@ -155,12 +170,14 @@ imports:
   version: c37440a7cf42ac63b919c752ca73a85067e05992
 - name: github.com/pelletier/go-toml
   version: 3b00596b2e9ee541bbd72dc50cc0c60e2b46c69c
+- name: github.com/philhofer/fwd
+  version: bb6d471dc95d4fe11e432687f8b70ff496cf3136
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
 - name: github.com/prometheus/client_golang
-  version: 967789050ba94deca04a5e84cce8ad472ce313c1
+  version: c5b7fccd204277076155f10851dad72b76a49317
   subpackages:
   - prometheus
 - name: github.com/prometheus/client_model
@@ -175,8 +192,10 @@ imports:
   - model
 - name: github.com/prometheus/procfs
   version: 1878d9fbb537119d24b21ca07effd591627cd160
+- name: github.com/RoaringBitmap/roaring
+  version: 4bbba8874933b985c9160558fddea525dde73e63
 - name: github.com/shirou/gopsutil
-  version: b62e301a8b9958eebb7299683eb57fab229a9501
+  version: c432be29ccce470088d07eea25b3ea7e68a8afbb
   subpackages:
   - cpu
   - host
@@ -203,16 +222,20 @@ imports:
 - name: github.com/spf13/viper
   version: 7538d73b4eb9511d85a9f1dfef202eeb8ac260f4
 - name: github.com/StackExchange/wmi
-  version: e542ed97d15e640bdc14b5c12162d59e8fc67324
+  version: 5d049714c4a64225c3c79a7cf7d02f7fb5b96338
 - name: github.com/stretchr/testify
   version: 6fe211e493929a8aac0469b93f28b1d0688a9a3a
   subpackages:
   - assert
   - require
+- name: github.com/tinylib/msgp
+  version: 3b5c87ab5fb00c660bf85b888445d9a01db64db4
+  subpackages:
+  - msgp
 - name: github.com/uber-go/atomic
-  version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
+  version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: github.com/uber-go/tally
-  version: 6c4631652c6aab57c64f65c2e0aaec2e9aae3a64
+  version: 522328b48efad0c6034dba92bf39228694e9d31f
   subpackages:
   - m3
   - m3/customtransports
@@ -229,6 +252,8 @@ imports:
   - tos
   - trand
   - typed
+- name: github.com/willf/bitset
+  version: 1ea0245d2bc8ce44623f24a1ae162beb06ad8cd6
 - name: go.uber.org/atomic
   version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: go.uber.org/multierr
@@ -262,8 +287,9 @@ imports:
   vcs: git
   subpackages:
   - unix
+  - windows
 - name: golang.org/x/text
-  version: 1cbadb444a806fd9430d14ad08967ed91da4fa0a
+  version: b7ef84aaf62aa3e70962625c80a571ae7c17cb40
   subpackages:
   - transform
   - unicode/norm

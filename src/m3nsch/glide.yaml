@@ -8,11 +8,11 @@ import:
   - proto
   - ptypes/timestamp
 - package: github.com/m3db/m3db
-  version: 474b8b89d5699f994e7c10cf204087674195e363
+  version: 429eb6f48a82fb1a46d6c0bdc8bc4a3c30ba9f2a
   subpackages:
   - client
 - package: github.com/m3db/m3x
-  version: c79492efa39435ffea6c04b72faf1402ed784211 
+  version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
   subpackages:
   - errors
   - instrument
@@ -45,7 +45,5 @@ import:
   subpackages:
   - require
 - package: github.com/golang/mock
-  version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
-  subpackages:
-  - gomock
+  version: ^1.0.0
 testImport:
