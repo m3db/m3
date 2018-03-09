@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services/leader/campaign"
 	"github.com/m3db/m3cluster/shard"
+	xclose "github.com/m3db/m3x/close"
 	xwatch "github.com/m3db/m3x/watch"
 )
 
@@ -67,7 +68,7 @@ type Services interface {
 	Query(service ServiceID, opts QueryOptions) (Service, error)
 
 	// Watch returns a watch on metadata and a list of available instances for a given service
-	Watch(service ServiceID, opts QueryOptions) (xwatch.Watch, error)
+	Watch(service ServiceID, opts QueryOptions) (Watch, error)
 
 	// Metadata returns the metadata for a given service
 	Metadata(sid ServiceID) (Metadata, error)
@@ -84,6 +85,17 @@ type Services interface {
 	// LeaderService returns an instance of a leader service for the given
 	// service ID.
 	LeaderService(service ServiceID, opts ElectionOptions) (LeaderService, error)
+}
+
+// Watch is a watcher that issues notification when a service is updated
+type Watch interface {
+	xclose.SimpleCloser
+
+	// C returns the notification channel
+	C() <-chan struct{}
+
+	// Get returns the latest service of the service watchable
+	Get() Service
 }
 
 // Service describes the metadata and instances of a service
