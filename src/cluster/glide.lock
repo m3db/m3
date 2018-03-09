@@ -1,5 +1,5 @@
-hash: 1e617222eb01cf8535fcb696d3a350f08c872f8fb32139dbefc019a527b0e858
-updated: 2017-11-26T14:43:39.717517478-05:00
+hash: 189b2ca4784fe3fa927f1e9402ddd28e9e3b9b5af25dec8a4831d4d99d857970
+updated: 2018-03-09T12:30:18.072022065-05:00
 imports:
 - name: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
@@ -122,7 +122,7 @@ imports:
   subpackages:
   - lru
 - name: github.com/golang/mock
-  version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  version: 13f360950a79f5864a972c786a10a50e44b69541
   subpackages:
   - gomock
   - mockgen
@@ -150,7 +150,7 @@ imports:
 - name: github.com/jonboulle/clockwork
   version: 2eee05ed794112d45db504eb05aa693efd2b8b09
 - name: github.com/m3db/m3x
-  version: 515e3030818e6dab3fd418f05b96174ae4c527df
+  version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
   subpackages:
   - clock
   - close
@@ -183,7 +183,7 @@ imports:
   subpackages:
   - xfs
 - name: github.com/shirou/gopsutil
-  version: b62e301a8b9958eebb7299683eb57fab229a9501
+  version: c432be29ccce470088d07eea25b3ea7e68a8afbb
   subpackages:
   - cpu
   - host
@@ -194,11 +194,9 @@ imports:
 - name: github.com/shirou/w32
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
 - name: github.com/StackExchange/wmi
-  version: e542ed97d15e640bdc14b5c12162d59e8fc67324
-- name: github.com/uber-go/atomic
-  version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
+  version: 5d049714c4a64225c3c79a7cf7d02f7fb5b96338
 - name: github.com/uber-go/tally
-  version: 95078a8f10668bd1fa73ae46761cdc58d25436b8
+  version: 522328b48efad0c6034dba92bf39228694e9d31f
   subpackages:
   - m3
   - m3/customtransports
@@ -212,6 +210,16 @@ imports:
   version: 07dd2e8dfe18522e9c447ba95f2fe95262f63bb2
 - name: go.uber.org/atomic
   version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
+- name: go.uber.org/multierr
+  version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
+- name: go.uber.org/zap
+  version: 35aad584952c3e7020db7b839f6b102de6271f89
+  subpackages:
+  - buffer
+  - internal/bufferpool
+  - internal/color
+  - internal/exit
+  - zapcore
 - name: golang.org/x/crypto
   version: 1351f936d976c60a0a48d728281922cf63eafb8d
   repo: https://github.com/golang/crypto
@@ -237,6 +245,7 @@ imports:
   vcs: git
   subpackages:
   - unix
+  - windows
 - name: golang.org/x/text
   version: 4ee4af566555f5fbe026368b75596286a312663a
   subpackages:
