@@ -1,32 +1,38 @@
 package: github.com/m3db/m3metrics
 import:
 - package: github.com/m3db/m3x
-  version: dbdbd564ff2f64388a641ce61f541eceb7d2e416
+  version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
   subpackages:
   - pool
   - time
+
 - package: github.com/m3db/m3cluster
-  version: 4b25af16e37d029b79bae754d35655e6be382f94
+  version: 6b9b5a7eae36b0f3fc23823250d4536f6518332f
   subpackages:
   - kv
   - kv/mem
   - kv/util/runtime
+
 - package: gopkg.in/vmihailenco/msgpack.v2
   version: a1382b1ce0c749733b814157c245e02cc1f41076
+
 - package: github.com/apache/thrift
   version: 9549b25c77587b29be4e0b5c258221a4ed85d37a
   subpackages:
   - lib/go/thrift
+
 - package: github.com/go-ole/go-ole
   version: de8695c8edbf8236f30d6e1376e20b198a028d42
   subpackages:
   - oleutil
+
 - package: github.com/golang/protobuf
   version: 7390af9dcd3c33042ebaf2474a1724a83cf1a7e6
   subpackages:
   - proto
+
 - package: github.com/shirou/gopsutil
-  version: b62e301a8b9958eebb7299683eb57fab229a9501
+  version:  ^2.0.0
   subpackages:
   - cpu
   - host
@@ -34,12 +40,16 @@ import:
   - mem
   - net
   - process
+
 - package: github.com/shirou/w32
   version: bb4de0191aa41b5507caa14b0650cdbddcd9280b
+
 - package: github.com/StackExchange/wmi
-  version: e542ed97d15e640bdc14b5c12162d59e8fc67324
+  version: ^1.0.0
+
 - package: github.com/uber-go/atomic
   version: e682c1008ac17bf26d2e4b5ad6cdd08520ed0b22
+
 - package: github.com/uber-go/tally
   version: ^3.0.0 # ie >= 3.0.0, < 4.0.0
   subpackages:
@@ -47,31 +57,40 @@ import:
   - m3/customtransports
   - m3/thrift
   - m3/thriftudp
+
 - package: github.com/willf/bitset
   version: 988f4f24992fc745de53c42df0da6581e42a6686
+
 - package: golang.org/x/net
   version: f2499483f923065a842d38eb4c7f1927e6fc6e6d
   subpackages:
   - context
+
 - package: google.golang.org/appengine
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
+
 - package: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
+
 - package: gopkg.in/yaml.v2
   version: a83829b6f1293c91addabc89d0571c246397bbf4
+
 - package: github.com/pborman/uuid
   version: e790cca94e6cc75c7064b1332e63811d4aae1a53
 testImport:
+
 - package: github.com/stretchr/testify
   version: d77da356e56a7428ad25149ca77381849a6a5232
   subpackages:
   - require
+
 - package: github.com/golang/mock
-  version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  version: ^1
   subpackages:
   - gomock
   - mockgen
+
 - package: github.com/spaolacci/murmur3
-  version: 0d12bf811670bf6a1a63828dfbd003eded177fce
+  version: ^1.1.0
