@@ -1,5 +1,44 @@
 package: github.com/m3db/m3db
 import:
+- package: github.com/m3db/m3x
+  version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
+  vcs: git
+  subpackages:
+  - checked
+  - close
+  - errors
+  - instrument
+  - log
+  - pool
+  - retry
+  - time
+  - watch
+  - ident
+
+- package: github.com/m3db/m3cluster
+  version: 6b9b5a7eae36b0f3fc23823250d4536f6518332f
+  subpackages:
+  - client
+  - services
+  - integration/etcd
+
+- package: github.com/m3db/m3em
+  version: e7d10496a72102ede0670d6292c76858f6ee1951
+
+- package: github.com/m3db/m3ninx
+  version: b2628ee8f986f6df48d3f7589d85a6f390f174a2
+
+- package: github.com/m3db/bitset
+  version: 07973db6b78acb62ac207d0538055e874b49d90d
+
+- package: github.com/m3db/bloom
+  version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
+
+- package: github.com/m3db/stackmurmur3
+  version: 744c0229c12ed0e4f8cb9d081a2692b3300bf705
+
+- package: github.com/m3db/stackadler32
+  version: bfebcd73ef6ffe0ee30489227f0330c39064b674
 
 - package: github.com/apache/thrift
   version: ~0.9.3
@@ -10,17 +49,17 @@ import:
   version: adab96458c51a58dc1783b3335dcce5461522e75
 
 - package: github.com/golang/mock
-  version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  version: ^1
   subpackages:
   - gomock
 
 - package: github.com/golang/protobuf
-  version: 3852dcfda249c2097355a6aabb199a28d97b30df
+  version: 5a0f697c9ed9d68fef0116532c6e05cfeae00e55
   subpackages:
   - proto
 
 - package: github.com/gogo/protobuf
-  version: 160de10b2537169b5ae3e7e221d28269ef40d311
+  version: 0.4
 
 - package: go.uber.org/zap
   version: f85c78b1dd998214c5f2138155b320a4a43fbe36
@@ -37,12 +76,6 @@ import:
 - package: github.com/spaolacci/murmur3
   version: 9f5d223c60793748f04a9d5b4b4eacddfc1f755d
 
-- package: github.com/m3db/stackmurmur3
-  version: 744c0229c12ed0e4f8cb9d081a2692b3300bf705
-
-- package: github.com/m3db/stackadler32
-  version: bfebcd73ef6ffe0ee30489227f0330c39064b674
-
 - package: github.com/uber/tchannel-go
   version: 1fcf82ec86967eb43ba0baa9b964f8eb226d242e
   subpackages:
@@ -54,45 +87,13 @@ import:
 - package: github.com/uber-go/tally
   version: <4.0.0
 
-- package: github.com/m3db/m3cluster
-  version: 8354845ef3ba8c1a4ddbad288fca248516fb0a50
-  subpackages:
-  - client
-  - services
-  - integration/etcd
-
-- package: github.com/m3db/m3x
-  version: a7ed464be22a80c9e219ac0c65ee051f7a7ee13e
-  vcs: git
-  subpackages:
-  - checked
-  - close
-  - errors
-  - instrument
-  - log
-  - pool
-  - retry
-  - time
-  - watch
-  - ident
-
-- package: github.com/m3db/m3ninx
-  version: b2628ee8f986f6df48d3f7589d85a6f390f174a2
-
-- package: github.com/m3db/bitset
-  version: 07973db6b78acb62ac207d0538055e874b49d90d
-
-- package: github.com/m3db/bloom
-  version: 47fe1193cdb900de7193d1f3d26ea9b2cbf6fb31
-
 - package: golang.org/x/net
-  version: 61557ac0112b576429a0df080e1c2cef5dfbb642
+  version: ab5485076ff3407ad2d02db054635913f017b0ed
+  repo: https://github.com/golang/net
+  vcs: git
 
 - package: google.golang.org/appengine/datastore
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
-
-- package: github.com/m3db/m3em
-  version: 3a93476c799a6077306f1e25800bf6b058d1aba8
 
 - package: github.com/spf13/cobra
   version: 7c674d9e72017ed25f6d2b5e497a1368086b6a6f

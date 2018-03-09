@@ -277,6 +277,12 @@ func (s *m3ClusterPlacementService) MarkShardAvailable(
 	s.markedAvailable[instanceID] = append(s.markedAvailable[instanceID], shardID)
 	return nil
 }
+func (s *m3ClusterPlacementService) MarkAllShardsAvailable() (placement.Placement, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+func (s *m3ClusterPlacementService) PlacementForVersion(version int) (placement.Placement, error) {
+	return nil, fmt.Errorf("not implemented")
+}
 func (s *m3ClusterPlacementService) MarkInstanceAvailable(
 	instanceID string,
 ) error {
