@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/m3db/m3coordinator/errors"
+	"github.com/m3db/m3coordinator/models"
 	"github.com/m3db/m3coordinator/policy/filter"
 	"github.com/m3db/m3coordinator/storage"
 	"github.com/m3db/m3coordinator/ts"
@@ -54,6 +55,22 @@ func handleFetchResponses(requests []execution.Request) (*storage.FetchResult, e
 		}
 
 		result.SeriesList = append(result.SeriesList, fetchreq.result.SeriesList...)
+	}
+
+	return result, nil
+}
+
+func (s *fanoutStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, options *storage.FetchOptions) (*storage.SearchResults, error) {
+	var metrics models.Metrics
+
+	result := &storage.SearchResults{Metrics: metrics}
+	stores := filterStores(s.stores, s.fetchFilter, query)
+	for _, store := range stores {
+		results, err := store.FetchTags(ctx, query, options)
+		if err != nil {
+			return nil, err
+		}
+		metrics = append(metrics, results.Metrics...)
 	}
 
 	return result, nil

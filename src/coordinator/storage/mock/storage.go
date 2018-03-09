@@ -17,6 +17,10 @@ func (s *mockStorage) Fetch(ctx context.Context, query *storage.FetchQuery, _ *s
 	return nil, nil
 }
 
+func (s *mockStorage) FetchTags(ctx context.Context, query *storage.FetchQuery, _ *storage.FetchOptions) (*storage.SearchResults, error) {
+	return nil, nil
+}
+
 func (s *mockStorage) Write(ctx context.Context, query *storage.WriteQuery) error {
 	return nil
 }

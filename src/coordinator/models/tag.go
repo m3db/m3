@@ -10,6 +10,16 @@ import (
 // Tags is a key/value map of metric tags.
 type Tags map[string]string
 
+// Metric is the individual metric that gets returned from the search endpoint
+type Metric struct {
+	Namespace string
+	ID        string
+	Tags      Tags
+}
+
+// Metrics is a list of individual metrics
+type Metrics []*Metric
+
 // MatchType is an enum for label matching types.
 type MatchType int
 
@@ -36,9 +46,9 @@ func (m MatchType) String() string {
 
 // Matcher models the matching of a label.
 type Matcher struct {
-	Type  MatchType
-	Name  string
-	Value string
+	Type  MatchType `json:"type"`
+	Name  string    `json:"name"`
+	Value string    `json:"value"`
 
 	re *regexp.Regexp
 }

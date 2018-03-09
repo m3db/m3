@@ -15,6 +15,11 @@ type mockStore struct {
 func (m *mockStore) Fetch(_ context.Context, _ *storage.FetchQuery, _ *storage.FetchOptions) (*storage.FetchResult, error) {
 	return nil, nil
 }
+
+func (m *mockStore) FetchTags(_ context.Context, _ *storage.FetchQuery, _ *storage.FetchOptions) (*storage.SearchResults, error) {
+	return nil, nil
+}
+
 func (m *mockStore) Write(_ context.Context, _ *storage.WriteQuery) error {
 	return nil
 }
