@@ -14,7 +14,7 @@ Usage: read_index_ids [-b value] [-n value] [-p value] [-s value] [parameters ..
        Namespace [e.g. metrics]
  -p, --path-prefix=value
        Path prefix [e.g. /var/lib/m3db]
- -s, --shard-id=value
+ -s, --shard=value
        Shard ID [expected format uint32]
 
 # example usage
@@ -23,4 +23,4 @@ Usage: read_index_ids [-b value] [-n value] [-p value] [-s value] [parameters ..
 
 # TBH
 - The tool outputs the identifiers to `stdout`, remember to redirect as desired.
-- The code currently assumes the data layout under the hood is `<path-prefix>/data/<namespace>/<shard-id>/...<block-start>-[index|...].db`. If this is not the file structure under the hood, replicate it to use this tool. Remember to copy checkpoint files along with each index file.
+- The code currently assumes the data layout under the hood is `<path-prefix>/data/<namespace>/<shard>/...<block-start>-[index|...].db`. If this is not the file structure under the hood, replicate it to use this tool. Remember to copy checkpoint files along with each index file.

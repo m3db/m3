@@ -12,11 +12,11 @@ import (
 var (
 	optSrcPathPrefix  = flag.String("src-path-prefix", "/var/lib/m3db", "Source Path prefix")
 	optSrcNamespace   = flag.String("src-namespace", "metrics", "Source Namespace")
-	optSrcShard       = flag.Uint("src-shard-id", 0, "Source Shard ID")
+	optSrcShard       = flag.Uint("src-shard", 0, "Source Shard ID")
 	optSrcBlockstart  = flag.Int64("src-block-start", 0, "Source Block Start Time [in nsec]")
 	optDestPathPrefix = flag.String("dest-path-prefix", "/tmp/m3db-copy", "Destination Path prefix")
 	optDestNamespace  = flag.String("dest-namespace", "metrics", "Destination Namespace")
-	optDestShard      = flag.Uint("dest-shard-id", 0, "Destination Shard ID")
+	optDestShard      = flag.Uint("dest-shard", 0, "Destination Shard ID")
 	optDestBlockstart = flag.Int64("dest-block-start", 0, "Destination Block Start Time [in nsec]")
 	optDestBlockSize  = flag.Duration("dest-block-size", 0, "Destination Block Size")
 )

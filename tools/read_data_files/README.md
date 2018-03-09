@@ -5,7 +5,7 @@
 # Usage
 ```
 $ git clone git@github.com:m3db/m3db.git
-$ make tools
+$ make read_data_files
 $ ./bin/read_data_files
 Usage: read_data_files [-b value] [-n value] [-p value] [-s value] [parameters ...]
  -b, --block-start=value
@@ -16,8 +16,8 @@ Usage: read_data_files [-b value] [-n value] [-p value] [-s value] [parameters .
        Namespace [e.g. metrics]
  -p, --path-prefix=value
        Path prefix [e.g. /var/lib/m3db]
- -s, --shard-id=value
-       Shard ID [expected format uint32]
+ -s, --shard=value
+       Shard [expected format uint32]
 
 # example usage
 # read_data_files -b1480960800000000000 -n metrics -p /var/lib/m3db -s 451 -f 'metric-name' > /tmp/sample-data.out
@@ -25,4 +25,4 @@ Usage: read_data_files [-b value] [-n value] [-p value] [-s value] [parameters .
 
 # TBH
 - The tool outputs the identifiers to `stdout`, remember to redirect as desired.
-- The code currently assumes the data layout under the hood is `<path-prefix>/data/<namespace>/<shard-id>/...<block-start>-[index|...].db`. If this is not the file structure under the hood, replicate it to use this tool. Remember to copy checkpoint files along with each index file.
+- The code currently assumes the data layout under the hood is `<path-prefix>/data/<namespace>/<shard>/...<block-start>-[index|...].db`. If this is not the file structure under the hood, replicate it to use this tool. Remember to copy checkpoint files along with each index file.

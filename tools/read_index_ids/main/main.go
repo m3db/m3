@@ -18,7 +18,7 @@ func main() {
 	var (
 		optPathPrefix = getopt.StringLong("path-prefix", 'p', "", "Path prefix [e.g. /var/lib/m3db]")
 		optNamespace  = getopt.StringLong("namespace", 'n', "", "Namespace [e.g. metrics]")
-		optShard      = getopt.Uint32Long("shard-id", 's', 0, "Shard ID [expected format uint32]")
+		optShard      = getopt.Uint32Long("shard", 's', 0, "Shard ID [expected format uint32]")
 		optBlockstart = getopt.Int64Long("block-start", 'b', 0, "Block Start Time [in nsec]")
 		log           = xlog.NewLogger(os.Stderr)
 	)

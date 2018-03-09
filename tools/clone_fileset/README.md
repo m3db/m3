@@ -9,14 +9,14 @@ $ make clone_fileset
 $ ./bin/clone_fileset -h
 
 # example usage
-# ./clone_fileset                           \
-  -src-path-prefix /home/rungta             \
-  -src-block-start 1494856800000000000      \
-  -src-shard-id 3850 -src-namespace metrics \
-  -dest-path-prefix /tmp/m3db-data-copy     \
-  -dest-block-size 4h                       \
-  -dest-block-start 1494867491000000        \
-  -dest-shard-id 1024                       \
-  -dest-namespace testmetrics               \
+# ./clone_fileset                        \
+  -src-path-prefix /home/rungta          \
+  -src-block-start 1494856800000000000   \
+  -src-shard 3850 -src-namespace metrics \
+  -dest-path-prefix /tmp/m3db-data-copy  \
+  -dest-block-size 4h                    \
+  -dest-block-start 1494867491000000     \
+  -dest-shard 1024                       \
+  -dest-namespace testmetrics            \
 ```
 
