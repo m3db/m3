@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,13 +24,15 @@
 package services
 
 import (
-	gomock "github.com/golang/mock/gomock"
-	metadatapb "github.com/m3db/m3cluster/generated/proto/metadatapb"
-	placement "github.com/m3db/m3cluster/placement"
-	campaign "github.com/m3db/m3cluster/services/leader/campaign"
-	shard "github.com/m3db/m3cluster/shard"
-	watch "github.com/m3db/m3x/watch"
-	time "time"
+	"time"
+
+	"github.com/m3db/m3cluster/generated/proto/metadatapb"
+	"github.com/m3db/m3cluster/placement"
+	"github.com/m3db/m3cluster/services/leader/campaign"
+	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3x/watch"
+
+	"github.com/golang/mock/gomock"
 )
 
 // Mock of Options interface

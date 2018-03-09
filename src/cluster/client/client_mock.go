@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,9 +24,10 @@
 package client
 
 import (
-	gomock "github.com/golang/mock/gomock"
-	kv "github.com/m3db/m3cluster/kv"
-	services "github.com/m3db/m3cluster/services"
+	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3cluster/services"
+
+	"github.com/golang/mock/gomock"
 )
 
 // Mock of Client interface

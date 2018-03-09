@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,14 +24,16 @@
 package placement
 
 import (
-	gomock "github.com/golang/mock/gomock"
-	proto "github.com/golang/protobuf/proto"
-	placementpb "github.com/m3db/m3cluster/generated/proto/placementpb"
-	kv "github.com/m3db/m3cluster/kv"
-	shard "github.com/m3db/m3cluster/shard"
-	clock "github.com/m3db/m3x/clock"
-	instrument "github.com/m3db/m3x/instrument"
-	time "time"
+	"time"
+
+	"github.com/m3db/m3cluster/generated/proto/placementpb"
+	"github.com/m3db/m3cluster/kv"
+	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3x/clock"
+	"github.com/m3db/m3x/instrument"
+
+	"github.com/golang/mock/gomock"
+	"github.com/golang/protobuf/proto"
 )
 
 // Mock of Instance interface
@@ -1038,6 +1040,26 @@ func (_m *MockOptions) SetIsSharded(sharded bool) Options {
 
 func (_mr *_MockOptionsRecorder) SetIsSharded(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIsSharded", arg0)
+}
+
+func (_m *MockOptions) ShardStateMode() ShardStateMode {
+	ret := _m.ctrl.Call(_m, "ShardStateMode")
+	ret0, _ := ret[0].(ShardStateMode)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) ShardStateMode() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "ShardStateMode")
+}
+
+func (_m *MockOptions) SetShardStateMode(value ShardStateMode) Options {
+	ret := _m.ctrl.Call(_m, "SetShardStateMode", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+func (_mr *_MockOptionsRecorder) SetShardStateMode(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetShardStateMode", arg0)
 }
 
 func (_m *MockOptions) Dryrun() bool {

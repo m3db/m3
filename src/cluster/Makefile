@@ -87,7 +87,9 @@ install-proto-bin: install-vendor
 	go install $(package_root)/$(vendor_prefix)/$(protoc_go_package)
 
 .PHONY: mock-gen
-mock-gen: install-mockgen install-license-bin mock-gen-no-deps
+mock-gen: install-mockgen install-license-bin install-util-mockclean
+	@echo Generating mocks
+	PACKAGE=$(package_root) $(auto_gen) $(mocks_output_dir) $(mocks_rules_dir)
 
 .PHONY: mock-gen-deps
 mock-gen-no-deps:

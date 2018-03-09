@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,9 +24,10 @@
 package kv
 
 import (
-	gomock "github.com/golang/mock/gomock"
-	proto "github.com/golang/protobuf/proto"
-	log "github.com/m3db/m3x/log"
+	"github.com/m3db/m3x/log"
+
+	"github.com/golang/mock/gomock"
+	"github.com/golang/protobuf/proto"
 )
 
 // Mock of Value interface
