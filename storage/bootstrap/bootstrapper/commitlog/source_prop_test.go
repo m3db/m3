@@ -1,3 +1,5 @@
+// +build big
+
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -49,7 +51,7 @@ const blockSize = 2 * time.Hour
 func TestCommitLogSourcePropCorrectlyBootstrapsFromCommitlog(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	parameters.Rng.Seed(123456789)
-	parameters.MinSuccessfulTests = 100
+	parameters.MinSuccessfulTests = 40
 	props := gopter.NewProperties(parameters)
 
 	props.Property("Commitlog bootstrapping properly bootstraps the entire commitlog", prop.ForAll(
