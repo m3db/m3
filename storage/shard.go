@@ -1649,9 +1649,9 @@ func (s *dbShard) Flush(
 
 	var multiErr xerrors.MultiError
 	prepareOpts := persist.PrepareOptions{
-		NsMetadata: s.namespace,
-		Shard:      s.ID(),
-		BlockStart: blockStart,
+		NsMetadata:  s.namespace,
+		Shard:       s.ID(),
+		PersistTime: blockStart,
 		// IsSnapshot: true,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
@@ -1704,10 +1704,10 @@ func (s *dbShard) Snapshot(
 	}()
 
 	prepareOpts := persist.PrepareOptions{
-		NsMetadata: s.namespace,
-		Shard:      s.ID(),
-		BlockStart: snapshotStart,
-		IsSnapshot: true,
+		NsMetadata:  s.namespace,
+		Shard:       s.ID(),
+		PersistTime: snapshotStart,
+		IsSnapshot:  true,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	multiErr = multiErr.Add(err)

@@ -795,6 +795,7 @@ func (n *dbNamespace) Snapshot(flush persist.Flush) error {
 			continue
 		}
 
+		fmt.Println("Snapshotting shard: ", shard.ID(), " at time: ", callStart)
 		err := shard.Snapshot(callStart, flush)
 		if err != nil {
 			// Log / metric?
@@ -847,6 +848,7 @@ func (n *dbNamespace) NeedsFlush(alignedInclusiveStart time.Time, alignedInclusi
 	return false
 }
 
+// TODO: Use this function
 func (n *dbNamespace) NeedsSnapshot(alignedInclusiveStart time.Time, alignedInclusiveEnd time.Time) bool {
 	var (
 		blockSize   = n.nopts.RetentionOptions().BlockSize()

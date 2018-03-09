@@ -209,13 +209,12 @@ func (pm *persistManager) reset() {
 	pm.slept = 0
 }
 
-// TODO: in the case of a snapshot it won't be a blockstart
 func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.PreparedPersist, error) {
 
 	var (
 		nsMetadata = opts.NsMetadata
 		shard      = opts.Shard
-		blockStart = opts.BlockStart
+		blockStart = opts.PersistTime
 		nsID       = opts.NsMetadata.ID()
 		prepared   persist.PreparedPersist
 	)

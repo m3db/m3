@@ -354,9 +354,9 @@ func (s *peersSource) incrementalFlush(
 
 	for start := tr.Start; start.Before(tr.End); start = start.Add(blockSize) {
 		prepareOpts := persist.PrepareOptions{
-			NsMetadata: nsMetadata,
-			Shard:      shard,
-			BlockStart: start,
+			NsMetadata:  nsMetadata,
+			Shard:       shard,
+			PersistTime: start,
 		}
 		prepared, err := flush.Prepare(prepareOpts)
 		if err != nil {

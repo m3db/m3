@@ -23,6 +23,7 @@
 package integration
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -32,7 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDiskFlushSimple(t *testing.T) {
+func TestDiskSnapshotSimple(t *testing.T) {
 	if testing.Short() {
 		t.SkipNow() // Just skip if we're doing a short run
 	}
@@ -45,6 +46,7 @@ func TestDiskFlushSimple(t *testing.T) {
 
 	md := testSetup.namespaceMetadataOrFail(testNamespaces[0])
 	blockSize := md.Options().RetentionOptions().BlockSize()
+	fmt.Println("blockSize: ", blockSize)
 	filePathPrefix := testSetup.storageOpts.CommitLogOptions().FilesystemOptions().FilePathPrefix()
 
 	// Start the server
@@ -73,14 +75,14 @@ func TestDiskFlushSimple(t *testing.T) {
 		require.NoError(t, testSetup.writeBatch(testNamespaces[0], testData))
 	}
 	log.Debug("test data is now written")
+	maxWaitTime := time.Minute
+	require.NoError(t, waitUntilSnapshotFilesFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], []time.Time{now}, maxWaitTime))
+	log.Debug("snapshot file is now written")
 
 	// Advance time to make sure all data are flushed. Because data
 	// are flushed to disk asynchronously, need to poll to check
 	// when data are written.
-	testSetup.setNowFn(testSetup.getNowFn().Add(blockSize * 2))
-	maxWaitTime := time.Minute
-	require.NoError(t, waitUntilDataFilesFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], seriesMaps, maxWaitTime))
-
-	// Verify on-disk data match what we expect
-	verifyFlushedDataFiles(t, testSetup.shardSet, testSetup.storageOpts, testNamespaces[0], seriesMaps)
+	newTime := testSetup.getNowFn().Add(blockSize * 2)
+	testSetup.setNowFn(newTime)
+	require.NoError(t, waitUntilSnapshotFilesFlushed(filePathPrefix, testSetup.shardSet, testNamespaces[0], []time.Time{newTime}, maxWaitTime))
 }

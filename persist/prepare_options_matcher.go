@@ -36,7 +36,7 @@ func (p PrepareOptionsMatcher) Matches(x interface{}) bool {
 	if p.Shard != prepareOptions.Shard {
 		return false
 	}
-	if !p.BlockStart.Equal(prepareOptions.BlockStart) {
+	if !p.BlockStart.Equal(prepareOptions.PersistTime) {
 		return false
 	}
 

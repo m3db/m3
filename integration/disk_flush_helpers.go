@@ -44,8 +44,31 @@ var (
 	errDiskFlushTimedOut = errors.New("flushing data to disk took too long")
 )
 
+func waitUntilSnapshotFilesFlushed(
+	filePathPrefix string,
+	shardSet sharding.ShardSet,
+	namespace ident.ID,
+	expectedSnapshotTimes []time.Time,
+	timeout time.Duration,
+) error {
+	dataFlushed := func() bool {
+		for _, shard := range shardSet.AllIDs() {
+			for _, t := range expectedSnapshotTimes {
+				if !fs.SnapshotFilesetExistsAt(filePathPrefix, namespace, shard, t) {
+					return false
+				}
+			}
+		}
+		return true
+	}
+	if waitUntil(dataFlushed, timeout) {
+		return nil
+	}
+	return errDiskFlushTimedOut
+}
+
 // nolint: deadcode
-func waitUntilDataFlushed(
+func waitUntilDataFilesFlushed(
 	filePathPrefix string,
 	shardSet sharding.ShardSet,
 	namespace ident.ID,
@@ -116,8 +139,25 @@ func verifyForTime(
 	compareSeriesList(t, expected, actual)
 }
 
+// func verifyFlushedSnapshotFiles(
+// 	t *testing.T,
+// 	shardSet sharding.ShardSet,
+// 	opts storage.Options,
+// 	namespace ident.ID,
+// 	snapshotTime time.Time,
+// 	seriesMaps map[xtime.UnixNano]generate.SeriesBlock,
+// ) {
+// 	fsOpts := opts.CommitLogOptions().FilesystemOptions()
+// 	reader, err := fs.NewReader(opts.BytesPool(), fsOpts)
+// 	require.NoError(t, err)
+// 	iteratorPool := opts.ReaderIteratorPool()
+// 	for timestamp, seriesList := range seriesMaps {
+// 		verifyForTime(t, reader, shardSet, iteratorPool, timestamp.ToTime(), namespace, seriesList)
+// 	}
+// }
+
 // nolint: deadcode
-func verifyFlushed(
+func verifyFlushedDataFiles(
 	t *testing.T,
 	shardSet sharding.ShardSet,
 	opts storage.Options,
