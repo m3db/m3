@@ -35,7 +35,6 @@ import (
 	xmetrics "github.com/m3db/m3db/x/metrics"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
-	xretry "github.com/m3db/m3x/retry"
 	xtime "github.com/m3db/m3x/time"
 
 	"github.com/golang/mock/gomock"
@@ -409,42 +408,5 @@ func testWriteConsistencyLevel(
 				break
 			}
 		}
-	}
-}
-
-type writeStub struct {
-	ns         ident.ID
-	id         ident.ID
-	value      float64
-	t          time.Time
-	unit       xtime.Unit
-	annotation []byte
-}
-
-func newTestSession(t *testing.T, opts Options) clientSession {
-	s, err := newSession(opts)
-	assert.NoError(t, err)
-	return s
-}
-
-func newDefaultTestSession(t *testing.T) clientSession {
-	return newTestSession(t, newSessionTestOptions())
-}
-
-func newRetryEnabledTestSession(t *testing.T) clientSession {
-	opts := newSessionTestOptions().
-		SetWriteRetrier(
-			xretry.NewRetrier(xretry.NewOptions().SetMaxRetries(1)))
-	return newTestSession(t, opts)
-}
-
-func newWriteStub() writeStub {
-	return writeStub{
-		ns:         ident.StringID("testNs"),
-		id:         ident.StringID("foo"),
-		value:      1.0,
-		t:          time.Now(),
-		unit:       xtime.Second,
-		annotation: nil,
 	}
 }

@@ -1,5 +1,5 @@
-hash: 5581a7acb9bae997db3e2c95da9442ecfa2807c2d2bdc6cce51d36eaf02f9629
-updated: 2018-02-09T17:56:56.875815588-05:00
+hash: 8d7772ed17c68ba057ee7ab791c4f9164be9f1920b1b0f6cd218c201ff7c4e8a
+updated: 2018-03-09T18:40:43.446473945-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -285,7 +285,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: github.com/uber-go/tally
-  version: 6c4631652c6aab57c64f65c2e0aaec2e9aae3a64
+  version: 522328b48efad0c6034dba92bf39228694e9d31f
   subpackages:
   - m3
   - m3/customtransports
@@ -331,6 +331,8 @@ imports:
   - blowfish
 - name: golang.org/x/net
   version: 61557ac0112b576429a0df080e1c2cef5dfbb642
+  repo: https://github.com/golang/net
+  vcs: git
   subpackages:
   - bpf
   - context

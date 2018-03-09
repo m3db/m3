@@ -87,6 +87,8 @@ import:
 
 - package: golang.org/x/net
   version: 61557ac0112b576429a0df080e1c2cef5dfbb642
+  repo: https://github.com/golang/net
+  vcs: git
 
 - package: google.golang.org/appengine/datastore
   version: 2e4a801b39fc199db615bfca7d0b9f8cd9580599
