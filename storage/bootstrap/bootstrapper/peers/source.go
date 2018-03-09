@@ -358,10 +358,7 @@ func (s *peersSource) incrementalFlush(
 			Shard:      shard,
 			BlockStart: start,
 		}
-		fmt.Println(1)
-		fmt.Println(prepareOpts)
 		prepared, err := flush.Prepare(prepareOpts)
-		fmt.Println(2)
 		if err != nil {
 			return err
 		}

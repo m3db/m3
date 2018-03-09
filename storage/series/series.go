@@ -577,28 +577,22 @@ func (s *dbSeries) Flush(
 	blockStart time.Time,
 	persistFn persist.Fn,
 ) error {
-	fmt.Println("s1")
 	// NB(r): Do not use defer here as we need to make sure the
 	// call to sr.Segment() which may fetch data from disk is not
 	// blocking the series lock.
 	s.RLock()
 
 	if s.bs != bootstrapped {
-		fmt.Println("s2")
 		s.RUnlock()
 		return errSeriesNotBootstrapped
 	}
 	b, exists := s.blocks.BlockAt(blockStart)
-	fmt.Println("s3")
 	if !exists {
-		fmt.Println("s4")
 		s.RUnlock()
 		return nil
 	}
 
-	fmt.Println("s5")
 	sr, err := b.Stream(ctx)
-	fmt.Println("s6")
 	s.RUnlock()
 
 	if err != nil {
@@ -607,9 +601,7 @@ func (s *dbSeries) Flush(
 	if sr == nil {
 		return nil
 	}
-	fmt.Println("s7")
 	segment, err := sr.Segment()
-	fmt.Println("s8")
 	if err != nil {
 		return err
 	}
