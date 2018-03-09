@@ -177,7 +177,7 @@ func TestTooManyFailedHeartbeatsUnsetup(t *testing.T) {
 	require.NotNil(t, setupResp)
 
 	// ensure agent has reset itself after timeout
-	time.Sleep(opts.HeartbeatTimeout() * 2)
+	time.Sleep(opts.HeartbeatTimeout() * 10)
 	require.False(t, rawAgent.isSetup())
 }
 
