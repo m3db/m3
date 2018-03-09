@@ -69,7 +69,9 @@ func newHeartbeater(
 	opts heartbeatOpts,
 	iopts instrument.Options,
 ) (*heatbeater, error) {
-	conn, err := grpc.Dial(opts.endpoint, grpc.WithInsecure())
+	conn, err := grpc.Dial(opts.endpoint,
+		grpc.WithInsecure(),
+		grpc.WithTimeout(opts.timeout))
 	if err != nil {
 		return nil, err
 	}

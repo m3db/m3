@@ -1,8 +1,19 @@
 package: github.com/m3db/m3em
 import:
 
+- package: github.com/m3db/m3x
+  version: a3695ff2d9696fcd9fffca878b9b544e68c4b1ef
+  subpackages:
+  - errors
+  - instrument
+  - log
+  - retry
+
+- package: github.com/m3db/m3cluster
+  version: 6b9b5a7eae36b0f3fc23823250d4536f6518332f
+
 - package: github.com/golang/mock
-  version: bd3c8e81be01eef76d4b503f5e687d2d1354d2d9
+  version: ^1
   subpackages:
   - gomock
 
@@ -11,17 +22,6 @@ import:
   subpackages:
   - proto
   - protoc-gen-go
-
-- package: github.com/m3db/m3cluster
-  version: 56c031689fb080404de0b2acfc385e91627d93d7
-
-- package: github.com/m3db/m3x
-  version: 6e9713eca6718643e105f574be392f122bcc062e
-  subpackages:
-  - errors
-  - instrument
-  - log
-  - retry
 
 - package: github.com/pborman/getopt
   version: ec82d864f599c39673eef89f91b93fa5576567a1
@@ -40,9 +40,9 @@ import:
   - m3
 
 - package: golang.org/x/net
-  version: 61557ac0112b576429a0df080e1c2cef5dfbb642
-  subpackages:
-  - context
+  version: ab5485076ff3407ad2d02db054635913f017b0ed
+  repo: https://github.com/golang/net
+  vcs: git
 
 - package: google.golang.org/grpc
   version: 777daa17ff9b5daef1cfdf915088a2ada3332bf0
