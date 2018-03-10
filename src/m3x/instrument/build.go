@@ -24,8 +24,8 @@ import (
 	"errors"
 	"log"
 	"runtime"
+	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -42,8 +42,8 @@ var (
 	// BuildDate is the date this build was created.
 	BuildDate = "unknown"
 
-	// BuildTimeUnixNanos is the UnixNanos since epoch representing the date this build was created.
-	BuildTimeUnixNanos int64
+	// BuildTimeUnix is the seconds since epoch representing the date this build was created.
+	BuildTimeUnix = "0"
 
 	// LogBuildInfoAtStartup controls whether we log build information at startup. If its
 	// set to a non-empty string, we log the build information at process startup.
@@ -60,17 +60,18 @@ var (
 )
 
 var (
-	errAlreadyStarted = errors.New("reporter already started")
-	errNotStarted     = errors.New("reporter not started")
+	errAlreadyStarted    = errors.New("reporter already started")
+	errNotStarted        = errors.New("reporter not started")
+	errBuildTimeNegative = errors.New("reporter build time must be non-negative")
 )
 
 // LogBuildInfo logs the build information to the provided logger.
 func LogBuildInfo() {
-	log.Printf("Go Runtime version:  %s\n", goVersion)
-	log.Printf("Build Revision:      %s\n", Revision)
-	log.Printf("Build Branch:        %s\n", Branch)
-	log.Printf("Build Date:          %s\n", BuildDate)
-	log.Printf("Build TimeUnixNanos: %d\n", BuildTimeUnixNanos)
+	log.Printf("Go Runtime version: %s\n", goVersion)
+	log.Printf("Build Revision:     %s\n", Revision)
+	log.Printf("Build Branch:       %s\n", Branch)
+	log.Printf("Build Date:         %s\n", BuildDate)
+	log.Printf("Build TimeUnix:     %s\n", BuildTimeUnix)
 }
 
 func init() {
@@ -82,10 +83,11 @@ func init() {
 type buildReporter struct {
 	sync.Mutex
 
-	opts    Options
-	active  bool
-	closeCh chan struct{}
-	doneCh  chan struct{}
+	opts      Options
+	buildTime time.Time
+	active    bool
+	closeCh   chan struct{}
+	doneCh    chan struct{}
 }
 
 // NewBuildReporter returns a new build version reporter.
@@ -98,11 +100,25 @@ func NewBuildReporter(
 }
 
 func (b *buildReporter) Start() error {
+	const (
+		base    = 10
+		bitSize = 64
+	)
+	sec, err := strconv.ParseInt(BuildTimeUnix, base, bitSize)
+	if err != nil {
+		return err
+	}
+	if sec < 0 {
+		return errBuildTimeNegative
+	}
+	buildTime := time.Unix(sec, 0)
+
 	b.Lock()
 	defer b.Unlock()
 	if b.active {
 		return errAlreadyStarted
 	}
+	b.buildTime = buildTime
 	b.active = true
 	b.closeCh = make(chan struct{})
 	b.doneCh = make(chan struct{})
@@ -111,9 +127,6 @@ func (b *buildReporter) Start() error {
 }
 
 func (b *buildReporter) report() {
-	// NB(prateek): This value is only ever set during the compilation phase using ld-flags,
-	// but we still need the atomic.LoadInt64 to ensure the tests are not racy.
-	buildTime := time.Unix(0, atomic.LoadInt64(&BuildTimeUnixNanos))
 	scope := b.opts.MetricsScope().Tagged(map[string]string{
 		"revision":   Revision,
 		"branch":     Branch,
@@ -123,7 +136,7 @@ func (b *buildReporter) report() {
 	buildInfoGauge := scope.Gauge(buildInfoMetricName)
 	buildAgeGauge := scope.Gauge(buildAgeMetricName)
 	buildInfoGauge.Update(1.0)
-	buildAgeGauge.Update(float64(time.Since(buildTime)))
+	buildAgeGauge.Update(float64(time.Since(b.buildTime)))
 
 	ticker := time.NewTicker(b.opts.ReportInterval())
 	defer func() {
@@ -135,7 +148,7 @@ func (b *buildReporter) report() {
 		select {
 		case <-ticker.C:
 			buildInfoGauge.Update(1.0)
-			buildAgeGauge.Update(float64(time.Since(buildTime)))
+			buildAgeGauge.Update(float64(time.Since(b.buildTime)))
 
 		case <-b.closeCh:
 			return
