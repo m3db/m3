@@ -11,20 +11,25 @@
     "badtime": {
       "Command": "badtime -tags 'integration big adhoc'",
       "Pattern": "PATH:LINE:COL:MESSAGE"
+    },
+    "structcheck": {
+      "Command": "structcheck -tags 'integration big adhoc'",
+      "Pattern": "PATH:LINE:COL:MESSAGE"
     }
   },
-  "Enable":
-    [ "deadcode"
-    , "varcheck"
-    , "structcheck"
-    , "goconst"
-    , "ineffassign"
-    , "unconvert"
-    , "misspell"
-    , "golint"
-    , "gosimple"
-    , "unused"
-    , "badtime"
-    , "maligned" ],
+  "Enable": [
+    "deadcode",
+    "structcheck",
+    "goconst",
+    "ineffassign",
+    "unconvert",
+    "misspell",
+    "golint",
+    "gosimple",
+    "unused",
+    "badtime",
+    "maligned"
+  ],
   "Deadline": "3m",
-  "EnableGC": true }
+  "EnableGC": true
+}

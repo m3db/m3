@@ -18,9 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// +build big
+// +build integration
 
-package main_test
+package integration
 
 import (
 	"bytes"
@@ -65,7 +65,7 @@ const (
 )
 
 // TestConfig tests booting a server using file based configuration.
-func TestConfig(t *testing.T) {
+func TestServicesMain(t *testing.T) {
 	// Embedded kv
 	embeddedKV, err := etcd.New(etcd.NewOptions())
 	require.NoError(t, err)
