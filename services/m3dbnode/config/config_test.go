@@ -472,6 +472,11 @@ config:
       - etcd03-us-west1:2379
       - etcd04-us-west1:2379
       - etcd05-us-west1:2379
+      keepAlive:
+        enabled: false
+        period: 0s
+        jitter: 0s
+        timeout: 0s
       tls: null
     m3sd:
       initTimeout: 0s
