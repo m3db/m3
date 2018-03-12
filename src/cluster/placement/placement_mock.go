@@ -982,26 +982,6 @@ func (_m *MockOptions) EXPECT() *_MockOptionsRecorder {
 	return _m.recorder
 }
 
-func (_m *MockOptions) LooseRackCheck() bool {
-	ret := _m.ctrl.Call(_m, "LooseRackCheck")
-	ret0, _ := ret[0].(bool)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) LooseRackCheck() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "LooseRackCheck")
-}
-
-func (_m *MockOptions) SetLooseRackCheck(looseRackCheck bool) Options {
-	ret := _m.ctrl.Call(_m, "SetLooseRackCheck", looseRackCheck)
-	ret0, _ := ret[0].(Options)
-	return ret0
-}
-
-func (_mr *_MockOptionsRecorder) SetLooseRackCheck(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetLooseRackCheck", arg0)
-}
-
 func (_m *MockOptions) AllowPartialReplace() bool {
 	ret := _m.ctrl.Call(_m, "AllowPartialReplace")
 	ret0, _ := ret[0].(bool)

@@ -37,9 +37,6 @@ import (
 func TestGoodWorkflow(t *testing.T) {
 	p := NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
 	testGoodWorkflow(t, p)
-
-	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1").SetLooseRackCheck(true))
-	testGoodWorkflow(t, p)
 }
 
 func testGoodWorkflow(t *testing.T, ps placement.Service) {
@@ -374,48 +371,6 @@ func TestBadReplaceInstance(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestReplaceInstanceWithLooseRackCheck(t *testing.T) {
-	p := NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1").SetLooseRackCheck(true))
-
-	_, err := p.BuildInitialPlacement(
-		[]placement.Instance{
-			placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
-			placement.NewEmptyInstance("i4", "r4", "z1", "endpoint", 1),
-		}, 10, 1)
-	assert.NoError(t, err)
-
-	// leaving instance not exist
-	_, _, err = p.ReplaceInstances(
-		[]string{"not_exist"},
-		[]placement.Instance{placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)},
-	)
-	assert.Error(t, err)
-
-	// adding instance already exist
-	_, _, err = p.ReplaceInstances(
-		[]string{"i1"},
-		[]placement.Instance{placement.NewEmptyInstance("i4", "r4", "z1", "endpoint", 1)},
-	)
-	assert.Error(t, err)
-
-	// NO ERROR when not enough rack after replace
-	_, err = p.AddReplica()
-	assert.NoError(t, err)
-	i12 := placement.NewEmptyInstance("i12", "r1", "z1", "endpoint", 1)
-	_, usedInstances, err := p.ReplaceInstances([]string{"i4"}, []placement.Instance{i12})
-	assert.NoError(t, err)
-	assert.Equal(t, 1, len(usedInstances))
-	assertPlacementInstanceEqualExceptShards(t, i12, usedInstances[0])
-
-	// could not find placement for service
-	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
-	_, _, err = p.ReplaceInstances(
-		[]string{"i1"},
-		[]placement.Instance{placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)},
-	)
-	assert.Error(t, err)
-}
-
 func TestMarkShard(t *testing.T) {
 	ms := NewMockStorage()
 
@@ -590,13 +545,6 @@ func TestFindReplaceInstance(t *testing.T) {
 			input:      noConflictCandidates,
 			replaceIDs: []string{i3.ID()},
 			expectRes:  []placement.Instance{noConflictCandidates[0]},
-		},
-		{
-			// Enable LooseRackCheck, so the rack with less conflicts will be picked.
-			opts:       placement.NewOptions().SetValidZone("z1").SetLooseRackCheck(true),
-			input:      candidates,
-			replaceIDs: []string{i4.ID()},
-			expectRes:  []placement.Instance{candidates[0]},
 		},
 		{
 			// Disable AllowPartialReplace, so the weight from the candidate instances must be more than the replacing instance.

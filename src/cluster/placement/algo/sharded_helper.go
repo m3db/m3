@@ -599,7 +599,7 @@ func (ph *helper) canAssignInstance(shardID uint32, from, to placement.Instance)
 		// and i1 should be able to take it and mark it as "Available"
 		return false
 	}
-	return ph.opts.LooseRackCheck() || !ph.HasRackConflict(shardID, from, to.Rack())
+	return !ph.HasRackConflict(shardID, from, to.Rack())
 }
 
 func (ph *helper) assignShardToInstance(s shard.Shard, to placement.Instance) {
