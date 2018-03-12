@@ -33,7 +33,7 @@ const (
 
 	// Namespace requires snapshotting by default
 	// TODO: Set this to true once snapshotting works end-to-end
-	defaultNeedsSnapshot = false
+	defaultNeedsSnapshot = true
 
 	// Namespace writes go to commit logs by default
 	defaultWritesToCommitLog = true
