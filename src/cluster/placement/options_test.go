@@ -39,7 +39,6 @@ func TestDeploymentOptions(t *testing.T) {
 
 func TestPlacementOptions(t *testing.T) {
 	o := NewOptions()
-	assert.False(t, o.LooseRackCheck())
 	assert.True(t, o.AllowPartialReplace())
 	assert.True(t, o.IsSharded())
 	assert.Equal(t, IncludeTransitionalShardStates, o.ShardStateMode())
@@ -50,9 +49,6 @@ func TestPlacementOptions(t *testing.T) {
 	assert.Equal(t, int64(0), o.PlacementCutoverNanosFn()())
 	assert.Equal(t, int64(0), o.ShardCutoffNanosFn()())
 	assert.Equal(t, int64(0), o.ShardCutoffNanosFn()())
-
-	o = o.SetLooseRackCheck(true)
-	assert.True(t, o.LooseRackCheck())
 
 	o = o.SetAllowPartialReplace(false)
 	assert.False(t, o.AllowPartialReplace())

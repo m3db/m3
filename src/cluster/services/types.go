@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services/leader/campaign"
 	"github.com/m3db/m3cluster/shard"
-	xclose "github.com/m3db/m3x/close"
 	xwatch "github.com/m3db/m3x/watch"
 )
 
@@ -89,7 +88,8 @@ type Services interface {
 
 // Watch is a watcher that issues notification when a service is updated
 type Watch interface {
-	xclose.SimpleCloser
+	// Close closes the watch.
+	Close()
 
 	// C returns the notification channel
 	C() <-chan struct{}

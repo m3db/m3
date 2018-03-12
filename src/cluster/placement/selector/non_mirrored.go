@@ -152,7 +152,7 @@ func (f *nonMirroredSelector) SelectReplaceInstances(
 }
 
 func groupInstancesByConflict(instancesSortedByConflicts []sortableValue, opts placement.Options) [][]placement.Instance {
-	allowConflict := opts.AllowPartialReplace() || opts.LooseRackCheck()
+	allowConflict := opts.AllowPartialReplace()
 	sort.Sort(sortableValues(instancesSortedByConflicts))
 	var groups [][]placement.Instance
 	lastSeenConflict := -1

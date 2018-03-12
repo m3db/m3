@@ -170,10 +170,7 @@ func TestAssignShard(t *testing.T) {
 	assert.True(t, ph.canAssignInstance(2, i6, i5))
 	assert.True(t, ph.canAssignInstance(1, i1, i6))
 	assert.False(t, ph.canAssignInstance(2, i6, i1))
-	// rack check
 	assert.False(t, ph.canAssignInstance(2, i6, i3))
-	ph = newHelper(p, 3, placement.NewOptions().SetLooseRackCheck(true)).(*helper)
-	assert.True(t, ph.canAssignInstance(2, i6, i3))
 }
 
 func TestNonLeavingInstances(t *testing.T) {

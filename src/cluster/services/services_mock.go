@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services/leader/campaign"
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3x/watch"
 
 	"github.com/golang/mock/gomock"
 )
@@ -251,6 +252,55 @@ func (_m *MockServices) LeaderService(service ServiceID, opts ElectionOptions) (
 
 func (_mr *_MockServicesRecorder) LeaderService(arg0, arg1 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "LeaderService", arg0, arg1)
+}
+
+// Mock of Watch interface
+type MockWatch struct {
+	ctrl     *gomock.Controller
+	recorder *_MockWatchRecorder
+}
+
+// Recorder for MockWatch (not exported)
+type _MockWatchRecorder struct {
+	mock *MockWatch
+}
+
+func NewMockWatch(ctrl *gomock.Controller) *MockWatch {
+	mock := &MockWatch{ctrl: ctrl}
+	mock.recorder = &_MockWatchRecorder{mock}
+	return mock
+}
+
+func (_m *MockWatch) EXPECT() *_MockWatchRecorder {
+	return _m.recorder
+}
+
+func (_m *MockWatch) Close() {
+	_m.ctrl.Call(_m, "Close")
+}
+
+func (_mr *_MockWatchRecorder) Close() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Close")
+}
+
+func (_m *MockWatch) C() <-chan struct{} {
+	ret := _m.ctrl.Call(_m, "C")
+	ret0, _ := ret[0].(<-chan struct{})
+	return ret0
+}
+
+func (_mr *_MockWatchRecorder) C() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "C")
+}
+
+func (_m *MockWatch) Get() Service {
+	ret := _m.ctrl.Call(_m, "Get")
+	ret0, _ := ret[0].(Service)
+	return ret0
+}
+
+func (_mr *_MockWatchRecorder) Get() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "Get")
 }
 
 // Mock of Service interface
@@ -926,9 +976,9 @@ func (_mr *_MockHeartbeatServiceRecorder) Delete(arg0 interface{}) *gomock.Call 
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "Delete", arg0)
 }
 
-func (_m *MockHeartbeatService) Watch() (Watch, error) {
+func (_m *MockHeartbeatService) Watch() (watch.Watch, error) {
 	ret := _m.ctrl.Call(_m, "Watch")
-	ret0, _ := ret[0].(Watch)
+	ret0, _ := ret[0].(watch.Watch)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

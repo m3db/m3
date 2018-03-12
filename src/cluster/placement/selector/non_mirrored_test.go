@@ -47,7 +47,7 @@ func TestGroupInstancesByConflict(t *testing.T) {
 		expected [][]placement.Instance
 	}{
 		{
-			opts: placement.NewOptions().SetAllowPartialReplace(true).SetLooseRackCheck(false),
+			opts: placement.NewOptions().SetAllowPartialReplace(true),
 			expected: [][]placement.Instance{
 				[]placement.Instance{i2},
 				[]placement.Instance{i1},
@@ -56,16 +56,7 @@ func TestGroupInstancesByConflict(t *testing.T) {
 			},
 		},
 		{
-			opts: placement.NewOptions().SetAllowPartialReplace(false).SetLooseRackCheck(true),
-			expected: [][]placement.Instance{
-				[]placement.Instance{i2},
-				[]placement.Instance{i1},
-				[]placement.Instance{i4},
-				[]placement.Instance{i3},
-			},
-		},
-		{
-			opts: placement.NewOptions().SetAllowPartialReplace(false).SetLooseRackCheck(false),
+			opts: placement.NewOptions().SetAllowPartialReplace(false),
 			expected: [][]placement.Instance{
 				[]placement.Instance{i2},
 			},

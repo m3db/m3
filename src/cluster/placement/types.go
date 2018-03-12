@@ -310,13 +310,6 @@ type ShardValidationFn func(s shard.Shard) error
 
 // Options is the interface for placement options.
 type Options interface {
-	// LooseRackCheck enables the placement to loose the rack check
-	// during instance replacement to achieve full ownership transfer.
-	LooseRackCheck() bool
-
-	// SetLooseRackCheck sets LooseRackCheck.
-	SetLooseRackCheck(looseRackCheck bool) Options
-
 	// AllowPartialReplace allows shards from the leaving instance to be
 	// placed on instances other than the new instances in a replace operation
 	AllowPartialReplace() bool

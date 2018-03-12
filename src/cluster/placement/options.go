@@ -57,7 +57,6 @@ func defaultTimeNanosFn() int64                    { return shard.UnInitializedV
 func defaultShardValidationFn(s shard.Shard) error { return nil }
 
 type options struct {
-	looseRackCheck      bool
 	allowPartialReplace bool
 	shardStateMode      ShardStateMode
 	isSharded           bool
@@ -88,15 +87,6 @@ func NewOptions() Options {
 		isShardCutoffFn:     defaultShardValidationFn,
 		nowFn:               time.Now,
 	}
-}
-
-func (o options) LooseRackCheck() bool {
-	return o.looseRackCheck
-}
-
-func (o options) SetLooseRackCheck(looseRackCheck bool) Options {
-	o.looseRackCheck = looseRackCheck
-	return o
 }
 
 func (o options) AllowPartialReplace() bool {
