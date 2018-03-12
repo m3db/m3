@@ -26,15 +26,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestDecoderPool() DecoderPool {
-	return NewDecoderPool(checkedBytesWrapperPool, nil)
+func newTestTagDecoderPool() TagDecoderPool {
+	return NewTagDecoderPool(checkedBytesWrapperPool, nil)
 }
 
-func TestDecoderPool(t *testing.T) {
-	p := newTestDecoderPool()
+func TestTagDecoderPool(t *testing.T) {
+	p := newTestTagDecoderPool()
 	p.Init()
 	d := p.Get()
-	d.Reset(testDecoderBytes())
+	d.Reset(testTagDecoderBytes())
 	require.NoError(t, d.Err())
 	d.Finalize()
 }

@@ -23,29 +23,29 @@ package serialize
 import "github.com/m3db/m3x/pool"
 
 type encoderPool struct {
-	pool            pool.ObjectPool
-	initEncoderSize int
+	pool               pool.ObjectPool
+	initTagEncoderSize int
 }
 
-// NewEncoderPool returns a new EncoderPool.
-func NewEncoderPool(initEncoderSize int, opts pool.ObjectPoolOptions) EncoderPool {
+// NewTagEncoderPool returns a new TagEncoderPool.
+func NewTagEncoderPool(initTagEncoderSize int, opts pool.ObjectPoolOptions) TagEncoderPool {
 	pool := pool.NewObjectPool(opts)
 	return &encoderPool{
-		pool:            pool,
-		initEncoderSize: initEncoderSize,
+		pool:               pool,
+		initTagEncoderSize: initTagEncoderSize,
 	}
 }
 
 func (p *encoderPool) Init() {
 	p.pool.Init(func() interface{} {
-		return newEncoder(p.initEncoderSize, p)
+		return newTagEncoder(p.initTagEncoderSize, p)
 	})
 }
 
-func (p *encoderPool) Get() Encoder {
-	return p.pool.Get().(Encoder)
+func (p *encoderPool) Get() TagEncoder {
+	return p.pool.Get().(TagEncoder)
 }
 
-func (p *encoderPool) Put(e Encoder) {
+func (p *encoderPool) Put(e TagEncoder) {
 	p.pool.Put(e)
 }

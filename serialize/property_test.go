@@ -92,7 +92,7 @@ func TestPropertyAnyReasonableTagSlicesAreAight(t *testing.T) {
 
 func encodeAndDecode(t ident.TagIterator) (ident.TagIterator, error) {
 	copy := t.Duplicate()
-	enc := newEncoder(initialBufferLength, nil)
+	enc := newTagEncoder(initialBufferLength, nil)
 	if err := enc.Encode(copy); err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func encodeAndDecode(t ident.TagIterator) (ident.TagIterator, error) {
 	if !ok {
 		return nil, fmt.Errorf("unable to retrieve data")
 	}
-	dec := newDecoder(nil, checkedBytesWrapperPool)
+	dec := newTagDecoder(nil, checkedBytesWrapperPool)
 	dec.Reset(data)
 	return dec, nil
 }

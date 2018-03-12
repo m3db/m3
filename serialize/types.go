@@ -39,8 +39,8 @@ var (
 	HeaderMagicNumber uint16 = 10101
 )
 
-// Encoder encodes provided Tag iterators.
-type Encoder interface {
+// TagEncoder encodes provided Tag iterators.
+type TagEncoder interface {
 	// Encode encodes the provided iterator into it's internal byte stream.
 	// NB: leaves the original iterator un-modified.
 	Encode(ident.TagIterator) error
@@ -55,40 +55,40 @@ type Encoder interface {
 	Finalize()
 }
 
-// EncoderPool pools Encoders.
-type EncoderPool interface {
+// TagEncoderPool pools TagEncoders.
+type TagEncoderPool interface {
 	// Init initializes the pool.
 	Init()
 
 	// Get returns an encoder. NB: calling Finalize() on the
-	// returned Encoder puts it back in the pool.
-	Get() Encoder
+	// returned TagEncoder puts it back in the pool.
+	Get() TagEncoder
 
 	// Put puts the encoder back in the pool.
-	Put(Encoder)
+	Put(TagEncoder)
 }
 
-// Decoder decodes an encoded byte stream to a TagIterator.
-type Decoder interface {
+// TagDecoder decodes an encoded byte stream to a TagIterator.
+type TagDecoder interface {
 	ident.TagIterator
 
 	// Reset resets internal state to iterate over the provided bytes.
-	// NB: the Decoder takes ownership of the provided checked.Bytes.
+	// NB: the TagDecoder takes ownership of the provided checked.Bytes.
 	Reset(checked.Bytes)
 
 	// Finalize releases any held resources.
 	Finalize()
 }
 
-// DecoderPool pools Decoders.
-type DecoderPool interface {
+// TagDecoderPool pools TagDecoders.
+type TagDecoderPool interface {
 	// Init initializes the pool.
 	Init()
 
 	// Get returns a decoder. NB: calling Finalize() on the
-	// returned Decoder puts it back in the pool.
-	Get() Decoder
+	// returned TagDecoder puts it back in the pool.
+	Get() TagDecoder
 
 	// Put puts the decoder back in the pool.
-	Put(Decoder)
+	Put(TagDecoder)
 }

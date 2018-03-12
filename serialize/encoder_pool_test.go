@@ -27,12 +27,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestEncoderPool() EncoderPool {
-	return NewEncoderPool(1024, nil)
+func newTestTagEncoderPool() TagEncoderPool {
+	return NewTagEncoderPool(1024, nil)
 }
 
-func TestEncoderPool(t *testing.T) {
-	p := newTestEncoderPool()
+func TestTagEncoderPool(t *testing.T) {
+	p := newTestTagEncoderPool()
 	p.Init()
 	e := p.Get()
 	e.Reset()

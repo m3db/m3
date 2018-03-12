@@ -45,7 +45,7 @@ func TestEmptyDecode(t *testing.T) {
 	b = append(b, headerMagicBytes...)
 	b = append(b, []byte{0x0, 0x0}...)
 
-	d := newDecoder(nil, checkedBytesWrapperPool)
+	d := newTagDecoder(nil, checkedBytesWrapperPool)
 	d.Reset(wrapAsCheckedBytes(b))
 	require.False(t, d.Next())
 	require.NoError(t, d.Err())
@@ -58,7 +58,7 @@ func TestDecodeHeaderMissing(t *testing.T) {
 	b = append(b, []byte{0x0, 0x0}...)
 	b = append(b, []byte{0x0, 0x0}...)
 
-	d := newTestDecoder()
+	d := newTestTagDecoder()
 	d.Reset(wrapAsCheckedBytes(b))
 	require.False(t, d.Next())
 	require.Error(t, d.Err())
@@ -67,8 +67,8 @@ func TestDecodeHeaderMissing(t *testing.T) {
 }
 
 func TestDecodeSimple(t *testing.T) {
-	b := testDecoderBytes()
-	d := newTestDecoder()
+	b := testTagDecoderBytes()
+	d := newTestTagDecoder()
 	d.Reset(b)
 	require.NoError(t, d.Err())
 
@@ -94,7 +94,7 @@ func TestDecodeMissingTags(t *testing.T) {
 	b = append(b, headerMagicBytes...)
 	b = append(b, encodeUInt16(uint16(2))...) /* num tags */
 
-	d := newTestDecoder()
+	d := newTestTagDecoder()
 	d.Reset(wrapAsCheckedBytes(b))
 	require.NoError(t, d.Err())
 
@@ -110,7 +110,7 @@ func TestDecodeOwnershipFinalize(t *testing.T) {
 	wrappedBytes := wrapAsCheckedBytes(b)
 	require.Equal(t, 0, wrappedBytes.NumRef())
 
-	d := newTestDecoder()
+	d := newTestTagDecoder()
 	d.Reset(wrappedBytes)
 	require.NoError(t, d.Err())
 	require.NotEqual(t, 0, wrappedBytes.NumRef())
@@ -137,7 +137,7 @@ func TestDecodeMissingValue(t *testing.T) {
 	b = append(b, encodeUInt16(1)...) /* len x */
 	b = append(b, []byte("x")...)
 
-	d := newTestDecoder()
+	d := newTestTagDecoder()
 	d.Reset(wrapAsCheckedBytes(b))
 	require.NoError(t, d.Err())
 
@@ -146,8 +146,8 @@ func TestDecodeMissingValue(t *testing.T) {
 	require.Error(t, d.Err())
 }
 func TestDecodeCloneLifecycle(t *testing.T) {
-	b := testDecoderBytes()
-	d := newTestDecoder()
+	b := testTagDecoderBytes()
+	d := newTestTagDecoder()
 	d.Reset(b)
 	require.NoError(t, d.Err())
 
@@ -166,8 +166,8 @@ func TestDecodeCloneLifecycle(t *testing.T) {
 	d.Finalize()
 }
 
-func newTestDecoder() Decoder {
-	return newDecoder(nil, checkedBytesWrapperPool)
+func newTestTagDecoder() TagDecoder {
+	return newTagDecoder(nil, checkedBytesWrapperPool)
 }
 
 func wrapAsCheckedBytes(b []byte) checked.Bytes {
@@ -184,7 +184,7 @@ func wrapAsCheckedBytes(b []byte) checked.Bytes {
 	return cb
 }
 
-func testDecoderBytes() checked.Bytes {
+func testTagDecoderBytes() checked.Bytes {
 	var b []byte
 	b = append(b, headerMagicBytes...)
 	b = append(b, encodeUInt16(uint16(2))...) /* num tags */

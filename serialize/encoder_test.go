@@ -33,12 +33,12 @@ var (
 	initialBufferLength = 1 << 12
 )
 
-func newTestEncoder() Encoder {
-	return newEncoder(initialBufferLength, nil)
+func newTestTagEncoder() TagEncoder {
+	return newTagEncoder(initialBufferLength, nil)
 }
 
 func TestEmptyEncode(t *testing.T) {
-	e := newTestEncoder()
+	e := newTestTagEncoder()
 	require.NoError(t, e.Encode(ident.EmptyTagIterator))
 
 	bc, ok := e.Data()
@@ -51,7 +51,7 @@ func TestEmptyEncode(t *testing.T) {
 }
 
 func TestEncodeResetTwice(t *testing.T) {
-	e := newTestEncoder()
+	e := newTestTagEncoder()
 	require.NoError(t, e.Encode(ident.EmptyTagIterator))
 	e.Reset()
 	e.Reset()
@@ -59,13 +59,13 @@ func TestEncodeResetTwice(t *testing.T) {
 }
 
 func TestInuseEncode(t *testing.T) {
-	e := newTestEncoder()
+	e := newTestTagEncoder()
 	require.NoError(t, e.Encode(ident.EmptyTagIterator))
 	require.Error(t, e.Encode(ident.EmptyTagIterator))
 }
 
-func TestEncoderLeavesOriginalIterator(t *testing.T) {
-	e := newTestEncoder()
+func TestTagEncoderLeavesOriginalIterator(t *testing.T) {
+	e := newTestTagEncoder()
 	tags := ident.NewTagIterator(
 		ident.StringTag("abc", "defg"),
 		ident.StringTag("x", "bar"),
@@ -77,7 +77,7 @@ func TestEncoderLeavesOriginalIterator(t *testing.T) {
 }
 
 func TestSimpleEncode(t *testing.T) {
-	e := newTestEncoder()
+	e := newTestTagEncoder()
 
 	tags := ident.NewTagIterator(
 		ident.StringTag("abc", "defg"),
@@ -107,8 +107,8 @@ func TestSimpleEncode(t *testing.T) {
 	require.Equal(t, "bar", string(b[20:23]))
 }
 
-func TestEncoderErrorEncoding(t *testing.T) {
-	e := newTestEncoder()
+func TestTagEncoderErrorEncoding(t *testing.T) {
+	e := newTestTagEncoder()
 	tags := ident.NewTagIterator(
 		ident.StringTag("abc", "defg"),
 		ident.StringTag("x", nstring(int(MaxTagLiteralLength)+1)),

@@ -55,7 +55,7 @@ var (
 )
 
 var (
-	errEncoderInUse      = errors.New("encoder already in use")
+	errTagEncoderInUse   = errors.New("encoder already in use")
 	errTagLiteralTooLong = errors.New("literal is too long")
 )
 
@@ -63,10 +63,10 @@ type encoder struct {
 	buf          *bytes.Buffer
 	checkedBytes checked.Bytes
 
-	pool EncoderPool
+	pool TagEncoderPool
 }
 
-func newEncoder(initialSize int, pool EncoderPool) Encoder {
+func newTagEncoder(initialSize int, pool TagEncoderPool) TagEncoder {
 	b := make([]byte, 0, initialSize)
 	cb := checked.NewBytes(nil, nil)
 	return &encoder{
@@ -78,7 +78,7 @@ func newEncoder(initialSize int, pool EncoderPool) Encoder {
 
 func (e *encoder) Encode(srcTags ident.TagIterator) error {
 	if e.checkedBytes.NumRef() > 0 {
-		return errEncoderInUse
+		return errTagEncoderInUse
 	}
 
 	tags := srcTags.Duplicate()

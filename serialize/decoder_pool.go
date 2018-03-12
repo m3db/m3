@@ -30,11 +30,11 @@ type decoderPool struct {
 	wrapperPool xpool.CheckedBytesWrapperPool
 }
 
-// NewDecoderPool returns a new DecoderPool.
-func NewDecoderPool(
+// NewTagDecoderPool returns a new TagDecoderPool.
+func NewTagDecoderPool(
 	wrapperPool xpool.CheckedBytesWrapperPool,
 	opts pool.ObjectPoolOptions,
-) DecoderPool {
+) TagDecoderPool {
 	pool := pool.NewObjectPool(opts)
 	return &decoderPool{
 		pool:        pool,
@@ -44,14 +44,14 @@ func NewDecoderPool(
 
 func (p *decoderPool) Init() {
 	p.pool.Init(func() interface{} {
-		return newDecoder(p, p.wrapperPool)
+		return newTagDecoder(p, p.wrapperPool)
 	})
 }
 
-func (p *decoderPool) Get() Decoder {
-	return p.pool.Get().(Decoder)
+func (p *decoderPool) Get() TagDecoder {
+	return p.pool.Get().(TagDecoder)
 }
 
-func (p *decoderPool) Put(e Decoder) {
+func (p *decoderPool) Put(e TagDecoder) {
 	p.pool.Put(e)
 }

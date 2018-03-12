@@ -42,11 +42,11 @@ type decoder struct {
 	hasCurrent  bool
 	current     ident.Tag
 
-	pool        DecoderPool
+	pool        TagDecoderPool
 	wrapperPool xpool.CheckedBytesWrapperPool
 }
 
-func newDecoder(pool DecoderPool, wrapperPool xpool.CheckedBytesWrapperPool) Decoder {
+func newTagDecoder(pool TagDecoderPool, wrapperPool xpool.CheckedBytesWrapperPool) TagDecoder {
 	return &decoder{
 		pool:        pool,
 		wrapperPool: wrapperPool,
