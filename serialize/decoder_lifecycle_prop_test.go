@@ -126,6 +126,7 @@ var decoderCommandsFunctor = func(t *testing.T) *commands.ProtoCommands {
 				gen.Const(errCmd),
 				gen.Const(remainingCmd),
 				gen.Const(duplicateCmd),
+				gen.Const(closeCmd),
 				gen.Const(swapToDuplicateCmd),
 			)
 		},
@@ -238,7 +239,11 @@ var duplicateCmd = &commands.ProtoCommand{
 	},
 	NextStateFunc: func(state commands.State) commands.State {
 		s := state.(*multiDecoderState)
-		if !s.primary.closed && s.numRefs > 0 {
+		if s.primary.closed {
+			s.duplicates = append(s.duplicates, s.primary)
+			return s
+		}
+		if !s.primary.closed {
 			// i.e. we have a checked bytes still present, so we
 			// atleast make another reference to it.
 			s.numRefs++
@@ -273,7 +278,7 @@ var closeCmd = &commands.ProtoCommand{
 			return s
 		}
 		// drop primary reference
-		s.numRefs -= 1
+		s.numRefs--
 		// if we have any current tags, we should dec ref by 2 because of it
 		if s.primary.hasCurrentTagsReference() {
 			s.numRefs -= 2
@@ -416,7 +421,10 @@ func (d decoderState) String() string {
 }
 
 func (d *decoderState) hasCurrentTagsReference() bool {
-	return d.numTags > 0 && d.numNextCalls > 0 && d.numNextCalls <= d.numTags
+	return !d.closed &&
+		d.numTags > 0 &&
+		d.numNextCalls > 0 &&
+		d.numNextCalls <= d.numTags
 }
 
 func (d *decoderState) numRemaining() int {
