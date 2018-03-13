@@ -501,7 +501,6 @@ func (dt *DTestHarness) serviceID() services.ServiceID {
 func defaultPlacementOptions(zone string, iopts instrument.Options) placement.Options {
 	return placement.NewOptions().
 		SetIsSharded(true).
-		SetLooseRackCheck(true).
 		SetAllowPartialReplace(true).
 		SetInstrumentOptions(iopts).
 		SetValidZone(zone)

@@ -147,7 +147,7 @@ func TestConfig(t *testing.T) {
 		SetID(hostID).
 		SetEndpoint(endpoint("127.0.0.1", servicePort)).
 		SetPort(servicePort).
-		SetRack("local").
+		SetIsolationGroup("local").
 		SetWeight(1).
 		SetZone(serviceZone)
 	instances := []placement.Instance{instance}
