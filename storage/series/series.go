@@ -155,18 +155,21 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 			// then don't close the block because that is the WiredList's
 			// responsibility. The block will hang around the WiredList until
 			// it is evicted to make room for something else at which point it
-			// will be closed. Note that while we don't close the block, we do
-			// remove it from the list of blocks. This is so that the series
-			// itself can still be expired if this was the last block. The
-			// WiredList will still notify the shard/series via the OnEvictedFromWiredList
-			// method, but those methods are noops for series/blocks that have already
-			// been removed.
-			// Note that while technically the DatabaseBlock protects against double
-			// closes, they can be problematic due to pooling. I.E if the tick closes
-			// a block, and it gets reinserted into the pool, then it gets reused for
-			// some other piece of data, then the WiredList re-closes it, not knowing
-			// that the block had already been closed / re-opened with a different
-			// set of data.
+			// will be closed.
+			// Note that while we don't close the block, we do remove it from the list
+			// of blocks. This is so that the series itself can still be expired if this
+			// was the last block. The WiredList will still notify the shard/series via
+			// the OnEvictedFromWiredList method, but those methods are noops for series/blocks
+			// that have already been removed.
+			// Also note that while technically the DatabaseBlock protects against double
+			// closes, they can be problematic due to pooling. I.E if the following sequence
+			// of actions happens:
+			// 		1) Tick closes expired block
+			// 		2) Block is re-inserted into pool
+			// 		3) Block is pulled out of pool and used for critical data
+			// 		4) WiredList tries to close the block, not knowing that it has
+			// 		   already been closed, and re-opened / re-used leading to
+			// 		   unexpected behavior or data loss.
 			if cachePolicy == CacheLRU && currBlock.WasRetrievedFromDisk() {
 				// Do nothing
 			} else {
