@@ -156,11 +156,13 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 			// responsibility. The block will hang around the WiredList until
 			// it is evicted to make room for something else at which point it
 			// will be closed.
+			//
 			// Note that while we don't close the block, we do remove it from the list
 			// of blocks. This is so that the series itself can still be expired if this
 			// was the last block. The WiredList will still notify the shard/series via
-			// the OnEvictedFromWiredList method, but those methods are noops for series/blocks
-			// that have already been removed.
+			// the OnEvictedFromWiredList method when it closes the block, but those
+			// methods are noops for series/blocks that have already been removed.
+			//
 			// Also note that while technically the DatabaseBlock protects against double
 			// closes, they can be problematic due to pooling. I.E if the following sequence
 			// of actions happens:
