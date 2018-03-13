@@ -40,6 +40,7 @@ type encodeOpts struct {
 	maxTagLiteralLength uint16
 }
 
+// NewTagEncoderOptions returns a new TagEncoderOptions.
 func NewTagEncoderOptions() TagEncoderOptions {
 	return &encodeOpts{
 		initialCapacity:     defaultInitialCapacity,

@@ -25,9 +25,8 @@ import (
 )
 
 type encoderPool struct {
-	pool               pool.ObjectPool
-	opts               TagEncoderOptions
-	initTagEncoderSize int
+	pool pool.ObjectPool
+	opts TagEncoderOptions
 }
 
 // NewTagEncoderPool returns a new TagEncoderPool.

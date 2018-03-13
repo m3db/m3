@@ -36,7 +36,7 @@ import (
 
 func TestDecoderLifecycle(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
-	parameters.MinSuccessfulTests = 300
+	parameters.MinSuccessfulTests = 100
 	properties := gopter.NewProperties(parameters)
 
 	comms := decoderCommandsFunctor(t)
@@ -51,21 +51,21 @@ func TestDecoderLifecycle(t *testing.T) {
 var decoderCommandsFunctor = func(t *testing.T) *commands.ProtoCommands {
 	return &commands.ProtoCommands{
 		NewSystemUnderTestFunc: func(initialState commands.State) commands.SystemUnderTest {
-			sut := initialState.(*decoderState)
+			sut := initialState.(*multiDecoderState)
 			d := newTestTagDecoder()
 			d.Reset(sut.initBytes)
 			if err := d.Err(); err != nil {
 				panic(err)
 			}
-			return &systemUnderTest{
-				dec: d,
+			return &multiDecoderSystem{
+				primary: d,
 			}
 		},
 		DestroySystemUnderTestFunc: func(s commands.SystemUnderTest) {
-			sys := s.(*systemUnderTest)
-			sys.dec.Finalize()
-			for _, dec := range sys.clones {
-				dec.Finalize()
+			sys := s.(*multiDecoderSystem)
+			sys.primary.Finalize()
+			for _, dupe := range sys.duplicates {
+				dupe.Finalize()
 			}
 		},
 		InitialStateGen: newDecoderState(),
@@ -78,23 +78,87 @@ var decoderCommandsFunctor = func(t *testing.T) *commands.ProtoCommands {
 				gen.Const(errCmd),
 				gen.Const(remainingCmd),
 				gen.Const(duplicateCmd),
-				// gen.Const(duplicateAndSwapSystemCmd),
+				gen.Const(swapToDuplicateCmd),
 			)
 		},
 	}
 }
 
-type decoderState struct {
-	tags              ident.Tags
-	nextHasBeenCalled bool
-	idx               int
-	initBytes         checked.Bytes
-	numRefs           int
+func newDecoderState() gopter.Gen {
+	return anyAsciiTags().Map(
+		func(tags ident.Tags) *multiDecoderState {
+			enc := newTestTagEncoder()
+			if err := enc.Encode(ident.NewTagSliceIterator(tags)); err != nil {
+				return nil
+			}
+			b, ok := enc.Data()
+			if !ok {
+				return nil
+			}
+			data := checked.NewBytes(b.Get(), nil)
+			return &multiDecoderState{
+				tags:      tags,
+				initBytes: data,
+				numRefs:   1,
+				primary: decoderState{
+					numTags: len(tags),
+				},
+			}
+		},
+	)
 }
 
-func (d *decoderState) String() string {
+type multiDecoderSystem struct {
+	primary    TagDecoder
+	duplicates []TagDecoder
+}
+
+type multiDecoderState struct {
+	initBytes  checked.Bytes
+	numRefs    int
+	tags       ident.Tags
+	primary    decoderState
+	duplicates []decoderState
+}
+
+type decoderState struct {
+	numTags           int
+	idx               int
+	nextHasBeenCalled bool
+}
+
+func (d decoderState) String() string {
+	return fmt.Sprintf("[ nextCalled=%v, idx=%d ]", d.nextHasBeenCalled, d.idx)
+}
+
+func (d *decoderState) numRemaining() int {
+	if !d.nextHasBeenCalled {
+		return d.numTags
+	}
+	remain := d.numTags - (d.idx + 1)
+	if remain >= 0 {
+		return remain
+	}
+	return 0
+}
+
+func (d *multiDecoderState) String() string {
+	var buf bytes.Buffer
+
+	buf.WriteString(fmt.Sprintf("[ numRefs=%d, tags=[%s], primary=%s ",
+		d.numRefs, tagsToString(d.tags), d.primary.String()))
+
+	for i, dupe := range d.duplicates {
+		buf.WriteString(fmt.Sprintf(", dupe_%d=%s ", (i + 1), dupe.String()))
+	}
+
+	buf.WriteString("]")
+	return buf.String()
+}
+
+func tagsToString(tags ident.Tags) string {
 	var tagBuffer bytes.Buffer
-	for i, t := range d.tags {
+	for i, t := range tags {
 		if i != 0 {
 			tagBuffer.WriteString(", ")
 		}
@@ -102,60 +166,19 @@ func (d *decoderState) String() string {
 		tagBuffer.WriteString("=")
 		tagBuffer.WriteString(t.Value.String())
 	}
-
-	return fmt.Sprintf("[ nextCalled=%v, idx=%d, numRefs=%d, tags=[%s] ]",
-		d.nextHasBeenCalled, d.idx, d.numRefs, tagBuffer.String())
-}
-
-func (d *decoderState) numRemaining() int {
-	if !d.nextHasBeenCalled {
-		return len(d.tags)
-	}
-	remain := len(d.tags) - (d.idx + 1)
-	if remain >= 0 {
-		return remain
-	}
-	return 0
-}
-
-func newDecoderState() gopter.Gen {
-	return anyAsciiTags().Map(
-		func(tags ident.Tags) *decoderState {
-			enc := newTestTagEncoder()
-			if err := enc.Encode(ident.NewTagSliceIterator(tags)); err != nil {
-				return nil
-			}
-
-			b, ok := enc.Data()
-			if !ok {
-				return nil
-			}
-
-			data := checked.NewBytes(b.Get(), nil)
-			return &decoderState{
-				tags:      tags,
-				initBytes: data,
-				numRefs:   1,
-			}
-		},
-	)
-}
-
-type systemUnderTest struct {
-	dec    TagDecoder
-	clones []TagDecoder
+	return tagBuffer.String()
 }
 
 type systemAndResult struct {
-	system *systemUnderTest
+	system *multiDecoderSystem
 	result commands.Result
 }
 
 var errCmd = &commands.ProtoCommand{
 	Name: "Err",
 	RunFunc: func(s commands.SystemUnderTest) commands.Result {
-		sys := s.(*systemUnderTest)
-		d := sys.dec
+		sys := s.(*multiDecoderSystem)
+		d := sys.primary
 		return &systemAndResult{
 			system: sys,
 			result: d.Err(),
@@ -170,7 +193,7 @@ var errCmd = &commands.ProtoCommand{
 		err := res.result.(error)
 		return &gopter.PropResult{
 			Status: gopter.PropError,
-			Error:  fmt.Errorf("received error [ err = %v, state = [%s] ]", err, state.(*decoderState)),
+			Error:  fmt.Errorf("received error [ err = %v, state = [%s] ]", err, state.(decoderState)),
 		}
 	},
 }
@@ -178,26 +201,26 @@ var errCmd = &commands.ProtoCommand{
 var nextCmd = &commands.ProtoCommand{
 	Name: "Next",
 	RunFunc: func(s commands.SystemUnderTest) commands.Result {
-		sys := s.(*systemUnderTest)
-		d := sys.dec
+		sys := s.(*multiDecoderSystem)
+		d := sys.primary
 		return &systemAndResult{
 			system: sys,
 			result: d.Next(),
 		}
 	},
 	NextStateFunc: func(state commands.State) commands.State {
-		s := state.(*decoderState)
-		if !s.nextHasBeenCalled {
-			s.nextHasBeenCalled = true
+		s := state.(*multiDecoderState)
+		if !s.primary.nextHasBeenCalled {
+			s.primary.nextHasBeenCalled = true
 			if len(s.tags) > 0 {
 				// i.e. only increment tag references the first time we allocate
 				s.numRefs += 2 // tagName & tagValue
 			}
 		} else {
-			s.idx++
+			s.primary.idx++
 		}
 		// when we have gone past the end, remove references to tagName/tagValue
-		if s.numRemaining() == -1 {
+		if s.primary.numRemaining() == -1 {
 			if len(s.tags) > 0 {
 				s.numRefs -= 2
 			}
@@ -206,8 +229,8 @@ var nextCmd = &commands.ProtoCommand{
 	},
 	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
 		res := result.(*systemAndResult)
-		decState := state.(*decoderState)
-		if decState.numRemaining() > 0 && !res.result.(bool) {
+		decState := state.(*multiDecoderState)
+		if decState.primary.numRemaining() > 0 && !res.result.(bool) {
 			// ensure we were told the correct value for Next()
 			return &gopter.PropResult{
 				Status: gopter.PropError,
@@ -215,7 +238,7 @@ var nextCmd = &commands.ProtoCommand{
 			}
 		}
 		// ensure hold the correct number of references for underlying bytes
-		dec := res.system.dec.(*decoder)
+		dec := res.system.primary.(*decoder)
 		if dec.checkedData.NumRef() != decState.numRefs {
 			return &gopter.PropResult{
 				Status: gopter.PropError,
@@ -231,21 +254,21 @@ var nextCmd = &commands.ProtoCommand{
 var remainingCmd = &commands.ProtoCommand{
 	Name: "Remaining",
 	RunFunc: func(s commands.SystemUnderTest) commands.Result {
-		sys := s.(*systemUnderTest)
-		d := sys.dec
+		sys := s.(*multiDecoderSystem)
+		d := sys.primary
 		return &systemAndResult{
 			system: sys,
 			result: d.Remaining(),
 		}
 	},
 	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
-		decState := state.(*decoderState)
+		decState := state.(*multiDecoderState)
 		remain := result.(*systemAndResult).result.(int)
-		if remain != decState.numRemaining() {
+		if remain != decState.primary.numRemaining() {
 			return &gopter.PropResult{
 				Status: gopter.PropError,
 				Error: fmt.Errorf("received invalid Remain [ expected=%d, observed=%d ]",
-					decState.numRemaining(), remain),
+					decState.primary.numRemaining(), remain),
 			}
 		}
 		return &gopter.PropResult{Status: gopter.PropTrue}
@@ -255,31 +278,32 @@ var remainingCmd = &commands.ProtoCommand{
 var duplicateCmd = &commands.ProtoCommand{
 	Name: "Duplicate",
 	RunFunc: func(s commands.SystemUnderTest) commands.Result {
-		sys := s.(*systemUnderTest)
-		d := sys.dec
+		sys := s.(*multiDecoderSystem)
+		d := sys.primary
 		dupe := d.Duplicate().(TagDecoder)
-		sys.clones = append(sys.clones, dupe)
+		sys.duplicates = append(sys.duplicates, dupe)
 		return &systemAndResult{
 			system: sys,
 			result: dupe,
 		}
 	},
 	NextStateFunc: func(state commands.State) commands.State {
-		s := state.(*decoderState)
+		s := state.(*multiDecoderState)
 		if s.numRefs > 0 {
 			// i.e. we have a checked bytes still present, so we
 			// atleast make another reference to it.
 			s.numRefs++
 		}
 		// if we have any current tags, we should inc ref by 2 because of it
-		if s.nextHasBeenCalled && s.numRemaining() >= 0 && len(s.tags) > 0 {
+		if s.primary.nextHasBeenCalled && s.primary.numRemaining() >= 0 && len(s.tags) > 0 {
 			s.numRefs += 2
 		}
+		s.duplicates = append(s.duplicates, s.primary)
 		return s
 	},
 	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
-		decState := state.(*decoderState)
-		dec := result.(*systemAndResult).system.dec.(*decoder)
+		decState := state.(*multiDecoderState)
+		dec := result.(*systemAndResult).system.primary.(*decoder)
 		// ensure hold the correct number of references for underlying bytes
 		if dec.checkedData.NumRef() != decState.numRefs {
 			return &gopter.PropResult{
@@ -290,6 +314,32 @@ var duplicateCmd = &commands.ProtoCommand{
 			}
 		}
 		return &gopter.PropResult{Status: gopter.PropTrue}
+	},
+}
+
+// swapToDuplicate swaps the current system under test to be operating on the most recent Duplicate
+// we created (if any).
+var swapToDuplicateCmd = &commands.ProtoCommand{
+	Name: "swapToDuplicate",
+	PreConditionFunc: func(s commands.State) bool {
+		state := s.(*multiDecoderState)
+		return len(state.duplicates) > 0
+	},
+	NextStateFunc: func(state commands.State) commands.State {
+		s := state.(*multiDecoderState)
+		x, y := s.primary, s.duplicates[len(s.duplicates)-1]
+		s.duplicates[len(s.duplicates)-1] = x
+		s.primary = y
+		return s
+	},
+	RunFunc: func(sys commands.SystemUnderTest) commands.Result {
+		s := sys.(*multiDecoderSystem)
+		x, y := s.primary, s.duplicates[len(s.duplicates)-1]
+		s.duplicates[len(s.duplicates)-1] = x
+		s.primary = y
+		return &systemAndResult{
+			system: s,
+		}
 	},
 }
 
