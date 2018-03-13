@@ -23,8 +23,10 @@ package serialize
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
@@ -36,15 +38,15 @@ import (
 
 func TestDecoderLifecycle(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
+	seed := time.Now().UnixNano()
 	parameters.MinSuccessfulTests = 100
+	parameters.Rng = rand.New(rand.NewSource(seed))
 	properties := gopter.NewProperties(parameters)
-
 	comms := decoderCommandsFunctor(t)
 	properties.Property("Decoder Lifecycle Invariants", commands.Prop(comms))
-
 	reporter := gopter.NewFormatedReporter(true, 160, os.Stdout)
 	if !properties.Run(reporter) {
-		t.Fail()
+		t.Errorf("failed with initial seed: %d", seed)
 	}
 }
 
@@ -130,6 +132,10 @@ type decoderState struct {
 func (d decoderState) String() string {
 	return fmt.Sprintf("[ numTags=%d, closed=%v, numNextCalls=%d ]",
 		d.numTags, d.closed, d.numNextCalls)
+}
+
+func (d *decoderState) hasCurrentTagsReference() bool {
+	return d.numTags > 0 && d.numNextCalls > 0 && d.numNextCalls <= d.numTags
 }
 
 func (d *decoderState) numRemaining() int {
@@ -239,16 +245,8 @@ var nextCmd = &commands.ProtoCommand{
 			}
 		}
 		// ensure hold the correct number of references for underlying bytes
-		dec := res.system.primary.(*decoder)
-		if dec.checkedData.NumRef() != decState.numRefs {
-			return &gopter.PropResult{
-				Status: gopter.PropError,
-				Error: fmt.Errorf(
-					"received invalid number of refs [ expected = %d observed = %d state = [%s] ]",
-					decState.numRefs, dec.checkedData.NumRef(), decState),
-			}
-		}
-		return &gopter.PropResult{Status: gopter.PropTrue}
+		sys := result.(*systemAndResult).system
+		return validateNumReferences(decState, sys)
 	},
 }
 
@@ -285,7 +283,6 @@ var duplicateCmd = &commands.ProtoCommand{
 		sys.duplicates = append(sys.duplicates, dupe)
 		return &systemAndResult{
 			system: sys,
-			result: dupe,
 		}
 	},
 	NextStateFunc: func(state commands.State) commands.State {
@@ -296,25 +293,47 @@ var duplicateCmd = &commands.ProtoCommand{
 			s.numRefs++
 		}
 		// if we have any current tags, we should inc ref by 2 because of it
-		if s.primary.numTags > 0 && s.primary.numNextCalls > 0 && s.primary.numNextCalls <= s.primary.numTags {
+		if s.primary.hasCurrentTagsReference() {
 			s.numRefs += 2
 		}
 		s.duplicates = append(s.duplicates, s.primary)
 		return s
 	},
 	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
+		sys := result.(*systemAndResult).system
 		decState := state.(*multiDecoderState)
-		dec := result.(*systemAndResult).system.primary.(*decoder)
-		// ensure hold the correct number of references for underlying bytes
-		if dec.checkedData.NumRef() != decState.numRefs {
-			return &gopter.PropResult{
-				Status: gopter.PropError,
-				Error: fmt.Errorf(
-					"received invalid number of refs [ expected = %d observed = %d state = [%s] ]",
-					decState.numRefs, dec.checkedData.NumRef(), decState),
-			}
+		return validateNumReferences(decState, sys)
+	},
+}
+
+var closeCmd = &commands.ProtoCommand{
+	Name: "Close",
+	RunFunc: func(s commands.SystemUnderTest) commands.Result {
+		sys := s.(*multiDecoderSystem)
+		d := sys.primary.(*decoder)
+		d.Close()
+		return &systemAndResult{
+			system: sys,
 		}
-		return &gopter.PropResult{Status: gopter.PropTrue}
+	},
+	NextStateFunc: func(state commands.State) commands.State {
+		s := state.(*multiDecoderState)
+		if s.primary.closed {
+			return s
+		}
+		// drop primary reference
+		s.numRefs -= 1
+		// if we have any current tags, we should dec ref by 2 because of it
+		if s.primary.hasCurrentTagsReference() {
+			s.numRefs -= 2
+		}
+		s.primary.closed = true
+		return s
+	},
+	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
+		sys := result.(*systemAndResult).system
+		decState := state.(*multiDecoderState)
+		return validateNumReferences(decState, sys)
 	},
 }
 
@@ -342,11 +361,68 @@ var swapToDuplicateCmd = &commands.ProtoCommand{
 			system: s,
 		}
 	},
+	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
+		sys := result.(*systemAndResult).system
+		decState := state.(*multiDecoderState)
+		return validateNumReferences(decState, sys)
+	},
 }
 
-// Close
-// Duplicate
-// Finalize
+func validateNumReferences(decState *multiDecoderState, sys *multiDecoderSystem) *gopter.PropResult {
+	// ensure at least one decoder in the system have has a reference if we are not closed
+	if decState.numRefs != 0 {
+		found := false
+		if d := sys.primary.(*decoder).checkedData; d != nil {
+			found = true
+		}
+		for _, dupe := range sys.duplicates {
+			dec := dupe.(*decoder)
+			if d := dec.checkedData; d != nil {
+				found = true
+			}
+		}
+		if !found {
+			return &gopter.PropResult{Status: gopter.PropError,
+				Error: fmt.Errorf("expected at least one reference, observed all nil, state = %s", decState),
+			}
+		}
+	}
+	// ensure we hold the correct number of references for underlying bytes in all decoders
+	validate := func(dec *decoder, state decoderState, numRefs int) error {
+		// if decoder is closed, we should hold no references
+		if state.closed {
+			if dec.checkedData == nil {
+				return nil
+			}
+			if dec.checkedData != nil {
+				return fmt.Errorf("expected nil, observed %p references in [state = %s]", dec.checkedData, state)
+			}
+		}
+		// i.e. decoder is not closed, so we should have a reference
+		if dec.checkedData == nil && numRefs != 0 {
+			return fmt.Errorf("expected %d num ref, observed nil in [state = %s]", numRefs, state)
+		}
+		if dec.checkedData.NumRef() != numRefs {
+			return fmt.Errorf("expected %d num ref, observed %d num ref in [state = %s]", numRefs,
+				dec.checkedData.NumRef(), state)
+		}
+		// all good
+		return nil
+	}
+	// validate primary
+	if err := validate(sys.primary.(*decoder), decState.primary, decState.numRefs); err != nil {
+		return &gopter.PropResult{Status: gopter.PropError, Error: err}
+	}
+	// validate all duplicates
+	for i := range sys.duplicates {
+		dec := sys.duplicates[i].(*decoder)
+		state := decState.duplicates[i]
+		if err := validate(dec, state, decState.numRefs); err != nil {
+			return &gopter.PropResult{Status: gopter.PropError, Error: err}
+		}
+	}
+	return &gopter.PropResult{Status: gopter.PropTrue}
+}
 
 func anyASCIITag() gopter.Gen {
 	return gopter.CombineGens(gen.Identifier(), gen.Identifier()).
