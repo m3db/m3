@@ -403,14 +403,14 @@ func NewInstance() Instance {
 }
 
 // NewEmptyInstance returns a Instance with some basic properties but no shards assigned
-func NewEmptyInstance(id, rack, zone, endpoint string, weight uint32) Instance {
+func NewEmptyInstance(id, isolationGroup, zone, endpoint string, weight uint32) Instance {
 	return &instance{
-		id:       id,
-		rack:     rack,
-		zone:     zone,
-		weight:   weight,
-		endpoint: endpoint,
-		shards:   shard.NewShards(nil),
+		id:             id,
+		isolationGroup: isolationGroup,
+		zone:           zone,
+		weight:         weight,
+		endpoint:       endpoint,
+		shards:         shard.NewShards(nil),
 	}
 }
 
@@ -426,7 +426,7 @@ func NewInstanceFromProto(instance *placementpb.Instance) (Instance, error) {
 
 	return NewInstance().
 		SetID(instance.Id).
-		SetRack(instance.Rack).
+		SetIsolationGroup(instance.IsolationGroup).
 		SetWeight(instance.Weight).
 		SetZone(instance.Zone).
 		SetEndpoint(instance.Endpoint).
@@ -437,21 +437,21 @@ func NewInstanceFromProto(instance *placementpb.Instance) (Instance, error) {
 }
 
 type instance struct {
-	id         string
-	rack       string
-	zone       string
-	weight     uint32
-	endpoint   string
-	hostname   string
-	port       uint32
-	shards     shard.Shards
-	shardSetID uint32
+	id             string
+	isolationGroup string
+	zone           string
+	weight         uint32
+	endpoint       string
+	hostname       string
+	port           uint32
+	shards         shard.Shards
+	shardSetID     uint32
 }
 
 func (i *instance) String() string {
 	return fmt.Sprintf(
-		"Instance[ID=%s, Rack=%s, Zone=%s, Weight=%d, Endpoint=%s, Hostname=%s, Port=%d, ShardSetID=%d, Shards=%s]",
-		i.id, i.rack, i.zone, i.weight, i.endpoint, i.hostname, i.port, i.shardSetID, i.shards.String(),
+		"Instance[ID=%s, IsolationGroup=%s, Zone=%s, Weight=%d, Endpoint=%s, Hostname=%s, Port=%d, ShardSetID=%d, Shards=%s]",
+		i.id, i.isolationGroup, i.zone, i.weight, i.endpoint, i.hostname, i.port, i.shardSetID, i.shards.String(),
 	)
 }
 
@@ -464,12 +464,12 @@ func (i *instance) SetID(id string) Instance {
 	return i
 }
 
-func (i *instance) Rack() string {
-	return i.rack
+func (i *instance) IsolationGroup() string {
+	return i.isolationGroup
 }
 
-func (i *instance) SetRack(r string) Instance {
-	i.rack = r
+func (i *instance) SetIsolationGroup(r string) Instance {
+	i.isolationGroup = r
 	return i
 }
 
@@ -543,15 +543,15 @@ func (i *instance) Proto() (*placementpb.Instance, error) {
 	}
 
 	return &placementpb.Instance{
-		Id:         i.ID(),
-		Rack:       i.Rack(),
-		Zone:       i.Zone(),
-		Weight:     i.Weight(),
-		Endpoint:   i.Endpoint(),
-		Shards:     ss,
-		ShardSetId: i.ShardSetID(),
-		Hostname:   i.Hostname(),
-		Port:       i.Port(),
+		Id:             i.ID(),
+		IsolationGroup: i.IsolationGroup(),
+		Zone:           i.Zone(),
+		Weight:         i.Weight(),
+		Endpoint:       i.Endpoint(),
+		Shards:         ss,
+		ShardSetId:     i.ShardSetID(),
+		Hostname:       i.Hostname(),
+		Port:           i.Port(),
 	}, nil
 }
 
@@ -575,7 +575,7 @@ func (i *instance) allShardsInState(s shard.State) bool {
 func (i *instance) Clone() Instance {
 	return NewInstance().
 		SetID(i.ID()).
-		SetRack(i.Rack()).
+		SetIsolationGroup(i.IsolationGroup()).
 		SetZone(i.Zone()).
 		SetWeight(i.Weight()).
 		SetEndpoint(i.Endpoint()).

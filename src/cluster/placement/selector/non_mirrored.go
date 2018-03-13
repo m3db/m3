@@ -58,33 +58,32 @@ func (f *nonMirroredSelector) SelectAddingInstances(
 		return nil, err
 	}
 
-	// build rack-instance map for candidate instances
-	candidateRackMap := buildRackMap(candidates)
+	candidateGroups := buildIsolationGroupMap(candidates)
 
-	// build rack-instance map for current placement
-	placementRackMap := buildRackMap(p.Instances())
+	existingGroups := buildIsolationGroupMap(p.Instances())
 
-	// if there is a rack not in the current placement, prefer that rack
-	for r, instances := range candidateRackMap {
-		if _, exist := placementRackMap[r]; !exist {
-			// All the racks in the candidateRackMap have at least 1 instance.
+	// If there is a isolation group not in the current placement, prefer the isolation group.
+	for r, instances := range candidateGroups {
+		if _, exist := existingGroups[r]; !exist {
+			// All the isolation groups have at least 1 instance.
 			return instances[:1], nil
 		}
 	}
 
-	// otherwise sort the racks in the current placement by capacity and find a instance from least sized rack
-	racks := make(sortableValues, 0, len(placementRackMap))
-	for rack, instances := range placementRackMap {
+	// Otherwise sort the isolation groups in the current placement
+	// by capacity and find a instance from least sized isolation group.
+	groups := make(sortableValues, 0, len(existingGroups))
+	for group, instances := range existingGroups {
 		weight := 0
 		for _, i := range instances {
 			weight += int(i.Weight())
 		}
-		racks = append(racks, sortableValue{value: rack, weight: weight})
+		groups = append(groups, sortableValue{value: group, weight: weight})
 	}
-	sort.Sort(racks)
+	sort.Sort(groups)
 
-	for _, rackLen := range racks {
-		if i, exist := candidateRackMap[rackLen.value.(string)]; exist {
+	for _, group := range groups {
+		if i, exist := candidateGroups[group.value.(string)]; exist {
 			for _, instance := range i {
 				return []placement.Instance{instance}, nil
 			}
@@ -113,22 +112,22 @@ func (f *nonMirroredSelector) SelectReplaceInstances(
 		leavingInstances = append(leavingInstances, leavingInstance)
 	}
 
-	// map rack to instances
-	rackMap := buildRackMap(candidates)
+	// Map isolation group to instances.
+	candidateGroups := buildIsolationGroupMap(candidates)
 
-	// otherwise sort the candidate instances by the number of conflicts
+	// Otherwise sort the candidate instances by the number of conflicts.
 	ph := algo.NewPlacementHelper(p, f.opts)
-	instances := make([]sortableValue, 0, len(rackMap))
-	for rack, instancesInRack := range rackMap {
+	instances := make([]sortableValue, 0, len(candidateGroups))
+	for group, instancesInGroup := range candidateGroups {
 		conflicts := 0
 		for _, leaving := range leavingInstances {
 			for _, s := range leaving.Shards().All() {
-				if ph.HasRackConflict(s.ID(), leaving, rack) {
+				if !ph.CanMoveShard(s.ID(), leaving, group) {
 					conflicts++
 				}
 			}
 		}
-		for _, instance := range instancesInRack {
+		for _, instance := range instancesInGroup {
 			instances = append(instances, sortableValue{value: instance, weight: conflicts})
 		}
 	}
@@ -232,13 +231,13 @@ func knapsack(instances []placement.Instance, targetWeight int) ([]placement.Ins
 	panic("should never reach here")
 }
 
-func buildRackMap(candidates []placement.Instance) map[string][]placement.Instance {
+func buildIsolationGroupMap(candidates []placement.Instance) map[string][]placement.Instance {
 	result := make(map[string][]placement.Instance, len(candidates))
 	for _, instance := range candidates {
-		if _, exist := result[instance.Rack()]; !exist {
-			result[instance.Rack()] = make([]placement.Instance, 0)
+		if _, exist := result[instance.IsolationGroup()]; !exist {
+			result[instance.IsolationGroup()] = make([]placement.Instance, 0)
 		}
-		result[instance.Rack()] = append(result[instance.Rack()], instance)
+		result[instance.IsolationGroup()] = append(result[instance.IsolationGroup()], instance)
 	}
 	return result
 }

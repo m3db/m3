@@ -28,19 +28,19 @@ import (
 )
 
 var (
-	errNotEnoughRacks              = errors.New("not enough racks to take shards, please make sure RF is less than number of racks")
+	errNotEnoughIsolationGroups    = errors.New("not enough isolation groups to take shards, please make sure RF is less than number of isolation groups")
 	errIncompatibleWithShardedAlgo = errors.New("could not apply sharded algo on the placement")
 )
 
-type rackAwarePlacementAlgorithm struct {
+type shardedPlacementAlgorithm struct {
 	opts placement.Options
 }
 
 func newShardedAlgorithm(opts placement.Options) placement.Algorithm {
-	return rackAwarePlacementAlgorithm{opts: opts}
+	return shardedPlacementAlgorithm{opts: opts}
 }
 
-func (a rackAwarePlacementAlgorithm) IsCompatibleWith(p placement.Placement) error {
+func (a shardedPlacementAlgorithm) IsCompatibleWith(p placement.Placement) error {
 	if !p.IsSharded() {
 		return errIncompatibleWithShardedAlgo
 	}
@@ -48,7 +48,7 @@ func (a rackAwarePlacementAlgorithm) IsCompatibleWith(p placement.Placement) err
 	return nil
 }
 
-func (a rackAwarePlacementAlgorithm) InitialPlacement(
+func (a shardedPlacementAlgorithm) InitialPlacement(
 	instances []placement.Instance,
 	shards []uint32,
 	rf int,
@@ -74,7 +74,7 @@ func (a rackAwarePlacementAlgorithm) InitialPlacement(
 	return cleanupShardState(p, a.opts)
 }
 
-func (a rackAwarePlacementAlgorithm) AddReplica(p placement.Placement) (placement.Placement, error) {
+func (a shardedPlacementAlgorithm) AddReplica(p placement.Placement) (placement.Placement, error) {
 	if err := a.IsCompatibleWith(p); err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func (a rackAwarePlacementAlgorithm) AddReplica(p placement.Placement) (placemen
 	return tryCleanupShardState(ph.generatePlacement(), a.opts)
 }
 
-func (a rackAwarePlacementAlgorithm) RemoveInstances(
+func (a shardedPlacementAlgorithm) RemoveInstances(
 	p placement.Placement,
 	instanceIDs []string,
 ) (placement.Placement, error) {
@@ -122,7 +122,7 @@ func (a rackAwarePlacementAlgorithm) RemoveInstances(
 	return tryCleanupShardState(p, a.opts)
 }
 
-func (a rackAwarePlacementAlgorithm) AddInstances(
+func (a shardedPlacementAlgorithm) AddInstances(
 	p placement.Placement,
 	instances []placement.Instance,
 ) (placement.Placement, error) {
@@ -147,7 +147,7 @@ func (a rackAwarePlacementAlgorithm) AddInstances(
 	return tryCleanupShardState(p, a.opts)
 }
 
-func (a rackAwarePlacementAlgorithm) ReplaceInstances(
+func (a shardedPlacementAlgorithm) ReplaceInstances(
 	p placement.Placement,
 	leavingInstanceIDs []string,
 	addingInstances []placement.Instance,
@@ -164,9 +164,10 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstances(
 
 	for _, leavingInstance := range leavingInstances {
 		err = ph.placeShards(leavingInstance.Shards().All(), leavingInstance, addingInstances)
-		if err != nil && err != errNotEnoughRacks {
-			// errNotEnoughRacks means the adding instances do not have enough racks to take all the shards,
-			// but the rest instances might have more racks to take all the shards.
+		if err != nil && err != errNotEnoughIsolationGroups {
+			// errNotEnoughIsolationGroups means the adding instances do not
+			// have enough isolation groups to take all the shards, but the rest
+			// instances might have more isolation groups to take all the shards.
 			return nil, err
 		}
 		load := loadOnInstance(leavingInstance)
@@ -198,7 +199,7 @@ func (a rackAwarePlacementAlgorithm) ReplaceInstances(
 	return tryCleanupShardState(p, a.opts)
 }
 
-func (a rackAwarePlacementAlgorithm) MarkShardAvailable(
+func (a shardedPlacementAlgorithm) MarkShardAvailable(
 	p placement.Placement,
 	instanceID string,
 	shardID uint32,
@@ -210,7 +211,7 @@ func (a rackAwarePlacementAlgorithm) MarkShardAvailable(
 	return markShardAvailable(p.Clone(), instanceID, shardID, a.opts)
 }
 
-func (a rackAwarePlacementAlgorithm) MarkAllShardsAvailable(
+func (a shardedPlacementAlgorithm) MarkAllShardsAvailable(
 	p placement.Placement,
 ) (placement.Placement, bool, error) {
 	if err := a.IsCompatibleWith(p); err != nil {

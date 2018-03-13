@@ -205,7 +205,7 @@ func testResultDeterministic(t *testing.T, groups [][]placement.Instance, target
 	assert.Equal(t, res, res1)
 }
 
-func TestRackLenSort(t *testing.T) {
+func TestIsolationGroupLenSort(t *testing.T) {
 	r1 := sortableValue{value: "r1", weight: 1}
 	r2 := sortableValue{value: "r2", weight: 2}
 	r3 := sortableValue{value: "r3", weight: 3}

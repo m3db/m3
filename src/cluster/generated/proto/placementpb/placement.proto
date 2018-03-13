@@ -41,7 +41,7 @@ message Placement {
 
 message Instance {
   string id = 1;
-  string rack = 2;
+  string isolation_group = 2;
   string zone = 3;
   uint32 weight = 4;
   string endpoint = 5;

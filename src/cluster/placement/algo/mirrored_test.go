@@ -33,37 +33,37 @@ import (
 func TestMirrorWorkflow(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1)
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1)
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(2).
 		SetWeight(2)
 	i4 := placement.NewInstance().
 		SetID("i4").
-		SetRack("r4").
+		SetIsolationGroup("r4").
 		SetEndpoint("endpoint4").
 		SetShardSetID(2).
 		SetWeight(2)
 	i5 := placement.NewInstance().
 		SetID("i5").
-		SetRack("r5").
+		SetIsolationGroup("r5").
 		SetEndpoint("endpoint5").
 		SetShardSetID(3).
 		SetWeight(3)
 	i6 := placement.NewInstance().
 		SetID("i6").
-		SetRack("r6").
+		SetIsolationGroup("r6").
 		SetEndpoint("endpoint6").
 		SetShardSetID(3).
 		SetWeight(3)
@@ -97,13 +97,13 @@ func TestMirrorWorkflow(t *testing.T) {
 
 	i7 := placement.NewInstance().
 		SetID("i7").
-		SetRack("r7").
+		SetIsolationGroup("r7").
 		SetEndpoint("endpoint7").
 		SetShardSetID(4).
 		SetWeight(4)
 	i8 := placement.NewInstance().
 		SetID("i8").
-		SetRack("r8").
+		SetIsolationGroup("r8").
 		SetEndpoint("endpoint8").
 		SetShardSetID(4).
 		SetWeight(4)
@@ -149,7 +149,7 @@ func TestMirrorWorkflow(t *testing.T) {
 	p, err = a.ReplaceInstances(p, []string{"i6"}, []placement.Instance{
 		placement.NewInstance().
 			SetID("i16").
-			SetRack("r6").
+			SetIsolationGroup("r6").
 			SetEndpoint("endpoint6").
 			SetShardSetID(3).
 			SetWeight(3),
@@ -160,13 +160,13 @@ func TestMirrorWorkflow(t *testing.T) {
 
 	i9 := placement.NewInstance().
 		SetID("i9").
-		SetRack("r9").
+		SetIsolationGroup("r9").
 		SetEndpoint("endpoint9").
 		SetShardSetID(5).
 		SetWeight(1)
 	i10 := placement.NewInstance().
 		SetID("i10").
-		SetRack("r10").
+		SetIsolationGroup("r10").
 		SetEndpoint("endpoint10").
 		SetShardSetID(5).
 		SetWeight(1)
@@ -178,7 +178,7 @@ func TestMirrorWorkflow(t *testing.T) {
 	p, err = a.ReplaceInstances(p, []string{"i9"}, []placement.Instance{
 		placement.NewInstance().
 			SetID("i19").
-			SetRack("r9").
+			SetIsolationGroup("r9").
 			SetEndpoint("endpoint19").
 			SetShardSetID(5).
 			SetWeight(1),
@@ -196,37 +196,37 @@ func TestMirrorWorkflow(t *testing.T) {
 func TestMirrorTestAddAndRevertBeforeCutover(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1)
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1)
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(2).
 		SetWeight(2)
 	i4 := placement.NewInstance().
 		SetID("i4").
-		SetRack("r4").
+		SetIsolationGroup("r4").
 		SetEndpoint("endpoint4").
 		SetShardSetID(2).
 		SetWeight(2)
 	i5 := placement.NewInstance().
 		SetID("i5").
-		SetRack("r5").
+		SetIsolationGroup("r5").
 		SetEndpoint("endpoint5").
 		SetShardSetID(3).
 		SetWeight(3)
 	i6 := placement.NewInstance().
 		SetID("i6").
-		SetRack("r6").
+		SetIsolationGroup("r6").
 		SetEndpoint("endpoint6").
 		SetShardSetID(3).
 		SetWeight(3)
@@ -274,37 +274,37 @@ func TestMirrorTestAddAndRevertBeforeCutover(t *testing.T) {
 func TestMirrorTestAddAndRevertAfterCutover(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1)
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1)
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(2).
 		SetWeight(2)
 	i4 := placement.NewInstance().
 		SetID("i4").
-		SetRack("r4").
+		SetIsolationGroup("r4").
 		SetEndpoint("endpoint4").
 		SetShardSetID(2).
 		SetWeight(2)
 	i5 := placement.NewInstance().
 		SetID("i5").
-		SetRack("r5").
+		SetIsolationGroup("r5").
 		SetEndpoint("endpoint5").
 		SetShardSetID(3).
 		SetWeight(3)
 	i6 := placement.NewInstance().
 		SetID("i6").
-		SetRack("r6").
+		SetIsolationGroup("r6").
 		SetEndpoint("endpoint6").
 		SetShardSetID(3).
 		SetWeight(3)
@@ -350,37 +350,37 @@ func TestMirrorTestAddAndRevertAfterCutover(t *testing.T) {
 func TestMirrorTestRemoveAndRevertBeforeCutover(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1)
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1)
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(2).
 		SetWeight(2)
 	i4 := placement.NewInstance().
 		SetID("i4").
-		SetRack("r4").
+		SetIsolationGroup("r4").
 		SetEndpoint("endpoint4").
 		SetShardSetID(2).
 		SetWeight(2)
 	i5 := placement.NewInstance().
 		SetID("i5").
-		SetRack("r5").
+		SetIsolationGroup("r5").
 		SetEndpoint("endpoint5").
 		SetShardSetID(3).
 		SetWeight(3)
 	i6 := placement.NewInstance().
 		SetID("i6").
-		SetRack("r6").
+		SetIsolationGroup("r6").
 		SetEndpoint("endpoint6").
 		SetShardSetID(3).
 		SetWeight(3)
@@ -430,37 +430,37 @@ func TestMirrorTestRemoveAndRevertBeforeCutover(t *testing.T) {
 func TestMirrorTestRemoveAndRevertAfterCutover(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1)
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1)
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(2).
 		SetWeight(2)
 	i4 := placement.NewInstance().
 		SetID("i4").
-		SetRack("r4").
+		SetIsolationGroup("r4").
 		SetEndpoint("endpoint4").
 		SetShardSetID(2).
 		SetWeight(2)
 	i5 := placement.NewInstance().
 		SetID("i5").
-		SetRack("r5").
+		SetIsolationGroup("r5").
 		SetEndpoint("endpoint5").
 		SetShardSetID(3).
 		SetWeight(3)
 	i6 := placement.NewInstance().
 		SetID("i6").
-		SetRack("r6").
+		SetIsolationGroup("r6").
 		SetEndpoint("endpoint6").
 		SetShardSetID(3).
 		SetWeight(3)
@@ -507,31 +507,31 @@ func TestMirrorTestRemoveAndRevertAfterCutover(t *testing.T) {
 func TestMirrorTestReplaceAndRevertBeforeCutover(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1)
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1)
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(2).
 		SetWeight(2)
 	i4 := placement.NewInstance().
 		SetID("i4").
-		SetRack("r4").
+		SetIsolationGroup("r4").
 		SetEndpoint("endpoint4").
 		SetShardSetID(2).
 		SetWeight(2)
 	i5 := placement.NewInstance().
 		SetID("i5").
-		SetRack("r5").
+		SetIsolationGroup("r5").
 		SetEndpoint("endpoint5").
 		SetShardSetID(2).
 		SetWeight(2)
@@ -577,31 +577,31 @@ func TestMirrorTestReplaceAndRevertBeforeCutover(t *testing.T) {
 func TestMirrorTestReplaceAndRevertAfterCutover(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1)
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1)
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(2).
 		SetWeight(2)
 	i4 := placement.NewInstance().
 		SetID("i4").
-		SetRack("r4").
+		SetIsolationGroup("r4").
 		SetEndpoint("endpoint4").
 		SetShardSetID(2).
 		SetWeight(2)
 	i5 := placement.NewInstance().
 		SetID("i5").
-		SetRack("r5").
+		SetIsolationGroup("r5").
 		SetEndpoint("endpoint5").
 		SetShardSetID(2).
 		SetWeight(2)
@@ -663,19 +663,19 @@ func TestMirrorTestReplaceAndRevertAfterCutover(t *testing.T) {
 func TestMirrorInitError(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1)
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1)
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(2).
 		SetWeight(2)
@@ -696,37 +696,37 @@ func TestMirrorInitError(t *testing.T) {
 func TestMirrorAddInstancesError(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1)
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1)
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(2).
 		SetWeight(2)
 	i4 := placement.NewInstance().
 		SetID("i4").
-		SetRack("r4").
+		SetIsolationGroup("r4").
 		SetEndpoint("endpoint4").
 		SetShardSetID(2).
 		SetWeight(2)
 	i5 := placement.NewInstance().
 		SetID("i5").
-		SetRack("r5").
+		SetIsolationGroup("r5").
 		SetEndpoint("endpoint5").
 		SetShardSetID(3).
 		SetWeight(3)
 	i6 := placement.NewInstance().
 		SetID("i6").
-		SetRack("r6").
+		SetIsolationGroup("r6").
 		SetEndpoint("endpoint6").
 		SetShardSetID(3).
 		SetWeight(3)
@@ -762,13 +762,13 @@ func TestMirrorAddInstancesError(t *testing.T) {
 	p, err = a.AddInstances(p, []placement.Instance{
 		placement.NewInstance().
 			SetID("i3").
-			SetRack("r3").
+			SetIsolationGroup("r3").
 			SetEndpoint("endpoint3").
 			SetShardSetID(2).
 			SetWeight(2),
 		placement.NewInstance().
 			SetID("i4").
-			SetRack("r4").
+			SetIsolationGroup("r4").
 			SetEndpoint("endpoint4").
 			SetShardSetID(2).
 			SetWeight(2),
@@ -781,13 +781,13 @@ func TestMirrorAddInstancesError(t *testing.T) {
 	_, err = a.AddInstances(p, []placement.Instance{
 		placement.NewInstance().
 			SetID("i7").
-			SetRack("r7").
+			SetIsolationGroup("r7").
 			SetEndpoint("endpoint7").
 			SetShardSetID(1).
 			SetWeight(3),
 		placement.NewInstance().
 			SetID("i7").
-			SetRack("r7").
+			SetIsolationGroup("r7").
 			SetEndpoint("endpoint7").
 			SetShardSetID(1).
 			SetWeight(3)},
@@ -799,25 +799,25 @@ func TestMirrorAddInstancesError(t *testing.T) {
 func TestMirrorRemoveInstancesError(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1)
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1)
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(2).
 		SetWeight(2)
 	i4 := placement.NewInstance().
 		SetID("i4").
-		SetRack("r4").
+		SetIsolationGroup("r4").
 		SetEndpoint("endpoint4").
 		SetShardSetID(2).
 		SetWeight(2)
@@ -856,25 +856,25 @@ func TestMirrorRemoveInstancesError(t *testing.T) {
 func TestMirrorReplaceInstancesError(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1)
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1)
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(2).
 		SetWeight(2)
 	i4 := placement.NewInstance().
 		SetID("i4").
-		SetRack("r4").
+		SetIsolationGroup("r4").
 		SetEndpoint("endpoint4").
 		SetShardSetID(2).
 		SetWeight(2)
@@ -896,7 +896,7 @@ func TestMirrorReplaceInstancesError(t *testing.T) {
 	_, err = a.ReplaceInstances(p.SetIsMirrored(false), []string{"i1"}, []placement.Instance{
 		placement.NewInstance().
 			SetID("i11").
-			SetRack("r1").
+			SetIsolationGroup("r1").
 			SetEndpoint("endpoint1").
 			SetShardSetID(0).
 			SetWeight(1),
@@ -907,13 +907,13 @@ func TestMirrorReplaceInstancesError(t *testing.T) {
 	_, err = a.ReplaceInstances(p, []string{"i1"}, []placement.Instance{
 		placement.NewInstance().
 			SetID("i11").
-			SetRack("r1").
+			SetIsolationGroup("r1").
 			SetEndpoint("endpoint1").
 			SetShardSetID(0).
 			SetWeight(1),
 		placement.NewInstance().
 			SetID("i12").
-			SetRack("r1").
+			SetIsolationGroup("r1").
 			SetEndpoint("endpoint1").
 			SetShardSetID(0).
 			SetWeight(1),
@@ -924,7 +924,7 @@ func TestMirrorReplaceInstancesError(t *testing.T) {
 	_, err = a.ReplaceInstances(p, []string{"bad"}, []placement.Instance{
 		placement.NewInstance().
 			SetID("i11").
-			SetRack("r1").
+			SetIsolationGroup("r1").
 			SetEndpoint("endpoint1").
 			SetShardSetID(0).
 			SetWeight(1),
@@ -936,7 +936,7 @@ func TestMirrorReplaceInstancesError(t *testing.T) {
 func TestMirrorReplaceWithLeavingShards(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1).
@@ -946,7 +946,7 @@ func TestMirrorReplaceWithLeavingShards(t *testing.T) {
 		}))
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1).
@@ -956,7 +956,7 @@ func TestMirrorReplaceWithLeavingShards(t *testing.T) {
 		}))
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(2).
 		SetWeight(2).
@@ -966,7 +966,7 @@ func TestMirrorReplaceWithLeavingShards(t *testing.T) {
 		}))
 	i4 := placement.NewInstance().
 		SetID("i4").
-		SetRack("r4").
+		SetIsolationGroup("r4").
 		SetEndpoint("endpoint4").
 		SetShardSetID(2).
 		SetWeight(2).
@@ -987,14 +987,14 @@ func TestMirrorReplaceWithLeavingShards(t *testing.T) {
 
 	replaceI1 := placement.NewInstance().
 		SetID("newI1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1)
 
 	replaceI4 := placement.NewInstance().
 		SetID("newI4").
-		SetRack("r4").
+		SetIsolationGroup("r4").
 		SetEndpoint("endpoint4").
 		SetShardSetID(2).
 		SetWeight(2)
@@ -1045,7 +1045,7 @@ func TestIncompatibleWithMirroredAlgo(t *testing.T) {
 func TestGroupInstanceByShardSetID(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1).
@@ -1054,7 +1054,7 @@ func TestGroupInstanceByShardSetID(t *testing.T) {
 		}))
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1).
@@ -1067,7 +1067,7 @@ func TestGroupInstanceByShardSetID(t *testing.T) {
 	assert.Equal(t, 1, len(res))
 	assert.Equal(t, placement.NewInstance().
 		SetID("1").
-		SetRack("1").
+		SetIsolationGroup("1").
 		SetShardSetID(1).
 		SetWeight(1).
 		SetShards(shard.NewShards([]shard.Shard{
@@ -1077,14 +1077,14 @@ func TestGroupInstanceByShardSetID(t *testing.T) {
 	_, err = groupInstancesByShardSetID([]placement.Instance{i1, i2.Clone().SetWeight(2)}, 2)
 	assert.Error(t, err)
 
-	_, err = groupInstancesByShardSetID([]placement.Instance{i1, i2.Clone().SetRack("r1")}, 2)
+	_, err = groupInstancesByShardSetID([]placement.Instance{i1, i2.Clone().SetIsolationGroup("r1")}, 2)
 	assert.Error(t, err)
 }
 
 func TestReturnInitializingShards(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1).
@@ -1094,7 +1094,7 @@ func TestReturnInitializingShards(t *testing.T) {
 		}))
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1).
@@ -1104,7 +1104,7 @@ func TestReturnInitializingShards(t *testing.T) {
 		}))
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(1).
 		SetWeight(1).
@@ -1113,7 +1113,7 @@ func TestReturnInitializingShards(t *testing.T) {
 		}))
 	i4 := placement.NewInstance().
 		SetID("i4").
-		SetRack("r1"). // Same rack with i1.
+		SetIsolationGroup("r1"). // Same isolation group with i1.
 		SetEndpoint("endpoint4").
 		SetShardSetID(1).
 		SetWeight(1).
@@ -1139,7 +1139,7 @@ func TestReturnInitializingShards(t *testing.T) {
 func TestReclaimLeavingShards(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1).
@@ -1148,7 +1148,7 @@ func TestReclaimLeavingShards(t *testing.T) {
 		}))
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1).
@@ -1157,7 +1157,7 @@ func TestReclaimLeavingShards(t *testing.T) {
 		}))
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(1).
 		SetWeight(1).
@@ -1166,7 +1166,7 @@ func TestReclaimLeavingShards(t *testing.T) {
 		}))
 	i4 := placement.NewInstance().
 		SetID("i4").
-		SetRack("r1"). // Same rack with i1.
+		SetIsolationGroup("r1"). // Same isolation group with i1.
 		SetEndpoint("endpoint4").
 		SetShardSetID(1).
 		SetWeight(1).
@@ -1192,7 +1192,7 @@ func TestReclaimLeavingShards(t *testing.T) {
 func TestReclaimLeavingShardsWithAvailable(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1).
@@ -1201,7 +1201,7 @@ func TestReclaimLeavingShardsWithAvailable(t *testing.T) {
 		}))
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1).
@@ -1210,7 +1210,7 @@ func TestReclaimLeavingShardsWithAvailable(t *testing.T) {
 		}))
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(2).
 		SetWeight(1).
@@ -1220,7 +1220,7 @@ func TestReclaimLeavingShardsWithAvailable(t *testing.T) {
 		}))
 	i4 := placement.NewInstance().
 		SetID("i4").
-		SetRack("r1"). // Same rack with i1.
+		SetIsolationGroup("r1"). // Same isolation group with i1.
 		SetEndpoint("endpoint4").
 		SetShardSetID(2).
 		SetWeight(1).
@@ -1289,37 +1289,37 @@ func TestMarkShardAsAvailableWithMirroredAlgo(t *testing.T) {
 func TestMirrorAlgoWithSimpleShardStateType(t *testing.T) {
 	i1 := placement.NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetEndpoint("endpoint1").
 		SetShardSetID(1).
 		SetWeight(1)
 	i2 := placement.NewInstance().
 		SetID("i2").
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetEndpoint("endpoint2").
 		SetShardSetID(1).
 		SetWeight(1)
 	i3 := placement.NewInstance().
 		SetID("i3").
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetEndpoint("endpoint3").
 		SetShardSetID(2).
 		SetWeight(2)
 	i4 := placement.NewInstance().
 		SetID("i4").
-		SetRack("r4").
+		SetIsolationGroup("r4").
 		SetEndpoint("endpoint4").
 		SetShardSetID(2).
 		SetWeight(2)
 	i5 := placement.NewInstance().
 		SetID("i5").
-		SetRack("r5").
+		SetIsolationGroup("r5").
 		SetEndpoint("endpoint5").
 		SetShardSetID(3).
 		SetWeight(3)
 	i6 := placement.NewInstance().
 		SetID("i6").
-		SetRack("r6").
+		SetIsolationGroup("r6").
 		SetEndpoint("endpoint6").
 		SetShardSetID(3).
 		SetWeight(3)
@@ -1342,13 +1342,13 @@ func TestMirrorAlgoWithSimpleShardStateType(t *testing.T) {
 
 	i7 := placement.NewInstance().
 		SetID("i7").
-		SetRack("r7").
+		SetIsolationGroup("r7").
 		SetEndpoint("endpoint7").
 		SetShardSetID(4).
 		SetWeight(4)
 	i8 := placement.NewInstance().
 		SetID("i8").
-		SetRack("r8").
+		SetIsolationGroup("r8").
 		SetEndpoint("endpoint8").
 		SetShardSetID(4).
 		SetWeight(4)
@@ -1365,7 +1365,7 @@ func TestMirrorAlgoWithSimpleShardStateType(t *testing.T) {
 	p, err = a.ReplaceInstances(p, []string{"i6"}, []placement.Instance{
 		placement.NewInstance().
 			SetID("i16").
-			SetRack("r6").
+			SetIsolationGroup("r6").
 			SetEndpoint("endpoint6").
 			SetShardSetID(3).
 			SetWeight(3),
@@ -1376,13 +1376,13 @@ func TestMirrorAlgoWithSimpleShardStateType(t *testing.T) {
 
 	i9 := placement.NewInstance().
 		SetID("i9").
-		SetRack("r9").
+		SetIsolationGroup("r9").
 		SetEndpoint("endpoint9").
 		SetShardSetID(5).
 		SetWeight(1)
 	i10 := placement.NewInstance().
 		SetID("i10").
-		SetRack("r10").
+		SetIsolationGroup("r10").
 		SetEndpoint("endpoint10").
 		SetShardSetID(5).
 		SetWeight(1)
@@ -1394,7 +1394,7 @@ func TestMirrorAlgoWithSimpleShardStateType(t *testing.T) {
 	p, err = a.ReplaceInstances(p, []string{"i9"}, []placement.Instance{
 		placement.NewInstance().
 			SetID("i19").
-			SetRack("r9").
+			SetIsolationGroup("r9").
 			SetEndpoint("endpoint19").
 			SetShardSetID(5).
 			SetWeight(1),

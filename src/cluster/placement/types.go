@@ -43,11 +43,12 @@ type Instance interface {
 	// SetID sets the id of the instance.
 	SetID(id string) Instance
 
-	// Rack is the rack of the instance.
-	Rack() string
+	// IsolationGroup is the isolation group of the instance,
+	// which usually but not necessarily refers to the rack of the instance.
+	IsolationGroup() string
 
-	// SetRack sets the rack of the instance.
-	SetRack(r string) Instance
+	// SetIsolationGroup sets the isolation group of the instance.
+	SetIsolationGroup(r string) Instance
 
 	// Zone is the zone of the instance.
 	Zone() string
