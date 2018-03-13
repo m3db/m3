@@ -93,6 +93,7 @@ func applySessionTestOptions(opts Options) Options {
 		SetSeriesIteratorPoolSize(0).
 		SetSeriesIteratorArrayPoolBuckets([]pool.Bucket{}).
 		SetWriteOpPoolSize(0).
+		SetWriteTaggedOpPoolSize(0).
 		SetFetchBatchOpPoolSize(0).
 		SetTopologyInitializer(topology.NewStaticInitializer(
 			topology.NewStaticOptions().

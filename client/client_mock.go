@@ -1886,6 +1886,30 @@ func (_mr *MockOptionsMockRecorder) WriteOpPoolSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteOpPoolSize", reflect.TypeOf((*MockOptions)(nil).WriteOpPoolSize))
 }
 
+// SetWriteTaggedOpPoolSize mocks base method
+func (_m *MockOptions) SetWriteTaggedOpPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteTaggedOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteTaggedOpPoolSize indicates an expected call of SetWriteTaggedOpPoolSize
+func (_mr *MockOptionsMockRecorder) SetWriteTaggedOpPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteTaggedOpPoolSize", reflect.TypeOf((*MockOptions)(nil).SetWriteTaggedOpPoolSize), arg0)
+}
+
+// WriteTaggedOpPoolSize mocks base method
+func (_m *MockOptions) WriteTaggedOpPoolSize() int {
+	ret := _m.ctrl.Call(_m, "WriteTaggedOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// WriteTaggedOpPoolSize indicates an expected call of WriteTaggedOpPoolSize
+func (_mr *MockOptionsMockRecorder) WriteTaggedOpPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteTaggedOpPoolSize", reflect.TypeOf((*MockOptions)(nil).WriteTaggedOpPoolSize))
+}
+
 // SetFetchBatchOpPoolSize mocks base method
 func (_m *MockOptions) SetFetchBatchOpPoolSize(value int) Options {
 	ret := _m.ctrl.Call(_m, "SetFetchBatchOpPoolSize", value)
@@ -2795,6 +2819,30 @@ func (_m *MockAdminOptions) WriteOpPoolSize() int {
 // WriteOpPoolSize indicates an expected call of WriteOpPoolSize
 func (_mr *MockAdminOptionsMockRecorder) WriteOpPoolSize() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).WriteOpPoolSize))
+}
+
+// SetWriteTaggedOpPoolSize mocks base method
+func (_m *MockAdminOptions) SetWriteTaggedOpPoolSize(value int) Options {
+	ret := _m.ctrl.Call(_m, "SetWriteTaggedOpPoolSize", value)
+	ret0, _ := ret[0].(Options)
+	return ret0
+}
+
+// SetWriteTaggedOpPoolSize indicates an expected call of SetWriteTaggedOpPoolSize
+func (_mr *MockAdminOptionsMockRecorder) SetWriteTaggedOpPoolSize(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "SetWriteTaggedOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).SetWriteTaggedOpPoolSize), arg0)
+}
+
+// WriteTaggedOpPoolSize mocks base method
+func (_m *MockAdminOptions) WriteTaggedOpPoolSize() int {
+	ret := _m.ctrl.Call(_m, "WriteTaggedOpPoolSize")
+	ret0, _ := ret[0].(int)
+	return ret0
+}
+
+// WriteTaggedOpPoolSize indicates an expected call of WriteTaggedOpPoolSize
+func (_mr *MockAdminOptionsMockRecorder) WriteTaggedOpPoolSize() *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "WriteTaggedOpPoolSize", reflect.TypeOf((*MockAdminOptions)(nil).WriteTaggedOpPoolSize))
 }
 
 // SetFetchBatchOpPoolSize mocks base method

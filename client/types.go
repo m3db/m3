@@ -574,6 +574,12 @@ type Options interface {
 	// WriteOpPoolSize returns the writeOperationPoolSize
 	WriteOpPoolSize() int
 
+	// SetWriteTaggedOpPoolSize sets the writeTaggedOperationPoolSize
+	SetWriteTaggedOpPoolSize(value int) Options
+
+	// WriteTaggedOpPoolSize returns the writeTaggedOperationPoolSize
+	WriteTaggedOpPoolSize() int
+
 	// SetFetchBatchOpPoolSize sets the fetchBatchOpPoolSize
 	SetFetchBatchOpPoolSize(value int) Options
 

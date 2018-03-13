@@ -79,6 +79,9 @@ const (
 	// defaultWriteOpPoolSize is the default write op pool size
 	defaultWriteOpPoolSize = 65536
 
+	// defaultWriteTaggedOpPoolSize is the default write tagged op pool size
+	defaultWriteTaggedOpPoolSize = 65536
+
 	// defaultFetchBatchOpPoolSize is the default fetch op pool size
 	defaultFetchBatchOpPoolSize = 8192
 
@@ -198,6 +201,7 @@ type options struct {
 	streamBlocksRetrier                     xretry.Retrier
 	readerIteratorAllocate                  encoding.ReaderIteratorAllocate
 	writeOperationPoolSize                  int
+	writeTaggedOperationPoolSize            int
 	fetchBatchOpPoolSize                    int
 	writeBatchSize                          int
 	fetchBatchSize                          int
@@ -268,6 +272,7 @@ func newOptions() *options {
 		tagEncoderOpts:                          serialize.NewTagEncoderOptions(),
 		streamBlocksRetrier:                     defaultStreamBlocksRetrier,
 		writeOperationPoolSize:                  defaultWriteOpPoolSize,
+		writeTaggedOperationPoolSize:            defaultWriteTaggedOpPoolSize,
 		fetchBatchOpPoolSize:                    defaultFetchBatchOpPoolSize,
 		writeBatchSize:                          defaultWriteBatchSize,
 		fetchBatchSize:                          defaultFetchBatchSize,
@@ -563,6 +568,16 @@ func (o *options) SetWriteOpPoolSize(value int) Options {
 
 func (o *options) WriteOpPoolSize() int {
 	return o.writeOperationPoolSize
+}
+
+func (o *options) SetWriteTaggedOpPoolSize(value int) Options {
+	opts := *o
+	opts.writeTaggedOperationPoolSize = value
+	return &opts
+}
+
+func (o *options) WriteTaggedOpPoolSize() int {
+	return o.writeTaggedOperationPoolSize
 }
 
 func (o *options) SetFetchBatchOpPoolSize(value int) Options {

@@ -426,21 +426,27 @@ func (s *session) Open() error {
 		))
 	s.writeOperationPool = newWriteOperationPool(writeOperationPoolOpts)
 	s.writeOperationPool.Init()
-	// TODO(prateek): add Options knob to tweak tagged pool sizes (either replicate opts) or include multiplier?
+
 	writeTaggedOperationPoolOpts := pool.NewObjectPoolOptions().
-		SetSize(s.opts.WriteOpPoolSize()).
+		SetSize(s.opts.WriteTaggedOpPoolSize()).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-op-tagged-pool"),
 		))
 	s.writeTaggedOperationPool = newWriteTaggedOpPool(writeTaggedOperationPoolOpts)
 	s.writeTaggedOperationPool.Init()
+
+	writeStatePoolSize := s.opts.WriteOpPoolSize()
+	if s.opts.WriteTaggedOpPoolSize() > writeStatePoolSize {
+		writeStatePoolSize = s.opts.WriteTaggedOpPoolSize()
+	}
 	writeStatePoolOpts := pool.NewObjectPoolOptions().
-		SetSize(s.opts.WriteOpPoolSize()).
+		SetSize(writeStatePoolSize).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
 			s.scope.SubScope("write-state-pool"),
 		))
 	s.writeStatePool = newWriteStatePool(s.writeLevel, s.tagEncoderPool, writeStatePoolOpts)
 	s.writeStatePool.Init()
+
 	fetchBatchOpPoolOpts := pool.NewObjectPoolOptions().
 		SetSize(s.opts.FetchBatchOpPoolSize()).
 		SetInstrumentOptions(s.opts.InstrumentOptions().SetMetricsScope(
@@ -724,8 +730,12 @@ func (s *session) newHostQueue(host topology.Host, topoMap topology.Map) hostQue
 	// For purposes of simplifying the options for pooling the write op pool size
 	// represents the number of ops to pool not including replication, this is due
 	// to the fact that the ops are shared between the different host queue replicas.
+	writeOpPoolSize := s.opts.WriteOpPoolSize()
+	if s.opts.WriteTaggedOpPoolSize() > writeOpPoolSize {
+		writeOpPoolSize = s.opts.WriteTaggedOpPoolSize()
+	}
 	totalBatches := topoMap.Replicas() *
-		int(math.Ceil(float64(s.opts.WriteOpPoolSize())/float64(s.opts.WriteBatchSize())))
+		int(math.Ceil(float64(writeOpPoolSize)/float64(s.opts.WriteBatchSize())))
 	hostBatches := int(math.Ceil(float64(totalBatches) / float64(topoMap.HostsLen())))
 
 	writeBatchRequestPoolOpts := pool.NewObjectPoolOptions().
