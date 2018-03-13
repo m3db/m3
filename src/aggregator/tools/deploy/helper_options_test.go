@@ -55,7 +55,7 @@ func TestValidateNoToAPIEndpointFn(t *testing.T) {
 func testHelperOptions() HelperOptions {
 	return NewHelperOptions().
 		SetPlannerOptions(NewPlannerOptions()).
-		SetManager(&mockManager{}).
+		SetManager(&MockManager{}).
 		SetHTTPClient(&http.Client{}).
 		SetToPlacementInstanceIDFn(func(deploymentInstanceID string) (string, error) {
 			return "", nil

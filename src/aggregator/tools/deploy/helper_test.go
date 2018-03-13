@@ -22,6 +22,7 @@ package deploy
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -29,6 +30,7 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3x/retry"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,12 +55,6 @@ var (
 				SetShardSetID(1),
 		},
 	)
-	testMockInstances = []Instance{
-		&mockInstance{id: "deployment_instance1", revision: "revision1"},
-		&mockInstance{id: "deployment_instance2", revision: "revision2"},
-		&mockInstance{id: "deployment_instance3", revision: "revision3"},
-		&mockInstance{id: "deployment_instance4", revision: "revision4"},
-	}
 	testInstanceMetadatas = instanceMetadatas{
 		{
 			PlacementInstanceID:  "placement_instance1",
@@ -97,126 +93,189 @@ func TestHelperDeployEmptyRevision(t *testing.T) {
 }
 
 func TestHelperGeneratePlanError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	instances := testMockInstances(ctrl)
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().QueryAll().Return(instances, nil).AnyTimes()
+
 	errGeneratePlan := errors.New("error generating plan")
+	planner := NewMockplanner(ctrl)
+	planner.EXPECT().GeneratePlan(gomock.Any(), gomock.Any()).Return(emptyPlan, errGeneratePlan).AnyTimes()
+
 	helper := testHelper(t)
-	helper.mgr = &mockManager{
-		queryAllFn: func() ([]Instance, error) { return testMockInstances, nil },
-	}
-	helper.planner = &mockPlanner{
-		generatePlanFn: func(toDeploy, all instanceMetadatas) (deploymentPlan, error) {
-			return emptyPlan, errGeneratePlan
-		},
-	}
+	helper.mgr = mgr
+	helper.planner = planner
 	require.Error(t, helper.Deploy("revision4", testPlacement, DryRunMode))
 }
 
 func TestHelperGeneratePlanDryRunMode(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		filteredRes instanceMetadatas
 		allRes      instanceMetadatas
 	)
-	helper := testHelper(t)
-	helper.mgr = &mockManager{
-		queryAllFn: func() ([]Instance, error) { return testMockInstances, nil },
-	}
-	helper.planner = &mockPlanner{
-		generatePlanFn: func(toDeploy, all instanceMetadatas) (deploymentPlan, error) {
+
+	instances := testMockInstances(ctrl)
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().QueryAll().Return(instances, nil).AnyTimes()
+
+	planner := NewMockplanner(ctrl)
+	planner.EXPECT().
+		GeneratePlan(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(toDeploy, all instanceMetadatas) (deploymentPlan, error) {
 			filteredRes = toDeploy
 			allRes = all
 			return emptyPlan, nil
-		},
-	}
+		}).
+		AnyTimes()
+
+	helper := testHelper(t)
+	helper.mgr = mgr
+	helper.planner = planner
 	require.NoError(t, helper.Deploy("revision4", testPlacement, DryRunMode))
 	require.Equal(t, testInstanceMetadatas[:3], filteredRes)
 	require.Equal(t, testInstanceMetadatas, allRes)
 }
 
 func TestHelperWaitUntilSafeQueryError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	errQuery := errors.New("error querying instances")
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().Query(gomock.Any()).Return(nil, errQuery).AnyTimes()
+
 	helper := testHelper(t)
 	retryOpts := retry.NewOptions().
 		SetMaxRetries(3).
 		SetInitialBackoff(10 * time.Millisecond).
 		SetBackoffFactor(1)
 	helper.foreverRetrier = retry.NewRetrier(retryOpts)
-	helper.mgr = &mockManager{
-		queryFn: func([]string) ([]Instance, error) {
-			return nil, errQuery
-		},
-	}
+	helper.mgr = mgr
 	require.Error(t, helper.waitUntilSafe(testInstanceMetadatas))
 }
 
 func TestHelperWaitUntilSafeInstanceUnhealthy(t *testing.T) {
-	instances := []Instance{
-		&mockInstance{isHealthy: false, isDeploying: false},
-		&mockInstance{isHealthy: false, isDeploying: false},
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var instances []Instance
+	instance1 := NewMockInstance(ctrl)
+	instance1.EXPECT().IsHealthy().Return(false).AnyTimes()
+	instance1.EXPECT().IsDeploying().Return(false).AnyTimes()
+	instances = append(instances, instance1)
+
+	instance2 := NewMockInstance(ctrl)
+	instance2.EXPECT().IsHealthy().Return(false).AnyTimes()
+	instance2.EXPECT().IsDeploying().Return(false).AnyTimes()
+	instances = append(instances, instance2)
+
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().Query(gomock.Any()).Return(instances, nil).AnyTimes()
+
 	helper := testHelper(t)
 	retryOpts := retry.NewOptions().
 		SetMaxRetries(3).
 		SetInitialBackoff(10 * time.Millisecond).
 		SetBackoffFactor(1)
 	helper.foreverRetrier = retry.NewRetrier(retryOpts)
-	helper.mgr = &mockManager{
-		queryFn: func([]string) ([]Instance, error) { return instances, nil },
-	}
+	helper.mgr = mgr
 	require.Error(t, helper.waitUntilSafe(testInstanceMetadatas[:2]))
 }
 
 func TestHelperWaitUntilSafeInstanceIsDeploying(t *testing.T) {
-	instances := []Instance{
-		&mockInstance{isHealthy: true, isDeploying: true},
-		&mockInstance{isHealthy: true, isDeploying: false},
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var instances []Instance
+	instance1 := NewMockInstance(ctrl)
+	instance1.EXPECT().IsHealthy().Return(true).AnyTimes()
+	instance1.EXPECT().IsDeploying().Return(true).AnyTimes()
+	instances = append(instances, instance1)
+
+	instance2 := NewMockInstance(ctrl)
+	instance2.EXPECT().IsHealthy().Return(true).AnyTimes()
+	instance2.EXPECT().IsDeploying().Return(false).AnyTimes()
+	instances = append(instances, instance2)
+
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().Query(gomock.Any()).Return(instances, nil).AnyTimes()
+
 	helper := testHelper(t)
 	retryOpts := retry.NewOptions().
 		SetMaxRetries(3).
 		SetInitialBackoff(10 * time.Millisecond).
 		SetBackoffFactor(1)
 	helper.foreverRetrier = retry.NewRetrier(retryOpts)
-	helper.mgr = &mockManager{
-		queryFn: func([]string) ([]Instance, error) { return instances, nil },
-	}
-	helper.client = &mockAggregatorClient{
-		isHealthyFn: func(string) error { return nil },
-	}
+	helper.mgr = mgr
+
+	client := NewMockaggregatorClient(ctrl)
+	client.EXPECT().IsHealthy(gomock.Any()).Return(nil).AnyTimes()
+	helper.client = client
 	require.Error(t, helper.waitUntilSafe(testInstanceMetadatas[:2]))
 }
 
 func TestHelperWaitUntilSafeInstanceUnhealthyFromAPI(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	errInstanceUnhealthy := errors.New("instance is not healthy")
-	instances := []Instance{
-		&mockInstance{isHealthy: true, isDeploying: false},
-		&mockInstance{isHealthy: true, isDeploying: false},
-	}
+	var instances []Instance
+	instance1 := NewMockInstance(ctrl)
+	instance1.EXPECT().IsHealthy().Return(true).AnyTimes()
+	instance1.EXPECT().IsDeploying().Return(false).AnyTimes()
+	instances = append(instances, instance1)
+
+	instance2 := NewMockInstance(ctrl)
+	instance2.EXPECT().IsHealthy().Return(true).AnyTimes()
+	instance2.EXPECT().IsDeploying().Return(false).AnyTimes()
+	instances = append(instances, instance2)
+
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().Query(gomock.Any()).Return(instances, nil).AnyTimes()
+
 	helper := testHelper(t)
 	retryOpts := retry.NewOptions().
 		SetMaxRetries(3).
 		SetInitialBackoff(10 * time.Millisecond).
 		SetBackoffFactor(1)
 	helper.foreverRetrier = retry.NewRetrier(retryOpts)
-	helper.mgr = &mockManager{
-		queryFn: func([]string) ([]Instance, error) { return instances, nil },
-	}
-	helper.client = &mockAggregatorClient{
-		isHealthyFn: func(string) error { return errInstanceUnhealthy },
-	}
+	helper.mgr = mgr
+
+	client := NewMockaggregatorClient(ctrl)
+	client.EXPECT().IsHealthy(gomock.Any()).Return(errInstanceUnhealthy).AnyTimes()
+	helper.client = client
 	require.Error(t, helper.waitUntilSafe(testInstanceMetadatas[:2]))
 }
 
 func TestHelperWaitUntilSafeSuccess(t *testing.T) {
-	instances := []Instance{
-		&mockInstance{isHealthy: true, isDeploying: false},
-		&mockInstance{isHealthy: true, isDeploying: false},
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var instances []Instance
+	instance1 := NewMockInstance(ctrl)
+	instance1.EXPECT().IsHealthy().Return(true).AnyTimes()
+	instance1.EXPECT().IsDeploying().Return(false).AnyTimes()
+	instances = append(instances, instance1)
+
+	instance2 := NewMockInstance(ctrl)
+	instance2.EXPECT().IsHealthy().Return(true).AnyTimes()
+	instance2.EXPECT().IsDeploying().Return(false).AnyTimes()
+	instances = append(instances, instance2)
+
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().Query(gomock.Any()).Return(instances, nil).AnyTimes()
+
 	helper := testHelper(t)
-	helper.mgr = &mockManager{
-		queryFn: func([]string) ([]Instance, error) { return instances, nil },
-	}
-	helper.client = &mockAggregatorClient{
-		isHealthyFn: func(string) error { return nil },
-	}
+	helper.mgr = mgr
+
+	client := NewMockaggregatorClient(ctrl)
+	client.EXPECT().IsHealthy(gomock.Any()).Return(nil).AnyTimes()
+	helper.client = client
 	require.NoError(t, helper.waitUntilSafe(testInstanceMetadatas[:2]))
 }
 
@@ -245,6 +304,9 @@ func TestHelperValidateSuccess(t *testing.T) {
 }
 
 func TestHelperResignError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	errResign := errors.New("error resigning")
 	targets := deploymentTargets{
 		{Instance: testInstanceMetadatas[0]},
@@ -256,26 +318,32 @@ func TestHelperResignError(t *testing.T) {
 		SetInitialBackoff(10 * time.Millisecond).
 		SetBackoffFactor(1)
 	helper.retrier = retry.NewRetrier(retryOpts)
-	helper.client = &mockAggregatorClient{
-		resignFn: func(string) error { return errResign },
-	}
+
+	client := NewMockaggregatorClient(ctrl)
+	client.EXPECT().Resign(gomock.Any()).Return(errResign).AnyTimes()
+	helper.client = client
 	require.Error(t, helper.resign(targets))
 }
 
 func TestHelperResignSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	targets := deploymentTargets{
 		{Instance: testInstanceMetadatas[0]},
 		{Instance: testInstanceMetadatas[1]},
 	}
 	helper := testHelper(t)
-	helper.client = &mockAggregatorClient{
-		resignFn: func(string) error { return nil },
-	}
+	client := NewMockaggregatorClient(ctrl)
+	client.EXPECT().Resign(gomock.Any()).Return(nil).AnyTimes()
+	helper.client = client
 	require.NoError(t, helper.resign(targets))
 }
 
 func TestHelperWaitUntilProgressingQueryError(t *testing.T) {
-	errQuery := errors.New("error querying instances")
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	targetIDs := []string{"instance1", "instance2"}
 	revision := "revision1"
 	helper := testHelper(t)
@@ -284,139 +352,203 @@ func TestHelperWaitUntilProgressingQueryError(t *testing.T) {
 		SetInitialBackoff(10 * time.Millisecond).
 		SetBackoffFactor(1)
 	helper.foreverRetrier = retry.NewRetrier(retryOpts)
-	helper.mgr = &mockManager{
-		queryFn: func([]string) ([]Instance, error) {
-			return nil, errQuery
-		},
-	}
+
+	errQuery := errors.New("error querying instances")
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().Query(gomock.Any()).Return(nil, errQuery).AnyTimes()
+	helper.mgr = mgr
 	require.Error(t, helper.waitUntilProgressing(targetIDs, revision))
 }
 
 func TestHelperWaitUntilProgressingInstanceNotProgressing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	targetIDs := []string{"instance1", "instance2"}
 	revision := "revision2"
-	targetInstances := []Instance{
-		&mockInstance{isDeploying: false, revision: "revision1"},
-		&mockInstance{isDeploying: false, revision: "revision1"},
-	}
+
+	var instances []Instance
+	instance1 := NewMockInstance(ctrl)
+	instance1.EXPECT().IsDeploying().Return(false).AnyTimes()
+	instance1.EXPECT().Revision().Return("revision1").AnyTimes()
+	instances = append(instances, instance1)
+
+	instance2 := NewMockInstance(ctrl)
+	instance2.EXPECT().IsDeploying().Return(false).AnyTimes()
+	instance2.EXPECT().Revision().Return("revision1").AnyTimes()
+	instances = append(instances, instance2)
+
 	helper := testHelper(t)
 	retryOpts := retry.NewOptions().
 		SetMaxRetries(3).
 		SetInitialBackoff(10 * time.Millisecond).
 		SetBackoffFactor(1)
 	helper.foreverRetrier = retry.NewRetrier(retryOpts)
-	helper.mgr = &mockManager{
-		queryFn: func([]string) ([]Instance, error) {
-			return targetInstances, nil
-		},
-	}
+
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().Query(gomock.Any()).Return(instances, nil).AnyTimes()
+	helper.mgr = mgr
 	require.Error(t, helper.waitUntilProgressing(targetIDs, revision))
 }
 
 func TestHelperWaitUntilProgressingInstanceIsDeploying(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	targetIDs := []string{"instance1", "instance2"}
 	revision := "revision2"
-	targetInstances := []Instance{
-		&mockInstance{isDeploying: true, revision: "revision1"},
-		&mockInstance{isDeploying: false, revision: "revision1"},
-	}
+
+	var instances []Instance
+	instance1 := NewMockInstance(ctrl)
+	instance1.EXPECT().IsDeploying().Return(true).AnyTimes()
+	instance1.EXPECT().Revision().Return("revision1").AnyTimes()
+	instances = append(instances, instance1)
+
+	instance2 := NewMockInstance(ctrl)
+	instance2.EXPECT().IsDeploying().Return(false).AnyTimes()
+	instance2.EXPECT().Revision().Return("revision1").AnyTimes()
+	instances = append(instances, instance2)
+
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().Query(gomock.Any()).Return(instances, nil).AnyTimes()
 	helper := testHelper(t)
-	helper.mgr = &mockManager{
-		queryFn: func([]string) ([]Instance, error) {
-			return targetInstances, nil
-		},
-	}
+	helper.mgr = mgr
 	require.NoError(t, helper.waitUntilProgressing(targetIDs, revision))
 }
 
 func TestHelperWaitUntilProgressingInstanceIsDeployed(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	targetIDs := []string{"instance1", "instance2"}
 	revision := "revision2"
-	targetInstances := []Instance{
-		&mockInstance{isDeploying: false, revision: "revision2"},
-		&mockInstance{isDeploying: false, revision: "revision1"},
-	}
+
+	var instances []Instance
+	instance1 := NewMockInstance(ctrl)
+	instance1.EXPECT().IsDeploying().Return(false).AnyTimes()
+	instance1.EXPECT().Revision().Return("revision2").AnyTimes()
+	instances = append(instances, instance1)
+
+	instance2 := NewMockInstance(ctrl)
+	instance2.EXPECT().IsDeploying().Return(false).AnyTimes()
+	instance2.EXPECT().Revision().Return("revision1").AnyTimes()
+	instances = append(instances, instance2)
+
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().Query(gomock.Any()).Return(instances, nil).AnyTimes()
 	helper := testHelper(t)
-	helper.mgr = &mockManager{
-		queryFn: func([]string) ([]Instance, error) {
-			return targetInstances, nil
-		},
-	}
+	helper.mgr = mgr
 	require.NoError(t, helper.waitUntilProgressing(targetIDs, revision))
 }
 
 func TestHelperAllInstanceMetadatasManagerQueryAllError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	errQueryAll := errors.New("query all error")
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().QueryAll().Return(nil, errQueryAll).AnyTimes()
 	helper := testHelper(t)
-	helper.mgr = &mockManager{
-		queryAllFn: func() ([]Instance, error) { return nil, errQueryAll },
-	}
+	helper.mgr = mgr
 	_, err := helper.allInstanceMetadatas(testPlacement)
 	require.Error(t, err)
 }
 
 func TestHelperAllInstanceMetadatasNumInstancesMismatch(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var instances []Instance
+	instance1 := NewMockInstance(ctrl)
+	instance1.EXPECT().ID().Return("instance1").AnyTimes()
+	instances = append(instances, instance1)
+
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().QueryAll().Return(instances, nil).AnyTimes()
+
 	helper := testHelper(t)
-	helper.mgr = &mockManager{
-		queryAllFn: func() ([]Instance, error) {
-			return []Instance{&mockInstance{id: "instance1"}}, nil
-		},
-	}
+	helper.mgr = mgr
 	_, err := helper.allInstanceMetadatas(testPlacement)
 	require.Error(t, err)
 }
 
 func TestHelperAllInstanceMetadatasToAPIEndpointFnError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	errToAPIEndpoint := errors.New("error converting to api endpoint")
+	instances := testMockInstances(ctrl)
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().QueryAll().Return(instances, nil).AnyTimes()
 	helper := testHelper(t)
-	helper.mgr = &mockManager{
-		queryAllFn: func() ([]Instance, error) { return testMockInstances, nil },
-	}
+	helper.mgr = mgr
 	helper.toAPIEndpointFn = func(string) (string, error) { return "", errToAPIEndpoint }
 	_, err := helper.allInstanceMetadatas(testPlacement)
 	require.Error(t, err)
 }
 
 func TestHelperAllInstanceMetadatasToPlacementInstanceIDFnError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	errToPlacementInstanceID := errors.New("error converting to placement instance id")
+	instances := testMockInstances(ctrl)
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().QueryAll().Return(instances, nil).AnyTimes()
 	helper := testHelper(t)
-	helper.mgr = &mockManager{
-		queryAllFn: func() ([]Instance, error) { return testMockInstances, nil },
-	}
+	helper.mgr = mgr
 	helper.toPlacementInstanceIDFn = func(string) (string, error) { return "", errToPlacementInstanceID }
 	_, err := helper.allInstanceMetadatas(testPlacement)
 	require.Error(t, err)
 }
 
 func TestHelperAllInstanceMetadatasDuplicateDeploymentInstance(t *testing.T) {
-	var mockInstances []Instance
-	mockInstances = append(mockInstances, testMockInstances...)
-	mockInstances[0] = mockInstances[1]
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var instances []Instance
+	instances = append(instances, testMockInstances(ctrl)...)
+	instances[0] = instances[1]
+
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().QueryAll().Return(instances, nil).AnyTimes()
 	helper := testHelper(t)
-	helper.mgr = &mockManager{
-		queryAllFn: func() ([]Instance, error) { return mockInstances, nil },
-	}
+	helper.mgr = mgr
+
 	_, err := helper.allInstanceMetadatas(testPlacement)
 	require.Error(t, err)
 }
 
 func TestHelperAllInstanceMetadatasDeploymentInstanceNotExist(t *testing.T) {
-	var mockInstances []Instance
-	mockInstances = append(mockInstances, testMockInstances...)
-	mockInstances[3] = &mockInstance{id: "deployment_instance5", revision: "revision5"}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var instances []Instance
+	instances = append(instances, testMockInstances(ctrl)...)
+	instance := NewMockInstance(ctrl)
+	instance.EXPECT().ID().Return("deployment_instance5").AnyTimes()
+	instance.EXPECT().Revision().Return("revision5").AnyTimes()
+	instances[3] = instance
+
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().QueryAll().Return(instances, nil).AnyTimes()
 	helper := testHelper(t)
-	helper.mgr = &mockManager{
-		queryAllFn: func() ([]Instance, error) { return mockInstances, nil },
-	}
+	helper.mgr = mgr
+
 	_, err := helper.allInstanceMetadatas(testPlacement)
 	require.Error(t, err)
 }
 
 func TestHelperAllInstanceMetadatasSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	instances := testMockInstances(ctrl)
+	mgr := NewMockManager(ctrl)
+	mgr.EXPECT().QueryAll().Return(instances, nil).AnyTimes()
 	helper := testHelper(t)
-	helper.mgr = &mockManager{
-		queryAllFn: func() ([]Instance, error) { return testMockInstances, nil },
-	}
+	helper.mgr = mgr
+
 	res, err := helper.allInstanceMetadatas(testPlacement)
 	require.NoError(t, err)
 	require.Equal(t, testInstanceMetadatas, res)
@@ -434,6 +566,17 @@ func TestInstanceMetadatasDeploymentInstanceIDs(t *testing.T) {
 
 func TestInstanceMetadatasFilter(t *testing.T) {
 	require.Equal(t, instanceMetadatas(testInstanceMetadatas[1:]), testInstanceMetadatas.WithoutRevision("revision1"))
+}
+
+func testMockInstances(ctrl *gomock.Controller) []Instance {
+	instances := make([]Instance, 4)
+	for i := 1; i <= 4; i++ {
+		instance := NewMockInstance(ctrl)
+		instance.EXPECT().ID().Return(fmt.Sprintf("deployment_instance%d", i)).AnyTimes()
+		instance.EXPECT().Revision().Return(fmt.Sprintf("revision%d", i)).AnyTimes()
+		instances[i-1] = instance
+	}
+	return instances
 }
 
 func testHelper(t *testing.T) helper {

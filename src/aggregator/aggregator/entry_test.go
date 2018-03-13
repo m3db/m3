@@ -35,6 +35,7 @@ import (
 	"github.com/m3db/m3x/pool"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -58,7 +59,10 @@ var (
 )
 
 func TestEntryIncDecWriter(t *testing.T) {
-	e := NewEntry(nil, runtime.NewOptions(), testOptions())
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e := NewEntry(nil, runtime.NewOptions(), testOptions(ctrl))
 	require.Equal(t, int32(0), e.numWriters)
 
 	var (
@@ -88,7 +92,10 @@ func TestEntryIncDecWriter(t *testing.T) {
 }
 
 func TestEntryResetSetData(t *testing.T) {
-	e, lists, now := testEntry()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, lists, now := testEntry(ctrl)
 
 	require.False(t, e.closed)
 	require.Nil(t, e.rateLimiter)
@@ -101,12 +108,15 @@ func TestEntryResetSetData(t *testing.T) {
 }
 
 func TestEntryBatchTimerRateLimiting(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	bt := unaggregated.MetricUnion{
 		Type:          unaggregated.BatchTimerType,
 		ID:            testBatchTimerID,
 		BatchTimerVal: make([]float64, 1000),
 	}
-	e, _, now := testEntry()
+	e, _, now := testEntry(ctrl)
 
 	// Reset runtime options to disable rate limiting.
 	noRateLimitRuntimeOpts := runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(0)
@@ -134,7 +144,10 @@ func TestEntryBatchTimerRateLimiting(t *testing.T) {
 }
 
 func TestEntryCounterRateLimiting(t *testing.T) {
-	e, _, now := testEntry()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, now := testEntry(ctrl)
 
 	// Reset runtime options to disable rate limiting.
 	noRateLimitRuntimeOpts := runtime.NewOptions().SetWriteValuesPerMetricLimitPerSecond(0)
@@ -165,6 +178,9 @@ func TestEntryCounterRateLimiting(t *testing.T) {
 }
 
 func TestEntryAddBatchTimerWithPoolAlloc(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	timerValPool := pool.NewFloatsPool([]pool.Bucket{
 		{Capacity: 16, Count: 1},
 	}, nil)
@@ -179,7 +195,7 @@ func TestEntryAddBatchTimerWithPoolAlloc(t *testing.T) {
 		BatchTimerVal: input,
 		TimerValPool:  timerValPool,
 	}
-	e, _, _ := testEntry()
+	e, _, _ := testEntry(ctrl)
 	require.NoError(t, e.AddMetricWithPoliciesList(bt, policy.DefaultPoliciesList))
 
 	// Assert the timer values have been returned to pool.
@@ -188,7 +204,10 @@ func TestEntryAddBatchTimerWithPoolAlloc(t *testing.T) {
 }
 
 func TestEntryAddBatchTimerWithTimerBatchSizeLimit(t *testing.T) {
-	e, _, now := testEntry()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, now := testEntry(ctrl)
 	*now = time.Unix(105, 0)
 	e.opts = e.opts.SetMaxTimerBatchSizePerWrite(2).SetDefaultPolicies(testDefaultPolicies)
 
@@ -207,7 +226,10 @@ func TestEntryAddBatchTimerWithTimerBatchSizeLimit(t *testing.T) {
 }
 
 func TestEntryAddBatchTimerWithTimerBatchSizeLimitError(t *testing.T) {
-	e, _, _ := testEntry()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, _ := testEntry(ctrl)
 	e.opts = e.opts.SetMaxTimerBatchSizePerWrite(2)
 	e.closed = true
 
@@ -220,12 +242,18 @@ func TestEntryAddBatchTimerWithTimerBatchSizeLimitError(t *testing.T) {
 }
 
 func TestEntryHasPolicyChangesWithLockDifferentLength(t *testing.T) {
-	e, _, _ := testEntry()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, _ := testEntry(ctrl)
 	require.True(t, e.hasPolicyChangesWithLock(testPolicies))
 }
 
 func TestEntryHasPolicyChangesWithLockSameLengthDifferentPolicies(t *testing.T) {
-	e, _, _ := testEntry()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, _ := testEntry(ctrl)
 	for i, p := range testPolicies {
 		if i == len(testPolicies)-1 {
 			resolution := p.Resolution()
@@ -239,7 +267,10 @@ func TestEntryHasPolicyChangesWithLockSameLengthDifferentPolicies(t *testing.T) 
 }
 
 func TestEntryHasPolicyChangesWithLockSameLengthSamePolicies(t *testing.T) {
-	e, _, _ := testEntry()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, _ := testEntry(ctrl)
 	for _, p := range testPolicies {
 		e.aggregations[p] = &list.Element{}
 	}
@@ -247,6 +278,9 @@ func TestEntryHasPolicyChangesWithLockSameLengthSamePolicies(t *testing.T) {
 }
 
 func TestEntryAddMetricWithPoliciesListDefaultPoliciesList(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		withPrepopulation   = true
 		prePopulatePolicies = testDefaultPolicies
@@ -274,18 +308,24 @@ func TestEntryAddMetricWithPoliciesListDefaultPoliciesList(t *testing.T) {
 	}
 
 	testEntryAddMetricWithPoliciesList(
-		t, withPrepopulation, prePopulatePolicies, ownsID,
+		t, ctrl, withPrepopulation, prePopulatePolicies, ownsID,
 		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
 func TestEntryAddMetricWithPoliciesListEmptyPoliciesListError(t *testing.T) {
-	e, _, _ := testEntry()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, _ := testEntry(ctrl)
 	inputPoliciesList := policy.PoliciesList{}
 	require.Equal(t, errEmptyPoliciesList, e.AddMetricWithPoliciesList(testCounter, inputPoliciesList))
 }
 
 func TestEntryAddMetricWithPoliciesListFuturePolicies(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		withPrepopulation   = true
 		prePopulatePolicies = testDefaultPolicies
@@ -317,12 +357,15 @@ func TestEntryAddMetricWithPoliciesListFuturePolicies(t *testing.T) {
 	}
 
 	testEntryAddMetricWithPoliciesList(
-		t, withPrepopulation, prePopulatePolicies, ownsID,
+		t, ctrl, withPrepopulation, prePopulatePolicies, ownsID,
 		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
 func TestEntryAddMetricWithPoliciesListStalePolicies(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		withPrepopulation   = true
 		prePopulatePolicies = testDefaultPolicies
@@ -354,12 +397,15 @@ func TestEntryAddMetricWithPoliciesListStalePolicies(t *testing.T) {
 	}
 
 	testEntryAddMetricWithPoliciesList(
-		t, withPrepopulation, prePopulatePolicies, ownsID,
+		t, ctrl, withPrepopulation, prePopulatePolicies, ownsID,
 		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
 func TestEntryAddMetricWithPoliciesListSameDefaultPolicies(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		withPrepopulation   = true
 		prePopulatePolicies = testDefaultPolicies
@@ -393,12 +439,15 @@ func TestEntryAddMetricWithPoliciesListSameDefaultPolicies(t *testing.T) {
 	}
 
 	testEntryAddMetricWithPoliciesList(
-		t, withPrepopulation, prePopulatePolicies, ownsID,
+		t, ctrl, withPrepopulation, prePopulatePolicies, ownsID,
 		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
 func TestEntryAddMetricWithPoliciesListSameCustomPolicies(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		withPrepopulation   = true
 		prePopulatePolicies = testPolicies
@@ -432,12 +481,15 @@ func TestEntryAddMetricWithPoliciesListSameCustomPolicies(t *testing.T) {
 	}
 
 	testEntryAddMetricWithPoliciesList(
-		t, withPrepopulation, prePopulatePolicies, ownsID,
+		t, ctrl, withPrepopulation, prePopulatePolicies, ownsID,
 		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
 func TestEntryAddMetricWithPoliciesListDifferentTombstone(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		withPrepopulation   = true
 		prePopulatePolicies = testPolicies
@@ -475,12 +527,15 @@ func TestEntryAddMetricWithPoliciesListDifferentTombstone(t *testing.T) {
 	}
 
 	testEntryAddMetricWithPoliciesList(
-		t, withPrepopulation, prePopulatePolicies, ownsID,
+		t, ctrl, withPrepopulation, prePopulatePolicies, ownsID,
 		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
 func TestEntryAddMetricWithPoliciesListDifferentCutoverSamePolicies(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		withPrepopulation   = true
 		prePopulatePolicies = testPolicies
@@ -514,12 +569,15 @@ func TestEntryAddMetricWithPoliciesListDifferentCutoverSamePolicies(t *testing.T
 	}
 
 	testEntryAddMetricWithPoliciesList(
-		t, withPrepopulation, prePopulatePolicies, ownsID,
+		t, ctrl, withPrepopulation, prePopulatePolicies, ownsID,
 		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
 func TestEntryAddMetricWithPoliciesListDifferentCutoverDifferentPolicies(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		withPrepopulation   = true
 		prePopulatePolicies = testPolicies
@@ -562,12 +620,15 @@ func TestEntryAddMetricWithPoliciesListDifferentCutoverDifferentPolicies(t *test
 	}
 
 	testEntryAddMetricWithPoliciesList(
-		t, withPrepopulation, prePopulatePolicies, ownsID,
+		t, ctrl, withPrepopulation, prePopulatePolicies, ownsID,
 		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
 func TestEntryAddMetricWithPoliciesListWithPolicyUpdateIDNotOwnedCopyID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		withPrepopulation   = false
 		prePopulatePolicies = testPolicies
@@ -600,12 +661,15 @@ func TestEntryAddMetricWithPoliciesListWithPolicyUpdateIDNotOwnedCopyID(t *testi
 		}
 	}
 	testEntryAddMetricWithPoliciesList(
-		t, withPrepopulation, prePopulatePolicies, ownsID,
+		t, ctrl, withPrepopulation, prePopulatePolicies, ownsID,
 		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
 func TestEntryAddMetricWithPoliciesListWithPolicyUpdateIDOwnsID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		withPrepopulation   = false
 		prePopulatePolicies = testPolicies
@@ -638,12 +702,15 @@ func TestEntryAddMetricWithPoliciesListWithPolicyUpdateIDOwnsID(t *testing.T) {
 		}
 	}
 	testEntryAddMetricWithPoliciesList(
-		t, withPrepopulation, prePopulatePolicies, ownsID,
+		t, ctrl, withPrepopulation, prePopulatePolicies, ownsID,
 		preAddFn, inputPoliciesList, postAddFn, expectedShouldAdd, expectedPolicies,
 	)
 }
 
 func TestEntryAddMetricWithPoliciesListWithInvalidAggregationType(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	compressor := policy.NewAggregationIDCompressor()
 	compressedMin, err := compressor.Compress(policy.AggregationTypes{policy.Min})
 	require.NoError(t, err)
@@ -652,7 +719,7 @@ func TestEntryAddMetricWithPoliciesListWithInvalidAggregationType(t *testing.T) 
 	compressedP9999, err := compressor.Compress(policy.AggregationTypes{policy.P9999})
 	require.NoError(t, err)
 
-	e, _, _ := testEntry()
+	e, _, _ := testEntry(ctrl)
 
 	require.NoError(t, e.AddMetricWithPoliciesList(testCounter, policy.PoliciesList{policy.NewStagedPolicies(0, false, []policy.Policy{
 		policy.NewPolicy(policy.EmptyStoragePolicy, compressedMin),
@@ -677,7 +744,10 @@ func TestEntryAddMetricWithPoliciesListWithInvalidAggregationType(t *testing.T) 
 }
 
 func TestEntryAddMetricsWithPoliciesListError(t *testing.T) {
-	e, lists, _ := testEntry()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, lists, _ := testEntry(ctrl)
 	policiesList := policy.PoliciesList{policy.NewStagedPolicies(0, false, testPolicies)}
 
 	// Add an invalid metric should result in an error.
@@ -694,7 +764,10 @@ func TestEntryAddMetricsWithPoliciesListError(t *testing.T) {
 }
 
 func TestEntryMaybeExpireNoExpiry(t *testing.T) {
-	e, _, now := testEntry()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, now := testEntry(ctrl)
 
 	// If we are still within entry TTL, should not expire.
 	require.False(t, e.ShouldExpire(now.Add(e.opts.EntryTTL()).Add(-time.Second)))
@@ -710,7 +783,10 @@ func TestEntryMaybeExpireNoExpiry(t *testing.T) {
 }
 
 func TestEntryMaybeExpireWithExpiry(t *testing.T) {
-	e, _, now := testEntry()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e, _, now := testEntry(ctrl)
 	populateTestAggregations(t, e, testPolicies, unaggregated.CounterType)
 
 	var elems []*CounterElem
@@ -735,7 +811,10 @@ func TestEntryMaybeExpireWithExpiry(t *testing.T) {
 }
 
 func TestShouldUpdatePoliciesWithLock(t *testing.T) {
-	e := NewEntry(nil, runtime.NewOptions(), testOptions())
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	e := NewEntry(nil, runtime.NewOptions(), testOptions(ctrl))
 	currTimeNanos := time.Now().UnixNano()
 	inputs := []struct {
 		cutoverNanos int64
@@ -770,12 +849,12 @@ func TestShouldUpdatePoliciesWithLock(t *testing.T) {
 	}
 }
 
-func testEntry() (*Entry, *metricLists, *time.Time) {
+func testEntry(ctrl *gomock.Controller) (*Entry, *metricLists, *time.Time) {
 	now := time.Now()
 	clockOpts := clock.NewOptions().SetNowFn(func() time.Time {
 		return now
 	})
-	opts := testOptions().
+	opts := testOptions(ctrl).
 		SetClockOptions(clockOpts).
 		SetMinFlushInterval(0).
 		SetDefaultPolicies(testDefaultPolicies)
@@ -853,6 +932,7 @@ func checkElemTombstoned(t *testing.T, elem metricElem, deleted map[policy.Stora
 
 func testEntryAddMetricWithPoliciesList(
 	t *testing.T,
+	ctrl *gomock.Controller,
 	withPrePopulation bool,
 	prePopulatePolicies []policy.Policy,
 	ownsID bool,
@@ -913,7 +993,7 @@ func testEntryAddMetricWithPoliciesList(
 	for _, input := range inputs {
 		input.mu.OwnsID = ownsID
 
-		e, _, now := testEntry()
+		e, _, now := testEntry(ctrl)
 		if withPrePopulation {
 			populateTestAggregations(t, e, prePopulatePolicies, input.mu.Type)
 		}

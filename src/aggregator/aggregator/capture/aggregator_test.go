@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package mock
+package capture
 
 import (
 	"fmt"
@@ -54,7 +54,7 @@ var (
 	testDefaultPoliciesList = policy.DefaultPoliciesList
 )
 
-func TestMockAggregator(t *testing.T) {
+func TestAggregator(t *testing.T) {
 	agg := NewAggregator()
 
 	// Adding an invalid metric should result in an error.

@@ -32,7 +32,7 @@ import (
 func TestCounterElemPool(t *testing.T) {
 	p := NewCounterElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *CounterElem {
-		return NewCounterElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, testOptions())
+		return NewCounterElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, NewOptions())
 	})
 
 	// Retrieve an element from the pool.
@@ -53,7 +53,7 @@ func TestCounterElemPool(t *testing.T) {
 func TestTimerElemPool(t *testing.T) {
 	p := NewTimerElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *TimerElem {
-		return NewTimerElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, testOptions())
+		return NewTimerElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, NewOptions())
 	})
 
 	// Retrieve an element from the pool.
@@ -74,7 +74,7 @@ func TestTimerElemPool(t *testing.T) {
 func TestGaugeElemPool(t *testing.T) {
 	p := NewGaugeElemPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *GaugeElem {
-		return NewGaugeElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, testOptions())
+		return NewGaugeElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, NewOptions())
 	})
 
 	// Retrieve an element from the pool.

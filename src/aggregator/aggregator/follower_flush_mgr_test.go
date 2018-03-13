@@ -27,20 +27,21 @@ import (
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3x/watch"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
 
 func TestFollowerFlushManagerOpen(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	doneCh := make(chan struct{})
 	watchable := watch.NewWatchable()
 	_, w, err := watchable.Watch()
 	require.NoError(t, err)
-	flushTimesManager := &mockFlushTimesManager{
-		watchFlushTimesFn: func() (watch.Watch, error) {
-			return w, nil
-		},
-	}
+	flushTimesManager := NewMockFlushTimesManager(ctrl)
+	flushTimesManager.EXPECT().Watch().Return(w, nil)
 	opts := NewFlushManagerOptions().SetFlushTimesManager(flushTimesManager)
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	mgr.Open()
@@ -61,30 +62,36 @@ func TestFollowerFlushManagerOpen(t *testing.T) {
 }
 
 func TestFollowerFlushManagerCanNotLeadNotCampaigning(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	doneCh := make(chan struct{})
-	electionManager := &mockElectionManager{
-		isCampaigningFn: func() bool { return false },
-	}
+	electionManager := NewMockElectionManager(ctrl)
+	electionManager.EXPECT().IsCampaigning().Return(false)
 	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	require.False(t, mgr.CanLead())
 }
 
 func TestFollowerFlushManagerCanNotLeadProtoNotUpdated(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	doneCh := make(chan struct{})
-	electionManager := &mockElectionManager{
-		isCampaigningFn: func() bool { return true },
-	}
+	electionManager := NewMockElectionManager(ctrl)
+	electionManager.EXPECT().IsCampaigning().Return(true)
 	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	require.False(t, mgr.CanLead())
 }
 
 func TestFollowerFlushManagerCanNotLeadFlushWindowsNotEnded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	doneCh := make(chan struct{})
-	electionManager := &mockElectionManager{
-		isCampaigningFn: func() bool { return true },
-	}
+	electionManager := NewMockElectionManager(ctrl)
+	electionManager.EXPECT().IsCampaigning().Return(true)
 	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	mgr.processed = testFlushTimes
@@ -93,10 +100,12 @@ func TestFollowerFlushManagerCanNotLeadFlushWindowsNotEnded(t *testing.T) {
 }
 
 func TestFollowerFlushManagerCanLeadNoTombstonedShards(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	doneCh := make(chan struct{})
-	electionManager := &mockElectionManager{
-		isCampaigningFn: func() bool { return true },
-	}
+	electionManager := NewMockElectionManager(ctrl)
+	electionManager.EXPECT().IsCampaigning().Return(true)
 	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	mgr.flushTimesState = flushTimesProcessed
@@ -106,10 +115,12 @@ func TestFollowerFlushManagerCanLeadNoTombstonedShards(t *testing.T) {
 }
 
 func TestFollowerFlushManagerCanLeadWithTombstonedShards(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	doneCh := make(chan struct{})
-	electionManager := &mockElectionManager{
-		isCampaigningFn: func() bool { return true },
-	}
+	electionManager := NewMockElectionManager(ctrl)
+	electionManager.EXPECT().IsCampaigning().Return(true)
 	opts := NewFlushManagerOptions().SetElectionManager(electionManager)
 	mgr := newFollowerFlushManager(doneCh, opts).(*followerFlushManager)
 	mgr.flushTimesState = flushTimesProcessed
@@ -119,6 +130,9 @@ func TestFollowerFlushManagerCanLeadWithTombstonedShards(t *testing.T) {
 }
 
 func TestFollowerFlushManagerPrepareNoFlush(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	now := time.Unix(1234, 0)
 	nowFn := func() time.Time { return now }
 	doneCh := make(chan struct{})
@@ -131,7 +145,7 @@ func TestFollowerFlushManagerPrepareNoFlush(t *testing.T) {
 	mgr.lastFlushed = now
 
 	now = now.Add(time.Second)
-	flushTask, dur := mgr.Prepare(testFlushBuckets)
+	flushTask, dur := mgr.Prepare(testFlushBuckets(ctrl))
 
 	require.Nil(t, flushTask)
 	require.Equal(t, time.Second, dur)
@@ -139,6 +153,9 @@ func TestFollowerFlushManagerPrepareNoFlush(t *testing.T) {
 }
 
 func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	now := time.Unix(1234, 0)
 	nowFn := func() time.Time { return now }
 	doneCh := make(chan struct{})
@@ -150,18 +167,19 @@ func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
 	mgr.flushTimesState = flushTimesUpdated
 	mgr.received = testFlushTimes
 
-	flushTask, dur := mgr.Prepare(testFlushBuckets)
+	buckets := testFlushBuckets(ctrl)
+	flushTask, dur := mgr.Prepare(buckets)
 
 	expected := []flushersGroup{
 		{
 			interval: time.Second,
 			flushers: []flusherWithTime{
 				{
-					flusher:          testFlushBuckets[0].flushers[0],
+					flusher:          buckets[0].flushers[0],
 					flushBeforeNanos: 3663000000000,
 				},
 				{
-					flusher:          testFlushBuckets[0].flushers[1],
+					flusher:          buckets[0].flushers[1],
 					flushBeforeNanos: 3658000000000,
 				},
 			},
@@ -170,7 +188,7 @@ func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
 			interval: time.Minute,
 			flushers: []flusherWithTime{
 				{
-					flusher:          testFlushBuckets[1].flushers[0],
+					flusher:          buckets[1].flushers[0],
 					flushBeforeNanos: 3660000000000,
 				},
 			},
@@ -179,7 +197,7 @@ func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
 			interval: time.Hour,
 			flushers: []flusherWithTime{
 				{
-					flusher:          testFlushBuckets[2].flushers[0],
+					flusher:          buckets[2].flushers[0],
 					flushBeforeNanos: 3600000000000,
 				},
 			},
@@ -194,6 +212,9 @@ func TestFollowerFlushManagerPrepareFlushTimesUpdated(t *testing.T) {
 }
 
 func TestFollowerFlushManagerPrepareMaxBufferSizeExceeded(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	now := time.Unix(1234, 0)
 	nowFn := func() time.Time { return now }
 	doneCh := make(chan struct{})
@@ -209,24 +230,25 @@ func TestFollowerFlushManagerPrepareMaxBufferSizeExceeded(t *testing.T) {
 	// Advance time by forced flush window size and expect no flush because it's
 	// not in forced flush mode.
 	now = now.Add(10 * time.Second)
-	flushTask, dur := mgr.Prepare(testFlushBuckets)
+	buckets := testFlushBuckets(ctrl)
+	flushTask, dur := mgr.Prepare(buckets)
 	require.Nil(t, flushTask)
 	require.Equal(t, time.Second, dur)
 
 	// Advance time by max buffer size and expect a flush.
 	now = now.Add(time.Minute)
-	flushTask, dur = mgr.Prepare(testFlushBuckets)
+	flushTask, dur = mgr.Prepare(buckets)
 
 	expected := []flushersGroup{
 		{
 			interval: time.Second,
 			flushers: []flusherWithTime{
 				{
-					flusher:          testFlushBuckets[0].flushers[0],
+					flusher:          buckets[0].flushers[0],
 					flushBeforeNanos: 1244000000000,
 				},
 				{
-					flusher:          testFlushBuckets[0].flushers[1],
+					flusher:          buckets[0].flushers[1],
 					flushBeforeNanos: 1244000000000,
 				},
 			},
@@ -235,7 +257,7 @@ func TestFollowerFlushManagerPrepareMaxBufferSizeExceeded(t *testing.T) {
 			interval: time.Minute,
 			flushers: []flusherWithTime{
 				{
-					flusher:          testFlushBuckets[1].flushers[0],
+					flusher:          buckets[1].flushers[0],
 					flushBeforeNanos: 1244000000000,
 				},
 			},
@@ -244,7 +266,7 @@ func TestFollowerFlushManagerPrepareMaxBufferSizeExceeded(t *testing.T) {
 			interval: time.Hour,
 			flushers: []flusherWithTime{
 				{
-					flusher:          testFlushBuckets[2].flushers[0],
+					flusher:          buckets[2].flushers[0],
 					flushBeforeNanos: 1244000000000,
 				},
 			},
@@ -259,7 +281,7 @@ func TestFollowerFlushManagerPrepareMaxBufferSizeExceeded(t *testing.T) {
 
 	// Advance time by less than the forced flush window size and expect no flush.
 	now = now.Add(time.Second)
-	flushTask, dur = mgr.Prepare(testFlushBuckets)
+	flushTask, dur = mgr.Prepare(buckets)
 	require.Nil(t, flushTask)
 	require.Equal(t, mgr.checkEvery, dur)
 
@@ -267,7 +289,7 @@ func TestFollowerFlushManagerPrepareMaxBufferSizeExceeded(t *testing.T) {
 	// flush because it's no longer in forced flush mode.
 	mgr.flushMode = kvUpdateFollowerFlush
 	now = now.Add(10 * time.Second)
-	flushTask, dur = mgr.Prepare(testFlushBuckets)
+	flushTask, dur = mgr.Prepare(buckets)
 	require.Nil(t, flushTask)
 	require.Equal(t, time.Second, dur)
 }
@@ -303,21 +325,31 @@ func TestFollowerFlushManagerWatchFlushTimes(t *testing.T) {
 }
 
 func TestFollowerFlushTaskRun(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	flushedBefore := make([]int64, 3)
+	flushers := make([]PeriodicFlusher, 3)
+	for i := 0; i < 3; i++ {
+		i := i
+		flusher := NewMockPeriodicFlusher(ctrl)
+		flusher.EXPECT().
+			DiscardBefore(gomock.Any()).
+			Do(func(beforeNanos int64) {
+				flushedBefore[i] = beforeNanos
+			})
+		flushers[i] = flusher
+	}
 	flushersByInterval := []flushersGroup{
 		{
 			duration: tally.NoopScope.Timer("foo"),
 			flushers: []flusherWithTime{
 				{
-					flusher: &mockFlusher{
-						discardBeforeFn: func(beforeNanos int64) { flushedBefore[0] = beforeNanos },
-					},
+					flusher:          flushers[0],
 					flushBeforeNanos: 1234,
 				},
 				{
-					flusher: &mockFlusher{
-						discardBeforeFn: func(beforeNanos int64) { flushedBefore[1] = beforeNanos },
-					},
+					flusher:          flushers[1],
 					flushBeforeNanos: 2345,
 				},
 			},
@@ -326,9 +358,7 @@ func TestFollowerFlushTaskRun(t *testing.T) {
 			duration: tally.NoopScope.Timer("bar"),
 			flushers: []flusherWithTime{
 				{
-					flusher: &mockFlusher{
-						discardBeforeFn: func(beforeNanos int64) { flushedBefore[2] = beforeNanos },
-					},
+					flusher:          flushers[2],
 					flushBeforeNanos: 3456,
 				},
 			},

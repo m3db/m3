@@ -18,22 +18,22 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package mock
+package capture
 
 import (
 	"fmt"
 	"sync"
 
-	"github.com/m3db/m3aggregator/aggregator"
+	aggr "github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/metric/id"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 )
 
-// mockAggregator is a no-op aggregator that simply captures
-// metrics coming into the aggregator without actually performing
-// aggregations.
-type mockAggregator struct {
+// aggregator is an aggregator that simply captures metrics coming
+// into the aggregator without actually performing aggregations.
+// It is useful for testing purposes.
+type aggregator struct {
 	sync.RWMutex
 
 	numMetricsAdded             int
@@ -42,14 +42,14 @@ type mockAggregator struct {
 	gaugesWithPoliciesList      []unaggregated.GaugeWithPoliciesList
 }
 
-// NewAggregator creates a new mock aggregator
+// NewAggregator creates a new capturing aggregator.
 func NewAggregator() Aggregator {
-	return &mockAggregator{}
+	return &aggregator{}
 }
 
-func (agg *mockAggregator) Open() error { return nil }
+func (agg *aggregator) Open() error { return nil }
 
-func (agg *mockAggregator) AddMetricWithPoliciesList(
+func (agg *aggregator) AddMetricWithPoliciesList(
 	mu unaggregated.MetricUnion,
 	pl policy.PoliciesList,
 ) error {
@@ -89,18 +89,18 @@ func (agg *mockAggregator) AddMetricWithPoliciesList(
 	return nil
 }
 
-func (agg *mockAggregator) Resign() error                    { return nil }
-func (agg *mockAggregator) Status() aggregator.RuntimeStatus { return aggregator.RuntimeStatus{} }
-func (agg *mockAggregator) Close() error                     { return nil }
+func (agg *aggregator) Resign() error              { return nil }
+func (agg *aggregator) Status() aggr.RuntimeStatus { return aggr.RuntimeStatus{} }
+func (agg *aggregator) Close() error               { return nil }
 
-func (agg *mockAggregator) NumMetricsAdded() int {
+func (agg *aggregator) NumMetricsAdded() int {
 	agg.RLock()
 	numMetricsAdded := agg.numMetricsAdded
 	agg.RUnlock()
 	return numMetricsAdded
 }
 
-func (agg *mockAggregator) Snapshot() SnapshotResult {
+func (agg *aggregator) Snapshot() SnapshotResult {
 	agg.Lock()
 
 	result := SnapshotResult{

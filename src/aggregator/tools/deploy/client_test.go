@@ -178,25 +178,3 @@ func generateTestResponse(t *testing.T, statusCode int, payload interface{}) *ht
 	response.Body = r
 	return response
 }
-
-type isHealthyFn func(instance string) error
-type statusFn func(instance string) (aggregator.RuntimeStatus, error)
-type resignFn func(instance string) error
-
-type mockAggregatorClient struct {
-	isHealthyFn isHealthyFn
-	statusFn    statusFn
-	resignFn    resignFn
-}
-
-func (m *mockAggregatorClient) IsHealthy(instance string) error {
-	return m.isHealthyFn(instance)
-}
-
-func (m *mockAggregatorClient) Status(instance string) (aggregator.RuntimeStatus, error) {
-	return m.statusFn(instance)
-}
-
-func (m *mockAggregatorClient) Resign(instance string) error {
-	return m.resignFn(instance)
-}

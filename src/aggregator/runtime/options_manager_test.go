@@ -25,22 +25,42 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestRuntimeOptionsManagerUpdate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	limit := int64(100)
 	opts := NewOptions().SetWriteValuesPerMetricLimitPerSecond(limit)
 	mgr := NewOptionsManager(opts)
-
 	assert.Equal(t, limit, mgr.RuntimeOptions().WriteValuesPerMetricLimitPerSecond())
 
-	w := &mockWatcher{}
-	assert.Nil(t, w.value)
+	var (
+		res     Options
+		resLock sync.Mutex
+	)
+	w := NewMockOptionsWatcher(ctrl)
+	w.EXPECT().
+		SetRuntimeOptions(gomock.Any()).
+		Do(func(value Options) {
+			resLock.Lock()
+			res = value
+			resLock.Unlock()
+		}).
+		AnyTimes()
+
+	resLock.Lock()
+	assert.Nil(t, res)
+	resLock.Unlock()
 
 	// Ensure immediately sets the value.
 	mgr.RegisterWatcher(w)
-	assert.Equal(t, opts, w.runtimeOptions())
+	resLock.Lock()
+	assert.Equal(t, opts, res)
+	resLock.Unlock()
 
 	// Update and verify.
 	newLimit := int64(200)
@@ -48,28 +68,12 @@ func TestRuntimeOptionsManagerUpdate(t *testing.T) {
 
 	// Verify watcher receives update.
 	for {
-		if w.runtimeOptions().WriteValuesPerMetricLimitPerSecond() == newLimit {
+		resLock.Lock()
+		rl := res.WriteValuesPerMetricLimitPerSecond()
+		resLock.Unlock()
+		if rl == newLimit {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-}
-
-type mockWatcher struct {
-	sync.RWMutex
-
-	value Options
-}
-
-func (m *mockWatcher) SetRuntimeOptions(value Options) {
-	m.Lock()
-	m.value = value
-	m.Unlock()
-}
-
-func (m *mockWatcher) runtimeOptions() Options {
-	m.RLock()
-	value := m.value
-	m.RUnlock()
-	return value
 }

@@ -28,7 +28,6 @@ import (
 	schema "github.com/m3db/m3aggregator/generated/proto/flush"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/kv/mem"
-	"github.com/m3db/m3x/watch"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
@@ -197,35 +196,3 @@ func testFlushTimesManager() (*flushTimesManager, kv.Store) {
 		SetFlushTimesStore(store)
 	return NewFlushTimesManager(opts).(*flushTimesManager), store
 }
-
-type openShardSetIDFn func(shardSetID uint32) error
-type getFlushTimesFn func() (*schema.ShardSetFlushTimes, error)
-type watchFlushTimesFn func() (watch.Watch, error)
-type storeAsyncFn func(value *schema.ShardSetFlushTimes) error
-
-type mockFlushTimesManager struct {
-	openShardSetIDFn  openShardSetIDFn
-	getFlushTimesFn   getFlushTimesFn
-	watchFlushTimesFn watchFlushTimesFn
-	storeAsyncFn      storeAsyncFn
-}
-
-func (m *mockFlushTimesManager) Reset() error { return nil }
-
-func (m *mockFlushTimesManager) Open(shardSetID uint32) error {
-	return m.openShardSetIDFn(shardSetID)
-}
-
-func (m *mockFlushTimesManager) Get() (*schema.ShardSetFlushTimes, error) {
-	return m.getFlushTimesFn()
-}
-
-func (m *mockFlushTimesManager) Watch() (watch.Watch, error) {
-	return m.watchFlushTimesFn()
-}
-
-func (m *mockFlushTimesManager) StoreAsync(value *schema.ShardSetFlushTimes) error {
-	return m.storeAsyncFn(value)
-}
-
-func (m *mockFlushTimesManager) Close() error { return nil }

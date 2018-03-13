@@ -34,6 +34,7 @@ import (
 	xid "github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,7 +54,10 @@ var (
 )
 
 func TestMetricMapAddMetricWithPoliciesListMapClosed(t *testing.T) {
-	opts := testOptions()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testOptions(ctrl)
 	m := newMetricMap(testShard, opts)
 	m.Close()
 
@@ -61,7 +65,10 @@ func TestMetricMapAddMetricWithPoliciesListMapClosed(t *testing.T) {
 }
 
 func TestMetricMapAddMetricWithPoliciesListNoRateLimit(t *testing.T) {
-	opts := testOptions()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testOptions(ctrl)
 	m := newMetricMap(testShard, opts)
 	policies := testDefaultPoliciesList
 
@@ -132,7 +139,10 @@ func TestMetricMapAddMetricWithPoliciesListNoRateLimit(t *testing.T) {
 }
 
 func TestMetricMapSetRuntimeOptions(t *testing.T) {
-	opts := testOptions()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testOptions(ctrl)
 	m := newMetricMap(testShard, opts)
 
 	// Add three metrics.
@@ -158,10 +168,13 @@ func TestMetricMapSetRuntimeOptions(t *testing.T) {
 }
 
 func TestMetricMapAddMetricWithPoliciesListWithRateLimit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	now := time.Now()
 	nowFn := func() time.Time { return now }
 	clockOpts := clock.NewOptions().SetNowFn(nowFn)
-	m := newMetricMap(testShard, testOptions().SetClockOptions(clockOpts))
+	m := newMetricMap(testShard, testOptions(ctrl).SetClockOptions(clockOpts))
 
 	// Reset runtime options to disable rate limiting.
 	noRateLimitRuntimeOpts := runtime.NewOptions().SetWriteNewMetricLimitPerShardPerSecond(0)
@@ -233,6 +246,9 @@ func TestMetricMapAddMetricWithPoliciesListWithRateLimit(t *testing.T) {
 }
 
 func TestMetricMapDeleteExpired(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		batchPercent = 0.07
 		ttl          = time.Hour
@@ -244,7 +260,7 @@ func TestMetricMapDeleteExpired(t *testing.T) {
 	expiredClockOpt := clock.NewOptions().SetNowFn(func() time.Time {
 		return now.Add(-ttl).Add(-time.Second)
 	})
-	opts := testOptions().
+	opts := testOptions(ctrl).
 		SetClockOptions(liveClockOpts).
 		SetEntryCheckBatchPercent(batchPercent)
 	liveEntryOpts := opts.

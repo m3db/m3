@@ -30,6 +30,7 @@ import (
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/instrument"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -139,7 +140,10 @@ func TestSetMinFlushInterval(t *testing.T) {
 }
 
 func TestSetFlushHandler(t *testing.T) {
-	h := &mockHandler{}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	h := NewMockHandler(ctrl)
 	o := NewOptions().SetFlushHandler(h)
 	require.Equal(t, h, o.FlushHandler())
 }
