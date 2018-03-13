@@ -36,6 +36,52 @@ import (
 	"github.com/leanovate/gopter/gen"
 )
 
+// NB(prateek): this file uses a SUT prop test to ensure we are correctly reference counting
+// decoders including all interactions in their lifecycle. We use the structs below to model
+// the system under test, and the valid state.
+
+// multiDecoderSystem models the system under test. `primary` is the first decoder under test,
+// `duplicates` are created by execution of the Duplicate() command, and we swap primary and
+// duplicate upon execution of the Swap command. All methods executed upon the system (except)
+// swap, are executed on the primary decoder, and subsequently invariants are checked upon
+// the entire system (not just the primary). This combined with Swap() semantic, tests all
+// decoders in the system.
+type multiDecoderSystem struct {
+	primary    TagDecoder
+	duplicates []TagDecoder
+}
+
+// multiDecoderState models the state of the system under test. It contains a mix of properties
+// global to the system under test, and properties per decoder in the system. It follows the pattern
+// used in multiDecoderSystem to have a single primary, and remaining duplicates.
+type multiDecoderState struct {
+	// global properties of system under test
+	tags      ident.Tags
+	initBytes checked.Bytes
+	numRefs   int
+	// properties per decoder
+	primary    decoderState
+	duplicates []decoderState
+}
+
+// decoderState models the state of a single decoder in the system.
+type decoderState struct {
+	numTags      int
+	numNextCalls int
+	closed       bool
+}
+
+// systemAndResult is used to bypass a restriction in the gopter API
+// which restricts the PostConditionFunc to operate upon nextState, and
+// the result of executing a method on the system; to check the invariants
+// we need, we have to query the state of the system under test too. To do so,
+// we hijack the API by returning this struct, which contains both the system
+// under test, and the result of an interaction as the "commands.Result".
+type systemAndResult struct {
+	system *multiDecoderSystem
+	result commands.Result
+}
+
 func TestDecoderLifecycle(t *testing.T) {
 	parameters := gopter.DefaultTestParameters()
 	seed := time.Now().UnixNano()
@@ -84,101 +130,6 @@ var decoderCommandsFunctor = func(t *testing.T) *commands.ProtoCommands {
 			)
 		},
 	}
-}
-
-func newDecoderState() gopter.Gen {
-	return anyASCIITags().Map(
-		func(tags ident.Tags) *multiDecoderState {
-			enc := newTestTagEncoder()
-			if err := enc.Encode(ident.NewTagSliceIterator(tags)); err != nil {
-				return nil
-			}
-			b, ok := enc.Data()
-			if !ok {
-				return nil
-			}
-			data := checked.NewBytes(b.Get(), nil)
-			return &multiDecoderState{
-				tags:      tags,
-				initBytes: data,
-				numRefs:   1,
-				primary: decoderState{
-					numTags: len(tags),
-				},
-			}
-		},
-	)
-}
-
-type multiDecoderSystem struct {
-	primary    TagDecoder
-	duplicates []TagDecoder
-}
-
-type multiDecoderState struct {
-	initBytes  checked.Bytes
-	numRefs    int
-	tags       ident.Tags
-	primary    decoderState
-	duplicates []decoderState
-}
-
-type decoderState struct {
-	numTags      int
-	numNextCalls int
-	closed       bool
-}
-
-func (d decoderState) String() string {
-	return fmt.Sprintf("[ numTags=%d, closed=%v, numNextCalls=%d ]",
-		d.numTags, d.closed, d.numNextCalls)
-}
-
-func (d *decoderState) hasCurrentTagsReference() bool {
-	return d.numTags > 0 && d.numNextCalls > 0 && d.numNextCalls <= d.numTags
-}
-
-func (d *decoderState) numRemaining() int {
-	if d.closed {
-		return 0
-	}
-	remain := d.numTags - d.numNextCalls
-	if remain >= 0 {
-		return remain
-	}
-	return 0
-}
-
-func (d *multiDecoderState) String() string {
-	var buf bytes.Buffer
-
-	buf.WriteString(fmt.Sprintf("[ numRefs=%d, tags=[%s], primary=%s ",
-		d.numRefs, tagsToString(d.tags), d.primary.String()))
-
-	for i, dupe := range d.duplicates {
-		buf.WriteString(fmt.Sprintf(", dupe_%d=%s ", (i + 1), dupe.String()))
-	}
-
-	buf.WriteString("]")
-	return buf.String()
-}
-
-func tagsToString(tags ident.Tags) string {
-	var tagBuffer bytes.Buffer
-	for i, t := range tags {
-		if i != 0 {
-			tagBuffer.WriteString(", ")
-		}
-		tagBuffer.WriteString(t.Name.String())
-		tagBuffer.WriteString("=")
-		tagBuffer.WriteString(t.Value.String())
-	}
-	return tagBuffer.String()
-}
-
-type systemAndResult struct {
-	system *multiDecoderSystem
-	result commands.Result
 }
 
 var errCmd = &commands.ProtoCommand{
@@ -424,6 +375,30 @@ func validateNumReferences(decState *multiDecoderState, sys *multiDecoderSystem)
 	return &gopter.PropResult{Status: gopter.PropTrue}
 }
 
+func newDecoderState() gopter.Gen {
+	return anyASCIITags().Map(
+		func(tags ident.Tags) *multiDecoderState {
+			enc := newTestTagEncoder()
+			if err := enc.Encode(ident.NewTagSliceIterator(tags)); err != nil {
+				return nil
+			}
+			b, ok := enc.Data()
+			if !ok {
+				return nil
+			}
+			data := checked.NewBytes(b.Get(), nil)
+			return &multiDecoderState{
+				tags:      tags,
+				initBytes: data,
+				numRefs:   1,
+				primary: decoderState{
+					numTags: len(tags),
+				},
+			}
+		},
+	)
+}
+
 func anyASCIITag() gopter.Gen {
 	return gopter.CombineGens(gen.Identifier(), gen.Identifier()).
 		Map(func(values []interface{}) ident.Tag {
@@ -434,3 +409,50 @@ func anyASCIITag() gopter.Gen {
 }
 
 func anyASCIITags() gopter.Gen { return gen.SliceOf(anyASCIITag()) }
+
+func (d decoderState) String() string {
+	return fmt.Sprintf("[ numTags=%d, closed=%v, numNextCalls=%d ]",
+		d.numTags, d.closed, d.numNextCalls)
+}
+
+func (d *decoderState) hasCurrentTagsReference() bool {
+	return d.numTags > 0 && d.numNextCalls > 0 && d.numNextCalls <= d.numTags
+}
+
+func (d *decoderState) numRemaining() int {
+	if d.closed {
+		return 0
+	}
+	remain := d.numTags - d.numNextCalls
+	if remain >= 0 {
+		return remain
+	}
+	return 0
+}
+
+func (d *multiDecoderState) String() string {
+	var buf bytes.Buffer
+
+	buf.WriteString(fmt.Sprintf("[ numRefs=%d, tags=[%s], primary=%s ",
+		d.numRefs, tagsToString(d.tags), d.primary.String()))
+
+	for i, dupe := range d.duplicates {
+		buf.WriteString(fmt.Sprintf(", dupe_%d=%s ", (i + 1), dupe.String()))
+	}
+
+	buf.WriteString("]")
+	return buf.String()
+}
+
+func tagsToString(tags ident.Tags) string {
+	var tagBuffer bytes.Buffer
+	for i, t := range tags {
+		if i != 0 {
+			tagBuffer.WriteString(", ")
+		}
+		tagBuffer.WriteString(t.Name.String())
+		tagBuffer.WriteString("=")
+		tagBuffer.WriteString(t.Value.String())
+	}
+	return tagBuffer.String()
+}
