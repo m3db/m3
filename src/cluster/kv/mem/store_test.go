@@ -250,13 +250,19 @@ func TestDelete(t *testing.T) {
 	<-w.C()
 	require.Equal(t, 1, w.Get().Version())
 
+	s.Set("foo", &kvtest.Foo{
+		Msg: "bar2",
+	})
+	<-w.C()
+	v := w.Get()
+	require.Equal(t, 2, v.Version())
 	val, err := s.Delete("foo")
 	require.NoError(t, err)
-	require.Equal(t, 1, val.Version())
+	require.Equal(t, 2, val.Version())
 
 	var read kvtest.Foo
 	require.NoError(t, val.Unmarshal(&read))
-	require.Equal(t, "bar1", read.Msg)
+	require.Equal(t, "bar2", read.Msg)
 
 	<-w.C()
 	require.Nil(t, w.Get())
@@ -264,6 +270,15 @@ func TestDelete(t *testing.T) {
 	_, err = s.Get("foo")
 	require.Error(t, err)
 	require.Equal(t, kv.ErrNotFound, err)
+
+	s.Set("foo", &kvtest.Foo{
+		Msg: "after_delete_bar1",
+	})
+
+	<-w.C()
+	newValue := w.Get()
+	require.Equal(t, 1, newValue.Version())
+	require.True(t, newValue.IsNewer(v))
 }
 
 func TestTxn(t *testing.T) {
