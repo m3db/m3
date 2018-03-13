@@ -56,16 +56,28 @@ func NewValueWithData(vers int, data []byte) kv.Value {
 }
 
 type value struct {
-	version int
-	data    []byte
+	version  int
+	revision int
+	data     []byte
 }
 
 func (v value) Version() int                      { return v.version }
 func (v value) Unmarshal(msg proto.Message) error { return proto.Unmarshal(v.data, msg) }
-func (v value) IsNewer(other kv.Value) bool       { return v.version > other.Version() }
+func (v value) IsNewer(other kv.Value) bool {
+	otherValue, ok := other.(*value)
+	if !ok {
+		return v.version > other.Version()
+	}
+	if v.revision == otherValue.revision {
+		return v.version > other.Version()
+	}
+	return v.revision > otherValue.revision
+}
 
 type store struct {
 	sync.RWMutex
+
+	revision   int
 	values     map[string][]*value
 	watchables map[string]kv.ValueWatchable
 }
@@ -128,15 +140,8 @@ func (s *store) setWithLock(key string, val proto.Message) (int, error) {
 	if len(vals) != 0 {
 		lastVersion = vals[len(vals)-1].version
 	}
-
 	newVersion := lastVersion + 1
-	fv := &value{
-		version: newVersion,
-		data:    data,
-	}
-	s.values[key] = append(vals, fv)
-	s.updateWatchable(key, fv)
-
+	s.updateInternalWithLock(key, newVersion, data)
 	return newVersion, nil
 }
 
@@ -153,13 +158,7 @@ func (s *store) SetIfNotExists(key string, val proto.Message) (int, error) {
 		return 0, kv.ErrAlreadyExists
 	}
 
-	fv := &value{
-		version: 1,
-		data:    data,
-	}
-	s.values[key] = append(s.values[key], fv)
-	s.updateWatchable(key, fv)
-
+	s.updateInternalWithLock(key, 1, data)
 	return 1, nil
 }
 
@@ -183,14 +182,19 @@ func (s *store) CheckAndSet(key string, version int, val proto.Message) (int, er
 	}
 
 	newVersion := version + 1
-	fv := &value{
-		version: newVersion,
-		data:    data,
-	}
-	s.values[key] = append(vals, fv)
-	s.updateWatchable(key, fv)
-
+	s.updateInternalWithLock(key, newVersion, data)
 	return newVersion, nil
+}
+
+func (s *store) updateInternalWithLock(key string, newVersion int, data []byte) {
+	s.revision++
+	fv := &value{
+		version:  newVersion,
+		revision: s.revision,
+		data:     data,
+	}
+	s.values[key] = append(s.values[key], fv)
+	s.updateWatchable(key, fv)
 }
 
 func (s *store) Delete(key string) (kv.Value, error) {
