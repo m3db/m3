@@ -62,6 +62,9 @@ type KVConfig struct {
 
 	// Presence of a (etcd) server in this config denotes an embedded cluster
 	Server *EmbeddedKV `yaml:"server"`
+
+	// NamespaceTimeout is the timeout duration for setting a namespace
+	NamespaceTimeout time.Duration `yaml:"namespaceTimeout"`
 }
 
 // EmbeddedKV defines specific fields for the embedded kv server
@@ -73,9 +76,6 @@ type EmbeddedKV struct {
 	LCUrls         []string `yaml:"listenClientUrls"`
 	InitialCluster string   `yaml:"initialCluster"`
 	Name           string   `yaml:"name"`
-
-	// NamespaceTimeout is the timeout duration for setting a namespace
-	NamespaceTimeout time.Duration `yaml:"namespaceTimeout"`
 }
 
 // StaticConfiguration is used for running M3DB with a static config

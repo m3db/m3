@@ -255,7 +255,7 @@ func GetETCDConfig(cfg Configuration) (*embed.Config, error) {
 }
 
 func convertToURLsWithDefault(rawURLs []string, def ...string) ([]url.URL, error) {
-	if rawURLs == nil || len(rawURLs) == 0 {
+	if len(rawURLs) == 0 {
 		rawURLs = def
 	}
 

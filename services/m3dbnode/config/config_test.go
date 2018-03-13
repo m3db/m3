@@ -505,7 +505,7 @@ config:
       - http://0.0.0.0:2379
       initialCluster: host1=http://1.1.1.1:2380,host2=http://1.1.1.2:2380,host3=http://1.1.1.3:2380
       name: host1
-      namespaceTimeout: 0s
+    namespaceTimeout: 0s
 hashing:
   seed: 42
 writeNewSeriesAsync: true
@@ -533,13 +533,13 @@ func TestInitialClusterToETCDEndpoints(t *testing.T) {
 	assert.Equal(t, "http://1.1.1.2:2379", endpoints[1])
 	assert.Equal(t, "http://1.1.1.3:2379", endpoints[2])
 
-	endpoints, err = InitialClusterToETCDEndpoints("")
+	_, err = InitialClusterToETCDEndpoints("")
 	require.Error(t, err)
 
-	endpoints, err = InitialClusterToETCDEndpoints("host1")
+	_, err = InitialClusterToETCDEndpoints("host1")
 	require.Error(t, err)
 
-	endpoints, err = InitialClusterToETCDEndpoints("http://1.1.1.1:2380")
+	_, err = InitialClusterToETCDEndpoints("http://1.1.1.1:2380")
 	require.Error(t, err)
 }
 

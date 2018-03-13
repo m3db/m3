@@ -39,6 +39,7 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3db/client"
+	"github.com/m3db/m3db/environment"
 	"github.com/m3db/m3db/kvconfig"
 	"github.com/m3db/m3db/retention"
 	"github.com/m3db/m3db/services/m3dbnode/config"
@@ -118,7 +119,7 @@ func TestConfig(t *testing.T) {
 	err = xconfig.LoadFile(&cfg, configFd.Name())
 	require.NoError(t, err)
 
-	configSvcClient, err := cfg.EnvironmentConfig.Service.NewClient(instrument.NewOptions().
+	configSvcClient, err := cfg.EnvironmentConfig.KV.Client.NewClient(instrument.NewOptions().
 		SetLogger(xlog.NullLogger))
 	require.NoError(t, err)
 
@@ -189,7 +190,8 @@ func TestConfig(t *testing.T) {
 	// NB(r): Make sure client config points to the root config
 	// service since we're going to instantiate the client configuration
 	// just by itself.
-	cfg.Client.EnvironmentConfig.Service = cfg.EnvironmentConfig.Service
+	cfg.Client.EnvironmentConfig.KV = &environment.KVConfig{}
+	cfg.Client.EnvironmentConfig.KV.Client = cfg.EnvironmentConfig.KV.Client
 
 	cli, err := cfg.Client.NewClient(client.ConfigurationParameters{})
 	require.NoError(t, err)
@@ -401,14 +403,15 @@ pooling:
               size: 128
 
 config:
-    service:
-        env: {{.ServiceEnv}}
-        zone: {{.ServiceZone}}
-        service: {{.ServiceName}}
-        cacheDir: {{.ConfigServiceCacheDir}}
-        etcdClusters:
-            - zone: {{.ServiceZone}}
-              endpoints: {{.EtcdEndpoints}}
+    kv:
+        client:
+            env: {{.ServiceEnv}}
+            zone: {{.ServiceZone}}
+            service: {{.ServiceName}}
+            cacheDir: {{.ConfigServiceCacheDir}}
+            etcdClusters:
+                - zone: {{.ServiceZone}}
+                  endpoints: {{.EtcdEndpoints}}
 `
 
 type cleanup func()

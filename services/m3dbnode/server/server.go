@@ -134,7 +134,7 @@ func Run(runOpts RunOptions) {
 
 		// Default etcd client clusters if not set already
 		clusters := cfg.EnvironmentConfig.KV.Client.ETCDClusters
-		if clusters == nil || len(clusters) == 0 {
+		if len(clusters) == 0 {
 			endpoints, err := config.InitialClusterToETCDEndpoints(cfg.EnvironmentConfig.KV.Server.InitialCluster)
 			if err != nil {
 				logger.Fatalf("unable to create etcd clusters: %v", err)
@@ -319,7 +319,7 @@ func Run(runOpts RunOptions) {
 	if cfg.EnvironmentConfig.Static == nil {
 		logger.Info("creating dynamic config service client with m3cluster")
 
-		namespaceTimeout := cfg.EnvironmentConfig.KV.Server.NamespaceTimeout
+		namespaceTimeout := cfg.EnvironmentConfig.KV.NamespaceTimeout
 		if namespaceTimeout <= 0 {
 			namespaceTimeout = namespaceInitTimeout
 		}
