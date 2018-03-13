@@ -168,6 +168,16 @@ func (_mr *MockDatabaseSeriesMockRecorder) NumActiveBlocks() *gomock.Call {
 	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "NumActiveBlocks", reflect.TypeOf((*MockDatabaseSeries)(nil).NumActiveBlocks))
 }
 
+// OnEvictedFromWiredList mocks base method
+func (_m *MockDatabaseSeries) OnEvictedFromWiredList(_param0 ident.ID, _param1 time.Time) {
+	_m.ctrl.Call(_m, "OnEvictedFromWiredList", _param0, _param1)
+}
+
+// OnEvictedFromWiredList indicates an expected call of OnEvictedFromWiredList
+func (_mr *MockDatabaseSeriesMockRecorder) OnEvictedFromWiredList(arg0, arg1 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "OnEvictedFromWiredList", reflect.TypeOf((*MockDatabaseSeries)(nil).OnEvictedFromWiredList), arg0, arg1)
+}
+
 // OnRetrieveBlock mocks base method
 func (_m *MockDatabaseSeries) OnRetrieveBlock(_param0 ident.ID, _param1 time.Time, _param2 ts.Segment) {
 	_m.ctrl.Call(_m, "OnRetrieveBlock", _param0, _param1, _param2)
@@ -192,13 +202,13 @@ func (_mr *MockDatabaseSeriesMockRecorder) ReadEncoded(arg0, arg1, arg2 interfac
 }
 
 // Reset mocks base method
-func (_m *MockDatabaseSeries) Reset(_param0 ident.ID, _param1 QueryableBlockRetriever, _param2 block.OnRetrieveBlock, _param3 Options) {
-	_m.ctrl.Call(_m, "Reset", _param0, _param1, _param2, _param3)
+func (_m *MockDatabaseSeries) Reset(_param0 ident.ID, _param1 QueryableBlockRetriever, _param2 block.OnRetrieveBlock, _param3 block.OnEvictedFromWiredList, _param4 Options) {
+	_m.ctrl.Call(_m, "Reset", _param0, _param1, _param2, _param3, _param4)
 }
 
 // Reset indicates an expected call of Reset
-func (_mr *MockDatabaseSeriesMockRecorder) Reset(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Reset", reflect.TypeOf((*MockDatabaseSeries)(nil).Reset), arg0, arg1, arg2, arg3)
+func (_mr *MockDatabaseSeriesMockRecorder) Reset(arg0, arg1, arg2, arg3, arg4 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCallWithMethodType(_mr.mock, "Reset", reflect.TypeOf((*MockDatabaseSeries)(nil).Reset), arg0, arg1, arg2, arg3, arg4)
 }
 
 // Tick mocks base method
