@@ -56,7 +56,7 @@ type dbBlock struct {
 	retriever  DatabaseShardBlockRetriever
 	retrieveID ident.ID
 
-	owner OnEvictedFromWiredList
+	onEvicted OnEvictedFromWiredList
 
 	// listState contains state that the Wired List requires in order to track a block's
 	// position in the wired list. All the state in this struct is "owned" by the wired
@@ -386,17 +386,17 @@ func (b *dbBlock) wiredListEntry() wiredListEntry {
 	return result
 }
 
-func (b *dbBlock) SetOnEvictedFromWiredList(owner OnEvictedFromWiredList) {
+func (b *dbBlock) SetOnEvictedFromWiredList(onEvicted OnEvictedFromWiredList) {
 	b.Lock()
-	b.owner = owner
+	b.onEvicted = onEvicted
 	b.Unlock()
 }
 
 func (b *dbBlock) OnEvictedFromWiredList() OnEvictedFromWiredList {
 	b.RLock()
-	owner := b.owner
+	onEvicted := b.onEvicted
 	b.RUnlock()
-	return owner
+	return onEvicted
 }
 
 type databaseSeriesBlocks struct {
