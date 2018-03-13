@@ -124,10 +124,11 @@ var decoderCommandsFunctor = func(t *testing.T) *commands.ProtoCommands {
 		GenCommandFunc: func(state commands.State) gopter.Gen {
 			return gen.OneGenOf(
 				gen.Const(nextCmd),
-				gen.Const(errCmd),
 				gen.Const(remainingCmd),
-				gen.Const(duplicateCmd),
+				gen.Const(currentCmd),
 				gen.Const(closeCmd),
+				gen.Const(errCmd),
+				gen.Const(duplicateCmd),
 				gen.Const(swapToDuplicateCmd),
 			)
 		},
@@ -149,12 +150,50 @@ var errCmd = &commands.ProtoCommand{
 		if res.result == nil {
 			return &gopter.PropResult{Status: gopter.PropTrue}
 		}
-
 		err := res.result.(error)
 		return &gopter.PropResult{
 			Status: gopter.PropError,
 			Error:  fmt.Errorf("received error [ err = %v, state = [%s] ]", err, state.(decoderState)),
 		}
+	},
+}
+
+var currentCmd = &commands.ProtoCommand{
+	Name: "Current",
+	RunFunc: func(s commands.SystemUnderTest) commands.Result {
+		sys := s.(*multiDecoderSystem)
+		d := sys.primary
+		return &systemAndResult{
+			system: sys,
+			result: d.Current(),
+		}
+	},
+	PostConditionFunc: func(state commands.State, result commands.Result) *gopter.PropResult {
+		decState := state.(*multiDecoderState)
+		res := result.(*systemAndResult).result.(ident.Tag)
+		if !decState.primary.hasCurrentTagsReference() {
+			if res.Name != nil || res.Value != nil {
+				return &gopter.PropResult{
+					Status: gopter.PropError,
+					Error: fmt.Errorf("received not nil tags for closed state [ tag = %+v, state = [%s] ]",
+						res, decState),
+				}
+			}
+			// i.e. tag is nil and primary state should not have tags, all good.
+			return &gopter.PropResult{Status: gopter.PropTrue}
+		}
+		observedTag := res
+		expectedTag := decState.tags[decState.primary.numNextCalls-1]
+		if !observedTag.Name.Equal(expectedTag.Name) ||
+			!observedTag.Value.Equal(expectedTag.Value) {
+			return &gopter.PropResult{
+				Status: gopter.PropError,
+				Error: fmt.Errorf("unexpected tag received [ expected = %+v, observed = %+v, state = %s ]",
+					expectedTag, observedTag, decState),
+			}
+		}
+		// all good tags are equal
+		return &gopter.PropResult{Status: gopter.PropTrue}
 	},
 }
 
