@@ -377,10 +377,11 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
+	retentionPeriod := time.Hour
 	opts := newSeriesTestOptions()
 	opts = opts.
 		SetCachePolicy(CacheLRU).
-		SetRetentionOptions(opts.RetentionOptions().SetBlockDataExpiryAfterNotAccessedPeriod(10 * time.Minute))
+		SetRetentionOptions(opts.RetentionOptions().SetRetentionPeriod(retentionPeriod))
 	ropts := opts.RetentionOptions()
 	curr := time.Now().Truncate(ropts.BlockSize())
 	opts = opts.SetClockOptions(opts.ClockOptions().SetNowFn(func() time.Time {
@@ -425,9 +426,20 @@ func TestSeriesTickCacheLRU(t *testing.T) {
 	series.blocks.AddBlock(b)
 	blockRetriever.EXPECT().IsBlockRetrievable(curr).Return(false)
 
+	// Test case where block was retrieved from disk and is out of retention. Will be removed, but not closed.
+	b = block.NewMockDatabaseBlock(ctrl)
+	b.EXPECT().StartTime().Return(curr.Add(-2 * retentionPeriod))
+	b.EXPECT().IsRetrieved().Return(true).AnyTimes()
+	b.EXPECT().WasRetrievedFromDisk().Return(true)
+	series.blocks.AddBlock(b)
+	_, expiredBlockExists := series.blocks.BlockAt(curr.Add(-2 * retentionPeriod))
+	require.Equal(t, true, expiredBlockExists)
+
 	tickResult, err = series.Tick()
 	require.NoError(t, err)
 	require.Equal(t, 0, tickResult.UnwiredBlocks)
+	_, expiredBlockExists = series.blocks.BlockAt(curr.Add(-2 * retentionPeriod))
+	require.Equal(t, false, expiredBlockExists)
 }
 
 func TestSeriesTickCacheAllMetadata(t *testing.T) {

@@ -250,7 +250,8 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 	}
 
 	// Try to unwire all blocks possible
-	for bl := l.root.next(); l.length > maxWired && bl != &l.root; bl = bl.next() {
+	bl := l.root.next()
+	for l.length > maxWired && bl != &l.root {
 		// Evict the block before closing it so that callers of series.ReadEncoded()
 		// don't get errors about trying to read from a closed block.
 		if onEvict := bl.OnEvictedFromWiredList(); onEvict != nil {
@@ -258,13 +259,19 @@ func (l *WiredList) insertAfter(v, at DatabaseBlock) {
 			onEvict.OnEvictedFromWiredList(wlEntry.retrieveID, wlEntry.startTime)
 		}
 
-		bl.Close()
+		// bl.Close() will return the block to the pool. In order to avoid races
+		// with the pool itself, we capture the value of the next block and remove
+		// the block from the wired list before we close it.
+		nextBl := bl.next()
 		l.remove(bl)
+		bl.Close()
 
 		l.metrics.evicted.Inc(1)
 
 		lastUpdatedAt := time.Unix(0, bl.nextPrevUpdatedAtUnixNano())
 		l.metrics.evictedAfterDuration.Record(now.Sub(lastUpdatedAt))
+
+		bl = nextBl
 	}
 }
 

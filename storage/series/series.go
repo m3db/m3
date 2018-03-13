@@ -151,7 +151,27 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 		start := startNano.ToTime()
 		if start.Before(expireCutoff) {
 			s.blocks.RemoveBlockAt(start)
-			currBlock.Close()
+			// If we're using the LRU policy and the block was retrieved from disk,
+			// then don't close the block because that is the WiredList's
+			// responsibility. The block will hang around the WiredList until
+			// it is evicted to make room for something else at which point it
+			// will be closed. Note that while we don't close the block, we do
+			// remove it from the list of blocks. This is so that the series
+			// itself can still be expired if this was the last block. The
+			// WiredList will still notify the shard/series via the OnEvictedFromWiredList
+			// method, but those methods are noops for series/blocks that have already
+			// been removed.
+			// Note that while technically the DatabaseBlock protects against double
+			// closes, they can be problematic due to pooling. I.E if the tick closes
+			// a block, and it gets reinserted into the pool, then it gets reused for
+			// some other piece of data, then the WiredList re-closes it, not knowing
+			// that the block had already been closed / re-opened with a different
+			// set of data.
+			if cachePolicy == CacheLRU && currBlock.WasRetrievedFromDisk() {
+				// Do nothing
+			} else {
+				currBlock.Close()
+			}
 			result.madeExpiredBlocks++
 			continue
 		}
@@ -189,9 +209,7 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 				// The tick is responsible for managing the lifecycle of blocks that were not
 				// read from disk (not retrieved), and the WiredList will manage those that were
 				// retrieved from disk.
-				if !currBlock.WasRetrievedFromDisk() {
-					shouldUnwire = true
-				}
+				shouldUnwire = !currBlock.WasRetrievedFromDisk()
 			default:
 				s.opts.InstrumentOptions().Logger().Fatalf(
 					"unhandled cache policy in series tick: %s", cachePolicy)

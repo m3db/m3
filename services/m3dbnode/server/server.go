@@ -132,8 +132,8 @@ func Run(runOpts RunOptions) {
 			SetLimitCheckEvery(cfg.Filesystem.ThroughputCheckEvery)).
 		SetWriteNewSeriesAsync(cfg.WriteNewSeriesAsync).
 		SetWriteNewSeriesBackoffDuration(cfg.WriteNewSeriesBackoffDuration)
-	if lruConfig := cfg.Cache.SeriesConfiguration().LRU; lruConfig != nil {
-		runtimeOpts = runtimeOpts.SetMaxWiredBlocks(lruConfig.MaxBlocks)
+	if lruCfg := cfg.Cache.SeriesConfiguration().LRU; lruCfg != nil {
+		runtimeOpts = runtimeOpts.SetMaxWiredBlocks(lruCfg.MaxBlocks)
 	}
 
 	if tick := cfg.Tick; tick != nil {
