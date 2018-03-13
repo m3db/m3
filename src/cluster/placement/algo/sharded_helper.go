@@ -88,22 +88,22 @@ type PlacementHelper interface {
 	// Instances returns the list of instances managed by the PlacementHelper.
 	Instances() []placement.Instance
 
-	// HasRackConflict checks if the rack constraint is violated when moving the shard to the target rack.
-	HasRackConflict(shard uint32, from placement.Instance, toRack string) bool
+	// CanMoveShard checks if the shard can be moved from the instance to the target isolation group.
+	CanMoveShard(shard uint32, fromInstance placement.Instance, toIsolationGroup string) bool
 }
 
 type helper struct {
-	targetLoad         map[string]int
-	shardToInstanceMap map[uint32]map[placement.Instance]struct{}
-	rackToInstancesMap map[string]map[placement.Instance]struct{}
-	rackToWeightMap    map[string]uint32
-	totalWeight        uint32
-	rf                 int
-	uniqueShards       []uint32
-	instances          map[string]placement.Instance
-	maxShardSetID      uint32
-	log                log.Logger
-	opts               placement.Options
+	targetLoad          map[string]int
+	shardToInstanceMap  map[uint32]map[placement.Instance]struct{}
+	groupToInstancesMap map[string]map[placement.Instance]struct{}
+	groupToWeightMap    map[string]uint32
+	totalWeight         uint32
+	rf                  int
+	uniqueShards        []uint32
+	instances           map[string]placement.Instance
+	maxShardSetID       uint32
+	log                 log.Logger
+	opts                placement.Options
 }
 
 // NewPlacementHelper returns a placement helper
@@ -213,21 +213,21 @@ func newHelper(p placement.Placement, targetRF int, opts placement.Options) plac
 
 func (ph *helper) scanCurrentLoad() {
 	ph.shardToInstanceMap = make(map[uint32]map[placement.Instance]struct{}, len(ph.uniqueShards))
-	ph.rackToInstancesMap = make(map[string]map[placement.Instance]struct{})
-	ph.rackToWeightMap = make(map[string]uint32)
+	ph.groupToInstancesMap = make(map[string]map[placement.Instance]struct{})
+	ph.groupToWeightMap = make(map[string]uint32)
 	totalWeight := uint32(0)
 	for _, instance := range ph.instances {
-		if _, exist := ph.rackToInstancesMap[instance.Rack()]; !exist {
-			ph.rackToInstancesMap[instance.Rack()] = make(map[placement.Instance]struct{})
+		if _, exist := ph.groupToInstancesMap[instance.IsolationGroup()]; !exist {
+			ph.groupToInstancesMap[instance.IsolationGroup()] = make(map[placement.Instance]struct{})
 		}
-		ph.rackToInstancesMap[instance.Rack()][instance] = struct{}{}
+		ph.groupToInstancesMap[instance.IsolationGroup()][instance] = struct{}{}
 
 		if instance.IsLeaving() {
 			// Leaving instances are not counted as usable capacities in the placement.
 			continue
 		}
 
-		ph.rackToWeightMap[instance.Rack()] = ph.rackToWeightMap[instance.Rack()] + instance.Weight()
+		ph.groupToWeightMap[instance.IsolationGroup()] = ph.groupToWeightMap[instance.IsolationGroup()] + instance.Weight()
 		totalWeight += instance.Weight()
 
 		for _, s := range instance.Shards().All() {
@@ -241,11 +241,11 @@ func (ph *helper) scanCurrentLoad() {
 }
 
 func (ph *helper) buildTargetLoad() {
-	overWeightedRack := 0
+	overWeightedGroups := 0
 	overWeight := uint32(0)
-	for _, weight := range ph.rackToWeightMap {
-		if isRackOverWeight(weight, ph.totalWeight, ph.rf) {
-			overWeightedRack++
+	for _, weight := range ph.groupToWeightMap {
+		if isOverWeighted(weight, ph.totalWeight, ph.rf) {
+			overWeightedGroups++
 			overWeight += weight
 		}
 	}
@@ -256,13 +256,15 @@ func (ph *helper) buildTargetLoad() {
 			// We should not set a target load for leaving instances.
 			continue
 		}
-		rackWeight := ph.rackToWeightMap[instance.Rack()]
-		if isRackOverWeight(rackWeight, ph.totalWeight, ph.rf) {
-			// if the instance is on a over-sized rack, the target load is topped at shardLen / rackSize
-			targetLoad[instance.ID()] = int(math.Ceil(float64(ph.getShardLen()) * float64(instance.Weight()) / float64(rackWeight)))
+		igWeight := ph.groupToWeightMap[instance.IsolationGroup()]
+		if isOverWeighted(igWeight, ph.totalWeight, ph.rf) {
+			// If the instance is on a over-sized isolation group, the target load
+			// equals (shardLen / capacity of the isolation group).
+			targetLoad[instance.ID()] = int(math.Ceil(float64(ph.getShardLen()) * float64(instance.Weight()) / float64(igWeight)))
 		} else {
-			// if the instance is on a normal rack, get the target load with aware of other over-sized rack
-			targetLoad[instance.ID()] = ph.getShardLen() * (ph.rf - overWeightedRack) * int(instance.Weight()) / int(ph.totalWeight-overWeight)
+			// If the instance is on a normal isolation group, get the target load
+			// with aware of other over-sized isolation group.
+			targetLoad[instance.ID()] = ph.getShardLen() * (ph.rf - overWeightedGroups) * int(instance.Weight()) / int(ph.totalWeight-overWeight)
 		}
 	}
 	ph.targetLoad = targetLoad
@@ -354,22 +356,22 @@ func (ph *helper) moveShard(candidateShard shard.Shard, from, to placement.Insta
 	return true
 }
 
-func (ph *helper) HasRackConflict(shard uint32, from placement.Instance, toRack string) bool {
+func (ph *helper) CanMoveShard(shard uint32, from placement.Instance, toIsolationGroup string) bool {
 	if from != nil {
-		if from.Rack() == toRack {
-			return false
-		}
-	}
-	for instance := range ph.shardToInstanceMap[shard] {
-		if instance.Rack() == toRack {
+		if from.IsolationGroup() == toIsolationGroup {
 			return true
 		}
 	}
-	return false
+	for instance := range ph.shardToInstanceMap[shard] {
+		if instance.IsolationGroup() == toIsolationGroup {
+			return false
+		}
+	}
+	return true
 }
 
 func (ph *helper) buildInstanceHeap(instances []placement.Instance, availableCapacityAscending bool) (heap.Interface, error) {
-	return newHeap(instances, availableCapacityAscending, ph.targetLoad, ph.rackToWeightMap)
+	return newHeap(instances, availableCapacityAscending, ph.targetLoad, ph.groupToWeightMap)
 }
 
 func (ph *helper) generatePlacement() placement.Placement {
@@ -438,8 +440,8 @@ func (ph *helper) placeShards(
 			}
 		}
 		if !moved {
-			// this should only happen when RF > number of racks
-			return errNotEnoughRacks
+			// This should only happen when RF > number of isolation groups.
+			return errNotEnoughIsolationGroups
 		}
 		for _, triedInstance := range triedInstances {
 			heap.Push(instanceHeap, triedInstance)
@@ -553,7 +555,7 @@ func (ph *helper) reclaimLeavingShards(instance placement.Instance) {
 		for _, s := range i.Shards().ShardsForState(shard.Initializing) {
 			if s.SourceID() == id {
 				// NB(cw) in very rare case, the leaving shards could not be taken back.
-				// For example: in a RF=2 case, instance a and b on rack1, instance c on rack2,
+				// For example: in a RF=2 case, instance a and b on ig1, instance c on ig2,
 				// c took shard1 from instance a, before we tried to assign shard1 back to instance a,
 				// b got assigned shard1, now if we try to add instance a back to the topology, a can
 				// no longer take shard1 back.
@@ -599,7 +601,7 @@ func (ph *helper) canAssignInstance(shardID uint32, from, to placement.Instance)
 		// and i1 should be able to take it and mark it as "Available"
 		return false
 	}
-	return !ph.HasRackConflict(shardID, from, to.Rack())
+	return ph.CanMoveShard(shardID, from, to.IsolationGroup())
 }
 
 func (ph *helper) assignShardToInstance(s shard.Shard, to placement.Instance) {
@@ -614,7 +616,7 @@ func (ph *helper) assignShardToInstance(s shard.Shard, to placement.Instance) {
 // instanceHeap provides an easy way to get best candidate instance to assign/steal a shard
 type instanceHeap struct {
 	instances         []placement.Instance
-	rackToWeightMap   map[string]uint32
+	igToWeightMap     map[string]uint32
 	targetLoad        map[string]int
 	capacityAscending bool
 }
@@ -623,13 +625,13 @@ func newHeap(
 	instances []placement.Instance,
 	capacityAscending bool,
 	targetLoad map[string]int,
-	rackToWeightMap map[string]uint32,
+	igToWeightMap map[string]uint32,
 ) (*instanceHeap, error) {
 	h := &instanceHeap{
 		capacityAscending: capacityAscending,
 		instances:         instances,
 		targetLoad:        targetLoad,
-		rackToWeightMap:   rackToWeightMap,
+		igToWeightMap:     igToWeightMap,
 	}
 	heap.Init(h)
 	return h, nil
@@ -648,11 +650,11 @@ func (h *instanceHeap) Less(i, j int) bool {
 	instanceJ := h.instances[j]
 	leftLoadOnI := h.targetLoadForInstance(instanceI.ID()) - loadOnInstance(instanceI)
 	leftLoadOnJ := h.targetLoadForInstance(instanceJ.ID()) - loadOnInstance(instanceJ)
-	// if both instance has tokens to be filled, prefer the one on a bigger rack
+	// If both instance has tokens to be filled, prefer the one from bigger isolation group
 	// since it tends to be more picky in accepting shards
 	if leftLoadOnI > 0 && leftLoadOnJ > 0 {
-		if instanceI.Rack() != instanceJ.Rack() {
-			return h.rackToWeightMap[instanceI.Rack()] > h.rackToWeightMap[instanceJ.Rack()]
+		if instanceI.IsolationGroup() != instanceJ.IsolationGroup() {
+			return h.igToWeightMap[instanceI.IsolationGroup()] > h.igToWeightMap[instanceJ.IsolationGroup()]
 		}
 	}
 	// compare left capacity on both instances
@@ -678,8 +680,8 @@ func (h *instanceHeap) Pop() interface{} {
 	return instance
 }
 
-func isRackOverWeight(rackWeight, totalWeight uint32, rf int) bool {
-	return float64(rackWeight)/float64(totalWeight) >= 1.0/float64(rf)
+func isOverWeighted(igWeight, totalWeight uint32, rf int) bool {
+	return float64(igWeight)/float64(totalWeight) >= 1.0/float64(rf)
 }
 
 func addInstanceToPlacement(

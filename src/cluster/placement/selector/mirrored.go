@@ -64,10 +64,10 @@ func (f *mirroredSelector) SelectInitialInstances(
 
 	var groups = make([][]placement.Instance, 0, len(candidates))
 	for _, hosts := range weightToHostMap {
-		groupedHosts, ungrouped := groupHostsWithRackCheck(hosts, rf)
+		groupedHosts, ungrouped := groupHostsWithIGCheck(hosts, rf)
 		if len(ungrouped) != 0 {
 			for _, host := range ungrouped {
-				f.logger.Warnf("could not group host %s, rack %s, weight %d", host.name, host.rack, host.weight)
+				f.logger.Warnf("could not group host %s, isolation group %s, weight %d", host.name, host.isolationGroup, host.weight)
 			}
 		}
 		if len(groupedHosts) == 0 {
@@ -107,7 +107,7 @@ func (f *mirroredSelector) SelectAddingInstances(
 
 	var groups = make([][]placement.Instance, 0, len(candidates))
 	for _, hosts := range weightToHostMap {
-		groupedHosts, _ := groupHostsWithRackCheck(hosts, p.ReplicaFactor())
+		groupedHosts, _ := groupHostsWithIGCheck(hosts, p.ReplicaFactor())
 		if len(groupedHosts) == 0 {
 			continue
 		}
@@ -157,7 +157,7 @@ func (f *mirroredSelector) SelectReplaceInstances(
 	)
 	for _, instance := range leavingInstances {
 		if h.name == "" {
-			h = newHost(instance.Hostname(), instance.Rack(), instance.Weight())
+			h = newHost(instance.Hostname(), instance.IsolationGroup(), instance.Weight())
 		}
 
 		err := h.addInstance(instance.Port(), instance)
@@ -177,8 +177,8 @@ func (f *mirroredSelector) SelectReplaceInstances(
 		return nil, fmt.Errorf("could not find instances with weight %d in the candidate list", h.weight)
 	}
 
-	// Find out the racks that are already in the same shard set id with the leaving instances.
-	var conflictRacks = make(map[string]struct{})
+	// Find out the isolation groups that are already in the same shard set id with the leaving instances.
+	var conflictIGs = make(map[string]struct{})
 	for _, instance := range p.Instances() {
 		if _, ok := ssIDs[instance.ShardSetID()]; !ok {
 			continue
@@ -190,7 +190,7 @@ func (f *mirroredSelector) SelectReplaceInstances(
 			continue
 		}
 
-		conflictRacks[instance.Rack()] = struct{}{}
+		conflictIGs[instance.IsolationGroup()] = struct{}{}
 	}
 
 	var groups [][]placement.Instance
@@ -199,7 +199,7 @@ func (f *mirroredSelector) SelectReplaceInstances(
 			continue
 		}
 
-		if _, ok := conflictRacks[candidateHost.rack]; ok {
+		if _, ok := conflictIGs[candidateHost.isolationGroup]; ok {
 			continue
 		}
 
@@ -257,7 +257,7 @@ func groupHostsByWeight(candidates []placement.Instance) (map[uint32][]host, err
 		weight := instance.Weight()
 		h, ok := uniqueHosts[hostname]
 		if !ok {
-			h = newHost(hostname, instance.Rack(), weight)
+			h = newHost(hostname, instance.IsolationGroup(), weight)
 			uniqueHosts[hostname] = h
 			weightToHostsMap[weight] = append(weightToHostsMap[weight], h)
 		}
@@ -269,28 +269,28 @@ func groupHostsByWeight(candidates []placement.Instance) (map[uint32][]host, err
 	return weightToHostsMap, nil
 }
 
-// groupHostsWithRackCheck looks at the racks of the given hosts
+// groupHostsWithIGCheck looks at the isolation groups of the given hosts
 // and try to make as many groups as possible. The hosts in each group
-// must come from different racks.
-func groupHostsWithRackCheck(hosts []host, rf int) ([][]host, []host) {
+// must come from different isolation groups.
+func groupHostsWithIGCheck(hosts []host, rf int) ([][]host, []host) {
 	if len(hosts) < rf {
 		// When the number of hosts is less than rf, no groups can be made.
 		return nil, hosts
 	}
 
 	var (
-		uniqRacks = make(map[string]*rack, len(hosts))
-		rh        = racksByNumHost(make([]*rack, 0, len(hosts)))
+		uniqIGs = make(map[string]*group, len(hosts))
+		rh      = groupsByNumHost(make([]*group, 0, len(hosts)))
 	)
 	for _, h := range hosts {
-		r, ok := uniqRacks[h.rack]
+		r, ok := uniqIGs[h.isolationGroup]
 		if !ok {
-			r = &rack{
-				rack:  h.rack,
-				hosts: make([]host, 0, rf),
+			r = &group{
+				isolationGroup: h.isolationGroup,
+				hosts:          make([]host, 0, rf),
 			}
 
-			uniqRacks[h.rack] = r
+			uniqIGs[h.isolationGroup] = r
 			rh = append(rh, r)
 		}
 		r.hosts = append(r.hosts, h)
@@ -298,26 +298,26 @@ func groupHostsWithRackCheck(hosts []host, rf int) ([][]host, []host) {
 
 	heap.Init(&rh)
 
-	// For each group, always prefer to find one host from the largest rack
-	// in the heap. After a group is filled, push all the checked racks back
+	// For each group, always prefer to find one host from the largest isolation group
+	// in the heap. After a group is filled, push all the checked isolation groups back
 	// to the heap so they can be used for the next group.
 	res := make([][]host, 0, int(math.Ceil(float64(len(hosts))/float64(rf))))
 	for rh.Len() >= rf {
-		// When there are more than rf racks available, try to make a group.
-		seenRacks := make(map[string]*rack, rf)
+		// When there are more than rf isolation groups available, try to make a group.
+		seenIGs := make(map[string]*group, rf)
 		groups := make([]host, 0, rf)
 		for i := 0; i < rf; i++ {
-			r := heap.Pop(&rh).(*rack)
-			// Move the host from the rack to the group. The racks in the heap
-			// always have at least one host.
+			r := heap.Pop(&rh).(*group)
+			// Move the host from the isolation group to the group.
+			// The isolation groups in the heap always have at least one host.
 			groups = append(groups, r.hosts[len(r.hosts)-1])
 			r.hosts = r.hosts[:len(r.hosts)-1]
-			seenRacks[r.rack] = r
+			seenIGs[r.isolationGroup] = r
 		}
 		if len(groups) == rf {
 			res = append(res, groups)
 		}
-		for _, r := range seenRacks {
+		for _, r := range seenIGs {
 			if len(r.hosts) > 0 {
 				heap.Push(&rh, r)
 			}
@@ -400,15 +400,15 @@ func shouldUseNewShardSetID(
 
 type host struct {
 	name           string
-	rack           string
+	isolationGroup string
 	weight         uint32
 	portToInstance map[uint32]placement.Instance
 }
 
-func newHost(name, rack string, weight uint32) host {
+func newHost(name, isolationGroup string, weight uint32) host {
 	return host{
 		name:           name,
-		rack:           rack,
+		isolationGroup: isolationGroup,
 		weight:         weight,
 		portToInstance: make(map[uint32]placement.Instance),
 	}
@@ -419,42 +419,42 @@ func (h host) addInstance(port uint32, instance placement.Instance) error {
 		return fmt.Errorf("could not add instance %s to host %s, weight mismatch: %d and %d",
 			instance.ID(), h.name, instance.Weight(), h.weight)
 	}
-	if h.rack != instance.Rack() {
-		return fmt.Errorf("could not add instance %s to host %s, rack mismatch: %s and %s",
-			instance.ID(), h.name, instance.Rack(), h.rack)
+	if h.isolationGroup != instance.IsolationGroup() {
+		return fmt.Errorf("could not add instance %s to host %s, isolation group mismatch: %s and %s",
+			instance.ID(), h.name, instance.IsolationGroup(), h.isolationGroup)
 	}
 	h.portToInstance[port] = instance
 	return nil
 }
 
-type rack struct {
-	rack  string
-	hosts []host
+type group struct {
+	isolationGroup string
+	hosts          []host
 }
 
-type racksByNumHost []*rack
+type groupsByNumHost []*group
 
-func (h racksByNumHost) Len() int {
+func (h groupsByNumHost) Len() int {
 	return len(h)
 }
 
-func (h racksByNumHost) Less(i, j int) bool {
+func (h groupsByNumHost) Less(i, j int) bool {
 	return len(h[i].hosts) > len(h[j].hosts)
 }
 
-func (h racksByNumHost) Swap(i, j int) {
+func (h groupsByNumHost) Swap(i, j int) {
 	h[i], h[j] = h[j], h[i]
 }
 
-func (h *racksByNumHost) Push(i interface{}) {
-	r := i.(*rack)
+func (h *groupsByNumHost) Push(i interface{}) {
+	r := i.(*group)
 	*h = append(*h, r)
 }
 
-func (h *racksByNumHost) Pop() interface{} {
+func (h *groupsByNumHost) Pop() interface{} {
 	old := *h
 	n := len(old)
-	rack := old[n-1]
+	g := old[n-1]
 	*h = old[0 : n-1]
-	return rack
+	return g
 }

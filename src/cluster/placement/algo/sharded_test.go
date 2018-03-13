@@ -336,7 +336,7 @@ func TestPlacementChangeWithoutStateUpdate(t *testing.T) {
 	validateDistribution(t, p, 1.02, "TestPlacementChangeWithoutStateUpdate remove 2")
 }
 
-func TestOverSizedRack(t *testing.T) {
+func TestOverSizedIsolationGroup(t *testing.T) {
 	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i6 := placement.NewEmptyInstance("i6", "r1", "z1", "endpoint", 1)
 	i7 := placement.NewEmptyInstance("i7", "r1", "z1", "endpoint", 1)
@@ -361,15 +361,15 @@ func TestOverSizedRack(t *testing.T) {
 	a := newShardedAlgorithm(placement.NewOptions().SetAllowPartialReplace(false))
 	p, err := a.InitialPlacement(instances, ids, 1)
 	require.NoError(t, err)
-	validateDistribution(t, p, 1.01, "TestOverSizedRack replica 1")
+	validateDistribution(t, p, 1.01, "TestOverSizedIsolationGroup replica 1")
 
 	p, err = a.AddReplica(p)
 	require.NoError(t, err)
-	validateDistribution(t, p, 1.01, "TestOverSizedRack replica 2")
+	validateDistribution(t, p, 1.01, "TestOverSizedIsolationGroup replica 2")
 
 	p, err = a.AddReplica(p)
 	require.NoError(t, err)
-	validateDistribution(t, p, 1.01, "TestOverSizedRack replica 3")
+	validateDistribution(t, p, 1.01, "TestOverSizedIsolationGroup replica 3")
 
 	i10 := placement.NewEmptyInstance("i10", "r4", "z1", "endpoint", 1)
 	_, err = a.ReplaceInstances(p, []string{i8.ID()}, []placement.Instance{i10})
@@ -391,13 +391,13 @@ func TestOverSizedRack(t *testing.T) {
 	i11, ok = p.Instance(i11.ID())
 	assert.True(t, ok)
 	assert.True(t, i11.IsInitializing())
-	validateDistribution(t, p, 1.22, "TestOverSizedRack replace 2")
+	validateDistribution(t, p, 1.22, "TestOverSizedIsolationGroup replace 2")
 
 	// adding a new instance to relieve the load on the hot instances
 	i12 := placement.NewEmptyInstance("i12", "r4", "z1", "endpoint", 1)
 	p, err = a.AddInstances(p, []placement.Instance{i12})
 	require.NoError(t, err)
-	validateDistribution(t, p, 1.15, "TestOverSizedRack add 1")
+	validateDistribution(t, p, 1.15, "TestOverSizedIsolationGroup add 1")
 }
 
 func TestRemoveInitializingInstance(t *testing.T) {
@@ -455,7 +455,7 @@ func TestInitPlacementOnNoInstances(t *testing.T) {
 	assert.Nil(t, p)
 }
 
-func TestOneRack(t *testing.T) {
+func TestOneIsolationGroup(t *testing.T) {
 	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i2 := placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1)
 
@@ -469,16 +469,15 @@ func TestOneRack(t *testing.T) {
 	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids, 1)
 	require.NoError(t, err)
-	validateDistribution(t, p, 1.01, "TestOneRack replica 1")
+	validateDistribution(t, p, 1.01, "TestOneIsolationGroup init")
 
 	i6 := placement.NewEmptyInstance("i6", "r1", "z1", "endpoint", 1)
-
 	p, err = a.AddInstances(p, []placement.Instance{i6})
 	require.NoError(t, err)
-	validateDistribution(t, p, 1.01, "TestOneRack addinstance 1")
+	validateDistribution(t, p, 1.01, "TestOneIsolationGroup addinstance")
 }
 
-func TestRFGreaterThanRackLen(t *testing.T) {
+func TestRFGreaterThanNumberOfIsolationGroups(t *testing.T) {
 	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 	i6 := placement.NewEmptyInstance("i6", "r1", "z1", "endpoint", 1)
 
@@ -495,11 +494,11 @@ func TestRFGreaterThanRackLen(t *testing.T) {
 	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids, 1)
 	require.NoError(t, err)
-	validateDistribution(t, p, 1.01, "TestRFGreaterThanRackLen replica 1")
+	validateDistribution(t, p, 1.01, "TestRFGreaterThanNumberOfIsolationGroups replica 1")
 
 	p, err = a.AddReplica(p)
 	require.NoError(t, err)
-	validateDistribution(t, p, 1.01, "TestRFGreaterThanRackLen replica 2")
+	validateDistribution(t, p, 1.01, "TestRFGreaterThanNumberOfIsolationGroups replica 2")
 
 	p1, err := a.AddReplica(p)
 	assert.Error(t, err)
@@ -507,7 +506,7 @@ func TestRFGreaterThanRackLen(t *testing.T) {
 	require.NoError(t, placement.Validate(p))
 }
 
-func TestRFGreaterThanRackLenAfterInstanceRemoval(t *testing.T) {
+func TestRFGreaterThanNumberOfIsolationGroupAfterInstanceRemoval(t *testing.T) {
 	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 
 	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
@@ -522,11 +521,11 @@ func TestRFGreaterThanRackLenAfterInstanceRemoval(t *testing.T) {
 	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids, 1)
 	require.NoError(t, err)
-	validateDistribution(t, p, 1.01, "TestRFGreaterThanRackLenAfterInstanceRemoval replica 1")
+	validateDistribution(t, p, 1.01, "TestRFGreaterThanNumberOfIsolationGroupAfterInstanceRemoval replica 1")
 
 	p, err = a.AddReplica(p)
 	require.NoError(t, err)
-	validateDistribution(t, p, 1.01, "TestRFGreaterThanRackLenAfterInstanceRemoval replica 2")
+	validateDistribution(t, p, 1.01, "TestRFGreaterThanNumberOfIsolationGroupAfterInstanceRemoval replica 2")
 
 	p1, err := a.RemoveInstances(p, []string{i2.ID()})
 	assert.Error(t, err)
@@ -534,7 +533,7 @@ func TestRFGreaterThanRackLenAfterInstanceRemoval(t *testing.T) {
 	require.NoError(t, placement.Validate(p))
 }
 
-func TestRFGreaterThanRackLenAfterInstanceReplace(t *testing.T) {
+func TestRFGreaterThanNumberOfIsolationGroupAfterInstanceReplace(t *testing.T) {
 	i1 := placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1)
 
 	i2 := placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)
@@ -549,11 +548,11 @@ func TestRFGreaterThanRackLenAfterInstanceReplace(t *testing.T) {
 	a := newShardedAlgorithm(placement.NewOptions())
 	p, err := a.InitialPlacement(instances, ids, 1)
 	require.NoError(t, err)
-	validateDistribution(t, p, 1.01, "TestRFGreaterThanRackLenAfterInstanceReplace replica 1")
+	validateDistribution(t, p, 1.01, "TestRFGreaterThanNumberOfIsolationGroupAfterInstanceReplace replica 1")
 
 	p, err = a.AddReplica(p)
 	require.NoError(t, err)
-	validateDistribution(t, p, 1.01, "TestRFGreaterThanRackLenAfterInstanceReplace replica 2")
+	validateDistribution(t, p, 1.01, "TestRFGreaterThanNumberOfIsolationGroupAfterInstanceReplace replica 2")
 
 	i3 := placement.NewEmptyInstance("i3", "r1", "z1", "endpoint", 1)
 	p1, err := a.ReplaceInstances(p, []string{i2.ID()}, []placement.Instance{i3})
@@ -820,24 +819,24 @@ func TestAddInstance_ExistAndLeaving(t *testing.T) {
 	require.NoError(t, placement.Validate(p))
 }
 
-func TestAddInstance_ExistAndLeavingRackConflict(t *testing.T) {
-	i1 := placement.NewInstance().SetID("i1").SetEndpoint("e1").SetRack("r1").SetZone("z1").SetWeight(1).
+func TestAddInstance_ExistAndLeavingIsolationGroupConflict(t *testing.T) {
+	i1 := placement.NewInstance().SetID("i1").SetEndpoint("e1").SetIsolationGroup("r1").SetZone("z1").SetWeight(1).
 		SetShards(shard.NewShards([]shard.Shard{
 			shard.NewShard(0).SetState(shard.Leaving),
 			shard.NewShard(1).SetState(shard.Leaving),
 			shard.NewShard(3).SetState(shard.Leaving),
 		}))
-	i2 := placement.NewInstance().SetID("i2").SetEndpoint("e2").SetRack("r1").SetZone("z2").SetWeight(1).
+	i2 := placement.NewInstance().SetID("i2").SetEndpoint("e2").SetIsolationGroup("r1").SetZone("z2").SetWeight(1).
 		SetShards(shard.NewShards([]shard.Shard{
 			shard.NewShard(0).SetState(shard.Available),
 			shard.NewShard(1).SetState(shard.Available),
 		}))
-	i3 := placement.NewInstance().SetID("i3").SetEndpoint("e3").SetRack("r3").SetZone("z3").SetWeight(1).
+	i3 := placement.NewInstance().SetID("i3").SetEndpoint("e3").SetIsolationGroup("r3").SetZone("z3").SetWeight(1).
 		SetShards(shard.NewShards([]shard.Shard{
 			shard.NewShard(2).SetState(shard.Available),
 			shard.NewShard(3).SetState(shard.Available),
 		}))
-	i4 := placement.NewInstance().SetID("i4").SetEndpoint("e4").SetRack("r4").SetZone("z4").SetWeight(1).
+	i4 := placement.NewInstance().SetID("i4").SetEndpoint("e4").SetIsolationGroup("r4").SetZone("z4").SetWeight(1).
 		SetShards(shard.NewShards([]shard.Shard{
 			shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i1"),
 			shard.NewShard(1).SetState(shard.Initializing).SetSourceID("i1"),

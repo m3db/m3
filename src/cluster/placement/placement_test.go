@@ -381,7 +381,7 @@ func TestInstance(t *testing.T) {
 	i1 := NewInstance().
 		SetID("id").
 		SetEndpoint("endpoint").
-		SetRack("rack").
+		SetIsolationGroup("isolationGroup").
 		SetWeight(1).
 		SetShardSetID(0).
 		SetZone("zone").
@@ -395,7 +395,7 @@ func TestInstance(t *testing.T) {
 	})
 	i1.SetShards(s)
 	description := fmt.Sprintf(
-		"Instance[ID=id, Rack=rack, Zone=zone, Weight=1, Endpoint=endpoint, Hostname=host1, Port=123, ShardSetID=0, Shards=%s]",
+		"Instance[ID=id, IsolationGroup=isolationGroup, Zone=zone, Weight=1, Endpoint=endpoint, Hostname=host1, Port=123, ShardSetID=0, Shards=%s]",
 		s.String())
 	assert.Equal(t, description, i1.String())
 
@@ -406,14 +406,14 @@ func TestInstance(t *testing.T) {
 	assert.Equal(t, "endpoint", i1.Endpoint())
 	assert.Equal(t, uint32(1), i1.Weight())
 	assert.Equal(t, "zone", i1.Zone())
-	assert.Equal(t, "rack", i1.Rack())
+	assert.Equal(t, "isolationGroup", i1.IsolationGroup())
 
 	i1.Shards().Remove(1)
 	assert.False(t, i1.Shards().Contains(1))
 	assert.False(t, i1.Shards().Contains(100))
 	assert.Equal(t, 2, i1.Shards().NumShards())
 	assert.Equal(t, "id", i1.ID())
-	assert.Equal(t, "rack", i1.Rack())
+	assert.Equal(t, "isolationGroup", i1.IsolationGroup())
 }
 
 func TestInstanceIsLeaving(t *testing.T) {
@@ -514,22 +514,22 @@ func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 	placementProto := &placementpb.Placement{
 		Instances: map[string]*placementpb.Instance{
 			"i1": &placementpb.Instance{
-				Id:         "i1",
-				Rack:       "r1",
-				Zone:       "z1",
-				Endpoint:   "e1",
-				Weight:     1,
-				Shards:     protoShards,
-				ShardSetId: 0,
+				Id:             "i1",
+				IsolationGroup: "r1",
+				Zone:           "z1",
+				Endpoint:       "e1",
+				Weight:         1,
+				Shards:         protoShards,
+				ShardSetId:     0,
 			},
 			"i2": &placementpb.Instance{
-				Id:         "i2",
-				Rack:       "r2",
-				Zone:       "z1",
-				Endpoint:   "e2",
-				Weight:     1,
-				Shards:     protoShards,
-				ShardSetId: 1,
+				Id:             "i2",
+				IsolationGroup: "r2",
+				Zone:           "z1",
+				Endpoint:       "e2",
+				Weight:         1,
+				Shards:         protoShards,
+				ShardSetId:     1,
 			},
 		},
 		ReplicaFactor: 2,
@@ -560,7 +560,7 @@ func TestConvertBetweenProtoAndPlacement(t *testing.T) {
 	for id, h := range placementProto.Instances {
 		instance := placementProtoNew.Instances[id]
 		assert.Equal(t, h.Id, instance.Id)
-		assert.Equal(t, h.Rack, instance.Rack)
+		assert.Equal(t, h.IsolationGroup, instance.IsolationGroup)
 		assert.Equal(t, h.Zone, instance.Zone)
 		assert.Equal(t, h.Weight, instance.Weight)
 		assert.Equal(t, h.Shards, instance.Shards)
@@ -572,12 +572,12 @@ func TestPlacementInstanceFromProto(t *testing.T) {
 	protoShardsUnsorted := getProtoShards([]uint32{2, 1, 0})
 
 	instanceProto := &placementpb.Instance{
-		Id:       "i1",
-		Rack:     "r1",
-		Zone:     "z1",
-		Endpoint: "e1",
-		Weight:   1,
-		Shards:   protoShardsUnsorted,
+		Id:             "i1",
+		IsolationGroup: "r1",
+		Zone:           "z1",
+		Endpoint:       "e1",
+		Weight:         1,
+		Shards:         protoShardsUnsorted,
 	}
 
 	instance, err := NewInstanceFromProto(instanceProto)
@@ -597,7 +597,7 @@ func TestPlacementInstanceFromProto(t *testing.T) {
 
 	expInstance := NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("e1").
 		SetWeight(1)
@@ -620,7 +620,7 @@ func TestPlacementInstanceToProto(t *testing.T) {
 
 	instance := NewInstance().
 		SetID("i1").
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("e1").
 		SetWeight(1).
@@ -635,12 +635,12 @@ func TestPlacementInstanceToProto(t *testing.T) {
 	}
 
 	expInstance := &placementpb.Instance{
-		Id:       "i1",
-		Rack:     "r1",
-		Zone:     "z1",
-		Endpoint: "e1",
-		Weight:   1,
-		Shards:   protoShards,
+		Id:             "i1",
+		IsolationGroup: "r1",
+		Zone:           "z1",
+		Endpoint:       "e1",
+		Weight:         1,
+		Shards:         protoShards,
 	}
 
 	assert.Equal(t, expInstance, instanceProto)

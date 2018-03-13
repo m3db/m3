@@ -127,7 +127,8 @@ func testGoodWorkflow(t *testing.T, ps placement.Service) {
 	assertPlacementInstanceEqualExceptShards(t, i41, ai[0])
 	s, _, err = ps.Placement()
 	assert.NoError(t, err)
-	_, exist = s.Instance("i41") // instance added from least weighted rack
+	// Instance added from least weighted isolation group.
+	_, exist = s.Instance("i41")
 	assert.True(t, exist)
 }
 
@@ -137,7 +138,7 @@ func assertPlacementInstanceEqualExceptShards(
 	observed placement.Instance,
 ) {
 	assert.Equal(t, expected.ID(), observed.ID())
-	assert.Equal(t, expected.Rack(), observed.Rack())
+	assert.Equal(t, expected.IsolationGroup(), observed.IsolationGroup())
 	assert.Equal(t, expected.Zone(), observed.Zone())
 	assert.Equal(t, expected.Weight(), observed.Weight())
 	assert.Equal(t, expected.Endpoint(), observed.Endpoint())
@@ -231,18 +232,18 @@ func TestBadInitialPlacement(t *testing.T) {
 
 	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
 
-	// not enough instances
+	// Not enough instances.
 	_, err = p.BuildInitialPlacement([]placement.Instance{}, 10, 1)
 	assert.Error(t, err)
 
-	// err: rf == 0 && sharded == true
+	// Error: rf == 0 && sharded == true.
 	_, err = p.BuildInitialPlacement([]placement.Instance{
 		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
 		placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1),
 	}, 10, 0)
 	assert.Error(t, err)
 
-	// not enough racks
+	// Not enough isolation groups.
 	_, err = p.BuildInitialPlacement([]placement.Instance{
 		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
 		placement.NewEmptyInstance("i2", "r1", "z1", "endpoint", 1),
@@ -255,7 +256,7 @@ func TestBadInitialPlacement(t *testing.T) {
 	}, 100, 2)
 	assert.NoError(t, err)
 
-	// placement already exist
+	// Placement already exist.
 	_, err = p.BuildInitialPlacement([]placement.Instance{
 		placement.NewEmptyInstance("i1", "r1", "z1", "endpoint", 1),
 		placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1),
@@ -271,11 +272,11 @@ func TestBadAddReplica(t *testing.T) {
 		10, 1)
 	assert.NoError(t, err)
 
-	// not enough racks/instances
+	// Not enough isolation groups/instances.
 	_, err = p.AddReplica()
 	assert.Error(t, err)
 
-	// could not find placement for service
+	// Could not find placement for service.
 	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
 	_, err = p.AddReplica()
 	assert.Error(t, err)
@@ -316,15 +317,15 @@ func TestBadRemoveInstance(t *testing.T) {
 		10, 1)
 	assert.NoError(t, err)
 
-	// leaving instance not exist
+	// Leaving instance not exist.
 	_, err = p.RemoveInstances([]string{"not_exist"})
 	assert.Error(t, err)
 
-	// not enough racks/instances after removal
+	// Not enough isolation groups/instances after removal.
 	_, err = p.RemoveInstances([]string{"i1"})
 	assert.Error(t, err)
 
-	// could not find placement for service
+	// Could not find placement for service.
 	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
 	_, err = p.RemoveInstances([]string{"i1"})
 	assert.Error(t, err)
@@ -339,21 +340,21 @@ func TestBadReplaceInstance(t *testing.T) {
 	}, 10, 1)
 	assert.NoError(t, err)
 
-	// leaving instance not exist
+	// Leaving instance not exist.
 	_, _, err = p.ReplaceInstances(
 		[]string{"not_exist"},
 		[]placement.Instance{placement.NewEmptyInstance("i2", "r2", "z1", "endpoint", 1)},
 	)
 	assert.Error(t, err)
 
-	// adding instance already exist
+	// Adding instance already exist.
 	_, _, err = p.ReplaceInstances(
 		[]string{"i1"},
 		[]placement.Instance{placement.NewEmptyInstance("i4", "r4", "z1", "endpoint", 1)},
 	)
 	assert.Error(t, err)
 
-	// not enough rack after replace
+	// Not enough isolation groups after replace.
 	_, err = p.AddReplica()
 	assert.NoError(t, err)
 	_, _, err = p.ReplaceInstances(
@@ -362,7 +363,7 @@ func TestBadReplaceInstance(t *testing.T) {
 	)
 	assert.Error(t, err)
 
-	// could not find placement for service
+	// Could not find placement for service.
 	p = NewPlacementService(NewMockStorage(), placement.NewOptions().SetValidZone("z1"))
 	_, _, err = p.ReplaceInstances(
 		[]string{"i1"},
@@ -570,7 +571,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h1p1").
 		SetHostname("h1").
 		SetPort(1).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h1p1e").
 		SetWeight(1)
@@ -578,7 +579,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h1p2").
 		SetHostname("h1").
 		SetPort(2).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h1p2e").
 		SetWeight(1)
@@ -586,7 +587,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h1p3").
 		SetHostname("h1").
 		SetPort(3).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h1p3e").
 		SetWeight(1)
@@ -594,7 +595,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h2p1").
 		SetHostname("h2").
 		SetPort(1).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h2p1e").
 		SetWeight(1)
@@ -602,7 +603,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h2p2").
 		SetHostname("h2").
 		SetPort(2).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h2p2e").
 		SetWeight(1)
@@ -610,7 +611,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h2p3").
 		SetHostname("h2").
 		SetPort(3).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h2p3e").
 		SetWeight(1)
@@ -618,7 +619,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h3p1").
 		SetHostname("h3").
 		SetPort(1).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h3p1e").
 		SetWeight(2)
@@ -626,7 +627,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h3p2").
 		SetHostname("h3").
 		SetPort(2).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h3p2e").
 		SetWeight(2)
@@ -634,7 +635,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h3p3").
 		SetHostname("h3").
 		SetPort(3).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h3p3e").
 		SetWeight(2)
@@ -642,7 +643,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h4p1").
 		SetHostname("h4").
 		SetPort(1).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h4p1e").
 		SetWeight(2)
@@ -650,7 +651,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h4p2").
 		SetHostname("h4").
 		SetPort(2).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h4p2e").
 		SetWeight(2)
@@ -658,7 +659,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h4p3").
 		SetHostname("h4").
 		SetPort(3).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h4p3e").
 		SetWeight(2)
@@ -686,7 +687,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h5p1").
 		SetHostname("h5").
 		SetPort(1).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h5p1e").
 		SetWeight(2)
@@ -694,7 +695,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h6p1").
 		SetHostname("h6").
 		SetPort(1).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h6p1e").
 		SetWeight(2)
@@ -719,7 +720,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h7p1").
 		SetHostname("h7").
 		SetPort(1).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h7p1e").
 		SetWeight(2)
@@ -727,7 +728,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h7p2").
 		SetHostname("h7").
 		SetPort(2).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h7p2e").
 		SetWeight(2)
@@ -735,7 +736,7 @@ func TestMirrorWorkflow(t *testing.T) {
 		SetID("h7p3").
 		SetHostname("h7").
 		SetPort(3).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h7p3e").
 		SetWeight(2)

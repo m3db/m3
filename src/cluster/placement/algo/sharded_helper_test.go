@@ -203,21 +203,36 @@ func TestLoadOnInstance(t *testing.T) {
 }
 
 func TestReturnInitShardToSource(t *testing.T) {
-	i1 := placement.NewInstance().SetID("i1").SetRack("r1").SetEndpoint("e1").SetWeight(1).SetShards(shard.NewShards(
-		[]shard.Shard{
-			shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2"),
-			shard.NewShard(1).SetState(shard.Available),
-		},
-	))
-	i2 := placement.NewInstance().SetID("i2").SetRack("r2").SetEndpoint("e2").SetWeight(1).SetShards(shard.NewShards(
-		[]shard.Shard{
-			shard.NewShard(0).SetState(shard.Leaving),
-			shard.NewShard(2).SetState(shard.Available),
-		},
-	))
-	i3 := placement.NewInstance().SetID("i3").SetRack("r3").SetEndpoint("e3").SetWeight(100).SetShards(shard.NewShards(
-		[]shard.Shard{},
-	))
+	i1 := placement.NewInstance().
+		SetID("i1").
+		SetIsolationGroup("r1").
+		SetEndpoint("e1").
+		SetWeight(1).
+		SetShards(shard.NewShards(
+			[]shard.Shard{
+				shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2"),
+				shard.NewShard(1).SetState(shard.Available),
+			},
+		))
+	i2 := placement.NewInstance().
+		SetID("i2").
+		SetIsolationGroup("r2").
+		SetEndpoint("e2").
+		SetWeight(1).
+		SetShards(shard.NewShards(
+			[]shard.Shard{
+				shard.NewShard(0).SetState(shard.Leaving),
+				shard.NewShard(2).SetState(shard.Available),
+			},
+		))
+	i3 := placement.NewInstance().
+		SetID("i3").
+		SetIsolationGroup("r3").
+		SetEndpoint("e3").
+		SetWeight(100).
+		SetShards(shard.NewShards(
+			[]shard.Shard{},
+		))
 	ph := NewPlacementHelper(
 		placement.NewPlacement().
 			SetInstances([]placement.Instance{i1, i2, i3}).
@@ -241,15 +256,30 @@ func TestReturnInitShardToSource(t *testing.T) {
 }
 
 func TestReturnInitShardToSource_SourceIsLeaving(t *testing.T) {
-	i1 := placement.NewInstance().SetID("i1").SetRack("r1").SetEndpoint("e1").SetWeight(1).SetShards(shard.NewShards(
-		[]shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")},
-	))
-	i2 := placement.NewInstance().SetID("i2").SetRack("r2").SetEndpoint("e2").SetWeight(1).SetShards(shard.NewShards(
-		[]shard.Shard{shard.NewShard(0).SetState(shard.Leaving)},
-	))
-	i3 := placement.NewInstance().SetID("i3").SetRack("r3").SetEndpoint("e3").SetWeight(1).SetShards(shard.NewShards(
-		[]shard.Shard{},
-	))
+	i1 := placement.NewInstance().
+		SetID("i1").
+		SetIsolationGroup("r1").
+		SetEndpoint("e1").
+		SetWeight(1).
+		SetShards(shard.NewShards(
+			[]shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")},
+		))
+	i2 := placement.NewInstance().
+		SetID("i2").
+		SetIsolationGroup("r2").
+		SetEndpoint("e2").
+		SetWeight(1).
+		SetShards(shard.NewShards(
+			[]shard.Shard{shard.NewShard(0).SetState(shard.Leaving)},
+		))
+	i3 := placement.NewInstance().
+		SetID("i3").
+		SetIsolationGroup("r3").
+		SetEndpoint("e3").
+		SetWeight(1).
+		SetShards(shard.NewShards(
+			[]shard.Shard{},
+		))
 
 	ph := NewPlacementHelper(
 		placement.NewPlacement().
@@ -270,15 +300,30 @@ func TestReturnInitShardToSource_SourceIsLeaving(t *testing.T) {
 }
 
 func TestGeneratePlacement(t *testing.T) {
-	i1 := placement.NewInstance().SetID("i1").SetRack("r1").SetEndpoint("e1").SetWeight(1).SetShards(shard.NewShards(
-		[]shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")},
-	))
-	i2 := placement.NewInstance().SetID("i2").SetRack("r2").SetEndpoint("e2").SetWeight(1).SetShards(shard.NewShards(
-		[]shard.Shard{shard.NewShard(0).SetState(shard.Leaving)},
-	))
-	i3 := placement.NewInstance().SetID("i3").SetRack("r3").SetEndpoint("e3").SetWeight(1).SetShards(shard.NewShards(
-		[]shard.Shard{},
-	))
+	i1 := placement.NewInstance().
+		SetID("i1").
+		SetIsolationGroup("r1").
+		SetEndpoint("e1").
+		SetWeight(1).
+		SetShards(shard.NewShards(
+			[]shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")},
+		))
+	i2 := placement.NewInstance().
+		SetID("i2").
+		SetIsolationGroup("r2").
+		SetEndpoint("e2").
+		SetWeight(1).
+		SetShards(shard.NewShards(
+			[]shard.Shard{shard.NewShard(0).SetState(shard.Leaving)},
+		))
+	i3 := placement.NewInstance().
+		SetID("i3").
+		SetIsolationGroup("r3").
+		SetEndpoint("e3").
+		SetWeight(1).
+		SetShards(shard.NewShards(
+			[]shard.Shard{},
+		))
 
 	ph := newHelper(
 		placement.NewPlacement().
@@ -294,19 +339,39 @@ func TestGeneratePlacement(t *testing.T) {
 	assert.Equal(t, 2, p.NumInstances())
 }
 
-func TestReturnInitShardToSource_RackConflict(t *testing.T) {
-	i1 := placement.NewInstance().SetID("i1").SetRack("r1").SetEndpoint("e1").SetWeight(1).SetShards(shard.NewShards(
-		[]shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")},
-	))
-	i2 := placement.NewInstance().SetID("i2").SetRack("r2").SetEndpoint("e2").SetWeight(1).SetShards(shard.NewShards(
-		[]shard.Shard{shard.NewShard(0).SetState(shard.Leaving)},
-	))
-	i3 := placement.NewInstance().SetID("i3").SetRack("r3").SetEndpoint("e3").SetWeight(1).SetShards(shard.NewShards(
-		[]shard.Shard{},
-	))
-	i4 := placement.NewInstance().SetID("i4").SetRack("r2").SetEndpoint("e4").SetWeight(1).SetShards(shard.NewShards(
-		[]shard.Shard{shard.NewShard(0).SetState(shard.Available)},
-	))
+func TestReturnInitShardToSource_IsolationGroupConflict(t *testing.T) {
+	i1 := placement.NewInstance().
+		SetID("i1").
+		SetIsolationGroup("r1").
+		SetEndpoint("e1").
+		SetWeight(1).
+		SetShards(shard.NewShards(
+			[]shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")},
+		))
+	i2 := placement.NewInstance().
+		SetID("i2").
+		SetIsolationGroup("r2").
+		SetEndpoint("e2").
+		SetWeight(1).
+		SetShards(shard.NewShards(
+			[]shard.Shard{shard.NewShard(0).SetState(shard.Leaving)},
+		))
+	i3 := placement.NewInstance().
+		SetID("i3").
+		SetIsolationGroup("r3").
+		SetEndpoint("e3").
+		SetWeight(1).
+		SetShards(shard.NewShards(
+			[]shard.Shard{},
+		))
+	i4 := placement.NewInstance().
+		SetID("i4").
+		SetIsolationGroup("r2").
+		SetEndpoint("e4").
+		SetWeight(1).
+		SetShards(shard.NewShards(
+			[]shard.Shard{shard.NewShard(0).SetState(shard.Available)},
+		))
 
 	ph := NewPlacementHelper(
 		placement.NewPlacement().
@@ -330,18 +395,38 @@ func TestReturnInitShardToSource_RackConflict(t *testing.T) {
 	assert.Equal(t, []shard.Shard{shard.NewShard(0).SetState(shard.Available)}, i4.Shards().All())
 
 	// make sure placeShards will handle the unreturned shards
-	i1 = placement.NewInstance().SetID("i1").SetRack("r1").SetEndpoint("e1").SetWeight(1).SetShards(shard.NewShards(
-		[]shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")},
-	))
-	i2 = placement.NewInstance().SetID("i2").SetRack("r2").SetEndpoint("e2").SetWeight(1).SetShards(shard.NewShards(
-		[]shard.Shard{shard.NewShard(0).SetState(shard.Leaving)},
-	))
-	i3 = placement.NewInstance().SetID("i3").SetRack("r3").SetEndpoint("e3").SetWeight(1).SetShards(shard.NewShards(
-		[]shard.Shard{},
-	))
-	i4 = placement.NewInstance().SetID("i4").SetRack("r2").SetEndpoint("e4").SetWeight(1).SetShards(shard.NewShards(
-		[]shard.Shard{shard.NewShard(0).SetState(shard.Available)},
-	))
+	i1 = placement.NewInstance().
+		SetID("i1").
+		SetIsolationGroup("r1").
+		SetEndpoint("e1").
+		SetWeight(1).
+		SetShards(shard.NewShards(
+			[]shard.Shard{shard.NewShard(0).SetState(shard.Initializing).SetSourceID("i2")},
+		))
+	i2 = placement.NewInstance().
+		SetID("i2").
+		SetIsolationGroup("r2").
+		SetEndpoint("e2").
+		SetWeight(1).
+		SetShards(shard.NewShards(
+			[]shard.Shard{shard.NewShard(0).SetState(shard.Leaving)},
+		))
+	i3 = placement.NewInstance().
+		SetID("i3").
+		SetIsolationGroup("r3").
+		SetEndpoint("e3").
+		SetWeight(1).
+		SetShards(shard.NewShards(
+			[]shard.Shard{},
+		))
+	i4 = placement.NewInstance().
+		SetID("i4").
+		SetIsolationGroup("r2").
+		SetEndpoint("e4").
+		SetWeight(1).
+		SetShards(shard.NewShards(
+			[]shard.Shard{shard.NewShard(0).SetState(shard.Available)},
+		))
 
 	ph = NewPlacementHelper(
 		placement.NewPlacement().

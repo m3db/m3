@@ -34,7 +34,7 @@ func TestSelectInitialInstancesForMirror(t *testing.T) {
 		SetID("h1p1").
 		SetHostname("h1").
 		SetPort(1).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h1p1e").
 		SetWeight(1)
@@ -42,7 +42,7 @@ func TestSelectInitialInstancesForMirror(t *testing.T) {
 		SetID("h1p2").
 		SetHostname("h1").
 		SetPort(2).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h1p2e").
 		SetWeight(1)
@@ -50,7 +50,7 @@ func TestSelectInitialInstancesForMirror(t *testing.T) {
 		SetID("h2p1").
 		SetHostname("h2").
 		SetPort(1).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h2p1e").
 		SetWeight(1)
@@ -58,7 +58,7 @@ func TestSelectInitialInstancesForMirror(t *testing.T) {
 		SetID("h2p2").
 		SetHostname("h2").
 		SetPort(2).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h2p2e").
 		SetWeight(1)
@@ -66,7 +66,7 @@ func TestSelectInitialInstancesForMirror(t *testing.T) {
 		SetID("h3p1").
 		SetHostname("h3").
 		SetPort(1).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h3p1e").
 		SetWeight(1)
@@ -74,7 +74,7 @@ func TestSelectInitialInstancesForMirror(t *testing.T) {
 		SetID("h3p2").
 		SetHostname("h3").
 		SetPort(2).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h3p2e").
 		SetWeight(1)
@@ -82,7 +82,7 @@ func TestSelectInitialInstancesForMirror(t *testing.T) {
 		SetID("h4p1").
 		SetHostname("h4").
 		SetPort(1).
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetZone("z1").
 		SetEndpoint("h4p1e").
 		SetWeight(1)
@@ -90,7 +90,7 @@ func TestSelectInitialInstancesForMirror(t *testing.T) {
 		SetID("h4p2").
 		SetHostname("h4").
 		SetPort(2).
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetZone("z1").
 		SetEndpoint("h4p2e").
 		SetWeight(1)
@@ -131,7 +131,7 @@ func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 		SetID("h1p1").
 		SetHostname("h1").
 		SetPort(1).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h1p1e").
 		SetWeight(1)
@@ -139,7 +139,7 @@ func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 		SetID("h1p2").
 		SetHostname("h1").
 		SetPort(2).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h1p2e").
 		SetWeight(1)
@@ -147,7 +147,7 @@ func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 		SetID("h1p3").
 		SetHostname("h1").
 		SetPort(3).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h1p3e").
 		SetWeight(1)
@@ -155,7 +155,7 @@ func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 		SetID("h2p1").
 		SetHostname("h2").
 		SetPort(1).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h2p1e").
 		SetWeight(1)
@@ -163,7 +163,7 @@ func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 		SetID("h2p2").
 		SetHostname("h2").
 		SetPort(2).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h2p2e").
 		SetWeight(1)
@@ -171,7 +171,7 @@ func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 		SetID("h2p3").
 		SetHostname("h2").
 		SetPort(3).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h2p3e").
 		SetWeight(1)
@@ -179,7 +179,7 @@ func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 		SetID("h3p1").
 		SetHostname("h3").
 		SetPort(1).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h3p1e").
 		SetWeight(2)
@@ -187,7 +187,7 @@ func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 		SetID("h3p2").
 		SetHostname("h3").
 		SetPort(2).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h3p2e").
 		SetWeight(2)
@@ -195,7 +195,7 @@ func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 		SetID("h3p3").
 		SetHostname("h3").
 		SetPort(3).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h3p3e").
 		SetWeight(2)
@@ -230,7 +230,7 @@ func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 		SetID("h4p1").
 		SetHostname("h4").
 		SetPort(1).
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetZone("z1").
 		SetEndpoint("h4p1e").
 		SetWeight(2)
@@ -238,7 +238,7 @@ func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 		SetID("h4p2").
 		SetHostname("h4").
 		SetPort(2).
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetZone("z1").
 		SetEndpoint("h4p2e").
 		SetWeight(2)
@@ -246,7 +246,7 @@ func TestSelectInitialInstancesForMirrorRF2(t *testing.T) {
 		SetID("h4p3").
 		SetHostname("h4").
 		SetPort(3).
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetZone("z1").
 		SetEndpoint("h4p3e").
 		SetWeight(2)
@@ -296,7 +296,7 @@ func TestSelectInitialInstancesForMirrorRF3(t *testing.T) {
 		SetID("h1p1").
 		SetHostname("h1").
 		SetPort(1).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h1p1e").
 		SetWeight(1)
@@ -304,7 +304,7 @@ func TestSelectInitialInstancesForMirrorRF3(t *testing.T) {
 		SetID("h1p2").
 		SetHostname("h1").
 		SetPort(2).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h1p2e").
 		SetWeight(1)
@@ -312,7 +312,7 @@ func TestSelectInitialInstancesForMirrorRF3(t *testing.T) {
 		SetID("h1p3").
 		SetHostname("h1").
 		SetPort(3).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h1p3e").
 		SetWeight(1)
@@ -320,7 +320,7 @@ func TestSelectInitialInstancesForMirrorRF3(t *testing.T) {
 		SetID("h2p1").
 		SetHostname("h2").
 		SetPort(1).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h2p1e").
 		SetWeight(1)
@@ -328,7 +328,7 @@ func TestSelectInitialInstancesForMirrorRF3(t *testing.T) {
 		SetID("h2p2").
 		SetHostname("h2").
 		SetPort(2).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h2p2e").
 		SetWeight(1)
@@ -336,7 +336,7 @@ func TestSelectInitialInstancesForMirrorRF3(t *testing.T) {
 		SetID("h2p3").
 		SetHostname("h2").
 		SetPort(3).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h2p3e").
 		SetWeight(1)
@@ -344,7 +344,7 @@ func TestSelectInitialInstancesForMirrorRF3(t *testing.T) {
 		SetID("h3p1").
 		SetHostname("h3").
 		SetPort(1).
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetZone("z1").
 		SetEndpoint("h3p1e").
 		SetWeight(1)
@@ -352,7 +352,7 @@ func TestSelectInitialInstancesForMirrorRF3(t *testing.T) {
 		SetID("h3p2").
 		SetHostname("h3").
 		SetPort(2).
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetZone("z1").
 		SetEndpoint("h3p2e").
 		SetWeight(1)
@@ -360,7 +360,7 @@ func TestSelectInitialInstancesForMirrorRF3(t *testing.T) {
 		SetID("h3p3").
 		SetHostname("h3").
 		SetPort(3).
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetZone("z1").
 		SetEndpoint("h3p3e").
 		SetWeight(1)
@@ -398,7 +398,7 @@ func TestSelectReplaceInstanceForMirror(t *testing.T) {
 		SetID("h1p1").
 		SetHostname("h1").
 		SetPort(1).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h1p1e").
 		SetWeight(1).
@@ -407,7 +407,7 @@ func TestSelectReplaceInstanceForMirror(t *testing.T) {
 		SetID("h1p2").
 		SetHostname("h1").
 		SetPort(2).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h1p2e").
 		SetWeight(1).
@@ -416,7 +416,7 @@ func TestSelectReplaceInstanceForMirror(t *testing.T) {
 		SetID("h2p1").
 		SetHostname("h2").
 		SetPort(1).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h2p1e").
 		SetWeight(1).
@@ -425,7 +425,7 @@ func TestSelectReplaceInstanceForMirror(t *testing.T) {
 		SetID("h2p2").
 		SetHostname("h2").
 		SetPort(2).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h2p2e").
 		SetWeight(1).
@@ -441,7 +441,7 @@ func TestSelectReplaceInstanceForMirror(t *testing.T) {
 		SetID("h3p1").
 		SetHostname("h3").
 		SetPort(1).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h3p1e").
 		SetWeight(1)
@@ -449,7 +449,7 @@ func TestSelectReplaceInstanceForMirror(t *testing.T) {
 		SetID("h3p2").
 		SetHostname("h3").
 		SetPort(2).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h3p2e").
 		SetWeight(1)
@@ -465,7 +465,7 @@ func TestSelectReplaceInstanceForMirror(t *testing.T) {
 	require.Equal(t, h3p1.ShardSetID(), res[0].ShardSetID())
 	require.Equal(t, h3p2.ShardSetID(), res[1].ShardSetID())
 
-	// Rack conflict.
+	// Isolation group conflict.
 	_, err = selector.SelectReplaceInstances(
 		[]placement.Instance{h3p1, h3p2},
 		[]string{h2p1.ID(), h2p2.ID()},
@@ -499,7 +499,7 @@ func TestSelectReplaceInstancesWithLeaving(t *testing.T) {
 		SetID("h1p1").
 		SetHostname("h1").
 		SetPort(1).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h1p1e").
 		SetWeight(1).
@@ -510,7 +510,7 @@ func TestSelectReplaceInstancesWithLeaving(t *testing.T) {
 		SetID("h2p1").
 		SetHostname("h2").
 		SetPort(1).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h2p1e").
 		SetWeight(1).
@@ -539,7 +539,7 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 		SetID("h1p1").
 		SetHostname("h1").
 		SetPort(1).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h1p1e").
 		SetWeight(1).
@@ -548,7 +548,7 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 		SetID("h1p2").
 		SetHostname("h1").
 		SetPort(2).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h1p2e").
 		SetWeight(1).
@@ -557,7 +557,7 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 		SetID("h2p1").
 		SetHostname("h2").
 		SetPort(1).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h2p1e").
 		SetWeight(1).
@@ -566,7 +566,7 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 		SetID("h2p2").
 		SetHostname("h2").
 		SetPort(2).
-		SetRack("r2").
+		SetIsolationGroup("r2").
 		SetZone("z1").
 		SetEndpoint("h2p2e").
 		SetWeight(1).
@@ -583,7 +583,7 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 		SetID("h3p1").
 		SetHostname("h3").
 		SetPort(1).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h3p1e").
 		SetWeight(1)
@@ -591,7 +591,7 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 		SetID("h3p2").
 		SetHostname("h3").
 		SetPort(2).
-		SetRack("r1").
+		SetIsolationGroup("r1").
 		SetZone("z1").
 		SetEndpoint("h3p2e").
 		SetWeight(1)
@@ -599,7 +599,7 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 		SetID("h4p1").
 		SetHostname("h4").
 		SetPort(1).
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetZone("z1").
 		SetEndpoint("h4p1e").
 		SetWeight(1)
@@ -607,7 +607,7 @@ func TestSelectAddingInstanceForMirror(t *testing.T) {
 		SetID("h4p2").
 		SetHostname("h4").
 		SetPort(2).
-		SetRack("r3").
+		SetIsolationGroup("r3").
 		SetZone("z1").
 		SetEndpoint("h4p2e").
 		SetWeight(1)

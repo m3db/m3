@@ -87,24 +87,24 @@ func (_mr *_MockInstanceRecorder) SetID(arg0 interface{}) *gomock.Call {
 	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetID", arg0)
 }
 
-func (_m *MockInstance) Rack() string {
-	ret := _m.ctrl.Call(_m, "Rack")
+func (_m *MockInstance) IsolationGroup() string {
+	ret := _m.ctrl.Call(_m, "IsolationGroup")
 	ret0, _ := ret[0].(string)
 	return ret0
 }
 
-func (_mr *_MockInstanceRecorder) Rack() *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "Rack")
+func (_mr *_MockInstanceRecorder) IsolationGroup() *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "IsolationGroup")
 }
 
-func (_m *MockInstance) SetRack(r string) Instance {
-	ret := _m.ctrl.Call(_m, "SetRack", r)
+func (_m *MockInstance) SetIsolationGroup(r string) Instance {
+	ret := _m.ctrl.Call(_m, "SetIsolationGroup", r)
 	ret0, _ := ret[0].(Instance)
 	return ret0
 }
 
-func (_mr *_MockInstanceRecorder) SetRack(arg0 interface{}) *gomock.Call {
-	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetRack", arg0)
+func (_mr *_MockInstanceRecorder) SetIsolationGroup(arg0 interface{}) *gomock.Call {
+	return _mr.mock.ctrl.RecordCall(_mr.mock, "SetIsolationGroup", arg0)
 }
 
 func (_m *MockInstance) Zone() string {
