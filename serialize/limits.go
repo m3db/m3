@@ -20,21 +20,45 @@
 
 package serialize
 
-import (
-	"testing"
+import "math"
 
-	"github.com/stretchr/testify/require"
+var (
+	// defaultMaxNumberTags is the maximum number of tags that can be encoded.
+	defaultMaxNumberTags uint16 = math.MaxUint16
+
+	// defaultMaxTagLiteralLength is the maximum length of a tag Name/Value.
+	defaultMaxTagLiteralLength uint16 = 4096
 )
 
-func newTestTagDecoderPool() TagDecoderPool {
-	return NewTagDecoderPool(testDecodeOpts, nil)
+type limits struct {
+	maxNumberTags       uint16
+	maxTagLiteralLength uint16
 }
 
-func TestTagDecoderPool(t *testing.T) {
-	p := newTestTagDecoderPool()
-	p.Init()
-	d := p.Get()
-	d.Reset(testTagDecoderBytes())
-	require.NoError(t, d.Err())
-	d.Finalize()
+// NewTagSerializationLimits returns a new TagSerializationLimits object.
+func NewTagSerializationLimits() TagSerializationLimits {
+	return &limits{
+		maxNumberTags:       defaultMaxNumberTags,
+		maxTagLiteralLength: defaultMaxTagLiteralLength,
+	}
+}
+
+func (l *limits) SetMaxNumberTags(v uint16) TagSerializationLimits {
+	lim := *l
+	lim.maxNumberTags = v
+	return &lim
+}
+
+func (l *limits) MaxNumberTags() uint16 {
+	return l.maxNumberTags
+}
+
+func (l *limits) SetMaxTagLiteralLength(v uint16) TagSerializationLimits {
+	lim := *l
+	lim.maxTagLiteralLength = v
+	return &lim
+}
+
+func (l *limits) MaxTagLiteralLength() uint16 {
+	return l.maxTagLiteralLength
 }

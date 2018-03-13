@@ -92,7 +92,7 @@ func TestPropertyAnyReasonableTagSlicesAreAight(t *testing.T) {
 
 func encodeAndDecode(t ident.TagIterator) (ident.TagIterator, error) {
 	copy := t.Duplicate()
-	enc := newTagEncoder(defaultNewCheckedBytesFn, newTestOptions(), nil)
+	enc := newTagEncoder(defaultNewCheckedBytesFn, newTestEncoderOpts(), nil)
 	if err := enc.Encode(copy); err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func encodeAndDecode(t ident.TagIterator) (ident.TagIterator, error) {
 	if !ok {
 		return nil, fmt.Errorf("unable to retrieve data")
 	}
-	dec := newTagDecoder(nil, testCheckedBytesWrapperPool)
+	dec := newTagDecoder(testDecodeOpts, nil)
 	dec.Reset(data)
 	return dec, nil
 }
@@ -144,7 +144,19 @@ func iterErrCheck(ti1, ti2 ident.TagIterator) (bool, error) {
 }
 
 func anyTag() gopter.Gen {
+	limit := int(testDecodeOpts.TagSerializationLimits().MaxTagLiteralLength())
 	return gopter.CombineGens(gen.AnyString(), gen.AnyString()).
+		SuchThat(func(values []interface{}) bool {
+			name := values[0].(string)
+			if len(name) > limit {
+				return false
+			}
+			value := values[1].(string)
+			if len(value) > limit {
+				return false
+			}
+			return true
+		}).
 		Map(func(values []interface{}) ident.Tag {
 			name := values[0].(string)
 			value := values[1].(string)

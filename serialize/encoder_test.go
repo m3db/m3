@@ -31,12 +31,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTestOptions() TagEncoderOptions {
+func newTestEncoderOpts() TagEncoderOptions {
 	return NewTagEncoderOptions()
 }
 
 func newTestTagEncoder() TagEncoder {
-	return newTagEncoder(defaultNewCheckedBytesFn, newTestOptions(), nil)
+	return newTagEncoder(defaultNewCheckedBytesFn, newTestEncoderOpts(), nil)
 }
 
 func TestEmptyEncode(t *testing.T) {
@@ -112,9 +112,10 @@ func TestSimpleEncode(t *testing.T) {
 func TestTagEncoderErrorEncoding(t *testing.T) {
 	opts := NewTagEncoderOptions()
 	e := newTagEncoder(defaultNewCheckedBytesFn, opts, nil)
+	maxLiteralLen := opts.TagSerializationLimits().MaxTagLiteralLength()
 	tags := ident.NewTagIterator(
 		ident.StringTag("abc", "defg"),
-		ident.StringTag("x", nstring(int(opts.MaxTagLiteralLength())+1)),
+		ident.StringTag("x", nstring(1+int(maxLiteralLen))),
 	)
 
 	require.Error(t, e.Encode(tags))
@@ -150,7 +151,7 @@ func TestEmptyTagIterEncode(t *testing.T) {
 		clonedIter.EXPECT().Close(),
 	)
 
-	enc := newTagEncoder(newBytesFn, newTestOptions(), nil)
+	enc := newTagEncoder(newBytesFn, newTestEncoderOpts(), nil)
 	require.NoError(t, enc.Encode(iter))
 }
 
@@ -160,11 +161,12 @@ func TestTooManyTags(t *testing.T) {
 
 	clonedIter := ident.NewMockTagIterator(ctrl)
 	iter := ident.NewMockTagIterator(ctrl)
-	testOpts := newTestOptions()
+	testOpts := newTestEncoderOpts()
 
+	maxNumTags := testOpts.TagSerializationLimits().MaxNumberTags()
 	gomock.InOrder(
 		iter.EXPECT().Duplicate().Return(clonedIter),
-		clonedIter.EXPECT().Remaining().Return(1+int(testOpts.MaxNumberTags())),
+		clonedIter.EXPECT().Remaining().Return(1+int(maxNumTags)),
 		clonedIter.EXPECT().Close(),
 	)
 
@@ -199,7 +201,7 @@ func TestSingleValueTagIterEncode(t *testing.T) {
 		clonedIter.EXPECT().Close(),
 	)
 
-	enc := newTagEncoder(newBytesFn, newTestOptions(), nil)
+	enc := newTagEncoder(newBytesFn, newTestEncoderOpts(), nil)
 	require.NoError(t, enc.Encode(iter))
 
 	mockBytes.EXPECT().NumRef().Return(1)

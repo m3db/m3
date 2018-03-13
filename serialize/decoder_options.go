@@ -20,21 +20,45 @@
 
 package serialize
 
-import (
-	"testing"
+import "github.com/m3db/m3db/x/xpool"
 
-	"github.com/stretchr/testify/require"
+const (
+	// defaultCheckBytesWrapperPoolSize is the default size of the checked.Bytes
+	// wrapper pool.
+	defaultCheckBytesWrapperPoolSize = 4096
 )
 
-func newTestTagDecoderPool() TagDecoderPool {
-	return NewTagDecoderPool(testDecodeOpts, nil)
+type decodeOpts struct {
+	wrapperPool xpool.CheckedBytesWrapperPool
+	limits      TagSerializationLimits
 }
 
-func TestTagDecoderPool(t *testing.T) {
-	p := newTestTagDecoderPool()
-	p.Init()
-	d := p.Get()
-	d.Reset(testTagDecoderBytes())
-	require.NoError(t, d.Err())
-	d.Finalize()
+// NewTagDecoderOptions returns a new TagDecoderOptions.
+func NewTagDecoderOptions() TagDecoderOptions {
+	pool := xpool.NewCheckedBytesWrapperPool(defaultCheckBytesWrapperPoolSize)
+	pool.Init()
+	return &decodeOpts{
+		wrapperPool: pool,
+		limits:      NewTagSerializationLimits(),
+	}
+}
+
+func (o *decodeOpts) SetCheckedBytesWrapperPool(v xpool.CheckedBytesWrapperPool) TagDecoderOptions {
+	opts := *o
+	opts.wrapperPool = v
+	return &opts
+}
+
+func (o *decodeOpts) CheckedBytesWrapperPool() xpool.CheckedBytesWrapperPool {
+	return o.wrapperPool
+}
+
+func (o *decodeOpts) SetTagSerializationLimits(v TagSerializationLimits) TagDecoderOptions {
+	opts := *o
+	opts.limits = v
+	return &opts
+}
+
+func (o *decodeOpts) TagSerializationLimits() TagSerializationLimits {
+	return o.limits
 }

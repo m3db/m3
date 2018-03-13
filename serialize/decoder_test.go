@@ -24,30 +24,22 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3x/checked"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	testCheckedBytesWrapperPoolSize = 2
+var (
+	testDecodeOpts = NewTagDecoderOptions()
 )
-
-var testCheckedBytesWrapperPool xpool.CheckedBytesWrapperPool
-
-func init() {
-	testCheckedBytesWrapperPool = xpool.NewCheckedBytesWrapperPool(testCheckedBytesWrapperPoolSize)
-	testCheckedBytesWrapperPool.Init()
-}
 
 func TestEmptyDecode(t *testing.T) {
 	var b []byte
 	b = append(b, headerMagicBytes...)
 	b = append(b, []byte{0x0, 0x0}...)
 
-	d := newTagDecoder(nil, testCheckedBytesWrapperPool)
+	d := newTagDecoder(testDecodeOpts, nil)
 	d.Reset(wrapAsCheckedBytes(b))
 	require.False(t, d.Next())
 	require.NoError(t, d.Err())
@@ -89,6 +81,28 @@ func TestDecodeSimple(t *testing.T) {
 
 	d.Close()
 	d.Finalize()
+}
+
+func TestDecodeTooManyTags(t *testing.T) {
+	b := testTagDecoderBytes()
+	opts := testDecodeOpts.SetTagSerializationLimits(
+		NewTagSerializationLimits().SetMaxNumberTags(1))
+	d := newTagDecoder(opts, nil)
+	d.Reset(b)
+	require.Error(t, d.Err())
+}
+
+func TestDecodeLiteralTooLong(t *testing.T) {
+	b := testTagDecoderBytes()
+	opts := testDecodeOpts.SetTagSerializationLimits(
+		NewTagSerializationLimits().
+			SetMaxNumberTags(2).
+			SetMaxTagLiteralLength(3))
+	d := newTagDecoder(opts, nil)
+	d.Reset(b)
+	require.NoError(t, d.Err())
+	require.False(t, d.Next())
+	require.Error(t, d.Err())
 }
 
 func TestDecodeMissingTags(t *testing.T) {
@@ -251,7 +265,7 @@ func TestDecodeDuplicateLifecycleMocks(t *testing.T) {
 }
 
 func newTestTagDecoder() TagDecoder {
-	return newTagDecoder(nil, testCheckedBytesWrapperPool)
+	return newTagDecoder(testDecodeOpts, nil)
 }
 
 func wrapAsCheckedBytes(b []byte) checked.Bytes {

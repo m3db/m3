@@ -21,6 +21,7 @@
 package serialize
 
 import (
+	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 )
@@ -63,29 +64,6 @@ type TagEncoderPool interface {
 	Put(TagEncoder)
 }
 
-// TagEncoderOptions sets the knobs for TagEncoder limits.
-type TagEncoderOptions interface {
-	// SetInitialCapacity sets the initial capacity of the bytes underlying
-	// the TagEncoder.
-	SetInitialCapacity(v int) TagEncoderOptions
-
-	// InitialCapacity returns the initial capacity of the bytes underlying
-	// the TagEncoder.
-	InitialCapacity() int
-
-	// SetMaxNumberTags sets the maximum number of tags allowed.
-	SetMaxNumberTags(uint16) TagEncoderOptions
-
-	// MaxNumberTags returns the maximum number of tags allowed.
-	MaxNumberTags() uint16
-
-	// SetMaxTagLiteralLength sets the maximum length of a tag Name/Value.
-	SetMaxTagLiteralLength(uint16) TagEncoderOptions
-
-	// MaxTagLiteralLength returns the maximum length of a tag Name/Value.
-	MaxTagLiteralLength() uint16
-}
-
 // TagDecoder decodes an encoded byte stream to a TagIterator.
 type TagDecoder interface {
 	ident.TagIterator
@@ -109,4 +87,51 @@ type TagDecoderPool interface {
 
 	// Put puts the decoder back in the pool.
 	Put(TagDecoder)
+}
+
+// TagEncoderOptions sets the knobs for TagEncoder limits.
+type TagEncoderOptions interface {
+	// SetInitialCapacity sets the initial capacity of the bytes underlying
+	// the TagEncoder.
+	SetInitialCapacity(v int) TagEncoderOptions
+
+	// InitialCapacity returns the initial capacity of the bytes underlying
+	// the TagEncoder.
+	InitialCapacity() int
+
+	// SetTagSerializationLimits sets the TagSerializationLimits.
+	SetTagSerializationLimits(v TagSerializationLimits) TagEncoderOptions
+
+	// TagSerializationLimits returns the TagSerializationLimits.
+	TagSerializationLimits() TagSerializationLimits
+}
+
+// TagDecoderOptions sets the knobs for TagDecoders.
+type TagDecoderOptions interface {
+	// SetCheckedBytesWrapperPool sets the checked.Bytes wrapper pool.
+	SetCheckedBytesWrapperPool(v xpool.CheckedBytesWrapperPool) TagDecoderOptions
+
+	// CheckedBytesWrapperPool returns the checked.Bytes wrapper pool.
+	CheckedBytesWrapperPool() xpool.CheckedBytesWrapperPool
+
+	// SetTagSerializationLimits sets the TagSerializationLimits.
+	SetTagSerializationLimits(v TagSerializationLimits) TagDecoderOptions
+
+	// TagSerializationLimits returns the TagSerializationLimits.
+	TagSerializationLimits() TagSerializationLimits
+}
+
+// TagEncoderOptionsTagDecoderOptions sets the limits around tag serialization.
+type TagSerializationLimits interface {
+	// SetMaxNumberTags sets the maximum number of tags allowed.
+	SetMaxNumberTags(uint16) TagSerializationLimits
+
+	// MaxNumberTags returns the maximum number of tags allowed.
+	MaxNumberTags() uint16
+
+	// SetMaxTagLiteralLength sets the maximum length of a tag Name/Value.
+	SetMaxTagLiteralLength(uint16) TagSerializationLimits
+
+	// MaxTagLiteralLength returns the maximum length of a tag Name/Value.
+	MaxTagLiteralLength() uint16
 }

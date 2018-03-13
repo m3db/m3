@@ -20,32 +20,22 @@
 
 package serialize
 
-import "math"
-
 var (
-	// defaultMaxNumberTags is the maximum number of tags that can be encoded.
-	defaultMaxNumberTags uint16 = math.MaxUint16
-
-	// defaultMaxTagLiteralLength is the maximum length of a tag Name/Value.
-	defaultMaxTagLiteralLength uint16 = 4096
-
 	// defaultInitialCapacity is the default initial capacity of the bytes
 	// underlying the encoder.
 	defaultInitialCapacity = 1024
 )
 
 type encodeOpts struct {
-	initialCapacity     int
-	maxNumberTags       uint16
-	maxTagLiteralLength uint16
+	initialCapacity int
+	limits          TagSerializationLimits
 }
 
 // NewTagEncoderOptions returns a new TagEncoderOptions.
 func NewTagEncoderOptions() TagEncoderOptions {
 	return &encodeOpts{
-		initialCapacity:     defaultInitialCapacity,
-		maxNumberTags:       defaultMaxNumberTags,
-		maxTagLiteralLength: defaultMaxTagLiteralLength,
+		initialCapacity: defaultInitialCapacity,
+		limits:          NewTagSerializationLimits(),
 	}
 }
 
@@ -59,22 +49,12 @@ func (o *encodeOpts) InitialCapacity() int {
 	return o.initialCapacity
 }
 
-func (o *encodeOpts) SetMaxNumberTags(v uint16) TagEncoderOptions {
+func (o *encodeOpts) SetTagSerializationLimits(v TagSerializationLimits) TagEncoderOptions {
 	opts := *o
-	opts.maxNumberTags = v
+	opts.limits = v
 	return &opts
 }
 
-func (o *encodeOpts) MaxNumberTags() uint16 {
-	return o.maxNumberTags
-}
-
-func (o *encodeOpts) SetMaxTagLiteralLength(v uint16) TagEncoderOptions {
-	opts := *o
-	opts.maxTagLiteralLength = v
-	return &opts
-}
-
-func (o *encodeOpts) MaxTagLiteralLength() uint16 {
-	return o.maxTagLiteralLength
+func (o *encodeOpts) TagSerializationLimits() TagSerializationLimits {
+	return o.limits
 }

@@ -22,8 +22,8 @@ package serialize
 
 import (
 	"errors"
+	"fmt"
 
-	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 )
@@ -42,14 +42,14 @@ type decoder struct {
 	hasCurrent  bool
 	current     ident.Tag
 
-	pool        TagDecoderPool
-	wrapperPool xpool.CheckedBytesWrapperPool
+	opts TagDecoderOptions
+	pool TagDecoderPool
 }
 
-func newTagDecoder(pool TagDecoderPool, wrapperPool xpool.CheckedBytesWrapperPool) TagDecoder {
+func newTagDecoder(opts TagDecoderOptions, pool TagDecoderPool) TagDecoder {
 	return &decoder{
-		pool:        pool,
-		wrapperPool: wrapperPool,
+		opts: opts,
+		pool: pool,
 	}
 }
 
@@ -72,6 +72,11 @@ func (d *decoder) Reset(b checked.Bytes) {
 	remain, err := d.decodeUInt16()
 	if err != nil {
 		d.err = err
+		return
+	}
+
+	if limit := d.opts.TagSerializationLimits().MaxNumberTags(); remain > limit {
+		d.err = fmt.Errorf("too many tags [ limit = %d, observed = %d]", limit, remain)
 		return
 	}
 
@@ -121,6 +126,10 @@ func (d *decoder) decodeID() (ident.ID, error) {
 		return nil, err
 	}
 
+	if limit := d.opts.TagSerializationLimits().MaxTagLiteralLength(); l > limit {
+		return nil, fmt.Errorf("tag literal too long [ limit = %d, observed = %d]", limit, int(l))
+	}
+
 	if len(d.data) < int(l) {
 		return nil, errInvalidByteStreamIDDecoding
 	}
@@ -128,7 +137,7 @@ func (d *decoder) decodeID() (ident.ID, error) {
 	// incRef to indicate another checked.Bytes has a
 	// reference to the original bytes
 	d.checkedData.IncRef()
-	b := d.wrapperPool.Get(d.data[:l])
+	b := d.opts.CheckedBytesWrapperPool().Get(d.data[:l])
 	d.data = d.data[l:]
 
 	return ident.BinaryID(b), nil
@@ -190,9 +199,9 @@ func (d *decoder) Finalize() {
 }
 
 func (d *decoder) cloneCurrent() ident.Tag {
-	name := d.wrapperPool.Get(d.current.Name.Data().Get())
+	name := d.opts.CheckedBytesWrapperPool().Get(d.current.Name.Data().Get())
 	d.checkedData.IncRef()
-	value := d.wrapperPool.Get(d.current.Value.Data().Get())
+	value := d.opts.CheckedBytesWrapperPool().Get(d.current.Value.Data().Get())
 	d.checkedData.IncRef()
 	return ident.BinaryTag(name, value)
 }
