@@ -27,17 +27,23 @@ import (
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3metrics/metric/aggregated"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestMultiWriterWriteNoError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var written []aggregated.ChunkedMetricWithStoragePolicy
-	writer := &mockWriter{
-		writeFn: func(mp aggregated.ChunkedMetricWithStoragePolicy) error {
+	writer := aggregator.NewMockWriter(ctrl)
+	writer.EXPECT().
+		Write(testChunkedMetricWithStoragePolicy).
+		Return(nil).
+		Do(func(mp aggregated.ChunkedMetricWithStoragePolicy) {
 			written = append(written, mp)
-			return nil
-		},
-	}
+		}).
+		Times(3)
 	writers := []aggregator.Writer{writer, writer, writer}
 	multiWriter := NewMultiWriter(writers)
 	require.NoError(t, multiWriter.Write(testChunkedMetricWithStoragePolicy))
@@ -51,18 +57,21 @@ func TestMultiWriterWriteNoError(t *testing.T) {
 }
 
 func TestMultiWriterWritePartialErrors(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var written []aggregated.ChunkedMetricWithStoragePolicy
-	writer1 := &mockWriter{
-		writeFn: func(mp aggregated.ChunkedMetricWithStoragePolicy) error {
+	writer1 := aggregator.NewMockWriter(ctrl)
+	writer1.EXPECT().
+		Write(testChunkedMetricWithStoragePolicy).
+		Return(nil).
+		Do(func(mp aggregated.ChunkedMetricWithStoragePolicy) {
 			written = append(written, mp)
-			return nil
-		},
-	}
-	writer2 := &mockWriter{
-		writeFn: func(mp aggregated.ChunkedMetricWithStoragePolicy) error {
-			return errors.New("write error")
-		},
-	}
+		})
+	writer2 := aggregator.NewMockWriter(ctrl)
+	writer2.EXPECT().
+		Write(testChunkedMetricWithStoragePolicy).
+		Return(errors.New("write error"))
 	writers := []aggregator.Writer{writer1, writer2}
 	multiWriter := NewMultiWriter(writers)
 	require.Error(t, multiWriter.Write(testChunkedMetricWithStoragePolicy))
@@ -74,10 +83,18 @@ func TestMultiWriterWritePartialErrors(t *testing.T) {
 }
 
 func TestMultiWriterFlushNoError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var flushed int
-	writer := &mockWriter{
-		flushFn: func() error { flushed++; return nil },
-	}
+	writer := aggregator.NewMockWriter(ctrl)
+	writer.EXPECT().
+		Flush().
+		Return(nil).
+		Do(func() {
+			flushed++
+		}).
+		Times(3)
 	writers := []aggregator.Writer{writer, writer, writer}
 	multiWriter := NewMultiWriter(writers)
 	require.NoError(t, multiWriter.Flush())
@@ -85,33 +102,24 @@ func TestMultiWriterFlushNoError(t *testing.T) {
 }
 
 func TestMultiWriterFlushPartialErrors(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var flushSuccess int
-	writer1 := &mockWriter{
-		flushFn: func() error { flushSuccess++; return nil },
-	}
-	writer2 := &mockWriter{
-		flushFn: func() error { return errors.New("flush error") },
-	}
+	writer1 := aggregator.NewMockWriter(ctrl)
+	writer1.EXPECT().
+		Flush().
+		Return(nil).
+		Do(func() {
+			flushSuccess++
+		})
+	writer2 := aggregator.NewMockWriter(ctrl)
+	writer2.EXPECT().
+		Flush().
+		Return(errors.New("flush error"))
+
 	writers := []aggregator.Writer{writer1, writer2}
 	multiWriter := NewMultiWriter(writers)
 	require.Error(t, multiWriter.Flush())
 	require.Equal(t, 1, flushSuccess)
 }
-
-type writeFn func(mp aggregated.ChunkedMetricWithStoragePolicy) error
-type flushFn func() error
-
-type mockWriter struct {
-	writeFn writeFn
-	flushFn flushFn
-}
-
-func (w *mockWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) error {
-	return w.writeFn(mp)
-}
-
-func (w *mockWriter) Flush() error {
-	return w.flushFn()
-}
-
-func (w *mockWriter) Close() error { return nil }

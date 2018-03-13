@@ -26,7 +26,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3aggregator/aggregator/mock"
+	"github.com/m3db/m3aggregator/aggregator/capture"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3metrics/protocol/msgpack"
@@ -98,13 +98,13 @@ func testServerOptions() Options {
 }
 
 func TestHandleUnaggregatedMsgpack(t *testing.T) {
-	agg := mock.NewAggregator()
+	agg := capture.NewAggregator()
 	h := NewHandler(agg, testServerOptions())
 
 	var (
 		numClients     = 9
 		wgClient       sync.WaitGroup
-		expectedResult mock.SnapshotResult
+		expectedResult capture.SnapshotResult
 	)
 
 	listener, err := net.Listen("tcp", testListenAddress)

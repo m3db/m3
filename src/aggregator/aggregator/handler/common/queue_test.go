@@ -269,15 +269,3 @@ func testQueueOptions() QueueOptions {
 		SetConnectionOptions(connectionOpts).
 		SetQueueSize(4096)
 }
-
-type enqueueFn func(buffer *RefCountedBuffer) error
-
-type mockQueue struct {
-	enqueueFn enqueueFn
-}
-
-func (q *mockQueue) Enqueue(buffer *RefCountedBuffer) error {
-	return q.enqueueFn(buffer)
-}
-
-func (q *mockQueue) Close() {}

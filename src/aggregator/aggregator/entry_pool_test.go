@@ -33,13 +33,13 @@ func TestEntryPool(t *testing.T) {
 	runtimeOpts := runtime.NewOptions()
 	p := NewEntryPool(pool.NewObjectPoolOptions().SetSize(1))
 	p.Init(func() *Entry {
-		return NewEntry(nil, runtimeOpts, testOptions())
+		return NewEntry(nil, runtimeOpts, NewOptions())
 	})
 
 	// Retrieve an entry from the pool.
 	entry := p.Get()
 	lists := &metricLists{}
-	entry.ResetSetData(&metricLists{}, runtimeOpts, testOptions())
+	entry.ResetSetData(&metricLists{}, runtimeOpts, NewOptions())
 	require.Equal(t, lists, entry.lists)
 
 	// Put the entry back to pool.

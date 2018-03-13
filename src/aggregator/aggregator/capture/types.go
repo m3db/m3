@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2016 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,36 +18,28 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package deploy
+package capture
 
-type mockInstance struct {
-	id          string
-	revision    string
-	isHealthy   bool
-	isDeploying bool
+import (
+	aggr "github.com/m3db/m3aggregator/aggregator"
+	"github.com/m3db/m3metrics/metric/unaggregated"
+)
+
+// Aggregator provide an aggregator for testing purposes.
+type Aggregator interface {
+	aggr.Aggregator
+
+	// NumMetricsAdded returns the number of metrics added.
+	NumMetricsAdded() int
+
+	// Snapshot returns a copy of the aggregated data, resets
+	// aggregations and number of metrics added.
+	Snapshot() SnapshotResult
 }
 
-func (m *mockInstance) ID() string        { return m.id }
-func (m *mockInstance) Revision() string  { return m.revision }
-func (m *mockInstance) IsHealthy() bool   { return m.isHealthy }
-func (m *mockInstance) IsDeploying() bool { return m.isDeploying }
-
-type queryAllFn func() ([]Instance, error)
-type queryFn func(instanceIDs []string) ([]Instance, error)
-type deployFn func(instanceIDs []string, revision string) error
-
-type mockManager struct {
-	queryAllFn queryAllFn
-	queryFn    queryFn
-	deployFn   deployFn
-}
-
-func (m *mockManager) QueryAll() ([]Instance, error) { return m.queryAllFn() }
-
-func (m *mockManager) Query(instanceIDs []string) ([]Instance, error) {
-	return m.queryFn(instanceIDs)
-}
-
-func (m *mockManager) Deploy(instanceIDs []string, revision string) error {
-	return m.deployFn(instanceIDs, revision)
+// SnapshotResult is the snapshot result.
+type SnapshotResult struct {
+	CountersWithPoliciesList    []unaggregated.CounterWithPoliciesList
+	BatchTimersWithPoliciesList []unaggregated.BatchTimerWithPoliciesList
+	GaugesWithPoliciesList      []unaggregated.GaugeWithPoliciesList
 }

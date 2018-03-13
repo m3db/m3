@@ -36,7 +36,7 @@ var (
 )
 
 func TestAggregatorShardCutoffNanos(t *testing.T) {
-	shard := newAggregatorShard(testShard, testOptions())
+	shard := newAggregatorShard(testShard, NewOptions())
 	inputs := []int64{0, 12345, math.MaxInt64}
 	for _, input := range inputs {
 		shard.cutoffNanos = input
@@ -46,7 +46,7 @@ func TestAggregatorShardCutoffNanos(t *testing.T) {
 
 func TestAggregatorShardIsWriteable(t *testing.T) {
 	now := time.Unix(0, 12345)
-	shard := newAggregatorShard(testShard, testOptions())
+	shard := newAggregatorShard(testShard, NewOptions())
 	shard.nowFn = func() time.Time { return now }
 
 	inputs := []struct {
@@ -68,7 +68,7 @@ func TestAggregatorShardIsWriteable(t *testing.T) {
 
 func TestAggregatorShardIsCutoff(t *testing.T) {
 	now := time.Unix(0, 12345)
-	shard := newAggregatorShard(testShard, testOptions())
+	shard := newAggregatorShard(testShard, NewOptions())
 	shard.nowFn = func() time.Time { return now }
 
 	inputs := []struct {
@@ -88,7 +88,7 @@ func TestAggregatorShardIsCutoff(t *testing.T) {
 
 func TestAggregatorShardSetWritableRange(t *testing.T) {
 	testNanos := int64(1234)
-	opts := testOptions().
+	opts := NewOptions().
 		SetEntryCheckInterval(0).
 		SetBufferDurationBeforeShardCutover(time.Duration(500)).
 		SetBufferDurationAfterShardCutoff(time.Duration(1000))
@@ -123,7 +123,7 @@ func TestAggregatorShardSetWritableRange(t *testing.T) {
 }
 
 func TestAggregatorShardAddMetricWithPoliciesListShardClosed(t *testing.T) {
-	shard := newAggregatorShard(testShard, testOptions().SetEntryCheckInterval(0))
+	shard := newAggregatorShard(testShard, NewOptions().SetEntryCheckInterval(0))
 	shard.closed = true
 	err := shard.AddMetricWithPoliciesList(testValidMetric, testPoliciesList)
 	require.Equal(t, errAggregatorShardClosed, err)
@@ -131,7 +131,7 @@ func TestAggregatorShardAddMetricWithPoliciesListShardClosed(t *testing.T) {
 
 func TestAggregatorShardAddMetricWithPoliciesListShardNotWriteable(t *testing.T) {
 	now := time.Unix(0, 12345)
-	shard := newAggregatorShard(testShard, testOptions())
+	shard := newAggregatorShard(testShard, NewOptions())
 	shard.nowFn = func() time.Time { return now }
 
 	inputs := []struct {
@@ -152,7 +152,7 @@ func TestAggregatorShardAddMetricWithPoliciesListShardNotWriteable(t *testing.T)
 }
 
 func TestAggregatorShardAddMetricWithPoliciesListSuccess(t *testing.T) {
-	shard := newAggregatorShard(testShard, testOptions())
+	shard := newAggregatorShard(testShard, NewOptions())
 	require.Equal(t, testShard, shard.ID())
 
 	var (
@@ -175,7 +175,7 @@ func TestAggregatorShardAddMetricWithPoliciesListSuccess(t *testing.T) {
 }
 
 func TestAggregatorShardClose(t *testing.T) {
-	shard := newAggregatorShard(testShard, testOptions())
+	shard := newAggregatorShard(testShard, NewOptions())
 
 	// Close the shard.
 	shard.Close()

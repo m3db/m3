@@ -27,7 +27,6 @@ import (
 	"github.com/m3db/m3cluster/generated/proto/placementpb"
 	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/placement"
-	"github.com/m3db/m3cluster/shard"
 
 	"github.com/stretchr/testify/require"
 )
@@ -336,53 +335,3 @@ func testPlacementManager(t *testing.T) (*placementManager, kv.Store) {
 	placementManager := NewPlacementManager(opts).(*placementManager)
 	return placementManager, store
 }
-
-type openFn func() error
-type placementFn func() (placement.ActiveStagedPlacement, placement.Placement, error)
-type instanceFn func() (placement.Instance, error)
-type instanceFromFn func(placement placement.Placement) (placement.Instance, error)
-type hasReplacementInstanceFn func() (bool, error)
-type shardsFn func() (shard.Shards, error)
-
-type mockPlacementManager struct {
-	openFn                   openFn
-	placementFn              placementFn
-	instanceFn               instanceFn
-	instanceFromFn           instanceFromFn
-	hasReplacementInstanceFn hasReplacementInstanceFn
-	shardsFn                 shardsFn
-}
-
-func (m *mockPlacementManager) Open() error { return m.openFn() }
-
-func (m *mockPlacementManager) Placement() (placement.ActiveStagedPlacement, placement.Placement, error) {
-	return m.placementFn()
-}
-
-func (m *mockPlacementManager) Instance() (placement.Instance, error) { return m.instanceFn() }
-
-func (m *mockPlacementManager) InstanceFrom(
-	placement placement.Placement,
-) (placement.Instance, error) {
-	return m.instanceFromFn(placement)
-}
-
-func (m *mockPlacementManager) HasReplacementInstance() (bool, error) {
-	return m.hasReplacementInstanceFn()
-}
-
-func (m *mockPlacementManager) Shards() (shard.Shards, error) { return m.shardsFn() }
-
-func (m *mockPlacementManager) Close() error { return nil }
-
-type activePlacementFn func() (placement.Placement, placement.DoneFn, error)
-
-type mockActiveStagedPlacement struct {
-	activePlacementFn activePlacementFn
-}
-
-func (m *mockActiveStagedPlacement) ActivePlacement() (placement.Placement, placement.DoneFn, error) {
-	return m.activePlacementFn()
-}
-
-func (m *mockActiveStagedPlacement) Close() error { return nil }

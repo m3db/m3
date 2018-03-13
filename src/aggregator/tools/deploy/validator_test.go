@@ -27,16 +27,18 @@ import (
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3x/sync"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestValidatorForFollowerStatusError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	errStatus := errors.New("status error")
-	client := &mockAggregatorClient{
-		statusFn: func(instance string) (aggregator.RuntimeStatus, error) {
-			return aggregator.RuntimeStatus{}, errStatus
-		},
-	}
+	client := NewMockaggregatorClient(ctrl)
+	client.EXPECT().Status(gomock.Any()).Return(aggregator.RuntimeStatus{}, errStatus).AnyTimes()
+
 	workers := sync.NewWorkerPool(2)
 	workers.Init()
 	f := newValidatorFactory(client, workers)
@@ -45,15 +47,19 @@ func TestValidatorForFollowerStatusError(t *testing.T) {
 }
 
 func TestValidatorForFollowerNotFollowerState(t *testing.T) {
-	client := &mockAggregatorClient{
-		statusFn: func(instance string) (aggregator.RuntimeStatus, error) {
-			return aggregator.RuntimeStatus{
-				FlushStatus: aggregator.FlushStatus{
-					ElectionState: aggregator.LeaderState,
-				},
-			}, nil
-		},
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	client := NewMockaggregatorClient(ctrl)
+	client.EXPECT().
+		Status(gomock.Any()).
+		Return(aggregator.RuntimeStatus{
+			FlushStatus: aggregator.FlushStatus{
+				ElectionState: aggregator.LeaderState,
+			},
+		}, nil).
+		AnyTimes()
+
 	workers := sync.NewWorkerPool(2)
 	workers.Init()
 	f := newValidatorFactory(client, workers)
@@ -62,15 +68,19 @@ func TestValidatorForFollowerNotFollowerState(t *testing.T) {
 }
 
 func TestValidatorForFollowerSuccess(t *testing.T) {
-	client := &mockAggregatorClient{
-		statusFn: func(instance string) (aggregator.RuntimeStatus, error) {
-			return aggregator.RuntimeStatus{
-				FlushStatus: aggregator.FlushStatus{
-					ElectionState: aggregator.FollowerState,
-				},
-			}, nil
-		},
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	client := NewMockaggregatorClient(ctrl)
+	client.EXPECT().
+		Status(gomock.Any()).
+		Return(aggregator.RuntimeStatus{
+			FlushStatus: aggregator.FlushStatus{
+				ElectionState: aggregator.FollowerState,
+			},
+		}, nil).
+		AnyTimes()
+
 	workers := sync.NewWorkerPool(2)
 	workers.Init()
 	f := newValidatorFactory(client, workers)
@@ -79,12 +89,16 @@ func TestValidatorForFollowerSuccess(t *testing.T) {
 }
 
 func TestValidatorForLeaderStatusError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	errStatus := errors.New("status error")
-	client := &mockAggregatorClient{
-		statusFn: func(instance string) (aggregator.RuntimeStatus, error) {
-			return aggregator.RuntimeStatus{}, errStatus
-		},
-	}
+	client := NewMockaggregatorClient(ctrl)
+	client.EXPECT().
+		Status(gomock.Any()).
+		Return(aggregator.RuntimeStatus{}, errStatus).
+		AnyTimes()
+
 	workers := sync.NewWorkerPool(2)
 	workers.Init()
 	f := newValidatorFactory(client, workers)
@@ -93,15 +107,19 @@ func TestValidatorForLeaderStatusError(t *testing.T) {
 }
 
 func TestValidatorForLeaderNotLeaderState(t *testing.T) {
-	client := &mockAggregatorClient{
-		statusFn: func(instance string) (aggregator.RuntimeStatus, error) {
-			return aggregator.RuntimeStatus{
-				FlushStatus: aggregator.FlushStatus{
-					ElectionState: aggregator.FollowerState,
-				},
-			}, nil
-		},
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	client := NewMockaggregatorClient(ctrl)
+	client.EXPECT().
+		Status(gomock.Any()).
+		Return(aggregator.RuntimeStatus{
+			FlushStatus: aggregator.FlushStatus{
+				ElectionState: aggregator.FollowerState,
+			},
+		}, nil).
+		AnyTimes()
+
 	workers := sync.NewWorkerPool(2)
 	workers.Init()
 	f := newValidatorFactory(client, workers)
@@ -110,19 +128,23 @@ func TestValidatorForLeaderNotLeaderState(t *testing.T) {
 }
 
 func TestValidatorForLeaderNoLeaderFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	group := &instanceGroup{
 		LeaderID: "instance2",
 	}
 	instance := instanceMetadata{PlacementInstanceID: "instance1"}
-	client := &mockAggregatorClient{
-		statusFn: func(instance string) (aggregator.RuntimeStatus, error) {
-			return aggregator.RuntimeStatus{
-				FlushStatus: aggregator.FlushStatus{
-					ElectionState: aggregator.FollowerState,
-				},
-			}, nil
-		},
-	}
+	client := NewMockaggregatorClient(ctrl)
+	client.EXPECT().
+		Status(gomock.Any()).
+		Return(aggregator.RuntimeStatus{
+			FlushStatus: aggregator.FlushStatus{
+				ElectionState: aggregator.FollowerState,
+			},
+		}, nil).
+		AnyTimes()
+
 	workers := sync.NewWorkerPool(2)
 	workers.Init()
 	f := newValidatorFactory(client, workers)
@@ -131,6 +153,9 @@ func TestValidatorForLeaderNoLeaderFound(t *testing.T) {
 }
 
 func TestValidatorForLeaderFollowerCannotLead(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	group := &instanceGroup{
 		LeaderID: "instance1",
 		All: []instanceMetadata{
@@ -139,16 +164,17 @@ func TestValidatorForLeaderFollowerCannotLead(t *testing.T) {
 		},
 	}
 	instance := instanceMetadata{PlacementInstanceID: "instance1"}
-	client := &mockAggregatorClient{
-		statusFn: func(instance string) (aggregator.RuntimeStatus, error) {
-			return aggregator.RuntimeStatus{
-				FlushStatus: aggregator.FlushStatus{
-					ElectionState: aggregator.FollowerState,
-					CanLead:       false,
-				},
-			}, nil
-		},
-	}
+	client := NewMockaggregatorClient(ctrl)
+	client.EXPECT().
+		Status(gomock.Any()).
+		Return(aggregator.RuntimeStatus{
+			FlushStatus: aggregator.FlushStatus{
+				ElectionState: aggregator.FollowerState,
+				CanLead:       false,
+			},
+		}, nil).
+		AnyTimes()
+
 	workers := sync.NewWorkerPool(2)
 	workers.Init()
 	f := newValidatorFactory(client, workers)
@@ -157,6 +183,9 @@ func TestValidatorForLeaderFollowerCannotLead(t *testing.T) {
 }
 
 func TestValidatorForLeaderFollowerSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	group := &instanceGroup{
 		LeaderID: "instance1",
 		All: []instanceMetadata{
@@ -168,8 +197,10 @@ func TestValidatorForLeaderFollowerSuccess(t *testing.T) {
 		PlacementInstanceID: "instance1",
 		APIEndpoint:         "instance1:1234/api",
 	}
-	client := &mockAggregatorClient{
-		statusFn: func(instance string) (aggregator.RuntimeStatus, error) {
+	client := NewMockaggregatorClient(ctrl)
+	client.EXPECT().
+		Status(gomock.Any()).
+		DoAndReturn(func(instance string) (aggregator.RuntimeStatus, error) {
 			if instance == "instance1:1234/api" {
 				return aggregator.RuntimeStatus{
 					FlushStatus: aggregator.FlushStatus{
@@ -184,29 +215,12 @@ func TestValidatorForLeaderFollowerSuccess(t *testing.T) {
 					CanLead:       true,
 				},
 			}, nil
-		},
-	}
+		}).
+		AnyTimes()
+
 	workers := sync.NewWorkerPool(2)
 	workers.Init()
 	f := newValidatorFactory(client, workers)
 	validator := f.ValidatorFor(instance, group, leaderTarget)
 	require.NoError(t, validator())
-}
-
-type validatorForFn func(
-	instance instanceMetadata,
-	group *instanceGroup,
-	targetType targetType,
-) validator
-
-type mockValidatorFactory struct {
-	validatorForFn validatorForFn
-}
-
-func (m *mockValidatorFactory) ValidatorFor(
-	instance instanceMetadata,
-	group *instanceGroup,
-	targetType targetType,
-) validator {
-	return m.validatorForFn(instance, group, targetType)
 }

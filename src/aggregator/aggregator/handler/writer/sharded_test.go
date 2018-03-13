@@ -37,6 +37,7 @@ import (
 	"github.com/m3db/m3x/clock"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -236,13 +237,20 @@ func TestShardedWriterWriteWithEncodeTimeNoFlush(t *testing.T) {
 }
 
 func TestShardedWriterWriteNoEncodeTimeWithFlush(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	flushed := make(map[uint32][]*common.RefCountedBuffer)
-	router := &mockRouter{
-		routeFn: func(shard uint32, buf *common.RefCountedBuffer) error {
+	router := common.NewMockRouter(ctrl)
+	router.EXPECT().
+		Route(gomock.Any(), gomock.Any()).
+		Return(nil).
+		Do(func(shard uint32, buf *common.RefCountedBuffer) {
 			flushed[shard] = append(flushed[shard], buf)
-			return nil
-		},
-	}
+		}).
+		AnyTimes()
+
+	// Ensure writes of any size will be flushed immediately without buffering.
 	opts := NewOptions().SetMaxBufferSize(0)
 	writer := testShardedWriter(t, opts)
 	writer.Router = router
@@ -301,16 +309,21 @@ func TestShardedWriterFlushClosed(t *testing.T) {
 }
 
 func TestShardedWriterFlush(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	flushed := make(map[uint32][]*common.RefCountedBuffer)
-	router := &mockRouter{
-		routeFn: func(shard uint32, buf *common.RefCountedBuffer) error {
+	router := common.NewMockRouter(ctrl)
+	router.EXPECT().
+		Route(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(shard uint32, buf *common.RefCountedBuffer) error {
 			if shard == 1 {
 				return errors.New("error routing data")
 			}
 			flushed[shard] = append(flushed[shard], buf)
 			return nil
-		},
-	}
+		}).
+		AnyTimes()
 	writer := testShardedWriter(t, NewOptions())
 	writer.Router = router
 
@@ -352,18 +365,6 @@ func TestShardedWriterClose(t *testing.T) {
 	writer := testShardedWriter(t, NewOptions())
 	require.NoError(t, writer.Close())
 	require.True(t, writer.closed)
-}
-
-func TestShardedWriterEncode(t *testing.T) {
-	errEncode := errors.New("encode error")
-	mockEncoder := &mockAggregatedEncoder{
-		AggregatedEncoder: msgpack.NewAggregatedEncoder(msgpack.NewBufferedEncoder()),
-		encodeChunkedMetricWithStoragePolicyFn: func(aggregated.ChunkedMetricWithStoragePolicy) error {
-			return errEncode
-		},
-	}
-	w := testShardedWriter(t, NewOptions())
-	require.Equal(t, errEncode, w.encode(mockEncoder, testChunkedMetricWithStoragePolicy, 0))
 }
 
 func isSameChunkedID(id1, id2 id.ChunkedID) bool {
@@ -431,30 +432,4 @@ type decodeData struct {
 	aggregated.MetricWithStoragePolicy
 
 	encodedAtNanos int64
-}
-
-type routeFn func(shard uint32, buf *common.RefCountedBuffer) error
-
-type mockRouter struct {
-	routeFn routeFn
-}
-
-func (r *mockRouter) Route(shard uint32, buf *common.RefCountedBuffer) error {
-	return r.routeFn(shard, buf)
-}
-
-func (r *mockRouter) Close() {}
-
-type encodeChunkedMetricWithStoragePolicyFn func(aggregated.ChunkedMetricWithStoragePolicy) error
-
-type mockAggregatedEncoder struct {
-	msgpack.AggregatedEncoder
-
-	encodeChunkedMetricWithStoragePolicyFn encodeChunkedMetricWithStoragePolicyFn
-}
-
-func (m *mockAggregatedEncoder) EncodeChunkedMetricWithStoragePolicy(
-	cmp aggregated.ChunkedMetricWithStoragePolicy,
-) error {
-	return m.encodeChunkedMetricWithStoragePolicyFn(cmp)
 }

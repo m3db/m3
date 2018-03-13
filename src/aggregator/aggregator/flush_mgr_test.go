@@ -21,6 +21,7 @@
 package aggregator
 
 import (
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -28,11 +29,15 @@ import (
 	"github.com/m3db/m3x/clock"
 	"github.com/m3db/m3x/watch"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
 func TestFlushManagerReset(t *testing.T) {
-	mgr, _ := testFlushManager(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr, _ := testFlushManager(t, ctrl)
 
 	// Reseting an unopened manager is a no op.
 	require.NoError(t, mgr.Reset())
@@ -53,47 +58,65 @@ func TestFlushManagerReset(t *testing.T) {
 }
 
 func TestFlushManagerOpenAlreadyOpen(t *testing.T) {
-	mgr, _ := testFlushManager(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr, _ := testFlushManager(t, ctrl)
 	mgr.state = flushManagerOpen
 	require.Equal(t, errFlushManagerAlreadyOpenOrClosed, mgr.Open())
 }
 
 func TestFlushManagerOpenSuccess(t *testing.T) {
-	mgr, _ := testFlushManager(t)
-	mgr.leaderMgr = &mockRoleBasedFlushManager{
-		openFn: func() {},
-	}
-	mgr.followerMgr = &mockRoleBasedFlushManager{
-		openFn: func() {},
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	leaderMgr := NewMockroleBasedFlushManager(ctrl)
+	leaderMgr.EXPECT().Open()
+	followerMgr := NewMockroleBasedFlushManager(ctrl)
+	followerMgr.EXPECT().Open()
+
+	mgr, _ := testFlushManager(t, ctrl)
+	mgr.leaderMgr = leaderMgr
+	mgr.followerMgr = followerMgr
 	require.NoError(t, mgr.Open())
 }
 
 func TestFlushManagerRegisterSuccess(t *testing.T) {
-	mgr, now := testFlushManager(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr, now := testFlushManager(t, ctrl)
 	*now = time.Unix(1234, 0)
 
 	var (
 		bucketIndices []int
 		buckets       []*flushBucket
+		flushers      []PeriodicFlusher
 	)
-	mgr.leaderMgr = &mockRoleBasedFlushManager{
-		openFn: func() {},
-	}
-	mgr.followerMgr = &mockRoleBasedFlushManager{
-		openFn: func() {},
-		onBucketAddedFn: func(bucketIdx int, bucket *flushBucket) {
-			bucketIndices = append(bucketIndices, bucketIdx)
-			buckets = append(buckets, bucket)
-		},
-	}
-	flushers := []PeriodicFlusher{
-		&mockFlusher{flushInterval: time.Second},
-		&mockFlusher{flushInterval: time.Minute},
-		&mockFlusher{flushInterval: time.Second},
-		&mockFlusher{flushInterval: time.Hour},
+	for _, intv := range []time.Duration{
+		time.Second,
+		time.Minute,
+		time.Second,
+		time.Hour,
+	} {
+		flusher := NewMockPeriodicFlusher(ctrl)
+		flusher.EXPECT().FlushInterval().Return(intv).AnyTimes()
+		flushers = append(flushers, flusher)
 	}
 
+	leaderMgr := NewMockroleBasedFlushManager(ctrl)
+	leaderMgr.EXPECT().Open().AnyTimes()
+	followerMgr := NewMockroleBasedFlushManager(ctrl)
+	followerMgr.EXPECT().Open().AnyTimes()
+	followerMgr.EXPECT().
+		OnBucketAdded(gomock.Any(), gomock.Any()).
+		Do(func(bucketIdx int, bucket *flushBucket) {
+			bucketIndices = append(bucketIndices, bucketIdx)
+			buckets = append(buckets, bucket)
+		}).
+		AnyTimes()
+	mgr.leaderMgr = leaderMgr
+	mgr.followerMgr = followerMgr
 	require.NoError(t, mgr.Open())
 	for _, flusher := range flushers {
 		require.NoError(t, mgr.Register(flusher))
@@ -126,11 +149,20 @@ func TestFlushManagerRegisterSuccess(t *testing.T) {
 }
 
 func TestFlushManagerUnregisterBucketNotFound(t *testing.T) {
-	flushers := []PeriodicFlusher{
-		&mockFlusher{flushInterval: time.Second},
-		&mockFlusher{flushInterval: time.Minute},
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var flushers []PeriodicFlusher
+	for _, intv := range []time.Duration{
+		time.Second,
+		time.Minute,
+	} {
+		flusher := NewMockPeriodicFlusher(ctrl)
+		flusher.EXPECT().FlushInterval().Return(intv).AnyTimes()
+		flushers = append(flushers, flusher)
 	}
-	mgr, _ := testFlushManager(t)
+
+	mgr, _ := testFlushManager(t, ctrl)
 	mgr.state = flushManagerOpen
 	mgr.buckets = []*flushBucket{
 		&flushBucket{
@@ -142,26 +174,43 @@ func TestFlushManagerUnregisterBucketNotFound(t *testing.T) {
 }
 
 func TestFlushManagerUnregisterFlusherNotFound(t *testing.T) {
-	mgr, _ := testFlushManager(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	flusher := NewMockPeriodicFlusher(ctrl)
+	flusher.EXPECT().FlushInterval().Return(time.Second).AnyTimes()
+
+	mgr, _ := testFlushManager(t, ctrl)
 	mgr.state = flushManagerOpen
 	mgr.buckets = []*flushBucket{
 		&flushBucket{
 			interval: time.Second,
-			flushers: []PeriodicFlusher{&mockFlusher{flushInterval: time.Second}},
+			flushers: []PeriodicFlusher{flusher},
 		},
 	}
-	flusher := &mockFlusher{flushInterval: time.Second}
-	require.Equal(t, errFlusherNotFound, mgr.Unregister(flusher))
+
+	flusher2 := NewMockPeriodicFlusher(ctrl)
+	flusher2.EXPECT().FlushInterval().Return(time.Second).AnyTimes()
+	require.Equal(t, errFlusherNotFound, mgr.Unregister(flusher2))
 }
 
 func TestFlushManagerUnregisterSuccess(t *testing.T) {
-	flushers := []PeriodicFlusher{
-		&mockFlusher{flushInterval: time.Second},
-		&mockFlusher{flushInterval: time.Minute},
-		&mockFlusher{flushInterval: time.Second},
-		&mockFlusher{flushInterval: time.Second},
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	var flushers []PeriodicFlusher
+	for _, intv := range []time.Duration{
+		time.Second,
+		time.Minute,
+		time.Second,
+		time.Second,
+	} {
+		flusher := NewMockPeriodicFlusher(ctrl)
+		flusher.EXPECT().FlushInterval().Return(intv).AnyTimes()
+		flushers = append(flushers, flusher)
 	}
-	mgr, _ := testFlushManager(t)
+
+	mgr, _ := testFlushManager(t, ctrl)
 	mgr.state = flushManagerOpen
 	mgr.buckets = []*flushBucket{
 		&flushBucket{
@@ -187,13 +236,16 @@ func TestFlushManagerUnregisterSuccess(t *testing.T) {
 }
 
 func TestFlushManagerStatus(t *testing.T) {
-	mgr, _ := testFlushManager(t)
-	mgr.leaderMgr = &mockRoleBasedFlushManager{
-		canLead: false,
-	}
-	mgr.followerMgr = &mockRoleBasedFlushManager{
-		canLead: true,
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	leaderMgr := NewMockroleBasedFlushManager(ctrl)
+	leaderMgr.EXPECT().CanLead().Return(false).AnyTimes()
+	followerMgr := NewMockroleBasedFlushManager(ctrl)
+	followerMgr.EXPECT().CanLead().Return(true).AnyTimes()
+	mgr, _ := testFlushManager(t, ctrl)
+	mgr.leaderMgr = leaderMgr
+	mgr.followerMgr = followerMgr
 	expected := FlushStatus{
 		ElectionState: FollowerState,
 		CanLead:       true,
@@ -202,13 +254,19 @@ func TestFlushManagerStatus(t *testing.T) {
 }
 
 func TestFlushManagerCloseAlreadyClosed(t *testing.T) {
-	mgr, _ := testFlushManager(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr, _ := testFlushManager(t, ctrl)
 	mgr.state = flushManagerClosed
 	require.Equal(t, errFlushManagerNotOpenOrClosed, mgr.Close())
 }
 
 func TestFlushManagerCloseSuccess(t *testing.T) {
-	opts, _ := testFlushManagerOptions(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts, _ := testFlushManagerOptions(t, ctrl)
 	opts = opts.SetCheckEvery(time.Second)
 	mgr := NewFlushManager(opts).(*flushManager)
 	mgr.state = flushManagerOpen
@@ -222,21 +280,31 @@ func TestFlushManagerCloseSuccess(t *testing.T) {
 }
 
 func TestFlushManagerFlush(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
-		slept           int32
-		followerFlushes int
-		followerInits   int
-		leaderFlushes   int
-		leaderInits     int
-		signalCh        = make(chan struct{})
-		captured        []*flushBucket
+		slept             int32
+		followerFlushes   int
+		followerInits     int
+		leaderFlushes     int
+		leaderInits       int
+		electionStateLock sync.Mutex
+		electionState     = FollowerState
+		signalCh          = make(chan struct{})
+		captured          []*flushBucket
 	)
-	followerFlushTask := &mockFlushTask{
-		runFn: func() { followerFlushes++ },
-	}
-	leaderFlushTask := &mockFlushTask{
-		runFn: func() { leaderFlushes++ },
-	}
+	followerFlushTask := NewMockflushTask(ctrl)
+	followerFlushTask.EXPECT().
+		Run().
+		Do(func() { followerFlushes++ }).
+		AnyTimes()
+	leaderFlushTask := NewMockflushTask(ctrl)
+	leaderFlushTask.EXPECT().
+		Run().
+		Do(func() { leaderFlushes++ }).
+		AnyTimes()
+
 	sleepFn := func(time.Duration) {
 		atomic.AddInt32(&slept, 1)
 		<-signalCh
@@ -249,9 +317,15 @@ func TestFlushManagerFlush(t *testing.T) {
 			time.Sleep(50 * time.Millisecond)
 		}
 	}
-	electionManager := &mockElectionManager{
-		electionState: FollowerState,
-	}
+	electionManager := NewMockElectionManager(ctrl)
+	electionManager.EXPECT().
+		ElectionState().
+		DoAndReturn(func() ElectionState {
+			electionStateLock.Lock()
+			defer electionStateLock.Unlock()
+			return electionState
+		}).
+		AnyTimes()
 
 	// Initialize flush manager.
 	opts := NewFlushManagerOptions().
@@ -260,31 +334,50 @@ func TestFlushManagerFlush(t *testing.T) {
 	mgr := NewFlushManager(opts).(*flushManager)
 	mgr.sleepFn = sleepFn
 	mgr.electionMgr = electionManager
-	mgr.leaderMgr = &mockRoleBasedFlushManager{
-		openFn: func() {},
-		initFn: func(buckets []*flushBucket) { leaderInits++ },
-		prepareFn: func(buckets []*flushBucket) (flushTask, time.Duration) {
+
+	leaderMgr := NewMockroleBasedFlushManager(ctrl)
+	leaderMgr.EXPECT().Open().AnyTimes()
+	leaderMgr.EXPECT().
+		Init(gomock.Any()).
+		Do(func([]*flushBucket) { leaderInits++ }).
+		AnyTimes()
+	leaderMgr.EXPECT().
+		Prepare(gomock.Any()).
+		DoAndReturn(func(buckets []*flushBucket) (flushTask, time.Duration) {
 			captured = buckets
 			return leaderFlushTask, time.Second
-		},
-	}
-	mgr.followerMgr = &mockRoleBasedFlushManager{
-		openFn: func() {},
-		initFn: func(buckets []*flushBucket) { followerInits++ },
-		prepareFn: func(buckets []*flushBucket) (flushTask, time.Duration) {
+		}).
+		AnyTimes()
+	followerMgr := NewMockroleBasedFlushManager(ctrl)
+	followerMgr.EXPECT().Open().AnyTimes()
+	followerMgr.EXPECT().
+		Init(gomock.Any()).
+		Do(func([]*flushBucket) { followerInits++ }).
+		AnyTimes()
+	followerMgr.EXPECT().
+		Prepare(gomock.Any()).
+		DoAndReturn(func(buckets []*flushBucket) (flushTask, time.Duration) {
 			captured = buckets
 			return followerFlushTask, time.Second
-		},
-		onBucketAddedFn: func(bucketIdx int, bucket *flushBucket) {},
-	}
+		}).
+		AnyTimes()
+	followerMgr.EXPECT().OnBucketAdded(gomock.Any(), gomock.Any()).AnyTimes()
+	mgr.leaderMgr = leaderMgr
+	mgr.followerMgr = followerMgr
 
 	// Flush as a follower.
 	require.NoError(t, mgr.Open())
-	flushers := []PeriodicFlusher{
-		&mockFlusher{flushInterval: 100 * time.Millisecond},
-		&mockFlusher{flushInterval: 200 * time.Millisecond},
-		&mockFlusher{flushInterval: 100 * time.Millisecond},
-		&mockFlusher{flushInterval: 500 * time.Millisecond},
+
+	var flushers []PeriodicFlusher
+	for _, intv := range []time.Duration{
+		100 * time.Millisecond,
+		200 * time.Millisecond,
+		100 * time.Millisecond,
+		500 * time.Millisecond,
+	} {
+		flusher := NewMockPeriodicFlusher(ctrl)
+		flusher.EXPECT().FlushInterval().Return(intv).AnyTimes()
+		flushers = append(flushers, flusher)
 	}
 	for _, flusher := range flushers {
 		require.NoError(t, mgr.Register(flusher))
@@ -296,9 +389,9 @@ func TestFlushManagerFlush(t *testing.T) {
 	require.Equal(t, 0, leaderInits)
 
 	// Transition to leader.
-	electionManager.Lock()
-	electionManager.electionState = LeaderState
-	electionManager.Unlock()
+	electionStateLock.Lock()
+	electionState = LeaderState
+	electionStateLock.Unlock()
 	signalCh <- struct{}{}
 	waitUntilSlept(2)
 	require.Equal(t, 1, followerFlushes)
@@ -307,9 +400,9 @@ func TestFlushManagerFlush(t *testing.T) {
 	require.Equal(t, 1, leaderInits)
 
 	// Transition to follower.
-	electionManager.Lock()
-	electionManager.electionState = FollowerState
-	electionManager.Unlock()
+	electionStateLock.Lock()
+	electionState = FollowerState
+	electionStateLock.Unlock()
 	signalCh <- struct{}{}
 	waitUntilSlept(3)
 	require.Equal(t, 2, followerFlushes)
@@ -341,110 +434,30 @@ func TestFlushManagerFlush(t *testing.T) {
 	close(signalCh)
 }
 
-func testFlushManager(t *testing.T) (*flushManager, *time.Time) {
-	opts, now := testFlushManagerOptions(t)
+func testFlushManager(t *testing.T, ctrl *gomock.Controller) (*flushManager, *time.Time) {
+	opts, now := testFlushManagerOptions(t, ctrl)
 	return NewFlushManager(opts).(*flushManager), now
 }
 
-func testFlushManagerOptions(t *testing.T) (FlushManagerOptions, *time.Time) {
+func testFlushManagerOptions(
+	t *testing.T,
+	ctrl *gomock.Controller,
+) (FlushManagerOptions, *time.Time) {
 	var now time.Time
 	nowFn := func() time.Time { return now }
 	clockOpts := clock.NewOptions().SetNowFn(nowFn)
 	watchable := watch.NewWatchable()
 	_, w, err := watchable.Watch()
 	require.NoError(t, err)
-	flushTimesManager := &mockFlushTimesManager{
-		watchFlushTimesFn: func() (watch.Watch, error) {
-			return w, nil
-		},
-	}
+
+	flushTimesManager := NewMockFlushTimesManager(ctrl)
+	flushTimesManager.EXPECT().Reset().Return(nil).AnyTimes()
+	flushTimesManager.EXPECT().Watch().Return(w, nil).AnyTimes()
+	flushTimesManager.EXPECT().Close().Return(nil).AnyTimes()
+
 	return NewFlushManagerOptions().
 		SetClockOptions(clockOpts).
 		SetFlushTimesManager(flushTimesManager).
 		SetCheckEvery(0).
 		SetJitterEnabled(false), &now
 }
-
-type flushFn func(req FlushRequest)
-type discardBeforeFn func(beforeNanos int64)
-
-type mockFlusher struct {
-	shard            uint32
-	resolution       time.Duration
-	flushInterval    time.Duration
-	lastFlushedNanos int64
-	flushFn          flushFn
-	discardBeforeFn  discardBeforeFn
-}
-
-func (f *mockFlusher) Shard() uint32                   { return f.shard }
-func (f *mockFlusher) Resolution() time.Duration       { return f.resolution }
-func (f *mockFlusher) FlushInterval() time.Duration    { return f.flushInterval }
-func (f *mockFlusher) LastFlushedNanos() int64         { return f.lastFlushedNanos }
-func (f *mockFlusher) Flush(req FlushRequest)          { f.flushFn(req) }
-func (f *mockFlusher) DiscardBefore(beforeNanos int64) { f.discardBeforeFn(beforeNanos) }
-
-type registerFn func(flusher PeriodicFlusher) error
-type unregisterFn func(flusher PeriodicFlusher) error
-type statusFn func() FlushStatus
-
-type mockFlushManager struct {
-	registerFn   registerFn
-	unregisterFn unregisterFn
-	statusFn     statusFn
-}
-
-func (mgr *mockFlushManager) Reset() error { return nil }
-
-func (mgr *mockFlushManager) Open() error { return nil }
-
-func (mgr *mockFlushManager) Register(flusher PeriodicFlusher) error {
-	return mgr.registerFn(flusher)
-}
-
-func (mgr *mockFlushManager) Unregister(flusher PeriodicFlusher) error {
-	return mgr.unregisterFn(flusher)
-}
-
-func (mgr *mockFlushManager) Status() FlushStatus { return mgr.statusFn() }
-
-func (mgr *mockFlushManager) Close() error { return nil }
-
-type flushOpenFn func()
-type bucketInitFn func(buckets []*flushBucket)
-type bucketPrepareFn func(buckets []*flushBucket) (flushTask, time.Duration)
-type onBucketAddedFn func(bucketIdx int, bucket *flushBucket)
-
-type mockRoleBasedFlushManager struct {
-	openFn          flushOpenFn
-	initFn          bucketInitFn
-	prepareFn       bucketPrepareFn
-	onBucketAddedFn onBucketAddedFn
-	canLead         bool
-}
-
-func (m *mockRoleBasedFlushManager) Open() { m.openFn() }
-
-func (m *mockRoleBasedFlushManager) Init(buckets []*flushBucket) {
-	m.initFn(buckets)
-}
-
-func (m *mockRoleBasedFlushManager) Prepare(buckets []*flushBucket) (flushTask, time.Duration) {
-	return m.prepareFn(buckets)
-}
-
-func (m *mockRoleBasedFlushManager) OnBucketAdded(bucketIdx int, bucket *flushBucket) {
-	m.onBucketAddedFn(bucketIdx, bucket)
-}
-
-func (m *mockRoleBasedFlushManager) CanLead() bool { return m.canLead }
-
-func (m *mockRoleBasedFlushManager) Close() {}
-
-type runFn func()
-
-type mockFlushTask struct {
-	runFn runFn
-}
-
-func (t *mockFlushTask) Run() { t.runFn() }

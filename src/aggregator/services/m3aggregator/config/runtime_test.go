@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/mock/gomock"
 	"github.com/m3db/m3aggregator/aggregator"
 	"github.com/m3db/m3aggregator/runtime"
 	"github.com/m3db/m3cluster/client"
@@ -33,6 +32,7 @@ import (
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3x/log"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
 )
@@ -75,15 +75,13 @@ writeNewMetricNoLimitWarmupDuration: 10m
 	runtimeOptsManager := cfg.NewRuntimeOptionsManager()
 	testShards := []uint32{0, 1, 2, 3}
 	testPlacement := placement.NewPlacement().SetReplicaFactor(2).SetShards(testShards)
-	mockPlacementManager := &mockPlacementManager{
-		placementFn: func() (placement.ActiveStagedPlacement, placement.Placement, error) {
-			return nil, testPlacement, nil
-		},
-	}
+	testPlacementManager := aggregator.NewMockPlacementManager(ctrl)
+	testPlacementManager.EXPECT().Placement().Return(nil, testPlacement, nil).AnyTimes()
+
 	mockClient := client.NewMockClient(ctrl)
 	mockClient.EXPECT().Store(gomock.Any()).Return(memStore, nil)
 	logger := log.NewLevelLogger(log.SimpleLogger, log.LevelInfo)
-	cfg.WatchRuntimeOptionChanges(mockClient, runtimeOptsManager, mockPlacementManager, logger)
+	cfg.WatchRuntimeOptionChanges(mockClient, runtimeOptsManager, testPlacementManager, logger)
 	runtimeOpts := runtimeOptsManager.RuntimeOptions()
 	expectedOpts := runtime.NewOptions().
 		SetWriteValuesPerMetricLimitPerSecond(initialValueLimit).
@@ -164,16 +162,4 @@ func compareRuntimeOptions(expected, actual runtime.Options) bool {
 	return expected.WriteNewMetricLimitPerShardPerSecond() == actual.WriteNewMetricLimitPerShardPerSecond() &&
 		expected.WriteNewMetricNoLimitWarmupDuration() == actual.WriteNewMetricNoLimitWarmupDuration() &&
 		expected.WriteValuesPerMetricLimitPerSecond() == actual.WriteValuesPerMetricLimitPerSecond()
-}
-
-type placementFn func() (placement.ActiveStagedPlacement, placement.Placement, error)
-
-type mockPlacementManager struct {
-	aggregator.PlacementManager
-
-	placementFn placementFn
-}
-
-func (m *mockPlacementManager) Placement() (placement.ActiveStagedPlacement, placement.Placement, error) {
-	return m.placementFn()
 }

@@ -159,7 +159,7 @@ func TestElemBaseMarkAsTombStoned(t *testing.T) {
 }
 
 func TestCounterElemAddMetric(t *testing.T) {
-	e := NewCounterElem(testCounterID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions())
+	e := NewCounterElem(testCounterID, testStoragePolicy, policy.DefaultAggregationTypes, NewOptions())
 
 	// Add a counter metric.
 	require.NoError(t, e.AddMetric(testTimestamps[0], testCounter))
@@ -194,7 +194,7 @@ func TestCounterElemAddMetric(t *testing.T) {
 }
 
 func TestCounterElemAddMetricWithCustomAggregation(t *testing.T) {
-	e := NewCounterElem(testCounterID, testStoragePolicy, testAggregationTypesExpensive, testOptions())
+	e := NewCounterElem(testCounterID, testStoragePolicy, testAggregationTypesExpensive, NewOptions())
 
 	// Add a counter metric.
 	require.NoError(t, e.AddMetric(testTimestamps[0], testCounter))
@@ -313,7 +313,7 @@ func TestCounterElemClose(t *testing.T) {
 }
 
 func TestCounterFindOrInsert(t *testing.T) {
-	e := NewCounterElem(testCounterID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions())
+	e := NewCounterElem(testCounterID, testStoragePolicy, policy.DefaultAggregationTypes, NewOptions())
 	inputs := []int64{10, 10, 20, 10, 15}
 	expected := []testIndexData{
 		{index: 0, data: []int64{10}},
@@ -335,7 +335,7 @@ func TestCounterFindOrInsert(t *testing.T) {
 }
 
 func TestTimerElemAddMetric(t *testing.T) {
-	e := NewTimerElem(testBatchTimerID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions())
+	e := NewTimerElem(testBatchTimerID, testStoragePolicy, policy.DefaultAggregationTypes, NewOptions())
 
 	// Add a timer metric.
 	require.NoError(t, e.AddMetric(testTimestamps[0], testBatchTimer))
@@ -383,7 +383,7 @@ func TestTimerElemConsume(t *testing.T) {
 	streamOpts, p, numAlloc := testStreamOptions(t, len(testAlignedStarts)-1)
 
 	// Verify the pool is big enough to supply all the streams.
-	opts := testOptions().SetStreamOptions(streamOpts)
+	opts := NewOptions().SetStreamOptions(streamOpts)
 	e := testTimerElem(policy.DefaultAggregationTypes, opts)
 	verifyStreamPoolSize(t, p, 0, numAlloc)
 
@@ -427,7 +427,7 @@ func TestTimerElemReadAndDiscardWithCustomAggregation(t *testing.T) {
 	streamOpts, p, numAlloc := testStreamOptions(t, len(testAlignedStarts)-1)
 
 	// Verify the pool is big enough to supply all the streams.
-	opts := testOptions().SetStreamOptions(streamOpts)
+	opts := NewOptions().SetStreamOptions(streamOpts)
 	e := testTimerElem(testTimerAggregationTypes, opts)
 	verifyStreamPoolSize(t, p, 0, numAlloc)
 
@@ -471,7 +471,7 @@ func TestTimerElemClose(t *testing.T) {
 	streamOpts, p, numAlloc := testStreamOptions(t, len(testAlignedStarts)-1)
 
 	// Verify the pool is big enough to supply all the streams.
-	opts := testOptions().SetStreamOptions(streamOpts)
+	opts := NewOptions().SetStreamOptions(streamOpts)
 	e := testTimerElem(policy.DefaultAggregationTypes, opts)
 	verifyStreamPoolSize(t, p, 0, numAlloc)
 
@@ -493,7 +493,7 @@ func TestTimerElemClose(t *testing.T) {
 }
 
 func TestTimerFindOrInsert(t *testing.T) {
-	e := NewTimerElem(testBatchTimerID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions())
+	e := NewTimerElem(testBatchTimerID, testStoragePolicy, policy.DefaultAggregationTypes, NewOptions())
 	inputs := []int64{10, 10, 20, 10, 15}
 	expected := []testIndexData{
 		{index: 0, data: []int64{10}},
@@ -515,7 +515,7 @@ func TestTimerFindOrInsert(t *testing.T) {
 }
 
 func TestGaugeElemAddMetric(t *testing.T) {
-	e := NewGaugeElem(testGaugeID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions())
+	e := NewGaugeElem(testGaugeID, testStoragePolicy, policy.DefaultAggregationTypes, NewOptions())
 
 	// Add a gauge metric.
 	require.NoError(t, e.AddMetric(testTimestamps[0], testGauge))
@@ -550,7 +550,7 @@ func TestGaugeElemAddMetric(t *testing.T) {
 }
 
 func TestGaugeElemAddMetricWithCustomAggregation(t *testing.T) {
-	e := NewGaugeElem(testGaugeID, testStoragePolicy, testAggregationTypesExpensive, testOptions())
+	e := NewGaugeElem(testGaugeID, testStoragePolicy, testAggregationTypesExpensive, NewOptions())
 
 	// Add a gauge metric.
 	require.NoError(t, e.AddMetric(testTimestamps[0], testGauge))
@@ -675,7 +675,7 @@ func TestGaugeElemClose(t *testing.T) {
 }
 
 func TestGaugeFindOrInsert(t *testing.T) {
-	e := NewGaugeElem(testGaugeID, testStoragePolicy, policy.DefaultAggregationTypes, testOptions())
+	e := NewGaugeElem(testGaugeID, testStoragePolicy, policy.DefaultAggregationTypes, NewOptions())
 	inputs := []int64{10, 10, 20, 10, 15}
 	expected := []testIndexData{
 		{index: 0, data: []int64{10}},
@@ -749,7 +749,7 @@ func testStreamOptions(t *testing.T, size int) (cm.Options, cm.StreamPool, *int)
 }
 
 func testCounterElem(aggTypes policy.AggregationTypes) *CounterElem {
-	e := NewCounterElem(testCounterID, testStoragePolicy, aggTypes, testOptions())
+	e := NewCounterElem(testCounterID, testStoragePolicy, aggTypes, NewOptions())
 	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
 		counter := aggregation.NewLockedCounter(aggregation.NewCounter(e.aggOpts))
 		counter.Update(testCounter.CounterVal)
@@ -776,7 +776,7 @@ func testTimerElem(aggTypes policy.AggregationTypes, opts Options) *TimerElem {
 }
 
 func testGaugeElem(aggTypes policy.AggregationTypes) *GaugeElem {
-	e := NewGaugeElem(testGaugeID, testStoragePolicy, aggTypes, testOptions())
+	e := NewGaugeElem(testGaugeID, testStoragePolicy, aggTypes, NewOptions())
 	for _, aligned := range testAlignedStarts[:len(testAlignedStarts)-1] {
 		gauge := aggregation.NewLockedGauge(aggregation.NewGauge(e.aggOpts))
 		gauge.Update(testGauge.GaugeVal)

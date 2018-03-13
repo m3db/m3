@@ -33,12 +33,15 @@ import (
 	"github.com/m3db/m3metrics/policy"
 	"github.com/m3db/m3x/clock"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/tally"
 )
 
 func TestMetricListPushBack(t *testing.T) {
-	l, err := newMetricList(testShard, time.Second, testOptions())
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	l, err := newMetricList(testShard, time.Second, testOptions(ctrl))
 	require.NoError(t, err)
 	elem := NewCounterElem(nil, policy.EmptyStoragePolicy, policy.DefaultAggregationTypes, l.opts)
 
@@ -58,15 +61,27 @@ func TestMetricListPushBack(t *testing.T) {
 }
 
 func TestMetricListClose(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		registered   int
 		unregistered int
 	)
-	mockFlushManager := &mockFlushManager{
-		registerFn:   func(PeriodicFlusher) error { registered++; return nil },
-		unregisterFn: func(PeriodicFlusher) error { unregistered++; return nil },
-	}
-	opts := testOptions().SetFlushManager(mockFlushManager)
+	flushManager := NewMockFlushManager(ctrl)
+	flushManager.EXPECT().
+		Register(gomock.Any()).
+		DoAndReturn(func(PeriodicFlusher) error {
+			registered++
+			return nil
+		})
+	flushManager.EXPECT().
+		Unregister(gomock.Any()).
+		DoAndReturn(func(PeriodicFlusher) error {
+			unregistered++
+			return nil
+		})
+	opts := testOptions(ctrl).SetFlushManager(flushManager)
 	l, err := newMetricList(testShard, time.Second, opts)
 	require.NoError(t, err)
 
@@ -87,12 +102,15 @@ func TestMetricListClose(t *testing.T) {
 }
 
 func TestMetricListFlushWithRequests(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		now     = time.Unix(12345, 0)
 		nowFn   = func() time.Time { return now }
 		results []flushBeforeResult
 	)
-	opts := testOptions().SetClockOptions(clock.NewOptions().SetNowFn(nowFn))
+	opts := testOptions(ctrl).SetClockOptions(clock.NewOptions().SetNowFn(nowFn))
 	l, err := newMetricList(testShard, time.Second, opts)
 	require.NoError(t, err)
 	l.flushBeforeFn = func(beforeNanos int64, flushType flushType) {
@@ -196,6 +214,9 @@ func TestMetricListFlushWithRequests(t *testing.T) {
 }
 
 func TestMetricListFlushConsumingAndCollectingElems(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		cutoverNanos = int64(0)
 		cutoffNanos  = int64(math.MaxInt64)
@@ -216,20 +237,18 @@ func TestMetricListFlushConsumingAndCollectingElems(t *testing.T) {
 		flushed = append(flushed, mp)
 		return nil
 	}
-	writer := &mockWriter{
-		writeFn: writeFn,
-		flushFn: func() error { return nil },
-	}
-	handler := &mockHandler{
-		newWriterFn: func(tally.Scope) (Writer, error) { return writer, nil },
-	}
+	writer := NewMockWriter(ctrl)
+	writer.EXPECT().Write(gomock.Any()).DoAndReturn(writeFn).AnyTimes()
+	writer.EXPECT().Flush().Return(nil).AnyTimes()
+	handler := NewMockHandler(ctrl)
+	handler.EXPECT().NewWriter(gomock.Any()).Return(writer, nil).AnyTimes()
 
 	var now = time.Unix(216, 0).UnixNano()
 	nowTs := time.Unix(0, now)
 	clockOpts := clock.NewOptions().SetNowFn(func() time.Time {
 		return time.Unix(0, atomic.LoadInt64(&now))
 	})
-	opts := testOptions().
+	opts := testOptions(ctrl).
 		SetClockOptions(clockOpts).
 		SetMinFlushInterval(0).
 		SetFlushHandler(handler)
@@ -338,7 +357,10 @@ func TestMetricListFlushConsumingAndCollectingElems(t *testing.T) {
 }
 
 func TestMetricListFlushBeforeStale(t *testing.T) {
-	opts := testOptions()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	opts := testOptions(ctrl)
 	l, err := newMetricList(testShard, 0, opts)
 	require.NoError(t, err)
 	l.lastFlushedNanos = 1234
@@ -347,7 +369,10 @@ func TestMetricListFlushBeforeStale(t *testing.T) {
 }
 
 func TestMetricLists(t *testing.T) {
-	lists := newMetricLists(testShard, testOptions())
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	lists := newMetricLists(testShard, testOptions(ctrl))
 	require.False(t, lists.closed)
 
 	// Create a new list.
@@ -398,25 +423,3 @@ type flushBeforeResult struct {
 	beforeNanos int64
 	flushType   flushType
 }
-
-type writeFn func(mp aggregated.ChunkedMetricWithStoragePolicy) error
-type writeflushFn func() error
-
-type mockWriter struct {
-	writeFn writeFn
-	flushFn writeflushFn
-}
-
-func (w *mockWriter) Write(mp aggregated.ChunkedMetricWithStoragePolicy) error {
-	return w.writeFn(mp)
-}
-
-func (w *mockWriter) Flush() error { return w.flushFn() }
-func (w *mockWriter) Close() error { return nil }
-
-type newWriterFn func(scope tally.Scope) (Writer, error)
-
-type mockHandler struct{ newWriterFn newWriterFn }
-
-func (h *mockHandler) NewWriter(scope tally.Scope) (Writer, error) { return h.newWriterFn(scope) }
-func (h *mockHandler) Close()                                      {}

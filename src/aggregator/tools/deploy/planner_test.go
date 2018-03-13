@@ -27,8 +27,8 @@ import (
 	"testing"
 
 	"github.com/m3db/m3cluster/services"
-	"github.com/m3db/m3cluster/services/leader/campaign"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,11 +69,16 @@ var (
 )
 
 func TestGeneratePlan(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var capturedInstance instanceMetadata
 	electionIDForShardset0 := fmt.Sprintf(testElectionKeyFmt, 0)
 	electionIDForShardset1 := fmt.Sprintf(testElectionKeyFmt, 1)
-	leaderService := &mockLeaderService{
-		leaderFn: func(electionID string) (string, error) {
+	leaderService := services.NewMockLeaderService(ctrl)
+	leaderService.EXPECT().
+		Leader(gomock.Any()).
+		DoAndReturn(func(electionID string) (string, error) {
 			if electionID == electionIDForShardset0 {
 				return "instance1", nil
 			}
@@ -81,24 +86,28 @@ func TestGeneratePlan(t *testing.T) {
 				return "instance3", nil
 			}
 			return "", errors.New("unrecognized election id")
-		},
-	}
-	opts := NewPlannerOptions().
-		SetLeaderService(leaderService).
-		SetElectionKeyFmt(testElectionKeyFmt)
-	planner := newPlanner(nil, opts).(deploymentPlanner)
-	planner.validatorFactory = &mockValidatorFactory{
-		validatorForFn: func(
+		}).
+		AnyTimes()
+	factory := NewMockvalidatorFactory(ctrl)
+	factory.EXPECT().
+		ValidatorFor(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
 			instance instanceMetadata,
-			group *instanceGroup,
-			targetType targetType,
+			_ *instanceGroup,
+			_ targetType,
 		) validator {
 			return func() error {
 				capturedInstance = instance
 				return nil
 			}
-		},
-	}
+		}).
+		AnyTimes()
+
+	opts := NewPlannerOptions().
+		SetLeaderService(leaderService).
+		SetElectionKeyFmt(testElectionKeyFmt)
+	planner := newPlanner(nil, opts).(deploymentPlanner)
+	planner.validatorFactory = factory
 	plan, err := planner.GeneratePlan(testInstancesToDeploy, testAllInstances)
 	require.NoError(t, err)
 
@@ -143,11 +152,16 @@ func TestGeneratePlan(t *testing.T) {
 }
 
 func TestGeneratePlanWithStepSizeLimit(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var capturedInstance instanceMetadata
 	electionIDForShardset0 := fmt.Sprintf(testElectionKeyFmt, 0)
 	electionIDForShardset1 := fmt.Sprintf(testElectionKeyFmt, 1)
-	leaderService := &mockLeaderService{
-		leaderFn: func(electionID string) (string, error) {
+	leaderService := services.NewMockLeaderService(ctrl)
+	leaderService.EXPECT().
+		Leader(gomock.Any()).
+		DoAndReturn(func(electionID string) (string, error) {
 			if electionID == electionIDForShardset0 {
 				return "instance1", nil
 			}
@@ -155,25 +169,28 @@ func TestGeneratePlanWithStepSizeLimit(t *testing.T) {
 				return "instance3", nil
 			}
 			return "", errors.New("unrecognized election id")
-		},
-	}
-	opts := NewPlannerOptions().
-		SetLeaderService(leaderService).
-		SetElectionKeyFmt(testElectionKeyFmt).
-		SetMaxStepSize(1)
-	planner := newPlanner(nil, opts).(deploymentPlanner)
-	planner.validatorFactory = &mockValidatorFactory{
-		validatorForFn: func(
+		}).
+		AnyTimes()
+	factory := NewMockvalidatorFactory(ctrl)
+	factory.EXPECT().
+		ValidatorFor(gomock.Any(), gomock.Any(), gomock.Any()).
+		DoAndReturn(func(
 			instance instanceMetadata,
-			group *instanceGroup,
-			targetType targetType,
+			_ *instanceGroup,
+			_ targetType,
 		) validator {
 			return func() error {
 				capturedInstance = instance
 				return nil
 			}
-		},
-	}
+		}).
+		AnyTimes()
+	opts := NewPlannerOptions().
+		SetLeaderService(leaderService).
+		SetElectionKeyFmt(testElectionKeyFmt).
+		SetMaxStepSize(1)
+	planner := newPlanner(nil, opts).(deploymentPlanner)
+	planner.validatorFactory = factory
 	plan, err := planner.GeneratePlan(testInstancesToDeploy, testAllInstances)
 	require.NoError(t, err)
 
@@ -225,10 +242,15 @@ func TestGeneratePlanWithStepSizeLimit(t *testing.T) {
 }
 
 func TestGroupInstancesByShardSetID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	electionIDForShardset0 := fmt.Sprintf(testElectionKeyFmt, 0)
 	electionIDForShardset1 := fmt.Sprintf(testElectionKeyFmt, 1)
-	leaderService := &mockLeaderService{
-		leaderFn: func(electionID string) (string, error) {
+	leaderService := services.NewMockLeaderService(ctrl)
+	leaderService.EXPECT().
+		Leader(gomock.Any()).
+		DoAndReturn(func(electionID string) (string, error) {
 			if electionID == electionIDForShardset0 {
 				return "instance1", nil
 			}
@@ -236,8 +258,9 @@ func TestGroupInstancesByShardSetID(t *testing.T) {
 				return "instance3", nil
 			}
 			return "", errors.New("unrecognized election id")
-		},
-	}
+		}).
+		AnyTimes()
+
 	opts := NewPlannerOptions().
 		SetLeaderService(leaderService).
 		SetElectionKeyFmt(testElectionKeyFmt)
@@ -293,12 +316,12 @@ func TestGroupInstancesByShardSetID(t *testing.T) {
 }
 
 func TestGroupInstancesByShardSetIDLeaderError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	errLeader := errors.New("leader error")
-	leaderService := &mockLeaderService{
-		leaderFn: func(electionID string) (string, error) {
-			return "", errLeader
-		},
-	}
+	leaderService := services.NewMockLeaderService(ctrl)
+	leaderService.EXPECT().Leader(gomock.Any()).Return("", errLeader).AnyTimes()
 	opts := NewPlannerOptions().
 		SetLeaderService(leaderService).
 		SetElectionKeyFmt(testElectionKeyFmt)
@@ -308,11 +331,11 @@ func TestGroupInstancesByShardSetIDLeaderError(t *testing.T) {
 }
 
 func TestGroupInstancesByShardSetIDUnknownLeader(t *testing.T) {
-	leaderService := &mockLeaderService{
-		leaderFn: func(electionID string) (string, error) {
-			return "nonexistent", nil
-		},
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	leaderService := services.NewMockLeaderService(ctrl)
+	leaderService.EXPECT().Leader(gomock.Any()).Return("nonexistent", nil).AnyTimes()
 	opts := NewPlannerOptions().
 		SetLeaderService(leaderService).
 		SetElectionKeyFmt(testElectionKeyFmt)
@@ -382,51 +405,4 @@ func validateDeploymentPlan(
 			require.Equal(t, expectedTarget, actualTarget)
 		}
 	}
-}
-
-type leaderCampaignFn func(
-	electionID string,
-	opts services.CampaignOptions,
-) (<-chan campaign.Status, error)
-
-type leaderResignFn func(electionID string) error
-type leaderFn func(electionID string) (string, error)
-
-type mockLeaderService struct {
-	campaignFn leaderCampaignFn
-	resignFn   leaderResignFn
-	leaderFn   leaderFn
-}
-
-func (s *mockLeaderService) Campaign(
-	electionID string,
-	opts services.CampaignOptions,
-) (<-chan campaign.Status, error) {
-	return s.campaignFn(electionID, opts)
-}
-
-func (s *mockLeaderService) Resign(electionID string) error {
-	return s.resignFn(electionID)
-}
-
-func (s *mockLeaderService) Leader(electionID string) (string, error) {
-	return s.leaderFn(electionID)
-}
-
-func (s *mockLeaderService) Close() error { return nil }
-
-type generatePlanFn func(toDeploy, all instanceMetadatas) (deploymentPlan, error)
-type generateOneStepFn func(toDeploy, all instanceMetadatas) (deploymentStep, error)
-
-type mockPlanner struct {
-	generatePlanFn    generatePlanFn
-	generateOneStepFn generateOneStepFn
-}
-
-func (m *mockPlanner) GeneratePlan(toDeploy, all instanceMetadatas) (deploymentPlan, error) {
-	return m.generatePlanFn(toDeploy, all)
-}
-
-func (m *mockPlanner) GenerateOneStep(toDeploy, all instanceMetadatas) (deploymentStep, error) {
-	return m.generateOneStepFn(toDeploy, all)
 }

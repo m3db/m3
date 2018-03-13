@@ -21,7 +21,6 @@
 package aggregator
 
 import (
-	"context"
 	"errors"
 	"math"
 	"sort"
@@ -34,11 +33,11 @@ import (
 	"github.com/m3db/m3cluster/kv/mem"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/shard"
-	"github.com/m3db/m3metrics/metric/aggregated"
 	"github.com/m3db/m3metrics/metric/unaggregated"
 	"github.com/m3db/m3metrics/policy"
 	xtime "github.com/m3db/m3x/time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber-go/tally"
 )
@@ -71,68 +70,71 @@ var (
 )
 
 func TestAggregatorOpenAlreadyOpen(t *testing.T) {
-	agg, _ := testAggregator(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
 	agg.state = aggregatorOpen
 	require.Equal(t, errAggregatorAlreadyOpenOrClosed, agg.Open())
 }
 
 func TestAggregatorOpenPlacementManagerOpenError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	errPlacementManagerOpen := errors.New("error opening placement manager")
-	agg, _ := testAggregator(t)
-	agg.placementManager = &mockPlacementManager{
-		openFn: func() error { return errPlacementManagerOpen },
-	}
+	placementManager := NewMockPlacementManager(ctrl)
+	placementManager.EXPECT().Open().Return(errPlacementManagerOpen)
+
+	agg, _ := testAggregator(t, ctrl)
+	agg.placementManager = placementManager
 	require.Equal(t, errPlacementManagerOpen, agg.Open())
 }
 
 func TestAggregatorOpenPlacementError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	errPlacement := errors.New("error getting placement")
-	agg, _ := testAggregator(t)
-	agg.placementManager = &mockPlacementManager{
-		openFn:      func() error { return nil },
-		placementFn: func() (placement.ActiveStagedPlacement, placement.Placement, error) { return nil, nil, errPlacement },
-	}
+	placementManager := NewMockPlacementManager(ctrl)
+	placementManager.EXPECT().Open().Return(nil)
+	placementManager.EXPECT().Placement().Return(nil, nil, errPlacement)
+
+	agg, _ := testAggregator(t, ctrl)
+	agg.placementManager = placementManager
 	require.Equal(t, errPlacement, agg.Open())
 }
 
 func TestAggregatorOpenInstanceFromError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	testPlacement := placement.NewPlacement().SetCutoverNanos(5678)
-	testStagedPlacement := &mockActiveStagedPlacement{
-		activePlacementFn: func() (placement.Placement, placement.DoneFn, error) {
-			return testPlacement, func() {}, nil
-		},
-	}
+	testStagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
 	errInstanceFrom := errors.New("error getting instance from placement")
-	agg, _ := testAggregator(t)
-	agg.placementManager = &mockPlacementManager{
-		openFn: func() error { return nil },
-		placementFn: func() (placement.ActiveStagedPlacement, placement.Placement, error) {
-			return testStagedPlacement, testPlacement, nil
-		},
-		instanceFromFn: func(placement.Placement) (placement.Instance, error) {
-			return nil, errInstanceFrom
-		},
-	}
+	placementManager := NewMockPlacementManager(ctrl)
+	placementManager.EXPECT().Open().Return(nil)
+	placementManager.EXPECT().Placement().Return(testStagedPlacement, testPlacement, nil)
+	placementManager.EXPECT().InstanceFrom(testPlacement).Return(nil, errInstanceFrom)
+
+	agg, _ := testAggregator(t, ctrl)
+	agg.placementManager = placementManager
 	require.Equal(t, errInstanceFrom, agg.Open())
 }
 
 func TestAggregatorOpenInstanceNotInPlacement(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	testPlacement := placement.NewPlacement().SetCutoverNanos(5678)
-	testStagedPlacement := &mockActiveStagedPlacement{
-		activePlacementFn: func() (placement.Placement, placement.DoneFn, error) {
-			return testPlacement, func() {}, nil
-		},
-	}
-	agg, _ := testAggregator(t)
-	agg.placementManager = &mockPlacementManager{
-		openFn: func() error { return nil },
-		placementFn: func() (placement.ActiveStagedPlacement, placement.Placement, error) {
-			return testStagedPlacement, testPlacement, nil
-		},
-		instanceFromFn: func(placement.Placement) (placement.Instance, error) {
-			return nil, ErrInstanceNotFoundInPlacement
-		},
-	}
+	testStagedPlacement := placement.NewMockActiveStagedPlacement(ctrl)
+	placementManager := NewMockPlacementManager(ctrl)
+	placementManager.EXPECT().Open().Return(nil)
+	placementManager.EXPECT().Placement().Return(testStagedPlacement, testPlacement, nil)
+	placementManager.EXPECT().InstanceFrom(testPlacement).Return(nil, ErrInstanceNotFoundInPlacement)
+
+	agg, _ := testAggregator(t, ctrl)
+	agg.placementManager = placementManager
 	require.NoError(t, agg.Open())
 	require.Equal(t, uint32(0), agg.shardSetID)
 	require.False(t, agg.shardSetOpen)
@@ -144,7 +146,10 @@ func TestAggregatorOpenInstanceNotInPlacement(t *testing.T) {
 }
 
 func TestAggregatorOpenSuccess(t *testing.T) {
-	agg, _ := testAggregator(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
 	require.NoError(t, agg.Open())
 	require.Equal(t, testShardSetID, agg.shardSetID)
 	require.True(t, agg.shardSetOpen)
@@ -159,6 +164,9 @@ func TestAggregatorOpenSuccess(t *testing.T) {
 }
 
 func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	placements := []*placementpb.PlacementSnapshots{
 		&placementpb.PlacementSnapshots{
 			Snapshots: []*placementpb.Placement{
@@ -178,7 +186,7 @@ func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 	}
 
 	// Instance not in the first placement.
-	agg, store := testAggregatorWithCustomPlacements(t, placements[0])
+	agg, store := testAggregatorWithCustomPlacements(t, ctrl, placements[0])
 	require.NoError(t, agg.Open())
 	require.Equal(t, uint32(0), agg.shardSetID)
 	require.False(t, agg.shardSetOpen)
@@ -234,20 +242,29 @@ func TestAggregatorInstanceNotFoundThenFoundThenNotFound(t *testing.T) {
 }
 
 func TestAggregatorAddMetricWithPoliciesListInvalidMetricType(t *testing.T) {
-	agg, _ := testAggregator(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
 	require.NoError(t, agg.Open())
 	err := agg.AddMetricWithPoliciesList(testInvalidMetric, testPoliciesList)
 	require.Equal(t, errInvalidMetricType, err)
 }
 
 func TestAggregatorAddMetricWithPoliciesListNotOpen(t *testing.T) {
-	agg, _ := testAggregator(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
 	err := agg.AddMetricWithPoliciesList(testValidMetric, testPoliciesList)
 	require.Equal(t, errAggregatorNotOpenOrClosed, err)
 }
 
 func TestAggregatorAddMetricWithPoliciesListNotResponsibleForShard(t *testing.T) {
-	agg, _ := testAggregator(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
 	require.NoError(t, agg.Open())
 	agg.shardFn = func([]byte, int) uint32 { return testNumShards }
 	err := agg.AddMetricWithPoliciesList(testValidMetric, testPoliciesList)
@@ -255,7 +272,10 @@ func TestAggregatorAddMetricWithPoliciesListNotResponsibleForShard(t *testing.T)
 }
 
 func TestAggregatorAddMetricWithPoliciesListSuccessNoPlacementUpdate(t *testing.T) {
-	agg, _ := testAggregator(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
 	require.NoError(t, agg.Open())
 	agg.shardFn = func([]byte, int) uint32 { return 1 }
 	err := agg.AddMetricWithPoliciesList(testValidMetric, testPoliciesList)
@@ -264,7 +284,10 @@ func TestAggregatorAddMetricWithPoliciesListSuccessNoPlacementUpdate(t *testing.
 }
 
 func TestAggregatorAddMetricWithPoliciesListSuccessWithPlacementUpdate(t *testing.T) {
-	agg, store := testAggregator(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, store := testAggregator(t, ctrl)
 	now := time.Unix(0, 12345)
 	nowFn := func() time.Time { return now }
 	agg.opts = agg.opts.
@@ -336,54 +359,74 @@ func TestAggregatorAddMetricWithPoliciesListSuccessWithPlacementUpdate(t *testin
 }
 
 func TestAggregatorResignError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	errTestResign := errors.New("test resign")
-	agg, _ := testAggregator(t)
-	agg.electionManager = &mockElectionManager{
-		resignFn: func(context.Context) error { return errTestResign },
-	}
+	electionMgr := NewMockElectionManager(ctrl)
+	electionMgr.EXPECT().Resign(gomock.Any()).Return(errTestResign)
+	agg, _ := testAggregator(t, ctrl)
+	agg.electionManager = electionMgr
+
 	require.Equal(t, errTestResign, agg.Resign())
 }
 
 func TestAggregatorResignSuccess(t *testing.T) {
-	agg, _ := testAggregator(t)
-	agg.electionManager = &mockElectionManager{
-		resignFn: func(context.Context) error { return nil },
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	electionMgr := NewMockElectionManager(ctrl)
+	electionMgr.EXPECT().Resign(gomock.Any()).Return(nil)
+	agg, _ := testAggregator(t, ctrl)
+	agg.electionManager = electionMgr
 	require.NoError(t, agg.Resign())
 }
 
 func TestAggregatorStatus(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	flushStatus := FlushStatus{
 		ElectionState: LeaderState,
 		CanLead:       true,
 	}
-	agg, _ := testAggregator(t)
-	agg.flushManager = &mockFlushManager{
-		statusFn: func() FlushStatus {
-			return flushStatus
-		},
-	}
+	flushManager := NewMockFlushManager(ctrl)
+	flushManager.EXPECT().Status().Return(flushStatus)
+	agg, _ := testAggregator(t, ctrl)
+	agg.flushManager = flushManager
 	require.Equal(t, RuntimeStatus{FlushStatus: flushStatus}, agg.Status())
 }
 
 func TestAggregatorCloseAlreadyClosed(t *testing.T) {
-	agg, _ := testAggregator(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
 	require.Equal(t, errAggregatorNotOpenOrClosed, agg.Close())
 }
 
 func TestAggregatorCloseSuccess(t *testing.T) {
-	agg, _ := testAggregator(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
 	require.NoError(t, agg.Open())
 	require.NoError(t, agg.Close())
 	require.Equal(t, aggregatorClosed, agg.state)
 }
 
 func TestAggregatorTick(t *testing.T) {
-	agg, _ := testAggregator(t)
-	agg.flushTimesManager = &mockFlushTimesManager{
-		openShardSetIDFn: func(shardSetID uint32) error { return nil },
-		getFlushTimesFn:  func() (*schema.ShardSetFlushTimes, error) { return nil, nil },
-	}
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	flushTimesManager := NewMockFlushTimesManager(ctrl)
+	flushTimesManager.EXPECT().Reset().Return(nil).AnyTimes()
+	flushTimesManager.EXPECT().Open(gomock.Any()).Return(nil).AnyTimes()
+	flushTimesManager.EXPECT().Get().Return(nil, nil).AnyTimes()
+	flushTimesManager.EXPECT().Close().Return(nil).AnyTimes()
+
+	agg, _ := testAggregator(t, ctrl)
+	agg.flushTimesManager = flushTimesManager
 	require.NoError(t, agg.Open())
 
 	// Forcing a tick.
@@ -393,7 +436,10 @@ func TestAggregatorTick(t *testing.T) {
 }
 
 func TestAggregatorShardSetNotOpenNilInstance(t *testing.T) {
-	agg, _ := testAggregator(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
 	agg.shardSetOpen = false
 	agg.Lock()
 	defer agg.Unlock()
@@ -401,25 +447,33 @@ func TestAggregatorShardSetNotOpenNilInstance(t *testing.T) {
 }
 
 func TestAggregatorShardSetNotOpenValidInstance(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		flushTimesManagerOpenID *uint32
 		electionManagerOpenID   *uint32
 		testInstance            = placement.NewInstance().SetShardSetID(testShardSetID)
 	)
-	agg, _ := testAggregator(t)
-	agg.shardSetOpen = false
-	agg.flushTimesManager = &mockFlushTimesManager{
-		openShardSetIDFn: func(shardSetID uint32) error {
-			flushTimesManagerOpenID = &shardSetID
-			return nil
-		},
-	}
-	agg.electionManager = &mockElectionManager{
-		openFn: func(shardSetID uint32) error {
+	electionMgr := NewMockElectionManager(ctrl)
+	electionMgr.EXPECT().
+		Open(testShardSetID).
+		DoAndReturn(func(shardSetID uint32) error {
 			electionManagerOpenID = &shardSetID
 			return nil
-		},
-	}
+		})
+	flushTimesManager := NewMockFlushTimesManager(ctrl)
+	flushTimesManager.EXPECT().
+		Open(testShardSetID).
+		DoAndReturn(func(shardSetID uint32) error {
+			flushTimesManagerOpenID = &shardSetID
+			return nil
+		})
+	agg, _ := testAggregator(t, ctrl)
+	agg.shardSetOpen = false
+	agg.flushTimesManager = flushTimesManager
+	agg.electionManager = electionMgr
+
 	agg.Lock()
 	defer agg.Unlock()
 	require.NoError(t, agg.updateShardSetIDWithLock(testInstance))
@@ -430,8 +484,11 @@ func TestAggregatorShardSetNotOpenValidInstance(t *testing.T) {
 }
 
 func TestAggregatorShardSetOpenShardSetIDUnchanged(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	testInstance := placement.NewInstance().SetShardSetID(testShardSetID)
-	agg, _ := testAggregator(t)
+	agg, _ := testAggregator(t, ctrl)
 	agg.shardSetOpen = true
 	agg.shardSetID = testShardSetID
 	agg.Lock()
@@ -442,7 +499,10 @@ func TestAggregatorShardSetOpenShardSetIDUnchanged(t *testing.T) {
 }
 
 func TestAggregatorShardSetOpenNilInstance(t *testing.T) {
-	agg, _ := testAggregator(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
 	agg.shardSetOpen = true
 	agg.shardSetID = testShardSetID
 	agg.Lock()
@@ -453,38 +513,54 @@ func TestAggregatorShardSetOpenNilInstance(t *testing.T) {
 }
 
 func TestAggregatorShardSetOpenValidInstance(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	var (
 		flushTimesManagerOpenID *uint32
 		electionManagerOpenID   *uint32
 		newShardSetID           = uint32(2)
 		testInstance            = placement.NewInstance().SetShardSetID(newShardSetID)
 	)
-	agg, _ := testAggregator(t)
-	agg.shardSetOpen = true
-	agg.shardSetID = testShardSetID
-	agg.flushTimesManager = &mockFlushTimesManager{
-		openShardSetIDFn: func(shardSetID uint32) error {
-			flushTimesManagerOpenID = &shardSetID
-			return nil
-		},
-	}
-	agg.electionManager = &mockElectionManager{
-		openFn: func(shardSetID uint32) error {
+	electionMgr := NewMockElectionManager(ctrl)
+	electionMgr.EXPECT().Reset().Return(nil)
+	electionMgr.EXPECT().
+		Open(newShardSetID).
+		DoAndReturn(func(shardSetID uint32) error {
 			electionManagerOpenID = &shardSetID
 			return nil
-		},
-	}
+		})
+	electionMgr.EXPECT().Close().Return(nil)
+	flushTimesManager := NewMockFlushTimesManager(ctrl)
+	flushTimesManager.EXPECT().Reset().Return(nil)
+	flushTimesManager.EXPECT().
+		Open(newShardSetID).
+		DoAndReturn(func(shardSetID uint32) error {
+			flushTimesManagerOpenID = &shardSetID
+			return nil
+		})
+	flushTimesManager.EXPECT().Close().Return(nil)
+
+	agg, _ := testAggregator(t, ctrl)
+	agg.shardSetOpen = true
+	agg.shardSetID = testShardSetID
+	agg.flushTimesManager = flushTimesManager
+	agg.electionManager = electionMgr
+
 	agg.Lock()
 	defer agg.Unlock()
 	require.NoError(t, agg.updateShardSetIDWithLock(testInstance))
-	require.Equal(t, uint32(2), agg.shardSetID)
+	require.Equal(t, newShardSetID, agg.shardSetID)
 	require.True(t, agg.shardSetOpen)
 	require.Equal(t, newShardSetID, *flushTimesManagerOpenID)
 	require.Equal(t, newShardSetID, *electionManagerOpenID)
 }
 
 func TestAggregatorOwnedShards(t *testing.T) {
-	agg, _ := testAggregator(t)
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	agg, _ := testAggregator(t, ctrl)
 	now := time.Unix(0, 12345)
 	nowFn := func() time.Time { return now }
 	agg.nowFn = nowFn
@@ -532,12 +608,11 @@ func TestAggregatorOwnedShards(t *testing.T) {
 		agg.shardIDs = append(agg.shardIDs, shardID)
 		agg.shards = append(agg.shards, shard)
 	}
-	agg.flushTimesManager = &mockFlushTimesManager{
-		openShardSetIDFn: func(shardSetID uint32) error { return nil },
-		getFlushTimesFn: func() (*schema.ShardSetFlushTimes, error) {
-			return &schema.ShardSetFlushTimes{ByShard: flushTimes}, nil
-		},
-	}
+	flushTimesManager := NewMockFlushTimesManager(ctrl)
+	flushTimesManager.EXPECT().
+		Get().
+		Return(&schema.ShardSetFlushTimes{ByShard: flushTimes}, nil)
+	agg.flushTimesManager = flushTimesManager
 
 	expectedOwned := []*aggregatorShard{agg.shards[0], agg.shards[3], agg.shards[2]}
 	expectedToClose := []*aggregatorShard{agg.shards[1]}
@@ -605,13 +680,14 @@ func TestAggregatorAddMetricMetrics(t *testing.T) {
 	require.Equal(t, 0, len(gauges))
 }
 
-func testAggregator(t *testing.T) (*aggregator, kv.Store) {
+func testAggregator(t *testing.T, ctrl *gomock.Controller) (*aggregator, kv.Store) {
 	proto := testStagedPlacementProtoWithNumShards(t, testInstanceID, testShardSetID, testNumShards)
-	return testAggregatorWithCustomPlacements(t, proto)
+	return testAggregatorWithCustomPlacements(t, ctrl, proto)
 }
 
 func testAggregatorWithCustomPlacements(
 	t *testing.T,
+	ctrl *gomock.Controller,
 	proto *placementpb.PlacementSnapshots,
 ) (*aggregator, kv.Store) {
 	watcher, store := testPlacementWatcherWithPlacementProto(t, testPlacementKey, proto)
@@ -619,7 +695,7 @@ func testAggregatorWithCustomPlacements(
 		SetInstanceID(testInstanceID).
 		SetStagedPlacementWatcher(watcher)
 	placementManager := NewPlacementManager(placementManagerOpts)
-	opts := testOptions().
+	opts := testOptions(ctrl).
 		SetEntryCheckInterval(0).
 		SetPlacementManager(placementManager)
 	return NewAggregator(opts).(*aggregator), store
@@ -682,29 +758,42 @@ func testStagedPlacementProtoWithCustomShards(
 	return stagedPlacementProto
 }
 
-func testOptions() Options {
+func testOptions(ctrl *gomock.Controller) Options {
+	placementManager := NewMockPlacementManager(ctrl)
+	placementManager.EXPECT().Close().Return(nil).AnyTimes()
+
+	flushTimesManager := NewMockFlushTimesManager(ctrl)
+	flushTimesManager.EXPECT().Reset().Return(nil).AnyTimes()
+	flushTimesManager.EXPECT().Open(gomock.Any()).Return(nil).AnyTimes()
+	flushTimesManager.EXPECT().Close().Return(nil).AnyTimes()
+
+	electionMgr := NewMockElectionManager(ctrl)
+	electionMgr.EXPECT().Reset().Return(nil).AnyTimes()
+	electionMgr.EXPECT().Open(gomock.Any()).Return(nil).AnyTimes()
+	electionMgr.EXPECT().Close().Return(nil).AnyTimes()
+
+	flushManager := NewMockFlushManager(ctrl)
+	flushManager.EXPECT().Reset().Return(nil).AnyTimes()
+	flushManager.EXPECT().Open().Return(nil).AnyTimes()
+	flushManager.EXPECT().Register(gomock.Any()).Return(nil).AnyTimes()
+	flushManager.EXPECT().Unregister(gomock.Any()).Return(nil).AnyTimes()
+	flushManager.EXPECT().Close().Return(nil).AnyTimes()
+
+	writer := NewMockWriter(ctrl)
+	writer.EXPECT().Write(gomock.Any()).Return(nil).AnyTimes()
+	writer.EXPECT().Flush().Return(nil).AnyTimes()
+	writer.EXPECT().Close().Return(nil).AnyTimes()
+
+	handler := NewMockHandler(ctrl)
+	handler.EXPECT().NewWriter(gomock.Any()).Return(writer, nil).AnyTimes()
+	handler.EXPECT().Close().AnyTimes()
+
 	return NewOptions().
-		SetPlacementManager(&mockPlacementManager{
-			openFn: func() error { return nil },
-		}).
-		SetFlushTimesManager(&mockFlushTimesManager{
-			openShardSetIDFn: func(shardSetID uint32) error { return nil },
-		}).
-		SetElectionManager(&mockElectionManager{
-			openFn: func(shardSetID uint32) error { return nil },
-		}).
-		SetFlushManager(&mockFlushManager{
-			registerFn:   func(flusher PeriodicFlusher) error { return nil },
-			unregisterFn: func(flusher PeriodicFlusher) error { return nil },
-		}).
-		SetFlushHandler(&mockHandler{
-			newWriterFn: func(tally.Scope) (Writer, error) {
-				return &mockWriter{
-					writeFn: func(mp aggregated.ChunkedMetricWithStoragePolicy) error { return nil },
-					flushFn: func() error { return nil },
-				}, nil
-			},
-		})
+		SetPlacementManager(placementManager).
+		SetFlushTimesManager(flushTimesManager).
+		SetElectionManager(electionMgr).
+		SetFlushManager(flushManager).
+		SetFlushHandler(handler)
 }
 
 type uint32Ascending []uint32
