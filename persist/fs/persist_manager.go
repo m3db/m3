@@ -212,11 +212,12 @@ func (pm *persistManager) reset() {
 func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.PreparedPersist, error) {
 
 	var (
-		nsMetadata  = opts.NsMetadata
-		shard       = opts.Shard
-		persistTime = opts.PersistTime
-		nsID        = opts.NsMetadata.ID()
-		prepared    persist.PreparedPersist
+		nsMetadata = opts.NsMetadata
+		shard      = opts.Shard
+		blockStart = opts.BlockStart
+		writtenAt  = opts.WrittenAt
+		nsID       = opts.NsMetadata.ID()
+		prepared   persist.PreparedPersist
 	)
 
 	// ensure StartFlush has been called
@@ -233,15 +234,15 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 		// to retry failed snapshot attempts because they wouldn't have created the
 		// checkpoint file. Although in practice this is unlikely because unlike flushes,
 		// every snapshot has a unique timestamp that is not block-aligned.
-		if SnapshotFilesetExistsAt(pm.filePathPrefix, nsID, shard, persistTime) {
+		if SnapshotFilesetExistsAt(pm.filePathPrefix, nsID, shard, writtenAt) {
 			// TODO: Don't return nil, nil. Return an error or something.
 			return prepared, nil
 		}
 	} else {
-		// NB(xichen): if the checkpoint file for persistTime already exists, bail.
+		// NB(xichen): if the checkpoint file for blockStart already exists, bail.
 		// This allows us to retry failed flushing attempts because they wouldn't
 		// have created the checkpoint file.
-		if DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, persistTime) {
+		if DataFilesetExistsAt(pm.filePathPrefix, nsID, shard, blockStart) {
 			// TODO: Don't return nil, nil. Return an error or something.
 			return prepared, nil
 		}
@@ -249,12 +250,11 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 
 	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
 	writerOpts := WriterOpenOptions{
-		Namespace: nsID,
-		BlockSize: blockSize,
-		Shard:     shard,
-		// TODO: Need to distinguish between block start and written at
-		BlockStart: persistTime,
-		WrittenAt:  persistTime,
+		Namespace:  nsID,
+		BlockSize:  blockSize,
+		Shard:      shard,
+		BlockStart: blockStart,
+		WrittenAt:  writtenAt,
 		IsSnapshot: opts.IsSnapshot,
 	}
 	if err := pm.writer.Open(writerOpts); err != nil {

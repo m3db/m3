@@ -1649,9 +1649,10 @@ func (s *dbShard) Flush(
 
 	var multiErr xerrors.MultiError
 	prepareOpts := persist.PrepareOptions{
-		NsMetadata:  s.namespace,
-		Shard:       s.ID(),
-		PersistTime: blockStart,
+		NsMetadata: s.namespace,
+		Shard:      s.ID(),
+		BlockStart: blockStart,
+		WrittenAt:  blockStart,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	multiErr = multiErr.Add(err)
@@ -1703,10 +1704,12 @@ func (s *dbShard) Snapshot(
 	}()
 
 	prepareOpts := persist.PrepareOptions{
-		NsMetadata:  s.namespace,
-		Shard:       s.ID(),
-		PersistTime: snapshotStart,
-		IsSnapshot:  true,
+		NsMetadata: s.namespace,
+		Shard:      s.ID(),
+		// TODO: This should be the actually blockstart not the snapshotStart
+		BlockStart: snapshotStart,
+		WrittenAt:  snapshotStart,
+		IsSnapshot: true,
 	}
 	prepared, err := flush.Prepare(prepareOpts)
 	multiErr = multiErr.Add(err)
