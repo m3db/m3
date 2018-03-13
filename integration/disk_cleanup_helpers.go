@@ -65,6 +65,7 @@ func writeFilesetFiles(t *testing.T, storageOpts storage.Options, md namespace.M
 			BlockSize:  rOpts.BlockSize(),
 			Shard:      shard,
 			BlockStart: start,
+			WrittenAt:  start,
 		}
 		require.NoError(t, writer.Open(writerOpts))
 		require.NoError(t, writer.Close())

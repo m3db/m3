@@ -44,6 +44,7 @@ func (c *cloner) Clone(src FilesetID, dest FilesetID, destBlocksize time.Duratio
 		BlockSize:  destBlocksize,
 		Shard:      dest.Shard,
 		BlockStart: dest.Blockstart,
+		WrittenAt:  dest.Blockstart,
 	}
 	if err := writer.Open(writerOpts); err != nil {
 		return fmt.Errorf("unable to open fileset writer: %v", err)

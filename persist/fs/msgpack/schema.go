@@ -21,7 +21,7 @@
 package msgpack
 
 const (
-	indexInfoVersion    = 1
+	indexInfoVersion    = 2
 	indexEntryVersion   = 1
 	indexSummaryVersion = 1
 	logInfoVersion      = 1
@@ -50,7 +50,7 @@ const (
 
 const (
 	numRootObjectFields           = 2
-	numIndexInfoFields            = 6
+	numIndexInfoFields            = 8
 	numIndexSummariesInfoFields   = 1
 	numIndexBloomFilterInfoFields = 2
 	numIndexEntryFields           = 5

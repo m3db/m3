@@ -103,6 +103,7 @@ func writeTestData(t *testing.T, bs time.Duration, src FilesetID, opts Options) 
 		BlockSize:  bs,
 		Shard:      src.Shard,
 		BlockStart: src.Blockstart,
+		WrittenAt:  src.Blockstart,
 	}
 	require.NoError(t, w.Open(writerOpts))
 	for i := 0; i < numTestSeries; i++ {

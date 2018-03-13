@@ -68,6 +68,7 @@ type WriterOpenOptions struct {
 	Namespace  ident.ID
 	BlockSize  time.Duration
 	BlockStart time.Time
+	WrittenAt  time.Time
 	Shard      uint32
 	IsSnapshot bool
 }
@@ -473,6 +474,7 @@ type WriterOpenOptionsMatcher struct {
 	BlockSize  time.Duration
 	Shard      uint32
 	BlockStart time.Time
+	WrittenAt  time.Time
 }
 
 // Matches determine whether m matches a WriterOpenOptions
@@ -495,12 +497,16 @@ func (m WriterOpenOptionsMatcher) Matches(x interface{}) bool {
 		return false
 	}
 
+	if !m.WrittenAt.Equal(writerOpenOptions.WrittenAt) {
+		return false
+	}
+
 	return true
 }
 
 func (m WriterOpenOptionsMatcher) String() string {
 	return fmt.Sprintf(
-		"namespace: %s, blocksize: %d, shard: %d, blockstart: %d",
-		m.Namespace.String(), m.BlockSize, m.Shard, m.BlockStart.Unix(),
+		"namespace: %s, blocksize: %d, shard: %d, blockstart: %d, writtenAt: %d",
+		m.Namespace.String(), m.BlockSize, m.Shard, m.BlockStart.Unix(), m.WrittenAt.Unix(),
 	)
 }

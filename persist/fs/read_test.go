@@ -117,6 +117,7 @@ func TestReadEmptyIndexUnreadData(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      0,
 		BlockStart: testWriterStart,
+		WrittenAt:  testWriterStart,
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -149,6 +150,7 @@ func TestReadDataError(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      0,
 		BlockStart: testWriterStart,
+		WrittenAt:  testWriterStart,
 	}
 	err = w.Open(writerOpts)
 	require.NoError(t, err)
@@ -193,6 +195,7 @@ func TestReadDataUnexpectedSize(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      0,
 		BlockStart: testWriterStart,
+		WrittenAt:  testWriterStart,
 	}
 	err = w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -229,6 +232,7 @@ func TestReadNoCheckpointFile(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      shard,
 		BlockStart: testWriterStart,
+		WrittenAt:  testWriterStart,
 	}
 	err := w.Open(writerOpts)
 	assert.NoError(t, err)
@@ -258,6 +262,7 @@ func testReadOpen(t *testing.T, fileData map[string][]byte) {
 		BlockSize:  testBlockSize,
 		Shard:      uint32(shard),
 		BlockStart: start,
+		WrittenAt:  start,
 	}
 	assert.NoError(t, w.Open(writerOpts))
 
@@ -342,6 +347,7 @@ func TestReadValidate(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      shard,
 		BlockStart: start,
+		WrittenAt:  start,
 	}
 	require.NoError(t, w.Open(writerOpts))
 

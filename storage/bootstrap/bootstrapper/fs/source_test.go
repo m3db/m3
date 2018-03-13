@@ -140,6 +140,7 @@ func writeTSDBFiles(t *testing.T, dir string, namespace ident.ID, shard uint32, 
 		BlockSize:  testBlockSize,
 		Shard:      shard,
 		BlockStart: start,
+		WrittenAt:  start,
 	}
 	require.NoError(t, w.Open(writerOpts))
 

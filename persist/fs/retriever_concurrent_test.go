@@ -87,6 +87,7 @@ func newOpenTestWriter(
 		BlockSize:  testBlockSize,
 		Shard:      shard,
 		BlockStart: start,
+		WrittenAt:  start,
 	}
 	require.NoError(t, w.Open(writerOpts))
 	return w, func() {

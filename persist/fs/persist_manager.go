@@ -249,10 +249,12 @@ func (pm *persistManager) Prepare(opts persist.PrepareOptions) (persist.Prepared
 
 	blockSize := nsMetadata.Options().RetentionOptions().BlockSize()
 	writerOpts := WriterOpenOptions{
-		Namespace:  nsID,
-		BlockSize:  blockSize,
-		Shard:      shard,
+		Namespace: nsID,
+		BlockSize: blockSize,
+		Shard:     shard,
+		// TODO: Need to distinguish between block start and written at
 		BlockStart: persistTime,
+		WrittenAt:  persistTime,
 		IsSnapshot: opts.IsSnapshot,
 	}
 	if err := pm.writer.Open(writerOpts); err != nil {

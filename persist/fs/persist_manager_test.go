@@ -115,6 +115,7 @@ func TestPersistenceManagerPrepareOpenError(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      shard,
 		BlockStart: blockStart,
+		WrittenAt:  blockStart,
 	}
 	writer.EXPECT().Open(writerOpts).Return(expectedErr)
 
@@ -150,6 +151,7 @@ func TestPersistenceManagerPrepareSuccess(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      shard,
 		BlockStart: blockStart,
+		WrittenAt:  blockStart,
 	}
 	writer.EXPECT().Open(writerOpts).Return(nil)
 
@@ -217,6 +219,7 @@ func TestPersistenceManagerNoRateLimit(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      shard,
 		BlockStart: blockStart,
+		WrittenAt:  blockStart,
 	}
 	writer.EXPECT().Open(writerOpts).Return(nil)
 
@@ -293,6 +296,7 @@ func TestPersistenceManagerWithRateLimit(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      shard,
 		BlockStart: blockStart,
+		WrittenAt:  blockStart,
 	}
 	writer.EXPECT().Open(writerOpts).Return(nil).Times(iter)
 	writer.EXPECT().WriteAll(id, pm.segmentHolder, checksum).Return(nil).AnyTimes()
@@ -381,6 +385,7 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      shard,
 		BlockStart: blockStart,
+		WrittenAt:  blockStart,
 	}
 	writer.EXPECT().Open(writerOpts).Return(nil)
 	prepareOpts := persist.PrepareOptions{
@@ -398,6 +403,7 @@ func TestPersistenceManagerNamespaceSwitch(t *testing.T) {
 		BlockSize:  testBlockSize,
 		Shard:      shard,
 		BlockStart: blockStart,
+		WrittenAt:  blockStart,
 	}
 	writer.EXPECT().Open(writerOpts).Return(nil)
 	prepareOpts = persist.PrepareOptions{

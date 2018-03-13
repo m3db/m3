@@ -84,6 +84,7 @@ func TestIndexLookupWriteRead(t *testing.T) {
 			BlockSize:  testBlockSize,
 			Shard:      shard,
 			BlockStart: testWriterStart,
+			WrittenAt:  testWriterStart,
 		}
 		err = w.Open(writerOpts)
 		if err != nil {
