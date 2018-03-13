@@ -152,10 +152,7 @@ func anyTag() gopter.Gen {
 				return false
 			}
 			value := values[1].(string)
-			if len(value) > limit {
-				return false
-			}
-			return true
+			return len(value) <= limit
 		}).
 		Map(func(values []interface{}) ident.Tag {
 			name := values[0].(string)

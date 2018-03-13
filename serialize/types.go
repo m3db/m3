@@ -121,7 +121,7 @@ type TagDecoderOptions interface {
 	TagSerializationLimits() TagSerializationLimits
 }
 
-// TagEncoderOptionsTagDecoderOptions sets the limits around tag serialization.
+// TagSerializationLimits sets the limits around tag serialization.
 type TagSerializationLimits interface {
 	// SetMaxNumberTags sets the maximum number of tags allowed.
 	SetMaxNumberTags(uint16) TagSerializationLimits
