@@ -21,22 +21,14 @@
 package serialize
 
 import (
-	"math"
-
 	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 )
 
 var (
-	// MaxNumberTags is the maximum number of tags that can be encoded.
-	MaxNumberTags = math.MaxUint16
-
-	// MaxTagLiteralLength is the maximum length of a tag Name/Value.
-	MaxTagLiteralLength uint16 = 4096
-
-	// HeaderMagicNumber is an internal header used to denote the beginning of
+	// headerMagicNumber is an internal header used to denote the beginning of
 	// an encoded stream.
-	HeaderMagicNumber uint16 = 10101
+	headerMagicNumber uint16 = 10101
 )
 
 // TagEncoder encodes provided Tag iterators.
@@ -66,6 +58,29 @@ type TagEncoderPool interface {
 
 	// Put puts the encoder back in the pool.
 	Put(TagEncoder)
+}
+
+// TagEncoderOptions sets the knobs for TagEncoder limits.
+type TagEncoderOptions interface {
+	// SetInitialCapacity sets the initial capacity of the bytes underlying
+	// the TagEncoder.
+	SetInitialCapacity(v int) TagEncoderOptions
+
+	// InitialCapacity returns the initial capacity of the bytes underlying
+	// the TagEncoder.
+	InitialCapacity() int
+
+	// SetMaxNumberTags sets the maximum number of tags allowed.
+	SetMaxNumberTags(uint16) TagEncoderOptions
+
+	// MaxNumberTags returns the maximum number of tags allowed.
+	MaxNumberTags() uint16
+
+	// SetMaxTagLiteralLength sets the maximum length of a tag Name/Value.
+	SetMaxTagLiteralLength(uint16) TagEncoderOptions
+
+	// MaxTagLiteralLength returns the maximum length of a tag Name/Value.
+	MaxTagLiteralLength() uint16
 }
 
 // TagDecoder decodes an encoded byte stream to a TagIterator.

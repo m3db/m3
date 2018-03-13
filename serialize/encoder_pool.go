@@ -24,21 +24,22 @@ import "github.com/m3db/m3x/pool"
 
 type encoderPool struct {
 	pool               pool.ObjectPool
+	opts               TagEncoderOptions
 	initTagEncoderSize int
 }
 
 // NewTagEncoderPool returns a new TagEncoderPool.
-func NewTagEncoderPool(initTagEncoderSize int, opts pool.ObjectPoolOptions) TagEncoderPool {
+func NewTagEncoderPool(topts TagEncoderOptions, opts pool.ObjectPoolOptions) TagEncoderPool {
 	pool := pool.NewObjectPool(opts)
 	return &encoderPool{
-		pool:               pool,
-		initTagEncoderSize: initTagEncoderSize,
+		pool: pool,
+		opts: topts,
 	}
 }
 
 func (p *encoderPool) Init() {
 	p.pool.Init(func() interface{} {
-		return newTagEncoder(p.initTagEncoderSize, p)
+		return newTagEncoder(p.opts, p)
 	})
 }
 

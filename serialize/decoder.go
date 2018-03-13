@@ -64,7 +64,7 @@ func (d *decoder) Reset(b checked.Bytes) {
 		return
 	}
 
-	if header != HeaderMagicNumber {
+	if header != headerMagicNumber {
 		d.err = errIncorrectHeader
 		return
 	}

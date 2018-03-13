@@ -28,7 +28,7 @@ import (
 )
 
 func newTestTagEncoderPool() TagEncoderPool {
-	return NewTagEncoderPool(1024, nil)
+	return NewTagEncoderPool(newTestOptions(), nil)
 }
 
 func TestTagEncoderPool(t *testing.T) {

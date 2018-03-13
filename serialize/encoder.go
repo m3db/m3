@@ -51,7 +51,7 @@ import (
 
 var (
 	byteOrder        binary.ByteOrder = binary.LittleEndian
-	headerMagicBytes                  = encodeUInt16(HeaderMagicNumber)
+	headerMagicBytes                  = encodeUInt16(headerMagicNumber)
 )
 
 var (
@@ -63,15 +63,17 @@ type encoder struct {
 	buf          *bytes.Buffer
 	checkedBytes checked.Bytes
 
+	opts TagEncoderOptions
 	pool TagEncoderPool
 }
 
-func newTagEncoder(initialSize int, pool TagEncoderPool) TagEncoder {
-	b := make([]byte, 0, initialSize)
+func newTagEncoder(opts TagEncoderOptions, pool TagEncoderPool) TagEncoder {
+	b := make([]byte, 0, opts.InitialCapacity())
 	cb := checked.NewBytes(nil, nil)
 	return &encoder{
 		buf:          bytes.NewBuffer(b),
 		checkedBytes: cb,
+		opts:         opts,
 		pool:         pool,
 	}
 }
@@ -85,8 +87,8 @@ func (e *encoder) Encode(srcTags ident.TagIterator) error {
 	defer tags.Close()
 
 	numTags := tags.Remaining()
-	if numTags > MaxNumberTags {
-		return fmt.Errorf("too many tags to encode (%d), limit is: %d", numTags, MaxNumberTags)
+	if numTags > int(e.opts.MaxNumberTags()) {
+		return fmt.Errorf("too many tags to encode (%d), limit is: %d", numTags, e.opts.MaxNumberTags())
 	}
 
 	if _, err := e.buf.Write(headerMagicBytes); err != nil {
@@ -153,7 +155,7 @@ func (e *encoder) encodeTag(t ident.Tag) error {
 
 func (e *encoder) encodeID(i ident.ID) error {
 	d := i.Data().Get()
-	if len(d) >= int(MaxTagLiteralLength) {
+	if len(d) >= int(e.opts.MaxTagLiteralLength()) {
 		return errTagLiteralTooLong
 	}
 
