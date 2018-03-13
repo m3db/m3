@@ -122,20 +122,21 @@ type multiDecoderState struct {
 }
 
 type decoderState struct {
-	numTags           int
-	idx               int
-	nextHasBeenCalled bool
+	numTags      int
+	numNextCalls int
+	closed       bool
 }
 
 func (d decoderState) String() string {
-	return fmt.Sprintf("[ nextCalled=%v, idx=%d ]", d.nextHasBeenCalled, d.idx)
+	return fmt.Sprintf("[ numTags=%d, closed=%v, numNextCalls=%d ]",
+		d.numTags, d.closed, d.numNextCalls)
 }
 
 func (d *decoderState) numRemaining() int {
-	if !d.nextHasBeenCalled {
-		return d.numTags
+	if d.closed {
+		return 0
 	}
-	remain := d.numTags - (d.idx + 1)
+	remain := d.numTags - d.numNextCalls
 	if remain >= 0 {
 		return remain
 	}
@@ -210,20 +211,20 @@ var nextCmd = &commands.ProtoCommand{
 	},
 	NextStateFunc: func(state commands.State) commands.State {
 		s := state.(*multiDecoderState)
-		if !s.primary.nextHasBeenCalled {
-			s.primary.nextHasBeenCalled = true
-			if len(s.tags) > 0 {
-				// i.e. only increment tag references the first time we allocate
-				s.numRefs += 2 // tagName & tagValue
-			}
-		} else {
-			s.primary.idx++
+		if s.primary.closed {
+			return s
+		}
+		s.primary.numNextCalls++
+		if s.primary.numTags <= 0 {
+			return s
+		}
+		if s.primary.numNextCalls == 1 {
+			// i.e. only increment tag references the first time we allocate
+			s.numRefs += 2 // tagName & tagValue
 		}
 		// when we have gone past the end, remove references to tagName/tagValue
-		if s.primary.numRemaining() == -1 {
-			if len(s.tags) > 0 {
-				s.numRefs -= 2
-			}
+		if s.primary.numNextCalls == 1+s.primary.numTags {
+			s.numRefs -= 2
 		}
 		return s
 	},
@@ -289,13 +290,13 @@ var duplicateCmd = &commands.ProtoCommand{
 	},
 	NextStateFunc: func(state commands.State) commands.State {
 		s := state.(*multiDecoderState)
-		if s.numRefs > 0 {
+		if !s.primary.closed && s.numRefs > 0 {
 			// i.e. we have a checked bytes still present, so we
 			// atleast make another reference to it.
 			s.numRefs++
 		}
 		// if we have any current tags, we should inc ref by 2 because of it
-		if s.primary.nextHasBeenCalled && s.primary.numRemaining() >= 0 && len(s.tags) > 0 {
+		if s.primary.numTags > 0 && s.primary.numNextCalls > 0 && s.primary.numNextCalls <= s.primary.numTags {
 			s.numRefs += 2
 		}
 		s.duplicates = append(s.duplicates, s.primary)

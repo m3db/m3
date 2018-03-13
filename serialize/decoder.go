@@ -79,12 +79,8 @@ func (d *decoder) Reset(b checked.Bytes) {
 }
 
 func (d *decoder) Next() bool {
-	if d.err != nil {
-		return false
-	}
-
 	d.release()
-	if d.remaining <= 0 {
+	if d.err != nil || d.remaining <= 0 {
 		return false
 	}
 
@@ -163,6 +159,7 @@ func (d *decoder) release() {
 		d.checkedData.DecRef() // indicate we've released the extra ref
 		d.current.Value = nil
 	}
+	d.hasCurrent = false
 }
 
 func (d *decoder) Remaining() int {
