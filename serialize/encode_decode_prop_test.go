@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -92,7 +92,7 @@ func TestPropertyAnyReasonableTagSlicesAreAight(t *testing.T) {
 
 func encodeAndDecode(t ident.TagIterator) (ident.TagIterator, error) {
 	copy := t.Duplicate()
-	enc := newTagEncoder(newTestOptions(), nil)
+	enc := newTagEncoder(defaultNewCheckedBytesFn, newTestOptions(), nil)
 	if err := enc.Encode(copy); err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func encodeAndDecode(t ident.TagIterator) (ident.TagIterator, error) {
 	if !ok {
 		return nil, fmt.Errorf("unable to retrieve data")
 	}
-	dec := newTagDecoder(nil, checkedBytesWrapperPool)
+	dec := newTagDecoder(nil, testCheckedBytesWrapperPool)
 	dec.Reset(data)
 	return dec, nil
 }

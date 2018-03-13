@@ -20,7 +20,9 @@
 
 package serialize
 
-import "github.com/m3db/m3x/pool"
+import (
+	"github.com/m3db/m3x/pool"
+)
 
 type encoderPool struct {
 	pool               pool.ObjectPool
@@ -39,7 +41,7 @@ func NewTagEncoderPool(topts TagEncoderOptions, opts pool.ObjectPoolOptions) Tag
 
 func (p *encoderPool) Init() {
 	p.pool.Init(func() interface{} {
-		return newTagEncoder(p.opts, p)
+		return newTagEncoder(defaultNewCheckedBytesFn, p.opts, p)
 	})
 }
 

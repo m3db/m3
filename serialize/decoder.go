@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -188,14 +188,18 @@ func (d *decoder) Finalize() {
 	d.pool.Put(d)
 }
 
+func (d *decoder) cloneCurrent() ident.Tag {
+	name := d.wrapperPool.Get(d.current.Name.Data().Get())
+	d.checkedData.IncRef()
+	value := d.wrapperPool.Get(d.current.Value.Data().Get())
+	d.checkedData.IncRef()
+	return ident.BinaryTag(name, value)
+}
+
 func (d *decoder) Duplicate() ident.TagIterator {
 	copy := *d
 	if copy.hasCurrent {
-		// TODO(prateek): use idPool.CloneTag
-		copy.current = ident.StringTag(
-			copy.current.Name.String(),
-			copy.current.Value.String(),
-		)
+		copy.current = d.cloneCurrent()
 	}
 	if copy.checkedData != nil {
 		copy.checkedData.IncRef()

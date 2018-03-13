@@ -36,8 +36,8 @@ func benchmarkTags() ident.Tags {
 func BenchmarkCustomReadWrite(b *testing.B) {
 	tags := benchmarkTags()
 	iter := ident.NewTagSliceIterator(tags)
-	enc := newTagEncoder(newTestOptions(), nil)
-	dec := newTagDecoder(nil, checkedBytesWrapperPool)
+	enc := newTagEncoder(defaultNewCheckedBytesFn, newTestOptions(), nil)
+	dec := newTagDecoder(nil, testCheckedBytesWrapperPool)
 
 	b.ResetTimer()
 	b.ReportAllocs()

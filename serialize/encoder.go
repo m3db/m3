@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -59,6 +59,10 @@ var (
 	errTagLiteralTooLong = errors.New("literal is too long")
 )
 
+type newCheckedBytesFn func([]byte, checked.BytesOptions) checked.Bytes
+
+var defaultNewCheckedBytesFn = checked.NewBytes
+
 type encoder struct {
 	buf          *bytes.Buffer
 	checkedBytes checked.Bytes
@@ -67,9 +71,13 @@ type encoder struct {
 	pool TagEncoderPool
 }
 
-func newTagEncoder(opts TagEncoderOptions, pool TagEncoderPool) TagEncoder {
+func newTagEncoder(
+	newFn newCheckedBytesFn,
+	opts TagEncoderOptions,
+	pool TagEncoderPool,
+) TagEncoder {
 	b := make([]byte, 0, opts.InitialCapacity())
-	cb := checked.NewBytes(nil, nil)
+	cb := newFn(nil, nil)
 	return &encoder{
 		buf:          bytes.NewBuffer(b),
 		checkedBytes: cb,

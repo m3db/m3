@@ -21,6 +21,7 @@
 package serialize
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/m3db/m3db/x/xpool"
@@ -33,11 +34,11 @@ const (
 	testCheckedBytesWrapperPoolSize = 2
 )
 
-var checkedBytesWrapperPool xpool.CheckedBytesWrapperPool
+var testCheckedBytesWrapperPool xpool.CheckedBytesWrapperPool
 
 func init() {
-	checkedBytesWrapperPool = xpool.NewCheckedBytesWrapperPool(testCheckedBytesWrapperPoolSize)
-	checkedBytesWrapperPool.Init()
+	testCheckedBytesWrapperPool = xpool.NewCheckedBytesWrapperPool(testCheckedBytesWrapperPoolSize)
+	testCheckedBytesWrapperPool.Init()
 }
 
 func TestEmptyDecode(t *testing.T) {
@@ -45,7 +46,7 @@ func TestEmptyDecode(t *testing.T) {
 	b = append(b, headerMagicBytes...)
 	b = append(b, []byte{0x0, 0x0}...)
 
-	d := newTagDecoder(nil, checkedBytesWrapperPool)
+	d := newTagDecoder(nil, testCheckedBytesWrapperPool)
 	d.Reset(wrapAsCheckedBytes(b))
 	require.False(t, d.Next())
 	require.NoError(t, d.Err())
@@ -145,6 +146,7 @@ func TestDecodeMissingValue(t *testing.T) {
 	require.False(t, d.Next())
 	require.Error(t, d.Err())
 }
+
 func TestDecodeCloneLifecycle(t *testing.T) {
 	b := testTagDecoderBytes()
 	d := newTestTagDecoder()
@@ -153,7 +155,6 @@ func TestDecodeCloneLifecycle(t *testing.T) {
 
 	oldLen := d.Remaining()
 	copy := d.Duplicate()
-
 	require.Equal(t, oldLen, copy.Remaining())
 
 	for copy.Next() {
@@ -166,8 +167,34 @@ func TestDecodeCloneLifecycle(t *testing.T) {
 	d.Finalize()
 }
 
+func TestDecodeCloneIteration(t *testing.T) {
+	b := testTagDecoderBytes()
+	d := newTestTagDecoder()
+	d.Reset(b)
+	require.NoError(t, d.Err())
+	require.True(t, d.Next())
+
+	oldLen := d.Remaining()
+	copy := d.Duplicate()
+	require.Equal(t, oldLen, copy.Remaining())
+
+	for copy.Next() {
+		tag := copy.Current()  // keep looping
+		tag.Name.Data().Get()  // ensure we can get values too
+		tag.Value.Data().Get() // and don't panic
+	}
+	require.NoError(t, copy.Err())
+	copy.Close()
+
+	dec := d.(*decoder)
+	require.True(t, dec.checkedData.NumRef() >= 3, fmt.Sprintf("%d", dec.checkedData.NumRef()))
+	require.NotPanics(t, func() {
+		d.Finalize()
+	})
+}
+
 func newTestTagDecoder() TagDecoder {
-	return newTagDecoder(nil, checkedBytesWrapperPool)
+	return newTagDecoder(nil, testCheckedBytesWrapperPool)
 }
 
 func wrapAsCheckedBytes(b []byte) checked.Bytes {

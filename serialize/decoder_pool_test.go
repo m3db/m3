@@ -27,7 +27,7 @@ import (
 )
 
 func newTestTagDecoderPool() TagDecoderPool {
-	return NewTagDecoderPool(checkedBytesWrapperPool, nil)
+	return NewTagDecoderPool(testCheckedBytesWrapperPool, nil)
 }
 
 func TestTagDecoderPool(t *testing.T) {

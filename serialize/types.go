@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -38,6 +38,9 @@ type TagEncoder interface {
 	Encode(ident.TagIterator) error
 
 	// Data returns the encoded bytes.
+	// NB: The bytes returned as still owned by the TagEncoder. i.e. They are
+	// only safe for use until Reset/Finalize is called upon the original
+	// TagEncoder.
 	Data() (checked.Bytes, bool)
 
 	// Reset resets the internal state to allow reuse of the encoder.

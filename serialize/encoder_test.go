@@ -24,8 +24,10 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/m3db/m3x/checked"
 	"github.com/m3db/m3x/ident"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +36,7 @@ func newTestOptions() TagEncoderOptions {
 }
 
 func newTestTagEncoder() TagEncoder {
-	return newTagEncoder(newTestOptions(), nil)
+	return newTagEncoder(defaultNewCheckedBytesFn, newTestOptions(), nil)
 }
 
 func TestEmptyEncode(t *testing.T) {
@@ -109,7 +111,7 @@ func TestSimpleEncode(t *testing.T) {
 
 func TestTagEncoderErrorEncoding(t *testing.T) {
 	opts := NewTagEncoderOptions()
-	e := newTagEncoder(opts, nil)
+	e := newTagEncoder(defaultNewCheckedBytesFn, opts, nil)
 	tags := ident.NewTagIterator(
 		ident.StringTag("abc", "defg"),
 		ident.StringTag("x", nstring(int(opts.MaxTagLiteralLength())+1)),
@@ -123,6 +125,90 @@ func TestTagEncoderErrorEncoding(t *testing.T) {
 	e.Reset()
 	tags = ident.NewTagIterator(ident.StringTag("abc", "defg"))
 	require.NoError(t, e.Encode(tags))
+}
+
+func TestEmptyTagIterEncode(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockBytes := checked.NewMockBytes(ctrl)
+	newBytesFn := func([]byte, checked.BytesOptions) checked.Bytes {
+		return mockBytes
+	}
+
+	clonedIter := ident.NewMockTagIterator(ctrl)
+	iter := ident.NewMockTagIterator(ctrl)
+
+	mockBytes.EXPECT().IncRef()
+	mockBytes.EXPECT().Reset(gomock.Any())
+	gomock.InOrder(
+		mockBytes.EXPECT().NumRef().Return(0),
+		iter.EXPECT().Duplicate().Return(clonedIter),
+		clonedIter.EXPECT().Remaining().Return(0),
+		clonedIter.EXPECT().Next().Return(false),
+		clonedIter.EXPECT().Err().Return(nil),
+		clonedIter.EXPECT().Close(),
+	)
+
+	enc := newTagEncoder(newBytesFn, newTestOptions(), nil)
+	require.NoError(t, enc.Encode(iter))
+}
+
+func TestTooManyTags(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	clonedIter := ident.NewMockTagIterator(ctrl)
+	iter := ident.NewMockTagIterator(ctrl)
+	testOpts := newTestOptions()
+
+	gomock.InOrder(
+		iter.EXPECT().Duplicate().Return(clonedIter),
+		clonedIter.EXPECT().Remaining().Return(1+int(testOpts.MaxNumberTags())),
+		clonedIter.EXPECT().Close(),
+	)
+
+	enc := newTagEncoder(defaultNewCheckedBytesFn, testOpts, nil)
+	require.Error(t, enc.Encode(iter))
+}
+
+func TestSingleValueTagIterEncode(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockBytes := checked.NewMockBytes(ctrl)
+	newBytesFn := func([]byte, checked.BytesOptions) checked.Bytes {
+		return mockBytes
+	}
+
+	clonedIter := ident.NewMockTagIterator(ctrl)
+	iter := ident.NewMockTagIterator(ctrl)
+
+	mockBytes.EXPECT().IncRef()
+	mockBytes.EXPECT().Reset(gomock.Any())
+	gomock.InOrder(
+		mockBytes.EXPECT().NumRef().Return(0),
+		iter.EXPECT().Duplicate().Return(clonedIter),
+		clonedIter.EXPECT().Remaining().Return(1),
+		clonedIter.EXPECT().Next().Return(true),
+		clonedIter.EXPECT().Current().Return(
+			ident.StringTag("some", "tag"),
+		),
+		clonedIter.EXPECT().Next().Return(false),
+		clonedIter.EXPECT().Err().Return(nil),
+		clonedIter.EXPECT().Close(),
+	)
+
+	enc := newTagEncoder(newBytesFn, newTestOptions(), nil)
+	require.NoError(t, enc.Encode(iter))
+
+	mockBytes.EXPECT().NumRef().Return(1)
+	require.Error(t, enc.Encode(iter))
+
+	mockBytes.EXPECT().NumRef().Return(1)
+	mockBytes.EXPECT().Reset(nil)
+	mockBytes.EXPECT().DecRef()
+	enc.Reset()
 }
 
 func nstring(n int) string {
