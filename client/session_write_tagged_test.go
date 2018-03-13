@@ -29,20 +29,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/m3db/m3x/checked"
-
 	"github.com/m3db/m3db/generated/thrift/rpc"
 	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/topology"
 	xmetrics "github.com/m3db/m3db/x/metrics"
+	"github.com/m3db/m3x/checked"
 	xerrors "github.com/m3db/m3x/errors"
 	"github.com/m3db/m3x/ident"
 	xtime "github.com/m3db/m3x/time"
-	"github.com/uber-go/tally"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 )
 
 func TestSessionWriteTaggedNotOpenError(t *testing.T) {

@@ -26,11 +26,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/m3db/m3db/serialize"
-
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/generated/thrift/rpc"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/storage/block"
 	"github.com/m3db/m3db/storage/bootstrap/result"
 	"github.com/m3db/m3db/storage/index"

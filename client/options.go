@@ -27,11 +27,10 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/m3db/m3db/serialize"
-
 	"github.com/m3db/m3db/clock"
 	"github.com/m3db/m3db/encoding"
 	"github.com/m3db/m3db/encoding/m3tsz"
+	"github.com/m3db/m3db/serialize"
 	"github.com/m3db/m3db/topology"
 	"github.com/m3db/m3x/context"
 	"github.com/m3db/m3x/ident"
