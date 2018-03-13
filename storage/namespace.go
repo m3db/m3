@@ -135,6 +135,7 @@ type databaseNamespaceStatsLastTick struct {
 type databaseNamespaceMetrics struct {
 	bootstrap           instrument.MethodMetrics
 	flush               instrument.MethodMetrics
+	snapshot            instrument.MethodMetrics
 	write               instrument.MethodMetrics
 	writeTagged         instrument.MethodMetrics
 	read                instrument.MethodMetrics
@@ -161,6 +162,8 @@ type databaseNamespaceTickMetrics struct {
 	activeBlocks           tally.Gauge
 	openBlocks             tally.Gauge
 	wiredBlocks            tally.Gauge
+	wiredBlocksSeriesOnly  tally.Gauge
+	wiredBlocksBufferOnly  tally.Gauge
 	unwiredBlocks          tally.Gauge
 	madeUnwiredBlocks      tally.Counter
 	madeExpiredBlocks      tally.Counter
@@ -204,6 +207,8 @@ func newDatabaseNamespaceMetrics(scope tally.Scope, samplingRate float64) databa
 			activeBlocks:           tickScope.Gauge("active-blocks"),
 			openBlocks:             tickScope.Gauge("open-blocks"),
 			wiredBlocks:            tickScope.Gauge("wired-blocks"),
+			wiredBlocksSeriesOnly:  tickScope.Gauge("wired-blocks-series-only"),
+			wiredBlocksBufferOnly:  tickScope.Gauge("wired-blocks-buffer-only"),
 			unwiredBlocks:          tickScope.Gauge("unwired-blocks"),
 			madeUnwiredBlocks:      tickScope.Counter("made-unwired-blocks"),
 			madeExpiredBlocks:      tickScope.Counter("made-expired-blocks"),
@@ -461,6 +466,8 @@ func (n *dbNamespace) Tick(c context.Cancellable) error {
 	n.metrics.tick.activeBlocks.Update(float64(r.activeBlocks))
 	n.metrics.tick.openBlocks.Update(float64(r.openBlocks))
 	n.metrics.tick.wiredBlocks.Update(float64(r.wiredBlocks))
+	n.metrics.tick.wiredBlocksSeriesOnly.Update(float64(r.wiredBlocksSeriesOnly))
+	n.metrics.tick.wiredBlocksBufferOnly.Update(float64(r.wiredBlocksBufferOnly))
 	n.metrics.tick.unwiredBlocks.Update(float64(r.unwiredBlocks))
 	n.metrics.tick.madeExpiredBlocks.Inc(int64(r.madeExpiredBlocks))
 	n.metrics.tick.madeUnwiredBlocks.Inc(int64(r.madeUnwiredBlocks))
@@ -765,15 +772,13 @@ func (n *dbNamespace) Snapshot(flush persist.Flush) error {
 	n.RLock()
 	if n.bs != bootstrapped {
 		n.RUnlock()
-		// TODO: New metric
-		// n.metrics.flush.ReportError(n.nowFn().Sub(callStart))
+		n.metrics.snapshot.ReportError(n.nowFn().Sub(callStart))
 		return errNamespaceNotBootstrapped
 	}
 	n.RUnlock()
 
 	if !n.nopts.NeedsSnapshot() {
-		// TODO: Emit metrics
-		// n.metrics.flush.ReportSuccess(n.nowFn().Sub(callStart))
+		n.metrics.snapshot.ReportSuccess(n.nowFn().Sub(callStart))
 		return nil
 	}
 
@@ -782,12 +787,15 @@ func (n *dbNamespace) Snapshot(flush persist.Flush) error {
 	for _, shard := range shards {
 		isSnapshotting, lastSuccessfulSnapshot := shard.SnapshotState()
 		if isSnapshotting {
-			// TODO: Emit log, should never happen
+			n.log.
+				WithFields(xlog.NewField("shard", shard.ID())).
+				Errorf("tried to snapshot shard that is already snapshotting")
 			continue
 		}
 
-		// TODO: Make time period configurable
+		// TODO: Make time period configurable or should we just always snapshots?
 		// TODO: Should probably have some relationship with flush timing as well. I.E
+		// TODO: Want to somehow prevent snapshotting accross blocks? maybe it doesn't matter
 		// we should not perform a snapshot 3 seconds before we're about to flush.
 		if callStart.Sub(lastSuccessfulSnapshot) < 15*time.Minute {
 			// Skip snapshotting if not enough time has elapsed since
@@ -796,7 +804,8 @@ func (n *dbNamespace) Snapshot(flush persist.Flush) error {
 		}
 
 		fmt.Println("Snapshotting shard: ", shard.ID(), " at time: ", callStart)
-		err := shard.Snapshot(callStart, flush)
+		// TODO: Fix me
+		err := shard.Snapshot(callStart, callStart, flush)
 		if err != nil {
 			// Log / metric?
 			detailedErr := fmt.Errorf("shard %d failed to snapshot: %v", shard.ID(), err)

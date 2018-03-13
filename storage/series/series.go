@@ -260,10 +260,15 @@ func (s *dbSeries) updateBlocksWithLock() updateBlocksResult {
 		}
 	}
 
+	seriesOnly := result.WiredBlocks
+	result.WiredBlocksSeries = seriesOnly
+
 	bufferStats := s.buffer.Stats()
 	result.ActiveBlocks += bufferStats.wiredBlocks
 	result.WiredBlocks += bufferStats.wiredBlocks
 	result.OpenBlocks += bufferStats.openBlocks
+
+	result.WiredBlocksBuffer = result.WiredBlocks - seriesOnly
 
 	return result
 }
@@ -610,6 +615,7 @@ func (s *dbSeries) Flush(
 
 func (s *dbSeries) Snapshot(
 	ctx context.Context,
+	blockStart time.Time,
 	persistFn persist.Fn,
 ) error {
 	s.RLock()
@@ -620,8 +626,9 @@ func (s *dbSeries) Snapshot(
 	}
 
 	var (
-		min, max = s.buffer.MinMax()
-		buckets  = s.buffer.ReadEncoded(ctx, min, max)
+		blockSize = s.opts.RetentionOptions().BlockSize()
+		// Only snapshot data for the specified block that is still in the buffers / was bootstrapped
+		buckets  = s.buffer.ReadEncoded(ctx, blockStart, blockStart.Add(blockSize))
 		multiErr = xerrors.NewMultiError()
 	)
 

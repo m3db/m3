@@ -26,6 +26,8 @@ type tickResult struct {
 	activeBlocks           int
 	openBlocks             int
 	wiredBlocks            int
+	wiredBlocksSeriesOnly  int
+	wiredBlocksBufferOnly  int
 	unwiredBlocks          int
 	madeExpiredBlocks      int
 	madeUnwiredBlocks      int

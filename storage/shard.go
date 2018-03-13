@@ -689,7 +689,6 @@ func (s *dbShard) tickAndExpire(
 			}
 			expired = expired[:0]
 		}
-
 		// Continue
 		return true
 	})
@@ -1685,6 +1684,7 @@ func (s *dbShard) Flush(
 }
 
 func (s *dbShard) Snapshot(
+	blockStart time.Time,
 	snapshotStart time.Time,
 	flush persist.Flush,
 ) error {
@@ -1707,7 +1707,8 @@ func (s *dbShard) Snapshot(
 		NsMetadata: s.namespace,
 		Shard:      s.ID(),
 		// TODO: This should be the actually blockstart not the snapshotStart
-		BlockStart: snapshotStart,
+		// TODO: How do we ensure the snapshot is only for a given block?
+		BlockStart: blockStart,
 		WrittenAt:  snapshotStart,
 		IsSnapshot: true,
 	}

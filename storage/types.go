@@ -395,7 +395,7 @@ type databaseShard interface {
 	) error
 
 	// Snapshot snapshot's the unflushed series' in this shard.
-	Snapshot(snapshotStart time.Time, flush persist.Flush) error
+	Snapshot(blockStart time.Time, snapshotStart time.Time, flush persist.Flush) error
 
 	// FlushState returns the flush state for this shard at block start.
 	FlushState(blockStart time.Time) fileOpState

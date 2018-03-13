@@ -94,7 +94,7 @@ type DatabaseSeries interface {
 
 	// Snapshot snapshots the buffer buckets of this series for any data that has
 	// not been rotated into a block yet
-	Snapshot(ctx context.Context, persistFn persist.Fn) error
+	Snapshot(ctx context.Context, blockStart time.Time, persistFn persist.Fn) error
 
 	// Close will close the series and if pooled returned to the pool
 	Close()
@@ -139,7 +139,9 @@ type TickStatus struct {
 	// WiredBlocks is the number of blocks wired in memory (all data kept)
 	WiredBlocks int
 	// UnwiredBlocks is the number of blocks unwired (data kept on disk)
-	UnwiredBlocks int
+	UnwiredBlocks     int
+	WiredBlocksSeries int
+	WiredBlocksBuffer int
 }
 
 // TickResult is a set of results from a tick
