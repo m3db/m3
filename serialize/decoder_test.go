@@ -27,6 +27,7 @@ import (
 	"github.com/m3db/m3db/x/xpool"
 	"github.com/m3db/m3x/checked"
 
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -147,7 +148,7 @@ func TestDecodeMissingValue(t *testing.T) {
 	require.Error(t, d.Err())
 }
 
-func TestDecodeCloneLifecycle(t *testing.T) {
+func TestDecodeDuplicateLifecycle(t *testing.T) {
 	b := testTagDecoderBytes()
 	d := newTestTagDecoder()
 	d.Reset(b)
@@ -167,7 +168,7 @@ func TestDecodeCloneLifecycle(t *testing.T) {
 	d.Finalize()
 }
 
-func TestDecodeCloneIteration(t *testing.T) {
+func TestDecodeDuplicateIteration(t *testing.T) {
 	b := testTagDecoderBytes()
 	d := newTestTagDecoder()
 	d.Reset(b)
@@ -193,6 +194,62 @@ func TestDecodeCloneIteration(t *testing.T) {
 	})
 }
 
+func TestDecodeDuplicateLifecycleMocks(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	rawData := testTagDecoderBytesRaw()
+	mockBytes := checked.NewMockBytes(ctrl)
+	mockBytes.EXPECT().Get().Return(rawData).AnyTimes()
+
+	mockBytes.EXPECT().IncRef()
+	d := newTestTagDecoder()
+	d.Reset(mockBytes)
+	require.NoError(t, d.Err())
+
+	mockBytes.EXPECT().IncRef().Times(2)
+	require.True(t, d.Next())
+	tag := d.Current()
+	require.Equal(t, "abc", tag.Name.String())
+	require.Equal(t, "defg", tag.Value.String())
+
+	mockBytes.EXPECT().IncRef().Times(3)
+	dupe := d.Duplicate()
+	require.NoError(t, dupe.Err())
+
+	mockBytes.EXPECT().DecRef().Times(2)
+	mockBytes.EXPECT().IncRef().Times(2)
+	require.True(t, d.Next())
+	tag = d.Current()
+	require.Equal(t, "x", tag.Name.String())
+	require.Equal(t, "bar", tag.Value.String())
+
+	mockBytes.EXPECT().DecRef().Times(2)
+	require.False(t, d.Next())
+	require.NoError(t, d.Err())
+
+	mockBytes.EXPECT().DecRef()
+	mockBytes.EXPECT().NumRef().Return(3)
+	d.Close()
+	d.Finalize()
+
+	mockBytes.EXPECT().DecRef().Times(2)
+	mockBytes.EXPECT().IncRef().Times(2)
+	require.True(t, dupe.Next())
+	tag = dupe.Current()
+	require.Equal(t, "x", tag.Name.String())
+	require.Equal(t, "bar", tag.Value.String())
+
+	mockBytes.EXPECT().DecRef().Times(2)
+	require.False(t, dupe.Next())
+	require.NoError(t, dupe.Err())
+
+	mockBytes.EXPECT().DecRef()
+	mockBytes.EXPECT().NumRef().Return(0)
+	mockBytes.EXPECT().Finalize()
+	dupe.Close()
+}
+
 func newTestTagDecoder() TagDecoder {
 	return newTagDecoder(nil, testCheckedBytesWrapperPool)
 }
@@ -211,7 +268,7 @@ func wrapAsCheckedBytes(b []byte) checked.Bytes {
 	return cb
 }
 
-func testTagDecoderBytes() checked.Bytes {
+func testTagDecoderBytesRaw() []byte {
 	var b []byte
 	b = append(b, headerMagicBytes...)
 	b = append(b, encodeUInt16(uint16(2))...) /* num tags */
@@ -227,6 +284,9 @@ func testTagDecoderBytes() checked.Bytes {
 
 	b = append(b, encodeUInt16(3)...) /* len bar */
 	b = append(b, []byte("bar")...)
+	return b
+}
 
-	return wrapAsCheckedBytes(b)
+func testTagDecoderBytes() checked.Bytes {
+	return wrapAsCheckedBytes(testTagDecoderBytesRaw())
 }

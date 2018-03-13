@@ -85,7 +85,7 @@ var decoderCommandsFunctor = func(t *testing.T) *commands.ProtoCommands {
 }
 
 func newDecoderState() gopter.Gen {
-	return anyAsciiTags().Map(
+	return anyASCIITags().Map(
 		func(tags ident.Tags) *multiDecoderState {
 			enc := newTestTagEncoder()
 			if err := enc.Encode(ident.NewTagSliceIterator(tags)); err != nil {
@@ -347,7 +347,7 @@ var swapToDuplicateCmd = &commands.ProtoCommand{
 // Duplicate
 // Finalize
 
-func anyAsciiTag() gopter.Gen {
+func anyASCIITag() gopter.Gen {
 	return gopter.CombineGens(gen.Identifier(), gen.Identifier()).
 		Map(func(values []interface{}) ident.Tag {
 			name := values[0].(string)
@@ -356,4 +356,4 @@ func anyAsciiTag() gopter.Gen {
 		})
 }
 
-func anyAsciiTags() gopter.Gen { return gen.SliceOf(anyAsciiTag()) }
+func anyASCIITags() gopter.Gen { return gen.SliceOf(anyASCIITag()) }

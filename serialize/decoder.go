@@ -79,11 +79,15 @@ func (d *decoder) Reset(b checked.Bytes) {
 }
 
 func (d *decoder) Next() bool {
-	if d.err != nil || d.remaining <= 0 {
+	if d.err != nil {
 		return false
 	}
 
 	d.release()
+	if d.remaining <= 0 {
+		return false
+	}
+
 	t, err := d.decodeTag()
 	if err != nil {
 		d.err = err
