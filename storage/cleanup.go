@@ -29,6 +29,7 @@ import (
 	"github.com/m3db/m3db/persist/fs"
 	"github.com/m3db/m3db/retention"
 	xerrors "github.com/m3db/m3x/errors"
+	"github.com/m3db/m3x/ident"
 
 	"github.com/uber-go/tally"
 )
@@ -93,9 +94,14 @@ func (m *cleanupManager) Cleanup(t time.Time) error {
 			"encountered errors when cleaning up fileset files for %v: %v", t, err))
 	}
 
-	if err := m.deleteInactiveFilesetFiles(); err != nil {
+	if err := m.deleteInactiveDatafiles(); err != nil {
 		multiErr = multiErr.Add(fmt.Errorf(
-			"encountered errors when deleting inactive fileset files for %v: %v", t, err))
+			"encountered errors when deleting inactive data files for %v: %v", t, err))
+	}
+
+	if err := m.deleteInactiveSnapshotFiles(); err != nil {
+		multiErr = multiErr.Add(fmt.Errorf(
+			"encountered errors when deleting inactive snapshot files for %v: %v", t, err))
 	}
 
 	if err := m.deleteInactiveNamespaceFiles(); err != nil {
@@ -147,7 +153,19 @@ func (m *cleanupManager) deleteInactiveNamespaceFiles() error {
 	return m.deleteInactiveDirectoriesFn(dataDirPath, namespaceDirNames)
 }
 
-func (m *cleanupManager) deleteInactiveFilesetFiles() error {
+// deleteInactiveDatafiles will delete data files for shards that the node no longer owns
+// which can occur in the case of topology changes
+func (m *cleanupManager) deleteInactiveDatafiles() error {
+	return m.deleteInactiveFilesetFiles(fs.NamespaceDataDirPath)
+}
+
+// deleteInactiveSnapshotFiles will delete snapshot files for shards that the node no longer owns
+// which can occur in the case of topology changes
+func (m *cleanupManager) deleteInactiveSnapshotFiles() error {
+	return m.deleteInactiveFilesetFiles(fs.NamespaceSnapshotsDirPath)
+}
+
+func (m *cleanupManager) deleteInactiveFilesetFiles(filesetFilesDirPathFn func(string, ident.ID) string) error {
 	multiErr := xerrors.NewMultiError()
 	filePathPrefix := m.database.Options().CommitLogOptions().FilesystemOptions().FilePathPrefix()
 	namespaces, err := m.database.GetOwnedNamespaces()
@@ -156,7 +174,7 @@ func (m *cleanupManager) deleteInactiveFilesetFiles() error {
 	}
 	for _, n := range namespaces {
 		var activeShards []string
-		namespaceDirPath := fs.NamespaceDataDirPath(filePathPrefix, n.ID())
+		namespaceDirPath := filesetFilesDirPathFn(filePathPrefix, n.ID())
 		for _, s := range n.GetOwnedShards() {
 			shard := fmt.Sprintf("%d", s.ID())
 			activeShards = append(activeShards, shard)
