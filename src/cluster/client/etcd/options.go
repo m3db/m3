@@ -28,7 +28,7 @@ import (
 	"io/ioutil"
 	"time"
 
-	etcdsd "github.com/m3db/m3cluster/services/client/etcd"
+	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -157,7 +157,8 @@ func (o tlsOptions) Config() (*tls.Config, error) {
 // NewOptions creates a set of Options.
 func NewOptions() Options {
 	return options{
-		iopts: instrument.NewOptions(),
+		sdOpts: services.NewOptions(),
+		iopts:  instrument.NewOptions(),
 	}
 }
 
@@ -166,7 +167,7 @@ type options struct {
 	zone     string
 	service  string
 	cacheDir string
-	sdConfig etcdsd.Configuration
+	sdOpts   services.Options
 	clusters map[string]Cluster
 	iopts    instrument.Options
 }
@@ -205,12 +206,12 @@ func (o options) SetZone(z string) Options {
 	return o
 }
 
-func (o options) ServiceDiscoveryConfig() etcdsd.Configuration {
-	return o.sdConfig
+func (o options) ServicesOptions() services.Options {
+	return o.sdOpts
 }
 
-func (o options) SetServiceDiscoveryConfig(cfg etcdsd.Configuration) Options {
-	o.sdConfig = cfg
+func (o options) SetServicesOptions(cfg services.Options) Options {
+	o.sdOpts = cfg
 	return o
 }
 

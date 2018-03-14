@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,21 +18,64 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package etcd
+package services
 
 import (
-	"testing"
-
-	"github.com/m3db/m3cluster/services"
-
-	"github.com/stretchr/testify/assert"
+	"github.com/m3db/m3x/watch"
 )
 
-func TestKeys(t *testing.T) {
-	sid := services.NewServiceID().SetName("m3db").SetEnvironment("production")
-	assert.Equal(t, "production/m3db", serviceKey(sid))
-	assert.Equal(t, "_sd.placement/production/m3db", keyFnWithNamespace(placementPrefix)(sid))
-	assert.Equal(t, "_sd.metadata/production/m3db", keyFnWithNamespace(metadataPrefix)(sid))
-	assert.Equal(t, "testns/production/m3db", keyFnWithNamespace("testns")(sid))
-	assert.Equal(t, "production/m3db/instance1", adKey(sid, "instance1"))
+// NewWatch creates a Watch.
+func NewWatch(w watch.Watch) Watch {
+	return &serviceWatch{value: w}
+}
+
+type serviceWatch struct {
+	value watch.Watch
+}
+
+func (w *serviceWatch) Close() {
+	w.value.Close()
+}
+
+func (w *serviceWatch) C() <-chan struct{} {
+	return w.value.C()
+}
+
+func (w *serviceWatch) Get() Service {
+	return w.value.Get().(Service)
+}
+
+type serviceWatchable interface {
+	watches() int
+	update(v Service)
+	get() Service
+	watch() (Service, Watch, error)
+}
+
+type watchable struct {
+	value watch.Watchable
+}
+
+func newServiceWatchable() serviceWatchable {
+	return &watchable{value: watch.NewWatchable()}
+}
+
+func (w *watchable) watches() int {
+	return w.value.NumWatches()
+}
+
+func (w *watchable) update(v Service) {
+	w.value.Update(v)
+}
+
+func (w *watchable) get() Service {
+	return w.value.Get().(Service)
+}
+
+func (w *watchable) watch() (Service, Watch, error) {
+	curr, newWatch, err := w.value.Watch()
+	if err != nil {
+		return nil, nil, err
+	}
+	return curr.(Service), NewWatch(newWatch), nil
 }

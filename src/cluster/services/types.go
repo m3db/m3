@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,19 +24,96 @@ import (
 	"time"
 
 	"github.com/m3db/m3cluster/generated/proto/metadatapb"
+	"github.com/m3db/m3cluster/kv"
 	"github.com/m3db/m3cluster/placement"
 	"github.com/m3db/m3cluster/services/leader/campaign"
 	"github.com/m3db/m3cluster/shard"
+	"github.com/m3db/m3x/instrument"
 	xwatch "github.com/m3db/m3x/watch"
 )
 
-// Options are options to configure the service discovery service.
+// Services provides access to the service topology.
+type Services interface {
+	// Advertise advertises the availability of an instance of a service.
+	Advertise(ad Advertisement) error
+
+	// Unadvertise indicates a given instance is no longer available.
+	Unadvertise(service ServiceID, id string) error
+
+	// Query returns the topology for a given service.
+	Query(service ServiceID, opts QueryOptions) (Service, error)
+
+	// Watch returns a watch on metadata and a list of available instances for a given service.
+	Watch(service ServiceID, opts QueryOptions) (Watch, error)
+
+	// Metadata returns the metadata for a given service.
+	Metadata(sid ServiceID) (Metadata, error)
+
+	// SetMetadata sets the metadata for a given service.
+	SetMetadata(sid ServiceID, m Metadata) error
+
+	// PlacementService returns a client of placement.Service.
+	PlacementService(sid ServiceID, popts placement.Options) (placement.Service, error)
+
+	// HeartbeatService returns a heartbeat store for the given service.
+	HeartbeatService(service ServiceID) (HeartbeatService, error)
+
+	// LeaderService returns an instance of a leader service for the given
+	// service ID.
+	LeaderService(service ServiceID, opts ElectionOptions) (LeaderService, error)
+}
+
+// KVGen generates a kv store for a given zone.
+type KVGen func(zone string) (kv.Store, error)
+
+// HeartbeatGen generates a heartbeat store for a given zone.
+type HeartbeatGen func(sid ServiceID) (HeartbeatService, error)
+
+// LeaderGen generates a leader service instance for a given service.
+type LeaderGen func(sid ServiceID, opts ElectionOptions) (LeaderService, error)
+
+// Options are options for the client of Services.
 type Options interface {
-	// NamespaceOptions is the namespace options.
+	// InitTimeout is the max time to wait on a new service watch for a valid initial value.
+	// If the value is set to 0, then no wait will be done and the watch could return empty value.
+	InitTimeout() time.Duration
+
+	// SetInitTimeout sets the InitTimeout.
+	SetInitTimeout(t time.Duration) Options
+
+	// KVGen is the function to generate a kv store for a given zone.
+	KVGen() KVGen
+
+	// SetKVGen sets the KVGen.
+	SetKVGen(gen KVGen) Options
+
+	// HeartbeatGen is the function to generate a heartbeat store for a given zone.
+	HeartbeatGen() HeartbeatGen
+
+	// SetHeartbeatGen sets the HeartbeatGen.
+	SetHeartbeatGen(gen HeartbeatGen) Options
+
+	// LeaderGen is the function to generate a leader service instance for a
+	// given service.
+	LeaderGen() LeaderGen
+
+	// SetLeaderGen sets the leader generation function.
+	SetLeaderGen(gen LeaderGen) Options
+
+	// InstrumentsOptions is the instrument options.
+	InstrumentsOptions() instrument.Options
+
+	// SetInstrumentsOptions sets the InstrumentsOptions.
+	SetInstrumentsOptions(iopts instrument.Options) Options
+
+	// NamespaceOptions is the custom namespaces.
 	NamespaceOptions() NamespaceOptions
 
-	// SetNamespaceOptions sets namespace options.
+	// SetNamespaceOptions sets the NamespaceOptions.
 	SetNamespaceOptions(opts NamespaceOptions) Options
+
+	// Validate validates the Options.
+	Validate() error
 }
 
 // NamespaceOptions are options to provide custom namespaces in service discovery service.
@@ -55,98 +132,76 @@ type NamespaceOptions interface {
 	SetMetadataNamespace(v string) NamespaceOptions
 }
 
-// Services provides access to the service topology
-type Services interface {
-	// Advertise advertises the availability of an instance of a service
-	Advertise(ad Advertisement) error
+// OverrideOptions configs the override for service discovery.
+type OverrideOptions interface {
+	// NamespaceOptions is the namespace options.
+	NamespaceOptions() NamespaceOptions
 
-	// Unadvertise indicates a given instance is no longer available
-	Unadvertise(service ServiceID, id string) error
-
-	// Query returns the topology for a given service
-	Query(service ServiceID, opts QueryOptions) (Service, error)
-
-	// Watch returns a watch on metadata and a list of available instances for a given service
-	Watch(service ServiceID, opts QueryOptions) (Watch, error)
-
-	// Metadata returns the metadata for a given service
-	Metadata(sid ServiceID) (Metadata, error)
-
-	// SetMetadata sets the metadata for a given service
-	SetMetadata(sid ServiceID, m Metadata) error
-
-	// PlacementService returns a client of placement.Service
-	PlacementService(sid ServiceID, popts placement.Options) (placement.Service, error)
-
-	// HeartbeatService returns a heartbeat store for the given service.
-	HeartbeatService(service ServiceID) (HeartbeatService, error)
-
-	// LeaderService returns an instance of a leader service for the given
-	// service ID.
-	LeaderService(service ServiceID, opts ElectionOptions) (LeaderService, error)
+	// SetNamespaceOptions sets namespace options.
+	SetNamespaceOptions(opts NamespaceOptions) OverrideOptions
 }
 
-// Watch is a watcher that issues notification when a service is updated
+// Watch is a watcher that issues notification when a service is updated.
 type Watch interface {
 	// Close closes the watch.
 	Close()
 
-	// C returns the notification channel
+	// C returns the notification channel.
 	C() <-chan struct{}
 
-	// Get returns the latest service of the service watchable
+	// Get returns the latest service of the service watchable.
 	Get() Service
 }
 
-// Service describes the metadata and instances of a service
+// Service describes the metadata and instances of a service.
 type Service interface {
-	// Instance returns the service instance with the instance id
+	// Instance returns the service instance with the instance id.
 	Instance(instanceID string) (ServiceInstance, error)
 
-	// Instances returns the service instances
+	// Instances returns the service instances.
 	Instances() []ServiceInstance
 
-	// SetInstances sets the service instances
+	// SetInstances sets the service instances.
 	SetInstances(insts []ServiceInstance) Service
 
-	// Replication returns the service replication description or nil if none
+	// Replication returns the service replication description or nil if none.
 	Replication() ServiceReplication
 
-	// SetReplication sets the service replication description or nil if none
+	// SetReplication sets the service replication description or nil if none.
 	SetReplication(r ServiceReplication) Service
 
-	// Sharding returns the service sharding description or nil if none
+	// Sharding returns the service sharding description or nil if none.
 	Sharding() ServiceSharding
 
 	// SetSharding sets the service sharding description or nil if none
 	SetSharding(s ServiceSharding) Service
 }
 
-// ServiceReplication describes the replication of a service
+// ServiceReplication describes the replication of a service.
 type ServiceReplication interface {
-	// Replicas is the count of replicas
+	// Replicas is the count of replicas.
 	Replicas() int
 
-	// SetReplicas sets the count of replicas
+	// SetReplicas sets the count of replicas.
 	SetReplicas(r int) ServiceReplication
 }
 
-// ServiceSharding describes the sharding of a service
+// ServiceSharding describes the sharding of a service.
 type ServiceSharding interface {
-	// NumShards is the number of shards to use for sharding
+	// NumShards is the number of shards to use for sharding.
 	NumShards() int
 
-	// SetNumShards sets the number of shards to use for sharding
+	// SetNumShards sets the number of shards to use for sharding.
 	SetNumShards(n int) ServiceSharding
 
-	// IsSharded() returns whether this service is sharded
+	// IsSharded() returns whether this service is sharded.
 	IsSharded() bool
 
-	// SetIsSharded sets IsSharded
+	// SetIsSharded sets IsSharded.
 	SetIsSharded(s bool) ServiceSharding
 }
 
-// ServiceInstance is a single instance of a service
+// ServiceInstance is a single instance of a service.
 type ServiceInstance interface {
 	// ServiceID returns the service id of the instance.
 	ServiceID() ServiceID
@@ -173,7 +228,7 @@ type ServiceInstance interface {
 	SetShards(s shard.Shards) ServiceInstance
 }
 
-// Advertisement advertises the availability of a given instance of a service
+// Advertisement advertises the availability of a given instance of a service.
 type Advertisement interface {
 	// the service being advertised.
 	ServiceID() ServiceID
@@ -195,7 +250,7 @@ type Advertisement interface {
 	SetPlacementInstance(p placement.Instance) Advertisement
 }
 
-// ServiceID contains the fields required to id a service
+// ServiceID contains the fields required to id a service.
 type ServiceID interface {
 	// Name returns the service name of the ServiceID.
 	Name() string
@@ -228,48 +283,48 @@ type QueryOptions interface {
 	SetIncludeUnhealthy(h bool) QueryOptions
 }
 
-// Metadata contains the metadata for a service
+// Metadata contains the metadata for a service.
 type Metadata interface {
-	// String returns a description of the metadata
+	// String returns a description of the metadata.
 	String() string
 
-	// Port returns the port to be used to contact the service
+	// Port returns the port to be used to contact the service.
 	Port() uint32
 
-	// SetPort sets the port
+	// SetPort sets the port.
 	SetPort(p uint32) Metadata
 
-	// LivenessInterval is the ttl interval for an instance to be considered as healthy
+	// LivenessInterval is the ttl interval for an instance to be considered as healthy.
 	LivenessInterval() time.Duration
 
-	// SetLivenessInterval sets the LivenessInterval
+	// SetLivenessInterval sets the LivenessInterval.
 	SetLivenessInterval(l time.Duration) Metadata
 
-	// HeartbeatInterval is the interval for heatbeats
+	// HeartbeatInterval is the interval for heatbeats.
 	HeartbeatInterval() time.Duration
 
-	// SetHeartbeatInterval sets the HeartbeatInterval
+	// SetHeartbeatInterval sets the HeartbeatInterval.
 	SetHeartbeatInterval(h time.Duration) Metadata
 
 	// Proto returns the proto representation for the Metadata.
 	Proto() (*metadatapb.Metadata, error)
 }
 
-// HeartbeatService manages heartbeating instances
+// HeartbeatService manages heartbeating instances.
 type HeartbeatService interface {
-	// Heartbeat sends heartbeat for a service instance with a ttl
+	// Heartbeat sends heartbeat for a service instance with a ttl.
 	Heartbeat(instance placement.Instance, ttl time.Duration) error
 
-	// Get gets healthy instances for a service
+	// Get gets healthy instances for a service.
 	Get() ([]string, error)
 
 	// GetInstances returns a deserialized list of healthy Instances.
 	GetInstances() ([]placement.Instance, error)
 
-	// Delete deletes the heartbeat for a service instance
+	// Delete deletes the heartbeat for a service instance.
 	Delete(instance string) error
 
-	// Watch watches the heartbeats for a service
+	// Watch watches the heartbeats for a service.
 	Watch() (xwatch.Watch, error)
 }
 

@@ -17,61 +17,49 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
-package etcd
+package services
 
 import (
-	"github.com/m3db/m3cluster/services"
-	xwatch "github.com/m3db/m3x/watch"
+	"testing"
+
+	"github.com/m3db/m3cluster/kv"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-type serviceWatchable interface {
-	watches() int
-	update(v services.Service)
-	get() services.Service
-	watch() (services.Service, services.Watch, error)
-}
-
-type watchable struct {
-	value xwatch.Watchable
-}
-
-func newServiceWatchable() serviceWatchable {
-	return &watchable{value: xwatch.NewWatchable()}
-}
-
-func (w *watchable) watches() int {
-	return w.value.NumWatches()
-}
-
-func (w *watchable) update(v services.Service) {
-	w.value.Update(v)
-}
-
-func (w *watchable) get() services.Service {
-	return w.value.Get().(services.Service)
-}
-
-func (w *watchable) watch() (services.Service, services.Watch, error) {
-	curr, newWatch, err := w.value.Watch()
-	if err != nil {
-		return nil, nil, err
+var (
+	emptyLdGen LeaderGen = func(sid ServiceID, eo ElectionOptions) (LeaderService, error) {
+		return nil, nil
 	}
-	return curr.(services.Service), &watch{value: newWatch}, nil
+)
+
+func TestOptions(t *testing.T) {
+	opts := NewOptions()
+	require.Equal(t, errNoKVGen, opts.Validate())
+
+	opts = opts.SetKVGen(func(zone string) (kv.Store, error) {
+		return nil, nil
+	})
+	require.Equal(t, errNoHeartbeatGen, opts.Validate())
+
+	opts = opts.SetHeartbeatGen(func(sid ServiceID) (HeartbeatService, error) {
+		return nil, nil
+	})
+	require.Error(t, opts.Validate())
+
+	opts = opts.SetLeaderGen(emptyLdGen)
+	require.NoError(t, opts.Validate())
+
+	opts = opts.SetInitTimeout(0)
+	require.Equal(t, errInvalidInitTimeout, opts.Validate())
 }
 
-type watch struct {
-	value xwatch.Watch
-}
+func TestNamespaceOptions(t *testing.T) {
+	opts := NewNamespaceOptions()
+	assert.Empty(t, opts.PlacementNamespace())
+	assert.Empty(t, opts.MetadataNamespace())
 
-func (w *watch) Close() {
-	w.value.Close()
-}
-
-func (w *watch) C() <-chan struct{} {
-	return w.value.C()
-}
-
-func (w *watch) Get() services.Service {
-	return w.value.Get().(services.Service)
+	opts = opts.SetPlacementNamespace("p").SetMetadataNamespace("m")
+	assert.Equal(t, "p", opts.PlacementNamespace())
+	assert.Equal(t, "m", opts.MetadataNamespace())
 }

@@ -24,7 +24,7 @@ import (
 	"crypto/tls"
 	"time"
 
-	etcdsd "github.com/m3db/m3cluster/services/client/etcd"
+	"github.com/m3db/m3cluster/services"
 	"github.com/m3db/m3x/instrument"
 )
 
@@ -42,8 +42,8 @@ type Options interface {
 	CacheDir() string
 	SetCacheDir(dir string) Options
 
-	ServiceDiscoveryConfig() etcdsd.Configuration
-	SetServiceDiscoveryConfig(cfg etcdsd.Configuration) Options
+	ServicesOptions() services.Options
+	SetServicesOptions(opts services.Options) Options
 
 	Clusters() []Cluster
 	SetClusters(clusters []Cluster) Options

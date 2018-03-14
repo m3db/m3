@@ -330,7 +330,7 @@ func TestMultipleWatchesFromNotExist(t *testing.T) {
 	<-w2.C()
 	require.Empty(t, w2.Get())
 
-	err = store.Heartbeat(i1, 1*time.Second)
+	err = store.Heartbeat(i1, 2*time.Second)
 	require.NoError(t, err)
 
 	for {
@@ -351,7 +351,7 @@ func TestMultipleWatchesFromNotExist(t *testing.T) {
 	require.Equal(t, 0, len(w2.C()))
 	require.Equal(t, []string{"i1"}, w2.Get())
 
-	err = store.Heartbeat(i2, 2*time.Second)
+	err = store.Heartbeat(i2, 4*time.Second)
 	require.NoError(t, err)
 
 	for {

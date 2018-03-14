@@ -176,11 +176,11 @@ func TestServicesWithNamespace(t *testing.T) {
 	defer closer()
 	c.newFn = fn
 
-	sd1, err := c.Services(services.NewOptions())
+	sd1, err := c.Services(services.NewOverrideOptions())
 	require.NoError(t, err)
 
 	nOpts := services.NewNamespaceOptions().SetPlacementNamespace("p").SetMetadataNamespace("m")
-	sd2, err := c.Services(services.NewOptions().SetNamespaceOptions(nOpts))
+	sd2, err := c.Services(services.NewOverrideOptions().SetNamespaceOptions(nOpts))
 	require.NoError(t, err)
 
 	require.NotEqual(t, sd1, sd2)
