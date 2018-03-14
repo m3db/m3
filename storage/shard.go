@@ -1706,8 +1706,6 @@ func (s *dbShard) Snapshot(
 	prepareOpts := persist.PrepareOptions{
 		NsMetadata: s.namespace,
 		Shard:      s.ID(),
-		// TODO: This should be the actually blockstart not the snapshotStart
-		// TODO: How do we ensure the snapshot is only for a given block?
 		BlockStart: blockStart,
 		WrittenAt:  snapshotStart,
 		IsSnapshot: true,
